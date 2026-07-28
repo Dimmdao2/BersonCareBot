@@ -12,25 +12,25 @@
 
 Phase 5 по **`05_QA_DOCS_PLAN.md`** — **docs-only**; исполняемый код приложения не менялся (**`LOG.md` § Phase 5 EXEC**).
 
-| Вопрос (`AUDIT_TEMPLATE.md` §2) | Результат |
-|----------------------------------|-----------|
-| Content/copy страниц приложения не менялся? | **Да** — изменений TS/TSX под Phase 5 не было. |
-| Порядок секций / structure / flow страниц? | **Да** — без изменений коду. |
-| Ссылки, маршруты, query params? | **Да** — без изменений коду. |
-| Data fetching? | **Да** — без изменений коду. |
-| Services / repos / API routes / migrations? | **Да** — не затрагивались. |
-| Doctor / admin? | **Да** — Phase 5 не редактировала app-код. |
-| Patient primitives вместо разовой стилизации? | **N/A для Phase 5 EXEC** — примитивы относятся к фазам 1–4; Phase 5 только документирует и готовит global audit. |
+| Вопрос (`AUDIT_TEMPLATE.md` §2)                        | Результат                                                                                                                                                   |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Content/copy страниц приложения не менялся?            | **Да** — изменений TS/TSX под Phase 5 не было.                                                                                                              |
+| Порядок секций / structure / flow страниц?             | **Да** — без изменений коду.                                                                                                                                |
+| Ссылки, маршруты, query params?                        | **Да** — без изменений коду.                                                                                                                                |
+| Data fetching?                                         | **Да** — без изменений коду.                                                                                                                                |
+| Services / repos / API routes / migrations?            | **Да** — не затрагивались.                                                                                                                                  |
+| Doctor / admin?                                        | **Да** — Phase 5 не редактировала app-код.                                                                                                                  |
+| Patient primitives вместо разовой стилизации?          | **N/A для Phase 5 EXEC** — примитивы относятся к фазам 1–4; Phase 5 только документирует и готовит global audit.                                            |
 | Home-specific geometry не разнесена на чужие страницы? | **По документам и предыдущим аудитам** — да; явная проверка grep по репозиторию запланирована в **`GLOBAL_AUDIT.md` §6** при выполнении глобального аудита. |
 
 Дополнительно (**особые проверки запроса**):
 
-| Проверка | Результат |
-|----------|-----------|
-| **Docs consistent** | **`LOG.md`** (Phase 5), **`CHECKLISTS.md`** (§4 выполнен по EXEC 2–4; §4.1 deferred), **`GLOBAL_AUDIT.md`** (prep), **`docs/README.md`** (ссылки на инициативу + CHECKLISTS + 05_QA + GLOBAL_AUDIT), **`05_QA_DOCS_PLAN.md`** (чеклист Phase 5 отмечен) — согласованы между собой. |
-| **No broad redesign language** | В **`docs/PATIENT_APP_STYLE_TRANSFER_INITIATIVE/**/*.md`** встречаются формулировки **«не редизайн» / «style transfer only, not content redesign»**, пункт **`MASTER_PLAN.md` § «Style transfer does not mean»** включая слово *redesign* как **запрет**, ссылки на **`PATIENT_APP_VISUAL_REDESIGN_INITIATIVE`** / Home specs как **внешний baseline** — это не объявление редизайна scope этой инициативы. Широкого переписывания целей как «visual redesign initiative» внутри Style Transfer — не обнаружено. |
-| **Route matrix / deferred gaps** | **`CHECKLISTS.md` §4** — все пункты матрицы Phase 2–4 отмечены **[x]**; **`§4.1`** явно документирует deferred маршруты и согласуется с **`PLAN_INVENTORY.md` §1** и **`LOG.md`** (product/content gaps deferred). |
-| **Ready for GLOBAL_AUDIT** | **Да** — **`GLOBAL_AUDIT.md`** задаёт prerequisites, шаги по **`AUDIT_TEMPLATE.md`**, команды и область deferred routes; выполнение глобального аудита — отдельная сессия; закрытие инициативы — после заполнения **`GLOBAL_AUDIT.md`** вердиктом, не после Phase 5 alone. |
+| Проверка                         | Результат                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Docs consistent**              | **`LOG.md`** (Phase 5), **`CHECKLISTS.md`** (§4 выполнен по EXEC 2–4; §4.1 deferred), **`GLOBAL_AUDIT.md`** (prep), **`docs/README.md`** (ссылки на инициативу + CHECKLISTS + 05_QA + GLOBAL_AUDIT), **`05_QA_DOCS_PLAN.md`** (чеклист Phase 5 отмечен) — согласованы между собой.                                                                                                                                                                                                                                  |
+| **No broad redesign language**   | В **`docs/PATIENT_APP_STYLE_TRANSFER_INITIATIVE/**/*.md`** встречаются формулировки **«не редизайн» / «style transfer only, not content redesign»**, пункт **`MASTER_PLAN.md` § «Style transfer does not mean»\*\* включая слово *redesign\* как **запрет**, ссылки на **`PATIENT_APP_VISUAL_REDESIGN_INITIATIVE`** / Home specs как **внешний baseline** — это не объявление редизайна scope этой инициативы. Широкого переписывания целей как «visual redesign initiative» внутри Style Transfer — не обнаружено. |
+| **Route matrix / deferred gaps** | **`CHECKLISTS.md` §4** — все пункты матрицы Phase 2–4 отмечены **[x]**; **`§4.1`** явно документирует deferred маршруты и согласуется с **`PLAN_INVENTORY.md` §1** и **`LOG.md`** (product/content gaps deferred).                                                                                                                                                                                                                                                                                                  |
+| **Ready for GLOBAL_AUDIT**       | **Да** — **`GLOBAL_AUDIT.md`** задаёт prerequisites, шаги по **`AUDIT_TEMPLATE.md`**, команды и область deferred routes; выполнение глобального аудита — отдельная сессия; закрытие инициативы — после заполнения **`GLOBAL_AUDIT.md`** вердиктом, не после Phase 5 alone.                                                                                                                                                                                                                                          |
 
 ## 3. Mandatory Fixes
 
@@ -46,13 +46,13 @@ No mandatory fixes.
 
 ## 5. Checks Reviewed/Run
 
-| Проверка | Статус |
-|----------|--------|
-| Чтение **`LOG.md`**, **`CHECKLISTS.md`**, **`GLOBAL_AUDIT.md`**, **`05_QA_DOCS_PLAN.md`**, **`docs/README.md`** | Выполнено в этой audit-сессии |
-| Grep по **`redesign` / `редизайн`** в **`docs/PATIENT_APP_STYLE_TRANSFER_INITIATIVE/*.md`** | Выполнено — см. §2 |
-| По **`LOG.md` (Phase 5 EXEC)** | Зафиксированы: `pnpm --dir apps/webapp typecheck`; `pnpm --dir apps/webapp lint` |
-| В этой audit-сессии | Повторный typecheck/lint **не запускались** — опора на запись Phase 5 EXEC |
-| Root `pnpm run ci` | Не запускался |
+| Проверка                                                                                                        | Статус                                                                           |
+| --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Чтение **`LOG.md`**, **`CHECKLISTS.md`**, **`GLOBAL_AUDIT.md`**, **`05_QA_DOCS_PLAN.md`**, **`docs/README.md`** | Выполнено в этой audit-сессии                                                    |
+| Grep по **`redesign` / `редизайн`** в **`docs/PATIENT_APP_STYLE_TRANSFER_INITIATIVE/*.md`**                     | Выполнено — см. §2                                                               |
+| По **`LOG.md` (Phase 5 EXEC)**                                                                                  | Зафиксированы: `pnpm --dir apps/webapp typecheck`; `pnpm --dir apps/webapp lint` |
+| В этой audit-сессии                                                                                             | Повторный typecheck/lint **не запускались** — опора на запись Phase 5 EXEC       |
+| Root `pnpm run ci`                                                                                              | Не запускался                                                                    |
 
 ## 6. Route/Component Coverage
 
@@ -66,7 +66,7 @@ No mandatory fixes.
 
 Перенесено из **`LOG.md` § Phase 5** и предыдущих аудитов (не решать в style-transfer без продукта):
 
-- Extra/deferred маршруты (**home**, **booking landing**, **messages**, **emergency**, **lessons**, **address**, **intake/***, частично **install** — см. §4.1).
+- Extra/deferred маршруты (**home**, **booking landing**, **messages**, **emergency**, **lessons**, **address**, **intake/\***, частично **install** — см. §4.1).
 - Опциональный будущий style pass для **`BookingFormatGrid.tsx`** при появлении импортов (**`AUDIT_PHASE_4`**).
 - Опциональный вынос инлайн-токенов **`CabinetInfoLinks`** в **`patientVisual`** (polish).
 - Визуальный регресс по viewport (**`CHECKLISTS.md` §5**) — на человека / global audit.

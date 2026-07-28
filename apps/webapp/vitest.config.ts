@@ -1,18 +1,18 @@
-import { defineConfig } from "vitest/config";
-import path from "node:path";
+import { defineConfig } from 'vitest/config';
+import path from 'node:path';
 
-const sharedEnv = { DOTENV_CONFIG_QUIET: "true" } as const;
+const sharedEnv = { DOTENV_CONFIG_QUIET: 'true' } as const;
 
 export default defineConfig({
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      '@': path.resolve(__dirname, './src'),
     },
   },
   test: {
     globals: true,
-    globalSetup: ["./vitest.globalSetup.ts"],
-    setupFiles: ["./vitest.setup.ts"],
+    globalSetup: ['./vitest.globalSetup.ts'],
+    setupFiles: ['./vitest.setup.ts'],
     env: sharedEnv,
     // §owner 28.06: КАП ВОРКЕРОВ — тесты не форкаются на все ядра (вешали коробку и голодили мозг — инцидент #214).
     // Дефолт 2 (~25% от 8 vCPU). Полная мощность ОСОЗНАННО: VITEST_MAX_WORKERS=8 pnpm test.
@@ -25,15 +25,15 @@ export default defineConfig({
       {
         extends: true,
         test: {
-          name: "fast",
-          environment: "node",
+          name: 'fast',
+          environment: 'node',
           include: [
-            "src/**/*.test.ts",
-            "src/**/*.test.tsx",
-            "e2e/**/*.test.ts",
-            "scripts/check-s4-entitlement-coverage.test.ts",
+            'src/**/*.test.ts',
+            'src/**/*.test.tsx',
+            'e2e/**/*.test.ts',
+            'scripts/check-s4-entitlement-coverage.test.ts',
           ],
-          exclude: ["node_modules", ".next", "**/e2e/*inprocess*.test.ts"],
+          exclude: ['node_modules', '.next', '**/e2e/*inprocess*.test.ts'],
           testTimeout: 20_000,
           hookTimeout: 25_000,
         },
@@ -41,10 +41,10 @@ export default defineConfig({
       {
         extends: true,
         test: {
-          name: "inprocess",
-          environment: "node",
-          include: ["e2e/*inprocess*.test.ts"],
-          exclude: ["node_modules", ".next"],
+          name: 'inprocess',
+          environment: 'node',
+          include: ['e2e/*inprocess*.test.ts'],
+          exclude: ['node_modules', '.next'],
           /** Отдельные `it` без холодного графа — как в `fast`; долгий прогрев только в `beforeAll` со своим timeout */
           testTimeout: 20_000,
           hookTimeout: 25_000,

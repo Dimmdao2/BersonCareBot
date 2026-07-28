@@ -1,18 +1,18 @@
-import type { ReactNode } from "react";
-import { Suspense } from "react";
-import { AppAccessDeniedToastEffect } from "@/shared/ui/AppAccessDeniedToastEffect";
-import { StaffPwaBootstrap } from "@/shared/ui/doctor/pwa/StaffPwaBootstrap";
-import { StaffWebPushBootstrap } from "@/shared/ui/doctor/pwa/StaffWebPushBootstrap";
-import { canAccessDoctor } from "@/modules/roles/service";
-import { resolveLaunchCapabilities } from "@/app-layer/guards/workspaceCapabilities";
-import { DoctorAdminSidebar } from "@/shared/ui/doctor/shell/DoctorAdminSidebar";
-import { DoctorHeader } from "@/shared/ui/doctor/shell/DoctorHeader";
-import { DoctorSupportUnreadProvider } from "@/shared/ui/doctor/shell/DoctorSupportUnreadProvider";
-import { getDoctorShellHomeHref } from "@/shared/ui/doctor/doctorNavLinks";
-import { DOCTOR_WORKSPACE_TOP_PADDING_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
-import type { UserRole } from "@/shared/types/session";
-import type { DoctorWorkspaceContext } from "@/modules/doctor-workspace/types";
-import { cn } from "@/lib/utils";
+import type { ReactNode } from 'react';
+import { Suspense } from 'react';
+import { AppAccessDeniedToastEffect } from '@/shared/ui/AppAccessDeniedToastEffect';
+import { StaffPwaBootstrap } from '@/shared/ui/doctor/pwa/StaffPwaBootstrap';
+import { StaffWebPushBootstrap } from '@/shared/ui/doctor/pwa/StaffWebPushBootstrap';
+import { canAccessDoctor } from '@/modules/roles/service';
+import { resolveLaunchCapabilities } from '@/app-layer/guards/workspaceCapabilities';
+import { DoctorAdminSidebar } from '@/shared/ui/doctor/shell/DoctorAdminSidebar';
+import { DoctorHeader } from '@/shared/ui/doctor/shell/DoctorHeader';
+import { DoctorSupportUnreadProvider } from '@/shared/ui/doctor/shell/DoctorSupportUnreadProvider';
+import { getDoctorShellHomeHref } from '@/shared/ui/doctor/doctorNavLinks';
+import { DOCTOR_WORKSPACE_TOP_PADDING_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
+import type { UserRole } from '@/shared/types/session';
+import type { DoctorWorkspaceContext } from '@/modules/doctor-workspace/types';
+import { cn } from '@/lib/utils';
 
 type DoctorWorkspaceShellProps = {
   adminMode: boolean;
@@ -39,7 +39,7 @@ type DoctorWorkspaceShellProps = {
    * admin is not a doctor, so its shell instances (`(global-admin)/doctor/layout.tsx`, the new
    * `app/platform/layout.tsx`) pass `"platform"` explicitly.
    */
-  menuKind?: "doctor" | "platform";
+  menuKind?: 'doctor' | 'platform';
   children: ReactNode;
 };
 
@@ -61,7 +61,7 @@ export function DoctorWorkspaceShell({
   coursesEnabled = false,
   enableTenantRuntime = true,
   brand,
-  menuKind = "doctor",
+  menuKind = 'doctor',
   children,
 }: DoctorWorkspaceShellProps) {
   const capabilities = Array.from(
@@ -76,15 +76,15 @@ export function DoctorWorkspaceShell({
   );
   const showDoctorDesktopNav =
     canAccessDoctor(userRole) &&
-    (capabilities.includes("clinical.workspace") ||
-      capabilities.includes("organization.management") ||
-      capabilities.includes("platform.operations"));
+    (capabilities.includes('clinical.workspace') ||
+      capabilities.includes('organization.management') ||
+      capabilities.includes('platform.operations'));
   const menuAccess = {
     capabilities,
     coursesEnabled,
   };
   const homeHref = getDoctorShellHomeHref(menuAccess);
-  const showClinicalShortcuts = capabilities.includes("clinical.workspace");
+  const showClinicalShortcuts = capabilities.includes('clinical.workspace');
 
   return (
     <DoctorSupportUnreadProvider enabled={enableTenantRuntime}>
@@ -105,7 +105,7 @@ export function DoctorWorkspaceShell({
           showClinicalShortcuts={showClinicalShortcuts}
           menuKind={menuKind}
         />
-        <div className={cn("flex min-h-0 flex-1", DOCTOR_WORKSPACE_TOP_PADDING_CLASS)}>
+        <div className={cn('flex min-h-0 flex-1', DOCTOR_WORKSPACE_TOP_PADDING_CLASS)}>
           {showDoctorDesktopNav ? (
             <DoctorAdminSidebar
               userDisplayName={userDisplayName}

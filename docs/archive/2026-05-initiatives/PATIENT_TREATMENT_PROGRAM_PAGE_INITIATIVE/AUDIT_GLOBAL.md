@@ -18,12 +18,12 @@
 
 ## 1. EXEC → AUDIT → FIX → COMMIT по каждому этапу
 
-| Этап | EXEC | AUDIT | FIX | COMMIT |
-|------|------|-------|-----|--------|
-| A | ✅ verify (`startedAt` pre-existing) | ✅ `AUDIT_STAGE_A.md` — PASS, 0 findings | ✅ нет исправлений | ✅ trail закрыт в Global FIX (запись в `LOG.md`, см. «Детали по Stage A — COMMIT (M1)» ниже) |
-| B | ✅ verify (detail MVP pre-existing) | ✅ `AUDIT_STAGE_B.md` — PASS, 0 findings | ✅ нет исправлений | ✅ `25469bd7` |
-| C | ✅ implement C1–C10 | ✅ `AUDIT_STAGE_C.md` — PASS, 4 minor → все закрыты | ✅ M1–M4 applied | ✅ `ac219941` |
-| D | ✅ verify + D1 polish | ✅ `AUDIT_STAGE_D.md` — PASS, 1 minor → defer | ✅ M1 deferred | ✅ `ea97f5c7` |
+| Этап | EXEC                                 | AUDIT                                               | FIX                | COMMIT                                                                                       |
+| ---- | ------------------------------------ | --------------------------------------------------- | ------------------ | -------------------------------------------------------------------------------------------- |
+| A    | ✅ verify (`startedAt` pre-existing) | ✅ `AUDIT_STAGE_A.md` — PASS, 0 findings            | ✅ нет исправлений | ✅ trail закрыт в Global FIX (запись в `LOG.md`, см. «Детали по Stage A — COMMIT (M1)» ниже) |
+| B    | ✅ verify (detail MVP pre-existing)  | ✅ `AUDIT_STAGE_B.md` — PASS, 0 findings            | ✅ нет исправлений | ✅ `25469bd7`                                                                                |
+| C    | ✅ implement C1–C10                  | ✅ `AUDIT_STAGE_C.md` — PASS, 4 minor → все закрыты | ✅ M1–M4 applied   | ✅ `ac219941`                                                                                |
+| D    | ✅ verify + D1 polish                | ✅ `AUDIT_STAGE_D.md` — PASS, 1 minor → defer       | ✅ M1 deferred     | ✅ `ea97f5c7`                                                                                |
 
 ### Детали по Stage A — COMMIT (M1)
 
@@ -39,12 +39,12 @@
 
 Проверено через предусловия в LOG.md и git history:
 
-| Переход | Подтверждение в LOG | Commit |
-|---------|---------------------|--------|
-| start → A | Stage A gate: правила прочитаны | `41c4c91a` |
-| A → B | «Подтверждено предусловие `STAGE_B.md`: Stage A закрыт» | `25469bd7` |
-| B → C | «Подтверждено предусловие `STAGE_C.md`: Stage B закрыт» | `ac219941` |
-| C → D | «Подтверждено предусловие `STAGE_D.md`: Stage C закрыт и закоммичен (`ac219941`)» | `ea97f5c7` |
+| Переход   | Подтверждение в LOG                                                               | Commit     |
+| --------- | --------------------------------------------------------------------------------- | ---------- |
+| start → A | Stage A gate: правила прочитаны                                                   | `41c4c91a` |
+| A → B     | «Подтверждено предусловие `STAGE_B.md`: Stage A закрыт»                           | `25469bd7` |
+| B → C     | «Подтверждено предусловие `STAGE_C.md`: Stage B закрыт»                           | `ac219941` |
+| C → D     | «Подтверждено предусловие `STAGE_D.md`: Stage C закрыт и закоммичен (`ac219941`)» | `ea97f5c7` |
 
 ✅ Порядок соблюдён. Каждый gate явно ссылается на закрытие предыдущего.
 
@@ -64,21 +64,23 @@
 
 Grep `%|percent|progress` в обоих ключевых файлах:
 
-| Файл | Совпадения | Характер |
-|------|-----------|---------|
-| `PatientTreatmentProgramDetailClient.tsx` | 7 | Исключительно пути API (`/progress/complete`, `/progress/lfk-session`, `/progress/test-attempt`, `/progress/test-result`) — URL-строки в `fetch()`, не UI-текст |
-| `PatientTreatmentProgramsListClient.tsx` | 0 | — |
-| `[instanceId]/stages/[stageId]/page.tsx` | 0 | — |
-| `PatientTreatmentProgramStagePageClient.tsx` | 0 | — |
+| Файл                                         | Совпадения | Характер                                                                                                                                                        |
+| -------------------------------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PatientTreatmentProgramDetailClient.tsx`    | 7          | Исключительно пути API (`/progress/complete`, `/progress/lfk-session`, `/progress/test-attempt`, `/progress/test-result`) — URL-строки в `fetch()`, не UI-текст |
+| `PatientTreatmentProgramsListClient.tsx`     | 0          | —                                                                                                                                                               |
+| `[instanceId]/stages/[stageId]/page.tsx`     | 0          | —                                                                                                                                                               |
+| `PatientTreatmentProgramStagePageClient.tsx` | 0          | —                                                                                                                                                               |
 
 Никаких `%` прогресса, `% этапа`, `% программы` в UI-тексте нет. ✅
 
 ### 3.3 Дата контроля считается от `started_at + expected_duration_days`
 
 В `PatientTreatmentProgramDetailClient.tsx`:
+
 ```
 const controlIso = currentWorkingStage ? expectedStageControlDateIso(currentWorkingStage) : null;
 ```
+
 `expectedStageControlDateIso` (из `stage-semantics.ts`) возвращает дату только при наличии обоих полей `startedAt` и `expectedDurationDays` — подтверждено в `AUDIT_STAGE_B.md` §5. ✅
 
 ### 3.4 Нет блока «Чек-лист на сегодня» в detail
@@ -98,6 +100,7 @@ Grep `Чек-лист на сегодня` → 0 UI-вхождений в JSX (2
 `git diff da3278a9..ea97f5c7 --name-only` (полный диапазон A→D):
 
 **Код (изменённые файлы):**
+
 ```
 apps/webapp/public/patient/ui/play.svg                               ← Stage C, новый ассет
 apps/webapp/src/app-layer/routes/paths.ts                            ← Stage C, additive (1 хелпер)
@@ -111,14 +114,14 @@ apps/webapp/src/shared/ui/patientVisual.ts                           ← Stage C
 
 **Не затронуто ни одним коммитом:**
 
-| Зона | Статус |
-|------|--------|
-| `apps/webapp/db/schema/` | ✅ 0 изменений |
-| `apps/webapp/db/drizzle-migrations/` | ✅ 0 изменений |
-| `apps/webapp/src/modules/` | ✅ 0 изменений |
-| `apps/webapp/src/infra/repos/` | ✅ 0 изменений |
-| `apps/webapp/src/infra/ports/` | ✅ 0 изменений |
-| doctor/admin маршруты | ✅ 0 изменений |
+| Зона                                                        | Статус         |
+| ----------------------------------------------------------- | -------------- |
+| `apps/webapp/db/schema/`                                    | ✅ 0 изменений |
+| `apps/webapp/db/drizzle-migrations/`                        | ✅ 0 изменений |
+| `apps/webapp/src/modules/`                                  | ✅ 0 изменений |
+| `apps/webapp/src/infra/repos/`                              | ✅ 0 изменений |
+| `apps/webapp/src/infra/ports/`                              | ✅ 0 изменений |
+| doctor/admin маршруты                                       | ✅ 0 изменений |
 | Сторонние patient-страницы (`/home`, `/diary`, `/messages`) | ✅ 0 изменений |
 
 Scope выдержан строго. ✅
@@ -127,33 +130,33 @@ Scope выдержан строго. ✅
 
 ## 5. Документация и LOG синхронизированы
 
-| Артефакт | Статус |
-|----------|--------|
-| `LOG.md` — gate-записи A/B/C/D | ✅ все присутствуют |
-| `LOG.md` — implementation-записи A1-A5, B1-B8, C1-C10, D1-D6 | ✅ |
-| `LOG.md` — FIX-записи по всем этапам | ✅ |
-| `LOG.md` — «X closed» по всем этапам | ✅ A, B, C, D |
-| `LOG.md` — «X closed + commit» | ✅ A (retro), B, C, D |
-| `AUDIT_STAGE_A.md` | ✅ присутствует |
-| `AUDIT_STAGE_B.md` | ✅ присутствует |
-| `AUDIT_STAGE_C.md` | ✅ присутствует |
-| `AUDIT_STAGE_D.md` | ✅ присутствует |
-| `STAGE_A/B/C/D.md`, `STAGE_PLAN.md` | ✅ присутствуют |
-| `ROADMAP_2.md` — §1.0/§1.1/§1.1a/§1.1b обновлены | ✅ синхронизированы |
+| Артефакт                                                     | Статус                |
+| ------------------------------------------------------------ | --------------------- |
+| `LOG.md` — gate-записи A/B/C/D                               | ✅ все присутствуют   |
+| `LOG.md` — implementation-записи A1-A5, B1-B8, C1-C10, D1-D6 | ✅                    |
+| `LOG.md` — FIX-записи по всем этапам                         | ✅                    |
+| `LOG.md` — «X closed» по всем этапам                         | ✅ A, B, C, D         |
+| `LOG.md` — «X closed + commit»                               | ✅ A (retro), B, C, D |
+| `AUDIT_STAGE_A.md`                                           | ✅ присутствует       |
+| `AUDIT_STAGE_B.md`                                           | ✅ присутствует       |
+| `AUDIT_STAGE_C.md`                                           | ✅ присутствует       |
+| `AUDIT_STAGE_D.md`                                           | ✅ присутствует       |
+| `STAGE_A/B/C/D.md`, `STAGE_PLAN.md`                          | ✅ присутствуют       |
+| `ROADMAP_2.md` — §1.0/§1.1/§1.1a/§1.1b обновлены             | ✅ синхронизированы   |
 
 ---
 
 ## 6. Итоговая таблица находок
 
-| ID | Уровень | Описание | Рекомендация |
-|----|---------|----------|--------------|
-| M1 | Minor (**закрыто**) | Изначально не было строки «Stage A closed + commit» в `LOG.md` при верификационном Stage A. | Выполнено в Global FIX: retro-запись в `LOG.md`. |
-| M2 | Minor | `README.md` инициативы всё ещё со статусом «в работе / планирование», тогда как `LOG.md` фиксирует закрытие A–D, PREPUSH и PUSH. | Обновить шапку статуса в `README.md` под факт закрытия (без секретов). |
-| M3 | Minor | `ROADMAP_2.md` §1.0 в блоке «Файлы» перечисляет `progress-service.ts`; фактическая реализация `started_at` — в репозитории (`pg` / `inMemory`), в `progress-service.ts` нет логики поля. | Уточнить в roadmap формулировку «ожидаемые места», чтобы не вводить агентов в заблуждение. |
-| M4 | Minor / спека | Тексты и IA `STAGE_B.md` B1 (CTA «Открыть текущий этап», ссылка «Архив этапов») и B4 (архив в `<details>`) после Stage C заменены hero + «Открыть план» (якорь), секцией «Предыдущие этапы» и компактным списком (C6). Поведение соответствует §1.1b / `STAGE_C.md`, но не дословно раннему B. | Зафиксировать в доках как намеренную эволюцию B → C; при продуктовой необходимости выровнять копирайт под §1.1a. |
-| M5 | Minor / покрытие | `pgTreatmentProgramInstance.startedAt.contract.test.ts` проверяет наличие подстрок в исходнике репозитория, а не прогон против БД. | Достаточно для верификационного A; при усилении — добавить интеграционный тест с реальной БД (отдельная задача). |
-| M6 | Minor / зафиксировано | `STAGE_C.md` C6: дата в архиве при `completedAt`; в `TreatmentProgramInstanceStageRow` поля нет — даты в компактном списке не показываются (как в `LOG.md` Stage C). | Оставить до появления поля в модели; не считать дефектом текущей инициативы. |
-| M7 | Minor (**defer**, из `AUDIT_STAGE_D.md`) | `PatientTreatmentProgramsListClient.tsx`: суффикс `Client` в имени файла при отсутствии `"use client"` (компонент фактически RSC, хуков нет). | Defer: переименование/директива — отдельный tech-debt; см. `AUDIT_STAGE_D.md` M1 и follow-up в backlog. |
+| ID  | Уровень                                  | Описание                                                                                                                                                                                                                                                                                       | Рекомендация                                                                                                     |
+| --- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| M1  | Minor (**закрыто**)                      | Изначально не было строки «Stage A closed + commit» в `LOG.md` при верификационном Stage A.                                                                                                                                                                                                    | Выполнено в Global FIX: retro-запись в `LOG.md`.                                                                 |
+| M2  | Minor                                    | `README.md` инициативы всё ещё со статусом «в работе / планирование», тогда как `LOG.md` фиксирует закрытие A–D, PREPUSH и PUSH.                                                                                                                                                               | Обновить шапку статуса в `README.md` под факт закрытия (без секретов).                                           |
+| M3  | Minor                                    | `ROADMAP_2.md` §1.0 в блоке «Файлы» перечисляет `progress-service.ts`; фактическая реализация `started_at` — в репозитории (`pg` / `inMemory`), в `progress-service.ts` нет логики поля.                                                                                                       | Уточнить в roadmap формулировку «ожидаемые места», чтобы не вводить агентов в заблуждение.                       |
+| M4  | Minor / спека                            | Тексты и IA `STAGE_B.md` B1 (CTA «Открыть текущий этап», ссылка «Архив этапов») и B4 (архив в `<details>`) после Stage C заменены hero + «Открыть план» (якорь), секцией «Предыдущие этапы» и компактным списком (C6). Поведение соответствует §1.1b / `STAGE_C.md`, но не дословно раннему B. | Зафиксировать в доках как намеренную эволюцию B → C; при продуктовой необходимости выровнять копирайт под §1.1a. |
+| M5  | Minor / покрытие                         | `pgTreatmentProgramInstance.startedAt.contract.test.ts` проверяет наличие подстрок в исходнике репозитория, а не прогон против БД.                                                                                                                                                             | Достаточно для верификационного A; при усилении — добавить интеграционный тест с реальной БД (отдельная задача). |
+| M6  | Minor / зафиксировано                    | `STAGE_C.md` C6: дата в архиве при `completedAt`; в `TreatmentProgramInstanceStageRow` поля нет — даты в компактном списке не показываются (как в `LOG.md` Stage C).                                                                                                                           | Оставить до появления поля в модели; не считать дефектом текущей инициативы.                                     |
+| M7  | Minor (**defer**, из `AUDIT_STAGE_D.md`) | `PatientTreatmentProgramsListClient.tsx`: суффикс `Client` в имени файла при отсутствии `"use client"` (компонент фактически RSC, хуков нет).                                                                                                                                                  | Defer: переименование/директива — отдельный tech-debt; см. `AUDIT_STAGE_D.md` M1 и follow-up в backlog.          |
 
 **Вердикт: PASS** — инвариантов не нарушено, scope выдержан, MVP-условия выполнены.
 

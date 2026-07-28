@@ -4,13 +4,13 @@ overview: Компактная hero и порядок блоков на экра
 status: completed
 todos:
   - id: ux-warmup-page
-    content: "page.tsx: компактная hero + порядок видео → PatientContentPracticeComplete → описание; Markdown 14px #3a3f53 для разминки"
+    content: 'page.tsx: компактная hero + порядок видео → PatientContentPracticeComplete → описание; Markdown 14px #3a3f53 для разминки'
     status: completed
   - id: modal-flow
-    content: "PatientContentPracticeComplete: POST→PATCH только daily_warmup; заголовок модалки; убрать Пропустить; редирект; защита от двойного клика CTA"
+    content: 'PatientContentPracticeComplete: POST→PATCH только daily_warmup; заголовок модалки; убрать Пропустить; редирект; защита от двойного клика CTA'
     status: completed
   - id: db-warmup
-    content: "Миграция по образцу 0049_wellbeing_symptom_unify.sql: reference_items warmup_feeling + backfill symptom_trackings; дедуп completion↔symptom"
+    content: 'Миграция по образцу 0049_wellbeing_symptom_unify.sql: reference_items warmup_feeling + backfill symptom_trackings; дедуп completion↔symptom'
     status: completed
   - id: port-api
     content: Расширить PatientPracticePort (updateFeelingById/getByIdForUser) + PATCH route + оркестрация ensure tracking + symptom insert в транзакции
@@ -44,24 +44,29 @@ isProject: false
 ## Часть A — UX страницы контента (`from=daily_warmup`)
 
 Файлы:
+
 - [`apps/webapp/src/app/app/patient/content/[slug]/page.tsx`](apps/webapp/src/app/app/patient/content/[slug]/page.tsx)
 - [`apps/webapp/src/app/app/patient/content/[slug]/PatientDailyWarmupHeroCover.tsx`](apps/webapp/src/app/app/patient/content/[slug]/PatientDailyWarmupHeroCover.tsx)
 
 Шаги:
+
 - Сделать hero для `daily_warmup` компактнее (ниже высота, меньше текстовая колонка и image-slot).
 - Переставить блоки только для `daily_warmup`: hero → видео → `PatientContentPracticeComplete` → описание.
 - Для описания разминки использовать `MarkdownContent` с `text-[14px] text-[#3a3f53]` и нормальным весом `strong/b`.
 
 Проверки этапа:
+
 - `rg "daily_warmup" apps/webapp/src/app/app/patient/content/[slug]/page.tsx`
 - UI smoke маршрута `/app/patient/content/[slug]?from=daily_warmup`.
 
 ## Часть B — Клиент: модалка и двухшаговый поток
 
 Файл:
+
 - [`apps/webapp/src/app/app/patient/content/[slug]/PatientContentPracticeComplete.tsx`](apps/webapp/src/app/app/patient/content/[slug]/PatientContentPracticeComplete.tsx)
 
 Шаги (только `practiceSource === 'daily_warmup'`):
+
 - Клик по CTA: `POST /api/patient/practice/completion` с `feeling: null`, сохранить `completionId`, открыть модалку.
 - Выбор иконки: `PATCH /api/patient/practice/completion/[id]/feeling`.
 - Успех `PATCH`: закрыть модалку, редирект на `routePaths.patient`.
@@ -71,6 +76,7 @@ isProject: false
 Для других источников (`section_page`, `home`, `reminder`) оставить текущий одношаговый сценарий.
 
 Проверки этапа:
+
 - Обновить [`apps/webapp/src/app/app/patient/content/[slug]/PatientContentPracticeComplete.test.tsx`](apps/webapp/src/app/app/patient/content/[slug]/PatientContentPracticeComplete.test.tsx):
   - нет кнопки «Пропустить»;
   - два fetch для `daily_warmup`;
@@ -129,6 +135,7 @@ isProject: false
 - Документация: [`patient-practice.md`](apps/webapp/src/modules/patient-practice/patient-practice.md)
 
 Вне scope:
+
 - интегратор и bot-flows;
 - новые env переменные;
 - изменения GitHub workflow;

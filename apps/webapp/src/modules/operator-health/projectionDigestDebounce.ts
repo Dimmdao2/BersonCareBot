@@ -1,7 +1,7 @@
-import { isProjectionCritical, type ProjectionProbeStatus } from "./criticalHealthSignals";
-import type { OperatorHealthProjectionThresholds } from "./operatorHealthProjectionThresholds";
+import { isProjectionCritical, type ProjectionProbeStatus } from './criticalHealthSignals';
+import type { OperatorHealthProjectionThresholds } from './operatorHealthProjectionThresholds';
 
-import { OPERATOR_HEALTH_PROJECTION_DIGEST_DEBOUNCE_JOB_KEY } from "./reconcileJobKeys";
+import { OPERATOR_HEALTH_PROJECTION_DIGEST_DEBOUNCE_JOB_KEY } from './reconcileJobKeys';
 
 export { OPERATOR_HEALTH_PROJECTION_DIGEST_DEBOUNCE_JOB_KEY };
 
@@ -27,9 +27,9 @@ export function parseProjectionDigestDebounceState(
   metaJson: Record<string, unknown> | null | undefined,
 ): ProjectionDigestDebounceState {
   const retries =
-    typeof metaJson?.retriesFirstSeenAt === "string" ? metaJson.retriesFirstSeenAt : null;
+    typeof metaJson?.retriesFirstSeenAt === 'string' ? metaJson.retriesFirstSeenAt : null;
   const stale =
-    typeof metaJson?.stalePendingFirstSeenAt === "string" ? metaJson.stalePendingFirstSeenAt : null;
+    typeof metaJson?.stalePendingFirstSeenAt === 'string' ? metaJson.stalePendingFirstSeenAt : null;
   return { retriesFirstSeenAt: retries, stalePendingFirstSeenAt: stale };
 }
 
@@ -44,7 +44,11 @@ export function isProjectionOldestPendingStale(
   return nowMs - parsed >= staleMinutes * 60 * 1000;
 }
 
-function sustainedSince(firstSeenAt: string | null, debounceMinutes: number, nowMs: number): boolean {
+function sustainedSince(
+  firstSeenAt: string | null,
+  debounceMinutes: number,
+  nowMs: number,
+): boolean {
   if (!firstSeenAt) return false;
   const parsed = Date.parse(firstSeenAt);
   if (!Number.isFinite(parsed)) return false;
@@ -116,7 +120,7 @@ export function evaluateProjectionDigestDebounceFlags(
   thresholds: OperatorHealthProjectionThresholds,
   state: ProjectionDigestDebounceState,
   nowMs = Date.now(),
-): Pick<ProjectionDigestDebounceResult, "includeRetriesInDigest" | "includeStalePendingInDigest"> {
+): Pick<ProjectionDigestDebounceResult, 'includeRetriesInDigest' | 'includeStalePendingInDigest'> {
   const critical = isProjectionCritical({
     probeStatus: input.probeStatus,
     deadCount: input.deadCount,

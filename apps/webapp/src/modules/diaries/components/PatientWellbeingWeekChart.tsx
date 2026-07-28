@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import dynamic from "next/dynamic";
-import type { PatientWellbeingWeekComposedChartProps } from "./PatientWellbeingWeekComposedChart";
+import dynamic from 'next/dynamic';
+import type { PatientWellbeingWeekComposedChartProps } from './PatientWellbeingWeekComposedChart';
 
-const Inner = dynamic(() => import("./PatientWellbeingWeekComposedChart"), {
+const Inner = dynamic(() => import('./PatientWellbeingWeekComposedChart'), {
   ssr: false,
   loading: () => (
     <div className="h-[220px] w-full animate-pulse rounded-[var(--patient-card-radius-mobile)] bg-[var(--patient-color-primary-soft)]/20 lg:rounded-[var(--patient-card-radius-desktop)]" />

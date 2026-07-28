@@ -1,25 +1,33 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Button } from "@/shared/ui/patient/primitives/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/shared/ui/patient/primitives/dialog";
-import { Textarea } from "@/shared/ui/patient/primitives/textarea";
-import { MessageComposer } from "@/shared/ui/chat/MessageComposer";
-import type { ProgramItemDiscussionMessage } from "@/modules/program-item-discussion/types";
-import { cn } from "@/lib/utils";
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Button } from '@/shared/ui/patient/primitives/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/shared/ui/patient/primitives/dialog';
+import { Textarea } from '@/shared/ui/patient/primitives/textarea';
+import { MessageComposer } from '@/shared/ui/chat/MessageComposer';
+import type { ProgramItemDiscussionMessage } from '@/modules/program-item-discussion/types';
+import { cn } from '@/lib/utils';
 import {
   patientChatComposerTextareaClass,
   patientChatMetaLineClass,
   patientMutedTextClass,
   patientPrimaryActionClass,
-} from "@/shared/ui/patient/patientVisual";
-import { formatChatMessageTimeRu, formatChatRelativeDateLabelRu } from "@/modules/messaging/messageFormatting";
-import { chatMessageDeliveryStatus } from "@/modules/messaging/chatMessageDeliveryStatus";
-import { ChatBubbleOutgoingMeta } from "@/shared/ui/chat/ChatBubbleOutgoingMeta";
-import { chatThreadSurfaceClass } from "@/shared/ui/chat/chatThreadSurface";
-import { ProgramItemDiscussionMediaPicker } from "@/app/app/patient/treatment/ProgramItemDiscussionMediaPicker";
-import { ProgramItemDiscussionMessageBody } from "@/app/app/patient/treatment/ProgramItemDiscussionMessageBody";
-import { notifyPatientSupportUnreadCountChanged } from "@/modules/messaging/hooks/useSupportUnreadPolling";
+} from '@/shared/ui/patient/patientVisual';
+import {
+  formatChatMessageTimeRu,
+  formatChatRelativeDateLabelRu,
+} from '@/modules/messaging/messageFormatting';
+import { chatMessageDeliveryStatus } from '@/modules/messaging/chatMessageDeliveryStatus';
+import { ChatBubbleOutgoingMeta } from '@/shared/ui/chat/ChatBubbleOutgoingMeta';
+import { chatThreadSurfaceClass } from '@/shared/ui/chat/chatThreadSurface';
+import { ProgramItemDiscussionMediaPicker } from '@/app/app/patient/treatment/ProgramItemDiscussionMediaPicker';
+import { ProgramItemDiscussionMessageBody } from '@/app/app/patient/treatment/ProgramItemDiscussionMessageBody';
+import { notifyPatientSupportUnreadCountChanged } from '@/modules/messaging/hooks/useSupportUnreadPolling';
 
 type DiscussionPageResponse = {
   ok?: boolean;
@@ -47,7 +55,7 @@ export function ProgramItemDiscussionDialog(props: {
 }) {
   const { instanceId, itemId, open, onOpenChange, onRead, mediaSubmissionEnabled = false } = props;
   const [messages, setMessages] = useState<ProgramItemDiscussionMessage[]>([]);
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [sending, setSending] = useState(false);
@@ -62,7 +70,7 @@ export function ProgramItemDiscussionDialog(props: {
   );
 
   const markRead = useCallback(async () => {
-    const res = await fetch(`${basePath}/read`, { method: "POST" });
+    const res = await fetch(`${basePath}/read`, { method: 'POST' });
     if (!res.ok) return false;
     notifyPatientSupportUnreadCountChanged();
     await onRead?.();
@@ -72,13 +80,13 @@ export function ProgramItemDiscussionDialog(props: {
   const loadPage = useCallback(
     async (cursor: string | null, appendOlder: boolean) => {
       const url = new URL(basePath, window.location.origin);
-      url.searchParams.set("direction", "backward");
-      url.searchParams.set("limit", "50");
-      if (cursor) url.searchParams.set("cursor", cursor);
+      url.searchParams.set('direction', 'backward');
+      url.searchParams.set('limit', '50');
+      if (cursor) url.searchParams.set('cursor', cursor);
       const res = await fetch(url.toString());
       const data = (await res.json().catch(() => null)) as DiscussionPageResponse | null;
       if (!res.ok || !data?.ok || !Array.isArray(data.messages)) {
-        throw new Error(data?.error ?? "Не удалось загрузить комментарии");
+        throw new Error(data?.error ?? 'Не удалось загрузить комментарии');
       }
       const loaded = data.messages;
       setMessages((prev) => {
@@ -87,7 +95,9 @@ export function ProgramItemDiscussionDialog(props: {
         for (const msg of loaded) map.set(msg.id, msg);
         return [...map.values()].sort(compareMessages);
       });
-      setNextCursor(typeof data.pageInfo?.nextCursor === "string" ? data.pageInfo.nextCursor : null);
+      setNextCursor(
+        typeof data.pageInfo?.nextCursor === 'string' ? data.pageInfo.nextCursor : null,
+      );
       if (data.peerLastReadAt !== undefined) {
         setPeerLastReadAt(data.peerLastReadAt);
       }
@@ -102,7 +112,7 @@ export function ProgramItemDiscussionDialog(props: {
       await loadPage(null, false);
       await markRead();
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Не удалось загрузить комментарии";
+      const msg = e instanceof Error ? e.message : 'Не удалось загрузить комментарии';
       setError(msg);
     } finally {
       setLoading(false);
@@ -118,8 +128,8 @@ export function ProgramItemDiscussionDialog(props: {
     if (!open) return;
     const refreshPeerRead = async () => {
       const url = new URL(basePath, window.location.origin);
-      url.searchParams.set("direction", "backward");
-      url.searchParams.set("limit", "1");
+      url.searchParams.set('direction', 'backward');
+      url.searchParams.set('limit', '1');
       const res = await fetch(url.toString());
       const data = (await res.json().catch(() => null)) as DiscussionPageResponse | null;
       if (res.ok && data?.ok && data.peerLastReadAt !== undefined) {
@@ -137,8 +147,8 @@ export function ProgramItemDiscussionDialog(props: {
     setError(null);
     try {
       const res = await fetch(basePath, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ body }),
       });
       const data = (await res.json().catch(() => null)) as {
@@ -147,10 +157,10 @@ export function ProgramItemDiscussionDialog(props: {
         message?: ProgramItemDiscussionMessage | null;
       } | null;
       if (!res.ok || !data?.ok) {
-        setError(data?.error ?? "Не удалось отправить комментарий");
+        setError(data?.error ?? 'Не удалось отправить комментарий');
         return;
       }
-      setDraft("");
+      setDraft('');
       if (data.message) {
         setMessages((prev) => {
           const map = new Map(prev.map((m) => [m.id, m]));
@@ -160,7 +170,7 @@ export function ProgramItemDiscussionDialog(props: {
       }
       void onRead?.();
     } catch {
-      setError("Ошибка сети");
+      setError('Ошибка сети');
     } finally {
       setSending(false);
     }
@@ -176,10 +186,12 @@ export function ProgramItemDiscussionDialog(props: {
         </DialogHeader>
 
         <div className="flex h-[min(75vh,34rem)] min-h-[20rem] flex-col gap-2">
-          {error ?
-            <p className={cn(patientMutedTextClass, "text-sm text-[var(--patient-color-danger)]")}>{error}</p>
-          : null}
-          {nextCursor ?
+          {error ? (
+            <p className={cn(patientMutedTextClass, 'text-sm text-[var(--patient-color-danger)]')}>
+              {error}
+            </p>
+          ) : null}
+          {nextCursor ? (
             <Button
               type="button"
               variant="outline"
@@ -190,63 +202,77 @@ export function ProgramItemDiscussionDialog(props: {
                 setLoadingOlder(true);
                 void loadPage(nextCursor, true)
                   .catch((e) => {
-                    const msg = e instanceof Error ? e.message : "Не удалось загрузить комментарии";
+                    const msg = e instanceof Error ? e.message : 'Не удалось загрузить комментарии';
                     setError(msg);
                   })
                   .finally(() => setLoadingOlder(false));
               }}
             >
-              {loadingOlder ? "Загрузка..." : "Показать предыдущие"}
+              {loadingOlder ? 'Загрузка...' : 'Показать предыдущие'}
             </Button>
-          : null}
+          ) : null}
 
-          <div className={cn("min-h-0 flex-1 overflow-y-auto space-y-4 pb-4 pt-1 md:pb-5", chatThreadSurfaceClass)}>
-            {sortedMessages.length === 0 ?
-              <p className={cn("text-center", patientMutedTextClass)}>
-                {loading ? "Загрузка..." : "Пока нет комментариев."}
+          <div
+            className={cn(
+              'min-h-0 flex-1 overflow-y-auto space-y-4 pb-4 pt-1 md:pb-5',
+              chatThreadSurfaceClass,
+            )}
+          >
+            {sortedMessages.length === 0 ? (
+              <p className={cn('text-center', patientMutedTextClass)}>
+                {loading ? 'Загрузка...' : 'Пока нет комментариев.'}
               </p>
-            : sortedMessages.map((m) => {
-                const mine = m.senderRole === "patient";
+            ) : (
+              sortedMessages.map((m) => {
+                const mine = m.senderRole === 'patient';
                 const deliveryStatus = mine
                   ? chatMessageDeliveryStatus({ createdAt: m.createdAt, peerLastReadAt })
                   : null;
                 return (
-                  <div key={m.id} className={cn("flex flex-col gap-1", mine ? "items-end" : "items-start")}>
-                    <div className={cn("flex max-w-[min(100%,22rem)]", mine ? "justify-end" : "justify-start")}>
+                  <div
+                    key={m.id}
+                    className={cn('flex flex-col gap-1', mine ? 'items-end' : 'items-start')}
+                  >
+                    <div
+                      className={cn(
+                        'flex max-w-[min(100%,22rem)]',
+                        mine ? 'justify-end' : 'justify-start',
+                      )}
+                    >
                       <div
                         className={cn(
-                          "max-w-full px-3 py-2 text-sm shadow-sm md:max-w-[min(100%,24rem)]",
-                          "rounded-[var(--patient-card-radius-mobile)] md:rounded-[var(--patient-card-radius-desktop)]",
-                          mine ?
-                            "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
-                          : "border border-[var(--patient-surface-info-border)]/80 bg-[var(--patient-color-primary-soft)] text-[var(--patient-text-primary)]",
+                          'max-w-full px-3 py-2 text-sm shadow-sm md:max-w-[min(100%,24rem)]',
+                          'rounded-[var(--patient-card-radius-mobile)] md:rounded-[var(--patient-card-radius-desktop)]',
+                          mine
+                            ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]'
+                            : 'border border-[var(--patient-surface-info-border)]/80 bg-[var(--patient-color-primary-soft)] text-[var(--patient-text-primary)]',
                         )}
                       >
                         <ProgramItemDiscussionMessageBody message={m} mine={mine} />
-                        {mine && deliveryStatus ?
+                        {mine && deliveryStatus ? (
                           <ChatBubbleOutgoingMeta
                             timeLabel={formatChatMessageTimeRu(m.createdAt)}
                             deliveryStatus={deliveryStatus}
                           />
-                        : null}
+                        ) : null}
                       </div>
                     </div>
-                    {!mine ?
+                    {!mine ? (
                       <p
                         className={cn(
-                          "max-w-[min(100%,22rem)] md:max-w-[min(100%,24rem)]",
+                          'max-w-[min(100%,22rem)] md:max-w-[min(100%,24rem)]',
                           patientChatMetaLineClass,
-                          "text-start",
+                          'text-start',
                         )}
                       >
-                        {formatChatRelativeDateLabelRu(m.createdAt, new Date())} ·{" "}
+                        {formatChatRelativeDateLabelRu(m.createdAt, new Date())} ·{' '}
                         {formatChatMessageTimeRu(m.createdAt)}
                       </p>
-                    : null}
+                    ) : null}
                   </div>
                 );
               })
-            }
+            )}
           </div>
 
           <MessageComposer
@@ -262,20 +288,25 @@ export function ProgramItemDiscussionDialog(props: {
             maxLength={4000}
             className="flex shrink-0 flex-col gap-2 border-t border-[var(--patient-border)] pt-3"
             inputRowClassName="flex items-end gap-2"
-            leadingControl={mediaSubmissionEnabled ?
+            leadingControl={
+              mediaSubmissionEnabled ? (
                 <ProgramItemDiscussionMediaPicker
                   instanceId={instanceId}
                   itemId={itemId}
                   disabled={sending || loading}
                   onUploaded={() => bootstrap()}
-                  onError={() => setError("Не удалось загрузить файл")}
+                  onError={() => setError('Не удалось загрузить файл')}
                 />
-              : null}
+              ) : null
+            }
             renderTextarea={(props) => (
-              <Textarea {...props} className={cn(patientChatComposerTextareaClass, "min-h-0 flex-1")} />
+              <Textarea
+                {...props}
+                className={cn(patientChatComposerTextareaClass, 'min-h-0 flex-1')}
+              />
             )}
             renderSubmit={(props) => (
-              <Button {...props} className={cn(patientPrimaryActionClass, "disabled:opacity-55")} />
+              <Button {...props} className={cn(patientPrimaryActionClass, 'disabled:opacity-55')} />
             )}
           />
         </div>

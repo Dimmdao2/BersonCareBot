@@ -13,6 +13,7 @@ whitelist». До закрытия `SEC-02` нельзя опираться на
 [`../_TODO/RU_PRIVACY_AND_PRODUCTION_READINESS/CURRENT_PROD_BASELINE_2026-07-19.md`](../_TODO/RU_PRIVACY_AND_PRODUCTION_READINESS/CURRENT_PROD_BASELINE_2026-07-19.md).
 
 **Практические следствия:**
+
 - Не предполагать, что произвольная команда с `sudo` разрешена или запрещена: exact allow-list сначала проверяет
   root/operator; агент не экспериментирует на PROD.
 - Если нужно почистить root-owned артефакты (например, `.next/` после `cp` от root) — это должен делать **root** в отдельной сессии, или задача должна быть переформулирована так, чтобы deploy-пользователь не создавал root-owned файлы изначально.
@@ -38,16 +39,18 @@ whitelist». До закрытия `SEC-02` нельзя опираться на
 
 ### Боевые серверы
 
-| Роль | IP / host | Что на нём | Домены |
-|------|-----------|------------|--------|
-| **PROD** (текущий боевой) | `135.106.162.170` (host `adelaide`, Selectel, Ubuntu 24.04) | Прод-приложение (api/worker/scheduler/webapp/media-worker), прод-БД `bersoncarebot` на PG16 `127.0.0.1:5432`, nginx, крон-слой, бэкапы | `bersoncare.ru`, `www.bersoncare.ru`, `tgcarebot.bersonservices.ru` → все `135.106.162.170` |
-| **OLD / DEV / RELAY / TEST** | `151.241.228.122` (исходный хост = dev-box) | (1) **AmneziaWG egress-релей** Telegram для прод-бота — `awg-quick@awg0`, UDP `51822`, **НЕ ТРОГАТЬ** (прод-бот зависит); (2) dev-окружение (Next `:5200`); (3) старый прод **остановлен** (юниты `disabled`, cron.d в `/root/bcb-cron-disabled-*`); (4) **боевой ТЕСТ** `test.bersoncare.ru` (2026-06) | `test.bersoncare.ru` → `151.241.228.122`; почта (`mail/smtp/pop/ftp`) — на reg.ru (`31.31.197.72`), не на наших серверах |
-| ~~`161.104.34.216`~~ | **DECOMMISSIONED** | Первый целевой прод-VDS — оказался **заблокирован из РФ** (РКН/ТСПУ, мёртв весь IP), удалён. Прод пересобран клоном на `135.x`. **Урок: новый IP всегда проверять `nc -vz <ip> 443` с РФ-бытового интернета ДО переезда.** | — |
+| Роль                         | IP / host                                                   | Что на нём                                                                                                                                                                                                                                                                                              | Домены                                                                                                                   |
+| ---------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| **PROD** (текущий боевой)    | `135.106.162.170` (host `adelaide`, Selectel, Ubuntu 24.04) | Прод-приложение (api/worker/scheduler/webapp/media-worker), прод-БД `bersoncarebot` на PG16 `127.0.0.1:5432`, nginx, крон-слой, бэкапы                                                                                                                                                                  | `bersoncare.ru`, `www.bersoncare.ru`, `tgcarebot.bersonservices.ru` → все `135.106.162.170`                              |
+| **OLD / DEV / RELAY / TEST** | `151.241.228.122` (исходный хост = dev-box)                 | (1) **AmneziaWG egress-релей** Telegram для прод-бота — `awg-quick@awg0`, UDP `51822`, **НЕ ТРОГАТЬ** (прод-бот зависит); (2) dev-окружение (Next `:5200`); (3) старый прод **остановлен** (юниты `disabled`, cron.d в `/root/bcb-cron-disabled-*`); (4) **боевой ТЕСТ** `test.bersoncare.ru` (2026-06) | `test.bersoncare.ru` → `151.241.228.122`; почта (`mail/smtp/pop/ftp`) — на reg.ru (`31.31.197.72`), не на наших серверах |
+| ~~`161.104.34.216`~~         | **DECOMMISSIONED**                                          | Первый целевой прод-VDS — оказался **заблокирован из РФ** (РКН/ТСПУ, мёртв весь IP), удалён. Прод пересобран клоном на `135.x`. **Урок: новый IP всегда проверять `nc -vz <ip> 443` с РФ-бытового интернета ДО переезда.**                                                                              | —                                                                                                                        |
 
 ### Telegram-туннель (прод ↔ релей `151.x`)
+
 Telegram заблокирован из РФ на гос-уровне; прод-сервер `135.x` (Selectel) Telegram **напрямую не достаёт**. Прод-бот ходит в Telegram через **AmneziaWG split-tunnel** на старый сервер `151.x` (он Telegram достаёт), тот форвардит наружу. Поэтому `awg-quick@awg0` на `151.x` **критичен** — его остановка убивает прод-бота.
 
 **Фактический конфиг релея (`awg0` на `151.x`, снято `awg show` 2026-06-25):**
+
 - интерфейс `awg0`, адрес `10.9.0.1/24`, `ListenPort = 51822/udp`; конфиг `/etc/amnezia/amneziawg/awg0.conf`;
 - **анти-DPI обфускация AmneziaWG** (параметры `Jc/Jmin/Jmax/S1/S2/H1..H4`) — должны **точно совпадать** на клиенте, иначе туннель не поднимется; именно они отличают его от обычного WireGuard (чтобы ТСПУ не фингерпринтил). Значения — в конфиге на боксе, в репозиторий **не выносим**;
 - пиры:
@@ -57,14 +60,16 @@ Telegram заблокирован из РФ на гос-уровне; прод-�
 - **Тест-бот на `151.x` Telegram достаёт напрямую** — туннель не нужен (`151.x` сам exit-точка).
 
 ### Доступы / VPN (как владелец заходит)
+
 На `151.x` живут **ДВА разных** WireGuard-сервера — не путать:
 
-| VPN | Назначение | Подсеть / порт | Клиенты |
-|-----|-----------|----------------|---------|
-| **AmneziaWG `awg0`** | (1) релей Telegram прод-бота; (2) split-tunnel iPhone владельца | `10.9.0.0/24`, UDP `51822` | прод `135.x` (`10.9.0.5`), iPhone (`10.9.0.2/.3`) |
-| **wg-easy** (Docker `ghcr.io/wg-easy/wg-easy`) | full-tunnel VPN **ноута** владельца | внутр. `10.8.0.0/24`, UDP `51820`, web-UI `:51821`; контейнер на docker0 = `172.17.0.2` | ноут (`10.8.0.x`) |
+| VPN                                            | Назначение                                                      | Подсеть / порт                                                                          | Клиенты                                           |
+| ---------------------------------------------- | --------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| **AmneziaWG `awg0`**                           | (1) релей Telegram прод-бота; (2) split-tunnel iPhone владельца | `10.9.0.0/24`, UDP `51822`                                                              | прод `135.x` (`10.9.0.5`), iPhone (`10.9.0.2/.3`) |
+| **wg-easy** (Docker `ghcr.io/wg-easy/wg-easy`) | full-tunnel VPN **ноута** владельца                             | внутр. `10.8.0.0/24`, UDP `51820`, web-UI `:51821`; контейнер на docker0 = `172.17.0.2` | ноут (`10.8.0.x`)                                 |
 
 **Тонкость IP-замка теста (важно при отладке `403`):** трафик к **собственным** сервисам бокса (`test.bersoncare.ru`) приходит с **внутренним** адресом туннеля/NAT, а **НЕ** с публичного `151.241.228.122` (NAT-маскарад работает только для исхода во внешний интернет, поэтому `2ip` показывает `151.x`, а nginx видит другое). Поэтому nginx-allowlist теста разрешает:
+
 - `10.9.0.0/24` — заход с **iPhone** (AmneziaWG);
 - `172.17.0.0/16` — заход с **ноута** (wg-easy NAT-ит трафик в контейнерный `172.17.0.2` на docker0);
 - `127.0.0.1` — loopback / health;
@@ -75,22 +80,27 @@ Telegram заблокирован из РФ на гос-уровне; прод-�
 **Пользователи ОС:** `deploy` запускает сервисы и **не имеет общего `sudo`** (см. блок в начале файла); рабочий пользователь — `dev`, его `$HOME` под `0700` → `postgres`/`deploy` файлы из `/home/dev/` **не читают** (для обмена — `/tmp`, world-readable).
 
 ### S3 (разделение прод/тест)
-| Среда | S3 |
-|-------|-----|
-| **PROD** (`135.x`) | **Selectel** `https://s3.ru-7.storage.selcloud.ru`, регион `ru-7`, bucket `saas-s3`, `S3_FORCE_PATH_STYLE=true` |
+
+| Среда                  | S3                                                                                                                                                    |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **PROD** (`135.x`)     | **Selectel** `https://s3.ru-7.storage.selcloud.ru`, регион `ru-7`, bucket `saas-s3`, `S3_FORCE_PATH_STYLE=true`                                       |
 | **OLD/TEST** (`151.x`) | старый **MinIO** `fs.bersonservices.ru` (buckets `bersonservices-private/public`) — оставлен под тесты, **read-write** (тестируем и работу с файлами) |
 
 ### M2M (integrator ↔ webapp)
+
 На прод-сервере домены `bersoncare.ru` и `tgcarebot.bersonservices.ru` через **`/etc/hosts` → `127.0.0.1`** (loopback) — M2M-проекции остаются внутри сервера, реальный LE-серт валидируется по системным CA. На тесте — аналогично (loopback для тест-домена); отдельных публичных `test-integrator`/`test-tgcarebot` DNS-записей **не нужно**.
 
 ### Тест-окружение `test.bersoncare.ru` (на `151.x`, ставится 2026-06)
+
 Боевой тест на **копии реальных прод-данных** — прогон большого merge / миграций / дедуп-скриптов **ДО прода**.
+
 - **🔴 Изоляция отправок (данные настоящие!):** Layer-1 = integrator `applyPreForkDevRedirect` (`DEV_DELIVERY_REDIRECT=1`) переписывает **ВСЕ** исходящие на тест-юзера, по каналам (Telegram/MAX/SMS/email/web-push). **NEW (2026-06-25, commit `17729059`, пока UNPUSHED): passthrough-allowlist** — env `DEV_REDIRECT_PASSTHROUGH_{TELEGRAM,PHONES,MAX,EMAILS,WEB_PUSH}` в `api.test`: получатели-**тест-аккаунты** (админ tg`364943522`/`+79643805480`, юзер tg`7924656602`/`+79189000782`) доставляются на **свои** адреса (чтобы тестить переписку админ↔юзер вживую), все прочие — режутся/редиректятся. Пусто по умолчанию = безопасно (opt-in). Плюс webapp-guard (`dev_mode` + `test_account_identifiers`), **maintenance forced ON**, ключевые настройки залочены DB-триггером.
 - **Входящие Telegram на тесте НЕ настроены:** приём только вебхуком `POST /webhook/telegram` (long-polling в коде нет), а вебхук не задан + IP-allowlist режет IP Telegram → `/start`/меню/кнопки не работают. **Только исходящие** (OTP/уведомления/чат) — этого достаточно для проверки send-safety. Web-push на тест-домен требует **свежей** PWA-подписки (восстановленная из дампа привязана к prod-origin/VAPID).
 - Тест-БД `bersoncarebot_test` на том же PG16 (`:5432`); порты **`:3300`** (integrator) / **`:6300`** (webapp, чтобы не пересечься с dev `:5200` и прод-портами); **ТЕСТ-токен** бота (не прод); доступ к `test.bersoncare.ru` залочен по IP (см. «Доступы / VPN»).
 - **Деплой (факт):** деплой-репо `/opt/projects/bersoncarebot-test` (ветка `feat/doctor-ui-rebuild`, владелец `deploy`), env `/opt/env/bersoncarebot/{api,webapp}.test`, юниты `bersoncarebot-{api,worker,scheduler,webapp,media-worker}-test`. **Ветки `test` и автодеплоя НЕТ** (CI деплоит только `main`→прод). `bash deploy/host/deploy-test.sh` — только code-only/no-fresh-restore обновление существующей TEST-БД: git-bundle → force-align → build → pending migrations → restart; он никогда не скачивает dump и не пересоздаёт БД. Любой fresh prod-dump restore поддерживается **только** через отдельный owner-gated `bash deploy/host/deploy-test-full-reset.sh --confirm-full-reset ...`, который владеет restore, hard migration chain, overlays/settings, C4 bootstrap/provision всех пяти local-only DB-контуров (включая `DATABASE_URL_WEB_PUSH_REMINDER`), repo-managed S3 A/B fixture и cleanup/health gates. Внутренний `deploy-test-saas.sh` не является публичной destructive-командой: прямой full-reset через него заблокирован; code-only deploy использует из него только безопасные closure submodes. Fresh reset не устанавливает cron и не вызывает live tick: cronport Web Push включается отдельным post-fresh шагом. Ручная цепочка `restore-test-db.sh` + SQL + `deploy-test.sh` запрещена. Fixture packet: только обычный файл `/opt/env/bersoncarebot/saas-test-fixture.env`, exact `root:deploy 0640`, строгие data-only JSON-quoted values; symlink/unknown/duplicate/malformed/shell lines запрещены, файл никогда не shell-source-ится. Полная инструкция: `deploy/HOST_DEPLOY_README.md` → «Тест-деплой на 151.x».
 
 ### Источник истины по топологии
+
 Эта секция — краткая карта. Полная история переезда и текущее состояние — в orchestration-памяти агента (`prod-server-migration-2026-06-18`). Разделы **Production / Development** ниже описывают структуру приложения (юниты, порты, env), общую для прод и теста.
 
 ---
@@ -105,15 +115,15 @@ Telegram заблокирован из РФ на гос-уровне; прод-�
 
 ## Текущее состояние хоста
 
-| Параметр | Значение |
-|----------|----------|
-| Хост | `localhost` |
-| ОС | `Ubuntu 24.04.4 LTS` |
-| Runtime model | Node.js напрямую на хосте через `systemd` |
-| Reverse proxy | `nginx` |
-| База данных | system PostgreSQL на `127.0.0.1:5432`; **одна** runtime-БД для api+webapp, схемы `integrator` + `public` (см. раздел «Модель PostgreSQL») |
-| Deploy user | `deploy` |
-| Backup root | `/opt/backups` |
+| Параметр      | Значение                                                                                                                                  |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Хост          | `localhost`                                                                                                                               |
+| ОС            | `Ubuntu 24.04.4 LTS`                                                                                                                      |
+| Runtime model | Node.js напрямую на хосте через `systemd`                                                                                                 |
+| Reverse proxy | `nginx`                                                                                                                                   |
+| База данных   | system PostgreSQL на `127.0.0.1:5432`; **одна** runtime-БД для api+webapp, схемы `integrator` + `public` (см. раздел «Модель PostgreSQL») |
+| Deploy user   | `deploy`                                                                                                                                  |
+| Backup root   | `/opt/backups`                                                                                                                            |
 
 ---
 
@@ -121,12 +131,12 @@ Telegram заблокирован из РФ на гос-уровне; прод-�
 
 ### Пути
 
-| Параметр | Значение |
-|----------|----------|
-| Project dir | `/opt/projects/bersoncarebot` |
-| Env dir | `/opt/env/bersoncarebot` |
-| API env | `/opt/env/bersoncarebot/api.prod` |
-| Webapp env | `/opt/env/bersoncarebot/webapp.prod` |
+| Параметр    | Значение                              |
+| ----------- | ------------------------------------- |
+| Project dir | `/opt/projects/bersoncarebot`         |
+| Env dir     | `/opt/env/bersoncarebot`              |
+| API env     | `/opt/env/bersoncarebot/api.prod`     |
+| Webapp env  | `/opt/env/bersoncarebot/webapp.prod`  |
 | Cutover env | `/opt/env/bersoncarebot/cutover.prod` |
 
 ### systemd units
@@ -186,21 +196,21 @@ Telegram заблокирован из РФ на гос-уровне; прод-�
 - EnvironmentFile: `/opt/env/bersoncarebot/media-worker.prod`
 - ExecStart: `/usr/bin/node dist/main.js` (после `pnpm --dir apps/media-worker build` на хосте)
 - Public port: нет  
-Шаблоны юнита: `deploy/systemd/bersoncarebot-media-worker-prod.service` и
-`deploy/systemd/bersoncarebot-media-worker-test.service`; media-worker использует отдельный NOINHERIT/NOBYPASSRLS
-operational login, не webapp credential. TEST env: `/opt/env/bersoncarebot/media-worker.test`.
-Установка и restart — `deploy/host/deploy-prod.sh`. Подробнее: [`deploy/HOST_DEPLOY_README.md`](../../deploy/HOST_DEPLOY_README.md).
+  Шаблоны юнита: `deploy/systemd/bersoncarebot-media-worker-prod.service` и
+  `deploy/systemd/bersoncarebot-media-worker-test.service`; media-worker использует отдельный NOINHERIT/NOBYPASSRLS
+  operational login, не webapp credential. TEST env: `/opt/env/bersoncarebot/media-worker.test`.
+  Установка и restart — `deploy/host/deploy-prod.sh`. Подробнее: [`deploy/HOST_DEPLOY_README.md`](../../deploy/HOST_DEPLOY_README.md).
 
 ### Ports
 
-| Сервис | Bind |
-|--------|------|
-| PostgreSQL | `127.0.0.1:5432` |
-| Integrator API | `127.0.0.1:3200` |
-| Webapp | `127.0.0.1:6200` |
-| Integrator worker | без порта |
-| Integrator scheduler | без порта |
-| HLS media-worker (`apps/media-worker`) | без порта |
+| Сервис                                 | Bind             |
+| -------------------------------------- | ---------------- |
+| PostgreSQL                             | `127.0.0.1:5432` |
+| Integrator API                         | `127.0.0.1:3200` |
+| Webapp                                 | `127.0.0.1:6200` |
+| Integrator worker                      | без порта        |
+| Integrator scheduler                   | без порта        |
+| HLS media-worker (`apps/media-worker`) | без порта        |
 
 ### Public URLs / nginx
 
@@ -211,23 +221,23 @@ operational login, не webapp credential. TEST env: `/opt/env/bersoncarebot/med
 
 **Файлы конфигурации на production-хосте** (подтверждено 2026-06-08, `nginx -T` + `ls /etc/nginx/sites-available/`):
 
-| Назначение | Файл на диске | `server_name` / примечание |
-|------------|---------------|----------------------------|
-| Webapp | `/etc/nginx/sites-available/bersoncarebot-webapp` | `bersoncare.ru`, `www.bersoncare.ru`; HTTP → HTTPS; `www` → канон `https://bersoncare.ru`; `proxy_pass http://127.0.0.1:6200` |
-| Integrator API | `/etc/nginx/sites-available/tgcarebot.conf` | `tgcarebot.bersonservices.ru` → `127.0.0.1:3200` |
-| TLS (webapp) | `/etc/letsencrypt/live/bersoncare.ru/fullchain.pem`, `.../privkey.pem` | Let's Encrypt |
+| Назначение     | Файл на диске                                                          | `server_name` / примечание                                                                                                    |
+| -------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Webapp         | `/etc/nginx/sites-available/bersoncarebot-webapp`                      | `bersoncare.ru`, `www.bersoncare.ru`; HTTP → HTTPS; `www` → канон `https://bersoncare.ru`; `proxy_pass http://127.0.0.1:6200` |
+| Integrator API | `/etc/nginx/sites-available/tgcarebot.conf`                            | `tgcarebot.bersonservices.ru` → `127.0.0.1:3200`                                                                              |
+| TLS (webapp)   | `/etc/letsencrypt/live/bersoncare.ru/fullchain.pem`, `.../privkey.pem` | Let's Encrypt                                                                                                                 |
 
 Правки vhost webapp (`client_max_body_size`, `/api/internal/` loopback, maintenance page) — в **`/etc/nginx/sites-available/bersoncarebot-webapp`**, затем `sudo nginx -t && sudo systemctl reload nginx`.
 
 **Страница «идёт обновление» при рестарте webapp** (подтверждено на production **2026-06-08**):
 
-| Параметр | Значение |
-|----------|----------|
-| Когда показывается | Только при **502/503/504** от upstream `127.0.0.1:6200` (краткий простой на `systemctl restart bersoncarebot-webapp-prod.service`). **Не** на весь деплой: во время `pnpm build` старый процесс продолжает отвечать. |
-| nginx | В HTTPS `server {}` для `bersoncare.ru`: `error_page 502 503 504 =200 /maintenance.html;` + `location = /maintenance.html` с `internal` (фрагмент: [`deploy/nginx/webapp-maintenance-pages.example.conf`](../../deploy/nginx/webapp-maintenance-pages.example.conf)) |
-| Статика | `/opt/projects/bersoncarebot/apps/webapp/public/maintenance.html` (в репозитории: `apps/webapp/public/maintenance.html`; попадает на хост через `deploy-prod.sh`) |
-| Флаг deploy | **Нет** — `/var/lib/bersoncarebot/deploy-maintenance.on` и скрипт `deploy-maintenance.sh` не используются |
-| Проверка на хосте | `sudo systemctl stop bersoncarebot-webapp-prod.service` → `curl -s https://bersoncare.ru/app \| head -10` → HTML «BersonCare — обновление» → `sudo systemctl start bersoncarebot-webapp-prod.service` |
+| Параметр           | Значение                                                                                                                                                                                                                                                             |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Когда показывается | Только при **502/503/504** от upstream `127.0.0.1:6200` (краткий простой на `systemctl restart bersoncarebot-webapp-prod.service`). **Не** на весь деплой: во время `pnpm build` старый процесс продолжает отвечать.                                                 |
+| nginx              | В HTTPS `server {}` для `bersoncare.ru`: `error_page 502 503 504 =200 /maintenance.html;` + `location = /maintenance.html` с `internal` (фрагмент: [`deploy/nginx/webapp-maintenance-pages.example.conf`](../../deploy/nginx/webapp-maintenance-pages.example.conf)) |
+| Статика            | `/opt/projects/bersoncarebot/apps/webapp/public/maintenance.html` (в репозитории: `apps/webapp/public/maintenance.html`; попадает на хост через `deploy-prod.sh`)                                                                                                    |
+| Флаг deploy        | **Нет** — `/var/lib/bersoncarebot/deploy-maintenance.on` и скрипт `deploy-maintenance.sh` не используются                                                                                                                                                            |
+| Проверка на хосте  | `sudo systemctl stop bersoncarebot-webapp-prod.service` → `curl -s https://bersoncare.ru/app \| head -10` → HTML «BersonCare — обновление» → `sudo systemctl start bersoncarebot-webapp-prod.service`                                                                |
 
 Отдельно: **режим техработ пациента** (`patient_app_maintenance_enabled` в admin Settings) — in-app экран при **работающем** webapp; не заменяет nginx-страницу на рестарте.
 
@@ -348,14 +358,14 @@ sudo nginx -T 2>/dev/null | grep -n "configuration file.*bersoncarebot-webapp"
 
 ### Пути
 
-| Параметр | Значение |
-|----------|----------|
-| Dev workspace | `/home/dev/dev-projects/BersonCareBot` |
-| Integrator env (факт на audit) | `/home/dev/dev-projects/BersonCareBot/.env` |
-| Integrator `.env.dev` | отсутствует |
-| Webapp env | `/home/dev/dev-projects/BersonCareBot/apps/webapp/.env.dev` |
-| Dev cutover env | `/home/dev/dev-projects/BersonCareBot/.env.cutover.dev` |
-| Legacy `webapp/.env.dev` | отсутствует |
+| Параметр                       | Значение                                                    |
+| ------------------------------ | ----------------------------------------------------------- |
+| Dev workspace                  | `/home/dev/dev-projects/BersonCareBot`                      |
+| Integrator env (факт на audit) | `/home/dev/dev-projects/BersonCareBot/.env`                 |
+| Integrator `.env.dev`          | отсутствует                                                 |
+| Webapp env                     | `/home/dev/dev-projects/BersonCareBot/apps/webapp/.env.dev` |
+| Dev cutover env                | `/home/dev/dev-projects/BersonCareBot/.env.cutover.dev`     |
+| Legacy `webapp/.env.dev`       | отсутствует                                                 |
 
 ### systemd / processes (dev)
 
@@ -363,10 +373,10 @@ sudo nginx -T 2>/dev/null | grep -n "configuration file.*bersoncarebot-webapp"
 
 ### Dev ports (ручной запуск, не prod systemd)
 
-| Сервис | Типично |
-|--------|---------|
-| Webapp dev | порт из `apps/webapp/.env.dev` (часто `127.0.0.1:5200`) при `pnpm webapp:dev` |
-| Integrator dev | при необходимости отдельный процесс; URL в `INTEGRATOR_API_URL` в webapp dev |
+| Сервис         | Типично                                                                       |
+| -------------- | ----------------------------------------------------------------------------- |
+| Webapp dev     | порт из `apps/webapp/.env.dev` (часто `127.0.0.1:5200`) при `pnpm webapp:dev` |
+| Integrator dev | при необходимости отдельный процесс; URL в `INTEGRATOR_API_URL` в webapp dev  |
 
 ### Webapp dev env: подтвержденные ключи
 
@@ -406,11 +416,11 @@ TEST webapp (`/opt/env/bersoncarebot/webapp.test`) запускается с `NO
 
 Подтвержденные **имена dev БД** (по env preview в workspace, без секретов; **2026-06-10** — unified dev на audited host):
 
-| Назначение | Файл env | Переменная | Имя БД |
-|------------|----------|------------|--------|
-| Integrator dev | `/home/dev/dev-projects/BersonCareBot/.env` | `DATABASE_URL` | `bcb_webapp_dev` (та же БД, что webapp) |
-| Webapp dev | `/home/dev/dev-projects/BersonCareBot/apps/webapp/.env.dev` | `DATABASE_URL` | `bcb_webapp_dev` |
-| Dev cutover/backfill/reconcile | `/home/dev/dev-projects/BersonCareBot/.env.cutover.dev` | `INTEGRATOR_DATABASE_URL` | при unified — **тот же** URL, что `DATABASE_URL`; отдельный URL — только legacy cutover |
+| Назначение                     | Файл env                                                    | Переменная                | Имя БД                                                                                  |
+| ------------------------------ | ----------------------------------------------------------- | ------------------------- | --------------------------------------------------------------------------------------- |
+| Integrator dev                 | `/home/dev/dev-projects/BersonCareBot/.env`                 | `DATABASE_URL`            | `bcb_webapp_dev` (та же БД, что webapp)                                                 |
+| Webapp dev                     | `/home/dev/dev-projects/BersonCareBot/apps/webapp/.env.dev` | `DATABASE_URL`            | `bcb_webapp_dev`                                                                        |
+| Dev cutover/backfill/reconcile | `/home/dev/dev-projects/BersonCareBot/.env.cutover.dev`     | `INTEGRATOR_DATABASE_URL` | при unified — **тот же** URL, что `DATABASE_URL`; отдельный URL — только legacy cutover |
 
 **Целевая dev-модель:** один `DATABASE_URL` в `.env` и `apps/webapp/.env.dev`, обе схемы `public` + `integrator` в одной базе. Имя `bersoncarebot_dev` как отдельная integrator-only БД — **legacy** (см. [`DATABASE_UNIFIED_POSTGRES.md`](./DATABASE_UNIFIED_POSTGRES.md)).
 
@@ -487,10 +497,10 @@ pnpm migrate
 
 **Исторические имена БД** (до unification, для старых отчётов; не считать текущим обязательным состоянием):
 
-| Назначение (legacy) | Было (пример) |
-|---------------------|---------------|
-| Отдельная БД integrator | `tgcarebot` |
-| Отдельная БД webapp | `bcb_webapp_prod` |
+| Назначение (legacy)     | Было (пример)     |
+| ----------------------- | ----------------- |
+| Отдельная БД integrator | `tgcarebot`       |
+| Отдельная БД webapp     | `bcb_webapp_prod` |
 
 Подключение к psql на проде (под пользователем, у которого есть доступ к БД):
 
@@ -531,11 +541,11 @@ grep -E '^[A-Za-z_][A-Za-z0-9_]*=' /opt/env/bersoncarebot/cutover.prod 2>/dev/nu
 
 **3. Чего часто не хватает и как добавить:**
 
-| Чего не хватает | Как проверить | Как вписать |
-|-----------------|---------------|-------------|
-| `INTEGRATOR_DATABASE_URL` для cutover-скриптов | Скрипт требует `cutover.prod`, а файла нет | Для **legacy** двух-БД: создать `cutover.prod` с `DATABASE_URL` = webapp и `INTEGRATOR_DATABASE_URL` = старая integrator БД. После **unification** оба URL часто **совпадают** — см. `DATABASE_UNIFIED_POSTGRES.md`. |
-| Имена баз для psql | Не знаете, к какой базе подключаться | `source` нужный env и смотреть имя в `DATABASE_URL` (после последнего `/`). Для схем: `SET search_path TO integrator, public` или префиксы `public.` / `integrator.`. |
-| Backup перед миграциями | Не уверены, что дампы создаются | Канонический скрипт: репозиторий `deploy/postgres/postgres-backup.sh` → на хосте `/opt/backups/scripts/postgres-backup.sh`. Запуск: `sudo /opt/backups/scripts/postgres-backup.sh pre-migrations`. Артефакт — зашифрованный `*.dump.age` + `*.dump.age.sha256` (не plaintext `.dump`); требует `age` + recipients file на хосте, иначе fail closed до `pg_dump`. При unified `DATABASE_URL` — одна пара файлов (`unified_…`); при двух разных URL — две пары. |
+| Чего не хватает                                | Как проверить                              | Как вписать                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ---------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `INTEGRATOR_DATABASE_URL` для cutover-скриптов | Скрипт требует `cutover.prod`, а файла нет | Для **legacy** двух-БД: создать `cutover.prod` с `DATABASE_URL` = webapp и `INTEGRATOR_DATABASE_URL` = старая integrator БД. После **unification** оба URL часто **совпадают** — см. `DATABASE_UNIFIED_POSTGRES.md`.                                                                                                                                                                                                                                          |
+| Имена баз для psql                             | Не знаете, к какой базе подключаться       | `source` нужный env и смотреть имя в `DATABASE_URL` (после последнего `/`). Для схем: `SET search_path TO integrator, public` или префиксы `public.` / `integrator.`.                                                                                                                                                                                                                                                                                         |
+| Backup перед миграциями                        | Не уверены, что дампы создаются            | Канонический скрипт: репозиторий `deploy/postgres/postgres-backup.sh` → на хосте `/opt/backups/scripts/postgres-backup.sh`. Запуск: `sudo /opt/backups/scripts/postgres-backup.sh pre-migrations`. Артефакт — зашифрованный `*.dump.age` + `*.dump.age.sha256` (не plaintext `.dump`); требует `age` + recipients file на хосте, иначе fail closed до `pg_dump`. При unified `DATABASE_URL` — одна пара файлов (`unified_…`); при двух разных URL — две пары. |
 
 **4. После добавления переменных:** backfill/reconcile запускать с хоста (или с машины, где доступны те же env), см. `deploy/DATA_MIGRATION_CHECKLIST.md`.
 

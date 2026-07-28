@@ -1,10 +1,10 @@
 import {
   MATERIAL_RATING_FEEDBACK_REASON_CODES,
   MATERIAL_RATING_FEEDBACK_REASON_LABELS,
-} from "@/modules/material-rating-feedback/reasonCodes";
-import type { MaterialRatingFeedbackDoctorSummary } from "@/modules/material-rating-feedback/ports";
-import { doctorSectionCardClass, doctorSectionTitleClass } from "@/shared/ui/doctor/doctorVisual";
-import { MaterialRatingFeedbackDoctorCommentsClient } from "./MaterialRatingFeedbackDoctorCommentsClient";
+} from '@/modules/material-rating-feedback/reasonCodes';
+import type { MaterialRatingFeedbackDoctorSummary } from '@/modules/material-rating-feedback/ports';
+import { doctorSectionCardClass, doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
+import { MaterialRatingFeedbackDoctorCommentsClient } from './MaterialRatingFeedbackDoctorCommentsClient';
 
 export function MaterialRatingFeedbackDoctorPanel({
   contentPageId,
@@ -26,7 +26,9 @@ export function MaterialRatingFeedbackDoctorPanel({
             {MATERIAL_RATING_FEEDBACK_REASON_CODES.map((code) => (
               <li key={code} className="flex items-center justify-between gap-2 text-sm">
                 <span>{MATERIAL_RATING_FEEDBACK_REASON_LABELS[code]}</span>
-                <span className="tabular-nums text-muted-foreground">{summary.byReasonCode[code]}</span>
+                <span className="tabular-nums text-muted-foreground">
+                  {summary.byReasonCode[code]}
+                </span>
               </li>
             ))}
           </ul>

@@ -1,13 +1,13 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { inMemoryPhoneChallengeStore } from "@/infra/repos/inMemoryPhoneChallengeStore";
-import { OTP_MAX_VERIFY_ATTEMPTS, OTP_RESEND_COOLDOWN_SEC } from "@/modules/auth/otpConstants";
-import type { PhoneChallengeStore } from "@/modules/auth/phoneChallengeStore";
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { inMemoryPhoneChallengeStore } from '@/infra/repos/inMemoryPhoneChallengeStore';
+import { OTP_MAX_VERIFY_ATTEMPTS, OTP_RESEND_COOLDOWN_SEC } from '@/modules/auth/otpConstants';
+import type { PhoneChallengeStore } from '@/modules/auth/phoneChallengeStore';
 import {
   assertPhoneCanStartChallenge,
   onPhoneWrongCode,
   registerPhoneSend,
   registerPhoneVerifySuccess,
-} from "@/modules/auth/phoneOtpLimits";
+} from '@/modules/auth/phoneOtpLimits';
 
 function freshPhone(): string {
   // Unique per test: phoneOtpLimits.ts's in-memory maps have no exported reset, same reason every
@@ -23,60 +23,60 @@ async function triggerPhoneLockout(phone: string): Promise<number> {
   await inMemoryPhoneChallengeStore.set(challengeId, {
     phone,
     expiresAt,
-    code: "123456",
+    code: '123456',
     verifyAttempts: 0,
   });
   let last: Awaited<ReturnType<typeof onPhoneWrongCode>> | undefined;
   for (let i = 0; i < OTP_MAX_VERIFY_ATTEMPTS; i++) {
     last = await onPhoneWrongCode(phone, challengeId, inMemoryPhoneChallengeStore);
   }
-  if (!last || last.ok || last.code !== "too_many_attempts") {
+  if (!last || last.ok || last.code !== 'too_many_attempts') {
     throw new Error(`expected too_many_attempts on the final attempt, got ${JSON.stringify(last)}`);
   }
   return last.retryAfterSeconds ?? -1;
 }
 
-describe("onPhoneWrongCode", () => {
-  it("даёт invalid_code до лимита попыток, затем too_many_attempts", async () => {
+describe('onPhoneWrongCode', () => {
+  it('даёт invalid_code до лимита попыток, затем too_many_attempts', async () => {
     const challengeId = `test-ch-${Math.random().toString(36).slice(2)}`;
-    const phone = "+79998887766";
+    const phone = '+79998887766';
     const expiresAt = Math.floor(Date.now() / 1000) + 600;
     await inMemoryPhoneChallengeStore.set(challengeId, {
       phone,
       expiresAt,
-      code: "123456",
+      code: '123456',
       verifyAttempts: 0,
     });
 
     for (let i = 0; i < OTP_MAX_VERIFY_ATTEMPTS - 1; i++) {
       const r = await onPhoneWrongCode(phone, challengeId, inMemoryPhoneChallengeStore);
       expect(r.ok).toBe(false);
-      if (!r.ok) expect(r.code).toBe("invalid_code");
+      if (!r.ok) expect(r.code).toBe('invalid_code');
     }
 
     const last = await onPhoneWrongCode(phone, challengeId, inMemoryPhoneChallengeStore);
     expect(last.ok).toBe(false);
     if (!last.ok) {
-      expect(last.code).toBe("too_many_attempts");
+      expect(last.code).toBe('too_many_attempts');
       expect(last.retryAfterSeconds).toBeDefined();
     }
   });
 
-  it("a legitimate user who mistypes the code once still gets a fresh invalid_code, not too_many_attempts, on the next try", async () => {
+  it('a legitimate user who mistypes the code once still gets a fresh invalid_code, not too_many_attempts, on the next try', async () => {
     const challengeId = `test-ch-retry-${Math.random().toString(36).slice(2)}`;
-    const phone = "+79994443322";
+    const phone = '+79994443322';
     const expiresAt = Math.floor(Date.now() / 1000) + 600;
     await inMemoryPhoneChallengeStore.set(challengeId, {
       phone,
       expiresAt,
-      code: "123456",
+      code: '123456',
       verifyAttempts: 0,
     });
 
     const first = await onPhoneWrongCode(phone, challengeId, inMemoryPhoneChallengeStore);
-    expect(first).toEqual({ ok: false, code: "invalid_code" });
+    expect(first).toEqual({ ok: false, code: 'invalid_code' });
     const second = await onPhoneWrongCode(phone, challengeId, inMemoryPhoneChallengeStore);
-    expect(second).toEqual({ ok: false, code: "invalid_code" });
+    expect(second).toEqual({ ok: false, code: 'invalid_code' });
 
     const stored = await inMemoryPhoneChallengeStore.get(challengeId);
     expect(stored?.verifyAttempts).toBe(2);
@@ -92,15 +92,15 @@ describe("onPhoneWrongCode", () => {
    * true multi-connection Postgres proof lives in
    * pgPhoneChallengeAtomicAttempts.devDb.integration.test.ts (opt-in, mutating DEV/scratch DB).
    */
-  it("N concurrent wrong-code attempts against the same challenge are all counted -- no lost update", async () => {
+  it('N concurrent wrong-code attempts against the same challenge are all counted -- no lost update', async () => {
     const challengeId = `test-ch-concurrent-${Math.random().toString(36).slice(2)}`;
-    const phone = "+79993332211";
+    const phone = '+79993332211';
     const expiresAt = Math.floor(Date.now() / 1000) + 600;
 
     let sharedAttempts = 0;
     const store: PhoneChallengeStore = {
       async get() {
-        return { phone, expiresAt, code: "123456", verifyAttempts: sharedAttempts };
+        return { phone, expiresAt, code: '123456', verifyAttempts: sharedAttempts };
       },
       async set() {},
       async delete() {},
@@ -117,16 +117,16 @@ describe("onPhoneWrongCode", () => {
 
     expect(results).toHaveLength(N);
     for (const result of results) {
-      expect(result).toEqual({ ok: false, code: "invalid_code" });
+      expect(result).toEqual({ ok: false, code: 'invalid_code' });
     }
     expect(sharedAttempts).toBe(N);
   });
 });
 
-describe("assertPhoneCanStartChallenge (EXEC H.1.6 — cooldown по номеру)", () => {
-  it("после отправки на номер A блокирует повтор до cooldown; другой номер B — сразу ок (как после исправления номера)", async () => {
-    const phoneA = "+79991110001";
-    const phoneB = "+79992220002";
+describe('assertPhoneCanStartChallenge (EXEC H.1.6 — cooldown по номеру)', () => {
+  it('после отправки на номер A блокирует повтор до cooldown; другой номер B — сразу ок (как после исправления номера)', async () => {
+    const phoneA = '+79991110001';
+    const phoneB = '+79992220002';
 
     let g = await assertPhoneCanStartChallenge(phoneA);
     expect(g).toEqual({ ok: true });
@@ -136,7 +136,7 @@ describe("assertPhoneCanStartChallenge (EXEC H.1.6 — cooldown по номер�
     g = await assertPhoneCanStartChallenge(phoneA);
     expect(g.ok).toBe(false);
     if (g.ok === false) {
-      expect(g.code).toBe("rate_limited");
+      expect(g.code).toBe('rate_limited');
       expect(g.retryAfterSeconds).toBeGreaterThan(0);
       expect(g.retryAfterSeconds).toBeLessThanOrEqual(OTP_RESEND_COOLDOWN_SEC);
     }
@@ -146,17 +146,17 @@ describe("assertPhoneCanStartChallenge (EXEC H.1.6 — cooldown по номер�
   });
 });
 
-describe("decaying OTP lockout (phone, in-memory) — night plan C-2 step 3", () => {
+describe('decaying OTP lockout (phone, in-memory) — night plan C-2 step 3', () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
   });
 
   afterEach(() => {
     vi.useRealTimers();
   });
 
-  it("escalates 2min -> 4min -> 8min -> 16min -> capped at 30min, then resets to 2min on the next success (NIST SP 800-63B §5.2.2 / OWASP exponential lockout)", async () => {
+  it('escalates 2min -> 4min -> 8min -> 16min -> capped at 30min, then resets to 2min on the next success (NIST SP 800-63B §5.2.2 / OWASP exponential lockout)', async () => {
     const phone = freshPhone();
     const expectedSeconds = [120, 240, 480, 960, 1800];
 
@@ -183,25 +183,25 @@ describe("decaying OTP lockout (phone, in-memory) — night plan C-2 step 3", ()
     expect(afterReset).toBe(120);
   });
 
-  it("a legitimate user who mistypes the code once is unaffected -- no lockout, no delay, on the very next try", async () => {
+  it('a legitimate user who mistypes the code once is unaffected -- no lockout, no delay, on the very next try', async () => {
     const phone = freshPhone();
     const challengeId = `retry-ch-${Math.random().toString(36).slice(2)}`;
     await inMemoryPhoneChallengeStore.set(challengeId, {
       phone,
       expiresAt: Math.floor(Date.now() / 1000) + 600,
-      code: "123456",
+      code: '123456',
       verifyAttempts: 0,
     });
 
     const wrong = await onPhoneWrongCode(phone, challengeId, inMemoryPhoneChallengeStore);
-    expect(wrong).toEqual({ ok: false, code: "invalid_code" });
+    expect(wrong).toEqual({ ok: false, code: 'invalid_code' });
 
     // No lockout was ever registered for this phone -- starting a fresh challenge is still allowed.
     const gate = await assertPhoneCanStartChallenge(phone);
     expect(gate).toEqual({ ok: true });
   });
 
-  it("no state is unrecoverable: waiting out the reported retryAfterSeconds always unblocks the phone, even at the cap", async () => {
+  it('no state is unrecoverable: waiting out the reported retryAfterSeconds always unblocks the phone, even at the cap', async () => {
     const phone = freshPhone();
     for (let i = 0; i < 5; i++) {
       const retryAfterSeconds = await triggerPhoneLockout(phone);

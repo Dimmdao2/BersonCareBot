@@ -1,12 +1,12 @@
-import { and, gte, sql } from "drizzle-orm";
-import { drizzleExcludeUserIdColumn } from "@/modules/analytics/analyticsAudience";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { logger } from "@/app-layer/logging/logger";
+import { and, gte, sql } from 'drizzle-orm';
+import { drizzleExcludeUserIdColumn } from '@/modules/analytics/analyticsAudience';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { logger } from '@/app-layer/logging/logger';
 import {
   mediaPlaybackResolutionEvents,
   mediaPlaybackStatsHourly,
   mediaPlaybackUserVideoFirstResolve,
-} from "../../../db/schema";
+} from '../../../db/schema';
 
 export const ADMIN_PLAYBACK_METRICS_WINDOW_HOURS = 24;
 /** Client-side video errors in last 1 h that trigger "degraded" (mirrors transcode threshold). */
@@ -29,7 +29,9 @@ export async function loadAdminPlaybackHealthMetrics(opts: {
   excludedUserIds?: string[];
 }): Promise<AdminPlaybackHealthMetrics> {
   const windowHours =
-    typeof opts.windowHours === "number" && Number.isFinite(opts.windowHours) && opts.windowHours > 0
+    typeof opts.windowHours === 'number' &&
+    Number.isFinite(opts.windowHours) &&
+    opts.windowHours > 0
       ? Math.floor(opts.windowHours)
       : ADMIN_PLAYBACK_METRICS_WINDOW_HOURS;
 
@@ -68,7 +70,10 @@ export async function loadAdminPlaybackHealthMetrics(opts: {
         })
         .from(mediaPlaybackResolutionEvents)
         .where(
-          and(gte(mediaPlaybackResolutionEvents.resolvedAt, windowCutoffSql), resolutionUserExclude),
+          and(
+            gte(mediaPlaybackResolutionEvents.resolvedAt, windowCutoffSql),
+            resolutionUserExclude,
+          ),
         )
         .groupBy(mediaPlaybackResolutionEvents.delivery);
 
@@ -92,19 +97,24 @@ export async function loadAdminPlaybackHealthMetrics(opts: {
         }
       } catch (eventsErr) {
         const code =
-          eventsErr && typeof eventsErr === "object" && "code" in eventsErr
+          eventsErr && typeof eventsErr === 'object' && 'code' in eventsErr
             ? String((eventsErr as { code?: string }).code)
-            : "";
-        if (code !== "42P01") throw eventsErr;
-        logger.warn({ err: eventsErr }, "playback_resolution_events_missing_fallback_hourly");
+            : '';
+        if (code !== '42P01') throw eventsErr;
+        logger.warn({ err: eventsErr }, 'playback_resolution_events_missing_fallback_hourly');
         totalsRows = await hourlyTotalsQuery();
       }
     }
 
     const uniqueRow = await db
-      .select({ c: sql<string>`COUNT(*)::text`.as("cnt") })
+      .select({ c: sql<string>`COUNT(*)::text`.as('cnt') })
       .from(mediaPlaybackUserVideoFirstResolve)
-      .where(and(gte(mediaPlaybackUserVideoFirstResolve.firstResolvedAt, windowCutoffSql), uniqueUserExclude));
+      .where(
+        and(
+          gte(mediaPlaybackUserVideoFirstResolve.firstResolvedAt, windowCutoffSql),
+          uniqueUserExclude,
+        ),
+      );
 
     const byDelivery = { hls: 0, mp4: 0, file: 0 };
     let fallbackTotal = 0;
@@ -114,13 +124,12 @@ export async function loadAdminPlaybackHealthMetrics(opts: {
       const f = Number.parseInt(row.fallbackSum, 10) || 0;
       totalResolutions += r;
       fallbackTotal += f;
-      if (row.delivery === "hls") byDelivery.hls = r;
-      else if (row.delivery === "mp4") byDelivery.mp4 = r;
-      else if (row.delivery === "file") byDelivery.file = r;
+      if (row.delivery === 'hls') byDelivery.hls = r;
+      else if (row.delivery === 'mp4') byDelivery.mp4 = r;
+      else if (row.delivery === 'file') byDelivery.file = r;
     }
 
-    const uniquePlaybackPairsFirstSeenInWindow =
-      Number.parseInt(uniqueRow[0]?.c ?? "0", 10) || 0;
+    const uniquePlaybackPairsFirstSeenInWindow = Number.parseInt(uniqueRow[0]?.c ?? '0', 10) || 0;
 
     return {
       byDelivery,
@@ -129,7 +138,7 @@ export async function loadAdminPlaybackHealthMetrics(opts: {
       uniquePlaybackPairsFirstSeenInWindow,
     };
   } catch (e) {
-    logger.error({ err: e }, "admin_playback_health_metrics_failed");
+    logger.error({ err: e }, 'admin_playback_health_metrics_failed');
     throw e;
   }
 }

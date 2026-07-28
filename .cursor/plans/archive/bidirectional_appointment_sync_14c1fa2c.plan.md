@@ -1,23 +1,23 @@
 ---
 name: Bidirectional appointment sync
-overview: "Единый AppointmentMirrorSync: полное двустороннее зеркалирование Rubitime ↔ be_appointments для mapped записей (включая native/admin_manual). Закрыто 2026-06-05."
+overview: 'Единый AppointmentMirrorSync: полное двустороннее зеркалирование Rubitime ↔ be_appointments для mapped записей (включая native/admin_manual). Закрыто 2026-06-05.'
 status: completed
 completedAt: 2026-06-05
 todos:
   - id: phase0-contract-and-boundaries
-    content: "Фаза 0: зеркальный контракт полей, ownership-правила и loop guard"
+    content: 'Фаза 0: зеркальный контракт полей, ownership-правила и loop guard'
     status: completed
   - id: phase1-inbound-rubitime-to-canonical
-    content: "Фаза 1: inbound Rubitime→канон — mapped записи, merge payload, recovery sync"
+    content: 'Фаза 1: inbound Rubitime→канон — mapped записи, merge payload, recovery sync'
     status: completed
   - id: phase2-outbound-canonical-to-rubitime
-    content: "Фаза 2: outbound канон→Rubitime — staff/patient/admin, patch-builder, integrator normalize"
+    content: 'Фаза 2: outbound канон→Rubitime — staff/patient/admin, patch-builder, integrator normalize'
     status: completed
   - id: phase3-unified-orchestrator
-    content: "Фаза 3: модуль AppointmentMirrorSync, events/staff/patient на orchestrator"
+    content: 'Фаза 3: модуль AppointmentMirrorSync, events/staff/patient на orchestrator'
     status: completed
   - id: phase4-validation-and-ops
-    content: "Фаза 4: тест-матрица, docs, ops backfill bridge"
+    content: 'Фаза 4: тест-матрица, docs, ops backfill bridge'
     status: completed
 isProject: false
 ---
@@ -34,13 +34,13 @@ isProject: false
 
 ## Итог по фазам
 
-| Фаза | Статус | Результат |
-|------|--------|-----------|
-| 0 | done | `types.ts`, loop guard, partial FK policy, `syncAttribution` |
-| 1 | done | Inbound без `skipped_native_owner`; fan-out; recovery → immediate update |
-| 2 | done | `buildRubitimeOutboundPatch`, integrator `normalizeUpdateRecordPatch.ts`; staff cancel **канон → Rubitime**; reschedule **Rubitime → канон** |
-| 3 | done | `service.ts` orchestrator; `integrator/events.ts` mirror-first; `patientMirrorOutbound.ts`; admin/doctor manual routes |
-| 4 | done | Vitest matrix; docs sync; ops `POST .../bridge` для истории |
+| Фаза | Статус | Результат                                                                                                                                    |
+| ---- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0    | done   | `types.ts`, loop guard, partial FK policy, `syncAttribution`                                                                                 |
+| 1    | done   | Inbound без `skipped_native_owner`; fan-out; recovery → immediate update                                                                     |
+| 2    | done   | `buildRubitimeOutboundPatch`, integrator `normalizeUpdateRecordPatch.ts`; staff cancel **канон → Rubitime**; reschedule **Rubitime → канон** |
+| 3    | done   | `service.ts` orchestrator; `integrator/events.ts` mirror-first; `patientMirrorOutbound.ts`; admin/doctor manual routes                       |
+| 4    | done   | Vitest matrix; docs sync; ops `POST .../bridge` для истории                                                                                  |
 
 ## Scope (фактически затронуто)
 
@@ -54,11 +54,11 @@ isProject: false
 
 ## Outbound-порядок (канон)
 
-| Путь | Порядок |
-|------|---------|
-| Staff `manual-reschedule` | Rubitime → канон |
-| Staff/admin `manual-cancel` | канон → Rubitime |
-| Patient cancel/reschedule | канон → best-effort Rubitime |
+| Путь                        | Порядок                      |
+| --------------------------- | ---------------------------- |
+| Staff `manual-reschedule`   | Rubitime → канон             |
+| Staff/admin `manual-cancel` | канон → Rubitime             |
+| Patient cancel/reschedule   | канон → best-effort Rubitime |
 
 ## Definition of Done
 

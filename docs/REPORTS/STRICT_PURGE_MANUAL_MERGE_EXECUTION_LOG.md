@@ -96,21 +96,21 @@
 
 ### Lock protocol / transaction boundaries
 
-| Участник | Режим | Момент |
-|----------|--------|--------|
-| Strict purge | exclusive xact lock | После `BEGIN`, до preflight |
-| Media presign | shared xact lock | Вставка `media_files` pending |
-| Intake LFK create | shared xact lock | После `BEGIN`, до INSERT заявки |
+| Участник          | Режим               | Момент                          |
+| ----------------- | ------------------- | ------------------------------- |
+| Strict purge      | exclusive xact lock | После `BEGIN`, до preflight     |
+| Media presign     | shared xact lock    | Вставка `media_files` pending   |
+| Intake LFK create | shared xact lock    | После `BEGIN`, до INSERT заявки |
 
 Webapp DELETE — одна транзакция. S3 и integrator — после `COMMIT`, параллельно. Audit — отдельный implicit transaction.
 
 ### Result / retry semantics
 
-| `outcome` | Условие |
-|-----------|---------|
-| `completed` | Внешние шаги успешны (или integrator pool отсутствует без ошибок S3/media) |
-| `partial_failed` | Ошибки S3 или post-delete `media_files` |
-| `needs_retry` | Integrator cleanup неуспешен при наличии пула, S3/media без ошибок |
+| `outcome`        | Условие                                                                    |
+| ---------------- | -------------------------------------------------------------------------- |
+| `completed`      | Внешние шаги успешны (или integrator pool отсутствует без ошибок S3/media) |
+| `partial_failed` | Ошибки S3 или post-delete `media_files`                                    |
+| `needs_retry`    | Integrator cleanup неуспешен при наличии пула, S3/media без ошибок         |
 
 ### Audit behavior
 
@@ -132,16 +132,16 @@ Webapp DELETE — одна транзакция. S3 и integrator — после
 
 ### Что проверено (соответствие плану §1)
 
-| Требование | Статус |
-|------------|--------|
-| Preflight в **той же** транзакции, что и DELETE (`BEGIN` → lock → `collectPurgeArtifactKeys` → `runWebappPurgeCoreInTransaction` → `COMMIT`) | OK (`strictPlatformUserPurge.ts`) |
-| Advisory **exclusive** lock **до** preflight | OK (`pg_advisory_xact_lock` сразу после `BEGIN`) |
-| Ключи из `online_intake_attachments` + `media_files` до каскадного удаления intake / `DELETE platform_users` | OK (`collectPurgeArtifactKeys` до `clearPlatformUserDeleteBlockers` / удаления пользователя) |
-| Post-commit S3 + integrator **параллельно**, без short-circuit | OK (`Promise.all([runS3AndMedia, runIntegrator])`) |
-| Аудит отдельной транзакцией; при rollback webapp — `status: error` | OK |
-| `media/presign`: shared lock + INSERT в tx, presign URL после `COMMIT` | OK (`withUserLifecycleLock` + `insertPendingMediaFileTx`) |
-| LFK `createLfkRequest`: shared lock после `BEGIN`, до INSERT заявки/вложений | OK |
-| `retryStrictPurgeExternalCleanup` не трогает `platform_users` | OK |
+| Требование                                                                                                                                   | Статус                                                                                       |
+| -------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Preflight в **той же** транзакции, что и DELETE (`BEGIN` → lock → `collectPurgeArtifactKeys` → `runWebappPurgeCoreInTransaction` → `COMMIT`) | OK (`strictPlatformUserPurge.ts`)                                                            |
+| Advisory **exclusive** lock **до** preflight                                                                                                 | OK (`pg_advisory_xact_lock` сразу после `BEGIN`)                                             |
+| Ключи из `online_intake_attachments` + `media_files` до каскадного удаления intake / `DELETE platform_users`                                 | OK (`collectPurgeArtifactKeys` до `clearPlatformUserDeleteBlockers` / удаления пользователя) |
+| Post-commit S3 + integrator **параллельно**, без short-circuit                                                                               | OK (`Promise.all([runS3AndMedia, runIntegrator])`)                                           |
+| Аудит отдельной транзакцией; при rollback webapp — `status: error`                                                                           | OK                                                                                           |
+| `media/presign`: shared lock + INSERT в tx, presign URL после `COMMIT`                                                                       | OK (`withUserLifecycleLock` + `insertPendingMediaFileTx`)                                    |
+| LFK `createLfkRequest`: shared lock после `BEGIN`, до INSERT заявки/вложений                                                                 | OK                                                                                           |
+| `retryStrictPurgeExternalCleanup` не трогает `platform_users`                                                                                | OK                                                                                           |
 
 ### Findings (issues / слабые места)
 
@@ -349,16 +349,16 @@ Webapp DELETE — одна транзакция. S3 и integrator — после
 
 ### Findings
 
-| Тема | Статус |
-|------|--------|
-| `MergeDependentConflictError.candidateIds` + throw-sites в `assertSharedPhoneGuard` / `assertPatientBookingsSafeToMerge` / `assertPatientLfkAssignmentsSafe` с `[targetId, duplicateId]` | OK (`platformUserMergeErrors.ts`, `pgPlatformUserMerge.ts`) |
-| Решение HTTP **202** vs **503** в repo (`pgUserProjection`) | OK: только ROLLBACK + rethrow typed errors; **нет** выбора статуса в репозитории |
-| Selective catch в `events.ts`: merge-class → `accepted: true`; иное → `accepted: false` (503) | OK; добавлен тест на **не**-merge `Error` → без `logAutoMergeConflict`, `accepted: false` |
-| Fallback «первый кандидат» в appointment compat | OK: при `appointmentMergeConflict` отключены `findByPhone` / `findByIntegratorId` |
-| `preferences.updated`: при merge-conflict до `upsertNotificationTopics` | OK: порядок try — сначала `upsertFromProjection`, при throw topics не вызываются |
-| `user_merge` audit vs план (`conflictsResolved`, `dependentRowsMoved`) | Был gap: в success-details не было полей плана — **исправлено** в `manualPlatformUserMerge.ts` + doc |
-| `conflictAudit` отсутствует в deps | Ранее: merge-class всё равно `accepted: true` без DB dedup — **уточнено** в `reason` строки handler’а при отсутствии `conflictAudit` |
-| Dedup `auto_merge_conflict` | OK: `computeConflictKeyFromCandidateIds` + `upsertOpenConflictLog` в route (стабильный sorted set) |
+| Тема                                                                                                                                                                                     | Статус                                                                                                                               |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `MergeDependentConflictError.candidateIds` + throw-sites в `assertSharedPhoneGuard` / `assertPatientBookingsSafeToMerge` / `assertPatientLfkAssignmentsSafe` с `[targetId, duplicateId]` | OK (`platformUserMergeErrors.ts`, `pgPlatformUserMerge.ts`)                                                                          |
+| Решение HTTP **202** vs **503** в repo (`pgUserProjection`)                                                                                                                              | OK: только ROLLBACK + rethrow typed errors; **нет** выбора статуса в репозитории                                                     |
+| Selective catch в `events.ts`: merge-class → `accepted: true`; иное → `accepted: false` (503)                                                                                            | OK; добавлен тест на **не**-merge `Error` → без `logAutoMergeConflict`, `accepted: false`                                            |
+| Fallback «первый кандидат» в appointment compat                                                                                                                                          | OK: при `appointmentMergeConflict` отключены `findByPhone` / `findByIntegratorId`                                                    |
+| `preferences.updated`: при merge-conflict до `upsertNotificationTopics`                                                                                                                  | OK: порядок try — сначала `upsertFromProjection`, при throw topics не вызываются                                                     |
+| `user_merge` audit vs план (`conflictsResolved`, `dependentRowsMoved`)                                                                                                                   | Был gap: в success-details не было полей плана — **исправлено** в `manualPlatformUserMerge.ts` + doc                                 |
+| `conflictAudit` отсутствует в deps                                                                                                                                                       | Ранее: merge-class всё равно `accepted: true` без DB dedup — **уточнено** в `reason` строки handler’а при отсутствии `conflictAudit` |
+| Dedup `auto_merge_conflict`                                                                                                                                                              | OK: `computeConflictKeyFromCandidateIds` + `upsertOpenConflictLog` в route (стабильный sorted set)                                   |
 
 ### Fixes в ходе review
 
@@ -427,16 +427,16 @@ Webapp DELETE — одна транзакция. S3 и integrator — после
 
 ### Findings
 
-| Тема | Вердикт |
-|------|--------|
-| **Admin-only** | Блоки merge + audit на карточке только при `canPermanentDelete` (admin + admin mode); API те же `requireAdminModeSession`. |
-| **Hard blockers** | `canSubmitManualMerge` требует `mergeAllowed`, пустой `hardBlockers`, согласованный `resolution`; кнопка завязана на `canMerge`. Обход только через прямой вызов API — сервер отклонит guard’ами. |
-| **Двойное подтверждение** | confirm + UUID дубликата; добавлено сравнение UUID **без учёта регистра** (`uuidEqualsNormalized`). |
-| **Badge / counter** | `openAutoMergeConflictCount` = `COUNT(*)` по открытым строкам (`resolved_at IS NULL`), не `repeat_count`; соответствует одной открытой строке на `conflict_key` после dedup. |
-| **v1 ограничения** | Добавлено заметное пояснение при `mergeAllowed && !v1MergeEngineCallable` (авто-путь vs ручной). |
-| **Ошибки API** | Улучшены сообщения при `403`, не-JSON ответе merge, ошибочном теле списка кандидатов. |
-| **Счётчик на карточке** | Уточнён текст: только среди загруженных строк (до 20), не повторы события. |
-| **Тесты** | Добавлены тесты `uuidEqualsNormalized`; остальное покрытие без изменения scope. |
+| Тема                      | Вердикт                                                                                                                                                                                           |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Admin-only**            | Блоки merge + audit на карточке только при `canPermanentDelete` (admin + admin mode); API те же `requireAdminModeSession`.                                                                        |
+| **Hard blockers**         | `canSubmitManualMerge` требует `mergeAllowed`, пустой `hardBlockers`, согласованный `resolution`; кнопка завязана на `canMerge`. Обход только через прямой вызов API — сервер отклонит guard’ами. |
+| **Двойное подтверждение** | confirm + UUID дубликата; добавлено сравнение UUID **без учёта регистра** (`uuidEqualsNormalized`).                                                                                               |
+| **Badge / counter**       | `openAutoMergeConflictCount` = `COUNT(*)` по открытым строкам (`resolved_at IS NULL`), не `repeat_count`; соответствует одной открытой строке на `conflict_key` после dedup.                      |
+| **v1 ограничения**        | Добавлено заметное пояснение при `mergeAllowed && !v1MergeEngineCallable` (авто-путь vs ручной).                                                                                                  |
+| **Ошибки API**            | Улучшены сообщения при `403`, не-JSON ответе merge, ошибочном теле списка кандидатов.                                                                                                             |
+| **Счётчик на карточке**   | Уточнён текст: только среди загруженных строк (до 20), не повторы события.                                                                                                                        |
+| **Тесты**                 | Добавлены тесты `uuidEqualsNormalized`; остальное покрытие без изменения scope.                                                                                                                   |
 
 ### Исправления в ходе review
 
@@ -455,14 +455,14 @@ Webapp DELETE — одна транзакция. S3 и integrator — после
 
 ### Findings
 
-| Тема | Статус |
-|------|--------|
-| Admin-only (`canPermanentDelete` + API `requireAdminModeSession`) | OK, без изменений логики |
-| Hard blockers / `canSubmitManualMerge` / disabled кнопка | OK; обход только через прямой API |
-| Двойное подтверждение + `uuidEqualsNormalized` | OK |
-| Бейдж `openAutoMergeConflictCount` (строки `resolved_at IS NULL`, не `repeat_count`) | OK |
-| v1 баннер при `!v1MergeEngineCallable` | OK |
-| Ошибки merge / кандидатов | OK; **зазор**: `merge-preview` и загрузка audit-лога при `403` показывали сырой код/англ. текст — выровняно с остальным UI |
+| Тема                                                                                 | Статус                                                                                                                     |
+| ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| Admin-only (`canPermanentDelete` + API `requireAdminModeSession`)                    | OK, без изменений логики                                                                                                   |
+| Hard blockers / `canSubmitManualMerge` / disabled кнопка                             | OK; обход только через прямой API                                                                                          |
+| Двойное подтверждение + `uuidEqualsNormalized`                                       | OK                                                                                                                         |
+| Бейдж `openAutoMergeConflictCount` (строки `resolved_at IS NULL`, не `repeat_count`) | OK                                                                                                                         |
+| v1 баннер при `!v1MergeEngineCallable`                                               | OK                                                                                                                         |
+| Ошибки merge / кандидатов                                                            | OK; **зазор**: `merge-preview` и загрузка audit-лога при `403` показывали сырой код/англ. текст — выровняно с остальным UI |
 
 ### Fixes (2nd pass)
 
@@ -481,14 +481,14 @@ Webapp DELETE — одна транзакция. S3 и integrator — после
 
 ### Верификация реализации этапов 1–5 (соответствие плану)
 
-| Область | Статус |
-|--------|--------|
+| Область                                                                                                                                                     | Статус                                                                              |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
 | **Strict purge** — lock → preflight S3 → DELETE в одной webapp tx; post-commit S3 ∥ integrator без short-circuit; `outcome` / `details`; аудит отдельной tx | Соответствует `strictPlatformUserPurge.ts`, тесты `strictPlatformUserPurge.test.ts` |
-| **Audit** — `user_purge`, `user_merge`, `auto_merge_conflict` / anomaly; запись после commit или после rollback основной операции | Соответствует `adminAuditLog.ts`, маршруты |
-| **Manual merge blockers** — разные non-null `integrator_user_id`, alias, overlap LFK/bookings, shared phone + meaningful data | Preview + engine + UI согласованы |
-| **Projection conflicts** — typed errors из repo; `events.ts` → 202 + audit, без identity mutation; appointment без compat fallback при конфликте | Соответствует `events.ts`, `events.test.ts` |
-| **Unresolved conflict visibility** — `openAutoMergeConflictCount`, карточка `involvesPlatformUserId`, dedup по `conflict_key` | Соответствует API и UI этапа 5 |
-| **v2 (integrator canonical merge)** | Не трогалось (вне scope этапа 6) |
+| **Audit** — `user_purge`, `user_merge`, `auto_merge_conflict` / anomaly; запись после commit или после rollback основной операции                           | Соответствует `adminAuditLog.ts`, маршруты                                          |
+| **Manual merge blockers** — разные non-null `integrator_user_id`, alias, overlap LFK/bookings, shared phone + meaningful data                               | Preview + engine + UI согласованы                                                   |
+| **Projection conflicts** — typed errors из repo; `events.ts` → 202 + audit, без identity mutation; appointment без compat fallback при конфликте            | Соответствует `events.ts`, `events.test.ts`                                         |
+| **Unresolved conflict visibility** — `openAutoMergeConflictCount`, карточка `involvesPlatformUserId`, dedup по `conflict_key`                               | Соответствует API и UI этапа 5                                                      |
+| **v2 (integrator canonical merge)**                                                                                                                         | Не трогалось (вне scope этапа 6)                                                    |
 
 ### Документация (обновлено / синхронизировано)
 
@@ -548,15 +548,15 @@ Webapp DELETE — одна транзакция. S3 и integrator — после
 
 ### Findings
 
-| Тема | Вердикт |
-|------|--------|
-| **Strict purge** — docs (`DOCTOR_CLIENT_ARCHIVE_AND_PURGE`, `PLATFORM_USER_MERGE` §locks) vs `strictPlatformUserPurge.ts` / `platformUserFullPurge` delegation | Согласовано: exclusive lock, preflight до DELETE, post-commit S3 ∥ integrator, `outcome`, `intakeS3ObjectsNotDeletedBucketDisabled`, `retry` / `user_purge_external_retry` в `api.md`. |
-| **Manual merge blockers + preview** | Коды hard blockers и `v1MergeEngineCallable` соответствуют `platformUserMergePreview` / `pgPlatformUserMerge`. |
-| **Projection conflicts** | Документы и `api.md` описывают 202 + audit; `preferences.updated` — нет replay; разные integrator id — blocker до v2 плана. |
-| **Execution log** | Отражает этап 6 (доки, тесты, CI, mock `getPool` в `integrator/events/route.test.ts`). Нет противоречий с текущим кодом. |
-| **Полусделанный v2 в коде** | Не обнаружено: нет заготовок integrator `merged_into_user_id` и т.п. в рамках проверки. |
-| **Doc drift** | В `PLATFORM_USER_MERGE.md` оставались формулировки «следующие этапы» / «до появления ManualMergeResolution» при уже реализованном ручном merge — **исправлено** в этой верификации. |
-| **Targeted tests vs критические ограничения v1** | Блокер разных `integrator_user_id` покрыт preview-тестами и merge; audit manual merge — `manualPlatformUserMerge.test.ts`; integrator conflict semantics — `events.test.ts`. Полного интеграционного теста advisory locks в PG нет — осознанное ограничение, зафиксировано в логе этапа 6. |
+| Тема                                                                                                                                                           | Вердикт                                                                                                                                                                                                                                                                                    |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Strict purge** — docs (`DOCTOR_CLIENT_ARCHIVE_AND_PURGE`, `PLATFORM_USER_MERGE` §locks) vs `strictPlatformUserPurge.ts` / `platformUserFullPurge` delegation | Согласовано: exclusive lock, preflight до DELETE, post-commit S3 ∥ integrator, `outcome`, `intakeS3ObjectsNotDeletedBucketDisabled`, `retry` / `user_purge_external_retry` в `api.md`.                                                                                                     |
+| **Manual merge blockers + preview**                                                                                                                            | Коды hard blockers и `v1MergeEngineCallable` соответствуют `platformUserMergePreview` / `pgPlatformUserMerge`.                                                                                                                                                                             |
+| **Projection conflicts**                                                                                                                                       | Документы и `api.md` описывают 202 + audit; `preferences.updated` — нет replay; разные integrator id — blocker до v2 плана.                                                                                                                                                                |
+| **Execution log**                                                                                                                                              | Отражает этап 6 (доки, тесты, CI, mock `getPool` в `integrator/events/route.test.ts`). Нет противоречий с текущим кодом.                                                                                                                                                                   |
+| **Полусделанный v2 в коде**                                                                                                                                    | Не обнаружено: нет заготовок integrator `merged_into_user_id` и т.п. в рамках проверки.                                                                                                                                                                                                    |
+| **Doc drift**                                                                                                                                                  | В `PLATFORM_USER_MERGE.md` оставались формулировки «следующие этапы» / «до появления ManualMergeResolution» при уже реализованном ручном merge — **исправлено** в этой верификации.                                                                                                        |
+| **Targeted tests vs критические ограничения v1**                                                                                                               | Блокер разных `integrator_user_id` покрыт preview-тестами и merge; audit manual merge — `manualPlatformUserMerge.test.ts`; integrator conflict semantics — `events.test.ts`. Полного интеграционного теста advisory locks в PG нет — осознанное ограничение, зафиксировано в логе этапа 6. |
 
 ### Fixes (в ходе финальной верификации)
 
@@ -576,13 +576,13 @@ Webapp DELETE — одна транзакция. S3 и integrator — после
 
 ### Findings
 
-| Тема | Вердикт |
-|------|--------|
-| Соответствие docs этапов 1–5 коду | Без новых расхождений; strict purge, merge, audit, integrator 202 — как в репозитории. |
-| Execution log | Дополнительно убраны остаточные формулировки **«Phase 6»** там, где имелся в виду **v2 / integrator-side** (исторические строки этапов 3–5 и блок рисков этапа 6), чтобы не путать с **этапом 6** плана (docs/regression). |
-| Ограничения v1 | `preferences.updated` (no replay), разные `integrator_user_id` (blocker до v2) — явно в `PLATFORM_USER_MERGE.md` §«Ограничения v1» и ingestion. |
-| Полусделанный v2 | Не выявлено в проверенных docs/код-путях. |
-| Targeted tests | Критические ограничения по-прежнему покрыты перечисленными в этапе 6 тестами; advisory locks в PG — без интеграционного теста (осознанно). |
+| Тема                              | Вердикт                                                                                                                                                                                                                    |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Соответствие docs этапов 1–5 коду | Без новых расхождений; strict purge, merge, audit, integrator 202 — как в репозитории.                                                                                                                                     |
+| Execution log                     | Дополнительно убраны остаточные формулировки **«Phase 6»** там, где имелся в виду **v2 / integrator-side** (исторические строки этапов 3–5 и блок рисков этапа 6), чтобы не путать с **этапом 6** плана (docs/regression). |
+| Ограничения v1                    | `preferences.updated` (no replay), разные `integrator_user_id` (blocker до v2) — явно в `PLATFORM_USER_MERGE.md` §«Ограничения v1» и ingestion.                                                                            |
+| Полусделанный v2                  | Не выявлено в проверенных docs/код-путях.                                                                                                                                                                                  |
+| Targeted tests                    | Критические ограничения по-прежнему покрыты перечисленными в этапе 6 тестами; advisory locks в PG — без интеграционного теста (осознанно).                                                                                 |
 
 ### Fixes (pass 2)
 
@@ -599,10 +599,10 @@ Webapp DELETE — одна транзакция. S3 и integrator — после
 
 ### Findings
 
-| Тема | Вердикт |
-|------|--------|
-| Основные docs инициативы | Новых расхождений с кодом не найдено: strict purge, manual merge blockers, conflict handling и v1 limitations согласованы. |
-| Execution log | После pass 2 явных противоречий или хвостов v2 в формулировках по инициативе не осталось. |
+| Тема                        | Вердикт                                                                                                                                 |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Основные docs инициативы    | Новых расхождений с кодом не найдено: strict purge, manual merge blockers, conflict handling и v1 limitations согласованы.              |
+| Execution log               | После pass 2 явных противоречий или хвостов v2 в формулировках по инициативе не осталось.                                               |
 | Targeted tests / edge cases | Критические v1 ограничения по-прежнему покрыты выбранным regression-набором; интеграционный PG-lock test всё ещё сознательно вне scope. |
 
 ### Fixes (pass 3)

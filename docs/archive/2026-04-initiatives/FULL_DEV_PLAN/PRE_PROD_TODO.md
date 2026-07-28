@@ -25,16 +25,17 @@
   - `GOOGLE_CALENDAR_ENABLED`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, `GOOGLE_CALENDAR_ID`, `GOOGLE_REFRESH_TOKEN`
 
 В БД (`system_settings`, scope=admin) уже есть:
+
 - `dev_mode`, `debug_forward_to_admin`, `sms_fallback_enabled`, `important_fallback_delay_minutes`, `integration_test_ids`
 - API: `PATCH /api/admin/settings` с role=admin guard и audit log
 
 ### 1.2 Целевая модель
 
-| Тип настройки | Источник истины | Fallback |
-|---------------|----------------|----------|
-| **Non-secret runtime** (URI, флаги, лимиты) | `system_settings` в БД, scope=admin | env (для bootstrap) |
-| **Whitelist IDs** (п. 2) | `system_settings` в БД, scope=admin | env (для bootstrap) |
-| **Secrets** (токены, HMAC-ключи, OAuth-секреты) | env / secret-store | нет fallback |
+| Тип настройки                                   | Источник истины                     | Fallback            |
+| ----------------------------------------------- | ----------------------------------- | ------------------- |
+| **Non-secret runtime** (URI, флаги, лимиты)     | `system_settings` в БД, scope=admin | env (для bootstrap) |
+| **Whitelist IDs** (п. 2)                        | `system_settings` в БД, scope=admin | env (для bootstrap) |
+| **Secrets** (токены, HMAC-ключи, OAuth-секреты) | env / secret-store                  | нет fallback        |
 
 Секреты **остаются в env** (или переедут в secret-store позже). В админку переезжают **non-secret настройки и URI**.
 
@@ -101,6 +102,7 @@
 ### 2.1 Текущее состояние (as-is)
 
 Whitelist ID хранятся в env webapp:
+
 - `ALLOWED_TELEGRAM_IDS` — кто может входить через Telegram
 - `ALLOWED_MAX_IDS` — кто может входить через Max
 - `ADMIN_MAX_IDS`, `DOCTOR_MAX_IDS` — роли по Max ID
@@ -108,12 +110,14 @@ Whitelist ID хранятся в env webapp:
 - `ADMIN_PHONES`, `DOCTOR_PHONES`, `ALLOWED_PHONES` — роли и whitelist по телефону
 
 Используются в `apps/webapp/src/modules/auth/service.ts` для:
+
 - Определения роли (admin/doctor/patient) при входе через мессенджер.
 - Whitelist проверки (разрешён ли вход для данного ID/телефона).
 
 ### 2.2 Целевая модель
 
 Все whitelist/role-map хранятся в `system_settings` (scope=admin) как JSON-массивы:
+
 - `allowed_telegram_ids`: `string[]`
 - `allowed_max_ids`: `string[]`
 - `admin_telegram_ids`: `string[]`
@@ -236,14 +240,15 @@ Whitelist ID хранятся в env webapp:
 
 Определить delivery-стратегию по категории:
 
-| Категория | Каналы | SMS fallback | Confirmed-read |
-|-----------|--------|-------------|----------------|
-| `exercise` | telegram (primary) | нет | нет |
-| `hydration` | telegram (primary) | нет | нет |
-| `important` | все привязанные (telegram + max + email) | да, после delay | да |
-| `posture` | telegram (primary) | нет | нет |
+| Категория   | Каналы                                   | SMS fallback    | Confirmed-read |
+| ----------- | ---------------------------------------- | --------------- | -------------- |
+| `exercise`  | telegram (primary)                       | нет             | нет            |
+| `hydration` | telegram (primary)                       | нет             | нет            |
+| `important` | все привязанные (telegram + max + email) | да, после delay | да             |
+| `posture`   | telegram (primary)                       | нет             | нет            |
 
 Интерфейс:
+
 ```typescript
 type DeliveryStrategy = {
   channels: ('telegram' | 'max' | 'email' | 'sms')[];
@@ -252,7 +257,10 @@ type DeliveryStrategy = {
   smsFallbackDelayMinutes: number;
 };
 
-function getDeliveryStrategy(category: ReminderCategory, settings: SystemSettings): DeliveryStrategy;
+function getDeliveryStrategy(
+  category: ReminderCategory,
+  settings: SystemSettings,
+): DeliveryStrategy;
 ```
 
 `smsFallbackDelayMinutes` читать из `important_fallback_delay_minutes` (system_settings).
@@ -262,6 +270,7 @@ function getDeliveryStrategy(category: ReminderCategory, settings: SystemSetting
 **Файл**: `apps/integrator/src/kernel/domain/executor/handlers/reminders.ts`
 
 Текущий код (строит intent только для Telegram):
+
 ```typescript
 intents.push({
   type: 'message.send',
@@ -273,14 +282,16 @@ intents.push({
 ```
 
 Изменить:
+
 1. Для каждого occurrence — получить `channelBindings` пользователя (из DB или кэша).
 2. Вызвать `getDeliveryStrategy(occ.category, settings)`.
 3. Для каждого канала в strategy.channels — если есть binding — создать отдельный intent.
 4. Записать в `delivery_log` запись per channel per occurrence.
 
 Для получения channel bindings нужен новый read query:
+
 ```typescript
-deps.readPort.readDb({ type: 'user.channelBindings', params: { userId: occ.userId } })
+deps.readPort.readDb({ type: 'user.channelBindings', params: { userId: occ.userId } });
 ```
 
 #### Шаг 3: Таблица delivery_log (миграция integrator)
@@ -308,6 +319,7 @@ CREATE INDEX IF NOT EXISTS idx_rdl_pending_fallback ON reminder_delivery_log(sta
 **Файл**: `apps/integrator/src/kernel/domain/reminders/smsFallbackWorker.ts`
 
 Логика (выполняется периодически, как scheduler tick):
+
 1. Найти записи в `reminder_delivery_log` где:
    - `status` IN ('sent', 'delivered') — отправлено, но не прочитано
    - `created_at` < now() - `smsFallbackDelayMinutes`
@@ -323,6 +335,7 @@ CREATE INDEX IF NOT EXISTS idx_rdl_pending_fallback ON reminder_delivery_log(sta
 #### Шаг 5: Read-confirmation webhook
 
 Для отслеживания read/open нужен webhook от мессенджера:
+
 - **Telegram**: бот не получает уведомлений о прочтении (ограничение API). Fallback: считать "доставлено" = Telegram API вернул ok.
 - **Max**: проверить Max Bot API на наличие read receipts.
 - **Email**: tracking pixel или click-through link.
@@ -338,6 +351,7 @@ CREATE INDEX IF NOT EXISTS idx_rdl_pending_fallback ON reminder_delivery_log(sta
 - Batch pause: если несколько occurrences для одного пользователя за < 30 сек — группировать.
 
 Проверка лимита перед dispatch:
+
 ```typescript
 const todayCount = await readPort.readDb({
   type: 'reminders.delivery.countToday',
@@ -371,6 +385,7 @@ if (todayCount >= 20) return skip;
 ### 4.1 Что есть в планах
 
 **Из `RAW_PLAN.md`** (секция "Ещё не описано"):
+
 - Заведение истории приема: анамнез, жалобы (симптомы), осмотр, предположение/диагноз, рекомендации
 - Связь с динамикой дневников (из дневника и то что отметил специалист)
 - Первичный/повторный приём, дата рождения, вес, рост, авто-расчёт ИМТ, анамнез заболеваний
@@ -378,18 +393,21 @@ if (todayCount >= 20) return skip;
 - Доктор может перенести/отменить запись из приложения (webhook в rubitime и календарь, уведомление клиенту)
 
 **Из `RAW_PLAN.md`** (секция 7, «Клиенты»):
+
 - ФИО и контакты (телефон — кнопка звонка, мессенджеры — кнопки перехода)
 - Кнопка «Открыть карту клиента»
 - Блок записей на приём + история записей
 - «Создать из записи на прием» — подстановка данных из записи
 
 **Из `ROADMAP.md`** (Stage 17):
+
 - DB: `patient_cards`, `patient_visits`
 - API: CRUD
 - UI: карта пациента, история визитов, динамика симптомов
 - UI: форма записи визита (тип, жалобы, осмотр, диагноз, рекомендации)
 
 **Из `MASTER_PLAN_EXEC.md`**:
+
 - Stage 17 не входил в execution pipeline A–G
 
 ### 4.2 Что уже есть в коде
@@ -402,16 +420,16 @@ if (todayCount >= 20) return skip;
 
 ### 4.3 Чего НЕ ХВАТАЕТ для начала реализации
 
-| # | Что нужно | Статус |
-|---|-----------|--------|
-| 1 | **Схема БД `patient_cards`** — точные поля, типы, constraints | Не определены. Нужно: id, user_id (FK → platform_users), date_of_birth, weight_kg, height_cm, bmi (computed), medical_history (text/jsonb), created_at, updated_at, created_by (FK → doctor) |
-| 2 | **Схема БД `patient_visits`** — поля визита | Не определены. Нужно: id, card_id (FK → patient_cards), visit_date, visit_type (enum: первичный/повторный), complaint (text), examination (text), diagnosis_text, diagnosis_ref_id (FK → reference_items), stage_ref_id, recommendations (text), service_name, duration_minutes, branch, appointment_id (FK → doctor_appointments, nullable), created_by, created_at |
-| 3 | **Связь card ↔ diary** — как динамика дневников привязывается к карте | Через `user_id`: карта → user_id → symptom_trackings/lfk_sessions. Нет дополнительной привязки к визитам (нужна?). **Решение владельца**: достаточно ли связи через user_id или нужна привязка конкретных записей дневника к конкретному визиту? |
-| 4 | **Связь card ↔ appointments** — как записи из rubitime привязываются к визитам | Через `appointment_id` в `patient_visits` (nullable). Нужен ли маппинг 1:1 или визит может быть без записи из rubitime? **Решение владельца**: создавать визит автоматически из записи или вручную? |
-| 5 | **UI wireframes** — точная компоновка полей | Не описана. Из плана: ФИО+контакты → кнопка «Открыть карту» → данные карты → визиты. Нужно решение: одностраничная карта с вкладками или отдельные экраны? |
-| 6 | **Workflow визита** — статусы, жизненный цикл | Не описан. Draft → completed? Можно ли редактировать завершённый визит? |
-| 7 | **Права доступа** — кто может создавать/редактировать карту | Подразумевается: только doctor/admin. Нужно подтверждение. |
-| 8 | **Экспорт/печать** | Не упоминается в текущих планах, но типично для медкарт. **Решение владельца**: нужен ли на первом этапе? |
+| #   | Что нужно                                                                      | Статус                                                                                                                                                                                                                                                                                                                                                               |
+| --- | ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Схема БД `patient_cards`** — точные поля, типы, constraints                  | Не определены. Нужно: id, user_id (FK → platform_users), date_of_birth, weight_kg, height_cm, bmi (computed), medical_history (text/jsonb), created_at, updated_at, created_by (FK → doctor)                                                                                                                                                                         |
+| 2   | **Схема БД `patient_visits`** — поля визита                                    | Не определены. Нужно: id, card_id (FK → patient_cards), visit_date, visit_type (enum: первичный/повторный), complaint (text), examination (text), diagnosis_text, diagnosis_ref_id (FK → reference_items), stage_ref_id, recommendations (text), service_name, duration_minutes, branch, appointment_id (FK → doctor_appointments, nullable), created_by, created_at |
+| 3   | **Связь card ↔ diary** — как динамика дневников привязывается к карте          | Через `user_id`: карта → user_id → symptom_trackings/lfk_sessions. Нет дополнительной привязки к визитам (нужна?). **Решение владельца**: достаточно ли связи через user_id или нужна привязка конкретных записей дневника к конкретному визиту?                                                                                                                     |
+| 4   | **Связь card ↔ appointments** — как записи из rubitime привязываются к визитам | Через `appointment_id` в `patient_visits` (nullable). Нужен ли маппинг 1:1 или визит может быть без записи из rubitime? **Решение владельца**: создавать визит автоматически из записи или вручную?                                                                                                                                                                  |
+| 5   | **UI wireframes** — точная компоновка полей                                    | Не описана. Из плана: ФИО+контакты → кнопка «Открыть карту» → данные карты → визиты. Нужно решение: одностраничная карта с вкладками или отдельные экраны?                                                                                                                                                                                                           |
+| 6   | **Workflow визита** — статусы, жизненный цикл                                  | Не описан. Draft → completed? Можно ли редактировать завершённый визит?                                                                                                                                                                                                                                                                                              |
+| 7   | **Права доступа** — кто может создавать/редактировать карту                    | Подразумевается: только doctor/admin. Нужно подтверждение.                                                                                                                                                                                                                                                                                                           |
+| 8   | **Экспорт/печать**                                                             | Не упоминается в текущих планах, но типично для медкарт. **Решение владельца**: нужен ли на первом этапе?                                                                                                                                                                                                                                                            |
 
 ### 4.4 Что нужно от владельца перед стартом Stage 17
 

@@ -87,12 +87,12 @@
 
 ## Summary
 
-| Item | Verdict | Notes |
-|------|---------|-------|
-| SCH-R-01 | **PASS** | state load-only scope; reload-on-save is SCH-R-08 |
-| SCH-R-07 | **PASS** | audit-1 atomicity FAIL now FIXED + confirmed |
+| Item     | Verdict  | Notes                                                 |
+| -------- | -------- | ----------------------------------------------------- |
+| SCH-R-01 | **PASS** | state load-only scope; reload-on-save is SCH-R-08     |
+| SCH-R-07 | **PASS** | audit-1 atomicity FAIL now FIXED + confirmed          |
 | SCH-R-02 | **PASS** | strikethrough→«выходной» = spec evolution, not defect |
-| SCH-R-03 | **PASS** | mapping consistent across header/handler/resolver |
+| SCH-R-03 | **PASS** | mapping consistent across header/handler/resolver     |
 
 **OVERALL: PASS (4/4).** tsc clean. SCH-R-07 audit-1 defect remediated via `db.transaction`.
 No new defects found.

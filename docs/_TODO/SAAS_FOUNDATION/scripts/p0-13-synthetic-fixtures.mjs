@@ -1,22 +1,22 @@
 #!/usr/bin/env node
 
-export const fixtureVersion = "p0.13.1";
+export const fixtureVersion = 'p0.13.1';
 
 export const syntheticFixtureIds = Object.freeze({
-  orgA: "13000000-0000-4000-8000-0000000000a1",
-  orgB: "13000000-0000-4000-8000-0000000000b1",
-  doctorA: "13000000-0000-4000-8000-00000000d0a1",
-  doctorB: "13000000-0000-4000-8000-00000000d0b1",
-  patientA1: "13000000-0000-4000-8000-00000000a101",
-  patientA2: "13000000-0000-4000-8000-00000000a102",
-  patientB1: "13000000-0000-4000-8000-00000000b101",
-  packageA: "13000000-0000-4000-8000-00000000f0a1",
-  packageB: "13000000-0000-4000-8000-00000000f0b1",
-  serviceA: "13000000-0000-4000-8000-00000000e0a1",
-  serviceB: "13000000-0000-4000-8000-00000000e0b1",
-  patientPackageA1: "13000000-0000-4000-8000-00000000c0a1",
-  patientPackageA2: "13000000-0000-4000-8000-00000000c0a2",
-  patientPackageB1: "13000000-0000-4000-8000-00000000c0b1",
+  orgA: '13000000-0000-4000-8000-0000000000a1',
+  orgB: '13000000-0000-4000-8000-0000000000b1',
+  doctorA: '13000000-0000-4000-8000-00000000d0a1',
+  doctorB: '13000000-0000-4000-8000-00000000d0b1',
+  patientA1: '13000000-0000-4000-8000-00000000a101',
+  patientA2: '13000000-0000-4000-8000-00000000a102',
+  patientB1: '13000000-0000-4000-8000-00000000b101',
+  packageA: '13000000-0000-4000-8000-00000000f0a1',
+  packageB: '13000000-0000-4000-8000-00000000f0b1',
+  serviceA: '13000000-0000-4000-8000-00000000e0a1',
+  serviceB: '13000000-0000-4000-8000-00000000e0b1',
+  patientPackageA1: '13000000-0000-4000-8000-00000000c0a1',
+  patientPackageA2: '13000000-0000-4000-8000-00000000c0a2',
+  patientPackageB1: '13000000-0000-4000-8000-00000000c0b1',
 });
 
 export const syntheticIntegratorUserIds = Object.freeze({
@@ -28,290 +28,315 @@ export const syntheticIntegratorUserIds = Object.freeze({
 });
 
 export const requiredFixtureFamilies = Object.freeze([
-  "direct_org",
-  "fk_path",
-  "denorm_path",
-  "bootstrap",
-  "integrator_scoped",
-  "integrator_denorm",
+  'direct_org',
+  'fk_path',
+  'denorm_path',
+  'bootstrap',
+  'integrator_scoped',
+  'integrator_denorm',
 ]);
 
 export const p013SyntheticFixture = Object.freeze({
   version: fixtureVersion,
   organizations: Object.freeze([
-    Object.freeze({ key: "org_a", id: syntheticFixtureIds.orgA, title: "P0.13 Synthetic Org A" }),
-    Object.freeze({ key: "org_b", id: syntheticFixtureIds.orgB, title: "P0.13 Synthetic Org B" }),
+    Object.freeze({ key: 'org_a', id: syntheticFixtureIds.orgA, title: 'P0.13 Synthetic Org A' }),
+    Object.freeze({ key: 'org_b', id: syntheticFixtureIds.orgB, title: 'P0.13 Synthetic Org B' }),
   ]),
   platformUsers: Object.freeze([
-    Object.freeze({ key: "doctor_a", id: syntheticFixtureIds.doctorA, role: "doctor", organizationKey: "org_a" }),
-    Object.freeze({ key: "doctor_b", id: syntheticFixtureIds.doctorB, role: "doctor", organizationKey: "org_b" }),
-    Object.freeze({ key: "patient_a1", id: syntheticFixtureIds.patientA1, role: "client", organizationKey: "org_a" }),
-    Object.freeze({ key: "patient_a2", id: syntheticFixtureIds.patientA2, role: "client", organizationKey: "org_a" }),
-    Object.freeze({ key: "patient_b1", id: syntheticFixtureIds.patientB1, role: "client", organizationKey: "org_b" }),
+    Object.freeze({
+      key: 'doctor_a',
+      id: syntheticFixtureIds.doctorA,
+      role: 'doctor',
+      organizationKey: 'org_a',
+    }),
+    Object.freeze({
+      key: 'doctor_b',
+      id: syntheticFixtureIds.doctorB,
+      role: 'doctor',
+      organizationKey: 'org_b',
+    }),
+    Object.freeze({
+      key: 'patient_a1',
+      id: syntheticFixtureIds.patientA1,
+      role: 'client',
+      organizationKey: 'org_a',
+    }),
+    Object.freeze({
+      key: 'patient_a2',
+      id: syntheticFixtureIds.patientA2,
+      role: 'client',
+      organizationKey: 'org_a',
+    }),
+    Object.freeze({
+      key: 'patient_b1',
+      id: syntheticFixtureIds.patientB1,
+      role: 'client',
+      organizationKey: 'org_b',
+    }),
   ]),
   rows: Object.freeze([
     Object.freeze({
-      fixtureId: "direct-org-member-a",
-      family: "direct_org",
-      table: "public.be_organization_members",
-      organizationKey: "org_a",
+      fixtureId: 'direct-org-member-a',
+      family: 'direct_org',
+      table: 'public.be_organization_members',
+      organizationKey: 'org_a',
       organizationId: syntheticFixtureIds.orgA,
-      patientKey: "none",
-      patientUserId: "",
-      principalKey: "doctor_a",
+      patientKey: 'none',
+      patientUserId: '',
+      principalKey: 'doctor_a',
       principalUserId: syntheticFixtureIds.doctorA,
-      expectedScope: "org_a",
-      notes: "staff membership row with materialized organization_id",
+      expectedScope: 'org_a',
+      notes: 'staff membership row with materialized organization_id',
     }),
     Object.freeze({
-      fixtureId: "direct-org-member-b",
-      family: "direct_org",
-      table: "public.be_organization_members",
-      organizationKey: "org_b",
+      fixtureId: 'direct-org-member-b',
+      family: 'direct_org',
+      table: 'public.be_organization_members',
+      organizationKey: 'org_b',
       organizationId: syntheticFixtureIds.orgB,
-      patientKey: "none",
-      patientUserId: "",
-      principalKey: "doctor_b",
+      patientKey: 'none',
+      patientUserId: '',
+      principalKey: 'doctor_b',
       principalUserId: syntheticFixtureIds.doctorB,
-      expectedScope: "org_b",
-      notes: "second organization staff membership row",
+      expectedScope: 'org_b',
+      notes: 'second organization staff membership row',
     }),
     Object.freeze({
-      fixtureId: "direct-org-enrollment-a1",
-      family: "direct_org",
-      table: "public.org_enrollments",
-      organizationKey: "org_a",
+      fixtureId: 'direct-org-enrollment-a1',
+      family: 'direct_org',
+      table: 'public.org_enrollments',
+      organizationKey: 'org_a',
       organizationId: syntheticFixtureIds.orgA,
-      patientKey: "patient_a1",
+      patientKey: 'patient_a1',
       patientUserId: syntheticFixtureIds.patientA1,
-      principalKey: "patient_a1",
+      principalKey: 'patient_a1',
       principalUserId: syntheticFixtureIds.patientA1,
-      expectedScope: "org_a/patient_a1",
-      notes: "patient wall baseline row for org A patient 1",
+      expectedScope: 'org_a/patient_a1',
+      notes: 'patient wall baseline row for org A patient 1',
     }),
     Object.freeze({
-      fixtureId: "direct-org-enrollment-a2",
-      family: "direct_org",
-      table: "public.org_enrollments",
-      organizationKey: "org_a",
+      fixtureId: 'direct-org-enrollment-a2',
+      family: 'direct_org',
+      table: 'public.org_enrollments',
+      organizationKey: 'org_a',
       organizationId: syntheticFixtureIds.orgA,
-      patientKey: "patient_a2",
+      patientKey: 'patient_a2',
       patientUserId: syntheticFixtureIds.patientA2,
-      principalKey: "patient_a2",
+      principalKey: 'patient_a2',
       principalUserId: syntheticFixtureIds.patientA2,
-      expectedScope: "org_a/patient_a2",
-      notes: "same-org second patient for patient-wall negative assertions",
+      expectedScope: 'org_a/patient_a2',
+      notes: 'same-org second patient for patient-wall negative assertions',
     }),
     Object.freeze({
-      fixtureId: "direct-org-enrollment-b1",
-      family: "direct_org",
-      table: "public.org_enrollments",
-      organizationKey: "org_b",
+      fixtureId: 'direct-org-enrollment-b1',
+      family: 'direct_org',
+      table: 'public.org_enrollments',
+      organizationKey: 'org_b',
       organizationId: syntheticFixtureIds.orgB,
-      patientKey: "patient_b1",
+      patientKey: 'patient_b1',
       patientUserId: syntheticFixtureIds.patientB1,
-      principalKey: "patient_b1",
+      principalKey: 'patient_b1',
       principalUserId: syntheticFixtureIds.patientB1,
-      expectedScope: "org_b/patient_b1",
-      notes: "cross-org patient row for tenant-wall negative assertions",
+      expectedScope: 'org_b/patient_b1',
+      notes: 'cross-org patient row for tenant-wall negative assertions',
     }),
     Object.freeze({
-      fixtureId: "fk-package-item-a",
-      family: "fk_path",
-      table: "public.be_package_items",
-      organizationKey: "org_a",
+      fixtureId: 'fk-package-item-a',
+      family: 'fk_path',
+      table: 'public.be_package_items',
+      organizationKey: 'org_a',
       organizationId: syntheticFixtureIds.orgA,
-      patientKey: "none",
-      patientUserId: "",
-      principalKey: "doctor_a",
+      patientKey: 'none',
+      patientUserId: '',
+      principalKey: 'doctor_a',
       principalUserId: syntheticFixtureIds.doctorA,
-      expectedScope: "org_a via be_subscription_packages.organization_id",
-      notes: "P0.8.4 public FK-path representative",
+      expectedScope: 'org_a via be_subscription_packages.organization_id',
+      notes: 'P0.8.4 public FK-path representative',
     }),
     Object.freeze({
-      fixtureId: "fk-package-item-b",
-      family: "fk_path",
-      table: "public.be_package_items",
-      organizationKey: "org_b",
+      fixtureId: 'fk-package-item-b',
+      family: 'fk_path',
+      table: 'public.be_package_items',
+      organizationKey: 'org_b',
       organizationId: syntheticFixtureIds.orgB,
-      patientKey: "none",
-      patientUserId: "",
-      principalKey: "doctor_b",
+      patientKey: 'none',
+      patientUserId: '',
+      principalKey: 'doctor_b',
       principalUserId: syntheticFixtureIds.doctorB,
-      expectedScope: "org_b via be_subscription_packages.organization_id",
-      notes: "second organization P0.8.4 public FK-path representative",
+      expectedScope: 'org_b via be_subscription_packages.organization_id',
+      notes: 'second organization P0.8.4 public FK-path representative',
     }),
     Object.freeze({
-      fixtureId: "fk-patient-package-item-a1",
-      family: "fk_path",
-      table: "public.be_patient_package_items",
-      organizationKey: "org_a",
+      fixtureId: 'fk-patient-package-item-a1',
+      family: 'fk_path',
+      table: 'public.be_patient_package_items',
+      organizationKey: 'org_a',
       organizationId: syntheticFixtureIds.orgA,
-      patientKey: "patient_a1",
+      patientKey: 'patient_a1',
       patientUserId: syntheticFixtureIds.patientA1,
-      principalKey: "patient_a1",
+      principalKey: 'patient_a1',
       principalUserId: syntheticFixtureIds.patientA1,
-      expectedScope: "org_a/patient_a1 via be_patient_packages.organization_id",
-      notes: "P0.8.4 patient-bearing FK-path representative",
+      expectedScope: 'org_a/patient_a1 via be_patient_packages.organization_id',
+      notes: 'P0.8.4 patient-bearing FK-path representative',
     }),
     Object.freeze({
-      fixtureId: "fk-patient-package-item-a2",
-      family: "fk_path",
-      table: "public.be_patient_package_items",
-      organizationKey: "org_a",
+      fixtureId: 'fk-patient-package-item-a2',
+      family: 'fk_path',
+      table: 'public.be_patient_package_items',
+      organizationKey: 'org_a',
       organizationId: syntheticFixtureIds.orgA,
-      patientKey: "patient_a2",
+      patientKey: 'patient_a2',
       patientUserId: syntheticFixtureIds.patientA2,
-      principalKey: "patient_a2",
+      principalKey: 'patient_a2',
       principalUserId: syntheticFixtureIds.patientA2,
-      expectedScope: "org_a/patient_a2 via be_patient_packages.organization_id",
-      notes: "same-org wrong-patient FK-path negative assertion row",
+      expectedScope: 'org_a/patient_a2 via be_patient_packages.organization_id',
+      notes: 'same-org wrong-patient FK-path negative assertion row',
     }),
     Object.freeze({
-      fixtureId: "fk-patient-package-item-b1",
-      family: "fk_path",
-      table: "public.be_patient_package_items",
-      organizationKey: "org_b",
+      fixtureId: 'fk-patient-package-item-b1',
+      family: 'fk_path',
+      table: 'public.be_patient_package_items',
+      organizationKey: 'org_b',
       organizationId: syntheticFixtureIds.orgB,
-      patientKey: "patient_b1",
+      patientKey: 'patient_b1',
       patientUserId: syntheticFixtureIds.patientB1,
-      principalKey: "patient_b1",
+      principalKey: 'patient_b1',
       principalUserId: syntheticFixtureIds.patientB1,
-      expectedScope: "org_b/patient_b1 via be_patient_packages.organization_id",
-      notes: "cross-org patient-bearing FK-path representative",
+      expectedScope: 'org_b/patient_b1 via be_patient_packages.organization_id',
+      notes: 'cross-org patient-bearing FK-path representative',
     }),
     Object.freeze({
-      fixtureId: "denorm-notification-attempt-a1",
-      family: "denorm_path",
-      table: "public.notification_delivery_attempts",
-      organizationKey: "org_a",
+      fixtureId: 'denorm-notification-attempt-a1',
+      family: 'denorm_path',
+      table: 'public.notification_delivery_attempts',
+      organizationKey: 'org_a',
       organizationId: syntheticFixtureIds.orgA,
-      patientKey: "patient_a1",
+      patientKey: 'patient_a1',
       patientUserId: syntheticFixtureIds.patientA1,
-      principalKey: "patient_a1",
+      principalKey: 'patient_a1',
       principalUserId: syntheticFixtureIds.patientA1,
-      expectedScope: "org_a/patient_a1",
-      notes: "P0.8.4 denorm organization_id plus user_id representative",
+      expectedScope: 'org_a/patient_a1',
+      notes: 'P0.8.4 denorm organization_id plus user_id representative',
     }),
     Object.freeze({
-      fixtureId: "denorm-notification-attempt-a2",
-      family: "denorm_path",
-      table: "public.notification_delivery_attempts",
-      organizationKey: "org_a",
+      fixtureId: 'denorm-notification-attempt-a2',
+      family: 'denorm_path',
+      table: 'public.notification_delivery_attempts',
+      organizationKey: 'org_a',
       organizationId: syntheticFixtureIds.orgA,
-      patientKey: "patient_a2",
+      patientKey: 'patient_a2',
       patientUserId: syntheticFixtureIds.patientA2,
-      principalKey: "patient_a2",
+      principalKey: 'patient_a2',
       principalUserId: syntheticFixtureIds.patientA2,
-      expectedScope: "org_a/patient_a2",
-      notes: "same-org wrong-patient denorm negative assertion row",
+      expectedScope: 'org_a/patient_a2',
+      notes: 'same-org wrong-patient denorm negative assertion row',
     }),
     Object.freeze({
-      fixtureId: "denorm-notification-attempt-b1",
-      family: "denorm_path",
-      table: "public.notification_delivery_attempts",
-      organizationKey: "org_b",
+      fixtureId: 'denorm-notification-attempt-b1',
+      family: 'denorm_path',
+      table: 'public.notification_delivery_attempts',
+      organizationKey: 'org_b',
       organizationId: syntheticFixtureIds.orgB,
-      patientKey: "patient_b1",
+      patientKey: 'patient_b1',
       patientUserId: syntheticFixtureIds.patientB1,
-      principalKey: "patient_b1",
+      principalKey: 'patient_b1',
       principalUserId: syntheticFixtureIds.patientB1,
-      expectedScope: "org_b/patient_b1",
-      notes: "cross-org denorm organization_id plus user_id representative",
+      expectedScope: 'org_b/patient_b1',
+      notes: 'cross-org denorm organization_id plus user_id representative',
     }),
     Object.freeze({
-      fixtureId: "bootstrap-global-setting",
-      family: "bootstrap",
-      table: "public.system_settings",
-      organizationKey: "global",
-      organizationId: "",
-      patientKey: "none",
-      patientUserId: "",
-      principalKey: "none",
-      principalUserId: "",
-      expectedScope: "global bootstrap readable",
-      notes: "organization_id IS NULL default row",
+      fixtureId: 'bootstrap-global-setting',
+      family: 'bootstrap',
+      table: 'public.system_settings',
+      organizationKey: 'global',
+      organizationId: '',
+      patientKey: 'none',
+      patientUserId: '',
+      principalKey: 'none',
+      principalUserId: '',
+      expectedScope: 'global bootstrap readable',
+      notes: 'organization_id IS NULL default row',
     }),
     Object.freeze({
-      fixtureId: "bootstrap-org-setting-b",
-      family: "bootstrap",
-      table: "public.system_settings",
-      organizationKey: "org_b",
+      fixtureId: 'bootstrap-org-setting-b',
+      family: 'bootstrap',
+      table: 'public.system_settings',
+      organizationKey: 'org_b',
       organizationId: syntheticFixtureIds.orgB,
-      patientKey: "none",
-      patientUserId: "",
-      principalKey: "doctor_b",
+      patientKey: 'none',
+      patientUserId: '',
+      principalKey: 'doctor_b',
       principalUserId: syntheticFixtureIds.doctorB,
-      expectedScope: "org_b override",
-      notes: "organization-specific system_settings override row",
+      expectedScope: 'org_b override',
+      notes: 'organization-specific system_settings override row',
     }),
     Object.freeze({
-      fixtureId: "integrator-content-grant-a1",
-      family: "integrator_scoped",
-      table: "integrator.content_access_grants",
-      organizationKey: "org_a",
+      fixtureId: 'integrator-content-grant-a1',
+      family: 'integrator_scoped',
+      table: 'integrator.content_access_grants',
+      organizationKey: 'org_a',
       organizationId: syntheticFixtureIds.orgA,
-      patientKey: "patient_a1",
+      patientKey: 'patient_a1',
       patientUserId: syntheticFixtureIds.patientA1,
-      principalKey: "patient_a1",
+      principalKey: 'patient_a1',
       principalUserId: syntheticFixtureIds.patientA1,
-      expectedScope: "org_a/patient_a1",
-      notes: "P0.8.5 integrator direct user bridge representative",
+      expectedScope: 'org_a/patient_a1',
+      notes: 'P0.8.5 integrator direct user bridge representative',
     }),
     Object.freeze({
-      fixtureId: "integrator-content-grant-b1",
-      family: "integrator_scoped",
-      table: "integrator.content_access_grants",
-      organizationKey: "org_b",
+      fixtureId: 'integrator-content-grant-b1',
+      family: 'integrator_scoped',
+      table: 'integrator.content_access_grants',
+      organizationKey: 'org_b',
       organizationId: syntheticFixtureIds.orgB,
-      patientKey: "patient_b1",
+      patientKey: 'patient_b1',
       patientUserId: syntheticFixtureIds.patientB1,
-      principalKey: "patient_b1",
+      principalKey: 'patient_b1',
       principalUserId: syntheticFixtureIds.patientB1,
-      expectedScope: "org_b/patient_b1",
-      notes: "cross-org P0.8.5 integrator direct user bridge representative",
+      expectedScope: 'org_b/patient_b1',
+      notes: 'cross-org P0.8.5 integrator direct user bridge representative',
     }),
     Object.freeze({
-      fixtureId: "integrator-reminder-log-a1",
-      family: "integrator_denorm",
-      table: "integrator.user_reminder_delivery_logs",
-      organizationKey: "org_a",
+      fixtureId: 'integrator-reminder-log-a1',
+      family: 'integrator_denorm',
+      table: 'integrator.user_reminder_delivery_logs',
+      organizationKey: 'org_a',
       organizationId: syntheticFixtureIds.orgA,
-      patientKey: "patient_a1",
+      patientKey: 'patient_a1',
       patientUserId: syntheticFixtureIds.patientA1,
-      principalKey: "patient_a1",
+      principalKey: 'patient_a1',
       principalUserId: syntheticFixtureIds.patientA1,
-      expectedScope: "org_a/patient_a1",
-      notes: "P0.8.5 integrator parent denorm representative",
+      expectedScope: 'org_a/patient_a1',
+      notes: 'P0.8.5 integrator parent denorm representative',
     }),
     Object.freeze({
-      fixtureId: "integrator-reminder-log-b1",
-      family: "integrator_denorm",
-      table: "integrator.user_reminder_delivery_logs",
-      organizationKey: "org_b",
+      fixtureId: 'integrator-reminder-log-b1',
+      family: 'integrator_denorm',
+      table: 'integrator.user_reminder_delivery_logs',
+      organizationKey: 'org_b',
       organizationId: syntheticFixtureIds.orgB,
-      patientKey: "patient_b1",
+      patientKey: 'patient_b1',
       patientUserId: syntheticFixtureIds.patientB1,
-      principalKey: "patient_b1",
+      principalKey: 'patient_b1',
       principalUserId: syntheticFixtureIds.patientB1,
-      expectedScope: "org_b/patient_b1",
-      notes: "P0.8.5 integrator parent denorm representative",
+      expectedScope: 'org_b/patient_b1',
+      notes: 'P0.8.5 integrator parent denorm representative',
     }),
   ]),
 });
 
 const tsvHeader = [
-  "fixture_id",
-  "family",
-  "table",
-  "organization_key",
-  "organization_id",
-  "patient_key",
-  "patient_user_id",
-  "principal_key",
-  "principal_user_id",
-  "expected_scope",
-  "notes",
+  'fixture_id',
+  'family',
+  'table',
+  'organization_key',
+  'organization_id',
+  'patient_key',
+  'patient_user_id',
+  'principal_key',
+  'principal_user_id',
+  'expected_scope',
+  'notes',
 ];
 
 function quoteSqlText(value) {
@@ -319,18 +344,20 @@ function quoteSqlText(value) {
 }
 
 function quoteSqlUuid(value) {
-  return value ? `${quoteSqlText(value)}::uuid` : "NULL";
+  return value ? `${quoteSqlText(value)}::uuid` : 'NULL';
 }
 
 function tsvCell(value) {
-  return String(value).replaceAll("\t", " ").replaceAll("\n", " ");
+  return String(value).replaceAll('\t', ' ').replaceAll('\n', ' ');
 }
 
 export function getP013SyntheticFixtureRows() {
   return p013SyntheticFixture.rows.map((row) => ({ ...row }));
 }
 
-export function renderP013SyntheticFixtureManifestTsv({ rows = getP013SyntheticFixtureRows() } = {}) {
+export function renderP013SyntheticFixtureManifestTsv({
+  rows = getP013SyntheticFixtureRows(),
+} = {}) {
   const lines = rows.map((row) =>
     [
       row.fixtureId,
@@ -346,23 +373,23 @@ export function renderP013SyntheticFixtureManifestTsv({ rows = getP013SyntheticF
       row.notes,
     ]
       .map(tsvCell)
-      .join("\t"),
+      .join('\t'),
   );
 
-  return `${tsvHeader.join("\t")}\n${lines.join("\n")}\n`;
+  return `${tsvHeader.join('\t')}\n${lines.join('\n')}\n`;
 }
 
 export function assertScratchDatabaseName(databaseName) {
-  if (!databaseName || typeof databaseName !== "string") {
-    throw new Error("scratch database name is required");
+  if (!databaseName || typeof databaseName !== 'string') {
+    throw new Error('scratch database name is required');
   }
 
   if (/bcb_webapp_(dev|prod|test)/.test(databaseName)) {
-    throw new Error("P0.13 fixture refuses dev/prod/test application databases");
+    throw new Error('P0.13 fixture refuses dev/prod/test application databases');
   }
 
-  if (!databaseName.startsWith("bcb_saas_") && !databaseName.includes("scratch")) {
-    throw new Error("P0.13 fixture requires a bcb_saas_* or scratch database");
+  if (!databaseName.startsWith('bcb_saas_') && !databaseName.includes('scratch')) {
+    throw new Error('P0.13 fixture requires a bcb_saas_* or scratch database');
   }
 }
 
@@ -374,11 +401,11 @@ export function assertScratchDatabaseUrl(databaseUrl) {
     throw new Error(`invalid scratch database URL: ${error.message}`);
   }
 
-  if (!["postgres:", "postgresql:"].includes(parsed.protocol)) {
-    throw new Error("scratch database URL must use postgres/postgresql");
+  if (!['postgres:', 'postgresql:'].includes(parsed.protocol)) {
+    throw new Error('scratch database URL must use postgres/postgresql');
   }
 
-  assertScratchDatabaseName(parsed.pathname.replace(/^\//, ""));
+  assertScratchDatabaseName(parsed.pathname.replace(/^\//, ''));
 }
 
 function renderP013ManifestSql({ rows = getP013SyntheticFixtureRows() } = {}) {
@@ -396,11 +423,10 @@ function renderP013ManifestSql({ rows = getP013SyntheticFixtureRows() } = {}) {
         quoteSqlUuid(row.principalUserId),
         quoteSqlText(row.expectedScope),
         quoteSqlText(row.notes),
-      ]
-        .join(", "),
+      ].join(', '),
     )
     .map((valueTuple) => `  (${valueTuple})`)
-    .join(",\n");
+    .join(',\n');
 
   return String.raw`DROP SCHEMA IF EXISTS p0_13_fixture CASCADE;
 CREATE SCHEMA p0_13_fixture;
@@ -601,7 +627,9 @@ CREATE TABLE integrator.user_reminder_delivery_logs (
 );`;
 }
 
-export function renderP013SyntheticFixtureScratchSql({ rows = getP013SyntheticFixtureRows() } = {}) {
+export function renderP013SyntheticFixtureScratchSql({
+  rows = getP013SyntheticFixtureRows(),
+} = {}) {
   return String.raw`\set ON_ERROR_STOP on
 
 SELECT (
@@ -794,13 +822,13 @@ ON CONFLICT (id) DO UPDATE
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const format = process.argv[2] ?? "--tsv";
+  const format = process.argv[2] ?? '--tsv';
 
-  if (format === "--tsv") {
+  if (format === '--tsv') {
     process.stdout.write(renderP013SyntheticFixtureManifestTsv());
-  } else if (format === "--sql") {
+  } else if (format === '--sql') {
     process.stdout.write(renderP013SyntheticFixtureScratchSql());
-  } else if (format === "--json") {
+  } else if (format === '--json') {
     process.stdout.write(`${JSON.stringify(p013SyntheticFixture, null, 2)}\n`);
   } else {
     throw new Error(`Unsupported format ${format}. Use --tsv, --sql, or --json.`);

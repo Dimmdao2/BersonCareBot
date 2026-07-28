@@ -1,12 +1,12 @@
-"use server";
+'use server';
 
-import { revalidatePath } from "next/cache";
-import { routePaths } from "@/app-layer/routes/paths";
-import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
-import { requireEntitlementForMutationAction } from "@/app-layer/guards/requireEntitlement";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { isHelpSectionSlug } from "@/modules/content-sections/types";
+import { revalidatePath } from 'next/cache';
+import { routePaths } from '@/app-layer/routes/paths';
+import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
+import { requireEntitlementForMutationAction } from '@/app-layer/guards/requireEntitlement';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { isHelpSectionSlug } from '@/modules/content-sections/types';
 
 export type ReorderContentPagesState = { ok: boolean; error?: string };
 
@@ -15,31 +15,31 @@ export async function reorderContentPagesInSection(
   orderedIds: string[],
 ): Promise<ReorderContentPagesState> {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForMutationAction(workspace, "cms_pages");
-  if (!entitlement.ok) return { ok: false, error: "entitlement_required" };
+  const entitlement = await requireEntitlementForMutationAction(workspace, 'cms_pages');
+  if (!entitlement.ok) return { ok: false, error: 'entitlement_required' };
   const sec = section?.trim();
-  if (!sec) return { ok: false, error: "Не указан раздел" };
+  if (!sec) return { ok: false, error: 'Не указан раздел' };
   if (!Array.isArray(orderedIds) || orderedIds.length === 0) {
-    return { ok: false, error: "Пустой порядок" };
+    return { ok: false, error: 'Пустой порядок' };
   }
   const ids = orderedIds.map((id) => String(id).trim()).filter(Boolean);
-  if (ids.length !== orderedIds.length) return { ok: false, error: "Некорректные id" };
+  if (ids.length !== orderedIds.length) return { ok: false, error: 'Некорректные id' };
 
   const deps = buildAppDeps();
   try {
-    await withDoctorWorkspacePrincipal(workspace, "doctor.content.pages.reorder", () =>
+    await withDoctorWorkspacePrincipal(workspace, 'doctor.content.pages.reorder', () =>
       deps.contentPages.reorderInSection(sec, ids),
     );
   } catch (e) {
-    console.error("reorderContentPagesInSection", e);
-    return { ok: false, error: "Не удалось сохранить порядок" };
+    console.error('reorderContentPagesInSection', e);
+    return { ok: false, error: 'Не удалось сохранить порядок' };
   }
 
-  revalidatePath("/app/doctor/content");
-  revalidatePath("/app/patient/content");
+  revalidatePath('/app/doctor/content');
+  revalidatePath('/app/patient/content');
   if (isHelpSectionSlug(sec)) {
     revalidatePath(routePaths.patientHelp);
   }
-  revalidatePath("/app/patient/sections", "layout");
+  revalidatePath('/app/patient/sections', 'layout');
   return { ok: true };
 }

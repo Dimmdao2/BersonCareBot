@@ -1,4 +1,4 @@
-import { allTimezones } from "react-timezone-select";
+import { allTimezones } from 'react-timezone-select';
 
 /**
  * Подписи для `react-timezone-select` (`timezones`): IANA → текст **без** префикса UTC (его добавляет компонент).
@@ -14,40 +14,40 @@ import { allTimezones } from "react-timezone-select";
  * но остаются в `searchTerms` у выжившей строки (поиск по «Tashkent» и т.д.).
  */
 const LABEL_OVERRIDES: Record<string, string> = {
-  "Europe/Moscow": "Москва, Санкт-Петербург, Казань",
+  'Europe/Moscow': 'Москва, Санкт-Петербург, Казань',
   /** Часто единственная видимая «европейская» +3 строка рядом с РФ — сюда Киев + Хельсинки. */
-  "Europe/Bucharest": "Kyiv, Bucharest, Helsinki",
-  "Europe/Helsinki": "Riga, Tallinn, Vilnius",
-  "Europe/Athens": "Athens, Nicosia",
-  "Europe/Belgrade": "Belgrade, Podgorica, Novi Sad",
+  'Europe/Bucharest': 'Kyiv, Bucharest, Helsinki',
+  'Europe/Helsinki': 'Riga, Tallinn, Vilnius',
+  'Europe/Athens': 'Athens, Nicosia',
+  'Europe/Belgrade': 'Belgrade, Podgorica, Novi Sad',
   /** Сохраняем для поиска (строка может быть скрыта дедупом с `Asia/Dubai`). */
-  "Asia/Baku": "Baku, Tbilisi, Yerevan",
-  "Asia/Almaty": "Almaty, Tashkent, Bishkek",
-  "Asia/Karachi": "Islamabad, Karachi",
-  "Asia/Kabul": "Kabul",
-  "Asia/Kathmandu": "Kathmandu",
-  "Asia/Kolkata": "Delhi, Mumbai, Kolkata",
-  "Asia/Dhaka": "Dhaka, Thimphu",
+  'Asia/Baku': 'Baku, Tbilisi, Yerevan',
+  'Asia/Almaty': 'Almaty, Tashkent, Bishkek',
+  'Asia/Karachi': 'Islamabad, Karachi',
+  'Asia/Kabul': 'Kabul',
+  'Asia/Kathmandu': 'Kathmandu',
+  'Asia/Kolkata': 'Delhi, Mumbai, Kolkata',
+  'Asia/Dhaka': 'Dhaka, Thimphu',
   /** Первая видимая +4 в дефолтном порядке — сюда Кавказ (иначе `Asia/Baku` режется). */
-  "Asia/Dubai": "Dubai, Baku, Yerevan",
-  "Asia/Bangkok": "Bangkok, Hanoi, Jakarta",
-  "Asia/Yekaterinburg": "Екатеринбург, Челябинск, Уфа",
-  "Asia/Krasnoyarsk": "Красноярск, Кемерово, Новокузнецк",
-  "Asia/Irkutsk": "Иркутск, Улан-Удэ, Братск",
-  "Asia/Yakutsk": "Якутск, Благовещенск, Чита",
-  "Asia/Vladivostok": "Владивосток, Хабаровск, Южно-Сахалинск",
-  "Asia/Magadan": "Магадан",
-  "Asia/Kamchatka": "Петропавловск-Камчатский, Анадырь",
-  "Australia/Darwin": "Darwin",
-  "Australia/Adelaide": "Adelaide",
-  "Australia/Sydney": "Sydney, Melbourne, Canberra",
+  'Asia/Dubai': 'Dubai, Baku, Yerevan',
+  'Asia/Bangkok': 'Bangkok, Hanoi, Jakarta',
+  'Asia/Yekaterinburg': 'Екатеринбург, Челябинск, Уфа',
+  'Asia/Krasnoyarsk': 'Красноярск, Кемерово, Новокузнецк',
+  'Asia/Irkutsk': 'Иркутск, Улан-Удэ, Братск',
+  'Asia/Yakutsk': 'Якутск, Благовещенск, Чита',
+  'Asia/Vladivostok': 'Владивосток, Хабаровск, Южно-Сахалинск',
+  'Asia/Magadan': 'Магадан',
+  'Asia/Kamchatka': 'Петропавловск-Камчатский, Анадырь',
+  'Australia/Darwin': 'Darwin',
+  'Australia/Adelaide': 'Adelaide',
+  'Australia/Sydney': 'Sydney, Melbourne, Canberra',
 };
 
 const EXTRA_RELOCATION_IANA_LABELS: Record<string, string> = {
-  "Europe/Samara": "Самара, Саратов, Ульяновск",
-  "Asia/Omsk": "Омск",
-  "Asia/Novosibirsk": "Новосибирск, Томск, Барнаул",
-  "Europe/Istanbul": "Istanbul, Minsk",
+  'Europe/Samara': 'Самара, Саратов, Ульяновск',
+  'Asia/Omsk': 'Омск',
+  'Asia/Novosibirsk': 'Новосибирск, Томск, Барнаул',
+  'Europe/Istanbul': 'Istanbul, Minsk',
 };
 
 export function mergePatientTimezoneSelectLabels(extraIana: string | null): Record<string, string> {

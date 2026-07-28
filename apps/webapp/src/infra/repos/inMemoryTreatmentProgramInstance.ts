@@ -2,7 +2,7 @@ import type {
   TreatmentProgramEventsPort,
   TreatmentProgramInstancePort,
   TreatmentProgramTestAttemptsPort,
-} from "@/modules/treatment-program/ports";
+} from '@/modules/treatment-program/ports';
 import type {
   AddTreatmentProgramInstanceStageInput,
   AddTreatmentProgramInstanceStageItemInput,
@@ -34,7 +34,7 @@ import type {
   NormalizedTestDecision,
   PendingProgramTestEvaluationRow,
   PendingProgramTestEvaluationGlobalRow,
-} from "@/modules/treatment-program/types";
+} from '@/modules/treatment-program/types';
 import {
   effectiveInstanceStageItemComment,
   TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_SORT_RECOMMENDATIONS,
@@ -42,9 +42,9 @@ import {
   TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_RECOMMENDATIONS,
   TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_TESTS,
   TREATMENT_PROGRAM_PLAN_MUTATION_EVENT_TYPES,
-} from "@/modules/treatment-program/types";
-import { withDefaultSystemGroupsIfNeededForTreeStage } from "@/modules/treatment-program/instance-tree-system-groups";
-import { assertTreatmentProgramStageItemFitsSystemGroup } from "@/modules/treatment-program/stage-semantics";
+} from '@/modules/treatment-program/types';
+import { withDefaultSystemGroupsIfNeededForTreeStage } from '@/modules/treatment-program/instance-tree-system-groups';
+import { assertTreatmentProgramStageItemFitsSystemGroup } from '@/modules/treatment-program/stage-semantics';
 
 function sameIdSet(ordered: string[], expected: Set<string>): boolean {
   if (ordered.length !== expected.size) return false;
@@ -161,15 +161,12 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
     const threshold = afterSortOrder === 0 ? 0 : afterSortOrder;
     const candidates = [...stages.values()]
       .filter(
-        (s) =>
-          s.instanceId === instanceId &&
-          s.status === "locked" &&
-          s.sortOrder > threshold,
+        (s) => s.instanceId === instanceId && s.status === 'locked' && s.sortOrder > threshold,
       )
       .sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
     const next = candidates[0];
     if (!next) return;
-    stages.set(next.id, { ...next, status: "available" });
+    stages.set(next.id, { ...next, status: 'available' });
   }
 
   function snapshotInstanceTree() {
@@ -193,11 +190,13 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
   }
 
   const instancePort: TreatmentProgramInstancePort = {
-    async createInstanceTree(input: CreateTreatmentProgramInstanceTreeInput): Promise<TreatmentProgramInstanceDetail> {
+    async createInstanceTree(
+      input: CreateTreatmentProgramInstanceTreeInput,
+    ): Promise<TreatmentProgramInstanceDetail> {
       for (const r of instances.values()) {
-        if (r.patientUserId === input.patientUserId && r.status === "active") {
+        if (r.patientUserId === input.patientUserId && r.status === 'active') {
           throw new Error(
-            "У пациента уже есть активная программа. Завершите текущую программу или дождитесь её завершения перед назначением новой.",
+            'У пациента уже есть активная программа. Завершите текущую программу или дождитесь её завершения перед назначением новой.',
           );
         }
       }
@@ -209,9 +208,9 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
         patientUserId: input.patientUserId,
         templateId: input.templateId,
         assignedBy: input.assignedBy,
-        assignmentSource: input.assignmentSource ?? "doctor",
+        assignmentSource: input.assignmentSource ?? 'doctor',
         title: input.title,
-        status: "active" as TreatmentProgramInstanceStatus,
+        status: 'active' as TreatmentProgramInstanceStatus,
         createdAt: now,
         updatedAt: now,
         patientPlanLastOpenedAt: null,
@@ -231,26 +230,30 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
           localComment: null,
           skipReason: null,
           status: stResolved.status,
-          startedAt: stResolved.status === "in_progress" ? now : null,
+          startedAt: stResolved.status === 'in_progress' ? now : null,
           goals: stResolved.goals,
           objectives: stResolved.objectives,
           expectedDurationDays: stResolved.expectedDurationDays,
           expectedDurationText: stResolved.expectedDurationText,
         };
         stages.set(sid, stageRow);
-        const INTERNAL_REC = "__tp_instance_sys_recommendations__";
-        const INTERNAL_TESTS = "__tp_instance_sys_tests__";
+        const INTERNAL_REC = '__tp_instance_sys_recommendations__';
+        const INTERNAL_TESTS = '__tp_instance_sys_tests__';
         const rawGroups = [...(stResolved.groups ?? [])];
-        const systemRec = rawGroups.find((g) => g.systemKind === "recommendations");
-        const systemTests = rawGroups.find((g) => g.systemKind === "tests");
+        const systemRec = rawGroups.find((g) => g.systemKind === 'recommendations');
+        const systemTests = rawGroups.find((g) => g.systemKind === 'tests');
         const templateGroups = rawGroups
           .filter((g) => !g.systemKind)
           .sort(
             (a, b) =>
               a.sortOrder - b.sortOrder ||
-              String(a.sourceGroupId ?? "").localeCompare(String(b.sourceGroupId ?? "")),
+              String(a.sourceGroupId ?? '').localeCompare(String(b.sourceGroupId ?? '')),
           );
-        const sortedGroups = [...(systemRec ? [systemRec] : []), ...(systemTests ? [systemTests] : []), ...templateGroups];
+        const sortedGroups = [
+          ...(systemRec ? [systemRec] : []),
+          ...(systemTests ? [systemTests] : []),
+          ...templateGroups,
+        ];
         const tplToInst = new Map<string, string>();
         for (const g of sortedGroups) {
           const gid = crypto.randomUUID();
@@ -268,10 +271,10 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
           if (g.sourceGroupId) {
             tplToInst.set(g.sourceGroupId, gid);
           }
-          if (g.systemKind === "recommendations") {
+          if (g.systemKind === 'recommendations') {
             tplToInst.set(INTERNAL_REC, gid);
           }
-          if (g.systemKind === "tests") {
+          if (g.systemKind === 'tests') {
             tplToInst.set(INTERNAL_TESTS, gid);
           }
         }
@@ -283,13 +286,13 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
           let groupId: string | null = null;
           if (it.templateGroupId != null) {
             groupId = tplToInst.get(it.templateGroupId) ?? null;
-          } else if (it.itemType === "recommendation") {
+          } else if (it.itemType === 'recommendation') {
             groupId = tplToInst.get(INTERNAL_REC) ?? null;
-          } else if (it.itemType === "clinical_test") {
+          } else if (it.itemType === 'clinical_test') {
             groupId = tplToInst.get(INTERNAL_TESTS) ?? null;
           } else {
             throw new Error(
-              "Назначение: элемент без группы в шаблоне должен быть только рекомендацией или клиническим тестом",
+              'Назначение: элемент без группы в шаблоне должен быть только рекомендацией или клиническим тестом',
             );
           }
           const itemRow: ItemRow = {
@@ -304,7 +307,7 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
             snapshot: it.snapshot,
             completedAt: null,
             isActionable: it.isActionable ?? null,
-            status: it.status ?? "active",
+            status: it.status ?? 'active',
             groupId,
             createdAt: now,
             lastViewedAt: now,
@@ -318,13 +321,23 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
 
     async getInstanceById(instanceId: string, organizationId?: string) {
       const inst = instances.get(instanceId);
-      if (!inst || (organizationId !== undefined && inst.organizationId !== organizationId)) return null;
+      if (!inst || (organizationId !== undefined && inst.organizationId !== organizationId))
+        return null;
       return buildDetail(instanceId);
     },
 
-    async getInstanceForPatient(patientUserId: string, instanceId: string, organizationId?: string) {
+    async getInstanceForPatient(
+      patientUserId: string,
+      instanceId: string,
+      organizationId?: string,
+    ) {
       const inst = instances.get(instanceId);
-      if (!inst || inst.patientUserId !== patientUserId || (organizationId !== undefined && inst.organizationId !== organizationId)) return null;
+      if (
+        !inst ||
+        inst.patientUserId !== patientUserId ||
+        (organizationId !== undefined && inst.organizationId !== organizationId)
+      )
+        return null;
       return buildDetail(instanceId);
     },
 
@@ -336,7 +349,7 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
 
     async listInstancesForPatientClinicalView(patientUserId: string) {
       return [...instances.values()]
-        .filter((i) => i.patientUserId === patientUserId && i.assignmentSource !== "promo")
+        .filter((i) => i.patientUserId === patientUserId && i.assignmentSource !== 'promo')
         .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
     },
 
@@ -368,7 +381,11 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
         .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1) || (a.id < b.id ? 1 : -1));
     },
 
-    async updateStageItemLocalComment(instanceId: string, stageItemId: string, localComment: string | null) {
+    async updateStageItemLocalComment(
+      instanceId: string,
+      stageItemId: string,
+      localComment: string | null,
+    ) {
       const inst = instances.get(instanceId);
       if (!inst) return null;
       const row = items.get(stageItemId);
@@ -384,11 +401,12 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
 
     async updateInstanceMeta(
       instanceId: string,
-      patch: { title?: string; status?: "active" | "completed" },
+      patch: { title?: string; status?: 'active' | 'completed' },
       organizationId?: string,
     ) {
       const cur = instances.get(instanceId);
-      if (!cur || (organizationId !== undefined && cur.organizationId !== organizationId)) return null;
+      if (!cur || (organizationId !== undefined && cur.organizationId !== organizationId))
+        return null;
       const next: InstRow = {
         ...cur,
         ...(patch.title !== undefined ? { title: patch.title.trim() } : {}),
@@ -412,9 +430,9 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
           : patch.skipReason === null
             ? null
             : patch.skipReason.trim() || null;
-      const nextSkip = patch.status === "skipped" ? skipReason : null;
+      const nextSkip = patch.status === 'skipped' ? skipReason : null;
       const nextStartedAt =
-        patch.status === "in_progress" && !st.startedAt ? isoNow() : st.startedAt;
+        patch.status === 'in_progress' && !st.startedAt ? isoNow() : st.startedAt;
       const next: StageRow = {
         ...st,
         status: patch.status,
@@ -422,7 +440,7 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
         startedAt: nextStartedAt,
       };
       stages.set(stageId, next);
-      if (patch.status === "completed" || patch.status === "skipped") {
+      if (patch.status === 'completed' || patch.status === 'skipped') {
         unlockNextLockedStage(instanceId, st.sortOrder);
       }
       return next;
@@ -484,7 +502,7 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
         localComment: null,
         skipReason: null,
         status: input.status,
-        startedAt: input.status === "in_progress" ? isoNow() : null,
+        startedAt: input.status === 'in_progress' ? isoNow() : null,
         goals: input.goals ?? null,
         objectives: input.objectives ?? null,
         expectedDurationDays: input.expectedDurationDays ?? null,
@@ -501,7 +519,7 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
           description: null,
           scheduleText: null,
           sortOrder: TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_SORT_RECOMMENDATIONS,
-          systemKind: "recommendations",
+          systemKind: 'recommendations',
         });
         const testsId = crypto.randomUUID();
         instGroups.set(testsId, {
@@ -512,7 +530,7 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
           description: null,
           scheduleText: null,
           sortOrder: TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_SORT_TESTS,
-          systemKind: "tests",
+          systemKind: 'tests',
         });
       }
       touchInstance(instanceId);
@@ -558,7 +576,7 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
         snapshot: input.snapshot,
         completedAt: null,
         isActionable: input.isActionable ?? null,
-        status: input.status ?? "active",
+        status: input.status ?? 'active',
         groupId: input.groupId ?? null,
         createdAt: t,
         lastViewedAt: null,
@@ -582,14 +600,16 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
       const title = input.title.trim();
       const bodyMd = input.bodyMd.trim();
       const snapshot: Record<string, unknown> = {
-        itemType: "recommendation",
+        itemType: 'recommendation',
         id: recId,
         title,
         bodyMd,
       };
       const itemMax = Math.max(
         -1,
-        ...[...items.values()].filter((it) => it.stageId === input.stageId).map((it) => it.sortOrder),
+        ...[...items.values()]
+          .filter((it) => it.stageId === input.stageId)
+          .map((it) => it.sortOrder),
       );
       const sortOrder = itemMax + 1;
       const iid = crypto.randomUUID();
@@ -597,7 +617,7 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
       const itemRow: ItemRow = {
         id: iid,
         stageId: input.stageId,
-        itemType: "recommendation",
+        itemType: 'recommendation',
         itemRefId: recId,
         sortOrder,
         comment: null,
@@ -606,7 +626,7 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
         snapshot,
         completedAt: null,
         isActionable: false,
-        status: "active",
+        status: 'active',
         groupId: null,
         createdAt: t,
         lastViewedAt: null,
@@ -630,29 +650,34 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
       ) {
         return null;
       }
-      assertTreatmentProgramStageItemFitsSystemGroup(group, "exercise");
+      assertTreatmentProgramStageItemFitsSystemGroup(group, 'exercise');
       const title = input.title.trim();
-      if (!title) throw new Error("Укажите название упражнения");
+      if (!title) throw new Error('Укажите название упражнения');
       const exerciseId = crypto.randomUUID();
       const snapshot: Record<string, unknown> = {
-        itemType: "exercise",
+        itemType: 'exercise',
         id: exerciseId,
         title,
         description: input.description,
         contraindications: input.contraindications,
         difficulty: input.difficulty1_10,
         loadType: input.loadType,
-        exerciseScope: input.saveToCatalog ? "catalog" : "personal",
+        exerciseScope: input.saveToCatalog ? 'catalog' : 'personal',
         ...(input.mediaId
-          ? { media: [{ url: `/api/media/${input.mediaId}`, type: "video", sortOrder: 0 }] }
+          ? { media: [{ url: `/api/media/${input.mediaId}`, type: 'video', sortOrder: 0 }] }
           : {}),
       };
       const sortOrder =
-        Math.max(-1, ...[...items.values()].filter((it) => it.stageId === input.stageId).map((it) => it.sortOrder)) + 1;
+        Math.max(
+          -1,
+          ...[...items.values()]
+            .filter((it) => it.stageId === input.stageId)
+            .map((it) => it.sortOrder),
+        ) + 1;
       const item: ItemRow = {
         id: crypto.randomUUID(),
         stageId: input.stageId,
-        itemType: "exercise",
+        itemType: 'exercise',
         itemRefId: exerciseId,
         sortOrder,
         comment: null,
@@ -661,7 +686,7 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
         snapshot,
         completedAt: null,
         isActionable: null,
-        status: "active",
+        status: 'active',
         groupId: input.groupId,
         createdAt: isoNow(),
         lastViewedAt: null,
@@ -675,20 +700,23 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
       const item = items.get(itemId);
       const stage = item ? stages.get(item.stageId) : null;
       const title = titleRaw.trim();
-      if (!title) throw new Error("Укажите название упражнения");
+      if (!title) throw new Error('Укажите название упражнения');
       if (
         !item ||
         !stage ||
         stage.instanceId !== instanceId ||
-        item.itemType !== "exercise" ||
-        item.snapshot.exerciseScope !== "personal"
+        item.itemType !== 'exercise' ||
+        item.snapshot.exerciseScope !== 'personal'
       ) {
         return null;
       }
       const shared = [...items.values()].some(
-        (candidate) => candidate.id !== item.id && candidate.itemType === "exercise" && candidate.itemRefId === item.itemRefId,
+        (candidate) =>
+          candidate.id !== item.id &&
+          candidate.itemType === 'exercise' &&
+          candidate.itemRefId === item.itemRefId,
       );
-      if (shared) throw new Error("Личное упражнение уже используется в другой программе");
+      if (shared) throw new Error('Личное упражнение уже используется в другой программе');
       const next = { ...item, snapshot: { ...item.snapshot, title } };
       items.set(item.id, next);
       touchInstance(instanceId);
@@ -701,17 +729,17 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
       const st = stages.get(input.stageId);
       if (!st || st.instanceId !== input.instanceId) return null;
       if (st.sortOrder === 0) {
-        throw new Error("На этапе «Общие рекомендации» нельзя разворачивать набор тестов");
+        throw new Error('На этапе «Общие рекомендации» нельзя разворачивать набор тестов');
       }
       const lines = seed?.testSetExpandLines?.[input.testSetId];
       if (!lines || lines.length === 0) {
-        throw new Error("Набор тестов не найден или в архиве");
+        throw new Error('Набор тестов не найден или в архиве');
       }
       const testsGroup = [...instGroups.values()].find(
-        (g) => g.stageId === input.stageId && g.systemKind === "tests",
+        (g) => g.stageId === input.stageId && g.systemKind === 'tests',
       );
       if (!testsGroup) {
-        throw new Error("Не найдена системная группа «Тестирование» для этапа");
+        throw new Error('Не найдена системная группа «Тестирование» для этапа');
       }
       const existing = new Set(
         [...items.values()]
@@ -719,13 +747,15 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
             (it) =>
               it.stageId === input.stageId &&
               it.groupId === testsGroup.id &&
-              it.itemType === "clinical_test",
+              it.itemType === 'clinical_test',
           )
           .map((it) => it.itemRefId),
       );
       const itemMax = Math.max(
         -1,
-        ...[...items.values()].filter((it) => it.stageId === input.stageId).map((it) => it.sortOrder),
+        ...[...items.values()]
+          .filter((it) => it.stageId === input.stageId)
+          .map((it) => it.sortOrder),
       );
       let pos = itemMax + 1;
       let added = 0;
@@ -740,7 +770,7 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
         existing.add(testId);
         const iid = crypto.randomUUID();
         const snapshot: Record<string, unknown> = {
-          itemType: "clinical_test",
+          itemType: 'clinical_test',
           id: testId,
           title: null,
           tests: [{ testId, title: null, sortOrder: 0, scoringConfig: null, comment: null }],
@@ -748,7 +778,7 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
         const itemRow: ItemRow = {
           id: iid,
           stageId: input.stageId,
-          itemType: "clinical_test",
+          itemType: 'clinical_test',
           itemRefId: testId,
           sortOrder: pos++,
           comment: null,
@@ -757,7 +787,7 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
           snapshot,
           completedAt: null,
           isActionable: null,
-          status: "active",
+          status: 'active',
           groupId: testsGroup.id,
           createdAt: t,
           lastViewedAt: t,
@@ -776,25 +806,27 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
       const st = stages.get(input.stageId);
       if (!st || st.instanceId !== input.instanceId) return null;
       if (st.sortOrder === 0) {
-        throw new Error("На этапе «Общие рекомендации» нельзя разворачивать комплекс ЛФК");
+        throw new Error('На этапе «Общие рекомендации» нельзя разворачивать комплекс ЛФК');
       }
       const preview = lfkComplexExpandPreview[input.complexTemplateId];
-      if (!preview) throw new Error("Комплекс ЛФК не найден или в архиве");
+      if (!preview) throw new Error('Комплекс ЛФК не найден или в архиве');
       const idsFromDb = [...preview.exerciseIds];
-      if (idsFromDb.length === 0) throw new Error("В комплексе нет упражнений");
+      if (idsFromDb.length === 0) throw new Error('В комплексе нет упражнений');
       if (!sameUuidOrder(idsFromDb, input.expectedExerciseIds)) {
-        throw new Error("Комплекс ЛФК был изменён; обновите страницу и повторите попытку");
+        throw new Error('Комплекс ЛФК был изменён; обновите страницу и повторите попытку');
       }
       const gRow = instGroups.get(input.groupId);
       if (!gRow || gRow.stageId !== input.stageId) {
-        throw new Error("Группа не найдена или не принадлежит этапу");
+        throw new Error('Группа не найдена или не принадлежит этапу');
       }
-      if (gRow.systemKind === "recommendations" || gRow.systemKind === "tests") {
-        throw new Error("Нельзя добавить упражнения в системную группу");
+      if (gRow.systemKind === 'recommendations' || gRow.systemKind === 'tests') {
+        throw new Error('Нельзя добавить упражнения в системную группу');
       }
       const itemMax = Math.max(
         -1,
-        ...[...items.values()].filter((it) => it.stageId === input.stageId).map((it) => it.sortOrder),
+        ...[...items.values()]
+          .filter((it) => it.stageId === input.stageId)
+          .map((it) => it.sortOrder),
       );
       const inserted: TreatmentProgramInstanceStageItemRow[] = [];
       const t = isoNow();
@@ -802,14 +834,14 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
         const exerciseId = idsFromDb[i]!;
         const iid = crypto.randomUUID();
         const snapshot: Record<string, unknown> = {
-          itemType: "exercise",
+          itemType: 'exercise',
           id: exerciseId,
           title: null,
         };
         const itemRow: ItemRow = {
           id: iid,
           stageId: input.stageId,
-          itemType: "exercise",
+          itemType: 'exercise',
           itemRefId: exerciseId,
           sortOrder: itemMax + 1 + i,
           comment: null,
@@ -818,7 +850,7 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
           snapshot,
           completedAt: null,
           isActionable: null,
-          status: "active",
+          status: 'active',
           groupId: input.groupId,
           createdAt: t,
           lastViewedAt: t,
@@ -876,7 +908,7 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
       eventInput: AppendTreatmentProgramEventInput,
     ) {
       if (eventInput.instanceId !== instanceId) {
-        throw new Error("patchInstanceStageItemWithEvent: event instanceId mismatch");
+        throw new Error('patchInstanceStageItemWithEvent: event instanceId mismatch');
       }
       if (
         patch.status === undefined &&
@@ -930,7 +962,7 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
         settings: input.settings === undefined ? row.settings : input.settings,
         snapshot: input.snapshot,
         completedAt: null,
-        status: "active",
+        status: 'active',
         isActionable: null,
         groupId: null,
         createdAt: t,
@@ -992,7 +1024,7 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
     ) {
       const st = stages.get(stageId);
       if (!st || st.instanceId !== instanceId) return null;
-      const title = input.title?.trim() ?? "";
+      const title = input.title?.trim() ?? '';
       if (!title) return null;
       const gid = crypto.randomUUID();
       const gr: TreatmentProgramInstanceStageGroup = {
@@ -1019,7 +1051,7 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
       if (!cur) return null;
       const st = stages.get(cur.stageId);
       if (!st || st.instanceId !== instanceId) return null;
-      const isSystem = cur.systemKind === "recommendations" || cur.systemKind === "tests";
+      const isSystem = cur.systemKind === 'recommendations' || cur.systemKind === 'tests';
       let title = cur.title;
       if (input.title !== undefined && !isSystem) {
         const t = input.title.trim();
@@ -1029,8 +1061,12 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
       const next: TreatmentProgramInstanceStageGroup = {
         ...cur,
         title,
-        ...(input.description !== undefined && !isSystem ? { description: input.description?.trim() ?? null } : {}),
-        ...(input.scheduleText !== undefined && !isSystem ? { scheduleText: input.scheduleText?.trim() ?? null } : {}),
+        ...(input.description !== undefined && !isSystem
+          ? { description: input.description?.trim() ?? null }
+          : {}),
+        ...(input.scheduleText !== undefined && !isSystem
+          ? { scheduleText: input.scheduleText?.trim() ?? null }
+          : {}),
         ...(input.sortOrder !== undefined && !isSystem ? { sortOrder: input.sortOrder } : {}),
       };
       instGroups.set(groupId, next);
@@ -1041,7 +1077,7 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
     async deleteInstanceStageGroup(instanceId: string, groupId: string) {
       const cur = instGroups.get(groupId);
       if (!cur) return false;
-      if (cur.systemKind === "recommendations" || cur.systemKind === "tests") return false;
+      if (cur.systemKind === 'recommendations' || cur.systemKind === 'tests') return false;
       const st = stages.get(cur.stageId);
       if (!st || st.instanceId !== instanceId) return false;
       for (const [iid, it] of items) {
@@ -1061,7 +1097,7 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
       if (!st || st.instanceId !== instanceId) return false;
       const groupList = [...instGroups.values()].filter((g) => g.stageId === stageId);
       const userIds = groupList
-        .filter((g) => g.systemKind !== "recommendations" && g.systemKind !== "tests")
+        .filter((g) => g.systemKind !== 'recommendations' && g.systemKind !== 'tests')
         .map((g) => g.id);
       const idSet = new Set(userIds);
       if (!sameIdSet(orderedGroupIds, idSet)) return false;
@@ -1166,17 +1202,19 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
     },
 
     async acceptAttempt(input: { attemptId: string; instanceId: string; doctorUserId: string }) {
-      const errStale = "Нельзя принять неактуальную попытку";
+      const errStale = 'Нельзя принять неактуальную попытку';
       const a = attempts.get(input.attemptId);
-      if (!a) throw new Error("Попытка не найдена");
-      if (!a.submittedAt) throw new Error("Попытка ещё не отправлена пациентом");
+      if (!a) throw new Error('Попытка не найдена');
+      if (!a.submittedAt) throw new Error('Попытка ещё не отправлена пациентом');
       const item = items.get(a.instanceStageItemId);
-      if (!item) throw new Error("Попытка не найдена");
+      if (!item) throw new Error('Попытка не найдена');
       const st = stages.get(item.stageId);
-      if (!st || st.instanceId !== input.instanceId) throw new Error("Попытка не найдена");
+      if (!st || st.instanceId !== input.instanceId) throw new Error('Попытка не найдена');
 
       const ordered = [...attempts.values()].filter(
-        (row) => row.instanceStageItemId === a.instanceStageItemId && row.patientUserId === a.patientUserId,
+        (row) =>
+          row.instanceStageItemId === a.instanceStageItemId &&
+          row.patientUserId === a.patientUserId,
       );
       ordered.sort((x, y) => {
         if (x.startedAt < y.startedAt) return 1;
@@ -1205,25 +1243,25 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
       patientUserId: string;
     }): Promise<TreatmentProgramTestAttemptRow> {
       const item = items.get(input.stageItemId);
-      if (!item) throw new Error("Элемент не найден");
+      if (!item) throw new Error('Элемент не найден');
       const st = stages.get(item.stageId);
-      if (!st || st.instanceId !== input.instanceId) throw new Error("Элемент не найден");
+      if (!st || st.instanceId !== input.instanceId) throw new Error('Элемент не найден');
       const inst = instances.get(input.instanceId);
       if (!inst || inst.patientUserId !== input.patientUserId) {
-        throw new Error("Элемент не найден");
+        throw new Error('Элемент не найден');
       }
-      if (item.itemType !== "clinical_test") {
-        throw new Error("Элемент не является клиническим тестом");
+      if (item.itemType !== 'clinical_test') {
+        throw new Error('Элемент не является клиническим тестом');
       }
       const open = findOpenAttemptImpl(input.stageItemId, input.patientUserId);
-      if (open) throw new Error("Сначала отправьте текущую попытку");
+      if (open) throw new Error('Сначала отправьте текущую попытку');
       const hasSubmitted = [...attempts.values()].some(
         (row) =>
           row.instanceStageItemId === input.stageItemId &&
           row.patientUserId === input.patientUserId &&
           row.submittedAt != null,
       );
-      if (!hasSubmitted) throw new Error("Сначала отправьте набор тестов");
+      if (!hasSubmitted) throw new Error('Сначала отправьте набор тестов');
       items.set(item.id, { ...item, completedAt: null });
       const id = crypto.randomUUID();
       const row: TreatmentProgramTestAttemptRow = {
@@ -1279,7 +1317,9 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
       return [...results.values()].filter((r) => r.attemptId === attemptId).map((r) => ({ ...r }));
     },
 
-    async listResultDetailsForInstance(instanceId: string): Promise<TreatmentProgramTestResultDetailRow[]> {
+    async listResultDetailsForInstance(
+      instanceId: string,
+    ): Promise<TreatmentProgramTestResultDetailRow[]> {
       const out: TreatmentProgramTestResultDetailRow[] = [];
       for (const r of results.values()) {
         const att = attempts.get(r.attemptId);
@@ -1303,7 +1343,9 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
       return out.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
     },
 
-    async listPendingEvaluationResultsForPatient(patientUserId: string): Promise<PendingProgramTestEvaluationRow[]> {
+    async listPendingEvaluationResultsForPatient(
+      patientUserId: string,
+    ): Promise<PendingProgramTestEvaluationRow[]> {
       const out: PendingProgramTestEvaluationRow[] = [];
       for (const r of results.values()) {
         if (r.decidedBy) continue;
@@ -1314,8 +1356,8 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
         const st = stages.get(item.stageId);
         if (!st) continue;
         const inst = instances.get(st.instanceId);
-        if (!inst || inst.patientUserId !== patientUserId || inst.status !== "active") continue;
-        if (inst.assignmentSource === "promo") continue;
+        if (!inst || inst.patientUserId !== patientUserId || inst.status !== 'active') continue;
+        if (inst.assignmentSource === 'promo') continue;
         out.push({
           attemptId: att.id,
           attemptSubmittedAt: att.submittedAt!,
@@ -1343,8 +1385,8 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
         const st = stages.get(item.stageId);
         if (!st) continue;
         const inst = instances.get(st.instanceId);
-        if (!inst || inst.organizationId !== organizationId || inst.status !== "active") continue;
-        if (inst.assignmentSource === "promo") continue;
+        if (!inst || inst.organizationId !== organizationId || inst.status !== 'active') continue;
+        if (inst.assignmentSource === 'promo') continue;
         attemptIds.add(att.id);
       }
       return attemptIds.size;
@@ -1365,8 +1407,8 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
         const st = stages.get(item.stageId);
         if (!st) continue;
         const inst = instances.get(st.instanceId);
-        if (!inst || inst.organizationId !== organizationId || inst.status !== "active") continue;
-        if (inst.assignmentSource === "promo") continue;
+        if (!inst || inst.organizationId !== organizationId || inst.status !== 'active') continue;
+        if (inst.assignmentSource === 'promo') continue;
         out.push({
           attemptId: att.id,
           attemptSubmittedAt: att.submittedAt!,
@@ -1379,7 +1421,7 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
           stageTitle: st.title,
           stageItemId: item.id,
           patientUserId: inst.patientUserId,
-          patientDisplayName: "—",
+          patientDisplayName: '—',
         });
       }
       const groups = new Map<string, PendingProgramTestEvaluationGlobalRow[]>();
@@ -1391,7 +1433,10 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
       const sortedAttemptIds = [...groups.entries()]
         .map(([attemptId, rowsForAttempt]) => ({
           attemptId,
-          latestAt: rowsForAttempt.reduce((max, row) => (row.createdAt > max ? row.createdAt : max), rowsForAttempt[0]!.createdAt),
+          latestAt: rowsForAttempt.reduce(
+            (max, row) => (row.createdAt > max ? row.createdAt : max),
+            rowsForAttempt[0]!.createdAt,
+          ),
         }))
         .sort((a, b) => {
           const d = b.latestAt.localeCompare(a.latestAt);
@@ -1406,10 +1451,17 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
         .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
     },
 
-    async overrideResultDecision(resultId: string, input: { normalizedDecision: NormalizedTestDecision; decidedBy: string }) {
+    async overrideResultDecision(
+      resultId: string,
+      input: { normalizedDecision: NormalizedTestDecision; decidedBy: string },
+    ) {
       const row = results.get(resultId);
       if (!row) return null;
-      const next = { ...row, normalizedDecision: input.normalizedDecision, decidedBy: input.decidedBy };
+      const next = {
+        ...row,
+        normalizedDecision: input.normalizedDecision,
+        decidedBy: input.decidedBy,
+      };
       results.set(resultId, next);
       return { ...next };
     },

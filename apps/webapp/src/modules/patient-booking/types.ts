@@ -1,9 +1,9 @@
-import type { BookingAttribution } from "@/modules/booking-attribution/types";
+import type { BookingAttribution } from '@/modules/booking-attribution/types';
 
-export type PatientBookingChannel = "app" | "public_widget";
+export type PatientBookingChannel = 'app' | 'public_widget';
 
-export type BookingType = "in_person" | "online";
-export type BookingCategory = "rehab_lfk" | "nutrition" | "general";
+export type BookingType = 'in_person' | 'online';
+export type BookingCategory = 'rehab_lfk' | 'nutrition' | 'general';
 
 /**
  * Canonical in-person context read from the linked `be_appointments` row and
@@ -22,16 +22,16 @@ export type CanonicalInPersonBookingContext = {
 };
 
 export type PatientBookingStatus =
-  | "creating"
-  | "awaiting_payment"
-  | "confirmed"
-  | "cancelling"
-  | "cancel_failed"
-  | "cancelled"
-  | "rescheduled"
-  | "completed"
-  | "no_show"
-  | "failed_sync";
+  | 'creating'
+  | 'awaiting_payment'
+  | 'confirmed'
+  | 'cancelling'
+  | 'cancel_failed'
+  | 'cancelled'
+  | 'rescheduled'
+  | 'completed'
+  | 'no_show'
+  | 'failed_sync';
 
 export type BookingSlot = {
   startAt: string;
@@ -106,7 +106,7 @@ type CreatePatientBookingCommon = {
 /** API / UI input for creating a booking (discriminated by `type`). */
 export type CreatePatientBookingInput =
   | (CreatePatientBookingCommon & {
-      type: "online";
+      type: 'online';
       category: BookingCategory;
       slotStart: string;
       slotEnd: string;
@@ -117,7 +117,7 @@ export type CreatePatientBookingInput =
       formAnswers?: BookingFormAnswerInput[];
     })
   | (CreatePatientBookingCommon & {
-      type: "in_person";
+      type: 'in_person';
       /** Canonical branch and clinic-service ids. */
       branchId: string;
       serviceId: string;
@@ -136,7 +136,7 @@ export type CreatePatientBookingInput =
     });
 
 /** Public create (no session): phone identifies patient; userId resolved server-side. */
-export type PublicCreateBookingInput = Omit<CreatePatientBookingInput, "userId"> & {
+export type PublicCreateBookingInput = Omit<CreatePatientBookingInput, 'userId'> & {
   userId?: string;
 };
 

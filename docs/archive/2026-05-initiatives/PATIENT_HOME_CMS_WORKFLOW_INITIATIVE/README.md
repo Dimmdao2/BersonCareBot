@@ -116,4 +116,3 @@
 - Route handlers и server actions остаются тонкими.
 - Новые setting keys не добавлять без реальной необходимости; интеграционные настройки не в env.
 - Перед push: `pnpm install --frozen-lockfile && pnpm run ci`.
-

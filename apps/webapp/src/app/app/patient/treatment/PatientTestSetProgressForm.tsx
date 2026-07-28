@@ -1,30 +1,46 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
-import { Input } from "@/shared/ui/patient/primitives/input";
-import { Label } from "@/shared/ui/patient/primitives/label";
-import { Textarea } from "@/shared/ui/patient/primitives/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/patient/primitives/select";
-import { patientTestQualDecisionSelectItems } from "@/shared/ui/patient/selectOpaqueValueLabels";
-import type { PatientTestSetPageServerSnapshot, PatientTestSetSubmittedAttemptDetail } from "@/modules/treatment-program/progress-service";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { Input } from '@/shared/ui/patient/primitives/input';
+import { Label } from '@/shared/ui/patient/primitives/label';
+import { Textarea } from '@/shared/ui/patient/primitives/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/shared/ui/patient/primitives/select';
+import { patientTestQualDecisionSelectItems } from '@/shared/ui/patient/selectOpaqueValueLabels';
+import type {
+  PatientTestSetPageServerSnapshot,
+  PatientTestSetSubmittedAttemptDetail,
+} from '@/modules/treatment-program/progress-service';
 import type {
   NormalizedTestDecision,
   TreatmentProgramTestAttemptBrief,
   TreatmentProgramTestResultDetailRow,
   TreatmentProgramTestResultRow,
-} from "@/modules/treatment-program/types";
-import { formatNormalizedTestDecisionRu } from "@/modules/treatment-program/types";
-import { parseTestSetSnapshotTests, testIdsFromTestSetSnapshot } from "@/modules/treatment-program/testSetSnapshotView";
-import { scoringAllowsNumericDecisionInference } from "@/modules/treatment-program/progress-scoring";
+} from '@/modules/treatment-program/types';
+import { formatNormalizedTestDecisionRu } from '@/modules/treatment-program/types';
+import {
+  parseTestSetSnapshotTests,
+  testIdsFromTestSetSnapshot,
+} from '@/modules/treatment-program/testSetSnapshotView';
+import { scoringAllowsNumericDecisionInference } from '@/modules/treatment-program/progress-scoring';
 import {
   patientCompactActionClass,
   patientFormSurfaceClass,
   patientMutedTextClass,
   PatientShimmerPanel,
-} from "@/shared/ui/patient/patientVisual";
-import { cn } from "@/lib/utils";
-import { ChevronDown } from "lucide-react";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/shared/ui/patient/primitives/collapsible";
+} from '@/shared/ui/patient/patientVisual';
+import { cn } from '@/lib/utils';
+import { ChevronDown } from 'lucide-react';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/shared/ui/patient/primitives/collapsible';
 
 function AttemptHistoryCollapsibleList(props: {
   bundles: PatientTestSetSubmittedAttemptDetail[];
@@ -40,14 +56,14 @@ function AttemptHistoryCollapsibleList(props: {
             className="rounded-md border border-[var(--patient-border)]/50 bg-[var(--patient-card-bg)]/80"
           >
             <CollapsibleTrigger className="group flex w-full items-center justify-between gap-2 px-2 py-1.5 text-left">
-              <span className={cn(patientMutedTextClass, "text-[11px]")}>
-                {bundle.submittedAt ? `Отправлено ${bundle.submittedAt.slice(0, 10)}` : "—"}
-                {bundle.acceptedAt ? ` · принято ${bundle.acceptedAt.slice(0, 10)}` : ""}
+              <span className={cn(patientMutedTextClass, 'text-[11px]')}>
+                {bundle.submittedAt ? `Отправлено ${bundle.submittedAt.slice(0, 10)}` : '—'}
+                {bundle.acceptedAt ? ` · принято ${bundle.acceptedAt.slice(0, 10)}` : ''}
               </span>
               <ChevronDown
                 className={cn(
-                  "size-3.5 shrink-0 text-[var(--patient-text-muted)] transition-transform duration-200",
-                  "group-data-[panel-open]:rotate-180",
+                  'size-3.5 shrink-0 text-[var(--patient-text-muted)] transition-transform duration-200',
+                  'group-data-[panel-open]:rotate-180',
                 )}
                 aria-hidden
               />
@@ -63,9 +79,9 @@ function AttemptHistoryCollapsibleList(props: {
                       className="rounded border border-[var(--patient-border)]/40 px-2 py-1"
                     >
                       <span className="text-xs font-medium">{t.title ?? t.testId}</span>
-                      <p className={cn(patientMutedTextClass, "mt-0.5 mb-0 text-[11px]")}>
+                      <p className={cn(patientMutedTextClass, 'mt-0.5 mb-0 text-[11px]')}>
                         Итог: {formatNormalizedTestDecisionRu(row.normalizedDecision)}
-                        {row.decidedBy ? " (уточнено врачом)" : ""}
+                        {row.decidedBy ? ' (уточнено врачом)' : ''}
                       </p>
                     </li>
                   );
@@ -98,7 +114,9 @@ export type PatientTestSetProgressFormProps = {
   activeTestId?: string;
 };
 
-function latestResultsByTestId(rows: TreatmentProgramTestResultDetailRow[]): Map<string, TreatmentProgramTestResultDetailRow> {
+function latestResultsByTestId(
+  rows: TreatmentProgramTestResultDetailRow[],
+): Map<string, TreatmentProgramTestResultDetailRow> {
   const m = new Map<string, TreatmentProgramTestResultDetailRow>();
   const sorted = [...rows].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   for (const r of sorted) {
@@ -116,8 +134,8 @@ function augmentResultRowToDetail(
   return {
     ...r,
     instanceStageItemId,
-    stageId: "",
-    stageTitle: "",
+    stageId: '',
+    stageTitle: '',
     stageSortOrder: 0,
     testTitle: null,
     attemptStartedAt: ta?.startedAt ?? r.createdAt,
@@ -132,23 +150,23 @@ function buildFormStateFromInProgressRows(
 ): {
   nextScores: Record<string, string>;
   nextNumericNotes: Record<string, string>;
-  nextQualDecisions: Record<string, NormalizedTestDecision | "">;
+  nextQualDecisions: Record<string, NormalizedTestDecision | ''>;
   nextQualNotes: Record<string, string>;
   nextSaved: Record<string, TreatmentProgramTestResultDetailRow>;
 } {
   const nextScores: Record<string, string> = {};
   const nextNumericNotes: Record<string, string> = {};
-  const nextQualDecisions: Record<string, NormalizedTestDecision | ""> = {};
+  const nextQualDecisions: Record<string, NormalizedTestDecision | ''> = {};
   const nextQualNotes: Record<string, string> = {};
   const nextSaved: Record<string, TreatmentProgramTestResultDetailRow> = {};
 
   for (const r of rows) {
     nextSaved[r.testId] = r;
     const rv = r.rawValue ?? {};
-    if (typeof rv.score === "number" && Number.isFinite(rv.score)) {
+    if (typeof rv.score === 'number' && Number.isFinite(rv.score)) {
       nextScores[r.testId] = String(rv.score);
     }
-    if (typeof rv.note === "string" && rv.note.trim()) {
+    if (typeof rv.note === 'string' && rv.note.trim()) {
       const line = lines.find((x) => x.testId === r.testId);
       const auto = line ? scoringAllowsNumericDecisionInference(line.scoringConfig) : false;
       if (auto) {
@@ -188,16 +206,20 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
 
   const [scores, setScores] = useState<Record<string, string>>({});
   const [numericNotes, setNumericNotes] = useState<Record<string, string>>({});
-  const [qualDecisions, setQualDecisions] = useState<Record<string, NormalizedTestDecision | "">>({});
+  const [qualDecisions, setQualDecisions] = useState<Record<string, NormalizedTestDecision | ''>>(
+    {},
+  );
   const [qualNotes, setQualNotes] = useState<Record<string, string>>({});
   const [errorByTestId, setErrorByTestId] = useState<Record<string, string>>({});
   const [hydratedAttemptId, setHydratedAttemptId] = useState<string | null>(null);
-  const [savedByTestId, setSavedByTestId] = useState<Record<string, TreatmentProgramTestResultDetailRow>>({});
+  const [savedByTestId, setSavedByTestId] = useState<
+    Record<string, TreatmentProgramTestResultDetailRow>
+  >({});
   const [completedSummaryLoaded, setCompletedSummaryLoaded] = useState(false);
 
   const ensureAttempt = useCallback(async () => {
     const res = await fetch(`${baseUrl}/${encodeURIComponent(itemId)}/progress/test-attempt`, {
-      method: "POST",
+      method: 'POST',
     });
     const data = (await res.json().catch(() => null)) as {
       ok?: boolean;
@@ -205,13 +227,13 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
       attempt?: { id: string };
     };
     if (!res.ok || !data.ok || !data.attempt?.id) {
-      setError(data.error ?? "Не удалось начать попытку");
+      setError(data.error ?? 'Не удалось начать попытку');
       return null;
     }
     return data.attempt.id;
   }, [baseUrl, itemId, setError]);
 
-  const testIdsKey = testIds.join(",");
+  const testIdsKey = testIds.join(',');
 
   useLayoutEffect(() => {
     setError(null);
@@ -223,10 +245,10 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
     setQualDecisions({});
     setQualNotes({});
 
-    const snap = serverSnapshot ?? { variant: "none" as const };
+    const snap = serverSnapshot ?? { variant: 'none' as const };
     const lines = parseTestSetSnapshotTests(snapshot);
 
-    if (snap.variant === "readonly_submitted") {
+    if (snap.variant === 'readonly_submitted') {
       const nextSaved: Record<string, TreatmentProgramTestResultDetailRow> = {};
       for (const r of snap.results) {
         nextSaved[r.testId] = augmentResultRowToDetail(r, itemId, snap.attemptHistory);
@@ -241,9 +263,11 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
       return;
     }
 
-    if (snap.variant === "open_attempt") {
+    if (snap.variant === 'open_attempt') {
       if (snap.attemptId) {
-        const detailRows = snap.results.map((r) => augmentResultRowToDetail(r, itemId, snap.attemptHistory));
+        const detailRows = snap.results.map((r) =>
+          augmentResultRowToDetail(r, itemId, snap.attemptHistory),
+        );
         const st = buildFormStateFromInProgressRows(lines, detailRows);
         setScores(st.nextScores);
         setNumericNotes(st.nextNumericNotes);
@@ -262,9 +286,9 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
   }, [serverSnapshot, itemId, snapshot, readOnlySummary, interactionDisabled, setError]);
 
   useEffect(() => {
-    const snap = serverSnapshot ?? { variant: "none" as const };
-    if (snap.variant === "readonly_submitted") return;
-    if (snap.variant === "open_attempt" && snap.attemptId != null) return;
+    const snap = serverSnapshot ?? { variant: 'none' as const };
+    if (snap.variant === 'readonly_submitted') return;
+    if (snap.variant === 'open_attempt' && snap.attemptId != null) return;
 
     let cancelled = false;
 
@@ -371,23 +395,25 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
         </div>
       );
     }
-    const snapRO = serverSnapshot?.variant === "readonly_submitted" ? serverSnapshot : null;
+    const snapRO = serverSnapshot?.variant === 'readonly_submitted' ? serverSnapshot : null;
     const bundles = snapRO?.submittedAttemptsDetail ?? [];
     const hasBundles = bundles.length > 0;
     const anyRow = testIds.some((tid) => Boolean(savedByTestId[tid]));
     return (
       <div className="mt-3 flex flex-col gap-3">
         <p className="text-xs text-emerald-600 dark:text-emerald-400">
-          {snapRO?.doctorAcceptedItem ? "Пункт принят врачом." : "Набор отправлен."}
+          {snapRO?.doctorAcceptedItem ? 'Пункт принят врачом.' : 'Набор отправлен.'}
         </p>
         {hasBundles ? (
           <AttemptHistoryCollapsibleList bundles={bundles} testsMetaToRender={testsMetaToRender} />
         ) : snapRO ? (
           <ul className="m-0 flex list-none flex-col gap-1 p-0">
             {snapRO.attemptHistory.map((a) => (
-              <li key={a.id} className={cn(patientMutedTextClass, "text-[11px]")}>
-                {a.submittedAt ? `Отправлено ${a.submittedAt.slice(0, 10)}` : `Начато ${a.startedAt.slice(0, 10)}`}
-                {a.acceptedAt ? ` · принято ${a.acceptedAt.slice(0, 10)}` : ""}
+              <li key={a.id} className={cn(patientMutedTextClass, 'text-[11px]')}>
+                {a.submittedAt
+                  ? `Отправлено ${a.submittedAt.slice(0, 10)}`
+                  : `Начато ${a.startedAt.slice(0, 10)}`}
+                {a.acceptedAt ? ` · принято ${a.acceptedAt.slice(0, 10)}` : ''}
               </li>
             ))}
           </ul>
@@ -395,19 +421,22 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
         {!interactionDisabled && snapRO ? (
           <button
             type="button"
-            className={cn(patientCompactActionClass, "h-8 w-auto self-start text-sm")}
+            className={cn(patientCompactActionClass, 'h-8 w-auto self-start text-sm')}
             disabled={busy !== null}
             onClick={async () => {
-              setBusy("new-attempt");
+              setBusy('new-attempt');
               setError(null);
               try {
                 const res = await fetch(
                   `${baseUrl}/${encodeURIComponent(itemId)}/progress/start-new-test-attempt`,
-                  { method: "POST" },
+                  { method: 'POST' },
                 );
-                const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+                const data = (await res.json().catch(() => null)) as {
+                  ok?: boolean;
+                  error?: string;
+                };
                 if (!res.ok || !data.ok) {
-                  setError(data.error ?? "Не удалось начать попытку");
+                  setError(data.error ?? 'Не удалось начать попытку');
                   return;
                 }
                 await onDone();
@@ -429,17 +458,19 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
                   key={t.testId}
                   className="rounded-lg border border-[var(--patient-border)]/60 bg-[var(--patient-card-bg)] px-2 py-1.5"
                 >
-                  <span className="text-xs font-medium">{t.title ?? row.testTitle ?? t.testId}</span>
-                  <p className={cn(patientMutedTextClass, "mt-1 mb-0 text-[11px]")}>
+                  <span className="text-xs font-medium">
+                    {t.title ?? row.testTitle ?? t.testId}
+                  </span>
+                  <p className={cn(patientMutedTextClass, 'mt-1 mb-0 text-[11px]')}>
                     Итог: {formatNormalizedTestDecisionRu(row.normalizedDecision)}
-                    {row.decidedBy ? " (уточнено врачом)" : ""}
+                    {row.decidedBy ? ' (уточнено врачом)' : ''}
                   </p>
                 </li>
               );
             })}
           </ul>
         ) : !hasBundles ? (
-          <p className={cn(patientMutedTextClass, "text-xs")}>Детали результатов недоступны.</p>
+          <p className={cn(patientMutedTextClass, 'text-xs')}>Детали результатов недоступны.</p>
         ) : null}
       </div>
     );
@@ -447,7 +478,7 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
 
   if (interactionDisabled) {
     return (
-      <p className={cn(patientMutedTextClass, "mt-2 text-xs")} role="status">
+      <p className={cn(patientMutedTextClass, 'mt-2 text-xs')} role="status">
         Запись результатов недоступна.
       </p>
     );
@@ -456,7 +487,7 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
   if (!completedSummaryLoaded) {
     return (
       <div
-        className={cn(patientFormSurfaceClass, "mt-3 border border-[var(--patient-border)]/70 p-3")}
+        className={cn(patientFormSurfaceClass, 'mt-3 border border-[var(--patient-border)]/70 p-3')}
         aria-busy="true"
         aria-label="Загрузка"
       >
@@ -467,17 +498,21 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
 
   return (
     <div
-      className={cn(patientFormSurfaceClass, "mt-3 flex flex-col gap-3 border border-[var(--patient-border)]/70 p-3")}
+      className={cn(
+        patientFormSurfaceClass,
+        'mt-3 flex flex-col gap-3 border border-[var(--patient-border)]/70 p-3',
+      )}
       onClick={(e) => e.stopPropagation()}
       onKeyDown={(e) => e.stopPropagation()}
     >
       {testIds.length > 0 ? (
-        <p className={cn(patientMutedTextClass, "m-0 text-[11px]")}>
+        <p className={cn(patientMutedTextClass, 'm-0 text-[11px]')}>
           Сохранено тестов: {savedCount} / {testIds.length}
         </p>
       ) : null}
 
-      {serverSnapshot?.variant === "open_attempt" && serverSnapshot.submittedAttemptsDetail.length > 0 ? (
+      {serverSnapshot?.variant === 'open_attempt' &&
+      serverSnapshot.submittedAttemptsDetail.length > 0 ? (
         <AttemptHistoryCollapsibleList
           bundles={serverSnapshot.submittedAttemptsDetail}
           testsMetaToRender={testsMetaToRender}
@@ -499,11 +534,11 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-xs font-medium">{t.title ?? t.testId}</span>
                 {saved ? (
-                  <span className={cn(patientMutedTextClass, "text-[10px]")}>Сохранено</span>
+                  <span className={cn(patientMutedTextClass, 'text-[10px]')}>Сохранено</span>
                 ) : null}
               </div>
               {!activeTestId && t.comment ? (
-                <p className={cn(patientMutedTextClass, "mt-0.5 text-[11px]")}>
+                <p className={cn(patientMutedTextClass, 'mt-0.5 text-[11px]')}>
                   Комментарий к позиции: <span className="text-foreground">{t.comment}</span>
                 </p>
               ) : null}
@@ -515,18 +550,18 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
                       type="number"
                       className="h-8 max-w-[120px] text-sm"
                       placeholder="score"
-                      value={scores[t.testId] ?? ""}
+                      value={scores[t.testId] ?? ''}
                       onChange={(e) => setScores((s) => ({ ...s, [t.testId]: e.target.value }))}
                       disabled={busy !== null}
                     />
                     <button
                       type="button"
-                      className={cn(patientCompactActionClass, "h-8 w-auto text-sm")}
+                      className={cn(patientCompactActionClass, 'h-8 w-auto text-sm')}
                       disabled={busy !== null}
                       onClick={async () => {
                         setBusy(itemId + t.testId);
                         setError(null);
-                        setErrorByTestId((e) => ({ ...e, [t.testId]: "" }));
+                        setErrorByTestId((e) => ({ ...e, [t.testId]: '' }));
                         try {
                           let attemptId = hydratedAttemptId;
                           if (!attemptId) {
@@ -535,31 +570,34 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
                             setHydratedAttemptId(attemptId);
                           }
                           const raw = scores[t.testId]?.trim();
-                          const num = raw === "" || raw === undefined ? NaN : Number(raw);
-                          const note = numericNotes[t.testId]?.trim() ?? "";
+                          const num = raw === '' || raw === undefined ? NaN : Number(raw);
+                          const note = numericNotes[t.testId]?.trim() ?? '';
                           const body: Record<string, unknown> = {
                             testId: t.testId,
                             rawValue: Number.isFinite(num)
                               ? note
                                 ? { score: num, note }
                                 : { score: num }
-                              : { value: raw ?? "" },
+                              : { value: raw ?? '' },
                           };
                           if (!Number.isFinite(num)) {
-                            body.normalizedDecision = "partial";
+                            body.normalizedDecision = 'partial';
                           }
-                          const res = await fetch(`${baseUrl}/${encodeURIComponent(itemId)}/progress/test-result`, {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify(body),
-                          });
+                          const res = await fetch(
+                            `${baseUrl}/${encodeURIComponent(itemId)}/progress/test-result`,
+                            {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify(body),
+                            },
+                          );
                           const data = (await res.json().catch(() => null)) as {
                             ok?: boolean;
                             error?: string;
                             item?: unknown;
                           };
                           if (!res.ok || !data.ok) {
-                            const msg = data.error ?? "Ошибка сохранения";
+                            const msg = data.error ?? 'Ошибка сохранения';
                             setErrorByTestId((e) => ({ ...e, [t.testId]: msg }));
                             return;
                           }
@@ -588,11 +626,15 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
                     </button>
                   </div>
                   <div className="flex flex-col gap-1">
-                    <Label className={cn(patientMutedTextClass, "text-[11px]")}>Комментарий (необязательно)</Label>
+                    <Label className={cn(patientMutedTextClass, 'text-[11px]')}>
+                      Комментарий (необязательно)
+                    </Label>
                     <Textarea
-                      className={cn(patientFormSurfaceClass, "min-h-[56px] text-sm")}
-                      value={numericNotes[t.testId] ?? ""}
-                      onChange={(e) => setNumericNotes((s) => ({ ...s, [t.testId]: e.target.value }))}
+                      className={cn(patientFormSurfaceClass, 'min-h-[56px] text-sm')}
+                      value={numericNotes[t.testId] ?? ''}
+                      onChange={(e) =>
+                        setNumericNotes((s) => ({ ...s, [t.testId]: e.target.value }))
+                      }
                       disabled={busy !== null}
                       rows={2}
                     />
@@ -601,7 +643,7 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
               ) : (
                 <div className="mt-1 flex flex-col gap-2">
                   <div className="flex flex-col gap-1">
-                    <Label className={cn(patientMutedTextClass, "text-[11px]")}>Итог</Label>
+                    <Label className={cn(patientMutedTextClass, 'text-[11px]')}>Итог</Label>
                     <Select
                       value={qualDecisions[t.testId] || undefined}
                       onValueChange={(v) =>
@@ -610,23 +652,29 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
                       disabled={busy !== null}
                       items={patientTestQualDecisionSelectItems}
                     >
-                      <SelectTrigger
-                        className="h-9 max-w-[280px] text-sm"
-                      >
+                      <SelectTrigger className="h-9 max-w-[280px] text-sm">
                         <SelectValue placeholder="Выберите итог" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="passed">{formatNormalizedTestDecisionRu("passed")}</SelectItem>
-                        <SelectItem value="failed">{formatNormalizedTestDecisionRu("failed")}</SelectItem>
-                        <SelectItem value="partial">{formatNormalizedTestDecisionRu("partial")}</SelectItem>
+                        <SelectItem value="passed">
+                          {formatNormalizedTestDecisionRu('passed')}
+                        </SelectItem>
+                        <SelectItem value="failed">
+                          {formatNormalizedTestDecisionRu('failed')}
+                        </SelectItem>
+                        <SelectItem value="partial">
+                          {formatNormalizedTestDecisionRu('partial')}
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="flex flex-col gap-1">
-                    <Label className={cn(patientMutedTextClass, "text-[11px]")}>Комментарий (необязательно)</Label>
+                    <Label className={cn(patientMutedTextClass, 'text-[11px]')}>
+                      Комментарий (необязательно)
+                    </Label>
                     <Textarea
-                      className={cn(patientFormSurfaceClass, "min-h-[72px] text-sm")}
-                      value={qualNotes[t.testId] ?? ""}
+                      className={cn(patientFormSurfaceClass, 'min-h-[72px] text-sm')}
+                      value={qualNotes[t.testId] ?? ''}
                       onChange={(e) => setQualNotes((s) => ({ ...s, [t.testId]: e.target.value }))}
                       disabled={busy !== null}
                       rows={3}
@@ -634,12 +682,12 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
                   </div>
                   <button
                     type="button"
-                    className={cn(patientCompactActionClass, "h-8 w-auto text-sm")}
+                    className={cn(patientCompactActionClass, 'h-8 w-auto text-sm')}
                     disabled={busy !== null}
                     onClick={async () => {
                       setBusy(itemId + t.testId);
                       setError(null);
-                      setErrorByTestId((e) => ({ ...e, [t.testId]: "" }));
+                      setErrorByTestId((e) => ({ ...e, [t.testId]: '' }));
                       try {
                         let attemptId = hydratedAttemptId;
                         if (!attemptId) {
@@ -648,26 +696,32 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
                           setHydratedAttemptId(attemptId);
                         }
                         const d = qualDecisions[t.testId];
-                        if (d !== "passed" && d !== "failed" && d !== "partial") {
+                        if (d !== 'passed' && d !== 'failed' && d !== 'partial') {
                           setErrorByTestId((e) => ({
                             ...e,
-                            [t.testId]: "Выберите итог: зачтено, не зачтено или частично.",
+                            [t.testId]: 'Выберите итог: зачтено, не зачтено или частично.',
                           }));
                           return;
                         }
-                        const note = qualNotes[t.testId]?.trim() ?? "";
-                        const res = await fetch(`${baseUrl}/${encodeURIComponent(itemId)}/progress/test-result`, {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({
-                            testId: t.testId,
-                            rawValue: note ? { note } : {},
-                            normalizedDecision: d,
-                          }),
-                        });
-                        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+                        const note = qualNotes[t.testId]?.trim() ?? '';
+                        const res = await fetch(
+                          `${baseUrl}/${encodeURIComponent(itemId)}/progress/test-result`,
+                          {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              testId: t.testId,
+                              rawValue: note ? { note } : {},
+                              normalizedDecision: d,
+                            }),
+                          },
+                        );
+                        const data = (await res.json().catch(() => null)) as {
+                          ok?: boolean;
+                          error?: string;
+                        };
                         if (!res.ok || !data.ok) {
-                          const msg = data.error ?? "Ошибка сохранения";
+                          const msg = data.error ?? 'Ошибка сохранения';
                           setErrorByTestId((e) => ({ ...e, [t.testId]: msg }));
                           return;
                         }

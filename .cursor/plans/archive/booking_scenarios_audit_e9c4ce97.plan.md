@@ -1,37 +1,37 @@
 ---
 name: Booking scenarios audit
-overview: "Усиленный аудит всех write-сценариев записи/отмены/переноса: матрица по источникам и режимам канона, приоритеты рисков, полный test bundle, smoke с SQL, подтверждённые gaps (в т.ч. patient API без partial flags), план закрытия до деплоя."
+overview: 'Усиленный аудит всех write-сценариев записи/отмены/переноса: матрица по источникам и режимам канона, приоритеты рисков, полный test bundle, smoke с SQL, подтверждённые gaps (в т.ч. patient API без partial flags), план закрытия до деплоя.'
 status: completed
 completedAt: 2026-06-06
 canonicalPath: .cursor/plans/archive/booking_scenarios_audit_e9c4ce97.plan.md
 supersededBy: .cursor/plans/archive/booking_gaps_closeout_e5b725fb.plan.md
 todos:
   - id: p0-verify-incident-fix
-    content: "P0: прогнать canonicalCreate (reuse projection) + recordM2mRoute (remove-record GCal) + воспроизвести инцидентный кейс на dev"
+    content: 'P0: прогнать canonicalCreate (reuse projection) + recordM2mRoute (remove-record GCal) + воспроизвести инцидентный кейс на dev'
     status: completed
   - id: p1-mirror-acceptance-bundle
-    content: "P1: прогнать полный mirror bundle из ACCEPTANCE_MIRROR_SYNC.md (webapp 20 files + integrator 4 files)"
+    content: 'P1: прогнать полный mirror bundle из ACCEPTANCE_MIRROR_SYNC.md (webapp 20 files + integrator 4 files)'
     status: completed
   - id: p1-api-route-tests
-    content: "P1: cancel/reschedule/create route.test.ts + public/create; staff manual routes"
+    content: 'P1: cancel/reschedule/create route.test.ts + public/create; staff manual routes'
     status: completed
   - id: run-full-ci
-    content: "Финальный барьер: pnpm install --frozen-lockfile && pnpm run ci"
+    content: 'Финальный барьер: pnpm install --frozen-lockfile && pnpm run ci'
     status: completed
   - id: smoke-matrix-prod-settings
-    content: "Smoke на dev (prod dump): CR-A, CN-*, RS-*, inbound status 4/7, prepayment, GCal инварианты"
+    content: 'Smoke на dev (prod dump): CR-A, CN-*, RS-*, inbound status 4/7, prepayment, GCal инварианты'
     status: completed
   - id: fix-patient-api-partial-flags
-    content: "Закрыть gap: POST /api/booking/cancel и /reschedule пробрасывают partial flags из service (контракт §Partial outcomes)"
+    content: 'Закрыть gap: POST /api/booking/cancel и /reschedule пробрасывают partial flags из service (контракт §Partial outcomes)'
     status: completed
   - id: gap-orphan-canonical-rollback
-    content: "Закрыть gap: rollback rubitime-first — cancel orphan be_appointments + унифицировать package/product rollback (deleteRecord vs cancelRecord)"
+    content: 'Закрыть gap: rollback rubitime-first — cancel orphan be_appointments + унифицировать package/product rollback (deleteRecord vs cancelRecord)'
     status: completed
   - id: doc-sync-rollback
     content: Синхронизировать patient-booking.md и BOOKING_MIRROR_INTEGRITY_CONTRACT при расхождениях rollback
     status: completed
   - id: deploy-and-prod-cleanup
-    content: "Деплой webapp+integrator; cleanup orphan GCal 8449506/8449507; failed_sync; projection #1606"
+    content: 'Деплой webapp+integrator; cleanup orphan GCal 8449506/8449507; failed_sync; projection #1606'
     status: completed
 isProject: false
 ---
@@ -50,29 +50,29 @@ isProject: false
 
 ## 0. Приоритеты (что проверять первым)
 
-| Приоритет | Сценарий | Почему |
-|-----------|----------|--------|
-| **P0** | CR-A rubitime-first create | Прод-режим; инцидент double insert + orphan GCal |
-| **P0** | CR-A rollback `remove-record` | GCal cleanup в integrator |
-| **P1** | CN-P patient cancel (canonical) | Ежедневный UX; mirror + partial outcomes |
-| **P1** | RS-P patient reschedule | Canonical assert vs Rubitime slots — transitional risk |
-| **P1** | Inbound status 4 cancel | Echo guard + stale mapping |
-| **P2** | CR-B/C canonical create | При cutover на canonical |
-| **P2** | Staff manual cancel/reschedule | Bridge gate + Rubitime-first reschedule |
-| **P2** | Prepayment / package / product at create | Отдельные rollback-ветки |
-| **P3** | Legacy paths, `reschedule_requested`, ops backfill | Редкие / defer |
+| Приоритет | Сценарий                                           | Почему                                                 |
+| --------- | -------------------------------------------------- | ------------------------------------------------------ |
+| **P0**    | CR-A rubitime-first create                         | Прод-режим; инцидент double insert + orphan GCal       |
+| **P0**    | CR-A rollback `remove-record`                      | GCal cleanup в integrator                              |
+| **P1**    | CN-P patient cancel (canonical)                    | Ежедневный UX; mirror + partial outcomes               |
+| **P1**    | RS-P patient reschedule                            | Canonical assert vs Rubitime slots — transitional risk |
+| **P1**    | Inbound status 4 cancel                            | Echo guard + stale mapping                             |
+| **P2**    | CR-B/C canonical create                            | При cutover на canonical                               |
+| **P2**    | Staff manual cancel/reschedule                     | Bridge gate + Rubitime-first reschedule                |
+| **P2**    | Prepayment / package / product at create           | Отдельные rollback-ветки                               |
+| **P3**    | Legacy paths, `reschedule_requested`, ops backfill | Редкие / defer                                         |
 
 ---
 
 ## 1. Режимы и настройки
 
-| Ключ | Значения | Write-влияние |
-|------|----------|---------------|
-| `booking_slots_read_source` | `rubitime` / `canonical` | Слоты + **patient/public create** |
-| `booking_rubitime_bridge_enabled` | bool | **Canonical create** → best-effort Rubitime; **staff** outbound mirror |
-| `booking_payment_enabled` | bool | `awaiting_payment` + отложенный `booking.created` |
-| `booking_doctor_appointments_read_source` | `rubitime_legacy` / `canonical` | **Только read** |
-| DB policies | `be_booking_policies`, prepayment | Cancel/reschedule eligibility, prepayment outcomes |
+| Ключ                                      | Значения                          | Write-влияние                                                          |
+| ----------------------------------------- | --------------------------------- | ---------------------------------------------------------------------- |
+| `booking_slots_read_source`               | `rubitime` / `canonical`          | Слоты + **patient/public create**                                      |
+| `booking_rubitime_bridge_enabled`         | bool                              | **Canonical create** → best-effort Rubitime; **staff** outbound mirror |
+| `booking_payment_enabled`                 | bool                              | `awaiting_payment` + отложенный `booking.created`                      |
+| `booking_doctor_appointments_read_source` | `rubitime_legacy` / `canonical`   | **Только read**                                                        |
+| DB policies                               | `be_booking_policies`, prepayment | Cancel/reschedule eligibility, prepayment outcomes                     |
 
 **Асимметрия legacy:** cancel без `canonical_appointment_id` **есть** (Rubitime + `patient_bookings`); reschedule **нет** — только `no_canonical` ([`service.ts`](apps/webapp/src/modules/patient-booking/service.ts)).
 
@@ -82,22 +82,23 @@ isProject: false
 
 ### 2.1 CREATE
 
-| ID | Источник | Условие | Порядок write | Rubitime M2M | Rollback / откат |
-|----|----------|---------|---------------|--------------|------------------|
-| **CR-A** | Patient / public | `slots=rubitime` | `create-record` → integrator projection → webapp **adopt** `be_appointments` | `create-record` | `deleteRecord` / `remove-record` + GCal delete |
-| **CR-A-prepay** | Patient | CR-A + prepayment | то же; status `awaiting_payment`; **нет** `booking.created` до capture | то же | rollback как CR-A |
-| **CR-A-pkg** | Patient in-person | CR-A + `patientPackageId` | + `memberships.reserveForAppointment` | то же | **`cancelRecord`** (не remove!) + cancel canon |
-| **CR-A-prod** | Patient in-person | CR-A + `productPurchaseId` | + `products.consumeVisitForAppointment` | то же | **`cancelRecord`** + cancel canon |
-| **CR-B** | Patient / public | `slots=canonical`, bridge on | `assertSlot` → native → best-effort `create-record` | optional | orphan native cancel |
-| **CR-C** | Patient / public | `slots=canonical`, bridge off | `assertSlot` → native only | нет | — |
-| **CR-S** | Doctor/admin | manual | native (`admin_manual`) → optional Rubitime + mapping | `create-record` if bridge | Rubitime rollback on staff path |
-| **CR-L** | Patient | legacy DI (no engine) | `create-record` → `markConfirmed` only | `create-record` | **`cancelRecord`** (status 4) |
-| **CR-IN** | Rubitime UI | inbound webhook | integrator `booking.upsert` → outbox → webapp mirror | — | inbound cancel/update |
-| **CR-OPS** | Admin | `bridge projectAll` | backfill `be_appointments` from legacy | — | ops only |
+| ID              | Источник          | Условие                       | Порядок write                                                                | Rubitime M2M              | Rollback / откат                               |
+| --------------- | ----------------- | ----------------------------- | ---------------------------------------------------------------------------- | ------------------------- | ---------------------------------------------- |
+| **CR-A**        | Patient / public  | `slots=rubitime`              | `create-record` → integrator projection → webapp **adopt** `be_appointments` | `create-record`           | `deleteRecord` / `remove-record` + GCal delete |
+| **CR-A-prepay** | Patient           | CR-A + prepayment             | то же; status `awaiting_payment`; **нет** `booking.created` до capture       | то же                     | rollback как CR-A                              |
+| **CR-A-pkg**    | Patient in-person | CR-A + `patientPackageId`     | + `memberships.reserveForAppointment`                                        | то же                     | **`cancelRecord`** (не remove!) + cancel canon |
+| **CR-A-prod**   | Patient in-person | CR-A + `productPurchaseId`    | + `products.consumeVisitForAppointment`                                      | то же                     | **`cancelRecord`** + cancel canon              |
+| **CR-B**        | Patient / public  | `slots=canonical`, bridge on  | `assertSlot` → native → best-effort `create-record`                          | optional                  | orphan native cancel                           |
+| **CR-C**        | Patient / public  | `slots=canonical`, bridge off | `assertSlot` → native only                                                   | нет                       | —                                              |
+| **CR-S**        | Doctor/admin      | manual                        | native (`admin_manual`) → optional Rubitime + mapping                        | `create-record` if bridge | Rubitime rollback on staff path                |
+| **CR-L**        | Patient           | legacy DI (no engine)         | `create-record` → `markConfirmed` only                                       | `create-record`           | **`cancelRecord`** (status 4)                  |
+| **CR-IN**       | Rubitime UI       | inbound webhook               | integrator `booking.upsert` → outbox → webapp mirror                         | —                         | inbound cancel/update                          |
+| **CR-OPS**      | Admin             | `bridge projectAll`           | backfill `be_appointments` from legacy                                       | —                         | ops only                                       |
 
 **Код фикса P0:** [`canonicalCreate.ts`](apps/webapp/src/modules/patient-booking/canonicalCreate.ts) — `resolveCanonicalAppointmentAfterRubitimeCreate`, `getAppointmentIdByRubitimeExternalId`.
 
 **Подтверждённые риски CR-A:**
+
 1. Гонка: mapping ещё нет → fallback `createAppointment` → overlap → rollback (редко).
 2. Rollback primary path: orphan **`be_appointments`** от projection (нет hard delete канона).
 3. Package/product rollback: **`cancelRecord`** (GCal ❌), не `deleteRecord` — **другая семантика**, чем primary create rollback.
@@ -105,28 +106,28 @@ isProject: false
 
 ### 2.2 CANCEL
 
-| ID | Источник | Порядок | Rubitime | GCal |
-|----|----------|---------|----------|------|
-| **CN-P** | Patient (canonical) | lifecycle `patientCancel` → mirror → legacy → `booking.cancelled` | `cancelRecord` (status 4) | событие **остаётся**, ❌ |
-| **CN-P-legacy** | Patient (no canonical) | Rubitime `cancelRecord` → `patient_bookings` | status 4 | via integrator |
-| **CN-S** | Staff manual | `staffCancel` → mirror if bridge + rubitimeId | status 4 | ❌ |
-| **CN-IN-4** | Rubitime UI | webhook `event-update-record` status **4** | inbound | ❌ |
-| **CN-IN-R** | Rubitime UI | `event-remove-record` / `event-delete-record` | inbound hard | **delete** |
-| **CN-RB** | Create rollback | `deleteRecord` / `remove-record` | hard remove | **delete** (фикс integrator) |
-| **CN-DEFER** | Legacy API | `POST .../rubitime/cancel` | `remove-record` | backlog |
+| ID              | Источник               | Порядок                                                           | Rubitime                  | GCal                         |
+| --------------- | ---------------------- | ----------------------------------------------------------------- | ------------------------- | ---------------------------- |
+| **CN-P**        | Patient (canonical)    | lifecycle `patientCancel` → mirror → legacy → `booking.cancelled` | `cancelRecord` (status 4) | событие **остаётся**, ❌     |
+| **CN-P-legacy** | Patient (no canonical) | Rubitime `cancelRecord` → `patient_bookings`                      | status 4                  | via integrator               |
+| **CN-S**        | Staff manual           | `staffCancel` → mirror if bridge + rubitimeId                     | status 4                  | ❌                           |
+| **CN-IN-4**     | Rubitime UI            | webhook `event-update-record` status **4**                        | inbound                   | ❌                           |
+| **CN-IN-R**     | Rubitime UI            | `event-remove-record` / `event-delete-record`                     | inbound hard              | **delete**                   |
+| **CN-RB**       | Create rollback        | `deleteRecord` / `remove-record`                                  | hard remove               | **delete** (фикс integrator) |
+| **CN-DEFER**    | Legacy API             | `POST .../rubitime/cancel`                                        | `remove-record`           | backlog                      |
 
 **Порядок outbound (контракт):** patient/staff cancel — **канон первым**, Rubitime best-effort.
 
 ### 2.3 RESCHEDULE
 
-| ID | Источник | Порядок | Особенности |
-|----|----------|---------|-------------|
-| **RS-P** | Patient | `assertSlot` (всегда canonical!) → lifecycle → mirror `update-record` | Mismatch если слоты из Rubitime |
-| **RS-P-blocked** | Patient | policy block → `booking.reschedule_requested` only | **нет** смены слота в БД; GCal marker |
-| **RS-S** | Staff manual | **Rubitime `update-record` первым** → `staffReschedule`; rollback Rubitime on overlap | контракт outbound |
-| **RS-IN-7** | Rubitime UI | status **7** `moved_awaiting` | patient `rescheduled`; GCal `reschedule_pending` |
-| **RS-IN** | Rubitime UI | `event-update-record` slot change | mirror + legacy |
-| **RS-L** | Legacy booking | — | **`no_canonical`** — перенос недоступен |
+| ID               | Источник       | Порядок                                                                               | Особенности                                      |
+| ---------------- | -------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| **RS-P**         | Patient        | `assertSlot` (всегда canonical!) → lifecycle → mirror `update-record`                 | Mismatch если слоты из Rubitime                  |
+| **RS-P-blocked** | Patient        | policy block → `booking.reschedule_requested` only                                    | **нет** смены слота в БД; GCal marker            |
+| **RS-S**         | Staff manual   | **Rubitime `update-record` первым** → `staffReschedule`; rollback Rubitime on overlap | контракт outbound                                |
+| **RS-IN-7**      | Rubitime UI    | status **7** `moved_awaiting`                                                         | patient `rescheduled`; GCal `reschedule_pending` |
+| **RS-IN**        | Rubitime UI    | `event-update-record` slot change                                                     | mirror + legacy                                  |
+| **RS-L**         | Legacy booking | —                                                                                     | **`no_canonical`** — перенос недоступен          |
 
 **Порядок outbound:** patient — канон → Rubitime; staff — **Rubitime → канон** (обратный!).
 
@@ -192,15 +193,15 @@ PREPAYMENT CONFIRM
 
 ## 4. Подтверждённые gaps (не «на проверку», а факты)
 
-| # | Gap | Severity | Evidence |
-|---|-----|----------|----------|
-| G1 | Patient API **не пробрасывает** partial flags | **high** | [`cancel/route.ts`](apps/webapp/src/app/api/booking/cancel/route.ts) L44: только `{ ok: true }`; [`reschedule/route.ts`](apps/webapp/src/app/api/booking/reschedule/route.ts) L45: `{ ok: true, booking }`. Service возвращает `rubitimeMirrorFailed` и др. Staff manual-cancel **пробрасывает** — [`manual-cancel/route.test.ts`](apps/webapp/src/app/api/doctor/booking-engine/appointments/[id]/manual-cancel/route.test.ts). |
-| G2 | Orphan `be_appointments` после CR-A rollback | **medium** | `canonicalCreate.ts` L427–435: `deleteRecord` Rubitime, **нет** cancel canon row |
-| G3 | Package/product rollback = `cancelRecord`, не `remove-record` | **medium** | `canonicalCreate.ts` L497–506, L540–549 — GCal ❌ вместо delete |
-| G4 | RS-P canonical assert vs Rubitime slots | **medium** (product) | Documented transitional; prod `slots=rubitime` |
-| G5 | Дока rollback wording | **low** | `patient-booking.md` vs код |
-| G6 | Legacy defer `doctor/.../rubitime/cancel` → remove-record | **low** | Контракт §Cancel semantics defer |
-| G7 | `staffRubitimeManualBooking.ts` без unit tests | **low** | Только route mocks |
+| #   | Gap                                                           | Severity             | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| --- | ------------------------------------------------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| G1  | Patient API **не пробрасывает** partial flags                 | **high**             | [`cancel/route.ts`](apps/webapp/src/app/api/booking/cancel/route.ts) L44: только `{ ok: true }`; [`reschedule/route.ts`](apps/webapp/src/app/api/booking/reschedule/route.ts) L45: `{ ok: true, booking }`. Service возвращает `rubitimeMirrorFailed` и др. Staff manual-cancel **пробрасывает** — [`manual-cancel/route.test.ts`](apps/webapp/src/app/api/doctor/booking-engine/appointments/[id]/manual-cancel/route.test.ts). |
+| G2  | Orphan `be_appointments` после CR-A rollback                  | **medium**           | `canonicalCreate.ts` L427–435: `deleteRecord` Rubitime, **нет** cancel canon row                                                                                                                                                                                                                                                                                                                                                 |
+| G3  | Package/product rollback = `cancelRecord`, не `remove-record` | **medium**           | `canonicalCreate.ts` L497–506, L540–549 — GCal ❌ вместо delete                                                                                                                                                                                                                                                                                                                                                                  |
+| G4  | RS-P canonical assert vs Rubitime slots                       | **medium** (product) | Documented transitional; prod `slots=rubitime`                                                                                                                                                                                                                                                                                                                                                                                   |
+| G5  | Дока rollback wording                                         | **low**              | `patient-booking.md` vs код                                                                                                                                                                                                                                                                                                                                                                                                      |
+| G6  | Legacy defer `doctor/.../rubitime/cancel` → remove-record     | **low**              | Контракт §Cancel semantics defer                                                                                                                                                                                                                                                                                                                                                                                                 |
+| G7  | `staffRubitimeManualBooking.ts` без unit tests                | **low**              | Только route mocks                                                                                                                                                                                                                                                                                                                                                                                                               |
 
 ---
 
@@ -217,6 +218,7 @@ pnpm --dir apps/integrator exec vitest run \
 ```
 
 **Критерии CR-A:**
+
 - [ ] `getAppointmentIdByRubitimeExternalId` вызывается при rubitime-first
 - [ ] `createAppointment` **не** вызывается при найденном projection id
 - [ ] `remove-record` вызывает GCal cancel до Rubitime API
@@ -257,6 +259,7 @@ pnpm --dir apps/integrator exec vitest run \
 ```
 
 **Добавить тесты (gap closure):**
+
 - [ ] `canonicalCreate.test.ts`: CR-A rollback при failed `markConfirmed` — `deleteRecord` + **proposal**: cancel orphan `be_appointments`
 - [ ] `cancel/route.test.ts`: после фикса G1 — partial flags в JSON response
 - [ ] `reschedule/route.test.ts`: partial flags + `no_canonical` 400
@@ -269,16 +272,16 @@ pnpm install --frozen-lockfile && pnpm run ci
 
 ### 5.4 Фаза P2 — ручной smoke (dev, prod dump, `booking_slots_read_source=rubitime`)
 
-| ID | Действие | Инварианты (БД) | GCal |
-|----|----------|-----------------|------|
-| CR-A | Patient create свободный слот | 1 row `be_appointments`, 1 mapping, 1 `patient_bookings.confirmed` | 1 event |
-| CR-A-prepay | Create с prepayment policy | `awaiting_payment`, intent exists, **нет** reminder до capture | 1 event |
-| CR-A fail | Симуляция overlap (если возможно) | `failed_sync`, Rubitime cleaned | 0 orphan events |
-| CN-P | Cancel confirmed booking | canon terminal, Rubitime status 4, `patient_bookings.cancelled` | ❌ not deleted |
-| RS-P | Reschedule на другой Rubitime-слот | `be_appointment_reschedules`, slots updated | updated |
-| RS-P-blocked | Reschedule вне policy window | `reschedule_requested` event, слот **не** меняется | pending marker |
-| CN-IN-4 | Cancel в Rubitime UI | echo guard не ломает; canon synced | ❌ |
-| RS-S | Staff reschedule + forced overlap | Rubitime откат, canon старый слот | — |
+| ID           | Действие                           | Инварианты (БД)                                                    | GCal            |
+| ------------ | ---------------------------------- | ------------------------------------------------------------------ | --------------- |
+| CR-A         | Patient create свободный слот      | 1 row `be_appointments`, 1 mapping, 1 `patient_bookings.confirmed` | 1 event         |
+| CR-A-prepay  | Create с prepayment policy         | `awaiting_payment`, intent exists, **нет** reminder до capture     | 1 event         |
+| CR-A fail    | Симуляция overlap (если возможно)  | `failed_sync`, Rubitime cleaned                                    | 0 orphan events |
+| CN-P         | Cancel confirmed booking           | canon terminal, Rubitime status 4, `patient_bookings.cancelled`    | ❌ not deleted  |
+| RS-P         | Reschedule на другой Rubitime-слот | `be_appointment_reschedules`, slots updated                        | updated         |
+| RS-P-blocked | Reschedule вне policy window       | `reschedule_requested` event, слот **не** меняется                 | pending marker  |
+| CN-IN-4      | Cancel в Rubitime UI               | echo guard не ломает; canon synced                                 | ❌              |
+| RS-S         | Staff reschedule + forced overlap  | Rubitime откат, canon старый слот                                  | —               |
 
 **SQL-шаблоны (dev):**
 
@@ -326,10 +329,10 @@ WHERE ba.id = '<appointment_uuid>';"
 
 ## 7. Итог
 
-| Область | Статус |
-|---------|--------|
-| CR-A double insert (инцидент) | **Закрыт в коде**, не на prod |
-| CN-RB GCal на remove-record | **Закрыт в integrator**, не на prod |
-| Остальные сценарии | **Частично** покрыты mirror bundle; smoke обязателен |
-| G1 patient API partial flags | **Подтверждённый gap** vs контракт |
-| «Навсегда» | **Нет** без: P0+P1 тесты, CI, smoke, деплой, G1–G3 по приоритету |
+| Область                       | Статус                                                           |
+| ----------------------------- | ---------------------------------------------------------------- |
+| CR-A double insert (инцидент) | **Закрыт в коде**, не на prod                                    |
+| CN-RB GCal на remove-record   | **Закрыт в integrator**, не на prod                              |
+| Остальные сценарии            | **Частично** покрыты mirror bundle; smoke обязателен             |
+| G1 patient API partial flags  | **Подтверждённый gap** vs контракт                               |
+| «Навсегда»                    | **Нет** без: P0+P1 тесты, CI, smoke, деплой, G1–G3 по приоритету |

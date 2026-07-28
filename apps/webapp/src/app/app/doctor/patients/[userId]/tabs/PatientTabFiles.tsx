@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * PatientTabFiles — two-panel UI (list+filters / preview + actions).
@@ -15,30 +15,30 @@
  * Graceful fallback: if fetch fails or returns empty, renders empty state without crashing.
  */
 
-import { useState, useEffect, useCallback, useRef } from "react";
-import type { PatientCardHeader } from "@/modules/doctor-clients/ports";
-import type { PatientFileCategory } from "@/modules/patient-files/ports";
-import { PATIENT_FILE_CATEGORIES } from "@/modules/patient-files/ports";
-import type { Visit } from "@/modules/patient-clinical/ports";
-import { cn } from "@/lib/utils";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
+import { useState, useEffect, useCallback, useRef } from 'react';
+import type { PatientCardHeader } from '@/modules/doctor-clients/ports';
+import type { PatientFileCategory } from '@/modules/patient-files/ports';
+import { PATIENT_FILE_CATEGORIES } from '@/modules/patient-files/ports';
+import type { Visit } from '@/modules/patient-clinical/ports';
+import { cn } from '@/lib/utils';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/ui/doctor/primitives/select";
+} from '@/shared/ui/doctor/primitives/select';
 import {
   doctorSectionTitleClass,
   doctorSectionSubtitleClass,
   doctorCatalogRowClass,
   doctorCatalogRowActiveClass,
-} from "@/shared/ui/doctor/doctorVisual";
-import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
-import { CatalogLeftPane } from "@/shared/ui/doctor/catalog/CatalogLeftPane";
-import { CatalogRightPane } from "@/shared/ui/doctor/catalog/CatalogRightPane";
+} from '@/shared/ui/doctor/doctorVisual';
+import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
+import { CatalogLeftPane } from '@/shared/ui/doctor/catalog/CatalogLeftPane';
+import { CatalogRightPane } from '@/shared/ui/doctor/catalog/CatalogRightPane';
 
 // ---------------------------------------------------------------------------
 // Types — match API response
@@ -74,7 +74,12 @@ function formatBytes(bytes: number): string {
 function formatDate(iso: string): string {
   try {
     const d = new Date(iso);
-    return d.toLocaleDateString("ru-RU", { timeZone: "Europe/Moscow", day: "2-digit", month: "2-digit", year: "numeric" });
+    return d.toLocaleDateString('ru-RU', {
+      timeZone: 'Europe/Moscow',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
   } catch {
     return iso;
   }
@@ -82,28 +87,28 @@ function formatDate(iso: string): string {
 
 function categoryLabel(cat: PatientFileCategory): string {
   const map: Record<PatientFileCategory, string> = {
-    выписка: "Выписка",
-    снимок: "Снимок",
-    анализ: "Анализ",
-    фото_теста: "Фото теста",
-    прочее: "Прочее",
+    выписка: 'Выписка',
+    снимок: 'Снимок',
+    анализ: 'Анализ',
+    фото_теста: 'Фото теста',
+    прочее: 'Прочее',
   };
   return map[cat] ?? cat;
 }
 
 function fileIcon(mime: string): string {
-  if (mime.startsWith("image/")) return "📷";
-  if (mime === "application/pdf") return "📄";
-  if (mime.startsWith("video/")) return "🎥";
-  return "📎";
+  if (mime.startsWith('image/')) return '📷';
+  if (mime === 'application/pdf') return '📄';
+  if (mime.startsWith('video/')) return '🎥';
+  return '📎';
 }
 
 function visitLabel(v: Visit): string {
-  const typeLabel = v.type === "first" ? "Первичный" : "Повторный";
+  const typeLabel = v.type === 'first' ? 'Первичный' : 'Повторный';
   return `${v.date} · ${typeLabel}`;
 }
 
-type FileFilterCategory = "all" | PatientFileCategory;
+type FileFilterCategory = 'all' | PatientFileCategory;
 
 // ---------------------------------------------------------------------------
 // Category filter pills
@@ -128,12 +133,12 @@ function CategoryFilters({
       <Button
         type="button"
         variant="ghost"
-        onClick={() => onChange("all")}
+        onClick={() => onChange('all')}
         className={cn(
-          "rounded-md px-2 py-0.5 text-xs font-medium transition-colors select-none",
-          active === "all"
-            ? "bg-primary/15 text-primary"
-            : "text-muted-foreground hover:bg-muted hover:text-foreground",
+          'rounded-md px-2 py-0.5 text-xs font-medium transition-colors select-none',
+          active === 'all'
+            ? 'bg-primary/15 text-primary'
+            : 'text-muted-foreground hover:bg-muted hover:text-foreground',
         )}
       >
         {`Все · ${total}`}
@@ -148,10 +153,10 @@ function CategoryFilters({
             variant="ghost"
             onClick={() => onChange(cat)}
             className={cn(
-              "rounded-md px-2 py-0.5 text-xs font-medium transition-colors select-none",
+              'rounded-md px-2 py-0.5 text-xs font-medium transition-colors select-none',
               active === cat
-                ? "bg-primary/15 text-primary"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                ? 'bg-primary/15 text-primary'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground',
             )}
           >
             {`${categoryLabel(cat)} · ${count}`}
@@ -166,26 +171,26 @@ function CategoryFilters({
 // View toggle
 // ---------------------------------------------------------------------------
 
-type ViewMode = "list" | "cards";
+type ViewMode = 'list' | 'cards';
 
 function ViewToggle({ mode, onChange }: { mode: ViewMode; onChange: (m: ViewMode) => void }) {
   return (
     <div className="flex gap-0.5 rounded-md border border-border bg-muted/40 p-0.5">
-      {(["list", "cards"] as ViewMode[]).map((m) => (
+      {(['list', 'cards'] as ViewMode[]).map((m) => (
         <Button
           key={m}
           type="button"
           variant="ghost"
           onClick={() => onChange(m)}
-          title={m === "list" ? "Список" : "Карточки"}
+          title={m === 'list' ? 'Список' : 'Карточки'}
           className={cn(
-            "flex h-6 w-7 items-center justify-center rounded text-xs transition-colors select-none",
+            'flex h-6 w-7 items-center justify-center rounded text-xs transition-colors select-none',
             mode === m
-              ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground",
+              ? 'bg-background text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground',
           )}
         >
-          {m === "list" ? "☰" : "▦"}
+          {m === 'list' ? '☰' : '▦'}
         </Button>
       ))}
     </div>
@@ -197,9 +202,9 @@ function ViewToggle({ mode, onChange }: { mode: ViewMode; onChange: (m: ViewMode
 // ---------------------------------------------------------------------------
 
 type UploadState =
-  | { phase: "idle" }
-  | { phase: "pending"; fileName: string; progress: number }
-  | { phase: "error"; message: string };
+  | { phase: 'idle' }
+  | { phase: 'pending'; fileName: string; progress: number }
+  | { phase: 'error'; message: string };
 
 function UploadPanel({
   userId,
@@ -211,26 +216,26 @@ function UploadPanel({
   onClose: () => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [category, setCategory] = useState<PatientFileCategory>("прочее");
-  const [displayName, setDisplayName] = useState<string>("");
+  const [category, setCategory] = useState<PatientFileCategory>('прочее');
+  const [displayName, setDisplayName] = useState<string>('');
   const [isDragOver, setIsDragOver] = useState(false);
-  const [uploadState, setUploadState] = useState<UploadState>({ phase: "idle" });
+  const [uploadState, setUploadState] = useState<UploadState>({ phase: 'idle' });
 
   async function uploadSingleFile(file: File): Promise<void> {
     const fileName = displayName.trim() || file.name;
 
-    setUploadState({ phase: "pending", fileName, progress: 0 });
+    setUploadState({ phase: 'pending', fileName, progress: 0 });
 
     // Step 1: POST to create metadata + get presigned PUT url.
     let uploadUrl: string | null = null;
     try {
       const res = await fetch(`/api/doctor/patients/${userId}/files`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           category,
           fileName,
-          mimeType: file.type || "application/octet-stream",
+          mimeType: file.type || 'application/octet-stream',
           sizeBytes: file.size,
         }),
       });
@@ -242,40 +247,40 @@ function UploadPanel({
       } | null;
 
       if (!res.ok || !data?.ok) {
-        setUploadState({ phase: "error", message: data?.error ?? "Ошибка создания метаданных" });
+        setUploadState({ phase: 'error', message: data?.error ?? 'Ошибка создания метаданных' });
         return;
       }
 
       uploadUrl = data.uploadUrl ?? null;
     } catch {
-      setUploadState({ phase: "error", message: "Сетевая ошибка при создании записи" });
+      setUploadState({ phase: 'error', message: 'Сетевая ошибка при создании записи' });
       return;
     }
 
     // Step 2: PUT the file to the presigned S3 URL (no auth headers — it's a presigned url).
     if (uploadUrl) {
-      setUploadState({ phase: "pending", fileName, progress: 10 });
+      setUploadState({ phase: 'pending', fileName, progress: 10 });
       try {
         const s3Res = await fetch(uploadUrl, {
-          method: "PUT",
+          method: 'PUT',
           body: file,
           headers: {
-            "Content-Type": file.type || "application/octet-stream",
+            'Content-Type': file.type || 'application/octet-stream',
           },
         });
         if (!s3Res.ok) {
-          setUploadState({ phase: "error", message: `S3 ошибка: ${s3Res.status}` });
+          setUploadState({ phase: 'error', message: `S3 ошибка: ${s3Res.status}` });
           return;
         }
-        setUploadState({ phase: "pending", fileName, progress: 100 });
+        setUploadState({ phase: 'pending', fileName, progress: 100 });
       } catch {
-        setUploadState({ phase: "error", message: "Ошибка загрузки в S3" });
+        setUploadState({ phase: 'error', message: 'Ошибка загрузки в S3' });
         return;
       }
     } else {
       // S3 not configured — metadata saved, no binary upload possible.
       // Treat as success (graceful: the record exists, file body not stored).
-      setUploadState({ phase: "pending", fileName, progress: 100 });
+      setUploadState({ phase: 'pending', fileName, progress: 100 });
     }
   }
 
@@ -307,9 +312,12 @@ function UploadPanel({
         <Button
           type="button"
           variant="ghost"
-          onClick={() => { setDisplayName(""); onClose(); }}
+          onClick={() => {
+            setDisplayName('');
+            onClose();
+          }}
           className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-          disabled={uploadState.phase === "pending"}
+          disabled={uploadState.phase === 'pending'}
         >
           ✕
         </Button>
@@ -323,7 +331,7 @@ function UploadPanel({
         <Select
           value={category}
           onValueChange={(v) => setCategory(v as PatientFileCategory)}
-          disabled={uploadState.phase === "pending"}
+          disabled={uploadState.phase === 'pending'}
         >
           <SelectTrigger className="flex-1 min-w-0 text-xs h-7">
             <SelectValue />
@@ -349,13 +357,13 @@ function UploadPanel({
           value={displayName}
           onChange={(e) => setDisplayName(e.target.value)}
           placeholder="Имя файла"
-          disabled={uploadState.phase === "pending"}
+          disabled={uploadState.phase === 'pending'}
           className="flex-1 min-w-0 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary/50 disabled:opacity-50"
         />
       </div>
 
       {/* File picker + drag-drop zone */}
-      {uploadState.phase === "idle" && (
+      {uploadState.phase === 'idle' && (
         <>
           <Input
             ref={fileInputRef}
@@ -367,8 +375,14 @@ function UploadPanel({
           />
           <label
             htmlFor="upload-file-input"
-            onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
-            onDragEnter={(e) => { e.preventDefault(); setIsDragOver(true); }}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDragOver(true);
+            }}
+            onDragEnter={(e) => {
+              e.preventDefault();
+              setIsDragOver(true);
+            }}
             onDragLeave={() => setIsDragOver(false)}
             onDrop={(e) => {
               e.preventDefault();
@@ -379,24 +393,22 @@ function UploadPanel({
               }
             }}
             className={cn(
-              "cursor-pointer flex flex-col items-center justify-center gap-1 rounded-md border border-dashed px-3 py-3 text-xs transition-colors",
+              'cursor-pointer flex flex-col items-center justify-center gap-1 rounded-md border border-dashed px-3 py-3 text-xs transition-colors',
               isDragOver
-                ? "border-primary bg-primary/10 text-primary"
-                : "border-primary/40 bg-primary/5 text-primary hover:bg-primary/10",
+                ? 'border-primary bg-primary/10 text-primary'
+                : 'border-primary/40 bg-primary/5 text-primary hover:bg-primary/10',
             )}
           >
-            <span>{isDragOver ? "Отпустите файл…" : "Перетащите файл или нажмите для выбора"}</span>
+            <span>{isDragOver ? 'Отпустите файл…' : 'Перетащите файл или нажмите для выбора'}</span>
             <span className="text-muted-foreground text-[10px]">Выбрать файл…</span>
           </label>
         </>
       )}
 
       {/* Upload progress */}
-      {uploadState.phase === "pending" && (
+      {uploadState.phase === 'pending' && (
         <div className="flex flex-col gap-1">
-          <span className="text-xs text-muted-foreground truncate">
-            {uploadState.fileName}
-          </span>
+          <span className="text-xs text-muted-foreground truncate">{uploadState.fileName}</span>
           <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
             <div
               className="h-full rounded-full bg-primary transition-all duration-300"
@@ -404,23 +416,23 @@ function UploadPanel({
             />
           </div>
           <span className="text-[10px] text-muted-foreground">
-            {uploadState.progress < 100 ? "Загрузка…" : "Завершено"}
+            {uploadState.progress < 100 ? 'Загрузка…' : 'Завершено'}
           </span>
         </div>
       )}
 
       {/* Error state */}
-      {uploadState.phase === "error" && (
+      {uploadState.phase === 'error' && (
         <div className="flex flex-col gap-1">
           <p className="text-xs text-destructive">{uploadState.message}</p>
           <Button
             type="button"
             variant="ghost"
             onClick={() => {
-              setUploadState({ phase: "idle" });
-              setDisplayName("");
+              setUploadState({ phase: 'idle' });
+              setDisplayName('');
               // Reset file input so the same file can be re-picked.
-              if (fileInputRef.current) fileInputRef.current.value = "";
+              if (fileInputRef.current) fileInputRef.current.value = '';
             }}
             className="self-start text-xs text-primary hover:underline"
           >
@@ -452,16 +464,16 @@ function FileListRow({
       onClick={onClick}
       className={cn(
         doctorCatalogRowClass,
-        "w-full text-left items-start gap-2.5",
+        'w-full text-left items-start gap-2.5',
         isActive && doctorCatalogRowActiveClass,
       )}
     >
       <span className="text-base leading-tight shrink-0 mt-0.5">{fileIcon(file.mimeType)}</span>
       <div className="flex-1 min-w-0">
         <div className="truncate text-sm text-foreground">{file.fileName}</div>
-        <div className={cn(doctorSectionSubtitleClass, "text-xs mt-0.5")}>
+        <div className={cn(doctorSectionSubtitleClass, 'text-xs mt-0.5')}>
           {categoryLabel(file.category)} · {formatDate(file.createdAt)}
-          {file.visitId ? " · привязан к визиту" : " · без привязки"}
+          {file.visitId ? ' · привязан к визиту' : ' · без привязки'}
           {file.visitId && (
             <span className="ml-1.5 inline-flex items-center rounded bg-primary/8 px-1 py-px text-[10px] text-primary/70">
               из визита
@@ -525,8 +537,8 @@ function FileCardTile({
     }
     try {
       const res = await fetch(`/api/doctor/patients/${userId}/files/${file.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fileName: trimmed }),
       });
       const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
@@ -535,18 +547,18 @@ function FileCardTile({
         setEditingName(null);
         setRenameError(null);
       } else {
-        setRenameError(data?.error ?? "Ошибка переименования");
+        setRenameError(data?.error ?? 'Ошибка переименования');
       }
     } catch {
-      setRenameError("Сетевая ошибка");
+      setRenameError('Сетевая ошибка');
     }
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Enter") {
+    if (e.key === 'Enter') {
       e.preventDefault();
       void commitEdit();
-    } else if (e.key === "Escape") {
+    } else if (e.key === 'Escape') {
       cancelEdit();
     }
   }
@@ -557,13 +569,13 @@ function FileCardTile({
       tabIndex={0}
       onClick={editingName === null ? onClick : undefined}
       onKeyDown={(e) => {
-        if (editingName === null && (e.key === "Enter" || e.key === " ")) onClick();
+        if (editingName === null && (e.key === 'Enter' || e.key === ' ')) onClick();
       }}
       className={cn(
-        "flex flex-col gap-1.5 rounded-lg border p-2.5 text-left transition-colors cursor-pointer overflow-hidden",
+        'flex flex-col gap-1.5 rounded-lg border p-2.5 text-left transition-colors cursor-pointer overflow-hidden',
         isActive
-          ? "border-primary/30 bg-primary/10"
-          : "border-border bg-background/60 hover:bg-muted/40",
+          ? 'border-primary/30 bg-primary/10'
+          : 'border-border bg-background/60 hover:bg-muted/40',
       )}
     >
       <div className="flex items-start justify-between gap-1">
@@ -594,7 +606,9 @@ function FileCardTile({
             className="w-full rounded border border-primary/40 bg-background px-1 py-0.5 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
           />
         ) : (
-          <div className="truncate text-xs font-medium text-foreground leading-snug">{file.fileName}</div>
+          <div className="truncate text-xs font-medium text-foreground leading-snug">
+            {file.fileName}
+          </div>
         )}
         {renameError && (
           <div className="text-[10px] text-destructive mt-0.5 truncate">{renameError}</div>
@@ -667,8 +681,8 @@ function VisitSelector({
         setOpen(false);
       }
     }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
   }, [open]);
 
   async function handlePickVisit(visitId: string) {
@@ -676,8 +690,8 @@ function VisitSelector({
     setLinkError(null);
     try {
       const res = await fetch(`/api/doctor/patients/${userId}/files/${fileId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ visitId }),
       });
       const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
@@ -685,19 +699,20 @@ function VisitSelector({
         onLinked(visitId);
         setOpen(false);
       } else {
-        setLinkError(data?.error ?? "Ошибка привязки");
+        setLinkError(data?.error ?? 'Ошибка привязки');
       }
     } catch {
-      setLinkError("Сетевая ошибка");
+      setLinkError('Сетевая ошибка');
     } finally {
       setLinking(false);
     }
   }
 
-  const currentVisitLabel =
-    currentVisitId
-      ? (visits.find((v) => v.id === currentVisitId) ? visitLabel(visits.find((v) => v.id === currentVisitId)!) : "Привязан к визиту")
-      : null;
+  const currentVisitLabel = currentVisitId
+    ? visits.find((v) => v.id === currentVisitId)
+      ? visitLabel(visits.find((v) => v.id === currentVisitId)!)
+      : 'Привязан к визиту'
+    : null;
 
   return (
     <div className="relative" ref={panelRef}>
@@ -710,10 +725,10 @@ function VisitSelector({
         title="Привязать к визиту"
       >
         {linking
-          ? "Привязка…"
+          ? 'Привязка…'
           : currentVisitLabel
-          ? `Визит: ${currentVisitLabel} ▾`
-          : "Привязать к визиту ▾"}
+            ? `Визит: ${currentVisitLabel} ▾`
+            : 'Привязать к визиту ▾'}
       </Button>
 
       {open && (
@@ -722,7 +737,9 @@ function VisitSelector({
             <span className="text-xs font-semibold text-foreground">Выберите визит</span>
           </div>
           {loadingVisits ? (
-            <p className="px-3 py-3 text-xs text-muted-foreground animate-pulse">Загрузка визитов…</p>
+            <p className="px-3 py-3 text-xs text-muted-foreground animate-pulse">
+              Загрузка визитов…
+            </p>
           ) : visits.length === 0 ? (
             <p className="px-3 py-3 text-xs text-muted-foreground">Визитов пока нет</p>
           ) : (
@@ -735,10 +752,10 @@ function VisitSelector({
                     disabled={linking || v.id === currentVisitId}
                     onClick={() => void handlePickVisit(v.id)}
                     className={cn(
-                      "w-full px-3 py-1.5 text-left text-xs transition-colors",
+                      'w-full px-3 py-1.5 text-left text-xs transition-colors',
                       v.id === currentVisitId
-                        ? "bg-primary/10 text-primary font-medium cursor-default"
-                        : "text-foreground hover:bg-muted disabled:opacity-50",
+                        ? 'bg-primary/10 text-primary font-medium cursor-default'
+                        : 'text-foreground hover:bg-muted disabled:opacity-50',
                     )}
                   >
                     {visitLabel(v)}
@@ -751,7 +768,9 @@ function VisitSelector({
             </ul>
           )}
           {linkError && (
-            <p className="border-t border-border px-3 py-1.5 text-xs text-destructive">{linkError}</p>
+            <p className="border-t border-border px-3 py-1.5 text-xs text-destructive">
+              {linkError}
+            </p>
           )}
         </div>
       )}
@@ -781,8 +800,8 @@ function FilePreviewPanel({
     );
   }
 
-  const isImage = file.mimeType.startsWith("image/");
-  const isPdf = file.mimeType === "application/pdf";
+  const isImage = file.mimeType.startsWith('image/');
+  const isPdf = file.mimeType === 'application/pdf';
 
   return (
     <div className="flex flex-1 flex-col min-h-0">
@@ -845,8 +864,8 @@ function FilePreviewPanel({
             <span className="text-4xl">{fileIcon(file.mimeType)}</span>
             <span className="text-xs text-muted-foreground">
               {file.previewUrl
-                ? "Предпросмотр недоступен для этого типа файла"
-                : "Предпросмотр доступен после загрузки файла в S3"}
+                ? 'Предпросмотр недоступен для этого типа файла'
+                : 'Предпросмотр доступен после загрузки файла в S3'}
             </span>
           </div>
         )}
@@ -856,8 +875,8 @@ function FilePreviewPanel({
       <div className="shrink-0 border-t border-border bg-muted/20 px-4 py-2">
         <p className="text-xs text-muted-foreground">
           {categoryLabel(file.category)} · загружен {formatDate(file.createdAt)}
-          {file.visitId ? " · привязан к визиту" : " · без привязки к визиту"}
-          {" · "}
+          {file.visitId ? ' · привязан к визиту' : ' · без привязки к визиту'}
+          {' · '}
           {formatBytes(file.sizeBytes)}
         </p>
         {file.mediaFileId && (
@@ -894,12 +913,12 @@ export function PatientTabFiles({
   const [loading, setLoading] = useState(initialFiles == null);
   const [error, setError] = useState<string | null>(null);
 
-  const [activeCategory, setActiveCategory] = useState<FileFilterCategory>("all");
-  const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const [activeCategory, setActiveCategory] = useState<FileFilterCategory>('all');
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [selectedFileId, setSelectedFileId] = useState<string | null>(
     () => initialFiles?.[0]?.id ?? null,
   );
-  const [mobileView, setMobileView] = useState<"list" | "detail">("list");
+  const [mobileView, setMobileView] = useState<'list' | 'detail'>('list');
   const [showUpload, setShowUpload] = useState(false);
 
   const loadFiles = useCallback(async () => {
@@ -917,10 +936,10 @@ export function PatientTabFiles({
         // Auto-select first file if none selected.
         setSelectedFileId((prev) => prev ?? data.files?.[0]?.id ?? null);
       } else {
-        setError(data?.error ?? "fetch_failed");
+        setError(data?.error ?? 'fetch_failed');
       }
     } catch {
-      setError("network_error");
+      setError('network_error');
     } finally {
       setLoading(false);
     }
@@ -930,32 +949,26 @@ export function PatientTabFiles({
   useEffect(() => {
     if (initialFiles != null) return;
     void loadFiles();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const filteredFiles =
-    activeCategory === "all"
-      ? files
-      : files.filter((f) => f.category === activeCategory);
+    activeCategory === 'all' ? files : files.filter((f) => f.category === activeCategory);
 
   const selectedFile = files.find((f) => f.id === selectedFileId) ?? null;
 
   function handleSelectFile(file: FileRecord) {
     setSelectedFileId(file.id);
-    setMobileView("detail");
+    setMobileView('detail');
   }
 
   function handleLinked(visitId: string) {
     // Optimistically update the selected file's visitId in state.
-    setFiles((prev) =>
-      prev.map((f) => (f.id === selectedFileId ? { ...f, visitId } : f)),
-    );
+    setFiles((prev) => prev.map((f) => (f.id === selectedFileId ? { ...f, visitId } : f)));
   }
 
   function handleRenamed(fileId: string, newName: string) {
-    setFiles((prev) =>
-      prev.map((f) => (f.id === fileId ? { ...f, fileName: newName } : f)),
-    );
+    setFiles((prev) => prev.map((f) => (f.id === fileId ? { ...f, fileName: newName } : f)));
   }
 
   function handleUploaded() {
@@ -968,28 +981,24 @@ export function PatientTabFiles({
       headerSlot={
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2 py-1">
-            <span className={cn(doctorSectionTitleClass, "flex-1")}>Файлы пациента</span>
+            <span className={cn(doctorSectionTitleClass, 'flex-1')}>Файлы пациента</span>
             <Button
               type="button"
               variant="ghost"
               title="Загрузить файл"
               onClick={() => setShowUpload((v) => !v)}
               className={cn(
-                "inline-flex h-6 w-6 items-center justify-center rounded-md border border-border text-sm transition-colors",
+                'inline-flex h-6 w-6 items-center justify-center rounded-md border border-border text-sm transition-colors',
                 showUpload
-                  ? "bg-primary/15 border-primary/30 text-primary"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  ? 'bg-primary/15 border-primary/30 text-primary'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground',
               )}
             >
               +
             </Button>
             <ViewToggle mode={viewMode} onChange={setViewMode} />
           </div>
-          <CategoryFilters
-            active={activeCategory}
-            files={files}
-            onChange={setActiveCategory}
-          />
+          <CategoryFilters active={activeCategory} files={files} onChange={setActiveCategory} />
         </div>
       }
     >
@@ -1006,7 +1015,7 @@ export function PatientTabFiles({
         <p className="px-2 py-2 text-sm text-muted-foreground animate-pulse">Загрузка файлов…</p>
       ) : error ? (
         <p className="px-2 py-2 text-sm text-muted-foreground">
-          Не удалось загрузить файлы.{" "}
+          Не удалось загрузить файлы.{' '}
           <Button
             type="button"
             variant="ghost"
@@ -1019,12 +1028,12 @@ export function PatientTabFiles({
       ) : filteredFiles.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
           <p className="text-sm text-muted-foreground">
-            {activeCategory === "all"
-              ? "Файлов пока нет. Перетащите файлы сюда или нажмите «Загрузить»."
-              : "Нет файлов в этой категории."}
+            {activeCategory === 'all'
+              ? 'Файлов пока нет. Перетащите файлы сюда или нажмите «Загрузить».'
+              : 'Нет файлов в этой категории.'}
           </p>
         </div>
-      ) : viewMode === "list" ? (
+      ) : viewMode === 'list' ? (
         <div className="flex flex-col gap-0.5 py-0.5">
           {filteredFiles.map((file) => (
             <FileListRow
@@ -1054,11 +1063,7 @@ export function PatientTabFiles({
 
   const rightPane = (
     <CatalogRightPane contentClassName="px-0 py-0">
-      <FilePreviewPanel
-        file={selectedFile}
-        userId={userId}
-        onLinked={handleLinked}
-      />
+      <FilePreviewPanel file={selectedFile} userId={userId} onLinked={handleLinked} />
     </CatalogRightPane>
   );
 
@@ -1072,7 +1077,7 @@ export function PatientTabFiles({
           <Button
             type="button"
             variant="ghost"
-            onClick={() => setMobileView("list")}
+            onClick={() => setMobileView('list')}
             className="mb-2 text-xs text-primary hover:underline"
           >
             ← Назад к списку файлов

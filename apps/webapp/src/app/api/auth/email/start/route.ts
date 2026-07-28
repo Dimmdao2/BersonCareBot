@@ -1,49 +1,48 @@
-import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
+import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { ensureAuthModulePortsBound } from '@/app-layer/di/bindAuthModulePorts';
 import {
   AUTH_CHANNEL_DISABLED_ERROR,
   isAuthChannelEnabled,
-} from "@/modules/auth/authChannelPolicy";
-import { getCurrentSession } from "@/modules/auth/service";
-import { startEmailChallenge } from "@/modules/auth/emailAuth";
+} from '@/modules/auth/authChannelPolicy';
+import { getCurrentSession } from '@/modules/auth/service';
+import { startEmailChallenge } from '@/modules/auth/emailAuth';
 
 const bodySchema = z.object({
-  email: z
-    .string()
-    .trim()
-    .max(320)
-    .email({ message: "Некорректный email" }),
+  email: z.string().trim().max(320).email({ message: 'Некорректный email' }),
 });
 
 export async function POST(request: Request) {
-  stampBootstrapPrincipal("api/auth/email/start:POST", request);
-  if (!(await isAuthChannelEnabled("email"))) {
-    return NextResponse.json(
-      { ok: false, error: AUTH_CHANNEL_DISABLED_ERROR },
-      { status: 503 },
-    );
+  stampBootstrapPrincipal('api/auth/email/start:POST', request);
+  if (!(await isAuthChannelEnabled('email'))) {
+    return NextResponse.json({ ok: false, error: AUTH_CHANNEL_DISABLED_ERROR }, { status: 503 });
   }
   ensureAuthModulePortsBound();
 
   const session = await getCurrentSession();
   if (!session) {
-    return NextResponse.json({ ok: false, error: "unauthorized", message: "Требуется вход" }, { status: 401 });
+    return NextResponse.json(
+      { ok: false, error: 'unauthorized', message: 'Требуется вход' },
+      { status: 401 },
+    );
   }
 
   const json = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "validation_error", message: "Некорректный email" }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, error: 'validation_error', message: 'Некорректный email' },
+      { status: 400 },
+    );
   }
 
-  const result = await startEmailChallenge(session.user.userId, parsed.data.email, "email_verify");
+  const result = await startEmailChallenge(session.user.userId, parsed.data.email, 'email_verify');
   if (!result.ok) {
     const status =
-      result.code === "rate_limited" || result.code === "too_many_attempts"
+      result.code === 'rate_limited' || result.code === 'too_many_attempts'
         ? 429
-        : result.code === "email_send_failed"
+        : result.code === 'email_send_failed'
           ? 503
           : 400;
     return NextResponse.json(
@@ -56,9 +55,9 @@ export async function POST(request: Request) {
       {
         status,
         ...(result.retryAfterSeconds != null && {
-          headers: { "Retry-After": String(result.retryAfterSeconds) },
+          headers: { 'Retry-After': String(result.retryAfterSeconds) },
         }),
-      }
+      },
     );
   }
 
@@ -71,15 +70,15 @@ export async function POST(request: Request) {
 
 function errMsg(code: string): string {
   switch (code) {
-    case "invalid_email":
-      return "Некорректный адрес email";
-    case "rate_limited":
-      return "Слишком частые запросы. Подождите перед повторной отправкой.";
-    case "too_many_attempts":
-      return "Превышено число попыток.";
-    case "email_send_failed":
-      return "Не удалось отправить код на email";
+    case 'invalid_email':
+      return 'Некорректный адрес email';
+    case 'rate_limited':
+      return 'Слишком частые запросы. Подождите перед повторной отправкой.';
+    case 'too_many_attempts':
+      return 'Превышено число попыток.';
+    case 'email_send_failed':
+      return 'Не удалось отправить код на email';
     default:
-      return "Не удалось отправить код";
+      return 'Не удалось отправить код';
   }
 }

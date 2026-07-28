@@ -10,28 +10,28 @@
 
 ## Проверка по пунктам плана
 
-| Пункт | Статус | Факт |
-|------|--------|------|
-| MAX bugfix (`max_unavailable`, no fallback) | ✅ | `POST /api/auth/max-init` возвращает `max_unavailable`; `AuthBootstrap` не уводит MAX-ошибку в phone flow. |
-| TG first-open stabilization | ✅ | В `PatientBindPhoneClient` удалён `ensureMessengerMiniAppWebappSession`; в gate убрано дублирование recovery внутри poll. |
-| Server-first classification | ✅ | Добавлен `appEntryClassification`, ветка входа передаётся из `AppEntryRsc` в `AuthBootstrap`. |
-| Lazy SDK + prefetch dedup | ✅ | Client prefetch удалён из `AuthBootstrap`/`AuthFlowV2`; публичные auth-config приходят через RSC snapshot. |
-| PlatformProvider quiet | ✅ | `router.refresh()` отсутствует в `PlatformProvider`, runtime не шумит лишними refresh. |
-| Error isolation | ✅ | Присутствуют `app/error.tsx`, `app/app/error.tsx`, `app/app/patient/error.tsx`, `app/app/doctor/error.tsx`. |
-| Scenario verification (10-case matrix, dev+prod metrics) | ⚠️ | Нужен ручной прогон на dev/prod с логами и метриками TTI/time-to-session. |
+| Пункт                                                    | Статус | Факт                                                                                                                      |
+| -------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------- |
+| MAX bugfix (`max_unavailable`, no fallback)              | ✅     | `POST /api/auth/max-init` возвращает `max_unavailable`; `AuthBootstrap` не уводит MAX-ошибку в phone flow.                |
+| TG first-open stabilization                              | ✅     | В `PatientBindPhoneClient` удалён `ensureMessengerMiniAppWebappSession`; в gate убрано дублирование recovery внутри poll. |
+| Server-first classification                              | ✅     | Добавлен `appEntryClassification`, ветка входа передаётся из `AppEntryRsc` в `AuthBootstrap`.                             |
+| Lazy SDK + prefetch dedup                                | ✅     | Client prefetch удалён из `AuthBootstrap`/`AuthFlowV2`; публичные auth-config приходят через RSC snapshot.                |
+| PlatformProvider quiet                                   | ✅     | `router.refresh()` отсутствует в `PlatformProvider`, runtime не шумит лишними refresh.                                    |
+| Error isolation                                          | ✅     | Присутствуют `app/error.tsx`, `app/app/error.tsx`, `app/app/patient/error.tsx`, `app/app/doctor/error.tsx`.               |
+| Scenario verification (10-case matrix, dev+prod metrics) | ⚠️     | Нужен ручной прогон на dev/prod с логами и метриками TTI/time-to-session.                                                 |
 
 ## Инварианты входа
 
-| Инвариант | Статус | Комментарий |
-|-----------|--------|-------------|
-| Сессия только сервером (`httpOnly`) | ✅ | Сессия выставляется в auth service (`cookies().set`). |
-| `/app` server redirect или login UI | ✅ | `AppEntryRsc` (в т.ч. `/app`, `/app/tg`, `/app/max`): server redirect при сессии, иначе auth UI. |
-| На входе одна auth-ветка | ✅ | `AuthBootstrap` работает по server `entryClassification`. |
-| Нет `router.refresh()` до успеха auth | ✅ | В `AuthBootstrap` удалён stale-cookie refresh-path. |
-| SDK не блокирует интерактивный вход | ✅ | Telegram SDK lazy, MAX bridge условный, UI не ждёт client prefetch. |
-| Нет межканального fallback MAX->TG OTP | ✅ | MAX ошибки остаются в MAX-ветке (без phone fallback). |
-| Redirect только через `getPostAuthRedirectTarget` | ✅ | В `AuthBootstrap` и public auth flow применяется единая policy. |
-| Сегментная error isolation | ✅ | Локальные `error.tsx` подключены. |
+| Инвариант                                         | Статус | Комментарий                                                                                      |
+| ------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------ |
+| Сессия только сервером (`httpOnly`)               | ✅     | Сессия выставляется в auth service (`cookies().set`).                                            |
+| `/app` server redirect или login UI               | ✅     | `AppEntryRsc` (в т.ч. `/app`, `/app/tg`, `/app/max`): server redirect при сессии, иначе auth UI. |
+| На входе одна auth-ветка                          | ✅     | `AuthBootstrap` работает по server `entryClassification`.                                        |
+| Нет `router.refresh()` до успеха auth             | ✅     | В `AuthBootstrap` удалён stale-cookie refresh-path.                                              |
+| SDK не блокирует интерактивный вход               | ✅     | Telegram SDK lazy, MAX bridge условный, UI не ждёт client prefetch.                              |
+| Нет межканального fallback MAX->TG OTP            | ✅     | MAX ошибки остаются в MAX-ветке (без phone fallback).                                            |
+| Redirect только через `getPostAuthRedirectTarget` | ✅     | В `AuthBootstrap` и public auth flow применяется единая policy.                                  |
+| Сегментная error isolation                        | ✅     | Локальные `error.tsx` подключены.                                                                |
 
 ## Верификация
 

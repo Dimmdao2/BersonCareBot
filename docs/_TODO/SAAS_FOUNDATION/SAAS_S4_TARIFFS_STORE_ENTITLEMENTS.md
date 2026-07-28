@@ -1,4 +1,4 @@
-> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
+> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/\_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
 
 # SaaS S4 — тарифы, магазин, entitlements, биллинг и безопасная аналитика
 
@@ -17,7 +17,6 @@
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 На тестовом сервере должен работать единый коммерческий контур:
 
@@ -45,25 +44,24 @@
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 ### Решения владельца
 
-| Решение | Источник |
-|---|---|
-| Тариф → механики → клиника; цены и состав настраивает global_admin | [`OWNER_RULINGS_2026-07-15.md:28-34`](./OWNER_RULINGS_2026-07-15.md), [`OWNER_DECISIONS_FOR_REVIEW.md:39-42`](./OWNER_DECISIONS_FOR_REVIEW.md) |
-| Полный конструктор механик сразу; override на конкретную клинику сохраняется | [`OWNER_RULINGS_2026-07-15.md:28-34`](./OWNER_RULINGS_2026-07-15.md) |
-| Платёжная система уже есть и почти готова; её не удалять, а достраивать; ключи владелец даст позже | [`OWNER_RULINGS_2026-07-15.md:10-19`](./OWNER_RULINGS_2026-07-15.md) |
-| Купленные пакеты и собственные упражнения клиники сосуществуют; магазин не поглощает clinic-owned feature | [`OWNER_RULINGS_2026-07-15.md:35-44`](./OWNER_RULINGS_2026-07-15.md) |
-| Файлы не копируются; доступ выдаётся грантом на канонический `content_id` | [`OWNER_DECISIONS_FOR_REVIEW.md:49-51`](./OWNER_DECISIONS_FOR_REVIEW.md) |
-| Global_admin нужна аналитика по клиникам как клиентам, биллингу, использованию и общей нагрузке платформы | [`OWNER_RULINGS_2026-07-15.md:45-63`](./OWNER_RULINGS_2026-07-15.md) |
-| Персональная аналитика пациентов чужих клиник, выполнение упражнений и переписка не входят в platform view | [`OWNER_RULINGS_2026-07-15.md:50-63`](./OWNER_RULINGS_2026-07-15.md) |
-| Точный набор метрик определяется в конце | [`OWNER_RULINGS_2026-07-15.md:60-63`](./OWNER_RULINGS_2026-07-15.md) |
-| Система абонементов существует; сначала проверить наличие кнопки пересчёта | [`OWNER_RULINGS_2026-07-15.md:115-120`](./OWNER_RULINGS_2026-07-15.md) |
-| Названия/число тарифов не фиксируются; global admin собирает их из boolean mechanics и quotas | [`../SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md`](../SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md) §P1 |
-| Trial ссылается на выбранный управляемый тариф и имеет настраиваемую длительность | тот же источник, §P2 |
-| Clinic mode и приглашённые специалисты ограничиваются entitlement/местами либо доплатой | тот же источник, §§P1,15 |
-| Exercise model = own-only / новая base library / future store; owner-clinic content не становится global | тот же источник, §P4 |
-| Billing принадлежит организации; нужны отдельные global-operator и org-payer surfaces | тот же источник, §§P3,15 |
+| Решение                                                                                                    | Источник                                                                                                                                       |
+| ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Тариф → механики → клиника; цены и состав настраивает global_admin                                         | [`OWNER_RULINGS_2026-07-15.md:28-34`](./OWNER_RULINGS_2026-07-15.md), [`OWNER_DECISIONS_FOR_REVIEW.md:39-42`](./OWNER_DECISIONS_FOR_REVIEW.md) |
+| Полный конструктор механик сразу; override на конкретную клинику сохраняется                               | [`OWNER_RULINGS_2026-07-15.md:28-34`](./OWNER_RULINGS_2026-07-15.md)                                                                           |
+| Платёжная система уже есть и почти готова; её не удалять, а достраивать; ключи владелец даст позже         | [`OWNER_RULINGS_2026-07-15.md:10-19`](./OWNER_RULINGS_2026-07-15.md)                                                                           |
+| Купленные пакеты и собственные упражнения клиники сосуществуют; магазин не поглощает clinic-owned feature  | [`OWNER_RULINGS_2026-07-15.md:35-44`](./OWNER_RULINGS_2026-07-15.md)                                                                           |
+| Файлы не копируются; доступ выдаётся грантом на канонический `content_id`                                  | [`OWNER_DECISIONS_FOR_REVIEW.md:49-51`](./OWNER_DECISIONS_FOR_REVIEW.md)                                                                       |
+| Global_admin нужна аналитика по клиникам как клиентам, биллингу, использованию и общей нагрузке платформы  | [`OWNER_RULINGS_2026-07-15.md:45-63`](./OWNER_RULINGS_2026-07-15.md)                                                                           |
+| Персональная аналитика пациентов чужих клиник, выполнение упражнений и переписка не входят в platform view | [`OWNER_RULINGS_2026-07-15.md:50-63`](./OWNER_RULINGS_2026-07-15.md)                                                                           |
+| Точный набор метрик определяется в конце                                                                   | [`OWNER_RULINGS_2026-07-15.md:60-63`](./OWNER_RULINGS_2026-07-15.md)                                                                           |
+| Система абонементов существует; сначала проверить наличие кнопки пересчёта                                 | [`OWNER_RULINGS_2026-07-15.md:115-120`](./OWNER_RULINGS_2026-07-15.md)                                                                         |
+| Названия/число тарифов не фиксируются; global admin собирает их из boolean mechanics и quotas              | [`../SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md`](../SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md) §P1                     |
+| Trial ссылается на выбранный управляемый тариф и имеет настраиваемую длительность                          | тот же источник, §P2                                                                                                                           |
+| Clinic mode и приглашённые специалисты ограничиваются entitlement/местами либо доплатой                    | тот же источник, §§P1,15                                                                                                                       |
+| Exercise model = own-only / новая base library / future store; owner-clinic content не становится global   | тот же источник, §P4                                                                                                                           |
+| Billing принадлежит организации; нужны отдельные global-operator и org-payer surfaces                      | тот же источник, §§P3,15                                                                                                                       |
 
 Порядок S4-0…S4-6 ниже — **инженерное предложение**, а не решение владельца. Он выбран по зависимостям данных:
 сначала registry и chokepoint, затем независимо активируемые tariff/ownership/billing/analytics branches. Future
@@ -89,24 +87,23 @@ store исполняется только после отдельной акти
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 > **Не использовать как current execution selector.** После этого снимка S4-0/S4-1 закрыты `#888`, S4-2/C5A —
 > `#751`, а двенадцать residual entitlement bypass — `#939`. Текущие статусы находятся в чек-листах ниже и в
 > единственном product DAG `SAAS_PRODUCT_UX_INITIATIVE/IMPLEMENTATION_ROADMAP.md`; открытыми остаются только явно
 > незакрытые S4-4/C5B, C5C/C5D, S4-5/C6 и TEST/C7 ветви.
 
-| Область | Уже есть | Что нужно достроить |
-|---|---|---|
-| Entitlements | `saas_tariffs`, `be_organizations.tariff_id`, `saas_org_entitlement_overrides` ([`saasEntitlements.ts:24-59`](../../../apps/webapp/db/schema/saasEntitlements.ts)); typed `MECHANICS` и resolver `override > tariff > current default` ([`types.ts:6-23`](../../../apps/webapp/src/modules/org-entitlements/types.ts), [`service.ts:10-36`](../../../apps/webapp/src/modules/org-entitlements/service.ts)) | Полный method-level registry, global_admin CRUD/assignment/override UI и системное покрытие механик |
-| Chokepoint | `requireEntitlement()` существует ([`requireEntitlement.ts:7-23`](../../../apps/webapp/src/app-layer/guards/requireEntitlement.ts)) | Сейчас используется только в одном slice; auth вызывается повторно; нет coverage gate |
-| PSP adapters | Общий `PaymentProviderPort.createIntent/refund/verifyWebhook` ([`providerPort.ts:11-33`](../../../apps/webapp/src/modules/payments/providerPort.ts)); registry с mock, YooKassa, Tinkoff, CloudPayments и Alfa-Bank ([`paymentProviderRegistry.ts:8-45`](../../../apps/webapp/src/infra/payments/paymentProviderRegistry.ts)) | Не переписывать adapters; проверить provider contracts и подключить их к org-facing SaaS billing |
-| Платёжный ledger | Org-scoped intents/payments/refunds/provider events и idempotency уже есть ([`bookingPayments.ts:93-231`](../../../apps/webapp/db/schema/bookingPayments.ts)); service создаёт intents, capture и refund ([`payments/service.ts:136-299`](../../../apps/webapp/src/modules/payments/service.ts), [`payments/service.ts:327-512`](../../../apps/webapp/src/modules/payments/service.ts)) | Это booking/patient commerce, а не subscription ledger клиники. Нужен отдельный org-facing lifecycle без второго PSP abstraction |
-| Webhooks | Подписанный route определяет клинику по intent/provider ref и исполняет capture под org principal ([`payments/webhook/[provider]/route.ts:10-64`](../../../apps/webapp/src/app/api/payments/webhook/[provider]/route.ts)) | Добавить отдельный SaaS webhook path/config boundary; не смешивать platform merchant с per-org booking merchant |
-| Payment UI/config | Provider credentials редактируются в Settings и хранятся в `system_settings` ([`BookingPaymentsSection.tsx:41-75`](../../../apps/webapp/src/app/app/settings/BookingPaymentsSection.tsx), [`system-settings/types.ts:111-123`](../../../apps/webapp/src/modules/system-settings/types.ts)) | Текущая секция относится к оплате записи; patient pay clients завершают только mock ([`PatientPackagePayClient.tsx:42-79`](../../../apps/webapp/src/app/app/patient/memberships/pay/PatientPackagePayClient.tsx)). Для SaaS billing нужны отдельная global config и реальный redirect/status flow |
-| Store grants | `content_access_grants_webapp` уже несёт `organization_id`, canonical `content_id`, expiry/revoke ([`schema.ts:370-395`](../../../apps/webapp/db/schema/schema.ts)); `modules/entitlements` выдаёт user grants ([`entitlements/service.ts:5-40`](../../../apps/webapp/src/modules/entitlements/service.ts)) | Эволюционировать существующий grant path для org targets; третья grant table запрещена |
-| LFK | `lfk_exercises`, media и ordered templates имеют `organization_id`; `NULL` может обозначать platform content ([`schema.ts:906-1023`](../../../apps/webapp/db/schema/schema.ts)) | Store package должен ссылаться на canonical template/exercise IDs; clinic create/edit flow остаётся отдельным |
-| Аналитика | Raw/user rows содержат `organization_id`, но ingest его не передаёт; platform hourly не имеет org dimension ([`productAnalytics.ts:53-147`](../../../apps/webapp/db/schema/productAnalytics.ts), [`types.ts:56-68`](../../../apps/webapp/src/modules/product-analytics/types.ts), [`pgProductAnalytics.ts:57-176`](../../../apps/webapp/src/infra/repos/pgProductAnalytics.ts)) | Отдельная PII-free platform aggregate projection. Существующий `clientActivity` с `userId/displayName` ([`types.ts:161-186`](../../../apps/webapp/src/modules/product-analytics/types.ts)) нельзя отдавать platform analytics |
-| Абонементы | Кнопка, route, service, concurrency guard и тесты уже существуют | Пункт владельца закрыт фактом; новой реализации в S4 нет, см. §10 |
+| Область           | Уже есть                                                                                                                                                                                                                                                                                                                                                                                                   | Что нужно достроить                                                                                                                                                                                                                                                                               |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Entitlements      | `saas_tariffs`, `be_organizations.tariff_id`, `saas_org_entitlement_overrides` ([`saasEntitlements.ts:24-59`](../../../apps/webapp/db/schema/saasEntitlements.ts)); typed `MECHANICS` и resolver `override > tariff > current default` ([`types.ts:6-23`](../../../apps/webapp/src/modules/org-entitlements/types.ts), [`service.ts:10-36`](../../../apps/webapp/src/modules/org-entitlements/service.ts)) | Полный method-level registry, global_admin CRUD/assignment/override UI и системное покрытие механик                                                                                                                                                                                               |
+| Chokepoint        | `requireEntitlement()` существует ([`requireEntitlement.ts:7-23`](../../../apps/webapp/src/app-layer/guards/requireEntitlement.ts))                                                                                                                                                                                                                                                                        | Сейчас используется только в одном slice; auth вызывается повторно; нет coverage gate                                                                                                                                                                                                             |
+| PSP adapters      | Общий `PaymentProviderPort.createIntent/refund/verifyWebhook` ([`providerPort.ts:11-33`](../../../apps/webapp/src/modules/payments/providerPort.ts)); registry с mock, YooKassa, Tinkoff, CloudPayments и Alfa-Bank ([`paymentProviderRegistry.ts:8-45`](../../../apps/webapp/src/infra/payments/paymentProviderRegistry.ts))                                                                              | Не переписывать adapters; проверить provider contracts и подключить их к org-facing SaaS billing                                                                                                                                                                                                  |
+| Платёжный ledger  | Org-scoped intents/payments/refunds/provider events и idempotency уже есть ([`bookingPayments.ts:93-231`](../../../apps/webapp/db/schema/bookingPayments.ts)); service создаёт intents, capture и refund ([`payments/service.ts:136-299`](../../../apps/webapp/src/modules/payments/service.ts), [`payments/service.ts:327-512`](../../../apps/webapp/src/modules/payments/service.ts))                    | Это booking/patient commerce, а не subscription ledger клиники. Нужен отдельный org-facing lifecycle без второго PSP abstraction                                                                                                                                                                  |
+| Webhooks          | Подписанный route определяет клинику по intent/provider ref и исполняет capture под org principal ([`payments/webhook/[provider]/route.ts:10-64`](../../../apps/webapp/src/app/api/payments/webhook/[provider]/route.ts))                                                                                                                                                                                  | Добавить отдельный SaaS webhook path/config boundary; не смешивать platform merchant с per-org booking merchant                                                                                                                                                                                   |
+| Payment UI/config | Provider credentials редактируются в Settings и хранятся в `system_settings` ([`BookingPaymentsSection.tsx:41-75`](../../../apps/webapp/src/app/app/settings/BookingPaymentsSection.tsx), [`system-settings/types.ts:111-123`](../../../apps/webapp/src/modules/system-settings/types.ts))                                                                                                                 | Текущая секция относится к оплате записи; patient pay clients завершают только mock ([`PatientPackagePayClient.tsx:42-79`](../../../apps/webapp/src/app/app/patient/memberships/pay/PatientPackagePayClient.tsx)). Для SaaS billing нужны отдельная global config и реальный redirect/status flow |
+| Store grants      | `content_access_grants_webapp` уже несёт `organization_id`, canonical `content_id`, expiry/revoke ([`schema.ts:370-395`](../../../apps/webapp/db/schema/schema.ts)); `modules/entitlements` выдаёт user grants ([`entitlements/service.ts:5-40`](../../../apps/webapp/src/modules/entitlements/service.ts))                                                                                                | Эволюционировать существующий grant path для org targets; третья grant table запрещена                                                                                                                                                                                                            |
+| LFK               | `lfk_exercises`, media и ordered templates имеют `organization_id`; `NULL` может обозначать platform content ([`schema.ts:906-1023`](../../../apps/webapp/db/schema/schema.ts))                                                                                                                                                                                                                            | Store package должен ссылаться на canonical template/exercise IDs; clinic create/edit flow остаётся отдельным                                                                                                                                                                                     |
+| Аналитика         | Raw/user rows содержат `organization_id`, но ingest его не передаёт; platform hourly не имеет org dimension ([`productAnalytics.ts:53-147`](../../../apps/webapp/db/schema/productAnalytics.ts), [`types.ts:56-68`](../../../apps/webapp/src/modules/product-analytics/types.ts), [`pgProductAnalytics.ts:57-176`](../../../apps/webapp/src/infra/repos/pgProductAnalytics.ts))                            | Отдельная PII-free platform aggregate projection. Существующий `clientActivity` с `userId/displayName` ([`types.ts:161-186`](../../../apps/webapp/src/modules/product-analytics/types.ts)) нельзя отдавать platform analytics                                                                     |
+| Абонементы        | Кнопка, route, service, concurrency guard и тесты уже существуют                                                                                                                                                                                                                                                                                                                                           | Пункт владельца закрыт фактом; новой реализации в S4 нет, см. §10                                                                                                                                                                                                                                 |
 
 Термины не смешивать:
 
@@ -124,7 +121,6 @@ store исполняется только после отдельной акти
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 - Изменять только webapp-домены tariffs/entitlements/store/SaaS billing/platform analytics и их тесты/доки.
 - Не создавать второй LFK/media engine, второй PSP registry, второй memberships domain или третью grant table.
@@ -155,7 +151,6 @@ store исполняется только после отдельной акти
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 ```text
 S4-0 -> S4-1 -> S4-2 ---------------------------> S4-6(included scope)
           +----> C4D own/base ownership --------> S4-6(included scope)
@@ -177,14 +172,14 @@ S4-0 -> S4-1 -> S4-2 ---------------------------> S4-6(included scope)
 
 ### Crosswalk к единственному product roadmap
 
-| S4 technical stage | Product stage |
-|---|---|
-| S4-0/S4-1 registry + chokepoint | C4A-D и C5A-D shared foundation |
-| S4-2 tariffs/quotas/trial/seats | C5A; seat enforcement C4A, commerce C5C |
-| S4-3 own/base/store grants | C4D own/base; C5D future store commerce |
-| S4-4 SaaS billing | C5B; organization tab в C3 shell |
-| S4-5 analytics | C6 |
-| S4-6 TEST proof | C7 только для фактически включённых substages |
+| S4 technical stage              | Product stage                                 |
+| ------------------------------- | --------------------------------------------- |
+| S4-0/S4-1 registry + chokepoint | C4A-D и C5A-D shared foundation               |
+| S4-2 tariffs/quotas/trial/seats | C5A; seat enforcement C4A, commerce C5C       |
+| S4-3 own/base/store grants      | C4D own/base; C5D future store commerce       |
+| S4-4 SaaS billing               | C5B; organization tab в C3 shell              |
+| S4-5 analytics                  | C6                                            |
+| S4-6 TEST proof                 | C7 только для фактически включённых substages |
 
 S4 — технический sub-plan, не второй источник product sequencing. Future store/course/full CMS не становятся
 launch dependencies из-за наличия checklist ниже.
@@ -198,7 +193,6 @@ launch dependencies из-за наличия checklist ниже.
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 **Статус 2026-07-22: [x] закрыто `#888`, accepted; integration `4ae94a0a2` + `b0703b605`, поздний residual
 coverage `#939` закрыт `84bf193ac`. Повторно не исполнять.**
 
@@ -209,26 +203,26 @@ coverage `#939` закрыт `84bf193ac`. Повторно не исполнят
 [`content_access_grants_webapp:370-395`](../../../apps/webapp/db/schema/schema.ts).
 
 - [x] Построить method-level матрицу `mechanic → entrypoint/action → auth/context source → requireEntitlement →
-  service/port` с `file:line` для каждого реального action. Доказательство: checker сопоставляет export/action symbols,
-  а не каталоги routes; неизвестный или двойной mapping даёт non-zero.
+service/port` с `file:line` для каждого реального action. Доказательство: checker сопоставляет export/action symbols,
+      а не каталоги routes; неизвестный или двойной mapping даёт non-zero.
 - [x] Сверить все ключи `MECHANICS` с реальными поверхностями. Отсутствующая поверхность получает
-  `declared_no_surface` + code-search evidence; route ради флага не создаётся.
+      `declared_no_surface` + code-search evidence; route ради флага не создаётся.
 - [x] Зафиксировать единую typed registry с ключом и русской подписью; constructor, chokepoint и checker импортируют
-  её, локальных массивов mechanic keys нет.
+      её, локальных массивов mechanic keys нет.
 - [x] Зафиксировать инженерный compatibility path для клиники без тарифа: до назначения всем существующим test-org
-  явного тарифа сохраняется текущий resolver result; после заполнения fixture/data gate implicit default не используется
-  для новых test-org. Доказательство: migration/fixture report `unassigned org = 0` и resolver tests на assigned,
-  override и intentionally-unassigned cases.
+      явного тарифа сохраняется текущий resolver result; после заполнения fixture/data gate implicit default не используется
+      для новых test-org. Доказательство: migration/fixture report `unassigned org = 0` и resolver tests на assigned,
+      override и intentionally-unassigned cases.
 - [x] Описать ownership новых сущностей до DDL: platform package/tariff = global catalog; subscription/invoice/order/
-  grant = direct org или scoped parent; analytics aggregate = org bucket без person identity.
+      grant = direct org или scoped parent; analytics aggregate = org bucket без person identity.
 - [x] Провести provider contract inventory по всем четырём real adapters: checkout URL, provider intent ref,
-  idempotency, success/refund event, amount/currency verification и signature/status verification. Доказательство:
-  таблица по adapters + contract tests; неподтверждённый callback не может активировать subscription/grant.
+      idempotency, success/refund event, amount/currency verification и signature/status verification. Доказательство:
+      таблица по adapters + contract tests; неподтверждённый callback не может активировать subscription/grant.
 - [x] Зафиксировать отдельные config identities: existing per-org booking merchant и new global SaaS merchant.
-  Доказательство: разные typed accessors/settings keys и тест отсутствия fallback между ними.
+      Доказательство: разные typed accessors/settings keys и тест отсутствия fallback между ними.
 - [x] Зафиксировать один source-aware tariff access contract: временно существующий `be_organizations.tariff_id`
-  остаётся compatibility projection; конечный resolver различает manual assignment и active paid subscription,
-  не держит две расходящиеся истины и не снимает доступ одного source при завершении другого.
+      остаётся compatibility projection; конечный resolver различает manual assignment и active paid subscription,
+      не держит две расходящиеся истины и не снимает доступ одного source при завершении другого.
 
 **Проверка:** inventory checker self-test; resolver/provider contract unit tests; webapp typecheck.
 
@@ -243,7 +237,6 @@ coverage `#939` закрыт `84bf193ac`. Повторно не исполнят
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 **Статус 2026-07-22: [x] закрыто `#888`, accepted; method/action residual закрыт `#939` / `84bf193ac`.
 Повторно не исполнять.**
 
@@ -253,17 +246,17 @@ coverage `#939` закрыт `84bf193ac`. Повторно не исполнят
 [`buildAppDeps.ts:1583-1585`](../../../apps/webapp/src/app-layer/di/buildAppDeps.ts).
 
 - [x] Привести guard к typed контракту `requireEntitlement(ctx, mechanic)`: context уже авторизован и содержит
-  server-derived org; guard обращается только к `orgEntitlements` и возвращает единый 403
-  `entitlement_required` с mechanic key.
+      server-derived org; guard обращается только к `orgEntitlements` и возвращает единый 403
+      `entitlement_required` с mechanic key.
 - [x] Убрать повторный auth call из существующего courses slice. Доказательство: одна auth/context resolution на
-  request; service не вызывается после 401/403.
+      request; service не вызывается после 401/403.
 - [x] Применить S4-0 mapping ко всем `protected` actions. Для feature с несколькими aliases gate стоит на общем
-  application command/feature boundary, а не копируется по routes.
+      application command/feature boundary, а не копируется по routes.
 - [x] Доказать ordering `auth → tenant/principal → entitlement → service`: unauthenticated, wrong role/org,
-  disabled mechanic и success имеют разные ожидаемые результаты.
+      disabled mechanic и success имеют разные ожидаемые результаты.
 - [x] Доказать org isolation: override/tariff A не меняет B; forged org ID не меняет target resolver.
 - [x] Добавить static guard: прямые `isMechanicEnabled` и чтения tariff/override из feature routes/services вне
-  единственного boundary дают non-zero.
+      единственного boundary дают non-zero.
 
 **Проверка:** guard tests; по одному contract test на action family; static checker + self-test; webapp lint/typecheck.
 
@@ -278,7 +271,6 @@ coverage `#939` закрыт `84bf193ac`. Повторно не исполнят
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 **Статус 2026-07-22: [x] закрыто C5A `#751`, integration through `a678d043d`; accumulated milestone
 `c6a8930c2` green. S4-4/C5B billing и C5C seat commerce этим не закрыты.**
 
@@ -288,28 +280,28 @@ coverage `#939` закрыт `84bf193ac`. Повторно не исполнят
 [`doctorNavLinks.ts:105-135`](../../../apps/webapp/src/shared/ui/doctor/doctorNavLinks.ts).
 
 - [x] Расширить существующий `modules/org-entitlements` typed CRUD: tariff list/get/create/update/deactivate,
-  assign/unassign, override list/upsert/delete. Новый соседний tariffs module не создаётся.
+      assign/unassign, override list/upsert/delete. Новый соседний tariffs module не создаётся.
 - [x] Хранить name, description, `priceMinor`, currency, billing period и полный mechanic map как DB data.
-  Hardcoded tier names/prices/compositions отсутствуют.
+      Hardcoded tier names/prices/compositions отсутствуют.
 - [x] Registry различает boolean entitlement и numeric/unlimited quota. Для каждой quota до enforcement записаны
-  unit, reset/period, soft/hard behavior, upgrade/downgrade/overage semantics и source of usage; `null`, `0` и
-  `unlimited` не смешиваются.
+      unit, reset/period, soft/hard behavior, upgrade/downgrade/overage semantics и source of usage; `null`, `0` и
+      `unlimited` не смешиваются.
 - [x] Добавить global trial-policy: ссылка на существующий active tariff, duration и start event. `Light/Pro`, 14/30
-  дней и фиксированный стартовый состав отсутствуют. Post-trial/grace и судьба созданных данных реализуются только
-  после decision gate §13.
+      дней и фиксированный стартовый состав отсутствуют. Post-trial/grace и судьба созданных данных реализуются только
+      после decision gate §13.
 - [x] Clinic entitlement хранит included specialist seats и/или per-seat add-on policy. Team UI/API показывают
-  used/available seats; invitation проверяет limit server-side. Downgrade/overage не удаляет membership молча.
+      used/available seats; invitation проверяет limit server-side. Downgrade/overage не удаляет membership молча.
 - [x] Валидировать mechanics только по registry S4-0; отсутствующий UI-toggle не может тихо потерять mechanic key.
 - [x] Реализовать узкий platform write port для manual tariff assignment. До S4-4 он транзакционно меняет только
-  compatibility `be_organizations.tariff_id`; S4-4 мигрирует такие назначения в source=`manual` и оставляет колонку
-  только согласованной projection, не универсальным editor организации.
+      compatibility `be_organizations.tariff_id`; S4-4 мигрирует такие назначения в source=`manual` и оставляет колонку
+      только согласованной projection, не универсальным editor организации.
 - [x] Override identity остаётся `(organization_id, mechanic)`; delete возвращает tariff default, а не сохраняет
-  копию этого default.
+      копию этого default.
 - [x] Global_admin page содержит tariff list/editor, цену/период, grid всех mechanics, clinic assignment и override.
-  `clinic_admin`/doctor не видят nav item и получают 403 на API.
+      `clinic_admin`/doctor не видят nav item и получают 403 на API.
 - [x] Audit event содержит actor, target org, tariff, before/after mechanic map и reason без secret/PII.
 - [x] E2E contract: tariff с mechanic=false → A denied; B unchanged; override A=true → allowed; delete override →
-  denied; смена тарифа меняет доступ через тот же chokepoint.
+      denied; смена тарифа меняет доступ через тот же chokepoint.
 
 **Проверка:** module/PG/API tests; authz A/B matrix; constructor RTL; desktop/mobile visual acceptance.
 
@@ -318,20 +310,20 @@ coverage `#939` закрыт `84bf193ac`. Повторно не исполнят
 ## 8A. C4D — own-only и platform-base ownership (исполняется без store)
 
 - [ ] Code-search-first inventory: для exercise/template/media list, direct ID, count, search, picker, assignment и
-  playback зафиксировать ownership source и current tenant guard; неизвестный path остаётся gap, не становится global.
+      playback зафиксировать ownership source и current tenant guard; неизвестный path остаётся gap, не становится global.
 - [ ] Режим `own_only` показывает organization только её exercises/templates/media и не читает owner-clinic content
-  другой organization ни через list, ни через direct ID.
+      другой organization ни через list, ни через direct ID.
 - [ ] Режим `platform_base` добавляет отдельную platform library, создаваемую с нуля global admin. Existing
-  owner-clinic exercises не мигрируют и не публикуются автоматически.
+      owner-clinic exercises не мигрируют и не публикуются автоматически.
 - [ ] Global admin управляет composition platform base; тариф может включать base-library entitlement без purchase,
-  grant или store surface.
+      grant или store surface.
 - [ ] Publication clinic→platform отсутствует до отдельного workflow/licensing/moderation owner decision.
 - [ ] Entitlement OFF/ON/downgrade проверяется server-side и в UI. Hidden navigation не заменяет direct API/media
-  denial; current program instances не теряют canonical content без явной downgrade policy.
+      denial; current program instances не теряют canonical content без явной downgrade policy.
 - [ ] Synthetic org A/B acceptance закрывает list/direct/count/search/picker/assignment/media negatives, owner-only
-  content privacy, base visibility и отсутствие copied rows/object keys.
+      content privacy, base visibility и отсутствие copied rows/object keys.
 - [ ] Desktop/mobile acceptance показывает own-only и own+base состояния; future store отсутствует, а не рендерится
-  пустым/сломавшимся экраном.
+      пустым/сломавшимся экраном.
 
 **Выход C4D:** private organization library и новая platform base library сосуществуют без смешивания ownership;
 магазин не нужен для выполнения или приёмки этого этапа.
@@ -349,26 +341,26 @@ coverage `#939` закрыт `84bf193ac`. Повторно не исполнят
 [`content_access_grants_webapp:370-395`](../../../apps/webapp/db/schema/schema.ts).
 
 - [ ] После активации C5D добавить platform package entity с commercial metadata, price/currency/access duration и ссылкой
-  на существующий ordered `lfk_complex_template`; exercises/media остаются canonical rows.
+      на существующий ordered `lfk_complex_template`; exercises/media остаются canonical rows.
 - [ ] Platform package composition может ссылаться только на platform exercises/templates. Clinic-owned exercise
-  create/edit/list продолжает жить в текущем LFK flow и не становится store content.
+      create/edit/list продолжает жить в текущем LFK flow и не становится store content.
 - [ ] Эволюционировать `content_access_grants_webapp` и `modules/entitlements` для org target: source kind/id,
-  organizationId, contentId, expiry/revoke, idempotency. Существующие user grants и integrator projection не ломаются;
-  третья grant table не создаётся.
+      organizationId, contentId, expiry/revoke, idempotency. Существующие user grants и integrator projection не ломаются;
+      третья grant table не создаётся.
 - [ ] Grant одного source идемпотентен. Revoke/refund удаляет только этот source; доступ сохраняется, если тот же
-  `content_id` покрыт другим active tariff/purchase/manual source.
+      `content_id` покрыт другим active tariff/purchase/manual source.
 - [ ] Access predicate clinic-facing store: own clinic content OR active org grant. Patient program assignment остаётся
-  отдельным patient access source и не расширяет clinic-wide store visibility.
+      отдельным patient access source и не расширяет clinic-wide store visibility.
 - [ ] Добавить no-copy invariant: package grant/order не создаёт `lfk_exercises`, `lfk_exercise_media`, `media_files`
-  или object keys; IDs до/после совпадают.
+      или object keys; IDs до/после совпадают.
 - [ ] `exercise_packages` mechanic и specific package grant проверяются раздельно: mechanic ON не открывает все
-  packages; grant без mechanic ON не открывает store surface.
+      packages; grant без mechanic ON не открывает store surface.
 - [ ] Global_admin курирует/архивирует packages; clinic_admin/doctor только видят разрешённое и используют купленное
-  рядом со своими упражнениями.
+      рядом со своими упражнениями.
 - [ ] A/B negatives закрывают list, direct package ID, direct exercise ID и media playback; B без grant не получает
-  package/content A.
+      package/content A.
 - [ ] Поддержать два source path: package включён в tariff composition и package куплен отдельно. Оба создают
-  source-aware grants на те же canonical content IDs.
+      source-aware grants на те же canonical content IDs.
 
 **Проверка:** package/grant service+PG tests; RLS/IDOR A/B matrix; no-copy invariant; curator/store visual acceptance.
 
@@ -383,7 +375,6 @@ coverage `#939` закрыт `84bf193ac`. Повторно не исполнят
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 **Стартовые точки:** [`providerPort.ts:11-33`](../../../apps/webapp/src/modules/payments/providerPort.ts),
 [`paymentProviderRegistry.ts:8-45`](../../../apps/webapp/src/infra/payments/paymentProviderRegistry.ts),
 [`bookingPayments.ts:93-231`](../../../apps/webapp/db/schema/bookingPayments.ts),
@@ -392,43 +383,43 @@ coverage `#939` закрыт `84bf193ac`. Повторно не исполнят
 [`BookingPaymentsSection.tsx:41-75`](../../../apps/webapp/src/app/app/settings/BookingPaymentsSection.tsx).
 
 - [ ] Создать отдельный `modules/saas-billing` domain с ports/service/typed state machine; он переиспользует
-  `PaymentProviderPort` через DI и не импортирует infra registry напрямую.
+      `PaymentProviderPort` через DI и не импортирует infra registry напрямую.
 - [ ] Добавить минимальные org-owned records: billing account, source-aware tariff subscription, invoice/order и
-  normalized provider event. Invoice фиксирует tariff, amount/currency/period snapshot; webhook event имеет provider event ID и
-  idempotency, но не хранит patient data.
+      normalized provider event. Invoice фиксирует tariff, amount/currency/period snapshot; webhook event имеет provider event ID и
+      idempotency, но не хранит patient data.
 - [ ] Перенести существующие manual `tariff_id` assignments в subscription/access rows с source=`manual`; переключить
-  resolver на один access contract и проверять, что compatibility projection совпадает. Mismatch checker даёт non-zero.
+      resolver на один access contract и проверять, что compatibility projection совпадает. Mismatch checker даёт non-zero.
 - [ ] До кода зафиксировать subscription state machine минимум для `trial/pending_payment/active/grace/past_due/
-  cancelled/expired`, allowed transitions, source event, retry/dunning и capability effect. Реализовать только
-  transitions, подтверждаемые выбранным provider contract; автоматическое списание без provider token contract не
-  имитируется.
+cancelled/expired`, allowed transitions, source event, retry/dunning и capability effect. Реализовать только
+      transitions, подтверждаемые выбранным provider contract; автоматическое списание без provider token contract не
+      имитируется.
 - [ ] Добавить global DB setting `saas_billing_payment_provider` в `ALLOWED_KEYS`, Settings UI, redaction/secret-retain
-  service и sanctioned accessor; запись идёт через `updateSetting` с обычным mirror contract. Он не читает и не
-  перезаписывает per-org `booking_payment_providers`.
+      service и sanctioned accessor; запись идёт через `updateSetting` с обычным mirror contract. Он не читает и не
+      перезаписывает per-org `booking_payment_providers`.
 - [ ] Сохранить и вернуть provider checkout URL безопасному clinic_admin UI. Return/status page сверяет invoice/order
-  из server-derived org и никогда не принимает сумму, tariff или target org от клиента как source of truth.
+      из server-derived org и никогда не принимает сумму, tariff или target org от клиента как source of truth.
 - [ ] Добавить SaaS webhook route под bootstrap principal: load global provider config → verify signature/status →
-  resolve invoice/order → run org-scoped capture. Unknown ref acknowledges safely; forged signature, amount/currency
-  mismatch и replay не активируют доступ.
+      resolve invoice/order → run org-scoped capture. Unknown ref acknowledges safely; forged signature, amount/currency
+      mismatch и replay не активируют доступ.
 - [ ] Закрыть provider-specific gaps из S4-0. В частности, callback, который требует server-side status verification,
-  не считается успешным только по payload; provider order ref и transaction ref имеют проверенный mapping.
+      не считается успешным только по payload; provider order ref и transaction ref имеют проверенный mapping.
 - [ ] Tariff capture активирует/продлевает source=`paid_subscription`; expiry/cancel/refund завершает только этот
-  source. Manual global_admin assignment или более новый paid source сохраняют доступ; compatibility tariff projection
-  обновляется тем же service transaction.
+      source. Manual global_admin assignment или более новый paid source сохраняют доступ; compatibility tariff projection
+      обновляется тем же service transaction.
 - [ ] Не включать store-package capture в C5B acceptance. Если C5D позднее активирован, его adapter extension
-  выдаёт source-aware org grants и имеет собственный refund/reversal checklist.
+      выдаёт source-aware org grants и имеет собственный refund/reversal checklist.
 - [ ] Payment failure/expiry не затрагивают другую клинику и не удаляют clinic-owned exercises/content.
 - [ ] Global billing surface показывает organizations/payers/subscriptions, trial/grace/past_due, attempts,
-  refunds/cancellations, provider events, invoices/receipts, filters/aggregates и только безопасные PSP-supported
-  support actions. Любая mutation идемпотентна и попадает в immutable admin audit; manual «успешно оплачено» нет.
+      refunds/cancellations, provider events, invoices/receipts, filters/aggregates и только безопасные PSP-supported
+      support actions. Любая mutation идемпотентна и попадает в immutable admin audit; manual «успешно оплачено» нет.
 - [ ] Organization settings tab «Тариф и биллинг» показывает current tariff/capabilities/usage/seats, next payment,
-  lifecycle status, upgrade/downgrade effect/date, add-ons, payment history and documents. Она доступна owner/payment
-  admin; ordinary invited specialist не видит tab и получает server denial.
+      lifecycle status, upgrade/downgrade effect/date, add-ons, payment history and documents. Она доступна owner/payment
+      admin; ordinary invited specialist не видит tab и получает server denial.
 - [ ] B2B bank-transfer invoice/status и fiscal receipt/invoice obligations имеют provider/legal decision gate;
-  неподдержанный flow не симулируется фиктивной кнопкой.
+      неподдержанный flow не симулируется фиктивной кнопкой.
 - [ ] Реальные provider credentials, когда владелец их предоставит, вводятся только через Settings на тестовом сервере.
-  До этого architecture, mock checkout и recorded provider contract fixtures должны проходить полностью; отсутствие
-  ключей не блокирует schema/service/UI/webhook implementation.
+      До этого architecture, mock checkout и recorded provider contract fixtures должны проходить полностью; отсутствие
+      ключей не блокирует schema/service/UI/webhook implementation.
 
 **Проверка:** state-machine and idempotency tests; provider adapter contract tests; signed webhook success/replay/
 forgery/amount mismatch; tariff capture/refund integration; A/B authz; secret redaction scan; checkout UI. Store
@@ -446,19 +437,18 @@ capture tests добавляются только в активированно�
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 - [x] Кнопка «Пересчитать» существует на active package:
-  [`PatientPackageCard.tsx:165-177`](../../../apps/webapp/src/app/app/doctor/clients/PatientPackageCard.tsx).
+      [`PatientPackageCard.tsx:165-177`](../../../apps/webapp/src/app/app/doctor/clients/PatientPackageCard.tsx).
 - [x] UI вызывает `POST .../[id]/recalc`, показывает summary и refresh:
-  [`DoctorClientMembershipsPanel.tsx:247-269`](../../../apps/webapp/src/app/app/doctor/clients/DoctorClientMembershipsPanel.tsx).
+      [`DoctorClientMembershipsPanel.tsx:247-269`](../../../apps/webapp/src/app/app/doctor/clients/DoctorClientMembershipsPanel.tsx).
 - [x] Route получает org из doctor gate и вызывает существующий memberships service:
-  [`recalc/route.ts:12-48`](../../../apps/webapp/src/app/api/doctor/booking-engine/patient-packages/[id]/recalc/route.ts).
+      [`recalc/route.ts:12-48`](../../../apps/webapp/src/app/api/doctor/booking-engine/patient-packages/[id]/recalc/route.ts).
 - [x] Bulk implementation идемпотентно списывает прошлые состоявшиеся визиты, работает под package lock и не уходит
-  ниже нуля: [`memberships/service.ts:1133-1369`](../../../apps/webapp/src/modules/memberships/service.ts).
+      ниже нуля: [`memberships/service.ts:1133-1369`](../../../apps/webapp/src/modules/memberships/service.ts).
 - [x] UI behavior покрыт тестом:
-  [`DoctorClientMembershipsPanel.test.tsx:213-285`](../../../apps/webapp/src/app/app/doctor/clients/DoctorClientMembershipsPanel.test.tsx);
-  duplicate consume защищён unique index
-  [`0137_be_package_usages_consume_unique.sql:1-9`](../../../apps/webapp/db/drizzle-migrations/0137_be_package_usages_consume_unique.sql).
+      [`DoctorClientMembershipsPanel.test.tsx:213-285`](../../../apps/webapp/src/app/app/doctor/clients/DoctorClientMembershipsPanel.test.tsx);
+      duplicate consume защищён unique index
+      [`0137_be_package_usages_consume_unique.sql:1-9`](../../../apps/webapp/db/drizzle-migrations/0137_be_package_usages_consume_unique.sql).
 
 **Вывод:** owner question закрыт фактом. S4 не планирует кнопку, второй memberships module или повтор ST-01/ST-02.
 
@@ -471,7 +461,6 @@ capture tests добавляются только в активированно�
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 **Стартовые точки:** [`productAnalytics.ts:53-147`](../../../apps/webapp/db/schema/productAnalytics.ts),
 [`types.ts:56-68`](../../../apps/webapp/src/modules/product-analytics/types.ts),
 [`types.ts:161-186`](../../../apps/webapp/src/modules/product-analytics/types.ts),
@@ -479,27 +468,27 @@ capture tests добавляются только в активированно�
 [`pgProductAnalytics.ts:57-176`](../../../apps/webapp/src/infra/repos/pgProductAnalytics.ts).
 
 - [ ] Ввести отдельную typed platform aggregate projection/port. Строка содержит только time bucket,
-  organizationId или platform-total bucket, allowlisted metric key, integer/decimal value и generatedAt; нет FK на
-  user/patient, person/session IDs и JSON metadata.
+      organizationId или platform-total bucket, allowlisted metric key, integer/decimal value и generatedAt; нет FK на
+      user/patient, person/session IDs и JSON metadata.
 - [ ] Существующий raw/user analytics остаётся clinic-operational source и не экспортируется через platform port.
-  `ProductAnalyticsClientActivityRow` и registration drill-down физически недоступны platform API/page.
+      `ProductAnalyticsClientActivityRow` и registration drill-down физически недоступны platform API/page.
 - [ ] Протянуть trusted `organizationId` в те ingest paths, которые действительно org-scoped. Payload не назначает
-  org; shared-patient event без scoped resource не угадывается и не попадает в per-clinic aggregate.
+      org; shared-patient event без scoped resource не угадывается и не попадает в per-clinic aggregate.
 - [ ] Aggregate builders считают только allowlisted counters из billing/subscription и platform load sources.
-  Message body, exercise execution event, program content и patient identity не читаются и не проецируются.
+      Message body, exercise execution event, program content и patient identity не читаются и не проецируются.
 - [ ] Добавить schema/DTO/static checker, запрещающий в platform analytics person columns, free-form payload и imports
-  clinic drill-down repo. Canary test кладёт узнаваемые PII strings в source fixtures и доказывает их отсутствие в
-  aggregate rows, API JSON, logs и screenshots.
+      clinic drill-down repo. Canary test кладёт узнаваемые PII strings в source fixtures и доказывает их отсутствие в
+      aggregate rows, API JSON, logs и screenshots.
 - [ ] Сделать отдельный global_admin platform port/API; clinic analytics port остаётся строго single-org.
-  clinic_admin A не может запросить B query/filter/direct ID.
+      clinic_admin A не может запросить B query/filter/direct ID.
 - [ ] До финального решения владельца UI показывает только технический preview структуры aggregate buckets без
-  объявления набора KPI окончательным.
+      объявления набора KPI окончательным.
 - [ ] **OWNER GATE:** утвердить точный список метрик и формулы после работающих tariffs/billing/usage sources;
-  future store становится источником метрик только если C5D к тому моменту активирован.
-  Кандидаты из рулинга — клиники, специалисты, клиенты как counts, загрузки видео, биллинг и использование — не
-  расширяются персональными drill-down.
+      future store становится источником метрик только если C5D к тому моменту активирован.
+      Кандидаты из рулинга — клиники, специалисты, клиенты как counts, загрузки видео, биллинг и использование — не
+      расширяются персональными drill-down.
 - [ ] После решения реализовать только утверждённые metric keys, формулы и layout; каждый metric получает source
-  query `file:line`, denominator/timezone semantics и fixture с ожидаемым числом.
+      query `file:line`, denominator/timezone semantics и fixture с ожидаемым числом.
 
 **Проверка:** aggregate builder/port/API tests; schema/static PII checker + self-test; A/B authz; canary PII scan;
 global_admin visual acceptance после финального metric decision.
@@ -516,27 +505,26 @@ global_admin visual acceptance после финального metric decision.
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 - [ ] Подготовить непересекающиеся synthetic fixtures только для включённых substages: global_admin;
-  clinic_admin/doctor A и B; разные tariffs/overrides; clinic-owned/base exercises; SaaS invoice/subscription/order.
-  Package/grant fixtures добавляются только если C5D явно активирован.
-  Доказательство: fixture manifest без реальных PII.
+      clinic_admin/doctor A и B; разные tariffs/overrides; clinic-owned/base exercises; SaaS invoice/subscription/order.
+      Package/grant fixtures добавляются только если C5D явно активирован.
+      Доказательство: fixture manifest без реальных PII.
 - [ ] Global_admin создаёт/меняет tariff, цену/период/full mechanic map, назначает A, меняет override, видит billing
-  state и утверждённые aggregate metrics. Package curation проверяется только в C5D acceptance.
+      state и утверждённые aggregate metrics. Package curation проверяется только в C5D acceptance.
 - [ ] Clinic A проходит checkout mock/recorded-provider flow, получает tariff access и продолжает видеть свои
-  clinic exercises отдельно от platform base content.
+      clinic exercises отдельно от platform base content.
 - [ ] Clinic B не видит tariff override, invoice или analytics A; её собственные
-  exercises и mechanics работают по её tariff.
+      exercises и mechanics работают по её tariff.
 - [ ] Payment negatives: duplicate checkout/webhook, forged signature/org ID, wrong amount/currency, unknown provider
-  ref, refund replay. Ни один отказ не меняет subscription/grant.
+      ref, refund replay. Ни один отказ не меняет subscription/grant.
 - [ ] Entitlement negatives обязательны. Store direct-ID/expired-grant/mechanic-vs-grant negatives добавляются только
-  для активированного C5D.
+      для активированного C5D.
 - [ ] Analytics negatives: platform JSON/schema/visual artifacts не содержат patient identity, message text,
-  exercise execution details или clinic drill-down rows; clinic A не получает B.
+      exercise execution details или clinic drill-down rows; clinic A не получает B.
 - [ ] UI-фазы получают desktop/mobile screenshots; executor, independent audit и fixer закрывают один и тот же
-  checklist по [`ORCHESTRATION_BINDINGS.md`](../../ORCHESTRATION_BINDINGS.md).
+      checklist по [`ORCHESTRATION_BINDINGS.md`](../../ORCHESTRATION_BINDINGS.md).
 - [ ] После всех фаз выполнить один финальный `pnpm install --frozen-lockfile && pnpm run ci`; повторять полный gate
-  без изменений кода не требуется.
+      без изменений кода не требуется.
 
 **Выход:** включённые substages — tariffs, one chokepoint, own/base ownership, real-provider-ready SaaS billing и
 безопасная analytics — работают на TEST для A/B. Store не симулируется и не требуется, пока C5D deferred.
@@ -549,7 +537,6 @@ global_admin visual acceptance после финального metric decision.
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 1. Для каждой quota: unit/period, soft или hard limit, overage и downgrade behavior.
 2. Trial start event, post-trial/grace и судьба созданных branding/content/data при снижении тарифа.
@@ -572,17 +559,16 @@ global_admin visual acceptance после финального metric decision.
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 - [ ] Каждая owner attribution ссылается на `OWNER_RULINGS_2026-07-15.md`, непереопределённую Часть Б
-  `OWNER_DECISIONS_FOR_REVIEW.md` либо latest `OWNER_REVIEW_2026-07-18.md`; инженерные решения подписаны как
-  инженерные.
+      `OWNER_DECISIONS_FOR_REVIEW.md` либо latest `OWNER_REVIEW_2026-07-18.md`; инженерные решения подписаны как
+      инженерные.
 - [ ] Полный mechanic registry доказан method-level matrix; все protected actions используют один chokepoint.
 - [ ] Global_admin управляет tariffs/prices/periods/mechanics/quotas/trial/seats/assignments/overrides как DB data.
 - [ ] Own-only и base library разведены, clinic content приватен. Если C5D активирован, future store/grants проходят
-  отдельный source-aware/no-copy acceptance; иначе этот подпункт явно отмечается deferred, не failed.
+      отдельный source-aware/no-copy acceptance; иначе этот подпункт явно отмечается deferred, не failed.
 - [ ] Existing provider adapters обслуживают SaaS checkout/capture/refund/webhook; keys DB-backed и redacted.
 - [ ] Global operator billing и organization «Тариф и биллинг» имеют разные authorization surfaces и общий
-  reconciled ledger; ordinary specialist не получает финансовые права.
+      reconciled ledger; ordinary specialist не получает финансовые права.
 - [ ] Platform analytics содержит только утверждённые org/platform aggregates и проходит PII canary/static gate.
 - [x] Bulk «Пересчитать» в memberships подтверждён существующим UI, route, service, tests и DB invariant.
 - [ ] A/B acceptance, security negatives, screenshots/audits и один финальный CI gate закрыты на тестовом сервере.
@@ -595,7 +581,6 @@ global_admin visual acceptance после финального metric decision.
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 При старте реализации создать рядом `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS_LOG.md`. После каждой фазы фиксировать:
 

@@ -9,7 +9,9 @@ const contentRoot = fileURLToPath(new URL('../../content/', import.meta.url));
 
 type ScriptStep = { action: string; params?: Record<string, unknown> };
 
-async function readAdminScripts(source: 'telegram' | 'max'): Promise<Array<{ id: string; steps: ScriptStep[] }>> {
+async function readAdminScripts(
+  source: 'telegram' | 'max',
+): Promise<Array<{ id: string; steps: ScriptStep[] }>> {
   const filePath = path.join(contentRoot, source, 'admin', 'scripts.json');
   const raw = await readFile(filePath, 'utf8');
   return JSON.parse(raw) as Array<{ id: string; steps: ScriptStep[] }>;
@@ -50,11 +52,7 @@ describe('program note reply flow', () => {
       const script = scripts.find((s) => s.id === `${source}.admin.programNote.reply.start`);
       expect(script).toBeDefined();
       const actions = script!.steps.map((s) => s.action);
-      expect(actions).toEqual([
-        'webapp.programNote.replyBegin',
-        'message.send',
-        'callback.answer',
-      ]);
+      expect(actions).toEqual(['webapp.programNote.replyBegin', 'message.send', 'callback.answer']);
       expect(JSON.stringify(script)).not.toContain('values.programNoteReplyState');
     },
   );

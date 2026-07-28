@@ -1,5 +1,5 @@
-import { normalizeInstanceEditorDraft, type InstanceEditorDraft } from "./instanceEditorDraft";
-import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
+import { normalizeInstanceEditorDraft, type InstanceEditorDraft } from './instanceEditorDraft';
+import type { TreatmentProgramInstanceDetail } from '@/modules/treatment-program/types';
 
 export type InstanceEditorItemLoadSettingsPatch = {
   reps: number | null;
@@ -17,7 +17,7 @@ export function parseInstanceEditorLoadField(
   range: readonly [number, number],
 ): number | null {
   const t = raw.trim();
-  if (t === "") return null;
+  if (t === '') return null;
   const n = Number.parseInt(t, 10);
   if (!Number.isFinite(n) || String(n) !== t.trim()) {
     throw new Error(`${label}: целое число или пусто`);
@@ -33,9 +33,9 @@ export function validateInstanceEditorLoadSettingsPatch(
   loadSettings: InstanceEditorItemLoadSettingsPatch,
 ): string | null {
   const checks: Array<[number | null, string, readonly [number, number]]> = [
-    [loadSettings.reps, "Повторы", INSTANCE_EDITOR_LOAD_REPS_RANGE],
-    [loadSettings.sets, "Подходы", INSTANCE_EDITOR_LOAD_SETS_RANGE],
-    [loadSettings.maxPain, "Макс. боль", INSTANCE_EDITOR_LOAD_MAX_PAIN_RANGE],
+    [loadSettings.reps, 'Повторы', INSTANCE_EDITOR_LOAD_REPS_RANGE],
+    [loadSettings.sets, 'Подходы', INSTANCE_EDITOR_LOAD_SETS_RANGE],
+    [loadSettings.maxPain, 'Макс. боль', INSTANCE_EDITOR_LOAD_MAX_PAIN_RANGE],
   ];
   for (const [value, label, range] of checks) {
     if (value === null) continue;
@@ -63,11 +63,11 @@ export function validateInstanceEditorDraftLoadSettings(
     }
   }
   for (const create of normalized.itemCreates) {
-    if (create.kind === "library_item" && create.loadSettings) {
+    if (create.kind === 'library_item' && create.loadSettings) {
       const err = validateInstanceEditorLoadSettingsPatch(create.loadSettings);
       if (err) return err;
     }
-    if (create.kind === "test_set_expand" || create.kind === "lfk_complex_expand") {
+    if (create.kind === 'test_set_expand' || create.kind === 'lfk_complex_expand') {
       for (const line of create.items) {
         if (line.loadSettings) {
           const err = validateInstanceEditorLoadSettingsPatch(line.loadSettings);

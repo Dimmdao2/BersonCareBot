@@ -1,19 +1,11 @@
-"use client";
+'use client';
 
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Legend,
-  ResponsiveContainer,
-  XAxis,
-  YAxis,
-} from "recharts";
-import type { ProductAnalyticsTopPageRow } from "@/modules/product-analytics/types";
-import { DoctorRechartsTooltip } from "@/shared/ui/doctor/DoctorRechartsTooltip";
+import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, XAxis, YAxis } from 'recharts';
+import type { ProductAnalyticsTopPageRow } from '@/modules/product-analytics/types';
+import { DoctorRechartsTooltip } from '@/shared/ui/doctor/DoctorRechartsTooltip';
 
-const FILL_VIEWS = "hsl(215 55% 52% / 0.9)";
-const FILL_UNIQUE = "hsl(142 45% 42% / 0.9)";
+const FILL_VIEWS = 'hsl(215 55% 52% / 0.9)';
+const FILL_UNIQUE = 'hsl(142 45% 42% / 0.9)';
 
 function chartHeightForRows(rowCount: number): number {
   return Math.min(420, 100 + rowCount * 30);
@@ -41,7 +33,7 @@ export function ProductAnalyticsTopPagesChart({ rows }: { rows: ProductAnalytics
             type="category"
             dataKey="pageLabel"
             width={200}
-            tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+            tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
           />
           <DoctorRechartsTooltip />
           <Legend wrapperStyle={{ fontSize: 12 }} />

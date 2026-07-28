@@ -1,12 +1,12 @@
-import type { ChannelPreference } from "@/modules/channel-preferences/types";
-import type { SpecialistTaskReminderChannelCode } from "@/modules/specialist-tasks/types";
-import type { TopicChannelPrefRow } from "@/modules/patient-notifications/topicChannelPrefsPort";
+import type { ChannelPreference } from '@/modules/channel-preferences/types';
+import type { SpecialistTaskReminderChannelCode } from '@/modules/specialist-tasks/types';
+import type { TopicChannelPrefRow } from '@/modules/patient-notifications/topicChannelPrefsPort';
 import {
   allowedDoctorChannelsForTopic,
   toSpecialistTaskReminderChannels,
   type DoctorTopicChannelCode,
-} from "./doctorTopicChannelRules";
-import { resolveConfiguredDoctorTopicChannels } from "./doctorTopicChannelDefaults";
+} from './doctorTopicChannelRules';
+import { resolveConfiguredDoctorTopicChannels } from './doctorTopicChannelDefaults';
 
 export type DoctorNotificationChannelAvailability = {
   hasTelegram: boolean;
@@ -44,17 +44,17 @@ export function resolveDoctorNotificationChannels(params: {
 
   for (const code of configured) {
     switch (code) {
-      case "telegram":
+      case 'telegram':
         if (!a.hasTelegram) continue;
         break;
-      case "max":
+      case 'max':
         if (!a.hasMax) continue;
         break;
-      case "email":
+      case 'email':
         if (!a.hasEmail || !a.emailVerified) continue;
         if (a.smtpConfigured === false) continue;
         break;
-      case "web_push":
+      case 'web_push':
         if (!a.vapidConfigured || !a.hasWebPushSubscription) continue;
         break;
       default:
@@ -68,4 +68,7 @@ export function resolveDoctorNotificationChannels(params: {
 }
 
 /** @internal for tests */
-export { resolveConfiguredDoctorTopicChannels, isDoctorTopicChannelEnabled } from "./doctorTopicChannelDefaults";
+export {
+  resolveConfiguredDoctorTopicChannels,
+  isDoctorTopicChannelEnabled,
+} from './doctorTopicChannelDefaults';

@@ -27,10 +27,10 @@
 
 ## Файлы этапов (ровно три)
 
-| Этап | Roadmap | План |
-|------|---------|------|
-| **A** | 1.0 `started_at` | [`STAGE_A.md`](STAGE_A.md) |
-| **B** | 1.1a деталь `[instanceId]` | [`STAGE_B.md`](STAGE_B.md) |
+| Этап  | Roadmap                          | План                       |
+| ----- | -------------------------------- | -------------------------- |
+| **A** | 1.0 `started_at`                 | [`STAGE_A.md`](STAGE_A.md) |
+| **B** | 1.1a деталь `[instanceId]`       | [`STAGE_B.md`](STAGE_B.md) |
 | **C** | 1.1 список `/treatment-programs` | [`STAGE_C.md`](STAGE_C.md) |
 
 Чек-листы и DoD каждого этапа — только в соответствующем файле выше.

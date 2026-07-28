@@ -11,6 +11,7 @@
 ## Обязательные правила
 
 ### Проверки
+
 - **После каждого шага** — только targeted-проверки затронутых файлов:
   ```bash
   pnpm --dir apps/webapp exec tsc --noEmit
@@ -21,11 +22,13 @@
 - При FAIL: починить → повторить (до 3 попыток). После 3 → СТОП.
 
 ### Миграция с globals.css на Tailwind + shadcn
+
 - При касании любого файла с UI (D.2, D.4): **заменить** legacy-классы из `globals.css` на Tailwind + shadcn.
 - После замены: если класс больше нигде не используется — **удалить из `globals.css`**.
 - **Не добавлять** новые глобальные классы. Стили — только Tailwind + `cn()`.
 
 ### Прочее
+
 - Не менять integrator runtime-код напрямую — только через M2M контракт.
 - Отчёт: `docs/FULL_DEV_PLAN/finsl_fix_report.md`.
 
@@ -33,13 +36,13 @@
 
 ## Утверждённая policy (из USER_TODO_STAGE)
 
-| Тип | Fallback | Правило |
-|-----|----------|---------|
-| Запись на приём | Да | Стандартный fallback по цепочке каналов |
-| Reminders ЛФК | Да | Стандартный fallback |
-| Чат (переписка) | Да | Стандартный fallback |
-| Важные сообщения | Особый (B) | Сразу все мессенджеры + email; при отсутствии confirmed read → SMS через N минут (N = `important_fallback_delay_minutes` из settings, default 60) |
-| Рассылки по темам | Нет | Только выбранные каналы, без fallback |
+| Тип               | Fallback   | Правило                                                                                                                                           |
+| ----------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Запись на приём   | Да         | Стандартный fallback по цепочке каналов                                                                                                           |
+| Reminders ЛФК     | Да         | Стандартный fallback                                                                                                                              |
+| Чат (переписка)   | Да         | Стандартный fallback                                                                                                                              |
+| Важные сообщения  | Особый (B) | Сразу все мессенджеры + email; при отсутствии confirmed read → SMS через N минут (N = `important_fallback_delay_minutes` из settings, default 60) |
+| Рассылки по темам | Нет        | Только выбранные каналы, без fallback                                                                                                             |
 
 - Лимит: **20 отправок/день на пользователя** (каналы не считаются отдельно).
 - Совпадающие правила: очередь с паузой 30 секунд.
@@ -51,6 +54,7 @@
 ## Шаг D.1 — Убрать stub, реализовать сервис reminders
 
 **Файлы:**
+
 - `apps/webapp/src/modules/reminders/service.ts` (переписать)
 - `apps/webapp/src/modules/reminders/ports.ts` (новый)
 - `apps/webapp/src/modules/reminders/types.ts` (новый или обновить)
@@ -59,9 +63,10 @@
 - `apps/webapp/src/app-layer/di/buildAppDeps.ts`
 
 **Действия:**
+
 1. Определить типы:
    ```ts
-   type ReminderCategory = "appointment" | "lfk" | "chat" | "important" | "broadcast";
+   type ReminderCategory = 'appointment' | 'lfk' | 'chat' | 'important' | 'broadcast';
    type ReminderRule = {
      id: string;
      integratorUserId: string;
@@ -85,6 +90,7 @@
 6. Сохранить `validateReminderDispatchPayload` отдельно.
 
 **Тесты:**
+
 - Unit: сервис с моком порта — CRUD, валидация bounds.
 - Integration: `pgReminderRules` — read/update cycle.
 
@@ -97,12 +103,14 @@
 > Источник: RAW_PLAN §5 — "Выбор каналов напоминаний. Выбор расписания и о чем напоминать. Статистика."
 
 **Файлы:**
+
 - `apps/webapp/src/app/app/patient/reminders/page.tsx` (новый)
 - `apps/webapp/src/app/app/patient/reminders/actions.ts` (новый)
 - `apps/webapp/src/app-layer/routes/paths.ts` (добавить `patientReminders`)
 - `apps/webapp/src/shared/ui/PatientHeader.tsx` (добавить пункт меню)
 
 **Действия:**
+
 1. Добавить route `/app/patient/reminders` и `routePaths.patientReminders`.
 2. Server Component: загрузить правила текущего пользователя.
 3. Client Component: список категорий с toggle enabled, настройки расписания (interval, window, days).
@@ -112,11 +120,13 @@
 7. Тексты на русском: "Напоминания", "Запись на приём", "ЛФК", "Расписание", "Тихие часы".
 
 **UI-стандарты (из Pack I — выполняется ДО Pack D):**
+
 - Кнопки: единый стиль из I.1 (скругление, active-состояние).
 - Размеры: из I.2 (шрифты, поля, отступы, input h-10/h-11 text-base).
 - Для гостя: GuestPlaceholder из I.10.
 
 **Тесты:**
+
 - Integration: server action valid update → success.
 - Integration: server action invalid bounds → error.
 - Integration: unauthorized → redirect.
@@ -129,11 +139,13 @@
 ## Шаг D.3 — Синхронизация изменений правил с integrator
 
 **Файлы:**
+
 - `apps/webapp/src/modules/reminders/service.ts` (добавить relay)
 - `apps/webapp/src/modules/integrator/events.ts` (проверить контракт `reminder.rule.upserted`)
 - `apps/webapp/src/app/api/integrator/reminders/rules/route.ts` (обновить)
 
 **Действия:**
+
 1. После каждого `updateRule` / `toggleCategory` → вызвать relay к integrator:
    - `POST {INTEGRATOR_API_URL}/api/integrator/reminders/rules` (или существующий путь из контракта).
    - Payload: `{ eventType: "reminder.rule.upserted", rule: { ...updatedRule } }`.
@@ -143,6 +155,7 @@
 3. Не блокировать сохранение в БД при ошибке relay (eventual consistency).
 
 **Тесты:**
+
 - Unit: relay вызывается после update.
 - Unit: ошибка relay → warning, но rule saved.
 - Integration: route test `POST /api/integrator/reminders/rules` с подписью.
@@ -154,11 +167,13 @@
 ## Шаг D.4 — Колокольчик в PatientHeader
 
 **Файлы:**
+
 - `apps/webapp/src/shared/ui/PatientHeader.tsx`
 - `apps/webapp/src/modules/reminders/hooks/useReminderUnreadCount.ts` (новый)
 - `apps/webapp/src/app/api/patient/reminders/unread-count/route.ts` (новый)
 
 **Действия:**
+
 1. Новый API: `GET /api/patient/reminders/unread-count` → `{ count: number }` (из `reminder_occurrence_history` где `seen_at IS NULL`).
 2. Hook `useReminderUnreadCount`: polling каждые 60 сек, pause при hidden.
 3. В `PatientHeader`:
@@ -168,6 +183,7 @@
 4. Если count = 0 → badge не показывать.
 
 **Тесты:**
+
 - Unit: `useReminderUnreadCount` — polling behaviour.
 - Component: `PatientHeader` рендерит badge при count > 0.
 
@@ -178,12 +194,14 @@
 ## Шаг D.5 — Миграция `seen` + статистика
 
 **Файлы:**
+
 - `apps/webapp/migrations/032_reminder_seen_status.sql` (новый)
 - `apps/webapp/src/infra/repos/pgReminderProjection.ts` (обновить)
 - `apps/webapp/src/app/app/patient/reminders/page.tsx` (добавить статистику)
 - `apps/webapp/src/app/api/patient/reminders/mark-seen/route.ts` (новый)
 
 **Действия:**
+
 1. Миграция: добавить `seen_at TIMESTAMPTZ` в `reminder_occurrence_history` (если колонки нет):
    ```sql
    ALTER TABLE reminder_occurrence_history ADD COLUMN IF NOT EXISTS seen_at TIMESTAMPTZ;
@@ -200,6 +218,7 @@
 5. Кнопка "Отметить все как просмотренные" → `POST mark-seen`.
 
 **Тесты:**
+
 - Integration: mark-seen → `seen_at` обновлён → count уменьшился.
 - Integration: getStats возвращает корректные агрегаты.
 - E2E: mark-seen → badge decrease.

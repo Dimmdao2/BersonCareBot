@@ -1,12 +1,15 @@
-import type { MaterialRatingPort } from "./ports";
-import type { MaterialRatingAggregate, MaterialRatingTargetKind } from "./types";
-import { MaterialRatingAccessError } from "./types";
+import type { MaterialRatingPort } from './ports';
+import type { MaterialRatingAggregate, MaterialRatingTargetKind } from './types';
+import { MaterialRatingAccessError } from './types';
 import type {
   TreatmentProgramInstancePort,
   TreatmentProgramItemRefValidationPort,
-} from "@/modules/treatment-program/ports";
-import { isInstanceStageItemActiveForPatient, isStageZero } from "@/modules/treatment-program/stage-semantics";
-import { treatmentProgramItemToRatingTarget } from "./mapProgramItemToTarget";
+} from '@/modules/treatment-program/ports';
+import {
+  isInstanceStageItemActiveForPatient,
+  isStageZero,
+} from '@/modules/treatment-program/stage-semantics';
+import { treatmentProgramItemToRatingTarget } from './mapProgramItemToTarget';
 
 /** Снимок CMS-страницы для правил оценки (без импорта из `infra/repos`). */
 export type MaterialRatingContentPageSnapshot = {
@@ -18,7 +21,10 @@ export type MaterialRatingContentPageSnapshot = {
 };
 
 export type MaterialRatingContentPagesPort = {
-  getById(input: { id: string; organizationId: string }): Promise<MaterialRatingContentPageSnapshot | null>;
+  getById(input: {
+    id: string;
+    organizationId: string;
+  }): Promise<MaterialRatingContentPageSnapshot | null>;
 };
 
 export function createMaterialRatingService(deps: {
@@ -31,43 +37,52 @@ export function createMaterialRatingService(deps: {
     targetId: string;
     organizationId: string;
   }): Promise<MaterialRatingContentPageSnapshot> {
-    const row = await deps.contentPages.getById({ id: input.targetId, organizationId: input.organizationId });
+    const row = await deps.contentPages.getById({
+      id: input.targetId,
+      organizationId: input.organizationId,
+    });
     if (!row || row.organizationId !== input.organizationId || row.deletedAt) {
-      throw new MaterialRatingAccessError("not_found");
+      throw new MaterialRatingAccessError('not_found');
     }
     return row;
   }
 
   /** Пациентский GET: как у каталога / материала по slug — только опубликованное, не в архиве. */
-  function assertContentPageReadableForPatientGet(row: MaterialRatingContentPageSnapshot, canViewAuthOnly: boolean) {
+  function assertContentPageReadableForPatientGet(
+    row: MaterialRatingContentPageSnapshot,
+    canViewAuthOnly: boolean,
+  ) {
     if (!row.isPublished || row.archivedAt) {
-      throw new MaterialRatingAccessError("not_found");
+      throw new MaterialRatingAccessError('not_found');
     }
     if (row.requiresAuth && !canViewAuthOnly) {
-      throw new MaterialRatingAccessError("not_found");
+      throw new MaterialRatingAccessError('not_found');
     }
   }
 
   /** Пациентский PUT: те же ограничения видимости; при `requires_auth` без tier — 403. */
-  function assertContentPageMutableForPatientPut(row: MaterialRatingContentPageSnapshot, canViewAuthOnly: boolean) {
+  function assertContentPageMutableForPatientPut(
+    row: MaterialRatingContentPageSnapshot,
+    canViewAuthOnly: boolean,
+  ) {
     if (!row.isPublished || row.archivedAt) {
-      throw new MaterialRatingAccessError("not_found");
+      throw new MaterialRatingAccessError('not_found');
     }
     if (row.requiresAuth && !canViewAuthOnly) {
-      throw new MaterialRatingAccessError("forbidden");
+      throw new MaterialRatingAccessError('forbidden');
     }
   }
 
   async function assertTargetExistsNonContent(input: {
-    targetKind: Exclude<MaterialRatingTargetKind, "content_page">;
+    targetKind: Exclude<MaterialRatingTargetKind, 'content_page'>;
     targetId: string;
     organizationId: string;
   }) {
-    if (input.targetKind === "lfk_exercise") {
-      await deps.itemRefs.assertItemRefExists("exercise", input.targetId, input.organizationId);
+    if (input.targetKind === 'lfk_exercise') {
+      await deps.itemRefs.assertItemRefExists('exercise', input.targetId, input.organizationId);
       return;
     }
-    await deps.itemRefs.assertItemRefExists("lfk_complex", input.targetId, input.organizationId);
+    await deps.itemRefs.assertItemRefExists('lfk_complex', input.targetId, input.organizationId);
   }
 
   async function assertProgramStageItemMatchesTarget(input: {
@@ -77,20 +92,24 @@ export function createMaterialRatingService(deps: {
     organizationId: string;
     targetKind: MaterialRatingTargetKind;
     targetId: string;
-  }): Promise<{ ok: true } | { ok: false; code: "not_found" | "forbidden" }> {
-    const detail = await deps.instances.getInstanceForPatient(input.userId, input.instanceId, input.organizationId);
-    if (!detail) return { ok: false, code: "not_found" };
+  }): Promise<{ ok: true } | { ok: false; code: 'not_found' | 'forbidden' }> {
+    const detail = await deps.instances.getInstanceForPatient(
+      input.userId,
+      input.instanceId,
+      input.organizationId,
+    );
+    if (!detail) return { ok: false, code: 'not_found' };
     const item = detail.stages.flatMap((s) => s.items).find((i) => i.id === input.stageItemId);
-    if (!item) return { ok: false, code: "not_found" };
+    if (!item) return { ok: false, code: 'not_found' };
     const stage = detail.stages.find((s) => s.id === item.stageId);
-    if (!stage) return { ok: false, code: "not_found" };
-    if (!isInstanceStageItemActiveForPatient(item)) return { ok: false, code: "forbidden" };
-    if (!isStageZero(stage) && (stage.status === "locked" || stage.status === "skipped")) {
-      return { ok: false, code: "forbidden" };
+    if (!stage) return { ok: false, code: 'not_found' };
+    if (!isInstanceStageItemActiveForPatient(item)) return { ok: false, code: 'forbidden' };
+    if (!isStageZero(stage) && (stage.status === 'locked' || stage.status === 'skipped')) {
+      return { ok: false, code: 'forbidden' };
     }
     const mapped = treatmentProgramItemToRatingTarget(item.itemType, item.itemRefId);
     if (!mapped.kind || mapped.targetId !== input.targetId || mapped.kind !== input.targetKind) {
-      return { ok: false, code: "forbidden" };
+      return { ok: false, code: 'forbidden' };
     }
     return { ok: true };
   }
@@ -102,8 +121,11 @@ export function createMaterialRatingService(deps: {
       targetId: string;
       excludedUserIds?: string[];
     }) {
-      if (input.targetKind === "content_page") {
-        await loadContentPageOrThrow({ targetId: input.targetId, organizationId: input.organizationId });
+      if (input.targetKind === 'content_page') {
+        await loadContentPageOrThrow({
+          targetId: input.targetId,
+          organizationId: input.organizationId,
+        });
       } else {
         try {
           await assertTargetExistsNonContent({
@@ -112,7 +134,7 @@ export function createMaterialRatingService(deps: {
             targetId: input.targetId,
           });
         } catch {
-          throw new MaterialRatingAccessError("not_found");
+          throw new MaterialRatingAccessError('not_found');
         }
       }
       return deps.ratings.getAggregate(input);
@@ -129,8 +151,11 @@ export function createMaterialRatingService(deps: {
       canViewAuthOnlyContent: boolean;
     }): Promise<{ aggregate: MaterialRatingAggregate; myStars: number | null }> {
       let assignedProgramTarget = false;
-      if (input.targetKind === "content_page") {
-        const row = await loadContentPageOrThrow({ targetId: input.targetId, organizationId: input.organizationId });
+      if (input.targetKind === 'content_page') {
+        const row = await loadContentPageOrThrow({
+          targetId: input.targetId,
+          organizationId: input.organizationId,
+        });
         assertContentPageReadableForPatientGet(row, input.canViewAuthOnlyContent);
       } else {
         if (input.userId && input.programInstanceId && input.programStageItemId) {
@@ -152,7 +177,7 @@ export function createMaterialRatingService(deps: {
               targetId: input.targetId,
             });
           } catch {
-            throw new MaterialRatingAccessError("not_found");
+            throw new MaterialRatingAccessError('not_found');
           }
         }
       }
@@ -166,10 +191,13 @@ export function createMaterialRatingService(deps: {
       if (!input.userId) {
         return { aggregate, myStars: null };
       }
-      if (input.targetKind !== "content_page" && (!input.programInstanceId || !input.programStageItemId)) {
+      if (
+        input.targetKind !== 'content_page' &&
+        (!input.programInstanceId || !input.programStageItemId)
+      ) {
         return { aggregate, myStars: null };
       }
-      if (input.targetKind !== "content_page") {
+      if (input.targetKind !== 'content_page') {
         if (!assignedProgramTarget) {
           return { aggregate, myStars: null };
         }
@@ -196,7 +224,10 @@ export function createMaterialRatingService(deps: {
       | { ok: true; aggregate: MaterialRatingAggregate; myStars: number | null }
       | { ok: false; code: string }
     > {
-      async function snapshotAfterWrite(): Promise<{ aggregate: MaterialRatingAggregate; myStars: number | null }> {
+      async function snapshotAfterWrite(): Promise<{
+        aggregate: MaterialRatingAggregate;
+        myStars: number | null;
+      }> {
         const aggregate = await deps.ratings.getAggregate({
           organizationId: input.organizationId,
           targetKind: input.targetKind,
@@ -211,21 +242,24 @@ export function createMaterialRatingService(deps: {
         return { aggregate, myStars };
       }
 
-      if (input.targetKind === "content_page") {
+      if (input.targetKind === 'content_page') {
         try {
-          const row = await loadContentPageOrThrow({ targetId: input.targetId, organizationId: input.organizationId });
+          const row = await loadContentPageOrThrow({
+            targetId: input.targetId,
+            organizationId: input.organizationId,
+          });
           assertContentPageMutableForPatientPut(row, input.canViewAuthOnlyContent);
         } catch (e) {
           if (e instanceof MaterialRatingAccessError) {
             return { ok: false, code: e.accessCode };
           }
-          return { ok: false, code: "not_found" };
+          return { ok: false, code: 'not_found' };
         }
 
         const pid = input.programInstanceId?.trim();
         const sid = input.programStageItemId?.trim();
         if ((pid && !sid) || (!pid && sid)) {
-          return { ok: false, code: "missing_program_context" };
+          return { ok: false, code: 'missing_program_context' };
         }
         if (pid && sid) {
           const gate = await assertProgramStageItemMatchesTarget({
@@ -233,7 +267,7 @@ export function createMaterialRatingService(deps: {
             instanceId: pid,
             stageItemId: sid,
             organizationId: input.organizationId,
-            targetKind: "content_page",
+            targetKind: 'content_page',
             targetId: input.targetId,
           });
           if (!gate.ok) {
@@ -259,11 +293,11 @@ export function createMaterialRatingService(deps: {
           targetId: input.targetId,
         });
       } catch {
-        return { ok: false, code: "not_found" };
+        return { ok: false, code: 'not_found' };
       }
 
       if (!input.programInstanceId || !input.programStageItemId) {
-        return { ok: false, code: "missing_program_context" };
+        return { ok: false, code: 'missing_program_context' };
       }
       const gate = await assertProgramStageItemMatchesTarget({
         userId: input.userId,
@@ -325,8 +359,11 @@ export function createMaterialRatingService(deps: {
       dayKeys: string[];
       excludedUserIds?: string[];
     }) {
-      if (input.targetKind === "content_page") {
-        await loadContentPageOrThrow({ targetId: input.targetId, organizationId: input.organizationId });
+      if (input.targetKind === 'content_page') {
+        await loadContentPageOrThrow({
+          targetId: input.targetId,
+          organizationId: input.organizationId,
+        });
       } else {
         try {
           await assertTargetExistsNonContent({
@@ -335,7 +372,7 @@ export function createMaterialRatingService(deps: {
             targetId: input.targetId,
           });
         } catch {
-          throw new MaterialRatingAccessError("not_found");
+          throw new MaterialRatingAccessError('not_found');
         }
       }
       return deps.ratings.getDoctorDetail(input);

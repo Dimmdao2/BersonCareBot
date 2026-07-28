@@ -1,4 +1,4 @@
-import type { BroadcastDraftPort, BroadcastDraft } from "@/modules/doctor-broadcasts/draftPort";
+import type { BroadcastDraftPort, BroadcastDraft } from '@/modules/doctor-broadcasts/draftPort';
 
 export function createInMemoryBroadcastDraftPort(): BroadcastDraftPort {
   const byDoctor = new Map<string, BroadcastDraft>();

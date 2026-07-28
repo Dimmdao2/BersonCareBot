@@ -1,5 +1,5 @@
-import type { AppointmentProjectionPort } from "./ports";
-import type { BeAppointment } from "@/modules/booking-engine/types";
+import type { AppointmentProjectionPort } from './ports';
+import type { BeAppointment } from '@/modules/booking-engine/types';
 
 export function nativeIntegratorRecordId(appointmentId: string): string {
   return `be:${appointmentId}`;
@@ -19,7 +19,7 @@ function basePayloadJson(
   input: ProjectionContactFields,
 ): Record<string, unknown> {
   return {
-    source: "native",
+    source: 'native',
     appointment_id: appt.id,
     contact_name: input.contactName,
     service_title: input.serviceTitle,
@@ -38,8 +38,8 @@ export async function projectCanonicalAppointmentForDoctor(
     integratorRecordId: nativeIntegratorRecordId(appt.id),
     phoneNormalized: input.phoneNormalized,
     recordAt: appt.startAt,
-    status: "created",
-    lastEvent: "native.created",
+    status: 'created',
+    lastEvent: 'native.created',
     updatedAt: new Date().toISOString(),
     branchId: input.legacyBranchId ?? null,
     payloadJson: basePayloadJson(appt, input),
@@ -55,8 +55,8 @@ export async function projectCanonicalAppointmentRescheduled(
     integratorRecordId: nativeIntegratorRecordId(appt.id),
     phoneNormalized: input.phoneNormalized ?? appt.phoneNormalized,
     recordAt: appt.startAt,
-    status: "updated",
-    lastEvent: "native.rescheduled",
+    status: 'updated',
+    lastEvent: 'native.rescheduled',
     updatedAt: new Date().toISOString(),
     branchId: input.legacyBranchId ?? null,
     payloadJson: basePayloadJson(appt, input),
@@ -72,8 +72,8 @@ export async function projectCanonicalAppointmentCancelled(
     integratorRecordId: nativeIntegratorRecordId(appt.id),
     phoneNormalized: input.phoneNormalized ?? appt.phoneNormalized,
     recordAt: appt.startAt,
-    status: "canceled",
-    lastEvent: "native.cancelled",
+    status: 'canceled',
+    lastEvent: 'native.cancelled',
     updatedAt: new Date().toISOString(),
     branchId: input.legacyBranchId ?? null,
     payloadJson: basePayloadJson(appt, input),
@@ -91,8 +91,8 @@ export async function projectCanonicalAppointmentNoShow(
     integratorRecordId: nativeIntegratorRecordId(appt.id),
     phoneNormalized: input.phoneNormalized ?? appt.phoneNormalized,
     recordAt: appt.startAt,
-    status: "canceled",
-    lastEvent: "native.no_show",
+    status: 'canceled',
+    lastEvent: 'native.no_show',
     updatedAt: new Date().toISOString(),
     branchId: input.legacyBranchId ?? null,
     payloadJson: basePayloadJson(appt, input),

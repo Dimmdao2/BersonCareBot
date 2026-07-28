@@ -9,10 +9,10 @@
 
 ## Поведение webapp
 
-| Флаг | Поведение |
-|------|-----------|
-| **off** | Как v1: hard blocker `different_non_null_integrator_user_id` в preview и `pgPlatformUserMerge.ts` |
-| **on** | Если оба integrator id заданы и различны: UI/бэкенд требуют успешного integrator merge (или показывают шаг «выполнить объединение в integrator»), затем разрешают webapp merge |
+| Флаг    | Поведение                                                                                                                                                                      |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **off** | Как v1: hard blocker `different_non_null_integrator_user_id` в preview и `pgPlatformUserMerge.ts`                                                                              |
+| **on**  | Если оба integrator id заданы и различны: UI/бэкенд требуют успешного integrator merge (или показывают шаг «выполнить объединение в integrator»), затем разрешают webapp merge |
 
 ## Integrator API
 

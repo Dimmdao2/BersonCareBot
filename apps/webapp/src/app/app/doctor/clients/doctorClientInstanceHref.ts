@@ -6,13 +6,13 @@ export function doctorClientTreatmentProgramInstanceHref(
 ): string {
   const params = new URLSearchParams();
   if (options?.profileListScope) {
-    params.set("scope", options.profileListScope);
+    params.set('scope', options.profileListScope);
   }
   if (options?.discussionItemId) {
-    params.set("discussionItem", options.discussionItemId);
+    params.set('discussionItem', options.discussionItemId);
   }
   if (options?.focusItemId) {
-    params.set("focusItemId", options.focusItemId);
+    params.set('focusItemId', options.focusItemId);
   }
   const qs = params.toString();
   const base = `/app/doctor/clients/${encodeURIComponent(userId)}/treatment-programs/${encodeURIComponent(instanceId)}`;

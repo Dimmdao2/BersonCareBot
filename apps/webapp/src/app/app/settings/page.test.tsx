@@ -43,9 +43,7 @@ const {
   getOrgBrandingManagementStateMock: vi.fn(),
   getSlugManagementStateMock: vi.fn(),
   getAppBaseUrlMock: vi.fn(),
-  runWithDbClinicBillingPrincipalMock: vi.fn(
-    (_principal: unknown, fn: () => unknown) => fn(),
-  ),
+  runWithDbClinicBillingPrincipalMock: vi.fn((_principal: unknown, fn: () => unknown) => fn()),
   settingsFormMock: vi.fn(() => <section data-testid="organization-settings" />),
   appointmentReminderMock: vi.fn(() => <section data-testid="appointment-reminders" />),
   teamSectionMock: vi.fn(() => <section data-testid="team" />),

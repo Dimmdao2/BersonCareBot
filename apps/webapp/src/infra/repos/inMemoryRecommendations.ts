@@ -1,4 +1,4 @@
-import type { RecommendationsPort } from "@/modules/recommendations/ports";
+import type { RecommendationsPort } from '@/modules/recommendations/ports';
 import type {
   Recommendation,
   RecommendationArchiveScope,
@@ -7,9 +7,9 @@ import type {
   UpdateRecommendationInput,
   RecommendationMediaItem,
   RecommendationUsageSnapshot,
-} from "@/modules/recommendations/types";
-import { EMPTY_RECOMMENDATION_USAGE_SNAPSHOT } from "@/modules/recommendations/types";
-import { mergeCatalogBodyRegionIds } from "@/shared/lib/mergeCatalogBodyRegionIds";
+} from '@/modules/recommendations/types';
+import { EMPTY_RECOMMENDATION_USAGE_SNAPSHOT } from '@/modules/recommendations/types';
+import { mergeCatalogBodyRegionIds } from '@/shared/lib/mergeCatalogBodyRegionIds';
 
 const store = new Map<string, Recommendation>();
 const usageByRecommendationId = new Map<string, RecommendationUsageSnapshot>();
@@ -30,16 +30,16 @@ function normalizeMedia(raw: unknown): RecommendationMediaItem[] {
   if (!Array.isArray(raw)) return [];
   const out: RecommendationMediaItem[] = [];
   for (const m of raw) {
-    if (!m || typeof m !== "object") continue;
+    if (!m || typeof m !== 'object') continue;
     const mediaUrl = (m as { mediaUrl?: unknown }).mediaUrl;
     const mediaType = (m as { mediaType?: unknown }).mediaType;
     const sortOrder = (m as { sortOrder?: unknown }).sortOrder;
-    if (typeof mediaUrl !== "string" || !mediaUrl.trim()) continue;
-    if (mediaType !== "image" && mediaType !== "video" && mediaType !== "gif") continue;
+    if (typeof mediaUrl !== 'string' || !mediaUrl.trim()) continue;
+    if (mediaType !== 'image' && mediaType !== 'video' && mediaType !== 'gif') continue;
     out.push({
       mediaUrl: mediaUrl.trim(),
       mediaType,
-      sortOrder: typeof sortOrder === "number" ? sortOrder : out.length,
+      sortOrder: typeof sortOrder === 'number' ? sortOrder : out.length,
     });
   }
   return out;
@@ -47,20 +47,17 @@ function normalizeMedia(raw: unknown): RecommendationMediaItem[] {
 
 function archiveScopeFromFilter(f: RecommendationFilter): RecommendationArchiveScope {
   if (f.archiveScope) return f.archiveScope;
-  if (f.includeArchived) return "all";
-  return "active";
+  if (f.includeArchived) return 'all';
+  return 'active';
 }
 
 function matchesFilter(r: Recommendation, f: RecommendationFilter): boolean {
   const scope = archiveScopeFromFilter(f);
-  if (scope === "active" && r.isArchived) return false;
-  if (scope === "archived" && !r.isArchived) return false;
+  if (scope === 'active' && r.isArchived) return false;
+  if (scope === 'archived' && !r.isArchived) return false;
   if (f.search?.trim()) {
     const q = f.search.trim().toLowerCase();
-    if (
-      !r.title.toLowerCase().includes(q) &&
-      !r.bodyMd.toLowerCase().includes(q)
-    ) {
+    if (!r.title.toLowerCase().includes(q) && !r.bodyMd.toLowerCase().includes(q)) {
       return false;
     }
   }
@@ -85,7 +82,10 @@ export const inMemoryRecommendationsPort: RecommendationsPort = {
     return store.get(id) ?? null;
   },
 
-  async create(input: CreateRecommendationInput, createdBy: string | null): Promise<Recommendation> {
+  async create(
+    input: CreateRecommendationInput,
+    createdBy: string | null,
+  ): Promise<Recommendation> {
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
     const merged = mergeCatalogBodyRegionIds(input.bodyRegionId, input.bodyRegionIds ?? null);
@@ -129,9 +129,12 @@ export const inMemoryRecommendationsPort: RecommendationsPort = {
       ...(regionMerged !== null
         ? { bodyRegionId: regionMerged[0] ?? null, bodyRegionIds: regionMerged }
         : {}),
-      quantityText: input.quantityText !== undefined ? (input.quantityText ?? null) : cur.quantityText,
-      frequencyText: input.frequencyText !== undefined ? (input.frequencyText ?? null) : cur.frequencyText,
-      durationText: input.durationText !== undefined ? (input.durationText ?? null) : cur.durationText,
+      quantityText:
+        input.quantityText !== undefined ? (input.quantityText ?? null) : cur.quantityText,
+      frequencyText:
+        input.frequencyText !== undefined ? (input.frequencyText ?? null) : cur.frequencyText,
+      durationText:
+        input.durationText !== undefined ? (input.durationText ?? null) : cur.durationText,
       media: input.media !== undefined ? normalizeMedia(input.media) : cur.media,
       updatedAt: now,
     };

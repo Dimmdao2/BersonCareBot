@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import { Badge } from "@/shared/ui/patient/primitives/badge";
-import { Button } from "@/shared/ui/patient/primitives/button";
-import type { BookingSlot } from "@/modules/patient-booking/types";
-import { formatBookingTimeShortRu } from "@/shared/lib/formatBusinessDateTime";
-import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
+import { Badge } from '@/shared/ui/patient/primitives/badge';
+import { Button } from '@/shared/ui/patient/primitives/button';
+import type { BookingSlot } from '@/modules/patient-booking/types';
+import { formatBookingTimeShortRu } from '@/shared/lib/formatBusinessDateTime';
+import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 
 type Props = {
   slots: BookingSlot[];
@@ -15,7 +15,13 @@ type Props = {
   appDisplayTimeZone: string;
 };
 
-export function BookingSlotList({ slots, selectedSlot, onSelectSlot, appDisplayTimeZone, disabledSlotStarts }: Props) {
+export function BookingSlotList({
+  slots,
+  selectedSlot,
+  onSelectSlot,
+  appDisplayTimeZone,
+  disabledSlotStarts,
+}: Props) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
@@ -27,17 +33,18 @@ export function BookingSlotList({ slots, selectedSlot, onSelectSlot, appDisplayT
       ) : (
         <div className="flex flex-wrap gap-2">
           {slots.map((slot) => {
-            const isActive = selectedSlot?.startAt === slot.startAt && selectedSlot?.endAt === slot.endAt;
+            const isActive =
+              selectedSlot?.startAt === slot.startAt && selectedSlot?.endAt === slot.endAt;
             return (
               <Button
                 key={`${slot.startAt}-${slot.endAt}`}
                 type="button"
-                variant={isActive ? "default" : "outline"}
+                variant={isActive ? 'default' : 'outline'}
                 size="sm"
                 disabled={disabledSlotStarts?.has(slot.startAt)}
                 onClick={() => onSelectSlot(slot)}
               >
-                {formatBookingTimeShortRu(slot.startAt, appDisplayTimeZone)} -{" "}
+                {formatBookingTimeShortRu(slot.startAt, appDisplayTimeZone)} -{' '}
                 {formatBookingTimeShortRu(slot.endAt, appDisplayTimeZone)}
               </Button>
             );

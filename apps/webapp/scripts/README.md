@@ -81,6 +81,7 @@ JSON-quoted ключей и отклоняет unknown/duplicate/malformed/shell
 **Фон CMS-медиа (превью):** [`media-preview-process-tick.ts`](media-preview-process-tick.ts) — батч `processMediaPreviewBatch` вне Next; запуск `pnpm run media-preview:tick` (см. `deploy/HOST_DEPLOY_README.md`, `docs/MEDIA_PREVIEW_PIPELINE.md`).
 
 **Программы лечения — битые снимки после editor-batch:** [`backfill-treatment-program-editor-draft-snapshots.ts`](backfill-treatment-program-editor-draft-snapshots.ts) — пересборка `treatment_program_instance_stage_items.snapshot` из каталога (`buildSnapshot`); runbook: [`docs/OPERATIONS/TREATMENT_PROGRAM_EDITOR_DRAFT_SNAPSHOT_BACKFILL.md`](../../../docs/OPERATIONS/TREATMENT_PROGRAM_EDITOR_DRAFT_SNAPSHOT_BACKFILL.md). Команда: `pnpm run backfill-treatment-program-editor-draft-snapshots` (dry-run, `--commit` для записи; `--all` — все кандидаты батчами).
+
 ## SaaS isolation diagnostics
 
 `report-saas-isolation-diagnostics.ts` accepts only closed, redacted classes and normalized route/job-family keys.

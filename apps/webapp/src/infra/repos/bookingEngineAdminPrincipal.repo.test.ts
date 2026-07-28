@@ -1,71 +1,71 @@
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 function readRepo(file: string): string {
-  return readFileSync(join(__dirname, file), "utf8");
+  return readFileSync(join(__dirname, file), 'utf8');
 }
 
 function methodBody(src: string, methodName: string): string {
   const marker = `async ${methodName}`;
   const start = src.indexOf(marker);
   expect(start).toBeGreaterThanOrEqual(0);
-  const next = src.indexOf("\n    async ", start + marker.length);
+  const next = src.indexOf('\n    async ', start + marker.length);
   return src.slice(start, next === -1 ? undefined : next);
 }
 
-describe("admin booking-engine repo mutation transactions", () => {
-  it("routes scheduling setting writes through runWebappTransaction", () => {
-    const src = readRepo("pgBookingScheduling.ts");
+describe('admin booking-engine repo mutation transactions', () => {
+  it('routes scheduling setting writes through runWebappTransaction', () => {
+    const src = readRepo('pgBookingScheduling.ts');
 
-    expect(methodBody(src, "upsertBufferMinutes")).toContain("runWebappTransaction");
+    expect(methodBody(src, 'upsertBufferMinutes')).toContain('runWebappTransaction');
   });
 
-  it("routes policy upserts through runWebappTransaction", () => {
-    const src = readRepo("pgBookingPolicies.ts");
+  it('routes policy upserts through runWebappTransaction', () => {
+    const src = readRepo('pgBookingPolicies.ts');
 
-    expect(methodBody(src, "upsertCancellationPolicy")).toContain("runWebappTransaction");
-    expect(methodBody(src, "upsertReschedulePolicy")).toContain("runWebappTransaction");
+    expect(methodBody(src, 'upsertCancellationPolicy')).toContain('runWebappTransaction');
+    expect(methodBody(src, 'upsertReschedulePolicy')).toContain('runWebappTransaction');
   });
 
-  it("routes admin booking catalog and availability writes through runWebappTransaction", () => {
-    const src = readRepo("pgBookingEngine.ts");
+  it('routes admin booking catalog and availability writes through runWebappTransaction', () => {
+    const src = readRepo('pgBookingEngine.ts');
     const methods = [
-      "upsertBranch",
-      "deactivateBranch",
-      "upsertRoom",
-      "deactivateRoom",
-      "upsertSpecialist",
-      "deactivateSpecialist",
-      "setSpecialistLocation",
-      "setSpecialistRoom",
-      "upsertService",
-      "deactivateService",
-      "upsertSpecialistServiceAvailability",
-      "deactivateSpecialistServiceAvailability",
-      "upsertServiceLocationAvailability",
-      "setSoloServiceLocationAvailability",
+      'upsertBranch',
+      'deactivateBranch',
+      'upsertRoom',
+      'deactivateRoom',
+      'upsertSpecialist',
+      'deactivateSpecialist',
+      'setSpecialistLocation',
+      'setSpecialistRoom',
+      'upsertService',
+      'deactivateService',
+      'upsertSpecialistServiceAvailability',
+      'deactivateSpecialistServiceAvailability',
+      'upsertServiceLocationAvailability',
+      'setSoloServiceLocationAvailability',
     ];
 
     for (const method of methods) {
-      expect(methodBody(src, method)).toContain("runWebappTransaction");
+      expect(methodBody(src, method)).toContain('runWebappTransaction');
     }
   });
 
-  it("keeps the solo availability pair and ownership checks in one transaction body", () => {
-    const src = readRepo("pgBookingEngine.ts");
-    const body = methodBody(src, "setSoloServiceLocationAvailability");
+  it('keeps the solo availability pair and ownership checks in one transaction body', () => {
+    const src = readRepo('pgBookingEngine.ts');
+    const body = methodBody(src, 'setSoloServiceLocationAvailability');
 
     expect(body.match(/runWebappTransaction/g)).toHaveLength(1);
-    expect(body).toContain("beClinicServices.organizationId");
-    expect(body).toContain("beBranches.organizationId");
-    expect(body).toContain("beSpecialists.organizationId");
-    expect(body).toContain("beServiceLocationAvailability");
-    expect(body).toContain("beSpecialistServiceAvailability");
-    expect(body).toContain("exactSpecialistRows.map((row) => row.id)");
+    expect(body).toContain('beClinicServices.organizationId');
+    expect(body).toContain('beBranches.organizationId');
+    expect(body).toContain('beSpecialists.organizationId');
+    expect(body).toContain('beServiceLocationAvailability');
+    expect(body).toContain('beSpecialistServiceAvailability');
+    expect(body).toContain('exactSpecialistRows.map((row) => row.id)');
     expect(body.match(/update\(beSpecialistServiceAvailability\)/g)).toHaveLength(2);
   });
 });

@@ -1,13 +1,13 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
-import { doctorTreatmentProgramInstanceRouteErrorStatus } from "@/modules/treatment-program/doctorInstanceRouteErrorStatus";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { doctorTreatmentProgramInstanceRouteErrorStatus } from '@/modules/treatment-program/doctorInstanceRouteErrorStatus';
 
 const patchBodySchema = z
   .object({
-    status: z.enum(["locked", "available", "in_progress", "completed", "skipped"]).optional(),
+    status: z.enum(['locked', 'available', 'in_progress', 'completed', 'skipped']).optional(),
     reason: z.string().max(20000).optional().nullable(),
     title: z.string().min(1).max(2000).optional(),
     description: z.string().max(200000).optional().nullable(),
@@ -26,18 +26,18 @@ const patchBodySchema = z
       data.expectedDurationText !== undefined;
     if (data.status === undefined && !hasMeta) {
       ctx.addIssue({
-        code: "custom",
-        message: "Укажите status и/или поля настроек этапа",
+        code: 'custom',
+        message: 'Укажите status и/или поля настроек этапа',
         path: [],
       });
     }
-    if (data.status === "skipped") {
+    if (data.status === 'skipped') {
       const r = data.reason?.trim();
       if (!r) {
         ctx.addIssue({
-          code: "custom",
-          message: "Для пропуска этапа укажите причину",
-          path: ["reason"],
+          code: 'custom',
+          message: 'Для пропуска этапа укажите причину',
+          path: ['reason'],
         });
       }
     }
@@ -52,25 +52,28 @@ export async function PATCH(
   const { session } = gate.ctx;
 
   const { instanceId, stageId } = await context.params;
-  if (!z.string().uuid().safeParse(instanceId).success || !z.string().uuid().safeParse(stageId).success) {
-    return NextResponse.json({ ok: false, error: "invalid_id" }, { status: 400 });
+  if (
+    !z.string().uuid().safeParse(instanceId).success ||
+    !z.string().uuid().safeParse(stageId).success
+  ) {
+    return NextResponse.json({ ok: false, error: 'invalid_id' }, { status: 400 });
   }
 
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = patchBodySchema.safeParse(raw);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
 
   const deps = buildAppDeps();
   try {
     const inst0 = await deps.treatmentProgramInstance.getInstanceById(instanceId);
     if (!inst0 || inst0.organizationId !== gate.ctx.organizationId) {
-      return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+      return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
     }
     const identity = await deps.doctorClientsPort.getClientIdentity(inst0.patientUserId);
     if (!identity) {
-      return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+      return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
     }
 
     const d = parsed.data;
@@ -108,8 +111,12 @@ export async function PATCH(
             ...(d.description !== undefined ? { description: d.description } : {}),
             ...(d.goals !== undefined ? { goals: d.goals } : {}),
             ...(d.objectives !== undefined ? { objectives: d.objectives } : {}),
-            ...(d.expectedDurationDays !== undefined ? { expectedDurationDays: d.expectedDurationDays } : {}),
-            ...(d.expectedDurationText !== undefined ? { expectedDurationText: d.expectedDurationText } : {}),
+            ...(d.expectedDurationDays !== undefined
+              ? { expectedDurationDays: d.expectedDurationDays }
+              : {}),
+            ...(d.expectedDurationText !== undefined
+              ? { expectedDurationText: d.expectedDurationText }
+              : {}),
           },
         }),
       );
@@ -117,7 +124,7 @@ export async function PATCH(
 
     return NextResponse.json({ ok: true, item: detail });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "error";
+    const msg = e instanceof Error ? e.message : 'error';
     const status = doctorTreatmentProgramInstanceRouteErrorStatus(msg);
     return NextResponse.json({ ok: false, error: msg }, { status });
   }
@@ -132,19 +139,22 @@ export async function DELETE(
   const { session } = gate.ctx;
 
   const { instanceId, stageId } = await context.params;
-  if (!z.string().uuid().safeParse(instanceId).success || !z.string().uuid().safeParse(stageId).success) {
-    return NextResponse.json({ ok: false, error: "invalid_id" }, { status: 400 });
+  if (
+    !z.string().uuid().safeParse(instanceId).success ||
+    !z.string().uuid().safeParse(stageId).success
+  ) {
+    return NextResponse.json({ ok: false, error: 'invalid_id' }, { status: 400 });
   }
 
   const deps = buildAppDeps();
   try {
     const inst0 = await deps.treatmentProgramInstance.getInstanceById(instanceId);
     if (!inst0 || inst0.organizationId !== gate.ctx.organizationId) {
-      return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+      return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
     }
     const identity = await deps.doctorClientsPort.getClientIdentity(inst0.patientUserId);
     if (!identity) {
-      return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+      return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
     }
     await withDoctorWorkspacePrincipal(gate.ctx, () =>
       deps.treatmentProgramInstance.doctorRemoveStage({
@@ -155,7 +165,7 @@ export async function DELETE(
     );
     return NextResponse.json({ ok: true });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "error";
+    const msg = e instanceof Error ? e.message : 'error';
     const status = doctorTreatmentProgramInstanceRouteErrorStatus(msg);
     return NextResponse.json({ ok: false, error: msg }, { status });
   }

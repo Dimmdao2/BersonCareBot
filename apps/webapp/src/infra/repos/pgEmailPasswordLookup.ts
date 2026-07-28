@@ -3,21 +3,21 @@
  * `runWebappTransaction` + `PlatformMergeDbClient`. `getPool()` only for Class C
  * `upsertOpenConflictLog` in `adminAuditLog` (P14C).
  */
-import type { QueryResultRow } from "pg";
-import { getPool } from "@/infra/db/client";
+import type { QueryResultRow } from 'pg';
+import { getPool } from '@/infra/db/client';
 import {
   runWebappPgText,
   runWebappTransaction,
   type WebappSqlTransactionExecutor,
-} from "@/infra/db/runWebappSql";
-import { upsertOpenConflictLog } from "@/infra/adminAuditLog";
-import type { EmailPasswordLookupPort } from "@/modules/auth/emailPasswordLookup/ports";
-import type { EmailPasswordAuthState } from "@/modules/auth/emailPasswordLookup/types";
+} from '@/infra/db/runWebappSql';
+import { upsertOpenConflictLog } from '@/infra/adminAuditLog';
+import type { EmailPasswordLookupPort } from '@/modules/auth/emailPasswordLookup/ports';
+import type { EmailPasswordAuthState } from '@/modules/auth/emailPasswordLookup/types';
 import {
   classifyMergeFailure,
   mergePlatformUsersInTransaction,
   type PlatformMergeDbClient,
-} from "@bersoncare/platform-merge";
+} from '@bersoncare/platform-merge';
 
 type EmailAuthStateRow = {
   id: string;
@@ -27,7 +27,10 @@ type EmailAuthStateRow = {
 
 function mergeDbClientFromTx(tx: WebappSqlTransactionExecutor): PlatformMergeDbClient {
   return {
-    async query<R extends QueryResultRow = QueryResultRow>(queryText: string, values: unknown[] = []) {
+    async query<R extends QueryResultRow = QueryResultRow>(
+      queryText: string,
+      values: unknown[] = [],
+    ) {
       const r = await runWebappPgText<R>(queryText, values, tx);
       return { rows: r.rows, rowCount: r.rowCount };
     },
@@ -51,19 +54,21 @@ async function recordEmailAuthConflict(params: {
   reason: string;
   candidateIds?: string[];
 }): Promise<void> {
-  const candidateIds = params.candidateIds?.length ? params.candidateIds : params.rows.map((row) => row.id);
+  const candidateIds = params.candidateIds?.length
+    ? params.candidateIds
+    : params.rows.map((row) => row.id);
   await upsertOpenConflictLog(getPool(), {
     actorId: null,
-    action: "email_auth_conflict",
+    action: 'email_auth_conflict',
     candidateIds,
     targetId: params.targetId,
     details: {
-      source: "email_password_lookup",
+      source: 'email_password_lookup',
       emailNormalized: params.emailNormalized,
       reason: params.reason,
-      eventType: "email_auth_conflict",
+      eventType: 'email_auth_conflict',
     },
-    status: "error",
+    status: 'error',
   });
 }
 
@@ -93,7 +98,7 @@ async function tryAutoMergeDuplicateEmailUsers(
       emailNormalized,
       rows,
       targetId,
-      reason: "email_conflict_multiple_password_credentials",
+      reason: 'email_conflict_multiple_password_credentials',
     });
     return false;
   }
@@ -103,7 +108,7 @@ async function tryAutoMergeDuplicateEmailUsers(
     await runWebappTransaction(async (tx) => {
       const mergeClient = mergeDbClientFromTx(tx);
       for (const duplicateId of duplicateIds) {
-        await mergePlatformUsersInTransaction(mergeClient, targetId, duplicateId, "projection");
+        await mergePlatformUsersInTransaction(mergeClient, targetId, duplicateId, 'projection');
       }
     });
     return true;
@@ -127,34 +132,34 @@ export function createPgEmailPasswordLookupPort(): EmailPasswordLookupPort {
       let rows = await loadEmailAuthStateRows(emailNormalized);
 
       if (rows.length === 0) {
-        return { kind: "free" };
+        return { kind: 'free' };
       }
       if (rows.length > 1) {
         const merged = await tryAutoMergeDuplicateEmailUsers(emailNormalized, rows);
         if (!merged) {
-          return { kind: "email_conflict", candidateIds: rows.map((row) => row.id) };
+          return { kind: 'email_conflict', candidateIds: rows.map((row) => row.id) };
         }
         rows = await loadEmailAuthStateRows(emailNormalized);
-        if (rows.length === 0) return { kind: "free" };
+        if (rows.length === 0) return { kind: 'free' };
         if (rows.length > 1) {
-          return { kind: "email_conflict", candidateIds: rows.map((row) => row.id) };
+          return { kind: 'email_conflict', candidateIds: rows.map((row) => row.id) };
         }
       }
 
       const row = rows[0]!;
       if (row.email_verified && row.has_password) {
-        return { kind: "verified_with_password", userId: row.id };
+        return { kind: 'verified_with_password', userId: row.id };
       }
       if (!row.email_verified && row.has_password) {
-        return { kind: "pending_registration", userId: row.id };
+        return { kind: 'pending_registration', userId: row.id };
       }
-      return { kind: "needs_email_setup", userId: row.id };
+      return { kind: 'needs_email_setup', userId: row.id };
     },
   };
 }
 
 export const inMemoryEmailPasswordLookupPort: EmailPasswordLookupPort = {
   async resolveAuthState() {
-    return { kind: "free" };
+    return { kind: 'free' };
   },
 };

@@ -12,7 +12,9 @@ export function bindEmailSendPort(port: EmailSendPort): void {
 
 function requireEmailSendPort(): EmailSendPort {
   if (!emailSendPort) {
-    throw new Error("EmailSendPort is not bound. Call ensureAuthModulePortsBound() from buildAppDeps.");
+    throw new Error(
+      'EmailSendPort is not bound. Call ensureAuthModulePortsBound() from buildAppDeps.',
+    );
   }
   return emailSendPort;
 }

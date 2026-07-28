@@ -1,4 +1,4 @@
-import { requireAdminDoctorPage } from "@/app/app/settings/requireAdminDoctorPage";
+import { requireAdminDoctorPage } from '@/app/app/settings/requireAdminDoctorPage';
 
 // Removed 2026-07-26: BookingPaymentsSection and BookingPrepaymentSection rendered here were
 // tenant-scoped (a single organization's payment settings, via `getSetting(..., "admin")`) shown

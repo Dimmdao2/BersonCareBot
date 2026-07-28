@@ -1,6 +1,6 @@
-import { requirePlatformOperationsPage } from "@/app-layer/guards/requireRole";
-import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
-import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
+import { requirePlatformOperationsPage } from '@/app-layer/guards/requireRole';
+import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
+import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 
 export default async function DoctorAnalyticsNotificationsPage() {
   const session = await requirePlatformOperationsPage();

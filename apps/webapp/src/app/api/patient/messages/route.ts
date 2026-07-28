@@ -2,12 +2,12 @@
  * GET /api/patient/messages — bootstrap (без query) или сообщения по `conversationId` (+ опционально `since` для polling).
  * POST /api/patient/messages — отправка текста в свой диалог (`conversationId` + `text`).
  */
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
-import { routePaths } from "@/app-layer/routes/paths";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { serializeSupportMessage } from "@/modules/messaging/serializeSupportMessage";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
+import { routePaths } from '@/app-layer/routes/paths';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { serializeSupportMessage } from '@/modules/messaging/serializeSupportMessage';
 
 const postBodySchema = z.object({
   text: z.string().min(1).max(4000),
@@ -21,12 +21,12 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const raw = Object.fromEntries(url.searchParams.entries());
-  const conversationIdRaw = typeof raw.conversationId === "string" ? raw.conversationId.trim() : "";
-  const sinceRaw = typeof raw.since === "string" ? raw.since.trim() : "";
+  const conversationIdRaw = typeof raw.conversationId === 'string' ? raw.conversationId.trim() : '';
+  const sinceRaw = typeof raw.since === 'string' ? raw.since.trim() : '';
   const conversationId = conversationIdRaw || undefined;
   const since = sinceRaw || undefined;
   if (conversationId && !z.string().uuid().safeParse(conversationId).success) {
-    return NextResponse.json({ ok: false, error: "invalid_query" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_query' }, { status: 400 });
   }
   const deps = buildAppDeps();
   const userId = session.user.userId;
@@ -47,7 +47,7 @@ export async function GET(request: Request) {
   // 404 только для чужого обращения (единый ответ на объект без прав, OWASP ASVS 5.0 V8.2.2).
   // Своё закрытое обращение открывается и читается — оно лишь помечено `readOnly`.
   if (!polled) {
-    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
   return NextResponse.json({
     ok: true,
@@ -65,22 +65,26 @@ export async function POST(request: Request) {
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = postBodySchema.safeParse(raw);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
 
   const deps = buildAppDeps();
   const userId = session.user.userId;
-  const result = await deps.messaging.patient.sendText(userId, parsed.data.conversationId, parsed.data.text);
+  const result = await deps.messaging.patient.sendText(
+    userId,
+    parsed.data.conversationId,
+    parsed.data.text,
+  );
   if (!result.ok) {
-    if (result.error === "not_found") {
-      return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    if (result.error === 'not_found') {
+      return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
     }
     // Закрытое обращение существует и читается — отказ по состоянию, а не «не найдено».
-    if (result.error === "conversation_closed") {
-      return NextResponse.json({ ok: false, error: "conversation_closed" }, { status: 409 });
+    if (result.error === 'conversation_closed') {
+      return NextResponse.json({ ok: false, error: 'conversation_closed' }, { status: 409 });
     }
-    if (result.error === "blocked") {
-      return NextResponse.json({ ok: false, error: "blocked" }, { status: 403 });
+    if (result.error === 'blocked') {
+      return NextResponse.json({ ok: false, error: 'blocked' }, { status: 403 });
     }
     return NextResponse.json({ ok: false, error: result.error }, { status: 400 });
   }

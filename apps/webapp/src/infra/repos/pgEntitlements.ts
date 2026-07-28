@@ -1,7 +1,7 @@
-import { and, eq, gt, isNull, or } from "drizzle-orm";
-import { getDrizzleOrMutationTx as getDrizzle } from "@/infra/db/drizzleMutationTx";
-import { contentAccessGrantsWebapp, platformUsers } from "../../../db/schema/schema";
-import type { EntitlementsPort } from "@/modules/entitlements/ports";
+import { and, eq, gt, isNull, or } from 'drizzle-orm';
+import { getDrizzleOrMutationTx as getDrizzle } from '@/infra/db/drizzleMutationTx';
+import { contentAccessGrantsWebapp, platformUsers } from '../../../db/schema/schema';
+import type { EntitlementsPort } from '@/modules/entitlements/ports';
 
 /** Synthetic integrator user id when platform user has no bot binding (webapp-native grants). */
 export const WEBAPP_NATIVE_GRANT_INTEGRATOR_USER_ID = 0;

@@ -45,7 +45,9 @@ describe('domain executeStep', () => {
     const result = await executeStep(step, ctx);
     const outgoing = result.data?.outgoing as Array<{ payload: Record<string, unknown> }>;
     expect(outgoing).toHaveLength(1);
-    const delivery = (outgoing[0]?.payload as { delivery?: { channels?: unknown; maxAttempts?: unknown } }).delivery;
+    const delivery = (
+      outgoing[0]?.payload as { delivery?: { channels?: unknown; maxAttempts?: unknown } }
+    ).delivery;
     expect(delivery?.channels).toEqual([]);
     expect(delivery?.maxAttempts).toBe(3);
   });
@@ -65,7 +67,9 @@ describe('domain executeStep', () => {
     const result = await executeStep(step, ctx);
     const outgoing = result.data?.outgoing as Array<{ payload: Record<string, unknown> }>;
     expect(outgoing).toHaveLength(1);
-    const delivery = (outgoing[0]?.payload as { delivery?: { channels?: unknown; maxAttempts?: unknown } }).delivery;
+    const delivery = (
+      outgoing[0]?.payload as { delivery?: { channels?: unknown; maxAttempts?: unknown } }
+    ).delivery;
     expect(delivery?.channels).toEqual(['channel-a']);
     expect(delivery?.maxAttempts).toBe(5);
   });

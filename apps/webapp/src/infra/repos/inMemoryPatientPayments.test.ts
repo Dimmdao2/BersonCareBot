@@ -1,26 +1,26 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach } from 'vitest';
 import {
   inMemoryPatientPaymentsPort,
   __resetInMemoryPatientPaymentsForTest,
-} from "./inMemoryPatientPayments";
+} from './inMemoryPatientPayments';
 
-const PATIENT = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
-const DOCTOR = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
-const ORGANIZATION = "11111111-1111-4111-8111-111111111111";
+const PATIENT = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+const DOCTOR = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+const ORGANIZATION = '11111111-1111-4111-8111-111111111111';
 
-describe("inMemoryPatientPayments", () => {
+describe('inMemoryPatientPayments', () => {
   beforeEach(() => {
     __resetInMemoryPatientPaymentsForTest();
   });
 
-  it("addCashPayment then listPayments returns the payment", async () => {
+  it('addCashPayment then listPayments returns the payment', async () => {
     const payment = await inMemoryPatientPaymentsPort.addCashPayment({
       organizationId: ORGANIZATION,
       patientUserId: PATIENT,
       amountMinor: 150000, // 1500 рублей в копейках
-      currency: "RUB",
-      comment: "Наличные на стойке",
-      service: "Первичный приём",
+      currency: 'RUB',
+      comment: 'Наличные на стойке',
+      service: 'Первичный приём',
       visitId: null,
       createdBy: DOCTOR,
     });
@@ -29,11 +29,11 @@ describe("inMemoryPatientPayments", () => {
     expect(payment.organizationId).toBe(ORGANIZATION);
     expect(payment.patientUserId).toBe(PATIENT);
     expect(payment.amountMinor).toBe(150000);
-    expect(payment.currency).toBe("RUB");
-    expect(payment.kind).toBe("cash");
-    expect(payment.status).toBe("paid");
-    expect(payment.comment).toBe("Наличные на стойке");
-    expect(payment.service).toBe("Первичный приём");
+    expect(payment.currency).toBe('RUB');
+    expect(payment.kind).toBe('cash');
+    expect(payment.status).toBe('paid');
+    expect(payment.comment).toBe('Наличные на стойке');
+    expect(payment.service).toBe('Первичный приём');
     expect(payment.provider).toBeNull();
     expect(payment.providerPaymentId).toBeNull();
 
@@ -42,7 +42,7 @@ describe("inMemoryPatientPayments", () => {
     expect(list[0].id).toBe(payment.id);
   });
 
-  it("listPayments returns newest first", async () => {
+  it('listPayments returns newest first', async () => {
     const p1 = await inMemoryPatientPaymentsPort.addCashPayment({
       organizationId: ORGANIZATION,
       patientUserId: PATIENT,
@@ -65,7 +65,7 @@ describe("inMemoryPatientPayments", () => {
     expect(list[1].id).toBe(p1.id);
   });
 
-  it("rejects amount <= 0", async () => {
+  it('rejects amount <= 0', async () => {
     await expect(
       inMemoryPatientPaymentsPort.addCashPayment({
         organizationId: ORGANIZATION,
@@ -73,7 +73,7 @@ describe("inMemoryPatientPayments", () => {
         amountMinor: 0,
         createdBy: DOCTOR,
       }),
-    ).rejects.toThrow("payment_amount_must_be_positive_integer");
+    ).rejects.toThrow('payment_amount_must_be_positive_integer');
 
     await expect(
       inMemoryPatientPaymentsPort.addCashPayment({
@@ -82,11 +82,11 @@ describe("inMemoryPatientPayments", () => {
         amountMinor: -100,
         createdBy: DOCTOR,
       }),
-    ).rejects.toThrow("payment_amount_must_be_positive_integer");
+    ).rejects.toThrow('payment_amount_must_be_positive_integer');
   });
 
-  it("listPayments isolates by patientUserId", async () => {
-    const OTHER_PATIENT = "cccccccc-cccc-cccc-cccc-cccccccccccc";
+  it('listPayments isolates by patientUserId', async () => {
+    const OTHER_PATIENT = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
     await inMemoryPatientPaymentsPort.addCashPayment({
       organizationId: ORGANIZATION,
       patientUserId: PATIENT,

@@ -9,6 +9,7 @@
 ## Контекст
 
 Системные расхождения `integrator.rubitime_records` vs Rubitime API:
+
 - `record_at` diff (-120 / -60 мин) — наивные даты Rubitime без таймзоны интерпретировались некорректно.
 - `stale updated_at` — локальные записи отставали от API на часы/дни.
 - `projection_outbox` мёртвые события `appointment.record.upserted` с `platform_user_id null` — webapp не мог резолвить пользователя из booking-события.
@@ -64,6 +65,7 @@ cat /tmp/resync-dryrun.json | python3 -m json.tool | grep -A 20 '"summary"'
 ```
 
 Ожидаемые поля в отчёте:
+
 - `scanned` — кол-во строк rubitime_records в окне
 - `compared` — кол-во запросов к API
 - `matches` — совпадений
@@ -107,6 +109,7 @@ cat /tmp/compare-postfix.json | python3 -m json.tool | grep -E '"mismatches"|"ma
 ```
 
 Целевое состояние после re-sync:
+
 - `apiErrors == 0`
 - `notFoundActive == 0`
 - `mismatches` существенно снижены (остаточные — объяснимы: записи обновлённые уже после resync)
@@ -195,6 +198,7 @@ WHERE event_type = 'appointment.record.upserted' GROUP BY status;
 ## Модуль 3: точечная починка отдельных проблемных записей
 
 Использовать, когда по итогам `compare-rubitime-records` осталось 1-2 записи в:
+
 - `notFoundActive` (критично, нужно довести до 0);
 - `mismatches` (например, только `record_at mismatch`).
 
@@ -284,6 +288,7 @@ pnpm --dir apps/integrator run rubitime:compare-records -- \
 ```
 
 Ожидаемое состояние после точечной починки:
+
 - `mismatches=0`
 - `notFoundActive=0`
 - `apiErrors=0`
@@ -361,22 +366,22 @@ GROUP BY status;
 
 ## Параметры скрипта (справка)
 
-| Параметр | Дефолт | Описание |
-|----------|--------|----------|
-| `--mode=resync` | resync | Режим: `resync` или `repair-outbox` |
-| `--commit` | false (dry-run) | Применить изменения в БД |
-| `--active-days=N` | 20 | Окно для активных записей |
-| `--canceled-days=N` | 20 | Окно для canceled записей |
-| `--limit=N` | 0 (без лимита) | Макс. кол-во записей для обработки |
-| `--batch-size=N` | 200 | Размер батча при выборке |
-| `--min-interval-ms=N` | 5200 | Минимальный интервал между запросами к API |
-| `--retry-count=N` | 2 | Кол-во повторов при rate-limit |
-| `--stale-threshold-minutes=N` | 120 | Порог stale updated_at (мин) |
-| `--display-timezone=IANA` | из `system_settings.app_display_timezone` | IANA-зона для наивных дат Rubitime (`normalizeToUtcInstant`) |
-| `--sample-size=N` | 25 | Кол-во sample-записей в отчёте |
-| `--report-file=PATH` | stdout | Файл для JSON-отчёта |
-| `--phone-last10=XXXXXXXXXX` | - | Фильтр repair-outbox по телефону |
-| `--record-ids=a,b,c` | - | Фильтр repair-outbox по rubitime record ids |
+| Параметр                      | Дефолт                                    | Описание                                                     |
+| ----------------------------- | ----------------------------------------- | ------------------------------------------------------------ |
+| `--mode=resync`               | resync                                    | Режим: `resync` или `repair-outbox`                          |
+| `--commit`                    | false (dry-run)                           | Применить изменения в БД                                     |
+| `--active-days=N`             | 20                                        | Окно для активных записей                                    |
+| `--canceled-days=N`           | 20                                        | Окно для canceled записей                                    |
+| `--limit=N`                   | 0 (без лимита)                            | Макс. кол-во записей для обработки                           |
+| `--batch-size=N`              | 200                                       | Размер батча при выборке                                     |
+| `--min-interval-ms=N`         | 5200                                      | Минимальный интервал между запросами к API                   |
+| `--retry-count=N`             | 2                                         | Кол-во повторов при rate-limit                               |
+| `--stale-threshold-minutes=N` | 120                                       | Порог stale updated_at (мин)                                 |
+| `--display-timezone=IANA`     | из `system_settings.app_display_timezone` | IANA-зона для наивных дат Rubitime (`normalizeToUtcInstant`) |
+| `--sample-size=N`             | 25                                        | Кол-во sample-записей в отчёте                               |
+| `--report-file=PATH`          | stdout                                    | Файл для JSON-отчёта                                         |
+| `--phone-last10=XXXXXXXXXX`   | -                                         | Фильтр repair-outbox по телефону                             |
+| `--record-ids=a,b,c`          | -                                         | Фильтр repair-outbox по rubitime record ids                  |
 
 ---
 

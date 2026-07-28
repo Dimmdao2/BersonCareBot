@@ -1,4 +1,4 @@
-> STATUS (verified 2026-07-23, code-reconciled): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/CHECKPOINT_2026-07-23_STATE_AND_BACKEND_WORK_ORDER.md
+> STATUS (verified 2026-07-23, code-reconciled): see docs/\_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/CHECKPOINT_2026-07-23_STATE_AND_BACKEND_WORK_ORDER.md
 
 # План: громкий алертинг на отказ доставки (email/SMS/любой провайдер)
 
@@ -12,7 +12,9 @@ Execution authority/status: subordinate artifact of
 **молчала**: ни пуша, ни ТГ, ни МАКС; утренний дайджест слал зелёное «всё ок».
 
 ## Корень (диагноз по коду+проду)
+
 Движок алертинга ЖИВ (зелёные дайджесты приходят) — но этот класс сбоя ему **невидим**:
+
 1. **Нет критического сигнала на отказ отправки.** `modules/operator-health/criticalHealthSignals.ts`
    мониторит БД / integrator API / очереди projection·delivery·push-outbox / бэкапы / пробы / вебхуки /
    изоляцию — но НЕ «email/SMS send падает».
@@ -26,6 +28,7 @@ Execution authority/status: subordinate artifact of
    `admin_telegram_ids`/`admin_max_ids` + staff web-push). **SMS-канала нет.** Дедуп плоский 24ч (нет эскалации).
 
 ## 🟩 Решения владельца (2026-07-21) — канон этого плана
+
 - **Каналы:** орать во ВСЕ разом — **web_push + Telegram + MAX + SMS** (SMS только если подключён провайдер).
   «Такие сбои надо орать везде.» Веер best-effort, независимые каналы: что живо — то доставит.
   (Нео/notify-owner НЕ используем — алерт нативный в продукте.)
@@ -64,6 +67,7 @@ Execution authority/status: subordinate artifact of
       Только заранее разрешённые TEST-получатели; DEV реальные отправки запрещены. (owner-gated: needs live-TEST authorization)
 
 ## Риски / принципы
+
 - Канал алерта не должен зависеть от сломанного: веер по всем, каждый независим (telegram/max/web_push уже так; SMS добавить так же).
 - Не спамить: дедуп остаётся, но заменяется на эскалацию по состоянию инцидента, а не «тишина 24ч».
 - Аудит по риску: это observability-механика (не деньги/не изоляция) → worker + ОДИН независимый аудит на слайс, без серийных correction-раундов.

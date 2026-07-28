@@ -1,30 +1,30 @@
-import type { ClientListItem, DoctorClientsPort } from "@/modules/doctor-clients/ports";
-import type { TestAccountIdentifiers } from "@/modules/system-settings/testAccounts";
-import type { BroadcastChannel } from "./broadcastChannels";
-import type { BroadcastAudienceFilter, BroadcastRecipientsPreview } from "./ports";
-import { BROADCAST_RECIPIENT_PREVIEW_NAME_CAP } from "./ports";
-import { formatDoctorFio } from "@/shared/lib/fio";
+import type { ClientListItem, DoctorClientsPort } from '@/modules/doctor-clients/ports';
+import type { TestAccountIdentifiers } from '@/modules/system-settings/testAccounts';
+import type { BroadcastChannel } from './broadcastChannels';
+import type { BroadcastAudienceFilter, BroadcastRecipientsPreview } from './ports';
+import { BROADCAST_RECIPIENT_PREVIEW_NAME_CAP } from './ports';
+import { formatDoctorFio } from '@/shared/lib/fio';
 
 /**
  * Список клиентов в сегменте рассылки (та же логика фильтров, что в `buildAppDeps` → doctorBroadcasts).
  */
 export async function listClientsForBroadcastAudience(
-  port: Pick<DoctorClientsPort, "listClients">,
+  port: Pick<DoctorClientsPort, 'listClients'>,
   filter: BroadcastAudienceFilter,
 ): Promise<ClientListItem[]> {
-  if (filter === "with_telegram") {
+  if (filter === 'with_telegram') {
     return port.listClients({ hasTelegram: true });
   }
-  if (filter === "with_max") {
+  if (filter === 'with_max') {
     return port.listClients({ hasMax: true });
   }
-  if (filter === "with_upcoming_appointment") {
+  if (filter === 'with_upcoming_appointment') {
     return port.listClients({ hasUpcomingAppointment: true });
   }
-  if (filter === "active_clients") {
+  if (filter === 'active_clients') {
     return port.listClients({ onlyWithAppointmentRecords: true });
   }
-  if (filter === "without_appointment") {
+  if (filter === 'without_appointment') {
     const [all, withUpcoming] = await Promise.all([
       port.listClients({}),
       port.listClients({ hasUpcomingAppointment: true }),
@@ -32,10 +32,10 @@ export async function listClientsForBroadcastAudience(
     const upcomingIds = new Set(withUpcoming.map((c) => c.userId));
     return all.filter((c) => !upcomingIds.has(c.userId));
   }
-  if (filter === "inactive") {
+  if (filter === 'inactive') {
     return port.listClients({});
   }
-  if (filter === "sms_only") {
+  if (filter === 'sms_only') {
     return port.listClients({});
   }
   return port.listClients({});
@@ -56,8 +56,8 @@ export function resolveBroadcastEffectiveClients(
     return { effective: [...clients], nominal, cappedByDevMode: false };
   }
 
-  const wantsBot = channels.includes("bot_message");
-  const wantsSms = channels.includes("sms");
+  const wantsBot = channels.includes('bot_message');
+  const wantsSms = channels.includes('sms');
   const onlySms = wantsSms && !wantsBot;
   const noRelayChannels = !wantsSms && !wantsBot;
 
@@ -111,21 +111,22 @@ export function buildRecipientsPreviewFromClients(
   effective: readonly ClientListItem[],
   cap = BROADCAST_RECIPIENT_PREVIEW_NAME_CAP,
 ): BroadcastRecipientsPreview {
-  const labelFor = (client: ClientListItem) => formatDoctorFio(
-    {
-      lastName: client.lastName ?? null,
-      firstName: client.firstName ?? null,
-      patronymic: client.patronymic ?? null,
-    },
-    client.displayName,
-  ).trim();
+  const labelFor = (client: ClientListItem) =>
+    formatDoctorFio(
+      {
+        lastName: client.lastName ?? null,
+        firstName: client.firstName ?? null,
+        patronymic: client.patronymic ?? null,
+      },
+      client.displayName,
+    ).trim();
   const sorted = [...effective].sort((a, b) =>
-    labelFor(a).localeCompare(labelFor(b), "ru", { sensitivity: "base" }),
+    labelFor(a).localeCompare(labelFor(b), 'ru', { sensitivity: 'base' }),
   );
   const total = sorted.length;
   const names = sorted.slice(0, cap).map((c) => {
     const n = labelFor(c);
-    return n || "Без имени";
+    return n || 'Без имени';
   });
   return { names, total, truncated: total > cap };
 }

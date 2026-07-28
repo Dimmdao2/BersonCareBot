@@ -4,15 +4,15 @@
 
 ## Канонические модули
 
-| Назначение | Модуль |
-|------------|--------|
-| URL превью (`/api/media/.../preview/sm|md`), парсинг UUID из app URL, **`API_MEDIA_ID_RE`** (единственное объявление в репозитории) | [`apps/webapp/src/shared/lib/mediaPreviewUrls.ts`](../../apps/webapp/src/shared/lib/mediaPreviewUrls.ts) (`mediaPreviewUrlById`, `mediaPreviewSmUrl`, `mediaPreviewMdUrl`, `parseMediaFileIdFromAppUrl`) |
-| Политика URL библиотеки без regex id | [`apps/webapp/src/shared/lib/mediaUrlPolicy.ts`](../../apps/webapp/src/shared/lib/mediaUrlPolicy.ts) — `API_MEDIA_URL_RE`, `isLegacyAbsoluteUrl` (без реэкспорта `API_MEDIA_ID_RE`) |
-| Единый shape для grid/list/picker + мапперы из DTO API | [`apps/webapp/src/shared/ui/media/mediaPreviewUiModel.ts`](../../apps/webapp/src/shared/ui/media/mediaPreviewUiModel.ts) |
-| Фаза миниатюры (`ready` / `pending` / …) | [`apps/webapp/src/shared/ui/media/mediaThumbState.ts`](../../apps/webapp/src/shared/ui/media/mediaThumbState.ts) (`getMediaThumbPhase`) |
-| Рендер миниатюры (`<img loading="lazy">`, skeleton, ошибки) | [`apps/webapp/src/shared/ui/media/MediaThumb.tsx`](../../apps/webapp/src/shared/ui/media/MediaThumb.tsx) — вход: **`media: MediaPreviewUiModel`** |
-| Обложка статьи (пациент / предпросмотр врача): library URL → `MediaThumb`, иначе обычный `<img>` | [`apps/webapp/src/shared/ui/media/ContentHeroImage.tsx`](../../apps/webapp/src/shared/ui/media/ContentHeroImage.tsx) |
-| Клиентский fetch метаданных строки (как у list) | [`apps/webapp/src/shared/ui/media/fetchAdminMediaListItem.ts`](../../apps/webapp/src/shared/ui/media/fetchAdminMediaListItem.ts) → **`GET /api/admin/media/{id}`** |
+| Назначение                                                                                       | Модуль                                                                                                                                                                              |
+| ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| URL превью (`/api/media/.../preview/sm                                                           | md`), парсинг UUID из app URL, **`API_MEDIA_ID_RE`\*\* (единственное объявление в репозитории)                                                                                      | [`apps/webapp/src/shared/lib/mediaPreviewUrls.ts`](../../apps/webapp/src/shared/lib/mediaPreviewUrls.ts) (`mediaPreviewUrlById`, `mediaPreviewSmUrl`, `mediaPreviewMdUrl`, `parseMediaFileIdFromAppUrl`) |
+| Политика URL библиотеки без regex id                                                             | [`apps/webapp/src/shared/lib/mediaUrlPolicy.ts`](../../apps/webapp/src/shared/lib/mediaUrlPolicy.ts) — `API_MEDIA_URL_RE`, `isLegacyAbsoluteUrl` (без реэкспорта `API_MEDIA_ID_RE`) |
+| Единый shape для grid/list/picker + мапперы из DTO API                                           | [`apps/webapp/src/shared/ui/media/mediaPreviewUiModel.ts`](../../apps/webapp/src/shared/ui/media/mediaPreviewUiModel.ts)                                                            |
+| Фаза миниатюры (`ready` / `pending` / …)                                                         | [`apps/webapp/src/shared/ui/media/mediaThumbState.ts`](../../apps/webapp/src/shared/ui/media/mediaThumbState.ts) (`getMediaThumbPhase`)                                             |
+| Рендер миниатюры (`<img loading="lazy">`, skeleton, ошибки)                                      | [`apps/webapp/src/shared/ui/media/MediaThumb.tsx`](../../apps/webapp/src/shared/ui/media/MediaThumb.tsx) — вход: **`media: MediaPreviewUiModel`**                                   |
+| Обложка статьи (пациент / предпросмотр врача): library URL → `MediaThumb`, иначе обычный `<img>` | [`apps/webapp/src/shared/ui/media/ContentHeroImage.tsx`](../../apps/webapp/src/shared/ui/media/ContentHeroImage.tsx)                                                                |
+| Клиентский fetch метаданных строки (как у list)                                                  | [`apps/webapp/src/shared/ui/media/fetchAdminMediaListItem.ts`](../../apps/webapp/src/shared/ui/media/fetchAdminMediaListItem.ts) → **`GET /api/admin/media/{id}`**                  |
 
 ## Правила (обязательные)
 
@@ -46,17 +46,17 @@
 
 ## Матрица контекст → размер
 
-| Контекст | Превью | srcSet md (2x) |
-|----------|---------|----------------|
-| Grid карточка библиотеки (`max-h-40`) | `sm` | да, если есть `previewMdUrl` |
-| Таблица (`max-h-16`) | `sm` | нет |
-| Picker / AutoCreate (`h-24`) | `sm` | по наличию `previewMdUrl` |
-| Список упражнений (36×36) | `sm` | нет |
-| Плитка упражнения | `sm` + `md` | да |
-| LFK карточка комплекса | `sm` | по наличию md |
-| Лайтбокс изображения | `md` при наличии, иначе `sm` | — |
-| Лайтбокс видео | оригинал (`<video>`) | — |
-| Обложка статьи (library URL) | `sm` (+ md в srcSet в `MediaThumb`) | по наличию md |
+| Контекст                              | Превью                              | srcSet md (2x)               |
+| ------------------------------------- | ----------------------------------- | ---------------------------- |
+| Grid карточка библиотеки (`max-h-40`) | `sm`                                | да, если есть `previewMdUrl` |
+| Таблица (`max-h-16`)                  | `sm`                                | нет                          |
+| Picker / AutoCreate (`h-24`)          | `sm`                                | по наличию `previewMdUrl`    |
+| Список упражнений (36×36)             | `sm`                                | нет                          |
+| Плитка упражнения                     | `sm` + `md`                         | да                           |
+| LFK карточка комплекса                | `sm`                                | по наличию md                |
+| Лайтбокс изображения                  | `md` при наличии, иначе `sm`        | —                            |
+| Лайтбокс видео                        | оригинал (`<video>`)                | —                            |
+| Обложка статьи (library URL)          | `sm` (+ md в srcSet в `MediaThumb`) | по наличию md                |
 
 ## Анти-паттерны
 

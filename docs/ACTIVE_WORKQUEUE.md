@@ -2,18 +2,18 @@
 
 **Статус:** **workqueue закрыт** (2026-06-02, фазы 0–7). План: [`.cursor/plans/archive/active_workqueue_plan_30236040.plan.md`](../.cursor/plans/archive/active_workqueue_plan_30236040.plan.md) (`status: completed`). Сводка чеклистов — [`TODO.md`](TODO.md). Активные хвосты вне очереди — diary, D5, расширение proactive (этап 8).
 
-| Фаза | Статус | План / лог |
-|------|--------|------------|
-| **0** — hotfix UI плиток программы (P0): «Комментарии» + «Отметить выполнение» | **Закрыта** | active workqueue §Фаза 0 |
-| **1** — «На сопровождении» + гейты comment/media | **Закрыта** | Cursor `phase1_support_model_7c745931.plan.md`; LOG: [`DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](_ARCHIVE/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) |
-| **2A** — дизайн карточки врача | **Закрыта** | [`CARD_REDESIGN_PLAN.md`](_ARCHIVE/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/CARD_REDESIGN_PLAN.md) |
-| **2B** — реализация карточки | **Закрыта** | LOG §2026-06-02 |
-| **2C** — задачи специалиста | **Закрыта** (аудит 2026-06-02) | [`SPECIALIST_TASKS.md`](_ARCHIVE/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/SPECIALIST_TASKS.md), LOG §2C |
-| **3** — черновик редактора программы | **Закрыта** (2026-06-02) | LOG §фаза 3 |
-| **4** — фильтры каталога (регион + нагрузка) | **Закрыта** (2026-06-02) | LOG §фаза 4 |
-| **5** — cross-patient inbox «К проверке» на «Сегодня» + `focusItemId` | **Закрыта** (2026-06-02) | LOG §фаза 5 |
-| **6** — CMS enum + `/help` | **Закрыта** (2026-06-02) | LOG §фаза 6, `content-page-roles.ts`, миграция `0103` |
-| **7** — B6 превью + proactive «Сегодня» (MVP + аудит) | **Закрыта** (2026-06-02) | LOG §фаза 7, `doctor-proactive-insights` |
+| Фаза                                                                           | Статус                         | План / лог                                                                                                                                                                         |
+| ------------------------------------------------------------------------------ | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **0** — hotfix UI плиток программы (P0): «Комментарии» + «Отметить выполнение» | **Закрыта**                    | active workqueue §Фаза 0                                                                                                                                                           |
+| **1** — «На сопровождении» + гейты comment/media                               | **Закрыта**                    | Cursor `phase1_support_model_7c745931.plan.md`; LOG: [`DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](_ARCHIVE/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) |
+| **2A** — дизайн карточки врача                                                 | **Закрыта**                    | [`CARD_REDESIGN_PLAN.md`](_ARCHIVE/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/CARD_REDESIGN_PLAN.md)                                                                         |
+| **2B** — реализация карточки                                                   | **Закрыта**                    | LOG §2026-06-02                                                                                                                                                                    |
+| **2C** — задачи специалиста                                                    | **Закрыта** (аудит 2026-06-02) | [`SPECIALIST_TASKS.md`](_ARCHIVE/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/SPECIALIST_TASKS.md), LOG §2C                                                                    |
+| **3** — черновик редактора программы                                           | **Закрыта** (2026-06-02)       | LOG §фаза 3                                                                                                                                                                        |
+| **4** — фильтры каталога (регион + нагрузка)                                   | **Закрыта** (2026-06-02)       | LOG §фаза 4                                                                                                                                                                        |
+| **5** — cross-patient inbox «К проверке» на «Сегодня» + `focusItemId`          | **Закрыта** (2026-06-02)       | LOG §фаза 5                                                                                                                                                                        |
+| **6** — CMS enum + `/help`                                                     | **Закрыта** (2026-06-02)       | LOG §фаза 6, `content-page-roles.ts`, миграция `0103`                                                                                                                              |
+| **7** — B6 превью + proactive «Сегодня» (MVP + аудит)                          | **Закрыта** (2026-06-02)       | LOG §фаза 7, `doctor-proactive-insights`                                                                                                                                           |
 
 ## Фаза 0 (закрыта)
 
@@ -80,15 +80,15 @@ D5 `domain→kind`, полная переработка `/diary`, курсы, UX
 
 План (архив): [`.cursor/plans/archive/instance-editor-batch-toolbar_3d597170.plan.md`](../.cursor/plans/archive/instance-editor-batch-toolbar_3d597170.plan.md). LOG: [`DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](_ARCHIVE/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §2026-06-03 ф.7.
 
-| Фаза плана | Статус |
-|------------|--------|
-| 1 — browser draft model (`InstanceEditorDraft`, merge/normalize) | **Закрыта** (2026-06-03) |
-| 2 — UI → in-memory draft (structural без immediate API) | **Закрыта** (2026-06-03; аудит remediation: `isFlushableDirty`, RTL smoke) |
-| 3 — server `POST …/editor-batch` + `program_changed` + tx | **Закрыта полностью** (2026-06-03; audit remediation) |
-| 4 — sticky toolbar | **Закрыта полностью** (2026-06-03) |
-| 5 — collapsible этапы + модалка порядка | **Закрыта полностью** (2026-06-03) |
-| 6 — общий диалог комментариев | **Закрыта полностью** (2026-06-03) |
-| 7 — история, unsaved gate, регрессия | **Закрыта полностью** (2026-06-03) |
+| Фаза плана                                                       | Статус                                                                     |
+| ---------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| 1 — browser draft model (`InstanceEditorDraft`, merge/normalize) | **Закрыта** (2026-06-03)                                                   |
+| 2 — UI → in-memory draft (structural без immediate API)          | **Закрыта** (2026-06-03; аудит remediation: `isFlushableDirty`, RTL smoke) |
+| 3 — server `POST …/editor-batch` + `program_changed` + tx        | **Закрыта полностью** (2026-06-03; audit remediation)                      |
+| 4 — sticky toolbar                                               | **Закрыта полностью** (2026-06-03)                                         |
+| 5 — collapsible этапы + модалка порядка                          | **Закрыта полностью** (2026-06-03)                                         |
+| 6 — общий диалог комментариев                                    | **Закрыта полностью** (2026-06-03)                                         |
+| 7 — история, unsaved gate, регрессия                             | **Закрыта полностью** (2026-06-03)                                         |
 
 **План batch-toolbar закрыт** (фазы 1–7). LOG: §2026-06-03 ф.7. Проверки ф.7: 56 focused vitest + `tsc --noEmit` webapp.
 

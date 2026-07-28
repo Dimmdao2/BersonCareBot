@@ -114,7 +114,7 @@ ORDER BY status;
 
 ### 3.1 Wrong-time rows (native create bug period)
 
-1) Create candidate table from diagnostics/export (manual input by operator):
+1. Create candidate table from diagnostics/export (manual input by operator):
 
 ```sql
 CREATE TEMP TABLE pb_fix_time (
@@ -124,7 +124,7 @@ CREATE TEMP TABLE pb_fix_time (
 );
 ```
 
-2) Populate it with verified rows only (from Rubitime truth/export), then apply:
+2. Populate it with verified rows only (from Rubitime truth/export), then apply:
 
 ```sql
 BEGIN;

@@ -1,6 +1,6 @@
-import type { SpecialistTasksPort } from "@/modules/specialist-tasks/ports";
-import type { SpecialistTaskRow } from "@/modules/specialist-tasks/types";
-import { pickNextImportantOrOverdue } from "@/modules/specialist-tasks/taskPriority";
+import type { SpecialistTasksPort } from '@/modules/specialist-tasks/ports';
+import type { SpecialistTaskRow } from '@/modules/specialist-tasks/types';
+import { pickNextImportantOrOverdue } from '@/modules/specialist-tasks/taskPriority';
 
 const store: SpecialistTaskRow[] = [];
 
@@ -8,7 +8,8 @@ export const inMemorySpecialistTasksPort: SpecialistTasksPort = {
   async listForOwner({ ownerUserId, patientUserId, includeCompleted, limit }) {
     let rows = store.filter((t) => t.ownerUserId === ownerUserId);
     if (patientUserId === null) rows = rows.filter((t) => t.patientUserId === null);
-    else if (patientUserId !== undefined) rows = rows.filter((t) => t.patientUserId === patientUserId);
+    else if (patientUserId !== undefined)
+      rows = rows.filter((t) => t.patientUserId === patientUserId);
     if (!includeCompleted) rows = rows.filter((t) => !t.completedAt);
     if (limit != null && limit > 0) rows = rows.slice(0, limit);
     return rows;
@@ -85,13 +86,7 @@ export const inMemorySpecialistTasksPort: SpecialistTasksPort = {
 
   async listDueReminders(nowIso, limit) {
     return store
-      .filter(
-        (t) =>
-          !t.completedAt &&
-          t.remindAt &&
-          t.remindAt <= nowIso &&
-          !t.reminderSentAt,
-      )
+      .filter((t) => !t.completedAt && t.remindAt && t.remindAt <= nowIso && !t.reminderSentAt)
       .slice(0, limit);
   },
 

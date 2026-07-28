@@ -6,7 +6,7 @@ export type PaymentProviderVerifyResult = {
   amountMinor?: number;
 };
 
-import type { PaymentProviderConfig } from "./types";
+import type { PaymentProviderConfig } from './types';
 
 export type PaymentProviderPort = {
   createIntent(params: {
@@ -29,10 +29,7 @@ export type PaymentProviderPort = {
    * Parse only enough normalized identity to locate the server-owned intent/event authority.
    * The result is untrusted until verifyWebhook succeeds with that organization's config.
    */
-  inspectWebhook(params: {
-    headers: Headers;
-    bodyText: string;
-  }): PaymentProviderVerifyResult;
+  inspectWebhook(params: { headers: Headers; bodyText: string }): PaymentProviderVerifyResult;
 
   verifyWebhook(params: {
     headers: Headers;

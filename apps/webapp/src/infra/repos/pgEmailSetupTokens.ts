@@ -1,11 +1,11 @@
 /** Wave 3 phase 15B — domain SQL via `runWebappPgText`. */
-import { runWebappPgText } from "@/infra/db/runWebappSql";
-import { nullableToIsoStringSafe, toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
+import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { nullableToIsoStringSafe, toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
 import type {
   EmailSetupTokenRow,
   EmailSetupTokensPort,
   IssueEmailSetupTokenParams,
-} from "@/modules/auth/emailSetupTokens/ports";
+} from '@/modules/auth/emailSetupTokens/ports';
 
 export const pgEmailSetupTokensPort: EmailSetupTokensPort = {
   async revokeActiveForUserEmail(userId: string, emailNormalized: string): Promise<void> {

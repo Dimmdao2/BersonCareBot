@@ -2,13 +2,13 @@ import type {
   OrganizationMemberDirectoryRecord,
   OrganizationMembershipPort,
   OrganizationSpecialistDirectoryRecord,
-} from "@/modules/organization-membership/ports";
+} from '@/modules/organization-membership/ports';
 import type {
   DoctorWorkspaceContext,
   DoctorWorkspaceDirectory,
   DoctorWorkspaceMember,
   DoctorWorkspaceSpecialist,
-} from "./types";
+} from './types';
 
 function toWorkspaceSpecialist(
   specialist: OrganizationSpecialistDirectoryRecord,
@@ -62,11 +62,15 @@ export function createDoctorWorkspaceDirectoryService(deps: {
       ]);
 
       return {
-        specialists: visibleSpecialists.map((specialist) => toWorkspaceSpecialist(specialist, context)),
+        specialists: visibleSpecialists.map((specialist) =>
+          toWorkspaceSpecialist(specialist, context),
+        ),
         members: visibleMembers.map(toWorkspaceMember),
       };
     },
   };
 }
 
-export type DoctorWorkspaceDirectoryService = ReturnType<typeof createDoctorWorkspaceDirectoryService>;
+export type DoctorWorkspaceDirectoryService = ReturnType<
+  typeof createDoctorWorkspaceDirectoryService
+>;

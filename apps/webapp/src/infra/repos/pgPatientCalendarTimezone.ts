@@ -1,12 +1,14 @@
 /**
  * Wave 3 phase 14D — patient calendar timezone via `runWebappPgText`.
  */
-import { runWebappPgText } from "@/infra/db/runWebappSql";
-import { isAcceptableIanaTimezone } from "@/modules/system-settings/calendarIana";
-import { getCurrentDbPrincipal } from "@bersoncare/db-principal";
-import { runWithWebappDbOperationFamily } from "@/infra/db/saasIsolationOperationContext";
+import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { isAcceptableIanaTimezone } from '@/modules/system-settings/calendarIana';
+import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
+import { runWithWebappDbOperationFamily } from '@/infra/db/saasIsolationOperationContext';
 
-export async function getPatientCalendarTimezoneIana(platformUserId: string): Promise<string | null> {
+export async function getPatientCalendarTimezoneIana(
+  platformUserId: string,
+): Promise<string | null> {
   const r = await runWebappPgText<{ calendar_timezone: string | null }>(
     `SELECT calendar_timezone FROM platform_users WHERE id = $1::uuid AND merged_into_id IS NULL`,
     [platformUserId],
@@ -14,9 +16,12 @@ export async function getPatientCalendarTimezoneIana(platformUserId: string): Pr
   return r.rows[0]?.calendar_timezone ?? null;
 }
 
-export async function setPatientCalendarTimezoneIana(platformUserId: string, value: string | null): Promise<boolean> {
-  if (getCurrentDbPrincipal()?.kind === "patient") {
-    const result = await runWithWebappDbOperationFamily("patient_calendar_timezone", () =>
+export async function setPatientCalendarTimezoneIana(
+  platformUserId: string,
+  value: string | null,
+): Promise<boolean> {
+  if (getCurrentDbPrincipal()?.kind === 'patient') {
+    const result = await runWithWebappDbOperationFamily('patient_calendar_timezone', () =>
       runWebappPgText<{ updated: boolean }>(
         `SELECT app.set_current_patient_calendar_timezone($1, false) AS updated`,
         [value],
@@ -37,11 +42,14 @@ export async function setPatientCalendarTimezoneIana(platformUserId: string, val
  * Если у клиента ещё нет `calendar_timezone`, записывает переданную IANA (например с `Intl` при регистрации).
  * Не перезаписывает уже заданное значение; невалидная строка игнорируется.
  */
-export async function trySetInitialCalendarTimezoneIfEmpty(platformUserId: string, raw: string | null): Promise<void> {
-  const candidate = raw?.trim() ?? "";
+export async function trySetInitialCalendarTimezoneIfEmpty(
+  platformUserId: string,
+  raw: string | null,
+): Promise<void> {
+  const candidate = raw?.trim() ?? '';
   if (!candidate || !isAcceptableIanaTimezone(candidate)) return;
-  if (getCurrentDbPrincipal()?.kind === "patient") {
-    await runWithWebappDbOperationFamily("patient_calendar_timezone", () =>
+  if (getCurrentDbPrincipal()?.kind === 'patient') {
+    await runWithWebappDbOperationFamily('patient_calendar_timezone', () =>
       runWebappPgText<{ updated: boolean }>(
         `SELECT app.set_current_patient_calendar_timezone($1, true) AS updated`,
         [candidate],

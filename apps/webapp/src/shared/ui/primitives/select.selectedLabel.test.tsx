@@ -6,18 +6,18 @@
  * `value`. Обёртка `Select` собирает `items` из детей — этот тест проверяет РЕЗУЛЬТАТ рендера,
  * а не наличие пропа, поэтому он краснеет от любой регрессии в самой обёртке.
  */
-import { describe, expect, it, afterEach } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select";
+import { describe, expect, it, afterEach } from 'vitest';
+import { cleanup, render, screen } from '@testing-library/react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './select';
 
 afterEach(cleanup);
 
 function triggerText() {
-  return screen.getByTestId("trigger").textContent ?? "";
+  return screen.getByTestId('trigger').textContent ?? '';
 }
 
-describe("Select — подпись выбранного значения в закрытом триггере", () => {
-  it("литеральные дети: показывает подпись, а не ключ", () => {
+describe('Select — подпись выбранного значения в закрытом триггере', () => {
+  it('литеральные дети: показывает подпись, а не ключ', () => {
     render(
       <Select defaultValue="article">
         <SelectTrigger data-testid="trigger">
@@ -29,14 +29,14 @@ describe("Select — подпись выбранного значения в з�
         </SelectContent>
       </Select>,
     );
-    expect(triggerText()).toContain("Статьи (общий каталог)");
-    expect(triggerText()).not.toContain("article");
+    expect(triggerText()).toContain('Статьи (общий каталог)');
+    expect(triggerText()).not.toContain('article');
   });
 
-  it("динамический список через .map(): показывает подпись, а не uuid", () => {
+  it('динамический список через .map(): показывает подпись, а не uuid', () => {
     const options = [
-      { id: "3f2b0c11-0000-4000-8000-000000000001", title: "Поясничный отдел" },
-      { id: "3f2b0c11-0000-4000-8000-000000000002", title: "Шейный отдел" },
+      { id: '3f2b0c11-0000-4000-8000-000000000001', title: 'Поясничный отдел' },
+      { id: '3f2b0c11-0000-4000-8000-000000000002', title: 'Шейный отдел' },
     ];
     render(
       <Select defaultValue={options[1].id}>
@@ -52,11 +52,11 @@ describe("Select — подпись выбранного значения в з�
         </SelectContent>
       </Select>,
     );
-    expect(triggerText()).toContain("Шейный отдел");
-    expect(triggerText()).not.toContain("3f2b0c11");
+    expect(triggerText()).toContain('Шейный отдел');
+    expect(triggerText()).not.toContain('3f2b0c11');
   });
 
-  it("условная ветка (? :) внутри списка тоже собирается", () => {
+  it('условная ветка (? :) внутри списка тоже собирается', () => {
     render(
       <Select defaultValue="system_root">
         <SelectTrigger data-testid="trigger">
@@ -68,11 +68,11 @@ describe("Select — подпись выбранного значения в з�
         </SelectContent>
       </Select>,
     );
-    expect(triggerText()).toContain("Встроенный (корень)");
-    expect(triggerText()).not.toContain("system_root");
+    expect(triggerText()).toContain('Встроенный (корень)');
+    expect(triggerText()).not.toContain('system_root');
   });
 
-  it("placeholder остаётся, пока значение не выбрано", () => {
+  it('placeholder остаётся, пока значение не выбрано', () => {
     render(
       <Select>
         <SelectTrigger data-testid="trigger">
@@ -83,12 +83,12 @@ describe("Select — подпись выбранного значения в з�
         </SelectContent>
       </Select>,
     );
-    expect(triggerText()).toContain("Выберите…");
+    expect(triggerText()).toContain('Выберите…');
   });
 
-  it("явный `items` на Select побеждает авто-сбор", () => {
+  it('явный `items` на Select побеждает авто-сбор', () => {
     render(
-      <Select defaultValue="a" items={[{ value: "a", label: "Из items" }]}>
+      <Select defaultValue="a" items={[{ value: 'a', label: 'Из items' }]}>
         <SelectTrigger data-testid="trigger">
           <SelectValue />
         </SelectTrigger>
@@ -97,10 +97,10 @@ describe("Select — подпись выбранного значения в з�
         </SelectContent>
       </Select>,
     );
-    expect(triggerText()).toContain("Из items");
+    expect(triggerText()).toContain('Из items');
   });
 
-  it("явные дети SelectValue побеждают авто-сбор", () => {
+  it('явные дети SelectValue побеждают авто-сбор', () => {
     render(
       <Select defaultValue="a">
         <SelectTrigger data-testid="trigger">
@@ -111,6 +111,6 @@ describe("Select — подпись выбранного значения в з�
         </SelectContent>
       </Select>,
     );
-    expect(triggerText()).toContain("Своя подпись");
+    expect(triggerText()).toContain('Своя подпись');
   });
 });

@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { useRouter } from "next/navigation";
-import type { ExerciseMedia } from "@/modules/lfk-exercises/types";
-import { doctorCatalogEditorSectionClass } from "@/shared/ui/doctor/doctorVisual";
-import { TemplateEditor } from "../TemplateEditor";
+import { useRouter } from 'next/navigation';
+import type { ExerciseMedia } from '@/modules/lfk-exercises/types';
+import { doctorCatalogEditorSectionClass } from '@/shared/ui/doctor/doctorVisual';
+import { TemplateEditor } from '../TemplateEditor';
 
 export function LfkTemplateNewStandalone({
   exerciseCatalog,

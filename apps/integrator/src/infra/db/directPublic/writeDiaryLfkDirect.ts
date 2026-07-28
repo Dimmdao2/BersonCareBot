@@ -52,7 +52,10 @@
  */
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import { resolveCanonicalIntegratorUserId } from '../repos/canonicalUserId.js';
-import { collectPlatformUserCandidates, DirectPublicWriteError } from './writeIdentityAndPreferencesDirect.js';
+import {
+  collectPlatformUserCandidates,
+  DirectPublicWriteError,
+} from './writeIdentityAndPreferencesDirect.js';
 
 export type DiaryLfkActorInput = {
   /** Raw integrator-space id (`identities.user_id` via `ChannelUserLinkRow.userId` / `user.byIdentity`). */
@@ -92,7 +95,9 @@ function trimmedOrNull(value: string | null | undefined): string | null {
 }
 
 async function defaultMergeCandidateIds(_txDb: DbPort, candidateIds: string[]): Promise<string> {
-  const uniq = [...new Set(candidateIds.filter((id): id is string => typeof id === 'string' && id.length > 0))];
+  const uniq = [
+    ...new Set(candidateIds.filter((id): id is string => typeof id === 'string' && id.length > 0)),
+  ];
   if (uniq.length === 1) return uniq[0]!;
   if (uniq.length === 0) throw new DirectPublicWriteError('no_platform_user_candidate');
   throw new DirectPublicWriteError('ambiguous_platform_user_candidates', { candidateIds: uniq });
@@ -111,7 +116,10 @@ export async function resolvePlatformUserIdForActor(
   deps: DiaryLfkResolveDeps = {},
 ): Promise<string> {
   const mergeCandidateIds = deps.mergeCandidateIds ?? defaultMergeCandidateIds;
-  const canonicalIntegratorUserId = await resolveCanonicalIntegratorUserId(txDb, actor.integratorUserId);
+  const canonicalIntegratorUserId = await resolveCanonicalIntegratorUserId(
+    txDb,
+    actor.integratorUserId,
+  );
   const candidates = await collectPlatformUserCandidates(txDb, {
     integratorUserId: canonicalIntegratorUserId,
     phoneNormalized: null,
@@ -131,19 +139,27 @@ export async function resolvePlatformUserIdForActor(
  * (the webapp UI's "organization_selection_required" branch has no analog — there is no user prompt in
  * this transactional write path).
  */
-export async function resolveExactActiveOrganizationId(txDb: DbPort, platformUserId: string): Promise<string> {
+export async function resolveExactActiveOrganizationId(
+  txDb: DbPort,
+  platformUserId: string,
+): Promise<string> {
   const res = await txDb.query<{ organization_id: string }>(
     `SELECT DISTINCT organization_id::text AS organization_id
      FROM public.org_enrollments
      WHERE platform_user_id = $1::uuid AND status = 'active'`,
     [platformUserId],
   );
-  const ids = res.rows.map((r) => r.organization_id).filter((id): id is string => typeof id === 'string' && id.length > 0);
+  const ids = res.rows
+    .map((r) => r.organization_id)
+    .filter((id): id is string => typeof id === 'string' && id.length > 0);
   if (ids.length === 0) {
     throw new DiaryLfkDirectWriteError('no_active_org_enrollment', { platformUserId });
   }
   if (ids.length > 1) {
-    throw new DiaryLfkDirectWriteError('ambiguous_org_enrollment', { platformUserId, organizationIds: ids });
+    throw new DiaryLfkDirectWriteError('ambiguous_org_enrollment', {
+      platformUserId,
+      organizationIds: ids,
+    });
   }
   return ids[0]!;
 }
@@ -224,7 +240,8 @@ export async function addSymptomEntryDirect(
         platformUserId,
       });
     }
-    const organizationId = trackingRow.organization_id ?? (await resolveExactActiveOrganizationId(txDb, platformUserId));
+    const organizationId =
+      trackingRow.organization_id ?? (await resolveExactActiveOrganizationId(txDb, platformUserId));
 
     const res = await txDb.query<{ id: string }>(
       `INSERT INTO public.symptom_entries (
@@ -232,7 +249,15 @@ export async function addSymptomEntryDirect(
        )
        VALUES ($1::text, $1::uuid, $2::uuid, $3, $4, $5::timestamptz, 'bot', $6, $7::uuid)
        RETURNING id::text AS id`,
-      [platformUserId, input.trackingId, input.value0_10, input.entryType, input.recordedAt, notes, organizationId],
+      [
+        platformUserId,
+        input.trackingId,
+        input.value0_10,
+        input.entryType,
+        input.recordedAt,
+        notes,
+        organizationId,
+      ],
     );
     const entryId = res.rows[0]?.id;
     if (!entryId) throw new Error('symptom_entries insert returned no id');
@@ -311,7 +336,8 @@ export async function addLfkSessionDirect(
         platformUserId,
       });
     }
-    const organizationId = complexRow.organization_id ?? (await resolveExactActiveOrganizationId(txDb, platformUserId));
+    const organizationId =
+      complexRow.organization_id ?? (await resolveExactActiveOrganizationId(txDb, platformUserId));
 
     const res = await txDb.query<{ id: string }>(
       `INSERT INTO public.lfk_sessions (
@@ -336,7 +362,9 @@ export async function addLfkSessionDirect(
 export function isDiaryLfkFailClosedError(err: unknown): boolean {
   if (err instanceof DiaryLfkDirectWriteError) return true;
   if (err instanceof DirectPublicWriteError) {
-    return err.code === 'no_platform_user_candidate' || err.code === 'ambiguous_platform_user_candidates';
+    return (
+      err.code === 'no_platform_user_candidate' || err.code === 'ambiguous_platform_user_candidates'
+    );
   }
   return false;
 }

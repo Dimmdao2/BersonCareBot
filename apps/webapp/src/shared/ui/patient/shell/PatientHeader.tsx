@@ -1,47 +1,35 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
-import {
-  ChevronLeft,
-  Home,
-  Menu,
-  MessageCircle,
-  User,
-} from "lucide-react";
-import { Button, buttonVariants } from "@/shared/ui/patient/primitives/button";
-import { Separator } from "@/shared/ui/patient/primitives/separator";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/shared/ui/patient/primitives/sheet";
-import { routePaths } from "@/app-layer/routes/paths";
-import { PATIENT_DIARY_UI_LABEL } from "@/app-layer/routes/navigation";
-import {
-  patientNavByPlatform,
-  type HeaderIconId,
-} from "@/app-layer/routes/navigation";
-import { cn } from "@/lib/utils";
-import { PATIENT_OVERLAY_PANEL_WIDTH_CLASS } from "@/shared/ui/patient/pwaLayoutClasses";
-import { usePlatform } from "@/shared/hooks/usePlatform";
-import { usePatientSupportUnreadCount } from "@/modules/messaging/hooks/useSupportUnreadPolling";
-import { PatientNavCountBadge } from "@/shared/ui/patient/PatientNavCountBadge";
-import { PatientNotificationInboxButton } from "@/shared/ui/patient/shell/PatientNotificationInboxButton";
-import { NAV_STRIP_ICON_STROKE } from "@/shared/ui/patient/navChrome";
-import { shareCabinetLink } from "@/shared/lib/shareCabinetLink";
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useCallback, useState } from 'react';
+import { ChevronLeft, Home, Menu, MessageCircle, User } from 'lucide-react';
+import { Button, buttonVariants } from '@/shared/ui/patient/primitives/button';
+import { Separator } from '@/shared/ui/patient/primitives/separator';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/shared/ui/patient/primitives/sheet';
+import { routePaths } from '@/app-layer/routes/paths';
+import { PATIENT_DIARY_UI_LABEL } from '@/app-layer/routes/navigation';
+import { patientNavByPlatform, type HeaderIconId } from '@/app-layer/routes/navigation';
+import { cn } from '@/lib/utils';
+import { PATIENT_OVERLAY_PANEL_WIDTH_CLASS } from '@/shared/ui/patient/pwaLayoutClasses';
+import { usePlatform } from '@/shared/hooks/usePlatform';
+import { usePatientSupportUnreadCount } from '@/modules/messaging/hooks/useSupportUnreadPolling';
+import { PatientNavCountBadge } from '@/shared/ui/patient/PatientNavCountBadge';
+import { PatientNotificationInboxButton } from '@/shared/ui/patient/shell/PatientNotificationInboxButton';
+import { NAV_STRIP_ICON_STROKE } from '@/shared/ui/patient/navChrome';
+import { shareCabinetLink } from '@/shared/lib/shareCabinetLink';
 
 /** Единый стиль пунктов бокового меню (Sheet). */
 const SHEET_NAV_LINK_CLASS = cn(
-  buttonVariants({ variant: "ghost" }),
-  "h-auto w-full justify-start px-3 py-2 font-normal",
+  buttonVariants({ variant: 'ghost' }),
+  'h-auto w-full justify-start px-3 py-2 font-normal',
 );
 
 /** Touch target ≥ 44px (WCAG); `size="icon"` в дизайн-системе = 32px — переопределяем. */
-const HEADER_ICON_CLASS = cn(buttonVariants({ variant: "ghost", size: "icon" }), "size-10 shrink-0");
-
+const HEADER_ICON_CLASS = cn(
+  buttonVariants({ variant: 'ghost', size: 'icon' }),
+  'size-10 shrink-0',
+);
 
 type PatientHeaderProps = {
   /** Заголовок экрана в шапке (не дублировать в main). */
@@ -63,7 +51,7 @@ export function PatientHeader({
   pageTitle,
   showBack,
   backHref,
-  backLabel = "Назад",
+  backLabel = 'Назад',
   hideHome = false,
   hideRightIcons = false,
   brandTitleBar = false,
@@ -80,7 +68,7 @@ export function PatientHeader({
 
   const goBack = useCallback(() => {
     const fallback = backHref ?? routePaths.patient;
-    if (typeof window !== "undefined" && window.history.length > 1) {
+    if (typeof window !== 'undefined' && window.history.length > 1) {
       router.back();
       return;
     }
@@ -94,27 +82,26 @@ export function PatientHeader({
 
   const renderHeaderIcon = (id: HeaderIconId) => {
     switch (id) {
-      case "messages":
+      case 'messages':
         return (
           <Link
             key="messages"
             href={routePaths.patientMessages}
             prefetch={false}
-            aria-label={chatUnread > 0 ? `Сообщения, ${chatUnread} новых` : "Сообщения"}
-            className={cn(HEADER_ICON_CLASS, "relative")}
+            aria-label={chatUnread > 0 ? `Сообщения, ${chatUnread} новых` : 'Сообщения'}
+            className={cn(HEADER_ICON_CLASS, 'relative')}
           >
-            <MessageCircle className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
+            <MessageCircle
+              className="size-[22px]"
+              strokeWidth={NAV_STRIP_ICON_STROKE}
+              aria-hidden
+            />
             {chatUnread > 0 ? <PatientNavCountBadge count={chatUnread} /> : null}
           </Link>
         );
-      case "reminders":
-        return (
-          <PatientNotificationInboxButton
-            key="reminders"
-            className={HEADER_ICON_CLASS}
-          />
-        );
-      case "menu":
+      case 'reminders':
+        return <PatientNotificationInboxButton key="reminders" className={HEADER_ICON_CLASS} />;
+      case 'menu':
         return (
           <Button
             key="menu"
@@ -130,7 +117,7 @@ export function PatientHeader({
             <Menu className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
           </Button>
         );
-      case "profile":
+      case 'profile':
         return (
           <Link
             key="profile"
@@ -176,16 +163,15 @@ export function PatientHeader({
     </div>
   );
 
-  const titleBadgeEl =
-    titleBadge?.trim() ?
-      <span
-        data-testid="patient-header-title-badge"
-        className="max-w-full truncate rounded-full border border-border bg-muted/70 px-2 py-0.5 text-[10px] font-medium text-foreground"
-        title={titleBadge.trim()}
-      >
-        {titleBadge.trim()}
-      </span>
-    : null;
+  const titleBadgeEl = titleBadge?.trim() ? (
+    <span
+      data-testid="patient-header-title-badge"
+      className="max-w-full truncate rounded-full border border-border bg-muted/70 px-2 py-0.5 text-[10px] font-medium text-foreground"
+      title={titleBadge.trim()}
+    >
+      {titleBadge.trim()}
+    </span>
+  ) : null;
 
   const titleMuted = (
     <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 text-center">
@@ -212,9 +198,7 @@ export function PatientHeader({
   );
 
   const rightIcons = (
-    <div className="flex shrink-0 items-center gap-1">
-      {headerRightIds.map(renderHeaderIcon)}
-    </div>
+    <div className="flex shrink-0 items-center gap-1">{headerRightIds.map(renderHeaderIcon)}</div>
   );
 
   return (
@@ -243,7 +227,10 @@ export function PatientHeader({
 
       {nav.hasSheetMenu ? (
         <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
-          <SheetContent side="right" className={cn("flex flex-col px-4", PATIENT_OVERLAY_PANEL_WIDTH_CLASS)}>
+          <SheetContent
+            side="right"
+            className={cn('flex flex-col px-4', PATIENT_OVERLAY_PANEL_WIDTH_CLASS)}
+          >
             <SheetHeader className="px-0 text-left">
               <SheetTitle>Меню</SheetTitle>
             </SheetHeader>

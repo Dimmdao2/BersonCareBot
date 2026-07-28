@@ -1,24 +1,24 @@
 /** @vitest-environment node */
 
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 const { pgAdvisoryXactLock } = vi.hoisted(() => ({
   pgAdvisoryXactLock: vi.fn(),
 }));
 
-vi.mock("@/infra/db/pgAdvisoryLock", () => ({
+vi.mock('@/infra/db/pgAdvisoryLock', () => ({
   pgAdvisoryXactLock,
 }));
 
-import { withMultipartSessionLock } from "@/infra/multipartSessionLock";
+import { withMultipartSessionLock } from '@/infra/multipartSessionLock';
 
-describe("withMultipartSessionLock", () => {
+describe('withMultipartSessionLock', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     pgAdvisoryXactLock.mockResolvedValue(undefined);
   });
 
-  it("locks multipart session key after BEGIN", async () => {
+  it('locks multipart session key after BEGIN', async () => {
     const order: string[] = [];
     const query = vi.fn((sql: string) => {
       order.push(sql);
@@ -28,11 +28,11 @@ describe("withMultipartSessionLock", () => {
       connect: () => Promise.resolve({ query, release: vi.fn() }),
     };
 
-    await withMultipartSessionLock(pool as never, "sess-1", async () => "ok");
+    await withMultipartSessionLock(pool as never, 'sess-1', async () => 'ok');
 
-    expect(order[0]).toBe("BEGIN");
-    expect(pgAdvisoryXactLock).toHaveBeenCalledWith(expect.anything(), "multipart_session:sess-1");
-    expect(order).toContain("COMMIT");
-    expect(order.indexOf("COMMIT")).toBeGreaterThan(order.indexOf("BEGIN"));
+    expect(order[0]).toBe('BEGIN');
+    expect(pgAdvisoryXactLock).toHaveBeenCalledWith(expect.anything(), 'multipart_session:sess-1');
+    expect(order).toContain('COMMIT');
+    expect(order.indexOf('COMMIT')).toBeGreaterThan(order.indexOf('BEGIN'));
   });
 });

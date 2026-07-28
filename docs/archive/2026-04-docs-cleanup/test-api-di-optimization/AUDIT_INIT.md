@@ -12,13 +12,13 @@
 
 ### Ссылки и разделение ролей
 
-| Источник инициативы | Содержание | Соответствие правилам |
-|---------------------|------------|------------------------|
-| `MASTER_PLAN.md` | Явные ссылки на `.cursor/rules/test-execution-policy.md` и `.cursor/rules/pre-push-ci.mdc`; step/phase между коммитами; полный CI перед пушем / «как в CI» | Согласовано с приоритетом policy vs pre-push в `test-execution-policy.md` (строки 10–14) и барьером push в `pre-push-ci.mdc`. |
-| `MASTER_PLAN.md` § checkpoints | Полный `pnpm run ci` перед **пушем**, не обязателен после каждого локального коммита | Согласовано с антипаттерном «полный CI после каждого изменения» в policy. |
-| `MASTER_PLAN.md` § маленькие коммиты | После шага — test-execution-policy; не полный монорепо CI; перед пушем — `pnpm install --frozen-lockfile && pnpm run ci` | Дословно совпадает с `pre-push-ci.mdc` (команды) и step/phase в policy. |
-| `EXECUTION_RULES.md` п. 6 | Между коммитами — `test-execution-policy.md`; полный `pnpm run ci` — сценарий **пуша** (`pre-push-ci.mdc`) | Согласовано. |
-| `EXECUTION_RULES.md` § «Валидация» | Step / Phase / Full CI с определениями; full CI также при repo-уровне и явной просьбе «как в CI»; reuse | Policy допускает full CI при repo-факторах и перед push (`test-execution-policy.md`, разделы Full CI и decision rule); reuse — в policy. |
+| Источник инициативы                  | Содержание                                                                                                                                                 | Соответствие правилам                                                                                                                    |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `MASTER_PLAN.md`                     | Явные ссылки на `.cursor/rules/test-execution-policy.md` и `.cursor/rules/pre-push-ci.mdc`; step/phase между коммитами; полный CI перед пушем / «как в CI» | Согласовано с приоритетом policy vs pre-push в `test-execution-policy.md` (строки 10–14) и барьером push в `pre-push-ci.mdc`.            |
+| `MASTER_PLAN.md` § checkpoints       | Полный `pnpm run ci` перед **пушем**, не обязателен после каждого локального коммита                                                                       | Согласовано с антипаттерном «полный CI после каждого изменения» в policy.                                                                |
+| `MASTER_PLAN.md` § маленькие коммиты | После шага — test-execution-policy; не полный монорепо CI; перед пушем — `pnpm install --frozen-lockfile && pnpm run ci`                                   | Дословно совпадает с `pre-push-ci.mdc` (команды) и step/phase в policy.                                                                  |
+| `EXECUTION_RULES.md` п. 6            | Между коммитами — `test-execution-policy.md`; полный `pnpm run ci` — сценарий **пуша** (`pre-push-ci.mdc`)                                                 | Согласовано.                                                                                                                             |
+| `EXECUTION_RULES.md` § «Валидация»   | Step / Phase / Full CI с определениями; full CI также при repo-уровне и явной просьбе «как в CI»; reuse                                                    | Policy допускает full CI при repo-факторах и перед push (`test-execution-policy.md`, разделы Full CI и decision rule); reuse — в policy. |
 
 ### Нюанс (зафиксирован в инициативе)
 
@@ -28,11 +28,11 @@
 
 ## 2) Запрет изменения GitHub CI / deploy pipeline
 
-| Документ | Формулировка |
-|----------|--------------|
-| `MASTER_PLAN.md` § «GitHub CI и деплой» | Не изменять `.github/workflows/ci.yml`; не перестраивать jobs **Deploy** и связанный поток без отдельного решения команды; workflow в PR по инициативе — вне scope. |
-| `EXECUTION_RULES.md` п. 6 | Не редактировать `.github/workflows/ci.yml`, job **Deploy** и связанные шаги без отдельного решения; исключения — явная запись в `LOG.md` и вне scope обычного PR. |
-| Критерии выхода трека B (`MASTER_PLAN.md`) | «workflow GitHub не меняли» | Явное условие выхода. |
+| Документ                                   | Формулировка                                                                                                                                                        |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| `MASTER_PLAN.md` § «GitHub CI и деплой»    | Не изменять `.github/workflows/ci.yml`; не перестраивать jobs **Deploy** и связанный поток без отдельного решения команды; workflow в PR по инициативе — вне scope. |
+| `EXECUTION_RULES.md` п. 6                  | Не редактировать `.github/workflows/ci.yml`, job **Deploy** и связанные шаги без отдельного решения; исключения — явная запись в `LOG.md` и вне scope обычного PR.  |
+| Критерии выхода трека B (`MASTER_PLAN.md`) | «workflow GitHub не меняли»                                                                                                                                         | Явное условие выхода. |
 
 Итог: запрет **явный**, дублируется в плане и правилах исполнения.
 
@@ -50,13 +50,13 @@
 
 Ниже — закрытие **critical** и **major** требований из исходного блока MANDATORY FIX (превентивное встраивание в инициативу, без изменения `.cursor/rules/*`). Статус на **2026-04-17** после правок документации.
 
-| ID | Уровень | Тема | Статус | Где зафиксировано |
-|----|---------|------|--------|-------------------|
-| MF-1 | **Critical** | Источник правды: policy / pre-push; дрейф править только в `docs/TEST_AND_API_DI_OPTIMIZATION/` | **CLOSED** | `EXECUTION_RULES.md` § «Источник правил по прогонам и пушу»; `README.md` (ссылки на rules + строка про `AUDIT_INIT.md`). |
-| MF-2 | **Critical** | Барьер перед пушем; не полный монорепо CI после каждого микрошага; repo-scope ≠ микрошаг | **CLOSED** | `MASTER_PLAN.md` (доп. bullet в § «Маленькие reviewable commits»); `EXECUTION_RULES.md` § «Валидация» (без изменения смысла); нюанс в § «Нюанс» этого файла. |
-| MF-3 | **Critical** | Явный запрет правок `.github/workflows/ci.yml` / job **Deploy** | **CLOSED** | Без изменения смысла: `MASTER_PLAN.md` § «GitHub CI и деплой»; `EXECUTION_RULES.md` п. 6 (расширен запретом на «чинить» через workflow). |
-| MF-4 | **Major** | Любой обязательный док-фикс по policy/workflow — запись в `test-optimization/LOG.md` | **CLOSED** | Запись **2026-04-17 — post-audit doc closure** в `test-optimization/LOG.md`. |
-| MF-5 | **Major** | Не устранять расхождения правками pipeline / ослаблением pre-push | **CLOSED** | `EXECUTION_RULES.md` п. 6 (явное предложение после точки с запятой). |
+| ID   | Уровень      | Тема                                                                                            | Статус     | Где зафиксировано                                                                                                                                            |
+| ---- | ------------ | ----------------------------------------------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| MF-1 | **Critical** | Источник правды: policy / pre-push; дрейф править только в `docs/TEST_AND_API_DI_OPTIMIZATION/` | **CLOSED** | `EXECUTION_RULES.md` § «Источник правил по прогонам и пушу»; `README.md` (ссылки на rules + строка про `AUDIT_INIT.md`).                                     |
+| MF-2 | **Critical** | Барьер перед пушем; не полный монорепо CI после каждого микрошага; repo-scope ≠ микрошаг        | **CLOSED** | `MASTER_PLAN.md` (доп. bullet в § «Маленькие reviewable commits»); `EXECUTION_RULES.md` § «Валидация» (без изменения смысла); нюанс в § «Нюанс» этого файла. |
+| MF-3 | **Critical** | Явный запрет правок `.github/workflows/ci.yml` / job **Deploy**                                 | **CLOSED** | Без изменения смысла: `MASTER_PLAN.md` § «GitHub CI и деплой»; `EXECUTION_RULES.md` п. 6 (расширен запретом на «чинить» через workflow).                     |
+| MF-4 | **Major**    | Любой обязательный док-фикс по policy/workflow — запись в `test-optimization/LOG.md`            | **CLOSED** | Запись **2026-04-17 — post-audit doc closure** в `test-optimization/LOG.md`.                                                                                 |
+| MF-5 | **Major**    | Не устранять расхождения правками pipeline / ослаблением pre-push                               | **CLOSED** | `EXECUTION_RULES.md` п. 6 (явное предложение после точки с запятой).                                                                                         |
 
 **Verdict (после closure):** **PASS** — critical/major по таблице закрыты документами в scope инициативы.
 

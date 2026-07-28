@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import {
   DndContext,
   KeyboardSensor,
@@ -11,19 +11,19 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
-} from "@dnd-kit/core";
+} from '@dnd-kit/core';
 import {
   SortableContext,
   arrayMove,
   sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { EllipsisVertical, Eye, EyeOff, Shield, ShieldOff } from "lucide-react";
-import { Badge } from "@/shared/ui/doctor/primitives/badge";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { MediaThumb } from "@/shared/ui/doctor/media/MediaThumb";
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { EllipsisVertical, Eye, EyeOff, Shield, ShieldOff } from 'lucide-react';
+import { Badge } from '@/shared/ui/doctor/primitives/badge';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { MediaThumb } from '@/shared/ui/doctor/media/MediaThumb';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,16 +32,16 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/shared/ui/doctor/primitives/dropdown-menu";
-import { reorderContentSections } from "./reorderContentSections";
-import { setSectionRequiresAuth, setSectionVisibility } from "./sectionVisibilityActions";
-import type { ContentSectionKind, SystemParentCode } from "@/modules/content-sections/types";
+} from '@/shared/ui/doctor/primitives/dropdown-menu';
+import { reorderContentSections } from './reorderContentSections';
+import { setSectionRequiresAuth, setSectionVisibility } from './sectionVisibilityActions';
+import type { ContentSectionKind, SystemParentCode } from '@/modules/content-sections/types';
 import {
   CMS_UNASSIGNED_SECTION_SLUG,
   isImmutableSystemSectionSlug,
   isSectionSlugProtectedFromDelete,
-} from "@/modules/content-sections/types";
-import { SectionDeleteDialog } from "./SectionDeleteDialog";
+} from '@/modules/content-sections/types';
+import { SectionDeleteDialog } from './SectionDeleteDialog';
 
 export type SectionListRow = {
   id: string;
@@ -57,7 +57,13 @@ export type SectionListRow = {
   pagesInSection: number;
 };
 
-function DragHandle({ listeners, attributes }: { listeners: Record<string, unknown>; attributes: Record<string, unknown> }) {
+function DragHandle({
+  listeners,
+  attributes,
+}: {
+  listeners: Record<string, unknown>;
+  attributes: Record<string, unknown>;
+}) {
   return (
     <Button
       type="button"
@@ -93,7 +99,9 @@ function SortableSectionRow({
   onRequestDelete: (row: SectionListRow) => void;
 }) {
   const router = useRouter();
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: row.slug });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: row.slug,
+  });
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -104,9 +112,9 @@ function SortableSectionRow({
     row.coverImageUrl && row.coverImageUrl.trim().length > 0
       ? {
           id: `${row.slug}-cover`,
-          kind: "image" as const,
+          kind: 'image' as const,
           url: row.coverImageUrl,
-          previewStatus: "ready" as const,
+          previewStatus: 'ready' as const,
           previewSmUrl: row.coverImageUrl,
           previewMdUrl: row.coverImageUrl,
         }
@@ -115,9 +123,9 @@ function SortableSectionRow({
     row.iconImageUrl && row.iconImageUrl.trim().length > 0
       ? {
           id: `${row.slug}-icon`,
-          kind: "image" as const,
+          kind: 'image' as const,
           url: row.iconImageUrl,
-          previewStatus: "ready" as const,
+          previewStatus: 'ready' as const,
           previewSmUrl: row.iconImageUrl,
           previewMdUrl: row.iconImageUrl,
         }
@@ -139,19 +147,19 @@ function SortableSectionRow({
         </Link>
         <p className="truncate font-mono text-xs text-muted-foreground">{row.slug}</p>
         <div className="mt-1 flex flex-wrap items-center gap-1">
-          <Badge variant={row.kind === "article" ? "outline" : "secondary"} className="text-[10px]">
-            {row.kind === "article" ? "Статьи" : "Системный"}
+          <Badge variant={row.kind === 'article' ? 'outline' : 'secondary'} className="text-[10px]">
+            {row.kind === 'article' ? 'Статьи' : 'Системный'}
           </Badge>
-          {row.kind === "system" ? (
+          {row.kind === 'system' ? (
             <Badge variant="outline" className="text-[10px]">
               {row.systemParentCode
                 ? ({
-                    situations: "Ситуации",
-                    sos: "SOS",
-                    warmups: "Разминки",
-                    lessons: "Уроки",
-                  })[row.systemParentCode] ?? row.systemParentCode
-                : "Корень"}
+                    situations: 'Ситуации',
+                    sos: 'SOS',
+                    warmups: 'Разминки',
+                    lessons: 'Уроки',
+                  }[row.systemParentCode] ?? row.systemParentCode)
+                : 'Корень'}
             </Badge>
           ) : null}
           {isImmutableSystemSectionSlug(row.slug) ? (
@@ -193,8 +201,8 @@ function SortableSectionRow({
           size="icon"
           className="size-9 shrink-0 rounded-full border border-border/80"
           disabled={visPending}
-          title={row.isVisible ? "Виден пациенту" : "Скрыт"}
-          aria-label={row.isVisible ? "Виден пациенту" : "Скрыт"}
+          title={row.isVisible ? 'Виден пациенту' : 'Скрыт'}
+          aria-label={row.isVisible ? 'Виден пациенту' : 'Скрыт'}
           onClick={() => onToggleVisible(row.slug, !row.isVisible)}
         >
           {row.isVisible ? (
@@ -209,8 +217,8 @@ function SortableSectionRow({
           size="icon"
           className="size-9 shrink-0 rounded-full border border-border/80"
           disabled={authPending}
-          title={row.requiresAuth ? "Только для залогиненных" : "Публично в каталоге"}
-          aria-label={row.requiresAuth ? "Только для залогиненных" : "Публично в каталоге"}
+          title={row.requiresAuth ? 'Только для залогиненных' : 'Публично в каталоге'}
+          aria-label={row.requiresAuth ? 'Только для залогиненных' : 'Публично в каталоге'}
           onClick={() => onToggleRequiresAuth(row.slug, !row.requiresAuth)}
         >
           {row.requiresAuth ? (
@@ -231,7 +239,9 @@ function SortableSectionRow({
               <DropdownMenuLabel>Действия</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                onClick={() => router.push(`/app/doctor/content/sections/edit/${encodeURIComponent(row.slug)}`)}
+                onClick={() =>
+                  router.push(`/app/doctor/content/sections/edit/${encodeURIComponent(row.slug)}`)
+                }
               >
                 Редактировать
               </DropdownMenuItem>
@@ -253,7 +263,11 @@ function SortableSectionRow({
   );
 }
 
-export function ContentSectionsListClient({ initialSections }: { initialSections: SectionListRow[] }) {
+export function ContentSectionsListClient({
+  initialSections,
+}: {
+  initialSections: SectionListRow[];
+}) {
   const [items, setItems] = useState(initialSections);
   const [deletingFor, setDeletingFor] = useState<SectionListRow | null>(null);
   const [pending, startTransition] = useTransition();
@@ -271,26 +285,23 @@ export function ContentSectionsListClient({ initialSections }: { initialSections
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
-  const onDragEnd = useCallback(
-    (event: DragEndEvent) => {
-      const { active, over } = event;
-      if (!over || active.id === over.id) return;
-      setItems((prev) => {
-        const oldIndex = prev.findIndex((p) => p.slug === active.id);
-        const newIndex = prev.findIndex((p) => p.slug === over.id);
-        if (oldIndex < 0 || newIndex < 0) return prev;
-        const previous = prev;
-        const next = arrayMove(prev, oldIndex, newIndex);
-        const orderedSlugs = next.map((p) => p.slug);
-        startTransition(async () => {
-          const res = await reorderContentSections(orderedSlugs);
-          if (!res.ok) setItems(previous);
-        });
-        return next;
+  const onDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    setItems((prev) => {
+      const oldIndex = prev.findIndex((p) => p.slug === active.id);
+      const newIndex = prev.findIndex((p) => p.slug === over.id);
+      if (oldIndex < 0 || newIndex < 0) return prev;
+      const previous = prev;
+      const next = arrayMove(prev, oldIndex, newIndex);
+      const orderedSlugs = next.map((p) => p.slug);
+      startTransition(async () => {
+        const res = await reorderContentSections(orderedSlugs);
+        if (!res.ok) setItems(previous);
       });
-    },
-    [],
-  );
+      return next;
+    });
+  }, []);
 
   const onToggleVisible = useCallback((slug: string, next: boolean) => {
     startVisTransition(async () => {
@@ -315,7 +326,11 @@ export function ContentSectionsListClient({ initialSections }: { initialSections
   }, []);
 
   if (items.length === 0) {
-    return <p className="text-sm text-muted-foreground">Нет разделов. Создайте первый раздел или проверьте подключение к БД.</p>;
+    return (
+      <p className="text-sm text-muted-foreground">
+        Нет разделов. Создайте первый раздел или проверьте подключение к БД.
+      </p>
+    );
   }
 
   return (

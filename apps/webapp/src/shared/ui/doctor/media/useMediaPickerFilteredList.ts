@@ -1,24 +1,24 @@
-"use client";
+'use client';
 
-import { useEffect, useMemo } from "react";
-import type { MediaListItem } from "@/shared/ui/doctor/media/MediaPickerList";
+import { useEffect, useMemo } from 'react';
+import type { MediaListItem } from '@/shared/ui/doctor/media/MediaPickerList';
 import {
   filterMediaLibraryPickerItemsByQuery,
   narrowMediaLibraryPickerItemsByKind,
   useMediaLibraryPickerItems,
   type MediaLibraryPickerKindFilter,
-} from "@/shared/ui/doctor/media/useMediaLibraryPickerItems";
+} from '@/shared/ui/doctor/media/useMediaLibraryPickerItems';
 import {
   shouldRunMediaLibraryPickerServerSearch,
   useMediaLibraryPickerServerSearch,
-} from "@/shared/ui/doctor/media/useMediaLibraryPickerServerSearch";
+} from '@/shared/ui/doctor/media/useMediaLibraryPickerServerSearch';
 
 /** API `total` не отражает сужение `image_or_video` на клиенте. */
 export function pickerListTotalForKind(
   kind: MediaLibraryPickerKindFilter,
   total: number | null,
 ): number | null {
-  if (kind === "image_or_video") return null;
+  if (kind === 'image_or_video') return null;
   return total;
 }
 
@@ -110,13 +110,13 @@ export function useMediaPickerFilteredList(options: {
     if (!trimmedQuery || inServerMode) return null;
     if (localMatches.length > 0 || baseLoading) return null;
     if (baseHasMore) {
-      return "Совпадений среди загруженных файлов нет. Загрузите ещё или дождитесь поиска по всей библиотеке.";
+      return 'Совпадений среди загруженных файлов нет. Загрузите ещё или дождитесь поиска по всей библиотеке.';
     }
     return null;
   }, [trimmedQuery, inServerMode, localMatches.length, baseLoading, baseHasMore]);
 
   useEffect(() => {
-    if (kind !== "image_or_video" || trimmedQuery) return;
+    if (kind !== 'image_or_video' || trimmedQuery) return;
     if (inServerMode) {
       if (rawLoading || rawLoadingMore || !rawHasMore) return;
       if (serverSearch.items.length > 0 && serverKindFiltered.length === 0) {

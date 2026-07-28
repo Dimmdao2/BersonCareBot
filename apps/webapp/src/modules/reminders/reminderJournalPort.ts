@@ -1,4 +1,4 @@
-export type ReminderJournalAction = "done" | "skipped" | "snoozed";
+export type ReminderJournalAction = 'done' | 'skipped' | 'snoozed';
 
 export type ReminderJournalEntry = {
   id: string;
@@ -44,14 +44,18 @@ export type ReminderJournalPort = {
     days: number,
   ): Promise<Record<string, ReminderJournalRuleStats>>;
   /** Done + skipped rows with `created_at` in `[rangeStart, rangeEnd)` (half-open). */
-  countDoneSkippedInUtcRange(platformUserId: string, rangeStart: Date, rangeEnd: Date): Promise<number>;
+  countDoneSkippedInUtcRange(
+    platformUserId: string,
+    rangeStart: Date,
+    rangeEnd: Date,
+  ): Promise<number>;
   recordSnooze(
     platformUserId: string,
     integratorOccurrenceId: string,
     minutes: number,
   ): Promise<
     | { ok: true; occurrenceId: string; snoozedUntil: string }
-    | { ok: false; error: "not_found" | "conflict" }
+    | { ok: false; error: 'not_found' | 'conflict' }
   >;
   recordDone(
     platformUserId: string,
@@ -59,14 +63,13 @@ export type ReminderJournalPort = {
     displayTimeZone: string,
   ): Promise<
     | ({ ok: true; occurrenceId: string; doneAt: string } & ReminderDoneDayStats)
-    | { ok: false; error: "not_found" | "conflict" }
+    | { ok: false; error: 'not_found' | 'conflict' }
   >;
   recordSkip(
     platformUserId: string,
     integratorOccurrenceId: string,
     reason: string | null,
   ): Promise<
-    | { ok: true; occurrenceId: string; skippedAt: string }
-    | { ok: false; error: "not_found" }
+    { ok: true; occurrenceId: string; skippedAt: string } | { ok: false; error: 'not_found' }
   >;
 };

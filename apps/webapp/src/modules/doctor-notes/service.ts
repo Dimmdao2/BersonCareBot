@@ -1,4 +1,4 @@
-import type { DoctorNotesPort } from "./ports";
+import type { DoctorNotesPort } from './ports';
 
 export function createDoctorNotesService(port: DoctorNotesPort) {
   return {
@@ -8,7 +8,7 @@ export function createDoctorNotesService(port: DoctorNotesPort) {
     create(params: { userId: string; authorId: string; text: string }) {
       const trimmed = params.text.trim();
       if (!trimmed) {
-        return Promise.reject(new Error("empty_note"));
+        return Promise.reject(new Error('empty_note'));
       }
       return port.create({ ...params, text: trimmed });
     },

@@ -1,4 +1,4 @@
-import type { PatientHomeBlockItem, PatientHomeBlockItemTargetType } from "./ports";
+import type { PatientHomeBlockItem, PatientHomeBlockItemTargetType } from './ports';
 
 /** Slug/id → человекочитаемое имя из CMS (страница, раздел, курс). */
 export type PatientHomeRefDisplayTitles = {
@@ -34,10 +34,10 @@ export function buildPatientHomeRefDisplayTitles(input: {
 }
 
 const TARGET_TYPE_LABELS_RU: Record<PatientHomeBlockItemTargetType, string> = {
-  content_section: "Раздел",
-  content_page: "Материал",
-  course: "Курс",
-  static_action: "Действие",
+  content_section: 'Раздел',
+  content_page: 'Материал',
+  course: 'Курс',
+  static_action: 'Действие',
 };
 
 /** Подпись типа цели для подстрочника в админке (строка из API / БД). */
@@ -59,8 +59,8 @@ export function patientHomeBlockItemDisplayTitle(
   if (override) return override;
   const ref = item.targetRef.trim();
   if (!ref) return item.targetRef;
-  if (item.targetType === "content_page") return titles.contentPages[ref] ?? ref;
-  if (item.targetType === "content_section") return titles.contentSections[ref] ?? ref;
-  if (item.targetType === "course") return titles.courses[ref] ?? ref;
+  if (item.targetType === 'content_page') return titles.contentPages[ref] ?? ref;
+  if (item.targetType === 'content_section') return titles.contentSections[ref] ?? ref;
+  if (item.targetType === 'course') return titles.courses[ref] ?? ref;
   return ref;
 }

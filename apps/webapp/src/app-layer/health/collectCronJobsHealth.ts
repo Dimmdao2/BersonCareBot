@@ -1,12 +1,12 @@
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { classifyOperatorCronJobHealthStatus } from "@/modules/operator-health/classifyOperatorCronJobHealthStatus";
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { classifyOperatorCronJobHealthStatus } from '@/modules/operator-health/classifyOperatorCronJobHealthStatus';
 import {
   CRON_JOB_REGISTRY,
   findCronJobRegistryEntry,
   type CronJobRegistryEntry,
-} from "@/modules/operator-health/cronJobRegistry";
-import { OPERATOR_BACKUP_JOB_FAMILY } from "@/modules/operator-health/reconcileJobKeys";
-import type { OperatorJobStatusTickRow } from "@/modules/operator-health/ports";
+} from '@/modules/operator-health/cronJobRegistry';
+import { OPERATOR_BACKUP_JOB_FAMILY } from '@/modules/operator-health/reconcileJobKeys';
+import type { OperatorJobStatusTickRow } from '@/modules/operator-health/ports';
 
 export type CronJobLastTickPayload = {
   jobKey: string;
@@ -26,9 +26,9 @@ export type CronJobHealthItem = {
   jobKey: string;
   label: string;
   scheduleHint: string;
-  kind: CronJobRegistryEntry["kind"];
+  kind: CronJobRegistryEntry['kind'];
   internalPath?: string;
-  status: "ok" | "degraded" | "error" | "no_data";
+  status: 'ok' | 'degraded' | 'error' | 'no_data';
   lastTick: CronJobLastTickPayload | null;
 };
 
@@ -43,7 +43,7 @@ type BackupJobHealthSlice = {
 };
 
 export type CronJobsHealthPayload = {
-  status: "ok" | "degraded" | "error" | "no_data";
+  status: 'ok' | 'degraded' | 'error' | 'no_data';
   jobs: CronJobHealthItem[];
 };
 
@@ -75,23 +75,21 @@ function tickRowToPayload(row: OperatorJobStatusTickRow): CronJobLastTickPayload
   };
 }
 
-function aggregateCronJobsStatus(
-  jobs: CronJobHealthItem[],
-): CronJobsHealthPayload["status"] {
-  if (jobs.length === 0) return "no_data";
+function aggregateCronJobsStatus(jobs: CronJobHealthItem[]): CronJobsHealthPayload['status'] {
+  if (jobs.length === 0) return 'no_data';
   let rank = 0;
   const bump = (to: number) => {
     if (to > rank) rank = to;
   };
   for (const j of jobs) {
     const reg = findCronJobRegistryEntry(j.jobFamily, j.jobKey);
-    if (j.status === "error") bump(2);
-    else if (j.status === "degraded") bump(1);
-    else if (j.status === "no_data" && !reg?.optionalNoData) bump(1);
+    if (j.status === 'error') bump(2);
+    else if (j.status === 'degraded') bump(1);
+    else if (j.status === 'no_data' && !reg?.optionalNoData) bump(1);
   }
-  if (rank >= 2) return "error";
-  if (rank >= 1) return "degraded";
-  return "ok";
+  if (rank >= 2) return 'error';
+  if (rank >= 1) return 'degraded';
+  return 'ok';
 }
 
 /**
@@ -113,14 +111,14 @@ export async function collectCronJobsHealth(input?: {
   for (const entry of CRON_JOB_REGISTRY) {
     let lastTick: CronJobLastTickPayload | null = null;
 
-    if (entry.kind === "backup_shell") {
+    if (entry.kind === 'backup_shell') {
       const row = backupByKey[entry.jobKey];
       if (row) {
         lastTick = backupRowToTick(entry.jobKey, row);
       }
     } else {
       const row = curatedByKey
-        ? curatedByKey.get(`${entry.jobFamily}:${entry.jobKey}`) ?? null
+        ? (curatedByKey.get(`${entry.jobFamily}:${entry.jobKey}`) ?? null)
         : await read!.getOperatorJobStatus(entry.jobFamily, entry.jobKey);
       if (row) {
         lastTick = tickRowToPayload(row);

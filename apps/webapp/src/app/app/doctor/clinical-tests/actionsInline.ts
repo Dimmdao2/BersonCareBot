@@ -1,7 +1,7 @@
-"use server";
+'use server';
 
-import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import {
   archiveClinicalTestCore,
   CLINICAL_TESTS_PATH,
@@ -10,8 +10,8 @@ import {
   type ArchiveClinicalTestState,
   type SaveClinicalTestState,
   type UnarchiveClinicalTestState,
-} from "./actionsShared";
-import { appendClinicalTestsListPreserveToSearchParams } from "./clinicalTestsListPreserveParams";
+} from './actionsShared';
+import { appendClinicalTestsListPreserveToSearchParams } from './clinicalTestsListPreserveParams';
 
 function appendClinicalTestsListParams(sp: URLSearchParams, formData: FormData) {
   appendClinicalTestsListPreserveToSearchParams(sp, formData);
@@ -26,10 +26,10 @@ export async function saveClinicalTestInline(
 
   revalidatePath(CLINICAL_TESTS_PATH);
   revalidatePath(`${CLINICAL_TESTS_PATH}/${result.testId}`);
-  const view = formData.get("view") === "list" ? "list" : "tiles";
+  const view = formData.get('view') === 'list' ? 'list' : 'tiles';
   const sp = new URLSearchParams();
-  sp.set("selected", result.testId);
-  sp.set("view", view);
+  sp.set('selected', result.testId);
+  sp.set('view', view);
   appendClinicalTestsListParams(sp, formData);
   redirect(`${CLINICAL_TESTS_PATH}?${sp.toString()}`);
 }
@@ -39,17 +39,17 @@ export async function archiveClinicalTestInline(
   formData: FormData,
 ): Promise<ArchiveClinicalTestState> {
   const result = await archiveClinicalTestCore(formData);
-  if (result.kind === "needs_confirmation") {
-    return { ok: false, code: "USAGE_CONFIRMATION_REQUIRED", usage: result.usage };
+  if (result.kind === 'needs_confirmation') {
+    return { ok: false, code: 'USAGE_CONFIRMATION_REQUIRED', usage: result.usage };
   }
-  const view = formData.get("view") === "list" ? "list" : "tiles";
+  const view = formData.get('view') === 'list' ? 'list' : 'tiles';
   const sp = new URLSearchParams();
-  sp.set("view", view);
+  sp.set('view', view);
   appendClinicalTestsListParams(sp, formData);
   const qs = sp.toString();
-  if (result.kind === "invalid") {
-    const idRaw = formData.get("id");
-    const id = typeof idRaw === "string" ? idRaw.trim() : "";
+  if (result.kind === 'invalid') {
+    const idRaw = formData.get('id');
+    const id = typeof idRaw === 'string' ? idRaw.trim() : '';
     if (!id) redirect(`${CLINICAL_TESTS_PATH}?${qs}`);
     return { ok: false, error: result.error };
   }
@@ -62,15 +62,15 @@ export async function unarchiveClinicalTestInline(
   formData: FormData,
 ): Promise<UnarchiveClinicalTestState> {
   const result = await unarchiveClinicalTestCore(formData);
-  if (result.kind === "invalid") {
+  if (result.kind === 'invalid') {
     return { ok: false, error: result.error };
   }
   revalidatePath(CLINICAL_TESTS_PATH);
   revalidatePath(`${CLINICAL_TESTS_PATH}/${result.id}`);
-  const view = formData.get("view") === "list" ? "list" : "tiles";
+  const view = formData.get('view') === 'list' ? 'list' : 'tiles';
   const sp = new URLSearchParams();
-  sp.set("view", view);
-  sp.set("selected", result.id);
+  sp.set('view', view);
+  sp.set('selected', result.id);
   appendClinicalTestsListParams(sp, formData);
   redirect(`${CLINICAL_TESTS_PATH}?${sp.toString()}`);
 }

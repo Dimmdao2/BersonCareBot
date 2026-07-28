@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
-import { PublicProductPayClient } from "./PublicProductPayClient";
+import { redirect } from 'next/navigation';
+import { PublicProductPayClient } from './PublicProductPayClient';
 
 type Props = {
   params: Promise<{ token: string }>;
@@ -9,9 +9,7 @@ type Props = {
 export default async function PublicProductPayPage({ searchParams }: Props) {
   const { purchaseId, phone } = await searchParams;
   if (!purchaseId?.trim() || !phone?.trim()) {
-    redirect("/book");
+    redirect('/book');
   }
-  return (
-    <PublicProductPayClient purchaseId={purchaseId.trim()} contactPhone={phone.trim()} />
-  );
+  return <PublicProductPayClient purchaseId={purchaseId.trim()} contactPhone={phone.trim()} />;
 }

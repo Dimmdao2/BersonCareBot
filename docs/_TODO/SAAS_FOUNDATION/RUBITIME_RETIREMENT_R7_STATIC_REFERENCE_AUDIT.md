@@ -50,15 +50,15 @@ node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r6-r7-static-inventory.mjs --ex
 
 Result from 2026-07-14 12:11 MSK:
 
-| Category | Result | Meaning |
-| --- | ---: | --- |
-| `mountedRubitimeRouteLiterals` | 0 hits / 0 files | No Rubitime-named runtime HTTP surface remains in scanned source. |
-| `integratorRubitimeRuntimeImports` | 0 hits / 0 files | No runtime imports from `apps/integrator/src/integrations/rubitime/**` remain. |
-| `rubitimeApiClientRuntimeTokens` | 0 hits / 0 files | No live Rubitime API/client/throttle/post-create tokens remain. |
-| `legacyAppointmentRecordRuntimeRefs` | 147 hits / 29 files | Legacy compatibility/archive/backfill references remain; not a CSV preservation blocker. |
-| `rubitimeRawTableRuntimeRefs` | 20 hits / 5 files | Raw-table references remain in schema declarations, active provider-neutral retry storage and strict purge cleanup. Ops tooling is reported separately. |
-| `providerNeutralKeepTableRefs` | 158 hits / 38 files | Explicit keep-list references, including `booking_calendar_map`; not a drop signal. |
-| `rubitimeOpsToolingRefs` | 551 hits / 22 files | Ops/audit/backfill scripts; not a live Rubitime endpoint by themselves. |
+| Category                             |              Result | Meaning                                                                                                                                                 |
+| ------------------------------------ | ------------------: | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mountedRubitimeRouteLiterals`       |    0 hits / 0 files | No Rubitime-named runtime HTTP surface remains in scanned source.                                                                                       |
+| `integratorRubitimeRuntimeImports`   |    0 hits / 0 files | No runtime imports from `apps/integrator/src/integrations/rubitime/**` remain.                                                                          |
+| `rubitimeApiClientRuntimeTokens`     |    0 hits / 0 files | No live Rubitime API/client/throttle/post-create tokens remain.                                                                                         |
+| `legacyAppointmentRecordRuntimeRefs` | 147 hits / 29 files | Legacy compatibility/archive/backfill references remain; not a CSV preservation blocker.                                                                |
+| `rubitimeRawTableRuntimeRefs`        |   20 hits / 5 files | Raw-table references remain in schema declarations, active provider-neutral retry storage and strict purge cleanup. Ops tooling is reported separately. |
+| `providerNeutralKeepTableRefs`       | 158 hits / 38 files | Explicit keep-list references, including `booking_calendar_map`; not a drop signal.                                                                     |
+| `rubitimeOpsToolingRefs`             | 551 hits / 22 files | Ops/audit/backfill scripts; not a live Rubitime endpoint by themselves.                                                                                 |
 
 ## Reference Scan
 
@@ -148,15 +148,15 @@ It was never a Rubitime raw-table drop candidate and remains not one after the r
 
 Static inventory after this cleanup:
 
-| Category | Result | Meaning |
-| --- | ---: | --- |
-| `mountedRubitimeRouteLiterals` | 0 hits / 0 files | No Rubitime-named runtime HTTP surface remains in scanned source. |
-| `integratorRubitimeRuntimeImports` | 0 hits / 0 files | No runtime imports from `apps/integrator/src/integrations/rubitime/**` remain. |
-| `rubitimeApiClientRuntimeTokens` | 0 hits / 0 files | No live Rubitime API/client/throttle/post-create tokens remain. |
-| `legacyAppointmentRecordRuntimeRefs` | 147 hits / 29 files | Legacy compatibility/archive/backfill references remain; not a CSV preservation blocker. |
-| `rubitimeRawTableRuntimeRefs` | 63 hits / 17 files | Raw-table references remain for physical table names, schema declarations and R7 tooling. |
-| `providerNeutralKeepTableRefs` | 158 hits / 38 files | Explicit keep-list references, including `booking_calendar_map`; not a drop signal. |
-| `rubitimeOpsToolingRefs` | 551 hits / 22 files | Ops/audit/backfill scripts; not a live Rubitime endpoint by themselves. |
+| Category                             |              Result | Meaning                                                                                   |
+| ------------------------------------ | ------------------: | ----------------------------------------------------------------------------------------- |
+| `mountedRubitimeRouteLiterals`       |    0 hits / 0 files | No Rubitime-named runtime HTTP surface remains in scanned source.                         |
+| `integratorRubitimeRuntimeImports`   |    0 hits / 0 files | No runtime imports from `apps/integrator/src/integrations/rubitime/**` remain.            |
+| `rubitimeApiClientRuntimeTokens`     |    0 hits / 0 files | No live Rubitime API/client/throttle/post-create tokens remain.                           |
+| `legacyAppointmentRecordRuntimeRefs` | 147 hits / 29 files | Legacy compatibility/archive/backfill references remain; not a CSV preservation blocker.  |
+| `rubitimeRawTableRuntimeRefs`        |  63 hits / 17 files | Raw-table references remain for physical table names, schema declarations and R7 tooling. |
+| `providerNeutralKeepTableRefs`       | 158 hits / 38 files | Explicit keep-list references, including `booking_calendar_map`; not a drop signal.       |
+| `rubitimeOpsToolingRefs`             | 551 hits / 22 files | Ops/audit/backfill scripts; not a live Rubitime endpoint by themselves.                   |
 
 Validation:
 
@@ -175,15 +175,15 @@ runtime raw-table references.
 
 Static inventory after this cleanup:
 
-| Category | Result | Meaning |
-| --- | ---: | --- |
-| `mountedRubitimeRouteLiterals` | 0 hits / 0 files | No Rubitime-named runtime HTTP surface remains in scanned source. |
-| `integratorRubitimeRuntimeImports` | 0 hits / 0 files | No runtime imports from `apps/integrator/src/integrations/rubitime/**` remain. |
-| `rubitimeApiClientRuntimeTokens` | 0 hits / 0 files | No live Rubitime API/client/throttle/post-create tokens remain. |
-| `legacyAppointmentRecordRuntimeRefs` | 147 hits / 29 files | Legacy compatibility/archive/backfill references remain; not a CSV preservation blocker. |
-| `rubitimeRawTableRuntimeRefs` | 20 hits / 5 files | Runtime/schema references remain only for Drizzle schema, provider-neutral retry storage and strict purge cleanup. |
-| `providerNeutralKeepTableRefs` | 158 hits / 38 files | Explicit keep-list references, including `booking_calendar_map`; not a drop signal. |
-| `rubitimeOpsToolingRefs` | 551 hits / 22 files | Ops/audit/backfill scripts; not a live Rubitime endpoint by themselves. |
+| Category                             |              Result | Meaning                                                                                                            |
+| ------------------------------------ | ------------------: | ------------------------------------------------------------------------------------------------------------------ |
+| `mountedRubitimeRouteLiterals`       |    0 hits / 0 files | No Rubitime-named runtime HTTP surface remains in scanned source.                                                  |
+| `integratorRubitimeRuntimeImports`   |    0 hits / 0 files | No runtime imports from `apps/integrator/src/integrations/rubitime/**` remain.                                     |
+| `rubitimeApiClientRuntimeTokens`     |    0 hits / 0 files | No live Rubitime API/client/throttle/post-create tokens remain.                                                    |
+| `legacyAppointmentRecordRuntimeRefs` | 147 hits / 29 files | Legacy compatibility/archive/backfill references remain; not a CSV preservation blocker.                           |
+| `rubitimeRawTableRuntimeRefs`        |   20 hits / 5 files | Runtime/schema references remain only for Drizzle schema, provider-neutral retry storage and strict purge cleanup. |
+| `providerNeutralKeepTableRefs`       | 158 hits / 38 files | Explicit keep-list references, including `booking_calendar_map`; not a drop signal.                                |
+| `rubitimeOpsToolingRefs`             | 551 hits / 22 files | Ops/audit/backfill scripts; not a live Rubitime endpoint by themselves.                                            |
 
 Remaining `rubitimeRawTableRuntimeRefs` are not safe repo-only deletes before owner R6 cutoff/drain proof, archive/drop
 decision, and migration-backed R7 drop/defer. The cleanup did not create

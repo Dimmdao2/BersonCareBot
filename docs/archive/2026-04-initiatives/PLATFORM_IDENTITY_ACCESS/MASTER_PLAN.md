@@ -14,11 +14,11 @@
 
 Реализация **обязана** ввести и использовать **ровно три централизованных модуля** (конкретные пути в `apps/webapp/src/...` — в PR, но количество и ответственность фиксированы):
 
-| Модуль | Ответственность |
-|--------|-----------------|
-| **Access context / tier** | Резолв канона из БД + вычисление `{ canonicalUserId, dbRole, tier, ... }`; единая точка для всех потребителей политики. |
-| **Trusted phone policy** | Закрытый перечень: что считается **доверенной** активацией телефона для tier **patient**. **Не** любой `UPDATE phone_normalized` в репозитории автоматически становится trusted — только явно зарегистрированные пути. |
-| **Route & API policy** | Whitelist маршрутов patient-зоны и согласованные правила для **API** / **server actions**: один и тот же access context, **без** варианта «UI через tier, API через старые точечные `if (!phone)`». |
+| Модуль                    | Ответственность                                                                                                                                                                                                        |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Access context / tier** | Резолв канона из БД + вычисление `{ canonicalUserId, dbRole, tier, ... }`; единая точка для всех потребителей политики.                                                                                                |
+| **Trusted phone policy**  | Закрытый перечень: что считается **доверенной** активацией телефона для tier **patient**. **Не** любой `UPDATE phone_normalized` в репозитории автоматически становится trusted — только явно зарегистрированные пути. |
+| **Route & API policy**    | Whitelist маршрутов patient-зоны и согласованные правила для **API** / **server actions**: один и тот же access context, **без** варианта «UI через tier, API через старые точечные `if (!phone)`».                    |
 
 Запрещено оставлять параллельные «guard-файлы» с дублирующей бизнес-логикой без делегирования в эти три модуля.
 
@@ -109,13 +109,13 @@
 
 ## 6. Риски и смягчение
 
-| Риск | Смягчение |
-|------|-----------|
-| Регрессия doctor/admin | Access context: tier не применяется к их зонам; отдельные проверки роли без смешения с client-tier |
+| Риск                                | Смягчение                                                                                               |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Регрессия doctor/admin              | Access context: tier не применяется к их зонам; отдельные проверки роли без смешения с client-tier      |
 | Next.js: нельзя писать cookie в RSC | Перезапись session в route handlers / server actions; tier на каждом запросе из БД после резолва канона |
-| Двойные каноны до merge | **Фаза B** + существующий merge; логирование по DoD §8 |
-| Расхождение integrator vs webapp DB | `system_settings`, зеркалирование; без новых env для интеграционного конфига |
-| Половинчатая централизация | DoD §1, §4: три модуля; запрет «только UI на tier» |
+| Двойные каноны до merge             | **Фаза B** + существующий merge; логирование по DoD §8                                                  |
+| Расхождение integrator vs webapp DB | `system_settings`, зеркалирование; без новых env для интеграционного конфига                            |
+| Половинчатая централизация          | DoD §1, §4: три модуля; запрет «только UI на tier»                                                      |
 
 ## 7. Эксплуатация и деплой
 
@@ -124,15 +124,15 @@
 
 ## 8. Связанные документы
 
-| Документ | Зачем |
-|----------|--------|
-| [`SPECIFICATION.md`](SPECIFICATION.md) | Нормативная модель |
-| [`SCENARIOS_AND_CODE_MAP.md`](SCENARIOS_AND_CODE_MAP.md) | Сценарии и карта кода |
-| [`PHASE_E_AUDIT_REPORT.md`](PHASE_E_AUDIT_REPORT.md) | Первичный аудит фазы E (DoD §1–§4 и §8) |
-| [`PHASE_E_REAUDIT_REPORT.md`](PHASE_E_REAUDIT_REPORT.md) | Повторный аудит E, закрытие **D-SA-1** (onboarding server actions + pathname) |
-| [`../ARCHITECTURE/PLATFORM_USER_MERGE.md`](../ARCHITECTURE/PLATFORM_USER_MERGE.md) | Канон, `merged_into_id` |
-| [`../AUTH_RESTRUCTURE/MASTER_PLAN.md`](../AUTH_RESTRUCTURE/MASTER_PLAN.md) | Входы, Mini App, бот |
-| [`../ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`](../ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md) | Новые ключи через `system_settings` при необходимости |
+| Документ                                                                                               | Зачем                                                                         |
+| ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| [`SPECIFICATION.md`](SPECIFICATION.md)                                                                 | Нормативная модель                                                            |
+| [`SCENARIOS_AND_CODE_MAP.md`](SCENARIOS_AND_CODE_MAP.md)                                               | Сценарии и карта кода                                                         |
+| [`PHASE_E_AUDIT_REPORT.md`](PHASE_E_AUDIT_REPORT.md)                                                   | Первичный аудит фазы E (DoD §1–§4 и §8)                                       |
+| [`PHASE_E_REAUDIT_REPORT.md`](PHASE_E_REAUDIT_REPORT.md)                                               | Повторный аудит E, закрытие **D-SA-1** (onboarding server actions + pathname) |
+| [`../ARCHITECTURE/PLATFORM_USER_MERGE.md`](../ARCHITECTURE/PLATFORM_USER_MERGE.md)                     | Канон, `merged_into_id`                                                       |
+| [`../AUTH_RESTRUCTURE/MASTER_PLAN.md`](../AUTH_RESTRUCTURE/MASTER_PLAN.md)                             | Входы, Mini App, бот                                                          |
+| [`../ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`](../ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md) | Новые ключи через `system_settings` при необходимости                         |
 
 ## 9. Статус
 

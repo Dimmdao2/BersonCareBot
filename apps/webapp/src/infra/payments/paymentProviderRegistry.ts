@@ -1,9 +1,9 @@
-import type { PaymentProviderPort } from "@/modules/payments/providerPort";
-import { createMockPaymentProvider } from "./mockPaymentProvider";
-import { createYookassaPaymentProvider } from "./yookassaPaymentProvider";
-import { createTinkoffPaymentProvider } from "./tinkoffPaymentProvider";
-import { createCloudpaymentsPaymentProvider } from "./cloudpaymentsPaymentProvider";
-import { createAlfabankPaymentProvider } from "./alfabankPaymentProvider";
+import type { PaymentProviderPort } from '@/modules/payments/providerPort';
+import { createMockPaymentProvider } from './mockPaymentProvider';
+import { createYookassaPaymentProvider } from './yookassaPaymentProvider';
+import { createTinkoffPaymentProvider } from './tinkoffPaymentProvider';
+import { createCloudpaymentsPaymentProvider } from './cloudpaymentsPaymentProvider';
+import { createAlfabankPaymentProvider } from './alfabankPaymentProvider';
 
 const adapters = new Map<string, PaymentProviderPort>();
 
@@ -22,19 +22,19 @@ export function getPaymentProviderAdapter(providerId: string): PaymentProviderPo
   let adapter = adapters.get(id);
   if (!adapter) {
     switch (id) {
-      case "mock":
+      case 'mock':
         adapter = createMockPaymentProvider();
         break;
-      case "yookassa":
+      case 'yookassa':
         adapter = createYookassaPaymentProvider();
         break;
-      case "tinkoff":
+      case 'tinkoff':
         adapter = createTinkoffPaymentProvider();
         break;
-      case "cloudpayments":
+      case 'cloudpayments':
         adapter = createCloudpaymentsPaymentProvider();
         break;
-      case "alfabank":
+      case 'alfabank':
         adapter = createAlfabankPaymentProvider();
         break;
       default:

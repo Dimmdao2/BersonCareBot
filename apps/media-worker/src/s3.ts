@@ -3,10 +3,10 @@ import {
   HeadObjectCommand,
   PutObjectCommand,
   S3Client,
-} from "@aws-sdk/client-s3";
-import { createWriteStream } from "node:fs";
-import { pipeline } from "node:stream/promises";
-import type { Readable } from "node:stream";
+} from '@aws-sdk/client-s3';
+import { createWriteStream } from 'node:fs';
+import { pipeline } from 'node:stream/promises';
+import type { Readable } from 'node:stream';
 
 export type S3Config = {
   endpoint: string;
@@ -31,10 +31,10 @@ export function createS3Client(cfg: S3Config): S3Client {
 
 export function contentTypeForKey(key: string): string {
   const lower = key.toLowerCase();
-  if (lower.endsWith(".m3u8")) return "application/vnd.apple.mpegurl";
-  if (lower.endsWith(".ts")) return "video/mp2t";
-  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
-  return "application/octet-stream";
+  if (lower.endsWith('.m3u8')) return 'application/vnd.apple.mpegurl';
+  if (lower.endsWith('.ts')) return 'video/mp2t';
+  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+  return 'application/octet-stream';
 }
 
 export async function downloadObjectToFile(
@@ -51,7 +51,7 @@ export async function downloadObjectToFile(
   );
   const body = out.Body as Readable | undefined;
   if (!body) {
-    throw new Error("s3_empty_body");
+    throw new Error('s3_empty_body');
   }
   await pipeline(body, createWriteStream(dest));
 }
@@ -71,7 +71,7 @@ export async function headObjectExists(
     return true;
   } catch (e: unknown) {
     const err = e as { name?: string; $metadata?: { httpStatusCode?: number } };
-    if (err.name === "NotFound" || err.$metadata?.httpStatusCode === 404) {
+    if (err.name === 'NotFound' || err.$metadata?.httpStatusCode === 404) {
       return false;
     }
     throw e;
@@ -105,7 +105,7 @@ export async function putObjectWithRetry(
       return;
     } catch (e) {
       last = e;
-      log.warn({ err: e, key, attempt: i + 1 }, "s3_put_retry");
+      log.warn({ err: e, key, attempt: i + 1 }, 's3_put_retry');
       await sleep(200 * (i + 1));
     }
   }

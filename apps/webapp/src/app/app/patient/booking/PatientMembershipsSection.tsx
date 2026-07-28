@@ -1,13 +1,13 @@
-"use client";
+'use client';
 
-import { useEffect, useState, useTransition } from "react";
-import Link from "next/link";
+import { useEffect, useState, useTransition } from 'react';
+import Link from 'next/link';
 import {
   patientListItemClass,
   patientMutedTextClass,
   patientSectionSurfaceClass,
   patientSectionTitleClass,
-} from "@/shared/ui/patient/patientVisual";
+} from '@/shared/ui/patient/patientVisual';
 
 type PackageRow = {
   id: string;
@@ -30,11 +30,11 @@ type PackageRow = {
 };
 
 const STATUS_LABEL: Record<string, string> = {
-  offered: "Предложен",
-  awaiting_payment: "Ожидает оплаты",
-  active: "Активен",
-  expired: "Истёк",
-  cancelled: "Отменён",
+  offered: 'Предложен',
+  awaiting_payment: 'Ожидает оплаты',
+  active: 'Активен',
+  expired: 'Истёк',
+  cancelled: 'Отменён',
 };
 
 export function PatientMembershipsSection() {
@@ -44,7 +44,7 @@ export function PatientMembershipsSection() {
   useEffect(() => {
     startTransition(() => {
       void (async () => {
-        const res = await fetch("/api/booking/memberships");
+        const res = await fetch('/api/booking/memberships');
         const json = (await res.json()) as { ok?: boolean; packages?: PackageRow[] };
         if (json.ok && json.packages) setPackages(json.packages);
       })();
@@ -62,16 +62,16 @@ export function PatientMembershipsSection() {
             <p className="text-sm font-medium">{p.title}</p>
             <p className={patientMutedTextClass}>
               {STATUS_LABEL[p.status] ?? p.status}
-              {p.validUntil ? ` · до ${new Date(p.validUntil).toLocaleDateString("ru-RU")}` : ""}
+              {p.validUntil ? ` · до ${new Date(p.validUntil).toLocaleDateString('ru-RU')}` : ''}
             </p>
             <p className={patientMutedTextClass}>
-              Остаток:{" "}
+              Остаток:{' '}
               {p.balance.items
                 .map((it) => {
-                  const label = it.serviceTitle?.trim() || "услуга";
+                  const label = it.serviceTitle?.trim() || 'услуга';
                   return `${label} ${it.remaining}/${it.quantityInitial}`;
                 })
-                .join("; ")}
+                .join('; ')}
             </p>
             <Link
               href={`/app/patient/memberships/${encodeURIComponent(p.id)}`}
@@ -79,7 +79,7 @@ export function PatientMembershipsSection() {
             >
               Подробнее
             </Link>
-            {p.status === "awaiting_payment" && p.paymentIntentId ? (
+            {p.status === 'awaiting_payment' && p.paymentIntentId ? (
               <Link
                 href={`/app/patient/memberships/pay?patientPackageId=${encodeURIComponent(p.id)}`}
                 className="text-sm text-[var(--patient-color-primary)] underline"

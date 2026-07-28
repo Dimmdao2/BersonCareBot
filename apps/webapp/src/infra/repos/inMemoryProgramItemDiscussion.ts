@@ -1,4 +1,4 @@
-import type { ProgramItemDiscussionPort } from "@/modules/program-item-discussion/ports";
+import type { ProgramItemDiscussionPort } from '@/modules/program-item-discussion/ports';
 import type {
   DoctorExerciseCommentCursor,
   DoctorExerciseCommentRow,
@@ -9,7 +9,7 @@ import type {
   ProgramItemDiscussionMessage,
   ProgramItemDiscussionMessageInsert,
   StageItemViewerUnreadCount,
-} from "@/modules/program-item-discussion/types";
+} from '@/modules/program-item-discussion/types';
 
 function isoNow(): string {
   return new Date().toISOString();
@@ -42,7 +42,7 @@ function inMemoryDoctorExerciseComments(
   // step 2: keep only items where the latest message is a patient text (no media)
   let candidates: DoctorExerciseCommentRow[] = [];
   for (const msg of latestOverallByItem.values()) {
-    if (msg.senderRole !== "patient") continue;
+    if (msg.senderRole !== 'patient') continue;
     if (msg.mediaFileId !== null) continue;
     if (opts.unreadOnly) {
       const lastReadAt = reads.get(`${viewerUserId}:${msg.instanceStageItemId}`) ?? null;
@@ -50,9 +50,9 @@ function inMemoryDoctorExerciseComments(
     }
     candidates.push({
       patientUserId: msg.patientUserId,
-      instanceId: "", // inMemory has no access to instance hierarchy
+      instanceId: '', // inMemory has no access to instance hierarchy
       stageItemId: msg.instanceStageItemId,
-      stageItemTitle: "", // inMemory has no snapshot
+      stageItemTitle: '', // inMemory has no snapshot
       latestMessage: { ...msg },
       createdAt: msg.createdAt,
     });
@@ -87,7 +87,9 @@ export function createInMemoryProgramItemDiscussionPort(): ProgramItemDiscussion
   }
 
   return {
-    async insertMessage(input: ProgramItemDiscussionMessageInsert): Promise<ProgramItemDiscussionMessage> {
+    async insertMessage(
+      input: ProgramItemDiscussionMessageInsert,
+    ): Promise<ProgramItemDiscussionMessage> {
       if (input.supportMessageId) {
         const existingId = bySupportMessageId.get(input.supportMessageId);
         if (existingId) {
@@ -121,7 +123,9 @@ export function createInMemoryProgramItemDiscussionPort(): ProgramItemDiscussion
       const safeOffset = Math.max(0, Math.trunc(offset));
       return [...rows.values()]
         .filter((x) => x.instanceStageItemId === stageItemId)
-        .sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : a.id.localeCompare(b.id)))
+        .sort((a, b) =>
+          a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : a.id.localeCompare(b.id),
+        )
         .slice(safeOffset, safeOffset + safeLimit)
         .map((x) => ({ ...x }));
     },
@@ -130,14 +134,16 @@ export function createInMemoryProgramItemDiscussionPort(): ProgramItemDiscussion
       const ids = [...new Set(stageItemIds)];
       const sorted = [...rows.values()]
         .filter((x) => ids.includes(x.instanceStageItemId))
-        .sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : a.id.localeCompare(b.id)));
+        .sort((a, b) =>
+          a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : a.id.localeCompare(b.id),
+        );
       const latestByItem = new Map<string, ProgramItemDiscussionMessage>();
       for (const row of sorted) {
         latestByItem.set(row.instanceStageItemId, row);
       }
       return ids.map((stageItemId) => {
         const latest = latestByItem.get(stageItemId);
-        if (!latest || latest.senderRole !== "patient") {
+        if (!latest || latest.senderRole !== 'patient') {
           return { stageItemId, comments: 0, media: 0 };
         }
         return {
@@ -152,18 +158,23 @@ export function createInMemoryProgramItemDiscussionPort(): ProgramItemDiscussion
       return [...rows.values()].filter((x) => x.instanceStageItemId === stageItemId).length;
     },
 
-    async listMessagesPage(input: ProgramItemDiscussionListPageInput): Promise<ProgramItemDiscussionMessage[]> {
+    async listMessagesPage(
+      input: ProgramItemDiscussionListPageInput,
+    ): Promise<ProgramItemDiscussionMessage[]> {
       const sorted = [...rows.values()]
         .filter((x) => x.instanceStageItemId === input.stageItemId)
-        .sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : a.id.localeCompare(b.id)));
+        .sort((a, b) =>
+          a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : a.id.localeCompare(b.id),
+        );
 
-      if (input.direction === "forward") {
+      if (input.direction === 'forward') {
         let start = 0;
         if (input.cursor) {
           while (
             start < sorted.length &&
             (sorted[start]!.createdAt < input.cursor.createdAt ||
-              (sorted[start]!.createdAt === input.cursor.createdAt && sorted[start]!.id <= input.cursor.id))
+              (sorted[start]!.createdAt === input.cursor.createdAt &&
+                sorted[start]!.id <= input.cursor.id))
           ) {
             start += 1;
           }
@@ -187,15 +198,23 @@ export function createInMemoryProgramItemDiscussionPort(): ProgramItemDiscussion
       return sorted.slice(start, endExclusive).map((x) => ({ ...x }));
     },
 
-    async countLegacyAdminRepliesForStageItem(_input: ProgramItemDiscussionLegacyMergeInput): Promise<number> {
+    async countLegacyAdminRepliesForStageItem(
+      _input: ProgramItemDiscussionLegacyMergeInput,
+    ): Promise<number> {
       return 0;
     },
 
-    async mergeLegacyAdminReplies(_input: ProgramItemDiscussionLegacyMergeInput): Promise<ProgramItemDiscussionMessage[]> {
+    async mergeLegacyAdminReplies(
+      _input: ProgramItemDiscussionLegacyMergeInput,
+    ): Promise<ProgramItemDiscussionMessage[]> {
       return [];
     },
 
-    async markRead(params: { patientUserId: string; stageItemId: string; lastReadAt?: string }): Promise<void> {
+    async markRead(params: {
+      patientUserId: string;
+      stageItemId: string;
+      lastReadAt?: string;
+    }): Promise<void> {
       const key = readKey(params.patientUserId, params.stageItemId);
       const current = reads.get(key);
       const next = params.lastReadAt ?? isoNow();
@@ -204,16 +223,19 @@ export function createInMemoryProgramItemDiscussionPort(): ProgramItemDiscussion
 
     async getUnreadCount(params: { patientUserId: string; stageItemId: string }): Promise<number> {
       const key = readKey(params.patientUserId, params.stageItemId);
-      const lastReadAt = reads.get(key) ?? "";
+      const lastReadAt = reads.get(key) ?? '';
       return [...rows.values()].filter(
         (x) =>
           x.instanceStageItemId === params.stageItemId &&
-          x.senderRole === "admin" &&
-          (lastReadAt === "" || x.createdAt > lastReadAt),
+          x.senderRole === 'admin' &&
+          (lastReadAt === '' || x.createdAt > lastReadAt),
       ).length;
     },
 
-    async getLastReadAt(params: { patientUserId: string; stageItemId: string }): Promise<string | null> {
+    async getLastReadAt(params: {
+      patientUserId: string;
+      stageItemId: string;
+    }): Promise<string | null> {
       return reads.get(readKey(params.patientUserId, params.stageItemId)) ?? null;
     },
 
@@ -238,7 +260,9 @@ export function createInMemoryProgramItemDiscussionPort(): ProgramItemDiscussion
         .filter((id) => id.length > 0);
     },
 
-    async countLegacyUnreadAdminReplies(_input: ProgramItemDiscussionLegacyUnreadInput): Promise<number> {
+    async countLegacyUnreadAdminReplies(
+      _input: ProgramItemDiscussionLegacyUnreadInput,
+    ): Promise<number> {
       return 0;
     },
 
@@ -248,7 +272,10 @@ export function createInMemoryProgramItemDiscussionPort(): ProgramItemDiscussion
       return rows.get(existingId)?.instanceStageItemId ?? null;
     },
 
-    async listStageItemIdsByExerciseTitleForPatient(_patientUserId: string, _exerciseTitle: string): Promise<string[]> {
+    async listStageItemIdsByExerciseTitleForPatient(
+      _patientUserId: string,
+      _exerciseTitle: string,
+    ): Promise<string[]> {
       return [];
     },
 
@@ -272,13 +299,18 @@ export function createInMemoryProgramItemDiscussionPort(): ProgramItemDiscussion
       const { stageItemIds, viewerUserId } = input;
       return stageItemIds.map((stageItemId) => {
         const msgs = [...rows.values()].filter(
-          (m) => m.instanceStageItemId === stageItemId && m.senderRole === "patient",
+          (m) => m.instanceStageItemId === stageItemId && m.senderRole === 'patient',
         );
         const lastReadAt = reads.get(readKey(viewerUserId, stageItemId)) ?? null;
         const total = msgs.length;
         const unread = msgs.filter((m) => !lastReadAt || m.createdAt > lastReadAt).length;
         const latestMsg = msgs.reduce<ProgramItemDiscussionMessage | null>((acc, m) => {
-          if (!acc || m.createdAt > acc.createdAt || (m.createdAt === acc.createdAt && m.id > acc.id)) return m;
+          if (
+            !acc ||
+            m.createdAt > acc.createdAt ||
+            (m.createdAt === acc.createdAt && m.id > acc.id)
+          )
+            return m;
           return acc;
         }, null);
         return {
@@ -302,14 +334,12 @@ export function createInMemoryProgramItemDiscussionPort(): ProgramItemDiscussion
       return inMemoryDoctorExerciseComments(input, reads, rows, { unreadOnly: false });
     },
 
-    async listAllExerciseCommentsForDoctor(
-      input: {
-        viewerUserId: string;
-        organizationId?: string;
-        limit: number;
-        cursor?: DoctorExerciseCommentCursor | null;
-      },
-    ): Promise<DoctorExerciseCommentRow[]> {
+    async listAllExerciseCommentsForDoctor(input: {
+      viewerUserId: string;
+      organizationId?: string;
+      limit: number;
+      cursor?: DoctorExerciseCommentCursor | null;
+    }): Promise<DoctorExerciseCommentRow[]> {
       // inMemory stub: collect all unique patientUserIds from in-memory messages.
       const allPatientIds = [...new Set([...rows.values()].map((m) => m.patientUserId))];
       return inMemoryDoctorExerciseComments(

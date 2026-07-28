@@ -1,13 +1,13 @@
-"use client";
+'use client';
 
-import { forwardRef, type ComponentPropsWithoutRef } from "react";
+import { forwardRef, type ComponentPropsWithoutRef } from 'react';
 
 /**
  * Видео без контекстного меню по ПКМ (сохранить кадр / и т.п.).
  * Не защита от скачивания — только снижение удобства.
  * `onContextMenuCapture` — чтобы меню не всплывало с нативных контролов плеера там, где это поддерживается.
  */
-export const NoContextMenuVideo = forwardRef<HTMLVideoElement, ComponentPropsWithoutRef<"video">>(
+export const NoContextMenuVideo = forwardRef<HTMLVideoElement, ComponentPropsWithoutRef<'video'>>(
   function NoContextMenuVideo({ onContextMenu, onContextMenuCapture, ...rest }, ref) {
     return (
       <video

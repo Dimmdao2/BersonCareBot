@@ -1,6 +1,6 @@
-import { logger } from "@/app-layer/logging/logger";
-import { dispatchOperatorAlert } from "@/modules/operator-alerts/dispatchOperatorAlert";
-import { persistUndeliveredSupportSubmission } from "./persistUndeliveredSupportSubmission";
+import { logger } from '@/app-layer/logging/logger';
+import { dispatchOperatorAlert } from '@/modules/operator-alerts/dispatchOperatorAlert';
+import { persistUndeliveredSupportSubmission } from './persistUndeliveredSupportSubmission';
 
 /**
  * D-2 (night plan 2026-07-26): support forms (patient + guest) used to send to Telegram ONLY
@@ -17,7 +17,7 @@ import { persistUndeliveredSupportSubmission } from "./persistUndeliveredSupport
  * (content-free, by design — D-h) so the gap is visible without anyone polling a queue.
  */
 export type RelaySupportSubmissionInput = {
-  kind: "patient" | "guest";
+  kind: 'patient' | 'guest';
   /** Unique per submission — becomes the operator-alert dedup key; must never collide across
    * distinct human messages (dedup is designed for repeated system alerts, not this). */
   messageId: string;
@@ -41,17 +41,17 @@ export async function relaySupportSubmission(
   let dispatched = false;
   try {
     const result = await dispatchOperatorAlert({
-      block: "support",
+      block: 'support',
       topic: `support_submission_${input.kind}`,
       dedupKey: input.messageId,
       lines: input.lines,
-      pushTitle: "Обращение в поддержку",
+      pushTitle: 'Обращение в поддержку',
     });
     dispatched = result.dispatched;
   } catch (err) {
     logger.error(
-      { err, kind: input.kind, scope: "support", event: "support_submission_dispatch_threw" },
-      "[support] dispatchOperatorAlert threw",
+      { err, kind: input.kind, scope: 'support', event: 'support_submission_dispatch_threw' },
+      '[support] dispatchOperatorAlert threw',
     );
   }
 

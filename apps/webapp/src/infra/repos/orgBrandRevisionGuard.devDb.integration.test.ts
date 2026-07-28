@@ -17,36 +17,38 @@
  *   DATABASE_URL=postgres://…/bcb_saas_brand_scratch_… \
  *   pnpm exec vitest run src/infra/repos/orgBrandRevisionGuard.devDb.integration.test.ts
  */
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import pg from "pg";
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import pg from 'pg';
 
-const ORG = "7e510000-0000-4000-8000-00000000ba01";
-const ACTOR = "7e510000-0000-4000-8000-00000000ba02";
-const LOGO_PUBLISHED = "7e510000-0000-4000-8000-00000000ba11";
-const LOGO_ARCHIVED = "7e510000-0000-4000-8000-00000000ba12";
-const LOGO_DRAFT = "7e510000-0000-4000-8000-00000000ba13";
-const LOGO_SPARE = "7e510000-0000-4000-8000-00000000ba14";
-const REV_PUBLISHED = "7e510000-0000-4000-8000-00000000ba21";
-const REV_ARCHIVED = "7e510000-0000-4000-8000-00000000ba22";
-const REV_DRAFT = "7e510000-0000-4000-8000-00000000ba23";
+const ORG = '7e510000-0000-4000-8000-00000000ba01';
+const ACTOR = '7e510000-0000-4000-8000-00000000ba02';
+const LOGO_PUBLISHED = '7e510000-0000-4000-8000-00000000ba11';
+const LOGO_ARCHIVED = '7e510000-0000-4000-8000-00000000ba12';
+const LOGO_DRAFT = '7e510000-0000-4000-8000-00000000ba13';
+const LOGO_SPARE = '7e510000-0000-4000-8000-00000000ba14';
+const REV_PUBLISHED = '7e510000-0000-4000-8000-00000000ba21';
+const REV_ARCHIVED = '7e510000-0000-4000-8000-00000000ba22';
+const REV_DRAFT = '7e510000-0000-4000-8000-00000000ba23';
 
 const enabled =
-  process.env.RUN_ORG_BRAND_GUARD_DB === "1" &&
-  process.env.USE_REAL_DATABASE === "1" &&
-  Boolean((process.env.DATABASE_URL ?? "").trim());
+  process.env.RUN_ORG_BRAND_GUARD_DB === '1' &&
+  process.env.USE_REAL_DATABASE === '1' &&
+  Boolean((process.env.DATABASE_URL ?? '').trim());
 
 /** Refuse anything that is not an obviously disposable scratch/rehearsal DB or the dev DB. */
 async function assertDisposableDb(client: pg.PoolClient): Promise<string> {
-  const r = await client.query<{ n: string }>("SELECT current_database() AS n");
-  const name = r.rows[0]?.n ?? "";
+  const r = await client.query<{ n: string }>('SELECT current_database() AS n');
+  const name = r.rows[0]?.n ?? '';
   const ok = /_dev$/i.test(name) || /^bcb_[a-z0-9_]*(scratch|rehearsal)[a-z0-9_]*$/i.test(name);
   if (!ok) {
-    throw new Error(`refusing: current_database="${name}" — expected a dev or bcb_*scratch*/rehearsal DB.`);
+    throw new Error(
+      `refusing: current_database="${name}" — expected a dev or bcb_*scratch*/rehearsal DB.`,
+    );
   }
   // The table is FORCE RLS and the fixture needs table ownership, so this probe must run on a
   // superuser / BYPASSRLS connection. Say so loudly instead of failing as "0 rows affected".
   const priv = await client.query<{ ok: boolean }>(
-    "SELECT (rolsuper OR rolbypassrls) AS ok FROM pg_roles WHERE rolname = current_user",
+    'SELECT (rolsuper OR rolbypassrls) AS ok FROM pg_roles WHERE rolname = current_user',
   );
   if (priv.rows[0]?.ok !== true) {
     throw new Error(
@@ -56,26 +58,32 @@ async function assertDisposableDb(client: pg.PoolClient): Promise<string> {
   return name;
 }
 
-async function pgErrorCodeOf(fn: () => Promise<unknown>): Promise<{ code: string; message: string }> {
+async function pgErrorCodeOf(
+  fn: () => Promise<unknown>,
+): Promise<{ code: string; message: string }> {
   try {
     await fn();
   } catch (e) {
     const err = e as { code?: string; message?: string };
-    return { code: err.code ?? "", message: err.message ?? "" };
+    return { code: err.code ?? '', message: err.message ?? '' };
   }
-  throw new Error("expected the statement to fail, but it succeeded");
+  throw new Error('expected the statement to fail, but it succeeded');
 }
 
-describe.skipIf(!enabled)("0238 app.guard_org_brand_revision (real DB, opt-in)", () => {
+describe.skipIf(!enabled)('0238 app.guard_org_brand_revision (real DB, opt-in)', () => {
   const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
   let client: pg.PoolClient;
 
   async function cleanup(): Promise<void> {
-    await client.query("DELETE FROM public.org_brand_revisions WHERE organization_id = $1::uuid", [ORG]);
-    await client.query("DELETE FROM public.media_files WHERE organization_id = $1::uuid", [ORG]);
-    await client.query("DELETE FROM public.org_enrollments WHERE organization_id = $1::uuid", [ORG]);
-    await client.query("DELETE FROM public.be_organizations WHERE id = $1::uuid", [ORG]);
-    await client.query("DELETE FROM public.platform_users WHERE id = $1::uuid", [ACTOR]);
+    await client.query('DELETE FROM public.org_brand_revisions WHERE organization_id = $1::uuid', [
+      ORG,
+    ]);
+    await client.query('DELETE FROM public.media_files WHERE organization_id = $1::uuid', [ORG]);
+    await client.query('DELETE FROM public.org_enrollments WHERE organization_id = $1::uuid', [
+      ORG,
+    ]);
+    await client.query('DELETE FROM public.be_organizations WHERE id = $1::uuid', [ORG]);
+    await client.query('DELETE FROM public.platform_users WHERE id = $1::uuid', [ACTOR]);
   }
 
   beforeAll(async () => {
@@ -92,12 +100,12 @@ describe.skipIf(!enabled)("0238 app.guard_org_brand_revision (real DB, opt-in)",
         /* not the table owner (or no such trigger): continue */
       }
     };
-    await tryQuery("ALTER TABLE public.be_organizations DISABLE TRIGGER USER");
+    await tryQuery('ALTER TABLE public.be_organizations DISABLE TRIGGER USER');
     await client.query(
       "INSERT INTO public.be_organizations (id, title, is_active) VALUES ($1::uuid, 'guard probe org', true)",
       [ORG],
     );
-    await tryQuery("ALTER TABLE public.be_organizations ENABLE TRIGGER USER");
+    await tryQuery('ALTER TABLE public.be_organizations ENABLE TRIGGER USER');
     await client.query(
       "INSERT INTO public.platform_users (id, display_name, role) VALUES ($1::uuid, 'guard probe actor', 'doctor')",
       [ACTOR],
@@ -158,26 +166,29 @@ describe.skipIf(!enabled)("0238 app.guard_org_brand_revision (real DB, opt-in)",
    * media_files DELETE, i.e. pg_trigger_depth() >= 2; a direct statement is depth 1).
    * MUST run before the FK-purge cases below, which are what clear these logos.
    */
-  it("rejects a DIRECT logo-clearing UPDATE on published and archived revisions (M-1)", async () => {
+  it('rejects a DIRECT logo-clearing UPDATE on published and archived revisions (M-1)', async () => {
     for (const [label, id, failure] of [
-      ["published", REV_PUBLISHED, /org_brand_revision_published_only_archives/],
-      ["archived", REV_ARCHIVED, /org_brand_revision_archived_is_immutable/],
+      ['published', REV_PUBLISHED, /org_brand_revision_published_only_archives/],
+      ['archived', REV_ARCHIVED, /org_brand_revision_archived_is_immutable/],
     ] as const) {
       const before = await client.query<{ logo: string | null; updated_at: string }>(
-        "SELECT logo_media_id AS logo, updated_at FROM public.org_brand_revisions WHERE id = $1::uuid",
+        'SELECT logo_media_id AS logo, updated_at FROM public.org_brand_revisions WHERE id = $1::uuid',
         [id],
       );
       // Guards the premise: a NULL logo here would make the case vacuous.
       expect(before.rows[0]?.logo, `${label}: fixture must still carry a logo`).not.toBeNull();
 
       const error = await pgErrorCodeOf(() =>
-        client.query("UPDATE public.org_brand_revisions SET logo_media_id = NULL WHERE id = $1::uuid", [id]),
+        client.query(
+          'UPDATE public.org_brand_revisions SET logo_media_id = NULL WHERE id = $1::uuid',
+          [id],
+        ),
       );
-      expect(error.code, label).toBe("P0001");
+      expect(error.code, label).toBe('P0001');
       expect(error.message, label).toMatch(failure);
 
       const after = await client.query<{ logo: string | null; updated_at: string }>(
-        "SELECT logo_media_id AS logo, updated_at FROM public.org_brand_revisions WHERE id = $1::uuid",
+        'SELECT logo_media_id AS logo, updated_at FROM public.org_brand_revisions WHERE id = $1::uuid',
         [id],
       );
       expect(after.rows[0]?.logo, `${label}: logo must survive`).toBe(before.rows[0]?.logo);
@@ -187,13 +198,13 @@ describe.skipIf(!enabled)("0238 app.guard_org_brand_revision (real DB, opt-in)",
     }
   });
 
-  it("lets the media purge delete a logo referenced by a PUBLISHED revision (FK SET NULL)", async () => {
+  it('lets the media purge delete a logo referenced by a PUBLISHED revision (FK SET NULL)', async () => {
     const before = await client.query<{ updated_at: string; display_name: string }>(
-      "SELECT updated_at::text, display_name FROM public.org_brand_revisions WHERE id = $1::uuid",
+      'SELECT updated_at::text, display_name FROM public.org_brand_revisions WHERE id = $1::uuid',
       [REV_PUBLISHED],
     );
     // Exactly the purge worker's statement shape (s3MediaStorage.purgePendingMediaDeleteBatch).
-    const deleted = await client.query("DELETE FROM public.media_files WHERE id = $1::uuid", [
+    const deleted = await client.query('DELETE FROM public.media_files WHERE id = $1::uuid', [
       LOGO_PUBLISHED,
     ]);
     expect(deleted.rowCount).toBe(1);
@@ -210,7 +221,7 @@ describe.skipIf(!enabled)("0238 app.guard_org_brand_revision (real DB, opt-in)",
       [REV_PUBLISHED],
     );
     // Degraded, not deleted: §10 platform fallback + safe org text, audit trail intact.
-    expect(after.rows[0]?.status).toBe("published");
+    expect(after.rows[0]?.status).toBe('published');
     expect(after.rows[0]?.logo_media_id).toBeNull();
     expect(after.rows[0]?.display_name).toBe(before.rows[0]?.display_name);
     expect(after.rows[0]?.has_publisher).toBe(true);
@@ -218,30 +229,32 @@ describe.skipIf(!enabled)("0238 app.guard_org_brand_revision (real DB, opt-in)",
     expect(after.rows[0]?.updated_at).toBe(before.rows[0]?.updated_at);
   });
 
-  it("lets the media purge delete a logo referenced by an ARCHIVED revision", async () => {
-    const deleted = await client.query("DELETE FROM public.media_files WHERE id = $1::uuid", [
+  it('lets the media purge delete a logo referenced by an ARCHIVED revision', async () => {
+    const deleted = await client.query('DELETE FROM public.media_files WHERE id = $1::uuid', [
       LOGO_ARCHIVED,
     ]);
     expect(deleted.rowCount).toBe(1);
     const after = await client.query<{ status: string; logo_media_id: string | null }>(
-      "SELECT status, logo_media_id::text FROM public.org_brand_revisions WHERE id = $1::uuid",
+      'SELECT status, logo_media_id::text FROM public.org_brand_revisions WHERE id = $1::uuid',
       [REV_ARCHIVED],
     );
-    expect(after.rows[0]?.status).toBe("archived");
+    expect(after.rows[0]?.status).toBe('archived');
     expect(after.rows[0]?.logo_media_id).toBeNull();
   });
 
-  it("lets the media purge delete a logo referenced by a DRAFT revision", async () => {
-    const deleted = await client.query("DELETE FROM public.media_files WHERE id = $1::uuid", [LOGO_DRAFT]);
+  it('lets the media purge delete a logo referenced by a DRAFT revision', async () => {
+    const deleted = await client.query('DELETE FROM public.media_files WHERE id = $1::uuid', [
+      LOGO_DRAFT,
+    ]);
     expect(deleted.rowCount).toBe(1);
     const after = await client.query<{ logo_media_id: string | null }>(
-      "SELECT logo_media_id::text FROM public.org_brand_revisions WHERE id = $1::uuid",
+      'SELECT logo_media_id::text FROM public.org_brand_revisions WHERE id = $1::uuid',
       [REV_DRAFT],
     );
     expect(after.rows[0]?.logo_media_id).toBeNull();
   });
 
-  it("still rejects every other edit of a published or archived revision", async () => {
+  it('still rejects every other edit of a published or archived revision', async () => {
     // Re-publish a revision WITH a logo so the "set a new logo" cases are meaningful again.
     await client.query(
       `UPDATE public.org_brand_revisions SET logo_media_id = $2::uuid WHERE id = $1::uuid`,
@@ -250,38 +263,41 @@ describe.skipIf(!enabled)("0238 app.guard_org_brand_revision (real DB, opt-in)",
 
     const cases: Array<{ label: string; sql: string; params: unknown[]; failure: RegExp }> = [
       {
-        label: "published: rename in place",
+        label: 'published: rename in place',
         sql: "UPDATE public.org_brand_revisions SET display_name = 'rebranded' WHERE id = $1::uuid",
         params: [REV_PUBLISHED],
-        failure: /org_brand_revision_published_only_archives|org_brand_revision_published_content_is_immutable/,
+        failure:
+          /org_brand_revision_published_only_archives|org_brand_revision_published_content_is_immutable/,
       },
       {
-        label: "published: set a NEW logo",
-        sql: "UPDATE public.org_brand_revisions SET logo_media_id = $2::uuid WHERE id = $1::uuid",
+        label: 'published: set a NEW logo',
+        sql: 'UPDATE public.org_brand_revisions SET logo_media_id = $2::uuid WHERE id = $1::uuid',
         params: [REV_PUBLISHED, LOGO_SPARE],
-        failure: /org_brand_revision_published_only_archives|org_brand_revision_published_content_is_immutable/,
+        failure:
+          /org_brand_revision_published_only_archives|org_brand_revision_published_content_is_immutable/,
       },
       {
-        label: "published: clear the logo TOGETHER with another edit",
+        label: 'published: clear the logo TOGETHER with another edit',
         sql: "UPDATE public.org_brand_revisions SET logo_media_id = NULL, display_name = 'sneaky' WHERE id = $1::uuid",
         params: [REV_PUBLISHED],
-        failure: /org_brand_revision_published_only_archives|org_brand_revision_published_content_is_immutable/,
+        failure:
+          /org_brand_revision_published_only_archives|org_brand_revision_published_content_is_immutable/,
       },
       {
-        label: "published: illegal transition back to draft",
+        label: 'published: illegal transition back to draft',
         sql: "UPDATE public.org_brand_revisions SET status = 'draft' WHERE id = $1::uuid",
         params: [REV_PUBLISHED],
         failure: /org_brand_revision_published_only_archives/,
       },
       {
-        label: "archived: rewrite history",
+        label: 'archived: rewrite history',
         sql: "UPDATE public.org_brand_revisions SET display_name = 'rewritten' WHERE id = $1::uuid",
         params: [REV_ARCHIVED],
         failure: /org_brand_revision_archived_is_immutable/,
       },
       {
-        label: "archived: set a NEW logo",
-        sql: "UPDATE public.org_brand_revisions SET logo_media_id = $2::uuid WHERE id = $1::uuid",
+        label: 'archived: set a NEW logo',
+        sql: 'UPDATE public.org_brand_revisions SET logo_media_id = $2::uuid WHERE id = $1::uuid',
         params: [REV_ARCHIVED, LOGO_SPARE],
         failure: /org_brand_revision_archived_is_immutable/,
       },
@@ -289,7 +305,7 @@ describe.skipIf(!enabled)("0238 app.guard_org_brand_revision (real DB, opt-in)",
 
     for (const testCase of cases) {
       const failure = await pgErrorCodeOf(() => client.query(testCase.sql, testCase.params));
-      expect(failure.code, testCase.label).toBe("P0001");
+      expect(failure.code, testCase.label).toBe('P0001');
       expect(failure.message, testCase.label).toMatch(testCase.failure);
     }
 
@@ -303,15 +319,15 @@ describe.skipIf(!enabled)("0238 app.guard_org_brand_revision (real DB, opt-in)",
     expect(archived.rowCount).toBe(1);
   });
 
-  it("keeps the enrolled-patient read policy free of any other table (no caller-privilege coupling)", async () => {
+  it('keeps the enrolled-patient read policy free of any other table (no caller-privilege coupling)', async () => {
     const policy = await client.query<{ qual: string }>(
       `SELECT pg_get_expr(polqual, polrelid) AS qual
          FROM pg_policy
         WHERE polrelid = 'public.org_brand_revisions'::regclass
           AND polname = 'org_brand_revisions_enrolled_patient_published_read'`,
     );
-    const qual = policy.rows[0]?.qual ?? "";
-    expect(qual).toContain("app.current_patient_has_active_org_enrollment(organization_id)");
+    const qual = policy.rows[0]?.qual ?? '';
+    expect(qual).toContain('app.current_patient_has_active_org_enrollment(organization_id)');
     expect(qual).not.toMatch(/org_enrollments|be_organizations/);
 
     const accessors = await client.query<{
@@ -331,12 +347,12 @@ describe.skipIf(!enabled)("0238 app.guard_org_brand_revision (real DB, opt-in)",
     expect(accessors.rows).toHaveLength(2);
     for (const row of accessors.rows) {
       expect(row.prosecdef, row.proname).toBe(true);
-      expect(row.owner, row.proname).toBe("app_owner");
-      expect(row.proconfig ?? "", row.proname).toContain("search_path=pg_catalog");
+      expect(row.owner, row.proname).toBe('app_owner');
+      expect(row.proconfig ?? '', row.proname).toContain('search_path=pg_catalog');
       // No PUBLIC (=X/) grant; only the two runtime roles plus the owner.
-      expect(row.acl ?? "", row.proname).not.toMatch(/(^|,)=X\//);
-      expect(row.acl ?? "", row.proname).toContain("app_patient=X/");
-      expect(row.acl ?? "", row.proname).toContain("app_staff=X/");
+      expect(row.acl ?? '', row.proname).not.toMatch(/(^|,)=X\//);
+      expect(row.acl ?? '', row.proname).toContain('app_patient=X/');
+      expect(row.acl ?? '', row.proname).toContain('app_staff=X/');
     }
   });
 });

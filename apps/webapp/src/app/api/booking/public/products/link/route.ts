@@ -1,20 +1,20 @@
-import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
-import { NextResponse } from "next/server";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
+import { NextResponse } from 'next/server';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 
 export async function GET(request: Request) {
-  stampBootstrapPrincipal("api/booking/public/products/link:GET", request);
-  const token = new URL(request.url).searchParams.get("token")?.trim();
+  stampBootstrapPrincipal('api/booking/public/products/link:GET', request);
+  const token = new URL(request.url).searchParams.get('token')?.trim();
   if (!token) {
-    return NextResponse.json({ ok: false, error: "token_required" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'token_required' }, { status: 400 });
   }
   const deps = buildAppDeps();
   if (!deps.products) {
-    return NextResponse.json({ ok: false, error: "products_unavailable" }, { status: 503 });
+    return NextResponse.json({ ok: false, error: 'products_unavailable' }, { status: 503 });
   }
   const link = await deps.products.resolvePayLink(token);
   if (!link) {
-    return NextResponse.json({ ok: false, error: "link_not_found" }, { status: 404 });
+    return NextResponse.json({ ok: false, error: 'link_not_found' }, { status: 404 });
   }
   return NextResponse.json({
     ok: true,

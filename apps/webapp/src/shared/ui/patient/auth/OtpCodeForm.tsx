@@ -1,20 +1,20 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { Button } from "@/shared/ui/patient/primitives/button";
-import { Input } from "@/shared/ui/patient/primitives/input";
-import { OTP_TOO_MANY_ATTEMPTS_MESSAGE } from "@/modules/auth/otpConstants";
-import { DEFAULT_SUPPORT_CONTACT_URL } from "@/modules/system-settings/supportContactConstants";
-import { isAppSupportPath } from "@/lib/url/isAppSupportPath";
-import { isSafeExternalHref } from "@/lib/url/isSafeExternalHref";
-import { SupportContactLink } from "@/shared/ui/patient/SupportContactLink";
-import { cn } from "@/lib/utils";
+import { useEffect, useState } from 'react';
+import { Button } from '@/shared/ui/patient/primitives/button';
+import { Input } from '@/shared/ui/patient/primitives/input';
+import { OTP_TOO_MANY_ATTEMPTS_MESSAGE } from '@/modules/auth/otpConstants';
+import { DEFAULT_SUPPORT_CONTACT_URL } from '@/modules/system-settings/supportContactConstants';
+import { isAppSupportPath } from '@/lib/url/isAppSupportPath';
+import { isSafeExternalHref } from '@/lib/url/isSafeExternalHref';
+import { SupportContactLink } from '@/shared/ui/patient/SupportContactLink';
+import { cn } from '@/lib/utils';
 import {
   AUTH_LOGIN_ACCENT_TEXT_CLASS,
   AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS,
   AUTH_LOGIN_FORM_SECONDARY_BUTTON_CLASS,
-} from "@/shared/ui/patient/auth/loginChrome";
-import { patientInlineLinkClass, patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
+} from '@/shared/ui/patient/auth/loginChrome';
+import { patientInlineLinkClass, patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 
 export type OtpConfirmResult =
   | { ok: true; redirectTo?: string }
@@ -27,9 +27,9 @@ export type OtpConfirmResult =
 
 /** Результат повторной отправки кода (SMS / email). */
 export type OtpResendOutcome =
-  | { kind: "ok" }
-  | { kind: "rate_limited"; retryAfterSeconds: number }
-  | { kind: "error"; message: string };
+  | { kind: 'ok' }
+  | { kind: 'rate_limited'; retryAfterSeconds: number }
+  | { kind: 'error'; message: string };
 
 /** Варианты в блоке «Другие способы» (доставка кода другим каналом). */
 export type OtpAlternativeEntry = {
@@ -61,8 +61,8 @@ type OtpCodeFormProps = {
 export function OtpCodeForm({
   challengeId,
   retryAfterSeconds = 60,
-  submitLabel = "Подтвердить",
-  description = "Введите код ниже.",
+  submitLabel = 'Подтвердить',
+  description = 'Введите код ниже.',
   smsFallbackLink = false,
   onRequestSms,
   alternatives,
@@ -82,8 +82,8 @@ export function OtpCodeForm({
     return DEFAULT_SUPPORT_CONTACT_URL;
   }
 
-  const supportHref = resolveSupportHref(supportContactHref ?? "");
-  const [code, setCode] = useState("");
+  const supportHref = resolveSupportHref(supportContactHref ?? '');
+  const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -95,7 +95,7 @@ export function OtpCodeForm({
 
   /** Новый challenge / интервал после повторной отправки — сброс поля и таймера. */
   useEffect(() => {
-    setCode("");
+    setCode('');
     setError(null);
     setHardBlocked(false);
     setResendCountdown(retryAfterSeconds);
@@ -120,13 +120,13 @@ export function OtpCodeForm({
     setResendLoading(true);
     try {
       const outcome = await onResend();
-      if (outcome.kind === "rate_limited") {
+      if (outcome.kind === 'rate_limited') {
         const sec = Math.max(1, Math.ceil(outcome.retryAfterSeconds));
         setCanResend(false);
         setResendCountdown(sec);
         return;
       }
-      if (outcome.kind === "error") {
+      if (outcome.kind === 'error') {
         setError(outcome.message);
       }
     } finally {
@@ -140,13 +140,13 @@ export function OtpCodeForm({
     setResendLoading(true);
     try {
       const outcome = await onRequestSms();
-      if (outcome.kind === "rate_limited") {
+      if (outcome.kind === 'rate_limited') {
         const sec = Math.max(1, Math.ceil(outcome.retryAfterSeconds));
         setCanResend(false);
         setResendCountdown(sec);
         return;
       }
-      if (outcome.kind === "error") {
+      if (outcome.kind === 'error') {
         setError(outcome.message);
       }
     } finally {
@@ -160,7 +160,7 @@ export function OtpCodeForm({
     setError(null);
     const raw = code.trim();
     if (!raw) {
-      setError("Введите код");
+      setError('Введите код');
       return;
     }
     setLoading(true);
@@ -169,10 +169,10 @@ export function OtpCodeForm({
       if (result.ok) {
         return;
       }
-      if (result.code === "too_many_attempts") {
+      if (result.code === 'too_many_attempts') {
         setHardBlocked(true);
         setError(OTP_TOO_MANY_ATTEMPTS_MESSAGE);
-      } else if (result.code === "rate_limited" && result.retryAfterSeconds != null) {
+      } else if (result.code === 'rate_limited' && result.retryAfterSeconds != null) {
         const sec = Math.max(1, Math.ceil(result.retryAfterSeconds));
         setCanResend(false);
         setResendCountdown(sec);
@@ -187,15 +187,22 @@ export function OtpCodeForm({
 
   const textLinkClass = cn(
     patientInlineLinkClass,
-    "w-fit bg-transparent p-0 text-left text-sm font-normal underline disabled:pointer-events-none disabled:opacity-50",
+    'w-fit bg-transparent p-0 text-left text-sm font-normal underline disabled:pointer-events-none disabled:opacity-50',
     AUTH_LOGIN_ACCENT_TEXT_CLASS,
   );
 
   return (
-    <form id={`otp-code-form-${challengeId}`} onSubmit={handleSubmit} className="flex max-w-sm flex-col gap-3">
+    <form
+      id={`otp-code-form-${challengeId}`}
+      onSubmit={handleSubmit}
+      className="flex max-w-sm flex-col gap-3"
+    >
       <p className={patientMutedTextClass}>{description}</p>
       <div className="flex flex-col gap-1">
-        <label className={cn(patientMutedTextClass, "text-xs font-normal uppercase tracking-wide")} htmlFor={`otp-${challengeId}`}>
+        <label
+          className={cn(patientMutedTextClass, 'text-xs font-normal uppercase tracking-wide')}
+          htmlFor={`otp-${challengeId}`}
+        >
           Код подтверждения
         </label>
         <Input
@@ -206,7 +213,7 @@ export function OtpCodeForm({
           placeholder="000000"
           maxLength={8}
           value={code}
-          onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+          onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
           disabled={loading || hardBlocked}
           aria-invalid={!!error}
         />
@@ -218,7 +225,7 @@ export function OtpCodeForm({
         className={AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS}
         disabled={loading || hardBlocked}
       >
-        {loading ? "Проверка…" : submitLabel}
+        {loading ? 'Проверка…' : submitLabel}
       </Button>
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
         {!hideBack ? (
@@ -240,7 +247,7 @@ export function OtpCodeForm({
             onClick={() => void handleResend()}
             disabled={loading || resendLoading}
           >
-            {resendLoading ? "Отправка…" : "Отправить код повторно"}
+            {resendLoading ? 'Отправка…' : 'Отправить код повторно'}
           </Button>
         ) : !hardBlocked ? (
           <span className={patientMutedTextClass}>
@@ -264,11 +271,11 @@ export function OtpCodeForm({
             <Button
               type="button"
               variant="link"
-              className={cn(textLinkClass, "pl-1")}
+              className={cn(textLinkClass, 'pl-1')}
               onClick={() => void handleRequestSms()}
               disabled={loading || resendLoading || hardBlocked}
             >
-              {resendLoading ? "Отправка…" : "Получить код по SMS"}
+              {resendLoading ? 'Отправка…' : 'Получить код по SMS'}
             </Button>
           ) : null}
         </div>
@@ -293,7 +300,7 @@ export function OtpCodeForm({
                     key={i}
                     type="button"
                     variant="link"
-                    className={cn(textLinkClass, "text-left")}
+                    className={cn(textLinkClass, 'text-left')}
                     onClick={() => void alt.onClick()}
                     disabled={loading || resendLoading || hardBlocked}
                   >
@@ -316,7 +323,10 @@ export function OtpCodeForm({
           ) : null}
         </div>
       ) : null}
-      <SupportContactLink href={supportHref} className={cn(AUTH_LOGIN_FORM_SECONDARY_BUTTON_CLASS, "w-full sm:w-auto")}>
+      <SupportContactLink
+        href={supportHref}
+        className={cn(AUTH_LOGIN_FORM_SECONDARY_BUTTON_CLASS, 'w-full sm:w-auto')}
+      >
         Написать в поддержку
       </SupportContactLink>
     </form>

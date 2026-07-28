@@ -1,13 +1,13 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Card, CardContent } from "@/shared/ui/doctor/primitives/card";
-import { cn } from "@/lib/utils";
-import { doctorInteractiveSurfaceButtonClass } from "@/shared/ui/doctor/doctorVisual";
-import { ContentLifecycleDropdown } from "./ContentLifecycleDropdown";
-import { ContentRatingChip, type ContentRatingSummary } from "./ContentRatingChip";
-import type { ContentPageListRow } from "./ContentPagesSectionList";
+import Link from 'next/link';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Card, CardContent } from '@/shared/ui/doctor/primitives/card';
+import { cn } from '@/lib/utils';
+import { doctorInteractiveSurfaceButtonClass } from '@/shared/ui/doctor/doctorVisual';
+import { ContentLifecycleDropdown } from './ContentLifecycleDropdown';
+import { ContentRatingChip, type ContentRatingSummary } from './ContentRatingChip';
+import type { ContentPageListRow } from './ContentPagesSectionList';
 
 type Props = {
   page: ContentPageListRow;
@@ -29,8 +29,8 @@ export function ContentPageTileCard({ page, rating, onSelect, isActive }: Props)
     <Card
       size="sm"
       className={cn(
-        "h-full w-full min-w-0 rounded-[calc(var(--radius-xl)*0.5)] transition-shadow data-[size=sm]:py-1.5",
-        isActive && "ring-1 ring-primary/50 ring-offset-1 ring-offset-background",
+        'h-full w-full min-w-0 rounded-[calc(var(--radius-xl)*0.5)] transition-shadow data-[size=sm]:py-1.5',
+        isActive && 'ring-1 ring-primary/50 ring-offset-1 ring-offset-background',
       )}
     >
       <CardContent className="flex h-full flex-col gap-1.5 py-px group-data-[size=sm]/card:px-1.5">
@@ -45,10 +45,7 @@ export function ContentPageTileCard({ page, rating, onSelect, isActive }: Props)
               loading="lazy"
             />
           ) : (
-            <div
-              className="flex h-[120px] w-full items-center justify-center"
-              aria-hidden
-            >
+            <div className="flex h-[120px] w-full items-center justify-center" aria-hidden>
               <span className="text-2xl text-muted-foreground/30">📄</span>
             </div>
           )}
@@ -89,7 +86,7 @@ export function ContentPageTileCard({ page, rating, onSelect, isActive }: Props)
         variant="ghost"
         className={cn(
           doctorInteractiveSurfaceButtonClass,
-          "flex w-full cursor-pointer justify-center rounded-[calc(var(--radius-xl)*0.5)] text-left",
+          'flex w-full cursor-pointer justify-center rounded-[calc(var(--radius-xl)*0.5)] text-left',
         )}
         onClick={() => onSelect(page.id)}
       >

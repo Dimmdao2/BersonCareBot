@@ -65,8 +65,20 @@ async function loadStaffLists(db: DbPort, channel: MessengerStaffChannel): Promi
   ]);
 
   const lists: StaffIdLists = {
-    adminIds: [...new Set(parseMessengerIdTokens(adminInner).map((x) => x.trim()).filter(Boolean))],
-    doctorIds: [...new Set(parseMessengerIdTokens(doctorInner).map((x) => x.trim()).filter(Boolean))],
+    adminIds: [
+      ...new Set(
+        parseMessengerIdTokens(adminInner)
+          .map((x) => x.trim())
+          .filter(Boolean),
+      ),
+    ],
+    doctorIds: [
+      ...new Set(
+        parseMessengerIdTokens(doctorInner)
+          .map((x) => x.trim())
+          .filter(Boolean),
+      ),
+    ],
   };
   listsCache.set(channel, { loadedAt: now, lists });
   return lists;

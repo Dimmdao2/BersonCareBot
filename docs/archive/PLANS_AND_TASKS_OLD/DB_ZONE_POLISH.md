@@ -4,6 +4,7 @@
 Контекст: финальная ревизия всех трёх фаз STAGE13_POST_CUTOVER_FIXES выявила 9 проблем (2 CRITICAL, 2 HIGH, 3 MEDIUM, 2 LOW), пропущенных при предыдущих проходах. Все исправлены в одном пакете, CI зелёный.
 
 Связанные документы:
+
 - [STAGE13_POST_CUTOVER_FIXES.md](./STAGE13_POST_CUTOVER_FIXES.md) — основной backlog post-cutover
 - [STAGE13_OWNERSHIP_MAP.md](../ARCHITECTURE/STAGE13_OWNERSHIP_MAP.md) — карта владения таблицами
 - [DATA_MIGRATION_CHECKLIST.md](../../deploy/DATA_MIGRATION_CHECKLIST.md) — чеклист миграции
@@ -19,6 +20,7 @@
 **Проблема:** Пункт A3 из STAGE13_POST_CUTOVER_FIXES требовал, чтобы `fieldDriftCount > 0` приводил к `exitCode = 1`. Фактически `hasDrift` не был объявлен и не включён в условие. Reconcile проходил зелёным при любом количестве испорченных полей. Stage13-gate не ловил field drift.
 
 **Исправление:**
+
 ```javascript
 // Было:
 const exitCode = overThreshold || hasMissing ? 1 : 0;
@@ -39,6 +41,7 @@ if (hasDrift) console.error(`[reconcile-person-domain] fieldDrift: ${drift} reco
 **Проблема:** Единственный projection INSERT в webapp, не имевший `ON CONFLICT`. При retry projection event `support.delivery.attempt.logged` с тем же `integrator_intent_event_id` — уникальная ошибка PG, 503 в ответ integrator'у, event уходил в dead. Backfill-скрипт (`backfill-communication-history.mjs`) имел корректный `ON CONFLICT`, а runtime handler — нет.
 
 **Исправление:**
+
 ```sql
 -- Было:
 INSERT INTO support_delivery_events (...) VALUES (...)
@@ -53,6 +56,7 @@ RETURNING id
 ```
 
 Также:
+
 - `r.rows[0].id` → `r.rows[0]?.id ?? ''` (при DO NOTHING rows пуст).
 - In-memory mock (`inMemorySupportCommunication.ts`) обновлён для идемпотентности.
 - Добавлен тест (`pgSupportCommunication.test.ts`): двойной вызов `appendDeliveryEventFromProjection` с одним `integratorIntentEventId` → один и тот же `id`.
@@ -68,6 +72,7 @@ RETURNING id
 Ирония: `jsonStableStringify` (написанный для B2a) корректно сортирует ВСЕ уровни, но использовался только для HTTP body. Idempotency key строился через неполноценный `hashPayload`.
 
 **Исправление:**
+
 ```typescript
 // Было:
 export function hashPayload(payload: Record<string, unknown>): string {
@@ -96,6 +101,7 @@ export function hashPayload(payload: Record<string, unknown>): string {
 **Проблема:** Если `client.query("ROLLBACK")` бросал ошибку (коннект разорван), `client.end()` на строке 67 не вызывался — код после for-loop не достигался. PG-соединение оставалось в серверном pool'е до таймаута.
 
 **Исправление:**
+
 - Весь migration loop обёрнут в `try { ... } finally { await client.end(); }`.
 - `ROLLBACK` обёрнут в `try/catch` (best-effort) чтобы не маскировать оригинальную ошибку миграции.
 
@@ -108,22 +114,25 @@ export function hashPayload(payload: Record<string, unknown>): string {
 **Проблема:** `child.kill("SIGTERM")` убивал только прямой дочерний процесс (sh/pnpm). Когда pnpm запускал node, а node — ещё что-то, grandchildren переживали таймаут. На сервере после таймаута gate/reconcile оставались зомби-процессы.
 
 **Исправление:**
+
 ```javascript
 // Было:
-const child = spawn(cmd, args, { cwd, stdio: "inherit", shell });
+const child = spawn(cmd, args, { cwd, stdio: 'inherit', shell });
 // ...
-child.kill("SIGTERM");
+child.kill('SIGTERM');
 
 // Стало:
 const child = spawn(cmd, args, {
-  cwd, stdio: "inherit", shell,
-  detached: process.platform !== "win32",
+  cwd,
+  stdio: 'inherit',
+  shell,
+  detached: process.platform !== 'win32',
 });
 // ...
-if (process.platform !== "win32" && typeof child.pid === "number") {
-  process.kill(-child.pid, "SIGTERM");  // kill entire process group
+if (process.platform !== 'win32' && typeof child.pid === 'number') {
+  process.kill(-child.pid, 'SIGTERM'); // kill entire process group
 } else {
-  child.kill("SIGTERM");
+  child.kill('SIGTERM');
 }
 ```
 
@@ -132,6 +141,7 @@ if (process.platform !== "win32" && typeof child.pid === "number") {
 ### 6. MEDIUM — ROLLBACK-ошибка маскировала оригинальную ошибку в backfill-скриптах
 
 **Файлы:**
+
 - `apps/webapp/scripts/backfill-communication-history.mjs` (5 мест)
 - `apps/webapp/scripts/backfill-reminders-domain.mjs` (4 места)
 - `apps/webapp/scripts/backfill-appointments-domain.mjs` (1 место)
@@ -141,6 +151,7 @@ if (process.platform !== "win32" && typeof child.pid === "number") {
 **Проблема:** При ошибке INSERT вызывался `dst.query("ROLLBACK")`. Если ROLLBACK тоже бросал (коннект потерян), оригинальная ошибка batch'а терялась — вместо неё пробрасывалась ошибка ROLLBACK.
 
 **Исправление:** Везде ROLLBACK обёрнут в `try/catch`:
+
 ```javascript
 } catch (err) {
   if (!dryRun) {
@@ -159,12 +170,14 @@ if (process.platform !== "win32" && typeof child.pid === "number") {
 ### 7. MEDIUM — Error swallowing в reads-адаптерах
 
 **Файлы:**
+
 - `apps/integrator/src/infra/adapters/subscriptionMailingReadsPort.ts`
 - `apps/integrator/src/infra/adapters/appointmentsReadsPort.ts`
 
 **Проблема:** `catch { return { ok: false, status: 0 }; }` — при сетевой ошибке, DNS failure, TLS-ошибке ничего не логировалось. Оператор видел `status: 0` без контекста.
 
 **Исправление:**
+
 ```typescript
 } catch (err) {
   console.warn('appointments reads GET failed', {
@@ -187,6 +200,7 @@ if (process.platform !== "win32" && typeof child.pid === "number") {
 **Проблема:** Рекурсия без circuit breaker → при circular ref (маловероятно для projection payloads, но возможно при баге) — бесконечный стек.
 
 **Исправление:** Внутренняя рекурсия вынесена в `stringifyStable(value, seen: WeakSet<object>)`:
+
 ```typescript
 export function jsonStableStringify(value: unknown): string {
   return stringifyStable(value, new WeakSet<object>());
@@ -214,6 +228,7 @@ function stringifyStable(value: unknown, seen: WeakSet<object>): string {
 ### 9. LOW — backfill-скрипты без cap на --limit
 
 **Файлы:**
+
 - `apps/webapp/scripts/backfill-communication-history.mjs`
 - `apps/webapp/scripts/backfill-subscription-mailing-domain.mjs`
 
@@ -225,39 +240,39 @@ function stringifyStable(value: unknown, seen: WeakSet<object>): string {
 
 ## Остающийся tech debt (НЕ блокирует продакшн)
 
-| # | Severity | Описание | Рекомендация |
-|---|----------|----------|-------------|
-| 1 | MEDIUM | Events в `processing` при крэше worker'а — не возвращаются в `pending` | Добавить фоновый job для recovery stuck events (WHERE status = 'processing' AND updated_at < now() - interval '5 min') |
-| 2 | MEDIUM | Нет CHECK constraint на `projection_outbox.status` в PG | Добавить `CHECK (status IN ('pending','processing','done','dead'))` при следующей миграции |
-| 3 | MEDIUM | Нет юнит-тестов на PG-реализации pgBranches, pgUserProjection | Покрыты integration через events.test.ts; добавить при рефакторе |
-| 4 | LOW | `mailing.topic.upserted` / `user.subscription.upserted` включают `updatedAt` в payload → при rapid upserts разные idempotency keys | На текущих объёмах не стреляет; дедуплицируется webapp idempotency |
-| 5 | LOW | 3 reconcile-скрипта не fallback'ят на `SOURCE_DATABASE_URL` | Работает на проде; унифицировать при следующем рефакторе |
-| 6 | LOW | `--limit` в backfill-communication-history ограничивает каждый entity-тип отдельно | Документировать; на проде `--limit` не используется |
-| 7 | LOW | Concurrent race в `pgUserProjection` (два INSERT для нового user одновременно) | Маловероятно при текущем однопоточном worker; при масштабировании добавить ON CONFLICT |
+| #   | Severity | Описание                                                                                                                           | Рекомендация                                                                                                           |
+| --- | -------- | ---------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| 1   | MEDIUM   | Events в `processing` при крэше worker'а — не возвращаются в `pending`                                                             | Добавить фоновый job для recovery stuck events (WHERE status = 'processing' AND updated_at < now() - interval '5 min') |
+| 2   | MEDIUM   | Нет CHECK constraint на `projection_outbox.status` в PG                                                                            | Добавить `CHECK (status IN ('pending','processing','done','dead'))` при следующей миграции                             |
+| 3   | MEDIUM   | Нет юнит-тестов на PG-реализации pgBranches, pgUserProjection                                                                      | Покрыты integration через events.test.ts; добавить при рефакторе                                                       |
+| 4   | LOW      | `mailing.topic.upserted` / `user.subscription.upserted` включают `updatedAt` в payload → при rapid upserts разные idempotency keys | На текущих объёмах не стреляет; дедуплицируется webapp idempotency                                                     |
+| 5   | LOW      | 3 reconcile-скрипта не fallback'ят на `SOURCE_DATABASE_URL`                                                                        | Работает на проде; унифицировать при следующем рефакторе                                                               |
+| 6   | LOW      | `--limit` в backfill-communication-history ограничивает каждый entity-тип отдельно                                                 | Документировать; на проде `--limit` не используется                                                                    |
+| 7   | LOW      | Concurrent race в `pgUserProjection` (два INSERT для нового user одновременно)                                                     | Маловероятно при текущем однопоточном worker; при масштабировании добавить ON CONFLICT                                 |
 
 ---
 
 ## Затронутые файлы
 
-| Файл | Изменение |
-|------|-----------|
-| `apps/webapp/scripts/reconcile-person-domain.mjs` | fieldDrift → exitCode=1 |
-| `apps/webapp/src/infra/repos/pgSupportCommunication.ts` | ON CONFLICT на delivery events INSERT |
-| `apps/webapp/src/infra/repos/pgSupportCommunication.test.ts` | Тест идемпотентности delivery events |
-| `apps/webapp/src/infra/repos/inMemorySupportCommunication.ts` | Идемпотентный mock для delivery events |
-| `apps/integrator/src/infra/db/repos/projectionKeys.ts` | hashPayload → jsonStableStringify |
-| `apps/integrator/src/infra/db/repos/projectionKeys.test.ts` | Тест nested key order hash |
-| `apps/integrator/src/infra/adapters/jsonStableStringify.ts` | Circular ref protection |
-| `apps/integrator/src/infra/adapters/jsonStableStringify.test.ts` | Тест circular ref |
-| `apps/integrator/src/infra/adapters/subscriptionMailingReadsPort.ts` | console.warn на сетевые ошибки |
-| `apps/integrator/src/infra/adapters/appointmentsReadsPort.ts` | console.warn на сетевые ошибки |
-| `apps/webapp/scripts/run-migrations.mjs` | try/finally + safe ROLLBACK |
-| `scripts/spawn-with-timeout.mjs` | detached + process group kill |
-| `apps/webapp/scripts/backfill-communication-history.mjs` | Safe ROLLBACK + parseBackfillLimit |
-| `apps/webapp/scripts/backfill-reminders-domain.mjs` | Safe ROLLBACK |
-| `apps/webapp/scripts/backfill-appointments-domain.mjs` | Safe ROLLBACK |
-| `apps/webapp/scripts/backfill-subscription-mailing-domain.mjs` | Safe ROLLBACK + parseBackfillLimit |
-| `apps/webapp/scripts/backfill-person-domain.mjs` | Safe ROLLBACK |
+| Файл                                                                 | Изменение                              |
+| -------------------------------------------------------------------- | -------------------------------------- |
+| `apps/webapp/scripts/reconcile-person-domain.mjs`                    | fieldDrift → exitCode=1                |
+| `apps/webapp/src/infra/repos/pgSupportCommunication.ts`              | ON CONFLICT на delivery events INSERT  |
+| `apps/webapp/src/infra/repos/pgSupportCommunication.test.ts`         | Тест идемпотентности delivery events   |
+| `apps/webapp/src/infra/repos/inMemorySupportCommunication.ts`        | Идемпотентный mock для delivery events |
+| `apps/integrator/src/infra/db/repos/projectionKeys.ts`               | hashPayload → jsonStableStringify      |
+| `apps/integrator/src/infra/db/repos/projectionKeys.test.ts`          | Тест nested key order hash             |
+| `apps/integrator/src/infra/adapters/jsonStableStringify.ts`          | Circular ref protection                |
+| `apps/integrator/src/infra/adapters/jsonStableStringify.test.ts`     | Тест circular ref                      |
+| `apps/integrator/src/infra/adapters/subscriptionMailingReadsPort.ts` | console.warn на сетевые ошибки         |
+| `apps/integrator/src/infra/adapters/appointmentsReadsPort.ts`        | console.warn на сетевые ошибки         |
+| `apps/webapp/scripts/run-migrations.mjs`                             | try/finally + safe ROLLBACK            |
+| `scripts/spawn-with-timeout.mjs`                                     | detached + process group kill          |
+| `apps/webapp/scripts/backfill-communication-history.mjs`             | Safe ROLLBACK + parseBackfillLimit     |
+| `apps/webapp/scripts/backfill-reminders-domain.mjs`                  | Safe ROLLBACK                          |
+| `apps/webapp/scripts/backfill-appointments-domain.mjs`               | Safe ROLLBACK                          |
+| `apps/webapp/scripts/backfill-subscription-mailing-domain.mjs`       | Safe ROLLBACK + parseBackfillLimit     |
+| `apps/webapp/scripts/backfill-person-domain.mjs`                     | Safe ROLLBACK                          |
 
 ---
 

@@ -17,7 +17,10 @@ type PatientNotificationInboxMessage = {
 };
 
 type PatientNotificationInboxPort = {
-  listNotificationMessagesForUser(platformUserId: string, limit: number): Promise<PatientNotificationInboxMessage[]>;
+  listNotificationMessagesForUser(
+    platformUserId: string,
+    limit: number,
+  ): Promise<PatientNotificationInboxMessage[]>;
   countUnreadNotificationsForUser(platformUserId: string): Promise<number>;
   markNotificationMessagesReadForUser(platformUserId: string): Promise<void>;
 };

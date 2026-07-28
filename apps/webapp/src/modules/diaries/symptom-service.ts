@@ -3,10 +3,10 @@
  * Хранение данных делегировано порту (БД или память). Используется веб-приложением и API интегратора.
  */
 
-import type { SymptomDiaryPort, SymptomDiarySqlTx } from "./ports";
-import type { SymptomEntry, SymptomSide, SymptomTracking } from "./types";
+import type { SymptomDiaryPort, SymptomDiarySqlTx } from './ports';
+import type { SymptomEntry, SymptomSide, SymptomTracking } from './types';
 
-export type { SymptomEntry, SymptomTracking } from "./types";
+export type { SymptomEntry, SymptomTracking } from './types';
 
 const VALUE_MIN = 0;
 const VALUE_MAX = 10;
@@ -26,7 +26,7 @@ export function createSymptomDiaryService(port: SymptomDiaryPort) {
       diagnosisRefId?: string | null;
       stageRefId?: string | null;
     }): Promise<SymptomTracking> {
-      const title = params.symptomTitle.trim() || "—";
+      const title = params.symptomTitle.trim() || '—';
       return port.createTracking({
         userId: params.userId,
         symptomKey: params.symptomKey ?? null,
@@ -68,9 +68,9 @@ export function createSymptomDiaryService(port: SymptomDiaryPort) {
       userId: string;
       trackingId: string;
       value0_10: number;
-      entryType: "instant" | "daily";
+      entryType: 'instant' | 'daily';
       recordedAt: string;
-      source: "bot" | "webapp" | "import";
+      source: 'bot' | 'webapp' | 'import';
       notes?: string | null;
       patientPracticeCompletionId?: string | null;
     }): Promise<SymptomEntry> {
@@ -123,7 +123,7 @@ export function createSymptomDiaryService(port: SymptomDiaryPort) {
       userId: string;
       entryId: string;
       value0_10: number;
-      entryType: "instant" | "daily";
+      entryType: 'instant' | 'daily';
       recordedAt: string;
       notes: string | null;
     }): Promise<void> {
@@ -133,7 +133,11 @@ export function createSymptomDiaryService(port: SymptomDiaryPort) {
     async deleteSymptomEntry(params: { userId: string; entryId: string }): Promise<void> {
       await port.deleteEntry(params);
     },
-    async renameTracking(params: { userId: string; trackingId: string; symptomTitle: string }): Promise<void> {
+    async renameTracking(params: {
+      userId: string;
+      trackingId: string;
+      symptomTitle: string;
+    }): Promise<void> {
       const t = params.symptomTitle.trim();
       if (!t || t.length > 200) return;
       await port.updateTrackingTitle({

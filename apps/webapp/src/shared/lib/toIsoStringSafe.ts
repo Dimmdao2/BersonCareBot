@@ -6,9 +6,7 @@ export function toIsoStringSafe(value: Date | string): string {
   return dt.toISOString();
 }
 
-export function nullableToIsoStringSafe(
-  value: Date | string | null | undefined,
-): string | null {
+export function nullableToIsoStringSafe(value: Date | string | null | undefined): string | null {
   if (value == null) return null;
   return toIsoStringSafe(value);
 }

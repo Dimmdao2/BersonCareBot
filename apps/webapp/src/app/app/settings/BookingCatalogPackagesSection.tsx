@@ -1,15 +1,21 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState, useTransition } from "react";
-import { apiJson } from "@/shared/lib/apiJson";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Label } from "@/shared/ui/doctor/primitives/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/doctor/primitives/select";
+import { useCallback, useEffect, useState, useTransition } from 'react';
+import { apiJson } from '@/shared/lib/apiJson';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/shared/ui/doctor/primitives/select';
 
-const API = "/api/admin/booking-engine/packages";
-const SERVICES_API = "/api/admin/booking-engine/services";
+const API = '/api/admin/booking-engine/packages';
+const SERVICES_API = '/api/admin/booking-engine/services';
 
 type ServiceRow = { id: string; title: string };
 type PackageRow = {
@@ -23,10 +29,10 @@ type PackageRow = {
 export function BookingCatalogPackagesSection({ apiBase = API }: { apiBase?: string }) {
   const [services, setServices] = useState<ServiceRow[]>([]);
   const [packages, setPackages] = useState<PackageRow[]>([]);
-  const [title, setTitle] = useState("");
-  const [priceRub, setPriceRub] = useState("");
-  const [serviceId, setServiceId] = useState("");
-  const [quantity, setQuantity] = useState("1");
+  const [title, setTitle] = useState('');
+  const [priceRub, setPriceRub] = useState('');
+  const [serviceId, setServiceId] = useState('');
+  const [quantity, setQuantity] = useState('1');
   const [items, setItems] = useState<Array<{ serviceId: string; quantity: number }>>([]);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -55,30 +61,30 @@ export function BookingCatalogPackagesSection({ apiBase = API }: { apiBase?: str
     const q = Number.parseInt(quantity, 10);
     if (!Number.isFinite(q) || q < 1) return;
     setItems((prev) => [...prev, { serviceId, quantity: q }]);
-    setServiceId("");
-    setQuantity("1");
+    setServiceId('');
+    setQuantity('1');
   }
 
   function save() {
     setError(null);
-    const priceMinor = Math.round(Number.parseFloat(priceRub.replace(",", ".")) * 100);
+    const priceMinor = Math.round(Number.parseFloat(priceRub.replace(',', '.')) * 100);
     if (!title.trim() || !Number.isFinite(priceMinor) || priceMinor < 0 || items.length === 0) {
-      setError("invalid_form");
+      setError('invalid_form');
       return;
     }
     startTransition(async () => {
       try {
         await apiJson(apiBase, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title: title.trim(), priceMinor, currency: "RUB", items }),
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: title.trim(), priceMinor, currency: 'RUB', items }),
         });
-        setTitle("");
-        setPriceRub("");
+        setTitle('');
+        setPriceRub('');
         setItems([]);
         await load();
       } catch (e) {
-        setError(e instanceof Error ? e.message : "save_failed");
+        setError(e instanceof Error ? e.message : 'save_failed');
       }
     });
   }
@@ -92,7 +98,7 @@ export function BookingCatalogPackagesSection({ apiBase = API }: { apiBase?: str
         <ul className="text-sm">
           {packages.map((p) => (
             <li key={p.id} className="border-b py-1">
-              {p.title} — {(p.priceMinor / 100).toLocaleString("ru-RU")} ₽
+              {p.title} — {(p.priceMinor / 100).toLocaleString('ru-RU')} ₽
             </li>
           ))}
         </ul>
@@ -102,7 +108,7 @@ export function BookingCatalogPackagesSection({ apiBase = API }: { apiBase?: str
           <Label htmlFor="pkg-price">Цена (₽)</Label>
           <Input id="pkg-price" value={priceRub} onChange={(e) => setPriceRub(e.target.value)} />
           <div className="flex flex-wrap gap-2">
-            <Select value={serviceId} onValueChange={(v) => setServiceId(v ?? "")}>
+            <Select value={serviceId} onValueChange={(v) => setServiceId(v ?? '')}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -127,13 +133,13 @@ export function BookingCatalogPackagesSection({ apiBase = API }: { apiBase?: str
           </div>
           {items.length > 0 ? (
             <p className="text-sm text-muted-foreground">
-              Состав:{" "}
+              Состав:{' '}
               {items
                 .map((it) => {
                   const t = services.find((s) => s.id === it.serviceId)?.title ?? it.serviceId;
                   return `${it.quantity}× ${t}`;
                 })
-                .join(", ")}
+                .join(', ')}
             </p>
           ) : null}
           {error ? <p className="text-sm text-destructive">{error}</p> : null}

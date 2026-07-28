@@ -2,8 +2,8 @@
  * Branches projection. Wave 3 phase 13C — `runWebappPgText`.
  */
 
-import { runWebappPgText } from "@/infra/db/runWebappSql";
-import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
+import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
 
 export type BranchRow = {
   id: string;
@@ -24,8 +24,8 @@ export type BranchesProjectionPort = {
 };
 
 function parseIntegratorBranchId(value: number | string): number {
-  if (typeof value === "number" && Number.isFinite(value)) return Math.trunc(value);
-  const s = typeof value === "string" ? value.trim() : String(value);
+  if (typeof value === 'number' && Number.isFinite(value)) return Math.trunc(value);
+  const s = typeof value === 'string' ? value.trim() : String(value);
   const n = Number(s);
   if (!Number.isFinite(n)) return 0;
   return Math.trunc(n);
@@ -44,10 +44,10 @@ export function createPgBranchesProjectionPort(): BranchesProjectionPort {
            name = COALESCE(NULLIF(TRIM(EXCLUDED.name), ''), branches.name),
            updated_at = now()
          RETURNING id`,
-        [integratorBranchId, name, JSON.stringify(metaJson)]
+        [integratorBranchId, name, JSON.stringify(metaJson)],
       );
       const id = result.rows[0]?.id;
-      if (!id) throw new Error("branches upsert did not return id");
+      if (!id) throw new Error('branches upsert did not return id');
       return { branchId: id };
     },
 
@@ -63,7 +63,7 @@ export function createPgBranchesProjectionPort(): BranchesProjectionPort {
       }>(
         `SELECT id, integrator_branch_id, name, meta_json, created_at, updated_at
          FROM branches WHERE integrator_branch_id = $1 LIMIT 1`,
-        [id]
+        [id],
       );
       const row = result.rows[0];
       if (!row) return null;
@@ -72,7 +72,7 @@ export function createPgBranchesProjectionPort(): BranchesProjectionPort {
         integratorBranchId: row.integrator_branch_id,
         name: row.name,
         metaJson:
-          typeof row.meta_json === "object" && row.meta_json !== null
+          typeof row.meta_json === 'object' && row.meta_json !== null
             ? (row.meta_json as Record<string, unknown>)
             : {},
         createdAt: toIsoStringSafe(row.created_at),

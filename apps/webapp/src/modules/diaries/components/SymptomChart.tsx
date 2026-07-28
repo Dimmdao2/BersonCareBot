@@ -1,15 +1,15 @@
-"use client";
+'use client';
 
-import dynamic from "next/dynamic";
-import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
-import { buttonVariants } from "@/shared/ui/patient/primitives/button-variants";
-import { cn } from "@/lib/utils";
-import { routePaths } from "@/app-layer/routes/paths";
-import { DIARY_SYMPTOM_ENTRY_SAVED_EVENT } from "@/modules/diaries/symptomDiaryClientEvents";
-import { DiaryStatsPeriodBar, type DiaryStatsPeriod } from "./DiaryStatsPeriodBar";
+import dynamic from 'next/dynamic';
+import Link from 'next/link';
+import { useCallback, useEffect, useState } from 'react';
+import { buttonVariants } from '@/shared/ui/patient/primitives/button-variants';
+import { cn } from '@/lib/utils';
+import { routePaths } from '@/app-layer/routes/paths';
+import { DIARY_SYMPTOM_ENTRY_SAVED_EVENT } from '@/modules/diaries/symptomDiaryClientEvents';
+import { DiaryStatsPeriodBar, type DiaryStatsPeriod } from './DiaryStatsPeriodBar';
 
-const RechartsSymptom = dynamic(() => import("./SymptomChartRecharts"), {
+const RechartsSymptom = dynamic(() => import('./SymptomChartRecharts'), {
   ssr: false,
   loading: () => <div className="bg-muted/50 h-[260px] w-full animate-pulse rounded-md" />,
 });
@@ -24,8 +24,8 @@ type ApiOk = {
 };
 
 export function SymptomChart({ trackings }: { trackings: SymptomChartTrackingOption[] }) {
-  const [trackingId, setTrackingId] = useState(trackings[0]?.id ?? "");
-  const [period, setPeriod] = useState<DiaryStatsPeriod>("week");
+  const [trackingId, setTrackingId] = useState(trackings[0]?.id ?? '');
+  const [period, setPeriod] = useState<DiaryStatsPeriod>('week');
   const [offset, setOffset] = useState(0);
   const [points, setPoints] = useState<
     { date: string; instant: number | null; daily: number | null }[]
@@ -35,7 +35,7 @@ export function SymptomChart({ trackings }: { trackings: SymptomChartTrackingOpt
 
   useEffect(() => {
     if (trackings.length === 0) {
-      setTrackingId("");
+      setTrackingId('');
       return;
     }
     if (!trackings.some((t) => t.id === trackingId)) {
@@ -53,20 +53,22 @@ export function SymptomChart({ trackings }: { trackings: SymptomChartTrackingOpt
         period,
         offset: String(offset),
       });
-      const res = await fetch(`/api/patient/diary/symptom-stats?${qs.toString()}`, { credentials: "include" });
+      const res = await fetch(`/api/patient/diary/symptom-stats?${qs.toString()}`, {
+        credentials: 'include',
+      });
       if (res.status === 401 || res.status === 403) {
-        setError(res.status === 403 ? "Доступ запрещён" : "Требуется вход");
+        setError(res.status === 403 ? 'Доступ запрещён' : 'Требуется вход');
         setPoints([]);
         return;
       }
       if (!res.ok) {
-        setError("Не удалось загрузить статистику");
+        setError('Не удалось загрузить статистику');
         setPoints([]);
         return;
       }
       const data = (await res.json()) as ApiOk | { ok: false };
       if (!data.ok) {
-        setError("Ошибка ответа");
+        setError('Ошибка ответа');
         setPoints([]);
         return;
       }
@@ -75,10 +77,10 @@ export function SymptomChart({ trackings }: { trackings: SymptomChartTrackingOpt
           date: p.date,
           instant: p.instant,
           daily: p.daily,
-        }))
+        })),
       );
     } catch {
-      setError("Сеть недоступна");
+      setError('Сеть недоступна');
       setPoints([]);
     } finally {
       setLoading(false);
@@ -150,7 +152,7 @@ export function SymptomChart({ trackings }: { trackings: SymptomChartTrackingOpt
       ) : null}
       {!showInitialSkeleton && points.length > 0 && !error ? (
         <div
-          className={`mt-6 ${chartRefreshing ? "opacity-60 transition-opacity" : ""}`}
+          className={`mt-6 ${chartRefreshing ? 'opacity-60 transition-opacity' : ''}`}
           aria-busy={chartRefreshing}
         >
           <RechartsSymptom points={points} period={period} />
@@ -161,7 +163,10 @@ export function SymptomChart({ trackings }: { trackings: SymptomChartTrackingOpt
         <div className="mt-6">
           <Link
             href={`${routePaths.diarySymptomsJournal}?trackingId=${encodeURIComponent(trackingId)}&period=${period}&offset=${offset}`}
-            className={cn(buttonVariants({ variant: "outline", size: "sm" }), "inline-flex text-xs")}
+            className={cn(
+              buttonVariants({ variant: 'outline', size: 'sm' }),
+              'inline-flex text-xs',
+            )}
           >
             Открыть журнал
           </Link>

@@ -1,7 +1,7 @@
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { patientInlineLinkClass } from "@/shared/ui/patient/patientVisual";
+import Link from 'next/link';
+import { ArrowLeft } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { patientInlineLinkClass } from '@/shared/ui/patient/patientVisual';
 
 type Props = {
   sectionSlug: string;
@@ -22,7 +22,7 @@ export function PatientBackToSectionShellRow({ sectionSlug, className }: Props) 
       data-testid="patient-back-to-section-link"
       className={cn(
         patientInlineLinkClass,
-        "inline-flex min-h-10 max-w-full items-center gap-1.5 py-1 text-sm no-underline hover:underline",
+        'inline-flex min-h-10 max-w-full items-center gap-1.5 py-1 text-sm no-underline hover:underline',
         className,
       )}
     >

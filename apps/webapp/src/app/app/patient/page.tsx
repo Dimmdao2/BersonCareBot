@@ -3,34 +3,35 @@
  * Без сессии — редирект на `/app` в `patient/layout.tsx` (в т.ч. после установки PWA с `start_url` здесь).
  */
 
-import { DateTime } from "luxon";
-import { patientRscPersonalDataGate, requirePatientAccess } from "@/app-layer/guards/requireRole";
-import { requireEntitlementForReadAction } from "@/app-layer/guards/requireEntitlement";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { routePaths } from "@/app-layer/routes/paths";
-import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
-import { patientGreetingPersonalizedName } from "@/modules/patient-home/patientGreetingPersonalizedName";
-import { resolvePatientCanViewAuthOnlyContent } from "@/app-layer/platform-access";
-import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
-import { LegalFooterLinks } from "@/shared/ui/patient/LegalFooterLinks";
-import { Suspense } from "react";
-import { PatientLoadingPatternBody } from "@/shared/ui/patient/patientVisual";
+import { DateTime } from 'luxon';
+import { patientRscPersonalDataGate, requirePatientAccess } from '@/app-layer/guards/requireRole';
+import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { routePaths } from '@/app-layer/routes/paths';
+import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
+import { patientGreetingPersonalizedName } from '@/modules/patient-home/patientGreetingPersonalizedName';
+import { resolvePatientCanViewAuthOnlyContent } from '@/app-layer/platform-access';
+import { PatientAppShell } from '@/shared/ui/patient/PatientAppShell';
+import { LegalFooterLinks } from '@/shared/ui/patient/LegalFooterLinks';
+import { Suspense } from 'react';
+import { PatientLoadingPatternBody } from '@/shared/ui/patient/patientVisual';
 import {
   greetingPrefixFromHour,
   PatientHomeGreetingMobileHeader,
-} from "./home/PatientHomeGreeting";
-import { PatientHomeToday } from "./home/PatientHomeToday";
+} from './home/PatientHomeGreeting';
+import { PatientHomeToday } from './home/PatientHomeToday';
 import {
   resolvePatientOrganizationRequestContext,
   stampPatientOrganizationRequestContext,
-} from "@/app-layer/patient-organization/requestContext";
+} from '@/app-layer/patient-organization/requestContext';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
 export default async function PatientHomePage() {
   const session = await requirePatientAccess(routePaths.patient);
 
-  const personalTierOk = (await patientRscPersonalDataGate(session, routePaths.patient)) === "allow";
+  const personalTierOk =
+    (await patientRscPersonalDataGate(session, routePaths.patient)) === 'allow';
   const canViewAuthOnlyContent = await resolvePatientCanViewAuthOnlyContent(session);
   const deps = buildAppDeps();
   const patientContext = await resolvePatientOrganizationRequestContext(
@@ -41,22 +42,24 @@ export default async function PatientHomePage() {
   stampPatientOrganizationRequestContext({
     organizationId: patientContext.organizationId,
     platformUserId: session.user.userId,
-    source: "app.patient.page",
+    source: 'app.patient.page',
   });
-  const coursesOrganizationId =
-    (await requireEntitlementForReadAction({ organizationId: patientContext.organizationId }, "courses")).ok
-      ? patientContext.organizationId
-      : null;
+  const coursesOrganizationId = (
+    await requireEntitlementForReadAction(
+      { organizationId: patientContext.organizationId },
+      'courses',
+    )
+  ).ok
+    ? patientContext.organizationId
+    : null;
   const appTz = await getAppDisplayTimeZone();
-  const personalizedName =
-    personalTierOk ? patientGreetingPersonalizedName(session.user) : null;
+  const personalizedName = personalTierOk ? patientGreetingPersonalizedName(session.user) : null;
   const timeOfDayPrefix = greetingPrefixFromHour(DateTime.now().setZone(appTz).hour);
 
   return (
     <PatientAppShell
       title=""
       user={session.user}
-     
       patientSuppressShellTitle
       patientMobileHeaderSlot={
         <PatientHomeGreetingMobileHeader

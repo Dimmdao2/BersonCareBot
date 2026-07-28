@@ -1,26 +1,32 @@
-"use client";
+'use client';
 
-import { useMemo, useState } from "react";
-import toast from "react-hot-toast";
-import { Button } from "@/shared/ui/patient/primitives/button";
-import { Input } from "@/shared/ui/patient/primitives/input";
-import { Textarea } from "@/shared/ui/patient/primitives/textarea";
+import { useMemo, useState } from 'react';
+import toast from 'react-hot-toast';
+import { Button } from '@/shared/ui/patient/primitives/button';
+import { Input } from '@/shared/ui/patient/primitives/input';
+import { Textarea } from '@/shared/ui/patient/primitives/textarea';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/ui/patient/primitives/select";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/shared/ui/patient/primitives/dialog";
-import { markLfkSession } from "./actions";
-import { cn } from "@/lib/utils";
-import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
+} from '@/shared/ui/patient/primitives/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/shared/ui/patient/primitives/dialog';
+import { markLfkSession } from './actions';
+import { cn } from '@/lib/utils';
+import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 
 type Complex = { id: string; title: string };
 
 function pad2(n: number) {
-  return String(n).padStart(2, "0");
+  return String(n).padStart(2, '0');
 }
 
 function todayDateParts(d = new Date()) {
@@ -47,12 +53,12 @@ function lfkThumbColor(score: number): string {
 }
 
 function formatDateButton(isoDate: string): string {
-  const [y, m, d] = isoDate.split("-").map(Number);
+  const [y, m, d] = isoDate.split('-').map(Number);
   if (!y || !m || !d) return isoDate;
-  return new Date(y, m - 1, d).toLocaleDateString("ru-RU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
+  return new Date(y, m - 1, d).toLocaleDateString('ru-RU', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
   });
 }
 
@@ -68,14 +74,14 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
   const [timeDraft, setTimeDraft] = useState(defaults.time);
   const [pickedComplexId, setPickedComplexId] = useState<string | null>(null);
   const selectedComplexId = useMemo(() => {
-    if (complexes.length === 0) return "";
+    if (complexes.length === 0) return '';
     if (complexes.length === 1) return complexes[0]!.id;
     if (pickedComplexId && complexes.some((c) => c.id === pickedComplexId)) return pickedComplexId;
     return complexes[0]!.id;
   }, [complexes, pickedComplexId]);
 
   const lfkSessionComplexSelectItems = useMemo(
-    () => Object.fromEntries(complexes.map((c) => [c.id, c.title ?? "—"])),
+    () => Object.fromEntries(complexes.map((c) => [c.id, c.title ?? '—'])),
     [complexes],
   );
 
@@ -89,14 +95,18 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
       className="flex flex-col gap-3"
       action={async (fd) => {
         await markLfkSession(fd);
-        toast.success("Запись добавлена");
+        toast.success('Запись добавлена');
       }}
     >
       {single ? (
         <input type="hidden" name="complexId" value={complexes[0].id} />
       ) : (
         <div className="flex flex-col gap-1">
-          <span className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Комплекс</span>
+          <span
+            className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}
+          >
+            Комплекс
+          </span>
           <input type="hidden" name="complexId" value={selectedComplexId} />
           <Select
             value={selectedComplexId}
@@ -112,7 +122,7 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
             <SelectContent>
               {complexes.map((c) => (
                 <SelectItem key={c.id} value={c.id}>
-                  {c.title ?? "—"}
+                  {c.title ?? '—'}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -126,7 +136,11 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
 
       <div className="flex min-w-0 gap-2">
         <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <span className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Дата</span>
+          <span
+            className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}
+          >
+            Дата
+          </span>
           <Button
             type="button"
             variant="outline"
@@ -140,7 +154,11 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
           </Button>
         </div>
         <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <span className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Время</span>
+          <span
+            className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}
+          >
+            Время
+          </span>
           <Button
             type="button"
             variant="outline"
@@ -226,7 +244,9 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
       </Dialog>
 
       <label className="flex flex-col gap-1">
-        <span className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Длительность (мин)</span>
+        <span className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}>
+          Длительность (мин)
+        </span>
         <Input
           type="number"
           name="durationMinutes"
@@ -235,10 +255,12 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
           placeholder="длительность выполнения"
           className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
-        <span className={cn(patientMutedTextClass, "text-xs")}>минут</span>
+        <span className={cn(patientMutedTextClass, 'text-xs')}>минут</span>
       </label>
       <label className="flex flex-col gap-1">
-        <span className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Сложность выполнения: {difficulty} баллов из 10</span>
+        <span className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}>
+          Сложность выполнения: {difficulty} баллов из 10
+        </span>
         <input
           type="range"
           name="difficulty0_10_range"
@@ -249,15 +271,17 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
           className="lfk-diary-range"
           style={
             {
-              "--lfk-thumb": lfkThumbColor(difficulty),
-              "--lfk-progress": `${(difficulty / 10) * 100}%`,
+              '--lfk-thumb': lfkThumbColor(difficulty),
+              '--lfk-progress': `${(difficulty / 10) * 100}%`,
             } as React.CSSProperties
           }
           aria-valuenow={difficulty}
         />
       </label>
       <label className="flex flex-col gap-1">
-        <span className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Боль: {pain} баллов из 10</span>
+        <span className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}>
+          Боль: {pain} баллов из 10
+        </span>
         <input
           type="range"
           name="pain0_10_range"
@@ -268,15 +292,17 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
           className="lfk-diary-range"
           style={
             {
-              "--lfk-thumb": lfkThumbColor(pain),
-              "--lfk-progress": `${(pain / 10) * 100}%`,
+              '--lfk-thumb': lfkThumbColor(pain),
+              '--lfk-progress': `${(pain / 10) * 100}%`,
             } as React.CSSProperties
           }
           aria-valuenow={pain}
         />
       </label>
       <label className="flex flex-col gap-1">
-        <span className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Комментарий</span>
+        <span className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}>
+          Комментарий
+        </span>
         <Textarea name="comment" placeholder="Комментарий" maxLength={200} rows={3} />
       </label>
       <Button type="submit">Сохранить</Button>

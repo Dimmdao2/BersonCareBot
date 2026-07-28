@@ -1,39 +1,39 @@
-import Link from "next/link";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireEntitlementForPage } from "@/app-layer/guards/requireEntitlement";
-import { logServerRuntimeError } from "@/infra/logging/serverRuntimeLog";
-import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
-import type { CourseStatus } from "@/modules/courses/types";
-import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
-import { DataLoadFailureNotice } from "@/shared/ui/doctor/DataLoadFailureNotice";
-import { Badge } from "@/shared/ui/doctor/primitives/badge";
-import { cn } from "@/lib/utils";
+import Link from 'next/link';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireEntitlementForPage } from '@/app-layer/guards/requireEntitlement';
+import { logServerRuntimeError } from '@/infra/logging/serverRuntimeLog';
+import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import type { CourseStatus } from '@/modules/courses/types';
+import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
+import { DataLoadFailureNotice } from '@/shared/ui/doctor/DataLoadFailureNotice';
+import { Badge } from '@/shared/ui/doctor/primitives/badge';
+import { cn } from '@/lib/utils';
 import {
   parseTemplateCourseCatalogListStatus,
   serverListFilterFromTemplateCourseCatalogStatus,
-} from "@/shared/lib/doctorCatalogListStatus";
+} from '@/shared/lib/doctorCatalogListStatus';
 import {
   doctorCatalogToolbarPrimaryActionClassName,
   DoctorCatalogFiltersToolbar,
   DoctorCatalogToolbarFiltersSlot,
-} from "@/shared/ui/doctor/DoctorCatalogFiltersToolbar";
-import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
-import { DoctorCatalogArchiveScopeSelect } from "@/shared/ui/doctor/DoctorCatalogArchiveScopeSelect";
+} from '@/shared/ui/doctor/DoctorCatalogFiltersToolbar';
+import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
+import { DoctorCatalogArchiveScopeSelect } from '@/shared/ui/doctor/DoctorCatalogArchiveScopeSelect';
 import {
   doctorEmptyStateClass,
   doctorHoverLinkClass,
   doctorSectionCardClass,
-} from "@/shared/ui/doctor/doctorVisual";
+} from '@/shared/ui/doctor/doctorVisual';
 
 function statusLabel(status: CourseStatus): string {
   switch (status) {
-    case "draft":
-      return "Черновик";
-    case "published":
-      return "Опубликован";
-    case "archived":
-      return "Архив";
+    case 'draft':
+      return 'Черновик';
+    case 'published':
+      return 'Опубликован';
+    case 'archived':
+      return 'Архив';
     default:
       return status;
   }
@@ -41,12 +41,12 @@ function statusLabel(status: CourseStatus): string {
 
 function statusBadgeClass(status: CourseStatus): string {
   switch (status) {
-    case "published":
-      return "bg-emerald-600/15 text-emerald-900 dark:text-emerald-100";
-    case "archived":
-      return "bg-muted text-muted-foreground";
+    case 'published':
+      return 'bg-emerald-600/15 text-emerald-900 dark:text-emerald-100';
+    case 'archived':
+      return 'bg-muted text-muted-foreground';
     default:
-      return "bg-amber-500/15 text-amber-950 dark:text-amber-100";
+      return 'bg-amber-500/15 text-amber-950 dark:text-amber-100';
   }
 }
 
@@ -56,7 +56,7 @@ type PageProps = {
 
 export default async function DoctorCoursesPage({ searchParams }: PageProps) {
   const workspace = await requireDoctorWorkspaceContext();
-  await requireEntitlementForPage({ organizationId: workspace.organizationId }, "courses");
+  await requireEntitlementForPage({ organizationId: workspace.organizationId }, 'courses');
   const deps = buildAppDeps();
   const sp = (await searchParams) ?? {};
   const listStatus = parseTemplateCourseCatalogListStatus(sp);
@@ -65,14 +65,14 @@ export default async function DoctorCoursesPage({ searchParams }: PageProps) {
   let courses: Awaited<ReturnType<typeof deps.courses.listCoursesForDoctor>> = [];
   let loadError: ReturnType<typeof logServerRuntimeError> | null = null;
   try {
-    courses = await withDoctorWorkspacePrincipal(workspace, "app.doctor.courses.list", () =>
+    courses = await withDoctorWorkspacePrincipal(workspace, 'app.doctor.courses.list', () =>
       deps.courses.listCoursesForDoctor(courseFilter),
     );
   } catch (err) {
-    loadError = logServerRuntimeError("app/doctor/courses", err);
+    loadError = logServerRuntimeError('app/doctor/courses', err);
   }
 
-  const isDev = process.env.NODE_ENV === "development";
+  const isDev = process.env.NODE_ENV === 'development';
 
   return (
     <DoctorAppShell title="Курсы" user={workspace.session.user} backHref="/app/doctor">
@@ -84,7 +84,10 @@ export default async function DoctorCoursesPage({ searchParams }: PageProps) {
           </DoctorCatalogToolbarFiltersSlot>
         }
         end={
-          <Link href="/app/doctor/courses/new" className={doctorCatalogToolbarPrimaryActionClassName}>
+          <Link
+            href="/app/doctor/courses/new"
+            className={doctorCatalogToolbarPrimaryActionClassName}
+          >
             Новый курс
           </Link>
         }
@@ -105,7 +108,10 @@ export default async function DoctorCoursesPage({ searchParams }: PageProps) {
         {courses.length > 0 ? (
           <ul className="divide-y divide-border rounded-lg border border-border">
             {courses.map((c) => (
-              <li key={c.id} className="flex flex-col gap-1 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <li
+                key={c.id}
+                className="flex flex-col gap-1 px-3 py-3 sm:flex-row sm:items-center sm:justify-between"
+              >
                 <div className="min-w-0">
                   <Link
                     href={`/app/doctor/courses/${encodeURIComponent(c.id)}`}
@@ -116,11 +122,18 @@ export default async function DoctorCoursesPage({ searchParams }: PageProps) {
                   <p className="font-mono text-xs text-muted-foreground">{c.id}</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  <Badge variant="secondary" className={cn("font-normal", statusBadgeClass(c.status))}>
+                  <Badge
+                    variant="secondary"
+                    className={cn('font-normal', statusBadgeClass(c.status))}
+                  >
                     {statusLabel(c.status)}
                   </Badge>
                   <span className="text-xs text-muted-foreground tabular-nums">
-                    обн. {new Date(c.updatedAt).toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" })}
+                    обн.{' '}
+                    {new Date(c.updatedAt).toLocaleString('ru-RU', {
+                      dateStyle: 'short',
+                      timeStyle: 'short',
+                    })}
                   </span>
                 </div>
               </li>

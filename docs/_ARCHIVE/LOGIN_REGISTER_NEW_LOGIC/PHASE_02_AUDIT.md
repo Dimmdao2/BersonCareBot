@@ -9,25 +9,25 @@
 
 ## 1. Цель фазы и границы
 
-| | |
-|--|--|
-| **Цель** | Email от Rubitime/врача = contact / unverified; без auto `user_password_credentials`; при появлении/смене — **вызов** сервиса выпуска setup link (реальная отправка — PHASE_03). |
-| **В scope** | Политика `email_verified_at`; хуки после `patchAdminClientProfile` и Rubitime autobind; документирование forgot для contact-only. |
-| **Вне scope** | `/app/auth/email-setup` (PHASE_04); матрица register (PHASE_05); таблица токенов и письмо (PHASE_03). |
+|               |                                                                                                                                                                                  |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Цель**      | Email от Rubitime/врача = contact / unverified; без auto `user_password_credentials`; при появлении/смене — **вызов** сервиса выпуска setup link (реальная отправка — PHASE_03). |
+| **В scope**   | Политика `email_verified_at`; хуки после `patchAdminClientProfile` и Rubitime autobind; документирование forgot для contact-only.                                                |
+| **Вне scope** | `/app/auth/email-setup` (PHASE_04); матрица register (PHASE_05); таблица токенов и письмо (PHASE_03).                                                                            |
 
 ---
 
 ## 2. Definition of Done — по пунктам
 
-| Критерий (PHASE_02) | Статус | Доказательство |
-|---------------------|--------|----------------|
-| Смена email врачом → `email_verified_at = null` при новом адресе | **Выполнено** | `patchAdminClientProfile`: SQL `email_verified_at = CASE … IS DISTINCT FROM … THEN NULL`; тест `clears email_verified_at when doctor sets a new email` |
-| Сохранение при том же email не сбрасывает verified | **Выполнено** | `ELSE email_verified_at`; тест `preserves email_verified_at when email value is unchanged` |
-| Rubitime email — unverified contact | **Выполнено** | `applyRubitimeEmailAutobind`: `email_verified_at = NULL`; skip если уже verified; `ensureAppointmentClientTx` сбрасывает verified при **новом** email (PHASE_01 path) |
-| Нет автосоздания `user_password_credentials` | **Выполнено** | В `pgUserProjection` по путям admin/autobind/ensure **нет** INSERT в `user_password_credentials`; тесты явно `expect(…user_password_credentials…).toBe(false)` |
-| Вызов `requestContactEmailSetup` из doctor patch + Rubitime autobind | **Выполнено (stub)** | `route.ts` (doctor, при смене email); `events.ts` (`user.email.autobind`, `outcome: applied`); DI: `createNoopEmailSetupAccessPort()` → `stub_pending_phase3` |
-| Unit/integration: не verify, не password row | **Выполнено** | `pgUserProjection.patchAdminClientProfile.test.ts`, `profile/route.test.ts`, `emailSetupAccess/service.test.ts`, `events.test.ts` (autobind + setup) |
-| Запись в `LOG.md` | **Выполнено** | Секция `2026-05-19 — PHASE_02 Contact email policy` |
+| Критерий (PHASE_02)                                                  | Статус               | Доказательство                                                                                                                                                        |
+| -------------------------------------------------------------------- | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Смена email врачом → `email_verified_at = null` при новом адресе     | **Выполнено**        | `patchAdminClientProfile`: SQL `email_verified_at = CASE … IS DISTINCT FROM … THEN NULL`; тест `clears email_verified_at when doctor sets a new email`                |
+| Сохранение при том же email не сбрасывает verified                   | **Выполнено**        | `ELSE email_verified_at`; тест `preserves email_verified_at when email value is unchanged`                                                                            |
+| Rubitime email — unverified contact                                  | **Выполнено**        | `applyRubitimeEmailAutobind`: `email_verified_at = NULL`; skip если уже verified; `ensureAppointmentClientTx` сбрасывает verified при **новом** email (PHASE_01 path) |
+| Нет автосоздания `user_password_credentials`                         | **Выполнено**        | В `pgUserProjection` по путям admin/autobind/ensure **нет** INSERT в `user_password_credentials`; тесты явно `expect(…user_password_credentials…).toBe(false)`        |
+| Вызов `requestContactEmailSetup` из doctor patch + Rubitime autobind | **Выполнено (stub)** | `route.ts` (doctor, при смене email); `events.ts` (`user.email.autobind`, `outcome: applied`); DI: `createNoopEmailSetupAccessPort()` → `stub_pending_phase3`         |
+| Unit/integration: не verify, не password row                         | **Выполнено**        | `pgUserProjection.patchAdminClientProfile.test.ts`, `profile/route.test.ts`, `emailSetupAccess/service.test.ts`, `events.test.ts` (autobind + setup)                  |
+| Запись в `LOG.md`                                                    | **Выполнено**        | Секция `2026-05-19 — PHASE_02 Contact email policy`                                                                                                                   |
 
 **Локальные проверки (прогон 2026-05-19, аудит):**
 
@@ -45,11 +45,11 @@ pnpm --filter @bersoncare/webapp exec vitest run \
 
 ### 3.1 Политика в репозитории (`pgUserProjection.ts`)
 
-| Путь | Поведение contact email |
-|------|-------------------------|
-| `patchAdminClientProfile` | Новый/изменённый email → `email_normalized` + сброс `email_verified_at`; очистка email → NULL verified |
+| Путь                         | Поведение contact email                                                                                         |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `patchAdminClientProfile`    | Новый/изменённый email → `email_normalized` + сброс `email_verified_at`; очистка email → NULL verified          |
 | `applyRubitimeEmailAutobind` | Только user по `phone_normalized`; не трогает уже verified; conflict → skip; apply → `email_verified_at = NULL` |
-| `ensureAppointmentClientTx` | При отличии email от текущего → `email_verified_at = NULL` (дополнение PHASE_01, без enqueue setup) |
+| `ensureAppointmentClientTx`  | При отличии email от текущего → `email_verified_at = NULL` (дополнение PHASE_01, без enqueue setup)             |
 
 ### 3.2 Модуль `emailSetupAccess`
 
@@ -76,10 +76,10 @@ sequenceDiagram
   Svc->>Port: stub_pending_phase3
 ```
 
-| Источник | Условие вызова | `source` |
-|----------|----------------|----------|
-| `PATCH /api/admin/users/:userId/profile` | Новый email ≠ прежний (после успешного patch) | `doctor_profile` |
-| `handleIntegratorEvent` → `user.email.autobind` | `outcome === "applied"` | `rubitime` |
+| Источник                                        | Условие вызова                                | `source`         |
+| ----------------------------------------------- | --------------------------------------------- | ---------------- |
+| `PATCH /api/admin/users/:userId/profile`        | Новый email ≠ прежний (после успешного patch) | `doctor_profile` |
+| `handleIntegratorEvent` → `user.email.autobind` | `outcome === "applied"`                       | `rubitime`       |
 
 **Не вызывается:** `appointment.record.upserted` / `ensureClientFromAppointmentProjection` при email в projection payload (см. §6).
 
@@ -104,24 +104,24 @@ sequenceDiagram
 
 ## 4. Сверка с MAIN PLAN §2
 
-| Требование §2 | PHASE_02 | Комментарий |
-|---------------|----------|-------------|
-| 1. Сохранить `email_normalized` | **Да** | admin / autobind / ensure |
-| 2. `email_verified_at = null` если пациент не подтверждал | **Да** | при смене адреса |
-| 3. Не создавать `user_password_credentials` | **Да** | |
-| 4. Отправить setup link | **Интерфейс only** | noop stub; письмо — PHASE_03 |
-| 5. TTL 24h, одноразовость | **Вне фазы** | PHASE_03 |
-| Врач меняет email → unverified + новая ссылка | **Enqueue stub** | реальная ссылка — PHASE_03 |
-| Forgot не шлёт reset на unverified doctor/Rubitime email | **Да (код + комментарий)** | PHASE_05 может расширить UX register/setup |
+| Требование §2                                             | PHASE_02                   | Комментарий                                |
+| --------------------------------------------------------- | -------------------------- | ------------------------------------------ |
+| 1. Сохранить `email_normalized`                           | **Да**                     | admin / autobind / ensure                  |
+| 2. `email_verified_at = null` если пациент не подтверждал | **Да**                     | при смене адреса                           |
+| 3. Не создавать `user_password_credentials`               | **Да**                     |                                            |
+| 4. Отправить setup link                                   | **Интерфейс only**         | noop stub; письмо — PHASE_03               |
+| 5. TTL 24h, одноразовость                                 | **Вне фазы**               | PHASE_03                                   |
+| Врач меняет email → unverified + новая ссылка             | **Enqueue stub**           | реальная ссылка — PHASE_03                 |
+| Forgot не шлёт reset на unverified doctor/Rubitime email  | **Да (код + комментарий)** | PHASE_05 может расширить UX register/setup |
 
 ---
 
 ## 5. Rubitime: два пути email
 
-| Путь | Когда | Contact policy | `requestContactEmailSetup` |
-|------|-------|----------------|----------------------------|
-| **`user.email.autobind`** | Integrator: только `event-create-record` + phone + email (`buildUserEmailAutobindWebappEvent`) | `applyRubitimeEmailAutobind` | **Да** при `applied` |
-| **`appointment.record.upserted`** | После каждого `booking.upsert` (PHASE_01 fan-out) | `ensureAppointmentClientTx` (email в payload) | **Да** при `contactEmailSetup` (новый/изменённый email) — **2026-05-20 hardening** |
+| Путь                              | Когда                                                                                          | Contact policy                                | `requestContactEmailSetup`                                                         |
+| --------------------------------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------- | ---------------------------------------------------------------------------------- |
+| **`user.email.autobind`**         | Integrator: только `event-create-record` + phone + email (`buildUserEmailAutobindWebappEvent`) | `applyRubitimeEmailAutobind`                  | **Да** при `applied`                                                               |
+| **`appointment.record.upserted`** | После каждого `booking.upsert` (PHASE_01 fan-out)                                              | `ensureAppointmentClientTx` (email в payload) | **Да** при `contactEmailSetup` (новый/изменённый email) — **2026-05-20 hardening** |
 
 **Следствие (до 2026-05-20):** запись Rubitime **updated** с новым email (без create-record autobind) сохраняла contact email через projection, но **не ставила** setup в очередь. **Hardening 2026-05-20:** при новом/изменённом email `ensureClientFromAppointmentProjection` возвращает `contactEmailSetup` → enqueue в `events.ts`.
 
@@ -129,13 +129,13 @@ sequenceDiagram
 
 ## 6. Тестовое покрытие
 
-| Область | Файл | Сценарии |
-|---------|------|----------|
-| SQL policy admin | `pgUserProjection.patchAdminClientProfile.test.ts` | new email clears verified; unchanged preserves; autobind unverified, no password |
-| Admin API | `profile/route.test.ts` | enqueue on change; no enqueue if same; 409 email conflict |
-| Setup service | `emailSetupAccess/service.test.ts` | invalid email; normalize + delegate |
-| Integrator events | `events.test.ts` | autobind → apply + `requestContactEmailSetup` |
-| Forgot | `forgot/route.test.ts` | neutral response (косвенно contact-only) |
+| Область           | Файл                                               | Сценарии                                                                         |
+| ----------------- | -------------------------------------------------- | -------------------------------------------------------------------------------- |
+| SQL policy admin  | `pgUserProjection.patchAdminClientProfile.test.ts` | new email clears verified; unchanged preserves; autobind unverified, no password |
+| Admin API         | `profile/route.test.ts`                            | enqueue on change; no enqueue if same; 409 email conflict                        |
+| Setup service     | `emailSetupAccess/service.test.ts`                 | invalid email; normalize + delegate                                              |
+| Integrator events | `events.test.ts`                                   | autobind → apply + `requestContactEmailSetup`                                    |
+| Forgot            | `forgot/route.test.ts`                             | neutral response (косвенно contact-only)                                         |
 
 **Пробелы (не блокеры закрытия PHASE_02):**
 
@@ -146,11 +146,11 @@ sequenceDiagram
 
 ## 7. Зависимость PHASE_03
 
-| PHASE_02 сдал | PHASE_03 должен |
-|---------------|-----------------|
-| `EmailSetupAccessPort` + sources enum | Drizzle `user_email_setup_tokens`, hash, revoke, TTL 24h |
-| noop → `stub_pending_phase3` | Реальный port: `status: "enqueued"` + send-email link |
-| Триггеры doctor + rubitime autobind | Подключить тот же port; **рассмотреть** триггер на appointment projection |
+| PHASE_02 сдал                         | PHASE_03 должен                                                           |
+| ------------------------------------- | ------------------------------------------------------------------------- |
+| `EmailSetupAccessPort` + sources enum | Drizzle `user_email_setup_tokens`, hash, revoke, TTL 24h                  |
+| noop → `stub_pending_phase3`          | Реальный port: `status: "enqueued"` + send-email link                     |
+| Триггеры doctor + rubitime autobind   | Подключить тот же port; **рассмотреть** триггер на appointment projection |
 
 Статус PHASE_03 в репозитории: **`pending`** — ожидаемо.
 
@@ -158,16 +158,16 @@ sequenceDiagram
 
 ## 8. Scope boundaries
 
-| Вне scope PHASE_02 | Подтверждение |
-|--------------------|---------------|
-| Страница email-setup | Нет route/UI consume token |
-| Register `existing_account_needs_email_setup` | PHASE_05 |
-| Реальное письмо / OTP link | noop only |
+| Вне scope PHASE_02                            | Подтверждение              |
+| --------------------------------------------- | -------------------------- |
+| Страница email-setup                          | Нет route/UI consume token |
+| Register `existing_account_needs_email_setup` | PHASE_05                   |
+| Реальное письмо / OTP link                    | noop only                  |
 
-| Сознательно не делали (LOG) | |
-|-----------------------------|--|
-| Таблица `user_email_setup_tokens` | |
-| Отправка письма | |
+| Сознательно не делали (LOG)       |     |
+| --------------------------------- | --- |
+| Таблица `user_email_setup_tokens` |     |
+| Отправка письма                   |     |
 
 ---
 
@@ -182,12 +182,12 @@ sequenceDiagram
 
 ## 10. Документация
 
-| Документ | Актуальность |
-|----------|--------------|
-| `LOG.md` PHASE_02 | **Актуален** |
-| `PHASE_02_CONTACT_EMAIL_POLICY.md` | DoD `[x]` согласован с кодом |
+| Документ                                         | Актуальность                                                                                    |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| `LOG.md` PHASE_02                                | **Актуален**                                                                                    |
+| `PHASE_02_CONTACT_EMAIL_POLICY.md`               | DoD `[x]` согласован с кодом                                                                    |
 | `INTEGRATOR_CONTRACT.md` § `user.email.autobind` | Описывает unverified/conflict; **не** упоминает `emailSetupAccess` (можно дополнить в PHASE_03) |
-| `AUDIT_REPORT.md` (PHASE_00) | По-прежнему «реализация не начата» — **устарел** относительно фаз 1–2 |
+| `AUDIT_REPORT.md` (PHASE_00)                     | По-прежнему «реализация не начата» — **устарел** относительно фаз 1–2                           |
 
 ---
 

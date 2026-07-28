@@ -47,10 +47,7 @@ function selectSequence(rows: unknown[][], events: string[] = []) {
         return result;
       }),
       then: vi.fn(
-        (
-          onFulfilled: (value: unknown[]) => unknown,
-          onRejected?: (reason: unknown) => unknown,
-        ) => {
+        (onFulfilled: (value: unknown[]) => unknown, onRejected?: (reason: unknown) => unknown) => {
           events.push('plain-read');
           return Promise.resolve(result).then(onFulfilled, onRejected);
         },
@@ -129,7 +126,7 @@ describe('pgClinicDirectory public slug resolver', () => {
     );
   });
 
-  it("keeps a former slug resolving to the same organization before and after its reclaim", async () => {
+  it('keeps a former slug resolving to the same organization before and after its reclaim', async () => {
     runWebappPgTextMock
       .mockResolvedValueOnce({
         rows: [
@@ -195,9 +192,9 @@ describe('pgClinicDirectory public slug resolver', () => {
     principalPlatformUserIdMock.mockReturnValue(undefined);
     const port = createPgClinicDirectoryPort();
 
-    await expect(
-      port.reserveSlug({ slug: 'clinic-a', organizationId: ORG }),
-    ).rejects.toThrow('staff_principal_required');
+    await expect(port.reserveSlug({ slug: 'clinic-a', organizationId: ORG })).rejects.toThrow(
+      'staff_principal_required',
+    );
     expect(runMutationMock).not.toHaveBeenCalled();
   });
 
@@ -242,10 +239,7 @@ describe('pgClinicDirectory public slug resolver', () => {
       organizationId: OTHER_ORG,
     };
     const events: string[] = [];
-    const { select, forUpdate } = selectSequence(
-      [[ownReservation], [foreignCollision]],
-      events,
-    );
+    const { select, forUpdate } = selectSequence([[ownReservation], [foreignCollision]], events);
     const update = vi.fn();
     const insert = vi.fn();
     mutationTransactionWithLock({ select, update, insert }, events);
@@ -296,10 +290,7 @@ describe('pgClinicDirectory public slug resolver', () => {
   it('updates its own locked reservation when the requested slug is already that same claim', async () => {
     const ownReservation = { id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd' };
     const events: string[] = [];
-    const { select, forUpdate } = selectSequence(
-      [[ownReservation], [ownReservation]],
-      events,
-    );
+    const { select, forUpdate } = selectSequence([[ownReservation], [ownReservation]], events);
     const updateWhere = vi.fn(async () => undefined);
     const updateSet = vi.fn(() => ({ where: updateWhere }));
     const tx = {
@@ -310,9 +301,10 @@ describe('pgClinicDirectory public slug resolver', () => {
     mutationTransactionWithLock(tx, events);
     const port = createPgClinicDirectoryPort();
 
-    await expect(
-      port.reserveSlug({ slug: 'clinic-a', organizationId: ORG }),
-    ).resolves.toEqual({ ok: true, slug: 'clinic-a' });
+    await expect(port.reserveSlug({ slug: 'clinic-a', organizationId: ORG })).resolves.toEqual({
+      ok: true,
+      slug: 'clinic-a',
+    });
 
     expect(forUpdate).toHaveBeenCalledOnce();
     expect(events).toEqual(['organization-lock', 'row-lock', 'plain-read']);
@@ -477,14 +469,8 @@ describe('pgClinicDirectory public slug resolver', () => {
     ).resolves.toEqual({ ok: true, slug: 'former-clinic' });
 
     expect(tx.delete).not.toHaveBeenCalled();
-    expect(updateSet).toHaveBeenNthCalledWith(
-      1,
-      expect.objectContaining({ kind: 'alias' }),
-    );
-    expect(updateSet).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({ kind: 'current' }),
-    );
+    expect(updateSet).toHaveBeenNthCalledWith(1, expect.objectContaining({ kind: 'alias' }));
+    expect(updateSet).toHaveBeenNthCalledWith(2, expect.objectContaining({ kind: 'current' }));
     expect(updateSet).toHaveBeenNthCalledWith(
       3,
       expect.objectContaining({ slug: 'former-clinic' }),

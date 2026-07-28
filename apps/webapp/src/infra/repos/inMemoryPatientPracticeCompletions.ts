@@ -1,8 +1,11 @@
-import { randomUUID } from "node:crypto";
-import { DateTime } from "luxon";
-import { computePracticeStreak } from "@/modules/patient-practice/streakLogic";
-import type { PatientPracticePort } from "@/modules/patient-practice/ports";
-import type { PatientPracticeCompletionRow, RecordPracticeInput } from "@/modules/patient-practice/types";
+import { randomUUID } from 'node:crypto';
+import { DateTime } from 'luxon';
+import { computePracticeStreak } from '@/modules/patient-practice/streakLogic';
+import type { PatientPracticePort } from '@/modules/patient-practice/ports';
+import type {
+  PatientPracticeCompletionRow,
+  RecordPracticeInput,
+} from '@/modules/patient-practice/types';
 
 const rows: PatientPracticeCompletionRow[] = [];
 
@@ -22,7 +25,7 @@ export function createInMemoryPatientPracticeCompletionsPort(): PatientPracticeP
         completedAt,
         source: input.source,
         feeling: input.feeling ?? null,
-        notes: input.notes ?? "",
+        notes: input.notes ?? '',
       });
       return { id };
     },
@@ -50,7 +53,8 @@ export function createInMemoryPatientPracticeCompletionsPort(): PatientPracticeP
     async getLatestDailyWarmupCompletionCompletedAt(userId, contentPageId) {
       let latest: string | null = null;
       for (const r of rows) {
-        if (r.userId !== userId || r.contentPageId !== contentPageId || r.source !== "daily_warmup") continue;
+        if (r.userId !== userId || r.contentPageId !== contentPageId || r.source !== 'daily_warmup')
+          continue;
         if (!latest || r.completedAt > latest) latest = r.completedAt;
       }
       return latest;
@@ -60,7 +64,7 @@ export function createInMemoryPatientPracticeCompletionsPort(): PatientPracticeP
       let latestAt: string | null = null;
       let latestPageId: string | null = null;
       for (const r of rows) {
-        if (r.userId !== userId || r.source !== "daily_warmup") continue;
+        if (r.userId !== userId || r.source !== 'daily_warmup') continue;
         if (!latestAt || r.completedAt > latestAt) {
           latestAt = r.completedAt;
           latestPageId = r.contentPageId;

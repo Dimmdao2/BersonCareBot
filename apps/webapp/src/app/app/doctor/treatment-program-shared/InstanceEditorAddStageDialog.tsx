@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useId, useState } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
+import { useId, useState } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
   Dialog,
   DialogContent,
@@ -9,12 +9,12 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/shared/ui/doctor/primitives/dialog";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Label } from "@/shared/ui/doctor/primitives/label";
-import type { TreatmentProgramInstanceStatus } from "@/modules/treatment-program/types";
-import { isProgramInstanceEditLocked } from "./programInstanceMutationGuard";
-import { useInstanceEditorDraft } from "./InstanceEditorDraftContext";
+} from '@/shared/ui/doctor/primitives/dialog';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
+import type { TreatmentProgramInstanceStatus } from '@/modules/treatment-program/types';
+import { isProgramInstanceEditLocked } from './programInstanceMutationGuard';
+import { useInstanceEditorDraft } from './InstanceEditorDraftContext';
 
 export function InstanceEditorAddStageDialog(props: {
   open: boolean;
@@ -24,14 +24,14 @@ export function InstanceEditorAddStageDialog(props: {
   const { open, onOpenChange, programStatus } = props;
   const { addStageCreate } = useInstanceEditorDraft();
   const titleFieldId = useId();
-  const [titleDraft, setTitleDraft] = useState("");
+  const [titleDraft, setTitleDraft] = useState('');
   const editLocked = isProgramInstanceEditLocked(programStatus);
 
   const submit = () => {
     const t = titleDraft.trim();
     if (!t || editLocked) return;
     addStageCreate({ title: t });
-    setTitleDraft("");
+    setTitleDraft('');
     onOpenChange(false);
   };
 
@@ -40,7 +40,7 @@ export function InstanceEditorAddStageDialog(props: {
       open={open}
       onOpenChange={(next) => {
         onOpenChange(next);
-        if (!next) setTitleDraft("");
+        if (!next) setTitleDraft('');
       }}
     >
       <DialogContent>
@@ -60,7 +60,7 @@ export function InstanceEditorAddStageDialog(props: {
             maxLength={2000}
             disabled={editLocked}
             onKeyDown={(e) => {
-              if (e.key === "Enter") {
+              if (e.key === 'Enter') {
                 e.preventDefault();
                 submit();
               }

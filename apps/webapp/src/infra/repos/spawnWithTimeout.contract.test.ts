@@ -1,17 +1,17 @@
 /** @vitest-environment node */
 
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
-import { describe, expect, it } from "vitest";
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { describe, expect, it } from 'vitest';
 
 const execFileAsync = promisify(execFile);
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..", "..");
-const helperUrl = pathToFileURL(join(repoRoot, "scripts", "spawn-with-timeout.mjs")).href;
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..', '..');
+const helperUrl = pathToFileURL(join(repoRoot, 'scripts', 'spawn-with-timeout.mjs')).href;
 
-describe("spawn-with-timeout argv contract", () => {
-  it("keeps shell syntax literal and preserves error and timeout results", async () => {
+describe('spawn-with-timeout argv contract', () => {
+  it('keeps shell syntax literal and preserves error and timeout results', async () => {
     const source = `
       const { runWithTimeout } = await import(${JSON.stringify(helperUrl)});
       const cwd = process.cwd();
@@ -43,17 +43,21 @@ describe("spawn-with-timeout argv contract", () => {
       process.stdout.write(JSON.stringify({ nodeLiteral, pnpmLiteral, literal, missing, timedOut }));
     `;
 
-    const { stdout } = await execFileAsync(process.execPath, ["--input-type=module", "-e", source], {
-      cwd: repoRoot,
-      timeout: 5_000,
-    });
+    const { stdout } = await execFileAsync(
+      process.execPath,
+      ['--input-type=module', '-e', source],
+      {
+        cwd: repoRoot,
+        timeout: 5_000,
+      },
+    );
 
     expect(JSON.parse(stdout)).toEqual({
       nodeLiteral: null,
       pnpmLiteral: null,
       literal: null,
-      missing: "missing-executable",
-      timedOut: "timed-out-child",
+      missing: 'missing-executable',
+      timedOut: 'timed-out-child',
     });
   });
 });

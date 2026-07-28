@@ -1,8 +1,8 @@
-import type { RuntimeConfigContext } from "@/modules/system-settings/runtimeConfig";
+import type { RuntimeConfigContext } from '@/modules/system-settings/runtimeConfig';
 
 type DiscussionSettingKey =
-  | "patient_program_discussion_ui_enabled"
-  | "patient_program_discussion_media_submission_enabled";
+  | 'patient_program_discussion_ui_enabled'
+  | 'patient_program_discussion_media_submission_enabled';
 
 export type DiscussionFeatureGateDeps = {
   runtimeConfig: {
@@ -14,7 +14,7 @@ export async function isPatientProgramDiscussionUiEnabled(
   deps: DiscussionFeatureGateDeps,
   context: RuntimeConfigContext,
 ): Promise<boolean> {
-  return deps.runtimeConfig.getBoolean("patient_program_discussion_ui_enabled", context);
+  return deps.runtimeConfig.getBoolean('patient_program_discussion_ui_enabled', context);
 }
 
 export async function isPatientProgramDiscussionMediaSubmissionEnabled(
@@ -22,7 +22,7 @@ export async function isPatientProgramDiscussionMediaSubmissionEnabled(
   context: RuntimeConfigContext,
 ): Promise<boolean> {
   return deps.runtimeConfig.getBoolean(
-    "patient_program_discussion_media_submission_enabled",
+    'patient_program_discussion_media_submission_enabled',
     context,
   );
 }

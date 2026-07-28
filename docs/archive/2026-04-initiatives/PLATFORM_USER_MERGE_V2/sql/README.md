@@ -4,12 +4,12 @@
 
 ## Файлы
 
-| Файл | БД | Назначение |
-|------|-----|------------|
-| [`diagnostics_integrator_users_merge.sql`](diagnostics_integrator_users_merge.sql) | integrator | alias-строки, циклы, сироты |
-| [`diagnostics_webapp_integrator_user_id.sql`](diagnostics_webapp_integrator_user_id.sql) | webapp | поиск loser id в projection-таблицах (тело SELECT = `buildWebappLoserIntegratorUserIdGateUnionSql("psql")` в [`webappIntegratorUserProjectionRealignment.ts`](../../apps/webapp/src/infra/ops/webappIntegratorUserProjectionRealignment.ts); CI сверяет файл с билдером) |
-| [`preview_webapp_realignment_collisions.sql`](preview_webapp_realignment_collisions.sql) | webapp | строки loser, которые будут удалены перед rekey (коллизии UNIQUE) |
-| [`realign_webapp_integrator_user_id.sql`](realign_webapp_integrator_user_id.sql) | webapp | транзакция: dedup + `UPDATE integrator_user_id` loser→winner |
+| Файл                                                                                     | БД         | Назначение                                                                                                                                                                                                                                                               |
+| ---------------------------------------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`diagnostics_integrator_users_merge.sql`](diagnostics_integrator_users_merge.sql)       | integrator | alias-строки, циклы, сироты                                                                                                                                                                                                                                              |
+| [`diagnostics_webapp_integrator_user_id.sql`](diagnostics_webapp_integrator_user_id.sql) | webapp     | поиск loser id в projection-таблицах (тело SELECT = `buildWebappLoserIntegratorUserIdGateUnionSql("psql")` в [`webappIntegratorUserProjectionRealignment.ts`](../../apps/webapp/src/infra/ops/webappIntegratorUserProjectionRealignment.ts); CI сверяет файл с билдером) |
+| [`preview_webapp_realignment_collisions.sql`](preview_webapp_realignment_collisions.sql) | webapp     | строки loser, которые будут удалены перед rekey (коллизии UNIQUE)                                                                                                                                                                                                        |
+| [`realign_webapp_integrator_user_id.sql`](realign_webapp_integrator_user_id.sql)         | webapp     | транзакция: dedup + `UPDATE integrator_user_id` loser→winner                                                                                                                                                                                                             |
 
 ## Параметры
 

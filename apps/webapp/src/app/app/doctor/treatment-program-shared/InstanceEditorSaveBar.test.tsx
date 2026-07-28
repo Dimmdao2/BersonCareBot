@@ -1,17 +1,17 @@
 /** @vitest-environment jsdom */
 
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import toast from "react-hot-toast";
-import { InstanceEditorSaveBar } from "./InstanceEditorSaveBar";
+import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import toast from 'react-hot-toast';
+import { InstanceEditorSaveBar } from './InstanceEditorSaveBar';
 
 const saveDraft = vi.fn();
 const discardDraft = vi.fn();
 
-vi.mock("./InstanceEditorDraftContext", () => ({
+vi.mock('./InstanceEditorDraftContext', () => ({
   useInstanceEditorDraft: () => ({
-    programStatus: "active",
+    programStatus: 'active',
     isDirty: true,
     saving: false,
     discardDraft,
@@ -19,11 +19,11 @@ vi.mock("./InstanceEditorDraftContext", () => ({
   }),
 }));
 
-vi.mock("./programInstanceMutationGuard", () => ({
+vi.mock('./programInstanceMutationGuard', () => ({
   isProgramInstanceEditLocked: () => false,
 }));
 
-vi.mock("react-hot-toast", () => {
+vi.mock('react-hot-toast', () => {
   const toastFn = Object.assign(vi.fn(), {
     success: vi.fn(),
     error: vi.fn(),
@@ -31,7 +31,7 @@ vi.mock("react-hot-toast", () => {
   return { default: toastFn };
 });
 
-describe("InstanceEditorSaveBar", () => {
+describe('InstanceEditorSaveBar', () => {
   beforeEach(() => {
     saveDraft.mockReset();
     discardDraft.mockReset();
@@ -40,24 +40,24 @@ describe("InstanceEditorSaveBar", () => {
     vi.mocked(toast.error).mockReset();
   });
 
-  it("successful save shows success toast", async () => {
+  it('successful save shows success toast', async () => {
     saveDraft.mockResolvedValue({ ok: true });
     const user = userEvent.setup();
     render(<InstanceEditorSaveBar />);
 
-    await user.click(screen.getByRole("button", { name: /^сохранить$/i }));
+    await user.click(screen.getByRole('button', { name: /^сохранить$/i }));
 
     expect(saveDraft).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(toast.success)).toHaveBeenCalledWith("Изменения сохранены");
+    expect(vi.mocked(toast.success)).toHaveBeenCalledWith('Изменения сохранены');
   });
 
-  it("failed save shows error toast", async () => {
-    saveDraft.mockResolvedValue({ ok: false, error: "Ошибка" });
+  it('failed save shows error toast', async () => {
+    saveDraft.mockResolvedValue({ ok: false, error: 'Ошибка' });
     const user = userEvent.setup();
     render(<InstanceEditorSaveBar />);
 
-    await user.click(screen.getByRole("button", { name: /^сохранить$/i }));
+    await user.click(screen.getByRole('button', { name: /^сохранить$/i }));
 
-    expect(vi.mocked(toast.error)).toHaveBeenCalledWith("Ошибка");
+    expect(vi.mocked(toast.error)).toHaveBeenCalledWith('Ошибка');
   });
 });

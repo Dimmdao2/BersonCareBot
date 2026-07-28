@@ -1,4 +1,4 @@
-import type { LoginTokenRow, LoginTokensPort } from "@/modules/auth/loginTokensPort";
+import type { LoginTokenRow, LoginTokensPort } from '@/modules/auth/loginTokensPort';
 
 const byHash = new Map<string, LoginTokenRow>();
 
@@ -10,7 +10,7 @@ export const inMemoryLoginTokensPort: LoginTokensPort = {
       tokenHash: params.tokenHash,
       userId: params.userId,
       method: params.method,
-      status: "pending",
+      status: 'pending',
       expiresAt: params.expiresAt,
       confirmedAt: null,
       sessionIssuedAt: null,
@@ -25,20 +25,20 @@ export const inMemoryLoginTokensPort: LoginTokensPort = {
 
   async markExpiredIfPast(now: Date): Promise<void> {
     for (const [h, row] of byHash) {
-      if (row.status === "pending" && row.expiresAt.getTime() < now.getTime()) {
-        byHash.set(h, { ...row, status: "expired" });
+      if (row.status === 'pending' && row.expiresAt.getTime() < now.getTime()) {
+        byHash.set(h, { ...row, status: 'expired' });
       }
     }
   },
 
   async confirmByTokenHash(tokenHash: string, now: Date): Promise<boolean> {
     const row = byHash.get(tokenHash);
-    if (!row || row.status !== "pending" || row.expiresAt.getTime() < now.getTime()) {
+    if (!row || row.status !== 'pending' || row.expiresAt.getTime() < now.getTime()) {
       return false;
     }
     byHash.set(tokenHash, {
       ...row,
-      status: "confirmed",
+      status: 'confirmed',
       confirmedAt: now,
     });
     return true;
@@ -53,15 +53,14 @@ export const inMemoryLoginTokensPort: LoginTokensPort = {
 
 /** Для e2e/тестов: подтвердить токен по хэшу (как интегратор). */
 export function __testConfirmLoginTokenByHash(tokenHash: string): boolean {
-  const allowHarness =
-    process.env.NODE_ENV === "test" || Boolean(process.env.VITEST_WORKER_ID);
+  const allowHarness = process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST_WORKER_ID);
   if (!allowHarness) {
     return false;
   }
   const row = byHash.get(tokenHash);
-  if (!row || row.status !== "pending") return false;
+  if (!row || row.status !== 'pending') return false;
   const now = new Date();
   if (row.expiresAt.getTime() < now.getTime()) return false;
-  byHash.set(tokenHash, { ...row, status: "confirmed", confirmedAt: now });
+  byHash.set(tokenHash, { ...row, status: 'confirmed', confirmedAt: now });
   return true;
 }

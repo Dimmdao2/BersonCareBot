@@ -19,20 +19,26 @@
 1. Фазы строго последовательно: `A1 -> A2 -> A3 -> A4 -> A5`.
 2. Цикл каждой фазы: `EXEC -> AUDIT -> FIX`. Следующая фаза только после закрытого `FIX`.
 3. Работать только в `treatment-program`-контуре:
-  - `apps/webapp/src/modules/treatment-program/**`
-  - `apps/webapp/src/app/api/*/treatment-program-*/**`
-  - `apps/webapp/src/app/app/patient/treatment-programs/**`
-  - `apps/webapp/db/schema/treatmentProgram*.ts`
+
+- `apps/webapp/src/modules/treatment-program/**`
+- `apps/webapp/src/app/api/*/treatment-program-*/**`
+- `apps/webapp/src/app/app/patient/treatment-programs/**`
+- `apps/webapp/db/schema/treatmentProgram*.ts`
+
 4. Архитектурные правила обязательны: modules через ports/DI, route handlers тонкие, новые таблицы/запросы через Drizzle.
 5. O1/O2/O3/O4 уже зафиксированы и не пересматриваются в рамках A1-A5:
-  - O1: `objectives` = `TEXT` markdown;
-  - O4: `is_actionable` только на `instance_stage_item`;
-  - O2: LFK log в MVP на уровне комплекса;
-  - O3: post-session note в `program_action_log.note`.
+
+- O1: `objectives` = `TEXT` markdown;
+- O4: `is_actionable` только на `instance_stage_item`;
+- O2: LFK log в MVP на уровне комплекса;
+- O3: post-session note в `program_action_log.note`.
+
 6. Не злоупотреблять full CI: на EXEC/FIX запускать только целевые проверки по затронутой области.
 7. Полный pre-push барьер запускать только перед push:
-  - `pnpm install --frozen-lockfile`
-  - `pnpm run ci`
+
+- `pnpm install --frozen-lockfile`
+- `pnpm run ci`
+
 8. После каждого EXEC/FIX обновлять `docs/archive/2026-05-initiatives/PROGRAM_PATIENT_SHAPE_INITIATIVE/LOG.md` по `LOG_TEMPLATE.md`.
 9. Каждый AUDIT должен содержать `MANDATORY FIX INSTRUCTIONS` с severity: `critical/major/minor`.
 10. При закрытии этапа создать stage audit по `EXECUTION_AUDIT_TEMPLATE.md`.
@@ -343,4 +349,3 @@
 
 Сохрани: docs/archive/2026-05-initiatives/PROGRAM_PATIENT_SHAPE_INITIATIVE/AUDIT_PREPUSH_POSTFIX.md
 ```
-

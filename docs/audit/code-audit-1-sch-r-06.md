@@ -1,4 +1,5 @@
 # Code Audit 1 — SCH-R-06
+
 agentId: audit1-sch-r-06a
 Branch: auto/sch-r-06
 Commit: 025bdcc0
@@ -25,6 +26,7 @@ All clauses below are audited against the **actual SCH-R-06 commit alone** (`git
 PASS
 
 How verified:
+
 - `resolveEffectiveHours` (line 143–161): returns `{ source: "template", startMinute, endMinute }` when no day record exists but `workingHours` has an active row for that weekday.
 - `DayCell` JSX (line 345–348 post-patch): `effectiveHours?.source === "template"` renders `<div className="mt-0.5 text-[10px] leading-none italic text-muted-foreground">~{formatHourRange(...)}</div>`.
 - `italic` class confirmed present. `text-muted-foreground` resolves to `--muted-foreground: hsl(220 9% 46%)` defined in `:root` in `tailwind-engine.css`. `--color-muted-foreground: var(--muted-foreground)` mapped in `@theme inline` block.
@@ -40,6 +42,7 @@ How verified:
 PASS (with note on branch-colored override path)
 
 How verified:
+
 - `resolveEffectiveHours` (line 150–153): returns `{ source: "override", startMinute, endMinute }` when `record.startMinute != null && !record.isClosed`.
 - **Cell background** (line 308–310 post-patch): `effectiveHours?.source === "override"` → `bg-primary/10 border-primary/30 hover:bg-primary/15`. `--primary: hsl(215 35% 40%)` defined in `:root`. Tailwind v4 `@theme inline` maps `--color-primary: var(--primary)`. `bg-primary/10` renders as steel-blue at 10% opacity. Valid.
 - **Branch coloring interaction**: `color` is set when `hasSchedule && record?.branchId`. Since `source === "override"` implies `record.startMinute != null` (hasSchedule=true), a day with branchId set will have `color` defined. The if/else chain checks `color` BEFORE `effectiveHours?.source === "override"` (lines 306–316), so override WITH branchId uses `branchCellClass` instead of `bg-primary/10`. This is intentional: branch-colored cells are always more specific. The visual distinction from template is preserved: branch-colored cell + bold text vs. neutral card bg + italic muted text.
@@ -53,6 +56,7 @@ How verified:
 PASS
 
 How verified:
+
 - `resolveEffectiveHours` (line 151): `if (record.isClosed) return { source: "closed" }`. Note: this is an immediate return — `isClosed` takes priority over any `startMinute` value. No dual-state possible.
 - **Cell background** (line 311–313 post-patch): `effectiveHours?.source === "closed"` → `bg-destructive/5 border-destructive/20 hover:bg-destructive/10`. `--destructive: hsl(0 55% 45%)` defined in `:root`. At 5% opacity: very subtle pink/red tint, distinct from neutral card. At 20% opacity border: clearly visible red border.
 - **Text display** (line 350–352): `effectiveHours?.source === "closed"` → `<div className="mt-0.5 text-[10px] leading-none text-destructive/70">выходной</div>`. Russian label "выходной" rendered in 70% opacity destructive = readable muted red.
@@ -66,6 +70,7 @@ How verified:
 PASS
 
 How verified:
+
 - `tailwind-engine.css` uses `@import "tailwindcss"` (v4), `@theme inline` block, and explicit CSS custom properties in `:root`.
 - All semantic tokens used by SCH-R-06:
   - `--primary: hsl(215 35% 40%)` → `--color-primary: var(--primary)` → `bg-primary/10`, `border-primary/30`, `hover:bg-primary/15` all valid Tailwind v4 opacity-modifier syntax.
@@ -81,6 +86,7 @@ How verified:
 PASS
 
 How verified:
+
 - The SCH-R-06 commit diff (`git show 025bdcc0`) is +7/-1 lines, entirely additive except for the font size change.
 - If/else chain priority order (unchanged): `isSelected` → `isToday` → `color` → `override` (NEW) → `closed` (NEW) → `else` (default). The two new branches are inserted after `color` and before the final `else`.
 - Pre-existing behavior for `isSelected`, `isToday`, and `color` (branch-colored days) is unaffected — they still take priority.
@@ -95,6 +101,7 @@ How verified:
 FAIL
 
 How verified:
+
 - `git merge-base feat/doctor-ui-rebuild auto/sch-r-06` = `5cb44867` — 2 commits BEFORE the current tip of `feat/doctor-ui-rebuild`.
 - `feat/doctor-ui-rebuild` has `947f6f59` (SCH-R-04+08: weekday template checkbox, `handleSaveWeekdayTemplate`, `handleClearWeekdayTemplate`, `weekdayPermanent`, `WD_LABEL`, `loadWorkingHours` in `run()`) and `9ea67baa` (QW-A3: icon row in PatientInstanceStageItemCard) that are NOT in `auto/sch-r-06`.
 - Merging `auto/sch-r-06` into `feat/doctor-ui-rebuild` will generate a merge conflict or, if fast-forwarded, will REVERT:
@@ -111,6 +118,7 @@ Defect location: branch creation point. Fix: `git rebase feat/doctor-ui-rebuild`
 RENDER-CONFIRM-NEEDED
 
 How verified:
+
 - Code analysis confirms 3 states produce distinct visual output:
   - **template**: neutral white cell + small italic muted `~9–18` text — visually looks like a "soft hint"
   - **override** (no branch): steel-blue 10% tint cell + bold blue `9–18` text — clearly scheduled
@@ -122,11 +130,11 @@ How verified:
 
 ## Issues Summary
 
-| # | Severity | Description |
-|---|----------|-------------|
-| 1 | **HIGH** | Branch `auto/sch-r-06` was created from stale base `5cb44867`, 2 commits behind `feat/doctor-ui-rebuild`. Merging will revert SCH-R-04+08 (weekday template checkbox) and QW-A3 (icon row). Must rebase before merge. |
-| 2 | Low | Template cells have no background tint (neutral card). If the spec intended a subtle tint for template (e.g., `bg-muted/20`), this is a gap. Current reading of spec ("muted italic text") does not require a tint. |
-| 3 | Info | Override with branchId shows branch color (blue/green/violet/orange) instead of primary blue. This is pre-existing behavior (color takes priority in the if/else chain). Three-state distinction is still preserved. |
+| #   | Severity | Description                                                                                                                                                                                                           |
+| --- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **HIGH** | Branch `auto/sch-r-06` was created from stale base `5cb44867`, 2 commits behind `feat/doctor-ui-rebuild`. Merging will revert SCH-R-04+08 (weekday template checkbox) and QW-A3 (icon row). Must rebase before merge. |
+| 2   | Low      | Template cells have no background tint (neutral card). If the spec intended a subtle tint for template (e.g., `bg-muted/20`), this is a gap. Current reading of spec ("muted italic text") does not require a tint.   |
+| 3   | Info     | Override with branchId shows branch color (blue/green/violet/orange) instead of primary blue. This is pre-existing behavior (color takes priority in the if/else chain). Three-state distinction is still preserved.  |
 
 ---
 

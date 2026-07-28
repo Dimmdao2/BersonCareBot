@@ -1,6 +1,6 @@
 ---
 name: Webapp tests optimization
-overview: "Поэтапно снизить таймауты Vitest, сократить тяжёлые in-process импорты страниц до smoke-уровня, PR-fast/main-full в CI, shard/cache. План закрыт 2026-05-14."
+overview: 'Поэтапно снизить таймауты Vitest, сократить тяжёлые in-process импорты страниц до smoke-уровня, PR-fast/main-full в CI, shard/cache. План закрыт 2026-05-14.'
 status: completed
 todos:
   - id: timeouts-projects
@@ -10,7 +10,7 @@ todos:
     content: Сократить e2e/*inprocess*.test.ts до 1–2 smoke import(page) на домен; остальное перевести в тонкие контрактные проверки
     status: completed
   - id: ci-pr-main
-    content: "Закрепить CI-политику PR-fast/main-full: in-process запускать только на push main; проверить deploy.needs при skipped job; обновить docs"
+    content: 'Закрепить CI-политику PR-fast/main-full: in-process запускать только на push main; проверить deploy.needs при skipped job; обновить docs'
     status: completed
   - id: shard-cache
     content: Добавить matrix shard для webapp-core и webapp-inprocess (main) и cache Vitest/Vite в GHA с предсказуемыми ключами и проверкой wall-time

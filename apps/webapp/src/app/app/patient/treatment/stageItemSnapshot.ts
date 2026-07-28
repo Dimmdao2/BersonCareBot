@@ -1,21 +1,21 @@
-import { DateTime } from "luxon";
-import type { RecommendationMediaItem } from "@/modules/recommendations/types";
-import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
-import { formatRelativePatientCalendarDayRu } from "@/modules/treatment-program/stage-semantics";
-import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
+import { DateTime } from 'luxon';
+import type { RecommendationMediaItem } from '@/modules/recommendations/types';
+import type { TreatmentProgramInstanceDetail } from '@/modules/treatment-program/types';
+import { formatRelativePatientCalendarDayRu } from '@/modules/treatment-program/stage-semantics';
+import type { ExerciseLoadType } from '@/modules/lfk-exercises/types';
 
 const PATIENT_EXERCISE_LOAD_LABEL_RU: Record<string, string> = {
-  strength: "Сила / укрепление",
-  stretch: "Растяжка",
-  balance: "Равновесие",
-  cardio: "Кардио",
-  other: "Другое",
-  static_hold: "Статическое укрепление / удержание",
+  strength: 'Сила / укрепление',
+  stretch: 'Растяжка',
+  balance: 'Равновесие',
+  cardio: 'Кардио',
+  other: 'Другое',
+  static_hold: 'Статическое укрепление / удержание',
 };
 
 /** Подпись типа нагрузки для кабинета пациента (значение, не сырой ключ). */
 export function patientExerciseLoadTypeLabelRu(raw: unknown): string | null {
-  if (typeof raw !== "string" || !raw.trim()) return null;
+  if (typeof raw !== 'string' || !raw.trim()) return null;
   const k = raw.trim() as ExerciseLoadType;
   if (Object.prototype.hasOwnProperty.call(PATIENT_EXERCISE_LOAD_LABEL_RU, k)) {
     return PATIENT_EXERCISE_LOAD_LABEL_RU[k];
@@ -23,33 +23,34 @@ export function patientExerciseLoadTypeLabelRu(raw: unknown): string | null {
   return raw.trim();
 }
 
-export type InstanceStageItem = TreatmentProgramInstanceDetail["stages"][number]["items"][number];
+export type InstanceStageItem = TreatmentProgramInstanceDetail['stages'][number]['items'][number];
 
 /** Разбор массива каталожных медиа (рекомендация, строка `tests[]` в снимке тестов / clinical_test и т.п.). */
 export function parseCatalogMediaRows(raw: unknown): RecommendationMediaItem[] {
   if (!Array.isArray(raw)) return [];
   const items: RecommendationMediaItem[] = [];
   for (const row of raw) {
-    if (!row || typeof row !== "object" || Array.isArray(row)) continue;
+    if (!row || typeof row !== 'object' || Array.isArray(row)) continue;
     const o = row as Record<string, unknown>;
     const mediaUrl =
-      typeof o.mediaUrl === "string"
+      typeof o.mediaUrl === 'string'
         ? o.mediaUrl.trim()
-        : typeof o.url === "string"
+        : typeof o.url === 'string'
           ? o.url.trim()
-          : "";
+          : '';
     if (!mediaUrl) continue;
     const mt = o.mediaType ?? o.type;
-    const mediaType: RecommendationMediaItem["mediaType"] =
-      mt === "video" || mt === "gif" || mt === "image" ? mt : "image";
-    const sortOrder = typeof o.sortOrder === "number" && Number.isFinite(o.sortOrder) ? o.sortOrder : 0;
+    const mediaType: RecommendationMediaItem['mediaType'] =
+      mt === 'video' || mt === 'gif' || mt === 'image' ? mt : 'image';
+    const sortOrder =
+      typeof o.sortOrder === 'number' && Number.isFinite(o.sortOrder) ? o.sortOrder : 0;
     const previewSmUrl =
-      typeof o.previewSmUrl === "string" && o.previewSmUrl.trim() ? o.previewSmUrl.trim() : null;
+      typeof o.previewSmUrl === 'string' && o.previewSmUrl.trim() ? o.previewSmUrl.trim() : null;
     const previewMdUrl =
-      typeof o.previewMdUrl === "string" && o.previewMdUrl.trim() ? o.previewMdUrl.trim() : null;
+      typeof o.previewMdUrl === 'string' && o.previewMdUrl.trim() ? o.previewMdUrl.trim() : null;
     const ps = o.previewStatus;
     const previewStatus =
-      ps === "pending" || ps === "ready" || ps === "failed" || ps === "skipped" ? ps : null;
+      ps === 'pending' || ps === 'ready' || ps === 'failed' || ps === 'skipped' ? ps : null;
     items.push({
       mediaUrl,
       mediaType,
@@ -64,42 +65,48 @@ export function parseCatalogMediaRows(raw: unknown): RecommendationMediaItem[] {
 }
 
 /** Разбор `snapshot.media` для превью и модалки: рекомендация (`mediaUrl`), упражнение ЛФК (`url` + `type`). */
-export function parseSnapshotMediaForRowThumb(snapshot: Record<string, unknown>): RecommendationMediaItem[] {
+export function parseSnapshotMediaForRowThumb(
+  snapshot: Record<string, unknown>,
+): RecommendationMediaItem[] {
   return parseCatalogMediaRows(snapshot.media);
 }
 
 /** Статичное превью в строке списка: сначала картинка/GIF, иначе первое медиа (видео). */
-export function pickRecommendationRowPreviewMedia(items: RecommendationMediaItem[]): RecommendationMediaItem | null {
+export function pickRecommendationRowPreviewMedia(
+  items: RecommendationMediaItem[],
+): RecommendationMediaItem | null {
   if (items.length === 0) return null;
-  const still = items.find((m) => m.mediaType === "image" || m.mediaType === "gif");
+  const still = items.find((m) => m.mediaType === 'image' || m.mediaType === 'gif');
   return still ?? items[0] ?? null;
 }
 
-export function parseRecommendationMediaFromSnapshot(snapshot: Record<string, unknown>): RecommendationMediaItem[] {
+export function parseRecommendationMediaFromSnapshot(
+  snapshot: Record<string, unknown>,
+): RecommendationMediaItem[] {
   return parseSnapshotMediaForRowThumb(snapshot);
 }
 
 /** Plain-текст из `bodyMd` снимка рекомендации для превью в списке (без рендера MD). */
 export function recommendationBodyMdPreviewPlain(bodyMd: unknown): string {
-  if (typeof bodyMd !== "string" || !bodyMd.trim()) return "";
+  if (typeof bodyMd !== 'string' || !bodyMd.trim()) return '';
   let s = bodyMd.trim();
-  s = s.replace(/```[\s\S]*?```/g, " ");
-  s = s.replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1 ");
-  s = s.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1");
-  s = s.replace(/^#{1,6}\s+/gm, "");
-  s = s.replace(/^\s*[-*+]\s+/gm, "");
-  s = s.replace(/\*\*([^*]+)\*\*/g, "$1");
-  s = s.replace(/\*([^*\n]+)\*/g, "$1");
-  s = s.replace(/__([^_]+)__/g, "$1");
-  s = s.replace(/`([^`]+)`/g, "$1");
-  s = s.replace(/\s+/g, " ").trim();
+  s = s.replace(/```[\s\S]*?```/g, ' ');
+  s = s.replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1 ');
+  s = s.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1');
+  s = s.replace(/^#{1,6}\s+/gm, '');
+  s = s.replace(/^\s*[-*+]\s+/gm, '');
+  s = s.replace(/\*\*([^*]+)\*\*/g, '$1');
+  s = s.replace(/\*([^*\n]+)\*/g, '$1');
+  s = s.replace(/__([^_]+)__/g, '$1');
+  s = s.replace(/`([^`]+)`/g, '$1');
+  s = s.replace(/\s+/g, ' ').trim();
   return s;
 }
 
 export function primaryMediaForStageItem(item: InstanceStageItem): RecommendationMediaItem | null {
   const snap = item.snapshot as Record<string, unknown>;
   const all = parseSnapshotMediaForRowThumb(snap);
-  const video = all.find((m) => m.mediaType === "video");
+  const video = all.find((m) => m.mediaType === 'video');
   return video ?? all[0] ?? null;
 }
 
@@ -111,33 +118,39 @@ export function primaryMediaForTestSnapshotLine(
   const raw = testSetSnapshot.tests;
   if (!Array.isArray(raw)) return null;
   for (const entry of raw) {
-    if (!entry || typeof entry !== "object" || !("testId" in entry)) continue;
+    if (!entry || typeof entry !== 'object' || !('testId' in entry)) continue;
     const tid = String((entry as { testId: unknown }).testId).trim();
     if (tid !== testId) continue;
     const mediaArr = (entry as { media?: unknown }).media;
     const all = parseCatalogMediaRows(mediaArr);
-    const video = all.find((m) => m.mediaType === "video");
+    const video = all.find((m) => m.mediaType === 'video');
     return video ?? all[0] ?? null;
   }
   return null;
 }
 
 /** Заголовок теста из снимка набора по `testId`. */
-export function testTitleFromTestSetSnapshot(testSetSnapshot: Record<string, unknown>, testId: string): string | null {
+export function testTitleFromTestSetSnapshot(
+  testSetSnapshot: Record<string, unknown>,
+  testId: string,
+): string | null {
   const raw = testSetSnapshot.tests;
   if (!Array.isArray(raw)) return null;
   for (const entry of raw) {
-    if (!entry || typeof entry !== "object" || !("testId" in entry)) continue;
+    if (!entry || typeof entry !== 'object' || !('testId' in entry)) continue;
     const tid = String((entry as { testId: unknown }).testId).trim();
     if (tid !== testId) continue;
     const title = (entry as { title?: unknown }).title;
-    return typeof title === "string" && title.trim() ? title.trim() : null;
+    return typeof title === 'string' && title.trim() ? title.trim() : null;
   }
   return null;
 }
 
 /** Максимум по времени между последней отметкой в журнале и `completed_at` элемента (общая реализация для дашборда и экрана этапа). */
-export function mergeLastActivityDisplayedIso(logIso: string | undefined, completedAt: string | null): string | null {
+export function mergeLastActivityDisplayedIso(
+  logIso: string | undefined,
+  completedAt: string | null,
+): string | null {
   const tLog = logIso?.trim() ? Date.parse(logIso) : NaN;
   const tDone = completedAt?.trim() ? Date.parse(completedAt) : NaN;
   if (!Number.isFinite(tLog) && !Number.isFinite(tDone)) return null;
@@ -148,16 +161,16 @@ export function mergeLastActivityDisplayedIso(logIso: string | undefined, comple
 
 function ruHourWord(n: number): string {
   const mod100 = n % 100;
-  if (mod100 >= 11 && mod100 <= 14) return "часов";
+  if (mod100 >= 11 && mod100 <= 14) return 'часов';
   const mod10 = n % 10;
-  if (mod10 === 1) return "час";
-  if (mod10 >= 2 && mod10 <= 4) return "часа";
-  return "часов";
+  if (mod10 === 1) return 'час';
+  if (mod10 >= 2 && mod10 <= 4) return 'часа';
+  return 'часов';
 }
 
 /** Сутки с 03:00 до 03:00 следующего календарного дня (в переданной зоне, напр. локаль клиента). */
 function startOfLogicalDayAtThree(dt: DateTime): DateTime {
-  const d = dt.startOf("day");
+  const d = dt.startOf('day');
   const at03 = d.set({ hour: 3, minute: 0, second: 0, millisecond: 0 });
   if (dt < at03) {
     return d.minus({ days: 1 }).set({ hour: 3, minute: 0, second: 0, millisecond: 0 });
@@ -167,11 +180,11 @@ function startOfLogicalDayAtThree(dt: DateTime): DateTime {
 
 function ruDayWordAgo(n: number): string {
   const mod100 = n % 100;
-  if (mod100 >= 11 && mod100 <= 14) return "дней";
+  if (mod100 >= 11 && mod100 <= 14) return 'дней';
   const mod10 = n % 10;
-  if (mod10 === 1) return "день";
-  if (mod10 >= 2 && mod10 <= 4) return "дня";
-  return "дней";
+  if (mod10 === 1) return 'день';
+  if (mod10 >= 2 && mod10 <= 4) return 'дня';
+  return 'дней';
 }
 
 /**
@@ -187,12 +200,12 @@ export function formatRelativeTimeRu(
 ): string {
   const t = DateTime.fromISO(iso, { setZone: true });
   if (!t.isValid) return formatRelativePatientCalendarDayRu(iso, fallbackIana, now);
-  const tLocal = t.setZone("local");
-  const nowLocal = now.setZone("local");
+  const tLocal = t.setZone('local');
+  const nowLocal = now.setZone('local');
   if (!tLocal.isValid || !nowLocal.isValid) {
     return formatRelativePatientCalendarDayRu(iso, fallbackIana, now);
   }
-  const diffMs = nowLocal.diff(tLocal).as("milliseconds");
+  const diffMs = nowLocal.diff(tLocal).as('milliseconds');
   if (diffMs < 0) return formatRelativePatientCalendarDayRu(iso, fallbackIana, now);
 
   const startEvent = startOfLogicalDayAtThree(tLocal);
@@ -202,10 +215,10 @@ export function formatRelativeTimeRu(
   const slotDiffDays = Math.round(slotDiffMs / oneDayMs);
 
   if (slotDiffDays === 0) {
-    if (diffMs < 60 * 60 * 1000) return "менее часа назад";
+    if (diffMs < 60 * 60 * 1000) return 'менее часа назад';
     const h = Math.max(1, Math.floor(diffMs / (60 * 60 * 1000)));
     return `${h} ${ruHourWord(h)} назад`;
   }
-  if (slotDiffDays === 1) return "вчера";
+  if (slotDiffDays === 1) return 'вчера';
   return `${slotDiffDays} ${ruDayWordAgo(slotDiffDays)} назад`;
 }

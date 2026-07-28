@@ -1,6 +1,10 @@
 import { logger } from '../../infra/observability/logger.js';
 import { classifyMaxRecipientBlockedError } from '../../infra/delivery/recipientBotBlocked.js';
-import type { DeliveryAdapter, DeliverySendResult, OutgoingIntent } from '../../kernel/contracts/index.js';
+import type {
+  DeliveryAdapter,
+  DeliverySendResult,
+  OutgoingIntent,
+} from '../../kernel/contracts/index.js';
 import type { AttachmentRequest, Button } from '@maxhub/max-bot-api/types';
 import * as maxClient from './client.js';
 import { MaxSendError } from './client.js';
@@ -37,13 +41,15 @@ type DeliveryPayload = {
  * **`open_app.contact_id`** в MAX API — платформенный user id пользователя.
  * Prefer **`recipient.userId`** (bindings); else dialog **`recipient.chatId`**; else **`meta.userId`**.
  */
-function maxContactIdForOpenApp(intent: OutgoingIntent, payload: DeliveryPayload): number | undefined {
+function maxContactIdForOpenApp(
+  intent: OutgoingIntent,
+  payload: DeliveryPayload,
+): number | undefined {
   const resolved = readMaxOutboundRecipient(payload.recipient);
   if (resolved.userId !== undefined) return resolved.userId;
   if (resolved.chatId !== undefined) return resolved.chatId;
   return parseMaxPlatformUserId(intent.meta?.userId);
 }
-
 
 function asNonEmptyString(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value : null;
@@ -135,7 +141,9 @@ export function createMaxDeliveryAdapter(): DeliveryAdapter {
       if (intent.type === 'message.send') {
         const { userId, chatId } = readMaxOutboundRecipient(payload.recipient);
         if ((userId === undefined && chatId === undefined) || !text) {
-          throw new Error('MAX_PAYLOAD_INVALID: recipient (userId or chatId) and message.text required');
+          throw new Error(
+            'MAX_PAYLOAD_INVALID: recipient (userId or chatId) and message.text required',
+          );
         }
         const sendContactId = maxContactIdForOpenApp(intent, payload);
         const attachments = toMaxInlineKeyboard(
@@ -166,20 +174,26 @@ export function createMaxDeliveryAdapter(): DeliveryAdapter {
 
       if (intent.type === 'message.delete') {
         const stringMessageId =
-          asNonEmptyString(messageId) ?? (typeof messageId === 'number' && Number.isFinite(messageId) ? String(messageId) : null);
+          asNonEmptyString(messageId) ??
+          (typeof messageId === 'number' && Number.isFinite(messageId) ? String(messageId) : null);
         if (!stringMessageId) {
           logger.warn({}, 'max_reminder_delete_payload_invalid');
           return {};
         }
         const ok = await maxClient.deleteMaxMessage(config, stringMessageId);
         if (!ok) {
-          logger.warn({ messageId: stringMessageId }, 'max_reminder_stale_message_delete_soft_fail');
+          logger.warn(
+            { messageId: stringMessageId },
+            'max_reminder_stale_message_delete_soft_fail',
+          );
         }
         return {};
       }
 
       if (intent.type === 'message.edit') {
-        const stringMessageId = asNonEmptyString(messageId) ?? (typeof messageId === 'number' && Number.isFinite(messageId) ? String(messageId) : null);
+        const stringMessageId =
+          asNonEmptyString(messageId) ??
+          (typeof messageId === 'number' && Number.isFinite(messageId) ? String(messageId) : null);
         if (!stringMessageId || !text) {
           throw new Error('MAX_PAYLOAD_INVALID: messageId and message.text required for edit');
         }
@@ -201,7 +215,9 @@ export function createMaxDeliveryAdapter(): DeliveryAdapter {
       }
 
       if (intent.type === 'message.replyMarkup.edit') {
-        const stringMessageId = asNonEmptyString(messageId) ?? (typeof messageId === 'number' && Number.isFinite(messageId) ? String(messageId) : null);
+        const stringMessageId =
+          asNonEmptyString(messageId) ??
+          (typeof messageId === 'number' && Number.isFinite(messageId) ? String(messageId) : null);
         if (!stringMessageId) {
           throw new Error('MAX_PAYLOAD_INVALID: messageId required for replyMarkup edit');
         }

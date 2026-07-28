@@ -44,7 +44,11 @@ describe('processTelegramUpdate (shared webhook + long-polling core)', () => {
     const { deps, handle } = depsWith(async () => ({ status: 'accepted' }));
     const body: TelegramWebhookBodyValidated = {
       update_id: 1,
-      message: { from: { id: 100, is_bot: false, first_name: 'A' }, chat: { id: 100, type: 'private' }, text: 'hi' },
+      message: {
+        from: { id: 100, is_bot: false, first_name: 'A' },
+        chat: { id: 100, type: 'private' },
+        text: 'hi',
+      },
     };
     const out = await processTelegramUpdate(body, deps, ctx);
     expect(out.status).toBe('ok');
@@ -63,7 +67,11 @@ describe('processTelegramUpdate (shared webhook + long-polling core)', () => {
     deps.resolveIntegratorUserIdForMessenger = vi.fn(async () => integratorUserId);
     const body: TelegramWebhookBodyValidated = {
       update_id: 10,
-      message: { from: { id: 100, is_bot: false, first_name: 'A' }, chat: { id: 100, type: 'private' }, text: 'hi' },
+      message: {
+        from: { id: 100, is_bot: false, first_name: 'A' },
+        chat: { id: 100, type: 'private' },
+        text: 'hi',
+      },
     };
 
     const out = await processTelegramUpdate(body, deps, ctx);
@@ -84,7 +92,11 @@ describe('processTelegramUpdate (shared webhook + long-polling core)', () => {
     deps.resolveOrganizationIdForMessengerIdentity = vi.fn(async () => null);
     const body: TelegramWebhookBodyValidated = {
       update_id: 11,
-      message: { from: { id: 101, is_bot: false, first_name: 'B' }, chat: { id: 101, type: 'private' }, text: 'hi' },
+      message: {
+        from: { id: 101, is_bot: false, first_name: 'B' },
+        chat: { id: 101, type: 'private' },
+        text: 'hi',
+      },
     };
 
     const out = await processTelegramUpdate(body, deps, ctx);
@@ -105,7 +117,11 @@ describe('processTelegramUpdate (shared webhook + long-polling core)', () => {
     deps.resolveDeploymentOrganizationId = vi.fn(async () => deploymentOrganizationId);
     const body: TelegramWebhookBodyValidated = {
       update_id: 12,
-      message: { from: { id: 102, is_bot: false, first_name: 'C' }, chat: { id: 102, type: 'private' }, text: '/start' },
+      message: {
+        from: { id: 102, is_bot: false, first_name: 'C' },
+        chat: { id: 102, type: 'private' },
+        text: '/start',
+      },
     };
 
     const out = await processTelegramUpdate(body, deps, ctx);
@@ -129,7 +145,11 @@ describe('processTelegramUpdate (shared webhook + long-polling core)', () => {
     deps.resolveDeploymentOrganizationId = deploymentResolver;
     const body: TelegramWebhookBodyValidated = {
       update_id: 13,
-      message: { from: { id: 103, is_bot: false, first_name: 'D' }, chat: { id: 103, type: 'private' }, text: 'hi' },
+      message: {
+        from: { id: 103, is_bot: false, first_name: 'D' },
+        chat: { id: 103, type: 'private' },
+        text: 'hi',
+      },
     };
 
     const out = await processTelegramUpdate(body, deps, ctx);
@@ -151,7 +171,11 @@ describe('processTelegramUpdate (shared webhook + long-polling core)', () => {
     const { deps } = depsWith(async () => ({ status: 'rejected', reason: 'duplicate' }));
     const body: TelegramWebhookBodyValidated = {
       update_id: 2,
-      message: { from: { id: 101, is_bot: false, first_name: 'B' }, chat: { id: 101, type: 'private' }, text: 'x' },
+      message: {
+        from: { id: 101, is_bot: false, first_name: 'B' },
+        chat: { id: 101, type: 'private' },
+        text: 'x',
+      },
     };
     const out = await processTelegramUpdate(body, deps, ctx);
     expect(out.status).toBe('rejected');

@@ -2,7 +2,7 @@
  * Drain webapp `integrator_push_outbox` (retries after failed signed POST to integrator).
  * Run from cron/systemd timer with DATABASE_URL (same as webapp).
  */
-import { runIntegratorPushWorkerTick } from "../src/infra/integrator-push/runIntegratorPushWorkerTick";
+import { runIntegratorPushWorkerTick } from '../src/infra/integrator-push/runIntegratorPushWorkerTick';
 
 async function main(): Promise<void> {
   const completed = await runIntegratorPushWorkerTick(25);

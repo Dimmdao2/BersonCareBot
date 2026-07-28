@@ -1,31 +1,31 @@
-import Link from "next/link";
-import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
-import { Separator } from "@/shared/ui/doctor/primitives/separator";
-import { cn } from "@/lib/utils";
-import { HELP_SECTION_SLUG, SYSTEM_PARENT_CODES } from "@/modules/content-sections/types";
+import Link from 'next/link';
+import { buttonVariants } from '@/shared/ui/doctor/primitives/button-variants';
+import { Separator } from '@/shared/ui/doctor/primitives/separator';
+import { cn } from '@/lib/utils';
+import { HELP_SECTION_SLUG, SYSTEM_PARENT_CODES } from '@/modules/content-sections/types';
 
 export type ContentPagesSidebarSection = { slug: string; title: string };
 
 const SYSTEM_FOLDER_LABELS: Record<(typeof SYSTEM_PARENT_CODES)[number], string> = {
-  situations: "Ситуации",
-  sos: "SOS",
-  warmups: "Разминки",
-  lessons: "Уроки",
+  situations: 'Ситуации',
+  sos: 'SOS',
+  warmups: 'Разминки',
+  lessons: 'Уроки',
 };
 
 const navBtnClass = cn(
-  buttonVariants({ variant: "outline", size: "default" }),
-  "h-auto min-h-10 w-full justify-start px-3 py-2 text-sm font-medium whitespace-normal",
+  buttonVariants({ variant: 'outline', size: 'default' }),
+  'h-auto min-h-10 w-full justify-start px-3 py-2 text-sm font-medium whitespace-normal',
 );
 
 function filterBtnClass(active: boolean) {
   return cn(
-    buttonVariants({ variant: active ? "default" : "outline", size: "default" }),
-    "h-auto min-h-9 w-full justify-start px-3 py-1.5 text-sm font-normal whitespace-normal",
+    buttonVariants({ variant: active ? 'default' : 'outline', size: 'default' }),
+    'h-auto min-h-9 w-full justify-start px-3 py-1.5 text-sm font-normal whitespace-normal',
   );
 }
 
-const CONTENT_BASE = "/app/doctor/content";
+const CONTENT_BASE = '/app/doctor/content';
 
 /** Левое меню хаба CMS: мотивации, разделы, статьи / системные папки. */
 export function ContentPagesSidebar({
@@ -42,15 +42,13 @@ export function ContentPagesSidebar({
   /** Кластер из `?systemParentCode=` или выведенный из открытого системного раздела. */
   highlightSystemFolderCode: string | null;
 }) {
-  const helpActive = highlightArticleSlug === HELP_SECTION_SLUG && highlightSystemFolderCode === null;
+  const helpActive =
+    highlightArticleSlug === HELP_SECTION_SLUG && highlightSystemFolderCode === null;
   const allPagesActive =
     highlightArticleSlug === null && highlightSystemFolderCode === null && !helpActive;
 
   return (
-    <nav
-      className="flex w-full flex-col gap-2 md:w-64 md:shrink-0"
-      aria-label="Контент и страницы"
-    >
+    <nav className="flex w-full flex-col gap-2 md:w-64 md:shrink-0" aria-label="Контент и страницы">
       <Link href={`${CONTENT_BASE}/motivation`} className={navBtnClass}>
         Мотивации
       </Link>
@@ -63,7 +61,7 @@ export function ContentPagesSidebar({
       <Link
         href={`${CONTENT_BASE}?section=${encodeURIComponent(HELP_SECTION_SLUG)}`}
         className={filterBtnClass(helpActive)}
-        aria-current={helpActive ? "page" : undefined}
+        aria-current={helpActive ? 'page' : undefined}
       >
         Статьи справки
       </Link>
@@ -72,7 +70,7 @@ export function ContentPagesSidebar({
       <Link
         href={CONTENT_BASE}
         className={filterBtnClass(allPagesActive)}
-        aria-current={allPagesActive ? "page" : undefined}
+        aria-current={allPagesActive ? 'page' : undefined}
       >
         Все страницы
       </Link>
@@ -83,7 +81,7 @@ export function ContentPagesSidebar({
             key={s.slug}
             href={`${CONTENT_BASE}?section=${encodeURIComponent(s.slug)}`}
             className={filterBtnClass(active)}
-            aria-current={active ? "page" : undefined}
+            aria-current={active ? 'page' : undefined}
           >
             {s.title}
           </Link>
@@ -93,12 +91,13 @@ export function ContentPagesSidebar({
         <Link
           href={`${CONTENT_BASE}?section=${encodeURIComponent(unassignedSectionNav.slug)}`}
           className={filterBtnClass(
-            highlightArticleSlug === unassignedSectionNav.slug && highlightSystemFolderCode === null,
+            highlightArticleSlug === unassignedSectionNav.slug &&
+              highlightSystemFolderCode === null,
           )}
           aria-current={
-            highlightArticleSlug === unassignedSectionNav.slug && highlightSystemFolderCode === null ?
-              "page"
-            : undefined
+            highlightArticleSlug === unassignedSectionNav.slug && highlightSystemFolderCode === null
+              ? 'page'
+              : undefined
           }
         >
           {unassignedSectionNav.title}
@@ -113,7 +112,7 @@ export function ContentPagesSidebar({
             key={code}
             href={`${CONTENT_BASE}?systemParentCode=${encodeURIComponent(code)}`}
             className={filterBtnClass(active)}
-            aria-current={active ? "page" : undefined}
+            aria-current={active ? 'page' : undefined}
           >
             {SYSTEM_FOLDER_LABELS[code]}
           </Link>

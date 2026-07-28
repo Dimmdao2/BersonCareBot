@@ -1,16 +1,16 @@
-import { revalidatePath } from "next/cache";
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
-import { routePaths } from "@/app-layer/routes/paths";
-import { logger } from "@/infra/logging/logger";
-import { enableWebPushNotificationDefaults } from "@/modules/patient-notifications/enableWebPushNotificationDefaults";
-import { hashWebPushEndpoint } from "@/modules/patient-notifications/hashWebPushEndpoint";
-import { parseNotificationsTopics } from "@/modules/patient-notifications/notificationsTopics";
-import { ensureWarmupsReminderOnFirstPwaPush } from "@/modules/reminders/ensureWarmupsReminderOnFirstPwaPush";
+import { revalidatePath } from 'next/cache';
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
+import { routePaths } from '@/app-layer/routes/paths';
+import { logger } from '@/infra/logging/logger';
+import { enableWebPushNotificationDefaults } from '@/modules/patient-notifications/enableWebPushNotificationDefaults';
+import { hashWebPushEndpoint } from '@/modules/patient-notifications/hashWebPushEndpoint';
+import { parseNotificationsTopics } from '@/modules/patient-notifications/notificationsTopics';
+import { ensureWarmupsReminderOnFirstPwaPush } from '@/modules/reminders/ensureWarmupsReminderOnFirstPwaPush';
 
-const platformSchema = z.enum(["pwa", "browser", "ios-pwa", "android-pwa"]);
+const platformSchema = z.enum(['pwa', 'browser', 'ios-pwa', 'android-pwa']);
 
 const bodySchema = z.object({
   endpoint: z.string().min(10),
@@ -31,21 +31,20 @@ export async function POST(request: Request) {
   try {
     json = await request.json();
   } catch {
-    return NextResponse.json({ ok: false, error: "invalid_json" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 });
   }
 
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
 
   const deps = buildAppDeps();
   const uid = gate.session.user.userId;
-  const uaHeader = request.headers.get("user-agent")?.trim() ?? "";
+  const uaHeader = request.headers.get('user-agent')?.trim() ?? '';
   const platform = parsed.data.platform;
-  const ua =
-    platform ?
-      `[bc-push:${platform}]${uaHeader ? ` ${uaHeader}` : ""}`.trim()
+  const ua = platform
+    ? `[bc-push:${platform}]${uaHeader ? ` ${uaHeader}` : ''}`.trim()
     : uaHeader || null;
 
   const hadExistingPushSubscription = await deps.webPushSubscriptions.hasAnyForUserId(uid);
@@ -63,23 +62,23 @@ export async function POST(request: Request) {
   const endpointHash = hashWebPushEndpoint(parsed.data.endpoint);
   logger.info(
     {
-      event: "web_push_subscription_registered",
+      event: 'web_push_subscription_registered',
       userId: uid,
       endpointHash,
       platform: platform ?? null,
     },
-    "web push subscription registered",
+    'web push subscription registered',
   );
 
-  const card = (await deps.channelPreferences.getChannelCards(uid, gate.session.user.bindings, {})).find(
-    (c) => c.code === "web_push",
-  );
-  await deps.channelPreferences.updatePreference(uid, "web_push", {
+  const card = (
+    await deps.channelPreferences.getChannelCards(uid, gate.session.user.bindings, {})
+  ).find((c) => c.code === 'web_push');
+  await deps.channelPreferences.updatePreference(uid, 'web_push', {
     isEnabledForMessages: card?.isEnabledForMessages ?? true,
     isEnabledForNotifications: true,
   });
 
-  const topicsSetting = await deps.systemSettings.getSetting("notifications_topics", "admin");
+  const topicsSetting = await deps.systemSettings.getSetting('notifications_topics', 'admin');
   const notificationTopics = parseNotificationsTopics(topicsSetting?.valueJson ?? null);
   const { enabledTopics } = await enableWebPushNotificationDefaults({
     userId: uid,
@@ -89,11 +88,11 @@ export async function POST(request: Request) {
 
   logger.info(
     {
-      event: "web_push_defaults_enabled",
+      event: 'web_push_defaults_enabled',
       userId: uid,
       enabledTopics,
     },
-    "web push defaults enabled for notification topics",
+    'web push defaults enabled for notification topics',
   );
 
   const warmupsReminder = await ensureWarmupsReminderOnFirstPwaPush({
@@ -108,12 +107,12 @@ export async function POST(request: Request) {
   if (warmupsReminder.created) {
     logger.info(
       {
-        event: "web_push_warmups_reminder_onboarding_created",
+        event: 'web_push_warmups_reminder_onboarding_created',
         userId: uid,
         ruleId: warmupsReminder.ruleId,
         platform: platform ?? null,
       },
-      "warmups reminder created on first PWA push",
+      'warmups reminder created on first PWA push',
     );
   }
 

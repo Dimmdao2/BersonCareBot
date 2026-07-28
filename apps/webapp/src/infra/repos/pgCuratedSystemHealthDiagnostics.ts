@@ -1,22 +1,22 @@
-import { z } from "zod";
-import { getSaasIsolationOperatorPool } from "@/infra/db/saasIsolationTelemetry";
+import { z } from 'zod';
+import { getSaasIsolationOperatorPool } from '@/infra/db/saasIsolationTelemetry';
 
 const nonNegativeNumber = z.number().finite().nonnegative();
 const nullableIso = z
   .string()
-  .refine((value) => Number.isFinite(Date.parse(value)), "invalid timestamp")
+  .refine((value) => Number.isFinite(Date.parse(value)), 'invalid timestamp')
   .nullable();
 
 const safeProviderErrorCodeSchema = z.enum([
-  "BadJwtToken",
-  "BadCertificate",
-  "BadCertificateEnvironment",
-  "ExpiredProviderToken",
-  "InvalidProviderToken",
-  "MissingProviderToken",
-  "TopicDisallowed",
-  "DeviceTokenNotForTopic",
-  "Unregistered",
+  'BadJwtToken',
+  'BadCertificate',
+  'BadCertificateEnvironment',
+  'ExpiredProviderToken',
+  'InvalidProviderToken',
+  'MissingProviderToken',
+  'TopicDisallowed',
+  'DeviceTokenNotForTopic',
+  'Unregistered',
 ]);
 
 const safeMetaSchema = z
@@ -24,9 +24,9 @@ const safeMetaSchema = z
     failed: nonNegativeNumber.optional(),
     consecutiveCronFailures: nonNegativeNumber.optional(),
     consecutiveFailRuns: nonNegativeNumber.optional(),
-    telegram: z.enum(["ok", "fail", "skipped_not_configured", "no_data"]).optional(),
-    max: z.enum(["ok", "fail", "skipped_not_configured", "no_data"]).optional(),
-    google_calendar: z.enum(["ok", "fail", "skipped_not_configured", "no_data"]).optional(),
+    telegram: z.enum(['ok', 'fail', 'skipped_not_configured', 'no_data']).optional(),
+    max: z.enum(['ok', 'fail', 'skipped_not_configured', 'no_data']).optional(),
+    google_calendar: z.enum(['ok', 'fail', 'skipped_not_configured', 'no_data']).optional(),
   })
   .strict();
 
@@ -70,7 +70,10 @@ const notificationChannelSchema = z
     lastSuccessAt: nullableIso,
     lastErrorAt: nullableIso,
     lastProviderStatusCode: z.number().int().min(100).max(599).nullable().optional().default(null),
-    lastErrorReason: z.string().regex(/^provider_[a-z0-9_]{1,64}$/).nullable(),
+    lastErrorReason: z
+      .string()
+      .regex(/^provider_[a-z0-9_]{1,64}$/)
+      .nullable(),
     lastErrorMessage: safeProviderErrorCodeSchema.nullable(),
   })
   .strict();
@@ -128,9 +131,9 @@ export const curatedSystemHealthSnapshotSchema = z
         stalePendingCount: nonNegativeNumber,
         byMimeAndStatus: z
           .object({
-            "video/quicktime": previewStatusCountsSchema,
-            "image/heic": previewStatusCountsSchema,
-            "image/heif": previewStatusCountsSchema,
+            'video/quicktime': previewStatusCountsSchema,
+            'image/heic': previewStatusCountsSchema,
+            'image/heif': previewStatusCountsSchema,
           })
           .strict(),
       })
@@ -171,9 +174,15 @@ export const curatedSystemHealthSnapshotSchema = z
       .object({
         windowHours: z.literal(24),
         outgoingReminderDispatch: z
-          .object({ due: nonNegativeNumber, dead: nonNegativeNumber, processing: nonNegativeNumber })
+          .object({
+            due: nonNegativeNumber,
+            dead: nonNegativeNumber,
+            processing: nonNegativeNumber,
+          })
           .strict(),
-        occurrenceHistory: z.object({ sent: nonNegativeNumber, failed: nonNegativeNumber }).strict(),
+        occurrenceHistory: z
+          .object({ sent: nonNegativeNumber, failed: nonNegativeNumber })
+          .strict(),
         deliveryEvents: z.object({ sent: nonNegativeNumber, failed: nonNegativeNumber }).strict(),
         patientReminderM2mIdempotencyKeysActive: nonNegativeNumber,
       })
@@ -205,7 +214,7 @@ export const curatedSystemHealthSnapshotSchema = z
       .array(
         z
           .object({
-            source: z.enum(["telegram", "max"]),
+            source: z.enum(['telegram', 'max']),
             receivedAt: nullableIso.unwrap(),
             processedOk: z.boolean(),
             httpStatusReturned: z.number().int().min(100).max(599).nullable(),
@@ -232,8 +241,8 @@ const curatedPlaybackHealthMetricsSchema = z
 
 export const curatedPlaybackHealthSnapshotSchema = z
   .object({
-    "24": curatedPlaybackHealthMetricsSchema,
-    "1": curatedPlaybackHealthMetricsSchema,
+    '24': curatedPlaybackHealthMetricsSchema,
+    '1': curatedPlaybackHealthMetricsSchema,
     hlsProxy: z
       .object({
         windowHours: z.literal(24),
@@ -252,23 +261,27 @@ export type CuratedPlaybackHealthSnapshot = z.infer<typeof curatedPlaybackHealth
 
 /** Uses the already-protected diagnostics credential; never the principal-aware app pool. */
 export async function loadCuratedSystemHealthSnapshot(): Promise<CuratedSystemHealthSnapshot> {
-  const result = await getSaasIsolationOperatorPool().query<{ snapshot: unknown; outbound_provider_incidents: unknown }>(
-    "SELECT app.read_curated_system_health() AS snapshot, app.read_outbound_provider_incident_health() AS outbound_provider_incidents",
+  const result = await getSaasIsolationOperatorPool().query<{
+    snapshot: unknown;
+    outbound_provider_incidents: unknown;
+  }>(
+    'SELECT app.read_curated_system_health() AS snapshot, app.read_outbound_provider_incident_health() AS outbound_provider_incidents',
   );
   const row = result.rows[0];
-  if (!row) throw new Error("curated_system_health_snapshot_missing");
-  const snapshot = typeof row.snapshot === "object" && row.snapshot !== null
-    ? { ...row.snapshot, outboundProviderIncidents: row.outbound_provider_incidents }
-    : row.snapshot;
+  if (!row) throw new Error('curated_system_health_snapshot_missing');
+  const snapshot =
+    typeof row.snapshot === 'object' && row.snapshot !== null
+      ? { ...row.snapshot, outboundProviderIncidents: row.outbound_provider_incidents }
+      : row.snapshot;
   return curatedSystemHealthSnapshotSchema.parse(snapshot);
 }
 
 /** Uses a redacted SECURITY DEFINER aggregate; the operator role has no source-table access. */
 export async function loadCuratedPlaybackHealthSnapshot(): Promise<CuratedPlaybackHealthSnapshot> {
   const result = await getSaasIsolationOperatorPool().query<{ snapshot: unknown }>(
-    "SELECT app.read_curated_playback_health() AS snapshot",
+    'SELECT app.read_curated_playback_health() AS snapshot',
   );
   const row = result.rows[0];
-  if (!row) throw new Error("curated_playback_health_snapshot_missing");
+  if (!row) throw new Error('curated_playback_health_snapshot_missing');
   return curatedPlaybackHealthSnapshotSchema.parse(row.snapshot);
 }

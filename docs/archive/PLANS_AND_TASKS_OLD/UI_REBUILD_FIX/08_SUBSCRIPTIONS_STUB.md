@@ -15,9 +15,19 @@
 **Файл:** `apps/webapp/src/app/app/patient/notifications/SubscriptionsList.tsx`
 
 Перед `<ul>` добавить:
+
 ```tsx
-<p style={{ fontSize: "0.85rem", color: "#946200", background: "#fff4dc", padding: "8px 12px", borderRadius: 8 }}>
-  Настройка каналов уведомлений будет доступна в ближайшем обновлении. Сейчас уведомления приходят во все подключённые каналы.
+<p
+  style={{
+    fontSize: '0.85rem',
+    color: '#946200',
+    background: '#fff4dc',
+    padding: '8px 12px',
+    borderRadius: 8,
+  }}
+>
+  Настройка каналов уведомлений будет доступна в ближайшем обновлении. Сейчас уведомления приходят
+  во все подключённые каналы.
 </p>
 ```
 
@@ -26,13 +36,15 @@
 Все `<input type="checkbox">` — сделать `disabled`:
 
 **Найти:**
+
 ```tsx
-disabled={pending}
+disabled = { pending };
 ```
 
 **Заменить на:**
+
 ```tsx
-disabled
+disabled;
 ```
 
 Убрать `onChange` handler с чекбоксов (или оставить — disabled всё равно не сработает).

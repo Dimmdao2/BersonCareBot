@@ -18,6 +18,7 @@ Online-поток больше **не создаёт запись в Rubitime** 
 **Trigger:** пациент нажимает «Онлайн → ЛФК».
 
 **Flow:**
+
 1. Страница с текстом: «Опишите проблему, с которой обращаетесь».
 2. Поле: многострочное описание (required, min 20 chars).
 3. Поле: вложения (optional):
@@ -33,6 +34,7 @@ Online-поток больше **не создаёт запись в Rubitime** 
 **Trigger:** пациент нажимает «Онлайн → Нутрициология».
 
 **Flow:**
+
 1. Пошаговая анкета (question-by-question). Вопросы:
    - Q1: «Ваш возраст?» (число, required).
    - Q2: «Ваш вес (кг) и рост (см)?» (два числовых поля, required).
@@ -54,6 +56,7 @@ Online-поток больше **не создаёт запись в Rubitime** 
 **Auth:** required (patient session)
 
 **Request:**
+
 ```json
 {
   "description": "string (required, min 20, max 5000)",
@@ -63,6 +66,7 @@ Online-поток больше **не создаёт запись в Rubitime** 
 ```
 
 **Response 201:**
+
 ```json
 {
   "id": "uuid",
@@ -81,6 +85,7 @@ Online-поток больше **не создаёт запись в Rubitime** 
 **Auth:** required (patient session)
 
 **Request:**
+
 ```json
 {
   "answers": [
@@ -94,6 +99,7 @@ Online-поток больше **не создаёт запись в Rubitime** 
 ```
 
 **Response 201:**
+
 ```json
 {
   "id": "uuid",
@@ -112,6 +118,7 @@ Online-поток больше **не создаёт запись в Rubitime** 
 **Auth:** required (patient session)
 
 **Response 200:**
+
 ```json
 {
   "items": [
@@ -151,6 +158,7 @@ Online-поток больше **не создаёт запись в Rubitime** 
 **Auth:** required (doctor or admin)
 
 **Request:**
+
 ```json
 { "status": "in_review" | "contacted" | "closed", "note": "string (optional)" }
 ```
@@ -237,6 +245,7 @@ changed_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 Файл: `TEST_MATRIX_STAGE9.md`
 
 ### Happy cases
+
 - H1: LFK submit с описанием → 201, запись в DB, уведомление врачу.
 - H2: Nutrition submit с 5 ответами → 201.
 - H3: Patient list own requests → правильный список.
@@ -244,6 +253,7 @@ changed_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 - H5: Doctor status change → статус обновился + history entry.
 
 ### Negative cases
+
 - N1: LFK без description → 400.
 - N2: Nutrition с пропущенным required q4 → 400.
 - N3: Patient пытается смотреть чужую заявку → 403.
@@ -251,6 +261,7 @@ changed_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 - N5: Более 3 LFK заявок за день → 429.
 
 ### Security cases
+
 - S1: Unauth request → 401.
 - S2: Patient auth пытается GET /api/doctor/online-intake → 403.
 - S3: XSS в description поле → sanitize at read.
@@ -258,4 +269,4 @@ changed_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 
 ## S9.T07 — Лог этапа
 
-Заполнить S9.* в EXECUTION_LOG.md.
+Заполнить S9.\* в EXECUTION_LOG.md.

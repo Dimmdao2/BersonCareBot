@@ -3,23 +3,23 @@
  * Used by GET /api/integrator/delivery-targets so the bot can fan out to all linked channels.
  */
 
-import type { ChannelBindings } from "@/shared/types/session";
-import type { UserByPhonePort } from "@/modules/auth/userByPhonePort";
-import type { IdentityResolutionPort } from "@/modules/auth/identityResolutionPort";
+import type { ChannelBindings } from '@/shared/types/session';
+import type { UserByPhonePort } from '@/modules/auth/userByPhonePort';
+import type { IdentityResolutionPort } from '@/modules/auth/identityResolutionPort';
 import {
   getDeliveryTargetsForUser,
   resolveDeliveryTargetsForTopic,
   type DeliveryTargets,
-} from "@/modules/channel-preferences/deliveryTargets";
-import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
-import { smtpInnerFromValueJson } from "@/modules/system-settings/smtpOutboundPatch";
-import type { ResolvedNotificationChannels } from "@/modules/patient-notifications/notificationChannelContract";
-import type { NotificationTopicGate } from "@/modules/patient-notifications/resolveNotificationChannels";
-import type { TopicChannelPrefsPort } from "@/modules/patient-notifications/topicChannelPrefsPort";
-import { getWebPushVapidKeyPair } from "@/modules/system-settings/webPushVapidRuntime";
-import type { SystemSettingsService } from "@/modules/system-settings/service";
-import type { WebPushSubscriptionsPort } from "@/modules/web-push/ports";
-import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
+} from '@/modules/channel-preferences/deliveryTargets';
+import type { ChannelPreferencesPort } from '@/modules/channel-preferences/ports';
+import { smtpInnerFromValueJson } from '@/modules/system-settings/smtpOutboundPatch';
+import type { ResolvedNotificationChannels } from '@/modules/patient-notifications/notificationChannelContract';
+import type { NotificationTopicGate } from '@/modules/patient-notifications/resolveNotificationChannels';
+import type { TopicChannelPrefsPort } from '@/modules/patient-notifications/topicChannelPrefsPort';
+import { getWebPushVapidKeyPair } from '@/modules/system-settings/webPushVapidRuntime';
+import type { SystemSettingsService } from '@/modules/system-settings/service';
+import type { WebPushSubscriptionsPort } from '@/modules/web-push/ports';
+import { normalizeRuPhoneE164 } from '@/shared/phone/normalizeRuPhoneE164';
 
 export type DeliveryTargetsApiParams = {
   organizationId?: string;
@@ -38,8 +38,8 @@ export type DeliveryTargetsApiResult = {
 
 export class DeliveryTargetsTenantDeniedError extends Error {
   constructor() {
-    super("delivery target is outside signed organization");
-    this.name = "DeliveryTargetsTenantDeniedError";
+    super('delivery target is outside signed organization');
+    this.name = 'DeliveryTargetsTenantDeniedError';
   }
 }
 
@@ -48,14 +48,19 @@ export type DeliveryTargetsApiDeps = {
   identityResolutionPort: IdentityResolutionPort;
   preferencesPort: ChannelPreferencesPort;
   topicChannelPrefsPort: TopicChannelPrefsPort;
-  readReminderNotifyGate: (platformUserId: string, topicCode: string) => Promise<NotificationTopicGate>;
+  readReminderNotifyGate: (
+    platformUserId: string,
+    topicCode: string,
+  ) => Promise<NotificationTopicGate>;
   getProfileEmailFields: (
     platformUserId: string,
   ) => Promise<{ email: string | null; emailVerifiedAt: string | null }>;
-  webPushSubscriptions: Pick<WebPushSubscriptionsPort, "hasAnyForUserId">;
-  systemSettings: Pick<SystemSettingsService, "getSetting">;
+  webPushSubscriptions: Pick<WebPushSubscriptionsPort, 'hasAnyForUserId'>;
+  systemSettings: Pick<SystemSettingsService, 'getSetting'>;
   hasActivePatientEnrollment: (platformUserId: string, organizationId: string) => Promise<boolean>;
-  findPlatformUserByIntegratorId: (integratorUserId: string) => Promise<{ platformUserId: string } | null>;
+  findPlatformUserByIntegratorId: (
+    integratorUserId: string,
+  ) => Promise<{ platformUserId: string } | null>;
 };
 
 async function resolveUser(
@@ -72,7 +77,7 @@ async function resolveUser(
   }
   if (params.telegramId && params.telegramId.trim().length > 0) {
     const user = await identityResolutionPort.findByChannelBinding({
-      channelCode: "telegram",
+      channelCode: 'telegram',
       externalId: params.telegramId.trim(),
     });
     if (!user) return null;
@@ -80,7 +85,7 @@ async function resolveUser(
   }
   if (params.maxId && params.maxId.trim().length > 0) {
     const user = await identityResolutionPort.findByChannelBinding({
-      channelCode: "max",
+      channelCode: 'max',
       externalId: params.maxId.trim(),
     });
     if (!user) return null;
@@ -93,11 +98,11 @@ async function buildAvailability(
   userId: string,
   bindings: ChannelBindings,
   deps: DeliveryTargetsApiDeps,
-): Promise<Parameters<typeof resolveDeliveryTargetsForTopic>[0]["availability"]> {
+): Promise<Parameters<typeof resolveDeliveryTargetsForTopic>[0]['availability']> {
   const emailFields = await deps.getProfileEmailFields(userId);
   const hasWebPush = await deps.webPushSubscriptions.hasAnyForUserId(userId);
   const vapidKeys = await getWebPushVapidKeyPair(deps.systemSettings);
-  const smtp = await deps.systemSettings.getSetting("smtp_outbound", "admin");
+  const smtp = await deps.systemSettings.getSetting('smtp_outbound', 'admin');
   const smtpParsed = smtp?.valueJson ? smtpInnerFromValueJson(smtp.valueJson) : null;
 
   return {
@@ -124,7 +129,8 @@ export async function getDeliveryTargetsForIntegrator(
   if (
     params.organizationId &&
     !(await deps.hasActivePatientEnrollment(user.userId, params.organizationId))
-  ) throw new DeliveryTargetsTenantDeniedError();
+  )
+    throw new DeliveryTargetsTenantDeniedError();
   if (params.integratorUserId) {
     const projectedUser = await deps.findPlatformUserByIntegratorId(params.integratorUserId);
     if (!projectedUser || projectedUser.platformUserId !== user.userId) {

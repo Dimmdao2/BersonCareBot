@@ -1,35 +1,35 @@
 #!/usr/bin/env node
-import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 
 const suffix = `${process.pid}_${Date.now()}`;
 const database = `bcb_saas_e1_c5a_scratch_${suffix}`;
 if (!/^bcb_saas_e1_c5a_scratch_[0-9_]+$/.test(database)) {
-  throw new Error("unsafe scratch database name");
+  throw new Error('unsafe scratch database name');
 }
 
 function postgres(args, input = undefined) {
-  const result = spawnSync("sudo", ["-n", "-u", "postgres", ...args], {
-    encoding: "utf8",
+  const result = spawnSync('sudo', ['-n', '-u', 'postgres', ...args], {
+    encoding: 'utf8',
     input,
   });
   if (result.status !== 0) {
-    process.stdout.write(result.stdout ?? "");
-    process.stderr.write(result.stderr ?? "");
+    process.stdout.write(result.stdout ?? '');
+    process.stderr.write(result.stderr ?? '');
     throw new Error(`postgres command failed: ${result.status}`);
   }
   return result;
 }
 
 const oldSignature =
-  "TABLE(tariff_mechanics jsonb, included_seats integer, override_mechanic text, override_enabled boolean, seat_limit_override integer)";
+  'TABLE(tariff_mechanics jsonb, included_seats integer, override_mechanic text, override_enabled boolean, seat_limit_override integer)';
 const currentSignature =
-  "TABLE(tariff_mechanics jsonb, tariff_quotas jsonb, included_seats integer, override_mechanic text, override_enabled boolean, override_quota jsonb, override_expires_at timestamp with time zone, seat_limit_override integer, lifecycle text, effective_tariff_id uuid, access_source text)";
+  'TABLE(tariff_mechanics jsonb, tariff_quotas jsonb, included_seats integer, override_mechanic text, override_enabled boolean, override_quota jsonb, override_expires_at timestamp with time zone, seat_limit_override integer, lifecycle text, effective_tariff_id uuid, access_source text)';
 
 try {
-  postgres(["createdb", database]);
+  postgres(['createdb', database]);
   postgres(
-    ["psql", "-X", "-v", "ON_ERROR_STOP=1", "-d", database],
+    ['psql', '-X', '-v', 'ON_ERROR_STOP=1', '-d', database],
     String.raw`
 SELECT 1 / (bool_and(role.rolname IS NOT NULL))::int
 FROM (VALUES ('app_owner'), ('app_patient'), ('app_staff')) expected(rolname)
@@ -98,25 +98,25 @@ GRANT SELECT ON TABLE public.be_organizations, public.org_enrollments TO app_own
   );
 
   postgres(
-    ["psql", "-X", "-v", "ON_ERROR_STOP=1", "-d", database],
+    ['psql', '-X', '-v', 'ON_ERROR_STOP=1', '-d', database],
     readFileSync(
-      "apps/webapp/db/drizzle-migrations/0219_current_patient_organization_entitlements.sql",
-      "utf8",
+      'apps/webapp/db/drizzle-migrations/0219_current_patient_organization_entitlements.sql',
+      'utf8',
     ),
   );
   postgres(
-    ["psql", "-X", "-v", "ON_ERROR_STOP=1", "-d", database],
+    ['psql', '-X', '-v', 'ON_ERROR_STOP=1', '-d', database],
     `SELECT 1 / (pg_get_function_result('app.read_current_patient_organization_entitlements()'::regprocedure) = '${oldSignature}')::int;`,
   );
 
   const overlay = readFileSync(
-    "deploy/postgres/e1-current-patient-organization-entitlements.sql",
-    "utf8",
+    'deploy/postgres/e1-current-patient-organization-entitlements.sql',
+    'utf8',
   );
-  postgres(["psql", "-X", "-v", "ON_ERROR_STOP=1", "-d", database], overlay);
+  postgres(['psql', '-X', '-v', 'ON_ERROR_STOP=1', '-d', database], overlay);
 
   postgres(
-    ["psql", "-X", "-v", "ON_ERROR_STOP=1", "-d", database],
+    ['psql', '-X', '-v', 'ON_ERROR_STOP=1', '-d', database],
     String.raw`
 INSERT INTO public.saas_tariffs VALUES (
   '95200000-0000-4000-8000-000000000001',
@@ -160,9 +160,9 @@ GRANT EXECUTE ON FUNCTION app.read_current_patient_organization_entitlements() T
 `,
   );
 
-  postgres(["psql", "-X", "-v", "ON_ERROR_STOP=1", "-d", database], overlay);
+  postgres(['psql', '-X', '-v', 'ON_ERROR_STOP=1', '-d', database], overlay);
   postgres(
-    ["psql", "-X", "-v", "ON_ERROR_STOP=1", "-d", database],
+    ['psql', '-X', '-v', 'ON_ERROR_STOP=1', '-d', database],
     String.raw`
 SELECT 1 / (
   pg_get_function_result('app.read_current_patient_organization_entitlements()'::regprocedure) =
@@ -249,7 +249,7 @@ FROM actual;
 `,
   );
 
-  console.log("E1/C5A entitlement closure disposable PostgreSQL rehearsal: PASS");
+  console.log('E1/C5A entitlement closure disposable PostgreSQL rehearsal: PASS');
 } finally {
-  postgres(["dropdb", "--if-exists", database]);
+  postgres(['dropdb', '--if-exists', database]);
 }

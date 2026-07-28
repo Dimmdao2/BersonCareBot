@@ -13,7 +13,7 @@ export function parseIdTokens(input: unknown): string[] {
     return fromArray(input);
   }
 
-  const raw = typeof input === "string" ? input.trim() : "";
+  const raw = typeof input === 'string' ? input.trim() : '';
   if (!raw) return [];
 
   try {
@@ -21,13 +21,16 @@ export function parseIdTokens(input: unknown): string[] {
     if (Array.isArray(parsed)) {
       return fromArray(parsed);
     }
-    if (typeof parsed === "string") {
+    if (typeof parsed === 'string') {
       return parseIdTokens(parsed);
     }
   } catch {
     // Not JSON, parse as free-form token list.
   }
 
-  const parts = raw.split(/[\s,;]+/).map((s) => s.trim()).filter(Boolean);
+  const parts = raw
+    .split(/[\s,;]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
   return [...new Set(parts)];
 }

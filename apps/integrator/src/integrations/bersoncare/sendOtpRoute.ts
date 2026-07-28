@@ -23,7 +23,12 @@ type ReqWithRawBody = FastifyRequest<{
   Body: SendOtpBody;
 }> & { rawBody?: string };
 
-function verifySignature(timestamp: string, rawBody: string, signature: string, secret: string): boolean {
+function verifySignature(
+  timestamp: string,
+  rawBody: string,
+  signature: string,
+  secret: string,
+): boolean {
   const ts = Number(timestamp);
   if (!Number.isFinite(ts)) return false;
   const now = Math.floor(Date.now() / 1000);
@@ -87,8 +92,7 @@ export async function registerBersoncareSendOtpRoute(
     }
     const text = `Код для входа в BersonCare: ${code}`;
     const eventId = `otp:${channel}:${randomUUID()}`;
-    const recipient =
-      channel === 'max' ? maxUserRecipient(recipientId) : { chatId: recipientId };
+    const recipient = channel === 'max' ? maxUserRecipient(recipientId) : { chatId: recipientId };
     const intent: OutgoingIntent = {
       type: 'message.send' as const,
       meta: {

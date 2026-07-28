@@ -1,4 +1,4 @@
-import type { EmailSetupAccessSource } from "@/modules/auth/emailSetupAccess/ports";
+import type { EmailSetupAccessSource } from '@/modules/auth/emailSetupAccess/ports';
 
 export type IssueEmailSetupTokenParams = {
   userId: string;

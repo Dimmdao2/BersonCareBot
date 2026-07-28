@@ -1,28 +1,31 @@
-"use client";
+'use client';
 
-import { useMemo } from "react";
-import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
-import type { ClientContactBreakdown, ClientContactPieSegment } from "@/modules/doctor-clients/clientContactSegments";
-import { CLIENT_CONTACT_PIE_SEGMENT_LABELS } from "@/modules/doctor-clients/clientContactSegments";
-import { DoctorRechartsTooltip } from "@/shared/ui/doctor/DoctorRechartsTooltip";
-import { Button } from "@/shared/ui/doctor/primitives/button";
+import { useMemo } from 'react';
+import { Cell, Pie, PieChart, ResponsiveContainer } from 'recharts';
+import type {
+  ClientContactBreakdown,
+  ClientContactPieSegment,
+} from '@/modules/doctor-clients/clientContactSegments';
+import { CLIENT_CONTACT_PIE_SEGMENT_LABELS } from '@/modules/doctor-clients/clientContactSegments';
+import { DoctorRechartsTooltip } from '@/shared/ui/doctor/DoctorRechartsTooltip';
+import { Button } from '@/shared/ui/doctor/primitives/button';
 
 const SEGMENT_COLORS: Record<ClientContactPieSegment, string> = {
-  telegram_only: "hsl(200 70% 48%)",
-  max_only: "hsl(280 55% 52%)",
-  email_only: "hsl(38 75% 52%)",
-  telegram_email: "hsl(200 60% 38%)",
-  max_email: "hsl(280 50% 42%)",
-  phone_email_no_messenger: "hsl(142 45% 42%)",
+  telegram_only: 'hsl(200 70% 48%)',
+  max_only: 'hsl(280 55% 52%)',
+  email_only: 'hsl(38 75% 52%)',
+  telegram_email: 'hsl(200 60% 38%)',
+  max_email: 'hsl(280 50% 42%)',
+  phone_email_no_messenger: 'hsl(142 45% 42%)',
 };
 
 const PIE_ORDER: ClientContactPieSegment[] = [
-  "telegram_only",
-  "max_only",
-  "email_only",
-  "telegram_email",
-  "max_email",
-  "phone_email_no_messenger",
+  'telegram_only',
+  'max_only',
+  'email_only',
+  'telegram_email',
+  'max_email',
+  'phone_email_no_messenger',
 ];
 
 const CHART_SIZE = 176;
@@ -77,7 +80,10 @@ export function ClientContactPieChart({
 
   return (
     <div className="flex w-full flex-col gap-3 lg:flex-row lg:items-start lg:gap-4">
-      <div className="relative w-full max-w-[200px] shrink-0 overflow-visible" style={{ height: CHART_SIZE }}>
+      <div
+        className="relative w-full max-w-[200px] shrink-0 overflow-visible"
+        style={{ height: CHART_SIZE }}
+      >
         <ResponsiveContainer width="100%" height="100%">
           <PieChart margin={PIE_MARGIN}>
             <Pie
@@ -89,7 +95,7 @@ export function ClientContactPieChart({
               paddingAngle={2}
               dataKey="value"
               nameKey="name"
-              className={onSegmentClick ? "cursor-pointer" : undefined}
+              className={onSegmentClick ? 'cursor-pointer' : undefined}
               onClick={
                 onSegmentClick
                   ? (_data, index) => {
@@ -116,8 +122,8 @@ export function ClientContactPieChart({
                 variant="ghost"
                 className={
                   onSegmentClick
-                    ? "h-auto w-full cursor-pointer justify-start gap-2 rounded-sm px-0.5 py-0.5 text-left"
-                    : "h-auto w-full justify-start gap-2 rounded-sm px-0.5 py-0.5 text-left hover:bg-transparent"
+                    ? 'h-auto w-full cursor-pointer justify-start gap-2 rounded-sm px-0.5 py-0.5 text-left'
+                    : 'h-auto w-full justify-start gap-2 rounded-sm px-0.5 py-0.5 text-left hover:bg-transparent'
                 }
                 aria-label={onSegmentClick ? `${s.name}: ${s.value} — открыть список` : undefined}
                 onClick={() => onSegmentClick?.(s.segment, s.name)}
@@ -128,7 +134,9 @@ export function ClientContactPieChart({
                   aria-hidden
                 />
                 <span className="min-w-0 flex-1 text-muted-foreground">{s.name}</span>
-                <span className="shrink-0 font-semibold tabular-nums text-foreground">{s.value}</span>
+                <span className="shrink-0 font-semibold tabular-nums text-foreground">
+                  {s.value}
+                </span>
               </Button>
             </li>
           ))}

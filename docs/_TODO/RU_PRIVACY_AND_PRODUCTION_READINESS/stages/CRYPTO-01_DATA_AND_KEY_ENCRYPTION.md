@@ -21,7 +21,6 @@ test/docs paths и независимый security auditor. Active SaaS/Product 
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 - [ ] Агенты составляют data-at-rest map: PostgreSQL data/WAL/temp, swap, logs, env, dumps, originals, HLS,
       previews, message attachments и transient worker files.
 - [ ] Для каждого класса фиксируется adversary: lost disk/snapshot, local user, deploy compromise, root compromise,
@@ -45,7 +44,6 @@ test/docs paths и независимый security auditor. Active SaaS/Product 
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 - [ ] Реализовать versioned authenticated envelope contract: algorithm/version/key-id/nonce/tag/chunk metadata,
       plaintext length/type и domain-bound additional authenticated data.
 - [ ] Использовать поддерживаемую reviewed crypto implementation; собственные cipher primitives запрещены.
@@ -64,7 +62,6 @@ test/docs paths и независимый security auditor. Active SaaS/Product 
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 > ➕ **ВНЕСЕНО РЕШЕНИЕМ ВЛАДЕЛЬЦА 27.07 — отдельная подпапка для видео врача.**
 > Дословно: «Подпапка — да, верно. но это будет включено в работу по разделению видео на шифрованные и нет.»
@@ -92,6 +89,7 @@ test/docs paths и независимый security auditor. Active SaaS/Product 
 > всё - вот это уже дело».
 >
 > **Почему (правовая часть, проверено по первоисточникам 27.07):**
+>
 > - Видео-демонстрация упражнения, где в кадре врач или наёмная модель, — это ПДн **человека в кадре**,
 >   обычная категория (152-ФЗ ст. 3). Оно **не является** специальной категорией по ст. 10 и **не становится**
 >   данными пациента от того, что лежит у него в программе: категория определяется тем, о ком информация.
@@ -115,6 +113,7 @@ test/docs paths и независимый security auditor. Active SaaS/Product 
 > требуется. После разделения объём реально чувствительных объектов падает в разы.
 >
 > **Порядок работ по C2 меняется на:**
+>
 > - [ ] Развести хранение: отдельный бакет/префикс для контент-библиотеки и отдельный — для пациентских
 >       клинических файлов и видео. Опереться на существующее разделение `media_files` / `patient_files`.
 > - [ ] Доказать на TEST, что ни один пациентский объект не пишется в контент-хранилище и наоборот;
@@ -144,7 +143,6 @@ test/docs paths и независимый security auditor. Active SaaS/Product 
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 - [ ] Worker decrypts source only inside encrypted volume/tmp boundary, transcodes, encrypts playlists/segments/
       previews and removes transient plaintext on success/failure/reboot recovery.
 - [ ] Playback path authorizes resource and decrypts/proxies segments; direct presigned plaintext GET прекращается
@@ -163,7 +161,6 @@ test/docs paths и независимый security auditor. Active SaaS/Product 
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 - [ ] LUKS остаётся первым broad DB-at-rest layer. Не заявлять PostgreSQL TLS или `pgcrypto` как TDE.
 - [ ] После data inventory внешний specialist/architect выбирает только поля, которым нужна защита от dump/DB-reader;
@@ -186,7 +183,6 @@ test/docs paths и независимый security auditor. Active SaaS/Product 
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 - [ ] Crypto design принят владельцем и внешним reviewer; key loss/recovery/rotation rehearsed.
 - [ ] Tenant A cannot decrypt/use tenant B envelope even with object/row identifier.

@@ -4,10 +4,10 @@ overview: Выровнять справочник load_type с lfk_exercises.loa
 status: completed
 todos:
   - id: migration-load-type-items
-    content: "Drizzle SQL 0041 + journal"
+    content: 'Drizzle SQL 0041 + journal'
     status: completed
   - id: inmemory-seed-items
-    content: "inMemoryReferences load_type items"
+    content: 'inMemoryReferences load_type items'
     status: completed
   - id: domain-module-parity-test
     content: exerciseLoadTypeReference + seed parity test

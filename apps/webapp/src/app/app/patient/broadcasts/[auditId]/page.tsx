@@ -1,6 +1,6 @@
-import { redirect } from "next/navigation";
-import { requirePatientAccess } from "@/app-layer/guards/requireRole";
-import { routePaths } from "@/app-layer/routes/paths";
+import { redirect } from 'next/navigation';
+import { requirePatientAccess } from '@/app-layer/guards/requireRole';
+import { routePaths } from '@/app-layer/routes/paths';
 
 type Props = {
   params: Promise<{ auditId: string }>;

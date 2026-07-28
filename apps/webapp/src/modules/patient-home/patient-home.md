@@ -60,10 +60,10 @@
 
 Перед pick (patient tier): `ensureDailyWarmupPresentationSynced` — lazy-применение scheduled-слотов и upsert при изменении.
 
-| Consumer | Кто использует | Правило (patient tier) |
-|----------|----------------|-------------------------|
-| `home` | Главная, CTA «Начать разминку», `go/daily-warmup` без `from=reminder` | Synced **presented**; fallback без строки — **следующая** после последней `daily_warmup` completion, иначе `0` |
-| `push_reminder` | `loadWarmupPushDynamicContext`, `go/daily-warmup?from=reminder` | Следующая после home pick (`pickDailyWarmupFromOrderedList`) |
+| Consumer        | Кто использует                                                        | Правило (patient tier)                                                                                         |
+| --------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `home`          | Главная, CTA «Начать разминку», `go/daily-warmup` без `from=reminder` | Synced **presented**; fallback без строки — **следующая** после последней `daily_warmup` completion, иначе `0` |
+| `push_reminder` | `loadWarmupPushDynamicContext`, `go/daily-warmup?from=reminder`       | Следующая после home pick (`pickDailyWarmupFromOrderedList`)                                                   |
 
 **Scheduled rotation (admin):** `patient_home_daily_warmup_rotation_enabled` (default **false**), `patient_home_daily_warmup_rotation_times` (1–3 × `HH:MM`) — UI `/app/doctor/patient-home`. Слоты в **календарной TZ пациента**. При включении без ретро: backfill `last_rotation_at = updated_at` (migration `0110`).
 

@@ -17,12 +17,12 @@
 `/app/doctor/communications` — настоящая страница-шелл (`page.tsx` → `DoctorCommunicationsShell`).
 Internal-rewrite убран (Block 5 TODO#3). Старые прямые URL → **308** на агрегатный URL.
 
-| Вкладка | id | Старый URL (308 → агрегатный) |
-|---------|------|-------------------------------|
-| Чаты | `chats` (default) | `/app/doctor/messages` |
-| Комментарии | `comments` | `/app/doctor/comments` |
-| Заявки | `intake` | `/app/doctor/online-intake`, `/online-intake/:id` (→ `?tab=intake&id=:id`) |
-| Рассылки | `broadcasts` | `/app/doctor/broadcasts`, `/broadcasts/archive` (→ `?tab=broadcasts&archive=1`) |
+| Вкладка     | id                | Старый URL (308 → агрегатный)                                                   |
+| ----------- | ----------------- | ------------------------------------------------------------------------------- |
+| Чаты        | `chats` (default) | `/app/doctor/messages`                                                          |
+| Комментарии | `comments`        | `/app/doctor/comments`                                                          |
+| Заявки      | `intake`          | `/app/doctor/online-intake`, `/online-intake/:id` (→ `?tab=intake&id=:id`)      |
+| Рассылки    | `broadcasts`      | `/app/doctor/broadcasts`, `/broadcasts/archive` (→ `?tab=broadcasts&archive=1`) |
 
 **Защита от петли redirects** больше не нужна для communications (rewrite убран).
 Маркер `x-bc-doctor-rewrite` сохранён только для `/schedule`. Тесты: `doctorRouteRedirects.test.ts`.
@@ -45,6 +45,7 @@ SSR-предзагрузка непрочитанных комментариев
 ## Независимый скролл (split-layout, все табы)
 
 Все 4 вкладки используют `CatalogSplitLayout` + `DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE`:
+
 - Левый пейн — список (пациенты/заявки/форма рассылки).
 - Правый пейн — деталь/тред/журнал.
 - Мобильный режим: `mobileView="list"|"detail"` + `mobileBackSlot` (кнопка «← Назад»).
@@ -100,6 +101,7 @@ non-webapp-platform диалоги вроде Telegram/MAX его не имею�
 SSR: `loadDoctorCommentPatients` + `loadDoctorExerciseCommentsForTab` (параллельно в `page.tsx`).
 
 Ключевые файлы:
+
 - `app/app/doctor/comments/DoctorCommentsTab.tsx`
 - `app/app/doctor/comments/loadDoctorCommentPatients.ts`
 - `app/app/doctor/comments/loadDoctorPatientExercisesWithComments.ts`
@@ -119,6 +121,7 @@ SSR: `loadDoctorCommentPatients` + `loadDoctorExerciseCommentsForTab` (пара�
 ### Рассылки (`broadcasts/BroadcastForm.tsx`, `tabs/BroadcastsTab.tsx`)
 
 **Форма (левый пейн):** порядок полей Аудитория → Категория → Каналы → Заголовок → Текст → кнопки.
+
 - Аудитория: `ReferenceSelect` (docтор-дропдаун, single-select, `h-8`).
 - Категория: 4 тоггл-чипа — Организационное · Важное · Сервисное · Рекламное; дефолт Организационное.
 - Каналы: 5 чекбоксов Telegram · MAX · Push · SMS · Email; под каждым — реальный счётчик из БД;
@@ -143,6 +146,7 @@ Legacy `bot_message` → нормализуется в `telegram+max`. Email-ф�
 ## TODO
 
 ### ~~TODO#1: выделенный список комментариев к упражнениям~~ ✅ сделано
+
 `comments/page.tsx` рендерит реальный список новых комментариев. Загрузчик извлечён в
 shared app-layer `loadDoctorExerciseCommentAttention.ts` (форматтеры — `doctorTodayFormat.ts`),
 его переиспользуют и «Сегодня» (`loadDoctorTodayDashboard`), и диалог
@@ -152,6 +156,7 @@ shared app-layer `loadDoctorExerciseCommentAttention.ts` (форматтеры �
 _(2026-06-14: этот компонент позже заменён `DoctorCommentsTab` с инлайн-рендером и удалён как мёртвый.)_
 
 ### ~~TODO#2: кросс-вкладочные бейджи непрочитанных~~ ✅ сделано
+
 `loadDoctorCommunicationsBadges.ts` — лёгкий общий загрузчик (`chats` = `unreadFromUsers()`,
 `intake` = `listForDoctor({ status: "new" }).total`; устойчив к сбоям, нули опускаются). Все 4
 страницы вкладок вызывают его и передают `badges` в `DoctorCommunicationsTabsNav`, поэтому
@@ -180,6 +185,7 @@ Scope-примечание: `comments` в общий загрузчик не в�
 загрузчике комментариев (фан-аут по пациентам) — её убираем прямым запросом (ниже).
 
 **Архитектура.**
+
 - `DoctorCommunicationsShell` — **клиентский** контейнер: `DoctorAppShell title="Коммуникации"` +
   `DoctorCommunicationsTabsNav` + синхронизация `?tab=` (и под-параметров: intake `id`, broadcasts
   `archive`) ↔ URL без полного перехода (`history.replaceState`/router) + реестр табов. Лениво
@@ -195,6 +201,7 @@ Scope-примечание: `comments` в общий загрузчик не в�
   - **Рассылки** — `BroadcastForm` + `BroadcastAuditLog`; deep-link `archive`.
 
 **Data-слой (по чистой архитектуре — в модуле, не на странице).**
+
 - Новый метод(ы) в `program-item-discussion` (**port + Drizzle infra + тесты + DI**): сейчас порт
   чисто per-`stageItem`/per-`patient`, doctor-wide запроса нет — поэтому старый загрузчик и бежит
   фан-аутом по пациентам. Нужно: `listUnreadExerciseCommentsForDoctor({ doctorUserId, limit, cursor })`
@@ -210,6 +217,7 @@ Scope-примечание: `comments` в общий загрузчик не в�
   server action.
 
 **Routing (это `proxy.ts`, НЕ middleware — middleware в проекте нет).**
+
 - `/app/doctor/communications` становится настоящей страницей-шеллом → **убрать internal-rewrite для
   communications** из `apps/webapp/src/proxy.ts`; оставить **308** со старых прямых URL
   (`/messages`, `/online-intake[/:id]`, `/comments`, `/broadcasts[/archive]`) на `?tab=…`. Сохранить
@@ -238,8 +246,8 @@ typecheck/lint/тесты затронутых пакетов + живой dev (
 - **2026-06-12 · TODO#3 SQL-fix** — дубликат столбца `id` в CTE doctor-wide запроса
   (`messages.id` + `instances.id` → две колонки `"id"`, Postgres падал на живом dev). Фикс:
   `instanceId → sql\`${instances.id}\`.as("instance_id")`. Добавлен opt-in dev-DB integration тест
-  (`RUN_DOCTOR_COMMENTS_DEV_DB=1`), реально исполняющий запрос против БД — проверено `bcb_webapp_dev`.
-  Коммит `149179c1`.
+(`RUN_DOCTOR_COMMENTS_DEV_DB=1`), реально исполняющий запрос против БД — проверено `bcb_webapp_dev`.
+Коммит `149179c1`.
 - **2026-06-12 · TODO#3 аудит-правки (ревью Blocks 1–6)** — pg-тест doctor-wide методов (8),
   документация promo-расхождения с «Сегодня», уточнён doc-comment поиска, удалён мёртвый экспорт
   `communicationsTabFromPathname`, оптимизация поллинга (пауза интервала при `hidden`). Коммит `0982d1f0`.

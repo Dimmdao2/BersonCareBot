@@ -192,31 +192,31 @@ Archive rules:
 
 Keep/defer tables:
 
-| Table | Decision | Cleanup action now |
-| --- | --- | --- |
-| `public.patient_bookings` | keep | No Rubitime cleanup action. Canonical patient booking history/runtime table. |
-| `public.be_external_entity_mappings` | keep | Keep table. Rubitime rows are later traceability policy scope, not a table drop. |
-| `integrator.booking_calendar_map` | keep_until_replacement | Keep while GCal sync is active unless a tested canonical replacement exists. |
-| `public.booking_*` | defer_drop | Do not drop in Rubitime raw-table cleanup. Catalog compatibility is separate SaaS/catalog scope. |
+| Table                                | Decision               | Cleanup action now                                                                               |
+| ------------------------------------ | ---------------------- | ------------------------------------------------------------------------------------------------ |
+| `public.patient_bookings`            | keep                   | No Rubitime cleanup action. Canonical patient booking history/runtime table.                     |
+| `public.be_external_entity_mappings` | keep                   | Keep table. Rubitime rows are later traceability policy scope, not a table drop.                 |
+| `integrator.booking_calendar_map`    | keep_until_replacement | Keep while GCal sync is active unless a tested canonical replacement exists.                     |
+| `public.booking_*`                   | defer_drop             | Do not drop in Rubitime raw-table cleanup. Catalog compatibility is separate SaaS/catalog scope. |
 
 Archive-before-drop tables:
 
-| Table | Decision | Cleanup action now |
-| --- | --- | --- |
-| `public.appointment_records` | archive_before_drop | Prepare archive/export policy. Drop only after no runtime references and restore proof. |
-| `integrator.rubitime_records` | archive_before_drop | Prepare archive/export policy. CSV remains canon; raw rows are audit-only. |
-| `integrator.rubitime_events` | archive_before_drop | Prepare archive/export policy. Raw payloads are audit-only. |
-| `public.rubitime_records` / `public.rubitime_events` | archive_if_present | Include only if metadata audit proves they exist/populated. |
+| Table                                                | Decision            | Cleanup action now                                                                      |
+| ---------------------------------------------------- | ------------------- | --------------------------------------------------------------------------------------- |
+| `public.appointment_records`                         | archive_before_drop | Prepare archive/export policy. Drop only after no runtime references and restore proof. |
+| `integrator.rubitime_records`                        | archive_before_drop | Prepare archive/export policy. CSV remains canon; raw rows are audit-only.              |
+| `integrator.rubitime_events`                         | archive_before_drop | Prepare archive/export policy. Raw payloads are audit-only.                             |
+| `public.rubitime_records` / `public.rubitime_events` | archive_if_present  | Include only if metadata audit proves they exist/populated.                             |
 
 Drop/defer candidates after R6/R7 proof:
 
-| Table | Decision | Cleanup action now |
-| --- | --- | --- |
-| `integrator.rubitime_api_throttle` | drop_candidate | Drop only in migration-backed R7 after static no-reference proof. |
-| `integrator.rubitime_booking_profiles` | drop_candidate | Drop only after archive/drop owner decision and restore proof. |
-| `integrator.rubitime_branches` | drop_candidate | Drop only after archive/drop owner decision and restore proof. |
-| `integrator.rubitime_services` | drop_candidate | Drop only after archive/drop owner decision and restore proof. |
-| `integrator.rubitime_cooperators` | drop_candidate | Drop only after archive/drop owner decision and restore proof. |
+| Table                                  | Decision       | Cleanup action now                                                |
+| -------------------------------------- | -------------- | ----------------------------------------------------------------- |
+| `integrator.rubitime_api_throttle`     | drop_candidate | Drop only in migration-backed R7 after static no-reference proof. |
+| `integrator.rubitime_booking_profiles` | drop_candidate | Drop only after archive/drop owner decision and restore proof.    |
+| `integrator.rubitime_branches`         | drop_candidate | Drop only after archive/drop owner decision and restore proof.    |
+| `integrator.rubitime_services`         | drop_candidate | Drop only after archive/drop owner decision and restore proof.    |
+| `integrator.rubitime_cooperators`      | drop_candidate | Drop only after archive/drop owner decision and restore proof.    |
 
 `integrator.rubitime_create_retry_jobs` is intentionally not in this table: it was never Rubitime raw provider
 history, it was a legacy-named generic message-delivery retry queue (`kind='message.deliver'`; see
@@ -229,12 +229,12 @@ It is not a drop/defer candidate.
 
 Current remaining raw-table refs are not safe repo-only deletes. They define the future migration packet:
 
-| Current ref area | Required later action |
-| --- | --- |
-| Integrator Drizzle schema declarations | Remove/update only in the migration-backed R7 table drop/defer batch. |
-| `integratorDomainRepos` raw table declarations | Remove/update only after the tables are archived/dropped/deferred. |
-| `integratorQueues` physical retry table mapping | DONE 2026-07-24: renamed to `message_retry_jobs` (see the Drop/defer candidates note above). |
-| `jobQueue` SQL against legacy retry storage | DONE 2026-07-24: `jobQueue.ts` now queries `integrator.message_retry_jobs`. |
+| Current ref area                                 | Required later action                                                                                                   |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| Integrator Drizzle schema declarations           | Remove/update only in the migration-backed R7 table drop/defer batch.                                                   |
+| `integratorDomainRepos` raw table declarations   | Remove/update only after the tables are archived/dropped/deferred.                                                      |
+| `integratorQueues` physical retry table mapping  | DONE 2026-07-24: renamed to `message_retry_jobs` (see the Drop/defer candidates note above).                            |
+| `jobQueue` SQL against legacy retry storage      | DONE 2026-07-24: `jobQueue.ts` now queries `integrator.message_retry_jobs`.                                             |
 | `platformUserFullPurge` strict raw-table cleanup | Keep until raw tables are dropped, then remove the cleanup branch in the same or immediately following migration batch. |
 
 ### Step 5. Migration Order For Future Execution

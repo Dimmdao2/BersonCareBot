@@ -1,21 +1,24 @@
-"use client";
+'use client';
 
-import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { patchAdminSetting } from "./patchAdminSetting";
+import { useRouter } from 'next/navigation';
+import { useEffect, useState, useTransition } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { patchAdminSetting } from './patchAdminSetting';
 
 export type WebPushVapidSectionProps = {
   initialPublicKey: string;
   hasStoredPrivateKey: boolean;
 };
 
-export function WebPushVapidSection({ initialPublicKey, hasStoredPrivateKey }: WebPushVapidSectionProps) {
+export function WebPushVapidSection({
+  initialPublicKey,
+  hasStoredPrivateKey,
+}: WebPushVapidSectionProps) {
   const router = useRouter();
   const [publicKey, setPublicKey] = useState(initialPublicKey);
-  const [privateKeyInput, setPrivateKeyInput] = useState("");
+  const [privateKeyInput, setPrivateKeyInput] = useState('');
   const [hasPrivate, setHasPrivate] = useState(hasStoredPrivateKey);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,25 +39,25 @@ export function WebPushVapidSection({ initialPublicKey, hasStoredPrivateKey }: W
       try {
         const trimmedPriv = privateKeyInput.trim();
         if (!hasPrivate && trimmedPriv.length === 0) {
-          setError("Укажите приватный ключ при первой настройке");
+          setError('Укажите приватный ключ при первой настройке');
           return;
         }
-        const ok = await patchAdminSetting("web_push_vapid", {
+        const ok = await patchAdminSetting('web_push_vapid', {
           publicKey,
           privateKey: privateKeyInput,
         });
         if (!ok) {
-          setError("Не удалось сохранить");
+          setError('Не удалось сохранить');
           return;
         }
         if (trimmedPriv.length > 0) {
           setHasPrivate(true);
         }
-        setPrivateKeyInput("");
+        setPrivateKeyInput('');
         setSaved(true);
         router.refresh();
       } catch {
-        setError("Ошибка при сохранении");
+        setError('Ошибка при сохранении');
       }
     });
   }
@@ -64,7 +67,8 @@ export function WebPushVapidSection({ initialPublicKey, hasStoredPrivateKey }: W
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Web Push (VAPID)</CardTitle>
         <p className="text-xs text-muted-foreground">
-          Пара ключей: pnpm --filter @bersoncare/webapp exec web-push generate-vapid-keys (локально).
+          Пара ключей: pnpm --filter @bersoncare/webapp exec web-push generate-vapid-keys
+          (локально).
         </p>
       </CardHeader>
       <CardContent className="flex max-w-xl flex-col gap-4">

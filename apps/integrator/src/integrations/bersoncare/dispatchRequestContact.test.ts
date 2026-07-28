@@ -12,12 +12,14 @@ describe('dispatchRequestContactToUser', () => {
       correlationId: 'request-contact-idempotency',
     });
 
-    expect(dispatchOutgoing).toHaveBeenCalledWith(expect.objectContaining({
-      meta: expect.objectContaining({
-        outboundMessageClass: 'auth_code',
-        outboundCapability: 'contact_handshake',
+    expect(dispatchOutgoing).toHaveBeenCalledWith(
+      expect.objectContaining({
+        meta: expect.objectContaining({
+          outboundMessageClass: 'auth_code',
+          outboundCapability: 'contact_handshake',
+        }),
+        payload: expect.objectContaining({ delivery: { channels: ['max'] } }),
       }),
-      payload: expect.objectContaining({ delivery: { channels: ['max'] } }),
-    }));
+    );
   });
 });

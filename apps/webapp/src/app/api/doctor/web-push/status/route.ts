@@ -1,6 +1,6 @@
-import { NextResponse } from "next/server";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireStaffWebPushSelfApiSession } from "@/app-layer/guards/requireRole";
+import { NextResponse } from 'next/server';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireStaffWebPushSelfApiSession } from '@/app-layer/guards/requireRole';
 
 /**
  * GET /api/doctor/web-push/status
@@ -19,7 +19,7 @@ export async function GET() {
   const hasSubscription = await deps.webPushSubscriptions.hasAnyForUserId(uid);
   const channelPrefs = await deps.channelPreferencesPort.getPreferences(uid);
   const globalWebPushEnabled =
-    channelPrefs.find((p) => p.channelCode === "web_push")?.isEnabledForNotifications !== false;
+    channelPrefs.find((p) => p.channelCode === 'web_push')?.isEnabledForNotifications !== false;
 
   if (!publicKey) {
     return NextResponse.json({

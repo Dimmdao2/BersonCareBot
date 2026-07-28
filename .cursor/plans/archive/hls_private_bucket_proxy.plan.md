@@ -4,16 +4,16 @@ overview: Same-origin HLS delivery через GET /api/media/[id]/hls/... (се�
 status: completed
 todos:
   - id: s3-streaming-range
-    content: "infra/s3/client.ts: GetObject + Range, классификация ошибок (NoSuchKey/403/timeout), streaming для сегментов (не Buffer целиком)"
+    content: 'infra/s3/client.ts: GetObject + Range, классификация ошибок (NoSuchKey/403/timeout), streaming для сегментов (не Buffer целиком)'
     status: completed
   - id: hls-route
     content: GET /api/media/[id]/hls/[[...path]]/route.ts + app-layer hlsDeliveryProxy (сессия, video_playback_api_enabled, readable row, trusted key, HEAD?)
     status: completed
   - id: playlist-rewrite
-    content: "app-layer или shared: rewriteHlsPlaylist + unit-тесты (абсолютные URL, EXT-X-MAP URI=, комментарии/пустые строки)"
+    content: 'app-layer или shared: rewriteHlsPlaylist + unit-тесты (абсолютные URL, EXT-X-MAP URI=, комментарии/пустые строки)'
     status: completed
   - id: playback-json
-    content: "resolveMediaPlaybackPayload: masterUrl → /api/media/{id}/hls/master.m3u8; JSDoc/playbackPayloadTypes/api.md про expiresInSeconds vs poster"
+    content: 'resolveMediaPlaybackPayload: masterUrl → /api/media/{id}/hls/master.m3u8; JSDoc/playbackPayloadTypes/api.md про expiresInSeconds vs poster'
     status: completed
   - id: telemetry-db
     content: Drizzle schema + миграция media_hls_proxy_error_events; recordHlsProxyError; logger без URL/query
@@ -25,7 +25,7 @@ todos:
     content: MEDIA_HTTP_ACCESS_AUTHORIZATION, PATIENT_MEDIA_PLAYBACK_VIDEO, api.md; retention internal job по образцу playback-stats
     status: completed
   - id: verify-smoke
-    content: "Автотесты маршрута/юниты добавлены; ручной smoke DevTools по плану — вне CI"
+    content: 'Автотесты маршрута/юниты добавлены; ручной smoke DevTools по плану — вне CI'
     status: completed
 isProject: true
 ---
@@ -39,10 +39,10 @@ isProject: true
 
 ## 1. Корневая причина (не угадывание)
 
-| Факт | Где в коде |
-|------|------------|
-| `hls.masterUrl` = presigned GET | [`resolveMediaPlaybackPayload.ts`](apps/webapp/src/app-layer/media/resolveMediaPlaybackPayload.ts) |
-| В master — **относительные** URI вариантов (`720p/index.m3u8`) | [`hlsMasterPlaylist.ts`](apps/media-worker/src/hlsMasterPlaylist.ts) (синхрон с webapp через `pnpm run check:hls-helpers-sync`) |
+| Факт                                                                                                                                                       | Где в коде                                                                                                                                    |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `hls.masterUrl` = presigned GET                                                                                                                            | [`resolveMediaPlaybackPayload.ts`](apps/webapp/src/app-layer/media/resolveMediaPlaybackPayload.ts)                                            |
+| В master — **относительные** URI вариантов (`720p/index.m3u8`)                                                                                             | [`hlsMasterPlaylist.ts`](apps/media-worker/src/hlsMasterPlaylist.ts) (синхрон с webapp через `pnpm run check:hls-helpers-sync`)               |
 | Разрешение URI относительно **base URL мастера**; query presigned **не** наследуется дочерними относительными путями → запросы к MinIO без подписи → `403` | Поведение URL в браузере + [`PatientMediaPlaybackVideo.tsx`](apps/webapp/src/shared/ui/media/PatientMediaPlaybackVideo.tsx) (hls.js / native) |
 
 **Вывод:** достаточно отдавать `masterUrl` как same-origin **`/api/media/{id}/hls/master.m3u8`**, чтобы относительные ссылки в плейлистах сами стали запросами к прокси. Rewrite абсолютных URL — страховка для старых/ручных артефактов и будущих тегов с URI.
@@ -96,16 +96,16 @@ sequenceDiagram
 
 **Файл:** например [`apps/webapp/src/app/api/media/[id]/hls/[[...path]]/route.ts`](apps/webapp/src/app/api/media/[id]/hls/[[...path]]/route.ts) (optional catch-all).
 
-| Проверка | Поведение |
-|----------|-----------|
-| Нет сессии | **401** `unauthorized`, reason `session_unauthorized` в логах/метриках при записи ошибки (не дублировать лишние записи — см. §7) |
-| `video_playback_api_enabled=false` | **503** `feature_disabled`, как [`/playback`](apps/webapp/src/app/api/media/[id]/playback/route.ts) |
-| Невалидный UUID `id` | **404** |
-| Нет `path` или пустой массив (запрос ровно `.../hls` без хвоста) | **404** (явное правило; не редиректить молча, чтобы не плодить варианты кэша) |
-| Медиа не найдено / не читаемо по SQL | **404** `not found` — без утечки «есть файл, но нет прав» |
-| Собранный S3 key не проходит [`isTrustedHlsArtifactS3Key`](apps/webapp/src/shared/lib/hlsStorageLayout.ts) | **400** или **404** (зафиксировать один код в коде и доке; предпочтительно **404** для единообразия с «не найдено») |
-| Объект отсутствует в S3 | **404**, reason `missing_object` |
-| S3 403 с серверными кредами | **502** или **404** по продуктовой политике; reason `upstream_403`; залогировать |
+| Проверка                                                                                                   | Поведение                                                                                                                        |
+| ---------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Нет сессии                                                                                                 | **401** `unauthorized`, reason `session_unauthorized` в логах/метриках при записи ошибки (не дублировать лишние записи — см. §7) |
+| `video_playback_api_enabled=false`                                                                         | **503** `feature_disabled`, как [`/playback`](apps/webapp/src/app/api/media/[id]/playback/route.ts)                              |
+| Невалидный UUID `id`                                                                                       | **404**                                                                                                                          |
+| Нет `path` или пустой массив (запрос ровно `.../hls` без хвоста)                                           | **404** (явное правило; не редиректить молча, чтобы не плодить варианты кэша)                                                    |
+| Медиа не найдено / не читаемо по SQL                                                                       | **404** `not found` — без утечки «есть файл, но нет прав»                                                                        |
+| Собранный S3 key не проходит [`isTrustedHlsArtifactS3Key`](apps/webapp/src/shared/lib/hlsStorageLayout.ts) | **400** или **404** (зафиксировать один код в коде и доке; предпочтительно **404** для единообразия с «не найдено»)              |
+| Объект отсутствует в S3                                                                                    | **404**, reason `missing_object`                                                                                                 |
+| S3 403 с серверными кредами                                                                                | **502** или **404** по продуктовой политике; reason `upstream_403`; залогировать                                                 |
 
 **Методы:** реализовать **GET**; при необходимости **HEAD** для плейлистов (некоторые стеки делают probe) — ответ без тела, те же проверки, `Content-Length` из HeadObject если дёшево, иначе пропустить HEAD в MVP и добавить по метрикам 405.
 
@@ -157,11 +157,11 @@ Happy path текущего пайплайна — только относите
 
 **Политика**
 
-| Событие | БД | Лог |
-|---------|-----|-----|
+| Событие                                            | БД                                 | Лог                                                                |
+| -------------------------------------------------- | ---------------------------------- | ------------------------------------------------------------------ |
 | Ошибка ответа прокси (4xx/5xx после всех проверок) | Да: `media_hls_proxy_error_events` | `warn`/`error` с `mediaId`, `reason_code`, `artifactKind`, без URL |
-| Успешный сегмент | Нет | Не логировать per-request в prod (шум) |
-| Успешный master/variant (опционально) | Нет в MVP | Только `debug` при флаге или выключено |
+| Успешный сегмент                                   | Нет                                | Не логировать per-request в prod (шум)                             |
+| Успешный master/variant (опционально)              | Нет в MVP                          | Только `debug` при флаге или выключено                             |
 
 **Таблица `media_hls_proxy_error_events` (предложение колонок)**
 
@@ -194,12 +194,12 @@ Happy path текущего пайплайна — только относите
 
 ## 13. Тест-план (измеримый)
 
-| Слой | Обязательные кейсы |
-|------|---------------------|
-| Unit | `path → key` + `isTrustedHlsArtifactS3Key`; rewrite m3u8; mapAwsError → reason |
-| Integration (webapp) | 401 без сессии; 503 feature off; 404 нет медиа; 200 master body; variant; segment; 416 bad Range; traversal `../` отклонён |
-| Regression | [`playback/route.test.ts`](apps/webapp/src/app/api/media/[id]/playback/route.test.ts): `masterUrl` совпадает с `/api/media/{id}/hls/master.m3u8` при HLS delivery |
-| Ручной smoke | DevTools: нет запросов к host MinIO для `.m3u8`/`.ts` в цепочке; воспроизведение >30 с |
+| Слой                 | Обязательные кейсы                                                                                                                                                |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Unit                 | `path → key` + `isTrustedHlsArtifactS3Key`; rewrite m3u8; mapAwsError → reason                                                                                    |
+| Integration (webapp) | 401 без сессии; 503 feature off; 404 нет медиа; 200 master body; variant; segment; 416 bad Range; traversal `../` отклонён                                        |
+| Regression           | [`playback/route.test.ts`](apps/webapp/src/app/api/media/[id]/playback/route.test.ts): `masterUrl` совпадает с `/api/media/{id}/hls/master.m3u8` при HLS delivery |
+| Ручной smoke         | DevTools: нет запросов к host MinIO для `.m3u8`/`.ts` в цепочке; воспроизведение >30 с                                                                            |
 
 В репозитории **нет** webapp Playwright в корневом `package.json` (e2e сейчас у integrator); полноценный browser E2E вынести в follow-up или короткий скрипт smoke вне CI — не блокер MVP при сильных integration тестах.
 
@@ -211,12 +211,12 @@ Happy path текущего пайплайна — только относите
 
 ## 15. Риски и смягчение
 
-| Риск | Митигация |
-|------|-----------|
-| Трафик сегментов через Node | Мониторинг CPU/ingress; в плане роста — CDN с коротким token (вне scope) |
-| Большие сегменты в памяти | Только streaming + Range |
+| Риск                                   | Митигация                                                                                                                                       |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Трафик сегментов через Node            | Мониторинг CPU/ingress; в плане роста — CDN с коротким token (вне scope)                                                                        |
+| Большие сегменты в памяти              | Только streaming + Range                                                                                                                        |
 | Перегруз БД ошибками при массовом сбое | Индексы + retention; при шторме — rate-limit записи (опционально debounce по `(mediaId, reason)` в памяти процесса — только если увидите шторм) |
-| Регрессия Safari | Явные тесты Range + ручной smoke iOS/WebKit |
+| Регрессия Safari                       | Явные тесты Range + ручной smoke iOS/WebKit                                                                                                     |
 
 ## 16. Порядок выполнения (фазы)
 

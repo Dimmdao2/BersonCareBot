@@ -9,17 +9,19 @@
  * Если relay недоступен — результат `errors++` (не скрывает сбои).
  */
 
-import { randomUUID } from "node:crypto";
-import { logger } from "@/infra/logging/logger";
-import { relayOutbound, type RelayOutboundDeps } from "@/modules/messaging/relayOutbound";
-import { escapeHtml } from "@/shared/lib/escapeHtml";
-import type { ClientListItem } from "@/modules/doctor-clients/ports";
-import type { BroadcastCategory } from "./ports";
+import { randomUUID } from 'node:crypto';
+import { logger } from '@/infra/logging/logger';
+import { relayOutbound, type RelayOutboundDeps } from '@/modules/messaging/relayOutbound';
+import { escapeHtml } from '@/shared/lib/escapeHtml';
+import type { ClientListItem } from '@/modules/doctor-clients/ports';
+import type { BroadcastCategory } from './ports';
 
 /** RASSL-06: HTML-тело письма с inline-картинкой сверху + заголовок + текст (всё HTML-escaped). */
 export function buildBroadcastEmailHtml(title: string, body: string, mediaUrl: string): string {
   const img = `<img src="${escapeHtml(mediaUrl)}" alt="" style="max-width:100%;height:auto;border-radius:8px;display:block;margin-bottom:12px" />`;
-  const head = title.trim() ? `<div style="font-weight:600;font-size:16px;margin-bottom:6px">${escapeHtml(title.trim())}</div>` : "";
+  const head = title.trim()
+    ? `<div style="font-weight:600;font-size:16px;margin-bottom:6px">${escapeHtml(title.trim())}</div>`
+    : '';
   const text = `<div style="white-space:pre-wrap">${escapeHtml(body)}</div>`;
   return `${img}${head}${text}`;
 }
@@ -74,10 +76,10 @@ export async function fanOutBroadcastEmail(
     logger.warn(
       {
         err,
-        event: "doctor_broadcast.email.resolve_failed",
+        event: 'doctor_broadcast.email.resolve_failed',
         auditId: input.auditId,
       },
-      "doctor broadcast email resolve failed",
+      'doctor broadcast email resolve failed',
     );
     return { attempted: 0, delivered: 0, errors: 0, skipped: userIds.length };
   }
@@ -100,12 +102,18 @@ export async function fanOutBroadcastEmail(
       const result = await relayOutbound(
         {
           messageId,
-          channel: "email",
+          channel: 'email',
           recipient: emailAddress,
           text: `${input.broadcastTitle}\n\n${input.broadcastBody}`,
           metadata: { subject: input.broadcastTitle },
           ...(input.mediaUrl
-            ? { html: buildBroadcastEmailHtml(input.broadcastTitle, input.broadcastBody, input.mediaUrl) }
+            ? {
+                html: buildBroadcastEmailHtml(
+                  input.broadcastTitle,
+                  input.broadcastBody,
+                  input.mediaUrl,
+                ),
+              }
             : {}),
         },
         deps,
@@ -117,12 +125,12 @@ export async function fanOutBroadcastEmail(
         errors += 1;
         logger.warn(
           {
-            event: "doctor_broadcast.email.send_failed",
+            event: 'doctor_broadcast.email.send_failed',
             auditId: input.auditId,
             platformUserId: client.userId,
             error: result.reason,
           },
-          "doctor broadcast email send failed",
+          'doctor broadcast email send failed',
         );
       }
     } catch (err) {
@@ -130,25 +138,25 @@ export async function fanOutBroadcastEmail(
       logger.warn(
         {
           err,
-          event: "doctor_broadcast.email.client_failed",
+          event: 'doctor_broadcast.email.client_failed',
           auditId: input.auditId,
           platformUserId: client.userId,
         },
-        "doctor broadcast email client failed",
+        'doctor broadcast email client failed',
       );
     }
   }
 
   logger.info(
     {
-      event: "doctor_broadcast.email.result",
+      event: 'doctor_broadcast.email.result',
       auditId: input.auditId,
       attempted,
       delivered,
       errors,
       skipped,
     },
-    "doctor broadcast email result",
+    'doctor broadcast email result',
   );
 
   return { attempted, delivered, errors, skipped };

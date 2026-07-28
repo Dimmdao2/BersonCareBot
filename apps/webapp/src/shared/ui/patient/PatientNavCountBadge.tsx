@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn } from '@/lib/utils';
 
 /** Красный кружок с цифрой (как у напоминаний) для patient nav. */
 export function PatientNavCountBadge(props: { count: number; className?: string }) {
@@ -7,12 +7,12 @@ export function PatientNavCountBadge(props: { count: number; className?: string 
   return (
     <span
       className={cn(
-        "absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold tabular-nums text-white",
+        'absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold tabular-nums text-white',
         className,
       )}
       aria-hidden
     >
-      {count > 99 ? "99+" : count}
+      {count > 99 ? '99+' : count}
     </span>
   );
 }

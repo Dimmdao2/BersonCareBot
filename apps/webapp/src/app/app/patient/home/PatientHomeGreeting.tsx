@@ -1,23 +1,19 @@
-import Link from "next/link";
-import { routePaths } from "@/app-layer/routes/paths";
-import { cn } from "@/lib/utils";
-import { patientInlineLinkClass } from "@/shared/ui/patient/patientVisual";
+import Link from 'next/link';
+import { routePaths } from '@/app-layer/routes/paths';
+import { cn } from '@/lib/utils';
+import { patientInlineLinkClass } from '@/shared/ui/patient/patientVisual';
 
 /** Тот же вид, что у приветствия на главной (не стиль заголовка шапки). */
 export const PATIENT_HOME_GREETING_TITLE_CLASS =
-  "m-0 text-sm font-normal leading-snug tracking-tight text-[var(--patient-text-secondary)] md:text-base md:leading-snug";
+  'm-0 text-sm font-normal leading-snug tracking-tight text-[var(--patient-text-secondary)] md:text-base md:leading-snug';
 
-export type PatientGreetingPrefix =
-  | "Доброе утро"
-  | "Добрый день"
-  | "Добрый вечер"
-  | "Доброй ночи";
+export type PatientGreetingPrefix = 'Доброе утро' | 'Добрый день' | 'Добрый вечер' | 'Доброй ночи';
 
 export function greetingPrefixFromHour(hour: number): PatientGreetingPrefix {
-  if (hour >= 5 && hour <= 11) return "Доброе утро";
-  if (hour >= 12 && hour <= 17) return "Добрый день";
-  if (hour >= 18 && hour <= 22) return "Добрый вечер";
-  return "Доброй ночи";
+  if (hour >= 5 && hour <= 11) return 'Доброе утро';
+  if (hour >= 12 && hour <= 17) return 'Добрый день';
+  if (hour >= 18 && hour <= 22) return 'Добрый вечер';
+  return 'Доброй ночи';
 }
 
 export function buildPatientGreetingTitle(
@@ -28,7 +24,7 @@ export function buildPatientGreetingTitle(
   if (timeOfDayPrefix) {
     return displayName ? `${timeOfDayPrefix}, ${displayName}!` : `${timeOfDayPrefix}!`;
   }
-  return displayName ? `Здравствуйте, ${displayName}` : "Здравствуйте";
+  return displayName ? `Здравствуйте, ${displayName}` : 'Здравствуйте';
 }
 
 /** Приветствие в mobile-шапке главной (те же стили, что в контенте). */
@@ -40,7 +36,7 @@ export function PatientHomeGreetingMobileHeader({
   timeOfDayPrefix?: PatientGreetingPrefix;
 }) {
   return (
-    <h1 className={cn(PATIENT_HOME_GREETING_TITLE_CLASS, "min-w-0 flex-1 truncate text-left")}>
+    <h1 className={cn(PATIENT_HOME_GREETING_TITLE_CLASS, 'min-w-0 flex-1 truncate text-left')}>
       {buildPatientGreetingTitle(personalizedName, timeOfDayPrefix)}
     </h1>
   );
@@ -55,7 +51,11 @@ type Props = {
   unreadChatCount?: number;
 };
 
-export function PatientHomeGreeting({ personalizedName, timeOfDayPrefix, unreadChatCount = 0 }: Props) {
+export function PatientHomeGreeting({
+  personalizedName,
+  timeOfDayPrefix,
+  unreadChatCount = 0,
+}: Props) {
   const title = buildPatientGreetingTitle(personalizedName, timeOfDayPrefix);
   const showUnreadHint = unreadChatCount > 0;
 
@@ -63,14 +63,16 @@ export function PatientHomeGreeting({ personalizedName, timeOfDayPrefix, unreadC
     <header
       id="patient-home-greeting"
       className={cn(
-        "pt-0 patient-desktop:pl-2 patient-desktop:pr-0",
-        !showUnreadHint && "hidden patient-desktop:block",
+        'pt-0 patient-desktop:pl-2 patient-desktop:pr-0',
+        !showUnreadHint && 'hidden patient-desktop:block',
       )}
     >
-      <h1 className={cn(PATIENT_HOME_GREETING_TITLE_CLASS, "hidden patient-desktop:block")}>{title}</h1>
+      <h1 className={cn(PATIENT_HOME_GREETING_TITLE_CLASS, 'hidden patient-desktop:block')}>
+        {title}
+      </h1>
       {showUnreadHint ? (
         <p className="m-0 mt-1 text-sm leading-snug text-[var(--patient-text-secondary)]">
-          У вас есть новое сообщение{" "}
+          У вас есть новое сообщение{' '}
           <Link href={routePaths.patientMessages} className={patientInlineLinkClass}>
             в чате
           </Link>

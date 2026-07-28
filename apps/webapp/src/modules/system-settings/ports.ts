@@ -1,5 +1,9 @@
-import type { SystemSetting, SystemSettingKey, SystemSettingScope } from "./types";
-import type { RuntimeConfigAudience, RuntimeConfigOperationFamily, RuntimeSettingRow } from "./runtimeConfig";
+import type { SystemSetting, SystemSettingKey, SystemSettingScope } from './types';
+import type {
+  RuntimeConfigAudience,
+  RuntimeConfigOperationFamily,
+  RuntimeSettingRow,
+} from './runtimeConfig';
 
 export type SystemSettingsUpsertRow = {
   key: SystemSettingKey;
@@ -24,9 +28,12 @@ export type SystemSettingsPort = {
   getByKey(
     key: SystemSettingKey,
     scope: SystemSettingScope,
-    options?: SystemSettingsReadOptions
+    options?: SystemSettingsReadOptions,
   ): Promise<SystemSetting | null>;
-  getByScope(scope: SystemSettingScope, options?: SystemSettingsReadOptions): Promise<SystemSetting[]>;
+  getByScope(
+    scope: SystemSettingScope,
+    options?: SystemSettingsReadOptions,
+  ): Promise<SystemSetting[]>;
   /**
    * Narrow, patient-safe accessor: ONLY the public half of the `web_push_vapid` envelope (never
    * `privateKey`). On Postgres this reads through a SECURITY DEFINER accessor
@@ -42,7 +49,7 @@ export type SystemSettingsPort = {
     scope: SystemSettingScope,
     valueJson: unknown,
     updatedBy: string | null,
-    options?: SystemSettingsWriteOptions
+    options?: SystemSettingsWriteOptions,
   ): Promise<SystemSetting>;
   /** Exact-row optimistic write. `null` means the row changed since it was read. */
   compareAndSwap?(
@@ -55,7 +62,12 @@ export type SystemSettingsPort = {
   ): Promise<SystemSetting | null>;
   /** All rows committed atomically (single transaction on Postgres). */
   upsertManyInTransaction(rows: SystemSettingsUpsertRow[]): Promise<SystemSetting[]>;
-  delete?(key: SystemSettingKey, scope: SystemSettingScope, updatedBy: string | null, options?: SystemSettingsDeleteOptions): Promise<boolean>;
+  delete?(
+    key: SystemSettingKey,
+    scope: SystemSettingScope,
+    updatedBy: string | null,
+    options?: SystemSettingsDeleteOptions,
+  ): Promise<boolean>;
 };
 
 /** Restricted `public.system_settings` repository. Kept under its historical name for callers. */
@@ -106,9 +118,15 @@ export type SettingsWriteUnitOfWork = {
     authoritativeRuntimeRows: RuntimeWrite[];
     expectedUpdatedAt: string | null;
   }): Promise<SystemSetting | null>;
-  delete?(input: { key: SystemSettingKey; scope: SystemSettingScope; organizationId: string | null; updatedBy: string | null; deleteRuntime: boolean }): Promise<boolean>;
+  delete?(input: {
+    key: SystemSettingKey;
+    scope: SystemSettingScope;
+    organizationId: string | null;
+    updatedBy: string | null;
+    deleteRuntime: boolean;
+  }): Promise<boolean>;
 };
 
 export type RuntimeReadTelemetry = {
-  record(input: { key: string; source: "runtime" | "legacy_fallback" | "mismatch" }): void;
+  record(input: { key: string; source: 'runtime' | 'legacy_fallback' | 'mismatch' }): void;
 };

@@ -1,6 +1,6 @@
-import type { PoolClient } from "pg";
-import { sql } from "drizzle-orm";
-import { getWebappSqlFromPgClient, runWebappSql } from "@/infra/db/runWebappSql";
+import type { PoolClient } from 'pg';
+import { sql } from 'drizzle-orm';
+import { getWebappSqlFromPgClient, runWebappSql } from '@/infra/db/runWebappSql';
 
 export type ResolvedMediaForIntake = {
   mediaId: string;
@@ -35,17 +35,25 @@ export async function resolveMediaFileForLfkAttachment(
   );
   const row = rows[0];
   if (!row) {
-    throw Object.assign(new Error("attachment_file_not_found"), { code: "ATTACHMENT_FILE_INVALID" as const });
+    throw Object.assign(new Error('attachment_file_not_found'), {
+      code: 'ATTACHMENT_FILE_INVALID' as const,
+    });
   }
   if (row.uploaded_by !== userId) {
-    throw Object.assign(new Error("attachment_file_forbidden"), { code: "ATTACHMENT_FILE_FORBIDDEN" as const });
+    throw Object.assign(new Error('attachment_file_forbidden'), {
+      code: 'ATTACHMENT_FILE_FORBIDDEN' as const,
+    });
   }
   const st = row.status;
-  if (st === "pending" || st === "deleting" || st === "pending_delete") {
-    throw Object.assign(new Error("attachment_file_not_ready"), { code: "ATTACHMENT_FILE_INVALID" as const });
+  if (st === 'pending' || st === 'deleting' || st === 'pending_delete') {
+    throw Object.assign(new Error('attachment_file_not_ready'), {
+      code: 'ATTACHMENT_FILE_INVALID' as const,
+    });
   }
   if (!row.s3_key) {
-    throw Object.assign(new Error("attachment_file_no_s3"), { code: "ATTACHMENT_FILE_INVALID" as const });
+    throw Object.assign(new Error('attachment_file_no_s3'), {
+      code: 'ATTACHMENT_FILE_INVALID' as const,
+    });
   }
   return {
     mediaId: row.id,

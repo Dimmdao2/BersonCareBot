@@ -1,4 +1,4 @@
-import type { ContentSectionKind, SystemParentCode } from "./types";
+import type { ContentSectionKind, SystemParentCode } from './types';
 
 export type ContentSectionRow = {
   id: string;
@@ -33,7 +33,10 @@ export type ContentSectionsListFilter = {
 };
 
 /** Create/update payload: `kind` / `systemParentCode` default to article + null when omitted. */
-export type ContentSectionUpsertInput = Omit<ContentSectionRow, "id" | "kind" | "systemParentCode"> & {
+export type ContentSectionUpsertInput = Omit<
+  ContentSectionRow,
+  'id' | 'kind' | 'systemParentCode'
+> & {
   id?: string;
   kind?: ContentSectionKind;
   systemParentCode?: SystemParentCode | null;
@@ -55,15 +58,15 @@ export type ContentSectionsPort = {
     patch: Partial<
       Pick<
         ContentSectionRow,
-        | "title"
-        | "description"
-        | "sortOrder"
-        | "isVisible"
-        | "requiresAuth"
-        | "coverImageUrl"
-        | "iconImageUrl"
-        | "kind"
-        | "systemParentCode"
+        | 'title'
+        | 'description'
+        | 'sortOrder'
+        | 'isVisible'
+        | 'requiresAuth'
+        | 'coverImageUrl'
+        | 'iconImageUrl'
+        | 'kind'
+        | 'systemParentCode'
       >
     >,
   ) => Promise<void>;

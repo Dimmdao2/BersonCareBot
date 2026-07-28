@@ -1,10 +1,10 @@
 /**
  * GET /api/patient/messages/unread-count — число непрочитанных входящих от админа.
  */
-import { NextResponse } from "next/server";
-import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
-import { routePaths } from "@/app-layer/routes/paths";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { NextResponse } from 'next/server';
+import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
+import { routePaths } from '@/app-layer/routes/paths';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 
 export async function GET() {
   const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.patient });

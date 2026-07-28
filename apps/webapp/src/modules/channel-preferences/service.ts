@@ -1,12 +1,12 @@
-import { CHANNEL_LIST } from "./constants";
-import type { ChannelPreferencesPort } from "./ports";
-import type { ChannelCard, ChannelCode } from "./types";
-import type { OtpUiChannel } from "@/modules/auth/otpChannelUi";
-import type { ChannelBindings } from "@/shared/types/session";
+import { CHANNEL_LIST } from './constants';
+import type { ChannelPreferencesPort } from './ports';
+import type { ChannelCard, ChannelCode } from './types';
+import type { OtpUiChannel } from '@/modules/auth/otpChannelUi';
+import type { ChannelBindings } from '@/shared/types/session';
 
 function channelCodeToOtpUi(code: ChannelCode | null): OtpUiChannel | null {
-  if (!code || code === "vk" || code === "web_push") return null;
-  if (code === "telegram" || code === "max" || code === "email" || code === "sms") return code;
+  if (!code || code === 'vk' || code === 'web_push') return null;
+  if (code === 'telegram' || code === 'max' || code === 'email' || code === 'sms') return code;
   return null;
 }
 
@@ -24,17 +24,17 @@ function isLinked(
   webPushSubscribed = false,
 ): boolean {
   switch (code) {
-    case "telegram":
+    case 'telegram':
       return Boolean(bindings.telegramId);
-    case "max":
+    case 'max':
       return Boolean(bindings.maxId);
-    case "vk":
+    case 'vk':
       return Boolean(bindings.vkId);
-    case "sms":
+    case 'sms':
       return Boolean(ctx?.phone?.trim());
-    case "email":
+    case 'email':
       return Boolean(ctx?.emailVerified);
-    case "web_push":
+    case 'web_push':
       return webPushSubscribed;
     default:
       return false;
@@ -53,12 +53,12 @@ export function createChannelPreferencesService(
     async getChannelCards(
       userId: string,
       bindings: ChannelBindings,
-      delivery?: ChannelDeliveryContext
+      delivery?: ChannelDeliveryContext,
     ): Promise<ChannelCard[]> {
       const webPushSubscribed =
-        serviceOptions?.webPushHasSubscription != null ?
-          await serviceOptions.webPushHasSubscription(userId)
-        : false;
+        serviceOptions?.webPushHasSubscription != null
+          ? await serviceOptions.webPushHasSubscription(userId)
+          : false;
       const prefs = await port.getPreferences(userId);
       const byCode = new Map(prefs.map((p) => [p.channelCode, p]));
       return CHANNEL_LIST.map((ch) => ({
@@ -75,7 +75,7 @@ export function createChannelPreferencesService(
     async updatePreference(
       userId: string,
       channelCode: ChannelCode,
-      patch: { isEnabledForMessages: boolean; isEnabledForNotifications: boolean }
+      patch: { isEnabledForMessages: boolean; isEnabledForNotifications: boolean },
     ): Promise<void> {
       await port.upsertPreference({
         userId,

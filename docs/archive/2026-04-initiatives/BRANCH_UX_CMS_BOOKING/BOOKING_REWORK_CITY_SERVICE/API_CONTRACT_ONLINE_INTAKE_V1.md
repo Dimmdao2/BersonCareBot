@@ -7,6 +7,7 @@
 Все эндпоинты требуют сессию (Next.js session cookie). Роль определяется из сессии.
 
 Roles:
+
 - `patient` — создание заявки, просмотр собственных.
 - `doctor` / `admin` — чтение всех заявок, изменение статуса.
 
@@ -17,6 +18,7 @@ Roles:
 Создать LFK intake request.
 
 **Request Body:**
+
 ```typescript
 {
   description: string;          // required, min 20, max 5000 chars
@@ -34,16 +36,18 @@ Roles:
 - **Errors:** invalid/missing file id or bad status → `400` (`ATTACHMENT_FILE_INVALID`); file belongs to another user → `403` (`ATTACHMENT_FILE_FORBIDDEN`).
 
 **Response 201:**
+
 ```typescript
 {
-  id: string;          // UUID
-  type: "lfk";
-  status: "new";
-  createdAt: string;   // ISO 8601
+  id: string; // UUID
+  type: 'lfk';
+  status: 'new';
+  createdAt: string; // ISO 8601
 }
 ```
 
 **Errors:**
+
 - `400` — validation failed: `{ error: "VALIDATION_ERROR", details: [...] }`
 - `401` — not authenticated
 - `429` — rate limit exceeded: max 3 active LFK requests per user
@@ -55,10 +59,11 @@ Roles:
 Создать Nutrition intake request.
 
 **Request Body:**
+
 ```typescript
 {
   answers: Array<{
-    questionId: "q1" | "q2" | "q3" | "q4" | "q5";
+    questionId: 'q1' | 'q2' | 'q3' | 'q4' | 'q5';
     value: string;
   }>;
 }
@@ -67,6 +72,7 @@ Roles:
 Required question IDs: `q1`, `q2`, `q4`, `q5`. Optional: `q3`.
 
 **Question schema:**
+
 - `q1`: age (number as string, 1–120)
 - `q2`: weight and height (free text, e.g. "75 / 178")
 - `q3`: chronic diseases / restrictions (optional text)
@@ -74,16 +80,18 @@ Required question IDs: `q1`, `q2`, `q4`, `q5`. Optional: `q3`.
 - `q5`: current diet description and request to nutritionist (min 10 chars)
 
 **Response 201:**
+
 ```typescript
 {
   id: string;
-  type: "nutrition";
-  status: "new";
+  type: 'nutrition';
+  status: 'new';
   createdAt: string;
 }
 ```
 
 **Errors:**
+
 - `400` — missing required answers or invalid q4 value
 - `401` — not authenticated
 - `429` — rate limit: max 3 active nutrition requests per user
@@ -97,13 +105,14 @@ List patient's own intake requests.
 **Query params:** `?type=lfk|nutrition&status=new|in_review|contacted|closed&limit=20&offset=0`
 
 **Response 200:**
+
 ```typescript
 {
   items: Array<{
     id: string;
-    type: "lfk" | "nutrition";
-    status: "new" | "in_review" | "contacted" | "closed";
-    summary: string;      // first 200 chars of description / first meaningful answer
+    type: 'lfk' | 'nutrition';
+    status: 'new' | 'in_review' | 'contacted' | 'closed';
+    summary: string; // first 200 chars of description / first meaningful answer
     createdAt: string;
     updatedAt: string;
   }>;
@@ -143,14 +152,15 @@ List all intake requests (doctor/admin only).
 **Query params:** `?type=lfk|nutrition&status=new|in_review|contacted|closed&page=1&limit=20`
 
 **Response 200:**
+
 ```typescript
 {
   items: Array<{
     id: string;
-    type: "lfk" | "nutrition";
+    type: 'lfk' | 'nutrition';
     status: string;
     summary: string;
-    patientName: string;  // required — см. «Patient identity»
+    patientName: string; // required — см. «Patient identity»
     patientPhone: string; // required — см. «Patient identity»
     createdAt: string;
     updatedAt: string;
@@ -168,6 +178,7 @@ List all intake requests (doctor/admin only).
 Get full intake request details.
 
 **Response 200:**
+
 ```typescript
 {
   id: string;
@@ -206,6 +217,7 @@ Get full intake request details.
 ```
 
 **Errors:**
+
 - `404` — request not found
 - `403` — not doctor/admin role
 
@@ -216,6 +228,7 @@ Get full intake request details.
 Change intake request status.
 
 **Request Body:**
+
 ```typescript
 {
   status: "in_review" | "contacted" | "closed";
@@ -224,6 +237,7 @@ Change intake request status.
 ```
 
 **Response 200:**
+
 ```typescript
 {
   id: string;
@@ -233,12 +247,14 @@ Change intake request status.
 ```
 
 **Status transition rules:**
+
 - `new` → `in_review` | `contacted` | `closed`
 - `in_review` → `contacted` | `closed`
 - `contacted` → `closed`
 - `closed` → (terminal, no transitions)
 
 **Errors:**
+
 - `400` — invalid transition: `{ error: "INVALID_STATUS_TRANSITION" }`
 - `403` — not doctor/admin
 
@@ -246,9 +262,9 @@ Change intake request status.
 
 ## Rate Limits
 
-| Endpoint | Limit |
-|---|---|
-| POST /api/patient/online-intake/lfk | 3 active per user |
+| Endpoint                                  | Limit             |
+| ----------------------------------------- | ----------------- |
+| POST /api/patient/online-intake/lfk       | 3 active per user |
 | POST /api/patient/online-intake/nutrition | 3 active per user |
 
 "Active" = status in (`new`, `in_review`, `contacted`).
@@ -256,10 +272,11 @@ Change intake request status.
 ## Error format
 
 All errors:
+
 ```json
 {
   "error": "ERROR_CODE",
   "message": "human-readable description",
-  "details": []   // optional, for validation errors
+  "details": [] // optional, for validation errors
 }
 ```

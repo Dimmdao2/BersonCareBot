@@ -1,15 +1,18 @@
-import { and, asc, desc, eq, isNotNull, isNull, lte } from "drizzle-orm";
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { runDrizzleMutationTransaction } from "@/infra/db/drizzleMutationTx";
-import { specialistTasks } from "../../../db/schema/specialistTasks";
+import { and, asc, desc, eq, isNotNull, isNull, lte } from 'drizzle-orm';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
+import { specialistTasks } from '../../../db/schema/specialistTasks';
 import type {
   CreateSpecialistTaskInput,
   SpecialistTasksPort,
   UpdateSpecialistTaskInput,
-} from "@/modules/specialist-tasks/ports";
-import { pickNextImportantOrOverdue } from "@/modules/specialist-tasks/taskPriority";
-import type { SpecialistTaskPatientSummary, SpecialistTaskRow } from "@/modules/specialist-tasks/types";
+} from '@/modules/specialist-tasks/ports';
+import { pickNextImportantOrOverdue } from '@/modules/specialist-tasks/taskPriority';
+import type {
+  SpecialistTaskPatientSummary,
+  SpecialistTaskRow,
+} from '@/modules/specialist-tasks/types';
 
 function mapRow(row: typeof specialistTasks.$inferSelect): SpecialistTaskRow {
   return {
@@ -36,9 +39,11 @@ function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[])
   const hasFallbackMismatch = fallbackOrganizationIds.some((id) => id !== fallbackOrganizationId);
   if (
     hasFallbackMismatch ||
-    (principalOrganizationId && fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)
+    (principalOrganizationId &&
+      fallbackOrganizationId &&
+      principalOrganizationId !== fallbackOrganizationId)
   ) {
-    throw new Error("organization_principal_mismatch");
+    throw new Error('organization_principal_mismatch');
   }
   return principalOrganizationId ?? fallbackOrganizationId;
 }
@@ -64,7 +69,11 @@ export function createPgSpecialistTasksPort(): SpecialistTasksPort {
         .select()
         .from(specialistTasks)
         .where(and(...conditions))
-        .orderBy(desc(specialistTasks.isImportant), asc(specialistTasks.dueAt), desc(specialistTasks.createdAt));
+        .orderBy(
+          desc(specialistTasks.isImportant),
+          asc(specialistTasks.dueAt),
+          desc(specialistTasks.createdAt),
+        );
       const rows = limit != null && limit > 0 ? await base.limit(limit) : await base;
       return rows.map(mapRow);
     },
@@ -97,7 +106,7 @@ export function createPgSpecialistTasksPort(): SpecialistTasksPort {
           })
           .returning();
         const row = inserted[0];
-        if (!row) throw new Error("specialist_tasks insert failed");
+        if (!row) throw new Error('specialist_tasks insert failed');
         return mapRow(row);
       });
     },

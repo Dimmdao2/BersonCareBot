@@ -29,7 +29,8 @@
  * RSC с чтением персональных данных из БД — **`patientRscPersonalDataGate`** в `app-layer/guards/requireRole.ts`.
  */
 
-import type { PlatformAccessResolution } from "@/modules/platform-access/types";
+import type { PlatformAccessResolution } from '@/modules/platform-access/types';
 
 /** Resolution value when cookie `userId` is not a platform UUID — kept in sync with `resolvePlatformAccessContext`. */
-export const LEGACY_NON_UUID_SESSION_RESOLUTION = "legacy_non_uuid_session" as const satisfies PlatformAccessResolution;
+export const LEGACY_NON_UUID_SESSION_RESOLUTION =
+  'legacy_non_uuid_session' as const satisfies PlatformAccessResolution;

@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 
-import { spawnSync } from "node:child_process";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { spawnSync } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(__dirname, "..", "..", "..", "..");
+const repoRoot = path.resolve(__dirname, '..', '..', '..', '..');
 
-const p2ScriptsDir = "docs/_TODO/SAAS_FOUNDATION/scripts";
+const p2ScriptsDir = 'docs/_TODO/SAAS_FOUNDATION/scripts';
 
 const staticCheckScripts = [
   `${p2ScriptsDir}/check-p2-b-protected-context-sql.mjs`,
@@ -25,44 +25,44 @@ const scratchSmokeScripts = [
 ];
 
 const runnerPath = `${p2ScriptsDir}/run-p2-d-proof-package.mjs`;
-const regressionCheckerPath = "scripts/check-saas-db-regression.mjs";
+const regressionCheckerPath = 'scripts/check-saas-db-regression.mjs';
 
-const defaultMode = "static";
-const modes = new Set(["static", "scratch"]);
+const defaultMode = 'static';
+const modes = new Set(['static', 'scratch']);
 
 function usage() {
   return [
-    "Usage:",
+    'Usage:',
     `  node ${runnerPath} [--mode=static]`,
     `  node ${runnerPath} --mode=scratch`,
     `  node ${runnerPath} --with-scratch-smokes`,
-    "",
-    "Modes:",
-    "  static   DB-free default. Runs node --check, P2-B/C1/C2/C3 static guards, and SaaS DB regression guard.",
-    "  scratch  Runs static mode plus scratch-only P2-B/C1/C2/C3/composed smokes on disposable bcb_saas_*_scratch_* DBs.",
-    "",
-    "DB safety:",
-    "  This runner never uses DATABASE_URL. Scratch mode sanitizes DATABASE_URL and PG* env vars for child commands",
-    "  and refuses obvious prod/test/dev-shaped DB names if they are present in the parent environment.",
-  ].join("\n");
+    '',
+    'Modes:',
+    '  static   DB-free default. Runs node --check, P2-B/C1/C2/C3 static guards, and SaaS DB regression guard.',
+    '  scratch  Runs static mode plus scratch-only P2-B/C1/C2/C3/composed smokes on disposable bcb_saas_*_scratch_* DBs.',
+    '',
+    'DB safety:',
+    '  This runner never uses DATABASE_URL. Scratch mode sanitizes DATABASE_URL and PG* env vars for child commands',
+    '  and refuses obvious prod/test/dev-shaped DB names if they are present in the parent environment.',
+  ].join('\n');
 }
 
 function parseArgs(argv) {
   let mode = defaultMode;
 
   for (const arg of argv) {
-    if (arg === "--help" || arg === "-h") {
+    if (arg === '--help' || arg === '-h') {
       console.log(usage());
       process.exit(0);
     }
 
-    if (arg === "--with-scratch-smokes") {
-      mode = "scratch";
+    if (arg === '--with-scratch-smokes') {
+      mode = 'scratch';
       continue;
     }
 
-    if (arg.startsWith("--mode=")) {
-      mode = arg.slice("--mode=".length);
+    if (arg.startsWith('--mode=')) {
+      mode = arg.slice('--mode='.length);
       continue;
     }
 
@@ -79,7 +79,7 @@ function parseArgs(argv) {
 function databaseNameFromUrl(value) {
   try {
     const parsed = new URL(value);
-    const pathname = parsed.pathname.replace(/^\/+/, "");
+    const pathname = parsed.pathname.replace(/^\/+/, '');
     return pathname ? decodeURIComponent(pathname) : null;
   } catch {
     return null;
@@ -88,19 +88,19 @@ function databaseNameFromUrl(value) {
 
 function unsafeDbNameReason(name) {
   const normalized = name.toLowerCase();
-  if (!normalized) return "empty DB name";
+  if (!normalized) return 'empty DB name';
 
   const forbiddenExact = new Set([
-    "bcb_webapp_prod",
-    "bcb_webapp_test",
-    "bcb_webapp_dev",
-    "bersoncarebot_prod",
-    "bersoncarebot_test",
-    "bersoncarebot_dev",
-    "production",
-    "prod",
-    "test",
-    "dev",
+    'bcb_webapp_prod',
+    'bcb_webapp_test',
+    'bcb_webapp_dev',
+    'bersoncarebot_prod',
+    'bersoncarebot_test',
+    'bersoncarebot_dev',
+    'production',
+    'prod',
+    'test',
+    'dev',
   ]);
 
   if (forbiddenExact.has(normalized)) {
@@ -123,21 +123,23 @@ function assertNoUnsafeParentDbHints() {
 
   if (process.env.DATABASE_URL) {
     candidates.push({
-      source: "DATABASE_URL",
+      source: 'DATABASE_URL',
       name: databaseNameFromUrl(process.env.DATABASE_URL),
     });
   }
 
   if (process.env.PGDATABASE) {
     candidates.push({
-      source: "PGDATABASE",
+      source: 'PGDATABASE',
       name: process.env.PGDATABASE,
     });
   }
 
   for (const candidate of candidates) {
     if (!candidate.name) {
-      throw new Error(`${candidate.source} is set but its database name could not be parsed; refusing DB-touching mode`);
+      throw new Error(
+        `${candidate.source} is set but its database name could not be parsed; refusing DB-touching mode`,
+      );
     }
 
     const reason = unsafeDbNameReason(candidate.name);
@@ -150,15 +152,15 @@ function assertNoUnsafeParentDbHints() {
 function sanitizedChildEnv() {
   const env = { ...process.env };
   for (const key of [
-    "DATABASE_URL",
-    "PGDATABASE",
-    "PGHOST",
-    "PGPASSWORD",
-    "PGPASSFILE",
-    "PGPORT",
-    "PGSERVICE",
-    "PGSERVICEFILE",
-    "PGUSER",
+    'DATABASE_URL',
+    'PGDATABASE',
+    'PGHOST',
+    'PGPASSWORD',
+    'PGPASSFILE',
+    'PGPORT',
+    'PGSERVICE',
+    'PGSERVICEFILE',
+    'PGUSER',
   ]) {
     delete env[key];
   }
@@ -168,12 +170,12 @@ function sanitizedChildEnv() {
 function runStep(step, env) {
   const [command, ...args] = step.command;
   console.log(`\n[P2-D] ${step.label}`);
-  console.log(`$ ${step.command.join(" ")}`);
+  console.log(`$ ${step.command.join(' ')}`);
 
   const result = spawnSync(command, args, {
     cwd: repoRoot,
     env,
-    stdio: "inherit",
+    stdio: 'inherit',
   });
 
   if (result.error) {
@@ -181,7 +183,7 @@ function runStep(step, env) {
   }
 
   if (result.status !== 0) {
-    throw new Error(`${step.label} failed with status ${result.status ?? "unknown"}`);
+    throw new Error(`${step.label} failed with status ${result.status ?? 'unknown'}`);
   }
 }
 
@@ -196,23 +198,23 @@ function buildSteps(mode) {
   const steps = [
     ...syntaxCheckTargets.map((target) => ({
       label: `node --check ${target}`,
-      command: ["node", "--check", target],
+      command: ['node', '--check', target],
     })),
     ...staticCheckScripts.map((target) => ({
       label: `static guard ${target}`,
-      command: ["node", target],
+      command: ['node', target],
     })),
     {
-      label: "SaaS DB regression guard",
-      command: ["node", regressionCheckerPath],
+      label: 'SaaS DB regression guard',
+      command: ['node', regressionCheckerPath],
     },
   ];
 
-  if (mode === "scratch") {
+  if (mode === 'scratch') {
     steps.push(
       ...scratchSmokeScripts.map((target) => ({
         label: `scratch smoke ${target}`,
-        command: ["node", target],
+        command: ['node', target],
       })),
     );
   }
@@ -223,7 +225,7 @@ function buildSteps(mode) {
 function main() {
   const { mode } = parseArgs(process.argv.slice(2));
 
-  if (mode === "scratch") {
+  if (mode === 'scratch') {
     assertNoUnsafeParentDbHints();
   }
 
@@ -232,8 +234,10 @@ function main() {
 
   console.log(`[P2-D] proof package mode: ${mode}`);
   console.log(`[P2-D] steps: ${steps.length}`);
-  if (mode === "static") {
-    console.log("[P2-D] scratch smokes skipped; pass --with-scratch-smokes or --mode=scratch to run them.");
+  if (mode === 'static') {
+    console.log(
+      '[P2-D] scratch smokes skipped; pass --with-scratch-smokes or --mode=scratch to run them.',
+    );
   }
 
   for (const step of steps) {

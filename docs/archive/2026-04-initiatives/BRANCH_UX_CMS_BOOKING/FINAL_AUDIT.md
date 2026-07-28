@@ -10,14 +10,14 @@
 
 ## 1. Сверка с `PLAN.md` и `AGENT_LOG.md`
 
-| Фаза | Задачи в плане | Статус в AGENT_LOG |
-|------|----------------|---------------------|
-| 0 | 0.1–0.8 | Все **done** |
-| 1 | 1.1–1.13 | Все **done**; аудит фазы 1 — **pass** (`AUDIT_PHASE_1.md`) |
-| 2 | 2.1–2.24 (блоки A/B/C) | Реализация сгруппирована в записях 2.1–2.6 + блок **Phase 2 remediation**; критичные пункты `AUDIT_PHASE_2` закрыты remediation-коммитом на базе (`overlap`, `cancelling`, timezone и т.д. по логу) |
-| 3 | 3.1–3.6 | Все **done**; **AUDIT_PHASE_3** — **pass** после rework |
-| 4 | 4.1–4.4 (план) | В логе детализация 4.1–4.6 + **Phase 4 rework**; **AUDIT_PHASE_4** — **approve** после rework |
-| 5 | Личный помощник (отдельно) | Вне scope текущей ветки по плану |
+| Фаза | Задачи в плане             | Статус в AGENT_LOG                                                                                                                                                                                  |
+| ---- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0    | 0.1–0.8                    | Все **done**                                                                                                                                                                                        |
+| 1    | 1.1–1.13                   | Все **done**; аудит фазы 1 — **pass** (`AUDIT_PHASE_1.md`)                                                                                                                                          |
+| 2    | 2.1–2.24 (блоки A/B/C)     | Реализация сгруппирована в записях 2.1–2.6 + блок **Phase 2 remediation**; критичные пункты `AUDIT_PHASE_2` закрыты remediation-коммитом на базе (`overlap`, `cancelling`, timezone и т.д. по логу) |
+| 3    | 3.1–3.6                    | Все **done**; **AUDIT_PHASE_3** — **pass** после rework                                                                                                                                             |
+| 4    | 4.1–4.4 (план)             | В логе детализация 4.1–4.6 + **Phase 4 rework**; **AUDIT_PHASE_4** — **approve** после rework                                                                                                       |
+| 5    | Личный помощник (отдельно) | Вне scope текущей ветки по плану                                                                                                                                                                    |
 
 **Документация лога:** разделы «Аудит Фазы 0» и «Аудит Фазы 2» в `AGENT_LOG.md` заполнены; добавлен блок **Remediation: TODO и аудиты**.
 
@@ -25,11 +25,11 @@
 
 ## 2. Автоматические проверки
 
-| Критерий | Результат |
-|----------|-----------|
-| `pnpm run ci` | **Зелёный** (lint, typecheck, integrator + webapp tests, build, audit --prod) — прогон 2026-03-31 после remediation TODO/audit |
-| `console.log` в `apps/webapp/src` | **Не найдено** |
-| Сборка Next (`next build`) | Успешна, маршруты `/app/patient/*`, `/app/doctor/*`, `/api/booking/*` присутствуют |
+| Критерий                          | Результат                                                                                                                      |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `pnpm run ci`                     | **Зелёный** (lint, typecheck, integrator + webapp tests, build, audit --prod) — прогон 2026-03-31 после remediation TODO/audit |
+| `console.log` в `apps/webapp/src` | **Не найдено**                                                                                                                 |
+| Сборка Next (`next build`)        | Успешна, маршруты `/app/patient/*`, `/app/doctor/*`, `/api/booking/*` присутствуют                                             |
 
 ---
 
@@ -37,14 +37,14 @@
 
 Открытые задачи перенесены в [`TODO_BACKLOG.md`](./TODO_BACKLOG.md) с идентификаторами **`AUDIT-BACKLOG-NNN`** в комментариях кода (вместо «голых» `TODO`). При появлении GitHub-issue добавьте ссылку в таблицу backlog.
 
-| Зона | ID | Статус |
-|------|-----|--------|
-| Рассылки / `resolveAudienceSize` | AUDIT-BACKLOG-010, 011 | open |
-| Уведомления integrator/events | AUDIT-BACKLOG-020 | open |
-| Appointments service (мост API) | AUDIT-BACKLOG-021 | open |
-| Doctor layout (desktop sidebar) | AUDIT-BACKLOG-022 | open |
-| Channel link notifications | AUDIT-BACKLOG-023 | open |
-| pgUserProjection Rubitime email | AUDIT-BACKLOG-024 | open |
+| Зона                             | ID                     | Статус |
+| -------------------------------- | ---------------------- | ------ |
+| Рассылки / `resolveAudienceSize` | AUDIT-BACKLOG-010, 011 | open   |
+| Уведомления integrator/events    | AUDIT-BACKLOG-020      | open   |
+| Appointments service (мост API)  | AUDIT-BACKLOG-021      | open   |
+| Doctor layout (desktop sidebar)  | AUDIT-BACKLOG-022      | open   |
+| Channel link notifications       | AUDIT-BACKLOG-023      | open   |
+| pgUserProjection Rubitime email  | AUDIT-BACKLOG-024      | open   |
 
 **Закрыто:** ссылка поддержки в OTP — `system_settings.support_contact_url` + `getSupportContactUrl()`; комментарий в `OtpCodeForm` снят.
 

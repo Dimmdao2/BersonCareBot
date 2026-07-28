@@ -73,9 +73,7 @@ Required local structure for the stage-fields block:
 
 ```tsx
 <div className="rounded-md border border-border/60 bg-muted/20 p-3">
-  <div className="flex flex-col gap-3">
-    ...
-  </div>
+  <div className="flex flex-col gap-3">...</div>
 </div>
 ```
 

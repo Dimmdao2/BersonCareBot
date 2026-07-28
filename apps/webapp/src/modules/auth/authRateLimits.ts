@@ -1,5 +1,5 @@
-import { createSlidingWindowRateLimit } from "@/modules/auth/createSlidingWindowRateLimit";
-import type { AuthRateLimitDbPort } from "@/modules/auth/authRateLimitPort";
+import { createSlidingWindowRateLimit } from '@/modules/auth/createSlidingWindowRateLimit';
+import type { AuthRateLimitDbPort } from '@/modules/auth/authRateLimitPort';
 
 let authRateLimitDbPort: AuthRateLimitDbPort | undefined;
 
@@ -9,7 +9,9 @@ export function bindAuthRateLimitDbPort(port: AuthRateLimitDbPort): void {
 
 function requireAuthRateLimitDbPort(): AuthRateLimitDbPort {
   if (!authRateLimitDbPort) {
-    throw new Error("AuthRateLimitDbPort is not bound. Call ensureAuthModulePortsBound() from buildAppDeps.");
+    throw new Error(
+      'AuthRateLimitDbPort is not bound. Call ensureAuthModulePortsBound() from buildAppDeps.',
+    );
   }
   return authRateLimitDbPort;
 }
@@ -26,7 +28,7 @@ export function getAuthRateLimitDbPort(): AuthRateLimitDbPort {
 }
 
 export const isCheckPhoneRateLimited = createSlidingWindowRateLimit({
-  scope: "auth.check_phone",
+  scope: 'auth.check_phone',
   windowMs: 60 * 60 * 1000,
   maxPerWindow: 40,
   db: authRateLimitDb,
@@ -34,7 +36,7 @@ export const isCheckPhoneRateLimited = createSlidingWindowRateLimit({
 });
 
 export const isOAuthStartRateLimitedByKey = createSlidingWindowRateLimit({
-  scope: "auth.oauth_start",
+  scope: 'auth.oauth_start',
   windowMs: 60 * 60 * 1000,
   maxPerWindow: 60,
   db: authRateLimitDb,
@@ -42,7 +44,7 @@ export const isOAuthStartRateLimitedByKey = createSlidingWindowRateLimit({
 
 /** Per-IP limit for public email-OTP start (anti abuse/enumeration probing). */
 export const isEmailOtpStartRateLimitedByKey = createSlidingWindowRateLimit({
-  scope: "auth.email_otp_start",
+  scope: 'auth.email_otp_start',
   windowMs: 60 * 1000,
   maxPerWindow: 10,
   db: authRateLimitDb,
@@ -50,7 +52,7 @@ export const isEmailOtpStartRateLimitedByKey = createSlidingWindowRateLimit({
 
 /** Bounded unauthenticated client-compatibility telemetry ingress. */
 export const isClientBootReportRateLimitedByKey = createSlidingWindowRateLimit({
-  scope: "patient.client_boot_report",
+  scope: 'patient.client_boot_report',
   windowMs: 60 * 60 * 1000,
   maxPerWindow: 30,
   scopePrune: {
@@ -62,14 +64,14 @@ export const isClientBootReportRateLimitedByKey = createSlidingWindowRateLimit({
 });
 
 export const isMessengerStartRateLimited = createSlidingWindowRateLimit({
-  scope: "auth.messenger_start",
+  scope: 'auth.messenger_start',
   windowMs: 60 * 60 * 1000,
   maxPerWindow: 12,
   db: authRateLimitDb,
 });
 
 const isChannelLinkStartRateLimitedCore = createSlidingWindowRateLimit({
-  scope: "auth.channel_link_start",
+  scope: 'auth.channel_link_start',
   windowMs: 60 * 60 * 1000,
   maxPerWindow: 30,
   db: authRateLimitDb,
@@ -82,7 +84,7 @@ export async function isChannelLinkStartRateLimited(userId: string): Promise<boo
 }
 
 export const isPhoneMessengerBindStartRateLimited = createSlidingWindowRateLimit({
-  scope: "auth.phone_messenger_bind_start",
+  scope: 'auth.phone_messenger_bind_start',
   windowMs: 60 * 60 * 1000,
   maxPerWindow: 30,
   db: authRateLimitDb,
@@ -90,7 +92,7 @@ export const isPhoneMessengerBindStartRateLimited = createSlidingWindowRateLimit
 
 /** Per-IP limit on the public booking INTENT step (issues an OTP; does not create a booking). */
 export const isPublicBookingCreateRateLimited = createSlidingWindowRateLimit({
-  scope: "booking.public_create",
+  scope: 'booking.public_create',
   windowMs: 60 * 60 * 1000,
   maxPerWindow: 20,
   db: authRateLimitDb,
@@ -103,28 +105,28 @@ export const isPublicBookingCreateRateLimited = createSlidingWindowRateLimit({
  * enforced independently by `phoneOtpLimits`.
  */
 export const isPublicBookingConfirmRateLimited = createSlidingWindowRateLimit({
-  scope: "booking.public_create_confirm",
+  scope: 'booking.public_create_confirm',
   windowMs: 10 * 60 * 1000,
   maxPerWindow: 30,
   db: authRateLimitDb,
 });
 
 export const isPatientInviteExchangeRateLimitedByKey = createSlidingWindowRateLimit({
-  scope: "patient_invite.exchange",
+  scope: 'patient_invite.exchange',
   windowMs: 60 * 1000,
   maxPerWindow: 20,
   db: authRateLimitDb,
 });
 
 export const isPatientInviteEmailStartRateLimitedByKey = createSlidingWindowRateLimit({
-  scope: "patient_invite.email_start",
+  scope: 'patient_invite.email_start',
   windowMs: 60 * 60 * 1000,
   maxPerWindow: 8,
   db: authRateLimitDb,
 });
 
 export const isPatientInviteEmailConfirmRateLimitedByKey = createSlidingWindowRateLimit({
-  scope: "patient_invite.email_confirm",
+  scope: 'patient_invite.email_confirm',
   windowMs: 10 * 60 * 1000,
   maxPerWindow: 20,
   db: authRateLimitDb,
@@ -143,7 +145,7 @@ export const isPatientInviteEmailConfirmRateLimitedByKey = createSlidingWindowRa
  * `patient_invite.email_confirm` (20/10min).
  */
 export const isAuthConfirmRateLimitedByKey = createSlidingWindowRateLimit({
-  scope: "auth.confirm",
+  scope: 'auth.confirm',
   windowMs: 10 * 60 * 1000,
   maxPerWindow: 30,
   db: authRateLimitDb,

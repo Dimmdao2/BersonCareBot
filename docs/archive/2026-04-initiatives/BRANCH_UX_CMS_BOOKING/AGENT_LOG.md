@@ -692,6 +692,7 @@
 **Гипотеза причины:** код вызывал несуществующий endpoint `api2/get-slots` с доменными полями `type/city/category`. Реальный Rubitime API использует `api2/get-schedule` с `branch_id/cooperator_id/service_id`. Нормализатор ждал `Array.isArray(data)`, тогда как `get-schedule` возвращает объект `{"YYYY-MM-DD": {"HH:MM": {"available": bool}}}`. Итог: `toSlotsResponse(raw)` всегда возвращал `[]` → пустой UI без ошибки.
 
 **Целевые файлы:**
+
 - `apps/integrator/src/integrations/rubitime/client.ts`
 - `apps/integrator/src/integrations/rubitime/config.ts`
 - `apps/integrator/src/integrations/rubitime/recordM2mRoute.ts`
@@ -706,6 +707,7 @@
 **DB sync decision (Decision A):** поддерживаем только update существующих `patient_bookings` строк по `rubitime_id`. Записи, созданные вне native-flow (через Rubitime напрямую), обновляются только если у них уже есть `rubitime_id` в таблице. Обоснование: без `platform_user_id` нельзя создать корректную строку; вставка без owner сломает auth invariants. Зафиксировано явно в коде и документации.
 
 **Выполненные этапы (результат):**
+
 - Этап 0 (DB-first config): добавлены ключи интеграций в `system_settings` (`scope=admin`), migration `045_system_settings_integration_keys.sql`, deploy auto-seed `env -> DB` (fill-empty-only), обновлены `.cursor/rules/*` на запрет env-хранения integration keys/URI.
 - Integrator Rubitime runtime config переведён на DB-first accessor (`runtimeConfig.ts`): `rubitime_api_key`, `rubitime_webhook_token`, `rubitime_schedule_mapping` читаются из `system_settings` с env fallback на миграционный период.
 - Этапы 1–3 (slots contract + API + parser): integrator переведён на Rubitime `get-schedule`; добавлены `bookingScheduleMapping.ts` и `scheduleNormalizer.ts`; route `/api/bersoncare/rubitime/slots` возвращает controlled errors (`slots_mapping_not_configured`, `rubitime_schedule_malformed`) вместо silent-empty.
@@ -715,6 +717,7 @@
 - Этапы 6–7 (docs/checklist): обновлён host deploy doc для auto-seed; финальная проверка пройдена.
 
 **Тесты и проверки:**
+
 - `apps/integrator`: `vitest` (rubitime client/route/mapping/normalizer) — green, `41 passed`.
 - `apps/webapp`: `vitest` (bookingM2mApi/auth/notifyIntegrator/relayOutbound/events) — green, `85 passed`.
 - `apps/webapp`: `pnpm typecheck` — green.

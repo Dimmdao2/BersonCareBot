@@ -20,14 +20,14 @@ log_entry: LOG.md (2026-05-02 — режимы…; пункт batch + preview)
 
 ## Контракт batch (ошибки)
 
-| `error` | Условие |
-|---------|---------|
-| `empty_batch` | `items: []` |
-| `invalid_body` | `items` не массив; zod batch; невалидные элементы |
-| `ambiguous_body` | одновременно строковый `key` и непустой `items` |
-| `duplicate_key_in_batch` | повтор `key` в массиве (`atIndex` — второе вхождение) |
-| `invalid_key` | ключ не в `ALLOWED_KEYS` |
-| `invalid_value` | нормализация; ответ с `atIndex` (0-based), опционально `key` |
+| `error`                  | Условие                                                      |
+| ------------------------ | ------------------------------------------------------------ |
+| `empty_batch`            | `items: []`                                                  |
+| `invalid_body`           | `items` не массив; zod batch; невалидные элементы            |
+| `ambiguous_body`         | одновременно строковый `key` и непустой `items`              |
+| `duplicate_key_in_batch` | повтор `key` в массиве (`atIndex` — второе вхождение)        |
+| `invalid_key`            | ключ не в `ALLOWED_KEYS`                                     |
+| `invalid_value`          | нормализация; ответ с `atIndex` (0-based), опционально `key` |
 
 ## Definition of Done (все выполнено)
 

@@ -1,13 +1,18 @@
-"use client";
+'use client';
 
-import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from "react";
-import { Camera, FolderOpen, ImageIcon } from "lucide-react";
-import { Button } from "@/shared/ui/patient/primitives/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/shared/ui/patient/primitives/dialog";
-import { PROGRAM_SUBMISSION_FILE_INPUT_ACCEPT } from "@/modules/media/programSubmissionUploadLimits";
-import { uploadProgramSubmissionToDiscussion } from "@/app/app/patient/treatment/uploadProgramSubmissionToDiscussion";
-import { cn } from "@/lib/utils";
-import { patientPrimaryActionClass } from "@/shared/ui/patient/patientVisual";
+import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from 'react';
+import { Camera, FolderOpen, ImageIcon } from 'lucide-react';
+import { Button } from '@/shared/ui/patient/primitives/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/shared/ui/patient/primitives/dialog';
+import { PROGRAM_SUBMISSION_FILE_INPUT_ACCEPT } from '@/modules/media/programSubmissionUploadLimits';
+import { uploadProgramSubmissionToDiscussion } from '@/app/app/patient/treatment/uploadProgramSubmissionToDiscussion';
+import { cn } from '@/lib/utils';
+import { patientPrimaryActionClass } from '@/shared/ui/patient/patientVisual';
 
 export type ProgramItemSubmissionSourceDialogHandle = {
   open: () => void;
@@ -18,12 +23,12 @@ export type ProgramItemSubmissionSourceDialogHandle = {
  * leaves the viewport scaled. Temporarily setting maximum-scale=1 forces a zoom reset.
  */
 function resetIosMobileZoom() {
-  if (typeof document === "undefined") return;
+  if (typeof document === 'undefined') return;
   const meta = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
   if (!meta) return;
   const original = meta.content;
-  if (original.includes("maximum-scale=1")) return;
-  meta.content = original + ",maximum-scale=1";
+  if (original.includes('maximum-scale=1')) return;
+  meta.content = original + ',maximum-scale=1';
   requestAnimationFrame(() => {
     meta.content = original;
   });
@@ -71,12 +76,12 @@ export const ProgramItemSubmissionSourceDialog = forwardRef<
         }
         await onUploaded?.();
       } catch {
-        onError?.("network_error");
+        onError?.('network_error');
       } finally {
         setBusy(false);
-        if (recordInputRef.current) recordInputRef.current.value = "";
-        if (galleryInputRef.current) galleryInputRef.current.value = "";
-        if (fileInputRef.current) fileInputRef.current.value = "";
+        if (recordInputRef.current) recordInputRef.current.value = '';
+        if (galleryInputRef.current) galleryInputRef.current.value = '';
+        if (fileInputRef.current) fileInputRef.current.value = '';
       }
     },
     [busy, disabled, instanceId, itemId, onError, onUploaded],
@@ -120,7 +125,7 @@ export const ProgramItemSubmissionSourceDialog = forwardRef<
           <div className="flex flex-col gap-2">
             <Button
               type="button"
-              className={cn(patientPrimaryActionClass, "justify-start gap-2")}
+              className={cn(patientPrimaryActionClass, 'justify-start gap-2')}
               disabled={disabled || busy}
               onClick={() => recordInputRef.current?.click()}
             >

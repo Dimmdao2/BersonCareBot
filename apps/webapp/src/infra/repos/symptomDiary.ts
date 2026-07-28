@@ -2,8 +2,8 @@
  * In-memory implementation of SymptomDiaryPort.
  * For tests and dev when DATABASE_URL is not set.
  */
-import type { SymptomDiaryPort } from "@/modules/diaries/ports";
-import type { SymptomEntry, SymptomTracking } from "@/modules/diaries/types";
+import type { SymptomDiaryPort } from '@/modules/diaries/ports';
+import type { SymptomEntry, SymptomTracking } from '@/modules/diaries/types';
 
 const trackings: SymptomTracking[] = [];
 const entries: SymptomEntry[] = [];
@@ -16,14 +16,14 @@ async function ensureWarmupFeelingTrackingMem(params: {
   symptomTypeRefId: string;
 }): Promise<SymptomTracking> {
   const existing = trackings.find(
-    (t) => t.userId === params.userId && t.symptomKey === "warmup_feeling" && !t.deletedAt,
+    (t) => t.userId === params.userId && t.symptomKey === 'warmup_feeling' && !t.deletedAt,
   );
   if (existing) return existing;
   const now = new Date().toISOString();
   const tracking: SymptomTracking = {
     id: `tr-${trackingIdCounter++}`,
     userId: params.userId,
-    symptomKey: "warmup_feeling",
+    symptomKey: 'warmup_feeling',
     symptomTitle: params.symptomTitle,
     isActive: true,
     createdAt: now,
@@ -65,17 +65,14 @@ export const inMemorySymptomDiaryPort: SymptomDiaryPort = {
 
   async ensureGeneralWellbeingTracking(params) {
     const existing = trackings.find(
-      (t) =>
-        t.userId === params.userId &&
-        t.symptomKey === "general_wellbeing" &&
-        !t.deletedAt,
+      (t) => t.userId === params.userId && t.symptomKey === 'general_wellbeing' && !t.deletedAt,
     );
     if (existing) return existing;
     const now = new Date().toISOString();
     const tracking: SymptomTracking = {
       id: `tr-${trackingIdCounter++}`,
       userId: params.userId,
-      symptomKey: "general_wellbeing",
+      symptomKey: 'general_wellbeing',
       symptomTitle: params.symptomTitle,
       isActive: true,
       createdAt: now,
@@ -103,12 +100,7 @@ export const inMemorySymptomDiaryPort: SymptomDiaryPort = {
 
   async listTrackings(userId, activeOnly = true) {
     return trackings
-      .filter(
-        (t) =>
-          t.userId === userId &&
-          !t.deletedAt &&
-          (!activeOnly || t.isActive)
-      )
+      .filter((t) => t.userId === userId && !t.deletedAt && (!activeOnly || t.isActive))
       .sort((a, b) => (b.updatedAt > a.updatedAt ? 1 : -1));
   },
 
@@ -147,14 +139,14 @@ export const inMemorySymptomDiaryPort: SymptomDiaryPort = {
 
   async getTrackingForUser(params) {
     const t = trackings.find(
-      (x) => x.id === params.trackingId && x.userId === params.userId && !x.deletedAt
+      (x) => x.id === params.trackingId && x.userId === params.userId && !x.deletedAt,
     );
     return t ?? null;
   },
 
   async listEntriesForTrackingInRange(params) {
     const t = trackings.find(
-      (x) => x.id === params.trackingId && x.userId === params.userId && !x.deletedAt
+      (x) => x.id === params.trackingId && x.userId === params.userId && !x.deletedAt,
     );
     if (!t) return [];
     const fromMs = new Date(params.fromRecordedAt).getTime();
@@ -193,7 +185,7 @@ export const inMemorySymptomDiaryPort: SymptomDiaryPort = {
 
   async minRecordedAtForTracking(params) {
     const t = trackings.find(
-      (x) => x.id === params.trackingId && x.userId === params.userId && !x.deletedAt
+      (x) => x.id === params.trackingId && x.userId === params.userId && !x.deletedAt,
     );
     if (!t) return null;
     let min: string | null = null;

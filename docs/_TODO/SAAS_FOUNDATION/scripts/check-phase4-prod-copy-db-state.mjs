@@ -1,79 +1,87 @@
 #!/usr/bin/env node
 
-import { createHash } from "node:crypto";
-import { createRequire } from "node:module";
-import { readdirSync, readFileSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { createHash } from 'node:crypto';
+import { createRequire } from 'node:module';
+import { readdirSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(__dirname, "..", "..", "..", "..");
-const requireFromWebapp = createRequire(path.join(repoRoot, "apps/webapp/package.json"));
+const repoRoot = path.resolve(__dirname, '..', '..', '..', '..');
+const requireFromWebapp = createRequire(path.join(repoRoot, 'apps/webapp/package.json'));
 
-const urlEnv = "PHASE4_REHEARSAL_DATABASE_URL";
-const allowedHostsEnv = "PHASE4_REHEARSAL_ALLOWED_HOSTS";
-const migrationsDir = path.join(repoRoot, "apps/webapp/db/drizzle-migrations");
-const compatMigration = "0177_phase4_no_force_rls_compat.sql";
+const urlEnv = 'PHASE4_REHEARSAL_DATABASE_URL';
+const allowedHostsEnv = 'PHASE4_REHEARSAL_ALLOWED_HOSTS';
+const migrationsDir = path.join(repoRoot, 'apps/webapp/db/drizzle-migrations');
+const compatMigration = '0177_phase4_no_force_rls_compat.sql';
 const migrationFilePattern = /^(016\d|017[0-6]|0179|0180)_.*\.sql$/;
-const enableRlsPattern = /ALTER\s+TABLE\s+"([^"]+)"\."([^"]+)"\s+ENABLE\s+ROW\s+LEVEL\s+SECURITY\s*;/gi;
+const enableRlsPattern =
+  /ALTER\s+TABLE\s+"([^"]+)"\."([^"]+)"\s+ENABLE\s+ROW\s+LEVEL\s+SECURITY\s*;/gi;
 const safeDbPattern = /^bcb_saas_[a-z0-9_]+_(scratch|rehearsal)_[a-z0-9_]+$/;
 const unsafeNameTokenPattern = /(^|[_-])(prod|production|test|testing|dev|development)([_-]|$)/;
 const unsafeHostTokenPattern = /(^|[.-])(prod|production)([.-]|$)/;
 const forbiddenConnectionOverrideParams = new Set([
-  "database",
-  "dbname",
-  "host",
-  "hostaddr",
-  "passfile",
-  "service",
-  "sslcert",
-  "sslkey",
+  'database',
+  'dbname',
+  'host',
+  'hostaddr',
+  'passfile',
+  'service',
+  'sslcert',
+  'sslkey',
 ]);
 const explicitlyForbiddenDbNames = new Set([
-  "bcb_webapp_prod", "bcb_webapp_test", "bcb_webapp_dev",
-  "bersoncarebot_prod", "bersoncarebot_test", "bersoncarebot_dev",
-  "prod", "production", "test", "dev",
+  'bcb_webapp_prod',
+  'bcb_webapp_test',
+  'bcb_webapp_dev',
+  'bersoncarebot_prod',
+  'bersoncarebot_test',
+  'bersoncarebot_dev',
+  'prod',
+  'production',
+  'test',
+  'dev',
 ]);
 const protectedHelperSignatures = [
   {
-    signature: "app.install_signed_context(text,integer,bigint,uuid,uuid,bigint,text)",
-    returns: "void",
+    signature: 'app.install_signed_context(text,integer,bigint,uuid,uuid,bigint,text)',
+    returns: 'void',
     security_definer: true,
-    search_path: "search_path=app, app_ext, pg_catalog",
+    search_path: 'search_path=app, app_ext, pg_catalog',
   },
   {
-    signature: "app.current_org_id()",
-    returns: "uuid",
+    signature: 'app.current_org_id()',
+    returns: 'uuid',
     security_definer: true,
-    search_path: "search_path=app, pg_catalog",
+    search_path: 'search_path=app, pg_catalog',
   },
   {
-    signature: "app.current_patient_user_id()",
-    returns: "uuid",
+    signature: 'app.current_patient_user_id()',
+    returns: 'uuid',
     security_definer: true,
-    search_path: "search_path=app, pg_catalog",
+    search_path: 'search_path=app, pg_catalog',
   },
   {
-    signature: "app.current_integrator_user_id()",
-    returns: "bigint",
+    signature: 'app.current_integrator_user_id()',
+    returns: 'bigint',
     security_definer: true,
-    search_path: "search_path=app, pg_catalog",
+    search_path: 'search_path=app, pg_catalog',
   },
   {
-    signature: "app.reset_principal_context()",
-    returns: "void",
+    signature: 'app.reset_principal_context()',
+    returns: 'void',
     security_definer: true,
-    search_path: "search_path=app, pg_catalog",
+    search_path: 'search_path=app, pg_catalog',
   },
   {
-    signature: "app.release_principal_context()",
-    returns: "void",
+    signature: 'app.release_principal_context()',
+    returns: 'void',
     security_definer: true,
-    search_path: "search_path=app, pg_catalog",
+    search_path: 'search_path=app, pg_catalog',
   },
   {
-    signature: "app.is_staff()",
-    returns: "boolean",
+    signature: 'app.is_staff()',
+    returns: 'boolean',
     security_definer: false,
     search_path: null,
   },
@@ -95,7 +103,7 @@ function parseSafeRehearsalUrl(value) {
     fail(`${urlEnv} is not a valid PostgreSQL URL`);
   }
 
-  if (!new Set(["postgres:", "postgresql:"]).has(parsed.protocol)) {
+  if (!new Set(['postgres:', 'postgresql:']).has(parsed.protocol)) {
     fail(`${urlEnv} must use postgres:// or postgresql://`);
   }
 
@@ -107,15 +115,15 @@ function parseSafeRehearsalUrl(value) {
 
   const hostname = parsed.hostname.toLowerCase();
   if (!hostname) fail(`${urlEnv} must include a hostname`);
-  if (hostname === "135.106.162.170" || unsafeHostTokenPattern.test(hostname)) {
+  if (hostname === '135.106.162.170' || unsafeHostTokenPattern.test(hostname)) {
     fail(`${urlEnv} points to a forbidden production-shaped host`);
   }
   const allowedHosts = new Set([
-    "localhost",
-    "127.0.0.1",
-    "::1",
-    ...String(process.env[allowedHostsEnv] ?? "")
-      .split(",")
+    'localhost',
+    '127.0.0.1',
+    '::1',
+    ...String(process.env[allowedHostsEnv] ?? '')
+      .split(',')
       .map((host) => host.trim().toLowerCase())
       .filter(Boolean),
   ]);
@@ -125,7 +133,7 @@ function parseSafeRehearsalUrl(value) {
 
   let dbName;
   try {
-    dbName = decodeURIComponent(parsed.pathname.replace(/^\/+/, "")).toLowerCase();
+    dbName = decodeURIComponent(parsed.pathname.replace(/^\/+/, '')).toLowerCase();
   } catch {
     fail(`${urlEnv} has an invalid database name encoding`);
   }
@@ -142,9 +150,11 @@ function parseSafeRehearsalUrl(value) {
 
 function loadRlsTargets() {
   const targets = new Map();
-  const files = readdirSync(migrationsDir).filter((file) => migrationFilePattern.test(file)).sort();
+  const files = readdirSync(migrationsDir)
+    .filter((file) => migrationFilePattern.test(file))
+    .sort();
   for (const file of files) {
-    const sql = readFileSync(path.join(migrationsDir, file), "utf8");
+    const sql = readFileSync(path.join(migrationsDir, file), 'utf8');
     for (const match of sql.matchAll(enableRlsPattern)) {
       targets.set(`${match[1]}.${match[2]}`, { schema: match[1], table: match[2] });
     }
@@ -153,9 +163,9 @@ function loadRlsTargets() {
 }
 
 function compatMigrationHash() {
-  return createHash("sha256")
+  return createHash('sha256')
     .update(readFileSync(path.join(migrationsDir, compatMigration)))
-    .digest("hex");
+    .digest('hex');
 }
 
 function assertSelfTestFailure(value) {
@@ -164,31 +174,31 @@ function assertSelfTestFailure(value) {
   } catch {
     return;
   }
-  fail("safety self-test expected URL rejection");
+  fail('safety self-test expected URL rejection');
 }
 
 function runSafetySelfTest() {
   const unsafeUrls = [
-    "postgres://user:secret@135.106.162.170/bcb_saas_phase4_rehearsal_x",
-    "postgres://user:secret@bersoncare.ru/bcb_saas_phase4_rehearsal_x",
-    "postgres://user:secret@safe-looking-alias.example/bcb_saas_phase4_rehearsal_x",
-    "postgres://user:secret@prod.example/bcb_saas_phase4_rehearsal_x",
-    "postgres://user:secret@localhost/bcb_webapp_prod",
-    "postgres://user:secret@localhost/bcb_webapp_test",
-    "postgres://user:secret@localhost/bcb_webapp_dev",
-    "postgres://user:secret@localhost/bersoncarebot_production",
-    "postgres://user:secret@localhost/phase4_prod_copy",
-    "postgres://user:secret@localhost/test",
-    "postgres://user:secret@localhost/dev",
-    "postgres://user:secret@localhost/unmarked_copy",
-    "postgres://user:secret@localhost/bcb_saas_phase4_rehearsal_x?host=135.106.162.170",
-    "postgres://user:secret@localhost/bcb_saas_phase4_rehearsal_x?host=/var/run/postgresql",
-    "postgres://user:secret@localhost/bcb_saas_phase4_rehearsal_x?hostaddr=135.106.162.170",
-    "postgres://user:secret@localhost/bcb_saas_phase4_rehearsal_x?dbname=bcb_webapp_prod",
-    "postgres://user:secret@localhost/bcb_saas_phase4_rehearsal_x?service=prod",
+    'postgres://user:secret@135.106.162.170/bcb_saas_phase4_rehearsal_x',
+    'postgres://user:secret@bersoncare.ru/bcb_saas_phase4_rehearsal_x',
+    'postgres://user:secret@safe-looking-alias.example/bcb_saas_phase4_rehearsal_x',
+    'postgres://user:secret@prod.example/bcb_saas_phase4_rehearsal_x',
+    'postgres://user:secret@localhost/bcb_webapp_prod',
+    'postgres://user:secret@localhost/bcb_webapp_test',
+    'postgres://user:secret@localhost/bcb_webapp_dev',
+    'postgres://user:secret@localhost/bersoncarebot_production',
+    'postgres://user:secret@localhost/phase4_prod_copy',
+    'postgres://user:secret@localhost/test',
+    'postgres://user:secret@localhost/dev',
+    'postgres://user:secret@localhost/unmarked_copy',
+    'postgres://user:secret@localhost/bcb_saas_phase4_rehearsal_x?host=135.106.162.170',
+    'postgres://user:secret@localhost/bcb_saas_phase4_rehearsal_x?host=/var/run/postgresql',
+    'postgres://user:secret@localhost/bcb_saas_phase4_rehearsal_x?hostaddr=135.106.162.170',
+    'postgres://user:secret@localhost/bcb_saas_phase4_rehearsal_x?dbname=bcb_webapp_prod',
+    'postgres://user:secret@localhost/bcb_saas_phase4_rehearsal_x?service=prod',
   ];
   for (const value of unsafeUrls) assertSelfTestFailure(value);
-  parseSafeRehearsalUrl("postgres://rehearsal:secret@localhost/bcb_saas_phase4_rehearsal_selftest");
+  parseSafeRehearsalUrl('postgres://rehearsal:secret@localhost/bcb_saas_phase4_rehearsal_selftest');
   console.log(`[phase4-db-state] safety self-test: PASS (${unsafeUrls.length + 1} cases)`);
 }
 
@@ -198,7 +208,7 @@ function valuesClause(rows) {
     params.push(row.schema, row.table);
     return `($${index * 2 + 1}::text, $${index * 2 + 2}::text)`;
   });
-  return { params, sql: tuples.join(", ") };
+  return { params, sql: tuples.join(', ') };
 }
 
 function reportGate(name, count) {
@@ -208,27 +218,36 @@ function reportGate(name, count) {
 async function checkDbState() {
   const safe = parseSafeRehearsalUrl(process.env[urlEnv]);
   const targets = loadRlsTargets();
-  if (targets.length !== 164) fail(`static RLS target count mismatch: expected 164, got ${targets.length}`);
+  if (targets.length !== 164)
+    fail(`static RLS target count mismatch: expected 164, got ${targets.length}`);
 
-  const { Client } = requireFromWebapp("pg");
-  const client = new Client({ connectionString: safe.connectionString, application_name: "phase4-prod-copy-db-state-check" });
+  const { Client } = requireFromWebapp('pg');
+  const client = new Client({
+    connectionString: safe.connectionString,
+    application_name: 'phase4-prod-copy-db-state-check',
+  });
   try {
-    if (client.connectionParameters.host !== safe.hostname || client.connectionParameters.database !== safe.dbName) {
-      fail("pg connection parameters do not match the safety-approved host/database");
+    if (
+      client.connectionParameters.host !== safe.hostname ||
+      client.connectionParameters.database !== safe.dbName
+    ) {
+      fail('pg connection parameters do not match the safety-approved host/database');
     }
 
     await client.connect();
 
-    const databaseResult = await client.query("SELECT current_database() AS name");
-    if (databaseResult.rows[0]?.name !== safe.dbName) fail("current_database() does not match the safety-approved database name");
-    reportGate("safe_database_identity", 1);
+    const databaseResult = await client.query('SELECT current_database() AS name');
+    if (databaseResult.rows[0]?.name !== safe.dbName)
+      fail('current_database() does not match the safety-approved database name');
+    reportGate('safe_database_identity', 1);
 
     const migrationResult = await client.query(
-      "SELECT count(*)::int AS count FROM drizzle.__drizzle_migrations WHERE hash = $1",
+      'SELECT count(*)::int AS count FROM drizzle.__drizzle_migrations WHERE hash = $1',
       [compatMigrationHash()],
     );
-    if (migrationResult.rows[0]?.count !== 1) fail("0177 compatibility migration hash is missing or duplicated");
-    reportGate("compat_migration_0177_hash", 1);
+    if (migrationResult.rows[0]?.count !== 1)
+      fail('0177 compatibility migration hash is missing or duplicated');
+    reportGate('compat_migration_0177_hash', 1);
 
     const values = valuesClause(targets);
     const rlsResult = await client.query(
@@ -242,10 +261,14 @@ async function checkDbState() {
       values.params,
     );
     const rls = rlsResult.rows[0];
-    if (rls.expected_count !== targets.length || rls.found_count !== targets.length || rls.compatible_count !== targets.length) {
-      fail("RLS target catalog state is incomplete or not ENABLE + NO FORCE");
+    if (
+      rls.expected_count !== targets.length ||
+      rls.found_count !== targets.length ||
+      rls.compatible_count !== targets.length
+    ) {
+      fail('RLS target catalog state is incomplete or not ENABLE + NO FORCE');
     }
-    reportGate("rls_enabled_no_force_targets", targets.length);
+    reportGate('rls_enabled_no_force_targets', targets.length);
 
     let rolesResult;
     try {
@@ -256,15 +279,24 @@ async function checkDbState() {
            NOT pg_has_role('app_patient', 'app_staff', 'MEMBER') AS patient_not_staff
          FROM pg_roles
          WHERE rolname = ANY($1::text[])`,
-        [["app_staff", "app_patient"]],
+        [['app_staff', 'app_patient']],
       );
     } catch {
-      fail("role catalog inspection failed; checker user must be able to inspect pg_roles");
+      fail('role catalog inspection failed; checker user must be able to inspect pg_roles');
     }
-    if (rolesResult.rows[0]?.count !== 2 || rolesResult.rows[0]?.attrs_ok !== true || rolesResult.rows[0]?.patient_not_staff !== true) {
-      fail("required runtime roles are missing, have unsafe attributes, or make app_patient a staff member");
+    if (
+      rolesResult.rows[0]?.count !== 2 ||
+      rolesResult.rows[0]?.attrs_ok !== true ||
+      rolesResult.rows[0]?.patient_not_staff !== true
+    ) {
+      fail(
+        'required runtime roles are missing, have unsafe attributes, or make app_patient a staff member',
+      );
     }
-    reportGate("runtime_roles_login_nonsuper_nocreatedb_nocreaterole_noreplication_no_bypassrls", 2);
+    reportGate(
+      'runtime_roles_login_nonsuper_nocreatedb_nocreaterole_noreplication_no_bypassrls',
+      2,
+    );
 
     const helpersResult = await client.query(
       `WITH expected(signature, returns, security_definer, search_path) AS (
@@ -310,12 +342,17 @@ async function checkDbState() {
       [JSON.stringify(protectedHelperSignatures)],
     );
     if (helpersResult.rows[0]?.count !== protectedHelperSignatures.length) {
-      fail("one or more protected principal context helper signatures, owners, search paths, or grants are invalid");
+      fail(
+        'one or more protected principal context helper signatures, owners, search paths, or grants are invalid',
+      );
     }
-    reportGate("protected_principal_context_helper_signatures_and_grants", protectedHelperSignatures.length);
+    reportGate(
+      'protected_principal_context_helper_signatures_and_grants',
+      protectedHelperSignatures.length,
+    );
   } catch (error) {
     if (error?.safeForOutput) throw error;
-    fail("database connection or catalog query failed; details suppressed");
+    fail('database connection or catalog query failed; details suppressed');
   } finally {
     await client.end().catch(() => {});
   }
@@ -323,13 +360,13 @@ async function checkDbState() {
 
 async function main() {
   const args = process.argv.slice(2);
-  if (args.length === 1 && args[0] === "--self-test-safety") {
+  if (args.length === 1 && args[0] === '--self-test-safety') {
     runSafetySelfTest();
     return;
   }
-  if (args.length > 0) fail("Usage: check-phase4-prod-copy-db-state.mjs [--self-test-safety]");
+  if (args.length > 0) fail('Usage: check-phase4-prod-copy-db-state.mjs [--self-test-safety]');
   await checkDbState();
-  console.log("[phase4-db-state] all catalog gates: PASS (5)");
+  console.log('[phase4-db-state] all catalog gates: PASS (5)');
 }
 
 main().catch((error) => {

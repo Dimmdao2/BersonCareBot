@@ -1,18 +1,22 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import toast from "react-hot-toast";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Label } from "@/shared/ui/doctor/primitives/label";
-import { DoctorColorPicker } from "@/shared/ui/doctor/DoctorColorPicker";
-import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
+import { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Label } from '@/shared/ui/doctor/primitives/label';
+import { DoctorColorPicker } from '@/shared/ui/doctor/DoctorColorPicker';
+import {
+  DoctorSection,
+  DoctorSectionHeader,
+  DoctorSectionTitle,
+} from '@/shared/ui/doctor/DoctorSection';
 import {
   BOOKING_LOCATION_PALETTE_SETTING_KEY,
   DEFAULT_BOOKING_LOCATION_PALETTE,
   normalizeLocationHexColor,
   resolveBookingLocationPalette,
   type BookingLocationPalette,
-} from "@/modules/booking-engine/locationPalette";
+} from '@/modules/booking-engine/locationPalette';
 
 export function PlatformLocationPaletteSection() {
   const [palette, setPalette] = useState<BookingLocationPalette>(DEFAULT_BOOKING_LOCATION_PALETTE);
@@ -21,21 +25,23 @@ export function PlatformLocationPaletteSection() {
 
   useEffect(() => {
     let active = true;
-    void fetch("/api/platform/settings", { cache: "no-store" })
+    void fetch('/api/platform/settings', { cache: 'no-store' })
       .then(async (response) => {
         const data = (await response.json().catch(() => ({}))) as {
           ok?: boolean;
           settings?: Array<{ key?: string; valueJson?: unknown }>;
         };
         if (!active || !response.ok || !data.ok || !Array.isArray(data.settings)) {
-          throw new Error("settings_unavailable");
+          throw new Error('settings_unavailable');
         }
-        const setting = data.settings.find((item) => item.key === BOOKING_LOCATION_PALETTE_SETTING_KEY);
+        const setting = data.settings.find(
+          (item) => item.key === BOOKING_LOCATION_PALETTE_SETTING_KEY,
+        );
         setPalette(resolveBookingLocationPalette(setting?.valueJson));
         setLoaded(true);
       })
       .catch(() => {
-        if (active) toast.error("Не удалось загрузить цвета локаций");
+        if (active) toast.error('Не удалось загрузить цвета локаций');
       });
     return () => {
       active = false;
@@ -47,7 +53,9 @@ export function PlatformLocationPaletteSection() {
     if (!color) return;
     setPalette((current) => ({
       ...current,
-      physicalPalette: current.physicalPalette.map((item, itemIndex) => itemIndex === index ? color : item),
+      physicalPalette: current.physicalPalette.map((item, itemIndex) =>
+        itemIndex === index ? color : item,
+      ),
     }));
   }
 
@@ -64,25 +72,29 @@ export function PlatformLocationPaletteSection() {
   }
 
   function removePhysicalColor(index: number): void {
-    setPalette((current) => current.physicalPalette.length <= 5 ? current : ({
-      ...current,
-      physicalPalette: current.physicalPalette.filter((_, itemIndex) => itemIndex !== index),
-    }));
+    setPalette((current) =>
+      current.physicalPalette.length <= 5
+        ? current
+        : {
+            ...current,
+            physicalPalette: current.physicalPalette.filter((_, itemIndex) => itemIndex !== index),
+          },
+    );
   }
 
   async function save(): Promise<void> {
     setSaving(true);
     try {
-      const response = await fetch("/api/platform/settings", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
+      const response = await fetch('/api/platform/settings', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ key: BOOKING_LOCATION_PALETTE_SETTING_KEY, value: palette }),
       });
       const data = (await response.json().catch(() => ({}))) as { ok?: boolean };
-      if (!response.ok || !data.ok) throw new Error("save_failed");
-      toast.success("Цвета локаций сохранены");
+      if (!response.ok || !data.ok) throw new Error('save_failed');
+      toast.success('Цвета локаций сохранены');
     } catch {
-      toast.error("Не удалось сохранить цвета локаций");
+      toast.error('Не удалось сохранить цвета локаций');
     } finally {
       setSaving(false);
     }
@@ -119,7 +131,13 @@ export function PlatformLocationPaletteSection() {
               </div>
             ))}
           </div>
-          <Button type="button" variant="outline" size="sm" disabled={!loaded || saving} onClick={addPhysicalColor}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!loaded || saving}
+            onClick={addPhysicalColor}
+          >
             Добавить цвет
           </Button>
         </div>

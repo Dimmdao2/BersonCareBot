@@ -12,15 +12,15 @@
 
 ## 2. Соответствие STAGE_B6_PLAN §5 и baseline в LOG
 
-| Пункт `STAGE_B6_PLAN.md` §5 | Статус после FIX |
-|-----------------------------|------------------|
-| 1. Pre-check в LOG | **PASS** |
-| 2. Список: превью / счётчики / статус | **PASS** — миниатюра первого элемента программы, когда сервер заполняет `listPreviewMedia` (типы `exercise`, `recommendation`, `test_set`, `lfk_complex`); иначе иконка-заглушка; `lesson` — пока без превью в списке. Счётчики + бейдж статуса — как в FIX. |
-| 3. Конструктор: layout + CTA + бейдж | **PASS** |
-| 4. Модалка библиотеки: превью по типам | **PASS** |
-| 5. `editLocked` | **PASS** |
-| 6. Тесты | **PASS** — добавлен кейс на `refresh` после publish с `onArchived` |
-| 7. Smoke | **Deferred** — автоматизирован паритет refresh; полный ручной smoke §8 — по желанию перед релизом / в E2E-контуре |
+| Пункт `STAGE_B6_PLAN.md` §5            | Статус после FIX                                                                                                                                                                                                                                             |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1. Pre-check в LOG                     | **PASS**                                                                                                                                                                                                                                                     |
+| 2. Список: превью / счётчики / статус  | **PASS** — миниатюра первого элемента программы, когда сервер заполняет `listPreviewMedia` (типы `exercise`, `recommendation`, `test_set`, `lfk_complex`); иначе иконка-заглушка; `lesson` — пока без превью в списке. Счётчики + бейдж статуса — как в FIX. |
+| 3. Конструктор: layout + CTA + бейдж   | **PASS**                                                                                                                                                                                                                                                     |
+| 4. Модалка библиотеки: превью по типам | **PASS**                                                                                                                                                                                                                                                     |
+| 5. `editLocked`                        | **PASS**                                                                                                                                                                                                                                                     |
+| 6. Тесты                               | **PASS** — добавлен кейс на `refresh` после publish с `onArchived`                                                                                                                                                                                           |
+| 7. Smoke                               | **Deferred** — автоматизирован паритет refresh; полный ручной smoke §8 — по желанию перед релизом / в E2E-контуре                                                                                                                                            |
 
 Чеклист §5 в [`STAGE_B6_PLAN.md`](STAGE_B6_PLAN.md) отмечен `[x]` после FIX.
 
@@ -30,11 +30,11 @@
 
 ## 4. Регресс конструктора
 
-| Сценарий | После FIX |
-|----------|------------|
-| Publish / draft в split-view | **PASS** — `router.refresh()` после успешного `PATCH` |
-| Архивация + 409 + ack | **PASS** (без регрессии; `onArchived` + refresh по-прежнему согласованы) |
-| Standalone `[id]` | **PASS** |
+| Сценарий                     | После FIX                                                                |
+| ---------------------------- | ------------------------------------------------------------------------ |
+| Publish / draft в split-view | **PASS** — `router.refresh()` после успешного `PATCH`                    |
+| Архивация + 409 + ack        | **PASS** (без регрессии; `onArchived` + refresh по-прежнему согласованы) |
+| Standalone `[id]`            | **PASS**                                                                 |
 
 ## 5–7. Architecture / UI / Test evidence
 
@@ -56,15 +56,15 @@
 
 ## 10. Deferred
 
-- **Расширение превью в списке:** тип элемента **`lesson`** (и прочие редкие кейсы) — при необходимости отдельным SQL/маппингом.  
-- **E2E** smoke §8 — при появлении Playwright-контура.  
+- **Расширение превью в списке:** тип элемента **`lesson`** (и прочие редкие кейсы) — при необходимости отдельным SQL/маппингом.
+- **E2E** smoke §8 — при появлении Playwright-контура.
 - **Полный `pnpm run ci`** — обязателен **перед push** рекомендуемого чекпоинта B6 ([`MASTER_PLAN.md`](MASTER_PLAN.md) §9).
 
 ## 11. DoD B6
 
-- [x] UX + паритет списка после publish/draft.  
-- [x] `LOG.md` + коммит FIX.  
-- [x] `STAGE_B6_PLAN.md` §5 чекбоксы.  
+- [x] UX + паритет списка после publish/draft.
+- [x] `LOG.md` + коммит FIX.
+- [x] `STAGE_B6_PLAN.md` §5 чекбоксы.
 - [x] Полный `pnpm run ci` на актуальном дереве — зафиксирован в [`AUDIT_PREPUSH_POSTFIX.md`](AUDIT_PREPUSH_POSTFIX.md) §1 (барьер перед push по [`MASTER_PLAN.md`](MASTER_PLAN.md) §9).
 
 ---
@@ -73,7 +73,7 @@
 
 ### critical
 
-*N/A — закрыто без действий.*
+_N/A — закрыто без действий._
 
 ### major
 
@@ -81,13 +81,13 @@
 
 ### minor — done / deferred
 
-1. **Done:** чекбоксы §5 в [`STAGE_B6_PLAN.md`](STAGE_B6_PLAN.md).  
-2. **Deferred:** явная строка в `LOG.md` о ручном проходе §8 — не требуется при наличии unit-покрытия refresh; полный ручной smoke — перед релизом по процессу команды.  
-3. **Done:** vitest на publish + `refresh` при `onArchived` (см. major 1).  
-4. **Done:** [`TreatmentProgramTemplatesPageClient.tsx`](../../../../apps/webapp/src/app/app/doctor/treatment-program-templates/TreatmentProgramTemplatesPageClient.tsx) — `templateListCountsText` + `aria-label`.  
+1. **Done:** чекбоксы §5 в [`STAGE_B6_PLAN.md`](STAGE_B6_PLAN.md).
+2. **Deferred:** явная строка в `LOG.md` о ручном проходе §8 — не требуется при наличии unit-покрытия refresh; полный ручной smoke — перед релизом по процессу команды.
+3. **Done:** vitest на publish + `refresh` при `onArchived` (см. major 1).
+4. **Done:** [`TreatmentProgramTemplatesPageClient.tsx`](../../../../apps/webapp/src/app/app/doctor/treatment-program-templates/TreatmentProgramTemplatesPageClient.tsx) — `templateListCountsText` + `aria-label`.
 5. **Deferred (push):** `pnpm install --frozen-lockfile && pnpm run ci` перед рекомендуемым пуш-чекпоинтом B6.
 
 ## 13. Закрытие
 
-- Verdict: **PASS** (остаточный риск: только отсутствие полного CI в сессии агента → закрыть перед **push**).  
+- Verdict: **PASS** (остаточный риск: только отсутствие полного CI в сессии агента → закрыть перед **push**).
 - MANDATORY: **major 1** — **done**; critical — N/A; minor — по таблице §12.

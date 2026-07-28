@@ -1,6 +1,6 @@
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { contentPages, patientHomeBlockItems, patientHomeBlocks } from "../../../db/schema";
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { contentPages, patientHomeBlockItems, patientHomeBlocks } from '../../../db/schema';
 import type {
   PatientHomeBlock,
   PatientHomeBlockItem,
@@ -8,12 +8,12 @@ import type {
   PatientHomeBlockItemPatch,
   PatientHomeBlockItemTargetType,
   PatientHomeBlocksPort,
-} from "@/modules/patient-home/ports";
+} from '@/modules/patient-home/ports';
 
 function mapItem(row: typeof patientHomeBlockItems.$inferSelect): PatientHomeBlockItem {
   return {
     id: row.id,
-    blockCode: row.blockCode as PatientHomeBlock["code"],
+    blockCode: row.blockCode as PatientHomeBlock['code'],
     targetType: row.targetType as PatientHomeBlockItemTargetType,
     targetRef: row.targetRef,
     titleOverride: row.titleOverride,
@@ -31,8 +31,14 @@ export function createPgPatientHomeBlocksPort(): PatientHomeBlocksPort {
     async listBlocksWithItems() {
       const db = getDrizzle();
       const [blocks, items] = await Promise.all([
-        db.select().from(patientHomeBlocks).orderBy(asc(patientHomeBlocks.sortOrder), asc(patientHomeBlocks.code)),
-        db.select().from(patientHomeBlockItems).orderBy(asc(patientHomeBlockItems.sortOrder), asc(patientHomeBlockItems.id)),
+        db
+          .select()
+          .from(patientHomeBlocks)
+          .orderBy(asc(patientHomeBlocks.sortOrder), asc(patientHomeBlocks.code)),
+        db
+          .select()
+          .from(patientHomeBlockItems)
+          .orderBy(asc(patientHomeBlockItems.sortOrder), asc(patientHomeBlockItems.id)),
       ]);
       const itemsByBlock = new Map<string, PatientHomeBlockItem[]>();
       for (const row of items) {
@@ -41,7 +47,7 @@ export function createPgPatientHomeBlocksPort(): PatientHomeBlocksPort {
         itemsByBlock.set(row.blockCode, arr);
       }
       return blocks.map((row) => ({
-        code: row.code as PatientHomeBlock["code"],
+        code: row.code as PatientHomeBlock['code'],
         title: row.title,
         description: row.description,
         isVisible: row.isVisible,
@@ -92,8 +98,7 @@ export function createPgPatientHomeBlocksPort(): PatientHomeBlocksPort {
             .select({ maxSort: sql<number>`coalesce(max(${patientHomeBlockItems.sortOrder}), 0)` })
             .from(patientHomeBlockItems)
             .where(eq(patientHomeBlockItems.blockCode, input.blockCode))
-        )[0]?.maxSort ?? 0) +
-          1;
+        )[0]?.maxSort ?? 0) + 1;
       const rows = await db
         .insert(patientHomeBlockItems)
         .values({
@@ -109,12 +114,16 @@ export function createPgPatientHomeBlocksPort(): PatientHomeBlocksPort {
           sortOrder,
         })
         .returning({ id: patientHomeBlockItems.id });
-      return rows[0]?.id ?? "";
+      return rows[0]?.id ?? '';
     },
 
     async getItemById(id) {
       const db = getDrizzle();
-      const rows = await db.select().from(patientHomeBlockItems).where(eq(patientHomeBlockItems.id, id)).limit(1);
+      const rows = await db
+        .select()
+        .from(patientHomeBlockItems)
+        .where(eq(patientHomeBlockItems.id, id))
+        .limit(1);
       const row = rows[0];
       return row ? mapItem(row) : null;
     },
@@ -125,8 +134,10 @@ export function createPgPatientHomeBlocksPort(): PatientHomeBlocksPort {
         updatedAt: sql`now()` as unknown as string,
       };
       if (patch.titleOverride !== undefined) setPayload.titleOverride = patch.titleOverride;
-      if (patch.subtitleOverride !== undefined) setPayload.subtitleOverride = patch.subtitleOverride;
-      if (patch.imageUrlOverride !== undefined) setPayload.imageUrlOverride = patch.imageUrlOverride;
+      if (patch.subtitleOverride !== undefined)
+        setPayload.subtitleOverride = patch.subtitleOverride;
+      if (patch.imageUrlOverride !== undefined)
+        setPayload.imageUrlOverride = patch.imageUrlOverride;
       if (patch.badgeLabel !== undefined) setPayload.badgeLabel = patch.badgeLabel;
       if (patch.showTitle !== undefined) setPayload.showTitle = patch.showTitle;
       if (patch.isVisible !== undefined) setPayload.isVisible = patch.isVisible;
@@ -139,7 +150,7 @@ export function createPgPatientHomeBlocksPort(): PatientHomeBlocksPort {
         .where(eq(patientHomeBlockItems.id, id))
         .returning({ id: patientHomeBlockItems.id });
       if (updated.length === 0) {
-        throw new Error("unknown_item");
+        throw new Error('unknown_item');
       }
     },
 
@@ -150,7 +161,7 @@ export function createPgPatientHomeBlocksPort(): PatientHomeBlocksPort {
         .where(eq(patientHomeBlockItems.id, id))
         .returning({ id: patientHomeBlockItems.id });
       if (deleted.length === 0) {
-        throw new Error("unknown_item");
+        throw new Error('unknown_item');
       }
     },
 
@@ -160,15 +171,25 @@ export function createPgPatientHomeBlocksPort(): PatientHomeBlocksPort {
         const rows = await tx
           .select({ id: patientHomeBlockItems.id })
           .from(patientHomeBlockItems)
-          .where(and(eq(patientHomeBlockItems.blockCode, blockCode), inArray(patientHomeBlockItems.id, orderedItemIds)));
+          .where(
+            and(
+              eq(patientHomeBlockItems.blockCode, blockCode),
+              inArray(patientHomeBlockItems.id, orderedItemIds),
+            ),
+          );
         if (rows.length !== orderedItemIds.length) {
-          throw new Error("reorder_items_block_mismatch");
+          throw new Error('reorder_items_block_mismatch');
         }
         for (let i = 0; i < orderedItemIds.length; i += 1) {
           await tx
             .update(patientHomeBlockItems)
             .set({ sortOrder: i + 1, updatedAt: sql`now()` })
-            .where(and(eq(patientHomeBlockItems.id, orderedItemIds[i]!), eq(patientHomeBlockItems.blockCode, blockCode)));
+            .where(
+              and(
+                eq(patientHomeBlockItems.id, orderedItemIds[i]!),
+                eq(patientHomeBlockItems.blockCode, blockCode),
+              ),
+            );
         }
       });
     },
@@ -187,7 +208,7 @@ export function createPgPatientHomeBlocksPort(): PatientHomeBlocksPort {
         })
         .where(
           and(
-            eq(patientHomeBlockItems.targetType, "content_page"),
+            eq(patientHomeBlockItems.targetType, 'content_page'),
             sql`btrim(${patientHomeBlockItems.targetRef}) = ${oldSlug}`,
             sql`exists (
               select 1 from ${contentPages}

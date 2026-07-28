@@ -11,4 +11,4 @@ export {
   type ResolveAdminAuditConflictResult,
   type UpsertOpenConflictLogInput,
   type UpsertOpenConflictLogResult,
-} from "@/infra/adminAuditLog";
+} from '@/infra/adminAuditLog';

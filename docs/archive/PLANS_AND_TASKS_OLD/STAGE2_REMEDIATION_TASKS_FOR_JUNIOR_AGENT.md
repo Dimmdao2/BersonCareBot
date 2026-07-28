@@ -43,19 +43,19 @@
 
 ### Файлы, которые будут затронуты
 
-| Файл | Задачи |
-|---|---|
-| `apps/integrator/src/infra/db/writePort.ts` | T1, T2, T3 |
-| `apps/integrator/src/infra/db/repos/projectionOutbox.ts` | T1 (новый) |
-| `apps/integrator/src/infra/runtime/worker/projectionWorker.ts` | T1 (новый) |
-| `apps/integrator/src/infra/runtime/worker/main.ts` | T1 |
-| `apps/integrator/src/infra/adapters/webappEventsClient.ts` | T2 |
-| `apps/integrator/src/app/di.ts` | T1 |
-| `apps/integrator/src/kernel/contracts/ports.ts` | T3 |
-| `apps/webapp/src/modules/integrator/events.ts` | T3, T4 |
-| `apps/webapp/src/infra/repos/pgUserProjection.ts` | T3, T4 |
-| Миграция integrator | T1 (новый SQL) |
-| Тесты integrator/webapp | T1–T4 |
+| Файл                                                           | Задачи         |
+| -------------------------------------------------------------- | -------------- |
+| `apps/integrator/src/infra/db/writePort.ts`                    | T1, T2, T3     |
+| `apps/integrator/src/infra/db/repos/projectionOutbox.ts`       | T1 (новый)     |
+| `apps/integrator/src/infra/runtime/worker/projectionWorker.ts` | T1 (новый)     |
+| `apps/integrator/src/infra/runtime/worker/main.ts`             | T1             |
+| `apps/integrator/src/infra/adapters/webappEventsClient.ts`     | T2             |
+| `apps/integrator/src/app/di.ts`                                | T1             |
+| `apps/integrator/src/kernel/contracts/ports.ts`                | T3             |
+| `apps/webapp/src/modules/integrator/events.ts`                 | T3, T4         |
+| `apps/webapp/src/infra/repos/pgUserProjection.ts`              | T3, T4         |
+| Миграция integrator                                            | T1 (новый SQL) |
+| Тесты integrator/webapp                                        | T1–T4          |
 
 ---
 
@@ -72,6 +72,7 @@
 **Цель:** исключить потерю projection-событий при сетевых/временных сбоях webapp.
 
 **Текущее состояние (что сломано):**
+
 - `writePort.ts` строка ~141: `user.upserted` — emit через `.catch()`, fire-and-forget. При ошибке сети событие теряется.
 - `writePort.ts` строка ~171: `contact.linked` — **detached async IIFE** `(async () => { ... })()`, ещё хуже `.catch()`: ошибка не отслеживается вообще, unhandled rejection при крэше.
 - `writePort.ts` строка ~336: `notifications.update` — тоже detached async IIFE.
@@ -85,6 +86,7 @@
 **Файл:** создать `apps/integrator/src/integrations/rubitime/db/migrations/YYYYMMDD_XXXX_add_projection_outbox.sql` (подставить текущую дату в имя, сохранить порядок сортировки с другими файлами в папке).
 
 **SQL:**
+
 ```sql
 CREATE TABLE IF NOT EXISTS projection_outbox (
   id            BIGSERIAL PRIMARY KEY,
@@ -172,13 +174,16 @@ export async function claimDueProjectionEvents(
 }
 
 export async function completeProjectionEvent(db: DbPort, id: number): Promise<void> {
-  await db.query(
-    `UPDATE projection_outbox SET status = 'done', updated_at = now() WHERE id = $1`,
-    [id],
-  );
+  await db.query(`UPDATE projection_outbox SET status = 'done', updated_at = now() WHERE id = $1`, [
+    id,
+  ]);
 }
 
-export async function failProjectionEvent(db: DbPort, id: number, lastError: string): Promise<void> {
+export async function failProjectionEvent(
+  db: DbPort,
+  id: number,
+  lastError: string,
+): Promise<void> {
   await db.query(
     `UPDATE projection_outbox SET status = 'dead', last_error = $2, updated_at = now() WHERE id = $1`,
     [id, lastError],
@@ -212,10 +217,12 @@ export async function rescheduleProjectionEvent(
 **Что найти:** блок `case 'user.upsert':` (примерно строка 120–153).
 
 **Что изменить:**
+
 1. Добавить импорт в начале файла: `import { enqueueProjectionEvent } from './repos/projectionOutbox.js';`
 2. Заменить прямой `webappEventsPort.emit(...)` на транзакционную запись в outbox.
 
 **Было (строки ~133–152):**
+
 ```typescript
 await upsertUser(db, {
   id: Math.trunc(parsedId),
@@ -225,21 +232,24 @@ await upsertUser(db, {
 });
 if (webappEventsPort) {
   const idKey = `user.upserted:${Math.trunc(parsedId)}:${Date.now()}`;
-  webappEventsPort.emit({
-    eventType: 'user.upserted',
-    idempotencyKey: idKey,
-    occurredAt: new Date().toISOString(),
-    payload: {
-      integratorUserId: Math.trunc(parsedId),
-      channelCode: resource,
-      externalId,
-      displayName: [firstName, lastName].filter(Boolean).join(' ') || undefined,
-    },
-  }).catch(err => logger.warn({ err, eventType: 'user.upserted' }, 'projection emit failed'));
+  webappEventsPort
+    .emit({
+      eventType: 'user.upserted',
+      idempotencyKey: idKey,
+      occurredAt: new Date().toISOString(),
+      payload: {
+        integratorUserId: Math.trunc(parsedId),
+        channelCode: resource,
+        externalId,
+        displayName: [firstName, lastName].filter(Boolean).join(' ') || undefined,
+      },
+    })
+    .catch((err) => logger.warn({ err, eventType: 'user.upserted' }, 'projection emit failed'));
 }
 ```
 
 **Стало:**
+
 ```typescript
 const userPayload = {
   id: Math.trunc(parsedId),
@@ -275,6 +285,7 @@ await db.tx(async (txDb) => {
 **Текущая проблема:** detached async IIFE `(async () => { ... })()` — результат не awaited, ошибки не обработаны, нет гарантии доставки. Дополнительно: для получения `integratorUserId` делается отдельный read через `readPort.readDb({ type: 'user.byIdentity', ... })`.
 
 **Стало:**
+
 ```typescript
 case 'user.phone.link': {
   const resource = readResource(mutation.params);
@@ -318,6 +329,7 @@ case 'user.phone.link': {
 **Текущая проблема:** точно та же проблема: detached async IIFE.
 
 **Стало:** аналогичный паттерн — обернуть `updateNotificationSettings` + `enqueueProjectionEvent` в `db.tx`:
+
 ```typescript
 case 'notifications.update': {
   const resource = readResource(mutation.params);
@@ -367,6 +379,7 @@ case 'notifications.update': {
 **Файл:** создать `apps/integrator/src/infra/runtime/worker/projectionWorker.ts`
 
 **Логика:**
+
 1. Вычитать пачку due-событий из `projection_outbox` через `claimDueProjectionEvents`.
 2. Для каждого: вызвать `webappEventsPort.emit(...)`.
 3. Если `emit` вернул `ok: true` — `completeProjectionEvent`.
@@ -406,7 +419,10 @@ export async function runProjectionWorkerTick(
         await completeProjectionEvent(db, ev.id);
       } else if (attempt >= ev.maxAttempts) {
         await failProjectionEvent(db, ev.id, result.error ?? `HTTP ${result.status}`);
-        logger.warn({ eventId: ev.id, eventType: ev.eventType, attempt }, 'projection event moved to DLQ');
+        logger.warn(
+          { eventId: ev.id, eventType: ev.eventType, attempt },
+          'projection event moved to DLQ',
+        );
       } else {
         const delay = RETRY_BASE_SECONDS * Math.pow(2, attempt - 1);
         await rescheduleProjectionEvent(db, ev.id, attempt, delay);
@@ -432,9 +448,11 @@ export async function runProjectionWorkerTick(
 **Файл:** `apps/integrator/src/infra/runtime/worker/main.ts`
 
 **Что добавить:**
+
 1. Импорт: `import { runProjectionWorkerTick } from './projectionWorker.js';`
 2. Импорт: `import { createWebappEventsPort } from '../../adapters/webappEventsClient.js';`
 3. В `startWorker`, после обработки delivery jobs (существующий `while (true) { ... jobs ... }`), добавить:
+
 ```typescript
 // Projection outbox delivery
 try {
@@ -455,6 +473,7 @@ try {
 **Файл:** создать `apps/integrator/src/infra/db/repos/projectionOutbox.test.ts`
 
 **Тесты:**
+
 - `enqueueProjectionEvent` → запись с `status = 'pending'` (mock db.query, проверить SQL + параметры).
 - `claimDueProjectionEvents` → SELECT ... FOR UPDATE SKIP LOCKED + UPDATE status = 'processing'.
 - `completeProjectionEvent` → UPDATE status = 'done'.
@@ -464,6 +483,7 @@ try {
 **Файл:** создать `apps/integrator/src/infra/runtime/worker/projectionWorker.test.ts`
 
 **Тесты:**
+
 - при `emit` возвращающем `ok: true` → вызывает `completeProjectionEvent`.
 - при `emit` возвращающем `ok: false` и `attemptsDone < maxAttempts - 1` → вызывает `rescheduleProjectionEvent`.
 - при `emit` возвращающем `ok: false` и `attemptsDone >= maxAttempts - 1` → вызывает `failProjectionEvent`.
@@ -476,6 +496,7 @@ pnpm run ci
 ```
 
 **DoD:**
+
 - При недоступном webapp события не теряются, остаются в outbox с `status = 'pending'`.
 - После восстановления webapp события доставляются автоматически (worker retries).
 - После превышения `max_attempts` событие переходит в DLQ (`status = 'dead'`).
@@ -489,6 +510,7 @@ pnpm run ci
 **Цель:** retries не создают дубликаты и дедуплицируются стабильно.
 
 **Текущее состояние (что сломано):**
+
 - `writePort.ts` строка ~140: `user.upserted` — ключ `user.upserted:${id}:${Date.now()}` — **не детерминирован**. Каждый retry получает новый ключ → дубликаты в idempotency cache, повторная обработка.
 - `writePort.ts` строка ~354: `preferences.updated` — ключ `preferences.updated:${uid}:${Date.now()}` — **не детерминирован**.
 - `writePort.ts` строка ~181: `contact.linked` — ключ `contact.linked:${uid}:${phoneNormalized}` — **уже детерминирован** ✓, менять не надо.
@@ -528,11 +550,13 @@ export function hashPayload(payload: Record<string, unknown>): string {
 **Добавить импорт:** `import { projectionIdempotencyKey, hashPayload } from './repos/projectionKeys.js';`
 
 **Что найти внутри `case 'user.upsert':` (после T1.3):**
+
 ```
 idempotencyKey: `user.upserted:${Math.trunc(parsedId)}:${Date.now()}`,
 ```
 
 **Заменить на:**
+
 ```typescript
 idempotencyKey: projectionIdempotencyKey(
   'user.upserted',
@@ -546,11 +570,13 @@ idempotencyKey: projectionIdempotencyKey(
 ### Шаг T2.3: Заменить ключ `preferences.updated` в `writePort.ts`
 
 **Что найти внутри `case 'notifications.update':` (после T1.5):**
+
 ```
 idempotencyKey: `preferences.updated:${uid}:${Date.now()}`,
 ```
 
 **Заменить на:**
+
 ```typescript
 idempotencyKey: projectionIdempotencyKey(
   'preferences.updated',
@@ -564,13 +590,18 @@ idempotencyKey: projectionIdempotencyKey(
 **Файл:** `apps/integrator/src/infra/adapters/webappEventsClient.ts`
 
 **Что найти (строка ~72):**
+
 ```typescript
-const idempotencyKey = event.idempotencyKey ?? `evt-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+const idempotencyKey =
+  event.idempotencyKey ?? `evt-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 ```
 
 **Заменить на:**
+
 ```typescript
-const idempotencyKey = event.idempotencyKey ?? `evt-fallback:${event.eventType}:${createHash('sha256').update(body).digest('hex').slice(0, 24)}`;
+const idempotencyKey =
+  event.idempotencyKey ??
+  `evt-fallback:${event.eventType}:${createHash('sha256').update(body).digest('hex').slice(0, 24)}`;
 ```
 
 **Добавить импорт в начало файла:** `import { createHash } from 'node:crypto';` (уже импортирован `createHmac` из `'node:crypto'` — объединить в один import).
@@ -584,6 +615,7 @@ const idempotencyKey = event.idempotencyKey ?? `evt-fallback:${event.eventType}:
 **Файл:** создать `apps/integrator/src/infra/db/repos/projectionKeys.test.ts`
 
 **Тесты:**
+
 - `projectionIdempotencyKey` с одинаковыми аргументами → одинаковый результат.
 - `projectionIdempotencyKey` с разным `payloadFingerprint` → разные ключи.
 - `hashPayload` — порядок ключей объекта не влияет на результат (сортировка).
@@ -596,6 +628,7 @@ pnpm run ci
 ```
 
 **DoD:**
+
 - Одинаковое бизнес-событие даёт одинаковый idempotency key.
 - Разные бизнес-данные (другой displayName, другие topics) дают разный key.
 - `contact.linked` не затронут.
@@ -608,6 +641,7 @@ pnpm run ci
 **Цель:** убрать риск потери точности `BIGINT/BIGSERIAL` ID между сервисами.
 
 **Текущее состояние:**
+
 - `writePort.ts` строка ~146: `integratorUserId: Math.trunc(parsedId)` → отправляет как `number`.
 - `writePort.ts` строка ~183: `integratorUserId: Number(uid)` → конвертирует `string` → `number`.
 - `writePort.ts` строка ~356: `integratorUserId: Number(uid)` → то же самое.
@@ -661,10 +695,12 @@ pnpm run ci
 **Файл:** `apps/webapp/src/modules/integrator/events.ts`
 
 В типе `IntegratorEventsDeps.users`:
+
 - `upsertFromProjection: (params: { integratorUserId: number; ... })` → `integratorUserId: string`
 - `findByIntegratorId: (integratorUserId: number)` → `(integratorUserId: string)`
 
 В типе `IntegratorEventsDeps.preferences`:
+
 - Не содержит `integratorUserId`, не менять.
 
 ### Шаг T3.5: Обновить тесты
@@ -672,27 +708,28 @@ pnpm run ci
 **Файл:** `apps/webapp/src/modules/integrator/events.test.ts`
 
 Добавить тест:
+
 ```typescript
-it("accepts user.upserted with string integratorUserId", async () => {
+it('accepts user.upserted with string integratorUserId', async () => {
   const deps = buildAppDeps();
   const result = await handleIntegratorEvent(
     {
-      eventType: "user.upserted",
-      payload: { integratorUserId: "12345678901234" },
+      eventType: 'user.upserted',
+      payload: { integratorUserId: '12345678901234' },
     },
-    { diaries: deps.diaries, users: deps.userProjection, preferences: deps.userProjection }
+    { diaries: deps.diaries, users: deps.userProjection, preferences: deps.userProjection },
   );
   expect(result.accepted).toBe(true);
 });
 
-it("accepts user.upserted with number integratorUserId (backward compat)", async () => {
+it('accepts user.upserted with number integratorUserId (backward compat)', async () => {
   const deps = buildAppDeps();
   const result = await handleIntegratorEvent(
     {
-      eventType: "user.upserted",
+      eventType: 'user.upserted',
       payload: { integratorUserId: 999 },
     },
-    { diaries: deps.diaries, users: deps.userProjection, preferences: deps.userProjection }
+    { diaries: deps.diaries, users: deps.userProjection, preferences: deps.userProjection },
   );
   expect(result.accepted).toBe(true);
 });
@@ -705,6 +742,7 @@ pnpm run ci
 ```
 
 **DoD:**
+
 - Передача и обработка `BIGINT` значений без потери точности.
 - Backward compatibility: если payload содержит `number`, он конвертируется в `string`.
 - Typecheck обоих приложений проходит.
@@ -717,6 +755,7 @@ pnpm run ci
 **Цель:** `contact.linked` и `preferences.updated` не фейлятся при отсутствии `user.upserted`.
 
 **Текущее состояние (что сломано):**
+
 - `events.ts` строка ~217–219: `contact.linked` вызывает `findByIntegratorId` → если null → `return { accepted: false, reason: "platform user not found" }`. Ответ 503 кэшируется в idempotency cache. При retry с тем же ключом кэш возвращает 503.
 - `events.ts` строка ~249–251: `preferences.updated` — аналогично.
 
@@ -729,6 +768,7 @@ pnpm run ci
 **Найти блок `if (event.eventType === "contact.linked")` (строки ~206–227).**
 
 **Было:**
+
 ```typescript
 try {
   const user = await deps.users.findByIntegratorId(integratorUserId);
@@ -741,6 +781,7 @@ try {
 ```
 
 **Стало:**
+
 ```typescript
 try {
   const { platformUserId } = await deps.users.upsertFromProjection({
@@ -761,6 +802,7 @@ try {
 **Найти блок `if (event.eventType === "preferences.updated")` (строки ~229–262).**
 
 **Было:**
+
 ```typescript
 try {
   const user = await deps.users.findByIntegratorId(integratorUserId);
@@ -776,6 +818,7 @@ try {
 ```
 
 **Стало:**
+
 ```typescript
 try {
   const { platformUserId } = await deps.users.upsertFromProjection({
@@ -796,53 +839,53 @@ try {
 **Добавить тесты:**
 
 ```typescript
-it("contact.linked creates skeleton user if user.upserted not received yet", async () => {
+it('contact.linked creates skeleton user if user.upserted not received yet', async () => {
   const deps = buildAppDeps();
   const result = await handleIntegratorEvent(
     {
-      eventType: "contact.linked",
-      payload: { integratorUserId: "77777", phoneNormalized: "+70001112233" },
+      eventType: 'contact.linked',
+      payload: { integratorUserId: '77777', phoneNormalized: '+70001112233' },
     },
-    { diaries: deps.diaries, users: deps.userProjection, preferences: deps.userProjection }
+    { diaries: deps.diaries, users: deps.userProjection, preferences: deps.userProjection },
   );
   expect(result.accepted).toBe(true);
 });
 
-it("preferences.updated creates skeleton user if user.upserted not received yet", async () => {
+it('preferences.updated creates skeleton user if user.upserted not received yet', async () => {
   const deps = buildAppDeps();
   const result = await handleIntegratorEvent(
     {
-      eventType: "preferences.updated",
+      eventType: 'preferences.updated',
       payload: {
-        integratorUserId: "88888",
-        topics: [{ topicCode: "booking_spb", isEnabled: true }],
+        integratorUserId: '88888',
+        topics: [{ topicCode: 'booking_spb', isEnabled: true }],
       },
     },
-    { diaries: deps.diaries, users: deps.userProjection, preferences: deps.userProjection }
+    { diaries: deps.diaries, users: deps.userProjection, preferences: deps.userProjection },
   );
   expect(result.accepted).toBe(true);
 });
 
-it("contact.linked then user.upserted produces consistent state", async () => {
+it('contact.linked then user.upserted produces consistent state', async () => {
   const deps = buildAppDeps();
   await handleIntegratorEvent(
     {
-      eventType: "contact.linked",
-      payload: { integratorUserId: "99999", phoneNormalized: "+70009998877" },
+      eventType: 'contact.linked',
+      payload: { integratorUserId: '99999', phoneNormalized: '+70009998877' },
     },
-    { diaries: deps.diaries, users: deps.userProjection, preferences: deps.userProjection }
+    { diaries: deps.diaries, users: deps.userProjection, preferences: deps.userProjection },
   );
   const result = await handleIntegratorEvent(
     {
-      eventType: "user.upserted",
+      eventType: 'user.upserted',
       payload: {
-        integratorUserId: "99999",
-        displayName: "Test User",
-        channelCode: "telegram",
-        externalId: "tg99999",
+        integratorUserId: '99999',
+        displayName: 'Test User',
+        channelCode: 'telegram',
+        externalId: 'tg99999',
       },
     },
-    { diaries: deps.diaries, users: deps.userProjection, preferences: deps.userProjection }
+    { diaries: deps.diaries, users: deps.userProjection, preferences: deps.userProjection },
   );
   expect(result.accepted).toBe(true);
 });
@@ -855,6 +898,7 @@ pnpm run ci
 ```
 
 **DoD:**
+
 - Последовательности `contact → user` и `preferences → user` завершаются консистентным состоянием.
 - Handler не возвращает `accepted: false` для штатной out-of-order ситуации.
 - Тесты на обе последовательности зелёные.
@@ -867,6 +911,7 @@ pnpm run ci
 **Цель:** перенести исторические записи из `integrator` в `webapp` до read-switch.
 
 **Scope:**
+
 - Добавить одноразовый backfill script:
   - source: `integrator.users` + `identities` + `contacts` + `telegram_state`;
   - target: `webapp.platform_users`, `user_channel_bindings`, `user_notification_topics`.
@@ -878,6 +923,7 @@ pnpm run ci
 **Файл:** создать `apps/webapp/scripts/backfill-person-domain.mjs`
 
 **Логика:**
+
 1. Подключиться к БД (та же `DATABASE_URL` что и webapp).
 2. Прочитать `users` из integrator-таблиц (те же таблицы, та же БД, разные схемы не используются — логически разные, физически одна).
 3. Для каждого user:
@@ -900,6 +946,7 @@ pnpm run ci
 ```
 
 **DoD:**
+
 - Backfill идемпотентный.
 - Есть dry-run отчёт (counts + mismatches).
 - Повторный запуск не создаёт дубликатов.
@@ -912,6 +959,7 @@ pnpm run ci
 **Цель:** объективные критерии перед read-switch.
 
 **Scope:**
+
 - Реализовать reconciliation script/report:
   - counts: `integrator.users` vs `webapp.platform_users` where `integrator_user_id IS NOT NULL`;
   - sampled record matching: случайная выборка 100 записей, проверка полей;
@@ -927,6 +975,7 @@ pnpm run ci
 **Файл:** создать `apps/webapp/scripts/reconcile-person-domain.mjs`
 
 **Логика:**
+
 1. SELECT count from integrator users table.
 2. SELECT count from webapp platform_users WHERE integrator_user_id IS NOT NULL.
 3. Sampled matching: join on integrator_user_id, compare phone, display_name.
@@ -951,6 +1000,7 @@ pnpm run ci
 ```
 
 **DoD:**
+
 - Перед read-switch есть формальный reconciliation report.
 - Операционные пороги зафиксированы.
 - CI зелёный.

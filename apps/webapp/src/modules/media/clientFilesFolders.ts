@@ -1,25 +1,25 @@
-import type { MediaFolderKind, MediaFolderRecord } from "./types";
+import type { MediaFolderKind, MediaFolderRecord } from './types';
 
-export const CLIENT_FILES_ROOT_FOLDER_NAME = "Пациенты";
+export const CLIENT_FILES_ROOT_FOLDER_NAME = 'Пациенты';
 
 /** Legacy name used before rename — kept for promoteLegacy matching. */
-export const CLIENT_FILES_ROOT_FOLDER_NAME_LEGACY = "Файлы клиентов";
+export const CLIENT_FILES_ROOT_FOLDER_NAME_LEGACY = 'Файлы клиентов';
 
 export function isClientFilesFolderKind(kind: MediaFolderKind | undefined): boolean {
-  return kind === "client_files_root" || kind === "client_patient";
+  return kind === 'client_files_root' || kind === 'client_patient';
 }
 
 export function findClientFilesRootFolder(folders: MediaFolderRecord[]): MediaFolderRecord | null {
-  return folders.find((f) => f.kind === "client_files_root") ?? null;
+  return folders.find((f) => f.kind === 'client_files_root') ?? null;
 }
 
 /** Folders shown in «Область списка» (excludes client subtree except root entry). */
 export function foldersForLibraryScopeSelect(folders: MediaFolderRecord[]): MediaFolderRecord[] {
-  return folders.filter((f) => f.kind === "standard");
+  return folders.filter((f) => f.kind === 'standard');
 }
 
 export function clientPatientFolderBaseName(displayName: string): string {
-  const base = displayName.trim() || "Клиент";
+  const base = displayName.trim() || 'Клиент';
   return base.length <= 180 ? base : base.slice(0, 180);
 }
 
@@ -32,9 +32,11 @@ export function clientPatientFolderFioName(
   firstName: string | null,
   patronymic: string | null,
 ): string {
-  const parts = [lastName, firstName, patronymic].filter((p): p is string => Boolean(p?.trim())).map((p) => p.trim());
-  const full = parts.join(" ");
-  const base = full || "Клиент";
+  const parts = [lastName, firstName, patronymic]
+    .filter((p): p is string => Boolean(p?.trim()))
+    .map((p) => p.trim());
+  const full = parts.join(' ');
+  const base = full || 'Клиент';
   return base.length <= 180 ? base : base.slice(0, 180);
 }
 
@@ -45,7 +47,7 @@ export function clientPatientFolderFallbackName(
   phoneNormalized: string | null,
 ): string {
   const base = clientPatientFolderBaseName(displayName);
-  const last4Raw = phoneNormalized ? phoneNormalized.replace(/\D/g, "").slice(-4) : null;
+  const last4Raw = phoneNormalized ? phoneNormalized.replace(/\D/g, '').slice(-4) : null;
   const last4 = last4Raw && last4Raw.length === 4 ? last4Raw : null;
   const suffix = last4 ?? patientUserId.slice(0, 8);
   const candidate = `${base} · ${suffix}`;

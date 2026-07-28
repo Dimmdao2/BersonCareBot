@@ -12,7 +12,13 @@ import {
 } from '@/shared/ui/doctor/primitives/card';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { LabeledSwitch } from '@/shared/ui/doctor/primitives/labeled-switch';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/doctor/primitives/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/shared/ui/doctor/primitives/select';
 import {
   Dialog,
   DialogContent,
@@ -106,16 +112,25 @@ function asConfig(value: unknown): Config {
   if (mail && typeof mail === 'object' && !Array.isArray(mail)) {
     const email = mail as Record<string, unknown>;
     config.email = {
-      intervalMs: typeof email.intervalMs === 'number' ? email.intervalMs : defaults.email.intervalMs,
+      intervalMs:
+        typeof email.intervalMs === 'number' ? email.intervalMs : defaults.email.intervalMs,
       timeoutMs: typeof email.timeoutMs === 'number' ? email.timeoutMs : defaults.email.timeoutMs,
-      roundTripDeadlineMs: typeof email.roundTripDeadlineMs === 'number' ? email.roundTripDeadlineMs : defaults.email.roundTripDeadlineMs,
-      retentionMs: typeof email.retentionMs === 'number' ? email.retentionMs : defaults.email.retentionMs,
-      cleanupIntervalMs: typeof email.cleanupIntervalMs === 'number' ? email.cleanupIntervalMs : defaults.email.cleanupIntervalMs,
+      roundTripDeadlineMs:
+        typeof email.roundTripDeadlineMs === 'number'
+          ? email.roundTripDeadlineMs
+          : defaults.email.roundTripDeadlineMs,
+      retentionMs:
+        typeof email.retentionMs === 'number' ? email.retentionMs : defaults.email.retentionMs,
+      cleanupIntervalMs:
+        typeof email.cleanupIntervalMs === 'number'
+          ? email.cleanupIntervalMs
+          : defaults.email.cleanupIntervalMs,
     };
   }
-  config.quietWindowMaxDurationMs = typeof raw.quietWindowMaxDurationMs === 'number'
-    ? raw.quietWindowMaxDurationMs
-    : defaults.quietWindowMaxDurationMs;
+  config.quietWindowMaxDurationMs =
+    typeof raw.quietWindowMaxDurationMs === 'number'
+      ? raw.quietWindowMaxDurationMs
+      : defaults.quietWindowMaxDurationMs;
   config.quietUntil = typeof raw.quietUntil === 'string' ? raw.quietUntil : null;
   return config;
 }
@@ -161,7 +176,11 @@ export function OperatorHealthProbeSettingsSection() {
         if (nextConfig.quietUntil) {
           const remaining = Math.max(0, Date.parse(nextConfig.quietUntil) - Date.now());
           setQuietUnit(remaining >= 3_600_000 && remaining % 3_600_000 === 0 ? 'hours' : 'minutes');
-          setQuietAmount(remaining >= 3_600_000 && remaining % 3_600_000 === 0 ? hours(remaining) : minutes(remaining));
+          setQuietAmount(
+            remaining >= 3_600_000 && remaining % 3_600_000 === 0
+              ? hours(remaining)
+              : minutes(remaining),
+          );
         }
         setImap(asImap(settingValue(settings, 'operator_health_imap')));
       })
@@ -219,9 +238,8 @@ export function OperatorHealthProbeSettingsSection() {
     setQuietAmount(amount);
     setQuietUnit(unit);
     const value = Number(amount);
-    const durationMs = Number.isFinite(value) && value > 0
-      ? value * (unit === 'hours' ? 3_600_000 : 60_000)
-      : 0;
+    const durationMs =
+      Number.isFinite(value) && value > 0 ? value * (unit === 'hours' ? 3_600_000 : 60_000) : 0;
     setConfig((current) => ({
       ...current,
       quietUntil: durationMs > 0 ? new Date(Date.now() + durationMs).toISOString() : null,
@@ -268,7 +286,8 @@ export function OperatorHealthProbeSettingsSection() {
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Настройка проб каналов</CardTitle>
         <CardDescription>
-          Здесь живут параметры проб и служебного IMAP-ящика; показания здоровья системы находятся на отдельном экране.
+          Здесь живут параметры проб и служебного IMAP-ящика; показания здоровья системы находятся
+          на отдельном экране.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
@@ -346,24 +365,56 @@ export function OperatorHealthProbeSettingsSection() {
         ))}
         <div className="rounded-md border border-border/60 p-3 space-y-3">
           <p className="text-sm font-medium">Почтовая проба</p>
-          <p className="text-xs text-muted-foreground">Настройки сохранены заранее; сама проба почты ещё не запущена.</p>
+          <p className="text-xs text-muted-foreground">
+            Настройки сохранены заранее; сама проба почты ещё не запущена.
+          </p>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {([
-              ['Период, минут', 'intervalMs', 5, 60, minutes],
-              ['Таймаут, секунд', 'timeoutMs', 30, 120, (v: number) => String(v / 1000)],
-              ['Письмо не дошло за, минут', 'roundTripDeadlineMs', 1, 15, minutes],
-              ['Хранить служебную почту, дней', 'retentionMs', 1, 30, (v: number) => String(v / 86_400_000)],
-              ['Очищать раз в, дней', 'cleanupIntervalMs', 1, 7, (v: number) => String(v / 86_400_000)],
-            ] as const).map(([label, key, min, max, format]) => (
+            {(
+              [
+                ['Период, минут', 'intervalMs', 5, 60, minutes],
+                ['Таймаут, секунд', 'timeoutMs', 30, 120, (v: number) => String(v / 1000)],
+                ['Письмо не дошло за, минут', 'roundTripDeadlineMs', 1, 15, minutes],
+                [
+                  'Хранить служебную почту, дней',
+                  'retentionMs',
+                  1,
+                  30,
+                  (v: number) => String(v / 86_400_000),
+                ],
+                [
+                  'Очищать раз в, дней',
+                  'cleanupIntervalMs',
+                  1,
+                  7,
+                  (v: number) => String(v / 86_400_000),
+                ],
+              ] as const
+            ).map(([label, key, min, max, format]) => (
               <label key={key} className="space-y-1 text-xs font-medium">
                 {label}
-                <Input type="number" min={min} max={max} value={format(config.email[key])} disabled={busy}
+                <Input
+                  type="number"
+                  min={min}
+                  max={max}
+                  value={format(config.email[key])}
+                  disabled={busy}
                   onChange={(event) => {
                     const value = Number(event.target.value);
-                    const multiplier = key === 'timeoutMs' ? 1_000 : key === 'retentionMs' || key === 'cleanupIntervalMs' ? 86_400_000 : 60_000;
-                    setConfig((current) => ({ ...current, email: { ...current.email, [key]: value * multiplier } }));
-                  }} />
-                <span className="text-muted-foreground">По умолчанию: {format(defaults.email[key])}</span>
+                    const multiplier =
+                      key === 'timeoutMs'
+                        ? 1_000
+                        : key === 'retentionMs' || key === 'cleanupIntervalMs'
+                          ? 86_400_000
+                          : 60_000;
+                    setConfig((current) => ({
+                      ...current,
+                      email: { ...current.email, [key]: value * multiplier },
+                    }));
+                  }}
+                />
+                <span className="text-muted-foreground">
+                  По умолчанию: {format(defaults.email[key])}
+                </span>
               </label>
             ))}
           </div>
@@ -371,21 +422,36 @@ export function OperatorHealthProbeSettingsSection() {
         <div className="max-w-md space-y-2">
           <p className="text-sm font-medium">Окно тишины</p>
           <div className="flex gap-2">
-          <Input
-            type="number"
-            min={1}
-            max={Math.floor(config.quietWindowMaxDurationMs / (quietUnit === 'hours' ? 3_600_000 : 60_000))}
-            value={quietAmount}
-            placeholder="Например, 10"
-            disabled={busy}
-            onChange={(event) => updateQuietWindow(event.target.value, quietUnit)}
-          />
-            <Select value={quietUnit} onValueChange={(value) => updateQuietWindow(quietAmount, value as 'minutes' | 'hours')}>
-              <SelectTrigger aria-label="Единица окна тишины" className="w-36"><SelectValue /></SelectTrigger>
-              <SelectContent><SelectItem value="minutes">Минуты</SelectItem><SelectItem value="hours">Часы</SelectItem></SelectContent>
+            <Input
+              type="number"
+              min={1}
+              max={Math.floor(
+                config.quietWindowMaxDurationMs / (quietUnit === 'hours' ? 3_600_000 : 60_000),
+              )}
+              value={quietAmount}
+              placeholder="Например, 10"
+              disabled={busy}
+              onChange={(event) => updateQuietWindow(event.target.value, quietUnit)}
+            />
+            <Select
+              value={quietUnit}
+              onValueChange={(value) =>
+                updateQuietWindow(quietAmount, value as 'minutes' | 'hours')
+              }
+            >
+              <SelectTrigger aria-label="Единица окна тишины" className="w-36">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="minutes">Минуты</SelectItem>
+                <SelectItem value="hours">Часы</SelectItem>
+              </SelectContent>
             </Select>
           </div>
-          <p className="text-xs text-muted-foreground">Текущее: {config.quietUntil ?? 'не установлено'}. Пустое значение снимает тишину; потолок задаётся в настройках и ограничен сервером.</p>
+          <p className="text-xs text-muted-foreground">
+            Текущее: {config.quietUntil ?? 'не установлено'}. Пустое значение снимает тишину;
+            потолок задаётся в настройках и ограничен сервером.
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button type="button" size="sm" onClick={() => void saveProbes()} disabled={busy}>
@@ -465,8 +531,32 @@ export function OperatorHealthProbeSettingsSection() {
       </CardContent>
       <Dialog open={resetConfirmOpen} onOpenChange={setResetConfirmOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Сбросить настройки проб?</DialogTitle><DialogDescription>Будут удалены сохранённые параметры MAX, Telegram, Google Calendar, почтовой пробы и окна тишины. Снова начнут действовать значения по умолчанию из кода: внешние пробы раз в 10 минут, почтовая — раз в 15 минут, тишина выключена.</DialogDescription></DialogHeader>
-          <DialogFooter><Button type="button" variant="outline" onClick={() => setResetConfirmOpen(false)} disabled={busy}>Отмена</Button><Button type="button" variant="destructive" onClick={() => void resetProbes()} disabled={busy}>{busy ? 'Сброс…' : 'Сбросить на дефолт'}</Button></DialogFooter>
+          <DialogHeader>
+            <DialogTitle>Сбросить настройки проб?</DialogTitle>
+            <DialogDescription>
+              Будут удалены сохранённые параметры MAX, Telegram, Google Calendar, почтовой пробы и
+              окна тишины. Снова начнут действовать значения по умолчанию из кода: внешние пробы раз
+              в 10 минут, почтовая — раз в 15 минут, тишина выключена.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setResetConfirmOpen(false)}
+              disabled={busy}
+            >
+              Отмена
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => void resetProbes()}
+              disabled={busy}
+            >
+              {busy ? 'Сброс…' : 'Сбросить на дефолт'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </Card>

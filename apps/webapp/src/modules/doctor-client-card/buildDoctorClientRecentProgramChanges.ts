@@ -1,8 +1,8 @@
-import type { TreatmentProgramEventRow } from "@/modules/treatment-program/types";
+import type { TreatmentProgramEventRow } from '@/modules/treatment-program/types';
 import {
   shouldOmitTreatmentProgramEventFromDoctorTimeline,
   summarizeTreatmentProgramEventForDoctorRu,
-} from "@/modules/treatment-program/types";
+} from '@/modules/treatment-program/types';
 
 export type DoctorClientRecentProgramChangeRow = {
   id: string;

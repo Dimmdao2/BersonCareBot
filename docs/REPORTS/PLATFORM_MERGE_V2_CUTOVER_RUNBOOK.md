@@ -35,12 +35,12 @@ set -a && source /opt/env/bersoncarebot/cutover.prod && set +a
 
 ## После деплоя
 
-| Проверка | Команда / место |
-|----------|-----------------|
-| API | `curl -sf http://127.0.0.1:3200/health` — `ok`, `db` up |
-| Webapp | `curl -sf http://127.0.0.1:6200/api/health` — `ok` |
-| Chunk static | см. логику в `deploy-prod.sh` (проверка `/_next/static/chunks/...`) |
-| Outbox | `node apps/integrator/scripts/projection-health.mjs` (на хосте из актуального дерева после deploy) |
+| Проверка     | Команда / место                                                                                    |
+| ------------ | -------------------------------------------------------------------------------------------------- |
+| API          | `curl -sf http://127.0.0.1:3200/health` — `ok`, `db` up                                            |
+| Webapp       | `curl -sf http://127.0.0.1:6200/api/health` — `ok`                                                 |
+| Chunk static | см. логику в `deploy-prod.sh` (проверка `/_next/static/chunks/...`)                                |
+| Outbox       | `node apps/integrator/scripts/projection-health.mjs` (на хосте из актуального дерева после deploy) |
 
 ## Deploy 1 (schema)
 

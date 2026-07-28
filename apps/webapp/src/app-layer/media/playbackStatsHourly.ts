@@ -1,7 +1,7 @@
-import { logger } from "@/app-layer/logging/logger";
-import { runWebappPgText } from "@/infra/db/runWebappSql";
+import { logger } from '@/app-layer/logging/logger';
+import { runWebappPgText } from '@/infra/db/runWebappSql';
 
-export type PlaybackStatDelivery = "hls" | "mp4" | "file";
+export type PlaybackStatDelivery = 'hls' | 'mp4' | 'file';
 
 /** Current UTC hour floored; ISO string for `timestamptz` column. */
 export function utcHourBucketIso(now: Date = new Date()): string {
@@ -22,10 +22,10 @@ export async function recordPlaybackResolutionStat(input: {
 }): Promise<void> {
   try {
     await runWebappPgText(
-      "SELECT app.increment_media_playback_resolution_stat($1::uuid, $2::uuid, $3, $4)",
+      'SELECT app.increment_media_playback_resolution_stat($1::uuid, $2::uuid, $3, $4)',
       [input.userId, input.mediaId, input.delivery, input.fallbackUsed],
     );
   } catch (e) {
-    logger.error({ err: e, delivery: input.delivery }, "playback_stats_hourly_write_failed");
+    logger.error({ err: e, delivery: input.delivery }, 'playback_stats_hourly_write_failed');
   }
 }

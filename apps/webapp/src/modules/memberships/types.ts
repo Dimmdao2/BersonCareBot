@@ -2,7 +2,7 @@ import type {
   PackageDeductionMode,
   PackageUsageKind,
   PatientPackageStatus,
-} from "../../../db/schema/bookingMemberships";
+} from '../../../db/schema/bookingMemberships';
 
 export type { PackageDeductionMode, PackageUsageKind, PatientPackageStatus };
 
@@ -99,23 +99,20 @@ export type PatientPackageListItem = PatientPackageRecord & {
 };
 
 export type PatientPackageSessionLinkage =
-  | "reserved"
-  | "consumed"
-  | "penalty"
-  | "released"
-  | "refunded"
-  | "none";
+  | 'reserved'
+  | 'consumed'
+  | 'penalty'
+  | 'released'
+  | 'refunded'
+  | 'none';
 
-export type PatientPackageSessionMappingStatus = "ok" | "mapping_missing" | "not_applicable";
+export type PatientPackageSessionMappingStatus = 'ok' | 'mapping_missing' | 'not_applicable';
 
 /** Canonical "did it happen" verdict derived from `be_appointments`. */
-export type CanonicalAppointmentStatus = "happened" | "canceled" | "none";
+export type CanonicalAppointmentStatus = 'happened' | 'canceled' | 'none';
 
 /** Why a candidate past appointment was NOT debited during bulk «Пересчитать». */
-export type RecalcSkipReason =
-  | "already_debited"
-  | "service_not_in_package"
-  | "status_not_eligible";
+export type RecalcSkipReason = 'already_debited' | 'service_not_in_package' | 'status_not_eligible';
 
 export type RecalcDebitedEntry = {
   appointmentId: string;

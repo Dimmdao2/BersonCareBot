@@ -21,13 +21,13 @@
 
 Пять вкладок:
 
-| Подпись | Путь |
-|---------|------|
-| Сегодня | `/app/patient` |
-| Запись | `/app/patient/booking` → редирект на `/booking/new` |
-| Дневник | `/app/patient/diary` |
-| План | `/app/patient/treatment-programs` |
-| Профиль | `/app/patient/profile` |
+| Подпись | Путь                                                |
+| ------- | --------------------------------------------------- |
+| Сегодня | `/app/patient`                                      |
+| Запись  | `/app/patient/booking` → редирект на `/booking/new` |
+| Дневник | `/app/patient/diary`                                |
+| План    | `/app/patient/treatment-programs`                   |
+| Профиль | `/app/patient/profile`                              |
 
 ## I.2. Главная «Сегодня» — `/app/patient`
 
@@ -35,19 +35,19 @@
 
 Блоки задаются в БД (`patient_home_blocks` / `patient_home_block_items`), порядок и видимость конфигурируемы. Канонические коды (`PatientHomeBlockCode`):
 
-| Код | Смысл |
-|-----|--------|
-| `daily_warmup` | Карточка дневной разминки |
-| `useful_post` | Полезный пост из CMS |
-| `booking` | Запись на приём |
-| `situations` | Ряд «ситуаций» (чипы из контента) |
-| `progress` | Прогресс практики (цель дня, streak) |
-| `next_reminder` | Ближайшее напоминание |
-| `mood_checkin` | Чек-ин настроения |
-| `sos` | Карточка SOS |
-| `plan` | Карточка активной программы лечения |
-| `subscription_carousel` | Карусель подписок |
-| `courses` | Ряд курсов |
+| Код                     | Смысл                                |
+| ----------------------- | ------------------------------------ |
+| `daily_warmup`          | Карточка дневной разминки            |
+| `useful_post`           | Полезный пост из CMS                 |
+| `booking`               | Запись на приём                      |
+| `situations`            | Ряд «ситуаций» (чипы из контента)    |
+| `progress`              | Прогресс практики (цель дня, streak) |
+| `next_reminder`         | Ближайшее напоминание                |
+| `mood_checkin`          | Чек-ин настроения                    |
+| `sos`                   | Карточка SOS                         |
+| `plan`                  | Карточка активной программы лечения  |
+| `subscription_carousel` | Карусель подписок                    |
+| `courses`               | Ряд курсов                           |
 
 Дополнительно: приветствие (`PatientHomeGreeting`).
 
@@ -57,62 +57,62 @@
 
 ### I.3.1 Ядро продукта
 
-| Название (шапка) | URL | Содержание | Задача |
-|------------------|-----|------------|--------|
-| Сегодня | `/app/patient` | См. I.2 | Домашний экран |
-| Дневник | `/app/patient/diary` | Вкладки «Симптомы» / «ЛФК» | Учёт симптомов и ЛФК |
-| Программы лечения | `/app/patient/treatment-programs` | Список назначенных | Обзор плана |
-| Программа | `/app/patient/treatment-programs/[instanceId]` | Детальный клиент | Прохождение программы |
-| Курсы | `/app/patient/courses` | Каталог; запись = инстанс программы | Запись на курсы |
-| Мои приёмы | `/app/patient/cabinet` | Активные/прошедшие записи, intake-история | Кабинет визитов |
-| Запись на приём | `/app/patient/booking/new` | Wizard, формат | Старт записи |
-| Город | `/app/patient/booking/new/city` | Wizard | Выбор города |
-| Услуга | `/app/patient/booking/new/service` | Wizard | Выбор услуги |
-| Слот | `/app/patient/booking/new/slot` | Wizard | Выбор времени |
-| Подтверждение | `/app/patient/booking/new/confirm` | Wizard | Подтверждение |
-| Запись (legacy) | `/app/patient/booking` | Редирект на `/booking/new` | Совместимость |
+| Название (шапка)  | URL                                            | Содержание                                | Задача                |
+| ----------------- | ---------------------------------------------- | ----------------------------------------- | --------------------- |
+| Сегодня           | `/app/patient`                                 | См. I.2                                   | Домашний экран        |
+| Дневник           | `/app/patient/diary`                           | Вкладки «Симптомы» / «ЛФК»                | Учёт симптомов и ЛФК  |
+| Программы лечения | `/app/patient/treatment-programs`              | Список назначенных                        | Обзор плана           |
+| Программа         | `/app/patient/treatment-programs/[instanceId]` | Детальный клиент                          | Прохождение программы |
+| Курсы             | `/app/patient/courses`                         | Каталог; запись = инстанс программы       | Запись на курсы       |
+| Мои приёмы        | `/app/patient/cabinet`                         | Активные/прошедшие записи, intake-история | Кабинет визитов       |
+| Запись на приём   | `/app/patient/booking/new`                     | Wizard, формат                            | Старт записи          |
+| Город             | `/app/patient/booking/new/city`                | Wizard                                    | Выбор города          |
+| Услуга            | `/app/patient/booking/new/service`             | Wizard                                    | Выбор услуги          |
+| Слот              | `/app/patient/booking/new/slot`                | Wizard                                    | Выбор времени         |
+| Подтверждение     | `/app/patient/booking/new/confirm`             | Wizard                                    | Подтверждение         |
+| Запись (legacy)   | `/app/patient/booking`                         | Редирект на `/booking/new`                | Совместимость         |
 
 ### I.3.2 Контент CMS
 
-| Название | URL | Содержание | Задача |
-|----------|-----|------------|--------|
-| Уроки и тренировки | `/app/patient/sections` | Сетка разделов CMS | Каталог разделов |
-| Раздел CMS | `/app/patient/sections/[slug]` | Карточки страниц раздела | Материалы раздела |
-| Материал | `/app/patient/content/[slug]` | Markdown/медиа/видео + CTA курса | Одна статья |
-| Уроки (legacy) | `/app/patient/lessons` | → `/sections/lessons` | Совместимость |
-| Скорая помощь (legacy) | `/app/patient/emergency` | → `/sections/emergency` | Совместимость |
+| Название               | URL                            | Содержание                       | Задача            |
+| ---------------------- | ------------------------------ | -------------------------------- | ----------------- |
+| Уроки и тренировки     | `/app/patient/sections`        | Сетка разделов CMS               | Каталог разделов  |
+| Раздел CMS             | `/app/patient/sections/[slug]` | Карточки страниц раздела         | Материалы раздела |
+| Материал               | `/app/patient/content/[slug]`  | Markdown/медиа/видео + CTA курса | Одна статья       |
+| Уроки (legacy)         | `/app/patient/lessons`         | → `/sections/lessons`            | Совместимость     |
+| Скорая помощь (legacy) | `/app/patient/emergency`       | → `/sections/emergency`          | Совместимость     |
 
 ### I.3.3 Профиль, напоминания, коммуникации
 
-| Название | URL | Содержание | Задача |
-|----------|-----|------------|--------|
-| Мой профиль | `/app/patient/profile` | Аккордеоны: личные данные, PIN, OTP, каналы, уведомления, purge | Настройки аккаунта |
-| Подписки на уведомления | `/app/patient/notifications` | Каналы доставки + темы | Уведомления |
-| Напоминания | `/app/patient/reminders` | Правила (ЛФК, разделы, кастом) | Напоминания |
-| Журнал напоминания | `/app/patient/reminders/journal/[ruleId]` | События по правилу | Аналитика |
-| Сообщения | `/app/patient/messages` | Чат с поддержкой + inbox (рассылки, lifecycle записи) | Переписка; см. [`../ARCHITECTURE/PATIENT_SUPPORT_CHAT_INBOX.md`](../ARCHITECTURE/PATIENT_SUPPORT_CHAT_INBOX.md) |
-| Поддержка | `/app/patient/support` | Форма администратору | Обращение |
-| Справка | `/app/patient/help` | Краткая справка + ссылки | FAQ |
-| Привязка телефона | `/app/patient/bind-phone` | Привязка номера | Tier patient |
+| Название                | URL                                       | Содержание                                                      | Задача                                                                                                          |
+| ----------------------- | ----------------------------------------- | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Мой профиль             | `/app/patient/profile`                    | Аккордеоны: личные данные, PIN, OTP, каналы, уведомления, purge | Настройки аккаунта                                                                                              |
+| Подписки на уведомления | `/app/patient/notifications`              | Каналы доставки + темы                                          | Уведомления                                                                                                     |
+| Напоминания             | `/app/patient/reminders`                  | Правила (ЛФК, разделы, кастом)                                  | Напоминания                                                                                                     |
+| Журнал напоминания      | `/app/patient/reminders/journal/[ruleId]` | События по правилу                                              | Аналитика                                                                                                       |
+| Сообщения               | `/app/patient/messages`                   | Чат с поддержкой + inbox (рассылки, lifecycle записи)           | Переписка; см. [`../ARCHITECTURE/PATIENT_SUPPORT_CHAT_INBOX.md`](../ARCHITECTURE/PATIENT_SUPPORT_CHAT_INBOX.md) |
+| Поддержка               | `/app/patient/support`                    | Форма администратору                                            | Обращение                                                                                                       |
+| Справка                 | `/app/patient/help`                       | Краткая справка + ссылки                                        | FAQ                                                                                                             |
+| Привязка телефона       | `/app/patient/bind-phone`                 | Привязка номера                                                 | Tier patient                                                                                                    |
 
 ### I.3.4 Дневник — журналы и legacy URL
 
-| Название | URL | Содержание |
-|----------|-----|------------|
-| Журнал симптомов | `/app/patient/diary/symptoms/journal` | Записи по месяцам |
-| Журнал ЛФК | `/app/patient/diary/lfk/journal` | Журнал занятий |
+| Название          | URL                                                 | Содержание                                                   |
+| ----------------- | --------------------------------------------------- | ------------------------------------------------------------ |
+| Журнал симптомов  | `/app/patient/diary/symptoms/journal`               | Записи по месяцам                                            |
+| Журнал ЛФК        | `/app/patient/diary/lfk/journal`                    | Журнал занятий                                               |
 | Симптомы (legacy) | `/app/patient/diary/symptoms` (+ вариант со слэшем) | → `diary?tab=symptoms` через `next.config` `redirects` (308) |
-| ЛФК (legacy) | `/app/patient/diary/lfk` (+ вариант со слэшем) | → `diary?tab=lfk` через `next.config` `redirects` (308) |
+| ЛФК (legacy)      | `/app/patient/diary/lfk` (+ вариант со слэшем)      | → `diary?tab=lfk` через `next.config` `redirects` (308)      |
 
 ### I.3.5 Прочее
 
-| Название | URL | Содержание | Задача |
-|----------|-----|------------|--------|
-| Мои покупки | `/app/patient/purchases` | Empty state до биллинга | Покупки (заглушка) |
-| Адрес кабинета | `/app/patient/address` | iframe сайта специалиста | Как добраться |
-| Установить приложение | `/app/patient/install` | Инструкции PWA **в сессии пациента** | Установка; публичный лендинг и кнопка установки — **`/`** ([`docs/PWA_INITIATIVE/`](../PWA_INITIATIVE/README.md)) |
-| Онлайн-запрос: нутрициология | `/app/patient/intake/nutrition` | Client-форма без `AppShell` | Online intake |
-| Онлайн-запрос: ЛФК | `/app/patient/intake/lfk` | Client-форма без `AppShell` | Online intake |
+| Название                     | URL                             | Содержание                           | Задача                                                                                                            |
+| ---------------------------- | ------------------------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| Мои покупки                  | `/app/patient/purchases`        | Empty state до биллинга              | Покупки (заглушка)                                                                                                |
+| Адрес кабинета               | `/app/patient/address`          | iframe сайта специалиста             | Как добраться                                                                                                     |
+| Установить приложение        | `/app/patient/install`          | Инструкции PWA **в сессии пациента** | Установка; публичный лендинг и кнопка установки — **`/`** ([`docs/PWA_INITIATIVE/`](../PWA_INITIATIVE/README.md)) |
+| Онлайн-запрос: нутрициология | `/app/patient/intake/nutrition` | Client-форма без `AppShell`          | Online intake                                                                                                     |
+| Онлайн-запрос: ЛФК           | `/app/patient/intake/lfk`       | Client-форма без `AppShell`          | Online intake                                                                                                     |
 
 ---
 
@@ -132,39 +132,39 @@
 
 ## II.2. Карта маршрутов
 
-| Группа | URL | Назначение |
-|--------|-----|------------|
-| Сегодня | `/app/doctor` | Рабочий inbox: KPI, очереди (заявки, сообщения, записи); health-баннер для admin |
-| Клиенты | `/app/doctor/clients` | Список и фильтры; query `scope=appointments\|all\|archived`; legacy `?selected=<uuid>` → redirect на карточку |
-| Карточка клиента | `/app/doctor/clients/[userId]` | `ClientProfileCard` (табы: Обзор, Программа, …); read-only дерево активной программы на табе «Программа» |
-| Подписчики (legacy) | `/app/doctor/subscribers`, `/subscribers/[userId]` | Полные redirect-ы на `/clients?scope=all` |
-| Hint admin | `/app/doctor/clients/name-match-hints` | Admin-debug |
-| Записи | `/app/doctor/appointments` | Расписание; `view=future\|month\|cancellationsMonth`; при расхождении имени Rubitime и профиля — подсказка «В Rubitime» |
-| Сообщения | `/app/doctor/messages` | Чат поддержки с пациентами (журнал массовых рассылок — на `/broadcasts`) |
-| Рассылки | `/app/doctor/broadcasts` | Категории + аудитории + предпросмотр (число/имена, `dev_mode`) + подтверждение + `broadcast_audit`; см. [`../ARCHITECTURE/DOCTOR_BROADCASTS.md`](../ARCHITECTURE/DOCTOR_BROADCASTS.md) |
-| Онлайн-заявки | `/app/doctor/online-intake`, `/online-intake/[requestId]` | Inbox онлайн-запросов от пациентов |
-| Упражнения | `/app/doctor/exercises`, `/[id]`, `/new`, `/auto-create` | Каталог упражнений ЛФК |
-| Комплексы ЛФК | `/app/doctor/lfk-templates`, `/[id]`, `/new` | Сборки упражнений |
-| Клинические тесты | `/app/doctor/clinical-tests`, `/[id]`, `/new` | Каталог тестов |
-| Наборы тестов | `/app/doctor/test-sets`, `/[id]`, `/new` | Сборки тестов |
-| Рекомендации | `/app/doctor/recommendations`, `/[id]`, `/new` | Каталог рекомендаций |
-| Шаблоны программ | `/app/doctor/treatment-program-templates`, `/[id]`, `/new` | Конструктор программ лечения |
-| Курсы | `/app/doctor/courses`, `/[id]`, `/new` | Каталог курсов (= программ для пациента) |
-| Программа клиента | `/app/doctor/clients/treatment-programs/[instanceId]` | Параллельный путь к экземпляру программы |
-| Справочники | `/app/doctor/references`, `/[categoryCode]` | Зоны тела / типы нагрузок |
-| CMS — обзор страниц | `/app/doctor/content` | Все страницы с фильтром по разделу |
-| CMS — разделы | `/app/doctor/content/sections`, `/new`, `/edit/[slug]` | Управление разделами |
-| CMS — страница | `/app/doctor/content/new`, `/edit/[id]` | Редактор страницы |
-| CMS — новости | `/app/doctor/content/news` | `news_items` |
-| CMS — мотивации | `/app/doctor/content/motivation` | `motivational_quotes` |
-| CMS — библиотека | `/app/doctor/content/library`, `/library/delete-errors` | Файлы |
-| CMS — главная пациента | `/app/doctor/patient-home` | Блоки + items |
-| Аналитика по клиентам | `/app/doctor/analytics/clients` | Агрегаты + графики регистраций (admin); `/app/doctor/stats` → redirect |
-| Здоровье системы | `/app/doctor/system-health` | Admin: `SystemHealthSection` |
-| Журнал операций | `/app/doctor/audit-log` | Admin: `admin_audit_log` |
-| Аналитика по уведомлениям | `/app/doctor/analytics/notifications` | Admin: reminder/content stats |
-| Использование (product) | `/app/doctor/usage` | Admin: product analytics |
-| Админ-настройки | `/app/doctor/admin/*` | Параметры, auth, интеграции, booking, technical |
+| Группа                    | URL                                                        | Назначение                                                                                                                                                                             |
+| ------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Сегодня                   | `/app/doctor`                                              | Рабочий inbox: KPI, очереди (заявки, сообщения, записи); health-баннер для admin                                                                                                       |
+| Клиенты                   | `/app/doctor/clients`                                      | Список и фильтры; query `scope=appointments\|all\|archived`; legacy `?selected=<uuid>` → redirect на карточку                                                                          |
+| Карточка клиента          | `/app/doctor/clients/[userId]`                             | `ClientProfileCard` (табы: Обзор, Программа, …); read-only дерево активной программы на табе «Программа»                                                                               |
+| Подписчики (legacy)       | `/app/doctor/subscribers`, `/subscribers/[userId]`         | Полные redirect-ы на `/clients?scope=all`                                                                                                                                              |
+| Hint admin                | `/app/doctor/clients/name-match-hints`                     | Admin-debug                                                                                                                                                                            |
+| Записи                    | `/app/doctor/appointments`                                 | Расписание; `view=future\|month\|cancellationsMonth`; при расхождении имени Rubitime и профиля — подсказка «В Rubitime»                                                                |
+| Сообщения                 | `/app/doctor/messages`                                     | Чат поддержки с пациентами (журнал массовых рассылок — на `/broadcasts`)                                                                                                               |
+| Рассылки                  | `/app/doctor/broadcasts`                                   | Категории + аудитории + предпросмотр (число/имена, `dev_mode`) + подтверждение + `broadcast_audit`; см. [`../ARCHITECTURE/DOCTOR_BROADCASTS.md`](../ARCHITECTURE/DOCTOR_BROADCASTS.md) |
+| Онлайн-заявки             | `/app/doctor/online-intake`, `/online-intake/[requestId]`  | Inbox онлайн-запросов от пациентов                                                                                                                                                     |
+| Упражнения                | `/app/doctor/exercises`, `/[id]`, `/new`, `/auto-create`   | Каталог упражнений ЛФК                                                                                                                                                                 |
+| Комплексы ЛФК             | `/app/doctor/lfk-templates`, `/[id]`, `/new`               | Сборки упражнений                                                                                                                                                                      |
+| Клинические тесты         | `/app/doctor/clinical-tests`, `/[id]`, `/new`              | Каталог тестов                                                                                                                                                                         |
+| Наборы тестов             | `/app/doctor/test-sets`, `/[id]`, `/new`                   | Сборки тестов                                                                                                                                                                          |
+| Рекомендации              | `/app/doctor/recommendations`, `/[id]`, `/new`             | Каталог рекомендаций                                                                                                                                                                   |
+| Шаблоны программ          | `/app/doctor/treatment-program-templates`, `/[id]`, `/new` | Конструктор программ лечения                                                                                                                                                           |
+| Курсы                     | `/app/doctor/courses`, `/[id]`, `/new`                     | Каталог курсов (= программ для пациента)                                                                                                                                               |
+| Программа клиента         | `/app/doctor/clients/treatment-programs/[instanceId]`      | Параллельный путь к экземпляру программы                                                                                                                                               |
+| Справочники               | `/app/doctor/references`, `/[categoryCode]`                | Зоны тела / типы нагрузок                                                                                                                                                              |
+| CMS — обзор страниц       | `/app/doctor/content`                                      | Все страницы с фильтром по разделу                                                                                                                                                     |
+| CMS — разделы             | `/app/doctor/content/sections`, `/new`, `/edit/[slug]`     | Управление разделами                                                                                                                                                                   |
+| CMS — страница            | `/app/doctor/content/new`, `/edit/[id]`                    | Редактор страницы                                                                                                                                                                      |
+| CMS — новости             | `/app/doctor/content/news`                                 | `news_items`                                                                                                                                                                           |
+| CMS — мотивации           | `/app/doctor/content/motivation`                           | `motivational_quotes`                                                                                                                                                                  |
+| CMS — библиотека          | `/app/doctor/content/library`, `/library/delete-errors`    | Файлы                                                                                                                                                                                  |
+| CMS — главная пациента    | `/app/doctor/patient-home`                                 | Блоки + items                                                                                                                                                                          |
+| Аналитика по клиентам     | `/app/doctor/analytics/clients`                            | Агрегаты + графики регистраций (admin); `/app/doctor/stats` → redirect                                                                                                                 |
+| Здоровье системы          | `/app/doctor/system-health`                                | Admin: `SystemHealthSection`                                                                                                                                                           |
+| Журнал операций           | `/app/doctor/audit-log`                                    | Admin: `admin_audit_log`                                                                                                                                                               |
+| Аналитика по уведомлениям | `/app/doctor/analytics/notifications`                      | Admin: reminder/content stats                                                                                                                                                          |
+| Использование (product)   | `/app/doctor/usage`                                        | Admin: product analytics                                                                                                                                                               |
+| Админ-настройки           | `/app/doctor/admin/*`                                      | Параметры, auth, интеграции, booking, technical                                                                                                                                        |
 
 ## II.3. Карточка пациента — `ClientProfileCard.tsx`
 

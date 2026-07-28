@@ -1,26 +1,31 @@
-import { CalendarDays, ClipboardList, MessageCircle, UserPlus } from "lucide-react";
-import { landingBodySecondary, landingContainer, landingH2, landingStepTitle } from "@/components/landing/landingTypography";
-import { cn } from "@/lib/utils";
+import { CalendarDays, ClipboardList, MessageCircle, UserPlus } from 'lucide-react';
+import {
+  landingBodySecondary,
+  landingContainer,
+  landingH2,
+  landingStepTitle,
+} from '@/components/landing/landingTypography';
+import { cn } from '@/lib/utils';
 
 const steps = [
   {
-    title: "Настройте услуги и расписание",
-    description: "Создайте услуги, места приёма и рабочее время.",
+    title: 'Настройте услуги и расписание',
+    description: 'Создайте услуги, места приёма и рабочее время.',
     icon: CalendarDays,
   },
   {
-    title: "Добавляйте клиентов",
-    description: "Запишите клиента на приём или создайте карточку после визита.",
+    title: 'Добавляйте клиентов',
+    description: 'Запишите клиента на приём или создайте карточку после визита.',
     icon: UserPlus,
   },
   {
-    title: "Ведите приёмы и назначения",
-    description: "Сохраняйте историю визитов и собирайте программу реабилитации.",
+    title: 'Ведите приёмы и назначения',
+    description: 'Сохраняйте историю визитов и собирайте программу реабилитации.',
     icon: ClipboardList,
   },
   {
-    title: "Оставайтесь на связи",
-    description: "Клиент видит назначения в своём кабинете, а вы — сообщения и динамику.",
+    title: 'Оставайтесь на связи',
+    description: 'Клиент видит назначения в своём кабинете, а вы — сообщения и динамику.',
     icon: MessageCircle,
   },
 ] as const;
@@ -33,7 +38,7 @@ export function WorkflowSection() {
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#406CA7] sm:text-[0.8125rem]">
             Как это работает
           </p>
-          <h2 className={cn(landingH2, "mt-2")}>От записи до сопровождения между приёмами</h2>
+          <h2 className={cn(landingH2, 'mt-2')}>От записи до сопровождения между приёмами</h2>
         </div>
         <ol className="mt-8 grid gap-px overflow-hidden rounded-[24px] border border-[#DDE5EF] bg-[#DDE5EF] md:grid-cols-2 lg:grid-cols-4">
           {steps.map((step, index) => {
@@ -46,8 +51,8 @@ export function WorkflowSection() {
                   </span>
                   <span className="text-sm font-semibold text-[#94A3B8]">{index + 1}</span>
                 </div>
-                <h3 className={cn(landingStepTitle, "mt-5")}>{step.title}</h3>
-                <p className={cn(landingBodySecondary, "mt-2")}>{step.description}</p>
+                <h3 className={cn(landingStepTitle, 'mt-5')}>{step.title}</h3>
+                <p className={cn(landingBodySecondary, 'mt-2')}>{step.description}</p>
               </li>
             );
           })}

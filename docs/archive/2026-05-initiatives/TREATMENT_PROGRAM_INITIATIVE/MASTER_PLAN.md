@@ -50,11 +50,11 @@
 
 **Цель:** не дать legacy-паттернам проникнуть в новый код.
 
-| # | Задача | Тип |
-|---|--------|-----|
+| #   | Задача                                                                                                                 | Тип    |
+| --- | ---------------------------------------------------------------------------------------------------------------------- | ------ |
 | 0.1 | ESLint rule `no-restricted-imports` для `@/infra/db/client` и `@/infra/repos/*` в `modules/**` и `app/api/**/route.ts` | config |
-| 0.2 | Cursor rule `clean-architecture-module-isolation` | config |
-| 0.3 | `LEGACY_CLEANUP_BACKLOG.md` — allowlist всех текущих нарушений в `modules/*` и `route.ts` | docs |
+| 0.2 | Cursor rule `clean-architecture-module-isolation`                                                                      | config |
+| 0.3 | `LEGACY_CLEANUP_BACKLOG.md` — allowlist всех текущих нарушений в `modules/*` и `route.ts`                              | docs   |
 
 **Gate:** ESLint rule проходит на текущем коде (allowlisted файлы в overrides). Новый файл без override получает lint error при `@/infra` import.
 
@@ -62,13 +62,13 @@
 
 **Цель:** единый типобезопасный data-access слой.
 
-| # | Задача |
-|---|--------|
-| 1.1 | `pnpm add drizzle-orm drizzle-kit` (webapp) |
-| 1.2 | `drizzle-kit introspect` → `db/schema/*.ts` |
-| 1.3 | `drizzle.config.ts` с подключением к pool |
+| #   | Задача                                                                        |
+| --- | ----------------------------------------------------------------------------- |
+| 1.1 | `pnpm add drizzle-orm drizzle-kit` (webapp)                                   |
+| 1.2 | `drizzle-kit introspect` → `db/schema/*.ts`                                   |
+| 1.3 | `drizzle.config.ts` с подключением к pool                                     |
 | 1.4 | Smoke-тест: один существующий read-запрос через Drizzle (не ломая старый код) |
-| 1.5 | Gate: `pnpm run ci` green |
+| 1.5 | Gate: `pnpm run ci` green                                                     |
 
 **Результат:** Drizzle настроен, schema отражает текущую БД, новые сущности можно описывать в schema.
 
@@ -77,18 +77,19 @@
 **Цель:** переиспользуемые клинические элементы.
 
 Что **уже есть** (не трогаем):
+
 - `lfk_exercises` + `lfk_exercise_media` — упражнения
 - `lfk_complex_templates` + `lfk_complex_template_exercises` — комплексы ЛФК
 - `content_pages` (section=lessons) — уроки
 
 Что **создаём**:
 
-| Сущность | Таблица | Поля (ключевые) |
-|----------|---------|-----------------|
-| Тест | `tests` | id, title, description, test_type, scoring_config JSONB, media, tags, is_archived, created_by |
-| Набор тестов | `test_sets` | id, title, description, is_archived, created_by |
-| Элемент набора | `test_set_items` | id, test_set_id FK, test_id FK, sort_order |
-| Рекомендация | `recommendations` | id, title, body_md, media, tags, is_archived, created_by |
+| Сущность       | Таблица           | Поля (ключевые)                                                                               |
+| -------------- | ----------------- | --------------------------------------------------------------------------------------------- |
+| Тест           | `tests`           | id, title, description, test_type, scoring_config JSONB, media, tags, is_archived, created_by |
+| Набор тестов   | `test_sets`       | id, title, description, is_archived, created_by                                               |
+| Элемент набора | `test_set_items`  | id, test_set_id FK, test_id FK, sort_order                                                    |
+| Рекомендация   | `recommendations` | id, title, body_md, media, tags, is_archived, created_by                                      |
 
 **Gate:** CRUD + doctor UI для каждой сущности. Тесты на сервисный слой.
 
@@ -96,10 +97,10 @@
 
 **Цель:** врач собирает план лечения.
 
-| Таблица | Поля (ключевые) |
-|---------|-----------------|
-| `treatment_program_templates` | id, title, description, status (draft/published/archived), created_by, timestamps |
-| `treatment_program_template_stages` | id, template_id FK, title, description, sort_order |
+| Таблица                                  | Поля (ключевые)                                                                   |
+| ---------------------------------------- | --------------------------------------------------------------------------------- |
+| `treatment_program_templates`            | id, title, description, status (draft/published/archived), created_by, timestamps |
+| `treatment_program_template_stages`      | id, template_id FK, title, description, sort_order                                |
 | `treatment_program_template_stage_items` | id, stage_id FK, item_type, item_ref_id UUID, sort_order, comment, settings JSONB |
 
 `item_type` ∈ (`exercise`, `lfk_complex`, `recommendation`, `lesson`, `test_set`)
@@ -112,17 +113,18 @@
 
 **Цель:** живая программа пациента.
 
-| Таблица | Поля (ключевые) |
-|---------|-----------------|
-| `treatment_program_instances` | id, template_id nullable, patient_user_id FK, assigned_by FK, title, status, created_at, updated_at |
-| `treatment_program_instance_stages` | id, instance_id FK, source_stage_id nullable, title, sort_order, description, local_comment, status (locked/available/in_progress/completed/skipped) |
-| `treatment_program_instance_stage_items` | id, stage_id FK, item_type, item_ref_id, sort_order, comment, local_comment, settings JSONB, snapshot JSONB |
+| Таблица                                  | Поля (ключевые)                                                                                                                                      |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `treatment_program_instances`            | id, template_id nullable, patient_user_id FK, assigned_by FK, title, status, created_at, updated_at                                                  |
+| `treatment_program_instance_stages`      | id, instance_id FK, source_stage_id nullable, title, sort_order, description, local_comment, status (locked/available/in_progress/completed/skipped) |
+| `treatment_program_instance_stage_items` | id, stage_id FK, item_type, item_ref_id, sort_order, comment, local_comment, settings JSONB, snapshot JSONB                                          |
 
 `snapshot JSONB` — замороженные данные блока на момент назначения.
 
 `local_comment` — nullable TEXT, заполняется врачом для индивидуализации.
 
 **Логика override комментариев:**
+
 - Если `local_comment IS NOT NULL` → показываем `local_comment`.
 - Иначе → показываем `comment` (из шаблона, скопированный при назначении).
 
@@ -132,8 +134,8 @@
 
 **Цель:** универсальный механизм комментариев для любых сущностей.
 
-| Таблица | Поля |
-|---------|------|
+| Таблица    | Поля                                                                                                     |
+| ---------- | -------------------------------------------------------------------------------------------------------- |
 | `comments` | id, author_id FK, target_type TEXT, target_id UUID, comment_type TEXT, body TEXT, created_at, updated_at |
 
 `target_type` ∈ (`exercise`, `lfk_complex`, `test`, `test_set`, `recommendation`, `lesson`, `stage_item_instance`, `stage_instance`, `program_instance`)
@@ -150,12 +152,13 @@
 
 **Цель:** фиксация реального выполнения.
 
-| Таблица | Поля |
-|---------|------|
-| `test_attempts` | id, instance_stage_item_id FK, patient_user_id FK, started_at, completed_at |
-| `test_results` | id, attempt_id FK, test_id FK, raw_value JSONB, normalized_decision (passed/failed/partial), decided_by FK nullable, created_at |
+| Таблица         | Поля                                                                                                                            |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `test_attempts` | id, instance_stage_item_id FK, patient_user_id FK, started_at, completed_at                                                     |
+| `test_results`  | id, attempt_id FK, test_id FK, raw_value JSONB, normalized_decision (passed/failed/partial), decided_by FK nullable, created_at |
 
 Статусы этапов:
+
 - `locked` → `available` → `in_progress` → `completed` / `skipped`
 - При `completed` текущего → следующий становится `available`
 - Ручной override через API (врач может открыть/пропустить этап)
@@ -166,8 +169,8 @@
 
 **Цель:** клинически значимый audit trail.
 
-| Таблица | Поля |
-|---------|------|
+| Таблица                    | Поля                                                                                                                       |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `treatment_program_events` | id, instance_id FK, actor_id FK, event_type TEXT, target_type TEXT, target_id UUID, payload JSONB, reason TEXT, created_at |
 
 `event_type` ∈ (`item_added`, `item_removed`, `item_replaced`, `comment_changed`, `stage_added`, `stage_removed`, `stage_skipped`, `stage_completed`, `status_changed`, `test_completed`)
@@ -180,8 +183,8 @@
 
 **Цель:** продажа программ без дублирования логики.
 
-| Таблица | Поля |
-|---------|------|
+| Таблица   | Поля                                                                                                                                               |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `courses` | id, title, description, program_template_id FK, intro_lesson_page_id FK nullable, access_settings JSONB, status, price_minor, currency, timestamps |
 
 При покупке: → создаётся `treatment_program_instance` (тот же движок из фазы 4).
@@ -195,6 +198,7 @@
 **Цель:** система становится клинически пригодной.
 
 Что добавляем:
+
 - API для мутаций программы пациента после начала прохождения
 - Замена элемента, добавление/удаление этапа, реордер
 - Все мутации пишут event в `treatment_program_events`
@@ -230,18 +234,18 @@
 
 ## Критерии входа / выхода
 
-| Фаза | Вход | Выход |
-|------|------|-------|
-| 0 | — | ESLint rule green, cursor rule создан, backlog зафиксирован |
-| 1 | Фаза 0 done | Drizzle работает, introspect done, CI green |
-| 2 | Фаза 1 done | CRUD для tests/test_sets/recommendations, doctor UI, тесты |
-| 3 | Фаза 2 done | Конструктор шаблонов, doctor UI, тесты |
-| 4 | Фаза 3 done | Назначение, копирование, редактирование, doctor UI, тесты |
-| 5 | Фаза 4 done | Единая таблица comments, UI-компонент, тесты |
-| 6 | Фаза 4 done | Прохождение, тесты, статусы этапов |
-| 7 | Фаза 4 done | Event log, таймлайн UI |
-| 8 | Фаза 3 + 4 done | Каталог курсов, покупка → instance |
-| 9 | Фаза 4 + 7 done | Мутации, события, проекция в интегратор |
+| Фаза | Вход            | Выход                                                       |
+| ---- | --------------- | ----------------------------------------------------------- |
+| 0    | —               | ESLint rule green, cursor rule создан, backlog зафиксирован |
+| 1    | Фаза 0 done     | Drizzle работает, introspect done, CI green                 |
+| 2    | Фаза 1 done     | CRUD для tests/test_sets/recommendations, doctor UI, тесты  |
+| 3    | Фаза 2 done     | Конструктор шаблонов, doctor UI, тесты                      |
+| 4    | Фаза 3 done     | Назначение, копирование, редактирование, doctor UI, тесты   |
+| 5    | Фаза 4 done     | Единая таблица comments, UI-компонент, тесты                |
+| 6    | Фаза 4 done     | Прохождение, тесты, статусы этапов                          |
+| 7    | Фаза 4 done     | Event log, таймлайн UI                                      |
+| 8    | Фаза 3 + 4 done | Каталог курсов, покупка → instance                          |
+| 9    | Фаза 4 + 7 done | Мутации, события, проекция в интегратор                     |
 
 ## Что будет самым сложным
 
@@ -252,9 +256,9 @@
 
 ## Документы для пересмотра по завершении
 
-| Документ | Почему |
-|----------|--------|
-| `apps/webapp/src/app/api/api.md` | Новые API endpoints программ |
-| `apps/webapp/src/app-layer/di/di.md` | Новые сервисы в deps |
-| `docs/ARCHITECTURE/DB_STRUCTURE.md` | Новые таблицы |
-| `docs/README.md` | Добавить ссылку на инициативу |
+| Документ                             | Почему                        |
+| ------------------------------------ | ----------------------------- |
+| `apps/webapp/src/app/api/api.md`     | Новые API endpoints программ  |
+| `apps/webapp/src/app-layer/di/di.md` | Новые сервисы в deps          |
+| `docs/ARCHITECTURE/DB_STRUCTURE.md`  | Новые таблицы                 |
+| `docs/README.md`                     | Добавить ссылку на инициативу |

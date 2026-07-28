@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import type { ReactNode } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { doctorInteractiveSurfaceButtonClass } from "@/shared/ui/doctor/doctorVisual";
-import { cn } from "@/lib/utils";
+import type { ReactNode } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { doctorInteractiveSurfaceButtonClass } from '@/shared/ui/doctor/doctorVisual';
+import { cn } from '@/lib/utils';
 
 export type DoctorCatalogMasterListRowProps = {
   active: boolean;
@@ -38,18 +38,20 @@ export function DoctorCatalogMasterListRow({
           onClick={onPick}
           className={cn(
             doctorInteractiveSurfaceButtonClass,
-            "flex min-w-0 flex-1 items-center gap-2 rounded-none border border-transparent px-[var(--doctor-list-inline-padding,18px)] py-2.5 text-left text-base font-normal hover:bg-muted/80",
+            'flex min-w-0 flex-1 items-center gap-2 rounded-none border border-transparent px-[var(--doctor-list-inline-padding,18px)] py-2.5 text-left text-base font-normal hover:bg-muted/80',
             active &&
-              "border-primary/25 bg-primary/15 text-primary hover:bg-primary/20 dark:bg-primary/20 dark:hover:bg-primary/25",
+              'border-primary/25 bg-primary/15 text-primary hover:bg-primary/20 dark:bg-primary/20 dark:hover:bg-primary/25',
           )}
         >
-          <div className="flex min-h-[30px] flex-wrap content-end items-end gap-1">{previewInner}</div>
+          <div className="flex min-h-[30px] flex-wrap content-end items-end gap-1">
+            {previewInner}
+          </div>
           <div className="min-w-0 flex-1">
             <div className="line-clamp-2 font-normal leading-tight">{title}</div>
             <div
               className={cn(
-                "text-xs tabular-nums",
-                active ? "text-primary/70" : "text-muted-foreground",
+                'text-xs tabular-nums',
+                active ? 'text-primary/70' : 'text-muted-foreground',
               )}
             >
               {meta}

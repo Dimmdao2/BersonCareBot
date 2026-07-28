@@ -26,10 +26,11 @@
 **Контекст:** вкладка **«Интеграции»** админки записи (`/app/doctor/admin/booking/integrations`) монтирует `RubitimeSection` (справочник `booking_*` через `/api/admin/booking-catalog/*`).
 
 **Сделано:**
+
 - Один inline-редактор услуги (PATCH по `id`); в блоке branch-service — read-only + **«К услуге»** (scroll, раскрытие, фокус в поле названия).
 - Редактор свёрнут по умолчанию (**«Изменить»** / **«Отмена»**).
 - Форма **«Создать услугу»** — только создание (POST upsert без смены семантики API); RU-ошибки через `mapBookingCatalogApiError`.
-- Предупреждение: *«Изменение затронет N связок…»* при смене длительности/цены при активных branch-service.
+- Предупреждение: _«Изменение затронет N связок…»_ при смене длительности/цены при активных branch-service.
 - POST `/api/admin/booking-catalog/services` — `httpFromDatabaseError` в `catch` (как PATCH `[id]`).
 
 **Проверки:** vitest `RubitimeSection.test.tsx`, `rubitimeCatalogErrors.test.ts`, `services/route.test.ts`, `services/[id]/route.test.ts`; eslint.
@@ -45,6 +46,7 @@
 **План:** [`.cursor/plans/archive/rubitime_transition_stabilize.plan.md`](../../.cursor/plans/archive/rubitime_transition_stabilize.plan.md) (`status: completed`, `completedAt: 2026-05-30`).
 
 **Сделано:**
+
 - **П.0:** миграция `0100_booking_slots_read_source.sql` — seed `booking_slots_read_source=rubitime` в `public` + **`integrator.system_settings`** (симметрия с `0099` / `rubitime_legacy` для appointments).
 - **П.1:** `BookingEngineSection` — labels «Список записей врача» / «Свободные слоты пациента», статус календаря, warning «Источники расходятся»; overview `calendarReadSource`; PATCH/route tests (`admin/settings`, `overview/route`).
 - **П.2:** `pgBookingCalendarLegacy` + `bookingCalendarReadSwitch`; range overlap на `appointment_records`; `freeSlotsEnabled: false` в Rubitime mode; legacy events read-only; API `readSource`/`freeSlotsEnabled`; **`calendarLegacyFilters`** (soft-filter scope, dedupe prefer legacy); `branchId` через `be_external_entity_mappings`; admin/doctor calendar route tests.
@@ -65,10 +67,12 @@
 **Инцидент:** после деплоя собственного движка кабинет врача перестал показывать будущие записи; кнопка «Проецировать записи» падала с `be_appointments_specialist_no_overlap` (дубль `rubitime_projection` без `be_external_entity_mappings`).
 
 **Root cause:**
+
 - `buildAppDeps` автоматически переключал `doctorAppointmentsPort` на `pgDoctorCanonicalAppointments` при наличии booking engine.
 - `pgBookingRubitimeBridge` проверял только mapping по external id и пытался повторно insert в `be_appointments`.
 
 **Сделано:**
+
 - `doctorAppointmentsReadSwitch`: default read = `appointment_records`; cutover через `system_settings.booking_doctor_appointments_read_source` (`rubitime_legacy` | `canonical`).
 - `pgBookingRubitimeBridge`: recovery существующей `rubitime_projection` → upsert mapping + history `rubitime_projection_mapping_recovered`, без duplicate insert.
 - Ops SQL: `apps/webapp/scripts/rubitime-appointment-mapping-audit.sql`, `backfill-rubitime-appointment-mappings.sql`.
@@ -82,6 +86,7 @@
 **Проверки (локально):** vitest по новым/затронутым файлам; `buildAppDeps.test.ts`.
 
 **Production (оператор):**
+
 1. Задеплоить webapp.
 2. Убедиться, что `booking_doctor_appointments_read_source` не установлен в `canonical` (или явно `rubitime_legacy`).
 3. `rubitime-appointment-mapping-audit.sql` → при необходимости `backfill-rubitime-appointment-mappings.sql`.
@@ -94,6 +99,7 @@
 ## 2026-05-30 — Prod-hardening: закрытие оставшихся хвостов
 
 **Сделано:**
+
 - Payments: для YooKassa включена реальная проверка webhook (`authorization` и fallback `x-yookassa-signature` + `webhookSecret`), `providerConfig` прокинут в `verifyWebhook`.
 - Notifications: `booking_lifecycle_notifications` применяется не только в staff lifecycle, но и в emit-path `booking.created` и `booking.payment_captured`.
 - Тесты покрытия: добавлены route tests для `doctor|admin calendar`, `manual-cancel`, `manual-reschedule`, `booking-engine/policies`; UI round-trip test для `BookingPoliciesSection`; доп. кейсы `patient-booking/service` (lifecycle error + idempotent повторная отмена); `admin/settings` для `booking_lifecycle_notifications`; smoke inprocess для `patient/booking/new`.
@@ -101,6 +107,7 @@
 - Документация синхронизирована: `MASTER_PLAN`, `ROADMAP`, `STAGE_CHECKLISTS`, `UI_SURFACES_CHECKLIST`.
 
 **Проверки:**
+
 - `pnpm --filter @bersoncare/webapp exec vitest run src/infra/payments/yookassaPaymentProvider.test.ts src/app/api/doctor/booking-engine/appointments/[id]/manual-reschedule/route.test.ts src/app/api/admin/booking-engine/calendar/route.test.ts src/app/api/admin/booking-engine/appointments/[id]/manual-cancel/route.test.ts src/app/api/admin/booking-engine/appointments/[id]/manual-reschedule/route.test.ts src/app/api/admin/booking-engine/policies/route.test.ts src/app/app/settings/BookingPoliciesSection.test.tsx src/modules/patient-booking/service.test.ts src/app/api/admin/settings/route.test.ts` ✅
 - `pnpm --filter @bersoncare/webapp exec vitest run e2e/smoke-app-router-rsc-pages-inprocess.test.ts` ✅
 
@@ -109,6 +116,7 @@
 ## 2026-05-30 — Этап 8: календарь специалиста/админа (закрыт)
 
 **Сделано:**
+
 - `modules/booking-calendar` + `pgBookingCalendar`: read `be_appointments` + `be_schedule_blocks`, dedupe payment intents, package title, prepayment flag.
 - API: `GET /api/doctor|admin/booking-engine/calendar` (`serviceId`, `includeFreeSlots`); manual appointments с `assertSlotAvailable`.
 - UI: `/app/doctor/calendar` (luxon+shadcn, day/week/month, фильтры, lifecycle/оплата/абонемент в карточке); free/busy слоты (SSA duration/room).
@@ -125,6 +133,7 @@
 ## 2026-05-29 — Создана инфраструктура инициативы (этап 0)
 
 **Сделано:**
+
 - Заведена папка `docs/OWN_BOOKING_ENGINE_INITIATIVE/` с документами:
   - `SOURCE_SPEC.md` — дословное ТЗ владельца (24 раздела), первоисточник (anti-loss).
   - `README.md` — точка входа, связи, обязательные правила.
@@ -138,6 +147,7 @@
 - В `docs/README.md` добавлена ссылка на инициативу (раздел активных инициатив).
 
 **Решения:**
+
 - Источник правды — собственная БД; Rubitime — отключаемый двусторонний мост.
 - Multi-tenant (`organization_id`) закладывается с этапа 1 (SaaS-задел), стартует один tenant.
 - Платёжные провайдеры — строго `system_settings`, не ENV.
@@ -154,6 +164,7 @@
 ## 2026-05-29 — Этап 1: каноническая модель данных
 
 **Сделано:**
+
 - Drizzle-схема `apps/webapp/db/schema/bookingEngine.ts` (`be_*` таблицы, enum статусов записи, append-only события, таймлайн).
 - Миграции `0086_booking_engine_canonical.sql`, `0087_booking_engine_backfill_legacy.sql` (seed организации, перенос `booking_*` → канон).
 - Модуль `apps/webapp/src/modules/booking-engine/` (FSM статусов, service, ports), репозитории `pgBookingEngine.ts`, `pgBookingRubitimeBridge.ts` (read-bridge).
@@ -164,6 +175,7 @@
 **Проверки:** `pnpm --filter webapp typecheck`; `vitest run src/modules/booking-engine --project fast` (7 тестов).
 
 **Доработка (закрытие хвостов этапа 1):**
+
 - Модуль `booking-rubitime-bridge` (legacyProjection + тесты); `pgBookingRubitimeBridge` — проекция с разбором payload, привязкой branch/specialist/service через mappings.
 - API PATCH/DELETE: `rooms/[id]`, `specialists/[id]`, `services/[id]`; `specialist-rooms`.
 - UI: флаги услуг, матрица city/room, specialist×room, service×branch; дефолт моста `false`.
@@ -185,6 +197,7 @@
 ## 2026-05-29 — Этап 2: базовая запись пациента
 
 **Сделано:**
+
 - Миграция `0089_booking_stage2_scheduling_and_forms.sql`: `be_booking_form_*`, `be_working_hours`, `be_availability_rules`, `be_schedule_blocks`, exclusion на `be_appointments`, `patient_bookings.canonical_appointment_id`.
 - Модули `booking-scheduling` (слот-движок), `booking-form` (валидация/CRUD полей).
 - Канонический `createBooking` (`canonicalCreate.ts`): запись без обязательного `rubitimeId`; мост — best-effort.
@@ -203,6 +216,7 @@
 ## 2026-05-29 — Этап 2: доведение до полной реализации (после аудита)
 
 **Сделано:**
+
 - Пациентский визард: `slotCount` на шаге слота, `durationMinutes` в URL, динамические поля на подтверждении (`formAnswers` → API).
 - Admin: полный CRUD полей (`BookingFormFieldsSection`); блокировки расписания (`schedule-blocks` API + `BookingScheduleBlocksSection`).
 - Тесты: `canonicalCreate.test.ts`, канонический путь в `service.test.ts`; `canonicalAppointmentId` в типах и мапперах.
@@ -217,6 +231,7 @@
 ## 2026-05-29 — Этап 3: публичный виджет / страница записи
 
 **Сделано:**
+
 - Миграция `0090_booking_stage3_public_widget.sql`: `be_appointments.attribution_json`, `patient_merge_candidates`.
 - Публичная воронка `/book/new` (без сессии), скрипт `/book/embed.js` (iframe/popup/ссылка), CSP `frame-ancestors` для Tilda и `dmitryberson.ru`.
 - API без auth: `GET /api/booking/public/catalog/*`, `slots`, `form-fields`; `POST /api/booking/public/create` (rate-limit, UTM/атрибуция, `bookingChannel: public_widget`).
@@ -232,6 +247,7 @@
 ## 2026-05-29 — Этап 5: предоплата и платёжный слой
 
 **Сделано:**
+
 - Миграция `0092_booking_stage5_payments.sql`: `be_prepayment_policies`, `be_payment_intents`, `be_payments`, `be_refunds`, `be_payment_provider_events`, `be_payment_history_events`; `patient_bookings.status` + `awaiting_payment`.
 - Модуль `modules/payments` (порт, сервис, mock-провайдер, калькулятор предоплаты); `infra/repos/pgPayments.ts`.
 - `system_settings`: `booking_payment_enabled`, `booking_payment_providers` (merge/redaction секретов).
@@ -248,6 +264,7 @@
 ## 2026-05-29 — Этап 5: закрытие хвостов после аудита
 
 **Сделано:**
+
 - `0093`: предоплата по `online_category`; `payment_ref` на capture; carry-over при staff/patient reschedule.
 - API: doctor `GET .../payment`; public `payment-status`, `mock-complete`; `GET /api/booking/payment-history`.
 - UI: A9 (список провайдеров), A10 (очно + онлайн), B-pay panel, C-pay (история + upcoming), P-pay `/book/pay`.
@@ -262,6 +279,7 @@
 ## 2026-05-29 — Этап 5: ревью качества (post-audit)
 
 **Исправлено:**
+
 - Drizzle `patient_bookings_status_check`: добавлен `awaiting_payment` (синхрон с миграцией `0092`).
 - `getAppointmentPaymentSummary`: котировка предоплаты для **онлайн** через `prepaymentContextFromBooking`; staff API подтягивает `patient_bookings` по `canonical_appointment_id`.
 - `getByCanonicalAppointmentId` на порте бронирований; `loadStaffAppointmentPaymentSummary` для admin/doctor.
@@ -274,6 +292,7 @@
 ## 2026-05-29 — Этап 5: синхронизация документации и плана
 
 **Сделано:**
+
 - План: `.cursor/plans/archive/own_booking_stage5_prepayment_payments.plan.md` — `status: completed`, todos (включая 0093, audit, notify), DoD и карта кода.
 - `README.md` (ссылка на archive), `api.md`, `patient-booking.md`, `modules/payments/payments.md`, `DB_STRUCTURE.md`, `RUBITIME_BOOKING_PIPELINE.md`.
 
@@ -282,6 +301,7 @@
 ## 2026-05-29 — Этап 3: закрытие хвостов после аудита
 
 **Сделано:**
+
 - `0090` в `drizzle-migrations/meta/_journal.json`; ESLint: admin merge API через `buildAppDeps().patientMergeCandidate`, rate-limit в allowlist.
 - Онлайн-ветка в `/book/new` (rehab_lfk, nutrition); deep-link `branchServiceId`, preset city/online `type`+`category`.
 - Admin: `BookingPublicAttributionSection`, конструктор UTM/ссылок в `BookingPublicWidgetSection`; `GET .../public-appointments`.
@@ -296,6 +316,7 @@
 ## 2026-05-29 — Этап 3: ревью качества (после аудита)
 
 **Исправлено:**
+
 - `AdminMergeAccountsPanel`: проп `initialSecondUserId`, сброс при смене строки; `key={row.id}` в списке кандидатов.
 - Раскрытие кандидата по `row.id` (не по `anchorUserId` при нескольких кандидатах на один якорь).
 - Валидация онлайн-категории на confirm/slot (`isPublicOnlineBookingCategory`).
@@ -311,6 +332,7 @@
 ## 2026-05-29 — Документация и закрытие плана этапа 2
 
 **Сделано:**
+
 - План перенесён в `.cursor/plans/archive/own_booking_stage2_patient_booking.plan.md` (`status: completed`).
 - Обновлены `README.md`, `ROADMAP.md`, `MASTER_PLAN.md` §2, `DB_STRUCTURE.md`, `RUBITIME_BOOKING_PIPELINE.md`.
 - Модульные README: `patient-booking.md`, `booking-scheduling.md`, `booking-form.md`; `api.md` (ранее).
@@ -322,6 +344,7 @@
 ## 2026-05-29 — Этап 4: переносы и отмены
 
 **Сделано:**
+
 - Миграция `0091_booking_stage4_policies_lifecycle.sql`: `be_cancellation_policies`, `be_reschedule_policies`, `be_appointment_reschedules`, `be_appointment_cancellations`; seed org-политик.
 - Модули `booking-policies` (резолвер приоритета, §8.4 anti-bypass), `booking-appointment-lifecycle` (patient/staff cancel & reschedule).
 - API: `GET /api/booking/actions`, `POST /api/booking/reschedule`, `POST /api/booking/cancel` (канон); admin `.../policies`, `.../manual-cancel|manual-reschedule`, `GET .../lifecycle`; doctor `/api/doctor/booking-engine/...` (те же ручные действия + lifecycle).
@@ -335,6 +358,7 @@
 ### 2026-05-29 — Аудит этапа 4 (доработки)
 
 **Сделано:**
+
 - Integrator: `booking.rescheduled` в Zod + `handleBookingLifecycleEvent` (напоминания, patient/doctor, web push); тест.
 - Порядок отмены: Rubitime до канона; `notifications_sent` + `patchLatest*Notifications` после emit.
 - Проекция врача при переносе/отмене (`projectCanonicalAppointmentRescheduled` / `Cancelled`).
@@ -351,6 +375,7 @@
 ## 2026-05-29 — Этап 6: абонементы
 
 **Сделано:**
+
 - Миграция `0094_booking_stage6_memberships.sql`: `be_subscription_packages`, `be_package_items`, `be_patient_packages`, `be_patient_package_items`, `be_package_usages`, `be_package_history_events`.
 - Модуль `modules/memberships` (balanceCalculator, service, `pgMemberships`); оплата через `payments` (`package_purchase`, `productRef=patient_package:{id}`).
 - API: admin/doctor `packages`, `patient-packages` (+ consume); patient `GET /api/booking/memberships`, `available`, payment-status, mock-complete; `POST /api/booking/create` + `patientPackageId`.
@@ -362,6 +387,7 @@
 ## 2026-05-29 — Этап 6: закрытие хвостов (аудит)
 
 **Сделано:**
+
 - `wrapBookingEngineMembershipHooks`: `onVisitConfirmed` при переходе в `visit_confirmed` / `completed`.
 - Штраф при отмене без резерва (`penaltyDeductForAppointment`); patient cancel учитывает `package_charged` и `chargePackageSessionOnLate`.
 - Резерв **до** `markConfirmed`; ошибка резерва → откат записи + `package_reserve_failed`.
@@ -377,6 +403,7 @@
 ## 2026-05-29 — Этап 6: ревью качества
 
 **Исправлено:**
+
 - `chargePackageSessionOnLate` учитывается в `policyResolver` (раньше флаг в БД не влиял на `decisionType`).
 - Штраф при отмене (`asPenalty`) больше не переводит запись в `charged_to_package` (недопустимый FSM после `late_cancellation`).
 - Ранняя валидация `patientPackageId` до создания `Appointment`.
@@ -391,6 +418,7 @@
 ## 2026-05-30 — Этап 7: продукты, акции, подписки, курсы
 
 **Сделано:**
+
 - Миграция `0095_booking_stage7_products.sql`: `be_products`, `be_product_purchases`, `be_product_pay_links`, `be_product_history_events`.
 - Модули `modules/products`, `modules/entitlements`; `pgProducts`, `pgEntitlements` (grants в `content_access_grants_webapp`).
 - Платежи: `product_purchase`, `productRef=product_purchase:{id}`, `createProductPaymentIntent`, `onProductPaymentCaptured` → `activatePurchase`.
@@ -406,6 +434,7 @@
 ## 2026-05-30 — Этап 7: закрытие хвостов по аудиту
 
 **Сделано:**
+
 - `_journal.json`: запись `0095_booking_stage7_products`.
 - Запись с продуктом: `productPurchaseId` в create, `GET /api/booking/products/available`, списание/возврат визита (`consumeVisitForAppointment`, `applyCancelVisitOutcome`), UI подтверждения записи.
 - Доступ к материалам: `resolvePatientCanViewContent` + grants на `content/[slug]`.
@@ -418,6 +447,7 @@
 ## 2026-05-30 — Этап 7: ревизия правок по аудиту
 
 **Исправлено после проверки:**
+
 - Бесплатная покупка по ссылке/телефону: `ensurePurchasePlatformUser` перед `activatePurchase` (fulfillment без сессии).
 - `GET /api/booking/public/products/payment-status` — без побочного создания пользователя; только сверка телефона.
 - `BookingPatientProductsSection` — корректное обновление списка после списания визита.
@@ -429,6 +459,7 @@
 ## 2026-05-30 — Этап 9: карточка клиента и полная история
 
 **Сделано:**
+
 - Миграция `0096`: `be_patient_booking_profiles`, `be_appointment_staff_comments`.
 - Модуль `client-history` (`types`, `ports`, `service`, `labels`); репо `pgClientHistory` — read-агрегатор timeline/payments/visits из событий этапов 1–8.
 - API: `GET /api/doctor/clients/[userId]/history`, `GET|PATCH .../booking-profile`, `GET|POST /api/doctor/booking-engine/appointments/[id]/comments`, `GET /api/booking/history`.
@@ -441,6 +472,7 @@
 ## 2026-05-30 — Этап 9: закрытие хвостов по аудиту
 
 **Сделано:**
+
 - `pgClientHistory`: `be_product_history_events`, fallback `be_package_usages`, dedupe timeline (reschedule/cancel/product), enrichment оплат (package/product title, payment method), phone-fallback для покупок и orphan-платежей.
 - `clientHistoryUtils`: dedupe, payment classification, enrich helpers + unit-тесты.
 - UI: русские подписи оплат; комментарии к записи — `AppointmentStaffCommentsSection` (визиты + календарь); `endAt` в визитах; оплаты в patient profile и `/app/patient/purchases`.
@@ -452,6 +484,7 @@
 ## 2026-05-30 — Этап 9: ревизия после аудита (второй проход)
 
 **Исправлено:**
+
 - `isFinalPaymentEventType`: не путает `prepayment_captured` и refund-события с финальной оплатой.
 - `dedupeTimelineItems`: dedupe fallback `package_usage` и зеркал `payment_history_event` из timeline.
 - `listTimeline`: phone-fallback orphan-платежей (как в `listPaymentHistory`); в визитах — валюта из события, не hardcoded RUB.
@@ -462,6 +495,7 @@
 ## 2026-05-30 — Prod-hardening (аудит own booking)
 
 **Сделано:**
+
 - Cancel-flow: канонический lifecycle до best-effort Rubitime; `rubitime_mirror` в `notifications_sent`; warn-log при сбое моста.
 - Пациент: native Перенести/Отменить на `/app/patient/booking/new` (`CabinetBookingActions`).
 - Политики: полный UI round-trip по scope/полям; A13 `booking_lifecycle_notifications`.
@@ -475,6 +509,7 @@
 ## 2026-05-30 — Merge+Contacts wave: supplementary contacts + booking upsert
 
 **Сделано:**
+
 - Таблица `platform_user_contacts` + модуль `platform-user-contacts` (этап 2).
 - Merge fallback: непобеждающие phone/email → `platform_user_contacts` (`source=merge`), audit `mergeContactsSaved` (этап 3).
 - Booking create (canonical + legacy): best-effort upsert phone/email из формы (`source=booking`); doctor card показывает supplementary contacts отдельно от identity.

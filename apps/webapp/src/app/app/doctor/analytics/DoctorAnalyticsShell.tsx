@@ -1,13 +1,13 @@
-"use client";
+'use client';
 
-import dynamic from "next/dynamic";
-import { useCallback, useEffect, useRef, useState } from "react";
+import dynamic from 'next/dynamic';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
-import type { ClientContactBreakdown } from "@/modules/doctor-clients/clientContactSegments";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
-import { doctorSectionTabClass } from "@/shared/ui/doctor/DoctorSectionTabs";
-import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
+import type { ClientContactBreakdown } from '@/modules/doctor-clients/clientContactSegments';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
+import { doctorSectionTabClass } from '@/shared/ui/doctor/DoctorSectionTabs';
+import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 
 import {
   ANALYTICS_BASE,
@@ -15,7 +15,7 @@ import {
   ANALYTICS_TABS,
   analyticsTabFromQuery,
   type AnalyticsTabId,
-} from "./doctorAnalyticsTabs";
+} from './doctorAnalyticsTabs';
 
 // ---------------------------------------------------------------------------
 // Dynamic tab content — каждый таб тянется лениво при первом открытии (ssr:false).
@@ -24,18 +24,18 @@ import {
 
 const ClientsTab = dynamic(
   () =>
-    import("./clients/DoctorAnalyticsClientsPageClient").then((m) => ({
+    import('./clients/DoctorAnalyticsClientsPageClient').then((m) => ({
       default: m.DoctorAnalyticsClientsPageClient,
     })),
   { ssr: false },
 );
 const ContentTab = dynamic(
-  () => import("./tabs/AnalyticsContentTab").then((m) => ({ default: m.AnalyticsContentTab })),
+  () => import('./tabs/AnalyticsContentTab').then((m) => ({ default: m.AnalyticsContentTab })),
   { ssr: false },
 );
 const AppTab = dynamic(
   () =>
-    import("../usage/ProductAnalyticsSection").then((m) => ({
+    import('../usage/ProductAnalyticsSection').then((m) => ({
       default: m.ProductAnalyticsSection,
     })),
   { ssr: false },
@@ -43,14 +43,14 @@ const AppTab = dynamic(
 // Уведомления (push-статистика) перенесены в таб «Приложение» — рендерятся под ProductAnalyticsSection.
 const NotificationsInAppTab = dynamic(
   () =>
-    import("./notifications/NotificationsAnalyticsClient").then((m) => ({
+    import('./notifications/NotificationsAnalyticsClient').then((m) => ({
       default: m.NotificationsAnalyticsClient,
     })),
   { ssr: false },
 );
 const RegistrationInAppTab = dynamic(
   () =>
-    import("./clients/RegistrationStatsAppTabWrapper").then((m) => ({
+    import('./clients/RegistrationStatsAppTabWrapper').then((m) => ({
       default: m.RegistrationStatsAppTabWrapper,
     })),
   { ssr: false },
@@ -59,14 +59,14 @@ const RegistrationInAppTab = dynamic(
 // подписчики ≠ клиенты (§24.6/24.9), это аудитория приложения.
 const SubscribersInAppTab = dynamic(
   () =>
-    import("./clients/SubscriberStatsAppTabWrapper").then((m) => ({
+    import('./clients/SubscriberStatsAppTabWrapper').then((m) => ({
       default: m.SubscriberStatsAppTabWrapper,
     })),
   { ssr: false },
 );
 const SoprovozhdeniePage = dynamic(
   () =>
-    import("./soprovozhdenie/SoprovozhdeniePage").then((m) => ({
+    import('./soprovozhdenie/SoprovozhdeniePage').then((m) => ({
       default: m.SoprovozhdeniePage,
     })),
   { ssr: false },
@@ -109,13 +109,13 @@ function AnalyticsTabsNav({ activeTab, onTabClick, clientsLabel }: AnalyticsTabs
           <Button
             key={tab.id}
             type="button"
-            aria-current={active ? "page" : undefined}
+            aria-current={active ? 'page' : undefined}
             onClick={() => onTabClick(tab.id)}
-            variant={active ? "default" : "ghost"}
+            variant={active ? 'default' : 'ghost'}
             className={doctorSectionTabClass(active)}
             data-testid={`tab-btn-${tab.id}`}
           >
-            {tab.id === "clients" && clientsLabel ? clientsLabel : tab.label}
+            {tab.id === 'clients' && clientsLabel ? clientsLabel : tab.label}
           </Button>
         );
       })}
@@ -150,7 +150,12 @@ export type DoctorAnalyticsShellProps = {
  * S4.2: вкладка «Уведомления» упразднена — push-статистика включена в «Приложение».
  * Добавлена вкладка «Сопровождение» (placeholder, метрики будут расширены).
  */
-export function DoctorAnalyticsShell({ initialTab, clientsData, patientPluralLabel, patientGenPlural }: DoctorAnalyticsShellProps) {
+export function DoctorAnalyticsShell({
+  initialTab,
+  clientsData,
+  patientPluralLabel,
+  patientGenPlural,
+}: DoctorAnalyticsShellProps) {
   const [activeTab, setActiveTab] = useState<AnalyticsTabId>(initialTab ?? ANALYTICS_DEFAULT_TAB);
   const [mountedTabs, setMountedTabs] = useState<ReadonlySet<AnalyticsTabId>>(
     () => new Set<AnalyticsTabId>([initialTab ?? ANALYTICS_DEFAULT_TAB]),
@@ -163,18 +168,18 @@ export function DoctorAnalyticsShell({ initialTab, clientsData, patientPluralLab
   // back/forward restore
   useEffect(() => {
     const handlePopState = () => {
-      const tab = analyticsTabFromQuery(new URLSearchParams(window.location.search).get("tab"));
+      const tab = analyticsTabFromQuery(new URLSearchParams(window.location.search).get('tab'));
       setActiveTab(tab);
       setMountedTabs((prev) => new Set([...prev, tab]));
     };
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   const handleTabChange = useCallback((tabId: AnalyticsTabId) => {
     setActiveTab(tabId);
     setMountedTabs((prev) => new Set([...prev, tabId]));
-    window.history.replaceState(null, "", `${ANALYTICS_BASE}?tab=${tabId}`);
+    window.history.replaceState(null, '', `${ANALYTICS_BASE}?tab=${tabId}`);
   }, []);
 
   return (
@@ -182,10 +187,16 @@ export function DoctorAnalyticsShell({ initialTab, clientsData, patientPluralLab
       <DoctorPageHeader
         id="doctor-analytics-header"
         title="Аналитика"
-        tabs={<AnalyticsTabsNav activeTab={activeTab} onTabClick={handleTabChange} clientsLabel={patientPluralLabel} />}
+        tabs={
+          <AnalyticsTabsNav
+            activeTab={activeTab}
+            onTabClick={handleTabChange}
+            clientsLabel={patientPluralLabel}
+          />
+        }
       />
-      {mountedTabs.has("clients") ? (
-        <div hidden={activeTab !== "clients"} data-testid="tab-panel-clients">
+      {mountedTabs.has('clients') ? (
+        <div hidden={activeTab !== 'clients'} data-testid="tab-panel-clients">
           <ClientsTab
             calendarTodayYmd={clientsData.calendarTodayYmd}
             displayIana={clientsData.displayIana}
@@ -195,12 +206,12 @@ export function DoctorAnalyticsShell({ initialTab, clientsData, patientPluralLab
           />
         </div>
       ) : null}
-      {mountedTabs.has("app") ? (
-        <div hidden={activeTab !== "app"} data-testid="tab-panel-app">
+      {mountedTabs.has('app') ? (
+        <div hidden={activeTab !== 'app'} data-testid="tab-panel-app">
           <div className="flex flex-col gap-6">
             <AppTab />
             {/* Push-статистика и уведомления — перенесены из упразднённой вкладки «Уведомления» */}
-            <NotificationsInAppTab isActive={activeTab === "app"} />
+            <NotificationsInAppTab isActive={activeTab === 'app'} />
             {/* Регистрации и слияния — перенесены из вкладки «Клиенты» (AN-03) */}
             <RegistrationInAppTab />
             {/* Подписчики — перенесены из вкладки «Клиенты» (AN-11): подписчики ≠ клиенты */}
@@ -208,13 +219,13 @@ export function DoctorAnalyticsShell({ initialTab, clientsData, patientPluralLab
           </div>
         </div>
       ) : null}
-      {mountedTabs.has("content") ? (
-        <div hidden={activeTab !== "content"} data-testid="tab-panel-content">
+      {mountedTabs.has('content') ? (
+        <div hidden={activeTab !== 'content'} data-testid="tab-panel-content">
           <ContentTab />
         </div>
       ) : null}
-      {mountedTabs.has("soprovozhdenie") ? (
-        <div hidden={activeTab !== "soprovozhdenie"} data-testid="tab-panel-soprovozhdenie">
+      {mountedTabs.has('soprovozhdenie') ? (
+        <div hidden={activeTab !== 'soprovozhdenie'} data-testid="tab-panel-soprovozhdenie">
           <SoprovozhdeniePage patientGenPlural={patientGenPlural} />
         </div>
       ) : null}

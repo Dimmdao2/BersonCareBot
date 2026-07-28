@@ -1,5 +1,5 @@
-import pg from "pg";
-import type { Pool, PoolClient } from "pg";
+import pg from 'pg';
+import type { Pool, PoolClient } from 'pg';
 
 const { Pool: PgPool } = pg;
 
@@ -13,7 +13,7 @@ export function getIntegratorPurgePoolProvider(connectionString: string): Pool {
   let pool = integratorPurgePools.get(connectionString);
   if (!pool) {
     pool = new PgPool({ connectionString, max: 3 });
-    pool.on("connect", prepareIntegratorPurgePoolClient);
+    pool.on('connect', prepareIntegratorPurgePoolClient);
     integratorPurgePools.set(connectionString, pool);
   }
   return pool;

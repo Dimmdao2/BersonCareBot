@@ -50,10 +50,10 @@
 
 ### 3.4 Два измерения здоровья (для всех релевантных каналов)
 
-| Измерение | Вопрос | Как снимать |
-|-----------|--------|-------------|
-| **Исходящая доступность** | Работают ли учётные данные, сеть и контракт API к провайдеру? | Редкие синтетические пробы (см. §4). |
-| **Входящий контур** | Принимаем ли мы вебхук и успешно ли он обрабатывается в нашем приложении? | Состояние **последней** (или последних N) обработок по источнику: успех, ошибка парсинга, 5xx, таймаут ответа. |
+| Измерение                 | Вопрос                                                                    | Как снимать                                                                                                    |
+| ------------------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| **Исходящая доступность** | Работают ли учётные данные, сеть и контракт API к провайдеру?             | Редкие синтетические пробы (см. §4).                                                                           |
+| **Входящий контур**       | Принимаем ли мы вебхук и успешно ли он обрабатывается в нашем приложении? | Состояние **последней** (или последних N) обработок по источнику: успех, ошибка парсинга, 5xx, таймаут ответа. |
 
 **Важно:** `get-schedule` и аналоги **не** проверяют вебхук — это исходящий вызов. Вебхук оценивается отдельно (логи/таблица «последний результат по источнику»).
 
@@ -75,17 +75,17 @@
 
 ## 4. Каталог интеграций для мониторинга
 
-| Интеграция | Исходящий synthetic (идея) | Входящий / событийный |
-|------------|----------------------------|------------------------|
-| **Telegram Bot API** | `getMe` | Вебхук Telegram: последняя обработка update |
-| **MAX** | `getMaxBotInfo` / `getMyInfo` | Вебхук MAX: последняя обработка |
-| **Google Calendar** | OAuth refresh + минимальный Calendar GET (календарь или `events.list` limit 1) | Ошибки в `syncAppointmentToCalendar` / post-create projection |
-| **Rubitime api2** | `get-schedule` (валидный триплет, без критерия «есть слоты») | Вебхук Rubitime: успех/ошибка обработки у нас |
-| **SMSC** | `cost=1` и/или виртуальная отправка (по политике) | Ошибки реальной отправки OTP/уведомлений (если есть единая точка) |
-| **SMTP / email** | `transporter.verify()` или controlled test (если добавить) | Ошибки `sendMail` на алертах |
-| **Integrator + DB** | Уже в `/health` | — |
-| **Projection queue** | snapshot в `/health/projection` | dead / retries / stale pending — пороги и инциденты |
-| **Media worker / S3** | Уже частично в system-health; при необходимости расширить | Ошибки jobs |
+| Интеграция            | Исходящий synthetic (идея)                                                     | Входящий / событийный                                             |
+| --------------------- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
+| **Telegram Bot API**  | `getMe`                                                                        | Вебхук Telegram: последняя обработка update                       |
+| **MAX**               | `getMaxBotInfo` / `getMyInfo`                                                  | Вебхук MAX: последняя обработка                                   |
+| **Google Calendar**   | OAuth refresh + минимальный Calendar GET (календарь или `events.list` limit 1) | Ошибки в `syncAppointmentToCalendar` / post-create projection     |
+| **Rubitime api2**     | `get-schedule` (валидный триплет, без критерия «есть слоты»)                   | Вебхук Rubitime: успех/ошибка обработки у нас                     |
+| **SMSC**              | `cost=1` и/или виртуальная отправка (по политике)                              | Ошибки реальной отправки OTP/уведомлений (если есть единая точка) |
+| **SMTP / email**      | `transporter.verify()` или controlled test (если добавить)                     | Ошибки `sendMail` на алертах                                      |
+| **Integrator + DB**   | Уже в `/health`                                                                | —                                                                 |
+| **Projection queue**  | snapshot в `/health/projection`                                                | dead / retries / stale pending — пороги и инциденты               |
+| **Media worker / S3** | Уже частично в system-health; при необходимости расширить                      | Ошибки jobs                                                       |
 
 **VK / Instagram** в реестре — заглушки; полноценный мониторинг после появления реальных адаптеров.
 
@@ -93,15 +93,15 @@
 
 Детальная декомпозиция по фазам — отдельные файлы (этап → шаги → checklist → DoD фазы):
 
-| Фаза | Документ |
-|------|----------|
-| **A** — Модель данных и ядро алертинга | [`PHASE_A_DATA_MODEL_AND_CORE_ALERTING.md`](PHASE_A_DATA_MODEL_AND_CORE_ALERTING.md) |
-| **B** — Синтетические пробы (cron) | [`PHASE_B_SYNTHETIC_PROBES_CRON.md`](PHASE_B_SYNTHETIC_PROBES_CRON.md) |
-| **C** — Входящие вебхуки: последний статус | [`PHASE_C_INBOUND_WEBHOOK_LAST_STATUS.md`](PHASE_C_INBOUND_WEBHOOK_LAST_STATUS.md) |
-| **D** — Событийные хуки | [`PHASE_D_EVENT_HOOKS.md`](PHASE_D_EVENT_HOOKS.md) |
-| **E** — Восстановление и уведомление «ок» | [`PHASE_E_RESOLUTION_AND_RECOVERY_NOTIFICATIONS.md`](PHASE_E_RESOLUTION_AND_RECOVERY_NOTIFICATIONS.md) |
-| **F** — UI и admin API | [`PHASE_F_UI_AND_ADMIN_API.md`](PHASE_F_UI_AND_ADMIN_API.md) |
-| **G** — Тесты и документация | [`PHASE_G_TESTS_AND_DOCS.md`](PHASE_G_TESTS_AND_DOCS.md) |
+| Фаза                                       | Документ                                                                                               |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| **A** — Модель данных и ядро алертинга     | [`PHASE_A_DATA_MODEL_AND_CORE_ALERTING.md`](PHASE_A_DATA_MODEL_AND_CORE_ALERTING.md)                   |
+| **B** — Синтетические пробы (cron)         | [`PHASE_B_SYNTHETIC_PROBES_CRON.md`](PHASE_B_SYNTHETIC_PROBES_CRON.md)                                 |
+| **C** — Входящие вебхуки: последний статус | [`PHASE_C_INBOUND_WEBHOOK_LAST_STATUS.md`](PHASE_C_INBOUND_WEBHOOK_LAST_STATUS.md)                     |
+| **D** — Событийные хуки                    | [`PHASE_D_EVENT_HOOKS.md`](PHASE_D_EVENT_HOOKS.md)                                                     |
+| **E** — Восстановление и уведомление «ок»  | [`PHASE_E_RESOLUTION_AND_RECOVERY_NOTIFICATIONS.md`](PHASE_E_RESOLUTION_AND_RECOVERY_NOTIFICATIONS.md) |
+| **F** — UI и admin API                     | [`PHASE_F_UI_AND_ADMIN_API.md`](PHASE_F_UI_AND_ADMIN_API.md)                                           |
+| **G** — Тесты и документация               | [`PHASE_G_TESTS_AND_DOCS.md`](PHASE_G_TESTS_AND_DOCS.md)                                               |
 
 Рекомендуемый порядок исполнения: **A → (B ∥ C)** → **D** → **E** → **F** → **G** (G частично параллелится с F). **B** и **C** можно параллелить после A при разделении файлов/миграций.
 
@@ -121,18 +121,18 @@
 
 ## 8. Карта кода (ориентир)
 
-| Область | Пути |
-|---------|------|
-| Health UI | `apps/webapp/src/app/app/settings/SystemHealthSection.tsx` |
-| Health API | `apps/webapp/src/app/api/admin/system-health/route.ts` |
-| Integrator health | `apps/integrator/src/app/routes.ts` (`/health`, `/health/projection`) |
-| MAX client | `apps/integrator/src/integrations/max/client.ts` |
-| Telegram client | `apps/integrator/src/integrations/telegram/client.ts` |
-| Google Calendar | `apps/integrator/src/integrations/google-calendar/` |
-| Rubitime | `apps/integrator/src/integrations/rubitime/client.ts`, `webhook.ts` |
-| SMSC | `apps/integrator/src/integrations/smsc/client.ts` |
-| Дедуп-прецедент | `apps/integrator/src/infra/db/dataQualityIncidentAlert.ts` |
-| Admin audit / merge | `apps/webapp/src/infra/adminAuditLog.ts`, вкладка аудита |
+| Область             | Пути                                                                  |
+| ------------------- | --------------------------------------------------------------------- |
+| Health UI           | `apps/webapp/src/app/app/settings/SystemHealthSection.tsx`            |
+| Health API          | `apps/webapp/src/app/api/admin/system-health/route.ts`                |
+| Integrator health   | `apps/integrator/src/app/routes.ts` (`/health`, `/health/projection`) |
+| MAX client          | `apps/integrator/src/integrations/max/client.ts`                      |
+| Telegram client     | `apps/integrator/src/integrations/telegram/client.ts`                 |
+| Google Calendar     | `apps/integrator/src/integrations/google-calendar/`                   |
+| Rubitime            | `apps/integrator/src/integrations/rubitime/client.ts`, `webhook.ts`   |
+| SMSC                | `apps/integrator/src/integrations/smsc/client.ts`                     |
+| Дедуп-прецедент     | `apps/integrator/src/infra/db/dataQualityIncidentAlert.ts`            |
+| Admin audit / merge | `apps/webapp/src/infra/adminAuditLog.ts`, вкладка аудита              |
 
 ## 9. Риски
 

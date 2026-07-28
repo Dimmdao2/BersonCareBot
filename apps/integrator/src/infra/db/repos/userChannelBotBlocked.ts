@@ -22,7 +22,9 @@ export function resolvePlatformUserIdForBotBlockedMarker(input: {
   payloadJson?: Record<string, unknown>;
 }): string | null {
   const fromPayload =
-    typeof input.payloadJson?.clientUserId === 'string' ? input.payloadJson.clientUserId.trim() : '';
+    typeof input.payloadJson?.clientUserId === 'string'
+      ? input.payloadJson.clientUserId.trim()
+      : '';
   if (fromPayload && /^[0-9a-f-]{36}$/i.test(fromPayload)) return fromPayload;
   const fromMeta = typeof input.metaUserId === 'string' ? input.metaUserId.trim() : '';
   if (fromMeta && /^[0-9a-f-]{36}$/i.test(fromMeta)) return fromMeta;

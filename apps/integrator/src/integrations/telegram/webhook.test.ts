@@ -234,14 +234,15 @@ describe('registerTelegramWebhookRoutes', () => {
 
   it('logs warn and skips gateway when callback_query cannot be mapped', async () => {
     const warn = vi.fn();
-    const loggerSpy = vi.spyOn(loggerMod, 'getRequestLogger').mockImplementation(() =>
-      ({
-        warn,
-        error: vi.fn(),
-        debug: vi.fn(),
-        info: vi.fn(),
-        child: vi.fn(),
-      }) as unknown as ReturnType<typeof loggerMod.getRequestLogger>,
+    const loggerSpy = vi.spyOn(loggerMod, 'getRequestLogger').mockImplementation(
+      () =>
+        ({
+          warn,
+          error: vi.fn(),
+          debug: vi.fn(),
+          info: vi.fn(),
+          child: vi.fn(),
+        }) as unknown as ReturnType<typeof loggerMod.getRequestLogger>,
     );
 
     const handleIncomingEvent = vi.fn().mockResolvedValue({ status: 'accepted' });

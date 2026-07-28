@@ -1,4 +1,4 @@
-import { DateTime } from "luxon";
+import { DateTime } from 'luxon';
 
 /** Ответ GET `/api/patient/treatment-program-instances/.../passage-stats`. */
 export type PatientPlanPassageStats = {
@@ -25,10 +25,12 @@ export function calendarDayIndexSinceInstanceCreated(
   nowMs: number,
   displayIana: string,
 ): number {
-  const created = DateTime.fromISO(createdAtIso, { zone: "utc" }).setZone(displayIana).startOf("day");
-  const today = DateTime.fromMillis(nowMs, { zone: "utc" }).setZone(displayIana).startOf("day");
+  const created = DateTime.fromISO(createdAtIso, { zone: 'utc' })
+    .setZone(displayIana)
+    .startOf('day');
+  const today = DateTime.fromMillis(nowMs, { zone: 'utc' }).setZone(displayIana).startOf('day');
   if (!created.isValid || !today.isValid) return 0;
-  return Math.max(0, Math.floor(today.diff(created, "days").days));
+  return Math.max(0, Math.floor(today.diff(created, 'days').days));
 }
 
 export function resolvePatientPlanPassageWindowUtc(params: {
@@ -41,10 +43,14 @@ export function resolvePatientPlanPassageWindowUtc(params: {
   calendarDaysInWindow: number;
 } {
   const { createdAtIso, endAnchorIso, displayIana } = params;
-  let windowStartLocal = DateTime.fromISO(createdAtIso, { zone: "utc" }).setZone(displayIana).startOf("day");
-  let windowEndLocal = DateTime.fromISO(endAnchorIso, { zone: "utc" }).setZone(displayIana).startOf("day");
+  let windowStartLocal = DateTime.fromISO(createdAtIso, { zone: 'utc' })
+    .setZone(displayIana)
+    .startOf('day');
+  let windowEndLocal = DateTime.fromISO(endAnchorIso, { zone: 'utc' })
+    .setZone(displayIana)
+    .startOf('day');
   if (!windowStartLocal.isValid) {
-    windowStartLocal = DateTime.fromMillis(0, { zone: "utc" }).setZone(displayIana).startOf("day");
+    windowStartLocal = DateTime.fromMillis(0, { zone: 'utc' }).setZone(displayIana).startOf('day');
   }
   if (!windowEndLocal.isValid) {
     windowEndLocal = windowStartLocal;
@@ -52,7 +58,10 @@ export function resolvePatientPlanPassageWindowUtc(params: {
   if (windowEndLocal < windowStartLocal) {
     windowEndLocal = windowStartLocal;
   }
-  const calendarDaysInWindow = Math.max(1, Math.floor(windowEndLocal.diff(windowStartLocal, "days").days) + 1);
+  const calendarDaysInWindow = Math.max(
+    1,
+    Math.floor(windowEndLocal.diff(windowStartLocal, 'days').days) + 1,
+  );
   return {
     windowStartUtcIso: windowStartLocal.toUTC().toISO()!,
     windowEndUtcExclusiveIso: windowEndLocal.plus({ days: 1 }).toUTC().toISO()!,

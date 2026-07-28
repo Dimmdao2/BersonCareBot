@@ -1,23 +1,25 @@
-import { NextResponse } from "next/server";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireDoctorWorkspaceApiContext, type DoctorWorkspaceAccessContext } from "@/app-layer/guards/requireRole";
+import { NextResponse } from 'next/server';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import {
+  requireDoctorWorkspaceApiContext,
+  type DoctorWorkspaceAccessContext,
+} from '@/app-layer/guards/requireRole';
 
-type BookingEngineService = NonNullable<ReturnType<typeof buildAppDeps>["bookingEngine"]>;
+type BookingEngineService = NonNullable<ReturnType<typeof buildAppDeps>['bookingEngine']>;
 
 export type DoctorBookingEngineContext = {
-  session: DoctorWorkspaceAccessContext["session"];
+  session: DoctorWorkspaceAccessContext['session'];
   service: BookingEngineService;
   organizationId: string;
   membershipId: string;
-  membershipRole: DoctorWorkspaceAccessContext["membershipRole"];
+  membershipRole: DoctorWorkspaceAccessContext['membershipRole'];
   specialistId: string | null;
   canManageOrganization: boolean;
   canManageAllSpecialists: boolean;
 };
 
 export async function requireDoctorBookingEngine(): Promise<
-  | { ok: true; ctx: DoctorBookingEngineContext }
-  | { ok: false; response: NextResponse }
+  { ok: true; ctx: DoctorBookingEngineContext } | { ok: false; response: NextResponse }
 > {
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate;
@@ -25,7 +27,10 @@ export async function requireDoctorBookingEngine(): Promise<
   if (!service) {
     return {
       ok: false,
-      response: NextResponse.json({ ok: false, error: "booking_engine_unavailable" }, { status: 503 }),
+      response: NextResponse.json(
+        { ok: false, error: 'booking_engine_unavailable' },
+        { status: 503 },
+      ),
     };
   }
   return {

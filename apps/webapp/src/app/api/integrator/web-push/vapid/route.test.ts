@@ -1,72 +1,74 @@
 /**
  * Unit tests for GET /api/integrator/web-push/vapid (PLAN S13 Model β).
  */
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 const assertMock = vi.hoisted(() => vi.fn());
 const enterOrganizationPrincipalMock = vi.hoisted(() => vi.fn().mockReturnValue(true));
-vi.mock("@/app-layer/integrator/assertIntegratorGetRequest", () => ({
+vi.mock('@/app-layer/integrator/assertIntegratorGetRequest', () => ({
   assertIntegratorGetRequest: assertMock,
 }));
-vi.mock("@/app-layer/principal/integratorOrganizationPrincipal", () => ({
+vi.mock('@/app-layer/principal/integratorOrganizationPrincipal', () => ({
   enterVerifiedIntegratorOrganizationPrincipal: enterOrganizationPrincipalMock,
 }));
 
 const mockGetWebPushVapidKeyPair = vi.hoisted(() =>
-  vi.fn().mockResolvedValue({ publicKey: "stub-pub", privateKey: "stub-priv" }),
+  vi.fn().mockResolvedValue({ publicKey: 'stub-pub', privateKey: 'stub-priv' }),
 );
-vi.mock("@/modules/system-settings/webPushVapidRuntime", () => ({
+vi.mock('@/modules/system-settings/webPushVapidRuntime', () => ({
   getWebPushVapidKeyPair: mockGetWebPushVapidKeyPair,
 }));
 
 const mockDeriveVapidSubject = vi.hoisted(() =>
-  vi.fn().mockResolvedValue("mailto:noreply@example.com"),
+  vi.fn().mockResolvedValue('mailto:noreply@example.com'),
 );
-vi.mock("@/modules/web-push/vapidSubject", () => ({
+vi.mock('@/modules/web-push/vapidSubject', () => ({
   deriveVapidSubject: mockDeriveVapidSubject,
 }));
 
 const mockBuildAppDeps = vi.hoisted(() =>
   vi.fn(() => ({ systemSettings: { getSetting: vi.fn().mockResolvedValue(null) } })),
 );
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: mockBuildAppDeps,
 }));
 
-import { GET } from "./route";
+import { GET } from './route';
 import {
   integratorGetSignedHeadersOk,
   wireDefaultAssertIntegratorGetForRouteTests,
-} from "../../testUtils/wireAssertIntegratorGetForRouteTests";
+} from '../../testUtils/wireAssertIntegratorGetForRouteTests';
 
-const ORGANIZATION_ID = "11111111-1111-4111-8111-111111111111";
+const ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
 const signedUrl = `http://localhost/api/integrator/web-push/vapid?organizationId=${ORGANIZATION_ID}`;
 
-describe("GET /api/integrator/web-push/vapid", () => {
+describe('GET /api/integrator/web-push/vapid', () => {
   beforeEach(() => {
     wireDefaultAssertIntegratorGetForRouteTests(assertMock);
     enterOrganizationPrincipalMock.mockReset().mockReturnValue(true);
-    mockGetWebPushVapidKeyPair.mockReset().mockResolvedValue({ publicKey: "stub-pub", privateKey: "stub-priv" });
-    mockDeriveVapidSubject.mockReset().mockResolvedValue("mailto:noreply@example.com");
+    mockGetWebPushVapidKeyPair
+      .mockReset()
+      .mockResolvedValue({ publicKey: 'stub-pub', privateKey: 'stub-priv' });
+    mockDeriveVapidSubject.mockReset().mockResolvedValue('mailto:noreply@example.com');
   });
 
-  it("returns 400 when missing webhook headers", async () => {
-    const res = await GET(new Request("http://localhost/api/integrator/web-push/vapid"));
+  it('returns 400 when missing webhook headers', async () => {
+    const res = await GET(new Request('http://localhost/api/integrator/web-push/vapid'));
     expect(res.status).toBe(400);
     const json = await res.json();
     expect(json).toMatchObject({ ok: false, error: expect.any(String) });
   });
 
-  it("returns 401 when signature invalid", async () => {
+  it('returns 401 when signature invalid', async () => {
     const res = await GET(
       new Request(signedUrl, {
-        headers: { "x-bersoncare-timestamp": "1700000000", "x-bersoncare-signature": "bad" },
+        headers: { 'x-bersoncare-timestamp': '1700000000', 'x-bersoncare-signature': 'bad' },
       }),
     );
     expect(res.status).toBe(401);
   });
 
-  it("returns 503 when VAPID not configured", async () => {
+  it('returns 503 when VAPID not configured', async () => {
     mockGetWebPushVapidKeyPair.mockResolvedValue(null);
     const res = await GET(
       new Request(signedUrl, {
@@ -75,12 +77,15 @@ describe("GET /api/integrator/web-push/vapid", () => {
     );
     expect(res.status).toBe(503);
     const json = await res.json();
-    expect(json).toMatchObject({ ok: false, error: expect.stringContaining("vapid") });
+    expect(json).toMatchObject({ ok: false, error: expect.stringContaining('vapid') });
   });
 
-  it("returns 200 with vapid keys and subject on happy path", async () => {
-    mockGetWebPushVapidKeyPair.mockResolvedValue({ publicKey: "pub-key-abc", privateKey: "priv-key-xyz" });
-    mockDeriveVapidSubject.mockResolvedValue("mailto:admin@bersoncare.com");
+  it('returns 200 with vapid keys and subject on happy path', async () => {
+    mockGetWebPushVapidKeyPair.mockResolvedValue({
+      publicKey: 'pub-key-abc',
+      privateKey: 'priv-key-xyz',
+    });
+    mockDeriveVapidSubject.mockResolvedValue('mailto:admin@bersoncare.com');
 
     const res = await GET(
       new Request(signedUrl, {
@@ -91,14 +96,14 @@ describe("GET /api/integrator/web-push/vapid", () => {
     const json = await res.json();
     expect(json.ok).toBe(true);
     expect(json.vapid).toMatchObject({
-      publicKey: "pub-key-abc",
-      privateKey: "priv-key-xyz",
-      subject: "mailto:admin@bersoncare.com",
+      publicKey: 'pub-key-abc',
+      privateKey: 'priv-key-xyz',
+      subject: 'mailto:admin@bersoncare.com',
     });
   });
 
-  it("uses the HTTPS app contact when SMTP is not configured", async () => {
-    mockDeriveVapidSubject.mockResolvedValue("https://test.bersoncare.ru");
+  it('uses the HTTPS app contact when SMTP is not configured', async () => {
+    mockDeriveVapidSubject.mockResolvedValue('https://test.bersoncare.ru');
 
     const res = await GET(
       new Request(signedUrl, {
@@ -107,10 +112,10 @@ describe("GET /api/integrator/web-push/vapid", () => {
     );
     expect(res.status).toBe(200);
     const json = await res.json();
-    expect(json.vapid.subject).toBe("https://test.bersoncare.ru");
+    expect(json.vapid.subject).toBe('https://test.bersoncare.ru');
   });
 
-  it("returns 503 when no valid VAPID contact URI is configured", async () => {
+  it('returns 503 when no valid VAPID contact URI is configured', async () => {
     mockDeriveVapidSubject.mockResolvedValue(null);
 
     const res = await GET(

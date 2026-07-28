@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
-import { SystemSettingsOrgContextRequiredError } from "@/modules/system-settings/orgScopedKeys";
+import { NextResponse } from 'next/server';
+import { SystemSettingsOrgContextRequiredError } from '@/modules/system-settings/orgScopedKeys';
 
 /**
  * P0.11.3: `createSystemSettingsService` throws {@link SystemSettingsOrgContextRequiredError} when a
@@ -9,7 +9,10 @@ import { SystemSettingsOrgContextRequiredError } from "@/modules/system-settings
  */
 export function systemSettingsOrgContextErrorResponse(error: unknown): NextResponse | null {
   if (error instanceof SystemSettingsOrgContextRequiredError) {
-    return NextResponse.json({ ok: false, error: "organization_context_required" }, { status: 409 });
+    return NextResponse.json(
+      { ok: false, error: 'organization_context_required' },
+      { status: 409 },
+    );
   }
   return null;
 }

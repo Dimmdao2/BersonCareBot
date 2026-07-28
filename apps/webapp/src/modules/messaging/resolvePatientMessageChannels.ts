@@ -1,12 +1,15 @@
-import type { ChannelPreference } from "@/modules/channel-preferences/types";
-import type { NotificationChannelCode } from "@/modules/patient-notifications/notificationChannelContract";
-import type { PatientNotificationChannelAvailability } from "@/modules/patient-notifications/resolveNotificationChannels";
+import type { ChannelPreference } from '@/modules/channel-preferences/types';
+import type { NotificationChannelCode } from '@/modules/patient-notifications/notificationChannelContract';
+import type { PatientNotificationChannelAvailability } from '@/modules/patient-notifications/resolveNotificationChannels';
 
 export type ResolvedPatientMessageChannels = {
   selectedChannels: NotificationChannelCode[];
 };
 
-function globalMessagesEnabled(prefs: ChannelPreference[], channelCode: NotificationChannelCode): boolean {
+function globalMessagesEnabled(
+  prefs: ChannelPreference[],
+  channelCode: NotificationChannelCode,
+): boolean {
   const row = prefs.find((p) => p.channelCode === channelCode);
   return row ? row.isEnabledForMessages !== false : true;
 }
@@ -23,13 +26,13 @@ export function resolvePatientMessageChannels(params: {
 
   const consider = (code: NotificationChannelCode) => {
     switch (code) {
-      case "telegram":
+      case 'telegram':
         if (!a.hasTelegram || !globalMessagesEnabled(channelPrefs, code)) return;
         break;
-      case "max":
+      case 'max':
         if (!a.hasMax || !globalMessagesEnabled(channelPrefs, code)) return;
         break;
-      case "email":
+      case 'email':
         if (
           !a.hasEmail ||
           !a.emailVerified ||
@@ -39,7 +42,7 @@ export function resolvePatientMessageChannels(params: {
           return;
         }
         break;
-      case "web_push":
+      case 'web_push':
         if (
           !a.vapidConfigured ||
           !a.hasWebPushSubscription ||
@@ -54,7 +57,7 @@ export function resolvePatientMessageChannels(params: {
     selectedChannels.push(code);
   };
 
-  for (const code of ["web_push", "telegram", "max", "email"] as const) {
+  for (const code of ['web_push', 'telegram', 'max', 'email'] as const) {
     consider(code);
   }
 

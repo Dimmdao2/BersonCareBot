@@ -1,11 +1,11 @@
-"use server";
+'use server';
 
-import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
-import { logger } from "@/infra/logging/logger";
-import { EMPTY_EXERCISE_USAGE_SNAPSHOT } from "@/modules/lfk-exercises/types";
+import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireDoctorAccess } from '@/app-layer/guards/requireRole';
+import { logger } from '@/infra/logging/logger';
+import { EMPTY_EXERCISE_USAGE_SNAPSHOT } from '@/modules/lfk-exercises/types';
 import {
   archiveDoctorExerciseCore,
   bulkCreateExercisesFromMediaCore,
@@ -17,9 +17,9 @@ import {
   type BulkCreateExercisesFromMediaResult,
   type SaveDoctorExerciseState,
   type UnarchiveDoctorExerciseState,
-} from "./actionsShared";
+} from './actionsShared';
 
-export type { ArchiveDoctorExerciseState, UnarchiveDoctorExerciseState } from "./actionsShared";
+export type { ArchiveDoctorExerciseState, UnarchiveDoctorExerciseState } from './actionsShared';
 
 /** Создание или обновление упражнения из формы врача. */
 export async function saveDoctorExercise(
@@ -41,12 +41,12 @@ export async function archiveDoctorExercise(
   formData: FormData,
 ): Promise<ArchiveDoctorExerciseState> {
   const result = await archiveDoctorExerciseCore(formData);
-  if (result.kind === "needs_confirmation") {
-    return { ok: false, code: "USAGE_CONFIRMATION_REQUIRED", usage: result.usage };
+  if (result.kind === 'needs_confirmation') {
+    return { ok: false, code: 'USAGE_CONFIRMATION_REQUIRED', usage: result.usage };
   }
-  if (result.kind === "invalid") {
-    const idRaw = formData.get("id");
-    const id = typeof idRaw === "string" ? idRaw.trim() : "";
+  if (result.kind === 'invalid') {
+    const idRaw = formData.get('id');
+    const id = typeof idRaw === 'string' ? idRaw.trim() : '';
     if (!id) redirect(EXERCISES_PATH);
     return { ok: false, error: result.error };
   }
@@ -60,9 +60,9 @@ export async function unarchiveDoctorExercise(
   formData: FormData,
 ): Promise<UnarchiveDoctorExerciseState> {
   const result = await unarchiveDoctorExerciseCore(formData);
-  if (result.kind === "invalid") {
-    const idRaw = formData.get("id");
-    const id = typeof idRaw === "string" ? idRaw.trim() : "";
+  if (result.kind === 'invalid') {
+    const idRaw = formData.get('id');
+    const id = typeof idRaw === 'string' ? idRaw.trim() : '';
     if (!id) redirect(EXERCISES_PATH);
     return { ok: false, error: result.error };
   }
@@ -87,10 +87,10 @@ export async function bulkCreateExercisesFromMedia(
   const parsed = bulkCreateExercisesFromMediaInputSchema.safeParse(items);
   if (!parsed.success) {
     logger.warn(
-      { event: "lfk_exercises_bulk_auto_create_invalid_input", issues: parsed.error.flatten() },
-      "lfk_exercises_bulk_auto_create_invalid_input",
+      { event: 'lfk_exercises_bulk_auto_create_invalid_input', issues: parsed.error.flatten() },
+      'lfk_exercises_bulk_auto_create_invalid_input',
     );
-    return { ok: false, error: "Некорректные данные запроса" };
+    return { ok: false, error: 'Некорректные данные запроса' };
   }
   const result = await bulkCreateExercisesFromMediaCore(parsed.data);
   if (!result.ok) return result;

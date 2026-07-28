@@ -1,16 +1,19 @@
-import type { ChannelBindings } from "@/shared/types/session";
-import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
-import type { TopicChannelPrefsPort } from "@/modules/patient-notifications/topicChannelPrefsPort";
-import type { WebPushSubscriptionsPort } from "@/modules/web-push/ports";
+import type { ChannelBindings } from '@/shared/types/session';
+import type { ChannelPreferencesPort } from '@/modules/channel-preferences/ports';
+import type { TopicChannelPrefsPort } from '@/modules/patient-notifications/topicChannelPrefsPort';
+import type { WebPushSubscriptionsPort } from '@/modules/web-push/ports';
 import {
   formatReminderDeliveryChannelsListRu,
   resolveActiveReminderDeliveryLabelsForTopic,
-} from "./reminderDeliveryChannelLabels";
-import { reminderOccurrenceTopicCode, type ReminderRuleForTopicCode } from "./reminderOccurrenceTopicCode";
+} from './reminderDeliveryChannelLabels';
+import {
+  reminderOccurrenceTopicCode,
+  type ReminderRuleForTopicCode,
+} from './reminderOccurrenceTopicCode';
 
-const MESSENGER_LABEL_RU: Record<"telegram" | "max", string> = {
-  telegram: "Telegram",
-  max: "MAX",
+const MESSENGER_LABEL_RU: Record<'telegram' | 'max', string> = {
+  telegram: 'Telegram',
+  max: 'MAX',
 };
 
 export type DisableReminderMessengerDeps = {
@@ -21,7 +24,7 @@ export type DisableReminderMessengerDeps = {
   loadChannelBindings: (platformUserId: string) => Promise<ChannelBindings>;
   channelPreferences: ChannelPreferencesPort;
   topicChannelPrefs: TopicChannelPrefsPort;
-  webPushSubscriptions: Pick<WebPushSubscriptionsPort, "hasAnyForUserId">;
+  webPushSubscriptions: Pick<WebPushSubscriptionsPort, 'hasAnyForUserId'>;
   getProfileEmailFields: (
     platformUserId: string,
   ) => Promise<{ email: string | null; emailVerifiedAt: string | null }>;
@@ -33,10 +36,10 @@ export async function disableReminderMessengerTopicForOccurrence(
   params: {
     platformUserId: string;
     integratorOccurrenceId: string;
-    messengerChannel: "telegram" | "max";
+    messengerChannel: 'telegram' | 'max';
   },
 ): Promise<
-  | { ok: false; error: "not_found" }
+  | { ok: false; error: 'not_found' }
   | { ok: true; persisted: false; paragraphs: string[] }
   | { ok: true; persisted: true; paragraphs: string[] }
 > {
@@ -45,12 +48,12 @@ export async function disableReminderMessengerTopicForOccurrence(
     integratorOccurrenceId: params.integratorOccurrenceId,
   });
   if (!rule) {
-    return { ok: false, error: "not_found" };
+    return { ok: false, error: 'not_found' };
   }
-  const topicCode = reminderOccurrenceTopicCode(rule, rule.category ?? "");
+  const topicCode = reminderOccurrenceTopicCode(rule, rule.category ?? '');
   const label = MESSENGER_LABEL_RU[params.messengerChannel];
 
-  if (typeof topicCode !== "string" || topicCode.length === 0) {
+  if (typeof topicCode !== 'string' || topicCode.length === 0) {
     return {
       ok: true,
       persisted: false,
@@ -62,7 +65,12 @@ export async function disableReminderMessengerTopicForOccurrence(
     };
   }
 
-  await deps.topicChannelPrefs.upsert(params.platformUserId, topicCode, params.messengerChannel, false);
+  await deps.topicChannelPrefs.upsert(
+    params.platformUserId,
+    topicCode,
+    params.messengerChannel,
+    false,
+  );
 
   const bindings = await deps.loadChannelBindings(params.platformUserId);
   const emailFields = await deps.getProfileEmailFields(params.platformUserId);
@@ -82,9 +90,9 @@ export async function disableReminderMessengerTopicForOccurrence(
   const listCsv = formatReminderDeliveryChannelsListRu(activeLabels);
   const paragraphs: string[] = [
     `Хорошо, отключаю напоминания в боте (${label}).`,
-    ...(listCsv ?
-      [`Сейчас остаются активными напоминания в ${listCsv}.`]
-    : ["Сейчас не осталось активных каналов для напоминаний."]),
+    ...(listCsv
+      ? [`Сейчас остаются активными напоминания в ${listCsv}.`]
+      : ['Сейчас не осталось активных каналов для напоминаний.']),
     `Очень рекомендую поставить мобильное приложение — там все удобнее и работают push уведомления.`,
   ];
 

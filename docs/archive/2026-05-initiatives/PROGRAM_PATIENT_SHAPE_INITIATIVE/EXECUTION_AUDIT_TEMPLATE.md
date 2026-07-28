@@ -17,15 +17,15 @@
 
 ## 2. Scope Verification
 
-| Requirement | Source | Status | Evidence |
-|---|---|---|---|
-| ... | `STAGE_AX_PLAN.md` §... | PASS/FAIL | file/test/check |
+| Requirement | Source                  | Status    | Evidence        |
+| ----------- | ----------------------- | --------- | --------------- |
+| ...         | `STAGE_AX_PLAN.md` §... | PASS/FAIL | file/test/check |
 
 ## 3. Changed Files
 
-| File | Purpose | Risk |
-|---|---|---|
-| `apps/webapp/...` | ... | low/medium/high |
+| File              | Purpose | Risk            |
+| ----------------- | ------- | --------------- |
+| `apps/webapp/...` | ...     | low/medium/high |
 
 ## 4. Architecture Rules Check
 
@@ -54,8 +54,8 @@
 ## 6. Data Migration / Backfill Check
 
 | Migration | Reversible? | Backfill? | Notes |
-|---|---|---|---|
-| ... | yes/no | yes/no | ... |
+| --------- | ----------- | --------- | ----- |
+| ...       | yes/no      | yes/no    | ...   |
 
 ## 7. Test Evidence
 

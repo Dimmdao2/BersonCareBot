@@ -3,18 +3,18 @@
  * Supported IANA zones for timezone-normalized scheduling.
  */
 const FALLBACK_IANA_ZONES = [
-  "UTC",
-  "Europe/Kaliningrad",
-  "Europe/Moscow",
-  "Europe/Samara",
-  "Asia/Yekaterinburg",
-  "Asia/Omsk",
-  "Asia/Krasnoyarsk",
-  "Asia/Irkutsk",
-  "Asia/Yakutsk",
-  "Asia/Vladivostok",
-  "Asia/Magadan",
-  "Asia/Kamchatka",
+  'UTC',
+  'Europe/Kaliningrad',
+  'Europe/Moscow',
+  'Europe/Samara',
+  'Asia/Yekaterinburg',
+  'Asia/Omsk',
+  'Asia/Krasnoyarsk',
+  'Asia/Irkutsk',
+  'Asia/Yakutsk',
+  'Asia/Vladivostok',
+  'Asia/Magadan',
+  'Asia/Kamchatka',
 ] as const;
 
 let cachedSorted: string[] | null = null;
@@ -23,8 +23,8 @@ let cachedSorted: string[] | null = null;
 export function getCachedIanaTimezonesSorted(): string[] {
   if (cachedSorted) return cachedSorted;
   try {
-    if (typeof Intl !== "undefined" && "supportedValuesOf" in Intl) {
-      const ids = Intl.supportedValuesOf("timeZone");
+    if (typeof Intl !== 'undefined' && 'supportedValuesOf' in Intl) {
+      const ids = Intl.supportedValuesOf('timeZone');
       cachedSorted = ids.slice().sort((a, b) => a.localeCompare(b));
       return cachedSorted;
     }
@@ -37,7 +37,7 @@ export function getCachedIanaTimezonesSorted(): string[] {
 
 /** Europe/Moscow first if present, then alphabetical (for empty search). */
 export function prioritizeMoscowFirst(zones: readonly string[]): string[] {
-  const moscow = "Europe/Moscow";
+  const moscow = 'Europe/Moscow';
   const set = new Set(zones);
   if (!set.has(moscow)) return zones.slice().sort((a, b) => a.localeCompare(b));
   const rest = zones.filter((z) => z !== moscow).sort((a, b) => a.localeCompare(b));

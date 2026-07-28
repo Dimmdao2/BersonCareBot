@@ -1,16 +1,16 @@
-import type { MediaPreviewStatus } from "@/modules/media/types";
-import type { ExerciseMedia } from "@/modules/lfk-exercises/types";
-import type { ClinicalTestMediaItem } from "@/modules/tests/types";
-import type { RecommendationMediaItem } from "@/modules/recommendations/types";
-import type { TreatmentProgramTemplateListPreviewMedia } from "@/modules/treatment-program/types";
-import { parseMediaFileIdFromAppUrl } from "@/shared/lib/mediaPreviewUrls";
+import type { MediaPreviewStatus } from '@/modules/media/types';
+import type { ExerciseMedia } from '@/modules/lfk-exercises/types';
+import type { ClinicalTestMediaItem } from '@/modules/tests/types';
+import type { RecommendationMediaItem } from '@/modules/recommendations/types';
+import type { TreatmentProgramTemplateListPreviewMedia } from '@/modules/treatment-program/types';
+import { parseMediaFileIdFromAppUrl } from '@/shared/lib/mediaPreviewUrls';
 
 /**
  * Canonical client-side media shape for grid/list/picker thumbnails (mapping layer only; API types stay unchanged).
  */
 export type MediaPreviewUiModel = {
   id: string;
-  kind: "image" | "video" | "audio" | "file";
+  kind: 'image' | 'video' | 'audio' | 'file';
   url: string;
   previewStatus?: MediaPreviewStatus | null;
   previewSmUrl: string | null;
@@ -21,7 +21,7 @@ export type MediaPreviewUiModel = {
 
 export function libraryMediaRowToPreviewUi(item: {
   id: string;
-  kind: MediaPreviewUiModel["kind"];
+  kind: MediaPreviewUiModel['kind'];
   url: string;
   previewSmUrl?: string | null;
   previewMdUrl?: string | null;
@@ -42,7 +42,7 @@ export function libraryMediaRowToPreviewUi(item: {
 }
 
 export function exerciseMediaToPreviewUi(m: ExerciseMedia): MediaPreviewUiModel {
-  const kind: MediaPreviewUiModel["kind"] = m.mediaType === "video" ? "video" : "image";
+  const kind: MediaPreviewUiModel['kind'] = m.mediaType === 'video' ? 'video' : 'image';
   return {
     id: m.id,
     kind,
@@ -57,7 +57,7 @@ export function exerciseMediaToPreviewUi(m: ExerciseMedia): MediaPreviewUiModel 
 
 /** Превью медиа клинического теста (в JSON нет id слота — ключом служит URL). */
 export function clinicalTestMediaItemToPreviewUi(m: ClinicalTestMediaItem): MediaPreviewUiModel {
-  const kind: MediaPreviewUiModel["kind"] = m.mediaType === "video" ? "video" : "image";
+  const kind: MediaPreviewUiModel['kind'] = m.mediaType === 'video' ? 'video' : 'image';
   return {
     id: m.mediaUrl,
     kind,
@@ -71,9 +71,11 @@ export function clinicalTestMediaItemToPreviewUi(m: ClinicalTestMediaItem): Medi
 }
 
 /** Превью медиа рекомендации (GIF — как изображение). Для image/gif — исходный URL; для video — превью воркера из снимка, если есть. */
-export function recommendationMediaItemToPreviewUi(m: RecommendationMediaItem): MediaPreviewUiModel {
-  const kind: MediaPreviewUiModel["kind"] = m.mediaType === "video" ? "video" : "image";
-  const useSourceUrlForThumb = m.mediaType === "image" || m.mediaType === "gif";
+export function recommendationMediaItemToPreviewUi(
+  m: RecommendationMediaItem,
+): MediaPreviewUiModel {
+  const kind: MediaPreviewUiModel['kind'] = m.mediaType === 'video' ? 'video' : 'image';
+  const useSourceUrlForThumb = m.mediaType === 'image' || m.mediaType === 'gif';
   const rowSm = m.previewSmUrl?.trim() || null;
   const rowMd = m.previewMdUrl?.trim() || null;
   const rowStatus = m.previewStatus ?? null;
@@ -82,7 +84,11 @@ export function recommendationMediaItemToPreviewUi(m: RecommendationMediaItem): 
     id: m.mediaUrl,
     kind,
     url: m.mediaUrl,
-    previewStatus: useSourceUrlForThumb ? "ready" : useWorkerThumb ? (rowStatus ?? "ready") : rowStatus,
+    previewStatus: useSourceUrlForThumb
+      ? 'ready'
+      : useWorkerThumb
+        ? (rowStatus ?? 'ready')
+        : rowStatus,
     previewSmUrl: useSourceUrlForThumb ? m.mediaUrl : rowSm,
     previewMdUrl: useSourceUrlForThumb ? null : rowMd,
     sourceWidth: null,
@@ -94,8 +100,8 @@ export function recommendationMediaItemToPreviewUi(m: RecommendationMediaItem): 
 export function templateListPreviewToPreviewUi(
   preview: TreatmentProgramTemplateListPreviewMedia,
 ): MediaPreviewUiModel {
-  const kind: MediaPreviewUiModel["kind"] = preview.mediaType === "video" ? "video" : "image";
-  const useSourceUrlForThumb = preview.mediaType === "image" || preview.mediaType === "gif";
+  const kind: MediaPreviewUiModel['kind'] = preview.mediaType === 'video' ? 'video' : 'image';
+  const useSourceUrlForThumb = preview.mediaType === 'image' || preview.mediaType === 'gif';
   const rowSm = preview.previewSmUrl?.trim() || null;
   const rowStatus = preview.previewStatus ?? null;
   const useWorkerThumb = !useSourceUrlForThumb && Boolean(rowSm);
@@ -103,7 +109,11 @@ export function templateListPreviewToPreviewUi(
     id: preview.mediaUrl,
     kind,
     url: preview.mediaUrl,
-    previewStatus: useSourceUrlForThumb ? "ready" : useWorkerThumb ? (rowStatus ?? "ready") : rowStatus,
+    previewStatus: useSourceUrlForThumb
+      ? 'ready'
+      : useWorkerThumb
+        ? (rowStatus ?? 'ready')
+        : rowStatus,
     previewSmUrl: useSourceUrlForThumb ? preview.mediaUrl : rowSm,
     previewMdUrl: null,
     sourceWidth: null,
@@ -114,17 +124,17 @@ export function templateListPreviewToPreviewUi(
 export function lfkCoverToPreviewUi(complex: {
   id: string;
   coverImageUrl?: string | null;
-  coverKind?: "image" | "video";
+  coverKind?: 'image' | 'video';
   coverPreviewSmUrl?: string | null;
   coverPreviewMdUrl?: string | null;
   coverPreviewStatus?: MediaPreviewStatus;
 }): MediaPreviewUiModel {
-  const kind: MediaPreviewUiModel["kind"] = complex.coverKind === "video" ? "video" : "image";
-  const id = parseMediaFileIdFromAppUrl(complex.coverImageUrl ?? "") ?? complex.id;
+  const kind: MediaPreviewUiModel['kind'] = complex.coverKind === 'video' ? 'video' : 'image';
+  const id = parseMediaFileIdFromAppUrl(complex.coverImageUrl ?? '') ?? complex.id;
   return {
     id,
     kind,
-    url: complex.coverImageUrl?.trim() ?? "",
+    url: complex.coverImageUrl?.trim() ?? '',
     previewStatus: complex.coverPreviewStatus ?? null,
     previewSmUrl: complex.coverPreviewSmUrl?.trim() ?? null,
     previewMdUrl: complex.coverPreviewMdUrl ?? null,
@@ -138,7 +148,7 @@ export function lfkCoverToPreviewUi(complex: {
  */
 export function mediaLibraryPickerSelectionToPreviewUi(args: {
   value: string;
-  thumbKind: "image" | "video";
+  thumbKind: 'image' | 'video';
   lastPick: {
     previewSmUrl?: string | null;
     previewMdUrl?: string | null;
@@ -146,9 +156,9 @@ export function mediaLibraryPickerSelectionToPreviewUi(args: {
   } | null;
 }): MediaPreviewUiModel {
   const trimmed = args.value.trim();
-  const id = parseMediaFileIdFromAppUrl(trimmed) ?? "";
+  const id = parseMediaFileIdFromAppUrl(trimmed) ?? '';
   return {
-    id: id || "pending",
+    id: id || 'pending',
     kind: args.thumbKind,
     url: trimmed,
     previewStatus: args.lastPick?.previewStatus ?? null,

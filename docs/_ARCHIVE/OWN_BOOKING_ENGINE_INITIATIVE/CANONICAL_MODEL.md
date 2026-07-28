@@ -47,21 +47,21 @@ erDiagram
 
 ## Enum `appointment_status` (ТЗ §17)
 
-| Значение | Смысл |
-|----------|--------|
-| `created` | Создана |
-| `awaiting_payment` | Ожидает оплаты/предоплаты |
-| `paid` | Оплачена |
-| `confirmed` | Подтверждена |
-| `rescheduled` | Перенесена (промежуточный после переноса) |
-| `cancelled_by_patient` | Отменена пациентом |
-| `cancelled_by_specialist` | Отменена специалистом |
-| `late_cancellation` | Поздняя отмена |
-| `no_show` | Неявка |
-| `completed` | Завершена |
-| `visit_confirmed` | Посещение подтверждено |
-| `charged_to_package` | Списана по абонементу |
-| `manual_review_required` | Требует ручного решения |
+| Значение                  | Смысл                                     |
+| ------------------------- | ----------------------------------------- |
+| `created`                 | Создана                                   |
+| `awaiting_payment`        | Ожидает оплаты/предоплаты                 |
+| `paid`                    | Оплачена                                  |
+| `confirmed`               | Подтверждена                              |
+| `rescheduled`             | Перенесена (промежуточный после переноса) |
+| `cancelled_by_patient`    | Отменена пациентом                        |
+| `cancelled_by_specialist` | Отменена специалистом                     |
+| `late_cancellation`       | Поздняя отмена                            |
+| `no_show`                 | Неявка                                    |
+| `completed`               | Завершена                                 |
+| `visit_confirmed`         | Посещение подтверждено                    |
+| `charged_to_package`      | Списана по абонементу                     |
+| `manual_review_required`  | Требует ручного решения                   |
 
 Терминальные: `cancelled_by_patient`, `cancelled_by_specialist`, `late_cancellation`, `no_show`, `completed`, `visit_confirmed`, `charged_to_package` (без выхода в активные, кроме `manual_review_required`).
 

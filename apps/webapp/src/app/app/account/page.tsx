@@ -1,31 +1,39 @@
-import type { ReactNode } from "react";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getDoctorAccountTimezone } from "@/app-layer/doctor/accountTimezone";
-import { DoctorAccountEmailSection } from "@/app/app/settings/DoctorAccountEmailSection";
-import { DoctorNotificationChannelsSection } from "@/app/app/settings/DoctorNotificationChannelsSection";
-import { DoctorTimezoneSection } from "@/app/app/settings/DoctorTimezoneSection";
-import { SettingsForm } from "@/app/app/settings/SettingsForm";
-import { buildDoctorNotificationTopicModels } from "@/modules/doctor-notifications/doctorProfileTopicChannelsModel";
-import { parseSpecialistTaskReminderChannels } from "@/modules/specialist-tasks/reminderChannels";
-import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
-import { StaffPwaInstallSection } from "@/shared/ui/doctor/pwa/StaffPwaInstallSection";
-import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
-import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
-import { AccountTabs, type AccountTab } from "./AccountTabs";
-import { loadStaffAccountPageContext } from "./accountContext";
-import { StaffSecuritySection } from "./StaffSecuritySection";
-import { isRestrictedStaffSecuritySession } from "@/app-layer/guards/requireRole";
-import { runWithStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
+import type { ReactNode } from 'react';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { getDoctorAccountTimezone } from '@/app-layer/doctor/accountTimezone';
+import { DoctorAccountEmailSection } from '@/app/app/settings/DoctorAccountEmailSection';
+import { DoctorNotificationChannelsSection } from '@/app/app/settings/DoctorNotificationChannelsSection';
+import { DoctorTimezoneSection } from '@/app/app/settings/DoctorTimezoneSection';
+import { SettingsForm } from '@/app/app/settings/SettingsForm';
+import { buildDoctorNotificationTopicModels } from '@/modules/doctor-notifications/doctorProfileTopicChannelsModel';
+import { parseSpecialistTaskReminderChannels } from '@/modules/specialist-tasks/reminderChannels';
+import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
+import { StaffPwaInstallSection } from '@/shared/ui/doctor/pwa/StaffPwaInstallSection';
+import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
+import {
+  DoctorSection,
+  DoctorSectionHeader,
+  DoctorSectionTitle,
+} from '@/shared/ui/doctor/DoctorSection';
+import { AccountTabs, type AccountTab } from './AccountTabs';
+import { loadStaffAccountPageContext } from './accountContext';
+import { StaffSecuritySection } from './StaffSecuritySection';
+import { isRestrictedStaffSecuritySession } from '@/app-layer/guards/requireRole';
+import { runWithStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
 
 function valueOf<T>(valueJson: unknown, fallback: T): T {
-  return valueJson !== null && typeof valueJson === "object" && "value" in (valueJson as Record<string, unknown>)
-    ? (valueJson as Record<string, unknown>).value as T
+  return valueJson !== null &&
+    typeof valueJson === 'object' &&
+    'value' in (valueJson as Record<string, unknown>)
+    ? ((valueJson as Record<string, unknown>).value as T)
     : fallback;
 }
 
 function parseTab(raw: string | string[] | undefined): AccountTab {
-  const value = typeof raw === "string" ? raw : raw?.[0];
-  return value === "security" || value === "notifications" || value === "install" ? value : "profile";
+  const value = typeof raw === 'string' ? raw : raw?.[0];
+  return value === 'security' || value === 'notifications' || value === 'install'
+    ? value
+    : 'profile';
 }
 
 export default async function AccountPage({
@@ -37,15 +45,15 @@ export default async function AccountPage({
   const requestedTab = parseTab(sp.tab);
   const { session, workspaceContext } = await loadStaffAccountPageContext();
   const restrictedSecuritySession = await isRestrictedStaffSecuritySession(session);
-  const isPlatformConsole = session.user.role === "admin" && session.adminMode === true;
+  const isPlatformConsole = session.user.role === 'admin' && session.adminMode === true;
   const recoveryOnly =
-    session.staffSecurity?.assurance === "recovery" ||
-    session.staffSecurity?.assurance === "recovery_confirmation";
-  const tab = restrictedSecuritySession ? "security" : requestedTab;
+    session.staffSecurity?.assurance === 'recovery' ||
+    session.staffSecurity?.assurance === 'recovery_confirmation';
+  const tab = restrictedSecuritySession ? 'security' : requestedTab;
   const deps = buildAppDeps();
 
   let content: ReactNode;
-  if (tab === "install") {
+  if (tab === 'install') {
     content = (
       <DoctorSection>
         <DoctorSectionHeader>
@@ -54,10 +62,10 @@ export default async function AccountPage({
         <StaffPwaInstallSection />
       </DoctorSection>
     );
-  } else if (tab === "security") {
+  } else if (tab === 'security') {
     const storedStatus = await runWithStaffSecuritySelfPrincipal(
       session.user.userId,
-      "app/account:security-self",
+      'app/account:security-self',
       () => deps.staffSecurity.getStatus(),
     );
     const timezone = recoveryOnly ? null : await getDoctorAccountTimezone(session.user.userId);
@@ -79,7 +87,7 @@ export default async function AccountPage({
         recoveryOnly={recoveryOnly}
       />
     );
-  } else if (tab === "notifications") {
+  } else if (tab === 'notifications') {
     const accountEmail = await deps.userProjection.getProfileEmailFields(session.user.userId);
     const hasTelegram = Boolean(session.user.bindings.telegramId?.trim());
     const hasMax = Boolean(session.user.bindings.maxId?.trim());
@@ -88,15 +96,17 @@ export default async function AccountPage({
       deps.channelPreferencesPort.getPreferences(session.user.userId),
       deps.topicChannelPrefs.listByUserId(session.user.userId),
       workspaceContext?.canAccessClinicalWorkspace
-        ? deps.systemSettings.listSettingsByScope("doctor", {
+        ? deps.systemSettings.listSettingsByScope('doctor', {
             organizationId: workspaceContext.organizationId,
           })
         : Promise.resolve([]),
     ]);
     const globalWebPushEnabled =
-      channelPrefs.find((preference) => preference.channelCode === "web_push")?.isEnabledForNotifications !== false;
+      channelPrefs.find((preference) => preference.channelCode === 'web_push')
+        ?.isEnabledForNotifications !== false;
     const taskReminderChannels = parseSpecialistTaskReminderChannels(
-      doctorSettings.find((setting) => setting.key === "doctor_specialist_task_reminder_channels")?.valueJson ?? null,
+      doctorSettings.find((setting) => setting.key === 'doctor_specialist_task_reminder_channels')
+        ?.valueJson ?? null,
     );
     const notificationTopics = buildDoctorNotificationTopicModels(
       topicPrefs,
@@ -122,7 +132,7 @@ export default async function AccountPage({
   } else {
     const accountEmail = await deps.userProjection.getProfileEmailFields(session.user.userId);
     const doctorSettings = workspaceContext?.canAccessClinicalWorkspace
-      ? await deps.systemSettings.listSettingsByScope("doctor", {
+      ? await deps.systemSettings.listSettingsByScope('doctor', {
           organizationId: workspaceContext.organizationId,
         })
       : [];
@@ -132,23 +142,27 @@ export default async function AccountPage({
           initialEmail={accountEmail.email}
           emailVerified={Boolean(accountEmail.emailVerifiedAt)}
         />
-        <DoctorTimezoneSection initialTimezone={await getDoctorAccountTimezone(session.user.userId)} />
+        <DoctorTimezoneSection
+          initialTimezone={await getDoctorAccountTimezone(session.user.userId)}
+        />
         {workspaceContext?.canAccessClinicalWorkspace ? (
           <SettingsForm
             patientLabel="пациент"
             smsFallbackEnabled={valueOf(
-              doctorSettings.find((setting) => setting.key === "sms_fallback_enabled")?.valueJson,
+              doctorSettings.find((setting) => setting.key === 'sms_fallback_enabled')?.valueJson,
               true,
             )}
             supportCommentsWithoutSupportDefault={valueOf(
-              doctorSettings.find((setting) =>
-                setting.key === "doctor_patient_support_comments_without_support_default_enabled"
+              doctorSettings.find(
+                (setting) =>
+                  setting.key === 'doctor_patient_support_comments_without_support_default_enabled',
               )?.valueJson,
               false,
             )}
             supportMediaWithoutSupportDefault={valueOf(
-              doctorSettings.find((setting) =>
-                setting.key === "doctor_patient_support_media_without_support_default_enabled"
+              doctorSettings.find(
+                (setting) =>
+                  setting.key === 'doctor_patient_support_media_without_support_default_enabled',
               )?.valueJson,
               false,
             )}

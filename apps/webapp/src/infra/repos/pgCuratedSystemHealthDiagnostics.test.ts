@@ -1,9 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { NotificationDeliveryChannelAggregate } from "@/modules/notification-delivery/types";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { NotificationDeliveryChannelAggregate } from '@/modules/notification-delivery/types';
 
 const { queryMock } = vi.hoisted(() => ({ queryMock: vi.fn() }));
 
-vi.mock("@/infra/db/saasIsolationTelemetry", () => ({
+vi.mock('@/infra/db/saasIsolationTelemetry', () => ({
   getSaasIsolationOperatorPool: vi.fn(() => ({ query: queryMock })),
 }));
 
@@ -12,7 +12,7 @@ import {
   curatedSystemHealthSnapshotSchema,
   loadCuratedPlaybackHealthSnapshot,
   loadCuratedSystemHealthSnapshot,
-} from "./pgCuratedSystemHealthDiagnostics";
+} from './pgCuratedSystemHealthDiagnostics';
 
 function channel(): NotificationDeliveryChannelAggregate {
   return {
@@ -55,9 +55,9 @@ function validSnapshot() {
     mediaPreview: {
       stalePendingCount: 0,
       byMimeAndStatus: {
-        "video/quicktime": { pending: 0, ready: 0, failed: 0, skipped: 0 },
-        "image/heic": { pending: 0, ready: 0, failed: 0, skipped: 0 },
-        "image/heif": { pending: 0, ready: 0, failed: 0, skipped: 0 },
+        'video/quicktime': { pending: 0, ready: 0, failed: 0, skipped: 0 },
+        'image/heic': { pending: 0, ready: 0, failed: 0, skipped: 0 },
+        'image/heif': { pending: 0, ready: 0, failed: 0, skipped: 0 },
       },
     },
     videoPlaybackClient: {
@@ -138,35 +138,39 @@ function validSnapshot() {
   };
 }
 
-describe("curated System Health diagnostics", () => {
+describe('curated System Health diagnostics', () => {
   beforeEach(() => queryMock.mockReset());
 
-  it("reads only through the protected aggregate function", async () => {
+  it('reads only through the protected aggregate function', async () => {
     queryMock.mockResolvedValue({ rows: [{ snapshot: validSnapshot() }] });
     await expect(loadCuratedSystemHealthSnapshot()).resolves.toMatchObject({ schemaVersion: 1 });
     expect(queryMock).toHaveBeenCalledWith(
-      "SELECT app.read_curated_system_health() AS snapshot, app.read_outbound_provider_incident_health() AS outbound_provider_incidents",
+      'SELECT app.read_curated_system_health() AS snapshot, app.read_outbound_provider_incident_health() AS outbound_provider_incidents',
     );
   });
 
-  it("rejects raw row identifiers, error text and secret-shaped drift", () => {
-    expect(() => curatedSystemHealthSnapshotSchema.parse({
-      ...validSnapshot(),
-      rawIncidentRows: [{ id: "patient-id", errorDetail: "secret" }],
-    })).toThrow();
-    expect(() => curatedSystemHealthSnapshotSchema.parse({
-      ...validSnapshot(),
-      config: { ...validSnapshot().config, privateKey: "secret" },
-    })).toThrow();
+  it('rejects raw row identifiers, error text and secret-shaped drift', () => {
+    expect(() =>
+      curatedSystemHealthSnapshotSchema.parse({
+        ...validSnapshot(),
+        rawIncidentRows: [{ id: 'patient-id', errorDetail: 'secret' }],
+      }),
+    ).toThrow();
+    expect(() =>
+      curatedSystemHealthSnapshotSchema.parse({
+        ...validSnapshot(),
+        config: { ...validSnapshot().config, privateKey: 'secret' },
+      }),
+    ).toThrow();
   });
 
-  it("accepts only bounded provider diagnostics", () => {
+  it('accepts only bounded provider diagnostics', () => {
     const snapshot = validSnapshot();
     snapshot.notificationDelivery.byChannel.web_push = {
       ...channel(),
       lastProviderStatusCode: 403,
-      lastErrorReason: "provider_error",
-      lastErrorMessage: "BadJwtToken",
+      lastErrorReason: 'provider_error',
+      lastErrorMessage: 'BadJwtToken',
     };
     expect(() => curatedSystemHealthSnapshotSchema.parse(snapshot)).not.toThrow();
 
@@ -174,13 +178,13 @@ describe("curated System Health diagnostics", () => {
     unsafe.notificationDelivery.byChannel.web_push = {
       ...channel(),
       lastProviderStatusCode: 403,
-      lastErrorReason: "provider_error",
-      lastErrorMessage: "Dmitry_Berson",
+      lastErrorReason: 'provider_error',
+      lastErrorMessage: 'Dmitry_Berson',
     };
     expect(() => curatedSystemHealthSnapshotSchema.parse(unsafe)).toThrow();
   });
 
-  it("reads playback metrics only through the protected aggregate function", async () => {
+  it('reads playback metrics only through the protected aggregate function', async () => {
     const metrics = {
       byDelivery: { hls: 3, mp4: 2, file: 1 },
       fallbackTotal: 1,
@@ -196,36 +200,39 @@ describe("curated System Health diagnostics", () => {
       degraded: false,
       recent: [],
     };
-    queryMock.mockResolvedValue({ rows: [{ snapshot: { "24": metrics, "1": metrics, hlsProxy } }] });
+    queryMock.mockResolvedValue({
+      rows: [{ snapshot: { '24': metrics, '1': metrics, hlsProxy } }],
+    });
 
     await expect(loadCuratedPlaybackHealthSnapshot()).resolves.toEqual({
-      "24": metrics,
-      "1": metrics,
+      '24': metrics,
+      '1': metrics,
       hlsProxy,
     });
-    expect(queryMock).toHaveBeenCalledWith("SELECT app.read_curated_playback_health() AS snapshot");
+    expect(queryMock).toHaveBeenCalledWith('SELECT app.read_curated_playback_health() AS snapshot');
   });
 
-  it("rejects raw playback rows and identifiers", () => {
+  it('rejects raw playback rows and identifiers', () => {
     const metrics = {
       byDelivery: { hls: 0, mp4: 0, file: 0 },
       fallbackTotal: 0,
       totalResolutions: 0,
       uniquePlaybackPairsFirstSeenInWindow: 0,
     };
-    expect(() => curatedPlaybackHealthSnapshotSchema.parse({
-      "24": { ...metrics, rows: [{ userId: "not-allowed" }] },
-      "1": metrics,
-      hlsProxy: {
-        windowHours: 24,
-        errorsTotal24h: 0,
-        errorsTotal1h: 0,
-        byReason: {},
-        byReasonLast1h: {},
-        degraded: false,
-        recent: [],
-      },
-    })).toThrow();
+    expect(() =>
+      curatedPlaybackHealthSnapshotSchema.parse({
+        '24': { ...metrics, rows: [{ userId: 'not-allowed' }] },
+        '1': metrics,
+        hlsProxy: {
+          windowHours: 24,
+          errorsTotal24h: 0,
+          errorsTotal1h: 0,
+          byReason: {},
+          byReasonLast1h: {},
+          degraded: false,
+          recent: [],
+        },
+      }),
+    ).toThrow();
   });
-
 });

@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from 'next/server';
 
 export type JsonPrimitive = boolean | number | string | null;
 
@@ -53,7 +53,7 @@ export class TypedApiResponseError extends Error {
 
   constructor(descriptor: ApiErrorDescriptor) {
     super(descriptor.code);
-    this.name = "TypedApiResponseError";
+    this.name = 'TypedApiResponseError';
     this.descriptor = descriptor;
   }
 }

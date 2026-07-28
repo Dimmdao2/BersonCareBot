@@ -27,16 +27,16 @@
 
 ### Результат: PASS, 150/150
 
-| Allocation | Page files |
-|---|---:|
-| `/app/doctor/**` | 78 |
-| `/app/settings` + `/app/settings/patient-home` | 2 |
-| `/app/admin/promo` legacy redirect | 1 |
-| `/app/patient/**` | 49 |
-| `/book/**` | 12 |
-| `/` + `/legal/**` | 3 |
-| `/app`, `/app/tg`, `/app/max`, `/app/auth/email-setup`, `/app/contact-support` | 5 |
-| **Всего** | **150** |
+| Allocation                                                                     | Page files |
+| ------------------------------------------------------------------------------ | ---------: |
+| `/app/doctor/**`                                                               |         78 |
+| `/app/settings` + `/app/settings/patient-home`                                 |          2 |
+| `/app/admin/promo` legacy redirect                                             |          1 |
+| `/app/patient/**`                                                              |         49 |
+| `/book/**`                                                                     |         12 |
+| `/` + `/legal/**`                                                              |          3 |
+| `/app`, `/app/tg`, `/app/max`, `/app/auth/email-setup`, `/app/contact-support` |          5 |
+| **Всего**                                                                      |    **150** |
 
 Проверка дала `150` page files и в work3, и в текущем основном worktree. `comm` не нашёл ни добавленных, ни удалённых page paths между деревьями. Исправленное распределение `/app/admin/promo` в specialist family 13 устраняет прежний единственный traceability gap. Повторного route-file blocker нет.
 
@@ -106,14 +106,14 @@
 
 ## 5. Матрица ролей: covered vs missing
 
-| Slice из §5.1 | Готовое evidence | Статус | Что ещё нужно |
-|---|---|---|---|
-| Public | TEST landing + clean login, desktop | **PARTIAL** | Mobile landing/login в новом role-matrix run; зафиксировать отсутствие session. |
-| Registration | Нет | **MISSING** | Desktop + mobile `/api/auth/dev-public?view=registration`; без submit, если мутация не нужна для состояния. |
-| Patient | Нет актуального полного набора | **MISSING** | DEV desktop: home, appointments, treatment/program, profile/settings; mobile минимум shell/navigation и ключевые состояния. Schema blocker больше не использовать. |
-| Regular doctor | TEST owner A/B не является isolated doctor | **MISSING** | DEV `dev:doctor`: Today, patients, schedule, communications, content/LFK; desktop + mobile shell; явно доказать отсутствие clinic/global nav. |
-| Clinic admin | TEST owner A/B: doctor set + members/settings, desktop | **PARTIAL / strong desktop** | DEV mobile shell/navigation; явно зафиксировать наличие clinic management и отсутствие global-admin sections. При необходимости один DEV desktop nav capture для точного role boundary. |
-| Global admin | Нет актуального полного набора | **MISSING** | DEV `dev:admin`: doctor set + analytics, system-health, audit-log, global settings/integrations; desktop + mobile shell/navigation. |
+| Slice из §5.1  | Готовое evidence                                       | Статус                       | Что ещё нужно                                                                                                                                                                           |
+| -------------- | ------------------------------------------------------ | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Public         | TEST landing + clean login, desktop                    | **PARTIAL**                  | Mobile landing/login в новом role-matrix run; зафиксировать отсутствие session.                                                                                                         |
+| Registration   | Нет                                                    | **MISSING**                  | Desktop + mobile `/api/auth/dev-public?view=registration`; без submit, если мутация не нужна для состояния.                                                                             |
+| Patient        | Нет актуального полного набора                         | **MISSING**                  | DEV desktop: home, appointments, treatment/program, profile/settings; mobile минимум shell/navigation и ключевые состояния. Schema blocker больше не использовать.                      |
+| Regular doctor | TEST owner A/B не является isolated doctor             | **MISSING**                  | DEV `dev:doctor`: Today, patients, schedule, communications, content/LFK; desktop + mobile shell; явно доказать отсутствие clinic/global nav.                                           |
+| Clinic admin   | TEST owner A/B: doctor set + members/settings, desktop | **PARTIAL / strong desktop** | DEV mobile shell/navigation; явно зафиксировать наличие clinic management и отсутствие global-admin sections. При необходимости один DEV desktop nav capture для точного role boundary. |
+| Global admin   | Нет актуального полного набора                         | **MISSING**                  | DEV `dev:admin`: doctor set + analytics, system-health, audit-log, global settings/integrations; desktop + mobile shell/navigation.                                                     |
 
 Дополнительные роли/tiers:
 

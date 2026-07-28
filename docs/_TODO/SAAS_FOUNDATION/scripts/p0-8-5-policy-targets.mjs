@@ -1,44 +1,46 @@
 #!/usr/bin/env node
 
-import { buildRlsDescriptors } from "./rls-descriptor-model.mjs";
-import { renderOrgColumnDormantPolicyStatements } from "./rls-sql-renderer.mjs";
+import { buildRlsDescriptors } from './rls-descriptor-model.mjs';
+import { renderOrgColumnDormantPolicyStatements } from './rls-sql-renderer.mjs';
 
-export const p085PolicyName = "saas_org_dormant_p0_8_5";
+export const p085PolicyName = 'saas_org_dormant_p0_8_5';
 
 export const expectedP085IntegratorDirectUserBridgeTargets = Object.freeze([
-  "integrator.contacts",
-  "integrator.content_access_grants",
-  "integrator.mailing_logs",
-  "integrator.user_reminder_rules",
-  "integrator.user_subscriptions",
+  'integrator.contacts',
+  'integrator.content_access_grants',
+  'integrator.mailing_logs',
+  'integrator.user_reminder_rules',
+  'integrator.user_subscriptions',
 ]);
 
 export const expectedP085IntegratorIdentityBridgeTargets = Object.freeze([
-  "integrator.conversations",
-  "integrator.message_drafts",
-  "integrator.user_questions",
+  'integrator.conversations',
+  'integrator.message_drafts',
+  'integrator.user_questions',
 ]);
 
 export const expectedP085IntegratorParentDenormTargets = Object.freeze([
-  "integrator.conversation_messages",
-  "integrator.question_messages",
-  "integrator.user_reminder_delivery_logs",
-  "integrator.user_reminder_occurrences",
+  'integrator.conversation_messages',
+  'integrator.question_messages',
+  'integrator.user_reminder_delivery_logs',
+  'integrator.user_reminder_occurrences',
 ]);
 
-export const expectedP085IntegratorMailingsRootTargets = Object.freeze(["integrator.mailings"]);
+export const expectedP085IntegratorMailingsRootTargets = Object.freeze(['integrator.mailings']);
 
 const expectedTargetsBySourceStage = Object.freeze({
-  "P0.4.I1": expectedP085IntegratorDirectUserBridgeTargets,
-  "P0.4.I2": expectedP085IntegratorIdentityBridgeTargets,
-  "P0.4.I3": expectedP085IntegratorParentDenormTargets,
-  "P0.4.I4": expectedP085IntegratorMailingsRootTargets,
+  'P0.4.I1': expectedP085IntegratorDirectUserBridgeTargets,
+  'P0.4.I2': expectedP085IntegratorIdentityBridgeTargets,
+  'P0.4.I3': expectedP085IntegratorParentDenormTargets,
+  'P0.4.I4': expectedP085IntegratorMailingsRootTargets,
 });
 
 const expectedTargetSet = new Set(Object.values(expectedTargetsBySourceStage).flat());
 
 function setDiff(left, right) {
-  return Array.from(left).filter((value) => !right.has(value)).sort();
+  return Array.from(left)
+    .filter((value) => !right.has(value))
+    .sort();
 }
 
 function sortedDescriptors(descriptors) {
@@ -53,9 +55,9 @@ export function getP085IntegratorScopedDescriptors({ descriptors = buildRlsDescr
   const targets = sortedDescriptors(
     Array.from(descriptors.values()).filter(
       (descriptor) =>
-        descriptor.tier === "SCOPED" &&
-        descriptor.table.startsWith("integrator.") &&
-        ["direct_org_column", "denorm_org_column"].includes(descriptor.scopingKind),
+        descriptor.tier === 'SCOPED' &&
+        descriptor.table.startsWith('integrator.') &&
+        ['direct_org_column', 'denorm_org_column'].includes(descriptor.scopingKind),
     ),
   );
 
@@ -65,19 +67,19 @@ export function getP085IntegratorScopedDescriptors({ descriptors = buildRlsDescr
 }
 
 export function getP085IntegratorDirectUserBridgeDescriptors(options) {
-  return targetsForSourceStage(getP085IntegratorScopedDescriptors(options), "P0.4.I1");
+  return targetsForSourceStage(getP085IntegratorScopedDescriptors(options), 'P0.4.I1');
 }
 
 export function getP085IntegratorIdentityBridgeDescriptors(options) {
-  return targetsForSourceStage(getP085IntegratorScopedDescriptors(options), "P0.4.I2");
+  return targetsForSourceStage(getP085IntegratorScopedDescriptors(options), 'P0.4.I2');
 }
 
 export function getP085IntegratorParentDenormDescriptors(options) {
-  return targetsForSourceStage(getP085IntegratorScopedDescriptors(options), "P0.4.I3");
+  return targetsForSourceStage(getP085IntegratorScopedDescriptors(options), 'P0.4.I3');
 }
 
 export function getP085IntegratorMailingsRootDescriptors(options) {
-  return targetsForSourceStage(getP085IntegratorScopedDescriptors(options), "P0.4.I4");
+  return targetsForSourceStage(getP085IntegratorScopedDescriptors(options), 'P0.4.I4');
 }
 
 export function assertP085IntegratorScopedTargets(targets) {
@@ -89,7 +91,7 @@ export function assertP085IntegratorScopedTargets(targets) {
   }
 
   if (actualSet.size !== actualTables.length) {
-    throw new Error("P0.8.5 integrator SCOPED targets contain duplicates");
+    throw new Error('P0.8.5 integrator SCOPED targets contain duplicates');
   }
 
   const missing = setDiff(expectedTargetSet, actualSet);
@@ -97,14 +99,16 @@ export function assertP085IntegratorScopedTargets(targets) {
 
   if (missing.length > 0 || extra.length > 0) {
     throw new Error(
-      `P0.8.5 target set mismatch. Missing: ${missing.join(", ") || "<none>"}. Extra: ${
-        extra.join(", ") || "<none>"
+      `P0.8.5 target set mismatch. Missing: ${missing.join(', ') || '<none>'}. Extra: ${
+        extra.join(', ') || '<none>'
       }`,
     );
   }
 
   for (const [sourceStage, expectedTargets] of Object.entries(expectedTargetsBySourceStage)) {
-    const actualSourceTargets = targetsForSourceStage(targets, sourceStage).map((descriptor) => descriptor.table);
+    const actualSourceTargets = targetsForSourceStage(targets, sourceStage).map(
+      (descriptor) => descriptor.table,
+    );
     const actualSourceSet = new Set(actualSourceTargets);
     const expectedSourceSet = new Set(expectedTargets);
 
@@ -119,15 +123,19 @@ export function assertP085IntegratorScopedTargets(targets) {
 
     if (sourceMissing.length > 0 || sourceExtra.length > 0) {
       throw new Error(
-        `P0.8.5 ${sourceStage} mismatch. Missing: ${sourceMissing.join(", ") || "<none>"}. Extra: ${
-          sourceExtra.join(", ") || "<none>"
+        `P0.8.5 ${sourceStage} mismatch. Missing: ${sourceMissing.join(', ') || '<none>'}. Extra: ${
+          sourceExtra.join(', ') || '<none>'
         }`,
       );
     }
   }
 
-  const directOrgTargets = targets.filter((descriptor) => descriptor.scopingKind === "direct_org_column");
-  const denormTargets = targets.filter((descriptor) => descriptor.scopingKind === "denorm_org_column");
+  const directOrgTargets = targets.filter(
+    (descriptor) => descriptor.scopingKind === 'direct_org_column',
+  );
+  const denormTargets = targets.filter(
+    (descriptor) => descriptor.scopingKind === 'denorm_org_column',
+  );
 
   if (directOrgTargets.length !== 9) {
     throw new Error(`Expected 9 P0.8.5 direct-org-column targets, got ${directOrgTargets.length}`);
@@ -138,17 +146,19 @@ export function assertP085IntegratorScopedTargets(targets) {
   }
 
   for (const descriptor of targets) {
-    if (descriptor.orgColumn !== "organization_id") {
+    if (descriptor.orgColumn !== 'organization_id') {
       throw new Error(`P0.8.5 target ${descriptor.table} must use materialized organization_id`);
     }
   }
 }
 
-export function renderP085PolicyStatements({ descriptors = getP085IntegratorScopedDescriptors() } = {}) {
+export function renderP085PolicyStatements({
+  descriptors = getP085IntegratorScopedDescriptors(),
+} = {}) {
   return descriptors.flatMap((descriptor) =>
     renderOrgColumnDormantPolicyStatements(descriptor, {
       policyName: p085PolicyName,
-      scopingKinds: ["direct_org_column", "denorm_org_column"],
+      scopingKinds: ['direct_org_column', 'denorm_org_column'],
     }),
   );
 }
@@ -156,38 +166,54 @@ export function renderP085PolicyStatements({ descriptors = getP085IntegratorScop
 function printCli(format) {
   const descriptors = getP085IntegratorScopedDescriptors();
 
-  if (format === "--json") {
+  if (format === '--json') {
     console.log(JSON.stringify(descriptors, null, 2));
     return;
   }
 
-  if (format === "--sql") {
-    console.log(renderP085PolicyStatements({ descriptors }).join("\n"));
+  if (format === '--sql') {
+    console.log(renderP085PolicyStatements({ descriptors }).join('\n'));
     return;
   }
 
-  if (format === "--i1-targets") {
-    console.log(getP085IntegratorDirectUserBridgeDescriptors().map((descriptor) => descriptor.table).join("\n"));
+  if (format === '--i1-targets') {
+    console.log(
+      getP085IntegratorDirectUserBridgeDescriptors()
+        .map((descriptor) => descriptor.table)
+        .join('\n'),
+    );
     return;
   }
 
-  if (format === "--i2-targets") {
-    console.log(getP085IntegratorIdentityBridgeDescriptors().map((descriptor) => descriptor.table).join("\n"));
+  if (format === '--i2-targets') {
+    console.log(
+      getP085IntegratorIdentityBridgeDescriptors()
+        .map((descriptor) => descriptor.table)
+        .join('\n'),
+    );
     return;
   }
 
-  if (format === "--i3-targets") {
-    console.log(getP085IntegratorParentDenormDescriptors().map((descriptor) => descriptor.table).join("\n"));
+  if (format === '--i3-targets') {
+    console.log(
+      getP085IntegratorParentDenormDescriptors()
+        .map((descriptor) => descriptor.table)
+        .join('\n'),
+    );
     return;
   }
 
-  if (format === "--i4-targets") {
-    console.log(getP085IntegratorMailingsRootDescriptors().map((descriptor) => descriptor.table).join("\n"));
+  if (format === '--i4-targets') {
+    console.log(
+      getP085IntegratorMailingsRootDescriptors()
+        .map((descriptor) => descriptor.table)
+        .join('\n'),
+    );
     return;
   }
 
-  if (format === "--targets" || format == null) {
-    console.log(descriptors.map((descriptor) => descriptor.table).join("\n"));
+  if (format === '--targets' || format == null) {
+    console.log(descriptors.map((descriptor) => descriptor.table).join('\n'));
     return;
   }
 

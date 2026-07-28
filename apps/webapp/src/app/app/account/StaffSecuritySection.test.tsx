@@ -67,7 +67,9 @@ describe('StaffSecuritySection first-run acceptance', () => {
 
   it('offers owner specialist repair before factor and recovery readiness', async () => {
     vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify({ ok: false, error: 'specialist_binding_failed' }), { status: 409 }),
+      new Response(JSON.stringify({ ok: false, error: 'specialist_binding_failed' }), {
+        status: 409,
+      }),
     );
 
     render(
@@ -152,9 +154,7 @@ describe('StaffSecuritySection first-run acceptance', () => {
   });
 
   it('handles a non-JSON enrollment failure without an unhandled response parser rejection', async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response('<html>server error</html>', { status: 500 }),
-    );
+    vi.mocked(fetch).mockResolvedValue(new Response('<html>server error</html>', { status: 500 }));
 
     render(
       <StaffSecuritySection
@@ -208,7 +208,10 @@ describe('StaffSecuritySection first-run acceptance', () => {
 
   it.each([
     ['wrong_current_password', 'Текущий пароль указан неверно. Проверьте его и повторите попытку.'],
-    ['weak_new_password', 'Новый пароль должен содержать от 8 до 128 символов. Измените пароль и повторите.'],
+    [
+      'weak_new_password',
+      'Новый пароль должен содержать от 8 до 128 символов. Измените пароль и повторите.',
+    ],
     ['rate_limited', 'Слишком много попыток. Подождите 10 минут и повторите.'],
     [
       'password_changed_session_reissue_failed',
@@ -220,9 +223,7 @@ describe('StaffSecuritySection first-run acceptance', () => {
         JSON.stringify({
           ok: false,
           error,
-          ...(error === 'password_changed_session_reissue_failed'
-            ? { passwordChanged: true }
-            : {}),
+          ...(error === 'password_changed_session_reissue_failed' ? { passwordChanged: true } : {}),
         }),
         { status: error === 'password_changed_session_reissue_failed' ? 500 : 400 },
       ),
@@ -261,7 +262,9 @@ describe('StaffSecuritySection first-run acceptance', () => {
   it('shows a toast when TOTP verification loses the network', async () => {
     vi.mocked(fetch).mockImplementation((url) => {
       if (url === '/api/account/security/totp/start') {
-        return Promise.resolve(new Response(JSON.stringify({ ok: true, secret: 'secret', uri: 'otpauth://test' })));
+        return Promise.resolve(
+          new Response(JSON.stringify({ ok: true, secret: 'secret', uri: 'otpauth://test' })),
+        );
       }
       return Promise.reject(new Error('offline'));
     });
@@ -278,7 +281,9 @@ describe('StaffSecuritySection first-run acceptance', () => {
   it('shows a toast when recovery confirmation loses the network', async () => {
     vi.mocked(fetch).mockImplementation((url) => {
       if (url === '/api/account/security/totp/start') {
-        return Promise.resolve(new Response(JSON.stringify({ ok: true, secret: 'secret', uri: 'otpauth://test' })));
+        return Promise.resolve(
+          new Response(JSON.stringify({ ok: true, secret: 'secret', uri: 'otpauth://test' })),
+        );
       }
       if (url === '/api/account/security/totp/verify') {
         return Promise.resolve(new Response(JSON.stringify({ ok: true, recoveryCodes: ['one'] })));
@@ -300,17 +305,32 @@ describe('StaffSecuritySection first-run acceptance', () => {
   it.each([
     [
       'Повторить настройку аккаунта',
-      { enrolled: false, recoveryConfirmed: false, hasOrganization: false, hasSpecialistBinding: false },
+      {
+        enrolled: false,
+        recoveryConfirmed: false,
+        hasOrganization: false,
+        hasSpecialistBinding: false,
+      },
       'Не удалось завершить настройку аккаунта. Повторите попытку позже. Проверьте соединение с интернетом.',
     ],
     [
       'Подключить рабочий кабинет',
-      { enrolled: false, recoveryConfirmed: false, hasOrganization: true, hasSpecialistBinding: false },
+      {
+        enrolled: false,
+        recoveryConfirmed: false,
+        hasOrganization: true,
+        hasSpecialistBinding: false,
+      },
       'Не удалось подключить рабочий кабинет. Повторите попытку позже. Проверьте соединение с интернетом.',
     ],
     [
       'Завершить другие сеансы',
-      { enrolled: true, recoveryConfirmed: true, hasOrganization: true, hasSpecialistBinding: true },
+      {
+        enrolled: true,
+        recoveryConfirmed: true,
+        hasOrganization: true,
+        hasSpecialistBinding: true,
+      },
       'Не удалось завершить другие сеансы. Повторите попытку. Проверьте соединение с интернетом.',
     ],
   ])('shows a toast when %s loses the network', async (buttonName, state, message) => {

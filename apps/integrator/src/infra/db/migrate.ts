@@ -24,7 +24,10 @@ type DbQueryResult<T extends object = Record<string, unknown>> = {
 };
 
 export type MigrationDbClient = {
-  query<T extends object = Record<string, unknown>>(text: string, values?: unknown[]): Promise<DbQueryResult<T>>;
+  query<T extends object = Record<string, unknown>>(
+    text: string,
+    values?: unknown[],
+  ): Promise<DbQueryResult<T>>;
   end(): Promise<void>;
 };
 
@@ -35,7 +38,9 @@ type MigrationLedgerShape = {
 
 export type StartupMigrationMode = 'run-ddl-migrations' | 'verify-ledger-only';
 
-export function resolveStartupMigrationMode(dbPrincipalContextMode: string | undefined): StartupMigrationMode {
+export function resolveStartupMigrationMode(
+  dbPrincipalContextMode: string | undefined,
+): StartupMigrationMode {
   const normalized = dbPrincipalContextMode?.trim();
   if (normalized === 'locked' || normalized === 'shadow') return 'verify-ledger-only';
   return 'run-ddl-migrations';
@@ -46,8 +51,7 @@ function isUndefinedColumnError(err: unknown): boolean {
   if (e?.code === '42703') return true;
   const m = String(e?.message ?? '').toLowerCase();
   return (
-    m.includes('does not exist') ||
-    m.includes('не существует') // PostgreSQL localized messages on some installs
+    m.includes('does not exist') || m.includes('не существует') // PostgreSQL localized messages on some installs
   );
 }
 
@@ -75,9 +79,10 @@ async function ensureMigrationsTable(db: MigrationDbClient): Promise<void> {
 }
 
 async function verifyMigrationLedgerExists(db: MigrationDbClient): Promise<void> {
-  const res = await db.query<{ ledger_regclass: string | null }>('SELECT to_regclass($1) AS ledger_regclass', [
-    INTEGRATOR_MIGRATIONS_TABLE,
-  ]);
+  const res = await db.query<{ ledger_regclass: string | null }>(
+    'SELECT to_regclass($1) AS ledger_regclass',
+    [INTEGRATOR_MIGRATIONS_TABLE],
+  );
   if (!res.rows[0]?.ledger_regclass) {
     throw new Error(
       `${INTEGRATOR_MIGRATIONS_TABLE} is missing; run integrator migrations before starting shadow/locked runtime`,
@@ -194,9 +199,7 @@ function toMigrationFile(scope: string, dirPath: string, fileName: string): Migr
 async function discoverCoreMigrations(rootDir: string): Promise<MigrationFile[]> {
   if (!(await directoryExists(rootDir))) return [];
 
-  const files = (await readdir(rootDir))
-    .filter((name) => isSqlMigrationFile(name))
-    .sort();
+  const files = (await readdir(rootDir)).filter((name) => isSqlMigrationFile(name)).sort();
 
   return files.map((name) => toMigrationFile('core', rootDir, name));
 }
@@ -217,9 +220,7 @@ async function discoverIntegrationMigrations(integrationsRoot: string): Promise<
     const migrationsDir = join(integrationsRoot, integrationName, 'db', 'migrations');
     if (!(await directoryExists(migrationsDir))) continue;
 
-    const files = (await readdir(migrationsDir))
-      .filter((name) => isSqlMigrationFile(name))
-      .sort();
+    const files = (await readdir(migrationsDir)).filter((name) => isSqlMigrationFile(name)).sort();
 
     for (const fileName of files) {
       result.push(toMigrationFile(integrationName, migrationsDir, fileName));
@@ -280,7 +281,10 @@ type BoundedMigrations = {
  * run). When `boundRaw` is unset/empty, everything is eligible and nothing is deferred — this is
  * the default path and MUST stay behaviorally identical to "no bound at all".
  */
-export function applyBeforeDateBound(migrations: MigrationFile[], boundRaw: string | undefined): BoundedMigrations {
+export function applyBeforeDateBound(
+  migrations: MigrationFile[],
+  boundRaw: string | undefined,
+): BoundedMigrations {
   if (!boundRaw) return { eligible: migrations, deferred: [] };
 
   const bound = Number(boundRaw);
@@ -304,9 +308,6 @@ export function applyBeforeDateBound(migrations: MigrationFile[], boundRaw: stri
   return { eligible, deferred };
 }
 
-
-
-
 // eslint-disable-next-line no-secrets/no-secrets
 // 'telegram:20260306_0004_add_notification_settings.sql' — версия миграции, не секрет
 
@@ -317,13 +318,17 @@ async function applyMigration(
   ledgerShape: MigrationLedgerShape,
 ): Promise<void> {
   const migrationLogger = getMigrationLogger(migration.version);
-  const ledgerValue = ledgerShape.writeColumn === 'version' ? migration.version : migration.fileName;
+  const ledgerValue =
+    ledgerShape.writeColumn === 'version' ? migration.version : migration.fileName;
 
   // Полностью идемпотентная логика для любых миграций
   await db.query('BEGIN');
   try {
     await db.query(sql); // Выполняем SQL миграции
-    await db.query(`INSERT INTO ${INTEGRATOR_MIGRATIONS_TABLE}(${ledgerShape.writeColumn}) VALUES($1)`, [ledgerValue]); // Отмечаем как применённую
+    await db.query(
+      `INSERT INTO ${INTEGRATOR_MIGRATIONS_TABLE}(${ledgerShape.writeColumn}) VALUES($1)`,
+      [ledgerValue],
+    ); // Отмечаем как применённую
     await db.query('COMMIT');
     migrationLogger.info(
       {
@@ -354,11 +359,13 @@ async function applyMigration(
     const pgCode = errObj?.code;
     const msg = (errObj?.message || '').toLowerCase();
     const isSafe =
-      (pgCode && safePgCodes.includes(pgCode)) ||
-      safeMessages.some((m) => msg.includes(m));
+      (pgCode && safePgCodes.includes(pgCode)) || safeMessages.some((m) => msg.includes(m));
     if (isSafe) {
       await db.query('ROLLBACK');
-      await db.query(`INSERT INTO ${INTEGRATOR_MIGRATIONS_TABLE}(${ledgerShape.writeColumn}) VALUES($1)`, [ledgerValue]);
+      await db.query(
+        `INSERT INTO ${INTEGRATOR_MIGRATIONS_TABLE}(${ledgerShape.writeColumn}) VALUES($1)`,
+        [ledgerValue],
+      );
       migrationLogger.warn(
         {
           err: error,
@@ -396,7 +403,8 @@ export async function verifyStartupMigrationState(
 
   if (missing.length > 0) {
     const listed = missing.slice(0, 20).map((migration) => migration.version);
-    const suffix = missing.length > listed.length ? `; plus ${missing.length - listed.length} more` : '';
+    const suffix =
+      missing.length > listed.length ? `; plus ${missing.length - listed.length} more` : '';
     throw new Error(
       `Integrator startup migration gate failed: ${missing.length} discovered migration(s) are not applied in ${INTEGRATOR_MIGRATIONS_TABLE}: ${listed.join(', ')}${suffix}. Run deploy migrations before starting shadow/locked runtime.`,
     );
@@ -498,7 +506,9 @@ export type StartupMigrationGateDeps = {
   discoverMigrationsFn?: () => Promise<MigrationFile[]>;
 };
 
-export async function runStartupMigrationGateWithDeps(deps: StartupMigrationGateDeps = {}): Promise<void> {
+export async function runStartupMigrationGateWithDeps(
+  deps: StartupMigrationGateDeps = {},
+): Promise<void> {
   const startupMode = resolveStartupMigrationMode(deps.dbPrincipalContextMode);
 
   if (startupMode === 'run-ddl-migrations') {
@@ -512,7 +522,8 @@ export async function runStartupMigrationGateWithDeps(deps: StartupMigrationGate
 
   const createDb =
     deps.createDb ??
-    ((connectionString: string): MigrationDbClient => createIntegratorMigrationPoolProvider({ connectionString }));
+    ((connectionString: string): MigrationDbClient =>
+      createIntegratorMigrationPoolProvider({ connectionString }));
   const db = createDb(deps.databaseUrl);
   try {
     const migrations = await (deps.discoverMigrationsFn ?? discoverMigrations)();

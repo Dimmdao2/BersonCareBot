@@ -1,6 +1,6 @@
 ---
 name: doctor-ui-unification-phases
-overview: "Закрыт 2026-06-04. Фазы 0–5 выполнены (foundation, AUDIT закрыт, гайд). Ручная visual-проходка — частично, первично принята; постраничная детализация — отдельные задачи под гайдом. Архив: не держать активным в Cursor Build."
+overview: 'Закрыт 2026-06-04. Фазы 0–5 выполнены (foundation, AUDIT закрыт, гайд). Ручная visual-проходка — частично, первично принята; постраничная детализация — отдельные задачи под гайдом. Архив: не держать активным в Cursor Build.'
 status: completed
 todos:
   - id: phase-0-audit
@@ -25,7 +25,7 @@ todos:
     content: Закрыть CMS, media library и хвостовые doctor-маршруты по audit-таблице
     status: completed
   - id: phase-5-finalize
-    content: "Синхронизировать документацию; manual visual — частично/первично принято; CI — по pre-push. Инициатива закрыта."
+    content: 'Синхронизировать документацию; manual visual — частично/первично принято; CI — по pre-push. Инициатива закрыта.'
     status: completed
 isProject: false
 ---
@@ -89,9 +89,9 @@ flowchart TD
 - Для каждого типа зафиксировать текущее использование: `rounded-*`, `p-*`, `shadow-*`, заголовки `h2/h3`, паттерн пустого состояния, кнопки primary/secondary, Dialog/inline-detail.
 - Заполнить audit-таблицу:
 
-| Route / component | Type | Current issue | Target pattern | Severity | Phase | Status | Notes |
-|---|---|---|---|---|---|---|---|
-| `/app/doctor/appointments` | page-section list | `rounded-2xl`, bare `h2` | `doctorSectionCardClass`, styled heading | high | 2 | pending | example |
+| Route / component          | Type              | Current issue            | Target pattern                           | Severity | Phase | Status  | Notes   |
+| -------------------------- | ----------------- | ------------------------ | ---------------------------------------- | -------- | ----- | ------- | ------- |
+| `/app/doctor/appointments` | page-section list | `rounded-2xl`, bare `h2` | `doctorSectionCardClass`, styled heading | high     | 2     | pending | example |
 
 - Severity:
   - `high`: голые заголовки, page-level `rounded-2xl`, page-level `shadow-sm`, ломанная плотность KPI/list, inconsistent primary action.
@@ -302,9 +302,9 @@ flowchart TD
 
 Заполнять в `LOG.md` после фаз 2, 3A/3B и 4B.
 
-| Screen | Desktop 1366 | Mobile 390 | Density | Headers | Cards | Actions | Notes |
-|---|---|---|---|---|---|---|---|
-| `/app/doctor` | pass/fail | pass/fail | pass/fail | pass/fail | pass/fail | pass/fail | |
+| Screen        | Desktop 1366 | Mobile 390 | Density   | Headers   | Cards     | Actions   | Notes |
+| ------------- | ------------ | ---------- | --------- | --------- | --------- | --------- | ----- |
+| `/app/doctor` | pass/fail    | pass/fail  | pass/fail | pass/fail | pass/fail | pass/fail |       |
 
 Критерии:
 

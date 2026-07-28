@@ -1,9 +1,9 @@
-import type { EffectiveOrgCommercialAccess } from "@/modules/org-entitlements/types";
+import type { EffectiveOrgCommercialAccess } from '@/modules/org-entitlements/types';
 
 function formatRuDate(iso: string): string {
   const parsed = new Date(iso);
   if (Number.isNaN(parsed.getTime())) return iso;
-  return parsed.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
+  return parsed.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 /**
@@ -14,28 +14,28 @@ function formatRuDate(iso: string): string {
  * can only be reached via a trial, so they are checked before the plain `source === "trial"` case.
  */
 export function describeCommercialAccessState(access: EffectiveOrgCommercialAccess): string {
-  if (access.source === "compatibility") {
-    return "Совместимость: коммерческий тариф ещё не подключён администратором платформы, доступ работает в режиме до введения тарифов.";
+  if (access.source === 'compatibility') {
+    return 'Совместимость: коммерческий тариф ещё не подключён администратором платформы, доступ работает в режиме до введения тарифов.';
   }
-  if (access.source === "no_trial") {
-    return "Пробный период не активирован и тариф не назначен — доступ к платным механикам ограничен.";
+  if (access.source === 'no_trial') {
+    return 'Пробный период не активирован и тариф не назначен — доступ к платным механикам ограничен.';
   }
-  if (access.lifecycle === "grace") {
+  if (access.lifecycle === 'grace') {
     return access.trialGraceEndsAt
       ? `Пробный период завершён — включён льготный период до ${formatRuDate(access.trialGraceEndsAt)}.`
-      : "Пробный период завершён — включён льготный период.";
+      : 'Пробный период завершён — включён льготный период.';
   }
-  if (access.lifecycle === "blocked") {
-    return "Доступ заблокирован — обратитесь к администратору платформы.";
+  if (access.lifecycle === 'blocked') {
+    return 'Доступ заблокирован — обратитесь к администратору платформы.';
   }
-  if (access.lifecycle === "read_only") {
-    return "Доступ только для чтения — обратитесь к администратору платформы.";
+  if (access.lifecycle === 'read_only') {
+    return 'Доступ только для чтения — обратитесь к администратору платформы.';
   }
-  if (access.source === "trial") {
+  if (access.source === 'trial') {
     return access.trialEndsAt
       ? `Пробный период активен до ${formatRuDate(access.trialEndsAt)}.`
-      : "Пробный период активен.";
+      : 'Пробный период активен.';
   }
   // "assignment" or "post_trial_tariff" with lifecycle "active" — a real tariff is in force.
-  return "Тариф активен.";
+  return 'Тариф активен.';
 }

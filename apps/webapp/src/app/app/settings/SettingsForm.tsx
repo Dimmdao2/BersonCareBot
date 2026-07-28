@@ -1,23 +1,27 @@
-"use client";
+'use client';
 
-import { useState, useTransition } from "react";
-import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
-import { Button } from "@/shared/ui/doctor/primitives/button";
+import { useState, useTransition } from 'react';
+import {
+  DoctorSection,
+  DoctorSectionHeader,
+  DoctorSectionTitle,
+} from '@/shared/ui/doctor/DoctorSection';
+import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/ui/doctor/primitives/select";
-import { LabeledSwitch } from "@/components/common/form/LabeledSwitch";
+} from '@/shared/ui/doctor/primitives/select';
+import { LabeledSwitch } from '@/components/common/form/LabeledSwitch';
 
 type SettingsFormProps = {
   patientLabel: string;
   smsFallbackEnabled: boolean;
   supportCommentsWithoutSupportDefault: boolean;
   supportMediaWithoutSupportDefault: boolean;
-  settingsEndpoint?: "/api/doctor/settings" | "/api/admin/settings";
+  settingsEndpoint?: '/api/doctor/settings' | '/api/admin/settings';
   showSmsFallback?: boolean;
   showPatientLabel?: boolean;
   showSupportDefaults?: boolean;
@@ -28,7 +32,7 @@ export function SettingsForm({
   smsFallbackEnabled,
   supportCommentsWithoutSupportDefault,
   supportMediaWithoutSupportDefault,
-  settingsEndpoint = "/api/doctor/settings",
+  settingsEndpoint = '/api/doctor/settings',
   showSmsFallback = true,
   showPatientLabel = true,
   showSupportDefaults = true,
@@ -50,47 +54,53 @@ export function SettingsForm({
       try {
         const requests: Promise<Response>[] = [];
         if (showPatientLabel) {
-          requests.push(fetch(settingsEndpoint, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ key: "patient_label", value: { value: label } }),
-          }));
+          requests.push(
+            fetch(settingsEndpoint, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ key: 'patient_label', value: { value: label } }),
+            }),
+          );
         }
         if (showSupportDefaults) {
-          requests.push(fetch(settingsEndpoint, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              key: "doctor_patient_support_comments_without_support_default_enabled",
-              value: { value: supportCommentsDefault },
+          requests.push(
+            fetch(settingsEndpoint, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                key: 'doctor_patient_support_comments_without_support_default_enabled',
+                value: { value: supportCommentsDefault },
+              }),
             }),
-          }));
-          requests.push(fetch(settingsEndpoint, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              key: "doctor_patient_support_media_without_support_default_enabled",
-              value: { value: supportMediaDefault },
+          );
+          requests.push(
+            fetch(settingsEndpoint, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                key: 'doctor_patient_support_media_without_support_default_enabled',
+                value: { value: supportMediaDefault },
+              }),
             }),
-          }));
+          );
         }
         if (showSmsFallback) {
           requests.push(
             fetch(settingsEndpoint, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ key: "sms_fallback_enabled", value: { value: smsFallback } }),
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ key: 'sms_fallback_enabled', value: { value: smsFallback } }),
             }),
           );
         }
         const responses = await Promise.all(requests);
         if (responses.some((response) => !response.ok)) {
-          setError("Не удалось сохранить настройки");
+          setError('Не удалось сохранить настройки');
           return;
         }
         setSaved(true);
       } catch {
-        setError("Ошибка при сохранении");
+        setError('Ошибка при сохранении');
       }
     });
   }
@@ -153,7 +163,7 @@ export function SettingsForm({
 
         <div className="flex items-center gap-3">
           <Button onClick={handleSave} disabled={isPending}>
-            {isPending ? "Сохранение..." : "Сохранить"}
+            {isPending ? 'Сохранение...' : 'Сохранить'}
           </Button>
           {saved && <span className="text-sm text-green-600">Сохранено</span>}
           {error && <span className="text-sm text-destructive">{error}</span>}

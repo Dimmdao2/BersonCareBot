@@ -40,8 +40,12 @@ describe('R2 integrator SCOPED organization_id NOT NULL migration', () => {
     const sql = migrationSql();
 
     expect(sql).toContain('POLICY:');
-    expect(sql).toContain('Pre-enrollment / first-contact rows resolve to the organization of the inbound channel');
-    expect(sql).toContain('Historically unresolvable rows fall back only when exactly one organization exists today');
+    expect(sql).toContain(
+      'Pre-enrollment / first-contact rows resolve to the organization of the inbound channel',
+    );
+    expect(sql).toContain(
+      'Historically unresolvable rows fall back only when exactly one organization exists today',
+    );
     expect(sql).toContain('DOWN / manual rollback');
     expect(sql).toContain(`core:${migrationFile}`);
   });
@@ -67,12 +71,16 @@ describe('R2 integrator SCOPED organization_id NOT NULL migration', () => {
     expect(sql).toContain('expected no child/parent organization mismatches before NOT NULL');
 
     const firstChildAlterIndex = Math.min(
-      ...denormChildren.map((table) => sql.indexOf(`ALTER TABLE ${table} ALTER COLUMN organization_id SET NOT NULL;`)),
+      ...denormChildren.map((table) =>
+        sql.indexOf(`ALTER TABLE ${table} ALTER COLUMN organization_id SET NOT NULL;`),
+      ),
     );
 
     const denormChildrenSet: ReadonlySet<string> = new Set(denormChildren);
     for (const parentTable of scopedTables.filter((table) => !denormChildrenSet.has(table))) {
-      const parentAlterIndex = sql.indexOf(`ALTER TABLE ${parentTable} ALTER COLUMN organization_id SET NOT NULL;`);
+      const parentAlterIndex = sql.indexOf(
+        `ALTER TABLE ${parentTable} ALTER COLUMN organization_id SET NOT NULL;`,
+      );
       expect(parentAlterIndex).toBeGreaterThanOrEqual(0);
       expect(parentAlterIndex).toBeLessThan(firstChildAlterIndex);
     }

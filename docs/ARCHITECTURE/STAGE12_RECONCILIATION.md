@@ -7,6 +7,7 @@
 3. **reconcile-communication-domain** (при необходимости) — сверка delivery-данных (`support_delivery_events`).
 
 Скрипт `stage12-release-gate` вызывает **`stage11-release-gate`**, который выполняет:
+
 1. `projection-health` (integrator `projection_outbox`);
 2. `reconcile-subscription-mailing-domain`.
 

@@ -38,7 +38,8 @@ export async function mirrorPatientUserMessageToWebapp(
     platformUserId: input.platformUserId,
     integratorMessageId: input.integratorMessageId,
     text: input.text,
-    source: input.source === 'max' ? 'max' : input.source === 'telegram' ? 'telegram' : input.source,
+    source:
+      input.source === 'max' ? 'max' : input.source === 'telegram' ? 'telegram' : input.source,
     createdAt: input.createdAt,
   });
   const result = await sync({
@@ -69,8 +70,7 @@ export async function applyWebappAdminReplyFromMessenger(
 ): Promise<{ ok: boolean; error?: string }> {
   const apply = deps.webappEventsPort?.applySupportAdminReply;
   if (!apply) return { ok: false, error: 'webapp_events_port_missing' };
-  const integratorMessageId =
-    input.adminMessageId?.trim() || `integrator-admin:${randomUUID()}`;
+  const integratorMessageId = input.adminMessageId?.trim() || `integrator-admin:${randomUUID()}`;
   const body = JSON.stringify({
     integratorConversationId: input.integratorConversationId,
     integratorMessageId,

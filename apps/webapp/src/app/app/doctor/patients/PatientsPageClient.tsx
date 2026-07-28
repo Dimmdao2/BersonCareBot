@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * PatientsPageClient — unified patients list.
@@ -12,18 +12,39 @@
  * Search logic: debounced client-side match across the loaded organization roster.
  */
 
-import { Suspense, use, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { ArrowDown, ArrowUp, Bell, CalendarDays, Dumbbell, Filter, Handshake, Plus, Search, Ticket, X } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { routePaths } from "@/app-layer/routes/paths";
-import type { ClientListItem, DoctorDashboardPatientMetrics } from "@/modules/doctor-clients/ports";
-import { DoctorMetricList } from "@/shared/ui/doctor/DoctorMetricList";
-import { DoctorStatCard } from "@/app/app/doctor/analytics/clients/DoctorStatCard";
-import { Button, buttonVariants } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Label } from "@/shared/ui/doctor/primitives/label";
+import {
+  Suspense,
+  use,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import {
+  ArrowDown,
+  ArrowUp,
+  Bell,
+  CalendarDays,
+  Dumbbell,
+  Filter,
+  Handshake,
+  Plus,
+  Search,
+  Ticket,
+  X,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { routePaths } from '@/app-layer/routes/paths';
+import type { ClientListItem, DoctorDashboardPatientMetrics } from '@/modules/doctor-clients/ports';
+import { DoctorMetricList } from '@/shared/ui/doctor/DoctorMetricList';
+import { DoctorStatCard } from '@/app/app/doctor/analytics/clients/DoctorStatCard';
+import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
 import {
   Dialog,
   DialogContent,
@@ -31,19 +52,19 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/shared/ui/doctor/primitives/dialog";
-import { TooltipProvider } from "@/shared/ui/doctor/primitives/tooltip";
+} from '@/shared/ui/doctor/primitives/dialog';
+import { TooltipProvider } from '@/shared/ui/doctor/primitives/tooltip';
 import {
   doctorDnaFlatListClass,
   doctorDnaFlatListClickableClass,
   doctorDnaFlatListInsetClass,
   doctorDnaFlatListPrimaryClass,
   doctorDnaFlatListRowClass,
-} from "@/shared/ui/doctor/DoctorDnaFlatListRow";
-import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
-import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
-import { CatalogRightPane } from "@/shared/ui/doctor/catalog/CatalogRightPane";
-import { formatDoctorFio } from "@/shared/lib/fio";
+} from '@/shared/ui/doctor/DoctorDnaFlatListRow';
+import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
+import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
+import { CatalogRightPane } from '@/shared/ui/doctor/catalog/CatalogRightPane';
+import { formatDoctorFio } from '@/shared/lib/fio';
 import {
   buildPatientListWorkspaceHref,
   patientCardHrefWithReturnTo,
@@ -52,7 +73,7 @@ import {
   type PatientListSort,
   type PatientListSortDirection,
   type PatientListWorkspaceState,
-} from "./patientListWorkspaceState";
+} from './patientListWorkspaceState';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -69,7 +90,7 @@ import {
  * только по флагам списка, поэтому используем «подписчик» как самую широкую
  * незадействованную категорию.
  */
-export type ClientCategory = "all" | "client" | "subscriber_only";
+export type ClientCategory = 'all' | 'client' | 'subscriber_only';
 type ClientListSort = PatientListSort;
 type ClientListSortDirection = PatientListSortDirection;
 
@@ -101,7 +122,7 @@ type LegacyFiltersState = {
 // Segment definitions (merged: old 4-card model + new extended segments)
 // ---------------------------------------------------------------------------
 
-type SegmentKey = "all" | PatientListSegmentKey;
+type SegmentKey = 'all' | PatientListSegmentKey;
 
 type SegmentDef = {
   key: SegmentKey;
@@ -110,61 +131,61 @@ type SegmentDef = {
 };
 
 const SEGMENTS: SegmentDef[] = [
-  { key: "all", title: "Все", tooltip: "Все люди организации." },
+  { key: 'all', title: 'Все', tooltip: 'Все люди организации.' },
   {
-    key: "appointments",
-    title: "С записями",
-    tooltip: "Есть будущая или прошедшая запись без отмены.",
+    key: 'appointments',
+    title: 'С записями',
+    tooltip: 'Есть будущая или прошедшая запись без отмены.',
   },
   {
-    key: "on_support",
-    title: "На сопровождении",
-    tooltip: "Сейчас на активном сопровождении.",
+    key: 'on_support',
+    title: 'На сопровождении',
+    tooltip: 'Сейчас на активном сопровождении.',
   },
   {
-    key: "with_program",
-    title: "С программой",
-    tooltip: "Есть активная программа.",
+    key: 'with_program',
+    title: 'С программой',
+    tooltip: 'Есть активная программа.',
   },
   {
-    key: "without_appointments",
-    title: "Без приёмов",
-    tooltip: "Нет визитов и будущих записей.",
+    key: 'without_appointments',
+    title: 'Без приёмов',
+    tooltip: 'Нет визитов и будущих записей.',
   },
   {
-    key: "visits",
-    title: "С визитами",
-    tooltip: "Есть состоявшийся визит.",
+    key: 'visits',
+    title: 'С визитами',
+    tooltip: 'Есть состоявшийся визит.',
   },
   {
-    key: "former",
-    title: "Без будущих",
-    tooltip: "Визиты были, будущих записей нет.",
+    key: 'former',
+    title: 'Без будущих',
+    tooltip: 'Визиты были, будущих записей нет.',
   },
   {
-    key: "cancellations",
-    title: "С отменами",
-    tooltip: "Есть хотя бы одна отмена за всё время.",
+    key: 'cancellations',
+    title: 'С отменами',
+    tooltip: 'Есть хотя бы одна отмена за всё время.',
   },
   {
-    key: "reschedules",
-    title: "С переносами",
-    tooltip: "Есть хотя бы один перенос за всё время.",
+    key: 'reschedules',
+    title: 'С переносами',
+    tooltip: 'Есть хотя бы один перенос за всё время.',
   },
   {
-    key: "memberships",
-    title: "С абонементами",
-    tooltip: "Есть действующий абонемент.",
+    key: 'memberships',
+    title: 'С абонементами',
+    tooltip: 'Есть действующий абонемент.',
   },
   {
-    key: "expired_memberships",
-    title: "Истёкшие абонементы",
-    tooltip: "Есть истёкший абонемент.",
+    key: 'expired_memberships',
+    title: 'Истёкшие абонементы',
+    tooltip: 'Есть истёкший абонемент.',
   },
   {
-    key: "visited_month",
-    title: "Приём в этом мес.",
-    tooltip: "Есть визит в текущем месяце.",
+    key: 'visited_month',
+    title: 'Приём в этом мес.',
+    tooltip: 'Есть визит в текущем месяце.',
   },
 ];
 
@@ -173,20 +194,25 @@ const SEGMENTS: SegmentDef[] = [
  * Exported (not just page-local) so the underlying channel-filter mechanism stays covered by a
  * direct test even while its UI is hidden — see `CHANNEL_FILTERS_UI_ENABLED` below.
  */
-export function applyChannelFilter(list: ClientListItem[], activeChannel: PatientListChannel | null): ClientListItem[] {
-  if (activeChannel === "telegram") {
-    return list.filter((c) => Boolean(c.bindings.telegramId?.trim()) && !c.bindings.telegramBotBlocked);
+export function applyChannelFilter(
+  list: ClientListItem[],
+  activeChannel: PatientListChannel | null,
+): ClientListItem[] {
+  if (activeChannel === 'telegram') {
+    return list.filter(
+      (c) => Boolean(c.bindings.telegramId?.trim()) && !c.bindings.telegramBotBlocked,
+    );
   }
-  if (activeChannel === "max") {
+  if (activeChannel === 'max') {
     return list.filter((c) => Boolean(c.bindings.maxId?.trim()) && !c.bindings.maxBotBlocked);
   }
-  if (activeChannel === "email") {
+  if (activeChannel === 'email') {
     return list.filter((c) => c.hasEmail === true);
   }
-  if (activeChannel === "phone") {
+  if (activeChannel === 'phone') {
     return list.filter((c) => Boolean(c.phone?.trim()));
   }
-  if (activeChannel === "web_push") {
+  if (activeChannel === 'web_push') {
     return list.filter((c) => c.hasWebPush === true);
   }
   return list;
@@ -212,7 +238,7 @@ const CHANNEL_FILTERS_UI_ENABLED = false;
  * a selected segment card — keeps the active-state language consistent across the page.
  */
 const doctorDnaActiveSortToneClass =
-  "border-primary/35 bg-primary/15 text-primary hover:border-primary/40 hover:bg-primary/20 hover:text-primary";
+  'border-primary/35 bg-primary/15 text-primary hover:border-primary/40 hover:bg-primary/20 hover:text-primary';
 
 const DEFAULT_LEGACY_FILTERS: LegacyFiltersState = {
   telegram: false,
@@ -233,36 +259,39 @@ const DEFAULT_LEGACY_FILTERS: LegacyFiltersState = {
 
 function clientSegmentPredicate(item: ClientListItem, key: SegmentKey): boolean {
   switch (key) {
-    case "all":
+    case 'all':
       return true;
-    case "appointments":
+    case 'appointments':
       return (item.activeAppointmentsCount ?? 0) > 0 || (item.hasAppointmentHistory ?? false);
-    case "on_support":
+    case 'on_support':
       return item.isOnSupport === true;
-    case "with_program":
+    case 'with_program':
       return item.activeTreatmentProgram === true;
-    case "without_appointments":
+    case 'without_appointments':
       return !(item.hasAppointmentHistory ?? false) && (item.activeAppointmentsCount ?? 0) === 0;
-    case "visits":
+    case 'visits':
       return item.lastAppointmentAt != null;
-    case "former":
+    case 'former':
       return item.lastAppointmentAt != null && (item.activeAppointmentsCount ?? 0) === 0;
-    case "cancellations":
+    case 'cancellations':
       return item.cancellationsCount > 0;
-    case "reschedules":
+    case 'reschedules':
       return item.reschedulesCount > 0;
-    case "memberships":
+    case 'memberships':
       return item.hasActiveMemberships === true;
-    case "expired_memberships":
+    case 'expired_memberships':
       return item.hasExpiredMemberships === true;
-    case "visited_month":
+    case 'visited_month':
       return item.visitedThisCalendarMonth === true;
     default:
       return true;
   }
 }
 
-function applySegmentFilters(list: ClientListItem[], activeSegments: SegmentKey[]): ClientListItem[] {
+function applySegmentFilters(
+  list: ClientListItem[],
+  activeSegments: SegmentKey[],
+): ClientListItem[] {
   if (activeSegments.length === 0) return list;
   return list.filter((item) => activeSegments.every((key) => clientSegmentPredicate(item, key)));
 }
@@ -272,14 +301,18 @@ function applySegmentFilters(list: ClientListItem[], activeSegments: SegmentKey[
 // ---------------------------------------------------------------------------
 
 /** Определяет категорию клиента по флагам из ClientListItem. */
-export function getClientCategory(item: ClientListItem): Exclude<ClientCategory, "all"> {
+export function getClientCategory(item: ClientListItem): Exclude<ClientCategory, 'all'> {
   const isClient =
-    item.isOnSupport === true || item.activeTreatmentProgram === true || (item.hasAppointmentHistory ?? false) || (item.activeAppointmentsCount ?? 0) > 0 || item.hasMemberships === true;
-  return isClient ? "client" : "subscriber_only";
+    item.isOnSupport === true ||
+    item.activeTreatmentProgram === true ||
+    (item.hasAppointmentHistory ?? false) ||
+    (item.activeAppointmentsCount ?? 0) > 0 ||
+    item.hasMemberships === true;
+  return isClient ? 'client' : 'subscriber_only';
 }
 
 function applyCategoryFilter(list: ClientListItem[], category: ClientCategory): ClientListItem[] {
-  if (category === "all") return list;
+  if (category === 'all') return list;
   return list.filter((item) => getClientCategory(item) === category);
 }
 
@@ -295,21 +328,26 @@ function clientFioSortKey(item: ClientListItem): string {
 }
 
 function compareClientsByFio(a: ClientListItem, b: ClientListItem): number {
-  const fioCompare = clientFioSortKey(a).localeCompare(clientFioSortKey(b), "ru");
+  const fioCompare = clientFioSortKey(a).localeCompare(clientFioSortKey(b), 'ru');
   if (fioCompare !== 0) return fioCompare;
-  return a.userId.localeCompare(b.userId, "ru");
+  return a.userId.localeCompare(b.userId, 'ru');
 }
 
-function sortClients(list: ClientListItem[], sort: ClientListSort, direction: ClientListSortDirection): ClientListItem[] {
+function sortClients(
+  list: ClientListItem[],
+  sort: ClientListSort,
+  direction: ClientListSortDirection,
+): ClientListItem[] {
   return [...list].sort((a, b) => {
-    if (sort === "fio") {
-      const fioCompare = clientFioSortKey(a).localeCompare(clientFioSortKey(b), "ru");
-      if (fioCompare !== 0) return direction === "asc" ? fioCompare : -fioCompare;
-      return a.userId.localeCompare(b.userId, "ru");
+    if (sort === 'fio') {
+      const fioCompare = clientFioSortKey(a).localeCompare(clientFioSortKey(b), 'ru');
+      if (fioCompare !== 0) return direction === 'asc' ? fioCompare : -fioCompare;
+      return a.userId.localeCompare(b.userId, 'ru');
     }
     if (a.lastAppointmentAt && b.lastAppointmentAt) {
       const appointmentCompare = a.lastAppointmentAt.localeCompare(b.lastAppointmentAt);
-      if (appointmentCompare !== 0) return direction === "asc" ? appointmentCompare : -appointmentCompare;
+      if (appointmentCompare !== 0)
+        return direction === 'asc' ? appointmentCompare : -appointmentCompare;
     } else if (a.lastAppointmentAt) {
       return -1;
     } else if (b.lastAppointmentAt) {
@@ -326,7 +364,7 @@ function clientPrimaryName(item: ClientListItem): string {
       firstName: item.firstName ?? null,
       patronymic: item.patronymic ?? null,
     },
-    item.displayName.trim() || "—",
+    item.displayName.trim() || '—',
   );
 }
 
@@ -334,18 +372,25 @@ function clientPrimaryName(item: ClientListItem): string {
 // Segment count helper (computed from allClients using clientSegmentPredicate)
 // ---------------------------------------------------------------------------
 
-function getSegmentCount(key: SegmentKey, _metrics: DoctorDashboardPatientMetrics, clients: ClientListItem[]): number | null {
-  if (key === "all") return clients.length;
+function getSegmentCount(
+  key: SegmentKey,
+  _metrics: DoctorDashboardPatientMetrics,
+  clients: ClientListItem[],
+): number | null {
+  if (key === 'all') return clients.length;
   return clients.filter((item) => clientSegmentPredicate(item, key)).length;
 }
 
 function renderSegmentMetricValue(current: number | string, total: number | null): ReactNode {
-  if (typeof current !== "number" || total === null || current === total) return current;
+  if (typeof current !== 'number' || total === null || current === total) return current;
 
   return (
     <span className="inline-flex items-baseline gap-1.5">
       <span>{total}</span>
-      <span className="inline-flex items-center gap-0.5 text-sm font-semibold tabular-nums leading-none text-muted-foreground" aria-label={`После фильтров: ${current}`}>
+      <span
+        className="inline-flex items-center gap-0.5 text-sm font-semibold tabular-nums leading-none text-muted-foreground"
+        aria-label={`После фильтров: ${current}`}
+      >
         <Filter className="size-3" aria-hidden />
         {current}
       </span>
@@ -359,7 +404,11 @@ function renderSegmentMetricValue(current: number | string, total: number | null
 
 function iconBadge(value: number | null): ReactNode {
   if (!value || value <= 0) return null;
-  return <span className="absolute -right-1 -top-1 inline-flex min-w-3.5 items-center justify-center rounded-full bg-primary px-1 text-[10px] leading-none text-primary-foreground">{value}</span>;
+  return (
+    <span className="absolute -right-1 -top-1 inline-flex min-w-3.5 items-center justify-center rounded-full bg-primary px-1 text-[10px] leading-none text-primary-foreground">
+      {value}
+    </span>
+  );
 }
 
 type IconSlotProps = {
@@ -375,8 +424,11 @@ function IconSlot({ visible, label, badge, className, children }: IconSlotProps)
     return <span className="size-7" aria-hidden />;
   }
   return (
-    <span className={cn("inline-flex size-7 shrink-0 items-center justify-center", className)}>
-      <span className="relative inline-flex size-6 items-center justify-center text-muted-foreground" aria-label={label}>
+    <span className={cn('inline-flex size-7 shrink-0 items-center justify-center', className)}>
+      <span
+        className="relative inline-flex size-6 items-center justify-center text-muted-foreground"
+        aria-label={label}
+      >
         {children}
         {iconBadge(badge ?? 0)}
       </span>
@@ -416,17 +468,17 @@ function currentLocalDateTimeValue(clockToleranceMinutes = 0): string {
 }
 
 function manualVisitErrorLabel(error: string | undefined): string {
-  if (error === "invalid_phone") return "Проверьте номер телефона.";
-  if (error === "invalid_email") return "Проверьте email.";
-  if (error === "invalid_fio") return "Укажите фамилию и имя.";
-  if (error === "invalid_request_id") return "Не удалось сформировать запрос, обновите страницу.";
-  if (error === "email_conflict") return "Этот email уже связан с другой карточкой.";
-  if (error === "idempotency_conflict") return "Заявка уже обрабатывается, обновите страницу.";
-  if (error === "patient_not_available") return "Карточка недоступна в этой организации.";
-  if (error === "specialist_required") return "Для сотрудника не назначен профиль специалиста.";
-  if (error === "visit_in_future") return "Время визита не может быть в будущем.";
-  if (error === "client_creation_unavailable") return "Создание карточки сейчас недоступно.";
-  return "Не удалось сохранить.";
+  if (error === 'invalid_phone') return 'Проверьте номер телефона.';
+  if (error === 'invalid_email') return 'Проверьте email.';
+  if (error === 'invalid_fio') return 'Укажите фамилию и имя.';
+  if (error === 'invalid_request_id') return 'Не удалось сформировать запрос, обновите страницу.';
+  if (error === 'email_conflict') return 'Этот email уже связан с другой карточкой.';
+  if (error === 'idempotency_conflict') return 'Заявка уже обрабатывается, обновите страницу.';
+  if (error === 'patient_not_available') return 'Карточка недоступна в этой организации.';
+  if (error === 'specialist_required') return 'Для сотрудника не назначен профиль специалиста.';
+  if (error === 'visit_in_future') return 'Время визита не может быть в будущем.';
+  if (error === 'client_creation_unavailable') return 'Создание карточки сейчас недоступно.';
+  return 'Не удалось сохранить.';
 }
 
 type NewClientDialogProps = {
@@ -447,48 +499,48 @@ function NewClientDialog({ patientSingularLabel }: NewClientDialogProps) {
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lastName, setLastName] = useState("");
-  const [firstName, setFirstName] = useState("");
-  const [patronymic, setPatronymic] = useState("");
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
+  const [lastName, setLastName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [patronymic, setPatronymic] = useState('');
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   // Empty by default and not required — visit creation is opt-in (owner punch-list item 2).
-  const [visitedAt, setVisitedAt] = useState("");
+  const [visitedAt, setVisitedAt] = useState('');
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
 
-  const singularLower = patientSingularLabel.toLocaleLowerCase("ru-RU");
+  const singularLower = patientSingularLabel.toLocaleLowerCase('ru-RU');
 
   function reset() {
     setError(null);
-    setLastName("");
-    setFirstName("");
-    setPatronymic("");
-    setPhone("");
-    setEmail("");
-    setVisitedAt("");
+    setLastName('');
+    setFirstName('');
+    setPatronymic('');
+    setPhone('');
+    setEmail('');
+    setVisitedAt('');
     setRequestId(crypto.randomUUID());
   }
 
   async function submit() {
     setError(null);
     if (!lastName.trim() || !firstName.trim()) {
-      setError("Укажите фамилию и имя.");
+      setError('Укажите фамилию и имя.');
       return;
     }
     if (!phone.trim() && email.trim()) {
-      setError("Для email укажите телефон или оставьте оба контакта пустыми.");
+      setError('Для email укажите телефон или оставьте оба контакта пустыми.');
       return;
     }
     setPending(true);
     try {
       const hasVisit = visitedAt.trim().length > 0;
       const response = hasVisit
-        ? await fetch("/api/doctor/booking-engine/appointments/manual-patient-visit", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
+        ? await fetch('/api/doctor/booking-engine/appointments/manual-patient-visit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               requestId,
-              kind: "walk_in",
+              kind: 'walk_in',
               lastName,
               firstName,
               patronymic: patronymic.trim() || null,
@@ -497,9 +549,9 @@ function NewClientDialog({ patientSingularLabel }: NewClientDialogProps) {
               visitedAt: new Date(visitedAt).toISOString(),
             }),
           })
-        : await fetch("/api/doctor/clients", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
+        : await fetch('/api/doctor/clients', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               requestId,
               lastName,
@@ -523,7 +575,7 @@ function NewClientDialog({ patientSingularLabel }: NewClientDialogProps) {
       router.push(routePaths.doctorPatientCard(result.client.id));
       router.refresh();
     } catch {
-      setError("Не удалось сохранить.");
+      setError('Не удалось сохранить.');
     } finally {
       setPending(false);
     }
@@ -541,12 +593,7 @@ function NewClientDialog({ patientSingularLabel }: NewClientDialogProps) {
     >
       <DialogTrigger
         render={
-          <Button
-            type="button"
-            size="sm"
-            className="shrink-0 gap-1.5"
-            aria-label={triggerLabel}
-          />
+          <Button type="button" size="sm" className="shrink-0 gap-1.5" aria-label={triggerLabel} />
         }
       >
         <Plus className="size-4" aria-hidden />
@@ -558,29 +605,57 @@ function NewClientDialog({ patientSingularLabel }: NewClientDialogProps) {
           <DialogTitle>{triggerLabel}</DialogTitle>
         </DialogHeader>
         <p className="text-xs text-muted-foreground">
-          Карточка {singularLower}а создастся всегда. Дата и время визита — по желанию: если указать, визит
-          зафиксируется как состоявшийся вместе с карточкой. Доступ в портал не активируется.
+          Карточка {singularLower}а создастся всегда. Дата и время визита — по желанию: если
+          указать, визит зафиксируется как состоявшийся вместе с карточкой. Доступ в портал не
+          активируется.
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="grid gap-1.5">
             <Label htmlFor="doctor-new-client-last-name">Фамилия</Label>
-            <Input id="doctor-new-client-last-name" value={lastName} onChange={(event) => setLastName(event.target.value)} autoComplete="family-name" />
+            <Input
+              id="doctor-new-client-last-name"
+              value={lastName}
+              onChange={(event) => setLastName(event.target.value)}
+              autoComplete="family-name"
+            />
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="doctor-new-client-first-name">Имя</Label>
-            <Input id="doctor-new-client-first-name" value={firstName} onChange={(event) => setFirstName(event.target.value)} autoComplete="given-name" />
+            <Input
+              id="doctor-new-client-first-name"
+              value={firstName}
+              onChange={(event) => setFirstName(event.target.value)}
+              autoComplete="given-name"
+            />
           </div>
           <div className="grid gap-1.5 sm:col-span-2">
             <Label htmlFor="doctor-new-client-patronymic">Отчество</Label>
-            <Input id="doctor-new-client-patronymic" value={patronymic} onChange={(event) => setPatronymic(event.target.value)} />
+            <Input
+              id="doctor-new-client-patronymic"
+              value={patronymic}
+              onChange={(event) => setPatronymic(event.target.value)}
+            />
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="doctor-new-client-phone">Телефон, если есть</Label>
-            <Input id="doctor-new-client-phone" type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} autoComplete="tel" placeholder="+7 999 000-00-00" />
+            <Input
+              id="doctor-new-client-phone"
+              type="tel"
+              value={phone}
+              onChange={(event) => setPhone(event.target.value)}
+              autoComplete="tel"
+              placeholder="+7 999 000-00-00"
+            />
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="doctor-new-client-email">Email, если есть</Label>
-            <Input id="doctor-new-client-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" />
+            <Input
+              id="doctor-new-client-email"
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              autoComplete="email"
+            />
           </div>
           <div className="grid gap-1.5 sm:col-span-2">
             <Label htmlFor="doctor-new-client-visited-at">Дата и время визита, если есть</Label>
@@ -594,10 +669,18 @@ function NewClientDialog({ patientSingularLabel }: NewClientDialogProps) {
             />
           </div>
         </div>
-        {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
+        {error ? (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        ) : null}
         <DialogFooter>
-          <Button type="button" variant="outline" disabled={pending} onClick={() => setOpen(false)}>Отмена</Button>
-          <Button type="button" disabled={pending} onClick={() => void submit()}>{pending ? "Создаём…" : "Создать"}</Button>
+          <Button type="button" variant="outline" disabled={pending} onClick={() => setOpen(false)}>
+            Отмена
+          </Button>
+          <Button type="button" disabled={pending} onClick={() => void submit()}>
+            {pending ? 'Создаём…' : 'Создать'}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -661,15 +744,21 @@ function PatientsContent({
 }: PatientsContentProps) {
   const allClients = use(listPromise);
   const metrics = use(metricsPromise);
-  const activeCategory: ClientCategory = "all";
+  const activeCategory: ClientCategory = 'all';
   const listRef = useRef<HTMLUListElement>(null);
 
   // Context base for segment card counts (PAT-02/06/#540):
   // KPI cards are multi-select filters with AND policy. Each card shows the
   // count for its own segment after all other selected KPI filters are applied,
   // followed by the full total for that segment in the current category.
-  const categoryBase = useMemo(() => applyCategoryFilter(allClients, activeCategory), [allClients, activeCategory]);
-  const filteredBySegments = useMemo(() => applySegmentFilters(categoryBase, activeSegments), [categoryBase, activeSegments]);
+  const categoryBase = useMemo(
+    () => applyCategoryFilter(allClients, activeCategory),
+    [allClients, activeCategory],
+  );
+  const filteredBySegments = useMemo(
+    () => applySegmentFilters(categoryBase, activeSegments),
+    [categoryBase, activeSegments],
+  );
 
   // PAT-CLIENTS-1: filter+sort is real work (localeCompare sort over the whole roster) and must NOT
   // recompute on every render. Before this was memoized it recomputed synchronously on every native
@@ -683,7 +772,10 @@ function PatientsContent({
     // Legacy filters (AND-logic)
     if (legacyFilters.cancellations) list = list.filter((c) => c.cancellationsCount > 0);
     if (legacyFilters.visitedMonth) list = list.filter((c) => c.visitedThisCalendarMonth === true);
-    if (legacyFilters.withoutAppointments) list = list.filter((c) => !(c.hasAppointmentHistory ?? false) && (c.activeAppointmentsCount ?? 0) === 0);
+    if (legacyFilters.withoutAppointments)
+      list = list.filter(
+        (c) => !(c.hasAppointmentHistory ?? false) && (c.activeAppointmentsCount ?? 0) === 0,
+      );
     if (legacyFilters.memberships) list = list.filter((c) => c.hasActiveMemberships === true);
     if (legacyFilters.reschedules) list = list.filter((c) => c.reschedulesCount > 0);
 
@@ -691,11 +783,23 @@ function PatientsContent({
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
       list = list.filter(
-        (c) => c.displayName?.toLowerCase().includes(q) || c.firstName?.toLowerCase().includes(q) || c.lastName?.toLowerCase().includes(q) || c.phone?.toLowerCase().includes(q),
+        (c) =>
+          c.displayName?.toLowerCase().includes(q) ||
+          c.firstName?.toLowerCase().includes(q) ||
+          c.lastName?.toLowerCase().includes(q) ||
+          c.phone?.toLowerCase().includes(q),
       );
     }
     return sortClients(list, sort, sortDirection);
-  }, [categoryBase, activeSegments, activeChannel, legacyFilters, searchQuery, sort, sortDirection]);
+  }, [
+    categoryBase,
+    activeSegments,
+    activeChannel,
+    legacyFilters,
+    searchQuery,
+    sort,
+    sortDirection,
+  ]);
 
   // Restores/pins the DOM scroll position from state (e.g. on initial mount, or when the filtered
   // list identity changes). `listScrollTop` itself is now committed by the parent on a debounce
@@ -709,7 +813,7 @@ function PatientsContent({
 
   // Determine if any filter is active (for "найдено N" header)
   const isAnyFilterActive =
-    activeCategory !== "all" ||
+    activeCategory !== 'all' ||
     activeSegments.length > 0 ||
     activeChannel !== null ||
     legacyFilters.cancellations ||
@@ -719,7 +823,7 @@ function PatientsContent({
     legacyFilters.reschedules ||
     !!searchQuery.trim();
 
-  const patientPluralLabelLower = patientPluralLabel.toLocaleLowerCase("ru-RU");
+  const patientPluralLabelLower = patientPluralLabel.toLocaleLowerCase('ru-RU');
 
   return (
     <>
@@ -730,10 +834,15 @@ function PatientsContent({
       />
       <CatalogSplitLayout
         desktopColsClassName="lg:grid-cols-2"
-        mobileView={mobileFiltersOpen ? "detail" : "list"}
+        mobileView={mobileFiltersOpen ? 'detail' : 'list'}
         mobileBackSlot={
           mobileFiltersOpen ? (
-            <Button variant="ghost" type="button" className="mb-2 h-9 px-2" onClick={() => onMobileFiltersOpenChange(false)}>
+            <Button
+              variant="ghost"
+              type="button"
+              className="mb-2 h-9 px-2"
+              onClick={() => onMobileFiltersOpenChange(false)}
+            >
               ← Назад
             </Button>
           ) : null
@@ -779,69 +888,91 @@ function PatientsContent({
                 </div>
               </div>
               <div className="flex flex-wrap items-center justify-between gap-2 px-[var(--doctor-block-padding,18px)] py-2">
-              <p className="min-w-0 truncate text-xs text-muted-foreground">
-                {isAnyFilterActive ? (
-                  <>
-                    найдено {filtered.length} / {categoryBase.length}
-                  </>
-                ) : activeCategory === "all" ? (
-                  <>
-                    {patientPluralLabel}: {allClients.length}
-                  </>
-                ) : (
-                  <>
-                    {patientPluralLabel}: {categoryBase.length}
-                  </>
-                )}
-                {isListPending && <span className="ml-1 animate-pulse">…</span>}
-              </p>
-              <div
-                className="flex w-full min-w-0 flex-wrap items-center gap-1.5 lg:w-auto lg:shrink-0 lg:justify-end"
-                aria-label={`Сортировка: ${patientPluralLabelLower}`}
-              >
-                <span className="text-xs text-muted-foreground">Сортировать</span>
-                <Button
-                  type="button"
-              size="sm"
-              variant="outline"
-              className={cn(
-                "h-8 gap-1.5 px-2 text-xs",
-                // Softened active tone (DNA muted-primary tint, same as the selected segment cards)
-                // instead of a solid `variant="default"` fill — owner punch-list item 5.
-                sort === "recent_appointments" && doctorDnaActiveSortToneClass,
-              )}
-              aria-pressed={sort === "recent_appointments"}
-              aria-label={`Недавние: ${sort === "recent_appointments" && sortDirection === "asc" ? "давние сверху" : "недавние сверху"}`}
-                  onClick={() => onSortSelect("recent_appointments")}
+                <p className="min-w-0 truncate text-xs text-muted-foreground">
+                  {isAnyFilterActive ? (
+                    <>
+                      найдено {filtered.length} / {categoryBase.length}
+                    </>
+                  ) : activeCategory === 'all' ? (
+                    <>
+                      {patientPluralLabel}: {allClients.length}
+                    </>
+                  ) : (
+                    <>
+                      {patientPluralLabel}: {categoryBase.length}
+                    </>
+                  )}
+                  {isListPending && <span className="ml-1 animate-pulse">…</span>}
+                </p>
+                <div
+                  className="flex w-full min-w-0 flex-wrap items-center gap-1.5 lg:w-auto lg:shrink-0 lg:justify-end"
+                  aria-label={`Сортировка: ${patientPluralLabelLower}`}
                 >
-                  Недавние
-                  {sort === "recent_appointments" ? sortDirection === "desc" ? <ArrowDown className="size-3.5" aria-hidden /> : <ArrowUp className="size-3.5" aria-hidden /> : null}
-                </Button>
-                <Button
-                  type="button"
-              size="sm"
-              variant="outline"
-              className={cn(
-                "h-8 gap-1.5 px-2 text-xs",
-                sort === "fio" && doctorDnaActiveSortToneClass,
-              )}
-              aria-pressed={sort === "fio"}
-              aria-label={`По фамилии: ${sort === "fio" && sortDirection === "desc" ? "Я–А" : "А–Я"}`}
-                  onClick={() => onSortSelect("fio")}
-                >
-                  По фамилии
-                  {sort === "fio" ? sortDirection === "asc" ? <ArrowDown className="size-3.5" aria-hidden /> : <ArrowUp className="size-3.5" aria-hidden /> : null}
-                </Button>
-                <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5 px-2 text-xs lg:hidden" onClick={() => onMobileFiltersOpenChange(true)}>
-                  <Filter className="size-3.5" aria-hidden />
-                  Фильтры
-                </Button>
-              </div>
+                  <span className="text-xs text-muted-foreground">Сортировать</span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className={cn(
+                      'h-8 gap-1.5 px-2 text-xs',
+                      // Softened active tone (DNA muted-primary tint, same as the selected segment cards)
+                      // instead of a solid `variant="default"` fill — owner punch-list item 5.
+                      sort === 'recent_appointments' && doctorDnaActiveSortToneClass,
+                    )}
+                    aria-pressed={sort === 'recent_appointments'}
+                    aria-label={`Недавние: ${sort === 'recent_appointments' && sortDirection === 'asc' ? 'давние сверху' : 'недавние сверху'}`}
+                    onClick={() => onSortSelect('recent_appointments')}
+                  >
+                    Недавние
+                    {sort === 'recent_appointments' ? (
+                      sortDirection === 'desc' ? (
+                        <ArrowDown className="size-3.5" aria-hidden />
+                      ) : (
+                        <ArrowUp className="size-3.5" aria-hidden />
+                      )
+                    ) : null}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className={cn(
+                      'h-8 gap-1.5 px-2 text-xs',
+                      sort === 'fio' && doctorDnaActiveSortToneClass,
+                    )}
+                    aria-pressed={sort === 'fio'}
+                    aria-label={`По фамилии: ${sort === 'fio' && sortDirection === 'desc' ? 'Я–А' : 'А–Я'}`}
+                    onClick={() => onSortSelect('fio')}
+                  >
+                    По фамилии
+                    {sort === 'fio' ? (
+                      sortDirection === 'asc' ? (
+                        <ArrowDown className="size-3.5" aria-hidden />
+                      ) : (
+                        <ArrowUp className="size-3.5" aria-hidden />
+                      )
+                    ) : null}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8 gap-1.5 px-2 text-xs lg:hidden"
+                    onClick={() => onMobileFiltersOpenChange(true)}
+                  >
+                    <Filter className="size-3.5" aria-hidden />
+                    Фильтры
+                  </Button>
+                </div>
               </div>
             </div>
 
             {filtered.length === 0 ? (
-              <p className="px-3 py-4 text-sm text-muted-foreground">{searchQuery.trim() ? "Нет пациентов по запросу." : "Нет пациентов по заданным фильтрам."}</p>
+              <p className="px-3 py-4 text-sm text-muted-foreground">
+                {searchQuery.trim()
+                  ? 'Нет пациентов по запросу.'
+                  : 'Нет пациентов по заданным фильтрам.'}
+              </p>
             ) : (
               <ul
                 ref={listRef}
@@ -858,24 +989,44 @@ function PatientsContent({
                         id={`doctor-patients-card-${c.userId}`}
                         href={patientCardHrefWithReturnTo(c.userId, workspaceState)}
                         className={cn(
-                          buttonVariants({ variant: "ghost" }),
+                          buttonVariants({ variant: 'ghost' }),
                           doctorDnaFlatListRowClass,
                           doctorDnaFlatListClickableClass,
-                          "h-auto w-full rounded-none bg-transparent text-left shadow-none active:bg-muted/80 md:gap-3",
-                          index === 0 && "border-t-0",
+                          'h-auto w-full rounded-none bg-transparent text-left shadow-none active:bg-muted/80 md:gap-3',
+                          index === 0 && 'border-t-0',
                         )}
                       >
                         <div className="min-w-0 flex-1">
-                          <span className={cn("block truncate", doctorDnaFlatListPrimaryClass)}>{clientPrimaryName(c)}</span>
+                          <span className={cn('block truncate', doctorDnaFlatListPrimaryClass)}>
+                            {clientPrimaryName(c)}
+                          </span>
                         </div>
-                        <div className="grid w-[5.75rem] shrink-0 grid-cols-3 gap-1" aria-label="Статусы клиента">
+                        <div
+                          className="grid w-[5.75rem] shrink-0 grid-cols-3 gap-1"
+                          aria-label="Статусы клиента"
+                        >
                           <IconSlot visible={c.hasMemberships === true} label="Есть абонемент">
                             <Ticket className="size-3.5" aria-hidden />
                           </IconSlot>
-                          <IconSlot visible={programOrSupervision} label={c.isOnSupport === true ? "Клиент на сопровождении" : "Назначенная программа"}>
-                            {c.isOnSupport === true ? <Handshake className="size-3.5" aria-hidden /> : <Dumbbell className="size-3.5" aria-hidden />}
+                          <IconSlot
+                            visible={programOrSupervision}
+                            label={
+                              c.isOnSupport === true
+                                ? 'Клиент на сопровождении'
+                                : 'Назначенная программа'
+                            }
+                          >
+                            {c.isOnSupport === true ? (
+                              <Handshake className="size-3.5" aria-hidden />
+                            ) : (
+                              <Dumbbell className="size-3.5" aria-hidden />
+                            )}
                           </IconSlot>
-                          <IconSlot visible={futureAppointmentCount > 0} label={`Будущие записи: ${futureAppointmentCount}`} badge={futureAppointmentCount}>
+                          <IconSlot
+                            visible={futureAppointmentCount > 0}
+                            label={`Будущие записи: ${futureAppointmentCount}`}
+                            badge={futureAppointmentCount}
+                          >
                             <CalendarDays className="size-3.5" aria-hidden />
                           </IconSlot>
                         </div>
@@ -896,22 +1047,36 @@ function PatientsContent({
                 <DoctorMetricList className="grid-cols-3 gap-1.5 xl:grid-cols-3 2xl:grid-cols-3">
                   {SEGMENTS.map((seg) => {
                     const segmentContextBase =
-                      seg.key === "all"
-                  ? categoryBase
-                  : applySegmentFilters(
+                      seg.key === 'all'
+                        ? categoryBase
+                        : applySegmentFilters(
                             categoryBase,
                             activeSegments.filter((key) => key !== seg.key),
                           );
-                    const currentValue = seg.key === "all" ? filteredBySegments.length : (getSegmentCount(seg.key, metrics, segmentContextBase) ?? "—");
-                    const totalValue = seg.key === "all" ? categoryBase.length : getSegmentCount(seg.key, metrics, categoryBase);
+                    const currentValue =
+                      seg.key === 'all'
+                        ? filteredBySegments.length
+                        : (getSegmentCount(seg.key, metrics, segmentContextBase) ?? '—');
+                    const totalValue =
+                      seg.key === 'all'
+                        ? categoryBase.length
+                        : getSegmentCount(seg.key, metrics, categoryBase);
                     return (
                       <DoctorStatCard
                         key={seg.key}
                         id={`doctor-patients-segment-${seg.key}`}
-                        title={seg.key === "all" ? `Все ${patientPluralLabelLower}` : seg.title}
+                        title={seg.key === 'all' ? `Все ${patientPluralLabelLower}` : seg.title}
                         value={renderSegmentMetricValue(currentValue, totalValue)}
-                        tooltip={seg.key === "all" ? `Все ${patientPluralLabelLower} этой организации.` : seg.tooltip}
-                        selected={seg.key === "all" ? activeSegments.length === 0 && !archivedOnly : activeSegments.includes(seg.key)}
+                        tooltip={
+                          seg.key === 'all'
+                            ? `Все ${patientPluralLabelLower} этой организации.`
+                            : seg.tooltip
+                        }
+                        selected={
+                          seg.key === 'all'
+                            ? activeSegments.length === 0 && !archivedOnly
+                            : activeSegments.includes(seg.key)
+                        }
                         onClick={() => onSegmentToggle(seg.key)}
                       />
                     );
@@ -935,50 +1100,58 @@ function PatientsContent({
                     <Button
                       type="button"
                       size="sm"
-                      variant={activeChannel === "telegram" ? "default" : "outline"}
+                      variant={activeChannel === 'telegram' ? 'default' : 'outline'}
                       className="h-7 px-2 text-xs"
-                      onClick={() => onChannelChange(activeChannel === "telegram" ? null : "telegram", false)}
-                      aria-pressed={activeChannel === "telegram"}
+                      onClick={() =>
+                        onChannelChange(activeChannel === 'telegram' ? null : 'telegram', false)
+                      }
+                      aria-pressed={activeChannel === 'telegram'}
                     >
                       Telegram
                     </Button>
                     <Button
                       type="button"
                       size="sm"
-                      variant={activeChannel === "max" ? "default" : "outline"}
+                      variant={activeChannel === 'max' ? 'default' : 'outline'}
                       className="h-7 px-2 text-xs"
-                      onClick={() => onChannelChange(activeChannel === "max" ? null : "max", false)}
-                      aria-pressed={activeChannel === "max"}
+                      onClick={() => onChannelChange(activeChannel === 'max' ? null : 'max', false)}
+                      aria-pressed={activeChannel === 'max'}
                     >
                       MAX
                     </Button>
                     <Button
                       type="button"
                       size="sm"
-                      variant={activeChannel === "email" ? "default" : "outline"}
+                      variant={activeChannel === 'email' ? 'default' : 'outline'}
                       className="h-7 px-2 text-xs"
-                      onClick={() => onChannelChange(activeChannel === "email" ? null : "email", false)}
-                      aria-pressed={activeChannel === "email"}
+                      onClick={() =>
+                        onChannelChange(activeChannel === 'email' ? null : 'email', false)
+                      }
+                      aria-pressed={activeChannel === 'email'}
                     >
                       Email
                     </Button>
                     <Button
                       type="button"
                       size="sm"
-                      variant={activeChannel === "phone" ? "default" : "outline"}
+                      variant={activeChannel === 'phone' ? 'default' : 'outline'}
                       className="h-7 px-2 text-xs"
-                      onClick={() => onChannelChange(activeChannel === "phone" ? null : "phone", false)}
-                      aria-pressed={activeChannel === "phone"}
+                      onClick={() =>
+                        onChannelChange(activeChannel === 'phone' ? null : 'phone', false)
+                      }
+                      aria-pressed={activeChannel === 'phone'}
                     >
                       Телефон
                     </Button>
                     <Button
                       type="button"
                       size="sm"
-                      variant={activeChannel === "web_push" ? "default" : "outline"}
+                      variant={activeChannel === 'web_push' ? 'default' : 'outline'}
                       className="h-7 px-2 text-xs"
-                      onClick={() => onChannelChange(activeChannel === "web_push" ? null : "web_push", false)}
-                      aria-pressed={activeChannel === "web_push"}
+                      onClick={() =>
+                        onChannelChange(activeChannel === 'web_push' ? null : 'web_push', false)
+                      }
+                      aria-pressed={activeChannel === 'web_push'}
                     >
                       <Bell className="mr-1 size-3.5" aria-hidden />
                       Пуш-уведомления
@@ -1006,8 +1179,8 @@ export function PatientsPageClient({
   listPromise: initialListPromise,
   metricsPromise,
   initialFilters,
-  patientPluralLabel = "Пациенты",
-  patientSingularLabel = "Пациент",
+  patientPluralLabel = 'Пациенты',
+  patientSingularLabel = 'Пациент',
 }: PatientsPageClientProps) {
   const isListPending = false;
 
@@ -1018,8 +1191,12 @@ export function PatientsPageClient({
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Segment / channel / archive state (segment and channel are client-side only)
-  const [activeSegments, setActiveSegments] = useState<PatientListSegmentKey[]>(initialFilters.segments);
-  const [activeChannel, setActiveChannel] = useState<PatientListChannel | null>(initialFilters.channel);
+  const [activeSegments, setActiveSegments] = useState<PatientListSegmentKey[]>(
+    initialFilters.segments,
+  );
+  const [activeChannel, setActiveChannel] = useState<PatientListChannel | null>(
+    initialFilters.channel,
+  );
   const [archivedOnly, setArchivedOnly] = useState(initialFilters.archivedOnly);
 
   // Legacy per-button filter state (client-side only)
@@ -1027,7 +1204,9 @@ export function PatientsPageClient({
 
   // Category mechanism remains dormant/reversible; this page defaults to all organization people.
   const [sort, setSort] = useState<ClientListSort>(initialFilters.sort);
-  const [sortDirection, setSortDirection] = useState<ClientListSortDirection>(initialFilters.sortDirection);
+  const [sortDirection, setSortDirection] = useState<ClientListSortDirection>(
+    initialFilters.sortDirection,
+  );
   // `listScrollTop` is the COMMITTED scroll position (drives URL/history + the DOM-restore effect
   // in PatientsContent). It intentionally does NOT track every native `scroll` event — see
   // handleListScroll below for why that was the root cause of the reported scroll jitter.
@@ -1055,13 +1234,16 @@ export function PatientsPageClient({
 
   useEffect(() => {
     const href = buildPatientListWorkspaceHref(workspaceState);
-    window.history.replaceState(window.history.state, "", href);
+    window.history.replaceState(window.history.state, '', href);
   }, [workspaceState]);
 
-  useEffect(() => () => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (scrollCommitTimerRef.current) clearTimeout(scrollCommitTimerRef.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (scrollCommitTimerRef.current) clearTimeout(scrollCommitTimerRef.current);
+    },
+    [],
+  );
 
   /**
    * Root cause of the reported "list jitters/jumps wildly on scroll": the native `scroll` handler
@@ -1087,30 +1269,33 @@ export function PatientsPageClient({
   const handleSegmentToggle = useCallback((key: SegmentKey) => {
     // Segment filters are client-side only and combine via AND.
     setActiveSegments((prev) => {
-      if (key === "all") return [];
+      if (key === 'all') return [];
       return prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key];
     });
   }, []);
 
-  const handleChannelChange = useCallback((channel: PatientListChannel | null, archived: boolean) => {
-    setActiveChannel(channel);
-    setArchivedOnly(archived);
-  }, []);
+  const handleChannelChange = useCallback(
+    (channel: PatientListChannel | null, archived: boolean) => {
+      setActiveChannel(channel);
+      setArchivedOnly(archived);
+    },
+    [],
+  );
 
   const handleSearchInput = useCallback((value: string) => {
     setSearchInput(value);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     const trimmed = value.trim();
-      // PAT-10: debounce only — no API call, filtering is purely client-side
+    // PAT-10: debounce only — no API call, filtering is purely client-side
     debounceRef.current = setTimeout(() => {
       setSearchQuery(trimmed);
     }, SEARCH_DEBOUNCE_MS);
   }, []);
 
   const clearSearch = useCallback(() => {
-    setSearchInput("");
+    setSearchInput('');
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    setSearchQuery("");
+    setSearchQuery('');
     // PAT-10: no fetchList call — client-side filtering resets automatically
   }, []);
 
@@ -1133,11 +1318,11 @@ export function PatientsPageClient({
   const handleSortSelect = useCallback(
     (nextSort: ClientListSort) => {
       if (nextSort === sort) {
-        setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+        setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'));
         return;
       }
       setSort(nextSort);
-      setSortDirection(nextSort === "recent_appointments" ? "desc" : "asc");
+      setSortDirection(nextSort === 'recent_appointments' ? 'desc' : 'asc');
     },
     [sort],
   );

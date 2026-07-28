@@ -1,15 +1,15 @@
-"use client";
+'use client';
 
-import { useTransition } from "react";
-import toast from "react-hot-toast";
-import { useRouter } from "next/navigation";
-import { Button } from "@/shared/ui/patient/primitives/button";
-import { cn } from "@/lib/utils";
+import { useTransition } from 'react';
+import toast from 'react-hot-toast';
+import { useRouter } from 'next/navigation';
+import { Button } from '@/shared/ui/patient/primitives/button';
+import { cn } from '@/lib/utils';
 import {
   patientMutedTextClass,
   PatientShimmerLine,
   patientSurfaceWarningClass,
-} from "@/shared/ui/patient/patientVisual";
+} from '@/shared/ui/patient/patientVisual';
 
 function tomorrowMorningIso(hour = 8): string {
   const d = new Date();
@@ -34,20 +34,20 @@ export function PatientRemindersMuteBar({
   const callMute = (body: Record<string, unknown>) => {
     startTransition(async () => {
       try {
-        const res = await fetch("/api/patient/reminders/mute", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+        const res = await fetch('/api/patient/reminders/mute', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         });
         const data = (await res.json()) as { ok?: boolean };
         if (!res.ok || !data.ok) {
-          toast.error("Не удалось изменить паузу уведомлений.");
+          toast.error('Не удалось изменить паузу уведомлений.');
           return;
         }
-        toast.success("Готово.");
+        toast.success('Готово.');
         refresh();
       } catch {
-        toast.error("Сеть недоступна.");
+        toast.error('Сеть недоступна.');
       }
     });
   };
@@ -55,17 +55,15 @@ export function PatientRemindersMuteBar({
   const muted = Boolean(muteUntilLabel?.trim());
 
   return (
-    <div className={cn("mb-4 space-y-3", className)} aria-busy={pending}>
+    <div className={cn('mb-4 space-y-3', className)} aria-busy={pending}>
       {muted ? (
         <div
           className={cn(
             patientSurfaceWarningClass,
-            "flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between",
+            'flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between',
           )}
         >
-          <p className="text-sm font-medium">
-            Уведомления на паузе до {muteUntilLabel}
-          </p>
+          <p className="text-sm font-medium">Уведомления на паузе до {muteUntilLabel}</p>
           <Button
             type="button"
             size="sm"
@@ -81,12 +79,24 @@ export function PatientRemindersMuteBar({
 
       {!muted ? (
         <div className="flex flex-col gap-2">
-          <p className={cn(patientMutedTextClass, "text-xs")}>На паузу:</p>
+          <p className={cn(patientMutedTextClass, 'text-xs')}>На паузу:</p>
           <div className="flex flex-wrap gap-2">
-            <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => callMute({ presetMinutes: 60 })}>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={pending}
+              onClick={() => callMute({ presetMinutes: 60 })}
+            >
               1 ч
             </Button>
-            <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => callMute({ presetMinutes: 240 })}>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={pending}
+              onClick={() => callMute({ presetMinutes: 240 })}
+            >
               4 ч
             </Button>
             <Button

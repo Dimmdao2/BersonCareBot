@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
-import { requireDoctorBookingEngine } from "../_requireDoctorBookingEngine";
+import { NextResponse } from 'next/server';
+import { requireDoctorBookingEngine } from '../_requireDoctorBookingEngine';
 
 export async function GET() {
   const gate = await requireDoctorBookingEngine();

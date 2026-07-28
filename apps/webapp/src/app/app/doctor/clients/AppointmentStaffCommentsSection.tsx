@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
+import { useCallback, useEffect, useState } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 
 type CommentRow = {
   id: string;
@@ -18,11 +18,11 @@ type Props = {
 
 export function AppointmentStaffCommentsSection({
   appointmentId,
-  commentsApiPath = "/api/doctor/booking-engine/appointments",
+  commentsApiPath = '/api/doctor/booking-engine/appointments',
   onChanged,
 }: Props) {
   const [comments, setComments] = useState<CommentRow[]>([]);
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -31,9 +31,7 @@ export function AppointmentStaffCommentsSection({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(
-        `${commentsApiPath}/${encodeURIComponent(appointmentId)}/comments`,
-      );
+      const res = await fetch(`${commentsApiPath}/${encodeURIComponent(appointmentId)}/comments`);
       const json = (await res.json()) as { ok?: boolean; comments?: CommentRow[] };
       if (res.ok && json.ok) {
         setComments(json.comments ?? []);
@@ -53,20 +51,17 @@ export function AppointmentStaffCommentsSection({
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(
-        `${commentsApiPath}/${encodeURIComponent(appointmentId)}/comments`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ body }),
-        },
-      );
+      const res = await fetch(`${commentsApiPath}/${encodeURIComponent(appointmentId)}/comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body }),
+      });
       const json = (await res.json()) as { ok?: boolean };
       if (!res.ok || !json.ok) {
-        setError("Не удалось сохранить");
+        setError('Не удалось сохранить');
         return;
       }
-      setDraft("");
+      setDraft('');
       await load();
       onChanged?.();
     } finally {
@@ -83,7 +78,11 @@ export function AppointmentStaffCommentsSection({
             <li key={c.id} className="text-xs whitespace-pre-wrap">
               {c.body}
               <span className="ml-2 text-muted-foreground">
-                {new Date(c.createdAt).toLocaleString("ru-RU", { timeZone: "Europe/Moscow", dateStyle: "short", timeStyle: "short" })}
+                {new Date(c.createdAt).toLocaleString('ru-RU', {
+                  timeZone: 'Europe/Moscow',
+                  dateStyle: 'short',
+                  timeStyle: 'short',
+                })}
               </span>
             </li>
           ))}

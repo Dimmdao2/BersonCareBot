@@ -298,10 +298,10 @@ describe('messageToIntent — round-trip samples', () => {
         pushExtras: {
           tag: 'doctor-reply',
           trackingId: 'track-abc123',
-          topicCode: null,          // nullable — must survive as null, not dropped
+          topicCode: null, // nullable — must survive as null, not dropped
           intentType: 'doctor_reply',
           pushKind: 'transactional',
-          warmupSloganKey: null,    // nullable — must survive as null, not dropped
+          warmupSloganKey: null, // nullable — must survive as null, not dropped
         },
       },
       meta: {
@@ -334,7 +334,9 @@ describe('messageToIntent — round-trip samples', () => {
     expect(payload.title).toBe('New message from Dr. Ivanov');
 
     // WebPushClientPayload.body → payload.message.text
-    expect((payload.message as Record<string, unknown>).text).toBe('You have a new reply from your doctor.');
+    expect((payload.message as Record<string, unknown>).text).toBe(
+      'You have a new reply from your doctor.',
+    );
 
     // WebPushClientPayload.url → payload.url
     expect(payload.url).toBe('https://app.bersoncare.ru/patient/messages');

@@ -872,12 +872,7 @@ async function provisionSlugRace(principal, lockedOptions, winnerSeed, loserSeed
   await Promise.all([winnerClient.connect(), loserClient.connect()]);
   try {
     await Promise.all([
-      applyPatientPrincipal(
-        principal,
-        lockedOptions,
-        winnerClient,
-        winnerSeed.userId,
-      ),
+      applyPatientPrincipal(principal, lockedOptions, winnerClient, winnerSeed.userId),
       applyPatientPrincipal(principal, lockedOptions, loserClient, loserSeed.userId),
     ]);
     await winnerClient.query('BEGIN');
@@ -1000,10 +995,7 @@ SELECT json_build_object(
     row.intent_specialist === receipt.specialistId,
     'intent specialist receipt must record the specialist bound by this same provisioning call',
   );
-  assert(
-    row.current_slug_claims === 1,
-    'signup provisioning must insert one current slug claim',
-  );
+  assert(row.current_slug_claims === 1, 'signup provisioning must insert one current slug claim');
   assert(row.directory_slug === seed.organizationSlug, 'signup must publish the intent slug');
   assert(row.organization_tariff === trialTariffId, 'organization must receive the trial tariff');
   assert(row.commercial_access_state === 'active', 'trial must activate commercial access');

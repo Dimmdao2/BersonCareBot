@@ -5,19 +5,19 @@ status: completed
 isProject: false
 todos:
   - id: w3-p12a-intake
-    content: "12A: pgOnlineIntake.ts (33) — runWebappSql + advisory parity, integration tests."
+    content: '12A: pgOnlineIntake.ts (33) — runWebappSql + advisory parity, integration tests.'
     status: completed
   - id: w3-p12b-identity-phone
-    content: "12B: pgUserByPhone (21), pgIdentityResolution (12), pgPhoneMessengerBind (20) + Zod boundary checks."
+    content: '12B: pgUserByPhone (21), pgIdentityResolution (12), pgPhoneMessengerBind (20) + Zod boundary checks.'
     status: completed
   - id: w3-p12c-merge-route
-    content: "12C: app/api/doctor/clients/integrator-merge/route.ts (14) — thin route, SQL в infra/service."
+    content: '12C: app/api/doctor/clients/integrator-merge/route.ts (14) — thin route, SQL в infra/service.'
     status: completed
   - id: w3-p12d-purge-preview
-    content: "12D: platformUserFullPurge.ts (40), platformUserMergePreview.ts (24), strictPlatformUserPurge.ts — TX Class B и безопасные dry-run semantics."
+    content: '12D: platformUserFullPurge.ts (40), platformUserMergePreview.ts (24), strictPlatformUserPurge.ts — TX Class B и безопасные dry-run semantics.'
     status: completed
   - id: w3-p12-verify
-    content: "12E: devDb integration tests purge/intake/merge; rg ноль по raw query в scope фазы."
+    content: '12E: devDb integration tests purge/intake/merge; rg ноль по raw query в scope фазы.'
     status: completed
 ---
 
@@ -92,17 +92,17 @@ todos:
 
 ## Scope
 
-| Файл | queries |
-|------|---------|
-| `infra/repos/pgOnlineIntake.ts` | 33 |
-| `infra/platformUserFullPurge.ts` | 40 |
-| `infra/platformUserMergePreview.ts` | 24 |
-| `infra/repos/pgUserByPhone.ts` | 21 |
-| `infra/repos/pgPhoneMessengerBind.ts` | 20 |
-| `infra/repos/pgIdentityResolution.ts` | 12 |
-| `app/api/doctor/clients/integrator-merge/route.ts` | 14 |
-| `infra/strictPlatformUserPurge.ts` | 6 (если не в P11) |
-| `app-layer/platform-user/*` | 1–2 each |
+| Файл                                               | queries           |
+| -------------------------------------------------- | ----------------- |
+| `infra/repos/pgOnlineIntake.ts`                    | 33                |
+| `infra/platformUserFullPurge.ts`                   | 40                |
+| `infra/platformUserMergePreview.ts`                | 24                |
+| `infra/repos/pgUserByPhone.ts`                     | 21                |
+| `infra/repos/pgPhoneMessengerBind.ts`              | 20                |
+| `infra/repos/pgIdentityResolution.ts`              | 12                |
+| `app/api/doctor/clients/integrator-merge/route.ts` | 14                |
+| `infra/strictPlatformUserPurge.ts`                 | 6 (если не в P11) |
+| `app-layer/platform-user/*`                        | 1–2 each          |
 
 **Вне scope:** `packages/platform-merge` implementation.
 
@@ -114,10 +114,10 @@ todos:
 
 ## Риски
 
-| Риск | Митигация |
-|------|-----------|
-| Потеря данных purge | devDb tests + dry-run flags |
-| Race intake | advisory lock tests (existing) |
+| Риск                       | Митигация                                                      |
+| -------------------------- | -------------------------------------------------------------- |
+| Потеря данных purge        | devDb tests + dry-run flags                                    |
+| Race intake                | advisory lock tests (existing)                                 |
 | integrator-merge route fat | вынести в `infra/*` service (`integratorPlatformUserMerge.ts`) |
 
 ## Проверки

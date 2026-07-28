@@ -11,20 +11,23 @@
  * requireDoctorWorkspaceApiContext() call 403'd every platform request with
  * doctor_workspace_membership_required (reproduced live on TEST 2026-07-25).
  */
-import { NextResponse } from "next/server";
-import { getPool } from "@/app-layer/db/client";
-import { countOpenAutoMergeConflicts, listAdminAuditLog } from "@/app-layer/admin/auditLog";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { NextResponse } from 'next/server';
+import { getPool } from '@/app-layer/db/client';
+import { countOpenAutoMergeConflicts, listAdminAuditLog } from '@/app-layer/admin/auditLog';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import {
   requireDoctorWorkspaceApiContext,
   requirePlatformOperationsApiContext,
-} from "@/app-layer/guards/requireRole";
-import { hasLaunchCapability, resolveLaunchCapabilities } from "@/app-layer/guards/workspaceCapabilities";
+} from '@/app-layer/guards/requireRole';
+import {
+  hasLaunchCapability,
+  resolveLaunchCapabilities,
+} from '@/app-layer/guards/workspaceCapabilities';
 import {
   adminAuditListFilterFromQuery,
   adminAuditListQuerySchema,
-} from "@/modules/admin/adminAuditListQuery";
-import { requireAdminModeSession } from "@/modules/auth/requireAdminMode";
+} from '@/modules/admin/adminAuditListQuery';
+import { requireAdminModeSession } from '@/modules/auth/requireAdminMode';
 
 export async function GET(req: Request) {
   const gate = await requireAdminModeSession();
@@ -35,24 +38,27 @@ export async function GET(req: Request) {
       sessionRole: gate.session.user.role,
       adminMode: gate.session.adminMode,
     }),
-    "platform.operations",
+    'platform.operations',
   );
 
   const url = new URL(req.url);
   const raw = Object.fromEntries(url.searchParams.entries());
   const parsed = adminAuditListQuerySchema.safeParse(raw);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_query", issues: parsed.error.flatten() }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, error: 'invalid_query', issues: parsed.error.flatten() },
+      { status: 400 },
+    );
   }
 
   const q = parsed.data;
   const filter = adminAuditListFilterFromQuery(q);
   if (filter.fromInclusive && filter.toInclusive && filter.fromInclusive > filter.toInclusive) {
-    return NextResponse.json({ ok: false, error: "invalid_date_range" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_date_range' }, { status: 400 });
   }
 
   if (q.excludeSystemHealth && q.systemHealthOnly) {
-    return NextResponse.json({ ok: false, error: "invalid_system_health_filter" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_system_health_filter' }, { status: 400 });
   }
 
   const runQuery = () => {
@@ -84,7 +90,10 @@ export async function GET(req: Request) {
   } else {
     const workspaceGate = await requireDoctorWorkspaceApiContext();
     if (!workspaceGate.ok) return workspaceGate.response;
-    [result, openAutoMergeConflictCount] = await withDoctorWorkspacePrincipal(workspaceGate.ctx, runQuery);
+    [result, openAutoMergeConflictCount] = await withDoctorWorkspacePrincipal(
+      workspaceGate.ctx,
+      runQuery,
+    );
   }
 
   return NextResponse.json({ ok: true, ...result, openAutoMergeConflictCount });

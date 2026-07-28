@@ -27,6 +27,7 @@ AGENT C  [Composer,   AUDIT] — Stage 3: Аудит обоих стадий
 ```
 
 **Принцип экономии:**
+
 - Один `EXEC`-агент делает всю кодовую часть (webapp + integrator).
 - Второй `EXEC`-агент пишет только SQL-чистку (параллельно или после Stage 1).
 - Один `AUDIT`-агент проверяет оба результата.
@@ -38,15 +39,15 @@ AGENT C  [Composer,   AUDIT] — Stage 3: Аудит обоих стадий
 
 ### Scope (строго)
 
-| # | Что | Файл | Суть изменения |
-|---|-----|------|----------------|
-| 1.1 | Retry для `postSigned` | `apps/webapp/src/modules/integrator/bookingM2mApi.ts` | Обернуть `postSigned()` в retry (3 попытки, exp backoff 1s/2s/4s, только 5xx и network errors). Не ретраить 4xx. |
-| 1.2 | Lifecycle guard | `apps/webapp/src/modules/patient-booking/service.ts` | Если `sync.rubitimeId === null` после `createRecord` — вызывать `markFailedSync(pending.id)`, бросать `Error("rubitime_id_missing")`. Не вызывать `markConfirmed`. |
-| 1.3 | Fallback matching | `apps/webapp/src/infra/repos/pgPatientBookings.ts` | В `upsertFromRubitime`: если строка по `rubitime_id` не найдена — попытаться найти по `contact_phone + slot_start` среди `source='native'` строк с `rubitime_id IS NULL` и `status IN ('creating','confirmed','failed_sync')`. Если нашли — обновить `rubitime_id` и применить апдейт. |
-| 1.4 | Retry для Rubitime API | `apps/integrator/src/integrations/rubitime/client.ts` | Обернуть `postRubitimeApi2()` в retry (2 попытки, backoff 2s, только HTTP 5xx и network). |
-| 1.5 | Увеличить maxAttempts | `apps/integrator/src/integrations/rubitime/recordM2mRoute.ts` | `maxAttempts: 1` → `maxAttempts: 3` для всех TG/MAX сообщений в `sendLinkedChannelMessage` и `sendDoctorMessage`. |
-| 1.6 | Тесты | `apps/webapp/src/modules/patient-booking/service.test.ts` и рядом | Тест: `rubitimeId=null` → `failed_sync`. Тест: retry postSigned. Тест: fallback matching по phone+slot. |
-| 1.7 | CI | — | `pnpm run ci` должен быть зелёным. |
+| #   | Что                    | Файл                                                              | Суть изменения                                                                                                                                                                                                                                                                         |
+| --- | ---------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1.1 | Retry для `postSigned` | `apps/webapp/src/modules/integrator/bookingM2mApi.ts`             | Обернуть `postSigned()` в retry (3 попытки, exp backoff 1s/2s/4s, только 5xx и network errors). Не ретраить 4xx.                                                                                                                                                                       |
+| 1.2 | Lifecycle guard        | `apps/webapp/src/modules/patient-booking/service.ts`              | Если `sync.rubitimeId === null` после `createRecord` — вызывать `markFailedSync(pending.id)`, бросать `Error("rubitime_id_missing")`. Не вызывать `markConfirmed`.                                                                                                                     |
+| 1.3 | Fallback matching      | `apps/webapp/src/infra/repos/pgPatientBookings.ts`                | В `upsertFromRubitime`: если строка по `rubitime_id` не найдена — попытаться найти по `contact_phone + slot_start` среди `source='native'` строк с `rubitime_id IS NULL` и `status IN ('creating','confirmed','failed_sync')`. Если нашли — обновить `rubitime_id` и применить апдейт. |
+| 1.4 | Retry для Rubitime API | `apps/integrator/src/integrations/rubitime/client.ts`             | Обернуть `postRubitimeApi2()` в retry (2 попытки, backoff 2s, только HTTP 5xx и network).                                                                                                                                                                                              |
+| 1.5 | Увеличить maxAttempts  | `apps/integrator/src/integrations/rubitime/recordM2mRoute.ts`     | `maxAttempts: 1` → `maxAttempts: 3` для всех TG/MAX сообщений в `sendLinkedChannelMessage` и `sendDoctorMessage`.                                                                                                                                                                      |
+| 1.6 | Тесты                  | `apps/webapp/src/modules/patient-booking/service.test.ts` и рядом | Тест: `rubitimeId=null` → `failed_sync`. Тест: retry postSigned. Тест: fallback matching по phone+slot.                                                                                                                                                                                |
+| 1.7 | CI                     | —                                                                 | `pnpm run ci` должен быть зелёным.                                                                                                                                                                                                                                                     |
 
 ### Чего НЕ делать
 
@@ -61,11 +62,11 @@ AGENT C  [Composer,   AUDIT] — Stage 3: Аудит обоих стадий
 
 ### Scope
 
-| # | Что | Где | Суть |
-|---|-----|-----|------|
-| 2.1 | Диагностический SQL | `docs/BRANCH_UX_CMS_BOOKING/BOOKING_LIFECYCLE_FIX/cleanup_diagnostic.sql` | Считает: `confirmed` с `rubitime_id IS NULL`, `failed_sync`, `creating` старше 1 часа. Только `SELECT`, без мутаций. |
-| 2.2 | Cleanup SQL | `docs/BRANCH_UX_CMS_BOOKING/BOOKING_LIFECYCLE_FIX/cleanup_fix.sql` | Переводит `confirmed` с `rubitime_id IS NULL` и `source='native'` в `failed_sync`. Переводит `creating` старше 1 часа в `failed_sync`. Обёрнуть в транзакцию с `ROLLBACK` по умолчанию (manual commit). |
-| 2.3 | Reconcile-скрипт | `docs/BRANCH_UX_CMS_BOOKING/BOOKING_LIFECYCLE_FIX/cleanup_reconcile.sql` | Для каждого `failed_sync` native-записи: попробовать найти `rubitime_records` в интеграторе по `phone + slot_start`, записать `rubitime_id` обратно, перевести в `cancelled` если в rubitime запись отменена. DRY RUN по умолчанию. |
+| #   | Что                 | Где                                                                       | Суть                                                                                                                                                                                                                                |
+| --- | ------------------- | ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2.1 | Диагностический SQL | `docs/BRANCH_UX_CMS_BOOKING/BOOKING_LIFECYCLE_FIX/cleanup_diagnostic.sql` | Считает: `confirmed` с `rubitime_id IS NULL`, `failed_sync`, `creating` старше 1 часа. Только `SELECT`, без мутаций.                                                                                                                |
+| 2.2 | Cleanup SQL         | `docs/BRANCH_UX_CMS_BOOKING/BOOKING_LIFECYCLE_FIX/cleanup_fix.sql`        | Переводит `confirmed` с `rubitime_id IS NULL` и `source='native'` в `failed_sync`. Переводит `creating` старше 1 часа в `failed_sync`. Обёрнуть в транзакцию с `ROLLBACK` по умолчанию (manual commit).                             |
+| 2.3 | Reconcile-скрипт    | `docs/BRANCH_UX_CMS_BOOKING/BOOKING_LIFECYCLE_FIX/cleanup_reconcile.sql`  | Для каждого `failed_sync` native-записи: попробовать найти `rubitime_records` в интеграторе по `phone + slot_start`, записать `rubitime_id` обратно, перевести в `cancelled` если в rubitime запись отменена. DRY RUN по умолчанию. |
 
 ### Чего НЕ делать
 
@@ -84,7 +85,7 @@ AGENT C  [Composer,   AUDIT] — Stage 3: Аудит обоих стадий
 
 ### STAGE 1 — EXEC (Agent A)
 
-```text
+````text
 Выполни Stage 1: Core Lifecycle Fix + Retries.
 
 ## Контекст (RCA)
@@ -193,13 +194,13 @@ AGENT C  [Composer,   AUDIT] — Stage 3: Аудит обоих стадий
 - Секция: BOOKING_LIFECYCLE_FIX Stage 1
 - Таблица: задача → файл → статус (done/blocked)
 - CI evidence (green/red + дата)
-```
+````
 
 ---
 
 ### STAGE 2 — EXEC (Agent B)
 
-```text
+````text
 Напиши SQL-скрипты для чистки данных booking после lifecycle-бага.
 
 ## Контекст
@@ -242,7 +243,7 @@ SELECT status, source, count(*)
   FROM patient_bookings
  GROUP BY status, source
  ORDER BY status, source;
-```
+````
 
 ### 2.2 — Cleanup скрипт
 
@@ -274,7 +275,7 @@ SELECT status, source, count(*)
     → UPDATE patient_bookings SET status='cancelled', rubitime_id=<rubitime_record_id>, cancelled_at=now(), cancel_reason='reconcile_rubitime_cancelled' WHERE id=<id>;
   - Если rubitime_records.status = 'created' или 'recorded':
     → UPDATE patient_bookings SET status='confirmed', rubitime_id=<rubitime_record_id> WHERE id=<id>;
-  
+
 Шаг 4: Если не найдено — оставить failed_sync (запись не дошла до Rubitime).
 ```
 
@@ -285,7 +286,8 @@ SELECT status, source, count(*)
 - Только SQL и инструкции. Никакого кода приложения.
 - Все скрипты — dry run по умолчанию (ROLLBACK или SELECT).
 - Не пиши миграции.
-```
+
+````
 
 ---
 
@@ -322,10 +324,13 @@ SELECT status, source, count(*)
 
 ## Формат ответа
 
-```
+````
+
 verdict: pass | rework
 findings:
-  - [critical|major|minor] описание → файл → как исправить
+
+- [critical|major|minor] описание → файл → как исправить
+
 ```
 
 Если `rework`: дать конкретные инструкции для Agent A или Agent B.
@@ -344,8 +349,8 @@ findings:
 
 ## Risk assessment
 
-| Риск | Митигация |
-|------|-----------|
-| Retry создаёт дубли записей в Rubitime | `postSigned` ретраит только 5xx/network; Rubitime dedup по `branch+cooperator+datetime+phone` |
+| Риск                                                | Митигация                                                                                                                                 |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Retry создаёт дубли записей в Rubitime              | `postSigned` ретраит только 5xx/network; Rubitime dedup по `branch+cooperator+datetime+phone`                                             |
 | Fallback matching по phone+slot матчит не ту запись | Ограничен `source='native'` + `rubitime_id IS NULL` + `status IN (creating, confirmed, failed_sync)` + `ORDER BY created_at DESC LIMIT 1` |
-| Cleanup SQL портит данные | DRY RUN по умолчанию (ROLLBACK), с RETURNING для ручной проверки |
+| Cleanup SQL портит данные                           | DRY RUN по умолчанию (ROLLBACK), с RETURNING для ручной проверки                                                                          |

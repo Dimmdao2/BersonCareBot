@@ -1,9 +1,12 @@
-import { getPool } from "@/infra/db/client";
-import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
-import { getWebappSqlFromPgClient, runWebappPgText } from "@/infra/db/runWebappSql";
-import { withPoolTransaction } from "@/infra/db/withClient";
-import type { BroadcastAuditEntry, DoctorBroadcastDeliveryCommitPort } from "@/modules/doctor-broadcasts/ports";
-import { normalizeBroadcastChannels } from "@/modules/doctor-broadcasts/broadcastChannels";
+import { getPool } from '@/infra/db/client';
+import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
+import { getWebappSqlFromPgClient, runWebappPgText } from '@/infra/db/runWebappSql';
+import { withPoolTransaction } from '@/infra/db/withClient';
+import type {
+  BroadcastAuditEntry,
+  DoctorBroadcastDeliveryCommitPort,
+} from '@/modules/doctor-broadcasts/ports';
+import { normalizeBroadcastChannels } from '@/modules/doctor-broadcasts/broadcastChannels';
 
 function mapRow(row: Record<string, unknown>): BroadcastAuditEntry {
   const rawChannels = row.channels;
@@ -13,10 +16,10 @@ function mapRow(row: Record<string, unknown>): BroadcastAuditEntry {
   return {
     id: String(row.id),
     actorId: String(row.actor_id),
-    category: row.category as BroadcastAuditEntry["category"],
-    audienceFilter: row.audience_filter as BroadcastAuditEntry["audienceFilter"],
+    category: row.category as BroadcastAuditEntry['category'],
+    audienceFilter: row.audience_filter as BroadcastAuditEntry['audienceFilter'],
     messageTitle: String(row.message_title),
-    messageBody: typeof row.message_body === "string" ? row.message_body : "",
+    messageBody: typeof row.message_body === 'string' ? row.message_body : '',
     channels,
     executedAt: new Date(String(row.executed_at)).toISOString(),
     previewOnly: Boolean(row.preview_only),
@@ -92,10 +95,12 @@ export function createPgDoctorBroadcastDeliveryCommitPort(): DoctorBroadcastDeli
             tx,
           );
           if ((insJob.rowCount ?? 0) !== 1) {
-            throw new Error("outgoing_delivery_queue_insert_conflict_or_skipped");
+            throw new Error('outgoing_delivery_queue_insert_conflict_or_skipped');
           }
         }
-        const recipientIds = [...new Set(input.recipientUserIds.map((id) => id.trim()).filter(Boolean))];
+        const recipientIds = [
+          ...new Set(input.recipientUserIds.map((id) => id.trim()).filter(Boolean)),
+        ];
         if (recipientIds.length > 0) {
           await runWebappPgText(
             `INSERT INTO broadcast_audit_recipients (audit_id, platform_user_id)

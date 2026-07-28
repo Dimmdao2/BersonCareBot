@@ -1,6 +1,6 @@
 ---
 name: Doctor inbox by attempt
-overview: "Сгруппировать секцию «Тесты, ожидающие оценки» в карточке пациента врача по попытке (attempt_id): одна карточка на попытку, счётчик неоценённых тестов в группе, одна ссылка на экземпляр программы с якорем к блоку результатов."
+overview: 'Сгруппировать секцию «Тесты, ожидающие оценки» в карточке пациента врача по попытке (attempt_id): одна карточка на попытку, счётчик неоценённых тестов в группе, одна ссылка на экземпляр программы с якорем к блоку результатов.'
 status: completed
 todos:
   - id: dto-attempt-fields
@@ -10,7 +10,7 @@ todos:
     content: groupPendingProgramTestEvaluations.ts + vitest fast (группы, сортировка, tie-break)
     status: completed
   - id: client-profile-ui
-    content: "ClientProfileCard: группы, бейдж, ссылка #doctor-program-instance-test-results; без лишних подписей"
+    content: 'ClientProfileCard: группы, бейдж, ссылка #doctor-program-instance-test-results; без лишних подписей'
     status: completed
   - id: doc-ci
     content: Короткая запись в docs/DOCTOR_PATIENT_CARD…/LOG.md или E2E_ACCEPTANCE; pnpm run ci перед merge
@@ -98,10 +98,10 @@ flowchart LR
 
 ## Риски и смягчение
 
-| Риск | Смягчение |
-|------|-----------|
+| Риск                                   | Смягчение                                                             |
+| -------------------------------------- | --------------------------------------------------------------------- |
 | Якорь не скроллит при длинной странице | Приёмлемо для v1; позже — query `?focus=attempt` при отдельной задаче |
-| Расхождение PG vs in-memory в тестах | Одинаковые поля в обоих портах; общий тип DTO |
+| Расхождение PG vs in-memory в тестах   | Одинаковые поля в обоих портах; общий тип DTO                         |
 
 ## Definition of Done
 

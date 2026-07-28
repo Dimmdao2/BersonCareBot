@@ -1,29 +1,35 @@
-import { DateTime } from "luxon";
-import type { ReminderRule } from "@/modules/reminders/types";
-import { countWarmupReminderSlotsInUtcRange } from "@/modules/patient-home/nextReminderOccurrence";
-import { omitDisabledInstanceStageItemsForPatientApi } from "@/modules/treatment-program/stage-semantics";
-import type { ProgramActionLogPort } from "@/modules/treatment-program/ports";
-import type { TreatmentProgramInstanceDetail, TreatmentProgramInstanceSummary } from "@/modules/treatment-program/types";
-import type { PatientPracticePort } from "@/modules/patient-practice/ports";
-import type { PatientDiaryDaySnapshotInsert } from "../../../db/schema/patientDiarySnapshots";
-import { buildDiaryPlanChecklistItemIds } from "./diaryPlanChecklist";
+import { DateTime } from 'luxon';
+import type { ReminderRule } from '@/modules/reminders/types';
+import { countWarmupReminderSlotsInUtcRange } from '@/modules/patient-home/nextReminderOccurrence';
+import { omitDisabledInstanceStageItemsForPatientApi } from '@/modules/treatment-program/stage-semantics';
+import type { ProgramActionLogPort } from '@/modules/treatment-program/ports';
+import type {
+  TreatmentProgramInstanceDetail,
+  TreatmentProgramInstanceSummary,
+} from '@/modules/treatment-program/types';
+import type { PatientPracticePort } from '@/modules/patient-practice/ports';
+import type { PatientDiaryDaySnapshotInsert } from '../../../db/schema/patientDiarySnapshots';
+import { buildDiaryPlanChecklistItemIds } from './diaryPlanChecklist';
 
-const WARMUP_COMPLETION_SOURCES = new Set(["daily_warmup", "reminder"]);
+const WARMUP_COMPLETION_SOURCES = new Set(['daily_warmup', 'reminder']);
 
-export function localCalendarDayWindowUtcIso(localYmd: string, iana: string): { start: string; end: string } {
+export function localCalendarDayWindowUtcIso(
+  localYmd: string,
+  iana: string,
+): { start: string; end: string } {
   const start = DateTime.fromISO(`${localYmd}T00:00:00`, { zone: iana });
-  if (!start.isValid) throw new Error("invalid_local_ymd_or_tz");
+  if (!start.isValid) throw new Error('invalid_local_ymd_or_tz');
   const end = start.plus({ days: 1 });
   return { start: start.toUTC().toISO()!, end: end.toUTC().toISO()! };
 }
 
 function countWarmupCompletionsInWindow(
-  listByUserInUtcRange: PatientPracticePort["listByUserInUtcRange"],
+  listByUserInUtcRange: PatientPracticePort['listByUserInUtcRange'],
   userId: string,
   win: { start: string; end: string },
 ): Promise<number> {
-  return listByUserInUtcRange(userId, win.start, win.end).then((rows) =>
-    rows.filter((r) => WARMUP_COMPLETION_SOURCES.has(r.source)).length,
+  return listByUserInUtcRange(userId, win.start, win.end).then(
+    (rows) => rows.filter((r) => WARMUP_COMPLETION_SOURCES.has(r.source)).length,
   );
 }
 
@@ -75,7 +81,10 @@ export async function buildDiaryDayPlanFromLog(params: {
   localYmd: string;
   doneRows: readonly DoneItemByLocalDate[];
   instances: readonly TreatmentProgramInstanceSummary[];
-  getInstanceForPatient: (userId: string, instanceId: string) => Promise<TreatmentProgramInstanceDetail | null>;
+  getInstanceForPatient: (
+    userId: string,
+    instanceId: string,
+  ) => Promise<TreatmentProgramInstanceDetail | null>;
   userId: string;
   /** При promo refresh — принудительно этот instance, если в нём есть done за день. */
   preferInstanceId?: string | null;
@@ -123,11 +132,14 @@ export async function buildDiaryDayPlanFromLog(params: {
 
 export type CaptureDiaryDaySnapshotDeps = {
   reminders: { listRulesByUser: (userId: string) => Promise<ReminderRule[]> };
-  patientPractice: Pick<PatientPracticePort, "listByUserInUtcRange">;
+  patientPractice: Pick<PatientPracticePort, 'listByUserInUtcRange'>;
   programActionLog: ProgramActionLogPort;
   treatmentProgramInstance: {
     listInstancesForPatient: (userId: string) => Promise<TreatmentProgramInstanceSummary[]>;
-    getInstanceForPatient: (userId: string, instanceId: string) => Promise<TreatmentProgramInstanceDetail | null>;
+    getInstanceForPatient: (
+      userId: string,
+      instanceId: string,
+    ) => Promise<TreatmentProgramInstanceDetail | null>;
   };
 };
 
@@ -146,7 +158,11 @@ export async function captureDiaryDaySnapshot(
 ): Promise<PatientDiaryDaySnapshotInsert> {
   const { userId, localYmd, iana, rules, instances, preferInstanceId } = input;
   const win = localCalendarDayWindowUtcIso(localYmd, iana);
-  const warmupSlotLimit = countWarmupReminderSlotsInUtcRange(rules, new Date(win.start), new Date(win.end));
+  const warmupSlotLimit = countWarmupReminderSlotsInUtcRange(
+    rules,
+    new Date(win.start),
+    new Date(win.end),
+  );
   const warmupDoneCount = await countWarmupCompletionsInWindow(
     deps.patientPractice.listByUserInUtcRange,
     userId,

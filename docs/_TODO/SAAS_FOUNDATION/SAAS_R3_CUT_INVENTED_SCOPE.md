@@ -23,7 +23,6 @@ Status: execution plan only. This stage removes invented product scope and the c
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 The completed executable part of R3 must leave the repository smaller:
 
 - the media worker runs as the narrow tenant-agnostic `app_worker`/infra principal, while tenant ownership is fixed before dispatch and verified at claim time (`deploy/postgres/phase4-app-worker-narrow-rls.sql:1-24`, `apps/webapp/src/infra/repos/pgMediaTranscodeJobs.ts:24-38`, `apps/webapp/src/infra/repos/pgMediaTranscodeJobs.ts:51-69`);
@@ -49,7 +48,6 @@ This is a deletion stage. The only permitted net-new runtime protection is the m
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 The worker must not re-open these decisions:
 
 1. Media tenancy is enforced at enqueue time. Dispatch workers are tenant-agnostic infra workers with the narrow `app_worker` role; they are not clinic staff and do not receive a tenant bypass (`deploy/postgres/phase4-app-worker-narrow-rls.sql:3-17`, `apps/media-worker/src/workerTick.ts:23-48`).
@@ -66,7 +64,6 @@ The worker must not re-open these decisions:
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 Execute in this order:
 
@@ -85,7 +82,6 @@ Do not combine item 1 with an RLS/grant change. Its security proof depends on th
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 ### 4.1 Why a mechanical edit is forbidden
 
@@ -127,14 +123,13 @@ Item 3 is intentionally unresolved. This is not a worker blocker for items 4, 2,
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 ### 5.1 Exact edits
 
 - [x] In `docs/_TODO/SAAS_FOUNDATION/scripts/check-phase4-prod-copy-db-state.mjs:15-18`, replace the migration inventory regex
-  `^(016\d|017[0-6])_.*\.sql$`
-  with
-  `^(016\d|017[0-6]|0179|0180)_.*\.sql$`.
-  Keep migration 0177 handled separately by `compatMigration` and do not broadly include all future migrations. — DONE (`9ea78459d`). Current file line 17 reads exactly `/^(016\d|017[0-6]|0179|0180)_.*\.sql$/`; `git log -p` on that line confirms this exact diff landed in that commit, and `compatMigration` still names `0177_phase4_no_force_rls_compat.sql` separately.
+      `^(016\d|017[0-6])_.*\.sql$`
+      with
+      `^(016\d|017[0-6]|0179|0180)_.*\.sql$`.
+      Keep migration 0177 handled separately by `compatMigration` and do not broadly include all future migrations. — DONE (`9ea78459d`). Current file line 17 reads exactly `/^(016\d|017[0-6]|0179|0180)_.*\.sql$/`; `git log -p` on that line confirms this exact diff landed in that commit, and `compatMigration` still names `0177_phase4_no_force_rls_compat.sql` separately.
 - [x] In `docs/_TODO/SAAS_FOUNDATION/scripts/check-phase4-prod-copy-db-state.mjs:208-212`, change only the static target assertion from 161 to 163. — DONE at the time (`9ea78459d`, verified via `git log -p`: 161→163 on that exact line). DRIFT since: a later, unrelated commit `c928b3715` (clinic public directory tenant wall) moved this same assertion 163→164; the file today reads `expected 164` at line 211. Not a regression of this box — R3's own edit was applied correctly and is still visible in history — but the plan's number no longer matches the live file.
 - [x] Keep the inventory construction itself unchanged: it must continue scanning selected migrations for literal `ENABLE ROW LEVEL SECURITY` statements and deduplicating by schema/table (`docs/_TODO/SAAS_FOUNDATION/scripts/check-phase4-prod-copy-db-state.mjs:143-153`). — CONFIRMED: `loadRlsTargets()` (current lines 143-152) still scans `migrationFilePattern`-matched files with `enableRlsPattern` and dedupes via a `Map` keyed by `schema.table`, unchanged in shape.
 - [ ] Keep `docs/_TODO/SAAS_FOUNDATION/scripts/phase4-locked-policy-artifact.mjs:35-53` unchanged. Its 163-target assertion is the correct side of the comparison. — DRIFT, left open: R3 itself never touched this file (absent from both commits' file lists), so "kept unchanged by R3" is true, but "163 is the correct side" is no longer true — live run today (`node docs/_TODO/SAAS_FOUNDATION/scripts/phase4-locked-policy-artifact.mjs --summary`) reports `phase4 locked policy targets: 168`, moved there by five later, unrelated RLS-policy commits (`bd38c37be` 164→166, `dc21e1905` 166→167, `8efd15698` 167→169, `d424a127` 169→168). Not caused by R3; the two sides of item 4's comparison (164 vs 168) disagree today.
@@ -160,7 +155,6 @@ Item 3 is intentionally unresolved. This is not a worker blocker for items 4, 2,
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 ### 6.1 Service contract: delete selection, replace duplicates with a loud error
 
@@ -219,7 +213,6 @@ This error is intentionally allowed to propagate from authoritative workspace re
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 ### 7.1 Runtime principal deletion
 
 - [x] In `apps/media-worker/src/runMediaWorkerSql.ts:5-12`, delete imports used only by the optional organization wrapper: `createDbOrganizationPrincipal`, `runWithDbPrincipal`, and `runWithDbOrganizationPrincipal`. In `apps/media-worker/src/runMediaWorkerSql.ts:73-85`, delete `runWithOptionalMediaWorkerOrganizationPrincipal` in full. Keep `runWithMediaWorkerInfraPrincipal` unchanged (`apps/media-worker/src/runMediaWorkerSql.ts:65-71`). — CONFIRMED live: file has zero remaining references to `runWithOptionalMediaWorkerOrganizationPrincipal`; `runWithMediaWorkerInfraPrincipal` still exported at line 62. `d2deb9cfa`.
@@ -266,10 +259,10 @@ This invariant replaces the weaker claim-time backfill. Organization ID remains 
 ### 7.6 Checks
 
 - [x] Run focused media tests:
-  `pnpm --dir apps/media-worker test src/jobs/claim.test.ts src/processTranscodeJob.principal.test.ts src/withClient.test.ts src/runMediaWorkerSql.test.ts src/workerTick.test.ts` (`apps/media-worker/package.json:6-12`). — RAN LIVE 2026-07-27: `Test Files 5 passed (5)`, `Tests 33 passed (33)`.
+      `pnpm --dir apps/media-worker test src/jobs/claim.test.ts src/processTranscodeJob.principal.test.ts src/withClient.test.ts src/runMediaWorkerSql.test.ts src/workerTick.test.ts` (`apps/media-worker/package.json:6-12`). — RAN LIVE 2026-07-27: `Test Files 5 passed (5)`, `Tests 33 passed (33)`.
 - [x] Run `pnpm --dir apps/media-worker typecheck` (`apps/media-worker/package.json:8-12`). — RAN LIVE 2026-07-27: `tsc --noEmit` exits clean.
 - [x] Run targeted ESLint:
-  `pnpm exec eslint apps/media-worker/src/jobs/claim.ts apps/media-worker/src/jobs/claim.test.ts apps/media-worker/src/processTranscodeJob.ts apps/media-worker/src/processTranscodeJob.principal.test.ts apps/media-worker/src/runMediaWorkerSql.ts apps/media-worker/src/withClient.ts apps/media-worker/src/withClient.test.ts`. — RAN LIVE 2026-07-27 (from `apps/media-worker`): 0 errors, 0 warnings.
+      `pnpm exec eslint apps/media-worker/src/jobs/claim.ts apps/media-worker/src/jobs/claim.test.ts apps/media-worker/src/processTranscodeJob.ts apps/media-worker/src/processTranscodeJob.principal.test.ts apps/media-worker/src/runMediaWorkerSql.ts apps/media-worker/src/withClient.ts apps/media-worker/src/withClient.test.ts`. — RAN LIVE 2026-07-27 (from `apps/media-worker`): 0 errors, 0 warnings.
 - [ ] Run `pnpm run check:saas-c4-scheduler-media-cron-fanout`; the script includes syntax, positive, and self-test gates (`package.json:52`). — RAN LIVE 2026-07-27, FAILS: `check-c4-scheduler-media-cron-fanout: apps/integrator/src/infra/runtime/worker/operatorDeliveryAttemptWritePort.test.ts missing required fragment: rejects another infra source and delegates an organization principal`. DRIFT: the failing fragment is about the integrator's operator-delivery-attempt write port (C1 area), not media-worker — the test's own title reads "keeps provider success when another infra source cannot audit and delegates an organization principal" today, while the checker still expects the pre-rename substring "rejects another infra source...". Every media-specific requirement in this same script is independently confirmed correct (7.4 above) and `--self-test` alone passes; the aggregate `&&` chain just never reaches the self-test because the plain positive run fails first, on unrelated content this plan never touched.
 - [x] Run `node --check docs/_TODO/SAAS_FOUNDATION/scripts/check-t0-4-media-worker-org.mjs && node docs/_TODO/SAAS_FOUNDATION/scripts/check-t0-4-media-worker-org.mjs && node docs/_TODO/SAAS_FOUNDATION/scripts/check-t0-4-media-worker-org.mjs --self-test`. — RAN LIVE 2026-07-27: `check-t0-4-media-worker-org: OK`, `... self-test: OK`.
 - [x] Run `node --check docs/_TODO/SAAS_FOUNDATION/scripts/check-b4-locked-runtime-wiring.mjs && node docs/_TODO/SAAS_FOUNDATION/scripts/check-b4-locked-runtime-wiring.mjs && node docs/_TODO/SAAS_FOUNDATION/scripts/check-b4-locked-runtime-wiring.mjs --self-test`. — RAN LIVE 2026-07-27: `check-b4-locked-runtime-wiring: OK`, `... self-test: OK`.
@@ -294,7 +287,6 @@ This invariant replaces the weaker claim-time backfill. Organization ID remains 
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 Run only after executable items 4, 2, and 1 are individually green:
 
 - [ ] Run every DB-free command listed in sections 5.2, 6.5, and 7.6 once; do not substitute a DB-backed smoke test. — NOT FULLY TRUE TODAY: every command was run live 2026-07-27, but two of them fail on drift outside R3's own scope (5.2's `phase4-locked-policy-artifact.mjs --summary`, now 168 not 163; 7.6's `check:saas-c4-scheduler-media-cron-fanout`, failing on an unrelated integrator test title). Left open rather than claiming the aggregate is green.
@@ -313,7 +305,6 @@ Run only after executable items 4, 2, and 1 are individually green:
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 - [x] No staff resolver, guard, live plan, or staff-route test exposes organization selection; duplicate active staff memberships throw `multiple_active_staff_memberships` (`apps/webapp/src/modules/organization-membership/service.ts:50-73`). — CONFIRMED, see section 6 evidence above; 48/48 tests green.
 - [x] No media runtime or checker selects `runWithOptionalMediaWorkerOrganizationPrincipal`; locked media-worker checkout rejects organization principals (`apps/media-worker/src/runMediaWorkerSql.ts:65-85`, `apps/media-worker/src/withClient.ts:18-48`). — CONFIRMED, see section 7 evidence above; 33/33 tests green.

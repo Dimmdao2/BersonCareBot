@@ -1,7 +1,12 @@
-import type { TreatmentProgramTemplateUsageRef, TreatmentProgramTemplateUsageSnapshot } from "@/modules/treatment-program/types";
-import { vNaForm } from "@/app/app/doctor/exercises/exerciseUsageSummaryText";
+import type {
+  TreatmentProgramTemplateUsageRef,
+  TreatmentProgramTemplateUsageSnapshot,
+} from '@/modules/treatment-program/types';
+import { vNaForm } from '@/app/app/doctor/exercises/exerciseUsageSummaryText';
 
-export function treatmentProgramTemplateUsageHasAnyReference(u: TreatmentProgramTemplateUsageSnapshot): boolean {
+export function treatmentProgramTemplateUsageHasAnyReference(
+  u: TreatmentProgramTemplateUsageSnapshot,
+): boolean {
   return (
     u.activeTreatmentProgramInstanceCount > 0 ||
     u.completedTreatmentProgramInstanceCount > 0 ||
@@ -24,12 +29,12 @@ export function treatmentProgramTemplateUsageSections(
   const sections: TreatmentProgramTemplateUsageSection[] = [];
   if (u.activeTreatmentProgramInstanceCount > 0) {
     sections.push({
-      key: "active_inst",
+      key: 'active_inst',
       summary: vNaForm(
         u.activeTreatmentProgramInstanceCount,
-        "активной программе у пациентов",
-        "активных программах у пациентов",
-        "активных программах у пациентов",
+        'активной программе у пациентов',
+        'активных программах у пациентов',
+        'активных программах у пациентов',
       ),
       refs: u.activeTreatmentProgramInstanceRefs,
       total: u.activeTreatmentProgramInstanceCount,
@@ -37,12 +42,12 @@ export function treatmentProgramTemplateUsageSections(
   }
   if (u.completedTreatmentProgramInstanceCount > 0) {
     sections.push({
-      key: "completed_inst",
+      key: 'completed_inst',
       summary: vNaForm(
         u.completedTreatmentProgramInstanceCount,
-        "завершённой программе у пациентов (история)",
-        "завершённых программах у пациентов (история)",
-        "завершённых программах у пациентов (история)",
+        'завершённой программе у пациентов (история)',
+        'завершённых программах у пациентов (история)',
+        'завершённых программах у пациентов (история)',
       ),
       refs: u.completedTreatmentProgramInstanceRefs,
       total: u.completedTreatmentProgramInstanceCount,
@@ -50,12 +55,12 @@ export function treatmentProgramTemplateUsageSections(
   }
   if (u.publishedCourseCount > 0) {
     sections.push({
-      key: "pub_course",
+      key: 'pub_course',
       summary: vNaForm(
         u.publishedCourseCount,
-        "опубликованном курсе, привязанном к шаблону",
-        "опубликованных курсах, привязанных к шаблону",
-        "опубликованных курсах, привязанных к шаблону",
+        'опубликованном курсе, привязанном к шаблону',
+        'опубликованных курсах, привязанных к шаблону',
+        'опубликованных курсах, привязанных к шаблону',
       ),
       refs: u.publishedCourseRefs,
       total: u.publishedCourseCount,
@@ -63,12 +68,12 @@ export function treatmentProgramTemplateUsageSections(
   }
   if (u.draftCourseCount > 0) {
     sections.push({
-      key: "draft_course",
+      key: 'draft_course',
       summary: vNaForm(
         u.draftCourseCount,
-        "черновом курсе с этим шаблоном",
-        "черновых курсах с этим шаблоном",
-        "черновых курсах с этим шаблоном",
+        'черновом курсе с этим шаблоном',
+        'черновых курсах с этим шаблоном',
+        'черновых курсах с этим шаблоном',
       ),
       refs: u.draftCourseRefs,
       total: u.draftCourseCount,
@@ -76,12 +81,12 @@ export function treatmentProgramTemplateUsageSections(
   }
   if (u.archivedCourseCount > 0) {
     sections.push({
-      key: "arch_course",
+      key: 'arch_course',
       summary: vNaForm(
         u.archivedCourseCount,
-        "архивном курсе с этим шаблоном (история)",
-        "архивных курсах с этим шаблоном (история)",
-        "архивных курсах с этим шаблоном (история)",
+        'архивном курсе с этим шаблоном (история)',
+        'архивных курсах с этим шаблоном (история)',
+        'архивных курсах с этим шаблоном (история)',
       ),
       refs: u.archivedCourseRefs,
       total: u.archivedCourseCount,

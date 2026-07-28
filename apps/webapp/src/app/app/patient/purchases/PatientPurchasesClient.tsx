@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState, useTransition } from "react";
-import Link from "next/link";
-import { Button } from "@/shared/ui/patient/primitives/button";
-import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
+import { useCallback, useEffect, useState, useTransition } from 'react';
+import Link from 'next/link';
+import { Button } from '@/shared/ui/patient/primitives/button';
+import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 
 type PurchaseRow = {
   id: string;
@@ -22,12 +22,12 @@ type CatalogRow = {
 };
 
 const STATUS_LABEL: Record<string, string> = {
-  active: "Активна",
-  awaiting_payment: "Ожидает оплаты",
-  offered: "Предложена",
-  used: "Использована",
-  expired: "Истекла",
-  cancelled: "Отменена",
+  active: 'Активна',
+  awaiting_payment: 'Ожидает оплаты',
+  offered: 'Предложена',
+  used: 'Использована',
+  expired: 'Истекла',
+  cancelled: 'Отменена',
 };
 
 export function PatientPurchasesClient() {
@@ -37,8 +37,8 @@ export function PatientPurchasesClient() {
 
   const load = useCallback(async () => {
     const [pRes, cRes] = await Promise.all([
-      fetch("/api/booking/products"),
-      fetch("/api/booking/products/catalog"),
+      fetch('/api/booking/products'),
+      fetch('/api/booking/products/catalog'),
     ]);
     const pJson = (await pRes.json()) as { ok?: boolean; purchases?: PurchaseRow[] };
     const cJson = (await cRes.json()) as { ok?: boolean; products?: CatalogRow[] };
@@ -54,9 +54,9 @@ export function PatientPurchasesClient() {
 
   async function buy(productId: string) {
     startTransition(async () => {
-      const res = await fetch("/api/booking/products/purchase", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch('/api/booking/products/purchase', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ productId }),
       });
       const json = (await res.json()) as {
@@ -66,9 +66,9 @@ export function PatientPurchasesClient() {
       };
       if (!json.ok) return;
       if (json.paymentIntentId) {
-        const mock = await fetch("/api/booking/products/payments/mock-complete", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+        const mock = await fetch('/api/booking/products/payments/mock-complete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ intentId: json.paymentIntentId }),
         });
         if (!(await mock.json()).ok) return;
@@ -90,11 +90,11 @@ export function PatientPurchasesClient() {
                 <div className="font-medium">{p.title}</div>
                 <div className={patientMutedTextClass}>
                   {STATUS_LABEL[p.status] ?? p.status}
-                  {typeof p.fulfillmentJson?.visitsRemaining === "number"
+                  {typeof p.fulfillmentJson?.visitsRemaining === 'number'
                     ? ` · осталось визитов: ${p.fulfillmentJson.visitsRemaining}`
                     : null}
                 </div>
-                {p.status === "awaiting_payment" && p.priceMinor > 0 ? (
+                {p.status === 'awaiting_payment' && p.priceMinor > 0 ? (
                   <Link
                     href={`/app/patient/purchases/pay?purchaseId=${p.id}`}
                     className="mt-2 inline-flex h-8 items-center justify-center rounded-md border px-3 text-sm"
@@ -114,9 +114,12 @@ export function PatientPurchasesClient() {
         ) : (
           <ul className="flex flex-col gap-2 text-sm">
             {catalog.map((c) => (
-              <li key={c.id} className="flex items-center justify-between gap-2 rounded-lg border p-3">
+              <li
+                key={c.id}
+                className="flex items-center justify-between gap-2 rounded-lg border p-3"
+              >
                 <span>
-                  {c.title} — {(c.priceMinor / 100).toLocaleString("ru-RU")} ₽
+                  {c.title} — {(c.priceMinor / 100).toLocaleString('ru-RU')} ₽
                 </span>
                 <Button type="button" size="sm" disabled={pending} onClick={() => buy(c.id)}>
                   Купить

@@ -1,27 +1,27 @@
 /** @vitest-environment jsdom */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
-import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
-import { createDoctorClientsPolicyTestMock } from "@/modules/doctor-clients/patientProgramInteractionPolicyTestMock";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import type { TreatmentProgramInstanceDetail } from '@/modules/treatment-program/types';
+import { createDoctorClientsPolicyTestMock } from '@/modules/doctor-clients/patientProgramInteractionPolicyTestMock';
 
 const notFoundMock = vi.hoisted(() =>
   vi.fn(() => {
-    const e = new Error("NEXT_NOT_FOUND");
+    const e = new Error('NEXT_NOT_FOUND');
     throw e;
   }),
 );
 
-vi.mock("next/navigation", () => ({
+vi.mock('next/navigation', () => ({
   notFound: notFoundMock,
   redirect: vi.fn(),
 }));
 
-vi.mock("@bersoncare/db-principal", () => ({
-  getCurrentDbPrincipalOrganizationId: () => "55555555-5555-4555-8555-555555555555",
+vi.mock('@bersoncare/db-principal', () => ({
+  getCurrentDbPrincipalOrganizationId: () => '55555555-5555-4555-8555-555555555555',
 }));
 
-vi.mock("@/shared/ui/patient/PatientAppShell", () => ({
+vi.mock('@/shared/ui/patient/PatientAppShell', () => ({
   PatientAppShell: ({ children, title }: { children: React.ReactNode; title: string }) => (
     <div>
       <span data-testid="shell-title">{title}</span>
@@ -32,25 +32,25 @@ vi.mock("@/shared/ui/patient/PatientAppShell", () => ({
 
 const patientSession = {
   user: {
-    userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-    role: "client" as const,
-    displayName: "Patient",
+    userId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    role: 'client' as const,
+    displayName: 'Patient',
     bindings: {},
   },
   issuedAt: 0,
   expiresAt: 9_999_999_999,
 };
 
-vi.mock("@/app-layer/guards/requireRole", () => ({
+vi.mock('@/app-layer/guards/requireRole', () => ({
   getOptionalPatientSession: vi.fn(async () => patientSession),
-  patientRscPersonalDataGate: vi.fn(async () => "allow" as const),
+  patientRscPersonalDataGate: vi.fn(async () => 'allow' as const),
 }));
 
 const getInstanceForPatientMock = vi.hoisted(() => vi.fn());
 const listTestResultsForInstanceMock = vi.hoisted(() => vi.fn());
 const listProgramEventsMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
     treatmentProgramInstance: {
       getInstanceForPatient: getInstanceForPatientMock,
@@ -80,17 +80,17 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     patientOrganization: {
       resolveTreatmentProgramOrganizationForPatient: vi.fn(async () => ({
         ok: true,
-        organizationId: "55555555-5555-4555-8555-555555555555",
+        organizationId: '55555555-5555-4555-8555-555555555555',
       })),
     },
   }),
 }));
 
-vi.mock("@/modules/system-settings/appDisplayTimezone", () => ({
-  getAppDisplayTimeZone: vi.fn(async () => "Europe/Moscow"),
+vi.mock('@/modules/system-settings/appDisplayTimezone', () => ({
+  getAppDisplayTimeZone: vi.fn(async () => 'Europe/Moscow'),
 }));
 
-vi.mock("../PatientTreatmentProgramDetailClient", () => ({
+vi.mock('../PatientTreatmentProgramDetailClient', () => ({
   PatientTreatmentProgramDetailClient: ({ initial }: { initial: { title: string } }) => (
     <div data-testid="detail-client">
       <span data-testid="detail-title">{initial.title}</span>
@@ -98,33 +98,33 @@ vi.mock("../PatientTreatmentProgramDetailClient", () => ({
   ),
 }));
 
-const now = "2026-01-01T00:00:00.000Z";
+const now = '2026-01-01T00:00:00.000Z';
 
 function minimalActiveDetail(): TreatmentProgramInstanceDetail {
-  const stageId = "22222222-2222-4222-8222-222222222222";
+  const stageId = '22222222-2222-4222-8222-222222222222';
   return {
-    id: "11111111-1111-4111-8111-111111111111",
-    organizationId: "55555555-5555-4555-8555-555555555555",
-    patientUserId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    id: '11111111-1111-4111-8111-111111111111',
+    organizationId: '55555555-5555-4555-8555-555555555555',
+    patientUserId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
     templateId: null,
     assignedBy: null,
-    assignmentSource: "doctor",
-    title: "Программа деталь",
-    status: "active",
+    assignmentSource: 'doctor',
+    title: 'Программа деталь',
+    status: 'active',
     createdAt: now,
     updatedAt: now,
     patientPlanLastOpenedAt: null,
     stages: [
       {
         id: stageId,
-        instanceId: "11111111-1111-4111-8111-111111111111",
+        instanceId: '11111111-1111-4111-8111-111111111111',
         sourceStageId: null,
-        title: "Этап 1",
+        title: 'Этап 1',
         description: null,
         sortOrder: 1,
         localComment: null,
         skipReason: null,
-        status: "in_progress",
+        status: 'in_progress',
         startedAt: null,
         goals: null,
         objectives: null,
@@ -133,10 +133,10 @@ function minimalActiveDetail(): TreatmentProgramInstanceDetail {
         groups: [],
         items: [
           {
-            id: "33333333-3333-4333-8333-333333333333",
+            id: '33333333-3333-4333-8333-333333333333',
             stageId,
-            itemType: "recommendation",
-            itemRefId: "44444444-4444-4444-8444-444444444444",
+            itemType: 'recommendation',
+            itemRefId: '44444444-4444-4444-8444-444444444444',
             sortOrder: 0,
             comment: null,
             localComment: null,
@@ -144,7 +144,7 @@ function minimalActiveDetail(): TreatmentProgramInstanceDetail {
             snapshot: {},
             completedAt: null,
             isActionable: true,
-            status: "active",
+            status: 'active',
             groupId: null,
             createdAt: now,
             lastViewedAt: null,
@@ -156,9 +156,9 @@ function minimalActiveDetail(): TreatmentProgramInstanceDetail {
   };
 }
 
-import PatientTreatmentProgramDetailPage from "./page";
+import PatientTreatmentProgramDetailPage from './page';
 
-describe("PatientTreatmentProgramDetailPage / nudge resilience", () => {
+describe('PatientTreatmentProgramDetailPage / nudge resilience', () => {
   beforeEach(() => {
     notFoundMock.mockClear();
     getInstanceForPatientMock.mockResolvedValue(minimalActiveDetail());
@@ -166,25 +166,25 @@ describe("PatientTreatmentProgramDetailPage / nudge resilience", () => {
     listTestResultsForInstanceMock.mockResolvedValue([]);
   });
 
-  it("renders detail for valid instance (detail page без nudge)", async () => {
+  it('renders detail for valid instance (detail page без nudge)', async () => {
     const ui = await PatientTreatmentProgramDetailPage({
-      params: Promise.resolve({ instanceId: "11111111-1111-4111-8111-111111111111" }),
+      params: Promise.resolve({ instanceId: '11111111-1111-4111-8111-111111111111' }),
       searchParams: Promise.resolve({}),
     });
     render(ui);
-    expect(screen.getByTestId("detail-title")).toHaveTextContent("Программа деталь");
-    expect(screen.getByTestId("detail-client")).toBeInTheDocument();
+    expect(screen.getByTestId('detail-title')).toHaveTextContent('Программа деталь');
+    expect(screen.getByTestId('detail-client')).toBeInTheDocument();
     expect(notFoundMock).not.toHaveBeenCalled();
   });
 
-  it("calls notFound when instance is missing", async () => {
+  it('calls notFound when instance is missing', async () => {
     getInstanceForPatientMock.mockResolvedValue(null);
     await expect(
       PatientTreatmentProgramDetailPage({
-        params: Promise.resolve({ instanceId: "missing-id" }),
+        params: Promise.resolve({ instanceId: 'missing-id' }),
         searchParams: Promise.resolve({}),
       }),
-    ).rejects.toThrow("NEXT_NOT_FOUND");
+    ).rejects.toThrow('NEXT_NOT_FOUND');
     expect(notFoundMock).toHaveBeenCalled();
   });
 });

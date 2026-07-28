@@ -8,34 +8,34 @@
 
 ## Активные (остаются в корне `docs/`)
 
-| Папка | Почему не в архив |
-|--------|-------------------|
-| `PWA_INITIATIVE/` | Активная базовая линия PWA. |
-| `ONLINE_CONSULT_REHAB_NUTRITION_BOOKING_INITIATIVE/` | Открытый продуктовый контур. |
-| `DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/` | Активный roadmap врача. |
-| `APP_RESTRUCTURE_INITIATIVE/` | Главный IA/CMS roadmap. |
-| `OPERATOR_HEALTH_ALERTING_INITIATIVE/` | Активный план + MVP. |
-| `RULES/REMINDERS_SETTINGS_DRIZZLE_ONLY/` | Канон инициативы (корневой `docs/REMINDERS_*` — только указатель). |
+| Папка                                                | Почему не в архив                                                  |
+| ---------------------------------------------------- | ------------------------------------------------------------------ |
+| `PWA_INITIATIVE/`                                    | Активная базовая линия PWA.                                        |
+| `ONLINE_CONSULT_REHAB_NUTRITION_BOOKING_INITIATIVE/` | Открытый продуктовый контур.                                       |
+| `DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/`  | Активный roadmap врача.                                            |
+| `APP_RESTRUCTURE_INITIATIVE/`                        | Главный IA/CMS roadmap.                                            |
+| `OPERATOR_HEALTH_ALERTING_INITIATIVE/`               | Активный план + MVP.                                               |
+| `RULES/REMINDERS_SETTINGS_DRIZZLE_ONLY/`             | Канон инициативы (корневой `docs/REMINDERS_*` — только указатель). |
 
 ## Отложенные / спецификации (не «закрытые», перенос не обязателен)
 
-| Папка | Статус | Архив? |
-|--------|--------|--------|
+| Папка                 | Статус                                                                                   | Архив?                                                       |
+| --------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
 | `COURSES_INITIATIVE/` | Strawman, отложено владельцем; много ссылок из `APP_RESTRUCTURE_*` и `BACKLOG_TAILS.md`. | **Нет**, пока не решён перенос + массовое обновление ссылок. |
 
 ## Закрытые, но журнал остаётся в корне `docs/`
 
-| Папка | Статус | Архив? |
-|--------|--------|--------|
+| Папка                           | Статус                                                                                                                                                     | Архив?                                                                                                                                                                                            |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `INTEGRATOR_DRIZZLE_MIGRATION/` | Инициатива закрыта **2026-05-15**, но `LOG.md` / `RAW_SQL_INVENTORY.md` — рабочие якоря для ссылок из `docs/README.md`, `docs/TODO.md`, `.cursor/plans/*`. | **Возможно** `git mv` → `docs/archive/2026-05-initiatives/INTEGRATOR_DRIZZLE_MIGRATION/` **только вместе** с обновлением всех ссылок (десятки файлов). До массового редиректа — оставить в корне. |
 
 ## Указатели (заглушки) в корне `docs/`
 
-| Путь | Содержимое | Рекомендация |
-|------|----------------|-------------|
-| `docs/REMINDERS_SETTINGS_DRIZZLE_ONLY/README.md` | Редирект на `docs/RULES/REMINDERS_SETTINGS_DRIZZLE_ONLY/`. | Оставить для старых закладок **или** удалить после проверки внешних ссылок. |
-| `docs/TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md` | Редирект на `docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md`. | Аналогично. |
-| `docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md` | Указатель на архив (инициатива закрыта). | **Удалён** 2026-05-17 — канон только [`2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/`](2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md). |
+| Путь                                                       | Содержимое                                                     | Рекомендация                                                                                                                                                                      |
+| ---------------------------------------------------------- | -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/REMINDERS_SETTINGS_DRIZZLE_ONLY/README.md`           | Редирект на `docs/RULES/REMINDERS_SETTINGS_DRIZZLE_ONLY/`.     | Оставить для старых закладок **или** удалить после проверки внешних ссылок.                                                                                                       |
+| `docs/TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md`     | Редирект на `docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md`. | Аналогично.                                                                                                                                                                       |
+| `docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md` | Указатель на архив (инициатива закрыта).                       | **Удалён** 2026-05-17 — канон только [`2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/`](2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md). |
 
 ## Итог
 

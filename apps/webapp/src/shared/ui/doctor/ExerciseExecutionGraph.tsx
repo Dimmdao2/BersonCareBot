@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * ExerciseExecutionGraph — SVG-based two-panel chart for CMT-01..04.
@@ -14,9 +14,9 @@
  * Pure SVG + React state — no recharts dependency.
  */
 
-import { useState } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import type { ExerciseMetricPoint } from "./ExerciseMicroChart";
+import { useState } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import type { ExerciseMetricPoint } from './ExerciseMicroChart';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -56,24 +56,19 @@ function normalizeNumericSeries(values: (number | null)[]): (number | null)[] {
   const min = Math.min(...nums);
   const max = Math.max(...nums);
   if (max === min) return values.map((v) => (v === null ? null : 50));
-  return values.map((v) =>
-    v === null ? null : ((v - min) / (max - min)) * 100,
-  );
+  return values.map((v) => (v === null ? null : ((v - min) / (max - min)) * 100));
 }
 
 /** Convert difficulty string to 0..100 ordinal. */
 function difficultyToNumeric(d: string | null): number | null {
-  if (d === "easy") return 33;
-  if (d === "medium") return 66;
-  if (d === "hard") return 100;
+  if (d === 'easy') return 33;
+  if (d === 'medium') return 66;
+  if (d === 'hard') return 100;
   return null;
 }
 
 /** Build SVG polyline `points` attribute string. */
-function buildPolylinePoints(
-  normalizedValues: (number | null)[],
-  xPositions: number[],
-): string {
+function buildPolylinePoints(normalizedValues: (number | null)[], xPositions: number[]): string {
   const pts: string[] = [];
   const innerH = CHART_H - PADDING.top - PADDING.bottom;
   for (let i = 0; i < normalizedValues.length; i++) {
@@ -83,7 +78,7 @@ function buildPolylinePoints(
     const y = PADDING.top + innerH * (1 - v / 100);
     pts.push(`${x.toFixed(1)},${y.toFixed(1)}`);
   }
-  return pts.join(" ");
+  return pts.join(' ');
 }
 
 /** Build list of [x, y] pairs for dot rendering. */
@@ -102,7 +97,7 @@ function buildDotPositions(
 
 /** Format YYYY-MM-DD → DD.MM */
 function formatLocalDate(d: string): string {
-  const parts = d.split("-");
+  const parts = d.split('-');
   if (parts.length !== 3) return d;
   return `${parts[2]}.${parts[1]}`;
 }
@@ -112,8 +107,8 @@ function formatIsoDateShort(iso: string): string {
   try {
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return iso;
-    const dd = String(d.getDate()).padStart(2, "0");
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
     return `${dd}.${mm}`;
   } catch {
     return iso;
@@ -122,18 +117,18 @@ function formatIsoDateShort(iso: string): string {
 
 /** Colour of a day bar. */
 function dayBarColor(assigned: number, done: number): string {
-  if (assigned === 0) return "#9ca3af"; // gray-400
-  if (done >= assigned) return "#22c55e"; // green-500
-  if (done > 0) return "#eab308"; // yellow-500
-  return "#9ca3af"; // gray-400
+  if (assigned === 0) return '#9ca3af'; // gray-400
+  if (done >= assigned) return '#22c55e'; // green-500
+  if (done > 0) return '#eab308'; // yellow-500
+  return '#9ca3af'; // gray-400
 }
 
 /** Human-readable difficulty label (RU). */
 function difficultyLabel(d: string | null): string {
-  if (d === "easy") return "легко";
-  if (d === "medium") return "норм.";
-  if (d === "hard") return "тяжело";
-  return "—";
+  if (d === 'easy') return 'легко';
+  if (d === 'medium') return 'норм.';
+  if (d === 'hard') return 'тяжело';
+  return '—';
 }
 
 // ── Hover tooltip type ────────────────────────────────────────────────────────
@@ -218,7 +213,7 @@ export function ExerciseExecutionGraph({
     const metricsForDay = ordered.filter((p) => {
       try {
         // 'en-CA' locale produces YYYY-MM-DD format natively
-        const pDate = new Date(p.at).toLocaleDateString("en-CA", { timeZone: localTz });
+        const pDate = new Date(p.at).toLocaleDateString('en-CA', { timeZone: localTz });
         return pDate === isoDate;
       } catch {
         return false;
@@ -239,8 +234,8 @@ export function ExerciseExecutionGraph({
             onClick={() => onWindowChange?.(d)}
             className={`rounded px-2 py-0.5 text-xs font-medium transition-colors ${
               windowDays === d
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-muted-foreground hover:bg-muted/80"
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-muted text-muted-foreground hover:bg-muted/80'
             }`}
           >
             {d} дней
@@ -374,17 +369,12 @@ export function ExerciseExecutionGraph({
           </div>
         </div>
       ) : metricPoints.length > 0 ? (
-        <p className="mb-3 text-[10px] text-muted-foreground">
-          Метрики не зафиксированы
-        </p>
+        <p className="mb-3 text-[10px] text-muted-foreground">Метрики не зафиксированы</p>
       ) : null}
 
       {/* ── Day activity bars (CMT-02) with hover tooltip (CMT-03) ── */}
       {hasBars ? (
-        <div
-          className="relative"
-          onMouseLeave={() => setHoveredDay(null)}
-        >
+        <div className="relative" onMouseLeave={() => setHoveredDay(null)}>
           <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
             Активность по дням
           </p>
@@ -394,7 +384,7 @@ export function ExerciseExecutionGraph({
             <div
               className="pointer-events-none absolute z-20 w-40 rounded border border-border bg-popover p-2 text-[10px] shadow-md"
               style={{
-                bottom: "calc(100% - 2px)",
+                bottom: 'calc(100% - 2px)',
                 left: `clamp(0px, calc(${(hoveredDay.xFraction * 100).toFixed(1)}% - 5rem), calc(100% - 10rem))`,
               }}
             >
@@ -409,13 +399,18 @@ export function ExerciseExecutionGraph({
                   {hoveredDay.metrics.map((m, mi) => (
                     <div key={mi} className="flex flex-col gap-0">
                       {m.reps !== null && (
-                        <span className="text-emerald-600">повт.: {m.reps}{m.sets !== null ? ` × ${m.sets} подх.` : ""}</span>
+                        <span className="text-emerald-600">
+                          повт.: {m.reps}
+                          {m.sets !== null ? ` × ${m.sets} подх.` : ''}
+                        </span>
                       )}
                       {m.weightKg !== null && (
                         <span className="text-blue-600">вес: {m.weightKg} кг</span>
                       )}
                       {m.difficulty !== null && (
-                        <span className="text-red-500">тяжесть: {difficultyLabel(m.difficulty)}</span>
+                        <span className="text-red-500">
+                          тяжесть: {difficultyLabel(m.difficulty)}
+                        </span>
                       )}
                     </div>
                   ))}
@@ -437,10 +432,7 @@ export function ExerciseExecutionGraph({
               const barHeightPx =
                 day.assignedCount === 0
                   ? 0
-                  : Math.max(
-                      2,
-                      Math.round((day.assignedCount / maxAssigned) * barInnerH),
-                    );
+                  : Math.max(2, Math.round((day.assignedCount / maxAssigned) * barInnerH));
               const barY = PADDING.top + barInnerH - barHeightPx;
               const color = dayBarColor(day.assignedCount, day.doneCount);
               const label = formatLocalDate(day.localDate);
@@ -453,7 +445,7 @@ export function ExerciseExecutionGraph({
                   role="img"
                   aria-label={title}
                   onMouseEnter={() => handleDayHover(day, i)}
-                  style={{ cursor: "default" }}
+                  style={{ cursor: 'default' }}
                 >
                   <title>{title}</title>
                   {/* Hover hit area (wider than the bar) */}
@@ -473,7 +465,7 @@ export function ExerciseExecutionGraph({
                       rx={2}
                       fill={color}
                       opacity={isHovered ? 1 : 0.85}
-                      stroke={isHovered ? color : "none"}
+                      stroke={isHovered ? color : 'none'}
                       strokeWidth={isHovered ? 1 : 0}
                     />
                   )}
@@ -494,8 +486,8 @@ export function ExerciseExecutionGraph({
                       y={PADDING.top + barInnerH + 12}
                       textAnchor="middle"
                       fontSize={7}
-                      fill={isHovered ? "#6b7280" : "#9ca3af"}
-                      fontWeight={isHovered ? "600" : "normal"}
+                      fill={isHovered ? '#6b7280' : '#9ca3af'}
+                      fontWeight={isHovered ? '600' : 'normal'}
                     >
                       {label}
                     </text>

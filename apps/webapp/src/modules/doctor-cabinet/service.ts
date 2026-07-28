@@ -1,5 +1,5 @@
 export type DoctorWorkspaceState = {
-  status: "foundation";
+  status: 'foundation';
   message: string;
   patientList: { id: string; label: string }[];
 };
@@ -24,7 +24,13 @@ export type DoctorOverviewState = {
   }>;
   requireAttention: Array<{
     id: string;
-    kind: "frequent_cancellations" | "no_contact" | "diary_worsening" | "diary_skips" | "no_channels" | "delivery_failed";
+    kind:
+      | 'frequent_cancellations'
+      | 'no_contact'
+      | 'diary_worsening'
+      | 'diary_skips'
+      | 'no_channels'
+      | 'delivery_failed';
     clientUserId: string;
     clientLabel: string;
   }>;
@@ -40,9 +46,9 @@ export type DoctorOverviewState = {
 /** MVP: placeholder patient list for later extension. */
 export function getDoctorWorkspaceState(): DoctorWorkspaceState {
   return {
-    status: "foundation",
+    status: 'foundation',
     message:
-      "Врачебный интерфейс: каркас авторизации и доступ по ролям. Ниже — заглушка списка пациентов для следующих этапов.",
+      'Врачебный интерфейс: каркас авторизации и доступ по ролям. Ниже — заглушка списка пациентов для следующих этапов.',
     patientList: [],
   };
 }
@@ -62,10 +68,10 @@ export function getOverviewState(): DoctorOverviewState {
     requireAttention: [],
     recentEvents: [],
     quickActions: [
-      { id: "clients", label: "Клиенты", href: "/app/doctor/patients" },
-      { id: "appointments", label: "Записи на сегодня", href: "/app/doctor/appointments" },
-      { id: "message", label: "Написать сообщение", href: "/app/doctor/messages" },
-      { id: "stats", label: "По клиентам", href: "/app/doctor/analytics?tab=clients" },
+      { id: 'clients', label: 'Клиенты', href: '/app/doctor/patients' },
+      { id: 'appointments', label: 'Записи на сегодня', href: '/app/doctor/appointments' },
+      { id: 'message', label: 'Написать сообщение', href: '/app/doctor/messages' },
+      { id: 'stats', label: 'По клиентам', href: '/app/doctor/analytics?tab=clients' },
     ],
   };
 }

@@ -1,4 +1,4 @@
-> STATUS (verified 2026-07-23, code-reconciled): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/CHECKPOINT_2026-07-23_STATE_AND_BACKEND_WORK_ORDER.md
+> STATUS (verified 2026-07-23, code-reconciled): see docs/\_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/CHECKPOINT_2026-07-23_STATE_AND_BACKEND_WORK_ORDER.md
 
 # План: Security-стек в CI (Gitleaks · Semgrep · Trivy · OWASP ZAP)
 
@@ -19,14 +19,14 @@
 
 ## Кадэнс (цель)
 
-| Инструмент | На каждый PR | Еженедельно | Перед релизом |
-|---|:--:|:--:|:--:|
-| Gitleaks | ✅ | | |
-| Semgrep | ✅ | | |
-| Trivy (быстрый) | ✅ | | |
-| Trivy (полный) | | | ✅ |
-| OWASP ZAP | | ✅ | ✅ |
-| Garak | *после появления AI-агентов в продукте* | | |
+| Инструмент      |              На каждый PR               | Еженедельно | Перед релизом |
+| --------------- | :-------------------------------------: | :---------: | :-----------: |
+| Gitleaks        |                   ✅                    |             |               |
+| Semgrep         |                   ✅                    |             |               |
+| Trivy (быстрый) |                   ✅                    |             |               |
+| Trivy (полный)  |                                         |             |      ✅       |
+| OWASP ZAP       |                                         |     ✅      |      ✅       |
+| Garak           | _после появления AI-агентов в продукте_ |             |               |
 
 ## Чек-лист внедрения
 
@@ -37,8 +37,8 @@
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 ### Этап 1 — Gitleaks (очень высокий приоритет)
+
 - [x] Новый job `secrets-scan` в `ci.yml` (PR + push): `gitleaks/gitleaks-action` или пинованный бинарь. (✓ .github/workflows/security.yml:24-49 job `gitleaks`, pinned binary v8.18.4, on: push[main]+pull_request | commit 2027f969)
 - [x] Полноисторический скан хотя бы на push в `main` (не только diff) — прошлый инцидент был про содержимое `.env`. (✓ .github/workflows/security.yml:29-35 checkout `fetch-depth: 0` + `gitleaks git .` full-history | commit 2027f969)
 - [x] `.gitleaks.toml` для осознанных allowlist (тестовые фикстуры/демо-креды — см. память `demo-test-fixtures-on-test-db`), чтобы не было ложных фейлов. (✓ .gitleaks.toml (52 lines, path-based allowlist for gitignored `.env` family) | commit 2027f969)
@@ -46,12 +46,14 @@
 - [x] fail-closed: находка high-confidence секрета = красный PR. (✓ .github/workflows/security.yml:39 `gitleaks git .` runs without `continue-on-error`, non-zero exit on finding = red build | commit 2027f969)
 
 ### Этап 2 — Semgrep
+
 - [x] Job `semgrep` (PR): `semgrep ci` с рулсетами `p/default`, `p/typescript`, `p/react`, `p/nodejs`, `p/secrets`. (✓ .github/workflows/security.yml:52-77 job `semgrep`, pinned image semgrep/semgrep:1.85.0, `--config .semgrep.yml --config p/default --config p/typescript --config p/react --config p/nodejs --config p/secrets` | commit 2027f969)
-- [x] `.semgrepignore` для генератов (`.next/`, `dist/`, `node_modules/`, снапшоты тестов). (✓ .semgrepignore (repo root) — node_modules/, .next/, dist/, build/, .turbo/, coverage/, *.min.js, pnpm-lock.yaml, drizzle-migrations meta snapshots, test-fixtures dirs | 2026-07-23)
+- [x] `.semgrepignore` для генератов (`.next/`, `dist/`, `node_modules/`, снапшоты тестов). (✓ .semgrepignore (repo root) — node_modules/, .next/, dist/, build/, .turbo/, coverage/, \*.min.js, pnpm-lock.yaml, drizzle-migrations meta snapshots, test-fixtures dirs | 2026-07-23)
 - [x] Порог фейла: `ERROR`-severity валит PR; `WARNING` — аннотация, не блок (чтобы не заспамить на старте). (✓ .github/workflows/security.yml:71-72 `--severity ERROR --error` | commit 2027f969)
 - [ ] Прогнать разово по всему репо, разобрать первый шум, зафиксировать baseline-исключения осознанно (не глушить массово). (REMAINING: first live-CI run + noise triage not yet performed)
 
 ### Этап 3 — Trivy
+
 - [x] Job `trivy-fs` (PR, быстрый): `aquasecurity/trivy-action`, `scan-type: fs`, `scanners: vuln,misconfig,secret`, `severity: HIGH,CRITICAL`. (✓ .github/workflows/security.yml:80-105 job `trivy-fs`, `aquasecurity/trivy-action@0.28.0`, scan-type fs, scanners vuln,misconfig,secret, severity HIGH,CRITICAL, exit-code 1 | commit 2027f969)
 - [x] `.trivyignore` для принятых/неустранимых сейчас CVE (с комментарием-обоснованием и датой ревью). (✓ .trivyignore (14 lines) wired via `trivyignores: .trivyignore` at .github/workflows/security.yml:103 | commit 2027f969)
 - [x] Полный режим (`severity` без фильтра, + `--scanners` расширенный) — отдельный job/workflow перед релизом, не на каждый PR. (✓ .github/workflows/security-release.yml job `trivy-full`, triggers `workflow_dispatch` + `release: types: [published]` only (not push/PR), scanners vuln,misconfig,secret, no severity filter (all severities) report pass (exit-code 0, SARIF artifact) + separate CRITICAL-only fail-closed pass (exit-code 1), same pinned `aquasecurity/trivy-action@0.28.0` + `.trivyignore` | 2026-07-23)
@@ -60,6 +62,7 @@
 ### Этап 4 — OWASP ZAP (DAST)
 
 **Режимы (решение владельца 2026-07-19; техническое уточнение 2026-07-19):**
+
 - **Baseline** — отправляет обычные HTTP/spider-запросы и проходит доступные ссылки, но не запускает active attack
   payloads. Он не должен менять состояние при корректных GET-контрактах, однако это всё равно сетевой скан, а не
   «только наблюдение»; по проду разрешается лишь после отдельного review target/rules.
@@ -68,10 +71,10 @@
 
 **Карта целей:**
 
-| Где | Режим | Доступ | Кадэнс |
-|---|---|---|---|
-| Тест (`test.bersoncare.ru`) / эфемерная копия | активный (ломать можно) | **вариант 2**: снять IP-запрет ТОЛЬКО для диапазонов IP GitHub-раннеров, узким **авто-закрывающимся окном** (открыть перед сканом → скан → сразу закрыть, в т.ч. при падении) | еженедельно + перед релизом |
-| Прод (после 1-го прод-деплоя) | **только baseline**, после owner-approved target/rules review | публичный, достаём напрямую (VPN не при чём) | еженедельно + после каждого релиза |
+| Где                                           | Режим                                                         | Доступ                                                                                                                                                                        | Кадэнс                             |
+| --------------------------------------------- | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| Тест (`test.bersoncare.ru`) / эфемерная копия | активный (ломать можно)                                       | **вариант 2**: снять IP-запрет ТОЛЬКО для диапазонов IP GitHub-раннеров, узким **авто-закрывающимся окном** (открыть перед сканом → скан → сразу закрыть, в т.ч. при падении) | еженедельно + перед релизом        |
+| Прод (после 1-го прод-деплоя)                 | **только baseline**, после owner-approved target/rules review | публичный, достаём напрямую (VPN не при чём)                                                                                                                                  | еженедельно + после каждого релиза |
 
 - [x] Отдельный workflow `zap.yml`: `schedule` (еженедельно) + `workflow_dispatch` (перед релизом). НЕ на каждый PR. (✓ .github/workflows/zap.yml `on: schedule` cron `0 3 * * 1` (Monday) + `workflow_dispatch`, no `pull_request` trigger at all; both jobs additionally gated `if: vars.ZAP_ENABLED == 'true'` / `vars.ZAP_PROD_BASELINE_APPROVED == 'true'` so nothing fires until owner wires it | 2026-07-23)
 - [x] **Тест, вариант 2:** тянуть актуальные IP-диапазоны GitHub Actions (api.github.com/meta) и открывать IP-allowlist теста только им; окно узкое и авто-закрывается (шаг закрытия — `if: always()`). (✓ .github/workflows/zap.yml job `zap-test-active-scan`: step "Fetch current GitHub Actions runner IP ranges" curls `https://api.github.com/meta`, step `TODO(owner): OPEN ...` marks where the real firewall-open call + `ZAP_FW_*` secrets go, step `TODO(owner): CLOSE ...` has `if: always()` so it auto-closes even on scan failure — firewall API call itself is owner-gated TODO, not wired to a real firewall (no firewall API/creds given) | 2026-07-23)
@@ -83,9 +86,11 @@
 - [x] Отчёт артефактом; триаж находок владельцу, не авто-фикс. (✓ .github/workflows/zap.yml both jobs upload `report_html.html`/`report_md.md`/`report_json.json` via `actions/upload-artifact@v4` (`if: always()`); `fail_action: false` on both ZAP action steps so findings surface as an artifact for owner triage rather than auto-blocking/auto-fixing | 2026-07-23)
 
 ### Этап 5 — Garak (отложено)
+
 - [ ] Подключить только после появления AI-агентов в продукте (LLM red-teaming). Сейчас не заводить. (owner/legal-gated: deferred by owner decision until AI agents ship in product; not to be started now)
 
 ## Границы / правила
+
 - Ничего разрушительного против **прода** (память `prod-is-untouchable-hard-rule`). По проду ZAP — **только
   baseline после отдельного review**; active-scan — исключительно тест/эфемерная копия.
 - Находки сканеров = **триаж владельцу**, не авто-исправление (память `dont-autofix-acceptance-findings`).
@@ -93,6 +98,7 @@
 - Секреты для самих экшенов (если понадобятся токены Semgrep App и т.п.) — через GitHub Secrets, не в коде.
 
 ## Готово =
+
 Зелёный CI с новыми jobs на PR (gitleaks+semgrep+trivy), еженедельный ZAP-workflow заведён, первый прогон разобран,
 baseline-исключения зафиксированы осознанно, негативный тест на секрет валит PR. «Сканер зелёный» сам по себе — гейт,
 не «готово»: перед словом «готово» — живой прогон и разбор первого шума.

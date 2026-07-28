@@ -1,19 +1,15 @@
 #!/usr/bin/env node
 
-import { spawnSync } from "node:child_process";
+import { spawnSync } from 'node:child_process';
 
-const dbArg = process.argv.find((arg) => arg.startsWith("--db="));
-const db = dbArg?.slice("--db=".length) ?? "";
+const dbArg = process.argv.find((arg) => arg.startsWith('--db='));
+const db = dbArg?.slice('--db='.length) ?? '';
 const safeDbPattern = /^bcb_saas_[a-z0-9_]+_(scratch|rehearsal)_[a-z0-9_]+$/;
 const forbiddenDbToken = /(^|_)(prod|production|test|testing|dev|development)(_|$)/;
 
-if (
-  !process.argv.includes("--execute") ||
-  !safeDbPattern.test(db) ||
-  forbiddenDbToken.test(db)
-) {
+if (!process.argv.includes('--execute') || !safeDbPattern.test(db) || forbiddenDbToken.test(db)) {
   throw new Error(
-    "usage: node rehearse-patient-content-diary-rls.mjs --execute --db=bcb_saas_<name>_(scratch|rehearsal)_<suffix>",
+    'usage: node rehearse-patient-content-diary-rls.mjs --execute --db=bcb_saas_<name>_(scratch|rehearsal)_<suffix>',
   );
 }
 
@@ -139,15 +135,17 @@ ROLLBACK;
 `;
 
 const result = spawnSync(
-  "sudo",
-  ["-n", "-u", "postgres", "psql", "-X", "-v", "ON_ERROR_STOP=1", "-d", db],
-  { encoding: "utf8", input: sql },
+  'sudo',
+  ['-n', '-u', 'postgres', 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-d', db],
+  { encoding: 'utf8', input: sql },
 );
 
 if (result.status !== 0) {
-  process.stdout.write(result.stdout ?? "");
-  process.stderr.write(result.stderr ?? "");
+  process.stdout.write(result.stdout ?? '');
+  process.stderr.write(result.stderr ?? '');
   throw new Error(`patient content/diary RLS rehearsal failed: ${result.status}`);
 }
 
-console.log("Patient content/diary RLS rehearsal: PASS (A/B/cross-org/shared; transaction rolled back)");
+console.log(
+  'Patient content/diary RLS rehearsal: PASS (A/B/cross-org/shared; transaction rolled back)',
+);

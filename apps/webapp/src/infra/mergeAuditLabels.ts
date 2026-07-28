@@ -1,7 +1,7 @@
-import type { Pool } from "pg";
-import { runPgPoolPgText } from "@/infra/db/runWebappSql";
+import type { Pool } from 'pg';
+import { runPgPoolPgText } from '@/infra/db/runWebappSql';
 
-const EMPTY = "Имя не указано";
+const EMPTY = 'Имя не указано';
 
 /**
  * Loads `display_name` for two platform users (merge target / duplicate) for audit `details`.
@@ -17,8 +17,8 @@ export async function fetchMergePartyDisplayLabels(
     [targetId, duplicateId],
   );
   const norm = (s: string | null | undefined) => {
-    const t = s?.trim() ?? "";
-    return t !== "" ? t : EMPTY;
+    const t = s?.trim() ?? '';
+    return t !== '' ? t : EMPTY;
   };
   const map = new Map(r.rows.map((row) => [row.id, norm(row.display_name)]));
   return {

@@ -1,18 +1,21 @@
-import { and, eq, inArray, isNull, lt, sql } from "drizzle-orm";
-import type { OutboundProviderAlertClaim } from "@/modules/operator-health/ports";
-import { getDrizzle } from "@/app-layer/db/drizzle";
+import { and, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
+import type { OutboundProviderAlertClaim } from '@/modules/operator-health/ports';
+import { getDrizzle } from '@/app-layer/db/drizzle';
 import {
   integrationWebhookErrorEvents,
   operatorIncidents,
   operatorJobStatus,
-} from "../../../db/schema/operatorHealth";
+} from '../../../db/schema/operatorHealth';
 import {
   OPERATOR_MEDIA_JOB_FAMILY,
   OPERATOR_MEDIA_TRANSCODE_RECONCILE_JOB_KEY,
   OPERATOR_REMINDERS_JOB_FAMILY,
   OPERATOR_WEB_PUSH_ONLY_REMINDER_TICK_JOB_KEY,
-} from "@/modules/operator-health/reconcileJobKeys";
-import { CRITICAL_ALERT_CADENCE_INTEGRATION, type OperatorHealthWritePort } from "@/modules/operator-health/ports";
+} from '@/modules/operator-health/reconcileJobKeys';
+import {
+  CRITICAL_ALERT_CADENCE_INTEGRATION,
+  type OperatorHealthWritePort,
+} from '@/modules/operator-health/ports';
 
 const MAX_JOB_ERROR_CHARS = 2_048;
 
@@ -35,7 +38,7 @@ async function upsertOperatorJobSuccess(input: {
     .values({
       jobKey: input.jobKey,
       jobFamily: input.jobFamily,
-      lastStatus: "success",
+      lastStatus: 'success',
       lastStartedAt: input.startedAtIso,
       lastFinishedAt: finishedIso,
       lastSuccessAt: finishedIso,
@@ -48,7 +51,7 @@ async function upsertOperatorJobSuccess(input: {
       target: operatorJobStatus.jobKey,
       set: {
         jobFamily: input.jobFamily,
-        lastStatus: "success",
+        lastStatus: 'success',
         lastStartedAt: input.startedAtIso,
         lastFinishedAt: finishedIso,
         lastSuccessAt: finishedIso,
@@ -78,7 +81,7 @@ async function upsertOperatorJobFailure(input: {
     .values({
       jobKey: input.jobKey,
       jobFamily: input.jobFamily,
-      lastStatus: "failure",
+      lastStatus: 'failure',
       lastStartedAt: input.startedAtIso,
       lastFinishedAt: finishedIso,
       lastSuccessAt: null,
@@ -91,7 +94,7 @@ async function upsertOperatorJobFailure(input: {
       target: operatorJobStatus.jobKey,
       set: {
         jobFamily: input.jobFamily,
-        lastStatus: "failure",
+        lastStatus: 'failure',
         lastStartedAt: input.startedAtIso,
         lastFinishedAt: finishedIso,
         lastFailureAt: finishedIso,
@@ -185,11 +188,13 @@ export const pgOperatorHealthWritePort: OperatorHealthWritePort = {
         alertClaimToken: null,
         alertClaimedAt: null,
       })
-      .where(and(
-        isNull(operatorIncidents.resolvedAt),
-        isNull(operatorIncidents.acknowledgedAt),
-        eq(operatorIncidents.direction, "outbound_delivery_provider"),
-      ))
+      .where(
+        and(
+          isNull(operatorIncidents.resolvedAt),
+          isNull(operatorIncidents.acknowledgedAt),
+          eq(operatorIncidents.direction, 'outbound_delivery_provider'),
+        ),
+      )
       .returning({ id: operatorIncidents.id });
     return { acknowledged: rows.length };
   },
@@ -210,7 +215,7 @@ export const pgOperatorHealthWritePort: OperatorHealthWritePort = {
       acknowledged_at: string | null;
       initial_alert_sent_at: string | null;
       one_hour_alert_sent_at: string | null;
-      phase: "initial" | "one_hour_repeat";
+      phase: 'initial' | 'one_hour_repeat';
     };
     const result = await db.execute<ClaimedRow>(sql`
       WITH due AS (
@@ -274,9 +279,10 @@ export const pgOperatorHealthWritePort: OperatorHealthWritePort = {
 
   async completeOutboundProviderAlertClaim(input) {
     const db = getDrizzle();
-    const sentField = input.phase === "initial"
-      ? { initialAlertSentAt: input.sentAtIso }
-      : { oneHourAlertSentAt: input.sentAtIso };
+    const sentField =
+      input.phase === 'initial'
+        ? { initialAlertSentAt: input.sentAtIso }
+        : { oneHourAlertSentAt: input.sentAtIso };
     const rows = await db
       .update(operatorIncidents)
       .set({
@@ -286,13 +292,15 @@ export const pgOperatorHealthWritePort: OperatorHealthWritePort = {
         alertClaimToken: null,
         alertClaimedAt: null,
       })
-      .where(and(
-        eq(operatorIncidents.id, input.incidentId),
-        eq(operatorIncidents.alertClaimToken, input.claimToken),
-        eq(operatorIncidents.alertClaimPhase, input.phase),
-        isNull(operatorIncidents.resolvedAt),
-        isNull(operatorIncidents.acknowledgedAt),
-      ))
+      .where(
+        and(
+          eq(operatorIncidents.id, input.incidentId),
+          eq(operatorIncidents.alertClaimToken, input.claimToken),
+          eq(operatorIncidents.alertClaimPhase, input.phase),
+          isNull(operatorIncidents.resolvedAt),
+          isNull(operatorIncidents.acknowledgedAt),
+        ),
+      )
       .returning({ id: operatorIncidents.id });
     return rows.length === 1;
   },
@@ -302,10 +310,12 @@ export const pgOperatorHealthWritePort: OperatorHealthWritePort = {
     const rows = await db
       .update(operatorIncidents)
       .set({ alertClaimPhase: null, alertClaimToken: null, alertClaimedAt: null })
-      .where(and(
-        eq(operatorIncidents.id, input.incidentId),
-        eq(operatorIncidents.alertClaimToken, input.claimToken),
-      ))
+      .where(
+        and(
+          eq(operatorIncidents.id, input.incidentId),
+          eq(operatorIncidents.alertClaimToken, input.claimToken),
+        ),
+      )
       .returning({ id: operatorIncidents.id });
     return rows.length === 1;
   },
@@ -330,7 +340,7 @@ export const pgOperatorHealthWritePort: OperatorHealthWritePort = {
         dedupKey: input.dedupKey,
         direction: input.direction,
         integration: CRITICAL_ALERT_CADENCE_INTEGRATION,
-        errorClass: "critical",
+        errorClass: 'critical',
         errorDetail: input.errorDetail ?? null,
         openedAt: input.nowIso,
         lastSeenAt: input.nowIso,
@@ -341,13 +351,14 @@ export const pgOperatorHealthWritePort: OperatorHealthWritePort = {
         set: {
           lastSeenAt: input.nowIso,
           occurrenceCount: sql`${operatorIncidents.occurrenceCount} + 1`,
-          errorDetail: sql`coalesce(excluded.error_detail, ${operatorIncidents.errorDetail})` as unknown as string,
+          errorDetail:
+            sql`coalesce(excluded.error_detail, ${operatorIncidents.errorDetail})` as unknown as string,
         },
       })
       .returning({ id: operatorIncidents.id, openedAt: operatorIncidents.openedAt });
     const row = rows[0];
     if (!row) {
-      throw new Error("openOrTouchCriticalAlertIncident: empty returning");
+      throw new Error('openOrTouchCriticalAlertIncident: empty returning');
     }
     return { id: row.id, openedAt: row.openedAt };
   },
@@ -368,7 +379,7 @@ export const pgOperatorHealthWritePort: OperatorHealthWritePort = {
       acknowledged_at: string | null;
       initial_alert_sent_at: string | null;
       one_hour_alert_sent_at: string | null;
-      phase: "initial" | "one_hour_repeat";
+      phase: 'initial' | 'one_hour_repeat';
     };
     // Same due/claim shape as `claimDueOutboundProviderAlert`, narrowed to ONE known incident id
     // instead of a direction-filtered scan — the critical tick already knows which row it just
@@ -457,10 +468,7 @@ export const pgOperatorHealthWritePort: OperatorHealthWritePort = {
     const rows = await db
       .delete(integrationWebhookErrorEvents)
       .where(
-        lt(
-          integrationWebhookErrorEvents.occurredAt,
-          sql`now() - (${h}::int * interval '1 hour')`,
-        ),
+        lt(integrationWebhookErrorEvents.occurredAt, sql`now() - (${h}::int * interval '1 hour')`),
       )
       .returning({ id: integrationWebhookErrorEvents.id });
     return { deleted: rows.length };

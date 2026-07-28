@@ -1,4 +1,4 @@
-import type { RuntimeSettingsRepository } from "@/modules/system-settings/ports";
+import type { RuntimeSettingsRepository } from '@/modules/system-settings/ports';
 
 export const inMemoryAppRuntimeSettingsPort: RuntimeSettingsRepository = {
   async getEffective() {

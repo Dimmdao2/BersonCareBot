@@ -1,10 +1,10 @@
-import { eq, sql } from "drizzle-orm";
-import { getDrizzle } from "@/app-layer/db/drizzle";
+import { eq, sql } from 'drizzle-orm';
+import { getDrizzle } from '@/app-layer/db/drizzle';
 import type {
   NotificationTopicMasterRow,
   PatientNotificationTopicsPort,
-} from "@/modules/patient-notifications/patientNotificationTopicsPort";
-import { userNotificationTopics } from "../../../db/schema/schema";
+} from '@/modules/patient-notifications/patientNotificationTopicsPort';
+import { userNotificationTopics } from '../../../db/schema/schema';
 
 export function createPgPatientNotificationTopicsPort(): PatientNotificationTopicsPort {
   return {

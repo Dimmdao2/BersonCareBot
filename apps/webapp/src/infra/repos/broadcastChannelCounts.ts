@@ -5,17 +5,17 @@
  * Этап 4a (2026-06-13) — добавлены реальные счётчики telegram/max/push/email.
  * getChannelCountsByUserIds uses getPool() for array param binding (Drizzle ANY array workaround).
  */
-import { sql } from "drizzle-orm";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { getPool } from "@/infra/db/client";
+import { sql } from 'drizzle-orm';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { getPool } from '@/infra/db/client';
 import type {
   BroadcastChannelCounts,
   BroadcastChannelCountsPort,
-} from "@/modules/doctor-broadcasts/draftPort";
+} from '@/modules/doctor-broadcasts/draftPort';
 
 export function createPgBroadcastChannelCountsPort(): BroadcastChannelCountsPort {
   const parse = (r: { rows: unknown[] }) =>
-    parseInt(((r.rows[0] as { cnt: string } | undefined)?.cnt ?? "0"), 10);
+    parseInt((r.rows[0] as { cnt: string } | undefined)?.cnt ?? '0', 10);
 
   return {
     async getChannelConnectionCounts(): Promise<BroadcastChannelCounts> {
@@ -72,8 +72,7 @@ export function createPgBroadcastChannelCountsPort(): BroadcastChannelCountsPort
       }
       const pool = getPool();
       const ids = [...userIds];
-      const parsePool = (r: { rows: { cnt: string }[] }) =>
-        parseInt(r.rows[0]?.cnt ?? "0", 10);
+      const parsePool = (r: { rows: { cnt: string }[] }) => parseInt(r.rows[0]?.cnt ?? '0', 10);
       const [tgResult, maxResult, smsResult, pushResult, emailResult] = await Promise.all([
         pool.query<{ cnt: string }>(
           `SELECT COUNT(DISTINCT user_id)::text AS cnt FROM user_channel_bindings WHERE channel_code = 'telegram' AND user_id = ANY($1::uuid[])`,

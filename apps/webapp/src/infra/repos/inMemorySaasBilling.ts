@@ -3,7 +3,7 @@ import type {
   SaasBillingProviderEventReadRow,
   SaasBillingRepositoryPort,
   SaasBillingSubscription,
-} from "@/modules/saas-billing/ports";
+} from '@/modules/saas-billing/ports';
 
 export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort {
   const rows = new Map<string, SaasBillingSubscription>();
@@ -20,7 +20,7 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
           .filter((row) => row.organizationId === organizationId)
           .map((row) => ({
             ...row,
-            cancelledAt: row.status === "cancelled" ? now : null,
+            cancelledAt: row.status === 'cancelled' ? now : null,
             createdAt: now,
             updatedAt: now,
           })),
@@ -28,13 +28,11 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
           .filter((row) => row.organizationId === organizationId)
           .map((row) => ({
             ...row,
-            paidAt: row.status === "paid" ? now : null,
+            paidAt: row.status === 'paid' ? now : null,
             createdAt: now,
             updatedAt: now,
           })),
-        providerEvents: [...events.values()].filter(
-          (row) => row.organizationId === organizationId,
-        ),
+        providerEvents: [...events.values()].filter((row) => row.organizationId === organizationId),
       };
     },
 
@@ -46,8 +44,8 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
             organization: {
               tariffId: organizationTariffs.get(organizationId) ?? null,
               commercialAccessState: organizationTariffs.get(organizationId)
-                ? "active"
-                : "no_trial",
+                ? 'active'
+                : 'no_trial',
             },
             activeTrial: null,
             manualSaasBillingSubscription: manual
@@ -59,7 +57,7 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
         async setManualSaasBillingSubscription({ organizationId, tariffId }) {
           if (tariffId === null) {
             const current = rows.get(organizationId);
-            if (current) rows.set(organizationId, { ...current, status: "cancelled" });
+            if (current) rows.set(organizationId, { ...current, status: 'cancelled' });
             return;
           }
           const current = rows.get(organizationId);
@@ -68,9 +66,9 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
             organizationId,
             saasBillingAccountId: current?.saasBillingAccountId ?? crypto.randomUUID(),
             tariffId,
-            source: "manual",
-            status: "active",
-            lifecycleState: "active",
+            source: 'manual',
+            status: 'active',
+            lifecycleState: 'active',
             providerId: null,
             savedPaymentMethodId: null,
             currentPeriodStartsAt: null,
@@ -83,11 +81,11 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
           organizationTariffs.set(organizationId, tariffId);
           return {
             tariffId,
-            commercialAccessState: tariffId ? "active" : "no_trial",
+            commercialAccessState: tariffId ? 'active' : 'no_trial',
           };
         },
         async endActiveTrial() {
-          throw new Error("in_memory_saas_billing_trial_missing");
+          throw new Error('in_memory_saas_billing_trial_missing');
         },
         async appendManualAssignmentAudit() {},
       });
@@ -96,23 +94,22 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
     async createSaasBillingInvoice(input) {
       const authority = [...rows.values()].find(
         (row) =>
-          row.id === input.saasBillingSubscriptionId &&
-          row.organizationId === input.organizationId,
+          row.id === input.saasBillingSubscriptionId && row.organizationId === input.organizationId,
       );
-      if (!authority) throw new Error("saas_billing_subscription_not_found");
+      if (!authority) throw new Error('saas_billing_subscription_not_found');
       const row: SaasBillingInvoice = {
         id: crypto.randomUUID(),
         organizationId: authority.organizationId,
         saasBillingAccountId: authority.saasBillingAccountId,
         saasBillingSubscriptionId: authority.id,
         tariffId: authority.tariffId,
-        tariffName: "In-memory tariff",
+        tariffName: 'In-memory tariff',
         amountMinor: 0,
-        currency: "RUB",
-        tariffBillingPeriod: "month",
+        currency: 'RUB',
+        tariffBillingPeriod: 'month',
         servicePeriodStartsAt: input.servicePeriodStartsAt,
         servicePeriodEndsAt: input.servicePeriodEndsAt,
-        status: "draft",
+        status: 'draft',
         providerId: input.providerId,
         providerInvoiceRef: null,
         providerCheckoutUrl: null,
@@ -124,12 +121,12 @@ export function createInMemorySaasBillingRepository(): SaasBillingRepositoryPort
 
     async attachSaasBillingInvoiceProviderIntent(input) {
       const current = invoices.get(input.saasBillingInvoiceId);
-      if (!current) throw new Error("saas_billing_invoice_not_found");
+      if (!current) throw new Error('saas_billing_invoice_not_found');
       const row: SaasBillingInvoice = {
         ...current,
         providerInvoiceRef: input.providerInvoiceRef,
         providerCheckoutUrl: input.providerCheckoutUrl,
-        status: "pending",
+        status: 'pending',
       };
       invoices.set(row.id, row);
       return row;

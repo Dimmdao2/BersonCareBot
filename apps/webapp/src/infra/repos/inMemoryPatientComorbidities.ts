@@ -2,20 +2,20 @@
  * In-memory implementation of PatientComorbiditiesPort — for Vitest / CI without a DB.
  */
 
-import { randomUUID } from "node:crypto";
+import { randomUUID } from 'node:crypto';
 import type {
   AddComorbidityInput,
   Comorbidity,
   EditComorbidityTextInput,
   PatientComorbiditiesPort,
-} from "@/modules/patient-comorbidities/ports";
+} from '@/modules/patient-comorbidities/ports';
 
 type ComorbidityRow = {
   id: string;
   patientUserId: string;
   text: string;
   since: string | null;
-  status: "active" | "removed";
+  status: 'active' | 'removed';
   createdBy: string;
   createdAt: string;
   removedAt: string | null;
@@ -42,14 +42,10 @@ function toComorbidity(r: ComorbidityRow): Comorbidity {
 export const inMemoryPatientComorbiditiesPort: PatientComorbiditiesPort = {
   async listByPatient(
     patientUserId: string,
-    status: "active" | "removed" | "all",
+    status: 'active' | 'removed' | 'all',
   ): Promise<Comorbidity[]> {
     return rows
-      .filter(
-        (r) =>
-          r.patientUserId === patientUserId &&
-          (status === "all" || r.status === status),
-      )
+      .filter((r) => r.patientUserId === patientUserId && (status === 'all' || r.status === status))
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
       .map(toComorbidity);
   },
@@ -60,7 +56,7 @@ export const inMemoryPatientComorbiditiesPort: PatientComorbiditiesPort = {
       patientUserId: input.patientUserId,
       text: input.text,
       since: input.since ?? null,
-      status: "active",
+      status: 'active',
       createdBy: input.createdBy,
       createdAt: new Date().toISOString(),
       removedAt: null,
@@ -80,21 +76,17 @@ export const inMemoryPatientComorbiditiesPort: PatientComorbiditiesPort = {
   },
 
   async markRemoved(patientUserId: string, comorbidityId: string): Promise<boolean> {
-    const row = rows.find(
-      (r) => r.id === comorbidityId && r.patientUserId === patientUserId,
-    );
-    if (!row || row.status === "removed") return false;
-    row.status = "removed";
+    const row = rows.find((r) => r.id === comorbidityId && r.patientUserId === patientUserId);
+    if (!row || row.status === 'removed') return false;
+    row.status = 'removed';
     row.removedAt = new Date().toISOString();
     return true;
   },
 
   async restore(patientUserId: string, comorbidityId: string): Promise<boolean> {
-    const row = rows.find(
-      (r) => r.id === comorbidityId && r.patientUserId === patientUserId,
-    );
-    if (!row || row.status === "active") return false;
-    row.status = "active";
+    const row = rows.find((r) => r.id === comorbidityId && r.patientUserId === patientUserId);
+    if (!row || row.status === 'active') return false;
+    row.status = 'active';
     row.removedAt = null;
     return true;
   },

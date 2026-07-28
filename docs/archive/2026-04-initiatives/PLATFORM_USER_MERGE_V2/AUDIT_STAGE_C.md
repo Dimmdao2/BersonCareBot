@@ -13,12 +13,12 @@
 
 В [`MASTER_PLAN.md`](MASTER_PLAN.md) (раздел **Readiness gates**, строки с `[x]`):
 
-| # | Gate (смысл) | Факт в репо | Вердикт |
-|---|----------------|-------------|---------|
-| 1 | Нет loser `integrator_user_id` в webapp projection по [`sql/README.md`](sql/README.md) | Реализация + job/SQL + [`AUDIT_STAGE_4.md`](AUDIT_STAGE_4.md); **per-merge** на production — шаблон и обязанность оператора в [`STAGE_C_CLOSEOUT.md`](STAGE_C_CLOSEOUT.md) §4 | **PASS** (репозиторий + задокументированная операторская проверка) |
-| 2 | `projection_outbox`: `idempotency_key`, pending без «ломающих» loser-only ключей | Код merge + [`AUDIT_STAGE_3.md`](AUDIT_STAGE_3.md), `projection-health.mjs`; **per-merge** на production — SQL в `STAGE_C_CLOSEOUT` §4 | **PASS** |
-| 3 | E2e два integrator id → merge → канон в webapp | Репозиторно: stub-flow + route/API тесты (см. `STAGE_C_CLOSEOUT`, [`AUDIT_STAGE_5.md`](AUDIT_STAGE_5.md)); полный UI/две БД — опционально (MANDATORY §5 в Stage 5 audit) | **PASS** по принятому контракту closeout |
-| 4 | `pnpm run ci` + targeted ingestion/merge/purge | Зафиксировано в `STAGE_C_CLOSEOUT` + подтверждено повторным прогоном ниже | **PASS** |
+| #   | Gate (смысл)                                                                           | Факт в репо                                                                                                                                                                   | Вердикт                                                            |
+| --- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| 1   | Нет loser `integrator_user_id` в webapp projection по [`sql/README.md`](sql/README.md) | Реализация + job/SQL + [`AUDIT_STAGE_4.md`](AUDIT_STAGE_4.md); **per-merge** на production — шаблон и обязанность оператора в [`STAGE_C_CLOSEOUT.md`](STAGE_C_CLOSEOUT.md) §4 | **PASS** (репозиторий + задокументированная операторская проверка) |
+| 2   | `projection_outbox`: `idempotency_key`, pending без «ломающих» loser-only ключей       | Код merge + [`AUDIT_STAGE_3.md`](AUDIT_STAGE_3.md), `projection-health.mjs`; **per-merge** на production — SQL в `STAGE_C_CLOSEOUT` §4                                        | **PASS**                                                           |
+| 3   | E2e два integrator id → merge → канон в webapp                                         | Репозиторно: stub-flow + route/API тесты (см. `STAGE_C_CLOSEOUT`, [`AUDIT_STAGE_5.md`](AUDIT_STAGE_5.md)); полный UI/две БД — опционально (MANDATORY §5 в Stage 5 audit)      | **PASS** по принятому контракту closeout                           |
+| 4   | `pnpm run ci` + targeted ingestion/merge/purge                                         | Зафиксировано в `STAGE_C_CLOSEOUT` + подтверждено повторным прогоном ниже                                                                                                     | **PASS**                                                           |
 
 **Итог §1:** все четыре gate **закрыты** в смысле, зафиксированном в `MASTER_PLAN` и `STAGE_C_CLOSEOUT` (явное разделение **репозиторного** evidence и **операторского** вывода SQL на production после каждой реальной пары merge).
 
@@ -26,15 +26,15 @@
 
 ## 2) Синхронизация документации (README, ARCHITECTURE, runbook, stage docs)
 
-| Документ | Проверка | Вердикт |
-|----------|----------|---------|
-| [`docs/README.md`](../README.md) | Инициатива v2: `MASTER_PLAN`, `AGENT_EXECUTION_LOG`, `CUTOVER_RUNBOOK`, `STAGE_C_CLOSEOUT`, `AUDIT_STAGE_C` | **PASS** |
-| [`README.md`](README.md) (пакет v2) | Оглавление: stages, `STAGE_C_CLOSEOUT`, `AUDIT_STAGE_C`, runbook, sql | **PASS** |
-| [`../ARCHITECTURE/PLATFORM_USER_MERGE.md`](../ARCHITECTURE/PLATFORM_USER_MERGE.md) | Статус v2, ссылки на closeout/runbook/sql, § ограничений v1/v2 | **PASS** |
-| [`CUTOVER_RUNBOOK.md`](CUTOVER_RUNBOOK.md) | psql-префикс `source` env, health, Deploy 3/4, rollback | **PASS** |
-| [`STAGE_C_CLOSEOUT.md`](STAGE_C_CLOSEOUT.md) | Чек-листы `[x]`, closure report | **PASS** |
-| [`MASTER_PLAN.md`](MASTER_PLAN.md) | Gates `[x]`, блок **Статус инициативы (Stage C)** | **PASS** |
-| [`AGENT_EXECUTION_LOG.md`](AGENT_EXECUTION_LOG.md) | Запись «Stage C: закрытие инициативы v2» | **PASS** |
+| Документ                                                                           | Проверка                                                                                                    | Вердикт  |
+| ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | -------- |
+| [`docs/README.md`](../README.md)                                                   | Инициатива v2: `MASTER_PLAN`, `AGENT_EXECUTION_LOG`, `CUTOVER_RUNBOOK`, `STAGE_C_CLOSEOUT`, `AUDIT_STAGE_C` | **PASS** |
+| [`README.md`](README.md) (пакет v2)                                                | Оглавление: stages, `STAGE_C_CLOSEOUT`, `AUDIT_STAGE_C`, runbook, sql                                       | **PASS** |
+| [`../ARCHITECTURE/PLATFORM_USER_MERGE.md`](../ARCHITECTURE/PLATFORM_USER_MERGE.md) | Статус v2, ссылки на closeout/runbook/sql, § ограничений v1/v2                                              | **PASS** |
+| [`CUTOVER_RUNBOOK.md`](CUTOVER_RUNBOOK.md)                                         | psql-префикс `source` env, health, Deploy 3/4, rollback                                                     | **PASS** |
+| [`STAGE_C_CLOSEOUT.md`](STAGE_C_CLOSEOUT.md)                                       | Чек-листы `[x]`, closure report                                                                             | **PASS** |
+| [`MASTER_PLAN.md`](MASTER_PLAN.md)                                                 | Gates `[x]`, блок **Статус инициативы (Stage C)**                                                           | **PASS** |
+| [`AGENT_EXECUTION_LOG.md`](AGENT_EXECUTION_LOG.md)                                 | Запись «Stage C: закрытие инициативы v2»                                                                    | **PASS** |
 
 **Итог §2:** **PASS** (замечание про отсутствие прямых ссылок на closeout/audit в `docs/README.md` **устранено** — см. [§6](#6-история-аудита), MANDATORY §3).
 
@@ -71,11 +71,11 @@ pnpm run ci
 
 ## 5) Сводный verdict
 
-| Критерий запроса аудита | Статус |
-|-------------------------|--------|
-| 1) Все readiness gates из `MASTER_PLAN` закрыты | **PASS** |
+| Критерий запроса аудита                                              | Статус   |
+| -------------------------------------------------------------------- | -------- |
+| 1) Все readiness gates из `MASTER_PLAN` закрыты                      | **PASS** |
 | 2) Доки синхронизированы (README, ARCHITECTURE, runbook, stage docs) | **PASS** |
-| 3) Closure report полный и проверяемый | **PASS** |
+| 3) Closure report полный и проверяемый                               | **PASS** |
 
 **Общий verdict Stage C:** **PASS** — инициатива v2 закрыта в репозитории; операционная проверка данных на production остаётся по `STAGE_C_CLOSEOUT` §4 и `CUTOVER_RUNBOOK`.
 
@@ -83,13 +83,13 @@ pnpm run ci
 
 ## 6) История аудита
 
-| Дата | Событие |
-|------|---------|
-| 2026-04-10 | Первичный аудит: REWORK_REQUIRED (нет closeout evidence) |
-| 2026-04-10 | Выполнение Stage C: `STAGE_C_CLOSEOUT`, `MASTER_PLAN`, follow-up `AUDIT_STAGE_C` |
-| 2026-04-10 | Текущий прогон: подтверждение трёх критериев + повторный `pnpm run ci` |
+| Дата       | Событие                                                                                                                             |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-04-10 | Первичный аудит: REWORK_REQUIRED (нет closeout evidence)                                                                            |
+| 2026-04-10 | Выполнение Stage C: `STAGE_C_CLOSEOUT`, `MASTER_PLAN`, follow-up `AUDIT_STAGE_C`                                                    |
+| 2026-04-10 | Текущий прогон: подтверждение трёх критериев + повторный `pnpm run ci`                                                              |
 | 2026-04-10 | Follow-up: [`docs/README.md`](../README.md) — добавлены ссылки на `STAGE_C_CLOSEOUT.md`, `AUDIT_STAGE_C.md` (закрытие MANDATORY §3) |
-| 2026-04-10 | Hardening follow-up: обновлены CI counts и evidence wording после закрытия `AUDIT_INDEPENDENT.md` |
+| 2026-04-10 | Hardening follow-up: обновлены CI counts и evidence wording после закрытия `AUDIT_INDEPENDENT.md`                                   |
 
 ---
 

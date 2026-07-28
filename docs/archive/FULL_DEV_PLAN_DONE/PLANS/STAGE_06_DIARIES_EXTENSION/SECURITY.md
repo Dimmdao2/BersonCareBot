@@ -4,11 +4,11 @@
 
 ## API справочников
 
-| Маршрут | Модель доверия |
-|--------|----------------|
-| `GET /api/references/[categoryCode]` | Публичный read-only список **активных** пунктов. Категория должна существовать в `reference_categories`; иначе **404** (`category_not_found`), чтобы не перечислять произвольные строки. |
-| `POST /api/doctor/references/[categoryCode]` | Только сессия с ролью **doctor** или **admin** (`canAccessDoctor`). Добавление только в категории с `is_user_extensible = true`. |
-| `PATCH /api/admin/references/[itemId]/archive` | Только роль **admin**; soft-delete (`is_active = false`). |
+| Маршрут                                        | Модель доверия                                                                                                                                                                           |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/references/[categoryCode]`           | Публичный read-only список **активных** пунктов. Категория должна существовать в `reference_categories`; иначе **404** (`category_not_found`), чтобы не перечислять произвольные строки. |
+| `POST /api/doctor/references/[categoryCode]`   | Только сессия с ролью **doctor** или **admin** (`canAccessDoctor`). Добавление только в категории с `is_user_extensible = true`.                                                         |
+| `PATCH /api/admin/references/[itemId]/archive` | Только роль **admin**; soft-delete (`is_active = false`).                                                                                                                                |
 
 Запросы к БД — параметризованные (`$1`, …).
 

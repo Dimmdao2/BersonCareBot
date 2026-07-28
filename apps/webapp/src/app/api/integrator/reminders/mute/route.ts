@@ -1,8 +1,8 @@
-import { NextResponse } from "next/server";
-import { verifyIntegratorSignature } from "@/app-layer/integrator/verifyIntegratorSignature";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getPool } from "@/app-layer/db/client";
-import { findCanonicalUserIdByIntegratorId } from "@/app-layer/platform-user/canonicalPlatformUser";
+import { NextResponse } from 'next/server';
+import { verifyIntegratorSignature } from '@/app-layer/integrator/verifyIntegratorSignature';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { getPool } from '@/app-layer/db/client';
+import { findCanonicalUserIdByIntegratorId } from '@/app-layer/platform-user/canonicalPlatformUser';
 
 type Body = {
   integratorUserId?: unknown;
@@ -10,40 +10,47 @@ type Body = {
 };
 
 function parseBody(raw: unknown): { ok: true; data: Body } | { ok: false; error: string } {
-  if (typeof raw !== "object" || raw === null) return { ok: false, error: "invalid payload" };
+  if (typeof raw !== 'object' || raw === null) return { ok: false, error: 'invalid payload' };
   const o = raw as Body;
   const integratorUserId =
-    typeof o.integratorUserId === "string" && o.integratorUserId.trim().length > 0
+    typeof o.integratorUserId === 'string' && o.integratorUserId.trim().length > 0
       ? o.integratorUserId.trim()
       : null;
-  if (!integratorUserId) return { ok: false, error: "integratorUserId required" };
-  if (!("mutedUntilIso" in o)) return { ok: false, error: "mutedUntilIso required" };
-  if (o.mutedUntilIso !== null && (typeof o.mutedUntilIso !== "string" || !o.mutedUntilIso.trim())) {
-    return { ok: false, error: "mutedUntilIso must be null or non-empty ISO string" };
+  if (!integratorUserId) return { ok: false, error: 'integratorUserId required' };
+  if (!('mutedUntilIso' in o)) return { ok: false, error: 'mutedUntilIso required' };
+  if (
+    o.mutedUntilIso !== null &&
+    (typeof o.mutedUntilIso !== 'string' || !o.mutedUntilIso.trim())
+  ) {
+    return { ok: false, error: 'mutedUntilIso must be null or non-empty ISO string' };
   }
   const mutedUntilIso =
-    o.mutedUntilIso === null ? null : typeof o.mutedUntilIso === "string" ? o.mutedUntilIso.trim() : null;
+    o.mutedUntilIso === null
+      ? null
+      : typeof o.mutedUntilIso === 'string'
+        ? o.mutedUntilIso.trim()
+        : null;
   return { ok: true, data: { integratorUserId, mutedUntilIso } };
 }
 
 export async function POST(request: Request) {
-  const timestamp = request.headers.get("x-bersoncare-timestamp");
-  const signature = request.headers.get("x-bersoncare-signature");
+  const timestamp = request.headers.get('x-bersoncare-timestamp');
+  const signature = request.headers.get('x-bersoncare-signature');
   const rawBody = await request.text();
 
   if (!timestamp || !signature) {
-    return NextResponse.json({ ok: false, error: "missing webhook headers" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'missing webhook headers' }, { status: 400 });
   }
 
   if (!verifyIntegratorSignature(timestamp, rawBody, signature, request)) {
-    return NextResponse.json({ ok: false, error: "invalid signature" }, { status: 401 });
+    return NextResponse.json({ ok: false, error: 'invalid signature' }, { status: 401 });
   }
 
   let json: unknown;
   try {
     json = JSON.parse(rawBody) as unknown;
   } catch {
-    return NextResponse.json({ ok: false, error: "invalid json" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid json' }, { status: 400 });
   }
 
   const parsed = parseBody(json);
@@ -60,7 +67,7 @@ export async function POST(request: Request) {
   const pool = getPool();
   const platformUserId = await findCanonicalUserIdByIntegratorId(pool, integratorUserId);
   if (!platformUserId) {
-    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
 
   await deps.reminders.setReminderMutedUntil(platformUserId, mutedUntilIso);

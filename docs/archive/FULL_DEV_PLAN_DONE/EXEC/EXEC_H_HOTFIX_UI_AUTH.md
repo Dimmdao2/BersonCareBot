@@ -13,11 +13,12 @@ CI: `pnpm run ci` после каждого шага.
 **Файл**: `apps/webapp/src/modules/auth/phoneNormalize.ts`
 
 Текущая логика:
+
 ```typescript
 export function normalizePhone(phone: string): string {
-  let digits = phone.replace(/\D/g, "");
-  if (digits.length === 11 && digits.startsWith("8")) digits = "7" + digits.slice(1);
-  if (digits.length >= 10 && digits.startsWith("7")) return `+${digits}`;
+  let digits = phone.replace(/\D/g, '');
+  if (digits.length === 11 && digits.startsWith('8')) digits = '7' + digits.slice(1);
+  if (digits.length >= 10 && digits.startsWith('7')) return `+${digits}`;
   if (digits.length >= 10) return `+7${digits}`;
   return `+${digits}`;
 }
@@ -39,9 +40,10 @@ export function normalizePhone(phone: string): string {
    - **Уже работает**, но надо добавить unit-тесты для всех вариантов.
 
 2. **PhoneInput.tsx** — валидация: проверять `n.length < 12` (длина нормализованного `+7XXXXXXXXXX` = 12), а не `< 10`:
+
    ```typescript
-   if (n.length < 12 || !n.startsWith("+7")) {
-     setError("Введите корректный номер (10 цифр)");
+   if (n.length < 12 || !n.startsWith('+7')) {
+     setError('Введите корректный номер (10 цифр)');
      return;
    }
    ```
@@ -72,11 +74,13 @@ export function normalizePhone(phone: string): string {
 **Файлы**: `AuthFlowV2.tsx`, `MethodPicker.tsx`, `PinInput.tsx`
 
 **Текущий flow**:
+
 ```
 phone → check-phone → [new_user: SMS] / [existing: MethodPicker (PIN/Telegram/Max/SMS)]
 ```
 
 **Новый flow**:
+
 ```
 phone → check-phone →
   [new_user]: сразу отправляем SMS → экран ввода кода
@@ -87,6 +91,7 @@ phone → check-phone →
 ```
 
 **Экран выбора канала** (заменяет текущий MethodPicker):
+
 - Заголовок: "Выберите, где вам удобно получить код для входа:"
 - Кнопки (только если привязаны):
   1. **Telegram** (Button variant="secondary")
@@ -97,9 +102,11 @@ phone → check-phone →
 **Изменения в коде**:
 
 1. **`AuthFlowV2.tsx`** — добавить новые steps:
+
    ```
    Steps: "phone" | "new_user_sms" | "pin" | "choose_channel" | "code" | "messenger_wait"
    ```
+
    - Убрать step `"methods"`.
    - При `exists && methods.pin` → step `"pin"`.
    - При `exists && !methods.pin` → step `"choose_channel"`.
@@ -136,12 +143,14 @@ phone → check-phone →
 **Текущее**: `startSms` всегда вызывает `POST /api/auth/phone/start` → integrator → SMS.
 
 **Целевое**:
+
 - При выборе Telegram → отправить OTP код через бота в Telegram (не deep-link login, а именно код).
 - При выборе Max → отправить OTP код через бота в Max.
 - При выборе Email → отправить OTP код на email (уже есть `emailAuth.ts`).
 - При выборе SMS → как сейчас.
 
 **Реализация**:
+
 1. Новый API: `POST /api/auth/otp/start` (или расширить `phone/start`):
    ```json
    { "phone": "+7...", "deliveryChannel": "sms" | "telegram" | "max" | "email" }
@@ -155,6 +164,7 @@ phone → check-phone →
 5. Под полем кода — после попытки через мессенджер/email, добавить кнопку "отправить на СМС" (variant="link").
 
 **Integrator**: нужен новый маршрут `POST /api/bersoncare/send-otp`:
+
 - Принимает: `{ channel, recipientId, code }`.
 - Для telegram: отправляет сообщение через бота с текстом "Код для входа в BersonCare: XXXXXX".
 - Для max: аналогично через Max bot.
@@ -165,6 +175,7 @@ phone → check-phone →
 **Файл**: `apps/webapp/src/shared/ui/auth/PostLoginSuggestion.tsx` (уже существует)
 
 Добавить логику:
+
 - Если вход был через SMS (не через PIN) и у пользователя нет PIN → "Создайте PIN-код для быстрого входа".
 - Если вход был через SMS и нет привязанных мессенджеров → "Привяжите Telegram для восстановления доступа".
 - Если вход через SMS и PIN есть → "Обновите PIN-код" (опционально).
@@ -185,6 +196,7 @@ phone → check-phone →
 Пользователь сообщает: "пропали поля от края экрана".
 
 **Текущие значения**:
+
 - Patient shell: `px-4` (16px) — `AppShell.tsx` line 45
 - PatientHeader: `-mx-4 px-3` — header на 3px, но bleed на -4
 - Doctor shell: `px-3 md:px-4` (12–16px)
@@ -194,6 +206,7 @@ phone → check-phone →
 ### H.2.2 Что исправить
 
 1. **PatientHeader** — сделать `px-4` вместо `px-3`:
+
    ```
    className="sticky top-0 z-40 -mx-4 mb-4 border-b border-border/60 bg-[var(--patient-surface)] px-4 py-2 shadow-sm"
    ```
@@ -286,18 +299,18 @@ phone → check-phone →
 
 ### H.5.2 Известные отклонения (из RAW_PLAN)
 
-| # | Страница | RAW_PLAN | Текущее | Задача |
-|---|----------|----------|---------|--------|
-| 1 | Главная (patient) | Кабинет: Дневник, Мои записи, ЛФК(скрыт) | Дневник симптомов и ЛФК разбиты | H.4 |
-| 2 | Главная (patient) | Блок «Уведомления»: кнопка «просмотрено» скрывает | Проверить наличие кнопки | Проверить |
-| 3 | Профиль | ФИО/телефон/email — inline edit, кнопка «изменить» | Проверить все поля | Проверить |
-| 4 | Настройки уведомлений | Заголовок «Подписки на уведомления», выбор SMS/email | Проверить | Проверить |
-| 5 | Мои записи | Статусы цветные, виджет Rubitime, инфо-блок (адрес, подготовка) | Проверить | Проверить |
-| 6 | Дневник | Две вкладки: «Симптомы» и «ЛФК» | Проверить | Проверить |
-| 7 | Сообщения (patient) | Пузырики чата, даты, время, пустое состояние | Проверить | Проверить |
-| 8 | Дашборд доктора | Плитка: пациенты, записи | Проверить | Проверить |
-| 9 | Клиенты (doctor) | Карточка: ФИО, контакты-кнопки, записи | Проверить | Проверить |
-| 10 | CMS | Markdown-редактор, медиа-загрузка | Проверить | Проверить |
+| #   | Страница              | RAW_PLAN                                                        | Текущее                         | Задача    |
+| --- | --------------------- | --------------------------------------------------------------- | ------------------------------- | --------- |
+| 1   | Главная (patient)     | Кабинет: Дневник, Мои записи, ЛФК(скрыт)                        | Дневник симптомов и ЛФК разбиты | H.4       |
+| 2   | Главная (patient)     | Блок «Уведомления»: кнопка «просмотрено» скрывает               | Проверить наличие кнопки        | Проверить |
+| 3   | Профиль               | ФИО/телефон/email — inline edit, кнопка «изменить»              | Проверить все поля              | Проверить |
+| 4   | Настройки уведомлений | Заголовок «Подписки на уведомления», выбор SMS/email            | Проверить                       | Проверить |
+| 5   | Мои записи            | Статусы цветные, виджет Rubitime, инфо-блок (адрес, подготовка) | Проверить                       | Проверить |
+| 6   | Дневник               | Две вкладки: «Симптомы» и «ЛФК»                                 | Проверить                       | Проверить |
+| 7   | Сообщения (patient)   | Пузырики чата, даты, время, пустое состояние                    | Проверить                       | Проверить |
+| 8   | Дашборд доктора       | Плитка: пациенты, записи                                        | Проверить                       | Проверить |
+| 9   | Клиенты (doctor)      | Карточка: ФИО, контакты-кнопки, записи                          | Проверить                       | Проверить |
+| 10  | CMS                   | Markdown-редактор, медиа-загрузка                               | Проверить                       | Проверить |
 
 **Агенту**: пройти по каждой строке таблицы, открыть соответствующий `page.tsx`, сравнить с RAW_PLAN, зафиксировать отклонения как новые задачи в этом документе.
 

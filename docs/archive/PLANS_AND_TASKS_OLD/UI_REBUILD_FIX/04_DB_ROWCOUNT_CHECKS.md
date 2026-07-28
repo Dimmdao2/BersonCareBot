@@ -15,6 +15,7 @@
 **Файл:** `apps/webapp/src/infra/repos/pgUserProjection.ts`
 
 **Найти:**
+
 ```ts
   async updateDisplayName(platformUserId, displayName) {
     const pool = getPool();
@@ -26,6 +27,7 @@
 ```
 
 **Заменить на:**
+
 ```ts
   async updateDisplayName(platformUserId, displayName) {
     const pool = getPool();
@@ -42,6 +44,7 @@
 ### Шаг 4.2: updateRole — проверить rowCount
 
 **Найти:**
+
 ```ts
   async updateRole(platformUserId, role) {
     const pool = getPool();
@@ -53,6 +56,7 @@
 ```
 
 **Заменить на:**
+
 ```ts
   async updateRole(platformUserId, role) {
     const pool = getPool();

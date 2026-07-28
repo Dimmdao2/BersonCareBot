@@ -1,14 +1,14 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState, useTransition } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Label } from "@/shared/ui/doctor/primitives/label";
-import { doctorClientStackedCardClass } from "./doctorClientCardChrome";
-import { packageHistoryEventLabel } from "./packageHistoryLabels";
-import { PatientPackageSessionsList } from "./PatientPackageSessionsList";
-import { MembershipCardHeader } from "@/shared/ui/doctor/MembershipCardHeader";
-import { formatPatientPackageShortLabel } from "@/modules/memberships/display";
+import { useCallback, useEffect, useState, useTransition } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
+import { doctorClientStackedCardClass } from './doctorClientCardChrome';
+import { packageHistoryEventLabel } from './packageHistoryLabels';
+import { PatientPackageSessionsList } from './PatientPackageSessionsList';
+import { MembershipCardHeader } from '@/shared/ui/doctor/MembershipCardHeader';
+import { formatPatientPackageShortLabel } from '@/modules/memberships/display';
 
 export type PatientPackageCardRow = {
   id: string;
@@ -43,7 +43,7 @@ type HistoryRow = {
 function formatDate(iso: string | null): string | null {
   if (!iso) return null;
   try {
-    return new Date(iso).toLocaleDateString("ru-RU", { timeZone: "Europe/Moscow" });
+    return new Date(iso).toLocaleDateString('ru-RU', { timeZone: 'Europe/Moscow' });
   } catch {
     return iso;
   }
@@ -69,33 +69,38 @@ export function PatientPackageCard({ pkg, apiBase, onError, onChanged, onRecalc 
   const [consumeDates, setConsumeDates] = useState<string[] | null>(null);
   const [consumeLoading, setConsumeLoading] = useState(false);
 
-  const notes = notesDraft ?? (pkg.notes ?? "");
+  const notes = notesDraft ?? pkg.notes ?? '';
 
-  const isActive = pkg.status === "active" || pkg.status === "activated";
+  const isActive = pkg.status === 'active' || pkg.status === 'activated';
 
   // Fetch consumed session dates for the active package header
   useEffect(() => {
-    if (!isActive) { setConsumeDates(null); return; }
+    if (!isActive) {
+      setConsumeDates(null);
+      return;
+    }
     let alive = true;
     setConsumeLoading(true);
-    fetch(
-      `${apiBase}/${pkg.id}/sessions?includePast=true`,
-      { credentials: "include" },
-    )
-      .then((r) => r.ok ? (r.json() as Promise<{ ok: boolean; sessions?: Array<{ linkage: string; startsAt: string }> }>) : null)
+    fetch(`${apiBase}/${pkg.id}/sessions?includePast=true`, { credentials: 'include' })
+      .then((r) =>
+        r.ok
+          ? (r.json() as Promise<{
+              ok: boolean;
+              sessions?: Array<{ linkage: string; startsAt: string }>;
+            }>)
+          : null,
+      )
       .catch(() => null)
       .then((data) => {
         if (!alive) return;
         const sessions = data?.sessions ?? [];
-        setConsumeDates(
-          sessions
-            .filter((s) => s.linkage === "consumed")
-            .map((s) => s.startsAt),
-        );
+        setConsumeDates(sessions.filter((s) => s.linkage === 'consumed').map((s) => s.startsAt));
         setConsumeLoading(false);
       });
-    return () => { alive = false; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pkg.id, isActive]);
 
   const loadHistory = useCallback(async () => {
@@ -106,7 +111,7 @@ export function PatientPackageCard({ pkg, apiBase, onError, onChanged, onRecalc 
       error?: string;
     };
     if (!json.ok) {
-      onError?.(json.error ?? "load_failed");
+      onError?.(json.error ?? 'load_failed');
       return;
     }
     setHistory(json.history ?? []);
@@ -122,13 +127,13 @@ export function PatientPackageCard({ pkg, apiBase, onError, onChanged, onRecalc 
   function saveNotes() {
     startTransition(async () => {
       const res = await fetch(`${apiBase}/${pkg.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ notes: notes.trim() || null }),
       });
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!json.ok) {
-        onError?.(json.error ?? "notes_failed");
+        onError?.(json.error ?? 'notes_failed');
         return;
       }
       setNotesDraft(null);
@@ -140,7 +145,10 @@ export function PatientPackageCard({ pkg, apiBase, onError, onChanged, onRecalc 
 
   // Derive totals from balance items
   const balanceItems = pkg.balance.items;
-  const totalSessions = balanceItems.reduce((s, it) => s + (it.quantityInitial ?? it.displayRemaining + (it.reserved ?? 0)), 0);
+  const totalSessions = balanceItems.reduce(
+    (s, it) => s + (it.quantityInitial ?? it.displayRemaining + (it.reserved ?? 0)),
+    0,
+  );
   const remainingSessions = balanceItems.reduce((s, it) => s + it.displayRemaining, 0);
 
   return (
@@ -165,18 +173,12 @@ export function PatientPackageCard({ pkg, apiBase, onError, onChanged, onRecalc 
       {/* Action buttons row */}
       <div className="flex items-center gap-1.5">
         {onRecalc ? (
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            onClick={onRecalc}
-            disabled={pending}
-          >
+          <Button type="button" size="sm" variant="secondary" onClick={onRecalc} disabled={pending}>
             Пересчитать
           </Button>
         ) : null}
         <Button type="button" size="sm" variant="outline" onClick={() => setOpen((v) => !v)}>
-          {open ? "Свернуть" : "Записи"}
+          {open ? 'Свернуть' : 'Записи'}
         </Button>
       </div>
 
@@ -185,7 +187,7 @@ export function PatientPackageCard({ pkg, apiBase, onError, onChanged, onRecalc 
         {pkg.balance.items.map((it) => (
           <li key={it.patientPackageItemId} className="text-xs text-muted-foreground">
             {it.serviceTitle ?? it.serviceId}: остаток {it.displayRemaining}
-            {it.reserved > 0 ? ` (зарезервировано ${it.reserved})` : ""}
+            {it.reserved > 0 ? ` (зарезервировано ${it.reserved})` : ''}
           </li>
         ))}
       </ul>
@@ -230,7 +232,7 @@ export function PatientPackageCard({ pkg, apiBase, onError, onChanged, onRecalc 
                 {history.map((h) => (
                   <li key={h.id} className="text-muted-foreground">
                     <span className="text-foreground">{packageHistoryEventLabel(h.eventType)}</span>
-                    {" · "}
+                    {' · '}
                     {formatDate(h.occurredAt) ?? h.occurredAt}
                   </li>
                 ))}

@@ -1,13 +1,19 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { getOptionalPatientSession, requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { routePaths } from "@/app-layer/routes/paths";
-import { patientClientBusinessGate, resolvePatientCanViewAuthOnlyContent } from "@/app-layer/platform-access";
-import { MaterialRatingAccessError } from "@/modules/material-rating/types";
-import { resolvePatientEnrollmentOrganizationId } from "@/app/api/booking/bookingTenant";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import {
+  getOptionalPatientSession,
+  requirePatientApiBusinessAccess,
+} from '@/app-layer/guards/requireRole';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { routePaths } from '@/app-layer/routes/paths';
+import {
+  patientClientBusinessGate,
+  resolvePatientCanViewAuthOnlyContent,
+} from '@/app-layer/platform-access';
+import { MaterialRatingAccessError } from '@/modules/material-rating/types';
+import { resolvePatientEnrollmentOrganizationId } from '@/app/api/booking/bookingTenant';
 
-const targetKindSchema = z.enum(["content_page", "lfk_exercise", "lfk_complex"]);
+const targetKindSchema = z.enum(['content_page', 'lfk_exercise', 'lfk_complex']);
 
 const getQuerySchema = z.object({
   kind: targetKindSchema,
@@ -28,23 +34,28 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const parsed = getQuerySchema.safeParse(Object.fromEntries(searchParams));
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_query" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_query' }, { status: 400 });
   }
 
   const session = await getOptionalPatientSession();
   let userId: string | null = null;
   if (session) {
     const gate = await patientClientBusinessGate(session);
-    if (gate === "allow") userId = session.user.userId;
+    if (gate === 'allow') userId = session.user.userId;
   }
 
-  const canViewAuthOnlyContent = session ? await resolvePatientCanViewAuthOnlyContent(session) : false;
+  const canViewAuthOnlyContent = session
+    ? await resolvePatientCanViewAuthOnlyContent(session)
+    : false;
 
   const deps = buildAppDeps();
   if (!session) {
-    return NextResponse.json({ ok: false, error: "organization_required" }, { status: 403 });
+    return NextResponse.json({ ok: false, error: 'organization_required' }, { status: 403 });
   }
-  const tenant = await resolvePatientEnrollmentOrganizationId({ patientOrganization: deps.patientOrganization }, session.user.userId);
+  const tenant = await resolvePatientEnrollmentOrganizationId(
+    { patientOrganization: deps.patientOrganization },
+    session.user.userId,
+  );
   if (!tenant.ok) return tenant.response;
 
   try {
@@ -69,7 +80,7 @@ export async function GET(req: Request) {
       // getForPatient для чтения материала использует только `not_found` (нет утечки «есть, но закрыто»).
       return NextResponse.json({ ok: false, error: e.accessCode }, { status: 404 });
     }
-    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
 }
 
@@ -81,23 +92,26 @@ export async function PUT(req: Request) {
   try {
     json = await req.json();
   } catch {
-    return NextResponse.json({ ok: false, error: "invalid_json" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 });
   }
 
   const parsed = putBodySchema.safeParse(json);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "validation_error" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'validation_error' }, { status: 400 });
   }
 
   const { targetKind, targetId, stars, programInstanceId, programStageItemId } = parsed.data;
-  if (targetKind !== "content_page" && (!programInstanceId || !programStageItemId)) {
-    return NextResponse.json({ ok: false, error: "missing_program_context" }, { status: 400 });
+  if (targetKind !== 'content_page' && (!programInstanceId || !programStageItemId)) {
+    return NextResponse.json({ ok: false, error: 'missing_program_context' }, { status: 400 });
   }
 
   const canViewAuthOnlyContent = await resolvePatientCanViewAuthOnlyContent(gate.session);
 
   const deps = buildAppDeps();
-  const tenant = await resolvePatientEnrollmentOrganizationId({ patientOrganization: deps.patientOrganization }, gate.session.user.userId);
+  const tenant = await resolvePatientEnrollmentOrganizationId(
+    { patientOrganization: deps.patientOrganization },
+    gate.session.user.userId,
+  );
   if (!tenant.ok) return tenant.response;
   const result = await deps.materialRating.putForPatient({
     organizationId: tenant.organizationId,
@@ -112,7 +126,7 @@ export async function PUT(req: Request) {
 
   if (!result.ok) {
     const status =
-      result.code === "not_found" ? 404 : result.code === "missing_program_context" ? 400 : 403;
+      result.code === 'not_found' ? 404 : result.code === 'missing_program_context' ? 400 : 403;
     return NextResponse.json({ ok: false, error: result.code }, { status });
   }
 

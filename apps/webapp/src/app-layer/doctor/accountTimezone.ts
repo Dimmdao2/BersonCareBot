@@ -1,7 +1,7 @@
 import {
   getPlatformUserCalendarTimezone,
   setPlatformUserCalendarTimezone,
-} from "@/infra/repos/pgPlatformUserCalendarTimezone";
+} from '@/infra/repos/pgPlatformUserCalendarTimezone';
 
 export async function getDoctorAccountTimezone(userId: string): Promise<string | null> {
   return getPlatformUserCalendarTimezone(userId);

@@ -1,6 +1,6 @@
 # Roadmap — SaaS Product UX Discovery
 
-> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
+> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/\_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
 
 > **Статус:** discovery history и provenance. Последний product/UX authority —
 > [`OWNER_REVIEW_2026-07-18.md`](./OWNER_REVIEW_2026-07-18.md); исполнимый порядок —

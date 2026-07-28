@@ -1,4 +1,4 @@
-import type { SpecialistTaskRow } from "./types";
+import type { SpecialistTaskRow } from './types';
 
 function isOverdue(task: SpecialistTaskRow, nowMs: number): boolean {
   if (task.completedAt || !task.dueAt) return false;

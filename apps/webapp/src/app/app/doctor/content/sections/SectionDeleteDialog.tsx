@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { useRouter } from "next/navigation";
-import { useActionState, useCallback, useId, useState } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Checkbox } from "@/shared/ui/doctor/primitives/checkbox";
+import { useRouter } from 'next/navigation';
+import { useActionState, useCallback, useId, useState } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Checkbox } from '@/shared/ui/doctor/primitives/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -12,8 +12,8 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/shared/ui/doctor/primitives/dialog";
-import { deleteContentSection, type DeleteContentSectionState } from "./actions";
+} from '@/shared/ui/doctor/primitives/dialog';
+import { deleteContentSection, type DeleteContentSectionState } from './actions';
 
 type Props = {
   sectionSlug: string;
@@ -31,7 +31,7 @@ export function SectionDeleteDialog({
   sectionSlug,
   sectionTitle,
   pagesInSection,
-  afterDeleteHref = "/app/doctor/content/sections",
+  afterDeleteHref = '/app/doctor/content/sections',
   showTriggerButton = true,
   open: controlledOpen,
   onOpenChange: controlledOnOpenChange,
@@ -61,13 +61,18 @@ export function SectionDeleteDialog({
     [afterDeleteHref, router, setOpen],
   );
 
-  const [state, submitAction, pending] = useActionState(formAction, null as DeleteContentSectionState | null);
+  const [state, submitAction, pending] = useActionState(
+    formAction,
+    null as DeleteContentSectionState | null,
+  );
   const confirmId = useId();
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       {showTriggerButton ? (
-        <DialogTrigger render={<Button type="button" variant="destructive" className="self-start" />}>
+        <DialogTrigger
+          render={<Button type="button" variant="destructive" className="self-start" />}
+        >
           Удалить раздел…
         </DialogTrigger>
       ) : null}
@@ -75,13 +80,15 @@ export function SectionDeleteDialog({
         <DialogHeader>
           <DialogTitle>Удалить раздел</DialogTitle>
           <DialogDescription>
-            Раздел «{sectionTitle}» (<span className="font-mono text-foreground">{sectionSlug}</span>) будет удалён.
+            Раздел «{sectionTitle}» (
+            <span className="font-mono text-foreground">{sectionSlug}</span>) будет удалён.
             {pagesInSection > 0 ? (
               <>
-                {" "}
-                Страниц в разделе:{" "}
-                <span className="font-medium text-foreground">{pagesInSection}</span> — они будут перенесены в служебный
-                раздел «Без раздела» (не виден пациентам). При совпадении slug страница получит суффикс в адресе.
+                {' '}
+                Страниц в разделе:{' '}
+                <span className="font-medium text-foreground">{pagesInSection}</span> — они будут
+                перенесены в служебный раздел «Без раздела» (не виден пациентам). При совпадении
+                slug страница получит суффикс в адресе.
               </>
             ) : (
               <> В этом разделе нет страниц.</>
@@ -92,7 +99,10 @@ export function SectionDeleteDialog({
           <input type="hidden" name="section_slug" value={sectionSlug} />
           <label className="flex items-start gap-2 text-sm">
             <Checkbox name="confirm_delete" value="on" id={confirmId} className="mt-1" required />
-            <span>Я понимаю, что раздел будет удалён{pagesInSection > 0 ? ", а страницы перенесены" : ""}.</span>
+            <span>
+              Я понимаю, что раздел будет удалён
+              {pagesInSection > 0 ? ', а страницы перенесены' : ''}.
+            </span>
           </label>
           {state && state.ok === false ? (
             <p role="alert" className="text-sm text-destructive">
@@ -101,7 +111,7 @@ export function SectionDeleteDialog({
           ) : null}
           <DialogFooter className="border-0 bg-transparent p-0 sm:justify-end">
             <Button type="submit" variant="destructive" disabled={pending}>
-              {pending ? "Удаление…" : "Удалить раздел"}
+              {pending ? 'Удаление…' : 'Удалить раздел'}
             </Button>
           </DialogFooter>
         </form>

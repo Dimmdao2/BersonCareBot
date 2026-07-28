@@ -14,19 +14,19 @@
 
 ### Источники (порядок чтения)
 
-1. [`DOCTOR_APP_UI_STYLE_GUIDE.md`](../ARCHITECTURE/DOCTOR_APP_UI_STYLE_GUIDE.md) — §2, §4, §5, §6b, §14, §16  
-2. [`doctorVisual.ts`](../../apps/webapp/src/shared/ui/doctorVisual.ts), [`shared/ui/doctor/`](../../apps/webapp/src/shared/ui/doctor/)  
+1. [`DOCTOR_APP_UI_STYLE_GUIDE.md`](../ARCHITECTURE/DOCTOR_APP_UI_STYLE_GUIDE.md) — §2, §4, §5, §6b, §14, §16
+2. [`doctorVisual.ts`](../../apps/webapp/src/shared/ui/doctorVisual.ts), [`shared/ui/doctor/`](../../apps/webapp/src/shared/ui/doctor/)
 3. [`doctorWorkspaceLayout.ts`](../../apps/webapp/src/shared/ui/doctorWorkspaceLayout.ts) — `BOOKING_CARD_GRID_CLASS` только для overview; интеграция — `DoctorSection` / `doctorSectionCardClass`
 
 ### Паттерны
 
-| Зона | Паттерн | Запрещено |
-|------|---------|-----------|
-| Матрица маппинга | `<DoctorSection>` + `Table` или stacked rows §5a; toolbar фильтра «только проблемы» | Голые `<h2>`; `rounded-2xl`; UUID/`branchServiceId` в primary колонках |
-| Статусы | `Badge` + `getDoctorSectionItemClass('urgent')` для блокеров | Один нечитаемый «error» без кода статуса |
-| Dialog «Настроить связь» | shadcn `Dialog` §14; `Button default sm`; Select + `displayLabel` | `ghost` как единственное CTA |
-| Справочник Rubitime | Collapsible `<DoctorSection>`, default collapsed | CRUD вне вкладки интеграции |
-| Техника | `BookingEngineSection mode="integrations"` в `<DoctorSection>` | Read-source в основном кабинете |
+| Зона                     | Паттерн                                                                             | Запрещено                                                              |
+| ------------------------ | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Матрица маппинга         | `<DoctorSection>` + `Table` или stacked rows §5a; toolbar фильтра «только проблемы» | Голые `<h2>`; `rounded-2xl`; UUID/`branchServiceId` в primary колонках |
+| Статусы                  | `Badge` + `getDoctorSectionItemClass('urgent')` для блокеров                        | Один нечитаемый «error» без кода статуса                               |
+| Dialog «Настроить связь» | shadcn `Dialog` §14; `Button default sm`; Select + `displayLabel`                   | `ghost` как единственное CTA                                           |
+| Справочник Rubitime      | Collapsible `<DoctorSection>`, default collapsed                                    | CRUD вне вкладки интеграции                                            |
+| Техника                  | `BookingEngineSection mode="integrations"` в `<DoctorSection>`                      | Read-source в основном кабинете                                        |
 
 ### Самопроверка UI (2.1)
 
@@ -64,12 +64,12 @@ be_branches + be_clinic_services + be_specialists (canonical)
 
 ## Обзор блоков
 
-| Блок | Цель | Breaking API |
-|------|------|--------------|
-| **2.0** Link service | Runtime upsert: legacy `branch_services` + SSA + `availability` mapping | Нет |
-| **2.1** Mapping UI | Матрица canonical × Rubitime + статусы; реорганизация integrations | Нет |
-| **2.2** Internal adapter | Fail-closed resolve; outbound/inbound Rubitime | Нет |
-| **2.3** Canonical API | `{ branchId, serviceId }` на slots/create; cutover read-source | Частично |
+| Блок                     | Цель                                                                    | Breaking API |
+| ------------------------ | ----------------------------------------------------------------------- | ------------ |
+| **2.0** Link service     | Runtime upsert: legacy `branch_services` + SSA + `availability` mapping | Нет          |
+| **2.1** Mapping UI       | Матрица canonical × Rubitime + статусы; реорганизация integrations      | Нет          |
+| **2.2** Internal adapter | Fail-closed resolve; outbound/inbound Rubitime                          | Нет          |
+| **2.3** Canonical API    | `{ branchId, serviceId }` на slots/create; cutover read-source          | Частично     |
 
 **Gate:** 2.1 не закрывается без 2.0. 2.3 не стартует без 2.1 + smoke 2.2. **Закрыто 2026-06-04:** все gate пройдены в коде; 2.3b ops — см. [`LOG.md`](LOG.md).
 
@@ -137,18 +137,18 @@ be_branches + be_clinic_services + be_specialists (canonical)
 
 Показывается **один primary status** (минимальный rank) + опционально `issues[]` для вторичных.
 
-| rank | code | Условие |
-|------|------|---------|
-| 1 | `unmapped` | нет `branchServiceId` через reverse resolve |
-| 2 | `ssa_missing` | SSA для canonical пары отсутствует или inactive |
-| 3 | `reverse_missing` | есть legacy row, но нет mapping `availability` → SSA с `legacy_branch_service_id` |
-| 4 | `branch_unmapped` | нет `be_external_entity_mappings` entity_type=branch для Rubitime branch этой локации |
-| 5 | `specialist_unmapped` | нет mapping specialist для выбранного Rubitime cooperator |
-| 6 | `service_unmapped` | legacy booking service не сопоставлен с canonical (title+duration / entity mapping) |
-| 7 | `legacy_inactive` | `booking_branch_services.is_active=false` |
-| 8 | `duration_mismatch` | `be_clinic_services.durationMinutes` ≠ `booking_services.duration_minutes` связанной строки |
-| 9 | `price_mismatch` | `priceMinor` canonical ≠ legacy связанной строки |
-| 10 | `mapped_ok` | иначе |
+| rank | code                  | Условие                                                                                     |
+| ---- | --------------------- | ------------------------------------------------------------------------------------------- |
+| 1    | `unmapped`            | нет `branchServiceId` через reverse resolve                                                 |
+| 2    | `ssa_missing`         | SSA для canonical пары отсутствует или inactive                                             |
+| 3    | `reverse_missing`     | есть legacy row, но нет mapping `availability` → SSA с `legacy_branch_service_id`           |
+| 4    | `branch_unmapped`     | нет `be_external_entity_mappings` entity_type=branch для Rubitime branch этой локации       |
+| 5    | `specialist_unmapped` | нет mapping specialist для выбранного Rubitime cooperator                                   |
+| 6    | `service_unmapped`    | legacy booking service не сопоставлен с canonical (title+duration / entity mapping)         |
+| 7    | `legacy_inactive`     | `booking_branch_services.is_active=false`                                                   |
+| 8    | `duration_mismatch`   | `be_clinic_services.durationMinutes` ≠ `booking_services.duration_minutes` связанной строки |
+| 9    | `price_mismatch`      | `priceMinor` canonical ≠ legacy связанной строки                                            |
+| 10   | `mapped_ok`           | иначе                                                                                       |
 
 Сравнение price/duration — **строгое равенство**; `mapped_ok` + issues[] допустимо для rank 8–9 как предупреждение без смены primary на mismatch — **решение UI:** primary `mapped_ok`, badge «расхождение цены» в `issues[]` (зафиксировать в component test).
 
@@ -182,15 +182,15 @@ Query: `?problemsOnly=true`, `?branchId=`, `?serviceId=`.
 
 ### Шаги
 
-| # | Шаг | Проверка |
-|---|-----|----------|
-| 2.1.1 | DoD 2.0 закрыт | route tests link |
-| 2.1.2 | `GET rubitime-mapping` | route test, все status codes |
-| 2.1.3 | `BookingRubitimeMappingSection` | DoctorSection, vitest smoke |
-| 2.1.4 | Dialog → link API | integration test или route + mock |
-| 2.1.5 | RubitimeSection без branch-service matrix | RubitimeSection.test.tsx |
-| 2.1.6 | Overview warnings ↔ matrix | loadBookingAdminOverview unit test |
-| 2.1.7 | ACCEPTANCE §2.1 | владелец |
+| #     | Шаг                                       | Проверка                           |
+| ----- | ----------------------------------------- | ---------------------------------- |
+| 2.1.1 | DoD 2.0 закрыт                            | route tests link                   |
+| 2.1.2 | `GET rubitime-mapping`                    | route test, все status codes       |
+| 2.1.3 | `BookingRubitimeMappingSection`           | DoctorSection, vitest smoke        |
+| 2.1.4 | Dialog → link API                         | integration test или route + mock  |
+| 2.1.5 | RubitimeSection без branch-service matrix | RubitimeSection.test.tsx           |
+| 2.1.6 | Overview warnings ↔ matrix                | loadBookingAdminOverview unit test |
+| 2.1.7 | ACCEPTANCE §2.1                           | владелец                           |
 
 ### DoD 2.1
 
@@ -215,13 +215,13 @@ Runtime fail-closed: canonical pair → adapter → Rubitime; inbound webhook �
 
 ### Выполнено (2026-06-04)
 
-| Область | Было | Стало |
-|---------|------|-------|
-| Patient wizard | `cityCode` + legacy catalog | primary `{ branchId, serviceId }`; legacy deep links compat |
-| `patient-booking` | разрозненный resolve | `resolveInPersonBranchServiceId` |
-| Create Rubitime | `@bersoncare/booking-rubitime-sync` (`lookupBranchServiceByRubitimeIds`) | ids из linked legacy row post-2.0 |
-| Memberships/products | только legacy path | fail-closed при unmapped canonical pair |
-| Manual lifecycle | legacy поля | compat через adapter (полный UX — этап 3+) |
+| Область              | Было                                                                     | Стало                                                       |
+| -------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------- |
+| Patient wizard       | `cityCode` + legacy catalog                                              | primary `{ branchId, serviceId }`; legacy deep links compat |
+| `patient-booking`    | разрозненный resolve                                                     | `resolveInPersonBranchServiceId`                            |
+| Create Rubitime      | `@bersoncare/booking-rubitime-sync` (`lookupBranchServiceByRubitimeIds`) | ids из linked legacy row post-2.0                           |
+| Memberships/products | только legacy path                                                       | fail-closed при unmapped canonical pair                     |
+| Manual lifecycle     | legacy поля                                                              | compat через adapter (полный UX — этап 3+)                  |
 
 ### Scope
 
@@ -231,13 +231,13 @@ Runtime fail-closed: canonical pair → adapter → Rubitime; inbound webhook �
 
 ### Шаги
 
-| # | Шаг | Проверка |
-|---|-----|----------|
-| 2.2.1 | Central helper + fail-closed errors | `canonicalCreate.test.ts`, `service.test.ts` |
-| 2.2.2 | Outbound create payload Rubitime ids | lookup tests |
-| 2.2.3 | Inbound webhook → canonical branch/service | `legacyProjection` / bridge tests |
-| 2.2.4 | Memberships: no silent debit if unmapped | `membership-routes.test.ts` |
-| 2.2.5 | Smoke staging | LOG |
+| #     | Шаг                                        | Проверка                                     |
+| ----- | ------------------------------------------ | -------------------------------------------- |
+| 2.2.1 | Central helper + fail-closed errors        | `canonicalCreate.test.ts`, `service.test.ts` |
+| 2.2.2 | Outbound create payload Rubitime ids       | lookup tests                                 |
+| 2.2.3 | Inbound webhook → canonical branch/service | `legacyProjection` / bridge tests            |
+| 2.2.4 | Memberships: no silent debit if unmapped   | `membership-routes.test.ts`                  |
+| 2.2.5 | Smoke staging                              | LOG                                          |
 
 ### DoD 2.2
 
@@ -293,14 +293,14 @@ Runtime fail-closed: canonical pair → adapter → Rubitime; inbound webhook �
 
 ## Риски
 
-| Риск | Митигация |
-|------|-----------|
-| UI save без SSA/mapping | Блок 2.0 обязателен до 2.1 |
-| Dialog резолвит legacy UUID | Route link принимает canonical; legacy только server-side |
-| Overview vs matrix расходятся | Один read API для warnings |
-| Patient cityCode vs branchId | Явный scope 2.3a catalog migration |
-| Cutover ломает календарь | 2.3b appointments defer → этап 4 |
-| Абонементы | 2.2 fail-closed; UX этап 3 |
+| Риск                          | Митигация                                                 |
+| ----------------------------- | --------------------------------------------------------- |
+| UI save без SSA/mapping       | Блок 2.0 обязателен до 2.1                                |
+| Dialog резолвит legacy UUID   | Route link принимает canonical; legacy только server-side |
+| Overview vs matrix расходятся | Один read API для warnings                                |
+| Patient cityCode vs branchId  | Явный scope 2.3a catalog migration                        |
+| Cutover ломает календарь      | 2.3b appointments defer → этап 4                          |
+| Абонементы                    | 2.2 fail-closed; UX этап 3                                |
 
 ---
 

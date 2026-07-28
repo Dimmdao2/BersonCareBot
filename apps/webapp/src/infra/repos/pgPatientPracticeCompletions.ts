@@ -1,10 +1,13 @@
-import { and, desc, eq, gte, lt } from "drizzle-orm";
-import { DateTime } from "luxon";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { patientPracticeCompletions } from "../../../db/schema";
-import { computePracticeStreak } from "@/modules/patient-practice/streakLogic";
-import type { PatientPracticePort } from "@/modules/patient-practice/ports";
-import type { PatientPracticeCompletionRow, RecordPracticeInput } from "@/modules/patient-practice/types";
+import { and, desc, eq, gte, lt } from 'drizzle-orm';
+import { DateTime } from 'luxon';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { patientPracticeCompletions } from '../../../db/schema';
+import { computePracticeStreak } from '@/modules/patient-practice/streakLogic';
+import type { PatientPracticePort } from '@/modules/patient-practice/ports';
+import type {
+  PatientPracticeCompletionRow,
+  RecordPracticeInput,
+} from '@/modules/patient-practice/types';
 
 function mapRow(row: typeof patientPracticeCompletions.$inferSelect): PatientPracticeCompletionRow {
   return {
@@ -12,7 +15,7 @@ function mapRow(row: typeof patientPracticeCompletions.$inferSelect): PatientPra
     userId: row.userId,
     contentPageId: row.contentPageId,
     completedAt: row.completedAt,
-    source: row.source as PatientPracticeCompletionRow["source"],
+    source: row.source as PatientPracticeCompletionRow['source'],
     feeling: row.feeling,
     notes: row.notes,
   };
@@ -29,21 +32,31 @@ export function createPgPatientPracticeCompletionsPort(): PatientPracticePort {
           contentPageId: input.contentPageId,
           source: input.source,
           feeling: input.feeling ?? null,
-          notes: input.notes ?? "",
+          notes: input.notes ?? '',
         })
         .returning({ id: patientPracticeCompletions.id });
-      if (!row) throw new Error("patient_practice_completions insert returned no row");
+      if (!row) throw new Error('patient_practice_completions insert returned no row');
       return { id: row.id };
     },
 
     async countToday(userId, tz) {
       const todayStr = DateTime.now().setZone(tz).toISODate()!;
-      const sinceUtc = DateTime.now().setZone(tz).minus({ days: 7 }).startOf("day").toUTC().toISO()!;
+      const sinceUtc = DateTime.now()
+        .setZone(tz)
+        .minus({ days: 7 })
+        .startOf('day')
+        .toUTC()
+        .toISO()!;
       const db = getDrizzle();
       const rows = await db
         .select({ completedAt: patientPracticeCompletions.completedAt })
         .from(patientPracticeCompletions)
-        .where(and(eq(patientPracticeCompletions.userId, userId), gte(patientPracticeCompletions.completedAt, sinceUtc)));
+        .where(
+          and(
+            eq(patientPracticeCompletions.userId, userId),
+            gte(patientPracticeCompletions.completedAt, sinceUtc),
+          ),
+        );
       let n = 0;
       for (const r of rows) {
         const d = DateTime.fromISO(r.completedAt, { setZone: true }).setZone(tz).toISODate();
@@ -53,12 +66,22 @@ export function createPgPatientPracticeCompletionsPort(): PatientPracticePort {
     },
 
     async streak(userId, tz) {
-      const sinceUtc = DateTime.now().setZone(tz).minus({ days: 120 }).startOf("day").toUTC().toISO()!;
+      const sinceUtc = DateTime.now()
+        .setZone(tz)
+        .minus({ days: 120 })
+        .startOf('day')
+        .toUTC()
+        .toISO()!;
       const db = getDrizzle();
       const rows = await db
         .select({ completedAt: patientPracticeCompletions.completedAt })
         .from(patientPracticeCompletions)
-        .where(and(eq(patientPracticeCompletions.userId, userId), gte(patientPracticeCompletions.completedAt, sinceUtc)));
+        .where(
+          and(
+            eq(patientPracticeCompletions.userId, userId),
+            gte(patientPracticeCompletions.completedAt, sinceUtc),
+          ),
+        );
       const dates = new Set<string>();
       for (const r of rows) {
         dates.add(DateTime.fromISO(r.completedAt, { setZone: true }).setZone(tz).toISODate()!);
@@ -75,7 +98,7 @@ export function createPgPatientPracticeCompletionsPort(): PatientPracticePort {
           and(
             eq(patientPracticeCompletions.userId, userId),
             eq(patientPracticeCompletions.contentPageId, contentPageId),
-            eq(patientPracticeCompletions.source, "daily_warmup"),
+            eq(patientPracticeCompletions.source, 'daily_warmup'),
           ),
         )
         .orderBy(desc(patientPracticeCompletions.completedAt))
@@ -91,7 +114,7 @@ export function createPgPatientPracticeCompletionsPort(): PatientPracticePort {
         .where(
           and(
             eq(patientPracticeCompletions.userId, userId),
-            eq(patientPracticeCompletions.source, "daily_warmup"),
+            eq(patientPracticeCompletions.source, 'daily_warmup'),
           ),
         )
         .orderBy(desc(patientPracticeCompletions.completedAt))
@@ -118,7 +141,9 @@ export function createPgPatientPracticeCompletionsPort(): PatientPracticePort {
         .where(
           and(
             eq(patientPracticeCompletions.userId, userId),
-            organizationId ? eq(patientPracticeCompletions.organizationId, organizationId) : undefined,
+            organizationId
+              ? eq(patientPracticeCompletions.organizationId, organizationId)
+              : undefined,
             gte(patientPracticeCompletions.completedAt, fromUtcIso),
             lt(patientPracticeCompletions.completedAt, toUtcExclusiveIso),
           ),
@@ -132,7 +157,12 @@ export function createPgPatientPracticeCompletionsPort(): PatientPracticePort {
       const rows = await db
         .select()
         .from(patientPracticeCompletions)
-        .where(and(eq(patientPracticeCompletions.id, completionId), eq(patientPracticeCompletions.userId, userId)))
+        .where(
+          and(
+            eq(patientPracticeCompletions.id, completionId),
+            eq(patientPracticeCompletions.userId, userId),
+          ),
+        )
         .limit(1);
       const row = rows[0];
       return row ? mapRow(row) : null;
@@ -143,7 +173,12 @@ export function createPgPatientPracticeCompletionsPort(): PatientPracticePort {
       const updated = await db
         .update(patientPracticeCompletions)
         .set({ feeling })
-        .where(and(eq(patientPracticeCompletions.id, completionId), eq(patientPracticeCompletions.userId, userId)))
+        .where(
+          and(
+            eq(patientPracticeCompletions.id, completionId),
+            eq(patientPracticeCompletions.userId, userId),
+          ),
+        )
         .returning({ id: patientPracticeCompletions.id });
       return updated.length > 0;
     },

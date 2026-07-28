@@ -1,30 +1,30 @@
 /** @vitest-environment node */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const listMock = vi.fn();
 const getSessionMock = vi.fn();
 const requireDoctorWorkspaceApiContextMock = vi.fn();
 
-vi.mock("@/modules/auth/service", () => ({
+vi.mock('@/modules/auth/service', () => ({
   getCurrentSession: () => getSessionMock(),
 }));
 
-vi.mock("@/app-layer/media/s3MediaStorage", () => ({
+vi.mock('@/app-layer/media/s3MediaStorage', () => ({
   listMediaDeleteErrors: (...args: unknown[]) => listMock(...args),
 }));
 
-vi.mock("@/app-layer/guards/requireRole", () => ({
+vi.mock('@/app-layer/guards/requireRole', () => ({
   requireDoctorWorkspaceApiContext: () => requireDoctorWorkspaceApiContextMock(),
 }));
 
-vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
+vi.mock('@/app-layer/guards/doctorWorkspacePrincipal', () => ({
   withDoctorWorkspacePrincipal: (_ctx: unknown, fn: () => unknown) => fn(),
 }));
 
-import { GET } from "./route";
+import { GET } from './route';
 
-describe("GET /api/admin/media/delete-errors", () => {
+describe('GET /api/admin/media/delete-errors', () => {
   beforeEach(() => {
     listMock.mockReset();
     getSessionMock.mockReset();
@@ -32,44 +32,44 @@ describe("GET /api/admin/media/delete-errors", () => {
     requireDoctorWorkspaceApiContextMock.mockImplementation(async () => {
       const session = await getSessionMock();
       if (!session) return { ok: false, response: new Response(null, { status: 401 }) };
-      if (session.user.role === "client") {
+      if (session.user.role === 'client') {
         return { ok: false, response: new Response(null, { status: 403 }) };
       }
       return {
         ok: true,
-        ctx: { organizationId: "org-1", session },
+        ctx: { organizationId: 'org-1', session },
       };
     });
   });
 
-  it("returns 401 without session", async () => {
+  it('returns 401 without session', async () => {
     getSessionMock.mockResolvedValue(null);
-    const res = await GET(new Request("http://localhost/api/admin/media/delete-errors"));
+    const res = await GET(new Request('http://localhost/api/admin/media/delete-errors'));
     expect(res.status).toBe(401);
     expect(listMock).not.toHaveBeenCalled();
   });
 
-  it("returns 403 when role cannot access doctor", async () => {
-    getSessionMock.mockResolvedValue({ user: { role: "client", userId: "u1" } });
-    const res = await GET(new Request("http://localhost/api/admin/media/delete-errors"));
+  it('returns 403 when role cannot access doctor', async () => {
+    getSessionMock.mockResolvedValue({ user: { role: 'client', userId: 'u1' } });
+    const res = await GET(new Request('http://localhost/api/admin/media/delete-errors'));
     expect(res.status).toBe(403);
   });
 
-  it("returns items and total for doctor", async () => {
-    getSessionMock.mockResolvedValue({ user: { role: "doctor", userId: "u1" } });
+  it('returns items and total for doctor', async () => {
+    getSessionMock.mockResolvedValue({ user: { role: 'doctor', userId: 'u1' } });
     listMock.mockResolvedValue({
       total: 2,
       items: [
         {
-          id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-          original_name: "a.bin",
+          id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          original_name: 'a.bin',
           delete_attempts: 3,
-          next_attempt_at: "2026-01-01T00:00:00.000Z",
-          created_at: "2025-12-01T00:00:00.000Z",
+          next_attempt_at: '2026-01-01T00:00:00.000Z',
+          created_at: '2025-12-01T00:00:00.000Z',
         },
       ],
     });
-    const res = await GET(new Request("http://localhost/api/admin/media/delete-errors?limit=50"));
+    const res = await GET(new Request('http://localhost/api/admin/media/delete-errors?limit=50'));
     expect(res.status).toBe(200);
     const json = (await res.json()) as { ok: boolean; total: number; items: unknown[] };
     expect(json.ok).toBe(true);

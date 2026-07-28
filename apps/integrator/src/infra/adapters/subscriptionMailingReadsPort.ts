@@ -49,15 +49,21 @@ async function fetchSubscriptionsGet<T>(
   }
 }
 
-export function createSubscriptionMailingReadsPort(deps: { db: DbPort }): SubscriptionMailingReadsPort {
+export function createSubscriptionMailingReadsPort(deps: {
+  db: DbPort;
+}): SubscriptionMailingReadsPort {
   const { db } = deps;
   return {
     async listTopics(): Promise<MailingTopicReadRow[]> {
-      const result = await fetchSubscriptionsGet<{ topics?: Array<{ id?: string; code?: string; title?: string; key?: string; isActive?: boolean }> }>(
-        db,
-        '/api/integrator/subscriptions/topics',
-        '',
-      );
+      const result = await fetchSubscriptionsGet<{
+        topics?: Array<{
+          id?: string;
+          code?: string;
+          title?: string;
+          key?: string;
+          isActive?: boolean;
+        }>;
+      }>(db, '/api/integrator/subscriptions/topics', '');
       if (!result.ok || !result.data?.topics) return [];
       return result.data.topics.map((t) => ({
         integratorTopicId: typeof t.id === 'string' ? t.id : String(t.id ?? ''),

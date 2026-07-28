@@ -19,12 +19,12 @@ roadmap + SAAS_FOUNDATION + сквозные prod-планы) поверх се�
 
 ## 2. Главный roadmap — 19 U-контрактов (`SAAS_PRODUCT_UX_INITIATIVE/IMPLEMENTATION_ROADMAP.md`)
 
-| Итог | Стадии |
-|------|--------|
-| **ACCEPTED (4)** | U0 контракт-готовность, U1 capability-guard, U2 mgmt+account shell, U3S спец. signup/first-run |
-| **OWNER-GATED live-seal (1)** | U5A patient org-resolver (код в осн. есть; 2 live-seal + `#796` ждут решения по discharge-flow) |
-| **Законно отложено на будущее (6)** | U3A, U5C, U5D, U8A, U8B, U8C (post-launch/optional — НЕ долг) |
-| **REMAINING launch (8)** | U3B (~50%), U4 (0%), U5B (0, блок на U5A), U6A (фронт, частично), U6B (0, блок на U4), U7 (0), U9 (0 сверх U9A-спайна), U10 (0, финал) |
+| Итог                                | Стадии                                                                                                                                 |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| **ACCEPTED (4)**                    | U0 контракт-готовность, U1 capability-guard, U2 mgmt+account shell, U3S спец. signup/first-run                                         |
+| **OWNER-GATED live-seal (1)**       | U5A patient org-resolver (код в осн. есть; 2 live-seal + `#796` ждут решения по discharge-flow)                                        |
+| **Законно отложено на будущее (6)** | U3A, U5C, U5D, U8A, U8B, U8C (post-launch/optional — НЕ долг)                                                                          |
+| **REMAINING launch (8)**            | U3B (~50%), U4 (0%), U5B (0, блок на U5A), U6A (фронт, частично), U6B (0, блок на U4), U7 (0), U9 (0 сверх U9A-спайна), U10 (0, финал) |
 
 **Самый острый разрыв «roadmap done ≠ чек-лист»:** **U3B 5/10** — нет SMS-lifecycle, продолжения
 public-booking→enrollment, PWA install/push, полного аудита. Крупнейшая launch-критичная backend-дыра. Ещё: **U5A**
@@ -33,22 +33,22 @@ public-booking→enrollment, PWA install/push, полного аудита. Кр
 
 ## 3. Backend-треки — code-verified
 
-| Трек | Статус | Комментарий |
-|------|--------|-------------|
-| Tenant isolation / RLS | **CODE-DONE → DORMANT** | Дескрипторы/рендерер/политики (~102+ таблиц), role-split, гранты, FORCE-скрипт. Дефолт `legacy-guc`. Живой флип на TEST делали 2026-07-13 (стены доказаны, откат в dormant). Ждёт owner-cutover. |
-| Тарифы / entitlements / trial | **CODE-DONE (C5A accepted)** | Реестр 15 механик, resolver, admin API, guard в ~40 роутах. |
-| Платежи-эквайринг (пациент) | **CODE-DONE, нужны per-org креды** | 5 провайдеров + webhooks + тесты; дефолт mock. |
-| SaaS-биллинг / магазин (C5B/C/D) | **REMAINING + owner/legal** | Провайдер-нейтрально; реальная активация YooKassa — owner+legal (merchant/receipt/law). |
-| Security-CI (SEC-01) | **CODE-DONE (8 из 20)** | Gitleaks/Semgrep/Trivy/CVE залиты (`2027f969`). Остаток: первый triage/baseline, negative-test, ZAP-стек. |
-| DB-access chokepoint | **ACCEPTED (8/8)** | `check-db-chokepoint.mjs` в lint; S6 2026-07-04 + re-audit 07-07. |
-| Stability hardening | **Phase 0-2 в осн. done; 28 REMAINING** | D1 session-revoke (ждёт TTL-решения), E3 Zod SSOT `#980`, A4 RLS-cutover, A2 матрица, E1 lint-boundary, C3/F2/F3 post-launch. |
-| RU-privacy / 152-ФЗ | **~112 REMAINING-backend, ~165 OWNER/LEGAL** | DR-drill, LOG-01, CRYPTO-01 C0, NTF-01 census, SEC-02/03 — можно делать. Consent/DSAR/ISPDn/host-cutover/FINAL_ACCEPTANCE — юр/владелец. |
-| Backups | **CODE-DONE (скрипт), DR-drill не запускался** | `postgres-backup.sh` готов; реальный age-ключ + restore (DR-01/02) НИКОГДА не прогонялись. |
-| Delivery-alerting | **P1-P4 done; P0/P-guard OWNER-GATED** | Нужна авторизация живой fault-injection на TEST. |
-| Track C — Rubitime retire | **R1-R2 done; R3-R6 code-only; R7 не начат** | `branchServiceId` жив; DROP-миграции нет; всё разрушающее owner-gated. |
-| Track D — direct→public | **D0 done; D1-D10 не начаты** | D1-скаффолд подготовлен (`c6e2d2bb`), не вкручен. |
-| Editor Tiptap | **CODE-DONE; 1 OWNER-accept** | Вся инженерия закрыта, нужен клик владельца. |
-| mark-read 500 | **FIXED (нужна DB-верификация)** | `ca69e348`, применить на TEST. |
+| Трек                             | Статус                                         | Комментарий                                                                                                                                                                                      |
+| -------------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Tenant isolation / RLS           | **CODE-DONE → DORMANT**                        | Дескрипторы/рендерер/политики (~102+ таблиц), role-split, гранты, FORCE-скрипт. Дефолт `legacy-guc`. Живой флип на TEST делали 2026-07-13 (стены доказаны, откат в dormant). Ждёт owner-cutover. |
+| Тарифы / entitlements / trial    | **CODE-DONE (C5A accepted)**                   | Реестр 15 механик, resolver, admin API, guard в ~40 роутах.                                                                                                                                      |
+| Платежи-эквайринг (пациент)      | **CODE-DONE, нужны per-org креды**             | 5 провайдеров + webhooks + тесты; дефолт mock.                                                                                                                                                   |
+| SaaS-биллинг / магазин (C5B/C/D) | **REMAINING + owner/legal**                    | Провайдер-нейтрально; реальная активация YooKassa — owner+legal (merchant/receipt/law).                                                                                                          |
+| Security-CI (SEC-01)             | **CODE-DONE (8 из 20)**                        | Gitleaks/Semgrep/Trivy/CVE залиты (`2027f969`). Остаток: первый triage/baseline, negative-test, ZAP-стек.                                                                                        |
+| DB-access chokepoint             | **ACCEPTED (8/8)**                             | `check-db-chokepoint.mjs` в lint; S6 2026-07-04 + re-audit 07-07.                                                                                                                                |
+| Stability hardening              | **Phase 0-2 в осн. done; 28 REMAINING**        | D1 session-revoke (ждёт TTL-решения), E3 Zod SSOT `#980`, A4 RLS-cutover, A2 матрица, E1 lint-boundary, C3/F2/F3 post-launch.                                                                    |
+| RU-privacy / 152-ФЗ              | **~112 REMAINING-backend, ~165 OWNER/LEGAL**   | DR-drill, LOG-01, CRYPTO-01 C0, NTF-01 census, SEC-02/03 — можно делать. Consent/DSAR/ISPDn/host-cutover/FINAL_ACCEPTANCE — юр/владелец.                                                         |
+| Backups                          | **CODE-DONE (скрипт), DR-drill не запускался** | `postgres-backup.sh` готов; реальный age-ключ + restore (DR-01/02) НИКОГДА не прогонялись.                                                                                                       |
+| Delivery-alerting                | **P1-P4 done; P0/P-guard OWNER-GATED**         | Нужна авторизация живой fault-injection на TEST.                                                                                                                                                 |
+| Track C — Rubitime retire        | **R1-R2 done; R3-R6 code-only; R7 не начат**   | `branchServiceId` жив; DROP-миграции нет; всё разрушающее owner-gated.                                                                                                                           |
+| Track D — direct→public          | **D0 done; D1-D10 не начаты**                  | D1-скаффолд подготовлен (`c6e2d2bb`), не вкручен.                                                                                                                                                |
+| Editor Tiptap                    | **CODE-DONE; 1 OWNER-accept**                  | Вся инженерия закрыта, нужен клик владельца.                                                                                                                                                     |
+| mark-read 500                    | **FIXED (нужна DB-верификация)**               | `ca69e348`, применить на TEST.                                                                                                                                                                   |
 
 ## 4. Реальный объём остатка (то, что надо ПИСАТЬ кодом) — по приоритету
 
@@ -89,22 +89,23 @@ Backend, не зависит от фронта. Owner/legal-гейты выне�
 Вскрыто по коду **~676 `[x]`** в 7 кластерах (весь production-`[x]` в `docs/_TODO`, кроме исторических
 ARCHITECTURE-логов). Каждый тик проверен против кода; на риск-кластере — adversarial-аудит (0 refuted).
 
-| Кластер | audited | confirmed | REOPENED | → `[~]` |
-|---------|--------:|----------:|---------:|-------:|
-| Rubitime retirement | 129 | 124 | 2 | 3 |
-| Isolation (P0_9-13, T0, PHASE0) | 114 | 114 | 0 | 0 |
-| Stability + roadmap + owner-ready-test | 174 | 174 | 0 | 0 |
-| RU-privacy stages | 40 | 40 | 0 | 0 |
-| Commercial / identity | 95 | 95 | 0 | 0 |
-| SAAS long-tail + misc | 46 | 45 | 1 | 0 |
-| Doctor-UI | 78 | 67 | 3 | 8 |
-| **ИТОГО** | **~676** | **~659** | **6** | **11** |
+| Кластер                                |  audited | confirmed | REOPENED | → `[~]` |
+| -------------------------------------- | -------: | --------: | -------: | ------: |
+| Rubitime retirement                    |      129 |       124 |        2 |       3 |
+| Isolation (P0_9-13, T0, PHASE0)        |      114 |       114 |        0 |       0 |
+| Stability + roadmap + owner-ready-test |      174 |       174 |        0 |       0 |
+| RU-privacy stages                      |       40 |        40 |        0 |       0 |
+| Commercial / identity                  |       95 |        95 |        0 |       0 |
+| SAAS long-tail + misc                  |       46 |        45 |        1 |       0 |
+| Doctor-UI                              |       78 |        67 |        3 |       8 |
+| **ИТОГО**                              | **~676** |  **~659** |    **6** |  **11** |
 
 **Реальный fake-done снят в `[ ]` (3 функциональных):**
+
 1. Rubitime «patient create работает без Rubitime» (Track C) — опровергнуто инцидентом #839 + D0-census (35 live-refs).
 2. Rubitime «public create работает без Rubitime» — то же.
 3. `TASK_A` «Full prod-copy PII rehearsal DONE» — нет артефакта, противоречит собственной секции «NOT YET PROVEN».
-Ещё 3 REOPENED в Doctor-UI — «протухшая TEST-SHA» (код цел, ссылки устарели → бухгалтерия, не ложь о готовности).
+   Ещё 3 REOPENED в Doctor-UI — «протухшая TEST-SHA» (код цел, ссылки устарели → бухгалтерия, не ложь о готовности).
 
 **→ `[~]` (код есть, ждёт живого cutover/приёмки): 11** — 3 Rubitime runtime-приёмка + 8 Doctor-UI визуальные суждения.
 
@@ -112,18 +113,21 @@ ARCHITECTURE-логов). Каждый тик проверен против ко
 ровно там, где ты опасался. Планы теперь надёжны как источник.
 
 ### Побочно почин­ено кодом (DB-free, эта сессия)
+
 - 4 дрейфнувших CI-гейта (`check-t0-4-*`, `check-r2-readiness-closure`) — fail→pass, teeth сохранены (`395c741b`).
 - SEC-01 добивка: `.semgrepignore` + gitleaks negative-secret self-test (`5fe487e2`).
 - ⚠️ Флаг: `check-c3-integrator-fanout-inventory.mjs` красный — новый роут `registerOperatorAlertRelayRoute` без
   маппинга в c3-инвентаре. Отдельная DB-free правка.
 
 ### Что можно сделать СЕЙЧАС без БД/TEST (чисто код)
+
 - Починить c3-гейт (добавить маппинг роута operator-alert-relay ИЛИ подтвердить его org-principal обёртку).
 - Бамп `next 16.2.6 → ≥16.2.11` (SSRF-CVE): bump + install + typecheck + `build:webapp`.
 - CRYPTO-01 C0 ADR-черновик, LOG-01 L0 data-flow census — агенто-делаемая подготовка RU-privacy.
 - НЕ здесь (нужна БД): вкручивание Track D D1, применение миграции mark-read, DR-drill, PII Task A, FORCE-cutover.
 
 ### Что НЕ сделано (сводка остатка)
+
 - **Кодом с БД/TEST:** U3B добивка, Track D D1-D10, Track C drain+R7, PII Task A, A4 RLS cutover, DR-drill, U4→U10.
 - **Владелец/юр (не код):** SMTP-креды TEST, FORCE-cutover, age-ключ, session TTL, платный биллинг, RU-privacy
   юр-гейты, визуальная приёмка UI (8 `[~]` Doctor-UI + фронт-стадии).

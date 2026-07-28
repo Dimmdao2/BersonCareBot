@@ -1,11 +1,15 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
-import type { DoctorNotificationTopicModel } from "@/modules/doctor-notifications/doctorProfileTopicChannelsModel";
-import { routePaths } from "@/app-layer/routes/paths";
-import { DoctorWebPushControls } from "./DoctorWebPushControls";
-import { DoctorNotificationsTopicMatrix } from "./DoctorNotificationsTopicMatrix";
+import Link from 'next/link';
+import {
+  DoctorSection,
+  DoctorSectionHeader,
+  DoctorSectionTitle,
+} from '@/shared/ui/doctor/DoctorSection';
+import type { DoctorNotificationTopicModel } from '@/modules/doctor-notifications/doctorProfileTopicChannelsModel';
+import { routePaths } from '@/app-layer/routes/paths';
+import { DoctorWebPushControls } from './DoctorWebPushControls';
+import { DoctorNotificationsTopicMatrix } from './DoctorNotificationsTopicMatrix';
 
 type Props = {
   initialTopics: DoctorNotificationTopicModel[];
@@ -38,10 +42,10 @@ export function DoctorNotificationChannelsSection({
       />
       {!hasMessengerOrEmail && !hasWebPushSubscription ? (
         <p className="text-xs text-muted-foreground">
-          Для Telegram, MAX или email подключите каналы в{" "}
+          Для Telegram, MAX или email подключите каналы в{' '}
           <Link href={routePaths.settings} className="underline">
             настройках аккаунта
-          </Link>{" "}
+          </Link>{' '}
           (email — в блоке выше).
         </p>
       ) : null}

@@ -1,9 +1,9 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { getOnlineIntakeService } from "@/app-layer/di/onlineIntakeDeps";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
-import type { IntakeRequestWithPatientIdentity } from "@/modules/online-intake/types";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { getOnlineIntakeService } from '@/app-layer/di/onlineIntakeDeps';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import type { IntakeRequestWithPatientIdentity } from '@/modules/online-intake/types';
 
 /** HTTP list body: `patientUserId` for links to client profile / chat. */
 function toDoctorListItem(r: IntakeRequestWithPatientIdentity) {
@@ -23,9 +23,9 @@ function toDoctorListItem(r: IntakeRequestWithPatientIdentity) {
 }
 
 const querySchema = z.object({
-  type: z.enum(["lfk", "nutrition"]).optional(),
-  status: z.enum(["new", "in_review", "contacted", "booked", "rejected", "closed"]).optional(),
-  open: z.enum(["1"]).optional(),
+  type: z.enum(['lfk', 'nutrition']).optional(),
+  status: z.enum(['new', 'in_review', 'contacted', 'booked', 'rejected', 'closed']).optional(),
+  open: z.enum(['1']).optional(),
   page: z.coerce.number().int().min(1).optional().default(1),
   limit: z.coerce.number().int().min(1).max(50).optional().default(20),
 });
@@ -37,12 +37,12 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const parsed = querySchema.safeParse(Object.fromEntries(searchParams));
   if (!parsed.success) {
-    return NextResponse.json({ error: "INVALID_QUERY" }, { status: 400 });
+    return NextResponse.json({ error: 'INVALID_QUERY' }, { status: 400 });
   }
 
   const { page, limit, type, status, open } = parsed.data;
   const offset = (page - 1) * limit;
-  const openOnly = open === "1";
+  const openOnly = open === '1';
 
   const service = getOnlineIntakeService();
   const result = await withDoctorWorkspacePrincipal(gate.ctx, () =>

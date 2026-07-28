@@ -312,7 +312,7 @@ Append-only журнал. Планирование не переводит ни 
 - По вопросу владельца подтверждён gap: `auditd`, central logs и threat-model review были записаны, но отдельного
   обязательного решения по Wazuh/EDR/HIDS не было.
 - Добавлены `G-06B` и `O-08A`: до target acceptance нужно явно выбрать `adopt` либо `not required with compensating
-  controls`; неизвестное/подразумеваемое решение не проходит `PR-04A`.
+controls`; неизвестное/подразумеваемое решение не проходит `PR-04A`.
 - Wazuh не выбран заранее. Агенты сравнивают coverage/privileges/load/RU storage/operations, проверяют кандидата на
   disposable VPS; при adopt manager/sink находится отдельно от единственного PROD, alerts имеют owner/SLA.
 
@@ -326,7 +326,7 @@ Append-only журнал. Планирование не переводит ни 
   owner acceptance/provenance отдельно подтверждает lead; D3 остаётся blocked на доказанном 16/17 TEST smoke;
   D4 и S5-4…S5-7 не закрыты. Payment retention зависит от C5B `#844/#845`, а `#751` — C5A.
 - `PR-00` переведён на taxonomy `covered / active_dependency / executable_now / owner_or_legal_gate /
-  prod_host_later` и получил launch manifests для SEC-01, PR-01, repository SEC-02/DR-01, CRYPTO C0, negative
+prod_host_later` и получил launch manifests для SEC-01, PR-01, repository SEC-02/DR-01, CRYPTO C0, negative
   purge guard и SEC-03 contract/census design.
 - Production FIO backfill сохранён в едином финальном full cutover: ручные решения владельца не пересчитываются,
   parser retirement идёт только после apply/evidence. Эта инициатива не создаёт параллельный FIO migration.
@@ -413,7 +413,7 @@ Append-only журнал. Планирование не переводит ни 
 - Новые executable marker-negative тесты (captured actual rendered stdout через `process.stdout.write` spy, не
   только redact-конфигурация): `apps/integrator/src/infra/db/client.test.ts` (query error, tx query error, logger-
   throws console fallback), `apps/integrator/src/infra/observability/logger.test.ts`, `apps/webapp/src/infra/logging/
-  logger.test.ts`, `apps/media-worker/src/logger.test.ts`. Все используют `SENSITIVE_TEST_MARKER_bcb914` в SQL params
+logger.test.ts`, `apps/media-worker/src/logger.test.ts`. Все используют `SENSITIVE_TEST_MARKER_bcb914` в SQL params
   и в nested `cause.{body.message, providerError.{message,phone}, filename, token}`; assert marker отсутствует в
   рендере, а `pgCode`/`requestId` остаются видимы (safe diagnostics preserved). **Исправлено correction round 1
   (см. ниже)**: изначально top-level `Error.message` (`"outer failure"`) целиком проходил в рендер — это была
@@ -447,7 +447,7 @@ Append-only журнал. Планирование не переводит ни 
   `apps/media-worker/src/logger.test.ts`: `serializeError`-юнит-тесты и rendered-output тесты теперь кладут
   `SENSITIVE_TEST_MARKER_bcb914` **одновременно** в top-level `Error.message` (что автоматически попадает и в
   `Error.stack`, т.к. V8 включает message в текст stack trace) и в nested `cause.{body.message, providerError.
-  {message,phone}, filename, token}`; assert'ится реальное отсутствие маркера в captured stdout, а не только
+{message,phone}, filename, token}`; assert'ится реальное отсутствие маркера в captured stdout, а не только
   redact-конфигурация. Отдельный тест проверяет, что `code`/`class` (`23505`/`23`) сохраняются как safe explicit
   поля. Прежний assert `expect(s.message).toBe(...)`/`rendered.toContain("outer failure")` удалён — это была
   проверка утечки, а не безопасности. `apps/integrator/src/infra/db/client.test.ts`: `buildSensitiveError()` теперь
@@ -484,7 +484,7 @@ Append-only журнал. Планирование не переводит ни 
   SQLSTATE `code`/`class` (не изменялись). Logger-level `redact.paths` (`headers.authorization`, `*.token` и
   т.д.) и `client.ts`/`logDbError` — не тронуты, они не относятся к `cause` внутри `err`.
 - Обновлены `apps/integrator/src/infra/observability/logger.test.ts`, `apps/webapp/src/infra/logging/
-  logger.test.ts`, `apps/media-worker/src/logger.test.ts`: общий `buildLeakyCause()` кладёт
+logger.test.ts`, `apps/media-worker/src/logger.test.ts`: общий `buildLeakyCause()` кладёт
   `SENSITIVE_TEST_MARKER_bcb914` одновременно в top-level `Error.message`/`stack`, nested `cause.body.message`/
   `cause.providerError.{message,phone}`, ранее непроверенные `cause.patientName`, `cause.response.data`,
   элементы массива (`cause.items`) и enumerable-свойство кастомного `Error` (`cause.wrappedError.patientName`
@@ -502,11 +502,11 @@ Append-only журнал. Планирование не переводит ни 
   retries/retention, C4/SaaS/registration файлы, DB/deploy/env/DEV/TEST/PROD/taskdb. L2 и полный LOG-01 остаются
   open.
 - PASS (targeted only, per correction scope): `apps/integrator` `vitest run src/infra/observability/
-  logger.test.ts src/infra/db/client.test.ts` (2 files / 8 tests) и `tsc --noEmit -p .`; `apps/webapp`
+logger.test.ts src/infra/db/client.test.ts` (2 files / 8 tests) и `tsc --noEmit -p .`; `apps/webapp`
   `vitest run src/infra/logging/logger.test.ts` (1 file / 5 tests) и `tsc --noEmit -p .`; `apps/media-worker`
   `vitest run src/logger.test.ts` (1 file / 4 tests) и `tsc --noEmit -p .`. `git diff --check` clean на
   изменённых tracked-файлах (`apps/integrator/src/infra/observability/logger.ts`, `apps/webapp/src/infra/
-  logging/logger.ts`, `apps/webapp/src/infra/logging/logger.test.ts`, `apps/media-worker/src/logger.ts`).
+logging/logger.ts`, `apps/webapp/src/infra/logging/logger.test.ts`, `apps/media-worker/src/logger.ts`).
   Full package test/lint/build не перезапускались (вне scope этой узкой правки). Следующий независимый audit —
   терминальный по этому P1.
 
@@ -565,7 +565,7 @@ Append-only журнал. Планирование не переводит ни 
   unchecked `mv` failure would otherwise fall through as a false success). A single `EXIT` trap
   (`cleanup_partials`) removes only this run's tracked `.partial` paths, scoped to `BACKUPS_ROOT`; it never touches
   an earlier valid generation because it never globs — only exact tracked paths.
-- Split-URL mode: `run_backup_dumps` now explicitly captures the exit status of *both* the `integrator` and
+- Split-URL mode: `run_backup_dumps` now explicitly captures the exit status of _both_ the `integrator` and
   `webapp` `dump_one` calls (`rc=1` if either fails) instead of returning only the last call's status — the
   original single-URL-equal-check logic (one unified dump vs. two) is otherwise unchanged.
 - Failure text sent to `operator_job_status.last_error` and echoed to stdout is passed through a new

@@ -28,21 +28,21 @@ notifications должны перейти на app push, а Telegram/MAX — о�
 
 > **CURRENT-RUNTIME FACT, SUPERSEDED AS TARGET — 2026-07-27.** Порядок и жёсткий список каналов ниже не являются целевым контрактом; см. строку **«Уведомления»** в карте authority.
 
-| Область | Поведение |
-|---------|-----------|
-| Inbox | PWA-чат `/app/patient/messages` — единая история; push ведёт в чат — см. [`PATIENT_SUPPORT_CHAT_INBOX.md`](PATIENT_SUPPORT_CHAT_INBOX.md) |
-| Расчёт каналов | `resolvePatientNotificationChannels` — порядок проверки **`web_push` → telegram → max → email`** |
-| Подписка | `/api/patient/web-push/subscribe` — включает глобальный канал и topic-defaults в `user_notification_topic_channels` |
+| Область              | Поведение                                                                                                                                                                                                                         |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Inbox                | PWA-чат `/app/patient/messages` — единая история; push ведёт в чат — см. [`PATIENT_SUPPORT_CHAT_INBOX.md`](PATIENT_SUPPORT_CHAT_INBOX.md)                                                                                         |
+| Расчёт каналов       | `resolvePatientNotificationChannels` — порядок проверки **`web_push` → telegram → max → email`**                                                                                                                                  |
+| Подписка             | `/api/patient/web-push/subscribe` — включает глобальный канал и topic-defaults в `user_notification_topic_channels`                                                                                                               |
 | Напоминания / запись | Integrator запрашивает targets у webapp; push-copy и M2M `patient-notifications/web-push` передают подписанный `organizationId` и проверяют enrollment — см. [`INTEGRATOR_CONTRACT.md`](../../apps/webapp/INTEGRATOR_CONTRACT.md) |
 
 ## Специалист (врач / admin, Staff PWA)
 
 > **CURRENT-RUNTIME FACT, SUPERSEDED AS TARGET — 2026-07-27.** Per-topic defaults и env fallback ниже — только снимок runtime, не target; см. строку **«Уведомления»** в карте authority.
 
-| Тема | Дефолт каналов (без строк в `user_notification_topic_channels`) | Код |
-|------|------------------------------------------------------------------|-----|
-| `doctor_patient_messages` | **`web_push`, telegram, max** | `defaultDoctorTopicFallbackChannels` |
-| `doctor_patient_program_notes` | **`web_push`, telegram, max** | то же |
+| Тема                               | Дефолт каналов (без строк в `user_notification_topic_channels`)                         | Код                                     |
+| ---------------------------------- | --------------------------------------------------------------------------------------- | --------------------------------------- |
+| `doctor_patient_messages`          | **`web_push`, telegram, max**                                                           | `defaultDoctorTopicFallbackChannels`    |
+| `doctor_patient_program_notes`     | **`web_push`, telegram, max**                                                           | то же                                   |
 | `doctor_specialist_task_reminders` | fallback из `doctor_specialist_task_reminder_channels` (doctor scope) + per-topic prefs | `resolveSpecialistTaskReminderChannels` |
 
 **Per-staff доставка** (сообщения и комментарии пациента): `notifyDoctorPatientMessageToStaff` — fan-out по каждому активному staff-user с учётом привязок и матрицы `/app/settings`.

@@ -101,7 +101,7 @@
 - Delta gate on exact integration SHA `b993883e62aa3889d54ed9081df909ce2187c724`: focused Vitest
   **3 files / 18 tests PASS**, touched-file ESLint PASS, webapp typecheck PASS, `git diff --check` PASS. The full
   167-row matrix validator passed with unchanged owner text and product totals `45 real / 44 partial / 9 deferred /
-  50 blocked`; the accumulated full CI was not redundantly repeated for this two-file product delta.
+50 blocked`; the accumulated full CI was not redundantly repeated for this two-file product delta.
 - Canonical command: `bash deploy/host/deploy-test.sh feat/doctor-ui-rebuild`. The existing
   `bersoncarebot_test` database was preserved; no dump/reset/PROD read or action, `main` push or `test` push occurred.
 - `/opt/projects/bersoncarebot-test` resolves exactly to `b993883e62aa3889d54ed9081df909ce2187c724`.

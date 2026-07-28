@@ -11,7 +11,7 @@ export function buildReminderSendsLast24hClock(
 ): HourlyClockSlice[] {
   const byHour = Array.from({ length: 24 }, (_, hour) => ({
     hour,
-    label: `${String(hour).padStart(2, "0")}:00`,
+    label: `${String(hour).padStart(2, '0')}:00`,
     sent: 0,
     failed: 0,
   }));

@@ -9,21 +9,21 @@
 
 ## 1. Цель фазы и границы
 
-| | |
-|--|--|
-| **Цель** | Убедиться, что при уже существующем дубле merge сохраняет данные Rubitime и PWA; дубли по возможности предотвращаются фазой 1, не merge. |
-| **В scope** | Ревью `PLATFORM_USER_MERGE.md`, ограничения auto-merge, unit-тест MAIN PLAN §7, журнал. |
-| **Вне scope** | Merge engine v3, изменение CI, backfill (PHASE_07), правки `POST /api/doctor/clients/merge`. |
+|               |                                                                                                                                          |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| **Цель**      | Убедиться, что при уже существующем дубле merge сохраняет данные Rubitime и PWA; дубли по возможности предотвращаются фазой 1, не merge. |
+| **В scope**   | Ревью `PLATFORM_USER_MERGE.md`, ограничения auto-merge, unit-тест MAIN PLAN §7, журнал.                                                  |
+| **Вне scope** | Merge engine v3, изменение CI, backfill (PHASE_07), правки `POST /api/doctor/clients/merge`.                                             |
 
 ---
 
 ## 2. Сценарии MAIN PLAN §7 — по пунктам
 
-| # | Сценарий | Ожидание | Статус | Доказательство |
-|---|----------|----------|--------|----------------|
-| 1 | Rubitime: user по email, из Rubitime приходит phone | Trusted phone на **том же** user, без дубля | **Live-path (PHASE_01)** | `ensureAppointmentClientTx`: phone → integrator_id → email; UPDATE trusted phone; тесты `ensureAppointmentClient.test.ts`, autobind в `events.test.ts` — merge **не вызывается** |
-| 2 | Позже bot user с тем же телефоном | Безопасный merge / resolution | **Частично** | Auto: `mergeCanonicalPlatformUserCandidates` (`projection` / `phone_bind`) + `pickMergeTargetId`; конфликт → `MergeConflictError` → 202 + `auto_merge_conflict` (`events.ts`, `events.test.ts`). **Нет** целевого теста «bot + Rubitime ensure → один canonical без INSERT дубля» |
-| 3 | User A: appointments; User B: diary/warmup/reminders | После merge всё на canonical | **Выполнено (unit, manual)** | `mergePlatformUsersInTransaction` переносит `appointment_records`, `patient_bookings`, `reminder_rules`, `symptom_*`, dedupe singleton; тест `repoints appointments and diary/warmup domains to canonical user` |
+| #   | Сценарий                                             | Ожидание                                    | Статус                       | Доказательство                                                                                                                                                                                                                                                                    |
+| --- | ---------------------------------------------------- | ------------------------------------------- | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Rubitime: user по email, из Rubitime приходит phone  | Trusted phone на **том же** user, без дубля | **Live-path (PHASE_01)**     | `ensureAppointmentClientTx`: phone → integrator_id → email; UPDATE trusted phone; тесты `ensureAppointmentClient.test.ts`, autobind в `events.test.ts` — merge **не вызывается**                                                                                                  |
+| 2   | Позже bot user с тем же телефоном                    | Безопасный merge / resolution               | **Частично**                 | Auto: `mergeCanonicalPlatformUserCandidates` (`projection` / `phone_bind`) + `pickMergeTargetId`; конфликт → `MergeConflictError` → 202 + `auto_merge_conflict` (`events.ts`, `events.test.ts`). **Нет** целевого теста «bot + Rubitime ensure → один canonical без INSERT дубля» |
+| 3   | User A: appointments; User B: diary/warmup/reminders | После merge всё на canonical                | **Выполнено (unit, manual)** | `mergePlatformUsersInTransaction` переносит `appointment_records`, `patient_bookings`, `reminder_rules`, `symptom_*`, dedupe singleton; тест `repoints appointments and diary/warmup domains to canonical user`                                                                   |
 
 **Сводка:** сценарий §7.3 закрыт тестом фазы; §7.1 — зона PHASE_01; §7.2 — поведение merge-движка уже было, явная регрессия на bot+Rubitime **не** добавлялась (вне узкого scope PHASE_06).
 
@@ -31,14 +31,14 @@
 
 ## 3. Definition of Done — по пунктам
 
-| Критерий (PHASE_06) | Статус | Доказательство |
-|---------------------|--------|----------------|
-| Чеклист сценариев §7 | **Выполнено** | Таблица §2; backlog только на bot E2E (не блокер фазы) |
-| Нет регрессии manual merge API | **Выполнено** | Контракт `ManualMergeResolution` / routes не менялись; 36 тестов merge-related зелёные (см. §8) |
-| Ревью `PLATFORM_USER_MERGE.md` | **Выполнено** | Секция «Login / Register initiative — identity vs merge» + таблица ограничений auto-merge |
-| Тест appointments + diary/warmup | **Выполнено** | `pgPlatformUserMerge.test.ts` (новый `it`) |
+| Критерий (PHASE_06)                                | Статус        | Доказательство                                                                                   |
+| -------------------------------------------------- | ------------- | ------------------------------------------------------------------------------------------------ |
+| Чеклист сценариев §7                               | **Выполнено** | Таблица §2; backlog только на bot E2E (не блокер фазы)                                           |
+| Нет регрессии manual merge API                     | **Выполнено** | Контракт `ManualMergeResolution` / routes не менялись; 36 тестов merge-related зелёные (см. §8)  |
+| Ревью `PLATFORM_USER_MERGE.md`                     | **Выполнено** | Секция «Login / Register initiative — identity vs merge» + таблица ограничений auto-merge        |
+| Тест appointments + diary/warmup                   | **Выполнено** | `pgPlatformUserMerge.test.ts` (новый `it`)                                                       |
 | Ограничения automerge (`email_conflict` → support) | **Выполнено** | Док + код: `resolveAuthState` → 409, без вызова merge; `events.ts` → 202 при projection conflict |
-| `LOG.md` | **Выполнено** | `2026-05-20 — PHASE_06` |
+| `LOG.md`                                           | **Выполнено** | `2026-05-20 — PHASE_06`                                                                          |
 
 **Локальные проверки (аудит 2026-05-20):**
 
@@ -58,20 +58,20 @@ Integrator `mergeIntegratorUsers.test.ts` — **не** гонялся (пути 
 
 ### 4.1 `docs/ARCHITECTURE/PLATFORM_USER_MERGE.md`
 
-| Добавлено | Содержание |
-|-----------|------------|
-| Слои identity | Live (PHASE_01), email setup/register (PHASE_03–05), merge-страховка |
+| Добавлено                      | Содержание                                                                                                   |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| Слои identity                  | Live (PHASE_01), email setup/register (PHASE_03–05), merge-страховка                                         |
 | Таблица ограничений auto-merge | `email_conflict`, verified email conflict, projection 202, integrator_id v1/v2, shared phone meaningful data |
-| Ссылка на тест | `repoints appointments and diary/warmup domains…` |
+| Ссылка на тест                 | `repoints appointments and diary/warmup domains…`                                                            |
 
 Согласовано с [`PHASE_05_AUDIT.md`](PHASE_05_AUDIT.md) §11: register **не** automerge при `email_conflict`.
 
 ### 4.2 Устаревшие документы
 
-| Файл | Проблема |
-|------|----------|
+| Файл                                            | Проблема                                                                                                       |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | [`AUDIT_REPORT.md`](AUDIT_REPORT.md) §6.1, §6.3 | ~~Шапка «реализация не начата»~~ — **§12** (2026-05-20) отражает post-PHASE_01–06; §1–11 — historical baseline |
-| [`SCOPE_DECISIONS.md`](SCOPE_DECISIONS.md) | ~~«PHASE_06 deferred»~~ — **исправлено:** PHASE_06 закрыта; 07–08 deferred |
+| [`SCOPE_DECISIONS.md`](SCOPE_DECISIONS.md)      | ~~«PHASE_06 deferred»~~ — **исправлено:** PHASE_06 закрыта; 07–08 deferred                                     |
 
 ---
 
@@ -100,12 +100,12 @@ flowchart LR
   EC -.->|ambiguous candidates| AM
 ```
 
-| Поток | Merge? | Источник |
-|-------|--------|----------|
-| Register `email_conflict` | **Нет** | `register/route.ts` 409 |
-| Rubitime ensure, один кандидат | **Нет** (link) | `ensureAppointmentClientTx` |
-| Несколько canonical на strong id | **Да** или conflict | `mergeCandidates` / throw |
-| Ручной merge врача | **Да** | `runManualPlatformUserMerge` |
+| Поток                            | Merge?              | Источник                     |
+| -------------------------------- | ------------------- | ---------------------------- |
+| Register `email_conflict`        | **Нет**             | `register/route.ts` 409      |
+| Rubitime ensure, один кандидат   | **Нет** (link)      | `ensureAppointmentClientTx`  |
+| Несколько canonical на strong id | **Да** или conflict | `mergeCandidates` / throw    |
+| Ручной merge врача               | **Да**              | `runManualPlatformUserMerge` |
 
 ---
 
@@ -113,25 +113,25 @@ flowchart LR
 
 Реализация: `packages/platform-merge/src/pgPlatformUserMerge.ts` (реэкспорт webapp `pgPlatformUserMerge.ts`).
 
-| Домен (MAIN PLAN §7) | SQL в merge tx | Покрытие тестом PHASE_06 |
-|----------------------|----------------|---------------------------|
-| Приёмы Rubitime | `UPDATE appointment_records`, `patient_bookings` | **Да** (assert в SQL log) |
-| Напоминания | `UPDATE reminder_rules` | **Да** |
-| Дневник / разминка | dedupe `general_wellbeing`, `warmup_feeling` + bulk `symptom_trackings` / `symptom_entries` | **Да** (порядок dedupe → bulk) |
-| ЛФК | `lfk_complexes`, `lfk_sessions`, `patient_lfk_assignments` | **Нет** в новом тесте (есть в движке, другие `it` не расширялись) |
-| Email/password auth | `email_challenges`, `user_password_credentials`, `email_send_cooldowns` | Существующие `it` на email_verified_at |
-| **Setup tokens (PHASE_03)** | **Нет** явного `UPDATE user_email_setup_tokens` | **Пробел** — токены остаются на `user_id` alias; ссылка с `user_id` дубликата может работать до purge, канонический id в письме — на target |
+| Домен (MAIN PLAN §7)        | SQL в merge tx                                                                              | Покрытие тестом PHASE_06                                                                                                                    |
+| --------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Приёмы Rubitime             | `UPDATE appointment_records`, `patient_bookings`                                            | **Да** (assert в SQL log)                                                                                                                   |
+| Напоминания                 | `UPDATE reminder_rules`                                                                     | **Да**                                                                                                                                      |
+| Дневник / разминка          | dedupe `general_wellbeing`, `warmup_feeling` + bulk `symptom_trackings` / `symptom_entries` | **Да** (порядок dedupe → bulk)                                                                                                              |
+| ЛФК                         | `lfk_complexes`, `lfk_sessions`, `patient_lfk_assignments`                                  | **Нет** в новом тесте (есть в движке, другие `it` не расширялись)                                                                           |
+| Email/password auth         | `email_challenges`, `user_password_credentials`, `email_send_cooldowns`                     | Существующие `it` на email_verified_at                                                                                                      |
+| **Setup tokens (PHASE_03)** | **Нет** явного `UPDATE user_email_setup_tokens`                                             | **Пробел** — токены остаются на `user_id` alias; ссылка с `user_id` дубликата может работать до purge, канонический id в письме — на target |
 
 ---
 
 ## 7. Тестовое покрытие
 
-| Файл | Роль в PHASE_06 |
-|------|-----------------|
-| `pgPlatformUserMerge.test.ts` | **+1** сценарий §7.3; всего **18** `it` в файле |
-| `manualPlatformUserMerge.test.ts` | Регрессия apply/gate |
-| `adminMergeAccountsLogic.test.ts` | Регрессия preview orientation / submit |
-| `events.test.ts` | auto_merge_conflict на projection (не перепрогонялся в DoD фазы) |
+| Файл                              | Роль в PHASE_06                                                  |
+| --------------------------------- | ---------------------------------------------------------------- |
+| `pgPlatformUserMerge.test.ts`     | **+1** сценарий §7.3; всего **18** `it` в файле                  |
+| `manualPlatformUserMerge.test.ts` | Регрессия apply/gate                                             |
+| `adminMergeAccountsLogic.test.ts` | Регрессия preview orientation / submit                           |
+| `events.test.ts`                  | auto_merge_conflict на projection (не перепрогонялся в DoD фазы) |
 
 **Пробелы (не блокеры закрытия фазы):**
 
@@ -168,12 +168,12 @@ PHASE_01 снижает частоту, но не исключает: истор
 
 ## 9. Scope boundaries
 
-| Вне scope PHASE_06 | Подтверждение |
-|--------------------|---------------|
-| Новый merge engine | Нет изменений в `packages/platform-merge` логики merge |
-| CI workflow | Не трогали |
-| Backfill / mass setup | PHASE_07/08 |
-| Изменение `ensureAppointmentClientTx` | PHASE_01 |
+| Вне scope PHASE_06                    | Подтверждение                                          |
+| ------------------------------------- | ------------------------------------------------------ |
+| Новый merge engine                    | Нет изменений в `packages/platform-merge` логики merge |
+| CI workflow                           | Не трогали                                             |
+| Backfill / mass setup                 | PHASE_07/08                                            |
+| Изменение `ensureAppointmentClientTx` | PHASE_01                                               |
 
 ---
 

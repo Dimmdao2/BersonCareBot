@@ -155,9 +155,9 @@ describe('SaaS TEST walkthrough reconciliation', () => {
     );
     expect(source).toContain('assignedDayOffset: -30');
     expect(source).toContain('assignedDayOffset: -20');
-    expect(
-      source.split('createdAt: relativeIso(now, program.assignedDayOffset)').length - 1,
-    ).toBe(2);
+    expect(source.split('createdAt: relativeIso(now, program.assignedDayOffset)').length - 1).toBe(
+      2,
+    );
     expect(source).toContain('startedAt: relativeIso(now, program.assignedDayOffset)');
     expect(source).toContain('sortOrder: 1');
     expect(source).toContain("assertCount('program_pipeline_stages'");
@@ -239,15 +239,18 @@ describe('SaaS TEST walkthrough reconciliation', () => {
     expect(plan.enrollments).toHaveLength(8);
     expect(plan.appointments).toHaveLength(16);
     expect(plan.patients.filter((row) => row.emailNormalized !== null)).toHaveLength(3);
-    expect(plan.patients.find((row) => row.id === SAAS_TEST_FIXTURE_IDS.patientsA[0]))
-      .toMatchObject({ phoneNormalized: SAAS_TEST_FIXTURE_PATIENT_PHONES.patientA });
-    expect(plan.patients.find((row) => row.id === SAAS_TEST_FIXTURE_IDS.patientsB[0]))
-      .toMatchObject({ phoneNormalized: SAAS_TEST_FIXTURE_PATIENT_PHONES.patientB });
-    expect(plan.patients.filter((row) => row.phoneNormalized !== null).map((row) => row.phoneNormalized))
-      .toEqual([
-        SAAS_TEST_FIXTURE_PATIENT_PHONES.patientA,
-        SAAS_TEST_FIXTURE_PATIENT_PHONES.patientB,
-      ]);
+    expect(
+      plan.patients.find((row) => row.id === SAAS_TEST_FIXTURE_IDS.patientsA[0]),
+    ).toMatchObject({ phoneNormalized: SAAS_TEST_FIXTURE_PATIENT_PHONES.patientA });
+    expect(
+      plan.patients.find((row) => row.id === SAAS_TEST_FIXTURE_IDS.patientsB[0]),
+    ).toMatchObject({ phoneNormalized: SAAS_TEST_FIXTURE_PATIENT_PHONES.patientB });
+    expect(
+      plan.patients.filter((row) => row.phoneNormalized !== null).map((row) => row.phoneNormalized),
+    ).toEqual([
+      SAAS_TEST_FIXTURE_PATIENT_PHONES.patientA,
+      SAAS_TEST_FIXTURE_PATIENT_PHONES.patientB,
+    ]);
     const sharedPatientId = SAAS_TEST_FIXTURE_IDS.sharedPatient;
     expect(plan.patients.find((row) => row.id === sharedPatientId)?.emailNormalized).toBe(
       'patient-shared@saas-fixture.test',
@@ -397,9 +400,9 @@ describe('SaaS TEST walkthrough reconciliation', () => {
       'arbitrary_rehearsal',
       'bcb_saas_prod_rehearsal_20260716',
     ]) {
-      expect(() =>
-        assertAllowedFixtureDatabaseTarget({ ...safeInput, databaseName }),
-      ).toThrow('refusing_fixture_rehearsal_target');
+      expect(() => assertAllowedFixtureDatabaseTarget({ ...safeInput, databaseName })).toThrow(
+        'refusing_fixture_rehearsal_target',
+      );
     }
     expect(() =>
       assertAllowedFixtureDatabaseTarget({

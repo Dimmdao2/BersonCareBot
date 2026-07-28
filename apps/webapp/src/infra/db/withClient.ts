@@ -1,4 +1,4 @@
-import type { Pool, PoolClient } from "pg";
+import type { Pool, PoolClient } from 'pg';
 import {
   applyDbPrincipalToConnection,
   applyDbPrincipalToTransaction,
@@ -8,21 +8,21 @@ import {
   getCurrentDbPrincipal,
   type DbPrincipal,
   type DbPrincipalApplyOptions,
-} from "@bersoncare/db-principal";
-import { getPool } from "@/infra/db/client";
-import { WEB_PUSH_REMINDER_INFRA_SOURCE } from "@/infra/db/webappPoolProvider";
+} from '@bersoncare/db-principal';
+import { getPool } from '@/infra/db/client';
+import { WEB_PUSH_REMINDER_INFRA_SOURCE } from '@/infra/db/webappPoolProvider';
 import {
   reportDbCleanupFailure,
   reportDbQueryFailure,
   reportPrincipalSetupFailure,
-} from "@/infra/db/saasIsolationDbFailureReporting";
+} from '@/infra/db/saasIsolationDbFailureReporting';
 
 function getDbPrincipalApplyOptions(): DbPrincipalApplyOptions {
   return buildDbPrincipalApplyOptionsFromEnv(process.env);
 }
 
 function usesOperationalWebPushReminderPool(principal: DbPrincipal | undefined): boolean {
-  return principal?.kind === "infra" && principal.source === WEB_PUSH_REMINDER_INFRA_SOURCE;
+  return principal?.kind === 'infra' && principal.source === WEB_PUSH_REMINDER_INFRA_SOURCE;
 }
 
 async function releaseOperationalClient(client: PoolClient, error?: Error): Promise<void> {
@@ -53,7 +53,9 @@ async function releasePreparedClient(
     if (cleanupError === undefined) {
       client.release();
     } else {
-      client.release(cleanupError instanceof Error ? cleanupError : new Error("DB principal cleanup failed"));
+      client.release(
+        cleanupError instanceof Error ? cleanupError : new Error('DB principal cleanup failed'),
+      );
     }
   }
 }
@@ -66,7 +68,7 @@ async function releasePreparedClientAfterSetupFailure(
   try {
     await clearDbPrincipalFromConnection(client, options, principal);
   } catch (err) {
-    client.release(err instanceof Error ? err : new Error("DB principal cleanup failed"));
+    client.release(err instanceof Error ? err : new Error('DB principal cleanup failed'));
     return;
   }
   try {
@@ -84,14 +86,20 @@ async function prepareTransactionClientForRequest(
   await applyDbPrincipalToTransaction(client, principal, options);
 }
 
-export async function withPoolClient<T>(pool: Pool, fn: (client: PoolClient) => Promise<T>): Promise<T> {
+export async function withPoolClient<T>(
+  pool: Pool,
+  fn: (client: PoolClient) => Promise<T>,
+): Promise<T> {
   // Keep selection, checkout and principal install bound to the same request identity.
   const principalSnapshot = getCurrentDbPrincipal();
   const principalApplyOptions = getDbPrincipalApplyOptions();
   const operationalWebPushReminder = usesOperationalWebPushReminderPool(principalSnapshot);
   if (!operationalWebPushReminder) {
     try {
-      assertDbPrincipalRequestPoolCheckoutAllowedForPrincipal(principalSnapshot, principalApplyOptions);
+      assertDbPrincipalRequestPoolCheckoutAllowedForPrincipal(
+        principalSnapshot,
+        principalApplyOptions,
+      );
     } catch (error) {
       await reportPrincipalSetupFailure(error);
       throw error;
@@ -140,7 +148,10 @@ export async function startPoolTransaction(pool: Pool): Promise<PoolTransactionH
   const operationalWebPushReminder = usesOperationalWebPushReminderPool(principalSnapshot);
   if (!operationalWebPushReminder) {
     try {
-      assertDbPrincipalRequestPoolCheckoutAllowedForPrincipal(principalSnapshot, principalApplyOptions);
+      assertDbPrincipalRequestPoolCheckoutAllowedForPrincipal(
+        principalSnapshot,
+        principalApplyOptions,
+      );
     } catch (error) {
       await reportPrincipalSetupFailure(error);
       throw error;
@@ -152,7 +163,7 @@ export async function startPoolTransaction(pool: Pool): Promise<PoolTransactionH
     if (!operationalWebPushReminder) {
       await prepareClientForRequest(client, principalSnapshot, principalApplyOptions);
     }
-    await client.query("BEGIN");
+    await client.query('BEGIN');
     transactionStarted = true;
     if (!operationalWebPushReminder) {
       await prepareTransactionClientForRequest(client, principalSnapshot, principalApplyOptions);
@@ -161,7 +172,7 @@ export async function startPoolTransaction(pool: Pool): Promise<PoolTransactionH
     await reportPrincipalSetupFailure(err);
     if (transactionStarted) {
       try {
-        await client.query("ROLLBACK");
+        await client.query('ROLLBACK');
       } catch {
         /* preserve original setup error */
       }
@@ -169,20 +180,24 @@ export async function startPoolTransaction(pool: Pool): Promise<PoolTransactionH
     if (operationalWebPushReminder) {
       await releaseOperationalClient(
         client,
-        err instanceof Error ? err : new Error("Web Push reminder transaction setup failed"),
+        err instanceof Error ? err : new Error('Web Push reminder transaction setup failed'),
       );
     } else {
-      await releasePreparedClientAfterSetupFailure(client, principalApplyOptions, principalSnapshot);
+      await releasePreparedClientAfterSetupFailure(
+        client,
+        principalApplyOptions,
+        principalSnapshot,
+      );
     }
     throw err;
   }
   return {
     client,
     commit: async () => {
-      await client.query("COMMIT");
+      await client.query('COMMIT');
     },
     rollback: async () => {
-      await client.query("ROLLBACK");
+      await client.query('ROLLBACK');
     },
     release: async () => {
       if (operationalWebPushReminder) {
@@ -194,7 +209,10 @@ export async function startPoolTransaction(pool: Pool): Promise<PoolTransactionH
   };
 }
 
-export async function withPoolTransaction<T>(pool: Pool, fn: (client: PoolClient) => Promise<T>): Promise<T> {
+export async function withPoolTransaction<T>(
+  pool: Pool,
+  fn: (client: PoolClient) => Promise<T>,
+): Promise<T> {
   const tx = await startPoolTransaction(pool);
   try {
     const out = await fn(tx.client);

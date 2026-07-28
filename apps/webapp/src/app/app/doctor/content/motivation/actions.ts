@@ -1,16 +1,16 @@
-"use server";
+'use server';
 
-import { revalidatePath } from "next/cache";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
-import { env } from "@/config/env";
+import { revalidatePath } from 'next/cache';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import { env } from '@/config/env';
 
 export type MotivationActionState = { ok: boolean; error?: string };
 
 function revalidateMotivationAndPatientHome() {
-  revalidatePath("/app/doctor/content/motivation");
-  revalidatePath("/app/patient");
+  revalidatePath('/app/doctor/content/motivation');
+  revalidatePath('/app/patient');
 }
 
 export async function upsertMotivationQuote(
@@ -18,20 +18,20 @@ export async function upsertMotivationQuote(
   formData: FormData,
 ): Promise<MotivationActionState> {
   const workspace = await requireDoctorWorkspaceContext();
-  if (!env.DATABASE_URL) return { ok: false, error: "База данных недоступна" };
+  if (!env.DATABASE_URL) return { ok: false, error: 'База данных недоступна' };
 
-  const id = (formData.get("id") as string)?.trim();
-  const bodyText = (formData.get("body_text") as string)?.trim() ?? "";
-  const author = (formData.get("author") as string)?.trim() || null;
-  const isActive = formData.get("is_active") === "on";
-  const sortOrderRaw = formData.get("sort_order");
-  let sortOrder = parseInt(String(sortOrderRaw ?? "0"), 10);
+  const id = (formData.get('id') as string)?.trim();
+  const bodyText = (formData.get('body_text') as string)?.trim() ?? '';
+  const author = (formData.get('author') as string)?.trim() || null;
+  const isActive = formData.get('is_active') === 'on';
+  const sortOrderRaw = formData.get('sort_order');
+  let sortOrder = parseInt(String(sortOrderRaw ?? '0'), 10);
   if (Number.isNaN(sortOrder)) sortOrder = 0;
-  if (!bodyText) return { ok: false, error: "Текст обязателен" };
+  if (!bodyText) return { ok: false, error: 'Текст обязателен' };
 
   try {
     const deps = buildAppDeps();
-    await withDoctorWorkspacePrincipal(workspace, "doctor.content.motivation.upsert", () =>
+    await withDoctorWorkspacePrincipal(workspace, 'doctor.content.motivation.upsert', () =>
       deps.doctorMotivationQuotesEditor.upsertQuote({
         id: id || undefined,
         bodyText,
@@ -42,41 +42,47 @@ export async function upsertMotivationQuote(
     );
   } catch (e) {
     console.error(e);
-    return { ok: false, error: "Не удалось сохранить" };
+    return { ok: false, error: 'Не удалось сохранить' };
   }
   revalidateMotivationAndPatientHome();
   return { ok: true };
 }
 
 export async function toggleQuoteArchive(formData: FormData): Promise<void> {
-  const id = (formData.get("id") as string)?.trim();
-  const nextArchived = formData.get("next_archived") === "true";
+  const id = (formData.get('id') as string)?.trim();
+  const nextArchived = formData.get('next_archived') === 'true';
   if (!id) return;
   await setQuoteArchived(id, nextArchived);
 }
 
-export async function setQuoteArchived(id: string, archived: boolean): Promise<MotivationActionState> {
+export async function setQuoteArchived(
+  id: string,
+  archived: boolean,
+): Promise<MotivationActionState> {
   const workspace = await requireDoctorWorkspaceContext();
-  if (!env.DATABASE_URL) return { ok: false, error: "База данных недоступна" };
+  if (!env.DATABASE_URL) return { ok: false, error: 'База данных недоступна' };
   const deps = buildAppDeps();
-  await withDoctorWorkspacePrincipal(workspace, "doctor.content.motivation.archive", () =>
+  await withDoctorWorkspacePrincipal(workspace, 'doctor.content.motivation.archive', () =>
     deps.doctorMotivationQuotesEditor.setQuoteArchived(id, archived),
   );
   revalidateMotivationAndPatientHome();
   return { ok: true };
 }
 
-export async function setQuoteActive(id: string, nextActive: boolean): Promise<MotivationActionState> {
+export async function setQuoteActive(
+  id: string,
+  nextActive: boolean,
+): Promise<MotivationActionState> {
   const workspace = await requireDoctorWorkspaceContext();
-  if (!env.DATABASE_URL) return { ok: false, error: "База данных недоступна" };
+  if (!env.DATABASE_URL) return { ok: false, error: 'База данных недоступна' };
   try {
     const deps = buildAppDeps();
-    await withDoctorWorkspacePrincipal(workspace, "doctor.content.motivation.active", () =>
+    await withDoctorWorkspacePrincipal(workspace, 'doctor.content.motivation.active', () =>
       deps.doctorMotivationQuotesEditor.setQuoteActive(id, nextActive),
     );
   } catch (e) {
     console.error(e);
-    return { ok: false, error: "Не удалось обновить активность" };
+    return { ok: false, error: 'Не удалось обновить активность' };
   }
   revalidateMotivationAndPatientHome();
   return { ok: true };
@@ -86,19 +92,19 @@ export type ReorderState = { ok: boolean; error?: string };
 
 export async function reorderMotivationQuotes(orderedIds: string[]): Promise<ReorderState> {
   const workspace = await requireDoctorWorkspaceContext();
-  if (!env.DATABASE_URL) return { ok: false, error: "База данных недоступна" };
-  if (!orderedIds.length) return { ok: false, error: "Пустой порядок" };
+  if (!env.DATABASE_URL) return { ok: false, error: 'База данных недоступна' };
+  if (!orderedIds.length) return { ok: false, error: 'Пустой порядок' };
   const ids = orderedIds.map((x) => String(x).trim()).filter(Boolean);
-  if (ids.length !== orderedIds.length) return { ok: false, error: "Некорректные id" };
+  if (ids.length !== orderedIds.length) return { ok: false, error: 'Некорректные id' };
 
   try {
     const deps = buildAppDeps();
-    await withDoctorWorkspacePrincipal(workspace, "doctor.content.motivation.reorder", () =>
+    await withDoctorWorkspacePrincipal(workspace, 'doctor.content.motivation.reorder', () =>
       deps.doctorMotivationQuotesEditor.reorderQuotes(ids),
     );
   } catch (e) {
     console.error(e);
-    return { ok: false, error: "Не удалось сохранить порядок" };
+    return { ok: false, error: 'Не удалось сохранить порядок' };
   }
   revalidateMotivationAndPatientHome();
   return { ok: true };

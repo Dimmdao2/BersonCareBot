@@ -1,1 +1,1 @@
-export const CLINICAL_TESTS_PATH = "/app/doctor/clinical-tests";
+export const CLINICAL_TESTS_PATH = '/app/doctor/clinical-tests';

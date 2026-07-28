@@ -26,6 +26,7 @@ export function hourMinuteToInterval(hour: number, minute: number): number | nul
   if (h < 0 || h > 10 || m < 0 || m > 59) return null;
   if (h === 0 && m < 30) return null;
   const t = h * 60 + m;
-  if (t < REMINDER_INTERVAL_WINDOW_MIN_MINUTES || t > REMINDER_INTERVAL_WINDOW_MAX_MINUTES) return null;
+  if (t < REMINDER_INTERVAL_WINDOW_MIN_MINUTES || t > REMINDER_INTERVAL_WINDOW_MAX_MINUTES)
+    return null;
   return t;
 }

@@ -1,10 +1,14 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
-import type { BookingAdminOverviewData } from "@/app/app/doctor/admin/booking/loadBookingAdminOverview";
-import { BOOKING_CARD_GRID_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
+import type { BookingAdminOverviewData } from '@/app/app/doctor/admin/booking/loadBookingAdminOverview';
+import { BOOKING_CARD_GRID_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 
 export function BookingOverviewPanel({ data }: { data: BookingAdminOverviewData }) {
   if (data.unavailable) {
-    return <p className="text-sm text-muted-foreground">Запись недоступна без подключения к базе данных.</p>;
+    return (
+      <p className="text-sm text-muted-foreground">
+        Запись недоступна без подключения к базе данных.
+      </p>
+    );
   }
 
   if (data.organizationRequired) {
@@ -28,19 +32,20 @@ export function BookingOverviewPanel({ data }: { data: BookingAdminOverviewData 
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base">
-              {stats.bookingEnabled ? "Запись включена" : "Запись не готова"}
+              {stats.bookingEnabled ? 'Запись включена' : 'Запись не готова'}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-1 text-sm">
             <p>Активных локаций: {stats.activeLocations}</p>
             <p>Активных услуг: {stats.activeServices}</p>
             <p>Доступно пациентам: {stats.patientVisibleServices}</p>
-            <p>Расписание:{" "}
+            <p>
+              Расписание:{' '}
               {stats.hasUpcomingSchedule
-                ? "на ближайшие дни"
+                ? 'на ближайшие дни'
                 : stats.hasCustomSchedule
-                  ? "настроено"
-                  : "не настроено"}
+                  ? 'настроено'
+                  : 'не настроено'}
             </p>
             {stats.servicesWithoutAvailability > 0 ? (
               <p className="text-muted-foreground">
@@ -49,7 +54,6 @@ export function BookingOverviewPanel({ data }: { data: BookingAdminOverviewData 
             ) : null}
           </CardContent>
         </Card>
-
       </div>
 
       {warnings.length > 0 ? (

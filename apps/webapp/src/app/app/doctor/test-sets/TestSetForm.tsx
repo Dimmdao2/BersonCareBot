@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useActionState, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Badge } from "@/shared/ui/doctor/primitives/badge";
-import { Button } from "@/shared/ui/doctor/primitives/button";
+import Link from 'next/link';
+import { useActionState, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Badge } from '@/shared/ui/doctor/primitives/badge';
+import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
   Dialog,
   DialogContent,
@@ -11,28 +11,33 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/shared/ui/doctor/primitives/dialog";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Label } from "@/shared/ui/doctor/primitives/label";
-import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
-import type { TestSet, TestSetUsageSnapshot } from "@/modules/tests/types";
-import type { DoctorCatalogPubArchQuery } from "@/shared/lib/doctorCatalogListStatus";
-import { cn } from "@/lib/utils";
-import { normalizeRuSearchString } from "@/shared/lib/ruSearchNormalize";
-import { MediaThumb } from "@/shared/ui/doctor/media/MediaThumb";
-import { clinicalTestMediaItemToPreviewUi } from "@/shared/ui/doctor/media/mediaPreviewUiModel";
-import { PickerSearchField } from "@/shared/ui/doctor/PickerSearchField";
-import { archiveDoctorTestSet, fetchDoctorTestSetUsageSnapshot, saveDoctorTestSet, unarchiveDoctorTestSet } from "./actions";
-import type { ArchiveTestSetState, SaveTestSetState, UnarchiveTestSetState } from "./actionsShared";
-import { rowsFromTestSet, TestSetItemsForm, type TestSetEditorItemRow } from "./TestSetItemsForm";
-import type { ClinicalTestLibraryPickRow } from "./clinicalTestLibraryRows";
-import { doctorTestSetUsageHref } from "./testSetUsageDocLinks";
-import { DoctorCatalogPersistPublishBar } from "@/shared/ui/doctor/DoctorCatalogPersistPublishBar";
+} from '@/shared/ui/doctor/primitives/dialog';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
+import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
+import type { TestSet, TestSetUsageSnapshot } from '@/modules/tests/types';
+import type { DoctorCatalogPubArchQuery } from '@/shared/lib/doctorCatalogListStatus';
+import { cn } from '@/lib/utils';
+import { normalizeRuSearchString } from '@/shared/lib/ruSearchNormalize';
+import { MediaThumb } from '@/shared/ui/doctor/media/MediaThumb';
+import { clinicalTestMediaItemToPreviewUi } from '@/shared/ui/doctor/media/mediaPreviewUiModel';
+import { PickerSearchField } from '@/shared/ui/doctor/PickerSearchField';
+import {
+  archiveDoctorTestSet,
+  fetchDoctorTestSetUsageSnapshot,
+  saveDoctorTestSet,
+  unarchiveDoctorTestSet,
+} from './actions';
+import type { ArchiveTestSetState, SaveTestSetState, UnarchiveTestSetState } from './actionsShared';
+import { rowsFromTestSet, TestSetItemsForm, type TestSetEditorItemRow } from './TestSetItemsForm';
+import type { ClinicalTestLibraryPickRow } from './clinicalTestLibraryRows';
+import { doctorTestSetUsageHref } from './testSetUsageDocLinks';
+import { DoctorCatalogPersistPublishBar } from '@/shared/ui/doctor/DoctorCatalogPersistPublishBar';
 import {
   testSetUsageHasAnyReference,
   testSetUsageSections,
   type TestSetUsageSection,
-} from "./testSetUsageSummaryText";
+} from './testSetUsageSummaryText';
 
 function TestSetUsageSectionsView({ sections }: { sections: TestSetUsageSection[] }) {
   if (sections.length === 0) {
@@ -72,28 +77,32 @@ function TestSetPublicationBadge({
   publicationStatus,
   isArchived,
 }: {
-  publicationStatus?: "draft" | "published" | null;
+  publicationStatus?: 'draft' | 'published' | null;
   isArchived?: boolean;
 }) {
   if (isArchived) {
     return (
-      <Badge variant="destructive" className="max-w-full shrink-0 truncate font-medium" title="В архиве">
+      <Badge
+        variant="destructive"
+        className="max-w-full shrink-0 truncate font-medium"
+        title="В архиве"
+      >
         В архиве
       </Badge>
     );
   }
-  const published = publicationStatus === "published";
+  const published = publicationStatus === 'published';
   return (
     <Badge
-      variant={published ? "outline" : "secondary"}
+      variant={published ? 'outline' : 'secondary'}
       className={cn(
-        "max-w-full shrink-0 truncate font-medium",
+        'max-w-full shrink-0 truncate font-medium',
         published &&
-          "border-emerald-600/35 bg-emerald-600/12 text-emerald-900 dark:border-emerald-500/45 dark:bg-emerald-500/12 dark:text-emerald-50",
+          'border-emerald-600/35 bg-emerald-600/12 text-emerald-900 dark:border-emerald-500/45 dark:bg-emerald-500/12 dark:text-emerald-50',
       )}
-      title={published ? "Опубликован" : "Черновик"}
+      title={published ? 'Опубликован' : 'Черновик'}
     >
-      {published ? "Опубликован" : "Черновик"}
+      {published ? 'Опубликован' : 'Черновик'}
     </Badge>
   );
 }
@@ -109,7 +118,7 @@ type Props = {
   testSet?: TestSet | null;
   workspaceListPreserve?: {
     q?: string;
-    titleSort?: "asc" | "desc" | null;
+    titleSort?: 'asc' | 'desc' | null;
     regionCode?: string;
     listPubArch?: DoctorCatalogPubArchQuery;
   };
@@ -126,7 +135,7 @@ type Props = {
   clinicalTestsLibrary?: ClinicalTestLibraryPickRow[];
 };
 
-function WorkspaceListPreserveHidden({ w }: { w?: Props["workspaceListPreserve"] }) {
+function WorkspaceListPreserveHidden({ w }: { w?: Props['workspaceListPreserve'] }) {
   if (!w?.listPubArch) return null;
   return (
     <>
@@ -145,10 +154,10 @@ export function TestSetForm({
   externalUsageSnapshot,
   clinicalTestsLibrary = [],
 }: Props) {
-  const recordKey = testSet?.id ?? "create";
+  const recordKey = testSet?.id ?? 'create';
   const metaFormId = useMemo(() => `test-set-meta-${recordKey}`, [recordKey]);
-  const [title, setTitle] = useState(testSet?.title ?? "");
-  const [description, setDescription] = useState(testSet?.description ?? "");
+  const [title, setTitle] = useState(testSet?.title ?? '');
+  const [description, setDescription] = useState(testSet?.description ?? '');
   const [localError, setLocalError] = useState<string | null>(null);
   const [usage, setUsage] = useState<TestSetUsageSnapshot | null>(null);
   const [usageLoadError, setUsageLoadError] = useState<string | null>(null);
@@ -158,25 +167,30 @@ export function TestSetForm({
   const archiveFormRef = useRef<HTMLFormElement>(null);
   const [draftRows, setDraftRows] = useState<DraftItemRow[]>([]);
   const [draftPickOpen, setDraftPickOpen] = useState(false);
-  const [draftPickQuery, setDraftPickQuery] = useState("");
-  const [itemRows, setItemRows] = useState<TestSetEditorItemRow[]>(() => (testSet ? rowsFromTestSet(testSet) : []));
+  const [draftPickQuery, setDraftPickQuery] = useState('');
+  const [itemRows, setItemRows] = useState<TestSetEditorItemRow[]>(() =>
+    testSet ? rowsFromTestSet(testSet) : [],
+  );
 
   const itemsSyncKey = useMemo(
     () =>
-      testSet?.items.map((i) => `${i.id}:${i.testId}:${i.sortOrder}:${i.comment ?? ""}`).sort().join("|") ?? "",
+      testSet?.items
+        .map((i) => `${i.id}:${i.testId}:${i.sortOrder}:${i.comment ?? ''}`)
+        .sort()
+        .join('|') ?? '',
     [testSet],
   );
 
   useEffect(() => {
-    setTitle(testSet?.title ?? "");
-    setDescription(testSet?.description ?? "");
+    setTitle(testSet?.title ?? '');
+    setDescription(testSet?.description ?? '');
     setLocalError(null);
     setUsageLoadError(null);
     setWarnOpen(false);
     setArchiveUsageAck(false);
     setDraftRows([]);
     setDraftPickOpen(false);
-    setDraftPickQuery("");
+    setDraftPickQuery('');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recordKey]);
 
@@ -206,7 +220,7 @@ export function TestSetForm({
       .catch(() => {
         if (!cancelled) {
           setUsage(null);
-          setUsageLoadError("Не удалось загрузить сводку использования");
+          setUsageLoadError('Не удалось загрузить сводку использования');
         }
       })
       .finally(() => {
@@ -242,8 +256,8 @@ export function TestSetForm({
   useEffect(() => {
     if (
       archiveState?.ok === false &&
-      "code" in archiveState &&
-      archiveState.code === "USAGE_CONFIRMATION_REQUIRED"
+      'code' in archiveState &&
+      archiveState.code === 'USAGE_CONFIRMATION_REQUIRED'
     ) {
       setWarnOpen(true);
     }
@@ -257,8 +271,8 @@ export function TestSetForm({
   const warnSections = useMemo(() => {
     if (
       archiveState?.ok === false &&
-      "code" in archiveState &&
-      archiveState.code === "USAGE_CONFIRMATION_REQUIRED"
+      'code' in archiveState &&
+      archiveState.code === 'USAGE_CONFIRMATION_REQUIRED'
     ) {
       const u = archiveState.usage;
       if (!testSetUsageHasAnyReference(u)) return [];
@@ -268,13 +282,13 @@ export function TestSetForm({
   }, [archiveState]);
 
   const archiveError =
-    archiveState?.ok === false && "error" in archiveState ? archiveState.error : null;
+    archiveState?.ok === false && 'error' in archiveState ? archiveState.error : null;
 
   const unarchiveError =
-    unarchiveState?.ok === false && "error" in unarchiveState ? unarchiveState.error : null;
+    unarchiveState?.ok === false && 'error' in unarchiveState ? unarchiveState.error : null;
 
   const isArchived = !!testSet?.isArchived;
-  const published = !!testSet && testSet.publicationStatus === "published";
+  const published = !!testSet && testSet.publicationStatus === 'published';
   const canUseLibrary = clinicalTestsLibrary.length > 0;
 
   const draftItemsPayloadJson = useMemo(() => {
@@ -297,8 +311,10 @@ export function TestSetForm({
     const needle = normalizeRuSearchString(draftPickQuery.trim());
     const used = new Set(draftRows.map((r) => r.testId));
     return clinicalTestsLibrary
-      .filter((t) => !used.has(t.id) && (!needle || normalizeRuSearchString(t.title).includes(needle)))
-      .sort((a, b) => a.title.localeCompare(b.title, "ru"));
+      .filter(
+        (t) => !used.has(t.id) && (!needle || normalizeRuSearchString(t.title).includes(needle)),
+      )
+      .sort((a, b) => a.title.localeCompare(b.title, 'ru'));
   }, [clinicalTestsLibrary, draftRows, draftPickQuery]);
 
   const addDraftTest = useCallback((row: ClinicalTestLibraryPickRow) => {
@@ -308,11 +324,11 @@ export function TestSetForm({
         sortId: crypto.randomUUID(),
         testId: row.id,
         title: row.title,
-        comment: "",
+        comment: '',
       },
     ]);
     setDraftPickOpen(false);
-    setDraftPickQuery("");
+    setDraftPickQuery('');
   }, []);
 
   const updateDraftComment = useCallback((sortId: string, comment: string) => {
@@ -332,13 +348,14 @@ export function TestSetForm({
           </p>
         ) : null}
         {testSet ? <input type="hidden" name="id" value={testSet.id} /> : null}
-        {workspaceListPreserve?.q != null && workspaceListPreserve.q !== "" ? (
+        {workspaceListPreserve?.q != null && workspaceListPreserve.q !== '' ? (
           <input type="hidden" name="listQ" value={workspaceListPreserve.q} />
         ) : null}
-        {workspaceListPreserve?.titleSort === "asc" || workspaceListPreserve?.titleSort === "desc" ? (
+        {workspaceListPreserve?.titleSort === 'asc' ||
+        workspaceListPreserve?.titleSort === 'desc' ? (
           <input type="hidden" name="listTitleSort" value={workspaceListPreserve.titleSort} />
         ) : null}
-        {workspaceListPreserve?.regionCode != null && workspaceListPreserve.regionCode !== "" ? (
+        {workspaceListPreserve?.regionCode != null && workspaceListPreserve.regionCode !== '' ? (
           <input type="hidden" name="listRegion" value={workspaceListPreserve.regionCode} />
         ) : null}
         <WorkspaceListPreserveHidden w={workspaceListPreserve} />
@@ -385,7 +402,9 @@ export function TestSetForm({
               />
             ) : null}
             {testSet && canUseLibrary && isArchived ? (
-              <p className="text-sm text-muted-foreground">Состав недоступен, пока набор в архиве.</p>
+              <p className="text-sm text-muted-foreground">
+                Состав недоступен, пока набор в архиве.
+              </p>
             ) : null}
             {!testSet && canUseLibrary ? (
               <div className="flex flex-col gap-3">
@@ -405,7 +424,12 @@ export function TestSetForm({
                         />
                       </div>
                       <div className="mt-2 flex justify-end">
-                        <Button type="button" variant="ghost" size="sm" onClick={() => removeDraftRow(r.sortId)}>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeDraftRow(r.sortId)}
+                        >
                           Удалить из набора
                         </Button>
                       </div>
@@ -456,14 +480,20 @@ export function TestSetForm({
                                   </span>
                                 )}
                               </div>
-                              <span className="line-clamp-2 min-w-0 font-medium leading-snug">{row.title}</span>
+                              <span className="line-clamp-2 min-w-0 font-medium leading-snug">
+                                {row.title}
+                              </span>
                             </Button>
                           </li>
                         ))
                       )}
                     </ul>
                     <DialogFooter>
-                      <Button type="button" variant="outline" onClick={() => setDraftPickOpen(false)}>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setDraftPickOpen(false)}
+                      >
                         Закрыть
                       </Button>
                     </DialogFooter>
@@ -483,7 +513,7 @@ export function TestSetForm({
         isPublished={published}
         catalogRecordExists={Boolean(testSet)}
         persistLabel={
-          !testSet ? "Создать черновик" : published ? "Сохранить изменения" : "Сохранить черновик"
+          !testSet ? 'Создать черновик' : published ? 'Сохранить изменения' : 'Сохранить черновик'
         }
         saveIntentValue="save_draft"
         publishIntentValue="publish"
@@ -491,10 +521,10 @@ export function TestSetForm({
 
       <p className="text-xs text-muted-foreground">
         {!testSet
-          ? "Сохраните черновик, чтобы опубликовать набор. Кнопка «Опубликовать» доступна после первого сохранения."
+          ? 'Сохраните черновик, чтобы опубликовать набор. Кнопка «Опубликовать» доступна после первого сохранения.'
           : published
-            ? "Правки вступают в силу после «Сохранить изменения»."
-            : "«Сохранить черновик» сохраняет название, описание и состав набора одной отправкой."}
+            ? 'Правки вступают в силу после «Сохранить изменения».'
+            : '«Сохранить черновик» сохраняет название, описание и состав набора одной отправкой.'}
       </p>
 
       {testSet ? (
@@ -515,7 +545,9 @@ export function TestSetForm({
           {isArchived ? (
             <div className="rounded-md border border-border/60 bg-muted/30 p-3 text-sm">
               <p className="font-medium text-foreground">Набор в архиве</p>
-              <p className="mt-1 text-muted-foreground">Верните из архива, чтобы снова добавлять в программы.</p>
+              <p className="mt-1 text-muted-foreground">
+                Верните из архива, чтобы снова добавлять в программы.
+              </p>
               {unarchiveError ? (
                 <p role="alert" className="mt-2 text-sm text-destructive">
                   {unarchiveError}
@@ -523,98 +555,115 @@ export function TestSetForm({
               ) : null}
               <form action={unarchiveFormAction} className="mt-3 flex flex-col gap-2">
                 <input type="hidden" name="id" value={testSet.id} />
-                {workspaceListPreserve?.q != null && workspaceListPreserve.q !== "" ? (
+                {workspaceListPreserve?.q != null && workspaceListPreserve.q !== '' ? (
                   <input type="hidden" name="listQ" value={workspaceListPreserve.q} />
                 ) : null}
-                {workspaceListPreserve?.titleSort === "asc" || workspaceListPreserve?.titleSort === "desc" ? (
-                  <input type="hidden" name="listTitleSort" value={workspaceListPreserve.titleSort} />
+                {workspaceListPreserve?.titleSort === 'asc' ||
+                workspaceListPreserve?.titleSort === 'desc' ? (
+                  <input
+                    type="hidden"
+                    name="listTitleSort"
+                    value={workspaceListPreserve.titleSort}
+                  />
                 ) : null}
-                {workspaceListPreserve?.regionCode != null && workspaceListPreserve.regionCode !== "" ? (
+                {workspaceListPreserve?.regionCode != null &&
+                workspaceListPreserve.regionCode !== '' ? (
                   <input type="hidden" name="listRegion" value={workspaceListPreserve.regionCode} />
                 ) : null}
                 <WorkspaceListPreserveHidden w={workspaceListPreserve} />
                 <Button type="submit" variant="secondary" disabled={unarchivePending}>
-                  {unarchivePending ? "Восстановление…" : "Вернуть из архива"}
+                  {unarchivePending ? 'Восстановление…' : 'Вернуть из архива'}
                 </Button>
               </form>
             </div>
           ) : (
             <>
-          {archiveError ? (
-            <p role="alert" className="mb-2 text-sm text-destructive">
-              {archiveError}
-            </p>
-          ) : null}
+              {archiveError ? (
+                <p role="alert" className="mb-2 text-sm text-destructive">
+                  {archiveError}
+                </p>
+              ) : null}
 
-          <form ref={archiveFormRef} action={archiveFormAction} className="flex flex-col gap-2">
-            <input type="hidden" name="id" value={testSet.id} />
-            {workspaceListPreserve?.q != null && workspaceListPreserve.q !== "" ? (
-              <input type="hidden" name="listQ" value={workspaceListPreserve.q} />
-            ) : null}
-            {workspaceListPreserve?.titleSort === "asc" || workspaceListPreserve?.titleSort === "desc" ? (
-              <input type="hidden" name="listTitleSort" value={workspaceListPreserve.titleSort} />
-            ) : null}
-            {workspaceListPreserve?.regionCode != null && workspaceListPreserve.regionCode !== "" ? (
-              <input type="hidden" name="listRegion" value={workspaceListPreserve.regionCode} />
-            ) : null}
-            <WorkspaceListPreserveHidden w={workspaceListPreserve} />
-            <input type="hidden" name="acknowledgeUsageWarning" value={archiveUsageAck ? "1" : ""} readOnly />
-            <Button
-              type="submit"
-              variant="destructive"
-              disabled={archivePending}
-              onClick={() => {
-                setArchiveUsageAck(false);
-              }}
-            >
-              {archivePending ? "Архивация…" : "Архивировать набор"}
-            </Button>
-          </form>
-
-          <Dialog open={warnOpen} onOpenChange={setWarnOpen}>
-            <DialogContent showCloseButton className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>Набор уже используется</DialogTitle>
-                <div className="space-y-2 text-sm text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground">
-                  <span className="block">
-                    Архивация уберёт набор из каталога для новых программ. Уже выданные программы и история попыток не
-                    удаляются.
-                  </span>
-                  {!warnSections.length &&
-                  archiveState?.ok === false &&
-                  "code" in archiveState &&
-                  archiveState.code === "USAGE_CONFIRMATION_REQUIRED" &&
-                  !testSetUsageHasAnyReference(archiveState.usage) ? (
-                    <span className="block text-sm">
-                      Набор помечен как используемый — проверьте связи перед архивацией.
-                    </span>
-                  ) : warnSections.length ? (
-                    <TestSetUsageSectionsView sections={warnSections} />
-                  ) : null}
-                </div>
-              </DialogHeader>
-              <DialogFooter className="gap-2 sm:gap-2">
-                <Button type="button" variant="outline" onClick={() => setWarnOpen(false)}>
-                  Отмена
-                </Button>
+              <form ref={archiveFormRef} action={archiveFormAction} className="flex flex-col gap-2">
+                <input type="hidden" name="id" value={testSet.id} />
+                {workspaceListPreserve?.q != null && workspaceListPreserve.q !== '' ? (
+                  <input type="hidden" name="listQ" value={workspaceListPreserve.q} />
+                ) : null}
+                {workspaceListPreserve?.titleSort === 'asc' ||
+                workspaceListPreserve?.titleSort === 'desc' ? (
+                  <input
+                    type="hidden"
+                    name="listTitleSort"
+                    value={workspaceListPreserve.titleSort}
+                  />
+                ) : null}
+                {workspaceListPreserve?.regionCode != null &&
+                workspaceListPreserve.regionCode !== '' ? (
+                  <input type="hidden" name="listRegion" value={workspaceListPreserve.regionCode} />
+                ) : null}
+                <WorkspaceListPreserveHidden w={workspaceListPreserve} />
+                <input
+                  type="hidden"
+                  name="acknowledgeUsageWarning"
+                  value={archiveUsageAck ? '1' : ''}
+                  readOnly
+                />
                 <Button
-                  type="button"
+                  type="submit"
                   variant="destructive"
                   disabled={archivePending}
                   onClick={() => {
-                    setArchiveUsageAck(true);
-                    setWarnOpen(false);
-                    queueMicrotask(() => {
-                      archiveFormRef.current?.requestSubmit();
-                      setArchiveUsageAck(false);
-                    });
+                    setArchiveUsageAck(false);
                   }}
                 >
-                  Архивировать всё равно
+                  {archivePending ? 'Архивация…' : 'Архивировать набор'}
                 </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+              </form>
+
+              <Dialog open={warnOpen} onOpenChange={setWarnOpen}>
+                <DialogContent showCloseButton className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Набор уже используется</DialogTitle>
+                    <div className="space-y-2 text-sm text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground">
+                      <span className="block">
+                        Архивация уберёт набор из каталога для новых программ. Уже выданные
+                        программы и история попыток не удаляются.
+                      </span>
+                      {!warnSections.length &&
+                      archiveState?.ok === false &&
+                      'code' in archiveState &&
+                      archiveState.code === 'USAGE_CONFIRMATION_REQUIRED' &&
+                      !testSetUsageHasAnyReference(archiveState.usage) ? (
+                        <span className="block text-sm">
+                          Набор помечен как используемый — проверьте связи перед архивацией.
+                        </span>
+                      ) : warnSections.length ? (
+                        <TestSetUsageSectionsView sections={warnSections} />
+                      ) : null}
+                    </div>
+                  </DialogHeader>
+                  <DialogFooter className="gap-2 sm:gap-2">
+                    <Button type="button" variant="outline" onClick={() => setWarnOpen(false)}>
+                      Отмена
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      disabled={archivePending}
+                      onClick={() => {
+                        setArchiveUsageAck(true);
+                        setWarnOpen(false);
+                        queueMicrotask(() => {
+                          archiveFormRef.current?.requestSubmit();
+                          setArchiveUsageAck(false);
+                        });
+                      }}
+                    >
+                      Архивировать всё равно
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </>
           )}
         </div>

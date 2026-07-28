@@ -108,15 +108,15 @@ flowchart LR
 
 Удалить/упростить всё, что обслуживает **пункт программы** `lfk_complex` у пациента:
 
-| Удалить / упростить | Файлы |
-|---------------------|--------|
-| `lfk-session`, `patientSubmitLfkPostSession` | route, [`patient-program-actions.ts`](apps/webapp/src/modules/treatment-program/patient-program-actions.ts) |
-| `PatientLfkChecklistRow`, ветки в `PatientInstanceStageItemCard` | program-detail |
-| Модалки «Как прошло?» + ветка lfk в комментарии | [`PatientTreatmentProgramStagePageProgramSection.tsx`](apps/webapp/src/app/app/patient/treatment/PatientTreatmentProgramStagePageProgramSection.tsx), [`PatientProgramStageItemPageClient.tsx`](apps/webapp/src/app/app/patient/treatment/PatientProgramStageItemPageClient.tsx) |
-| Скрытое «Выполнено» только для lfk | те же — включить simple complete для всех типов как `exercise` |
-| `listLfkSnapshotExerciseLines` в composition/tiles | [`PatientStageCompositionList.tsx`](apps/webapp/src/app/app/patient/treatment/PatientStageCompositionList.tsx), [`stageItemSnapshot.ts`](apps/webapp/src/app/app/patient/treatment/stageItemSnapshot.ts) — убрать ветки `lfk_complex` |
-| Integrator `listActiveLfkBlocks` по instance `lfk_complex` | [`instance-service.ts`](apps/webapp/src/modules/treatment-program/instance-service.ts) — удалить или перевести на exercise-only |
-| `buildSnapshot(case "lfk_complex")` | [`pgTreatmentProgramItemSnapshot.ts`](apps/webapp/src/infra/repos/pgTreatmentProgramItemSnapshot.ts) — после миграции не нужен для новых строк |
+| Удалить / упростить                                              | Файлы                                                                                                                                                                                                                                                                            |
+| ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lfk-session`, `patientSubmitLfkPostSession`                     | route, [`patient-program-actions.ts`](apps/webapp/src/modules/treatment-program/patient-program-actions.ts)                                                                                                                                                                      |
+| `PatientLfkChecklistRow`, ветки в `PatientInstanceStageItemCard` | program-detail                                                                                                                                                                                                                                                                   |
+| Модалки «Как прошло?» + ветка lfk в комментарии                  | [`PatientTreatmentProgramStagePageProgramSection.tsx`](apps/webapp/src/app/app/patient/treatment/PatientTreatmentProgramStagePageProgramSection.tsx), [`PatientProgramStageItemPageClient.tsx`](apps/webapp/src/app/app/patient/treatment/PatientProgramStageItemPageClient.tsx) |
+| Скрытое «Выполнено» только для lfk                               | те же — включить simple complete для всех типов как `exercise`                                                                                                                                                                                                                   |
+| `listLfkSnapshotExerciseLines` в composition/tiles               | [`PatientStageCompositionList.tsx`](apps/webapp/src/app/app/patient/treatment/PatientStageCompositionList.tsx), [`stageItemSnapshot.ts`](apps/webapp/src/app/app/patient/treatment/stageItemSnapshot.ts) — убрать ветки `lfk_complex`                                            |
+| Integrator `listActiveLfkBlocks` по instance `lfk_complex`       | [`instance-service.ts`](apps/webapp/src/modules/treatment-program/instance-service.ts) — удалить или перевести на exercise-only                                                                                                                                                  |
+| `buildSnapshot(case "lfk_complex")`                              | [`pgTreatmentProgramItemSnapshot.ts`](apps/webapp/src/infra/repos/pgTreatmentProgramItemSnapshot.ts) — после миграции не нужен для новых строк                                                                                                                                   |
 
 Единый поток пациента: **«Добавить комментарий»** → `observation-note`; **«Отметить выполнение»** → `progress/complete`.
 
@@ -140,6 +140,7 @@ flowchart LR
 ## Scope boundaries
 
 Разрешено менять:
+
 - `apps/webapp/src/modules/treatment-program/**`
 - `apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts`
 - `apps/webapp/src/app/api/doctor/treatment-program-instances/**`
@@ -149,6 +150,7 @@ flowchart LR
 - точечные docs (`api.md`, `docs/TREATMENT_PROGRAM_LFK_TEMPLATE_LEGACY_TODO.md`)
 
 Вне scope:
+
 - reminder subsystem (`linked_object_type=lfk_complex`)
 - patient diary LFK
 - каталог `lfk_complex_templates` и existing template expand UX

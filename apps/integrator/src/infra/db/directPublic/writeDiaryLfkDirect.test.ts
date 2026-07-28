@@ -17,9 +17,12 @@ type Router = (sql: string, params: unknown[]) => QueryResult;
 /** Route SQL text → tag for assertions (mock, no real pg). */
 function tagFor(sql: string): string {
   if (/FROM users\s+WHERE id =/.test(sql)) return 'integrator_users:canonical';
-  if (/FROM public\.platform_users/.test(sql) && /integrator_user_id =/.test(sql)) return 'platform_users:candidate_by_int';
-  if (/FROM public\.platform_users/.test(sql) && /phone_normalized =/.test(sql)) return 'platform_users:candidate_by_phone';
-  if (/FROM public\.user_channel_bindings ucb/.test(sql)) return 'platform_users:candidate_by_channel';
+  if (/FROM public\.platform_users/.test(sql) && /integrator_user_id =/.test(sql))
+    return 'platform_users:candidate_by_int';
+  if (/FROM public\.platform_users/.test(sql) && /phone_normalized =/.test(sql))
+    return 'platform_users:candidate_by_phone';
+  if (/FROM public\.user_channel_bindings ucb/.test(sql))
+    return 'platform_users:candidate_by_channel';
   if (/FROM public\.org_enrollments/.test(sql)) return 'org_enrollments:active';
   if (/INSERT INTO public\.symptom_trackings/.test(sql)) return 'symptom_trackings:insert';
   if (/FROM public\.symptom_trackings/.test(sql)) return 'symptom_trackings:ownership';
@@ -112,18 +115,27 @@ function baseRouter(overrides: Partial<Record<string, QueryResult>> = {}): Route
 describe('createSymptomTrackingDirect (D2 direct public write)', () => {
   it('resolves platform user + exact active org, inserts in ONE transaction', async () => {
     const { db, state } = createDbMock(baseRouter());
-    const result = await createSymptomTrackingDirect(db, { ...ACTOR, symptomTitle: 'Головная боль' });
+    const result = await createSymptomTrackingDirect(db, {
+      ...ACTOR,
+      symptomTitle: 'Головная боль',
+    });
 
     expect(state.txCount).toBe(1);
     expect(state.committed).toBe(true);
-    expect(result).toEqual({ platformUserId: PLATFORM_USER_ID, organizationId: ORG_ID, trackingId: 'tracking-1' });
+    expect(result).toEqual({
+      platformUserId: PLATFORM_USER_ID,
+      organizationId: ORG_ID,
+      trackingId: 'tracking-1',
+    });
 
     const insert = state.queries.find((q) => q.tag === 'symptom_trackings:insert');
     expect(insert?.params).toEqual([PLATFORM_USER_ID, ORG_ID, null, 'Головная боль']);
   });
 
   it('fails closed (no write) when zero platform-user candidates resolve', async () => {
-    const { db, state } = createDbMock(baseRouter({ 'platform_users:candidate_by_channel': rows([]) }));
+    const { db, state } = createDbMock(
+      baseRouter({ 'platform_users:candidate_by_channel': rows([]) }),
+    );
     await expect(
       createSymptomTrackingDirect(db, { ...ACTOR, symptomTitle: 'x' }),
     ).rejects.toBeInstanceOf(DirectPublicWriteError);
@@ -133,7 +145,9 @@ describe('createSymptomTrackingDirect (D2 direct public write)', () => {
 
   it('fails closed (no write, no default org) when zero active org enrollments', async () => {
     const { db, state } = createDbMock(baseRouter({ 'org_enrollments:active': rows([]) }));
-    const err = await createSymptomTrackingDirect(db, { ...ACTOR, symptomTitle: 'x' }).catch((e) => e);
+    const err = await createSymptomTrackingDirect(db, { ...ACTOR, symptomTitle: 'x' }).catch(
+      (e) => e,
+    );
     expect(err).toBeInstanceOf(DiaryLfkDirectWriteError);
     expect((err as DiaryLfkDirectWriteError).code).toBe('no_active_org_enrollment');
     expect(state.rolledBack).toBe(true);
@@ -142,9 +156,16 @@ describe('createSymptomTrackingDirect (D2 direct public write)', () => {
 
   it('fails closed (no write, no default org) when active org enrollment is ambiguous', async () => {
     const { db, state } = createDbMock(
-      baseRouter({ 'org_enrollments:active': rows([{ organization_id: 'org-a' }, { organization_id: 'org-b' }]) }),
+      baseRouter({
+        'org_enrollments:active': rows([
+          { organization_id: 'org-a' },
+          { organization_id: 'org-b' },
+        ]),
+      }),
     );
-    const err = await createSymptomTrackingDirect(db, { ...ACTOR, symptomTitle: 'x' }).catch((e) => e);
+    const err = await createSymptomTrackingDirect(db, { ...ACTOR, symptomTitle: 'x' }).catch(
+      (e) => e,
+    );
     expect(err).toBeInstanceOf(DiaryLfkDirectWriteError);
     expect((err as DiaryLfkDirectWriteError).code).toBe('ambiguous_org_enrollment');
     expect(state.queries.some((q) => q.tag === 'symptom_trackings:insert')).toBe(false);
@@ -164,11 +185,23 @@ describe('addSymptomEntryDirect (D2 direct public write)', () => {
     const { db, state } = createDbMock(baseRouter());
     const result = await addSymptomEntryDirect(db, entryInput);
 
-    expect(result).toEqual({ platformUserId: PLATFORM_USER_ID, organizationId: ORG_ID, entryId: 'entry-1' });
+    expect(result).toEqual({
+      platformUserId: PLATFORM_USER_ID,
+      organizationId: ORG_ID,
+      entryId: 'entry-1',
+    });
     const ownershipCheck = state.queries.find((q) => q.tag === 'symptom_trackings:ownership');
     expect(ownershipCheck?.params).toEqual(['tracking-1', PLATFORM_USER_ID]);
     const insert = state.queries.find((q) => q.tag === 'symptom_entries:insert');
-    expect(insert?.params).toEqual([PLATFORM_USER_ID, 'tracking-1', 7, 'instant', '2026-07-24T10:00:00.000Z', null, ORG_ID]);
+    expect(insert?.params).toEqual([
+      PLATFORM_USER_ID,
+      'tracking-1',
+      7,
+      'instant',
+      '2026-07-24T10:00:00.000Z',
+      null,
+      ORG_ID,
+    ]);
   });
 
   it('fails closed when the tracking does not belong to the resolved platform user', async () => {
@@ -186,24 +219,41 @@ describe('createLfkComplexDirect (D2 direct public write)', () => {
     const { db, state } = createDbMock(baseRouter());
     const result = await createLfkComplexDirect(db, { ...ACTOR, title: 'Утренняя гимнастика' });
 
-    expect(result).toEqual({ platformUserId: PLATFORM_USER_ID, organizationId: ORG_ID, complexId: 'complex-1' });
+    expect(result).toEqual({
+      platformUserId: PLATFORM_USER_ID,
+      organizationId: ORG_ID,
+      complexId: 'complex-1',
+    });
     const insert = state.queries.find((q) => q.tag === 'lfk_complexes:insert');
     expect(insert?.params).toEqual([PLATFORM_USER_ID, ORG_ID, 'Утренняя гимнастика', 'manual']);
   });
 });
 
 describe('addLfkSessionDirect (D2 direct public write)', () => {
-  const sessionInput = { ...ACTOR, complexId: 'complex-1', completedAt: '2026-07-24T10:00:00.000Z' };
+  const sessionInput = {
+    ...ACTOR,
+    complexId: 'complex-1',
+    completedAt: '2026-07-24T10:00:00.000Z',
+  };
 
   it('validates complex ownership, reuses the complex org, inserts the session', async () => {
     const { db, state } = createDbMock(baseRouter());
     const result = await addLfkSessionDirect(db, sessionInput);
 
-    expect(result).toEqual({ platformUserId: PLATFORM_USER_ID, organizationId: ORG_ID, sessionId: 'session-1' });
+    expect(result).toEqual({
+      platformUserId: PLATFORM_USER_ID,
+      organizationId: ORG_ID,
+      sessionId: 'session-1',
+    });
     const ownershipCheck = state.queries.find((q) => q.tag === 'lfk_complexes:ownership');
     expect(ownershipCheck?.params).toEqual(['complex-1', PLATFORM_USER_ID]);
     const insert = state.queries.find((q) => q.tag === 'lfk_sessions:insert');
-    expect(insert?.params).toEqual([PLATFORM_USER_ID, 'complex-1', '2026-07-24T10:00:00.000Z', ORG_ID]);
+    expect(insert?.params).toEqual([
+      PLATFORM_USER_ID,
+      'complex-1',
+      '2026-07-24T10:00:00.000Z',
+      ORG_ID,
+    ]);
   });
 
   it('fails closed when the complex does not belong to the resolved platform user', async () => {
@@ -217,9 +267,15 @@ describe('addLfkSessionDirect (D2 direct public write)', () => {
 
 describe('isDiaryLfkFailClosedError', () => {
   it('classifies DiaryLfkDirectWriteError and platform-user-candidate DirectPublicWriteError as fail-closed', () => {
-    expect(isDiaryLfkFailClosedError(new DiaryLfkDirectWriteError('no_active_org_enrollment'))).toBe(true);
-    expect(isDiaryLfkFailClosedError(new DirectPublicWriteError('no_platform_user_candidate'))).toBe(true);
-    expect(isDiaryLfkFailClosedError(new DirectPublicWriteError('ambiguous_platform_user_candidates'))).toBe(true);
+    expect(
+      isDiaryLfkFailClosedError(new DiaryLfkDirectWriteError('no_active_org_enrollment')),
+    ).toBe(true);
+    expect(
+      isDiaryLfkFailClosedError(new DirectPublicWriteError('no_platform_user_candidate')),
+    ).toBe(true);
+    expect(
+      isDiaryLfkFailClosedError(new DirectPublicWriteError('ambiguous_platform_user_candidates')),
+    ).toBe(true);
     expect(isDiaryLfkFailClosedError(new Error('unrelated'))).toBe(false);
   });
 });

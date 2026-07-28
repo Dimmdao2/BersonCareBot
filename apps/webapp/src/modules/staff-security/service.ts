@@ -1,17 +1,14 @@
-import { randomBytes } from "node:crypto";
-import type { StaffSecurityCryptoPort, StaffSecurityPort, StaffSecurityStatus } from "./ports";
-import {
-  buildTotpUri,
-  generateRecoveryCodes,
-  generateTotpSecret,
-  verifyTotpCode,
-} from "./totp";
+import { randomBytes } from 'node:crypto';
+import type { StaffSecurityCryptoPort, StaffSecurityPort, StaffSecurityStatus } from './ports';
+import { buildTotpUri, generateRecoveryCodes, generateTotpSecret, verifyTotpCode } from './totp';
 
 const LOGIN_CHALLENGE_TTL_MS = 5 * 60 * 1000;
 
-function statusOf(profile: Awaited<ReturnType<StaffSecurityPort["ensureProfile"]>>): StaffSecurityStatus {
+function statusOf(
+  profile: Awaited<ReturnType<StaffSecurityPort['ensureProfile']>>,
+): StaffSecurityStatus {
   return {
-    enrolled: profile.factorType === "totp" && profile.factorVerifiedAt !== null,
+    enrolled: profile.factorType === 'totp' && profile.factorVerifiedAt !== null,
     recoveryConfirmed: profile.recoveryCodesConfirmedAt !== null,
     replacementRequired: profile.replacementRequired,
     lockedUntil: profile.lockedUntil,
@@ -19,7 +16,10 @@ function statusOf(profile: Awaited<ReturnType<StaffSecurityPort["ensureProfile"]
   };
 }
 
-export function createStaffSecurityService(port: StaffSecurityPort, crypto: StaffSecurityCryptoPort) {
+export function createStaffSecurityService(
+  port: StaffSecurityPort,
+  crypto: StaffSecurityCryptoPort,
+) {
   return {
     async ensureProfile(): Promise<StaffSecurityStatus> {
       return statusOf(await port.ensureProfile());
@@ -32,8 +32,12 @@ export function createStaffSecurityService(port: StaffSecurityPort, crypto: Staf
 
     async startTotpEnrollment(input: { email: string }) {
       const profile = await port.ensureProfile();
-      if (profile.factorVerifiedAt && profile.recoveryCodesConfirmedAt && !profile.replacementRequired) {
-        return { ok: false as const, error: "factor_already_enrolled" as const };
+      if (
+        profile.factorVerifiedAt &&
+        profile.recoveryCodesConfirmedAt &&
+        !profile.replacementRequired
+      ) {
+        return { ok: false as const, error: 'factor_already_enrolled' as const };
       }
       const secret = generateTotpSecret();
       await port.savePendingTotp(crypto.encryptTotpSecret(secret));
@@ -43,14 +47,24 @@ export function createStaffSecurityService(port: StaffSecurityPort, crypto: Staf
     async verifyTotpEnrollment(input: { code: string }) {
       const profile = await port.getProfile();
       if (!profile?.pendingTotpSecretCiphertext) {
-        return { ok: false as const, error: "enrollment_not_started" as const };
+        return { ok: false as const, error: 'enrollment_not_started' as const };
       }
       if (profile.lockedUntil && Date.parse(profile.lockedUntil) > Date.now()) {
-        return { ok: false as const, error: "factor_locked" as const, lockedUntil: profile.lockedUntil };
+        return {
+          ok: false as const,
+          error: 'factor_locked' as const,
+          lockedUntil: profile.lockedUntil,
+        };
       }
-      if (!verifyTotpCode(crypto.decryptTotpSecret(profile.pendingTotpSecretCiphertext), input.code)) {
+      if (
+        !verifyTotpCode(crypto.decryptTotpSecret(profile.pendingTotpSecretCiphertext), input.code)
+      ) {
         const lockedUntil = await port.recordFailedFactorAttempt();
-        return { ok: false as const, error: lockedUntil ? "factor_locked" as const : "invalid_factor" as const, lockedUntil };
+        return {
+          ok: false as const,
+          error: lockedUntil ? ('factor_locked' as const) : ('invalid_factor' as const),
+          lockedUntil,
+        };
       }
       const recoveryCodes = generateRecoveryCodes();
       const sessionVersion = await port.completeTotpEnrollment({
@@ -67,13 +81,18 @@ export function createStaffSecurityService(port: StaffSecurityPort, crypto: Staf
     async beginLogin() {
       const profile = await port.getProfile();
       if (!profile?.factorVerifiedAt) return { required: false as const };
-      const token = randomBytes(32).toString("base64url");
+      const token = randomBytes(32).toString('base64url');
       const expiresAt = new Date(Date.now() + LOGIN_CHALLENGE_TTL_MS).toISOString();
       await port.beginLoginChallenge({
         challengeHash: crypto.hashLoginChallenge(token),
         expiresAt,
       });
-      return { required: true as const, token, expiresAt, replacementRequired: profile.replacementRequired };
+      return {
+        required: true as const,
+        token,
+        expiresAt,
+        replacementRequired: profile.replacementRequired,
+      };
     },
 
     async completeLogin(input: { token: string; code?: string; recoveryCode?: string }) {
@@ -85,14 +104,19 @@ export function createStaffSecurityService(port: StaffSecurityPort, crypto: Staf
         !profile.loginChallengeExpiresAt ||
         Date.parse(profile.loginChallengeExpiresAt) <= Date.now()
       ) {
-        return { ok: false as const, error: "login_challenge_expired" as const };
+        return { ok: false as const, error: 'login_challenge_expired' as const };
       }
       if (profile.lockedUntil && Date.parse(profile.lockedUntil) > Date.now()) {
-        return { ok: false as const, error: "factor_locked" as const, lockedUntil: profile.lockedUntil };
+        return {
+          ok: false as const,
+          error: 'factor_locked' as const,
+          lockedUntil: profile.lockedUntil,
+        };
       }
       if (input.recoveryCode) {
-        const recoveryCodeHash = crypto.matchRecoveryCodeHash(input.recoveryCode, profile.recoveryCodeHashes)
-          ?? crypto.hashRecoveryCode(`invalid:${input.recoveryCode}`);
+        const recoveryCodeHash =
+          crypto.matchRecoveryCodeHash(input.recoveryCode, profile.recoveryCodeHashes) ??
+          crypto.hashRecoveryCode(`invalid:${input.recoveryCode}`);
         const result = await port.consumeRecoveryLogin({
           challengeHash: profile.loginChallengeHash,
           recoveryCodeHash,
@@ -101,21 +125,29 @@ export function createStaffSecurityService(port: StaffSecurityPort, crypto: Staf
           const lockedUntil = await port.recordFailedFactorAttempt();
           return {
             ok: false as const,
-            error: lockedUntil ? "factor_locked" as const : "invalid_recovery_code" as const,
+            error: lockedUntil ? ('factor_locked' as const) : ('invalid_recovery_code' as const),
             lockedUntil,
           };
         }
         return { ok: true as const, recoveryMode: true, sessionVersion: result.sessionVersion };
       }
       if (profile.replacementRequired) {
-        return { ok: false as const, error: "factor_replacement_required" as const };
+        return { ok: false as const, error: 'factor_replacement_required' as const };
       }
-      if (!input.code || !profile.totpSecretCiphertext || !verifyTotpCode(crypto.decryptTotpSecret(profile.totpSecretCiphertext), input.code)) {
+      if (
+        !input.code ||
+        !profile.totpSecretCiphertext ||
+        !verifyTotpCode(crypto.decryptTotpSecret(profile.totpSecretCiphertext), input.code)
+      ) {
         const lockedUntil = await port.recordFailedFactorAttempt();
-        return { ok: false as const, error: lockedUntil ? "factor_locked" as const : "invalid_factor" as const, lockedUntil };
+        return {
+          ok: false as const,
+          error: lockedUntil ? ('factor_locked' as const) : ('invalid_factor' as const),
+          lockedUntil,
+        };
       }
       if (!(await port.consumeTotpLogin({ challengeHash: profile.loginChallengeHash }))) {
-        return { ok: false as const, error: "login_challenge_expired" as const };
+        return { ok: false as const, error: 'login_challenge_expired' as const };
       }
       return {
         ok: true as const,

@@ -1,14 +1,14 @@
-export type MediaKind = "image" | "audio" | "video" | "file";
+export type MediaKind = 'image' | 'audio' | 'video' | 'file';
 
-export type MediaPreviewStatus = "pending" | "ready" | "failed" | "skipped";
+export type MediaPreviewStatus = 'pending' | 'ready' | 'failed' | 'skipped';
 
 /** VIDEO_HLS_DELIVERY — transcode pipeline state for library video rows (`media_files`). */
-export type VideoProcessingStatus = "none" | "pending" | "processing" | "ready" | "failed";
+export type VideoProcessingStatus = 'none' | 'pending' | 'processing' | 'ready' | 'failed';
 
 /** Per-file playback preference once HLS exists (optional override). */
-export type VideoDeliveryOverride = "mp4" | "hls" | "auto";
+export type VideoDeliveryOverride = 'mp4' | 'hls' | 'auto';
 
-  /** Serialized into `media_files.available_qualities_json` after transcoding. */
+/** Serialized into `media_files.available_qualities_json` after transcoding. */
 export type MediaAvailableQuality = {
   /** Human label e.g. 720p (from worker). */
   label?: string;
@@ -57,7 +57,7 @@ export type MediaRecord = {
   videoDeliveryOverride?: VideoDeliveryOverride | null;
 };
 
-export type MediaFolderKind = "standard" | "client_files_root" | "client_patient";
+export type MediaFolderKind = 'standard' | 'client_files_root' | 'client_patient';
 
 export type MediaFolderRecord = {
   id: string;
@@ -68,11 +68,11 @@ export type MediaFolderRecord = {
   createdAt: string;
 };
 
-export type MediaListSortBy = "createdAt" | "size" | "kind" | "name";
-export type MediaSortDirection = "asc" | "desc";
+export type MediaListSortBy = 'createdAt' | 'size' | 'kind' | 'name';
+export type MediaSortDirection = 'asc' | 'desc';
 
 export type MediaListParams = {
-  kind?: MediaKind | "all";
+  kind?: MediaKind | 'all';
   query?: string;
   sortBy?: MediaListSortBy;
   sortDir?: MediaSortDirection;
@@ -109,12 +109,7 @@ export type MediaUsageSummary = {
 export type MediaUsageRef = {
   pageId: string;
   pageSlug: string;
-  field:
-    | "image_url"
-    | "video_url"
-    | "body_md"
-    | "body_html"
-    | "program_item_discussion_media_only";
+  field: 'image_url' | 'video_url' | 'body_md' | 'body_html' | 'program_item_discussion_media_only';
 };
 
 /** LFK exercise referencing this library media (`/api/media/:id`). */

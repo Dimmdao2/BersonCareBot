@@ -19,7 +19,7 @@ todos:
     content: Расширить VideoTranscodeHealthPayload и SystemHealthSection; подпись UTC; статус транскода ok|degraded|error (classifyVideoTranscodeSystemHealthStatus в adminHealthThresholds.ts)
     status: completed
   - id: system-health-human-readable-ui
-    content: "Переработать тексты SystemHealthSection для оператора: понятные названия карточек, человекочитаемые статусы, смысловые описания, тех. поля только во вторичном слое"
+    content: 'Переработать тексты SystemHealthSection для оператора: понятные названия карточек, человекочитаемые статусы, смысловые описания, тех. поля только во вторичном слое'
     status: completed
   - id: docs-api-tests-ci
     content: Обновить api.md (side-effect reconcile); тесты reconcile + system-health; целевой lint/typecheck/webapp-тесты, полный CI по правилам перед push

@@ -23,13 +23,13 @@
 
 ## Блокировка бота (TG/MAX)
 
-| Поле / счётчик | Поведение |
-|----------------|-----------|
-| `failure_class` | `recipient_blocked_bot` — финал очереди, **не** operator-dead |
-| `notification_delivery_attempts` | `status=skipped`, `reason=recipient_blocked_bot` |
-| `broadcast_audit.error_count` | **не** инкрементируется при blocked |
-| `broadcast_audit.blocked_recipient_count` | info-счётчик рассылки |
-| `user_channel_bindings.bot_blocked_at` | маркер; UPSERT/UPDATE integrator; снимается при успешной доставке |
+| Поле / счётчик                            | Поведение                                                         |
+| ----------------------------------------- | ----------------------------------------------------------------- |
+| `failure_class`                           | `recipient_blocked_bot` — финал очереди, **не** operator-dead     |
+| `notification_delivery_attempts`          | `status=skipped`, `reason=recipient_blocked_bot`                  |
+| `broadcast_audit.error_count`             | **не** инкрементируется при blocked                               |
+| `broadcast_audit.blocked_recipient_count` | info-счётчик рассылки                                             |
+| `user_channel_bindings.bot_blocked_at`    | маркер; UPSERT/UPDATE integrator; снимается при успешной доставке |
 
 **Kinds с clear маркера при success:** `reminder_dispatch`, `doctor_broadcast_intent`, `operator_alert`.
 

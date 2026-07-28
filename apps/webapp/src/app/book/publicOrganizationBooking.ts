@@ -1,7 +1,7 @@
-import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
-import { withExplicitOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import type { BookingCity } from "@/modules/booking-catalog/types";
+import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
+import { withExplicitOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import type { BookingCity } from '@/modules/booking-catalog/types';
 import {
   listInPersonCitiesForOrganization,
   listInPersonServicesForBranch,
@@ -10,12 +10,12 @@ import {
   titleForBookingCityCode,
   type InPersonServiceListItem,
   type OnlineBookingLocationOption,
-} from "@/modules/patient-booking/inPersonServicesCatalog";
-import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
+} from '@/modules/patient-booking/inPersonServicesCatalog';
+import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 
 export type LoadCitiesResult =
   | { ok: true; cities: BookingCity[]; onlineLocation: OnlineBookingLocationOption | null }
-  | { ok: false; error: "catalog_unavailable"; cities: []; onlineLocation: null };
+  | { ok: false; error: 'catalog_unavailable'; cities: []; onlineLocation: null };
 
 export type LoadInPersonServicesResult =
   | {
@@ -25,7 +25,7 @@ export type LoadInPersonServicesResult =
       cityCode: string;
       services: InPersonServiceListItem[];
     }
-  | { ok: false; error: "catalog_unavailable" | "city_not_found"; services: [] };
+  | { ok: false; error: 'catalog_unavailable' | 'city_not_found'; services: [] };
 
 export type LoadPublicInPersonSlotContextResult =
   | {
@@ -51,14 +51,12 @@ export type LoadPublicInPersonSlotContextResult =
  * unknown slug, an unpublished directory entry, and an inactive organization, so callers must
  * render a single fail-closed 404 without leaking which case occurred (no clinic enumeration).
  */
-export async function resolvePublicOrganizationBySlugRsc(
-  slugRaw: string,
-): Promise<{
+export async function resolvePublicOrganizationBySlugRsc(slugRaw: string): Promise<{
   organizationId: string;
   canonicalSlug: string;
-  disposition: "current" | "redirect";
+  disposition: 'current' | 'redirect';
 } | null> {
-  stampBootstrapPrincipal("app/book/[slug]:resolve-organization");
+  stampBootstrapPrincipal('app/book/[slug]:resolve-organization');
   const deps = buildAppDeps();
   if (!deps.clinicDirectory) return null;
   const resolved = await deps.clinicDirectory.resolveCanonicalSlug(slugRaw);
@@ -71,11 +69,13 @@ export async function resolvePublicOrganizationBySlugRsc(
 }
 
 /** RSC: canonical catalog cities for a slug-resolved, trusted organization. */
-export async function loadPublicOrganizationCitiesRsc(organizationId: string): Promise<LoadCitiesResult> {
+export async function loadPublicOrganizationCitiesRsc(
+  organizationId: string,
+): Promise<LoadCitiesResult> {
   const deps = buildAppDeps();
   try {
     const catalog = await withExplicitOrganizationPrincipal(
-      { organizationId, source: "app/book/[slug]:load-cities" },
+      { organizationId, source: 'app/book/[slug]:load-cities' },
       async () => {
         const [cities, onlineLocation] = await Promise.all([
           listInPersonCitiesForOrganization(deps, organizationId),
@@ -85,11 +85,11 @@ export async function loadPublicOrganizationCitiesRsc(organizationId: string): P
       },
     );
     if (!catalog.cities) {
-      return { ok: false, error: "catalog_unavailable", cities: [], onlineLocation: null };
+      return { ok: false, error: 'catalog_unavailable', cities: [], onlineLocation: null };
     }
     return { ok: true, cities: catalog.cities, onlineLocation: catalog.onlineLocation };
   } catch {
-    return { ok: false, error: "catalog_unavailable", cities: [], onlineLocation: null };
+    return { ok: false, error: 'catalog_unavailable', cities: [], onlineLocation: null };
   }
 }
 
@@ -99,16 +99,16 @@ export async function loadPublicOrganizationServicesForCityRsc(
   cityCode: string,
 ): Promise<LoadInPersonServicesResult> {
   const deps = buildAppDeps();
-  if (!deps.bookingEngine) return { ok: false, error: "catalog_unavailable", services: [] };
+  if (!deps.bookingEngine) return { ok: false, error: 'catalog_unavailable', services: [] };
   try {
     const listed = await withExplicitOrganizationPrincipal(
-      { organizationId, source: "app/book/[slug]:load-services" },
+      { organizationId, source: 'app/book/[slug]:load-services' },
       async () => {
         const branch = await resolveActiveBranchForCity(deps, organizationId, cityCode);
         return branch ? listInPersonServicesForBranch(deps, organizationId, branch.id) : null;
       },
     );
-    if (!listed) return { ok: false, error: "city_not_found", services: [] };
+    if (!listed) return { ok: false, error: 'city_not_found', services: [] };
     return {
       ok: true,
       branchId: listed.branch.id,
@@ -117,7 +117,7 @@ export async function loadPublicOrganizationServicesForCityRsc(
       services: listed.services,
     };
   } catch {
-    return { ok: false, error: "catalog_unavailable", services: [] };
+    return { ok: false, error: 'catalog_unavailable', services: [] };
   }
 }
 
@@ -136,9 +136,13 @@ export async function loadPublicInPersonSlotContextForSlugRsc(input: {
   if (!resolved || !deps.bookingEngine || !deps.bookingScheduling) return { ok: false };
   try {
     return await withExplicitOrganizationPrincipal(
-      { organizationId: resolved.organizationId, source: "app/book:load-direct-slot-context" },
+      { organizationId: resolved.organizationId, source: 'app/book:load-direct-slot-context' },
       async () => {
-        const listed = await listInPersonServicesForBranch(deps, resolved.organizationId, input.branchId);
+        const listed = await listInPersonServicesForBranch(
+          deps,
+          resolved.organizationId,
+          input.branchId,
+        );
         const service = listed?.services.find((item) => item.id === input.serviceId);
         if (!listed || !service) return { ok: false } as const;
         const context = await deps.bookingScheduling!.resolveCanonicalInPersonContext({

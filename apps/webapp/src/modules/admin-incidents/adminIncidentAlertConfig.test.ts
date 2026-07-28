@@ -1,12 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'vitest';
 import {
   parseAdminIncidentAlertConfig,
   normalizeAdminIncidentAlertConfigForAdminPatch,
-} from "./adminIncidentAlertConfig";
-import { integratorAutoMergeAnomalyDedupKey } from "./integratorAutoMergeAnomalyDedup";
+} from './adminIncidentAlertConfig';
+import { integratorAutoMergeAnomalyDedupKey } from './integratorAutoMergeAnomalyDedup';
 
-describe("parseAdminIncidentAlertConfig", () => {
-  it("defaults identity v1 topics and channels to true except system_health_db_guard", () => {
+describe('parseAdminIncidentAlertConfig', () => {
+  it('defaults identity v1 topics and channels to true except system_health_db_guard', () => {
     const c = parseAdminIncidentAlertConfig(null);
     expect(c.channels.telegram).toBe(true);
     expect(c.channels.max).toBe(true);
@@ -16,7 +16,7 @@ describe("parseAdminIncidentAlertConfig", () => {
     expect(c.topics.system_health_db_guard).toBe(false);
   });
 
-  it("honors partial topic overrides and ignores unknown topic keys", () => {
+  it('honors partial topic overrides and ignores unknown topic keys', () => {
     const c = parseAdminIncidentAlertConfig({
       value: {
         topics: { channel_link: false, extra_future: true },
@@ -30,33 +30,33 @@ describe("parseAdminIncidentAlertConfig", () => {
     expect(c.topics.system_health_db_guard).toBe(false);
   });
 
-  it("treats broken JSON root as defaults", () => {
-    const c = parseAdminIncidentAlertConfig({ value: "not-an-object" });
+  it('treats broken JSON root as defaults', () => {
+    const c = parseAdminIncidentAlertConfig({ value: 'not-an-object' });
     expect(c.topics.channel_link).toBe(true);
   });
 });
 
-describe("integratorAutoMergeAnomalyDedupKey", () => {
-  it("is stable when integratorUserIds reorder", () => {
+describe('integratorAutoMergeAnomalyDedupKey', () => {
+  it('is stable when integratorUserIds reorder', () => {
     const a = integratorAutoMergeAnomalyDedupKey({
-      eventType: "x",
-      reason: "r",
-      conflictClass: "c",
-      integratorUserIds: ["2", "1", "2"],
+      eventType: 'x',
+      reason: 'r',
+      conflictClass: 'c',
+      integratorUserIds: ['2', '1', '2'],
     });
     const b = integratorAutoMergeAnomalyDedupKey({
-      eventType: "x",
-      reason: "r",
-      conflictClass: "c",
-      integratorUserIds: ["1", "2"],
+      eventType: 'x',
+      reason: 'r',
+      conflictClass: 'c',
+      integratorUserIds: ['1', '2'],
     });
     expect(a).toBe(b);
     expect(a).toHaveLength(48);
   });
 });
 
-describe("normalizeAdminIncidentAlertConfigForAdminPatch", () => {
-  it("accepts full v1 object", () => {
+describe('normalizeAdminIncidentAlertConfigForAdminPatch', () => {
+  it('accepts full v1 object', () => {
     const inner = {
       topics: {
         channel_link: false,
@@ -77,7 +77,7 @@ describe("normalizeAdminIncidentAlertConfigForAdminPatch", () => {
     }
   });
 
-  it("strips unknown topic keys and defaults missing v1 topics to true", () => {
+  it('strips unknown topic keys and defaults missing v1 topics to true', () => {
     const r = normalizeAdminIncidentAlertConfigForAdminPatch({
       topics: {
         channel_link: false,
@@ -96,7 +96,7 @@ describe("normalizeAdminIncidentAlertConfigForAdminPatch", () => {
     }
   });
 
-  it("defaults missing topic entries to true", () => {
+  it('defaults missing topic entries to true', () => {
     const r = normalizeAdminIncidentAlertConfigForAdminPatch({
       topics: {
         channel_link: false,
@@ -112,7 +112,7 @@ describe("normalizeAdminIncidentAlertConfigForAdminPatch", () => {
     }
   });
 
-  it("strips unknown channel keys and keeps defaults for omitted flags", () => {
+  it('strips unknown channel keys and keeps defaults for omitted flags', () => {
     const r = normalizeAdminIncidentAlertConfigForAdminPatch({
       topics: {
         channel_link: true,
@@ -130,10 +130,10 @@ describe("normalizeAdminIncidentAlertConfigForAdminPatch", () => {
     }
   });
 
-  it("rejects non-boolean for a known topic key", () => {
+  it('rejects non-boolean for a known topic key', () => {
     const r = normalizeAdminIncidentAlertConfigForAdminPatch({
       topics: {
-        channel_link: "yes",
+        channel_link: 'yes',
         auto_merge_conflict: true,
         auto_merge_conflict_anomaly: true,
         messenger_phone_bind_blocked: true,

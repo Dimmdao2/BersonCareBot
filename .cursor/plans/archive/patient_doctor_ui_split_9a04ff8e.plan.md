@@ -1,6 +1,6 @@
 ---
 name: Patient Doctor UI Split
-overview: "Механический split CSS и UI на patient / doctor / landing без визуального редизайна. Жёсткий порядок: фаза 1 (CSS) → фаза 2 (patient UI, gate) → фаза 3 (doctor UI) → фаза 4 (docs + CI). Patient и /book не ломаются."
+overview: 'Механический split CSS и UI на patient / doctor / landing без визуального редизайна. Жёсткий порядок: фаза 1 (CSS) → фаза 2 (patient UI, gate) → фаза 3 (doctor UI) → фаза 4 (docs + CI). Patient и /book не ломаются.'
 todos:
   - id: phase0-baseline
     content: Инициатива docs + patient smoke baseline + vitest baseline в LOG
@@ -41,11 +41,11 @@ isProject: false
 
 ## Scope
 
-| В scope | Вне scope |
-|---------|-----------|
-| Split CSS + перенос/копия UI | Редизайн doctor (плотность, KPI, entity rows) |
-| ESLint isolation | PWA «Berson Admin», subdomain |
-| `PatientAppShell` / `DoctorAppShell` | API, БД, бизнес-логика |
+| В scope                                        | Вне scope                                                             |
+| ---------------------------------------------- | --------------------------------------------------------------------- |
+| Split CSS + перенос/копия UI                   | Редизайн doctor (плотность, KPI, entity rows)                         |
+| ESLint isolation                               | PWA «Berson Admin», subdomain                                         |
+| `PatientAppShell` / `DoctorAppShell`           | API, БД, бизнес-логика                                                |
 | Копия `DoctorCatalogMediaStaticThumb` в doctor | Удаление папки `components/ui/` (остаётся источником для копирования) |
 
 ## Порядок фаз (строго последовательно)
@@ -82,14 +82,14 @@ flowchart LR
 
 ### Подключение CSS (единственные точки)
 
-| Файл layout/page | CSS |
-|------------------|-----|
-| [`app/layout.tsx`](apps/webapp/src/app/layout.tsx) | `styles/tailwind-engine.css` |
-| **Новый** [`app/app/layout.tsx`](apps/webapp/src/app/app/layout.tsx) | `styles/patient.css` |
-| [`app/book/layout.tsx`](apps/webapp/src/app/book/layout.tsx) | `styles/patient.css` |
-| [`app/app/doctor/layout.tsx`](apps/webapp/src/app/app/doctor/layout.tsx) | `styles/doctor.css` |
+| Файл layout/page                                                             | CSS                                                                |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| [`app/layout.tsx`](apps/webapp/src/app/layout.tsx)                           | `styles/tailwind-engine.css`                                       |
+| **Новый** [`app/app/layout.tsx`](apps/webapp/src/app/app/layout.tsx)         | `styles/patient.css`                                               |
+| [`app/book/layout.tsx`](apps/webapp/src/app/book/layout.tsx)                 | `styles/patient.css`                                               |
+| [`app/app/doctor/layout.tsx`](apps/webapp/src/app/app/doctor/layout.tsx)     | `styles/doctor.css`                                                |
 | [`app/app/settings/layout.tsx`](apps/webapp/src/app/app/settings/layout.tsx) | `styles/doctor.css` (подтверждено: settings = doctor product zone) |
-| [`app/page.tsx`](apps/webapp/src/app/page.tsx) | `styles/landing.css` |
+| [`app/page.tsx`](apps/webapp/src/app/page.tsx)                               | `styles/landing.css`                                               |
 
 **Запрещено:** второй import `patient.css` в [`app/app/patient/layout.tsx`](apps/webapp/src/app/app/patient/layout.tsx) — patient.css подключается **один раз** в `app/app/layout.tsx`.
 
@@ -158,18 +158,18 @@ pnpm --dir apps/webapp exec vitest run \
 
 ### 2.1 Перенос файлов (`git mv`)
 
-| Откуда | Куда |
-|--------|------|
-| `shared/ui/patientVisual.ts` | `shared/ui/patient/patientVisual.ts` |
-| `shared/lib/pwaLayoutClasses.ts` | `shared/ui/patient/pwaLayoutClasses.ts` |
-| `PatientTopNav`, `PatientBottomNav`, `PatientHeader`, `PatientShellTopChrome`, `PatientBottomShellFrame`, `PatientShellPageTitleStrip`, `PatientGatedHeader` | `shared/ui/patient/shell/` |
-| `shared/ui/patient/*` (существующие) | оставить в `shared/ui/patient/`, убрать дубли имён |
-| `shared/ui/pwa/PwaAppAccessGate.tsx` | `shared/ui/patient/pwa/` |
-| `shared/ui/marketing/PwaInstallSection.tsx` | `shared/ui/patient/marketing/` |
-| `shared/ui/auth/*` (файлы, используемые patient entry) | `shared/ui/patient/auth/` |
-| `LegalFooterLinks`, `ConnectMessengersBlock`, `FeatureCard`, `SegmentRouteError`, `PatientModalDialogContent`, `PatientLoadingShimmer`, `PatientBackToSectionShellRow`, `PatientCatalogMediaStaticThumb`, `material-rating/*` | `shared/ui/patient/` (подпапки по смыслу) |
-| `PatientMediaPlaybackVideo`, `patientHlsQuality.ts`, `patientPlaybackSourceKind.ts` | `shared/ui/patient/media/` |
-| `markdown/MarkdownContent`, `MarkdownPreview`, `MarkdownEmbeddedLink` | `shared/ui/patient/markdown/` (**копия** на фазе 2 — patient routes перестают зависеть от `shared/ui/markdown`) |
+| Откуда                                                                                                                                                                                                                        | Куда                                                                                                            |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `shared/ui/patientVisual.ts`                                                                                                                                                                                                  | `shared/ui/patient/patientVisual.ts`                                                                            |
+| `shared/lib/pwaLayoutClasses.ts`                                                                                                                                                                                              | `shared/ui/patient/pwaLayoutClasses.ts`                                                                         |
+| `PatientTopNav`, `PatientBottomNav`, `PatientHeader`, `PatientShellTopChrome`, `PatientBottomShellFrame`, `PatientShellPageTitleStrip`, `PatientGatedHeader`                                                                  | `shared/ui/patient/shell/`                                                                                      |
+| `shared/ui/patient/*` (существующие)                                                                                                                                                                                          | оставить в `shared/ui/patient/`, убрать дубли имён                                                              |
+| `shared/ui/pwa/PwaAppAccessGate.tsx`                                                                                                                                                                                          | `shared/ui/patient/pwa/`                                                                                        |
+| `shared/ui/marketing/PwaInstallSection.tsx`                                                                                                                                                                                   | `shared/ui/patient/marketing/`                                                                                  |
+| `shared/ui/auth/*` (файлы, используемые patient entry)                                                                                                                                                                        | `shared/ui/patient/auth/`                                                                                       |
+| `LegalFooterLinks`, `ConnectMessengersBlock`, `FeatureCard`, `SegmentRouteError`, `PatientModalDialogContent`, `PatientLoadingShimmer`, `PatientBackToSectionShellRow`, `PatientCatalogMediaStaticThumb`, `material-rating/*` | `shared/ui/patient/` (подпапки по смыслу)                                                                       |
+| `PatientMediaPlaybackVideo`, `patientHlsQuality.ts`, `patientPlaybackSourceKind.ts`                                                                                                                                           | `shared/ui/patient/media/`                                                                                      |
+| `markdown/MarkdownContent`, `MarkdownPreview`, `MarkdownEmbeddedLink`                                                                                                                                                         | `shared/ui/patient/markdown/` (**копия** на фазе 2 — patient routes перестают зависеть от `shared/ui/markdown`) |
 
 ### 2.2 AppShell → PatientAppShell
 

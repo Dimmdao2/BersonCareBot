@@ -20,26 +20,26 @@
 
 ### Продуктовые критерии
 
-| # | Критерий | Статус |
-|---|----------|--------|
-| A1 | Чужой кабинет **не рендерится** | [x] server guard → redirect до shell |
-| A2 | Пользователь на **своём hub** (`/app/patient` или `/app/doctor`) | [x] `buildOwnHubUrlWithAccessDeniedToast` |
-| A3 | Одноразовый **toast** (`react-hot-toast`), текст «Нет доступа к этому разделу» | [x] `AppAccessDeniedToastEffect` в shells |
-| A4 | Query `app_access_denied=1` **убирается** из URL после toast | [x] `router.replace` без параметра |
-| A5 | **Нет** `/app/access-denied`, `AccessDeniedScreen`, Dialog «нет доступа» | [x] `rg` — только тестовые строки |
-| A6 | Entry `/app`, `/app/tg`, `/app/max` с сессией — **без** toast | [x] `redirectPolicy` не меняли |
-| A7 | API cross-role — **401/403 JSON**, без redirect | [x] без изменений |
-| A8 | Browser client: gate → install landing, toast из `next=` | [x] `LandingPwaClientBootstrap` + `AppAccessDeniedToastEffect` |
+| #   | Критерий                                                                       | Статус                                                         |
+| --- | ------------------------------------------------------------------------------ | -------------------------------------------------------------- |
+| A1  | Чужой кабинет **не рендерится**                                                | [x] server guard → redirect до shell                           |
+| A2  | Пользователь на **своём hub** (`/app/patient` или `/app/doctor`)               | [x] `buildOwnHubUrlWithAccessDeniedToast`                      |
+| A3  | Одноразовый **toast** (`react-hot-toast`), текст «Нет доступа к этому разделу» | [x] `AppAccessDeniedToastEffect` в shells                      |
+| A4  | Query `app_access_denied=1` **убирается** из URL после toast                   | [x] `router.replace` без параметра                             |
+| A5  | **Нет** `/app/access-denied`, `AccessDeniedScreen`, Dialog «нет доступа»       | [x] `rg` — только тестовые строки                              |
+| A6  | Entry `/app`, `/app/tg`, `/app/max` с сессией — **без** toast                  | [x] `redirectPolicy` не меняли                                 |
+| A7  | API cross-role — **401/403 JSON**, без redirect                                | [x] без изменений                                              |
+| A8  | Browser client: gate → install landing, toast из `next=`                       | [x] `LandingPwaClientBootstrap` + `AppAccessDeniedToastEffect` |
 
 ### Матрица cross-zone (после §A)
 
-| Кто | Куда лезет | Итог |
-|-----|------------|------|
-| `client` | `/app/doctor/**` | `/app/patient?app_access_denied=1` → toast |
-| `client` | `/app/settings/**` | то же |
-| `client` | `/app/admin/**` | patient hub + toast (`admin/layout`) |
-| `doctor` / `admin` | `/app/patient/**` | `/app/doctor?app_access_denied=1` → toast |
-| `doctor` (не admin) | `/app/admin/**` | `/app/doctor?app_access_denied=1` → toast |
+| Кто                 | Куда лезет         | Итог                                       |
+| ------------------- | ------------------ | ------------------------------------------ |
+| `client`            | `/app/doctor/**`   | `/app/patient?app_access_denied=1` → toast |
+| `client`            | `/app/settings/**` | то же                                      |
+| `client`            | `/app/admin/**`    | patient hub + toast (`admin/layout`)       |
+| `doctor` / `admin`  | `/app/patient/**`  | `/app/doctor?app_access_denied=1` → toast  |
+| `doctor` (не admin) | `/app/admin/**`    | `/app/doctor?app_access_denied=1` → toast  |
 
 Точки кода: `requireRole.ts` (`requireDoctorAccess`, `requirePatientAccess`, `getOptionalPatientSession`), `patient/layout.tsx` (role-block), `settings/layout.tsx`, `admin/layout.tsx`.
 
@@ -52,14 +52,14 @@
 
 Покрыто автотестами guards/layouts/effect; ручной прогон на стенде — опционально.
 
-| # | Шаг | Ожидание | Авто |
-|---|-----|----------|------|
-| 1 | **Client** → `/app/doctor/clients` | patient hub + toast; URL без `app_access_denied` | `requireDoctorAccess` test |
-| 2 | **Client** → `/app/settings` | то же | settings layout test |
-| 3 | **Client** → `/app/admin` (browser) | install `/?next=…` + toast из `next` | `AppAccessDeniedToastEffect` + `pwaAppAccessPolicy` |
-| 4 | **Doctor** → `/app/patient` | doctor hub + toast | patient layout test |
-| 5 | **Doctor** → `/app/admin/...` | doctor hub + toast | admin layout test |
-| 6 | **Doctor** с сессией → `/app/tg` | `/app/doctor`, без toast | `redirectPolicy.test.ts` |
+| #   | Шаг                                 | Ожидание                                         | Авто                                                |
+| --- | ----------------------------------- | ------------------------------------------------ | --------------------------------------------------- |
+| 1   | **Client** → `/app/doctor/clients`  | patient hub + toast; URL без `app_access_denied` | `requireDoctorAccess` test                          |
+| 2   | **Client** → `/app/settings`        | то же                                            | settings layout test                                |
+| 3   | **Client** → `/app/admin` (browser) | install `/?next=…` + toast из `next`             | `AppAccessDeniedToastEffect` + `pwaAppAccessPolicy` |
+| 4   | **Doctor** → `/app/patient`         | doctor hub + toast                               | patient layout test                                 |
+| 5   | **Doctor** → `/app/admin/...`       | doctor hub + toast                               | admin layout test                                   |
+| 6   | **Doctor** с сессией → `/app/tg`    | `/app/doctor`, без toast                         | `redirectPolicy.test.ts`                            |
 
 ### Automated (§access)
 
@@ -80,16 +80,16 @@
 
 **Статус:** **done** (этапы 2.B0–2.B8).
 
-| # | Критерий | Статус |
-|---|----------|--------|
-| B1 | `manifest-staff`, `start_url: /app/doctor` | [x] `staffPwaManifest.ts`, route `/manifest-staff.webmanifest` |
-| B2 | Иконки LOGO_BERSONADMIN (`staff-pwa-icon-*`) | [x] `public/staff-pwa-icon-192/512.png`, `staff-pwa-apple-touch.png` |
-| B3 | `/app/doctor/install` | [x] `doctor/install/page.tsx`, `StaffPwaInstallSection` |
-| B4 | SW registration для staff | [x] `StaffPwaBootstrap` в `DoctorWorkspaceShell` (`/sw.js`, scope `/app`) |
-| B5 | Metadata / iOS install copy | [x] `staffPwaLayoutMetadata` на doctor/settings/admin layouts |
-| B6 | Smoke manifest + install | [x] vitest manifest/route/layouts + smoke `doctor/install` page |
-| B7 | Ссылка на install в меню staff | [x] sidebar + mobile Sheet → `/app/doctor/install` |
-| B8 | «Готово» без ложного срабатывания patient standalone | [x] `staffPwaInstallState` marker, не `standalone` alone |
+| #   | Критерий                                             | Статус                                                                    |
+| --- | ---------------------------------------------------- | ------------------------------------------------------------------------- |
+| B1  | `manifest-staff`, `start_url: /app/doctor`           | [x] `staffPwaManifest.ts`, route `/manifest-staff.webmanifest`            |
+| B2  | Иконки LOGO_BERSONADMIN (`staff-pwa-icon-*`)         | [x] `public/staff-pwa-icon-192/512.png`, `staff-pwa-apple-touch.png`      |
+| B3  | `/app/doctor/install`                                | [x] `doctor/install/page.tsx`, `StaffPwaInstallSection`                   |
+| B4  | SW registration для staff                            | [x] `StaffPwaBootstrap` в `DoctorWorkspaceShell` (`/sw.js`, scope `/app`) |
+| B5  | Metadata / iOS install copy                          | [x] `staffPwaLayoutMetadata` на doctor/settings/admin layouts             |
+| B6  | Smoke manifest + install                             | [x] vitest manifest/route/layouts + smoke `doctor/install` page           |
+| B7  | Ссылка на install в меню staff                       | [x] sidebar + mobile Sheet → `/app/doctor/install`                        |
+| B8  | «Готово» без ложного срабатывания patient standalone | [x] `staffPwaInstallState` marker, не `standalone` alone                  |
 
 ### Automated (§B)
 
@@ -110,14 +110,14 @@
 
 **Статус:** **done** (2026-06-07).
 
-| # | Критерий | Статус |
-|---|----------|--------|
-| C1 | API `/api/doctor/web-push/*` (doctor/admin) | [x] |
-| C2 | Матрица каналов в `/app/settings` (2 темы) | [x] |
-| C3 | Напоминания о задачах — per-owner каналы + push | [x] |
-| C4 | Сообщения пациентов — per-staff **push-first** (web_push → tg → max); integrator sync — канон [`NOTIFICATION_CHANNELS.md`](../ARCHITECTURE/NOTIFICATION_CHANNELS.md) | [x] |
-| C5 | `StaffWebPushBootstrap` + opt-in на install | [x] |
-| C6 | Patient push/manifest/gate/SW — **не в diff** | [x] |
+| #   | Критерий                                                                                                                                                             | Статус |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| C1  | API `/api/doctor/web-push/*` (doctor/admin)                                                                                                                          | [x]    |
+| C2  | Матрица каналов в `/app/settings` (2 темы)                                                                                                                           | [x]    |
+| C3  | Напоминания о задачах — per-owner каналы + push                                                                                                                      | [x]    |
+| C4  | Сообщения пациентов — per-staff **push-first** (web_push → tg → max); integrator sync — канон [`NOTIFICATION_CHANNELS.md`](../ARCHITECTURE/NOTIFICATION_CHANNELS.md) | [x]    |
+| C5  | `StaffWebPushBootstrap` + opt-in на install                                                                                                                          | [x]    |
+| C6  | Patient push/manifest/gate/SW — **не в diff**                                                                                                                        | [x]    |
 
 ### Automated (§C)
 

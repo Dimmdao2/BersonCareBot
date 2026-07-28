@@ -1,4 +1,4 @@
-> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
+> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/\_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
 
 # P0.13 Isolation Fixtures Checklist
 
@@ -14,7 +14,7 @@ Checklist:
 - [x] Create synthetic second organization fixture. (✓ scripts/p0-13-synthetic-fixtures.mjs + smoke-p0-13-synthetic-fixtures.mjs | check-p0-13-synthetic-fixtures.mjs PASS)
 - [x] Create synthetic patient/user pairs for at least two organizations. (✓ syntheticFixtureIds patientA1/A2/B1 in p0-13-synthetic-fixtures.mjs)
 - [x] Create scoped rows across representative direct-org, FK-path, denorm-path, bootstrap, and integrator tables. (✓ renderP013SyntheticFixtureScratchSql in p0-13-synthetic-fixtures.mjs)
-- [x] Guard fixture execution so it never writes to dev/prod PII DB without explicit scratch opt-in. (✓ bcb_saas_..._scratch name guard, refuses bcb_webapp_(dev|prod|test), in smoke-p0-13-synthetic-fixtures.mjs)
+- [x] Guard fixture execution so it never writes to dev/prod PII DB without explicit scratch opt-in. (✓ bcb*saas*..._scratch name guard, refuses bcb_webapp_(dev|prod|test), in smoke-p0-13-synthetic-fixtures.mjs)
 - [x] Use deterministic IDs and cleanup/rollback strategy. (✓ deterministic syntheticFixtureIds UUIDs; scratch DB dropped per run)
 
 Forbidden:

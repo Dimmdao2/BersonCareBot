@@ -1,19 +1,19 @@
-"use client";
+'use client';
 
-import type { BroadcastCommand, BroadcastPreviewResult } from "@/modules/doctor-broadcasts/ports";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { MarkdownPreview } from "@/shared/ui/doctor/markdown/MarkdownPreview";
+import type { BroadcastCommand, BroadcastPreviewResult } from '@/modules/doctor-broadcasts/ports';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { MarkdownPreview } from '@/shared/ui/doctor/markdown/MarkdownPreview';
 import {
   formatAudienceLabel,
   formatCategoryLabel,
   formatChannelsSummary,
   isAudienceEstimateApproximate,
-} from "./labels";
-import { BroadcastRecipientsPreviewBlock } from "./BroadcastRecipientsPreview";
+} from './labels';
+import { BroadcastRecipientsPreviewBlock } from './BroadcastRecipientsPreview';
 
 type Props = {
   preview: BroadcastPreviewResult;
-  command: Omit<BroadcastCommand, "actorId">;
+  command: Omit<BroadcastCommand, 'actorId'>;
   onConfirm: () => void;
   onCancel: () => void;
   isLoading: boolean;
@@ -33,15 +33,21 @@ export function BroadcastConfirmStep({ preview, command, onConfirm, onCancel, is
         <dt className="text-muted-foreground">Аудитория</dt>
         <dd>{formatAudienceLabel(command.audienceFilter)}</dd>
         <dt className="text-muted-foreground">Получателей</dt>
-        <dd id="broadcast-audience-size" className="font-semibold">{preview.audienceSize}</dd>
+        <dd id="broadcast-audience-size" className="font-semibold">
+          {preview.audienceSize}
+        </dd>
         <dt className="text-muted-foreground">Каналы</dt>
         <dd id="broadcast-channels-summary">{formatChannelsSummary(preview.channels)}</dd>
       </dl>
 
       {/* RASSL-07: show actual message preview matching what gets sent — title bold + markdown body */}
       <div className="rounded-lg border border-border bg-muted/30 px-3 py-2.5 flex flex-col gap-1.5">
-        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Предпросмотр сообщения</p>
-        <p id="broadcast-preview-title" className="text-sm font-bold leading-snug">{command.message.title}</p>
+        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          Предпросмотр сообщения
+        </p>
+        <p id="broadcast-preview-title" className="text-sm font-bold leading-snug">
+          {command.message.title}
+        </p>
         {command.message.mediaUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -51,10 +57,16 @@ export function BroadcastConfirmStep({ preview, command, onConfirm, onCancel, is
             className="max-h-40 rounded-md border border-border object-contain"
           />
         ) : null}
-        <MarkdownPreview markdown={command.message.body} className="text-sm text-foreground [&_p]:leading-snug [&_p]:mb-1" />
+        <MarkdownPreview
+          markdown={command.message.body}
+          className="text-sm text-foreground [&_p]:leading-snug [&_p]:mb-1"
+        />
       </div>
 
-      <p id="broadcast-delivery-policy" className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+      <p
+        id="broadcast-delivery-policy"
+        className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground"
+      >
         {preview.deliveryPolicyDescriptionRu}
       </p>
 
@@ -64,9 +76,9 @@ export function BroadcastConfirmStep({ preview, command, onConfirm, onCancel, is
 
       {preview.segmentSize != null && preview.segmentSize > preview.audienceSize ? (
         <p id="broadcast-dev-mode-reach-note" className="text-xs text-muted-foreground">
-          В сегменте «{formatAudienceLabel(command.audienceFilter)}» — {preview.segmentSize} клиентов. Учтён
-          dev_mode: в мессенджер уйдут только привязки Telegram/Max из «Тестовые аккаунты» в настройках администратора;
-          SMS в этом режиме через relay не отправляется.
+          В сегменте «{formatAudienceLabel(command.audienceFilter)}» — {preview.segmentSize}{' '}
+          клиентов. Учтён dev_mode: в мессенджер уйдут только привязки Telegram/Max из «Тестовые
+          аккаунты» в настройках администратора; SMS в этом режиме через relay не отправляется.
         </p>
       ) : null}
 
@@ -84,12 +96,7 @@ export function BroadcastConfirmStep({ preview, command, onConfirm, onCancel, is
       </p>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onCancel}
-          disabled={isLoading}
-        >
+        <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading}>
           Назад
         </Button>
         <Button
@@ -98,7 +105,7 @@ export function BroadcastConfirmStep({ preview, command, onConfirm, onCancel, is
           onClick={onConfirm}
           disabled={isLoading}
         >
-          {isLoading ? "Отправка…" : `Отправить ${preview.audienceSize} получателям`}
+          {isLoading ? 'Отправка…' : `Отправить ${preview.audienceSize} получателям`}
         </Button>
       </div>
     </div>

@@ -1,11 +1,11 @@
-import Link from "next/link";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
-import { PageSection } from "@/components/common/layout/PageSection";
-import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
-import { cn } from "@/lib/utils";
-import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
-import { MotivationListClient, type QuoteRow } from "./MotivationListClient";
+import Link from 'next/link';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireDoctorAccess } from '@/app-layer/guards/requireRole';
+import { PageSection } from '@/components/common/layout/PageSection';
+import { buttonVariants } from '@/shared/ui/doctor/primitives/button-variants';
+import { cn } from '@/lib/utils';
+import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
+import { MotivationListClient, type QuoteRow } from './MotivationListClient';
 
 export default async function DoctorContentMotivationPage() {
   const session = await requireDoctorAccess();
@@ -21,7 +21,13 @@ export default async function DoctorContentMotivationPage() {
     <DoctorAppShell title="Мотивация" user={session.user} backHref="/app/doctor/content">
       <PageSection id="doctor-content-motivation" as="section" className="flex flex-col gap-4">
         <div className="flex w-full flex-wrap gap-2">
-          <Link href="/app/doctor/content" className={cn(buttonVariants({ variant: "outline", size: "default" }), "flex-1 basis-0 justify-center sm:flex-none")}>
+          <Link
+            href="/app/doctor/content"
+            className={cn(
+              buttonVariants({ variant: 'outline', size: 'default' }),
+              'flex-1 basis-0 justify-center sm:flex-none',
+            )}
+          >
             Все страницы контента
           </Link>
         </div>

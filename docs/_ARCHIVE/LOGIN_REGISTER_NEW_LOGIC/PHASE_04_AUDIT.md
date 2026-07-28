@@ -9,26 +9,26 @@
 
 ## 1. Цель фазы и границы
 
-| | |
-|--|--|
-| **Цель** | Пациент по ссылке из письма задаёт пароль на **существующей** карточке → verified email + credentials + session. |
-| **В scope** | Validate token; форма readonly email + password; complete; expired UI + resend. |
-| **Вне scope** | Register/login state machine (PHASE_05); merge (PHASE_06). |
+|               |                                                                                                                  |
+| ------------- | ---------------------------------------------------------------------------------------------------------------- |
+| **Цель**      | Пациент по ссылке из письма задаёт пароль на **существующей** карточке → verified email + credentials + session. |
+| **В scope**   | Validate token; форма readonly email + password; complete; expired UI + resend.                                  |
+| **Вне scope** | Register/login state machine (PHASE_05); merge (PHASE_06).                                                       |
 
 ---
 
 ## 2. Definition of Done — по пунктам
 
-| Критерий (PHASE_04) | Статус | Доказательство |
-|---------------------|--------|----------------|
-| Happy path: token → password → session в patient app | **Выполнено (авто)** | `emailSetupFlow/service.test.ts` complete; `email-setup.routes.test.ts` complete + `redirectTo: /app/patient`; `EmailSetupPageClient.test.tsx` submit → `router.replace` |
-| Happy path E2E (формулировка в DoD) | **Частично** | Нет Playwright/Cypress e2e в `apps/webapp/e2e`; покрытие — unit + RTL + route handlers |
-| Used token cannot reuse | **Выполнено** | `validateEmailSetupToken` → `used`; UI «Ссылка уже использована»; service test `used token cannot complete` |
-| Expired → resend | **Выполнено** | `lookupEmailSetupToken` → `expired`; validate **410** + email; `resendFromExpiredToken` → `requestContactEmailSetup(manual_resend)`; RTL «Ссылка устарела» + кнопка resend |
-| Readonly email для keychain | **Выполнено** | `Input` `readOnly`, `autoComplete="username"`, `name="email"`; RTL `toHaveAttribute("readonly")` |
-| Тесты API + RTL (lean) | **Выполнено** | 3 файла: routes, page client, flow service (+ tokens из PHASE_03) |
-| Запись в `LOG.md` | **Выполнено** | `2026-05-20 — PHASE_04` |
-| Ручной smoke (чеклист фазы) | **Не отмечен** | В PHASE_04 DoD `[ ]` — ожидаемо вне автоматического аудита |
+| Критерий (PHASE_04)                                  | Статус               | Доказательство                                                                                                                                                             |
+| ---------------------------------------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Happy path: token → password → session в patient app | **Выполнено (авто)** | `emailSetupFlow/service.test.ts` complete; `email-setup.routes.test.ts` complete + `redirectTo: /app/patient`; `EmailSetupPageClient.test.tsx` submit → `router.replace`   |
+| Happy path E2E (формулировка в DoD)                  | **Частично**         | Нет Playwright/Cypress e2e в `apps/webapp/e2e`; покрытие — unit + RTL + route handlers                                                                                     |
+| Used token cannot reuse                              | **Выполнено**        | `validateEmailSetupToken` → `used`; UI «Ссылка уже использована»; service test `used token cannot complete`                                                                |
+| Expired → resend                                     | **Выполнено**        | `lookupEmailSetupToken` → `expired`; validate **410** + email; `resendFromExpiredToken` → `requestContactEmailSetup(manual_resend)`; RTL «Ссылка устарела» + кнопка resend |
+| Readonly email для keychain                          | **Выполнено**        | `Input` `readOnly`, `autoComplete="username"`, `name="email"`; RTL `toHaveAttribute("readonly")`                                                                           |
+| Тесты API + RTL (lean)                               | **Выполнено**        | 3 файла: routes, page client, flow service (+ tokens из PHASE_03)                                                                                                          |
+| Запись в `LOG.md`                                    | **Выполнено**        | `2026-05-20 — PHASE_04`                                                                                                                                                    |
+| Ручной smoke (чеклист фазы)                          | **Не отмечен**       | В PHASE_04 DoD `[ ]` — ожидаемо вне автоматического аудита                                                                                                                 |
 
 **Локальные проверки (аудит 2026-05-20):**
 
@@ -44,11 +44,11 @@ pnpm --filter @bersoncare/webapp exec vitest run \
 
 ### 3.1 API
 
-| Endpoint | Реализация | Ответы |
-|----------|------------|--------|
+| Endpoint                              | Реализация          | Ответы                                                                                         |
+| ------------------------------------- | ------------------- | ---------------------------------------------------------------------------------------------- |
 | `POST /api/auth/email-setup/validate` | `validate/route.ts` | 200 ready + email; **410** expired + email; 400/409 used, revoked, mismatch, already_has_login |
-| `POST /api/auth/email-setup/complete` | `complete/route.ts` | 200 + `redirectTo` + `setSessionFromUser`; 400/409/410 по ошибкам flow |
-| `POST /api/auth/email-setup/resend` | `resend/route.ts` | 200; 503 `not_configured`; 409 already_has_login |
+| `POST /api/auth/email-setup/complete` | `complete/route.ts` | 200 + `redirectTo` + `setSessionFromUser`; 400/409/410 по ошибкам flow                         |
+| `POST /api/auth/email-setup/resend`   | `resend/route.ts`   | 200; 503 `not_configured`; 409 already_has_login                                               |
 
 **Замечание:** в таблице фазы указано «GET/POST validate» — реализован **только POST** (достаточно для SPA).
 
@@ -56,13 +56,13 @@ pnpm --filter @bersoncare/webapp exec vitest run \
 
 `modules/auth/emailSetupFlow/service.ts`:
 
-| Шаг | MAIN PLAN §3 | Код |
-|-----|--------------|-----|
-| Проверка token | exists, not expired/used/revoked | `lookup` (validate UI) / `validateEmailSetupToken` (complete) |
-| User + email match | contact email | `assertContactEmailForSetup` в `pgEmailSetupFlowPort` |
-| Форма | readonly email + password | `EmailSetupPageClient` |
-| Submit | re-validate → verify → password → consume → session | `completeEmailSetup` + `complete/route` |
-| Redirect | `/app/patient` | `getRedirectPathForRole("client")` → `/app/patient` |
+| Шаг                | MAIN PLAN §3                                        | Код                                                           |
+| ------------------ | --------------------------------------------------- | ------------------------------------------------------------- |
+| Проверка token     | exists, not expired/used/revoked                    | `lookup` (validate UI) / `validateEmailSetupToken` (complete) |
+| User + email match | contact email                                       | `assertContactEmailForSetup` в `pgEmailSetupFlowPort`         |
+| Форма              | readonly email + password                           | `EmailSetupPageClient`                                        |
+| Submit             | re-validate → verify → password → consume → session | `completeEmailSetup` + `complete/route`                       |
+| Redirect           | `/app/patient`                                      | `getRedirectPathForRole("client")` → `/app/patient`           |
 
 **Contact check** (`pgEmailSetupFlowPort`):
 
@@ -81,10 +81,10 @@ INSERT … user_password_credentials ON CONFLICT DO UPDATE password_hash
 
 ### 3.3 UI
 
-| Файл | Назначение |
-|------|------------|
-| `app/app/auth/email-setup/page.tsx` | `searchParams.token` → client |
-| `EmailSetupPageClient.tsx` | Состояния: loading, missing_token, ready, expired, resend_sent, error; patient chrome (`AppShell` variant patient) |
+| Файл                                | Назначение                                                                                                         |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `app/app/auth/email-setup/page.tsx` | `searchParams.token` → client                                                                                      |
+| `EmailSetupPageClient.tsx`          | Состояния: loading, missing_token, ready, expired, resend_sent, error; patient chrome (`AppShell` variant patient) |
 
 Тексты: «Ссылка устарела», «Отправить новую ссылку», «Создайте пароль» — без лишних пояснений.
 
@@ -107,15 +107,15 @@ emailSetupFlowService    → pgEmailSetupFlowPort | noopEmailSetupFlowPort
 
 ## 4. Сверка с MAIN PLAN §3–4
 
-| Требование | Статус |
-|------------|--------|
-| Одноразовый token, TTL 24h, hash | PHASE_03 + consume на complete |
-| Revoke при новом выпуске (resend) | `requestContactEmailSetup` → issue revokes active |
-| URL `/app/auth/email-setup?token=…` | Страница + ссылка в письме PHASE_03 |
-| email совпадает с contact | **Да** — `assertContactEmailForSetup` |
-| Readonly email + autocomplete | **Да** |
-| email_verified_at, credentials, session, redirect patient | **Да** |
-| Expired UI + resend | **Да** |
+| Требование                                                | Статус                                            |
+| --------------------------------------------------------- | ------------------------------------------------- |
+| Одноразовый token, TTL 24h, hash                          | PHASE_03 + consume на complete                    |
+| Revoke при новом выпуске (resend)                         | `requestContactEmailSetup` → issue revokes active |
+| URL `/app/auth/email-setup?token=…`                       | Страница + ссылка в письме PHASE_03               |
+| email совпадает с contact                                 | **Да** — `assertContactEmailForSetup`             |
+| Readonly email + autocomplete                             | **Да**                                            |
+| email_verified_at, credentials, session, redirect patient | **Да**                                            |
+| Expired UI + resend                                       | **Да**                                            |
 
 ---
 
@@ -154,12 +154,12 @@ POST resend → lookup (must be expired) → contact check → requestContactEma
 
 ## 6. Тестовое покрытие
 
-| Файл | Сценарии |
-|------|----------|
+| Файл                             | Сценарии                                                   |
+| -------------------------------- | ---------------------------------------------------------- |
 | `emailSetupFlow/service.test.ts` | ready; expired+email; complete chain; resend; used blocked |
-| `email-setup.routes.test.ts` | validate 200/410; complete session+redirect; resend 200 |
-| `EmailSetupPageClient.test.tsx` | readonly email; expired UI; submit redirect |
-| `emailSetupTokens/*` (PHASE_03) | lookup/validate/consume/revoke |
+| `email-setup.routes.test.ts`     | validate 200/410; complete session+redirect; resend 200    |
+| `EmailSetupPageClient.test.tsx`  | readonly email; expired UI; submit redirect                |
+| `emailSetupTokens/*` (PHASE_03)  | lookup/validate/consume/revoke                             |
 
 **Пробелы:**
 
@@ -200,23 +200,23 @@ POST resend → lookup (must be expired) → contact check → requestContactEma
 
 ## 8. Scope boundaries
 
-| Вне scope PHASE_04 | Подтверждение |
-|--------------------|---------------|
-| Register `existing_account_needs_email_setup` | PHASE_05 |
-| Merge | PHASE_06 |
-| Полный login screen FSM | PHASE_05 |
+| Вне scope PHASE_04                            | Подтверждение |
+| --------------------------------------------- | ------------- |
+| Register `existing_account_needs_email_setup` | PHASE_05      |
+| Merge                                         | PHASE_06      |
+| Полный login screen FSM                       | PHASE_05      |
 
 ---
 
 ## 9. Документация
 
-| Документ | Актуальность |
-|----------|--------------|
-| `LOG.md` PHASE_04 | **Актуален** |
-| `PHASE_04_EMAIL_SETUP_FLOW.md` | DoD в основном `[x]`; ручной smoke `[ ]` |
-| `PHASE_03_AUDIT.md` | Journal 0076 — **устарело** в §7.1 (исправлено в PHASE_04) |
-| `INTEGRATOR_CONTRACT.md` | Ссылка на URL setup в примере письма |
-| `apps/webapp/src/app/api/api.md` | Endpoints email-setup **не** перечислены |
+| Документ                         | Актуальность                                               |
+| -------------------------------- | ---------------------------------------------------------- |
+| `LOG.md` PHASE_04                | **Актуален**                                               |
+| `PHASE_04_EMAIL_SETUP_FLOW.md`   | DoD в основном `[x]`; ручной smoke `[ ]`                   |
+| `PHASE_03_AUDIT.md`              | Journal 0076 — **устарело** в §7.1 (исправлено в PHASE_04) |
+| `INTEGRATOR_CONTRACT.md`         | Ссылка на URL setup в примере письма                       |
+| `apps/webapp/src/app/api/api.md` | Endpoints email-setup **не** перечислены                   |
 
 ---
 

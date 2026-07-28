@@ -23,6 +23,7 @@ Generated: 2026-06-14. Branch: `feat/doctor-ui-rebuild` (worktree `doctor-pages`
 Server component. Loads `deps.contentPages.listAll()` and `deps.contentSections.listAll()`, then groups pages by section. Active section driven by `?section=` (article kind) or `?systemParentCode=` (system cluster root). Renders `DoctorAppShell` wrapping two-column layout: sidebar left, section-list right.
 
 Key helpers used here:
+
 - `groupBySection` — pure client-side group-by
 - `isArticlePage` / `isHelpSectionSlug` / `isSectionSlugProtectedFromDelete` from `content-sections/types.ts`
 - `SYSTEM_PARENT_CODES` ("situations" | "sos" | "warmups" | "lessons")
@@ -40,6 +41,7 @@ Static nav built with `<Link>`. Four fixed groups: Мотивации link, Ра
 **`apps/webapp/src/app/app/doctor/content/ContentPagesSectionList.tsx`** (L1-356)
 
 "use client". DnD-sortable list of pages within one section. Each row:
+
 - Drag handle
 - Title link → `/app/doctor/content/edit/[id]`
 - Slug (monospace hint)
@@ -103,6 +105,7 @@ Two server actions: `setSectionVisibility(slug, isVisible)` and `setSectionRequi
 Two labelled groups:
 
 **Системные разделы** (fixed, never deletable):
+
 1. Главная пациента (links to patient-home block editor)
 2. Разминки (warmups system cluster)
 3. SOS
@@ -110,10 +113,12 @@ Two labelled groups:
 5. Уроки · Новости · Мотивации (lessons cluster, with Мотивации subgroup)
 
 **Статьи и страницы** (user-created, "+" button adds new section):
+
 - Each article section listed as nav item
 - Renameable and deletable
 
 **Медиа**:
+
 - Файлы и медиа link (to library page/pane)
 
 Clicking a nav item switches the right panel client-side (no server re-fetch per tab — see memory `doctor-tabs-load-once-client.md`).
@@ -123,6 +128,7 @@ Clicking a nav item switches the right panel client-side (no server re-fetch per
 **Material cards view (target for all sections)**:
 
 Card shows:
+
 - Preview (image or video thumbnail)
 - Title (bold)
 - Slug (monospace hint)
@@ -135,6 +141,7 @@ Card shows:
 Header also shows: section title, page count hint, "Создать" button, "Редактировать раздел" link.
 
 **List view row** (same data, horizontal):
+
 - Media icon (▶)
 - Title + slug
 - Rating chip
@@ -159,21 +166,21 @@ Existing `MediaLibraryClient` embedded as a panel (instead of separate route).
 
 ## 3. Gap analysis
 
-| Area | Current state | Gap |
-|---|---|---|
-| **Left nav IA** | Static links to separate sub-routes (Motivation, Sections) + systemParentCode filter params | Must become a pure client-side switcher panel; "Главная пациента" and "Файлы и медиа" entries must appear in it |
-| **Material card view** | None — list only (text rows in ContentPagesSectionList) | Need `ContentPageTileCard` component (image preview, rating chip, 👁 toggle, ⋮ menu) |
-| **List/card toggle** | None | Need `DoctorCatalogMasterListHeader` wired to view state |
-| **Rating display in list/card** | Shown only in edit page header (one item) | Need batch rating fetch for list view: new `listRatings(ids)` port method or defer per-card async |
-| **👁 visibility toggle on pages** | `requiresAuth` toggle exists in ContentPagesSectionList; `isVisible` toggle only on sections | Need page-level `isPublished` toggle in card/row (the Eye button is currently lifecycle-only, not inline per card) |
-| **Section `isVisible` in left nav** | Not shown; lives on `/content/sections` page | Show `isVisible` next to each section nav item (small Eye badge) |
-| **Editor as right pane** | Full-page navigate to `/content/edit/[id]` | Convert to `CatalogSplitLayout` right-pane (or keep separate route and just style the page consistently — see risk note below) |
-| **"+" new section action** | Via separate `/content/sections/new` route | Keep route but surface it as the "+" button in left nav "Статьи и страницы" label |
-| **Главная пациента in Контент nav** | At `/app/doctor/patient-home` — no Контент nav entry | Add nav item + render `PatientHomeBlocksSettingsPageClient` inline or link to `/app/doctor/patient-home` |
-| **Файлы и медиа in Контент nav** | At `/app/doctor/content/library` as separate page | Add nav item that renders `MediaLibraryClient` inline or links to existing route |
-| **Мотивации** | Separate `/content/motivation` route | Add nav item that links to or embeds `MotivationListClient` |
-| **Rating batch for list** | No backend method | Needs new port method or embed async-on-demand |
-| **viewsCount** | No DB column, not in port | Out of scope for this rework (aspirational in wireframe only) |
+| Area                                | Current state                                                                                | Gap                                                                                                                            |
+| ----------------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| **Left nav IA**                     | Static links to separate sub-routes (Motivation, Sections) + systemParentCode filter params  | Must become a pure client-side switcher panel; "Главная пациента" and "Файлы и медиа" entries must appear in it                |
+| **Material card view**              | None — list only (text rows in ContentPagesSectionList)                                      | Need `ContentPageTileCard` component (image preview, rating chip, 👁 toggle, ⋮ menu)                                           |
+| **List/card toggle**                | None                                                                                         | Need `DoctorCatalogMasterListHeader` wired to view state                                                                       |
+| **Rating display in list/card**     | Shown only in edit page header (one item)                                                    | Need batch rating fetch for list view: new `listRatings(ids)` port method or defer per-card async                              |
+| **👁 visibility toggle on pages**   | `requiresAuth` toggle exists in ContentPagesSectionList; `isVisible` toggle only on sections | Need page-level `isPublished` toggle in card/row (the Eye button is currently lifecycle-only, not inline per card)             |
+| **Section `isVisible` in left nav** | Not shown; lives on `/content/sections` page                                                 | Show `isVisible` next to each section nav item (small Eye badge)                                                               |
+| **Editor as right pane**            | Full-page navigate to `/content/edit/[id]`                                                   | Convert to `CatalogSplitLayout` right-pane (or keep separate route and just style the page consistently — see risk note below) |
+| **"+" new section action**          | Via separate `/content/sections/new` route                                                   | Keep route but surface it as the "+" button in left nav "Статьи и страницы" label                                              |
+| **Главная пациента in Контент nav** | At `/app/doctor/patient-home` — no Контент nav entry                                         | Add nav item + render `PatientHomeBlocksSettingsPageClient` inline or link to `/app/doctor/patient-home`                       |
+| **Файлы и медиа in Контент nav**    | At `/app/doctor/content/library` as separate page                                            | Add nav item that renders `MediaLibraryClient` inline or links to existing route                                               |
+| **Мотивации**                       | Separate `/content/motivation` route                                                         | Add nav item that links to or embeds `MotivationListClient`                                                                    |
+| **Rating batch for list**           | No backend method                                                                            | Needs new port method or embed async-on-demand                                                                                 |
+| **viewsCount**                      | No DB column, not in port                                                                    | Out of scope for this rework (aspirational in wireframe only)                                                                  |
 
 ---
 
@@ -182,6 +189,7 @@ Existing `MediaLibraryClient` embedded as a panel (instead of separate route).
 All from `apps/webapp/src/shared/ui/doctor/catalog/` and `apps/webapp/src/shared/ui/doctor/`:
 
 ### `CatalogSplitLayout`
+
 `import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout"`
 
 Props: `left`, `right`, `mobileView: "list"|"detail"`, `mobileBackSlot`. CSS: 2-column grid on `lg:`, absolute slide-in on mobile. Usage in exercises (`ExercisesPageClient.tsx` L339-405):
@@ -198,6 +206,7 @@ Props: `left`, `right`, `mobileView: "list"|"detail"`, `mobileBackSlot`. CSS: 2-
 For Контент: left = nav + section page-list (cards/rows), right = ContentForm inline.
 
 ### `CatalogLeftPane`
+
 `import { CatalogLeftPane } from "@/shared/ui/doctor/catalog/CatalogLeftPane"`
 
 Props: `headerSlot`, `children`, `stickySplit`, `stickyToolbarRows`, `className`. Renders `<aside>` with border/card bg + scroll. Usage:
@@ -212,18 +221,22 @@ Props: `headerSlot`, `children`, `stickySplit`, `stickyToolbarRows`, `className`
 ```
 
 ### `CatalogRightPane`
+
 `import { CatalogRightPane } from "@/shared/ui/doctor/catalog/CatalogRightPane"`
 
 Thin wrapper (border + padding). Wraps the editor form.
 
 ### `DoctorCatalogMasterListHeader`
+
 `import { DoctorCatalogMasterListHeader } from "@/shared/ui/doctor/DoctorCatalogMasterListHeader"`
 
 Props: `summaryLine`, `viewMode: "tiles"|"list"`, `onToggleView`, `titleSort`, `onTitleSortChange`, `listBusy?`, `archiveScope?`. Renders sort select + count text + ☰/⊞ toggle button. Exercises usage (ExercisesPageClient.tsx L351-365):
 
 ```tsx
 <DoctorCatalogMasterListHeader
-  summaryLine={displayExercises.length === 0 ? "Нет упражнений" : `Упражнений: ${displayExercises.length}`}
+  summaryLine={
+    displayExercises.length === 0 ? 'Нет упражнений' : `Упражнений: ${displayExercises.length}`
+  }
   viewMode={toolbarViewMode}
   onToggleView={toggleViewMode}
   titleSort={filters.titleSort}
@@ -235,6 +248,7 @@ Props: `summaryLine`, `viewMode: "tiles"|"list"`, `onToggleView`, `titleSort`, `
 For Контент: same pattern; `summaryLine` = "Материалов: N"; no `archiveScope` initially (all pages shown).
 
 ### `VirtualizedItemGrid`
+
 `import { VirtualizedItemGrid } from "@/shared/ui/doctor/catalog/VirtualizedItemGrid"`
 
 Props: `items`, `columns`, `estimatedRowHeight`, `renderItem`, `keyExtractor`, `containerClassName`, `gridClassName`. Virtualizes a CSS grid. Usage:
@@ -250,12 +264,14 @@ Props: `items`, `columns`, `estimatedRowHeight`, `renderItem`, `keyExtractor`, `
 ```
 
 ### `DoctorCatalogFiltersToolbar` / `DoctorCatalogPageLayout`
+
 `import { DoctorCatalogFiltersToolbar, DoctorCatalogToolbarFiltersSlot } from "@/shared/ui/doctor/DoctorCatalogFiltersToolbar"`
 `import { DoctorCatalogPageLayout } from "@/shared/ui/doctor/catalog/DoctorCatalogPageLayout"`
 
 Optional: `DoctorCatalogPageLayout` wraps toolbar + split. Can be used if a search/filter bar is wanted in a later step (not needed for MVP).
 
 ### `DoctorAppShell` + `DoctorPageHeader`
+
 Already used in current `page.tsx`. Keep `DoctorAppShell`. The sidebar nav shifts to a left panel _inside_ the page, separate from the app shell.
 
 ---
@@ -271,10 +287,12 @@ Each step is independently committable and shippable on its own.
 **Scope**: Replace `ContentPagesSidebar` with a new `ContentNav` client component that holds active-pane state internally. Clicking a nav item changes `activePaneKey` state; does not navigate. The right panel renders the existing `ContentPagesSectionList` per section (unchanged).
 
 **Files to add/edit**:
+
 - `apps/webapp/src/app/app/doctor/content/ContentNav.tsx` — new "use client" component. Accepts `{ articleSections, systemSections }` props. State: `activePaneKey: string`. Renders nav items grouped as described in §2. On click sets state; items get aria-current + active styling.
 - `apps/webapp/src/app/app/doctor/content/page.tsx` — replace `ContentPagesSidebar` + URL-query logic with `<ContentNav>` + client-tab pattern. Simplify: remove `?section` / `?systemParentCode` query-param reading (move to ContentNav client state). Pass all sections and pages down as props.
 
 **Sidebar entries** (in ContentNav):
+
 - Системные: Главная пациента, Разминки, SOS, Ситуации, Уроки·Новости·Мотивации
 - Статьи и страницы (label + "+" link to `/content/sections/new`)
 - Each article section from DB
@@ -295,6 +313,7 @@ Nav items for Главная пациента and Файлы и медиа can i
 **Scope**: Add `ContentPageTileCard` component and wire `DoctorCatalogMasterListHeader` into the right panel for each section. The right panel switches between card grid (`VirtualizedItemGrid`) and the existing list rows.
 
 **Files to add/edit**:
+
 - `apps/webapp/src/app/app/doctor/content/ContentPageTileCard.tsx` — new component. Props: `page: ContentPageListRow & { imageUrl?: string | null; ratingAvg?: number | null }`, `onSelect`, `isActive`. Renders: preview area (image via `<img>` or `<MediaThumb>`, else gradient placeholder), title, slug, rating chip (★ avg or empty), 👁 Eye button (toggles `isPublished` inline via existing `applyContentLifecycleForm` publish action), ⋮ `ContentLifecycleDropdown`. Pattern mirrors `ExerciseTileCard` in exercises.
 - `apps/webapp/src/app/app/doctor/content/ContentPagesSectionList.tsx` — add `viewMode: "list" | "tiles"` prop. In tiles mode render `VirtualizedItemGrid<ContentPageListRow>` with `ContentPageTileCard`. In list mode keep existing `SortablePageRow` list (DnD stays list-only for now). Add `DoctorCatalogMasterListHeader` as the section header slot.
 - `apps/webapp/src/app/app/doctor/content/ContentNav.tsx` — pass `viewMode` state down (or store per-section in localStorage like exercises do).
@@ -316,6 +335,7 @@ Nav items for Главная пациента and Файлы и медиа can i
 **Scope**: Expose a batch aggregate method on `materialRating` so the section list can show per-page rating without N+1 fetches.
 
 **Files to add/edit**:
+
 - `apps/webapp/src/modules/material-rating/ports.ts` — add `listAggregates(input: { targetKind: MaterialRatingTargetKind; targetIds: string[] }): Promise<Map<string, MaterialRatingAggregate>>` to `MaterialRatingPort`.
 - `apps/webapp/src/infra/repos/pgMaterialRating.ts` — implement with a single SQL query grouping by `target_id` (WHERE `target_id = ANY($1)` + `GROUP BY`).
 - `apps/webapp/src/modules/material-rating/service.ts` — expose `listAggregates` through the service (pass-through after auth check; no patient-visible restriction needed for doctor context).
@@ -335,6 +355,7 @@ Nav items for Главная пациента and Файлы и медиа can i
 **Scope**: Convert the content list + editor into `CatalogSplitLayout`: clicking a card/row opens `ContentForm` in the right pane instead of navigating to `/content/edit/[id]`.
 
 **Files to add/edit**:
+
 - `apps/webapp/src/app/app/doctor/content/ContentSectionPanel.tsx` — new "use client" component. Props: `sectionSlug`, `pages: ContentPageListRow[]`, `sections: ContentSectionRow[]`, `ratingsById`, `publishedCourses`. State: `selectedPageId: string | null`. Renders `CatalogSplitLayout` with:
   - `left`: `CatalogLeftPane` with `DoctorCatalogMasterListHeader` header + card/list grid
   - `right`: `CatalogRightPane` wrapping `ContentFormInline` (see below)
@@ -359,6 +380,7 @@ Nav items for Главная пациента and Файлы и медиа can i
 **Scope**: Wire the two remaining nav items to render inline panels instead of linking to separate routes.
 
 **Files to add/edit**:
+
 - `apps/webapp/src/app/app/doctor/content/ContentNav.tsx` — when `activePaneKey === "media"` render `<MediaLibraryClient>` (import from `./library/MediaLibraryClient`); when `activePaneKey === "patient-home"` render a link or embed `PatientHomeBlocksSettingsPageClient`.
 
   For Главная пациента: the settings client needs async-loaded data (blocks, pages, sections, system settings). Two options:
@@ -382,6 +404,7 @@ Nav items for Главная пациента and Файлы и медиа can i
 **Scope**: Surface the two visibility toggles that are currently hidden from the Контент hub.
 
 **Files to add/edit**:
+
 - `apps/webapp/src/app/app/doctor/content/ContentNav.tsx` — receive `sectionsWithVisibility: Array<{ slug, title, isVisible }>`. Render small Eye/EyeOff icon next to each article section nav item. On click call `setSectionVisibility` server action (already exists at `sections/sectionVisibilityActions.ts`).
 - `apps/webapp/src/app/app/doctor/content/ContentPageTileCard.tsx` — the 👁 button on each card: wire it to toggle `isPublished` (not `isVisible`, which doesn't exist at page level — pages use `isPublished` as their visibility). The `ContentLifecycleDropdown` already has publish/unpublish, but it's in a menu. The card's inline Eye button should call the same `applyContentLifecycleForm("publish"|"unpublish")` action without opening the dropdown.
 
@@ -398,6 +421,7 @@ Nav items for Главная пациента and Файлы и медиа can i
 ## 6. Главная пациента under Контент — wiring note
 
 The patient-home block editor (`apps/webapp/src/app/app/doctor/patient-home/page.tsx`) is a full RSC that already has:
+
 - 👁 per-block visibility (`setBlockVisibility` server action)
 - ⚙ content picker per block (`PatientHomeBlockItemsDialog`)
 - 🔒 lock badge for system blocks (plan, booking) — currently implemented in `PatientHomeBlockSettingsCard` by checking `blockCode`: blocks `"plan"` and `"booking"` have no delete/hide option (🔒 icon shown instead of eye toggle).
@@ -407,6 +431,7 @@ The only gap is navigation: there is no entry point from the Контент page
 **Implementation** (Step 5, Option 1): Add a nav item "Главная пациента" under "Системные разделы" in `ContentNav.tsx` that is a `<Link href="/app/doctor/patient-home">`. Zero new components, zero backend.
 
 **Blocks that should show 🔒**:
+
 - `plan` ("Мой план") — core clinical block, always visible
 - `booking` ("Запись на приём") — booking CTA, always visible
 

@@ -1,51 +1,51 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useActionState, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button, buttonVariants } from "@/shared/ui/doctor/primitives/button";
+import Link from 'next/link';
+import { useActionState, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/shared/ui/doctor/primitives/dialog";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Label } from "@/shared/ui/doctor/primitives/label";
-import { MarkdownEditor } from "@/shared/ui/doctor/markdown/MarkdownEditor";
+} from '@/shared/ui/doctor/primitives/dialog';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
+import { MarkdownEditor } from '@/shared/ui/doctor/markdown/MarkdownEditor';
 import {
   buildRecommendationDomainSelectOptions,
   type RecommendationDomain,
-} from "@/modules/recommendations/recommendationDomain";
-import type { ReferenceItem } from "@/modules/references/types";
-import type { Recommendation, RecommendationUsageSnapshot } from "@/modules/recommendations/types";
-import type { RecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
-import { ReferenceSelect } from "@/shared/ui/doctor/ReferenceSelect";
-import { ReferenceMultiSelect } from "@/shared/ui/doctor/ReferenceMultiSelect";
-import { cn } from "@/lib/utils";
-import { MediaLibraryPickerDialog } from "@/app/app/doctor/content/MediaLibraryPickerDialog";
+} from '@/modules/recommendations/recommendationDomain';
+import type { ReferenceItem } from '@/modules/references/types';
+import type { Recommendation, RecommendationUsageSnapshot } from '@/modules/recommendations/types';
+import type { RecommendationListFilterScope } from '@/shared/lib/doctorCatalogListStatus';
+import { ReferenceSelect } from '@/shared/ui/doctor/ReferenceSelect';
+import { ReferenceMultiSelect } from '@/shared/ui/doctor/ReferenceMultiSelect';
+import { cn } from '@/lib/utils';
+import { MediaLibraryPickerDialog } from '@/app/app/doctor/content/MediaLibraryPickerDialog';
 import {
   archiveRecommendation,
   fetchDoctorRecommendationUsageSnapshot,
   saveRecommendation,
   unarchiveRecommendation,
-} from "./actions";
+} from './actions';
 import type {
   ArchiveRecommendationState,
   SaveRecommendationState,
   UnarchiveRecommendationState,
-} from "./actionsShared";
+} from './actionsShared';
 import {
   exerciseMediaTypeFromPick,
   exerciseTitleFromPickMeta,
-} from "@/app/app/doctor/exercises/exerciseMediaFromLibrary";
-import { RECOMMENDATIONS_PATH } from "./paths";
-import { doctorRecommendationUsageHref } from "./recommendationUsageDocLinks";
+} from '@/app/app/doctor/exercises/exerciseMediaFromLibrary';
+import { RECOMMENDATIONS_PATH } from './paths';
+import { doctorRecommendationUsageHref } from './recommendationUsageDocLinks';
 import {
   recommendationUsageHasAnyReference,
   recommendationUsageSections,
   type RecommendationUsageSection,
-} from "./recommendationUsageSummaryText";
+} from './recommendationUsageSummaryText';
 
 function RecommendationUsageSectionsView({ sections }: { sections: RecommendationUsageSection[] }) {
   if (sections.length === 0) {
@@ -86,7 +86,7 @@ type FormValues = {
   bodyMd: string;
   tags: string;
   mediaUrl: string;
-  mediaType: "" | "image" | "video" | "gif";
+  mediaType: '' | 'image' | 'video' | 'gif';
   /** Код типа (`recommendations.domain`); справочник `recommendation_type`. */
   domainCode: string | null;
   bodyRegionIds: string[];
@@ -98,16 +98,20 @@ type FormValues = {
 function toValues(r: Recommendation | null | undefined): FormValues {
   const m = r?.media?.[0];
   return {
-    title: r?.title ?? "",
-    bodyMd: r?.bodyMd ?? "",
-    tags: r?.tags?.join(", ") ?? "",
-    mediaUrl: m?.mediaUrl ?? "",
-    mediaType: (m?.mediaType ?? "") as FormValues["mediaType"],
+    title: r?.title ?? '',
+    bodyMd: r?.bodyMd ?? '',
+    tags: r?.tags?.join(', ') ?? '',
+    mediaUrl: m?.mediaUrl ?? '',
+    mediaType: (m?.mediaType ?? '') as FormValues['mediaType'],
     domainCode: r?.domain ?? null,
-    bodyRegionIds: r?.bodyRegionIds?.length ? [...r.bodyRegionIds] : r?.bodyRegionId ? [r.bodyRegionId] : [],
-    quantityText: r?.quantityText ?? "",
-    frequencyText: r?.frequencyText ?? "",
-    durationText: r?.durationText ?? "",
+    bodyRegionIds: r?.bodyRegionIds?.length
+      ? [...r.bodyRegionIds]
+      : r?.bodyRegionId
+        ? [r.bodyRegionId]
+        : [],
+    quantityText: r?.quantityText ?? '',
+    frequencyText: r?.frequencyText ?? '',
+    durationText: r?.durationText ?? '',
   };
 }
 
@@ -117,11 +121,11 @@ type Props = {
   domainCatalogItems: ReferenceItem[];
   backHref?: string;
   /** Режим каталога master-detail — передаётся как `view` для редиректа после сохранения. */
-  workspaceView?: "tiles" | "list";
+  workspaceView?: 'tiles' | 'list';
   /** Дополнить редирект после save/archive параметрами списка (`q`, `titleSort`, `region`, `domain`). */
   workspaceListPreserve?: {
     q?: string;
-    titleSort?: "asc" | "desc" | null;
+    titleSort?: 'asc' | 'desc' | null;
     regionCode?: string;
     domain?: RecommendationDomain;
     listStatus?: RecommendationListFilterScope;
@@ -152,7 +156,7 @@ export function RecommendationForm({
   unarchiveAction = unarchiveRecommendation,
   externalUsageSnapshot,
 }: Props) {
-  const recordKey = recommendation?.id ?? "create";
+  const recordKey = recommendation?.id ?? 'create';
   const [values, setValues] = useState<FormValues>(() => toValues(recommendation));
   const [localError, setLocalError] = useState<string | null>(null);
   const [usage, setUsage] = useState<RecommendationUsageSnapshot | null>(null);
@@ -189,7 +193,7 @@ export function RecommendationForm({
       .catch(() => {
         if (!cancelled) {
           setUsage(null);
-          setUsageLoadError("Не удалось загрузить сводку использования");
+          setUsageLoadError('Не удалось загрузить сводку использования');
         }
       })
       .finally(() => {
@@ -210,7 +214,10 @@ export function RecommendationForm({
     [saveAction],
   );
 
-  const [, formAction, pending] = useActionState(wrappedSave, null as SaveRecommendationState | null);
+  const [, formAction, pending] = useActionState(
+    wrappedSave,
+    null as SaveRecommendationState | null,
+  );
 
   const [archiveState, archiveFormAction, archivePending] = useActionState(
     archiveAction,
@@ -225,8 +232,8 @@ export function RecommendationForm({
   useEffect(() => {
     if (
       archiveState?.ok === false &&
-      "code" in archiveState &&
-      archiveState.code === "USAGE_CONFIRMATION_REQUIRED"
+      'code' in archiveState &&
+      archiveState.code === 'USAGE_CONFIRMATION_REQUIRED'
     ) {
       setWarnOpen(true);
     }
@@ -240,8 +247,8 @@ export function RecommendationForm({
   const warnSections = useMemo(() => {
     if (
       archiveState?.ok === false &&
-      "code" in archiveState &&
-      archiveState.code === "USAGE_CONFIRMATION_REQUIRED"
+      'code' in archiveState &&
+      archiveState.code === 'USAGE_CONFIRMATION_REQUIRED'
     ) {
       const u = archiveState.usage;
       if (!recommendationUsageHasAnyReference(u)) return [];
@@ -251,10 +258,10 @@ export function RecommendationForm({
   }, [archiveState]);
 
   const archiveError =
-    archiveState?.ok === false && "error" in archiveState ? archiveState.error : null;
+    archiveState?.ok === false && 'error' in archiveState ? archiveState.error : null;
 
   const unarchiveError =
-    unarchiveState?.ok === false && "error" in unarchiveState ? unarchiveState.error : null;
+    unarchiveState?.ok === false && 'error' in unarchiveState ? unarchiveState.error : null;
 
   const isArchived = !!recommendation?.isArchived;
 
@@ -281,13 +288,14 @@ export function RecommendationForm({
         ) : null}
         {recommendation ? <input type="hidden" name="id" value={recommendation.id} /> : null}
         {workspaceView ? <input type="hidden" name="view" value={workspaceView} /> : null}
-        {workspaceListPreserve?.q != null && workspaceListPreserve.q !== "" ? (
+        {workspaceListPreserve?.q != null && workspaceListPreserve.q !== '' ? (
           <input type="hidden" name="listQ" value={workspaceListPreserve.q} />
         ) : null}
-        {workspaceListPreserve?.titleSort === "asc" || workspaceListPreserve?.titleSort === "desc" ? (
+        {workspaceListPreserve?.titleSort === 'asc' ||
+        workspaceListPreserve?.titleSort === 'desc' ? (
           <input type="hidden" name="listTitleSort" value={workspaceListPreserve.titleSort} />
         ) : null}
-        {workspaceListPreserve?.regionCode != null && workspaceListPreserve.regionCode !== "" ? (
+        {workspaceListPreserve?.regionCode != null && workspaceListPreserve.regionCode !== '' ? (
           <input type="hidden" name="listRegion" value={workspaceListPreserve.regionCode} />
         ) : null}
         {workspaceListPreserve?.domain != null ? (
@@ -332,10 +340,10 @@ export function RecommendationForm({
                 showAllOnFocus
                 searchable={false}
               />
-              {domainPrefetchedItems.some((i) => i.title.includes("(не в справочнике)")) ? (
+              {domainPrefetchedItems.some((i) => i.title.includes('(не в справочнике)')) ? (
                 <p className="text-xs text-muted-foreground">
-                  Код типа не найден в справочнике. Можно сохранить остальные поля без смены значения; чтобы записать
-                  другой тип — выберите код из списка.
+                  Код типа не найден в справочнике. Можно сохранить остальные поля без смены
+                  значения; чтобы записать другой тип — выберите код из списка.
                 </p>
               ) : null}
             </div>
@@ -400,10 +408,10 @@ export function RecommendationForm({
                 onChange={(url, meta) => {
                   setValues((prev) => {
                     let nextTitle = prev.title;
-                    let nextType: FormValues["mediaType"] = "";
+                    let nextType: FormValues['mediaType'] = '';
                     if (url && meta) {
                       nextType = exerciseMediaTypeFromPick(meta);
-                      if (nextTitle.trim() === "") nextTitle = exerciseTitleFromPickMeta(meta);
+                      if (nextTitle.trim() === '') nextTitle = exerciseTitleFromPickMeta(meta);
                     }
                     return { ...prev, mediaUrl: url, mediaType: nextType, title: nextTitle };
                   });
@@ -434,9 +442,9 @@ export function RecommendationForm({
 
             <div className="flex flex-wrap gap-2">
               <Button type="submit" disabled={pending}>
-                {pending ? "Сохранение…" : recommendation ? "Сохранить" : "Создать"}
+                {pending ? 'Сохранение…' : recommendation ? 'Сохранить' : 'Создать'}
               </Button>
-              <Link href={backHref} className={cn(buttonVariants({ variant: "outline" }))}>
+              <Link href={backHref} className={cn(buttonVariants({ variant: 'outline' }))}>
                 К списку
               </Link>
             </div>
@@ -462,7 +470,9 @@ export function RecommendationForm({
           {isArchived ? (
             <div className="rounded-md border border-border/60 bg-muted/30 p-3 text-sm">
               <p className="font-medium text-foreground">Рекомендация в архиве</p>
-              <p className="mt-1 text-muted-foreground">Верните из архива, чтобы снова добавлять в программы.</p>
+              <p className="mt-1 text-muted-foreground">
+                Верните из архива, чтобы снова добавлять в программы.
+              </p>
               {unarchiveError ? (
                 <p role="alert" className="mt-2 text-sm text-destructive">
                   {unarchiveError}
@@ -471,13 +481,19 @@ export function RecommendationForm({
               <form action={unarchiveFormAction} className="mt-3 flex flex-col gap-2">
                 <input type="hidden" name="id" value={recommendation.id} />
                 {workspaceView ? <input type="hidden" name="view" value={workspaceView} /> : null}
-                {workspaceListPreserve?.q != null && workspaceListPreserve.q !== "" ? (
+                {workspaceListPreserve?.q != null && workspaceListPreserve.q !== '' ? (
                   <input type="hidden" name="listQ" value={workspaceListPreserve.q} />
                 ) : null}
-                {workspaceListPreserve?.titleSort === "asc" || workspaceListPreserve?.titleSort === "desc" ? (
-                  <input type="hidden" name="listTitleSort" value={workspaceListPreserve.titleSort} />
+                {workspaceListPreserve?.titleSort === 'asc' ||
+                workspaceListPreserve?.titleSort === 'desc' ? (
+                  <input
+                    type="hidden"
+                    name="listTitleSort"
+                    value={workspaceListPreserve.titleSort}
+                  />
                 ) : null}
-                {workspaceListPreserve?.regionCode != null && workspaceListPreserve.regionCode !== "" ? (
+                {workspaceListPreserve?.regionCode != null &&
+                workspaceListPreserve.regionCode !== '' ? (
                   <input type="hidden" name="listRegion" value={workspaceListPreserve.regionCode} />
                 ) : null}
                 {workspaceListPreserve?.domain != null ? (
@@ -487,7 +503,7 @@ export function RecommendationForm({
                   <input type="hidden" name="listStatus" value={workspaceListPreserve.listStatus} />
                 ) : null}
                 <Button type="submit" variant="secondary" disabled={unarchivePending}>
-                  {unarchivePending ? "Восстановление…" : "Вернуть из архива"}
+                  {unarchivePending ? 'Восстановление…' : 'Вернуть из архива'}
                 </Button>
               </form>
             </div>
@@ -502,13 +518,19 @@ export function RecommendationForm({
               <form ref={archiveFormRef} action={archiveFormAction} className="flex flex-col gap-2">
                 <input type="hidden" name="id" value={recommendation.id} />
                 {workspaceView ? <input type="hidden" name="view" value={workspaceView} /> : null}
-                {workspaceListPreserve?.q != null && workspaceListPreserve.q !== "" ? (
+                {workspaceListPreserve?.q != null && workspaceListPreserve.q !== '' ? (
                   <input type="hidden" name="listQ" value={workspaceListPreserve.q} />
                 ) : null}
-                {workspaceListPreserve?.titleSort === "asc" || workspaceListPreserve?.titleSort === "desc" ? (
-                  <input type="hidden" name="listTitleSort" value={workspaceListPreserve.titleSort} />
+                {workspaceListPreserve?.titleSort === 'asc' ||
+                workspaceListPreserve?.titleSort === 'desc' ? (
+                  <input
+                    type="hidden"
+                    name="listTitleSort"
+                    value={workspaceListPreserve.titleSort}
+                  />
                 ) : null}
-                {workspaceListPreserve?.regionCode != null && workspaceListPreserve.regionCode !== "" ? (
+                {workspaceListPreserve?.regionCode != null &&
+                workspaceListPreserve.regionCode !== '' ? (
                   <input type="hidden" name="listRegion" value={workspaceListPreserve.regionCode} />
                 ) : null}
                 {workspaceListPreserve?.domain != null ? (
@@ -517,7 +539,12 @@ export function RecommendationForm({
                 {workspaceListPreserve?.listStatus != null ? (
                   <input type="hidden" name="listStatus" value={workspaceListPreserve.listStatus} />
                 ) : null}
-                <input type="hidden" name="acknowledgeUsageWarning" value={archiveUsageAck ? "1" : ""} readOnly />
+                <input
+                  type="hidden"
+                  name="acknowledgeUsageWarning"
+                  value={archiveUsageAck ? '1' : ''}
+                  readOnly
+                />
                 <Button
                   type="submit"
                   variant="destructive"
@@ -526,7 +553,7 @@ export function RecommendationForm({
                     setArchiveUsageAck(false);
                   }}
                 >
-                  {archivePending ? "Архивация…" : "Архивировать"}
+                  {archivePending ? 'Архивация…' : 'Архивировать'}
                 </Button>
               </form>
 
@@ -536,12 +563,13 @@ export function RecommendationForm({
                     <DialogTitle>Рекомендация уже используется</DialogTitle>
                     <div className="space-y-2 text-sm text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground">
                       <span className="block">
-                        Архивация уберёт рекомендацию из каталога для новых программ. Уже выданные программы не удаляются.
+                        Архивация уберёт рекомендацию из каталога для новых программ. Уже выданные
+                        программы не удаляются.
                       </span>
                       {!warnSections.length &&
                       archiveState?.ok === false &&
-                      "code" in archiveState &&
-                      archiveState.code === "USAGE_CONFIRMATION_REQUIRED" &&
+                      'code' in archiveState &&
+                      archiveState.code === 'USAGE_CONFIRMATION_REQUIRED' &&
                       !recommendationUsageHasAnyReference(archiveState.usage) ? (
                         <span className="block text-sm">
                           Рекомендация помечена как используемая — проверьте связи перед архивацией.

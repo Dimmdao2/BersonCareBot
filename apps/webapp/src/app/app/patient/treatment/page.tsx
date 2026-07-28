@@ -2,32 +2,45 @@
  * Список назначенных программ лечения (`/app/patient/treatment`).
  * Старый путь `/app/patient/treatment-programs` → редирект в `next.config.ts`.
  */
-import { redirect } from "next/navigation";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
-import { PATIENT_PLAN_TAB_UI_LABEL } from "@/app-layer/routes/navigation";
-import { routePaths } from "@/app-layer/routes/paths";
-import { resolvePatientTreatmentProgramEntry } from "@/modules/treatment-program/patientTreatmentProgramEntry";
-import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
-import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
-import { PatientTreatmentProgramsListClient } from "./PatientTreatmentProgramsListClient";
+import { redirect } from 'next/navigation';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import {
+  getOptionalPatientSession,
+  patientRscPersonalDataGate,
+} from '@/app-layer/guards/requireRole';
+import { PATIENT_PLAN_TAB_UI_LABEL } from '@/app-layer/routes/navigation';
+import { routePaths } from '@/app-layer/routes/paths';
+import { resolvePatientTreatmentProgramEntry } from '@/modules/treatment-program/patientTreatmentProgramEntry';
+import { PatientAppShell } from '@/shared/ui/patient/PatientAppShell';
+import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import { PatientTreatmentProgramsListClient } from './PatientTreatmentProgramsListClient';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
 export default async function PatientTreatmentProgramsPage() {
   const session = await getOptionalPatientSession();
   if (!session) {
     return (
-      <PatientAppShell title="Программы лечения" user={null} backHref={routePaths.patient} backLabel="Меню">
+      <PatientAppShell
+        title="Программы лечения"
+        user={null}
+        backHref={routePaths.patient}
+        backLabel="Меню"
+      >
         <p className={patientMutedTextClass}>Войдите, чтобы увидеть назначенные программы.</p>
       </PatientAppShell>
     );
   }
 
   const dataGate = await patientRscPersonalDataGate(session, routePaths.patientTreatmentPrograms);
-  if (dataGate === "guest") {
+  if (dataGate === 'guest') {
     return (
-      <PatientAppShell title="Программы лечения" user={session.user} backHref={routePaths.patient} backLabel="Меню">
+      <PatientAppShell
+        title="Программы лечения"
+        user={session.user}
+        backHref={routePaths.patient}
+        backLabel="Меню"
+      >
         <p className={patientMutedTextClass}>Раздел доступен после входа.</p>
       </PatientAppShell>
     );
@@ -36,7 +49,7 @@ export default async function PatientTreatmentProgramsPage() {
   const deps = buildAppDeps();
   const entry = await resolvePatientTreatmentProgramEntry(deps, session.user.userId);
 
-  if (entry.kind === "redirect") {
+  if (entry.kind === 'redirect') {
     redirect(routePaths.patientTreatmentProgram(entry.instanceId));
   }
 

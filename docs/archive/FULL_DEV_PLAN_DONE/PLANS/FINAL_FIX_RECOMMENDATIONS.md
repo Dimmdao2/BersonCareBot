@@ -7,12 +7,12 @@
 
 ## Условные обозначения
 
-| Приоритет | Значение |
-|-----------|----------|
-| 🔴 CRITICAL | Безопасность / потеря данных |
-| 🟠 HIGH | Производительность / логика |
-| 🟡 MEDIUM | Архитектура / технический долг |
-| 🟢 LOW | Качество кода / минорное |
+| Приоритет   | Значение                       |
+| ----------- | ------------------------------ |
+| 🔴 CRITICAL | Безопасность / потеря данных   |
+| 🟠 HIGH     | Производительность / логика    |
+| 🟡 MEDIUM   | Архитектура / технический долг |
+| 🟢 LOW      | Качество кода / минорное       |
 
 ---
 
@@ -23,7 +23,7 @@
 **Файл:** `apps/webapp/src/modules/auth/service.ts`, строка 197
 
 ```ts
-if (computedHash !== hash) return null;  // ← небезопасное сравнение строк
+if (computedHash !== hash) return null; // ← небезопасное сравнение строк
 ```
 
 JavaScript-строковое сравнение завершается раньше при первом несовпадении байта, что позволяет провести timing-атаку для подбора HMAC-подписи initData Telegram.
@@ -31,8 +31,8 @@ JavaScript-строковое сравнение завершается рань
 **Рекомендация:** Заменить на `timingSafeEqual` (уже импортирован в этом файле):
 
 ```ts
-const computedBuf = Buffer.from(computedHash, "hex");
-const hashBuf = Buffer.from(hash, "hex");
+const computedBuf = Buffer.from(computedHash, 'hex');
+const hashBuf = Buffer.from(hash, 'hex');
 if (computedBuf.length !== hashBuf.length || !timingSafeEqual(computedBuf, hashBuf)) return null;
 ```
 
@@ -68,6 +68,7 @@ try {
 ### 🟠 SEC-03 — In-memory rate limiting не работает при нескольких инстансах
 
 **Файлы:**
+
 - `apps/webapp/src/modules/auth/checkPhoneRateLimit.ts`
 - `apps/webapp/src/modules/auth/pinSetRateLimit.ts`
 - `apps/webapp/src/modules/auth/messengerStartRateLimit.ts`
@@ -175,12 +176,12 @@ conversationExists(conversationId: string): Promise<boolean>
 
 ```ts
 const [appointmentStats, allClients] = await Promise.all([
-  deps.getAppointmentStats({ range: "week" }),
+  deps.getAppointmentStats({ range: 'week' }),
   deps.listClients({}),
 ]);
 
 const withTelegram = (await deps.listClients({ hasTelegram: true })).length; // ← 2-й запрос
-const withMax = (await deps.listClients({ hasMax: true })).length;           // ← 3-й запрос
+const withMax = (await deps.listClients({ hasMax: true })).length; // ← 3-й запрос
 ```
 
 `allClients` уже содержит все данные — подсчёт `withTelegram` и `withMax` можно сделать из него же.
@@ -188,8 +189,8 @@ const withMax = (await deps.listClients({ hasMax: true })).length;           // 
 **Рекомендация:** Убрать два отдельных вызова `listClients`:
 
 ```ts
-const withTelegram = allClients.filter(c => c.bindings.telegramId?.trim()).length;
-const withMax = allClients.filter(c => c.bindings.maxId?.trim()).length;
+const withTelegram = allClients.filter((c) => c.bindings.telegramId?.trim()).length;
+const withMax = allClients.filter((c) => c.bindings.maxId?.trim()).length;
 ```
 
 ---
@@ -205,10 +206,12 @@ if (session?.user && homeNews) {
 ```
 
 Проблема двойная:
+
 1. Вызов блокирует ответ (последовательный `await` после `Promise.all`).
 2. Каждый refresh увеличивает счётчик — нет дедупликации по сессии/сутки.
 
 **Рекомендация краткосрочная:** Запускать fire-and-forget без await:
+
 ```ts
 void incrementNewsViews(homeNews.id);
 ```
@@ -269,7 +272,7 @@ LIMIT 1 OFFSET $1
 **Файл:** `apps/webapp/src/app/app/doctor/clients/page.tsx`, строка 29
 
 ```ts
-deps.doctorClients.listClients({ onlyWithAppointmentRecords: true })
+deps.doctorClients.listClients({ onlyWithAppointmentRecords: true });
 ```
 
 Нет ограничения числа строк. При росте базы (1000+ клиентов) это Full Table Scan + передача всего массива в браузер.
@@ -321,6 +324,7 @@ appointmentStats: {
 `cancellations30d: 0` — некорректные данные отображаются в карточке клиента у врача.
 
 **Рекомендация:**
+
 - `cancellations30d`: вычислять из `appointmentHistory` (записи со статусом `canceled` + `last_event NOT IN (...)` за 30 дней).
 - `lastVisitLabel`: найти последнюю запись из `appointmentHistory` с прошедшей датой.
 - `total`: переименовать в `futureCount` или вычислять из истории.
@@ -370,7 +374,7 @@ export async function maybeRelayOutbound(_info): Promise<void> {
 **Файл:** `apps/webapp/src/app/api/auth/telegram-init/route.ts`, строки 9, 13, 24
 
 ```ts
-console.log("[auth/telegram-init] POST request received");
+console.log('[auth/telegram-init] POST request received');
 ```
 
 Четыре `console.log` в production-маршруте. Логируют размер `initData` (`initData.length`).
@@ -393,7 +397,7 @@ Grep показывает 57 вызовов `buildAppDeps()` в API-маршру
 
 ```ts
 const dayKey = new Date().toISOString().slice(0, 10); // текущая дата
-const h = createHash("sha256").update(`${daySeed}:${dayKey}`).digest();
+const h = createHash('sha256').update(`${daySeed}:${dayKey}`).digest();
 ```
 
 Параметр `daySeed` (userId или `"guest"`) комбинируется с `dayKey`. Но `dayKey` получается из `new Date()` внутри функции, не из `daySeed`. Значит разные пользователи (разные `daySeed`) видят разные цитаты в один день, что вероятно задумано. Но нет теста, подтверждающего это поведение.
@@ -444,10 +448,11 @@ const selected = params.selected; // URL query param без UUID-валидац�
 При передаче `?selected=not-a-uuid` вызов `deps.doctorClients.getClientProfile("not-a-uuid")` дойдёт до БД с невалидным UUID, что приведёт к PostgreSQL-ошибке `invalid input syntax for type uuid` (поглощается в `catch` или не обрабатывается).
 
 **Рекомендация:**
+
 ```ts
 const selected = params.selected;
 if (selected && !z.string().uuid().safeParse(selected).success) {
-  redirect("/app/doctor/clients");
+  redirect('/app/doctor/clients');
 }
 ```
 
@@ -491,14 +496,14 @@ if (selected && !z.string().uuid().safeParse(selected).success) {
 
 ### 🟡 TEST-01 — Нет тестов для key security paths
 
-| Маршрут | Пропущенный сценарий |
-|---------|---------------------|
-| `POST /api/patient/messages` | 403 при заблокированном пользователе |
-| `GET /api/patient/messages` | polling success (only 404 "чужого" покрыт) |
-| `POST /api/patient/messages/read` | ownership check |
-| `GET /api/doctor/messages/unread-count` | нет теста |
-| `POST /api/doctor/messages/[id]/read` | нет теста |
-| `PATCH /api/admin/users/[id]/archive` | попытка от role=doctor (должен быть 403) |
+| Маршрут                                 | Пропущенный сценарий                       |
+| --------------------------------------- | ------------------------------------------ |
+| `POST /api/patient/messages`            | 403 при заблокированном пользователе       |
+| `GET /api/patient/messages`             | polling success (only 404 "чужого" покрыт) |
+| `POST /api/patient/messages/read`       | ownership check                            |
+| `GET /api/doctor/messages/unread-count` | нет теста                                  |
+| `POST /api/doctor/messages/[id]/read`   | нет теста                                  |
+| `PATCH /api/admin/users/[id]/archive`   | попытка от role=doctor (должен быть 403)   |
 
 ---
 
@@ -507,10 +512,10 @@ if (selected && !z.string().uuid().safeParse(selected).success) {
 **Файл:** `apps/webapp/src/modules/messaging/hooks/useMessagePolling.test.ts`
 
 ```ts
-describe("useMessagePolling", () => {
-  it("exports hook function", async () => {
-    const mod = await import("./useMessagePolling");
-    expect(typeof mod.useMessagePolling).toBe("function");
+describe('useMessagePolling', () => {
+  it('exports hook function', async () => {
+    const mod = await import('./useMessagePolling');
+    expect(typeof mod.useMessagePolling).toBe('function');
   });
 });
 ```
@@ -531,40 +536,40 @@ describe("useMessagePolling", () => {
 
 ## 7. ОБОБЩЁННАЯ ТАБЛИЦА ПРИОРИТЕТОВ
 
-| ID | Файл | Приоритет | Тип |
-|----|------|-----------|-----|
-| SEC-01 | `modules/auth/service.ts` | 🔴 CRITICAL | Безопасность |
-| SEC-02 | `modules/auth/service.ts` | 🔴 CRITICAL | Безопасность |
-| SEC-03 | `modules/auth/check*RateLimit.ts` | 🟠 HIGH | Безопасность |
-| SEC-04 | `api/media/upload/route.ts` | 🟠 HIGH | Безопасность |
-| SEC-05 | `api/auth/messenger/start/route.ts` | 🟠 HIGH | Безопасность |
-| SEC-06 | `api/auth/oauth/callback/route.ts` | 🟡 MEDIUM | Безопасность |
-| SEC-07 | `modules/auth/service.ts` | 🟡 MEDIUM | Безопасность |
-| PERF-01 | `modules/messaging/doctorSupportMessagingService.ts` | 🟠 HIGH | Производительность |
-| PERF-02 | `modules/doctor-stats/service.ts` | 🟠 HIGH | Производительность |
-| PERF-03 | `app/app/patient/page.tsx` | 🟠 HIGH | Производительность |
-| PERF-04 | `app-layer/di/buildAppDeps.ts` | 🟡 MEDIUM | Производительность |
-| PERF-05 | `modules/patient-home/newsMotivation.ts` | 🟡 MEDIUM | Производительность |
-| PERF-06 | `app/app/doctor/clients/page.tsx` | 🟡 MEDIUM | Производительность |
-| ARCH-01 | `shared/ui/PatientHeader.tsx`, `DoctorHeader.tsx` | 🟡 MEDIUM | Архитектура |
-| ARCH-02 | `app-layer/di/buildAppDeps.ts` | 🟡 MEDIUM | Архитектура |
-| ARCH-03 | `modules/doctor-clients/service.ts` | 🟡 MEDIUM | Корректность |
-| ARCH-04 | `modules/messaging/relayOutbound.ts` | 🟡 MEDIUM | Функционал |
-| ARCH-05 | `app/app/doctor/clients/page.tsx` | 🟡 MEDIUM | Производительность |
-| STUB-01 | `modules/reminders/service.ts` | 🟠 HIGH | Незавершено |
-| STUB-02 | `modules/messaging/relayOutbound.ts` | 🟠 HIGH | Незавершено |
-| STUB-03 | `api/auth/oauth/callback` | 🟡 MEDIUM | Незавершено |
-| STUB-04 | LFK модули | 🟡 MEDIUM | Незавершено |
-| STUB-05 | Settings/Admin | 🟡 MEDIUM | Незавершено |
-| TEST-01 | API routes | 🟡 MEDIUM | Тесты |
-| TEST-02 | `useMessagePolling.test.ts` | 🟡 MEDIUM | Тесты |
-| TEST-03 | `pgDoctorAppointments` | 🟡 MEDIUM | Тесты |
-| QA-01 | `telegram-init/route.ts` | 🟢 LOW | Качество |
-| QA-02 | `buildAppDeps.ts` | 🟢 LOW | Качество |
-| QA-03 | `newsMotivation.ts` | 🟢 LOW | Качество |
-| QA-04 | `DoctorClientsPanel.tsx` | 🟢 LOW | UX |
-| QA-05 | `doctorSupportMessagingService.ts` | 🟢 LOW | Качество |
-| QA-06 | `clients/page.tsx` | 🟢 LOW | Надёжность |
+| ID      | Файл                                                 | Приоритет   | Тип                |
+| ------- | ---------------------------------------------------- | ----------- | ------------------ |
+| SEC-01  | `modules/auth/service.ts`                            | 🔴 CRITICAL | Безопасность       |
+| SEC-02  | `modules/auth/service.ts`                            | 🔴 CRITICAL | Безопасность       |
+| SEC-03  | `modules/auth/check*RateLimit.ts`                    | 🟠 HIGH     | Безопасность       |
+| SEC-04  | `api/media/upload/route.ts`                          | 🟠 HIGH     | Безопасность       |
+| SEC-05  | `api/auth/messenger/start/route.ts`                  | 🟠 HIGH     | Безопасность       |
+| SEC-06  | `api/auth/oauth/callback/route.ts`                   | 🟡 MEDIUM   | Безопасность       |
+| SEC-07  | `modules/auth/service.ts`                            | 🟡 MEDIUM   | Безопасность       |
+| PERF-01 | `modules/messaging/doctorSupportMessagingService.ts` | 🟠 HIGH     | Производительность |
+| PERF-02 | `modules/doctor-stats/service.ts`                    | 🟠 HIGH     | Производительность |
+| PERF-03 | `app/app/patient/page.tsx`                           | 🟠 HIGH     | Производительность |
+| PERF-04 | `app-layer/di/buildAppDeps.ts`                       | 🟡 MEDIUM   | Производительность |
+| PERF-05 | `modules/patient-home/newsMotivation.ts`             | 🟡 MEDIUM   | Производительность |
+| PERF-06 | `app/app/doctor/clients/page.tsx`                    | 🟡 MEDIUM   | Производительность |
+| ARCH-01 | `shared/ui/PatientHeader.tsx`, `DoctorHeader.tsx`    | 🟡 MEDIUM   | Архитектура        |
+| ARCH-02 | `app-layer/di/buildAppDeps.ts`                       | 🟡 MEDIUM   | Архитектура        |
+| ARCH-03 | `modules/doctor-clients/service.ts`                  | 🟡 MEDIUM   | Корректность       |
+| ARCH-04 | `modules/messaging/relayOutbound.ts`                 | 🟡 MEDIUM   | Функционал         |
+| ARCH-05 | `app/app/doctor/clients/page.tsx`                    | 🟡 MEDIUM   | Производительность |
+| STUB-01 | `modules/reminders/service.ts`                       | 🟠 HIGH     | Незавершено        |
+| STUB-02 | `modules/messaging/relayOutbound.ts`                 | 🟠 HIGH     | Незавершено        |
+| STUB-03 | `api/auth/oauth/callback`                            | 🟡 MEDIUM   | Незавершено        |
+| STUB-04 | LFK модули                                           | 🟡 MEDIUM   | Незавершено        |
+| STUB-05 | Settings/Admin                                       | 🟡 MEDIUM   | Незавершено        |
+| TEST-01 | API routes                                           | 🟡 MEDIUM   | Тесты              |
+| TEST-02 | `useMessagePolling.test.ts`                          | 🟡 MEDIUM   | Тесты              |
+| TEST-03 | `pgDoctorAppointments`                               | 🟡 MEDIUM   | Тесты              |
+| QA-01   | `telegram-init/route.ts`                             | 🟢 LOW      | Качество           |
+| QA-02   | `buildAppDeps.ts`                                    | 🟢 LOW      | Качество           |
+| QA-03   | `newsMotivation.ts`                                  | 🟢 LOW      | Качество           |
+| QA-04   | `DoctorClientsPanel.tsx`                             | 🟢 LOW      | UX                 |
+| QA-05   | `doctorSupportMessagingService.ts`                   | 🟢 LOW      | Качество           |
+| QA-06   | `clients/page.tsx`                                   | 🟢 LOW      | Надёжность         |
 
 ---
 
@@ -578,4 +583,4 @@ describe("useMessagePolling", () => {
 
 ---
 
-*Аудит выполнен статически. Для подтверждения PERF-метрик рекомендуется профилирование на staging с реальными объёмами данных.*
+_Аудит выполнен статически. Для подтверждения PERF-метрик рекомендуется профилирование на staging с реальными объёмами данных._

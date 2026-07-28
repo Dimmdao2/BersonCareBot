@@ -4,12 +4,16 @@ import type {
   TreatmentProgramItemRefValidationPort,
   TreatmentProgramItemSnapshotPort,
   TreatmentProgramTestAttemptsPort,
-} from "./ports";
-import { buildAppendEventInput } from "./event-recording";
-import type { TreatmentProgramService } from "./service";
-import { assertUuid } from "./service";
-import type { TreatmentProgramAssignmentSource, TreatmentProgramInstanceStageStatus, TreatmentProgramInstanceStatus } from "./types";
-import { lfkComplexTemplateIdFromItemSettings } from "./lfkComplexTemplateSettings";
+} from './ports';
+import { buildAppendEventInput } from './event-recording';
+import type { TreatmentProgramService } from './service';
+import { assertUuid } from './service';
+import type {
+  TreatmentProgramAssignmentSource,
+  TreatmentProgramInstanceStageStatus,
+  TreatmentProgramInstanceStatus,
+} from './types';
+import { lfkComplexTemplateIdFromItemSettings } from './lfkComplexTemplateSettings';
 import {
   BLANK_INDIVIDUAL_PLAN_DEFAULT_TITLE,
   effectiveInstanceStageItemComment,
@@ -24,24 +28,26 @@ import {
   TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_RECOMMENDATIONS,
   TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_TESTS,
   TREATMENT_PROGRAM_TEMPLATE_STAGE_ZERO_TITLE,
-} from "./types";
-import { isStageZero, assertTreatmentProgramStageItemFitsSystemGroup } from "./stage-semantics";
+} from './types';
+import { isStageZero, assertTreatmentProgramStageItemFitsSystemGroup } from './stage-semantics';
 import {
   applyInstanceEditorBatch,
   type ApplyInstanceEditorBatchDeps,
-} from "./instanceEditorBatchApply";
+} from './instanceEditorBatchApply';
 import {
   isProgramChangedDiffEmpty,
   type InstanceEditorBatchDraft,
-} from "./instanceEditorBatchSchema";
+} from './instanceEditorBatchSchema';
 
 /** Второй экземпляр со `status: active` для того же пациента запрещён (POST назначения). */
 export const SECOND_ACTIVE_TREATMENT_PROGRAM_MESSAGE =
-  "У пациента уже есть активная программа. Завершите текущую программу или дождитесь её завершения перед назначением новой.";
+  'У пациента уже есть активная программа. Завершите текущую программу или дождитесь её завершения перед назначением новой.';
 
 /** Postgres unique_violation — гонка при partial unique «один active на пациента». */
 function isUniqueViolation(e: unknown): boolean {
-  return typeof e === "object" && e !== null && "code" in e && (e as { code: string }).code === "23505";
+  return (
+    typeof e === 'object' && e !== null && 'code' in e && (e as { code: string }).code === '23505'
+  );
 }
 
 export function createTreatmentProgramInstanceService(deps: {
@@ -64,19 +70,23 @@ export function createTreatmentProgramInstanceService(deps: {
   const { instances, templates, snapshots, itemRefs, testAttempts } = deps;
   const events = deps.events;
 
-  async function appendEvent(
-    input: Parameters<typeof buildAppendEventInput>[0],
-  ): Promise<void> {
+  async function appendEvent(input: Parameters<typeof buildAppendEventInput>[0]): Promise<void> {
     if (!events) return;
     await events.appendEvent(buildAppendEventInput(input));
   }
 
-  async function assertStageItemAllowsStructuralChange(item: TreatmentProgramInstanceStageItemRow): Promise<void> {
+  async function assertStageItemAllowsStructuralChange(
+    item: TreatmentProgramInstanceStageItemRow,
+  ): Promise<void> {
     if (item.completedAt) {
-      throw new Error("Нельзя удалить или заменить элемент с отметкой выполнения или историей теста");
+      throw new Error(
+        'Нельзя удалить или заменить элемент с отметкой выполнения или историей теста',
+      );
     }
     if (testAttempts && (await testAttempts.hasAnyAttemptForStageItem(item.id))) {
-      throw new Error("Нельзя удалить или заменить элемент с отметкой выполнения или историей теста");
+      throw new Error(
+        'Нельзя удалить или заменить элемент с отметкой выполнения или историей теста',
+      );
     }
   }
 
@@ -87,7 +97,7 @@ export function createTreatmentProgramInstanceService(deps: {
     const pre = await instances.listInstancesForPatient(input.patientUserId.trim());
 
     for (const row of pre) {
-      if (row.status !== "active" || row.assignmentSource !== "promo") {
+      if (row.status !== 'active' || row.assignmentSource !== 'promo') {
         continue;
       }
 
@@ -98,7 +108,7 @@ export function createTreatmentProgramInstanceService(deps: {
 
       if (deps.snapshotDiaryDaysBeforePromoRefresh) {
         if (!row.organizationId) {
-          throw new Error("Не определена организация промо-программы");
+          throw new Error('Не определена организация промо-программы');
         }
         await deps.snapshotDiaryDaysBeforePromoRefresh({
           patientUserId: row.patientUserId,
@@ -107,19 +117,19 @@ export function createTreatmentProgramInstanceService(deps: {
         });
       }
 
-      await instances.updateInstanceMeta(row.id, { status: "completed" });
+      await instances.updateInstanceMeta(row.id, { status: 'completed' });
 
       await appendEvent({
         instanceId: row.id,
         actorId: input.actorId,
-        eventType: "status_changed",
-        targetType: "program",
+        eventType: 'status_changed',
+        targetType: 'program',
         targetId: row.id,
         payload: {
-          scope: "program",
+          scope: 'program',
           from: prev.status,
-          to: "completed",
-          supersededBy: "doctor_assign",
+          to: 'completed',
+          supersededBy: 'doctor_assign',
         },
       });
     }
@@ -138,9 +148,9 @@ export function createTreatmentProgramInstanceService(deps: {
       if (input.assignedBy) assertUuid(input.assignedBy);
 
       const assignmentSource: TreatmentProgramAssignmentSource =
-        input.assignmentSource ?? (input.assignedBy != null ? "doctor" : "course");
+        input.assignmentSource ?? (input.assignedBy != null ? 'doctor' : 'course');
 
-      if (assignmentSource === "doctor") {
+      if (assignmentSource === 'doctor') {
         await completeActivePromoForDoctorAssignment({
           patientUserId: input.patientUserId,
           actorId: input.assignedBy,
@@ -148,10 +158,10 @@ export function createTreatmentProgramInstanceService(deps: {
       }
 
       const existing = await instances.listInstancesForPatient(input.patientUserId.trim());
-      const active = existing.filter((i) => i.status === "active");
+      const active = existing.filter((i) => i.status === 'active');
       if (active.length > 0) {
-        if (assignmentSource === "promo") {
-          const promo = active.find((i) => i.assignmentSource === "promo");
+        if (assignmentSource === 'promo') {
+          const promo = active.find((i) => i.assignmentSource === 'promo');
           if (promo) {
             const full = await instances.getInstanceById(promo.id);
             if (full) return full;
@@ -161,8 +171,8 @@ export function createTreatmentProgramInstanceService(deps: {
       }
 
       const tpl = await templates.getTemplate(input.templateId);
-      if (tpl.status !== "published") {
-        throw new Error("Назначать можно только опубликованный шаблон");
+      if (tpl.status !== 'published') {
+        throw new Error('Назначать можно только опубликованный шаблон');
       }
 
       const stagesSorted = [...tpl.stages].sort(
@@ -172,18 +182,18 @@ export function createTreatmentProgramInstanceService(deps: {
       const stageInputs = [];
       const sorted = stagesSorted;
       const hasFsmStage = sorted.some((s) => s.sortOrder > 0);
-      const firstFsmStage = hasFsmStage ? sorted.find((s) => s.sortOrder > 0) ?? null : null;
+      const firstFsmStage = hasFsmStage ? (sorted.find((s) => s.sortOrder > 0) ?? null) : null;
 
       for (let i = 0; i < sorted.length; i++) {
         const st = sorted[i]!;
         const isZero = isStageZero(st);
         let status: TreatmentProgramInstanceStageStatus;
         if (isZero) {
-          status = "available";
+          status = 'available';
         } else if (firstFsmStage) {
-          status = st.id === firstFsmStage.id ? "available" : "locked";
+          status = st.id === firstFsmStage.id ? 'available' : 'locked';
         } else {
-          status = i === 0 ? "available" : "locked";
+          status = i === 0 ? 'available' : 'locked';
         }
         const itemRows = [...st.items].sort(
           (a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id),
@@ -192,8 +202,8 @@ export function createTreatmentProgramInstanceService(deps: {
           (a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id),
         );
         const userTplGroups = groupRows.filter((g) => !g.systemKind);
-        const tplSysRec = groupRows.find((g) => g.systemKind === "recommendations");
-        const tplSysTests = groupRows.find((g) => g.systemKind === "tests");
+        const tplSysRec = groupRows.find((g) => g.systemKind === 'recommendations');
+        const tplSysTests = groupRows.find((g) => g.systemKind === 'tests');
 
         const syntheticRec = {
           sourceGroupId: null as string | null,
@@ -201,7 +211,7 @@ export function createTreatmentProgramInstanceService(deps: {
           description: null as string | null,
           scheduleText: null as string | null,
           sortOrder: TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_SORT_RECOMMENDATIONS,
-          systemKind: "recommendations" as const,
+          systemKind: 'recommendations' as const,
         };
         const syntheticTests = {
           sourceGroupId: null as string | null,
@@ -209,7 +219,7 @@ export function createTreatmentProgramInstanceService(deps: {
           description: null as string | null,
           scheduleText: null as string | null,
           sortOrder: TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_SORT_TESTS,
-          systemKind: "tests" as const,
+          systemKind: 'tests' as const,
         };
 
         const userGroupInputs = userTplGroups.map((g) => ({
@@ -226,7 +236,7 @@ export function createTreatmentProgramInstanceService(deps: {
           description: string | null;
           scheduleText: string | null;
           sortOrder: number;
-          systemKind?: "recommendations" | "tests" | null;
+          systemKind?: 'recommendations' | 'tests' | null;
         }>;
 
         if (isZero) {
@@ -240,9 +250,11 @@ export function createTreatmentProgramInstanceService(deps: {
               description: tplSysRec.description,
               scheduleText: tplSysRec.scheduleText,
               sortOrder: tplSysRec.sortOrder,
-              systemKind: "recommendations",
+              systemKind: 'recommendations',
             });
-          } else if (itemRows.some((it) => it.itemType === "recommendation" && it.groupId == null)) {
+          } else if (
+            itemRows.some((it) => it.itemType === 'recommendation' && it.groupId == null)
+          ) {
             head.push(syntheticRec);
           }
           if (tplSysTests) {
@@ -252,9 +264,9 @@ export function createTreatmentProgramInstanceService(deps: {
               description: tplSysTests.description,
               scheduleText: tplSysTests.scheduleText,
               sortOrder: tplSysTests.sortOrder,
-              systemKind: "tests",
+              systemKind: 'tests',
             });
-          } else if (itemRows.some((it) => it.itemType === "clinical_test" && it.groupId == null)) {
+          } else if (itemRows.some((it) => it.itemType === 'clinical_test' && it.groupId == null)) {
             head.push(syntheticTests);
           }
           groupInputs = [...head, ...userGroupInputs];
@@ -270,8 +282,8 @@ export function createTreatmentProgramInstanceService(deps: {
             comment: it.comment,
             settings: it.settings,
             snapshot,
-            isActionable: it.itemType === "recommendation" ? false : null,
-            status: "active" as const,
+            isActionable: it.itemType === 'recommendation' ? false : null,
+            status: 'active' as const,
             templateGroupId: it.groupId,
           });
         }
@@ -301,11 +313,11 @@ export function createTreatmentProgramInstanceService(deps: {
           stages: stageInputs,
         });
       } catch (e) {
-        if (assignmentSource === "promo") {
-          const msg = e instanceof Error ? e.message : "";
+        if (assignmentSource === 'promo') {
+          const msg = e instanceof Error ? e.message : '';
           if (isUniqueViolation(e) || msg === SECOND_ACTIVE_TREATMENT_PROGRAM_MESSAGE) {
             const again = await instances.listInstancesForPatient(input.patientUserId.trim());
-            const row = again.find((i) => i.status === "active" && i.assignmentSource === "promo");
+            const row = again.find((i) => i.status === 'active' && i.assignmentSource === 'promo');
             if (row) {
               const full = await instances.getInstanceById(row.id);
               if (full) return full;
@@ -320,42 +332,46 @@ export function createTreatmentProgramInstanceService(deps: {
       assertUuid(input.patientUserId);
       const getId = deps.getDefaultPromoTemplateId;
       if (!getId) {
-        throw new Error("Промо-программа не настроена");
+        throw new Error('Промо-программа не настроена');
       }
-      const templateId = (await getId())?.trim() ?? "";
+      const templateId = (await getId())?.trim() ?? '';
       if (!templateId) {
-        throw new Error("Промо-программа не настроена");
+        throw new Error('Промо-программа не настроена');
       }
       return this.assignTemplateToPatient({
         templateId,
         patientUserId: input.patientUserId.trim(),
         assignedBy: null,
-        assignmentSource: "promo",
+        assignmentSource: 'promo',
       });
     },
 
-    async refreshActivePromoProgramsFromDefaultTemplate(input: { actorUserId: string | null; organizationId: string }) {
+    async refreshActivePromoProgramsFromDefaultTemplate(input: {
+      actorUserId: string | null;
+      organizationId: string;
+    }) {
       const getId = deps.getDefaultPromoTemplateId;
       if (!getId) {
-        throw new Error("Промо-программа не настроена");
+        throw new Error('Промо-программа не настроена');
       }
-      const templateId = (await getId({ organizationId: input.organizationId }))?.trim() ?? "";
+      const templateId = (await getId({ organizationId: input.organizationId }))?.trim() ?? '';
       if (!templateId) {
-        throw new Error("Промо-программа не настроена");
+        throw new Error('Промо-программа не настроена');
       }
 
       const tpl = await templates.getTemplate(templateId);
-      if (!tpl || tpl.status !== "published") {
-        throw new Error("Назначать можно только опубликованный шаблон");
+      if (!tpl || tpl.status !== 'published') {
+        throw new Error('Назначать можно только опубликованный шаблон');
       }
 
       const activePromo = await instances.listInstancesWhere({
-        assignmentSource: "promo",
-        status: "active",
+        assignmentSource: 'promo',
+        status: 'active',
         organizationId: input.organizationId,
       });
 
-      const pairs: Array<{ patientUserId: string; oldInstanceId: string; newInstanceId: string }> = [];
+      const pairs: Array<{ patientUserId: string; oldInstanceId: string; newInstanceId: string }> =
+        [];
 
       for (const row of activePromo) {
         const prev = await instances.getInstanceById(row.id, input.organizationId);
@@ -369,19 +385,23 @@ export function createTreatmentProgramInstanceService(deps: {
           });
         }
 
-        const completed = await instances.updateInstanceMeta(row.id, { status: "completed" }, input.organizationId);
+        const completed = await instances.updateInstanceMeta(
+          row.id,
+          { status: 'completed' },
+          input.organizationId,
+        );
         if (!completed) continue;
         await appendEvent({
           instanceId: row.id,
           actorId: input.actorUserId,
-          eventType: "status_changed",
-          targetType: "program",
+          eventType: 'status_changed',
+          targetType: 'program',
           targetId: row.id,
           payload: {
-            scope: "program",
+            scope: 'program',
             from: prev.status,
-            to: "completed",
-            supersededBy: "promo_refresh",
+            to: 'completed',
+            supersededBy: 'promo_refresh',
           },
         });
 
@@ -390,7 +410,7 @@ export function createTreatmentProgramInstanceService(deps: {
           templateId,
           patientUserId: row.patientUserId,
           assignedBy: null,
-          assignmentSource: "promo",
+          assignmentSource: 'promo',
         });
 
         pairs.push({
@@ -421,7 +441,7 @@ export function createTreatmentProgramInstanceService(deps: {
       });
 
       const existing = await instances.listInstancesForPatient(input.patientUserId.trim());
-      if (existing.some((i) => i.status === "active")) {
+      if (existing.some((i) => i.status === 'active')) {
         throw new Error(SECOND_ACTIVE_TREATMENT_PROGRAM_MESSAGE);
       }
 
@@ -433,7 +453,7 @@ export function createTreatmentProgramInstanceService(deps: {
         templateId: null,
         patientUserId: input.patientUserId.trim(),
         assignedBy: input.assignedBy,
-        assignmentSource: "doctor",
+        assignmentSource: 'doctor',
         title,
         stages: [
           {
@@ -441,7 +461,7 @@ export function createTreatmentProgramInstanceService(deps: {
             title: TREATMENT_PROGRAM_TEMPLATE_STAGE_ZERO_TITLE,
             description: null,
             sortOrder: 0,
-            status: "available",
+            status: 'available',
             goals: null,
             objectives: null,
             expectedDurationDays: null,
@@ -457,14 +477,14 @@ export function createTreatmentProgramInstanceService(deps: {
       assertUuid(patientUserId);
       assertUuid(instanceId);
       const row = await instances.getInstanceForPatient(patientUserId.trim(), instanceId);
-      if (!row) throw new Error("Программа не найдена");
+      if (!row) throw new Error('Программа не найдена');
       return row;
     },
 
     async getInstanceById(instanceId: string) {
       assertUuid(instanceId);
       const row = await instances.getInstanceById(instanceId);
-      if (!row) throw new Error("Программа не найдена");
+      if (!row) throw new Error('Программа не найдена');
       return row;
     },
 
@@ -513,7 +533,9 @@ export function createTreatmentProgramInstanceService(deps: {
       if (input.actorId) assertUuid(input.actorId);
 
       const beforeDetail = await instances.getInstanceById(input.instanceId);
-      const beforeItem = beforeDetail?.stages.flatMap((s) => s.items).find((i) => i.id === input.stageItemId);
+      const beforeItem = beforeDetail?.stages
+        .flatMap((s) => s.items)
+        .find((i) => i.id === input.stageItemId);
       const beforeEffective = beforeItem ? effectiveInstanceStageItemComment(beforeItem) : null;
 
       const row = await instances.updateStageItemLocalComment(
@@ -521,14 +543,14 @@ export function createTreatmentProgramInstanceService(deps: {
         input.stageItemId,
         input.localComment,
       );
-      if (!row) throw new Error("Элемент программы не найден");
+      if (!row) throw new Error('Элемент программы не найден');
       const afterEffective = effectiveInstanceStageItemComment(row);
       if (beforeEffective !== afterEffective) {
         await appendEvent({
           instanceId: input.instanceId,
           actorId: input.actorId,
-          eventType: "comment_changed",
-          targetType: "stage_item",
+          eventType: 'comment_changed',
+          targetType: 'stage_item',
           targetId: input.stageItemId,
           payload: { before: beforeEffective, after: afterEffective },
         });
@@ -547,13 +569,13 @@ export function createTreatmentProgramInstanceService(deps: {
       if (input.actorId) assertUuid(input.actorId);
 
       const detail = await instances.getInstanceById(input.instanceId);
-      if (!detail) throw new Error("Программа не найдена");
-      if (!detail.stages.some((s) => s.id === input.stageId)) throw new Error("Этап не найден");
+      if (!detail) throw new Error('Программа не найдена');
+      if (!detail.stages.some((s) => s.id === input.stageId)) throw new Error('Этап не найден');
 
       const norm: UpdateTreatmentProgramInstanceStageMetadataInput = {};
       if (input.patch.title !== undefined) {
         const t = input.patch.title.trim();
-        if (!t) throw new Error("Название этапа не может быть пустым");
+        if (!t) throw new Error('Название этапа не может быть пустым');
         norm.title = t;
       }
       if (input.patch.description !== undefined) {
@@ -576,72 +598,76 @@ export function createTreatmentProgramInstanceService(deps: {
       if (input.patch.expectedDurationDays !== undefined) {
         const d = input.patch.expectedDurationDays;
         if (d !== null && (!Number.isInteger(d) || d < 0)) {
-          throw new Error("Ожидаемый срок в днях должен быть неотрицательным целым числом");
+          throw new Error('Ожидаемый срок в днях должен быть неотрицательным целым числом');
         }
         norm.expectedDurationDays = d;
       }
 
       if (Object.keys(norm).length === 0) {
         const unchanged = await instances.getInstanceById(input.instanceId);
-        if (!unchanged) throw new Error("Программа не найдена");
+        if (!unchanged) throw new Error('Программа не найдена');
         return unchanged;
       }
 
-      const updated = await instances.updateInstanceStageMetadata(input.instanceId, input.stageId, norm);
-      if (!updated) throw new Error("Этап не найден");
+      const updated = await instances.updateInstanceStageMetadata(
+        input.instanceId,
+        input.stageId,
+        norm,
+      );
+      if (!updated) throw new Error('Этап не найден');
       const out = await instances.getInstanceById(input.instanceId);
-      if (!out) throw new Error("Программа не найдена");
+      if (!out) throw new Error('Программа не найдена');
       return out;
     },
 
     async updateInstance(input: {
       instanceId: string;
       title?: string;
-      status?: "active" | "completed";
+      status?: 'active' | 'completed';
       actorId: string | null;
     }) {
       assertUuid(input.instanceId);
       if (input.actorId) assertUuid(input.actorId);
       if (input.title !== undefined) {
         const t = input.title.trim();
-        if (!t) throw new Error("Название не может быть пустым");
+        if (!t) throw new Error('Название не может быть пустым');
       }
       const prev = await instances.getInstanceById(input.instanceId);
-      if (!prev) throw new Error("Программа не найдена");
+      if (!prev) throw new Error('Программа не найдена');
       const beforeStatus = prev.status;
 
       const row = await instances.updateInstanceMeta(input.instanceId, {
         title: input.title?.trim(),
         status: input.status,
       });
-      if (!row) throw new Error("Программа не найдена");
+      if (!row) throw new Error('Программа не найдена');
 
       if (input.status !== undefined && input.status !== beforeStatus) {
         await appendEvent({
           instanceId: input.instanceId,
           actorId: input.actorId,
-          eventType: "status_changed",
-          targetType: "program",
+          eventType: 'status_changed',
+          targetType: 'program',
           targetId: input.instanceId,
-          payload: { scope: "program", from: beforeStatus, to: input.status },
+          payload: { scope: 'program', from: beforeStatus, to: input.status },
         });
 
-        if (input.status === "completed") {
+        if (input.status === 'completed') {
           for (const stage of prev.stages) {
-            if (stage.status === "completed" || stage.status === "skipped") continue;
+            if (stage.status === 'completed' || stage.status === 'skipped') continue;
             const beforeStageStatus = stage.status;
             const updatedStage = await instances.updateInstanceStage(input.instanceId, stage.id, {
-              status: "completed",
+              status: 'completed',
               skipReason: null,
             });
             if (!updatedStage) continue;
             await appendEvent({
               instanceId: input.instanceId,
               actorId: input.actorId,
-              eventType: "stage_completed",
-              targetType: "stage",
+              eventType: 'stage_completed',
+              targetType: 'stage',
               targetId: stage.id,
-              payload: { from: beforeStageStatus, to: "completed", programCompleted: true },
+              payload: { from: beforeStageStatus, to: 'completed', programCompleted: true },
             });
           }
         }
@@ -660,46 +686,52 @@ export function createTreatmentProgramInstanceService(deps: {
       assertUuid(input.instanceId);
       if (input.actorId) assertUuid(input.actorId);
       const t = input.title.trim();
-      if (!t) throw new Error("Название этапа не может быть пустым");
+      if (!t) throw new Error('Название этапа не может быть пустым');
       const detail = await instances.getInstanceById(input.instanceId);
-      if (!detail) throw new Error("Программа не найдена");
+      if (!detail) throw new Error('Программа не найдена');
       const maxOrder = detail.stages.reduce((m, s) => Math.max(m, s.sortOrder), -1);
       const sortOrder = input.sortOrder ?? maxOrder + 1;
       const stage = await instances.addInstanceStage(input.instanceId, {
         title: t,
         description: input.description ?? null,
         sortOrder,
-        status: input.status ?? "locked",
+        status: input.status ?? 'locked',
         sourceStageId: null,
       });
-      if (!stage) throw new Error("Не удалось добавить этап");
+      if (!stage) throw new Error('Не удалось добавить этап');
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,
-        eventType: "stage_added",
-        targetType: "stage",
+        eventType: 'stage_added',
+        targetType: 'stage',
         targetId: stage.id,
         payload: { title: stage.title, sortOrder: stage.sortOrder, status: stage.status },
       });
       return stage;
     },
 
-    async doctorRemoveStage(input: { instanceId: string; stageId: string; actorId: string | null }) {
+    async doctorRemoveStage(input: {
+      instanceId: string;
+      stageId: string;
+      actorId: string | null;
+    }) {
       assertUuid(input.instanceId);
       assertUuid(input.stageId);
       if (input.actorId) assertUuid(input.actorId);
-      const st = (await instances.getInstanceById(input.instanceId))?.stages.find((s) => s.id === input.stageId);
-      if (!st) throw new Error("Этап не найден");
+      const st = (await instances.getInstanceById(input.instanceId))?.stages.find(
+        (s) => s.id === input.stageId,
+      );
+      if (!st) throw new Error('Этап не найден');
       for (const it of st.items) {
         await assertStageItemAllowsStructuralChange(it);
       }
       const ok = await instances.removeInstanceStage(input.instanceId, input.stageId);
-      if (!ok) throw new Error("Этап не найден");
+      if (!ok) throw new Error('Этап не найден');
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,
-        eventType: "stage_removed",
-        targetType: "stage",
+        eventType: 'stage_removed',
+        targetType: 'stage',
         targetId: input.stageId,
         payload: { title: st.title, sortOrder: st.sortOrder },
       });
@@ -721,31 +753,31 @@ export function createTreatmentProgramInstanceService(deps: {
       assertUuid(input.itemRefId);
       if (input.actorId) assertUuid(input.actorId);
       if (input.groupId) assertUuid(input.groupId);
-      if ((input.itemType as string) === "lfk_complex") {
-        throw new Error("Для комплекса ЛФК используйте разворот комплекса (from-lfk-complex)");
+      if ((input.itemType as string) === 'lfk_complex') {
+        throw new Error('Для комплекса ЛФК используйте разворот комплекса (from-lfk-complex)');
       }
       await itemRefs.assertItemRefExists(input.itemType, input.itemRefId);
       const snapshot = await snapshots.buildSnapshot(input.itemType, input.itemRefId);
       const detail = await instances.getInstanceById(input.instanceId);
-      if (!detail) throw new Error("Программа не найдена");
+      if (!detail) throw new Error('Программа не найдена');
       const stage = detail.stages.find((s) => s.id === input.stageId);
-      if (!stage) throw new Error("Этап не найден");
+      if (!stage) throw new Error('Этап не найден');
       let resolvedGroupId = input.groupId ?? null;
       if (isStageZero(stage)) {
-        if (input.itemType !== "recommendation") {
-          throw new Error("На этапе «Общие рекомендации» разрешены только рекомендации");
+        if (input.itemType !== 'recommendation') {
+          throw new Error('На этапе «Общие рекомендации» разрешены только рекомендации');
         }
         if (resolvedGroupId) {
-          throw new Error("На этапе «Общие рекомендации» элементы не привязываются к группам");
+          throw new Error('На этапе «Общие рекомендации» элементы не привязываются к группам');
         }
       } else if (!resolvedGroupId) {
-        if (input.itemType === "recommendation" || input.itemType === "clinical_test") {
-          const want = input.itemType === "recommendation" ? "recommendations" : "tests";
+        if (input.itemType === 'recommendation' || input.itemType === 'clinical_test') {
+          const want = input.itemType === 'recommendation' ? 'recommendations' : 'tests';
           const sg = stage.groups.find((g) => g.systemKind === want);
-          if (!sg) throw new Error("Системная группа этапа не найдена");
+          if (!sg) throw new Error('Системная группа этапа не найдена');
           resolvedGroupId = sg.id;
         } else {
-          throw new Error("Выберите группу для этого типа элемента");
+          throw new Error('Выберите группу для этого типа элемента');
         }
       } else {
         const g = stage.groups.find((gr) => gr.id === resolvedGroupId);
@@ -760,16 +792,16 @@ export function createTreatmentProgramInstanceService(deps: {
         comment: input.comment ?? null,
         settings: input.settings ?? null,
         snapshot,
-        isActionable: input.itemType === "recommendation" ? false : null,
-        status: "active",
+        isActionable: input.itemType === 'recommendation' ? false : null,
+        status: 'active',
         groupId: resolvedGroupId,
       });
-      if (!row) throw new Error("Не удалось добавить элемент");
+      if (!row) throw new Error('Не удалось добавить элемент');
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,
-        eventType: "item_added",
-        targetType: "stage_item",
+        eventType: 'item_added',
+        targetType: 'stage_item',
         targetId: row.id,
         payload: {
           stageId: input.stageId,
@@ -793,14 +825,14 @@ export function createTreatmentProgramInstanceService(deps: {
       if (input.actorId) assertUuid(input.actorId);
 
       const title = input.title.trim();
-      if (!title) throw new Error("Название рекомендации обязательно");
+      if (!title) throw new Error('Название рекомендации обязательно');
 
       const detail = await instances.getInstanceById(input.instanceId);
-      if (!detail) throw new Error("Программа не найдена");
+      if (!detail) throw new Error('Программа не найдена');
       const stage = detail.stages.find((s) => s.id === input.stageId);
-      if (!stage) throw new Error("Этап не найден");
+      if (!stage) throw new Error('Этап не найден');
       if (!isStageZero(stage)) {
-        throw new Error("Свободный текст можно добавить только на этап «Общие рекомендации»");
+        throw new Error('Свободный текст можно добавить только на этап «Общие рекомендации»');
       }
 
       const bodyMd = input.bodyMd.trim();
@@ -812,20 +844,20 @@ export function createTreatmentProgramInstanceService(deps: {
         bodyMd,
         createdBy: input.actorId,
       });
-      if (!result) throw new Error("Не удалось добавить рекомендацию");
+      if (!result) throw new Error('Не удалось добавить рекомендацию');
 
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,
-        eventType: "item_added",
-        targetType: "stage_item",
+        eventType: 'item_added',
+        targetType: 'stage_item',
         targetId: result.item.id,
         payload: {
           stageId: input.stageId,
           itemType: result.item.itemType,
           itemRefId: result.item.itemRefId,
           sortOrder: result.item.sortOrder,
-          source: "freeform_recommendation",
+          source: 'freeform_recommendation',
         },
       });
 
@@ -847,20 +879,20 @@ export function createTreatmentProgramInstanceService(deps: {
         stageId: input.stageId,
         testSetId: input.testSetId.trim(),
       });
-      if (!out) throw new Error("Этап не найден");
+      if (!out) throw new Error('Этап не найден');
       for (const row of out.items) {
         await appendEvent({
           instanceId: input.instanceId,
           actorId: input.actorId,
-          eventType: "item_added",
-          targetType: "stage_item",
+          eventType: 'item_added',
+          targetType: 'stage_item',
           targetId: row.id,
           payload: {
             stageId: input.stageId,
             itemType: row.itemType,
             itemRefId: row.itemRefId,
             sortOrder: row.sortOrder,
-            source: "expand_test_set_into_clinical_tests",
+            source: 'expand_test_set_into_clinical_tests',
           },
         });
       }
@@ -881,11 +913,11 @@ export function createTreatmentProgramInstanceService(deps: {
       if (input.actorId) assertUuid(input.actorId);
 
       const preview = await templates.getLfkComplexExpandPreview(input.complexTemplateId.trim());
-      if (!preview) throw new Error("Комплекс ЛФК не найден или в архиве");
-      if (preview.exerciseIds.length === 0) throw new Error("В комплексе нет упражнений");
+      if (!preview) throw new Error('Комплекс ЛФК не найден или в архиве');
+      if (preview.exerciseIds.length === 0) throw new Error('В комплексе нет упражнений');
 
       for (const id of preview.exerciseIds) {
-        await itemRefs.assertItemRefExists("exercise", id);
+        await itemRefs.assertItemRefExists('exercise', id);
       }
 
       const out = await instances.expandLfkComplexIntoInstanceStageItems({
@@ -895,20 +927,20 @@ export function createTreatmentProgramInstanceService(deps: {
         groupId: input.groupId,
         expectedExerciseIds: preview.exerciseIds,
       });
-      if (!out) throw new Error("Этап не найден");
+      if (!out) throw new Error('Этап не найден');
       for (const row of out.items) {
         await appendEvent({
           instanceId: input.instanceId,
           actorId: input.actorId,
-          eventType: "item_added",
-          targetType: "stage_item",
+          eventType: 'item_added',
+          targetType: 'stage_item',
           targetId: row.id,
           payload: {
             stageId: input.stageId,
             itemType: row.itemType,
             itemRefId: row.itemRefId,
             sortOrder: row.sortOrder,
-            source: "expand_lfk_complex_into_exercises",
+            source: 'expand_lfk_complex_into_exercises',
             complexTemplateId: input.complexTemplateId,
           },
         });
@@ -926,29 +958,29 @@ export function createTreatmentProgramInstanceService(deps: {
       if (input.actorId) assertUuid(input.actorId);
       const detail = await instances.getInstanceById(input.instanceId);
       const item = detail?.stages.flatMap((s) => s.items).find((i) => i.id === input.itemId);
-      if (!item) throw new Error("Элемент не найден");
-      if (item.status === "disabled") return item;
+      if (!item) throw new Error('Элемент не найден');
+      if (item.status === 'disabled') return item;
       if (events) {
         const row = await instances.patchInstanceStageItemWithEvent(
           input.instanceId,
           input.itemId,
-          { status: "disabled" },
+          { status: 'disabled' },
           buildAppendEventInput({
             instanceId: input.instanceId,
             actorId: input.actorId,
-            eventType: "item_disabled",
-            targetType: "stage_item",
+            eventType: 'item_disabled',
+            targetType: 'stage_item',
             targetId: input.itemId,
             payload: { stageId: item.stageId, itemType: item.itemType, itemRefId: item.itemRefId },
           }),
         );
-        if (!row) throw new Error("Элемент не найден");
+        if (!row) throw new Error('Элемент не найден');
         return row;
       }
       const row = await instances.patchInstanceStageItem(input.instanceId, input.itemId, {
-        status: "disabled",
+        status: 'disabled',
       });
-      if (!row) throw new Error("Элемент не найден");
+      if (!row) throw new Error('Элемент не найден');
       return row;
     },
 
@@ -962,29 +994,29 @@ export function createTreatmentProgramInstanceService(deps: {
       if (input.actorId) assertUuid(input.actorId);
       const detail = await instances.getInstanceById(input.instanceId);
       const item = detail?.stages.flatMap((s) => s.items).find((i) => i.id === input.itemId);
-      if (!item) throw new Error("Элемент не найден");
-      if (item.status === "active") return item;
+      if (!item) throw new Error('Элемент не найден');
+      if (item.status === 'active') return item;
       if (events) {
         const row = await instances.patchInstanceStageItemWithEvent(
           input.instanceId,
           input.itemId,
-          { status: "active" },
+          { status: 'active' },
           buildAppendEventInput({
             instanceId: input.instanceId,
             actorId: input.actorId,
-            eventType: "item_enabled",
-            targetType: "stage_item",
+            eventType: 'item_enabled',
+            targetType: 'stage_item',
             targetId: input.itemId,
             payload: { stageId: item.stageId, itemType: item.itemType, itemRefId: item.itemRefId },
           }),
         );
-        if (!row) throw new Error("Элемент не найден");
+        if (!row) throw new Error('Элемент не найден');
         return row;
       }
       const row = await instances.patchInstanceStageItem(input.instanceId, input.itemId, {
-        status: "active",
+        status: 'active',
       });
-      if (!row) throw new Error("Элемент не найден");
+      if (!row) throw new Error('Элемент не найден');
       return row;
     },
 
@@ -999,23 +1031,23 @@ export function createTreatmentProgramInstanceService(deps: {
       if (input.actorId) assertUuid(input.actorId);
       const detail = await instances.getInstanceById(input.instanceId);
       const item = detail?.stages.flatMap((s) => s.items).find((i) => i.id === input.itemId);
-      if (!item) throw new Error("Элемент не найден");
-      if (item.itemType !== "recommendation") {
-        throw new Error("Режим выполнения задаётся только для рекомендаций");
+      if (!item) throw new Error('Элемент не найден');
+      if (item.itemType !== 'recommendation') {
+        throw new Error('Режим выполнения задаётся только для рекомендаций');
       }
       const row = await instances.patchInstanceStageItem(input.instanceId, input.itemId, {
         isActionable: input.isActionable,
       });
-      if (!row) throw new Error("Элемент не найден");
+      if (!row) throw new Error('Элемент не найден');
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,
-        eventType: "status_changed",
-        targetType: "stage_item",
+        eventType: 'status_changed',
+        targetType: 'stage_item',
         targetId: input.itemId,
         payload: {
-          scope: "stage_item",
-          field: "isActionable",
+          scope: 'stage_item',
+          field: 'isActionable',
           value: input.isActionable,
           stageId: item.stageId,
         },
@@ -1034,17 +1066,18 @@ export function createTreatmentProgramInstanceService(deps: {
       if (input.actorId) assertUuid(input.actorId);
       const detail = await instances.getInstanceById(input.instanceId);
       const item = detail?.stages.flatMap((s) => s.items).find((i) => i.id === input.itemId);
-      if (!item) throw new Error("Элемент не найден");
+      if (!item) throw new Error('Элемент не найден');
       await assertStageItemAllowsStructuralChange(item);
       const ok = await instances.deleteInstanceStageItem(input.instanceId, input.itemId);
-      if (!ok) throw new Error("Элемент не найден");
+      if (!ok) throw new Error('Элемент не найден');
       const reasonTrim = input.reason?.trim();
-      const reason = reasonTrim && reasonTrim.length > 0 ? reasonTrim : "Удаление врачом из программы пациента";
+      const reason =
+        reasonTrim && reasonTrim.length > 0 ? reasonTrim : 'Удаление врачом из программы пациента';
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,
-        eventType: "item_removed",
-        targetType: "stage_item",
+        eventType: 'item_removed',
+        targetType: 'stage_item',
         targetId: input.itemId,
         reason,
         payload: {
@@ -1070,7 +1103,7 @@ export function createTreatmentProgramInstanceService(deps: {
       const prev = detail?.stages.flatMap((s) => s.items).find((i) => i.id === input.itemId) as
         | TreatmentProgramInstanceStageItemRow
         | undefined;
-      if (!prev) throw new Error("Элемент не найден");
+      if (!prev) throw new Error('Элемент не найден');
       await assertStageItemAllowsStructuralChange(prev);
       await itemRefs.assertItemRefExists(input.itemType, input.itemRefId);
       const snapshot = await snapshots.buildSnapshot(input.itemType, input.itemRefId);
@@ -1079,12 +1112,12 @@ export function createTreatmentProgramInstanceService(deps: {
         itemRefId: input.itemRefId,
         snapshot,
       });
-      if (!row) throw new Error("Не удалось заменить элемент");
+      if (!row) throw new Error('Не удалось заменить элемент');
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,
-        eventType: "item_replaced",
-        targetType: "stage_item",
+        eventType: 'item_replaced',
+        targetType: 'stage_item',
         targetId: row.id,
         payload: {
           stageId: prev.stageId,
@@ -1103,21 +1136,21 @@ export function createTreatmentProgramInstanceService(deps: {
       assertUuid(input.instanceId);
       if (input.actorId) assertUuid(input.actorId);
       const detail = await instances.getInstanceById(input.instanceId);
-      if (!detail) throw new Error("Программа не найдена");
+      if (!detail) throw new Error('Программа не найдена');
       for (const id of input.orderedStageIds) assertUuid(id);
       const stageZero = detail.stages.find((s) => s.sortOrder === 0);
       if (stageZero && input.orderedStageIds[0] !== stageZero.id) {
-        throw new Error("Этап «Общие рекомендации» должен оставаться первым");
+        throw new Error('Этап «Общие рекомендации» должен оставаться первым');
       }
       const ok = await instances.reorderInstanceStages(input.instanceId, input.orderedStageIds);
-      if (!ok) throw new Error("Некорректный порядок этапов");
+      if (!ok) throw new Error('Некорректный порядок этапов');
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,
-        eventType: "status_changed",
-        targetType: "program",
+        eventType: 'status_changed',
+        targetType: 'program',
         targetId: input.instanceId,
-        payload: { scope: "stages_reordered", orderedStageIds: input.orderedStageIds },
+        payload: { scope: 'stages_reordered', orderedStageIds: input.orderedStageIds },
       });
     },
 
@@ -1131,22 +1164,22 @@ export function createTreatmentProgramInstanceService(deps: {
       assertUuid(input.stageId);
       if (input.actorId) assertUuid(input.actorId);
       const detail = await instances.getInstanceById(input.instanceId);
-      if (!detail) throw new Error("Программа не найдена");
-      if (!detail.stages.some((s) => s.id === input.stageId)) throw new Error("Этап не найден");
+      if (!detail) throw new Error('Программа не найдена');
+      if (!detail.stages.some((s) => s.id === input.stageId)) throw new Error('Этап не найден');
       for (const id of input.orderedItemIds) assertUuid(id);
       const ok = await instances.reorderInstanceStageItems(
         input.instanceId,
         input.stageId,
         input.orderedItemIds,
       );
-      if (!ok) throw new Error("Некорректный порядок элементов этапа");
+      if (!ok) throw new Error('Некорректный порядок элементов этапа');
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,
-        eventType: "status_changed",
-        targetType: "stage",
+        eventType: 'status_changed',
+        targetType: 'stage',
         targetId: input.stageId,
-        payload: { scope: "stage_items_reordered", orderedItemIds: input.orderedItemIds },
+        payload: { scope: 'stage_items_reordered', orderedItemIds: input.orderedItemIds },
       });
     },
 
@@ -1163,25 +1196,31 @@ export function createTreatmentProgramInstanceService(deps: {
       assertUuid(input.stageId);
       if (input.actorId) assertUuid(input.actorId);
       const title = input.title.trim();
-      if (!title) throw new Error("Название группы не может быть пустым");
+      if (!title) throw new Error('Название группы не может быть пустым');
       const detail = await instances.getInstanceById(input.instanceId);
-      if (!detail) throw new Error("Программа не найдена");
-      if (!detail.stages.some((s) => s.id === input.stageId)) throw new Error("Этап не найден");
+      if (!detail) throw new Error('Программа не найдена');
+      if (!detail.stages.some((s) => s.id === input.stageId)) throw new Error('Этап не найден');
       const payload: CreateTreatmentProgramInstanceStageGroupInput = {
         title,
-        description: input.description === undefined ? undefined : input.description?.trim() ?? null,
-        scheduleText: input.scheduleText === undefined ? undefined : input.scheduleText?.trim() ?? null,
+        description:
+          input.description === undefined ? undefined : (input.description?.trim() ?? null),
+        scheduleText:
+          input.scheduleText === undefined ? undefined : (input.scheduleText?.trim() ?? null),
         sortOrder: input.sortOrder,
       };
-      const row = await instances.createInstanceStageGroup(input.instanceId, input.stageId, payload);
-      if (!row) throw new Error("Не удалось добавить группу");
+      const row = await instances.createInstanceStageGroup(
+        input.instanceId,
+        input.stageId,
+        payload,
+      );
+      if (!row) throw new Error('Не удалось добавить группу');
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,
-        eventType: "status_changed",
-        targetType: "stage",
+        eventType: 'status_changed',
+        targetType: 'stage',
         targetId: input.stageId,
-        payload: { scope: "stage_group_added", groupId: row.id, title: row.title },
+        payload: { scope: 'stage_group_added', groupId: row.id, title: row.title },
       });
       return row;
     },
@@ -1196,44 +1235,48 @@ export function createTreatmentProgramInstanceService(deps: {
       assertUuid(input.groupId);
       if (input.actorId) assertUuid(input.actorId);
       const detailGuard = await instances.getInstanceById(input.instanceId);
-      const grpGuard = detailGuard?.stages.flatMap((s) => s.groups).find((gr) => gr.id === input.groupId);
+      const grpGuard = detailGuard?.stages
+        .flatMap((s) => s.groups)
+        .find((gr) => gr.id === input.groupId);
       const isSystemGroup =
-        grpGuard?.systemKind === "recommendations" || grpGuard?.systemKind === "tests";
+        grpGuard?.systemKind === 'recommendations' || grpGuard?.systemKind === 'tests';
       if (isSystemGroup && input.patch.title !== undefined) {
-        throw new Error("Нельзя менять название системной группы");
+        throw new Error('Нельзя менять название системной группы');
       }
       if (isSystemGroup && input.patch.sortOrder !== undefined) {
-        throw new Error("Нельзя менять порядок системной группы");
+        throw new Error('Нельзя менять порядок системной группы');
       }
       const norm: UpdateTreatmentProgramInstanceStageGroupInput = {};
       if (input.patch.title !== undefined && !isSystemGroup) {
         const t = input.patch.title.trim();
-        if (!t) throw new Error("Название группы не может быть пустым");
+        if (!t) throw new Error('Название группы не может быть пустым');
         norm.title = t;
       }
       if (input.patch.description !== undefined && !isSystemGroup) {
-        norm.description = input.patch.description === null ? null : input.patch.description.trim() || null;
+        norm.description =
+          input.patch.description === null ? null : input.patch.description.trim() || null;
       }
       if (input.patch.scheduleText !== undefined && !isSystemGroup) {
         norm.scheduleText =
           input.patch.scheduleText === null ? null : input.patch.scheduleText.trim() || null;
       }
-      if (input.patch.sortOrder !== undefined && !isSystemGroup) norm.sortOrder = input.patch.sortOrder;
+      if (input.patch.sortOrder !== undefined && !isSystemGroup)
+        norm.sortOrder = input.patch.sortOrder;
       if (Object.keys(norm).length === 0) {
         const d = await instances.getInstanceById(input.instanceId);
         const g = d?.stages.flatMap((s) => s.groups).find((gr) => gr.id === input.groupId);
-        if (!g) throw new Error("Группа не найдена");
+        if (!g) throw new Error('Группа не найдена');
         return g;
       }
       const row = await instances.updateInstanceStageGroup(input.instanceId, input.groupId, norm);
-      if (!row) throw new Error("Группа не найдена");
+      if (!row) throw new Error('Группа не найдена');
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,
-        eventType: "status_changed",
-        targetType: "stage",
+        eventType: 'status_changed',
+        targetType: 'stage',
         targetId: row.stageId,
-        payload: { scope: "stage_group_updated", groupId: row.id },
+        payload: { scope: 'stage_group_updated', groupId: row.id },
       });
       return row;
     },
@@ -1248,19 +1291,19 @@ export function createTreatmentProgramInstanceService(deps: {
       if (input.actorId) assertUuid(input.actorId);
       const detail = await instances.getInstanceById(input.instanceId);
       const gr = detail?.stages.flatMap((s) => s.groups).find((g) => g.id === input.groupId);
-      if (!gr) throw new Error("Группа не найдена");
-      if (gr.systemKind === "recommendations" || gr.systemKind === "tests") {
-        throw new Error("Системную группу нельзя удалить");
+      if (!gr) throw new Error('Группа не найдена');
+      if (gr.systemKind === 'recommendations' || gr.systemKind === 'tests') {
+        throw new Error('Системную группу нельзя удалить');
       }
       const ok = await instances.deleteInstanceStageGroup(input.instanceId, input.groupId);
-      if (!ok) throw new Error("Группа не найдена");
+      if (!ok) throw new Error('Группа не найдена');
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,
-        eventType: "status_changed",
-        targetType: "stage",
+        eventType: 'status_changed',
+        targetType: 'stage',
         targetId: gr.stageId,
-        payload: { scope: "stage_group_removed", groupId: input.groupId, title: gr.title },
+        payload: { scope: 'stage_group_removed', groupId: input.groupId, title: gr.title },
       });
     },
 
@@ -1284,13 +1327,15 @@ export function createTreatmentProgramInstanceService(deps: {
       if (input.actorId) assertUuid(input.actorId);
       const detail = await instances.getInstanceById(input.instanceId);
       const gr = detail?.stages.flatMap((s) => s.groups).find((g) => g.id === input.groupId);
-      if (!gr) throw new Error("Группа не найдена");
-      if (gr.systemKind === "recommendations" || gr.systemKind === "tests") {
-        throw new Error("Системную группу нельзя скрыть");
+      if (!gr) throw new Error('Группа не найдена');
+      if (gr.systemKind === 'recommendations' || gr.systemKind === 'tests') {
+        throw new Error('Системную группу нельзя скрыть');
       }
-      const itemsInGroup = detail!.stages.flatMap((s) => s.items).filter((it) => it.groupId === input.groupId);
+      const itemsInGroup = detail!.stages
+        .flatMap((s) => s.items)
+        .filter((it) => it.groupId === input.groupId);
       for (const it of itemsInGroup) {
-        if (it.status === "active") {
+        if (it.status === 'active') {
           await this.doctorDisableInstanceStageItem({
             instanceId: input.instanceId,
             itemId: it.id,
@@ -1315,22 +1360,22 @@ export function createTreatmentProgramInstanceService(deps: {
       assertUuid(input.stageId);
       if (input.actorId) assertUuid(input.actorId);
       const detail = await instances.getInstanceById(input.instanceId);
-      if (!detail) throw new Error("Программа не найдена");
-      if (!detail.stages.some((s) => s.id === input.stageId)) throw new Error("Этап не найден");
+      if (!detail) throw new Error('Программа не найдена');
+      if (!detail.stages.some((s) => s.id === input.stageId)) throw new Error('Этап не найден');
       for (const id of input.orderedGroupIds) assertUuid(id);
       const ok = await instances.reorderInstanceStageGroups(
         input.instanceId,
         input.stageId,
         input.orderedGroupIds,
       );
-      if (!ok) throw new Error("Некорректный порядок групп этапа");
+      if (!ok) throw new Error('Некорректный порядок групп этапа');
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,
-        eventType: "status_changed",
-        targetType: "stage",
+        eventType: 'status_changed',
+        targetType: 'stage',
         targetId: input.stageId,
-        payload: { scope: "stage_groups_reordered", orderedGroupIds: input.orderedGroupIds },
+        payload: { scope: 'stage_groups_reordered', orderedGroupIds: input.orderedGroupIds },
       });
     },
 
@@ -1346,26 +1391,26 @@ export function createTreatmentProgramInstanceService(deps: {
       if (input.groupId) assertUuid(input.groupId);
       const detail = await instances.getInstanceById(input.instanceId);
       const item = detail?.stages.flatMap((s) => s.items).find((i) => i.id === input.itemId);
-      if (!item) throw new Error("Элемент не найден");
+      if (!item) throw new Error('Элемент не найден');
       const stage = detail!.stages.find((s) => s.id === item.stageId);
-      if (!stage) throw new Error("Этап не найден");
+      if (!stage) throw new Error('Этап не найден');
       let nextGroupId: string | null = input.groupId ?? null;
       if (isStageZero(stage)) {
-        if (item.itemType !== "recommendation") {
-          throw new Error("На этапе «Общие рекомендации» разрешены только рекомендации");
+        if (item.itemType !== 'recommendation') {
+          throw new Error('На этапе «Общие рекомендации» разрешены только рекомендации');
         }
         if (input.groupId != null) {
-          throw new Error("На этапе «Общие рекомендации» элементы не привязываются к группам");
+          throw new Error('На этапе «Общие рекомендации» элементы не привязываются к группам');
         }
         nextGroupId = null;
       } else if (!nextGroupId) {
-        if (item.itemType === "recommendation" || item.itemType === "clinical_test") {
-          const want = item.itemType === "recommendation" ? "recommendations" : "tests";
+        if (item.itemType === 'recommendation' || item.itemType === 'clinical_test') {
+          const want = item.itemType === 'recommendation' ? 'recommendations' : 'tests';
           const sg = stage.groups.find((g) => g.systemKind === want);
-          if (!sg) throw new Error("Системная группа этапа не найдена");
+          if (!sg) throw new Error('Системная группа этапа не найдена');
           nextGroupId = sg.id;
         } else {
-          throw new Error("Выберите группу для этого типа элемента");
+          throw new Error('Выберите группу для этого типа элемента');
         }
       } else {
         const g = stage.groups.find((gr) => gr.id === nextGroupId);
@@ -1374,15 +1419,15 @@ export function createTreatmentProgramInstanceService(deps: {
       const row = await instances.patchInstanceStageItem(input.instanceId, input.itemId, {
         groupId: nextGroupId,
       });
-      if (!row) throw new Error("Элемент не найден");
+      if (!row) throw new Error('Элемент не найден');
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,
-        eventType: "status_changed",
-        targetType: "stage_item",
+        eventType: 'status_changed',
+        targetType: 'stage_item',
         targetId: input.itemId,
         payload: {
-          scope: "stage_item_group_changed",
+          scope: 'stage_item_group_changed',
           stageId: item.stageId,
           groupId: nextGroupId,
         },
@@ -1404,23 +1449,23 @@ export function createTreatmentProgramInstanceService(deps: {
 
       const hasAny =
         input.reps !== undefined || input.sets !== undefined || input.maxPain !== undefined;
-      if (!hasAny) throw new Error("Пустой запрос настроек нагрузки");
+      if (!hasAny) throw new Error('Пустой запрос настроек нагрузки');
 
       const detail = await instances.getInstanceById(input.instanceId);
       const item = detail?.stages.flatMap((s) => s.items).find((i) => i.id === input.itemId);
-      if (!item) throw new Error("Элемент не найден");
-      if (item.itemType !== "exercise") {
-        throw new Error("Нагрузку можно менять только для упражнений");
+      if (!item) throw new Error('Элемент не найден');
+      if (item.itemType !== 'exercise') {
+        throw new Error('Нагрузку можно менять только для упражнений');
       }
 
       const prevRaw = item.settings;
       const prev =
-        prevRaw != null && typeof prevRaw === "object" && !Array.isArray(prevRaw)
+        prevRaw != null && typeof prevRaw === 'object' && !Array.isArray(prevRaw)
           ? { ...(prevRaw as Record<string, unknown>) }
           : {};
 
       const applyInt = (
-        key: "reps" | "sets" | "maxPain",
+        key: 'reps' | 'sets' | 'maxPain',
         incoming: number | null | undefined,
         min: number,
         max: number,
@@ -1438,9 +1483,9 @@ export function createTreatmentProgramInstanceService(deps: {
         prev[key] = n;
       };
 
-      applyInt("reps", input.reps, 1, 999, "Повторы");
-      applyInt("sets", input.sets, 1, 99, "Подходы");
-      applyInt("maxPain", input.maxPain, 0, 10, "Макс. боль");
+      applyInt('reps', input.reps, 1, 999, 'Повторы');
+      applyInt('sets', input.sets, 1, 99, 'Подходы');
+      applyInt('maxPain', input.maxPain, 0, 10, 'Макс. боль');
 
       const nextSettings: Record<string, unknown> | null =
         Object.keys(prev).length === 0 ? null : prev;
@@ -1448,16 +1493,16 @@ export function createTreatmentProgramInstanceService(deps: {
       const row = await instances.patchInstanceStageItem(input.instanceId, input.itemId, {
         settings: nextSettings,
       });
-      if (!row) throw new Error("Элемент не найден");
+      if (!row) throw new Error('Элемент не найден');
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,
-        eventType: "status_changed",
-        targetType: "stage_item",
+        eventType: 'status_changed',
+        targetType: 'stage_item',
         targetId: input.itemId,
         payload: {
-          scope: "stage_item",
-          field: "loadSettings",
+          scope: 'stage_item',
+          field: 'loadSettings',
           stageId: item.stageId,
           settings: nextSettings,
         },
@@ -1472,8 +1517,8 @@ export function createTreatmentProgramInstanceService(deps: {
       assertUuid(input.patientUserId);
       assertUuid(input.instanceId);
       const d = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
-      if (!d) throw new Error("Программа не найдена");
-      if (d.status !== "active") return { recorded: false };
+      if (!d) throw new Error('Программа не найдена');
+      if (d.status !== 'active') return { recorded: false };
       await instances.touchPatientPlanLastOpenedAt(input.patientUserId, input.instanceId);
       return { recorded: true };
     },
@@ -1487,11 +1532,15 @@ export function createTreatmentProgramInstanceService(deps: {
       assertUuid(input.instanceId);
       assertUuid(input.stageItemId);
       const d = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
-      if (!d) throw new Error("Программа не найдена");
+      if (!d) throw new Error('Программа не найдена');
       const hit = d.stages.flatMap((s) => s.items).find((i) => i.id === input.stageItemId);
-      if (!hit) throw new Error("Элемент не найден");
-      if (hit.status !== "active") return { updated: false };
-      return instances.markStageItemViewedIfNever(input.patientUserId, input.instanceId, input.stageItemId);
+      if (!hit) throw new Error('Элемент не найден');
+      if (hit.status !== 'active') return { updated: false };
+      return instances.markStageItemViewedIfNever(
+        input.patientUserId,
+        input.instanceId,
+        input.stageItemId,
+      );
     },
 
     async patientPlanUpdatedBadgeForInstance(input: {
@@ -1502,7 +1551,7 @@ export function createTreatmentProgramInstanceService(deps: {
       assertUuid(input.instanceId);
       if (!events) return { show: false, eventIso: null };
       const sums = await instances.listInstancesForPatient(input.patientUserId);
-      const inst = sums.find((s) => s.id === input.instanceId && s.status === "active");
+      const inst = sums.find((s) => s.id === input.instanceId && s.status === 'active');
       if (!inst) return { show: false, eventIso: null };
       const maxAt = await events.getMaxPlanMutationEventCreatedAt(input.instanceId);
       if (!maxAt) return { show: false, eventIso: null };
@@ -1519,7 +1568,7 @@ export function createTreatmentProgramInstanceService(deps: {
       const blocks: TreatmentProgramIntegratorLfkBlock[] = [];
       const seen = new Set<string>();
       for (const summ of summaries) {
-        if (summ.status !== "active") continue;
+        if (summ.status !== 'active') continue;
         const detail = await instances.getInstanceById(summ.id);
         if (!detail) continue;
         for (const st of detail.stages) {
@@ -1528,24 +1577,24 @@ export function createTreatmentProgramInstanceService(deps: {
             { rep: TreatmentProgramInstanceStageItemRow; complexId: string }
           >();
           for (const it of st.items) {
-            if (it.status === "disabled") continue;
+            if (it.status === 'disabled') continue;
             const complexId = lfkComplexTemplateIdFromItemSettings(it.settings);
             if (!complexId) continue;
-            const groupKey = `${st.id}:${it.groupId ?? ""}:${complexId}`;
+            const groupKey = `${st.id}:${it.groupId ?? ''}:${complexId}`;
             const cur = groupReps.get(groupKey);
             if (!cur || it.sortOrder < cur.rep.sortOrder) {
               groupReps.set(groupKey, { rep: it, complexId });
             }
           }
           for (const { rep, complexId } of groupReps.values()) {
-            const dedupeKey = `${detail.id}:${st.id}:${rep.groupId ?? ""}:${complexId}`;
+            const dedupeKey = `${detail.id}:${st.id}:${rep.groupId ?? ''}:${complexId}`;
             if (seen.has(dedupeKey)) continue;
             seen.add(dedupeKey);
             const preview = await templates.getLfkComplexExpandPreview(complexId);
-            const titleFromPreview = preview?.complexTitle?.trim() ?? "";
+            const titleFromPreview = preview?.complexTitle?.trim() ?? '';
             const snap = rep.snapshot as Record<string, unknown>;
             const titleFromSnap =
-              typeof snap.title === "string" && snap.title.trim() ? snap.title.trim() : "";
+              typeof snap.title === 'string' && snap.title.trim() ? snap.title.trim() : '';
             blocks.push({
               instanceId: detail.id,
               instanceStatus: detail.status,
@@ -1586,10 +1635,10 @@ export function createTreatmentProgramInstanceService(deps: {
         await appendEvent({
           instanceId: input.instanceId,
           actorId: input.actorId,
-          eventType: "program_changed",
-          targetType: "program",
+          eventType: 'program_changed',
+          targetType: 'program',
           targetId: input.instanceId,
-          payload: { scope: "editor_batch", diff },
+          payload: { scope: 'editor_batch', diff },
         });
       }
 
@@ -1598,4 +1647,6 @@ export function createTreatmentProgramInstanceService(deps: {
   };
 }
 
-export type TreatmentProgramInstanceAppService = ReturnType<typeof createTreatmentProgramInstanceService>;
+export type TreatmentProgramInstanceAppService = ReturnType<
+  typeof createTreatmentProgramInstanceService
+>;

@@ -131,8 +131,14 @@ export function createRemindersWritesPort(deps: { db: DbPort }): RemindersWebapp
           ok: true,
           doneAt: data.doneAt,
           firstDoneForOccurrence: data.firstDoneForOccurrence === true,
-          dayDoneCount: typeof data.dayDoneCount === 'number' ? data.dayDoneCount : Number(data.dayDoneCount) || 0,
-          daySentTotal: typeof data.daySentTotal === 'number' ? data.daySentTotal : Number(data.daySentTotal) || 0,
+          dayDoneCount:
+            typeof data.dayDoneCount === 'number'
+              ? data.dayDoneCount
+              : Number(data.dayDoneCount) || 0,
+          daySentTotal:
+            typeof data.daySentTotal === 'number'
+              ? data.daySentTotal
+              : Number(data.daySentTotal) || 0,
           dayFullyDone: data.dayFullyDone === true,
         };
       } catch (err) {
@@ -253,8 +259,17 @@ export function createRemindersWritesPort(deps: { db: DbPort }): RemindersWebapp
           return { ok: false, error: data.error ?? res.statusText };
         }
         const topics = (data.topics as Array<Record<string, unknown>>)
-          .filter((t) => typeof t.code === 'string' && typeof t.title === 'string' && typeof t.isEnabled === 'boolean')
-          .map((t) => ({ code: t.code as string, title: t.title as string, isEnabled: t.isEnabled as boolean }));
+          .filter(
+            (t) =>
+              typeof t.code === 'string' &&
+              typeof t.title === 'string' &&
+              typeof t.isEnabled === 'boolean',
+          )
+          .map((t) => ({
+            code: t.code as string,
+            title: t.title as string,
+            isEnabled: t.isEnabled as boolean,
+          }));
         return { ok: true, topics };
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);

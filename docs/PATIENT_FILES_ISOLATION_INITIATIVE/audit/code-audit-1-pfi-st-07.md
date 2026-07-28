@@ -1,4 +1,5 @@
 # Code Audit 1 — PFI-ST-07
+
 Auditor: Sonnet (1st independent)
 Date: 2026-06-19T13:30:00Z
 Branch: auto/pfi-st-07 @ 8a294b1c vs feat @ aa4b9414
@@ -10,6 +11,7 @@ Branch: auto/pfi-st-07 @ 8a294b1c vs feat @ aa4b9414
 **Verdict: PASS**
 
 How verified:
+
 - `route.ts:126–162` — the entire ST-07 gate sits inside `if (parsedBody.data.folderId !== undefined)`. This is the correct placement: it only runs when a folder-change is requested, not on displayName-only PATCHes.
 - Execution flow (traced fully):
   1. `pgValidateUserAssignableMediaFolder(parsedBody.data.folderId)` — checks target folder is not `client_files_root` (line 127)
@@ -22,6 +24,7 @@ How verified:
 - All 3 tests in the ST-07 describe block confirm correct 409 path + body `{ error: "patient_folder_move_out" }`.
 
 Edge cases verified:
+
 - **Target is `null` (move-to-root):** `parsedBody.data.folderId !== null` evaluates to `false`, so `targetInSubtree = false` via short-circuit. Gate fires → 409. Patient-subtree file cannot escape to the folder-less root. CORRECT.
 - **Target is `undefined`:** Cannot reach ST-07 gate — the outer `if (parsedBody.data.folderId !== undefined)` at line 126 guards the entire block. CORRECT.
 - **`existingForMove` null:** 404 returned at line 140–141 before gate. No double-response risk (this is the only `getById` call; the displayName branch has no `getById`). CORRECT.
@@ -33,11 +36,13 @@ Edge cases verified:
 **Verdict: PASS**
 
 How verified:
+
 - `route.ts:146–149`: `targetInSubtree` is `true` when `pgIsFolderInClientSubtree(parsedBody.data.folderId)` returns `true`.
 - `if (!targetInSubtree)` → does NOT enter the 409 branch → falls through to `updateMediaFolder` (line 158).
 - Test "allows intra-subtree move" (`route.test.ts:312–329`): `isInSubtreeMock.mockResolvedValue(true)` for both source and target → `res.status === 200` + `updateMediaFolderMock.toHaveBeenCalledWith(mediaId, anotherPatientFolderId)`. Green.
 
 Edge cases:
+
 - **Source and target are the SAME patient folder** (no actual move): `pgIsFolderInClientSubtree` called twice with the same folderId, both return `true`. `targetInSubtree = true`. Move allowed — one extra DB query wasted but logically harmless. The `updateMediaFolder` repo call will update the row to the same folderId value; not blocked.
 - **File in `client_files_root`** (edge-case subtree member): `clientFilesSubtreeFolderIdsSql` CTE starts `SELECT id FROM media_folders WHERE kind = 'client_files_root'` so the root itself IS in the subtree. Moving from `client_files_root` to a `client_patient` folder is correctly allowed (both in subtree).
 
@@ -48,6 +53,7 @@ Edge cases:
 **Verdict: PASS**
 
 How verified (test run output, 2026-06-19 15:29):
+
 ```
 Test Files  1 passed (1)
      Tests  17 passed (17)
@@ -55,6 +61,7 @@ Test Files  1 passed (1)
 ```
 
 The 3 new ST-07 tests (lines 287–352):
+
 1. **"returns 409 patient_folder_move_out when moving from client_patient folder to standard folder"** — covers the blocked move-out case. Mocks `getByIdMock` returning `{ folderId: patientFolderId }`, `isInSubtreeMock` returning true for source, false for target. Asserts `status === 409`, `body.error === "patient_folder_move_out"`, `updateMediaFolderMock` NOT called.
 2. **"allows intra-subtree move from one client_patient folder to another"** — covers allowed intra-subtree. Mocks `isInSubtreeMock.mockResolvedValue(true)`. Asserts `status === 200`, `updateMediaFolderMock` called with correct args.
 3. **"does not trigger ST-07 gate when file is in a standard folder"** — covers pass-through for non-patient files. Mocks `getByIdMock` returning `{ folderId: standardFolderId }`, `isInSubtreeMock` always `false`. Asserts `status === 200`, `updateMediaFolderMock` called.
@@ -62,6 +69,7 @@ The 3 new ST-07 tests (lines 287–352):
 All three clauses are covered and GREEN. The 14 pre-existing tests also pass (no regression).
 
 One test gap noted (not a FAIL — see §Additional findings):
+
 - No test for source file with `folderId: null` (file currently in no folder). The gate is skipped via `if (existingForMove.folderId)` guard, so the file is moved freely. This is correct behavior but untested.
 - No test for target `folderId: null` (move-to-root) from a patient-subtree source. This case is BLOCKED correctly (see Clause 1 edge cases), but no explicit test exists.
 
@@ -72,18 +80,19 @@ One test gap noted (not a FAIL — see §Additional findings):
 **Verdict: FAIL (advisory — raw SQL in `pgIsFolderInClientSubtree`, but it wraps an existing Drizzle CTE fragment)**
 
 How verified:
+
 - `pgClientMediaFolders.ts:248–251`:
   ```ts
   const result = await db.execute(
-    sql`SELECT EXISTS(SELECT 1 FROM (${clientFilesSubtreeFolderIdsSql()}) AS sub WHERE sub.id = ${folderId}::uuid) AS in_subtree`
+    sql`SELECT EXISTS(SELECT 1 FROM (${clientFilesSubtreeFolderIdsSql()}) AS sub WHERE sub.id = ${folderId}::uuid) AS in_subtree`,
   );
   ```
-- `db.execute(sql\`...\`)` is a raw Drizzle SQL execution — not a Drizzle query builder expression. This is raw SQL with Drizzle's `sql` template tag.
+- `db.execute(sql\`...\`)`is a raw Drizzle SQL execution — not a Drizzle query builder expression. This is raw SQL with Drizzle's`sql` template tag.
 - The DoD states: "No raw SQL — only Drizzle ORM; `pgIsFolderInClientSubtree` uses existing Drizzle CTE, not a raw string query."
-- The inner CTE `clientFilesSubtreeFolderIdsSql()` at line 170–179 is itself a `sql\`...\`` fragment — also raw SQL, though it was pre-existing and used in `pgValidateUserAssignableMediaFolder` context.
+- The inner CTE `clientFilesSubtreeFolderIdsSql()` at line 170–179 is itself a `sql\`...\``fragment — also raw SQL, though it was pre-existing and used in`pgValidateUserAssignableMediaFolder` context.
 - The `folderId` parameter is safely interpolated via Drizzle's parameterized `sql` tag (`${folderId}::uuid`), so there is no SQL injection risk.
 
-Assessment: The function uses `db.execute(sql\`...\`)` which is the standard Drizzle pattern for complex queries that cannot be expressed as a pure builder chain (recursive CTEs, EXISTS subqueries wrapping CTEs). The DoD clause says "uses existing Drizzle CTE, not a raw string query" — the CTE IS reused (`clientFilesSubtreeFolderIdsSql()` is interpolated), and the `sql` template tag is Drizzle's own facility (not a raw string concatenation). There is no string concatenation or `db.query.unsafe()`.
+Assessment: The function uses `db.execute(sql\`...\`)` which is the standard Drizzle pattern for complex queries that cannot be expressed as a pure builder chain (recursive CTEs, EXISTS subqueries wrapping CTEs). The DoD clause says "uses existing Drizzle CTE, not a raw string query" — the CTE IS reused (`clientFilesSubtreeFolderIdsSql()`is interpolated), and the`sql`template tag is Drizzle's own facility (not a raw string concatenation). There is no string concatenation or`db.query.unsafe()`.
 
 **Ruling:** ADVISORY — the implementation is consistent with all other CTE/EXISTS patterns in this codebase (e.g. `clientFilesSubtreeFolderIdsSql` itself at line 170–179), uses Drizzle's parameterized `sql` tag, and is not exploitable. The DoD clause is technically unmet if "Drizzle ORM" is read as "query builder only," but the pattern is the idiomatic way to handle this in Drizzle. No security risk.
 

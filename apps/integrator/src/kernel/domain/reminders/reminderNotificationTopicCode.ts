@@ -26,7 +26,8 @@ export function reminderOccurrenceTopicCode(
   }
 
   if (rule) {
-    const intent = typeof rule.reminderIntent === 'string' ? rule.reminderIntent.trim().toLowerCase() : '';
+    const intent =
+      typeof rule.reminderIntent === 'string' ? rule.reminderIntent.trim().toLowerCase() : '';
     if (intent === 'warmup') return WARMUP_TOPIC;
     if (intent === 'exercises' || intent === 'stretch' || intent === 'generic') {
       return TRAINING_TOPIC;

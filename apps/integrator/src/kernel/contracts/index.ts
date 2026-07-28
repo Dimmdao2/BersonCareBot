@@ -30,16 +30,9 @@ export type {
   OutgoingEvent,
 } from './events.js';
 
-export {
-  OUTBOUND_MESSAGE_CAPABILITIES,
-  OUTBOUND_MESSAGE_CLASSES,
-} from './events.js';
+export { OUTBOUND_MESSAGE_CAPABILITIES, OUTBOUND_MESSAGE_CLASSES } from './events.js';
 
-export type {
-  Script,
-  ScriptContext,
-  ScriptId,
-} from './scripts.js';
+export type { Script, ScriptContext, ScriptId } from './scripts.js';
 
 export type {
   Action,
@@ -54,12 +47,7 @@ export type {
   ScriptStep,
 } from './actions.js';
 
-export type {
-  Step,
-  StepMode,
-  StepResult,
-  StepStatus,
-} from './steps.js';
+export type { Step, StepMode, StepResult, StepStatus } from './steps.js';
 
 export type {
   ContentCatalogItem,

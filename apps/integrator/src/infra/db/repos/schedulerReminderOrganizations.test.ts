@@ -27,8 +27,8 @@ describe('listSchedulerReminderOrganizationIds', () => {
   });
 
   it('fails closed when discovery returns an invalid organization id', async () => {
-    await expect(listSchedulerReminderOrganizationIds(dbWithRows([{ organization_id: 'invalid' }]))).rejects.toThrow(
-      'invalid organization id',
-    );
+    await expect(
+      listSchedulerReminderOrganizationIds(dbWithRows([{ organization_id: 'invalid' }])),
+    ).rejects.toThrow('invalid organization id');
   });
 });

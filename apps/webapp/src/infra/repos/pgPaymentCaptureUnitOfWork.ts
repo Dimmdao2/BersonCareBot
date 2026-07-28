@@ -1,10 +1,10 @@
-import { runWithDbOrganizationPrincipal } from "@bersoncare/db-principal";
-import { runInDrizzleMutationTransaction } from "@/infra/db/drizzleMutationTx";
-import { withClient } from "@/infra/db/withClient";
-import { pgSessionAdvisoryLock, pgSessionAdvisoryUnlock } from "@/infra/db/pgAdvisoryLock";
-import type { PaymentCaptureUnitOfWork } from "@/modules/payments/ports";
+import { runWithDbOrganizationPrincipal } from '@bersoncare/db-principal';
+import { runInDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
+import { withClient } from '@/infra/db/withClient';
+import { pgSessionAdvisoryLock, pgSessionAdvisoryUnlock } from '@/infra/db/pgAdvisoryLock';
+import type { PaymentCaptureUnitOfWork } from '@/modules/payments/ports';
 
-const DELIVERY_LOCK_PREFIX = "payment_capture_delivery:";
+const DELIVERY_LOCK_PREFIX = 'payment_capture_delivery:';
 
 /**
  * One database transaction for the durable payment-capture consequences.
@@ -13,7 +13,9 @@ const DELIVERY_LOCK_PREFIX = "payment_capture_delivery:";
 export function createPgPaymentCaptureUnitOfWork(): PaymentCaptureUnitOfWork {
   return {
     run(organizationId, fn) {
-      return runWithDbOrganizationPrincipal(organizationId, () => runInDrizzleMutationTransaction(fn));
+      return runWithDbOrganizationPrincipal(organizationId, () =>
+        runInDrizzleMutationTransaction(fn),
+      );
     },
     runSerializedPostCommit(organizationId, captureKey, fn) {
       const lockKey = `${DELIVERY_LOCK_PREFIX}${organizationId}:${captureKey}`;

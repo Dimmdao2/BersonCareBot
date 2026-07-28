@@ -42,10 +42,16 @@ async function runProjectionWorkerTickInner(
         await completeProjectionEvent(db, ev.id);
       } else if (!isRecoverableWebappEmitFailure(result)) {
         await failProjectionEvent(db, ev.id, result.error ?? `HTTP ${result.status}`);
-        logger.warn({ eventId: ev.id, eventType: ev.eventType, attempt }, 'projection event moved to DLQ (non-recoverable emit)');
+        logger.warn(
+          { eventId: ev.id, eventType: ev.eventType, attempt },
+          'projection event moved to DLQ (non-recoverable emit)',
+        );
       } else if (attempt >= ev.maxAttempts) {
         await failProjectionEvent(db, ev.id, result.error ?? `HTTP ${result.status}`);
-        logger.warn({ eventId: ev.id, eventType: ev.eventType, attempt }, 'projection event moved to DLQ');
+        logger.warn(
+          { eventId: ev.id, eventType: ev.eventType, attempt },
+          'projection event moved to DLQ',
+        );
       } else {
         const delay = Math.min(MAX_BACKOFF_SECONDS, RETRY_BASE_SECONDS * Math.pow(2, attempt - 1));
         await rescheduleProjectionEvent(db, ev.id, attempt, delay);

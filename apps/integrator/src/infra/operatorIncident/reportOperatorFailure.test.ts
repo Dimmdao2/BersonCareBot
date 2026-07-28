@@ -92,18 +92,22 @@ describe('reportOperatorFailure', () => {
     expect(firstPayload.payloadJson.incidentId).not.toBe('4242');
     expect(firstPayload.eventId).not.toContain('4242');
     expect(firstPayload.payloadJson.intent.meta.eventId).not.toContain('4242');
-    expect(firstPayload.payloadJson.intent.meta.eventId).toMatch(/^op-inc:outbound:max:max_send_failed:[a-f0-9]{32}$/);
+    expect(firstPayload.payloadJson.intent.meta.eventId).toMatch(
+      /^op-inc:outbound:max:max_send_failed:[a-f0-9]{32}$/,
+    );
   });
 
   it('fails closed before enqueue when the protected HMAC key is unavailable', async () => {
     delete process.env.DB_PRINCIPAL_SIGNING_SECRET;
 
-    await expect(reportOperatorFailure({
-      direction: 'outbound',
-      integration: 'max',
-      errorClass: 'max_send_failed',
-      alertLines: ['send failed'],
-    })).rejects.toThrow('required for operator recipient pseudonymization');
+    await expect(
+      reportOperatorFailure({
+        direction: 'outbound',
+        integration: 'max',
+        errorClass: 'max_send_failed',
+        alertLines: ['send failed'],
+      }),
+    ).rejects.toThrow('required for operator recipient pseudonymization');
     expect(enqueueMock).not.toHaveBeenCalled();
   });
 
@@ -193,7 +197,18 @@ describe('reportOperatorFailure', () => {
       const call = enqueueMock.mock.calls[0]![1] as {
         channel: string;
         kind: string;
-        payloadJson: { incidentId: string; intent: { type: string; meta: { source: string }; payload: { recipient: { userId: number }; message: { text: string }; delivery: { channels: string[] } } } };
+        payloadJson: {
+          incidentId: string;
+          intent: {
+            type: string;
+            meta: { source: string };
+            payload: {
+              recipient: { userId: number };
+              message: { text: string };
+              delivery: { channels: string[] };
+            };
+          };
+        };
       };
       expect(call.channel).toBe('max');
       expect(call.kind).toBe('operator_alert');
@@ -218,7 +233,9 @@ describe('reportOperatorFailure', () => {
 
       expect(enqueueMock).toHaveBeenCalledTimes(2);
       const userIds = enqueueMock.mock.calls.map(
-        (c) => (c[1] as { payloadJson: { intent: { payload: { recipient: { userId: number } } } } }).payloadJson.intent.payload.recipient.userId,
+        (c) =>
+          (c[1] as { payloadJson: { intent: { payload: { recipient: { userId: number } } } } })
+            .payloadJson.intent.payload.recipient.userId,
       );
       expect(userIds).toContain(111);
       expect(userIds).toContain(222);

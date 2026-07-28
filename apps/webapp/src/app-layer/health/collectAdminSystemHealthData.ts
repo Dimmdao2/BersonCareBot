@@ -1,12 +1,12 @@
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentCorrelationIdHeader } from "@bersoncare/db-principal";
-import { env, isS3MediaEnabled } from "@/config/env";
-import { logger } from "@/app-layer/logging/logger";
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { getCurrentCorrelationIdHeader } from '@bersoncare/db-principal';
+import { env, isS3MediaEnabled } from '@/config/env';
+import { logger } from '@/app-layer/logging/logger';
 import {
   ADMIN_PLAYBACK_METRICS_WINDOW_HOURS,
   ADMIN_PLAYBACK_CLIENT_ERRORS_1H_DEGRADED,
-} from "@/app-layer/media/adminPlaybackHealthMetrics";
-import { ADMIN_HLS_PROXY_METRICS_WINDOW_HOURS } from "@/app-layer/media/adminHlsProxyHealthMetrics";
+} from '@/app-layer/media/adminPlaybackHealthMetrics';
+import { ADMIN_HLS_PROXY_METRICS_WINDOW_HOURS } from '@/app-layer/media/adminHlsProxyHealthMetrics';
 import {
   OPERATOR_HEALTH_JOB_FAMILY,
   OPERATOR_MEDIA_JOB_FAMILY,
@@ -14,52 +14,55 @@ import {
   OPERATOR_OUTBOUND_PROBE_JOB_KEY,
   OPERATOR_REMINDERS_JOB_FAMILY,
   OPERATOR_WEB_PUSH_ONLY_REMINDER_TICK_JOB_KEY,
-} from "@/modules/operator-health/reconcileJobKeys";
+} from '@/modules/operator-health/reconcileJobKeys';
 import {
   buildIntegrationsHealthSnapshot,
   emptyIntegrationsHealthSnapshot,
   type IntegrationsHealthSnapshot,
-} from "@/modules/operator-health/integrationHealthSnapshot";
-import { readProbeConsecutiveFailRuns } from "@/modules/operator-health/probeOutboundMeta";
-import { classifyWebPushOnlyReminderTickSystemHealthStatus } from "@/modules/operator-health/adminHealthThresholds";
-import { proxyIntegratorProjectionHealth } from "@/app-layer/health/proxyIntegratorProjectionHealth";
+} from '@/modules/operator-health/integrationHealthSnapshot';
+import { readProbeConsecutiveFailRuns } from '@/modules/operator-health/probeOutboundMeta';
+import { classifyWebPushOnlyReminderTickSystemHealthStatus } from '@/modules/operator-health/adminHealthThresholds';
+import { proxyIntegratorProjectionHealth } from '@/app-layer/health/proxyIntegratorProjectionHealth';
 import type {
   IntegratorPushOutboxHealthSnapshot,
   OperatorJobStatusTickRow,
-} from "@/modules/operator-health/ports";
-import { classifyIntegratorPushOutboxSystemHealthStatus } from "@/modules/operator-health/integratorPushOutboxHealth";
-import { collectCronJobsHealth, type CronJobsHealthPayload } from "@/app-layer/health/collectCronJobsHealth";
+} from '@/modules/operator-health/ports';
+import { classifyIntegratorPushOutboxSystemHealthStatus } from '@/modules/operator-health/integratorPushOutboxHealth';
+import {
+  collectCronJobsHealth,
+  type CronJobsHealthPayload,
+} from '@/app-layer/health/collectCronJobsHealth';
 import {
   ADMIN_DELIVERY_DUE_BACKLOG_WARNING,
   classifyVideoTranscodeSystemHealthStatus,
-} from "@/modules/operator-health/adminHealthThresholds";
-import type { RemindersPipelineHealthPayload } from "@/app-layer/health/adminReminderPipelineMetrics";
+} from '@/modules/operator-health/adminHealthThresholds';
+import type { RemindersPipelineHealthPayload } from '@/app-layer/health/adminReminderPipelineMetrics';
 import {
   classifyWebPushSystemHealthStatus,
   type WebPushHealthPayload,
-} from "@/app-layer/health/adminWebPushHealthMetrics";
+} from '@/app-layer/health/adminWebPushHealthMetrics';
 import {
   classifyNotificationDeliverySystemHealthStatus,
   emptyNotificationDeliveryHealthPayload,
   type NotificationDeliveryHealthPayload,
-} from "@/app-layer/health/adminNotificationDeliveryHealthMetrics";
+} from '@/app-layer/health/adminNotificationDeliveryHealthMetrics';
 import {
   SAAS_ISOLATION_DIAGNOSTICS_SCHEMA_VERSION,
   emptySaasIsolationTrend,
   type SaasIsolationHealthPayload,
-} from "@/modules/operator-health/saasIsolationDiagnostics";
+} from '@/modules/operator-health/saasIsolationDiagnostics';
 import {
   loadCuratedPlaybackHealthSnapshot,
   loadCuratedSystemHealthSnapshot,
   type CuratedPlaybackHealthSnapshot,
   type CuratedSystemHealthSnapshot,
-} from "@/infra/repos/pgCuratedSystemHealthDiagnostics";
+} from '@/infra/repos/pgCuratedSystemHealthDiagnostics';
 
 const INTEGRATOR_TIMEOUT_MS = 8_000;
 
-type DbStatus = "up" | "down";
-type IntegratorApiStatus = "ok" | "unreachable" | "error";
-type ProjectionStatus = "ok" | "degraded" | "unreachable" | "error";
+type DbStatus = 'up' | 'down';
+type IntegratorApiStatus = 'ok' | 'unreachable' | 'error';
+type ProjectionStatus = 'ok' | 'degraded' | 'unreachable' | 'error';
 
 type ProjectionSnapshot = {
   deadCount?: number;
@@ -72,16 +75,16 @@ type ProjectionSnapshot = {
   lastSuccessAt?: string | null;
 } & Record<string, unknown>;
 
-type PreviewStatus = "pending" | "ready" | "failed" | "skipped";
-type PreviewMime = "video/quicktime" | "image/heic" | "image/heif";
-type MediaPreviewStatus = "ok" | "degraded" | "error";
+type PreviewStatus = 'pending' | 'ready' | 'failed' | 'skipped';
+type PreviewMime = 'video/quicktime' | 'image/heic' | 'image/heif';
+type MediaPreviewStatus = 'ok' | 'degraded' | 'error';
 type MediaPreviewCounters = Record<PreviewMime, Record<PreviewStatus, number>>;
 
-const PREVIEW_STATUSES: PreviewStatus[] = ["pending", "ready", "failed", "skipped"];
-const PREVIEW_MIMES: PreviewMime[] = ["video/quicktime", "image/heic", "image/heif"];
+const PREVIEW_STATUSES: PreviewStatus[] = ['pending', 'ready', 'failed', 'skipped'];
+const PREVIEW_MIMES: PreviewMime[] = ['video/quicktime', 'image/heic', 'image/heif'];
 
-type VideoPlaybackHealthStatus = "ok" | "error";
-type VideoPlaybackClientHealthStatus = "ok" | "degraded" | "error";
+type VideoPlaybackHealthStatus = 'ok' | 'error';
+type VideoPlaybackClientHealthStatus = 'ok' | 'degraded' | 'error';
 
 type VideoPlaybackHealthPayload = {
   status: VideoPlaybackHealthStatus;
@@ -130,18 +133,18 @@ type VideoPlaybackClientHealthPayload = {
     createdAt: string;
     mediaId: string;
     eventClass:
-      | "hls_fatal"
-      | "video_error"
-      | "hls_import_failed"
-      | "playback_refetch_failed"
-      | "playback_refetch_exception"
-      | "hls_js_unsupported";
-    delivery: "hls" | "mp4" | "file" | null;
+      | 'hls_fatal'
+      | 'video_error'
+      | 'hls_import_failed'
+      | 'playback_refetch_failed'
+      | 'playback_refetch_exception'
+      | 'hls_js_unsupported';
+    delivery: 'hls' | 'mp4' | 'file' | null;
     errorDetail: string | null;
   }>;
 };
 
-type VideoHlsProxyHealthStatus = "ok" | "degraded" | "error";
+type VideoHlsProxyHealthStatus = 'ok' | 'degraded' | 'error';
 
 type VideoHlsProxyHealthPayload = {
   status: VideoHlsProxyHealthStatus;
@@ -159,7 +162,7 @@ type VideoHlsProxyHealthPayload = {
   }>;
 };
 
-type VideoTranscodeHealthStatus = "ok" | "degraded" | "error";
+type VideoTranscodeHealthStatus = 'ok' | 'degraded' | 'error';
 
 /** Снимок строки `operator_job_status` для periodic internal job ticks. */
 export type OperatorJobStatusTickPayload = {
@@ -236,7 +239,7 @@ export type SystemHealthResponse = {
   webappDb: DbStatus;
   integratorApi: { status: IntegratorApiStatus; db?: DbStatus };
   projection: { status: ProjectionStatus; snapshot?: ProjectionSnapshot };
-  mediaCronWorkers: { status: "configured" | "not_configured" };
+  mediaCronWorkers: { status: 'configured' | 'not_configured' };
   mediaPreview: {
     status: MediaPreviewStatus;
     stalePendingCount: number;
@@ -270,7 +273,7 @@ export type SystemHealthResponse = {
   webPush: WebPushHealthPayload;
   /** Cron `POST /api/internal/reminders/web-push-only/tick` (`operator_job_status`). */
   webPushOnlyReminderTick: {
-    status: "ok" | "degraded" | "error" | "no_data";
+    status: 'ok' | 'degraded' | 'error' | 'no_data';
     lastTick: OperatorJobStatusTickPayload | null;
   };
   /** Фактические попытки доставки по каналам (`notification_delivery_attempts`), 24 ч. */
@@ -314,7 +317,7 @@ export type { CronJobsHealthPayload };
 
 type ProbeResult<T> =
   | { ok: true; value: T; durationMs: number }
-  | { ok: false; status: "unreachable" | "error"; errorCode: string; durationMs: number };
+  | { ok: false; status: 'unreachable' | 'error'; errorCode: string; durationMs: number };
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -325,79 +328,81 @@ function elapsedMs(start: number): number {
 }
 
 function asObject(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === "object" ? (value as Record<string, unknown>) : null;
+  return value !== null && typeof value === 'object' ? (value as Record<string, unknown>) : null;
 }
 
 function toDbStatus(value: unknown): DbStatus | undefined {
-  return value === "up" || value === "down" ? value : undefined;
+  return value === 'up' || value === 'down' ? value : undefined;
 }
 
 function toProjectionStatus(snapshot: ProjectionSnapshot): ProjectionStatus {
-  const deadCount = typeof snapshot.deadCount === "number" ? snapshot.deadCount : 0;
+  const deadCount = typeof snapshot.deadCount === 'number' ? snapshot.deadCount : 0;
   const retriesOverThreshold =
-    typeof snapshot.retriesOverThreshold === "number" ? snapshot.retriesOverThreshold : 0;
-  return deadCount > 0 || retriesOverThreshold > 0 ? "degraded" : "ok";
+    typeof snapshot.retriesOverThreshold === 'number' ? snapshot.retriesOverThreshold : 0;
+  return deadCount > 0 || retriesOverThreshold > 0 ? 'degraded' : 'ok';
 }
 
 async function probeWebappDb(): Promise<ProbeResult<DbStatus>> {
   const startedAt = Date.now();
   try {
     const dbOk = await buildAppDeps().health.checkDbHealth();
-    return { ok: true, value: dbOk ? "up" : "down", durationMs: elapsedMs(startedAt) };
+    return { ok: true, value: dbOk ? 'up' : 'down', durationMs: elapsedMs(startedAt) };
   } catch {
     return {
       ok: false,
-      status: "error",
-      errorCode: "webapp_db_check_failed",
+      status: 'error',
+      errorCode: 'webapp_db_check_failed',
       durationMs: elapsedMs(startedAt),
     };
   }
 }
 
-async function probeIntegratorApi(): Promise<ProbeResult<{ status: "ok"; db?: DbStatus }>> {
+async function probeIntegratorApi(): Promise<ProbeResult<{ status: 'ok'; db?: DbStatus }>> {
   const startedAt = Date.now();
-  const base = (env.INTEGRATOR_API_URL ?? "").replace(/\/$/, "");
+  const base = (env.INTEGRATOR_API_URL ?? '').replace(/\/$/, '');
   if (!base) {
     return {
       ok: false,
-      status: "error",
-      errorCode: "integrator_url_not_configured",
+      status: 'error',
+      errorCode: 'integrator_url_not_configured',
       durationMs: elapsedMs(startedAt),
     };
   }
 
   try {
     const res = await fetch(`${base}/health`, {
-      method: "GET",
-      headers: { Accept: "application/json", ...getCurrentCorrelationIdHeader() },
-      cache: "no-store",
+      method: 'GET',
+      headers: { Accept: 'application/json', ...getCurrentCorrelationIdHeader() },
+      cache: 'no-store',
       signal: AbortSignal.timeout(INTEGRATOR_TIMEOUT_MS),
     });
     const body = asObject(await res.json().catch(() => null));
     if (res.ok && body?.ok === true) {
       return {
         ok: true,
-        value: { status: "ok", db: toDbStatus(body.db) },
+        value: { status: 'ok', db: toDbStatus(body.db) },
         durationMs: elapsedMs(startedAt),
       };
     }
     return {
       ok: false,
-      status: "error",
-      errorCode: "integrator_health_non_ok",
+      status: 'error',
+      errorCode: 'integrator_health_non_ok',
       durationMs: elapsedMs(startedAt),
     };
   } catch {
     return {
       ok: false,
-      status: "unreachable",
-      errorCode: "integrator_health_unreachable",
+      status: 'unreachable',
+      errorCode: 'integrator_health_unreachable',
       durationMs: elapsedMs(startedAt),
     };
   }
 }
 
-async function probeProjection(): Promise<ProbeResult<{ status: ProjectionStatus; snapshot?: ProjectionSnapshot }>> {
+async function probeProjection(): Promise<
+  ProbeResult<{ status: ProjectionStatus; snapshot?: ProjectionSnapshot }>
+> {
   const startedAt = Date.now();
   try {
     const response = await proxyIntegratorProjectionHealth();
@@ -405,16 +410,16 @@ async function probeProjection(): Promise<ProbeResult<{ status: ProjectionStatus
     if (payload == null) {
       return {
         ok: false,
-        status: "error",
-        errorCode: "projection_invalid_payload",
+        status: 'error',
+        errorCode: 'projection_invalid_payload',
         durationMs: elapsedMs(startedAt),
       };
     }
     if (!response.ok) {
-      const code = typeof payload.error === "string" ? payload.error : "projection_probe_failed";
+      const code = typeof payload.error === 'string' ? payload.error : 'projection_probe_failed';
       return {
         ok: false,
-        status: code.includes("unreachable") ? "unreachable" : "error",
+        status: code.includes('unreachable') ? 'unreachable' : 'error',
         errorCode: code,
         durationMs: elapsedMs(startedAt),
       };
@@ -428,8 +433,8 @@ async function probeProjection(): Promise<ProbeResult<{ status: ProjectionStatus
   } catch {
     return {
       ok: false,
-      status: "error",
-      errorCode: "projection_probe_exception",
+      status: 'error',
+      errorCode: 'projection_probe_exception',
       durationMs: elapsedMs(startedAt),
     };
   }
@@ -458,13 +463,19 @@ export function computeMediaPreviewStatus(
   // только ЗАСТРЯВШИЙ pending (> 30 минут, считается внутри curated-агрегата);
   // реальный сбой генерации (failed) — это error. Иначе любая свежезагруженная
   // картинка с pending-превью ложно красила всю панель в «degraded».
-  if (failedCount > 0) return "error";
-  if (stalePendingCount > 0) return "degraded";
-  return "ok";
+  if (failedCount > 0) return 'error';
+  if (stalePendingCount > 0) return 'degraded';
+  return 'ok';
 }
 
-async function probeMediaPreview(snapshot: CuratedSystemHealthSnapshot): Promise<
-  ProbeResult<{ status: MediaPreviewStatus; stalePendingCount: number; byMimeAndStatus: MediaPreviewCounters }>
+async function probeMediaPreview(
+  snapshot: CuratedSystemHealthSnapshot,
+): Promise<
+  ProbeResult<{
+    status: MediaPreviewStatus;
+    stalePendingCount: number;
+    byMimeAndStatus: MediaPreviewCounters;
+  }>
 > {
   const startedAt = Date.now();
   try {
@@ -487,8 +498,8 @@ async function probeMediaPreview(snapshot: CuratedSystemHealthSnapshot): Promise
   } catch {
     return {
       ok: false,
-      status: "error",
-      errorCode: "media_preview_probe_failed",
+      status: 'error',
+      errorCode: 'media_preview_probe_failed',
       durationMs: elapsedMs(startedAt),
     };
   }
@@ -513,7 +524,9 @@ function emptyVideoPlaybackPayload(
   };
 }
 
-function emptyVideoPlaybackClientPayload(status: VideoPlaybackClientHealthStatus): VideoPlaybackClientHealthPayload {
+function emptyVideoPlaybackClientPayload(
+  status: VideoPlaybackClientHealthStatus,
+): VideoPlaybackClientHealthPayload {
   return {
     status,
     windowHours: ADMIN_PLAYBACK_METRICS_WINDOW_HOURS,
@@ -589,7 +602,7 @@ async function probeVideoPlayback(
       return {
         ok: true,
         value: {
-          status: "ok",
+          status: 'ok',
           windowHours: ADMIN_PLAYBACK_METRICS_WINDOW_HOURS,
           windowHoursShort: 1,
           playbackApiEnabled: false,
@@ -605,15 +618,15 @@ async function probeVideoPlayback(
       };
     }
 
-    if (!curatedPlayback) throw new Error("curated_playback_snapshot_missing");
+    if (!curatedPlayback) throw new Error('curated_playback_snapshot_missing');
     const metrics = await curatedPlayback;
-    const metrics24 = metrics["24"];
-    const metrics1 = metrics["1"];
+    const metrics24 = metrics['24'];
+    const metrics1 = metrics['1'];
 
     return {
       ok: true,
       value: {
-        status: "ok",
+        status: 'ok',
         windowHours: ADMIN_PLAYBACK_METRICS_WINDOW_HOURS,
         windowHoursShort: 1,
         playbackApiEnabled: true,
@@ -630,8 +643,8 @@ async function probeVideoPlayback(
   } catch {
     return {
       ok: false,
-      status: "error",
-      errorCode: "video_playback_probe_failed",
+      status: 'error',
+      errorCode: 'video_playback_probe_failed',
       durationMs: elapsedMs(startedAt),
     };
   }
@@ -644,7 +657,7 @@ async function probeVideoPlaybackClient(
   try {
     const m = snapshot.videoPlaybackClient;
     const status: VideoPlaybackClientHealthStatus =
-      m.totalErrorsLast1h >= ADMIN_PLAYBACK_CLIENT_ERRORS_1H_DEGRADED ? "degraded" : "ok";
+      m.totalErrorsLast1h >= ADMIN_PLAYBACK_CLIENT_ERRORS_1H_DEGRADED ? 'degraded' : 'ok';
     return {
       ok: true,
       value: {
@@ -663,8 +676,8 @@ async function probeVideoPlaybackClient(
   } catch {
     return {
       ok: false,
-      status: "error",
-      errorCode: "video_playback_client_probe_failed",
+      status: 'error',
+      errorCode: 'video_playback_client_probe_failed',
       durationMs: elapsedMs(startedAt),
     };
   }
@@ -679,14 +692,14 @@ async function probeVideoHlsProxy(
     if (!playbackApiEnabled) {
       return {
         ok: true,
-        value: emptyVideoHlsProxyPayload("ok"),
+        value: emptyVideoHlsProxyPayload('ok'),
         durationMs: elapsedMs(startedAt),
       };
     }
 
-    if (!curatedPlayback) throw new Error("curated_playback_snapshot_missing");
+    if (!curatedPlayback) throw new Error('curated_playback_snapshot_missing');
     const m = (await curatedPlayback).hlsProxy;
-    const status: VideoHlsProxyHealthStatus = m.degraded ? "degraded" : "ok";
+    const status: VideoHlsProxyHealthStatus = m.degraded ? 'degraded' : 'ok';
     return {
       ok: true,
       value: {
@@ -704,16 +717,18 @@ async function probeVideoHlsProxy(
   } catch {
     return {
       ok: false,
-      status: "error",
-      errorCode: "video_hls_proxy_probe_failed",
+      status: 'error',
+      errorCode: 'video_hls_proxy_probe_failed',
       durationMs: elapsedMs(startedAt),
     };
   }
 }
 
-type CuratedOperatorJob = CuratedSystemHealthSnapshot["operatorJobs"][number];
+type CuratedOperatorJob = CuratedSystemHealthSnapshot['operatorJobs'][number];
 
-function operatorJobStatusRowToTickPayload(tickRow: OperatorJobStatusTickRow): OperatorJobStatusTickPayload {
+function operatorJobStatusRowToTickPayload(
+  tickRow: OperatorJobStatusTickRow,
+): OperatorJobStatusTickPayload {
   return {
     jobKey: tickRow.jobKey,
     jobFamily: tickRow.jobFamily,
@@ -761,8 +776,8 @@ async function probeCuratedSystemHealth(): Promise<ProbeResult<CuratedSystemHeal
   } catch {
     return {
       ok: false,
-      status: "error",
-      errorCode: "curated_system_health_read_failed",
+      status: 'error',
+      errorCode: 'curated_system_health_read_failed',
       durationMs: elapsedMs(startedAt),
     };
   }
@@ -779,8 +794,8 @@ async function probeSaasIsolation(): Promise<ProbeResult<SaasIsolationHealthPayl
   } catch {
     return {
       ok: false,
-      status: "error",
-      errorCode: "saas_isolation_read_failed",
+      status: 'error',
+      errorCode: 'saas_isolation_read_failed',
       durationMs: elapsedMs(startedAt),
     };
   }
@@ -788,28 +803,28 @@ async function probeSaasIsolation(): Promise<ProbeResult<SaasIsolationHealthPayl
 
 function logProbe(
   probe:
-    | "webapp_db"
-    | "integrator_api"
-    | "projection"
-    | "media_preview"
-    | "video_playback"
-    | "video_playback_client"
-    | "video_hls_proxy"
-    | "video_transcode"
-    | "operator_incidents"
-    | "operator_backup_jobs"
-    | "outgoing_delivery"
-    | "integrator_push_outbox"
-    | "reminders_pipeline"
-    | "web_push"
-    | "web_push_only_reminder_tick"
-    | "notification_delivery"
-    | "cron_jobs"
-    | "saas_isolation",
+    | 'webapp_db'
+    | 'integrator_api'
+    | 'projection'
+    | 'media_preview'
+    | 'video_playback'
+    | 'video_playback_client'
+    | 'video_hls_proxy'
+    | 'video_transcode'
+    | 'operator_incidents'
+    | 'operator_backup_jobs'
+    | 'outgoing_delivery'
+    | 'integrator_push_outbox'
+    | 'reminders_pipeline'
+    | 'web_push'
+    | 'web_push_only_reminder_tick'
+    | 'notification_delivery'
+    | 'cron_jobs'
+    | 'saas_isolation',
   result: ProbeResult<unknown>,
   statusOverride?: string,
 ) {
-  const status = statusOverride ?? (result.ok ? "ok" : result.status);
+  const status = statusOverride ?? (result.ok ? 'ok' : result.status);
   const payload = {
     probe,
     status,
@@ -817,9 +832,9 @@ function logProbe(
     errorCode: result.ok ? undefined : result.errorCode,
   };
   if (result.ok) {
-    logger.info(payload, "system_health_probe");
+    logger.info(payload, 'system_health_probe');
   } else {
-    logger.warn(payload, "system_health_probe");
+    logger.warn(payload, 'system_health_probe');
   }
 }
 
@@ -849,8 +864,8 @@ const emptyIntegratorPushOutboxHealthPayload = (): IntegratorPushOutboxHealthPay
 
 const emptySaasIsolationHealthPayload = (): SaasIsolationHealthPayload => ({
   schemaVersion: SAAS_ISOLATION_DIAGNOSTICS_SCHEMA_VERSION,
-  status: "incomplete",
-  statusReasons: ["coverage_missing"],
+  status: 'incomplete',
+  statusReasons: ['coverage_missing'],
   active: { unexplained: 0, explained: 0, occurrences: 0 },
   resolved: { unexplained: 0, explained: 0, occurrences: 0 },
   byClass: {},
@@ -859,20 +874,19 @@ const emptySaasIsolationHealthPayload = (): SaasIsolationHealthPayload => ({
   lastCoverage: null,
   coverageFresh: false,
   coverageComplete: false,
-  missingServices: ["webapp", "integrator", "worker", "scheduler", "media_worker", "cron"],
+  missingServices: ['webapp', 'integrator', 'worker', 'scheduler', 'media_worker', 'cron'],
   trend: emptySaasIsolationTrend(),
 });
 
 export async function collectAdminSystemHealthData(): Promise<SystemHealthResponse> {
   const curatedResult = await probeCuratedSystemHealth();
   const playbackEnabled = curatedResult.ok ? curatedResult.value.config.playbackEnabled : false;
-  const curatedFailureStatus = curatedResult.ok ? "error" as const : curatedResult.status;
+  const curatedFailureStatus = curatedResult.ok ? ('error' as const) : curatedResult.status;
   const curatedFailureCode = curatedResult.ok
-    ? "curated_system_health_unavailable"
+    ? 'curated_system_health_unavailable'
     : curatedResult.errorCode;
-  const curatedPlayback = curatedResult.ok && playbackEnabled
-    ? loadCuratedPlaybackHealthSnapshot()
-    : null;
+  const curatedPlayback =
+    curatedResult.ok && playbackEnabled ? loadCuratedPlaybackHealthSnapshot() : null;
 
   const [
     webappDb,
@@ -883,99 +897,105 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
     videoPlaybackClient,
     videoHlsProxy,
     saasIsolation,
-  ] =
-    await Promise.allSettled([
-      probeWebappDb(),
-      probeIntegratorApi(),
-      probeProjection(),
-      curatedResult.ok
-        ? probeMediaPreview(curatedResult.value)
-        : Promise.resolve<ProbeResult<{
+  ] = await Promise.allSettled([
+    probeWebappDb(),
+    probeIntegratorApi(),
+    probeProjection(),
+    curatedResult.ok
+      ? probeMediaPreview(curatedResult.value)
+      : Promise.resolve<
+          ProbeResult<{
             status: MediaPreviewStatus;
             stalePendingCount: number;
             byMimeAndStatus: MediaPreviewCounters;
-          }>>({
-            ok: false,
-            status: "error",
-            errorCode: "curated_system_health_unavailable",
-            durationMs: curatedResult.durationMs,
-          }),
-      curatedResult.ok
-        ? probeVideoPlayback(playbackEnabled, curatedPlayback)
-        : Promise.resolve<ProbeResult<VideoPlaybackHealthPayload>>({
-            ok: false,
-            status: "error",
-            errorCode: "curated_config_unavailable",
-            durationMs: curatedResult.durationMs,
-          }),
-      curatedResult.ok
-        ? probeVideoPlaybackClient(curatedResult.value)
-        : Promise.resolve<ProbeResult<VideoPlaybackClientHealthPayload>>({
-            ok: false,
-            status: "error",
-            errorCode: "curated_system_health_unavailable",
-            durationMs: curatedResult.durationMs,
-          }),
-      curatedResult.ok
-        ? probeVideoHlsProxy(playbackEnabled, curatedPlayback)
-        : Promise.resolve<ProbeResult<VideoHlsProxyHealthPayload>>({
-            ok: false,
-            status: "error",
-            errorCode: "curated_config_unavailable",
-            durationMs: curatedResult.durationMs,
-          }),
-      probeSaasIsolation(),
-    ]);
+          }>
+        >({
+          ok: false,
+          status: 'error',
+          errorCode: 'curated_system_health_unavailable',
+          durationMs: curatedResult.durationMs,
+        }),
+    curatedResult.ok
+      ? probeVideoPlayback(playbackEnabled, curatedPlayback)
+      : Promise.resolve<ProbeResult<VideoPlaybackHealthPayload>>({
+          ok: false,
+          status: 'error',
+          errorCode: 'curated_config_unavailable',
+          durationMs: curatedResult.durationMs,
+        }),
+    curatedResult.ok
+      ? probeVideoPlaybackClient(curatedResult.value)
+      : Promise.resolve<ProbeResult<VideoPlaybackClientHealthPayload>>({
+          ok: false,
+          status: 'error',
+          errorCode: 'curated_system_health_unavailable',
+          durationMs: curatedResult.durationMs,
+        }),
+    curatedResult.ok
+      ? probeVideoHlsProxy(playbackEnabled, curatedPlayback)
+      : Promise.resolve<ProbeResult<VideoHlsProxyHealthPayload>>({
+          ok: false,
+          status: 'error',
+          errorCode: 'curated_config_unavailable',
+          durationMs: curatedResult.durationMs,
+        }),
+    probeSaasIsolation(),
+  ]);
 
   const webappDbResult: ProbeResult<DbStatus> =
-    webappDb.status === "fulfilled"
+    webappDb.status === 'fulfilled'
       ? webappDb.value
-      : { ok: false, status: "error", errorCode: "webapp_db_probe_rejected", durationMs: 0 };
+      : { ok: false, status: 'error', errorCode: 'webapp_db_probe_rejected', durationMs: 0 };
 
-  const integratorApiResult: ProbeResult<{ status: "ok"; db?: DbStatus }> =
-    integratorApi.status === "fulfilled"
+  const integratorApiResult: ProbeResult<{ status: 'ok'; db?: DbStatus }> =
+    integratorApi.status === 'fulfilled'
       ? integratorApi.value
-      : { ok: false, status: "error", errorCode: "integrator_probe_rejected", durationMs: 0 };
+      : { ok: false, status: 'error', errorCode: 'integrator_probe_rejected', durationMs: 0 };
 
   const projectionResult: ProbeResult<{ status: ProjectionStatus; snapshot?: ProjectionSnapshot }> =
-    projection.status === "fulfilled"
+    projection.status === 'fulfilled'
       ? projection.value
-      : { ok: false, status: "error", errorCode: "projection_probe_rejected", durationMs: 0 };
+      : { ok: false, status: 'error', errorCode: 'projection_probe_rejected', durationMs: 0 };
   const mediaPreviewResult: ProbeResult<{
     status: MediaPreviewStatus;
     stalePendingCount: number;
     byMimeAndStatus: MediaPreviewCounters;
   }> =
-    mediaPreview.status === "fulfilled"
+    mediaPreview.status === 'fulfilled'
       ? mediaPreview.value
-      : { ok: false, status: "error", errorCode: "media_preview_probe_rejected", durationMs: 0 };
+      : { ok: false, status: 'error', errorCode: 'media_preview_probe_rejected', durationMs: 0 };
 
   const videoPlaybackResult: ProbeResult<VideoPlaybackHealthPayload> =
-    videoPlayback.status === "fulfilled"
+    videoPlayback.status === 'fulfilled'
       ? videoPlayback.value
-      : { ok: false, status: "error", errorCode: "video_playback_probe_rejected", durationMs: 0 };
+      : { ok: false, status: 'error', errorCode: 'video_playback_probe_rejected', durationMs: 0 };
 
   const videoPlaybackPayload: VideoPlaybackHealthPayload = videoPlaybackResult.ok
     ? videoPlaybackResult.value
-    : emptyVideoPlaybackPayload("error", playbackEnabled);
+    : emptyVideoPlaybackPayload('error', playbackEnabled);
 
   const videoPlaybackClientResult: ProbeResult<VideoPlaybackClientHealthPayload> =
-    videoPlaybackClient.status === "fulfilled"
+    videoPlaybackClient.status === 'fulfilled'
       ? videoPlaybackClient.value
-      : { ok: false, status: "error", errorCode: "video_playback_client_probe_rejected", durationMs: 0 };
+      : {
+          ok: false,
+          status: 'error',
+          errorCode: 'video_playback_client_probe_rejected',
+          durationMs: 0,
+        };
 
   const videoPlaybackClientPayload: VideoPlaybackClientHealthPayload = videoPlaybackClientResult.ok
     ? videoPlaybackClientResult.value
-    : emptyVideoPlaybackClientPayload("error");
+    : emptyVideoPlaybackClientPayload('error');
 
   const videoHlsProxyResult: ProbeResult<VideoHlsProxyHealthPayload> =
-    videoHlsProxy.status === "fulfilled"
+    videoHlsProxy.status === 'fulfilled'
       ? videoHlsProxy.value
-      : { ok: false, status: "error", errorCode: "video_hls_proxy_probe_rejected", durationMs: 0 };
+      : { ok: false, status: 'error', errorCode: 'video_hls_proxy_probe_rejected', durationMs: 0 };
 
   const videoHlsProxyPayload: VideoHlsProxyHealthPayload = videoHlsProxyResult.ok
     ? videoHlsProxyResult.value
-    : emptyVideoHlsProxyPayload("error");
+    : emptyVideoHlsProxyPayload('error');
 
   const curatedSnapshot = curatedResult.ok ? curatedResult.value : null;
   const curatedJobRows: OperatorJobStatusTickRow[] = curatedSnapshot
@@ -994,7 +1014,11 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
     : [];
 
   const reconcileJob = curatedSnapshot
-    ? findCuratedJob(curatedSnapshot, OPERATOR_MEDIA_JOB_FAMILY, OPERATOR_MEDIA_TRANSCODE_RECONCILE_JOB_KEY)
+    ? findCuratedJob(
+        curatedSnapshot,
+        OPERATOR_MEDIA_JOB_FAMILY,
+        OPERATOR_MEDIA_TRANSCODE_RECONCILE_JOB_KEY,
+      )
     : undefined;
   const videoTranscodeResult: ProbeResult<VideoTranscodeHealthPayload> = curatedSnapshot
     ? {
@@ -1025,12 +1049,12 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
 
   const videoTranscodePayload: VideoTranscodeHealthPayload = videoTranscodeResult.ok
     ? videoTranscodeResult.value
-    : emptyVideoTranscodePayload("error", false, false);
+    : emptyVideoTranscodePayload('error', false, false);
 
   const saasIsolationResult: ProbeResult<SaasIsolationHealthPayload> =
-    saasIsolation.status === "fulfilled"
+    saasIsolation.status === 'fulfilled'
       ? saasIsolation.value
-      : { ok: false, status: "error", errorCode: "saas_isolation_probe_rejected", durationMs: 0 };
+      : { ok: false, status: 'error', errorCode: 'saas_isolation_probe_rejected', durationMs: 0 };
   const saasIsolationPayload = saasIsolationResult.ok
     ? saasIsolationResult.value
     : emptySaasIsolationHealthPayload();
@@ -1052,7 +1076,7 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
   };
   const backupJobs: Record<string, OperatorBackupJobPayload> = {};
   for (const job of curatedSnapshot?.operatorJobs ?? []) {
-    if (job.jobFamily !== "backup") continue;
+    if (job.jobFamily !== 'backup') continue;
     backupJobs[job.jobKey] = {
       lastStatus: job.lastStatus,
       lastStartedAt: null,
@@ -1138,7 +1162,7 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
       }
     : {
         windowHours: 24,
-        status: "error",
+        status: 'error',
         vapidConfigured: false,
         activeSubscriptionsCount: 0,
         usersWithSubscriptionCount: 0,
@@ -1151,10 +1175,14 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
   const webPushDurationMs = curatedResult.durationMs;
 
   const webPushTickJob = curatedSnapshot
-    ? findCuratedJob(curatedSnapshot, OPERATOR_REMINDERS_JOB_FAMILY, OPERATOR_WEB_PUSH_ONLY_REMINDER_TICK_JOB_KEY)
+    ? findCuratedJob(
+        curatedSnapshot,
+        OPERATOR_REMINDERS_JOB_FAMILY,
+        OPERATOR_WEB_PUSH_ONLY_REMINDER_TICK_JOB_KEY,
+      )
     : undefined;
   const webPushOnlyReminderTickResult: ProbeResult<{
-    status: "ok" | "degraded" | "error" | "no_data";
+    status: 'ok' | 'degraded' | 'error' | 'no_data';
     lastTick: OperatorJobStatusTickPayload | null;
   }> = curatedSnapshot
     ? {
@@ -1178,20 +1206,22 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
       };
   const webPushOnlyReminderTickPayload = webPushOnlyReminderTickResult.ok
     ? webPushOnlyReminderTickResult.value
-    : { status: "error" as const, lastTick: null };
+    : { status: 'error' as const, lastTick: null };
 
   const cronJobsStartedAt = Date.now();
-  let cronJobsPayload: CronJobsHealthPayload = { status: "no_data", jobs: [] };
+  let cronJobsPayload: CronJobsHealthPayload = { status: 'no_data', jobs: [] };
   try {
     cronJobsPayload = curatedSnapshot
       ? await collectCronJobsHealth({ backupJobs, jobRows: curatedJobRows })
-      : { status: "error", jobs: [] };
+      : { status: 'error', jobs: [] };
   } catch {
-    cronJobsPayload = { status: "error", jobs: [] };
+    cronJobsPayload = { status: 'error', jobs: [] };
   }
   const cronJobsDurationMs = elapsedMs(cronJobsStartedAt);
   const cronJobsProbeStatus =
-    cronJobsPayload.status === "no_data" && cronJobsPayload.jobs.length === 0 ? "no_data" : cronJobsPayload.status;
+    cronJobsPayload.status === 'no_data' && cronJobsPayload.jobs.length === 0
+      ? 'no_data'
+      : cronJobsPayload.status;
 
   const notificationDeliveryPayload: NotificationDeliveryHealthPayload = curatedSnapshot
     ? {
@@ -1206,49 +1236,54 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
         vapidConfigured: curatedSnapshot.config.vapidConfigured,
         smtpConfigured: curatedSnapshot.config.smtpConfigured,
       }
-    : emptyNotificationDeliveryHealthPayload("error");
+    : emptyNotificationDeliveryHealthPayload('error');
   const notificationDeliveryResult = curatedResult.ok
     ? { ok: true as const, value: notificationDeliveryPayload }
     : { ok: false as const, errorCode: curatedResult.errorCode };
   const notificationDeliveryDurationMs = curatedResult.durationMs;
 
-  const integratorPushOutboxClassified = classifyIntegratorPushOutboxSystemHealthStatus(integratorPushOutboxPayload);
+  const integratorPushOutboxClassified = classifyIntegratorPushOutboxSystemHealthStatus(
+    integratorPushOutboxPayload,
+  );
 
   const operatorIncidentsProbeStatus = !curatedResult.ok
     ? curatedResult.status
     : outboundProviderIncidents.openCount > 0
-      ? "error"
+      ? 'error'
       : operatorIncidents.openCount > 0
-      ? "degraded"
-      : "ok";
+        ? 'degraded'
+        : 'ok';
 
   const backupJobsProbeStatus = !curatedResult.ok
     ? curatedResult.status
-    : Object.values(backupJobs).some((j) => j.lastStatus === "failure")
-      ? "degraded"
-      : "ok";
+    : Object.values(backupJobs).some((j) => j.lastStatus === 'failure')
+      ? 'degraded'
+      : 'ok';
 
   const outgoingDeliveryProbeStatus = !curatedResult.ok
     ? curatedResult.status
-    : outgoingDeliveryPayload.deadTotal > 0
-      || outgoingDeliveryPayload.dueBacklog >= ADMIN_DELIVERY_DUE_BACKLOG_WARNING
-      ? "degraded"
-      : "ok";
+    : outgoingDeliveryPayload.deadTotal > 0 ||
+        outgoingDeliveryPayload.dueBacklog >= ADMIN_DELIVERY_DUE_BACKLOG_WARNING
+      ? 'degraded'
+      : 'ok';
 
   const integratorPushOutboxProbeStatus = !curatedResult.ok
     ? curatedResult.status
-    : integratorPushOutboxClassified === "error"
-      ? "error"
-      : integratorPushOutboxClassified === "degraded"
-        ? "degraded"
-        : "ok";
+    : integratorPushOutboxClassified === 'error'
+      ? 'error'
+      : integratorPushOutboxClassified === 'degraded'
+        ? 'degraded'
+        : 'ok';
 
   const operatorHealthDigestLastSentAt = curatedSnapshot?.operatorHealthDigestLastSentAt ?? null;
 
   const response: SystemHealthResponse = {
-    webappDb: webappDbResult.ok ? webappDbResult.value : "down",
+    webappDb: webappDbResult.ok ? webappDbResult.value : 'down',
     integratorApi: integratorApiResult.ok
-      ? { status: "ok", ...(integratorApiResult.value.db ? { db: integratorApiResult.value.db } : {}) }
+      ? {
+          status: 'ok',
+          ...(integratorApiResult.value.db ? { db: integratorApiResult.value.db } : {}),
+        }
       : { status: integratorApiResult.status },
     projection: projectionResult.ok
       ? {
@@ -1257,12 +1292,12 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
         }
       : { status: projectionResult.status },
     mediaCronWorkers: {
-      status: env.INTERNAL_JOB_SECRET && isS3MediaEnabled(env) ? "configured" : "not_configured",
+      status: env.INTERNAL_JOB_SECRET && isS3MediaEnabled(env) ? 'configured' : 'not_configured',
     },
     mediaPreview: mediaPreviewResult.ok
       ? mediaPreviewResult.value
       : {
-          status: "error",
+          status: 'error',
           stalePendingCount: 0,
           byMimeAndStatus: initMediaPreviewCounters(),
         },
@@ -1291,7 +1326,7 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
           ...(webappDbResult.ok ? {} : { errorCode: webappDbResult.errorCode }),
         },
         integratorApi: {
-          status: integratorApiResult.ok ? "ok" : integratorApiResult.status,
+          status: integratorApiResult.ok ? 'ok' : integratorApiResult.status,
           durationMs: integratorApiResult.durationMs,
           ...(integratorApiResult.ok ? {} : { errorCode: integratorApiResult.errorCode }),
         },
@@ -1301,12 +1336,16 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
           ...(projectionResult.ok ? {} : { errorCode: projectionResult.errorCode }),
         },
         mediaPreview: {
-          status: mediaPreviewResult.ok ? mediaPreviewResult.value.status : mediaPreviewResult.status,
+          status: mediaPreviewResult.ok
+            ? mediaPreviewResult.value.status
+            : mediaPreviewResult.status,
           durationMs: mediaPreviewResult.durationMs,
           ...(mediaPreviewResult.ok ? {} : { errorCode: mediaPreviewResult.errorCode }),
         },
         videoPlayback: {
-          status: videoPlaybackResult.ok ? videoPlaybackResult.value.status : videoPlaybackResult.status,
+          status: videoPlaybackResult.ok
+            ? videoPlaybackResult.value.status
+            : videoPlaybackResult.status,
           durationMs: videoPlaybackResult.durationMs,
           ...(videoPlaybackResult.ok ? {} : { errorCode: videoPlaybackResult.errorCode }),
         },
@@ -1315,15 +1354,21 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
             ? videoPlaybackClientResult.value.status
             : videoPlaybackClientResult.status,
           durationMs: videoPlaybackClientResult.durationMs,
-          ...(videoPlaybackClientResult.ok ? {} : { errorCode: videoPlaybackClientResult.errorCode }),
+          ...(videoPlaybackClientResult.ok
+            ? {}
+            : { errorCode: videoPlaybackClientResult.errorCode }),
         },
         videoHlsProxy: {
-          status: videoHlsProxyResult.ok ? videoHlsProxyResult.value.status : videoHlsProxyResult.status,
+          status: videoHlsProxyResult.ok
+            ? videoHlsProxyResult.value.status
+            : videoHlsProxyResult.status,
           durationMs: videoHlsProxyResult.durationMs,
           ...(videoHlsProxyResult.ok ? {} : { errorCode: videoHlsProxyResult.errorCode }),
         },
         videoTranscode: {
-          status: videoTranscodeResult.ok ? videoTranscodeResult.value.status : videoTranscodeResult.status,
+          status: videoTranscodeResult.ok
+            ? videoTranscodeResult.value.status
+            : videoTranscodeResult.status,
           durationMs: videoTranscodeResult.durationMs,
           ...(videoTranscodeResult.ok ? {} : { errorCode: videoTranscodeResult.errorCode }),
         },
@@ -1348,12 +1393,12 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
           ...(!curatedResult.ok ? { errorCode: curatedResult.errorCode } : {}),
         },
         remindersPipeline: {
-          status: remindersPipelineResult.ok ? "ok" : "error",
+          status: remindersPipelineResult.ok ? 'ok' : 'error',
           durationMs: remindersPipelineDurationMs,
           ...(!remindersPipelineResult.ok ? { errorCode: remindersPipelineResult.errorCode } : {}),
         },
         webPush: {
-          status: webPushResult.ok ? webPushPayload.status : "error",
+          status: webPushResult.ok ? webPushPayload.status : 'error',
           durationMs: webPushDurationMs,
           ...(!webPushResult.ok ? { errorCode: webPushResult.errorCode } : {}),
         },
@@ -1362,12 +1407,16 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
             ? webPushOnlyReminderTickPayload.status
             : webPushOnlyReminderTickResult.status,
           durationMs: webPushOnlyReminderTickResult.durationMs,
-          ...(!webPushOnlyReminderTickResult.ok ? { errorCode: webPushOnlyReminderTickResult.errorCode } : {}),
+          ...(!webPushOnlyReminderTickResult.ok
+            ? { errorCode: webPushOnlyReminderTickResult.errorCode }
+            : {}),
         },
         notificationDelivery: {
-          status: notificationDeliveryResult.ok ? notificationDeliveryPayload.status : "error",
+          status: notificationDeliveryResult.ok ? notificationDeliveryPayload.status : 'error',
           durationMs: notificationDeliveryDurationMs,
-          ...(!notificationDeliveryResult.ok ? { errorCode: notificationDeliveryResult.errorCode } : {}),
+          ...(!notificationDeliveryResult.ok
+            ? { errorCode: notificationDeliveryResult.errorCode }
+            : {}),
         },
         cronJobs: {
           status: cronJobsProbeStatus,
@@ -1384,66 +1433,70 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
     fetchedAt: nowIso(),
   };
 
-  logProbe("webapp_db", webappDbResult, response.webappDb);
-  logProbe("integrator_api", integratorApiResult, response.integratorApi.status);
-  logProbe("projection", projectionResult, response.projection.status);
-  logProbe("media_preview", mediaPreviewResult, response.mediaPreview.status);
-  logProbe("video_playback", videoPlaybackResult, response.videoPlayback.status);
-  logProbe("video_playback_client", videoPlaybackClientResult, response.videoPlaybackClient.status);
-  logProbe("video_hls_proxy", videoHlsProxyResult, response.videoHlsProxy.status);
-  logProbe("video_transcode", videoTranscodeResult, response.videoTranscode.status);
-  logProbe("operator_incidents", curatedResult, operatorIncidentsProbeStatus);
-  logProbe("operator_backup_jobs", curatedResult, backupJobsProbeStatus);
-  logProbe("outgoing_delivery", curatedResult, outgoingDeliveryProbeStatus);
-  logProbe("integrator_push_outbox", curatedResult, integratorPushOutboxProbeStatus);
+  logProbe('webapp_db', webappDbResult, response.webappDb);
+  logProbe('integrator_api', integratorApiResult, response.integratorApi.status);
+  logProbe('projection', projectionResult, response.projection.status);
+  logProbe('media_preview', mediaPreviewResult, response.mediaPreview.status);
+  logProbe('video_playback', videoPlaybackResult, response.videoPlayback.status);
+  logProbe('video_playback_client', videoPlaybackClientResult, response.videoPlaybackClient.status);
+  logProbe('video_hls_proxy', videoHlsProxyResult, response.videoHlsProxy.status);
+  logProbe('video_transcode', videoTranscodeResult, response.videoTranscode.status);
+  logProbe('operator_incidents', curatedResult, operatorIncidentsProbeStatus);
+  logProbe('operator_backup_jobs', curatedResult, backupJobsProbeStatus);
+  logProbe('outgoing_delivery', curatedResult, outgoingDeliveryProbeStatus);
+  logProbe('integrator_push_outbox', curatedResult, integratorPushOutboxProbeStatus);
   logProbe(
-    "reminders_pipeline",
+    'reminders_pipeline',
     remindersPipelineResult.ok
       ? { ok: true, value: remindersPipelinePayload, durationMs: remindersPipelineDurationMs }
       : {
           ok: false,
-          status: "error",
+          status: 'error',
           errorCode: remindersPipelineResult.errorCode,
           durationMs: remindersPipelineDurationMs,
         },
   );
   logProbe(
-    "web_push",
+    'web_push',
     webPushResult.ok
       ? { ok: true, value: webPushPayload, durationMs: webPushDurationMs }
       : {
           ok: false,
-          status: "error",
+          status: 'error',
           errorCode: webPushResult.errorCode,
           durationMs: webPushDurationMs,
         },
   );
-  logProbe("web_push_only_reminder_tick", webPushOnlyReminderTickResult, webPushOnlyReminderTickPayload.status);
   logProbe(
-    "cron_jobs",
+    'web_push_only_reminder_tick',
+    webPushOnlyReminderTickResult,
+    webPushOnlyReminderTickPayload.status,
+  );
+  logProbe(
+    'cron_jobs',
     curatedResult.ok
       ? { ok: true, value: cronJobsPayload, durationMs: cronJobsDurationMs }
       : {
           ok: false,
-          status: "error",
+          status: 'error',
           errorCode: curatedResult.errorCode,
           durationMs: cronJobsDurationMs,
         },
     cronJobsProbeStatus,
   );
   logProbe(
-    "notification_delivery",
+    'notification_delivery',
     notificationDeliveryResult.ok
       ? { ok: true, value: notificationDeliveryPayload, durationMs: notificationDeliveryDurationMs }
       : {
           ok: false,
-          status: "error",
+          status: 'error',
           errorCode: notificationDeliveryResult.errorCode,
           durationMs: notificationDeliveryDurationMs,
         },
     notificationDeliveryPayload.status,
   );
-  logProbe("saas_isolation", saasIsolationResult, saasIsolationPayload.status);
+  logProbe('saas_isolation', saasIsolationResult, saasIsolationPayload.status);
 
   return response;
 }

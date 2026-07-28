@@ -26,7 +26,7 @@
 
 ## 2026-05-04 — Docs sync: Phase 4 + cross-links (AUDIT_RESULTS, APP_RESTRUCTURE)
 
-- Обновлены [`AUDIT_RESULTS.md`](./AUDIT_RESULTS.md) §`/app/patient/profile` и §рекомендуемый порядок (Phase 4 закрыта); [`MASTER_PLAN.md`](./MASTER_PLAN.md) — working definitions **на момент синка** (Phase 2–4 на экранах) и компактный блок Phase 4; **охват экранов Phase 2–5** — в текущем `MASTER_PLAN` и в записи «Phase 5» того же дня *(полный охват Phase 2–6 — см. запись «Phase 6» в начале этого файла и актуальный `MASTER_PLAN`)*; [`TASKS.md`](./TASKS.md) — frozen scope; [`APP_RESTRUCTURE_INITIATIVE/README.md`](../../APP_RESTRUCTURE_INITIATIVE/README.md), [`ROADMAP_2.md`](../../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md), [`APP_RESTRUCTURE_INITIATIVE/LOG.md`](../../APP_RESTRUCTURE_INITIATIVE/LOG.md).
+- Обновлены [`AUDIT_RESULTS.md`](./AUDIT_RESULTS.md) §`/app/patient/profile` и §рекомендуемый порядок (Phase 4 закрыта); [`MASTER_PLAN.md`](./MASTER_PLAN.md) — working definitions **на момент синка** (Phase 2–4 на экранах) и компактный блок Phase 4; **охват экранов Phase 2–5** — в текущем `MASTER_PLAN` и в записи «Phase 5» того же дня _(полный охват Phase 2–6 — см. запись «Phase 6» в начале этого файла и актуальный `MASTER_PLAN`)_; [`TASKS.md`](./TASKS.md) — frozen scope; [`APP_RESTRUCTURE_INITIATIVE/README.md`](../../APP_RESTRUCTURE_INITIATIVE/README.md), [`ROADMAP_2.md`](../../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md), [`APP_RESTRUCTURE_INITIATIVE/LOG.md`](../../APP_RESTRUCTURE_INITIATIVE/LOG.md).
 
 ## 2026-05-04 — Phase 4: Profile `ProfileAccordionSection` → `Collapsible`
 
@@ -125,4 +125,3 @@
   - `LOG.md`
 - App-code changes: none.
 - Checks: docs-only; no code checks required.
-

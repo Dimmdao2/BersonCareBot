@@ -1,41 +1,39 @@
-"use client";
+'use client';
 
-import { useCallback, useState } from "react";
-import { DoctorSection, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
-import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
-import { doctorSectionSubtitleClass } from "@/shared/ui/doctor/doctorVisual";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import {
-  DoctorTodayAttentionDialog,
-} from "./DoctorTodayAttentionDialog";
-import type { TodayDashboardData } from "./loadDoctorTodayDashboard";
+import { useCallback, useState } from 'react';
+import { DoctorSection, DoctorSectionTitle } from '@/shared/ui/doctor/DoctorSection';
+import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
+import { doctorSectionSubtitleClass } from '@/shared/ui/doctor/doctorVisual';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { DoctorTodayAttentionDialog } from './DoctorTodayAttentionDialog';
+import type { TodayDashboardData } from './loadDoctorTodayDashboard';
 
 /** Правильное склонение слова «сигнал» для русского языка. */
 function russianSignalPlural(n: number): string {
   const abs = Math.abs(n);
   const mod10 = abs % 10;
   const mod100 = abs % 100;
-  if (mod100 >= 11 && mod100 <= 19) return "сигналов";
-  if (mod10 === 1) return "сигнал";
-  if (mod10 >= 2 && mod10 <= 4) return "сигнала";
-  return "сигналов";
+  if (mod100 >= 11 && mod100 <= 19) return 'сигналов';
+  if (mod10 === 1) return 'сигнал';
+  if (mod10 >= 2 && mod10 <= 4) return 'сигнала';
+  return 'сигналов';
 }
 
 type Props = Pick<
   TodayDashboardData,
-  | "proactiveInsights"
-  | "proactiveInsightsTotal"
-  | "proactiveInsightsTruncated"
+  | 'proactiveInsights'
+  | 'proactiveInsightsTotal'
+  | 'proactiveInsightsTruncated'
   // Диалогу нужны и остальные props, передаём пустые для неактивных вкладок
-  | "newIntakeRequests"
-  | "unreadConversations"
-  | "unreadTotal"
-  | "pendingProgramTests"
-  | "pendingProgramTestsTotal"
-  | "pendingProgramTestsTruncated"
-  | "exerciseCommentAttentionItems"
-  | "exerciseCommentAttentionTotal"
-  | "exerciseCommentAttentionTruncated"
+  | 'newIntakeRequests'
+  | 'unreadConversations'
+  | 'unreadTotal'
+  | 'pendingProgramTests'
+  | 'pendingProgramTestsTotal'
+  | 'pendingProgramTestsTruncated'
+  | 'exerciseCommentAttentionItems'
+  | 'exerciseCommentAttentionTotal'
+  | 'exerciseCommentAttentionTruncated'
 > & {
   /**
    * SEG-07: Колбэк, который должен декрементировать KPI-счётчик комментариев.
@@ -91,7 +89,7 @@ export function DoctorTodaySignalsSection({
             {firstSignal ? (
               <p className={doctorSectionSubtitleClass}>
                 {firstSignal.patientDisplayName}
-                {firstSignal.summary ? ` — ${firstSignal.summary}` : ""}
+                {firstSignal.summary ? ` — ${firstSignal.summary}` : ''}
               </p>
             ) : null}
             {proactiveInsightsTotal > 1 ? (
@@ -102,8 +100,7 @@ export function DoctorTodaySignalsSection({
                 className="h-auto w-fit p-0 text-left text-xs underline-offset-2"
                 onClick={openDialog}
               >
-                Ещё {proactiveInsightsTotal - 1}{" "}
-                {russianSignalPlural(proactiveInsightsTotal - 1)}
+                Ещё {proactiveInsightsTotal - 1} {russianSignalPlural(proactiveInsightsTotal - 1)}
               </Button>
             ) : null}
           </div>
@@ -126,7 +123,12 @@ export function DoctorTodaySignalsSection({
         exerciseCommentAttentionItems={exerciseCommentAttentionItems}
         exerciseCommentAttentionTotal={exerciseCommentAttentionTotal}
         exerciseCommentAttentionTruncated={exerciseCommentAttentionTruncated}
-        onExerciseCommentResolved={onExerciseCommentResolved ?? (() => { /* no-op if not wired */ })}
+        onExerciseCommentResolved={
+          onExerciseCommentResolved ??
+          (() => {
+            /* no-op if not wired */
+          })
+        }
       />
     </>
   );

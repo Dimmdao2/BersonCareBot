@@ -9,11 +9,15 @@
  * (использует те же PaymentProviderPort адаптеры что и booking-payments).
  */
 
-import type { AcquiringChargeInput, AcquiringChargeResult, AcquiringGatewayPort } from "@/modules/patient-payments/ports";
+import type {
+  AcquiringChargeInput,
+  AcquiringChargeResult,
+  AcquiringGatewayPort,
+} from '@/modules/patient-payments/ports';
 
 export const noopAcquiringGateway: AcquiringGatewayPort = {
   async createCharge(_input: AcquiringChargeInput): Promise<AcquiringChargeResult> {
-    return { ok: false, reason: "not_implemented" };
+    return { ok: false, reason: 'not_implemented' };
   },
 
   async refund(_input: {
@@ -22,14 +26,10 @@ export const noopAcquiringGateway: AcquiringGatewayPort = {
     currency: string;
     idempotencyKey: string;
   }) {
-    return { ok: false as const, reason: "not_implemented" };
+    return { ok: false as const, reason: 'not_implemented' };
   },
 
-  verifyWebhook(_input: {
-    headers: Headers;
-    bodyText: string;
-    webhookSecret: string;
-  }) {
-    throw new Error("not_implemented");
+  verifyWebhook(_input: { headers: Headers; bodyText: string; webhookSecret: string }) {
+    throw new Error('not_implemented');
   },
 };

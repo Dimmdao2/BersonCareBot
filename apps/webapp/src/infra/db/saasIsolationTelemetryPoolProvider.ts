@@ -1,5 +1,5 @@
-import { Pool } from "pg";
-import type { PoolConfig } from "pg";
+import { Pool } from 'pg';
+import type { PoolConfig } from 'pg';
 
 type SaasIsolationTelemetryPoolProviderConfig = {
   connectionString: string;

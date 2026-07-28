@@ -12,7 +12,10 @@ const BIGINT_STRING = /^\d+$/;
  * Non-numeric ids are returned unchanged (callers that use UUIDs etc.).
  * Missing `users` row: returns input (no merge metadata).
  */
-export async function resolveCanonicalIntegratorUserId(db: DbPort, integratorUserId: string): Promise<string> {
+export async function resolveCanonicalIntegratorUserId(
+  db: DbPort,
+  integratorUserId: string,
+): Promise<string> {
   const trimmed = integratorUserId.trim();
   if (!trimmed || !BIGINT_STRING.test(trimmed)) return integratorUserId;
 
@@ -20,7 +23,10 @@ export async function resolveCanonicalIntegratorUserId(db: DbPort, integratorUse
   const visited = new Set<string>();
   for (let depth = 0; depth < MAX_MERGE_CHAIN_DEPTH; depth++) {
     if (visited.has(current)) {
-      logger.warn({ integratorUserId, current }, 'resolveCanonicalIntegratorUserId: cycle in merged_into_user_id chain');
+      logger.warn(
+        { integratorUserId, current },
+        'resolveCanonicalIntegratorUserId: cycle in merged_into_user_id chain',
+      );
       return current;
     }
     visited.add(current);
@@ -38,14 +44,20 @@ export async function resolveCanonicalIntegratorUserId(db: DbPort, integratorUse
     }
     current = row.merged_into_user_id;
   }
-  logger.warn({ integratorUserId, current }, 'resolveCanonicalIntegratorUserId: max chain depth exceeded');
+  logger.warn(
+    { integratorUserId, current },
+    'resolveCanonicalIntegratorUserId: max chain depth exceeded',
+  );
   return current;
 }
 
 /**
  * Maps `identities.id` → canonical `users.id` string for projection payloads (`integratorUserId`).
  */
-export async function resolveCanonicalUserIdFromIdentityId(db: DbPort, identityId: string): Promise<string> {
+export async function resolveCanonicalUserIdFromIdentityId(
+  db: DbPort,
+  identityId: string,
+): Promise<string> {
   const trimmed = identityId.trim();
   if (!trimmed || !BIGINT_STRING.test(trimmed)) return identityId;
 

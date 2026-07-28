@@ -1,9 +1,12 @@
-import type { ReactNode } from "react";
-import Link from "next/link";
-import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
-import type { SessionUser } from "@/shared/types/session";
-import { cn } from "@/lib/utils";
-import { patientMutedTextClass, patientInnerPageStackClass } from "@/shared/ui/patient/patientVisual";
+import type { ReactNode } from 'react';
+import Link from 'next/link';
+import { PatientAppShell } from '@/shared/ui/patient/PatientAppShell';
+import type { SessionUser } from '@/shared/types/session';
+import { cn } from '@/lib/utils';
+import {
+  patientMutedTextClass,
+  patientInnerPageStackClass,
+} from '@/shared/ui/patient/patientVisual';
 
 type Props = {
   title: string;
@@ -40,18 +43,17 @@ export function BookingWizardShell({
       user={user}
       backHref={backHref ?? undefined}
       backLabel="Назад"
-     
       patientSuppressShellTitle={suppressShellTitle}
       patientShellTitleSlot={shellTitleSlot}
       patientShellAboveTitleSlot={shellAboveTitleSlot}
     >
       <div
         className={cn(
-          "flex min-h-[1.25rem] flex-wrap items-center gap-x-3 gap-y-1",
-          showWizardBack ? "justify-between" : "justify-center",
+          'flex min-h-[1.25rem] flex-wrap items-center gap-x-3 gap-y-1',
+          showWizardBack ? 'justify-between' : 'justify-center',
         )}
       >
-        {showWizardBack && backHref ?
+        {showWizardBack && backHref ? (
           <Link
             href={backHref}
             prefetch={false}
@@ -59,8 +61,10 @@ export function BookingWizardShell({
           >
             Назад
           </Link>
-        : null}
-        <p className={cn(patientMutedTextClass, "text-xs", !showWizardBack && "w-full text-center")}>
+        ) : null}
+        <p
+          className={cn(patientMutedTextClass, 'text-xs', !showWizardBack && 'w-full text-center')}
+        >
           Шаг {step} из {totalSteps}
         </p>
       </div>

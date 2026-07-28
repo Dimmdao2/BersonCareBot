@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { DateTime } from "luxon";
-import { useId } from "react";
+import { DateTime } from 'luxon';
+import { useId } from 'react';
 import {
   Area,
   CartesianGrid,
@@ -14,23 +14,23 @@ import {
   XAxis,
   YAxis,
   type YAxisTickContentProps,
-} from "recharts";
-import type { WellbeingWeekChartModel } from "@/modules/diaries/buildWellbeingWeekChartData";
-import { wellbeingValue10ToRgb } from "@/modules/diaries/wellbeingWeekChartMoodColors";
-import { bucketInstantWellbeingChartPoints } from "@/modules/patient-mood/wellbeingInstantChartBucketing";
+} from 'recharts';
+import type { WellbeingWeekChartModel } from '@/modules/diaries/buildWellbeingWeekChartData';
+import { wellbeingValue10ToRgb } from '@/modules/diaries/wellbeingWeekChartMoodColors';
+import { bucketInstantWellbeingChartPoints } from '@/modules/patient-mood/wellbeingInstantChartBucketing';
 
 /** Fallback, если нет точек «Среднее за день» (только instant). */
-const STROKE_AREA_FALLBACK = "hsl(var(--patient-color-primary, 215 65% 38%))";
-const FILL_AREA_FALLBACK = "hsl(var(--patient-color-primary-soft, 215 65% 38%) / 0.22)";
+const STROKE_AREA_FALLBACK = 'hsl(var(--patient-color-primary, 215 65% 38%))';
+const FILL_AREA_FALLBACK = 'hsl(var(--patient-color-primary-soft, 215 65% 38%) / 0.22)';
 /** Верхняя граница «Среднее за день» поверх сегментной заливки — сглаженная, чтобы не было изломов у линии градиента. */
-const STROKE_AGGREGATE_SMOOTH = "hsl(var(--patient-color-primary, 215 65% 38%))";
-const TICK_FILL = "var(--patient-text-muted)";
-const GRID_STROKE = "var(--patient-border)";
+const STROKE_AGGREGATE_SMOOTH = 'hsl(var(--patient-color-primary, 215 65% 38%))';
+const TICK_FILL = 'var(--patient-text-muted)';
+const GRID_STROKE = 'var(--patient-border)';
 
 const SCATTER_FILL: Record<string, string> = {
-  low: "hsl(38 85% 52%)",
-  mid: "hsl(142 48% 42%)",
-  high: "hsl(142 72% 34%)",
+  low: 'hsl(38 85% 52%)',
+  mid: 'hsl(142 48% 42%)',
+  high: 'hsl(142 72% 34%)',
 };
 
 /** Полупрозрачная заливка под сплошным rgb(...) от {@link wellbeingValue10ToRgb}. */
@@ -42,10 +42,10 @@ function rgbFillSoft(rgb: string, alpha: number): string {
 
 /** Легенда вне SVG: свои иконки (area + градиентная линия без точек). */
 function PatientWellbeingWeekLegendContent() {
-  const gid = useId().replace(/:/g, "");
+  const gid = useId().replace(/:/g, '');
   const aggFillId = `${gid}-wellbeingLegendAggFill`;
   const instStrokeId = `${gid}-wellbeingLegendInstStroke`;
-  const primary = "hsl(var(--patient-color-primary, 215 65% 38%))";
+  const primary = 'hsl(var(--patient-color-primary, 215 65% 38%))';
   /** Как на графике агрегата: горизонтальный градиент между двумя полупрозрачными цветами шкалы 1–5. */
   const aggLegendFillLeft = rgbFillSoft(wellbeingValue10ToRgb(3), 0.28);
   const aggLegendFillRight = rgbFillSoft(wellbeingValue10ToRgb(5), 0.28);
@@ -53,18 +53,31 @@ function PatientWellbeingWeekLegendContent() {
   return (
     <div
       className="flex flex-wrap items-center gap-x-[18px] gap-y-2 text-[10px] leading-[14px]"
-      style={{ color: "var(--patient-text-secondary)" }}
+      style={{ color: 'var(--patient-text-secondary)' }}
     >
       <div className="flex items-center gap-1.5">
-        <span className="inline-flex h-[14px] w-[22px] shrink-0 items-center justify-center overflow-visible" aria-hidden>
+        <span
+          className="inline-flex h-[14px] w-[22px] shrink-0 items-center justify-center overflow-visible"
+          aria-hidden
+        >
           <svg width={22} height={14} viewBox="0 0 22 14" className="block">
             <defs>
-              <linearGradient id={aggFillId} x1="0" y1="0" x2="1" y2="0" gradientUnits="objectBoundingBox">
+              <linearGradient
+                id={aggFillId}
+                x1="0"
+                y1="0"
+                x2="1"
+                y2="0"
+                gradientUnits="objectBoundingBox"
+              >
                 <stop offset="0%" stopColor={aggLegendFillLeft} />
                 <stop offset="100%" stopColor={aggLegendFillRight} />
               </linearGradient>
             </defs>
-            <path d="M0,13 L0,9 Q5.5,11 11,6.5 T22,5.5 L22,13 L0,13 Z" fill={`url(#${aggFillId})`} />
+            <path
+              d="M0,13 L0,9 Q5.5,11 11,6.5 T22,5.5 L22,13 L0,13 Z"
+              fill={`url(#${aggFillId})`}
+            />
             <path
               d="M0,9 Q5.5,11 11,6.5 T22,5.5"
               fill="none"
@@ -78,10 +91,20 @@ function PatientWellbeingWeekLegendContent() {
         <span>Среднее за день</span>
       </div>
       <div className="flex items-center gap-1.5">
-        <span className="inline-flex h-[14px] w-[22px] shrink-0 items-center justify-center" aria-hidden>
+        <span
+          className="inline-flex h-[14px] w-[22px] shrink-0 items-center justify-center"
+          aria-hidden
+        >
           <svg width={22} height={14} viewBox="0 0 22 14" className="block">
             <defs>
-              <linearGradient id={instStrokeId} x1="0" y1="0" x2="1" y2="0" gradientUnits="objectBoundingBox">
+              <linearGradient
+                id={instStrokeId}
+                x1="0"
+                y1="0"
+                x2="1"
+                y2="0"
+                gradientUnits="objectBoundingBox"
+              >
                 <stop offset="0%" stopColor="rgb(245,158,11)" />
                 <stop offset="100%" stopColor="rgb(22,163,74)" />
               </linearGradient>
@@ -99,9 +122,19 @@ function PatientWellbeingWeekLegendContent() {
         <span>В течение дня</span>
       </div>
       <div className="flex items-center gap-1.5">
-        <span className="inline-flex h-[14px] w-[14px] shrink-0 items-center justify-center" aria-hidden>
+        <span
+          className="inline-flex h-[14px] w-[14px] shrink-0 items-center justify-center"
+          aria-hidden
+        >
           <svg width={14} height={14} viewBox="0 0 14 14" className="block">
-            <circle cx={7} cy={7} r={4.5} fill={SCATTER_FILL.mid} stroke="var(--patient-card-bg)" strokeWidth={1} />
+            <circle
+              cx={7}
+              cy={7}
+              r={4.5}
+              fill={SCATTER_FILL.mid}
+              stroke="var(--patient-card-bg)"
+              strokeWidth={1}
+            />
           </svg>
         </span>
         <span>После разминки</span>
@@ -111,9 +144,9 @@ function PatientWellbeingWeekLegendContent() {
 }
 
 const TOOLTIP_SERIES_LABELS: Record<string, string> = {
-  aggregate: "Среднее за день",
-  instant: "В течение дня",
-  warmup: "После разминки",
+  aggregate: 'Среднее за день',
+  instant: 'В течение дня',
+  warmup: 'После разминки',
 };
 
 type WellbeingTooltipPayloadRow = {
@@ -135,41 +168,43 @@ function PatientWellbeingWeekChartTooltip({
   if (!active || !payload?.length) return null;
   const rows = payload.filter(
     (p) =>
-      String(p.dataKey) === "y" &&
-      (p.name === "aggregate" || p.name === "instant" || p.name === "warmup") &&
+      String(p.dataKey) === 'y' &&
+      (p.name === 'aggregate' || p.name === 'instant' || p.name === 'warmup') &&
       p.value != null &&
       Number.isFinite(Number(p.value)),
   );
   if (rows.length === 0) return null;
   const xRaw = rows[0]?.payload?.x;
-  const xMs = typeof xRaw === "number" ? xRaw : Number(xRaw);
+  const xMs = typeof xRaw === 'number' ? xRaw : Number(xRaw);
   if (!Number.isFinite(xMs)) return null;
 
-  const title = DateTime.fromMillis(xMs, { zone: iana }).setLocale("ru").toFormat("ccc d MMM, HH:mm");
+  const title = DateTime.fromMillis(xMs, { zone: iana })
+    .setLocale('ru')
+    .toFormat('ccc d MMM, HH:mm');
 
   return (
     <div
       className="rounded border px-1.5 py-1 text-[10px] leading-[13px]"
       style={{
-        background: "var(--patient-card-bg)",
-        borderColor: "var(--patient-border)",
-        boxShadow: "0 1px 4px rgba(15, 23, 42, 0.06)",
+        background: 'var(--patient-card-bg)',
+        borderColor: 'var(--patient-border)',
+        boxShadow: '0 1px 4px rgba(15, 23, 42, 0.06)',
       }}
     >
       <div
         className="mb-0.5 font-semibold"
-        style={{ fontSize: "10px", lineHeight: "13px", color: "var(--patient-text-primary)" }}
+        style={{ fontSize: '10px', lineHeight: '13px', color: 'var(--patient-text-primary)' }}
       >
         {title}
       </div>
       {rows.map((p, idx) => {
         const v = Number(p.value);
-        const name = String(p.name ?? "");
+        const name = String(p.name ?? '');
         return (
           <div
             key={`${name}-${idx}`}
             className="py-px"
-            style={{ fontSize: "10px", lineHeight: "13px", color: "var(--patient-text-secondary)" }}
+            style={{ fontSize: '10px', lineHeight: '13px', color: 'var(--patient-text-secondary)' }}
           >
             {TOOLTIP_SERIES_LABELS[name] ?? name}: {v.toFixed(1)}
           </div>
@@ -239,14 +274,19 @@ function buildAggregateSolidSegments(
 function weekDayTicks(weekStartMs: number, iana: string): number[] {
   const ticks: number[] = [];
   for (let i = 0; i < 7; i += 1) {
-    const ms = DateTime.fromMillis(weekStartMs, { zone: iana }).plus({ days: i }).startOf("day").toMillis();
+    const ms = DateTime.fromMillis(weekStartMs, { zone: iana })
+      .plus({ days: i })
+      .startOf('day')
+      .toMillis();
     ticks.push(ms);
   }
   return ticks;
 }
 
 /** Отрезки линии instant: градиент по stroke от цвета левой точки к правой (шкала самочувствия 1–5). */
-function buildInstantStrokeSegments(pts: AggPt[]): { key: string; data: [AggPt, AggPt]; colorLeft: string; colorRight: string }[] {
+function buildInstantStrokeSegments(
+  pts: AggPt[],
+): { key: string; data: [AggPt, AggPt]; colorLeft: string; colorRight: string }[] {
   const sorted = [...pts].sort((a, b) => a.x - b.x);
   const out: { key: string; data: [AggPt, AggPt]; colorLeft: string; colorRight: string }[] = [];
   for (let i = 0; i < sorted.length - 1; i += 1) {
@@ -328,10 +368,16 @@ function smoothInstantPolyline(sortedInput: AggPt[], stepsPerSpan: number): AggP
       const t3 = t2 * t;
       let x =
         0.5 *
-        (2 * p1.x + (-p0.x + p2.x) * t + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 + (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3);
+        (2 * p1.x +
+          (-p0.x + p2.x) * t +
+          (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 +
+          (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3);
       let y =
         0.5 *
-        (2 * p1.y + (-p0.y + p2.y) * t + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 + (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3);
+        (2 * p1.y +
+          (-p0.y + p2.y) * t +
+          (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 +
+          (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3);
       y = clampY(y);
       if (out.length > 0 && x <= out[out.length - 1]!.x) {
         x = out[out.length - 1]!.x + 1e-3;
@@ -342,8 +388,11 @@ function smoothInstantPolyline(sortedInput: AggPt[], stepsPerSpan: number): AggP
   return out;
 }
 
-export default function PatientWellbeingWeekComposedChart({ model, iana }: PatientWellbeingWeekComposedChartProps) {
-  const gradPrefix = useId().replace(/:/g, "");
+export default function PatientWellbeingWeekComposedChart({
+  model,
+  iana,
+}: PatientWellbeingWeekComposedChartProps) {
+  const gradPrefix = useId().replace(/:/g, '');
   const { aggregateSeries, instantSeries, warmupScatter, weekStartMs, weekEndMs } = model;
   const nowMs = DateTime.now().setZone(iana).toMillis();
   const chartEndMs = Math.max(weekStartMs, Math.min(weekEndMs, nowMs));
@@ -365,7 +414,7 @@ export default function PatientWellbeingWeekComposedChart({ model, iana }: Patie
     .filter((p) => p.x <= chartEndMs);
 
   const fmtWeekdayDay = (ms: number) =>
-    DateTime.fromMillis(ms, { zone: iana }).setLocale("ru").toFormat("ccc d");
+    DateTime.fromMillis(ms, { zone: iana }).setLocale('ru').toFormat('ccc d');
 
   return (
     <div className="h-[220px] w-full min-w-0 overflow-x-visible pb-2 [&_.recharts-wrapper]:overflow-visible">
@@ -438,7 +487,7 @@ export default function PatientWellbeingWeekComposedChart({ model, iana }: Patie
             wrapperStyle={{
               paddingTop: 8,
               paddingLeft: Y_AXIS_LABEL_GUTTER_PX,
-              width: "100%",
+              width: '100%',
             }}
             content={PatientWellbeingWeekLegendContent}
           />
@@ -449,7 +498,7 @@ export default function PatientWellbeingWeekComposedChart({ model, iana }: Patie
               type="linear"
               dataKey="y"
               baseLine={Y_AXIS_MIN}
-              name={idx === 0 ? "aggregate" : undefined}
+              name={idx === 0 ? 'aggregate' : undefined}
               legendType="none"
               tooltipType="none"
               stroke="none"
@@ -460,7 +509,7 @@ export default function PatientWellbeingWeekComposedChart({ model, iana }: Patie
               isAnimationActive={false}
             />
           ))}
-          {aggData.length > 0 ?
+          {aggData.length > 0 ? (
             <>
               <Line
                 data={aggData}
@@ -485,12 +534,16 @@ export default function PatientWellbeingWeekComposedChart({ model, iana }: Patie
                 stroke="transparent"
                 strokeWidth={22}
                 dot={false}
-                activeDot={{ r: 5, stroke: "var(--patient-color-primary)", fill: "var(--patient-card-bg)" }}
+                activeDot={{
+                  r: 5,
+                  stroke: 'var(--patient-color-primary)',
+                  fill: 'var(--patient-card-bg)',
+                }}
                 connectNulls={false}
                 isAnimationActive={false}
               />
             </>
-          : (
+          ) : (
             <Area
               data={aggData}
               type="monotone"
@@ -507,7 +560,7 @@ export default function PatientWellbeingWeekComposedChart({ model, iana }: Patie
               isAnimationActive={false}
             />
           )}
-          {instData.length === 1 ?
+          {instData.length === 1 ? (
             <Line
               data={instData}
               type="linear"
@@ -520,14 +573,18 @@ export default function PatientWellbeingWeekComposedChart({ model, iana }: Patie
               dot={{
                 r: 4,
                 fill: wellbeingValue10ToRgb(instData[0]!.y),
-                stroke: "var(--patient-card-bg)",
+                stroke: 'var(--patient-card-bg)',
                 strokeWidth: 1,
               }}
-              activeDot={{ r: 5, stroke: "var(--patient-color-primary)", fill: "var(--patient-card-bg)" }}
+              activeDot={{
+                r: 5,
+                stroke: 'var(--patient-color-primary)',
+                fill: 'var(--patient-card-bg)',
+              }}
               connectNulls={false}
               isAnimationActive={false}
             />
-          : instData.length > 1 ?
+          ) : instData.length > 1 ? (
             <>
               {instantStrokeSegments.map((seg, idx) => (
                 <Line
@@ -535,7 +592,7 @@ export default function PatientWellbeingWeekComposedChart({ model, iana }: Patie
                   data={seg.data}
                   type="linear"
                   dataKey="y"
-                  name={idx === 0 ? "instant" : undefined}
+                  name={idx === 0 ? 'instant' : undefined}
                   legendType="none"
                   tooltipType="none"
                   stroke={`url(#${gradPrefix}-instStroke-${idx})`}
@@ -562,7 +619,7 @@ export default function PatientWellbeingWeekComposedChart({ model, iana }: Patie
                 isAnimationActive={false}
               />
             </>
-          : null}
+          ) : null}
           <Scatter
             data={scatterData}
             dataKey="y"
@@ -571,17 +628,20 @@ export default function PatientWellbeingWeekComposedChart({ model, iana }: Patie
             fill={SCATTER_FILL.mid}
             line={false}
             zIndex={10}
-            shape={(props: {
-              cx?: number;
-              cy?: number;
-              payload?: { band?: string };
-            }) => {
+            shape={(props: { cx?: number; cy?: number; payload?: { band?: string } }) => {
               const { cx, cy, payload } = props;
               if (cx == null || cy == null) return null;
-              const band = payload?.band ?? "mid";
+              const band = payload?.band ?? 'mid';
               const fill = SCATTER_FILL[band] ?? SCATTER_FILL.mid;
               return (
-                <circle cx={cx} cy={cy} r={5} fill={fill} stroke="var(--patient-card-bg)" strokeWidth={1} />
+                <circle
+                  cx={cx}
+                  cy={cy}
+                  r={5}
+                  fill={fill}
+                  stroke="var(--patient-card-bg)"
+                  strokeWidth={1}
+                />
               );
             }}
             isAnimationActive={false}

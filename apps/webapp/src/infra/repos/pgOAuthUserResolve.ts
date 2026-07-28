@@ -1,12 +1,15 @@
-import { getPool } from "@/infra/db/client";
-import { runWebappPgText } from "@/infra/db/runWebappSql";
-import { findCanonicalUserIdByPhone, resolveCanonicalUserId } from "@/infra/repos/pgCanonicalPlatformUser";
+import { getPool } from '@/infra/db/client';
+import { runWebappPgText } from '@/infra/db/runWebappSql';
+import {
+  findCanonicalUserIdByPhone,
+  resolveCanonicalUserId,
+} from '@/infra/repos/pgCanonicalPlatformUser';
 import type {
   CreateOAuthPlatformUserInput,
   OAuthUserResolvePort,
   UpsertOAuthBindingInput,
   UpsertOAuthBindingResult,
-} from "@/modules/auth/oauthUserResolvePort";
+} from '@/modules/auth/oauthUserResolvePort';
 
 async function applyVerifiedOAuthEmail(
   userId: string,
@@ -77,7 +80,9 @@ async function createOAuthPlatformUser(input: CreateOAuthPlatformUserInput): Pro
   return ins.rows[0]!.id;
 }
 
-async function upsertOAuthBinding(input: UpsertOAuthBindingInput): Promise<UpsertOAuthBindingResult> {
+async function upsertOAuthBinding(
+  input: UpsertOAuthBindingInput,
+): Promise<UpsertOAuthBindingResult> {
   const bind = await runWebappPgText<{ inserted: boolean; user_id: string }>(
     `SELECT inserted, user_id::text AS user_id
      FROM app.auth_oauth_upsert_binding($1::uuid, $2::text, $3::text, $4::text)`,

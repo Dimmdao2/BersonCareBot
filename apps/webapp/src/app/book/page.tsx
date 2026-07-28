@@ -1,12 +1,12 @@
-import { notFound, redirect } from "next/navigation";
-import { parseBookingAttributionFromSearchParams } from "@/modules/booking-attribution/parseBookingAttribution";
-import { publicBookPaths } from "@/shared/publicBook/paths";
-import { PublicBookingShell } from "./PublicBookingShell";
-import { PublicFormatStepClient } from "./PublicFormatStepClient";
-import { loadPublicInPersonSlotContextForSlugRsc } from "./publicOrganizationBooking";
-import type { BookingCity } from "@/modules/booking-catalog/types";
+import { notFound, redirect } from 'next/navigation';
+import { parseBookingAttributionFromSearchParams } from '@/modules/booking-attribution/parseBookingAttribution';
+import { publicBookPaths } from '@/shared/publicBook/paths';
+import { PublicBookingShell } from './PublicBookingShell';
+import { PublicFormatStepClient } from './PublicFormatStepClient';
+import { loadPublicInPersonSlotContextForSlugRsc } from './publicOrganizationBooking';
+import type { BookingCity } from '@/modules/booking-catalog/types';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
 type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -21,7 +21,7 @@ function toSearchParams(raw: Record<string, string | string[] | undefined>): URL
   return new URLSearchParams(
     Object.entries(raw)
       .filter(([, v]) => v !== undefined)
-      .map(([k, v]) => [k, first(v) ?? ""]),
+      .map(([k, v]) => [k, first(v) ?? '']),
   );
 }
 
@@ -31,11 +31,16 @@ export default async function PublicBookNewPage({ searchParams }: Props) {
   const attr = parseBookingAttributionFromSearchParams(sp);
 
   const cities: BookingCity[] = [];
-  const catalogError: string | null = "Каталог недоступен.";
+  const catalogError: string | null = 'Каталог недоступен.';
 
   const onlineCategory = first(raw.category)?.trim();
-  if (first(raw.type) === "online" && (onlineCategory === "rehab_lfk" || onlineCategory === "nutrition")) {
-    redirect(`${publicBookPaths.newSlot}?type=online&category=${encodeURIComponent(onlineCategory)}`);
+  if (
+    first(raw.type) === 'online' &&
+    (onlineCategory === 'rehab_lfk' || onlineCategory === 'nutrition')
+  ) {
+    redirect(
+      `${publicBookPaths.newSlot}?type=online&category=${encodeURIComponent(onlineCategory)}`,
+    );
   }
 
   const presetCity = attr.presetCityCode?.trim().toLowerCase();

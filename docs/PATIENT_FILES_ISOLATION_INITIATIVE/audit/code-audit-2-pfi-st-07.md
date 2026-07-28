@@ -1,4 +1,5 @@
 # Code Audit 2 — PFI-ST-07
+
 Auditor: Opus (2nd independent)
 Date: 2026-06-19T15:40:00Z
 Branch: auto/pfi-st-07 @ 8a294b1c (executor) + fa0210f6 (audit-1)
@@ -14,6 +15,7 @@ Evidence built independently. Audit-1 (Sonnet) consulted only after forming my o
 **Verdict: PASS**
 
 How verified — full PATCH handler trace (`route.ts:103–183`):
+
 1. Auth: `getCurrentSession()` + `canAccessDoctor` (L107–111) → 401/403 early returns.
 2. `id` UUID validation (L114–116) → 400 `invalid_id`.
 3. Body parse + zod `patchBodySchema` (L118–122). `folderId` is `z.union([uuid, null]).optional()` → can be a uuid string, explicit `null`, or absent (`undefined`).
@@ -33,6 +35,7 @@ How verified — full PATCH handler trace (`route.ts:103–183`):
 So: source-in-subtree + target-not-in-subtree (standard folder, or `null` root) ⇒ 409. Confirmed.
 
 Edge cases independently checked:
+
 - **Target `null` (move to root):** `parsedBody.data.folderId !== null` is `false` ⇒ short-circuits ⇒ `targetInSubtree = false` ⇒ gate fires ⇒ 409. A patient-subtree file CANNOT be moved to the root. This is the correct interpretation of rule 4 (root is not in the subtree). Note: `pgValidateUserAssignableMediaFolder(null)` returns `{ok:true}` and `pgFolderExists` is skipped for null, so the null-target path reaches the gate cleanly. CORRECT.
 - **Target `undefined`:** unreachable — outer guard L126. CORRECT.
 - **`existingForMove` null (file id not found):** 404 at L140–141, before any `.folderId` access. No null-deref. CORRECT.
@@ -47,6 +50,7 @@ Confirms audit-1 Clause 1.
 **Verdict: PASS**
 
 How verified:
+
 - When `sourceInSubtree === true` AND `pgIsFolderInClientSubtree(targetFolderId) === true`, `targetInSubtree` is truthy (L146–149), so `if (!targetInSubtree)` is false ⇒ no 409 ⇒ execution falls through to `deps.media.updateMediaFolder(id, folderId)` (L158). `moved` truthy ⇒ continues to the success JSON (L177–182) with `{ ok:true, id, folderId }`.
 - Test `route.test.ts` "allows intra-subtree move from one client_patient folder to another" (L302–322 in the new block): `getByIdMock → {folderId: patientFolderId}`, `isInSubtreeMock.mockResolvedValue(true)` (both source and target), body `{folderId: anotherPatientFolderId}` ⇒ asserts `status === 200` and `updateMediaFolderMock` called with `(mediaId, anotherPatientFolderId)`. Green (verified by running, see Clause-3 evidence).
 - Subtree membership of `client_files_root` itself: the CTE anchor is `kind = 'client_files_root'`, so the root is in the subtree. A move from root → patient folder (both in subtree) is allowed. CORRECT.
@@ -61,17 +65,20 @@ Confirms audit-1 Clause 2.
 **Verdict: PASS**
 
 How verified:
+
 - When the source file's `folderId` is a standard folder, `sourceInSubtree = pgIsFolderInClientSubtree(folderId)` returns `false` (L144). The `if (sourceInSubtree)` block (L145–156) is skipped entirely, so NO 409 path and NO `targetInSubtree` evaluation. Execution falls to `updateMediaFolder` (L158). A standard→standard (or standard→patient) move is unrestricted by ST-07, which is correct — rule 4 only constrains files that are already inside the patient subtree.
 - **Source `folderId: null` (file in no folder):** `if (existingForMove.folderId)` (L143) is falsy ⇒ entire gate skipped ⇒ file moves freely (including into a patient folder, which is the legitimate "add to patient files" path). CORRECT — and consistent with rule 4 scope (only move-OUT of the subtree is forbidden).
 - Test "does not trigger ST-07 gate when file is in a standard folder" (new block L324–344): `getByIdMock → {folderId: standardFolderId}`, `isInSubtreeMock` always false ⇒ asserts `200` + `updateMediaFolderMock` called. Green.
 
 Tests run independently in worktree:
+
 ```
 RUN v4.1.6 .../apps/webapp
 Test Files  1 passed (1)
      Tests  17 passed (17)
 Duration  360ms
 ```
+
 All 3 new ST-07 tests + 14 pre-existing tests green; no regression.
 
 Confirms audit-1 Clause 3.
@@ -83,22 +90,25 @@ Confirms audit-1 Clause 3.
 **Verdict: PASS (was ADVISORY in audit-1; I rule PASS — see reasoning)**
 
 How verified — `pgClientMediaFolders.ts:246–252`:
+
 ```ts
 export async function pgIsFolderInClientSubtree(folderId: string): Promise<boolean> {
   const db = getDrizzle();
   const result = await db.execute(
-    sql`SELECT EXISTS(SELECT 1 FROM (${clientFilesSubtreeFolderIdsSql()}) AS sub WHERE sub.id = ${folderId}::uuid) AS in_subtree`
+    sql`SELECT EXISTS(SELECT 1 FROM (${clientFilesSubtreeFolderIdsSql()}) AS sub WHERE sub.id = ${folderId}::uuid) AS in_subtree`,
   );
   return (result.rows[0] as { in_subtree: boolean } | undefined)?.in_subtree === true;
 }
 ```
+
 - **No string concatenation, no `unsafe`, no `pool.query`.** `folderId` is interpolated via Drizzle's tagged-template `${folderId}::uuid`, which Drizzle binds as a parameter — no SQL-injection surface. (Additionally the route validates `id` against `UUID_RE` upstream, but the parameterization alone is sufficient.)
 - The recursive CTE is NOT re-authored here: the executor **reuses the pre-existing** `clientFilesSubtreeFolderIdsSql()` fragment via interpolation. I confirmed this fragment is pre-existing in the feat baseline (`git show 605f4113:.../pgClientMediaFolders.ts` contains it at L170) and is already consumed by `s3MediaStorage.ts:260` for the listing-isolation feature. So the executor added a thin EXISTS wrapper around an established, audited fragment — no logic duplication.
-- `db.execute(sql\`...\`)` + `result.rows[0]` is the **codebase-standard idiom**: Wave 3 explicitly migrated `pool.query` → `db.execute(sql)` (e.g. `pgBroadcastDrafts.ts`, `pgOnlineIntake.ts`, `pgLfkDiary.ts:149/251`, `pgBookingCatalog.ts`). This IS "using Drizzle," not raw SQL outside the ORM.
+- `db.execute(sql\`...\`)`+`result.rows[0]`is the **codebase-standard idiom**: Wave 3 explicitly migrated`pool.query`→`db.execute(sql)`(e.g.`pgBroadcastDrafts.ts`, `pgOnlineIntake.ts`, `pgLfkDiary.ts:149/251`, `pgBookingCatalog.ts`). This IS "using Drizzle," not raw SQL outside the ORM.
 
-Ruling rationale vs audit-1: Audit-1 marked Clause 4 FAIL/ADVISORY by reading the DoD's "Drizzle ORM" as "query-builder chain only." That reading is too strict and inconsistent with the actual DoD wording for ST-07 ("uses Drizzle's `db.execute(sql\`...\`)` parameterized template, not string concat, no injection risk"), which this code satisfies exactly. A recursive `WITH RECURSIVE ... EXISTS` cannot be expressed as a builder chain in Drizzle; `db.execute(sql)` is the sanctioned mechanism. There is no security risk and no §6 violation. I therefore record **PASS**, with the note that "no raw string SQL" is the meaningful invariant and it holds.
+Ruling rationale vs audit-1: Audit-1 marked Clause 4 FAIL/ADVISORY by reading the DoD's "Drizzle ORM" as "query-builder chain only." That reading is too strict and inconsistent with the actual DoD wording for ST-07 ("uses Drizzle's `db.execute(sql\`...\`)`parameterized template, not string concat, no injection risk"), which this code satisfies exactly. A recursive`WITH RECURSIVE ... EXISTS`cannot be expressed as a builder chain in Drizzle;`db.execute(sql)` is the sanctioned mechanism. There is no security risk and no §6 violation. I therefore record **PASS**, with the note that "no raw string SQL" is the meaningful invariant and it holds.
 
 §6 compliance:
+
 - No duplication (reuses the CTE fragment; does not re-implement subtree recursion).
 - No cross-layer leak introduced: `infra/repos` function `pgGetDrizzle`-direct (pre-existing pattern for every `pg*` repo); route imports it through the `@/app-layer/media/clientMediaFolders` barrel re-export (L5 of route.ts; re-export added at `clientMediaFolders.ts` barrel). Correct architectural path.
 - Scope: changes confined to the 4 declared files; no unrelated edits in the diff.
@@ -107,7 +117,7 @@ Ruling rationale vs audit-1: Audit-1 marked Clause 4 FAIL/ADVISORY by reading th
 
 ## Additional Findings (security / architecture / regressions)
 
-**F1 (pre-existing, non-blocking) — dual-field PATCH partial-apply race.** If a PATCH carries BOTH `folderId` and `displayName`: the folder branch runs first and (on success) writes via `updateMediaFolder` (L158); then the displayName branch runs and, if `updateDisplayName` returns false (L171), responds 404 *after* the folder move already committed. This is a pre-existing non-atomic design in the handler, NOT introduced by ST-07. ST-07 only adds a read (`getById` L139), no new write. Out of scope for this item; flag for a future transactional-PATCH cleanup.
+**F1 (pre-existing, non-blocking) — dual-field PATCH partial-apply race.** If a PATCH carries BOTH `folderId` and `displayName`: the folder branch runs first and (on success) writes via `updateMediaFolder` (L158); then the displayName branch runs and, if `updateDisplayName` returns false (L171), responds 404 _after_ the folder move already committed. This is a pre-existing non-atomic design in the handler, NOT introduced by ST-07. ST-07 only adds a read (`getById` L139), no new write. Out of scope for this item; flag for a future transactional-PATCH cleanup.
 
 **F2 (non-blocking) — coverage gaps.** No explicit unit test for (a) source `folderId: null` pass-through, (b) target `null` from a patient-subtree source (the move-to-root block). Both paths are correct by trace (see Clauses 1 & 3) and the second is the highest-value security path, so a test would harden the suite. Recommendation only; logic is provably correct.
 

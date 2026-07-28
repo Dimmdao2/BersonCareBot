@@ -1,7 +1,10 @@
-import { resolveClinicSeatLimit } from "@/modules/org-entitlements/service";
-import type { OrgEntitlementsPort } from "@/modules/org-entitlements/ports";
-import type { OrganizationMemberDirectoryRecord, OrganizationMembershipPort } from "@/modules/organization-membership/ports";
-import type { OrganizationInvitesPort } from "@/modules/organization-invites/ports";
+import { resolveClinicSeatLimit } from '@/modules/org-entitlements/service';
+import type { OrgEntitlementsPort } from '@/modules/org-entitlements/ports';
+import type {
+  OrganizationMemberDirectoryRecord,
+  OrganizationMembershipPort,
+} from '@/modules/organization-membership/ports';
+import type { OrganizationInvitesPort } from '@/modules/organization-invites/ports';
 
 /**
  * C4A — clinic boundary. Owner-approved seat policy (OWNER_REVIEW_2026-07-18.md addendum, C4C5-05):
@@ -12,8 +15,10 @@ import type { OrganizationInvitesPort } from "@/modules/organization-invites/por
  * invite does not. `limit` is always a finite, nonnegative effective seat count (never unlimited);
  * see `resolveClinicSeatLimit`.
  */
-export function isSeatConsumingMember(member: Pick<OrganizationMemberDirectoryRecord, "status" | "specialistId">): boolean {
-  return member.status === "active" && member.specialistId !== null;
+export function isSeatConsumingMember(
+  member: Pick<OrganizationMemberDirectoryRecord, 'status' | 'specialistId'>,
+): boolean {
+  return member.status === 'active' && member.specialistId !== null;
 }
 
 export type ClinicSeatStatus = {

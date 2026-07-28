@@ -1,17 +1,17 @@
 /** @vitest-environment jsdom */
 
-import { describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { describe, expect, it, vi } from 'vitest';
+import { render, screen, within } from '@testing-library/react';
 import {
   PatientMaintenanceScreen,
   selectMaintenanceUpcomingBookings,
   type PatientMaintenanceBooking,
-} from "./PatientMaintenanceScreen";
-import type { PatientMaintenanceAppointment } from "@/modules/patient-booking/maintenanceHistory";
-import type { SessionUser } from "@/shared/types/session";
+} from './PatientMaintenanceScreen';
+import type { PatientMaintenanceAppointment } from '@/modules/patient-booking/maintenanceHistory';
+import type { SessionUser } from '@/shared/types/session';
 
-vi.mock("next/navigation", () => ({
-  usePathname: () => "/app/patient",
+vi.mock('next/navigation', () => ({
+  usePathname: () => '/app/patient',
   useSearchParams: () => new URLSearchParams(),
   useRouter: () => ({
     back: vi.fn(),
@@ -19,28 +19,27 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
-vi.mock("@/shared/hooks/usePlatform", () => ({
-  usePlatform: () => "mobile" as const,
+vi.mock('@/shared/hooks/usePlatform', () => ({
+  usePlatform: () => 'mobile' as const,
 }));
 
-
 const testUser: SessionUser = {
-  userId: "u1",
-  role: "client",
-  displayName: "Test",
-  phone: "+79990000000",
+  userId: 'u1',
+  role: 'client',
+  displayName: 'Test',
+  phone: '+79990000000',
   bindings: {},
 };
 
 const baseRow: PatientMaintenanceBooking = {
-  id: "b1",
-  startAt: "2026-06-01T10:00:00.000Z",
-  status: "confirmed",
-  subtitle: "Услуга · Филиал",
+  id: 'b1',
+  startAt: '2026-06-01T10:00:00.000Z',
+  status: 'confirmed',
+  subtitle: 'Услуга · Филиал',
 };
 
-describe("PatientMaintenanceScreen", () => {
-  it("renders message and external booking link", () => {
+describe('PatientMaintenanceScreen', () => {
+  it('renders message and external booking link', () => {
     render(
       <PatientMaintenanceScreen
         user={testUser}
@@ -50,12 +49,12 @@ describe("PatientMaintenanceScreen", () => {
         appDisplayTimeZone="Europe/Moscow"
       />,
     );
-    expect(screen.getByText("Hello maintenance")).toBeTruthy();
-    const link = screen.getByRole("link", { name: /Записаться на приём/i });
-    expect(link.getAttribute("href")).toBe("https://booking.example.test");
+    expect(screen.getByText('Hello maintenance')).toBeTruthy();
+    const link = screen.getByRole('link', { name: /Записаться на приём/i });
+    expect(link.getAttribute('href')).toBe('https://booking.example.test');
   });
 
-  it("shows empty bookings state", () => {
+  it('shows empty bookings state', () => {
     render(
       <PatientMaintenanceScreen
         user={null}
@@ -68,7 +67,7 @@ describe("PatientMaintenanceScreen", () => {
     expect(screen.getByText(/Нет предстоящих записей/i)).toBeTruthy();
   });
 
-  it("omits the booking CTA when there is no single organization URL", () => {
+  it('omits the booking CTA when there is no single organization URL', () => {
     render(
       <PatientMaintenanceScreen
         user={null}
@@ -78,10 +77,10 @@ describe("PatientMaintenanceScreen", () => {
         appDisplayTimeZone="Europe/Moscow"
       />,
     );
-    expect(screen.queryByRole("link", { name: /Записаться на приём/i })).toBeNull();
+    expect(screen.queryByRole('link', { name: /Записаться на приём/i })).toBeNull();
   });
 
-  it("lists upcoming bookings", () => {
+  it('lists upcoming bookings', () => {
     render(
       <PatientMaintenanceScreen
         user={null}
@@ -91,20 +90,22 @@ describe("PatientMaintenanceScreen", () => {
         appDisplayTimeZone="Europe/Moscow"
       />,
     );
-    const section = screen.getByText(/Ближайшие записи/i).closest("section");
+    const section = screen.getByText(/Ближайшие записи/i).closest('section');
     expect(section).toBeTruthy();
     const withinSection = within(section!);
-    expect(withinSection.getAllByRole("listitem").length).toBe(1);
-    expect(withinSection.getByText("Услуга · Филиал")).toBeTruthy();
+    expect(withinSection.getAllByRole('listitem').length).toBe(1);
+    expect(withinSection.getByText('Услуга · Филиал')).toBeTruthy();
   });
 
-  it("selects canonical active future visits and sorts them ascending", () => {
-    const visit = (overrides: Partial<PatientMaintenanceAppointment>): PatientMaintenanceAppointment => ({
-      id: "visit",
-      startAt: "2026-07-20T10:00:00.000Z",
-      endAt: "2026-07-20T11:00:00.000Z",
-      status: "confirmed",
-      subtitle: "Приём",
+  it('selects canonical active future visits and sorts them ascending', () => {
+    const visit = (
+      overrides: Partial<PatientMaintenanceAppointment>,
+    ): PatientMaintenanceAppointment => ({
+      id: 'visit',
+      startAt: '2026-07-20T10:00:00.000Z',
+      endAt: '2026-07-20T11:00:00.000Z',
+      status: 'confirmed',
+      subtitle: 'Приём',
       specialistName: null,
       branchTitle: null,
       roomTitle: null,
@@ -115,13 +116,13 @@ describe("PatientMaintenanceScreen", () => {
     expect(
       selectMaintenanceUpcomingBookings(
         [
-          visit({ id: "later", startAt: "2026-07-21T10:00:00.000Z" }),
-          visit({ id: "cancelled", status: "cancelled" }),
-          visit({ id: "past", startAt: "2026-07-10T10:00:00.000Z" }),
-          visit({ id: "earlier", startAt: "2026-07-20T10:00:00.000Z" }),
+          visit({ id: 'later', startAt: '2026-07-21T10:00:00.000Z' }),
+          visit({ id: 'cancelled', status: 'cancelled' }),
+          visit({ id: 'past', startAt: '2026-07-10T10:00:00.000Z' }),
+          visit({ id: 'earlier', startAt: '2026-07-20T10:00:00.000Z' }),
         ],
-        new Date("2026-07-16T00:00:00.000Z"),
+        new Date('2026-07-16T00:00:00.000Z'),
       ).map((row) => row.id),
-    ).toEqual(["earlier", "later"]);
+    ).toEqual(['earlier', 'later']);
   });
 });

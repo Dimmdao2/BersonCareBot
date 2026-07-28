@@ -1,21 +1,21 @@
 /** Wave 3 phase 15C — catalog media preview lookup via `runWebappPgText`. */
-import { and, asc, eq, inArray, isNull, ne, or } from "drizzle-orm";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { runWebappPgText } from "@/infra/db/runWebappSql";
-import { clinicalTests } from "../../../db/schema/clinicalTests";
-import { recommendations } from "../../../db/schema/recommendations";
-import { contentPages, lfkExerciseMedia, lfkExercises } from "../../../db/schema/schema";
-import type { MediaPreviewStatus } from "@/modules/media/types";
-import type { TreatmentProgramItemSnapshotPort } from "@/modules/treatment-program/ports";
-import type { TreatmentProgramItemType } from "@/modules/treatment-program/types";
-import { mediaPreviewUrlById, parseMediaFileIdFromAppUrl } from "@/shared/lib/mediaPreviewUrls";
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
-import { createPgOrgEntitlementsPort } from "@/infra/repos/pgOrgEntitlements";
-import { isMechanicEnabled } from "@/modules/org-entitlements/service";
+import { and, asc, eq, inArray, isNull, ne, or } from 'drizzle-orm';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { clinicalTests } from '../../../db/schema/clinicalTests';
+import { recommendations } from '../../../db/schema/recommendations';
+import { contentPages, lfkExerciseMedia, lfkExercises } from '../../../db/schema/schema';
+import type { MediaPreviewStatus } from '@/modules/media/types';
+import type { TreatmentProgramItemSnapshotPort } from '@/modules/treatment-program/ports';
+import type { TreatmentProgramItemType } from '@/modules/treatment-program/types';
+import { mediaPreviewUrlById, parseMediaFileIdFromAppUrl } from '@/shared/lib/mediaPreviewUrls';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import { createPgOrgEntitlementsPort } from '@/infra/repos/pgOrgEntitlements';
+import { isMechanicEnabled } from '@/modules/org-entitlements/service';
 import {
   LESSON_CONTENT_SECTION,
   LESSON_CONTENT_SECTION_LEGACY,
-} from "@/modules/treatment-program/types";
+} from '@/modules/treatment-program/types';
 
 function notFound(type: TreatmentProgramItemType): Error {
   return new Error(`Снимок: объект типа «${type}» не найден`);
@@ -30,13 +30,17 @@ function clinicalTestMediaToCatalogRows(raw: unknown): CatalogMediaRowInput[] {
   if (!Array.isArray(raw)) return [];
   const out: CatalogMediaRowInput[] = [];
   for (const m of raw) {
-    if (!m || typeof m !== "object") continue;
-    const mediaUrl = typeof (m as { mediaUrl?: unknown }).mediaUrl === "string" ? (m as { mediaUrl: string }).mediaUrl.trim() : "";
+    if (!m || typeof m !== 'object') continue;
+    const mediaUrl =
+      typeof (m as { mediaUrl?: unknown }).mediaUrl === 'string'
+        ? (m as { mediaUrl: string }).mediaUrl.trim()
+        : '';
     if (!mediaUrl) continue;
     const mt = (m as { mediaType?: unknown }).mediaType;
-    const mediaType = mt === "image" || mt === "video" || mt === "gif" ? mt : "image";
+    const mediaType = mt === 'image' || mt === 'video' || mt === 'gif' ? mt : 'image';
     const sortOrder =
-      typeof (m as { sortOrder?: unknown }).sortOrder === "number" && Number.isFinite((m as { sortOrder: number }).sortOrder)
+      typeof (m as { sortOrder?: unknown }).sortOrder === 'number' &&
+      Number.isFinite((m as { sortOrder: number }).sortOrder)
         ? (m as { sortOrder: number }).sortOrder
         : out.length;
     out.push({ mediaUrl, mediaType, sortOrder });
@@ -84,11 +88,9 @@ async function catalogMediaRowsWithWorkerPreviews(
   return rows.map((row) => {
     const mid = parseMediaFileIdFromAppUrl(row.mediaUrl);
     const mf = mid ? byId.get(mid) : undefined;
-    const previewSmUrl =
-      mid && mf?.preview_sm_key?.trim() ? mediaPreviewUrlById(mid, "sm") : null;
-    const previewMdUrl =
-      mid && mf?.preview_md_key?.trim() ? mediaPreviewUrlById(mid, "md") : null;
-    const previewStatus = (mf?.preview_status ?? "pending") as MediaPreviewStatus;
+    const previewSmUrl = mid && mf?.preview_sm_key?.trim() ? mediaPreviewUrlById(mid, 'sm') : null;
+    const previewMdUrl = mid && mf?.preview_md_key?.trim() ? mediaPreviewUrlById(mid, 'md') : null;
+    const previewStatus = (mf?.preview_status ?? 'pending') as MediaPreviewStatus;
     return {
       ...row,
       previewSmUrl,
@@ -100,29 +102,32 @@ async function catalogMediaRowsWithWorkerPreviews(
 
 export function createPgTreatmentProgramItemSnapshotPort(): TreatmentProgramItemSnapshotPort {
   return {
-    async buildSnapshot(type: TreatmentProgramItemType, itemRefId: string): Promise<Record<string, unknown>> {
+    async buildSnapshot(
+      type: TreatmentProgramItemType,
+      itemRefId: string,
+    ): Promise<Record<string, unknown>> {
       const db = getDrizzle();
       switch (type) {
-        case "exercise": {
+        case 'exercise': {
           const organizationId = getCurrentDbPrincipalOrganizationId();
           if (!organizationId) throw notFound(type);
           const includePlatformBase = await isMechanicEnabled(
             snapshotEntitlements,
             organizationId,
-            "exercise_catalog",
+            'exercise_catalog',
           );
           const row = await db.query.lfkExercises.findFirst({
             where: and(
               eq(lfkExercises.id, itemRefId),
               eq(lfkExercises.isArchived, false),
-              eq(lfkExercises.catalogScope, "catalog"),
+              eq(lfkExercises.catalogScope, 'catalog'),
               or(
                 and(
-                  eq(lfkExercises.ownerKind, "organization"),
+                  eq(lfkExercises.ownerKind, 'organization'),
                   eq(lfkExercises.organizationId, organizationId),
                 ),
                 includePlatformBase
-                  ? and(eq(lfkExercises.ownerKind, "platform"), isNull(lfkExercises.organizationId))
+                  ? and(eq(lfkExercises.ownerKind, 'platform'), isNull(lfkExercises.organizationId))
                   : undefined,
               ),
             ),
@@ -131,13 +136,15 @@ export function createPgTreatmentProgramItemSnapshotPort(): TreatmentProgramItem
           const mediaRows = await db
             .select()
             .from(lfkExerciseMedia)
-            .where(and(
-              eq(lfkExerciseMedia.exerciseId, itemRefId),
-              eq(lfkExerciseMedia.ownerKind, row.ownerKind),
-              row.ownerKind === "platform"
-                ? isNull(lfkExerciseMedia.organizationId)
-                : eq(lfkExerciseMedia.organizationId, organizationId),
-            ))
+            .where(
+              and(
+                eq(lfkExerciseMedia.exerciseId, itemRefId),
+                eq(lfkExerciseMedia.ownerKind, row.ownerKind),
+                row.ownerKind === 'platform'
+                  ? isNull(lfkExerciseMedia.organizationId)
+                  : eq(lfkExerciseMedia.organizationId, organizationId),
+              ),
+            )
             .orderBy(asc(lfkExerciseMedia.sortOrder), asc(lfkExerciseMedia.id));
           const base = mediaRows.map((m) => ({
             mediaUrl: m.mediaUrl,
@@ -167,13 +174,14 @@ export function createPgTreatmentProgramItemSnapshotPort(): TreatmentProgramItem
             ...(media ? { media } : {}),
           };
         }
-        case "clinical_test": {
+        case 'clinical_test': {
           const t = await db.query.clinicalTests.findFirst({
             where: and(eq(clinicalTests.id, itemRefId), eq(clinicalTests.isArchived, false)),
           });
           if (!t) throw notFound(type);
           const rawMedia = clinicalTestMediaToCatalogRows(t.media);
-          const enriched = rawMedia.length === 0 ? [] : await catalogMediaRowsWithWorkerPreviews(rawMedia);
+          const enriched =
+            rawMedia.length === 0 ? [] : await catalogMediaRowsWithWorkerPreviews(rawMedia);
           const media =
             enriched.length > 0
               ? enriched.map((m) => ({
@@ -200,7 +208,7 @@ export function createPgTreatmentProgramItemSnapshotPort(): TreatmentProgramItem
             tests: [line],
           };
         }
-        case "recommendation": {
+        case 'recommendation': {
           const row = await db.query.recommendations.findFirst({
             where: and(eq(recommendations.id, itemRefId), eq(recommendations.isArchived, false)),
           });
@@ -222,11 +230,11 @@ export function createPgTreatmentProgramItemSnapshotPort(): TreatmentProgramItem
             itemType: type,
             id: row.id,
             title: row.title,
-            bodyMd: row.bodyMd ?? "",
+            bodyMd: row.bodyMd ?? '',
             ...(media ? { media } : {}),
           };
         }
-        case "lesson": {
+        case 'lesson': {
           const row = await db.query.contentPages.findFirst({
             where: and(
               eq(contentPages.id, itemRefId),
@@ -238,12 +246,12 @@ export function createPgTreatmentProgramItemSnapshotPort(): TreatmentProgramItem
             ),
           });
           if (!row) throw notFound(type);
-          const md = row.bodyMd ?? "";
+          const md = row.bodyMd ?? '';
           return {
             itemType: type,
             id: row.id,
             title: row.title,
-            summary: row.summary ?? "",
+            summary: row.summary ?? '',
             bodyPreview: md.length > BODY_PREVIEW_LEN ? `${md.slice(0, BODY_PREVIEW_LEN)}…` : md,
           };
         }

@@ -1,12 +1,12 @@
-import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/patient/primitives/card";
-import type { CabinetInfoLinkTile } from "@/modules/help-content/cabinetInfoLinkTiles";
-import { cn } from "@/lib/utils";
-import { patientCardClass, patientInfoLinkTileClass } from "@/shared/ui/patient/patientVisual";
+import Link from 'next/link';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/patient/primitives/card';
+import type { CabinetInfoLinkTile } from '@/modules/help-content/cabinetInfoLinkTiles';
+import { cn } from '@/lib/utils';
+import { patientCardClass, patientInfoLinkTileClass } from '@/shared/ui/patient/patientVisual';
 
 export function CabinetInfoLinksCard({ tiles }: { tiles: CabinetInfoLinkTile[] }) {
   return (
-    <Card className={cn(patientCardClass, "ring-0")} data-testid="cabinet-info-links">
+    <Card className={cn(patientCardClass, 'ring-0')} data-testid="cabinet-info-links">
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Полезная информация</CardTitle>
       </CardHeader>

@@ -1,4 +1,4 @@
-import { routePaths } from "@/app-layer/routes/paths";
+import { routePaths } from '@/app-layer/routes/paths';
 
 /** «Запись» (`/app/patient/booking`) с опциональным `cityCode` для city-aware полезных ссылок. */
 export function bookingNewHref(cityCode?: string | null): string {

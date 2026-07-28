@@ -1,4 +1,4 @@
-import type { TestSetsPort } from "@/modules/tests/ports";
+import type { TestSetsPort } from '@/modules/tests/ports';
 import type {
   TestSet,
   TestSetArchiveScope,
@@ -8,17 +8,26 @@ import type {
   UpdateTestSetInput,
   TestSetItemInput,
   TestSetItemWithTest,
-} from "@/modules/tests/types";
-import { EMPTY_TEST_SET_USAGE_SNAPSHOT } from "@/modules/tests/types";
-import { inMemoryClinicalTestsPort } from "./inMemoryClinicalTests";
+} from '@/modules/tests/types';
+import { EMPTY_TEST_SET_USAGE_SNAPSHOT } from '@/modules/tests/types';
+import { inMemoryClinicalTestsPort } from './inMemoryClinicalTests';
 
-type RawItem = { id: string; testSetId: string; testId: string; sortOrder: number; comment: string | null };
+type RawItem = {
+  id: string;
+  testSetId: string;
+  testId: string;
+  sortOrder: number;
+  comment: string | null;
+};
 
-const setsMeta = new Map<string, Omit<TestSet, "items">>();
+const setsMeta = new Map<string, Omit<TestSet, 'items'>>();
 const itemsBySet = new Map<string, RawItem[]>();
 const usageBySetId = new Map<string, TestSetUsageSnapshot>();
 
-export function seedInMemoryTestSetUsageSnapshot(setId: string, snapshot: TestSetUsageSnapshot): void {
+export function seedInMemoryTestSetUsageSnapshot(
+  setId: string,
+  snapshot: TestSetUsageSnapshot,
+): void {
   usageBySetId.set(setId, snapshot);
 }
 
@@ -30,22 +39,22 @@ export function resetInMemoryTestSetsStore(): void {
 
 function archiveScopeFromFilter(f: TestSetFilter): TestSetArchiveScope {
   if (f.archiveScope) return f.archiveScope;
-  if (f.includeArchived) return "all";
-  return "active";
+  if (f.includeArchived) return 'all';
+  return 'active';
 }
 
-function matchesFilter(meta: Omit<TestSet, "items">, f: TestSetFilter): boolean {
+function matchesFilter(meta: Omit<TestSet, 'items'>, f: TestSetFilter): boolean {
   const scope = archiveScopeFromFilter(f);
-  if (scope === "active" && meta.isArchived) return false;
-  if (scope === "archived" && !meta.isArchived) return false;
-  const pub = f.publicationScope ?? "all";
-  if (pub === "draft" && meta.publicationStatus !== "draft") return false;
-  if (pub === "published" && meta.publicationStatus !== "published") return false;
+  if (scope === 'active' && meta.isArchived) return false;
+  if (scope === 'archived' && !meta.isArchived) return false;
+  const pub = f.publicationScope ?? 'all';
+  if (pub === 'draft' && meta.publicationStatus !== 'draft') return false;
+  if (pub === 'published' && meta.publicationStatus !== 'published') return false;
   if (f.search?.trim()) {
     const q = f.search.trim().toLowerCase();
     if (
       !meta.title.toLowerCase().includes(q) &&
-      !(meta.description ?? "").toLowerCase().includes(q)
+      !(meta.description ?? '').toLowerCase().includes(q)
     ) {
       return false;
     }
@@ -74,9 +83,8 @@ async function buildTestSet(id: string): Promise<TestSet | null> {
         isArchived: test.isArchived,
         bodyRegionId: test.bodyRegionId ?? null,
         bodyRegionIds: test.bodyRegionIds,
-        previewMedia:
-          test.media?.length ?
-            [...test.media].sort((a, b) => a.sortOrder - b.sortOrder)[0] ?? null
+        previewMedia: test.media?.length
+          ? ([...test.media].sort((a, b) => a.sortOrder - b.sortOrder)[0] ?? null)
           : null,
       },
     });
@@ -103,11 +111,11 @@ export const inMemoryTestSetsPort: TestSetsPort = {
   async create(input: CreateTestSetInput, createdBy: string | null): Promise<TestSet> {
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
-    const meta: Omit<TestSet, "items"> = {
+    const meta: Omit<TestSet, 'items'> = {
       id,
       title: input.title,
       description: input.description ?? null,
-      publicationStatus: input.publicationStatus ?? "draft",
+      publicationStatus: input.publicationStatus ?? 'draft',
       isArchived: false,
       createdBy,
       createdAt: now,
@@ -150,7 +158,7 @@ export const inMemoryTestSetsPort: TestSetsPort = {
 
   async replaceItems(testSetId: string, items: TestSetItemInput[]): Promise<void> {
     const cur = setsMeta.get(testSetId);
-    if (!cur) throw new Error("test set not found");
+    if (!cur) throw new Error('test set not found');
     const now = new Date().toISOString();
     const raw: RawItem[] = items.map((it, idx) => ({
       id: crypto.randomUUID(),

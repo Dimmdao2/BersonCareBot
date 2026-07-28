@@ -27,8 +27,8 @@
  * ——— ★ На сопровождении ———
  * Все пациенты в списке уже фильтруются `supportStatus: "on"` — флаг `isOnSupport` всегда true.
  */
-import type { DoctorClientsFilters } from "@/modules/doctor-clients/ports";
-import type { ListDoctorExerciseCommentsInput } from "@/modules/program-item-discussion/types";
+import type { DoctorClientsFilters } from '@/modules/doctor-clients/ports';
+import type { ListDoctorExerciseCommentsInput } from '@/modules/program-item-discussion/types';
 
 /** Поля пациента для многополевого поиска в левом пейне. */
 export type CommentPatientSearchFields = {
@@ -54,7 +54,7 @@ export type CommentPatientRow = CommentPatientSearchFields & {
 export type LoadDoctorCommentPatientsDeps = {
   doctorClientsPort: {
     listClients(
-      filters: Pick<DoctorClientsFilters, "supportStatus" | "organizationId">,
+      filters: Pick<DoctorClientsFilters, 'supportStatus' | 'organizationId'>,
       audience?: { excludedUserIds?: string[] },
     ): Promise<
       Array<{
@@ -93,7 +93,7 @@ export async function loadDoctorCommentPatients(
     : undefined;
 
   const onSupport = await deps.doctorClientsPort.listClients(
-    { supportStatus: "on", organizationId: context.organizationId },
+    { supportStatus: 'on', organizationId: context.organizationId },
     audience,
   );
   if (onSupport.length === 0) return [];
@@ -102,7 +102,7 @@ export async function loadDoctorCommentPatients(
     onSupport.map((c) => [
       c.userId.trim(),
       {
-        displayName: c.displayName.trim() || "—",
+        displayName: c.displayName.trim() || '—',
         phone: c.phone ?? null,
         telegramId: c.bindings?.telegramId ?? null,
         maxId: c.bindings?.maxId ?? null,
@@ -158,7 +158,7 @@ export async function loadDoctorCommentPatients(
   result.sort(
     (a, b) =>
       b.unreadCount - a.unreadCount ||
-      a.displayName.localeCompare(b.displayName, "ru", { sensitivity: "base" }),
+      a.displayName.localeCompare(b.displayName, 'ru', { sensitivity: 'base' }),
   );
 
   return result;

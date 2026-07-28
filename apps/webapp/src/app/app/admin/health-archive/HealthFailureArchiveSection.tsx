@@ -1,11 +1,23 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
-import { apiJson } from "@/shared/lib/apiJson";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/doctor/primitives/select";
+import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
+import { apiJson } from '@/shared/lib/apiJson';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/shared/ui/doctor/primitives/card';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/shared/ui/doctor/primitives/select';
 import {
   HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE,
   HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE,
@@ -13,7 +25,7 @@ import {
   HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE,
   HEALTH_FAILURE_ARCHIVE_RETENTION_DAYS,
   type HealthFailureArchiveProbe,
-} from "@/modules/operator-health/healthFailureArchiveConstants";
+} from '@/modules/operator-health/healthFailureArchiveConstants';
 
 type ArchiveItem = {
   id: string;
@@ -28,26 +40,31 @@ type ArchiveItem = {
 /** Тип строки в таблице: queue_kind для outgoing, event_type для projection. */
 export function archiveRowTypeLabel(summary: Record<string, unknown>): string {
   const queueKind = summary.queue_kind;
-  if (typeof queueKind === "string" && queueKind.length > 0) return queueKind;
+  if (typeof queueKind === 'string' && queueKind.length > 0) return queueKind;
   const eventType = summary.event_type;
-  if (typeof eventType === "string" && eventType.length > 0) return eventType;
-  return "—";
+  if (typeof eventType === 'string' && eventType.length > 0) return eventType;
+  return '—';
 }
 
 /** Причина: reason_ru для outgoing, иначе усечённая ошибка из архива. */
-export function archiveRowReasonLabel(row: Pick<ArchiveItem, "summaryJson" | "rawErrorTruncated">): string {
+export function archiveRowReasonLabel(
+  row: Pick<ArchiveItem, 'summaryJson' | 'rawErrorTruncated'>,
+): string {
   const reason = row.summaryJson.reason_ru;
-  if (typeof reason === "string" && reason.length > 0) return reason;
-  if (row.rawErrorTruncated != null && row.rawErrorTruncated.length > 0) return row.rawErrorTruncated;
-  return "—";
+  if (typeof reason === 'string' && reason.length > 0) return reason;
+  if (row.rawErrorTruncated != null && row.rawErrorTruncated.length > 0)
+    return row.rawErrorTruncated;
+  return '—';
 }
 
 export type HealthFailureArchiveSectionProps = {
-  initialProbe?: HealthFailureArchiveProbe | "all";
+  initialProbe?: HealthFailureArchiveProbe | 'all';
 };
 
-export function HealthFailureArchiveSection({ initialProbe = "all" }: HealthFailureArchiveSectionProps) {
-  const [probe, setProbe] = useState<HealthFailureArchiveProbe | "all">(initialProbe);
+export function HealthFailureArchiveSection({
+  initialProbe = 'all',
+}: HealthFailureArchiveSectionProps) {
+  const [probe, setProbe] = useState<HealthFailureArchiveProbe | 'all'>(initialProbe);
   const [items, setItems] = useState<ArchiveItem[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -65,17 +82,21 @@ export function HealthFailureArchiveSection({ initialProbe = "all" }: HealthFail
       if (!append) setError(null);
       try {
         const qs = new URLSearchParams();
-        if (probe !== "all") qs.set("probe", probe);
-        if (cursor) qs.set("cursor", cursor);
-        qs.set("limit", "50");
-        const body = await apiJson<{ ok: boolean; items: ArchiveItem[]; nextCursor?: string | null }>(
-          `/api/admin/health-failure-archive?${qs.toString()}`,
-          { credentials: "include", cache: "no-store" },
-        );
+        if (probe !== 'all') qs.set('probe', probe);
+        if (cursor) qs.set('cursor', cursor);
+        qs.set('limit', '50');
+        const body = await apiJson<{
+          ok: boolean;
+          items: ArchiveItem[];
+          nextCursor?: string | null;
+        }>(`/api/admin/health-failure-archive?${qs.toString()}`, {
+          credentials: 'include',
+          cache: 'no-store',
+        });
         setItems((prev) => (append ? [...prev, ...body.items] : body.items));
-        setNextCursor(typeof body.nextCursor === "string" ? body.nextCursor : null);
+        setNextCursor(typeof body.nextCursor === 'string' ? body.nextCursor : null);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "network");
+        setError(e instanceof Error ? e.message : 'network');
         if (!append) {
           setItems([]);
           setNextCursor(null);
@@ -96,8 +117,8 @@ export function HealthFailureArchiveSection({ initialProbe = "all" }: HealthFail
       <CardHeader>
         <CardTitle className="text-base">Архив сбоев очередей</CardTitle>
         <CardDescription>
-          Записи dead после ручной очистки. Хранение до {HEALTH_FAILURE_ARCHIVE_RETENTION_DAYS} дней. Счётчики
-          «Журнал рассылок» в архиве не меняются.
+          Записи dead после ручной очистки. Хранение до {HEALTH_FAILURE_ARCHIVE_RETENTION_DAYS}{' '}
+          дней. Счётчики «Журнал рассылок» в архиве не меняются.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4 text-sm">
@@ -106,24 +127,41 @@ export function HealthFailureArchiveSection({ initialProbe = "all" }: HealthFail
             <span className="mr-2">Проба</span>
             <Select
               value={probe}
-              onValueChange={(v) => setProbe(v as HealthFailureArchiveProbe | "all")}
+              onValueChange={(v) => setProbe(v as HealthFailureArchiveProbe | 'all')}
             >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Все</SelectItem>
-                <SelectItem value={HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE}>Очередь доставки</SelectItem>
-                <SelectItem value={HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE}>Синк в integrator</SelectItem>
-                <SelectItem value={HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE}>Синхронизация событий</SelectItem>
-                <SelectItem value={HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE}>Напоминания (reminder_dispatch)</SelectItem>
+                <SelectItem value={HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE}>
+                  Очередь доставки
+                </SelectItem>
+                <SelectItem value={HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE}>
+                  Синк в integrator
+                </SelectItem>
+                <SelectItem value={HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE}>
+                  Синхронизация событий
+                </SelectItem>
+                <SelectItem value={HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE}>
+                  Напоминания (reminder_dispatch)
+                </SelectItem>
               </SelectContent>
             </Select>
           </span>
-          <Button type="button" variant="outline" size="sm" onClick={() => void loadPage(null, false)} disabled={loading}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => void loadPage(null, false)}
+            disabled={loading}
+          >
             Обновить
           </Button>
-          <Link href="/app/admin/system-health" className="text-xs text-muted-foreground underline underline-offset-2">
+          <Link
+            href="/app/admin/system-health"
+            className="text-xs text-muted-foreground underline underline-offset-2"
+          >
             К здоровью системы
           </Link>
         </div>
@@ -150,7 +188,9 @@ export function HealthFailureArchiveSection({ initialProbe = "all" }: HealthFail
               <tbody>
                 {items.map((row) => (
                   <tr key={row.id} className="border-b border-border/40 align-top">
-                    <td className="p-2 whitespace-nowrap text-muted-foreground">{row.archivedAt.replace("T", " ").slice(0, 19)}</td>
+                    <td className="p-2 whitespace-nowrap text-muted-foreground">
+                      {row.archivedAt.replace('T', ' ').slice(0, 19)}
+                    </td>
                     <td className="p-2">{row.healthProbe}</td>
                     <td className="p-2">{archiveRowTypeLabel(row.summaryJson)}</td>
                     <td className="p-2">{archiveRowReasonLabel(row)}</td>
@@ -164,7 +204,8 @@ export function HealthFailureArchiveSection({ initialProbe = "all" }: HealthFail
 
         {items.length > 0 && rowHasBroadcastNotes(items) ? (
           <p className="text-[11px] text-muted-foreground">
-            Для рассылок: счётчики sent/error в журнале рассылки на момент отправки не пересчитываются при архивации.
+            Для рассылок: счётчики sent/error в журнале рассылки на момент отправки не
+            пересчитываются при архивации.
           </p>
         ) : null}
 
@@ -176,7 +217,7 @@ export function HealthFailureArchiveSection({ initialProbe = "all" }: HealthFail
             disabled={loadingMore}
             onClick={() => void loadPage(nextCursor, true)}
           >
-            {loadingMore ? "Загрузка…" : "Ещё"}
+            {loadingMore ? 'Загрузка…' : 'Ещё'}
           </Button>
         ) : null}
       </CardContent>
@@ -188,7 +229,7 @@ function rowHasBroadcastNotes(items: ArchiveItem[]): boolean {
   return items.some(
     (r) =>
       r.summaryJson &&
-      typeof r.summaryJson.broadcast_audit_id === "string" &&
+      typeof r.summaryJson.broadcast_audit_id === 'string' &&
       r.summaryJson.broadcast_audit_id.length > 0,
   );
 }

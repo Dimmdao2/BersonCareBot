@@ -8,26 +8,26 @@
 
 ## 1. Итоговая оценка
 
-| Критерий | Оценка |
-|----------|--------|
-| Соответствие целям плана (таксономия, CMS, patient-home, защита встроенных slug) | **Выполнено** в коде и миграции |
-| Согласованность шапки плана и `LOG.md` с фактическим поведением | **Хорошо** |
-| Согласованность **нумерованных шагов 1–7 внутри тела** `CMS_RESTRUCTURE_PLAN.md` с кодом | **Выровнено** (текст шагов 3/7 и абзаца «Что входит» обновлён по результатам аудита) |
-| Полнота журнала для ops (контрольный SQL после миграции на конкретной БД) | **Шаблон и инструкция** внесены в `LOG.md` (2026-05-02); фактический результат по prod по-прежнему вносится командой вручную при приёмке |
+| Критерий                                                                                 | Оценка                                                                                                                                   |
+| ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Соответствие целям плана (таксономия, CMS, patient-home, защита встроенных slug)         | **Выполнено** в коде и миграции                                                                                                          |
+| Согласованность шапки плана и `LOG.md` с фактическим поведением                          | **Хорошо**                                                                                                                               |
+| Согласованность **нумерованных шагов 1–7 внутри тела** `CMS_RESTRUCTURE_PLAN.md` с кодом | **Выровнено** (текст шагов 3/7 и абзаца «Что входит» обновлён по результатам аудита)                                                     |
+| Полнота журнала для ops (контрольный SQL после миграции на конкретной БД)                | **Шаблон и инструкция** внесены в `LOG.md` (2026-05-02); фактический результат по prod по-прежнему вносится командой вручную при приёмке |
 
 ---
 
 ## 2. Сводка: шаги плана ↔ реализация
 
-| Шаг в плане | Суть | Статус | Где в коде / артефактах |
-|-------------|------|--------|-------------------------|
-| 1 | Backfill-матрица slug → `kind` / `system_parent_code` | OK | Совпадает с [`types.ts`](../../apps/webapp/src/modules/content-sections/types.ts) `classifyExistingContentSectionSlug` и SQL [`0017_content_sections_kind_system_parent.sql`](../../apps/webapp/db/drizzle-migrations/0017_content_sections_kind_system_parent.sql) |
-| 2 | Миграция + CHECK + индекс | OK | Файл миграции выше; ограничения `kind`, `system_parent_code`, «article без parent» |
-| 3 | Порт + фильтры + защита rename | OK | Порт и фильтры: [`ports.ts`](../../apps/webapp/src/modules/content-sections/ports.ts), [`pgContentSections.ts`](../../apps/webapp/src/infra/repos/pgContentSections.ts). Запрет rename: **только** `IMMUTABLE_SYSTEM_SECTION_SLUGS` (текст плана после аудита приведён к этому правилу). |
-| 4 | Sidebar + все страницы = article | OK | [`ContentPagesSidebar.tsx`](../../apps/webapp/src/app/app/doctor/content/ContentPagesSidebar.tsx), [`content/page.tsx`](../../apps/webapp/src/app/app/doctor/content/page.tsx) (`isArticlePage`, `articlePages`) |
-| 5 | Папка CMS, создание с `system_parent_code`, формы | OK | `sections/new?systemParentCode=`, [`SectionForm.tsx`](../../apps/webapp/src/app/app/doctor/content/sections/SectionForm.tsx), [`actions.ts`](../../apps/webapp/src/app/app/doctor/content/sections/actions.ts) `placement` / `taxonomyFromPlacement` |
-| 6 | Patient-home кандидаты по кластеру | OK | [`blocks.ts`](../../apps/webapp/src/modules/patient-home/blocks.ts) `isPatientHomeContentSectionCandidateForBlock` / `…Page…`, [`service.ts`](../../apps/webapp/src/modules/patient-home/service.ts) `listCandidatesForBlock`, `assertCmsTargetExists` |
-| 7 | UI + сервис: защита immutable slug | OK | UI и `renameSectionSlug` согласованы с шагом 7 в плане после выравнивания текста. |
+| Шаг в плане | Суть                                                  | Статус | Где в коде / артефактах                                                                                                                                                                                                                                                                  |
+| ----------- | ----------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1           | Backfill-матрица slug → `kind` / `system_parent_code` | OK     | Совпадает с [`types.ts`](../../apps/webapp/src/modules/content-sections/types.ts) `classifyExistingContentSectionSlug` и SQL [`0017_content_sections_kind_system_parent.sql`](../../apps/webapp/db/drizzle-migrations/0017_content_sections_kind_system_parent.sql)                      |
+| 2           | Миграция + CHECK + индекс                             | OK     | Файл миграции выше; ограничения `kind`, `system_parent_code`, «article без parent»                                                                                                                                                                                                       |
+| 3           | Порт + фильтры + защита rename                        | OK     | Порт и фильтры: [`ports.ts`](../../apps/webapp/src/modules/content-sections/ports.ts), [`pgContentSections.ts`](../../apps/webapp/src/infra/repos/pgContentSections.ts). Запрет rename: **только** `IMMUTABLE_SYSTEM_SECTION_SLUGS` (текст плана после аудита приведён к этому правилу). |
+| 4           | Sidebar + все страницы = article                      | OK     | [`ContentPagesSidebar.tsx`](../../apps/webapp/src/app/app/doctor/content/ContentPagesSidebar.tsx), [`content/page.tsx`](../../apps/webapp/src/app/app/doctor/content/page.tsx) (`isArticlePage`, `articlePages`)                                                                         |
+| 5           | Папка CMS, создание с `system_parent_code`, формы     | OK     | `sections/new?systemParentCode=`, [`SectionForm.tsx`](../../apps/webapp/src/app/app/doctor/content/sections/SectionForm.tsx), [`actions.ts`](../../apps/webapp/src/app/app/doctor/content/sections/actions.ts) `placement` / `taxonomyFromPlacement`                                     |
+| 6           | Patient-home кандидаты по кластеру                    | OK     | [`blocks.ts`](../../apps/webapp/src/modules/patient-home/blocks.ts) `isPatientHomeContentSectionCandidateForBlock` / `…Page…`, [`service.ts`](../../apps/webapp/src/modules/patient-home/service.ts) `listCandidatesForBlock`, `assertCmsTargetExists`                                   |
+| 7           | UI + сервис: защита immutable slug                    | OK     | UI и `renameSectionSlug` согласованы с шагом 7 в плане после выравнивания текста.                                                                                                                                                                                                        |
 
 ---
 

@@ -1,17 +1,17 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { CalendarCheck } from "lucide-react";
-import { cn } from "@/lib/utils";
+import Link from 'next/link';
+import { CalendarCheck } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import {
   patientButtonSuccessClass,
   patientButtonWarningOutlineClass,
   patientMutedTextClass,
   patientSectionTitleClass,
   patientSurfaceWarningClass,
-} from "@/shared/ui/patient/patientVisual";
-import { routePaths } from "@/app-layer/routes/paths";
-import { ruDaysWordN } from "@/app/app/patient/treatment/program-detail/patientPlanDetailFormatters";
+} from '@/shared/ui/patient/patientVisual';
+import { routePaths } from '@/app-layer/routes/paths';
+import { ruDaysWordN } from '@/app/app/patient/treatment/program-detail/patientPlanDetailFormatters';
 
 export function PatientProgramControlCard(props: {
   /** Дата контроля; если null — показывается {@link fallbackMessage}. */
@@ -37,33 +37,35 @@ export function PatientProgramControlCard(props: {
               className="size-4 shrink-0 text-[var(--patient-color-warning)]"
               aria-hidden
             />
-            <h3 className={cn(patientSectionTitleClass, "mb-0 leading-tight")}>Следующий контроль</h3>
+            <h3 className={cn(patientSectionTitleClass, 'mb-0 leading-tight')}>
+              Следующий контроль
+            </h3>
           </div>
           {dateLine ? (
             <p className="mt-0 text-sm font-semibold leading-snug text-foreground">
               <span>{dateLine}</span>
               {remainderDays != null ? (
                 <span className="text-[11px] font-normal leading-snug text-neutral-700 dark:text-neutral-400">
-                  {" "}
+                  {' '}
                   (через {remainderDays} {ruDaysWordN(remainderDays)})
                 </span>
               ) : null}
             </p>
           ) : (
-            <p className={cn(patientMutedTextClass, "mt-0 text-base font-semibold leading-snug")}>
+            <p className={cn(patientMutedTextClass, 'mt-0 text-base font-semibold leading-snug')}>
               {fallbackMessage}
             </p>
           )}
           <p
             className={cn(
               patientMutedTextClass,
-              "mt-0 text-xs leading-[1.15]",
-              noSelfServiceTests && "text-[#8b5348] dark:text-[#c9a399]",
+              'mt-0 text-xs leading-[1.15]',
+              noSelfServiceTests && 'text-[#8b5348] dark:text-[#c9a399]',
             )}
           >
             {noSelfServiceTests
-              ? "В этапе нет самостоятельных тестов, оценка производится специалистом."
-              : "Консультация со специалистом"}
+              ? 'В этапе нет самостоятельных тестов, оценка производится специалистом.'
+              : 'Консультация со специалистом'}
           </p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1.5">
@@ -73,7 +75,7 @@ export function PatientProgramControlCard(props: {
                 href={testsHref}
                 className={cn(
                   patientButtonWarningOutlineClass,
-                  "inline-flex w-auto min-h-8 shrink-0 items-center justify-center px-2.5 py-1.5 text-xs font-semibold leading-tight no-underline sm:min-h-8",
+                  'inline-flex w-auto min-h-8 shrink-0 items-center justify-center px-2.5 py-1.5 text-xs font-semibold leading-tight no-underline sm:min-h-8',
                 )}
               >
                 Выполнить тесты
@@ -84,7 +86,7 @@ export function PatientProgramControlCard(props: {
                 disabled
                 className={cn(
                   patientButtonWarningOutlineClass,
-                  "inline-flex w-auto min-h-8 shrink-0 px-2.5 py-1.5 text-xs font-semibold leading-tight sm:min-h-8",
+                  'inline-flex w-auto min-h-8 shrink-0 px-2.5 py-1.5 text-xs font-semibold leading-tight sm:min-h-8',
                 )}
               >
                 Выполнить тесты
@@ -95,7 +97,7 @@ export function PatientProgramControlCard(props: {
             href={routePaths.bookingNew}
             className={cn(
               patientButtonSuccessClass,
-              "w-auto min-h-8 shrink-0 px-2.5 py-1.5 text-xs font-semibold leading-tight sm:min-h-8",
+              'w-auto min-h-8 shrink-0 px-2.5 py-1.5 text-xs font-semibold leading-tight sm:min-h-8',
             )}
           >
             Запись на приём

@@ -1,24 +1,24 @@
-"use client";
+'use client';
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/shared/ui/doctor/primitives/dialog";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Plus } from "lucide-react";
-import type { SystemParentCode } from "@/modules/content-sections/types";
-import { attachArticleSectionToSystemFolder } from "./sections/actions";
+} from '@/shared/ui/doctor/primitives/dialog';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Plus } from 'lucide-react';
+import type { SystemParentCode } from '@/modules/content-sections/types';
+import { attachArticleSectionToSystemFolder } from './sections/actions';
 
 const FOLDER_LABELS: Record<SystemParentCode, string> = {
-  situations: "Ситуации",
-  sos: "SOS",
-  warmups: "Разминки",
-  lessons: "Уроки",
+  situations: 'Ситуации',
+  sos: 'SOS',
+  warmups: 'Разминки',
+  lessons: 'Уроки',
 };
 
 /** Разделы каталога статей (`kind=article`), доступные для переноса в системную папку. */
@@ -40,12 +40,12 @@ export function AttachExistingSectionsModal({
     setAttachingSlug(slug);
     startTransition(async () => {
       const fd = new FormData();
-      fd.set("section_slug", slug);
-      fd.set("system_parent_code", folderCode);
+      fd.set('section_slug', slug);
+      fd.set('system_parent_code', folderCode);
       const res = await attachArticleSectionToSystemFolder(null, fd);
       setAttachingSlug(null);
       if (!res.ok) {
-        setError(res.error ?? "Не удалось перенести раздел");
+        setError(res.error ?? 'Не удалось перенести раздел');
         return;
       }
       setOpen(false);
@@ -73,8 +73,8 @@ export function AttachExistingSectionsModal({
           </DialogTitle>
         </DialogHeader>
         <p className="text-xs text-muted-foreground">
-          Разделы из каталога статей (ещё не привязаны к системной папке). После добавления раздел уходит из блока «Статьи» в
-          сайдбаре.
+          Разделы из каталога статей (ещё не привязаны к системной папке). После добавления раздел
+          уходит из блока «Статьи» в сайдбаре.
         </p>
         {error ? (
           <p role="alert" className="text-sm text-destructive">

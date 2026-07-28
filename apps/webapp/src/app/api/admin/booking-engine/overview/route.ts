@@ -1,6 +1,6 @@
-import { NextResponse } from "next/server";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireClinicManagementBookingEngine } from "../_requireAdminBookingEngine";
+import { NextResponse } from 'next/server';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireClinicManagementBookingEngine } from '../_requireAdminBookingEngine';
 
 export async function GET() {
   const gate = await requireClinicManagementBookingEngine();
@@ -25,7 +25,8 @@ export async function GET() {
     service.services.listSpecialistServiceAvailability(organizationId),
     service.services.listServiceLocationAvailability(organizationId),
     service.catalog.listSpecialistRooms(organizationId),
-    buildAppDeps().clinicDirectory?.getPublishedSlugForOrganization(organizationId) ?? Promise.resolve(null),
+    buildAppDeps().clinicDirectory?.getPublishedSlugForOrganization(organizationId) ??
+      Promise.resolve(null),
   ]);
   return NextResponse.json({
     ok: true,

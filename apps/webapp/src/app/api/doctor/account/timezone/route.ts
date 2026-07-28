@@ -1,7 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getDoctorAccountTimezone, setDoctorAccountTimezone } from "@/app-layer/doctor/accountTimezone";
-import { requireDoctorApiSession } from "@/app-layer/guards/requireRole";
-import { isValidIanaTimeZoneId } from "@/shared/timezone/ianaTimezonesForAdminUi";
+import { NextRequest, NextResponse } from 'next/server';
+import {
+  getDoctorAccountTimezone,
+  setDoctorAccountTimezone,
+} from '@/app-layer/doctor/accountTimezone';
+import { requireDoctorApiSession } from '@/app-layer/guards/requireRole';
+import { isValidIanaTimeZoneId } from '@/shared/timezone/ianaTimezonesForAdminUi';
 
 export async function GET() {
   const guard = await requireDoctorApiSession();
@@ -19,12 +22,12 @@ export async function PATCH(req: NextRequest) {
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ ok: false, error: "invalid_json" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 });
   }
 
   const timezone = (body as Record<string, unknown>)?.timezone;
-  if (typeof timezone !== "string" || !isValidIanaTimeZoneId(timezone)) {
-    return NextResponse.json({ ok: false, error: "invalid_timezone" }, { status: 400 });
+  if (typeof timezone !== 'string' || !isValidIanaTimeZoneId(timezone)) {
+    return NextResponse.json({ ok: false, error: 'invalid_timezone' }, { status: 400 });
   }
 
   await setDoctorAccountTimezone(guard.session.user.userId, timezone);

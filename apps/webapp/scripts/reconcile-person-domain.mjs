@@ -8,9 +8,9 @@
  * Requires: DATABASE_URL (webapp), INTEGRATOR_DATABASE_URL (integrator).
  * Exit: 0 when within threshold; 1 when thresholds violated or DB error.
  */
-import "dotenv/config";
-import pg from "pg";
-import { loadCutoverEnv } from "../../../scripts/load-cutover-env.mjs";
+import 'dotenv/config';
+import pg from 'pg';
+import { loadCutoverEnv } from '../../../scripts/load-cutover-env.mjs';
 
 const { Client } = pg;
 
@@ -20,29 +20,41 @@ function parseArgs(argv) {
   let maxMismatchPercent = 0;
   let sampleSize = 10;
   for (const arg of argv) {
-    if (arg.startsWith("--max-mismatch-percent="))
-      maxMismatchPercent = Math.max(0, parseInt(arg.slice("--max-mismatch-percent=".length), 10) || 0);
-    if (arg.startsWith("--sample-size="))
-      sampleSize = Math.max(1, Math.min(500, parseInt(arg.slice("--sample-size=".length), 10) || 10));
+    if (arg.startsWith('--max-mismatch-percent='))
+      maxMismatchPercent = Math.max(
+        0,
+        parseInt(arg.slice('--max-mismatch-percent='.length), 10) || 0,
+      );
+    if (arg.startsWith('--sample-size='))
+      sampleSize = Math.max(
+        1,
+        Math.min(500, parseInt(arg.slice('--sample-size='.length), 10) || 10),
+      );
   }
   return { maxMismatchPercent, sampleSize };
 }
 
 function normalize(str) {
-  if (str == null || typeof str !== "string") return "";
+  if (str == null || typeof str !== 'string') return '';
   return str.trim();
 }
 
 function displayNameFromLegacy(firstName, lastName) {
-  return [firstName, lastName].filter(Boolean).map((s) => normalize(s)).join(" ").trim() || "";
+  return (
+    [firstName, lastName]
+      .filter(Boolean)
+      .map((s) => normalize(s))
+      .join(' ')
+      .trim() || ''
+  );
 }
 
 /** Same mapping as backfill-person-domain: legacy telegram_state column -> webapp topic_code */
 const NOTIFY_TOPIC_MAP = [
-  { legacy: "notify_spb", topicCode: "booking_spb" },
-  { legacy: "notify_msk", topicCode: "booking_msk" },
-  { legacy: "notify_online", topicCode: "booking_online" },
-  { legacy: "notify_bookings", topicCode: "bookings" },
+  { legacy: 'notify_spb', topicCode: 'booking_spb' },
+  { legacy: 'notify_msk', topicCode: 'booking_msk' },
+  { legacy: 'notify_online', topicCode: 'booking_online' },
+  { legacy: 'notify_bookings', topicCode: 'bookings' },
 ];
 
 async function fetchLegacy(client) {
@@ -60,15 +72,30 @@ async function fetchLegacy(client) {
   const byUser = new Map();
   for (const row of usersRes.rows) {
     const id = String(row.user_id);
-    if (!byUser.has(id)) byUser.set(id, { integratorUserId: id, phone: normalize(row.phone) ?? null, displayName: "", bindings: [], topics: {} });
+    if (!byUser.has(id))
+      byUser.set(id, {
+        integratorUserId: id,
+        phone: normalize(row.phone) ?? null,
+        displayName: '',
+        bindings: [],
+        topics: {},
+      });
     const u = byUser.get(id);
     if (row.phone) u.phone = normalize(row.phone);
   }
   for (const row of identityRes.rows) {
     const id = String(row.user_id);
-    if (!byUser.has(id)) byUser.set(id, { integratorUserId: id, phone: null, displayName: "", bindings: [], topics: {} });
+    if (!byUser.has(id))
+      byUser.set(id, {
+        integratorUserId: id,
+        phone: null,
+        displayName: '',
+        bindings: [],
+        topics: {},
+      });
     const u = byUser.get(id);
-    if (row.resource && row.external_id) u.bindings.push({ channelCode: row.resource, externalId: row.external_id });
+    if (row.resource && row.external_id)
+      u.bindings.push({ channelCode: row.resource, externalId: row.external_id });
     if (row.first_name != null || row.last_name != null) {
       const dn = displayNameFromLegacy(row.first_name, row.last_name);
       if (dn && !u.displayName) u.displayName = dn;
@@ -108,7 +135,7 @@ async function fetchTarget(client) {
       platformUserId: row.id,
       integratorUserId: id,
       phone: normalize(row.phone_normalized) ?? null,
-      displayName: normalize(row.display_name) ?? "",
+      displayName: normalize(row.display_name) ?? '',
       bindings: [],
       topics: {},
     });
@@ -157,8 +184,8 @@ function buildReport(legacyMap, targetMap, sampleSize) {
   for (const id of commonIds) {
     const L = legacyMap.get(id);
     const T = targetMap.get(id);
-    const phoneOk = (L.phone || "") === (T.phone || "");
-    const displayOk = (L.displayName || "") === (T.displayName || "");
+    const phoneOk = (L.phone || '') === (T.phone || '');
+    const displayOk = (L.displayName || '') === (T.displayName || '');
     const bindingsOk = compareBindings(L.bindings || [], T.bindings || []);
     const topicsOk = compareTopics(L.topics, T.topics);
     if (!phoneOk || !displayOk || !bindingsOk || !topicsOk) {
@@ -176,8 +203,18 @@ function buildReport(legacyMap, targetMap, sampleSize) {
     const T = targetMap.get(id);
     return {
       integratorUserId: id,
-      legacy: { phone: L.phone, displayName: L.displayName, bindingsCount: (L.bindings || []).length, topics: L.topics },
-      webapp: { phone: T.phone, displayName: T.displayName, bindingsCount: (T.bindings || []).length, topics: T.topics },
+      legacy: {
+        phone: L.phone,
+        displayName: L.displayName,
+        bindingsCount: (L.bindings || []).length,
+        topics: L.topics,
+      },
+      webapp: {
+        phone: T.phone,
+        displayName: T.displayName,
+        bindingsCount: (T.bindings || []).length,
+        topics: T.topics,
+      },
     };
   });
   return {
@@ -198,11 +235,11 @@ async function main() {
   const webappUrl = process.env.DATABASE_URL;
   const integratorUrl = process.env.INTEGRATOR_DATABASE_URL;
   if (!webappUrl?.trim()) {
-    console.error("DATABASE_URL is not set");
+    console.error('DATABASE_URL is not set');
     process.exit(1);
   }
   if (!integratorUrl?.trim()) {
-    console.error("INTEGRATOR_DATABASE_URL is not set");
+    console.error('INTEGRATOR_DATABASE_URL is not set');
     process.exit(1);
   }
 
@@ -212,12 +249,15 @@ async function main() {
     await webappClient.connect();
     await integratorClient.connect();
   } catch (err) {
-    console.error("DB connect error:", err.message);
+    console.error('DB connect error:', err.message);
     process.exit(1);
   }
 
   try {
-    const [legacyMap, targetMap] = await Promise.all([fetchLegacy(integratorClient), fetchTarget(webappClient)]);
+    const [legacyMap, targetMap] = await Promise.all([
+      fetchLegacy(integratorClient),
+      fetchTarget(webappClient),
+    ]);
     const report = buildReport(legacyMap, targetMap, sampleSize);
     console.log(JSON.stringify(report, null, 2));
 
@@ -230,8 +270,14 @@ async function main() {
     const hasMissing = missing > 0;
     const hasDrift = drift > 0;
     const exitCode = overThreshold || hasMissing || hasDrift ? 1 : 0;
-    if (hasDrift) console.error(`[reconcile-person-domain] fieldDrift: ${drift} records with mismatched fields`);
-    if (extra > 0) console.warn(`[reconcile-person-domain] warning: ${extra} extra records in webapp not in integrator`);
+    if (hasDrift)
+      console.error(
+        `[reconcile-person-domain] fieldDrift: ${drift} records with mismatched fields`,
+      );
+    if (extra > 0)
+      console.warn(
+        `[reconcile-person-domain] warning: ${extra} extra records in webapp not in integrator`,
+      );
     process.exit(exitCode);
   } finally {
     await webappClient.end();

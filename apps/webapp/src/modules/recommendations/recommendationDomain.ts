@@ -1,6 +1,6 @@
-import type { ReferenceItemDto } from "@/modules/references/referenceCache";
-import type { ReferenceItem } from "@/modules/references/types";
-import { isDoctorCatalogMissingFilterToken } from "@/shared/lib/doctorCatalogEmptyFieldFilter";
+import type { ReferenceItemDto } from '@/modules/references/referenceCache';
+import type { ReferenceItem } from '@/modules/references/types';
+import { isDoctorCatalogMissingFilterToken } from '@/shared/lib/doctorCatalogEmptyFieldFilter';
 
 /**
  * D3 (Q3): типы рекомендаций — код в `recommendations.domain` сверяется со справочником
@@ -13,7 +13,7 @@ import { isDoctorCatalogMissingFilterToken } from "@/shared/lib/doctorCatalogEmp
  *
  * Регрессия: `src/modules/recommendations/recommendationTypeSeedParity.test.ts`.
  */
-export const RECOMMENDATION_TYPE_CATEGORY_CODE = "recommendation_type" as const;
+export const RECOMMENDATION_TYPE_CATEGORY_CODE = 'recommendation_type' as const;
 
 /** Код типа в БД / query `domain=`; может быть legacy-строкой на чтении (read tolerant). */
 export type RecommendationDomain = string;
@@ -23,17 +23,17 @@ export type RecommendationDomain = string;
  * (например миграция не применена в локальном окружении).
  */
 export const RECOMMENDATION_TYPE_SEED_V1 = [
-  { code: "exercise_technique", title: "Техника упражнений", sortOrder: 1 },
-  { code: "regimen", title: "Режим / график", sortOrder: 2 },
-  { code: "nutrition", title: "Питание", sortOrder: 3 },
-  { code: "device", title: "Устройство / аппарат", sortOrder: 4 },
-  { code: "self_procedure", title: "Самостоятельная процедура", sortOrder: 5 },
-  { code: "external_therapy", title: "Внешняя терапия", sortOrder: 6 },
-  { code: "lifestyle", title: "Образ жизни", sortOrder: 7 },
-  { code: "daily_activity", title: "Бытовая активность", sortOrder: 8 },
-  { code: "physiotherapy", title: "Физиотерапия", sortOrder: 9 },
-  { code: "motivation", title: "Мотивация", sortOrder: 10 },
-  { code: "safety", title: "Техника безопасности", sortOrder: 11 },
+  { code: 'exercise_technique', title: 'Техника упражнений', sortOrder: 1 },
+  { code: 'regimen', title: 'Режим / график', sortOrder: 2 },
+  { code: 'nutrition', title: 'Питание', sortOrder: 3 },
+  { code: 'device', title: 'Устройство / аппарат', sortOrder: 4 },
+  { code: 'self_procedure', title: 'Самостоятельная процедура', sortOrder: 5 },
+  { code: 'external_therapy', title: 'Внешняя терапия', sortOrder: 6 },
+  { code: 'lifestyle', title: 'Образ жизни', sortOrder: 7 },
+  { code: 'daily_activity', title: 'Бытовая активность', sortOrder: 8 },
+  { code: 'physiotherapy', title: 'Физиотерапия', sortOrder: 9 },
+  { code: 'motivation', title: 'Мотивация', sortOrder: 10 },
+  { code: 'safety', title: 'Техника безопасности', sortOrder: 11 },
 ] as const;
 
 function seedCodesSet(): Set<string> {
@@ -46,13 +46,18 @@ function seedCodesSet(): Set<string> {
  */
 export function recommendationDomainWriteAllowSet(items: ReferenceItem[]): Set<string> {
   const fromDb = new Set(
-    items.filter((i) => i.isActive && i.deletedAt == null).map((i) => i.code.trim()).filter(Boolean),
+    items
+      .filter((i) => i.isActive && i.deletedAt == null)
+      .map((i) => i.code.trim())
+      .filter(Boolean),
   );
   if (fromDb.size > 0) return fromDb;
   return seedCodesSet();
 }
 
-export function referenceItemsToRecommendationDomainFilterDto(items: ReferenceItem[]): ReferenceItemDto[] {
+export function referenceItemsToRecommendationDomainFilterDto(
+  items: ReferenceItem[],
+): ReferenceItemDto[] {
   return [...items]
     .filter((i) => i.isActive && i.deletedAt == null)
     .sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title))
@@ -64,8 +69,8 @@ export function recommendationDomainDisplayTitle(
   code: string | null | undefined,
   items: ReferenceItem[],
 ): string {
-  const t = (code ?? "").trim();
-  if (!t) return "";
+  const t = (code ?? '').trim();
+  if (!t) return '';
   const hit = items.find((i) => i.code === t && i.isActive && i.deletedAt == null);
   if (hit) return hit.title;
   const seed = RECOMMENDATION_TYPE_SEED_V1.find((x) => x.code === t);
@@ -83,12 +88,14 @@ export function buildRecommendationDomainSelectOptions(
   const active = [...items].filter((i) => i.isActive && i.deletedAt == null);
   const base =
     active.length > 0
-      ? active.sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title)).map((i) => ({
-          code: i.code,
-          title: i.title,
-        }))
+      ? active
+          .sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title))
+          .map((i) => ({
+            code: i.code,
+            title: i.title,
+          }))
       : RECOMMENDATION_TYPE_SEED_V1.map((x) => ({ code: x.code, title: x.title }));
-  const cur = (currentDomain ?? "").trim();
+  const cur = (currentDomain ?? '').trim();
   if (cur && !base.some((o) => o.code === cur)) {
     return [{ code: cur, title: `${cur} (не в справочнике)` }, ...base];
   }
@@ -102,7 +109,7 @@ export function parseRecommendationDomain(
   raw: string | undefined,
   refItems: ReferenceItem[],
 ): string | undefined {
-  if (typeof raw !== "string" || !raw.trim()) return undefined;
+  if (typeof raw !== 'string' || !raw.trim()) return undefined;
   const t = raw.trim();
   if (isDoctorCatalogMissingFilterToken(t)) return t;
   const allow = recommendationDomainWriteAllowSet(refItems);

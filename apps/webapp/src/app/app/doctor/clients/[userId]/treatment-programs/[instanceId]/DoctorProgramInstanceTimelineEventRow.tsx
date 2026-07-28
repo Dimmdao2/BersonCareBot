@@ -1,16 +1,16 @@
-"use client";
+'use client';
 
-import { ChevronDown } from "lucide-react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
+import { ChevronDown } from 'lucide-react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
 import type {
   TreatmentProgramEventDoctorTimelineLabels,
   TreatmentProgramEventRow,
-} from "@/modules/treatment-program/types";
+} from '@/modules/treatment-program/types';
 import {
   formatProgramChangedEventDetailLinesForDoctorRu,
   summarizeTreatmentProgramEventForDoctorRu,
-} from "@/modules/treatment-program/types";
-import { cn } from "@/lib/utils";
+} from '@/modules/treatment-program/types';
+import { cn } from '@/lib/utils';
 
 export function DoctorProgramInstanceTimelineEventRow(props: {
   event: TreatmentProgramEventRow;
@@ -23,7 +23,9 @@ export function DoctorProgramInstanceTimelineEventRow(props: {
   const { event, labels, createdAtLabel, whoLabel, expanded, onToggleExpand } = props;
   const summary = summarizeTreatmentProgramEventForDoctorRu(event, labels);
   const detailLines =
-    event.eventType === "program_changed" ? formatProgramChangedEventDetailLinesForDoctorRu(event) : [];
+    event.eventType === 'program_changed'
+      ? formatProgramChangedEventDetailLinesForDoctorRu(event)
+      : [];
   const expandable = detailLines.length > 0;
 
   return (
@@ -41,7 +43,7 @@ export function DoctorProgramInstanceTimelineEventRow(props: {
           >
             {summary}
             <ChevronDown
-              className={cn("size-3.5 shrink-0 transition-transform", expanded && "rotate-180")}
+              className={cn('size-3.5 shrink-0 transition-transform', expanded && 'rotate-180')}
               aria-hidden
             />
           </Button>

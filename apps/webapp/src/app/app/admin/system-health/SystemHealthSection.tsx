@@ -1,13 +1,19 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState } from "react";
-import type { ReactNode } from "react";
-import { apiJson } from "@/shared/lib/apiJson";
-import Link from "next/link";
-import { ChevronDown } from "lucide-react";
-import { Badge } from "@/shared/ui/doctor/primitives/badge";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
+import { useCallback, useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
+import { apiJson } from '@/shared/lib/apiJson';
+import Link from 'next/link';
+import { ChevronDown } from 'lucide-react';
+import { Badge } from '@/shared/ui/doctor/primitives/badge';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/shared/ui/doctor/primitives/card';
 import {
   Dialog,
   DialogContent,
@@ -15,10 +21,14 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/shared/ui/doctor/primitives/dialog";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/shared/ui/doctor/primitives/collapsible";
-import { cn } from "@/lib/utils";
-import { CopyForAiButton } from "@/app/app/settings/CopyForAiButton";
+} from '@/shared/ui/doctor/primitives/dialog';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/shared/ui/doctor/primitives/collapsible';
+import { cn } from '@/lib/utils';
+import { CopyForAiButton } from '@/app/app/settings/CopyForAiButton';
 import {
   HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE,
   HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE,
@@ -26,7 +36,7 @@ import {
   HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE,
   HEALTH_FAILURE_ARCHIVE_RETENTION_DAYS,
   type HealthFailureArchiveProbe,
-} from "@/modules/operator-health/healthFailureArchiveConstants";
+} from '@/modules/operator-health/healthFailureArchiveConstants';
 import type {
   SaasIsolationEventClass,
   SaasIsolationExplanationStatus,
@@ -35,16 +45,16 @@ import type {
   SaasIsolationSourceService,
   SaasIsolationSourceOperation,
   SaasIsolationStatusReason,
-} from "@/modules/operator-health/saasIsolationDiagnostics";
+} from '@/modules/operator-health/saasIsolationDiagnostics';
 
 type HealthOperatorAction =
-  | { kind: "archive"; probe: HealthFailureArchiveProbe }
-  | { kind: "resolve_incidents" }
-  | { kind: "acknowledge_incidents" };
+  | { kind: 'archive'; probe: HealthFailureArchiveProbe }
+  | { kind: 'resolve_incidents' }
+  | { kind: 'acknowledge_incidents' };
 
-type DbStatus = "up" | "down";
-type IntegratorApiStatus = "ok" | "unreachable" | "error";
-type ProjectionStatus = "ok" | "degraded" | "unreachable" | "error";
+type DbStatus = 'up' | 'down';
+type IntegratorApiStatus = 'ok' | 'unreachable' | 'error';
+type ProjectionStatus = 'ok' | 'degraded' | 'unreachable' | 'error';
 
 type ProjectionSnapshot = {
   deadCount?: number;
@@ -57,16 +67,16 @@ type ProjectionSnapshot = {
   lastSuccessAt?: string | null;
 } & Record<string, unknown>;
 
-type PreviewStatus = "pending" | "ready" | "failed" | "skipped";
-type PreviewMime = "video/quicktime" | "image/heic" | "image/heif";
-type MediaPreviewStatus = "ok" | "degraded" | "error";
+type PreviewStatus = 'pending' | 'ready' | 'failed' | 'skipped';
+type PreviewMime = 'video/quicktime' | 'image/heic' | 'image/heif';
+type MediaPreviewStatus = 'ok' | 'degraded' | 'error';
 type MediaPreviewCounters = Record<PreviewMime, Record<PreviewStatus, number>>;
 
 type SystemHealthPayload = {
   webappDb: DbStatus;
   integratorApi: { status: IntegratorApiStatus; db?: DbStatus };
   projection: { status: ProjectionStatus; snapshot?: ProjectionSnapshot };
-  mediaCronWorkers: { status: "configured" | "not_configured" };
+  mediaCronWorkers: { status: 'configured' | 'not_configured' };
   mediaPreview: {
     status: MediaPreviewStatus;
     stalePendingCount: number;
@@ -123,7 +133,7 @@ type SystemHealthPayload = {
   };
   webPush?: {
     windowHours: number;
-    status: "ok" | "degraded" | "not_configured" | "no_data" | "error";
+    status: 'ok' | 'degraded' | 'not_configured' | 'no_data' | 'error';
     vapidConfigured: boolean;
     activeSubscriptionsCount: number;
     usersWithSubscriptionCount: number;
@@ -131,7 +141,7 @@ type SystemHealthPayload = {
     deliveryMetricsInDb: boolean;
   };
   webPushOnlyReminderTick?: {
-    status: "ok" | "degraded" | "error" | "no_data";
+    status: 'ok' | 'degraded' | 'error' | 'no_data';
     lastTick: {
       jobKey: string;
       jobFamily: string;
@@ -145,16 +155,16 @@ type SystemHealthPayload = {
     } | null;
   };
   cronJobs?: {
-    status: "ok" | "degraded" | "error" | "no_data";
+    status: 'ok' | 'degraded' | 'error' | 'no_data';
     jobs: Array<{
       id: string;
       jobFamily: string;
       jobKey: string;
       label: string;
       scheduleHint: string;
-      kind: "internal_http" | "backup_shell";
+      kind: 'internal_http' | 'backup_shell';
       internalPath?: string;
-      status: "ok" | "degraded" | "error" | "no_data";
+      status: 'ok' | 'degraded' | 'error' | 'no_data';
       lastTick: {
         jobKey: string;
         jobFamily: string;
@@ -170,7 +180,7 @@ type SystemHealthPayload = {
   };
   notificationDelivery?: {
     windowHours: number;
-    status: "ok" | "degraded" | "not_configured" | "no_data";
+    status: 'ok' | 'degraded' | 'not_configured' | 'no_data';
     vapidConfigured: boolean;
     smtpConfigured: boolean;
     totalAttempts24h: number;
@@ -192,7 +202,7 @@ type SystemHealthPayload = {
   };
   /** VIDEO_HLS_DELIVERY: hourly playback aggregates (UTC), rolling window. */
   videoPlayback: {
-    status: "ok" | "error";
+    status: 'ok' | 'error';
     windowHours: number;
     windowHoursShort?: number;
     playbackApiEnabled: boolean;
@@ -205,7 +215,7 @@ type SystemHealthPayload = {
     totalResolutionsLast1h?: number;
   };
   videoPlaybackClient?: {
-    status: "ok" | "degraded" | "error";
+    status: 'ok' | 'degraded' | 'error';
     windowHours: number;
     totalErrors: number;
     totalErrorsLast1h: number;
@@ -231,19 +241,19 @@ type SystemHealthPayload = {
       createdAt: string;
       mediaId: string;
       eventClass:
-        | "hls_fatal"
-        | "video_error"
-        | "hls_import_failed"
-        | "playback_refetch_failed"
-        | "playback_refetch_exception"
-        | "hls_js_unsupported";
-      delivery: "hls" | "mp4" | "file" | null;
+        | 'hls_fatal'
+        | 'video_error'
+        | 'hls_import_failed'
+        | 'playback_refetch_failed'
+        | 'playback_refetch_exception'
+        | 'hls_js_unsupported';
+      delivery: 'hls' | 'mp4' | 'file' | null;
       errorDetail: string | null;
     }>;
   };
   /** Server-side errors from `/api/media/.../hls/*` proxy (DB telemetry). */
   videoHlsProxy?: {
-    status: "ok" | "degraded" | "error";
+    status: 'ok' | 'degraded' | 'error';
     windowHours: number;
     errorsTotal24h: number;
     errorsTotal1h: number;
@@ -258,7 +268,7 @@ type SystemHealthPayload = {
     }>;
   };
   videoTranscode: {
-    status: "ok" | "degraded" | "error";
+    status: 'ok' | 'degraded' | 'error';
     pipelineEnabled: boolean;
     reconcileEnabled: boolean;
     pendingCount: number;
@@ -319,7 +329,7 @@ type SystemHealthPayload = {
 };
 
 type IntegrationOutboundHealthPayload = {
-  status: "ok" | "fail" | "skipped_not_configured" | "no_data";
+  status: 'ok' | 'fail' | 'skipped_not_configured' | 'no_data';
   lastFinishedAt: string | null;
 };
 
@@ -337,149 +347,163 @@ type IntegrationHealthEntryPayload = {
 };
 
 /** Marker for RTL: copy outside this subtree must stay operator-friendly (plan §7). */
-export const SYSTEM_HEALTH_TECH_DIAGNOSTICS_TESTID = "system-health-tech-diagnostics";
+export const SYSTEM_HEALTH_TECH_DIAGNOSTICS_TESTID = 'system-health-tech-diagnostics';
 
 function techProbeStatusHuman(status: string): string {
-  if (status === "ok") return "успешно";
-  if (status === "degraded") return "есть признаки деградации";
-  if (status === "unreachable") return "недоступно";
-  if (status === "error") return "ошибка";
-  if (status === "up") return "доступен";
-  if (status === "down") return "недоступен";
-  if (status === "idle") return "очередь пуста";
-  if (status === "active") return "активен";
-  if (status === "unknown") return "неизвестно";
-  if (status === "no_activity") return "нет недавней активности";
-  if (status === "no_signal") return "нет последнего сигнала";
-  if (status === "configured") return "настроены";
-  if (status === "not_configured") return "не настроены";
-  if (status === "no_data") return "нет данных";
-  if (status === "playback_disabled") return "выключено";
-  if (status === "running") return "работает";
-  if (status === "pending") return "ожидает обработки";
-  if (status === "processing") return "обрабатывается";
-  if (status === "ready") return "готово";
-  if (status === "failed") return "ошибка";
-  if (status === "success") return "успешно";
-  if (status === "failure") return "ошибка запуска";
-  if (status === "skipped") return "пропущено";
+  if (status === 'ok') return 'успешно';
+  if (status === 'degraded') return 'есть признаки деградации';
+  if (status === 'unreachable') return 'недоступно';
+  if (status === 'error') return 'ошибка';
+  if (status === 'up') return 'доступен';
+  if (status === 'down') return 'недоступен';
+  if (status === 'idle') return 'очередь пуста';
+  if (status === 'active') return 'активен';
+  if (status === 'unknown') return 'неизвестно';
+  if (status === 'no_activity') return 'нет недавней активности';
+  if (status === 'no_signal') return 'нет последнего сигнала';
+  if (status === 'configured') return 'настроены';
+  if (status === 'not_configured') return 'не настроены';
+  if (status === 'no_data') return 'нет данных';
+  if (status === 'playback_disabled') return 'выключено';
+  if (status === 'running') return 'работает';
+  if (status === 'pending') return 'ожидает обработки';
+  if (status === 'processing') return 'обрабатывается';
+  if (status === 'ready') return 'готово';
+  if (status === 'failed') return 'ошибка';
+  if (status === 'success') return 'успешно';
+  if (status === 'failure') return 'ошибка запуска';
+  if (status === 'skipped') return 'пропущено';
   return status;
 }
 
-function statusBadgeVariant(status: string): "secondary" | "outline" | "destructive" {
+function statusBadgeVariant(status: string): 'secondary' | 'outline' | 'destructive' {
   if (
-    status === "ok" ||
-    status === "up" ||
-    status === "running" ||
-    status === "active" ||
-    status === "idle" ||
-    status === "configured"
+    status === 'ok' ||
+    status === 'up' ||
+    status === 'running' ||
+    status === 'active' ||
+    status === 'idle' ||
+    status === 'configured'
   ) {
-    return "secondary";
+    return 'secondary';
   }
   if (
-    status === "degraded" ||
-    status === "no_signal" ||
-    status === "no_source" ||
-    status === "no_activity" ||
-    status === "playback_disabled"
+    status === 'degraded' ||
+    status === 'no_signal' ||
+    status === 'no_source' ||
+    status === 'no_activity' ||
+    status === 'playback_disabled'
   ) {
-    return "outline";
+    return 'outline';
   }
-  return "destructive";
+  return 'destructive';
 }
 
 function statusDotClass(status: string): string {
-  if (status === "ok" || status === "up" || status === "running" || status === "active" || status === "configured") {
-    return "bg-emerald-500";
+  if (
+    status === 'ok' ||
+    status === 'up' ||
+    status === 'running' ||
+    status === 'active' ||
+    status === 'configured'
+  ) {
+    return 'bg-emerald-500';
   }
-  if (status === "idle") return "bg-sky-500";
-  if (status === "playback_disabled") return "bg-amber-500";
-  if (status === "degraded" || status === "no_signal" || status === "no_source" || status === "no_activity") {
-    return "bg-amber-500";
+  if (status === 'idle') return 'bg-sky-500';
+  if (status === 'playback_disabled') return 'bg-amber-500';
+  if (
+    status === 'degraded' ||
+    status === 'no_signal' ||
+    status === 'no_source' ||
+    status === 'no_activity'
+  ) {
+    return 'bg-amber-500';
   }
-  if (status === "not_configured") return "bg-zinc-400";
-  if (status === "no_data") return "bg-zinc-400";
-  return "bg-rose-500";
+  if (status === 'not_configured') return 'bg-zinc-400';
+  if (status === 'no_data') return 'bg-zinc-400';
+  return 'bg-rose-500';
 }
 
 function statusLabel(status: string): string {
-  if (status === "playback_disabled") return "выкл.";
-  if (status === "configured") return "настроены";
-  if (status === "not_configured") return "не настроены";
+  if (status === 'playback_disabled') return 'выкл.';
+  if (status === 'configured') return 'настроены';
+  if (status === 'not_configured') return 'не настроены';
   return techProbeStatusHuman(status);
 }
 
 function formatDateTime(value: string | null | undefined): string {
-  if (!value) return "нет данных";
+  if (!value) return 'нет данных';
   const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "нет данных";
+  if (Number.isNaN(d.getTime())) return 'нет данных';
   return d.toLocaleString();
 }
 
-export function computeWorkerStatus(
-  payload: SystemHealthPayload | null,
-): {
-  api: "active" | "down" | "unknown";
-  worker: "active" | "idle" | "no_activity" | "no_signal";
-  webapp: "running";
+export function computeWorkerStatus(payload: SystemHealthPayload | null): {
+  api: 'active' | 'down' | 'unknown';
+  worker: 'active' | 'idle' | 'no_activity' | 'no_signal';
+  webapp: 'running';
 } {
   if (!payload) {
-    return { api: "unknown", worker: "no_signal", webapp: "running" };
+    return { api: 'unknown', worker: 'no_signal', webapp: 'running' };
   }
 
-  const api = payload.integratorApi.status === "ok" ? "active" : "down";
+  const api = payload.integratorApi.status === 'ok' ? 'active' : 'down';
   const lastSuccessAt = payload.projection.snapshot?.lastSuccessAt;
   const pendingCount = payload.projection.snapshot?.pendingCount ?? 0;
   const processingCount = payload.projection.snapshot?.processingCount ?? 0;
   const queueEmpty = pendingCount === 0 && processingCount === 0;
 
   if (queueEmpty) {
-    return { api, worker: "idle", webapp: "running" };
+    return { api, worker: 'idle', webapp: 'running' };
   }
 
   if (!lastSuccessAt) {
-    return { api, worker: "no_signal", webapp: "running" };
+    return { api, worker: 'no_signal', webapp: 'running' };
   }
   const ageMs = Date.now() - new Date(lastSuccessAt).getTime();
   if (!Number.isFinite(ageMs) || ageMs < 0) {
-    return { api, worker: "no_signal", webapp: "running" };
+    return { api, worker: 'no_signal', webapp: 'running' };
   }
   const fortyMinutesMs = 40 * 60 * 1000;
   return {
     api,
-    worker: ageMs <= fortyMinutesMs ? "active" : "no_activity",
-    webapp: "running",
+    worker: ageMs <= fortyMinutesMs ? 'active' : 'no_activity',
+    webapp: 'running',
   };
 }
 
-function workerLabel(status: "active" | "idle" | "no_activity" | "no_signal" | "down" | "unknown" | "running"): string {
-  if (status === "active") return "активен";
-  if (status === "idle") return "очередь пуста";
-  if (status === "no_activity") return "нет недавней активности";
-  if (status === "no_signal") return "нет последнего сигнала";
-  if (status === "down") return "недоступен";
-  if (status === "running") return "работает";
-  return "неизвестно";
+function workerLabel(
+  status: 'active' | 'idle' | 'no_activity' | 'no_signal' | 'down' | 'unknown' | 'running',
+): string {
+  if (status === 'active') return 'активен';
+  if (status === 'idle') return 'очередь пуста';
+  if (status === 'no_activity') return 'нет недавней активности';
+  if (status === 'no_signal') return 'нет последнего сигнала';
+  if (status === 'down') return 'недоступен';
+  if (status === 'running') return 'работает';
+  return 'неизвестно';
 }
 
 const PREVIEW_MIME_LABEL: Record<PreviewMime, string> = {
-  "video/quicktime": "MOV (video/quicktime)",
-  "image/heic": "HEIC (image/heic)",
-  "image/heif": "HEIF (image/heif)",
+  'video/quicktime': 'MOV (video/quicktime)',
+  'image/heic': 'HEIC (image/heic)',
+  'image/heif': 'HEIF (image/heif)',
 };
 
 const PREVIEW_STATUS_LABEL: Record<PreviewStatus, string> = {
-  ready: "готово",
-  pending: "в очереди",
-  failed: "ошибка",
-  skipped: "пропущено",
+  ready: 'готово',
+  pending: 'в очереди',
+  failed: 'ошибка',
+  skipped: 'пропущено',
 };
 
 function StatusPill({ status }: { status: string }) {
   return (
     <Badge variant={statusBadgeVariant(status)} className="inline-flex items-center gap-1.5">
-      <span className={cn("inline-block h-2 w-2 rounded-full", statusDotClass(status))} aria-hidden />
+      <span
+        className={cn('inline-block h-2 w-2 rounded-full', statusDotClass(status))}
+        aria-hidden
+      />
       {statusLabel(status)}
     </Badge>
   );
@@ -527,7 +551,9 @@ function NotificationDeliveryChannelBlock({
 }) {
   return (
     <div className="rounded border border-border/50 p-2 font-mono text-[11px] leading-snug">
-      <p className="mb-1 font-medium text-foreground">{notificationDeliveryChannelHuman(channel)}</p>
+      <p className="mb-1 font-medium text-foreground">
+        {notificationDeliveryChannelHuman(channel)}
+      </p>
       <DetailRow label="success" value={String(agg?.successCount ?? 0)} />
       <DetailRow label="failed" value={String(agg?.failedCount ?? 0)} />
       <DetailRow label="skipped" value={String(agg?.skippedCount ?? 0)} />
@@ -537,7 +563,7 @@ function NotificationDeliveryChannelBlock({
         label="последняя ошибка"
         value={
           agg?.lastProviderStatusCode || agg?.lastErrorReason || agg?.lastErrorMessage
-            ? `${agg?.lastProviderStatusCode ? `HTTP ${agg.lastProviderStatusCode} · ` : ""}${agg?.lastErrorReason ?? "—"}${agg?.lastErrorMessage ? ` (${agg.lastErrorMessage.slice(0, 80)})` : ""}`
+            ? `${agg?.lastProviderStatusCode ? `HTTP ${agg.lastProviderStatusCode} · ` : ''}${agg?.lastErrorReason ?? '—'}${agg?.lastErrorMessage ? ` (${agg.lastErrorMessage.slice(0, 80)})` : ''}`
             : formatDateTime(agg?.lastErrorAt ?? null)
         }
       />
@@ -556,7 +582,10 @@ function DetailRow({ label, value }: { label: string; value: ReactNode }) {
 
 function TechDiagBlock({ children }: { children: ReactNode }) {
   return (
-    <div data-testid={SYSTEM_HEALTH_TECH_DIAGNOSTICS_TESTID} className="mt-2 rounded border border-border/50 bg-muted/15 p-2">
+    <div
+      data-testid={SYSTEM_HEALTH_TECH_DIAGNOSTICS_TESTID}
+      className="mt-2 rounded border border-border/50 bg-muted/15 p-2"
+    >
       <p className="mb-2 text-xs font-medium text-foreground">Техническая диагностика</p>
       <div className="space-y-1">{children}</div>
     </div>
@@ -582,7 +611,7 @@ function ProbeInfo({
     <div className="space-y-1">
       <DetailRow label="Статус пробы" value={techProbeStatusHuman(probe.status)} />
       <DetailRow label="Длительность" value={`${probe.durationMs} мс`} />
-      <DetailRow label="Код ошибки" value={probe.errorCode ?? "—"} />
+      <DetailRow label="Код ошибки" value={probe.errorCode ?? '—'} />
     </div>
   );
   return bare ? inner : <TechDiagBlock>{inner}</TechDiagBlock>;
@@ -605,12 +634,19 @@ function HealthAccordionItem({ name, status, children, aiSnapshot }: HealthAccor
           <span className="flex items-center gap-2">
             <StatusPill status={status} />
             <ChevronDown
-              className={cn("size-4 text-muted-foreground transition-transform", open && "rotate-180")}
+              className={cn(
+                'size-4 text-muted-foreground transition-transform',
+                open && 'rotate-180',
+              )}
               aria-hidden
             />
           </span>
         </Button>
-        <CopyForAiButton payload={snapshot} label="Скопировать" className="h-7 shrink-0 px-2 text-xs" />
+        <CopyForAiButton
+          payload={snapshot}
+          label="Скопировать"
+          className="h-7 shrink-0 px-2 text-xs"
+        />
       </div>
       {open ? (
         <div className="space-y-2 border-t border-border/50 px-3 pb-3 pt-3 text-xs text-muted-foreground">
@@ -624,188 +660,194 @@ function HealthAccordionItem({ name, status, children, aiSnapshot }: HealthAccor
 function operatorIncidentIntegrationHuman(code: string): string {
   const c = code.trim().toLowerCase();
   const m: Record<string, string> = {
-    telegram: "Telegram",
-    max: "MAX",
-    vk: "ВКонтакте",
-    google_calendar: "Google Календарь",
-    gcal: "Google Календарь",
+    telegram: 'Telegram',
+    max: 'MAX',
+    vk: 'ВКонтакте',
+    google_calendar: 'Google Календарь',
+    gcal: 'Google Календарь',
   };
   return m[c] ?? code;
 }
 
 /** Краткая интерпретация для оператора; сырой `error_class` — только в техническом блоке. */
 function probeIntegrationStatusHuman(status: string): string {
-  if (status === "ok") return "успешно";
-  if (status === "fail") return "ошибка";
-  if (status === "skipped_not_configured") return "не настроено";
-  return "нет данных";
+  if (status === 'ok') return 'успешно';
+  if (status === 'fail') return 'ошибка';
+  if (status === 'skipped_not_configured') return 'не настроено';
+  return 'нет данных';
 }
 
-function integrationEntryAccordionStatus(entry: IntegrationHealthEntryPayload): "ok" | "degraded" | "error" | "no_data" {
-  if (entry.outbound.status === "fail") return "error";
-  if (entry.inbound?.processedOk === false) return "degraded";
-  if (entry.outbound.status === "no_data" && (entry.inbound?.receivedAt ?? null) === null) return "no_data";
+function integrationEntryAccordionStatus(
+  entry: IntegrationHealthEntryPayload,
+): 'ok' | 'degraded' | 'error' | 'no_data' {
+  if (entry.outbound.status === 'fail') return 'error';
+  if (entry.inbound?.processedOk === false) return 'degraded';
+  if (entry.outbound.status === 'no_data' && (entry.inbound?.receivedAt ?? null) === null)
+    return 'no_data';
   if (
-    (entry.outbound.status === "ok" || entry.outbound.status === "skipped_not_configured")
-    && (entry.inbound?.processedOk ?? true)
-  ) return "ok";
-  return "degraded";
+    (entry.outbound.status === 'ok' || entry.outbound.status === 'skipped_not_configured') &&
+    (entry.inbound?.processedOk ?? true)
+  )
+    return 'ok';
+  return 'degraded';
 }
 
 function operatorIncidentSynopsisHuman(errorClass: string): string {
   const e = errorClass.trim();
   const known: Record<string, string> = {
-    max_probe_failed: "проверка интеграции MAX завершилась с ошибкой",
-    telegram_probe_failed: "проверка Telegram завершилась с ошибкой",
-    google_calendar_probe_failed: "проверка Google Calendar завершилась с ошибкой",
-    webhook_auth_failed: "ошибка авторизации вебхука",
-    webhook_parse_failed: "не удалось разобрать тело вебхука",
-    webhook_dispatch_failed: "ошибка обработки вебхука",
-    webhook_internal_error: "внутренняя ошибка при обработке вебхука",
-    GOOGLE_EVENT_ID_MISSING: "у события нет связи с Google Calendar",
-    unknown_error_class: "ошибка без детальной классификации",
+    max_probe_failed: 'проверка интеграции MAX завершилась с ошибкой',
+    telegram_probe_failed: 'проверка Telegram завершилась с ошибкой',
+    google_calendar_probe_failed: 'проверка Google Calendar завершилась с ошибкой',
+    webhook_auth_failed: 'ошибка авторизации вебхука',
+    webhook_parse_failed: 'не удалось разобрать тело вебхука',
+    webhook_dispatch_failed: 'ошибка обработки вебхука',
+    webhook_internal_error: 'внутренняя ошибка при обработке вебхука',
+    GOOGLE_EVENT_ID_MISSING: 'у события нет связи с Google Calendar',
+    unknown_error_class: 'ошибка без детальной классификации',
   };
   const direct = known[e];
   if (direct) return direct;
   const token = /^GOOGLE_TOKEN_HTTP_(.+)$/i.exec(e);
-  if (token) return `ошибка запроса к Google (HTTP ${token[1] ?? "?"})`;
+  if (token) return `ошибка запроса к Google (HTTP ${token[1] ?? '?'})`;
   const cal = /^GOOGLE_CALENDAR_HTTP_(.+)$/i.exec(e);
-  if (cal) return `ошибка API Google Calendar (HTTP ${cal[1] ?? "?"})`;
-  return "смотрите код ошибки в технической диагностике карточки";
+  if (cal) return `ошибка API Google Calendar (HTTP ${cal[1] ?? '?'})`;
+  return 'смотрите код ошибки в технической диагностике карточки';
 }
 
 /** Подписи канала доставки в health (ключи произвольные из integrator queue). */
-const NOTIFICATION_DELIVERY_CHANNEL_ORDER = ["telegram", "max", "web_push", "email"] as const;
+const NOTIFICATION_DELIVERY_CHANNEL_ORDER = ['telegram', 'max', 'web_push', 'email'] as const;
 
 function notificationDeliveryChannelHuman(channel: string): string {
-  if (channel === "telegram") return "Telegram";
-  if (channel === "max") return "MAX";
-  if (channel === "web_push") return "Web Push";
-  if (channel === "email") return "Email";
+  if (channel === 'telegram') return 'Telegram';
+  if (channel === 'max') return 'MAX';
+  if (channel === 'web_push') return 'Web Push';
+  if (channel === 'email') return 'Email';
   return channel;
 }
 
 function outgoingDeliveryChannelHuman(channel: string): string {
   const c = channel.trim().toLowerCase();
   const m: Record<string, string> = {
-    telegram_bot: "Telegram-бот",
-    telegram: "Telegram",
-    vk: "ВКонтакте",
-    email: "электронная почта",
-    sms: "SMS",
-    whatsapp: "WhatsApp",
+    telegram_bot: 'Telegram-бот',
+    telegram: 'Telegram',
+    vk: 'ВКонтакте',
+    email: 'электронная почта',
+    sms: 'SMS',
+    whatsapp: 'WhatsApp',
   };
   return m[c] ?? channel;
 }
 
 function outgoingDeliveryKindHuman(kind: string): string {
   const k = kind.trim();
-  if (k === "reminder_dispatch") return "Напоминания пациентам";
-  if (k === "operator_alert") return "Служебные оповещения";
-  if (k === "doctor_broadcast_intent") return "Рассылки от специалистов";
-  return "Прочее";
+  if (k === 'reminder_dispatch') return 'Напоминания пациентам';
+  if (k === 'operator_alert') return 'Служебные оповещения';
+  if (k === 'doctor_broadcast_intent') return 'Рассылки от специалистов';
+  return 'Прочее';
 }
 
 function formatOutgoingByKind(counts: Record<string, number>): string {
   const entries = Object.entries(counts).filter(([, n]) => n > 0);
-  if (entries.length === 0) return "—";
+  if (entries.length === 0) return '—';
   return entries
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([kind, n]) => `${outgoingDeliveryKindHuman(kind)}: ${n}`)
-    .join(", ");
+    .join(', ');
 }
 
 function integratorPushOutboxKindHuman(kind: string): string {
   const k = kind.trim();
-  if (k === "system_settings_sync") return "Настройки → integrator";
-  if (k === "reminder_rule_upsert") return "Правила напоминаний";
-  return k || "Прочее";
+  if (k === 'system_settings_sync') return 'Настройки → integrator';
+  if (k === 'reminder_rule_upsert') return 'Правила напоминаний';
+  return k || 'Прочее';
 }
 
 function formatIntegratorPushOutboxByKind(counts: Record<string, number>): string {
   const entries = Object.entries(counts).filter(([, n]) => n > 0);
-  if (entries.length === 0) return "—";
+  if (entries.length === 0) return '—';
   return entries
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([kind, n]) => `${integratorPushOutboxKindHuman(kind)}: ${n}`)
-    .join(", ");
+    .join(', ');
 }
 
 function playbackClientEventRu(eventClass: string): string {
   const m: Record<string, string> = {
-    hls_fatal: "плеер не смог воспроизвести HLS",
-    video_error: "браузер сообщил ошибку видео",
-    hls_import_failed: "не удалось загрузить HLS",
-    playback_refetch_failed: "не удалось повторно запросить ссылку",
-    playback_refetch_exception: "исключение при повторном запросе ссылки",
-    hls_js_unsupported: "устройство не поддержало HLS.js",
+    hls_fatal: 'плеер не смог воспроизвести HLS',
+    video_error: 'браузер сообщил ошибку видео',
+    hls_import_failed: 'не удалось загрузить HLS',
+    playback_refetch_failed: 'не удалось повторно запросить ссылку',
+    playback_refetch_exception: 'исключение при повторном запросе ссылки',
+    hls_js_unsupported: 'устройство не поддержало HLS.js',
   };
   return m[eventClass] ?? eventClass;
 }
 
 const SAAS_ISOLATION_CLASS_LABEL: Record<SaasIsolationEventClass, string> = {
-  missing_principal: "Запрос без удостоверения",
-  invalid_signature_or_install: "Удостоверение не установлено",
-  role_pool_mismatch: "Неверная роль подключения",
-  rls_denial: "Отказ стены базы",
-  cleanup_failure: "Не очищено подключение",
-  unclassified_background_operation: "Фоновая операция без владельца",
+  missing_principal: 'Запрос без удостоверения',
+  invalid_signature_or_install: 'Удостоверение не установлено',
+  role_pool_mismatch: 'Неверная роль подключения',
+  rls_denial: 'Отказ стены базы',
+  cleanup_failure: 'Не очищено подключение',
+  unclassified_background_operation: 'Фоновая операция без владельца',
 };
 
 const SAAS_ISOLATION_SERVICE_LABEL: Record<SaasIsolationSourceService, string> = {
-  webapp: "Webapp",
-  integrator: "Integrator API",
-  worker: "Worker",
-  scheduler: "Scheduler",
-  media_worker: "Media worker",
-  cron: "Cron",
+  webapp: 'Webapp',
+  integrator: 'Integrator API',
+  worker: 'Worker',
+  scheduler: 'Scheduler',
+  media_worker: 'Media worker',
+  cron: 'Cron',
 };
 
 const SAAS_ISOLATION_OPERATION_LABEL: Record<SaasIsolationSourceOperation, string> = {
-  webapp_db_request: "запрос webapp к БД",
-  webapp_admin_system_health: "страница здоровья системы",
-  public_auth_config: "публичная конфигурация входа",
-  auth_role_config: "конфигурация ролей входа",
-  patient_runtime_config: "конфигурация кабинета пациента",
-  public_booking_config: "публичная конфигурация записи",
-  patient_identity_exception_check: "проверка тестового пациента",
-  patient_booking_history: "история записей пациента",
-  patient_product_analytics: "события продуктовой аналитики пациента",
-  patient_ui_config: "настройки интерфейса пациента",
-  patient_calendar_timezone: "часовой пояс пациента",
-  patient_content_catalog: "каталог материалов пациента",
-  patient_diary: "дневник пациента",
-  integrator_http_request: "HTTP-запрос integrator",
-  integrator_projection: "проекция integrator",
-  worker_queue_drain: "очередь заданий worker",
-  worker_projection_delivery: "доставка проекций worker",
-  worker_outgoing_delivery: "доставка сообщений worker",
-  scheduler_lock: "лидерская блокировка scheduler",
-  scheduler_dispatch_tick: "тик scheduler",
-  media_transcode_tick: "обработка медиа",
-  cron_health: "cron здоровья системы",
-  cron_media: "cron обслуживания медиа",
-  cron_analytics: "cron аналитики",
-  cron_reminders: "cron напоминаний",
-  cron_specialist_tasks: "cron задач специалистов",
+  webapp_db_request: 'запрос webapp к БД',
+  webapp_admin_system_health: 'страница здоровья системы',
+  public_auth_config: 'публичная конфигурация входа',
+  auth_role_config: 'конфигурация ролей входа',
+  patient_runtime_config: 'конфигурация кабинета пациента',
+  public_booking_config: 'публичная конфигурация записи',
+  patient_identity_exception_check: 'проверка тестового пациента',
+  patient_booking_history: 'история записей пациента',
+  patient_product_analytics: 'события продуктовой аналитики пациента',
+  patient_ui_config: 'настройки интерфейса пациента',
+  patient_calendar_timezone: 'часовой пояс пациента',
+  patient_content_catalog: 'каталог материалов пациента',
+  patient_diary: 'дневник пациента',
+  integrator_http_request: 'HTTP-запрос integrator',
+  integrator_projection: 'проекция integrator',
+  worker_queue_drain: 'очередь заданий worker',
+  worker_projection_delivery: 'доставка проекций worker',
+  worker_outgoing_delivery: 'доставка сообщений worker',
+  scheduler_lock: 'лидерская блокировка scheduler',
+  scheduler_dispatch_tick: 'тик scheduler',
+  media_transcode_tick: 'обработка медиа',
+  cron_health: 'cron здоровья системы',
+  cron_media: 'cron обслуживания медиа',
+  cron_analytics: 'cron аналитики',
+  cron_reminders: 'cron напоминаний',
+  cron_specialist_tasks: 'cron задач специалистов',
 };
 
 const SAAS_ISOLATION_REASON_LABEL: Record<SaasIsolationStatusReason, string> = {
-  active_unexplained_event: "Есть активная необъяснённая ошибка",
-  coverage_unexpected_error: "Полная проверка нашла неожиданную ошибку",
-  coverage_missing: "Полная проверка ещё не запускалась",
-  coverage_failed: "Полная проверка завершилась ошибкой",
-  coverage_services_missing: "Проверены не все обязательные сервисы",
-  coverage_checks_empty: "В прогоне нет выполненных проверок",
-  active_explained_event: "Есть активная объяснённая ошибка",
-  coverage_stale: "Результат полной проверки устарел",
+  active_unexplained_event: 'Есть активная необъяснённая ошибка',
+  coverage_unexpected_error: 'Полная проверка нашла неожиданную ошибку',
+  coverage_missing: 'Полная проверка ещё не запускалась',
+  coverage_failed: 'Полная проверка завершилась ошибкой',
+  coverage_services_missing: 'Проверены не все обязательные сервисы',
+  coverage_checks_empty: 'В прогоне нет выполненных проверок',
+  active_explained_event: 'Есть активная объяснённая ошибка',
+  coverage_stale: 'Результат полной проверки устарел',
 };
 
-function saasIsolationAccordionStatus(status: SaasIsolationHealthPayload["status"] | undefined): string {
-  if (status === "critical") return "error";
-  if (status === "incomplete" || status === "stale") return "degraded";
-  if (status === "okay") return "ok";
-  return "no_data";
+function saasIsolationAccordionStatus(
+  status: SaasIsolationHealthPayload['status'] | undefined,
+): string {
+  if (status === 'critical') return 'error';
+  if (status === 'incomplete' || status === 'stale') return 'degraded';
+  if (status === 'okay') return 'ok';
+  return 'no_data';
 }
 
 export function SystemHealthSection() {
@@ -815,23 +857,32 @@ export function SystemHealthSection() {
   const [operatorAction, setOperatorAction] = useState<HealthOperatorAction | null>(null);
   const [clearBusy, setClearBusy] = useState(false);
   const [clearError, setClearError] = useState<string | null>(null);
-  const [saasClassFilter, setSaasClassFilter] = useState<"all" | SaasIsolationEventClass>("all");
-  const [saasLifecycleFilter, setSaasLifecycleFilter] = useState<"all" | SaasIsolationLifecycleStatus>("all");
-  const [saasExplanationFilter, setSaasExplanationFilter] = useState<"all" | SaasIsolationExplanationStatus>("all");
-  const [saasServiceFilter, setSaasServiceFilter] = useState<"all" | SaasIsolationSourceService>("all");
+  const [saasClassFilter, setSaasClassFilter] = useState<'all' | SaasIsolationEventClass>('all');
+  const [saasLifecycleFilter, setSaasLifecycleFilter] = useState<
+    'all' | SaasIsolationLifecycleStatus
+  >('all');
+  const [saasExplanationFilter, setSaasExplanationFilter] = useState<
+    'all' | SaasIsolationExplanationStatus
+  >('all');
+  const [saasServiceFilter, setSaasServiceFilter] = useState<'all' | SaasIsolationSourceService>(
+    'all',
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const body = await apiJson<SystemHealthPayload & { ok?: boolean }>("/api/admin/system-health", {
-        method: "GET",
-        cache: "no-store",
-        credentials: "include",
-      });
+      const body = await apiJson<SystemHealthPayload & { ok?: boolean }>(
+        '/api/admin/system-health',
+        {
+          method: 'GET',
+          cache: 'no-store',
+          credentials: 'include',
+        },
+      );
       setData(body);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "network");
+      setError(e instanceof Error ? e.message : 'network');
       setData(null);
     } finally {
       setLoading(false);
@@ -843,28 +894,28 @@ export function SystemHealthSection() {
     setClearBusy(true);
     setClearError(null);
     try {
-      if (operatorAction.kind === "resolve_incidents") {
-        await apiJson<{ ok: boolean }>("/api/admin/operator-incidents/resolve-all", {
-          method: "POST",
-          credentials: "include",
+      if (operatorAction.kind === 'resolve_incidents') {
+        await apiJson<{ ok: boolean }>('/api/admin/operator-incidents/resolve-all', {
+          method: 'POST',
+          credentials: 'include',
         });
-      } else if (operatorAction.kind === "acknowledge_incidents") {
-        await apiJson<{ ok: boolean }>("/api/admin/operator-incidents/acknowledge-all", {
-          method: "POST",
-          credentials: "include",
+      } else if (operatorAction.kind === 'acknowledge_incidents') {
+        await apiJson<{ ok: boolean }>('/api/admin/operator-incidents/acknowledge-all', {
+          method: 'POST',
+          credentials: 'include',
         });
       } else {
-        await apiJson<{ ok: boolean }>("/api/admin/health-failure-archive/clear", {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
+        await apiJson<{ ok: boolean }>('/api/admin/health-failure-archive/clear', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ probe: operatorAction.probe }),
         });
       }
       setOperatorAction(null);
       await load();
     } catch (e) {
-      setClearError(e instanceof Error ? e.message : "network");
+      setClearError(e instanceof Error ? e.message : 'network');
     } finally {
       setClearBusy(false);
     }
@@ -877,11 +928,12 @@ export function SystemHealthSection() {
   const workers = computeWorkerStatus(data);
   const playbackApiDisabled = data?.videoPlayback?.playbackApiEnabled === false;
   const playbackAccordionStatus = playbackApiDisabled
-    ? "playback_disabled"
-    : (data?.videoPlayback?.status ?? "error");
-  const videoHlsProxyAccordionStatus =
-    playbackApiDisabled ? "playback_disabled" : (data?.videoHlsProxy?.status ?? "error");
-  const transcodeAccordionStatus = data?.videoTranscode?.status ?? "error";
+    ? 'playback_disabled'
+    : (data?.videoPlayback?.status ?? 'error');
+  const videoHlsProxyAccordionStatus = playbackApiDisabled
+    ? 'playback_disabled'
+    : (data?.videoHlsProxy?.status ?? 'error');
+  const transcodeAccordionStatus = data?.videoTranscode?.status ?? 'error';
   const projection = data?.projection.snapshot;
   const queuePending = projection?.pendingCount ?? 0;
   const queueProcessing = projection?.processingCount ?? 0;
@@ -898,27 +950,32 @@ export function SystemHealthSection() {
     outboundProviderOpenCount: 0,
     outboundProviderAcknowledgedCount: 0,
   };
-  const backupJobEntries = Object.entries(data?.backupJobs ?? {}).sort(([a], [b]) => a.localeCompare(b));
+  const backupJobEntries = Object.entries(data?.backupJobs ?? {}).sort(([a], [b]) =>
+    a.localeCompare(b),
+  );
   const cronJobRows = data?.cronJobs?.jobs ?? [];
-  const cronJobsAccordionStatus = data?.cronJobs?.status ?? "no_data";
-  const filteredSaasIsolationEvents = (data?.saasIsolation?.events ?? []).filter((event) =>
-    (saasClassFilter === "all" || event.eventClass === saasClassFilter)
-    && (saasServiceFilter === "all" || event.sourceService === saasServiceFilter)
-    && (saasLifecycleFilter === "all" || event.lifecycleStatus === saasLifecycleFilter)
-    && (saasExplanationFilter === "all" || event.explanationStatus === saasExplanationFilter));
+  const cronJobsAccordionStatus = data?.cronJobs?.status ?? 'no_data';
+  const filteredSaasIsolationEvents = (data?.saasIsolation?.events ?? []).filter(
+    (event) =>
+      (saasClassFilter === 'all' || event.eventClass === saasClassFilter) &&
+      (saasServiceFilter === 'all' || event.sourceService === saasServiceFilter) &&
+      (saasLifecycleFilter === 'all' || event.lifecycleStatus === saasLifecycleFilter) &&
+      (saasExplanationFilter === 'all' || event.explanationStatus === saasExplanationFilter),
+  );
 
-  const webPushTickStatus = data?.webPushOnlyReminderTick?.status ?? "no_data";
-  const webPushSubsStatus = data?.webPush?.status ?? "error";
+  const webPushTickStatus = data?.webPushOnlyReminderTick?.status ?? 'no_data';
+  const webPushSubsStatus = data?.webPush?.status ?? 'error';
   const webPushSectionStatus =
-    webPushTickStatus === "error" || webPushSubsStatus === "error"
-      ? "error"
-      : webPushTickStatus === "degraded" || webPushSubsStatus === "degraded"
-        ? "degraded"
-        : webPushTickStatus === "no_data" && webPushSubsStatus === "no_data"
-          ? "no_data"
-          : webPushSubsStatus === "not_configured"
-            ? "not_configured"
-            : webPushTickStatus === "ok" && (webPushSubsStatus === "ok" || webPushSubsStatus === "no_data")
+    webPushTickStatus === 'error' || webPushSubsStatus === 'error'
+      ? 'error'
+      : webPushTickStatus === 'degraded' || webPushSubsStatus === 'degraded'
+        ? 'degraded'
+        : webPushTickStatus === 'no_data' && webPushSubsStatus === 'no_data'
+          ? 'no_data'
+          : webPushSubsStatus === 'not_configured'
+            ? 'not_configured'
+            : webPushTickStatus === 'ok' &&
+                (webPushSubsStatus === 'ok' || webPushSubsStatus === 'no_data')
               ? webPushSubsStatus
               : webPushTickStatus;
 
@@ -934,8 +991,8 @@ export function SystemHealthSection() {
               {data ? (
                 <CopyForAiButton
                   payload={healthCardAiSnapshot(
-                    "Всё состояние",
-                    "snapshot",
+                    'Всё состояние',
+                    'snapshot',
                     data as unknown as Record<string, unknown>,
                     (data.meta ?? null) as Record<string, unknown> | null,
                     data.fetchedAt,
@@ -944,15 +1001,26 @@ export function SystemHealthSection() {
                   className="h-8 text-xs"
                 />
               ) : null}
-              <Button type="button" variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void load()}
+                disabled={loading}
+              >
                 Обновить
               </Button>
             </div>
           </div>
-          <CardDescription>Косвенные сигналы о состоянии сервисов. Раскройте карточку для деталей и блока технической диагностики.</CardDescription>
+          <CardDescription>
+            Косвенные сигналы о состоянии сервисов. Раскройте карточку для деталей и блока
+            технической диагностики.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
-          {error ? <p className="text-destructive">Не удалось загрузить данные ({error}).</p> : null}
+          {error ? (
+            <p className="text-destructive">Не удалось загрузить данные ({error}).</p>
+          ) : null}
           {loading ? <p className="text-muted-foreground">Загрузка…</p> : null}
           {!loading && !error && (
             <>
@@ -970,17 +1038,21 @@ export function SystemHealthSection() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Сервисы и системные карточки</CardTitle>
-          <CardDescription>Развёрнутые карточки: сначала смысл для оператора, ниже — техническая диагностика.</CardDescription>
+          <CardDescription>
+            Развёрнутые карточки: сначала смысл для оператора, ниже — техническая диагностика.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Платформа и API</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Платформа и API
+            </p>
             <HealthAccordionItem
               name="Изоляция клиник"
               status={saasIsolationAccordionStatus(data?.saasIsolation?.status)}
               aiSnapshot={healthCardAiSnapshot(
-                "Изоляция клиник",
-                data?.saasIsolation?.status ?? "no_data",
+                'Изоляция клиник',
+                data?.saasIsolation?.status ?? 'no_data',
                 data?.saasIsolation ?? {},
                 data?.meta?.probes?.saasIsolation ?? null,
                 data?.fetchedAt,
@@ -989,13 +1061,13 @@ export function SystemHealthSection() {
               <DetailRow
                 label="Итог"
                 value={
-                  data?.saasIsolation?.status === "critical"
-                    ? "Есть необъяснённая ошибка изоляции"
-                    : data?.saasIsolation?.status === "okay"
-                      ? "Свежая полная проверка пройдена"
-                      : data?.saasIsolation?.status === "stale"
-                        ? "Полная проверка устарела"
-                        : "Проверка неполна или требует внимания"
+                  data?.saasIsolation?.status === 'critical'
+                    ? 'Есть необъяснённая ошибка изоляции'
+                    : data?.saasIsolation?.status === 'okay'
+                      ? 'Свежая полная проверка пройдена'
+                      : data?.saasIsolation?.status === 'stale'
+                        ? 'Полная проверка устарела'
+                        : 'Проверка неполна или требует внимания'
                 }
               />
               <DetailRow
@@ -1004,7 +1076,11 @@ export function SystemHealthSection() {
               />
               <DetailRow
                 label="Причины статуса"
-                value={data?.saasIsolation?.statusReasons.map((reason) => SAAS_ISOLATION_REASON_LABEL[reason]).join("; ") || "нет"}
+                value={
+                  data?.saasIsolation?.statusReasons
+                    .map((reason) => SAAS_ISOLATION_REASON_LABEL[reason])
+                    .join('; ') || 'нет'
+                }
               />
               <DetailRow
                 label="Закрытые: необъяснённые / объяснённые"
@@ -1016,11 +1092,13 @@ export function SystemHealthSection() {
               />
               <DetailRow
                 label="Покрытие сервисов"
-                value={data?.saasIsolation?.lastCoverage?.servicesChecked.join(", ") || "нет данных"}
+                value={
+                  data?.saasIsolation?.lastCoverage?.servicesChecked.join(', ') || 'нет данных'
+                }
               />
               <DetailRow
                 label="Не проверены"
-                value={data?.saasIsolation?.missingServices.join(", ") || "нет"}
+                value={data?.saasIsolation?.missingServices.join(', ') || 'нет'}
               />
               <DetailRow
                 label="Проверок / неожиданных ошибок"
@@ -1038,48 +1116,107 @@ export function SystemHealthSection() {
                 label="Изменение за 24 ч"
                 value={
                   data?.saasIsolation
-                    ? `${data.saasIsolation.trend.delta > 0 ? "+" : ""}${data.saasIsolation.trend.delta}`
-                    : "0"
+                    ? `${data.saasIsolation.trend.delta > 0 ? '+' : ''}${data.saasIsolation.trend.delta}`
+                    : '0'
                 }
               />
-              <div className="grid grid-cols-2 gap-1 sm:grid-cols-4 lg:grid-cols-7" aria-label="Сигналы изоляции за 7 дней">
+              <div
+                className="grid grid-cols-2 gap-1 sm:grid-cols-4 lg:grid-cols-7"
+                aria-label="Сигналы изоляции за 7 дней"
+              >
                 {(data?.saasIsolation?.trend.daily7Days ?? []).map((point) => (
-                  <div key={point.date} className="rounded border border-border/50 p-2 text-center text-xs">
+                  <div
+                    key={point.date}
+                    className="rounded border border-border/50 p-2 text-center text-xs"
+                  >
                     <div className="text-muted-foreground">{point.date.slice(5)}</div>
                     <div className="font-medium">{point.count}</div>
                   </div>
                 ))}
               </div>
               <div className="grid gap-1 sm:grid-cols-2">
-                {(Object.keys(SAAS_ISOLATION_CLASS_LABEL) as SaasIsolationEventClass[]).map((eventClass) => (
-                  <DetailRow
-                    key={eventClass}
-                    label={SAAS_ISOLATION_CLASS_LABEL[eventClass]}
-                    value={String(data?.saasIsolation?.byClass[eventClass] ?? 0)}
-                  />
-                ))}
+                {(Object.keys(SAAS_ISOLATION_CLASS_LABEL) as SaasIsolationEventClass[]).map(
+                  (eventClass) => (
+                    <DetailRow
+                      key={eventClass}
+                      label={SAAS_ISOLATION_CLASS_LABEL[eventClass]}
+                      value={String(data?.saasIsolation?.byClass[eventClass] ?? 0)}
+                    />
+                  ),
+                )}
               </div>
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4" aria-label="Фильтры диагностики изоляции">
-                <label className="space-y-1 text-xs">Класс
-                  <select className="w-full rounded-md border bg-background p-2" value={saasClassFilter} onChange={(event) => setSaasClassFilter(event.target.value as "all" | SaasIsolationEventClass)}>
+              <div
+                className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4"
+                aria-label="Фильтры диагностики изоляции"
+              >
+                <label className="space-y-1 text-xs">
+                  Класс
+                  <select
+                    className="w-full rounded-md border bg-background p-2"
+                    value={saasClassFilter}
+                    onChange={(event) =>
+                      setSaasClassFilter(event.target.value as 'all' | SaasIsolationEventClass)
+                    }
+                  >
                     <option value="all">Все</option>
-                    {(Object.keys(SAAS_ISOLATION_CLASS_LABEL) as SaasIsolationEventClass[]).map((eventClass) => <option key={eventClass} value={eventClass}>{SAAS_ISOLATION_CLASS_LABEL[eventClass]}</option>)}
+                    {(Object.keys(SAAS_ISOLATION_CLASS_LABEL) as SaasIsolationEventClass[]).map(
+                      (eventClass) => (
+                        <option key={eventClass} value={eventClass}>
+                          {SAAS_ISOLATION_CLASS_LABEL[eventClass]}
+                        </option>
+                      ),
+                    )}
                   </select>
                 </label>
-                <label className="space-y-1 text-xs">Сервис
-                  <select className="w-full rounded-md border bg-background p-2" value={saasServiceFilter} onChange={(event) => setSaasServiceFilter(event.target.value as "all" | SaasIsolationSourceService)}>
+                <label className="space-y-1 text-xs">
+                  Сервис
+                  <select
+                    className="w-full rounded-md border bg-background p-2"
+                    value={saasServiceFilter}
+                    onChange={(event) =>
+                      setSaasServiceFilter(event.target.value as 'all' | SaasIsolationSourceService)
+                    }
+                  >
                     <option value="all">Все</option>
-                    {(Object.keys(SAAS_ISOLATION_SERVICE_LABEL) as SaasIsolationSourceService[]).map((service) => <option key={service} value={service}>{SAAS_ISOLATION_SERVICE_LABEL[service]}</option>)}
+                    {(
+                      Object.keys(SAAS_ISOLATION_SERVICE_LABEL) as SaasIsolationSourceService[]
+                    ).map((service) => (
+                      <option key={service} value={service}>
+                        {SAAS_ISOLATION_SERVICE_LABEL[service]}
+                      </option>
+                    ))}
                   </select>
                 </label>
-                <label className="space-y-1 text-xs">Состояние
-                  <select className="w-full rounded-md border bg-background p-2" value={saasLifecycleFilter} onChange={(event) => setSaasLifecycleFilter(event.target.value as "all" | SaasIsolationLifecycleStatus)}>
-                    <option value="all">Все</option><option value="active">Активные</option><option value="resolved">Закрытые</option>
+                <label className="space-y-1 text-xs">
+                  Состояние
+                  <select
+                    className="w-full rounded-md border bg-background p-2"
+                    value={saasLifecycleFilter}
+                    onChange={(event) =>
+                      setSaasLifecycleFilter(
+                        event.target.value as 'all' | SaasIsolationLifecycleStatus,
+                      )
+                    }
+                  >
+                    <option value="all">Все</option>
+                    <option value="active">Активные</option>
+                    <option value="resolved">Закрытые</option>
                   </select>
                 </label>
-                <label className="space-y-1 text-xs">Объяснение
-                  <select className="w-full rounded-md border bg-background p-2" value={saasExplanationFilter} onChange={(event) => setSaasExplanationFilter(event.target.value as "all" | SaasIsolationExplanationStatus)}>
-                    <option value="all">Все</option><option value="unexplained">Не объяснены</option><option value="explained">Объяснены</option>
+                <label className="space-y-1 text-xs">
+                  Объяснение
+                  <select
+                    className="w-full rounded-md border bg-background p-2"
+                    value={saasExplanationFilter}
+                    onChange={(event) =>
+                      setSaasExplanationFilter(
+                        event.target.value as 'all' | SaasIsolationExplanationStatus,
+                      )
+                    }
+                  >
+                    <option value="all">Все</option>
+                    <option value="unexplained">Не объяснены</option>
+                    <option value="explained">Объяснены</option>
                   </select>
                 </label>
               </div>
@@ -1088,7 +1225,9 @@ export function SystemHealthSection() {
                   key={`${event.eventClass}:${event.sourceService}:${event.sourceOperation}:${event.lifecycleStatus}`}
                   className="rounded-md border border-border/50 p-2"
                 >
-                  <summary className="cursor-pointer font-medium">{SAAS_ISOLATION_CLASS_LABEL[event.eventClass]} · {event.occurrenceCount}</summary>
+                  <summary className="cursor-pointer font-medium">
+                    {SAAS_ISOLATION_CLASS_LABEL[event.eventClass]} · {event.occurrenceCount}
+                  </summary>
                   <DetailRow label="Класс" value={SAAS_ISOLATION_CLASS_LABEL[event.eventClass]} />
                   <DetailRow
                     label="Источник"
@@ -1096,41 +1235,53 @@ export function SystemHealthSection() {
                   />
                   <DetailRow
                     label="Состояние / объяснение"
-                    value={`${event.lifecycleStatus === "active" ? "активна" : "закрыта"} / ${event.explanationStatus === "explained" ? "объяснена" : "не объяснена"}`}
+                    value={`${event.lifecycleStatus === 'active' ? 'активна' : 'закрыта'} / ${event.explanationStatus === 'explained' ? 'объяснена' : 'не объяснена'}`}
                   />
                   <DetailRow label="Количество" value={String(event.occurrenceCount)} />
-                  <DetailRow label="Первый / последний сигнал" value={`${formatDateTime(event.firstSeenAt)} / ${formatDateTime(event.lastSeenAt)}`} />
+                  <DetailRow
+                    label="Первый / последний сигнал"
+                    value={`${formatDateTime(event.firstSeenAt)} / ${formatDateTime(event.lastSeenAt)}`}
+                  />
                 </details>
               ))}
-              {filteredSaasIsolationEvents.length === 0 ? <p className="text-xs text-muted-foreground">По выбранным фильтрам событий нет.</p> : null}
+              {filteredSaasIsolationEvents.length === 0 ? (
+                <p className="text-xs text-muted-foreground">По выбранным фильтрам событий нет.</p>
+              ) : null}
               <ProbeInfo probe={data?.meta?.probes?.saasIsolation} />
             </HealthAccordionItem>
 
             <HealthAccordionItem
               name="База данных веб-приложения"
-              status={data?.webappDb ?? "down"}
+              status={data?.webappDb ?? 'down'}
               aiSnapshot={healthCardAiSnapshot(
-                "База данных веб-приложения",
-                data?.webappDb ?? "down",
-                { webappDb: data?.webappDb ?? "down" },
+                'База данных веб-приложения',
+                data?.webappDb ?? 'down',
+                { webappDb: data?.webappDb ?? 'down' },
                 data?.meta?.probes?.webappDb ?? null,
                 data?.fetchedAt,
               )}
             >
               <DetailRow
                 label="Итог"
-                value={data?.webappDb === "up" ? "Подключение к базе в норме" : "База недоступна по проверке"}
+                value={
+                  data?.webappDb === 'up'
+                    ? 'Подключение к базе в норме'
+                    : 'База недоступна по проверке'
+                }
               />
-              <DetailRow label="Смысл" value="Если недоступна — приложение не сможет обслуживать запросы к данным." />
+              <DetailRow
+                label="Смысл"
+                value="Если недоступна — приложение не сможет обслуживать запросы к данным."
+              />
               <ProbeInfo probe={data?.meta?.probes?.webappDb} />
             </HealthAccordionItem>
 
             <HealthAccordionItem
               name="Сервер интеграций"
-              status={data?.integratorApi.status ?? "error"}
+              status={data?.integratorApi.status ?? 'error'}
               aiSnapshot={healthCardAiSnapshot(
-                "Сервер интеграций",
-                data?.integratorApi.status ?? "error",
+                'Сервер интеграций',
+                data?.integratorApi.status ?? 'error',
                 { integratorApi: data?.integratorApi },
                 data?.meta?.probes?.integratorApi ?? null,
                 data?.fetchedAt,
@@ -1138,7 +1289,11 @@ export function SystemHealthSection() {
             >
               <DetailRow
                 label="Итог"
-                value={data?.integratorApi.status === "ok" ? "Сервис отвечает" : "Сервис не отвечает или ошибка"}
+                value={
+                  data?.integratorApi.status === 'ok'
+                    ? 'Сервис отвечает'
+                    : 'Сервис не отвечает или ошибка'
+                }
               />
               <DetailRow
                 label="Смысл"
@@ -1146,23 +1301,32 @@ export function SystemHealthSection() {
               />
               <DetailRow
                 label="БД на стороне интегратора"
-                value={data?.integratorApi.db == null ? "нет данных" : techProbeStatusHuman(data.integratorApi.db)}
+                value={
+                  data?.integratorApi.db == null
+                    ? 'нет данных'
+                    : techProbeStatusHuman(data.integratorApi.db)
+                }
               />
               <ProbeInfo probe={data?.meta?.probes?.integratorApi} />
             </HealthAccordionItem>
           </div>
 
           <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Очереди и воркеры</p>
-            <HealthAccordionItem name="Синхронизация событий" status={data?.projection.status ?? "error"}>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Очереди и воркеры
+            </p>
+            <HealthAccordionItem
+              name="Синхронизация событий"
+              status={data?.projection.status ?? 'error'}
+            >
               <DetailRow
                 label="Итог"
                 value={
-                  data?.projection.status === "ok"
-                    ? "Очередь в норме"
-                    : data?.projection.status === "degraded"
-                      ? "Есть отложенные или проблемные записи"
-                      : "Проба недоступна или ошибочна"
+                  data?.projection.status === 'ok'
+                    ? 'Очередь в норме'
+                    : data?.projection.status === 'degraded'
+                      ? 'Есть отложенные или проблемные записи'
+                      : 'Проба недоступна или ошибочна'
                 }
               />
               <DetailRow
@@ -1171,18 +1335,16 @@ export function SystemHealthSection() {
               />
               <DetailRow
                 label="Ждут обработки / обрабатываются сейчас"
-                value={
-                  queueEmpty
-                    ? "Очередь пуста"
-                    : `${queuePending} / ${queueProcessing}`
-                }
+                value={queueEmpty ? 'Очередь пуста' : `${queuePending} / ${queueProcessing}`}
               />
               <DetailRow label="Ошибок без повтора (dead)" value={String(queueDead)} />
               <p className="text-[11px] text-muted-foreground">
                 dead: задачи, которые окончательно упали и больше не повторяются
               </p>
               <DetailRow label="Отменено (cancelled)" value={String(queueCancelled)} />
-              <p className="text-[11px] text-muted-foreground">cancelled: задачи, отменённые системой</p>
+              <p className="text-[11px] text-muted-foreground">
+                cancelled: задачи, отменённые системой
+              </p>
               <DetailRow label="Повторов сверх порога" value={String(queueRetries)} />
               <p className="text-[11px] text-muted-foreground">
                 retries exhausted: задачи, у которых закончились попытки повторной обработки
@@ -1197,7 +1359,10 @@ export function SystemHealthSection() {
                     variant="destructive"
                     onClick={() => {
                       setClearError(null);
-                      setOperatorAction({ kind: "archive", probe: HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE });
+                      setOperatorAction({
+                        kind: 'archive',
+                        probe: HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE,
+                      });
                     }}
                   >
                     Заархивировать и сбросить dead
@@ -1216,26 +1381,41 @@ export function SystemHealthSection() {
               <DetailRow label="Последняя успешная обработка" value={formatDateTime(lastSuccess)} />
               <DetailRow
                 label="Текущая очередь"
-                value={queueEmpty ? "Очередь пуста" : `ждут: ${queuePending}, в работе: ${queueProcessing}`}
+                value={
+                  queueEmpty
+                    ? 'Очередь пуста'
+                    : `ждут: ${queuePending}, в работе: ${queueProcessing}`
+                }
               />
-              <DetailRow label="Порог «активен»" value="успех не старше 40 минут при непустой очереди" />
+              <DetailRow
+                label="Порог «активен»"
+                value="успех не старше 40 минут при непустой очереди"
+              />
             </HealthAccordionItem>
 
             <HealthAccordionItem name="Сервер веб-приложения" status={workers.webapp}>
               <DetailRow label="Итог" value="Процесс webapp отвечает (косвенно)" />
-              <DetailRow label="Смысл" value="Эта карточка не заменяет мониторинг инфраструктуры хоста." />
+              <DetailRow
+                label="Смысл"
+                value="Эта карточка не заменяет мониторинг инфраструктуры хоста."
+              />
             </HealthAccordionItem>
           </div>
 
           <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Медиа и фоновые задачи</p>
-            <HealthAccordionItem name="Фоновая обработка медиа (по расписанию)" status={data?.mediaCronWorkers.status ?? "not_configured"}>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Медиа и фоновые задачи
+            </p>
+            <HealthAccordionItem
+              name="Фоновая обработка медиа (по расписанию)"
+              status={data?.mediaCronWorkers.status ?? 'not_configured'}
+            >
               <DetailRow
                 label="Итог"
                 value={
-                  data?.mediaCronWorkers.status === "configured"
-                    ? "Параметры для внутренних запросов по расписанию настроены"
-                    : "Внутренние запросы по расписанию не готовы"
+                  data?.mediaCronWorkers.status === 'configured'
+                    ? 'Параметры для внутренних запросов по расписанию настроены'
+                    : 'Внутренние запросы по расписанию не готовы'
                 }
               />
               <DetailRow
@@ -1244,17 +1424,26 @@ export function SystemHealthSection() {
               />
             </HealthAccordionItem>
 
-            <HealthAccordionItem name="Превью файлов медиатеки" status={data?.mediaPreview.status ?? "error"}>
+            <HealthAccordionItem
+              name="Превью файлов медиатеки"
+              status={data?.mediaPreview.status ?? 'error'}
+            >
               <DetailRow
                 label="Итог"
                 value={
-                  data?.mediaPreview.status === "ok"
-                    ? "Превью в норме"
-                    : "Есть ошибки, пропуски или долгие ожидания"
+                  data?.mediaPreview.status === 'ok'
+                    ? 'Превью в норме'
+                    : 'Есть ошибки, пропуски или долгие ожидания'
                 }
               />
-              <DetailRow label="Смысл" value="Фоновая генерация миниатюр для тяжёлых форматов (MOV/HEIC/HEIF)." />
-              <DetailRow label="Долгий pending" value={String(data?.mediaPreview.stalePendingCount ?? 0)} />
+              <DetailRow
+                label="Смысл"
+                value="Фоновая генерация миниатюр для тяжёлых форматов (MOV/HEIC/HEIF)."
+              />
+              <DetailRow
+                label="Долгий pending"
+                value={String(data?.mediaPreview.stalePendingCount ?? 0)}
+              />
               {(Object.keys(PREVIEW_MIME_LABEL) as PreviewMime[]).map((mime) => {
                 const counters = data?.mediaPreview.byMimeAndStatus?.[mime];
                 return (
@@ -1262,7 +1451,11 @@ export function SystemHealthSection() {
                     <p className="mb-1 font-medium text-foreground">{PREVIEW_MIME_LABEL[mime]}</p>
                     <div className="grid grid-cols-2 gap-1">
                       {(Object.keys(PREVIEW_STATUS_LABEL) as PreviewStatus[]).map((status) => (
-                        <DetailRow key={`${mime}-${status}`} label={PREVIEW_STATUS_LABEL[status]} value={counters?.[status] ?? 0} />
+                        <DetailRow
+                          key={`${mime}-${status}`}
+                          label={PREVIEW_STATUS_LABEL[status]}
+                          value={counters?.[status] ?? 0}
+                        />
                       ))}
                     </div>
                   </div>
@@ -1276,8 +1469,8 @@ export function SystemHealthSection() {
                 label="Итог"
                 value={
                   playbackApiDisabled
-                    ? "Счётчики выдачи выключены настройкой"
-                    : "Сводка по выдаче ссылок на видео в кабинете"
+                    ? 'Счётчики выдачи выключены настройкой'
+                    : 'Сводка по выдаче ссылок на видео в кабинете'
                 }
               />
               <DetailRow
@@ -1286,7 +1479,7 @@ export function SystemHealthSection() {
               />
               <DetailRow
                 label="API выдачи ссылок на видео"
-                value={playbackApiDisabled ? "выключен" : "включён"}
+                value={playbackApiDisabled ? 'выключен' : 'включён'}
               />
               {playbackApiDisabled ? (
                 <DetailRow
@@ -1295,7 +1488,10 @@ export function SystemHealthSection() {
                 />
               ) : (
                 <>
-                  <DetailRow label="Выдано ссылок на видео (за окно)" value={String(data?.videoPlayback?.totalResolutions ?? 0)} />
+                  <DetailRow
+                    label="Выдано ссылок на видео (за окно)"
+                    value={String(data?.videoPlayback?.totalResolutions ?? 0)}
+                  />
                   <DetailRow
                     label="Формат выдачи за окно: HLS / MP4 / файл"
                     value={`${data?.videoPlayback?.byDelivery.hls ?? 0} / ${data?.videoPlayback?.byDelivery.mp4 ?? 0} / ${data?.videoPlayback?.byDelivery.file ?? 0}`}
@@ -1321,43 +1517,62 @@ export function SystemHealthSection() {
               <ProbeInfo probe={data?.meta?.probes?.videoPlayback} />
 
               <div className="mt-2 rounded border border-border/50 p-2">
-                <p className="mb-1 font-medium text-foreground">Ошибки плеера на устройствах пациентов</p>
+                <p className="mb-1 font-medium text-foreground">
+                  Ошибки плеера на устройствах пациентов
+                </p>
                 <DetailRow
                   label="Итог"
                   value={
-                    data?.videoPlaybackClient?.status === "ok"
-                      ? "За последний час — без зафиксированных ошибок"
-                      : data?.videoPlaybackClient?.status === "degraded"
-                        ? "За последний час есть ошибки"
-                        : "Диагностика недоступна"
+                    data?.videoPlaybackClient?.status === 'ok'
+                      ? 'За последний час — без зафиксированных ошибок'
+                      : data?.videoPlaybackClient?.status === 'degraded'
+                        ? 'За последний час есть ошибки'
+                        : 'Диагностика недоступна'
                   }
                 />
-                <DetailRow label="Всего за 24 ч" value={String(data?.videoPlaybackClient?.totalErrors ?? 0)} />
-                <DetailRow label="За 1 ч" value={String(data?.videoPlaybackClient?.totalErrorsLast1h ?? 0)} />
+                <DetailRow
+                  label="Всего за 24 ч"
+                  value={String(data?.videoPlaybackClient?.totalErrors ?? 0)}
+                />
+                <DetailRow
+                  label="За 1 ч"
+                  value={String(data?.videoPlaybackClient?.totalErrorsLast1h ?? 0)}
+                />
                 <DetailRow
                   label="В ошибках: HLS / MP4 / файл"
                   value={`${data?.videoPlaybackClient?.byDelivery.hls ?? 0} / ${data?.videoPlaybackClient?.byDelivery.mp4 ?? 0} / ${data?.videoPlaybackClient?.byDelivery.file ?? 0}`}
                 />
                 <DetailRow
                   label="Повторяющийся сбой HLS по одному видео (текущий час)"
-                  value={data?.videoPlaybackClient?.likelyLooping ? "да" : "нет"}
+                  value={data?.videoPlaybackClient?.likelyLooping ? 'да' : 'нет'}
                 />
                 <TechDiagBlock>
-                  <p className="text-[11px] text-muted-foreground">Числа по ключам телеметрии сервера</p>
-                  <DetailRow label="Тяжёлая ошибка HLS / видео / импорт HLS" value={`${data?.videoPlaybackClient?.byEvent.hls_fatal ?? 0} / ${data?.videoPlaybackClient?.byEvent.video_error ?? 0} / ${data?.videoPlaybackClient?.byEvent.hls_import_failed ?? 0}`} />
-                  <DetailRow label="Повторный запрос ссылки / исключение / HLS.js" value={`${data?.videoPlaybackClient?.byEvent.playback_refetch_failed ?? 0} / ${data?.videoPlaybackClient?.byEvent.playback_refetch_exception ?? 0} / ${data?.videoPlaybackClient?.byEvent.hls_js_unsupported ?? 0}`} />
+                  <p className="text-[11px] text-muted-foreground">
+                    Числа по ключам телеметрии сервера
+                  </p>
+                  <DetailRow
+                    label="Тяжёлая ошибка HLS / видео / импорт HLS"
+                    value={`${data?.videoPlaybackClient?.byEvent.hls_fatal ?? 0} / ${data?.videoPlaybackClient?.byEvent.video_error ?? 0} / ${data?.videoPlaybackClient?.byEvent.hls_import_failed ?? 0}`}
+                  />
+                  <DetailRow
+                    label="Повторный запрос ссылки / исключение / HLS.js"
+                    value={`${data?.videoPlaybackClient?.byEvent.playback_refetch_failed ?? 0} / ${data?.videoPlaybackClient?.byEvent.playback_refetch_exception ?? 0} / ${data?.videoPlaybackClient?.byEvent.hls_js_unsupported ?? 0}`}
+                  />
                   <ProbeInfo probe={data?.meta?.probes?.videoPlaybackClient} bare />
                 </TechDiagBlock>
                 {data?.videoPlaybackClient?.recent?.length ? (
                   <div className="mt-2 space-y-1">
                     <p className="font-medium text-foreground">Последние события</p>
                     {data.videoPlaybackClient.recent.map((row, idx) => (
-                      <div key={`${row.createdAt}-${row.mediaId}-${idx}`} className="rounded border border-border/50 p-2 font-mono text-[11px] leading-snug">
+                      <div
+                        key={`${row.createdAt}-${row.mediaId}-${idx}`}
+                        className="rounded border border-border/50 p-2 font-mono text-[11px] leading-snug"
+                      >
                         <DetailRow label="Время" value={formatDateTime(row.createdAt)} />
                         <DetailRow label="Видео" value={row.mediaId} />
                         <DetailRow label="Тип" value={playbackClientEventRu(row.eventClass)} />
-                        <DetailRow label="Формат выдачи" value={row.delivery ?? "—"} />
-                        <DetailRow label="Детали" value={row.errorDetail ?? "—"} />
+                        <DetailRow label="Формат выдачи" value={row.delivery ?? '—'} />
+                        <DetailRow label="Детали" value={row.errorDetail ?? '—'} />
                       </div>
                     ))}
                   </div>
@@ -1365,22 +1580,47 @@ export function SystemHealthSection() {
               </div>
             </HealthAccordionItem>
 
-            <HealthAccordionItem name="Потоковая выдача HLS (прокси)" status={videoHlsProxyAccordionStatus}>
-              <DetailRow label="Итог" value={playbackApiDisabled ? "Нет данных (API выдачи видео выкл.)" : "Ошибки ответов прокси из БД"} />
+            <HealthAccordionItem
+              name="Потоковая выдача HLS (прокси)"
+              status={videoHlsProxyAccordionStatus}
+            >
+              <DetailRow
+                label="Итог"
+                value={
+                  playbackApiDisabled
+                    ? 'Нет данных (API выдачи видео выкл.)'
+                    : 'Ошибки ответов прокси из БД'
+                }
+              />
               {!playbackApiDisabled ? (
-                <DetailRow label="Смысл" value={`Окно ${data?.videoHlsProxy?.windowHours ?? 24} ч.`} />
+                <DetailRow
+                  label="Смысл"
+                  value={`Окно ${data?.videoHlsProxy?.windowHours ?? 24} ч.`}
+                />
               ) : null}
               {playbackApiDisabled ? null : (
                 <>
-                  <DetailRow label="Ошибок за 24 ч" value={String(data?.videoHlsProxy?.errorsTotal24h ?? 0)} />
-                  <DetailRow label="Ошибок за 1 ч" value={String(data?.videoHlsProxy?.errorsTotal1h ?? 0)} />
-                  <DetailRow label="Подозрение на перегруз/сбои" value={data?.videoHlsProxy?.degraded ? "да" : "нет"} />
+                  <DetailRow
+                    label="Ошибок за 24 ч"
+                    value={String(data?.videoHlsProxy?.errorsTotal24h ?? 0)}
+                  />
+                  <DetailRow
+                    label="Ошибок за 1 ч"
+                    value={String(data?.videoHlsProxy?.errorsTotal1h ?? 0)}
+                  />
+                  <DetailRow
+                    label="Подозрение на перегруз/сбои"
+                    value={data?.videoHlsProxy?.degraded ? 'да' : 'нет'}
+                  />
                   <ProbeInfo probe={data?.meta?.probes?.videoHlsProxy} />
                   {data?.videoHlsProxy?.recent?.length ? (
                     <div className="mt-2 space-y-1">
                       <p className="font-medium text-foreground">Последние записи</p>
                       {data.videoHlsProxy.recent.map((row, idx) => (
-                        <div key={`${row.createdAt}-${row.mediaId}-${idx}`} className="rounded border border-border/50 p-2 font-mono text-[11px] leading-snug">
+                        <div
+                          key={`${row.createdAt}-${row.mediaId}-${idx}`}
+                          className="rounded border border-border/50 p-2 font-mono text-[11px] leading-snug"
+                        >
                           <DetailRow label="Время" value={formatDateTime(row.createdAt)} />
                           <DetailRow label="Видео" value={row.mediaId} />
                           <DetailRow label="Причина" value={row.reasonCode} />
@@ -1398,31 +1638,43 @@ export function SystemHealthSection() {
               <DetailRow
                 label="Итог"
                 value={
-                  data?.videoTranscode?.status === "error"
-                    ? "Не удалось прочитать метрики"
-                    : data?.videoTranscode?.status === "degraded"
-                      ? "Есть признаки задержки или отдельных сбоев по данным базы приложения"
-                      : "Состояние очереди и зрелости медиабиблиотеки по данным базы приложения"
+                  data?.videoTranscode?.status === 'error'
+                    ? 'Не удалось прочитать метрики'
+                    : data?.videoTranscode?.status === 'degraded'
+                      ? 'Есть признаки задержки или отдельных сбоев по данным базы приложения'
+                      : 'Состояние очереди и зрелости медиабиблиотеки по данным базы приложения'
                 }
               />
               <DetailRow
                 label="Пайплайн / сверка каталога"
-                value={`${data?.videoTranscode?.pipelineEnabled ? "включён" : "выключен"} / ${data?.videoTranscode?.reconcileEnabled ? "включена" : "выключена"}`}
+                value={`${data?.videoTranscode?.pipelineEnabled ? 'включён' : 'выключен'} / ${data?.videoTranscode?.reconcileEnabled ? 'включена' : 'выключена'}`}
               />
               <DetailRow
                 label="Ждут / обрабатываются сейчас"
                 value={
-                  (data?.videoTranscode?.pendingCount ?? 0) === 0 && (data?.videoTranscode?.processingCount ?? 0) === 0
-                    ? "Очередь пуста"
+                  (data?.videoTranscode?.pendingCount ?? 0) === 0 &&
+                  (data?.videoTranscode?.processingCount ?? 0) === 0
+                    ? 'Очередь пуста'
                     : `${data?.videoTranscode?.pendingCount ?? 0} / ${data?.videoTranscode?.processingCount ?? 0}`
                 }
               />
-              <DetailRow label="Завершено / ошибки (1 ч)" value={`${data?.videoTranscode?.doneLastHour ?? 0} / ${data?.videoTranscode?.failedLastHour ?? 0}`} />
-              <DetailRow label="Завершено / ошибки (24 ч)" value={`${data?.videoTranscode?.doneLast24h ?? 0} / ${data?.videoTranscode?.failedLast24h ?? 0}`} />
-              <DetailRow label="Завершено / ошибки (всего)" value={`${data?.videoTranscode?.doneLifetime ?? 0} / ${data?.videoTranscode?.failedLifetime ?? 0}`} />
+              <DetailRow
+                label="Завершено / ошибки (1 ч)"
+                value={`${data?.videoTranscode?.doneLastHour ?? 0} / ${data?.videoTranscode?.failedLastHour ?? 0}`}
+              />
+              <DetailRow
+                label="Завершено / ошибки (24 ч)"
+                value={`${data?.videoTranscode?.doneLast24h ?? 0} / ${data?.videoTranscode?.failedLast24h ?? 0}`}
+              />
+              <DetailRow
+                label="Завершено / ошибки (всего)"
+                value={`${data?.videoTranscode?.doneLifetime ?? 0} / ${data?.videoTranscode?.failedLifetime ?? 0}`}
+              />
               <DetailRow
                 label="Видео без потоковой версии (кандидаты сверки, до 3 ГиБ)"
-                value={String(data?.videoTranscode?.legacyReconcileCandidateCountWithinSizeCap ?? 0)}
+                value={String(
+                  data?.videoTranscode?.legacyReconcileCandidateCountWithinSizeCap ?? 0,
+                )}
               />
               <DetailRow
                 label="Готово видео с HLS master"
@@ -1432,7 +1684,7 @@ export function SystemHealthSection() {
                 label="Среднее время успешной задачи (1 ч), мс"
                 value={
                   data?.videoTranscode?.avgProcessingMsDoneLastHour == null
-                    ? "—"
+                    ? '—'
                     : String(data.videoTranscode.avgProcessingMsDoneLastHour)
                 }
               />
@@ -1440,51 +1692,78 @@ export function SystemHealthSection() {
                 label="Дольше всего ждёт обработку, сек"
                 value={
                   data?.videoTranscode?.oldestPendingAgeSeconds == null
-                    ? "—"
+                    ? '—'
                     : String(data.videoTranscode.oldestPendingAgeSeconds)
                 }
               />
               {data?.videoTranscode?.lastReconcileTick ? (
                 <div className="mt-1 rounded border border-border/50 p-2">
                   <p className="mb-1 font-medium text-foreground">Последняя сверка старых видео</p>
-                  <DetailRow label="Итог" value={techProbeStatusHuman(data.videoTranscode.lastReconcileTick.lastStatus)} />
-                  <DetailRow label="Завершено" value={formatDateTime(data.videoTranscode.lastReconcileTick.lastFinishedAt)} />
-                  <DetailRow label="Последний успех" value={formatDateTime(data.videoTranscode.lastReconcileTick.lastSuccessAt)} />
-                  <DetailRow label="Последняя ошибка" value={formatDateTime(data.videoTranscode.lastReconcileTick.lastFailureAt)} />
-                  <DetailRow label="Длительность, мс" value={String(data.videoTranscode.lastReconcileTick.lastDurationMs ?? "—")} />
-                  <DetailRow label="Текст ошибки" value={data.videoTranscode.lastReconcileTick.lastError ?? "—"} />
+                  <DetailRow
+                    label="Итог"
+                    value={techProbeStatusHuman(data.videoTranscode.lastReconcileTick.lastStatus)}
+                  />
+                  <DetailRow
+                    label="Завершено"
+                    value={formatDateTime(data.videoTranscode.lastReconcileTick.lastFinishedAt)}
+                  />
+                  <DetailRow
+                    label="Последний успех"
+                    value={formatDateTime(data.videoTranscode.lastReconcileTick.lastSuccessAt)}
+                  />
+                  <DetailRow
+                    label="Последняя ошибка"
+                    value={formatDateTime(data.videoTranscode.lastReconcileTick.lastFailureAt)}
+                  />
+                  <DetailRow
+                    label="Длительность, мс"
+                    value={String(data.videoTranscode.lastReconcileTick.lastDurationMs ?? '—')}
+                  />
+                  <DetailRow
+                    label="Текст ошибки"
+                    value={data.videoTranscode.lastReconcileTick.lastError ?? '—'}
+                  />
                   <TechDiagBlock>
-                    <DetailRow label="Ключ задачи (БД)" value={data.videoTranscode.lastReconcileTick.jobKey} />
+                    <DetailRow
+                      label="Ключ задачи (БД)"
+                      value={data.videoTranscode.lastReconcileTick.jobKey}
+                    />
                     <p className="text-[11px] text-muted-foreground break-all">
                       meta: {JSON.stringify(data.videoTranscode.lastReconcileTick.metaJson)}
                     </p>
                   </TechDiagBlock>
                 </div>
               ) : (
-                <DetailRow label="Последняя сверка старых видео" value="ещё не было записей в статусе оператора" />
+                <DetailRow
+                  label="Последняя сверка старых видео"
+                  value="ещё не было записей в статусе оператора"
+                />
               )}
               <ProbeInfo probe={data?.meta?.probes?.videoTranscode} />
             </HealthAccordionItem>
           </div>
 
           <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Интеграции</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Интеграции
+            </p>
             <HealthAccordionItem
               name="Интеграции"
               status={
                 data?.integrations
-                  ? (["telegram", "max"] as const).some(
-                      (k) => integrationEntryAccordionStatus(data.integrations![k]) === "error",
+                  ? (['telegram', 'max'] as const).some(
+                      (k) => integrationEntryAccordionStatus(data.integrations![k]) === 'error',
                     )
-                    ? "error"
-                    : (["telegram", "max"] as const).some(
-                          (k) => integrationEntryAccordionStatus(data.integrations![k]) === "degraded",
+                    ? 'error'
+                    : (['telegram', 'max'] as const).some(
+                          (k) =>
+                            integrationEntryAccordionStatus(data.integrations![k]) === 'degraded',
                         )
-                      ? "degraded"
-                      : data.integrations.google_calendar.outbound.status === "fail"
-                        ? "error"
-                        : "ok"
-                  : "no_data"
+                      ? 'degraded'
+                      : data.integrations.google_calendar.outbound.status === 'fail'
+                        ? 'error'
+                        : 'ok'
+                  : 'no_data'
               }
             >
               {data?.probeOutbound && data.probeOutbound.consecutiveFailRuns > 0 ? (
@@ -1495,11 +1774,17 @@ export function SystemHealthSection() {
               ) : null}
               {data?.integrations ? (
                 <div className="space-y-2">
-                  {(["telegram", "max"] as const).map((key) => {
+                  {(['telegram', 'max'] as const).map((key) => {
                     const entry = data.integrations![key];
                     return (
-                      <div key={key} className="rounded border border-border/50 p-2 text-[11px] leading-snug">
-                        <DetailRow label="Интеграция" value={operatorIncidentIntegrationHuman(key)} />
+                      <div
+                        key={key}
+                        className="rounded border border-border/50 p-2 text-[11px] leading-snug"
+                      >
+                        <DetailRow
+                          label="Интеграция"
+                          value={operatorIncidentIntegrationHuman(key)}
+                        />
                         <DetailRow
                           label="Исходящий (API)"
                           value={probeIntegrationStatusHuman(entry.outbound.status)}
@@ -1513,13 +1798,16 @@ export function SystemHealthSection() {
                           value={
                             entry.inbound?.receivedAt
                               ? entry.inbound.processedOk
-                                ? "успешно"
-                                : "ошибка"
-                              : "нет данных"
+                                ? 'успешно'
+                                : 'ошибка'
+                              : 'нет данных'
                           }
                         />
                         {entry.inbound?.receivedAt ? (
-                          <DetailRow label="Последний вебхук" value={formatDateTime(entry.inbound.receivedAt)} />
+                          <DetailRow
+                            label="Последний вебхук"
+                            value={formatDateTime(entry.inbound.receivedAt)}
+                          />
                         ) : null}
                         {entry.inbound?.errorClass ? (
                           <DetailRow
@@ -1537,14 +1825,21 @@ export function SystemHealthSection() {
                     );
                   })}
                   <div className="rounded border border-border/50 p-2 text-[11px] leading-snug">
-                    <DetailRow label="Интеграция" value={operatorIncidentIntegrationHuman("google_calendar")} />
+                    <DetailRow
+                      label="Интеграция"
+                      value={operatorIncidentIntegrationHuman('google_calendar')}
+                    />
                     <DetailRow
                       label="Исходящий (API)"
-                      value={probeIntegrationStatusHuman(data.integrations.google_calendar.outbound.status)}
+                      value={probeIntegrationStatusHuman(
+                        data.integrations.google_calendar.outbound.status,
+                      )}
                     />
                     <DetailRow
                       label="Последняя проба"
-                      value={formatDateTime(data.integrations.google_calendar.outbound.lastFinishedAt)}
+                      value={formatDateTime(
+                        data.integrations.google_calendar.outbound.lastFinishedAt,
+                      )}
                     />
                   </div>
                 </div>
@@ -1555,38 +1850,74 @@ export function SystemHealthSection() {
           </div>
 
           <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Инфраструктурные источники</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Инфраструктурные источники
+            </p>
             {(openOperatorIncidents.outboundProviderOpenCount ?? 0) > 0 ? (
               <HealthAccordionItem
                 name={`🛑 Исходящая доставка остановлена (${openOperatorIncidents.outboundProviderOpenCount})`}
                 status="error"
               >
-                <DetailRow label="Статус" value="Инцидент провайдера открыт; остановка сохраняется до закрытия" />
-                <DetailRow label="Подтверждено" value={String(openOperatorIncidents.outboundProviderAcknowledgedCount ?? 0)} />
+                <DetailRow
+                  label="Статус"
+                  value="Инцидент провайдера открыт; остановка сохраняется до закрытия"
+                />
+                <DetailRow
+                  label="Подтверждено"
+                  value={String(openOperatorIncidents.outboundProviderAcknowledgedCount ?? 0)}
+                />
                 <div className="flex flex-wrap gap-2 pt-3">
-                  <Button type="button" size="sm" variant="outline" onClick={() => setOperatorAction({ kind: "acknowledge_incidents" })}>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setOperatorAction({ kind: 'acknowledge_incidents' })}
+                  >
                     Подтвердить получение
                   </Button>
-                  <Button type="button" size="sm" variant="destructive" onClick={() => setOperatorAction({ kind: "resolve_incidents" })}>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => setOperatorAction({ kind: 'resolve_incidents' })}
+                  >
                     Закрыть все открытые
                   </Button>
                 </div>
               </HealthAccordionItem>
             ) : null}
             <HealthAccordionItem
-              name={`${(openOperatorIncidents.outboundProviderOpenCount ?? 0) > 0 ? "Прочие открытые инциденты" : "Открытые инциденты"} (${Math.max(0, openOperatorIncidents.openCount - (openOperatorIncidents.outboundProviderOpenCount ?? 0))})`}
-              status={openOperatorIncidents.openCount > (openOperatorIncidents.outboundProviderOpenCount ?? 0) ? "degraded" : "ok"}
+              name={`${(openOperatorIncidents.outboundProviderOpenCount ?? 0) > 0 ? 'Прочие открытые инциденты' : 'Открытые инциденты'} (${Math.max(0, openOperatorIncidents.openCount - (openOperatorIncidents.outboundProviderOpenCount ?? 0))})`}
+              status={
+                openOperatorIncidents.openCount >
+                (openOperatorIncidents.outboundProviderOpenCount ?? 0)
+                  ? 'degraded'
+                  : 'ok'
+              }
             >
               {openOperatorIncidents.openCount === 0 ? (
                 <DetailRow label="Итог" value="открытых нет" />
               ) : (
-                <DetailRow label="Итог" value={`есть открытые (${openOperatorIncidents.openCount})`} />
+                <DetailRow
+                  label="Итог"
+                  value={`есть открытые (${openOperatorIncidents.openCount})`}
+                />
               )}
               <ProbeInfo probe={data?.meta?.probes?.operatorIncidents} />
-              <DetailRow label="Срабатываний суммарно" value={String(openOperatorIncidents.occurrenceCount)} />
-              <DetailRow label="Последнее срабатывание" value={formatDateTime(openOperatorIncidents.lastSeenAt)} />
-              <DetailRow label="Детализация" value="Сырые строки и тексты ошибок не выдаются через System Health" />
-              {openOperatorIncidents.openCount > 0 && !(openOperatorIncidents.outboundProviderOpenCount ?? 0) ? (
+              <DetailRow
+                label="Срабатываний суммарно"
+                value={String(openOperatorIncidents.occurrenceCount)}
+              />
+              <DetailRow
+                label="Последнее срабатывание"
+                value={formatDateTime(openOperatorIncidents.lastSeenAt)}
+              />
+              <DetailRow
+                label="Детализация"
+                value="Сырые строки и тексты ошибок не выдаются через System Health"
+              />
+              {openOperatorIncidents.openCount > 0 &&
+              !(openOperatorIncidents.outboundProviderOpenCount ?? 0) ? (
                 <div className="pt-3">
                   <Button
                     type="button"
@@ -1594,7 +1925,7 @@ export function SystemHealthSection() {
                     variant="destructive"
                     onClick={() => {
                       setClearError(null);
-                      setOperatorAction({ kind: "resolve_incidents" });
+                      setOperatorAction({ kind: 'resolve_incidents' });
                     }}
                   >
                     Закрыть все открытые
@@ -1603,27 +1934,47 @@ export function SystemHealthSection() {
               ) : null}
             </HealthAccordionItem>
 
-            <HealthAccordionItem name="Бэкапы базы данных" status={data?.meta?.probes?.operatorBackupJobs?.status ?? "error"}>
-              <DetailRow label="Итог" value={backupJobEntries.length === 0 ? "нет строк статуса" : "есть записи о прогонах"} />
+            <HealthAccordionItem
+              name="Бэкапы базы данных"
+              status={data?.meta?.probes?.operatorBackupJobs?.status ?? 'error'}
+            >
+              <DetailRow
+                label="Итог"
+                value={
+                  backupJobEntries.length === 0 ? 'нет строк статуса' : 'есть записи о прогонах'
+                }
+              />
               <ProbeInfo probe={data?.meta?.probes?.operatorBackupJobs} />
               {backupJobEntries.length === 0 ? (
                 <DetailRow label="Подробнее" value="нет" />
               ) : (
                 <div className="space-y-2">
                   {backupJobEntries.map(([jobKey, st]) => (
-                    <div key={jobKey} className="rounded border border-border/50 p-2 font-mono text-[11px] leading-snug">
+                    <div
+                      key={jobKey}
+                      className="rounded border border-border/50 p-2 font-mono text-[11px] leading-snug"
+                    >
                       <DetailRow label="Ключ задачи (БД)" value={jobKey} />
                       <DetailRow label="Статус" value={techProbeStatusHuman(st.lastStatus)} />
-                      <DetailRow label="Последний успешный прогон" value={formatDateTime(st.lastSuccessAt)} />
-                      <DetailRow label="Последняя ошибка" value={formatDateTime(st.lastFailureAt)} />
-                      <DetailRow label="Текст ошибки" value={st.lastError ?? "—"} />
+                      <DetailRow
+                        label="Последний успешный прогон"
+                        value={formatDateTime(st.lastSuccessAt)}
+                      />
+                      <DetailRow
+                        label="Последняя ошибка"
+                        value={formatDateTime(st.lastFailureAt)}
+                      />
+                      <DetailRow label="Текст ошибки" value={st.lastError ?? '—'} />
                     </div>
                   ))}
                 </div>
               )}
             </HealthAccordionItem>
 
-            <HealthAccordionItem name="Проверяльщики и cron-задачи хоста" status={cronJobsAccordionStatus}>
+            <HealthAccordionItem
+              name="Проверяльщики и cron-задачи хоста"
+              status={cronJobsAccordionStatus}
+            >
               <DetailRow label="Итог" value={techProbeStatusHuman(cronJobsAccordionStatus)} />
               <DetailRow
                 label="Смысл"
@@ -1635,20 +1986,31 @@ export function SystemHealthSection() {
               ) : (
                 <div className="space-y-2">
                   {cronJobRows.map((job) => (
-                    <div key={job.id} className="rounded border border-border/50 p-2 text-[11px] leading-snug">
+                    <div
+                      key={job.id}
+                      className="rounded border border-border/50 p-2 text-[11px] leading-snug"
+                    >
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <span className="font-medium text-foreground">{job.label}</span>
                         <StatusPill status={job.status} />
                       </div>
                       <DetailRow label="Расписание" value={job.scheduleHint} />
-                      <DetailRow label="Последний успех" value={formatDateTime(job.lastTick?.lastSuccessAt ?? null)} />
-                      <DetailRow label="Последняя ошибка" value={formatDateTime(job.lastTick?.lastFailureAt ?? null)} />
+                      <DetailRow
+                        label="Последний успех"
+                        value={formatDateTime(job.lastTick?.lastSuccessAt ?? null)}
+                      />
+                      <DetailRow
+                        label="Последняя ошибка"
+                        value={formatDateTime(job.lastTick?.lastFailureAt ?? null)}
+                      />
                       {job.lastTick?.lastError ? (
                         <DetailRow label="Текст ошибки" value={job.lastTick.lastError} />
                       ) : null}
                       <TechDiagBlock>
                         <DetailRow label="job_key" value={job.jobKey} />
-                        {job.internalPath ? <DetailRow label="endpoint" value={job.internalPath} /> : null}
+                        {job.internalPath ? (
+                          <DetailRow label="endpoint" value={job.internalPath} />
+                        ) : null}
                       </TechDiagBlock>
                     </div>
                   ))}
@@ -1658,7 +2020,7 @@ export function SystemHealthSection() {
 
             <HealthAccordionItem
               name="Очередь доставки уведомлений"
-              status={data?.meta?.probes?.outgoingDelivery?.status ?? "error"}
+              status={data?.meta?.probes?.outgoingDelivery?.status ?? 'error'}
             >
               <DetailRow
                 label="Смысл"
@@ -1666,15 +2028,24 @@ export function SystemHealthSection() {
               />
               <DetailRow label="Итог" value="Состояние исходящей очереди интегратора" />
               <ProbeInfo probe={data?.meta?.probes?.outgoingDelivery} />
-              <DetailRow label="Ждут отправки" value={String(data?.outgoingDelivery?.dueBacklog ?? 0)} />
-              <DetailRow label="Ошибок без повтора (dead)" value={String(data?.outgoingDelivery?.deadTotal ?? 0)} />
+              <DetailRow
+                label="Ждут отправки"
+                value={String(data?.outgoingDelivery?.dueBacklog ?? 0)}
+              />
+              <DetailRow
+                label="Ошибок без повтора (dead)"
+                value={String(data?.outgoingDelivery?.deadTotal ?? 0)}
+              />
               {(data?.outgoingDelivery?.blockedRecipientTotal ?? 0) > 0 ? (
                 <DetailRow
                   label="Бот заблокирован (не деградация)"
                   value={String(data?.outgoingDelivery?.blockedRecipientTotal ?? 0)}
                 />
               ) : null}
-              <DetailRow label="Обрабатываются сейчас" value={String(data?.outgoingDelivery?.processingCount ?? 0)} />
+              <DetailRow
+                label="Обрабатываются сейчас"
+                value={String(data?.outgoingDelivery?.processingCount ?? 0)}
+              />
               <DetailRow
                 label="Ждущие по каналам"
                 value={
@@ -1683,8 +2054,8 @@ export function SystemHealthSection() {
                     ? Object.entries(data.outgoingDelivery.dueByChannel)
                         .sort(([a], [b]) => a.localeCompare(b))
                         .map(([ch, n]) => `${outgoingDeliveryChannelHuman(ch)}: ${n}`)
-                        .join(", ")
-                    : "—"
+                        .join(', ')
+                    : '—'
                 }
               />
               <DetailRow
@@ -1695,7 +2066,10 @@ export function SystemHealthSection() {
                 label="Ошибки без повтора по типу"
                 value={formatOutgoingByKind(data?.outgoingDelivery?.deadByKind ?? {})}
               />
-              <DetailRow label="Последнее время отправки" value={formatDateTime(data?.outgoingDelivery?.lastSentAt ?? null)} />
+              <DetailRow
+                label="Последнее время отправки"
+                value={formatDateTime(data?.outgoingDelivery?.lastSentAt ?? null)}
+              />
               <DetailRow
                 label="Последнее изменение записи в очереди"
                 value={formatDateTime(data?.outgoingDelivery?.lastQueueActivityAt ?? null)}
@@ -1704,7 +2078,7 @@ export function SystemHealthSection() {
                 label="Дольше всего ждёт (с)"
                 value={
                   data?.outgoingDelivery?.oldestDueAgeSeconds == null
-                    ? "—"
+                    ? '—'
                     : String(data.outgoingDelivery.oldestDueAgeSeconds)
                 }
               />
@@ -1716,7 +2090,10 @@ export function SystemHealthSection() {
                     variant="destructive"
                     onClick={() => {
                       setClearError(null);
-                      setOperatorAction({ kind: "archive", probe: HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE });
+                      setOperatorAction({
+                        kind: 'archive',
+                        probe: HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE,
+                      });
                     }}
                   >
                     Заархивировать и сбросить dead
@@ -1727,7 +2104,11 @@ export function SystemHealthSection() {
 
             <HealthAccordionItem
               name="Доставка уведомлений"
-              status={data?.meta?.probes?.notificationDelivery?.status ?? data?.notificationDelivery?.status ?? "error"}
+              status={
+                data?.meta?.probes?.notificationDelivery?.status ??
+                data?.notificationDelivery?.status ??
+                'error'
+              }
             >
               <ProbeInfo probe={data?.meta?.probes?.notificationDelivery} />
               <DetailRow
@@ -1736,7 +2117,7 @@ export function SystemHealthSection() {
               />
               <DetailRow
                 label="Диагностический статус"
-                value={data?.notificationDelivery?.status ?? "—"}
+                value={data?.notificationDelivery?.status ?? '—'}
               />
               <DetailRow
                 label="Всего попыток за окно"
@@ -1747,16 +2128,14 @@ export function SystemHealthSection() {
               </p>
               {NOTIFICATION_DELIVERY_CHANNEL_ORDER.map((ch) => {
                 const agg = data?.notificationDelivery?.byChannel?.[ch];
-                return (
-                  <NotificationDeliveryChannelBlock key={ch} channel={ch} agg={agg} />
-                );
+                return <NotificationDeliveryChannelBlock key={ch} channel={ch} agg={agg} />;
               })}
               <DetailRow label="Детализация" value="только обезличенные агрегаты" />
             </HealthAccordionItem>
 
             <HealthAccordionItem
               name="Напоминания"
-              status={data?.meta?.probes?.remindersPipeline?.status ?? "error"}
+              status={data?.meta?.probes?.remindersPipeline?.status ?? 'error'}
             >
               <DetailRow
                 label="Смысл"
@@ -1793,7 +2172,9 @@ export function SystemHealthSection() {
               />
               <DetailRow
                 label="M2M push/email: активные ключи idempotency"
-                value={String(data?.remindersPipeline?.patientReminderM2mIdempotencyKeysActive ?? 0)}
+                value={String(
+                  data?.remindersPipeline?.patientReminderM2mIdempotencyKeysActive ?? 0,
+                )}
               />
               {(data?.remindersPipeline?.outgoingReminderDispatch?.dead ?? 0) > 0 ? (
                 <div className="pt-3">
@@ -1803,7 +2184,10 @@ export function SystemHealthSection() {
                     variant="destructive"
                     onClick={() => {
                       setClearError(null);
-                      setOperatorAction({ kind: "archive", probe: HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE });
+                      setOperatorAction({
+                        kind: 'archive',
+                        probe: HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE,
+                      });
                     }}
                   >
                     Заархивировать и сбросить dead
@@ -1813,7 +2197,10 @@ export function SystemHealthSection() {
             </HealthAccordionItem>
 
             <HealthAccordionItem name="Web Push (PWA)" status={webPushSectionStatus}>
-              <DetailRow label="Cron Web Push-only напоминаний" value={techProbeStatusHuman(webPushTickStatus)} />
+              <DetailRow
+                label="Cron Web Push-only напоминаний"
+                value={techProbeStatusHuman(webPushTickStatus)}
+              />
               <p className="text-[11px] text-muted-foreground">
                 Ожидается cron каждую минуту: POST /api/internal/reminders/web-push-only/tick
               </p>
@@ -1834,39 +2221,45 @@ export function SystemHealthSection() {
                   />
                   <DetailRow
                     label="Текст ошибки"
-                    value={data.webPushOnlyReminderTick.lastTick.lastError ?? "—"}
+                    value={data.webPushOnlyReminderTick.lastTick.lastError ?? '—'}
                   />
                   <DetailRow
                     label="Длительность, мс"
-                    value={String(data.webPushOnlyReminderTick.lastTick.lastDurationMs ?? "—")}
+                    value={String(data.webPushOnlyReminderTick.lastTick.lastDurationMs ?? '—')}
                   />
-                  <DetailRow label="Правил (последний tick)" value={String(webPushTickMeta.rulesFound ?? "—")} />
-                  <DetailRow label="Запланировано upsert" value={String(webPushTickMeta.plannedUpserts ?? "—")} />
-                  <DetailRow label="Взято due" value={String(webPushTickMeta.dueClaimed ?? "—")} />
-                  <DetailRow label="Отправлено" value={String(webPushTickMeta.sent ?? "—")} />
-                  <DetailRow label="Пропущено" value={String(webPushTickMeta.skipped ?? "—")} />
+                  <DetailRow
+                    label="Правил (последний tick)"
+                    value={String(webPushTickMeta.rulesFound ?? '—')}
+                  />
+                  <DetailRow
+                    label="Запланировано upsert"
+                    value={String(webPushTickMeta.plannedUpserts ?? '—')}
+                  />
+                  <DetailRow label="Взято due" value={String(webPushTickMeta.dueClaimed ?? '—')} />
+                  <DetailRow label="Отправлено" value={String(webPushTickMeta.sent ?? '—')} />
+                  <DetailRow label="Пропущено" value={String(webPushTickMeta.skipped ?? '—')} />
                   <DetailRow
                     label="Пропущено (нет подписки)"
-                    value={String(webPushTickMeta.skippedNoSubscription ?? "—")}
+                    value={String(webPushTickMeta.skippedNoSubscription ?? '—')}
                   />
-                  <DetailRow label="Пропущено (нет темы)" value={String(webPushTickMeta.skippedNoTopic ?? "—")} />
-                  <DetailRow label="Ошибок" value={String(webPushTickMeta.failed ?? "—")} />
+                  <DetailRow
+                    label="Пропущено (нет темы)"
+                    value={String(webPushTickMeta.skippedNoTopic ?? '—')}
+                  />
+                  <DetailRow label="Ошибок" value={String(webPushTickMeta.failed ?? '—')} />
                   <DetailRow
                     label="Подряд падений cron"
-                    value={String(webPushTickMeta.consecutiveCronFailures ?? "—")}
+                    value={String(webPushTickMeta.consecutiveCronFailures ?? '—')}
                   />
                 </>
               ) : (
                 <DetailRow label="Последний tick" value="нет данных в operator_job_status" />
               )}
               <ProbeInfo probe={data?.meta?.probes?.webPush} />
-              <DetailRow
-                label="Диагностический статус"
-                value={data?.webPush?.status ?? "—"}
-              />
+              <DetailRow label="Диагностический статус" value={data?.webPush?.status ?? '—'} />
               <DetailRow
                 label="VAPID настроен"
-                value={data?.webPush?.vapidConfigured ? "да" : "нет"}
+                value={data?.webPush?.vapidConfigured ? 'да' : 'нет'}
               />
               <DetailRow
                 label="Активные подписки (строк в БД)"
@@ -1883,29 +2276,39 @@ export function SystemHealthSection() {
               <DetailRow
                 label="Агрегаты попыток доставки в БД"
                 value={
-                  data?.webPush?.deliveryMetricsInDb ?
-                    "да — карточка «Доставка уведомлений»"
-                  : "нет"
+                  data?.webPush?.deliveryMetricsInDb
+                    ? 'да — карточка «Доставка уведомлений»'
+                    : 'нет'
                 }
               />
             </HealthAccordionItem>
 
             <HealthAccordionItem
               name="Очередь синка в integrator"
-              status={data?.meta?.probes?.integratorPushOutbox?.status ?? "error"}
+              status={data?.meta?.probes?.integratorPushOutbox?.status ?? 'error'}
             >
               <DetailRow label="Итог" value="Очередь signed POST в integrator (ретраи)" />
               <ProbeInfo probe={data?.meta?.probes?.integratorPushOutbox} />
-              <DetailRow label="Ждут (due)" value={String(data?.integratorPushOutbox?.dueBacklog ?? 0)} />
+              <DetailRow
+                label="Ждут (due)"
+                value={String(data?.integratorPushOutbox?.dueBacklog ?? 0)}
+              />
               <DetailRow label="Dead" value={String(data?.integratorPushOutbox?.deadTotal ?? 0)} />
-              <DetailRow label="Processing" value={String(data?.integratorPushOutbox?.processingCount ?? 0)} />
+              <DetailRow
+                label="Processing"
+                value={String(data?.integratorPushOutbox?.processingCount ?? 0)}
+              />
               <DetailRow
                 label="Ждут по типу"
-                value={formatIntegratorPushOutboxByKind(data?.integratorPushOutbox?.dueByKind ?? {})}
+                value={formatIntegratorPushOutboxByKind(
+                  data?.integratorPushOutbox?.dueByKind ?? {},
+                )}
               />
               <DetailRow
                 label="Dead по типу"
-                value={formatIntegratorPushOutboxByKind(data?.integratorPushOutbox?.deadByKind ?? {})}
+                value={formatIntegratorPushOutboxByKind(
+                  data?.integratorPushOutbox?.deadByKind ?? {},
+                )}
               />
               <DetailRow
                 label="Последнее изменение в очереди"
@@ -1915,7 +2318,7 @@ export function SystemHealthSection() {
                 label="Старейший due (с)"
                 value={
                   data?.integratorPushOutbox?.oldestDueAgeSeconds == null
-                    ? "—"
+                    ? '—'
                     : String(data.integratorPushOutbox.oldestDueAgeSeconds)
                 }
               />
@@ -1923,7 +2326,7 @@ export function SystemHealthSection() {
                 label="Старейший processing (с)"
                 value={
                   data?.integratorPushOutbox?.oldestProcessingAgeSeconds == null
-                    ? "—"
+                    ? '—'
                     : String(data.integratorPushOutbox.oldestProcessingAgeSeconds)
                 }
               />
@@ -1935,7 +2338,10 @@ export function SystemHealthSection() {
                     variant="destructive"
                     onClick={() => {
                       setClearError(null);
-                      setOperatorAction({ kind: "archive", probe: HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE });
+                      setOperatorAction({
+                        kind: 'archive',
+                        probe: HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE,
+                      });
                     }}
                   >
                     Заархивировать и сбросить dead
@@ -1950,7 +2356,9 @@ export function SystemHealthSection() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Краткая сводка</CardTitle>
-          <CardDescription>Сводка работы очередей и интеграций по данным этого экрана.</CardDescription>
+          <CardDescription>
+            Сводка работы очередей и интеграций по данным этого экрана.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/60 p-3">
@@ -1972,7 +2380,11 @@ export function SystemHealthSection() {
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/60 p-3">
             <span>Доставка уведомлений</span>
             <StatusPill
-              status={data?.meta?.probes?.notificationDelivery?.status ?? data?.notificationDelivery?.status ?? "no_data"}
+              status={
+                data?.meta?.probes?.notificationDelivery?.status ??
+                data?.notificationDelivery?.status ??
+                'no_data'
+              }
             />
           </div>
         </CardContent>
@@ -1980,7 +2392,9 @@ export function SystemHealthSection() {
 
       <Collapsible className="rounded-lg border border-border/50 bg-muted/20 px-3 py-2">
         <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 text-left text-xs text-muted-foreground">
-          <span>Архив сбоев очередей (срок хранения {HEALTH_FAILURE_ARCHIVE_RETENTION_DAYS} дн.)</span>
+          <span>
+            Архив сбоев очередей (срок хранения {HEALTH_FAILURE_ARCHIVE_RETENTION_DAYS} дн.)
+          </span>
           <ChevronDown className="size-4 shrink-0 opacity-70" />
         </CollapsibleTrigger>
         <CollapsibleContent className="pt-2 text-xs text-muted-foreground">
@@ -2025,29 +2439,41 @@ export function SystemHealthSection() {
         <DialogContent className="sm:max-w-md" showCloseButton={!clearBusy}>
           <DialogHeader>
             <DialogTitle>
-              {operatorAction?.kind === "resolve_incidents"
-                ? "Закрыть инциденты"
-                : operatorAction?.kind === "acknowledge_incidents"
-                  ? "Подтвердить инциденты"
-                  : "Сброс dead в очереди"}
+              {operatorAction?.kind === 'resolve_incidents'
+                ? 'Закрыть инциденты'
+                : operatorAction?.kind === 'acknowledge_incidents'
+                  ? 'Подтвердить инциденты'
+                  : 'Сброс dead в очереди'}
             </DialogTitle>
             <DialogDescription>
-              {operatorAction?.kind === "resolve_incidents"
-                ? "Закроет все открытые инциденты. Повторные алерты не отправляются."
-                : operatorAction?.kind === "acknowledge_incidents"
-                  ? "Остановит критические повторы. Инцидент останется красным и попадёт в ежедневную сводку до закрытия."
-                : operatorAction?.probe === HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE
-                  ? "Удалит dead из очереди синхронизации; копия в архиве. Это не повторная постановка в очередь."
-                  : `Необратимо удалит dead-строки из очереди; копия останется в архиве до ${HEALTH_FAILURE_ARCHIVE_RETENTION_DAYS} дней. Задачи due и журнал рассылок не пересчитываются.`}
+              {operatorAction?.kind === 'resolve_incidents'
+                ? 'Закроет все открытые инциденты. Повторные алерты не отправляются.'
+                : operatorAction?.kind === 'acknowledge_incidents'
+                  ? 'Остановит критические повторы. Инцидент останется красным и попадёт в ежедневную сводку до закрытия.'
+                  : operatorAction?.probe === HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE
+                    ? 'Удалит dead из очереди синхронизации; копия в архиве. Это не повторная постановка в очередь.'
+                    : `Необратимо удалит dead-строки из очереди; копия останется в архиве до ${HEALTH_FAILURE_ARCHIVE_RETENTION_DAYS} дней. Задачи due и журнал рассылок не пересчитываются.`}
             </DialogDescription>
           </DialogHeader>
-          {clearError ? <p className="text-sm text-destructive">Не удалось выполнить ({clearError}).</p> : null}
+          {clearError ? (
+            <p className="text-sm text-destructive">Не удалось выполнить ({clearError}).</p>
+          ) : null}
           <DialogFooter className="gap-2 sm:justify-end">
-            <Button type="button" variant="outline" disabled={clearBusy} onClick={() => setOperatorAction(null)}>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={clearBusy}
+              onClick={() => setOperatorAction(null)}
+            >
               Отмена
             </Button>
-            <Button type="button" variant="destructive" disabled={clearBusy} onClick={() => void runOperatorAction()}>
-              {clearBusy ? "Выполняется…" : "Подтвердить"}
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={clearBusy}
+              onClick={() => void runOperatorAction()}
+            >
+              {clearBusy ? 'Выполняется…' : 'Подтвердить'}
             </Button>
           </DialogFooter>
         </DialogContent>

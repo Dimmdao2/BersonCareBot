@@ -1,7 +1,10 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
-import type { ContentScriptMatchObject, ContentScriptMatchValue } from '../contracts/orchestrator.js';
+import type {
+  ContentScriptMatchObject,
+  ContentScriptMatchValue,
+} from '../contracts/orchestrator.js';
 
 const scriptStepSchema = z.object({
   action: z.string().min(1),
@@ -9,22 +12,28 @@ const scriptStepSchema = z.object({
   params: z.record(z.string(), z.unknown()).optional(),
 });
 
-const contentScriptMatchValueSchema: z.ZodType<ContentScriptMatchValue> = z.lazy(() => z.union([
-  z.string(),
-  z.number(),
-  z.boolean(),
-  z.null(),
-  z.array(contentScriptMatchValueSchema),
-  contentScriptMatchObjectSchema,
-]));
+const contentScriptMatchValueSchema: z.ZodType<ContentScriptMatchValue> = z.lazy(() =>
+  z.union([
+    z.string(),
+    z.number(),
+    z.boolean(),
+    z.null(),
+    z.array(contentScriptMatchValueSchema),
+    contentScriptMatchObjectSchema,
+  ]),
+);
 
-const contentScriptMatchObjectSchema: z.ZodType<ContentScriptMatchObject> = z.lazy(() => z.object({
-  textPresent: z.boolean().optional(),
-  phonePresent: z.boolean().optional(),
-  excludeActions: z.array(z.string().min(1)).optional(),
-  excludeTexts: z.array(z.string().min(1)).optional(),
-  excludeTextPrefixes: z.array(z.string().min(1)).optional(),
-}).catchall(contentScriptMatchValueSchema));
+const contentScriptMatchObjectSchema: z.ZodType<ContentScriptMatchObject> = z.lazy(() =>
+  z
+    .object({
+      textPresent: z.boolean().optional(),
+      phonePresent: z.boolean().optional(),
+      excludeActions: z.array(z.string().min(1)).optional(),
+      excludeTexts: z.array(z.string().min(1)).optional(),
+      excludeTextPrefixes: z.array(z.string().min(1)).optional(),
+    })
+    .catchall(contentScriptMatchValueSchema),
+);
 
 const contentScriptSchema = z.object({
   id: z.string().min(1),
@@ -107,7 +116,7 @@ export async function loadContentRegistry(input?: { rootDir?: string }): Promise
     if (hasUserDir && hasAdminDir) {
       const rootScriptsPath = path.join(sourceDir, 'scripts.json');
       const rootTemplatesPath = path.join(sourceDir, 'templates.json');
-      if (await fileExists(rootScriptsPath) || await fileExists(rootTemplatesPath)) {
+      if ((await fileExists(rootScriptsPath)) || (await fileExists(rootTemplatesPath))) {
         throw new Error(
           `Content source "${source}" has scoped bundles (user/admin); root scripts.json/templates.json are forbidden to prevent shadow runtime content.`,
         );
@@ -118,14 +127,25 @@ export async function loadContentRegistry(input?: { rootDir?: string }): Promise
         const templatesPath = path.join(audienceDir, 'templates.json');
         const menuPath = path.join(audienceDir, 'menu.json');
         const replyMenuPath = path.join(audienceDir, 'replyMenu.json');
-        const scriptsRaw = await fileExists(scriptsPath) ? await readJsonFile(scriptsPath) : [];
-        const templatesRaw = await fileExists(templatesPath) ? await readJsonFile(templatesPath) : {};
-        const menusRaw = await fileExists(menuPath) ? await readJsonFile(menuPath) : undefined;
-        const mainReplyKeyboardRaw = await fileExists(replyMenuPath) ? await readJsonFile(replyMenuPath) : undefined;
+        const scriptsRaw = (await fileExists(scriptsPath)) ? await readJsonFile(scriptsPath) : [];
+        const templatesRaw = (await fileExists(templatesPath))
+          ? await readJsonFile(templatesPath)
+          : {};
+        const menusRaw = (await fileExists(menuPath)) ? await readJsonFile(menuPath) : undefined;
+        const mainReplyKeyboardRaw = (await fileExists(replyMenuPath))
+          ? await readJsonFile(replyMenuPath)
+          : undefined;
         const scripts = scriptsFileSchema.parse(Array.isArray(scriptsRaw) ? scriptsRaw : []);
-        const templates = templatesFileSchema.parse(typeof templatesRaw === 'object' && templatesRaw !== null ? templatesRaw : {});
-        const menus = typeof menusRaw === 'object' && menusRaw !== null && !Array.isArray(menusRaw) ? (menusRaw as MenuMap) : undefined;
-        const mainReplyKeyboard = Array.isArray(mainReplyKeyboardRaw) ? mainReplyKeyboardRaw : undefined;
+        const templates = templatesFileSchema.parse(
+          typeof templatesRaw === 'object' && templatesRaw !== null ? templatesRaw : {},
+        );
+        const menus =
+          typeof menusRaw === 'object' && menusRaw !== null && !Array.isArray(menusRaw)
+            ? (menusRaw as MenuMap)
+            : undefined;
+        const mainReplyKeyboard = Array.isArray(mainReplyKeyboardRaw)
+          ? mainReplyKeyboardRaw
+          : undefined;
         const key = `${source}/${audience}`;
         ensureNoDuplicateScriptIds({ scripts, templates }, key);
         registry[key] = {
@@ -140,10 +160,10 @@ export async function loadContentRegistry(input?: { rootDir?: string }): Promise
 
     const scriptsPath = path.join(sourceDir, 'scripts.json');
     const templatesPath = path.join(sourceDir, 'templates.json');
-    const scripts = await fileExists(scriptsPath)
+    const scripts = (await fileExists(scriptsPath))
       ? scriptsFileSchema.parse(await readJsonFile(scriptsPath))
       : [];
-    const templates = await fileExists(templatesPath)
+    const templates = (await fileExists(templatesPath))
       ? templatesFileSchema.parse(await readJsonFile(templatesPath))
       : {};
     ensureNoDuplicateScriptIds({ scripts, templates }, source);
@@ -167,10 +187,7 @@ export function ensureNoDuplicateScriptIds(bundle: ContentBundle, scopeKey: stri
 }
 
 /** Returns one content bundle by exact key (e.g. "telegram" or "telegram/user"). */
-export function getContentBundle(
-  registry: ContentRegistry,
-  key: string,
-): ContentBundle | null {
+export function getContentBundle(registry: ContentRegistry, key: string): ContentBundle | null {
   return registry[key] ?? null;
 }
 

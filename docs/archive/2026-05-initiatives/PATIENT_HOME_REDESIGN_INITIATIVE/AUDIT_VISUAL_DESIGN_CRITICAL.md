@@ -10,14 +10,14 @@
 
 ## Fix follow-up (2026-04-30)
 
-| Finding | Resolution |
-|---------|------------|
-| **1 — Medium, viewport/state matrix** | **Не закрывается кодом** (процесс / продуктовый QA). Остаётся рекомендация: ручной или инструментальный visual pass по ширинам и состояниям. |
-| **2 — Low, тесты и Tailwind** | `PatientHomeTodayLayout.tsx`: на обёртки блоков добавлены стабильные атрибуты `data-lg-order`, `data-lg-col-start`, `data-lg-col-span` (дублируют контракт desktop-сетки без парсинга `className`). `PatientHomeTodayLayout.test.tsx`: убраны хрупкие `toHaveClass` по responsive-классам сетки; проверяются `data-testid`, число детей, `data-lg-*` и контент блоков. |
-| **3 — Low, hero `flex-wrap`** | `PatientHomeDailyWarmupCard.tsx`: ряд бейджей — `flex-nowrap`, на бейджах `truncate` + `max-w-*` + `shrink-0`, чтобы длинные подписи не ломали строку внутри фиксированной высоты hero. |
-| **4 — Low, booking CTA пиксели** | **Без произвольного продуктового решения** (копирайт / `text-sm` на кнопках). Остаётся residual до ручной проверки на 1024/1280. |
-| **5 — Low, progress loading density** | `PatientHomeProgressBlock.tsx`: первая полоска скелетона числа увеличена по высоте (`h-9` / `sm:h-10` с `min-h`), чтобы ближе к визуальной массе блока со счётчиком — без изменения внешней высоты карточки. |
-| **6 — Low, courses vertical alignment** | **Без изменения** `justify-center` vs `justify-start` — продуктовое решение после QA. Residual. |
+| Finding                                 | Resolution                                                                                                                                                                                                                                                                                                                                                             |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **1 — Medium, viewport/state matrix**   | **Не закрывается кодом** (процесс / продуктовый QA). Остаётся рекомендация: ручной или инструментальный visual pass по ширинам и состояниям.                                                                                                                                                                                                                           |
+| **2 — Low, тесты и Tailwind**           | `PatientHomeTodayLayout.tsx`: на обёртки блоков добавлены стабильные атрибуты `data-lg-order`, `data-lg-col-start`, `data-lg-col-span` (дублируют контракт desktop-сетки без парсинга `className`). `PatientHomeTodayLayout.test.tsx`: убраны хрупкие `toHaveClass` по responsive-классам сетки; проверяются `data-testid`, число детей, `data-lg-*` и контент блоков. |
+| **3 — Low, hero `flex-wrap`**           | `PatientHomeDailyWarmupCard.tsx`: ряд бейджей — `flex-nowrap`, на бейджах `truncate` + `max-w-*` + `shrink-0`, чтобы длинные подписи не ломали строку внутри фиксированной высоты hero.                                                                                                                                                                                |
+| **4 — Low, booking CTA пиксели**        | **Без произвольного продуктового решения** (копирайт / `text-sm` на кнопках). Остаётся residual до ручной проверки на 1024/1280.                                                                                                                                                                                                                                       |
+| **5 — Low, progress loading density**   | `PatientHomeProgressBlock.tsx`: первая полоска скелетона числа увеличена по высоте (`h-9` / `sm:h-10` с `min-h`), чтобы ближе к визуальной массе блока со счётчиком — без изменения внешней высоты карточки.                                                                                                                                                           |
+| **6 — Low, courses vertical alignment** | **Без изменения** `justify-center` vs `justify-start` — продуктовое решение после QA. Residual.                                                                                                                                                                                                                                                                        |
 
 ---
 
@@ -27,71 +27,71 @@ The rows below retain the original audit wording for traceability; see **Fix fol
 
 ### 1. Medium — Нет фактической верификации viewports и визуальных состояний
 
-| Field | Detail |
-|--------|--------|
-| **Component / area** | Вся главная пациента после design-critical pass |
-| **Evidence** | Аудит выполнен без запуска браузера, без скриншотов и без ручной матрицы ширин (390, 768, 1024, 1280) и состояний (guest, no-tier, full data, loading). |
-| **Risk** | Регрессии переполнения, субпиксельные сдвиги, контраст и «ощущение app» остаются неподтверждёнными. |
+| Field                        | Detail                                                                                                                                                                                                 |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Component / area**         | Вся главная пациента после design-critical pass                                                                                                                                                        |
+| **Evidence**                 | Аудит выполнен без запуска браузера, без скриншотов и без ручной матрицы ширин (390, 768, 1024, 1280) и состояний (guest, no-tier, full data, loading).                                                |
+| **Risk**                     | Регрессии переполнения, субпиксельные сдвиги, контраст и «ощущение app» остаются неподтверждёнными.                                                                                                    |
 | **Exact fix recommendation** | Запланировать короткий **visual QA** (чеклист из `patient-home-visual-hardening` / `VISUAL_SYSTEM_SPEC.md`): фиксированные ширины, скриншоты до/после или Storybook/Chromatic по согласованию команды. |
 
 ### 2. Low — Тест сетки завязан на конкретные Tailwind-классы
 
-| Field | Detail |
-|--------|--------|
-| **File** | `apps/webapp/src/app/app/patient/home/PatientHomeTodayLayout.test.tsx` |
-| **Evidence** | Несколько `expect(layoutGrid).toHaveClass("lg:grid-cols-[3fr_2fr]")`, `lg:items-stretch`, `lg:order-[10]` и т.д. — это не полный snapshot `className`, но при смене токенов сетки тест придётся править синхронно с CSS. |
-| **Risk** | Ложные падения CI при косметическом рефакторинге layout без изменения поведения. |
-| **Exact fix recommendation** | По возможности сместить проверки на `data-testid` + структуру DOM (например, два блока в первой строке), или на минимальный набор семантических инвариантов без перечисления всех responsive-классов. |
+| Field                        | Detail                                                                                                                                                                                                                   |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **File**                     | `apps/webapp/src/app/app/patient/home/PatientHomeTodayLayout.test.tsx`                                                                                                                                                   |
+| **Evidence**                 | Несколько `expect(layoutGrid).toHaveClass("lg:grid-cols-[3fr_2fr]")`, `lg:items-stretch`, `lg:order-[10]` и т.д. — это не полный snapshot `className`, но при смене токенов сетки тест придётся править синхронно с CSS. |
+| **Risk**                     | Ложные падения CI при косметическом рефакторинге layout без изменения поведения.                                                                                                                                         |
+| **Exact fix recommendation** | По возможности сместить проверки на `data-testid` + структуру DOM (например, два блока в первой строке), или на минимальный набор семантических инвариантов без перечисления всех responsive-классов.                    |
 
 ### 3. Low — Hero: `flex-wrap` на ряду бейджей внутри фиксированной высоты
 
-| Field | Detail |
-|--------|--------|
-| **File** | `PatientHomeDailyWarmupCard.tsx` |
-| **Evidence** | Ряд бейджей обёрнут в `flex flex-wrap`; карточка при этом использует фиксированную геометрию `patientHomeHeroCardGeometryClass` (`h-[300px]` …). Сейчас подписи статичны («Разминка дня», «≈ 5 мин»). |
-| **Risk** | Если позже в этот ряд попадут длинные CMS-строки, возможен перенос строки и клиппинг текста внизу при той же высоте. |
-| **Exact fix recommendation** | `flex-nowrap` + `truncate` на бейджах или вынести вторичный бейдж в отдельную строку с зарезервированной высотой. |
+| Field                        | Detail                                                                                                                                                                                                |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **File**                     | `PatientHomeDailyWarmupCard.tsx`                                                                                                                                                                      |
+| **Evidence**                 | Ряд бейджей обёрнут в `flex flex-wrap`; карточка при этом использует фиксированную геометрию `patientHomeHeroCardGeometryClass` (`h-[300px]` …). Сейчас подписи статичны («Разминка дня», «≈ 5 мин»). |
+| **Risk**                     | Если позже в этот ряд попадут длинные CMS-строки, возможен перенос строки и клиппинг текста внизу при той же высоте.                                                                                  |
+| **Exact fix recommendation** | `flex-nowrap` + `truncate` на бейджах или вынести вторичный бейдж в отдельную строку с зарезервированной высотой.                                                                                     |
 
 ### 4. Low — Booking: desktop CTA только по коду, не по пикселям
 
-| Field | Detail |
-|--------|--------|
-| **File** | `PatientHomeBookingCard.tsx`, `patientHomeCardStyles.ts` (`patientHomeBookingActionsClass`, `patientHomeBookingCardGeometryClass`) |
-| **Evidence** | На `lg` колонка действий ограничена (`lg:w-[12rem]` …), кнопки `w-full min-w-0`. Переполнение на 1024/1280 **не проверялось** в живом layout с длинными подписями кнопок. |
-| **Risk** | При смене копирайта кнопок или локализации возможен тесный перенос или визуальная теснота. |
+| Field                        | Detail                                                                                                                                                                            |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **File**                     | `PatientHomeBookingCard.tsx`, `patientHomeCardStyles.ts` (`patientHomeBookingActionsClass`, `patientHomeBookingCardGeometryClass`)                                                |
+| **Evidence**                 | На `lg` колонка действий ограничена (`lg:w-[12rem]` …), кнопки `w-full min-w-0`. Переполнение на 1024/1280 **не проверялось** в живом layout с длинными подписями кнопок.         |
+| **Risk**                     | При смене копирайта кнопок или локализации возможен тесный перенос или визуальная теснота.                                                                                        |
 | **Exact fix recommendation** | Подтвердить вручную на 1024 и 1280 с самыми длинными строками CTA; при необходимости уменьшить `text-base`→`text-sm` только на кнопках booking или слегка поднять `lg:h-[192px]`. |
 
 ### 5. Low — Progress: внутри фиксированной высоты плотность контента различается по веткам
 
-| Field | Detail |
-|--------|--------|
-| **File** | `PatientHomeProgressBlock.tsx`, `patientHomeProgressCardGeometryClass` |
-| **Evidence** | Внешняя высота карточки фиксирована для всех веток. Ветка `loading` использует скелетон меньшей «визуальной массы», чем ветка с крупным счётчиком и полосой прогресса. |
-| **Risk** | Нет скачка высоты карточки; возможны только косметические отличия вертикального баланса между состояниями. |
-| **Exact fix recommendation** | При визуальном QA выровнять вертикальный ритм (например, фиксированная высота скелетона под высоту числа) — по желанию, не блокер. |
+| Field                        | Detail                                                                                                                                                                 |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **File**                     | `PatientHomeProgressBlock.tsx`, `patientHomeProgressCardGeometryClass`                                                                                                 |
+| **Evidence**                 | Внешняя высота карточки фиксирована для всех веток. Ветка `loading` использует скелетон меньшей «визуальной массы», чем ветка с крупным счётчиком и полосой прогресса. |
+| **Risk**                     | Нет скачка высоты карточки; возможны только косметические отличия вертикального баланса между состояниями.                                                             |
+| **Exact fix recommendation** | При визуальном QA выровнять вертикальный ритм (например, фиксированная высота скелетона под высоту числа) — по желанию, не блокер.                                     |
 
 ### 6. Low — Courses: только title без subtitle
 
-| Field | Detail |
-|--------|--------|
-| **File** | `PatientHomeCoursesRow.tsx` |
-| **Evidence** | Фиксированная высота строки задаётся `patientHomeCourseRowItemLayoutClass`; subtitle опционален. |
-| **Risk** | Заголовок одной строкой может визуально «плавать» по вертикали относительно строк с двумя–тремя строками текста (всё ещё внутри одной высоты ячейки). |
-| **Exact fix recommendation** | При QA решить, нужен ли `justify-start` + фиксированный padding сверху вместо `justify-center` для единообразия с многострочными карточками. |
+| Field                        | Detail                                                                                                                                                |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **File**                     | `PatientHomeCoursesRow.tsx`                                                                                                                           |
+| **Evidence**                 | Фиксированная высота строки задаётся `patientHomeCourseRowItemLayoutClass`; subtitle опционален.                                                      |
+| **Risk**                     | Заголовок одной строкой может визуально «плавать» по вертикали относительно строк с двумя–тремя строками текста (всё ещё внутри одной высоты ячейки). |
+| **Exact fix recommendation** | При QA решить, нужен ли `justify-start` + фиксированный padding сверху вместо `justify-center` для единообразия с многострочными карточками.          |
 
 ---
 
 ## Проверки по требованиям аудита (код)
 
-| Требование | Результат код-ревью |
-|-------------|---------------------|
-| Hero filled/empty, fixed image slot, title/summary clamps | **Соответствует намерению:** обе ветки используют `patientHomeHeroCardGeometryClass`; слот `patientHomeHeroImageSlotClass`; заголовок/описание через `patientHomeHeroTitleClampClass` / `patientHomeHeroSummaryClampClass` (или резерв `min-h` без summary). |
-| Booking desktop CTA 1024/1280 | **Не верифицировано визуально**; в коде — узкая колонка CTA и `min-w-0` на кнопках (см. Finding 4). |
-| Situations fixed tiles / fallback | **Соответствует:** `patientHomeSituationTileShellClass`, `patientHomeSituationTileMediaClass`, initials fallback; без slug-based цветов. |
-| Progress full / loading / guest / no-tier same height | **Соответствует:** одна геометрия `patientHomeProgressCardGeometryClass` на `<article>`. |
+| Требование                                                          | Результат код-ревью                                                                                                                                                                                                                                                                                                                                    |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Hero filled/empty, fixed image slot, title/summary clamps           | **Соответствует намерению:** обе ветки используют `patientHomeHeroCardGeometryClass`; слот `patientHomeHeroImageSlotClass`; заголовок/описание через `patientHomeHeroTitleClampClass` / `patientHomeHeroSummaryClampClass` (или резерв `min-h` без summary).                                                                                           |
+| Booking desktop CTA 1024/1280                                       | **Не верифицировано визуально**; в коде — узкая колонка CTA и `min-w-0` на кнопках (см. Finding 4).                                                                                                                                                                                                                                                    |
+| Situations fixed tiles / fallback                                   | **Соответствует:** `patientHomeSituationTileShellClass`, `patientHomeSituationTileMediaClass`, initials fallback; без slug-based цветов.                                                                                                                                                                                                               |
+| Progress full / loading / guest / no-tier same height               | **Соответствует:** одна геометрия `patientHomeProgressCardGeometryClass` на `<article>`.                                                                                                                                                                                                                                                               |
 | Reminder / Mood / SOS / Plan / Subscription / Courses fixed heights | **Соответствует:** reminder `patientHomeSecondaryCardShortHeightClass`; plan `patientHomeSecondaryCardTallHeightClass`; mood `patientHomeMoodCardGeometryClass`; SOS `patientHomeSosCardGeometryClass`; subscription `patientHomeCarouselItemLayoutClass`; courses `patientHomeCourseRowItemLayoutClass`; clamps на динамических строках где задумано. |
-| Mood click/save не двигает карточку | **Соответствует по коду:** фиксированная высота секции + `patientHomeMoodStatusSlotClass` с `min-h-[2.75rem]`; смена текста статуса остаётся в слоте с `line-clamp-2`. |
-| Тесты семантичные, не class snapshots | **В основном да:** доминируют роли, href, текст. **Исключение:** `PatientHomeTodayLayout.test.tsx` множественные `toHaveClass` по Tailwind (Finding 2). Carousel ранее ушёл от regex по `className` в пользу `data-testid`. |
+| Mood click/save не двигает карточку                                 | **Соответствует по коду:** фиксированная высота секции + `patientHomeMoodStatusSlotClass` с `min-h-[2.75rem]`; смена текста статуса остаётся в слоте с `line-clamp-2`.                                                                                                                                                                                 |
+| Тесты семантичные, не class snapshots                               | **В основном да:** доминируют роли, href, текст. **Исключение:** `PatientHomeTodayLayout.test.tsx` множественные `toHaveClass` по Tailwind (Finding 2). Carousel ранее ушёл от regex по `className` в пользу `data-testid`.                                                                                                                            |
 
 ---
 
@@ -131,4 +131,3 @@ pnpm --dir apps/webapp exec vitest run \
 ## Out of scope
 
 - Полный root `pnpm run ci` не запускался (ни при первоначальном audit, ни при fix follow-up 2026-04-30).
-

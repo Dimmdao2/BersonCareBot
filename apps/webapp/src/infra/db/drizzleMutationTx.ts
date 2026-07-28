@@ -1,7 +1,7 @@
-import { AsyncLocalStorage } from "node:async_hooks";
-import { sql } from "drizzle-orm";
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
-import { getDrizzle, type DrizzleDb } from "@/app-layer/db/drizzle";
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { sql } from 'drizzle-orm';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import { getDrizzle, type DrizzleDb } from '@/app-layer/db/drizzle';
 
 const mutationTxStore = new AsyncLocalStorage<DrizzleDb>();
 
@@ -14,7 +14,7 @@ export function getDrizzleOrMutationTx(): DrizzleDb {
 export async function runInDrizzleMutationTransaction<T>(fn: () => Promise<T>): Promise<T> {
   const db = getDrizzle();
   return db.transaction(async (tx) => {
-    await applyCurrentDrizzlePrincipalToTransaction(tx as Pick<DrizzleDb, "execute">);
+    await applyCurrentDrizzlePrincipalToTransaction(tx as Pick<DrizzleDb, 'execute'>);
     return mutationTxStore.run(tx as DrizzleDb, fn);
   });
 }
@@ -31,7 +31,7 @@ export async function runDrizzleMutationTransaction<T>(
 }
 
 async function applyCurrentDrizzlePrincipalToTransaction(
-  tx: Pick<DrizzleDb, "execute">,
+  tx: Pick<DrizzleDb, 'execute'>,
 ): Promise<void> {
   const organizationId = getCurrentDbPrincipalOrganizationId();
   if (!organizationId) return;

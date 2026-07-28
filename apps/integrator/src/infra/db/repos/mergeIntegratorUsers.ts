@@ -2,7 +2,10 @@ import type { DbPort } from '../../../kernel/contracts/index.js';
 import { sql } from 'drizzle-orm';
 import { logger } from '../../observability/logger.js';
 import { runIntegratorSql } from '../runIntegratorSql.js';
-import { deepReplaceIntegratorUserIdInValue, recomputeProjectionIdempotencyKeyAfterMerge } from './projectionOutboxMergePolicy.js';
+import {
+  deepReplaceIntegratorUserIdInValue,
+  recomputeProjectionIdempotencyKeyAfterMerge,
+} from './projectionOutboxMergePolicy.js';
 import { getCurrentOrganizationPrincipalId } from '../../principal/organizationPrincipal.js';
 
 const BIGINT_STRING = /^\d+$/;
@@ -24,7 +27,10 @@ const BIGINT_STRING = /^\d+$/;
  * regress a valid `organization_id` down to NULL — the worst case is a no-op (org unchanged), never
  * a stale-write like the old two-branch COALESCE could produce.
  */
-function organizationIdForIntegratorUserSql(integratorUserId: string | number, existingOrganizationIdColumn: string) {
+function organizationIdForIntegratorUserSql(
+  integratorUserId: string | number,
+  existingOrganizationIdColumn: string,
+) {
   const currentOrganizationId = getCurrentOrganizationPrincipalId() ?? null;
   return sql`COALESCE(
     ${currentOrganizationId}::uuid,
@@ -90,7 +96,10 @@ export class MergeIntegratorUsersError extends Error {
 function assertNumericUserId(id: string, label: string): string {
   const t = id.trim();
   if (!BIGINT_STRING.test(t)) {
-    throw new MergeIntegratorUsersError('INVALID_USER_ID', `${label} must be a numeric integrator users.id`);
+    throw new MergeIntegratorUsersError(
+      'INVALID_USER_ID',
+      `${label} must be a numeric integrator users.id`,
+    );
   }
   return t;
 }
@@ -136,8 +145,15 @@ async function realignProjectionOutboxInTx(
 
   for (const row of res.rows) {
     const rawPayload = row.payload && typeof row.payload === 'object' ? row.payload : {};
-    const newPayload = deepReplaceIntegratorUserIdInValue(rawPayload, loser, winner) as Record<string, unknown>;
-    const newKey = recomputeProjectionIdempotencyKeyAfterMerge(row.event_type, newPayload, Number(row.id));
+    const newPayload = deepReplaceIntegratorUserIdInValue(rawPayload, loser, winner) as Record<
+      string,
+      unknown
+    >;
+    const newKey = recomputeProjectionIdempotencyKeyAfterMerge(
+      row.event_type,
+      newPayload,
+      Number(row.id),
+    );
     const payloadJson = JSON.stringify(newPayload);
 
     if (newKey === row.idempotency_key) {
@@ -225,7 +241,9 @@ export async function mergeIntegratorUsers(
        FROM users WHERE id IN (${winner}::bigint, ${loser}::bigint)`,
     );
     const foundKeys = new Set(usersRes.rows.map((r) => integratorUserIdNumericKey(r.id)));
-    const missingIntegratorUserIds = [winner, loser].filter((id) => !foundKeys.has(integratorUserIdNumericKey(id)));
+    const missingIntegratorUserIds = [winner, loser].filter(
+      (id) => !foundKeys.has(integratorUserIdNumericKey(id)),
+    );
     if (usersRes.rows.length !== 2) {
       throw new MergeIntegratorUsersError('USER_NOT_FOUND', 'winner or loser user row not found', {
         missingIntegratorUserIds,
@@ -240,13 +258,19 @@ export async function mergeIntegratorUsers(
       });
     }
     if (wRow.merged_into_user_id != null && wRow.merged_into_user_id !== '') {
-      throw new MergeIntegratorUsersError('ALREADY_MERGED_ALIAS', 'winner is an alias (merged_into_user_id is set)');
+      throw new MergeIntegratorUsersError(
+        'ALREADY_MERGED_ALIAS',
+        'winner is an alias (merged_into_user_id is set)',
+      );
     }
 
     const loserPointsTo = lRow.merged_into_user_id?.trim() ?? '';
     if (loserPointsTo !== '') {
       if (loserPointsTo === winner) {
-        logger.info({ winnerId: winner, loserId: loser }, 'mergeIntegratorUsers: already merged (idempotent no-op)');
+        logger.info(
+          { winnerId: winner, loserId: loser },
+          'mergeIntegratorUsers: already merged (idempotent no-op)',
+        );
         return {
           winnerId: winner,
           loserId: loser,
@@ -274,7 +298,10 @@ export async function mergeIntegratorUsers(
     }
 
     if (options.dryRun) {
-      logger.info({ winnerId: winner, loserId: loser }, 'mergeIntegratorUsers: dry-run (validation + row locks only)');
+      logger.info(
+        { winnerId: winner, loserId: loser },
+        'mergeIntegratorUsers: dry-run (validation + row locks only)',
+      );
       return {
         winnerId: winner,
         loserId: loser,
@@ -296,7 +323,10 @@ export async function mergeIntegratorUsers(
       };
     }
 
-    const pairsRes = await runIntegratorSql<{ loser_identity_id: string; winner_identity_id: string }>(
+    const pairsRes = await runIntegratorSql<{
+      loser_identity_id: string;
+      winner_identity_id: string;
+    }>(
       tx,
       sql`
       SELECT li.id::text AS loser_identity_id, wi.id::text AS winner_identity_id
@@ -319,7 +349,10 @@ export async function mergeIntegratorUsers(
         sql`SELECT 1 FROM telegram_state WHERE identity_id = ${p.loser_identity_id}::bigint LIMIT 1`,
       );
       if (wState.rows.length > 0 && lState.rows.length > 0) {
-        await runIntegratorSql(tx, sql`DELETE FROM telegram_state WHERE identity_id = ${p.loser_identity_id}::bigint`);
+        await runIntegratorSql(
+          tx,
+          sql`DELETE FROM telegram_state WHERE identity_id = ${p.loser_identity_id}::bigint`,
+        );
       } else if (lState.rows.length > 0) {
         await runIntegratorSql(
           tx,
@@ -365,7 +398,10 @@ export async function mergeIntegratorUsers(
         sql`UPDATE user_questions SET user_identity_id = ${p.winner_identity_id}::bigint, organization_id = ${organizationIdForIntegratorUserSql(winner, 'user_questions.organization_id')} WHERE user_identity_id = ${p.loser_identity_id}::bigint`,
       );
 
-      await runIntegratorSql(tx, sql`DELETE FROM identities WHERE id = ${p.loser_identity_id}::bigint`);
+      await runIntegratorSql(
+        tx,
+        sql`DELETE FROM identities WHERE id = ${p.loser_identity_id}::bigint`,
+      );
     }
 
     const duplicateIdentitiesMerged = pairsRes.rows.length;

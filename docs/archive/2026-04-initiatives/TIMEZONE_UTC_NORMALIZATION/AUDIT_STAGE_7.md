@@ -16,13 +16,13 @@
 
 ## 1) Legacy timezone helper'ы — удалены/заменены по плану
 
-| Требование | Статус | Доказательство |
-|------------|--------|----------------|
-| S7.T01 `parseBusinessInstant` — safety-net + warn | **OK** | Однократный `console.warn` при разборе наивной wall-clock строки: `apps/webapp/src/shared/lib/formatBusinessDateTime.ts` (флаг `warnedNaiveBusinessInstantParse`). |
-| S7.T02 `pgPatientBookings` — защитный CASE + документация | **OK** | Комментарий «Legacy guard (not the normal path after Stage 3 ingest)» у `UPDATE` с `CASE WHEN source = 'rubitime_projection'`: `apps/webapp/src/infra/repos/pgPatientBookings.ts`. |
-| S7.T03 resync — без `rubitimeMaybeDateToIso`, канонический normalizer | **OK** | `apps/integrator/src/infra/scripts/resync-rubitime-records.ts` импортирует `normalizeToUtcInstant`; символ `rubitimeMaybeDateToIso` в `apps/` отсутствует. |
-| S7.T04 Google Calendar sync — без `parseRecordAtToIso` | **OK** | `apps/integrator/src/integrations/google-calendar/sync.ts` использует `normalizeToUtcInstant`; `parseRecordAtToIso` в `apps/` отсутствует. |
-| Скрипт compare (доп. к плану в логе) | **OK** | `compare-rubitime-records.ts` использует `getAppDisplayTimezone` + `normalizeToUtcInstant`. |
+| Требование                                                            | Статус | Доказательство                                                                                                                                                                     |
+| --------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S7.T01 `parseBusinessInstant` — safety-net + warn                     | **OK** | Однократный `console.warn` при разборе наивной wall-clock строки: `apps/webapp/src/shared/lib/formatBusinessDateTime.ts` (флаг `warnedNaiveBusinessInstantParse`).                 |
+| S7.T02 `pgPatientBookings` — защитный CASE + документация             | **OK** | Комментарий «Legacy guard (not the normal path after Stage 3 ingest)» у `UPDATE` с `CASE WHEN source = 'rubitime_projection'`: `apps/webapp/src/infra/repos/pgPatientBookings.ts`. |
+| S7.T03 resync — без `rubitimeMaybeDateToIso`, канонический normalizer | **OK** | `apps/integrator/src/infra/scripts/resync-rubitime-records.ts` импортирует `normalizeToUtcInstant`; символ `rubitimeMaybeDateToIso` в `apps/` отсутствует.                         |
+| S7.T04 Google Calendar sync — без `parseRecordAtToIso`                | **OK** | `apps/integrator/src/integrations/google-calendar/sync.ts` использует `normalizeToUtcInstant`; `parseRecordAtToIso` в `apps/` отсутствует.                                         |
+| Скрипт compare (доп. к плану в логе)                                  | **OK** | `compare-rubitime-records.ts` использует `getAppDisplayTimezone` + `normalizeToUtcInstant`.                                                                                        |
 
 **Finding F1 (info, не блокер):** В `MASTER_PLAN.md` §Stage 7 Gate указано «grep … `BOOKING_DISPLAY_TIMEZONE` … ноль вхождений», при этом в продуктовом коде остаётся устаревший **`getAppDisplayTimezoneSync()`** (`apps/integrator/src/config/appTimezone.ts`), который читает `process.env.APP_DISPLAY_TIMEZONE` / `BOOKING_DISPLAY_TIMEZONE` вне zod-схемы (с `logger.warn`). Это согласовано с §«Текущее состояние» (L54) и Stage 4, но **не** с буквальной формулировкой grep-gate в §Stage 7.
 
@@ -32,12 +32,12 @@
 
 ## 2) Deprecated env — не участвуют в runtime (валидированный путь)
 
-| Проверка | Результат |
-|----------|-----------|
-| `RUBITIME_RECORD_AT_UTC_OFFSET_MINUTES` в `apps/integrator/src/config/env.ts` (zod) | **Отсутствует** — в реестре только инфраструктура и перечисленные ключи (см. текущий `env.ts`). |
-| Grep `RUBITIME_RECORD_AT_UTC_OFFSET` по `apps/**/*.ts` | **0 совпадений** |
-| Основной HTTP/доменный путь integrator | Использует **`getAppDisplayTimezone({ db, … })`** из БД (например `recordM2mRoute.ts` для create-record/slots — проверено по импортам). |
-| `getAppDisplayTimezoneSync` | Вызывается из **тестов** и реэкспортируется из `bookingDisplayTimezone.ts`; **импортов** `bookingDisplayTimezone` в кодовой базе **нет** — в рантайме сервиса синхронный путь не подключён. |
+| Проверка                                                                            | Результат                                                                                                                                                                                   |
+| ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `RUBITIME_RECORD_AT_UTC_OFFSET_MINUTES` в `apps/integrator/src/config/env.ts` (zod) | **Отсутствует** — в реестре только инфраструктура и перечисленные ключи (см. текущий `env.ts`).                                                                                             |
+| Grep `RUBITIME_RECORD_AT_UTC_OFFSET` по `apps/**/*.ts`                              | **0 совпадений**                                                                                                                                                                            |
+| Основной HTTP/доменный путь integrator                                              | Использует **`getAppDisplayTimezone({ db, … })`** из БД (например `recordM2mRoute.ts` для create-record/slots — проверено по импортам).                                                     |
+| `getAppDisplayTimezoneSync`                                                         | Вызывается из **тестов** и реэкспортируется из `bookingDisplayTimezone.ts`; **импортов** `bookingDisplayTimezone` в кодовой базе **нет** — в рантайме сервиса синхронный путь не подключён. |
 
 **Вывод:** Валидированные при старте env-переменные не содержат deprecated timezone offset; операторский deploy не получает «тихого» сдвига через zod. Остаточное чтение legacy имён — только внутри неиспользуемого в проде sync-хелпера (плюс тесты).
 
@@ -58,17 +58,17 @@
 
 ## 4) Документация обновлена
 
-| Артефакт | Статус |
-|----------|--------|
+| Артефакт                                             | Статус                                                                                                                                                         |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md` | **OK** — §timezone: `app_display_timezone`, IANA филиалов, отсутствие env offset / `RUBITIME_RECORD_AT_UTC_OFFSET_MINUTES`, ссылка на `normalizeToUtcInstant`. |
-| `AGENT_EXECUTION_LOG.md` §Stage 7 | Содержит запись EXEC и grep/CI (согласовано с текущим состоянием). |
+| `AGENT_EXECUTION_LOG.md` §Stage 7                    | Содержит запись EXEC и grep/CI (согласовано с текущим состоянием).                                                                                             |
 
 ---
 
 ## 5) CI evidence
 
-| Команда | Результат | Дата |
-|---------|-----------|------|
+| Команда       | Результат  | Дата       |
+| ------------- | ---------- | ---------- |
 | `pnpm run ci` | **Exit 0** | 2026-04-05 |
 
 Полный pipeline: `eslint` → root + webapp `eslint` → `typecheck` (integrator + webapp) → `vitest` integrator (**574 passed**, 6 skipped) → `vitest` webapp (**1149 passed**, 5 skipped) → повторный webapp typecheck → `build` integrator → `next build` webapp → `pnpm audit --prod` (no known vulnerabilities).
@@ -77,10 +77,10 @@
 
 ## Findings summary + fix path
 
-| ID | Severity | Finding | Fix path |
-|----|----------|---------|----------|
-| F1 | Low | Расхождение буквального grep-gate в `MASTER_PLAN.md` §Stage 7 с наличием `getAppDisplayTimezoneSync` | Обновить формулировку gate в `MASTER_PLAN.md` **или** удалить/сузить legacy sync (см. §MANDATORY FIX ниже). |
-| F2 | Low (вне обязательного scope) | Устаревшая строка в `TODO_BACKLOG.md` про create-record и sync | Правка backlog-документа при следующем проходе по докам. |
+| ID  | Severity                      | Finding                                                                                              | Fix path                                                                                                    |
+| --- | ----------------------------- | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| F1  | Low                           | Расхождение буквального grep-gate в `MASTER_PLAN.md` §Stage 7 с наличием `getAppDisplayTimezoneSync` | Обновить формулировку gate в `MASTER_PLAN.md` **или** удалить/сузить legacy sync (см. §MANDATORY FIX ниже). |
+| F2  | Low (вне обязательного scope) | Устаревшая строка в `TODO_BACKLOG.md` про create-record и sync                                       | Правка backlog-документа при следующем проходе по докам.                                                    |
 
 ---
 
@@ -106,5 +106,5 @@
 
 ## Sign-off
 
-- **Auditor role:** automated audit + repository inspection  
+- **Auditor role:** automated audit + repository inspection
 - **Recommendation:** Proceed to **Stage 8** (contract tests) по `MASTER_PLAN.md`.

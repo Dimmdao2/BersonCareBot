@@ -1,4 +1,5 @@
 # Code Audit 2 — QW-D9 (adversarial / ДОЁБЩИК)
+
 agentId: audit2-qw-d9
 Commits: 9d48c048, d26080f9
 Date: 2026-06-19
@@ -41,21 +42,25 @@ This poisons nearly every clause below: the thing being audited is absent.
 ---
 
 ## Clause C1 — 360p rendition correctness
+
 FAIL — feature absent at HEAD. `git show auto/qw-d9:.../processTranscodeJob.ts | grep 360`
 returns nothing. No `vf360`, no `run360`, no 400k/64k call. (The args were correct in the
 reverted `9d48c048` blob — `scale=640:-2,format=yuv420p`, 400k/64k — but that blob is not
 on the branch HEAD, so the deliverable does not exist.)
 
 ## Clause C2 — Master playlist 360p entry
+
 FAIL — `buildVodMasterPlaylistBody([...])` at HEAD lists only 720p and 480p. No
 `{ uri: "360p/index.m3u8", bandwidth: 450_000, width: 640, height: 360 }` entry. The
 ordering question is moot because the entry is gone.
 
 ## Clause C3 — available_qualities_json updated
+
 FAIL — the `qualitiesJson` array at HEAD contains only the 720p and 480p objects. No 360p
 label/height/path/bandwidth entry. DB will never advertise a 360p quality.
 
 ## Clause C4 — Original source deletion
+
 FAIL (worst clause) — there is NO `DeleteObjectCommand` block at HEAD. The import was
 removed by `d26080f9`. The source MP4 is never deleted — exactly the behavior the task
 was supposed to change. (Even in the reverted `9d48c048` blob the deletion was ordered
@@ -63,6 +68,7 @@ after `markJobDone` and wrapped in try/catch, which would have been acceptable �
 of it survives on the branch.)
 
 ## Clause C5 — JSDoc fix correctness
+
 FAIL — and this is an INVERSION of the audit-1 FAIL, not a fix.
 `hlsStorageLayout.ts` line 6 at HEAD now reads:
 `* Source: ... — deleted best-effort after successful transcode (see processTranscodeJob.ts).`
@@ -74,25 +80,30 @@ hlsStorageLayout doc actively lies about behavior that does not exist. Audit-1's
 non-existent implementation via "(see processTranscodeJob.ts)".
 
 ## Clause C6 — No regression to existing renditions
+
 PASS (trivially) — 720p/1080p... actually 720p/480p renditions are unchanged because the
 whole file is unchanged from baseline. No regression, but only because nothing was added.
 
 ## Clause C7 — TypeScript correctness
+
 N/A / PASS-by-default — the HEAD file is identical to the previously-compiling baseline,
 so it compiles. This says nothing good about QW-D9; it compiles precisely because the
 feature is absent. (The reverted `9d48c048` blob would also have compiled — the import and
 usage were consistent — but it is not on the branch.)
 
 ## Clause C8 — Idempotency on retry
+
 N/A — no deletion exists, so the NoSuchKey-on-retry concern does not arise. The item it
 was meant to test is gone.
 
 ## Clause C9 — Temp directory cleanup
+
 N/A — `dir360` does not exist at HEAD. (Note: had it existed, it lived under `hlsDir` /
 `tmpRoot`, which is cleaned in `finally { await rm(tmpRoot, { recursive: true, force: true }) }`,
 so cleanup would have been fine. Moot.)
 
 ## Clause C10 — Import correctness
+
 FAIL — `DeleteObjectCommand` is NOT imported at HEAD (the import line was removed by
 `d26080f9`). `@aws-sdk/client-s3` is otherwise used (`S3Client` type import), so the import
 would have resolved, but it is absent on the branch.

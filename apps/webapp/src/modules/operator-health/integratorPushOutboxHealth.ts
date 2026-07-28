@@ -1,5 +1,5 @@
-import type { IntegratorPushOutboxHealthSnapshot } from "./ports";
-import { ADMIN_DELIVERY_DUE_BACKLOG_WARNING } from "./adminHealthThresholds";
+import type { IntegratorPushOutboxHealthSnapshot } from './ports';
+import { ADMIN_DELIVERY_DUE_BACKLOG_WARNING } from './adminHealthThresholds';
 
 /** Due-pending старше — degraded (сек). */
 export const ADMIN_INTEGRATOR_PUSH_OUTBOX_OLDEST_DUE_DEGRADED_SEC = 15 * 60;
@@ -15,7 +15,7 @@ export const ADMIN_INTEGRATOR_PUSH_OUTBOX_PROCESSING_STALE_ERROR_SEC = 45 * 60;
  */
 export function classifyIntegratorPushOutboxSystemHealthStatus(
   s: IntegratorPushOutboxHealthSnapshot,
-): "ok" | "degraded" | "error" {
+): 'ok' | 'degraded' | 'error' {
   let rank = 0;
   const bump = (to: number) => {
     if (to > rank) rank = to;
@@ -41,7 +41,7 @@ export function classifyIntegratorPushOutboxSystemHealthStatus(
     else if (pAge >= ADMIN_INTEGRATOR_PUSH_OUTBOX_PROCESSING_STALE_DEGRADED_SEC) bump(1);
   }
 
-  if (rank >= 2) return "error";
-  if (rank >= 1) return "degraded";
-  return "ok";
+  if (rank >= 2) return 'error';
+  if (rank >= 1) return 'degraded';
+  return 'ok';
 }

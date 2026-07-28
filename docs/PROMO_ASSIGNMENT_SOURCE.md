@@ -13,15 +13,15 @@
 
 ## Ключевые артефакты (быстрый указатель)
 
-| Область | Где |
-|--------|-----|
-| Схема + CHECK | [`apps/webapp/db/schema/treatmentProgramInstances.ts`](../apps/webapp/db/schema/treatmentProgramInstances.ts) |
-| Миграция + backfill + partial unique | `0072_treatment_program_assignment_source.sql` |
-| Ключ настройки | `patient_default_promo_treatment_program_template_id` в [`types.ts`](../apps/webapp/src/modules/system-settings/types.ts), чтение [`service.ts`](../apps/webapp/src/modules/system-settings/service.ts) (`getPatientDefaultPromoTreatmentProgramTemplateId`) |
-| UI промо (doctor + admin) | [`/app/doctor/treatment-program-promo`](../apps/webapp/src/app/app/doctor/treatment-program-promo/page.tsx) (legacy `/app/admin/promo` → redirect) |
-| Материализация / действие | [`POST .../treatment-program-promo/action`](../apps/webapp/src/app/api/patient/treatment-program-promo/action/route.ts) |
-| Виртуальный промо (RSC) | [`treatment/promo/`](../apps/webapp/src/app/app/patient/treatment/promo/), список [`/app/patient/treatment`](../apps/webapp/src/app/app/patient/treatment/page.tsx) (карточка промо при отсутствии active); главная — **не** показывает промо (только врачебный план) |
-| Follow-up (вне v1) | [`BACKLOG_TAILS.md`](BACKLOG_TAILS.md) — смена глобального промо-шаблона |
+| Область                              | Где                                                                                                                                                                                                                                                                   |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Схема + CHECK                        | [`apps/webapp/db/schema/treatmentProgramInstances.ts`](../apps/webapp/db/schema/treatmentProgramInstances.ts)                                                                                                                                                         |
+| Миграция + backfill + partial unique | `0072_treatment_program_assignment_source.sql`                                                                                                                                                                                                                        |
+| Ключ настройки                       | `patient_default_promo_treatment_program_template_id` в [`types.ts`](../apps/webapp/src/modules/system-settings/types.ts), чтение [`service.ts`](../apps/webapp/src/modules/system-settings/service.ts) (`getPatientDefaultPromoTreatmentProgramTemplateId`)          |
+| UI промо (doctor + admin)            | [`/app/doctor/treatment-program-promo`](../apps/webapp/src/app/app/doctor/treatment-program-promo/page.tsx) (legacy `/app/admin/promo` → redirect)                                                                                                                    |
+| Материализация / действие            | [`POST .../treatment-program-promo/action`](../apps/webapp/src/app/api/patient/treatment-program-promo/action/route.ts)                                                                                                                                               |
+| Виртуальный промо (RSC)              | [`treatment/promo/`](../apps/webapp/src/app/app/patient/treatment/promo/), список [`/app/patient/treatment`](../apps/webapp/src/app/app/patient/treatment/page.tsx) (карточка промо при отсутствии active); главная — **не** показывает промо (только врачебный план) |
+| Follow-up (вне v1)                   | [`BACKLOG_TAILS.md`](BACKLOG_TAILS.md) — смена глобального промо-шаблона                                                                                                                                                                                              |
 
 ---
 
@@ -58,14 +58,14 @@
 
 ### Продуктовая модель
 
-| Состояние | Поведение |
-|-----------|-----------|
+| Состояние                                                     | Поведение                                                                                                               |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | Есть любой `active` экземпляр (`doctor` / `course` / `promo`) | **Не** показывать виртуальный промо-оверлей; напоминания `rehab_program` ведут на реальный `instanceId` текущего плана. |
-| Нет `active` и задан опубликованный шаблон промо | Пациент видит контент **шаблона промо** без строки `treatment_program_instances`. |
-| Первое «Выполнено» или комментарий по пункту промо | Материализация `promo` + действие на сопоставленных `stageItem` id (см. реализацию API). |
-| Первое создание напоминания `rehab_program` | Перед записью: при отсутствии `active` — `ensureDefaultPromoProgramForPatient` → валидный `linkedObjectId`. |
-| Назначение врачом при активном `promo` | Завершить активный `promo` (событие с причиной), создать инстанс `doctor`. |
-| Активный `course` или `doctor` | Не создавать второй `promo`; ensure не обходит проверку «нет active». |
+| Нет `active` и задан опубликованный шаблон промо              | Пациент видит контент **шаблона промо** без строки `treatment_program_instances`.                                       |
+| Первое «Выполнено» или комментарий по пункту промо            | Материализация `promo` + действие на сопоставленных `stageItem` id (см. реализацию API).                                |
+| Первое создание напоминания `rehab_program`                   | Перед записью: при отсутствии `active` — `ensureDefaultPromoProgramForPatient` → валидный `linkedObjectId`.             |
+| Назначение врачом при активном `promo`                        | Завершить активный `promo` (событие с причиной), создать инстанс `doctor`.                                              |
+| Активный `course` или `doctor`                                | Не создавать второй `promo`; ensure не обходит проверку «нет active».                                                   |
 
 #### Строгая семантика ensure (имя в коде: `ensureDefaultPromoProgramForPatient`)
 

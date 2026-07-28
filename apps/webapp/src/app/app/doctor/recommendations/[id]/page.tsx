@@ -1,17 +1,13 @@
-import { notFound } from "next/navigation";
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
-import { parseRecommendationCatalogSsrQuery } from "@/modules/recommendations/recommendationCatalogSsrQuery";
-import {
-  RECOMMENDATION_TYPE_CATEGORY_CODE,
-} from "@/modules/recommendations/recommendationDomain";
-import {
-  parseRecommendationListFilterScope,
-} from "@/shared/lib/doctorCatalogListStatus";
-import { RecommendationForm } from "../RecommendationForm";
-import { RECOMMENDATIONS_PATH } from "../paths";
-import { appendRecommendationsCatalogFiltersToSearchParams } from "../recommendationsListPreserveParams";
+import { notFound } from 'next/navigation';
+import { requireDoctorAccess } from '@/app-layer/guards/requireRole';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
+import { parseRecommendationCatalogSsrQuery } from '@/modules/recommendations/recommendationCatalogSsrQuery';
+import { RECOMMENDATION_TYPE_CATEGORY_CODE } from '@/modules/recommendations/recommendationDomain';
+import { parseRecommendationListFilterScope } from '@/shared/lib/doctorCatalogListStatus';
+import { RecommendationForm } from '../RecommendationForm';
+import { RECOMMENDATIONS_PATH } from '../paths';
+import { appendRecommendationsCatalogFiltersToSearchParams } from '../recommendationsListPreserveParams';
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -32,21 +28,21 @@ export default async function EditRecommendationPage({ params, searchParams }: P
   const sp = (await searchParams) ?? {};
   const catalogQuery = parseRecommendationCatalogSsrQuery(
     {
-      region: typeof sp.region === "string" ? sp.region : undefined,
-      domain: typeof sp.domain === "string" ? sp.domain : undefined,
+      region: typeof sp.region === 'string' ? sp.region : undefined,
+      domain: typeof sp.domain === 'string' ? sp.domain : undefined,
     },
     domainCatalogItems,
   );
-  const listStatus = parseRecommendationListFilterScope(sp, "active");
-  const titleSort: "asc" | "desc" | null =
-    sp.titleSort === "asc" || sp.titleSort === "desc" ? sp.titleSort : null;
-  const q = typeof sp.q === "string" ? sp.q : "";
+  const listStatus = parseRecommendationListFilterScope(sp, 'active');
+  const titleSort: 'asc' | 'desc' | null =
+    sp.titleSort === 'asc' || sp.titleSort === 'desc' ? sp.titleSort : null;
+  const q = typeof sp.q === 'string' ? sp.q : '';
   const hasListContext =
-    q.trim() !== "" ||
+    q.trim() !== '' ||
     titleSort != null ||
     Boolean(catalogQuery.regionCodeForCatalog?.trim()) ||
     catalogQuery.domainForList != null ||
-    listStatus !== "active";
+    listStatus !== 'active';
 
   const workspaceListPreserve = hasListContext
     ? {
@@ -62,15 +58,12 @@ export default async function EditRecommendationPage({ params, searchParams }: P
   if (workspaceListPreserve) {
     appendRecommendationsCatalogFiltersToSearchParams(backParams, workspaceListPreserve);
   }
-  const backHref = backParams.toString() ? `${RECOMMENDATIONS_PATH}?${backParams.toString()}` : RECOMMENDATIONS_PATH;
+  const backHref = backParams.toString()
+    ? `${RECOMMENDATIONS_PATH}?${backParams.toString()}`
+    : RECOMMENDATIONS_PATH;
 
   return (
-    <DoctorAppShell
-      title="Редактирование рекомендации"
-      user={session.user}
-     
-      backHref={backHref}
-    >
+    <DoctorAppShell title="Редактирование рекомендации" user={session.user} backHref={backHref}>
       <RecommendationForm
         recommendation={rec}
         domainCatalogItems={domainCatalogItems}

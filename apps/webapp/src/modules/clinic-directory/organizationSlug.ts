@@ -73,11 +73,7 @@ export type OrganizationSlugValidation =
   | { ok: true; slug: string }
   | {
       ok: false;
-      code:
-        | 'slug_invalid_characters'
-        | 'slug_too_short'
-        | 'slug_too_long'
-        | 'reserved_slug';
+      code: 'slug_invalid_characters' | 'slug_too_short' | 'slug_too_long' | 'reserved_slug';
     };
 
 /**

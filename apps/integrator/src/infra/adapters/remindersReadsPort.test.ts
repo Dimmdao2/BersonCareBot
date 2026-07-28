@@ -48,7 +48,11 @@ describe('remindersReadsPort', () => {
             daysMask: '1111111',
             contentMode: 'none',
             updatedAt: '2025-01-01T00:00:00.000Z',
-            scheduleData: { timesLocal: ['09:00', '19:00'], dayFilter: 'weekly_mask', daysMask: '1111111' },
+            scheduleData: {
+              timesLocal: ['09:00', '19:00'],
+              dayFilter: 'weekly_mask',
+              daysMask: '1111111',
+            },
             reminderIntent: 'generic',
             notificationTopicCode: 'exercise_reminders',
           },

@@ -1,49 +1,49 @@
 /** @vitest-environment node */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { MergeConflictError } from "@/infra/repos/platformUserMergeErrors";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { MergeConflictError } from '@/infra/repos/platformUserMergeErrors';
 
 const writeAuditLogMock = vi.fn();
 const mergeTxMock = vi.fn();
 const withTwoLocksMock = vi.fn();
 const fetchMergePartyDisplayLabelsMock = vi.fn();
 
-vi.mock("@/infra/mergeAuditLabels", () => ({
+vi.mock('@/infra/mergeAuditLabels', () => ({
   fetchMergePartyDisplayLabels: (...a: unknown[]) => fetchMergePartyDisplayLabelsMock(...a),
 }));
 
-vi.mock("@/infra/adminAuditLog", () => ({
+vi.mock('@/infra/adminAuditLog', () => ({
   writeAuditLog: (...a: unknown[]) => writeAuditLogMock(...a),
 }));
 
-vi.mock("@/infra/userLifecycleLock", () => ({
+vi.mock('@/infra/userLifecycleLock', () => ({
   withTwoUserLifecycleLocksExclusive: (...a: unknown[]) => withTwoLocksMock(...a),
 }));
 
-vi.mock("@/infra/repos/pgPlatformUserMerge", () => ({
+vi.mock('@/infra/repos/pgPlatformUserMerge', () => ({
   mergePlatformUsersInTransaction: (...a: unknown[]) => mergeTxMock(...a),
 }));
 
-const t1 = "00000000-0000-4000-8000-000000000001";
-const t2 = "00000000-0000-4000-8000-000000000002";
+const t1 = '00000000-0000-4000-8000-000000000001';
+const t2 = '00000000-0000-4000-8000-000000000002';
 
 const baseResolution = {
   targetId: t1,
   duplicateId: t2,
   fields: {
-    phone_normalized: "target" as const,
-    display_name: "target" as const,
-    first_name: "target" as const,
-    last_name: "target" as const,
-    email: "target" as const,
+    phone_normalized: 'target' as const,
+    display_name: 'target' as const,
+    first_name: 'target' as const,
+    last_name: 'target' as const,
+    email: 'target' as const,
   },
-  bindings: { telegram: "both" as const, max: "both" as const, vk: "both" as const },
-  oauth: {} as Record<string, "target" | "duplicate">,
-  channelPreferences: "merge" as const,
+  bindings: { telegram: 'both' as const, max: 'both' as const, vk: 'both' as const },
+  oauth: {} as Record<string, 'target' | 'duplicate'>,
+  channelPreferences: 'merge' as const,
 };
 
-describe("runManualPlatformUserMerge", () => {
-  const pool = {} as import("pg").Pool;
+describe('runManualPlatformUserMerge', () => {
+  const pool = {} as import('pg').Pool;
 
   beforeEach(() => {
     writeAuditLogMock.mockReset();
@@ -51,8 +51,8 @@ describe("runManualPlatformUserMerge", () => {
     withTwoLocksMock.mockReset();
     fetchMergePartyDisplayLabelsMock.mockReset();
     fetchMergePartyDisplayLabelsMock.mockResolvedValue({
-      targetDisplayName: "Canon Name",
-      duplicateDisplayName: "Duplicate Name",
+      targetDisplayName: 'Canon Name',
+      duplicateDisplayName: 'Duplicate Name',
     });
     writeAuditLogMock.mockResolvedValue(undefined);
     mergeTxMock.mockResolvedValue({ targetId: t1, duplicateId: t2, mergeContactsSaved: [] });
@@ -64,9 +64,9 @@ describe("runManualPlatformUserMerge", () => {
     );
   });
 
-  it("runs merge inside withTwoUserLifecycleLocksExclusive (locks use sorted ids; merge uses target/duplicate)", async () => {
-    const { runManualPlatformUserMerge } = await import("@/infra/manualPlatformUserMerge");
-    await runManualPlatformUserMerge(pool, "00000000-0000-4000-8000-0000000000aa", {
+  it('runs merge inside withTwoUserLifecycleLocksExclusive (locks use sorted ids; merge uses target/duplicate)', async () => {
+    const { runManualPlatformUserMerge } = await import('@/infra/manualPlatformUserMerge');
+    await runManualPlatformUserMerge(pool, '00000000-0000-4000-8000-0000000000aa', {
       ...baseResolution,
       targetId: t2,
       duplicateId: t1,
@@ -76,7 +76,7 @@ describe("runManualPlatformUserMerge", () => {
       {},
       t2,
       t1,
-      "manual",
+      'manual',
       expect.objectContaining({
         resolution: expect.anything(),
         verifiedDistinctIntegratorUserIds: undefined,
@@ -84,32 +84,36 @@ describe("runManualPlatformUserMerge", () => {
     );
   });
 
-  it("writes ok audit after successful merge (separate from merge tx), with v1 detail fields", async () => {
+  it('writes ok audit after successful merge (separate from merge tx), with v1 detail fields', async () => {
     const order: string[] = [];
     mergeTxMock.mockImplementation(async () => {
-      order.push("merge");
+      order.push('merge');
       return { targetId: t1, duplicateId: t2, mergeContactsSaved: [] };
     });
     writeAuditLogMock.mockImplementation(async () => {
-      order.push("audit");
+      order.push('audit');
     });
 
-    const { runManualPlatformUserMerge } = await import("@/infra/manualPlatformUserMerge");
-    const r = await runManualPlatformUserMerge(pool, "00000000-0000-4000-8000-0000000000aa", baseResolution);
+    const { runManualPlatformUserMerge } = await import('@/infra/manualPlatformUserMerge');
+    const r = await runManualPlatformUserMerge(
+      pool,
+      '00000000-0000-4000-8000-0000000000aa',
+      baseResolution,
+    );
 
     expect(r).toEqual({ ok: true, targetId: t1, duplicateId: t2 });
-    expect(order).toEqual(["merge", "audit"]);
+    expect(order).toEqual(['merge', 'audit']);
     expect(writeAuditLogMock).toHaveBeenCalledTimes(1);
     expect(writeAuditLogMock).toHaveBeenCalledWith(
       pool,
       expect.objectContaining({
-        actorId: "00000000-0000-4000-8000-0000000000aa",
-        action: "user_merge",
+        actorId: '00000000-0000-4000-8000-0000000000aa',
+        action: 'user_merge',
         targetId: t1,
-        status: "ok",
+        status: 'ok',
         details: expect.objectContaining({
-          targetDisplayName: "Canon Name",
-          duplicateDisplayName: "Duplicate Name",
+          targetDisplayName: 'Canon Name',
+          duplicateDisplayName: 'Duplicate Name',
           resolution: baseResolution,
           conflictsResolved: [],
           dependentRowsMoved: {
@@ -122,70 +126,72 @@ describe("runManualPlatformUserMerge", () => {
     );
   });
 
-  it("writes mergeContactsSaved from merge transaction into ok audit details", async () => {
+  it('writes mergeContactsSaved from merge transaction into ok audit details', async () => {
     mergeTxMock.mockResolvedValue({
       targetId: t1,
       duplicateId: t2,
-      mergeContactsSaved: [{ contactType: "phone", valueNormalized: "+79004445566" }],
+      mergeContactsSaved: [{ contactType: 'phone', valueNormalized: '+79004445566' }],
     });
 
-    const { runManualPlatformUserMerge } = await import("@/infra/manualPlatformUserMerge");
+    const { runManualPlatformUserMerge } = await import('@/infra/manualPlatformUserMerge');
     await runManualPlatformUserMerge(pool, null, baseResolution);
 
     expect(writeAuditLogMock).toHaveBeenCalledWith(
       pool,
       expect.objectContaining({
         details: expect.objectContaining({
-          mergeContactsSaved: [{ contactType: "phone", valueNormalized: "+79004445566" }],
+          mergeContactsSaved: [{ contactType: 'phone', valueNormalized: '+79004445566' }],
         }),
       }),
     );
   });
 
-  it("writes error audit when merge throws (e.g. hard blocker), without ok audit", async () => {
-    mergeTxMock.mockRejectedValueOnce(new Error("two different non-null integrator_user_id"));
+  it('writes error audit when merge throws (e.g. hard blocker), without ok audit', async () => {
+    mergeTxMock.mockRejectedValueOnce(new Error('two different non-null integrator_user_id'));
 
-    const { runManualPlatformUserMerge } = await import("@/infra/manualPlatformUserMerge");
+    const { runManualPlatformUserMerge } = await import('@/infra/manualPlatformUserMerge');
     const r = await runManualPlatformUserMerge(pool, null, baseResolution);
 
     expect(r).toEqual({
       ok: false,
-      error: "two different non-null integrator_user_id",
+      error: 'two different non-null integrator_user_id',
     });
     expect(writeAuditLogMock).toHaveBeenCalledTimes(1);
     expect(writeAuditLogMock).toHaveBeenCalledWith(
       pool,
       expect.objectContaining({
         actorId: null,
-        action: "user_merge",
+        action: 'user_merge',
         targetId: t1,
-        status: "error",
+        status: 'error',
         details: expect.objectContaining({
-          targetDisplayName: "Canon Name",
-          duplicateDisplayName: "Duplicate Name",
-          phase: "merge_transaction",
-          error: "two different non-null integrator_user_id",
+          targetDisplayName: 'Canon Name',
+          duplicateDisplayName: 'Duplicate Name',
+          phase: 'merge_transaction',
+          error: 'two different non-null integrator_user_id',
         }),
       }),
     );
   });
 
-  it("returns a dedicated code when integrator ids changed after gate", async () => {
-    mergeTxMock.mockRejectedValueOnce(new MergeConflictError("merge: integrator ids changed since gate"));
+  it('returns a dedicated code when integrator ids changed after gate', async () => {
+    mergeTxMock.mockRejectedValueOnce(
+      new MergeConflictError('merge: integrator ids changed since gate'),
+    );
 
-    const { runManualPlatformUserMerge } = await import("@/infra/manualPlatformUserMerge");
+    const { runManualPlatformUserMerge } = await import('@/infra/manualPlatformUserMerge');
     const r = await runManualPlatformUserMerge(pool, null, baseResolution, {
       allowDistinctIntegratorUserIds: true,
       verifiedDistinctIntegratorUserIds: {
-        targetIntegratorUserId: "100",
-        duplicateIntegratorUserId: "200",
+        targetIntegratorUserId: '100',
+        duplicateIntegratorUserId: '200',
       },
     });
 
     expect(r).toEqual({
       ok: false,
-      error: "merge: integrator ids changed since gate",
-      code: "integrator_ids_changed_since_gate",
+      error: 'merge: integrator ids changed since gate',
+      code: 'integrator_ids_changed_since_gate',
     });
   });
 });

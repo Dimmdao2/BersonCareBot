@@ -1,8 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
-import { emptyClientContactBreakdown } from "@/modules/doctor-clients/clientContactSegments";
-import { createDoctorStatsService } from "./service";
+import { describe, expect, it, vi } from 'vitest';
+import { emptyClientContactBreakdown } from '@/modules/doctor-clients/clientContactSegments';
+import { createDoctorStatsService } from './service';
 
-describe("doctor-stats service", () => {
+describe('doctor-stats service', () => {
   const contactBreakdown = {
     ...emptyClientContactBreakdown(),
     total: 3,
@@ -18,7 +18,7 @@ describe("doctor-stats service", () => {
       bookingsCreatedInPeriod: 6,
       cancellationActionsInPeriod: 2,
       rescheduleActionsInPeriod: 1,
-      total: filter.kind === "range" && filter.range === "week" ? 5 : 0,
+      total: filter.kind === 'range' && filter.range === 'week' ? 5 : 0,
       cancellations30d: 2,
     }),
     getClientContactBreakdown: async () => contactBreakdown,
@@ -44,7 +44,7 @@ describe("doctor-stats service", () => {
 
   const audience = { includeTestAccounts: false, excludedUserIds: [] as string[] };
 
-  it("getStats returns appointments and clients aggregates", async () => {
+  it('getStats returns appointments and clients aggregates', async () => {
     const stats = await service.getStats(audience);
     expect(stats.appointments.pastVisitsInPeriod).toBe(4);
     expect(stats.appointments.bookingsCreatedInPeriod).toBe(6);
@@ -57,7 +57,7 @@ describe("doctor-stats service", () => {
     expect(stats.clients.messengerBotBlocked).toEqual(contactBreakdown.messengerBotBlocked);
   });
 
-  it("getDashboardMetrics maps patient and appointment aggregates", async () => {
+  it('getDashboardMetrics maps patient and appointment aggregates', async () => {
     const m = await service.getDashboardMetrics(audience);
     expect(m.patients.total).toBe(10);
     expect(m.patients.onSupport).toBe(3);
@@ -67,7 +67,7 @@ describe("doctor-stats service", () => {
     expect(m.appointments.cancellationsInMonth).toBe(1);
   });
 
-  it("getStats requests contact breakdown only once", async () => {
+  it('getStats requests contact breakdown only once', async () => {
     const getClientContactBreakdown = vi.fn(async () => contactBreakdown);
     const optimizedService = createDoctorStatsService({
       getAppointmentStats: async () => ({
@@ -104,8 +104,8 @@ describe("doctor-stats service", () => {
     expect(getClientContactBreakdown).toHaveBeenCalledTimes(1);
   });
 
-  it("passes selected organization to stats dependencies", async () => {
-    const organizationId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  it('passes selected organization to stats dependencies', async () => {
+    const organizationId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
     const getAppointmentStats = vi.fn(async () => ({
       pastVisitsInPeriod: 0,
       cancelledVisitsInPeriod: 0,
@@ -149,8 +149,14 @@ describe("doctor-stats service", () => {
       expect.any(Object),
       expect.objectContaining({ organizationId }),
     );
-    expect(getClientContactBreakdown).toHaveBeenCalledWith(expect.objectContaining({ organizationId }));
-    expect(getDashboardPatientMetrics).toHaveBeenCalledWith(expect.objectContaining({ organizationId }));
-    expect(getDashboardAppointmentMetrics).toHaveBeenCalledWith(expect.objectContaining({ organizationId }));
+    expect(getClientContactBreakdown).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId }),
+    );
+    expect(getDashboardPatientMetrics).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId }),
+    );
+    expect(getDashboardAppointmentMetrics).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId }),
+    );
   });
 });

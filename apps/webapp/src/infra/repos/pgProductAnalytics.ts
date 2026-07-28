@@ -1,54 +1,60 @@
-import { and, eq, gte, inArray, isNull, lt, notInArray, or, sql } from "drizzle-orm";
-import { getCurrentDbPrincipal, getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
+import { and, eq, gte, inArray, isNull, lt, notInArray, or, sql } from 'drizzle-orm';
+import {
+  getCurrentDbPrincipal,
+  getCurrentDbPrincipalOrganizationId,
+} from '@bersoncare/db-principal';
 import {
   buildAdminDashboard,
   productAnalyticsWindowStartHour,
-} from "@/modules/product-analytics/buildAdminDashboard";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { resolveAnalyticsExcludedUserIds } from "@/infra/repos/pgAnalyticsAudience";
-import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
-import { readAdminSystemSettingInnerValue } from "@/infra/repos/pgSystemSettings";
+} from '@/modules/product-analytics/buildAdminDashboard';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { resolveAnalyticsExcludedUserIds } from '@/infra/repos/pgAnalyticsAudience';
+import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
+import { readAdminSystemSettingInnerValue } from '@/infra/repos/pgSystemSettings';
 import {
   normalizeTestAccountIdentifiersValue,
   type TestAccountIdentifiers,
-} from "@/modules/system-settings/testAccounts";
+} from '@/modules/system-settings/testAccounts';
 import {
   hourlyDimsFromEvent,
   shouldUpdateUserHourly,
   truncateToUtcHour,
   userHourlyDeltaFromEvent,
   userHourlyPageKeyForEvent,
-} from "@/modules/product-analytics/aggregateKeys";
-import type { ProductAnalyticsPort, ProductAnalyticsPurgeOptions } from "@/modules/product-analytics/ports";
+} from '@/modules/product-analytics/aggregateKeys';
+import type {
+  ProductAnalyticsPort,
+  ProductAnalyticsPurgeOptions,
+} from '@/modules/product-analytics/ports';
 import type {
   CreatePushNotificationInput,
   ListRegistrationEventsParams,
   ListRegistrationEventsResult,
   ProductAnalyticsIngestEvent,
   RecordPushOpenInput,
-} from "@/modules/product-analytics/types";
-import { AUTH_REGISTRATION_EVENT_TYPES } from "@/modules/product-analytics/types";
-import { PRODUCT_ANALYTICS_DIM_ALL } from "@/modules/product-analytics/types";
+} from '@/modules/product-analytics/types';
+import { AUTH_REGISTRATION_EVENT_TYPES } from '@/modules/product-analytics/types';
+import { PRODUCT_ANALYTICS_DIM_ALL } from '@/modules/product-analytics/types';
 import {
   productAnalyticsEventsRecent,
   productAnalyticsHourly,
   productAnalyticsUserHourly,
   productPushNotifications,
-} from "../../../db/schema/productAnalytics";
-import { platformUsers } from "../../../db/schema/schema";
-import { runWebappPgText } from "@/infra/db/runWebappSql";
-import { runWithWebappDbOperationFamily } from "@/infra/db/saasIsolationOperationContext";
+} from '../../../db/schema/productAnalytics';
+import { platformUsers } from '../../../db/schema/schema';
+import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { runWithWebappDbOperationFamily } from '@/infra/db/saasIsolationOperationContext';
 
 async function loadProductAnalyticsTestAccountIdentifiers(): Promise<TestAccountIdentifiers | null> {
   return normalizeTestAccountIdentifiersValue(
-    await readAdminSystemSettingInnerValue("test_account_identifiers"),
+    await readAdminSystemSettingInnerValue('test_account_identifiers'),
   );
 }
 
 function pgErrCode(e: unknown): string | undefined {
-  if (typeof e === "object" && e !== null && "code" in e) {
+  if (typeof e === 'object' && e !== null && 'code' in e) {
     const code = (e as { code?: unknown }).code;
-    return typeof code === "string" ? code : undefined;
+    return typeof code === 'string' ? code : undefined;
   }
   return undefined;
 }
@@ -77,7 +83,18 @@ async function upsertHourlyCount(
      ON CONFLICT ${conflict} DO UPDATE SET
        event_count=product_analytics_hourly.event_count+EXCLUDED.event_count,
        updated_at=EXCLUDED.updated_at`,
-    [organizationId,bucketHour,event.eventType,dims.entryChannel,dims.pageKey,dims.topicCode,dims.pushKind,dims.warmupSloganKey,increment,now],
+    [
+      organizationId,
+      bucketHour,
+      event.eventType,
+      dims.entryChannel,
+      dims.pageKey,
+      dims.topicCode,
+      dims.pushKind,
+      dims.warmupSloganKey,
+      increment,
+      now,
+    ],
   );
 }
 
@@ -104,7 +121,19 @@ async function upsertUserHourly(event: ProductAnalyticsIngestEvent, organization
        active_minutes=product_analytics_user_hourly.active_minutes+EXCLUDED.active_minutes,
        last_seen_at=GREATEST(product_analytics_user_hourly.last_seen_at,EXCLUDED.last_seen_at),
        updated_at=EXCLUDED.updated_at`,
-    [organizationId,bucketHour,event.userId,event.entryChannel,pageKey,delta.appOpens,delta.pageViews,delta.pushOpens,delta.activeMinutes,occurredAt,now],
+    [
+      organizationId,
+      bucketHour,
+      event.userId,
+      event.entryChannel,
+      pageKey,
+      delta.appOpens,
+      delta.pageViews,
+      delta.pushOpens,
+      delta.activeMinutes,
+      occurredAt,
+      now,
+    ],
   );
 }
 
@@ -133,7 +162,7 @@ async function insertRecent(
     await db.insert(productAnalyticsEventsRecent).values(base);
     return true;
   } catch (e: unknown) {
-    if (event.eventType === "push_open" && event.pushTrackingId && pgErrCode(e) === "23505") {
+    if (event.eventType === 'push_open' && event.pushTrackingId && pgErrCode(e) === '23505') {
       return false;
     }
     throw e;
@@ -144,13 +173,13 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
   return {
     async recordEventsBatch(events) {
       const principal = getCurrentDbPrincipal();
-      if (principal?.kind === "patient") {
+      if (principal?.kind === 'patient') {
         for (const event of events) {
           if (event.userId !== principal.platformUserId) {
-            throw new Error("patient_analytics_principal_mismatch");
+            throw new Error('patient_analytics_principal_mismatch');
           }
           const occurredAt = event.occurredAt ?? new Date().toISOString();
-          const result = await runWithWebappDbOperationFamily("patient_product_analytics", () =>
+          const result = await runWithWebappDbOperationFamily('patient_product_analytics', () =>
             runWebappPgText<{ recorded: boolean }>(
               `SELECT app.record_current_patient_analytics_event(
                  $1::timestamptz, $2::text, $3::text, $4::text, $5::text, $6::jsonb
@@ -166,7 +195,7 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
             ),
           );
           if (result.rows[0]?.recorded !== true) {
-            throw new Error("patient_analytics_event_rejected");
+            throw new Error('patient_analytics_event_rejected');
           }
         }
         return;
@@ -198,36 +227,39 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
         title: row.title ?? null,
         createdAt,
       });
-      await upsertHourlyCount({
-        eventType: "push_sent",
-        entryChannel: PRODUCT_ANALYTICS_DIM_ALL as ProductAnalyticsIngestEvent["entryChannel"],
-        occurredAt: createdAt,
-        topicCode: row.topicCode ?? null,
-        pushKind: row.pushKind ?? null,
-        warmupSloganKey: row.warmupSloganKey ?? null,
-      }, getCurrentDbPrincipalOrganizationId() ?? null);
+      await upsertHourlyCount(
+        {
+          eventType: 'push_sent',
+          entryChannel: PRODUCT_ANALYTICS_DIM_ALL as ProductAnalyticsIngestEvent['entryChannel'],
+          occurredAt: createdAt,
+          topicCode: row.topicCode ?? null,
+          pushKind: row.pushKind ?? null,
+          warmupSloganKey: row.warmupSloganKey ?? null,
+        },
+        getCurrentDbPrincipalOrganizationId() ?? null,
+      );
     },
 
     async recordPushOpen(input: RecordPushOpenInput) {
       const principal = getCurrentDbPrincipal();
-      if (principal?.kind === "patient") {
+      if (principal?.kind === 'patient') {
         if (input.userId && input.userId !== principal.platformUserId) {
-          throw new Error("patient_analytics_principal_mismatch");
+          throw new Error('patient_analytics_principal_mismatch');
         }
-        const result = await runWithWebappDbOperationFamily("patient_product_analytics", () =>
+        const result = await runWithWebappDbOperationFamily('patient_product_analytics', () =>
           runWebappPgText<{ recorded: boolean; deduped: boolean }>(
             `SELECT recorded, deduped
              FROM app.record_current_patient_push_open($1::timestamptz, $2::text, $3::uuid)`,
             [
               input.occurredAt ?? new Date().toISOString(),
-              input.entryChannel ?? "pwa",
+              input.entryChannel ?? 'pwa',
               input.pushTrackingId,
             ],
           ),
         );
         const outcome = result.rows[0];
         if (outcome?.recorded !== true) {
-          throw new Error("patient_push_open_rejected");
+          throw new Error('patient_push_open_rejected');
         }
         return { deduped: outcome.deduped };
       }
@@ -245,8 +277,8 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
         .limit(1);
 
       const event: ProductAnalyticsIngestEvent = {
-        eventType: "push_open",
-        entryChannel: input.entryChannel ?? "pwa",
+        eventType: 'push_open',
+        entryChannel: input.entryChannel ?? 'pwa',
         occurredAt: input.occurredAt,
         userId: input.userId ?? push?.userId ?? null,
         pushTrackingId: input.pushTrackingId,
@@ -272,7 +304,9 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
       const excludedUserIds = await resolveAnalyticsExcludedUserIds(db, {
         includeTestAccounts,
         excludeStaffRoles: true,
-        testAccountIdentifiers: includeTestAccounts ? null : await loadProductAnalyticsTestAccountIdentifiers(),
+        testAccountIdentifiers: includeTestAccounts
+          ? null
+          : await loadProductAnalyticsTestAccountIdentifiers(),
       });
 
       const recentEventConditions = [gte(productAnalyticsEventsRecent.occurredAt, startHour)];
@@ -335,7 +369,7 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
           dims.topicCode,
           dims.pushKind,
           dims.warmupSloganKey,
-        ].join("|");
+        ].join('|');
         const current = hourlyByKey.get(key);
         if (current) {
           current.eventCount += increment;
@@ -354,8 +388,8 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
       };
       for (const row of recentRows) {
         addHourlyEvent({
-          eventType: row.eventType as ProductAnalyticsIngestEvent["eventType"],
-          entryChannel: row.entryChannel as ProductAnalyticsIngestEvent["entryChannel"],
+          eventType: row.eventType as ProductAnalyticsIngestEvent['eventType'],
+          entryChannel: row.entryChannel as ProductAnalyticsIngestEvent['entryChannel'],
           occurredAt: row.occurredAt,
           pageKey: row.pageKey,
           topicCode: row.topicCode,
@@ -365,8 +399,8 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
       }
       for (const row of pushRows) {
         addHourlyEvent({
-          eventType: "push_sent",
-          entryChannel: PRODUCT_ANALYTICS_DIM_ALL as ProductAnalyticsIngestEvent["entryChannel"],
+          eventType: 'push_sent',
+          entryChannel: PRODUCT_ANALYTICS_DIM_ALL as ProductAnalyticsIngestEvent['entryChannel'],
           occurredAt: row.createdAt,
           topicCode: row.topicCode,
           pushKind: row.pushKind,
@@ -407,14 +441,17 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
           .from(platformUsers)
           .where(inArray(platformUsers.id, userIds));
         for (const row of userRows) {
-          const firstLast = [row.firstName?.trim(), row.lastName?.trim()].filter(Boolean).join(" ").trim();
-          const displayName = row.displayName?.trim() || firstLast || "Пациент";
+          const firstLast = [row.firstName?.trim(), row.lastName?.trim()]
+            .filter(Boolean)
+            .join(' ')
+            .trim();
+          const displayName = row.displayName?.trim() || firstLast || 'Пациент';
           userDisplayNames[row.id] = displayName;
         }
       }
 
       const warmupSamples = pushRows
-        .filter((r) => r.pushKind === "warmup" && r.warmupSloganKey != null)
+        .filter((r) => r.pushKind === 'warmup' && r.warmupSloganKey != null)
         .map((r) => ({
           sloganKey: r.warmupSloganKey as string,
           sampleText: r.warmupSloganText,
@@ -438,10 +475,10 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
       const cutoff = retentionCutoffIso(days);
       if (options?.dryRun) {
         const row = await db
-          .select({ c: sql<string>`COUNT(*)::text`.as("cnt") })
+          .select({ c: sql<string>`COUNT(*)::text`.as('cnt') })
           .from(productAnalyticsEventsRecent)
           .where(lt(productAnalyticsEventsRecent.occurredAt, cutoff));
-        return { deleted: Number.parseInt(row[0]?.c ?? "0", 10) || 0 };
+        return { deleted: Number.parseInt(row[0]?.c ?? '0', 10) || 0 };
       }
       const deleted = await db
         .delete(productAnalyticsEventsRecent)
@@ -455,10 +492,10 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
       const cutoff = retentionCutoffIso(days);
       if (options?.dryRun) {
         const row = await db
-          .select({ c: sql<string>`COUNT(*)::text`.as("cnt") })
+          .select({ c: sql<string>`COUNT(*)::text`.as('cnt') })
           .from(productAnalyticsUserHourly)
           .where(lt(productAnalyticsUserHourly.bucketHour, cutoff));
-        return { deleted: Number.parseInt(row[0]?.c ?? "0", 10) || 0 };
+        return { deleted: Number.parseInt(row[0]?.c ?? '0', 10) || 0 };
       }
       const deleted = await db
         .delete(productAnalyticsUserHourly)
@@ -472,10 +509,10 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
       const cutoff = retentionCutoffIso(days);
       if (options?.dryRun) {
         const row = await db
-          .select({ c: sql<string>`COUNT(*)::text`.as("cnt") })
+          .select({ c: sql<string>`COUNT(*)::text`.as('cnt') })
           .from(productAnalyticsHourly)
           .where(lt(productAnalyticsHourly.bucketHour, cutoff));
-        return { deleted: Number.parseInt(row[0]?.c ?? "0", 10) || 0 };
+        return { deleted: Number.parseInt(row[0]?.c ?? '0', 10) || 0 };
       }
       const deleted = await db
         .delete(productAnalyticsHourly)
@@ -489,10 +526,10 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
       const cutoff = retentionCutoffIso(days);
       if (options?.dryRun) {
         const row = await db
-          .select({ c: sql<string>`COUNT(*)::text`.as("cnt") })
+          .select({ c: sql<string>`COUNT(*)::text`.as('cnt') })
           .from(productPushNotifications)
           .where(lt(productPushNotifications.createdAt, cutoff));
-        return { deleted: Number.parseInt(row[0]?.c ?? "0", 10) || 0 };
+        return { deleted: Number.parseInt(row[0]?.c ?? '0', 10) || 0 };
       }
       const deleted = await db
         .delete(productPushNotifications)
@@ -501,9 +538,11 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
       return { deleted: deleted.length };
     },
 
-    async listRegistrationEvents(params: ListRegistrationEventsParams): Promise<ListRegistrationEventsResult> {
+    async listRegistrationEvents(
+      params: ListRegistrationEventsParams,
+    ): Promise<ListRegistrationEventsResult> {
       const db = getDrizzle();
-      const isPlatformPrincipal = getCurrentDbPrincipal()?.kind === "platform";
+      const isPlatformPrincipal = getCurrentDbPrincipal()?.kind === 'platform';
       // Operational auth funnel journal — always exclude test accounts (not gated by dev_mode).
       // The platform role intentionally cannot read platform_users/user_channel_bindings directly;
       // its boolean SECURITY DEFINER predicate exposes only "exclude this user", not identifiers.
@@ -535,19 +574,23 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
         conditions.push(eq(productAnalyticsEventsRecent.eventType, params.eventType));
       }
       if (params.authMethod?.trim()) {
-        conditions.push(sql`${productAnalyticsEventsRecent.metadata}->>'authMethod' = ${params.authMethod.trim()}`);
+        conditions.push(
+          sql`${productAnalyticsEventsRecent.metadata}->>'authMethod' = ${params.authMethod.trim()}`,
+        );
       }
       if (params.errorClass) {
-        conditions.push(sql`${productAnalyticsEventsRecent.metadata}->>'errorClass' = ${params.errorClass}`);
+        conditions.push(
+          sql`${productAnalyticsEventsRecent.metadata}->>'errorClass' = ${params.errorClass}`,
+        );
       }
       const whereClause = and(...conditions);
       const offset = (params.page - 1) * params.limit;
 
       const [countRow] = await db
-        .select({ c: sql<string>`COUNT(*)::text`.as("cnt") })
+        .select({ c: sql<string>`COUNT(*)::text`.as('cnt') })
         .from(productAnalyticsEventsRecent)
         .where(whereClause);
-      const total = Number.parseInt(countRow?.c ?? "0", 10) || 0;
+      const total = Number.parseInt(countRow?.c ?? '0', 10) || 0;
 
       const rows = await db
         .select({
@@ -568,8 +611,9 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
         items: rows.map((row) => ({
           id: row.id,
           occurredAt: row.occurredAt,
-          eventType: row.eventType as ListRegistrationEventsResult["items"][number]["eventType"],
-          entryChannel: row.entryChannel as ListRegistrationEventsResult["items"][number]["entryChannel"],
+          eventType: row.eventType as ListRegistrationEventsResult['items'][number]['eventType'],
+          entryChannel:
+            row.entryChannel as ListRegistrationEventsResult['items'][number]['entryChannel'],
           userId: row.userId,
           metadata: (row.metadata ?? {}) as Record<string, unknown>,
         })),

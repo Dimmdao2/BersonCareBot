@@ -54,8 +54,8 @@ not one long appointment. Everything below is the delta needed to implement that
   → client hook `useBookingSlots(selection, slotCount, slotsApiPath)`
   (`apps/webapp/src/app/app/patient/cabinet/useBookingSlots.ts:16-33,35-50`, query param only added when
   `slotCount > 1`).
-- Per `apps/webapp/src/modules/booking-scheduling/booking-scheduling.md:34`: *"UI `/app/patient/booking/slot`
-  фиксирует `slotCount=1` (без multi-slot selector)"* — confirmed live: `SlotStepClient.tsx:111` calls
+- Per `apps/webapp/src/modules/booking-scheduling/booking-scheduling.md:34`: _"UI `/app/patient/booking/slot`
+  фиксирует `slotCount=1` (без multi-slot selector)"_ — confirmed live: `SlotStepClient.tsx:111` calls
   `useBookingSlots(selection, 1, props.slotsApiPath)` with a **hardcoded `1`**. There is currently **no**
   multi-slot selector UI anywhere in the patient booking wizard (`apps/webapp/src/app/app/patient/booking/slot/SlotStepClient.tsx`,
   reused verbatim at the post-#561 URL `apps/webapp/src/app/app/patient/booking/slot/page.tsx:1`
@@ -72,10 +72,10 @@ not one long appointment. Everything below is the delta needed to implement that
   - Computes `slotDurationMinutes` from `slotEnd - slotStart` (`canonicalCreate.ts:222-225`) and creates
     **exactly one** `patient_bookings` pending row (`canonicalCreate.ts:230`, `bookingsPort.createPending`)
     and **exactly one** `be_appointments` row via `deps.bookingEngine.createAppointment({...startAt:
-    createInput.slotStart, endAt: createInput.slotEnd, durationMinutes: slotDurationMinutes, ...})`
+createInput.slotStart, endAt: createInput.slotEnd, durationMinutes: slotDurationMinutes, ...})`
     (`canonicalCreate.ts:306-325`).
   - Package/product consumption (`canonicalCreate.ts:232-282`) and prepayment (`canonicalCreate.ts:284-298,
-    336-351`) are computed and applied **once**, against that one appointment.
+336-351`) are computed and applied **once**, against that one appointment.
 - Client-side, `useCreateBooking().createBooking` (`apps/webapp/src/app/app/patient/cabinet/useCreateBooking.ts:12-96`)
   takes a single `slot: BookingSlot` and POSTs one `slotStart`/`slotEnd` pair to `/api/booking/create`
   (`useCreateBooking.ts:38-39,58-59`). `ConfirmStepClient.tsx:267-270,346-357` mirrors this: one
@@ -88,8 +88,8 @@ not one long appointment. Everything below is the delta needed to implement that
 
 - `be_appointments_specialist_no_overlap` (current definition, `apps/webapp/db/drizzle-migrations/0119_be_appointments_soft_delete.sql:16-32`):
   `EXCLUDE USING gist (specialist_id WITH =, tstzrange(start_at, end_at, '[)') WITH &&) WHERE (specialist_id
-  IS NOT NULL AND deleted_at IS NULL AND status NOT IN (cancelled_by_patient, cancelled_by_specialist,
-  late_cancellation, no_show, completed, visit_confirmed))`.
+IS NOT NULL AND deleted_at IS NULL AND status NOT IN (cancelled_by_patient, cancelled_by_specialist,
+late_cancellation, no_show, completed, visit_confirmed))`.
   Because the range is **half-open** `'[)'`, two appointments `[T0, T1)` and `[T1, T2)` do **not** overlap —
   so N separate consecutive `be_appointments` rows, each `durationMinutes` long and starting exactly where
   the previous ends, are constraint-compatible today, with **no migration needed** for the exclusion
@@ -138,7 +138,7 @@ not invented here as fact):**
   not indexable/queryable in SQL without a JSON scan; doctor UI "these 3 slots are one visit" grouping and
   "cancel whole chain" actions need an app-layer join by IDs kept in the JSON.
 - **Option B (minimal reversible schema addition):** Add nullable `chain_id uuid` + `chain_position
-  smallint` to `be_appointments` (and mirror on `patient_bookings`) via a normal Drizzle migration —
+smallint` to `be_appointments` (and mirror on `patient_bookings`) via a normal Drizzle migration —
   queryable, indexable, no impact on existing single-appointment rows (`chain_id IS NULL`). Matches the
   repo's general posture (AGENTS.md §4a: pick an explicit ownership/reference path rather than leaving it
   ambiguous) and the "Product absolutes" precedent of allowing schema changes to booking/program tables
@@ -201,6 +201,7 @@ resolved into `pendingRow.priceMinorSnapshot` per appointment today, `canonicalC
   that per-specialist granularity is a fast-follow if the owner wants it — do not build the richer version
   speculatively (repo convention, `AGENTS.md` §4a: don't add unscoped/complex machinery before the ownership
   need is confirmed).
+
 - **Reconciling with the existing hard technical ceiling:** `slotCount` request schemas already hard-cap at
   `8` (`z.coerce.number().int().min(1).max(8)`,
   `apps/webapp/src/modules/patient-booking/inPersonApiSchemas.ts:19`,
@@ -284,7 +285,7 @@ Per `patient-booking.md:34` source feedback ("После выбора одног
   this is a genuine open product question, flagged below, not invented.
 - **Online (no specialist) chains:** `assertSlotAvailable`'s online branch (`canonicalCreate.ts:152-162`)
   passes `specialistId: null`; the specialist exclusion constraint only applies `WHERE specialist_id IS NOT
-  NULL` (`0119_be_appointments_soft_delete.sql:22`), so online multi-slot chains have no natural collision
+NULL` (`0119_be_appointments_soft_delete.sql:22`), so online multi-slot chains have no natural collision
   guard today beyond whatever the online capacity model uses — needs verification at implementation time
   against however online slot capacity is actually enforced (out of scope to re-derive here; flagging so the
   implementer doesn't assume the in-person guard rails transfer unchanged).
@@ -300,7 +301,7 @@ Per `patient-booking.md:34` source feedback ("После выбора одног
 - [x] **Confirm cap storage: org-level `system_settings` key (recommend, §2.c) vs per-specialist
       buffer-minutes-style table.** — org-level key shipped: `booking_max_consecutive_slot_hours` in
       `apps/webapp/src/modules/system-settings/registry.ts:153` (`runtime("admin", "per_org", "server",
-      "integer", "3")`), admin read/write route `apps/webapp/src/app/api/admin/booking-engine/scheduling-settings/route.ts:43-99`.
+    "integer", "3")`), admin read/write route `apps/webapp/src/app/api/admin/booking-engine/scheduling-settings/route.ts:43-99`.
 - [x] **Confirm payment model for chains: N separate prepayment intents (recommend, §2.b) vs one combined
       intent.** — ✅ **РЕШЕНО ВЛАДЕЛЬЦЕМ 27.07, дословно: «я сказал ОДИН платеж - и разные платежи это бред».**
       Реализация совпадает с его решением: ОДИН объединённый платёж на `amountMinor * slotCount`

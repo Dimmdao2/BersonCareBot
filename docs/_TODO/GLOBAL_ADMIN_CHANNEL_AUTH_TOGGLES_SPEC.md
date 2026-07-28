@@ -6,10 +6,12 @@
 > capability-guard. NOT started — awaiting recon + owner acceptance of the plan.
 
 ## Requirement (owner, plain)
+
 Global-admin settings must expose **checkboxes to enable/disable each available channel & auth method**, and the
 login/registration UI must reflect those toggles **dynamically**.
 
 ### R1 — toggleable methods (each independently on/off)
+
 - **Telegram** (auth/registration channel)
 - **MAX** (auth/registration channel)
 - **SMS** (registration/auth via phone code)
@@ -22,6 +24,7 @@ login/registration UI must reflect those toggles **dynamically**.
   whether TOTP 2FA is in effect for those roles.
 
 ### R2 — dynamic UI gating
+
 - Turning a method **OFF** in global-admin → it **disappears** from the login/registration surface, **regardless of
   whether credentials/keys are configured** for it. (Example: disable Gmail → Gmail login option vanishes even if a
   Google OAuth key is still set.)
@@ -33,12 +36,14 @@ login/registration UI must reflect those toggles **dynamically**.
 - Must apply to: patient login, staff/specialist login, registration flows — everywhere the method is offered.
 
 ### R3 — remove Telegram & MAX mini-apps
+
 - The Telegram mini-app and MAX mini-app must be **removed** — they duplicate the main web app's capabilities. Keep the
   bots for **auth codes / notifications only** (aligns with RU-privacy `NTF-01`: push/messenger for auth codes only, no
   product fallback in Telegram/MAX). Scope of "remove": the mini-app entry points / launch buttons / webapp-in-bot
   surfaces — NOT the bot's auth/notification messaging.
 
 ## Open questions for owner (collect into decision sheet)
+
 - Method ON but unconfigured (no key/creds): hide it, or show + admin-warning?
 - Is the toggle **global** (platform-wide, single-tenant owner) or **per-clinic** (tenant-scoped)? (Current owner model
   is single-owner; but SaaS direction may want per-clinic. Default assumption: **global**, matching "global-admin
@@ -47,6 +52,7 @@ login/registration UI must reflect those toggles **dynamically**.
 - Confirm which email/OAuth providers are in scope (Google, Yandex, + others?).
 
 ## Current state — RECON (verified 2026-07-24, `scratchpad/channel-auth-toggles-recon.md`)
+
 - **Login resolver:** `apps/webapp/src/modules/auth/authChannelPolicy.ts` + `loginAlternativesConfig.ts` →
   `/api/auth/login/alternatives-config`, `/api/auth/telegram-login/config`, `/api/auth/oauth/providers` →
   `AuthFlowV2.tsx`/`AuthBootstrap.tsx`. **Fail-closed by default**, and ~30 API routes ALSO server-enforce the channel
@@ -68,6 +74,7 @@ login/registration UI must reflect those toggles **dynamically**.
   staff-login separateness — confirm before removal.)
 
 ## Plan (grounded — awaiting owner acceptance; NOT started)
+
 1. **Extend the settings registry** with independent boolean toggles: `auth_oauth_google_enabled`,
    `auth_oauth_yandex_enabled`, (`auth_oauth_apple_enabled`?), `auth_2fa_enabled` — add to `registry.ts` +
    `PLATFORM_GLOBAL_SETTINGS_API_KEYS`. OAuth toggle becomes `enabled AND creds-present` (decouple from creds-only).
@@ -75,12 +82,13 @@ login/registration UI must reflect those toggles **dynamically**.
    so a disabled method vanishes from UI AND is rejected server-side (fail-closed).
 3. **2FA:** add the global gate honoring `auth_2fa_enabled` (define disable semantics — owner Q).
 4. **Admin UI:** build the global-admin settings page (checkbox grid) consuming `/api/platform/settings` (backing API
-   exists). 
+   exists).
 5. **Mini-app removal:** strip the `web_app` button chokepoint (the 4 targets above), keep bot auth/notification
    messaging. Aligns `NTF-01`.
 6. Tests + live TEST verification (toggle off → method gone from login UI + server rejects; mini-app buttons gone).
 
 ## Owner decisions
+
 - ✅ **RESOLVED 2026-07-24** — Method ON but unconfigured → **hidden from client + admin-side warning** next to the
   toggle. visible-to-client = `enabled AND configured`.
 - ✅ **RESOLVED 2026-07-24** — **Apple NOT included** (no toggle).

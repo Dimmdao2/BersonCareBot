@@ -1,21 +1,21 @@
-import { DateTime } from "luxon";
+import { DateTime } from 'luxon';
 import {
   countWarmupCompletionsInRows,
   patientHomeLocalDayUtcWindow,
-} from "@/modules/patient-home/patientHomeTodayProgress";
-import { countPlannedHomeLinkedReminderOccurrencesWithPredicate } from "@/modules/patient-home/nextReminderOccurrence";
-import type { DailyWarmupPresentationSyncDeps } from "@/modules/patient-home/ensureDailyWarmupPresentationSynced";
+} from '@/modules/patient-home/patientHomeTodayProgress';
+import { countPlannedHomeLinkedReminderOccurrencesWithPredicate } from '@/modules/patient-home/nextReminderOccurrence';
+import type { DailyWarmupPresentationSyncDeps } from '@/modules/patient-home/ensureDailyWarmupPresentationSynced';
 import {
   listDailyWarmupPagesForHome,
   resolveDailyWarmupPickIndex,
-} from "@/modules/patient-home/todayConfig";
-import { resolveCalendarDayIanaForPatient } from "@/modules/system-settings/calendarIana";
-import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
-import { isWarmupsContentSectionReminderRule } from "@/modules/reminders/warmupsReminderRuleMatch";
-import { DEFAULT_WARMUPS_SECTION_SLUG } from "@/modules/patient-home/warmupsSection";
-import type { ReminderRule } from "@/modules/reminders/types";
-import type { PatientPracticeCompletionRow } from "@/modules/patient-practice/types";
-import type { WarmupPushDynamicContext } from "./pushNotificationCopy";
+} from '@/modules/patient-home/todayConfig';
+import { resolveCalendarDayIanaForPatient } from '@/modules/system-settings/calendarIana';
+import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
+import { isWarmupsContentSectionReminderRule } from '@/modules/reminders/warmupsReminderRuleMatch';
+import { DEFAULT_WARMUPS_SECTION_SLUG } from '@/modules/patient-home/warmupsSection';
+import type { ReminderRule } from '@/modules/reminders/types';
+import type { PatientPracticeCompletionRow } from '@/modules/patient-practice/types';
+import type { WarmupPushDynamicContext } from './pushNotificationCopy';
 
 export type LoadWarmupPushDynamicContextDeps = {
   listRulesByUser: (userId: string) => Promise<ReminderRule[]>;
@@ -24,9 +24,9 @@ export type LoadWarmupPushDynamicContextDeps = {
     start: Date,
     end: Date,
   ) => Promise<PatientPracticeCompletionRow[]>;
-  patientHomeBlocks: Parameters<typeof listDailyWarmupPagesForHome>[0]["patientHomeBlocks"];
-  contentPages: Parameters<typeof listDailyWarmupPagesForHome>[0]["contentPages"];
-  contentSections: Parameters<typeof listDailyWarmupPagesForHome>[0]["contentSections"];
+  patientHomeBlocks: Parameters<typeof listDailyWarmupPagesForHome>[0]['patientHomeBlocks'];
+  contentPages: Parameters<typeof listDailyWarmupPagesForHome>[0]['contentPages'];
+  contentSections: Parameters<typeof listDailyWarmupPagesForHome>[0]['contentSections'];
   getPatientCalendarIana: (userId: string) => Promise<string | null>;
   getLatestDailyWarmupCompletedContentPageId: (userId: string) => Promise<string | null>;
   /** Legacy fallback без `presentationSyncDeps` (production всегда передаёт sync). */
@@ -58,22 +58,21 @@ export async function loadWarmupPushDynamicContext(
   const pickIndex = await resolveDailyWarmupPickIndex(
     dailyPages,
     {
-      tier: "patient",
+      tier: 'patient',
       userId: platformUserId,
       getLatestCompletedContentPageId: deps.getLatestDailyWarmupCompletedContentPageId,
       getPresentedContentPageId: deps.presentationSyncDeps
         ? undefined
         : deps.getPresentedDailyWarmupContentPageId,
     },
-    "push_reminder",
+    'push_reminder',
     deps.presentationSyncDeps,
   );
   const dailyWarmupTitle = dailyPages[pickIndex]?.title?.trim() || null;
 
   const warmupPlanned = countPlannedHomeLinkedReminderOccurrencesWithPredicate(
     rules,
-    (rule) =>
-      isWarmupsContentSectionReminderRule(rule, DEFAULT_WARMUPS_SECTION_SLUG),
+    (rule) => isWarmupsContentSectionReminderRule(rule, DEFAULT_WARMUPS_SECTION_SLUG),
     start,
     end,
   );

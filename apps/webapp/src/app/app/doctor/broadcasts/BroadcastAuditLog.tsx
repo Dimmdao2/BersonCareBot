@@ -1,19 +1,16 @@
-"use client";
+'use client';
 
-import { X } from "lucide-react";
-import { cn } from "@/lib/utils";
-import type { BroadcastAuditEntry } from "@/modules/doctor-broadcasts/ports";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import {
-  doctorSectionCardClass,
-  doctorSectionTitleClass,
-} from "@/shared/ui/doctor/doctorVisual";
+import { X } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import type { BroadcastAuditEntry } from '@/modules/doctor-broadcasts/ports';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { doctorSectionCardClass, doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
 import {
   formatAudienceLabel,
   formatBroadcastDate,
   formatCategoryLabel,
   formatChannelsSummary,
-} from "./labels";
+} from './labels';
 
 type LogProps = {
   entries: BroadcastAuditEntry[];
@@ -45,10 +42,7 @@ function nonDeliveryCount(entry: BroadcastAuditEntry): number {
 function pendingDeliveryCount(entry: BroadcastAuditEntry): number {
   return Math.max(
     0,
-    plannedDeliveryCount(entry) -
-      entry.sentCount -
-      entry.errorCount -
-      entry.blockedRecipientCount,
+    plannedDeliveryCount(entry) - entry.sentCount - entry.errorCount - entry.blockedRecipientCount,
   );
 }
 
@@ -73,8 +67,8 @@ export function BroadcastAuditLog({ entries, selectedId = null, onSelect }: LogP
               aria-pressed={isSelected}
               onClick={() => onSelect(entry)}
               className={cn(
-                "block h-auto min-h-0 w-full cursor-pointer select-none whitespace-normal rounded-none px-2 py-2.5 text-left",
-                isSelected && "bg-primary/15 text-primary hover:bg-primary/20",
+                'block h-auto min-h-0 w-full cursor-pointer select-none whitespace-normal rounded-none px-2 py-2.5 text-left',
+                isSelected && 'bg-primary/15 text-primary hover:bg-primary/20',
               )}
             >
               <span className="flex min-w-0 items-start gap-2">
@@ -93,7 +87,7 @@ export function BroadcastAuditLog({ entries, selectedId = null, onSelect }: LogP
               </span>
               <span className="mt-0.5 block break-words text-xs text-muted-foreground">
                 {formatAudienceLabel(entry.audienceFilter)}
-                {" · "}
+                {' · '}
                 {formatChannelsSummary(entry.channels)}
               </span>
             </Button>
@@ -114,7 +108,7 @@ export function BroadcastAuditEntryDetail({
 
   return (
     <section
-      className={cn(doctorSectionCardClass, "h-full min-h-0 overflow-y-auto")}
+      className={cn(doctorSectionCardClass, 'h-full min-h-0 overflow-y-auto')}
       data-testid="broadcast-selected-detail"
     >
       <div className="flex items-start justify-between gap-3 border-b border-border pb-3">
@@ -122,7 +116,7 @@ export function BroadcastAuditEntryDetail({
           <p className="text-xs text-muted-foreground">
             {formatBroadcastDate(entry.executedAt)} · {formatCategoryLabel(entry.category)}
           </p>
-          <h2 className={cn(doctorSectionTitleClass, "mt-1 break-words")}>{entry.messageTitle}</h2>
+          <h2 className={cn(doctorSectionTitleClass, 'mt-1 break-words')}>{entry.messageTitle}</h2>
         </div>
         <Button
           type="button"

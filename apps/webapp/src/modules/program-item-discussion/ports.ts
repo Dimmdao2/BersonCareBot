@@ -9,36 +9,62 @@ import type {
   ProgramItemDiscussionMessage,
   ProgramItemDiscussionMessageInsert,
   StageItemViewerUnreadCount,
-} from "./types";
+} from './types';
 
 export type ProgramItemDiscussionPort = {
   insertMessage(input: ProgramItemDiscussionMessageInsert): Promise<ProgramItemDiscussionMessage>;
-  listMessagesForStageItem(stageItemId: string, limit?: number, offset?: number): Promise<ProgramItemDiscussionMessage[]>;
-  listAttentionSummaryForStageItems(stageItemIds: string[]): Promise<ProgramItemDiscussionAttentionSummary[]>;
-  listMessagesPage(input: ProgramItemDiscussionListPageInput): Promise<ProgramItemDiscussionMessage[]>;
+  listMessagesForStageItem(
+    stageItemId: string,
+    limit?: number,
+    offset?: number,
+  ): Promise<ProgramItemDiscussionMessage[]>;
+  listAttentionSummaryForStageItems(
+    stageItemIds: string[],
+  ): Promise<ProgramItemDiscussionAttentionSummary[]>;
+  listMessagesPage(
+    input: ProgramItemDiscussionListPageInput,
+  ): Promise<ProgramItemDiscussionMessage[]>;
   countMessagesForItem(stageItemId: string): Promise<number>;
-  countLegacyAdminRepliesForStageItem(input: ProgramItemDiscussionLegacyMergeInput): Promise<number>;
-  mergeLegacyAdminReplies(input: ProgramItemDiscussionLegacyMergeInput): Promise<ProgramItemDiscussionMessage[]>;
-  markRead(params: { patientUserId: string; stageItemId: string; lastReadAt?: string }): Promise<void>;
+  countLegacyAdminRepliesForStageItem(
+    input: ProgramItemDiscussionLegacyMergeInput,
+  ): Promise<number>;
+  mergeLegacyAdminReplies(
+    input: ProgramItemDiscussionLegacyMergeInput,
+  ): Promise<ProgramItemDiscussionMessage[]>;
+  markRead(params: {
+    patientUserId: string;
+    stageItemId: string;
+    lastReadAt?: string;
+  }): Promise<void>;
   getUnreadCount(params: { patientUserId: string; stageItemId: string }): Promise<number>;
   getLastReadAt(params: { patientUserId: string; stageItemId: string }): Promise<string | null>;
-  getMaxLastReadAtForViewers(params: { stageItemId: string; viewerUserIds: string[] }): Promise<string | null>;
+  getMaxLastReadAtForViewers(params: {
+    stageItemId: string;
+    viewerUserIds: string[];
+  }): Promise<string | null>;
   countLegacyUnreadAdminReplies(input: ProgramItemDiscussionLegacyUnreadInput): Promise<number>;
   listLinkedSupportMessageIdsForStageItem(stageItemId: string): Promise<string[]>;
   findStageItemIdBySupportMessageId(supportMessageId: string): Promise<string | null>;
-  listStageItemIdsByExerciseTitleForPatient(patientUserId: string, exerciseTitle: string): Promise<string[]>;
+  listStageItemIdsByExerciseTitleForPatient(
+    patientUserId: string,
+    exerciseTitle: string,
+  ): Promise<string[]>;
   getMessageById(messageId: string): Promise<ProgramItemDiscussionMessage | null>;
   deleteMessageById(messageId: string): Promise<boolean>;
   /**
    * Один индексированный запрос — последнее непрочитанное врачом сообщение-от-пациента
    * по каждому exercise-элементу всех пациентов из списка. Новые сверху, keyset-пагинация.
    */
-  listUnreadExerciseCommentsForDoctor(input: ListDoctorExerciseCommentsInput): Promise<DoctorExerciseCommentRow[]>;
+  listUnreadExerciseCommentsForDoctor(
+    input: ListDoctorExerciseCommentsInput,
+  ): Promise<DoctorExerciseCommentRow[]>;
   /**
    * История: последнее сообщение-от-пациента по каждому exercise-элементу (прочитанные
    * и непрочитанные). Новые сверху, keyset-пагинация. Для ленивой подгрузки в табе.
    */
-  listExerciseCommentsForDoctor(input: ListDoctorExerciseCommentsInput): Promise<DoctorExerciseCommentRow[]>;
+  listExerciseCommentsForDoctor(
+    input: ListDoctorExerciseCommentsInput,
+  ): Promise<DoctorExerciseCommentRow[]>;
   /**
    * Doctor-wide полная история: все треды с хотя бы одним комментарием пациента,
    * включая отвеченные (нет фильтра «последнее = от пациента»).

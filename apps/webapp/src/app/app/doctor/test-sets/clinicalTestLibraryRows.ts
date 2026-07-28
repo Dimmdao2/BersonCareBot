@@ -1,4 +1,4 @@
-import type { ClinicalTest, ClinicalTestMediaItem } from "@/modules/tests/types";
+import type { ClinicalTest, ClinicalTestMediaItem } from '@/modules/tests/types';
 
 export type ClinicalTestLibraryPickRow = {
   id: string;
@@ -6,7 +6,7 @@ export type ClinicalTestLibraryPickRow = {
   previewMedia: ClinicalTestMediaItem | null;
 };
 
-function firstPreviewMedia(media: ClinicalTest["media"]): ClinicalTestMediaItem | null {
+function firstPreviewMedia(media: ClinicalTest['media']): ClinicalTestMediaItem | null {
   if (!media?.length) return null;
   return [...media].sort((a, b) => a.sortOrder - b.sortOrder)[0] ?? null;
 }

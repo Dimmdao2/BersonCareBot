@@ -1,7 +1,13 @@
-import { isSafeExternalHref } from "@/lib/url/isSafeExternalHref";
-import { getPublicRuntimeBool, getPublicRuntimeValue } from "@/modules/system-settings/configAdapter";
-import { normalizeMaxBotNicknameInput } from "@/modules/system-settings/maxLoginBotNickname";
-import { getClientVisibleAuthChannelPolicy, type AuthChannelPolicy } from "@/modules/auth/authChannelPolicy";
+import { isSafeExternalHref } from '@/lib/url/isSafeExternalHref';
+import {
+  getPublicRuntimeBool,
+  getPublicRuntimeValue,
+} from '@/modules/system-settings/configAdapter';
+import { normalizeMaxBotNicknameInput } from '@/modules/system-settings/maxLoginBotNickname';
+import {
+  getClientVisibleAuthChannelPolicy,
+  type AuthChannelPolicy,
+} from '@/modules/auth/authChannelPolicy';
 
 export type LoginAlternativesPublicConfig = {
   telegramBotUsername: string | null;
@@ -20,15 +26,14 @@ export async function getLoginAlternativesPublicConfig(): Promise<LoginAlternati
   // Keep internal `/api/auth/telegram-login/config` unchanged for authenticated flows and do not
   // propagate the Telegram username through this public alternatives payload.
   const [maxNickname, vkSetting, smsFallbackEnabled, authChannelPolicy] = await Promise.all([
-    getPublicRuntimeValue("max_login_bot_nickname"),
-    getPublicRuntimeValue("vk_web_login_url"),
-    getPublicRuntimeBool("public_sms_fallback_enabled"),
+    getPublicRuntimeValue('max_login_bot_nickname'),
+    getPublicRuntimeValue('vk_web_login_url'),
+    getPublicRuntimeBool('public_sms_fallback_enabled'),
     // Owner ruling 2026-07-24: a channel that is ON but unconfigured must not appear here.
     getClientVisibleAuthChannelPolicy(),
   ]);
   const nick = normalizeMaxBotNicknameInput(maxNickname);
-  const maxBotOpenUrl =
-    nick.length > 0 ? `https://max.ru/${encodeURIComponent(nick)}` : null;
+  const maxBotOpenUrl = nick.length > 0 ? `https://max.ru/${encodeURIComponent(nick)}` : null;
 
   const vkRaw = vkSetting.trim();
   const vkWebLoginUrl = vkRaw.length > 0 && isSafeExternalHref(vkRaw) ? vkRaw : null;

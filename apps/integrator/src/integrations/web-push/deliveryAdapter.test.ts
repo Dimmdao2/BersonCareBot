@@ -17,7 +17,13 @@
  * - Missing pushUserId → throws WEB_PUSH_PAYLOAD_INVALID (code 400)
  */
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import type { DeliveryAdapter, OutgoingIntent, WebPushAccessPort, WebPushSubscriptionPayload, VapidCredentials } from '../../kernel/contracts/index.js';
+import type {
+  DeliveryAdapter,
+  OutgoingIntent,
+  WebPushAccessPort,
+  WebPushSubscriptionPayload,
+  VapidCredentials,
+} from '../../kernel/contracts/index.js';
 import { createWebPushDeliveryAdapter } from './deliveryAdapter.js';
 import { createDefaultDispatchPort } from '../../infra/adapters/dispatchPort.js';
 import { _resetDevRedirectActiveCache } from '../../shared/devDeliveryRedirect.js';
@@ -168,8 +174,10 @@ describe('WebPushDeliveryAdapter — PRIMARY SAFETY TEST: per-channel dev redire
 
     // (b) The web_push adapter IS reached (channel preserved, not collapsed to telegram).
     // Subscriptions fetched for the DEV push user, not the real recipient.
-    expect(webPushAccessPort.getSubscriptionsForUser, 'getSubscriptionsForUser called with dev pushUserId')
-      .toHaveBeenCalledWith(DEV_PUSH_USER_ID, ORGANIZATION_ID);
+    expect(
+      webPushAccessPort.getSubscriptionsForUser,
+      'getSubscriptionsForUser called with dev pushUserId',
+    ).toHaveBeenCalledWith(DEV_PUSH_USER_ID, ORGANIZATION_ID);
 
     // (c) The original real pushUserId must NOT have been passed to the access port.
     const [firstCallArg] = vi.mocked(webPushAccessPort.getSubscriptionsForUser).mock.calls[0]!;
@@ -211,7 +219,11 @@ describe('WebPushDeliveryAdapter.canHandle', () => {
     const intent: OutgoingIntent = {
       type: 'message.send',
       meta: { eventId: 'e1', occurredAt: NOW, source: 'telegram' },
-      payload: { recipient: { chatId: 123 }, message: { text: 'hi' }, delivery: { channels: ['telegram'] } },
+      payload: {
+        recipient: { chatId: 123 },
+        message: { text: 'hi' },
+        delivery: { channels: ['telegram'] },
+      },
     };
     expect(adapter.canHandle(intent)).toBe(false);
   });
@@ -273,7 +285,13 @@ describe('WebPushDeliveryAdapter.send — production mode (redirect inactive)', 
     const result = await adapter.send(makeWebPushIntent());
 
     expect(result).toEqual({
-      webPushOutcome: { status: 'skipped', reason: 'vapid_missing', delivered: 0, errors: 0, deactivated: 0 },
+      webPushOutcome: {
+        status: 'skipped',
+        reason: 'vapid_missing',
+        delivered: 0,
+        errors: 0,
+        deactivated: 0,
+      },
     });
     expect(webpushMock.sendNotification).not.toHaveBeenCalled();
   });
@@ -287,7 +305,13 @@ describe('WebPushDeliveryAdapter.send — production mode (redirect inactive)', 
     const result = await adapter.send(makeWebPushIntent());
 
     expect(result).toEqual({
-      webPushOutcome: { status: 'skipped', reason: 'no_active_subscriptions', delivered: 0, errors: 0, deactivated: 0 },
+      webPushOutcome: {
+        status: 'skipped',
+        reason: 'no_active_subscriptions',
+        delivered: 0,
+        errors: 0,
+        deactivated: 0,
+      },
     });
     expect(webpushMock.sendNotification).not.toHaveBeenCalled();
   });
@@ -301,7 +325,13 @@ describe('WebPushDeliveryAdapter.send — production mode (redirect inactive)', 
     const result = await adapter.send(makeWebPushIntent());
 
     expect(result).toEqual({
-      webPushOutcome: { status: 'failed', reason: 'subscriptions_unavailable', delivered: 0, errors: 1, deactivated: 0 },
+      webPushOutcome: {
+        status: 'failed',
+        reason: 'subscriptions_unavailable',
+        delivered: 0,
+        errors: 1,
+        deactivated: 0,
+      },
     });
     expect(webpushMock.sendNotification).not.toHaveBeenCalled();
   });
@@ -324,7 +354,11 @@ describe('WebPushDeliveryAdapter.send — production mode (redirect inactive)', 
 
     await adapter.send(makeWebPushIntent());
 
-    expect(webPushAccessPort.deleteSubscriptionByEndpoint).toHaveBeenCalledWith('user-123', STUB_SUB.endpoint, ORGANIZATION_ID);
+    expect(webPushAccessPort.deleteSubscriptionByEndpoint).toHaveBeenCalledWith(
+      'user-123',
+      STUB_SUB.endpoint,
+      ORGANIZATION_ID,
+    );
   });
 
   it('404 response: calls deleteSubscriptionByEndpoint for dead endpoint', async () => {
@@ -336,7 +370,11 @@ describe('WebPushDeliveryAdapter.send — production mode (redirect inactive)', 
 
     await adapter.send(makeWebPushIntent());
 
-    expect(webPushAccessPort.deleteSubscriptionByEndpoint).toHaveBeenCalledWith('user-123', STUB_SUB.endpoint, ORGANIZATION_ID);
+    expect(webPushAccessPort.deleteSubscriptionByEndpoint).toHaveBeenCalledWith(
+      'user-123',
+      STUB_SUB.endpoint,
+      ORGANIZATION_ID,
+    );
   });
 
   it('500 provider error: does NOT call deleteSubscriptionByEndpoint', async () => {

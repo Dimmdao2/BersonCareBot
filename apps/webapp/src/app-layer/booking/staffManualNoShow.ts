@@ -2,10 +2,10 @@
  * Staff/admin mark-no-show after canonical commit: partial outcomes with explicit flags.
  * Mirrors staffManualCancelAfterCanonical.ts — same pattern for side effects.
  */
-import { applyStaffNoShowSideEffects } from "@/app-layer/booking/staffAppointmentLifecycleEffects";
-import type { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import type { BeAppointment } from "@/modules/booking-engine/types";
-import { createBookingSyncPort } from "@/modules/integrator/bookingM2mApi";
+import { applyStaffNoShowSideEffects } from '@/app-layer/booking/staffAppointmentLifecycleEffects';
+import type { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import type { BeAppointment } from '@/modules/booking-engine/types';
+import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
 
 export type StaffNoShowFlags = {
   notificationOutcomeFailed?: true;
@@ -26,9 +26,8 @@ export async function runStaffManualNoShowAfterCanonical(input: {
 
   const syncPort = createBookingSyncPort();
 
-  const { loadBookingLifecycleNotificationsFromSystemSettings } = await import(
-    "@/modules/booking-notifications/settings"
-  );
+  const { loadBookingLifecycleNotificationsFromSystemSettings } =
+    await import('@/modules/booking-notifications/settings');
   const lifecycleNotificationSettings = await loadBookingLifecycleNotificationsFromSystemSettings(
     (key, scope) => input.deps.systemSettings.getSetting(key, scope),
   );

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const requireClinicManagementBookingEngineMock = vi.hoisted(() => vi.fn());
 const getBranchMock = vi.hoisted(() => vi.fn());
@@ -8,35 +8,35 @@ const withDoctorWorkspacePrincipalMock = vi.hoisted(() =>
   vi.fn(async (_ctx: unknown, _source: string, callback: () => Promise<unknown>) => callback()),
 );
 
-vi.mock("../../_requireAdminBookingEngine", () => ({
+vi.mock('../../_requireAdminBookingEngine', () => ({
   requireClinicManagementBookingEngine: requireClinicManagementBookingEngineMock,
 }));
-vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
+vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
   withDoctorWorkspacePrincipal: withDoctorWorkspacePrincipalMock,
 }));
 
-import { DELETE, PATCH } from "./route";
+import { DELETE, PATCH } from './route';
 
 const ONLINE = {
-  id: "online-a",
-  organizationId: "org-a",
-  title: "Онлайн",
-  shortTitle: "Онлайн",
-  color: "#7c3aed",
-  cityCode: "online",
+  id: 'online-a',
+  organizationId: 'org-a',
+  title: 'Онлайн',
+  shortTitle: 'Онлайн',
+  color: '#7c3aed',
+  cityCode: 'online',
   address: null,
-  timezone: "Europe/Moscow",
+  timezone: 'Europe/Moscow',
   isActive: true,
   sortOrder: 20,
 };
 
-describe("generic branch CRUD protects the built-in Online location", () => {
+describe('generic branch CRUD protects the built-in Online location', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     requireClinicManagementBookingEngineMock.mockResolvedValue({
       ok: true,
       ctx: {
-        organizationId: "org-a",
+        organizationId: 'org-a',
         service: {
           catalog: {
             getBranch: getBranchMock,
@@ -49,17 +49,20 @@ describe("generic branch CRUD protects the built-in Online location", () => {
     getBranchMock.mockResolvedValue(ONLINE);
   });
 
-  it("cannot rename or deactivate Online through the generic PATCH route", async () => {
+  it('cannot rename or deactivate Online through the generic PATCH route', async () => {
     const res = await PATCH(
-      new Request("http://localhost", { method: "PATCH", body: JSON.stringify({ title: "Другое" }) }),
+      new Request('http://localhost', {
+        method: 'PATCH',
+        body: JSON.stringify({ title: 'Другое' }),
+      }),
       { params: Promise.resolve({ id: ONLINE.id }) },
     );
     expect(res.status).toBe(409);
     expect(upsertBranchMock).not.toHaveBeenCalled();
   });
 
-  it("cannot delete Online through the generic DELETE route", async () => {
-    const res = await DELETE(new Request("http://localhost", { method: "DELETE" }), {
+  it('cannot delete Online through the generic DELETE route', async () => {
+    const res = await DELETE(new Request('http://localhost', { method: 'DELETE' }), {
       params: Promise.resolve({ id: ONLINE.id }),
     });
     expect(res.status).toBe(409);
@@ -67,9 +70,12 @@ describe("generic branch CRUD protects the built-in Online location", () => {
   });
 
   it("does not reveal or mutate a foreign organization's Online row", async () => {
-    getBranchMock.mockResolvedValueOnce({ ...ONLINE, organizationId: "org-b" });
+    getBranchMock.mockResolvedValueOnce({ ...ONLINE, organizationId: 'org-b' });
     const res = await PATCH(
-      new Request("http://localhost", { method: "PATCH", body: JSON.stringify({ isActive: false }) }),
+      new Request('http://localhost', {
+        method: 'PATCH',
+        body: JSON.stringify({ isActive: false }),
+      }),
       { params: Promise.resolve({ id: ONLINE.id }) },
     );
     expect(res.status).toBe(404);

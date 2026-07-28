@@ -22,8 +22,8 @@ import type {
   UpdateDiagnosisFieldsInput,
   UpdateVisitFieldsInput,
   Visit,
-} from "./ports";
-import { DIAGNOSIS_CLINICAL_STATUS_VALUES } from "./ports";
+} from './ports';
+import { DIAGNOSIS_CLINICAL_STATUS_VALUES } from './ports';
 
 /** Тримминг текстовой секции визита: пустая после трима → null (очистка поля). */
 function normalizeVisitSection(value: string | null | undefined): string | null | undefined {
@@ -37,9 +37,7 @@ export type PatientClinicalServiceDeps = {
   patientClinicalPort: PatientClinicalPort;
 };
 
-export function createPatientClinicalService({
-  patientClinicalPort,
-}: PatientClinicalServiceDeps) {
+export function createPatientClinicalService({ patientClinicalPort }: PatientClinicalServiceDeps) {
   return {
     async getClinicalState(patientUserId: string): Promise<ClinicalState> {
       return patientClinicalPort.getClinicalState(patientUserId);
@@ -60,7 +58,7 @@ export function createPatientClinicalService({
     ): Promise<DiagnosisCatalogSuggestion> {
       const label = params.label.trim();
       if (label.length === 0) {
-        throw new Error("diagnosis_catalog_label_required");
+        throw new Error('diagnosis_catalog_label_required');
       }
       const note = params.note?.trim();
       return patientClinicalPort.createDiagnosisCatalogEntry({
@@ -74,12 +72,12 @@ export function createPatientClinicalService({
       // Severity guardrails (DB also checks, but fail fast with a clear error).
       for (const c of input.complaints ?? []) {
         if (!Number.isInteger(c.severity) || c.severity < 0 || c.severity > 10) {
-          throw new Error("complaint_severity_out_of_range");
+          throw new Error('complaint_severity_out_of_range');
         }
       }
       for (const u of input.complaintUpdates ?? []) {
         if (!Number.isInteger(u.severity) || u.severity < 0 || u.severity > 10) {
-          throw new Error("complaint_update_severity_out_of_range");
+          throw new Error('complaint_update_severity_out_of_range');
         }
       }
       return patientClinicalPort.createVisit({
@@ -103,12 +101,12 @@ export function createPatientClinicalService({
       };
       if (input.text !== undefined) {
         const text = input.text.trim();
-        if (!text) throw new Error("complaint_text_required");
+        if (!text) throw new Error('complaint_text_required');
         patch.text = text;
       }
       if (input.priority !== undefined) patch.priority = input.priority;
       if (patch.text === undefined && patch.priority === undefined) {
-        throw new Error("nothing_to_update");
+        throw new Error('nothing_to_update');
       }
       return patientClinicalPort.updateComplaintFields(patch);
     },
@@ -120,13 +118,13 @@ export function createPatientClinicalService({
       };
       if (input.text !== undefined) {
         const text = input.text.trim();
-        if (!text) throw new Error("diagnosis_text_required");
+        if (!text) throw new Error('diagnosis_text_required');
         patch.text = text;
       }
       if (input.priority !== undefined) patch.priority = input.priority;
       if (input.comment !== undefined) patch.comment = normalizeVisitSection(input.comment) ?? null;
       if (patch.text === undefined && patch.priority === undefined && patch.comment === undefined) {
-        throw new Error("nothing_to_update");
+        throw new Error('nothing_to_update');
       }
       return patientClinicalPort.updateDiagnosisFields(patch);
     },
@@ -144,19 +142,25 @@ export function createPatientClinicalService({
         recommendations: normalizeVisitSection(input.recommendations),
       };
       const hasChange = (
-        ["location", "duration", "anamnesisText", "exam", "manipulations", "trialResults", "recommendations"] as const
+        [
+          'location',
+          'duration',
+          'anamnesisText',
+          'exam',
+          'manipulations',
+          'trialResults',
+          'recommendations',
+        ] as const
       ).some((k) => patch[k] !== undefined);
-      if (!hasChange) throw new Error("nothing_to_update");
+      if (!hasChange) throw new Error('nothing_to_update');
       return patientClinicalPort.updateVisitFields(patch);
     },
 
     // -- Клинический статус диагноза -----------------------------------------
 
-    async setDiagnosisClinicalStatus(
-      input: SetDiagnosisClinicalStatusInput,
-    ): Promise<boolean> {
+    async setDiagnosisClinicalStatus(input: SetDiagnosisClinicalStatusInput): Promise<boolean> {
       if (!DIAGNOSIS_CLINICAL_STATUS_VALUES.includes(input.newStatus)) {
-        throw new Error("invalid_diagnosis_clinical_status");
+        throw new Error('invalid_diagnosis_clinical_status');
       }
       return patientClinicalPort.setDiagnosisClinicalStatus(input);
     },
@@ -174,21 +178,19 @@ export function createPatientClinicalService({
       return patientClinicalPort.getAnamnesis(patientUserId);
     },
 
-    async appendAnamnesisTrauma(
-      input: AppendAnamnesisTraumaInput,
-    ): Promise<AnamnesisTraumaEntry> {
+    async appendAnamnesisTrauma(input: AppendAnamnesisTraumaInput): Promise<AnamnesisTraumaEntry> {
       const year = input.year.trim();
       const what = input.what.trim();
       const type = input.type.trim();
-      if (!year) throw new Error("anamnesis_trauma_year_required");
-      if (!what) throw new Error("anamnesis_trauma_what_required");
-      if (!type) throw new Error("anamnesis_trauma_type_required");
+      if (!year) throw new Error('anamnesis_trauma_year_required');
+      if (!what) throw new Error('anamnesis_trauma_what_required');
+      if (!type) throw new Error('anamnesis_trauma_type_required');
       return patientClinicalPort.appendAnamnesisTrauma({
         ...input,
         year,
         what,
         type,
-        immobilization: input.immobilization.trim() || "—",
+        immobilization: input.immobilization.trim() || '—',
       });
     },
 
@@ -197,8 +199,8 @@ export function createPatientClinicalService({
     ): Promise<AnamnesisIllnessEntry> {
       const period = input.period.trim();
       const what = input.what.trim();
-      if (!period) throw new Error("anamnesis_illness_period_required");
-      if (!what) throw new Error("anamnesis_illness_what_required");
+      if (!period) throw new Error('anamnesis_illness_period_required');
+      if (!what) throw new Error('anamnesis_illness_what_required');
       return patientClinicalPort.appendAnamnesisIllness({
         ...input,
         period,
@@ -212,8 +214,8 @@ export function createPatientClinicalService({
     ): Promise<AnamnesisLifestyleEntry> {
       const text = input.text.trim();
       const recordDate = input.recordDate.trim();
-      if (!text) throw new Error("anamnesis_lifestyle_text_required");
-      if (!recordDate) throw new Error("anamnesis_lifestyle_record_date_required");
+      if (!text) throw new Error('anamnesis_lifestyle_text_required');
+      if (!recordDate) throw new Error('anamnesis_lifestyle_record_date_required');
       return patientClinicalPort.appendAnamnesisLifestyle({ ...input, text, recordDate });
     },
 

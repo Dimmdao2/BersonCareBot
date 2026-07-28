@@ -1,5 +1,5 @@
-import type { ChannelContext } from "./channelContext";
-import type { PublicBookingIntent } from "@/modules/public-booking/publicBookingIntent";
+import type { ChannelContext } from './channelContext';
+import type { PublicBookingIntent } from '@/modules/public-booking/publicBookingIntent';
 
 /**
  * Хранилище челленджей SMS: challengeId -> { phone, expiresAt, code?, channelContext? }.
@@ -14,7 +14,7 @@ export type PhoneChallengePayload = {
   /** Неудачные попытки ввода кода (OTP). */
   verifyAttempts?: number;
   /** Куда ушёл OTP (для подсказок после входа). */
-  deliveryChannel?: "sms" | "telegram" | "max" | "email";
+  deliveryChannel?: 'sms' | 'telegram' | 'max' | 'email';
   /** Контекст канала, зафиксированный на start (только trusted). При отсутствии — web. */
   channelContext?: ChannelContext;
   /** Сквозной id попытки регистрации (product analytics). */

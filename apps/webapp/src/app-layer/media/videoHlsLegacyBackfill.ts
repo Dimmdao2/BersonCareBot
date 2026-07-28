@@ -6,24 +6,24 @@
  * read-only repo methods (`loadHistogram`, `loadFailedReasons`).
  */
 
-import { enqueueMediaTranscodeJob } from "@/app-layer/media/mediaTranscodeJobs";
-import { getConfigBool } from "@/modules/system-settings/configAdapter";
+import { enqueueMediaTranscodeJob } from '@/app-layer/media/mediaTranscodeJobs';
+import { getConfigBool } from '@/modules/system-settings/configAdapter';
 import {
   createPgVideoHlsLegacyBackfillReadRepo,
   type VideoHlsLegacyBackfillCandidateRow,
   type VideoHlsLegacyBackfillReadRepo,
-} from "@/infra/repos/pgVideoHlsLegacyBackfill";
+} from '@/infra/repos/pgVideoHlsLegacyBackfill';
 import {
   legacyHlsBackfillCandidateWhereClause,
   VIDEO_HLS_LEGACY_MAX_OBJECT_BYTES,
-} from "@/infra/repos/mediaHlsLegacySqlFilters";
+} from '@/infra/repos/mediaHlsLegacySqlFilters';
 export {
   legacyHlsBackfillCandidateWhereClause,
   legacyHlsReconcileEligibleForEnqueueSqlFilter,
   MEDIA_READABLE_SQL_M,
   mediaReadableSql,
   VIDEO_HLS_LEGACY_MAX_OBJECT_BYTES,
-} from "@/infra/repos/mediaHlsLegacySqlFilters";
+} from '@/infra/repos/mediaHlsLegacySqlFilters';
 
 export type VideoHlsLegacyBackfillOptions = {
   dryRun: boolean;
@@ -141,14 +141,15 @@ export async function runVideoHlsLegacyBackfill(
     failedReasons: [],
   };
 
-  const pipelineOn = await getConfigBool("video_hls_pipeline_enabled", false);
+  const pipelineOn = await getConfigBool('video_hls_pipeline_enabled', false);
   report.pipelineEnabled = pipelineOn;
 
   if (!pipelineOn && opts.requirePipelineEnabled) {
     if (opts.dryRun) {
       report.abortedReason = null;
     } else {
-      report.abortedReason = "video_hls_pipeline_enabled is false (enable in admin settings or use dry-run only)";
+      report.abortedReason =
+        'video_hls_pipeline_enabled is false (enable in admin settings or use dry-run only)';
       report.skippedPipelineOff = 1;
       report.statusHistogram = await readRepo.loadHistogram();
       report.failedReasons = await readRepo.loadFailedReasons();
@@ -161,10 +162,7 @@ export async function runVideoHlsLegacyBackfill(
   let processed = 0;
 
   while (processed < effectiveLimit) {
-    const take = Math.min(
-      clampBackfillBatchSize(opts.batchSize),
-      effectiveLimit - processed,
-    );
+    const take = Math.min(clampBackfillBatchSize(opts.batchSize), effectiveLimit - processed);
     if (take <= 0) break;
 
     const batch = await fetchLegacyBackfillBatch(readRepo, {
@@ -194,13 +192,13 @@ export async function runVideoHlsLegacyBackfill(
       try {
         const out = await enqueue(row.id);
         if (!out.ok) {
-          if (out.error === "not_video") report.enqueue.notVideo += 1;
-          else if (out.error === "not_readable") report.enqueue.notReadable += 1;
-          else if (out.error === "no_s3_key") report.enqueue.noS3Key += 1;
-          else if (out.error === "not_found") report.enqueue.notFound += 1;
+          if (out.error === 'not_video') report.enqueue.notVideo += 1;
+          else if (out.error === 'not_readable') report.enqueue.notReadable += 1;
+          else if (out.error === 'no_s3_key') report.enqueue.noS3Key += 1;
+          else if (out.error === 'not_found') report.enqueue.notFound += 1;
           continue;
         }
-        if (out.kind === "already_ready") report.enqueue.alreadyReady += 1;
+        if (out.kind === 'already_ready') report.enqueue.alreadyReady += 1;
         else if (out.alreadyQueued) report.enqueue.alreadyQueued += 1;
         else report.enqueue.queuedNew += 1;
       } catch {

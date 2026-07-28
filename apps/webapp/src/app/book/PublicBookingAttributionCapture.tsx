@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useEffect } from "react";
-import { capturePublicBookingAttributionFromLocation } from "@/shared/publicBook/attributionStorage";
+import { useEffect } from 'react';
+import { capturePublicBookingAttributionFromLocation } from '@/shared/publicBook/attributionStorage';
 
 export function PublicBookingAttributionCapture() {
   useEffect(() => {

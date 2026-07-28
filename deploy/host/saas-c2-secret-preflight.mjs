@@ -1,20 +1,20 @@
 #!/usr/bin/env node
-import { createHash, randomBytes } from "node:crypto";
-import { readFileSync } from "node:fs";
-import { basename } from "node:path";
+import { createHash, randomBytes } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { basename } from 'node:path';
 
-const REQUIRED_PROCESS_NAMES = new Set(["webapp", "integrator", "media-worker"]);
-const REQUIRED_SHARED_KEYS = ["DB_PRINCIPAL_CONTEXT_MODE", "DB_PRINCIPAL_SIGNING_SECRET"];
+const REQUIRED_PROCESS_NAMES = new Set(['webapp', 'integrator', 'media-worker']);
+const REQUIRED_SHARED_KEYS = ['DB_PRINCIPAL_CONTEXT_MODE', 'DB_PRINCIPAL_SIGNING_SECRET'];
 const WEBAPP_DATABASE_URL_KEYS = [
-  "DATABASE_URL_STAFF",
-  "DATABASE_URL_NONSTAFF",
-  "DATABASE_URL_WEB_PUSH_REMINDER",
-  "SAAS_ISOLATION_OPERATOR_DATABASE_URL",
+  'DATABASE_URL_STAFF',
+  'DATABASE_URL_NONSTAFF',
+  'DATABASE_URL_WEB_PUSH_REMINDER',
+  'SAAS_ISOLATION_OPERATOR_DATABASE_URL',
 ];
 const INTEGRATOR_OPERATIONAL_URL_KEYS = [
-  "DATABASE_URL_DIAGNOSTIC",
-  "DATABASE_URL_DELIVERY_WORKER",
-  "DATABASE_URL_SCHEDULER",
+  'DATABASE_URL_DIAGNOSTIC',
+  'DATABASE_URL_DELIVERY_WORKER',
+  'DATABASE_URL_SCHEDULER',
 ];
 const MIN_SECRET_BYTES = 32;
 
@@ -28,14 +28,14 @@ function parseArgs(argv) {
     selfTest: false,
   };
   for (const arg of argv) {
-    if (arg === "--self-test") {
+    if (arg === '--self-test') {
       options.selfTest = true;
       continue;
     }
     // `--env-file` is a Node.js runtime flag, including when it appears after the script path.
     // Keep this application option distinct so Node does not consume it before this parser runs.
-    if (arg.startsWith("--process-env-file=")) {
-      options.envFiles.push(arg.slice("--process-env-file=".length));
+    if (arg.startsWith('--process-env-file=')) {
+      options.envFiles.push(arg.slice('--process-env-file='.length));
       continue;
     }
     fail(`unknown argument: ${arg}`);
@@ -44,7 +44,7 @@ function parseArgs(argv) {
 }
 
 function parseEnvFileSpec(spec) {
-  const separator = spec.indexOf(":");
+  const separator = spec.indexOf(':');
   if (separator <= 0 || separator === spec.length - 1) {
     fail(`invalid --process-env-file spec, expected process:/path: ${spec}`);
   }
@@ -53,7 +53,7 @@ function parseEnvFileSpec(spec) {
   if (!REQUIRED_PROCESS_NAMES.has(processName)) {
     fail(`unsupported process in --process-env-file: ${processName}`);
   }
-  if (!path.startsWith("/")) {
+  if (!path.startsWith('/')) {
     fail(`env file path must be absolute for ${processName}`);
   }
   return { processName, path };
@@ -64,10 +64,10 @@ function parseEnvText(text) {
   const lines = text.split(/\r?\n/);
   for (const rawLine of lines) {
     const line = rawLine.trim();
-    if (!line || line.startsWith("#")) {
+    if (!line || line.startsWith('#')) {
       continue;
     }
-    const normalized = line.startsWith("export ") ? line.slice("export ".length).trim() : line;
+    const normalized = line.startsWith('export ') ? line.slice('export '.length).trim() : line;
     const match = /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/.exec(normalized);
     if (!match) {
       continue;
@@ -81,7 +81,7 @@ function parseEnvText(text) {
 function unquoteEnvValue(value) {
   if (
     (value.startsWith("'") && value.endsWith("'")) ||
-    (value.startsWith("\"") && value.endsWith("\""))
+    (value.startsWith('"') && value.endsWith('"'))
   ) {
     return value.slice(1, -1);
   }
@@ -91,7 +91,7 @@ function unquoteEnvValue(value) {
 
 function loadEnvFile(spec) {
   const { processName, path } = parseEnvFileSpec(spec);
-  const text = readFileSync(path, "utf8");
+  const text = readFileSync(path, 'utf8');
   return {
     basename: basename(path),
     path,
@@ -101,15 +101,15 @@ function loadEnvFile(spec) {
 }
 
 function fingerprintSecret(value) {
-  return createHash("sha256").update(value, "utf8").digest("hex").slice(0, 16);
+  return createHash('sha256').update(value, 'utf8').digest('hex').slice(0, 16);
 }
 
 function fingerprintUrlHost(value) {
   try {
     const url = new URL(value);
-    return `${url.protocol}//${url.hostname}:${url.port || defaultPortForProtocol(url.protocol)}/${url.pathname.replace(/^\/+/, "")}`;
+    return `${url.protocol}//${url.hostname}:${url.port || defaultPortForProtocol(url.protocol)}/${url.pathname.replace(/^\/+/, '')}`;
   } catch {
-    return "<invalid-url>";
+    return '<invalid-url>';
   }
 }
 
@@ -124,13 +124,18 @@ function databaseUrlUsername(value, label) {
 }
 
 function defaultPortForProtocol(protocol) {
-  if (protocol === "postgresql:" || protocol === "postgres:") return "5432";
-  return "";
+  if (protocol === 'postgresql:' || protocol === 'postgres:') return '5432';
+  return '';
 }
 
 function assertNoSecretLeak(output, loadedFiles) {
   for (const file of loadedFiles) {
-    for (const key of ["DB_PRINCIPAL_SIGNING_SECRET", "DATABASE_URL", ...WEBAPP_DATABASE_URL_KEYS, ...INTEGRATOR_OPERATIONAL_URL_KEYS]) {
+    for (const key of [
+      'DB_PRINCIPAL_SIGNING_SECRET',
+      'DATABASE_URL',
+      ...WEBAPP_DATABASE_URL_KEYS,
+      ...INTEGRATOR_OPERATIONAL_URL_KEYS,
+    ]) {
       const value = file.values.get(key);
       if (value && output.includes(value)) {
         fail(`preflight output leaked ${key} from ${file.processName}`);
@@ -161,82 +166,105 @@ function validateLoadedFiles(loadedFiles) {
         fail(`${file.processName} missing ${key}`);
       }
     }
-    const mode = file.values.get("DB_PRINCIPAL_CONTEXT_MODE");
-    if (mode !== "shadow" && mode !== "locked") {
-      fail(`${file.processName} DB_PRINCIPAL_CONTEXT_MODE must be shadow or locked for C2 preflight`);
+    const mode = file.values.get('DB_PRINCIPAL_CONTEXT_MODE');
+    if (mode !== 'shadow' && mode !== 'locked') {
+      fail(
+        `${file.processName} DB_PRINCIPAL_CONTEXT_MODE must be shadow or locked for C2 preflight`,
+      );
     }
-    const secret = file.values.get("DB_PRINCIPAL_SIGNING_SECRET") ?? "";
-    if (Buffer.byteLength(secret, "utf8") < MIN_SECRET_BYTES) {
-      fail(`${file.processName} DB_PRINCIPAL_SIGNING_SECRET must be at least ${MIN_SECRET_BYTES} bytes`);
+    const secret = file.values.get('DB_PRINCIPAL_SIGNING_SECRET') ?? '';
+    if (Buffer.byteLength(secret, 'utf8') < MIN_SECRET_BYTES) {
+      fail(
+        `${file.processName} DB_PRINCIPAL_SIGNING_SECRET must be at least ${MIN_SECRET_BYTES} bytes`,
+      );
     }
     signingFingerprints.set(file.processName, fingerprintSecret(secret));
   }
 
   const uniqueSigningFingerprints = new Set(signingFingerprints.values());
   if (uniqueSigningFingerprints.size !== 1) {
-    fail("DB_PRINCIPAL_SIGNING_SECRET fingerprint mismatch across signing processes");
+    fail('DB_PRINCIPAL_SIGNING_SECRET fingerprint mismatch across signing processes');
   }
 
-  const webapp = seen.get("webapp");
+  const webapp = seen.get('webapp');
   for (const key of WEBAPP_DATABASE_URL_KEYS) {
-    const value = webapp?.values.get(key)?.trim() ?? "";
+    const value = webapp?.values.get(key)?.trim() ?? '';
     if (!value) {
       fail(`webapp missing ${key}`);
     }
-    if (value.includes("://") && !/^postgres(?:ql)?:\/\//.test(value)) {
+    if (value.includes('://') && !/^postgres(?:ql)?:\/\//.test(value)) {
       fail(`webapp ${key} must be a PostgreSQL URL`);
     }
   }
-  if (webapp?.values.get("DATABASE_URL_STAFF") === webapp?.values.get("DATABASE_URL_NONSTAFF")) {
-    fail("webapp DATABASE_URL_STAFF and DATABASE_URL_NONSTAFF must not be identical for C2 dual-login preflight");
+  if (webapp?.values.get('DATABASE_URL_STAFF') === webapp?.values.get('DATABASE_URL_NONSTAFF')) {
+    fail(
+      'webapp DATABASE_URL_STAFF and DATABASE_URL_NONSTAFF must not be identical for C2 dual-login preflight',
+    );
   }
-  const operatorUrl = webapp?.values.get("SAAS_ISOLATION_OPERATOR_DATABASE_URL");
-  if (operatorUrl === webapp?.values.get("DATABASE_URL_STAFF") || operatorUrl === webapp?.values.get("DATABASE_URL_NONSTAFF")) {
-    fail("webapp SAAS_ISOLATION_OPERATOR_DATABASE_URL must use a separate operator login");
+  const operatorUrl = webapp?.values.get('SAAS_ISOLATION_OPERATOR_DATABASE_URL');
+  if (
+    operatorUrl === webapp?.values.get('DATABASE_URL_STAFF') ||
+    operatorUrl === webapp?.values.get('DATABASE_URL_NONSTAFF')
+  ) {
+    fail('webapp SAAS_ISOLATION_OPERATOR_DATABASE_URL must use a separate operator login');
   }
 
-  const integrator = seen.get("integrator");
-  const mediaWorker = seen.get("media-worker");
+  const integrator = seen.get('integrator');
+  const mediaWorker = seen.get('media-worker');
   const operationalUrls = INTEGRATOR_OPERATIONAL_URL_KEYS.map((key) => {
-    const value = integrator?.values.get(key)?.trim() ?? "";
+    const value = integrator?.values.get(key)?.trim() ?? '';
     if (!value) fail(`integrator missing ${key}`);
     if (!/^postgres(?:ql)?:\/\//.test(value)) fail(`integrator ${key} must be a PostgreSQL URL`);
     return [key, value];
   });
-  const integratorBaseUrl = integrator?.values.get("DATABASE_URL")?.trim() ?? "";
-  const mediaWorkerUrl = mediaWorker?.values.get("DATABASE_URL")?.trim() ?? "";
-  if (!/^postgres(?:ql)?:\/\//.test(integratorBaseUrl)) fail("integrator DATABASE_URL must be a PostgreSQL URL");
-  if (!/^postgres(?:ql)?:\/\//.test(mediaWorkerUrl)) fail("media-worker DATABASE_URL must be a PostgreSQL URL");
-  const runtimeUrls = [integratorBaseUrl, mediaWorkerUrl, ...operationalUrls.map(([, value]) => value)];
+  const integratorBaseUrl = integrator?.values.get('DATABASE_URL')?.trim() ?? '';
+  const mediaWorkerUrl = mediaWorker?.values.get('DATABASE_URL')?.trim() ?? '';
+  if (!/^postgres(?:ql)?:\/\//.test(integratorBaseUrl))
+    fail('integrator DATABASE_URL must be a PostgreSQL URL');
+  if (!/^postgres(?:ql)?:\/\//.test(mediaWorkerUrl))
+    fail('media-worker DATABASE_URL must be a PostgreSQL URL');
+  const runtimeUrls = [
+    integratorBaseUrl,
+    mediaWorkerUrl,
+    ...operationalUrls.map(([, value]) => value),
+  ];
   if (new Set(runtimeUrls).size !== runtimeUrls.length) {
-    fail("integrator and media-worker operational DATABASE_URL values must use distinct login credentials");
+    fail(
+      'integrator and media-worker operational DATABASE_URL values must use distinct login credentials',
+    );
   }
   const runtimeUsernames = [
-    databaseUrlUsername(integratorBaseUrl, "integrator DATABASE_URL"),
-    databaseUrlUsername(mediaWorkerUrl, "media-worker DATABASE_URL"),
+    databaseUrlUsername(integratorBaseUrl, 'integrator DATABASE_URL'),
+    databaseUrlUsername(mediaWorkerUrl, 'media-worker DATABASE_URL'),
     ...operationalUrls.map(([key, value]) => databaseUrlUsername(value, `integrator ${key}`)),
   ];
   if (new Set(runtimeUsernames).size !== runtimeUsernames.length) {
-    fail("integrator and media-worker operational DATABASE_URL values must use distinct PostgreSQL login roles");
+    fail(
+      'integrator and media-worker operational DATABASE_URL values must use distinct PostgreSQL login roles',
+    );
   }
   const allRuntimeUsernames = [
     ...WEBAPP_DATABASE_URL_KEYS.map((key) =>
-      databaseUrlUsername(webapp?.values.get(key) ?? "", `webapp ${key}`),
+      databaseUrlUsername(webapp?.values.get(key) ?? '', `webapp ${key}`),
     ),
     ...runtimeUsernames,
   ];
   if (new Set(allRuntimeUsernames).size !== allRuntimeUsernames.length) {
-    fail("all webapp, integrator, operator, and media runtime URLs must use distinct PostgreSQL login roles");
+    fail(
+      'all webapp, integrator, operator, and media runtime URLs must use distinct PostgreSQL login roles',
+    );
   }
 
   return {
     signingFingerprint: [...uniqueSigningFingerprints][0],
-    webappStaffUrlShape: fingerprintUrlHost(webapp?.values.get("DATABASE_URL_STAFF") ?? ""),
-    webappNonstaffUrlShape: fingerprintUrlHost(webapp?.values.get("DATABASE_URL_NONSTAFF") ?? ""),
+    webappStaffUrlShape: fingerprintUrlHost(webapp?.values.get('DATABASE_URL_STAFF') ?? ''),
+    webappNonstaffUrlShape: fingerprintUrlHost(webapp?.values.get('DATABASE_URL_NONSTAFF') ?? ''),
     webappWebPushReminderUrlShape: fingerprintUrlHost(
-      webapp?.values.get("DATABASE_URL_WEB_PUSH_REMINDER") ?? "",
+      webapp?.values.get('DATABASE_URL_WEB_PUSH_REMINDER') ?? '',
     ),
-    webappOperatorUrlShape: fingerprintUrlHost(webapp?.values.get("SAAS_ISOLATION_OPERATOR_DATABASE_URL") ?? ""),
+    webappOperatorUrlShape: fingerprintUrlHost(
+      webapp?.values.get('SAAS_ISOLATION_OPERATOR_DATABASE_URL') ?? '',
+    ),
     integratorOperationalUrlShapes: Object.fromEntries(
       operationalUrls.map(([key, value]) => [key, fingerprintUrlHost(value)]),
     ),
@@ -246,21 +274,25 @@ function validateLoadedFiles(loadedFiles) {
 
 function renderReport(loadedFiles, summary) {
   const lines = [
-    "saas-c2-secret-preflight: OK",
+    'saas-c2-secret-preflight: OK',
     `signing_secret_sha256_16=${summary.signingFingerprint}`,
     `webapp_DATABASE_URL_STAFF_shape=${summary.webappStaffUrlShape}`,
     `webapp_DATABASE_URL_NONSTAFF_shape=${summary.webappNonstaffUrlShape}`,
     `webapp_DATABASE_URL_WEB_PUSH_REMINDER_shape=${summary.webappWebPushReminderUrlShape}`,
     `webapp_SAAS_ISOLATION_OPERATOR_DATABASE_URL_shape=${summary.webappOperatorUrlShape}`,
-    ...Object.entries(summary.integratorOperationalUrlShapes).map(([key, value]) => `integrator_${key}_shape=${value}`),
+    ...Object.entries(summary.integratorOperationalUrlShapes).map(
+      ([key, value]) => `integrator_${key}_shape=${value}`,
+    ),
     `media-worker_DATABASE_URL_shape=${summary.mediaWorkerUrlShape}`,
-    "restart_order=webapp integrator worker scheduler media-worker",
-    "rollback_order=restore previous root-managed env files, restart same units, rerun this preflight",
+    'restart_order=webapp integrator worker scheduler media-worker',
+    'rollback_order=restore previous root-managed env files, restart same units, rerun this preflight',
   ];
   for (const file of loadedFiles) {
-    lines.push(`process=${file.processName} env_file=${file.basename} mode=${file.values.get("DB_PRINCIPAL_CONTEXT_MODE")}`);
+    lines.push(
+      `process=${file.processName} env_file=${file.basename} mode=${file.values.get('DB_PRINCIPAL_CONTEXT_MODE')}`,
+    );
   }
-  return `${lines.join("\n")}\n`;
+  return `${lines.join('\n')}\n`;
 }
 
 function runPreflightFromSpecs(specs) {
@@ -272,12 +304,12 @@ function runPreflightFromSpecs(specs) {
 }
 
 function runSelfTest() {
-  const sharedSecret = randomBytes(40).toString("base64url");
+  const sharedSecret = randomBytes(40).toString('base64url');
   const fixtureFiles = [
     {
-      basename: "webapp.fixture",
-      path: "/tmp/webapp.fixture",
-      processName: "webapp",
+      basename: 'webapp.fixture',
+      path: '/tmp/webapp.fixture',
+      processName: 'webapp',
       values: parseEnvText(`
 DB_PRINCIPAL_CONTEXT_MODE=shadow
 DB_PRINCIPAL_SIGNING_SECRET='${sharedSecret}'
@@ -288,9 +320,9 @@ SAAS_ISOLATION_OPERATOR_DATABASE_URL=postgres://saas_operator:operator-secret@12
 `),
     },
     {
-      basename: "api.fixture",
-      path: "/tmp/api.fixture",
-      processName: "integrator",
+      basename: 'api.fixture',
+      path: '/tmp/api.fixture',
+      processName: 'integrator',
       values: parseEnvText(`
 DB_PRINCIPAL_CONTEXT_MODE=shadow
 DB_PRINCIPAL_SIGNING_SECRET=${sharedSecret}
@@ -301,9 +333,9 @@ DATABASE_URL_SCHEDULER=postgres://scheduler:secret@127.0.0.1:5432/bersoncarebot_
 `),
     },
     {
-      basename: "media.fixture",
-      path: "/tmp/media.fixture",
-      processName: "media-worker",
+      basename: 'media.fixture',
+      path: '/tmp/media.fixture',
+      processName: 'media-worker',
       values: parseEnvText(`
 DB_PRINCIPAL_CONTEXT_MODE=shadow
 DB_PRINCIPAL_SIGNING_SECRET="${sharedSecret}"
@@ -316,31 +348,34 @@ DATABASE_URL=postgres://media:secret@127.0.0.1:5432/bersoncarebot_test
   assertNoSecretLeak(output, fixtureFiles);
 
   const brokenSecret = fixtureFiles.map((file) =>
-    file.processName === "integrator"
+    file.processName === 'integrator'
       ? {
           ...file,
-          values: new Map(file.values).set("DB_PRINCIPAL_SIGNING_SECRET", randomBytes(40).toString("base64url")),
+          values: new Map(file.values).set(
+            'DB_PRINCIPAL_SIGNING_SECRET',
+            randomBytes(40).toString('base64url'),
+          ),
         }
       : file,
   );
   const brokenCrossProcessUsername = fixtureFiles.map((file) =>
-    file.processName === "integrator"
+    file.processName === 'integrator'
       ? {
           ...file,
           values: new Map(file.values).set(
-            "DATABASE_URL_DIAGNOSTIC",
-            "postgres://staff:different-secret@127.0.0.1:5432/bersoncarebot_test",
+            'DATABASE_URL_DIAGNOSTIC',
+            'postgres://staff:different-secret@127.0.0.1:5432/bersoncarebot_test',
           ),
         }
       : file,
   );
   const brokenOperationalUsername = fixtureFiles.map((file) =>
-    file.processName === "integrator"
+    file.processName === 'integrator'
       ? {
           ...file,
           values: new Map(file.values).set(
-            "DATABASE_URL_SCHEDULER",
-            "postgres://delivery:different-secret@127.0.0.1:5432/bersoncarebot_test",
+            'DATABASE_URL_SCHEDULER',
+            'postgres://delivery:different-secret@127.0.0.1:5432/bersoncarebot_test',
           ),
         }
       : file,
@@ -353,8 +388,8 @@ DATABASE_URL=postgres://media:secret@127.0.0.1:5432/bersoncarebot_test
       detected += 1;
     }
   }
-  if (detected !== 3) fail("self-test did not detect all secret/login collision regressions");
-  console.log("saas-c2-secret-preflight self-test: OK");
+  if (detected !== 3) fail('self-test did not detect all secret/login collision regressions');
+  console.log('saas-c2-secret-preflight self-test: OK');
 }
 
 try {

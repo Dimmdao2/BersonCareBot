@@ -1,5 +1,5 @@
-import { Pool } from "pg";
-import type { PoolClient } from "pg";
+import { Pool } from 'pg';
+import type { PoolClient } from 'pg';
 
 type Stage6HistoricalBackfillPoolConfig = {
   connectionString: string;
@@ -13,6 +13,6 @@ export function createStage6HistoricalBackfillPoolProvider(
   config: Stage6HistoricalBackfillPoolConfig,
 ): Pool {
   const pool = new Pool({ connectionString: config.connectionString, max: 4 });
-  pool.on("connect", prepareStage6HistoricalBackfillPoolClient);
+  pool.on('connect', prepareStage6HistoricalBackfillPoolClient);
   return pool;
 }

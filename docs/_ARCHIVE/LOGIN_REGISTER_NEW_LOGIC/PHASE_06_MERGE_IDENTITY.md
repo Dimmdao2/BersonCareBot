@@ -25,13 +25,13 @@
 
 ### Вне scope
 
-- Новый merge engine v3 без явного запроса  
-- Изменение GitHub CI workflow  
+- Новый merge engine v3 без явного запроса
+- Изменение GitHub CI workflow
 
 ## Definition of Done
 
-- [x] Чеклист сценариев §7 пройден или заведены backlog-задачи с причиной отмены  
-- [x] Нет регрессии manual merge API (существующие тесты `pgPlatformUserMerge`, `manualPlatformUserMerge`, `adminMergeAccountsLogic` не меняли контракт apply)  
+- [x] Чеклист сценариев §7 пройден или заведены backlog-задачи с причиной отмены
+- [x] Нет регрессии manual merge API (существующие тесты `pgPlatformUserMerge`, `manualPlatformUserMerge`, `adminMergeAccountsLogic` не меняли контракт apply)
 - [x] [`LOG.md`](LOG.md)
 
 ## Локальные проверки

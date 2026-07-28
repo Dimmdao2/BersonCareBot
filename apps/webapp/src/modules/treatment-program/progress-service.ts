@@ -3,15 +3,15 @@ import type {
   TreatmentProgramInstancePort,
   TreatmentProgramTestAttemptsPort,
   ProgramActionLogPort,
-} from "./ports";
-import { buildAppendEventInput, normalizeEventReason } from "./event-recording";
-import { assertUuid } from "./service";
-import { inferNormalizedDecisionFromScoring, scoringConfigIsQualitative } from "./progress-scoring";
+} from './ports';
+import { buildAppendEventInput, normalizeEventReason } from './event-recording';
+import { assertUuid } from './service';
+import { inferNormalizedDecisionFromScoring, scoringConfigIsQualitative } from './progress-scoring';
 import {
   isInstanceStageItemActiveForPatient,
   isPersistentRecommendation,
   isStageZero,
-} from "./stage-semantics";
+} from './stage-semantics';
 import type {
   NormalizedTestDecision,
   PendingProgramTestEvaluationRow,
@@ -24,8 +24,8 @@ import type {
   TreatmentProgramTestResultDetailRow,
   TreatmentProgramTestResultRow,
   TreatmentProgramTestAttemptRow,
-} from "./types";
-import { testIdsFromTestSetSnapshot } from "./testSetSnapshotView";
+} from './types';
+import { testIdsFromTestSetSnapshot } from './testSetSnapshotView';
 
 export { testIdsFromTestSetSnapshot };
 
@@ -39,9 +39,9 @@ export type PatientTestSetSubmittedAttemptDetail = {
 
 /** RSC: начальное состояние формы набора тестов без клиентских fetch. */
 export type PatientTestSetPageServerSnapshot =
-  | { variant: "none" }
+  | { variant: 'none' }
   | {
-      variant: "open_attempt";
+      variant: 'open_attempt';
       attemptId: string | null;
       results: TreatmentProgramTestResultRow[];
       attemptHistory: TreatmentProgramTestAttemptBrief[];
@@ -49,7 +49,7 @@ export type PatientTestSetPageServerSnapshot =
       submittedAttemptsDetail: PatientTestSetSubmittedAttemptDetail[];
     }
   | {
-      variant: "readonly_submitted";
+      variant: 'readonly_submitted';
       focalAttemptId: string;
       results: TreatmentProgramTestResultRow[];
       attemptHistory: TreatmentProgramTestAttemptBrief[];
@@ -58,7 +58,9 @@ export type PatientTestSetPageServerSnapshot =
       submittedAttemptsDetail: PatientTestSetSubmittedAttemptDetail[];
     };
 
-function attemptHistoryBrief(rows: TreatmentProgramTestAttemptRow[]): TreatmentProgramTestAttemptBrief[] {
+function attemptHistoryBrief(
+  rows: TreatmentProgramTestAttemptRow[],
+): TreatmentProgramTestAttemptBrief[] {
   const ordered = orderAttemptsForPatientHistory(rows);
   return ordered.map((a) => ({
     id: a.id,
@@ -69,7 +71,9 @@ function attemptHistoryBrief(rows: TreatmentProgramTestAttemptRow[]): TreatmentP
 }
 
 /** Открытая попытка выше в списке; иначе по времени отправки / старта (новые сверху). */
-function orderAttemptsForPatientHistory(rows: TreatmentProgramTestAttemptRow[]): TreatmentProgramTestAttemptRow[] {
+function orderAttemptsForPatientHistory(
+  rows: TreatmentProgramTestAttemptRow[],
+): TreatmentProgramTestAttemptRow[] {
   return [...rows].sort((a, b) => {
     const aOpen = a.submittedAt == null ? 1 : 0;
     const bOpen = b.submittedAt == null ? 1 : 0;
@@ -82,12 +86,16 @@ function orderAttemptsForPatientHistory(rows: TreatmentProgramTestAttemptRow[]):
   });
 }
 
-function sortSubmittedAttemptsNewestFirst(rows: TreatmentProgramTestAttemptRow[]): TreatmentProgramTestAttemptRow[] {
-  return [...rows].filter((a) => a.submittedAt != null).sort((a, b) => {
-    const c = (b.submittedAt ?? "").localeCompare(a.submittedAt ?? "");
-    if (c !== 0) return c;
-    return b.startedAt.localeCompare(a.startedAt);
-  });
+function sortSubmittedAttemptsNewestFirst(
+  rows: TreatmentProgramTestAttemptRow[],
+): TreatmentProgramTestAttemptRow[] {
+  return [...rows]
+    .filter((a) => a.submittedAt != null)
+    .sort((a, b) => {
+      const c = (b.submittedAt ?? '').localeCompare(a.submittedAt ?? '');
+      if (c !== 0) return c;
+      return b.startedAt.localeCompare(a.startedAt);
+    });
 }
 
 /** Для doctor UI: какие attemptId можно принять (актуальная хвостовая submitted, ещё не принята). */
@@ -132,7 +140,12 @@ function scoringConfigForTestInSnapshot(
   const tests = snapshot.tests;
   if (!Array.isArray(tests)) return null;
   for (const t of tests) {
-    if (t && typeof t === "object" && "testId" in t && (t as { testId: string }).testId === testId) {
+    if (
+      t &&
+      typeof t === 'object' &&
+      'testId' in t &&
+      (t as { testId: string }).testId === testId
+    ) {
       return (t as { scoringConfig?: unknown }).scoringConfig ?? null;
     }
   }
@@ -167,25 +180,25 @@ export function createTreatmentProgramProgressService(deps: {
     const { instanceId, stageId, beforeStatus, afterRow, actorId, doctorReason } = params;
     const after = afterRow.status;
     if (beforeStatus === after) return;
-    if (after === "skipped") {
-      const reason = normalizeEventReason("stage_skipped", doctorReason ?? afterRow.skipReason);
+    if (after === 'skipped') {
+      const reason = normalizeEventReason('stage_skipped', doctorReason ?? afterRow.skipReason);
       await appendEv({
         instanceId,
         actorId,
-        eventType: "stage_skipped",
-        targetType: "stage",
+        eventType: 'stage_skipped',
+        targetType: 'stage',
         targetId: stageId,
         reason,
         payload: { from: beforeStatus, to: after },
       });
       return;
     }
-    if (after === "completed" && beforeStatus !== "completed") {
+    if (after === 'completed' && beforeStatus !== 'completed') {
       await appendEv({
         instanceId,
         actorId,
-        eventType: "stage_completed",
-        targetType: "stage",
+        eventType: 'stage_completed',
+        targetType: 'stage',
         targetId: stageId,
         payload: { from: beforeStatus, to: after },
       });
@@ -194,25 +207,25 @@ export function createTreatmentProgramProgressService(deps: {
     await appendEv({
       instanceId,
       actorId,
-      eventType: "status_changed",
-      targetType: "stage",
+      eventType: 'status_changed',
+      targetType: 'stage',
       targetId: stageId,
-      payload: { scope: "stage", from: beforeStatus, to: after },
+      payload: { scope: 'stage', from: beforeStatus, to: after },
     });
   }
 
   function resolveItemAndStage(detail: TreatmentProgramInstanceDetail, stageItemId: string) {
     const item = detail.stages.flatMap((s) => s.items).find((i) => i.id === stageItemId);
-    if (!item) throw new Error("Элемент не найден");
+    if (!item) throw new Error('Элемент не найден');
     const stage = detail.stages.find((s) => s.id === item.stageId);
-    if (!stage) throw new Error("Этап не найден");
+    if (!stage) throw new Error('Этап не найден');
     return { item, stage };
   }
 
   function assertStageAccessibleForPatient(stage: { status: string; sortOrder: number }): void {
     if (isStageZero(stage)) return;
-    if (stage.status === "locked" || stage.status === "skipped") {
-      throw new Error("Этап недоступен");
+    if (stage.status === 'locked' || stage.status === 'skipped') {
+      throw new Error('Этап недоступен');
     }
   }
 
@@ -225,13 +238,13 @@ export function createTreatmentProgramProgressService(deps: {
     assertUuid(input.instanceId);
     assertUuid(input.stageItemId);
     const detail = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
-    if (!detail) throw new Error("Программа не найдена");
+    if (!detail) throw new Error('Программа не найдена');
     const { stage } = resolveItemAndStage(detail, input.stageItemId);
     assertStageAccessibleForPatient(stage);
-    if (stage.status === "available") {
+    if (stage.status === 'available') {
       const beforeStatus = stage.status;
       const updated = await instances.updateInstanceStage(input.instanceId, stage.id, {
-        status: "in_progress",
+        status: 'in_progress',
       });
       if (updated) {
         await recordStageStatusChange({
@@ -244,7 +257,7 @@ export function createTreatmentProgramProgressService(deps: {
       }
     }
     const next = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
-    if (!next) throw new Error("Программа не найдена");
+    if (!next) throw new Error('Программа не найдена');
     return next;
   }
 
@@ -262,7 +275,7 @@ export function createTreatmentProgramProgressService(deps: {
       instanceId: string;
       stageItemId: string;
       completion?: {
-        perceivedDifficulty?: "easy" | "medium" | "hard";
+        perceivedDifficulty?: 'easy' | 'medium' | 'hard';
         reps?: number;
         sets?: number;
         weightKg?: number;
@@ -273,47 +286,50 @@ export function createTreatmentProgramProgressService(deps: {
       assertUuid(input.stageItemId);
       await patientTouchStageItemInner(input);
       const detail = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
-      if (!detail) throw new Error("Программа не найдена");
+      if (!detail) throw new Error('Программа не найдена');
       const { item, stage } = resolveItemAndStage(detail, input.stageItemId);
       assertStageAccessibleForPatient(stage);
       if (!isInstanceStageItemActiveForPatient(item)) {
-        throw new Error("Элемент отключён");
+        throw new Error('Элемент отключён');
       }
       if (isPersistentRecommendation(item)) {
-        throw new Error("Постоянная рекомендация не отмечается выполненной");
+        throw new Error('Постоянная рекомендация не отмечается выполненной');
       }
-      if (item.itemType === "clinical_test") {
-        throw new Error("Для клинического теста используйте отправку результатов");
+      if (item.itemType === 'clinical_test') {
+        throw new Error('Для клинического теста используйте отправку результатов');
       }
       const hadCompleted = item.completedAt != null;
       const ts = nowIso();
       const row = await instances.setStageItemCompletedAt(input.instanceId, item.id, ts);
-      if (!row) throw new Error("Не удалось сохранить");
+      if (!row) throw new Error('Не удалось сохранить');
       const completionPayload: Record<string, unknown> = {
-        source: "simple_item_complete",
+        source: 'simple_item_complete',
         itemType: item.itemType,
       };
       if (
-        input.completion?.perceivedDifficulty === "easy" ||
-        input.completion?.perceivedDifficulty === "medium" ||
-        input.completion?.perceivedDifficulty === "hard"
+        input.completion?.perceivedDifficulty === 'easy' ||
+        input.completion?.perceivedDifficulty === 'medium' ||
+        input.completion?.perceivedDifficulty === 'hard'
       ) {
         completionPayload.perceivedDifficulty = input.completion.perceivedDifficulty;
       }
-      if (typeof input.completion?.reps === "number" && Number.isFinite(input.completion.reps)) {
+      if (typeof input.completion?.reps === 'number' && Number.isFinite(input.completion.reps)) {
         completionPayload.reps = input.completion.reps;
       }
-      if (typeof input.completion?.sets === "number" && Number.isFinite(input.completion.sets)) {
+      if (typeof input.completion?.sets === 'number' && Number.isFinite(input.completion.sets)) {
         completionPayload.sets = input.completion.sets;
       }
-      if (typeof input.completion?.weightKg === "number" && Number.isFinite(input.completion.weightKg)) {
+      if (
+        typeof input.completion?.weightKg === 'number' &&
+        Number.isFinite(input.completion.weightKg)
+      ) {
         completionPayload.weightKg = input.completion.weightKg;
       }
       await actionLog.insertAction({
         instanceId: input.instanceId,
         instanceStageItemId: item.id,
         patientUserId: input.patientUserId,
-        actionType: "done",
+        actionType: 'done',
         sessionId: null,
         payload: completionPayload,
         note: null,
@@ -322,14 +338,14 @@ export function createTreatmentProgramProgressService(deps: {
         await appendEv({
           instanceId: input.instanceId,
           actorId: input.patientUserId,
-          eventType: "status_changed",
-          targetType: "stage_item",
+          eventType: 'status_changed',
+          targetType: 'stage_item',
           targetId: item.id,
-          payload: { scope: "stage_item", field: "completedAt", value: ts, stageId: stage.id },
+          payload: { scope: 'stage_item', field: 'completedAt', value: ts, stageId: stage.id },
         });
       }
       const out = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
-      if (!out) throw new Error("Программа не найдена");
+      if (!out) throw new Error('Программа не найдена');
       return out;
     },
 
@@ -337,7 +353,7 @@ export function createTreatmentProgramProgressService(deps: {
       patientUserId: string;
       instanceId: string;
       stageItemId: string;
-    }): Promise<import("./types").ExerciseMetricPoint | null> {
+    }): Promise<import('./types').ExerciseMetricPoint | null> {
       assertUuid(input.patientUserId);
       assertUuid(input.instanceId);
       assertUuid(input.stageItemId);
@@ -348,13 +364,13 @@ export function createTreatmentProgramProgressService(deps: {
       });
       if (!row) return null;
       const p = row.payload ?? {};
-      const reps = typeof p.reps === "number" && Number.isFinite(p.reps) ? p.reps : null;
-      const sets = typeof p.sets === "number" && Number.isFinite(p.sets) ? p.sets : null;
+      const reps = typeof p.reps === 'number' && Number.isFinite(p.reps) ? p.reps : null;
+      const sets = typeof p.sets === 'number' && Number.isFinite(p.sets) ? p.sets : null;
       const weightKg =
-        typeof p.weightKg === "number" && Number.isFinite(p.weightKg) ? p.weightKg : null;
+        typeof p.weightKg === 'number' && Number.isFinite(p.weightKg) ? p.weightKg : null;
       const d = p.perceivedDifficulty;
-      const difficulty: import("./types").LfkPostSessionDifficulty | null =
-        d === "easy" || d === "medium" || d === "hard" ? d : null;
+      const difficulty: import('./types').LfkPostSessionDifficulty | null =
+        d === 'easy' || d === 'medium' || d === 'hard' ? d : null;
       return { at: row.createdAt, reps, sets, weightKg, difficulty };
     },
 
@@ -363,7 +379,7 @@ export function createTreatmentProgramProgressService(deps: {
       instanceId: string;
       stageItemId: string;
       completion: {
-        perceivedDifficulty?: "easy" | "medium" | "hard";
+        perceivedDifficulty?: 'easy' | 'medium' | 'hard';
         reps?: number;
         sets?: number;
         weightKg?: number;
@@ -373,22 +389,25 @@ export function createTreatmentProgramProgressService(deps: {
       assertUuid(input.instanceId);
       assertUuid(input.stageItemId);
       const payloadPatch: Record<string, unknown> = {
-        source: "simple_item_complete",
+        source: 'simple_item_complete',
       };
       if (
-        input.completion.perceivedDifficulty === "easy" ||
-        input.completion.perceivedDifficulty === "medium" ||
-        input.completion.perceivedDifficulty === "hard"
+        input.completion.perceivedDifficulty === 'easy' ||
+        input.completion.perceivedDifficulty === 'medium' ||
+        input.completion.perceivedDifficulty === 'hard'
       ) {
         payloadPatch.perceivedDifficulty = input.completion.perceivedDifficulty;
       }
-      if (typeof input.completion.reps === "number" && Number.isFinite(input.completion.reps)) {
+      if (typeof input.completion.reps === 'number' && Number.isFinite(input.completion.reps)) {
         payloadPatch.reps = input.completion.reps;
       }
-      if (typeof input.completion.sets === "number" && Number.isFinite(input.completion.sets)) {
+      if (typeof input.completion.sets === 'number' && Number.isFinite(input.completion.sets)) {
         payloadPatch.sets = input.completion.sets;
       }
-      if (typeof input.completion.weightKg === "number" && Number.isFinite(input.completion.weightKg)) {
+      if (
+        typeof input.completion.weightKg === 'number' &&
+        Number.isFinite(input.completion.weightKg)
+      ) {
         payloadPatch.weightKg = input.completion.weightKg;
       }
       const ok = await actionLog.updateLatestSimpleDonePayload({
@@ -397,7 +416,7 @@ export function createTreatmentProgramProgressService(deps: {
         instanceStageItemId: input.stageItemId,
         payloadPatch,
       });
-      if (!ok) throw new Error("Отметка выполнения не найдена");
+      if (!ok) throw new Error('Отметка выполнения не найдена');
     },
 
     async patientEnsureTestAttempt(input: {
@@ -410,20 +429,21 @@ export function createTreatmentProgramProgressService(deps: {
       assertUuid(input.stageItemId);
       await patientTouchStageItemInner(input);
       const detail = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
-      if (!detail) throw new Error("Программа не найдена");
+      if (!detail) throw new Error('Программа не найдена');
       const { item, stage } = resolveItemAndStage(detail, input.stageItemId);
       assertStageAccessibleForPatient(stage);
       if (!isInstanceStageItemActiveForPatient(item)) {
-        throw new Error("Элемент отключён");
+        throw new Error('Элемент отключён');
       }
-      if (item.itemType !== "clinical_test") throw new Error("Элемент не является клиническим тестом");
+      if (item.itemType !== 'clinical_test')
+        throw new Error('Элемент не является клиническим тестом');
       const open = await tests.findOpenAttempt(item.id, input.patientUserId);
       if (open) return open;
       const prior = await tests.listAttemptsForStageItem(item.id, input.patientUserId, 5);
       if (prior.length === 0) {
         return tests.createAttempt({ stageItemId: item.id, patientUserId: input.patientUserId });
       }
-      throw new Error("Сначала начните новую попытку");
+      throw new Error('Сначала начните новую попытку');
     },
 
     async patientStartNewTestAttempt(input: {
@@ -440,13 +460,14 @@ export function createTreatmentProgramProgressService(deps: {
         stageItemId: input.stageItemId,
       });
       const detail = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
-      if (!detail) throw new Error("Программа не найдена");
+      if (!detail) throw new Error('Программа не найдена');
       const { item, stage } = resolveItemAndStage(detail, input.stageItemId);
       assertStageAccessibleForPatient(stage);
       if (!isInstanceStageItemActiveForPatient(item)) {
-        throw new Error("Элемент отключён");
+        throw new Error('Элемент отключён');
       }
-      if (item.itemType !== "clinical_test") throw new Error("Элемент не является клиническим тестом");
+      if (item.itemType !== 'clinical_test')
+        throw new Error('Элемент не является клиническим тестом');
       return tests.startNewAttemptAfterSubmitted({
         instanceId: input.instanceId,
         stageItemId: item.id,
@@ -472,17 +493,18 @@ export function createTreatmentProgramProgressService(deps: {
         stageItemId: input.stageItemId,
       });
       const detail = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
-      if (!detail) throw new Error("Программа не найдена");
+      if (!detail) throw new Error('Программа не найдена');
       const { item, stage } = resolveItemAndStage(detail, input.stageItemId);
       assertStageAccessibleForPatient(stage);
       if (!isInstanceStageItemActiveForPatient(item)) {
-        throw new Error("Элемент отключён");
+        throw new Error('Элемент отключён');
       }
-      if (item.itemType !== "clinical_test") throw new Error("Элемент не является клиническим тестом");
+      if (item.itemType !== 'clinical_test')
+        throw new Error('Элемент не является клиническим тестом');
 
       const expectedTests = testIdsFromTestSetSnapshot(item.snapshot);
       if (!expectedTests.includes(input.testId)) {
-        throw new Error("Тест не соответствует пункту программы");
+        throw new Error('Тест не соответствует пункту программы');
       }
 
       let attempt = await tests.findOpenAttempt(item.id, input.patientUserId);
@@ -494,7 +516,7 @@ export function createTreatmentProgramProgressService(deps: {
             patientUserId: input.patientUserId,
           });
         } else {
-          throw new Error("Сначала начните попытку");
+          throw new Error('Сначала начните попытку');
         }
       }
 
@@ -503,14 +525,16 @@ export function createTreatmentProgramProgressService(deps: {
       let decision = input.normalizedDecision ?? inferred;
       if (
         !decision &&
-        typeof input.rawValue.score === "number" &&
+        typeof input.rawValue.score === 'number' &&
         !Number.isNaN(input.rawValue.score) &&
         !scoringConfigIsQualitative(scoring)
       ) {
-        decision = "partial";
+        decision = 'partial';
       }
       if (!decision) {
-        throw new Error("Укажите итог (passed / failed / partial) или числовой score при настроенных порогах");
+        throw new Error(
+          'Укажите итог (passed / failed / partial) или числовой score при настроенных порогах',
+        );
       }
 
       const resultRow = await tests.upsertResult({
@@ -525,10 +549,10 @@ export function createTreatmentProgramProgressService(deps: {
         instanceId: input.instanceId,
         instanceStageItemId: input.stageItemId,
         patientUserId: input.patientUserId,
-        actionType: "done",
+        actionType: 'done',
         sessionId: null,
         payload: {
-          source: "test_submitted",
+          source: 'test_submitted',
           testResultId: resultRow.id,
           testId: input.testId,
         },
@@ -538,8 +562,8 @@ export function createTreatmentProgramProgressService(deps: {
       await appendEv({
         instanceId: input.instanceId,
         actorId: input.patientUserId,
-        eventType: "test_completed",
-        targetType: "stage_item",
+        eventType: 'test_completed',
+        targetType: 'stage_item',
         targetId: input.stageItemId,
         payload: {
           testResultId: resultRow.id,
@@ -558,13 +582,13 @@ export function createTreatmentProgramProgressService(deps: {
           await appendEv({
             instanceId: input.instanceId,
             actorId: input.patientUserId,
-            eventType: "status_changed",
-            targetType: "stage_item",
+            eventType: 'status_changed',
+            targetType: 'stage_item',
             targetId: item.id,
             payload: {
-              scope: "stage_item",
+              scope: 'stage_item',
               stageId: stage.id,
-              context: "clinical_test_attempt_submitted",
+              context: 'clinical_test_attempt_submitted',
               attemptId: attempt.id,
             },
           });
@@ -572,7 +596,7 @@ export function createTreatmentProgramProgressService(deps: {
       }
 
       const out = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
-      if (!out) throw new Error("Программа не найдена");
+      if (!out) throw new Error('Программа не найдена');
       return out;
     },
 
@@ -586,19 +610,19 @@ export function createTreatmentProgramProgressService(deps: {
       assertUuid(input.instanceId);
       assertUuid(input.stageId);
       if (input.doctorUserId) assertUuid(input.doctorUserId);
-      if (input.status === "skipped") {
+      if (input.status === 'skipped') {
         const r = input.reason?.trim();
-        if (!r) throw new Error("Для пропуска этапа укажите причину");
+        if (!r) throw new Error('Для пропуска этапа укажите причину');
       }
       const detail0 = await instances.getInstanceById(input.instanceId);
       const st0 = detail0?.stages.find((s) => s.id === input.stageId);
-      if (!st0) throw new Error("Этап не найден");
+      if (!st0) throw new Error('Этап не найден');
       const beforeStatus = st0.status;
       const row = await instances.updateInstanceStage(input.instanceId, input.stageId, {
         status: input.status,
-        skipReason: input.status === "skipped" ? input.reason?.trim() ?? null : null,
+        skipReason: input.status === 'skipped' ? (input.reason?.trim() ?? null) : null,
       });
-      if (!row) throw new Error("Этап не найден");
+      if (!row) throw new Error('Этап не найден');
       await recordStageStatusChange({
         instanceId: input.instanceId,
         stageId: input.stageId,
@@ -608,7 +632,7 @@ export function createTreatmentProgramProgressService(deps: {
         doctorReason: input.reason,
       });
       const out = await instances.getInstanceById(input.instanceId);
-      if (!out) throw new Error("Программа не найдена");
+      if (!out) throw new Error('Программа не найдена');
       return out;
     },
 
@@ -623,17 +647,21 @@ export function createTreatmentProgramProgressService(deps: {
       assertUuid(input.doctorUserId);
       const inInstance = await tests.listResultDetailsForInstance(input.instanceId);
       if (!inInstance.some((r) => r.id === input.resultId)) {
-        throw new Error("Результат не найден");
+        throw new Error('Результат не найден');
       }
       const row = await tests.overrideResultDecision(input.resultId, {
         normalizedDecision: input.normalizedDecision,
         decidedBy: input.doctorUserId,
       });
-      if (!row) throw new Error("Результат не найден");
+      if (!row) throw new Error('Результат не найден');
       return row;
     },
 
-    async doctorAcceptTestAttempt(input: { instanceId: string; attemptId: string; doctorUserId: string }) {
+    async doctorAcceptTestAttempt(input: {
+      instanceId: string;
+      attemptId: string;
+      doctorUserId: string;
+    }) {
       assertUuid(input.instanceId);
       assertUuid(input.attemptId);
       assertUuid(input.doctorUserId);
@@ -651,7 +679,7 @@ export function createTreatmentProgramProgressService(deps: {
       const out: Record<string, boolean> = {};
       for (const st of detail.stages) {
         for (const it of st.items) {
-          if (it.itemType !== "clinical_test") continue;
+          if (it.itemType !== 'clinical_test') continue;
           const rows = await tests.listAttemptsForStageItem(it.id, detail.patientUserId, 100);
           Object.assign(out, clinicalTestAttemptIdsEligibleForDoctorAccept(rows));
         }
@@ -673,7 +701,7 @@ export function createTreatmentProgramProgressService(deps: {
       instanceId: string;
       instanceStageItemId: string;
       windowDays: 7 | 30;
-    }): Promise<import("./types").ExerciseMetricPoint[]> {
+    }): Promise<import('./types').ExerciseMetricPoint[]> {
       assertUuid(params.instanceId);
       assertUuid(params.instanceStageItemId);
       const now = new Date();
@@ -691,17 +719,13 @@ export function createTreatmentProgramProgressService(deps: {
       });
       return rows.map((r) => {
         const p = r.payload ?? {};
-        const reps =
-          typeof p.reps === "number" && Number.isFinite(p.reps) ? p.reps : null;
+        const reps = typeof p.reps === 'number' && Number.isFinite(p.reps) ? p.reps : null;
         const weightKg =
-          typeof p.weightKg === "number" && Number.isFinite(p.weightKg)
-            ? p.weightKg
-            : null;
-        const sets =
-          typeof p.sets === "number" && Number.isFinite(p.sets) ? p.sets : null;
+          typeof p.weightKg === 'number' && Number.isFinite(p.weightKg) ? p.weightKg : null;
+        const sets = typeof p.sets === 'number' && Number.isFinite(p.sets) ? p.sets : null;
         const d = p.perceivedDifficulty;
-        const difficulty: import("./types").LfkPostSessionDifficulty | null =
-          d === "easy" || d === "medium" || d === "hard" ? d : null;
+        const difficulty: import('./types').LfkPostSessionDifficulty | null =
+          d === 'easy' || d === 'medium' || d === 'hard' ? d : null;
         return { at: r.createdAt, reps, weightKg, sets, difficulty };
       });
     },
@@ -709,7 +733,7 @@ export function createTreatmentProgramProgressService(deps: {
     async listExerciseMetricsForWeek(params: {
       instanceId: string;
       instanceStageItemId: string;
-    }): Promise<import("./types").ExerciseMetricPoint[]> {
+    }): Promise<import('./types').ExerciseMetricPoint[]> {
       assertUuid(params.instanceId);
       assertUuid(params.instanceStageItemId);
       const now = new Date();
@@ -726,22 +750,20 @@ export function createTreatmentProgramProgressService(deps: {
       });
       return rows.map((r) => {
         const p = r.payload ?? {};
-        const reps =
-          typeof p.reps === "number" && Number.isFinite(p.reps) ? p.reps : null;
+        const reps = typeof p.reps === 'number' && Number.isFinite(p.reps) ? p.reps : null;
         const weightKg =
-          typeof p.weightKg === "number" && Number.isFinite(p.weightKg)
-            ? p.weightKg
-            : null;
-        const sets =
-          typeof p.sets === "number" && Number.isFinite(p.sets) ? p.sets : null;
+          typeof p.weightKg === 'number' && Number.isFinite(p.weightKg) ? p.weightKg : null;
+        const sets = typeof p.sets === 'number' && Number.isFinite(p.sets) ? p.sets : null;
         const d = p.perceivedDifficulty;
-        const difficulty: import("./types").LfkPostSessionDifficulty | null =
-          d === "easy" || d === "medium" || d === "hard" ? d : null;
+        const difficulty: import('./types').LfkPostSessionDifficulty | null =
+          d === 'easy' || d === 'medium' || d === 'hard' ? d : null;
         return { at: r.createdAt, reps, weightKg, sets, difficulty };
       });
     },
 
-    async listPendingTestEvaluationsForPatient(patientUserId: string): Promise<PendingProgramTestEvaluationRow[]> {
+    async listPendingTestEvaluationsForPatient(
+      patientUserId: string,
+    ): Promise<PendingProgramTestEvaluationRow[]> {
       assertUuid(patientUserId);
       return tests.listPendingEvaluationResultsForPatient(patientUserId);
     },
@@ -767,16 +789,20 @@ export function createTreatmentProgramProgressService(deps: {
       assertUuid(input.instanceId);
       assertUuid(input.stageItemId);
       const detail = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
-      if (!detail) return { variant: "none" };
-      let item: ReturnType<typeof resolveItemAndStage>["item"];
+      if (!detail) return { variant: 'none' };
+      let item: ReturnType<typeof resolveItemAndStage>['item'];
       try {
         item = resolveItemAndStage(detail, input.stageItemId).item;
       } catch {
-        return { variant: "none" };
+        return { variant: 'none' };
       }
-      if (item.itemType !== "clinical_test") return { variant: "none" };
+      if (item.itemType !== 'clinical_test') return { variant: 'none' };
 
-      const attempts = await tests.listAttemptsForStageItem(input.stageItemId, input.patientUserId, 40);
+      const attempts = await tests.listAttemptsForStageItem(
+        input.stageItemId,
+        input.patientUserId,
+        40,
+      );
       const history = attemptHistoryBrief(attempts);
       const open = attempts.find((a) => a.submittedAt === null) ?? null;
       const submittedRows = attempts.filter((a) => a.submittedAt != null);
@@ -785,7 +811,7 @@ export function createTreatmentProgramProgressService(deps: {
       if (open) {
         const results = await tests.listResultsForAttempt(open.id);
         return {
-          variant: "open_attempt",
+          variant: 'open_attempt',
           attemptId: open.id,
           results,
           attemptHistory: history,
@@ -795,7 +821,7 @@ export function createTreatmentProgramProgressService(deps: {
       const latestRow = sortSubmittedAttemptsNewestFirst(submittedRows)[0];
       if (!latestRow) {
         return {
-          variant: "open_attempt",
+          variant: 'open_attempt',
           attemptId: null,
           results: [],
           attemptHistory: history,
@@ -805,7 +831,7 @@ export function createTreatmentProgramProgressService(deps: {
       const latestBundle = submittedAttemptsDetail.find((d) => d.attemptId === latestRow.id);
       const results = latestBundle?.results ?? (await tests.listResultsForAttempt(latestRow.id));
       return {
-        variant: "readonly_submitted",
+        variant: 'readonly_submitted',
         focalAttemptId: latestRow.id,
         results,
         attemptHistory: history,
@@ -816,4 +842,6 @@ export function createTreatmentProgramProgressService(deps: {
   };
 }
 
-export type TreatmentProgramProgressService = ReturnType<typeof createTreatmentProgramProgressService>;
+export type TreatmentProgramProgressService = ReturnType<
+  typeof createTreatmentProgramProgressService
+>;

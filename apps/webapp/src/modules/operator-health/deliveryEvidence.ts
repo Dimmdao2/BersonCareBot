@@ -40,11 +40,11 @@ export function formatAgeRu(seconds: number): string {
 
 /** Возраст самой старой неотправленной позиции перешёл порог алерта. */
 export function isOldestUnsentOverThreshold(
-  evidence: Pick<DeliveryEvidence, "oldestUnsentAgeSeconds">,
+  evidence: Pick<DeliveryEvidence, 'oldestUnsentAgeSeconds'>,
   thresholdSeconds: number = OLDEST_UNSENT_ALERT_SECONDS,
 ): boolean {
   const age = evidence.oldestUnsentAgeSeconds;
-  return typeof age === "number" && age > thresholdSeconds;
+  return typeof age === 'number' && age > thresholdSeconds;
 }
 
 /**
@@ -71,12 +71,12 @@ export function buildDeliveryEvidenceLines(evidence: DeliveryEvidence): string[]
   lines.push(
     evidence.lastConfirmedDeliveryAt
       ? `Последняя подтверждённая доставка: ${evidence.lastConfirmedDeliveryAt}`
-      : "Последняя подтверждённая доставка: НИКОГДА",
+      : 'Последняя подтверждённая доставка: НИКОГДА',
   );
   if (evidence.oldestUnsentAgeSeconds == null) {
-    lines.push("Самая старая неотправленная позиция: нет");
+    lines.push('Самая старая неотправленная позиция: нет');
   } else {
-    const over = isOldestUnsentOverThreshold(evidence) ? " (выше порога)" : "";
+    const over = isOldestUnsentOverThreshold(evidence) ? ' (выше порога)' : '';
     lines.push(
       `Самая старая неотправленная позиция: ${formatAgeRu(evidence.oldestUnsentAgeSeconds)}${over}`,
     );

@@ -17,15 +17,15 @@
 
 ## Проверенные критерии (чеклист)
 
-| # | Критерий | Результат |
-|---|-----------|-----------|
-| 1 | Наивная дата не проходит в БД как raw string | **Частично OK / доверие к границе:** для **Rubitime webhook / record_success** сырой наивный `datetime` проходит `normalizeRubitimeIncomingForIngest` → в мутацию и SQL уходит **ISO-Z или `null`**. См. `ingestNormalization.ts`, `webhook.ts` → `prepareRubitimeWebhookIngress`. **Остаток:** `createDbWritePort` → `booking.upsert` не валидирует формат `recordAt`; прямой вызов write с наивной строкой всё ещё возможен и с `$n::timestamptz` интерпретируется в **session TimeZone** PG — это не замена нормализации. |
-| 2 | `recordAt` в projection всегда ISO-Z | **OK по дизайну Rubitime → outbox:** после нормализации в payload — строки с суффиксом `Z` (см. тесты). **Чтение из PG:** `getActiveRecordsByPhone` / webapp `mapRow` отдают `toISOString()` → **Z**. **Остаток:** обработчик webapp `appointment.record.upserted` принимает любой `string` без проверки на Z; гарантия — доверие к integrator. |
-| 3 | SQL-cast защита `::timestamptz` | **OK:** `apps/integrator/src/infra/db/repos/bookingRecords.ts` — `$3::timestamptz`; `apps/webapp/src/infra/repos/pgAppointmentProjection.ts` — `$3::timestamptz`, `$7::timestamptz`. Доп. проверка: `bookingRecords.sql.test.ts`. |
-| 4 | Variant A (невалидный datetime): запись не теряется, инцидент + Telegram | **OK в коде ingest:** при невалидном `recordAt` поле снимается, `upsertIntegrationDataQualityIncident` + `dispatchOutgoing` при первом dedup-insert (`occurrences === 1`). `writePort` кладёт `recordAt: null` и прокидывает `timeNormalizationStatus` / `timeNormalizationFieldErrors` в проекцию (см. `writePort.appointments.test.ts`). **Тест:** `ingestNormalization.test.ts` «Variant A…». **Замечание:** нет отдельного e2e-теста «после webhook строка в `rubitime_records` существует с `record_at IS NULL`» — логика выводится из цепочки. |
-| 5 | Fallback / невалидная timezone: инцидент + Telegram, без тихого fallback | **НЕ выполнено:** `getBranchTimezone` при любых fallback-кейсах только `logger.warn` и кэширование `Europe/Moscow`. Нет вызова `upsertIntegrationDataQualityIncident` и нет Telegram-алерта. Файл: `apps/integrator/src/infra/db/branchTimezone.ts`. |
-| 6 | Тесты MSK и Samara | **OK:** `ingestNormalization.test.ts` — `Europe/Moscow` и `Europe/Samara` для одной и той же наивной стенки. |
-| 7 | CI evidence | **OK:** `pnpm install --frozen-lockfile && pnpm run ci` — **exit code 0** на момент аудита (2026-04-04). |
+| #   | Критерий                                                                 | Результат                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| --- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Наивная дата не проходит в БД как raw string                             | **Частично OK / доверие к границе:** для **Rubitime webhook / record_success** сырой наивный `datetime` проходит `normalizeRubitimeIncomingForIngest` → в мутацию и SQL уходит **ISO-Z или `null`**. См. `ingestNormalization.ts`, `webhook.ts` → `prepareRubitimeWebhookIngress`. **Остаток:** `createDbWritePort` → `booking.upsert` не валидирует формат `recordAt`; прямой вызов write с наивной строкой всё ещё возможен и с `$n::timestamptz` интерпретируется в **session TimeZone** PG — это не замена нормализации.                         |
+| 2   | `recordAt` в projection всегда ISO-Z                                     | **OK по дизайну Rubitime → outbox:** после нормализации в payload — строки с суффиксом `Z` (см. тесты). **Чтение из PG:** `getActiveRecordsByPhone` / webapp `mapRow` отдают `toISOString()` → **Z**. **Остаток:** обработчик webapp `appointment.record.upserted` принимает любой `string` без проверки на Z; гарантия — доверие к integrator.                                                                                                                                                                                                      |
+| 3   | SQL-cast защита `::timestamptz`                                          | **OK:** `apps/integrator/src/infra/db/repos/bookingRecords.ts` — `$3::timestamptz`; `apps/webapp/src/infra/repos/pgAppointmentProjection.ts` — `$3::timestamptz`, `$7::timestamptz`. Доп. проверка: `bookingRecords.sql.test.ts`.                                                                                                                                                                                                                                                                                                                    |
+| 4   | Variant A (невалидный datetime): запись не теряется, инцидент + Telegram | **OK в коде ingest:** при невалидном `recordAt` поле снимается, `upsertIntegrationDataQualityIncident` + `dispatchOutgoing` при первом dedup-insert (`occurrences === 1`). `writePort` кладёт `recordAt: null` и прокидывает `timeNormalizationStatus` / `timeNormalizationFieldErrors` в проекцию (см. `writePort.appointments.test.ts`). **Тест:** `ingestNormalization.test.ts` «Variant A…». **Замечание:** нет отдельного e2e-теста «после webhook строка в `rubitime_records` существует с `record_at IS NULL`» — логика выводится из цепочки. |
+| 5   | Fallback / невалидная timezone: инцидент + Telegram, без тихого fallback | **НЕ выполнено:** `getBranchTimezone` при любых fallback-кейсах только `logger.warn` и кэширование `Europe/Moscow`. Нет вызова `upsertIntegrationDataQualityIncident` и нет Telegram-алерта. Файл: `apps/integrator/src/infra/db/branchTimezone.ts`.                                                                                                                                                                                                                                                                                                 |
+| 6   | Тесты MSK и Samara                                                       | **OK:** `ingestNormalization.test.ts` — `Europe/Moscow` и `Europe/Samara` для одной и той же наивной стенки.                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| 7   | CI evidence                                                              | **OK:** `pnpm install --frozen-lockfile && pnpm run ci` — **exit code 0** на момент аудита (2026-04-04).                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 
 ---
 
@@ -65,17 +65,17 @@
 
 ## Канонические пути к коду
 
-| Тема | Путь |
-|------|------|
-| Нормализация ingest | `apps/integrator/src/integrations/rubitime/ingestNormalization.ts` |
-| Точка входа webhook | `apps/integrator/src/integrations/rubitime/webhook.ts` |
-| Маппинг payload | `apps/integrator/src/integrations/rubitime/connector.ts` |
-| Запись integrator + outbox | `apps/integrator/src/infra/db/writePort.ts`, `apps/integrator/src/infra/db/repos/bookingRecords.ts` |
-| Проекция webapp | `apps/webapp/src/infra/repos/pgAppointmentProjection.ts`, `apps/webapp/src/modules/integrator/events.ts` |
-| Timezone филиала | `apps/integrator/src/infra/db/branchTimezone.ts` |
-| Инциденты | `apps/integrator/src/infra/db/repos/integrationDataQualityIncidents.ts` |
-| Тесты Stage 3 ingest | `apps/integrator/src/integrations/rubitime/ingestNormalization.test.ts` |
-| SQL cast тест | `apps/integrator/src/infra/db/repos/bookingRecords.sql.test.ts` |
+| Тема                       | Путь                                                                                                     |
+| -------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Нормализация ingest        | `apps/integrator/src/integrations/rubitime/ingestNormalization.ts`                                       |
+| Точка входа webhook        | `apps/integrator/src/integrations/rubitime/webhook.ts`                                                   |
+| Маппинг payload            | `apps/integrator/src/integrations/rubitime/connector.ts`                                                 |
+| Запись integrator + outbox | `apps/integrator/src/infra/db/writePort.ts`, `apps/integrator/src/infra/db/repos/bookingRecords.ts`      |
+| Проекция webapp            | `apps/webapp/src/infra/repos/pgAppointmentProjection.ts`, `apps/webapp/src/modules/integrator/events.ts` |
+| Timezone филиала           | `apps/integrator/src/infra/db/branchTimezone.ts`                                                         |
+| Инциденты                  | `apps/integrator/src/infra/db/repos/integrationDataQualityIncidents.ts`                                  |
+| Тесты Stage 3 ingest       | `apps/integrator/src/integrations/rubitime/ingestNormalization.test.ts`                                  |
+| SQL cast тест              | `apps/integrator/src/infra/db/repos/bookingRecords.sql.test.ts`                                          |
 
 ---
 
@@ -83,25 +83,25 @@
 
 Ниже обязательные действия для повторного аудита Stage 3 с вердиктом **PASS**.
 
-1. **[BLOCKER] Fallback / невалидная timezone — инцидент + Telegram**  
-   - **Файлы:** `apps/integrator/src/infra/db/branchTimezone.ts`, вызывающий код (`webhook.ts` или DI), при необходимости вынести общий хелпер с `ingestNormalization.ts`.  
-   - **Сделать:** на каждый сценарий fallback (невалидный `branchId`, ошибка SELECT, нет строки, пустой timezone, невалидная IANA) вызывать `upsertIntegrationDataQualityIncident` с согласованным контрактом `integration` / `entity` / `external_id` (например `rubitime` + `branch` + строковый branch id) / `field` / `error_reason`, и при `occurrences === 1` отправлять Telegram через `dispatchPort` (тот же dedup-паттерн, что для `recordAt`).  
+1. **[BLOCKER] Fallback / невалидная timezone — инцидент + Telegram**
+   - **Файлы:** `apps/integrator/src/infra/db/branchTimezone.ts`, вызывающий код (`webhook.ts` или DI), при необходимости вынести общий хелпер с `ingestNormalization.ts`.
+   - **Сделать:** на каждый сценарий fallback (невалидный `branchId`, ошибка SELECT, нет строки, пустой timezone, невалидная IANA) вызывать `upsertIntegrationDataQualityIncident` с согласованным контрактом `integration` / `entity` / `external_id` (например `rubitime` + `branch` + строковый branch id) / `field` / `error_reason`, и при `occurrences === 1` отправлять Telegram через `dispatchPort` (тот же dedup-паттерн, что для `recordAt`).
    - **Done-критерий:** в тестах мокается DB инцидентов + dispatch; проверяется вызов при fallback; в проде нет единственного сигнала «только warn в логе».
 
-2. **[HIGH] Зафиксировать границу для `recordAt` на `booking.upsert`**  
-   - **Файлы:** `writePort.ts` и/или контракт executor/scripts.  
-   - **Сделать:** либо жёсткая валидация «только ISO instant с offset или Z», либо явный documented invariant + запрет альтернативных продьюсеров.  
+2. **[HIGH] Зафиксировать границу для `recordAt` на `booking.upsert`**
+   - **Файлы:** `writePort.ts` и/или контракт executor/scripts.
+   - **Сделать:** либо жёсткая валидация «только ISO instant с offset или Z», либо явный documented invariant + запрет альтернативных продьюсеров.
    - **Done-критерий:** наивная строка не может оказаться в параметре SQL без явного осознанного пути.
 
-3. **[MEDIUM] (Опционально) Webapp: защита входа `recordAt`**  
-   - **Файлы:** `apps/webapp/src/modules/integrator/events.ts`.  
-   - **Сделать:** отклонять или нормализовать нестандартные строки согласно политике продукта.  
+3. **[MEDIUM] (Опционально) Webapp: защита входа `recordAt`**
+   - **Файлы:** `apps/webapp/src/modules/integrator/events.ts`.
+   - **Сделать:** отклонять или нормализовать нестандартные строки согласно политике продукта.
    - **Done-критерий:** либо явный reject с причиной, либо вторичная нормализация с метрикой.
 
-4. **[LOW] Настройка admin Telegram**  
+4. **[LOW] Настройка admin Telegram**
    - **Сделать:** в доке деплоя / runbook указать, что для data-quality алертов обязателен валидный admin chat id; при отсутствии — видимый error в логах или метрика «alerts_suppressed».
 
-5. **Повторная верификация**  
+5. **Повторная верификация**
    - **Команды:**  
      `pnpm install --frozen-lockfile && pnpm run ci`  
      `pnpm --dir apps/integrator test -- src/integrations/rubitime/ingestNormalization.test.ts src/infra/db/branchTimezone.test.ts`
@@ -122,6 +122,6 @@ pnpm install --frozen-lockfile && pnpm run ci
 
 ## Связанные документы
 
-- `docs/TIMEZONE_UTC_NORMALIZATION/MASTER_PLAN.md` — Stage 3  
-- `docs/TIMEZONE_UTC_NORMALIZATION/AUDIT_STAGE_2.md` — нормализация и carry-over  
+- `docs/TIMEZONE_UTC_NORMALIZATION/MASTER_PLAN.md` — Stage 3
+- `docs/TIMEZONE_UTC_NORMALIZATION/AUDIT_STAGE_2.md` — нормализация и carry-over
 - `docs/TIMEZONE_UTC_NORMALIZATION/STAGE_3_INGEST_NORMALIZATION.md` (если есть в репозитории)

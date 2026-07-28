@@ -1,16 +1,16 @@
-import type { BeAppointment } from "@/modules/booking-engine/types";
+import type { BeAppointment } from '@/modules/booking-engine/types';
 import type {
   AppointmentActorType,
   CancellationDecisionType,
   CancellationPolicy,
   ReschedulePolicy,
-} from "@/modules/booking-policies/types";
+} from '@/modules/booking-policies/types';
 
 export type AppointmentNoShowRecord = {
   id: string;
   organizationId: string;
   appointmentId: string;
-  actorType: Extract<AppointmentActorType, "specialist" | "admin" | "system">;
+  actorType: Extract<AppointmentActorType, 'specialist' | 'admin' | 'system'>;
   actorId: string | null;
   reason: string | null;
   staffComment: string | null;
@@ -22,7 +22,7 @@ export type AppointmentNoShowRecord = {
 export type MarkNoShowInput = {
   appointmentId: string;
   organizationId: string;
-  actorType: Extract<AppointmentActorType, "specialist" | "admin" | "system">;
+  actorType: Extract<AppointmentActorType, 'specialist' | 'admin' | 'system'>;
   actorId: string | null;
   reason?: string;
   staffComment?: string;
@@ -104,8 +104,14 @@ export type CancelAppointmentInput = {
 
 export type AppointmentLifecyclePort = {
   getAppointment(appointmentId: string, organizationId: string): Promise<BeAppointment | null>;
-  listReschedules(appointmentId: string, organizationId: string): Promise<AppointmentRescheduleRecord[]>;
-  listCancellations(appointmentId: string, organizationId: string): Promise<AppointmentCancellationRecord[]>;
+  listReschedules(
+    appointmentId: string,
+    organizationId: string,
+  ): Promise<AppointmentRescheduleRecord[]>;
+  listCancellations(
+    appointmentId: string,
+    organizationId: string,
+  ): Promise<AppointmentCancellationRecord[]>;
   applyReschedule(
     input: RescheduleAppointmentInput & {
       policy: ReschedulePolicy;
@@ -122,7 +128,7 @@ export type AppointmentLifecyclePort = {
       wasFree: boolean;
       wasPenalized: boolean;
       decisionType: CancellationDecisionType;
-      targetStatus: BeAppointment["status"];
+      targetStatus: BeAppointment['status'];
       packageSessionCharged: boolean;
       prepaymentRetained: boolean;
       prepaymentRefunded: boolean;

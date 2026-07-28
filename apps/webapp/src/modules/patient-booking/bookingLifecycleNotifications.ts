@@ -1,14 +1,14 @@
 export type IntegratorBookingEventType =
-  | "booking.created"
-  | "booking.cancelled"
-  | "booking.rescheduled"
-  | "booking.payment_captured";
+  | 'booking.created'
+  | 'booking.cancelled'
+  | 'booking.rescheduled'
+  | 'booking.payment_captured';
 
 import {
   parseBookingLifecycleNotificationsSettings,
   resolveBookingNotifyTargets,
   type BookingLifecycleNotificationsSettings,
-} from "@/modules/booking-notifications/settings";
+} from '@/modules/booking-notifications/settings';
 
 export { parseBookingLifecycleNotificationsSettings, resolveBookingNotifyTargets };
 export type { BookingLifecycleNotificationsSettings };
@@ -18,7 +18,7 @@ export function buildBookingNotificationsSent(input: {
   idempotencyKey: string;
   notifyPatient: boolean;
   notifyStaff: boolean;
-  integratorStatus: "sent" | "failed" | "skipped";
+  integratorStatus: 'sent' | 'failed' | 'skipped';
 }): Record<string, unknown> {
   const out: Record<string, unknown> = {
     policy: {

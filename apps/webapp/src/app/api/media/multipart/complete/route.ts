@@ -1,27 +1,27 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { env, isS3MediaEnabled } from "@/config/env";
-import { getPool } from "@/app-layer/db/client";
-import { logger } from "@/app-layer/logging/logger";
-import { withMultipartSessionLock } from "@/app-layer/locks/multipartSessionLock";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { env, isS3MediaEnabled } from '@/config/env';
+import { getPool } from '@/app-layer/db/client';
+import { logger } from '@/app-layer/logging/logger';
+import { withMultipartSessionLock } from '@/app-layer/locks/multipartSessionLock';
 import {
   claimUploadSessionForCompletingTx,
   classifyMultipartCompleteRejection,
   getCompletingSessionTx,
   markCompletingSessionFailedTx,
   tryFinalizeMultipartIdempotentTx,
-} from "@/app-layer/media/mediaUploadSessionsRepo";
-import { deletePendingMediaFileById } from "@/app-layer/media/s3MediaStorage";
-import { maybeAutoEnqueueVideoTranscodeAfterUpload } from "@/app-layer/media/mediaTranscodeAutoEnqueue";
+} from '@/app-layer/media/mediaUploadSessionsRepo';
+import { deletePendingMediaFileById } from '@/app-layer/media/s3MediaStorage';
+import { maybeAutoEnqueueVideoTranscodeAfterUpload } from '@/app-layer/media/mediaTranscodeAutoEnqueue';
 import {
   s3AbortMultipartUpload,
   s3CompleteMultipartUpload,
   s3DeleteObject,
   s3HeadObjectDetails,
-} from "@/app-layer/media/s3Client";
-import { multipartMaxPartNumber } from "@/modules/media/multipartConstants";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+} from '@/app-layer/media/s3Client';
+import { multipartMaxPartNumber } from '@/modules/media/multipartConstants';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 
 const partSchema = z.object({
   PartNumber: z.number().int().min(1).max(10_000),
@@ -48,7 +48,7 @@ function validateParts(parts: z.infer<typeof partSchema>[], maxPart: number): bo
 
 export async function POST(request: Request) {
   if (!isS3MediaEnabled(env)) {
-    return NextResponse.json({ ok: false, error: "s3_not_configured" }, { status: 501 });
+    return NextResponse.json({ ok: false, error: 's3_not_configured' }, { status: 501 });
   }
 
   const gate = await requireDoctorWorkspaceApiContext();
@@ -59,12 +59,12 @@ export async function POST(request: Request) {
   try {
     json = await request.json();
   } catch {
-    return NextResponse.json({ ok: false, error: "invalid_json" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 });
   }
 
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
 
   const pool = getPool();
@@ -83,8 +83,13 @@ export async function POST(request: Request) {
       getCompletingSessionTx(client, sessionId, ownerId, gate.ctx.organizationId),
     );
     if (!stuck) {
-      const err = await classifyMultipartCompleteRejection(pool, sessionId, ownerId, gate.ctx.organizationId);
-      const status = err === "session_not_found" ? 404 : 409;
+      const err = await classifyMultipartCompleteRejection(
+        pool,
+        sessionId,
+        ownerId,
+        gate.ctx.organizationId,
+      );
+      const status = err === 'session_not_found' ? 404 : 409;
       return NextResponse.json({ ok: false, error: err }, { status });
     }
     row = stuck;
@@ -96,36 +101,46 @@ export async function POST(request: Request) {
 
   if (!validateParts(parsed.data.parts, maxPart)) {
     await withMultipartSessionLock(pool, sessionId, async (client) => {
-      await markCompletingSessionFailedTx(client, sessionId, gate.ctx.organizationId, "invalid_parts");
+      await markCompletingSessionFailedTx(
+        client,
+        sessionId,
+        gate.ctx.organizationId,
+        'invalid_parts',
+      );
     });
     await s3AbortMultipartUpload(row.s3_key, row.upload_id).catch(() => {
       /* ignore */
     });
-    await withDoctorWorkspacePrincipal(gate.ctx, () => deletePendingMediaFileById(row.media_id)).catch(
-      () => {
-        /* ignore */
-      },
-    );
-    return NextResponse.json({ ok: false, error: "invalid_parts", maxPart }, { status: 400 });
+    await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      deletePendingMediaFileById(row.media_id),
+    ).catch(() => {
+      /* ignore */
+    });
+    return NextResponse.json({ ok: false, error: 'invalid_parts', maxPart }, { status: 400 });
   }
 
   if (!skipS3Complete) {
     try {
       await s3CompleteMultipartUpload(row.s3_key, row.upload_id, parsed.data.parts);
     } catch (e) {
-      logger.error({ err: e, sessionId }, "[media/multipart/complete] s3_complete_failed");
+      logger.error({ err: e, sessionId }, '[media/multipart/complete] s3_complete_failed');
       await withMultipartSessionLock(pool, sessionId, async (client) => {
-        await markCompletingSessionFailedTx(client, sessionId, gate.ctx.organizationId, "s3_complete_failed");
+        await markCompletingSessionFailedTx(
+          client,
+          sessionId,
+          gate.ctx.organizationId,
+          's3_complete_failed',
+        );
       });
       await s3AbortMultipartUpload(row.s3_key, row.upload_id).catch(() => {
         /* ignore */
       });
-      await withDoctorWorkspacePrincipal(gate.ctx, () => deletePendingMediaFileById(row.media_id)).catch(
-        () => {
-          /* ignore */
-        },
-      );
-      return NextResponse.json({ ok: false, error: "complete_failed" }, { status: 502 });
+      await withDoctorWorkspacePrincipal(gate.ctx, () =>
+        deletePendingMediaFileById(row.media_id),
+      ).catch(() => {
+        /* ignore */
+      });
+      return NextResponse.json({ ok: false, error: 'complete_failed' }, { status: 502 });
     }
   }
 
@@ -133,36 +148,50 @@ export async function POST(request: Request) {
   const metaOk =
     head &&
     head.contentLength === expectedSize &&
-    (head.contentType ?? "").split(";")[0]!.trim().toLowerCase() === row.mime_type.toLowerCase() &&
-    head.metadata["media-id"] === row.media_id &&
-    head.metadata["owner-user-id"] === ownerId &&
-    head.metadata["expected-size"] === String(expectedSize);
+    (head.contentType ?? '').split(';')[0]!.trim().toLowerCase() === row.mime_type.toLowerCase() &&
+    head.metadata['media-id'] === row.media_id &&
+    head.metadata['owner-user-id'] === ownerId &&
+    head.metadata['expected-size'] === String(expectedSize);
 
   if (!metaOk) {
     logger.warn(
-      { sessionId, head: head ? { len: head.contentLength, ct: head.contentType, md: head.metadata } : null },
-      "[media/multipart/complete] integrity_mismatch",
+      {
+        sessionId,
+        head: head ? { len: head.contentLength, ct: head.contentType, md: head.metadata } : null,
+      },
+      '[media/multipart/complete] integrity_mismatch',
     );
     await withMultipartSessionLock(pool, sessionId, async (client) => {
-      await markCompletingSessionFailedTx(client, sessionId, gate.ctx.organizationId, "integrity_mismatch");
+      await markCompletingSessionFailedTx(
+        client,
+        sessionId,
+        gate.ctx.organizationId,
+        'integrity_mismatch',
+      );
     });
     await s3DeleteObject(row.s3_key).catch(() => {
       /* ignore */
     });
-    await withDoctorWorkspacePrincipal(gate.ctx, () => deletePendingMediaFileById(row.media_id)).catch(
-      () => {
-        /* ignore */
-      },
-    );
-    return NextResponse.json({ ok: false, error: "integrity_mismatch" }, { status: 409 });
+    await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      deletePendingMediaFileById(row.media_id),
+    ).catch(() => {
+      /* ignore */
+    });
+    return NextResponse.json({ ok: false, error: 'integrity_mismatch' }, { status: 409 });
   }
 
   try {
     const fin = await withMultipartSessionLock(pool, sessionId, async (client) =>
-      tryFinalizeMultipartIdempotentTx(client, sessionId, row.media_id, ownerId, gate.ctx.organizationId),
+      tryFinalizeMultipartIdempotentTx(
+        client,
+        sessionId,
+        row.media_id,
+        ownerId,
+        gate.ctx.organizationId,
+      ),
     );
 
-    if (fin.kind === "finalized" || fin.kind === "already_done") {
+    if (fin.kind === 'finalized' || fin.kind === 'already_done') {
       await maybeAutoEnqueueVideoTranscodeAfterUpload(row.media_id);
       const appUrl = `/api/media/${row.media_id}`;
       return NextResponse.json({
@@ -174,11 +203,14 @@ export async function POST(request: Request) {
 
     logger.error(
       { sessionId, result: fin.result },
-      "[media/multipart/complete] finalize_inconsistent_state",
+      '[media/multipart/complete] finalize_inconsistent_state',
     );
-    return NextResponse.json({ ok: false, error: "finalize_inconsistent_state" }, { status: 409 });
+    return NextResponse.json({ ok: false, error: 'finalize_inconsistent_state' }, { status: 409 });
   } catch (e) {
-    logger.error({ err: e, sessionId }, "[media/multipart/complete] finalize_failed");
-    return NextResponse.json({ ok: false, error: "finalize_failed", retryable: true }, { status: 500 });
+    logger.error({ err: e, sessionId }, '[media/multipart/complete] finalize_failed');
+    return NextResponse.json(
+      { ok: false, error: 'finalize_failed', retryable: true },
+      { status: 500 },
+    );
   }
 }

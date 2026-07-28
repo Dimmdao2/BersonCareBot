@@ -54,7 +54,7 @@ modules/<domain>/
 ```typescript
 // Правильно:
 export async function POST(request: NextRequest) {
-  const session = await requireRole("doctor");
+  const session = await requireRole('doctor');
   const body = schema.parse(await request.json());
   const deps = buildAppDeps();
   const result = await deps.treatmentPrograms.assignToPatient(body);
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
 // Неправильно:
 export async function POST(request: NextRequest) {
   const pool = getPool(); // ← ЗАПРЕТ
-  const rows = await pool.query("SELECT ..."); // ← ЗАПРЕТ
+  const rows = await pool.query('SELECT ...'); // ← ЗАПРЕТ
   // бизнес-логика прямо в route ← ЗАПРЕТ
 }
 ```

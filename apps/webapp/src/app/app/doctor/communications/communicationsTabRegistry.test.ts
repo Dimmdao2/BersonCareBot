@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { COMMUNICATIONS_TAB_REGISTRY } from "./communicationsTabRegistry";
-import { COMMUNICATIONS_TABS } from "./doctorCommunicationsTabs";
+import { describe, expect, it } from 'vitest';
+import { COMMUNICATIONS_TAB_REGISTRY } from './communicationsTabRegistry';
+import { COMMUNICATIONS_TABS } from './doctorCommunicationsTabs';
 
 /**
  * Закрепляет контракт deep-link ключей. Шелл читает из URL ТОЛЬКО ключи, объявленные
@@ -17,39 +17,39 @@ import { COMMUNICATIONS_TABS } from "./doctorCommunicationsTabs";
  * общий ключ протекает значением в чужой таб (chats "id" утекал в intake как
  * request-id → stray 404 fetch). Отсюда namespaced "chatId" вместо "id".
  */
-describe("communicationsTabRegistry — deep-link keys contract", () => {
+describe('communicationsTabRegistry — deep-link keys contract', () => {
   const byId = new Map(COMMUNICATIONS_TAB_REGISTRY.map((e) => [e.id, e]));
 
-  it("registry covers exactly the 4 canonical tabs in the same order", () => {
+  it('registry covers exactly the 4 canonical tabs in the same order', () => {
     expect(COMMUNICATIONS_TAB_REGISTRY.map((e) => e.id)).toEqual(
       COMMUNICATIONS_TABS.map((t) => t.id),
     );
   });
 
   it("intake declares deep-link key 'id' (used by IntakeTab onDeepLinkChange('id', …))", () => {
-    expect(byId.get("intake")?.deepLinkKeys).toContain("id");
+    expect(byId.get('intake')?.deepLinkKeys).toContain('id');
   });
 
   it("broadcasts declares deep-link key 'archive' (used by BroadcastsTab)", () => {
-    expect(byId.get("broadcasts")?.deepLinkKeys).toContain("archive");
+    expect(byId.get('broadcasts')?.deepLinkKeys).toContain('archive');
   });
 
   it("chats declares deep-link key 'chatId' (#812, namespaced — NOT intake's 'id')", () => {
-    expect(byId.get("chats")?.deepLinkKeys).toEqual(["chatId"]);
+    expect(byId.get('chats')?.deepLinkKeys).toEqual(['chatId']);
   });
 
-  it("comments declares no deep-link keys", () => {
-    expect(byId.get("comments")?.deepLinkKeys).toEqual([]);
+  it('comments declares no deep-link keys', () => {
+    expect(byId.get('comments')?.deepLinkKeys).toEqual([]);
   });
 
-  it("deep-link keys are unique across tabs (shared key leaks values between tabs)", () => {
+  it('deep-link keys are unique across tabs (shared key leaks values between tabs)', () => {
     const allKeys = COMMUNICATIONS_TAB_REGISTRY.flatMap((e) => [...e.deepLinkKeys]);
     expect(new Set(allKeys).size).toBe(allKeys.length);
   });
 
-  it("every entry has a loader", () => {
+  it('every entry has a loader', () => {
     for (const entry of COMMUNICATIONS_TAB_REGISTRY) {
-      expect(typeof entry.loader).toBe("function");
+      expect(typeof entry.loader).toBe('function');
     }
   });
 });

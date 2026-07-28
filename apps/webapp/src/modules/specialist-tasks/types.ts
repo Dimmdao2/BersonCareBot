@@ -24,16 +24,16 @@ export type SpecialistTaskPatientSummary = {
   } | null;
 };
 
-export type SpecialistTaskReminderChannelCode = "telegram" | "max" | "web_push" | "email";
+export type SpecialistTaskReminderChannelCode = 'telegram' | 'max' | 'web_push' | 'email';
 
 export const SPECIALIST_TASK_REMINDER_CHANNEL_CODES = [
-  "telegram",
-  "max",
-  "web_push",
-  "email",
+  'telegram',
+  'max',
+  'web_push',
+  'email',
 ] as const satisfies readonly SpecialistTaskReminderChannelCode[];
 
 export const DEFAULT_SPECIALIST_TASK_REMINDER_CHANNELS: SpecialistTaskReminderChannelCode[] = [
-  "telegram",
-  "max",
+  'telegram',
+  'max',
 ];

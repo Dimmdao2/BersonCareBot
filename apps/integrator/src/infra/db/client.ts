@@ -86,141 +86,161 @@ function logDbError(fields: Record<string, unknown>, msg: string): void {
 
 /** Общий пул подключений к PostgreSQL. */
 export const db = createIntegratorPoolProvider({
-	connectionString: env.DATABASE_URL,
-	diagnosticConnectionString: env.DATABASE_URL_DIAGNOSTIC,
-	deliveryWorkerConnectionString: env.DATABASE_URL_DELIVERY_WORKER,
-	schedulerConnectionString: env.DATABASE_URL_SCHEDULER,
+  connectionString: env.DATABASE_URL,
+  diagnosticConnectionString: env.DATABASE_URL_DIAGNOSTIC,
+  deliveryWorkerConnectionString: env.DATABASE_URL_DELIVERY_WORKER,
+  schedulerConnectionString: env.DATABASE_URL_SCHEDULER,
 });
 
 db.on('error', (err) => {
-	logDbError({
-		err,
-		...databaseUrlDiagnostics(),
-		...safeErrorCodeContext(err),
-		db_env: {
-			PGHOST: process.env.PGHOST,
-			PGPORT: process.env.PGPORT,
-			PGUSER: process.env.PGUSER,
-			PGDATABASE: process.env.PGDATABASE,
-			PGPASSWORD: process.env.PGPASSWORD ? '[set]' : undefined,
-		}
-	}, '[db][pool] connection error');
+  logDbError(
+    {
+      err,
+      ...databaseUrlDiagnostics(),
+      ...safeErrorCodeContext(err),
+      db_env: {
+        PGHOST: process.env.PGHOST,
+        PGPORT: process.env.PGPORT,
+        PGUSER: process.env.PGUSER,
+        PGDATABASE: process.env.PGDATABASE,
+        PGPASSWORD: process.env.PGPASSWORD ? '[set]' : undefined,
+      },
+    },
+    '[db][pool] connection error',
+  );
 });
 
 export function createDbPort(pool: Pool = db): DbPort {
-	return {
-		async query<T = QueryResultRow>(sql: string, params?: unknown[]): Promise<DbQueryResult<T>> {
-			try {
-				return await withIntegratorPoolClient(pool, async (client) => {
-					const res = await client.query(sql, params);
-					return {
-						rows: res.rows as T[],
-						...(typeof res.rowCount === 'number' ? { rowCount: res.rowCount } : {}),
-					};
-				});
-			} catch (err) {
-				logDbError({
-					err,
-					...databaseUrlDiagnostics(),
-					...safeQueryErrorContext(sql),
-					...safeErrorCodeContext(err),
-					db_env: {
-						PGHOST: process.env.PGHOST,
-						PGPORT: process.env.PGPORT,
-						PGUSER: process.env.PGUSER,
-						PGDATABASE: process.env.PGDATABASE,
-						PGPASSWORD: process.env.PGPASSWORD ? '[set]' : undefined,
-					}
-				}, '[db][query] error');
-				throw err;
-			}
-		},
-		async tx<T>(fn: (txDb: DbPort) => Promise<T>): Promise<T> {
-			let client;
-			try {
-				client = await checkoutIntegratorPoolClient(pool);
-			} catch (err) {
-				logDbError({
-					err,
-					dbFailureStage: 'pool_checkout_or_principal_setup',
-					...databaseUrlDiagnostics(),
-					...safeErrorCodeContext(err),
-					db_env: {
-						PGHOST: process.env.PGHOST,
-						PGPORT: process.env.PGPORT,
-						PGUSER: process.env.PGUSER,
-						PGDATABASE: process.env.PGDATABASE,
-						PGPASSWORD: process.env.PGPASSWORD ? '[set]' : undefined,
-					}
-				}, '[db][tx] checkout or principal setup failed');
-				throw err;
-			}
-			try {
-				await client.query('BEGIN');
-				await prepareIntegratorTransactionClient(client);
-				const integratorDrizzle = drizzle(client, { schema: integratorDrizzleSchema });
-				const txPort: DbPort = {
-					integratorDrizzle,
-					query: async <Row = QueryResultRow>(sql: string, params?: unknown[]): Promise<DbQueryResult<Row>> => {
-						try {
-							const res = await client.query(sql, params);
-							return {
-								rows: res.rows as Row[],
-								...(typeof res.rowCount === 'number' ? { rowCount: res.rowCount } : {}),
-							};
-						} catch (err) {
-							logDbError({
-								err,
-								...databaseUrlDiagnostics(),
-								...safeQueryErrorContext(sql),
-								...safeErrorCodeContext(err),
-								db_env: {
-									PGHOST: process.env.PGHOST,
-									PGPORT: process.env.PGPORT,
-									PGUSER: process.env.PGUSER,
-									PGDATABASE: process.env.PGDATABASE,
-									PGPASSWORD: process.env.PGPASSWORD ? '[set]' : undefined,
-								}
-							}, '[db][tx][query] error');
-							throw err;
-						}
-					},
-					tx: async <Row>(nested: (inner: DbPort) => Promise<Row>): Promise<Row> => nested(txPort),
-				};
-				const result = await fn(txPort);
-				await client.query('COMMIT');
-				return result;
-			} catch (err) {
-				await client.query('ROLLBACK');
-				logDbError({
-					err,
-					...databaseUrlDiagnostics(),
-					...safeErrorCodeContext(err),
-					db_env: {
-						PGHOST: process.env.PGHOST,
-						PGPORT: process.env.PGPORT,
-						PGUSER: process.env.PGUSER,
-						PGDATABASE: process.env.PGDATABASE,
-						PGPASSWORD: process.env.PGPASSWORD ? '[set]' : undefined,
-					}
-				}, '[db][tx] error, rolled back');
-				throw err;
-			} finally {
-				await releasePreparedIntegratorClient(client);
-			}
-		},
-	};
+  return {
+    async query<T = QueryResultRow>(sql: string, params?: unknown[]): Promise<DbQueryResult<T>> {
+      try {
+        return await withIntegratorPoolClient(pool, async (client) => {
+          const res = await client.query(sql, params);
+          return {
+            rows: res.rows as T[],
+            ...(typeof res.rowCount === 'number' ? { rowCount: res.rowCount } : {}),
+          };
+        });
+      } catch (err) {
+        logDbError(
+          {
+            err,
+            ...databaseUrlDiagnostics(),
+            ...safeQueryErrorContext(sql),
+            ...safeErrorCodeContext(err),
+            db_env: {
+              PGHOST: process.env.PGHOST,
+              PGPORT: process.env.PGPORT,
+              PGUSER: process.env.PGUSER,
+              PGDATABASE: process.env.PGDATABASE,
+              PGPASSWORD: process.env.PGPASSWORD ? '[set]' : undefined,
+            },
+          },
+          '[db][query] error',
+        );
+        throw err;
+      }
+    },
+    async tx<T>(fn: (txDb: DbPort) => Promise<T>): Promise<T> {
+      let client;
+      try {
+        client = await checkoutIntegratorPoolClient(pool);
+      } catch (err) {
+        logDbError(
+          {
+            err,
+            dbFailureStage: 'pool_checkout_or_principal_setup',
+            ...databaseUrlDiagnostics(),
+            ...safeErrorCodeContext(err),
+            db_env: {
+              PGHOST: process.env.PGHOST,
+              PGPORT: process.env.PGPORT,
+              PGUSER: process.env.PGUSER,
+              PGDATABASE: process.env.PGDATABASE,
+              PGPASSWORD: process.env.PGPASSWORD ? '[set]' : undefined,
+            },
+          },
+          '[db][tx] checkout or principal setup failed',
+        );
+        throw err;
+      }
+      try {
+        await client.query('BEGIN');
+        await prepareIntegratorTransactionClient(client);
+        const integratorDrizzle = drizzle(client, { schema: integratorDrizzleSchema });
+        const txPort: DbPort = {
+          integratorDrizzle,
+          query: async <Row = QueryResultRow>(
+            sql: string,
+            params?: unknown[],
+          ): Promise<DbQueryResult<Row>> => {
+            try {
+              const res = await client.query(sql, params);
+              return {
+                rows: res.rows as Row[],
+                ...(typeof res.rowCount === 'number' ? { rowCount: res.rowCount } : {}),
+              };
+            } catch (err) {
+              logDbError(
+                {
+                  err,
+                  ...databaseUrlDiagnostics(),
+                  ...safeQueryErrorContext(sql),
+                  ...safeErrorCodeContext(err),
+                  db_env: {
+                    PGHOST: process.env.PGHOST,
+                    PGPORT: process.env.PGPORT,
+                    PGUSER: process.env.PGUSER,
+                    PGDATABASE: process.env.PGDATABASE,
+                    PGPASSWORD: process.env.PGPASSWORD ? '[set]' : undefined,
+                  },
+                },
+                '[db][tx][query] error',
+              );
+              throw err;
+            }
+          },
+          tx: async <Row>(nested: (inner: DbPort) => Promise<Row>): Promise<Row> => nested(txPort),
+        };
+        const result = await fn(txPort);
+        await client.query('COMMIT');
+        return result;
+      } catch (err) {
+        await client.query('ROLLBACK');
+        logDbError(
+          {
+            err,
+            ...databaseUrlDiagnostics(),
+            ...safeErrorCodeContext(err),
+            db_env: {
+              PGHOST: process.env.PGHOST,
+              PGPORT: process.env.PGPORT,
+              PGUSER: process.env.PGUSER,
+              PGDATABASE: process.env.PGDATABASE,
+              PGPASSWORD: process.env.PGPASSWORD ? '[set]' : undefined,
+            },
+          },
+          '[db][tx] error, rolled back',
+        );
+        throw err;
+      } finally {
+        await releasePreparedIntegratorClient(client);
+      }
+    },
+  };
 }
 
 /** Проверяет доступность БД коротким health-запросом. */
 export async function healthCheckDb(): Promise<boolean> {
-	try {
-		const res = await runWithDbInfraPrincipal({ source: 'integrator-health-check' }, () => db.query('SELECT 1'));
-		return res.rowCount === 1;
-	} catch (error) {
-		reportIntegratorIsolationFailure(error);
-		return false;
-	}
+  try {
+    const res = await runWithDbInfraPrincipal({ source: 'integrator-health-check' }, () =>
+      db.query('SELECT 1'),
+    );
+    return res.rowCount === 1;
+  } catch (error) {
+    reportIntegratorIsolationFailure(error);
+    return false;
+  }
 }
 
 export async function closeDb(): Promise<void> {

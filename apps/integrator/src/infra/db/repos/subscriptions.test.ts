@@ -62,10 +62,14 @@ describe('subscriptions repo (canonical user_id)', () => {
     expect(insertOrg).toContain('count(DISTINCT active_user_orgs.organization_id) = 1');
     expect(insertOrg).toContain('7::bigint');
     expect(mockOnConflict).toHaveBeenCalledTimes(1);
-    const conflictArg = mockOnConflict.mock.calls[0]?.[0] as {
-      set?: { organizationId?: unknown };
-    } | undefined;
-    expect(drizzleSqlFragmentToApproximateSql(conflictArg?.set?.organizationId)).toContain('COALESCE');
+    const conflictArg = mockOnConflict.mock.calls[0]?.[0] as
+      | {
+          set?: { organizationId?: unknown };
+        }
+      | undefined;
+    expect(drizzleSqlFragmentToApproximateSql(conflictArg?.set?.organizationId)).toContain(
+      'COALESCE',
+    );
   });
 
   it('toggles subscription by canonical user_id', async () => {

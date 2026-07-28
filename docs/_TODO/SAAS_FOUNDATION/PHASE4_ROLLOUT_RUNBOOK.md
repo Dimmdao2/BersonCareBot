@@ -33,6 +33,7 @@ TEST deploys must finish through `deploy/postgres/test-strict-rls-finalizer.sql`
 assertions. NO FORCE remains useful only to prove that an old production dump can traverse compatibility migrations.
 
 Required evidence:
+
 - `specialist_signup_enabled=false`.
 - Missing-principal shadow count is `0`.
 - No new permission errors across current clinic doctor/patient flows.
@@ -52,6 +53,7 @@ sequence с `be_patient_packages.display_number` (`ALTER SEQUENCE ... OWNED BY`,
 
 Этой же роли временно нужен `BYPASSRLS` для integrator R2 backfill под включённым/FORCE RLS. Поэтому
 `scripts/deploy-saas-667.sh` использует такую модель:
+
 - `DATABASE_URL` аутентифицируется как `bcb_webapp_prod` и preflight-проверкой сверяет owner
   `public.be_patient_packages`.
 - `SUPERUSER_URL` указывает на ту же БД и только внутри stopped-writers maintenance-window создаёт
@@ -103,6 +105,7 @@ disposable rehearsal DB; no harness mode runs browser/API flows.
 ## Live rehearsal gates
 
 Current clinic flows:
+
 - Doctor: login, patient list/card, schedule, messages, treatment program/LFK, media read.
 - Patient: login, own history, own messages, own program/LFK, own media playback.
 - Integrator: inbound sync reads/writes with organization context.
@@ -112,6 +115,7 @@ Current clinic flows:
 - Pre-auth/bootstrap: signup/OTP/public flows work without scoped data leakage.
 
 Synthetic isolation:
+
 - Create synthetic org B and patient B2 through app/API paths.
 - Prove clinic A cannot read or write B rows.
 - Prove patient A cannot read another patient in the same org or another org.
@@ -119,6 +123,7 @@ Synthetic isolation:
 - Prove specialist signup creates a new organization without SQL/manual inserts.
 
 Process-family real-role smoke after B4-fanout:
+
 - Webapp staff paths run under `app_staff`.
 - Patient paths run under `app_patient`.
 - Integrator/scheduler/media/queue paths use the intended staff/bootstrap principal path.
@@ -186,6 +191,7 @@ Proceed only after all rehearsal gates pass and owner approves the maintenance w
 9. Enable signup only after green post-traffic smoke.
 
 Absolute cutover gates:
+
 - `0` missing-principal entries.
 - `0` permission errors in smoke logs.
 - Green 2-org and 2-patient isolation checks.

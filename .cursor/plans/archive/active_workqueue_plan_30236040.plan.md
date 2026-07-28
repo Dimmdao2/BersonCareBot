@@ -1,52 +1,52 @@
 ---
 name: Active workqueue plan
 status: completed
-overview: "Очередь: фазы 0–7 закрыты (2026-06-02); workqueue patient/doctor/CMS help + B6 превью + proactive MVP (с аудитом)."
+overview: 'Очередь: фазы 0–7 закрыты (2026-06-02); workqueue patient/doctor/CMS help + B6 превью + proactive MVP (с аудитом).'
 todos:
   - id: phase-0-exercises-ui-hotfix
-    content: "P0: починить ряд «Комментарии» + «Отметить выполнение» в PatientTreatmentProgramStagePageProgramSection (+ тесты)"
+    content: 'P0: починить ряд «Комментарии» + «Отметить выполнение» в PatientTreatmentProgramStagePageProgramSection (+ тесты)'
     status: completed
   - id: phase-1-on-support-model
-    content: "Drizzle + API + ClientProfileCard/Today: ручной «На сопровождении», гейты comment/media, ссылка «программа без сопровождения»"
+    content: 'Drizzle + API + ClientProfileCard/Today: ручной «На сопровождении», гейты comment/media, ссылка «программа без сопровождения»'
     status: completed
   - id: phase-2-doctor-card
-    content: "Спроектировать карточку врача (Tabs + Hero, график самочувствия вторичный): CARD_REDESIGN_PLAN.md"
+    content: 'Спроектировать карточку врача (Tabs + Hero, график самочувствия вторичный): CARD_REDESIGN_PLAN.md'
     status: completed
   - id: phase-2b-doctor-card-implementation
-    content: "Реализовать карточку: Hero, Action Strip, табы, агрегаты, Care Plan/Wellbeing, чат, deep link discussionItem, UX-аудит P0/P1"
+    content: 'Реализовать карточку: Hero, Action Strip, табы, агрегаты, Care Plan/Wellbeing, чат, deep link discussionItem, UX-аудит P0/P1'
     status: completed
   - id: phase-2c-specialist-tasks-design
-    content: "Спроектировать «Задача» специалиста: модель, напоминания (doctor-scope каналы), Hero + секция + «Сегодня»"
+    content: 'Спроектировать «Задача» специалиста: модель, напоминания (doctor-scope каналы), Hero + секция + «Сегодня»'
     status: completed
   - id: phase-2c-specialist-tasks-implementation
-    content: "Реализовать 2C: Drizzle specialist_tasks, API, worker tick, UI карточки и «Сегодня», /app/settings"
+    content: 'Реализовать 2C: Drizzle specialist_tasks, API, worker tick, UI карточки и «Сегодня», /app/settings'
     status: completed
   - id: phase-2c-audit-remediation
-    content: "2C аудит: честный sent, undeliverable без вечного tick, getPatientClientIdentity, UI/тесты/доки/cron"
+    content: '2C аудит: честный sent, undeliverable без вечного tick, getPatientClientIdentity, UI/тесты/доки/cron'
     status: completed
   - id: phase-3-instance-draft-save
-    content: "Черновик редактора: batch save, gates (статус этапа + завершить программу), normalize/partial, complete→stages completed, лента на Обзоре"
+    content: 'Черновик редактора: batch save, gates (статус этапа + завершить программу), normalize/partial, complete→stages completed, лента на Обзоре'
     status: completed
   - id: phase-4-catalog-filters
-    content: "Picker программы/шаблона: поиск + регион + тип нагрузки (exercise/lfk_complex); без «Без региона»/«Без типа»"
+    content: 'Picker программы/шаблона: поиск + регион + тип нагрузки (exercise/lfk_complex); без «Без региона»/«Без типа»'
     status: completed
   - id: phase-5-doctor-inbox
-    content: "Cross-patient «К проверке» на Сегодня: count+list global, focusItemId, бейдж меню, summary API, аудит"
+    content: 'Cross-patient «К проверке» на Сегодня: count+list global, focusItemId, бейдж меню, summary API, аудит'
     status: completed
   - id: phase-6-cms-help
-    content: "CMS help: CONTENT_PAGE_ROLES, раздел help (0103), /help UI, revalidate, редирект /content, canonical slug preparation/cost"
+    content: 'CMS help: CONTENT_PAGE_ROLES, раздел help (0103), /help UI, revalidate, редирект /content, canonical slug preparation/cost'
     status: completed
   - id: phase-7-docs-queue
     content: Завести docs/ACTIVE_WORKQUEUE.md и синхронизировать TODO/LOG после фаз
     status: completed
   - id: phase7-b6-preview
-    content: "B6: MediaThumb + previewSmUrl в списке шаблонов программ"
+    content: 'B6: MediaThumb + previewSmUrl в списке шаблонов программ'
     status: completed
   - id: phase7-proactive-mvp
-    content: "Proactive MVP на «Сегодня» (doctor-proactive-insights)"
+    content: 'Proactive MVP на «Сегодня» (doctor-proactive-insights)'
     status: completed
   - id: phase7-audit-remediation
-    content: "Аудит фазы 7: queryInsights, instance inactivity, deep links, badge/card, docs+tests"
+    content: 'Аудит фазы 7: queryInsights, instance inactivity, deep links, badge/card, docs+tests'
     status: completed
 isProject: false
 ---
@@ -99,16 +99,16 @@ isProject: false
 
 ### Модель (поля)
 
-| Поле | Смысл |
-|---|---|
-| Владелец | `owner_user_id` |
-| Пациент | `patient_user_id` nullable (`null` = глобальная) |
-| Постановка | `created_at` |
-| Заголовок / описание | `title` / `description` |
-| Срок / напоминание | `due_at` / `remind_at` (необяз.) |
-| Важность | `is_important` (default off) |
-| Выполнение | `completed_at` |
-| Идемпотентность remind | `reminder_sent_at` |
+| Поле                   | Смысл                                            |
+| ---------------------- | ------------------------------------------------ |
+| Владелец               | `owner_user_id`                                  |
+| Пациент                | `patient_user_id` nullable (`null` = глобальная) |
+| Постановка             | `created_at`                                     |
+| Заголовок / описание   | `title` / `description`                          |
+| Срок / напоминание     | `due_at` / `remind_at` (необяз.)                 |
+| Важность               | `is_important` (default off)                     |
+| Выполнение             | `completed_at`                                   |
+| Идемпотентность remind | `reminder_sent_at`                               |
 
 ### Реализация (код)
 

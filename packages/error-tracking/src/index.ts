@@ -4,7 +4,7 @@ export {
   flushErrorTracking,
   initErrorTracking,
   resolveErrorTrackingRelease,
-} from "./runtime.js";
+} from './runtime.js';
 
 export type {
   ErrorTrackingCapturePoint,
@@ -12,4 +12,4 @@ export type {
   ErrorTrackingInitResult,
   ErrorTrackingProcessRole,
   ErrorTrackingService,
-} from "./types.js";
+} from './types.js';

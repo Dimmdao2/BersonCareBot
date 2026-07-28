@@ -1,30 +1,32 @@
 #!/usr/bin/env node
 
-import { spawnSync } from "node:child_process";
+import { spawnSync } from 'node:child_process';
 import {
   renderP013SyntheticFixtureCompatSchemaSql,
   renderP013SyntheticFixtureScratchSql,
-} from "./p0-13-synthetic-fixtures.mjs";
+} from './p0-13-synthetic-fixtures.mjs';
 
 const repoRoot = process.cwd();
 const dbName = `bcb_saas_p0_13_1_scratch_${process.pid}_${Date.now()}`;
 
-if (!dbName.startsWith("bcb_saas_") || !dbName.includes("scratch")) {
+if (!dbName.startsWith('bcb_saas_') || !dbName.includes('scratch')) {
   throw new Error(`refusing unsafe scratch DB name: ${dbName}`);
 }
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
     cwd: repoRoot,
-    encoding: "utf8",
-    stdio: options.input ? ["pipe", "pipe", "pipe"] : "inherit",
+    encoding: 'utf8',
+    stdio: options.input ? ['pipe', 'pipe', 'pipe'] : 'inherit',
     input: options.input,
   });
 
   if (result.status !== 0) {
     if (result.stdout) process.stdout.write(result.stdout);
     if (result.stderr) process.stderr.write(result.stderr);
-    throw new Error(`${command} ${args.join(" ")} failed with ${result.status ?? "unknown status"}`);
+    throw new Error(
+      `${command} ${args.join(' ')} failed with ${result.status ?? 'unknown status'}`,
+    );
   }
 
   if (result.stdout) process.stdout.write(result.stdout);
@@ -32,7 +34,9 @@ function run(command, args, options = {}) {
 }
 
 function psql(sql) {
-  run("sudo", ["-n", "-u", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-d", dbName], { input: sql });
+  run('sudo', ['-n', '-u', 'postgres', 'psql', '-v', 'ON_ERROR_STOP=1', '-d', dbName], {
+    input: sql,
+  });
 }
 
 const assertionSql = `
@@ -87,11 +91,11 @@ SELECT 1/0; -- psql 16's quit ignores an exit-status argument; force a real erro
 `;
 
 try {
-  run("sudo", ["-n", "-u", "postgres", "createdb", dbName]);
+  run('sudo', ['-n', '-u', 'postgres', 'createdb', dbName]);
   psql(renderP013SyntheticFixtureCompatSchemaSql());
   psql(renderP013SyntheticFixtureScratchSql());
   psql(assertionSql);
   console.log(`smoke-p0-13-synthetic-fixtures: OK (${dbName})`);
 } finally {
-  run("sudo", ["-n", "-u", "postgres", "dropdb", "--if-exists", dbName]);
+  run('sudo', ['-n', '-u', 'postgres', 'dropdb', '--if-exists', dbName]);
 }

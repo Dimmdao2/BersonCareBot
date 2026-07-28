@@ -1,9 +1,9 @@
-import { nativeIntegratorRecordId } from "@/modules/patient-booking/projectCanonicalAppointment";
+import { nativeIntegratorRecordId } from '@/modules/patient-booking/projectCanonicalAppointment';
 import type {
   AppointmentProjectionPort,
   AppointmentRecordRow,
   SoftDeleteByIntegratorIdOpts,
-} from "./pgAppointmentProjection";
+} from './pgAppointmentProjection';
 
 const purgedPatientBookingKeys = new Set<string>();
 
@@ -36,7 +36,7 @@ function toRow(
     createdAt: string;
     updatedAt: string;
     deletedAt: string | null;
-  }
+  },
 ): AppointmentRecordRow {
   return {
     id: key,
@@ -63,7 +63,7 @@ export const inMemoryAppointmentProjectionPort: AppointmentProjectionPort = {
       recordAt: params.recordAt ?? null,
       status: params.status,
       payloadJson: params.payloadJson ?? {},
-      lastEvent: params.lastEvent ?? "",
+      lastEvent: params.lastEvent ?? '',
       branchId: params.branchId ?? null,
       createdAt: existing?.createdAt ?? now,
       updatedAt: params.updatedAt ?? now,
@@ -84,21 +84,24 @@ export const inMemoryAppointmentProjectionPort: AppointmentProjectionPort = {
       if (
         !v.deletedAt &&
         v.phoneNormalized === phoneNormalized &&
-        (v.status === "created" || v.status === "updated") &&
+        (v.status === 'created' || v.status === 'updated') &&
         slotOk
       ) {
         list.push(toRow(key, v));
       }
     }
     list.sort((a, b) => {
-      const at = a.recordAt ?? "";
-      const bt = b.recordAt ?? "";
+      const at = a.recordAt ?? '';
+      const bt = b.recordAt ?? '';
       return at.localeCompare(bt);
     });
     return list;
   },
 
-  async listHistoryByPhoneNormalized(phoneNormalized: string, limit = 50): Promise<AppointmentRecordRow[]> {
+  async listHistoryByPhoneNormalized(
+    phoneNormalized: string,
+    limit = 50,
+  ): Promise<AppointmentRecordRow[]> {
     const list: AppointmentRecordRow[] = [];
     for (const [key, v] of recordsByIntegratorId) {
       if (!v.deletedAt && v.phoneNormalized === phoneNormalized) {
@@ -106,8 +109,8 @@ export const inMemoryAppointmentProjectionPort: AppointmentProjectionPort = {
       }
     }
     list.sort((a, b) => {
-      const at = a.recordAt ?? "";
-      const bt = b.recordAt ?? "";
+      const at = a.recordAt ?? '';
+      const bt = b.recordAt ?? '';
       return bt.localeCompare(at);
     });
     return list.slice(0, limit);
@@ -137,7 +140,7 @@ export const inMemoryAppointmentProjectionPort: AppointmentProjectionPort = {
     const ok = await inMemoryAppointmentProjectionPort.softDeleteByIntegratorId(primaryId, {
       canonicalAppointmentId: appointmentId,
       purgePatientBookings: true,
-      cancelReason: "staff_delete",
+      cancelReason: 'staff_delete',
     });
     if (ok) return true;
     const now = new Date().toISOString();
@@ -146,9 +149,9 @@ export const inMemoryAppointmentProjectionPort: AppointmentProjectionPort = {
       integratorRecordId: tombstoneId,
       phoneNormalized: null,
       recordAt: null,
-      status: "canceled",
+      status: 'canceled',
       payloadJson: {},
-      lastEvent: "staff_delete",
+      lastEvent: 'staff_delete',
       branchId: null,
       createdAt: now,
       updatedAt: now,

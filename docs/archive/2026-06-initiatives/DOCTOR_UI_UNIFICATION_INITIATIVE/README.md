@@ -4,13 +4,13 @@
 
 ## Канон
 
-| Документ | Назначение |
-|----------|------------|
-| [`docs/ARCHITECTURE/DOCTOR_APP_UI_STYLE_GUIDE.md`](../../ARCHITECTURE/DOCTOR_APP_UI_STYLE_GUIDE.md) | Целевые паттерны (секции, каталоги, карточка клиента, диалоги) |
-| [`.cursor/rules/doctor-ui-shared-primitives.mdc`](../../../../.cursor/rules/doctor-ui-shared-primitives.mdc) | Обязательные указания для агентов при правках `/app/doctor/**` |
-| [`AUDIT.md`](AUDIT.md) | Baseline-таблица отклонений по маршрутам и ключевым компонентам |
-| [`LOG.md`](LOG.md) | Журнал исполнения по фазам и manual visual checklist |
-| План фаз 0–5 (архив) | [`.cursor/plans/archive/doctor-ui-unification-phases_1146e22e.plan.md`](../../../../.cursor/plans/archive/doctor-ui-unification-phases_1146e22e.plan.md) — **закрыт**, не держать активным в Cursor Build |
+| Документ                                                                                                     | Назначение                                                                                                                                                                                                |
+| ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`docs/ARCHITECTURE/DOCTOR_APP_UI_STYLE_GUIDE.md`](../../ARCHITECTURE/DOCTOR_APP_UI_STYLE_GUIDE.md)          | Целевые паттерны (секции, каталоги, карточка клиента, диалоги)                                                                                                                                            |
+| [`.cursor/rules/doctor-ui-shared-primitives.mdc`](../../../../.cursor/rules/doctor-ui-shared-primitives.mdc) | Обязательные указания для агентов при правках `/app/doctor/**`                                                                                                                                            |
+| [`AUDIT.md`](AUDIT.md)                                                                                       | Baseline-таблица отклонений по маршрутам и ключевым компонентам                                                                                                                                           |
+| [`LOG.md`](LOG.md)                                                                                           | Журнал исполнения по фазам и manual visual checklist                                                                                                                                                      |
+| План фаз 0–5 (архив)                                                                                         | [`.cursor/plans/archive/doctor-ui-unification-phases_1146e22e.plan.md`](../../../../.cursor/plans/archive/doctor-ui-unification-phases_1146e22e.plan.md) — **закрыт**, не держать активным в Cursor Build |
 
 ## Контекст density (не откатывать)
 
@@ -27,16 +27,16 @@
 
 ## Фазы (кратко)
 
-| Фаза | Содержание |
-|------|------------|
-| 0 | Baseline audit → `AUDIT.md` |
-| 1 | `doctorVisual.ts` + опциональные тонкие wrappers |
-| 2 | Today, appointments, analytics/clients, online-intake |
-| 3A | Shell карточки клиента |
-| 3B | Вкладки и панели клиента |
-| 4A | Каталоги (split-layout эталон — exercises) |
-| 4B | CMS, media, хвостовые маршруты, `admin/booking/**` |
-| 5 | Ссылка в `docs/README.md`, manual checklist, полный `pnpm run ci` |
+| Фаза | Содержание                                                        |
+| ---- | ----------------------------------------------------------------- |
+| 0    | Baseline audit → `AUDIT.md`                                       |
+| 1    | `doctorVisual.ts` + опциональные тонкие wrappers                  |
+| 2    | Today, appointments, analytics/clients, online-intake             |
+| 3A   | Shell карточки клиента                                            |
+| 3B   | Вкладки и панели клиента                                          |
+| 4A   | Каталоги (split-layout эталон — exercises)                        |
+| 4B   | CMS, media, хвостовые маршруты, `admin/booking/**`                |
+| 5    | Ссылка в `docs/README.md`, manual checklist, полный `pnpm run ci` |
 
 ## Эталоны в коде
 
@@ -46,16 +46,16 @@
 
 ## Статус
 
-| Фаза | Статус |
-|------|--------|
-| 0 | **done** (2026-06-04) — см. [`LOG.md`](LOG.md) |
-| 1 | **done** (2026-06-04) — `doctorVisual.ts`, wrappers, пилот на «Сегодня»; см. [`LOG.md`](LOG.md) |
-| 2 | **done** (2026-06-04) — `appointments`, `analytics/clients`, `online-intake`; см. [`LOG.md`](LOG.md) |
-| 3A | **done** (2026-06-04) — shell карточки клиента; см. [`LOG.md`](LOG.md) |
-| 3B | **done** (2026-06-04) — вкладки и панели клиента; см. [`LOG.md`](LOG.md) |
-| 4A | **done** (2026-06-04) — каталоги doctor; см. [`LOG.md`](LOG.md) |
-| 4B | **done** (2026-06-04) — CMS, media, tail routes; `admin/booking/**` → cancelled (BOOKING_REWORK); см. [`LOG.md`](LOG.md) |
-| 5 | **done** (2026-06-04) — `docs/README.md` ссылка, гайд §20, code-level DoD; `pnpm run ci` — exit 0 в сессии закрытия (повтор перед push — по pre-push); см. [`LOG.md`](LOG.md) |
+| Фаза | Статус                                                                                                                                                                        |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0    | **done** (2026-06-04) — см. [`LOG.md`](LOG.md)                                                                                                                                |
+| 1    | **done** (2026-06-04) — `doctorVisual.ts`, wrappers, пилот на «Сегодня»; см. [`LOG.md`](LOG.md)                                                                               |
+| 2    | **done** (2026-06-04) — `appointments`, `analytics/clients`, `online-intake`; см. [`LOG.md`](LOG.md)                                                                          |
+| 3A   | **done** (2026-06-04) — shell карточки клиента; см. [`LOG.md`](LOG.md)                                                                                                        |
+| 3B   | **done** (2026-06-04) — вкладки и панели клиента; см. [`LOG.md`](LOG.md)                                                                                                      |
+| 4A   | **done** (2026-06-04) — каталоги doctor; см. [`LOG.md`](LOG.md)                                                                                                               |
+| 4B   | **done** (2026-06-04) — CMS, media, tail routes; `admin/booking/**` → cancelled (BOOKING_REWORK); см. [`LOG.md`](LOG.md)                                                      |
+| 5    | **done** (2026-06-04) — `docs/README.md` ссылка, гайд §20, code-level DoD; `pnpm run ci` — exit 0 в сессии закрытия (повтор перед push — по pre-push); см. [`LOG.md`](LOG.md) |
 
 **Граница 4A / 4B:** split-каталоги и editor shells на `doctorVisual`; CMS, media, хвостовые маршруты — 4B.
 

@@ -125,7 +125,9 @@ export type PatientHomeBlockEditorMetadata = {
   inlineCreate: { contentSection: boolean };
 };
 
-export function getPatientHomeBlockEditorMetadata(code: PatientHomeBlockCode): PatientHomeBlockEditorMetadata;
+export function getPatientHomeBlockEditorMetadata(
+  code: PatientHomeBlockCode,
+): PatientHomeBlockEditorMetadata;
 ```
 
 Требования:
@@ -166,7 +168,7 @@ UI ещё не меняется — этот PR безопасно мерджи�
 API:
 
 ```ts
-export type PatientHomeBlockRuntimeStatusKind = "hidden" | "empty" | "ready";
+export type PatientHomeBlockRuntimeStatusKind = 'hidden' | 'empty' | 'ready';
 
 export type PatientHomeBlockRuntimeStatus = {
   blockCode: PatientHomeBlockCode;
@@ -242,10 +244,7 @@ export async function createContentSectionForPatientHomeBlock(input: {
   requiresAuth?: boolean;
   coverImageUrl?: string | null;
   iconImageUrl?: string | null;
-}): Promise<
-  | { ok: true; itemId: string; sectionSlug: string }
-  | { ok: false; error: string }
->;
+}): Promise<{ ok: true; itemId: string; sectionSlug: string } | { ok: false; error: string }>;
 ```
 
 Implementation constraints:

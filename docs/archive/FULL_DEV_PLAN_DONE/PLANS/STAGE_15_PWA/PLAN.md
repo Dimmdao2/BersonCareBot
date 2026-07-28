@@ -12,11 +12,13 @@
 **Задача:** PWA-манифест и мета-теги.
 
 **Файлы:**
+
 - `apps/webapp/public/manifest.json` (новый)
 - `apps/webapp/src/app/layout.tsx`
 - Иконки в `public/icons/`
 
 **Действия:**
+
 1. Создать `manifest.json`:
    ```json
    {
@@ -43,6 +45,7 @@
 3. Создать иконки (192x192 и 512x512).
 
 **Критерий:**
+
 - `display: standalone` — приложение без строки браузера.
 - Chrome предлагает установку.
 
@@ -53,10 +56,12 @@
 **Задача:** кэширование для offline.
 
 **Файлы:**
+
 - `pnpm --filter webapp add workbox-webpack-plugin` (или next-pwa)
 - `apps/webapp/public/sw.js`
 
 **Действия:**
+
 1. Оценить `next-pwa` (если совместимо с Next.js 16) или ручной Workbox SW.
 2. Стратегии:
    - App shell (`/app`, `/_next/static/`): `CacheFirst`.
@@ -66,6 +71,7 @@
 4. Fallback page: `/offline` с сообщением «Нет подключения к интернету».
 
 **Критерий:**
+
 - При offline: приложение открывается, показывает кэшированные данные.
 - При восстановлении сети: автоматическая синхронизация.
 
@@ -76,16 +82,19 @@
 **Задача:** записи дневника сохраняются offline.
 
 **Файлы:**
+
 - Новый: `apps/webapp/src/shared/lib/offlineStore.ts`
 - Модули дневника
 
 **Действия:**
+
 1. Использовать IndexedDB (через idb library) для хранения pending записей.
 2. При offline: запись сохраняется в IndexedDB, показывается с меткой «⏳ синхронизация».
 3. При online: Background Sync API или ручная синхронизация при `navigator.onLine`.
 4. Conflict resolution: server wins (если конфликт timestamps).
 
 **Критерий:**
+
 - Запись дневника работает offline.
 - При восстановлении сети — синхронизация.
 - Дубликаты не создаются.
@@ -97,11 +106,13 @@
 **Задача:** Web Push через VAPID.
 
 **Файлы:**
+
 - `pnpm --filter integrator add web-push`
 - Integrator: push adapter
 - Webapp: подписка на push
 
 **Действия:**
+
 1. Сгенерировать VAPID ключи: `web-push generate-vapid-keys`.
 2. Webapp: запросить разрешение на push, отправить subscription на API.
 3. Таблица: `push_subscriptions (user_id, endpoint, p256dh, auth, created_at)`.
@@ -109,6 +120,7 @@
 5. Интеграция с каналами: push = ещё один канал доставки в настройках уведомлений.
 
 **Критерий:**
+
 - Push-уведомления приходят на мобильный.
 - Канал push доступен в настройках.
 - Подписка сохраняется при обновлении SW.
@@ -120,9 +132,11 @@
 **Задача:** инструкция по установке PWA.
 
 **Файлы:**
+
 - Страница: `/app/patient/install`
 
 **Действия:**
+
 1. Содержимое:
    - Заголовок: «Установить BersonCare».
    - Инструкция для iOS: «Нажмите "Поделиться" → "На экран Домой"».
@@ -132,6 +146,7 @@
 3. Пункт в боковом меню.
 
 **Критерий:**
+
 - Страница с инструкцией.
 - Install prompt на Android.
 - Пункт в меню.

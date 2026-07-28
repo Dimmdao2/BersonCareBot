@@ -35,15 +35,15 @@
 //     `public.be_*` and pre-migration-era baseline tables) is
 //     `public.<table>`.
 
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { basename, join } from "node:path";
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { basename, join } from 'node:path';
 
 export const sourceDirs = Object.freeze({
-  webappSchema: "apps/webapp/db/schema",
-  webappMigrations: "apps/webapp/db/drizzle-migrations",
-  webappLegacyMigrations: "apps/webapp/migrations",
-  integratorCoreMigrations: "apps/integrator/src/infra/db/migrations/core",
-  integratorIntegrationsRoot: "apps/integrator/src/integrations",
+  webappSchema: 'apps/webapp/db/schema',
+  webappMigrations: 'apps/webapp/db/drizzle-migrations',
+  webappLegacyMigrations: 'apps/webapp/migrations',
+  integratorCoreMigrations: 'apps/integrator/src/infra/db/migrations/core',
+  integratorIntegrationsRoot: 'apps/integrator/src/integrations',
 });
 
 const PG_TABLE_RE = /pgTable\(\s*["'`]([a-zA-Z0-9_]+)["'`]/g;
@@ -53,7 +53,8 @@ const PG_TABLE_RE = /pgTable\(\s*["'`]([a-zA-Z0-9_]+)["'`]/g;
 // not by an explicit qualifier in the SQL text.
 const CREATE_TABLE_RE =
   /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:"?[a-zA-Z0-9_]+"?\.)?"?([a-zA-Z0-9_]+)"?/gi;
-const DROP_TABLE_RE = /DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:"?[a-zA-Z0-9_]+"?\.)?"?([a-zA-Z0-9_]+)"?/gi;
+const DROP_TABLE_RE =
+  /DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:"?[a-zA-Z0-9_]+"?\.)?"?([a-zA-Z0-9_]+)"?/gi;
 const RENAME_TABLE_RE =
   /ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:"?[a-zA-Z0-9_]+"?\.)?"?([a-zA-Z0-9_]+)"?\s+RENAME\s+TO\s+(?:"?[a-zA-Z0-9_]+"?\.)?"?([a-zA-Z0-9_]+)"?/gi;
 
@@ -64,8 +65,8 @@ const RENAME_TABLE_RE =
 //   - `integrator.schema_migrations` is created inline by
 //     `ensureMigrationsTable()` in apps/integrator/src/infra/db/migrate.ts.
 const RUNNER_BOOTSTRAPPED_TABLES = Object.freeze([
-  "drizzle.__drizzle_migrations",
-  "integrator.schema_migrations",
+  'drizzle.__drizzle_migrations',
+  'integrator.schema_migrations',
 ]);
 
 function isDirectory(path) {
@@ -75,7 +76,7 @@ function isDirectory(path) {
 // Matches `isSqlMigrationFile` in apps/integrator/src/infra/db/migrate.ts:
 // a real migration is a `.sql` file whose name doesn't contain "example".
 function isSqlMigrationFile(name) {
-  return name.endsWith(".sql") && !name.toLowerCase().includes("example");
+  return name.endsWith('.sql') && !name.toLowerCase().includes('example');
 }
 
 function listSqlFiles(dir) {
@@ -102,7 +103,7 @@ function discoverIntegratorMigrationFiles(repoRoot) {
       .sort();
 
     for (const integrationName of integrationNames) {
-      const migrationsDir = join(integrationsRoot, integrationName, "db", "migrations");
+      const migrationsDir = join(integrationsRoot, integrationName, 'db', 'migrations');
       files.push(...listSqlFiles(migrationsDir));
     }
   }
@@ -134,15 +135,15 @@ function extractOrderedStatements(content) {
   const events = [];
 
   for (const match of content.matchAll(CREATE_TABLE_RE)) {
-    events.push({ index: match.index, kind: "create", table: match[1] });
+    events.push({ index: match.index, kind: 'create', table: match[1] });
   }
 
   for (const match of content.matchAll(DROP_TABLE_RE)) {
-    events.push({ index: match.index, kind: "drop", table: match[1] });
+    events.push({ index: match.index, kind: 'drop', table: match[1] });
   }
 
   for (const match of content.matchAll(RENAME_TABLE_RE)) {
-    events.push({ index: match.index, kind: "rename", from: match[1], to: match[2] });
+    events.push({ index: match.index, kind: 'rename', from: match[1], to: match[2] });
   }
 
   events.sort((a, b) => a.index - b.index);
@@ -155,21 +156,21 @@ function extractOrderedStatements(content) {
 // repo) never leak into the derived table set.
 function stripSqlLineComments(content) {
   return content
-    .split("\n")
+    .split('\n')
     .map((line) => {
-      const idx = line.indexOf("--");
+      const idx = line.indexOf('--');
       return idx === -1 ? line : line.slice(0, idx);
     })
-    .join("\n");
+    .join('\n');
 }
 
 function readSchemaDeclaredTables(repoRoot) {
   const tables = new Set();
   const schemaDir = join(repoRoot, sourceDirs.webappSchema);
-  const schemaFiles = readdirSync(schemaDir).filter((name) => name.endsWith(".ts"));
+  const schemaFiles = readdirSync(schemaDir).filter((name) => name.endsWith('.ts'));
 
   for (const file of schemaFiles) {
-    const content = readFileSync(join(schemaDir, file), "utf8");
+    const content = readFileSync(join(schemaDir, file), 'utf8');
 
     for (const table of extractAll(content, PG_TABLE_RE)) {
       tables.add(table);
@@ -187,14 +188,14 @@ function readMigrationCreatedTables(dirFiles) {
   const tables = new Set();
 
   for (const file of dirFiles) {
-    const content = stripSqlLineComments(readFileSync(file, "utf8"));
+    const content = stripSqlLineComments(readFileSync(file, 'utf8'));
 
     for (const event of extractOrderedStatements(content)) {
-      if (event.kind === "create") {
+      if (event.kind === 'create') {
         tables.add(event.table);
-      } else if (event.kind === "drop") {
+      } else if (event.kind === 'drop') {
         tables.delete(event.table);
-      } else if (event.kind === "rename") {
+      } else if (event.kind === 'rename') {
         tables.delete(event.from);
         tables.add(event.to);
       }
@@ -242,7 +243,7 @@ export function readActualBaseTables({ repoRoot = process.cwd() } = {}) {
   ].sort();
 }
 
-if (process.argv.includes("--print")) {
+if (process.argv.includes('--print')) {
   for (const table of readActualBaseTables()) {
     console.log(table);
   }

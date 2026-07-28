@@ -1,6 +1,6 @@
-import type { Pool, PoolClient } from "pg";
-import { getWebappSqlFromPgClient, runWebappPgText } from "@/infra/db/runWebappSql";
-import { webappPlatformConversationId } from "@/modules/messaging/supportConversationIds";
+import type { Pool, PoolClient } from 'pg';
+import { getWebappSqlFromPgClient, runWebappPgText } from '@/infra/db/runWebappSql';
+import { webappPlatformConversationId } from '@/modules/messaging/supportConversationIds';
 
 export type MergeLegacySupportResult = {
   mergedConversationCount: number;

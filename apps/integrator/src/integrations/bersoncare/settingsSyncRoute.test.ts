@@ -138,7 +138,10 @@ describe('POST /api/integrator/settings/sync', () => {
 
   it('invalidates messenger staff ids cache when doctor_telegram_ids syncs', async () => {
     // eslint-disable-next-line no-secrets/no-secrets -- method name for vi.spyOn
-    const invalidateSpy = vi.spyOn(messengerStaffIds, 'invalidateMessengerStaffIdsCacheForSettingKey');
+    const invalidateSpy = vi.spyOn(
+      messengerStaffIds,
+      'invalidateMessengerStaffIdsCacheForSettingKey',
+    );
     const query = vi.fn().mockResolvedValue({ rows: [] });
     const app = Fastify();
     await registerBersoncareSettingsSyncRoute(app, {
@@ -169,10 +172,7 @@ describe('POST /api/integrator/settings/sync', () => {
       platformIntegrationAvailability,
       'invalidatePlatformIntegrationAvailabilityCache',
     );
-    const googleSpy = vi.spyOn(
-      googleCalendarRuntimeConfig,
-      'invalidateGoogleCalendarConfigCache',
-    );
+    const googleSpy = vi.spyOn(googleCalendarRuntimeConfig, 'invalidateGoogleCalendarConfigCache');
     const app = Fastify();
     await registerBersoncareSettingsSyncRoute(app, {
       db: makeDbPort(vi.fn()),

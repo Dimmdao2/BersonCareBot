@@ -1,17 +1,15 @@
-"use client";
+'use client';
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/doctor/primitives/tabs";
-import { BookingPoliciesSection } from "@/app/app/settings/BookingPoliciesSection";
-import { BookingEventNotificationsSection } from "@/app/app/settings/BookingEventNotificationsSection";
-import { BookingPackagePastUnlinkSetting } from "@/app/app/settings/BookingPackagePastUnlinkSetting";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/doctor/primitives/tabs';
+import { BookingPoliciesSection } from '@/app/app/settings/BookingPoliciesSection';
+import { BookingEventNotificationsSection } from '@/app/app/settings/BookingEventNotificationsSection';
+import { BookingPackagePastUnlinkSetting } from '@/app/app/settings/BookingPackagePastUnlinkSetting';
 
 type Props = {
   allowPastUnlinkPastPackageSessions?: boolean;
 };
 
-export function BookingRulesPageClient({
-  allowPastUnlinkPastPackageSessions = false,
-}: Props) {
+export function BookingRulesPageClient({ allowPastUnlinkPastPackageSessions = false }: Props) {
   return (
     <Tabs defaultValue="cancellation">
       <TabsList variant="line" className="w-full max-w-md justify-start">

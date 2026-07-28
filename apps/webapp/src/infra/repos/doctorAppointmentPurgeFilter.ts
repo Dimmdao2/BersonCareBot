@@ -1,4 +1,4 @@
-import { runWebappPgText } from "@/infra/db/runWebappSql";
+import { runWebappPgText } from '@/infra/db/runWebappSql';
 
 /** Canonical appointment ids soft-deleted by staff/admin delete. */
 export async function loadPurgedCanonicalAppointmentIds(

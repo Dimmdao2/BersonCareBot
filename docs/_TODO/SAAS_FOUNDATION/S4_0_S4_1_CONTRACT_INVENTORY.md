@@ -15,16 +15,16 @@ missing mechanic coverage, duplicate IDs and file/export mappings, and direct re
 approved boundary. This is a declared-inventory guarantee plus a bypass scan; it does not infer arbitrary future
 business semantics from unrelated files.
 
-| Mechanic | Entrypoint / action | Auth and trusted context | Gate | Service / port |
-|---|---|---|---|---|
-| courses | `courses/route.ts:49` `POST` | `requireDoctorWorkspaceApiContext` | `:52` route adapter | `deps.courses.createCourse` |
-| mailings | `broadcasts/actions.ts:64` | `requireDoctorWorkspaceContext` | `:68` action adapter | `deps.doctorBroadcasts.execute` |
-| cms_pages | `content/actions.ts:14`, `lifecycleActions.ts:12`, `sections/actions.ts:23,130,196,242` | `requireDoctorWorkspaceContext` | `:19`, `:14`, `:28,:135,:201,:247` action adapter | page upsert/update/lifecycle; section upsert/attach/rename/delete |
-| subscriptions | `patient-packages/route.ts:70` `POST` | `requireDoctorBookingEngine` | `:73` route adapter | memberships create/offer command boundary |
-| patient_card | visits create/update; anamnesis create; complaints update; diagnoses update/status update; physical update; comorbidities create/update/restore/soft-remove | `requireDoctorWorkspaceApiContext` + trusted patient identity | handler-level `requireEntitlement(..., "patient_card")` after canonical patient resolution | `patientClinical`, `doctorClients.setPatientPhysical`, `patientComorbidities` writes |
-| files | `files/route.ts` `POST`; `files/[fileId]/route.ts` `PATCH` | `requireDoctorWorkspaceApiContext` + trusted patient/file ownership | handler-level `requireEntitlement(..., "files")` after canonical patient/file resolution | `deps.patientFiles.createFile/linkFileToVisit/renameFile` |
-| booking | branch `:26`, service `:29`, slot/schedule block `:39` `POST` | composed booking-engine contexts | `:29`, `:32`, `:42` route adapter | catalog/service/scheduling command boundary |
-| payments | `admin/settings/route.ts:276` `PATCH`, only single-key `booking_payment_providers` / `booking_payment_enabled` | `requireClinicManagementApiContext` | single-key route adapter | `deps.systemSettings.updateSetting` |
+| Mechanic      | Entrypoint / action                                                                                                                                         | Auth and trusted context                                            | Gate                                                                                       | Service / port                                                                       |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| courses       | `courses/route.ts:49` `POST`                                                                                                                                | `requireDoctorWorkspaceApiContext`                                  | `:52` route adapter                                                                        | `deps.courses.createCourse`                                                          |
+| mailings      | `broadcasts/actions.ts:64`                                                                                                                                  | `requireDoctorWorkspaceContext`                                     | `:68` action adapter                                                                       | `deps.doctorBroadcasts.execute`                                                      |
+| cms_pages     | `content/actions.ts:14`, `lifecycleActions.ts:12`, `sections/actions.ts:23,130,196,242`                                                                     | `requireDoctorWorkspaceContext`                                     | `:19`, `:14`, `:28,:135,:201,:247` action adapter                                          | page upsert/update/lifecycle; section upsert/attach/rename/delete                    |
+| subscriptions | `patient-packages/route.ts:70` `POST`                                                                                                                       | `requireDoctorBookingEngine`                                        | `:73` route adapter                                                                        | memberships create/offer command boundary                                            |
+| patient_card  | visits create/update; anamnesis create; complaints update; diagnoses update/status update; physical update; comorbidities create/update/restore/soft-remove | `requireDoctorWorkspaceApiContext` + trusted patient identity       | handler-level `requireEntitlement(..., "patient_card")` after canonical patient resolution | `patientClinical`, `doctorClients.setPatientPhysical`, `patientComorbidities` writes |
+| files         | `files/route.ts` `POST`; `files/[fileId]/route.ts` `PATCH`                                                                                                  | `requireDoctorWorkspaceApiContext` + trusted patient/file ownership | handler-level `requireEntitlement(..., "files")` after canonical patient/file resolution   | `deps.patientFiles.createFile/linkFileToVisit/renameFile`                            |
+| booking       | branch `:26`, service `:29`, slot/schedule block `:39` `POST`                                                                                               | composed booking-engine contexts                                    | `:29`, `:32`, `:42` route adapter                                                          | catalog/service/scheduling command boundary                                          |
+| payments      | `admin/settings/route.ts:276` `PATCH`, only single-key `booking_payment_providers` / `booking_payment_enabled`                                              | `requireClinicManagementApiContext`                                 | single-key route adapter                                                                   | `deps.systemSettings.updateSetting`                                                  |
 
 `exercise_catalog`, `exercise_packages`, `patient_app`, `patient_app_paid_subscription`, `branding`, and
 `custom_domain` are explicitly `declared_no_surface` in
@@ -61,21 +61,21 @@ fallback that can silently revoke the other.
 
 ## Ownership before DDL
 
-| Future aggregate | Ownership contract |
-|---|---|
-| Platform tariff / package catalog | real global catalog; never inferred from a clinic-owned row |
-| Subscription, invoice, order, grant | direct `organization_id` or a parent already scoped to one organization |
-| Analytics aggregate | organization bucket only; no patient/user identity or free-form person metadata |
+| Future aggregate                    | Ownership contract                                                              |
+| ----------------------------------- | ------------------------------------------------------------------------------- |
+| Platform tariff / package catalog   | real global catalog; never inferred from a clinic-owned row                     |
+| Subscription, invoice, order, grant | direct `organization_id` or a parent already scoped to one organization         |
+| Analytics aggregate                 | organization bucket only; no patient/user identity or free-form person metadata |
 
 ## Payment adapter inventory and dormant merchant separation
 
-| Adapter | Checkout / intent / idempotency | Success and refund | Amount/currency and verification |
-|---|---|---|---|
-| mock | no redirect; `mock_intent_<idempotencyKey>` | event supplied by signed mock payload; mock refund ref | HMAC `x-mock-signature`; amount comes from payload |
-| YooKassa | redirect confirmation URL; payment ID; `Idempotence-Key` | `payment.succeeded`; refund API | Basic auth or HMAC signature; amount extracted from `object.amount` |
-| Tinkoff | `PaymentURL`; `PaymentId`; `OrderId=idempotencyKey` | `CONFIRMED`; `REFUNDED` / `PARTIAL_REFUNDED` | signed sorted Token; amount is minor units; status maps to normalized event |
-| CloudPayments | pay-by-link `Model.Url`; order ID; invoice=idempotency key | successful callback; refund API | base64 HMAC `Content-HMAC`; amount normalised from provider payload |
-| Alfa-Bank | form URL; order ID; client idempotency metadata | `DEPOSITED`; refund API | signature/status contract is provider-specific and must be verified before S4-4 activation |
+| Adapter       | Checkout / intent / idempotency                            | Success and refund                                     | Amount/currency and verification                                                           |
+| ------------- | ---------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| mock          | no redirect; `mock_intent_<idempotencyKey>`                | event supplied by signed mock payload; mock refund ref | HMAC `x-mock-signature`; amount comes from payload                                         |
+| YooKassa      | redirect confirmation URL; payment ID; `Idempotence-Key`   | `payment.succeeded`; refund API                        | Basic auth or HMAC signature; amount extracted from `object.amount`                        |
+| Tinkoff       | `PaymentURL`; `PaymentId`; `OrderId=idempotencyKey`        | `CONFIRMED`; `REFUNDED` / `PARTIAL_REFUNDED`           | signed sorted Token; amount is minor units; status maps to normalized event                |
+| CloudPayments | pay-by-link `Model.Url`; order ID; invoice=idempotency key | successful callback; refund API                        | base64 HMAC `Content-HMAC`; amount normalised from provider payload                        |
+| Alfa-Bank     | form URL; order ID; client idempotency metadata            | `DEPOSITED`; refund API                                | signature/status contract is provider-specific and must be verified before S4-4 activation |
 
 Existing per-org booking merchant identity and dormant future global SaaS identity are distinct typed contracts in
 [`merchantIdentityContracts.ts`](../../../apps/webapp/src/modules/payments/merchantIdentityContracts.ts:2). The latter

@@ -17,12 +17,17 @@ function tagFor(sql: string): string {
   if (/pg_advisory_xact_lock/.test(sql)) return 'advisory_lock';
   if (/INSERT INTO public\.platform_users/.test(sql)) return 'platform_users:insert';
   if (/UPDATE public\.platform_users/.test(sql)) return 'platform_users:update';
-  if (/FROM public\.user_channel_bindings ucb/.test(sql)) return 'platform_users:candidate_by_channel';
+  if (/FROM public\.user_channel_bindings ucb/.test(sql))
+    return 'platform_users:candidate_by_channel';
   if (/INSERT INTO public\.user_channel_bindings/.test(sql)) return 'user_channel_bindings:insert';
-  if (/INSERT INTO public\.user_channel_preferences/.test(sql)) return 'user_channel_preferences:seed';
-  if (/INSERT INTO public\.user_notification_topics/.test(sql)) return 'user_notification_topics:insert';
-  if (/FROM public\.platform_users/.test(sql) && /integrator_user_id =/.test(sql)) return 'platform_users:candidate_by_int';
-  if (/FROM public\.platform_users/.test(sql) && /phone_normalized =/.test(sql)) return 'platform_users:candidate_by_phone';
+  if (/INSERT INTO public\.user_channel_preferences/.test(sql))
+    return 'user_channel_preferences:seed';
+  if (/INSERT INTO public\.user_notification_topics/.test(sql))
+    return 'user_notification_topics:insert';
+  if (/FROM public\.platform_users/.test(sql) && /integrator_user_id =/.test(sql))
+    return 'platform_users:candidate_by_int';
+  if (/FROM public\.platform_users/.test(sql) && /phone_normalized =/.test(sql))
+    return 'platform_users:candidate_by_phone';
   return 'other';
 }
 
@@ -103,7 +108,10 @@ const baseInput: DirectPublicIdentityInput = {
   ],
 };
 
-function anchorDep(integratorUserId: string | null, spy?: (txDb: DbPort) => void): WriteIdentityAndPreferencesDeps {
+function anchorDep(
+  integratorUserId: string | null,
+  spy?: (txDb: DbPort) => void,
+): WriteIdentityAndPreferencesDeps {
   return {
     writeChannelAnchor: vi.fn(async (txDb: DbPort) => {
       spy?.(txDb);
@@ -293,7 +301,9 @@ describe('writeIdentityAndPreferencesDirect (D1 direct public writes)', () => {
     const { db, state } = createDbMock(router);
     const deps = anchorDep('1');
 
-    await expect(writeIdentityAndPreferencesDirect(db, baseInput, deps)).rejects.toThrow('pg: duplicate key');
+    await expect(writeIdentityAndPreferencesDirect(db, baseInput, deps)).rejects.toThrow(
+      'pg: duplicate key',
+    );
 
     expect(state.txCount).toBe(1);
     expect(state.committed).toBe(false);
@@ -405,7 +415,10 @@ describe('writeNotificationTopicsDirect (D1 notifications.update direct write)',
     const { db, state } = createDbMock(router);
 
     await expect(
-      writeNotificationTopicsDirect(db, { integratorUserId: '5', topics: [{ topicCode: 'bookings', isEnabled: true }] }),
+      writeNotificationTopicsDirect(db, {
+        integratorUserId: '5',
+        topics: [{ topicCode: 'bookings', isEnabled: true }],
+      }),
     ).rejects.toMatchObject({ code: 'ambiguous_platform_user_candidates' });
     expect(state.committed).toBe(false);
     expect(state.rolledBack).toBe(true);

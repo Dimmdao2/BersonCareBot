@@ -1,4 +1,4 @@
-import type { LfkExerciseSide, TemplateExerciseInput } from "@/modules/lfk-templates/types";
+import type { LfkExerciseSide, TemplateExerciseInput } from '@/modules/lfk-templates/types';
 
 /** Строки редактора → payload для `updateExercises` (sort_order = индекс). */
 export function editorLinesToTemplateExerciseInputs(
@@ -9,7 +9,7 @@ export function editorLinesToTemplateExerciseInputs(
     side: LfkExerciseSide | null;
     maxPain0_10: number | null;
     comment: string | null;
-  }[]
+  }[],
 ): TemplateExerciseInput[] {
   return lines.map((line, idx) => ({
     exerciseId: line.exerciseId,

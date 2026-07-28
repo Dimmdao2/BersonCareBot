@@ -21,7 +21,7 @@
 ## 2026-05-18 — Бот: диспатч-клавиатура, один тап «Пропущу», messenger-topic/disable, указатель архива и документация
 
 - **Архивный план (репозиторий), закрыт:** [`.cursor/plans/archive/reminder_bot_buttons_ux_2dc55692.plan.md`](../../../../../.cursor/plans/archive/reminder_bot_buttons_ux_2dc55692.plan.md) — статус **`completed`** во frontmatter; длинное описание задачи убрано в пользу **единственного канона §«Бот»** (`apps/webapp/src/modules/reminders/reminders.md`, этот файл).
-- **Отчёт трассируемости:** см. указательную выжимку в архивном плане и Cross-links здесь же в [`README.md`](README.md); корневой [**`docs/README.md`](../../../README.md)** — добавлен явный перекрестный линк на архив указателя («канон» указывает на тот же `reminders.md` §Бот).
+- **Отчёт трассируемости:** см. указательную выжимку в архивном плане и Cross-links здесь же в [`README.md`](README.md); корневой [\*\*`docs/README.md`](../../../README.md)\*\* — добавлен явный перекрестный линк на архив указателя («канон» указывает на тот же `reminders.md` §Бот).
 
 ## 2026-05-17 — Бот: «Выполнить», удаление пуша, поздравление при закрытии дня
 
@@ -79,6 +79,7 @@
 - **Хвосты после ревью:** общий `formatReminderMinuteOfDayToHhMm` в `modules/reminders/reminderScheduleFormat.ts` для `summarizeReminderForCalendarDay` и `formatScheduleSummary` в `ReminderRulesClient`; в строке «сегодня» для `interval_window` интервал через `clampIntervalMinutes`; порядок UI: блоки rehab/разминки → «Мои напоминания» → «Создать напоминание»; `RemindersHashScroll` — двойной rAF + повтор через 320 ms для стабильного скролла к якорю; тесты `weekly_mask` и успешный `every_n_days` в `summarizeReminderForCalendarDay.test.ts`.
 
 ## 2026-05-09 — Закрытие инициативы (базовый план) реализация по `.cursor/plans/archive/reminder_ux_full.plan.md`.
+
 - Решения: mute на `platform_users.reminder_muted_until`; label rehab через `display_title`/`display_description`; integrator — drop `UNIQUE(user_id,category)`, upsert по PK `id`.
 - Главная пациента: `slots_v1` + `rehab_program` в `nextReminderOccurrence`, счётчик «n из N» за локальный день приложения + `countDoneSkippedInUtcRange` в журнале; карточка — пауза / прогресс / «На сегодня напоминаний нет».
 - Экран `/app/patient/reminders`: баннер при активном `reminder_muted_until`; HTTP-проекция integrator GET правил включает `schedule_data`, `reminder_intent`, `display_*`.

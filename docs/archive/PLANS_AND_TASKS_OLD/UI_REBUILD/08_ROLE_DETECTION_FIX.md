@@ -42,17 +42,17 @@ DOCTOR_TELEGRAM_IDS: z.string().optional().default(""),
 ```ts
 function resolveRoleByTelegramId(telegramIdStr: string): UserRole {
   const numericId = parseInt(telegramIdStr, 10);
-  if (typeof env.ADMIN_TELEGRAM_ID === "number" && numericId === env.ADMIN_TELEGRAM_ID) {
-    return "admin";
+  if (typeof env.ADMIN_TELEGRAM_ID === 'number' && numericId === env.ADMIN_TELEGRAM_ID) {
+    return 'admin';
   }
-  const doctorIds = (env.DOCTOR_TELEGRAM_IDS ?? "")
-    .split(",")
+  const doctorIds = (env.DOCTOR_TELEGRAM_IDS ?? '')
+    .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
   if (doctorIds.includes(telegramIdStr) || doctorIds.includes(String(numericId))) {
-    return "doctor";
+    return 'doctor';
   }
-  return "client";
+  return 'client';
 }
 ```
 
@@ -69,16 +69,20 @@ function resolveRoleByTelegramId(telegramIdStr: string): UserRole {
 В `exchangeTelegramInitData`:
 
 **Найти** (примерно):
+
 ```ts
 const resolved = await identityResolutionPort.findOrCreateByChannelBinding(
-  "telegram", result.telegramId, { role: result.role, displayName: result.displayName }
+  'telegram',
+  result.telegramId,
+  { role: result.role, displayName: result.displayName },
 );
 ```
 
 **После этого добавить:**
+
 ```ts
 const envRole = resolveRoleByTelegramId(result.telegramId);
-if (envRole !== "client" && resolved.role !== envRole) {
+if (envRole !== 'client' && resolved.role !== envRole) {
   await updateUserRole(resolved.userId, envRole);
   resolved.role = envRole;
 }
@@ -117,7 +121,7 @@ userProjection: {
 ```ts
 if (parsed.telegramId) {
   const envRole = resolveRoleByTelegramId(parsed.telegramId);
-  if (envRole !== "client" && resolved.role !== envRole) {
+  if (envRole !== 'client' && resolved.role !== envRole) {
     await updateUserRole(resolved.userId, envRole);
     resolved.role = envRole;
   }
@@ -130,11 +134,17 @@ if (parsed.telegramId) {
 
 ```ts
 function getAllowedTelegramIds(): Set<string> {
-  const raw = env.ALLOWED_TELEGRAM_IDS ?? "";
-  const ids = raw.split(",").map((s) => s.trim()).filter(Boolean);
-  const doctorRaw = env.DOCTOR_TELEGRAM_IDS ?? "";
-  const doctorIds = doctorRaw.split(",").map((s) => s.trim()).filter(Boolean);
-  if (typeof env.ADMIN_TELEGRAM_ID === "number") {
+  const raw = env.ALLOWED_TELEGRAM_IDS ?? '';
+  const ids = raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const doctorRaw = env.DOCTOR_TELEGRAM_IDS ?? '';
+  const doctorIds = doctorRaw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (typeof env.ADMIN_TELEGRAM_ID === 'number') {
     ids.push(String(env.ADMIN_TELEGRAM_ID));
   }
   return new Set([...ids, ...doctorIds]);
@@ -144,11 +154,13 @@ function getAllowedTelegramIds(): Set<string> {
 ### Шаг 8.7: Сценарий привязки Telegram после входа через телефон
 
 Текущий flow:
+
 1. Пользователь входит по телефону → `platform_users.role = 'client'`.
 2. Позже привязывает Telegram → projection event `contact.linked` → `user_channel_bindings` получает `telegramId`.
 3. При следующем входе через Telegram initData → `findOrCreateByChannelBinding` найдёт пользователя по `telegramId` → шаг 8.3 обновит роль если `telegramId` в списке специалистов.
 
 Для **немедленного** обновления роли при привязке (без повторного входа):
+
 - В обработчике projection event `contact.linked` (`src/modules/integrator/events/`) — если добавляемый `telegramId` совпадает с `ADMIN_TELEGRAM_ID` или `DOCTOR_TELEGRAM_IDS` — обновить `platform_users.role`.
 
 Это опционально на первом этапе. Минимум — роль обновляется при следующем входе.

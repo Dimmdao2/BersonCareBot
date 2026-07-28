@@ -1,19 +1,19 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useState } from "react";
-import { Button, buttonVariants } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Label } from "@/shared/ui/doctor/primitives/label";
+import Link from 'next/link';
+import { useState } from 'react';
+import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/ui/doctor/primitives/select";
-import { cn } from "@/lib/utils";
-import type { PatientHomeCmsReturnQuery } from "@/modules/patient-home/patientHomeCmsReturnUrls";
+} from '@/shared/ui/doctor/primitives/select';
+import { cn } from '@/lib/utils';
+import type { PatientHomeCmsReturnQuery } from '@/modules/patient-home/patientHomeCmsReturnUrls';
 
 type TemplateOption = { id: string; title: string; status: string };
 
@@ -23,8 +23,8 @@ type Props = {
 };
 
 export function DoctorCourseDraftCreateForm({ templates, returnContext }: Props) {
-  const [title, setTitle] = useState("");
-  const [programTemplateId, setProgramTemplateId] = useState(templates[0]?.id ?? "");
+  const [title, setTitle] = useState('');
+  const [programTemplateId, setProgramTemplateId] = useState(templates[0]?.id ?? '');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [createdId, setCreatedId] = useState<string | null>(null);
@@ -33,35 +33,35 @@ export function DoctorCourseDraftCreateForm({ templates, returnContext }: Props)
     e.preventDefault();
     setError(null);
     if (!title.trim()) {
-      setError("Введите название курса");
+      setError('Введите название курса');
       return;
     }
     if (!programTemplateId) {
-      setError("Выберите шаблон программы лечения");
+      setError('Выберите шаблон программы лечения');
       return;
     }
     setPending(true);
     try {
-      const res = await fetch("/api/doctor/courses", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch('/api/doctor/courses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: title.trim(),
           programTemplateId,
-          status: "draft",
+          status: 'draft',
           accessSettings: {},
           priceMinor: 0,
-          currency: "RUB",
+          currency: 'RUB',
         }),
       });
       const data = (await res.json()) as { ok?: boolean; error?: string; item?: { id: string } };
       if (!res.ok || !data.ok || !data.item?.id) {
-        setError(data.error ?? "Не удалось создать курс");
+        setError(data.error ?? 'Не удалось создать курс');
         return;
       }
       setCreatedId(data.item.id);
     } catch {
-      setError("Сеть недоступна. Попробуйте ещё раз.");
+      setError('Сеть недоступна. Попробуйте ещё раз.');
     } finally {
       setPending(false);
     }
@@ -73,12 +73,12 @@ export function DoctorCourseDraftCreateForm({ templates, returnContext }: Props)
         <p className="font-medium">Черновик курса создан</p>
         <p className="mt-1 font-mono text-xs text-muted-foreground">id: {createdId}</p>
         <p className="mt-2 text-muted-foreground">
-          Добавьте курс в блок «{returnContext.patientHomeBlock}» через «Настроить» на экране главной пациента (кандидаты
-          подтягиваются после публикации курса).
+          Добавьте курс в блок «{returnContext.patientHomeBlock}» через «Настроить» на экране
+          главной пациента (кандидаты подтягиваются после публикации курса).
         </p>
         <Link
           href={returnContext.returnTo}
-          className={cn(buttonVariants({ variant: "secondary" }), "mt-3 inline-flex")}
+          className={cn(buttonVariants({ variant: 'secondary' }), 'mt-3 inline-flex')}
         >
           Открыть экран «Главная пациента»
         </Link>
@@ -92,7 +92,10 @@ export function DoctorCourseDraftCreateForm({ templates, returnContext }: Props)
         <p className="text-muted-foreground">
           Нет шаблонов программ лечения. Сначала создайте шаблон, затем вернитесь сюда.
         </p>
-        <Link href="/app/doctor/treatment-program-templates/new" className={cn(buttonVariants({ variant: "outline" }))}>
+        <Link
+          href="/app/doctor/treatment-program-templates/new"
+          className={cn(buttonVariants({ variant: 'outline' }))}
+        >
           Новый шаблон программы
         </Link>
         <div>
@@ -126,7 +129,7 @@ export function DoctorCourseDraftCreateForm({ templates, returnContext }: Props)
         <Label htmlFor="course-template">Шаблон программы лечения</Label>
         <Select
           value={programTemplateId}
-          onValueChange={(v) => setProgramTemplateId(v ?? "")}
+          onValueChange={(v) => setProgramTemplateId(v ?? '')}
           required
         >
           <SelectTrigger id="course-template" className="w-full">
@@ -142,11 +145,11 @@ export function DoctorCourseDraftCreateForm({ templates, returnContext }: Props)
         </Select>
       </div>
       <p className="text-xs text-muted-foreground">
-        Курс создаётся как <strong>черновик</strong> через существующий API. Публикация и вступительный урок — в
-        карточке курса или API.
+        Курс создаётся как <strong>черновик</strong> через существующий API. Публикация и
+        вступительный урок — в карточке курса или API.
       </p>
       <Button type="submit" disabled={pending}>
-        {pending ? "Создание…" : "Создать черновик курса"}
+        {pending ? 'Создание…' : 'Создать черновик курса'}
       </Button>
     </form>
   );

@@ -7,8 +7,7 @@ import type {
   DoctorDashboardAppointmentMetrics,
   ScheduleKpis,
   ScheduleKpisQuery,
-} from "@/modules/doctor-appointments/ports";
-
+} from '@/modules/doctor-appointments/ports';
 
 export const inMemoryDoctorAppointmentsPort: DoctorAppointmentsPort = {
   async listAppointmentsForSpecialist(
@@ -33,9 +32,9 @@ export const inMemoryDoctorAppointmentsPort: DoctorAppointmentsPort = {
       repeatVisitInPeriod: 0,
     };
   },
-  async getDashboardAppointmentMetrics(
-    _audience?: { excludedUserIds?: string[] },
-  ): Promise<DoctorDashboardAppointmentMetrics> {
+  async getDashboardAppointmentMetrics(_audience?: {
+    excludedUserIds?: string[];
+  }): Promise<DoctorDashboardAppointmentMetrics> {
     return {
       futureActiveCount: 0,
       recordsInCalendarMonthTotal: 0,

@@ -1,28 +1,28 @@
-import { logger } from "@/infra/logging/logger";
-import type { PatientTopicChannelCode } from "./topicChannelRules";
+import { logger } from '@/infra/logging/logger';
+import type { PatientTopicChannelCode } from './topicChannelRules';
 
 /** Каналы уведомлений пациента (SMS не входит). */
 export type NotificationChannelCode = PatientTopicChannelCode;
 
 /** Единые reason-коды для webapp M2M и integrator worker. */
 export type SkippedNotificationChannelReason =
-  | "disabled_by_user_global"
-  | "disabled_by_user_topic_channel"
-  | "topic_disabled"
-  | "muted"
-  | "missing_binding"
-  | "missing_email"
-  | "email_not_verified"
-  | "no_active_subscriptions"
-  | "channel_not_allowed_for_topic"
-  | "provider_disabled"
-  | "vapid_missing"
-  | "unsupported_intent_type"
-  | "missing_recipient"
-  | "rate_limited"
-  | "recipient_blocked_bot";
+  | 'disabled_by_user_global'
+  | 'disabled_by_user_topic_channel'
+  | 'topic_disabled'
+  | 'muted'
+  | 'missing_binding'
+  | 'missing_email'
+  | 'email_not_verified'
+  | 'no_active_subscriptions'
+  | 'channel_not_allowed_for_topic'
+  | 'provider_disabled'
+  | 'vapid_missing'
+  | 'unsupported_intent_type'
+  | 'missing_recipient'
+  | 'rate_limited'
+  | 'recipient_blocked_bot';
 
-export type NotificationChannelDeliveryPath = "integrator_worker" | "webapp_m2m";
+export type NotificationChannelDeliveryPath = 'integrator_worker' | 'webapp_m2m';
 
 export type SkippedNotificationChannel = {
   channel: NotificationChannelCode;
@@ -42,7 +42,7 @@ export type ResolvedNotificationChannels = {
 
 export type ResolvedNotificationChannelsCore = Omit<
   ResolvedNotificationChannels,
-  "userId" | "topicCode" | "integratorUserId"
+  'userId' | 'topicCode' | 'integratorUserId'
 >;
 
 export function attachResolutionIdentity(
@@ -68,7 +68,7 @@ export function logNotificationChannelsResolved(params: {
   if (!verbose) return;
   logger.info(
     {
-      event: "notification_channels_resolved",
+      event: 'notification_channels_resolved',
       userId: resolution.userId,
       integratorUserId: resolution.integratorUserId,
       topicCode: resolution.topicCode,
@@ -79,6 +79,6 @@ export function logNotificationChannelsResolved(params: {
       selectedChannels: resolution.selectedChannels,
       skippedChannels: resolution.skippedChannels,
     },
-    "notification channels resolved",
+    'notification channels resolved',
   );
 }

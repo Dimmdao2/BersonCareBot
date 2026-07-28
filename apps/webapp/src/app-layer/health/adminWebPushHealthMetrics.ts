@@ -1,12 +1,12 @@
-import { count, sql } from "drizzle-orm";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getWebPushVapidKeyPair } from "@/modules/system-settings/webPushVapidRuntime";
-import { userWebPushSubscriptions } from "../../../db/schema/schema";
+import { count, sql } from 'drizzle-orm';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { getWebPushVapidKeyPair } from '@/modules/system-settings/webPushVapidRuntime';
+import { userWebPushSubscriptions } from '../../../db/schema/schema';
 
 export const WEB_PUSH_HEALTH_WINDOW_HOURS = 24 as const;
 
-export type WebPushSystemHealthStatus = "ok" | "degraded" | "not_configured" | "no_data" | "error";
+export type WebPushSystemHealthStatus = 'ok' | 'degraded' | 'not_configured' | 'no_data' | 'error';
 
 export type WebPushHealthPayload = {
   windowHours: typeof WEB_PUSH_HEALTH_WINDOW_HOURS;
@@ -20,7 +20,9 @@ export type WebPushHealthPayload = {
   deliveryMetricsInDb: boolean;
 };
 
-export function emptyWebPushHealthPayload(status: WebPushSystemHealthStatus = "no_data"): WebPushHealthPayload {
+export function emptyWebPushHealthPayload(
+  status: WebPushSystemHealthStatus = 'no_data',
+): WebPushHealthPayload {
   return {
     windowHours: WEB_PUSH_HEALTH_WINDOW_HOURS,
     status,
@@ -36,9 +38,9 @@ export function classifyWebPushSystemHealthStatus(signals: {
   vapidConfigured: boolean;
   activeSubscriptionsCount: number;
 }): WebPushSystemHealthStatus {
-  if (!signals.vapidConfigured) return "not_configured";
-  if (signals.activeSubscriptionsCount <= 0) return "no_data";
-  return "ok";
+  if (!signals.vapidConfigured) return 'not_configured';
+  if (signals.activeSubscriptionsCount <= 0) return 'no_data';
+  return 'ok';
 }
 
 /**
@@ -84,6 +86,6 @@ export async function loadAdminWebPushHealthMetrics(): Promise<
       },
     };
   } catch {
-    return { ok: false, errorCode: "web_push_health_query_failed" };
+    return { ok: false, errorCode: 'web_push_health_query_failed' };
   }
 }

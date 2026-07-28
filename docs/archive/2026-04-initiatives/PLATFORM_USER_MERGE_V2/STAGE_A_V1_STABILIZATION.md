@@ -4,11 +4,11 @@
 
 ## Область наблюдения
 
-| Сигнал | Где смотреть |
-|--------|----------------|
-| `user_purge`, `user_merge`, `user_purge_external_retry` | `admin_audit_log`, UI «Лог операций» `/app/settings` |
-| `auto_merge_conflict`, `auto_merge_conflict_anomaly` | то же + `openAutoMergeConflictCount` |
-| Конфликты ingestion | `POST /api/integrator/events` не должен зацикливаться на **503** для merge-class ошибок — ожидается **202** + аудит (см. [`../ARCHITECTURE/PLATFORM_USER_MERGE.md`](../ARCHITECTURE/PLATFORM_USER_MERGE.md)) |
+| Сигнал                                                  | Где смотреть                                                                                                                                                                                                 |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `user_purge`, `user_merge`, `user_purge_external_retry` | `admin_audit_log`, UI «Лог операций» `/app/settings`                                                                                                                                                         |
+| `auto_merge_conflict`, `auto_merge_conflict_anomaly`    | то же + `openAutoMergeConflictCount`                                                                                                                                                                         |
+| Конфликты ingestion                                     | `POST /api/integrator/events` не должен зацикливаться на **503** для merge-class ошибок — ожидается **202** + аудит (см. [`../ARCHITECTURE/PLATFORM_USER_MERGE.md`](../ARCHITECTURE/PLATFORM_USER_MERGE.md)) |
 
 ## Действия оператора
 

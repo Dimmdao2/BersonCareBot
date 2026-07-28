@@ -1,8 +1,8 @@
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
   countServicesWithoutAvailability,
   hasScheduleOnUpcomingDays,
-} from "@/app/app/settings/bookingSoloAdminApi";
+} from '@/app/app/settings/bookingSoloAdminApi';
 
 export type BookingAdminOverviewData =
   | { unavailable: true }
@@ -71,30 +71,30 @@ export async function loadBookingAdminOverview(
   );
 
   const hasCustomSchedule = !usesHoursFallback;
-  const hasUpcomingSchedule =
-    hasCustomSchedule && hasScheduleOnUpcomingDays(workingHoursRows);
+  const hasUpcomingSchedule = hasCustomSchedule && hasScheduleOnUpcomingDays(workingHoursRows);
 
   const warnings: string[] = [];
   if (activeServices.length > 0 && servicesWithoutAvailability > 0) {
     warnings.push(`${servicesWithoutAvailability} услуг без доступности в локациях.`);
   }
   if (usesHoursFallback) {
-    warnings.push("Расписание не настроено — используется временный режим 09:00–18:00.");
+    warnings.push('Расписание не настроено — используется временный режим 09:00–18:00.');
   } else if (!hasUpcomingSchedule) {
-    warnings.push("На ближайшие 7 дней нет рабочих интервалов в расписании.");
+    warnings.push('На ближайшие 7 дней нет рабочих интервалов в расписании.');
   }
   if (publicServices.length === 0 && activeServices.length > 0) {
-    warnings.push("Нет услуг, доступных пациентам для самостоятельной записи.");
+    warnings.push('Нет услуг, доступных пациентам для самостоятельной записи.');
   }
   if (activeBranches.length === 0) {
-    warnings.push("Нет активных локаций.");
+    warnings.push('Нет активных локаций.');
   }
 
   return {
     unavailable: false,
     organizationRequired: false,
     stats: {
-      bookingEnabled: activeBranches.length > 0 && activeServices.length > 0 && specialistAvailability.length > 0,
+      bookingEnabled:
+        activeBranches.length > 0 && activeServices.length > 0 && specialistAvailability.length > 0,
       activeLocations: activeBranches.length,
       activeServices: activeServices.length,
       patientVisibleServices: publicServices.length,

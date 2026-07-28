@@ -1,91 +1,95 @@
-import { performance } from "node:perf_hooks";
-import { NextResponse } from "next/server";
-import { Pool } from "pg";
-import { describe, expect, it, vi } from "vitest";
+import { performance } from 'node:perf_hooks';
+import { NextResponse } from 'next/server';
+import { Pool } from 'pg';
+import { describe, expect, it, vi } from 'vitest';
 import {
   TypedApiResponseError,
   jsonError,
   jsonOk,
   mapApiError,
   type ApiErrorLiteralRules,
-} from "./apiResponse";
+} from './apiResponse';
 
-const PRIVATE_MARKER = "patient@example.test SQLSTATE 23505 provider-payload";
+const PRIVATE_MARKER = 'patient@example.test SQLSTATE 23505 provider-payload';
 
-describe("apiResponse", () => {
-  it("builds typed success and error bodies without implicit fields", async () => {
-    const success = jsonOk({ item: { id: "item-1", active: true }, count: 1 });
-    const failure = jsonError("rate_limited", { retryAfterSeconds: 30 }, { status: 429 });
+describe('apiResponse', () => {
+  it('builds typed success and error bodies without implicit fields', async () => {
+    const success = jsonOk({ item: { id: 'item-1', active: true }, count: 1 });
+    const failure = jsonError('rate_limited', { retryAfterSeconds: 30 }, { status: 429 });
 
     await expect(success.json()).resolves.toEqual({
       ok: true,
-      item: { id: "item-1", active: true },
+      item: { id: 'item-1', active: true },
       count: 1,
     });
     expect(failure.status).toBe(429);
     await expect(failure.json()).resolves.toEqual({
       ok: false,
-      error: "rate_limited",
+      error: 'rate_limited',
       retryAfterSeconds: 30,
     });
   });
 
-  it("preserves ResponseInit headers and response-cookie mutation", () => {
+  it('preserves ResponseInit headers and response-cookie mutation', () => {
     const response = jsonError(
-      "too_many_attempts",
+      'too_many_attempts',
       {},
       {
         status: 429,
         headers: {
-          "Cache-Control": "private, no-store",
-          "Retry-After": "45",
-          "Set-Cookie": "legacy=one; Path=/; HttpOnly",
+          'Cache-Control': 'private, no-store',
+          'Retry-After': '45',
+          'Set-Cookie': 'legacy=one; Path=/; HttpOnly',
         },
       },
     );
-    response.cookies.set("fresh", "two", { httpOnly: true, path: "/" });
+    response.cookies.set('fresh', 'two', { httpOnly: true, path: '/' });
 
-    expect(response.headers.get("cache-control")).toBe("private, no-store");
-    expect(response.headers.get("retry-after")).toBe("45");
-    expect(response.cookies.get("legacy")?.value).toBe("one");
-    expect(response.cookies.get("fresh")?.value).toBe("two");
+    expect(response.headers.get('cache-control')).toBe('private, no-store');
+    expect(response.headers.get('retry-after')).toBe('45');
+    expect(response.cookies.get('legacy')?.value).toBe('one');
+    expect(response.cookies.get('fresh')?.value).toBe('two');
   });
 
-  it("maps only typed errors and exact closed literals", () => {
+  it('maps only typed errors and exact closed literals', () => {
     const rules = {
-      slot_overlap: { status: 409, code: "slot_overlap" },
+      slot_overlap: { status: 409, code: 'slot_overlap' },
       rate_limited: {
         status: 429,
-        code: "rate_limited",
+        code: 'rate_limited',
         publicFields: { retryAfterSeconds: 60 },
-        headers: { "Retry-After": "60" },
+        headers: { 'Retry-After': '60' },
       },
     } as const satisfies ApiErrorLiteralRules;
-    const fallback = { status: 503, code: "create_failed" } as const;
+    const fallback = { status: 503, code: 'create_failed' } as const;
 
-    expect(mapApiError(new Error("slot_overlap"), rules, fallback)).toEqual(rules.slot_overlap);
-    expect(mapApiError(new Error("slot_overlap_extra"), rules, fallback)).toEqual(fallback);
+    expect(mapApiError(new Error('slot_overlap'), rules, fallback)).toEqual(rules.slot_overlap);
+    expect(mapApiError(new Error('slot_overlap_extra'), rules, fallback)).toEqual(fallback);
     expect(mapApiError(new Error(PRIVATE_MARKER), rules, fallback)).toEqual(fallback);
-    expect(mapApiError({ message: "slot_overlap" }, rules, fallback)).toEqual(fallback);
+    expect(mapApiError({ message: 'slot_overlap' }, rules, fallback)).toEqual(fallback);
 
     const typed = new TypedApiResponseError({
       status: 403,
-      code: "forbidden",
-      publicFields: { mechanic: "clinic_team" },
+      code: 'forbidden',
+      publicFields: { mechanic: 'clinic_team' },
     });
     expect(mapApiError(typed, {}, fallback)).toEqual(typed.descriptor);
 
     class DomainError extends Error {}
-    const typedRules = [{
-      matches: (error: unknown): error is DomainError => error instanceof DomainError,
-      literalRules: { domain_conflict: { status: 409, code: "domain_conflict" } },
-    }] as const;
-    expect(mapApiError(new DomainError("domain_conflict"), {}, fallback, typedRules)).toEqual({
+    const typedRules = [
+      {
+        matches: (error: unknown): error is DomainError => error instanceof DomainError,
+        literalRules: { domain_conflict: { status: 409, code: 'domain_conflict' } },
+      },
+    ] as const;
+    expect(mapApiError(new DomainError('domain_conflict'), {}, fallback, typedRules)).toEqual({
       status: 409,
-      code: "domain_conflict",
+      code: 'domain_conflict',
     });
-    expect(mapApiError(new DomainError(PRIVATE_MARKER), rules, fallback, typedRules)).toEqual(fallback);
-    for (const inheritedKey of ["toString", "constructor", "__proto__"]) {
+    expect(mapApiError(new DomainError(PRIVATE_MARKER), rules, fallback, typedRules)).toEqual(
+      fallback,
+    );
+    for (const inheritedKey of ['toString', 'constructor', '__proto__']) {
       expect(mapApiError(new Error(inheritedKey), rules, fallback)).toEqual(fallback);
       expect(mapApiError(new DomainError(inheritedKey), rules, fallback, typedRules)).toEqual(
         fallback,
@@ -93,14 +97,14 @@ describe("apiResponse", () => {
     }
   });
 
-  it("never places an unknown error value in the serialized response", async () => {
+  it('never places an unknown error value in the serialized response', async () => {
     const mapped = mapApiError(
       Object.assign(new Error(PRIVATE_MARKER), {
-        requestBody: { email: "patient@example.test" },
-        providerResponse: "full upstream payload",
+        requestBody: { email: 'patient@example.test' },
+        providerResponse: 'full upstream payload',
       }),
       {},
-      { status: 400, code: "webhook_failed" },
+      { status: 400, code: 'webhook_failed' },
     );
     const response = jsonError(mapped.code, mapped.publicFields ?? {}, {
       status: mapped.status,
@@ -110,20 +114,20 @@ describe("apiResponse", () => {
 
     expect(serialized).toBe('{"ok":false,"error":"webhook_failed"}');
     expect(serialized).not.toContain(PRIVATE_MARKER);
-    expect(serialized).not.toContain("patient@example.test");
-    expect(serialized).not.toContain("upstream payload");
+    expect(serialized).not.toContain('patient@example.test');
+    expect(serialized).not.toContain('upstream payload');
   });
 
-  it("has compile-time guards for reserved keys and non-JSON values", () => {
+  it('has compile-time guards for reserved keys and non-JSON values', () => {
     if (false) {
       // @ts-expect-error callers cannot override the success discriminator
-      jsonOk({ ok: false, value: "x" });
+      jsonOk({ ok: false, value: 'x' });
       // @ts-expect-error callers cannot override the error discriminator
-      jsonError("failed", { error: "caller_override" });
+      jsonError('failed', { error: 'caller_override' });
       // @ts-expect-error bigint is not JSON-serializable
       jsonOk({ value: 1n });
       // @ts-expect-error functions are not JSON-serializable
-      jsonError("failed", { callback: () => "not-json" });
+      jsonError('failed', { callback: () => 'not-json' });
     }
     expect(true).toBe(true);
   });
@@ -140,8 +144,8 @@ function percentile(sorted: readonly number[], quantile: number): number {
   return sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * quantile))] ?? 0;
 }
 
-describe.skipIf(process.env.RUN_E2_API_RESPONSE_LOAD_PROOF !== "1")(
-  "apiResponse in-process load proof",
+describe.skipIf(process.env.RUN_E2_API_RESPONSE_LOAD_PROOF !== '1')(
+  'apiResponse in-process load proof',
   () => {
     const concurrency = 16;
     const samplesPerRun = 1_280;
@@ -156,10 +160,12 @@ describe.skipIf(process.env.RUN_E2_API_RESPONSE_LOAD_PROOF !== "1")(
       };
     }
 
-    async function runPair(sampleCountPerPath: number): Promise<Readonly<{
-      after: LoadSample;
-      baseline: LoadSample;
-    }>> {
+    async function runPair(sampleCountPerPath: number): Promise<
+      Readonly<{
+        after: LoadSample;
+        baseline: LoadSample;
+      }>
+    > {
       const afterLatencies: number[] = [];
       const baselineLatencies: number[] = [];
       const perPathBatch = concurrency / 2;
@@ -170,10 +176,10 @@ describe.skipIf(process.env.RUN_E2_API_RESPONSE_LOAD_PROOF !== "1")(
           const useHelper = (index % 2 === 1) !== reverseOrder;
           const operationStarted = performance.now();
           const response = useHelper
-            ? jsonError("create_failed", {}, { status: 503 })
-            : NextResponse.json({ ok: false, error: "create_failed" }, { status: 503 });
+            ? jsonError('create_failed', {}, { status: 503 })
+            : NextResponse.json({ ok: false, error: 'create_failed' }, { status: 503 });
           await response.text();
-          if (response.status !== 503) throw new Error("unexpected_status");
+          if (response.status !== 503) throw new Error('unexpected_status');
           return { latency: performance.now() - operationStarted, useHelper };
         });
         for (const result of await Promise.all(operations)) {
@@ -187,17 +193,14 @@ describe.skipIf(process.env.RUN_E2_API_RESPONSE_LOAD_PROOF !== "1")(
       };
     }
 
-    it("keeps three warm concurrency-16 runs within the 5% p95 budget", async () => {
+    it('keeps three warm concurrency-16 runs within the 5% p95 budget', async () => {
       const dbQuerySpy = vi
-        .spyOn(
-          Pool.prototype as unknown as { query: (...args: unknown[]) => unknown },
-          "query",
-        )
+        .spyOn(Pool.prototype as unknown as { query: (...args: unknown[]) => unknown }, 'query')
         .mockImplementation(() => {
-          throw new Error("e2_benchmark_db_invocation");
+          throw new Error('e2_benchmark_db_invocation');
         });
-      const networkSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
-        throw new Error("e2_benchmark_network_invocation");
+      const networkSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+        throw new Error('e2_benchmark_network_invocation');
       });
       await runPair(256);
       const baseline: LoadSample[] = [];
@@ -209,17 +212,19 @@ describe.skipIf(process.env.RUN_E2_API_RESPONSE_LOAD_PROOF !== "1")(
       }
       const baselineP95 = baseline.map((sample) => sample.p95Ms).sort((a, b) => a - b)[1] ?? 0;
       const afterP95 = after.map((sample) => sample.p95Ms).sort((a, b) => a - b)[1] ?? 0;
-      const p95Ratios = after.map(
-        (sample, index) => sample.p95Ms / (baseline[index]?.p95Ms ?? 0),
-      );
+      const p95Ratios = after.map((sample, index) => sample.p95Ms / (baseline[index]?.p95Ms ?? 0));
 
       const collectGarbage = (globalThis as { gc?: () => void }).gc;
       const runErrorBurst = () => {
         for (let index = 0; index < 25_000; index += 1) {
-          mapApiError(new Error(`${PRIVATE_MARKER}-${index % 16}`), {}, {
-            status: 503,
-            code: "create_failed",
-          });
+          mapApiError(
+            new Error(`${PRIVATE_MARKER}-${index % 16}`),
+            {},
+            {
+              status: 503,
+              code: 'create_failed',
+            },
+          );
         }
       };
       for (let index = 0; index < 3; index += 1) runErrorBurst();
@@ -230,24 +235,24 @@ describe.skipIf(process.env.RUN_E2_API_RESPONSE_LOAD_PROOF !== "1")(
         await new Promise<void>((resolve) => setTimeout(resolve, 25));
         rss.push(process.memoryUsage().rss);
       }
-      const rssMonotonicGrowth = rss
-        .slice(1)
-        .every((value, index) => value > (rss[index] ?? 0));
+      const rssMonotonicGrowth = rss.slice(1).every((value, index) => value > (rss[index] ?? 0));
       const dbInvocations = dbQuerySpy.mock.calls.length;
       const networkInvocations = networkSpy.mock.calls.length;
 
-      process.stdout.write(`${JSON.stringify({
-        concurrency,
-        samplesPerRun,
-        baseline,
-        after,
-        p95Ratio: afterP95 / baselineP95,
-        p95Ratios,
-        dbInvocations,
-        networkInvocations,
-        rss,
-        rssMonotonicGrowth,
-      })}\n`);
+      process.stdout.write(
+        `${JSON.stringify({
+          concurrency,
+          samplesPerRun,
+          baseline,
+          after,
+          p95Ratio: afterP95 / baselineP95,
+          p95Ratios,
+          dbInvocations,
+          networkInvocations,
+          rss,
+          rssMonotonicGrowth,
+        })}\n`,
+      );
 
       expect(p95Ratios).toHaveLength(3);
       for (const p95Ratio of p95Ratios) expect(p95Ratio).toBeLessThanOrEqual(1.05);

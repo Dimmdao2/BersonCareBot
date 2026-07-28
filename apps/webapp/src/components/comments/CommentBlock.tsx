@@ -1,29 +1,29 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { useCallback, useEffect, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import type { CommentTargetType, CommentType, EntityComment } from "@/modules/comments/types";
-import { COMMENT_TYPES } from "@/modules/comments/types";
+} from '@/components/ui/select';
+import type { CommentTargetType, CommentType, EntityComment } from '@/modules/comments/types';
+import { COMMENT_TYPES } from '@/modules/comments/types';
 
 const COMMENT_TYPE_LABEL: Record<CommentType, string> = {
-  template: "Шаблон",
-  individual_override: "Индив. правка",
-  clinical_note: "Клиническая заметка",
+  template: 'Шаблон',
+  individual_override: 'Индив. правка',
+  clinical_note: 'Клиническая заметка',
 };
 
 function formatWhen(iso: string): string {
   try {
-    return new Date(iso).toLocaleString("ru-RU", {
-      dateStyle: "short",
-      timeStyle: "short",
+    return new Date(iso).toLocaleString('ru-RU', {
+      dateStyle: 'short',
+      timeStyle: 'short',
     });
   } catch {
     return iso;
@@ -50,17 +50,17 @@ export function CommentBlock({
   targetId,
   currentUserId,
   isAdmin = false,
-  title = "Комментарии",
+  title = 'Комментарии',
   mutationsDisabled = false,
 }: CommentBlockProps) {
   const [items, setItems] = useState<EntityComment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [newBody, setNewBody] = useState("");
-  const [newType, setNewType] = useState<CommentType>("clinical_note");
+  const [newBody, setNewBody] = useState('');
+  const [newType, setNewType] = useState<CommentType>('clinical_note');
   const [submitting, setSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editBody, setEditBody] = useState("");
+  const [editBody, setEditBody] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -71,15 +71,18 @@ export function CommentBlock({
         targetId,
       });
       const res = await fetch(`/api/doctor/comments?${params.toString()}`);
-      const data = (await res.json().catch(() => null)) as { ok?: boolean; items?: EntityComment[] };
+      const data = (await res.json().catch(() => null)) as {
+        ok?: boolean;
+        items?: EntityComment[];
+      };
       if (!res.ok || !data.ok || !data.items) {
-        setError("Не удалось загрузить комментарии");
+        setError('Не удалось загрузить комментарии');
         setItems([]);
         return;
       }
       setItems(data.items);
     } catch {
-      setError("Не удалось загрузить комментарии");
+      setError('Не удалось загрузить комментарии');
       setItems([]);
     } finally {
       setLoading(false);
@@ -101,9 +104,9 @@ export function CommentBlock({
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch("/api/doctor/comments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch('/api/doctor/comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           targetType,
           targetId,
@@ -113,13 +116,13 @@ export function CommentBlock({
       });
       const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
       if (!res.ok || !data.ok) {
-        setError(data.error ?? "Ошибка сохранения");
+        setError(data.error ?? 'Ошибка сохранения');
         return;
       }
-      setNewBody("");
+      setNewBody('');
       await load();
     } catch {
-      setError("Ошибка сохранения");
+      setError('Ошибка сохранения');
     } finally {
       setSubmitting(false);
     }
@@ -129,13 +132,13 @@ export function CommentBlock({
     const body = editBody.trim();
     if (!body) return;
     const res = await fetch(`/api/doctor/comments/${encodeURIComponent(id)}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ body }),
     });
     const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
     if (!res.ok || !data.ok) {
-      setError(data.error ?? "Ошибка обновления");
+      setError(data.error ?? 'Ошибка обновления');
       return;
     }
     setEditingId(null);
@@ -143,11 +146,11 @@ export function CommentBlock({
   }
 
   async function remove(id: string) {
-    if (!globalThis.confirm("Удалить комментарий?")) return;
-    const res = await fetch(`/api/doctor/comments/${encodeURIComponent(id)}`, { method: "DELETE" });
+    if (!globalThis.confirm('Удалить комментарий?')) return;
+    const res = await fetch(`/api/doctor/comments/${encodeURIComponent(id)}`, { method: 'DELETE' });
     const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
     if (!res.ok || !data.ok) {
-      setError(data.error ?? "Ошибка удаления");
+      setError(data.error ?? 'Ошибка удаления');
       return;
     }
     await load();
@@ -170,7 +173,9 @@ export function CommentBlock({
 
       {mutationsDisabled ? null : (
         <div className="mt-4 flex flex-col gap-3 border-t border-border pt-4">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Новый комментарий</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Новый комментарий
+          </p>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <Select value={newType} onValueChange={(v) => setNewType(v as CommentType)}>
               <SelectTrigger className="w-full sm:w-[200px]" aria-label="Тип комментария">
@@ -193,14 +198,20 @@ export function CommentBlock({
             disabled={submitting}
             className="text-sm"
           />
-          <Button type="button" onClick={() => void submitNew()} disabled={submitting || !newBody.trim()}>
-            {submitting ? "Отправка…" : "Добавить"}
+          <Button
+            type="button"
+            onClick={() => void submitNew()}
+            disabled={submitting || !newBody.trim()}
+          >
+            {submitting ? 'Отправка…' : 'Добавить'}
           </Button>
         </div>
       )}
 
-      <div className={mutationsDisabled ? "mt-4" : "mt-6"}>
-        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Список</p>
+      <div className={mutationsDisabled ? 'mt-4' : 'mt-6'}>
+        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Список
+        </p>
         {loading ? (
           <p className="text-sm text-muted-foreground">Загрузка…</p>
         ) : items.length === 0 ? (
@@ -212,11 +223,11 @@ export function CommentBlock({
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-xs text-muted-foreground">
                     {COMMENT_TYPE_LABEL[c.commentType]} · {formatWhen(c.createdAt)}
-                    {c.updatedAt !== c.createdAt ? " (изм.)" : ""}
+                    {c.updatedAt !== c.createdAt ? ' (изм.)' : ''}
                   </span>
                   {canMutate(c) ? (
                     <span className="text-xs text-muted-foreground">
-                      {c.authorId === currentUserId ? "Вы" : "админ"}
+                      {c.authorId === currentUserId ? 'Вы' : 'админ'}
                     </span>
                   ) : null}
                 </div>
@@ -232,7 +243,12 @@ export function CommentBlock({
                       <Button type="button" size="sm" onClick={() => void saveEdit(c.id)}>
                         Сохранить
                       </Button>
-                      <Button type="button" size="sm" variant="outline" onClick={() => setEditingId(null)}>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setEditingId(null)}
+                      >
                         Отмена
                       </Button>
                     </div>
@@ -253,7 +269,12 @@ export function CommentBlock({
                     >
                       Изменить
                     </Button>
-                    <Button type="button" size="sm" variant="ghost" onClick={() => void remove(c.id)}>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => void remove(c.id)}
+                    >
                       Удалить
                     </Button>
                   </div>

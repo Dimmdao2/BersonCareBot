@@ -25,7 +25,9 @@ beforeAll(async () => {
   server = createServer((request, response) => {
     let body = '';
     request.setEncoding('utf8');
-    request.on('data', (chunk: string) => { body += chunk; });
+    request.on('data', (chunk: string) => {
+      body += chunk;
+    });
     request.on('end', () => {
       bodies.push(body);
       response.writeHead(200, { 'content-type': 'application/json' });
@@ -40,16 +42,20 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await closeErrorTracking(1_000);
-  await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  await new Promise<void>((resolve, reject) =>
+    server.close((error) => (error ? reject(error) : resolve())),
+  );
 });
 
-async function verifyHook(input: Readonly<{
-  role: Extract<ErrorTrackingProcessRole, 'api' | 'worker' | 'scheduler'>;
-  capturePoint: string;
-  invoke(error: Error): void;
-  beforeError?: (error: Error) => void;
-}>): Promise<void> {
-  const marker = ["PII", "MARKER", "123456789"].join("_");
+async function verifyHook(
+  input: Readonly<{
+    role: Extract<ErrorTrackingProcessRole, 'api' | 'worker' | 'scheduler'>;
+    capturePoint: string;
+    invoke(error: Error): void;
+    beforeError?: (error: Error) => void;
+  }>,
+): Promise<void> {
+  const marker = ['PII', 'MARKER', '123456789'].join('_');
   bodies = [];
   await closeErrorTracking(1_000);
   await initErrorTracking({

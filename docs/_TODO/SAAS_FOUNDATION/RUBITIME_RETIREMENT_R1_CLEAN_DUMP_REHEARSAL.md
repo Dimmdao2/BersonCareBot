@@ -27,17 +27,17 @@ aggregate retirement gates -> reviewed FIO apply -> B1 assertion -> strict SaaS/
 
 Aggregate final proof before/after fixture boundaries:
 
-| Check | Result |
-| --- | ---: |
-| Rubitime one-pass resume mutations | 0 |
-| Legacy live rows | 315 |
-| Canonical live `rubitime_projection` rows | 313 |
-| Stale / unmapped / duplicate / non-confirmed blockers | 0 |
-| Owner-organization active specialists after closure | 1 |
-| Appointments on null/inactive specialist | 0 |
-| Reviewed FIO result | 165 updated; 3 matched; 1 expected missing; 1 preserved |
-| Locked product smoke | 22/22 + clinical-write denial PASS |
-| TEST services / health | 5/5 active; DB up |
+| Check                                                 |                                                  Result |
+| ----------------------------------------------------- | ------------------------------------------------------: |
+| Rubitime one-pass resume mutations                    |                                                       0 |
+| Legacy live rows                                      |                                                     315 |
+| Canonical live `rubitime_projection` rows             |                                                     313 |
+| Stale / unmapped / duplicate / non-confirmed blockers |                                                       0 |
+| Owner-organization active specialists after closure   |                                                       1 |
+| Appointments on null/inactive specialist              |                                                       0 |
+| Reviewed FIO result                                   | 165 updated; 3 matched; 1 expected missing; 1 preserved |
+| Locked product smoke                                  |                      22/22 + clinical-write denial PASS |
+| TEST services / health                                |                                       5/5 active; DB up |
 
 The first run stopped at a static retirement checker whose R0 baseline and R5-template expectation had become stale
 relative to the already approved current contracts. Those repo gates were corrected and passed targeted self-tests;
@@ -50,15 +50,15 @@ deploys.
 
 Run id: `R1-CLEAN-DUMP-REHEARSAL-codex-2026-07-14-fresh-0415`
 
-| Field | Value |
-| --- | --- |
-| Source dump | `/opt/backups/postgres/hourly/unified_bcb_webapp_prod_20260714_041501.dump` |
-| Dump archive timestamp | 2026-07-14 04:15:01 MSK |
-| Dump source DB name in archive header | `bcb_webapp_prod` |
-| Rehearsal DB | `bcb_webapp_dev_rubitime_fresh_20260714_041501_owner2` |
-| Runtime owner | disposable local role `bcb_rubitime_rehearsal_owner` |
-| Superuser/operator | disposable local role `bcb_rubitime_rehearsal_super` |
-| Owner CSV | `records-2.csv`, 392 parsed ids, 2026-01-16...2026-08-29 |
+| Field                                 | Value                                                                       |
+| ------------------------------------- | --------------------------------------------------------------------------- |
+| Source dump                           | `/opt/backups/postgres/hourly/unified_bcb_webapp_prod_20260714_041501.dump` |
+| Dump archive timestamp                | 2026-07-14 04:15:01 MSK                                                     |
+| Dump source DB name in archive header | `bcb_webapp_prod`                                                           |
+| Rehearsal DB                          | `bcb_webapp_dev_rubitime_fresh_20260714_041501_owner2`                      |
+| Runtime owner                         | disposable local role `bcb_rubitime_rehearsal_owner`                        |
+| Superuser/operator                    | disposable local role `bcb_rubitime_rehearsal_super`                        |
+| Owner CSV                             | `records-2.csv`, 392 parsed ids, 2026-01-16...2026-08-29                    |
 
 Sequence:
 
@@ -76,25 +76,25 @@ Sequence:
 
 Final aggregate result:
 
-| Check | Count / result |
-| --- | ---: |
-| R1 clean-dump preflight | PASS |
-| Legacy live rows | 268 |
-| Canonical `rubitime_projection` live rows | 266 |
-| Stale vs owner CSV | 0 |
-| Unmapped real active | 0 |
-| Duplicate clusters | 0 |
-| Non-confirmed cleanup candidates | 0 |
-| Raw-only records | 0 |
-| Legacy-only records | 290 |
-| Status mismatches | 4 |
-| `record_at` mismatches over 5 minutes | 2 |
-| Raw mapping coverage | 91 / 91 |
-| Legacy mapping coverage | 351 / 381 |
-| Legacy unmapped mappings | 30 |
-| Legacy mappings to soft-deleted canonical appointments | 74 |
-| Unexpected canonical source mappings | 6 |
-| Missing expected mapping metadata | 6 |
+| Check                                                  | Count / result |
+| ------------------------------------------------------ | -------------: |
+| R1 clean-dump preflight                                |           PASS |
+| Legacy live rows                                       |            268 |
+| Canonical `rubitime_projection` live rows              |            266 |
+| Stale vs owner CSV                                     |              0 |
+| Unmapped real active                                   |              0 |
+| Duplicate clusters                                     |              0 |
+| Non-confirmed cleanup candidates                       |              0 |
+| Raw-only records                                       |              0 |
+| Legacy-only records                                    |            290 |
+| Status mismatches                                      |              4 |
+| `record_at` mismatches over 5 minutes                  |              2 |
+| Raw mapping coverage                                   |        91 / 91 |
+| Legacy mapping coverage                                |      351 / 381 |
+| Legacy unmapped mappings                               |             30 |
+| Legacy mappings to soft-deleted canonical appointments |             74 |
+| Unexpected canonical source mappings                   |              6 |
+| Missing expected mapping metadata                      |              6 |
 
 Interpretation: the fresh-copy R1 cleanup proof is now self-contained for the owner-approved cleanup/import
 sequence. The stale/unmapped/duplicate buckets are closed on a clean current prod dump. The remaining
@@ -104,16 +104,16 @@ canon, and `integrator.rubitime_records` is audit-only when it disagrees. Doctor
 
 ## Previous isolated rehearsal target — superseded FAIL
 
-| Field | Value |
-| --- | --- |
-| Source dump | `/home/dev/brain/backup/home-dev-cleanup-20260709T082543Z/bcb-test-setup/bcb_test_restore.dump` |
-| Dump archive timestamp | 2026-06-25 09:17 MSK |
-| Dump source DB name in archive header | `bersoncarebot` |
-| Dump SHA-256 | `bcedd122e4362e087295df61e492f3c54fc892a6388dbf4eb995e74f4da67d58` |
-| Local PostgreSQL | user-owned PG16, loopback `127.0.0.1:55432` |
-| Rehearsal DB | `bcb_webapp_dev_rubitime_clean_20260714` |
-| Post-run state | user-owned PostgreSQL stopped; port `55432` closed |
-| Current `bcb_webapp_dev` | not connected; not modified |
+| Field                                 | Value                                                                                           |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Source dump                           | `/home/dev/brain/backup/home-dev-cleanup-20260709T082543Z/bcb-test-setup/bcb_test_restore.dump` |
+| Dump archive timestamp                | 2026-06-25 09:17 MSK                                                                            |
+| Dump source DB name in archive header | `bersoncarebot`                                                                                 |
+| Dump SHA-256                          | `bcedd122e4362e087295df61e492f3c54fc892a6388dbf4eb995e74f4da67d58`                              |
+| Local PostgreSQL                      | user-owned PG16, loopback `127.0.0.1:55432`                                                     |
+| Rehearsal DB                          | `bcb_webapp_dev_rubitime_clean_20260714`                                                        |
+| Post-run state                        | user-owned PostgreSQL stopped; port `55432` closed                                              |
+| Current `bcb_webapp_dev`              | not connected; not modified                                                                     |
 
 The dump was restored with `pg_restore --no-owner --no-privileges` into a new database created from
 `template0`. The local cluster and database were used only for this rehearsal.
@@ -142,26 +142,26 @@ owner resolver input used by the historical fallback import; neither input is pr
 
 ## Baseline counts from the restored dump
 
-| Aggregate | Count |
-| --- | ---: |
-| `appointment_records` total | 384 |
-| `appointment_records` live | 381 |
-| `integrator.rubitime_records` | 91 |
-| `integrator.rubitime_events` | 363 |
-| shared legacy/raw records | 91 |
-| raw-only records | 0 |
-| legacy-only records | 293 |
-| shared status mismatches | 4 |
-| shared `record_at` mismatches over 5 minutes | 2 |
-| `be_appointments` total | 246 |
-| canonical `rubitime_projection` | 240 |
-| `be_external_entity_mappings` total | 270 |
-| Rubitime appointment mappings | 256 |
-| Rubitime branch / specialist mappings | 2 / 2 |
-| Rubitime service + availability mappings | 5 + 5 |
-| active specialists | 2 |
-| canonical branches | 2 |
-| platform contacts | 2 |
+| Aggregate                                    | Count |
+| -------------------------------------------- | ----: |
+| `appointment_records` total                  |   384 |
+| `appointment_records` live                   |   381 |
+| `integrator.rubitime_records`                |    91 |
+| `integrator.rubitime_events`                 |   363 |
+| shared legacy/raw records                    |    91 |
+| raw-only records                             |     0 |
+| legacy-only records                          |   293 |
+| shared status mismatches                     |     4 |
+| shared `record_at` mismatches over 5 minutes |     2 |
+| `be_appointments` total                      |   246 |
+| canonical `rubitime_projection`              |   240 |
+| `be_external_entity_mappings` total          |   270 |
+| Rubitime appointment mappings                |   256 |
+| Rubitime branch / specialist mappings        | 2 / 2 |
+| Rubitime service + availability mappings     | 5 + 5 |
+| active specialists                           |     2 |
+| canonical branches                           |     2 |
+| platform contacts                            |     2 |
 
 All 240 baseline `rubitime_projection` appointments have at least one row in both
 `be_appointment_events` and `be_appointment_history_events` (265 and 275 event rows respectively). No
@@ -173,14 +173,14 @@ usable with current HEAD.
 
 ## Rehearsal commands and results
 
-| Step | Result |
-| --- | --- |
-| Restore dump into isolated PG16 DB | PASS |
-| Apply `pnpm run migrate` with explicit rehearsal `DATABASE_URL` | FAIL |
-| Run current dual-source audit | FAIL after migration failure |
-| Run current backfill dry-run `--summary-only` | FAIL after migration failure |
-| Run clean-dump preflight | expected FAIL |
-| Any cleanup/import `--commit` | not run |
+| Step                                                            | Result                       |
+| --------------------------------------------------------------- | ---------------------------- |
+| Restore dump into isolated PG16 DB                              | PASS                         |
+| Apply `pnpm run migrate` with explicit rehearsal `DATABASE_URL` | FAIL                         |
+| Run current dual-source audit                                   | FAIL after migration failure |
+| Run current backfill dry-run `--summary-only`                   | FAIL after migration failure |
+| Run clean-dump preflight                                        | expected FAIL                |
+| Any cleanup/import `--commit`                                   | not run                      |
 
 Migration fails in `0143_seed_staff_organization_members.sql`: the snapshot has zero active unmerged
 `platform_users.role='doctor'` rows and three `admin` rows, while the migration requires exactly one
@@ -231,7 +231,7 @@ target-only late Rubitime rows.
    `organization_id`, `branch_id`, `room_id`, `specialist_id`, `service_id`, optional
    `platform_user_id`, times/duration, status, attribution, and `deleted_at`.
 3. `be_external_entity_mappings`: transfer all `external_system='rubitime' AND
-   entity_type='appointment'` rows, preserving stable mapping id, canonical id, organization, external id,
+entity_type='appointment'` rows, preserving stable mapping id, canonical id, organization, external id,
    metadata, and timestamps.
 4. `be_appointment_events` and `be_appointment_history_events`: transfer rows for the bundled canonical
    Rubitime appointment ids, preserving event ids/types/timestamps and payloads in the secured transfer

@@ -2,13 +2,13 @@ import {
   countPatientCompletedPipelineStages,
   selectCurrentWorkingStageForPatientDetail,
   splitPatientProgramStagesForDetailUi,
-} from "@/modules/treatment-program/stage-semantics";
-import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
-import type { DoctorClientOverviewCarePlanModel } from "./types";
+} from '@/modules/treatment-program/stage-semantics';
+import type { TreatmentProgramInstanceDetail } from '@/modules/treatment-program/types';
+import type { DoctorClientOverviewCarePlanModel } from './types';
 
 function snapshotTitle(snapshot: Record<string, unknown>, itemType: string): string {
   const t = snapshot.title;
-  if (typeof t === "string" && t.trim() !== "") return t.trim();
+  if (typeof t === 'string' && t.trim() !== '') return t.trim();
   return itemType;
 }
 
@@ -16,14 +16,14 @@ function snapshotTitle(snapshot: Record<string, unknown>, itemType: string): str
 export function buildDoctorClientCarePlanOverview(
   detail: TreatmentProgramInstanceDetail,
 ): DoctorClientOverviewCarePlanModel | null {
-  if (detail.status !== "active") return null;
+  if (detail.status !== 'active') return null;
 
   const { stageZero, pipeline } = splitPatientProgramStagesForDetailUi(detail.stages);
   let stage = selectCurrentWorkingStageForPatientDetail(pipeline);
   if (!stage && pipeline.length === 0) {
     stage =
-      stageZero.find((s) => s.status === "in_progress") ??
-      stageZero.find((s) => s.status === "available") ??
+      stageZero.find((s) => s.status === 'in_progress') ??
+      stageZero.find((s) => s.status === 'available') ??
       null;
   }
   if (!stage) return null;
@@ -33,7 +33,7 @@ export function buildDoctorClientCarePlanOverview(
   const totalStages = pipelineStages.length;
 
   const items = [...stage.items]
-    .filter((i) => i.status === "active")
+    .filter((i) => i.status === 'active')
     .sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id))
     .slice(0, 6)
     .map((i) => ({
@@ -50,7 +50,7 @@ export function buildDoctorClientCarePlanOverview(
     instanceId: detail.id,
     instanceTitle: detail.title,
     stageId: stage.id,
-    stageTitle: stageTitle !== undefined && stageTitle !== "" ? stageTitle : "Этап",
+    stageTitle: stageTitle !== undefined && stageTitle !== '' ? stageTitle : 'Этап',
     goals: stage.goals,
     objectives: stage.objectives,
     expectedDurationText: stage.expectedDurationText,

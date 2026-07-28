@@ -10,13 +10,13 @@
 
 ## Краткий вердикт
 
-| # | Проверка | Статус |
-|---|-----------|--------|
-| 1 | Deep copy: `snapshot`, `comment`, `local_comment`, `settings` (§ 5) | **PASS** |
-| 2 | Независимость экземпляра от шаблона после копирования (§ 5) | **PASS** |
-| 3 | Override: приоритет `local_comment` над `comment` (§ 6) | **PASS** (отображение + API + форма врача после FIX) |
-| 4 | Начальные статусы этапов: первый `available`, остальные `locked` (§ 5 + § 3) | **PASS** |
-| 5 | Изоляция `modules/treatment-program/` (§ 12) | **PASS** |
+| #   | Проверка                                                                     | Статус                                               |
+| --- | ---------------------------------------------------------------------------- | ---------------------------------------------------- |
+| 1   | Deep copy: `snapshot`, `comment`, `local_comment`, `settings` (§ 5)          | **PASS**                                             |
+| 2   | Независимость экземпляра от шаблона после копирования (§ 5)                  | **PASS**                                             |
+| 3   | Override: приоритет `local_comment` над `comment` (§ 6)                      | **PASS** (отображение + API + форма врача после FIX) |
+| 4   | Начальные статусы этапов: первый `available`, остальные `locked` (§ 5 + § 3) | **PASS**                                             |
+| 5   | Изоляция `modules/treatment-program/` (§ 12)                                 | **PASS**                                             |
 
 ---
 
@@ -26,12 +26,12 @@
 
 Эталон § 5: при назначении — `comment` и `settings` копируются, `local_comment` изначально пуст (NULL), `snapshot` — JSON снимка блока.
 
-| Поле § 5 | Реализация |
-|----------|------------|
-| `comment` | `instance-service.ts` → `assignTemplateToPatient`: в `itemInputs` передаётся `comment: it.comment` из элемента шаблона. |
+| Поле § 5        | Реализация                                                                                                                           |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `comment`       | `instance-service.ts` → `assignTemplateToPatient`: в `itemInputs` передаётся `comment: it.comment` из элемента шаблона.              |
 | `local_comment` | `pgTreatmentProgramInstance.createInstanceTree`: для строк элемента `localComment: null`; для этапа экземпляра `localComment: null`. |
-| `settings` | В дерево передаётся `settings: it.settings` из шаблона; insert `settings: it.settings ?? undefined`. |
-| `snapshot` | Для каждого элемента вызывается `snapshots.buildSnapshot(it.itemType, it.itemRefId)` до вставки; в БД пишется в колонку `snapshot`. |
+| `settings`      | В дерево передаётся `settings: it.settings` из шаблона; insert `settings: it.settings ?? undefined`.                                 |
+| `snapshot`      | Для каждого элемента вызывается `snapshots.buildSnapshot(it.itemType, it.itemRefId)` до вставки; в БД пишется в колонку `snapshot`.  |
 
 **Тесты (модуль):** `instance-service.test.ts` — кейс «deep copy: stages order, first available rest locked, comment and snapshot, local_comment null»; «deep copy preserves settings from template stage item (§5)».
 
@@ -43,11 +43,11 @@
 
 Эталон: после копирования экземпляр **независим**; изменения шаблона не влияют на существующие экземпляры.
 
-| Механизм | Оценка |
-|----------|--------|
-| Хранение | Этапы и элементы экземпляра — отдельные таблицы с собственными копиями полей; `getInstanceForPatient` / `getInstanceById` читают только таблицы экземпляра. |
-| Связь с шаблоном | `template_id` на экземпляре — справочная; при удалении шаблона поведение по FK не ломает уже скопированное дерево (в схеме — `ON DELETE SET NULL` для шаблона). |
-| Нет обратной синхронизации | Обновление строк шаблона не обновляет строки экземпляра (нет триггеров/общих представлений в scope фазы 4). |
+| Механизм                   | Оценка                                                                                                                                                          |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Хранение                   | Этапы и элементы экземпляра — отдельные таблицы с собственными копиями полей; `getInstanceForPatient` / `getInstanceById` читают только таблицы экземпляра.     |
+| Связь с шаблоном           | `template_id` на экземпляре — справочная; при удалении шаблона поведение по FK не ломает уже скопированное дерево (в схеме — `ON DELETE SET NULL` для шаблона). |
+| Нет обратной синхронизации | Обновление строк шаблона не обновляет строки экземпляра (нет триггеров/общих представлений в scope фазы 4).                                                     |
 
 **Тест (модуль):** `instance-service.test.ts` — «instance item comment and snapshot are independent of template edits after assign (§5)»: после `updateStageItem` у элемента **шаблона** у экземпляра неизменны `comment` и `snapshot`.
 
@@ -90,11 +90,11 @@
 
 ### Verdict: **PASS**
 
-| Проверка | Результат |
-|----------|-----------|
-| `rg '@/infra' apps/webapp/src/modules/treatment-program` | **Нет совпадений** (на дату аудита). |
-| Тесты экземпляра | `instance-service.test.ts` использует `@/app-layer/testing/treatmentProgramInMemory`, `treatmentProgramInstanceInMemory`. |
-| HTTP | `route.ts` для экземпляра — парсинг, роль, вызов `buildAppDeps().treatmentProgramInstance`; без бизнес-логики копирования в route. |
+| Проверка                                                 | Результат                                                                                                                          |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `rg '@/infra' apps/webapp/src/modules/treatment-program` | **Нет совпадений** (на дату аудита).                                                                                               |
+| Тесты экземпляра                                         | `instance-service.test.ts` использует `@/app-layer/testing/treatmentProgramInMemory`, `treatmentProgramInstanceInMemory`.          |
+| HTTP                                                     | `route.ts` для экземпляра — парсинг, роль, вызов `buildAppDeps().treatmentProgramInstance`; без бизнес-логики копирования в route. |
 
 ---
 
@@ -110,15 +110,15 @@
 
 ## Gate (фаза 4)
 
-| Критерий | Статус |
-|----------|--------|
-| Таблицы экземпляра + миграция Drizzle `0003_*` | **OK** (в репозитории) |
-| Deep copy § 5 | **OK** |
-| § 6 отображение и override через API | **OK** |
-| Начальные статусы этапов § 5 | **OK** |
-| Изоляция `modules/treatment-program` | **OK** |
-| Событие `comment_changed` | **Открыто до фазы 7** |
-| Предзаполнение формы override (§ 6 шаг 1) | **OK** — после FIX (`effectiveComment` → `initialDraft`) |
+| Критерий                                       | Статус                                                   |
+| ---------------------------------------------- | -------------------------------------------------------- |
+| Таблицы экземпляра + миграция Drizzle `0003_*` | **OK** (в репозитории)                                   |
+| Deep copy § 5                                  | **OK**                                                   |
+| § 6 отображение и override через API           | **OK**                                                   |
+| Начальные статусы этапов § 5                   | **OK**                                                   |
+| Изоляция `modules/treatment-program`           | **OK**                                                   |
+| Событие `comment_changed`                      | **Открыто до фазы 7**                                    |
+| Предзаполнение формы override (§ 6 шаг 1)      | **OK** — после FIX (`effectiveComment` → `initialDraft`) |
 
 ---
 
@@ -126,11 +126,11 @@
 
 **Critical / major:** **нет** — блокирующих расхождений с § 3 (начальные статусы), § 5 (deep copy и независимость), § 6 (приоритет комментария для отображения и сброс override), § 11 (без ломки LFK/CMS) по результатам этого аудита не выявлено.
 
-| # | Severity | Инструкция | Статус |
-|---|----------|------------|--------|
-| 1 | optional / minor | **§ 6 UX:** предзаполнение черновика формы override из отображаемого комментария (`effectiveComment`). | **Закрыто FIX** — `TreatmentProgramInstanceDetailClient.tsx`: `initialDraft={item.effectiveComment ?? ""}`. |
-| 2 | informational | **`comment_changed`** (§ 6 шаг 3, § 8): реализовать запись события при изменении `local_comment` — **фаза 7** (`treatment_program_events`). | **Defer фаза 7** |
-| 3 | informational | Миграция **`0003_treatment_program_instances.sql`** на окружениях: `pnpm --dir apps/webapp run db:migrate:drizzle` (или процесс DevOps). | **Defer (операционно)** — см. `EXECUTION_RULES.md`, `LOG.md`. |
+| #   | Severity         | Инструкция                                                                                                                                  | Статус                                                                                                      |
+| --- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| 1   | optional / minor | **§ 6 UX:** предзаполнение черновика формы override из отображаемого комментария (`effectiveComment`).                                      | **Закрыто FIX** — `TreatmentProgramInstanceDetailClient.tsx`: `initialDraft={item.effectiveComment ?? ""}`. |
+| 2   | informational    | **`comment_changed`** (§ 6 шаг 3, § 8): реализовать запись события при изменении `local_comment` — **фаза 7** (`treatment_program_events`). | **Defer фаза 7**                                                                                            |
+| 3   | informational    | Миграция **`0003_treatment_program_instances.sql`** на окружениях: `pnpm --dir apps/webapp run db:migrate:drizzle` (или процесс DevOps).    | **Defer (операционно)** — см. `EXECUTION_RULES.md`, `LOG.md`.                                               |
 
 **Уже закрытые ранее пункты (не требуют повторного FIX):** тесты на `settings` при deep copy; тест на независимость `comment`/`snapshot` от правок шаблона; JSDoc у `effectiveInstanceStageItemComment` для пустого override.
 
@@ -147,12 +147,12 @@ pnpm --dir apps/webapp exec vitest run src/modules/treatment-program/instance-se
 
 ## AUDIT_PHASE_4 FIX — верификация (2026-04-18)
 
-| Пункт MANDATORY | Результат |
-|-----------------|-----------|
-| Critical / major | **N/A** — в аудите не заводились. |
-| #1 optional §6 UX | **Закрыто** — предзаполнение `initialDraft` через `item.effectiveComment`. |
-| #2 `comment_changed` | **Defer фазы 7** — без изменения кода. |
-| #3 миграция `0003_*` на окружениях | **Defer (операционно)**. |
+| Пункт MANDATORY                    | Результат                                                                  |
+| ---------------------------------- | -------------------------------------------------------------------------- |
+| Critical / major                   | **N/A** — в аудите не заводились.                                          |
+| #1 optional §6 UX                  | **Закрыто** — предзаполнение `initialDraft` через `item.effectiveComment`. |
+| #2 `comment_changed`               | **Defer фазы 7** — без изменения кода.                                     |
+| #3 миграция `0003_*` на окружениях | **Defer (операционно)**.                                                   |
 
 **Повторная сверка с эталоном (код + точечные тесты модуля):**
 

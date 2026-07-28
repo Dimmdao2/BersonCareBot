@@ -1,18 +1,18 @@
 #!/usr/bin/env node
 
-import { spawnSync } from "node:child_process";
+import { spawnSync } from 'node:child_process';
 import {
   renderP013SyntheticFixtureCompatSchemaSql,
   renderP013SyntheticFixtureScratchSql,
   syntheticFixtureIds,
   syntheticIntegratorUserIds,
-} from "./p0-13-synthetic-fixtures.mjs";
+} from './p0-13-synthetic-fixtures.mjs';
 
 const repoRoot = process.cwd();
 const dbName = `bcb_saas_p0_13_2_scratch_${process.pid}_${Date.now()}`;
-const appRole = `p0_13_2_app_${process.pid}_${Date.now()}`.replace(/[^a-zA-Z0-9_]/g, "_");
+const appRole = `p0_13_2_app_${process.pid}_${Date.now()}`.replace(/[^a-zA-Z0-9_]/g, '_');
 
-if (!dbName.startsWith("bcb_saas_") || !dbName.includes("scratch")) {
+if (!dbName.startsWith('bcb_saas_') || !dbName.includes('scratch')) {
   throw new Error(`refusing unsafe scratch DB name: ${dbName}`);
 }
 
@@ -23,15 +23,17 @@ function quoteIdent(identifier) {
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
     cwd: repoRoot,
-    encoding: "utf8",
-    stdio: options.input ? ["pipe", "pipe", "pipe"] : "inherit",
+    encoding: 'utf8',
+    stdio: options.input ? ['pipe', 'pipe', 'pipe'] : 'inherit',
     input: options.input,
   });
 
   if (result.status !== 0) {
     if (result.stdout) process.stdout.write(result.stdout);
     if (result.stderr) process.stderr.write(result.stderr);
-    throw new Error(`${command} ${args.join(" ")} failed with ${result.status ?? "unknown status"}`);
+    throw new Error(
+      `${command} ${args.join(' ')} failed with ${result.status ?? 'unknown status'}`,
+    );
   }
 
   if (result.stdout) process.stdout.write(result.stdout);
@@ -39,7 +41,9 @@ function run(command, args, options = {}) {
 }
 
 function psql(sql, database = dbName) {
-  run("sudo", ["-n", "-u", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-d", database], { input: sql });
+  run('sudo', ['-n', '-u', 'postgres', 'psql', '-v', 'ON_ERROR_STOP=1', '-d', database], {
+    input: sql,
+  });
 }
 
 const appRoleIdent = quoteIdent(appRole);
@@ -409,14 +413,14 @@ SELECT 1/0; -- \quit's exit-status arg is unsupported on psql 16 here; force a r
 `;
 
 try {
-  run("sudo", ["-n", "-u", "postgres", "createdb", dbName]);
+  run('sudo', ['-n', '-u', 'postgres', 'createdb', dbName]);
   psql(renderP013SyntheticFixtureCompatSchemaSql());
   psql(renderP013SyntheticFixtureScratchSql());
   psql(isolationSql);
   console.log(`smoke-p0-13-db-isolation: OK (${dbName})`);
 } finally {
-  run("sudo", ["-n", "-u", "postgres", "dropdb", "--if-exists", dbName]);
-  run("sudo", ["-n", "-u", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-d", "postgres"], {
+  run('sudo', ['-n', '-u', 'postgres', 'dropdb', '--if-exists', dbName]);
+  run('sudo', ['-n', '-u', 'postgres', 'psql', '-v', 'ON_ERROR_STOP=1', '-d', 'postgres'], {
     input: `DROP ROLE IF EXISTS ${appRoleIdent};\n`,
   });
 }

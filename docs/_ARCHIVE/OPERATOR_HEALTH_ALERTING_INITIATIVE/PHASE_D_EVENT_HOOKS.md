@@ -26,12 +26,12 @@
 
 ## 4. Разрешённые области правок
 
-| Область | Пути |
-|---------|------|
+| Область            | Пути                                                                                           |
+| ------------------ | ---------------------------------------------------------------------------------------------- |
 | Post-create / GCal | `apps/integrator/src/integrations/rubitime/postCreateProjection.ts`, `google-calendar/sync.ts` |
-| Audit / merge | `apps/webapp/src/infra/adminAuditLog.ts`, вызывающие сервисы merge |
-| Projection | integrator worker + место чтения snapshot |
-| Media | `apps/media-worker/src/**`, webapp preview metrics при необходимости |
+| Audit / merge      | `apps/webapp/src/infra/adminAuditLog.ts`, вызывающие сервисы merge                             |
+| Projection         | integrator worker + место чтения snapshot                                                      |
+| Media              | `apps/media-worker/src/**`, webapp preview metrics при необходимости                           |
 
 **Запрещено:** менять схему legacy LFK таблиц (правила TREATMENT_PROGRAM_INITIATIVE).
 

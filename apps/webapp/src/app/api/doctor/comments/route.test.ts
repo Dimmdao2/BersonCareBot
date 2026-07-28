@@ -1,20 +1,20 @@
-import { NextResponse } from "next/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { NextResponse } from 'next/server';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const organizationId = "10000000-0000-4000-8000-000000000001";
-const otherOrganizationId = "20000000-0000-4000-8000-000000000002";
-const targetId = "00000000-0000-4000-8000-0000000000b1";
+const organizationId = '10000000-0000-4000-8000-000000000001';
+const otherOrganizationId = '20000000-0000-4000-8000-000000000002';
+const targetId = '00000000-0000-4000-8000-0000000000b1';
 
 const sampleItem = {
-  id: "00000000-0000-4000-8000-000000000001",
+  id: '00000000-0000-4000-8000-000000000001',
   organizationId,
-  authorId: "00000000-0000-4000-8000-0000000000a1",
-  targetType: "program_instance" as const,
+  authorId: '00000000-0000-4000-8000-0000000000a1',
+  targetType: 'program_instance' as const,
   targetId,
-  commentType: "clinical_note" as const,
-  body: "Note",
-  createdAt: "2026-01-01T00:00:00.000Z",
-  updatedAt: "2026-01-01T00:00:00.000Z",
+  commentType: 'clinical_note' as const,
+  body: 'Note',
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
 };
 
 const {
@@ -29,11 +29,13 @@ const {
   const createMockInner = vi.fn();
   const getInstanceByIdMockInner = vi.fn();
   const requireDoctorWorkspaceApiContextMockInner = vi.fn();
-  const withDoctorWorkspacePrincipalMockInner = vi.fn((_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
-  const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
-  if (!fn) throw new Error("principal_callback_required");
-  return fn();
-});
+  const withDoctorWorkspacePrincipalMockInner = vi.fn(
+    (_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
+      const fn = typeof sourceOrFn === 'function' ? sourceOrFn : maybeFn;
+      if (!fn) throw new Error('principal_callback_required');
+      return fn();
+    },
+  );
   return {
     listMock: listMockInner,
     createMock: createMockInner,
@@ -52,27 +54,27 @@ const {
   };
 });
 
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: buildAppDepsMock,
 }));
-vi.mock("@/app-layer/guards/requireRole", () => ({
+vi.mock('@/app-layer/guards/requireRole', () => ({
   requireDoctorWorkspaceApiContext: () => requireDoctorWorkspaceApiContextMock(),
 }));
-vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
+vi.mock('@/app-layer/guards/doctorWorkspacePrincipal', () => ({
   withDoctorWorkspacePrincipal: (
     ctx: unknown,
     sourceOrFn: string | (() => unknown),
     maybeFn?: () => unknown,
   ) => {
-    const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
-    if (!fn) throw new Error("principal_callback_required");
+    const fn = typeof sourceOrFn === 'function' ? sourceOrFn : maybeFn;
+    if (!fn) throw new Error('principal_callback_required');
     return withDoctorWorkspacePrincipalMock(ctx, fn);
   },
 }));
 
-import { GET, POST } from "./route";
+import { GET, POST } from './route';
 
-describe("/api/doctor/comments", () => {
+describe('/api/doctor/comments', () => {
   beforeEach(() => {
     listMock.mockClear();
     createMock.mockClear();
@@ -81,8 +83,8 @@ describe("/api/doctor/comments", () => {
     withDoctorWorkspacePrincipalMock.mockClear();
     withDoctorWorkspacePrincipalMock.mockImplementation(
       (_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
-        const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
-        if (!fn) throw new Error("principal_callback_required");
+        const fn = typeof sourceOrFn === 'function' ? sourceOrFn : maybeFn;
+        if (!fn) throw new Error('principal_callback_required');
         return fn();
       },
     );
@@ -93,9 +95,9 @@ describe("/api/doctor/comments", () => {
         organizationId,
         session: {
           user: {
-            userId: "00000000-0000-4000-8000-0000000000a1",
-            role: "doctor",
-            displayName: "D",
+            userId: '00000000-0000-4000-8000-0000000000a1',
+            role: 'doctor',
+            displayName: 'D',
             bindings: {},
           },
         },
@@ -103,10 +105,10 @@ describe("/api/doctor/comments", () => {
     });
   });
 
-  it("GET returns workspace gate response", async () => {
+  it('GET returns workspace gate response', async () => {
     requireDoctorWorkspaceApiContextMock.mockResolvedValueOnce({
       ok: false,
-      response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }),
+      response: NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 }),
     });
     const res = await GET(
       new Request(
@@ -116,12 +118,14 @@ describe("/api/doctor/comments", () => {
     expect(res.status).toBe(401);
   });
 
-  it("GET returns 400 on invalid query", async () => {
-    const res = await GET(new Request("http://localhost/api/doctor/comments?targetType=bad&targetId=not-uuid"));
+  it('GET returns 400 on invalid query', async () => {
+    const res = await GET(
+      new Request('http://localhost/api/doctor/comments?targetType=bad&targetId=not-uuid'),
+    );
     expect(res.status).toBe(400);
   });
 
-  it("GET returns items for doctor", async () => {
+  it('GET returns items for doctor', async () => {
     listMock.mockResolvedValue([sampleItem]);
     const res = await GET(
       new Request(
@@ -129,67 +133,72 @@ describe("/api/doctor/comments", () => {
       ),
     );
     expect(res.status).toBe(200);
-    const data = (await res.json()) as { ok: boolean; items: typeof sampleItem[] };
+    const data = (await res.json()) as { ok: boolean; items: (typeof sampleItem)[] };
     expect(data.ok).toBe(true);
     expect(data.items).toHaveLength(1);
     expect(getInstanceByIdMock).toHaveBeenCalledWith(targetId);
-    expect(listMock).toHaveBeenCalledWith("program_instance", targetId);
+    expect(listMock).toHaveBeenCalledWith('program_instance', targetId);
     expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
       expect.objectContaining({ organizationId }),
       expect.any(Function),
     );
   });
 
-  it("GET rejects unsupported generic targets before listing", async () => {
+  it('GET rejects unsupported generic targets before listing', async () => {
     const res = await GET(
       new Request(`http://localhost/api/doctor/comments?targetType=lesson&targetId=${targetId}`),
     );
     expect(res.status).toBe(400);
-    expect(await res.json()).toMatchObject({ ok: false, error: "unsupported_target_type" });
+    expect(await res.json()).toMatchObject({ ok: false, error: 'unsupported_target_type' });
     expect(getInstanceByIdMock).not.toHaveBeenCalled();
     expect(listMock).not.toHaveBeenCalled();
   });
 
-  it("GET returns 404 when program instance is outside workspace", async () => {
-    getInstanceByIdMock.mockResolvedValueOnce({ id: targetId, organizationId: otherOrganizationId });
+  it('GET returns 404 when program instance is outside workspace', async () => {
+    getInstanceByIdMock.mockResolvedValueOnce({
+      id: targetId,
+      organizationId: otherOrganizationId,
+    });
     const res = await GET(
-      new Request(`http://localhost/api/doctor/comments?targetType=program_instance&targetId=${targetId}`),
+      new Request(
+        `http://localhost/api/doctor/comments?targetType=program_instance&targetId=${targetId}`,
+      ),
     );
     expect(res.status).toBe(404);
     expect(listMock).not.toHaveBeenCalled();
   });
 
-  it("POST returns workspace gate response", async () => {
+  it('POST returns workspace gate response', async () => {
     requireDoctorWorkspaceApiContextMock.mockResolvedValueOnce({
       ok: false,
-      response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }),
+      response: NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 }),
     });
     const res = await POST(
-      new Request("http://localhost/api/doctor/comments", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
+      new Request('http://localhost/api/doctor/comments', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          targetType: "program_instance",
+          targetType: 'program_instance',
           targetId,
-          commentType: "clinical_note",
-          body: "X",
+          commentType: 'clinical_note',
+          body: 'X',
         }),
       }),
     );
     expect(res.status).toBe(401);
   });
 
-  it("POST creates with session userId as author", async () => {
+  it('POST creates with session userId as author', async () => {
     createMock.mockResolvedValue(sampleItem);
     const res = await POST(
-      new Request("http://localhost/api/doctor/comments", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
+      new Request('http://localhost/api/doctor/comments', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          targetType: "program_instance",
+          targetType: 'program_instance',
           targetId,
-          commentType: "clinical_note",
-          body: "Note",
+          commentType: 'clinical_note',
+          body: 'Note',
         }),
       }),
     );
@@ -198,27 +207,27 @@ describe("/api/doctor/comments", () => {
     expect(data.ok).toBe(true);
     expect(createMock).toHaveBeenCalledWith(
       {
-        targetType: "program_instance",
+        targetType: 'program_instance',
         targetId,
-        commentType: "clinical_note",
-        body: "Note",
+        commentType: 'clinical_note',
+        body: 'Note',
       },
-      "00000000-0000-4000-8000-0000000000a1",
+      '00000000-0000-4000-8000-0000000000a1',
     );
-    expect(data.item.body).toBe("Note");
+    expect(data.item.body).toBe('Note');
   });
 
-  it("POST returns 404 when program instance is missing and does not create", async () => {
-    getInstanceByIdMock.mockRejectedValueOnce(new Error("not_found"));
+  it('POST returns 404 when program instance is missing and does not create', async () => {
+    getInstanceByIdMock.mockRejectedValueOnce(new Error('not_found'));
     const res = await POST(
-      new Request("http://localhost/api/doctor/comments", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
+      new Request('http://localhost/api/doctor/comments', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          targetType: "program_instance",
+          targetType: 'program_instance',
           targetId,
-          commentType: "clinical_note",
-          body: "Note",
+          commentType: 'clinical_note',
+          body: 'Note',
         }),
       }),
     );
@@ -226,21 +235,21 @@ describe("/api/doctor/comments", () => {
     expect(createMock).not.toHaveBeenCalled();
   });
 
-  it("POST rejects unsupported generic targets before creating", async () => {
+  it('POST rejects unsupported generic targets before creating', async () => {
     const res = await POST(
-      new Request("http://localhost/api/doctor/comments", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
+      new Request('http://localhost/api/doctor/comments', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          targetType: "lesson",
+          targetType: 'lesson',
           targetId,
-          commentType: "clinical_note",
-          body: "Note",
+          commentType: 'clinical_note',
+          body: 'Note',
         }),
       }),
     );
     expect(res.status).toBe(400);
-    expect(await res.json()).toMatchObject({ ok: false, error: "unsupported_target_type" });
+    expect(await res.json()).toMatchObject({ ok: false, error: 'unsupported_target_type' });
     expect(getInstanceByIdMock).not.toHaveBeenCalled();
     expect(createMock).not.toHaveBeenCalled();
   });

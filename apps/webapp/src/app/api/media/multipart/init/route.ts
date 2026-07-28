@@ -1,23 +1,30 @@
-import { randomUUID } from "node:crypto";
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { env, isS3MediaEnabled } from "@/config/env";
-import { getPool } from "@/app-layer/db/client";
-import { logger } from "@/app-layer/logging/logger";
-import { pgFolderExists } from "@/app-layer/media/mediaFoldersRepo";
-import { pgValidateUserAssignableMediaFolder } from "@/app-layer/media/clientMediaFolders";
-import { insertUploadSessionTx } from "@/app-layer/media/mediaUploadSessionsRepo";
-import { insertPendingMediaFileTx, deletePendingMediaFileById } from "@/app-layer/media/s3MediaStorage";
-import { s3AbortMultipartUpload, s3CreateMultipartUpload, s3ObjectKey } from "@/app-layer/media/s3Client";
-import { withUserLifecycleLock } from "@/app-layer/locks/userLifecycleLock";
+import { randomUUID } from 'node:crypto';
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { env, isS3MediaEnabled } from '@/config/env';
+import { getPool } from '@/app-layer/db/client';
+import { logger } from '@/app-layer/logging/logger';
+import { pgFolderExists } from '@/app-layer/media/mediaFoldersRepo';
+import { pgValidateUserAssignableMediaFolder } from '@/app-layer/media/clientMediaFolders';
+import { insertUploadSessionTx } from '@/app-layer/media/mediaUploadSessionsRepo';
+import {
+  insertPendingMediaFileTx,
+  deletePendingMediaFileById,
+} from '@/app-layer/media/s3MediaStorage';
+import {
+  s3AbortMultipartUpload,
+  s3CreateMultipartUpload,
+  s3ObjectKey,
+} from '@/app-layer/media/s3Client';
+import { withUserLifecycleLock } from '@/app-layer/locks/userLifecycleLock';
 import {
   chooseMultipartPartSize,
   MULTIPART_SESSION_TTL_MS,
   multipartMaxPartNumber,
-} from "@/modules/media/multipartConstants";
-import { ALLOWED_MEDIA_MIME, MAX_MEDIA_BYTES } from "@/modules/media/uploadAllowedMime";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+} from '@/modules/media/multipartConstants';
+import { ALLOWED_MEDIA_MIME, MAX_MEDIA_BYTES } from '@/modules/media/uploadAllowedMime';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 
 const bodySchema = z.object({
   filename: z.string().min(1).max(255),
@@ -28,7 +35,7 @@ const bodySchema = z.object({
 
 export async function POST(request: Request) {
   if (!isS3MediaEnabled(env)) {
-    return NextResponse.json({ ok: false, error: "s3_not_configured" }, { status: 501 });
+    return NextResponse.json({ ok: false, error: 's3_not_configured' }, { status: 501 });
   }
 
   const gate = await requireDoctorWorkspaceApiContext();
@@ -39,32 +46,35 @@ export async function POST(request: Request) {
   try {
     json = await request.json();
   } catch {
-    return NextResponse.json({ ok: false, error: "invalid_json" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 });
   }
 
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
 
   const mime = parsed.data.mimeType.toLowerCase();
   if (!ALLOWED_MEDIA_MIME.has(mime)) {
-    return NextResponse.json({ ok: false, error: "mime_not_allowed", mime }, { status: 415 });
+    return NextResponse.json({ ok: false, error: 'mime_not_allowed', mime }, { status: 415 });
   }
   if (parsed.data.size > MAX_MEDIA_BYTES) {
-    return NextResponse.json({ ok: false, error: "file_too_large", maxBytes: MAX_MEDIA_BYTES }, { status: 413 });
+    return NextResponse.json(
+      { ok: false, error: 'file_too_large', maxBytes: MAX_MEDIA_BYTES },
+      { status: 413 },
+    );
   }
 
   let folderId: string | null = null;
   if (parsed.data.folderId !== undefined && parsed.data.folderId !== null) {
     const assignable = await pgValidateUserAssignableMediaFolder(parsed.data.folderId);
     if (!assignable.ok) {
-      const status = assignable.error === "folder_not_found" ? 404 : 400;
+      const status = assignable.error === 'folder_not_found' ? 404 : 400;
       return NextResponse.json({ ok: false, error: assignable.error }, { status });
     }
     const exists = await pgFolderExists(parsed.data.folderId);
     if (!exists) {
-      return NextResponse.json({ ok: false, error: "folder_not_found" }, { status: 404 });
+      return NextResponse.json({ ok: false, error: 'folder_not_found' }, { status: 404 });
     }
     folderId = parsed.data.folderId;
   } else if (parsed.data.folderId === null) {
@@ -80,9 +90,9 @@ export async function POST(request: Request) {
   const expiresAt = new Date(Date.now() + MULTIPART_SESSION_TTL_MS);
 
   const metadata = {
-    "media-id": mediaId,
-    "owner-user-id": session.user.userId,
-    "expected-size": String(parsed.data.size),
+    'media-id': mediaId,
+    'owner-user-id': session.user.userId,
+    'expected-size': String(parsed.data.size),
   };
 
   let uploadId: string | null = null;
@@ -95,7 +105,7 @@ export async function POST(request: Request) {
     uploadId = created.uploadId;
 
     await withDoctorWorkspacePrincipal(gate.ctx, () =>
-      withUserLifecycleLock(getPool(), session.user.userId, "shared", async (client) => {
+      withUserLifecycleLock(getPool(), session.user.userId, 'shared', async (client) => {
         await insertPendingMediaFileTx(client, {
           id: mediaId,
           filename: parsed.data.filename,
@@ -140,7 +150,7 @@ export async function POST(request: Request) {
         /* ignore */
       },
     );
-    logger.error({ err: e }, "[media/multipart/init] failed");
-    return NextResponse.json({ ok: false, error: "multipart_init_failed" }, { status: 500 });
+    logger.error({ err: e }, '[media/multipart/init] failed');
+    return NextResponse.json({ ok: false, error: 'multipart_init_failed' }, { status: 500 });
   }
 }

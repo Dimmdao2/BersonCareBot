@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { cn } from "@/lib/utils";
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { cn } from '@/lib/utils';
 
 export type PickerSearchFieldProps = {
   id?: string;
@@ -29,8 +29,8 @@ export function PickerSearchField({
   inputClassName,
 }: PickerSearchFieldProps) {
   return (
-    <label className={cn("flex min-w-[16rem] flex-1 flex-col gap-1 text-sm", className)}>
-      <span className={cn("text-xs text-muted-foreground", labelClassName)}>{label}</span>
+    <label className={cn('flex min-w-[16rem] flex-1 flex-col gap-1 text-sm', className)}>
+      <span className={cn('text-xs text-muted-foreground', labelClassName)}>{label}</span>
       <Input
         id={id}
         value={value}

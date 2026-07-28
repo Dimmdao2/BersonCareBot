@@ -1,4 +1,4 @@
-import type { AdminIncidentStaffPushDeps } from "./sendAdminIncidentStaffWebPush";
+import type { AdminIncidentStaffPushDeps } from './sendAdminIncidentStaffWebPush';
 
 let deps: AdminIncidentStaffPushDeps | null = null;
 

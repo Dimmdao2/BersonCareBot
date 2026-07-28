@@ -15,7 +15,9 @@ function allowedSet(types: readonly SupportRelayMessageType[]): Set<string> {
   return new Set(types as readonly string[]);
 }
 
-export function createSupportRelayPolicy(settings: AppSettings['supportRelay']): SupportRelayPolicy {
+export function createSupportRelayPolicy(
+  settings: AppSettings['supportRelay'],
+): SupportRelayPolicy {
   const userToAdmin = allowedSet(settings.allowedUserToAdminMessageTypes);
   const adminToUser = allowedSet(settings.allowedAdminToUserMessageTypes);
 

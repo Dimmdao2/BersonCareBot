@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockSelectLimit = vi.fn();
 const mockSelectWhere = vi.fn(() => ({ limit: mockSelectLimit }));
@@ -19,7 +19,9 @@ type ProbeRunValues = {
 };
 
 const mockOnConflictDoUpdate = vi.fn((_arg: { set: Record<string, unknown> }) => Promise.resolve());
-const mockValues = vi.fn((_arg: ProbeRunValues) => ({ onConflictDoUpdate: mockOnConflictDoUpdate }));
+const mockValues = vi.fn((_arg: ProbeRunValues) => ({
+  onConflictDoUpdate: mockOnConflictDoUpdate,
+}));
 const mockInsert = vi.fn(() => ({ values: mockValues }));
 
 vi.mock('../drizzle.js', () => ({
@@ -74,9 +76,7 @@ describe('recordOperatorOutboundProbeRun', () => {
 
   it('starts streak at 1 when no previous row', async () => {
     mockSelectLimit.mockResolvedValueOnce([]);
-    const r = await recordOperatorOutboundProbeRun(
-      probeRunInput({ max: 'fail' }),
-    );
+    const r = await recordOperatorOutboundProbeRun(probeRunInput({ max: 'fail' }));
     expect(r.consecutiveFailRuns).toBe(1);
   });
 

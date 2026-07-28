@@ -49,4 +49,4 @@
 
 ---
 
-*Аудит: `PLAN.md` этапа 1, выборочно `ProfileForm.tsx`, `AskQuestionFAB.tsx`, `AppShell.tsx`, `pgDoctorAppointments.ts`, `AddEntryForm.tsx`, `DoctorClientsPanel.tsx`.*
+_Аудит: `PLAN.md` этапа 1, выборочно `ProfileForm.tsx`, `AskQuestionFAB.tsx`, `AppShell.tsx`, `pgDoctorAppointments.ts`, `AddEntryForm.tsx`, `DoctorClientsPanel.tsx`._

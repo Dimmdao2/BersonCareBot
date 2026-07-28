@@ -15,6 +15,7 @@
 - Базовый in-memory TTL cache в integrator.
 
 Не включать:
+
 - Нормализацию `recordAt`/`dateTimeEnd`.
 - Массовый backfill исторических `record_at`.
 - Удаление хардкодов `+03:00` в других местах.

@@ -1,15 +1,15 @@
-import { and, desc, eq, ne } from "drizzle-orm";
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
+import { and, desc, eq, ne } from 'drizzle-orm';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import {
   getDrizzleOrMutationTx as getDrizzle,
   runDrizzleMutationTransaction,
-} from "@/infra/db/drizzleMutationTx";
-import { runWebappPgText } from "@/infra/db/runWebappSql";
-import { courses as coursesTable } from "../../../db/schema/courses";
-import { contentPages } from "../../../db/schema/schema";
-import { treatmentProgramTemplates } from "../../../db/schema/treatmentProgramTemplates";
-import { treatmentProgramInstances } from "../../../db/schema/treatmentProgramInstances";
-import type { CoursesPort } from "@/modules/courses/ports";
+} from '@/infra/db/drizzleMutationTx';
+import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { courses as coursesTable } from '../../../db/schema/courses';
+import { contentPages } from '../../../db/schema/schema';
+import { treatmentProgramTemplates } from '../../../db/schema/treatmentProgramTemplates';
+import { treatmentProgramInstances } from '../../../db/schema/treatmentProgramInstances';
+import type { CoursesPort } from '@/modules/courses/ports';
 import type {
   CourseRecord,
   CourseStatus,
@@ -17,21 +17,23 @@ import type {
   CourseUsageSnapshot,
   CreateCourseInput,
   UpdateCourseInput,
-} from "@/modules/courses/types";
-import { COURSE_USAGE_DETAIL_LIMIT } from "@/modules/courses/types";
+} from '@/modules/courses/types';
+import { COURSE_USAGE_DETAIL_LIMIT } from '@/modules/courses/types';
 
 function currentPrincipalOrganizationId(): string {
   const principalOrganizationId = getCurrentDbPrincipalOrganizationId() ?? null;
   if (!principalOrganizationId) {
-    throw new Error("organization_principal_required");
+    throw new Error('organization_principal_required');
   }
   return principalOrganizationId;
 }
 
-function requireCurrentOrganizationOwnership(relatedOrganizationId: string | null | undefined): string {
+function requireCurrentOrganizationOwnership(
+  relatedOrganizationId: string | null | undefined,
+): string {
   const principalOrganizationId = currentPrincipalOrganizationId();
   if (!relatedOrganizationId || principalOrganizationId !== relatedOrganizationId) {
-    throw new Error("organization_principal_mismatch");
+    throw new Error('organization_principal_mismatch');
   }
   return principalOrganizationId;
 }
@@ -44,7 +46,9 @@ function mapRow(row: typeof coursesTable.$inferSelect): CourseRecord {
     programTemplateId: row.programTemplateId,
     introLessonPageId: row.introLessonPageId ?? null,
     accessSettings:
-      row.accessSettings && typeof row.accessSettings === "object" && !Array.isArray(row.accessSettings)
+      row.accessSettings &&
+      typeof row.accessSettings === 'object' &&
+      !Array.isArray(row.accessSettings)
         ? (row.accessSettings as Record<string, unknown>)
         : {},
     status: row.status as CourseStatus,
@@ -59,7 +63,7 @@ function parseCourseUsageRefs(raw: unknown): CourseUsageRef[] {
   if (raw == null) return [];
   let arr: unknown[];
   if (Array.isArray(raw)) arr = raw;
-  else if (typeof raw === "string") {
+  else if (typeof raw === 'string') {
     try {
       const p = JSON.parse(raw) as unknown;
       arr = Array.isArray(p) ? p : [];
@@ -70,31 +74,39 @@ function parseCourseUsageRefs(raw: unknown): CourseUsageRef[] {
 
   const out: CourseUsageRef[] = [];
   for (const x of arr) {
-    if (!x || typeof x !== "object") continue;
+    if (!x || typeof x !== 'object') continue;
     const o = x as Record<string, unknown>;
     const kind = o.kind;
     const id = o.id;
     const title = o.title;
-    if (kind === "content_page") {
-      if (typeof id !== "string" || typeof title !== "string") continue;
-      out.push({ kind: "content_page", id, title });
+    if (kind === 'content_page') {
+      if (typeof id !== 'string' || typeof title !== 'string') continue;
+      out.push({ kind: 'content_page', id, title });
       continue;
     }
-    if (kind === "treatment_program_instance") {
+    if (kind === 'treatment_program_instance') {
       const patientUserId = o.patientUserId;
-      if (typeof id !== "string" || typeof title !== "string" || typeof patientUserId !== "string") continue;
-      out.push({ kind: "treatment_program_instance", id, title, patientUserId });
+      if (typeof id !== 'string' || typeof title !== 'string' || typeof patientUserId !== 'string')
+        continue;
+      out.push({ kind: 'treatment_program_instance', id, title, patientUserId });
     }
   }
   return out;
 }
 
-function parseInstanceRefs(raw: unknown): Extract<CourseUsageRef, { kind: "treatment_program_instance" }>[] {
-  return parseCourseUsageRefs(raw).filter((r): r is Extract<CourseUsageRef, { kind: "treatment_program_instance" }> => r.kind === "treatment_program_instance");
+function parseInstanceRefs(
+  raw: unknown,
+): Extract<CourseUsageRef, { kind: 'treatment_program_instance' }>[] {
+  return parseCourseUsageRefs(raw).filter(
+    (r): r is Extract<CourseUsageRef, { kind: 'treatment_program_instance' }> =>
+      r.kind === 'treatment_program_instance',
+  );
 }
 
-function parsePageRefs(raw: unknown): Extract<CourseUsageRef, { kind: "content_page" }>[] {
-  return parseCourseUsageRefs(raw).filter((r): r is Extract<CourseUsageRef, { kind: "content_page" }> => r.kind === "content_page");
+function parsePageRefs(raw: unknown): Extract<CourseUsageRef, { kind: 'content_page' }>[] {
+  return parseCourseUsageRefs(raw).filter(
+    (r): r is Extract<CourseUsageRef, { kind: 'content_page' }> => r.kind === 'content_page',
+  );
 }
 
 async function loadCourseUsageSummary(courseId: string): Promise<CourseUsageSnapshot | null> {
@@ -190,23 +202,23 @@ async function loadCourseUsageSummary(courseId: string): Promise<CourseUsageSnap
     values,
   );
   const row = r.rows[0];
-  if (!row || row.tpl_id == null || row.tpl_id === "") return null;
+  if (!row || row.tpl_id == null || row.tpl_id === '') return null;
 
   const n = (v: string | number | null | undefined) => {
     if (v == null) return 0;
-    if (typeof v === "number") return v;
+    if (typeof v === 'number') return v;
     const parsed = Number.parseInt(String(v), 10);
     return Number.isFinite(parsed) ? parsed : 0;
   };
 
-  const tplTitleRaw = row.tpl_title?.trim() ?? "";
+  const tplTitleRaw = row.tpl_title?.trim() ?? '';
   const tplTitle = tplTitleRaw || null;
-  const refTitle = tplTitleRaw || "Шаблон программы";
+  const refTitle = tplTitleRaw || 'Шаблон программы';
 
   return {
     programTemplateId: row.tpl_id,
     programTemplateTitle: tplTitle,
-    programTemplateRef: { kind: "treatment_program_template", id: row.tpl_id, title: refTitle },
+    programTemplateRef: { kind: 'treatment_program_template', id: row.tpl_id, title: refTitle },
     activeTreatmentProgramInstanceCount: n(row.active_inst),
     completedTreatmentProgramInstanceCount: n(row.completed_inst),
     activeTreatmentProgramInstanceRefs: parseInstanceRefs(row.active_inst_refs),
@@ -228,7 +240,12 @@ export function createPgCoursesPort(): CoursesPort {
       const rows = await db
         .select()
         .from(coursesTable)
-        .where(and(eq(coursesTable.organizationId, organizationId), eq(coursesTable.status, "published")))
+        .where(
+          and(
+            eq(coursesTable.organizationId, organizationId),
+            eq(coursesTable.status, 'published'),
+          ),
+        )
         .orderBy(desc(coursesTable.updatedAt));
       return rows.map(mapRow);
     },
@@ -259,9 +276,7 @@ export function createPgCoursesPort(): CoursesPort {
         );
       const byId = new Map<string, typeof coursesTable.$inferSelect>();
       for (const r of rows) byId.set(r.course.id, r.course);
-      return [...byId.values()]
-        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-        .map(mapRow);
+      return [...byId.values()].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).map(mapRow);
     },
 
     async listForDoctor(filter) {
@@ -270,7 +285,7 @@ export function createPgCoursesPort(): CoursesPort {
       if (filter.status) {
         conds.push(eq(coursesTable.status, filter.status));
       } else if (!filter.includeArchived) {
-        conds.push(ne(coursesTable.status, "archived"));
+        conds.push(ne(coursesTable.status, 'archived'));
       }
       const rows = await db
         .select()
@@ -285,7 +300,12 @@ export function createPgCoursesPort(): CoursesPort {
       const rows = await db
         .select()
         .from(coursesTable)
-        .where(and(eq(coursesTable.id, id), eq(coursesTable.organizationId, currentPrincipalOrganizationId())))
+        .where(
+          and(
+            eq(coursesTable.id, id),
+            eq(coursesTable.organizationId, currentPrincipalOrganizationId()),
+          ),
+        )
         .limit(1);
       return rows[0] ? mapRow(rows[0]) : null;
     },
@@ -317,14 +337,14 @@ export function createPgCoursesPort(): CoursesPort {
             programTemplateId: input.programTemplateId,
             introLessonPageId: input.introLessonPageId ?? null,
             accessSettings: access,
-            status: input.status ?? "draft",
+            status: input.status ?? 'draft',
             priceMinor: input.priceMinor ?? 0,
-            currency: input.currency ?? "RUB",
+            currency: input.currency ?? 'RUB',
           })
           .returning();
       });
       const row = rows[0];
-      if (!row) throw new Error("Не удалось создать курс");
+      if (!row) throw new Error('Не удалось создать курс');
       return mapRow(row);
     },
 

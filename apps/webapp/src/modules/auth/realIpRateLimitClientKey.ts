@@ -6,12 +6,12 @@
  * Единая точка (chokepoint): oauth/start и email-otp/start используют ЭТОТ резолвер,
  * различаясь только scope-меткой для логов и fallback-ключом.
  */
-import { env } from "@/config/env";
-import { logger } from "@/infra/logging/logger";
+import { env } from '@/config/env';
+import { logger } from '@/infra/logging/logger';
 
 export type RealIpRateLimitClientKeyResult =
   | { ok: true; key: string }
-  | { ok: false; reason: "missing_x_real_ip" };
+  | { ok: false; reason: 'missing_x_real_ip' };
 
 /**
  * В production при отсутствии X-Real-Ip — `ok: false` (роут должен вернуть 503:
@@ -24,25 +24,25 @@ export function resolveRealIpRateLimitClientKey(
     scope: string;
     logPrefix: string;
     fallbackKey: string;
-    productionMissingLogLevel?: "error" | "warn";
+    productionMissingLogLevel?: 'error' | 'warn';
     event?: string;
   },
 ): RealIpRateLimitClientKeyResult {
-  const real = request.headers.get("x-real-ip")?.trim();
+  const real = request.headers.get('x-real-ip')?.trim();
   if (real && real.length > 0) {
     return { ok: true, key: real };
   }
 
-  if (env.NODE_ENV === "production") {
+  if (env.NODE_ENV === 'production') {
     const fields = {
       msg: `${opts.logPrefix}_x_real_ip_required`,
       scope: opts.scope,
       ...(opts.event ? { event: opts.event } : {}),
-      reason: "missing_x_real_ip",
+      reason: 'missing_x_real_ip',
     };
-    if (opts.productionMissingLogLevel === "warn") logger.warn(fields);
+    if (opts.productionMissingLogLevel === 'warn') logger.warn(fields);
     else logger.error(fields);
-    return { ok: false, reason: "missing_x_real_ip" };
+    return { ok: false, reason: 'missing_x_real_ip' };
   }
 
   logger.debug({ msg: `${opts.logPrefix}_missing_x_real_ip`, scope: opts.scope });

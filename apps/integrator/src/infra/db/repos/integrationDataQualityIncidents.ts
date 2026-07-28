@@ -1,11 +1,11 @@
 import { sql } from 'drizzle-orm';
-import type { DbPort } from "../../../kernel/contracts/index.js";
+import type { DbPort } from '../../../kernel/contracts/index.js';
 import type {
   IntegrationDataQualityIncidentInput,
   UpsertIntegrationDataQualityIncidentResult,
-} from "../../../shared/integrationDataQuality/types.js";
-import { logger } from "../../observability/logger.js";
-import { runIntegratorSql } from "../runIntegratorSql.js";
+} from '../../../shared/integrationDataQuality/types.js';
+import { logger } from '../../observability/logger.js';
+import { runIntegratorSql } from '../runIntegratorSql.js';
 
 /**
  * Upsert by (integration, entity, external_id, field, error_reason).
@@ -55,7 +55,7 @@ export async function upsertIntegrationDataQualityIncident(
     const occurrences = res.rows[0]?.occurrences ?? 1;
     return { occurrences };
   } catch (err) {
-    logger.error({ err, input }, "upsert integration_data_quality_incidents failed");
+    logger.error({ err, input }, 'upsert integration_data_quality_incidents failed');
     return { occurrences: 0 };
   }
 }

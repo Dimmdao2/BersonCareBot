@@ -1,44 +1,44 @@
-"use client";
+'use client';
 
-import { useRouter } from "next/navigation";
-import { useState, useTransition, useMemo } from "react";
-import toast from "react-hot-toast";
-import Link from "next/link";
-import { MoreHorizontal } from "lucide-react";
-import { Button, buttonVariants } from "@/shared/ui/patient/primitives/button";
-import { Badge } from "@/shared/ui/patient/primitives/badge";
-import { cn } from "@/lib/utils";
+import { useRouter } from 'next/navigation';
+import { useState, useTransition, useMemo } from 'react';
+import toast from 'react-hot-toast';
+import Link from 'next/link';
+import { MoreHorizontal } from 'lucide-react';
+import { Button, buttonVariants } from '@/shared/ui/patient/primitives/button';
+import { Badge } from '@/shared/ui/patient/primitives/badge';
+import { cn } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/shared/ui/patient/primitives/dialog";
+} from '@/shared/ui/patient/primitives/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/shared/ui/patient/primitives/dropdown-menu";
-import { Input } from "@/shared/ui/patient/primitives/input";
-import { Textarea } from "@/shared/ui/patient/primitives/textarea";
+} from '@/shared/ui/patient/primitives/dropdown-menu';
+import { Input } from '@/shared/ui/patient/primitives/input';
+import { Textarea } from '@/shared/ui/patient/primitives/textarea';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/ui/patient/primitives/select";
-import { routePaths } from "@/app-layer/routes/paths";
-import type { StatsPeriod } from "@/modules/diaries/stats/periodWindow";
-import type { LfkSession } from "@/modules/diaries/types";
-import { JournalMonthNav } from "../../JournalMonthNav";
-import { deleteLfkJournalSession, updateLfkJournalSession } from "../actions";
-import { patientListItemClass, patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
+} from '@/shared/ui/patient/primitives/select';
+import { routePaths } from '@/app-layer/routes/paths';
+import type { StatsPeriod } from '@/modules/diaries/stats/periodWindow';
+import type { LfkSession } from '@/modules/diaries/types';
+import { JournalMonthNav } from '../../JournalMonthNav';
+import { deleteLfkJournalSession, updateLfkJournalSession } from '../actions';
+import { patientListItemClass, patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 
 function pad2(n: number) {
-  return String(n).padStart(2, "0");
+  return String(n).padStart(2, '0');
 }
 
 function toDatetimeLocalValue(iso: string): string {
@@ -66,10 +66,10 @@ export function LfkJournalClient(props: {
 
   const complexHref = (id: string) => {
     const p = new URLSearchParams();
-    p.set("complexId", id);
-    p.set("month", monthYm);
-    p.set("period", period);
-    p.set("offset", String(offset));
+    p.set('complexId', id);
+    p.set('month', monthYm);
+    p.set('period', period);
+    p.set('offset', String(offset));
     return `${routePaths.diaryLfkJournal}?${p.toString()}`;
   };
 
@@ -78,7 +78,7 @@ export function LfkJournalClient(props: {
       <div className="flex flex-wrap items-center gap-2">
         <Link
           href={`${routePaths.diary}?tab=lfk`}
-          className={cn(buttonVariants({ variant: "outline", size: "sm" }), "inline-flex text-xs")}
+          className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'inline-flex text-xs')}
         >
           ← К статистике
         </Link>
@@ -109,7 +109,9 @@ export function LfkJournalClient(props: {
       ) : null}
 
       <div className="flex flex-col gap-2">
-        <span className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Период (календарный месяц)</span>
+        <span className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}>
+          Период (календарный месяц)
+        </span>
         <JournalMonthNav
           basePath={routePaths.diaryLfkJournal}
           monthYm={monthYm}
@@ -126,22 +128,25 @@ export function LfkJournalClient(props: {
           {sessions.map((s) => (
             <li
               key={s.id}
-              className={cn(patientListItemClass, "flex flex-wrap items-start justify-between gap-2")}
+              className={cn(
+                patientListItemClass,
+                'flex flex-wrap items-start justify-between gap-2',
+              )}
             >
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <strong>{s.complexTitle ?? "ЛФК"}</strong>
+                  <strong>{s.complexTitle ?? 'ЛФК'}</strong>
                   <Badge variant="secondary" className="font-normal">
                     Завершен
                   </Badge>
                 </div>
                 <div className={patientMutedTextClass}>
-                  {new Date(s.completedAt).toLocaleString("ru-RU", {
-                    day: "2-digit",
-                    month: "2-digit",
-                    year: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
+                  {new Date(s.completedAt).toLocaleString('ru-RU', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
                   })}
                 </div>
                 <div className="mt-1 flex flex-wrap gap-2 text-sm">
@@ -159,20 +164,22 @@ export function LfkJournalClient(props: {
                   <MoreHorizontal className="h-4 w-4" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => setEditSession(s)}>Редактировать</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setEditSession(s)}>
+                    Редактировать
+                  </DropdownMenuItem>
                   <DropdownMenuItem
                     variant="destructive"
                     onClick={() => {
-                      if (!window.confirm("Удалить эту запись?")) return;
+                      if (!window.confirm('Удалить эту запись?')) return;
                       startTransition(async () => {
                         const fd = new FormData();
-                        fd.set("sessionId", s.id);
+                        fd.set('sessionId', s.id);
                         const res = await deleteLfkJournalSession(fd);
                         if (res.ok) {
-                          toast.success("Запись удалена");
+                          toast.success('Запись удалена');
                           router.refresh();
                         } else {
-                          toast.error("Не удалось удалить");
+                          toast.error('Не удалось удалить');
                         }
                       });
                     }}
@@ -198,27 +205,34 @@ export function LfkJournalClient(props: {
                 ev.preventDefault();
                 const form = ev.currentTarget;
                 const fd = new FormData(form);
-                const local = fd.get("completedAtLocal");
-                if (typeof local !== "string" || !local) {
-                  toast.error("Укажите дату и время");
+                const local = fd.get('completedAtLocal');
+                if (typeof local !== 'string' || !local) {
+                  toast.error('Укажите дату и время');
                   return;
                 }
-                fd.set("completedAt", new Date(local).toISOString());
-                fd.set("sessionId", editSession.id);
+                fd.set('completedAt', new Date(local).toISOString());
+                fd.set('sessionId', editSession.id);
                 startTransition(async () => {
                   const res = await updateLfkJournalSession(fd);
                   if (res.ok) {
-                    toast.success("Сохранено");
+                    toast.success('Сохранено');
                     setEditSession(null);
                     router.refresh();
                   } else {
-                    toast.error("Не удалось сохранить");
+                    toast.error('Не удалось сохранить');
                   }
                 });
               }}
             >
               <label className="flex flex-col gap-1">
-                <span className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Дата и время</span>
+                <span
+                  className={cn(
+                    patientMutedTextClass,
+                    'text-xs font-medium uppercase tracking-wide',
+                  )}
+                >
+                  Дата и время
+                </span>
                 <Input
                   type="datetime-local"
                   name="completedAtLocal"
@@ -227,46 +241,74 @@ export function LfkJournalClient(props: {
                 />
               </label>
               <label className="flex flex-col gap-1">
-                <span className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Длительность (мин)</span>
+                <span
+                  className={cn(
+                    patientMutedTextClass,
+                    'text-xs font-medium uppercase tracking-wide',
+                  )}
+                >
+                  Длительность (мин)
+                </span>
                 <Input
                   type="number"
                   name="durationMinutes"
                   min={1}
                   max={600}
                   placeholder="—"
-                  defaultValue={editSession.durationMinutes ?? ""}
+                  defaultValue={editSession.durationMinutes ?? ''}
                 />
               </label>
               <label className="flex flex-col gap-1">
-                <span className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Сложность 0–10</span>
+                <span
+                  className={cn(
+                    patientMutedTextClass,
+                    'text-xs font-medium uppercase tracking-wide',
+                  )}
+                >
+                  Сложность 0–10
+                </span>
                 <Input
                   type="number"
                   name="difficulty0_10"
                   min={0}
                   max={10}
                   placeholder="—"
-                  defaultValue={editSession.difficulty0_10 ?? ""}
+                  defaultValue={editSession.difficulty0_10 ?? ''}
                 />
               </label>
               <label className="flex flex-col gap-1">
-                <span className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Боль 0–10</span>
+                <span
+                  className={cn(
+                    patientMutedTextClass,
+                    'text-xs font-medium uppercase tracking-wide',
+                  )}
+                >
+                  Боль 0–10
+                </span>
                 <Input
                   type="number"
                   name="pain0_10"
                   min={0}
                   max={10}
                   placeholder="—"
-                  defaultValue={editSession.pain0_10 ?? ""}
+                  defaultValue={editSession.pain0_10 ?? ''}
                 />
               </label>
               <label className="flex flex-col gap-1">
-                <span className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Комментарий</span>
+                <span
+                  className={cn(
+                    patientMutedTextClass,
+                    'text-xs font-medium uppercase tracking-wide',
+                  )}
+                >
+                  Комментарий
+                </span>
                 <Textarea
                   name="comment"
                   className="min-h-[4.5rem] rounded-xl"
                   rows={3}
                   maxLength={200}
-                  defaultValue={editSession.comment ?? ""}
+                  defaultValue={editSession.comment ?? ''}
                 />
               </label>
               <DialogFooter>

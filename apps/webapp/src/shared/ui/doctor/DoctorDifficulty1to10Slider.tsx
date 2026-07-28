@@ -1,14 +1,14 @@
-"use client";
+'use client';
 
-import type { ReactNode } from "react";
-import { useMemo } from "react";
-import { Label } from "@/shared/ui/doctor/primitives/label";
-import { cn } from "@/lib/utils";
+import type { ReactNode } from 'react';
+import { useMemo } from 'react';
+import { Label } from '@/shared/ui/doctor/primitives/label';
+import { cn } from '@/lib/utils';
 import {
   doctorDifficulty1to10ClampedInt,
   doctorDifficulty1to10EndpointLabelColor,
   doctorDifficulty1to10RangeStyle,
-} from "./doctorDifficulty1to10";
+} from './doctorDifficulty1to10';
 
 export type DoctorDifficulty1to10SliderProps = {
   id: string;
@@ -38,10 +38,16 @@ export function DoctorDifficulty1to10Slider({
   const colorMax = doctorDifficulty1to10EndpointLabelColor(10);
 
   return (
-    <div className={cn("flex flex-col gap-2", className)}>
-      <Label htmlFor={id} className="flex flex-wrap items-baseline gap-x-1.5 text-sm font-medium leading-none">
+    <div className={cn('flex flex-col gap-2', className)}>
+      <Label
+        htmlFor={id}
+        className="flex flex-wrap items-baseline gap-x-1.5 text-sm font-medium leading-none"
+      >
         <span>{label}</span>
-        <span className="font-semibold tabular-nums tracking-tight text-foreground" aria-live="polite">
+        <span
+          className="font-semibold tabular-nums tracking-tight text-foreground"
+          aria-live="polite"
+        >
           {clamped}
         </span>
       </Label>

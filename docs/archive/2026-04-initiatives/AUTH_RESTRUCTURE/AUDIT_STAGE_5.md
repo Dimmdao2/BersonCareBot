@@ -40,7 +40,7 @@
 - `TelegramLoginButton`: при `ok` и `redirectTo` из `POST /api/auth/telegram-login` выполняется `router.replace(target)` (без промежуточных шагов, без PIN).
 - Сессия создаётся на сервере в `exchangeTelegramLoginWidget` (см. Stage 3).
 
-*(Отдельный UI-тест, который кликает виджет Telegram и мокает callback, в репозитории не выделен; поведение редиректа зафиксировано в `TelegramLoginButton.tsx`.)*
+_(Отдельный UI-тест, который кликает виджет Telegram и мокает callback, в репозитории не выделен; поведение редиректа зафиксировано в `TelegramLoginButton.tsx`.)_
 
 ---
 
@@ -58,8 +58,8 @@
 
 **Статус:** OK
 
-| Команда | Результат |
-|---------|-----------|
+| Команда                                         | Результат               |
+| ----------------------------------------------- | ----------------------- |
 | `pnpm install --frozen-lockfile && pnpm run ci` | **exit 0** (2026-04-04) |
 
 ---

@@ -1,28 +1,28 @@
 ---
 name: Miniapp audit fixes (entry split)
-overview: "Закрыть недочеты miniapp entry split: AuthBootstrap surface-first initData, контрактные тесты webapp/integrator, docs+log, repo-DoD vs partial (ops)."
+overview: 'Закрыть недочеты miniapp entry split: AuthBootstrap surface-first initData, контрактные тесты webapp/integrator, docs+log, repo-DoD vs partial (ops).'
 status: completed
 todos:
   - id: preflight-context
-    content: "Preflight baseline rg; итог в MINIAPP_AUTH_FIX_EXECUTION_LOG §Remediation miniapp audit"
+    content: 'Preflight baseline rg; итог в MINIAPP_AUTH_FIX_EXECUTION_LOG §Remediation miniapp audit'
     status: completed
   - id: harden-authbootstrap-priority
-    content: "AuthBootstrap flowHint pickInitDataForMessengerTick rawMaxDirect rawMaxLegacyMessenger тесты"
+    content: 'AuthBootstrap flowHint pickInitDataForMessengerTick rawMaxDirect rawMaxLegacyMessenger тесты'
     status: completed
   - id: webapp-test-contracts
-    content: "AuthBootstrap routeBoundMiniappEntry EARLY_UI_V2 platformContext messengerAuthStrategy"
+    content: 'AuthBootstrap routeBoundMiniappEntry EARLY_UI_V2 platformContext messengerAuthStrategy'
     status: completed
   - id: integrator-tests-align
-    content: "/app/tg /app/max mocks reminderMessengerWebAppUrls.test patientHomeMorningPing web_app TG MAX"
+    content: '/app/tg /app/max mocks reminderMessengerWebAppUrls.test patientHomeMorningPing web_app TG MAX'
     status: completed
   - id: docs-sync-sub-schema
-    content: "INTEGRATOR_CONTRACT sub tg max execution log remediation ops partial"
+    content: 'INTEGRATOR_CONTRACT sub tg max execution log remediation ops partial'
     status: completed
   - id: final-ci-and-ops-closeout
-    content: "vitest typecheck pnpm ci ops partial без маскировки"
+    content: 'vitest typecheck pnpm ci ops partial без маскировки'
     status: completed
   - id: archive-plan-closeout
-    content: "Канон: .cursor/plans/archive этот файл; frontmatter closed"
+    content: 'Канон: .cursor/plans/archive этот файл; frontmatter closed'
     status: completed
 isProject: false
 ---
@@ -34,6 +34,7 @@ isProject: false
 **Repo закрыт по DoD.** Код: **`AuthBootstrap`** — `pickInitDataForMessengerTick(flowHint)`, `rawMaxDirect` / `rawMaxLegacyMessenger`; integrator — **`reminderMessengerWebAppUrls.test.ts`**, **`patientHomeMorningPing`** `web_app` TG+MAX. Журнал: [`MINIAPP_AUTH_FIX_EXECUTION_LOG.md`](../../../docs/ARCHITECTURE/MINIAPP_AUTH_FIX_EXECUTION_LOG.md); контракт: [`INTEGRATOR_CONTRACT.md`](../../../apps/webapp/INTEGRATOR_CONTRACT.md), [`webapp-entry-token.json`](../../../contracts/webapp-entry-token.json).
 
 ## Scope и границы
+
 - В scope: только miniapp-entry контур, его тесты и профильная документация.
 - Разрешенные области:
   - Webapp auth/middleware/tests: [apps/webapp/src/shared/ui/AuthBootstrap.tsx](../../../apps/webapp/src/shared/ui/AuthBootstrap.tsx), [apps/webapp/src/shared/ui/AuthBootstrap.test.tsx](../../../apps/webapp/src/shared/ui/AuthBootstrap.test.tsx), [apps/webapp/src/modules/auth/messengerAuthStrategy.ts](../../../apps/webapp/src/modules/auth/messengerAuthStrategy.ts), [apps/webapp/src/modules/auth/messengerAuthStrategy.test.ts](../../../apps/webapp/src/modules/auth/messengerAuthStrategy.test.ts), [apps/webapp/src/middleware/platformContext.ts](../../../apps/webapp/src/middleware/platformContext.ts), [apps/webapp/src/middleware/platformContext.test.ts](../../../apps/webapp/src/middleware/platformContext.test.ts), [apps/webapp/src/modules/auth/appEntryClassification.test.ts](../../../apps/webapp/src/modules/auth/appEntryClassification.test.ts).
@@ -45,6 +46,7 @@ isProject: false
 - Не добавлять новые e2e-файлы и холодные импорты App Router pages рядом с отдельными кейсами; если потребуется smoke для страниц, расширять только существующий [apps/webapp/e2e/smoke-app-router-rsc-pages-inprocess.test.ts](../../../apps/webapp/e2e/smoke-app-router-rsc-pages-inprocess.test.ts).
 
 ## Шаг 0. Preflight и baseline
+
 - Перечитать текущие источники правды перед правками:
   - [docs/ARCHITECTURE/MINIAPP_AUTH_FIX_EXECUTION_LOG.md](../../../docs/ARCHITECTURE/MINIAPP_AUTH_FIX_EXECUTION_LOG.md)
   - [.cursor/plans/archive/miniapp_entrypoint_split_be613c6d.plan.md](./miniapp_entrypoint_split_be613c6d.plan.md)
@@ -57,10 +59,12 @@ isProject: false
 - Зафиксировать в execution log только итог baseline, без больших grep-выводов.
 
 Проверки шага:
+
 - Нет новых находок `x-bc-entry-hint` в runtime-коде.
 - Legacy `ctx` встречается только в документации, middleware/test legacy-политике или явно допустимых описаниях старых ссылок.
 
 ## Шаг 1. Укрепить runtime-поведение AuthBootstrap (устранить хрупкость выбора initData)
+
 - В [apps/webapp/src/shared/ui/AuthBootstrap.tsx](../../../apps/webapp/src/shared/ui/AuthBootstrap.tsx) сделать route/surface-aware приоритет обработки initData:
   - Для `flowHint === "max"` сначала проверять MAX `initData`, затем Telegram.
   - Для `flowHint === "telegram"` оставить Telegram-first.
@@ -70,11 +74,13 @@ isProject: false
 - Рекомендуемая форма реализации: небольшая локальная функция внутри эффекта `tick`, например `pickInitDataForMessengerTick(flowHint, rawTg, rawMax)` (в коде с раздельным источником MAX для route-bound vs browser — `rawMaxDirect` / `rawMaxLegacyMessenger`). Не выносить в новый shared-модуль без реальной необходимости.
 
 Проверки шага:
+
 - Обновить/добавить unit-кейсы в [apps/webapp/src/shared/ui/AuthBootstrap.test.tsx](../../../apps/webapp/src/shared/ui/AuthBootstrap.test.tsx) на приоритет вызова `max-init` в `max_miniapp` режиме.
 - Добавить зеркальный guardrail: при `telegram_miniapp` и наличии обоих initData вызывается `telegram-init`, чтобы изменение не сломало TG-first.
 - Прогон: `pnpm --dir apps/webapp exec vitest --run --project=fast src/shared/ui/AuthBootstrap.test.tsx`.
 
 ## Шаг 2. Закрыть пробелы тестового контракта webapp
+
 - В [apps/webapp/src/shared/ui/AuthBootstrap.test.tsx](../../../apps/webapp/src/shared/ui/AuthBootstrap.test.tsx):
   - Для кейса `max_miniapp + ?t=` передавать `routeBoundMiniappEntry={true}` (как в production wiring через `AppEntryRsc`).
   - Добавить явную проверку, что при route-bound miniapp не экспонируется интерактивный web-login до cap даже при `NEXT_PUBLIC_AUTH_BOOTSTRAP_EARLY_UI_V2=true`.
@@ -85,10 +91,12 @@ isProject: false
 - В [apps/webapp/src/modules/auth/messengerAuthStrategy.test.ts](../../../apps/webapp/src/modules/auth/messengerAuthStrategy.test.ts), если уже есть подходящий файл, закрепить чистую функцию `shouldExposeInteractiveLogin` для route-bound `max_miniapp`/`telegram_miniapp`: interactive login всегда `false`, пока это explicit entry.
 
 Проверки шага:
+
 - `pnpm --dir apps/webapp exec vitest --run --project=fast src/middleware/platformContext.test.ts src/shared/ui/AuthBootstrap.test.tsx src/modules/auth/appEntryClassification.test.ts`.
 - Если менялся [apps/webapp/src/modules/auth/messengerAuthStrategy.ts](../../../apps/webapp/src/modules/auth/messengerAuthStrategy.ts): добавить к команде `src/modules/auth/messengerAuthStrategy.test.ts`.
 
 ## Шаг 3. Выровнять integrator tests с каноном `/app/tg|/app/max`
+
 - В [apps/integrator/src/kernel/domain/executor/executeAction.test.ts](../../../apps/integrator/src/kernel/domain/executor/executeAction.test.ts):
   - Убрать legacy-строки `webapp-entry` в моках `buildExerciseReminderWebAppUrls`.
   - Использовать канонический вид `.../app/tg?t=...` или `.../app/max?t=...` + `next=`.
@@ -106,10 +114,12 @@ isProject: false
   - Покрыть как минимум Telegram path; MAX path добавить, если текущий setup файла уже легко задаёт `resource: "max"` без тяжёлого расширения моков.
 
 Проверки шага:
+
 - `pnpm --dir apps/integrator exec vitest --run src/kernel/domain/executor/executeAction.test.ts src/kernel/domain/reminders/*.test.ts src/kernel/domain/executor/handlers/patientHomeMorningPing.test.ts src/integrations/telegram/webhook.links.test.ts src/integrations/max/webhook.links.test.ts`.
 - Post-check grep: `rg "webapp-entry" apps/integrator/src/kernel/domain apps/integrator/src/integrations` не должен находить устаревшие mock URL, кроме допустимых названий token contract.
 
 ## Шаг 4. Синхронизировать документацию с фактическим token schema
+
 - В [apps/webapp/INTEGRATOR_CONTRACT.md](../../../apps/webapp/INTEGRATOR_CONTRACT.md):
   - Уточнить пример `sub` в Flow 1 до фактических форматов (`tg:<id>` / `max:<id>`), согласованно с [apps/integrator/src/integrations/webappEntryToken.ts](../../../apps/integrator/src/integrations/webappEntryToken.ts) и [`contracts/webapp-entry-token.json`](../../../contracts/webapp-entry-token.json).
   - Явно написать, что integrator-ссылка обычно содержит `?t=`, а резервным является порядок потребления на клиенте: `initData` сначала, `exchange` после cap.
@@ -120,10 +130,12 @@ isProject: false
   - Зафиксировать команды/результаты проверок, но не вставлять большие stdout.
 
 Проверки шага:
+
 - `rg "webapp-entry|sub|/app/tg|/app/max|ctx=bot" apps/webapp/INTEGRATOR_CONTRACT.md docs/ARCHITECTURE/MINIAPP_AUTH_FIX_EXECUTION_LOG.md`
 - Ручная сверка с [apps/integrator/src/integrations/webappEntryToken.ts](../../../apps/integrator/src/integrations/webappEntryToken.ts).
 
 ## Шаг 5. Финальная верификация и закрытие хвостов процесса
+
 - Step/phase проверки перед full CI:
   - webapp targeted vitest из шагов 1-2;
   - integrator targeted vitest из шага 3;
@@ -154,7 +166,9 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -At -c "SELECT CASE WHEN EXISTS (SELECT 
 (Исторические шаги переноса сохраняются в git history; stub в `~/.cursor/plans/` не используется.)
 
 ## Definition of Done
+
 ### Repo DoD
+
 - [x] Устранена хрупкость initData-приоритета на `/app/max`, без изменения legacy UX `/app`.
 - [x] Все найденные webapp тестовые пробелы закрыты автотестами.
 - [x] Integrator reminder/link тесты не содержат устаревшего `webapp-entry` mock URL и прямо фиксируют `/app/tg` / `/app/max`.
@@ -164,6 +178,7 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -At -c "SELECT CASE WHEN EXISTS (SELECT 
 - [x] Plan-файл в этом архиве; `status: completed`, todos закрыты; итог baseline и remediation — см. execution log §Remediation miniapp audit.
 
 ### Ops Acceptance
+
 Закрытие только по подтверждению на хосте/консолях; текущее состояние зафиксировано как **`partial (ops)`** в execution log §Remediation miniapp audit (MAX URL `/app/max`, Telegram `/app/tg`, `max_bot_api_key`).
 
 - [ ] Полное подтверждение MAX Business URL — до снятия partial.

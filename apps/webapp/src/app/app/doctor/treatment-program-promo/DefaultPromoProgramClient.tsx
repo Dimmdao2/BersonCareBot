@@ -1,21 +1,21 @@
-"use client";
+'use client';
 
-import { useRouter } from "next/navigation";
-import { useState } from "react";
-import toast from "react-hot-toast";
-import { doctorSectionTitleClass } from "@/shared/ui/doctor/doctorVisual";
-import { Button } from "@/shared/ui/doctor/primitives/button";
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+import toast from 'react-hot-toast';
+import { doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
+import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/ui/doctor/primitives/select";
+} from '@/shared/ui/doctor/primitives/select';
 
 type TemplateOption = { id: string; title: string };
 
-const PROMO_TEMPLATE_NONE = "__promo_template_none__";
+const PROMO_TEMPLATE_NONE = '__promo_template_none__';
 
 export function DefaultPromoProgramClient(props: {
   initialTemplateId: string;
@@ -33,17 +33,17 @@ export function DefaultPromoProgramClient(props: {
   const onSave = async () => {
     setSaving(true);
     try {
-      const templateId = selected === PROMO_TEMPLATE_NONE ? "" : selected.trim();
-      const res = await fetch("/api/doctor/treatment-program-promo", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+      const templateId = selected === PROMO_TEMPLATE_NONE ? '' : selected.trim();
+      const res = await fetch('/api/doctor/treatment-program-promo', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ templateId }),
       });
       if (!res.ok) {
-        toast.error("Не удалось сохранить");
+        toast.error('Не удалось сохранить');
         return;
       }
-      toast.success("Сохранено");
+      toast.success('Сохранено');
       router.refresh();
     } finally {
       setSaving(false);
@@ -53,18 +53,18 @@ export function DefaultPromoProgramClient(props: {
   const onRefresh = async () => {
     setRefreshing(true);
     try {
-      const res = await fetch("/api/doctor/treatment-program-promo/refresh", { method: "POST" });
+      const res = await fetch('/api/doctor/treatment-program-promo/refresh', { method: 'POST' });
       const data = (await res.json().catch(() => null)) as {
         ok?: boolean;
         refreshedCount?: number;
         error?: string;
       };
       if (!res.ok || !data.ok) {
-        toast.error(data?.error ?? "Не удалось обновить");
+        toast.error(data?.error ?? 'Не удалось обновить');
         return;
       }
       const count = data.refreshedCount ?? 0;
-      toast.success(count > 0 ? `Обновлено: ${count} программ` : "Активных промо-программ нет");
+      toast.success(count > 0 ? `Обновлено: ${count} программ` : 'Активных промо-программ нет');
       router.refresh();
     } finally {
       setRefreshing(false);
@@ -96,7 +96,7 @@ export function DefaultPromoProgramClient(props: {
             disabled={refreshing || !hasSavedPromoTemplate}
             onClick={() => void onRefresh()}
           >
-            {refreshing ? "…" : "Обновить"}
+            {refreshing ? '…' : 'Обновить'}
           </Button>
         </div>
         <Button type="button" disabled={saving} onClick={() => void onSave()}>

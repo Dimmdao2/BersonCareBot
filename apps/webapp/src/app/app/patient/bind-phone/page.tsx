@@ -4,23 +4,23 @@
  * В Mini App — «контакт в боте» (`PatientBindPhoneClient`). В браузере — `auth_*` deep link через `PhoneMessengerAuthFlow` (как вход и профиль).
  */
 
-import { redirect } from "next/navigation";
-import { requirePatientAccess } from "@/app-layer/guards/requireRole";
-import { routePaths } from "@/app-layer/routes/paths";
-import { env } from "@/config/env";
-import { patientSessionSnapshotHasPhone } from "@/modules/platform-access";
-import { resolvePlatformAccessContext } from "@/app-layer/platform-access";
-import { resolveSkipBindPhoneSurface } from "./resolveSkipBindPhoneSurface";
-import Link from "next/link";
-import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
-import { buttonVariants } from "@/shared/ui/patient/primitives/button-variants";
-import { cn } from "@/lib/utils";
-import { getSupportContactUrl } from "@/modules/system-settings/supportContactUrl";
-import { getPlatformEntry } from "@/shared/lib/platformCookie.server";
-import { PatientBindPhoneBrowser } from "./PatientBindPhoneBrowser";
-import { PatientBindPhoneClient } from "./PatientBindPhoneClient";
-import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
-import { getAuthChannelPolicy } from "@/modules/auth/authChannelPolicy";
+import { redirect } from 'next/navigation';
+import { requirePatientAccess } from '@/app-layer/guards/requireRole';
+import { routePaths } from '@/app-layer/routes/paths';
+import { env } from '@/config/env';
+import { patientSessionSnapshotHasPhone } from '@/modules/platform-access';
+import { resolvePlatformAccessContext } from '@/app-layer/platform-access';
+import { resolveSkipBindPhoneSurface } from './resolveSkipBindPhoneSurface';
+import Link from 'next/link';
+import { PatientAppShell } from '@/shared/ui/patient/PatientAppShell';
+import { buttonVariants } from '@/shared/ui/patient/primitives/button-variants';
+import { cn } from '@/lib/utils';
+import { getSupportContactUrl } from '@/modules/system-settings/supportContactUrl';
+import { getPlatformEntry } from '@/shared/lib/platformCookie.server';
+import { PatientBindPhoneBrowser } from './PatientBindPhoneBrowser';
+import { PatientBindPhoneClient } from './PatientBindPhoneClient';
+import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import { getAuthChannelPolicy } from '@/modules/auth/authChannelPolicy';
 
 type Props = { searchParams: Promise<{ next?: string; reason?: string }> };
 
@@ -52,23 +52,23 @@ export default async function BindPhonePage({ searchParams }: Props) {
 
   if (skipBindSurface) {
     const target = next?.trim();
-    redirect(target && target.startsWith("/app/patient") ? target : routePaths.patient);
+    redirect(target && target.startsWith('/app/patient') ? target : routePaths.patient);
   }
   const [supportContactHref, platformEntry, authChannelPolicy] = await Promise.all([
     getSupportContactUrl(),
     getPlatformEntry(),
     getAuthChannelPolicy(),
   ]);
-  const telegramId = session.user.bindings.telegramId ?? "";
-  const maxId = session.user.bindings.maxId ?? "";
-  const isBotMiniApp = platformEntry === "bot";
+  const telegramId = session.user.bindings.telegramId ?? '';
+  const maxId = session.user.bindings.maxId ?? '';
+  const isBotMiniApp = platformEntry === 'bot';
 
   const hint =
-    reason === "oauth_phone_required"
-      ? "Номер необходим для записи на приём. Для входа в кабинет он не обязателен."
+    reason === 'oauth_phone_required'
+      ? 'Номер необходим для записи на приём. Для входа в кабинет он не обязателен.'
       : undefined;
 
-  const nextTrimmed = next?.trim() ?? "";
+  const nextTrimmed = next?.trim() ?? '';
   const backFromProfile =
     nextTrimmed === routePaths.profile || nextTrimmed.startsWith(`${routePaths.profile}/`);
 
@@ -77,8 +77,7 @@ export default async function BindPhonePage({ searchParams }: Props) {
       title="Привязка телефона"
       user={session.user}
       backHref={backFromProfile ? routePaths.profile : routePaths.patient}
-      backLabel={backFromProfile ? "Профиль" : "Меню"}
-     
+      backLabel={backFromProfile ? 'Профиль' : 'Меню'}
       patientHideHome={isBotMiniApp}
       patientHideRightIcons={isBotMiniApp}
     >
@@ -104,18 +103,18 @@ export default async function BindPhonePage({ searchParams }: Props) {
             id="patient-bind-phone-miniapp-extras"
             className="flex flex-col gap-2 border-t border-[var(--patient-border)]/80 pt-4"
           >
-            <p className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>
+            <p className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}>
               Пока без телефона
             </p>
             <Link
               href={routePaths.patientSectionsIndex}
-              className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "justify-center")}
+              className={cn(buttonVariants({ variant: 'secondary', size: 'sm' }), 'justify-center')}
             >
               Уроки и тренировки
             </Link>
             <Link
               href={supportContactHref}
-              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "justify-center")}
+              className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'justify-center')}
             >
               Связаться с поддержкой
             </Link>

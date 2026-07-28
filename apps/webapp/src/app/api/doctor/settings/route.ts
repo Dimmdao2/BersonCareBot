@@ -3,21 +3,21 @@
  * PATCH /api/doctor/settings — обновить ключ scope=doctor
  * Guard: role === 'doctor' | 'admin'
  */
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
-import { systemSettingsOrgContextErrorResponse } from "@/app-layer/guards/systemSettingsOrgContextResponse";
-import { ALLOWED_KEYS } from "@/modules/system-settings/types";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { systemSettingsOrgContextErrorResponse } from '@/app-layer/guards/systemSettingsOrgContextResponse';
+import { ALLOWED_KEYS } from '@/modules/system-settings/types';
 
 const DOCTOR_SCOPE_KEYS = [
-  "sms_fallback_enabled",
-  "doctor_patient_support_comments_without_support_default_enabled",
-  "doctor_patient_support_media_without_support_default_enabled",
-  "doctor_specialist_task_reminder_channels",
-  "booking_calendar_default_window",
-  "booking_calendar_default_branch_id",
-  "booking_calendar_default_service_id",
+  'sms_fallback_enabled',
+  'doctor_patient_support_comments_without_support_default_enabled',
+  'doctor_patient_support_media_without_support_default_enabled',
+  'doctor_specialist_task_reminder_channels',
+  'booking_calendar_default_window',
+  'booking_calendar_default_branch_id',
+  'booking_calendar_default_service_id',
 ] as const;
 
 const patchSchema = z.object({
@@ -36,7 +36,7 @@ export async function GET() {
   if (!gate.ok) return gate.response;
 
   const deps = buildAppDeps();
-  const settings = await deps.systemSettings.listSettingsByScope("doctor", {
+  const settings = await deps.systemSettings.listSettingsByScope('doctor', {
     organizationId: gate.ctx.organizationId,
   });
   return NextResponse.json({ ok: true, settings });
@@ -49,19 +49,19 @@ export async function PATCH(request: Request) {
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = patchSchema.safeParse(raw);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
 
   // Проверка что ключ входит в глобальный whitelist
   if (!(ALLOWED_KEYS as readonly string[]).includes(parsed.data.key)) {
-    return NextResponse.json({ ok: false, error: "invalid_key" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_key' }, { status: 400 });
   }
 
   const deps = buildAppDeps();
   try {
     const setting = await deps.systemSettings.updateSetting(
       parsed.data.key,
-      "doctor",
+      'doctor',
       parsed.data.value,
       gate.ctx.session.user.userId,
       { organizationId: gate.ctx.organizationId },

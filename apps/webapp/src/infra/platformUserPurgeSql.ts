@@ -1,9 +1,13 @@
-import type { Pool, PoolClient, QueryResultRow } from "pg";
-import { getWebappSqlFromPgClient, runPgPoolPgText, runWebappPgText } from "@/infra/db/runWebappSql";
+import type { Pool, PoolClient, QueryResultRow } from 'pg';
+import {
+  getWebappSqlFromPgClient,
+  runPgPoolPgText,
+  runWebappPgText,
+} from '@/infra/db/runWebappSql';
 
 /** Domain SQL on default webapp pool. */
 export async function runPurgePoolPgText<T extends QueryResultRow = QueryResultRow>(
-  pool: Pick<Pool, "query">,
+  pool: Pick<Pool, 'query'>,
   queryText: string,
   values: readonly unknown[] = [],
 ) {

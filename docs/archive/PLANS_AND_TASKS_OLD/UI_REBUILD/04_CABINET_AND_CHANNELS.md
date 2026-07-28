@@ -13,6 +13,7 @@
 **Файл:** `apps/webapp/src/modules/patient-cabinet/service.ts`
 
 **Найти:**
+
 ```ts
     reason: hasAppointments
       ? "Здесь отображаются ваши записи и программы."
@@ -20,6 +21,7 @@
 ```
 
 **Заменить на:**
+
 ```ts
     reason: hasAppointments
       ? "Здесь отображаются ваши записи и программы."
@@ -33,21 +35,29 @@
 Сейчас `cabinet.reason` всегда отображается в hero-card. Если записей нет, достаточно пустого состояния в блоке записей. Можно упростить:
 
 **Найти:**
+
 ```tsx
 <section id="patient-cabinet-hero-section" className="hero-card stack">
   <p>{cabinet.reason}</p>
-  {cabinet.nextAppointmentLabel ? <p className="empty-state">{cabinet.nextAppointmentLabel}</p> : null}
+  {cabinet.nextAppointmentLabel ? (
+    <p className="empty-state">{cabinet.nextAppointmentLabel}</p>
+  ) : null}
 </section>
 ```
 
 **Заменить на:**
+
 ```tsx
-{cabinet.enabled && (
-  <section id="patient-cabinet-hero-section" className="hero-card stack">
-    <p>{cabinet.reason}</p>
-    {cabinet.nextAppointmentLabel ? <p className="empty-state">{cabinet.nextAppointmentLabel}</p> : null}
-  </section>
-)}
+{
+  cabinet.enabled && (
+    <section id="patient-cabinet-hero-section" className="hero-card stack">
+      <p>{cabinet.reason}</p>
+      {cabinet.nextAppointmentLabel ? (
+        <p className="empty-state">{cabinet.nextAppointmentLabel}</p>
+      ) : null}
+    </section>
+  );
+}
 ```
 
 Hero-card показывается только если есть записи. Иначе — только блок «Ближайшие записи» с пустым состоянием.

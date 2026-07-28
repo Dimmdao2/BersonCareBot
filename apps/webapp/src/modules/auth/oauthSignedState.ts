@@ -1,42 +1,45 @@
-import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
-import { env } from "@/config/env";
+import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
+import { env } from '@/config/env';
 
-const VERSION = "v1";
+const VERSION = 'v1';
 
 /** Публичный OAuth и админский Google Calendar — разные `purpose`, подпись не взаимозаменима. */
-export type OAuthStatePurpose = "yandex" | "gcal" | "google_login" | "apple";
+export type OAuthStatePurpose = 'yandex' | 'gcal' | 'google_login' | 'apple';
 
 function requireSigningSecret(): string {
-  const s = env.SESSION_COOKIE_SECRET ?? "";
+  const s = env.SESSION_COOKIE_SECRET ?? '';
   if (s.length < 16) {
-    throw new Error("SESSION_COOKIE_SECRET is required for OAuth signed state");
+    throw new Error('SESSION_COOKIE_SECRET is required for OAuth signed state');
   }
   return s;
 }
 
 function base64UrlEncode(buf: Buffer): string {
-  return buf
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
+  return buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
 function base64UrlDecode(s: string): Buffer {
-  let b64 = s.replace(/-/g, "+").replace(/_/g, "/");
-  while (b64.length % 4) b64 += "=";
-  return Buffer.from(b64, "base64");
+  let b64 = s.replace(/-/g, '+').replace(/_/g, '/');
+  while (b64.length % 4) b64 += '=';
+  return Buffer.from(b64, 'base64');
 }
 
 function hmacSha256(secret: string, message: string): Buffer {
-  return createHmac("sha256", secret).update(message, "utf8").digest();
+  return createHmac('sha256', secret).update(message, 'utf8').digest();
 }
 
-type Payload = { p: OAuthStatePurpose; exp: number; n: string; nonce?: string; tz?: string; org?: string };
+type Payload = {
+  p: OAuthStatePurpose;
+  exp: number;
+  n: string;
+  nonce?: string;
+  tz?: string;
+  org?: string;
+};
 
 function signPayload(payload: Payload): string {
   const secret = requireSigningSecret();
-  const payloadB64 = base64UrlEncode(Buffer.from(JSON.stringify(payload), "utf8"));
+  const payloadB64 = base64UrlEncode(Buffer.from(JSON.stringify(payload), 'utf8'));
   const macInput = `${VERSION}.${payloadB64}`;
   const sigB64 = base64UrlEncode(hmacSha256(secret, macInput));
   return `${VERSION}.${payloadB64}.${sigB64}`;
@@ -58,7 +61,12 @@ export function createSignedOAuthState(
     payload.tz = rawTz;
   }
   const organizationId = options?.organizationId?.trim();
-  if (organizationId && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(organizationId)) {
+  if (
+    organizationId &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      organizationId,
+    )
+  ) {
     payload.org = organizationId;
   }
   return signPayload(payload);
@@ -71,7 +79,7 @@ export function createAppleSignedOAuthState(
 ): { state: string; nonce: string } {
   const exp = Math.floor(Date.now() / 1000) + ttlSeconds;
   const nonce = randomUUID();
-  const payload: Payload = { p: "apple", exp, n: randomUUID(), nonce };
+  const payload: Payload = { p: 'apple', exp, n: randomUUID(), nonce };
   const rawTz = options?.browserCalendarIana?.trim();
   if (rawTz && rawTz.length <= 120) {
     payload.tz = rawTz;
@@ -79,7 +87,12 @@ export function createAppleSignedOAuthState(
   return { state: signPayload(payload), nonce };
 }
 
-export type VerifiedOAuthState = { attemptId?: string; nonce?: string; browserCalendarIana?: string; organizationId?: string };
+export type VerifiedOAuthState = {
+  attemptId?: string;
+  nonce?: string;
+  browserCalendarIana?: string;
+  organizationId?: string;
+};
 
 function verifyTokenInternal(
   token: string,
@@ -92,30 +105,30 @@ function verifyTokenInternal(
     return null;
   }
 
-  const parts = token.split(".");
+  const parts = token.split('.');
   if (parts.length !== 3 || parts[0] !== VERSION) return null;
   const [, payloadB64, sigB64] = parts;
   if (!payloadB64 || !sigB64) return null;
 
   let payloadRaw: unknown;
   try {
-    payloadRaw = JSON.parse(base64UrlDecode(payloadB64).toString("utf8"));
+    payloadRaw = JSON.parse(base64UrlDecode(payloadB64).toString('utf8'));
   } catch {
     return null;
   }
 
   if (
     !payloadRaw ||
-    typeof payloadRaw !== "object" ||
-    !("p" in payloadRaw) ||
-    !("exp" in payloadRaw) ||
-    !("n" in payloadRaw)
+    typeof payloadRaw !== 'object' ||
+    !('p' in payloadRaw) ||
+    !('exp' in payloadRaw) ||
+    !('n' in payloadRaw)
   ) {
     return null;
   }
 
   const { p, exp, n, nonce, tz, org } = payloadRaw as Record<string, unknown>;
-  if (p !== expectedPurpose || typeof exp !== "number" || typeof n !== "string" || !n) {
+  if (p !== expectedPurpose || typeof exp !== 'number' || typeof n !== 'string' || !n) {
     return null;
   }
 
@@ -132,16 +145,21 @@ function verifyTokenInternal(
   if (gotSig.length !== expectedSig.length) return null;
   if (!timingSafeEqual(gotSig, expectedSig)) return null;
 
-  if (nonce !== undefined && typeof nonce !== "string") return null;
-  if (tz !== undefined && (typeof tz !== "string" || tz.length > 120)) return null;
-  if (org !== undefined && (typeof org !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(org))) return null;
+  if (nonce !== undefined && typeof nonce !== 'string') return null;
+  if (tz !== undefined && (typeof tz !== 'string' || tz.length > 120)) return null;
+  if (
+    org !== undefined &&
+    (typeof org !== 'string' ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(org))
+  )
+    return null;
 
   const out: VerifiedOAuthState = { attemptId: n };
-  if (typeof nonce === "string") out.nonce = nonce;
-  if (typeof tz === "string" && tz.trim().length > 0) {
+  if (typeof nonce === 'string') out.nonce = nonce;
+  if (typeof tz === 'string' && tz.trim().length > 0) {
     out.browserCalendarIana = tz.trim();
   }
-  if (typeof org === "string") out.organizationId = org;
+  if (typeof org === 'string') out.organizationId = org;
   return out;
 }
 

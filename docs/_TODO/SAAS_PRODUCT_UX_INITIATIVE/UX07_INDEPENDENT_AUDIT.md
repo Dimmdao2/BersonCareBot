@@ -46,27 +46,27 @@ copy/button patches would not establish consistency. **Reviewer #1 does not gran
 
 ## 3. Full checklist
 
-| Check | Reviewer #1 result | Evidence |
-|---|---|---|
-| All nine required scenarios exist | PASS | acquisition, staff, patient, SMS, booking, multi-org, dual-surface, branding/domain and clinic-card flows all render |
-| Required journey families | PASS (structural) | `ACQ-01…05`, `STF-01…08`, `PIN-01…09`, `SMS-01…03`, `PBK-01…08`, `MOR-01…05` and relevant `ERR-*` states are present |
-| Canonical destination trace | PASS | displayed state destinations use UX-06 canonical IDs or documented aliases |
-| Desktop/mobile render stability | PASS (mechanical) | 146 current-state checks; no body/device horizontal overflow detected |
-| Browser console/network | PASS | zero page exceptions, console errors or failed external requests during the full pass |
-| Hash/direct-link navigation | FAIL | direct initial hashes work, but back/forward/hash changes do not re-render the corresponding state |
-| Primary CTA and recovery correctness | FAIL | generic linear transitions advance to unrelated variants or do nothing at terminal states |
-| Task clarity and hierarchy | FAIL | contract/debug terminology is frequently the primary user copy; architecture state dominates the task |
-| Active organization visibility | FAIL | neutral patient chooser is pre-labelled with an organization; mobile staff hides the organization entirely |
-| Responsive navigation/recovery | FAIL | mobile staff menu/navigation is non-interactive; mobile public header hides legal/support recovery |
-| Permission-before-filter | FAIL in rendered UI | controls for shared history/specialist scope are shown before capability instead of being absent |
-| Candidate/ruling safety | FAIL in rendered UI | OM/BD/API-contract diagnostics and a cross-org action are exposed as product-facing rows/labels |
-| Install/push ordering | PASS (structural) | first value precedes install; installed launch/re-auth precede the explicit push step |
-| Transport/auth/relationship separation | PASS in state model | email/SMS delivery, proof and relationship are represented separately; SMS does not elevate auth |
-| Domain/base/binding separation | PASS in state model | base, surface bindings, fallback, sender and PWA axes remain distinct |
-| Accessibility basics | FAIL | simulated fields are `div`s; shell navigation and mobile menu are non-semantic/non-keyboard controls |
-| Synthetic data/no side effects | PASS | masked/test identities only; no API, DB, delivery or application runtime use |
-| Retained render integrity | PARTIAL | all 12 file hashes match the manifest, but at least one render predates the current source state set |
-| `git diff --check` | PASS | no whitespace errors at reviewer checkpoint |
+| Check                                  | Reviewer #1 result  | Evidence                                                                                                             |
+| -------------------------------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| All nine required scenarios exist      | PASS                | acquisition, staff, patient, SMS, booking, multi-org, dual-surface, branding/domain and clinic-card flows all render |
+| Required journey families              | PASS (structural)   | `ACQ-01…05`, `STF-01…08`, `PIN-01…09`, `SMS-01…03`, `PBK-01…08`, `MOR-01…05` and relevant `ERR-*` states are present |
+| Canonical destination trace            | PASS                | displayed state destinations use UX-06 canonical IDs or documented aliases                                           |
+| Desktop/mobile render stability        | PASS (mechanical)   | 146 current-state checks; no body/device horizontal overflow detected                                                |
+| Browser console/network                | PASS                | zero page exceptions, console errors or failed external requests during the full pass                                |
+| Hash/direct-link navigation            | FAIL                | direct initial hashes work, but back/forward/hash changes do not re-render the corresponding state                   |
+| Primary CTA and recovery correctness   | FAIL                | generic linear transitions advance to unrelated variants or do nothing at terminal states                            |
+| Task clarity and hierarchy             | FAIL                | contract/debug terminology is frequently the primary user copy; architecture state dominates the task                |
+| Active organization visibility         | FAIL                | neutral patient chooser is pre-labelled with an organization; mobile staff hides the organization entirely           |
+| Responsive navigation/recovery         | FAIL                | mobile staff menu/navigation is non-interactive; mobile public header hides legal/support recovery                   |
+| Permission-before-filter               | FAIL in rendered UI | controls for shared history/specialist scope are shown before capability instead of being absent                     |
+| Candidate/ruling safety                | FAIL in rendered UI | OM/BD/API-contract diagnostics and a cross-org action are exposed as product-facing rows/labels                      |
+| Install/push ordering                  | PASS (structural)   | first value precedes install; installed launch/re-auth precede the explicit push step                                |
+| Transport/auth/relationship separation | PASS in state model | email/SMS delivery, proof and relationship are represented separately; SMS does not elevate auth                     |
+| Domain/base/binding separation         | PASS in state model | base, surface bindings, fallback, sender and PWA axes remain distinct                                                |
+| Accessibility basics                   | FAIL                | simulated fields are `div`s; shell navigation and mobile menu are non-semantic/non-keyboard controls                 |
+| Synthetic data/no side effects         | PASS                | masked/test identities only; no API, DB, delivery or application runtime use                                         |
+| Retained render integrity              | PARTIAL             | all 12 file hashes match the manifest, but at least one render predates the current source state set                 |
+| `git diff --check`                     | PASS                | no whitespace errors at reviewer checkpoint                                                                          |
 
 ## 4. Consolidated phase-level findings
 
@@ -209,13 +209,13 @@ current 12-state staff flow. **Reviewer #2 does not grant visual/usability seal 
 
 ### 6.2 Comparison with reviewer #1
 
-| Reviewer #1 finding | Reviewer #2 classification | Independent evidence / nuance |
-|---|---|---|
-| F1 transition/history model | **True** | Back changed the staff hash from step 2 to step 1 while the visible title stayed `Приглашение отправлено`; external hash change behaved the same. Expired staff invite advanced to the unrelated other-org conflict; no-slots advanced to contact data; terminal SMS and slot-conflict recovery did nothing. The landing secondary invite CTA is also inert at step 0, and many visually actionable slot/service/chooser controls have no transition. |
-| F2 product copy mixed with diagnostics | **True** | Terms such as `membership`, `canonical patient identity`, `enrollment`, `HostnameBase`, `surface bindings`, `origin audit`, `BD-5`, `OM-4/5`, `idempotent` and `Correlation: UX07-DEMO` are rendered in the primary product layer across public, patient and staff scenarios. |
-| F3 context/capability-insensitive shell | **True, and incomplete** | Neutral `PAT-01` already names `Клиника Север`; staff mobile omits the organization; mobile public hides support/legal; owner-without-binding still shows a surface switch; unauthorized history/all-patient controls and cross-org handoff are rendered. Additionally, the active navigation item is always the first item: desktop Domains/History still highlight Overview/Today, and patient Booking highlights Today. This makes route orientation incorrect even in authorized states. |
-| F4 accessibility semantics | **True** | Current source contains zero real form inputs and zero links. Fields are `div.input`; staff navigation is `div`; patient bottom destinations and the hamburger are inert `span`s. Keyboard focus therefore cannot traverse the represented signup, booking, chooser or navigation tasks. |
-| F5 evidence tied to old source | **True** | All image hashes match the manifest, but fresh/current staff step 6 says `из 12`; retained `staff-wrong-account-desktop.png` says `из 10`. Current source mtime is later than the retained capture. The manifest has no source hash or commit. |
+| Reviewer #1 finding                     | Reviewer #2 classification | Independent evidence / nuance                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| --------------------------------------- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F1 transition/history model             | **True**                   | Back changed the staff hash from step 2 to step 1 while the visible title stayed `Приглашение отправлено`; external hash change behaved the same. Expired staff invite advanced to the unrelated other-org conflict; no-slots advanced to contact data; terminal SMS and slot-conflict recovery did nothing. The landing secondary invite CTA is also inert at step 0, and many visually actionable slot/service/chooser controls have no transition.                                        |
+| F2 product copy mixed with diagnostics  | **True**                   | Terms such as `membership`, `canonical patient identity`, `enrollment`, `HostnameBase`, `surface bindings`, `origin audit`, `BD-5`, `OM-4/5`, `idempotent` and `Correlation: UX07-DEMO` are rendered in the primary product layer across public, patient and staff scenarios.                                                                                                                                                                                                                |
+| F3 context/capability-insensitive shell | **True, and incomplete**   | Neutral `PAT-01` already names `Клиника Север`; staff mobile omits the organization; mobile public hides support/legal; owner-without-binding still shows a surface switch; unauthorized history/all-patient controls and cross-org handoff are rendered. Additionally, the active navigation item is always the first item: desktop Domains/History still highlight Overview/Today, and patient Booking highlights Today. This makes route orientation incorrect even in authorized states. |
+| F4 accessibility semantics              | **True**                   | Current source contains zero real form inputs and zero links. Fields are `div.input`; staff navigation is `div`; patient bottom destinations and the hamburger are inert `span`s. Keyboard focus therefore cannot traverse the represented signup, booking, chooser or navigation tasks.                                                                                                                                                                                                     |
+| F5 evidence tied to old source          | **True**                   | All image hashes match the manifest, but fresh/current staff step 6 says `из 12`; retained `staff-wrong-account-desktop.png` says `из 10`. Current source mtime is later than the retained capture. The manifest has no source hash or commit.                                                                                                                                                                                                                                               |
 
 No reviewer #1 finding is a false rejection. F3 was slightly incomplete because it did not call out the systematically
 wrong active-destination marker; F1 also extends beyond generic recovery buttons to inert secondary and object-level
@@ -223,22 +223,22 @@ controls. These additions reinforce the same root causes and do not justify a se
 
 ### 6.3 Reviewer #2 checks and evidence
 
-| Check | Result |
-|---|---|
-| Nine scenarios / 73 state objects / desktop+mobile | PASS structurally; 146/146 rendered |
-| UX-06 destination IDs | PASS; 21 distinct IDs, no unknown ID outside documented alias |
-| Initial direct hashes and flow/map selection | PASS |
-| Hashchange, browser back/forward and labelled CTA destinations | FAIL |
-| Console, network and horizontal overflow | PASS; 0 errors, 0 failed requests, 0 overflow cases |
-| Plain-language primary layer | FAIL |
-| Trusted context and capability variants | FAIL in rendered shell/controls |
-| Mobile navigation and recovery parity | FAIL |
-| Keyboard/semantic accessibility basics | FAIL |
-| Screenshot file integrity | PASS; manifest hashes match |
-| Screenshot-to-current-source integrity | FAIL; staff evidence is stale and no source revision is recorded |
-| Synthetic/local/no side effects | PASS |
-| Markdown local links and prototype canonical IDs | PASS |
-| `git diff --check` | PASS at reviewer checkpoint |
+| Check                                                          | Result                                                           |
+| -------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Nine scenarios / 73 state objects / desktop+mobile             | PASS structurally; 146/146 rendered                              |
+| UX-06 destination IDs                                          | PASS; 21 distinct IDs, no unknown ID outside documented alias    |
+| Initial direct hashes and flow/map selection                   | PASS                                                             |
+| Hashchange, browser back/forward and labelled CTA destinations | FAIL                                                             |
+| Console, network and horizontal overflow                       | PASS; 0 errors, 0 failed requests, 0 overflow cases              |
+| Plain-language primary layer                                   | FAIL                                                             |
+| Trusted context and capability variants                        | FAIL in rendered shell/controls                                  |
+| Mobile navigation and recovery parity                          | FAIL                                                             |
+| Keyboard/semantic accessibility basics                         | FAIL                                                             |
+| Screenshot file integrity                                      | PASS; manifest hashes match                                      |
+| Screenshot-to-current-source integrity                         | FAIL; staff evidence is stale and no source revision is recorded |
+| Synthetic/local/no side effects                                | PASS                                                             |
+| Markdown local links and prototype canonical IDs               | PASS                                                             |
+| `git diff --check`                                             | PASS at reviewer checkpoint                                      |
 
 ### 6.4 Phase-level integrated correction brief
 
@@ -309,13 +309,13 @@ from the pre-correction F2 list. `git diff --check` remained PASS.
 
 ### 8.2 F1–F5 re-audit
 
-| Original cause | Result | Independent evidence |
-|---|---|---|
-| F1 — linear deck / detached URL state | **PARTIAL; one substantive class remains** | Explicit cross-state recovery and happy-path transitions, external hash and back/forward now synchronize correctly. However, 18 unique labelled actions target the same state and produce no visible outcome; see 8.3. |
-| F2 — product copy mixed with diagnostics | **PASS** | Primary layer is plain Russian; exact state IDs, lifecycle terms and OM/BD information are closed in the reviewer disclosure. No former jargon match was visible across 146 renders. |
-| F3 — fixed context/capability shell | **PASS** | Neutral `PAT-01` says `Организация не выбрана` and has no org bottom nav; mobile staff keeps `Клиника Север`; owner without binding has no mode switch; active Domains/Patients/Booking markers are correct; unavailable all-patient/history/cross-org controls are absent. Public mobile keeps Support and Documents. |
-| F4 — simulated accessibility | **PASS for the required semantic low-fidelity baseline, with one drawer follow-up** | Forms use labelled inputs/selects; product actions and navigation are buttons/links/nav; no interactive div/span surrogate remains; action navigation focuses `#pageTitle`; keyboard can enter the real form controls. The drawer toggle opens/closes and preserves navigation, but Escape does not close it in any of 42 applicable mobile states. |
-| F5 — stale evidence | **PASS** | Current source hash exactly matches the manifest; all 16 PNG hashes match; screenshots represent the 12-state staff flow and the corrected recovery/context/capability variants. All 16 were visually reviewed without clipping or stale labels. |
+| Original cause                           | Result                                                                              | Independent evidence                                                                                                                                                                                                                                                                                                                                |
+| ---------------------------------------- | ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F1 — linear deck / detached URL state    | **PARTIAL; one substantive class remains**                                          | Explicit cross-state recovery and happy-path transitions, external hash and back/forward now synchronize correctly. However, 18 unique labelled actions target the same state and produce no visible outcome; see 8.3.                                                                                                                              |
+| F2 — product copy mixed with diagnostics | **PASS**                                                                            | Primary layer is plain Russian; exact state IDs, lifecycle terms and OM/BD information are closed in the reviewer disclosure. No former jargon match was visible across 146 renders.                                                                                                                                                                |
+| F3 — fixed context/capability shell      | **PASS**                                                                            | Neutral `PAT-01` says `Организация не выбрана` and has no org bottom nav; mobile staff keeps `Клиника Север`; owner without binding has no mode switch; active Domains/Patients/Booking markers are correct; unavailable all-patient/history/cross-org controls are absent. Public mobile keeps Support and Documents.                              |
+| F4 — simulated accessibility             | **PASS for the required semantic low-fidelity baseline, with one drawer follow-up** | Forms use labelled inputs/selects; product actions and navigation are buttons/links/nav; no interactive div/span surrogate remains; action navigation focuses `#pageTitle`; keyboard can enter the real form controls. The drawer toggle opens/closes and preserves navigation, but Escape does not close it in any of 42 applicable mobile states. |
+| F5 — stale evidence                      | **PASS**                                                                            | Current source hash exactly matches the manifest; all 16 PNG hashes match; screenshots represent the 12-state staff flow and the corrected recovery/context/capability variants. All 16 were visually reviewed without clipping or stale labels.                                                                                                    |
 
 Previously passing security/product boundaries also remain intact: one-org staff, enrollment-bound patient multi-org,
 first value before install, optional browser access, separate push consent, SMS without auth elevation, independent
@@ -400,14 +400,14 @@ focused toggle and leaves focus on `body`; Escape does not close it or restore f
 
 Reviewer #1's residual same-state/Escape finding is **true but incomplete**.
 
-| Residual class | Reviewer #2 evidence | Classification |
-|---|---|---|
-| 18 same-state actions | Every one preserves the same hash/title/body with no visible acknowledgment. This includes resend/retry/status actions and stronger promises such as support, calendar, preparation, nearest visit, settings and visit assignment. | **True** |
-| Escape on mobile drawer | No Escape listener exists; tested drawer remains `aria-expanded=true` and `.open`. | **True** |
-| Drawer focus management | Opening re-renders the toggle itself, so focus falls to `body`; focus is not moved into the drawer and cannot be restored by Escape. | **Incomplete in reviewer #1** |
-| Public Support / Documents | Header `Поддержка` opens the foreign/revoked-link PAT-01 error state, not support; `Документы` returns to the acquisition landing. The same wrong support target is reused by booking/domain recovery. | **Incomplete in reviewer #1** |
+| Residual class                        | Reviewer #2 evidence                                                                                                                                                                                                                                          | Classification                          |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| 18 same-state actions                 | Every one preserves the same hash/title/body with no visible acknowledgment. This includes resend/retry/status actions and stronger promises such as support, calendar, preparation, nearest visit, settings and visit assignment.                            | **True**                                |
+| Escape on mobile drawer               | No Escape listener exists; tested drawer remains `aria-expanded=true` and `.open`.                                                                                                                                                                            | **True**                                |
+| Drawer focus management               | Opening re-renders the toggle itself, so focus falls to `body`; focus is not moved into the drawer and cannot be restored by Escape.                                                                                                                          | **Incomplete in reviewer #1**           |
+| Public Support / Documents            | Header `Поддержка` opens the foreign/revoked-link PAT-01 error state, not support; `Документы` returns to the acquisition landing. The same wrong support target is reused by booking/domain recovery.                                                        | **Incomplete in reviewer #1**           |
 | Public invite recovery actor boundary | `Запросить новую ссылку` from expired public staff invite and `Сообщить владельцу` from a public seat-block state navigate directly to authenticated MGMT-02 team management composition. A public recipient must not appear to enter owner/admin management. | **Incomplete and security-significant** |
-| Capability metadata consistency | The clinic patient-card state declares `handoffAllowed:false` but still renders `Совместная работа` leading to the allowed handoff candidate. Either the state is capability-enabled or the action must be absent; the current artifact claims both. | **Incomplete in reviewer #1** |
+| Capability metadata consistency       | The clinic patient-card state declares `handoffAllowed:false` but still renders `Совместная работа` leading to the allowed handoff candidate. Either the state is capability-enabled or the action must be absent; the current artifact claims both.          | **Incomplete in reviewer #1**           |
 
 Thus the residual is one shared interaction/context-graph cause, not only a cosmetic set of self-target buttons. The
 automated `284 action transitions` metric is mechanically correct but too weak for acceptance because it checks the

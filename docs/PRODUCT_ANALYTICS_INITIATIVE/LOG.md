@@ -23,11 +23,11 @@
 
 ### Проверка
 
-| Проверка | Результат |
-|----------|-----------|
-| `pnpm --dir apps/webapp run typecheck` | OK |
-| vitest (registration bundle, 44 tests) | OK |
-| `register/route`, `register/confirm/route`, `oauth/start/route`, `auth-registration-events/route` | OK |
+| Проверка                                                                                          | Результат |
+| ------------------------------------------------------------------------------------------------- | --------- |
+| `pnpm --dir apps/webapp run typecheck`                                                            | OK        |
+| vitest (registration bundle, 44 tests)                                                            | OK        |
+| `register/route`, `register/confirm/route`, `oauth/start/route`, `auth-registration-events/route` | OK        |
 
 Связанный журнал login/register: [`../LOGIN_REGISTER_NEW_LOGIC/LOG.md`](../LOGIN_REGISTER_NEW_LOGIC/LOG.md) §2026-05-28.
 
@@ -43,16 +43,16 @@
 
 ### Проверка (post-review)
 
-| Проверка | Результат |
-|----------|-----------|
-| `check-drizzle-journal-sync.sh` | OK |
-| `vitest` `normalizePageKey.test.ts`, `service.test.ts` | 9 passed |
-| `pnpm --dir apps/webapp run typecheck` | OK |
-| `eslint` на новых файлах | OK |
+| Проверка                                               | Результат |
+| ------------------------------------------------------ | --------- |
+| `check-drizzle-journal-sync.sh`                        | OK        |
+| `vitest` `normalizePageKey.test.ts`, `service.test.ts` | 9 passed  |
+| `pnpm --dir apps/webapp run typecheck`                 | OK        |
+| `eslint` на новых файлах                               | OK        |
 
 ### Исправления по review
 
-1. **`page_view` вне `/app/patient/**`** — service отбрасывает событие после `normalizePageKey` (не пишет в `__all__`).
+1. **`page_view` вне `/app/patient/**`** — service отбрасывает событие после `normalizePageKey`(не пишет в`**all**`).
 2. **Dedupe `push_open`** — опора на partial unique index + обработка `23505` при гонке вставки (вместо только `SELECT` перед `INSERT`).
 3. **`recordEventsBatch`** — единый путь: `insertRecent` → skip hourly при dedupe.
 
@@ -75,11 +75,11 @@
 
 ### Проверка (post-review)
 
-| Проверка | Результат |
-|----------|-----------|
+| Проверка                                                                           | Результат |
+| ---------------------------------------------------------------------------------- | --------- |
 | `vitest` product-analytics + `api/patient/analytics/events` + `clientEntryChannel` | 18 passed |
-| `pnpm --dir apps/webapp run typecheck` | OK |
-| `eslint` Block 2 файлы | OK |
+| `pnpm --dir apps/webapp run typecheck`                                             | OK        |
+| `eslint` Block 2 файлы                                                             | OK        |
 
 ### Исправления по review
 
@@ -105,11 +105,11 @@
 
 ### Проверка (post-review)
 
-| Проверка | Результат |
-|----------|-----------|
+| Проверка                                                    | Результат |
+| ----------------------------------------------------------- | --------- |
 | `vitest` web-push + analytics + push-open + tracked payload | 54 passed |
-| `pnpm --dir apps/webapp run typecheck` | OK |
-| `eslint` Block 3 файлы | OK |
+| `pnpm --dir apps/webapp run typecheck`                      | OK        |
+| `eslint` Block 3 файлы                                      | OK        |
 
 ### Исправления по review
 
@@ -135,11 +135,11 @@
 
 ### Проверка (post-review)
 
-| Проверка | Результат |
-|----------|-----------|
-| `vitest` `buildAdminDashboard.test.ts`, `service.test.ts`, `route.test.ts` | 8 passed |
-| `pnpm --dir apps/webapp run typecheck` | OK |
-| `eslint` Block 4 файлы | OK |
+| Проверка                                                                   | Результат |
+| -------------------------------------------------------------------------- | --------- |
+| `vitest` `buildAdminDashboard.test.ts`, `service.test.ts`, `route.test.ts` | 8 passed  |
+| `pnpm --dir apps/webapp run typecheck`                                     | OK        |
+| `eslint` Block 4 файлы                                                     | OK        |
 
 ### Исправления по review
 
@@ -156,11 +156,11 @@
 
 ### Проверка (post-review)
 
-| Проверка | Результат |
-|----------|-----------|
-| `pnpm --dir apps/webapp run typecheck` | OK |
-| `eslint` Block 5 файлы | OK |
-| `vitest` `api/admin/product-analytics/route.test.ts` | 2 passed |
+| Проверка                                             | Результат |
+| ---------------------------------------------------- | --------- |
+| `pnpm --dir apps/webapp run typecheck`               | OK        |
+| `eslint` Block 5 файлы                               | OK        |
+| `vitest` `api/admin/product-analytics/route.test.ts` | 2 passed  |
 
 ### Исправления по review
 
@@ -177,11 +177,11 @@
 
 ### Проверка (post-review)
 
-| Проверка | Результат |
-|----------|-----------|
+| Проверка                                    | Результат |
+| ------------------------------------------- | --------- |
 | `vitest` product-analytics (все затронутые) | 36 passed |
-| `pnpm --dir apps/webapp run typecheck` | OK |
-| `eslint` Block 6 файлы | OK |
+| `pnpm --dir apps/webapp run typecheck`      | OK        |
+| `eslint` Block 6 файлы                      | OK        |
 
 ### Исправления по review
 
@@ -224,10 +224,10 @@
 
 ### Проверки
 
-| Проверка | Результат |
-|----------|-----------|
+| Проверка                                                                                                                                                                                                                                                                                                                                                                              | Результат |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
 | `pnpm --dir apps/webapp exec vitest run src/modules/product-analytics/buildAdminDashboard.test.ts src/modules/product-analytics/service.test.ts src/modules/product-analytics/clientEntryChannel.test.ts src/app/api/admin/product-analytics/route.test.ts src/app/api/patient/analytics/push-open/route.test.ts src/app-layer/product-analytics/createTrackedWebPushPayload.test.ts` | 22 passed |
-| `pnpm --dir apps/webapp run typecheck` | OK |
+| `pnpm --dir apps/webapp run typecheck`                                                                                                                                                                                                                                                                                                                                                | OK        |
 
 ### Примечание по plan-файлам
 
@@ -260,8 +260,8 @@
 
 ### Проверки
 
-| Проверка | Результат |
-|----------|-----------|
+| Проверка                                              | Результат          |
+| ----------------------------------------------------- | ------------------ |
 | `vitest` stats/datetime/product-analytics/route tests | зелёные (локально) |
 
 ---
@@ -270,16 +270,16 @@
 
 ### Сделано (связь с Operator Health)
 
-- `POST /api/internal/product-analytics/retention` — best-effort tick в **`operator_job_status`**: `job_family=analytics`, `job_key=analytics.product_analytics.retention` (`meta_json`: deleted* / dryRun).
+- `POST /api/internal/product-analytics/retention` — best-effort tick в **`operator_job_status`**: `job_family=analytics`, `job_key=analytics.product_analytics.retention` (`meta_json`: deleted\* / dryRun).
 - Сводка всех host cron — **`GET /api/admin/system-health`** → **`cronJobs`**, UI `/app/doctor/system-health` → «Cron-задачи хоста». Канон: [`docs/OPERATOR_HEALTH_ALERTING_INITIATIVE/LOG.md`](../OPERATOR_HEALTH_ALERTING_INITIATIVE/LOG.md) § 2026-05-28, реестр `apps/webapp/src/modules/operator-health/cronJobRegistry.ts`.
 
 ### Проверки
 
-| Проверка | Результат |
-|----------|-----------|
-| `vitest` `product-analytics/retention/route.test.ts` (tick mock) | OK |
-| `vitest` `collectCronJobsHealth.test.ts`, `system-health/route.test.ts` | OK |
-| `pnpm --dir apps/webapp run typecheck` | OK |
+| Проверка                                                                | Результат |
+| ----------------------------------------------------------------------- | --------- |
+| `vitest` `product-analytics/retention/route.test.ts` (tick mock)        | OK        |
+| `vitest` `collectCronJobsHealth.test.ts`, `system-health/route.test.ts` | OK        |
+| `pnpm --dir apps/webapp run typecheck`                                  | OK        |
 
 ---
 
@@ -288,7 +288,7 @@
 ### Сделано
 
 1. **`pushOpensSummary.sent`:** считается из **`product_push_notifications`**, не из **`product_analytics_hourly`**; **`opened`** — **`product_analytics_events_recent`** (`push_open`). Unit-тесты `mergePushOpenBuckets` / `summarizePushOpens` в [`loadAdminReminderStats.test.ts`](../../apps/webapp/src/app-layer/stats/loadAdminReminderStats.test.ts).
-2. **KPI минут просмотра:** **`warmupVideoEstimatedWatchMinutes`**, **`videoPlaybackEstimatedWatchMinutes`** в **`loadContentEngagementStats`**; fallback — число событий (открытий / resolution) × средняя длительность каталога или **120 с** (`estimateWatchMinutes`). *Уточнение 2026-06-08:* не через **`videoPlayback.totalResolutions`**; длительность пишет media-worker в **`video_duration_seconds`**.
+2. **KPI минут просмотра:** **`warmupVideoEstimatedWatchMinutes`**, **`videoPlaybackEstimatedWatchMinutes`** в **`loadContentEngagementStats`**; fallback — число событий (открытий / resolution) × средняя длительность каталога или **120 с** (`estimateWatchMinutes`). _Уточнение 2026-06-08:_ не через **`videoPlayback.totalResolutions`**; длительность пишет media-worker в **`video_duration_seconds`**.
 3. **Разминки:** парсинг **`content_pages.video_url`** — канонический **`/api/media/{uuid}`** (query/hash отрезаются), как в [`materialRatingTargetVideoMediaIds.ts`](../../apps/webapp/src/infra/repos/materialRatingTargetVideoMediaIds.ts).
 4. **UI пресеты окна:** **24 ч** / **7 дн.** / **30 дн.** (`DOCTOR_ANALYTICS_WINDOW_HOUR_PRESETS`) на material-ratings, notifications, usage; **«Сутки»** (`preset=day`) на analytics/clients и детализации оценок.
 5. **Каталог упражнений:** фильтр **`load=`** — merge SSR только при наличии param в URL (`hasLoadParam` / `doctorCatalogClientFilterUrlHints` в [`doctorCatalogClientUrlSync.ts`](../../apps/webapp/src/shared/lib/doctorCatalogClientUrlSync.ts)).
@@ -296,8 +296,8 @@
 
 ### Проверки
 
-| Проверка | Результат |
-|----------|-----------|
+| Проверка                                                                        | Результат     |
+| ------------------------------------------------------------------------------- | ------------- |
 | `vitest` `loadAdminReminderStats.test.ts`, `doctorCatalogClientUrlSync.test.ts` | OK (локально) |
 
 ## 2026-06-08 — Audience push/video + doc sync

@@ -2,18 +2,18 @@
  * GET /api/doctor/clients/name-match-hints — probable name overlap hints (admin review only).
  * Logs: `[admin] name_match_hints` with aggregates only (no raw PII arrays).
  */
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { getPool } from "@/app-layer/db/client";
-import { requirePlatformOperationsApiContext } from "@/app-layer/guards/requireRole";
-import { logger } from "@/app-layer/logging/logger";
-import { buildNameMatchHintsReport } from "@/app-layer/merge/platformUserNameMatchHints";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { getPool } from '@/app-layer/db/client';
+import { requirePlatformOperationsApiContext } from '@/app-layer/guards/requireRole';
+import { logger } from '@/app-layer/logging/logger';
+import { buildNameMatchHintsReport } from '@/app-layer/merge/platformUserNameMatchHints';
 
 const querySchema = z.object({
   missingPhone: z
-    .enum(["0", "1", "true", "false"])
+    .enum(['0', '1', 'true', 'false'])
     .optional()
-    .transform((v) => v === "1" || v === "true"),
+    .transform((v) => v === '1' || v === 'true'),
   limitGroups: z.coerce.number().int().min(1).max(500).optional().default(100),
   limitMembersPerGroup: z.coerce.number().int().min(1).max(100).optional().default(20),
   limitSwappedPairs: z.coerce.number().int().min(1).max(2000).optional().default(500),
@@ -47,14 +47,14 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const raw = {
-    missingPhone: url.searchParams.get("missingPhone") ?? undefined,
-    limitGroups: url.searchParams.get("limitGroups") ?? undefined,
-    limitMembersPerGroup: url.searchParams.get("limitMembersPerGroup") ?? undefined,
-    limitSwappedPairs: url.searchParams.get("limitSwappedPairs") ?? undefined,
+    missingPhone: url.searchParams.get('missingPhone') ?? undefined,
+    limitGroups: url.searchParams.get('limitGroups') ?? undefined,
+    limitMembersPerGroup: url.searchParams.get('limitMembersPerGroup') ?? undefined,
+    limitSwappedPairs: url.searchParams.get('limitSwappedPairs') ?? undefined,
   };
   const parsed = querySchema.safeParse(raw);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_query" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_query' }, { status: 400 });
   }
 
   const opts = parsed.data;
@@ -71,14 +71,14 @@ export async function GET(request: Request) {
     const durationMs = Date.now() - t0;
     logger.info(
       {
-        action: "name_match_hints",
+        action: 'name_match_hints',
         adminUserId: adminGate.session.user.userId,
         missingPhone,
         orderedGroupCount: report.orderedGroups.length,
         swappedPairCount: report.swappedPairs.length,
         durationMs,
       },
-      "[admin] name_match_hints",
+      '[admin] name_match_hints',
     );
 
     return NextResponse.json({
@@ -95,7 +95,10 @@ export async function GET(request: Request) {
       })),
     });
   } catch (err) {
-    logger.error({ err, action: "name_match_hints", adminUserId: adminGate.session.user.userId }, "[admin] name_match_hints failed");
-    return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });
+    logger.error(
+      { err, action: 'name_match_hints', adminUserId: adminGate.session.user.userId },
+      '[admin] name_match_hints failed',
+    );
+    return NextResponse.json({ ok: false, error: 'server_error' }, { status: 500 });
   }
 }

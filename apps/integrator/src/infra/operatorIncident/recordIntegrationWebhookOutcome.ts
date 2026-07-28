@@ -58,7 +58,9 @@ export async function recordIntegrationWebhookOutcome(
       integration: input.source,
       errorClass: input.errorClass,
       errorDetail: input.detail ?? null,
-      alertLines: [`Вебхук ${input.source}: ${input.errorClass}`, input.detail ?? ''].filter(Boolean),
+      alertLines: [`Вебхук ${input.source}: ${input.errorClass}`, input.detail ?? ''].filter(
+        Boolean,
+      ),
     });
   } catch (err) {
     logger.warn({ err, source: input.source }, 'integration_webhook_report_failure_failed');

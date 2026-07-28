@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import {
   DndContext,
   KeyboardSensor,
@@ -9,20 +9,20 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
-} from "@dnd-kit/core";
+} from '@dnd-kit/core';
 import {
   SortableContext,
   arrayMove,
   sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { GripVertical } from "lucide-react";
-import { Badge } from "@/shared/ui/doctor/primitives/badge";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Label } from "@/shared/ui/doctor/primitives/label";
-import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { GripVertical } from 'lucide-react';
+import { Badge } from '@/shared/ui/doctor/primitives/badge';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Label } from '@/shared/ui/doctor/primitives/label';
+import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import {
   Dialog,
   DialogContent,
@@ -30,13 +30,13 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/shared/ui/doctor/primitives/dialog";
-import type { ClinicalTestMediaItem, TestSet } from "@/modules/tests/types";
-import type { ClinicalTestLibraryPickRow } from "./clinicalTestLibraryRows";
-import { normalizeRuSearchString } from "@/shared/lib/ruSearchNormalize";
-import { PickerSearchField } from "@/shared/ui/doctor/PickerSearchField";
-import { MediaThumb } from "@/shared/ui/doctor/media/MediaThumb";
-import { clinicalTestMediaItemToPreviewUi } from "@/shared/ui/doctor/media/mediaPreviewUiModel";
+} from '@/shared/ui/doctor/primitives/dialog';
+import type { ClinicalTestMediaItem, TestSet } from '@/modules/tests/types';
+import type { ClinicalTestLibraryPickRow } from './clinicalTestLibraryRows';
+import { normalizeRuSearchString } from '@/shared/lib/ruSearchNormalize';
+import { PickerSearchField } from '@/shared/ui/doctor/PickerSearchField';
+import { MediaThumb } from '@/shared/ui/doctor/media/MediaThumb';
+import { clinicalTestMediaItemToPreviewUi } from '@/shared/ui/doctor/media/mediaPreviewUiModel';
 
 export type TestSetEditorItemRow = {
   sortId: string;
@@ -54,7 +54,7 @@ export function rowsFromTestSet(ts: TestSet): TestSetEditorItemRow[] {
       sortId: it.id,
       testId: it.testId,
       title: it.test.title,
-      comment: it.comment ?? "",
+      comment: it.comment ?? '',
       testArchived: it.test.isArchived,
       previewMedia: it.test.previewMedia,
     }));
@@ -73,7 +73,7 @@ function SortableRow({
   onRemove,
 }: {
   row: TestSetEditorItemRow;
-  onChange: (sortId: string, patch: Partial<Pick<TestSetEditorItemRow, "comment">>) => void;
+  onChange: (sortId: string, patch: Partial<Pick<TestSetEditorItemRow, 'comment'>>) => void;
   onRemove: (sortId: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -112,7 +112,9 @@ function SortableRow({
               sizes="48px"
             />
           ) : (
-            <div className="flex size-full items-center justify-center text-xs text-muted-foreground">—</div>
+            <div className="flex size-full items-center justify-center text-xs text-muted-foreground">
+              —
+            </div>
           )}
         </div>
       </div>
@@ -148,11 +150,14 @@ function SortableRow({
 
 export function TestSetItemsForm({ testSet, clinicalTestsLibrary, rows, setRows }: Props) {
   const [libOpen, setLibOpen] = useState(false);
-  const [pickQuery, setPickQuery] = useState("");
+  const [pickQuery, setPickQuery] = useState('');
 
-  const updateRow = useCallback((sortId: string, patch: Partial<TestSetEditorItemRow>) => {
-    setRows((prev) => prev.map((r) => (r.sortId === sortId ? { ...r, ...patch } : r)));
-  }, [setRows]);
+  const updateRow = useCallback(
+    (sortId: string, patch: Partial<TestSetEditorItemRow>) => {
+      setRows((prev) => prev.map((r) => (r.sortId === sortId ? { ...r, ...patch } : r)));
+    },
+    [setRows],
+  );
 
   const removeRow = useCallback(
     (sortId: string) => {
@@ -182,14 +187,19 @@ export function TestSetItemsForm({ testSet, clinicalTestsLibrary, rows, setRows 
     [setRows],
   );
 
-  const byTestId = useMemo(() => new Map(clinicalTestsLibrary.map((r) => [r.id, r])), [clinicalTestsLibrary]);
+  const byTestId = useMemo(
+    () => new Map(clinicalTestsLibrary.map((r) => [r.id, r])),
+    [clinicalTestsLibrary],
+  );
 
   const filteredPick = useMemo(() => {
     const needle = normalizeRuSearchString(pickQuery.trim());
     const used = new Set(rows.map((r) => r.testId));
     return clinicalTestsLibrary
-      .filter((t) => !used.has(t.id) && (!needle || normalizeRuSearchString(t.title).includes(needle)))
-      .sort((a, b) => a.title.localeCompare(b.title, "ru"));
+      .filter(
+        (t) => !used.has(t.id) && (!needle || normalizeRuSearchString(t.title).includes(needle)),
+      )
+      .sort((a, b) => a.title.localeCompare(b.title, 'ru'));
   }, [clinicalTestsLibrary, rows, pickQuery]);
 
   const addTest = useCallback(
@@ -202,13 +212,13 @@ export function TestSetItemsForm({ testSet, clinicalTestsLibrary, rows, setRows 
           sortId: crypto.randomUUID(),
           testId: opt.id,
           title: opt.title,
-          comment: "",
+          comment: '',
           testArchived: false,
           previewMedia: opt.previewMedia,
         },
       ]);
       setLibOpen(false);
-      setPickQuery("");
+      setPickQuery('');
     },
     [byTestId, setRows],
   );
@@ -229,7 +239,9 @@ export function TestSetItemsForm({ testSet, clinicalTestsLibrary, rows, setRows 
 
         <Dialog open={libOpen} onOpenChange={setLibOpen}>
           <div className="flex flex-wrap items-center gap-2">
-            <DialogTrigger render={<Button type="button" variant="secondary" disabled={testSet.isArchived} />}>
+            <DialogTrigger
+              render={<Button type="button" variant="secondary" disabled={testSet.isArchived} />}
+            >
               Добавить тест
             </DialogTrigger>
           </div>
@@ -271,7 +283,9 @@ export function TestSetItemsForm({ testSet, clinicalTestsLibrary, rows, setRows 
                           </span>
                         )}
                       </div>
-                      <span className="line-clamp-2 min-w-0 font-medium leading-snug">{row.title}</span>
+                      <span className="line-clamp-2 min-w-0 font-medium leading-snug">
+                        {row.title}
+                      </span>
                     </Button>
                   </li>
                 ))

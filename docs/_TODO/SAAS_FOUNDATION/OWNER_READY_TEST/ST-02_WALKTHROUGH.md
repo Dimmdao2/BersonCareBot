@@ -13,12 +13,12 @@ come from the protected TEST fixture packet; do not copy passwords into git, log
 
 Use a new incognito profile with no cookies on TEST:
 
-| Scenario | Exact route | Deterministic action |
-|---|---|---|
-| Public landing and clean login | `/app` | Verify public entry, then the patient and staff email login choices. |
-| Specialist registration | `/app` | Select `Я специалист`; verify email, password, specialist name and organization title. |
-| Clinic registration | `/app` | The same canonical flow creates the clinic, owner membership and specialist together. There is no separate clinic-without-specialist signup. |
-| Public booking | `/book` | Verify the public catalog and a non-empty Clinic A/Clinic B scheduling scenario from the fixture mappings. |
+| Scenario                       | Exact route | Deterministic action                                                                                                                         |
+| ------------------------------ | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Public landing and clean login | `/app`      | Verify public entry, then the patient and staff email login choices.                                                                         |
+| Specialist registration        | `/app`      | Select `Я специалист`; verify email, password, specialist name and organization title.                                                       |
+| Clinic registration            | `/app`      | The same canonical flow creates the clinic, owner membership and specialist together. There is no separate clinic-without-specialist signup. |
+| Public booking                 | `/book`     | Verify the public catalog and a non-empty Clinic A/Clinic B scheduling scenario from the fixture mappings.                                   |
 
 TEST's canonical settings override enables `specialist_signup_enabled`. Production remains default-off. The
 `/api/auth/dev-public` helpers are DEV-only and must not be used as TEST/production evidence. For local DEV, the

@@ -89,4 +89,3 @@ Doctor-каталоги (упражнения, комплексы, тесты, �
 - `pnpm lint`
 - `pnpm check:catalog-shared-primitives` — smoke-проверка, что новые примитивы не тянут домен exercises и сохраняют generic-контракт
 - профильный набор тестов страницы (например `ExerciseForm`, media picker)
-

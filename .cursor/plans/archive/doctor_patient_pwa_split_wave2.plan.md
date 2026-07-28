@@ -1,6 +1,6 @@
 ---
 name: Doctor patient PWA split wave 2
-overview: "DOCTOR_PATIENT_PWA_SPLIT: волна 1 runtime + волна 2 §A access/toast, §B Staff PWA, §C staff web push. Patient PWA frozen. Инициатива closed 2026-06-07."
+overview: 'DOCTOR_PATIENT_PWA_SPLIT: волна 1 runtime + волна 2 §A access/toast, §B Staff PWA, §C staff web push. Patient PWA frozen. Инициатива closed 2026-06-07.'
 status: completed
 completedAt: 2026-06-07
 closeoutCommit: 290df2ba
@@ -9,22 +9,22 @@ ciVerifiedAt: 2026-06-07
 canonicalPath: .cursor/plans/archive/doctor_patient_pwa_split_wave2.plan.md
 todos:
   - id: w1-runtime
-    content: "Волна 1: guards, doctor.css admin parity, cross-role tests"
+    content: 'Волна 1: guards, doctor.css admin parity, cross-role tests'
     status: completed
   - id: w2a-access-toast
-    content: "§A 2.A0–2.A5+: cross-zone block + react-hot-toast (hub + install next=)"
+    content: '§A 2.A0–2.A5+: cross-zone block + react-hot-toast (hub + install next=)'
     status: completed
   - id: w2b-staff-pwa
-    content: "§B 2.B0–2.B8: manifest-staff, install, icons, SW bootstrap, navigation, install marker"
+    content: '§B 2.B0–2.B8: manifest-staff, install, icons, SW bootstrap, navigation, install marker'
     status: completed
   - id: w2c-staff-push
-    content: "§C 2.C0–2.C4: /api/doctor/web-push, settings matrix, per-staff delivery, bootstrap + install opt-in"
+    content: '§C 2.C0–2.C4: /api/doctor/web-push, settings matrix, per-staff delivery, bootstrap + install opt-in'
     status: completed
   - id: docs-acceptance
-    content: "Docs: WAVE2, ACCEPTANCE_WAVE2, INVENTORY, ROADMAP, STAFF_PWA_ADR, SCOPE_BOUNDARIES, api.md, INTEGRATOR_CONTRACT, PWA_INITIATIVE"
+    content: 'Docs: WAVE2, ACCEPTANCE_WAVE2, INVENTORY, ROADMAP, STAFF_PWA_ADR, SCOPE_BOUNDARIES, api.md, INTEGRATOR_CONTRACT, PWA_INITIATIVE'
     status: completed
   - id: tests-ci
-    content: "Vitest fast 63 + pnpm run ci green (commit 290df2ba)"
+    content: 'Vitest fast 63 + pnpm run ci green (commit 290df2ba)'
     status: completed
 isProject: false
 ---

@@ -1,14 +1,12 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { savePatientHomePracticeTargetAction } from "@/app/app/doctor/patient-home/patientHomeDoctorSettingsActions";
-import { doctorSectionCardClass, doctorSectionTitleClass } from "@/shared/ui/doctor/doctorVisual";
+import { useState } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { savePatientHomePracticeTargetAction } from '@/app/app/doctor/patient-home/patientHomeDoctorSettingsActions';
+import { doctorSectionCardClass, doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
 
-export function PatientHomePracticeTargetPanel(props: {
-  initialTarget: number;
-}) {
+export function PatientHomePracticeTargetPanel(props: { initialTarget: number }) {
   const [value, setValue] = useState(String(props.initialTarget));
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -19,26 +17,29 @@ export function PatientHomePracticeTargetPanel(props: {
     setError(null);
     const n = Number.parseInt(value, 10);
     if (!Number.isFinite(n) || n < 1 || n > 10) {
-      setError("Введите число от 1 до 10.");
+      setError('Введите число от 1 до 10.');
       return;
     }
     setPending(true);
     try {
       const res = await savePatientHomePracticeTargetAction(n);
       if (!res.ok) {
-        setError("Не удалось сохранить.");
+        setError('Не удалось сохранить.');
         return;
       }
-      setMessage("Сохранено");
+      setMessage('Сохранено');
     } catch {
-      setError("Не удалось сохранить.");
+      setError('Не удалось сохранить.');
     } finally {
       setPending(false);
     }
   }
 
   return (
-    <section className={doctorSectionCardClass} aria-labelledby="patient-home-practice-target-heading">
+    <section
+      className={doctorSectionCardClass}
+      aria-labelledby="patient-home-practice-target-heading"
+    >
       <h2 id="patient-home-practice-target-heading" className={doctorSectionTitleClass}>
         Цель практик на главной
       </h2>
@@ -59,7 +60,7 @@ export function PatientHomePracticeTargetPanel(props: {
           />
         </label>
         <Button type="button" onClick={() => void onSave()} disabled={pending}>
-          {pending ? "Сохранение…" : "Сохранить"}
+          {pending ? 'Сохранение…' : 'Сохранить'}
         </Button>
       </div>
       {error ? (

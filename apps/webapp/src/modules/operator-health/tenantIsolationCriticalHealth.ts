@@ -1,11 +1,11 @@
 import type {
   SaasIsolationHealthPayload,
   SaasIsolationHealthStatus,
-} from "./saasIsolationDiagnostics";
+} from './saasIsolationDiagnostics';
 import {
   TENANT_ISOLATION_CANARY_MAX_ORGANIZATIONS,
   type TenantIsolationCanarySnapshot,
-} from "./ports";
+} from './ports';
 
 const REQUIRED_CONSECUTIVE_SAMPLES = 2;
 const MIN_SAMPLE_INTERVAL_MS = 4 * 60_000;
@@ -20,12 +20,12 @@ export type TenantIsolationRuntimeSignal = {
 };
 
 export type TenantIsolationDiagnosticsSignal = {
-  status: SaasIsolationHealthStatus | "degraded" | "unavailable";
+  status: SaasIsolationHealthStatus | 'degraded' | 'unavailable';
   activeUnexplainedEvents: number;
 };
 
 export type TenantIsolationWentDarkSignal = {
-  status: "priming" | "ok" | "critical" | "degraded" | "unavailable";
+  status: 'priming' | 'ok' | 'critical' | 'degraded' | 'unavailable';
   affectedOrganizations: number;
 };
 
@@ -51,13 +51,13 @@ let lastRuntimeSignal: TenantIsolationRuntimeSignal = {
 let diagnosticsFailureSamples = 0;
 let lastDiagnosticsObservedAt: number | null = null;
 let lastDiagnosticsSignal: TenantIsolationDiagnosticsSignal = {
-  status: "degraded",
+  status: 'degraded',
   activeUnexplainedEvents: 0,
 };
 let canaryFailureSamples = 0;
 let lastCanaryObservedAt: number | null = null;
 let lastCanarySignal: TenantIsolationWentDarkSignal = {
-  status: "degraded",
+  status: 'degraded',
   affectedOrganizations: 0,
 };
 let canaryPrimed = false;
@@ -130,7 +130,7 @@ export function observeTenantIsolationDiagnostics(
 
   diagnosticsFailureSamples += 1;
   lastDiagnosticsSignal = {
-    status: diagnosticsFailureSamples >= REQUIRED_CONSECUTIVE_SAMPLES ? "unavailable" : "degraded",
+    status: diagnosticsFailureSamples >= REQUIRED_CONSECUTIVE_SAMPLES ? 'unavailable' : 'degraded',
     activeUnexplainedEvents: 0,
   };
   return lastDiagnosticsSignal;
@@ -139,7 +139,7 @@ export function observeTenantIsolationDiagnostics(
 function observeCanaryFailure(): TenantIsolationWentDarkSignal {
   canaryFailureSamples += 1;
   lastCanarySignal = {
-    status: canaryFailureSamples >= REQUIRED_CONSECUTIVE_SAMPLES ? "unavailable" : "degraded",
+    status: canaryFailureSamples >= REQUIRED_CONSECUTIVE_SAMPLES ? 'unavailable' : 'degraded',
     affectedOrganizations: 0,
   };
   return lastCanarySignal;
@@ -152,10 +152,11 @@ export function observeTenantIsolationCanary(
   if (isDuplicateSample(lastCanaryObservedAt, nowMs)) return lastCanarySignal;
   lastCanaryObservedAt = nowMs;
   if (
-    !snapshot
-    || snapshot.truncated
-    || snapshot.organizations.length > TENANT_ISOLATION_CANARY_MAX_ORGANIZATIONS
-  ) return observeCanaryFailure();
+    !snapshot ||
+    snapshot.truncated ||
+    snapshot.organizations.length > TENANT_ISOLATION_CANARY_MAX_ORGANIZATIONS
+  )
+    return observeCanaryFailure();
   canaryFailureSamples = 0;
 
   const current = new Map(snapshot.organizations.map((row) => [row.organizationId, row]));
@@ -172,7 +173,7 @@ export function observeTenantIsolationCanary(
         hasHadMemberRows: row.memberRowCount > 0,
       });
     }
-    lastCanarySignal = { status: "priming", affectedOrganizations: 0 };
+    lastCanarySignal = { status: 'priming', affectedOrganizations: 0 };
     return lastCanarySignal;
   }
 
@@ -199,7 +200,10 @@ export function observeTenantIsolationCanary(
     }
     const wentDark = !row || (tracked.hasHadMemberRows && row.memberRowCount === 0);
     if (wentDark) {
-      organizationZeroSamples.set(organizationId, (organizationZeroSamples.get(organizationId) ?? 0) + 1);
+      organizationZeroSamples.set(
+        organizationId,
+        (organizationZeroSamples.get(organizationId) ?? 0) + 1,
+      );
     } else {
       organizationZeroSamples.delete(organizationId);
       if (row && row.memberRowCount > 0) tracked.hasHadMemberRows = true;
@@ -233,7 +237,7 @@ export function observeTenantIsolationCanary(
   ).length;
   const globalWentDark = activeOrganizationsZeroSamples >= REQUIRED_CONSECUTIVE_SAMPLES;
   lastCanarySignal = {
-    status: globalWentDark || affectedOrganizations > 0 ? "critical" : "ok",
+    status: globalWentDark || affectedOrganizations > 0 ? 'critical' : 'ok',
     affectedOrganizations: globalWentDark
       ? Math.max(affectedOrganizations, lastPositiveActiveOrganizationCount)
       : affectedOrganizations,
@@ -259,10 +263,10 @@ export function resetTenantIsolationCriticalHealthForTest(): void {
   lastRuntimeSignal = { critical: false, missingPrincipalDelta: 0 };
   diagnosticsFailureSamples = 0;
   lastDiagnosticsObservedAt = null;
-  lastDiagnosticsSignal = { status: "degraded", activeUnexplainedEvents: 0 };
+  lastDiagnosticsSignal = { status: 'degraded', activeUnexplainedEvents: 0 };
   canaryFailureSamples = 0;
   lastCanaryObservedAt = null;
-  lastCanarySignal = { status: "degraded", affectedOrganizations: 0 };
+  lastCanarySignal = { status: 'degraded', affectedOrganizations: 0 };
   canaryPrimed = false;
   hadActiveOrganizations = false;
   activeOrganizationsZeroSamples = 0;

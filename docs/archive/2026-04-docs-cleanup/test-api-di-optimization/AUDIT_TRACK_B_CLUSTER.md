@@ -25,7 +25,7 @@
 - `integrator/delivery-targets/**/route.ts`
 - `integrator/diary/**/route.ts` — в scope G только **GET**: `symptom-trackings/route.ts`, `lfk-complexes/route.ts` (других `route.ts` в этом дереве нет)
 
-В **`integrator/**/route.ts` вне G** по-прежнему есть прямые `@/infra/*` (POST: events, bind, channel-link, dispatch, skip/snooze) — ожидаемо до кластеров I и др.; это не регрессия G.
+В **`integrator/**/route.ts`вне G** по-прежнему есть прямые`@/infra/\*` (POST: events, bind, channel-link, dispatch, skip/snooze) — ожидаемо до кластеров I и др.; это не регрессия G.
 
 Согласованные исключения для подписи (`PLAN.md`): verify остаётся в **app-layer** (`assertIntegratorGetRequest` → `verifyIntegratorGetSignature`), не в теле route — соответствует варианту «тонкая обёртка в app-layer».
 
@@ -46,18 +46,18 @@
 ### Итог кластера G (аудит)
 
 | Критерий                         | Результат |
-|----------------------------------|-----------|
+| -------------------------------- | --------- |
 | Импорты `@/infra` в GET routes G | Нет       |
 | Раздувание логики в route        | Нет       |
 | Parity в `LOG.md`                | Да        |
 
 ### FINDINGS → FIX (post-audit, тот же Cluster G)
 
-| ID        | Уровень   | Тема | Статус после FIX |
-|-----------|-----------|------|------------------|
-| TB-MF-0   | Critical  | Не выявлено при первичном аудите (маршруты G без `@/infra`, parity в `LOG.md`) | **N/A** |
-| TB-MF-1   | Major     | Под `integrator/communication/**` отсутствовали colocated `route.test.ts` для GET — расхождение с checkpoint `PLAN.md` (все integrator GET в кластере с якорными тестами) | **CLOSED** — добавлены 4× `route.test.ts` |
-| TB-MF-2   | Major     | Colocated тесты кластера G (и stage13 e2e) мокали `@/infra/webhooks/verifyIntegratorSignature` вместо публичного шва `assertIntegratorGetRequest` | **CLOSED** — `testUtils/wireAssertIntegratorGetForRouteTests.ts` + мок `@/app-layer/integrator/assertIntegratorGetRequest` |
+| ID      | Уровень  | Тема                                                                                                                                                                      | Статус после FIX                                                                                                           |
+| ------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| TB-MF-0 | Critical | Не выявлено при первичном аудите (маршруты G без `@/infra`, parity в `LOG.md`)                                                                                            | **N/A**                                                                                                                    |
+| TB-MF-1 | Major    | Под `integrator/communication/**` отсутствовали colocated `route.test.ts` для GET — расхождение с checkpoint `PLAN.md` (все integrator GET в кластере с якорными тестами) | **CLOSED** — добавлены 4× `route.test.ts`                                                                                  |
+| TB-MF-2 | Major    | Colocated тесты кластера G (и stage13 e2e) мокали `@/infra/webhooks/verifyIntegratorSignature` вместо публичного шва `assertIntegratorGetRequest`                         | **CLOSED** — `testUtils/wireAssertIntegratorGetForRouteTests.ts` + мок `@/app-layer/integrator/assertIntegratorGetRequest` |
 
 **Проверки (FIX):** step — `pnpm run typecheck`, `pnpm run lint`, `pnpm exec vitest --run src/app/api/integrator e2e/stage13-legacy-cleanup.test.ts src/app-layer/integrator/assertIntegratorGetRequest.test.ts`; phase — полный `pnpm exec vitest --run` в `apps/webapp`. `pnpm run ci` не запускался.
 
@@ -90,17 +90,17 @@
 
 ## MANDATORY FIX INSTRUCTIONS — closure (Cluster G, 2026-04-17)
 
-| ID      | Уровень  | Статус   | Где зафиксировано |
-|---------|----------|----------|-------------------|
-| TB-MF-0 | Critical | N/A      | — |
-| TB-MF-1 | Major    | **CLOSED** | Новые `communication/**/route.test.ts`; `LOG.md` § remediation |
+| ID      | Уровень  | Статус     | Где зафиксировано                                                                                                                  |
+| ------- | -------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| TB-MF-0 | Critical | N/A        | —                                                                                                                                  |
+| TB-MF-1 | Major    | **CLOSED** | Новые `communication/**/route.test.ts`; `LOG.md` § remediation                                                                     |
 | TB-MF-2 | Major    | **CLOSED** | `integrator/testUtils/wireAssertIntegratorGetForRouteTests.ts`; обновлённые `route.test.ts` + `e2e/stage13-legacy-cleanup.test.ts` |
 
 ---
 
 ## MANDATORY FIX INSTRUCTIONS — ремедиация при нарушении
 
-| ID       | Severity | Условие | Действие |
-|----------|----------|---------|----------|
-| TB-MF-1r | **Major** | Новый integrator GET в кластере без colocated `route.test.ts` | Добавить минимальные кейсы 400/401 guard + happy/ошибка порта по образцу существующих G-тестов; обновить `LOG.md`. |
+| ID       | Severity  | Условие                                                                          | Действие                                                                                                                                                                                                                  |
+| -------- | --------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| TB-MF-1r | **Major** | Новый integrator GET в кластере без colocated `route.test.ts`                    | Добавить минимальные кейсы 400/401 guard + happy/ошибка порта по образцу существующих G-тестов; обновить `LOG.md`.                                                                                                        |
 | TB-MF-2r | **Major** | В тестах снова появился прямой `vi.mock('@/infra/...')` для guard integrator GET | Вернуть мок на `@/app-layer/integrator/assertIntegratorGetRequest` и общий wire-утилиту; сохранить отдельный тест на реальную крипто-логику в `assertIntegratorGetRequest.test.ts` / `verifyIntegratorSignature.test.ts`. |

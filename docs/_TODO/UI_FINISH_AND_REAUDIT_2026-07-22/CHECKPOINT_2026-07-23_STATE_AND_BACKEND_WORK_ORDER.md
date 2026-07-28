@@ -5,6 +5,7 @@
 2026-07-23), а не по «done»-лейблам в доках.
 
 **Границы (неизменны):** этот бокс = DEV + TEST. Прод (135.x) вне scope.
+
 - **На TEST-сервере работать по максимуму** — деплой `feat` через `deploy/host/deploy-test.sh feat/doctor-ui-rebuild`,
   ломать/наблюдать/чинить/перепроверять. Тест-сервер деплоится ИЗ ветки `feat` (force-align), отдельная ветка не нужна.
 - **«Не пушить в `main`/`test`» — про git-ВЕТКИ с такими именами, НЕ про тест-сервер.** Тест-сервер ветку `test`
@@ -33,12 +34,12 @@
 
 ## 1. Состояние по трекам (фронт-контур) — кратко
 
-| Трек | Что | Реально |
-|------|-----|---------|
-| **A — UI** | Doctor/SaaS интерфейс | ~30% evidence-real, **0% принято**. Фундамент + экран Clients + ядро Today реальны; обе названные регрессии (фон DNA, карточка в правой панели) **починены**. UI-1 Расписание (0/20 живых), UI-5b карточка пациента + UI-7 (48 пунктов) — не начаты; UI-3 (1/8). |
-| **B — вход владельца** | email-OTP → global admin + PWA/push на TEST | Код готов. **Логин не работает** (SMTP, см. §3). |
-| **C — вывод Rubitime** | R1–R7 на TEST | R1–R2 сделано; R3–R6 в коде; `branchServiceId` жив (R3C-11 просрочен); **R7 (архив+DROP таблиц) не начат, DROP-миграции нет**; 348 файлов ещё ссылаются на rubitime. |
-| **D — прямые записи integrator→public** | D0…D10 | **Только D0** (честный gate). D1–D10 не начаты. |
+| Трек                                    | Что                                         | Реально                                                                                                                                                                                                                                                          |
+| --------------------------------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A — UI**                              | Doctor/SaaS интерфейс                       | ~30% evidence-real, **0% принято**. Фундамент + экран Clients + ядро Today реальны; обе названные регрессии (фон DNA, карточка в правой панели) **починены**. UI-1 Расписание (0/20 живых), UI-5b карточка пациента + UI-7 (48 пунктов) — не начаты; UI-3 (1/8). |
+| **B — вход владельца**                  | email-OTP → global admin + PWA/push на TEST | Код готов. **Логин не работает** (SMTP, см. §3).                                                                                                                                                                                                                 |
+| **C — вывод Rubitime**                  | R1–R7 на TEST                               | R1–R2 сделано; R3–R6 в коде; `branchServiceId` жив (R3C-11 просрочен); **R7 (архив+DROP таблиц) не начат, DROP-миграции нет**; 348 файлов ещё ссылаются на rubitime.                                                                                             |
+| **D — прямые записи integrator→public** | D0…D10                                      | **Только D0** (честный gate). D1–D10 не начаты.                                                                                                                                                                                                                  |
 
 ---
 
@@ -47,34 +48,34 @@
 Легенда: **DONE** — реально в коде+тесты; **DORMANT** — код готов, но выключен/не активирован (owner-gate);
 **PARTIAL** — частично; **PLAN** — только план; **—** не начато.
 
-| Область | Статус | Суть / что осталось | Evidence |
-|---------|--------|---------------------|----------|
-| Tenant isolation — модель+RLS | **DONE** | Роли `app_staff/app_patient`, two-pool provider, RLS-политики, 3-режимный switch + FORCE-cutover скрипт | `packages/db-principal`, `deploy/postgres/phase4-force-rls-cutover.sql` |
-| Tenant isolation — активация | **DORMANT** | Дефолт `legacy-guc` (стены есть, спят). Прод-флип `locked`+FORCE — owner-runbook, не выполнен | `PHASE4_ROLLOUT_RUNBOOK.md` |
-| PII bootstrap-таблицы под enforce | **—** | `platform_user_contacts`, `user_phone_history` допускают org=NULL глобально — 3 flip-blocker'а до FORCE | `TASK_A_PII_TIGHTEN_PLAN.md` |
-| Тарифы / entitlements / trial | **DONE** | 15-мех. реестр, resolver (override>tariff>default), trial-lifecycle, admin API `/api/admin/commercial` (capability-gated, audited), guard в ~40 роутах + coverage-checker | `modules/org-entitlements/*`, миграции `0180/0225` |
-| Quota enforcement | **PARTIAL** | Жёстко только `courses` (DB-триггер). Остальные мех. = `declared_no_enforcement` | `saasEntitlements` types |
-| Платежи-эквайринг (пациент→клиника) | **DONE (dormant по конфигу)** | 5 реальных провайдеров (alfa/cloud/tinkoff/yookassa/mock)+webhooks+тесты; дефолт mock, нужны per-org креды | `infra/payments/*` |
-| SaaS-биллинг (платформа→клиника) | **PLAN/DORMANT** | Контракты типизированы, `activation: dormant_until_s4_4`; тариф назначается вручную оператором; PSP не подключён | `modules/payments/saasActivationContract.ts` |
-| Магазин / marketplace | **PLAN** | Owner-deferred; есть только фундамент `content_access_grants`, flow покупки нет | `SEQUENCE.md` |
-| Абонементы (patient memberships) | **DONE** | Схема+gated-роут+тест | `db/schema/bookingMemberships.ts` |
-| **Security CI (Gitleaks/Semgrep/Trivy/ZAP)** | **PLAN** | **В CI нет ни одного** несмотря на прошлую утечку `.env`. SEC-01 `#881` scoped, не реализован | `SECURITY_CI_STACK_PLAN.md`, `ci.yml` |
-| **Dependency CVE-скан** | **PARTIAL/вводит в заблуждение** | CI-job `audit` — это НЕ `pnpm audit`, а набор saas-регрессий. CVE не сканируется. Dependabot добавлен | `package.json:92` |
-| RLS-conformance в CI | **DONE** | Эфемерный Postgres, cross-org denial, FORCE fail-closed — реальный merge-gate | `ci.yml` job `saas-rls-conformance` |
-| DB-access chokepoint / no-raw-SQL | **DONE (enforced)** | Lint-гард блокирует сырой SQL вне репозиториев | `scripts/check-db-chokepoint.mjs` |
-| SECURITY DEFINER accessor-слой | **DONE** | 177 вхождений, fixed search_path, fail-closed | `deploy/postgres/*.sql` |
-| RU privacy / 152-ФЗ / крипто/retention | **PLAN** | `FINAL_ACCEPTANCE.md` весь пуст; consent/retention/crypto/host-hardening/backups — owner+legal gate | `RU_PRIVACY_AND_PRODUCTION_READINESS/` |
-| Бэкап БД — скрипт | **DONE** | 818 строк, age-шифрование, sha256-манифест, fail-closed, retention; висит на `pre-migrations` | `deploy/postgres/postgres-backup.sh` |
-| Бэкап — реальный ключ + restore-drill | **—** | Реальное шифрование/восстановление НИКОГДА не выполнялось (DR-01/DR-02 owner-gated) | `deploy/postgres/README.md` |
-| Бэкап — расписание | **PLAN** | Cron только в примерах; в `deploy/host/cron.d/` шаблона бэкапа НЕТ. Авто — только `pre-migrations` | `README.md:86` |
-| Логи (structured) | **DONE** | pino во всех сервисах, `LOG_LEVEL` | `infra/*/logger.ts` |
-| Error-tracking | **DONE** | `packages/error-tracking` (Sentry+PII-scrub), инициализирован во всех 5 рантаймах, DB-opt-in | `packages/error-tracking` |
-| Admin audit log | **DONE** | `admin_audit_log`, org-scoped, admin API | `infra/adminAuditLog.ts` |
-| Outbound delivery worker | **DONE** | retry/dead-letter/backoff + ledger попыток | `worker/outgoingDeliveryWorker.ts` |
-| Delivery-failure alerting | **PARTIAL** | P1–P4 в коде (critical signals, cadence, SMS, red-stop UI); **P0/P-guard live-акцепт на TEST открыты**; alert-cron только шаблоны | `OUTBOUND_DELIVERY_ALERTING_PLAN.md` |
-| Сообщения — отправка | **DONE** | patient send 200 | `api/patient/messages/route.ts` |
-| Сообщения — mark-read | **BROKEN** | HTTP 500, см. §3 | `pgSupportCommunication.ts:1218` |
-| Scheduler / reminders | **DONE** | systemd-юнит подтверждён живым на проде 2026-05-14, lock+restart, web-push tick | `REMINDER_SCHEDULER_ROLLOUT_LOG.md` |
+| Область                                      | Статус                           | Суть / что осталось                                                                                                                                                       | Evidence                                                                |
+| -------------------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Tenant isolation — модель+RLS                | **DONE**                         | Роли `app_staff/app_patient`, two-pool provider, RLS-политики, 3-режимный switch + FORCE-cutover скрипт                                                                   | `packages/db-principal`, `deploy/postgres/phase4-force-rls-cutover.sql` |
+| Tenant isolation — активация                 | **DORMANT**                      | Дефолт `legacy-guc` (стены есть, спят). Прод-флип `locked`+FORCE — owner-runbook, не выполнен                                                                             | `PHASE4_ROLLOUT_RUNBOOK.md`                                             |
+| PII bootstrap-таблицы под enforce            | **—**                            | `platform_user_contacts`, `user_phone_history` допускают org=NULL глобально — 3 flip-blocker'а до FORCE                                                                   | `TASK_A_PII_TIGHTEN_PLAN.md`                                            |
+| Тарифы / entitlements / trial                | **DONE**                         | 15-мех. реестр, resolver (override>tariff>default), trial-lifecycle, admin API `/api/admin/commercial` (capability-gated, audited), guard в ~40 роутах + coverage-checker | `modules/org-entitlements/*`, миграции `0180/0225`                      |
+| Quota enforcement                            | **PARTIAL**                      | Жёстко только `courses` (DB-триггер). Остальные мех. = `declared_no_enforcement`                                                                                          | `saasEntitlements` types                                                |
+| Платежи-эквайринг (пациент→клиника)          | **DONE (dormant по конфигу)**    | 5 реальных провайдеров (alfa/cloud/tinkoff/yookassa/mock)+webhooks+тесты; дефолт mock, нужны per-org креды                                                                | `infra/payments/*`                                                      |
+| SaaS-биллинг (платформа→клиника)             | **PLAN/DORMANT**                 | Контракты типизированы, `activation: dormant_until_s4_4`; тариф назначается вручную оператором; PSP не подключён                                                          | `modules/payments/saasActivationContract.ts`                            |
+| Магазин / marketplace                        | **PLAN**                         | Owner-deferred; есть только фундамент `content_access_grants`, flow покупки нет                                                                                           | `SEQUENCE.md`                                                           |
+| Абонементы (patient memberships)             | **DONE**                         | Схема+gated-роут+тест                                                                                                                                                     | `db/schema/bookingMemberships.ts`                                       |
+| **Security CI (Gitleaks/Semgrep/Trivy/ZAP)** | **PLAN**                         | **В CI нет ни одного** несмотря на прошлую утечку `.env`. SEC-01 `#881` scoped, не реализован                                                                             | `SECURITY_CI_STACK_PLAN.md`, `ci.yml`                                   |
+| **Dependency CVE-скан**                      | **PARTIAL/вводит в заблуждение** | CI-job `audit` — это НЕ `pnpm audit`, а набор saas-регрессий. CVE не сканируется. Dependabot добавлен                                                                     | `package.json:92`                                                       |
+| RLS-conformance в CI                         | **DONE**                         | Эфемерный Postgres, cross-org denial, FORCE fail-closed — реальный merge-gate                                                                                             | `ci.yml` job `saas-rls-conformance`                                     |
+| DB-access chokepoint / no-raw-SQL            | **DONE (enforced)**              | Lint-гард блокирует сырой SQL вне репозиториев                                                                                                                            | `scripts/check-db-chokepoint.mjs`                                       |
+| SECURITY DEFINER accessor-слой               | **DONE**                         | 177 вхождений, fixed search_path, fail-closed                                                                                                                             | `deploy/postgres/*.sql`                                                 |
+| RU privacy / 152-ФЗ / крипто/retention       | **PLAN**                         | `FINAL_ACCEPTANCE.md` весь пуст; consent/retention/crypto/host-hardening/backups — owner+legal gate                                                                       | `RU_PRIVACY_AND_PRODUCTION_READINESS/`                                  |
+| Бэкап БД — скрипт                            | **DONE**                         | 818 строк, age-шифрование, sha256-манифест, fail-closed, retention; висит на `pre-migrations`                                                                             | `deploy/postgres/postgres-backup.sh`                                    |
+| Бэкап — реальный ключ + restore-drill        | **—**                            | Реальное шифрование/восстановление НИКОГДА не выполнялось (DR-01/DR-02 owner-gated)                                                                                       | `deploy/postgres/README.md`                                             |
+| Бэкап — расписание                           | **PLAN**                         | Cron только в примерах; в `deploy/host/cron.d/` шаблона бэкапа НЕТ. Авто — только `pre-migrations`                                                                        | `README.md:86`                                                          |
+| Логи (structured)                            | **DONE**                         | pino во всех сервисах, `LOG_LEVEL`                                                                                                                                        | `infra/*/logger.ts`                                                     |
+| Error-tracking                               | **DONE**                         | `packages/error-tracking` (Sentry+PII-scrub), инициализирован во всех 5 рантаймах, DB-opt-in                                                                              | `packages/error-tracking`                                               |
+| Admin audit log                              | **DONE**                         | `admin_audit_log`, org-scoped, admin API                                                                                                                                  | `infra/adminAuditLog.ts`                                                |
+| Outbound delivery worker                     | **DONE**                         | retry/dead-letter/backoff + ledger попыток                                                                                                                                | `worker/outgoingDeliveryWorker.ts`                                      |
+| Delivery-failure alerting                    | **PARTIAL**                      | P1–P4 в коде (critical signals, cadence, SMS, red-stop UI); **P0/P-guard live-акцепт на TEST открыты**; alert-cron только шаблоны                                         | `OUTBOUND_DELIVERY_ALERTING_PLAN.md`                                    |
+| Сообщения — отправка                         | **DONE**                         | patient send 200                                                                                                                                                          | `api/patient/messages/route.ts`                                         |
+| Сообщения — mark-read                        | **BROKEN**                       | HTTP 500, см. §3                                                                                                                                                          | `pgSupportCommunication.ts:1218`                                        |
+| Scheduler / reminders                        | **DONE**                         | systemd-юнит подтверждён живым на проде 2026-05-14, lock+restart, web-push tick                                                                                           | `REMINDER_SCHEDULER_ROLLOUT_LOG.md`                                     |
 
 ---
 
@@ -98,7 +99,7 @@
 Пока ты не сел за ручную приёмку UI — гнать это. Приоритет сверху вниз; owner-gate помечен.
 
 - **P0. Разблокировать вход владельца (Track B).** Дать TEST `smtp_outbound` (⛔ owner) → задеплоить HEAD на TEST →
-  живой OTP-прогон до 200 + письмо → сессия резолвится в `admin`. Затем PWA/push-проверка. *Открывает приёмку всего.*
+  живой OTP-прогон до 200 + письмо → сессия резолвится в `admin`. Затем PWA/push-проверка. _Открывает приёмку всего._
 - **P0. Починить mark-read 500** (§3.1) — маленький, привилегированная миграция + тест.
 - **P0. Разобрать isolation CRITICAL** (§3.3) — не оставлять красным.
 - **P1. Security-CI стек (SEC-01/`#881`).** Добавить в `ci.yml` Gitleaks (full-history на main), Semgrep, Trivy-fs;
@@ -109,9 +110,9 @@
 - **P1. Delivery-alerting P0 + P-guard** — live fault-injection на TEST (сломать SMTP → громкий red-alert по всем
   каналам + T+1h + red digest). Установить operator-health cron-шаблоны.
 - **P2. Task A — закрыть 3 PII flip-blocker'а** (bootstrap phone-write под enforce; NULL-org close-prior UPDATE vs
-  unique index; locked base-role assertion). *Предусловие безопасного FORCE-cutover.*
+  unique index; locked base-role assertion). _Предусловие безопасного FORCE-cutover._
 - **P2. Backup DR-01/DR-02** (⛔ owner: ключ) — один реальный age-бэкап + `age -d | pg_restore` end-to-end +
-  repo-tracked cron/systemd-timer расписания. *Крупнейшая непроверенная надёжность.*
+  repo-tracked cron/systemd-timer расписания. _Крупнейшая непроверенная надёжность._
 - **P2. Track C — довести drain/cutoff (RR-PROOF-09) и подготовить R7** (⛔ owner на DROP): убрать `branchServiceId`
   (R3C-11, ~51 webapp-файл — пересекается с booking-экранами Track A), сгенерировать DROP-миграцию (её нет), архив,
   дроп 6 таблиц на TEST, снять residual-гранты.
@@ -123,15 +124,15 @@
 
 ## 5. Лист решений владельца (свести и закрыть за присест)
 
-| # | Вопрос | Рекомендация / safe-default |
-|---|--------|------------------------------|
-| 1 | SMTP-креды для TEST (`smtp_outbound`: host/port/secure/user/password/from) | Дать TEST-only креды → разблокирует вход и alerting-тест |
-| 2 | Платный биллинг в первом прод-скоупе? | Если GA = ручное назначение тарифов оператором (без PSP) → SaaS-биллинг/магазин/patient-paid-subs вне scope, backend сильно ближе к готовности |
-| 3 | Backup: сгенерировать age-ключ + разрешить DR-drill на TEST | Да — без этого надёжность бэкапа не доказана |
-| 4 | FORCE-RLS cutover на TEST (после Task A) | Отрепетировать на TEST: включить `locked`+FORCE, прогнать 2-org/2-patient smoke |
-| 5 | Rubitime R7: разрешение на DROP таблиц на TEST | После drain-proof — да, на TEST |
-| 6 | Doctor/admin session TTL (D1 `#970`) | 7 дней |
-| 7 | Quota: какие механики жёстко капать на GA кроме `courses` | По умолчанию — никакие (soft), уточнить при необходимости |
+| #   | Вопрос                                                                     | Рекомендация / safe-default                                                                                                                    |
+| --- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | SMTP-креды для TEST (`smtp_outbound`: host/port/secure/user/password/from) | Дать TEST-only креды → разблокирует вход и alerting-тест                                                                                       |
+| 2   | Платный биллинг в первом прод-скоупе?                                      | Если GA = ручное назначение тарифов оператором (без PSP) → SaaS-биллинг/магазин/patient-paid-subs вне scope, backend сильно ближе к готовности |
+| 3   | Backup: сгенерировать age-ключ + разрешить DR-drill на TEST                | Да — без этого надёжность бэкапа не доказана                                                                                                   |
+| 4   | FORCE-RLS cutover на TEST (после Task A)                                   | Отрепетировать на TEST: включить `locked`+FORCE, прогнать 2-org/2-patient smoke                                                                |
+| 5   | Rubitime R7: разрешение на DROP таблиц на TEST                             | После drain-proof — да, на TEST                                                                                                                |
+| 6   | Doctor/admin session TTL (D1 `#970`)                                       | 7 дней                                                                                                                                         |
+| 7   | Quota: какие механики жёстко капать на GA кроме `courses`                  | По умолчанию — никакие (soft), уточнить при необходимости                                                                                      |
 
 ---
 
@@ -151,14 +152,14 @@
 Всё в ветке `feat/doctor-ui-rebuild`. Три backend-потока прогнаны параллельно на Opus, непересекающиеся файловые
 зоны. **B и C сделаны БЕЗ живой БД — им нужна DB-верификация на TEST (см. ⚠️).**
 
-| Коммит | Что | Статус |
-|--------|-----|--------|
-| `cfece2a4` | Правило «код важнее прозы» в `ORCHESTRATOR_PROMPT.md` + `ORCHESTRATION_BINDINGS.md` | готово |
-| `46c4f57a` | Этот checkpoint (аудит + backend-first план + лист решений) | готово |
-| `88b956d5` | `START_HERE_ORCHESTRATOR_KICKOFF.md` + починка путаницы «TEST-сервер vs git-ветка test» | готово |
-| `2027f969` | **A — security-CI:** `.github/workflows/security.yml` (Gitleaks+baseline, Semgrep, Trivy, реальный `pnpm audit`), `.gitleaks.toml`, `.semgrep.yml`, `.trivyignore`, скрипт `audit:cve` | код готов; **первый CI-прогон будет красным** на существующих CVE — ожидаемый triage |
-| `c6e2d2bb` | **C — D1 scaffold:** `apps/integrator/src/infra/db/directPublic/writeIdentityAndPreferencesDirect.ts` + 6 unit-тестов (моки). Транзакционная прямая запись identity/prefs в `public`, **НЕ вкручена в живой путь** | тесты 6/6, typecheck/lint чисто. ⚠️ **DB:** сверить колонки/типы `platform_users`, вкрутить `TODO(server-agent)` |
-| `ca69e348` | **B — mark-read 500 fix:** `deploy/postgres/patient-support-mark-read-grant.sql` (`GRANT UPDATE(read_at)` для `app_patient`, зеркалит паттерн репо, с rollback) + contract-тест | typecheck green, тест зелёный. ⚠️ **DB:** применить миграцию на TEST → `POST /api/patient/messages/read` = 200 (owner) / 0-row (cross-user); сверить, что `app_patient` — живая рантайм-роль |
+| Коммит     | Что                                                                                                                                                                                                                | Статус                                                                                                                                                                                       |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cfece2a4` | Правило «код важнее прозы» в `ORCHESTRATOR_PROMPT.md` + `ORCHESTRATION_BINDINGS.md`                                                                                                                                | готово                                                                                                                                                                                       |
+| `46c4f57a` | Этот checkpoint (аудит + backend-first план + лист решений)                                                                                                                                                        | готово                                                                                                                                                                                       |
+| `88b956d5` | `START_HERE_ORCHESTRATOR_KICKOFF.md` + починка путаницы «TEST-сервер vs git-ветка test»                                                                                                                            | готово                                                                                                                                                                                       |
+| `2027f969` | **A — security-CI:** `.github/workflows/security.yml` (Gitleaks+baseline, Semgrep, Trivy, реальный `pnpm audit`), `.gitleaks.toml`, `.semgrep.yml`, `.trivyignore`, скрипт `audit:cve`                             | код готов; **первый CI-прогон будет красным** на существующих CVE — ожидаемый triage                                                                                                         |
+| `c6e2d2bb` | **C — D1 scaffold:** `apps/integrator/src/infra/db/directPublic/writeIdentityAndPreferencesDirect.ts` + 6 unit-тестов (моки). Транзакционная прямая запись identity/prefs в `public`, **НЕ вкручена в живой путь** | тесты 6/6, typecheck/lint чисто. ⚠️ **DB:** сверить колонки/типы `platform_users`, вкрутить `TODO(server-agent)`                                                                             |
+| `ca69e348` | **B — mark-read 500 fix:** `deploy/postgres/patient-support-mark-read-grant.sql` (`GRANT UPDATE(read_at)` для `app_patient`, зеркалит паттерн репо, с rollback) + contract-тест                                    | typecheck green, тест зелёный. ⚠️ **DB:** применить миграцию на TEST → `POST /api/patient/messages/read` = 200 (owner) / 0-row (cross-user); сверить, что `app_patient` — живая рантайм-роль |
 
 **Отдельная задача, всплывшая на прогоне:** бампнуть `next@16.2.6 → ≥16.2.11` (2 moderate + 1 high SSRF).
 

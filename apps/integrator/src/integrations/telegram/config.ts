@@ -39,7 +39,11 @@ function loadTelegramConfigFromEnv(): z.input<typeof TelegramConfigSchema> {
         ? 364943522
         : undefined;
 
-  if (!botToken && process.env.NODE_ENV === 'production' && typeof process.emitWarning === 'function') {
+  if (
+    !botToken &&
+    process.env.NODE_ENV === 'production' &&
+    typeof process.emitWarning === 'function'
+  ) {
     process.emitWarning(
       'TELEGRAM_BOT_TOKEN is empty. Check EnvironmentFile in systemd (systemctl show bersoncarebot-api-prod.service -p EnvironmentFiles) and /opt/env/bersoncarebot/api.prod. Telegram webhook disabled.',
       'TelegramConfig',
@@ -48,9 +52,7 @@ function loadTelegramConfigFromEnv(): z.input<typeof TelegramConfigSchema> {
 
   const raw = process.env.TELEGRAM_SEND_MENU_ON_BUTTON_PRESS;
   const sendMenuOnButtonPress =
-    raw !== undefined && raw !== ''
-      ? /^(1|true|yes)$/i.test(String(raw).trim())
-      : true;
+    raw !== undefined && raw !== '' ? /^(1|true|yes)$/i.test(String(raw).trim()) : true;
 
   const modeRaw = process.env.TELEGRAM_MODE?.trim().toLowerCase();
   const mode: 'webhook' | 'long_polling' = modeRaw === 'long_polling' ? 'long_polling' : 'webhook';

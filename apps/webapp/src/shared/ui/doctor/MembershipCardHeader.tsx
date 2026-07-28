@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * MembershipCardHeader — shared presentational block for a membership (patient package) card.
@@ -39,9 +39,9 @@ type Props = {
 /** Format ISO date (YYYY-MM-DD or ISO datetime) → DD.MM.YYYY */
 function fmtDate(iso: string): string {
   try {
-    const d = new Date(iso.slice(0, 10) + "T00:00:00");
+    const d = new Date(iso.slice(0, 10) + 'T00:00:00');
     if (isNaN(d.getTime())) return iso.slice(0, 10);
-    return d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
+    return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
   } catch {
     return iso.slice(0, 10);
   }
@@ -83,16 +83,17 @@ export function MembershipCardHeader({
       ) : null}
 
       {/* Balance */}
-      <p className="text-xs text-muted-foreground">
-        Осталось {remainingSessions} визитов:
-      </p>
+      <p className="text-xs text-muted-foreground">Осталось {remainingSessions} визитов:</p>
 
       {/* Composition */}
       {items.length > 0 ? (
         <p className="text-xs text-foreground">
           {items
-            .map((it) => `${it.remaining ?? it.quantityInitial} x ${it.serviceTitle ?? it.serviceId ?? "Услуга"}`)
-            .join(", ")}
+            .map(
+              (it) =>
+                `${it.remaining ?? it.quantityInitial} x ${it.serviceTitle ?? it.serviceId ?? 'Услуга'}`,
+            )
+            .join(', ')}
         </p>
       ) : null}
 
@@ -105,7 +106,7 @@ export function MembershipCardHeader({
             Списания ({sortedConsumeDates.length}):
           </p>
           <p className="text-xs text-foreground">
-            {sortedConsumeDates.map((d) => fmtDate(d.slice(0, 10))).join(", ")}
+            {sortedConsumeDates.map((d) => fmtDate(d.slice(0, 10))).join(', ')}
           </p>
         </div>
       ) : sortedConsumeDates && sortedConsumeDates.length === 0 ? (

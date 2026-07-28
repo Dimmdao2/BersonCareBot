@@ -1,6 +1,6 @@
-import { randomUUID } from "node:crypto";
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
-import type { OnlineIntakePort, ListIntakeQuery } from "@/modules/online-intake/ports";
+import { randomUUID } from 'node:crypto';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import type { OnlineIntakePort, ListIntakeQuery } from '@/modules/online-intake/ports';
 import type {
   ChangeIntakeStatusInput,
   CreateLfkIntakeInput,
@@ -15,7 +15,7 @@ import type {
   IntakeStatus,
   IntakeStatusHistoryEntry,
   IntakeType,
-} from "@/modules/online-intake/types";
+} from '@/modules/online-intake/types';
 
 export function createInMemoryOnlineIntake(deps?: {
   mediaFilesById?: Map<
@@ -39,9 +39,11 @@ export function createInMemoryOnlineIntake(deps?: {
     const hasFallbackMismatch = fallbackOrganizationIds.some((id) => id !== fallbackOrganizationId);
     if (
       hasFallbackMismatch ||
-      (principalOrganizationId && fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)
+      (principalOrganizationId &&
+        fallbackOrganizationId &&
+        principalOrganizationId !== fallbackOrganizationId)
     ) {
-      throw new Error("organization_principal_mismatch");
+      throw new Error('organization_principal_mismatch');
     }
     return principalOrganizationId ?? fallbackOrganizationId;
   }
@@ -55,13 +57,18 @@ export function createInMemoryOnlineIntake(deps?: {
     return new Date().toISOString();
   }
 
-  function patientIdentityForUser(userId: string): { patientName: string; patientPhone: string; lastName: string; firstName: string } {
+  function patientIdentityForUser(userId: string): {
+    patientName: string;
+    patientPhone: string;
+    lastName: string;
+    firstName: string;
+  } {
     const p = deps?.userProfiles?.get(userId);
     return {
-      patientName: p?.displayName ?? "",
-      patientPhone: p?.phone ?? "",
-      lastName: "",
-      firstName: "",
+      patientName: p?.displayName ?? '',
+      patientPhone: p?.phone ?? '',
+      lastName: '',
+      firstName: '',
     };
   }
 
@@ -69,14 +76,16 @@ export function createInMemoryOnlineIntake(deps?: {
     async createLfkRequest(input: CreateLfkIntakeInput): Promise<IntakeRequest> {
       const id = randomUUID();
       const ts = now();
-      const organizationId = currentWriteOrganizationId(deps?.userOrganizationIds?.get(input.userId));
+      const organizationId = currentWriteOrganizationId(
+        deps?.userOrganizationIds?.get(input.userId),
+      );
       const summary = input.description.slice(0, 200);
       const req: IntakeRequest = {
         id,
         userId: input.userId,
         organizationId,
-        type: "lfk",
-        status: "new",
+        type: 'lfk',
+        status: 'new',
         summary,
         createdAt: ts,
         updatedAt: ts,
@@ -88,7 +97,7 @@ export function createInMemoryOnlineIntake(deps?: {
           id: randomUUID(),
           requestId: id,
           organizationId,
-          questionId: "lfk_description",
+          questionId: 'lfk_description',
           ordinal: 1,
           value: input.description,
           createdAt: ts,
@@ -102,7 +111,7 @@ export function createInMemoryOnlineIntake(deps?: {
           id: randomUUID(),
           requestId: id,
           organizationId,
-          attachmentType: "url",
+          attachmentType: 'url',
           s3Key: null,
           url,
           mimeType: null,
@@ -114,16 +123,20 @@ export function createInMemoryOnlineIntake(deps?: {
       for (const fileId of input.attachmentFileIds ?? []) {
         const meta = deps?.mediaFilesById?.get(fileId);
         if (!meta) {
-          throw Object.assign(new Error("attachment_file_not_found"), { code: "ATTACHMENT_FILE_INVALID" });
+          throw Object.assign(new Error('attachment_file_not_found'), {
+            code: 'ATTACHMENT_FILE_INVALID',
+          });
         }
         if (meta.userId !== input.userId) {
-          throw Object.assign(new Error("attachment_file_forbidden"), { code: "ATTACHMENT_FILE_FORBIDDEN" });
+          throw Object.assign(new Error('attachment_file_forbidden'), {
+            code: 'ATTACHMENT_FILE_FORBIDDEN',
+          });
         }
         atts.push({
           id: randomUUID(),
           requestId: id,
           organizationId,
-          attachmentType: "file",
+          attachmentType: 'file',
           s3Key: meta.s3Key,
           url: null,
           mimeType: meta.mimeType,
@@ -140,7 +153,7 @@ export function createInMemoryOnlineIntake(deps?: {
           requestId: id,
           organizationId,
           fromStatus: null,
-          toStatus: "new",
+          toStatus: 'new',
           changedBy: null,
           note: null,
           changedAt: ts,
@@ -154,14 +167,16 @@ export function createInMemoryOnlineIntake(deps?: {
     async createNutritionRequest(input: CreateNutritionIntakeInput): Promise<IntakeRequest> {
       const id = randomUUID();
       const ts = now();
-      const organizationId = currentWriteOrganizationId(deps?.userOrganizationIds?.get(input.userId));
+      const organizationId = currentWriteOrganizationId(
+        deps?.userOrganizationIds?.get(input.userId),
+      );
       const summary = input.description.slice(0, 200);
       const req: IntakeRequest = {
         id,
         userId: input.userId,
         organizationId,
-        type: "nutrition",
-        status: "new",
+        type: 'nutrition',
+        status: 'new',
         summary,
         createdAt: ts,
         updatedAt: ts,
@@ -173,7 +188,7 @@ export function createInMemoryOnlineIntake(deps?: {
           id: randomUUID(),
           requestId: id,
           organizationId,
-          questionId: "nutrition_description",
+          questionId: 'nutrition_description',
           ordinal: 1,
           value: input.description,
           createdAt: ts,
@@ -188,7 +203,7 @@ export function createInMemoryOnlineIntake(deps?: {
           requestId: id,
           organizationId,
           fromStatus: null,
-          toStatus: "new",
+          toStatus: 'new',
           changedBy: null,
           note: null,
           changedAt: ts,
@@ -242,7 +257,7 @@ export function createInMemoryOnlineIntake(deps?: {
       if (query.userId) items = items.filter((r) => r.userId === query.userId);
       if (query.type) items = items.filter((r) => r.type === query.type);
       if (query.open) {
-        items = items.filter((r) => r.status !== "closed");
+        items = items.filter((r) => r.status !== 'closed');
       } else if (query.status) {
         items = items.filter((r) => r.status === query.status);
       }
@@ -261,7 +276,7 @@ export function createInMemoryOnlineIntake(deps?: {
     },
 
     async countActiveByUser(userId: string, type: IntakeType): Promise<number> {
-      const active: IntakeStatus[] = ["new", "in_review", "contacted"];
+      const active: IntakeStatus[] = ['new', 'in_review', 'contacted'];
       return [...requests.values()].filter(
         (r) => r.userId === userId && r.type === type && active.includes(r.status),
       ).length;
@@ -269,7 +284,7 @@ export function createInMemoryOnlineIntake(deps?: {
 
     async changeStatus(input: ChangeIntakeStatusInput): Promise<IntakeRequest> {
       const req = requests.get(input.requestId);
-      if (!req || !matchesCurrentPrincipal(req)) throw new Error("not_found");
+      if (!req || !matchesCurrentPrincipal(req)) throw new Error('not_found');
       const organizationId = currentWriteOrganizationId(req.organizationId);
       const ts = now();
       const hist = statusHistory.get(input.requestId) ?? [];
@@ -284,20 +299,27 @@ export function createInMemoryOnlineIntake(deps?: {
         changedAt: ts,
       });
       statusHistory.set(input.requestId, hist);
-      const updated: IntakeRequest = { ...req, organizationId, status: input.toStatus, updatedAt: ts };
+      const updated: IntakeRequest = {
+        ...req,
+        organizationId,
+        status: input.toStatus,
+        updatedAt: ts,
+      };
       requests.set(input.requestId, updated);
       return updated;
     },
 
     async getDoctorStats(days: number): Promise<IntakeDoctorStats> {
       const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-      const all = [...requests.values()].filter((r) => r.createdAt >= since && matchesCurrentPrincipal(r));
+      const all = [...requests.values()].filter(
+        (r) => r.createdAt >= since && matchesCurrentPrincipal(r),
+      );
       const byStatus: Record<string, number> = {};
       for (const r of all) {
         byStatus[r.status] = (byStatus[r.status] ?? 0) + 1;
       }
-      const booked = byStatus["booked"] ?? 0;
-      const rejected = byStatus["rejected"] ?? 0;
+      const booked = byStatus['booked'] ?? 0;
+      const rejected = byStatus['rejected'] ?? 0;
       const denominator = booked + rejected;
       return {
         days,

@@ -1,6 +1,6 @@
-import pino from "pino";
-import { getCurrentObservabilityContext } from "@bersoncare/db-principal";
-import type { MediaWorkerEnv } from "./env.js";
+import pino from 'pino';
+import { getCurrentObservabilityContext } from '@bersoncare/db-principal';
+import type { MediaWorkerEnv } from './env.js';
 
 /**
  * Unified error shape for pino serializers (aligned with integrator/webapp) —
@@ -17,10 +17,10 @@ export type SerializedError = {
 const PG_SQLSTATE_PATTERN = /^[0-9A-Z]{5}$/;
 
 /** PostgreSQL SQLSTATE ("code") and its class (first 2 chars), if the shape matches. */
-function safePgErrorCode(err: unknown): Pick<SerializedError, "code" | "class"> {
-  if (err !== null && typeof err === "object" && "code" in err) {
+function safePgErrorCode(err: unknown): Pick<SerializedError, 'code' | 'class'> {
+  if (err !== null && typeof err === 'object' && 'code' in err) {
     const code = (err as { code?: unknown }).code;
-    if (typeof code === "string" && PG_SQLSTATE_PATTERN.test(code)) {
+    if (typeof code === 'string' && PG_SQLSTATE_PATTERN.test(code)) {
       return { code, class: code.slice(0, 2) };
     }
   }
@@ -41,20 +41,20 @@ export function serializeError(err: unknown): SerializedError {
     };
   }
 
-  if (typeof err === "object" && err !== null) {
+  if (typeof err === 'object' && err !== null) {
     const e = err as { name?: unknown };
     return {
-      type: typeof e.name === "string" ? e.name : "ErrorLike",
+      type: typeof e.name === 'string' ? e.name : 'ErrorLike',
       ...safePgErrorCode(err),
     };
   }
 
-  return { type: "UnknownError" };
+  return { type: 'UnknownError' };
 }
 
-export function createLogger(env: Pick<MediaWorkerEnv, "LOG_LEVEL">) {
+export function createLogger(env: Pick<MediaWorkerEnv, 'LOG_LEVEL'>) {
   return pino({
-    level: env.LOG_LEVEL || "info",
+    level: env.LOG_LEVEL || 'info',
     mixin: getCurrentObservabilityContext,
     serializers: {
       err: serializeError,

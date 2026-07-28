@@ -1,23 +1,23 @@
 /** @vitest-environment jsdom */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { ServiceStepClient } from "./ServiceStepClient";
-import { routePaths } from "@/app-layer/routes/paths";
-import type { InPersonServiceListItem } from "@/modules/patient-booking/inPersonServicesCatalog";
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { ServiceStepClient } from './ServiceStepClient';
+import { routePaths } from '@/app-layer/routes/paths';
+import type { InPersonServiceListItem } from '@/modules/patient-booking/inPersonServicesCatalog';
 
 const push = vi.fn();
 const refresh = vi.fn();
 
-vi.mock("next/navigation", () => ({
+vi.mock('next/navigation', () => ({
   useRouter: () => ({ push, replace: vi.fn(), refresh, prefetch: vi.fn() }),
 }));
 
 function service(overrides: Partial<InPersonServiceListItem> = {}): InPersonServiceListItem {
   return {
-    id: "550e8400-e29b-41d4-a716-446655440002",
-    title: "Реабилитация",
+    id: '550e8400-e29b-41d4-a716-446655440002',
+    title: 'Реабилитация',
     description: null,
     durationMinutes: 60,
     priceMinor: 0,
@@ -25,12 +25,12 @@ function service(overrides: Partial<InPersonServiceListItem> = {}): InPersonServ
   };
 }
 
-describe("ServiceStepClient", () => {
+describe('ServiceStepClient', () => {
   beforeEach(() => {
     push.mockClear();
   });
 
-  it("navigates to slot step with canonical branchId and serviceId", async () => {
+  it('navigates to slot step with canonical branchId and serviceId', async () => {
     const user = userEvent.setup();
     render(
       <ServiceStepClient
@@ -41,18 +41,20 @@ describe("ServiceStepClient", () => {
         catalogError={null}
       />,
     );
-    await user.click(screen.getByRole("button", { name: /Реабилитация/ }));
+    await user.click(screen.getByRole('button', { name: /Реабилитация/ }));
     const url = String(push.mock.calls[0][0]);
     expect(url.startsWith(`${routePaths.bookingNewSlot}?`)).toBe(true);
-    expect(url).toContain("type=in_person");
-    expect(url).toContain(`cityCode=${encodeURIComponent("msk")}`);
-    expect(url).toContain(`cityTitle=${encodeURIComponent("Москва")}`);
-    expect(url).toContain(`branchId=${encodeURIComponent("550e8400-e29b-41d4-a716-446655440001")}`);
-    expect(url).toContain(`serviceId=${encodeURIComponent("550e8400-e29b-41d4-a716-446655440002")}`);
-    expect(url).toContain(`serviceTitle=${encodeURIComponent("Реабилитация")}`);
+    expect(url).toContain('type=in_person');
+    expect(url).toContain(`cityCode=${encodeURIComponent('msk')}`);
+    expect(url).toContain(`cityTitle=${encodeURIComponent('Москва')}`);
+    expect(url).toContain(`branchId=${encodeURIComponent('550e8400-e29b-41d4-a716-446655440001')}`);
+    expect(url).toContain(
+      `serviceId=${encodeURIComponent('550e8400-e29b-41d4-a716-446655440002')}`,
+    );
+    expect(url).toContain(`serviceTitle=${encodeURIComponent('Реабилитация')}`);
   });
 
-  it("threads orgSlug (public /book/{slug} entry) into the slot step URL for back-nav continuity", async () => {
+  it('threads orgSlug (public /book/{slug} entry) into the slot step URL for back-nav continuity', async () => {
     const user = userEvent.setup();
     render(
       <ServiceStepClient
@@ -64,12 +66,12 @@ describe("ServiceStepClient", () => {
         orgSlug="saas-test-clinic-a"
       />,
     );
-    await user.click(screen.getByRole("button", { name: /Реабилитация/ }));
+    await user.click(screen.getByRole('button', { name: /Реабилитация/ }));
     const url = String(push.mock.calls[0][0]);
-    expect(url).toContain(`orgSlug=${encodeURIComponent("saas-test-clinic-a")}`);
+    expect(url).toContain(`orgSlug=${encodeURIComponent('saas-test-clinic-a')}`);
   });
 
-  it("routes the built-in Online location through the canonical service-to-slot path", async () => {
+  it('routes the built-in Online location through the canonical service-to-slot path', async () => {
     const user = userEvent.setup();
     render(
       <ServiceStepClient
@@ -81,15 +83,17 @@ describe("ServiceStepClient", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /Реабилитация/ }));
+    await user.click(screen.getByRole('button', { name: /Реабилитация/ }));
     const url = String(push.mock.calls[0][0]);
     expect(url.startsWith(`${routePaths.bookingNewSlot}?type=in_person`)).toBe(true);
-    expect(url).toContain(`cityCode=${encodeURIComponent("online")}`);
-    expect(url).toContain(`branchId=${encodeURIComponent("550e8400-e29b-41d4-a716-446655440009")}`);
-    expect(url).toContain(`serviceId=${encodeURIComponent("550e8400-e29b-41d4-a716-446655440002")}`);
+    expect(url).toContain(`cityCode=${encodeURIComponent('online')}`);
+    expect(url).toContain(`branchId=${encodeURIComponent('550e8400-e29b-41d4-a716-446655440009')}`);
+    expect(url).toContain(
+      `serviceId=${encodeURIComponent('550e8400-e29b-41d4-a716-446655440002')}`,
+    );
   });
 
-  it("omits orgSlug from the slot step URL when not on the public per-clinic entry", async () => {
+  it('omits orgSlug from the slot step URL when not on the public per-clinic entry', async () => {
     const user = userEvent.setup();
     render(
       <ServiceStepClient
@@ -100,12 +104,12 @@ describe("ServiceStepClient", () => {
         catalogError={null}
       />,
     );
-    await user.click(screen.getByRole("button", { name: /Реабилитация/ }));
+    await user.click(screen.getByRole('button', { name: /Реабилитация/ }));
     const url = String(push.mock.calls[0][0]);
-    expect(url).not.toContain("orgSlug=");
+    expect(url).not.toContain('orgSlug=');
   });
 
-  it("shows empty state when there are no services", () => {
+  it('shows empty state when there are no services', () => {
     render(
       <ServiceStepClient
         cityCode="msk"

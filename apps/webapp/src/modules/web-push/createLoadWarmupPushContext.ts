@@ -1,27 +1,31 @@
-import { buildDailyWarmupPresentationSyncDeps } from "@/modules/patient-home/buildDailyWarmupPresentationSyncDeps";
-import type { DailyWarmupPresentationSyncDeps } from "@/modules/patient-home/ensureDailyWarmupPresentationSynced";
+import { buildDailyWarmupPresentationSyncDeps } from '@/modules/patient-home/buildDailyWarmupPresentationSyncDeps';
+import type { DailyWarmupPresentationSyncDeps } from '@/modules/patient-home/ensureDailyWarmupPresentationSynced';
 import {
   loadWarmupPushDynamicContext,
   type LoadWarmupPushDynamicContextDeps,
-} from "@/modules/web-push/loadWarmupPushDynamicContext";
+} from '@/modules/web-push/loadWarmupPushDynamicContext';
 
 /** Narrow deps slice for warmup push (avoids importing composition root). */
 export type LoadWarmupPushContextDeps = {
-  reminders: { listRulesByUser: LoadWarmupPushDynamicContextDeps["listRulesByUser"] };
+  reminders: { listRulesByUser: LoadWarmupPushDynamicContextDeps['listRulesByUser'] };
   patientPractice: {
     listByUserInUtcRange: (
       userId: string,
       startIso: string,
       endIso: string,
-    ) => Promise<Awaited<ReturnType<LoadWarmupPushDynamicContextDeps["listPracticeCompletionsInRange"]>>>;
-    getLatestDailyWarmupCompletedContentPageId: LoadWarmupPushDynamicContextDeps["getLatestDailyWarmupCompletedContentPageId"];
+    ) => Promise<
+      Awaited<ReturnType<LoadWarmupPushDynamicContextDeps['listPracticeCompletionsInRange']>>
+    >;
+    getLatestDailyWarmupCompletedContentPageId: LoadWarmupPushDynamicContextDeps['getLatestDailyWarmupCompletedContentPageId'];
   };
-  patientDailyWarmupPresentation: DailyWarmupPresentationSyncDeps["patientDailyWarmupPresentation"];
-  patientHomeBlocks: DailyWarmupPresentationSyncDeps["patientHomeBlocks"];
-  contentPages: DailyWarmupPresentationSyncDeps["contentPages"];
-  contentSections: DailyWarmupPresentationSyncDeps["contentSections"];
-  systemSettings: DailyWarmupPresentationSyncDeps["systemSettings"];
-  patientCalendarTimezone: { getIanaForUser: LoadWarmupPushDynamicContextDeps["getPatientCalendarIana"] };
+  patientDailyWarmupPresentation: DailyWarmupPresentationSyncDeps['patientDailyWarmupPresentation'];
+  patientHomeBlocks: DailyWarmupPresentationSyncDeps['patientHomeBlocks'];
+  contentPages: DailyWarmupPresentationSyncDeps['contentPages'];
+  contentSections: DailyWarmupPresentationSyncDeps['contentSections'];
+  systemSettings: DailyWarmupPresentationSyncDeps['systemSettings'];
+  patientCalendarTimezone: {
+    getIanaForUser: LoadWarmupPushDynamicContextDeps['getPatientCalendarIana'];
+  };
 };
 
 export function createLoadWarmupPushContext(deps: LoadWarmupPushContextDeps) {

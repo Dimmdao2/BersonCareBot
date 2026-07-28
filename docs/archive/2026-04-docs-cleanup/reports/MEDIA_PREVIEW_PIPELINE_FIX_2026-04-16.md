@@ -4,13 +4,13 @@
 
 После внутреннего аудита внесены правки по убыванию критичности исходных замечаний:
 
-| Проблема | Исправление |
-|-----------|-------------|
-| OOM при больших изображениях (`s3GetObjectBody` + весь файл в RAM) | Воркер читает `size_bytes`; для **image** при `> 50 MiB` и для **video** при `> 200 MiB` — `UPDATE preview_status = 'skipped'`, без чтения объекта из S3 для превью. |
-| Утечка `tmpdir` при ошибке `readFile` после успешного ffmpeg | Единая `cleanup()` + `finally`-подобная логика: каталог удаляется и при успехе `readFile`, и при его ошибке, и на `error` ffmpeg; таймаут **120 с** с `cmd.kill('SIGKILL')`. |
-| Сетка снова тянула оригинал для `image` + `skipped` | `MediaCard`, `MediaPickerList`, `TableMediaThumb` — плейсхолдер для `failed` и `skipped`; в таблице вместо `<img src={url}>` — иконка без оригинала. |
-| Дублирование `MEDIA_READABLE_STATUS_SQL` | Воркер импортирует константу из [`s3MediaStorage.ts`](../../apps/webapp/src/infra/repos/s3MediaStorage.ts). |
-| Сборка Next.js падала на `@ffmpeg-installer/*` (Turbopack + динамический `require`) | В [`next.config.ts`](../../apps/webapp/next.config.ts): `serverExternalPackages` для `sharp`, `fluent-ffmpeg`, `@ffmpeg-installer/*`. |
+| Проблема                                                                            | Исправление                                                                                                                                                                  |
+| ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| OOM при больших изображениях (`s3GetObjectBody` + весь файл в RAM)                  | Воркер читает `size_bytes`; для **image** при `> 50 MiB` и для **video** при `> 200 MiB` — `UPDATE preview_status = 'skipped'`, без чтения объекта из S3 для превью.         |
+| Утечка `tmpdir` при ошибке `readFile` после успешного ffmpeg                        | Единая `cleanup()` + `finally`-подобная логика: каталог удаляется и при успехе `readFile`, и при его ошибке, и на `error` ffmpeg; таймаут **120 с** с `cmd.kill('SIGKILL')`. |
+| Сетка снова тянула оригинал для `image` + `skipped`                                 | `MediaCard`, `MediaPickerList`, `TableMediaThumb` — плейсхолдер для `failed` и `skipped`; в таблице вместо `<img src={url}>` — иконка без оригинала.                         |
+| Дублирование `MEDIA_READABLE_STATUS_SQL`                                            | Воркер импортирует константу из [`s3MediaStorage.ts`](../../apps/webapp/src/infra/repos/s3MediaStorage.ts).                                                                  |
+| Сборка Next.js падала на `@ffmpeg-installer/*` (Turbopack + динамический `require`) | В [`next.config.ts`](../../apps/webapp/next.config.ts): `serverExternalPackages` для `sharp`, `fluent-ffmpeg`, `@ffmpeg-installer/*`.                                        |
 
 **Не менялось (намеренно):** модель доступа к `/api/media/:id` и `/preview/*` — любая валидная сессия; задокументировано в [`MEDIA_PREVIEW_PIPELINE.md`](../MEDIA_PREVIEW_PIPELINE.md).
 

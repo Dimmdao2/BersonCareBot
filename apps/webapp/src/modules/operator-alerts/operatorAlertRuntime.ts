@@ -1,4 +1,4 @@
-import type { OperatorAlertDedupPort } from "./ports";
+import type { OperatorAlertDedupPort } from './ports';
 
 let dedupPort: OperatorAlertDedupPort | null = null;
 

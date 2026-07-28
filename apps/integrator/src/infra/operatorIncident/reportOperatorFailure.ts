@@ -21,7 +21,10 @@ export type ReportOperatorFailureInput = {
   alertLines: string[];
 };
 
-export type RecordOperatorFailureIncidentInput = Omit<ReportOperatorFailureInput, 'dispatchPort' | 'alertLines'>;
+export type RecordOperatorFailureIncidentInput = Omit<
+  ReportOperatorFailureInput,
+  'dispatchPort' | 'alertLines'
+>;
 
 function buildDedupKey(direction: string, integration: string, errorClass: string): string {
   return `${direction}:${integration}:${errorClass}`;
@@ -47,9 +50,14 @@ export async function recordOperatorFailureIncident(
 function buildRecipientDigest(channel: 'telegram' | 'max', recipientId: string): string {
   const key = process.env.DB_PRINCIPAL_SIGNING_SECRET;
   if (!key || Buffer.byteLength(key, 'utf8') < 32) {
-    throw new Error('DB_PRINCIPAL_SIGNING_SECRET is required for operator recipient pseudonymization');
+    throw new Error(
+      'DB_PRINCIPAL_SIGNING_SECRET is required for operator recipient pseudonymization',
+    );
   }
-  return createHmac('sha256', key).update(`${channel}\0${recipientId}`, 'utf8').digest('hex').slice(0, 32);
+  return createHmac('sha256', key)
+    .update(`${channel}\0${recipientId}`, 'utf8')
+    .digest('hex')
+    .slice(0, 32);
 }
 
 /** Probe fails: incident only; critical push follows the configured streak gate in the webapp tick. */
@@ -130,7 +138,11 @@ export async function reportOperatorFailure(input: ReportOperatorFailureInput): 
     }
   } else if (channels.telegram) {
     logger.info(
-      { scope: 'operator_incident', event: 'operator_alert_skipped_no_recipients', channel: 'telegram' },
+      {
+        scope: 'operator_incident',
+        event: 'operator_alert_skipped_no_recipients',
+        channel: 'telegram',
+      },
       'skipped',
     );
   }

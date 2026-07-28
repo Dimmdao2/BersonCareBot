@@ -1,17 +1,16 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { DoctorCreateAppointmentDialog } from "./DoctorCreateAppointmentDialog";
+import Link from 'next/link';
+import { DoctorCreateAppointmentDialog } from './DoctorCreateAppointmentDialog';
 
 type Props = {
-  tab: "appointments" | "schedule";
+  tab: 'appointments' | 'schedule';
   isAdmin: boolean;
 };
 
-const tabLinkClass =
-  "text-sm px-3 py-1.5 rounded-md transition-colors";
-const tabActiveCls = "bg-accent text-accent-foreground font-medium";
-const tabInactiveCls = "text-muted-foreground hover:text-foreground";
+const tabLinkClass = 'text-sm px-3 py-1.5 rounded-md transition-colors';
+const tabActiveCls = 'bg-accent text-accent-foreground font-medium';
+const tabInactiveCls = 'text-muted-foreground hover:text-foreground';
 
 export function DoctorAppointmentsToolbar({ tab, isAdmin }: Props) {
   return (
@@ -19,14 +18,14 @@ export function DoctorAppointmentsToolbar({ tab, isAdmin }: Props) {
       <div className="flex items-center gap-1">
         <Link
           href="?tab=appointments"
-          className={`${tabLinkClass} ${tab === "appointments" ? tabActiveCls : tabInactiveCls}`}
+          className={`${tabLinkClass} ${tab === 'appointments' ? tabActiveCls : tabInactiveCls}`}
         >
           Записи
         </Link>
         {isAdmin ? (
           <Link
             href="?tab=schedule"
-            className={`${tabLinkClass} ${tab === "schedule" ? tabActiveCls : tabInactiveCls}`}
+            className={`${tabLinkClass} ${tab === 'schedule' ? tabActiveCls : tabInactiveCls}`}
           >
             Расписание
           </Link>

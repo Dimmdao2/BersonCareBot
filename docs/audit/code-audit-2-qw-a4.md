@@ -1,4 +1,5 @@
 # Code Audit 2 — QW-A4 (Independent)
+
 **Аудитор:** opus-auditor2-qwa4 (agentId: opus-a2-qwa4-7f3e)
 **Дата:** 2026-06-19
 **Ветка:** feat/doctor-ui-rebuild (post-merge d7183b13)
@@ -11,6 +12,7 @@
 Независимая верификация: код прочитан из первых принципов, без доверия выводам audit-1 и re-audit-1. Все строки проверены непосредственно по файлам на ветке `feat/doctor-ui-rebuild`.
 
 Ключевые файлы:
+
 - `apps/webapp/src/app/app/patient/treatment/PatientProgramStageItemPageClient.tsx` (строки 62, 300–330, 467–512, 890–920)
 - `apps/webapp/src/app/app/patient/treatment/ProgramItemDiscussionInline.tsx` (полный, 289 строк)
 - `apps/webapp/src/app/api/patient/treatment-program-instances/[instanceId]/items/[itemId]/discussion/route.ts`
@@ -27,6 +29,7 @@
 **PASS**
 
 Как проверено:
+
 - `grep -n "ProgramItemDiscussionDialog"` по всему `PatientProgramStageItemPageClient.tsx` — **ноль совпадений**.
 - Единственный импорт на строке 62: `import { ProgramItemDiscussionInline } from "...ProgramItemDiscussionInline"`.
 - State `discussionDialogOpen` — отсутствует; поиск по `Dialog` в state-переменных возвращает только `mediaPickerRef` (для `ProgramItemSubmissionSourceDialog`) — это корректный, несвязанный с обсуждением диалог.
@@ -40,17 +43,20 @@
 **PASS**
 
 Как проверено:
+
 - Вызов (строки 912–920 `PatientProgramStageItemPageClient.tsx`):
   ```tsx
-  {commentsInteraction.visible ? (
-    <ProgramItemDiscussionInline
-      instanceId={instanceId}
-      itemId={item.id}
-      disabled={!commentsInteraction.enabled}
-      onRead={loadDiscussionPreview}
-      mediaSubmissionEnabled={mediaPickerEnabled}
-    />
-  ) : null}
+  {
+    commentsInteraction.visible ? (
+      <ProgramItemDiscussionInline
+        instanceId={instanceId}
+        itemId={item.id}
+        disabled={!commentsInteraction.enabled}
+        onRead={loadDiscussionPreview}
+        mediaSubmissionEnabled={mediaPickerEnabled}
+      />
+    ) : null;
+  }
   ```
 - `commentsInteraction` = `programCommentsInteraction` (строка 324) — из props, корректно.
 - Условие видимости `commentsInteraction.visible` — воспроизводит старое поведение: блок не рендерится если feature/доктор скрыл.
@@ -67,6 +73,7 @@
 **PASS**
 
 Как проверено:
+
 - `basePath` в `ProgramItemDiscussionInline.tsx` строки 57–60:
   `/api/patient/treatment-program-instances/${encodeURIComponent(instanceId)}/items/${encodeURIComponent(itemId)}/discussion`
 - Файл роута `apps/webapp/src/app/api/patient/treatment-program-instances/[instanceId]/items/[itemId]/discussion/route.ts` — существует, реализует GET + POST.
@@ -84,6 +91,7 @@
 **PASS**
 
 Как проверено (дисплей):
+
 - `senderRole` в `ProgramItemDiscussionMessage` — `"patient" | "admin"` (типы: `types.ts` строки 1–2, 11).
 - В рендере (строка 212): `const mine = m.senderRole === "patient"` — корректная логика own/peer.
 - Сообщение пациента: пузырь `bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]` + `items-end` — справа.
@@ -93,6 +101,7 @@
 - `senderRole === "admin"` обозначает врача — отрисовывается слева, без meta-строки delivery — корректно.
 
 Как проверено (submit):
+
 - `sendText()` строки 133–167: guard `if (!body || sending) return`; POST с `Content-Type: application/json`; `res.ok && data?.ok`; `setSending(true/false)` в try/finally; `setDraft("")` при успехе; dedup через Map; `setError(data?.error)` при ошибке сервера; `setError("Ошибка сети")` в catch.
 - POST route возвращает `{ ok: true, message }` (route.ts строка 262) — shape совпадает с ожидаемым компонентом.
 - Кнопка отправки disabled при `sending || loading || draft.trim().length === 0` — тройная защита.
@@ -104,6 +113,7 @@
 **PASS**
 
 Как проверено:
+
 - `grep "console\.\|TODO\|FIXME\|HACK\|debugger\|alert("` по `ProgramItemDiscussionInline.tsx` — **ноль совпадений**.
 - Директива `"use client"` присутствует (строка 1).
 - `window.location.origin` и `window.setInterval` вызываются только внутри `useCallback`/`useEffect` (строки 73, 129) — клиентский код, SSR-безопасен.
@@ -117,6 +127,7 @@
 **PASS**
 
 Как проверено:
+
 - Импорты `Button`, `Textarea` — из `@/shared/ui/patient/primitives/button` и `...textarea` (строки 4–5). Не из `@/components/ui/**`.
 - Стили из `patientVisual.ts` (строки 9–13): `patientChatComposerTextareaClass`, `patientChatMetaLineClass`, `patientMutedTextClass`, `patientPrimaryActionClass` — все экспортируются из `apps/webapp/src/shared/ui/patient/patientVisual.ts` (подтверждено grep строки 199, 213, 222, 360).
 - Нет импортов из doctor-zone (`@/shared/ui/doctor/...`, `@/app/app/doctor/...`).
@@ -133,6 +144,7 @@
 **PASS**
 
 Как проверено:
+
 - **Loading state:** строка 209: `{loading ? "Загрузка..." : "Пока нет комментариев."}` при `sortedMessages.length === 0`.
 - **Ошибка GET:** `catch (e)` в `bootstrap()` (строки 106–108): `setError(msg)` — рендерит `<p>` с текстом ошибки (строки 175–177).
 - **Ошибка POST:** `catch` в `sendText()` (строка 162–163): `setError("Ошибка сети")`.
@@ -153,23 +165,27 @@
 Независимая верификация фикса — 6 под-проверок:
 
 **П1: Поле `unreadCount?: number` в типе `DiscussionPageResponse`**
+
 - Строка 29: `unreadCount?: number;` — **ПОДТВЕРЖДЕНО**.
 
 **П2: API route действительно возвращает `unreadCount`**
+
 - `route.ts` строки 161–178: `await itemContext.deps.programItemDiscussion.getUnreadCount(...)` параллельно с загрузкой страницы.
 - Строка 203: `unreadCount` включён в JSON-ответ `NextResponse.json({ ..., unreadCount, ... })`.
 - **ПОДТВЕРЖДЕНО**.
 
 **П3: `unreadBadge` state объявлен; захват происходит ДО markRead**
+
 - Строка 54: `const [unreadBadge, setUnreadBadge] = useState<number | null>(null);` — **ПОДТВЕРЖДЕНО**.
 - `bootstrap()` строки 100–112:
   ```ts
-  await loadPage(null, false);   // ← setUnreadBadge вызывается здесь
-  await markRead();              // ← setUnreadBadge(null) вызывается здесь
+  await loadPage(null, false); // ← setUnreadBadge вызывается здесь
+  await markRead(); // ← setUnreadBadge(null) вызывается здесь
   ```
 - Последовательность `await` гарантирует: `loadPage` (захват) завершается **до** `markRead` (очистка). React state обновляется между render-циклами, но состояние `unreadBadge` будет установлено в промежуточный ненулевой рендер. **КРИТИЧЕСКИ ВАЖНО: захват ДО сброса — ПОДТВЕРЖДЕНО**.
 
 **П4: Условие захвата корректно**
+
 - Строки 82–84:
   ```ts
   if (!appendOlder && (data.unreadCount ?? 0) > 0) {
@@ -183,18 +199,22 @@
 - **ПОДТВЕРЖДЕНО**.
 
 **П5: `setUnreadBadge(null)` в `markRead` после успеха**
+
 - Строки 62–69: `const markRead = useCallback(async () => { const res = await fetch(...); if (!res.ok) return false; setUnreadBadge(null); ... })`.
 - При сетевой ошибке или `!res.ok` — `setUnreadBadge(null)` НЕ вызывается, badge остаётся → пользователь видит счётчик, даже если `/read` не прошёл. Это правильное поведение.
 - **ПОДТВЕРЖДЕНО**.
 
 **П6: JSX рендерит badge при `unreadBadge > 0`**
+
 - Строки 200–204:
   ```tsx
-  {unreadBadge !== null && unreadBadge > 0 && (
-    <p className={cn("text-center text-xs py-1 px-3", patientMutedTextClass)}>
-      {unreadBadge} {unreadBadge === 1 ? "новое сообщение" : "новых сообщения"}
-    </p>
-  )}
+  {
+    unreadBadge !== null && unreadBadge > 0 && (
+      <p className={cn('text-center text-xs py-1 px-3', patientMutedTextClass)}>
+        {unreadBadge} {unreadBadge === 1 ? 'новое сообщение' : 'новых сообщения'}
+      </p>
+    );
+  }
   ```
 - Двойная guard (`!== null && > 0`) — корректна.
 - Badge размещён ПЕРЕД контейнером сообщений (строка 206) — пользователь видит его вверху ленты, до прокрутки.
@@ -222,12 +242,13 @@
 ### Регрессии от фикса f7b26ec7
 
 Фикс изменял только `ProgramItemDiscussionInline.tsx`. Изменения:
+
 1. Добавлен `unreadCount?: number` в тип `DiscussionPageResponse` (строка 29) — безопасно, optional.
 2. Добавлен `useState<number | null>(null)` для `unreadBadge` (строка 54) — не влияет на остальную логику.
 3. В `loadPage`: добавлен `if (!appendOlder && ...)` block (строки 82–84) — не трогает messages/cursor/peerLastReadAt логику.
 4. В `markRead`: добавлен `setUnreadBadge(null)` (строка 65) — до `notifyPatientSupportUnreadCountChanged()`, безопасно.
 5. Добавлен JSX badge (строки 200–204) — между кнопкой пагинации и контейнером сообщений.
-**Регрессий нет.**
+   **Регрессий нет.**
 
 ### Двойная сортировка (незначительная неэффективность)
 
@@ -241,17 +262,17 @@
 
 ## Итоговая таблица
 
-| # | Клауза | Audit-1 | Re-Audit-1 | Audit-2 (независимый) | Метод верификации |
-|---|--------|---------|------------|----------------------|-------------------|
-| 1 | Старая модалка полностью удалена | ✅ PASS | ✅ PASS | ✅ PASS | grep по файлу — 0 совпадений |
-| 2 | Inline компонент подключён с верными пропсами | ✅ PASS | ✅ PASS | ✅ PASS | Прочитаны строки 912–920 |
-| 3 | API endpoint и auth корректны | ✅ PASS | ✅ PASS | ✅ PASS | route.ts прочитан, IDOR проверен |
-| 4 | Display (sender/time/distinction) + submit handler | ✅ PASS | ✅ PASS | ✅ PASS | Полный trace через types + render |
-| 5 | Нет console.log, dev-артефактов | ✅ PASS | ✅ PASS | ✅ PASS | grep CLEAN |
-| 6 | Patient primitives, изоляция соблюдена | ✅ PASS | ✅ PASS | ✅ PASS | Все импорты прочитаны |
-| 7 | Edge cases: empty, loading, error, pagination | ✅ PASS | ✅ PASS | ✅ PASS | Полный trace всех случаев |
-| 8 | DoD: «unread count badge still visible» | ❌ FAIL | ✅ PASS | ✅ PASS | 6 под-проверок от кода до API |
-| 9 | Тестовое покрытие нового компонента | ❌ FAIL | ⏸ DEFERRED | ⏸ DEFERRED | Не в DoD QW-A4 |
+| #   | Клауза                                             | Audit-1 | Re-Audit-1 | Audit-2 (независимый) | Метод верификации                 |
+| --- | -------------------------------------------------- | ------- | ---------- | --------------------- | --------------------------------- |
+| 1   | Старая модалка полностью удалена                   | ✅ PASS | ✅ PASS    | ✅ PASS               | grep по файлу — 0 совпадений      |
+| 2   | Inline компонент подключён с верными пропсами      | ✅ PASS | ✅ PASS    | ✅ PASS               | Прочитаны строки 912–920          |
+| 3   | API endpoint и auth корректны                      | ✅ PASS | ✅ PASS    | ✅ PASS               | route.ts прочитан, IDOR проверен  |
+| 4   | Display (sender/time/distinction) + submit handler | ✅ PASS | ✅ PASS    | ✅ PASS               | Полный trace через types + render |
+| 5   | Нет console.log, dev-артефактов                    | ✅ PASS | ✅ PASS    | ✅ PASS               | grep CLEAN                        |
+| 6   | Patient primitives, изоляция соблюдена             | ✅ PASS | ✅ PASS    | ✅ PASS               | Все импорты прочитаны             |
+| 7   | Edge cases: empty, loading, error, pagination      | ✅ PASS | ✅ PASS    | ✅ PASS               | Полный trace всех случаев         |
+| 8   | DoD: «unread count badge still visible»            | ❌ FAIL | ✅ PASS    | ✅ PASS               | 6 под-проверок от кода до API     |
+| 9   | Тестовое покрытие нового компонента                | ❌ FAIL | ⏸ DEFERRED | ⏸ DEFERRED            | Не в DoD QW-A4                    |
 
 ---
 
@@ -260,6 +281,7 @@
 Все 8 клауз в рамках DoD: PASS. Clause 9 (тесты) — DEFERRED, не в DoD. Re-audit-1 (PASS) подтверждён независимой проверкой.
 
 **Дополнительные наблюдения (не блокируют):**
+
 - Двойная сортировка messages (незначительная неэффективность, вне scope)
 - `onError` в MediaPicker игнорирует сообщение об ошибке от пикера (косметический UX-ограничение)
 - Русская грамматика badge: 5+ → "новых сообщения" вместо "новых сообщений" (i18n, не логический баг)

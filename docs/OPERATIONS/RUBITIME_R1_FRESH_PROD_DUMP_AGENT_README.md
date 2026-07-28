@@ -35,9 +35,9 @@ Rubitime/history normalization → reviewed FIO → strict closure → five-unit
 9. Перед handoff запускай `pnpm run check:rubitime-retirement-current`; финальный
    `pnpm run check:rubitime-retirement-complete` обязан оставаться красным до R5/R6/R7 proof-файлов.
 10. R6 route/code removal нельзя принимать или разворачивать до owner-approved cutoff/drain proof из
-   `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_RUNBOOK.md`. В ветке уже есть преждевременно
-   применённые removal-артефакты; они считаются только repository provenance, не закрывают R6 и сами по себе не
-   разрешают ни deploy, ни дальнейшее удаление, ни восстановление маршрутов.
+    `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_RUNBOOK.md`. В ветке уже есть преждевременно
+    применённые removal-артефакты; они считаются только repository provenance, не закрывают R6 и сами по себе не
+    разрешают ни deploy, ни дальнейшее удаление, ни восстановление маршрутов.
 11. R7 archive/drop нельзя делать до полного R1-R6 proof и отдельного owner archive/drop решения.
 12. После успешного rehearsal TEST-БД считается подготовленной постоянной рабочей базой. Обычный code deploy идёт
     только через `deploy-test.sh`; повторный full reset запрещён без нового явного решения владельца.
@@ -139,17 +139,17 @@ Sol-проверка старого локального dump была поле�
 
 ## 2. Что уже есть
 
-| Задача | Скрипт/документ | Статус |
-| --- | --- | --- |
-| Canonical backfill из legacy/Rubitime appointment data | `apps/webapp/scripts/backfill-canonical-from-legacy-appointments.ts` | Есть |
-| Удалить тест/блок-записи, включая Дмитрия Берсона как patient placeholder, не удаляя аккаунты | `apps/webapp/scripts/purge-placeholder-bookings.ts` | Есть |
-| Свести дубли специалистов в одного активного специалиста | `apps/webapp/scripts/consolidate-specialist-identity.ts` | Есть |
-| Операционный cutover canonical booking | `docs/OPERATIONS/BOOKING_CANONICAL_CUTOVER.md` | Есть |
-| Инструкция по specialist consolidation | `docs/OPERATIONS/SPECIALIST_IDENTITY_CONSOLIDATION.md` | Есть |
-| Pre-migration doctor/admin/client identity data-fix | `deploy/postgres/p0-data-fix-doctor-admin-split.sql` | Есть |
-| Fresh TEST restore + migrate + data-fix entrypoint | `deploy/host/deploy-test-full-reset.sh` | Есть |
-| Full fresh prod-copy migration chain | `scripts/deploy-saas-667.sh` | Есть |
-| R1 preflight/audit scripts | `docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-*.mjs` | Есть |
+| Задача                                                                                        | Скрипт/документ                                                      | Статус |
+| --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | ------ |
+| Canonical backfill из legacy/Rubitime appointment data                                        | `apps/webapp/scripts/backfill-canonical-from-legacy-appointments.ts` | Есть   |
+| Удалить тест/блок-записи, включая Дмитрия Берсона как patient placeholder, не удаляя аккаунты | `apps/webapp/scripts/purge-placeholder-bookings.ts`                  | Есть   |
+| Свести дубли специалистов в одного активного специалиста                                      | `apps/webapp/scripts/consolidate-specialist-identity.ts`             | Есть   |
+| Операционный cutover canonical booking                                                        | `docs/OPERATIONS/BOOKING_CANONICAL_CUTOVER.md`                       | Есть   |
+| Инструкция по specialist consolidation                                                        | `docs/OPERATIONS/SPECIALIST_IDENTITY_CONSOLIDATION.md`               | Есть   |
+| Pre-migration doctor/admin/client identity data-fix                                           | `deploy/postgres/p0-data-fix-doctor-admin-split.sql`                 | Есть   |
+| Fresh TEST restore + migrate + data-fix entrypoint                                            | `deploy/host/deploy-test-full-reset.sh`                              | Есть   |
+| Full fresh prod-copy migration chain                                                          | `scripts/deploy-saas-667.sh`                                         | Есть   |
+| R1 preflight/audit scripts                                                                    | `docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-*.mjs`               | Есть   |
 
 ## 3. Пользователи, роли, копии, тесты
 
@@ -163,11 +163,11 @@ Sol-проверка старого локального dump была поле�
 
 ### 3.1. OS users
 
-| OS user | Где используется | Что делает | Что не делает |
-| --- | --- | --- | --- |
-| `dev` | рабочий checkout `/home/dev/dev-projects/BersonCareBot` | запускает агентские проверки, читает repo docs, запускает wrapper scripts из repo | не лезет в prod DB/env самовольно, не правит crontab |
-| `postgres` | локальный PostgreSQL host | создает/восстанавливает disposable DB, читает dump TOC, делает local grants | не является app runtime user |
-| `deploy` | `/opt/projects/bersoncarebot-test` и prod deploy checkout | строит/запускает app под env target-среды, читает test/prod env только в owner-approved ops flow | не имеет произвольного sudo; root ops отдельно |
+| OS user    | Где используется                                          | Что делает                                                                                       | Что не делает                                        |
+| ---------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------- |
+| `dev`      | рабочий checkout `/home/dev/dev-projects/BersonCareBot`   | запускает агентские проверки, читает repo docs, запускает wrapper scripts из repo                | не лезет в prod DB/env самовольно, не правит crontab |
+| `postgres` | локальный PostgreSQL host                                 | создает/восстанавливает disposable DB, читает dump TOC, делает local grants                      | не является app runtime user                         |
+| `deploy`   | `/opt/projects/bersoncarebot-test` и prod deploy checkout | строит/запускает app под env target-среды, читает test/prod env только в owner-approved ops flow | не имеет произвольного sudo; root ops отдельно       |
 
 Обычный Linux user `dev` не обязан существовать как PostgreSQL role. Если `psql` от `dev` падает
 `role "dev" does not exist`, это нормально: использовать `sudo -u postgres` для локальной disposable DB
@@ -175,14 +175,14 @@ Sol-проверка старого локального dump была поле�
 
 ### 3.2. PostgreSQL role classes
 
-| Role class | Пример в TEST/PROD | Назначение | Инвариант |
-| --- | --- | --- | --- |
-| Runtime owner / migrator | `bersoncarebot_test`, `bcb_webapp_prod` | владелец существующих таблиц, под ним идет `migrate-all.sh` | временно получает `BYPASSRLS` только внутри deploy-chain и потом обязан стать `NOBYPASSRLS` |
-| Superuser/operator | `postgres` или `SUPERUSER_URL` | создает dormant roles/schema, включает/снимает временную эскалацию, делает post-state assertions | не подставляется как app runtime |
-| App owner | `app_owner` | `NOLOGIN` owner для protected helpers/schema после P2-B | membership у migrator только временная и снимается trap-ом |
-| Staff runtime | `app_staff` | будущий runtime staff role | `NOBYPASSRLS`, не owner |
-| Patient runtime | `app_patient` | будущий runtime patient role | `NOBYPASSRLS`, не owner |
-| Disposable read-only | например `bcb_rubitime_rehearsal_ro` | только локальные aggregate preflight/audits на restored copy | `SELECT` only, не мигратор, не runtime |
+| Role class               | Пример в TEST/PROD                      | Назначение                                                                                       | Инвариант                                                                                   |
+| ------------------------ | --------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| Runtime owner / migrator | `bersoncarebot_test`, `bcb_webapp_prod` | владелец существующих таблиц, под ним идет `migrate-all.sh`                                      | временно получает `BYPASSRLS` только внутри deploy-chain и потом обязан стать `NOBYPASSRLS` |
+| Superuser/operator       | `postgres` или `SUPERUSER_URL`          | создает dormant roles/schema, включает/снимает временную эскалацию, делает post-state assertions | не подставляется как app runtime                                                            |
+| App owner                | `app_owner`                             | `NOLOGIN` owner для protected helpers/schema после P2-B                                          | membership у migrator только временная и снимается trap-ом                                  |
+| Staff runtime            | `app_staff`                             | будущий runtime staff role                                                                       | `NOBYPASSRLS`, не owner                                                                     |
+| Patient runtime          | `app_patient`                           | будущий runtime patient role                                                                     | `NOBYPASSRLS`, не owner                                                                     |
+| Disposable read-only     | например `bcb_rubitime_rehearsal_ro`    | только локальные aggregate preflight/audits на restored copy                                     | `SELECT` only, не мигратор, не runtime                                                      |
 
 Главное правило #667: migration chain идет под runtime-owner role, потому что webapp migrations делают
 owner-only DDL. Но integrator backfill под включенным/FORCE RLS требует временный `BYPASSRLS`. Поэтому
@@ -196,14 +196,14 @@ owner-only DDL. Но integrator backfill под включенным/FORCE RLS �
 
 ### 3.3. Какие DB можно использовать
 
-| DB/copy | Можно? | Для чего |
-| --- | --- | --- |
-| Fresh hourly dump `/opt/backups/postgres/hourly/unified_bcb_webapp_prod_*.dump` | Да | источник clean prod-copy; брать newest |
+| DB/copy                                                                             | Можно?                               | Для чего                                                                                                                     |
+| ----------------------------------------------------------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| Fresh hourly dump `/opt/backups/postgres/hourly/unified_bcb_webapp_prod_*.dump`     | Да                                   | источник clean prod-copy; брать newest                                                                                       |
 | TEST restore через `deploy/host/deploy-test-full-reset.sh --confirm-full-reset ...` | Да, только owner/test-host operation | полный from-zero прогон: fresh dump -> data-fix -> migrations -> Rubitime/history -> reviewed FIO -> strict closure -> units |
-| Disposable DB с именем `bcb_*_dev_*` или `*_rehearsal_*` | Да | isolated restore/preflight/audit без трогания dev/test/prod |
-| `bcb_webapp_prod` | Нет для агентского rehearsal | только отдельная production operation |
-| `bersoncarebot_test` / `bcb_webapp_test` | Нет без явной команды | это live TEST, wrapper может его пересоздать только в разрешенном TEST-flow |
-| `bcb_webapp_dev` | Только read-only aggregate SELECT | dev содержит реальные ПДн; не писать и не делать cleanup commits |
+| Disposable DB с именем `bcb_*_dev_*` или `*_rehearsal_*`                            | Да                                   | isolated restore/preflight/audit без трогания dev/test/prod                                                                  |
+| `bcb_webapp_prod`                                                                   | Нет для агентского rehearsal         | только отдельная production operation                                                                                        |
+| `bersoncarebot_test` / `bcb_webapp_test`                                            | Нет без явной команды                | это live TEST, wrapper может его пересоздать только в разрешенном TEST-flow                                                  |
+| `bcb_webapp_dev`                                                                    | Только read-only aggregate SELECT    | dev содержит реальные ПДн; не писать и не делать cleanup commits                                                             |
 
 Dump проверяется без восстановления так:
 
@@ -217,13 +217,13 @@ pg_restore --list /opt/backups/postgres/hourly/unified_bcb_webapp_prod_YYYYMMDD_
 
 ### 3.4. Какой wrapper когда запускать
 
-| Сценарий | Команда | Что внутри |
-| --- | --- | --- |
-| Обычный TEST code deploy | `bash deploy/host/deploy-test.sh feat/doctor-ui-rebuild` | build + только pending migrations текущей TEST-БД; dump/restore отсутствуют |
-| TEST from-zero | `bash deploy/host/deploy-test-full-reset.sh --confirm-full-reset <hash-bound inputs> feat/doctor-ui-rebuild` | сам тянет fresh prod dump, пересоздает TEST DB, выполняет полную data chain и только затем запускает units; без явного подтверждения не стартует |
-| Prod-copy/disposable #667 chain | `SUPERUSER_URL=... DATABASE_URL=... bash scripts/deploy-saas-667.sh` | роли `app_*`, `app_ext.pgcrypto`, temp migrator elevation, data-fix, `migrate-all.sh`, P2-B, consolidation, post-assertions, auto-revoke |
-| Только read-only R1 preflight | `DATABASE_URL='<loopback rehearsal URL>' node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-clean-dump-preflight.mjs --csv=<csv>` | schema/current-state gate; не пишет |
-| Только R1 aggregate audit | `node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-classify-blockers.mjs --csv=<csv>` и `node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-dual-source-audit.mjs --sample-size=0` | dev/rehearsal aggregate-only proof; не пишет |
+| Сценарий                        | Команда                                                                                                                                                                               | Что внутри                                                                                                                                       |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Обычный TEST code deploy        | `bash deploy/host/deploy-test.sh feat/doctor-ui-rebuild`                                                                                                                              | build + только pending migrations текущей TEST-БД; dump/restore отсутствуют                                                                      |
+| TEST from-zero                  | `bash deploy/host/deploy-test-full-reset.sh --confirm-full-reset <hash-bound inputs> feat/doctor-ui-rebuild`                                                                          | сам тянет fresh prod dump, пересоздает TEST DB, выполняет полную data chain и только затем запускает units; без явного подтверждения не стартует |
+| Prod-copy/disposable #667 chain | `SUPERUSER_URL=... DATABASE_URL=... bash scripts/deploy-saas-667.sh`                                                                                                                  | роли `app_*`, `app_ext.pgcrypto`, temp migrator elevation, data-fix, `migrate-all.sh`, P2-B, consolidation, post-assertions, auto-revoke         |
+| Только read-only R1 preflight   | `DATABASE_URL='<loopback rehearsal URL>' node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-clean-dump-preflight.mjs --csv=<csv>`                                                    | schema/current-state gate; не пишет                                                                                                              |
+| Только R1 aggregate audit       | `node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-classify-blockers.mjs --csv=<csv>` и `node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-dual-source-audit.mjs --sample-size=0` | dev/rehearsal aggregate-only proof; не пишет                                                                                                     |
 
 Нельзя заменять `deploy-test-full-reset.sh` и `deploy-saas-667.sh` на “restore + pnpm migrate”: это уже
 зафиксированный невалидный путь.
@@ -399,14 +399,14 @@ PII в чат и отчеты не печатать.
 
 После R1 агент не начинает новую миграцию наугад. Он сверяет execution plan и двигается по phase-gates.
 
-| Phase | Что считается gate | Что нельзя делать раньше |
-| --- | --- | --- |
-| R2 | doctor calendar/list/KPI читают canonical, старый doctor read-source не нужен | не удалять raw/provider tables |
-| R3 | patient/public slots/create canonical-only, tenant exact, catalog decisions закрыты | не использовать `booking_default_organization_id` как booking fallback |
-| R4 | GCal, reminders, notifications, payment/package side effects идут из provider-neutral lifecycle | не удалять lifecycle alias, если webapp еще зовет старый путь |
-| R5 | legacy v1 Rubitime profile resolve disabled and monitored | не считать non-prod proof production approval |
-| R6 | owner cutoff timestamp, disabled provider ingress/outbound bridge, drained queues, fresh post-cutoff CSV reconciliation | не unmount Rubitime webhook/M2M routes and raw runtime code |
-| R7 | archive/drop decision, export/backup, fresh restore+migrate proof, no runtime refs | не drop/archive tables |
+| Phase | Что считается gate                                                                                                      | Что нельзя делать раньше                                               |
+| ----- | ----------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| R2    | doctor calendar/list/KPI читают canonical, старый doctor read-source не нужен                                           | не удалять raw/provider tables                                         |
+| R3    | patient/public slots/create canonical-only, tenant exact, catalog decisions закрыты                                     | не использовать `booking_default_organization_id` как booking fallback |
+| R4    | GCal, reminders, notifications, payment/package side effects идут из provider-neutral lifecycle                         | не удалять lifecycle alias, если webapp еще зовет старый путь          |
+| R5    | legacy v1 Rubitime profile resolve disabled and monitored                                                               | не считать non-prod proof production approval                          |
+| R6    | owner cutoff timestamp, disabled provider ingress/outbound bridge, drained queues, fresh post-cutoff CSV reconciliation | не unmount Rubitime webhook/M2M routes and raw runtime code            |
+| R7    | archive/drop decision, export/backup, fresh restore+migrate proof, no runtime refs                                      | не drop/archive tables                                                 |
 
 Текущая рабочая позиция по execution plan: R1/R2 и узкие R3/R4 code/proof артефакты сохранены, но incident `#839`
 держит runtime acceptance открытым; кроме того, R3-CATALOG снова открыт из-за истёкшего срока удаления живого

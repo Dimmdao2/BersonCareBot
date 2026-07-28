@@ -1,49 +1,52 @@
-"use client";
+'use client';
 
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import type { ExerciseLoadType, ExerciseMedia } from "@/modules/lfk-exercises/types";
-import type { Template } from "@/modules/lfk-templates/types";
-import { cn } from "@/lib/utils";
-import { isDoctorCatalogMissingFilter } from "@/shared/lib/doctorCatalogEmptyFieldFilter";
-import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
-import { useDoctorCatalogClientFilterMerge } from "@/shared/hooks/useDoctorCatalogClientFilterMerge";
-import { doctorCatalogListEmptyClass } from "@/shared/ui/doctor/doctorVisual";
-import { useDoctorCatalogMasterSelectionSync } from "@/shared/hooks/useDoctorCatalogMasterSelectionSync";
+import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import type { ExerciseLoadType, ExerciseMedia } from '@/modules/lfk-exercises/types';
+import type { Template } from '@/modules/lfk-templates/types';
+import { cn } from '@/lib/utils';
+import { isDoctorCatalogMissingFilter } from '@/shared/lib/doctorCatalogEmptyFieldFilter';
+import { useDoctorCatalogDisplayList } from '@/shared/hooks/useDoctorCatalogDisplayList';
+import { useDoctorCatalogClientFilterMerge } from '@/shared/hooks/useDoctorCatalogClientFilterMerge';
+import { doctorCatalogListEmptyClass } from '@/shared/ui/doctor/doctorVisual';
+import { useDoctorCatalogMasterSelectionSync } from '@/shared/hooks/useDoctorCatalogMasterSelectionSync';
 import {
   DoctorCatalogFiltersForm,
   type DoctorCatalogToolbarLayout,
-} from "@/shared/ui/doctor/DoctorCatalogFiltersForm";
-import { DoctorCatalogListSortHeader } from "@/shared/ui/doctor/DoctorCatalogListSortHeader";
-import type { CatalogMasterTitleSort } from "@/shared/ui/doctor/DoctorCatalogMasterListHeader";
-import { CatalogLeftPane } from "@/shared/ui/doctor/catalog/CatalogLeftPane";
-import { CatalogRightPane } from "@/shared/ui/doctor/catalog/CatalogRightPane";
-import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
-import { DoctorCatalogPageLayout } from "@/shared/ui/doctor/catalog/DoctorCatalogPageLayout";
-import { DoctorCatalogMasterListRow } from "@/shared/ui/doctor/DoctorCatalogMasterListRow";
+} from '@/shared/ui/doctor/DoctorCatalogFiltersForm';
+import { DoctorCatalogListSortHeader } from '@/shared/ui/doctor/DoctorCatalogListSortHeader';
+import type { CatalogMasterTitleSort } from '@/shared/ui/doctor/DoctorCatalogMasterListHeader';
+import { CatalogLeftPane } from '@/shared/ui/doctor/catalog/CatalogLeftPane';
+import { CatalogRightPane } from '@/shared/ui/doctor/catalog/CatalogRightPane';
+import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
+import { DoctorCatalogPageLayout } from '@/shared/ui/doctor/catalog/DoctorCatalogPageLayout';
+import { DoctorCatalogMasterListRow } from '@/shared/ui/doctor/DoctorCatalogMasterListRow';
 import {
   doctorCatalogToolbarPrimaryActionClassName,
   DoctorCatalogFiltersToolbar,
   DoctorCatalogToolbarFiltersSlot,
-} from "@/shared/ui/doctor/DoctorCatalogFiltersToolbar";
-import { MediaThumb } from "@/shared/ui/doctor/media/MediaThumb";
-import { exerciseMediaToPreviewUi } from "@/shared/ui/doctor/media/mediaPreviewUiModel";
-import { LfkTemplateStatusBadge } from "./LfkTemplateStatusBadge";
-import { buildLfkTemplatesListPreserveQuery } from "./lfkTemplatesListPreserveQuery";
-import { TemplateEditor } from "./TemplateEditor";
-import type { DoctorCatalogPubArchQuery } from "@/shared/lib/doctorCatalogListStatus";
-import { DoctorCatalogInvalidPubArchToast } from "@/shared/ui/doctor/DoctorCatalogInvalidPubArchToast";
+} from '@/shared/ui/doctor/DoctorCatalogFiltersToolbar';
+import { MediaThumb } from '@/shared/ui/doctor/media/MediaThumb';
+import { exerciseMediaToPreviewUi } from '@/shared/ui/doctor/media/mediaPreviewUiModel';
+import { LfkTemplateStatusBadge } from './LfkTemplateStatusBadge';
+import { buildLfkTemplatesListPreserveQuery } from './lfkTemplatesListPreserveQuery';
+import { TemplateEditor } from './TemplateEditor';
+import type { DoctorCatalogPubArchQuery } from '@/shared/lib/doctorCatalogListStatus';
+import { DoctorCatalogInvalidPubArchToast } from '@/shared/ui/doctor/DoctorCatalogInvalidPubArchToast';
 import {
   DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED,
   DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
-} from "@/shared/ui/doctor/doctorWorkspaceLayout";
+} from '@/shared/ui/doctor/doctorWorkspaceLayout';
 
 type Props = {
   templates: Template[];
   initialSelectedId?: string | null;
   exerciseCatalog: Array<{ id: string; title: string; firstMedia: ExerciseMedia | null }>;
-  exerciseMetaById: Record<string, { regionRefIds: readonly string[]; loadType: ExerciseLoadType | null }>;
+  exerciseMetaById: Record<
+    string,
+    { regionRefIds: readonly string[]; loadType: ExerciseLoadType | null }
+  >;
   bodyRegionIdToCode: Record<string, string>;
   filters: {
     q: string;
@@ -51,7 +54,7 @@ type Props = {
     loadType?: ExerciseLoadType;
     listPubArch: DoctorCatalogPubArchQuery;
   };
-  initialTitleSort: "asc" | "desc" | null;
+  initialTitleSort: 'asc' | 'desc' | null;
 };
 
 export function LfkTemplatesPageClient({
@@ -69,7 +72,8 @@ export function LfkTemplatesPageClient({
   const [creating, setCreating] = useState(false);
   const [mobileSheet, setMobileSheet] = useState<Template | null>(null);
   const [isListPending, startListTransition] = useTransition();
-  const [filterToolbarLayout, setFilterToolbarLayout] = useState<DoctorCatalogToolbarLayout>("compact");
+  const [filterToolbarLayout, setFilterToolbarLayout] =
+    useState<DoctorCatalogToolbarLayout>('compact');
   const onFilterToolbarLayoutChange = useCallback((layout: DoctorCatalogToolbarLayout) => {
     setFilterToolbarLayout(layout);
   }, []);
@@ -95,7 +99,7 @@ export function LfkTemplatesPageClient({
   const qSorted = useDoctorCatalogDisplayList(
     templates,
     mergedFilters.q,
-    mergedFilters.titleSort === null ? "default" : mergedFilters.titleSort,
+    mergedFilters.titleSort === null ? 'default' : mergedFilters.titleSort,
   );
 
   const displayList = useMemo(() => {
@@ -129,7 +133,13 @@ export function LfkTemplatesPageClient({
       }
     }
     return out;
-  }, [qSorted, mergedFilters.regionCode, mergedFilters.loadType, exerciseMetaById, bodyRegionIdToCode]);
+  }, [
+    qSorted,
+    mergedFilters.regionCode,
+    mergedFilters.loadType,
+    exerciseMetaById,
+    bodyRegionIdToCode,
+  ]);
 
   useDoctorCatalogMasterSelectionSync({
     displayList,
@@ -142,7 +152,9 @@ export function LfkTemplatesPageClient({
   const selected = creating ? null : (displayList.find((t) => t.id === selectedId) ?? null);
 
   const titleSortForHeader: CatalogMasterTitleSort | null =
-    mergedFilters.titleSort === "asc" || mergedFilters.titleSort === "desc" ? mergedFilters.titleSort : null;
+    mergedFilters.titleSort === 'asc' || mergedFilters.titleSort === 'desc'
+      ? mergedFilters.titleSort
+      : null;
 
   const listPreserveQuery = useMemo(
     () =>
@@ -181,8 +193,8 @@ export function LfkTemplatesPageClient({
             thumbs.length === 0 ? (
               <span
                 className={cn(
-                  "self-center text-[11px] leading-none",
-                  active ? "text-primary/75" : "text-muted-foreground",
+                  'self-center text-[11px] leading-none',
+                  active ? 'text-primary/75' : 'text-muted-foreground',
                 )}
               >
                 Нет превью
@@ -212,7 +224,12 @@ export function LfkTemplatesPageClient({
               previewInner={previewInner}
               title={t.title}
               meta={<>Упражнений: {rowN}</>}
-              badge={<LfkTemplateStatusBadge status={t.status} className="w-full justify-center text-[10px] leading-tight" />}
+              badge={
+                <LfkTemplateStatusBadge
+                  status={t.status}
+                  className="w-full justify-center text-[10px] leading-tight"
+                />
+              }
             />
           );
         })}
@@ -222,7 +239,10 @@ export function LfkTemplatesPageClient({
   const desktopRight = (
     <CatalogRightPane className="h-full">
       {/* Черновик «новый комплекс» держим смонтированным, чтобы не терять state при выборе строки в списке. */}
-      <div className={cn("flex min-h-0 flex-1 flex-col", selected && "hidden")} aria-hidden={Boolean(selected)}>
+      <div
+        className={cn('flex min-h-0 flex-1 flex-col', selected && 'hidden')}
+        aria-hidden={Boolean(selected)}
+      >
         <TemplateEditor
           key="new-lfk-template"
           template={null}
@@ -293,61 +313,66 @@ export function LfkTemplatesPageClient({
     <>
       <DoctorCatalogInvalidPubArchToast />
       <DoctorCatalogPageLayout toolbar={toolbar}>
-      <CatalogSplitLayout
-        className={cn(
-          filterToolbarLayout === "expanded"
-            ? DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED
-            : DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
-        )}
-        left={
-          <CatalogLeftPane
-            stickySplit={false}
-            stickyToolbarRows={1}
-            className="h-full"
-            headerSlot={
-              <DoctorCatalogListSortHeader
-                summaryLine={
-                  displayList.length === 0 ? "Нет комплексов" : `Комплексов: ${displayList.length}`
-                }
-                titleSort={titleSortForHeader}
-                onTitleSortChange={changeTitleSort}
-                catalogPubArch={mergedFilters.listPubArch}
-                archiveScopeExtraParams={{
-                  titleSort: mergedFilters.titleSort,
+        <CatalogSplitLayout
+          className={cn(
+            filterToolbarLayout === 'expanded'
+              ? DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED
+              : DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
+          )}
+          left={
+            <CatalogLeftPane
+              stickySplit={false}
+              stickyToolbarRows={1}
+              className="h-full"
+              headerSlot={
+                <DoctorCatalogListSortHeader
+                  summaryLine={
+                    displayList.length === 0
+                      ? 'Нет комплексов'
+                      : `Комплексов: ${displayList.length}`
+                  }
+                  titleSort={titleSortForHeader}
+                  onTitleSortChange={changeTitleSort}
+                  catalogPubArch={mergedFilters.listPubArch}
+                  archiveScopeExtraParams={{
+                    titleSort: mergedFilters.titleSort,
+                  }}
+                />
+              }
+            >
+              <div
+                className={cn(
+                  'min-h-0 flex-1 overflow-hidden transition-opacity',
+                  isListPending && 'opacity-80',
+                )}
+                aria-busy={isListPending}
+              >
+                {renderRows(
+                  (t) => pickRow(t.id),
+                  creating ? null : (selected?.id ?? mobileSheet?.id ?? null),
+                )}
+              </div>
+            </CatalogLeftPane>
+          }
+          right={desktopRight}
+          mobileView={mobileDetailOpen ? 'detail' : 'list'}
+          mobileBackSlot={
+            mobileDetailOpen ? (
+              <Button
+                variant="ghost"
+                type="button"
+                className="mb-2 h-9 px-2"
+                onClick={() => {
+                  setMobileSheet(null);
+                  setCreating(false);
                 }}
-              />
-            }
-          >
-            <div
-              className={cn(
-                "min-h-0 flex-1 overflow-hidden transition-opacity",
-                isListPending && "opacity-80",
-              )}
-              aria-busy={isListPending}
-            >
-              {renderRows((t) => pickRow(t.id), creating ? null : selected?.id ?? mobileSheet?.id ?? null)}
-            </div>
-          </CatalogLeftPane>
-        }
-        right={desktopRight}
-        mobileView={mobileDetailOpen ? "detail" : "list"}
-        mobileBackSlot={
-          mobileDetailOpen ? (
-            <Button
-              variant="ghost"
-              type="button"
-              className="mb-2 h-9 px-2"
-              onClick={() => {
-                setMobileSheet(null);
-                setCreating(false);
-              }}
-            >
-              ← Назад
-            </Button>
-          ) : null
-        }
-      />
-    </DoctorCatalogPageLayout>
+              >
+                ← Назад
+              </Button>
+            ) : null
+          }
+        />
+      </DoctorCatalogPageLayout>
     </>
   );
 }

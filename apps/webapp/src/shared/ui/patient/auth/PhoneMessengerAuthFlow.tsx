@@ -1,34 +1,34 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import toast from "react-hot-toast";
-import { Button } from "@/shared/ui/patient/primitives/button";
-import { cn } from "@/lib/utils";
-import type { AuthMethodsPayload } from "@/modules/auth/checkPhoneMethods";
+import { useCallback, useEffect, useRef, useState } from 'react';
+import toast from 'react-hot-toast';
+import { Button } from '@/shared/ui/patient/primitives/button';
+import { cn } from '@/lib/utils';
+import type { AuthMethodsPayload } from '@/modules/auth/checkPhoneMethods';
 import {
   FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY,
   filterAuthMethodsByChannelPolicy,
   pickOtpChannelWithPreferencePublic,
   type AuthChannelUiPolicy,
   type OtpUiChannel,
-} from "@/modules/auth/otpChannelUi";
-import { getPostAuthRedirectTarget } from "@/modules/auth/redirectPolicy";
-import { markFreshLoginAfterAuth } from "@/shared/lib/webPush/freshLoginStorage";
-import { finishChannelLinkNavigation } from "@/shared/lib/telegramChannelLinkOpen";
-import { getBrowserCalendarIanaForAuth } from "@/shared/lib/browserCalendarIana";
-import { InternationalPhoneInput } from "@/shared/ui/patient/auth/InternationalPhoneInput";
-import { OtpCodeForm, type OtpResendOutcome } from "@/shared/ui/patient/auth/OtpCodeForm";
+} from '@/modules/auth/otpChannelUi';
+import { getPostAuthRedirectTarget } from '@/modules/auth/redirectPolicy';
+import { markFreshLoginAfterAuth } from '@/shared/lib/webPush/freshLoginStorage';
+import { finishChannelLinkNavigation } from '@/shared/lib/telegramChannelLinkOpen';
+import { getBrowserCalendarIanaForAuth } from '@/shared/lib/browserCalendarIana';
+import { InternationalPhoneInput } from '@/shared/ui/patient/auth/InternationalPhoneInput';
+import { OtpCodeForm, type OtpResendOutcome } from '@/shared/ui/patient/auth/OtpCodeForm';
 import {
   AUTH_LOGIN_ACCENT_TEXT_CLASS,
   AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS,
-} from "@/shared/ui/patient/auth/loginChrome";
-import { patientInlineLinkClass, patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
+} from '@/shared/ui/patient/auth/loginChrome';
+import { patientInlineLinkClass, patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 
-const WEB_CHAT_ID_KEY = "bersoncare_web_chat_id";
+const WEB_CHAT_ID_KEY = 'bersoncare_web_chat_id';
 const POLL_MS = 2500;
 
 function getWebChatId(): string {
-  if (typeof window === "undefined") return "";
+  if (typeof window === 'undefined') return '';
   let id = sessionStorage.getItem(WEB_CHAT_ID_KEY);
   if (!id) {
     id = crypto.randomUUID?.() ?? `web-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -41,15 +41,15 @@ function hasMessengerBinding(methods: AuthMethodsPayload): boolean {
   return Boolean(methods.telegram || methods.max);
 }
 
-function messengerOtpDescription(channel: "telegram" | "max"): string {
-  return channel === "telegram"
-    ? "Введите код, отправленный вам в Telegram."
-    : "Введите код, отправленный вам в Max.";
+function messengerOtpDescription(channel: 'telegram' | 'max'): string {
+  return channel === 'telegram'
+    ? 'Введите код, отправленный вам в Telegram.'
+    : 'Введите код, отправленный вам в Max.';
 }
 
 export type PhoneMessengerAuthFlowProps = {
   channelPolicy?: AuthChannelUiPolicy;
-  purpose: "login" | "profile_bind";
+  purpose: 'login' | 'profile_bind';
   onBack: () => void;
   supportContactHref?: string;
   /** Для login: безопасный next из URL `/app`. */
@@ -63,7 +63,7 @@ export type PhoneMessengerAuthFlowProps = {
   hideBackOnPhoneStep?: boolean;
 };
 
-type FlowStep = "phone" | "messenger_pick" | "code";
+type FlowStep = 'phone' | 'messenger_pick' | 'code';
 
 export function PhoneMessengerAuthFlow({
   channelPolicy = FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY,
@@ -73,21 +73,21 @@ export function PhoneMessengerAuthFlow({
   nextParam = null,
   onProfileComplete,
   onStaffFactorRequired,
-  title = "Вход по номеру",
+  title = 'Вход по номеру',
   hideBackOnPhoneStep = false,
 }: PhoneMessengerAuthFlowProps) {
   const hasAnyMessenger = channelPolicy.telegram || channelPolicy.max;
-  const [step, setStep] = useState<FlowStep>("phone");
+  const [step, setStep] = useState<FlowStep>('phone');
   const [loading, setLoading] = useState(false);
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState('');
   const [methods, setMethods] = useState<AuthMethodsPayload | null>(null);
   const [exists, setExists] = useState(false);
   const [setupToken, setSetupToken] = useState<string | null>(null);
-  const [bindChannel, setBindChannel] = useState<"telegram" | "max" | null>(null);
+  const [bindChannel, setBindChannel] = useState<'telegram' | 'max' | null>(null);
   const [bindManualCommand, setBindManualCommand] = useState<string | null>(null);
   const [challengeId, setChallengeId] = useState<string | null>(null);
   const [retryAfterSeconds, setRetryAfterSeconds] = useState(60);
-  const [otpChannel, setOtpChannel] = useState<"telegram" | "max">("telegram");
+  const [otpChannel, setOtpChannel] = useState<'telegram' | 'max'>('telegram');
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const clearPoll = useCallback(() => {
@@ -103,23 +103,23 @@ export function PhoneMessengerAuthFlow({
     setBindChannel(null);
     setBindManualCommand(null);
     setChallengeId(null);
-    setStep("messenger_pick");
+    setStep('messenger_pick');
   }, [clearPoll]);
 
   const redirectOk = useCallback(
-    (redirectTo: string, role?: "client" | "doctor" | "admin") => {
+    (redirectTo: string, role?: 'client' | 'doctor' | 'admin') => {
       markFreshLoginAfterAuth();
-      const target = getPostAuthRedirectTarget(role ?? "client", nextParam, redirectTo);
+      const target = getPostAuthRedirectTarget(role ?? 'client', nextParam, redirectTo);
       window.location.assign(target);
     },
     [nextParam],
   );
 
   const pollBindStatus = useCallback(
-    async (token: string, _channel: "telegram" | "max") => {
-      const statusRes = await fetch("/api/auth/phone/messenger-bind/status", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
+    async (token: string, _channel: 'telegram' | 'max') => {
+      const statusRes = await fetch('/api/auth/phone/messenger-bind/status', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ setupToken: token }),
       });
       const statusData = (await statusRes.json().catch(() => ({}))) as {
@@ -130,36 +130,36 @@ export function PhoneMessengerAuthFlow({
         error?: string;
       };
       if (!statusRes.ok || !statusData.ok) return;
-      if (statusData.status === "consumed") {
+      if (statusData.status === 'consumed') {
         clearPoll();
-        if (purpose === "profile_bind") {
+        if (purpose === 'profile_bind') {
           onProfileComplete?.();
         } else {
-          toast.error("Код уже использован. Начните вход снова.");
+          toast.error('Код уже использован. Начните вход снова.');
           resetBindAttempt();
         }
         return;
       }
-      if (statusData.status === "otp_ready" && statusData.challengeId) {
+      if (statusData.status === 'otp_ready' && statusData.challengeId) {
         clearPoll();
-        if (purpose === "profile_bind") {
+        if (purpose === 'profile_bind') {
           onProfileComplete?.();
           return;
         }
         setChallengeId(statusData.challengeId);
         setRetryAfterSeconds(statusData.retryAfterSeconds ?? 60);
         setOtpChannel(_channel);
-        setStep("code");
+        setStep('code');
         return;
       }
-      if (statusData.status === "failed") {
+      if (statusData.status === 'failed') {
         clearPoll();
-        toast.error("Не удалось подтвердить номер в мессенджере");
+        toast.error('Не удалось подтвердить номер в мессенджере');
         resetBindAttempt();
       }
-      if (statusData.status === "expired") {
+      if (statusData.status === 'expired') {
         clearPoll();
-        toast.error("Время привязки истекло. Начните снова.");
+        toast.error('Время привязки истекло. Начните снова.');
         resetBindAttempt();
       }
     },
@@ -169,30 +169,36 @@ export function PhoneMessengerAuthFlow({
   useEffect(() => () => clearPoll(), [clearPoll]);
 
   useEffect(() => {
-    if (step !== "code" || !setupToken || !bindChannel) return;
+    if (step !== 'code' || !setupToken || !bindChannel) return;
     const onResume = () => {
-      if (document.visibilityState === "visible") {
+      if (document.visibilityState === 'visible') {
         void pollBindStatus(setupToken, bindChannel);
       }
     };
-    document.addEventListener("visibilitychange", onResume);
+    document.addEventListener('visibilitychange', onResume);
     return () => {
-      document.removeEventListener("visibilitychange", onResume);
+      document.removeEventListener('visibilitychange', onResume);
     };
   }, [step, setupToken, bindChannel, pollBindStatus]);
 
   const startPhoneOtp = async (
     normalized: string,
-    deliveryChannel: "telegram" | "max",
+    deliveryChannel: 'telegram' | 'max',
   ): Promise<boolean> => {
     if (!channelPolicy[deliveryChannel]) return false;
     setLoading(true);
     try {
       const chatId = getWebChatId();
-      const res = await fetch("/api/auth/phone/start", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ phone: normalized, channel: "web", chatId, deliveryChannel, purpose }),
+      const res = await fetch('/api/auth/phone/start', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          phone: normalized,
+          channel: 'web',
+          chatId,
+          deliveryChannel,
+          purpose,
+        }),
       });
       const data = (await res.json().catch(() => ({}))) as {
         ok?: boolean;
@@ -202,19 +208,19 @@ export function PhoneMessengerAuthFlow({
         error?: string;
       };
       if (!res.ok || !data.ok || !data.challengeId) {
-        if (data.error === "channel_unavailable") {
+        if (data.error === 'channel_unavailable') {
           setPhone(normalized);
-          setStep("messenger_pick");
+          setStep('messenger_pick');
           return false;
         }
-        toast.error(data.message ?? "Не удалось отправить код");
+        toast.error(data.message ?? 'Не удалось отправить код');
         return false;
       }
       setPhone(normalized);
       setChallengeId(data.challengeId);
       setRetryAfterSeconds(data.retryAfterSeconds ?? 60);
       setOtpChannel(deliveryChannel);
-      setStep("code");
+      setStep('code');
       return true;
     } finally {
       setLoading(false);
@@ -224,9 +230,9 @@ export function PhoneMessengerAuthFlow({
   const runCheckPhone = async (normalized: string) => {
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/check-phone", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
+      const res = await fetch('/api/auth/check-phone', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ phone: normalized }),
       });
       const data = (await res.json().catch(() => ({}))) as {
@@ -236,7 +242,7 @@ export function PhoneMessengerAuthFlow({
         preferredOtpChannel?: OtpUiChannel | null;
       };
       if (!res.ok || !data.ok || !data.methods) {
-        toast.error("Не удалось проверить номер");
+        toast.error('Не удалось проверить номер');
         return;
       }
       setPhone(normalized);
@@ -245,33 +251,36 @@ export function PhoneMessengerAuthFlow({
       setMethods(allowedMethods);
 
       if (hasMessengerBinding(allowedMethods)) {
-        const primary = pickOtpChannelWithPreferencePublic(allowedMethods, data.preferredOtpChannel);
+        const primary = pickOtpChannelWithPreferencePublic(
+          allowedMethods,
+          data.preferredOtpChannel,
+        );
         const ch =
-          primary === "telegram" || primary === "max"
+          primary === 'telegram' || primary === 'max'
             ? primary
             : allowedMethods.telegram
-              ? "telegram"
-              : "max";
+              ? 'telegram'
+              : 'max';
         const ok = await startPhoneOtp(normalized, ch);
         if (!ok) {
-          setStep("messenger_pick");
+          setStep('messenger_pick');
         }
       } else {
-        setStep("messenger_pick");
+        setStep('messenger_pick');
       }
     } finally {
       setLoading(false);
     }
   };
 
-  const startMessengerBind = async (channelCode: "telegram" | "max") => {
+  const startMessengerBind = async (channelCode: 'telegram' | 'max') => {
     if (!phone || !channelPolicy[channelCode]) return;
     setLoading(true);
     clearPoll();
     try {
-      const res = await fetch("/api/auth/phone/messenger-bind/start", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
+      const res = await fetch('/api/auth/phone/messenger-bind/start', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ phone, channelCode, purpose }),
       });
       const data = (await res.json().catch(() => ({}))) as {
@@ -283,17 +292,17 @@ export function PhoneMessengerAuthFlow({
         error?: string;
         retryAfterSeconds?: number;
       };
-      if (res.status === 429 || data.error === "rate_limited") {
+      if (res.status === 429 || data.error === 'rate_limited') {
         toast.error(
           data.message ??
             (data.retryAfterSeconds != null
               ? `Повторите через ${Math.ceil(data.retryAfterSeconds / 60)} мин.`
-              : "Слишком много запросов. Попробуйте позже."),
+              : 'Слишком много запросов. Попробуйте позже.'),
         );
         return;
       }
       if (!res.ok || !data.ok || !data.setupToken || !data.url) {
-        toast.error(data.message ?? "Не удалось начать привязку");
+        toast.error(data.message ?? 'Не удалось начать привязку');
         return;
       }
       const bindToken = data.setupToken;
@@ -305,17 +314,17 @@ export function PhoneMessengerAuthFlow({
         blankWin: null,
         url: data.url,
         channel: channelCode,
-        userAgent: typeof navigator !== "undefined" ? navigator.userAgent : "",
+        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
       });
-      if (channelCode === "max" && data.manualCommand) {
+      if (channelCode === 'max' && data.manualCommand) {
         try {
           await navigator.clipboard.writeText(data.manualCommand);
-          toast.success("Команда скопирована — вставьте её в чат с ботом в Max");
+          toast.success('Команда скопирована — вставьте её в чат с ботом в Max');
         } catch {
-          toast("Скопируйте команду вручную в чат с ботом в Max");
+          toast('Скопируйте команду вручную в чат с ботом в Max');
         }
       }
-      setStep("code");
+      setStep('code');
 
       void pollBindStatus(bindToken, channelCode);
       pollRef.current = setInterval(() => {
@@ -327,11 +336,12 @@ export function PhoneMessengerAuthFlow({
   };
 
   const resendOtp = async (): Promise<OtpResendOutcome> => {
-    if (!phone || !challengeId) return { kind: "error", message: "Нет данных для повторной отправки" };
+    if (!phone || !challengeId)
+      return { kind: 'error', message: 'Нет данных для повторной отправки' };
     if (setupToken && bindChannel) {
-      const statusRes = await fetch("/api/auth/phone/messenger-bind/status", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
+      const statusRes = await fetch('/api/auth/phone/messenger-bind/status', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ setupToken }),
       });
       const statusData = (await statusRes.json().catch(() => ({}))) as {
@@ -340,23 +350,30 @@ export function PhoneMessengerAuthFlow({
         challengeId?: string;
         retryAfterSeconds?: number;
       };
-      if (statusData.ok && statusData.status === "otp_ready" && statusData.challengeId) {
+      if (statusData.ok && statusData.status === 'otp_ready' && statusData.challengeId) {
         setChallengeId(statusData.challengeId);
         setRetryAfterSeconds(statusData.retryAfterSeconds ?? 60);
-        return { kind: "ok" };
+        return { kind: 'ok' };
       }
     }
     return startPhoneOtp(phone, otpChannel).then((ok) =>
-      ok ? { kind: "ok" as const } : { kind: "error" as const, message: "Не удалось отправить код" },
+      ok
+        ? { kind: 'ok' as const }
+        : { kind: 'error' as const, message: 'Не удалось отправить код' },
     );
   };
 
-  if (step === "phone") {
+  if (step === 'phone') {
     if (!hasAnyMessenger) {
       return (
         <div className="flex w-full flex-col gap-3 text-left">
           {!hideBackOnPhoneStep ? (
-            <Button type="button" variant="link" className={patientInlineLinkClass} onClick={onBack}>
+            <Button
+              type="button"
+              variant="link"
+              className={patientInlineLinkClass}
+              onClick={onBack}
+            >
               Назад
             </Button>
           ) : null}
@@ -367,17 +384,29 @@ export function PhoneMessengerAuthFlow({
     return (
       <div id="phone-messenger-auth-phone" className="flex w-full flex-col gap-3 text-left">
         {!hideBackOnPhoneStep ? (
-          <Button type="button" variant="link" className={patientInlineLinkClass} disabled={loading} onClick={onBack}>
+          <Button
+            type="button"
+            variant="link"
+            className={patientInlineLinkClass}
+            disabled={loading}
+            onClick={onBack}
+          >
             Назад
           </Button>
         ) : null}
-        <h2 className="text-center text-lg font-semibold text-[var(--patient-text-primary)]">{title}</h2>
-        <InternationalPhoneInput disabled={loading} onSubmit={runCheckPhone} submitLabel="Продолжить" />
+        <h2 className="text-center text-lg font-semibold text-[var(--patient-text-primary)]">
+          {title}
+        </h2>
+        <InternationalPhoneInput
+          disabled={loading}
+          onSubmit={runCheckPhone}
+          submitLabel="Продолжить"
+        />
       </div>
     );
   }
 
-  if (step === "messenger_pick") {
+  if (step === 'messenger_pick') {
     return (
       <div id="phone-messenger-auth-pick" className="flex w-full flex-col gap-3 text-left">
         <Button
@@ -387,55 +416,68 @@ export function PhoneMessengerAuthFlow({
           disabled={loading}
           onClick={() => {
             clearPoll();
-            setStep("phone");
+            setStep('phone');
           }}
         >
           Назад
         </Button>
         <p className={patientMutedTextClass}>
-          Для {purpose === "login" ? "входа" : "привязки"} по номеру телефона выберите удобный мессенджер
+          Для {purpose === 'login' ? 'входа' : 'привязки'} по номеру телефона выберите удобный
+          мессенджер
         </p>
         <div className="flex flex-col gap-2">
-          {channelPolicy.telegram ? <Button
-            type="button"
-            variant="outline"
-            className={AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS}
-            disabled={loading}
-            onClick={() => void startMessengerBind("telegram")}
-          >
-            Telegram
-          </Button> : null}
-          {channelPolicy.max ? <Button
-            type="button"
-            variant="outline"
-            className={AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS}
-            disabled={loading}
-            onClick={() => void startMessengerBind("max")}
-          >
-            Max
-          </Button> : null}
+          {channelPolicy.telegram ? (
+            <Button
+              type="button"
+              variant="outline"
+              className={AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS}
+              disabled={loading}
+              onClick={() => void startMessengerBind('telegram')}
+            >
+              Telegram
+            </Button>
+          ) : null}
+          {channelPolicy.max ? (
+            <Button
+              type="button"
+              variant="outline"
+              className={AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS}
+              disabled={loading}
+              onClick={() => void startMessengerBind('max')}
+            >
+              Max
+            </Button>
+          ) : null}
         </div>
       </div>
     );
   }
 
-  if (step === "code") {
-    const waitingForBot = setupToken != null && challengeId == null && purpose === "login";
-    const waitingDescription = purpose === "profile_bind"
-        ? `Подтвердите номер в ${bindChannel === "max" ? "Max" : "Telegram"}. После этого можно вернуться в приложение.`
-        : `Подтвердите номер в ${bindChannel === "max" ? "Max" : "Telegram"}, затем введите код из бота.`;
+  if (step === 'code') {
+    const waitingForBot = setupToken != null && challengeId == null && purpose === 'login';
+    const waitingDescription =
+      purpose === 'profile_bind'
+        ? `Подтвердите номер в ${bindChannel === 'max' ? 'Max' : 'Telegram'}. После этого можно вернуться в приложение.`
+        : `Подтвердите номер в ${bindChannel === 'max' ? 'Max' : 'Telegram'}, затем введите код из бота.`;
     return (
       <div id="phone-messenger-auth-code" className="flex w-full flex-col gap-3 text-left">
         {waitingForBot ? (
           <>
             <p className={patientMutedTextClass}>{waitingDescription}</p>
             {bindManualCommand ? (
-              <p className={cn(patientMutedTextClass, "text-xs")}>
-                Если бот открылся без запроса контакта, отправьте команду:{" "}
-                <span className="font-mono text-[var(--patient-text-primary)]">{bindManualCommand}</span>
+              <p className={cn(patientMutedTextClass, 'text-xs')}>
+                Если бот открылся без запроса контакта, отправьте команду:{' '}
+                <span className="font-mono text-[var(--patient-text-primary)]">
+                  {bindManualCommand}
+                </span>
               </p>
             ) : null}
-            <Button type="button" variant="link" className={patientInlineLinkClass} onClick={resetBindAttempt}>
+            <Button
+              type="button"
+              variant="link"
+              className={patientInlineLinkClass}
+              onClick={resetBindAttempt}
+            >
               Начать снова
             </Button>
           </>
@@ -445,17 +487,17 @@ export function PhoneMessengerAuthFlow({
             challengeId={challengeId}
             retryAfterSeconds={retryAfterSeconds}
             supportContactHref={supportContactHref}
-            submitLabel={purpose === "login" ? "Войти" : "Подтвердить"}
+            submitLabel={purpose === 'login' ? 'Войти' : 'Подтвердить'}
             description={messengerOtpDescription(otpChannel)}
             onConfirm={async (code) => {
               const chatId = getWebChatId();
-              const res = await fetch("/api/auth/phone/confirm", {
-                method: "POST",
-                headers: { "content-type": "application/json" },
+              const res = await fetch('/api/auth/phone/confirm', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
                 body: JSON.stringify({
                   challengeId,
                   code,
-                  channel: "web",
+                  channel: 'web',
                   chatId,
                   browserCalendarIana: getBrowserCalendarIanaForAuth(),
                 }),
@@ -464,25 +506,25 @@ export function PhoneMessengerAuthFlow({
                 ok?: boolean;
                 redirectTo?: string;
                 factorRequired?: boolean;
-                role?: "client" | "doctor" | "admin";
+                role?: 'client' | 'doctor' | 'admin';
                 message?: string;
                 error?: string;
                 retryAfterSeconds?: number;
               };
               if (data.ok && data.factorRequired) {
                 clearPoll();
-                if (purpose === "login" && onStaffFactorRequired) {
+                if (purpose === 'login' && onStaffFactorRequired) {
                   onStaffFactorRequired();
                   return { ok: true as const };
                 }
                 return {
                   ok: false as const,
-                  message: "Продолжите защищённый вход с главного экрана.",
+                  message: 'Продолжите защищённый вход с главного экрана.',
                 };
               }
               if (data.ok) {
                 clearPoll();
-                if (purpose === "profile_bind") {
+                if (purpose === 'profile_bind') {
                   onProfileComplete?.();
                   return { ok: true as const };
                 }
@@ -492,53 +534,56 @@ export function PhoneMessengerAuthFlow({
                 }
                 return { ok: true as const };
               }
-              if (data.error === "rate_limited" && data.retryAfterSeconds != null) {
+              if (data.error === 'rate_limited' && data.retryAfterSeconds != null) {
                 return {
                   ok: false as const,
-                  message: data.message ?? "",
-                  code: "rate_limited",
+                  message: data.message ?? '',
+                  code: 'rate_limited',
                   retryAfterSeconds: data.retryAfterSeconds,
                 };
               }
-              if (data.error === "server_error") {
+              if (data.error === 'server_error') {
                 return {
                   ok: false as const,
-                  message: data.message ?? "Не удалось завершить вход. Повторите ввод того же кода.",
-                  code: "server_error",
+                  message:
+                    data.message ?? 'Не удалось завершить вход. Повторите ввод того же кода.',
+                  code: 'server_error',
                 };
               }
-              return { ok: false as const, message: data.message ?? "Ошибка" };
+              return { ok: false as const, message: data.message ?? 'Ошибка' };
             }}
             onResend={resendOtp}
             onBack={() => {
               clearPoll();
               if (methods && hasMessengerBinding(methods) && exists) {
-                setStep("messenger_pick");
+                setStep('messenger_pick');
               } else if (setupToken) {
-                setStep("messenger_pick");
+                setStep('messenger_pick');
               } else {
-                setStep("phone");
+                setStep('phone');
               }
               setChallengeId(null);
             }}
             hideBack={waitingForBot}
           />
         ) : (
-          <p className={cn(patientMutedTextClass, "text-center")}>Ожидание подтверждения в мессенджере…</p>
+          <p className={cn(patientMutedTextClass, 'text-center')}>
+            Ожидание подтверждения в мессенджере…
+          </p>
         )}
         {!waitingForBot && channelPolicy.telegram && channelPolicy.max ? (
           <Button
             type="button"
             variant="link"
             className={cn(
-              "border-none bg-transparent text-sm font-medium underline-offset-2",
+              'border-none bg-transparent text-sm font-medium underline-offset-2',
               patientInlineLinkClass,
               AUTH_LOGIN_ACCENT_TEXT_CLASS,
             )}
             disabled={loading}
             onClick={() => {
               clearPoll();
-              setStep("messenger_pick");
+              setStep('messenger_pick');
               setChallengeId(null);
             }}
           >

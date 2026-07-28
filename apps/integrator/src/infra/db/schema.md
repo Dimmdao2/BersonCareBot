@@ -27,7 +27,7 @@ Core-слой хранит универсальную модель пользо�
   - `is_primary` optional
   - `created_at`, `updated_at`
   - уникальность: `UNIQUE(type, value_normalized)`
-  - это канонический shared слой контактов (phone/email/...) 
+  - это канонический shared слой контактов (phone/email/...)
 
 ## Integration tables
 

@@ -5,16 +5,16 @@ status: completed
 isProject: false
 todos:
   - id: p06-crud-first
-    content: "Сначала CRUD и простые select по id; убрать pool.query там где прямой маппинг; зафиксировать регрессию через существующие или новые unit-тесты."
+    content: 'Сначала CRUD и простые select по id; убрать pool.query там где прямой маппинг; зафиксировать регрессию через существующие или новые unit-тесты.'
     status: completed
   - id: p06-list-queries
-    content: "Динамические list-SQL: по умолчанию оставить параметризованный sql + Drizzle execute с whitelist; builder использовать только для простых фильтров без потери читаемости; benchmark нужен при изменении JOIN/order/filter формы."
+    content: 'Динамические list-SQL: по умолчанию оставить параметризованный sql + Drizzle execute с whitelist; builder использовать только для простых фильтров без потери читаемости; benchmark нужен при изменении JOIN/order/filter формы.'
     status: completed
   - id: p06-templates-diary
-    content: "pgLfkTemplates.ts, pgLfkDiary.ts: транзакции reorder/удаления; не нарушать врачебные шаблоны и пациентский дневник."
+    content: 'pgLfkTemplates.ts, pgLfkDiary.ts: транзакции reorder/удаления; не нарушать врачебные шаблоны и пациентский дневник.'
     status: completed
   - id: p06-verify
-    content: "webapp typecheck + P6 vitest bundle (27) + pnpm run ci; rg pgLfk*.ts на pool.query; smoke в LOG."
+    content: 'webapp typecheck + P6 vitest bundle (27) + pnpm run ci; rg pgLfk*.ts на pool.query; smoke в LOG.'
     status: completed
 ---
 

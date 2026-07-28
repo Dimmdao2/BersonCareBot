@@ -1,11 +1,18 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
-import { BookOpen, ClipboardList, ImageIcon, Plus, Settings } from "lucide-react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { DoctorCatalogPersistPublishBar } from "@/shared/ui/doctor/DoctorCatalogPersistPublishBar";
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from 'react';
+import { BookOpen, ClipboardList, ImageIcon, Plus, Settings } from 'lucide-react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { DoctorCatalogPersistPublishBar } from '@/shared/ui/doctor/DoctorCatalogPersistPublishBar';
 import {
   Dialog,
   DialogContent,
@@ -13,16 +20,21 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/shared/ui/doctor/primitives/dialog";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Label } from "@/shared/ui/doctor/primitives/label";
-import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/ui/doctor/primitives/select";
-import { USAGE_CONFIRMATION_REQUIRED } from "@/modules/treatment-program/errors";
+} from '@/shared/ui/doctor/primitives/dialog';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
+import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from '@/shared/ui/doctor/primitives/select';
+import { USAGE_CONFIRMATION_REQUIRED } from '@/modules/treatment-program/errors';
 import {
   treatmentProgramGroupSelectNoneItemValue,
   treatmentProgramGroupSelectNoneLabel,
-} from "@/shared/ui/doctor/selectOpaqueValueLabels";
+} from '@/shared/ui/doctor/selectOpaqueValueLabels';
 import type {
   TreatmentProgramItemType,
   TreatmentProgramLibraryPickType,
@@ -31,33 +43,33 @@ import type {
   TreatmentProgramTemplateStageGroup,
   TreatmentProgramTemplateUsageRef,
   TreatmentProgramTemplateUsageSnapshot,
-} from "@/modules/treatment-program/types";
-import { doctorTreatmentProgramTemplateUsageHref } from "../templateUsageDocLinks";
+} from '@/modules/treatment-program/types';
+import { doctorTreatmentProgramTemplateUsageHref } from '../templateUsageDocLinks';
 import {
   isTreatmentProgramTemplateSystemStageGroup,
   sortDoctorTemplateStageGroupsForDisplay,
-} from "@/modules/treatment-program/stage-semantics";
+} from '@/modules/treatment-program/stage-semantics';
 import {
   treatmentProgramTemplateUsageHasAnyReference,
   treatmentProgramTemplateUsageSections,
   type TreatmentProgramTemplateUsageSection,
-} from "../templateUsageSummaryText";
-import { TreatmentProgramTemplateStatusBadge } from "../TreatmentProgramTemplateStatusBadge";
-import { TemplateReorderChevrons } from "@/shared/ui/doctor/TemplateReorderChevrons";
-import { cn } from "@/lib/utils";
-import { MarkdownEditor } from "@/shared/ui/doctor/markdown/MarkdownEditor";
+} from '../templateUsageSummaryText';
+import { TreatmentProgramTemplateStatusBadge } from '../TreatmentProgramTemplateStatusBadge';
+import { TemplateReorderChevrons } from '@/shared/ui/doctor/TemplateReorderChevrons';
+import { cn } from '@/lib/utils';
+import { MarkdownEditor } from '@/shared/ui/doctor/markdown/MarkdownEditor';
 import {
   TreatmentProgramPipelineStagesDnd,
   TreatmentProgramSortablePipelineStage,
   TreatmentProgramSortableItemShell,
   TreatmentProgramStageItemsDnd,
-} from "@/app/app/doctor/treatment-program-shared/TreatmentProgramDndUi";
+} from '@/app/app/doctor/treatment-program-shared/TreatmentProgramDndUi';
 import {
   computeOrderedItemIdsAfterGroupItemAdjacentSwap,
   computeOrderedStageIdsAfterPipelineMove,
   planStageItemDndReorder,
   sortByOrderThenId,
-} from "@/app/app/doctor/treatment-program-shared/treatmentProgramReorderHelpers";
+} from '@/app/app/doctor/treatment-program-shared/treatmentProgramReorderHelpers';
 import {
   TPL_CONSTRUCTOR_GLOBAL_RECOMMENDATIONS_CARD_CLASS,
   TPL_CONSTRUCTOR_LEARNING_STAGE_CARD_CLASS,
@@ -66,20 +78,20 @@ import {
   TPL_HEADER_BG_RECOMMENDATIONS,
   TPL_HEADER_BG_STAGE_EDITABLE,
   tplToolbarTextBtnClass,
-} from "@/app/app/doctor/treatment-program-shared/treatmentProgramConstructorShellStyles";
+} from '@/app/app/doctor/treatment-program-shared/treatmentProgramConstructorShellStyles';
 import type {
   TreatmentProgramLibraryPickers,
   TreatmentProgramLibraryRow,
-} from "@/app/app/doctor/treatment-program-shared/treatmentProgramLibraryTypes";
-import { TreatmentProgramLibraryPickerToolbar } from "@/app/app/doctor/treatment-program-shared/TreatmentProgramLibraryPickerToolbar";
-import { useTreatmentProgramLibraryPickerList } from "@/app/app/doctor/treatment-program-shared/useTreatmentProgramLibraryPickerList";
+} from '@/app/app/doctor/treatment-program-shared/treatmentProgramLibraryTypes';
+import { TreatmentProgramLibraryPickerToolbar } from '@/app/app/doctor/treatment-program-shared/TreatmentProgramLibraryPickerToolbar';
+import { useTreatmentProgramLibraryPickerList } from '@/app/app/doctor/treatment-program-shared/useTreatmentProgramLibraryPickerList';
 
 const ITEM_TYPE_LABEL: Record<TreatmentProgramLibraryPickType, string> = {
-  exercise: "Упражнение ЛФК",
-  lfk_complex: "Комплекс ЛФК",
-  recommendation: "Рекомендация",
-  lesson: "Урок (страница контента)",
-  clinical_test: "Клинический тест",
+  exercise: 'Упражнение ЛФК',
+  lfk_complex: 'Комплекс ЛФК',
+  recommendation: 'Рекомендация',
+  lesson: 'Урок (страница контента)',
+  clinical_test: 'Клинический тест',
 };
 
 /** Квадратная кнопка «+»: открыть выбор элемента из каталога. */
@@ -107,13 +119,16 @@ function TplAddItemSquareButton({
 
 /** Откуда открыли модалку «Элемент из библиотеки» — поля группы/типа зависят от контекста. */
 type ItemDialogAddContext =
-  | "default"
-  | "global_recommendations"
-  | "stage_system_recommendations"
-  | "stage_system_tests"
-  | "custom_group";
+  | 'default'
+  | 'global_recommendations'
+  | 'stage_system_recommendations'
+  | 'stage_system_tests'
+  | 'custom_group';
 
-export type { TreatmentProgramLibraryPickers, TreatmentProgramLibraryRow } from "@/app/app/doctor/treatment-program-shared/treatmentProgramLibraryTypes";
+export type {
+  TreatmentProgramLibraryPickers,
+  TreatmentProgramLibraryRow,
+} from '@/app/app/doctor/treatment-program-shared/treatmentProgramLibraryTypes';
 
 type Props = {
   templateId: string;
@@ -125,9 +140,17 @@ type Props = {
   onArchived?: () => void;
 };
 
-function TemplateUsageSectionsView({ sections }: { sections: TreatmentProgramTemplateUsageSection[] }) {
+function TemplateUsageSectionsView({
+  sections,
+}: {
+  sections: TreatmentProgramTemplateUsageSection[];
+}) {
   if (sections.length === 0) {
-    return <p className="mt-1 text-sm text-muted-foreground">Пока не используется в программах пациентов и курсах.</p>;
+    return (
+      <p className="mt-1 text-sm text-muted-foreground">
+        Пока не используется в программах пациентов и курсах.
+      </p>
+    );
   }
   return (
     <div className="mt-2 space-y-3">
@@ -169,12 +192,12 @@ function LibraryMediaThumb({
   /** Компактная строка списка этапа (~36px). */
   compact?: boolean;
 }) {
-  const box = compact ? "size-9" : "size-12";
-  const iconSz = compact ? "size-4" : "size-5";
+  const box = compact ? 'size-9' : 'size-12';
+  const iconSz = compact ? 'size-4' : 'size-5';
   const icon =
-    itemType === "lesson" ? (
+    itemType === 'lesson' ? (
       <BookOpen className={`${iconSz} text-muted-foreground`} aria-hidden />
-    ) : itemType === "clinical_test" ? (
+    ) : itemType === 'clinical_test' ? (
       <ClipboardList className={`${iconSz} text-muted-foreground`} aria-hidden />
     ) : (
       <ImageIcon className={`${iconSz} text-muted-foreground`} aria-hidden />
@@ -206,15 +229,15 @@ function findLibraryRow(
 ): TreatmentProgramLibraryRow | null {
   const rows = (() => {
     switch (type) {
-      case "exercise":
+      case 'exercise':
         return lib.exercises;
-      case "lfk_complex":
+      case 'lfk_complex':
         return lib.lfkComplexes;
-      case "clinical_test":
+      case 'clinical_test':
         return lib.clinicalTests;
-      case "recommendation":
+      case 'recommendation':
         return lib.recommendations;
-      case "lesson":
+      case 'lesson':
         return lib.lessons;
       default:
         return [];
@@ -234,7 +257,9 @@ function isTemplateItemDndEligible(
 }
 
 function templateStageDndItemIds(stage: StageWithChildren): string[] {
-  return sortByOrderThenId(stage.items.filter((it) => isTemplateItemDndEligible(stage, it))).map((it) => it.id);
+  return sortByOrderThenId(stage.items.filter((it) => isTemplateItemDndEligible(stage, it))).map(
+    (it) => it.id,
+  );
 }
 
 function StageItemListRow({
@@ -280,7 +305,7 @@ function StageItemListRow({
   return <li className="flex min-w-0 items-center gap-2 px-2 py-2">{rowBody}</li>;
 }
 
-type StageWithChildren = TreatmentProgramTemplateDetail["stages"][number];
+type StageWithChildren = TreatmentProgramTemplateDetail['stages'][number];
 
 function orderedGroupsForStage(stage: StageWithChildren) {
   return sortDoctorTemplateStageGroupsForDisplay(stage.groups);
@@ -295,10 +320,10 @@ function itemsInGroupForStage(stage: StageWithChildren, groupId: string) {
 }
 
 function templateGroupHeaderSurfaceStyle(g: TreatmentProgramTemplateStageGroup): CSSProperties {
-  if (g.systemKind === "recommendations") {
+  if (g.systemKind === 'recommendations') {
     return { background: TPL_HEADER_BG_RECOMMENDATIONS };
   }
-  if (g.systemKind === "tests") {
+  if (g.systemKind === 'tests') {
     return { background: TPL_HEADER_BG_GROUP_TESTS };
   }
   return { background: TPL_HEADER_BG_GROUP_CUSTOM };
@@ -327,12 +352,12 @@ function TemplateStageItemCommentBlock({
   disabled: boolean;
   onReload: () => Promise<void>;
 }) {
-  const [value, setValue] = useState(initialComment ?? "");
+  const [value, setValue] = useState(initialComment ?? '');
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    setValue(initialComment ?? "");
+    setValue(initialComment ?? '');
   }, [itemId, initialComment]);
 
   return (
@@ -358,24 +383,27 @@ function TemplateStageItemCommentBlock({
             setSaving(true);
             setMsg(null);
             try {
-              const res = await fetch(`/api/doctor/treatment-program-templates/stage-items/${itemId}`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ comment: value.trim() === "" ? null : value.trim() }),
-              });
+              const res = await fetch(
+                `/api/doctor/treatment-program-templates/stage-items/${itemId}`,
+                {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ comment: value.trim() === '' ? null : value.trim() }),
+                },
+              );
               const json = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
               if (!res.ok || !json.ok) {
-                setMsg(json.error ?? "Не удалось сохранить");
+                setMsg(json.error ?? 'Не удалось сохранить');
                 return;
               }
               await onReload();
-              setMsg("Сохранено");
+              setMsg('Сохранено');
             } finally {
               setSaving(false);
             }
           }}
         >
-          {saving ? "Сохранение…" : "Сохранить комментарий"}
+          {saving ? 'Сохранение…' : 'Сохранить комментарий'}
         </Button>
         {msg ? <span className="text-xs text-muted-foreground">{msg}</span> : null}
       </div>
@@ -397,16 +425,16 @@ export function TreatmentProgramConstructorClient({
   const [stageSettingsStageId, setStageSettingsStageId] = useState<string | null>(null);
   const [itemSettingsItemId, setItemSettingsItemId] = useState<string | null>(null);
   const [stageDialogOpen, setStageDialogOpen] = useState(false);
-  const [newStageTitle, setNewStageTitle] = useState("");
-  const [newStageGoals, setNewStageGoals] = useState("");
-  const [newStageObjectives, setNewStageObjectives] = useState("");
+  const [newStageTitle, setNewStageTitle] = useState('');
+  const [newStageGoals, setNewStageGoals] = useState('');
+  const [newStageObjectives, setNewStageObjectives] = useState('');
   const [itemDialogOpen, setItemDialogOpen] = useState(false);
-  const [itemType, setItemType] = useState<TreatmentProgramLibraryPickType>("exercise");
-  const [itemSearch, setItemSearch] = useState("");
+  const [itemType, setItemType] = useState<TreatmentProgramLibraryPickType>('exercise');
+  const [itemSearch, setItemSearch] = useState('');
   const [itemRegionCode, setItemRegionCode] = useState<string | null>(null);
   const [itemLoadType, setItemLoadType] = useState<string | null>(null);
   const resetLibraryPickerFilters = useCallback(() => {
-    setItemSearch("");
+    setItemSearch('');
     setItemRegionCode(null);
     setItemLoadType(null);
   }, []);
@@ -416,37 +444,38 @@ export function TreatmentProgramConstructorClient({
   const [usageBusy, setUsageBusy] = useState(false);
   const [usageLoadError, setUsageLoadError] = useState<string | null>(null);
   const [archiveWarnOpen, setArchiveWarnOpen] = useState(false);
-  const [archiveWarnUsage, setArchiveWarnUsage] = useState<TreatmentProgramTemplateUsageSnapshot | null>(null);
-  const [goalsDraft, setGoalsDraft] = useState("");
-  const [objectivesDraft, setObjectivesDraft] = useState("");
-  const [durationDaysDraft, setDurationDaysDraft] = useState("");
-  const [durationTextDraft, setDurationTextDraft] = useState("");
-  const [stageTitleDraft, setStageTitleDraft] = useState("");
-  const [stageDescriptionDraft, setStageDescriptionDraft] = useState("");
+  const [archiveWarnUsage, setArchiveWarnUsage] =
+    useState<TreatmentProgramTemplateUsageSnapshot | null>(null);
+  const [goalsDraft, setGoalsDraft] = useState('');
+  const [objectivesDraft, setObjectivesDraft] = useState('');
+  const [durationDaysDraft, setDurationDaysDraft] = useState('');
+  const [durationTextDraft, setDurationTextDraft] = useState('');
+  const [stageTitleDraft, setStageTitleDraft] = useState('');
+  const [stageDescriptionDraft, setStageDescriptionDraft] = useState('');
   const [stageMetaMsg, setStageMetaMsg] = useState<string | null>(null);
   const [titleDraft, setTitleDraft] = useState(initialDetail.title);
-  const [descriptionDraft, setDescriptionDraft] = useState(initialDetail.description ?? "");
+  const [descriptionDraft, setDescriptionDraft] = useState(initialDetail.description ?? '');
   const [templateBasicsBusy, setTemplateBasicsBusy] = useState(false);
   const [groupDialogOpen, setGroupDialogOpen] = useState(false);
-  const [newGroupTitle, setNewGroupTitle] = useState("");
-  const [newGroupSchedule, setNewGroupSchedule] = useState("");
-  const [newGroupDescription, setNewGroupDescription] = useState("");
+  const [newGroupTitle, setNewGroupTitle] = useState('');
+  const [newGroupSchedule, setNewGroupSchedule] = useState('');
+  const [newGroupDescription, setNewGroupDescription] = useState('');
   const [groupEditOpen, setGroupEditOpen] = useState(false);
   const [groupEditId, setGroupEditId] = useState<string | null>(null);
-  const [groupEditTitle, setGroupEditTitle] = useState("");
-  const [groupEditSchedule, setGroupEditSchedule] = useState("");
-  const [groupEditDescription, setGroupEditDescription] = useState("");
-  const [itemAddGroupId, setItemAddGroupId] = useState<string>("");
+  const [groupEditTitle, setGroupEditTitle] = useState('');
+  const [groupEditSchedule, setGroupEditSchedule] = useState('');
+  const [groupEditDescription, setGroupEditDescription] = useState('');
+  const [itemAddGroupId, setItemAddGroupId] = useState<string>('');
   /** Требуется явная пользовательская группа (не рек./тесты, не ЛФК «без группы») — показать подсветку селекта. */
   const [itemAddGroupShowInvalid, setItemAddGroupShowInvalid] = useState(false);
-  const [itemDialogAddContext, setItemDialogAddContext] = useState<ItemDialogAddContext>("default");
+  const [itemDialogAddContext, setItemDialogAddContext] = useState<ItemDialogAddContext>('default');
   /** В системной группе «Тестирование»: развернуть набор или добавить один тест. */
-  const [testsAddMode, setTestsAddMode] = useState<"expand_set" | "single_test">("expand_set");
+  const [testsAddMode, setTestsAddMode] = useState<'expand_set' | 'single_test'>('expand_set');
 
   useEffect(() => {
     setDetail(initialDetail);
     setTitleDraft(initialDetail.title);
-    setDescriptionDraft(initialDetail.description ?? "");
+    setDescriptionDraft(initialDetail.description ?? '');
   }, [initialDetail]);
 
   useEffect(() => {
@@ -461,19 +490,22 @@ export function TreatmentProgramConstructorClient({
     setUsageLoadError(null);
     void fetch(`/api/doctor/treatment-program-templates/${templateId}/usage`)
       .then(async (res) => {
-        const json = (await res.json()) as { ok?: boolean; usage?: TreatmentProgramTemplateUsageSnapshot };
+        const json = (await res.json()) as {
+          ok?: boolean;
+          usage?: TreatmentProgramTemplateUsageSnapshot;
+        };
         if (!cancelled) {
           if (res.ok && json.ok && json.usage) setUsage(json.usage);
           else {
             setUsage(null);
-            setUsageLoadError("Не удалось загрузить сводку использования");
+            setUsageLoadError('Не удалось загрузить сводку использования');
           }
         }
       })
       .catch(() => {
         if (!cancelled) {
           setUsage(null);
-          setUsageLoadError("Не удалось загрузить сводку использования");
+          setUsageLoadError('Не удалось загрузить сводку использования');
         }
       })
       .finally(() => {
@@ -491,22 +523,26 @@ export function TreatmentProgramConstructorClient({
 
   const reload = useCallback(async () => {
     const res = await fetch(`/api/doctor/treatment-program-templates/${templateId}`);
-    const json = (await res.json()) as { ok?: boolean; item?: TreatmentProgramTemplateDetail; error?: string };
+    const json = (await res.json()) as {
+      ok?: boolean;
+      item?: TreatmentProgramTemplateDetail;
+      error?: string;
+    };
     if (json.ok && json.item) {
       setDetail(json.item);
       setTitleDraft(json.item.title);
-      setDescriptionDraft(json.item.description ?? "");
+      setDescriptionDraft(json.item.description ?? '');
     }
   }, [templateId]);
 
-  const isArchived = detail.status === "archived";
+  const isArchived = detail.status === 'archived';
 
   /** Несохранённые правки названия/описания (структура этапов пишется в API сразу). */
   const templateBasicsDirty = useMemo(() => {
     const t = titleDraft.trim();
     if (!t) return false;
     const descTrimmed = descriptionDraft.trim();
-    const d = descTrimmed === "" ? null : descTrimmed;
+    const d = descTrimmed === '' ? null : descTrimmed;
     return t !== detail.title || d !== (detail.description ?? null);
   }, [descriptionDraft, detail.description, detail.title, titleDraft]);
 
@@ -514,7 +550,10 @@ export function TreatmentProgramConstructorClient({
     if (externalUsageSnapshot !== undefined) return;
     try {
       const res = await fetch(`/api/doctor/treatment-program-templates/${templateId}/usage`);
-      const json = (await res.json()) as { ok?: boolean; usage?: TreatmentProgramTemplateUsageSnapshot };
+      const json = (await res.json()) as {
+        ok?: boolean;
+        usage?: TreatmentProgramTemplateUsageSnapshot;
+      };
       if (res.ok && json.ok && json.usage) setUsage(json.usage);
     } catch {
       /* ignore */
@@ -525,19 +564,19 @@ export function TreatmentProgramConstructorClient({
     if (isArchived || templateBasicsBusy) return;
     const t = titleDraft.trim();
     if (!t) {
-      setError("Укажите название шаблона");
+      setError('Укажите название шаблона');
       setTitleDraft(detail.title);
       return;
     }
     const descTrimmed = descriptionDraft.trim();
-    const d = descTrimmed === "" ? null : descTrimmed;
+    const d = descTrimmed === '' ? null : descTrimmed;
     if (t === detail.title && d === (detail.description ?? null)) return;
     setTemplateBasicsBusy(true);
     setError(null);
     try {
       const res = await fetch(`/api/doctor/treatment-program-templates/${templateId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: t, description: d }),
       });
       const json = (await res.json()) as {
@@ -546,7 +585,7 @@ export function TreatmentProgramConstructorClient({
         error?: string;
       };
       if (!res.ok || !json.ok) {
-        setError(json.error ?? "Не удалось сохранить название и описание");
+        setError(json.error ?? 'Не удалось сохранить название и описание');
         return;
       }
       await reload();
@@ -572,7 +611,7 @@ export function TreatmentProgramConstructorClient({
     const url = withAck
       ? `/api/doctor/treatment-program-templates/${templateId}?acknowledgeUsageWarning=1`
       : `/api/doctor/treatment-program-templates/${templateId}`;
-    const res = await fetch(url, { method: "DELETE" });
+    const res = await fetch(url, { method: 'DELETE' });
     const json = (await res.json()) as {
       ok?: boolean;
       code?: string;
@@ -585,7 +624,7 @@ export function TreatmentProgramConstructorClient({
       setArchiveWarnOpen(true);
       return false;
     }
-    setError(json.error ?? "Не удалось отправить шаблон в архив");
+    setError(json.error ?? 'Не удалось отправить шаблон в архив');
     return false;
   }
 
@@ -625,19 +664,19 @@ export function TreatmentProgramConstructorClient({
   }
 
   const patchPublicationStatus = useCallback(
-    async (status: "draft" | "published") => {
-      if (detail.status === "archived") return;
+    async (status: 'draft' | 'published') => {
+      if (detail.status === 'archived') return;
       setBusy(true);
       setError(null);
       try {
         const res = await fetch(`/api/doctor/treatment-program-templates/${templateId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ status }),
         });
         const json = (await res.json()) as { ok?: boolean; error?: string };
         if (!res.ok || !json.ok) {
-          setError(json.error ?? "Не удалось обновить статус шаблона");
+          setError(json.error ?? 'Не удалось обновить статус шаблона');
           return;
         }
         await reload();
@@ -656,11 +695,14 @@ export function TreatmentProgramConstructorClient({
     () => orderedStages.find((s) => s.sortOrder === 0) ?? null,
     [orderedStages],
   );
-  const stagesNonZero = useMemo(() => orderedStages.filter((s) => s.sortOrder !== 0), [orderedStages]);
+  const stagesNonZero = useMemo(
+    () => orderedStages.filter((s) => s.sortOrder !== 0),
+    [orderedStages],
+  );
 
   useEffect(() => {
-    if (itemDialogAddContext === "custom_group") return;
-    setItemAddGroupId("");
+    if (itemDialogAddContext === 'custom_group') return;
+    setItemAddGroupId('');
   }, [itemDialogStageId, itemType, itemDialogAddContext]);
 
   useEffect(() => {
@@ -670,7 +712,7 @@ export function TreatmentProgramConstructorClient({
     if (itemDialogStageId && !detail.stages.some((s) => s.id === itemDialogStageId)) {
       setItemDialogOpen(false);
       setItemDialogStageId(null);
-      setItemDialogAddContext("default");
+      setItemDialogAddContext('default');
     }
     if (groupDialogStageId && !detail.stages.some((s) => s.id === groupDialogStageId)) {
       setGroupDialogOpen(false);
@@ -689,11 +731,11 @@ export function TreatmentProgramConstructorClient({
     const st = detail.stages.find((s) => s.id === stageSettingsStageId);
     if (!st) return;
     setStageTitleDraft(st.title);
-    setStageDescriptionDraft(st.description ?? "");
-    setGoalsDraft(st.goals ?? "");
-    setObjectivesDraft(st.objectives ?? "");
-    setDurationDaysDraft(st.expectedDurationDays != null ? String(st.expectedDurationDays) : "");
-    setDurationTextDraft(st.expectedDurationText ?? "");
+    setStageDescriptionDraft(st.description ?? '');
+    setGoalsDraft(st.goals ?? '');
+    setObjectivesDraft(st.objectives ?? '');
+    setDurationDaysDraft(st.expectedDurationDays != null ? String(st.expectedDurationDays) : '');
+    setDurationTextDraft(st.expectedDurationText ?? '');
     setStageMetaMsg(null);
   }, [stageSettingsStageId, detail.stages]);
 
@@ -704,39 +746,45 @@ export function TreatmentProgramConstructorClient({
     return sortDoctorTemplateStageGroupsForDisplay(st.groups).filter((g) => !g.systemKind);
   }, [detail.stages, itemDialogStageId]);
 
-  const openItemDialogFromGlobalRecommendations = useCallback((stageId: string) => {
-    setItemDialogAddContext("global_recommendations");
-    setItemDialogStageId(stageId);
-    setItemType("recommendation");
-    setItemAddGroupId("");
-    resetLibraryPickerFilters();
-    setItemAddGroupShowInvalid(false);
-    setItemDialogOpen(true);
-  }, [resetLibraryPickerFilters]);
+  const openItemDialogFromGlobalRecommendations = useCallback(
+    (stageId: string) => {
+      setItemDialogAddContext('global_recommendations');
+      setItemDialogStageId(stageId);
+      setItemType('recommendation');
+      setItemAddGroupId('');
+      resetLibraryPickerFilters();
+      setItemAddGroupShowInvalid(false);
+      setItemDialogOpen(true);
+    },
+    [resetLibraryPickerFilters],
+  );
 
-  const openItemDialogFromGroup = useCallback((stageId: string, g: TreatmentProgramTemplateStageGroup) => {
-    setItemDialogStageId(stageId);
-    resetLibraryPickerFilters();
-    setItemAddGroupShowInvalid(false);
-    if (g.systemKind === "recommendations") {
-      setItemDialogAddContext("stage_system_recommendations");
-      setItemType("recommendation");
-      setItemAddGroupId("");
-    } else if (g.systemKind === "tests") {
-      setItemDialogAddContext("stage_system_tests");
-      setTestsAddMode("expand_set");
-      setItemType("clinical_test");
-      setItemAddGroupId("");
-    } else {
-      setItemDialogAddContext("custom_group");
-      setItemType("exercise");
-      setItemAddGroupId(g.id);
-    }
-    setItemDialogOpen(true);
-  }, [resetLibraryPickerFilters]);
+  const openItemDialogFromGroup = useCallback(
+    (stageId: string, g: TreatmentProgramTemplateStageGroup) => {
+      setItemDialogStageId(stageId);
+      resetLibraryPickerFilters();
+      setItemAddGroupShowInvalid(false);
+      if (g.systemKind === 'recommendations') {
+        setItemDialogAddContext('stage_system_recommendations');
+        setItemType('recommendation');
+        setItemAddGroupId('');
+      } else if (g.systemKind === 'tests') {
+        setItemDialogAddContext('stage_system_tests');
+        setTestsAddMode('expand_set');
+        setItemType('clinical_test');
+        setItemAddGroupId('');
+      } else {
+        setItemDialogAddContext('custom_group');
+        setItemType('exercise');
+        setItemAddGroupId(g.id);
+      }
+      setItemDialogOpen(true);
+    },
+    [resetLibraryPickerFilters],
+  );
 
-  const allowUngroupedItemAdd = itemType === "recommendation" || itemType === "clinical_test";
-  const itemAddNeedsPickableGroup = !allowUngroupedItemAdd && itemType !== "lfk_complex";
+  const allowUngroupedItemAdd = itemType === 'recommendation' || itemType === 'clinical_test';
+  const itemAddNeedsPickableGroup = !allowUngroupedItemAdd && itemType !== 'lfk_complex';
 
   useEffect(() => {
     if (!itemDialogOpen) setItemAddGroupShowInvalid(false);
@@ -744,7 +792,7 @@ export function TreatmentProgramConstructorClient({
 
   useEffect(() => {
     if (!itemDialogOpen || !itemAddNeedsPickableGroup) return;
-    const picked = itemAddGroupId && itemAddGroupId !== "__none__" ? itemAddGroupId.trim() : "";
+    const picked = itemAddGroupId && itemAddGroupId !== '__none__' ? itemAddGroupId.trim() : '';
     if (picked && itemPickerGroupsOrdered.some((g) => g.id === picked)) {
       setItemAddGroupShowInvalid(false);
     }
@@ -753,10 +801,14 @@ export function TreatmentProgramConstructorClient({
   useEffect(() => {
     if (!itemDialogOpen || !itemDialogStageId) return;
     /** Для комплекса ЛФК целевую группу выбирает врач вручную (в т.ч. «Без группы»). */
-    if (itemDialogAddContext === "custom_group") return;
-    if (!allowUngroupedItemAdd && itemType !== "lfk_complex" && itemPickerGroupsOrdered.length > 0) {
+    if (itemDialogAddContext === 'custom_group') return;
+    if (
+      !allowUngroupedItemAdd &&
+      itemType !== 'lfk_complex' &&
+      itemPickerGroupsOrdered.length > 0
+    ) {
       setItemAddGroupId((prev) => {
-        const cur = prev && prev !== "__none__" ? prev.trim() : "";
+        const cur = prev && prev !== '__none__' ? prev.trim() : '';
         if (cur && itemPickerGroupsOrdered.some((g) => g.id === cur)) return prev;
         return itemPickerGroupsOrdered[0]!.id;
       });
@@ -771,19 +823,19 @@ export function TreatmentProgramConstructorClient({
   ]);
 
   const pickerBaseList = useMemo((): TreatmentProgramLibraryRow[] => {
-    if (itemDialogAddContext === "stage_system_tests") {
-      return testsAddMode === "expand_set" ? library.testSets : library.clinicalTests;
+    if (itemDialogAddContext === 'stage_system_tests') {
+      return testsAddMode === 'expand_set' ? library.testSets : library.clinicalTests;
     }
     switch (itemType) {
-      case "exercise":
+      case 'exercise':
         return library.exercises;
-      case "lfk_complex":
+      case 'lfk_complex':
         return library.lfkComplexes;
-      case "clinical_test":
+      case 'clinical_test':
         return library.clinicalTests;
-      case "recommendation":
+      case 'recommendation':
         return library.recommendations;
-      case "lesson":
+      case 'lesson':
         return library.lessons;
       default:
         return [];
@@ -791,9 +843,13 @@ export function TreatmentProgramConstructorClient({
   }, [itemType, library, itemDialogAddContext, testsAddMode]);
 
   const libraryPickerPickType: TreatmentProgramLibraryPickType =
-    itemDialogAddContext === "stage_system_tests" ? "clinical_test" : itemType;
+    itemDialogAddContext === 'stage_system_tests' ? 'clinical_test' : itemType;
 
-  const { filteredRows: pickerList, emptyMessage, applyRegionLoadFilters } = useTreatmentProgramLibraryPickerList({
+  const {
+    filteredRows: pickerList,
+    emptyMessage,
+    applyRegionLoadFilters,
+  } = useTreatmentProgramLibraryPickerList({
     rows: pickerBaseList,
     searchQuery: itemSearch,
     regionCode: itemRegionCode,
@@ -803,8 +859,8 @@ export function TreatmentProgramConstructorClient({
 
   async function patchStageSortOrder(stageId: string, sortOrder: number): Promise<boolean> {
     const res = await fetch(`/api/doctor/treatment-program-templates/stages/${stageId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sortOrder }),
     });
     const json = (await res.json()) as { ok?: boolean; error?: string };
@@ -818,15 +874,15 @@ export function TreatmentProgramConstructorClient({
     if (stMeta?.sortOrder === 0) return;
     const titleTrim = stageTitleDraft.trim();
     if (!titleTrim) {
-      setStageMetaMsg("Укажите название этапа");
+      setStageMetaMsg('Укажите название этапа');
       return;
     }
     const daysTrim = durationDaysDraft.trim();
     let expectedDurationDays: number | null = null;
-    if (daysTrim !== "") {
+    if (daysTrim !== '') {
       const n = Number.parseInt(daysTrim, 10);
       if (!Number.isFinite(n) || n < 0 || String(n) !== daysTrim) {
-        setStageMetaMsg("Ожидаемый срок в днях: неотрицательное целое число");
+        setStageMetaMsg('Ожидаемый срок в днях: неотрицательное целое число');
         return;
       }
       expectedDurationDays = n;
@@ -835,11 +891,11 @@ export function TreatmentProgramConstructorClient({
     setStageMetaMsg(null);
     try {
       const res = await fetch(`/api/doctor/treatment-program-templates/stages/${sid}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: titleTrim,
-          description: stageDescriptionDraft.trim() === "" ? null : stageDescriptionDraft.trim(),
+          description: stageDescriptionDraft.trim() === '' ? null : stageDescriptionDraft.trim(),
           goals: goalsDraft.trim() || null,
           objectives: objectivesDraft.trim() || null,
           expectedDurationDays,
@@ -848,11 +904,11 @@ export function TreatmentProgramConstructorClient({
       });
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) {
-        setStageMetaMsg(json.error ?? "Не удалось сохранить");
+        setStageMetaMsg(json.error ?? 'Не удалось сохранить');
         return;
       }
       await reload();
-      setStageMetaMsg("Сохранено");
+      setStageMetaMsg('Сохранено');
     } finally {
       setBusy(false);
     }
@@ -862,14 +918,14 @@ export function TreatmentProgramConstructorClient({
     const res = await fetch(
       `/api/doctor/treatment-program-templates/${encodeURIComponent(detail.id)}/stages/reorder`,
       {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ orderedStageIds }),
       },
     );
     const json = (await res.json()) as { ok?: boolean; error?: string };
     if (!res.ok || !json.ok) {
-      setError(json.error ?? "Не удалось изменить порядок этапов");
+      setError(json.error ?? 'Не удалось изменить порядок этапов');
       return false;
     }
     return true;
@@ -879,14 +935,14 @@ export function TreatmentProgramConstructorClient({
     const res = await fetch(
       `/api/doctor/treatment-program-templates/stages/${encodeURIComponent(stageId)}/items/reorder`,
       {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ orderedItemIds }),
       },
     );
     const json = (await res.json()) as { ok?: boolean; error?: string };
     if (!res.ok || !json.ok) {
-      setError(json.error ?? "Не удалось изменить порядок элементов");
+      setError(json.error ?? 'Не удалось изменить порядок элементов');
       return false;
     }
     return true;
@@ -900,7 +956,7 @@ export function TreatmentProgramConstructorClient({
     const overId = pipeline[j]!.id;
     const ordered = computeOrderedStageIdsAfterPipelineMove(detail.stages, stageId, overId);
     if (!ordered) {
-      setError("Не удалось изменить порядок этапов");
+      setError('Не удалось изменить порядок этапов');
       return;
     }
     setBusy(true);
@@ -917,7 +973,7 @@ export function TreatmentProgramConstructorClient({
   async function handlePipelineStageDnd(activeId: string, overId: string) {
     const ordered = computeOrderedStageIdsAfterPipelineMove(detail.stages, activeId, overId);
     if (!ordered) {
-      setError("Не удалось изменить порядок этапов");
+      setError('Не удалось изменить порядок этапов');
       return;
     }
     setBusy(true);
@@ -932,13 +988,14 @@ export function TreatmentProgramConstructorClient({
   }
 
   async function handleStageItemDnd(stage: StageWithChildren, activeId: string, overId: string) {
-    const canParticipate = (item: TreatmentProgramStageItem) => isTemplateItemDndEligible(stage, item);
+    const canParticipate = (item: TreatmentProgramStageItem) =>
+      isTemplateItemDndEligible(stage, item);
     const plan = planStageItemDndReorder(stage.items, activeId, overId, canParticipate);
     if (!plan.ok) {
-      if (plan.error === "ungrouped_type") {
-        setError("Без группы допустимы только рекомендации и клинические тесты");
+      if (plan.error === 'ungrouped_type') {
+        setError('Без группы допустимы только рекомендации и клинические тесты');
       } else {
-        setError("Не удалось изменить порядок элементов");
+        setError('Не удалось изменить порядок элементов');
       }
       return;
     }
@@ -948,7 +1005,7 @@ export function TreatmentProgramConstructorClient({
       if (plan.needsGroupPatch) {
         const okGroup = await patchItemGroupId(activeId, plan.nextGroupId);
         if (!okGroup) {
-          setError("Не удалось сменить группу элемента");
+          setError('Не удалось сменить группу элемента');
           return;
         }
       }
@@ -964,23 +1021,23 @@ export function TreatmentProgramConstructorClient({
   }
 
   async function handleDeleteStage(stageId: string): Promise<boolean> {
-    if (!globalThis.confirm("Удалить этап и все элементы в нём?")) return false;
+    if (!globalThis.confirm('Удалить этап и все элементы в нём?')) return false;
     setBusy(true);
     setError(null);
     try {
       const res = await fetch(`/api/doctor/treatment-program-templates/stages/${stageId}`, {
-        method: "DELETE",
+        method: 'DELETE',
       });
       const json = (await res.json()) as { ok?: boolean };
       if (!res.ok || !json.ok) {
-        setError("Не удалось удалить этап");
+        setError('Не удалось удалить этап');
         return false;
       }
       if (stageSettingsStageId === stageId) setStageSettingsStageId(null);
       if (itemDialogStageId === stageId) {
         setItemDialogOpen(false);
         setItemDialogStageId(null);
-        setItemDialogAddContext("default");
+        setItemDialogAddContext('default');
       }
       if (groupDialogStageId === stageId) {
         setGroupDialogOpen(false);
@@ -1003,7 +1060,12 @@ export function TreatmentProgramConstructorClient({
     itemId: string,
     dir: -1 | 1,
   ) {
-    const ordered = computeOrderedItemIdsAfterGroupItemAdjacentSwap(stage.items, groupId, itemId, dir);
+    const ordered = computeOrderedItemIdsAfterGroupItemAdjacentSwap(
+      stage.items,
+      groupId,
+      itemId,
+      dir,
+    );
     if (!ordered) return;
     setBusy(true);
     setError(null);
@@ -1021,8 +1083,8 @@ export function TreatmentProgramConstructorClient({
 
   async function patchItemGroupId(itemId: string, groupId: string | null) {
     const res = await fetch(`/api/doctor/treatment-program-templates/stage-items/${itemId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ groupId }),
     });
     const json = (await res.json()) as { ok?: boolean; error?: string };
@@ -1036,23 +1098,26 @@ export function TreatmentProgramConstructorClient({
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/doctor/treatment-program-templates/stages/${groupDialogStageId}/groups`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title,
-          description: newGroupDescription.trim() || null,
-          scheduleText: newGroupSchedule.trim() || null,
-        }),
-      });
+      const res = await fetch(
+        `/api/doctor/treatment-program-templates/stages/${groupDialogStageId}/groups`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title,
+            description: newGroupDescription.trim() || null,
+            scheduleText: newGroupSchedule.trim() || null,
+          }),
+        },
+      );
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) {
-        setError(json.error ?? "Не удалось добавить группу");
+        setError(json.error ?? 'Не удалось добавить группу');
         return;
       }
-      setNewGroupTitle("");
-      setNewGroupSchedule("");
-      setNewGroupDescription("");
+      setNewGroupTitle('');
+      setNewGroupSchedule('');
+      setNewGroupDescription('');
       setGroupDialogOpen(false);
       setGroupDialogStageId(null);
       await reload();
@@ -1062,7 +1127,9 @@ export function TreatmentProgramConstructorClient({
   }
 
   async function handleReorderGroup(stage: StageWithChildren, groupId: string, dir: -1 | 1) {
-    const sorted = sortDoctorTemplateStageGroupsForDisplay(stage.groups).filter((g) => !g.systemKind);
+    const sorted = sortDoctorTemplateStageGroupsForDisplay(stage.groups).filter(
+      (g) => !g.systemKind,
+    );
     const idx = sorted.findIndex((g) => g.id === groupId);
     const j = idx + dir;
     if (idx < 0 || j < 0 || j >= sorted.length) return;
@@ -1077,14 +1144,14 @@ export function TreatmentProgramConstructorClient({
       const res = await fetch(
         `/api/doctor/treatment-program-templates/stages/${stage.id}/groups/reorder`,
         {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ orderedGroupIds: newOrder }),
         },
       );
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) {
-        setError(json.error ?? "Не удалось изменить порядок групп");
+        setError(json.error ?? 'Не удалось изменить порядок групп');
         return;
       }
       await reload();
@@ -1096,19 +1163,19 @@ export function TreatmentProgramConstructorClient({
   async function handleDeleteGroup(groupId: string) {
     const found = detail.stages.flatMap((st) => st.groups).find((g) => g.id === groupId);
     if (found && isTreatmentProgramTemplateSystemStageGroup(found)) {
-      setError("Системную группу нельзя удалить");
+      setError('Системную группу нельзя удалить');
       return;
     }
-    if (!globalThis.confirm("Удалить группу? Элементы останутся вне группы.")) return;
+    if (!globalThis.confirm('Удалить группу? Элементы останутся вне группы.')) return;
     setBusy(true);
     setError(null);
     try {
       const res = await fetch(`/api/doctor/treatment-program-templates/stage-groups/${groupId}`, {
-        method: "DELETE",
+        method: 'DELETE',
       });
       const json = (await res.json()) as { ok?: boolean };
       if (!res.ok || !json.ok) {
-        setError("Не удалось удалить группу");
+        setError('Не удалось удалить группу');
         return;
       }
       await reload();
@@ -1125,8 +1192,8 @@ export function TreatmentProgramConstructorClient({
     if (isTreatmentProgramTemplateSystemStageGroup(g)) return;
     setGroupEditId(g.id);
     setGroupEditTitle(g.title);
-    setGroupEditSchedule(g.scheduleText ?? "");
-    setGroupEditDescription(g.description ?? "");
+    setGroupEditSchedule(g.scheduleText ?? '');
+    setGroupEditDescription(g.description ?? '');
     setGroupEditOpen(true);
   }
 
@@ -1139,18 +1206,21 @@ export function TreatmentProgramConstructorClient({
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/doctor/treatment-program-templates/stage-groups/${groupEditId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title,
-          description: groupEditDescription.trim() || null,
-          scheduleText: groupEditSchedule.trim() || null,
-        }),
-      });
+      const res = await fetch(
+        `/api/doctor/treatment-program-templates/stage-groups/${groupEditId}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title,
+            description: groupEditDescription.trim() || null,
+            scheduleText: groupEditSchedule.trim() || null,
+          }),
+        },
+      );
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) {
-        setError(json.error ?? "Не удалось сохранить группу");
+        setError(json.error ?? 'Не удалось сохранить группу');
         return;
       }
       setGroupEditOpen(false);
@@ -1168,8 +1238,8 @@ export function TreatmentProgramConstructorClient({
     setError(null);
     try {
       const res = await fetch(`/api/doctor/treatment-program-templates/${templateId}/stages`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title,
           goals: newStageGoals.trim() || null,
@@ -1178,12 +1248,12 @@ export function TreatmentProgramConstructorClient({
       });
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) {
-        setError(json.error ?? "Не удалось добавить этап");
+        setError(json.error ?? 'Не удалось добавить этап');
         return;
       }
-      setNewStageTitle("");
-      setNewStageGoals("");
-      setNewStageObjectives("");
+      setNewStageTitle('');
+      setNewStageGoals('');
+      setNewStageObjectives('');
       setStageDialogOpen(false);
       await reload();
     } finally {
@@ -1197,35 +1267,35 @@ export function TreatmentProgramConstructorClient({
     if (!st) return;
 
     let gid: string | null = null;
-    if (itemType === "recommendation") {
+    if (itemType === 'recommendation') {
       if (st.sortOrder === 0) {
         gid = null;
       } else {
-        const rg = st.groups.find((g) => g.systemKind === "recommendations");
+        const rg = st.groups.find((g) => g.systemKind === 'recommendations');
         if (!rg) {
-          setError("Не найдена системная группа «Рекомендации» для этапа");
+          setError('Не найдена системная группа «Рекомендации» для этапа');
           return;
         }
         gid = rg.id;
       }
-    } else if (itemType === "clinical_test") {
+    } else if (itemType === 'clinical_test') {
       if (st.sortOrder === 0) {
-        setError("Клинические тесты нельзя добавлять на этап «Общие рекомендации»");
+        setError('Клинические тесты нельзя добавлять на этап «Общие рекомендации»');
         return;
       }
-      const tg = st.groups.find((g) => g.systemKind === "tests");
+      const tg = st.groups.find((g) => g.systemKind === 'tests');
       if (!tg) {
-        setError("Не найдена системная группа «Тестирование» для этапа");
+        setError('Не найдена системная группа «Тестирование» для этапа');
         return;
       }
       gid = tg.id;
     } else {
-      const picked = itemAddGroupId && itemAddGroupId !== "__none__" ? itemAddGroupId.trim() : "";
+      const picked = itemAddGroupId && itemAddGroupId !== '__none__' ? itemAddGroupId.trim() : '';
       if (!picked || !itemPickerGroupsOrdered.some((g) => g.id === picked)) {
         setItemAddGroupShowInvalid(true);
         setError(null);
         queueMicrotask(() => {
-          document.getElementById("lib-search")?.focus();
+          document.getElementById('lib-search')?.focus();
         });
         return;
       }
@@ -1236,26 +1306,29 @@ export function TreatmentProgramConstructorClient({
     setError(null);
     setItemAddGroupShowInvalid(false);
     try {
-      const res = await fetch(`/api/doctor/treatment-program-templates/stages/${itemDialogStageId}/items`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          itemType,
-          itemRefId: refId,
-          groupId: gid,
-        }),
-      });
+      const res = await fetch(
+        `/api/doctor/treatment-program-templates/stages/${itemDialogStageId}/items`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            itemType,
+            itemRefId: refId,
+            groupId: gid,
+          }),
+        },
+      );
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) {
-        setError(json.error ?? "Не удалось добавить элемент");
+        setError(json.error ?? 'Не удалось добавить элемент');
         return;
       }
       setItemDialogOpen(false);
       setItemDialogStageId(null);
-      setItemDialogAddContext("default");
-      setTestsAddMode("expand_set");
+      setItemDialogAddContext('default');
+      setTestsAddMode('expand_set');
       resetLibraryPickerFilters();
-      setItemAddGroupId("");
+      setItemAddGroupId('');
       await reload();
     } finally {
       setBusy(false);
@@ -1267,7 +1340,7 @@ export function TreatmentProgramConstructorClient({
     const st = detail.stages.find((s) => s.id === itemDialogStageId);
     if (!st) return;
     if (st.sortOrder === 0) {
-      setError("Наборы тестов нельзя добавлять на этап «Общие рекомендации»");
+      setError('Наборы тестов нельзя добавлять на этап «Общие рекомендации»');
       return;
     }
 
@@ -1278,22 +1351,22 @@ export function TreatmentProgramConstructorClient({
       const res = await fetch(
         `/api/doctor/treatment-program-templates/stages/${itemDialogStageId}/items/from-test-set`,
         {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ templateId, testSetId }),
         },
       );
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) {
-        setError(json.error ?? "Не удалось добавить тесты из набора");
+        setError(json.error ?? 'Не удалось добавить тесты из набора');
         return;
       }
       setItemDialogOpen(false);
       setItemDialogStageId(null);
-      setItemDialogAddContext("default");
-      setTestsAddMode("expand_set");
+      setItemDialogAddContext('default');
+      setTestsAddMode('expand_set');
       resetLibraryPickerFilters();
-      setItemAddGroupId("");
+      setItemAddGroupId('');
       await reload();
     } finally {
       setBusy(false);
@@ -1306,29 +1379,29 @@ export function TreatmentProgramConstructorClient({
     const st = detail.stages.find((s) => s.id === itemDialogStageId);
     if (!st) return;
     if (st.sortOrder === 0) {
-      setError("На этапе «Общие рекомендации» нельзя разворачивать комплекс ЛФК");
+      setError('На этапе «Общие рекомендации» нельзя разворачивать комплекс ЛФК');
       return;
     }
 
-    const rawGid = itemAddGroupId && itemAddGroupId !== "__none__" ? itemAddGroupId.trim() : "";
+    const rawGid = itemAddGroupId && itemAddGroupId !== '__none__' ? itemAddGroupId.trim() : '';
     let body: Record<string, unknown>;
     if (!rawGid) {
       body = {
         templateId,
         complexTemplateId: row.id,
         copyComplexDescriptionToGroup: false,
-        mode: "ungrouped",
+        mode: 'ungrouped',
       };
     } else if (itemPickerGroupsOrdered.some((g) => g.id === rawGid)) {
       body = {
         templateId,
         complexTemplateId: row.id,
         copyComplexDescriptionToGroup: false,
-        mode: "existing_group",
+        mode: 'existing_group',
         existingGroupId: rawGid,
       };
     } else {
-      setError("Выберите группу из списка");
+      setError('Выберите группу из списка');
       return;
     }
 
@@ -1338,21 +1411,21 @@ export function TreatmentProgramConstructorClient({
       const res = await fetch(
         `/api/doctor/treatment-program-templates/stages/${itemDialogStageId}/items/from-lfk-complex`,
         {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         },
       );
       const json = (await res.json()) as { ok?: boolean; error?: string; code?: string };
       if (!res.ok || !json.ok) {
-        setError(json.error ?? "Не удалось добавить упражнения из комплекса");
+        setError(json.error ?? 'Не удалось добавить упражнения из комплекса');
         return;
       }
       setItemDialogOpen(false);
       setItemDialogStageId(null);
-      setItemDialogAddContext("default");
+      setItemDialogAddContext('default');
       resetLibraryPickerFilters();
-      setItemAddGroupId("");
+      setItemAddGroupId('');
       await reload();
     } finally {
       setBusy(false);
@@ -1360,16 +1433,16 @@ export function TreatmentProgramConstructorClient({
   }
 
   async function handleRemoveItem(itemId: string) {
-    if (!globalThis.confirm("Удалить элемент из этапа?")) return;
+    if (!globalThis.confirm('Удалить элемент из этапа?')) return;
     setBusy(true);
     setError(null);
     try {
       const res = await fetch(`/api/doctor/treatment-program-templates/stage-items/${itemId}`, {
-        method: "DELETE",
+        method: 'DELETE',
       });
       const json = (await res.json()) as { ok?: boolean };
       if (!res.ok || !json.ok) {
-        setError("Не удалось удалить");
+        setError('Не удалось удалить');
         return;
       }
       if (itemSettingsItemId === itemId) setItemSettingsItemId(null);
@@ -1380,7 +1453,8 @@ export function TreatmentProgramConstructorClient({
   }
 
   const archiveWarnSections = useMemo(() => {
-    if (!archiveWarnUsage || !treatmentProgramTemplateUsageHasAnyReference(archiveWarnUsage)) return [];
+    if (!archiveWarnUsage || !treatmentProgramTemplateUsageHasAnyReference(archiveWarnUsage))
+      return [];
     return treatmentProgramTemplateUsageSections(archiveWarnUsage);
   }, [archiveWarnUsage]);
 
@@ -1395,14 +1469,14 @@ export function TreatmentProgramConstructorClient({
     if (!itemSettingsContext) return {};
     const m: Record<string, ReactNode> = {};
     if (
-      itemSettingsContext.item.itemType === "recommendation" ||
-      itemSettingsContext.item.itemType === "clinical_test"
+      itemSettingsContext.item.itemType === 'recommendation' ||
+      itemSettingsContext.item.itemType === 'clinical_test'
     ) {
       m[treatmentProgramGroupSelectNoneItemValue] = treatmentProgramGroupSelectNoneLabel;
     }
-    for (const g of sortDoctorTemplateStageGroupsForDisplay(itemSettingsContext.stage.groups).filter(
-      (x) => !x.systemKind,
-    )) {
+    for (const g of sortDoctorTemplateStageGroupsForDisplay(
+      itemSettingsContext.stage.groups,
+    ).filter((x) => !x.systemKind)) {
       m[g.id] = g.title;
     }
     return m;
@@ -1413,7 +1487,9 @@ export function TreatmentProgramConstructorClient({
     const v = itemSettingsContext.item.groupId ?? treatmentProgramGroupSelectNoneItemValue;
     const fromMap = itemSettingsGroupSelectItems[v];
     if (fromMap != null) return fromMap;
-    const g = itemSettingsContext.stage.groups.find((x) => x.id === itemSettingsContext.item.groupId);
+    const g = itemSettingsContext.stage.groups.find(
+      (x) => x.id === itemSettingsContext.item.groupId,
+    );
     return g?.title ?? treatmentProgramGroupSelectNoneLabel;
   }, [itemSettingsContext, itemSettingsGroupSelectItems]);
 
@@ -1470,10 +1546,14 @@ export function TreatmentProgramConstructorClient({
             className="flex items-center justify-between gap-2 border-b border-border/40 px-2 py-1.5"
             style={{ background: TPL_HEADER_BG_RECOMMENDATIONS }}
           >
-            <h2 className="min-w-0 text-sm font-semibold leading-tight text-foreground">Общие рекомендации</h2>
+            <h2 className="min-w-0 text-sm font-semibold leading-tight text-foreground">
+              Общие рекомендации
+            </h2>
             <TplAddItemSquareButton
               disabled={editLocked}
-              onClick={() => openItemDialogFromGlobalRecommendations(globalRecommendationsStorage.id)}
+              onClick={() =>
+                openItemDialogFromGlobalRecommendations(globalRecommendationsStorage.id)
+              }
             />
           </div>
           <div className="p-3">
@@ -1497,7 +1577,9 @@ export function TreatmentProgramConstructorClient({
       ) : null}
 
       {isArchived ? (
-        <p className="text-sm text-muted-foreground">Шаблон в архиве — изменение этапов и элементов отключено.</p>
+        <p className="text-sm text-muted-foreground">
+          Шаблон в архиве — изменение этапов и элементов отключено.
+        </p>
       ) : null}
 
       <div className="flex min-h-0 w-full min-w-0 flex-col gap-4">
@@ -1515,7 +1597,9 @@ export function TreatmentProgramConstructorClient({
           </Button>
         </div>
         {orderedStages.length === 0 ? (
-          <p className="rounded-md border px-3 py-4 text-sm text-muted-foreground">Нет этапов — добавьте первый.</p>
+          <p className="rounded-md border px-3 py-4 text-sm text-muted-foreground">
+            Нет этапов — добавьте первый.
+          </p>
         ) : stagesNonZero.length === 0 ? (
           <p className="rounded-md border border-dashed border-border/60 px-3 py-4 text-sm text-muted-foreground">
             Добавьте этап лечения — блок рекомендаций вынесен выше.
@@ -1551,207 +1635,225 @@ export function TreatmentProgramConstructorClient({
                               <div className="shrink-0 self-start pt-0.5">{stageDragHandle}</div>
                             ) : null}
                             <div className="min-w-0 flex-1 pt-0.5">
-                        <span className="text-xs font-medium tabular-nums text-muted-foreground">
-                          Этап {s.sortOrder}
-                        </span>
-                        <h3 className="mt-0.5 text-sm font-semibold leading-tight text-foreground">{s.title}</h3>
-                        {s.description?.trim() ? (
-                          <p className="mt-1 line-clamp-2 text-xs leading-snug text-muted-foreground">
-                            {s.description.trim()}
-                          </p>
-                        ) : null}
-                      </div>
-                      <div className="flex shrink-0 items-start gap-1 self-start">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="secondary"
-                          className={tplToolbarTextBtnClass}
-                          disabled={editLocked}
-                          onClick={() => {
-                            setGroupDialogStageId(s.id);
-                            setNewGroupTitle("");
-                            setNewGroupSchedule("");
-                            setNewGroupDescription("");
-                            setGroupDialogOpen(true);
-                          }}
-                        >
-                          + Группа
-                        </Button>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          className="size-6 shrink-0"
-                          disabled={editLocked}
-                          aria-label="Настройки этапа"
-                          onClick={() => setStageSettingsStageId(s.id)}
-                        >
-                          <Settings className="size-3.5" />
-                        </Button>
-                        <TemplateReorderChevrons
-                          compact
-                          className="-mt-px shrink-0"
-                          disabled={editLocked}
-                          disableUp={!prevStage || prevStage.sortOrder === 0}
-                          disableDown={fullIdx >= orderedStages.length - 1}
-                          ariaLabelUp="Этап выше"
-                          ariaLabelDown="Этап ниже"
-                          onUp={() => void handleMoveStage(s.id, -1)}
-                          onDown={() => void handleMoveStage(s.id, 1)}
-                        />
-                      </div>
-                    </div>
-                  </div>
+                              <span className="text-xs font-medium tabular-nums text-muted-foreground">
+                                Этап {s.sortOrder}
+                              </span>
+                              <h3 className="mt-0.5 text-sm font-semibold leading-tight text-foreground">
+                                {s.title}
+                              </h3>
+                              {s.description?.trim() ? (
+                                <p className="mt-1 line-clamp-2 text-xs leading-snug text-muted-foreground">
+                                  {s.description.trim()}
+                                </p>
+                              ) : null}
+                            </div>
+                            <div className="flex shrink-0 items-start gap-1 self-start">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="secondary"
+                                className={tplToolbarTextBtnClass}
+                                disabled={editLocked}
+                                onClick={() => {
+                                  setGroupDialogStageId(s.id);
+                                  setNewGroupTitle('');
+                                  setNewGroupSchedule('');
+                                  setNewGroupDescription('');
+                                  setGroupDialogOpen(true);
+                                }}
+                              >
+                                + Группа
+                              </Button>
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="ghost"
+                                className="size-6 shrink-0"
+                                disabled={editLocked}
+                                aria-label="Настройки этапа"
+                                onClick={() => setStageSettingsStageId(s.id)}
+                              >
+                                <Settings className="size-3.5" />
+                              </Button>
+                              <TemplateReorderChevrons
+                                compact
+                                className="-mt-px shrink-0"
+                                disabled={editLocked}
+                                disableUp={!prevStage || prevStage.sortOrder === 0}
+                                disableDown={fullIdx >= orderedStages.length - 1}
+                                ariaLabelUp="Этап выше"
+                                ariaLabelDown="Этап ниже"
+                                onUp={() => void handleMoveStage(s.id, -1)}
+                                onDown={() => void handleMoveStage(s.id, 1)}
+                              />
+                            </div>
+                          </div>
+                        </div>
                         <div className="p-3">
                           {groupsOrd.length === 0 && s.items.length === 0 ? (
-                            <p className="mt-3 text-sm text-muted-foreground">В этапе пока нет элементов и групп.</p>
+                            <p className="mt-3 text-sm text-muted-foreground">
+                              В этапе пока нет элементов и групп.
+                            </p>
                           ) : (
                             <TreatmentProgramStageItemsDnd
                               sortableItemIds={dndItemIds}
                               disabled={editLocked || busy}
-                              onReorder={(activeId, overId) => void handleStageItemDnd(s, activeId, overId)}
+                              onReorder={(activeId, overId) =>
+                                void handleStageItemDnd(s, activeId, overId)
+                              }
                             >
                               <div className="mt-3 space-y-3">
                                 {groupsOrd.map((g, groupIndex) => {
-                          const gItems = itemsInGroupForStage(s, g.id);
-                          const sys = isTreatmentProgramTemplateSystemStageGroup(g);
-                          return (
-                            <div
-                              key={g.id}
-                              className="overflow-hidden rounded-md border border-border/50 bg-background/60"
-                            >
-                              {sys ? (
-                                <div
-                                  className="flex items-start justify-between gap-2 border-b border-border/25 px-2 py-1.5"
-                                  style={templateGroupHeaderSurfaceStyle(g)}
-                                >
-                                  <div className="min-w-0 flex-1">
-                                    <p className="text-sm font-semibold leading-tight text-foreground">{g.title}</p>
-                                    {g.scheduleText?.trim() ? (
-                                      <p className="mt-0.5 line-clamp-2 text-xs leading-snug text-muted-foreground">
-                                        {g.scheduleText.trim()}
-                                      </p>
-                                    ) : null}
-                                  </div>
-                                  <TplAddItemSquareButton
-                                    disabled={editLocked}
-                                    onClick={() => openItemDialogFromGroup(s.id, g)}
-                                  />
-                                </div>
-                              ) : (
-                                <div
-                                  className="flex items-start justify-between gap-2 border-b border-border/25 px-2 py-1.5"
-                                  style={templateGroupHeaderSurfaceStyle(g)}
-                                >
-                                  <div className="min-w-0 flex-1 pt-0.5">
-                                    <p className="text-sm font-semibold leading-snug text-foreground">{g.title}</p>
-                                    {g.scheduleText?.trim() ? (
-                                      <p className="mt-0.5 line-clamp-2 text-xs leading-snug text-muted-foreground">
-                                        {g.scheduleText.trim()}
-                                      </p>
-                                    ) : null}
-                                  </div>
-                                  <div className="flex shrink-0 items-start gap-1 self-start">
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      variant="outline"
-                                      className={tplToolbarTextBtnClass}
-                                      disabled={editLocked}
-                                      onClick={() => openEditGroup(g)}
+                                  const gItems = itemsInGroupForStage(s, g.id);
+                                  const sys = isTreatmentProgramTemplateSystemStageGroup(g);
+                                  return (
+                                    <div
+                                      key={g.id}
+                                      className="overflow-hidden rounded-md border border-border/50 bg-background/60"
                                     >
-                                      Изменить
-                                    </Button>
-                                    <TplAddItemSquareButton
-                                      disabled={editLocked}
-                                      onClick={() => openItemDialogFromGroup(s.id, g)}
-                                    />
-                                    <TemplateReorderChevrons
-                                      compact
-                                      className="-mt-px shrink-0"
-                                      disabled={editLocked}
-                                      disableUp={groupIndex === 0}
-                                      disableDown={groupIndex >= groupsOrd.length - 1}
-                                      ariaLabelUp="Группа выше"
-                                      ariaLabelDown="Группа ниже"
-                                      onUp={() => void handleReorderGroup(s, g.id, -1)}
-                                      onDown={() => void handleReorderGroup(s, g.id, 1)}
-                                    />
-                                  </div>
-                                </div>
-                              )}
-                              <div className="p-2">
-                                {gItems.length === 0 ? (
-                                  <p className="py-2 text-xs text-muted-foreground">В группе пока нет элементов.</p>
-                                ) : (
-                                  <ul className="divide-y rounded-md border border-border/30">
-                                    {gItems.map((it) => {
-                                      const dndEligible = isTemplateItemDndEligible(s, it);
-                                      if (!dndEligible) {
-                                        return (
-                                          <StageItemListRow
-                                            key={it.id}
-                                            library={library}
-                                            item={it}
-                                            editLocked={editLocked}
-                                            onOpenSettings={() => setItemSettingsItemId(it.id)}
-                                          />
-                                        );
-                                      }
-                                      return (
-                                        <TreatmentProgramSortableItemShell
-                                          key={it.id}
-                                          id={it.id}
-                                          disabled={editLocked || busy}
-                                          className="px-2 py-2"
+                                      {sys ? (
+                                        <div
+                                          className="flex items-start justify-between gap-2 border-b border-border/25 px-2 py-1.5"
+                                          style={templateGroupHeaderSurfaceStyle(g)}
                                         >
-                                          {(dragHandle) => (
-                                            <StageItemListRow
-                                              library={library}
-                                              item={it}
-                                              editLocked={editLocked}
-                                              dragHandle={dragHandle}
-                                              onOpenSettings={() => setItemSettingsItemId(it.id)}
+                                          <div className="min-w-0 flex-1">
+                                            <p className="text-sm font-semibold leading-tight text-foreground">
+                                              {g.title}
+                                            </p>
+                                            {g.scheduleText?.trim() ? (
+                                              <p className="mt-0.5 line-clamp-2 text-xs leading-snug text-muted-foreground">
+                                                {g.scheduleText.trim()}
+                                              </p>
+                                            ) : null}
+                                          </div>
+                                          <TplAddItemSquareButton
+                                            disabled={editLocked}
+                                            onClick={() => openItemDialogFromGroup(s.id, g)}
+                                          />
+                                        </div>
+                                      ) : (
+                                        <div
+                                          className="flex items-start justify-between gap-2 border-b border-border/25 px-2 py-1.5"
+                                          style={templateGroupHeaderSurfaceStyle(g)}
+                                        >
+                                          <div className="min-w-0 flex-1 pt-0.5">
+                                            <p className="text-sm font-semibold leading-snug text-foreground">
+                                              {g.title}
+                                            </p>
+                                            {g.scheduleText?.trim() ? (
+                                              <p className="mt-0.5 line-clamp-2 text-xs leading-snug text-muted-foreground">
+                                                {g.scheduleText.trim()}
+                                              </p>
+                                            ) : null}
+                                          </div>
+                                          <div className="flex shrink-0 items-start gap-1 self-start">
+                                            <Button
+                                              type="button"
+                                              size="sm"
+                                              variant="outline"
+                                              className={tplToolbarTextBtnClass}
+                                              disabled={editLocked}
+                                              onClick={() => openEditGroup(g)}
+                                            >
+                                              Изменить
+                                            </Button>
+                                            <TplAddItemSquareButton
+                                              disabled={editLocked}
+                                              onClick={() => openItemDialogFromGroup(s.id, g)}
                                             />
-                                          )}
-                                        </TreatmentProgramSortableItemShell>
-                                      );
-                                    })}
-                                  </ul>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                        {ungrouped.length > 0 ? (
-                          <div className="overflow-hidden rounded-md border-2 border-destructive bg-background/60">
-                            <div className="border-b border-destructive/50 bg-destructive/20 px-2 py-2 dark:bg-destructive/30">
-                              <p className="text-sm font-semibold text-foreground">Без группы</p>
-                            </div>
-                            <div className="p-2">
-                              <ul className="divide-y rounded-md border border-border/50">
-                                {ungrouped.map((it) => (
-                                  <TreatmentProgramSortableItemShell
-                                    key={it.id}
-                                    id={it.id}
-                                    disabled={editLocked || busy}
-                                    className="px-2 py-2"
-                                  >
-                                    {(dragHandle) => (
-                                      <StageItemListRow
-                                        library={library}
-                                        item={it}
-                                        editLocked={editLocked}
-                                        dragHandle={dragHandle}
-                                        onOpenSettings={() => setItemSettingsItemId(it.id)}
-                                      />
-                                    )}
-                                  </TreatmentProgramSortableItemShell>
-                                ))}
-                              </ul>
-                            </div>
-                          </div>
+                                            <TemplateReorderChevrons
+                                              compact
+                                              className="-mt-px shrink-0"
+                                              disabled={editLocked}
+                                              disableUp={groupIndex === 0}
+                                              disableDown={groupIndex >= groupsOrd.length - 1}
+                                              ariaLabelUp="Группа выше"
+                                              ariaLabelDown="Группа ниже"
+                                              onUp={() => void handleReorderGroup(s, g.id, -1)}
+                                              onDown={() => void handleReorderGroup(s, g.id, 1)}
+                                            />
+                                          </div>
+                                        </div>
+                                      )}
+                                      <div className="p-2">
+                                        {gItems.length === 0 ? (
+                                          <p className="py-2 text-xs text-muted-foreground">
+                                            В группе пока нет элементов.
+                                          </p>
+                                        ) : (
+                                          <ul className="divide-y rounded-md border border-border/30">
+                                            {gItems.map((it) => {
+                                              const dndEligible = isTemplateItemDndEligible(s, it);
+                                              if (!dndEligible) {
+                                                return (
+                                                  <StageItemListRow
+                                                    key={it.id}
+                                                    library={library}
+                                                    item={it}
+                                                    editLocked={editLocked}
+                                                    onOpenSettings={() =>
+                                                      setItemSettingsItemId(it.id)
+                                                    }
+                                                  />
+                                                );
+                                              }
+                                              return (
+                                                <TreatmentProgramSortableItemShell
+                                                  key={it.id}
+                                                  id={it.id}
+                                                  disabled={editLocked || busy}
+                                                  className="px-2 py-2"
+                                                >
+                                                  {(dragHandle) => (
+                                                    <StageItemListRow
+                                                      library={library}
+                                                      item={it}
+                                                      editLocked={editLocked}
+                                                      dragHandle={dragHandle}
+                                                      onOpenSettings={() =>
+                                                        setItemSettingsItemId(it.id)
+                                                      }
+                                                    />
+                                                  )}
+                                                </TreatmentProgramSortableItemShell>
+                                              );
+                                            })}
+                                          </ul>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                                {ungrouped.length > 0 ? (
+                                  <div className="overflow-hidden rounded-md border-2 border-destructive bg-background/60">
+                                    <div className="border-b border-destructive/50 bg-destructive/20 px-2 py-2 dark:bg-destructive/30">
+                                      <p className="text-sm font-semibold text-foreground">
+                                        Без группы
+                                      </p>
+                                    </div>
+                                    <div className="p-2">
+                                      <ul className="divide-y rounded-md border border-border/50">
+                                        {ungrouped.map((it) => (
+                                          <TreatmentProgramSortableItemShell
+                                            key={it.id}
+                                            id={it.id}
+                                            disabled={editLocked || busy}
+                                            className="px-2 py-2"
+                                          >
+                                            {(dragHandle) => (
+                                              <StageItemListRow
+                                                library={library}
+                                                item={it}
+                                                editLocked={editLocked}
+                                                dragHandle={dragHandle}
+                                                onOpenSettings={() => setItemSettingsItemId(it.id)}
+                                              />
+                                            )}
+                                          </TreatmentProgramSortableItemShell>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  </div>
                                 ) : null}
                               </div>
                             </TreatmentProgramStageItemsDnd>
@@ -1771,18 +1873,18 @@ export function TreatmentProgramConstructorClient({
         mode="callbacks"
         isArchived={isArchived}
         pending={busy}
-        isPublished={detail.status === "published"}
+        isPublished={detail.status === 'published'}
         catalogRecordExists
         persistLabel="Сохранить черновик"
         persistDisabled={
           busy ||
           isArchived ||
-          detail.status === "draft" ||
-          (detail.status === "published" && !templateBasicsDirty)
+          detail.status === 'draft' ||
+          (detail.status === 'published' && !templateBasicsDirty)
         }
-        publishDisabled={busy || isArchived || detail.status === "published"}
-        onPersist={() => void patchPublicationStatus("draft")}
-        onPublish={() => void patchPublicationStatus("published")}
+        publishDisabled={busy || isArchived || detail.status === 'published'}
+        onPersist={() => void patchPublicationStatus('draft')}
+        onPublish={() => void patchPublicationStatus('published')}
       />
 
       <div className="border-t border-border/60 pt-4">
@@ -1798,18 +1900,23 @@ export function TreatmentProgramConstructorClient({
         </div>
 
         {!isArchived ? (
-          <Button type="button" variant="destructive" disabled={busy} onClick={() => void handleArchiveClick()}>
+          <Button
+            type="button"
+            variant="destructive"
+            disabled={busy}
+            onClick={() => void handleArchiveClick()}
+          >
             Архивировать
           </Button>
         ) : null}
       </div>
 
       <p className="text-xs text-muted-foreground">
-        {detail.status === "published"
-          ? "«Сохранить черновик» переводит шаблон обратно в черновик. Название и описание сохраняются при уходе с поля."
-          : detail.status === "draft"
-            ? "Опубликуйте шаблон, когда этапы и элементы готовы. Название и описание сохраняются при уходе с поля."
-            : "Архивный шаблон нельзя редактировать."}
+        {detail.status === 'published'
+          ? '«Сохранить черновик» переводит шаблон обратно в черновик. Название и описание сохраняются при уходе с поля.'
+          : detail.status === 'draft'
+            ? 'Опубликуйте шаблон, когда этапы и элементы готовы. Название и описание сохраняются при уходе с поля.'
+            : 'Архивный шаблон нельзя редактировать.'}
       </p>
 
       <Dialog
@@ -1894,7 +2001,11 @@ export function TreatmentProgramConstructorClient({
             </div>
             {stageMetaMsg ? <p className="text-sm text-muted-foreground">{stageMetaMsg}</p> : null}
             <div className="flex flex-wrap gap-2 border-t pt-3">
-              <Button type="button" disabled={editLocked || busy} onClick={() => void handleSaveStageSettings()}>
+              <Button
+                type="button"
+                disabled={editLocked || busy}
+                onClick={() => void handleSaveStageSettings()}
+              >
                 Сохранить
               </Button>
               <Button
@@ -1927,9 +2038,12 @@ export function TreatmentProgramConstructorClient({
                 <div className="min-w-0 flex-1 space-y-2">
                   <DialogTitle>Настройки элемента</DialogTitle>
                   <DialogDescription>
-                    {ITEM_TYPE_LABEL[itemSettingsContext.item.itemType]} —{" "}
-                    {findLibraryRow(library, itemSettingsContext.item.itemType, itemSettingsContext.item.itemRefId)
-                      ?.title ?? itemSettingsContext.item.itemRefId}
+                    {ITEM_TYPE_LABEL[itemSettingsContext.item.itemType]} —{' '}
+                    {findLibraryRow(
+                      library,
+                      itemSettingsContext.item.itemType,
+                      itemSettingsContext.item.itemRefId,
+                    )?.title ?? itemSettingsContext.item.itemRefId}
                   </DialogDescription>
                 </div>
                 {itemSettingsReorderState ? (
@@ -1939,7 +2053,8 @@ export function TreatmentProgramConstructorClient({
                     disableUp={itemSettingsReorderState.itemIndex <= 0}
                     disableDown={
                       itemSettingsReorderState.itemIndex < 0 ||
-                      itemSettingsReorderState.itemIndex >= itemSettingsReorderState.section.length - 1
+                      itemSettingsReorderState.itemIndex >=
+                        itemSettingsReorderState.section.length - 1
                     }
                     ariaLabelUp="Элемент выше в списке"
                     ariaLabelDown="Элемент ниже в списке"
@@ -1967,23 +2082,23 @@ export function TreatmentProgramConstructorClient({
                 <div className="flex flex-col gap-2">
                   <Label>Группа</Label>
                   <Select
-                    value={itemSettingsContext.item.groupId ?? "__none__"}
+                    value={itemSettingsContext.item.groupId ?? '__none__'}
                     onValueChange={(v) => {
                       void (async () => {
-                        const next = v === "__none__" ? null : v;
+                        const next = v === '__none__' ? null : v;
                         if (
                           next === null &&
-                          itemSettingsContext.item.itemType !== "recommendation" &&
-                          itemSettingsContext.item.itemType !== "clinical_test"
+                          itemSettingsContext.item.itemType !== 'recommendation' &&
+                          itemSettingsContext.item.itemType !== 'clinical_test'
                         ) {
-                          setError("Без группы допустимы только рекомендации и клинические тесты");
+                          setError('Без группы допустимы только рекомендации и клинические тесты');
                           return;
                         }
                         setBusy(true);
                         setError(null);
                         try {
                           const ok = await patchItemGroupId(itemSettingsContext.item.id, next);
-                          if (!ok) setError("Не удалось изменить группу");
+                          if (!ok) setError('Не удалось изменить группу');
                           else await reload();
                         } finally {
                           setBusy(false);
@@ -1998,17 +2113,17 @@ export function TreatmentProgramConstructorClient({
                       displayLabel={itemSettingsGroupDisplayLabel ?? undefined}
                     />
                     <SelectContent className="z-[100]">
-                      {itemSettingsContext.item.itemType === "recommendation" ||
-                      itemSettingsContext.item.itemType === "clinical_test" ? (
+                      {itemSettingsContext.item.itemType === 'recommendation' ||
+                      itemSettingsContext.item.itemType === 'clinical_test' ? (
                         <SelectItem value="__none__">Без группы</SelectItem>
                       ) : null}
                       {sortDoctorTemplateStageGroupsForDisplay(itemSettingsContext.stage.groups)
                         .filter((g) => !g.systemKind)
                         .map((g) => (
-                        <SelectItem key={g.id} value={g.id}>
-                          {g.title}
-                        </SelectItem>
-                      ))}
+                          <SelectItem key={g.id} value={g.id}>
+                            {g.title}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -2036,7 +2151,9 @@ export function TreatmentProgramConstructorClient({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Новый этап</DialogTitle>
-            <DialogDescription>Порядок назначит сервер автоматически (следующий номер после существующих).</DialogDescription>
+            <DialogDescription>
+              Порядок назначит сервер автоматически (следующий номер после существующих).
+            </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-2">
             <Label htmlFor="stage-title">Название</Label>
@@ -2068,7 +2185,11 @@ export function TreatmentProgramConstructorClient({
             <Button type="button" variant="outline" onClick={() => setStageDialogOpen(false)}>
               Отмена
             </Button>
-            <Button type="button" disabled={editLocked || !newStageTitle.trim()} onClick={handleAddStage}>
+            <Button
+              type="button"
+              disabled={editLocked || !newStageTitle.trim()}
+              onClick={handleAddStage}
+            >
               Добавить
             </Button>
           </DialogFooter>
@@ -2081,10 +2202,10 @@ export function TreatmentProgramConstructorClient({
           setItemDialogOpen(open);
           if (!open) {
             setItemDialogStageId(null);
-            setItemDialogAddContext("default");
-            setItemAddGroupId("");
+            setItemDialogAddContext('default');
+            setItemAddGroupId('');
             resetLibraryPickerFilters();
-            setTestsAddMode("expand_set");
+            setTestsAddMode('expand_set');
           }
         }}
       >
@@ -2093,7 +2214,7 @@ export function TreatmentProgramConstructorClient({
             <DialogTitle>Элемент из библиотеки</DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-3">
-            {itemDialogAddContext === "custom_group" ? (
+            {itemDialogAddContext === 'custom_group' ? (
               <div className="flex flex-col gap-2">
                 <Label>Тип элемента</Label>
                 <div
@@ -2104,17 +2225,17 @@ export function TreatmentProgramConstructorClient({
                   <Button
                     type="button"
                     role="radio"
-                    aria-checked={itemType === "exercise"}
+                    aria-checked={itemType === 'exercise'}
                     variant="ghost"
                     size="sm"
                     className={cn(
-                      "h-full w-full rounded-none text-xs font-medium",
-                      itemType === "exercise"
-                        ? "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
-                        : "bg-transparent text-foreground hover:bg-muted/60",
+                      'h-full w-full rounded-none text-xs font-medium',
+                      itemType === 'exercise'
+                        ? 'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground'
+                        : 'bg-transparent text-foreground hover:bg-muted/60',
                     )}
                     onClick={() => {
-                      setItemType("exercise");
+                      setItemType('exercise');
                       resetLibraryPickerFilters();
                       setItemAddGroupShowInvalid(false);
                     }}
@@ -2124,17 +2245,17 @@ export function TreatmentProgramConstructorClient({
                   <Button
                     type="button"
                     role="radio"
-                    aria-checked={itemType === "lfk_complex"}
+                    aria-checked={itemType === 'lfk_complex'}
                     variant="ghost"
                     size="sm"
                     className={cn(
-                      "h-full w-full rounded-none text-xs font-medium",
-                      itemType === "lfk_complex"
-                        ? "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
-                        : "bg-transparent text-foreground hover:bg-muted/60",
+                      'h-full w-full rounded-none text-xs font-medium',
+                      itemType === 'lfk_complex'
+                        ? 'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground'
+                        : 'bg-transparent text-foreground hover:bg-muted/60',
                     )}
                     onClick={() => {
-                      setItemType("lfk_complex");
+                      setItemType('lfk_complex');
                       resetLibraryPickerFilters();
                       setItemAddGroupShowInvalid(false);
                     }}
@@ -2144,7 +2265,7 @@ export function TreatmentProgramConstructorClient({
                 </div>
               </div>
             ) : null}
-            {itemDialogAddContext === "stage_system_tests" ? (
+            {itemDialogAddContext === 'stage_system_tests' ? (
               <div className="flex flex-col gap-2">
                 <Label>Добавить</Label>
                 <div
@@ -2155,17 +2276,17 @@ export function TreatmentProgramConstructorClient({
                   <Button
                     type="button"
                     role="radio"
-                    aria-checked={testsAddMode === "expand_set"}
+                    aria-checked={testsAddMode === 'expand_set'}
                     variant="ghost"
                     size="sm"
                     className={cn(
-                      "h-full w-full rounded-none text-xs font-medium",
-                      testsAddMode === "expand_set"
-                        ? "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
-                        : "bg-transparent text-foreground hover:bg-muted/60",
+                      'h-full w-full rounded-none text-xs font-medium',
+                      testsAddMode === 'expand_set'
+                        ? 'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground'
+                        : 'bg-transparent text-foreground hover:bg-muted/60',
                     )}
                     onClick={() => {
-                      setTestsAddMode("expand_set");
+                      setTestsAddMode('expand_set');
                       resetLibraryPickerFilters();
                     }}
                   >
@@ -2174,18 +2295,18 @@ export function TreatmentProgramConstructorClient({
                   <Button
                     type="button"
                     role="radio"
-                    aria-checked={testsAddMode === "single_test"}
+                    aria-checked={testsAddMode === 'single_test'}
                     variant="ghost"
                     size="sm"
                     className={cn(
-                      "h-full w-full rounded-none text-xs font-medium",
-                      testsAddMode === "single_test"
-                        ? "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
-                        : "bg-transparent text-foreground hover:bg-muted/60",
+                      'h-full w-full rounded-none text-xs font-medium',
+                      testsAddMode === 'single_test'
+                        ? 'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground'
+                        : 'bg-transparent text-foreground hover:bg-muted/60',
                     )}
                     onClick={() => {
-                      setTestsAddMode("single_test");
-                      setItemType("clinical_test");
+                      setTestsAddMode('single_test');
+                      setItemType('clinical_test');
                       resetLibraryPickerFilters();
                     }}
                   >
@@ -2218,9 +2339,10 @@ export function TreatmentProgramConstructorClient({
                       variant="outline"
                       disabled={editLocked}
                       onClick={() =>
-                        itemDialogAddContext === "stage_system_tests" && testsAddMode === "expand_set"
+                        itemDialogAddContext === 'stage_system_tests' &&
+                        testsAddMode === 'expand_set'
                           ? void handleExpandTestSetFromLibrary(row.id)
-                          : itemType === "lfk_complex"
+                          : itemType === 'lfk_complex'
                             ? void handleAddLfkComplexFromLibrary(row)
                             : void handleAddItem(row.id)
                       }
@@ -2229,8 +2351,9 @@ export function TreatmentProgramConstructorClient({
                       <LibraryMediaThumb
                         src={row.thumbUrl}
                         itemType={
-                          itemDialogAddContext === "stage_system_tests" && testsAddMode === "expand_set"
-                            ? "clinical_test"
+                          itemDialogAddContext === 'stage_system_tests' &&
+                          testsAddMode === 'expand_set'
+                            ? 'clinical_test'
                             : itemType
                         }
                       />
@@ -2379,8 +2502,9 @@ export function TreatmentProgramConstructorClient({
           <DialogHeader>
             <DialogTitle>Отправить шаблон в архив?</DialogTitle>
             <DialogDescription>
-              Есть активные программы у пациентов или опубликованные курсы, ссылающиеся на этот шаблон. В архиве
-              шаблон нельзя назначать заново; уже запущенные программы и история сохраняются.
+              Есть активные программы у пациентов или опубликованные курсы, ссылающиеся на этот
+              шаблон. В архиве шаблон нельзя назначать заново; уже запущенные программы и история
+              сохраняются.
             </DialogDescription>
           </DialogHeader>
           <TemplateUsageSectionsView sections={archiveWarnSections} />

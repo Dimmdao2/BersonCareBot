@@ -1,6 +1,6 @@
 /** Wave 3 phase 15B — domain SQL via `runWebappPgText`; TX on `registerPendingVerification`. */
-import { runWebappPgText, runWebappTransaction } from "@/infra/db/runWebappSql";
-import argon2 from "argon2";
+import { runWebappPgText, runWebappTransaction } from '@/infra/db/runWebappSql';
+import argon2 from 'argon2';
 import {
   inspectPasswordAccountLock,
   inspectPasswordIdentifierLock,
@@ -10,10 +10,10 @@ import {
   resetPasswordAccountFailureEvents,
   resetPasswordIdentifierFailures,
   type PasswordVerificationResult,
-} from "@/modules/auth/passwordLoginProtection";
+} from '@/modules/auth/passwordLoginProtection';
 
 const DUMMY_PASSWORD_HASH =
-  "$argon2id$v=19$m=65536,t=3,p=4$mt/HvX3SDg5zeztnCiH/lA$RdL1PQ8kaNQOVryvV2xDljBxTXo7FexX1clNKgZ9boU";
+  '$argon2id$v=19$m=65536,t=3,p=4$mt/HvX3SDg5zeztnCiH/lA$RdL1PQ8kaNQOVryvV2xDljBxTXo7FexX1clNKgZ9boU';
 
 export type UserPasswordCredentialsPort = {
   /** Регистрация клиента с паролем до подтверждения email (`email_verified_at` заполняется challenge). */
@@ -23,7 +23,7 @@ export type UserPasswordCredentialsPort = {
     lastName: string;
     firstName: string;
     patronymic: string | null;
-  }): Promise<{ ok: true; userId: string } | { ok: false; reason: "duplicate_email" }>;
+  }): Promise<{ ok: true; userId: string } | { ok: false; reason: 'duplicate_email' }>;
   /** Регистрация специалиста с паролем до подтверждения email; role остаётся doctor для compat projection. */
   registerPendingSpecialistVerification(params: {
     emailNormalized: string;
@@ -31,7 +31,7 @@ export type UserPasswordCredentialsPort = {
     lastName: string;
     firstName: string;
     patronymic: string | null;
-  }): Promise<{ ok: true; userId: string } | { ok: false; reason: "duplicate_email" }>;
+  }): Promise<{ ok: true; userId: string } | { ok: false; reason: 'duplicate_email' }>;
   /** Удалить канон без подтверждения email (откат после сбоя отправки кода и т.п.). */
   deleteUnverifiedEmailPasswordRegistration(userId: string): Promise<void>;
   /** Владелец активного челленджа на email (для публичного подтверждения после регистрации). */
@@ -44,7 +44,10 @@ export type UserPasswordCredentialsPort = {
     emailNormalized: string;
     plainPassword: string;
   }): Promise<{ ok: true; userId: string } | { ok: false }>;
-  tryVerifyLogin(emailNormalized: string, plainPassword: string): Promise<PasswordVerificationResult>;
+  tryVerifyLogin(
+    emailNormalized: string,
+    plainPassword: string,
+  ): Promise<PasswordVerificationResult>;
   /**
    * Проверка пароля без требования `email_verified_at` — для UX «дозавершите подтверждение email»
    * и нейтрального отличия от «неверный пароль».
@@ -69,8 +72,8 @@ export function createPgUserPasswordCredentialsPort(): UserPasswordCredentialsPo
     lastName: string;
     firstName: string;
     patronymic: string | null;
-    role: "client" | "doctor";
-  }): Promise<{ ok: true; userId: string } | { ok: false; reason: "duplicate_email" }> {
+    role: 'client' | 'doctor';
+  }): Promise<{ ok: true; userId: string } | { ok: false; reason: 'duplicate_email' }> {
     try {
       return await runWebappTransaction(async (tx) => {
         const result = await runWebappPgText<{
@@ -92,20 +95,23 @@ export function createPgUserPasswordCredentialsPort(): UserPasswordCredentialsPo
         );
         const row = result.rows[0];
         if (!row) {
-          throw new Error("email_password_register_pending_failed");
+          throw new Error('email_password_register_pending_failed');
         }
         if (!row.ok) {
-          return { ok: false, reason: "duplicate_email" };
+          return { ok: false, reason: 'duplicate_email' };
         }
         if (!row.user_id) {
-          throw new Error("email_password_register_pending_missing_user_id");
+          throw new Error('email_password_register_pending_missing_user_id');
         }
         return { ok: true as const, userId: row.user_id };
       });
     } catch (e: unknown) {
-      const code = typeof e === "object" && e !== null && "code" in e ? String((e as { code?: unknown }).code) : "";
-      if (code === "23505") {
-        return { ok: false, reason: "duplicate_email" };
+      const code =
+        typeof e === 'object' && e !== null && 'code' in e
+          ? String((e as { code?: unknown }).code)
+          : '';
+      if (code === '23505') {
+        return { ok: false, reason: 'duplicate_email' };
       }
       throw e;
     }
@@ -115,7 +121,11 @@ export function createPgUserPasswordCredentialsPort(): UserPasswordCredentialsPo
     emailNormalized: string,
     plainPassword: string,
   ): Promise<PasswordVerificationResult> {
-    const r = await runWebappPgText<{ user_id: string; password_hash: string; email_verified: boolean }>(
+    const r = await runWebappPgText<{
+      user_id: string;
+      password_hash: string;
+      email_verified: boolean;
+    }>(
       `SELECT user_id::text AS user_id, password_hash, email_verified
        FROM app.email_password_find_login_candidate($1)`,
       [emailNormalized],
@@ -156,23 +166,22 @@ export function createPgUserPasswordCredentialsPort(): UserPasswordCredentialsPo
 
   return {
     async registerPendingVerification(params) {
-      return registerPendingVerificationWithRole({ ...params, role: "client" });
+      return registerPendingVerificationWithRole({ ...params, role: 'client' });
     },
 
     async registerPendingSpecialistVerification(params) {
-      return registerPendingVerificationWithRole({ ...params, role: "doctor" });
+      return registerPendingVerificationWithRole({ ...params, role: 'doctor' });
     },
 
     async deleteUnverifiedEmailPasswordRegistration(userId) {
-      await runWebappPgText(
-        "SELECT app.email_password_delete_unverified_registration($1::uuid)",
-        [userId],
-      );
+      await runWebappPgText('SELECT app.email_password_delete_unverified_registration($1::uuid)', [
+        userId,
+      ]);
     },
 
     async findUserIdByEmailChallengeId(challengeId) {
       const r = await runWebappPgText<{ user_id: string }>(
-        "SELECT app.email_password_find_user_id_by_email_challenge($1::uuid)::text AS user_id",
+        'SELECT app.email_password_find_user_id_by_email_challenge($1::uuid)::text AS user_id',
         [challengeId],
       );
       return r.rows[0]?.user_id ?? null;
@@ -210,10 +219,10 @@ export function createPgUserPasswordCredentialsPort(): UserPasswordCredentialsPo
 
     async resetFailedPasswordAttempts(userId, emailNormalized) {
       const res = await runWebappPgText<{ updated: boolean }>(
-        "SELECT app.set_staff_security_self_password_hash(NULL::text) AS updated",
+        'SELECT app.set_staff_security_self_password_hash(NULL::text) AS updated',
       );
       if (res.rows[0]?.updated !== true) {
-        throw new Error("resetFailedPasswordAttempts: no credentials row");
+        throw new Error('resetFailedPasswordAttempts: no credentials row');
       }
       await resetPasswordAccountFailureEvents(userId);
       await resetPasswordIdentifierFailures(emailNormalized);
@@ -231,11 +240,11 @@ export function createPgUserPasswordCredentialsPort(): UserPasswordCredentialsPo
 
     async updatePasswordHash(_userId, passwordHash) {
       const res = await runWebappPgText<{ updated: boolean }>(
-        "SELECT app.set_staff_security_self_password_hash($1::text) AS updated",
+        'SELECT app.set_staff_security_self_password_hash($1::text) AS updated',
         [passwordHash],
       );
       if (res.rows[0]?.updated !== true) {
-        throw new Error("updatePasswordHash: no credentials row");
+        throw new Error('updatePasswordHash: no credentials row');
       }
       await resetPasswordAccountFailureEvents(_userId);
     },
@@ -257,10 +266,10 @@ export function createPgUserPasswordCredentialsPort(): UserPasswordCredentialsPo
 
 export const inMemoryUserPasswordCredentialsPort: UserPasswordCredentialsPort = {
   async registerPendingVerification() {
-    return { ok: false, reason: "duplicate_email" };
+    return { ok: false, reason: 'duplicate_email' };
   },
   async registerPendingSpecialistVerification() {
-    return { ok: false, reason: "duplicate_email" };
+    return { ok: false, reason: 'duplicate_email' };
   },
   async deleteUnverifiedEmailPasswordRegistration() {},
   async findUserIdByEmailChallengeId() {

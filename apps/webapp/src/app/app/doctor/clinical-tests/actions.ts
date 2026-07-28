@@ -1,10 +1,10 @@
-"use server";
+'use server';
 
-import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
-import { EMPTY_CLINICAL_TEST_USAGE_SNAPSHOT } from "@/modules/tests/types";
+import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireDoctorAccess } from '@/app-layer/guards/requireRole';
+import { EMPTY_CLINICAL_TEST_USAGE_SNAPSHOT } from '@/modules/tests/types';
 import {
   archiveClinicalTestCore,
   CLINICAL_TESTS_PATH,
@@ -13,9 +13,9 @@ import {
   type ArchiveClinicalTestState,
   type SaveClinicalTestState,
   type UnarchiveClinicalTestState,
-} from "./actionsShared";
+} from './actionsShared';
 
-export type { ArchiveClinicalTestState, UnarchiveClinicalTestState } from "./actionsShared";
+export type { ArchiveClinicalTestState, UnarchiveClinicalTestState } from './actionsShared';
 
 export async function saveClinicalTest(
   _prev: SaveClinicalTestState | null,
@@ -36,12 +36,12 @@ export async function archiveClinicalTest(
   formData: FormData,
 ): Promise<ArchiveClinicalTestState> {
   const result = await archiveClinicalTestCore(formData);
-  if (result.kind === "needs_confirmation") {
-    return { ok: false, code: "USAGE_CONFIRMATION_REQUIRED", usage: result.usage };
+  if (result.kind === 'needs_confirmation') {
+    return { ok: false, code: 'USAGE_CONFIRMATION_REQUIRED', usage: result.usage };
   }
-  if (result.kind === "invalid") {
-    const idRaw = formData.get("id");
-    const id = typeof idRaw === "string" ? idRaw.trim() : "";
+  if (result.kind === 'invalid') {
+    const idRaw = formData.get('id');
+    const id = typeof idRaw === 'string' ? idRaw.trim() : '';
     if (!id) redirect(CLINICAL_TESTS_PATH);
     return { ok: false, error: result.error };
   }
@@ -55,7 +55,7 @@ export async function unarchiveClinicalTest(
   formData: FormData,
 ): Promise<UnarchiveClinicalTestState> {
   const result = await unarchiveClinicalTestCore(formData);
-  if (result.kind === "invalid") {
+  if (result.kind === 'invalid') {
     return { ok: false, error: result.error };
   }
   revalidatePath(CLINICAL_TESTS_PATH);

@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import { type ReactNode, useState } from "react";
-import { DoctorModal } from "./DoctorModal";
-import { Button } from "./primitives/button";
-import { Input } from "./primitives/input";
-import { cn } from "@/lib/utils";
+import { type ReactNode, useState } from 'react';
+import { DoctorModal } from './DoctorModal';
+import { Button } from './primitives/button';
+import { Input } from './primitives/input';
+import { cn } from '@/lib/utils';
 
 export type KpiQuickFilter<T> = {
   label: string;
@@ -53,12 +53,12 @@ export function KpiPreviewModal<T>({
   emptyState,
   loading = false,
 }: KpiPreviewModalProps<T>) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<number | null>(null);
 
   // Reset filters when modal closes/re-opens
   const handleClose = () => {
-    setQuery("");
+    setQuery('');
     setActiveFilter(null);
     onClose();
   };
@@ -109,10 +109,10 @@ export function KpiPreviewModal<T>({
               type="button"
               onClick={() => setActiveFilter(null)}
               className={cn(
-                "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
                 activeFilter === null
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border bg-muted/40 text-muted-foreground hover:bg-muted",
+                  ? 'border-primary bg-primary text-primary-foreground'
+                  : 'border-border bg-muted/40 text-muted-foreground hover:bg-muted',
               )}
             >
               Все
@@ -123,10 +123,10 @@ export function KpiPreviewModal<T>({
                 type="button"
                 onClick={() => setActiveFilter(activeFilter === idx ? null : idx)}
                 className={cn(
-                  "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                  'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
                   activeFilter === idx
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-border bg-muted/40 text-muted-foreground hover:bg-muted",
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'border-border bg-muted/40 text-muted-foreground hover:bg-muted',
                 )}
               >
                 {f.label}
@@ -144,9 +144,9 @@ export function KpiPreviewModal<T>({
               ))}
             </div>
           ) : filtered.length === 0 ? (
-            emptyState ?? (
+            (emptyState ?? (
               <p className="py-4 text-center text-sm text-muted-foreground">Нет элементов</p>
-            )
+            ))
           ) : (
             <ul className="m-0 list-none space-y-2 p-0">
               {filtered.map((item, idx) => (

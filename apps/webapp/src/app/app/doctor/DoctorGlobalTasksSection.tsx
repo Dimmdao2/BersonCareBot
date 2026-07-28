@@ -1,15 +1,15 @@
-"use client";
+'use client';
 
-import { useCallback, useState, useTransition } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
-import { DoctorSection, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
-import { KpiPreviewModal } from "@/shared/ui/doctor/KpiPreviewModal";
-import type { SpecialistTaskRow } from "@/modules/specialist-tasks/types";
-import { isSpecialistTaskOverdue } from "@/modules/specialist-tasks/taskPriority";
-import { cn } from "@/lib/utils";
-import { SpecialistTaskFormDialog } from "./clients/SpecialistTaskFormDialog";
-import { SpecialistTaskRow as TaskRow } from "./clients/SpecialistTaskRow";
+import { useCallback, useState, useTransition } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
+import { DoctorSection, DoctorSectionTitle } from '@/shared/ui/doctor/DoctorSection';
+import { KpiPreviewModal } from '@/shared/ui/doctor/KpiPreviewModal';
+import type { SpecialistTaskRow } from '@/modules/specialist-tasks/types';
+import { isSpecialistTaskOverdue } from '@/modules/specialist-tasks/taskPriority';
+import { cn } from '@/lib/utils';
+import { SpecialistTaskFormDialog } from './clients/SpecialistTaskFormDialog';
+import { SpecialistTaskRow as TaskRow } from './clients/SpecialistTaskRow';
 
 /** How many non-overdue tasks to show in the compact preview before collapsing into "Все задачи". */
 const NEAREST_UPCOMING_PREVIEW_LIMIT = 3;
@@ -35,7 +35,7 @@ function sortTasksForDisplay(tasks: SpecialistTaskRow[]): SpecialistTaskRow[] {
     const rb = rank(b);
     if (ra !== rb) return ra - rb;
     if (ra === 2) return a.createdAt.localeCompare(b.createdAt);
-    return (a.dueAt ?? "").localeCompare(b.dueAt ?? "");
+    return (a.dueAt ?? '').localeCompare(b.dueAt ?? '');
   });
 }
 
@@ -71,9 +71,9 @@ export function DoctorGlobalTasksSection({
     startTransition(async () => {
       setLoadError(null);
       // limit=100 достаточно для практических нужд; SSR грузит без лимита (§1.3)
-      const res = await fetch("/api/doctor/tasks?limit=100");
+      const res = await fetch('/api/doctor/tasks?limit=100');
       if (!res.ok) {
-        setLoadError("Не удалось загрузить задачи");
+        setLoadError('Не удалось загрузить задачи');
         return;
       }
       const data = (await res.json()) as { tasks?: SpecialistTaskRow[] };
@@ -85,7 +85,7 @@ export function DoctorGlobalTasksSection({
 
   function handleComplete(taskId: string) {
     startTransition(async () => {
-      await fetch(`/api/doctor/tasks/${encodeURIComponent(taskId)}/complete`, { method: "POST" });
+      await fetch(`/api/doctor/tasks/${encodeURIComponent(taskId)}/complete`, { method: 'POST' });
       reload();
     });
   }
@@ -98,7 +98,7 @@ export function DoctorGlobalTasksSection({
   const hasMore = tasksTotal > visibleTasks.length;
 
   return (
-    <DoctorSection id="doctor-today-global-tasks" className={cn("h-full gap-2", className)}>
+    <DoctorSection id="doctor-today-global-tasks" className={cn('h-full gap-2', className)}>
       <div className="flex items-center justify-between gap-2">
         <DoctorSectionTitle>Задачи</DoctorSectionTitle>
         {/* Owner punch-list item 1: top «всего» metric removed — it duplicated the bottom
@@ -175,15 +175,15 @@ export function DoctorGlobalTasksSection({
         }
         quickFilters={[
           {
-            label: "Просрочено",
+            label: 'Просрочено',
             predicate: (task) => isSpecialistTaskOverdue(task),
           },
           {
-            label: "Сегодня",
+            label: 'Сегодня',
             predicate: (task) => task.dueAt != null && task.dueAt.slice(0, 10) <= todayIso,
           },
           {
-            label: "Важные",
+            label: 'Важные',
             predicate: (task) => task.isImportant,
           },
         ]}

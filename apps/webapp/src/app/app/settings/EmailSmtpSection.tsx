@@ -1,12 +1,12 @@
-"use client";
+'use client';
 
-import { useState, useTransition } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
-import { apiJson } from "@/shared/lib/apiJson";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { LabeledSwitch } from "@/shared/ui/doctor/primitives/labeled-switch";
-import { patchAdminSetting } from "./patchAdminSetting";
+import { useState, useTransition } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
+import { apiJson } from '@/shared/lib/apiJson';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { LabeledSwitch } from '@/shared/ui/doctor/primitives/labeled-switch';
+import { patchAdminSetting } from './patchAdminSetting';
 
 export type EmailSmtpSectionProps = {
   host: string;
@@ -30,11 +30,11 @@ export function EmailSmtpSection({
   const [secure, setSecure] = useState(initialSecure);
   const [user, setUser] = useState(initialUser);
   const [from, setFrom] = useState(initialFrom);
-  const [password, setPassword] = useState("");
+  const [password, setPassword] = useState('');
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const [testTo, setTestTo] = useState("");
+  const [testTo, setTestTo] = useState('');
   const [testError, setTestError] = useState<string | null>(null);
   const [testOk, setTestOk] = useState(false);
   const [isTestPending, startTestTransition] = useTransition();
@@ -45,11 +45,11 @@ export function EmailSmtpSection({
     startTransition(async () => {
       const portNum = Number.parseInt(port.trim(), 10);
       if (!Number.isFinite(portNum) || portNum < 1 || portNum > 65535) {
-        setError("Порт SMTP: число от 1 до 65535");
+        setError('Порт SMTP: число от 1 до 65535');
         return;
       }
       try {
-        const ok = await patchAdminSetting("smtp_outbound", {
+        const ok = await patchAdminSetting('smtp_outbound', {
           host,
           port: portNum,
           secure,
@@ -58,13 +58,13 @@ export function EmailSmtpSection({
           from,
         });
         if (!ok) {
-          setError("Не удалось сохранить");
+          setError('Не удалось сохранить');
           return;
         }
-        setPassword("");
+        setPassword('');
         setSaved(true);
       } catch {
-        setError("Ошибка при сохранении");
+        setError('Ошибка при сохранении');
       }
     });
   }
@@ -74,24 +74,24 @@ export function EmailSmtpSection({
     setTestError(null);
     startTestTransition(async () => {
       try {
-        await apiJson<{ ok: boolean }>("/api/admin/smtp-test", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+        await apiJson<{ ok: boolean }>('/api/admin/smtp-test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ to: testTo.trim() }),
         });
         setTestOk(true);
       } catch (e) {
-        const msg = e instanceof Error ? e.message : "Не удалось отправить";
-        if (msg === "smtp_not_configured") {
-          setTestError("Сначала сохраните полный SMTP в БД");
+        const msg = e instanceof Error ? e.message : 'Не удалось отправить';
+        if (msg === 'smtp_not_configured') {
+          setTestError('Сначала сохраните полный SMTP в БД');
           return;
         }
-        if (msg === "smtp_password_missing") {
-          setTestError("В настройках нет пароля SMTP");
+        if (msg === 'smtp_password_missing') {
+          setTestError('В настройках нет пароля SMTP');
           return;
         }
-        if (msg === "invalid_body") {
-          setTestError("Укажите корректный email получателя");
+        if (msg === 'invalid_body') {
+          setTestError('Укажите корректный email получателя');
           return;
         }
         setTestError(msg);
@@ -139,7 +139,12 @@ export function EmailSmtpSection({
         </div>
         <label className="flex flex-col gap-1">
           <span className="text-xs font-medium">Пользователь</span>
-          <Input value={user} onChange={(e) => setUser(e.target.value)} disabled={isPending} autoComplete="off" />
+          <Input
+            value={user}
+            onChange={(e) => setUser(e.target.value)}
+            disabled={isPending}
+            autoComplete="off"
+          />
         </label>
         <label className="flex flex-col gap-1">
           <span className="text-xs font-medium">Пароль</span>
@@ -149,7 +154,7 @@ export function EmailSmtpSection({
             onChange={(e) => setPassword(e.target.value)}
             disabled={isPending}
             autoComplete="new-password"
-            placeholder={_hasStoredPassword ? "(без изменения — оставьте пустым)" : ""}
+            placeholder={_hasStoredPassword ? '(без изменения — оставьте пустым)' : ''}
           />
         </label>
         <label className="flex flex-col gap-1">
@@ -166,7 +171,7 @@ export function EmailSmtpSection({
 
         <div className="flex flex-wrap items-center gap-3">
           <Button variant="outline" onClick={handleSave} disabled={isPending}>
-            {isPending ? "Сохранение…" : "Сохранить"}
+            {isPending ? 'Сохранение…' : 'Сохранить'}
           </Button>
           {saved && <span className="text-sm text-green-600">Сохранено</span>}
           {error && <span className="text-sm text-destructive">{error}</span>}
@@ -188,8 +193,13 @@ export function EmailSmtpSection({
               placeholder="email получателя"
             />
           </label>
-          <Button type="button" variant="secondary" onClick={handleTestSend} disabled={isTestPending || !testTo.trim()}>
-            {isTestPending ? "Отправка…" : "Отправить тест"}
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={handleTestSend}
+            disabled={isTestPending || !testTo.trim()}
+          >
+            {isTestPending ? 'Отправка…' : 'Отправить тест'}
           </Button>
         </div>
         {testOk && <span className="text-sm text-green-600">Тестовое письмо отправлено</span>}

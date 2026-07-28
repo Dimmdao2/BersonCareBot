@@ -16,34 +16,34 @@
  * `recordDeliveryAttempt` is kept in deps for call-site compat. Delivery-attempt
  * logging for this leg has moved to the integrator adapter (PLAN S14 step 1).
  */
-import { z } from "zod";
-import { routePaths } from "@/app-layer/routes/paths";
-import { logger } from "@/infra/logging/logger";
-import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
-import type { PatientInboundChatPort } from "@/modules/messaging/ports";
+import { z } from 'zod';
+import { routePaths } from '@/app-layer/routes/paths';
+import { logger } from '@/infra/logging/logger';
+import type { ChannelPreferencesPort } from '@/modules/channel-preferences/ports';
+import type { PatientInboundChatPort } from '@/modules/messaging/ports';
 import {
   appendPatientInboundAdminMessage,
   bookingLifecycleChatIntegratorMessageId,
-} from "@/modules/messaging/appendPatientInboundAdminMessage";
-import { getAppBaseUrlSync } from "@/modules/system-settings/integrationRuntime";
-import type { RecordNotificationDeliveryAttemptInput } from "@/modules/notification-delivery/types";
+} from '@/modules/messaging/appendPatientInboundAdminMessage';
+import { getAppBaseUrlSync } from '@/modules/system-settings/integrationRuntime';
+import type { RecordNotificationDeliveryAttemptInput } from '@/modules/notification-delivery/types';
 import {
   resolvePatientNotificationChannels,
   type NotificationTopicGate,
-} from "@/modules/patient-notifications/resolveNotificationChannels";
-import { REMINDER_NOTIFICATION_TOPIC_APPOINTMENT } from "@/modules/reminders/notificationTopicCode";
-import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
-import type { SystemSettingsService } from "@/modules/system-settings/service";
+} from '@/modules/patient-notifications/resolveNotificationChannels';
+import { REMINDER_NOTIFICATION_TOPIC_APPOINTMENT } from '@/modules/reminders/notificationTopicCode';
+import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
+import type { SystemSettingsService } from '@/modules/system-settings/service';
 import {
   buildAppointmentLifecyclePushCopy,
   buildAppointmentReminderPushCopy,
   buildNewsPushCopy,
   type AppointmentLifecycleVariant,
-} from "@/modules/web-push/pushNotificationCopy";
-import type { WebPushSubscriptionsPort } from "@/modules/web-push/ports";
-import { createTrackedWebPushPayload } from "@/app-layer/product-analytics/createTrackedWebPushPayload";
-import { relayOutbound } from "@/modules/messaging/relayOutbound";
-import type { TopicChannelPrefsPort } from "@/modules/patient-notifications/topicChannelPrefsPort";
+} from '@/modules/web-push/pushNotificationCopy';
+import type { WebPushSubscriptionsPort } from '@/modules/web-push/ports';
+import { createTrackedWebPushPayload } from '@/app-layer/product-analytics/createTrackedWebPushPayload';
+import { relayOutbound } from '@/modules/messaging/relayOutbound';
+import type { TopicChannelPrefsPort } from '@/modules/patient-notifications/topicChannelPrefsPort';
 
 export const integratorPatientWebPushNotifyBodySchema = z
   .object({
@@ -52,8 +52,8 @@ export const integratorPatientWebPushNotifyBodySchema = z
     phoneNormalized: z.string().min(8).max(32).optional(),
     platformUserId: z.string().uuid().optional(),
     topicCode: z.string().min(1).max(120).default(REMINDER_NOTIFICATION_TOPIC_APPOINTMENT),
-    intentType: z.enum(["appointment_lifecycle", "appointment_reminder", "news"]),
-    variant: z.enum(["created", "cancelled", "rescheduled"]).optional(),
+    intentType: z.enum(['appointment_lifecycle', 'appointment_reminder', 'news']),
+    variant: z.enum(['created', 'cancelled', 'rescheduled']).optional(),
     slotStartIso: z.string().min(1).max(64).optional(),
     openUrl: z.string().min(1).max(4000),
     stableKey: z.string().min(1).max(240),
@@ -61,13 +61,17 @@ export const integratorPatientWebPushNotifyBodySchema = z
     nowIso: z.string().max(64).optional(),
   })
   .refine((body) => Boolean(body.platformUserId || body.integratorUserId || body.phoneNormalized), {
-    message: "missing_user_ref",
+    message: 'missing_user_ref',
   });
 
-export type IntegratorPatientWebPushNotifyBody = z.infer<typeof integratorPatientWebPushNotifyBodySchema>;
+export type IntegratorPatientWebPushNotifyBody = z.infer<
+  typeof integratorPatientWebPushNotifyBodySchema
+>;
 
 export type PatientWebPushNotifyDeps = {
-  findPlatformUserByIntegratorId: (integratorUserId: string) => Promise<{ platformUserId: string } | null>;
+  findPlatformUserByIntegratorId: (
+    integratorUserId: string,
+  ) => Promise<{ platformUserId: string } | null>;
   findPlatformUserByPhone: (phoneNormalized: string) => Promise<{ platformUserId: string } | null>;
   channelPreferences: ChannelPreferencesPort;
   topicChannelPrefs: TopicChannelPrefsPort;
@@ -76,8 +80,11 @@ export type PatientWebPushNotifyDeps = {
    * Kept for call-site backward compat (buildAppDeps, route.ts, fanOutBroadcastWebPush).
    * No longer used by this function — VAPID + SMTP are read by the integrator adapter (PLAN S14b).
    */
-  systemSettings: Pick<SystemSettingsService, "getSetting">;
-  readReminderNotifyGate: (platformUserId: string, topicCode: string) => Promise<NotificationTopicGate>;
+  systemSettings: Pick<SystemSettingsService, 'getSetting'>;
+  readReminderNotifyGate: (
+    platformUserId: string,
+    topicCode: string,
+  ) => Promise<NotificationTopicGate>;
   /**
    * Kept for call-site backward compat. Delivery-attempt logging for this leg has moved
    * to the integrator adapter (PLAN S14 step 1). No longer called here.
@@ -87,7 +94,7 @@ export type PatientWebPushNotifyDeps = {
 };
 
 function buildPatientNotificationsOpenUrl(): string {
-  const base = getAppBaseUrlSync().replace(/\/$/, "");
+  const base = getAppBaseUrlSync().replace(/\/$/, '');
   return `${base}${routePaths.patient}?notifications=1`;
 }
 
@@ -107,10 +114,10 @@ function buildCopy(
   body: IntegratorPatientWebPushNotifyBody,
   timeZone: string,
 ): { title: string; body: string } | null {
-  if (body.intentType === "news") {
-    return buildNewsPushCopy(body.broadcastTitle ?? "");
+  if (body.intentType === 'news') {
+    return buildNewsPushCopy(body.broadcastTitle ?? '');
   }
-  if (body.intentType === "appointment_reminder") {
+  if (body.intentType === 'appointment_reminder') {
     if (!body.slotStartIso) return null;
     return buildAppointmentReminderPushCopy(
       body.slotStartIso,
@@ -119,31 +126,34 @@ function buildCopy(
     );
   }
   if (!body.variant || !body.slotStartIso) return null;
-  return buildAppointmentLifecyclePushCopy(body.variant as AppointmentLifecycleVariant, body.slotStartIso, timeZone);
+  return buildAppointmentLifecyclePushCopy(
+    body.variant as AppointmentLifecycleVariant,
+    body.slotStartIso,
+    timeZone,
+  );
 }
 
 export async function runPatientWebPushNotify(
   body: IntegratorPatientWebPushNotifyBody,
   deps: PatientWebPushNotifyDeps,
 ): Promise<Record<string, unknown>> {
-  const platform =
-    body.platformUserId ?
-      { platformUserId: body.platformUserId }
-    : body.integratorUserId ?
-      await deps.findPlatformUserByIntegratorId(body.integratorUserId)
-    : body.phoneNormalized ?
-      await deps.findPlatformUserByPhone(body.phoneNormalized)
-    : null;
+  const platform = body.platformUserId
+    ? { platformUserId: body.platformUserId }
+    : body.integratorUserId
+      ? await deps.findPlatformUserByIntegratorId(body.integratorUserId)
+      : body.phoneNormalized
+        ? await deps.findPlatformUserByPhone(body.phoneNormalized)
+        : null;
 
   if (!platform) {
-    return { ok: true, skipped: "no_platform_user" };
+    return { ok: true, skipped: 'no_platform_user' };
   }
 
   const uid = platform.platformUserId;
   const timeZone = await getAppDisplayTimeZone();
 
   if (
-    body.intentType === "appointment_lifecycle" &&
+    body.intentType === 'appointment_lifecycle' &&
     body.variant &&
     body.slotStartIso &&
     deps.patientInboundChatPort
@@ -161,12 +171,17 @@ export async function runPatientWebPushNotify(
           platformUserId: uid,
           text: chatText,
           integratorMessageId: bookingLifecycleChatIntegratorMessageId(body.variant, bookingId),
-          source: "appointment_lifecycle",
+          source: 'appointment_lifecycle',
         });
       } catch (err) {
         logger.warn(
-          { err, event: "patient_web_push.booking_chat_append_failed", platformUserId: uid, stableKey: body.stableKey },
-          "booking lifecycle chat append failed",
+          {
+            err,
+            event: 'patient_web_push.booking_chat_append_failed',
+            platformUserId: uid,
+            stableKey: body.stableKey,
+          },
+          'booking lifecycle chat append failed',
         );
       }
     }
@@ -174,7 +189,7 @@ export async function runPatientWebPushNotify(
 
   const gate = await deps.readReminderNotifyGate(uid, body.topicCode);
   if (gate.muted) {
-    return { ok: true, skipped: "muted" };
+    return { ok: true, skipped: 'muted' };
   }
 
   const [prefs, topicRows, hasSubs] = await Promise.all([
@@ -202,25 +217,31 @@ export async function runPatientWebPushNotify(
     gate,
   });
 
-  if (!resolved.selectedChannels.includes("web_push")) {
-    return { ok: true, skipped: "web_push_not_selected", skippedChannels: resolved.skippedChannels };
+  if (!resolved.selectedChannels.includes('web_push')) {
+    return {
+      ok: true,
+      skipped: 'web_push_not_selected',
+      skippedChannels: resolved.skippedChannels,
+    };
   }
   if (!hasSubs) {
-    return { ok: true, skipped: "no_active_subscriptions" };
+    return { ok: true, skipped: 'no_active_subscriptions' };
   }
 
   const copy = buildCopy(body, timeZone);
   if (!copy || (!copy.title.trim() && !copy.body.trim())) {
-    return { ok: true, skipped: "push_copy_empty" };
+    return { ok: true, skipped: 'push_copy_empty' };
   }
 
   const pushOpenUrl =
-    body.intentType === "appointment_lifecycle" ? buildPatientNotificationsOpenUrl() : body.openUrl;
+    body.intentType === 'appointment_lifecycle' ? buildPatientNotificationsOpenUrl() : body.openUrl;
 
   const pushKind =
-    body.intentType === "news" ? "news"
-    : body.intentType === "appointment_reminder" ? "custom"
-    : "custom";
+    body.intentType === 'news'
+      ? 'news'
+      : body.intentType === 'appointment_reminder'
+        ? 'custom'
+        : 'custom';
 
   // Register product analytics + obtain trackingId for delivery attribution.
   // The integrator adapter carries the full payload and will attach trackingId
@@ -245,7 +266,7 @@ export async function runPatientWebPushNotify(
   const result = await relayOutbound({
     messageId: `patient-web-push:${uid}:${tag}`,
     organizationId: body.organizationId,
-    channel: "web_push",
+    channel: 'web_push',
     recipient: uid,
     text: trackedPayload.body,
     metadata: {
@@ -262,10 +283,15 @@ export async function runPatientWebPushNotify(
     },
   }).catch((err: unknown) => {
     logger.warn(
-      { err, event: "patient_web_push_notify.relay_failed", platformUserId: uid, topicCode: body.topicCode },
-      "patient web push notify relay failed",
+      {
+        err,
+        event: 'patient_web_push_notify.relay_failed',
+        platformUserId: uid,
+        topicCode: body.topicCode,
+      },
+      'patient web push notify relay failed',
     );
-    return { ok: false as const, reason: "relay_error" };
+    return { ok: false as const, reason: 'relay_error' };
   });
 
   if (!result.ok) {

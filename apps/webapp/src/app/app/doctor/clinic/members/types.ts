@@ -1,11 +1,11 @@
 import type {
   OrganizationMembershipRole,
   OrganizationMembershipStatus,
-} from "@/modules/organization-membership/ports";
+} from '@/modules/organization-membership/ports';
 import type {
   OrganizationInviteRole,
   OrganizationInviteStatus,
-} from "@/modules/organization-invites/ports";
+} from '@/modules/organization-invites/ports';
 
 export type ClinicMemberView = {
   id: string;

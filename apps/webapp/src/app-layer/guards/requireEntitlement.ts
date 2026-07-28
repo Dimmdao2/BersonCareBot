@@ -1,20 +1,20 @@
-import { NextResponse } from "next/server";
-import { notFound } from "next/navigation";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { NextResponse } from 'next/server';
+import { notFound } from 'next/navigation';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
   isMechanicEnabled,
   resolveOrgEntitlementSnapshot,
-} from "@/modules/org-entitlements/service";
-import type { OrgMechanic } from "@/modules/org-entitlements/types";
+} from '@/modules/org-entitlements/service';
+import type { OrgMechanic } from '@/modules/org-entitlements/types';
 
 /** A route/action may pass only an already-authorized, server-derived organization. */
 export type EntitlementContext = Readonly<{ organizationId: string }>;
-type EntitlementAccess = "read" | "mutation";
+type EntitlementAccess = 'read' | 'mutation';
 export type EntitlementSuccess = { ok: true };
 export type EntitlementDenialReason =
-  | "entitlement_required"
-  | "commercial_read_only"
-  | "commercial_blocked";
+  | 'entitlement_required'
+  | 'commercial_read_only'
+  | 'commercial_blocked';
 
 async function checkEntitlement(
   ctx: EntitlementContext,
@@ -24,15 +24,15 @@ async function checkEntitlement(
   const port = buildAppDeps().orgEntitlements;
   const snapshot = await resolveOrgEntitlementSnapshot(port, ctx.organizationId);
   if (!snapshot.entitlements[mechanic]) {
-    return { ok: false, reason: "entitlement_required" };
+    return { ok: false, reason: 'entitlement_required' };
   }
-  if (access === "read") return { ok: true };
+  if (access === 'read') return { ok: true };
 
-  if (snapshot.access.lifecycle === "read_only") {
-    return { ok: false, reason: "commercial_read_only" };
+  if (snapshot.access.lifecycle === 'read_only') {
+    return { ok: false, reason: 'commercial_read_only' };
   }
-  if (snapshot.access.lifecycle === "blocked") {
-    return { ok: false, reason: "commercial_blocked" };
+  if (snapshot.access.lifecycle === 'blocked') {
+    return { ok: false, reason: 'commercial_blocked' };
   }
   return { ok: true };
 }
@@ -53,14 +53,11 @@ export async function requireEntitlementForRead(
   ctx: EntitlementContext,
   mechanic: OrgMechanic,
 ): Promise<EntitlementSuccess | { ok: false; response: NextResponse }> {
-  const decision = await checkEntitlement(ctx, mechanic, "read");
+  const decision = await checkEntitlement(ctx, mechanic, 'read');
   if (!decision.ok) {
     return {
       ok: false,
-      response: NextResponse.json(
-        { ok: false, error: decision.reason, mechanic },
-        { status: 403 },
-      ),
+      response: NextResponse.json({ ok: false, error: decision.reason, mechanic }, { status: 403 }),
     };
   }
   return decision;
@@ -71,14 +68,11 @@ export async function requireEntitlementForMutation(
   ctx: EntitlementContext,
   mechanic: OrgMechanic,
 ): Promise<EntitlementSuccess | { ok: false; response: NextResponse }> {
-  const decision = await checkEntitlement(ctx, mechanic, "mutation");
+  const decision = await checkEntitlement(ctx, mechanic, 'mutation');
   if (!decision.ok) {
     return {
       ok: false,
-      response: NextResponse.json(
-        { ok: false, error: decision.reason, mechanic },
-        { status: 403 },
-      ),
+      response: NextResponse.json({ ok: false, error: decision.reason, mechanic }, { status: 403 }),
     };
   }
   return decision;
@@ -88,22 +82,22 @@ export async function requireEntitlementForMutation(
 export async function requireEntitlementForReadAction(
   ctx: EntitlementContext,
   mechanic: OrgMechanic,
-): Promise<EntitlementSuccess | { ok: false; mechanic: OrgMechanic; reason: EntitlementDenialReason }> {
-  const decision = await checkEntitlement(ctx, mechanic, "read");
-  return decision.ok
-    ? decision
-    : { ok: false, mechanic, reason: decision.reason };
+): Promise<
+  EntitlementSuccess | { ok: false; mechanic: OrgMechanic; reason: EntitlementDenialReason }
+> {
+  const decision = await checkEntitlement(ctx, mechanic, 'read');
+  return decision.ok ? decision : { ok: false, mechanic, reason: decision.reason };
 }
 
 /** Mutation-only Server Action adapter. Read adapters cannot silently skip lifecycle enforcement. */
 export async function requireEntitlementForMutationAction(
   ctx: EntitlementContext,
   mechanic: OrgMechanic,
-): Promise<EntitlementSuccess | { ok: false; mechanic: OrgMechanic; reason: EntitlementDenialReason }> {
-  const decision = await checkEntitlement(ctx, mechanic, "mutation");
-  return decision.ok
-    ? decision
-    : { ok: false, mechanic, reason: decision.reason };
+): Promise<
+  EntitlementSuccess | { ok: false; mechanic: OrgMechanic; reason: EntitlementDenialReason }
+> {
+  const decision = await checkEntitlement(ctx, mechanic, 'mutation');
+  return decision.ok ? decision : { ok: false, mechanic, reason: decision.reason };
 }
 
 /**

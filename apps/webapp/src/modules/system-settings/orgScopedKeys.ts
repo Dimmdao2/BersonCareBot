@@ -1,29 +1,29 @@
-import { ALLOWED_KEYS, SYSTEM_SETTING_REGISTRY, type SystemSettingKey } from "./registry";
+import { ALLOWED_KEYS, SYSTEM_SETTING_REGISTRY, type SystemSettingKey } from './registry';
 
 /** Compatibility view derived from the S5-0 single setting registry. */
-export type SystemSettingsOrgScope = "per_org" | "global";
+export type SystemSettingsOrgScope = 'per_org' | 'global';
 
 export const SYSTEM_SETTINGS_ORG_SCOPE: Readonly<Record<SystemSettingKey, SystemSettingsOrgScope>> =
   Object.freeze(
     Object.fromEntries(
       ALLOWED_KEYS.map((key) => [
         key,
-        SYSTEM_SETTING_REGISTRY[key].ownership === "per_org" ? "per_org" : "global",
+        SYSTEM_SETTING_REGISTRY[key].ownership === 'per_org' ? 'per_org' : 'global',
       ]),
     ) as Record<SystemSettingKey, SystemSettingsOrgScope>,
   );
 
 export function isPerOrgSettingKey(key: string): boolean {
-  return SYSTEM_SETTING_REGISTRY[key as SystemSettingKey]?.ownership === "per_org";
+  return SYSTEM_SETTING_REGISTRY[key as SystemSettingKey]?.ownership === 'per_org';
 }
 
 const PLATFORM_GLOBAL_FALLBACK_WRITE_KEYS = new Set<SystemSettingKey>([
-  "notif_template:created:patient",
-  "notif_template:created:doctor",
-  "notif_template:cancelled:patient",
-  "notif_template:cancelled:doctor",
-  "notif_template:rescheduled:patient",
-  "notif_template:rescheduled:doctor",
+  'notif_template:created:patient',
+  'notif_template:created:doctor',
+  'notif_template:cancelled:patient',
+  'notif_template:cancelled:doctor',
+  'notif_template:rescheduled:patient',
+  'notif_template:rescheduled:doctor',
 ]);
 
 /**
@@ -42,8 +42,10 @@ export class SystemSettingsOrgContextRequiredError extends Error {
   readonly key: string;
 
   constructor(key: string) {
-    super(`organization_context_required: per-org setting "${key}" was written without an organizationId`);
-    this.name = "SystemSettingsOrgContextRequiredError";
+    super(
+      `organization_context_required: per-org setting "${key}" was written without an organizationId`,
+    );
+    this.name = 'SystemSettingsOrgContextRequiredError';
     this.key = key;
   }
 }

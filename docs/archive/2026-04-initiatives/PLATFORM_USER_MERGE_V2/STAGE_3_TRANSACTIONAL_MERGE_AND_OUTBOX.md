@@ -31,7 +31,7 @@
 - **Только `pending`:** realign не трогает строки `processing`, чтобы не гоняться с projection worker; при необходимости — drain очереди или второй проход после опустошения `pending`.
 - **Replay:** вставить новое событие с новым ключом и пометить старое как superseded (если поддерживается).
 
-Приоритетные типы: `user.upserted`, `contact.linked`, `preferences.updated`, support.*, reminder.*, `appointment.record.upserted` (если в payload есть integrator user id).
+Приоритетные типы: `user.upserted`, `contact.linked`, `preferences.updated`, support._, reminder._, `appointment.record.upserted` (если в payload есть integrator user id).
 
 ## Наблюдаемость
 

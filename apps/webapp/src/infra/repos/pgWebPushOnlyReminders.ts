@@ -1,22 +1,22 @@
-import { sql } from "drizzle-orm";
-import { getWebappSqlDb, runWebappSql, runWebappTransaction } from "@/infra/db/runWebappSql";
-import { drizzleSqlUuidInList } from "@/modules/analytics/analyticsAudience";
+import { sql } from 'drizzle-orm';
+import { getWebappSqlDb, runWebappSql, runWebappTransaction } from '@/infra/db/runWebappSql';
+import { drizzleSqlUuidInList } from '@/modules/analytics/analyticsAudience';
 import type {
   WebPushOnlyDueOccurrenceRow,
   WebPushOnlyReminderRuleRow,
   WebPushOnlyRemindersPort,
-} from "@/modules/reminders/webPushOnlyPorts";
-import type { ReminderCategory, ReminderLinkedObjectType } from "@/modules/reminders/types";
+} from '@/modules/reminders/webPushOnlyPorts';
+import type { ReminderCategory, ReminderLinkedObjectType } from '@/modules/reminders/types';
 
 function parseLinkedType(raw: string | null): ReminderLinkedObjectType | null {
   if (!raw) return null;
   if (
-    raw === "lfk_complex" ||
-    raw === "content_section" ||
-    raw === "content_page" ||
-    raw === "custom" ||
-    raw === "rehab_program" ||
-    raw === "treatment_program_item"
+    raw === 'lfk_complex' ||
+    raw === 'content_section' ||
+    raw === 'content_page' ||
+    raw === 'custom' ||
+    raw === 'rehab_program' ||
+    raw === 'treatment_program_item'
   ) {
     return raw;
   }
@@ -52,8 +52,8 @@ function mapRuleRow(row: {
     platformUserId: row.platform_user_id,
     category: row.category as ReminderCategory,
     isEnabled: row.is_enabled,
-    scheduleType: row.schedule_type ?? "interval_window",
-    timezone: row.timezone?.trim() || "Europe/Moscow",
+    scheduleType: row.schedule_type ?? 'interval_window',
+    timezone: row.timezone?.trim() || 'Europe/Moscow',
     intervalMinutes: row.interval_minutes,
     windowStartMinute: row.window_start_minute,
     windowEndMinute: row.window_end_minute,
@@ -96,7 +96,9 @@ const RULE_SELECT = `
 `;
 
 /** Drop pending rows after schedule change so old catch-up slots never dispatch. */
-export async function cancelWebPushOnlyPendingOccurrencesForRule(integratorRuleId: string): Promise<number> {
+export async function cancelWebPushOnlyPendingOccurrencesForRule(
+  integratorRuleId: string,
+): Promise<number> {
   const r = await runWebappSql(
     getWebappSqlDb(),
     sql`DELETE FROM webapp_reminder_occurrences
@@ -254,7 +256,7 @@ export function createPgWebPushOnlyRemindersPort(): WebPushOnlyRemindersPort {
     },
 
     async resolveLinkedCatalogTitle(linkedObjectType, linkedObjectId) {
-      if (linkedObjectType === "content_page") {
+      if (linkedObjectType === 'content_page') {
         const res = await runWebappSql<{ title: string }>(
           getWebappSqlDb(),
           sql`SELECT title FROM content_pages
@@ -264,7 +266,7 @@ export function createPgWebPushOnlyRemindersPort(): WebPushOnlyRemindersPort {
         const title = res.rows[0]?.title?.trim();
         return title && title.length > 0 ? title : null;
       }
-      if (linkedObjectType === "content_section") {
+      if (linkedObjectType === 'content_section') {
         const res = await runWebappSql<{ title: string }>(
           getWebappSqlDb(),
           sql`SELECT title FROM content_sections WHERE slug = ${linkedObjectId} LIMIT 1`,

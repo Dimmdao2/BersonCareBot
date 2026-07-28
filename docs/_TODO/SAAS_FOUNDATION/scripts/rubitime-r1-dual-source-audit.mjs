@@ -10,17 +10,17 @@
  *
  * Output contains aggregate counts and optional hash-only external ids.
  */
-import { existsSync, readFileSync } from "node:fs";
-import { createHash, randomBytes } from "node:crypto";
-import { spawnSync } from "node:child_process";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { existsSync, readFileSync } from 'node:fs';
+import { createHash, randomBytes } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(__dirname, "../../../..");
+const repoRoot = path.resolve(__dirname, '../../../..');
 const DEFAULT_ENV_FILES = [
-  path.join(repoRoot, ".env"),
-  path.join(repoRoot, "apps/webapp/.env.dev"),
+  path.join(repoRoot, '.env'),
+  path.join(repoRoot, 'apps/webapp/.env.dev'),
 ];
 
 function usage() {
@@ -43,13 +43,13 @@ function parseArgs(argv) {
     help: false,
   };
   for (const arg of argv) {
-    if (arg === "--help" || arg === "-h") args.help = true;
-    else if (arg === "--allow-test-target") args.allowTestTarget = true;
-    else if (arg.startsWith("--threshold-minutes=")) {
-      const n = Number(arg.slice("--threshold-minutes=".length));
+    if (arg === '--help' || arg === '-h') args.help = true;
+    else if (arg === '--allow-test-target') args.allowTestTarget = true;
+    else if (arg.startsWith('--threshold-minutes=')) {
+      const n = Number(arg.slice('--threshold-minutes='.length));
       if (Number.isFinite(n) && n >= 0) args.thresholdMinutes = Math.trunc(n);
-    } else if (arg.startsWith("--sample-size=")) {
-      const n = Number(arg.slice("--sample-size=".length));
+    } else if (arg.startsWith('--sample-size=')) {
+      const n = Number(arg.slice('--sample-size='.length));
       if (Number.isFinite(n) && n >= 0) args.sampleSize = Math.min(100, Math.trunc(n));
     } else {
       throw new Error(`Unknown argument: ${arg}`);
@@ -62,15 +62,16 @@ function parseEnvFile(content) {
   const parsed = {};
   for (const rawLine of content.split(/\r?\n/)) {
     const line = rawLine.trim();
-    if (!line || line.startsWith("#")) continue;
-    const normalized = line.startsWith("export ") ? line.slice("export ".length).trim() : line;
-    const eqIdx = normalized.indexOf("=");
+    if (!line || line.startsWith('#')) continue;
+    const normalized = line.startsWith('export ') ? line.slice('export '.length).trim() : line;
+    const eqIdx = normalized.indexOf('=');
     if (eqIdx <= 0) continue;
     const key = normalized.slice(0, eqIdx).trim();
     let value = normalized.slice(eqIdx + 1).trim();
     if (
       value.length >= 2 &&
-      ((value.startsWith("'") && value.endsWith("'")) || (value.startsWith('"') && value.endsWith('"')))
+      ((value.startsWith("'") && value.endsWith("'")) ||
+        (value.startsWith('"') && value.endsWith('"')))
     ) {
       value = value.slice(1, -1);
     }
@@ -86,12 +87,12 @@ function loadLocalEnv() {
   const loaded = [];
   for (const file of DEFAULT_ENV_FILES) {
     if (!existsSync(file)) continue;
-    if (file.startsWith("/opt/")) {
+    if (file.startsWith('/opt/')) {
       throw new Error(`Refusing to load production env path: ${file}`);
     }
-    const parsed = parseEnvFile(readFileSync(file, "utf8"));
+    const parsed = parseEnvFile(readFileSync(file, 'utf8'));
     for (const [key, value] of Object.entries(parsed)) {
-      if (process.env[key] == null || process.env[key] === "") process.env[key] = value;
+      if (process.env[key] == null || process.env[key] === '') process.env[key] = value;
     }
     loaded.push(path.relative(repoRoot, file));
   }
@@ -100,15 +101,15 @@ function loadLocalEnv() {
 
 function assertNoOptEnvReferences() {
   const sensitivePathVars = [
-    "BASH_ENV",
-    "DOTENV_CONFIG_PATH",
-    "ENV_FILE",
-    "PGPASSFILE",
-    "PGSERVICEFILE",
+    'BASH_ENV',
+    'DOTENV_CONFIG_PATH',
+    'ENV_FILE',
+    'PGPASSFILE',
+    'PGSERVICEFILE',
   ];
   for (const key of sensitivePathVars) {
     const value = process.env[key];
-    if (value && path.resolve(value).startsWith("/opt/")) {
+    if (value && path.resolve(value).startsWith('/opt/')) {
       throw new Error(`Refusing to use /opt-backed environment reference: ${key}`);
     }
   }
@@ -119,9 +120,9 @@ function databaseInfo(databaseUrl) {
   try {
     url = new URL(databaseUrl);
   } catch {
-    throw new Error("DATABASE_URL is not a valid URL");
+    throw new Error('DATABASE_URL is not a valid URL');
   }
-  const database = url.pathname.replace(/^\//, "");
+  const database = url.pathname.replace(/^\//, '');
   return {
     database,
     host: url.hostname,
@@ -131,19 +132,19 @@ function databaseInfo(databaseUrl) {
 
 function assertDevDatabase(info, allowTestTarget) {
   const name = info.database.toLowerCase();
-  const isTest = /(^|[_-])test($|[_-])/i.test(name) || name.endsWith("_test");
-  if (allowTestTarget && isTest && !["127.0.0.1", "localhost", "::1"].includes(info.host)) {
-    throw new Error(`Refusing non-loopback TEST database host: ${info.host || "<empty>"}`);
+  const isTest = /(^|[_-])test($|[_-])/i.test(name) || name.endsWith('_test');
+  if (allowTestTarget && isTest && !['127.0.0.1', 'localhost', '::1'].includes(info.host)) {
+    throw new Error(`Refusing non-loopback TEST database host: ${info.host || '<empty>'}`);
   }
-  if (name.includes("prod") || (!name.includes("dev") && !(allowTestTarget && isTest))) {
+  if (name.includes('prod') || (!name.includes('dev') && !(allowTestTarget && isTest))) {
     throw new Error(`Refusing to query non-dev database name: ${info.database}`);
   }
 }
 
 function runPsql(databaseUrl, sql) {
-  const result = spawnSync("psql", ["-X", "-q", "-v", "ON_ERROR_STOP=1", databaseUrl], {
+  const result = spawnSync('psql', ['-X', '-q', '-v', 'ON_ERROR_STOP=1', databaseUrl], {
     input: sql,
-    encoding: "utf8",
+    encoding: 'utf8',
     maxBuffer: 10 * 1024 * 1024,
   });
   if (result.error) throw result.error;
@@ -165,11 +166,14 @@ SELECT jsonb_build_object('current_database', current_database())::text;
 ROLLBACK;
 `;
   const parsed = JSON.parse(runPsql(databaseUrl, sql));
-  const currentDatabase = String(parsed.current_database ?? "");
+  const currentDatabase = String(parsed.current_database ?? '');
   const normalized = currentDatabase.toLowerCase();
-  const isTest = /(^|[_-])test($|[_-])/i.test(normalized) || normalized.endsWith("_test");
-  if (normalized.includes("prod") || (!normalized.includes("dev") && !(allowTestTarget && isTest))) {
-    throw new Error(`Refusing connected non-dev database: ${currentDatabase || "<empty>"}`);
+  const isTest = /(^|[_-])test($|[_-])/i.test(normalized) || normalized.endsWith('_test');
+  if (
+    normalized.includes('prod') ||
+    (!normalized.includes('dev') && !(allowTestTarget && isTest))
+  ) {
+    throw new Error(`Refusing connected non-dev database: ${currentDatabase || '<empty>'}`);
   }
   return currentDatabase;
 }
@@ -437,13 +441,13 @@ ROLLBACK;
 
 function maskExternalId(value, salt) {
   const raw = String(value);
-  const hash = createHash("sha256").update(`rubitime-r1:${salt}:${raw}`).digest("hex").slice(0, 16);
+  const hash = createHash('sha256').update(`rubitime-r1:${salt}:${raw}`).digest('hex').slice(0, 16);
   return `sha256:${hash}`;
 }
 
 function maskSamples(value, salt) {
   if (Array.isArray(value)) return value.map((item) => maskExternalId(item, salt));
-  if (value && typeof value === "object") {
+  if (value && typeof value === 'object') {
     for (const [key, item] of Object.entries(value)) value[key] = maskSamples(item, salt);
   }
   return value;
@@ -459,7 +463,7 @@ function main() {
   const loadedEnvFiles = loadLocalEnv();
   const databaseUrl = process.env.DATABASE_URL?.trim();
   if (!databaseUrl) {
-    console.error("DATABASE_URL is not set after loading local .env files.");
+    console.error('DATABASE_URL is not set after loading local .env files.');
     process.exit(2);
   }
   const info = databaseInfo(databaseUrl);
@@ -479,7 +483,7 @@ function main() {
     sampleSize: args.sampleSize,
     explicitTestTarget: args.allowTestTarget,
   };
-  parsed.masked_samples = maskSamples(parsed.masked_samples, randomBytes(16).toString("hex"));
+  parsed.masked_samples = maskSamples(parsed.masked_samples, randomBytes(16).toString('hex'));
   console.log(JSON.stringify(parsed, null, 2));
 }
 

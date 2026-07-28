@@ -53,4 +53,3 @@ None.
 ## 5. Explicit confirmation
 
 **No `CONTENT_PLAN.md` slug hardcode found** in runtime code (`apps/webapp/src`).
-

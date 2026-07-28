@@ -1,6 +1,6 @@
-import { sql } from "drizzle-orm";
-import { getWebappSqlDb, runWebappSql } from "@/infra/db/runWebappSql";
-import type { MediaUsageSummary } from "@/modules/media/types";
+import { sql } from 'drizzle-orm';
+import { getWebappSqlDb, runWebappSql } from '@/infra/db/runWebappSql';
+import type { MediaUsageSummary } from '@/modules/media/types';
 
 /** Aggregated usage counts for one library media id (`/api/media/{uuid}`). */
 export async function pgMediaUsageSummaryForMediaId(mediaId: string): Promise<MediaUsageSummary> {
@@ -60,4 +60,4 @@ export async function pgMediaUsageSummaryForMediaId(mediaId: string): Promise<Me
   };
 }
 
-export { formatMediaUsageSummaryLines } from "@/modules/media/usageSummaryFormat";
+export { formatMediaUsageSummaryLines } from '@/modules/media/usageSummaryFormat';

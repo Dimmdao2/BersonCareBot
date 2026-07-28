@@ -1,45 +1,45 @@
-"use server";
+'use server';
 
-import { revalidatePath } from "next/cache";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requirePatientAccessWithPhone } from "@/app-layer/guards/requireRole";
-import { routePaths } from "@/app-layer/routes/paths";
+import { revalidatePath } from 'next/cache';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requirePatientAccessWithPhone } from '@/app-layer/guards/requireRole';
+import { routePaths } from '@/app-layer/routes/paths';
 import {
   getUtcDayRange,
   hasInstantDuplicateInWindow,
   SYMPTOM_INSTANT_DEDUP_MS,
-} from "./symptomEntryDedup";
-import { isSymptomJournalEntryEditable } from "./symptomJournalEditWindow";
-import { isGeneralWellbeingTracking } from "@/modules/patient-mood/wellbeingConstants";
-import { logger, serializeError } from "@/infra/logging/logger";
+} from './symptomEntryDedup';
+import { isSymptomJournalEntryEditable } from './symptomJournalEditWindow';
+import { isGeneralWellbeingTracking } from '@/modules/patient-mood/wellbeingConstants';
+import { logger, serializeError } from '@/infra/logging/logger';
 
 function parseOptionalId(raw: unknown): string | null {
-  if (typeof raw !== "string") return null;
+  if (typeof raw !== 'string') return null;
   const t = raw.trim();
   return t.length > 0 ? t : null;
 }
 
 export async function addSymptomEntry(
   formData: FormData,
-): Promise<{ ok: boolean; reason?: "duplicate_instant" | "duplicate_daily" }> {
+): Promise<{ ok: boolean; reason?: 'duplicate_instant' | 'duplicate_daily' }> {
   const session = await requirePatientAccessWithPhone(routePaths.diary);
   const deps = buildAppDeps();
-  const trackingIdRaw = formData.get("trackingId");
-  const valueRaw = formData.get("value");
-  const entryTypeRaw = formData.get("entryType");
-  const notesRaw = formData.get("notes");
+  const trackingIdRaw = formData.get('trackingId');
+  const valueRaw = formData.get('value');
+  const entryTypeRaw = formData.get('entryType');
+  const notesRaw = formData.get('notes');
 
-  if (typeof trackingIdRaw !== "string" || !trackingIdRaw.trim()) {
+  if (typeof trackingIdRaw !== 'string' || !trackingIdRaw.trim()) {
     return { ok: false };
   }
-  if (typeof valueRaw !== "string") {
+  if (typeof valueRaw !== 'string') {
     return { ok: false };
   }
   const value0_10 = Number.parseInt(valueRaw, 10);
   if (Number.isNaN(value0_10) || value0_10 < 0 || value0_10 > 10) {
     return { ok: false };
   }
-  if (entryTypeRaw !== "instant" && entryTypeRaw !== "daily") {
+  if (entryTypeRaw !== 'instant' && entryTypeRaw !== 'daily') {
     return { ok: false };
   }
 
@@ -53,13 +53,12 @@ export async function addSymptomEntry(
     return { ok: false };
   }
 
-  const notes =
-    typeof notesRaw === "string" && notesRaw.trim() ? notesRaw.trim() : null;
+  const notes = typeof notesRaw === 'string' && notesRaw.trim() ? notesRaw.trim() : null;
   if (notes && notes.length > 2000) return { ok: false };
 
   const now = Date.now();
   const nowIso = new Date(now).toISOString();
-  if (entryTypeRaw === "instant") {
+  if (entryTypeRaw === 'instant') {
     const from = new Date(now - SYMPTOM_INSTANT_DEDUP_MS).toISOString();
     const recentEntries = await deps.diaries.listSymptomEntriesForTrackingInRange({
       userId: session.user.userId,
@@ -74,7 +73,7 @@ export async function addSymptomEntry(
         notes,
       })
     ) {
-      return { ok: false, reason: "duplicate_instant" };
+      return { ok: false, reason: 'duplicate_instant' };
     }
   } else {
     const dayRange = getUtcDayRange(now);
@@ -84,8 +83,8 @@ export async function addSymptomEntry(
       fromRecordedAt: dayRange.fromRecordedAt,
       toRecordedAtExclusive: dayRange.toRecordedAtExclusive,
     });
-    if (dayEntries.some((entry) => entry.entryType === "daily")) {
-      return { ok: false, reason: "duplicate_daily" };
+    if (dayEntries.some((entry) => entry.entryType === 'daily')) {
+      return { ok: false, reason: 'duplicate_daily' };
     }
   }
 
@@ -96,11 +95,11 @@ export async function addSymptomEntry(
       value0_10,
       entryType: entryTypeRaw,
       recordedAt: nowIso,
-      source: "webapp",
+      source: 'webapp',
       notes,
     });
   } catch (err) {
-    logger.error({ err: serializeError(err) }, "addSymptomEntry failed");
+    logger.error({ err: serializeError(err) }, 'addSymptomEntry failed');
     return { ok: false };
   }
   revalidatePath(routePaths.diary);
@@ -108,19 +107,21 @@ export async function addSymptomEntry(
 }
 
 export type CreateSymptomTrackingResult =
-  | { ok: false; reason: "patient_self_create_disabled" }
+  | { ok: false; reason: 'patient_self_create_disabled' }
   | { ok: true; tracking: { id: string; symptomTitle: string } };
 
-export async function createSymptomTracking(_formData: FormData): Promise<CreateSymptomTrackingResult> {
+export async function createSymptomTracking(
+  _formData: FormData,
+): Promise<CreateSymptomTrackingResult> {
   await requirePatientAccessWithPhone(routePaths.diary);
-  return { ok: false, reason: "patient_self_create_disabled" };
+  return { ok: false, reason: 'patient_self_create_disabled' };
 }
 
 export async function renameSymptomTracking(formData: FormData): Promise<{ ok: boolean }> {
   const session = await requirePatientAccessWithPhone(routePaths.diary);
-  const trackingId = parseOptionalId(formData.get("trackingId"));
-  const newTitleRaw = formData.get("newTitle");
-  if (!trackingId || typeof newTitleRaw !== "string") return { ok: false };
+  const trackingId = parseOptionalId(formData.get('trackingId'));
+  const newTitleRaw = formData.get('newTitle');
+  if (!trackingId || typeof newTitleRaw !== 'string') return { ok: false };
   const newTitle = newTitleRaw.trim();
   if (!newTitle || newTitle.length > 200) return { ok: false };
   const deps = buildAppDeps();
@@ -135,7 +136,7 @@ export async function renameSymptomTracking(formData: FormData): Promise<{ ok: b
       symptomTitle: newTitle,
     });
   } catch (e) {
-    logger.error({ err: serializeError(e) }, "renameSymptomTracking failed");
+    logger.error({ err: serializeError(e) }, 'renameSymptomTracking failed');
     return { ok: false };
   }
   revalidatePath(routePaths.diary);
@@ -144,7 +145,7 @@ export async function renameSymptomTracking(formData: FormData): Promise<{ ok: b
 
 export async function archiveSymptomTracking(formData: FormData): Promise<{ ok: boolean }> {
   const session = await requirePatientAccessWithPhone(routePaths.diary);
-  const trackingId = parseOptionalId(formData.get("trackingId"));
+  const trackingId = parseOptionalId(formData.get('trackingId'));
   if (!trackingId) return { ok: false };
   const deps = buildAppDeps();
   const trackings = await deps.diaries.listSymptomTrackings(session.user.userId, false);
@@ -157,7 +158,7 @@ export async function archiveSymptomTracking(formData: FormData): Promise<{ ok: 
       trackingId,
     });
   } catch (e) {
-    logger.error({ err: serializeError(e) }, "archiveSymptomTracking failed");
+    logger.error({ err: serializeError(e) }, 'archiveSymptomTracking failed');
     return { ok: false };
   }
   revalidatePath(routePaths.diary);
@@ -166,20 +167,19 @@ export async function archiveSymptomTracking(formData: FormData): Promise<{ ok: 
 
 export async function updateSymptomJournalEntry(formData: FormData): Promise<{ ok: boolean }> {
   const session = await requirePatientAccessWithPhone(routePaths.diarySymptomsJournal);
-  const entryIdRaw = formData.get("entryId");
-  const entryId = typeof entryIdRaw === "string" ? entryIdRaw.trim() : "";
-  const recordedAtRawVal = formData.get("recordedAt");
-  const recordedAtRaw = typeof recordedAtRawVal === "string" ? recordedAtRawVal.trim() : "";
-  const valueRaw = formData.get("value");
-  const notesRaw = formData.get("notes");
+  const entryIdRaw = formData.get('entryId');
+  const entryId = typeof entryIdRaw === 'string' ? entryIdRaw.trim() : '';
+  const recordedAtRawVal = formData.get('recordedAt');
+  const recordedAtRaw = typeof recordedAtRawVal === 'string' ? recordedAtRawVal.trim() : '';
+  const valueRaw = formData.get('value');
+  const notesRaw = formData.get('notes');
   if (!entryId || !recordedAtRaw) return { ok: false };
   const at = new Date(recordedAtRaw);
   if (Number.isNaN(at.getTime())) return { ok: false };
-  if (typeof valueRaw !== "string") return { ok: false };
+  if (typeof valueRaw !== 'string') return { ok: false };
   const value0_10 = Number.parseInt(valueRaw, 10);
   if (Number.isNaN(value0_10) || value0_10 < 0 || value0_10 > 10) return { ok: false };
-  const notes =
-    typeof notesRaw === "string" && notesRaw.trim() ? notesRaw.trim() : null;
+  const notes = typeof notesRaw === 'string' && notesRaw.trim() ? notesRaw.trim() : null;
   if (notes && notes.length > 2000) return { ok: false };
 
   const deps = buildAppDeps();
@@ -203,7 +203,7 @@ export async function updateSymptomJournalEntry(formData: FormData): Promise<{ o
       notes,
     });
   } catch (e) {
-    logger.error({ err: serializeError(e) }, "updateSymptomJournalEntry failed");
+    logger.error({ err: serializeError(e) }, 'updateSymptomJournalEntry failed');
     return { ok: false };
   }
   revalidatePath(routePaths.diary);
@@ -213,8 +213,8 @@ export async function updateSymptomJournalEntry(formData: FormData): Promise<{ o
 
 export async function deleteSymptomJournalEntry(formData: FormData): Promise<{ ok: boolean }> {
   const session = await requirePatientAccessWithPhone(routePaths.diarySymptomsJournal);
-  const entryIdRaw = formData.get("entryId");
-  const entryId = typeof entryIdRaw === "string" ? entryIdRaw.trim() : "";
+  const entryIdRaw = formData.get('entryId');
+  const entryId = typeof entryIdRaw === 'string' ? entryIdRaw.trim() : '';
   if (!entryId) return { ok: false };
   const deps = buildAppDeps();
   const userId = session.user.userId;
@@ -228,7 +228,7 @@ export async function deleteSymptomJournalEntry(formData: FormData): Promise<{ o
   try {
     await deps.diaries.deleteSymptomEntry({ userId, entryId });
   } catch (e) {
-    logger.error({ err: serializeError(e) }, "deleteSymptomJournalEntry failed");
+    logger.error({ err: serializeError(e) }, 'deleteSymptomJournalEntry failed');
     return { ok: false };
   }
   revalidatePath(routePaths.diary);

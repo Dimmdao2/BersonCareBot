@@ -1,4 +1,7 @@
-import type { PatientDiaryDaySnapshotInsert, PatientDiaryDaySnapshotRow } from "../../../db/schema/patientDiarySnapshots";
+import type {
+  PatientDiaryDaySnapshotInsert,
+  PatientDiaryDaySnapshotRow,
+} from '../../../db/schema/patientDiarySnapshots';
 
 export type PatientDiarySnapshotsPort = {
   /**

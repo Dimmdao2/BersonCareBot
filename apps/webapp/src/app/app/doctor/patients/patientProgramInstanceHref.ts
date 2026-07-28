@@ -21,8 +21,8 @@ export function patientProgramInstanceHref(
 ): string {
   const base = `/app/doctor/patients/${encodeURIComponent(userId)}/programs/${encodeURIComponent(instanceId)}`;
   const params = new URLSearchParams();
-  if (options?.discussionItemId) params.set("discussionItem", options.discussionItemId);
-  if (options?.focusItemId) params.set("focusItemId", options.focusItemId);
+  if (options?.discussionItemId) params.set('discussionItem', options.discussionItemId);
+  if (options?.focusItemId) params.set('focusItemId', options.focusItemId);
   const qs = params.toString();
   return qs ? `${base}?${qs}` : base;
 }

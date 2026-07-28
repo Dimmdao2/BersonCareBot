@@ -1,23 +1,23 @@
-import { Suspense } from "react";
-import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
-import { requireEntitlementForReadAction } from "@/app-layer/guards/requireEntitlement";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
+import { Suspense } from 'react';
+import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
+import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import type { ExerciseLoadType } from '@/modules/lfk-exercises/types';
 import {
   EXERCISE_LOAD_TYPE_CATEGORY_CODE,
   exerciseLoadTypeWriteAllowSet,
   parseExerciseLoadQueryParam,
-} from "@/modules/lfk-exercises/exerciseLoadTypeReference";
-import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
-import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
+} from '@/modules/lfk-exercises/exerciseLoadTypeReference';
+import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
+import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import {
   lfkTemplateFilterFromPubArch,
   parseDoctorCatalogPubArchQuery,
   type DoctorCatalogPubArchQuery,
-} from "@/shared/lib/doctorCatalogListStatus";
-import { parseDoctorCatalogRegionQueryParam } from "@/shared/lib/doctorCatalogRegionQuery";
-import { doctorCatalogClientFilterUrlHints } from "@/shared/lib/doctorCatalogClientUrlSync";
-import { LfkTemplatesPageClient } from "./LfkTemplatesPageClient";
+} from '@/shared/lib/doctorCatalogListStatus';
+import { parseDoctorCatalogRegionQueryParam } from '@/shared/lib/doctorCatalogRegionQuery';
+import { doctorCatalogClientFilterUrlHints } from '@/shared/lib/doctorCatalogClientUrlSync';
+import { LfkTemplatesPageClient } from './LfkTemplatesPageClient';
 
 type PageProps = {
   searchParams?: Promise<{
@@ -36,16 +36,15 @@ export default async function DoctorLfkTemplatesPage({ searchParams }: PageProps
   const session = workspace.session;
   const sp = (await searchParams) ?? {};
 
-  const q = typeof sp.q === "string" ? sp.q : "";
+  const q = typeof sp.q === 'string' ? sp.q : '';
   const regionParsed = parseDoctorCatalogRegionQueryParam(sp.region);
 
-  const initialTitleSort = sp.titleSort === "asc" || sp.titleSort === "desc" ? sp.titleSort : null;
+  const initialTitleSort = sp.titleSort === 'asc' || sp.titleSort === 'desc' ? sp.titleSort : null;
   const listPubArch: DoctorCatalogPubArchQuery = parseDoctorCatalogPubArchQuery(sp);
 
   const deps = buildAppDeps();
-  const includePlatformBase = (
-    await requireEntitlementForReadAction(workspace, "exercise_catalog")
-  ).ok;
+  const includePlatformBase = (await requireEntitlementForReadAction(workspace, 'exercise_catalog'))
+    .ok;
   const [rawList, exercises, bodyRegionItems, loadTypeRefItems] = await Promise.all([
     deps.lfkTemplates.listTemplates({
       includeExerciseDetails: true,
@@ -53,13 +52,19 @@ export default async function DoctorLfkTemplatesPage({ searchParams }: PageProps
       ...lfkTemplateFilterFromPubArch(listPubArch),
     }),
     deps.lfkExercises.listExercises({ includeArchived: false, includePlatformBase }),
-    deps.references.listActiveItemsByCategoryCode("body_region"),
+    deps.references.listActiveItemsByCategoryCode('body_region'),
     deps.references.listActiveItemsByCategoryCode(EXERCISE_LOAD_TYPE_CATEGORY_CODE),
   ]);
   const loadAllow = exerciseLoadTypeWriteAllowSet(loadTypeRefItems);
-  const loadType = parseExerciseLoadQueryParam(typeof sp.load === "string" ? sp.load : undefined, loadAllow);
+  const loadType = parseExerciseLoadQueryParam(
+    typeof sp.load === 'string' ? sp.load : undefined,
+    loadAllow,
+  );
   const bodyRegionIdToCode = Object.fromEntries(bodyRegionItems.map((it) => [it.id, it.code]));
-  const exerciseMetaById: Record<string, { regionRefIds: readonly string[]; loadType: ExerciseLoadType | null }> = {};
+  const exerciseMetaById: Record<
+    string,
+    { regionRefIds: readonly string[]; loadType: ExerciseLoadType | null }
+  > = {};
   for (const e of exercises) {
     exerciseMetaById[e.id] = { regionRefIds: e.regionRefIds, loadType: e.loadType };
   }

@@ -3,5 +3,5 @@
  */
 export function isAppSupportPath(href: string): boolean {
   const t = href.trim();
-  return t.startsWith("/app/");
+  return t.startsWith('/app/');
 }

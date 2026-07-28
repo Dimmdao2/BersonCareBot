@@ -1,21 +1,21 @@
 export type PatientHomeBlockCode =
-  | "daily_warmup"
-  | "useful_post"
-  | "booking"
-  | "situations"
-  | "progress"
-  | "next_reminder"
-  | "mood_checkin"
-  | "sos"
-  | "plan"
-  | "subscription_carousel"
-  | "courses";
+  | 'daily_warmup'
+  | 'useful_post'
+  | 'booking'
+  | 'situations'
+  | 'progress'
+  | 'next_reminder'
+  | 'mood_checkin'
+  | 'sos'
+  | 'plan'
+  | 'subscription_carousel'
+  | 'courses';
 
 export type PatientHomeBlockItemTargetType =
-  | "content_page"
-  | "content_section"
-  | "course"
-  | "static_action";
+  | 'content_page'
+  | 'content_section'
+  | 'course'
+  | 'static_action';
 
 export type PatientHomeBlockItem = {
   id: string;
@@ -59,15 +59,15 @@ export type PatientHomeBlockItemAddInput = {
 export type PatientHomeBlockItemPatch = Partial<
   Pick<
     PatientHomeBlockItem,
-    | "titleOverride"
-    | "subtitleOverride"
-    | "imageUrlOverride"
-    | "badgeLabel"
-    | "showTitle"
-    | "isVisible"
-    | "sortOrder"
-    | "targetRef"
-    | "targetType"
+    | 'titleOverride'
+    | 'subtitleOverride'
+    | 'imageUrlOverride'
+    | 'badgeLabel'
+    | 'showTitle'
+    | 'isVisible'
+    | 'sortOrder'
+    | 'targetRef'
+    | 'targetType'
   >
 >;
 

@@ -17,7 +17,9 @@ const body = {
 
 describe('buildMaxLinks miniapp URL contract', () => {
   beforeEach(() => {
-    vi.mocked(entryToken.buildWebappEntryUrlForMax).mockReturnValue('https://webapp.test/app/max?t=signed');
+    vi.mocked(entryToken.buildWebappEntryUrlForMax).mockReturnValue(
+      'https://webapp.test/app/max?t=signed',
+    );
   });
 
   it('добавляет next= к ссылкам webapp без legacy ctx=bot', async () => {

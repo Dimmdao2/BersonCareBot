@@ -1,8 +1,8 @@
-import Link from "next/link";
-import { cn } from "@/lib/utils";
-import { DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
-import { doctorSectionTabClass } from "@/shared/ui/doctor/DoctorSectionTabs";
-import { ALL_SETTINGS_TABS, type SettingsTabId } from "./settingsTabs";
+import Link from 'next/link';
+import { cn } from '@/lib/utils';
+import { DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
+import { doctorSectionTabClass } from '@/shared/ui/doctor/DoctorSectionTabs';
+import { ALL_SETTINGS_TABS, type SettingsTabId } from './settingsTabs';
 
 type Props = {
   activeTab: SettingsTabId;
@@ -23,7 +23,7 @@ export function SettingsTabsNav({ activeTab, visibleTabs }: Props) {
   return (
     <nav
       className={cn(
-        "sticky z-20 -mx-3 mb-4 border-b border-border/60 bg-background/95 px-3 py-2 backdrop-blur-md supports-backdrop-filter:bg-background/90",
+        'sticky z-20 -mx-3 mb-4 border-b border-border/60 bg-background/95 px-3 py-2 backdrop-blur-md supports-backdrop-filter:bg-background/90',
         DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
       )}
       aria-label="Разделы настроек"
@@ -35,7 +35,7 @@ export function SettingsTabsNav({ activeTab, visibleTabs }: Props) {
             <Link
               key={tab.id}
               href={tab.href}
-              aria-current={active ? "page" : undefined}
+              aria-current={active ? 'page' : undefined}
               className={doctorSectionTabClass(active)}
             >
               {tab.label}

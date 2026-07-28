@@ -5,19 +5,19 @@ status: completed
 isProject: false
 todos:
   - id: p04-ports-contract
-    content: "Зафиксировать контракты портов modules/reminders (или соседних) — входы/выходы без изменения публичного API маршрутов."
+    content: 'Зафиксировать контракты портов modules/reminders (или соседних) — входы/выходы без изменения публичного API маршрутов.'
     status: completed
   - id: p04-projection
-    content: "pgReminderProjection.ts: миграция read/write на runWebappSql; unit-тесты canonical lookup и idempotency (pgReminderProjection.pg.test.ts), без DB integration рассинхрона."
+    content: 'pgReminderProjection.ts: миграция read/write на runWebappSql; unit-тесты canonical lookup и idempotency (pgReminderProjection.pg.test.ts), без DB integration рассинхрона.'
     status: completed
   - id: p04-rules-journal
-    content: "pgReminderRules.ts, pgReminderJournal.ts: транзакции BEGIN/COMMIT через drizzle transaction; snooze и множественные апдейты — тесты на порядок операций."
+    content: 'pgReminderRules.ts, pgReminderJournal.ts: транзакции BEGIN/COMMIT через drizzle transaction; snooze и множественные апдейты — тесты на порядок операций.'
     status: completed
   - id: p04-webpush-cooldown
-    content: "pgWebPushOnlyReminders.ts и pgReminderTransactionalEmailCooldown.ts: входят в scope этапа 4; заменить pool/client raw SQL на Drizzle или задокументированный execute(sql) без изменения web-push/email cooldown поведения."
+    content: 'pgWebPushOnlyReminders.ts и pgReminderTransactionalEmailCooldown.ts: входят в scope этапа 4; заменить pool/client raw SQL на Drizzle или задокументированный execute(sql) без изменения web-push/email cooldown поведения.'
     status: completed
   - id: p04-verify
-    content: "webapp: typecheck + целевые тесты (расширить существующие или добавить узкие); rg pool.query/client.query по pgReminder*.ts и pgWebPushOnlyReminders.ts в зоне этапа."
+    content: 'webapp: typecheck + целевые тесты (расширить существующие или добавить узкие); rg pool.query/client.query по pgReminder*.ts и pgWebPushOnlyReminders.ts в зоне этапа.'
     status: completed
 ---
 

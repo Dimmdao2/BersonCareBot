@@ -1,7 +1,7 @@
-import { describe, expect, it, vi, afterEach } from "vitest";
+import { describe, expect, it, vi, afterEach } from 'vitest';
 
-vi.mock("@/config/env", () => ({
-  env: { SESSION_COOKIE_SECRET: "test-session-secret-16chars" },
+vi.mock('@/config/env', () => ({
+  env: { SESSION_COOKIE_SECRET: 'test-session-secret-16chars' },
 }));
 
 import {
@@ -9,64 +9,66 @@ import {
   createSignedOAuthState,
   parseVerifiedSignedOAuthState,
   verifySignedOAuthState,
-} from "./oauthSignedState";
+} from './oauthSignedState';
 
-describe("oauthSignedState", () => {
+describe('oauthSignedState', () => {
   afterEach(() => {
     vi.useRealTimers();
   });
 
-  it("verifies token for matching purpose", () => {
-    const t = createSignedOAuthState("yandex", 600);
-    expect(verifySignedOAuthState(t, "yandex")).toBe(true);
-    expect(verifySignedOAuthState(t, "gcal")).toBe(false);
+  it('verifies token for matching purpose', () => {
+    const t = createSignedOAuthState('yandex', 600);
+    expect(verifySignedOAuthState(t, 'yandex')).toBe(true);
+    expect(verifySignedOAuthState(t, 'gcal')).toBe(false);
   });
 
-  it("verifies gcal token only as gcal", () => {
-    const t = createSignedOAuthState("gcal", 600);
-    expect(verifySignedOAuthState(t, "gcal")).toBe(true);
-    expect(verifySignedOAuthState(t, "yandex")).toBe(false);
+  it('verifies gcal token only as gcal', () => {
+    const t = createSignedOAuthState('gcal', 600);
+    expect(verifySignedOAuthState(t, 'gcal')).toBe(true);
+    expect(verifySignedOAuthState(t, 'yandex')).toBe(false);
   });
 
-  it("verifies google_login token only as google_login", () => {
-    const t = createSignedOAuthState("google_login", 600);
-    expect(verifySignedOAuthState(t, "google_login")).toBe(true);
-    expect(verifySignedOAuthState(t, "yandex")).toBe(false);
+  it('verifies google_login token only as google_login', () => {
+    const t = createSignedOAuthState('google_login', 600);
+    expect(verifySignedOAuthState(t, 'google_login')).toBe(true);
+    expect(verifySignedOAuthState(t, 'yandex')).toBe(false);
   });
 
-  it("roundtrips optional browser IANA in signed state (tz)", () => {
-    const t = createSignedOAuthState("google_login", 600, { browserCalendarIana: "Europe/Moscow" });
-    const p = parseVerifiedSignedOAuthState(t, "google_login");
-    expect(p?.browserCalendarIana).toBe("Europe/Moscow");
+  it('roundtrips optional browser IANA in signed state (tz)', () => {
+    const t = createSignedOAuthState('google_login', 600, { browserCalendarIana: 'Europe/Moscow' });
+    const p = parseVerifiedSignedOAuthState(t, 'google_login');
+    expect(p?.browserCalendarIana).toBe('Europe/Moscow');
   });
 
-  it("apple state carries nonce verifiable as apple purpose", () => {
+  it('apple state carries nonce verifiable as apple purpose', () => {
     const { state, nonce } = createAppleSignedOAuthState(600);
     expect(nonce.length).toBeGreaterThan(10);
-    expect(verifySignedOAuthState(state, "apple")).toBe(true);
-    const parsed = parseVerifiedSignedOAuthState(state, "apple");
+    expect(verifySignedOAuthState(state, 'apple')).toBe(true);
+    const parsed = parseVerifiedSignedOAuthState(state, 'apple');
     expect(parsed?.nonce).toBe(nonce);
   });
 
-  it("apple state may include tz alongside nonce", () => {
-    const { state, nonce } = createAppleSignedOAuthState(600, { browserCalendarIana: "Europe/Berlin" });
-    const parsed = parseVerifiedSignedOAuthState(state, "apple");
+  it('apple state may include tz alongside nonce', () => {
+    const { state, nonce } = createAppleSignedOAuthState(600, {
+      browserCalendarIana: 'Europe/Berlin',
+    });
+    const parsed = parseVerifiedSignedOAuthState(state, 'apple');
     expect(parsed?.nonce).toBe(nonce);
-    expect(parsed?.browserCalendarIana).toBe("Europe/Berlin");
+    expect(parsed?.browserCalendarIana).toBe('Europe/Berlin');
   });
 
-  it("rejects tampered token", () => {
-    const t = createSignedOAuthState("yandex", 600);
-    const parts = t.split(".");
-    parts[2] = "AAAA";
-    expect(verifySignedOAuthState(parts.join("."), "yandex")).toBe(false);
+  it('rejects tampered token', () => {
+    const t = createSignedOAuthState('yandex', 600);
+    const parts = t.split('.');
+    parts[2] = 'AAAA';
+    expect(verifySignedOAuthState(parts.join('.'), 'yandex')).toBe(false);
   });
 
-  it("rejects expired token", () => {
+  it('rejects expired token', () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date("2025-01-01T00:00:00Z"));
-    const t = createSignedOAuthState("yandex", 60);
-    vi.setSystemTime(new Date("2025-01-01T00:02:00Z"));
-    expect(verifySignedOAuthState(t, "yandex")).toBe(false);
+    vi.setSystemTime(new Date('2025-01-01T00:00:00Z'));
+    const t = createSignedOAuthState('yandex', 60);
+    vi.setSystemTime(new Date('2025-01-01T00:02:00Z'));
+    expect(verifySignedOAuthState(t, 'yandex')).toBe(false);
   });
 });

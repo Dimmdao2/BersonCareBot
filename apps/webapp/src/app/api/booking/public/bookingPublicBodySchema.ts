@@ -1,5 +1,5 @@
-import { z } from "zod";
-import { bookingAttributionBodySchema } from "./bookingAttributionBodySchema";
+import { z } from 'zod';
+import { bookingAttributionBodySchema } from './bookingAttributionBodySchema';
 
 const formAnswerSchema = z.object({
   fieldKey: z.string().min(1),
@@ -14,27 +14,28 @@ const contactFields = {
   attribution: bookingAttributionBodySchema.optional(),
 };
 
-export const publicBookingCreateBodySchema = z.discriminatedUnion("type", [
+export const publicBookingCreateBodySchema = z.discriminatedUnion('type', [
   z.object({
-    type: z.literal("online"),
-    category: z.enum(["rehab_lfk", "nutrition", "general"]),
+    type: z.literal('online'),
+    category: z.enum(['rehab_lfk', 'nutrition', 'general']),
     slotStart: z.string().min(1),
     slotEnd: z.string().min(1),
     slotCount: z.coerce.number().int().min(1).max(8).optional(),
     ...contactFields,
   }),
-  z.object({
-    type: z.literal("in_person"),
-    orgSlug: z.string().trim().min(1).max(120).optional(),
-    branchId: z.string().uuid().optional(),
-    serviceId: z.string().uuid().optional(),
-    cityCode: z.string().trim().min(1).optional(),
-    slotStart: z.string().min(1),
-    slotEnd: z.string().min(1),
-    slotCount: z.coerce.number().int().min(1).max(8).optional(),
-    ...contactFields,
-  }).refine(
-    (v) => Boolean(v.branchId) && Boolean(v.serviceId),
-    { message: "invalid_in_person_keys" },
-  ),
+  z
+    .object({
+      type: z.literal('in_person'),
+      orgSlug: z.string().trim().min(1).max(120).optional(),
+      branchId: z.string().uuid().optional(),
+      serviceId: z.string().uuid().optional(),
+      cityCode: z.string().trim().min(1).optional(),
+      slotStart: z.string().min(1),
+      slotEnd: z.string().min(1),
+      slotCount: z.coerce.number().int().min(1).max(8).optional(),
+      ...contactFields,
+    })
+    .refine((v) => Boolean(v.branchId) && Boolean(v.serviceId), {
+      message: 'invalid_in_person_keys',
+    }),
 ]);

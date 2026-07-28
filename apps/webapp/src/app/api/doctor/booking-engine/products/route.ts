@@ -1,9 +1,9 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
-import { BE_PRODUCT_TYPES } from "@/modules/products/types";
-import { requireDoctorBookingEngine } from "../_requireDoctorBookingEngine";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import { BE_PRODUCT_TYPES } from '@/modules/products/types';
+import { requireDoctorBookingEngine } from '../_requireDoctorBookingEngine';
 
 const upsertSchema = z.object({
   id: z.string().uuid().optional(),
@@ -28,7 +28,7 @@ export async function GET() {
   if (!gate.ok) return gate.response;
   const deps = buildAppDeps();
   if (!deps.products) {
-    return NextResponse.json({ ok: false, error: "products_unavailable" }, { status: 503 });
+    return NextResponse.json({ ok: false, error: 'products_unavailable' }, { status: 503 });
   }
   const products = await deps.products.listStaffProducts(gate.ctx.organizationId);
   return NextResponse.json({ ok: true, products });
@@ -39,25 +39,28 @@ export async function POST(request: Request) {
   if (!gate.ok) return gate.response;
   const parsed = upsertSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
   const deps = buildAppDeps();
   if (!deps.products) {
-    return NextResponse.json({ ok: false, error: "products_unavailable" }, { status: 503 });
+    return NextResponse.json({ ok: false, error: 'products_unavailable' }, { status: 503 });
   }
   const products = deps.products;
   try {
-    const product = await withDoctorWorkspacePrincipal(gate.ctx, "doctor.booking-engine.products.upsert", () =>
-      products.upsertProduct({
-        organizationId: gate.ctx.organizationId,
-        ...parsed.data,
-        compositionJson: parsed.data.compositionJson as never,
-        accessRulesJson: parsed.data.accessRulesJson as never,
-      }),
+    const product = await withDoctorWorkspacePrincipal(
+      gate.ctx,
+      'doctor.booking-engine.products.upsert',
+      () =>
+        products.upsertProduct({
+          organizationId: gate.ctx.organizationId,
+          ...parsed.data,
+          compositionJson: parsed.data.compositionJson as never,
+          accessRulesJson: parsed.data.accessRulesJson as never,
+        }),
     );
     return NextResponse.json({ ok: true, product });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "product_upsert_failed";
+    const message = error instanceof Error ? error.message : 'product_upsert_failed';
     return NextResponse.json({ ok: false, error: message }, { status: 400 });
   }
 }

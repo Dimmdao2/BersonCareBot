@@ -5,22 +5,22 @@ status: completed
 isProject: false
 todos:
   - id: p07-inventory
-    content: "Сверить список файлов с RAW_SQL_INVENTORY §2.2 (channelLink, channelLinkClaim, service, rate limits, phoneOtpLimits, emailAuth)."
+    content: 'Сверить список файлов с RAW_SQL_INVENTORY §2.2 (channelLink, channelLinkClaim, service, rate limits, phoneOtpLimits, emailAuth).'
     status: completed
   - id: p07-rate-limits
-    content: "Вынести повторяющиеся паттерны rate limit в узкий infra helper или расширить существующий repos-слой без дублирования SQL строк."
+    content: 'Вынести повторяющиеся паттерны rate limit в узкий infra helper или расширить существующий repos-слой без дублирования SQL строк.'
     status: completed
   - id: p07-channel-link
-    content: "channelLink.ts / channelLinkClaim.ts: Drizzle + транзакции; классификация владельца — тесты на граничные счётчики."
+    content: 'channelLink.ts / channelLinkClaim.ts: Drizzle + транзакции; классификация владельца — тесты на граничные счётчики.'
     status: completed
   - id: p07-auth-service
-    content: "modules/auth/service.ts: переносить только ветки с pool.query; SQL уходит в ports/infra repos и вызывается через существующую DI/ports схему, без импорта infra из modules."
+    content: 'modules/auth/service.ts: переносить только ветки с pool.query; SQL уходит в ports/infra repos и вызывается через существующую DI/ports схему, без импорта infra из modules.'
     status: completed
   - id: p07-verify
-    content: "Запуск существующих auth-тестов + typecheck; без поднятия глобальных таймаутов vitest (политика webapp-тестов)."
+    content: 'Запуск существующих auth-тестов + typecheck; без поднятия глобальных таймаутов vitest (политика webapp-тестов).'
     status: completed
   - id: p07-post-audit
-    content: "Post-audit: CA ports (rate limits, OAuth, email send), pgOAuthUserResolve, ensureAuthModulePortsBound в API routes, devDb smoke rate limit, ESLint allowlist."
+    content: 'Post-audit: CA ports (rate limits, OAuth, email send), pgOAuthUserResolve, ensureAuthModulePortsBound в API routes, devDb smoke rate limit, ESLint allowlist.'
     status: completed
 ---
 

@@ -1,12 +1,12 @@
-"use client";
+'use client';
 
-import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
-import toast from "react-hot-toast";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Label } from "@/shared/ui/doctor/primitives/label";
-import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
-import type { LfkComplexExerciseLine } from "@/modules/diaries/types";
+import { useRouter } from 'next/navigation';
+import { useState, useTransition } from 'react';
+import toast from 'react-hot-toast';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Label } from '@/shared/ui/doctor/primitives/label';
+import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
+import type { LfkComplexExerciseLine } from '@/modules/diaries/types';
 
 function ExerciseRowEditor({
   patientUserId,
@@ -17,9 +17,9 @@ function ExerciseRowEditor({
   line: LfkComplexExerciseLine;
   onSaved: () => void;
 }) {
-  const [draft, setDraft] = useState(line.localComment ?? "");
+  const [draft, setDraft] = useState(line.localComment ?? '');
   const [pending, startTransition] = useTransition();
-  const frozen = line.templateCommentSnapshot?.trim() ? line.templateCommentSnapshot.trim() : "—";
+  const frozen = line.templateCommentSnapshot?.trim() ? line.templateCommentSnapshot.trim() : '—';
 
   return (
     <li className="rounded-md border border-border/70 bg-muted/10 p-3">
@@ -28,8 +28,10 @@ function ExerciseRowEditor({
         Из шаблона (заморожено): <span className="text-foreground">{frozen}</span>
       </p>
       <p className="mt-1 text-xs text-muted-foreground">
-        Для пациента:{" "}
-        <span className="text-foreground">{line.effectiveComment?.trim() ? line.effectiveComment : "—"}</span>
+        Для пациента:{' '}
+        <span className="text-foreground">
+          {line.effectiveComment?.trim() ? line.effectiveComment : '—'}
+        </span>
       </p>
       <div className="mt-2 flex flex-col gap-2">
         <Label className="text-xs text-muted-foreground" htmlFor={`lfk-lc-${line.id}`}>
@@ -42,7 +44,7 @@ function ExerciseRowEditor({
           disabled={pending}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder={frozen !== "—" ? `Из шаблона: ${frozen}` : "Из шаблона: —"}
+          placeholder={frozen !== '—' ? `Из шаблона: ${frozen}` : 'Из шаблона: —'}
         />
         <div className="flex flex-wrap gap-2">
           <Button
@@ -54,24 +56,27 @@ function ExerciseRowEditor({
                 const res = await fetch(
                   `/api/doctor/clients/${encodeURIComponent(patientUserId)}/lfk-complex-exercises/${encodeURIComponent(line.id)}`,
                   {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                      localComment: draft.trim() === "" ? null : draft.trim(),
+                      localComment: draft.trim() === '' ? null : draft.trim(),
                     }),
                   },
                 );
-                const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+                const data = (await res.json().catch(() => null)) as {
+                  ok?: boolean;
+                  error?: string;
+                };
                 if (!res.ok || !data.ok) {
-                  toast.error(data.error ?? "Не удалось сохранить");
+                  toast.error(data.error ?? 'Не удалось сохранить');
                   return;
                 }
-                toast.success("Сохранено");
+                toast.success('Сохранено');
                 onSaved();
               });
             }}
           >
-            {pending ? "Сохранение…" : "Сохранить"}
+            {pending ? 'Сохранение…' : 'Сохранить'}
           </Button>
           <Button
             type="button"
@@ -79,22 +84,25 @@ function ExerciseRowEditor({
             variant="outline"
             disabled={pending}
             onClick={() => {
-              setDraft("");
+              setDraft('');
               startTransition(async () => {
                 const res = await fetch(
                   `/api/doctor/clients/${encodeURIComponent(patientUserId)}/lfk-complex-exercises/${encodeURIComponent(line.id)}`,
                   {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ localComment: null }),
                   },
                 );
-                const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+                const data = (await res.json().catch(() => null)) as {
+                  ok?: boolean;
+                  error?: string;
+                };
                 if (!res.ok || !data.ok) {
-                  toast.error(data.error ?? "Не удалось сбросить");
+                  toast.error(data.error ?? 'Не удалось сбросить');
                   return;
                 }
-                toast.success("Сброшено");
+                toast.success('Сброшено');
                 onSaved();
               });
             }}
@@ -130,11 +138,11 @@ export function DoctorLfkComplexExerciseOverridesPanel({
         if (lines.length === 0) return null;
         return (
           <div key={c.id} className="rounded-lg border border-border/60 bg-card/40 p-3">
-            <p className="text-sm font-semibold">{c.title?.trim() || "Комплекс"}</p>
+            <p className="text-sm font-semibold">{c.title?.trim() || 'Комплекс'}</p>
             <ul className="m-0 mt-2 list-none space-y-3 p-0">
               {lines.map((line) => (
                 <ExerciseRowEditor
-                  key={`${line.id}:${line.localComment ?? ""}:${line.templateCommentSnapshot ?? ""}`}
+                  key={`${line.id}:${line.localComment ?? ''}:${line.templateCommentSnapshot ?? ''}`}
                   patientUserId={patientUserId}
                   line={line}
                   onSaved={() => {

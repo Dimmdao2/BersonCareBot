@@ -65,12 +65,14 @@ service doesn't need — webapp has session/staff-credential secrets, api has SM
 this is the property the verification block checks.
 
 **DB roles** — extracted with a redacting regex, connection shape only, no passwords printed:
+
 ```
 webapp.test DATABASE_URL/_STAFF/_NONSTAFF/_WEB_PUSH_REMINDER -> bcb_test_worker_login / bcb_test_staff_login /
                                                                   bcb_test_nonstaff_login / bcb_test_operational_web_push_reminder_login
 api.test    DATABASE_URL/_DIAGNOSTIC/_DELIVERY_WORKER/_SCHEDULER -> bcb_test_integrator_login / bcb_test_operational_diagnostic_login /
                                                                       bcb_test_operational_delivery_login / bcb_test_operational_scheduler_login
 ```
+
 All eight are `postgres://<role>:***@127.0.0.1:5432/bersoncarebot_test` — TCP, not the socket. None is
 `postgres` or superuser (confirmed live against `pg_roles`).
 
@@ -94,13 +96,14 @@ in the persistent journal (actor + full command) — that's the existing "audite
 
 **Filesystem**: no `fs.writeFile`/`mkdir`/`createWriteStream` in `apps/webapp/src`, `apps/integrator/src`,
 or `apps/media-worker/src` outside tests — the app never writes local disk (S3 for uploads/media,
-`StandardOutput=journal` for logs). Exception found by checking the *framework*, not just app code:
+`StandardOutput=journal` for logs). Exception found by checking the _framework_, not just app code:
 `next/image` + `sharp` are active with no `unoptimized` config, so Next's built-in image optimizer writes a
 runtime cache to `.next/cache/images` — inside the tree `deploy` owns and `rm -rf`s every deploy. Code tree
 itself is world-readable (`664` files / `775` dirs, `deploy`'s umask `0002`) — a brand-new user needs no
 group grant to read the code, just to run it.
 
 **pg_hba.conf**, active lines in order (`sudo -n cat`):
+
 ```
 local   all             postgres                                peer
 local   tgcarebot       tgcarebot                               peer
@@ -111,6 +114,7 @@ local   replication     all                                     peer
 host    replication     all             127.0.0.1/32            scram-sha-256
 host    replication     all             ::1/128                 scram-sha-256
 ```
+
 File's own comment: "DO NOT DISABLE" on the `postgres` line — untouched. `tgcarebot`'s dedicated line —
 untouched; its database/role are unaffected by removing the catch-all underneath it.
 
@@ -118,10 +122,10 @@ untouched; its database/role are unaffected by removing the catch-all underneath
 
 ## 2. Target identity model
 
-| Account | Shell | Home | Sudo | Groups | Runs |
-|---|---|---|---|---|---|
+| Account        | Shell               | Home | Sudo | Groups           | Runs                                |
+| -------------- | ------------------- | ---- | ---- | ---------------- | ----------------------------------- |
 | `bcb-web-test` | `/usr/sbin/nologin` | none | none | own primary only | `bersoncarebot-webapp-test.service` |
-| `bcb-api-test` | `/usr/sbin/nologin` | none | none | own primary only | `bersoncarebot-api-test.service` |
+| `bcb-api-test` | `/usr/sbin/nologin` | none | none | own primary only | `bersoncarebot-api-test.service`    |
 
 Created via `useradd --system --no-create-home --shell /usr/sbin/nologin --user-group <name>` — no `docker`,
 no `deploy` (that group already leaks into another project and into PROD secrets, §1). No sudoers entry for
@@ -133,9 +137,10 @@ any PROD secret, `sudo` anything, act as `tgcarebot`, touch the Docker socket, o
 on the host).
 
 **Not decided here (owner input needed, not guessed):**
-- *"Delete the dormant old deploy path"* — no single unambiguous artifact found (two SSH keys in
+
+- _"Delete the dormant old deploy path"_ — no single unambiguous artifact found (two SSH keys in
   `deploy/.ssh/`, a day apart, either could be it). Ask the owner which path he means; don't delete a guess.
-- *"Root-capable account for me, no external access"* — `dev` already matches that shape (blanket sudo,
+- _"Root-capable account for me, no external access"_ — `dev` already matches that shape (blanket sudo,
   key-only SSH, own key). Unclear if a second distinct identity is wanted. Ask, don't invent.
 
 ---
@@ -146,20 +151,25 @@ Every step: command, how to tell it worked, one-line rollback. The empirical pro
 unit file is touched for real, on purpose — it's the step most likely to reveal a wrong assumption.
 
 **1 — create the two accounts**
+
 ```
 sudo useradd --system --no-create-home --shell /usr/sbin/nologin --user-group bcb-web-test
 sudo useradd --system --no-create-home --shell /usr/sbin/nologin --user-group bcb-api-test
 ```
+
 Works: `id bcb-web-test` / `id bcb-api-test` show one group each, matching their own name, no `docker`/
 `deploy`. Rollback: `sudo userdel bcb-web-test` / `bcb-api-test` (nothing references them yet).
 
 **2 — confirm no sudo rights**
+
 ```
 sudo -n -l -U bcb-web-test; sudo -n -l -U bcb-api-test
 ```
+
 Works: both say "not allowed to run sudo". Rollback: none (read-only).
 
 **3 — prove the `EnvironmentFile=`-is-read-as-root assumption before building on it**
+
 ```
 sudo systemd-run --uid=bcb-web-test --gid=bcb-web-test --pty --wait \
   --property=EnvironmentFile=/opt/env/bersoncarebot/webapp.test \
@@ -169,7 +179,8 @@ sudo systemd-run --uid=bcb-web-test --gid=bcb-web-test --pty --wait \
     [ -n "$DATABASE_URL" ] && echo "env var present (expected)" || echo "UNEXPECTED: env var missing"
   '
 ```
-(No inner `sudo -u bcb-web-test` wrapper — this transient unit already runs *as* `bcb-web-test` via
+
+(No inner `sudo -u bcb-web-test` wrapper — this transient unit already runs _as_ `bcb-web-test` via
 `--uid`/`--gid`; wrapping the check in `sudo` would prove nothing, since Step 2 already established
 `bcb-web-test` has zero sudo rights, so that call would be denied by sudo's own ACL regardless of the file's
 actual permissions, and the "expected" branch would print even if the underlying assumption were false.)
@@ -180,11 +191,13 @@ Rollback: transient unit, cleans itself up on exit; nothing persists.
 
 Backup, then edit `/etc/systemd/system/bersoncarebot-webapp-test.service`: `User=deploy`→`User=bcb-web-test`,
 `Group=deploy`→`Group=bcb-web-test`; add to `[Service]`:
+
 ```
 CacheDirectory=bersoncarebot-webapp-test
 CacheDirectoryMode=0750
 ExecStartPre=+/bin/sh -c 'rm -rf ".next/cache"; ln -sfn /var/cache/bersoncarebot-webapp-test ".next/cache"'
 ```
+
 **Note (fixed after audit):** the original draft used `%W` believing it meant "WorkingDirectory". It does
 not — `%W` is the OS `VARIANT_ID` specifier, unset on this box, so it expands to an empty string. That would
 have made `ExecStartPre` operate against filesystem root (`ln -sfn ... "/.next/cache"`, no `/.next` parent to
@@ -193,18 +206,21 @@ create the symlink in), which fails; a non-`-`-prefixed failing `ExecStartPre` f
 `set -euo pipefail` — so every future TEST deploy would abort at that step. Fix: no specifier is needed at
 all. `WorkingDirectory=` already applies to `ExecStartPre` by systemd's own semantics, so a bare relative
 path (`".next/cache"`) resolves correctly with no `%W`.
+
 ```
 sudo cp /etc/systemd/system/bersoncarebot-webapp-test.service{,.bak-$(date +%Y%m%d-%H%M%S)}
 # edit as above
 sudo systemctl daemon-reload
 sudo systemctl restart bersoncarebot-webapp-test.service
 ```
+
 Works: `systemctl show bersoncarebot-webapp-test.service -p User -p Group --value` → `bcb-web-test` /
 `bcb-web-test`; `curl -fsS http://127.0.0.1:6300/api/health` → `{"ok":true,...,"db":"up"}`; `curl -fsS -o
 /dev/null -w '%{http_code}\n' 'http://127.0.0.1:6300/_next/image?url=%2Ffavicon.ico&w=64&q=75'` → `200`.
 Rollback (tightened after audit — the original only re-checked `/api/health`, not the image endpoint that
 proves the cache symlink actually worked, and never freed the `CacheDirectory=`, which would otherwise be
 left on disk owned by an orphaned UID once `bcb-web-test` is gone):
+
 ```
 sudo cp /etc/systemd/system/bersoncarebot-webapp-test.service.bak-<ts> /etc/systemd/system/bersoncarebot-webapp-test.service
 sudo systemctl daemon-reload
@@ -215,17 +231,19 @@ sudo systemctl clean --what=cache bersoncarebot-webapp-test.service   # frees /v
 ```
 
 **5 — api: identity flip (no cache-dir handling needed — §1 found no runtime fs writes in the integrator)**
+
 ```
 sudo cp /etc/systemd/system/bersoncarebot-api-test.service{,.bak-$(date +%Y%m%d-%H%M%S)}
 # edit: User=deploy -> User=bcb-api-test ; Group=deploy -> Group=bcb-api-test
 sudo systemctl daemon-reload
 sudo systemctl restart bersoncarebot-api-test.service
 ```
+
 Works: `systemctl show bersoncarebot-api-test.service -p User -p Group --value` → `bcb-api-test` /
 `bcb-api-test`; `curl -fsS http://127.0.0.1:3300/health` → `200`. Rollback: same pattern as Step 4 (minus the
 cache-dir lines — this unit never had a `CacheDirectory=`).
 
-**6 — worker-test + scheduler-test: same identity flip, no new account** *(added after audit — see §7)*
+**6 — worker-test + scheduler-test: same identity flip, no new account** _(added after audit — see §7)_
 
 Audit 2 confirmed `bersoncarebot-worker-test.service` and `bersoncarebot-scheduler-test.service` load the
 **identical** `EnvironmentFile=/opt/env/bersoncarebot/api.test` as the api service, and — like the api service
@@ -233,10 +251,11 @@ Audit 2 confirmed `bersoncarebot-worker-test.service` and `bersoncarebot-schedul
 an RCE in either still yields the same secrets the split was meant to protect, plus root — diluting the
 point. **Decision: they run as the existing `bcb-api-test` identity, not new accounts of their own.** A
 separate identity per unit would only buy something if there were a reason to keep worker, scheduler, and api
-from reading *each other's* secrets — there is not: all three already trust the same `api.test` file by
+from reading _each other's_ secrets — there is not: all three already trust the same `api.test` file by
 design (same DB roles' worth of blast radius already), so a third and fourth system account would be pure
 sprawl with no additional boundary. The boundary that matters here is `api.test` vs `webapp.test` vs
 `deploy`, and this gets both processes off `deploy` for exactly that boundary.
+
 ```
 sudo cp /etc/systemd/system/bersoncarebot-worker-test.service{,.bak-$(date +%Y%m%d-%H%M%S)}
 sudo cp /etc/systemd/system/bersoncarebot-scheduler-test.service{,.bak-$(date +%Y%m%d-%H%M%S)}
@@ -244,13 +263,14 @@ sudo cp /etc/systemd/system/bersoncarebot-scheduler-test.service{,.bak-$(date +%
 sudo systemctl daemon-reload
 sudo systemctl restart bersoncarebot-worker-test.service bersoncarebot-scheduler-test.service
 ```
+
 Works: `systemctl show bersoncarebot-worker-test.service bersoncarebot-scheduler-test.service -p User -p
 Group --value` → `bcb-api-test` / `bcb-api-test` (×2); `systemctl is-active` both → `active`; no restart loop
 (`systemctl show ... -p NRestarts --value` stays `0` a few seconds after restart). Rollback: same pattern as
 Step 4 (minus cache-dir lines — neither unit ever had one).
 
-**7 — update the owner's visual-session helper to expect the new webapp identity** *(added after audit — see
-§7)* — code change, not an on-box command.
+**7 — update the owner's visual-session helper to expect the new webapp identity** _(added after audit — see
+§7)_ — code change, not an on-box command.
 
 `deploy/host/test-visual-global-admin-session.mjs:169-170` hard-codes `User == "deploy" && Group == "deploy"`
 as a security precondition (`assertTestWebappListenerIdentity()`) before issuing a signed global-admin
@@ -263,17 +283,21 @@ Update the two literal comparisons (and the matching self-test fixture at line ~
 `assertTestWebappListenerIdentity()` path (via `status`/`issue`) against the live box after Step 4 lands.
 
 **8 — pg_hba.conf: remove the catch-all**
+
 ```
 sudo cp /etc/postgresql/16/main/pg_hba.conf{,.bak-$(date +%Y%m%d-%H%M%S)}
 ```
+
 Delete exactly the `local   all   all   peer` line (third active line — see §1 for full before/after
 listing; every other line, including `postgres` and `tgcarebot`'s own rules, is untouched, same order). No
 replacement line — an unmatched `local` connection is denied by Postgres's own default, which is the wanted
 behavior.
+
 ```
 sudo -u postgres psql -tAc "SELECT pg_reload_conf();"
 sudo journalctl -u postgresql@16-main -n 20 --no-pager   # no FATAL/invalid line about pg_hba.conf
 ```
+
 **Note (fixed after audit):** the original draft checked `journalctl -u postgresql` — that is the
 `Type=oneshot` meta-unit, not the running daemon, so it never has anything to say and the FATAL check was
 decorative. `postgresql@16-main.service` is the actual `postgres` process instance and the one whose log
@@ -283,16 +307,18 @@ Works: `pg_reload_conf()` → `t`, no error in the log; `sudo -u postgres psql -
 `tgcarebot` (its own line, unaffected). Rollback: `sudo cp` the `.bak-*` back, reload again — no restart
 needed either direction, this is a hot reload.
 
-**9 — prune the relocated image cache** *(added after audit — see §7)*
+**9 — prune the relocated image cache** _(added after audit — see §7)_
 
 `.next/cache` now symlinks to `/var/cache/bersoncarebot-webapp-test`, which sits outside the tree `deploy`
 wipes on every deploy (`rm -rf apps/webapp/.next`). Before the split that made the cache an accidental
 bound; after it, growth is unbounded. Low severity on TEST — a `tmpfiles.d` age rule is enough, no need for
 anything heavier:
+
 ```
 printf 'e /var/cache/bersoncarebot-webapp-test - - - 30d\n' | sudo tee /etc/tmpfiles.d/bersoncarebot-webapp-test-cache.conf
 sudo systemd-tmpfiles --create /etc/tmpfiles.d/bersoncarebot-webapp-test-cache.conf
 ```
+
 Works: `sudo systemd-tmpfiles --cat-config | grep bersoncarebot-webapp-test-cache` shows the rule loaded; no
 FATAL from `--create`. Rollback: `sudo rm /etc/tmpfiles.d/bersoncarebot-webapp-test-cache.conf` (the cache
 directory itself is untouched by removing the rule — it just stops aging out).
@@ -312,7 +338,7 @@ directory itself is untouched by removing the rule — it just stops aging out).
 - `systemctl show bersoncarebot-worker-test bersoncarebot-scheduler-test -p User -p Group --value` →
   `bcb-api-test` ×2 (moved off `deploy` per Step 6 — **not** the same expectation as media-worker below)
 - `systemctl is-active bersoncarebot-worker-test bersoncarebot-scheduler-test
-  bersoncarebot-media-worker-test` → all still `active`; `media-worker-test` alone stays `deploy:deploy`
+bersoncarebot-media-worker-test` → all still `active`; `media-worker-test` alone stays `deploy:deploy`
   (the one unit this runbook explicitly does not touch, still pinned by its own assert script)
 - `node deploy/host/test-visual-global-admin-session.mjs --self-test` → OK; then a real `status`/`issue`
   call succeeds (no `test_webapp_systemd_identity_mismatch`) — proves Step 7's code change matches Step 4's
@@ -354,6 +380,7 @@ were fixed in the document above prior to running anything; nothing in this sect
 pending.
 
 **Audit 1 (mechanics) — three defects, all in the original draft:**
+
 1. Step 4's `ExecStartPre` used `%W`, which is not "WorkingDirectory" (that's an undocumented myth) — it's
    the OS `VARIANT_ID` specifier, unset on this box, so it silently expanded to `""` and the command would
    have targeted `/`. Fixed: no specifier needed, `WorkingDirectory=` already applies to `ExecStartPre`,
@@ -364,21 +391,17 @@ pending.
    user, which per Step 2 has zero sudo, so the call would be denied by sudo's own ACL either way and the
    "expected" branch would print regardless of the actual permission. Fixed: dropped the wrapper.
 
-**Audit 2 (aftermath) — four more, found by tracing what the split touches beyond the units themselves:**
-4. `deploy/host/test-visual-global-admin-session.mjs:157-186` hard-codes `User == "deploy" && Group ==
+**Audit 2 (aftermath) — four more, found by tracing what the split touches beyond the units themselves:** 4. `deploy/host/test-visual-global-admin-session.mjs:157-186` hard-codes `User == "deploy" && Group ==
    "deploy"` as a security precondition for the owner's visual-review tool. Not a deploy gate, so it would
-   not block anything — it would just quietly stop working. Fixed by new Step 7: update the two literal
-   comparisons (line ~169-170) and the self-test fixture (line ~388) to `bcb-web-test`, in the same change.
-5. `worker-test`/`scheduler-test` load the identical `api.test` env file and were going to stay on `deploy`
-   after the split, diluting its value. Fixed by new Step 6: both now run as `bcb-api-test` — decision and
-   reasoning recorded inline at that step (shared identity, not new accounts, because they already share the
-   same secret-scope boundary by design).
-6. `.next/cache`'s new home outside the tree `deploy` wipes per deploy is unbounded growth where it used to
-   be an accidental bound. Fixed by new Step 9: a `tmpfiles.d` age rule (30d), deliberately not more than
-   that — low severity on TEST.
-7. Step 4's rollback only re-checked `/api/health`, not the image endpoint that actually proves the cache
-   symlink is working, and never freed the `CacheDirectory=`. Fixed: rollback now re-checks both curl
-   endpoints and runs `systemctl clean --what=cache`.
+not block anything — it would just quietly stop working. Fixed by new Step 7: update the two literal
+comparisons (line ~169-170) and the self-test fixture (line ~388) to `bcb-web-test`, in the same change. 5. `worker-test`/`scheduler-test` load the identical `api.test` env file and were going to stay on `deploy`
+after the split, diluting its value. Fixed by new Step 6: both now run as `bcb-api-test` — decision and
+reasoning recorded inline at that step (shared identity, not new accounts, because they already share the
+same secret-scope boundary by design). 6. `.next/cache`'s new home outside the tree `deploy` wipes per deploy is unbounded growth where it used to
+be an accidental bound. Fixed by new Step 9: a `tmpfiles.d` age rule (30d), deliberately not more than
+that — low severity on TEST. 7. Step 4's rollback only re-checked `/api/health`, not the image endpoint that actually proves the cache
+symlink is working, and never freed the `CacheDirectory=`. Fixed: rollback now re-checks both curl
+endpoints and runs `systemctl clean --what=cache`.
 
 **Verified clean by audit 2, not re-litigated:** no privilege-escalation path from the new accounts back to
 `deploy` (groups, docker socket, unit file modes, world-writable files all checked); `USERGROUPS_ENAB=yes` so

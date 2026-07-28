@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
-import { Switch } from "@/shared/ui/doctor/primitives/switch";
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
+import { Switch } from '@/shared/ui/doctor/primitives/switch';
 import {
   SOLO_BOOKING_UNAVAILABLE_MESSAGE,
   ensureDefaultSpecialist,
@@ -10,7 +10,7 @@ import {
   isServiceAvailableAtLocation,
   setServiceLocationAvailability,
   type SoloOverview,
-} from "@/app/app/settings/bookingSoloAdminApi";
+} from '@/app/app/settings/bookingSoloAdminApi';
 
 export function BookingSoloAvailabilitySection() {
   const [overview, setOverview] = useState<SoloOverview | null>(null);
@@ -30,7 +30,7 @@ export function BookingSoloAvailabilitySection() {
       }
       setOverview(data);
     } catch (e) {
-      setLoadError(e instanceof Error ? e.message : "load_failed");
+      setLoadError(e instanceof Error ? e.message : 'load_failed');
     }
   }, []);
 
@@ -58,15 +58,13 @@ export function BookingSoloAvailabilitySection() {
         await setServiceLocationAvailability(serviceId, branchId, enabled, specialistId);
         await load();
       } catch (e) {
-        setActionError(e instanceof Error ? e.message : "toggle_failed");
+        setActionError(e instanceof Error ? e.message : 'toggle_failed');
       }
     });
   }
 
   if (unavailable) {
-    return (
-      <p className="text-sm text-muted-foreground">{SOLO_BOOKING_UNAVAILABLE_MESSAGE}</p>
-    );
+    return <p className="text-sm text-muted-foreground">{SOLO_BOOKING_UNAVAILABLE_MESSAGE}</p>;
   }
 
   if (!overview) {

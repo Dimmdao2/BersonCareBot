@@ -100,8 +100,5 @@ export type PatientInvitesPort = {
     authorizationNonce: string;
     authorizationExpiresEpoch: number;
     authorizationSignature: string;
-  }): Promise<
-    | { ok: true; organizationId: string; patientUserId: string }
-    | PatientInviteFailure
-  >;
+  }): Promise<{ ok: true; organizationId: string; patientUserId: string } | PatientInviteFailure>;
 };

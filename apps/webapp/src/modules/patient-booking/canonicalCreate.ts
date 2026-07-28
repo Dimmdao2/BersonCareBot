@@ -1,41 +1,54 @@
-import { randomUUID } from "node:crypto";
-import type { createBookingEngineService } from "@/modules/booking-engine/service";
-import type { BeAppointment, BeBranch, BeClinicService, CreateAppointmentInput } from "@/modules/booking-engine/types";
+import { randomUUID } from 'node:crypto';
+import type { createBookingEngineService } from '@/modules/booking-engine/service';
+import type {
+  BeAppointment,
+  BeBranch,
+  BeClinicService,
+  CreateAppointmentInput,
+} from '@/modules/booking-engine/types';
 
 type BookingEngineService = ReturnType<typeof createBookingEngineService>;
-import type { createBookingFormService } from "@/modules/booking-form/service";
-import type { createBookingSchedulingService } from "@/modules/booking-scheduling/service";
-import type { CanonicalBookingContext } from "@/modules/booking-scheduling/ports";
+import type { createBookingFormService } from '@/modules/booking-form/service';
+import type { createBookingSchedulingService } from '@/modules/booking-scheduling/service';
+import type { CanonicalBookingContext } from '@/modules/booking-scheduling/ports';
 
 type BookingFormService = ReturnType<typeof createBookingFormService>;
 type BookingSchedulingService = ReturnType<typeof createBookingSchedulingService>;
-import type { AppointmentProjectionPort } from "./ports";
-import type { PaymentsService } from "@/modules/payments/service";
-import type { MembershipsService } from "@/modules/memberships/service";
-import type { ProductsService } from "@/modules/products/service";
-import type { ClientHistoryService } from "@/modules/client-history/service";
-import type { PlatformUserContactsService } from "@/modules/platform-user-contacts/service";
-import type { IdentityContactFields } from "@/modules/platform-user-contacts/identityContactMatch";
-import { upsertBookingFormContactsBestEffort } from "@/modules/platform-user-contacts/bookingContactUpsert";
-import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
+import type { AppointmentProjectionPort } from './ports';
+import type { PaymentsService } from '@/modules/payments/service';
+import type { MembershipsService } from '@/modules/memberships/service';
+import type { ProductsService } from '@/modules/products/service';
+import type { ClientHistoryService } from '@/modules/client-history/service';
+import type { PlatformUserContactsService } from '@/modules/platform-user-contacts/service';
+import type { IdentityContactFields } from '@/modules/platform-user-contacts/identityContactMatch';
+import { upsertBookingFormContactsBestEffort } from '@/modules/platform-user-contacts/bookingContactUpsert';
+import { normalizeRuPhoneE164 } from '@/shared/phone/normalizeRuPhoneE164';
 import type {
   BookingSyncPort,
   PatientBookingsPort,
   CreatePendingPatientBookingInput,
-} from "./ports";
-import type { CreatePatientBookingInput, PatientBookingRecord } from "./types";
-import { projectCanonicalAppointmentForDoctor } from "./projectCanonicalAppointment";
+} from './ports';
+import type { CreatePatientBookingInput, PatientBookingRecord } from './types';
+import { projectCanonicalAppointmentForDoctor } from './projectCanonicalAppointment';
 import {
   resolveBookingNotifyTargets,
   type BookingLifecycleNotificationsSettings,
-} from "./bookingLifecycleNotifications";
-import { sendBookingConfirmationEmail } from "./sendBookingConfirmationEmail";
+} from './bookingLifecycleNotifications';
+import { sendBookingConfirmationEmail } from './sendBookingConfirmationEmail';
 
 function isPostgresExclusionViolation(err: unknown): boolean {
-  return typeof err === "object" && err !== null && "code" in err && (err as { code: string }).code === "23P01";
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'code' in err &&
+    (err as { code: string }).code === '23P01'
+  );
 }
 
-async function persistBookingFormContacts(deps: CanonicalBookingDeps, createInput: CreatePatientBookingInput) {
+async function persistBookingFormContacts(
+  deps: CanonicalBookingDeps,
+  createInput: CreatePatientBookingInput,
+) {
   const identity =
     deps.getPlatformUserIdentityContacts != null
       ? await deps.getPlatformUserIdentityContacts(createInput.userId)
@@ -65,11 +78,11 @@ export type CanonicalBookingDeps = {
 };
 
 function toPendingRowOnline(
-  input: CreatePatientBookingInput & { type: "online" },
+  input: CreatePatientBookingInput & { type: 'online' },
 ): CreatePendingPatientBookingInput {
   return {
     userId: input.userId,
-    bookingType: "online",
+    bookingType: 'online',
     city: null,
     category: input.category,
     slotStart: input.slotStart,
@@ -89,7 +102,7 @@ function toPendingRowOnline(
 }
 
 function toPendingRowInPerson(
-  input: CreatePatientBookingInput & { type: "in_person" },
+  input: CreatePatientBookingInput & { type: 'in_person' },
   resolved: {
     context: CanonicalBookingContext;
     branch: BeBranch;
@@ -99,9 +112,9 @@ function toPendingRowInPerson(
   const { context, branch, service } = resolved;
   return {
     userId: input.userId,
-    bookingType: "in_person",
+    bookingType: 'in_person',
     city: branch.cityCode,
-    category: "general",
+    category: 'general',
     slotStart: input.slotStart,
     slotEnd: input.slotEnd,
     contactName: input.contactName,
@@ -126,10 +139,11 @@ export async function createBookingOnCanonicalEngine(
   formAnswers: { fieldKey: string; value: string }[] = [],
 ): Promise<PatientBookingRecord> {
   if (!deps.bookingEngine || !deps.bookingScheduling) {
-    throw new Error("canonical_booking_unavailable");
+    throw new Error('canonical_booking_unavailable');
   }
   const slotCount = createInput.slotCount ?? 1;
-  if (!Number.isInteger(slotCount) || slotCount < 1 || slotCount > 8) throw new Error("invalid_slot_count");
+  if (!Number.isInteger(slotCount) || slotCount < 1 || slotCount > 8)
+    throw new Error('invalid_slot_count');
 
   let pendingRow: CreatePendingPatientBookingInput;
   let durationMinutes = 60;
@@ -137,11 +151,13 @@ export async function createBookingOnCanonicalEngine(
   let canonicalSpecialistId: string | null = null;
   let canonicalServiceId: string | null = null;
   let canonicalRoomId: string | null = null;
-  let orgId = createInput.organizationId?.trim() ?? "";
-  let inPersonCtx: Awaited<ReturnType<BookingSchedulingService["resolveCanonicalInPersonContext"]>> | null = null;
+  let orgId = createInput.organizationId?.trim() ?? '';
+  let inPersonCtx: Awaited<
+    ReturnType<BookingSchedulingService['resolveCanonicalInPersonContext']>
+  > | null = null;
 
-  if (createInput.type === "online") {
-    if (!orgId) throw new Error("ambiguous_booking_tenant");
+  if (createInput.type === 'online') {
+    if (!orgId) throw new Error('ambiguous_booking_tenant');
     pendingRow = toPendingRowOnline(createInput);
     await deps.bookingScheduling.assertSlotAvailable({
       organizationId: orgId,
@@ -158,7 +174,7 @@ export async function createBookingOnCanonicalEngine(
       branchId: createInput.branchId,
       serviceId: createInput.serviceId,
     });
-    if (!inPersonCtx) throw new Error("branch_service_not_found");
+    if (!inPersonCtx) throw new Error('branch_service_not_found');
     const [branch, service] = await Promise.all([
       deps.bookingEngine.catalog.getBranch(inPersonCtx.branchId),
       deps.bookingEngine.services.getService(inPersonCtx.serviceId),
@@ -171,12 +187,13 @@ export async function createBookingOnCanonicalEngine(
       branch.organizationId !== inPersonCtx.organizationId ||
       service.organizationId !== inPersonCtx.organizationId
     ) {
-      throw new Error("branch_service_not_found");
+      throw new Error('branch_service_not_found');
     }
-    if (orgId && orgId !== inPersonCtx.organizationId) throw new Error("ambiguous_booking_tenant");
+    if (orgId && orgId !== inPersonCtx.organizationId) throw new Error('ambiguous_booking_tenant');
     orgId = inPersonCtx.organizationId;
     const expectedCity = branch.cityCode.trim().toLowerCase();
-    if (createInput.cityCode.trim().toLowerCase() !== expectedCity) throw new Error("city_mismatch");
+    if (createInput.cityCode.trim().toLowerCase() !== expectedCity)
+      throw new Error('city_mismatch');
     pendingRow = toPendingRowInPerson(createInput, { context: inPersonCtx, branch, service });
     durationMinutes = inPersonCtx.durationMinutes;
     await deps.bookingScheduling.assertSlotAvailable({
@@ -192,17 +209,17 @@ export async function createBookingOnCanonicalEngine(
     // bypasses the be_appointments_specialist_no_overlap exclusion constraint
     // (it only covers non-null rows), allowing an overlapping booking. Only ONLINE
     // consults legitimately keep canonicalSpecialistId = null. (F2 guard.)
-    if (!inPersonCtx.specialistId) throw new Error("specialist_required");
+    if (!inPersonCtx.specialistId) throw new Error('specialist_required');
     canonicalBranchId = inPersonCtx.branchId;
     canonicalSpecialistId = inPersonCtx.specialistId;
     canonicalServiceId = inPersonCtx.serviceId;
     canonicalRoomId = inPersonCtx.roomId;
   }
 
-  if (!orgId) throw new Error("ambiguous_booking_tenant");
+  if (!orgId) throw new Error('ambiguous_booking_tenant');
   const maxConsecutiveHours = await deps.bookingScheduling.getMaxConsecutiveSlotHours(orgId);
   if (durationMinutes * slotCount > maxConsecutiveHours * 60) {
-    throw new Error("consecutive_slot_cap_exceeded");
+    throw new Error('consecutive_slot_cap_exceeded');
   }
   if (deps.clientHistory) {
     await deps.clientHistory.assertSelfServiceBookingAllowed(orgId, createInput.userId);
@@ -212,13 +229,22 @@ export async function createBookingOnCanonicalEngine(
     contact_phone: createInput.contactPhone,
     first_name: createInput.contactFio?.firstName ?? createInput.contactName,
     ...(createInput.contactFio?.lastName ? { last_name: createInput.contactFio.lastName } : {}),
-    ...(createInput.contactFio?.patronymic ? { patronymic: createInput.contactFio.patronymic } : {}),
+    ...(createInput.contactFio?.patronymic
+      ? { patronymic: createInput.contactFio.patronymic }
+      : {}),
     phone: createInput.contactPhone,
-    ...(createInput.contactEmail ? { contact_email: createInput.contactEmail, email: createInput.contactEmail } : {}),
+    ...(createInput.contactEmail
+      ? { contact_email: createInput.contactEmail, email: createInput.contactEmail }
+      : {}),
   };
 
   if (deps.bookingForm) {
-    const validation = await deps.bookingForm.validateAnswers(orgId, "patient", formAnswers, profilePrefill);
+    const validation = await deps.bookingForm.validateAnswers(
+      orgId,
+      'patient',
+      formAnswers,
+      profilePrefill,
+    );
     if (!validation.ok) throw new Error(validation.error);
   }
 
@@ -235,7 +261,8 @@ export async function createBookingOnCanonicalEngine(
         ...pendingRow,
         slotStart: startAt,
         slotEnd: endAt,
-        durationMinutesSnapshot: pendingRow.durationMinutesSnapshot == null ? null : durationMinutes,
+        durationMinutesSnapshot:
+          pendingRow.durationMinutesSnapshot == null ? null : durationMinutes,
       },
     };
   });
@@ -253,14 +280,14 @@ export async function createBookingOnCanonicalEngine(
   let packageCoversVisit = false;
   let productCoversVisit = false;
   let patientPackageId =
-    createInput.type === "in_person" ? createInput.patientPackageId?.trim() : undefined;
+    createInput.type === 'in_person' ? createInput.patientPackageId?.trim() : undefined;
   const productPurchaseId =
-    createInput.type === "in_person" ? createInput.productPurchaseId?.trim() : undefined;
+    createInput.type === 'in_person' ? createInput.productPurchaseId?.trim() : undefined;
   if (patientPackageId && productPurchaseId) {
-    throw new Error("payment_option_conflict");
+    throw new Error('payment_option_conflict');
   }
   if (
-    createInput.type === "in_person" &&
+    createInput.type === 'in_person' &&
     !productPurchaseId &&
     !patientPackageId &&
     canonicalServiceId &&
@@ -275,7 +302,7 @@ export async function createBookingOnCanonicalEngine(
   }
   if (patientPackageId) {
     if (!canonicalServiceId || !deps.memberships) {
-      throw new Error("package_not_found");
+      throw new Error('package_not_found');
     }
     const eligible = await deps.memberships.listActivePackagesForBooking(
       createInput.userId,
@@ -283,13 +310,13 @@ export async function createBookingOnCanonicalEngine(
       canonicalServiceId,
     );
     if (!eligible.some((p) => p.id === patientPackageId)) {
-      throw new Error("package_not_found");
+      throw new Error('package_not_found');
     }
     packageCoversVisit = true;
   }
   if (productPurchaseId) {
     if (!canonicalServiceId || !deps.products) {
-      throw new Error("product_purchase_not_found");
+      throw new Error('product_purchase_not_found');
     }
     const eligible = await deps.products.listActivePurchasesForBooking(
       createInput.userId,
@@ -297,7 +324,7 @@ export async function createBookingOnCanonicalEngine(
       canonicalServiceId,
     );
     if (!eligible.some((p) => p.id === productPurchaseId)) {
-      throw new Error("product_purchase_not_found");
+      throw new Error('product_purchase_not_found');
     }
     productCoversVisit = true;
   }
@@ -306,9 +333,9 @@ export async function createBookingOnCanonicalEngine(
     ? await deps.payments.resolvePrepayment({
         organizationId: orgId,
         serviceId: canonicalServiceId,
-        onlineCategory: createInput.type === "online" ? createInput.category : null,
+        onlineCategory: createInput.type === 'online' ? createInput.category : null,
         servicePriceMinor: pendingRow.priceMinorSnapshot,
-        currency: "RUB",
+        currency: 'RUB',
       })
     : null;
   const needsPrepayment =
@@ -316,47 +343,50 @@ export async function createBookingOnCanonicalEngine(
     !productCoversVisit &&
     prepayQuote?.required === true &&
     (prepayQuote.amountMinor ?? 0) > 0;
-  const initialAppointmentStatus = needsPrepayment ? "awaiting_payment" : "confirmed";
+  const initialAppointmentStatus = needsPrepayment ? 'awaiting_payment' : 'confirmed';
 
-  const phoneNormalized = normalizeRuPhoneE164(createInput.contactPhone) ?? createInput.contactPhone.trim();
+  const phoneNormalized =
+    normalizeRuPhoneE164(createInput.contactPhone) ?? createInput.contactPhone.trim();
   const chainId = slotCount > 1 ? randomUUID() : null;
-  const appointmentSource: CreateAppointmentInput["source"] =
-    createInput.bookingChannel === "public_widget" ? "public_widget" : "native";
+  const appointmentSource: CreateAppointmentInput['source'] =
+    createInput.bookingChannel === 'public_widget' ? 'public_widget' : 'native';
   let appointments: BeAppointment[];
   try {
-    const appointmentInputs: CreateAppointmentInput[] = slotRows.map(({ startAt, endAt, chainPosition }) => {
-      return {
-      organizationId: orgId,
-      branchId: canonicalBranchId,
-      roomId: canonicalRoomId,
-      specialistId: canonicalSpecialistId,
-      serviceId: canonicalServiceId,
-      platformUserId: createInput.userId,
-      startAt,
-      endAt,
-      durationMinutes,
-      chainId,
-      chainPosition: chainId ? chainPosition : null,
-      source: appointmentSource,
-      status: initialAppointmentStatus,
-      phoneNormalized,
-      actorId: createInput.userId,
-      attributionJson: {
-        ...(createInput.attribution ?? {}),
-        ...(createInput.contactFio ? { contactFio: createInput.contactFio } : {}),
-        ...(productPurchaseId ? { productPurchaseId } : {}),
+    const appointmentInputs: CreateAppointmentInput[] = slotRows.map(
+      ({ startAt, endAt, chainPosition }) => {
+        return {
+          organizationId: orgId,
+          branchId: canonicalBranchId,
+          roomId: canonicalRoomId,
+          specialistId: canonicalSpecialistId,
+          serviceId: canonicalServiceId,
+          platformUserId: createInput.userId,
+          startAt,
+          endAt,
+          durationMinutes,
+          chainId,
+          chainPosition: chainId ? chainPosition : null,
+          source: appointmentSource,
+          status: initialAppointmentStatus,
+          phoneNormalized,
+          actorId: createInput.userId,
+          attributionJson: {
+            ...(createInput.attribution ?? {}),
+            ...(createInput.contactFio ? { contactFio: createInput.contactFio } : {}),
+            ...(productPurchaseId ? { productPurchaseId } : {}),
+          },
+        };
       },
-      };
-    });
+    );
     appointments =
-      createInput.type === "online"
+      createInput.type === 'online'
         ? await deps.bookingEngine.createOnlineAppointmentsIfAvailable(appointmentInputs)
         : slotCount === 1
           ? [await deps.bookingEngine.createAppointment(appointmentInputs[0]!)]
           : await deps.bookingEngine.createAppointmentChain(appointmentInputs);
   } catch (err) {
     await Promise.allSettled(pendingRows.map((row) => deps.bookingsPort.markFailedSync(row.id)));
-    if (isPostgresExclusionViolation(err)) throw new Error("slot_overlap");
+    if (isPostgresExclusionViolation(err)) throw new Error('slot_overlap');
     throw err;
   }
   const appointment = appointments[0]!;
@@ -366,7 +396,7 @@ export async function createBookingOnCanonicalEngine(
       ...appointments.map((item) =>
         deps.bookingEngine!.transitionAppointmentStatus({
           appointmentId: item.id,
-          toStatus: "cancelled_by_specialist",
+          toStatus: 'cancelled_by_specialist',
           payload: { source },
         }),
       ),
@@ -374,7 +404,9 @@ export async function createBookingOnCanonicalEngine(
   };
 
   if (deps.bookingForm && formAnswers.length > 0) {
-    await Promise.all(appointments.map((item) => deps.bookingForm!.saveForAppointment(orgId, item.id, formAnswers)));
+    await Promise.all(
+      appointments.map((item) => deps.bookingForm!.saveForAppointment(orgId, item.id, formAnswers)),
+    );
   }
 
   if (needsPrepayment && deps.payments && prepayQuote) {
@@ -388,7 +420,7 @@ export async function createBookingOnCanonicalEngine(
         idempotencyKey: `appointment_prepay:${appointment.id}`,
       });
     } catch (err) {
-      await rollbackChain("payment_intent_create_failed");
+      await rollbackChain('payment_intent_create_failed');
       throw err;
     }
     let awaitingRows: Array<PatientBookingRecord | null>;
@@ -399,12 +431,12 @@ export async function createBookingOnCanonicalEngine(
         ),
       );
     } catch {
-      await rollbackChain("booking_awaiting_payment_sync_failed");
-      throw new Error("booking_confirm_failed");
+      await rollbackChain('booking_awaiting_payment_sync_failed');
+      throw new Error('booking_confirm_failed');
     }
     if (awaitingRows.some((row) => !row)) {
-      await rollbackChain("booking_awaiting_payment_sync_failed");
-      throw new Error("booking_confirm_failed");
+      await rollbackChain('booking_awaiting_payment_sync_failed');
+      throw new Error('booking_confirm_failed');
     }
     await persistBookingFormContacts(deps, createInput);
     return awaitingRows[0] ?? pending;
@@ -414,20 +446,23 @@ export async function createBookingOnCanonicalEngine(
     try {
       for (const item of appointments) {
         await deps.memberships.reserveForAppointment({
-          organizationId: orgId, patientPackageId, serviceId: canonicalServiceId,
-          appointmentId: item.id, platformUserId: createInput.userId,
+          organizationId: orgId,
+          patientPackageId,
+          serviceId: canonicalServiceId,
+          appointmentId: item.id,
+          platformUserId: createInput.userId,
         });
       }
     } catch (reserveErr) {
-      await rollbackChain("package_reserve_failed");
+      await rollbackChain('package_reserve_failed');
       const code =
         reserveErr instanceof Error &&
-        (reserveErr.message === "package_not_found" ||
-          reserveErr.message === "package_no_balance" ||
-          reserveErr.message === "package_expired" ||
-          reserveErr.message === "package_not_active")
+        (reserveErr.message === 'package_not_found' ||
+          reserveErr.message === 'package_no_balance' ||
+          reserveErr.message === 'package_expired' ||
+          reserveErr.message === 'package_not_active')
           ? reserveErr.message
-          : "package_reserve_failed";
+          : 'package_reserve_failed';
       throw new Error(code);
     }
   }
@@ -436,21 +471,24 @@ export async function createBookingOnCanonicalEngine(
     try {
       for (const item of appointments) {
         await deps.products.consumeVisitForAppointment({
-          organizationId: orgId, productPurchaseId, platformUserId: createInput.userId,
-          appointmentId: item.id, serviceId: canonicalServiceId,
+          organizationId: orgId,
+          productPurchaseId,
+          platformUserId: createInput.userId,
+          appointmentId: item.id,
+          serviceId: canonicalServiceId,
         });
       }
     } catch (consumeErr) {
-      await rollbackChain("product_consume_failed");
+      await rollbackChain('product_consume_failed');
       const code =
         consumeErr instanceof Error &&
-        (consumeErr.message === "product_purchase_not_found" ||
-          consumeErr.message === "product_no_visits" ||
-          consumeErr.message === "product_expired" ||
-          consumeErr.message === "product_not_active" ||
-          consumeErr.message === "product_service_mismatch")
+        (consumeErr.message === 'product_purchase_not_found' ||
+          consumeErr.message === 'product_no_visits' ||
+          consumeErr.message === 'product_expired' ||
+          consumeErr.message === 'product_not_active' ||
+          consumeErr.message === 'product_service_mismatch')
           ? consumeErr.message
-          : "product_consume_failed";
+          : 'product_consume_failed';
       throw new Error(code);
     }
   }
@@ -465,13 +503,13 @@ export async function createBookingOnCanonicalEngine(
       ),
     );
   } catch {
-    await rollbackChain("booking_confirm_failed");
-    throw new Error("booking_confirm_failed");
+    await rollbackChain('booking_confirm_failed');
+    throw new Error('booking_confirm_failed');
   }
   const confirmed = confirmedRows[0];
   if (confirmedRows.some((row) => !row)) {
-    await rollbackChain("booking_confirm_failed");
-    throw new Error("booking_confirm_failed");
+    await rollbackChain('booking_confirm_failed');
+    throw new Error('booking_confirm_failed');
   }
 
   if (deps.appointmentProjection) {
@@ -494,14 +532,17 @@ export async function createBookingOnCanonicalEngine(
 
   if (packageCoversVisit && patientPackageId && deps.bookingEngine) {
     try {
-      const { emitPackageLinkedCalendarSync } = await import(
-        "@/app-layer/booking/emitPackageCalendarSync"
-      );
+      const { emitPackageLinkedCalendarSync } =
+        await import('@/app-layer/booking/emitPackageCalendarSync');
       await Promise.all(
         appointments.map(async (item, index) => {
           const freshAppt = await deps.bookingEngine!.getAppointment(item.id);
           if (freshAppt) {
-            await emitPackageLinkedCalendarSync(deps.syncPort, freshAppt, confirmedRows[index] ?? pendingRows[index]!);
+            await emitPackageLinkedCalendarSync(
+              deps.syncPort,
+              freshAppt,
+              confirmedRows[index] ?? pendingRows[index]!,
+            );
           }
         }),
       );
@@ -512,7 +553,7 @@ export async function createBookingOnCanonicalEngine(
 
   try {
     const createNotify = resolveBookingNotifyTargets(
-      "booking.created",
+      'booking.created',
       { notifyPatient: true, notifyStaff: true },
       (await deps.getBookingLifecycleNotificationSettings?.()) ?? null,
     );
@@ -521,7 +562,7 @@ export async function createBookingOnCanonicalEngine(
         appointments.map((item, index) => {
           const row = confirmedRows[index] ?? pendingRows[index]!;
           return deps.syncPort.emitBookingEvent({
-            eventType: "booking.created",
+            eventType: 'booking.created',
             idempotencyKey: `booking.created:${row.id}`,
             payload: {
               organizationId: item.organizationId,
@@ -549,17 +590,16 @@ export async function createBookingOnCanonicalEngine(
   }
 
   // #81: отправить пациенту письмо с .ics-вложением (best-effort, не роняет booking).
-  await sendBookingConfirmationEmail(
-    {
-      bookingId: (confirmed ?? pending).id,
-      contactEmail: createInput.contactEmail,
-      slotStart: pendingRow.slotStart,
-      slotEnd: pendingRow.slotEnd,
-      serviceTitle: pendingRow.serviceTitleSnapshot ?? pendingRow.category,
-      locationLabel: pendingRow.branchTitleSnapshot ?? (pendingRow.bookingType === "online" ? "Онлайн" : null),
-      contactName: createInput.contactName,
-    },
-  );
+  await sendBookingConfirmationEmail({
+    bookingId: (confirmed ?? pending).id,
+    contactEmail: createInput.contactEmail,
+    slotStart: pendingRow.slotStart,
+    slotEnd: pendingRow.slotEnd,
+    serviceTitle: pendingRow.serviceTitleSnapshot ?? pendingRow.category,
+    locationLabel:
+      pendingRow.branchTitleSnapshot ?? (pendingRow.bookingType === 'online' ? 'Онлайн' : null),
+    contactName: createInput.contactName,
+  });
 
   await persistBookingFormContacts(deps, createInput);
   return confirmed ?? pending;

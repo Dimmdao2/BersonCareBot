@@ -1,15 +1,15 @@
-"use client";
+'use client';
 
-import { DateTime } from "luxon";
-import type { PatientMoodScore, PatientMoodWeekMark } from "@/modules/patient-mood/types";
-import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
-import { cn } from "@/lib/utils";
+import { DateTime } from 'luxon';
+import type { PatientMoodScore, PatientMoodWeekMark } from '@/modules/patient-mood/types';
+import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import { cn } from '@/lib/utils';
 import {
   buildPatientHomeWellbeingWeekStripChart,
   HOME_WELLBEING_STRIP_CHART_HEIGHT,
   HOME_WELLBEING_STRIP_CHART_WIDTH,
   HOME_WELLBEING_STRIP_DAY_COUNT,
-} from "./buildPatientHomeWellbeingWeekStripChart";
+} from './buildPatientHomeWellbeingWeekStripChart';
 
 type Props = {
   marks: readonly PatientMoodWeekMark[];
@@ -26,26 +26,26 @@ type Props = {
   className?: string;
 };
 
-const DASHED_STROKE = "rgb(148 163 184)";
+const DASHED_STROKE = 'rgb(148 163 184)';
 
 /** Цвета линии по шкале 1–5 (как fallback-иконки эмодзи на главной). */
 const MOOD_STROKE: Record<PatientMoodScore, string> = {
-  1: "#dc2626",
-  2: "#ea580c",
-  3: "#f59e0b",
-  4: "#65a30d",
-  5: "#16a34a",
+  1: '#dc2626',
+  2: '#ea580c',
+  3: '#f59e0b',
+  4: '#65a30d',
+  5: '#16a34a',
 };
 
 function moodStroke(score: number): string {
   if (score >= 1 && score <= 5) return MOOD_STROKE[score as PatientMoodScore];
-  return "#64748b";
+  return '#64748b';
 }
 
 function labelForDay(isoDate: string, timeZone: string): string {
   const dt = DateTime.fromISO(isoDate, { zone: timeZone });
-  const weekdayRaw = dt.setLocale("ru").toFormat("ccc");
-  return weekdayRaw ? weekdayRaw.charAt(0).toUpperCase() + weekdayRaw.slice(1) : "";
+  const weekdayRaw = dt.setLocale('ru').toFormat('ccc');
+  return weekdayRaw ? weekdayRaw.charAt(0).toUpperCase() + weekdayRaw.slice(1) : '';
 }
 
 /** Последние N календарных дней (включая сегодня): линия до «Сейчас» (nowX). */
@@ -59,7 +59,7 @@ export function PatientHomeWellbeingWeekStrip({
   lastScoreBeforeWindow = null,
   className,
 }: Props) {
-  const today = DateTime.fromISO(todayIso, { zone: timeZone }).startOf("day");
+  const today = DateTime.fromISO(todayIso, { zone: timeZone }).startOf('day');
   if (!today.isValid) return null;
 
   const windowStart = today.minus({ days: HOME_WELLBEING_STRIP_DAY_COUNT - 1 });
@@ -71,7 +71,7 @@ export function PatientHomeWellbeingWeekStrip({
     const iso = dt.toISODate();
     return {
       iso,
-      weekday: iso ? labelForDay(iso, timeZone) : "",
+      weekday: iso ? labelForDay(iso, timeZone) : '',
     };
   });
 
@@ -86,15 +86,15 @@ export function PatientHomeWellbeingWeekStrip({
     lastScoreBeforeWindow,
   });
 
-  const gradPrefix = `mood-wk-${windowStartIso.replace(/-/g, "")}`;
+  const gradPrefix = `mood-wk-${windowStartIso.replace(/-/g, '')}`;
 
   const solidSegments = stripSegments.filter(
     (s): s is (typeof stripSegments)[number] & { s0: PatientMoodScore; s1: PatientMoodScore } =>
-      s.kind === "solid" && s.s0 != null && s.s1 != null,
+      s.kind === 'solid' && s.s0 != null && s.s1 != null,
   );
 
   return (
-    <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col px-0.5", className)}>
+    <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col px-0.5', className)}>
       <div className="relative min-h-[2rem] w-full flex-1">
         <svg
           className="absolute inset-0 h-full w-full"
@@ -120,7 +120,7 @@ export function PatientHomeWellbeingWeekStrip({
             ))}
           </defs>
           {stripSegments
-            .filter((s) => s.kind === "dashed")
+            .filter((s) => s.kind === 'dashed')
             .map((seg) => (
               <path
                 key={seg.key}
@@ -166,7 +166,10 @@ export function PatientHomeWellbeingWeekStrip({
           <span
             key={d.iso ?? d.weekday}
             role="listitem"
-            className={cn(patientMutedTextClass, "min-w-0 truncate text-center text-[9px] leading-none")}
+            className={cn(
+              patientMutedTextClass,
+              'min-w-0 truncate text-center text-[9px] leading-none',
+            )}
           >
             {d.weekday}
           </span>

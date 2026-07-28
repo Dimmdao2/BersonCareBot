@@ -1,4 +1,4 @@
-export type PatientMergeCandidateStatus = "pending" | "resolved" | "dismissed";
+export type PatientMergeCandidateStatus = 'pending' | 'resolved' | 'dismissed';
 
 export type PatientMergeCandidateRecord = {
   id: string;
@@ -23,7 +23,10 @@ export type PatientMergeCandidatePort = {
     triggerAppointmentId?: string | null;
     payload?: Record<string, unknown>;
   }): Promise<PatientMergeCandidateRecord>;
-  listPendingByOrganization(organizationId: string, limit?: number): Promise<PatientMergeCandidateRecord[]>;
+  listPendingByOrganization(
+    organizationId: string,
+    limit?: number,
+  ): Promise<PatientMergeCandidateRecord[]>;
   dismissCandidate(id: string, resolvedBy: string): Promise<boolean>;
   markResolvedForUserPair(
     anchorUserId: string,

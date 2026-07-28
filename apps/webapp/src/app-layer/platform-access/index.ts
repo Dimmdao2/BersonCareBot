@@ -1,6 +1,6 @@
-import { ensurePlatformAccessPortsBound } from "@/app-layer/di/bindPlatformAccessPorts";
-import type { AppSession } from "@/shared/types/session";
-import type { EntitlementsService } from "@/modules/entitlements/service";
+import { ensurePlatformAccessPortsBound } from '@/app-layer/di/bindPlatformAccessPorts';
+import type { AppSession } from '@/shared/types/session';
+import type { EntitlementsService } from '@/modules/entitlements/service';
 import {
   canViewPatientAuthOnlySection as canViewPatientAuthOnlySectionModule,
   filterPatientSectionPages as filterPatientSectionPagesModule,
@@ -9,10 +9,10 @@ import {
   resolvePatientCanViewContent as resolvePatientCanViewContentModule,
   resolvePlatformAccessContext as resolvePlatformAccessContextModule,
   type ResolvePlatformAccessContextInput,
-} from "@/modules/platform-access";
+} from '@/modules/platform-access';
 
-export type { PatientBusinessGate } from "@/modules/platform-access";
-export type { PlatformAccessContext } from "@/modules/platform-access";
+export type { PatientBusinessGate } from '@/modules/platform-access';
+export type { PlatformAccessContext } from '@/modules/platform-access';
 
 type PageRow = { slug: string; requiresAuth: boolean };
 
@@ -26,7 +26,9 @@ export async function patientClientBusinessGate(session: AppSession) {
   return patientClientBusinessGateModule(session);
 }
 
-export async function resolvePatientCanViewAuthOnlyContent(session: AppSession | null): Promise<boolean> {
+export async function resolvePatientCanViewAuthOnlyContent(
+  session: AppSession | null,
+): Promise<boolean> {
   ensurePlatformAccessPortsBound();
   return resolvePatientCanViewAuthOnlyContentModule(session);
 }
@@ -47,7 +49,12 @@ export async function canViewPatientAuthOnlySection(
   entitlements: EntitlementsService | null,
 ): Promise<boolean> {
   ensurePlatformAccessPortsBound();
-  return canViewPatientAuthOnlySectionModule(session, sectionRequiresAuth, pagesInSection, entitlements);
+  return canViewPatientAuthOnlySectionModule(
+    session,
+    sectionRequiresAuth,
+    pagesInSection,
+    entitlements,
+  );
 }
 
 export async function filterPatientSectionPages<T extends PageRow>(

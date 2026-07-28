@@ -4,34 +4,34 @@
 
 Канон порядка и рисков: [DRIZZLE_TRANSITION_PLAN.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/DRIZZLE_TRANSITION_PLAN.md). Инвентаризация: [RAW_SQL_INVENTORY.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/RAW_SQL_INVENTORY.md).
 
-| Этап | Файл плана | Статус |
-|------|------------|--------|
-| 1 — хвост интегратора | [wave2_phase_01_integrator_tail.plan.md](./wave2_phase_01_integrator_tail.plan.md) | completed (ядро; мелкие repos — backlog P1+) |
-| 2 — projection health + CLI | [wave2_phase_02_projection_health_sync.plan.md](./wave2_phase_02_projection_health_sync.plan.md) | completed |
-| 3 — advisory locks | [wave2_phase_03_advisory_locks.plan.md](./wave2_phase_03_advisory_locks.plan.md) | completed |
-| 4 — webapp напоминания | [wave2_phase_04_webapp_reminders.plan.md](./wave2_phase_04_webapp_reminders.plan.md) | completed |
-| 5 — webapp медиа | [wave2_phase_05_webapp_media.plan.md](./wave2_phase_05_webapp_media.plan.md) | completed (2026-06-05) |
-| 6 — webapp ЛФК | [wave2_phase_06_webapp_lfk.plan.md](./wave2_phase_06_webapp_lfk.plan.md) | completed (2026-06-05) |
-| 7 — webapp auth / rate limits | [wave2_phase_07_webapp_auth_rate_limits.plan.md](./wave2_phase_07_webapp_auth_rate_limits.plan.md) | completed (2026-06-05) |
-| 8 — пакеты, media-worker, скрипты | [wave2_phase_08_packages_worker_scripts.plan.md](./wave2_phase_08_packages_worker_scripts.plan.md) | **completed** (2026-06-05) |
+| Этап                              | Файл плана                                                                                         | Статус                                       |
+| --------------------------------- | -------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| 1 — хвост интегратора             | [wave2_phase_01_integrator_tail.plan.md](./wave2_phase_01_integrator_tail.plan.md)                 | completed (ядро; мелкие repos — backlog P1+) |
+| 2 — projection health + CLI       | [wave2_phase_02_projection_health_sync.plan.md](./wave2_phase_02_projection_health_sync.plan.md)   | completed                                    |
+| 3 — advisory locks                | [wave2_phase_03_advisory_locks.plan.md](./wave2_phase_03_advisory_locks.plan.md)                   | completed                                    |
+| 4 — webapp напоминания            | [wave2_phase_04_webapp_reminders.plan.md](./wave2_phase_04_webapp_reminders.plan.md)               | completed                                    |
+| 5 — webapp медиа                  | [wave2_phase_05_webapp_media.plan.md](./wave2_phase_05_webapp_media.plan.md)                       | completed (2026-06-05)                       |
+| 6 — webapp ЛФК                    | [wave2_phase_06_webapp_lfk.plan.md](./wave2_phase_06_webapp_lfk.plan.md)                           | completed (2026-06-05)                       |
+| 7 — webapp auth / rate limits     | [wave2_phase_07_webapp_auth_rate_limits.plan.md](./wave2_phase_07_webapp_auth_rate_limits.plan.md) | completed (2026-06-05)                       |
+| 8 — пакеты, media-worker, скрипты | [wave2_phase_08_packages_worker_scripts.plan.md](./wave2_phase_08_packages_worker_scripts.plan.md) | **completed** (2026-06-05)                   |
 
 ## Wave 3 — финальный closeout
 
 Индекс: [wave3_INDEX.md](./wave3_INDEX.md). Решения до старта: [wave3_DECISIONS.md](./wave3_DECISIONS.md) (**зафиксированы**; фаза 16 закрыла условный legacy cutover по результатам 09–15).
 
-| Фаза | Файл плана | Статус |
-|------|------------|--------|
-| 00 — baseline + ADR | [wave3_phase_00_baseline_adr.plan.md](./wave3_phase_00_baseline_adr.plan.md) | **completed** (2026-06-05) |
-| 08 — integrator schema reduction | [wave3_phase_08_integrator_schema_reduction.plan.md](./wave3_phase_08_integrator_schema_reduction.plan.md) | **completed** (2026-06-06; non-destructive) |
-| 09 — integrator P1+ (09A-09E) | [wave3_phase_09_integrator_p1plus.plan.md](./wave3_phase_09_integrator_p1plus.plan.md) | **completed** (2026-06-06; post-audit closure) |
-| 10 — media-worker IX (10A-10C) | [wave3_phase_10_media_worker_ix.plan.md](./wave3_phase_10_media_worker_ix.plan.md) | **completed** (2026-06-06) |
-| 11 — webapp app-layer / auth tail | [wave3_phase_11_webapp_app_layer_auth.plan.md](./wave3_phase_11_webapp_app_layer_auth.plan.md) | **completed** (2026-06-06; `runPgPoolPgText`, Zod config/idempotency, post-audit RAW_SQL) |
-| 12 — intake / purge / identity (12A-12E) | [wave3_phase_12_webapp_intake_purge_identity.plan.md](./wave3_phase_12_webapp_intake_purge_identity.plan.md) | **completed** (2026-06-06; 12A–12E; post-audit devDb smokes; Vitest **115 passed**) |
-| 13 — booking / doctor (13A-13E) | [wave3_phase_13_webapp_booking_doctor.plan.md](./wave3_phase_13_webapp_booking_doctor.plan.md) | **completed** (2026-06-06; 13A–13E; post-audit devDb smokes; gate + Vitest **123 passed** / 12 skipped; rubitime-sync **27 passed**) |
-| 14 — comms / projection (14A-14E) | [wave3_phase_14_webapp_comms_projection.plan.md](./wave3_phase_14_webapp_comms_projection.plan.md) | **completed** (2026-06-06; 14A–14E; gate + Zod boundaries; Vitest **119 passed** / 11 skipped) |
-| 15 — webapp long tail (15A-15F) | [wave3_phase_15_webapp_long_tail.plan.md](./wave3_phase_15_webapp_long_tail.plan.md) | **done** (2026-06-06) |
-| 16 — условный legacy cutover | [wave3_phase_16_legacy_cutover.plan.md](./wave3_phase_16_legacy_cutover.plan.md) | **completed** (2026-06-06; regular flow Drizzle-only, legacy path guarded/manual) |
-| 17 — closeout | [wave3_phase_17_closeout.plan.md](./wave3_phase_17_closeout.plan.md) | **completed** (2026-06-06; docs/rg/CI/archive; staging smoke **PASS**) |
+| Фаза                                     | Файл плана                                                                                                   | Статус                                                                                                                               |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| 00 — baseline + ADR                      | [wave3_phase_00_baseline_adr.plan.md](./wave3_phase_00_baseline_adr.plan.md)                                 | **completed** (2026-06-05)                                                                                                           |
+| 08 — integrator schema reduction         | [wave3_phase_08_integrator_schema_reduction.plan.md](./wave3_phase_08_integrator_schema_reduction.plan.md)   | **completed** (2026-06-06; non-destructive)                                                                                          |
+| 09 — integrator P1+ (09A-09E)            | [wave3_phase_09_integrator_p1plus.plan.md](./wave3_phase_09_integrator_p1plus.plan.md)                       | **completed** (2026-06-06; post-audit closure)                                                                                       |
+| 10 — media-worker IX (10A-10C)           | [wave3_phase_10_media_worker_ix.plan.md](./wave3_phase_10_media_worker_ix.plan.md)                           | **completed** (2026-06-06)                                                                                                           |
+| 11 — webapp app-layer / auth tail        | [wave3_phase_11_webapp_app_layer_auth.plan.md](./wave3_phase_11_webapp_app_layer_auth.plan.md)               | **completed** (2026-06-06; `runPgPoolPgText`, Zod config/idempotency, post-audit RAW_SQL)                                            |
+| 12 — intake / purge / identity (12A-12E) | [wave3_phase_12_webapp_intake_purge_identity.plan.md](./wave3_phase_12_webapp_intake_purge_identity.plan.md) | **completed** (2026-06-06; 12A–12E; post-audit devDb smokes; Vitest **115 passed**)                                                  |
+| 13 — booking / doctor (13A-13E)          | [wave3_phase_13_webapp_booking_doctor.plan.md](./wave3_phase_13_webapp_booking_doctor.plan.md)               | **completed** (2026-06-06; 13A–13E; post-audit devDb smokes; gate + Vitest **123 passed** / 12 skipped; rubitime-sync **27 passed**) |
+| 14 — comms / projection (14A-14E)        | [wave3_phase_14_webapp_comms_projection.plan.md](./wave3_phase_14_webapp_comms_projection.plan.md)           | **completed** (2026-06-06; 14A–14E; gate + Zod boundaries; Vitest **119 passed** / 11 skipped)                                       |
+| 15 — webapp long tail (15A-15F)          | [wave3_phase_15_webapp_long_tail.plan.md](./wave3_phase_15_webapp_long_tail.plan.md)                         | **done** (2026-06-06)                                                                                                                |
+| 16 — условный legacy cutover             | [wave3_phase_16_legacy_cutover.plan.md](./wave3_phase_16_legacy_cutover.plan.md)                             | **completed** (2026-06-06; regular flow Drizzle-only, legacy path guarded/manual)                                                    |
+| 17 — closeout                            | [wave3_phase_17_closeout.plan.md](./wave3_phase_17_closeout.plan.md)                                         | **completed** (2026-06-06; docs/rg/CI/archive; staging smoke **PASS**)                                                               |
 
 Детальная рабочая декомпозиция зафиксирована в `wave3_INDEX.md` и внутри phase-файлов:
 
@@ -74,11 +74,11 @@
 
 ## Решённые сложности для агентов
 
-| Сложность | Решение Wave 2 |
-|-----------|----------------|
-| Дедуп `rubitime_*` напрашивается рядом с `bookingProfilesRepo` | Не делать в Wave 2. Только Drizzle-эквивалент текущих таблиц. |
-| Зеркало `system_settings` выглядит лишним при unified DB | Wave 2 не снимала. Wave 3 phase 08 сняла runtime-зависимость: reads → `public.system_settings`; legacy sync route не удалён без owner-approved M2M cleanup. |
-| Claim-запросы с `SKIP LOCKED` плохо ложатся в builder | Оставлять `execute(sql)` и тестировать SQL/поведение claim. |
-| Advisory locks зависят от connection/transaction | Менять только call wrapper, не ключи и не session/xact режим. |
-| Общий schema package может понадобиться в `media-worker` | В этапе 8 под-PR C сначала принимается schema decision; при необходимости shared package оформляется отдельным планом до runtime-кода. |
-| Ops scripts неоднородны | Runtime scripts должны использовать core/repo; one-off/backfill/report scripts могут остаться `pg-only` с записью в LOG. |
+| Сложность                                                      | Решение Wave 2                                                                                                                                              |
+| -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Дедуп `rubitime_*` напрашивается рядом с `bookingProfilesRepo` | Не делать в Wave 2. Только Drizzle-эквивалент текущих таблиц.                                                                                               |
+| Зеркало `system_settings` выглядит лишним при unified DB       | Wave 2 не снимала. Wave 3 phase 08 сняла runtime-зависимость: reads → `public.system_settings`; legacy sync route не удалён без owner-approved M2M cleanup. |
+| Claim-запросы с `SKIP LOCKED` плохо ложатся в builder          | Оставлять `execute(sql)` и тестировать SQL/поведение claim.                                                                                                 |
+| Advisory locks зависят от connection/transaction               | Менять только call wrapper, не ключи и не session/xact режим.                                                                                               |
+| Общий schema package может понадобиться в `media-worker`       | В этапе 8 под-PR C сначала принимается schema decision; при необходимости shared package оформляется отдельным планом до runtime-кода.                      |
+| Ops scripts неоднородны                                        | Runtime scripts должны использовать core/repo; one-off/backfill/report scripts могут остаться `pg-only` с записью в LOG.                                    |

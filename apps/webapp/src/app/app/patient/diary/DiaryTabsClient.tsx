@@ -1,12 +1,12 @@
-"use client";
+'use client';
 
-import { useRouter, useSearchParams } from "next/navigation";
-import type { ReactNode } from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/patient/primitives/tabs";
-import { cn } from "@/lib/utils";
-import { patientInnerPageStackClass } from "@/shared/ui/patient/patientVisual";
+import { useRouter, useSearchParams } from 'next/navigation';
+import type { ReactNode } from 'react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/patient/primitives/tabs';
+import { cn } from '@/lib/utils';
+import { patientInnerPageStackClass } from '@/shared/ui/patient/patientVisual';
 
-type TabKey = "symptoms" | "lfk";
+type TabKey = 'symptoms' | 'lfk';
 
 export function DiaryTabsClient({
   symptomsPanel,
@@ -23,17 +23,17 @@ export function DiaryTabsClient({
 
   if (wellbeingMvpSingle != null) {
     return (
-      <div className={cn(patientInnerPageStackClass, "pb-8 lg:pb-12")}>{wellbeingMvpSingle}</div>
+      <div className={cn(patientInnerPageStackClass, 'pb-8 lg:pb-12')}>{wellbeingMvpSingle}</div>
     );
   }
 
-  const tab: TabKey = searchParams.get("tab") === "lfk" ? "lfk" : "symptoms";
+  const tab: TabKey = searchParams.get('tab') === 'lfk' ? 'lfk' : 'symptoms';
 
   return (
     <Tabs
       value={tab}
       onValueChange={(v) => {
-        const next = v === "lfk" ? "lfk" : "symptoms";
+        const next = v === 'lfk' ? 'lfk' : 'symptoms';
         router.replace(`/app/patient/diary?tab=${next}`, { scroll: false });
       }}
       className={patientInnerPageStackClass}
@@ -42,7 +42,7 @@ export function DiaryTabsClient({
         className="safe-bleed-x sticky top-[var(--patient-header-total-offset)] z-30 pb-4 pt-2"
         style={{
           background:
-            "linear-gradient(to bottom, var(--patient-bg) 0%, var(--patient-bg) 85%, transparent 100%)",
+            'linear-gradient(to bottom, var(--patient-bg) 0%, var(--patient-bg) 85%, transparent 100%)',
         }}
       >
         <TabsList className="grid h-auto w-full grid-cols-2 gap-2 rounded-none border-none bg-transparent p-0 shadow-none">

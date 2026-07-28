@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import {
   Dialog,
@@ -6,24 +6,24 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from "@/shared/ui/doctor/primitives/dialog";
+} from '@/shared/ui/doctor/primitives/dialog';
 import type {
   TreatmentProgramEventRow,
   TreatmentProgramEventDoctorTimelineLabels,
-} from "@/modules/treatment-program/types";
-import { DoctorProgramInstanceTimelineEventRow } from "./DoctorProgramInstanceTimelineEventRow";
+} from '@/modules/treatment-program/types';
+import { DoctorProgramInstanceTimelineEventRow } from './DoctorProgramInstanceTimelineEventRow';
 
 function doctorTimelineWhoRu(
   actorId: string | null,
   opts: { currentUserId: string; patientUserId: string },
 ): string | null {
   if (!actorId) return null;
-  if (actorId === opts.currentUserId) return "Вы";
-  if (actorId === opts.patientUserId) return "Пациент";
-  return "Врач";
+  if (actorId === opts.currentUserId) return 'Вы';
+  if (actorId === opts.patientUserId) return 'Пациент';
+  return 'Врач';
 }
-import { doctorHistoryRowClass } from "@/shared/ui/doctor/doctorVisual";
-import { formatBookingDateTimeShortStyleRu } from "@/shared/lib/formatBusinessDateTime";
+import { doctorHistoryRowClass } from '@/shared/ui/doctor/doctorVisual';
+import { formatBookingDateTimeShortStyleRu } from '@/shared/lib/formatBusinessDateTime';
 
 type Props = {
   open: boolean;
@@ -71,8 +71,8 @@ export function ProgramEditHistoryModal({
           </li>
           {doctorTimelineEvents.length === 0 ? (
             <li className="rounded-md border border-dashed border-border/70 px-2 py-2 text-sm text-muted-foreground">
-              Дальше появятся изменения плана и прохождение этапов (отметки выполнения пунктов — в журнале
-              выполнения).
+              Дальше появятся изменения плана и прохождение этапов (отметки выполнения пунктов — в
+              журнале выполнения).
             </li>
           ) : (
             doctorTimelineEvents.map((e) => {
@@ -85,7 +85,10 @@ export function ProgramEditHistoryModal({
                   key={e.id}
                   event={e}
                   labels={eventLabels}
-                  createdAtLabel={formatBookingDateTimeShortStyleRu(e.createdAt, appDisplayTimeZone)}
+                  createdAtLabel={formatBookingDateTimeShortStyleRu(
+                    e.createdAt,
+                    appDisplayTimeZone,
+                  )}
                   whoLabel={who}
                   expanded={expandedTimelineEventIds.has(e.id)}
                   onToggleExpand={() => onToggleExpandEvent(e.id)}

@@ -84,7 +84,10 @@ function normalizeBase(s: string): string {
  * Returns null if the DB-backed base URL override or entry secret is not set.
  * @param appBaseUrlOverride — из `getAppBaseUrl(db)` / runtime `app_base_url`.
  */
-export function buildWebappEntryTokenFromSource(params: WebappEntrySource, appBaseUrlOverride?: string | null): string | null {
+export function buildWebappEntryTokenFromSource(
+  params: WebappEntrySource,
+  appBaseUrlOverride?: string | null,
+): string | null {
   const secret = integratorWebappEntrySecret();
   if (!effectiveAppBaseUrl(appBaseUrlOverride) || !secret) return null;
 
@@ -99,7 +102,9 @@ export function buildWebappEntryTokenFromSource(params: WebappEntrySource, appBa
   const payload: WebappEntryTokenPayload = {
     sub,
     role,
-    ...(params.displayName !== undefined && params.displayName !== '' ? { displayName: params.displayName } : {}),
+    ...(params.displayName !== undefined && params.displayName !== ''
+      ? { displayName: params.displayName }
+      : {}),
     ...(intId !== undefined ? { integratorUserId: intId } : {}),
     bindings,
     purpose: 'webapp-entry',
@@ -114,7 +119,10 @@ export function buildWebappEntryTokenFromSource(params: WebappEntrySource, appBa
 /**
  * Returns the full webapp entry URL with signed token (source-agnostic).
  */
-export function buildWebappEntryUrlFromSource(params: WebappEntrySource, appBaseUrlOverride?: string | null): string | null {
+export function buildWebappEntryUrlFromSource(
+  params: WebappEntrySource,
+  appBaseUrlOverride?: string | null,
+): string | null {
   const token = buildWebappEntryTokenFromSource(params, appBaseUrlOverride);
   if (!token) return null;
   const baseUrl = effectiveAppBaseUrl(appBaseUrlOverride);

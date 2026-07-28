@@ -8,18 +8,18 @@
 
 ## Продуктовые решения (зафиксированы 2026-06-04)
 
-| Тема | Решение |
-|------|---------|
-| Источник записей | **Всегда наша БД** (`be_appointments` + проекция lifecycle). Rubitime — канал синхронизации при create/reschedule/cancel, не отдельная «сетка слотов» в UI. |
-| Свободные слоты Rubitime / `getSlots` | **Не рисуем** в календаре врача. |
-| Фон календаря | **Рабочее время и перерывы** из канона (`be_working_hours`, разрывы между интервалами; `be_schedule_blocks` — занято/отсутствие). |
-| Показ рабочего времени | Настройка **`booking_calendar_show_working_hours`** (`system_settings`, scope `admin`, default **`true`**). Выкл. — не отдаём/не рисуем слои `working` и `break`; **блокировки** (`block`) остаются. |
-| Создание записи | Кнопка **«Создать»** в панели (без клика по пустой ячейке в MVP). |
-| UI-сетка | **Готовая** calendar-библиотека с DnD + resize + **long-press** на touch. |
-| Фильтры | **Solo + локация** (default specialist; без выбора «специалист» и «кабинет» в основном toolbar). |
-| Rubitime-конфликт | При ошибке «слот занят» на стороне Rubitime — **откат** локального create/reschedule + **понятная ошибка**; конфликтующая запись часто появится после webhook — клиент **обновляет** календарь. |
-| Read-source | Код календаря **не зависит** от `rubitime_legacy`; ops: **`booking_doctor_appointments_read_source=canonical`** после smoke (согласовано с defer этапа 2). |
-| Отмена §10.5 | Активная запись ~**¾** ширины, отменённые на то же время — **¼** полоска; несколько отмен — список в деталях. |
+| Тема                                  | Решение                                                                                                                                                                                              |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Источник записей                      | **Всегда наша БД** (`be_appointments` + проекция lifecycle). Rubitime — канал синхронизации при create/reschedule/cancel, не отдельная «сетка слотов» в UI.                                          |
+| Свободные слоты Rubitime / `getSlots` | **Не рисуем** в календаре врача.                                                                                                                                                                     |
+| Фон календаря                         | **Рабочее время и перерывы** из канона (`be_working_hours`, разрывы между интервалами; `be_schedule_blocks` — занято/отсутствие).                                                                    |
+| Показ рабочего времени                | Настройка **`booking_calendar_show_working_hours`** (`system_settings`, scope `admin`, default **`true`**). Выкл. — не отдаём/не рисуем слои `working` и `break`; **блокировки** (`block`) остаются. |
+| Создание записи                       | Кнопка **«Создать»** в панели (без клика по пустой ячейке в MVP).                                                                                                                                    |
+| UI-сетка                              | **Готовая** calendar-библиотека с DnD + resize + **long-press** на touch.                                                                                                                            |
+| Фильтры                               | **Solo + локация** (default specialist; без выбора «специалист» и «кабинет» в основном toolbar).                                                                                                     |
+| Rubitime-конфликт                     | При ошибке «слот занят» на стороне Rubitime — **откат** локального create/reschedule + **понятная ошибка**; конфликтующая запись часто появится после webhook — клиент **обновляет** календарь.      |
+| Read-source                           | Код календаря **не зависит** от `rubitime_legacy`; ops: **`booking_doctor_appointments_read_source=canonical`** после smoke (согласовано с defer этапа 2).                                           |
+| Отмена §10.5                          | Активная запись ~**¾** ширины, отменённые на то же время — **¼** полоска; несколько отмен — список в деталях.                                                                                        |
 
 **Отличие от [`OWN_BOOKING_ENGINE_INITIATIVE`](../OWN_BOOKING_ENGINE_INITIATIVE/SCOPE_DECISIONS.md) Q3 (2026-05-30):** там — custom grid без npm; для **BOOKING_REWORK** этап 4 сознательно вводит зависимость calendar/DnD (запись в LOG + ADR в 4.0).
 
@@ -68,12 +68,12 @@
 
 Зона: `/app/doctor/calendar`. Следовать [`.cursor/rules/doctor-ui-shared-primitives.mdc`](../../.cursor/rules/doctor-ui-shared-primitives.mdc): toolbar — `doctorCatalogToolbarPrimaryActionClassName` для «Создать»; панель деталей — shadcn `Dialog` / aside как сейчас; **не** возвращать фильтр «Кабинет» в основной toolbar.
 
-| Зона | Паттерн | Запрещено |
-|------|---------|-----------|
-| Toolbar | Локация (+ скрытый default specialist); day/week/month; навигация периода; переключатель **«Рабочее время»** | Выбор Rubitime-специалиста; `roomId` в primary UI |
-| Записи | Библиотечные event cards + кастомный render отмен (¾/¼) | Прямой `PATCH` appointment из UI минуя lifecycle |
-| Детали | Side panel: пациент, услуга, локация, оплата, абонемент (этап 3), lifecycle | Сырой UUID в заголовке |
-| Ошибки Rubitime | Текст «время занято во внешней записи» + кнопка «Обновить календарь» | Silent fail после частичного create |
+| Зона            | Паттерн                                                                                                      | Запрещено                                         |
+| --------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------- |
+| Toolbar         | Локация (+ скрытый default specialist); day/week/month; навигация периода; переключатель **«Рабочее время»** | Выбор Rubitime-специалиста; `roomId` в primary UI |
+| Записи          | Библиотечные event cards + кастомный render отмен (¾/¼)                                                      | Прямой `PATCH` appointment из UI минуя lifecycle  |
+| Детали          | Side panel: пациент, услуга, локация, оплата, абонемент (этап 3), lifecycle                                  | Сырой UUID в заголовке                            |
+| Ошибки Rubitime | Текст «время занято во внешней записи» + кнопка «Обновить календарь»                                         | Silent fail после частичного create               |
 
 ### Самопроверка UI (4.8)
 
@@ -91,16 +91,16 @@ pnpm --dir apps/webapp exec vitest run \
 
 ## Текущее состояние (baseline)
 
-| Область | Сейчас | Цель 4 |
-|---------|--------|--------|
-| Сетка | Custom luxon grid | Calendar library (4.0–4.3) |
-| DnD / resize | Нет (форма «Перенести») | eventDrop + eventResize + long-press |
-| Free slots | `includeFreeSlots` + `getSlots` | Удалить из doctor calendar |
-| Read-source | `rubitime_legacy` \| `canonical`, legacy read-only panel | Календарь только canonical list |
-| Фон | Только `schedule_blocks` как events | + working hours + перерывы (gaps); toggle show/hide |
+| Область        | Сейчас                                                    | Цель 4                                              |
+| -------------- | --------------------------------------------------------- | --------------------------------------------------- |
+| Сетка          | Custom luxon grid                                         | Calendar library (4.0–4.3)                          |
+| DnD / resize   | Нет (форма «Перенести»)                                   | eventDrop + eventResize + long-press                |
+| Free slots     | `includeFreeSlots` + `getSlots`                           | Удалить из doctor calendar                          |
+| Read-source    | `rubitime_legacy` \| `canonical`, legacy read-only panel  | Календарь только canonical list                     |
+| Фон            | Только `schedule_blocks` как events                       | + working hours + перерывы (gaps); toggle show/hide |
 | Staff Rubitime | `emitStaffCanonicalBookingEvent` best-effort после create | Create/reschedule с **rollback** при conflict (4.6) |
-| Webhook → UI | Только ручной «Обновить» / перезагрузка страницы | Poll + refetch после конфликта (4.7) |
-| Отмены на слот | Полное наложение | ¾ + ¼ (4.5) |
+| Webhook → UI   | Только ручной «Обновить» / перезагрузка страницы          | Poll + refetch после конфликта (4.7)                |
+| Отмены на слот | Полное наложение                                          | ¾ + ¼ (4.5)                                         |
 
 Канон модуля: [`apps/webapp/src/modules/booking-calendar/`](../../apps/webapp/src/modules/booking-calendar/) (добавить `booking-calendar.md` в 4.8).
 
@@ -108,17 +108,17 @@ pnpm --dir apps/webapp exec vitest run \
 
 ## Обзор блоков
 
-| Блок | Цель | Breaking API |
-|------|------|--------------|
-| **4.0** | Выбор и внедрение calendar/DnD npm | Нет (новая dep) |
-| **4.1** | Feed: canonical appointments, schedule layers, без free slots | Расширение `GET calendar` (новые `kind`) |
-| **4.2** | Toolbar solo+локация, шапка периода | Нет |
-| **4.3** | Замена grid на библиотеку; рендер слоёв | Нет |
-| **4.4** | Панель деталей + «Создать» | Нет |
-| **4.5** | Layout отмен ¾/¼ | Нет |
-| **4.6** | DnD, resize, long-press → lifecycle | Нет |
-| **4.7** | Rubitime rollback + обновление UI | Расширение ошибок `manual` / `manual-reschedule` |
-| **4.8** | Live refresh, ops read-source, tests, docs | Нет |
+| Блок    | Цель                                                          | Breaking API                                     |
+| ------- | ------------------------------------------------------------- | ------------------------------------------------ |
+| **4.0** | Выбор и внедрение calendar/DnD npm                            | Нет (новая dep)                                  |
+| **4.1** | Feed: canonical appointments, schedule layers, без free slots | Расширение `GET calendar` (новые `kind`)         |
+| **4.2** | Toolbar solo+локация, шапка периода                           | Нет                                              |
+| **4.3** | Замена grid на библиотеку; рендер слоёв                       | Нет                                              |
+| **4.4** | Панель деталей + «Создать»                                    | Нет                                              |
+| **4.5** | Layout отмен ¾/¼                                              | Нет                                              |
+| **4.6** | DnD, resize, long-press → lifecycle                           | Нет                                              |
+| **4.7** | Rubitime rollback + обновление UI                             | Расширение ошибок `manual` / `manual-reschedule` |
+| **4.8** | Live refresh, ops read-source, tests, docs                    | Нет                                              |
 
 **Gate:** 4.3 после 4.0+4.1; 4.6 после 4.3+4.4; 4.7 после 4.6; 4.8 — финал.
 
@@ -139,10 +139,10 @@ pnpm --dir apps/webapp exec vitest run \
 
 ### Кандидаты (оценка в PR 4.0)
 
-| Пакет | Плюсы | Минусы |
-|-------|-------|--------|
+| Пакет                               | Плюсы             | Минусы                               |
+| ----------------------------------- | ----------------- | ------------------------------------ |
 | `@fullcalendar/react` + interaction | Зрелый DnD/resize | Размер бандла; стилизация под shadcn |
-| `schedule-x` | Современный React | Проверить long-press и month view |
+| `schedule-x`                        | Современный React | Проверить long-press и month view    |
 
 **DoD 4.0:** выбран пакет, добавлен в `apps/webapp/package.json`, интегрирован в `DoctorBookingCalendarClient`; временные spike-флаги/страницы удалены до merge.
 
@@ -189,7 +189,7 @@ pnpm --dir apps/webapp exec vitest run \
 
 ```ts
 // Новые kinds (имена уточнить в коде):
-kind: "appointment" | "block" | "working" | "break";
+kind: 'appointment' | 'block' | 'working' | 'break';
 ```
 
 `working` / `break` — `display: "background"` в mapping на FullCalendar (не editable).
@@ -314,12 +314,12 @@ ROADMAP §10.5:
 
 ROADMAP §10.2–10.3, §10.7:
 
-| Действие | Поведение |
-|----------|-----------|
-| Drag (desktop) | Preview времени; drop → `POST .../manual-reschedule` |
-| Resize | Изменение `endAt`; warning если duration ≠ service default (non-blocking confirm) |
-| Long-press (touch) | ~400–500 ms → activation drag; иначе scroll |
-| Resize touch | Handle на нижнем крае события |
+| Действие           | Поведение                                                                         |
+| ------------------ | --------------------------------------------------------------------------------- |
+| Drag (desktop)     | Preview времени; drop → `POST .../manual-reschedule`                              |
+| Resize             | Изменение `endAt`; warning если duration ≠ service default (non-blocking confirm) |
+| Long-press (touch) | ~400–500 ms → activation drag; иначе scroll                                       |
+| Resize touch       | Handle на нижнем крае события                                                     |
 
 **Сервер (уже есть, усилить ответы):**
 
@@ -360,13 +360,13 @@ ROADMAP §10.2–10.3, §10.7:
 
 Цепочка: Rubitime webhook → integrator → проекция в `be_appointments` / `appointment_records` (уже есть) → **клиент видит изменение**.
 
-| Механизм | Обязательность |
-|----------|----------------|
-| `load()` после успешного create/reschedule/cancel | Must |
-| `load()` после `409 external_slot_taken` | Must (+ текст «обновите календарь — запись могла прийти из Rubitime») |
-| Пока вкладка календаря visible: **poll** `GET calendar` каждые 30 с | Must |
-| `document.visibilitychange` → refetch | Must |
-| Push/SSE integrator→webapp | **Вне scope 4** (отдельный backlog, если poll недостаточен) |
+| Механизм                                                            | Обязательность                                                        |
+| ------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `load()` после успешного create/reschedule/cancel                   | Must                                                                  |
+| `load()` после `409 external_slot_taken`                            | Must (+ текст «обновите календарь — запись могла прийти из Rubitime») |
+| Пока вкладка календаря visible: **poll** `GET calendar` каждые 30 с | Must                                                                  |
+| `document.visibilitychange` → refetch                               | Must                                                                  |
+| Push/SSE integrator→webapp                                          | **Вне scope 4** (отдельный backlog, если poll недостаточен)           |
 
 ### DoD 4.7
 
@@ -419,14 +419,14 @@ pnpm --dir apps/webapp exec tsc --noEmit -p tsconfig.json
 
 ## Риски
 
-| Риск | Митигация |
-|------|-----------|
-| Бандл FullCalendar | Lazy `dynamic()` import calendar wrapper |
-| Long-press vs scroll | Порог 400–500 ms; document в ACCEPTANCE |
-| Rollback reschedule сложен | Порядок `sync-first` для staff reschedule; при conflict canonical не меняется |
-| Working hours fallback org | Показать badge «расписание по умолчанию» если `usesFallback` |
-| Poll 30s нагрузка | Только при `document.visibilityState === 'visible'` |
-| Регрессия списка appointments | 4.8 ops smoke + не трогать list route в 4 |
+| Риск                          | Митигация                                                                     |
+| ----------------------------- | ----------------------------------------------------------------------------- |
+| Бандл FullCalendar            | Lazy `dynamic()` import calendar wrapper                                      |
+| Long-press vs scroll          | Порог 400–500 ms; document в ACCEPTANCE                                       |
+| Rollback reschedule сложен    | Порядок `sync-first` для staff reschedule; при conflict canonical не меняется |
+| Working hours fallback org    | Показать badge «расписание по умолчанию» если `usesFallback`                  |
+| Poll 30s нагрузка             | Только при `document.visibilityState === 'visible'`                           |
+| Регрессия списка appointments | 4.8 ops smoke + не трогать list route в 4                                     |
 
 ---
 

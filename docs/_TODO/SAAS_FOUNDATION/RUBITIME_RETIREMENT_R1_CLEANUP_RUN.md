@@ -6,12 +6,12 @@ Scope: R1 cleanup only after owner approval for test/block rows and canceled dup
 
 ## Environment
 
-| Field | Value |
-| --- | --- |
-| Worktree | `/home/dev/dev-projects/bcb-walls` |
-| Branch | `auto/code-pg-delta` |
-| Database | `bcb_webapp_dev` on loopback |
-| Env source | local dev env only |
+| Field          | Value                                                                  |
+| -------------- | ---------------------------------------------------------------------- |
+| Worktree       | `/home/dev/dev-projects/bcb-walls`                                     |
+| Branch         | `auto/code-pg-delta`                                                   |
+| Database       | `bcb_webapp_dev` on loopback                                           |
+| Env source     | local dev env only                                                     |
 | Telegram token | process-local non-secret placeholder, required only for config parsing |
 
 ## Exact cleanup flags
@@ -98,42 +98,42 @@ Do not re-create this cleanup manually with ad hoc `UPDATE` statements. If anoth
 
 ## Before and after
 
-| Check | Before | After |
-| --- | ---: | ---: |
-| Legacy live rows | 400 | 364 |
-| Canonical `rubitime_projection` live rows | 258 | 241 |
-| Unmapped legacy total | 126 | 112 |
-| Unmapped test/block | 13 | 0 |
-| Unmapped canceled | 20 | 13 |
-| Unmapped real active | 99 | 99 |
-| Unmapped future | 0 | 0 |
-| Duplicate clusters | 7 | 3 |
-| Duplicate clusters with multiple canonical rows | 0 | 0 |
-| Stale vs CSV | skipped | skipped |
+| Check                                           |  Before |   After |
+| ----------------------------------------------- | ------: | ------: |
+| Legacy live rows                                |     400 |     364 |
+| Canonical `rubitime_projection` live rows       |     258 |     241 |
+| Unmapped legacy total                           |     126 |     112 |
+| Unmapped test/block                             |      13 |       0 |
+| Unmapped canceled                               |      20 |      13 |
+| Unmapped real active                            |      99 |      99 |
+| Unmapped future                                 |       0 |       0 |
+| Duplicate clusters                              |       7 |       3 |
+| Duplicate clusters with multiple canonical rows |       0 |       0 |
+| Stale vs CSV                                    | skipped | skipped |
 
 Commit effects:
 
-| Action | Count |
-| --- | ---: |
-| Test/block legacy rows soft-deleted | 34 |
-| Mapped canonical rows soft-deleted by test/block cleanup | 21 |
-| Duplicate clusters with canceled losers touched | 2 |
-| Canceled duplicate loser rows soft-deleted | 2 |
+| Action                                                   | Count |
+| -------------------------------------------------------- | ----: |
+| Test/block legacy rows soft-deleted                      |    34 |
+| Mapped canonical rows soft-deleted by test/block cleanup |    21 |
+| Duplicate clusters with canceled losers touched          |     2 |
+| Canceled duplicate loser rows soft-deleted               |     2 |
 
 ## Post-cleanup dual-source audit
 
-| Check | Count |
-| --- | ---: |
-| raw-only records | 0 |
-| legacy-only records | 312 |
-| status mismatches | 4 |
-| `record_at` mismatches over 5 minutes | 2 |
-| raw mapping coverage | 91 of 91 |
-| legacy mapping coverage | 274 of 403 |
-| legacy unmapped | 129 |
-| legacy mappings to soft-deleted canonical appointments | 21 |
-| unexpected canonical source | 6 |
-| missing expected mapping metadata | 6 |
+| Check                                                  |      Count |
+| ------------------------------------------------------ | ---------: |
+| raw-only records                                       |          0 |
+| legacy-only records                                    |        312 |
+| status mismatches                                      |          4 |
+| `record_at` mismatches over 5 minutes                  |          2 |
+| raw mapping coverage                                   |   91 of 91 |
+| legacy mapping coverage                                | 274 of 403 |
+| legacy unmapped                                        |        129 |
+| legacy mappings to soft-deleted canonical appointments |         21 |
+| unexpected canonical source                            |          6 |
+| missing expected mapping metadata                      |          6 |
 
 Interpretation: the approved cleanup removed the explicitly allowed test/block rows and narrowed duplicate clusters. It does not make `RR-PROOF-01-DUAL-SOURCE` pass.
 
@@ -170,45 +170,45 @@ Environment: `/home/dev/dev-projects/bcb-walls` on `auto/code-pg-delta`, dev DB 
 
 ### Second-pass before and after
 
-| Check | Before | After |
-| --- | ---: | ---: |
-| Legacy live rows | 364 | 364 |
-| Canonical `rubitime_projection` live rows | 241 | 241 |
-| Unmapped legacy total | 112 | 112 |
-| Unmapped test/block | 0 | 0 |
-| Unmapped canceled | 13 | 13 |
-| Unmapped real active | 99 | 99 |
-| Unmapped future | 0 | 0 |
-| Duplicate clusters | 3 | 3 |
-| Duplicate clusters with multiple canonical rows | 0 | 0 |
-| Stale vs CSV | skipped | skipped |
+| Check                                           |  Before |   After |
+| ----------------------------------------------- | ------: | ------: |
+| Legacy live rows                                |     364 |     364 |
+| Canonical `rubitime_projection` live rows       |     241 |     241 |
+| Unmapped legacy total                           |     112 |     112 |
+| Unmapped test/block                             |       0 |       0 |
+| Unmapped canceled                               |      13 |      13 |
+| Unmapped real active                            |      99 |      99 |
+| Unmapped future                                 |       0 |       0 |
+| Duplicate clusters                              |       3 |       3 |
+| Duplicate clusters with multiple canonical rows |       0 |       0 |
+| Stale vs CSV                                    | skipped | skipped |
 
 Second-pass commit effects:
 
-| Action | Count |
-| --- | ---: |
-| Test/block legacy rows soft-deleted | 0 |
-| Mapped canonical rows soft-deleted by test/block cleanup | 0 |
-| Duplicate clusters with canceled losers touched | 0 |
-| Canceled duplicate loser rows soft-deleted | 0 |
+| Action                                                   | Count |
+| -------------------------------------------------------- | ----: |
+| Test/block legacy rows soft-deleted                      |     0 |
+| Mapped canonical rows soft-deleted by test/block cleanup |     0 |
+| Duplicate clusters with canceled losers touched          |     0 |
+| Canceled duplicate loser rows soft-deleted               |     0 |
 
 Interpretation: the expanded approved categories were idempotent against the current dev snapshot. No additional rows were soft-deleted.
 
 ### Second-pass dual-source audit
 
-| Check | Count |
-| --- | ---: |
-| raw-only records | 0 |
-| legacy-only records | 312 |
-| status mismatches | 4 |
-| `record_at` mismatches over 5 minutes | 2 |
-| raw mapping coverage | 91 of 91 |
-| legacy mapping coverage | 274 of 403 |
-| legacy unmapped | 129 |
-| raw mappings to soft-deleted canonical appointments | 4 |
-| legacy mappings to soft-deleted canonical appointments | 21 |
-| unexpected canonical source | 6 |
-| missing expected mapping metadata | 6 |
+| Check                                                  |      Count |
+| ------------------------------------------------------ | ---------: |
+| raw-only records                                       |          0 |
+| legacy-only records                                    |        312 |
+| status mismatches                                      |          4 |
+| `record_at` mismatches over 5 minutes                  |          2 |
+| raw mapping coverage                                   |   91 of 91 |
+| legacy mapping coverage                                | 274 of 403 |
+| legacy unmapped                                        |        129 |
+| raw mappings to soft-deleted canonical appointments    |          4 |
+| legacy mappings to soft-deleted canonical appointments |         21 |
+| unexpected canonical source                            |          6 |
+| missing expected mapping metadata                      |          6 |
 
 Residual blockers remain, with stale proof now recorded separately in `RUBITIME_RETIREMENT_R1_STALE_CSV_PROOF.md`; R1 remains blocked and R2 remains forbidden.
 
@@ -234,33 +234,33 @@ pnpm --dir apps/webapp backfill-canonical-from-legacy-appointments -- \
 
 Commit effects:
 
-| Action | Count |
-| --- | ---: |
-| stale legacy rows soft-deleted | 10 |
-| canonical appointments soft-deleted | 0 |
+| Action                              | Count |
+| ----------------------------------- | ----: |
+| stale legacy rows soft-deleted      |    10 |
+| canonical appointments soft-deleted |     0 |
 
 Post-cleanup summary:
 
-| Check | Count |
-| --- | ---: |
-| Legacy live rows | 289 |
-| Canonical `rubitime_projection` live rows | 287 |
-| Unmapped legacy total | 0 |
-| Unmapped real active | 0 |
-| Duplicate clusters | 0 |
-| Stale vs owner CSV | 0 |
-| Non-confirmed cleanup candidates | 0 |
+| Check                                     | Count |
+| ----------------------------------------- | ----: |
+| Legacy live rows                          |   289 |
+| Canonical `rubitime_projection` live rows |   287 |
+| Unmapped legacy total                     |     0 |
+| Unmapped real active                      |     0 |
+| Duplicate clusters                        |     0 |
+| Stale vs owner CSV                        |     0 |
+| Non-confirmed cleanup candidates          |     0 |
 
 Post-cleanup read-only classifier:
 
-| Check | Count |
-| --- | ---: |
-| stale-vs-owner-CSV rows | 0 |
-| unmapped real active rows | 0 |
-| duplicate clusters | 0 |
-| status mismatches | 4 |
-| `record_at` mismatches | 2 |
-| legacy-only rows | 312 |
+| Check                     | Count |
+| ------------------------- | ----: |
+| stale-vs-owner-CSV rows   |     0 |
+| unmapped real active rows |     0 |
+| duplicate clusters        |     0 |
+| status mismatches         |     4 |
+| `record_at` mismatches    |     2 |
+| legacy-only rows          |   312 |
 
 Residual blockers after this pass: legacy-only classification/waiver, status mismatch policy, record-time mismatch policy, mapping anomaly classification, and doctor calendar/list/KPI smoke.
 
@@ -274,12 +274,12 @@ delivery channels were touched.
 
 Input:
 
-| Field | Value |
-| --- | --- |
-| Dump | `/opt/backups/postgres/hourly/unified_bcb_webapp_prod_20260714_041501.dump` |
-| Rehearsal DB | `bcb_webapp_dev_rubitime_fresh_20260714_041501_owner2` |
-| Owner CSV | `records-2.csv`, 392 ids, 2026-01-16...2026-08-29 |
-| Migration wrapper | `scripts/deploy-saas-667.sh` |
+| Field             | Value                                                                       |
+| ----------------- | --------------------------------------------------------------------------- |
+| Dump              | `/opt/backups/postgres/hourly/unified_bcb_webapp_prod_20260714_041501.dump` |
+| Rehearsal DB      | `bcb_webapp_dev_rubitime_fresh_20260714_041501_owner2`                      |
+| Owner CSV         | `records-2.csv`, 392 ids, 2026-01-16...2026-08-29                           |
+| Migration wrapper | `scripts/deploy-saas-667.sh`                                                |
 
 Exact R1 commit sequence:
 
@@ -302,43 +302,43 @@ pnpm --dir apps/webapp run backfill-canonical-from-legacy-appointments -- \
 
 Fresh-copy final summary:
 
-| Check | Count |
-| --- | ---: |
-| Legacy live rows | 268 |
-| Canonical `rubitime_projection` live rows | 266 |
-| Unmapped legacy total | 0 |
-| Unmapped real active | 0 |
-| Duplicate clusters | 0 |
-| Stale vs owner CSV | 0 |
-| Non-confirmed cleanup candidates | 0 |
-| Historical fallback rows inserted | 98 |
-| Test/block legacy rows soft-deleted | 34 |
-| Non-confirmed legacy rows soft-deleted | 65 |
-| Stale legacy rows soft-deleted | 9 |
+| Check                                     | Count |
+| ----------------------------------------- | ----: |
+| Legacy live rows                          |   268 |
+| Canonical `rubitime_projection` live rows |   266 |
+| Unmapped legacy total                     |     0 |
+| Unmapped real active                      |     0 |
+| Duplicate clusters                        |     0 |
+| Stale vs owner CSV                        |     0 |
+| Non-confirmed cleanup candidates          |     0 |
+| Historical fallback rows inserted         |    98 |
+| Test/block legacy rows soft-deleted       |    34 |
+| Non-confirmed legacy rows soft-deleted    |    65 |
+| Stale legacy rows soft-deleted            |     9 |
 
 Post-replay read-only classifier:
 
-| Check | Count |
-| --- | ---: |
-| stale-vs-owner-CSV rows | 0 |
-| unmapped real active rows | 0 |
-| duplicate clusters | 0 |
-| status mismatches | 4 |
-| `record_at` mismatches | 2 |
-| legacy-only rows | 290 |
+| Check                     | Count |
+| ------------------------- | ----: |
+| stale-vs-owner-CSV rows   |     0 |
+| unmapped real active rows |     0 |
+| duplicate clusters        |     0 |
+| status mismatches         |     4 |
+| `record_at` mismatches    |     2 |
+| legacy-only rows          |   290 |
 
 Post-replay dual-source audit:
 
-| Check | Count |
-| --- | ---: |
-| raw-only records | 0 |
-| legacy-only records | 290 |
-| raw mapping coverage | 91 / 91 |
-| legacy mapping coverage | 351 / 381 |
-| legacy unmapped mappings | 30 |
-| legacy mappings to soft-deleted canonical appointments | 74 |
-| unexpected canonical source mappings | 6 |
-| missing expected mapping metadata | 6 |
+| Check                                                  |     Count |
+| ------------------------------------------------------ | --------: |
+| raw-only records                                       |         0 |
+| legacy-only records                                    |       290 |
+| raw mapping coverage                                   |   91 / 91 |
+| legacy mapping coverage                                | 351 / 381 |
+| legacy unmapped mappings                               |        30 |
+| legacy mappings to soft-deleted canonical appointments |        74 |
+| unexpected canonical source mappings                   |         6 |
+| missing expected mapping metadata                      |         6 |
 
 Interpretation: the cleanup/import sequence is now replay-proven on a fresh current prod dump. Remaining
 R1 blockers are policy/smoke blockers, not stale/unmapped/duplicate cleanup blockers.
@@ -365,25 +365,25 @@ Not used: `--drop-stale-from-csv`, `--drop-legacy`, `--collapse-dups`, R2, produ
 
 ### Non-confirmed before and after
 
-| Check | Before | After |
-| --- | ---: | ---: |
-| Legacy live rows | 364 | 317 |
-| Canonical `rubitime_projection` live rows | 241 | 207 |
-| Unmapped legacy total | 112 | 99 |
-| Unmapped canceled | 13 | 0 |
-| Unmapped real active | 99 | 99 |
-| Duplicate clusters | 3 | 3 |
-| Stale vs owner CSV `records-2.csv` | 29 | 28 |
-| Non-confirmed cleanup candidates | 47 | 0 |
+| Check                                     | Before | After |
+| ----------------------------------------- | -----: | ----: |
+| Legacy live rows                          |    364 |   317 |
+| Canonical `rubitime_projection` live rows |    241 |   207 |
+| Unmapped legacy total                     |    112 |    99 |
+| Unmapped canceled                         |     13 |     0 |
+| Unmapped real active                      |     99 |    99 |
+| Duplicate clusters                        |      3 |     3 |
+| Stale vs owner CSV `records-2.csv`        |     29 |    28 |
+| Non-confirmed cleanup candidates          |     47 |     0 |
 
 Commit effects:
 
-| Action | Count |
-| --- | ---: |
-| Non-confirmed legacy rows soft-deleted | 47 |
-| Mapped canonical `rubitime_projection` rows soft-deleted | 34 |
-| `canceled` status rows in this cleanup | 45 |
-| `moved_awaiting` status rows in this cleanup | 2 |
+| Action                                                   | Count |
+| -------------------------------------------------------- | ----: |
+| Non-confirmed legacy rows soft-deleted                   |    47 |
+| Mapped canonical `rubitime_projection` rows soft-deleted |    34 |
+| `canceled` status rows in this cleanup                   |    45 |
+| `moved_awaiting` status rows in this cleanup             |     2 |
 
 Post-pass dual-source audit: raw-only `0`, legacy-only `312`, status mismatches `4`, record-time mismatches `2`, legacy unmapped `129`, legacy mappings to soft-deleted canonical appointments `56`.
 

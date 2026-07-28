@@ -72,16 +72,16 @@ Phase 4 — booking/cabinet style pass:
 
 Маршруты и блоки под `apps/webapp/src/app/app/patient/**`, для которых **не** был отдельный пофазовый style pass по матрице выше; учитывать при **`GLOBAL_AUDIT.md`** и будущих решениях (не придумывать продукт в рамках transfer).
 
-| Зона | Примечание |
-|------|------------|
-| `/app/patient` (home) | Эталон токенов; hero/специфика главной — см. Patient Home инициативы. |
-| `/app/patient/booking` (landing, не шаги `new/*`) | Не входил в чеклист §4 Phase 4 как `booking/new*` — **deferred** для глобального обзора. |
-| `/app/patient/messages` | deferred |
-| `/app/patient/emergency` | deferred |
-| `/app/patient/lessons` | deferred |
-| `/app/patient/install` | Частично: Phase 3 EXEC задействовал `install/page.tsx` (`LOG.md`); политика «extra route» из `PLAN_INVENTORY.md` сохраняется. |
-| `/app/patient/address` | deferred |
-| `/app/patient/intake/*` | deferred |
+| Зона                                              | Примечание                                                                                                                    |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `/app/patient` (home)                             | Эталон токенов; hero/специфика главной — см. Patient Home инициативы.                                                         |
+| `/app/patient/booking` (landing, не шаги `new/*`) | Не входил в чеклист §4 Phase 4 как `booking/new*` — **deferred** для глобального обзора.                                      |
+| `/app/patient/messages`                           | deferred                                                                                                                      |
+| `/app/patient/emergency`                          | deferred                                                                                                                      |
+| `/app/patient/lessons`                            | deferred                                                                                                                      |
+| `/app/patient/install`                            | Частично: Phase 3 EXEC задействовал `install/page.tsx` (`LOG.md`); политика «extra route» из `PLAN_INVENTORY.md` сохраняется. |
+| `/app/patient/address`                            | deferred                                                                                                                      |
+| `/app/patient/intake/*`                           | deferred                                                                                                                      |
 
 Источник списка extra: **`PLAN_INVENTORY.md` §1** (таблица «Главная и прочие patient pages»).
 

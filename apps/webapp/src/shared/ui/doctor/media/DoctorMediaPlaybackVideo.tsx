@@ -6,19 +6,24 @@
  * Телеметрия / отладка: не логировать presigned URL, poster URL, query на подписанных ссылках.
  * Использовать только безопасные поля (mediaId, delivery, тип события, HTTP status) — см. `doctorPlaybackDiag`.
  */
-"use client";
+'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type Hls from "hls.js";
-import { Loader2 } from "lucide-react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/ui/doctor/primitives/select";
-import { NoContextMenuVideo } from "@/shared/ui/doctor/media/NoContextMenuVideo";
-import { shouldUseNativeHls } from "@/shared/lib/nativeHls";
-import type { MediaPlaybackPayload } from "@/modules/media/playbackPayloadTypes";
-import type { MediaAvailableQuality } from "@/modules/media/types";
-import { cn } from "@/lib/utils";
-import { initialPlaybackSourceKind } from "@/shared/ui/doctor/media/doctorPlaybackSourceKind";
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type Hls from 'hls.js';
+import { Loader2 } from 'lucide-react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from '@/shared/ui/doctor/primitives/select';
+import { NoContextMenuVideo } from '@/shared/ui/doctor/media/NoContextMenuVideo';
+import { shouldUseNativeHls } from '@/shared/lib/nativeHls';
+import type { MediaPlaybackPayload } from '@/modules/media/playbackPayloadTypes';
+import type { MediaAvailableQuality } from '@/modules/media/types';
+import { cn } from '@/lib/utils';
+import { initialPlaybackSourceKind } from '@/shared/ui/doctor/media/doctorPlaybackSourceKind';
 import {
   DOCTOR_HLS_QUALITY_AUTO_VALUE,
   displayLabelForSwitchedLevel,
@@ -27,10 +32,9 @@ import {
   sortedQualitiesDesc,
   stableQualitySelectValue,
   type HlsVariantProbe,
-} from "@/shared/ui/doctor/media/doctorHlsQuality";
+} from '@/shared/ui/doctor/media/doctorHlsQuality';
 
-const DEFAULT_SHELL =
-  "relative aspect-video w-full overflow-hidden rounded-lg bg-muted/30";
+const DEFAULT_SHELL = 'relative aspect-video w-full overflow-hidden rounded-lg bg-muted/30';
 
 export type DoctorMediaPlaybackVideoProps = {
   mediaId: string;
@@ -49,23 +53,28 @@ export type DoctorMediaPlaybackVideoProps = {
 };
 
 /** Dev-only diagnostics: never include presigned URLs. */
-function doctorPlaybackDiag(payload: { event: string; mediaId: string; delivery?: string; detail?: string }) {
-  if (process.env.NODE_ENV !== "development") return;
-  console.info("[doctor-playback]", payload);
+function doctorPlaybackDiag(payload: {
+  event: string;
+  mediaId: string;
+  delivery?: string;
+  detail?: string;
+}) {
+  if (process.env.NODE_ENV !== 'development') return;
+  console.info('[doctor-playback]', payload);
 }
 
 function attachProgressive(video: HTMLVideoElement, url: string, posterUrl: string | null) {
-  video.removeAttribute("src");
+  video.removeAttribute('src');
   while (video.firstChild) {
     video.removeChild(video.firstChild);
   }
-  const src = document.createElement("source");
+  const src = document.createElement('source');
   src.src = url;
   video.appendChild(src);
   if (posterUrl) {
     video.poster = posterUrl;
   } else {
-    video.removeAttribute("poster");
+    video.removeAttribute('poster');
   }
   video.load();
 }
@@ -77,7 +86,7 @@ function attachNativeHls(video: HTMLVideoElement, masterUrl: string, posterUrl: 
   if (posterUrl) {
     video.poster = posterUrl;
   } else {
-    video.removeAttribute("poster");
+    video.removeAttribute('poster');
   }
   video.src = masterUrl;
   video.load();
@@ -93,11 +102,7 @@ function probeFromHlsJsLevel(level: {
   return {
     height: level.height > 0 ? level.height : undefined,
     bitrate:
-      level.bitrate > 0
-        ? level.bitrate
-        : level.maxBitrate > 0
-          ? level.maxBitrate
-          : undefined,
+      level.bitrate > 0 ? level.bitrate : level.maxBitrate > 0 ? level.maxBitrate : undefined,
     url: url && url.length > 0 ? url : undefined,
   };
 }
@@ -125,7 +130,7 @@ function PlaybackEngine({
   const firstPlayingFiredRef = useRef(false);
 
   const [payload, setPayload] = useState<MediaPlaybackPayload>(initialPayload);
-  const [sourceKind, setSourceKind] = useState<"hls" | "mp4">(() =>
+  const [sourceKind, setSourceKind] = useState<'hls' | 'mp4'>(() =>
     initialPlaybackSourceKind(initialPayload),
   );
   const sortedPlaybackQualities = useMemo(
@@ -147,18 +152,21 @@ function PlaybackEngine({
     setHlsCurrentLabel(null);
   }, [mediaId, payload.hls?.masterUrl]);
 
-  const applyPatientHlsQualityChoice = useCallback((hls: Hls, choice: string, qs: MediaAvailableQuality[]) => {
-    if (choice === DOCTOR_HLS_QUALITY_AUTO_VALUE) {
-      hls.loadLevel = -1;
-      return;
-    }
-    const row = findQualityBySelectValue(qs, choice);
-    if (!row) return;
-    const probes = hls.levels.map((lvl) => probeFromHlsJsLevel(lvl));
-    const idx = matchQualityToLevelIndex(probes, row);
-    if (idx == null || idx < 0) return;
-    hls.currentLevel = idx;
-  }, []);
+  const applyPatientHlsQualityChoice = useCallback(
+    (hls: Hls, choice: string, qs: MediaAvailableQuality[]) => {
+      if (choice === DOCTOR_HLS_QUALITY_AUTO_VALUE) {
+        hls.loadLevel = -1;
+        return;
+      }
+      const row = findQualityBySelectValue(qs, choice);
+      if (!row) return;
+      const probes = hls.levels.map((lvl) => probeFromHlsJsLevel(lvl));
+      const idx = matchQualityToLevelIndex(probes, row);
+      if (idx == null || idx < 0) return;
+      hls.currentLevel = idx;
+    },
+    [],
+  );
 
   const onHlsQualityValueChange = useCallback(
     (value: string | null) => {
@@ -172,22 +180,22 @@ function PlaybackEngine({
   );
 
   const qualityTriggerDisplayLabel = useMemo(() => {
-    if (hlsQualityChoice === DOCTOR_HLS_QUALITY_AUTO_VALUE) return "Авто";
+    if (hlsQualityChoice === DOCTOR_HLS_QUALITY_AUTO_VALUE) return 'Авто';
     const q = findQualityBySelectValue(sortedPlaybackQualities, hlsQualityChoice);
-    if (!q) return "Качество";
+    if (!q) return 'Качество';
     if (q.label?.trim()) return q.label.trim();
-    if (typeof q.height === "number") return `${q.height}p`;
-    return "Качество";
+    if (typeof q.height === 'number') return `${q.height}p`;
+    return 'Качество';
   }, [hlsQualityChoice, sortedPlaybackQualities]);
 
   const useNativeHlsPlayback = shouldUseNativeHls();
   const showHlsJsQualityControls =
-    sourceKind === "hls" && !useNativeHlsPlayback && sortedPlaybackQualities.length >= 2 && !error;
+    sourceKind === 'hls' && !useNativeHlsPlayback && sortedPlaybackQualities.length >= 2 && !error;
 
   const fetchPlaybackJson = useCallback(async (): Promise<MediaPlaybackPayload | null> => {
     try {
       const res = await fetch(`/api/media/${encodeURIComponent(mediaId)}/playback`, {
-        credentials: "include",
+        credentials: 'include',
       });
       if (!res.ok) return null;
       return (await res.json()) as MediaPlaybackPayload;
@@ -204,13 +212,13 @@ function PlaybackEngine({
       firstPlayingFiredRef.current = true;
       onFirstPlaying();
     };
-    video.addEventListener("playing", onPlaying);
-    return () => video.removeEventListener("playing", onPlaying);
+    video.addEventListener('playing', onPlaying);
+    return () => video.removeEventListener('playing', onPlaying);
   }, [onFirstPlaying]);
 
   const reportPlaybackIssue = useCallback(
-    (input: { eventClass: string; delivery?: "hls" | "mp4" | "file"; errorDetail?: string }) => {
-      const key = `${input.eventClass}:${input.delivery ?? "na"}`;
+    (input: { eventClass: string; delivery?: 'hls' | 'mp4' | 'file'; errorDetail?: string }) => {
+      const key = `${input.eventClass}:${input.delivery ?? 'na'}`;
       const now = Date.now();
       const prev = lastIssueReportAtRef.current[key] ?? 0;
       // Protect backend from burst loops while still keeping diagnostic signal.
@@ -218,9 +226,9 @@ function PlaybackEngine({
       lastIssueReportAtRef.current[key] = now;
 
       void fetch(`/api/media/${encodeURIComponent(mediaId)}/playback/events`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           eventClass: input.eventClass,
           delivery: input.delivery,
@@ -235,7 +243,7 @@ function PlaybackEngine({
   );
 
   useEffect(() => {
-    if (sourceKind !== "hls" || !payload.hls?.masterUrl) return;
+    if (sourceKind !== 'hls' || !payload.hls?.masterUrl) return;
     const sec = Math.max(60, payload.expiresInSeconds ?? 3600);
     const leadSec = Math.min(300, Math.max(60, Math.floor(sec / 10)));
     const delayMs = Math.max(30_000, (sec - leadSec) * 1000);
@@ -244,8 +252,8 @@ function PlaybackEngine({
         const next = await fetchPlaybackJson();
         if (!next) return;
         setPayload(next);
-        if (initialPlaybackSourceKind(next) === "hls") {
-          setSourceKind("hls");
+        if (initialPlaybackSourceKind(next) === 'hls') {
+          setSourceKind('hls');
         }
       })();
     }, delayMs);
@@ -270,10 +278,10 @@ function PlaybackEngine({
     const posterUrl = payload.posterUrl;
 
     const tryMp4Fallback = () => {
-      if (autoFallbackUsedRef.current || sourceKind !== "hls") return false;
+      if (autoFallbackUsedRef.current || sourceKind !== 'hls') return false;
       autoFallbackUsedRef.current = true;
-      doctorPlaybackDiag({ event: "auto_mp4_fallback", mediaId, delivery: "hls" });
-      setSourceKind("mp4");
+      doctorPlaybackDiag({ event: 'auto_mp4_fallback', mediaId, delivery: 'hls' });
+      setSourceKind('mp4');
       return true;
     };
 
@@ -281,22 +289,30 @@ function PlaybackEngine({
       // One HLS refresh is enough for expired presigned URLs; repeated fatal loops should stop at MP4.
       if (hlsRefreshAttemptedRef.current) {
         if (!tryMp4Fallback()) {
-          reportPlaybackIssue({ eventClass: "hls_fatal", delivery: "hls", errorDetail: "refresh_exhausted" });
-          finishError("Не удалось воспроизвести видео.");
+          reportPlaybackIssue({
+            eventClass: 'hls_fatal',
+            delivery: 'hls',
+            errorDetail: 'refresh_exhausted',
+          });
+          finishError('Не удалось воспроизвести видео.');
         }
         return;
       }
 
       hlsRefreshAttemptedRef.current = true;
       const next = await fetchPlaybackJson();
-      if (next && next.hls?.masterUrl && initialPlaybackSourceKind(next) === "hls") {
+      if (next && next.hls?.masterUrl && initialPlaybackSourceKind(next) === 'hls') {
         setPayload(next);
-        setSourceKind("hls");
+        setSourceKind('hls');
         return;
       }
       if (!tryMp4Fallback()) {
-        reportPlaybackIssue({ eventClass: "hls_fatal", delivery: "hls", errorDetail: "refresh_no_hls_payload" });
-        finishError("Не удалось воспроизвести видео.");
+        reportPlaybackIssue({
+          eventClass: 'hls_fatal',
+          delivery: 'hls',
+          errorDetail: 'refresh_no_hls_payload',
+        });
+        finishError('Не удалось воспроизвести видео.');
       }
     };
 
@@ -312,7 +328,7 @@ function PlaybackEngine({
     };
 
     void (async () => {
-      if (sourceKind === "mp4" || !masterUrl) {
+      if (sourceKind === 'mp4' || !masterUrl) {
         attachProgressive(video, progressiveUrl, posterUrl);
         return;
       }
@@ -323,21 +339,21 @@ function PlaybackEngine({
       }
 
       try {
-        const { default: Hls } = await import("hls.js");
+        const { default: Hls } = await import('hls.js');
         if (cancelled) return;
 
         if (!Hls.isSupported()) {
-          if (!cancelled) setSourceKind("mp4");
+          if (!cancelled) setSourceKind('mp4');
           attachProgressive(video, progressiveUrl, posterUrl);
-          doctorPlaybackDiag({ event: "hls_js_unsupported", mediaId });
-          reportPlaybackIssue({ eventClass: "hls_js_unsupported", delivery: "hls" });
+          doctorPlaybackDiag({ event: 'hls_js_unsupported', mediaId });
+          reportPlaybackIssue({ eventClass: 'hls_js_unsupported', delivery: 'hls' });
           return;
         }
 
         if (posterUrl) {
           video.poster = posterUrl;
         } else {
-          video.removeAttribute("poster");
+          video.removeAttribute('poster');
         }
         while (video.firstChild) video.removeChild(video.firstChild);
 
@@ -370,54 +386,58 @@ function PlaybackEngine({
         hls.on(Hls.Events.ERROR, (_e, data) => {
           if (cancelled || !data.fatal) return;
           doctorPlaybackDiag({
-            event: "hls_fatal",
+            event: 'hls_fatal',
             mediaId,
-            delivery: "hls",
+            delivery: 'hls',
             detail: data.type,
           });
-          reportPlaybackIssue({ eventClass: "hls_fatal", delivery: "hls", errorDetail: data.type });
+          reportPlaybackIssue({ eventClass: 'hls_fatal', delivery: 'hls', errorDetail: data.type });
           destroyHls();
           void tryRefreshHlsOnceThenFallback();
         });
       } catch (e) {
         if (cancelled) return;
-        doctorPlaybackDiag({ event: "hls_import_failed", mediaId, detail: String(e) });
-        reportPlaybackIssue({ eventClass: "hls_import_failed", delivery: "hls", errorDetail: String(e) });
+        doctorPlaybackDiag({ event: 'hls_import_failed', mediaId, detail: String(e) });
+        reportPlaybackIssue({
+          eventClass: 'hls_import_failed',
+          delivery: 'hls',
+          errorDetail: String(e),
+        });
         if (!tryMp4Fallback()) {
-          finishError("Не удалось воспроизвести видео.");
+          finishError('Не удалось воспроизвести видео.');
         }
       }
     })();
 
     const onLoaded = () => {
-      if (sourceKind === "hls") {
+      if (sourceKind === 'hls') {
         hlsRefreshAttemptedRef.current = false;
       }
       finishLoadOk();
     };
     const onVideoError = () => {
       if (cancelled) return;
-      doctorPlaybackDiag({ event: "video_error", mediaId, delivery: sourceKind });
-      reportPlaybackIssue({ eventClass: "video_error", delivery: sourceKind });
-      if (sourceKind === "hls") {
+      doctorPlaybackDiag({ event: 'video_error', mediaId, delivery: sourceKind });
+      reportPlaybackIssue({ eventClass: 'video_error', delivery: sourceKind });
+      if (sourceKind === 'hls') {
         void tryRefreshHlsOnceThenFallback();
         return;
       }
       if (!tryMp4Fallback()) {
-        finishError("Не удалось воспроизвести видео.");
+        finishError('Не удалось воспроизвести видео.');
       }
     };
 
-    video.addEventListener("loadeddata", onLoaded);
-    video.addEventListener("error", onVideoError);
+    video.addEventListener('loadeddata', onLoaded);
+    video.addEventListener('error', onVideoError);
 
     return () => {
       cancelled = true;
-      video.removeEventListener("loadeddata", onLoaded);
-      video.removeEventListener("error", onVideoError);
+      video.removeEventListener('loadeddata', onLoaded);
+      video.removeEventListener('error', onVideoError);
       destroyHls();
       video.pause();
-      video.removeAttribute("src");
+      video.removeAttribute('src');
       while (video.firstChild) video.removeChild(video.firstChild);
       video.load();
     };
@@ -446,25 +466,25 @@ function PlaybackEngine({
       const next = await fetchPlaybackJson();
       if (!next) {
         doctorPlaybackDiag({
-          event: "playback_refetch_failed",
+          event: 'playback_refetch_failed',
           mediaId,
-          detail: "no_body",
+          detail: 'no_body',
         });
         reportPlaybackIssue({
-          eventClass: "playback_refetch_failed",
+          eventClass: 'playback_refetch_failed',
           delivery: sourceKind,
-          errorDetail: "no_body",
+          errorDetail: 'no_body',
         });
-        setError("Не удалось загрузить параметры воспроизведения.");
+        setError('Не удалось загрузить параметры воспроизведения.');
         setLoading(false);
         return;
       }
       setPayload(next);
       setSourceKind(initialPlaybackSourceKind(next));
     } catch {
-      doctorPlaybackDiag({ event: "playback_refetch_exception", mediaId });
-      reportPlaybackIssue({ eventClass: "playback_refetch_exception", delivery: sourceKind });
-      setError("Не удалось загрузить параметры воспроизведения.");
+      doctorPlaybackDiag({ event: 'playback_refetch_exception', mediaId });
+      reportPlaybackIssue({ eventClass: 'playback_refetch_exception', delivery: sourceKind });
+      setError('Не удалось загрузить параметры воспроизведения.');
       setLoading(false);
     } finally {
       setRetryBusy(false);
@@ -482,15 +502,21 @@ function PlaybackEngine({
         {error ? (
           <div
             className={cn(
-              "text-sm text-foreground",
-              "flex size-full flex-col items-center justify-center gap-3 p-4 text-center",
+              'text-sm text-foreground',
+              'flex size-full flex-col items-center justify-center gap-3 p-4 text-center',
             )}
           >
             <p>{error}</p>
-            <Button type="button" variant="secondary" size="sm" disabled={retryBusy} onClick={() => void onRetry()}>
-              {retryBusy ? "Загрузка…" : "Повторить"}
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={retryBusy}
+              onClick={() => void onRetry()}
+            >
+              {retryBusy ? 'Загрузка…' : 'Повторить'}
             </Button>
-            <p className={cn("text-sm text-muted-foreground", "text-xs")}>
+            <p className={cn('text-sm text-muted-foreground', 'text-xs')}>
               Если ошибка повторяется, обновите страницу или проверьте, что вы вошли в аккаунт.
             </p>
           </div>
@@ -515,8 +541,11 @@ function PlaybackEngine({
       </div>
       {!error && showHlsJsQualityControls ? (
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <span className={cn("text-sm text-muted-foreground", "text-xs tabular-nums")} aria-live="polite">
-            Сейчас: {hlsCurrentLabel ?? "—"}
+          <span
+            className={cn('text-sm text-muted-foreground', 'text-xs tabular-nums')}
+            aria-live="polite"
+          >
+            Сейчас: {hlsCurrentLabel ?? '—'}
           </span>
           <Select value={hlsQualityChoice} onValueChange={onHlsQualityValueChange}>
             <SelectTrigger
@@ -529,7 +558,8 @@ function PlaybackEngine({
               <SelectItem value={DOCTOR_HLS_QUALITY_AUTO_VALUE}>Авто</SelectItem>
               {sortedPlaybackQualities.map((q) => {
                 const v = stableQualitySelectValue(q);
-                const itemLabel = q.label?.trim() || (typeof q.height === "number" ? `${q.height}p` : v);
+                const itemLabel =
+                  q.label?.trim() || (typeof q.height === 'number' ? `${q.height}p` : v);
                 return (
                   <SelectItem key={v} value={v}>
                     {itemLabel}
@@ -554,15 +584,15 @@ export function DoctorMediaPlaybackVideo({
 }: DoctorMediaPlaybackVideoProps) {
   const shell = cn(DEFAULT_SHELL, shellClassName);
   const [payload, setPayload] = useState<MediaPlaybackPayload | null>(() => initialPlayback);
-  const [phase, setPhase] = useState<"loading" | "error" | "ready">(() =>
-    initialPlayback ? "ready" : "loading",
+  const [phase, setPhase] = useState<'loading' | 'error' | 'ready'>(() =>
+    initialPlayback ? 'ready' : 'loading',
   );
   const [bootRetryBusy, setBootRetryBusy] = useState(false);
 
   const fetchPlaybackJson = useCallback(async (): Promise<MediaPlaybackPayload | null> => {
     try {
       const res = await fetch(`/api/media/${encodeURIComponent(mediaId)}/playback`, {
-        credentials: "include",
+        credentials: 'include',
       });
       if (!res.ok) return null;
       return (await res.json()) as MediaPlaybackPayload;
@@ -577,20 +607,20 @@ export function DoctorMediaPlaybackVideo({
       // Lazy `useState` init already matches on first paint when SSR passes JSON.
       const t = window.setTimeout(() => {
         setPayload(initialPlayback);
-        setPhase("ready");
+        setPhase('ready');
       }, 0);
       return () => window.clearTimeout(t);
     }
     let cancelled = false;
     void (async () => {
-      setPhase("loading");
+      setPhase('loading');
       const p = await fetchPlaybackJson();
       if (cancelled) return;
       if (p) {
         setPayload(p);
-        setPhase("ready");
+        setPhase('ready');
       } else {
-        setPhase("error");
+        setPhase('error');
       }
     })();
     return () => {
@@ -600,18 +630,18 @@ export function DoctorMediaPlaybackVideo({
 
   const onBootstrapRetry = useCallback(async () => {
     setBootRetryBusy(true);
-    setPhase("loading");
+    setPhase('loading');
     const p = await fetchPlaybackJson();
     if (p) {
       setPayload(p);
-      setPhase("ready");
+      setPhase('ready');
     } else {
-      setPhase("error");
+      setPhase('error');
     }
     setBootRetryBusy(false);
   }, [fetchPlaybackJson]);
 
-  if (phase === "loading") {
+  if (phase === 'loading') {
     return (
       <div
         className={shell}
@@ -626,7 +656,7 @@ export function DoctorMediaPlaybackVideo({
     );
   }
 
-  if (phase === "error" || !payload) {
+  if (phase === 'error' || !payload) {
     return (
       <div
         className={shell}
@@ -636,15 +666,21 @@ export function DoctorMediaPlaybackVideo({
       >
         <div
           className={cn(
-            "text-sm text-foreground",
-            "flex size-full flex-col items-center justify-center gap-3 p-4 text-center",
+            'text-sm text-foreground',
+            'flex size-full flex-col items-center justify-center gap-3 p-4 text-center',
           )}
         >
           <p>Не удалось загрузить параметры воспроизведения.</p>
-          <Button type="button" variant="secondary" size="sm" disabled={bootRetryBusy} onClick={() => void onBootstrapRetry()}>
-            {bootRetryBusy ? "Загрузка…" : "Повторить"}
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={bootRetryBusy}
+            onClick={() => void onBootstrapRetry()}
+          >
+            {bootRetryBusy ? 'Загрузка…' : 'Повторить'}
           </Button>
-          <p className={cn("text-sm text-muted-foreground", "text-xs")}>
+          <p className={cn('text-sm text-muted-foreground', 'text-xs')}>
             Если вы не вошли в аккаунт, видео будет недоступно.
           </p>
         </div>

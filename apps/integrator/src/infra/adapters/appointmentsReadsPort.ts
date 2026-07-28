@@ -86,7 +86,8 @@ export function createAppointmentsReadsPort(deps: { db: DbPort }): AppointmentsR
       if (!result.ok) return null;
       const record = result.data?.record;
       if (record == null) return null;
-      const externalId = typeof record.externalRecordId === 'string' ? record.externalRecordId : externalRecordId;
+      const externalId =
+        typeof record.externalRecordId === 'string' ? record.externalRecordId : externalRecordId;
       const status = typeof record.status === 'string' ? record.status : 'updated';
       return {
         externalRecordId: externalId,
@@ -108,7 +109,12 @@ export function createAppointmentsReadsPort(deps: { db: DbPort }): AppointmentsR
       const rows = Array.isArray(result.data.records) ? result.data.records : [];
       return rows.map((row) => ({
         externalRecordId: typeof row.externalRecordId === 'string' ? row.externalRecordId : '',
-        recordAt: typeof row.recordAt === 'string' ? row.recordAt : (row.recordAt == null ? null : String(row.recordAt)),
+        recordAt:
+          typeof row.recordAt === 'string'
+            ? row.recordAt
+            : row.recordAt == null
+              ? null
+              : String(row.recordAt),
         status: typeof row.status === 'string' ? row.status : 'updated',
         link: typeof row.link === 'string' ? row.link : null,
       }));

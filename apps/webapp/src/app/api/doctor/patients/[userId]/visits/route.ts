@@ -5,17 +5,17 @@
  * (первичный) либо обновлениями жалоб/диагнозов (повторный). См. NewVisitPanel.
  */
 
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
-import { requireEntitlementForMutation } from "@/app-layer/guards/requireEntitlement";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 
 const severitySchema = z.number().int().min(0).max(10);
 
 const createVisitBodySchema = z.object({
-  visitType: z.enum(["first", "repeat"]),
+  visitType: z.enum(['first', 'repeat']),
   date: z.string().min(1), // ISO datetime or date string
   location: z.string().max(500).optional(),
   service: z.string().max(500).optional(),
@@ -68,31 +68,28 @@ const createVisitBodySchema = z.object({
     .optional(),
 });
 
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ userId: string }> },
-) {
+export async function POST(request: Request, { params }: { params: Promise<{ userId: string }> }) {
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
-  const entitlement = await requireEntitlementForMutation(gate.ctx, "patient_card");
+  const entitlement = await requireEntitlementForMutation(gate.ctx, 'patient_card');
   if (!entitlement.ok) return entitlement.response;
 
   const { userId } = await params;
   if (!z.string().uuid().safeParse(userId).success) {
-    return NextResponse.json({ ok: false, error: "invalid_user_id" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_user_id' }, { status: 400 });
   }
 
   let json: unknown;
   try {
     json = await request.json();
   } catch {
-    return NextResponse.json({ ok: false, error: "invalid_json" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 });
   }
 
   const parsed = createVisitBodySchema.safeParse(json);
   if (!parsed.success) {
     return NextResponse.json(
-      { ok: false, error: "invalid_body", details: parsed.error.flatten() },
+      { ok: false, error: 'invalid_body', details: parsed.error.flatten() },
       { status: 400 },
     );
   }
@@ -104,7 +101,7 @@ export async function POST(
     gate.ctx.organizationId,
   );
   if (!identity) {
-    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
   const patientUserId = identity.userId;
 
@@ -135,10 +132,10 @@ export async function POST(
   } catch (error) {
     if (
       error instanceof Error &&
-      (error.message === "clinical_target_not_found" ||
-        error.message === "organization_principal_mismatch")
+      (error.message === 'clinical_target_not_found' ||
+        error.message === 'organization_principal_mismatch')
     ) {
-      return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+      return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
     }
     throw error;
   }

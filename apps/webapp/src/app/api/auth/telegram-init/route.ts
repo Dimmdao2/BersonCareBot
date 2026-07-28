@@ -1,81 +1,78 @@
-import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
   newRegistrationAttemptId,
   recordAuthRegistrationAttempt,
   recordAuthRegistrationFailure,
   recordAuthRegistrationSuccess,
-} from "@/app-layer/product-analytics/recordAuthRegistration";
-import { recordAuthLogin } from "@/app-layer/product-analytics/recordAuthLogin";
-import { isMiniappAuthVerboseServerLogEnabled } from "@/modules/auth/miniappAuthVerboseServerLog";
-import { logAuthRouteTiming } from "@/modules/auth/authRouteObservability";
-import { logger } from "@/app-layer/logging/logger";
-import { PLATFORM_COOKIE_MAX_AGE, PLATFORM_COOKIE_NAME } from "@/shared/lib/platform";
-import { isAuthChannelEnabled } from "@/modules/auth/authChannelPolicy";
+} from '@/app-layer/product-analytics/recordAuthRegistration';
+import { recordAuthLogin } from '@/app-layer/product-analytics/recordAuthLogin';
+import { isMiniappAuthVerboseServerLogEnabled } from '@/modules/auth/miniappAuthVerboseServerLog';
+import { logAuthRouteTiming } from '@/modules/auth/authRouteObservability';
+import { logger } from '@/app-layer/logging/logger';
+import { PLATFORM_COOKIE_MAX_AGE, PLATFORM_COOKIE_NAME } from '@/shared/lib/platform';
+import { isAuthChannelEnabled } from '@/modules/auth/authChannelPolicy';
 
 const bodySchema = z.object({
   initData: z.string().trim().min(1),
 });
 
-const ROUTE = "auth/telegram-init";
+const ROUTE = 'auth/telegram-init';
 
 /**
  * Authenticates using Telegram Web App initData (when user opens Mini App from menu/button without ?t= token).
  * Validates initData signature, checks ALLOWED_TELEGRAM_IDS / ADMIN_TELEGRAM_ID, creates session.
  */
 export async function POST(request: Request) {
-  const correlationId = stampBootstrapPrincipal(
-    "api/auth/telegram-init:POST",
-    request,
-  );
+  const correlationId = stampBootstrapPrincipal('api/auth/telegram-init:POST', request);
   const startedAt = Date.now();
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
     await recordAuthRegistrationFailure({
       attemptId: newRegistrationAttemptId(),
-      authMethod: "telegram_init",
-      stage: "start",
-      entryChannel: "telegram",
-      contactType: "oauth_provider",
-      contactValue: "telegram",
-      errorCode: "invalid_body",
+      authMethod: 'telegram_init',
+      stage: 'start',
+      entryChannel: 'telegram',
+      contactType: 'oauth_provider',
+      contactValue: 'telegram',
+      errorCode: 'invalid_body',
     });
     logger.warn(
       {
         route: ROUTE,
-        outcome: "invalid_body",
-        messenger: "telegram",
-        miniappAuthOutcome: "invalid_body",
+        outcome: 'invalid_body',
+        messenger: 'telegram',
+        miniappAuthOutcome: 'invalid_body',
         correlationId,
       },
-      "Telegram Mini App: запрос без валидного initData в JSON",
+      'Telegram Mini App: запрос без валидного initData в JSON',
     );
-    const res = NextResponse.json({ ok: false, error: "initData is required" }, { status: 400 });
+    const res = NextResponse.json({ ok: false, error: 'initData is required' }, { status: 400 });
     logAuthRouteTiming({
       route: ROUTE,
       request,
       startedAt,
       status: 400,
-      outcome: "invalid_body",
-      errorType: "validation",
+      outcome: 'invalid_body',
+      errorType: 'validation',
     });
     return res;
   }
-  if (!(await isAuthChannelEnabled("telegram"))) {
-    return NextResponse.json({ ok: false, error: "auth_channel_disabled" }, { status: 403 });
+  if (!(await isAuthChannelEnabled('telegram'))) {
+    return NextResponse.json({ ok: false, error: 'auth_channel_disabled' }, { status: 403 });
   }
   const { initData } = parsed.data;
   const attemptId = newRegistrationAttemptId();
   await recordAuthRegistrationAttempt({
     attemptId,
-    authMethod: "telegram_init",
-    stage: "start",
-    entryChannel: "telegram",
-    contactType: "oauth_provider",
-    contactValue: "telegram",
+    authMethod: 'telegram_init',
+    stage: 'start',
+    entryChannel: 'telegram',
+    contactType: 'oauth_provider',
+    contactValue: 'telegram',
   });
 
   const deps = buildAppDeps();
@@ -85,14 +82,14 @@ export async function POST(request: Request) {
     logger.info(
       {
         route: ROUTE,
-        outcome: "verbose_raw_log",
-        messenger: "telegram",
+        outcome: 'verbose_raw_log',
+        messenger: 'telegram',
         requestUri: `${u.pathname}${u.search}`,
-        userAgent: request.headers.get("user-agent"),
+        userAgent: request.headers.get('user-agent'),
         correlationId,
         initDataRawFull: initData,
       },
-      "MINIAPP_AUTH_VERBOSE: полный initData (Telegram), см. journalctl webapp",
+      'MINIAPP_AUTH_VERBOSE: полный initData (Telegram), см. journalctl webapp',
     );
   }
 
@@ -100,31 +97,31 @@ export async function POST(request: Request) {
   if (!result) {
     await recordAuthRegistrationFailure({
       attemptId,
-      authMethod: "telegram_init",
-      stage: "session_set",
-      entryChannel: "telegram",
-      contactType: "oauth_provider",
-      contactValue: "telegram",
-      errorCode: "access_denied",
+      authMethod: 'telegram_init',
+      stage: 'session_set',
+      entryChannel: 'telegram',
+      contactType: 'oauth_provider',
+      contactValue: 'telegram',
+      errorCode: 'access_denied',
     });
     logger.warn(
       {
         route: ROUTE,
-        outcome: "access_denied",
-        messenger: "telegram",
-        miniappAuthOutcome: "denied",
+        outcome: 'access_denied',
+        messenger: 'telegram',
+        miniappAuthOutcome: 'denied',
         correlationId,
       },
-      "Telegram Mini App: initData отклонён",
+      'Telegram Mini App: initData отклонён',
     );
-    const res = NextResponse.json({ ok: false, error: "access_denied" }, { status: 403 });
+    const res = NextResponse.json({ ok: false, error: 'access_denied' }, { status: 403 });
     logAuthRouteTiming({
       route: ROUTE,
       request,
       startedAt,
       status: 403,
-      outcome: "access_denied",
-      errorType: "denied",
+      outcome: 'access_denied',
+      errorType: 'denied',
     });
     return res;
   }
@@ -132,17 +129,17 @@ export async function POST(request: Request) {
   const u = result.session.user;
   await recordAuthLogin({
     userId: u.userId,
-    entryChannel: "telegram",
-    authMethod: "telegram_initData",
+    entryChannel: 'telegram',
+    authMethod: 'telegram_initData',
   });
-  if (result.accountOutcome === "created") {
+  if (result.accountOutcome === 'created') {
     await recordAuthRegistrationSuccess({
       attemptId,
-      authMethod: "telegram_init",
-      stage: "session_set",
-      entryChannel: "telegram",
-      contactType: "oauth_provider",
-      contactValue: "telegram",
+      authMethod: 'telegram_init',
+      stage: 'session_set',
+      entryChannel: 'telegram',
+      contactType: 'oauth_provider',
+      contactValue: 'telegram',
       userId: u.userId,
       isNewAccount: true,
     });
@@ -150,14 +147,14 @@ export async function POST(request: Request) {
   logger.info(
     {
       route: ROUTE,
-      outcome: "ok",
-      messenger: "telegram",
-      miniappAuthOutcome: "session_ok",
+      outcome: 'ok',
+      messenger: 'telegram',
+      miniappAuthOutcome: 'session_ok',
       correlationId,
       role: u.role,
       redirectTo: result.redirectTo,
     },
-    "Telegram Mini App: initData принят, сессия создана",
+    'Telegram Mini App: initData принят, сессия создана',
   );
 
   const response = NextResponse.json({
@@ -165,13 +162,13 @@ export async function POST(request: Request) {
     role: result.session.user.role,
     redirectTo: result.redirectTo,
   });
-  const isProd = process.env.NODE_ENV === "production";
+  const isProd = process.env.NODE_ENV === 'production';
   response.cookies.set({
     name: PLATFORM_COOKIE_NAME,
-    value: "bot",
-    path: "/",
+    value: 'bot',
+    path: '/',
     maxAge: PLATFORM_COOKIE_MAX_AGE,
-    sameSite: isProd ? "none" : "lax",
+    sameSite: isProd ? 'none' : 'lax',
     secure: isProd,
     httpOnly: false,
   });
@@ -180,7 +177,7 @@ export async function POST(request: Request) {
     request,
     startedAt,
     status: 200,
-    outcome: "session_ok",
+    outcome: 'session_ok',
   });
   return response;
 }

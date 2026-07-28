@@ -1,13 +1,13 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import {
   staffBookingContactNameFromAppointment,
   staffBookingServiceTitleFromAppointment,
-} from "@/app-layer/booking/staffBookingIntegratorEvent";
-import { createBookingSyncPort } from "@/modules/integrator/bookingM2mApi";
-import { requireAdminBookingEngine } from "../../_requireAdminBookingEngine";
+} from '@/app-layer/booking/staffBookingIntegratorEvent';
+import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
+import { requireAdminBookingEngine } from '../../_requireAdminBookingEngine';
 
 const bodySchema = z.object({
   organizationId: z.string().uuid().optional(),
@@ -38,7 +38,7 @@ export async function POST(request: Request) {
   if (!gate.ok) return gate.response;
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
   const { ctx } = gate;
   const orgId = parsed.data.organizationId ?? ctx.organizationId;
@@ -54,7 +54,7 @@ export async function POST(request: Request) {
   const resolvedSpecialistId =
     parsed.data.specialistId ?? (await resolveDefaultSpecialistId(deps, orgId));
   if (!resolvedSpecialistId) {
-    return NextResponse.json({ ok: false, error: "specialist_required" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'specialist_required' }, { status: 400 });
   }
 
   try {
@@ -70,7 +70,7 @@ export async function POST(request: Request) {
     }
     const appointment = await withDoctorWorkspacePrincipal(
       principalCtx,
-      "admin.booking-engine.appointments.manual-create",
+      'admin.booking-engine.appointments.manual-create',
       () =>
         ctx.service.createAppointment({
           organizationId: orgId,
@@ -82,8 +82,8 @@ export async function POST(request: Request) {
           startAt: parsed.data.startAt,
           endAt: parsed.data.endAt,
           durationMinutes: parsed.data.durationMinutes,
-          source: "admin_manual",
-          status: "confirmed",
+          source: 'admin_manual',
+          status: 'confirmed',
           phoneNormalized: parsed.data.phoneNormalized ?? null,
           actorId: ctx.session.user.userId,
         }),
@@ -94,19 +94,20 @@ export async function POST(request: Request) {
       : null;
     try {
       await syncPort.emitBookingEvent({
-        eventType: "booking.created",
+        eventType: 'booking.created',
         idempotencyKey: `staff.booking.created:${appointment.id}:${appointment.startAt}`,
         payload: {
           organizationId: appointment.organizationId,
           bookingId: bookingRow?.id ?? appointment.id,
           userId: bookingRow?.userId ?? appointment.platformUserId ?? appointment.id,
-          bookingType: bookingRow?.bookingType ?? "in_person",
+          bookingType: bookingRow?.bookingType ?? 'in_person',
           city: bookingRow?.city ?? undefined,
-          category: bookingRow?.category ?? "general",
+          category: bookingRow?.category ?? 'general',
           slotStart: appointment.startAt,
           slotEnd: appointment.endAt,
-          contactName: bookingRow?.contactName ?? staffBookingContactNameFromAppointment(appointment),
-          contactPhone: bookingRow?.contactPhone ?? appointment.phoneNormalized ?? "+70000000000",
+          contactName:
+            bookingRow?.contactName ?? staffBookingContactNameFromAppointment(appointment),
+          contactPhone: bookingRow?.contactPhone ?? appointment.phoneNormalized ?? '+70000000000',
           contactEmail: bookingRow?.contactEmail ?? undefined,
           cityCodeSnapshot: bookingRow?.cityCodeSnapshot ?? null,
           serviceTitleSnapshot: staffBookingServiceTitleFromAppointment(appointment, bookingRow),
@@ -118,9 +119,15 @@ export async function POST(request: Request) {
     }
     return NextResponse.json({ ok: true, appointment });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "create_failed";
-    if (message === "slot_overlap" || (typeof err === "object" && err !== null && "code" in err && (err as { code: string }).code === "23P01")) {
-      return NextResponse.json({ ok: false, error: "slot_overlap" }, { status: 409 });
+    const message = err instanceof Error ? err.message : 'create_failed';
+    if (
+      message === 'slot_overlap' ||
+      (typeof err === 'object' &&
+        err !== null &&
+        'code' in err &&
+        (err as { code: string }).code === '23P01')
+    ) {
+      return NextResponse.json({ ok: false, error: 'slot_overlap' }, { status: 409 });
     }
     return NextResponse.json({ ok: false, error: message }, { status: 400 });
   }

@@ -12,10 +12,10 @@ export async function apiJson<T extends { ok?: boolean; error?: string; message?
   try {
     body = JSON.parse(text) as T;
   } catch {
-    throw new Error(res.ok ? "invalid_json" : `http_${res.status}`);
+    throw new Error(res.ok ? 'invalid_json' : `http_${res.status}`);
   }
   if (!res.ok || body.ok === false) {
-    const detail = typeof body.message === "string" ? body.message : body.error;
+    const detail = typeof body.message === 'string' ? body.message : body.error;
     throw new Error(detail ?? `http_${res.status}`);
   }
   return body;

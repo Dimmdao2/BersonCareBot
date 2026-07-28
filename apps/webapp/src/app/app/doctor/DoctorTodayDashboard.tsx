@@ -1,32 +1,36 @@
-"use client";
+'use client';
 
-import { CircleHelp, Dumbbell, MessageSquare } from "lucide-react";
-import Link from "next/link";
-import { DateTime } from "luxon";
-import type { AdminRegistrationFailureAttention } from "@/app-layer/product-analytics/loadAdminRegistrationFailureAttention";
-import type { AdminDoctorTodayHealthBanner } from "@/modules/operator-health/adminDoctorTodayHealthBanner";
-import type { DoctorStatsState } from "@/modules/doctor-stats/service";
-import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
+import { CircleHelp, Dumbbell, MessageSquare } from 'lucide-react';
+import Link from 'next/link';
+import { DateTime } from 'luxon';
+import type { AdminRegistrationFailureAttention } from '@/app-layer/product-analytics/loadAdminRegistrationFailureAttention';
+import type { AdminDoctorTodayHealthBanner } from '@/modules/operator-health/adminDoctorTodayHealthBanner';
+import type { DoctorStatsState } from '@/modules/doctor-stats/service';
+import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import {
   doctorDnaFlatListClass,
   doctorDnaFlatListClickableClass,
   doctorDnaFlatListMetaClass,
   doctorDnaFlatListPrimaryClass,
   doctorDnaFlatListRowClass,
-} from "@/shared/ui/doctor/DoctorDnaFlatListRow";
-import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
-import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
-import { doctorInlineLinkClass, doctorPageStackClass } from "@/shared/ui/doctor/doctorVisual";
-import { formatDoctorFio } from "@/shared/lib/fio";
-import { DoctorGlobalTasksSection } from "./DoctorGlobalTasksSection";
-import { DoctorTodayLeftKpiRow } from "./DoctorTodayLeftKpiRow";
-import { TodayMiniCalendarWithModal } from "./TodayMiniCalendarWithModal";
+} from '@/shared/ui/doctor/DoctorDnaFlatListRow';
+import {
+  DoctorSection,
+  DoctorSectionHeader,
+  DoctorSectionTitle,
+} from '@/shared/ui/doctor/DoctorSection';
+import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
+import { doctorInlineLinkClass, doctorPageStackClass } from '@/shared/ui/doctor/doctorVisual';
+import { formatDoctorFio } from '@/shared/lib/fio';
+import { DoctorGlobalTasksSection } from './DoctorGlobalTasksSection';
+import { DoctorTodayLeftKpiRow } from './DoctorTodayLeftKpiRow';
+import { TodayMiniCalendarWithModal } from './TodayMiniCalendarWithModal';
 import {
   ON_SUPPORT_LIST_HREF,
   PROGRAM_WITHOUT_SUPPORT_LIST_HREF,
   RECENT_VISITS_LIST_HREF,
   type TodayDashboardData,
-} from "./loadDoctorTodayDashboard";
+} from './loadDoctorTodayDashboard';
 
 type Props = {
   data: TodayDashboardData;
@@ -46,10 +50,14 @@ type Props = {
   todayWorkingBounds?: { startMinute: number; endMinute: number } | null;
 };
 
-function peopleItemName(client: TodayDashboardData["people"][number]): string {
+function peopleItemName(client: TodayDashboardData['people'][number]): string {
   return formatDoctorFio(
-    { lastName: client.lastName ?? null, firstName: client.firstName ?? null, patronymic: client.patronymic ?? null },
-    client.displayName.trim() || "—",
+    {
+      lastName: client.lastName ?? null,
+      firstName: client.firstName ?? null,
+      patronymic: client.patronymic ?? null,
+    },
+    client.displayName.trim() || '—',
   );
 }
 
@@ -64,9 +72,9 @@ export function DoctorTodayDashboard({
   const nowDt = DateTime.now().setZone(displayIana);
   const nowMinutes = nowDt.hour * 60 + nowDt.minute;
   const todayIso = nowDt.toISODate() ?? new Date().toISOString().slice(0, 10);
-  const todayDateLabel = nowDt.setLocale("ru").toFormat("EEE, d MMMM");
-  const peopleListIsOnSupport = data.peopleListMode === "on_support";
-  const peopleListTitle = peopleListIsOnSupport ? "На сопровождении" : "Недавние с визитами";
+  const todayDateLabel = nowDt.setLocale('ru').toFormat('EEE, d MMMM');
+  const peopleListIsOnSupport = data.peopleListMode === 'on_support';
+  const peopleListTitle = peopleListIsOnSupport ? 'На сопровождении' : 'Недавние с визитами';
 
   return (
     <div id="doctor-today-dashboard" className={doctorPageStackClass}>
@@ -80,9 +88,9 @@ export function DoctorTodayDashboard({
               id="doctor-today-health-attention"
               href={adminHealthBanner.href}
               className={
-                adminHealthBanner.tone === "stop"
-                  ? "inline-flex items-center gap-1.5 rounded-md border border-destructive/40 bg-destructive/10 px-2 py-1 text-xs font-semibold text-destructive no-underline hover:bg-destructive/15"
-                  : "inline-flex items-center gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-900 no-underline hover:bg-amber-500/15 dark:text-amber-100"
+                adminHealthBanner.tone === 'stop'
+                  ? 'inline-flex items-center gap-1.5 rounded-md border border-destructive/40 bg-destructive/10 px-2 py-1 text-xs font-semibold text-destructive no-underline hover:bg-destructive/15'
+                  : 'inline-flex items-center gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-900 no-underline hover:bg-amber-500/15 dark:text-amber-100'
               }
             >
               {adminHealthBanner.title}
@@ -104,10 +112,7 @@ export function DoctorTodayDashboard({
       ) : null}
 
       {/* Двухколоночная раскладка: левое полотно | правое полотно */}
-      <div
-        id="doctor-today-two-panes"
-        className="grid gap-3 md:grid-cols-2 md:items-start"
-      >
+      <div id="doctor-today-two-panes" className="grid gap-3 md:grid-cols-2 md:items-start">
         {/* ───── Левое полотно: входящий рабочий поток ───── */}
         <div id="doctor-today-left-pane" className="flex flex-col gap-3">
           {/* 4 компактных KPI: Сообщения, Комментарии, Заявки, Тесты */}
@@ -145,7 +150,11 @@ export function DoctorTodayDashboard({
             </DoctorSectionHeader>
             {data.peopleCount === 0 ? (
               <DoctorEmptyState>
-                <p>{peopleListIsOnSupport ? "Клиентов на сопровождении нет" : "Клиентов с визитами нет"}</p>
+                <p>
+                  {peopleListIsOnSupport
+                    ? 'Клиентов на сопровождении нет'
+                    : 'Клиентов с визитами нет'}
+                </p>
                 <div className="flex flex-col gap-1">
                   <Link
                     href={peopleListIsOnSupport ? ON_SUPPORT_LIST_HREF : RECENT_VISITS_LIST_HREF}
@@ -154,7 +163,10 @@ export function DoctorTodayDashboard({
                     Список клиентов
                   </Link>
                   {peopleListIsOnSupport ? (
-                    <Link href={PROGRAM_WITHOUT_SUPPORT_LIST_HREF} className={`${doctorInlineLinkClass} w-fit text-xs`}>
+                    <Link
+                      href={PROGRAM_WITHOUT_SUPPORT_LIST_HREF}
+                      className={`${doctorInlineLinkClass} w-fit text-xs`}
+                    >
                       Программа без сопровождения
                     </Link>
                   ) : null}
@@ -169,12 +181,14 @@ export function DoctorTodayDashboard({
                         id={`doctor-today-person-${c.userId}`}
                         href={c.href}
                         aria-label={peopleItemName(c)}
-                        className={`${doctorDnaFlatListRowClass} ${doctorDnaFlatListClickableClass} justify-between gap-2${index === 0 ? " border-t-0" : ""}`}
+                        className={`${doctorDnaFlatListRowClass} ${doctorDnaFlatListClickableClass} justify-between gap-2${index === 0 ? ' border-t-0' : ''}`}
                       >
                         <span className={`${doctorDnaFlatListPrimaryClass} min-w-0 truncate`}>
-                        <span className="block truncate">{peopleItemName(c)}</span>
+                          <span className="block truncate">{peopleItemName(c)}</span>
                         </span>
-                        <div className={`ml-auto flex shrink-0 items-center gap-2 ${doctorDnaFlatListMetaClass}`}>
+                        <div
+                          className={`ml-auto flex shrink-0 items-center gap-2 ${doctorDnaFlatListMetaClass}`}
+                        >
                           <span
                             className="inline-flex items-center gap-1"
                             title="Новые сообщения"
@@ -219,11 +233,14 @@ export function DoctorTodayDashboard({
                       className={`${doctorInlineLinkClass} text-sm`}
                       id="doctor-today-people-all"
                     >
-                      {peopleListIsOnSupport ? "Все на сопровождении" : "Открыть клиентов"}
+                      {peopleListIsOnSupport ? 'Все на сопровождении' : 'Открыть клиентов'}
                     </Link>
                   ) : null}
                   {peopleListIsOnSupport ? (
-                    <Link href={PROGRAM_WITHOUT_SUPPORT_LIST_HREF} className={`${doctorInlineLinkClass} w-fit text-xs`}>
+                    <Link
+                      href={PROGRAM_WITHOUT_SUPPORT_LIST_HREF}
+                      className={`${doctorInlineLinkClass} w-fit text-xs`}
+                    >
                       Программа без сопровождения
                     </Link>
                   ) : null}

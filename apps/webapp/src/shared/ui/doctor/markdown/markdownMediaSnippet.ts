@@ -7,11 +7,11 @@ export function markdownSnippetForMediaUrl(
   filename: string,
   meta?: { kind?: string; mimeType?: string },
 ): string {
-  const safeName = filename.replace(/[[\]]/g, "");
-  const mime = meta?.mimeType?.toLowerCase() ?? "";
+  const safeName = filename.replace(/[[\]]/g, '');
+  const mime = meta?.mimeType?.toLowerCase() ?? '';
   const asImage =
-    meta?.kind === "image" ||
-    mime.startsWith("image/") ||
+    meta?.kind === 'image' ||
+    mime.startsWith('image/') ||
     /\.(jpe?g|png|gif|webp|avif|heic|heif|tiff|tif|svg)$/i.test(filename);
   const snippet = asImage ? `![${safeName}](${url})` : `[${safeName}](${url})`;
   return `${snippet}\n`;

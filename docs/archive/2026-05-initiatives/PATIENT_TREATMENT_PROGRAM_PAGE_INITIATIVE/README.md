@@ -26,12 +26,12 @@
 
 Порядок строк таблицы — **обязательная последовательность** (следующий этап не начинать без закрытия предыдущего по DoD в `ROADMAP_2`).
 
-| № | Этап (ROADMAP) | Содержание работ | Миграции / маршруты / UI | Основная модель агента | Примечание |
-|---|----------------|------------------|---------------------------|-------------------------|------------|
-| A | **§1.0** `started_at` | Колонка `started_at` на `treatment_program_instance_stages`, заполнение при `available → in_progress`, backfill, Drizzle + типы + `pg`/`inMemory` репозитории + read-модели | **Миграции + сервисный слой**, UI не обязателен | **GPT‑5.3 Codex** (`gpt-5.3-codex`) | Высокий риск тихих ошибок в данных; merge миграции — с явным ревью. Не расширять scope за пределы §1.0. |
-| B | **§1.1a** деталь MVP | `/app/patient/treatment/[instanceId]`: текущий этап, этап 0, архив, назначения, «План обновлён», дата контроля от `started_at` | **UI + маршрут**; без отдельного пациентского `stages/...` | **Claude Sonnet 4.6** (`claude-4.6-sonnet-medium-thinking`) | **Composer / Cursor Agent** — допустим как исполнитель, если нет изменений портов и схемы БД. |
-| C | **§1.1b** редизайн детали | Hero, badges, карточка контроля, рекомендации, «История тестирования», timeline; тело этапа **на той же странице** (вкладка «Программа») | **UI**; отдельный **`stages/[stageId]`** у пациента **не** используется; миграций **нет** | **Claude Sonnet 4.6** (`claude-4.6-sonnet-medium-thinking`) | UI — Composer/Sonnet. Любое расширение read-порта — отдельным подэтапом с **Codex**. |
-| D | **§1.1** список | `/app/patient/treatment`: hero активной программы, архив в `<details>`, empty state | **UI + loader**; миграций **нет** | **Claude Sonnet 4.6** | **Composer‑2** (`composer-2`) — для узкого S-прохода по списку, если объём не «L». |
+| №   | Этап (ROADMAP)            | Содержание работ                                                                                                                                                            | Миграции / маршруты / UI                                                                  | Основная модель агента                                      | Примечание                                                                                              |
+| --- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| A   | **§1.0** `started_at`     | Колонка `started_at` на `treatment_program_instance_stages`, заполнение при `available → in_progress`, backfill, Drizzle + типы + `pg`/`inMemory` репозитории + read-модели | **Миграции + сервисный слой**, UI не обязателен                                           | **GPT‑5.3 Codex** (`gpt-5.3-codex`)                         | Высокий риск тихих ошибок в данных; merge миграции — с явным ревью. Не расширять scope за пределы §1.0. |
+| B   | **§1.1a** деталь MVP      | `/app/patient/treatment/[instanceId]`: текущий этап, этап 0, архив, назначения, «План обновлён», дата контроля от `started_at`                                              | **UI + маршрут**; без отдельного пациентского `stages/...`                                | **Claude Sonnet 4.6** (`claude-4.6-sonnet-medium-thinking`) | **Composer / Cursor Agent** — допустим как исполнитель, если нет изменений портов и схемы БД.           |
+| C   | **§1.1b** редизайн детали | Hero, badges, карточка контроля, рекомендации, «История тестирования», timeline; тело этапа **на той же странице** (вкладка «Программа»)                                    | **UI**; отдельный **`stages/[stageId]`** у пациента **не** используется; миграций **нет** | **Claude Sonnet 4.6** (`claude-4.6-sonnet-medium-thinking`) | UI — Composer/Sonnet. Любое расширение read-порта — отдельным подэтапом с **Codex**.                    |
+| D   | **§1.1** список           | `/app/patient/treatment`: hero активной программы, архив в `<details>`, empty state                                                                                         | **UI + loader**; миграций **нет**                                                         | **Claude Sonnet 4.6**                                       | **Composer‑2** (`composer-2`) — для узкого S-прохода по списку, если объём не «L».                      |
 
 Имена моделей приведены в формате, допустимом для **Task / подагентов** в Cursor (см. список slug в правилах репозитория).
 
@@ -47,18 +47,18 @@
 
 ## Документы
 
-| Файл | Назначение |
-|------|------------|
-| [`README.md`](README.md) | Этот файл — main plan и таблица агентов |
-| [`STAGE_PLAN.md`](STAGE_PLAN.md) | Порядок A–D + pipeline `EXEC -> AUDIT -> FIX -> COMMIT` + финал `GLOBAL -> PREPUSH -> PUSH` |
-| [`STAGE_A.md`](STAGE_A.md) | Подробная декомпозиция §1.0 (`started_at`) |
-| [`STAGE_B.md`](STAGE_B.md) | Подробная декомпозиция §1.1a (detail MVP) |
-| [`STAGE_C.md`](STAGE_C.md) | Подробная декомпозиция §1.1b (редизайн + `stages/[stageId]`) |
-| [`STAGE_D.md`](STAGE_D.md) | Подробная декомпозиция §1.1 (список) |
-| [`PROMPTS_COPYPASTE.md`](PROMPTS_COPYPASTE.md) | Шаблоны запусков: stage `exec/audit/fix/commit` + `global audit/fix` + `prepush` + `push` |
-| [`LOG.md`](LOG.md) | Журнал: прочитанные rules, scope, решения |
-| [`../../apps/webapp/src/app/app/patient/treatment/program-detail/README.md`](../../apps/webapp/src/app/app/patient/treatment/program-detail/README.md) | Карта модулей detail (`/treatment/[instanceId]`) после декомпозиции |
-| [`BLOCK_LAYOUT_REFERENCE.md`](BLOCK_LAYOUT_REFERENCE.md) | Примитивные блок-схемы: список, MVP-деталь, **актуальная** эталонная detail (hero + timeline «Активный этап»), страница этапа |
+| Файл                                                                                                                                                   | Назначение                                                                                                                    |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| [`README.md`](README.md)                                                                                                                               | Этот файл — main plan и таблица агентов                                                                                       |
+| [`STAGE_PLAN.md`](STAGE_PLAN.md)                                                                                                                       | Порядок A–D + pipeline `EXEC -> AUDIT -> FIX -> COMMIT` + финал `GLOBAL -> PREPUSH -> PUSH`                                   |
+| [`STAGE_A.md`](STAGE_A.md)                                                                                                                             | Подробная декомпозиция §1.0 (`started_at`)                                                                                    |
+| [`STAGE_B.md`](STAGE_B.md)                                                                                                                             | Подробная декомпозиция §1.1a (detail MVP)                                                                                     |
+| [`STAGE_C.md`](STAGE_C.md)                                                                                                                             | Подробная декомпозиция §1.1b (редизайн + `stages/[stageId]`)                                                                  |
+| [`STAGE_D.md`](STAGE_D.md)                                                                                                                             | Подробная декомпозиция §1.1 (список)                                                                                          |
+| [`PROMPTS_COPYPASTE.md`](PROMPTS_COPYPASTE.md)                                                                                                         | Шаблоны запусков: stage `exec/audit/fix/commit` + `global audit/fix` + `prepush` + `push`                                     |
+| [`LOG.md`](LOG.md)                                                                                                                                     | Журнал: прочитанные rules, scope, решения                                                                                     |
+| [`../../apps/webapp/src/app/app/patient/treatment/program-detail/README.md`](../../apps/webapp/src/app/app/patient/treatment/program-detail/README.md) | Карта модулей detail (`/treatment/[instanceId]`) после декомпозиции                                                           |
+| [`BLOCK_LAYOUT_REFERENCE.md`](BLOCK_LAYOUT_REFERENCE.md)                                                                                               | Примитивные блок-схемы: список, MVP-деталь, **актуальная** эталонная detail (hero + timeline «Активный этап»), страница этапа |
 
 ---
 

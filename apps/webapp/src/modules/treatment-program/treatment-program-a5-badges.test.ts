@@ -1,13 +1,13 @@
-import { describe, expect, it, beforeEach, vi } from "vitest";
-import { createInMemoryTreatmentProgramPersistence } from "@/infra/repos/inMemoryTreatmentProgramInstance";
-import { createTreatmentProgramInstanceService } from "./instance-service";
-import { createTreatmentProgramService } from "./service";
-import { createInMemoryTreatmentProgramPort } from "@/infra/repos/inMemoryTreatmentProgram";
-import { createInMemoryTreatmentProgramItemRefValidationPort } from "@/infra/repos/inMemoryTreatmentProgramItemRefValidation";
-import { createInMemoryTreatmentProgramItemSnapshotPort } from "@/infra/repos/inMemoryTreatmentProgramItemSnapshot";
-import type { AppendTreatmentProgramEventInput } from "./types";
+import { describe, expect, it, beforeEach, vi } from 'vitest';
+import { createInMemoryTreatmentProgramPersistence } from '@/infra/repos/inMemoryTreatmentProgramInstance';
+import { createTreatmentProgramInstanceService } from './instance-service';
+import { createTreatmentProgramService } from './service';
+import { createInMemoryTreatmentProgramPort } from '@/infra/repos/inMemoryTreatmentProgram';
+import { createInMemoryTreatmentProgramItemRefValidationPort } from '@/infra/repos/inMemoryTreatmentProgramItemRefValidation';
+import { createInMemoryTreatmentProgramItemSnapshotPort } from '@/infra/repos/inMemoryTreatmentProgramItemSnapshot';
+import type { AppendTreatmentProgramEventInput } from './types';
 
-describe("PROGRAM_PATIENT_SHAPE A5 badges + mark viewed", () => {
+describe('PROGRAM_PATIENT_SHAPE A5 badges + mark viewed', () => {
   let persistence: ReturnType<typeof createInMemoryTreatmentProgramPersistence>;
   let svc: ReturnType<typeof createTreatmentProgramInstanceService>;
 
@@ -27,19 +27,19 @@ describe("PROGRAM_PATIENT_SHAPE A5 badges + mark viewed", () => {
     });
   });
 
-  it("markStageItemViewedIfNever updates only when lastViewedAt is null", async () => {
+  it('markStageItemViewedIfNever updates only when lastViewedAt is null', async () => {
     const detail = await persistence.instancePort.createInstanceTree({
-      templateId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
-      patientUserId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      templateId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      patientUserId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
       assignedBy: null,
-      title: "P",
+      title: 'P',
       stages: [
         {
-          sourceStageId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
-          title: "S",
+          sourceStageId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+          title: 'S',
           description: null,
           sortOrder: 0,
-          status: "available",
+          status: 'available',
           goals: null,
           objectives: null,
           expectedDurationDays: null,
@@ -51,14 +51,14 @@ describe("PROGRAM_PATIENT_SHAPE A5 badges + mark viewed", () => {
     });
     const stageId = detail.stages[0]!.id;
     const added = await persistence.instancePort.addInstanceStageItem(detail.id, stageId, {
-      itemType: "recommendation",
-      itemRefId: "11111111-1111-4111-8111-111111111111",
+      itemType: 'recommendation',
+      itemRefId: '11111111-1111-4111-8111-111111111111',
       sortOrder: 0,
       comment: null,
       settings: null,
-      snapshot: { title: "R" },
+      snapshot: { title: 'R' },
       isActionable: true,
-      status: "active",
+      status: 'active',
       groupId: null,
     });
     expect(added!.lastViewedAt).toBeNull();
@@ -69,26 +69,33 @@ describe("PROGRAM_PATIENT_SHAPE A5 badges + mark viewed", () => {
       itemId,
     );
     expect(r1.updated).toBe(true);
-    const after = await persistence.instancePort.getInstanceForPatient(detail.patientUserId, detail.id);
+    const after = await persistence.instancePort.getInstanceForPatient(
+      detail.patientUserId,
+      detail.id,
+    );
     expect(after!.stages[0]!.items[0]!.lastViewedAt).not.toBeNull();
-    const r2 = await persistence.instancePort.markStageItemViewedIfNever(detail.patientUserId, detail.id, itemId);
+    const r2 = await persistence.instancePort.markStageItemViewedIfNever(
+      detail.patientUserId,
+      detail.id,
+      itemId,
+    );
     expect(r2.updated).toBe(false);
   });
 
-  it("patientPlanUpdatedBadgeForInstance uses patientPlanLastOpenedAt baseline", async () => {
-    vi.useFakeTimers({ now: new Date("2026-05-03T12:00:00.000Z") });
+  it('patientPlanUpdatedBadgeForInstance uses patientPlanLastOpenedAt baseline', async () => {
+    vi.useFakeTimers({ now: new Date('2026-05-03T12:00:00.000Z') });
     const detail = await persistence.instancePort.createInstanceTree({
-      templateId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
-      patientUserId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      templateId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      patientUserId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
       assignedBy: null,
-      title: "P",
+      title: 'P',
       stages: [
         {
-          sourceStageId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
-          title: "S",
+          sourceStageId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+          title: 'S',
           description: null,
           sortOrder: 0,
-          status: "available",
+          status: 'available',
           goals: null,
           objectives: null,
           expectedDurationDays: null,
@@ -96,44 +103,45 @@ describe("PROGRAM_PATIENT_SHAPE A5 badges + mark viewed", () => {
           groups: [
             {
               sourceGroupId: null,
-              title: "Рекомендации",
+              title: 'Рекомендации',
               description: null,
               scheduleText: null,
               sortOrder: 101,
-              systemKind: "recommendations",
+              systemKind: 'recommendations',
             },
             {
               sourceGroupId: null,
-              title: "Тесты",
+              title: 'Тесты',
               description: null,
               scheduleText: null,
               sortOrder: 102,
-              systemKind: "tests",
+              systemKind: 'tests',
             },
           ],
           items: [
             {
-              itemType: "recommendation",
-              itemRefId: "11111111-1111-4111-8111-111111111111",
+              itemType: 'recommendation',
+              itemRefId: '11111111-1111-4111-8111-111111111111',
               sortOrder: 0,
               comment: null,
               settings: null,
-              snapshot: { title: "R" },
+              snapshot: { title: 'R' },
               isActionable: true,
-              status: "active",
+              status: 'active',
               templateGroupId: null,
             },
           ],
         },
       ],
     });
-    const ev = async (input: AppendTreatmentProgramEventInput) => persistence.eventsPort.appendEvent(input);
+    const ev = async (input: AppendTreatmentProgramEventInput) =>
+      persistence.eventsPort.appendEvent(input);
     vi.advanceTimersByTime(60_000);
     await ev({
       instanceId: detail.id,
       actorId: null,
-      eventType: "item_added",
-      targetType: "stage_item",
+      eventType: 'item_added',
+      targetType: 'stage_item',
       targetId: detail.stages[0]!.items[0]!.id,
       payload: {},
       reason: null,
@@ -144,7 +152,10 @@ describe("PROGRAM_PATIENT_SHAPE A5 badges + mark viewed", () => {
       instanceId: detail.id,
     });
     expect(beforeOpen.show).toBe(true);
-    const opened = await svc.patientRecordPlanOpened({ patientUserId: detail.patientUserId, instanceId: detail.id });
+    const opened = await svc.patientRecordPlanOpened({
+      patientUserId: detail.patientUserId,
+      instanceId: detail.id,
+    });
     expect(opened.recorded).toBe(true);
     const afterOpen = await svc.patientPlanUpdatedBadgeForInstance({
       patientUserId: detail.patientUserId,
@@ -153,28 +164,28 @@ describe("PROGRAM_PATIENT_SHAPE A5 badges + mark viewed", () => {
     expect(afterOpen.show).toBe(false);
   });
 
-  it("patientRecordPlanOpened throws when instance not found for patient", async () => {
+  it('patientRecordPlanOpened throws when instance not found for patient', async () => {
     await expect(
       svc.patientRecordPlanOpened({
-        patientUserId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-        instanceId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        patientUserId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        instanceId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
       }),
     ).rejects.toThrow(/не найден/);
   });
 
-  it("patientRecordPlanOpened does not touch DB marker when program is completed", async () => {
+  it('patientRecordPlanOpened does not touch DB marker when program is completed', async () => {
     const detail = await persistence.instancePort.createInstanceTree({
-      templateId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
-      patientUserId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      templateId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      patientUserId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
       assignedBy: null,
-      title: "P",
+      title: 'P',
       stages: [
         {
-          sourceStageId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
-          title: "S",
+          sourceStageId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+          title: 'S',
           description: null,
           sortOrder: 0,
-          status: "available",
+          status: 'available',
           goals: null,
           objectives: null,
           expectedDurationDays: null,
@@ -184,13 +195,16 @@ describe("PROGRAM_PATIENT_SHAPE A5 badges + mark viewed", () => {
         },
       ],
     });
-    await persistence.instancePort.updateInstanceMeta(detail.id, { status: "completed" });
+    await persistence.instancePort.updateInstanceMeta(detail.id, { status: 'completed' });
     const r = await svc.patientRecordPlanOpened({
       patientUserId: detail.patientUserId,
       instanceId: detail.id,
     });
     expect(r.recorded).toBe(false);
-    const after = await persistence.instancePort.getInstanceForPatient(detail.patientUserId, detail.id);
+    const after = await persistence.instancePort.getInstanceForPatient(
+      detail.patientUserId,
+      detail.id,
+    );
     expect(after!.patientPlanLastOpenedAt).toBeNull();
   });
 });

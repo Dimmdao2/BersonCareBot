@@ -3,19 +3,19 @@
  * Uses Drizzle ORM; no business logic here.
  */
 
-import { and, eq, asc } from "drizzle-orm";
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { runDrizzleMutationTransaction } from "@/infra/db/drizzleMutationTx";
+import { and, eq, asc } from 'drizzle-orm';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
 import type {
   CreatePatientFileParams,
   PatientFileCategory,
   PatientFileRecord,
   PatientFilesPort,
-} from "@/modules/patient-files/ports";
-import { patientFiles } from "../../../db/schema/patientFiles";
-import { mediaFiles } from "../../../db/schema/schema";
-import { clinicalVisit } from "../../../db/schema/patientClinical";
+} from '@/modules/patient-files/ports';
+import { patientFiles } from '../../../db/schema/patientFiles';
+import { mediaFiles } from '../../../db/schema/schema';
+import { clinicalVisit } from '../../../db/schema/patientClinical';
 
 function mapRow(row: typeof patientFiles.$inferSelect): PatientFileRecord {
   return {
@@ -37,7 +37,7 @@ function mapRow(row: typeof patientFiles.$inferSelect): PatientFileRecord {
 function currentPrincipalOrganizationId(): string {
   const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
   if (!principalOrganizationId) {
-    throw new Error("organization_principal_required");
+    throw new Error('organization_principal_required');
   }
   return principalOrganizationId;
 }
@@ -47,15 +47,21 @@ function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[])
   const fallbackOrganizationIds = fallbacks.filter((x): x is string => Boolean(x));
   const fallbackOrganizationId = fallbackOrganizationIds[0] ?? null;
   const hasFallbackMismatch = fallbackOrganizationIds.some((id) => id !== fallbackOrganizationId);
-  if (hasFallbackMismatch || (fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)) {
-    throw new Error("organization_principal_mismatch");
+  if (
+    hasFallbackMismatch ||
+    (fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)
+  ) {
+    throw new Error('organization_principal_mismatch');
   }
   return principalOrganizationId;
 }
 
 export function createPgPatientFilesPort(): PatientFilesPort {
   return {
-    async listFiles(patientUserId: string, category?: PatientFileCategory): Promise<PatientFileRecord[]> {
+    async listFiles(
+      patientUserId: string,
+      category?: PatientFileCategory,
+    ): Promise<PatientFileRecord[]> {
       const organizationId = currentPrincipalOrganizationId();
       const db = getDrizzle();
       const conditions = [
@@ -103,8 +109,8 @@ export function createPgPatientFilesPort(): PatientFilesPort {
               sizeBytes: params.sizeBytes,
               uploadedBy: params.uploadedByUserId,
               folderId: params.folderId,
-              status: "ready",
-              previewStatus: "pending",
+              status: 'ready',
+              previewStatus: 'pending',
             })
             .returning({ id: mediaFiles.id });
           mediaFileId = mf?.id ?? null;
@@ -126,7 +132,7 @@ export function createPgPatientFilesPort(): PatientFilesPort {
           .returning();
       });
       const row = inserted[0];
-      if (!row) throw new Error("patient_files insert failed");
+      if (!row) throw new Error('patient_files insert failed');
       return mapRow(row);
     },
 
@@ -154,7 +160,7 @@ export function createPgPatientFilesPort(): PatientFilesPort {
         if (!visit) return [];
         currentWriteOrganizationId(visit.organizationId);
         if (visit.patientUserId !== existing.patientUserId) {
-          throw new Error("patient_file_visit_patient_mismatch");
+          throw new Error('patient_file_visit_patient_mismatch');
         }
         return tx
           .update(patientFiles)

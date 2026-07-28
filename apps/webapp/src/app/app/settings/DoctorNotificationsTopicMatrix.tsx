@@ -1,12 +1,12 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState, useTransition } from "react";
-import toast from "react-hot-toast";
-import { Switch } from "@/shared/ui/doctor/primitives/switch";
-import type { DoctorNotificationTopicModel } from "@/modules/doctor-notifications/doctorProfileTopicChannelsModel";
-import { setDoctorTopicChannelNotificationEnabled } from "./doctorNotificationPrefsActions";
+import { useCallback, useEffect, useState, useTransition } from 'react';
+import toast from 'react-hot-toast';
+import { Switch } from '@/shared/ui/doctor/primitives/switch';
+import type { DoctorNotificationTopicModel } from '@/modules/doctor-notifications/doctorProfileTopicChannelsModel';
+import { setDoctorTopicChannelNotificationEnabled } from './doctorNotificationPrefsActions';
 
-const CHANNEL_ORDER = ["web_push", "telegram", "max", "email"] as const;
+const CHANNEL_ORDER = ['web_push', 'telegram', 'max', 'email'] as const;
 
 type Props = {
   initialTopics: DoctorNotificationTopicModel[];
@@ -40,12 +40,14 @@ export function DoctorNotificationsTopicMatrix({ initialTopics, pushEffective }:
       if (res.ok) {
         setTopics((prev) =>
           prev.map((t) =>
-            t.topicId !== topicId ?
-              t
-            : {
-                ...t,
-                channels: t.channels.map((c) => (c.code === channelCode ? { ...c, isEnabled: next } : c)),
-              },
+            t.topicId !== topicId
+              ? t
+              : {
+                  ...t,
+                  channels: t.channels.map((c) =>
+                    c.code === channelCode ? { ...c, isEnabled: next } : c,
+                  ),
+                },
           ),
         );
       } else {
@@ -94,17 +96,20 @@ export function DoctorNotificationsTopicMatrix({ initialTopics, pushEffective }:
                 const cell = t.channels.find((c) => c.code === ch.code);
                 if (!cell) {
                   return (
-                    <td key={ch.code} className="px-2 py-3 text-center align-middle text-muted-foreground">
+                    <td
+                      key={ch.code}
+                      className="px-2 py-3 text-center align-middle text-muted-foreground"
+                    >
                       —
                     </td>
                   );
                 }
                 const channelLocked =
-                  cell.isEditable === false || (ch.code === "web_push" && !pushEffective);
+                  cell.isEditable === false || (ch.code === 'web_push' && !pushEffective);
                 return (
                   <td key={ch.code} className="px-2 py-3 text-center align-middle">
                     <Switch
-                      checked={channelLocked && ch.code === "web_push" ? false : cell.isEnabled}
+                      checked={channelLocked && ch.code === 'web_push' ? false : cell.isEnabled}
                       disabled={pending || channelLocked}
                       onCheckedChange={(v) => onChannelToggle(t.topicId, ch.code, v)}
                       aria-label={`${t.displayTitle}: ${ch.label}`}

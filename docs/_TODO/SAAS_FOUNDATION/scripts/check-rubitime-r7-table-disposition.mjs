@@ -29,7 +29,8 @@ const r7Proof = 'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R7_DROP_RESTORE_
 
 // B-7(b) tooling that replaced the prose-only archive block of the runbook (§3).
 const archiveScript = 'deploy/host/archive-rubitime-retirement-tables.sh';
-const dropMigration = 'apps/webapp/db/drizzle-migrations/0237_r7_drop_public_rubitime_mirror_tables.sql';
+const dropMigration =
+  'apps/webapp/db/drizzle-migrations/0237_r7_drop_public_rubitime_mirror_tables.sql';
 
 const keep = [
   {
@@ -40,7 +41,8 @@ const keep = [
   {
     table: 'public.be_external_entity_mappings',
     decision: 'keep',
-    reason: 'canonical external identity/mapping table; only Rubitime rows are later traceability policy scope',
+    reason:
+      'canonical external identity/mapping table; only Rubitime rows are later traceability policy scope',
   },
   {
     table: 'integrator.booking_calendar_map',
@@ -167,7 +169,8 @@ function parseArchiveScriptTargets(src) {
 /** Returns every `schema.table` named by a DROP TABLE statement in the migration. */
 function parseDroppedTables(src) {
   const dropped = [];
-  const pattern = /DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?([A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*)/gi;
+  const pattern =
+    /DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?([A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*)/gi;
   let hit;
   while ((hit = pattern.exec(src)) !== null) dropped.push(hit[1].toLowerCase());
   return dropped;
@@ -206,7 +209,9 @@ function checkArchiveDropTooling(errors) {
     // Matches a terminated SQL statement (`DROP TABLE ... ;`) rather than any mention of the words,
     // so the script may still *document* that it never drops anything.
     if (/^[^#\n]*\bDROP\s+TABLE\b[^\n;]*;/im.test(archiveSrc)) {
-      errors.push(`${archiveScript}: contains an executable DROP TABLE; the drop must go through a repo migration`);
+      errors.push(
+        `${archiveScript}: contains an executable DROP TABLE; the drop must go through a repo migration`,
+      );
     }
     requireMention(errors, archiveSrc, archiveScript, dropMigration);
   }

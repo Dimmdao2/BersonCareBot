@@ -11,30 +11,30 @@
 
 ## 2. Scope Verification
 
-| Requirement | Source | Status | Evidence |
-|-------------|--------|--------|----------|
-| Колонка БД `domain`, UI «Тип» (не переименование в `kind`) | PRE_IMP Q4, STAGE_B4 §5 | **PASS** | [`recommendationDomain.ts`](../../../../apps/webapp/src/modules/recommendations/recommendationDomain.ts) (коды + подписи); [`RecommendationForm.tsx`](../../../../apps/webapp/src/app/app/doctor/recommendations/RecommendationForm.tsx) лейбл «Тип»; [`RecommendationsPageClient.tsx`](../../../../apps/webapp/src/app/app/doctor/recommendations/RecommendationsPageClient.tsx) tertiary «Тип» |
-| `body_region_id` FK, три текстовых поля | ТЗ §3 B4, STAGE_B4 §3 | **PASS** | [`0036_recommendations_b4_body_region_metrics.sql`](../../../../apps/webapp/db/drizzle-migrations/0036_recommendations_b4_body_region_metrics.sql); [`recommendations.ts`](../../../../apps/webapp/db/schema/recommendations.ts); типы [`types.ts`](../../../../apps/webapp/src/modules/recommendations/types.ts) |
-| Без merge legacy `domain` в той же миграции | PRE_IMP Q3 | **PASS** | Миграция `0036` — только `ADD COLUMN` / FK / индекс; **нет** `UPDATE recommendations SET domain …` |
-| Расширение enum/кодов типа без массовой нормализации строк | PRE_IMP Q3 | **PASS** | Коды «типа» — справочник БД `recommendation_type` (Stage D3, см. [`AUDIT_STAGE_D3.md`](AUDIT_STAGE_D3.md)). **Сноска к формулировке B4:** ранее здесь было «неизвестный `domain` → `null` в DTO» по `mapRow` — после **D3** чтение **read tolerant** (сырое значение в DTO); см. [`AUDIT_STAGE_D3.md`](AUDIT_STAGE_D3.md) §4. Без silent rewrite строк в БД. |
-| Фильтр по типу (`domain`) и региону, пересечение AND | STAGE_B4 §7 | **PASS** | [`pgRecommendations.ts`](../../../../apps/webapp/src/infra/repos/pgRecommendations.ts) `list`: `eq(domain)` + `eq(bodyRegionId)`; [`inMemoryRecommendations.ts`](../../../../apps/webapp/src/infra/repos/inMemoryRecommendations.ts) `matchesFilter`; [`service.test.ts`](../../../../apps/webapp/src/modules/recommendations/service.test.ts) сценарий пересечения |
-| Archive / unarchive не ломают новые поля | STAGE_B4 §6 | **PASS** | `archive`/`unarchive` в `pgRecommendations` меняют только `is_archived` / `updated_at`; тест «retain B4 fields» в `service.test.ts` |
-| Preserve query каталога (inline) | STAGE_B4, usage | **PASS** | [`RecommendationForm.tsx`](../../../../apps/webapp/src/app/app/doctor/recommendations/RecommendationForm.tsx) hidden `listQ` / `listTitleSort` / `listRegion` / `listDomain` / `listStatus`; [`actionsInline.ts`](../../../../apps/webapp/src/app/app/doctor/recommendations/actionsInline.ts) `appendRecommendationsListParams` |
-| REST API согласована с полями B4 | ТЗ / api | **PASS** | [`route.ts`](../../../../apps/webapp/src/app/api/doctor/recommendations/route.ts), [`[id]/route.ts`](../../../../apps/webapp/src/app/api/doctor/recommendations/[id]/route.ts); [`api.md`](../../../../apps/webapp/src/app/api/api.md) (`invalid_query`, `field` для `domain`/`region`; сериализация `domain` — D3 read tolerant) |
-| SSR каталог: паритет фильтров с GET API + UX невалидного query | AUDIT §10 (FIX) | **PASS** | [`recommendationCatalogSsrQuery.ts`](../../../../apps/webapp/src/modules/recommendations/recommendationCatalogSsrQuery.ts), [`page.tsx`](../../../../apps/webapp/src/app/app/doctor/recommendations/page.tsx), [`RecommendationsPageClient.tsx`](../../../../apps/webapp/src/app/app/doctor/recommendations/RecommendationsPageClient.tsx); невалидный **`region`** в URL каталога — без баннера (FILTER URL tails III) |
+| Requirement                                                    | Source                  | Status   | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                |
+| -------------------------------------------------------------- | ----------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Колонка БД `domain`, UI «Тип» (не переименование в `kind`)     | PRE_IMP Q4, STAGE_B4 §5 | **PASS** | [`recommendationDomain.ts`](../../../../apps/webapp/src/modules/recommendations/recommendationDomain.ts) (коды + подписи); [`RecommendationForm.tsx`](../../../../apps/webapp/src/app/app/doctor/recommendations/RecommendationForm.tsx) лейбл «Тип»; [`RecommendationsPageClient.tsx`](../../../../apps/webapp/src/app/app/doctor/recommendations/RecommendationsPageClient.tsx) tertiary «Тип»                        |
+| `body_region_id` FK, три текстовых поля                        | ТЗ §3 B4, STAGE_B4 §3   | **PASS** | [`0036_recommendations_b4_body_region_metrics.sql`](../../../../apps/webapp/db/drizzle-migrations/0036_recommendations_b4_body_region_metrics.sql); [`recommendations.ts`](../../../../apps/webapp/db/schema/recommendations.ts); типы [`types.ts`](../../../../apps/webapp/src/modules/recommendations/types.ts)                                                                                                       |
+| Без merge legacy `domain` в той же миграции                    | PRE_IMP Q3              | **PASS** | Миграция `0036` — только `ADD COLUMN` / FK / индекс; **нет** `UPDATE recommendations SET domain …`                                                                                                                                                                                                                                                                                                                      |
+| Расширение enum/кодов типа без массовой нормализации строк     | PRE_IMP Q3              | **PASS** | Коды «типа» — справочник БД `recommendation_type` (Stage D3, см. [`AUDIT_STAGE_D3.md`](AUDIT_STAGE_D3.md)). **Сноска к формулировке B4:** ранее здесь было «неизвестный `domain` → `null` в DTO» по `mapRow` — после **D3** чтение **read tolerant** (сырое значение в DTO); см. [`AUDIT_STAGE_D3.md`](AUDIT_STAGE_D3.md) §4. Без silent rewrite строк в БД.                                                            |
+| Фильтр по типу (`domain`) и региону, пересечение AND           | STAGE_B4 §7             | **PASS** | [`pgRecommendations.ts`](../../../../apps/webapp/src/infra/repos/pgRecommendations.ts) `list`: `eq(domain)` + `eq(bodyRegionId)`; [`inMemoryRecommendations.ts`](../../../../apps/webapp/src/infra/repos/inMemoryRecommendations.ts) `matchesFilter`; [`service.test.ts`](../../../../apps/webapp/src/modules/recommendations/service.test.ts) сценарий пересечения                                                     |
+| Archive / unarchive не ломают новые поля                       | STAGE_B4 §6             | **PASS** | `archive`/`unarchive` в `pgRecommendations` меняют только `is_archived` / `updated_at`; тест «retain B4 fields» в `service.test.ts`                                                                                                                                                                                                                                                                                     |
+| Preserve query каталога (inline)                               | STAGE_B4, usage         | **PASS** | [`RecommendationForm.tsx`](../../../../apps/webapp/src/app/app/doctor/recommendations/RecommendationForm.tsx) hidden `listQ` / `listTitleSort` / `listRegion` / `listDomain` / `listStatus`; [`actionsInline.ts`](../../../../apps/webapp/src/app/app/doctor/recommendations/actionsInline.ts) `appendRecommendationsListParams`                                                                                        |
+| REST API согласована с полями B4                               | ТЗ / api                | **PASS** | [`route.ts`](../../../../apps/webapp/src/app/api/doctor/recommendations/route.ts), [`[id]/route.ts`](../../../../apps/webapp/src/app/api/doctor/recommendations/[id]/route.ts); [`api.md`](../../../../apps/webapp/src/app/api/api.md) (`invalid_query`, `field` для `domain`/`region`; сериализация `domain` — D3 read tolerant)                                                                                       |
+| SSR каталог: паритет фильтров с GET API + UX невалидного query | AUDIT §10 (FIX)         | **PASS** | [`recommendationCatalogSsrQuery.ts`](../../../../apps/webapp/src/modules/recommendations/recommendationCatalogSsrQuery.ts), [`page.tsx`](../../../../apps/webapp/src/app/app/doctor/recommendations/page.tsx), [`RecommendationsPageClient.tsx`](../../../../apps/webapp/src/app/app/doctor/recommendations/RecommendationsPageClient.tsx); невалидный **`region`** в URL каталога — без баннера (FILTER URL tails III) |
 
 ## 3. Changed Files (ревью-ориентир)
 
-| Область | Файлы | Risk |
-|---------|-------|------|
-| Схема / миграция | `db/schema/recommendations.ts`, `relations.ts`, `0036_*.sql`, `_journal.json` | low при применённом `migrate` |
-| Домен / типы | `recommendationDomain.ts`, `types.ts`, `service.ts` | low |
-| Репозитории | `pgRecommendations.ts`, `inMemoryRecommendations.ts` | low |
-| Server actions | `actionsShared.ts` | low |
-| Doctor UI | `RecommendationForm.tsx`, `RecommendationsPageClient.tsx`, `RecommendationForm.test.tsx` | low |
-| SSR страница списка | `recommendations/page.tsx`, `recommendationCatalogSsrQuery.ts` | low |
-| API | `api/doctor/recommendations/route.ts`, `[id]/route.ts` | low |
-| Доки / лог | `LOG.md`, `STAGE_B4_PLAN.md` | low |
+| Область             | Файлы                                                                                    | Risk                          |
+| ------------------- | ---------------------------------------------------------------------------------------- | ----------------------------- |
+| Схема / миграция    | `db/schema/recommendations.ts`, `relations.ts`, `0036_*.sql`, `_journal.json`            | low при применённом `migrate` |
+| Домен / типы        | `recommendationDomain.ts`, `types.ts`, `service.ts`                                      | low                           |
+| Репозитории         | `pgRecommendations.ts`, `inMemoryRecommendations.ts`                                     | low                           |
+| Server actions      | `actionsShared.ts`                                                                       | low                           |
+| Doctor UI           | `RecommendationForm.tsx`, `RecommendationsPageClient.tsx`, `RecommendationForm.test.tsx` | low                           |
+| SSR страница списка | `recommendations/page.tsx`, `recommendationCatalogSsrQuery.ts`                           | low                           |
+| API                 | `api/doctor/recommendations/route.ts`, `[id]/route.ts`                                   | low                           |
+| Доки / лог          | `LOG.md`, `STAGE_B4_PLAN.md`                                                             | low                           |
 
 ## 4. Architecture Rules Check
 
@@ -55,8 +55,8 @@
 
 ## 7. Data Migration / Backfill
 
-| Migration | Reversible? | Backfill? | Notes |
-|-----------|-------------|------------|--------|
+| Migration                                     | Reversible?                   | Backfill?                   | Notes                                                                                                                              |
+| --------------------------------------------- | ----------------------------- | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | `0036_recommendations_b4_body_region_metrics` | Да (DROP COLUMN / FK / index) | Нет (nullable по умолчанию) | Соответствует STAGE_B4: старые строки валидны с `NULL` регионом/метриками; **без** смешения/нормализации `domain` в этой миграции. |
 
 ## 8. Test Evidence (зафиксировано в `LOG.md` B4 EXEC)
@@ -120,7 +120,7 @@ pnpm exec tsc --noEmit
 
 ### critical
 
-*Нет.*
+_Нет._
 
 ### major — done
 
@@ -138,11 +138,11 @@ pnpm exec tsc --noEmit
 
 ## 13. FIX 2026-05-03 (закрытие AUDIT)
 
-| ID | Действие | Файлы |
-|----|----------|---------|
-| major | Парсер SSR query (domain + region UUID), не передавать невалидное в `listRecommendations` | `recommendationCatalogSsrQuery.ts`, `recommendationCatalogSsrQuery.test.ts`, `recommendations/page.tsx` |
-| major | Баннер **`invalidDomainQuery`** на каталоге (исторически также оформлялся `invalidRegionQuery` для региона — снят в FILTER URL tails III) | `RecommendationsPageClient.tsx` |
-| minor | Документация API `invalid_query` + контракт `domain` | `api.md` — эволюция D3 (read tolerant), см. [`AUDIT_STAGE_D3.md`](AUDIT_STAGE_D3.md) FIX |
+| ID    | Действие                                                                                                                                  | Файлы                                                                                                   |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| major | Парсер SSR query (domain + region UUID), не передавать невалидное в `listRecommendations`                                                 | `recommendationCatalogSsrQuery.ts`, `recommendationCatalogSsrQuery.test.ts`, `recommendations/page.tsx` |
+| major | Баннер **`invalidDomainQuery`** на каталоге (исторически также оформлялся `invalidRegionQuery` для региона — снят в FILTER URL tails III) | `RecommendationsPageClient.tsx`                                                                         |
+| minor | Документация API `invalid_query` + контракт `domain`                                                                                      | `api.md` — эволюция D3 (read tolerant), см. [`AUDIT_STAGE_D3.md`](AUDIT_STAGE_D3.md) FIX                |
 
 ---
 
@@ -162,8 +162,8 @@ pnpm exec tsc --noEmit
 
 ## 16. FIX defer-closure 2026-05-03 (standalone recommendations + docs sync)
 
-| Действие | Файлы |
-|----------|--------|
-| Сборка query каталога из объекта preserve | [`recommendationsListPreserveParams.ts`](../../../../apps/webapp/src/app/app/doctor/recommendations/recommendationsListPreserveParams.ts) — `appendRecommendationsCatalogFiltersToSearchParams`; тест в [`recommendationsListPreserveParams.test.ts`](../../../../apps/webapp/src/app/app/doctor/recommendations/recommendationsListPreserveParams.test.ts) |
-| Standalone SSR: `searchParams` → `workspaceListPreserve` + `backHref` | [`recommendations/[id]/page.tsx`](../../../../apps/webapp/src/app/app/doctor/recommendations/[id]/page.tsx) |
-| Redirect после save / archive / unarchive + preserve при ошибке archive без id | [`actions.ts`](../../../../apps/webapp/src/app/app/doctor/recommendations/actions.ts) — `appendListPreserveFromFormData` |
+| Действие                                                                       | Файлы                                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Сборка query каталога из объекта preserve                                      | [`recommendationsListPreserveParams.ts`](../../../../apps/webapp/src/app/app/doctor/recommendations/recommendationsListPreserveParams.ts) — `appendRecommendationsCatalogFiltersToSearchParams`; тест в [`recommendationsListPreserveParams.test.ts`](../../../../apps/webapp/src/app/app/doctor/recommendations/recommendationsListPreserveParams.test.ts) |
+| Standalone SSR: `searchParams` → `workspaceListPreserve` + `backHref`          | [`recommendations/[id]/page.tsx`](../../../../apps/webapp/src/app/app/doctor/recommendations/[id]/page.tsx)                                                                                                                                                                                                                                                 |
+| Redirect после save / archive / unarchive + preserve при ошибке archive без id | [`actions.ts`](../../../../apps/webapp/src/app/app/doctor/recommendations/actions.ts) — `appendListPreserveFromFormData`                                                                                                                                                                                                                                    |

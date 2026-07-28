@@ -1,4 +1,5 @@
 # Code Audit 1 — SCH-R-01, SCH-R-07, SCH-R-02, SCH-R-03, QW-C8
+
 **Date:** 2026-06-19  
 **Auditor:** code-auditor-1  
 **Branch:** `auto/qw-c8`  
@@ -15,6 +16,7 @@
 **PASS**
 
 `apps/webapp/src/app/app/doctor/schedule/tabs/ScheduleWorkTab.tsx` line 435:
+
 ```ts
 const [workingHours, setWorkingHours] = useState<WorkingHoursRow[]>([]);
 ```
@@ -26,6 +28,7 @@ const [workingHours, setWorkingHours] = useState<WorkingHoursRow[]>([]);
 **PASS**
 
 `loadWorkingHours` is added to three call sites:
+
 - Line 564: the primary `useEffect` that fires when `specialistId` is ready (together with `loadMonth` and `loadTemplates`)
 - Line 571: re-activation refresh (`isActive` changes)
 - Line 579: branch-filter change effect (`gridBranchFilter` changes)
@@ -53,14 +56,16 @@ The state is added alongside existing `dayRecords`/`templates`. No existing `use
 **PASS**
 
 `apps/webapp/src/app/api/admin/booking-engine/working-hours/route.ts` lines 32–33:
+
 ```ts
-const weekdayRaw = url.searchParams.get("weekday");
+const weekdayRaw = url.searchParams.get('weekday');
 const weekdayFilter = weekdayRaw != null ? parseInt(weekdayRaw, 10) : undefined;
 ```
 
 `weekdayFilter` is passed to `deps.bookingScheduling.listWorkingHoursAdmin({ ..., weekday: weekdayFilter })`.
 
 `apps/webapp/src/infra/repos/pgBookingScheduling.ts` line 417:
+
 ```ts
 if (weekday != null) conds.push(eq(beWh.weekday, weekday));
 ```
@@ -74,6 +79,7 @@ Drizzle-only, no raw SQL. The filter is correctly propagated through the port (`
 **FAIL** — `pgBookingScheduling.ts` lines 438–462
 
 The implementation performs two sequential awaits:
+
 ```ts
 if (input.replace) {
   await db.update(beWh).set({ isActive: false, ... }).where(and(...deactConds));
@@ -117,6 +123,7 @@ Changes are inside `createPgBookingSchedulingPort` (existing factory). `beWh` ta
 **PASS**
 
 Logic:
+
 1. If `record.isClosed` → `{ source: "closed" }`
 2. If `record.startMinute != null && record.endMinute != null` → `{ source: "override", ... }`
 3. Otherwise (record present but no schedule, or no record) → fall through to weekday template lookup
@@ -170,6 +177,7 @@ Lines 347–352: fallback block `{!effectiveHours && hasSchedule && ...}` preser
 **PASS**
 
 Array `[1, 2, 3, 4, 5, 6, 0]` at lines 616 and 901:
+
 - col 0 → 1 (Mon, Пн) ✓
 - col 5 → 6 (Sat, Сб) ✓
 - col 6 → 0 (Sun, Вс) ✓
@@ -181,9 +189,10 @@ The filter inside `handleWeekdayHeaderClick` (lines 628–632) computes `luxonWd
 **PASS**
 
 Lines 617–622:
+
 ```ts
-if (selectedWeekday === wd && selectionMode === "weekday") {
-  setSelectionMode("dates");
+if (selectedWeekday === wd && selectionMode === 'weekday') {
+  setSelectionMode('dates');
   setSelectedWeekday(null);
   setSelected(new Set());
   return;
@@ -197,8 +206,9 @@ Re-clicking same weekday when `selectionMode === "weekday"` clears selection. A 
 **PASS**
 
 `toggleDay` callback (lines 607–609):
+
 ```ts
-setSelectionMode("dates");
+setSelectionMode('dates');
 setSelectedWeekday(null);
 ```
 
@@ -229,11 +239,13 @@ Both are properly typed and initialized.
 **PASS**
 
 `CabinetActiveBookings.tsx` line 6:
+
 ```ts
-import { isSafeExternalHref } from "@/lib/url/isSafeExternalHref";
+import { isSafeExternalHref } from '@/lib/url/isSafeExternalHref';
 ```
 
 The function exists at `apps/webapp/src/lib/url/isSafeExternalHref.ts` (verified). Used at line 156:
+
 ```ts
 href={isSafeExternalHref(googleCalendarUrl(row)) ? googleCalendarUrl(row) : "#"}
 ```
@@ -247,6 +259,7 @@ The Google Calendar URL always starts with `https://calendar.google.com/...` so 
 `slotStart` is stored via `toIsoStringSafe(row.slot_start)` which always calls `.toISOString()` on the JS `Date` from node-pg (timestamptz). `.toISOString()` returns `YYYY-MM-DDTHH:mm:ss.sssZ`.
 
 `fmtCalDate` applies:
+
 1. `.replace(/[-:]/g, "")` → removes hyphens and colons
 2. `.replace(/\.\d{3}/, "")` → removes milliseconds
 
@@ -269,6 +282,7 @@ QUEUE.md (the authoritative source) explicitly states: `"email/Yandex out of sco
 **PASS with minor findings**
 
 Generated ICS structure:
+
 ```
 BEGIN:VCALENDAR\r\n
 VERSION:2.0\r\n
@@ -314,13 +328,13 @@ END:VCALENDAR
 
 ## Summary
 
-| Item | Verdict | Defects |
-|------|---------|---------|
-| SCH-R-01 | **PASS** | 0 |
-| SCH-R-07 | **FAIL** | 1 |
-| SCH-R-02 | **PASS** | 0 |
-| SCH-R-03 | **PASS** | 0 |
-| QW-C8 | **PASS** | 0 (2 non-blocking RFC notes) |
+| Item     | Verdict  | Defects                      |
+| -------- | -------- | ---------------------------- |
+| SCH-R-01 | **PASS** | 0                            |
+| SCH-R-07 | **FAIL** | 1                            |
+| SCH-R-02 | **PASS** | 0                            |
+| SCH-R-03 | **PASS** | 0                            |
+| QW-C8    | **PASS** | 0 (2 non-blocking RFC notes) |
 
 **OVERALL VERDICT: FAIL — 1 defect**
 
@@ -334,9 +348,10 @@ END:VCALENDAR
 **File:** `apps/webapp/src/infra/repos/pgBookingScheduling.ts`  
 **Lines:** 438–462  
 **Description:** The `createWorkingHours` implementation with `replace=true` executes `db.update(...)` (deactivate old rows) followed by `db.insert(...)` (insert new row) as two separate awaits outside any transaction. If the insert fails after the update succeeds, all existing active rows for the given weekday/specialist/branch are deactivated with no replacement, silently losing the weekday template.  
-**Fix:** Wrap both operations in `db.transaction(async (tx) => { await tx.update(...); await tx.insert(...); })`.  
+**Fix:** Wrap both operations in `db.transaction(async (tx) => { await tx.update(...); await tx.insert(...); })`.
 
 Example pattern already used in this codebase (`pgClinicalTests.ts:388`):
+
 ```ts
 return await db.transaction(async (tx) => {
   await tx.update(beWh).set({ isActive: false, ... }).where(and(...deactConds));

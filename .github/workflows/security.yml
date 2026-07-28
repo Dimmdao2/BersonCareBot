@@ -9,16 +9,16 @@ name: Security
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
 
 permissions:
   contents: read
 
 env:
-  GITLEAKS_VERSION: "8.18.4"
-  SEMGREP_IMAGE: "semgrep/semgrep:1.85.0"
-  TRIVY_ACTION_REF: "0.28.0"
+  GITLEAKS_VERSION: '8.18.4'
+  SEMGREP_IMAGE: 'semgrep/semgrep:1.85.0'
+  TRIVY_ACTION_REF: '0.28.0'
 
 jobs:
   # --- Secret scanning ----------------------------------------------------------------------
@@ -156,7 +156,7 @@ jobs:
           scanners: vuln,misconfig,secret
           severity: HIGH,CRITICAL
           ignore-unfixed: true
-          exit-code: "1"
+          exit-code: '1'
           trivyignores: .trivyignore
           format: table
 

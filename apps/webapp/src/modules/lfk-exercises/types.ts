@@ -1,14 +1,14 @@
-import type { MediaPreviewStatus } from "@/modules/media/types";
-import type { RecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
+import type { MediaPreviewStatus } from '@/modules/media/types';
+import type { RecommendationListFilterScope } from '@/shared/lib/doctorCatalogListStatus';
 
-import { mergeCatalogBodyRegionIds } from "@/shared/lib/mergeCatalogBodyRegionIds";
+import { mergeCatalogBodyRegionIds } from '@/shared/lib/mergeCatalogBodyRegionIds';
 
 /** Код из справочника `load_type` (`reference_items`); не ограничивать union — админка добавляет значения. */
 export type ExerciseLoadType = string;
 
-export type ExerciseMediaType = "image" | "video" | "gif";
-export type ExerciseOwnerKind = "organization" | "platform";
-export type ExerciseCatalogScope = "catalog" | "personal";
+export type ExerciseMediaType = 'image' | 'video' | 'gif';
+export type ExerciseOwnerKind = 'organization' | 'platform';
+export type ExerciseCatalogScope = 'catalog' | 'personal';
 
 export type ExerciseMedia = {
   id: string;
@@ -101,9 +101,9 @@ export const EXERCISE_USAGE_DETAIL_LIMIT = 12;
 
 /** Одна ссылка «где используется» (id — id сущности в БД, кроме назначения ЛФК: там id строки назначения для ключа в UI). */
 export type ExerciseUsageRef =
-  | { kind: "lfk_complex_template" | "treatment_program_template"; id: string; title: string }
+  | { kind: 'lfk_complex_template' | 'treatment_program_template'; id: string; title: string }
   | {
-      kind: "treatment_program_instance" | "patient_lfk_assignment_client";
+      kind: 'treatment_program_instance' | 'patient_lfk_assignment_client';
       id: string;
       title: string;
       patientUserId: string;

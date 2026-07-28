@@ -10,9 +10,9 @@
 
 ## Два трека (раздельное исполнение)
 
-| Трек | Папка |
-|------|--------|
-| Test optimization | [`test-api-di-optimization/test-optimization/`](../test-api-di-optimization/test-optimization/PLAN.md) |
+| Трек                     | Папка                                                                                                                          |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| Test optimization        | [`test-api-di-optimization/test-optimization/`](../test-api-di-optimization/test-optimization/PLAN.md)                         |
 | API DI / import-boundary | [`test-api-di-optimization/api-di-boundary-normalization/`](../test-api-di-optimization/api-di-boundary-normalization/PLAN.md) |
 
 ## Промпты для агента (копипаста)

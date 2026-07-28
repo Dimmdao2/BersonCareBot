@@ -1,6 +1,6 @@
 ---
 name: Operator health alerting wave 2
-overview: "Wave 2: dispatchOperatorAlert, critical tick, digest 1x/day digestTime 09:00, per-block channels, account_conflicts one checkbox. PHASE E superseded."
+overview: 'Wave 2: dispatchOperatorAlert, critical tick, digest 1x/day digestTime 09:00, per-block channels, account_conflicts one checkbox. PHASE E superseded.'
 status: completed
 todos:
   - id: w0-dispatcher
@@ -25,7 +25,7 @@ todos:
     content: 4.1–4.3 PHASE B/C/F — probes TG/GCal, webhook last-status, UI integrations block
     status: completed
   - id: w-final-ci
-    content: "DoD Wave 2: api.md, LOG waves, pnpm run ci green"
+    content: 'DoD Wave 2: api.md, LOG waves, pnpm run ci green'
     status: completed
 isProject: false
 ---
@@ -48,14 +48,14 @@ isProject: false
 
 ## Волны
 
-| ID | Волна | DoD |
-|----|-------|-----|
-| w0-* | 0 Фундамент | §8.0 ROADMAP |
-| w1-critical | 1 Critical | §8.1 |
-| w2-digest | 2 Digest ⚠️/✅ | §8.2 |
-| w3-hooks | 3 Hooks + recovery в сводке | §8.3 |
-| w4-integrations | 4 B/C/F | §8.4 |
-| w-final-ci | Финал | §9 ROADMAP |
+| ID              | Волна                       | DoD          |
+| --------------- | --------------------------- | ------------ |
+| w0-\*           | 0 Фундамент                 | §8.0 ROADMAP |
+| w1-critical     | 1 Critical                  | §8.1         |
+| w2-digest       | 2 Digest ⚠️/✅              | §8.2         |
+| w3-hooks        | 3 Hooks + recovery в сводке | §8.3         |
+| w4-integrations | 4 B/C/F                     | §8.4         |
+| w-final-ci      | Финал                       | §9 ROADMAP   |
 
 ---
 

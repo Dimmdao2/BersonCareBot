@@ -1,14 +1,14 @@
-import { DateTime } from "luxon";
-import type { ReferencesPort } from "@/modules/references/ports";
-import { isWellbeingGeneralMirrorNote } from "@/modules/diaries/wellbeingGeneralMirrorNote";
-import type { SymptomEntry } from "@/modules/diaries/types";
-import type { createSymptomDiaryService } from "@/modules/diaries/symptom-service";
-import { getMoodDateForTimeZone } from "./moodDate";
+import { DateTime } from 'luxon';
+import type { ReferencesPort } from '@/modules/references/ports';
+import { isWellbeingGeneralMirrorNote } from '@/modules/diaries/wellbeingGeneralMirrorNote';
+import type { SymptomEntry } from '@/modules/diaries/types';
+import type { createSymptomDiaryService } from '@/modules/diaries/symptom-service';
+import { getMoodDateForTimeZone } from './moodDate';
 import {
   GENERAL_WELLBEING_SYMPTOM_KEY,
   GENERAL_WELLBEING_TITLE,
   WELLBEING_REPLACE_LAST_MAX_MS,
-} from "./wellbeingConstants";
+} from './wellbeingConstants';
 import type {
   PatientMoodCheckinState,
   PatientMoodIntent,
@@ -18,12 +18,12 @@ import type {
   PatientMoodToday,
   PatientMoodWeekDay,
   PatientMoodWeekSparkline,
-} from "./types";
-import { isPatientMoodScore } from "./types";
+} from './types';
+import { isPatientMoodScore } from './types';
 
 type SymptomDiary = ReturnType<typeof createSymptomDiaryService>;
 
-const WARMUP_FEELING_SYMPTOM_TYPE_CODE = "warmup_feeling";
+const WARMUP_FEELING_SYMPTOM_TYPE_CODE = 'warmup_feeling';
 
 export type PatientWellbeingMoodDeps = {
   diaries: SymptomDiary;
@@ -31,11 +31,11 @@ export type PatientWellbeingMoodDeps = {
 };
 
 function localDayRangeUtcIso(tz: string, localYmd: string): { from: string; toExclusive: string } {
-  const start = DateTime.fromISO(localYmd, { zone: tz }).startOf("day");
+  const start = DateTime.fromISO(localYmd, { zone: tz }).startOf('day');
   const end = start.plus({ days: 1 });
   const from = start.toUTC().toISO();
   const toExclusive = end.toUTC().toISO();
-  if (!from || !toExclusive) throw new Error("wellbeing_local_day_range");
+  if (!from || !toExclusive) throw new Error('wellbeing_local_day_range');
   return { from, toExclusive };
 }
 
@@ -50,9 +50,9 @@ function averageMoodScores(vals: PatientMoodScore[]): PatientMoodScore {
 
 export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
   async function wellbeingTypeRefId(): Promise<string> {
-    const items = await deps.references.listActiveItemsByCategoryCode("symptom_type");
+    const items = await deps.references.listActiveItemsByCategoryCode('symptom_type');
     const item = items.find((i) => i.code === GENERAL_WELLBEING_SYMPTOM_KEY);
-    if (!item) throw new Error("general_wellbeing_reference_missing");
+    if (!item) throw new Error('general_wellbeing_reference_missing');
     return item.id;
   }
 
@@ -67,22 +67,25 @@ export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
   }
 
   async function tryWarmupFeelingTrackingId(userId: string): Promise<string | null> {
-    const items = await deps.references.listActiveItemsByCategoryCode("symptom_type");
+    const items = await deps.references.listActiveItemsByCategoryCode('symptom_type');
     const item = items.find((i) => i.code === WARMUP_FEELING_SYMPTOM_TYPE_CODE);
     if (!item) return null;
     const t = await deps.diaries.ensureWarmupFeelingTracking({
       userId,
-      symptomTitle: item.title?.trim() || "Самочувствие после разминки",
+      symptomTitle: item.title?.trim() || 'Самочувствие после разминки',
       symptomTypeRefId: item.id,
     });
     return t.id;
   }
 
-  async function getLatestWellbeingEntry(userId: string, trackingId: string): Promise<PatientMoodLastEntry | null> {
+  async function getLatestWellbeingEntry(
+    userId: string,
+    trackingId: string,
+  ): Promise<PatientMoodLastEntry | null> {
     const list = await deps.diaries.listSymptomEntriesForUserInRange({
       userId,
       fromRecordedAt: new Date(0).toISOString(),
-      toRecordedAtExclusive: new Date("2099-01-01").toISOString(),
+      toRecordedAtExclusive: new Date('2099-01-01').toISOString(),
       trackingId,
       limit: 1,
     });
@@ -119,9 +122,9 @@ export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
     const moodDate = getMoodDateForTimeZone(tz);
     const todayEntry = await getLatestEntryOnLocalDay(userId, trackingId, tz, moodDate);
     const mood: PatientMoodToday | null =
-      todayEntry && toMoodScore(todayEntry.value0_10) != null ?
-        { moodDate, score: todayEntry.value0_10 as PatientMoodScore }
-      : null;
+      todayEntry && toMoodScore(todayEntry.value0_10) != null
+        ? { moodDate, score: todayEntry.value0_10 as PatientMoodScore }
+        : null;
     return { mood, lastEntry };
   }
 
@@ -140,7 +143,7 @@ export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
     let best: SymptomEntry | null = null;
     let bestT = -Infinity;
     for (const e of entries) {
-      if (e.entryType !== "instant") continue;
+      if (e.entryType !== 'instant') continue;
       const t = new Date(e.recordedAt).getTime();
       if (t > nowMs) continue;
       if (t >= bestT) {
@@ -165,7 +168,7 @@ export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
       toRecordedAtExclusive: new Date(nowMs + 1).toISOString(),
     });
     for (const e of entries) {
-      if (e.entryType !== "instant") continue;
+      if (e.entryType !== 'instant') continue;
       if (isWellbeingGeneralMirrorNote(e.notes)) continue;
       if (new Date(e.recordedAt).getTime() > t0) return true;
     }
@@ -180,7 +183,7 @@ export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
     nowMs: number = Date.now(),
   ): Promise<PatientMoodSubmitResult> {
     if (!Number.isInteger(score) || !isPatientMoodScore(score)) {
-      return { ok: false, error: "invalid_score" };
+      return { ok: false, error: 'invalid_score' };
     }
     const trackingId = await ensureWellbeingTracking(userId);
     const last = await getLatestWellbeingEntry(userId, trackingId);
@@ -191,9 +194,9 @@ export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
         userId,
         trackingId,
         value0_10: score,
-        entryType: "instant",
+        entryType: 'instant',
         recordedAt: nowIso,
-        source: "webapp",
+        source: 'webapp',
         notes: null,
       });
       return { ok: true, ...(await getCheckinState(userId, tz)) };
@@ -224,9 +227,9 @@ export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
           userId,
           trackingId,
           value0_10: score,
-          entryType: "instant",
+          entryType: 'instant',
           recordedAt: nowIso,
-          source: "webapp",
+          source: 'webapp',
           notes: null,
         });
         return { ok: true, ...(await getCheckinState(userId, tz)) };
@@ -236,7 +239,7 @@ export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
         userId,
         entryId: last.id,
         value0_10: score,
-        entryType: "instant",
+        entryType: 'instant',
         recordedAt: last.recordedAt,
         notes: last.notes ?? null,
       });
@@ -247,9 +250,9 @@ export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
       userId,
       trackingId,
       value0_10: score,
-      entryType: "instant",
+      entryType: 'instant',
       recordedAt: nowIso,
-      source: "webapp",
+      source: 'webapp',
       notes: null,
     });
     return { ok: true, ...(await getCheckinState(userId, tz)) };
@@ -258,7 +261,7 @@ export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
   async function getWeekSparkline(userId: string, tz: string): Promise<PatientMoodWeekSparkline> {
     const trackingId = await ensureWellbeingTracking(userId);
     const today = DateTime.now().setZone(tz);
-    const monday = today.minus({ days: today.weekday - 1 }).startOf("day");
+    const monday = today.minus({ days: today.weekday - 1 }).startOf('day');
     const prevMonday = monday.minus({ weeks: 1 });
     const dayKeys: string[] = [];
     for (let i = 0; i < 7; i += 1) {
@@ -294,8 +297,8 @@ export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
     const dayKeySet = new Set(queryDayKeys);
     const byDay = new Map<string, PatientMoodScore[]>();
     for (const e of entries) {
-      if (e.entryType !== "instant") continue;
-      const localD = DateTime.fromISO(e.recordedAt, { zone: "utc" }).setZone(tz).toISODate();
+      if (e.entryType !== 'instant') continue;
+      const localD = DateTime.fromISO(e.recordedAt, { zone: 'utc' }).setZone(tz).toISODate();
       if (!localD || !dayKeySet.has(localD)) continue;
       const sc = toMoodScore(e.value0_10);
       if (sc == null) continue;
@@ -316,9 +319,9 @@ export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
     });
 
     const weekMarks = entries
-      .filter((e) => e.entryType === "instant")
+      .filter((e) => e.entryType === 'instant')
       .map((e) => {
-        const localD = DateTime.fromISO(e.recordedAt, { zone: "utc" }).setZone(tz).toISODate();
+        const localD = DateTime.fromISO(e.recordedAt, { zone: 'utc' }).setZone(tz).toISODate();
         if (!localD || !dayKeys.includes(localD)) return null;
         const sc = toMoodScore(e.value0_10);
         if (sc == null) return null;
@@ -334,8 +337,8 @@ export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
     let lastScoreBeforeWeek: PatientMoodScore | null = null;
     let lastBeforeWeekMs = -1;
     for (const e of entries) {
-      if (e.entryType !== "instant") continue;
-      const localD = DateTime.fromISO(e.recordedAt, { zone: "utc" }).setZone(tz).toISODate();
+      if (e.entryType !== 'instant') continue;
+      const localD = DateTime.fromISO(e.recordedAt, { zone: 'utc' }).setZone(tz).toISODate();
       if (!localD) continue;
       const sc = toMoodScore(e.value0_10);
       if (sc == null) continue;
@@ -368,7 +371,7 @@ export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
     dayCount: number = 3,
   ): Promise<PatientMoodWeekSparkline> {
     const trackingId = await ensureWellbeingTracking(userId);
-    const today = DateTime.now().setZone(tz).startOf("day");
+    const today = DateTime.now().setZone(tz).startOf('day');
     const windowStart = today.minus({ days: dayCount - 1 });
     const dayKeys: string[] = [];
     for (let i = 0; i < dayCount; i += 1) {
@@ -400,8 +403,8 @@ export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
     const dayKeySet = new Set([...(anchorDayIso ? [anchorDayIso] : []), ...dayKeys]);
     const byDay = new Map<string, PatientMoodScore[]>();
     for (const e of entries) {
-      if (e.entryType !== "instant") continue;
-      const localD = DateTime.fromISO(e.recordedAt, { zone: "utc" }).setZone(tz).toISODate();
+      if (e.entryType !== 'instant') continue;
+      const localD = DateTime.fromISO(e.recordedAt, { zone: 'utc' }).setZone(tz).toISODate();
       if (!localD || !dayKeySet.has(localD)) continue;
       const sc = toMoodScore(e.value0_10);
       if (sc == null) continue;
@@ -422,9 +425,9 @@ export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
     });
 
     const windowMarks = entries
-      .filter((e) => e.entryType === "instant")
+      .filter((e) => e.entryType === 'instant')
       .map((e) => {
-        const localD = DateTime.fromISO(e.recordedAt, { zone: "utc" }).setZone(tz).toISODate();
+        const localD = DateTime.fromISO(e.recordedAt, { zone: 'utc' }).setZone(tz).toISODate();
         if (!localD || !dayKeys.includes(localD)) return null;
         const sc = toMoodScore(e.value0_10);
         if (sc == null) return null;
@@ -439,8 +442,8 @@ export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
     let lastScoreBeforeWindow: PatientMoodScore | null = null;
     let lastBeforeWindowMs = -1;
     for (const e of entries) {
-      if (e.entryType !== "instant") continue;
-      const localD = DateTime.fromISO(e.recordedAt, { zone: "utc" }).setZone(tz).toISODate();
+      if (e.entryType !== 'instant') continue;
+      const localD = DateTime.fromISO(e.recordedAt, { zone: 'utc' }).setZone(tz).toISODate();
       if (!localD) continue;
       const sc = toMoodScore(e.value0_10);
       if (sc == null) continue;

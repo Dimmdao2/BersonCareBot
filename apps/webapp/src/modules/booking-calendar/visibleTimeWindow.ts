@@ -1,20 +1,23 @@
-import { DateTime } from "luxon";
-import type { CalendarEvent } from "@/modules/booking-calendar/types";
+import { DateTime } from 'luxon';
+import type { CalendarEvent } from '@/modules/booking-calendar/types';
 
 export const DEFAULT_CALENDAR_WINDOW_MIN = 9 * 60;
 export const DEFAULT_CALENDAR_WINDOW_MAX = 19 * 60;
 
-export type CalendarVisibleWindowEvent = Pick<CalendarEvent, "kind" | "startAt" | "endAt">;
+export type CalendarVisibleWindowEvent = Pick<CalendarEvent, 'kind' | 'startAt' | 'endAt'>;
 
-export type CalendarVisibleWindowBounds = {
-  minMinute: number;
-  maxMinute: number;
-} | null | undefined;
+export type CalendarVisibleWindowBounds =
+  | {
+      minMinute: number;
+      maxMinute: number;
+    }
+  | null
+  | undefined;
 
 function minuteToHHMM(minute: number): string {
   const h = Math.floor(minute / 60);
   const m = minute % 60;
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
 }
 
 function parseCalendarInstant(value: string, zone: string): DateTime {
@@ -45,7 +48,7 @@ export function deriveCalendarVisibleTimeWindow(
   }
 
   for (const event of events ?? []) {
-    if (event.kind !== "appointment" && event.kind !== "block") continue;
+    if (event.kind !== 'appointment' && event.kind !== 'block') continue;
     const start = parseCalendarInstant(event.startAt, timeZone);
     const end = parseCalendarInstant(event.endAt, timeZone);
     if (start.isValid) {

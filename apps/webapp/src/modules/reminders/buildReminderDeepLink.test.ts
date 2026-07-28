@@ -1,65 +1,65 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from 'vitest';
 
-vi.mock("@/modules/system-settings/integrationRuntime", () => ({
-  getAppBaseUrlSync: () => "https://app.example",
+vi.mock('@/modules/system-settings/integrationRuntime', () => ({
+  getAppBaseUrlSync: () => 'https://app.example',
 }));
 
-import { buildReminderDeepLink } from "./buildReminderDeepLink";
+import { buildReminderDeepLink } from './buildReminderDeepLink';
 
-describe("buildReminderDeepLink", () => {
-  it("warmup intent uses go daily-warmup URL", () => {
+describe('buildReminderDeepLink', () => {
+  it('warmup intent uses go daily-warmup URL', () => {
     expect(
       buildReminderDeepLink({
-        linkedObjectType: "content_section",
-        linkedObjectId: "warmups",
-        reminderIntent: "warmup",
+        linkedObjectType: 'content_section',
+        linkedObjectId: 'warmups',
+        reminderIntent: 'warmup',
       }),
-    ).toBe("https://app.example/app/patient/go/daily-warmup?from=reminder");
+    ).toBe('https://app.example/app/patient/go/daily-warmup?from=reminder');
   });
 
-  it("carries the exact reminder organization into a go URL", () => {
+  it('carries the exact reminder organization into a go URL', () => {
     expect(
       buildReminderDeepLink({
-        linkedObjectType: "rehab_program",
-        linkedObjectId: "program-a",
-        reminderIntent: "exercises",
-        organizationId: "11111111-1111-4111-8111-111111111111",
+        linkedObjectType: 'rehab_program',
+        linkedObjectId: 'program-a',
+        reminderIntent: 'exercises',
+        organizationId: '11111111-1111-4111-8111-111111111111',
       }),
     ).toBe(
-      "https://app.example/app/patient/go/plan-start-lesson?from=reminder&organizationId=11111111-1111-4111-8111-111111111111",
+      'https://app.example/app/patient/go/plan-start-lesson?from=reminder&organizationId=11111111-1111-4111-8111-111111111111',
     );
   });
 
-  it("generic intent + warmups section slug uses go daily-warmup URL (legacy rules)", () => {
+  it('generic intent + warmups section slug uses go daily-warmup URL (legacy rules)', () => {
     expect(
       buildReminderDeepLink({
-        linkedObjectType: "content_section",
-        linkedObjectId: "warmups",
-        reminderIntent: "generic",
+        linkedObjectType: 'content_section',
+        linkedObjectId: 'warmups',
+        reminderIntent: 'generic',
       }),
-    ).toBe("https://app.example/app/patient/go/daily-warmup?from=reminder");
+    ).toBe('https://app.example/app/patient/go/daily-warmup?from=reminder');
   });
 
-  it("generic intent + renamed warmups slug via warmupsSectionSlugs uses go URL", () => {
+  it('generic intent + renamed warmups slug via warmupsSectionSlugs uses go URL', () => {
     expect(
       buildReminderDeepLink(
         {
-          linkedObjectType: "content_section",
-          linkedObjectId: "razminki",
-          reminderIntent: "generic",
+          linkedObjectType: 'content_section',
+          linkedObjectId: 'razminki',
+          reminderIntent: 'generic',
         },
-        { warmupsSectionSlugs: new Set(["razminki"]) },
+        { warmupsSectionSlugs: new Set(['razminki']) },
       ),
-    ).toBe("https://app.example/app/patient/go/daily-warmup?from=reminder");
+    ).toBe('https://app.example/app/patient/go/daily-warmup?from=reminder');
   });
 
-  it("generic intent + non-warmups section uses section list URL", () => {
+  it('generic intent + non-warmups section uses section list URL', () => {
     expect(
       buildReminderDeepLink({
-        linkedObjectType: "content_section",
-        linkedObjectId: "lessons",
-        reminderIntent: "generic",
+        linkedObjectType: 'content_section',
+        linkedObjectId: 'lessons',
+        reminderIntent: 'generic',
       }),
-    ).toBe("https://app.example/app/patient/sections/lessons?from=reminder");
+    ).toBe('https://app.example/app/patient/sections/lessons?from=reminder');
   });
 });

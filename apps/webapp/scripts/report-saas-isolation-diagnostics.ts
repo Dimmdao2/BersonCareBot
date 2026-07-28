@@ -1,32 +1,33 @@
-import { pathToFileURL } from "node:url";
+import { pathToFileURL } from 'node:url';
 import {
   SAAS_ISOLATION_EVENT_CLASSES,
   SAAS_ISOLATION_SOURCE_OPERATIONS,
   SAAS_ISOLATION_SOURCE_SERVICES,
   type RecordSaasIsolationCoverageInput,
   type ReportSaasIsolationEventInput,
-} from "../src/modules/operator-health/saasIsolationDiagnostics";
-import { runtimeSaasIsolationDiagnostics } from "../src/infra/saasIsolationReporterRuntime";
-import { getSaasIsolationOperatorPool } from "../src/infra/db/saasIsolationTelemetry";
+} from '../src/modules/operator-health/saasIsolationDiagnostics';
+import { runtimeSaasIsolationDiagnostics } from '../src/infra/saasIsolationReporterRuntime';
+import { getSaasIsolationOperatorPool } from '../src/infra/db/saasIsolationTelemetry';
 import {
   createSaasIsolationPostRuntimeGateDeps,
   runSaasIsolationPostRuntimeGate,
-} from "../src/modules/operator-health/saasIsolationPostRuntimeGate";
+} from '../src/modules/operator-health/saasIsolationPostRuntimeGate';
 
-const TEST_SCENARIOS = ["clean", "okay", "incomplete", "critical"] as const;
+const TEST_SCENARIOS = ['clean', 'okay', 'incomplete', 'critical'] as const;
 type TestScenario = (typeof TEST_SCENARIOS)[number];
 
 type Command =
-  | { kind: "event"; input: ReportSaasIsolationEventInput }
-  | { kind: "coverage"; input: RecordSaasIsolationCoverageInput }
-  | { kind: "scenario"; state: TestScenario }
-  | { kind: "post-runtime-gate"; startedAt: string; checksCount: number }
-  | { kind: "read" };
+  | { kind: 'event'; input: ReportSaasIsolationEventInput }
+  | { kind: 'coverage'; input: RecordSaasIsolationCoverageInput }
+  | { kind: 'scenario'; state: TestScenario }
+  | { kind: 'post-runtime-gate'; startedAt: string; checksCount: number }
+  | { kind: 'read' };
 
 function option(args: string[], name: string): string {
   const index = args.indexOf(name);
   const value = index >= 0 ? args[index + 1] : undefined;
-  if (!value || value.startsWith("--")) throw new Error(`missing_${name.slice(2).replaceAll("-", "_")}`);
+  if (!value || value.startsWith('--'))
+    throw new Error(`missing_${name.slice(2).replaceAll('-', '_')}`);
   return value;
 }
 
@@ -41,10 +42,10 @@ function assertKnownOptions(
   for (let index = 1; index < args.length; index += 1) {
     const argument = args[index]!;
     if ((!values.has(argument) && !flags.has(argument)) || seen.has(argument)) {
-      throw new Error("usage: event|coverage|scenario|post-runtime-gate|read");
+      throw new Error('usage: event|coverage|scenario|post-runtime-gate|read');
     }
     seen.add(argument);
-    if (values.has(argument) && args[index + 1] && !args[index + 1]!.startsWith("--")) {
+    if (values.has(argument) && args[index + 1] && !args[index + 1]!.startsWith('--')) {
       index += 1;
     }
   }
@@ -70,103 +71,110 @@ function iso(value: string, errorCode: string): string {
 
 function uuid(value: string): string {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)) {
-    throw new Error("invalid_id");
+    throw new Error('invalid_id');
   }
   return value;
 }
 
 export function parseSaasIsolationDiagnosticsCommand(rawArgs: string[]): Command {
-  const args = rawArgs[0] === "--" ? rawArgs.slice(1) : rawArgs;
+  const args = rawArgs[0] === '--' ? rawArgs.slice(1) : rawArgs;
   const command = args[0];
-  if (command === "read") {
+  if (command === 'read') {
     assertKnownOptions(args, []);
-    return { kind: "read" };
+    return { kind: 'read' };
   }
-  if (command === "scenario") {
-    assertKnownOptions(args, ["--state"]);
+  if (command === 'scenario') {
+    assertKnownOptions(args, ['--state']);
     return {
-      kind: "scenario",
-      state: enumValue(TEST_SCENARIOS, option(args, "--state"), "invalid_test_scenario"),
+      kind: 'scenario',
+      state: enumValue(TEST_SCENARIOS, option(args, '--state'), 'invalid_test_scenario'),
     };
   }
-  if (command === "post-runtime-gate") {
-    assertKnownOptions(args, ["--started-at", "--checks"]);
+  if (command === 'post-runtime-gate') {
+    assertKnownOptions(args, ['--started-at', '--checks']);
     return {
-      kind: "post-runtime-gate",
-      startedAt: iso(option(args, "--started-at"), "invalid_started_at"),
-      checksCount: nonNegativeInt(option(args, "--checks"), "invalid_checks"),
+      kind: 'post-runtime-gate',
+      startedAt: iso(option(args, '--started-at'), 'invalid_started_at'),
+      checksCount: nonNegativeInt(option(args, '--checks'), 'invalid_checks'),
     };
   }
-  if (command === "event") {
-    assertKnownOptions(args, ["--class", "--service", "--operation"], ["--explained"]);
+  if (command === 'event') {
+    assertKnownOptions(args, ['--class', '--service', '--operation'], ['--explained']);
     return {
-      kind: "event",
+      kind: 'event',
       input: {
-        eventClass: enumValue(SAAS_ISOLATION_EVENT_CLASSES, option(args, "--class"), "invalid_event_class"),
-        sourceService: enumValue(SAAS_ISOLATION_SOURCE_SERVICES, option(args, "--service"), "invalid_service"),
+        eventClass: enumValue(
+          SAAS_ISOLATION_EVENT_CLASSES,
+          option(args, '--class'),
+          'invalid_event_class',
+        ),
+        sourceService: enumValue(
+          SAAS_ISOLATION_SOURCE_SERVICES,
+          option(args, '--service'),
+          'invalid_service',
+        ),
         sourceOperation: enumValue(
           SAAS_ISOLATION_SOURCE_OPERATIONS,
-          option(args, "--operation"),
-          "invalid_operation",
+          option(args, '--operation'),
+          'invalid_operation',
         ),
-        explanationStatus: args.includes("--explained") ? "explained" : "unexplained",
+        explanationStatus: args.includes('--explained') ? 'explained' : 'unexplained',
       },
     };
   }
-  if (command === "coverage") {
+  if (command === 'coverage') {
     assertKnownOptions(args, [
-      "--id",
-      "--status",
-      "--started-at",
-      "--finished-at",
-      "--services",
-      "--checks",
-      "--unexpected",
+      '--id',
+      '--status',
+      '--started-at',
+      '--finished-at',
+      '--services',
+      '--checks',
+      '--unexpected',
     ]);
-    const services = option(args, "--services")
-      .split(",")
-      .map((value) => enumValue(SAAS_ISOLATION_SOURCE_SERVICES, value, "invalid_service"));
-    const status = option(args, "--status");
-    if (status !== "complete" && status !== "incomplete" && status !== "failed") {
-      throw new Error("invalid_coverage_status");
+    const services = option(args, '--services')
+      .split(',')
+      .map((value) => enumValue(SAAS_ISOLATION_SOURCE_SERVICES, value, 'invalid_service'));
+    const status = option(args, '--status');
+    if (status !== 'complete' && status !== 'incomplete' && status !== 'failed') {
+      throw new Error('invalid_coverage_status');
     }
     return {
-      kind: "coverage",
+      kind: 'coverage',
       input: {
-        id: uuid(option(args, "--id")),
+        id: uuid(option(args, '--id')),
         status,
-        startedAt: iso(option(args, "--started-at"), "invalid_started_at"),
-        finishedAt: iso(option(args, "--finished-at"), "invalid_finished_at"),
+        startedAt: iso(option(args, '--started-at'), 'invalid_started_at'),
+        finishedAt: iso(option(args, '--finished-at'), 'invalid_finished_at'),
         servicesChecked: services,
-        checksCount: nonNegativeInt(option(args, "--checks"), "invalid_checks"),
-        unexpectedErrorsCount: nonNegativeInt(option(args, "--unexpected"), "invalid_unexpected"),
+        checksCount: nonNegativeInt(option(args, '--checks'), 'invalid_checks'),
+        unexpectedErrorsCount: nonNegativeInt(option(args, '--unexpected'), 'invalid_unexpected'),
       },
     };
   }
-  throw new Error("usage: event|coverage|scenario|post-runtime-gate|read");
+  throw new Error('usage: event|coverage|scenario|post-runtime-gate|read');
 }
 
 async function main(): Promise<void> {
   const command = parseSaasIsolationDiagnosticsCommand(process.argv.slice(2));
-  if (command.kind === "event") {
+  if (command.kind === 'event') {
     await runtimeSaasIsolationDiagnostics.report(command.input);
-    process.stdout.write("recorded\n");
+    process.stdout.write('recorded\n');
     return;
   }
-  if (command.kind === "coverage") {
+  if (command.kind === 'coverage') {
     await runtimeSaasIsolationDiagnostics.recordCoverage(command.input);
-    process.stdout.write("coverage_recorded\n");
+    process.stdout.write('coverage_recorded\n');
     return;
   }
-  if (command.kind === "scenario") {
-    await getSaasIsolationOperatorPool().query(
-      "SELECT app.set_saas_isolation_test_scenario($1)",
-      [command.state],
-    );
+  if (command.kind === 'scenario') {
+    await getSaasIsolationOperatorPool().query('SELECT app.set_saas_isolation_test_scenario($1)', [
+      command.state,
+    ]);
     process.stdout.write(`scenario_${command.state}\n`);
     return;
   }
-  if (command.kind === "post-runtime-gate") {
+  if (command.kind === 'post-runtime-gate') {
     try {
       const result = await runSaasIsolationPostRuntimeGate(
         command.startedAt,
@@ -181,12 +189,14 @@ async function main(): Promise<void> {
     }
     return;
   }
-  process.stdout.write(`${JSON.stringify(await runtimeSaasIsolationDiagnostics.readHealth(), null, 2)}\n`);
+  process.stdout.write(
+    `${JSON.stringify(await runtimeSaasIsolationDiagnostics.readHealth(), null, 2)}\n`,
+  );
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   void main().catch((error: unknown) => {
-    const code = error instanceof Error ? error.message : "diagnostics_command_failed";
+    const code = error instanceof Error ? error.message : 'diagnostics_command_failed';
     process.stderr.write(`${code}\n`);
     process.exitCode = 1;
   });

@@ -1,14 +1,14 @@
-import { getPool } from "@/infra/db/client";
-import { appendSqlExcludeUserIds } from "@/modules/analytics/analyticsAudience";
-import type { AdminPlatformUserStatsPort } from "@/modules/admin-platform-stats/ports";
-import type { QueryResultRow } from "pg";
+import { getPool } from '@/infra/db/client';
+import { appendSqlExcludeUserIds } from '@/modules/analytics/analyticsAudience';
+import type { AdminPlatformUserStatsPort } from '@/modules/admin-platform-stats/ports';
+import type { QueryResultRow } from 'pg';
 
 function withPuExclusion(
   sql: string,
   params: unknown[],
   excludedUserIds: string[],
 ): { sql: string; params: unknown[] } {
-  return appendSqlExcludeUserIds(sql, "pu.id", excludedUserIds, params);
+  return appendSqlExcludeUserIds(sql, 'pu.id', excludedUserIds, params);
 }
 
 /** `pool.query` напрямую: uuid[] в `<> ALL($n::uuid[])` ломается через drizzle `sqlToQuery`. */
@@ -22,7 +22,7 @@ async function queryRows<T extends QueryResultRow>(
 }
 
 function appendExclusionClause(excludedUserIds: string[], params: unknown[]): string {
-  if (excludedUserIds.length === 0) return "";
+  if (excludedUserIds.length === 0) return '';
   const idx = params.length + 1;
   params.push(excludedUserIds);
   return ` AND pu.id <> ALL($${idx}::uuid[])`;
@@ -94,8 +94,8 @@ export function createPgAdminPlatformUserStatsPort(): AdminPlatformUserStatsPort
         queryRows<{ d: string; c: number }>(pool, byMergeQ.sql, byMergeQ.params),
       ]);
 
-      const registrationsTotal = Number.parseInt(totRegistrations[0]?.c ?? "0", 10) || 0;
-      const mergesTotal = Number.parseInt(totMerge[0]?.c ?? "0", 10) || 0;
+      const registrationsTotal = Number.parseInt(totRegistrations[0]?.c ?? '0', 10) || 0;
+      const mergesTotal = Number.parseInt(totMerge[0]?.c ?? '0', 10) || 0;
 
       const registrationsByDay = new Map<string, number>();
       for (const row of byRegistrations) {
@@ -109,7 +109,12 @@ export function createPgAdminPlatformUserStatsPort(): AdminPlatformUserStatsPort
       return { registrationsTotal, mergesTotal, registrationsByDay, mergesByDay };
     },
 
-    async getSubscriberBindingStats({ iana, startUtcIso, endExclusiveUtcIso, excludedUserIds = [] }) {
+    async getSubscriberBindingStats({
+      iana,
+      startUtcIso,
+      endExclusiveUtcIso,
+      excludedUserIds = [],
+    }) {
       const pool = getPool();
 
       const subscriberFrom = `FROM platform_users pu
@@ -155,7 +160,7 @@ export function createPgAdminPlatformUserStatsPort(): AdminPlatformUserStatsPort
         queryRows<{ d: string; c: number }>(pool, byDaySql, byDayParams),
       ]);
 
-      const countBeforeStart = Number.parseInt(beforeRow[0]?.c ?? "0", 10) || 0;
+      const countBeforeStart = Number.parseInt(beforeRow[0]?.c ?? '0', 10) || 0;
       const newByDay = new Map<string, number>();
       for (const row of byDayRows) {
         if (row.d) newByDay.set(row.d, row.c);

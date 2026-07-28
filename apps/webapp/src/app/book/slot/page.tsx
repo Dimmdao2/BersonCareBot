@@ -1,10 +1,10 @@
-import { notFound, redirect } from "next/navigation";
-import { SlotStepClient } from "@/app/app/patient/booking/slot/SlotStepClient";
-import { isPublicOnlineBookingCategory } from "@/shared/publicBook/onlineBookingCategories";
-import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
-import { publicBookPaths } from "@/shared/publicBook/paths";
-import { PublicBookingShell } from "../PublicBookingShell";
-import { loadPublicInPersonSlotContextForSlugRsc } from "../publicOrganizationBooking";
+import { notFound, redirect } from 'next/navigation';
+import { SlotStepClient } from '@/app/app/patient/booking/slot/SlotStepClient';
+import { isPublicOnlineBookingCategory } from '@/shared/publicBook/onlineBookingCategories';
+import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
+import { publicBookPaths } from '@/shared/publicBook/paths';
+import { PublicBookingShell } from '../PublicBookingShell';
+import { loadPublicInPersonSlotContextForSlugRsc } from '../publicOrganizationBooking';
 
 type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -20,13 +20,18 @@ export default async function PublicBookSlotPage({ searchParams }: Props) {
   const type = first(raw.type)?.trim();
   const appDisplayTimeZone = await getAppDisplayTimeZone();
 
-  if (type === "online") {
+  if (type === 'online') {
     const categoryRaw = first(raw.category)?.trim();
     if (!categoryRaw || !isPublicOnlineBookingCategory(categoryRaw)) {
       redirect(publicBookPaths.new);
     }
     return (
-      <PublicBookingShell title="Выберите дату и время" step={3} totalSteps={4} backHref={publicBookPaths.new}>
+      <PublicBookingShell
+        title="Выберите дату и время"
+        step={3}
+        totalSteps={4}
+        backHref={publicBookPaths.new}
+      >
         <SlotStepClient
           type="online"
           category={categoryRaw}
@@ -38,7 +43,7 @@ export default async function PublicBookSlotPage({ searchParams }: Props) {
     );
   }
 
-  if (type !== "in_person") {
+  if (type !== 'in_person') {
     redirect(publicBookPaths.new);
   }
 

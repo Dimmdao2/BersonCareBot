@@ -1,13 +1,13 @@
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requirePatientAccessWithPhone } from "@/app-layer/guards/requireRole";
-import { routePaths } from "@/app-layer/routes/paths";
-import { serializeSupportMessage } from "@/modules/messaging/serializeSupportMessage";
-import { ChatView } from "@/modules/messaging/components/ChatView";
-import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requirePatientAccessWithPhone } from '@/app-layer/guards/requireRole';
+import { routePaths } from '@/app-layer/routes/paths';
+import { serializeSupportMessage } from '@/modules/messaging/serializeSupportMessage';
+import { ChatView } from '@/modules/messaging/components/ChatView';
+import { PatientAppShell } from '@/shared/ui/patient/PatientAppShell';
 import {
   patientInnerPageStackClass,
   patientSectionSurfaceClass,
-} from "@/shared/ui/patient/patientVisual";
+} from '@/shared/ui/patient/patientVisual';
 
 export default async function PatientNotificationsPage() {
   const session = await requirePatientAccessWithPhone(routePaths.notifications);
@@ -24,7 +24,9 @@ export default async function PatientNotificationsPage() {
       backLabel="Назад"
     >
       <div className={patientInnerPageStackClass}>
-        <section className={`${patientSectionSurfaceClass} flex min-h-[60dvh] flex-col overflow-hidden`}>
+        <section
+          className={`${patientSectionSurfaceClass} flex min-h-[60dvh] flex-col overflow-hidden`}
+        >
           <ChatView
             variant="patient"
             relativeFooters

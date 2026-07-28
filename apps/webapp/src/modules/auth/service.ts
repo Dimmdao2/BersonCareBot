@@ -1,35 +1,38 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
-import { cookies, headers } from "next/headers";
-import { decodeBase64Url } from "@/shared/utils/base64url";
-import { env, isProduction } from "@/config/env";
-import type { AppSession, SessionUser, UserRole } from "@/shared/types/session";
-import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
+import { createHmac, timingSafeEqual } from 'node:crypto';
+import { cookies, headers } from 'next/headers';
+import { decodeBase64Url } from '@/shared/utils/base64url';
+import { env, isProduction } from '@/config/env';
+import type { AppSession, SessionUser, UserRole } from '@/shared/types/session';
+import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
 import {
   isVerifiedEmailGlobalAdminAsync,
   reconcileDbRoleWithEnvRole,
   resolveRoleAsync,
   isWhitelistedAsync,
-} from "./envRole";
-import type { IdentityResolutionPort, MessengerIdentityResolutionHints } from "./identityResolutionPort";
-import type { AccountOutcome } from "./oauthYandexResolve";
-import { normalizePhone } from "./phoneNormalize";
-import { isValidPhoneE164 } from "./phoneValidation";
-import { getRedirectPathForRole } from "./redirectPolicy";
+} from './envRole';
+import type {
+  IdentityResolutionPort,
+  MessengerIdentityResolutionHints,
+} from './identityResolutionPort';
+import type { AccountOutcome } from './oauthYandexResolve';
+import { normalizePhone } from './phoneNormalize';
+import { isValidPhoneE164 } from './phoneValidation';
+import { getRedirectPathForRole } from './redirectPolicy';
 import {
   getIntegratorWebappEntrySecret,
   getMaxBotApiKey,
   getTelegramBotToken,
-} from "@/modules/system-settings/integrationRuntime";
+} from '@/modules/system-settings/integrationRuntime';
 import {
   parseMaxWebAppInitDataDetailed,
   type MaxInitDataRejectReason,
-} from "@/modules/auth/maxWebAppInitValidate";
-import { mapMaxStartParamToPatientPath } from "@/modules/auth/messengerStartParamRoutes";
+} from '@/modules/auth/maxWebAppInitValidate';
+import { mapMaxStartParamToPatientPath } from '@/modules/auth/messengerStartParamRoutes';
 import {
   verifyTelegramLoginWidgetSignature,
   type TelegramLoginWidgetPayload,
-} from "./telegramLoginVerify";
-import { SESSION_COOKIE_NAME } from "./sessionCookieNames";
+} from './telegramLoginVerify';
+import { SESSION_COOKIE_NAME } from './sessionCookieNames';
 import {
   buildRenewedSessionCookieOptions,
   buildSessionCookieOptions,
@@ -41,31 +44,31 @@ import {
   sessionTtlSecondsForRole,
   shouldRenewSession,
   writeFreshLoginMarkerCookie,
-} from "./sessionCookie";
+} from './sessionCookie';
 // Static import is deliberate — see the comment on finalizeCurrentSession() below. This module
 // does NOT import `@/app-layer/di/buildAppDeps` (which would cycle back to this file), so a
 // static import here is safe and does not create a require cycle.
-import { stampDbPrincipalFromSession } from "@/app-layer/principal/sessionPrincipal";
+import { stampDbPrincipalFromSession } from '@/app-layer/principal/sessionPrincipal';
 import {
   enterStaffSecuritySelfPrincipal,
   runWithStaffSecuritySelfPrincipal,
-} from "@/app-layer/principal/staffSecuritySelfPrincipal";
+} from '@/app-layer/principal/staffSecuritySelfPrincipal';
 import {
   normalizePatientOrganizationPreference,
   PATIENT_ORGANIZATION_PREFERENCE_COOKIE,
-} from "@/modules/patient-organization/preference";
+} from '@/modules/patient-organization/preference';
 import {
   BC_CORRELATION_ID_HEADER,
   ensureCorrelationId,
   ensureDbPrincipalContext,
-} from "@bersoncare/db-principal";
-import { isDevAuthBypassEnabled } from "./devBypassPolicy";
-import type { DevBypassStaffWorkspaceKind } from "./devBypassClinicAdminWorkspaceReconciliation";
+} from '@bersoncare/db-principal';
+import { isDevAuthBypassEnabled } from './devBypassPolicy';
+import type { DevBypassStaffWorkspaceKind } from './devBypassClinicAdminWorkspaceReconciliation';
 
 const TELEGRAM_INIT_DATA_MAX_AGE_SEC = 3600; // 1 hour
 
 function signIntegratorPayload(value: string, secret: string): string {
-  return createHmac("sha256", secret).update(value).digest("base64url");
+  return createHmac('sha256', secret).update(value).digest('base64url');
 }
 
 function safeEqualStrings(a: string, b: string): boolean {
@@ -82,7 +85,7 @@ type IntegratorTokenPayload = {
   /** Optional; see `contracts/webapp-entry-token.json`. */
   integratorUserId?: string;
   bindings?: Record<string, string | undefined>;
-  purpose: "webapp-entry";
+  purpose: 'webapp-entry';
   exp: number;
 };
 
@@ -105,11 +108,11 @@ function buildSession(user: SessionUser): AppSession {
     issuedAt: now,
     expiresAt: now + ttl,
   };
-  return user.role === "admin" ? { ...base, adminMode: true } : base;
+  return user.role === 'admin' ? { ...base, adminMode: true } : base;
 }
 
 function ensureAdminMode(session: AppSession): AppSession {
-  return session.user.role === "admin" ? { ...session, adminMode: true } : session;
+  return session.user.role === 'admin' ? { ...session, adminMode: true } : session;
 }
 
 async function finalizeCurrentSession(
@@ -126,7 +129,7 @@ async function finalizeCurrentSession(
     // direct static call avoids one more layer of indirection around the AsyncLocalStorage
     // continuation. Do not add per-route re-stamps instead — this is the one place all
     // getCurrentSession() callers share.
-    await stampDbPrincipalFromSession(normalized, "getCurrentSession", patientOrganizationHint);
+    await stampDbPrincipalFromSession(normalized, 'getCurrentSession', patientOrganizationHint);
   } catch {
     /* Session auth behavior stays legacy-compatible; locked DB ports fail closed if no principal was resolved. */
   }
@@ -154,18 +157,20 @@ function sessionIdentityIsDbBacked(user: SessionUser): boolean {
  */
 type ResolvedSessionIdentity =
   /** The row was read. `sessionEpoch` is its current revocation counter. */
-  | { outcome: "db"; user: SessionUser; sessionEpoch: number }
+  | { outcome: 'db'; user: SessionUser; sessionEpoch: number }
   /** No `platform_users` row exists behind this identity; the epoch invariant does not apply. */
-  | { outcome: "not-db-backed"; user: SessionUser }
+  | { outcome: 'not-db-backed'; user: SessionUser }
   /** A row should exist but could not be read (lookup failed, row gone, or identity archived). */
-  | { outcome: "unreadable" };
+  | { outcome: 'unreadable' };
 
 /**
  * Подтягивает актуальные ФИО/телефон/bindings из БД и отсекает сессии после удаления строки в
  * `platform_users` (например ops `reset-user`), когда cookie ещё валиден по подписи.
  */
-async function resolveSessionIdentityAgainstDb(user: SessionUser): Promise<ResolvedSessionIdentity> {
-  if (!sessionIdentityIsDbBacked(user)) return { outcome: "not-db-backed", user };
+async function resolveSessionIdentityAgainstDb(
+  user: SessionUser,
+): Promise<ResolvedSessionIdentity> {
+  if (!sessionIdentityIsDbBacked(user)) return { outcome: 'not-db-backed', user };
   try {
     // `getCurrentSession()` can run more than once during one RSC render. Its outer principal
     // cell is deliberately mutable so the completed session can promote the request to staff,
@@ -174,21 +179,21 @@ async function resolveSessionIdentityAgainstDb(user: SessionUser): Promise<Resol
     // change the principal observed by `pgUserByPhone.findByUserId()` mid-query.
     const fresh = await runWithStaffSecuritySelfPrincipal(
       user.userId,
-      "getCurrentSession:identity-self",
+      'getCurrentSession:identity-self',
       async () => {
-        const { pgUserByPhonePort } = await import("@/infra/repos/pgUserByPhone");
+        const { pgUserByPhonePort } = await import('@/infra/repos/pgUserByPhone');
         return pgUserByPhonePort.findByUserId(user.userId);
       },
     );
     // `null` here covers a deleted row AND an archived one (D2 — see findByUserId).
-    if (!fresh || typeof fresh.sessionEpoch !== "number") return { outcome: "unreadable" };
-    return { outcome: "db", user: fresh, sessionEpoch: fresh.sessionEpoch };
+    if (!fresh || typeof fresh.sessionEpoch !== 'number') return { outcome: 'unreadable' };
+    return { outcome: 'db', user: fresh, sessionEpoch: fresh.sessionEpoch };
   } catch {
     // Fail closed for everyone, staff and patients alike. The old code fell back to the COOKIE's
     // user for patients on a lookup failure; that fallback is gone. An identity whose revocation
     // state cannot be read is not an accepted session — a DB outage must not become an authorization
     // decision, and "the row says nothing" is not the same as "the row says yes".
-    return { outcome: "unreadable" };
+    return { outcome: 'unreadable' };
   }
 }
 
@@ -207,18 +212,18 @@ async function resolveSessionIdentityAgainstDb(user: SessionUser): Promise<Resol
  * this whole change exists to remove.
  */
 async function withFreshSessionEpoch(session: AppSession): Promise<AppSession> {
-  if (typeof session.user.sessionEpoch === "number") return session;
+  if (typeof session.user.sessionEpoch === 'number') return session;
   if (!sessionIdentityIsDbBacked(session.user)) return session;
   const fresh = await runWithStaffSecuritySelfPrincipal(
     session.user.userId,
-    "auth/persistNewAuthSession:identity-self",
+    'auth/persistNewAuthSession:identity-self',
     async () => {
-      const { pgUserByPhonePort } = await import("@/infra/repos/pgUserByPhone");
+      const { pgUserByPhonePort } = await import('@/infra/repos/pgUserByPhone');
       return pgUserByPhonePort.findByUserId(session.user.userId);
     },
   );
-  if (!fresh || typeof fresh.sessionEpoch !== "number") {
-    throw new Error("session_epoch_unavailable_at_mint");
+  if (!fresh || typeof fresh.sessionEpoch !== 'number') {
+    throw new Error('session_epoch_unavailable_at_mint');
   }
   return { ...session, user: { ...session.user, sessionEpoch: fresh.sessionEpoch } };
 }
@@ -228,16 +233,21 @@ async function persistNewAuthSession(
   session: AppSession,
 ): Promise<AppSession> {
   const stamped = await withFreshSessionEpoch(session);
-  cookieStore.set(SESSION_COOKIE_NAME, encodeSessionCookie(stamped), buildSessionCookieOptions(stamped));
+  cookieStore.set(
+    SESSION_COOKIE_NAME,
+    encodeSessionCookie(stamped),
+    buildSessionCookieOptions(stamped),
+  );
   writeFreshLoginMarkerCookie(cookieStore);
   return stamped;
 }
 
 async function parseIntegratorToken(token: string): Promise<IntegratorTokenPayload | null> {
-  const [payload, signature] = token.split(".");
+  const [payload, signature] = token.split('.');
   if (!payload || !signature) return null;
   const entrySecret = (await getIntegratorWebappEntrySecret()).trim();
-  if (!entrySecret || !safeEqualStrings(signature, signIntegratorPayload(payload, entrySecret))) return null;
+  if (!entrySecret || !safeEqualStrings(signature, signIntegratorPayload(payload, entrySecret)))
+    return null;
 
   let parsed: IntegratorTokenPayload;
   try {
@@ -246,10 +256,15 @@ async function parseIntegratorToken(token: string): Promise<IntegratorTokenPaylo
     return null;
   }
   const now = Math.floor(Date.now() / 1000);
-  if (parsed.purpose !== "webapp-entry" || parsed.exp <= now) {
-    if (process.env.NODE_ENV !== "test") {
-      console.info("[auth/parseToken] rejected purpose=%s expired=%s delta=%ds sub=%s",
-        parsed.purpose, parsed.exp <= now, parsed.exp - now, parsed.sub);
+  if (parsed.purpose !== 'webapp-entry' || parsed.exp <= now) {
+    if (process.env.NODE_ENV !== 'test') {
+      console.info(
+        '[auth/parseToken] rejected purpose=%s expired=%s delta=%ds sub=%s',
+        parsed.purpose,
+        parsed.exp <= now,
+        parsed.exp - now,
+        parsed.sub,
+      );
     }
     return null;
   }
@@ -264,40 +279,40 @@ function parseDevBypassToken(token: string): IntegratorTokenPayload | null {
   if (!enabled) return null;
 
   const presets: Record<string, IntegratorTokenPayload> = {
-    "dev:client": {
-      sub: "00000000-0000-0000-0000-000000000001",
-      role: "client",
-      displayName: "Demo Client",
-      phone: "+79990000001",
-      bindings: { telegramId: "111111111" },
-      purpose: "webapp-entry",
+    'dev:client': {
+      sub: '00000000-0000-0000-0000-000000000001',
+      role: 'client',
+      displayName: 'Demo Client',
+      phone: '+79990000001',
+      bindings: { telegramId: '111111111' },
+      purpose: 'webapp-entry',
       exp: Math.floor(Date.now() / 1000) + 3600,
     },
-    "dev:doctor": {
-      sub: "00000000-0000-0000-0000-000000000002",
-      role: "doctor",
-      displayName: "Demo Doctor",
-      phone: "+79990000002",
-      bindings: { telegramId: "222222222" },
-      purpose: "webapp-entry",
+    'dev:doctor': {
+      sub: '00000000-0000-0000-0000-000000000002',
+      role: 'doctor',
+      displayName: 'Demo Doctor',
+      phone: '+79990000002',
+      bindings: { telegramId: '222222222' },
+      purpose: 'webapp-entry',
       exp: Math.floor(Date.now() / 1000) + 3600,
     },
-    "dev:admin": {
-      sub: "00000000-0000-0000-0000-000000000003",
-      role: "admin",
-      displayName: "Demo Admin",
-      phone: "+79990000003",
-      bindings: { telegramId: "333333333" },
-      purpose: "webapp-entry",
+    'dev:admin': {
+      sub: '00000000-0000-0000-0000-000000000003',
+      role: 'admin',
+      displayName: 'Demo Admin',
+      phone: '+79990000003',
+      bindings: { telegramId: '333333333' },
+      purpose: 'webapp-entry',
       exp: Math.floor(Date.now() / 1000) + 3600,
     },
-    "dev:clinic-admin": {
-      sub: "00000000-0000-0000-0000-000000000004",
-      role: "doctor",
-      displayName: "Demo Clinic Owner",
-      phone: "+79990000004",
-      bindings: { telegramId: "999999999999004" },
-      purpose: "webapp-entry",
+    'dev:clinic-admin': {
+      sub: '00000000-0000-0000-0000-000000000004',
+      role: 'doctor',
+      displayName: 'Demo Clinic Owner',
+      phone: '+79990000004',
+      bindings: { telegramId: '999999999999004' },
+      purpose: 'webapp-entry',
       exp: Math.floor(Date.now() / 1000) + 3600,
     },
   };
@@ -307,26 +322,25 @@ function parseDevBypassToken(token: string): IntegratorTokenPayload | null {
 
 export async function classifyVerifiedIntegratorTokenChannel(
   token: string,
-): Promise<"dev_bypass" | "telegram" | "max" | null> {
-  if (parseDevBypassToken(token)) return "dev_bypass";
+): Promise<'dev_bypass' | 'telegram' | 'max' | null> {
+  if (parseDevBypassToken(token)) return 'dev_bypass';
   const parsed = await parseIntegratorToken(token);
   if (!parsed) return null;
   const binding = effectiveMessengerBinding(parsed);
-  return binding?.channelCode === "telegram" || binding?.channelCode === "max"
+  return binding?.channelCode === 'telegram' || binding?.channelCode === 'max'
     ? binding.channelCode
     : null;
 }
 
-
 async function isAllowedByWhitelist(
   parsed: IntegratorTokenPayload,
-  identityResolutionPort?: IdentityResolutionPort | null
+  identityResolutionPort?: IdentityResolutionPort | null,
 ): Promise<boolean> {
-  if (parsed.role === "admin") return true;
+  if (parsed.role === 'admin') return true;
   const eff = effectiveMessengerBinding(parsed);
   const tokenIds = {
-    telegramId: eff?.channelCode === "telegram" ? eff.externalId : parsed.bindings?.telegramId,
-    maxId: eff?.channelCode === "max" ? eff.externalId : parsed.bindings?.maxId,
+    telegramId: eff?.channelCode === 'telegram' ? eff.externalId : parsed.bindings?.telegramId,
+    maxId: eff?.channelCode === 'max' ? eff.externalId : parsed.bindings?.maxId,
     phone: parsed.phone?.trim(),
   };
   if (await isWhitelistedAsync(tokenIds)) return true;
@@ -351,28 +365,30 @@ async function isAllowedByWhitelist(
 /**
  * Legacy / compact entry tokens may encode messenger id only in `sub` (`tg:…`, `max:…`) without `bindings`.
  */
-function bindingFromExternalSub(sub: string): { channelCode: "telegram" | "max"; externalId: string } | null {
+function bindingFromExternalSub(
+  sub: string,
+): { channelCode: 'telegram' | 'max'; externalId: string } | null {
   const s = sub.trim();
   const tg = /^tg:(\d+)$/.exec(s);
-  if (tg) return { channelCode: "telegram", externalId: tg[1]! };
+  if (tg) return { channelCode: 'telegram', externalId: tg[1]! };
   const max = /^max:(.+)$/.exec(s);
   if (max) {
     const id = max[1]!.trim();
-    if (id.length > 0) return { channelCode: "max", externalId: id };
+    if (id.length > 0) return { channelCode: 'max', externalId: id };
   }
   return null;
 }
 
 function effectiveMessengerBinding(
   parsed: IntegratorTokenPayload,
-): { channelCode: "telegram" | "max" | "vk"; externalId: string } | null {
+): { channelCode: 'telegram' | 'max' | 'vk'; externalId: string } | null {
   return firstBinding(parsed) ?? bindingFromExternalSub(parsed.sub);
 }
 
 /** Optional signed webapp-entry token must denote the same messenger identity as the verified channel (no raw client UUID trust). */
 function webappEntryTokenMatchesVerifiedMessenger(
   tokenPayload: IntegratorTokenPayload,
-  channelCode: "telegram" | "max" | "vk",
+  channelCode: 'telegram' | 'max' | 'vk',
   externalId: string,
 ): boolean {
   const eff = effectiveMessengerBinding(tokenPayload);
@@ -383,15 +399,20 @@ function webappEntryTokenMatchesVerifiedMessenger(
 /** Validates Telegram Web App initData (from window.Telegram.WebApp.initData). Returns user id and role or null. */
 async function validateTelegramInitData(
   initData: string,
-): Promise<{ telegramId: string; role: UserRole; displayName?: string; startParam?: string } | null> {
+): Promise<{
+  telegramId: string;
+  role: UserRole;
+  displayName?: string;
+  startParam?: string;
+} | null> {
   const botToken = (await getTelegramBotToken()).trim();
   if (!botToken?.trim()) return null;
 
   const params = new URLSearchParams(initData.trim());
-  const hash = params.get("hash");
+  const hash = params.get('hash');
   if (!hash) return null;
 
-  const authDate = params.get("auth_date");
+  const authDate = params.get('auth_date');
   if (!authDate) return null;
   const authTs = Number(authDate);
   if (!Number.isFinite(authTs)) return null;
@@ -399,16 +420,16 @@ async function validateTelegramInitData(
 
   const dataCheckParts: string[] = [];
   for (const key of [...params.keys()].sort()) {
-    if (key === "hash") continue;
+    if (key === 'hash') continue;
     dataCheckParts.push(`${key}=${params.get(key)!}`);
   }
-  const dataCheckString = dataCheckParts.join("\n");
+  const dataCheckString = dataCheckParts.join('\n');
 
-  const secretKey = createHmac("sha256", "WebAppData").update(botToken).digest();
-  const computedHash = createHmac("sha256", secretKey).update(dataCheckString).digest("hex");
+  const secretKey = createHmac('sha256', 'WebAppData').update(botToken).digest();
+  const computedHash = createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
   if (!safeEqualStrings(computedHash, hash.toLowerCase())) return null;
 
-  const userJson = params.get("user");
+  const userJson = params.get('user');
   if (!userJson) return null;
   let user: { id?: number; first_name?: string; last_name?: string };
   try {
@@ -416,17 +437,18 @@ async function validateTelegramInitData(
   } catch {
     return null;
   }
-  const telegramId = user.id != null ? String(user.id) : "";
+  const telegramId = user.id != null ? String(user.id) : '';
   if (!telegramId) return null;
 
   if (!(await isWhitelistedAsync({ telegramId }))) return null;
 
   const role: UserRole = await resolveRoleAsync({ telegramId });
-  const displayName = [user.first_name, user.last_name].filter(Boolean).join(" ").trim() || undefined;
+  const displayName =
+    [user.first_name, user.last_name].filter(Boolean).join(' ').trim() || undefined;
 
-  const startParamRaw = params.get("start_param");
+  const startParamRaw = params.get('start_param');
   const startParam =
-    startParamRaw != null && startParamRaw.trim() !== "" ? startParamRaw.trim() : undefined;
+    startParamRaw != null && startParamRaw.trim() !== '' ? startParamRaw.trim() : undefined;
 
   return { telegramId, role, displayName, ...(startParam ? { startParam } : {}) };
 }
@@ -445,32 +467,41 @@ function tokenToUser(token: IntegratorTokenPayload): SessionUser {
   };
 }
 
-function firstBinding(parsed: IntegratorTokenPayload): { channelCode: "telegram" | "max" | "vk"; externalId: string } | null {
-  if (parsed.bindings?.telegramId) return { channelCode: "telegram", externalId: parsed.bindings.telegramId };
-  if (parsed.bindings?.maxId) return { channelCode: "max", externalId: parsed.bindings.maxId };
-  if (parsed.bindings?.vkId) return { channelCode: "vk", externalId: parsed.bindings.vkId };
+function firstBinding(
+  parsed: IntegratorTokenPayload,
+): { channelCode: 'telegram' | 'max' | 'vk'; externalId: string } | null {
+  if (parsed.bindings?.telegramId)
+    return { channelCode: 'telegram', externalId: parsed.bindings.telegramId };
+  if (parsed.bindings?.maxId) return { channelCode: 'max', externalId: parsed.bindings.maxId };
+  if (parsed.bindings?.vkId) return { channelCode: 'vk', externalId: parsed.bindings.vkId };
   return null;
 }
 
 /** Signed webapp-entry token → hints for `findOrCreateByChannelBinding` (Phase B: canon before INSERT). */
-function messengerResolutionHintsFromToken(parsed: IntegratorTokenPayload): MessengerIdentityResolutionHints | undefined {
+function messengerResolutionHintsFromToken(
+  parsed: IntegratorTokenPayload,
+): MessengerIdentityResolutionHints | undefined {
   const hints: MessengerIdentityResolutionHints = {};
   const sub = parsed.sub.trim();
   if (isPlatformUserUuid(sub)) {
     hints.platformUserSub = sub;
   }
   const intRaw = parsed.integratorUserId;
-  if (typeof intRaw === "string" && intRaw.trim() !== "") {
+  if (typeof intRaw === 'string' && intRaw.trim() !== '') {
     hints.integratorUserId = intRaw.trim();
   }
   const phoneRaw = parsed.phone;
-  if (typeof phoneRaw === "string" && phoneRaw.trim() !== "") {
+  if (typeof phoneRaw === 'string' && phoneRaw.trim() !== '') {
     const n = normalizePhone(phoneRaw.trim());
     if (isValidPhoneE164(n)) {
       hints.phoneNormalized = n;
     }
   }
-  if (hints.platformUserSub == null && hints.integratorUserId == null && hints.phoneNormalized == null) {
+  if (
+    hints.platformUserSub == null &&
+    hints.integratorUserId == null &&
+    hints.phoneNormalized == null
+  ) {
     return undefined;
   }
   return hints;
@@ -478,13 +509,19 @@ function messengerResolutionHintsFromToken(parsed: IntegratorTokenPayload): Mess
 
 async function optionalResolutionHintsFromVerifiedWebappEntryToken(
   embeddedToken: string | null | undefined,
-  verifiedBinding: { channelCode: "telegram" | "max" | "vk"; externalId: string },
+  verifiedBinding: { channelCode: 'telegram' | 'max' | 'vk'; externalId: string },
 ): Promise<MessengerIdentityResolutionHints | undefined> {
   const raw = embeddedToken?.trim();
   if (!raw) return undefined;
   const parsed = await parseIntegratorToken(raw);
   if (!parsed) return undefined;
-  if (!webappEntryTokenMatchesVerifiedMessenger(parsed, verifiedBinding.channelCode, verifiedBinding.externalId)) {
+  if (
+    !webappEntryTokenMatchesVerifiedMessenger(
+      parsed,
+      verifiedBinding.channelCode,
+      verifiedBinding.externalId,
+    )
+  ) {
     return undefined;
   }
   return messengerResolutionHintsFromToken(parsed);
@@ -501,14 +538,13 @@ async function applyDevBypassPlatformUserPhoneInDb(
   if (!isValidPhoneE164(phone)) return user;
   if (!isPlatformUserUuid(user.userId)) return user;
 
-  enterStaffSecuritySelfPrincipal(user.userId, "auth/exchange:dev-bypass-verified-self");
+  enterStaffSecuritySelfPrincipal(user.userId, 'auth/exchange:dev-bypass-verified-self');
 
-  const { applyDevBypassPlatformUserPhoneInDb } = await import(
-    "@/modules/auth/devBypassPlatformUserPhonePort"
-  );
+  const { applyDevBypassPlatformUserPhoneInDb } =
+    await import('@/modules/auth/devBypassPlatformUserPhonePort');
   await applyDevBypassPlatformUserPhoneInDb(user.userId, user.role, phone);
 
-  const { pgUserByPhonePort } = await import("@/infra/repos/pgUserByPhone");
+  const { pgUserByPhonePort } = await import('@/infra/repos/pgUserByPhone');
   const fresh = await pgUserByPhonePort.findByUserId(user.userId);
   // Keep explicit dev bypass role from token preset even if DB row still has stale role.
   return fresh ? { ...fresh, role: user.role } : { ...user, phone };
@@ -521,7 +557,9 @@ function devBypassPresetPhoneMatches(user: SessionUser, parsed: IntegratorTokenP
 
   const presetPhone = normalizePhone(rawPresetPhone);
   const storedPhone = normalizePhone(rawStoredPhone);
-  return isValidPhoneE164(presetPhone) && isValidPhoneE164(storedPhone) && presetPhone === storedPhone;
+  return (
+    isValidPhoneE164(presetPhone) && isValidPhoneE164(storedPhone) && presetPhone === storedPhone
+  );
 }
 
 export async function exchangeIntegratorToken(
@@ -530,18 +568,22 @@ export async function exchangeIntegratorToken(
   updateRoleFn?: ((platformUserId: string, role: string) => Promise<void>) | null,
 ): Promise<ExchangeResult | null> {
   const devParsed = parseDevBypassToken(token);
-  const lockedDevBypass = Boolean(devParsed) && env.DB_PRINCIPAL_CONTEXT_MODE === "locked";
+  const lockedDevBypass = Boolean(devParsed) && env.DB_PRINCIPAL_CONTEXT_MODE === 'locked';
   const parsed = devParsed ?? (await parseIntegratorToken(token));
   if (!parsed) {
-    if (process.env.NODE_ENV !== "test") {
-      console.info("[auth/exchange] token_parse_failed tokenLen=%d", token.length);
+    if (process.env.NODE_ENV !== 'test') {
+      console.info('[auth/exchange] token_parse_failed tokenLen=%d', token.length);
     }
     return null;
   }
 
   if (!devParsed && !(await isAllowedByWhitelist(parsed, identityResolutionPort))) {
-    if (process.env.NODE_ENV !== "test") {
-      console.info("[auth/exchange] whitelist_rejected sub=%s telegramId=%s", parsed.sub, parsed.bindings?.telegramId);
+    if (process.env.NODE_ENV !== 'test') {
+      console.info(
+        '[auth/exchange] whitelist_rejected sub=%s telegramId=%s',
+        parsed.sub,
+        parsed.bindings?.telegramId,
+      );
     }
     return null;
   }
@@ -571,12 +613,12 @@ export async function exchangeIntegratorToken(
       const subTrim = parsed.sub.trim();
       // Phase C: bare platform UUID in `sub` (no messenger binding in token) → load canon from DB.
       if (env.DATABASE_URL?.trim() && isPlatformUserUuid(subTrim)) {
-        enterStaffSecuritySelfPrincipal(subTrim, "auth/exchange:signed-platform-self");
-        const { pgUserByPhonePort } = await import("@/infra/repos/pgUserByPhone");
+        enterStaffSecuritySelfPrincipal(subTrim, 'auth/exchange:signed-platform-self');
+        const { pgUserByPhonePort } = await import('@/infra/repos/pgUserByPhone');
         const fromDb = await pgUserByPhonePort.findByUserId(subTrim);
         if (!fromDb) {
-          if (process.env.NODE_ENV !== "test") {
-            console.info("[auth/exchange] uuid_sub_no_platform_row");
+          if (process.env.NODE_ENV !== 'test') {
+            console.info('[auth/exchange] uuid_sub_no_platform_row');
           }
           return null;
         }
@@ -606,17 +648,16 @@ export async function exchangeIntegratorToken(
     } else {
       user = await applyDevBypassPlatformUserPhoneInDb(user, parsed);
       const staffWorkspaceKind: DevBypassStaffWorkspaceKind | null =
-        parsed.sub === "00000000-0000-0000-0000-000000000002"
-          ? "doctor"
-          : parsed.sub === "00000000-0000-0000-0000-000000000003"
-            ? "global_admin"
-            : parsed.sub === "00000000-0000-0000-0000-000000000004"
-              ? "clinic_admin"
+        parsed.sub === '00000000-0000-0000-0000-000000000002'
+          ? 'doctor'
+          : parsed.sub === '00000000-0000-0000-0000-000000000003'
+            ? 'global_admin'
+            : parsed.sub === '00000000-0000-0000-0000-000000000004'
+              ? 'clinic_admin'
               : null;
       if (staffWorkspaceKind) {
-        const { ensureDevBypassStaffWorkspace } = await import(
-          "@/modules/auth/devBypassClinicAdminWorkspacePort"
-        );
+        const { ensureDevBypassStaffWorkspace } =
+          await import('@/modules/auth/devBypassClinicAdminWorkspacePort');
         await ensureDevBypassStaffWorkspace({
           platformUserId: user.userId,
           displayName: parsed.displayName ?? user.displayName,
@@ -630,11 +671,11 @@ export async function exchangeIntegratorToken(
     !devParsed &&
     Boolean(env.DATABASE_URL?.trim()) &&
     identityResolutionPort &&
-    user.role === "client" &&
+    user.role === 'client' &&
     !isPlatformUserUuid(user.userId) &&
-    process.env.NODE_ENV !== "test"
+    process.env.NODE_ENV !== 'test'
   ) {
-    console.info("[auth/exchange] client_session_transport=legacy_non_uuid_onboarding_only");
+    console.info('[auth/exchange] client_session_transport=legacy_non_uuid_onboarding_only');
   }
 
   if (!devParsed) {
@@ -655,7 +696,7 @@ export async function exchangeIntegratorToken(
   }
 
   const built: AppSession = devParsed
-    ? { ...buildSession(user), authSource: "dev_bypass" }
+    ? { ...buildSession(user), authSource: 'dev_bypass' }
     : buildSession(user);
   const cookieStore = await cookies();
   // The session that is RETURNED is the one that was actually written to the cookie, epoch and all
@@ -664,8 +705,7 @@ export async function exchangeIntegratorToken(
   const session = await persistNewAuthSession(cookieStore, built);
 
   const setMessengerPlatformCookie =
-    !devParsed &&
-    (Boolean(user.bindings?.maxId) || Boolean(user.bindings?.telegramId));
+    !devParsed && (Boolean(user.bindings?.maxId) || Boolean(user.bindings?.telegramId));
 
   return {
     session,
@@ -682,27 +722,27 @@ export async function exchangeTelegramInitData(
   const parsed = await validateTelegramInitData(initData);
   if (!parsed) return null;
 
-  const verifiedBinding = { channelCode: "telegram" as const, externalId: parsed.telegramId };
+  const verifiedBinding = { channelCode: 'telegram' as const, externalId: parsed.telegramId };
   const resolutionHints = await optionalResolutionHintsFromVerifiedWebappEntryToken(
     parsed.startParam,
     verifiedBinding,
   );
-  if (resolutionHints && process.env.NODE_ENV !== "test" && process.env.DEBUG_AUTH === "1") {
+  if (resolutionHints && process.env.NODE_ENV !== 'test' && process.env.DEBUG_AUTH === '1') {
     const kinds = [
-      resolutionHints.platformUserSub && "sub",
-      resolutionHints.integratorUserId && "integrator",
-      resolutionHints.phoneNormalized && "phone",
+      resolutionHints.platformUserSub && 'sub',
+      resolutionHints.integratorUserId && 'integrator',
+      resolutionHints.phoneNormalized && 'phone',
     ]
       .filter(Boolean)
-      .join(",");
-    console.info("[auth/telegram-init] resolution_hints_from=start_param kinds=%s", kinds);
+      .join(',');
+    console.info('[auth/telegram-init] resolution_hints_from=start_param kinds=%s', kinds);
   }
 
   let user: SessionUser;
   let accountOutcome: AccountOutcome | undefined;
   if (identityResolutionPort) {
     const resolved = await identityResolutionPort.findOrCreateByChannelBinding({
-      channelCode: "telegram",
+      channelCode: 'telegram',
       externalId: parsed.telegramId,
       displayName: parsed.displayName,
       role: parsed.role,
@@ -736,7 +776,7 @@ export async function exchangeTelegramInitData(
   const session = await persistNewAuthSession(cookieStore, buildSession(user));
 
   let redirectTo = getRedirectPathForRole(user.role);
-  if (user.role === "client" && parsed.startParam) {
+  if (user.role === 'client' && parsed.startParam) {
     const fromParam = mapMaxStartParamToPatientPath(parsed.startParam);
     if (fromParam) redirectTo = fromParam;
   }
@@ -749,7 +789,7 @@ export async function exchangeTelegramInitData(
 }
 
 /** Причина отказа MAX initData: валидация строки или отсутствие ключа в admin settings. */
-export type MaxInitDenyReason = MaxInitDataRejectReason | "max_bot_api_key_missing";
+export type MaxInitDenyReason = MaxInitDataRejectReason | 'max_bot_api_key_missing';
 
 export type MaxInitExchangeDenied = { denied: true; reason: MaxInitDenyReason };
 
@@ -764,7 +804,7 @@ async function validateMaxInitData(
   initData: string,
 ): Promise<{ ok: true; data: ValidateMaxOk } | { ok: false; reason: MaxInitDenyReason }> {
   const botToken = (await getMaxBotApiKey()).trim();
-  if (!botToken) return { ok: false, reason: "max_bot_api_key_missing" };
+  if (!botToken) return { ok: false, reason: 'max_bot_api_key_missing' };
   const parseRes = parseMaxWebAppInitDataDetailed(initData, botToken);
   if (!parseRes.ok) return { ok: false, reason: parseRes.reason };
   const role: UserRole = await resolveRoleAsync({ maxId: parseRes.data.maxUserId });
@@ -789,27 +829,27 @@ export async function exchangeMaxInitData(
   if (!validated.ok) return { denied: true, reason: validated.reason };
   const parsed = validated.data;
 
-  const verifiedBinding = { channelCode: "max" as const, externalId: parsed.maxUserId };
+  const verifiedBinding = { channelCode: 'max' as const, externalId: parsed.maxUserId };
   const resolutionHints = await optionalResolutionHintsFromVerifiedWebappEntryToken(
     parsed.startParam,
     verifiedBinding,
   );
-  if (resolutionHints && process.env.NODE_ENV !== "test" && process.env.DEBUG_AUTH === "1") {
+  if (resolutionHints && process.env.NODE_ENV !== 'test' && process.env.DEBUG_AUTH === '1') {
     const kinds = [
-      resolutionHints.platformUserSub && "sub",
-      resolutionHints.integratorUserId && "integrator",
-      resolutionHints.phoneNormalized && "phone",
+      resolutionHints.platformUserSub && 'sub',
+      resolutionHints.integratorUserId && 'integrator',
+      resolutionHints.phoneNormalized && 'phone',
     ]
       .filter(Boolean)
-      .join(",");
-    console.info("[auth/max-init] resolution_hints_from=start_param kinds=%s", kinds);
+      .join(',');
+    console.info('[auth/max-init] resolution_hints_from=start_param kinds=%s', kinds);
   }
 
   let user: SessionUser;
   let accountOutcome: AccountOutcome | undefined;
   if (identityResolutionPort) {
     const resolved = await identityResolutionPort.findOrCreateByChannelBinding({
-      channelCode: "max",
+      channelCode: 'max',
       externalId: parsed.maxUserId,
       displayName: parsed.displayName,
       role: parsed.role,
@@ -842,7 +882,7 @@ export async function exchangeMaxInitData(
   const session = await persistNewAuthSession(cookieStore, buildSession(user));
 
   let redirectTo = getRedirectPathForRole(user.role);
-  if (user.role === "client" && parsed.startParam) {
+  if (user.role === 'client' && parsed.startParam) {
     const fromParam = mapMaxStartParamToPatientPath(parsed.startParam);
     if (fromParam) redirectTo = fromParam;
   }
@@ -874,33 +914,33 @@ export async function exchangeTelegramLoginWidget(
 
   if (!(await isWhitelistedAsync({ telegramId }))) return null;
 
-  const fn = typeof raw.first_name === "string" ? raw.first_name.trim() : "";
-  const ln = typeof raw.last_name === "string" ? raw.last_name.trim() : "";
-  const displayName = [fn, ln].filter(Boolean).join(" ").trim();
+  const fn = typeof raw.first_name === 'string' ? raw.first_name.trim() : '';
+  const ln = typeof raw.last_name === 'string' ? raw.last_name.trim() : '';
+  const displayName = [fn, ln].filter(Boolean).join(' ').trim();
 
   const role = await resolveRoleAsync({ telegramId });
 
-  const verifiedBinding = { channelCode: "telegram" as const, externalId: telegramId };
+  const verifiedBinding = { channelCode: 'telegram' as const, externalId: telegramId };
   const resolutionHints = await optionalResolutionHintsFromVerifiedWebappEntryToken(
     webappEntryToken,
     verifiedBinding,
   );
-  if (resolutionHints && process.env.NODE_ENV !== "test" && process.env.DEBUG_AUTH === "1") {
+  if (resolutionHints && process.env.NODE_ENV !== 'test' && process.env.DEBUG_AUTH === '1') {
     const kinds = [
-      resolutionHints.platformUserSub && "sub",
-      resolutionHints.integratorUserId && "integrator",
-      resolutionHints.phoneNormalized && "phone",
+      resolutionHints.platformUserSub && 'sub',
+      resolutionHints.integratorUserId && 'integrator',
+      resolutionHints.phoneNormalized && 'phone',
     ]
       .filter(Boolean)
-      .join(",");
-    console.info("[auth/telegram-login] resolution_hints_from=webapp_entry_token kinds=%s", kinds);
+      .join(',');
+    console.info('[auth/telegram-login] resolution_hints_from=webapp_entry_token kinds=%s', kinds);
   }
 
   let user: SessionUser;
   let accountOutcome: AccountOutcome | undefined;
   if (identityResolutionPort) {
     const resolved = await identityResolutionPort.findOrCreateByChannelBinding({
-      channelCode: "telegram",
+      channelCode: 'telegram',
       externalId: telegramId,
       displayName: displayName || undefined,
       role,
@@ -964,7 +1004,7 @@ async function getCurrentSessionWithPrincipalMode(
   // the unwind regardless of how many boundaries sit in between. Establishing the cell here, as
   // the very first statement, makes every getCurrentSession() caller behave the same way whether
   // or not it goes through a guard.
-  ensureDbPrincipalContext({ source: "getCurrentSession:pending" });
+  ensureDbPrincipalContext({ source: 'getCurrentSession:pending' });
   try {
     const requestHeaders = await headers();
     ensureCorrelationId(requestHeaders.get(BC_CORRELATION_ID_HEADER));
@@ -979,8 +1019,8 @@ async function getCurrentSessionWithPrincipalMode(
   const raw = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   const decoded = raw ? decodeSessionCookie(raw) : null;
   if (!decoded?.user) {
-    if (raw && process.env.NODE_ENV !== "production") {
-      console.info("[auth] session_cookie_invalid_or_expired");
+    if (raw && process.env.NODE_ENV !== 'production') {
+      console.info('[auth] session_cookie_invalid_or_expired');
     }
     return null;
   }
@@ -992,8 +1032,8 @@ async function getCurrentSessionWithPrincipalMode(
   const resolved = await resolveSessionIdentityAgainstDb(decoded.user);
   // The row should exist but could not be read — deleted, archived (D2), or the lookup failed.
   // An unreadable revocation state is never an accepted session.
-  if (resolved.outcome === "unreadable") return null;
-  if (resolved.outcome === "db") {
+  if (resolved.outcome === 'unreadable') return null;
+  if (resolved.outcome === 'db') {
     // `platform_users.session_epoch` vs the epoch the cookie was minted with, compared for EQUALITY.
     // Both sides are the same integer written by the same authority, so there is no clock, no skew
     // allowance and no direction to get wrong: any revocation event increments the column, and every
@@ -1006,7 +1046,13 @@ async function getCurrentSessionWithPrincipalMode(
   // Absolute age cap, enforced here so the proxy's renewal path cannot bypass it (renewal itself
   // also refuses past this point — see sessionCookie.ts — but a cookie renewed right up to the
   // boundary and then merely replayed without ever asking to renew again must still die here).
-  if (isSessionBeyondAbsoluteMaxAge({ issuedAt: decoded.issuedAt, user: resolvedUser, operatorSession: decoded.operatorSession })) {
+  if (
+    isSessionBeyondAbsoluteMaxAge({
+      issuedAt: decoded.issuedAt,
+      user: resolvedUser,
+      operatorSession: decoded.operatorSession,
+    })
+  ) {
     return null;
   }
 
@@ -1017,16 +1063,16 @@ async function getCurrentSessionWithPrincipalMode(
     nodeEnv: env.NODE_ENV,
     allowDevAuthBypass: env.ALLOW_DEV_AUTH_BYPASS,
   });
-  if (session.authSource === "dev_bypass" && !devBypassEnabled) return null;
-  const isDevBypassSession = session.authSource === "dev_bypass";
+  if (session.authSource === 'dev_bypass' && !devBypassEnabled) return null;
+  const isDevBypassSession = session.authSource === 'dev_bypass';
   if (isDevBypassSession) {
     // Keep explicit dev bypass role from the login token even if DB row has client role.
     session = { ...session, user: { ...session.user, role: decoded.user.role } };
   }
-  if (session.user.role === "doctor") {
+  if (session.user.role === 'doctor') {
     session = {
       ...buildSession(session.user),
-      ...(isDevBypassSession ? { authSource: "dev_bypass" as const } : {}),
+      ...(isDevBypassSession ? { authSource: 'dev_bypass' as const } : {}),
       postLoginHints: session.postLoginHints,
       adminMode: session.adminMode,
       reauth: session.reauth,
@@ -1042,10 +1088,12 @@ async function getCurrentSessionWithPrincipalMode(
     try {
       verifiedEmail = await runWithStaffSecuritySelfPrincipal(
         session.user.userId,
-        "getCurrentSession:verified-email-role-resolution",
+        'getCurrentSession:verified-email-role-resolution',
         async () => {
-          const { pgUserByPhonePort } = await import("@/infra/repos/pgUserByPhone");
-          return (await pgUserByPhonePort.getVerifiedEmailForUser(session.user.userId)) ?? undefined;
+          const { pgUserByPhonePort } = await import('@/infra/repos/pgUserByPhone');
+          return (
+            (await pgUserByPhonePort.getVerifiedEmailForUser(session.user.userId)) ?? undefined
+          );
         },
       );
     } catch {
@@ -1068,7 +1116,7 @@ async function getCurrentSessionWithPrincipalMode(
 
   if (await isVerifiedEmailGlobalAdminAsync(verifiedEmail)) {
     const emailAdminSession: AppSession = {
-      ...buildSession({ ...nextSession.user, role: "admin" }),
+      ...buildSession({ ...nextSession.user, role: 'admin' }),
       postLoginHints: nextSession.postLoginHints,
       adminMode: nextSession.adminMode,
       reauth: nextSession.reauth,
@@ -1115,9 +1163,9 @@ export async function clearSession(): Promise<void> {
     try {
       await runWithStaffSecuritySelfPrincipal(
         decoded.user.userId,
-        "auth/clearSession:self",
+        'auth/clearSession:self',
         async () => {
-          const { pgUserByPhonePort } = await import("@/infra/repos/pgUserByPhone");
+          const { pgUserByPhonePort } = await import('@/infra/repos/pgUserByPhone');
           await pgUserByPhonePort.invalidateSessionsForSelf();
         },
       );
@@ -1125,11 +1173,11 @@ export async function clearSession(): Promise<void> {
       /* Best-effort revocation stamp: logout must still clear the cookie even if the DB write fails. */
     }
   }
-  cookieStore.set(SESSION_COOKIE_NAME, "", {
+  cookieStore.set(SESSION_COOKIE_NAME, '', {
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: 'lax',
     secure: isProduction,
-    path: "/",
+    path: '/',
     maxAge: 0,
   });
   clearFreshLoginMarkerCookie(cookieStore);
@@ -1140,7 +1188,7 @@ export async function toggleAdminMode(): Promise<{ ok: boolean; adminMode?: bool
   const cookieStore = await cookies();
   const raw = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   const session = raw ? decodeSessionCookie(raw) : null;
-  if (!session || session.user.role !== "admin") return { ok: false };
+  if (!session || session.user.role !== 'admin') return { ok: false };
 
   const nextSession: AppSession = ensureAdminMode({ ...session, adminMode: true });
 
@@ -1159,7 +1207,10 @@ export async function toggleAdminMode(): Promise<{ ok: boolean; adminMode?: bool
  */
 export async function setSessionFromUser(
   user: SessionUser,
-  opts?: { postLoginHints?: AppSession["postLoginHints"]; staffSecurity?: AppSession["staffSecurity"] }
+  opts?: {
+    postLoginHints?: AppSession['postLoginHints'];
+    staffSecurity?: AppSession['staffSecurity'];
+  },
 ): Promise<void> {
   const session = buildSession(user);
   const full: AppSession = {
@@ -1201,7 +1252,7 @@ export async function clearDiaryPurgeReauth(): Promise<void> {
   cookieStore.set(SESSION_COOKIE_NAME, encodeSessionCookie(next), buildSessionCookieOptions(next));
 }
 
-export { SESSION_SLIDING_TTL_SECONDS } from "@/modules/auth/sessionCookie";
+export { SESSION_SLIDING_TTL_SECONDS } from '@/modules/auth/sessionCookie';
 
 /**
  * Продлевает sliding TTL сессии в cookie (только route handlers / proxy).

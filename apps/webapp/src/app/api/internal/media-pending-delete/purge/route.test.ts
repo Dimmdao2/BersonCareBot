@@ -1,53 +1,55 @@
 /** @vitest-environment node */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const purgeMock = vi.fn();
 
-vi.mock("@/config/env", () => ({
+vi.mock('@/config/env', () => ({
   env: {
-    INTERNAL_JOB_SECRET: "test-internal-secret",
+    INTERNAL_JOB_SECRET: 'test-internal-secret',
   },
 }));
 
-vi.mock("@/app-layer/media/s3MediaStorage", () => ({
+vi.mock('@/app-layer/media/s3MediaStorage', () => ({
   purgePendingMediaDeleteBatch: (...args: unknown[]) => purgeMock(...args),
 }));
 
-vi.mock("@/app-layer/operator-health/recordOperatorCronJobTick", () => ({
+vi.mock('@/app-layer/operator-health/recordOperatorCronJobTick', () => ({
   recordOperatorCronJobTickBestEffort: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { POST } from "./route";
+import { POST } from './route';
 
-describe("POST /api/internal/media-pending-delete/purge", () => {
+describe('POST /api/internal/media-pending-delete/purge', () => {
   beforeEach(() => {
     purgeMock.mockReset();
     purgeMock.mockResolvedValue({ removed: 2, errors: 0 });
   });
 
-  it("returns 401 without bearer token", async () => {
-    const res = await POST(new Request("http://localhost/api/internal/media-pending-delete/purge", { method: "POST" }));
+  it('returns 401 without bearer token', async () => {
+    const res = await POST(
+      new Request('http://localhost/api/internal/media-pending-delete/purge', { method: 'POST' }),
+    );
     expect(res.status).toBe(401);
     expect(purgeMock).not.toHaveBeenCalled();
   });
 
-  it("returns 401 when bearer does not match", async () => {
+  it('returns 401 when bearer does not match', async () => {
     const res = await POST(
-      new Request("http://localhost/api/internal/media-pending-delete/purge", {
-        method: "POST",
-        headers: { authorization: "Bearer wrong" },
+      new Request('http://localhost/api/internal/media-pending-delete/purge', {
+        method: 'POST',
+        headers: { authorization: 'Bearer wrong' },
       }),
     );
     expect(res.status).toBe(401);
   });
 
-  it("returns 401 when bearer length matches secret but value differs (timing-safe path)", async () => {
+  it('returns 401 when bearer length matches secret but value differs (timing-safe path)', async () => {
     const res = await POST(
-      new Request("http://localhost/api/internal/media-pending-delete/purge", {
-        method: "POST",
+      new Request('http://localhost/api/internal/media-pending-delete/purge', {
+        method: 'POST',
         headers: {
-          authorization: `Bearer ${"x".repeat("test-internal-secret".length)}`,
+          authorization: `Bearer ${'x'.repeat('test-internal-secret'.length)}`,
         },
       }),
     );
@@ -55,11 +57,11 @@ describe("POST /api/internal/media-pending-delete/purge", () => {
     expect(purgeMock).not.toHaveBeenCalled();
   });
 
-  it("purges batch when authorized", async () => {
+  it('purges batch when authorized', async () => {
     const res = await POST(
-      new Request("http://localhost/api/internal/media-pending-delete/purge?limit=10", {
-        method: "POST",
-        headers: { authorization: "Bearer test-internal-secret" },
+      new Request('http://localhost/api/internal/media-pending-delete/purge?limit=10', {
+        method: 'POST',
+        headers: { authorization: 'Bearer test-internal-secret' },
       }),
     );
     expect(res.status).toBe(200);

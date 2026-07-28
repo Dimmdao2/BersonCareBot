@@ -1,7 +1,7 @@
-export const ORGANIZATION_INVITE_ROLES = ["admin", "doctor"] as const;
+export const ORGANIZATION_INVITE_ROLES = ['admin', 'doctor'] as const;
 export type OrganizationInviteRole = (typeof ORGANIZATION_INVITE_ROLES)[number];
 
-export const ORGANIZATION_INVITE_STATUSES = ["pending", "accepted", "revoked", "expired"] as const;
+export const ORGANIZATION_INVITE_STATUSES = ['pending', 'accepted', 'revoked', 'expired'] as const;
 export type OrganizationInviteStatus = (typeof ORGANIZATION_INVITE_STATUSES)[number];
 
 export type OrganizationInviteRecord = {
@@ -30,7 +30,7 @@ export type CreateOrganizationInviteInput = {
 
 export type CreateOrganizationInviteResult =
   | { ok: true; invite: OrganizationInviteRecord }
-  | { ok: false; code: "already_member" | "seat_limit_reached" };
+  | { ok: false; code: 'already_member' | 'seat_limit_reached' };
 
 export type AcceptOrganizationInviteResult =
   | {
@@ -44,22 +44,27 @@ export type AcceptOrganizationInviteResult =
   | {
       ok: false;
       code:
-        | "invalid_token"
-        | "expired_token"
-        | "reused_token"
-        | "email_mismatch"
-        | "entitlement_disabled"
-        | "seat_limit_reached";
+        | 'invalid_token'
+        | 'expired_token'
+        | 'reused_token'
+        | 'email_mismatch'
+        | 'entitlement_disabled'
+        | 'seat_limit_reached';
     };
 
 export type OrganizationInvitesPort = {
-  createReplacingPending(input: CreateOrganizationInviteInput): Promise<CreateOrganizationInviteResult>;
+  createReplacingPending(
+    input: CreateOrganizationInviteInput,
+  ): Promise<CreateOrganizationInviteResult>;
   listPendingByOrganization(organizationId: string): Promise<OrganizationInviteRecord[]>;
   /** Pending doctor invites plus accepted doctor invites awaiting their specialist binding. */
   countSeatReservationsByOrganization(organizationId: string): Promise<number>;
   getByTokenHash(tokenHash: string): Promise<OrganizationInviteRecord | null>;
   expireInvite(inviteId: string): Promise<void>;
-  revokePendingByOrganization(input: { organizationId: string; inviteId: string }): Promise<boolean>;
+  revokePendingByOrganization(input: {
+    organizationId: string;
+    inviteId: string;
+  }): Promise<boolean>;
   acceptPendingByTokenHash(input: {
     tokenHash: string;
     platformUserId: string;

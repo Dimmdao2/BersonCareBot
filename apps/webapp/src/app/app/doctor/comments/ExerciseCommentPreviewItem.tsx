@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import type { TodayExerciseCommentAttentionItem } from "../loadDoctorExerciseCommentAttention";
-import { ExerciseListCatalogThumb } from "@/shared/ui/doctor/media/ExerciseListCatalogThumb";
-import { thumbToExerciseMedia } from "./exerciseCommentThumb";
+import type { TodayExerciseCommentAttentionItem } from '../loadDoctorExerciseCommentAttention';
+import { ExerciseListCatalogThumb } from '@/shared/ui/doctor/media/ExerciseListCatalogThumb';
+import { thumbToExerciseMedia } from './exerciseCommentThumb';
 
 export function ExerciseCommentPreviewItemContent({
   item,
@@ -11,7 +11,7 @@ export function ExerciseCommentPreviewItemContent({
   item: TodayExerciseCommentAttentionItem;
   isOnSupport?: boolean;
 }) {
-  const bodyPreview = item.latestMessage.body?.trim() || "Комментарий без текста";
+  const bodyPreview = item.latestMessage.body?.trim() || 'Комментарий без текста';
 
   return (
     <div className="flex min-w-0 items-start gap-2.5">
@@ -21,7 +21,10 @@ export function ExerciseCommentPreviewItemContent({
           <span className="truncate text-sm font-semibold text-foreground">
             {item.patientDisplayName}
             {isOnSupport ? (
-              <span className="ml-1.5 text-[10px] font-semibold text-primary" title="На сопровождении">
+              <span
+                className="ml-1.5 text-[10px] font-semibold text-primary"
+                title="На сопровождении"
+              >
                 ★
               </span>
             ) : null}
@@ -30,12 +33,8 @@ export function ExerciseCommentPreviewItemContent({
             {item.latestMessageAtLabel}
           </span>
         </div>
-        <p className="mt-0.5 line-clamp-2 text-xs text-foreground/80">
-          {bodyPreview}
-        </p>
-        <p className="mt-0.5 truncate text-xs text-muted-foreground">
-          {item.stageItemTitle}
-        </p>
+        <p className="mt-0.5 line-clamp-2 text-xs text-foreground/80">{bodyPreview}</p>
+        <p className="mt-0.5 truncate text-xs text-muted-foreground">{item.stageItemTitle}</p>
       </div>
     </div>
   );

@@ -1,6 +1,9 @@
-import type { BroadcastAuditEntry, DoctorBroadcastDeliveryCommitPort } from "@/modules/doctor-broadcasts/ports";
-import { pushInMemoryBroadcastAuditEntry } from "./inMemoryBroadcastAudit";
-import { setInMemoryBroadcastRecipients } from "./inMemoryBroadcastRecipients";
+import type {
+  BroadcastAuditEntry,
+  DoctorBroadcastDeliveryCommitPort,
+} from '@/modules/doctor-broadcasts/ports';
+import { pushInMemoryBroadcastAuditEntry } from './inMemoryBroadcastAudit';
+import { setInMemoryBroadcastRecipients } from './inMemoryBroadcastRecipients';
 
 export function createInMemoryDoctorBroadcastDeliveryCommitPort(): DoctorBroadcastDeliveryCommitPort {
   return {
@@ -11,7 +14,7 @@ export function createInMemoryDoctorBroadcastDeliveryCommitPort(): DoctorBroadca
         id: auditId,
         executedAt,
         deliveryJobsTotal: jobs.length,
-        messageBody: audit.messageBody ?? "",
+        messageBody: audit.messageBody ?? '',
       };
       pushInMemoryBroadcastAuditEntry(entry);
       setInMemoryBroadcastRecipients(auditId, recipientUserIds);

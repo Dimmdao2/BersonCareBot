@@ -8,13 +8,13 @@
 
 ## 1. Компоненты и границы
 
-| Компонент | Роль | Что **не** делает |
-|-----------|------|-------------------|
-| **`apps/webapp`** (Next.js) | Метаданные медиа, авторизация, создание jobs, **playback API** (JSON), presigned URL | Транскодинг, стриминг байт через себя |
-| **`apps/media-worker`** (новый пакет) | Poll очереди, **FFmpeg CLI**, upload артефактов в S3, обновление статусов в БД | HTTP API для клиентов |
-| **PostgreSQL (webapp DB)** | `media_files` + таблица очереди (или колонки статуса + отдельная jobs) | Хранение сегментов |
-| **S3-compatible private bucket** | Source MP4, HLS tree (`.m3u8`, сегменты), постер | Публичный анонимный listing |
-| **`apps/integrator`** | Без изменений для HLS на старте | Не смешивать с медиа-очередью |
+| Компонент                             | Роль                                                                                 | Что **не** делает                     |
+| ------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------- |
+| **`apps/webapp`** (Next.js)           | Метаданные медиа, авторизация, создание jobs, **playback API** (JSON), presigned URL | Транскодинг, стриминг байт через себя |
+| **`apps/media-worker`** (новый пакет) | Poll очереди, **FFmpeg CLI**, upload артефактов в S3, обновление статусов в БД       | HTTP API для клиентов                 |
+| **PostgreSQL (webapp DB)**            | `media_files` + таблица очереди (или колонки статуса + отдельная jobs)               | Хранение сегментов                    |
+| **S3-compatible private bucket**      | Source MP4, HLS tree (`.m3u8`, сегменты), постер                                     | Публичный анонимный listing           |
+| **`apps/integrator`**                 | Без изменений для HLS на старте                                                      | Не смешивать с медиа-очередью         |
 
 **Запрещено по ТЗ:** отдельный streaming server, собственный transcoding engine (кроме оркестрации **FFmpeg**), DRM, проксирование видеопотока через Node.
 
@@ -51,12 +51,12 @@ sequenceDiagram
 
 ## 3. Готовые инструменты (явно)
 
-| Инструмент | Где используется |
-|------------|------------------|
-| **FFmpeg** | `apps/media-worker` (subprocess), не библиотека-транскодер |
-| **aws-sdk / текущий S3 client** | webapp + worker: PutObject, GetObject, presign |
-| **hls.js** | webapp client bundle (фаза 05) |
-| **Native HLS** | Safari / iOS — `<video src="master.m3u8">` или hls.js capability detect |
+| Инструмент                      | Где используется                                                        |
+| ------------------------------- | ----------------------------------------------------------------------- |
+| **FFmpeg**                      | `apps/media-worker` (subprocess), не библиотека-транскодер              |
+| **aws-sdk / текущий S3 client** | webapp + worker: PutObject, GetObject, presign                          |
+| **hls.js**                      | webapp client bundle (фаза 05)                                          |
+| **Native HLS**                  | Safari / iOS — `<video src="master.m3u8">` или hls.js capability detect |
 
 **Не реализуем:** собственный packager, origin-сервер, DRM license server.
 
@@ -126,7 +126,7 @@ ffmpeg -y -i input.mp4 -ss 00:00:01 -vframes 1 -q:v 3 poster.jpg
 
 ## 8. CDN
 
-- В репозитории нет обязательной привязки к CDN для медиа (private presigned).  
+- В репозитории нет обязательной привязки к CDN для медиа (private presigned).
 - **План:** абстракция URL = «то, что выдал playback API»; в будущем можно подменить генерацию на CloudFront signed URL **без** смены контракта полей (фаза 09).
 
 ---

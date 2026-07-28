@@ -1,4 +1,4 @@
-import { arrayMove } from "@dnd-kit/sortable";
+import { arrayMove } from '@dnd-kit/sortable';
 
 export function sortByOrderThenId<T extends { sortOrder: number; id: string }>(rows: T[]): T[] {
   return [...rows].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
@@ -40,15 +40,15 @@ export function planStageItemDndReorder<T extends StageItemLike>(
   canParticipate: (item: T) => boolean,
 ): StageItemDndPlan {
   const result = computeStageItemReorderAfterDnd(allItems, activeId, overId, canParticipate);
-  if (!result) return { ok: false, error: "invalid_reorder" };
+  if (!result) return { ok: false, error: 'invalid_reorder' };
   const active = allItems.find((i) => i.id === activeId);
-  if (!active) return { ok: false, error: "not_found" };
+  if (!active) return { ok: false, error: 'not_found' };
   if (
     result.nextGroupId === null &&
-    active.itemType !== "recommendation" &&
-    active.itemType !== "clinical_test"
+    active.itemType !== 'recommendation' &&
+    active.itemType !== 'clinical_test'
   ) {
-    return { ok: false, error: "ungrouped_type" };
+    return { ok: false, error: 'ungrouped_type' };
   }
   const currentGroupId = active.groupId ?? null;
   return {
@@ -96,7 +96,10 @@ export function computeStageItemReorderAfterDnd<T extends StageItemLike>(
   return { orderedItemIds, nextGroupId };
 }
 
-function sameItemGroupKey(item: { groupId: string | null | undefined }, groupId: string | null): boolean {
+function sameItemGroupKey(
+  item: { groupId: string | null | undefined },
+  groupId: string | null,
+): boolean {
   return (item.groupId ?? null) === (groupId ?? null);
 }
 

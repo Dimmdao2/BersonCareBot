@@ -1,4 +1,4 @@
-import type { EmailPasswordAuthState } from "./types";
+import type { EmailPasswordAuthState } from './types';
 
 export type EmailPasswordLookupPort = {
   resolveAuthState(emailNormalized: string): Promise<EmailPasswordAuthState>;

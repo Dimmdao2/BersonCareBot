@@ -45,7 +45,8 @@ function collectViolations(rules: unknown[]): string[] {
     if (!ruleHasNeedPhoneContext(rule)) continue;
     const steps = (rule as { id?: string; steps?: unknown }).steps;
     if (valueContainsBlockedWebAppKeys(steps)) {
-      const id = typeof (rule as { id?: unknown }).id === 'string' ? (rule as { id: string }).id : '(no id)';
+      const id =
+        typeof (rule as { id?: unknown }).id === 'string' ? (rule as { id: string }).id : '(no id)';
       out.push(id);
     }
   }

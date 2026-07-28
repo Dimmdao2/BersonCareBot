@@ -4,14 +4,14 @@
  * only as a transition, archived history retained, and a logo that must be owned by the SAME
  * organization (the DB trigger `app.guard_org_brand_revision()` is the authoritative chokepoint).
  */
-import { randomUUID } from "node:crypto";
+import { randomUUID } from 'node:crypto';
 import type {
   CoreOrganizationContext,
   OrgBrandRevision,
   OrgBrandRevisionStatus,
   OrgBrandingPort,
   SaveOrgBrandDraftInput,
-} from "@/modules/org-branding/ports";
+} from '@/modules/org-branding/ports';
 
 type SeedOrganization = { organizationId: string; displayName: string; isActive?: boolean };
 type SeedMedia = {
@@ -71,7 +71,7 @@ export function listInMemoryOrgBrandRevisions(organizationId: string): OrgBrandR
     .map((revision) => ({ ...revision, logoMediaReady: logoReady(revision) }));
 }
 
-function logoReady(revision: Pick<OrgBrandRevision, "logoMediaId" | "organizationId">): boolean {
+function logoReady(revision: Pick<OrgBrandRevision, 'logoMediaId' | 'organizationId'>): boolean {
   if (!revision.logoMediaId) return false;
   const asset = media.get(revision.logoMediaId);
   if (!asset) return false;
@@ -97,7 +97,7 @@ function assertLogoOwnedByOrganization(input: {
   if (!input.logoMediaId) return;
   const asset = media.get(input.logoMediaId);
   if (!asset || asset.organizationId === null || asset.organizationId !== input.organizationId) {
-    throw new Error("org_brand_logo_media_must_be_owned_by_organization");
+    throw new Error('org_brand_logo_media_must_be_owned_by_organization');
   }
 }
 
@@ -108,18 +108,19 @@ export function createInMemoryOrgBrandingPort(): OrgBrandingPort {
     },
 
     async getPublishedRevision(organizationId: string): Promise<OrgBrandRevision | null> {
-      return find(organizationId, "published");
+      return find(organizationId, 'published');
     },
 
     async getDraftRevision(organizationId: string): Promise<OrgBrandRevision | null> {
-      return find(organizationId, "draft");
+      return find(organizationId, 'draft');
     },
 
     async saveDraft(input: SaveOrgBrandDraftInput): Promise<OrgBrandRevision> {
       assertLogoOwnedByOrganization(input);
       const now = new Date().toISOString();
       const existing = revisions.find(
-        (revision) => revision.organizationId === input.organizationId && revision.status === "draft",
+        (revision) =>
+          revision.organizationId === input.organizationId && revision.status === 'draft',
       );
       if (existing) {
         existing.displayName = input.displayName;
@@ -130,7 +131,7 @@ export function createInMemoryOrgBrandingPort(): OrgBrandingPort {
       const draft: OrgBrandRevision = {
         id: randomUUID(),
         organizationId: input.organizationId,
-        status: "draft",
+        status: 'draft',
         displayName: input.displayName,
         logoMediaId: input.logoMediaId,
         logoMediaReady: false,
@@ -151,19 +152,20 @@ export function createInMemoryOrgBrandingPort(): OrgBrandingPort {
       actorPlatformUserId: string;
     }): Promise<OrgBrandRevision | null> {
       const draft = revisions.find(
-        (revision) => revision.organizationId === input.organizationId && revision.status === "draft",
+        (revision) =>
+          revision.organizationId === input.organizationId && revision.status === 'draft',
       );
       if (!draft) return null;
       const now = new Date().toISOString();
       for (const revision of revisions) {
-        if (revision.organizationId === input.organizationId && revision.status === "published") {
-          revision.status = "archived";
+        if (revision.organizationId === input.organizationId && revision.status === 'published') {
+          revision.status = 'archived';
           revision.archivedAt = now;
           revision.archivedByPlatformUserId = input.actorPlatformUserId;
           revision.updatedAt = now;
         }
       }
-      draft.status = "published";
+      draft.status = 'published';
       draft.publishedAt = now;
       draft.publishedByPlatformUserId = input.actorPlatformUserId;
       draft.updatedAt = now;
@@ -176,11 +178,11 @@ export function createInMemoryOrgBrandingPort(): OrgBrandingPort {
     }): Promise<boolean> {
       const published = revisions.find(
         (revision) =>
-          revision.organizationId === input.organizationId && revision.status === "published",
+          revision.organizationId === input.organizationId && revision.status === 'published',
       );
       if (!published) return false;
       const now = new Date().toISOString();
-      published.status = "archived";
+      published.status = 'archived';
       published.archivedAt = now;
       published.archivedByPlatformUserId = input.actorPlatformUserId;
       published.updatedAt = now;

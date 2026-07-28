@@ -12,19 +12,19 @@
  *   INTEGRATOR_DATABASE_URL=... DATABASE_URL=... node scripts/backfill-reminders-domain.mjs [--dry-run | --commit] [--limit=N]
  * Defaults to --dry-run.
  */
-import "dotenv/config";
-import pg from "pg";
-import { loadCutoverEnv } from "../../../scripts/load-cutover-env.mjs";
+import 'dotenv/config';
+import pg from 'pg';
+import { loadCutoverEnv } from '../../../scripts/load-cutover-env.mjs';
 
 const args = process.argv.slice(2);
 loadCutoverEnv();
-const dryRun = !args.includes("--commit");
-const limitArg = args.find((a) => a.startsWith("--limit="));
+const dryRun = !args.includes('--commit');
+const limitArg = args.find((a) => a.startsWith('--limit='));
 /** Safe row cap for backfill (avoids accidental huge LIMIT / NaN in SQL). */
 const MAX_BACKFILL_LIMIT = 500_000;
 function parseBackfillLimit(arg) {
-  if (!arg || !arg.includes("=")) return 0;
-  const raw = arg.slice(arg.indexOf("=") + 1);
+  if (!arg || !arg.includes('=')) return 0;
+  const raw = arg.slice(arg.indexOf('=') + 1);
   const n = parseInt(String(raw), 10);
   if (!Number.isFinite(n) || n < 0) return 0;
   return Math.min(n, MAX_BACKFILL_LIMIT);
@@ -35,16 +35,16 @@ const sourceUrl = process.env.INTEGRATOR_DATABASE_URL || process.env.SOURCE_DATA
 const targetUrl = process.env.DATABASE_URL;
 
 if (!sourceUrl) {
-  console.error("INTEGRATOR_DATABASE_URL (or SOURCE_DATABASE_URL) is not set");
+  console.error('INTEGRATOR_DATABASE_URL (or SOURCE_DATABASE_URL) is not set');
   process.exit(1);
 }
 if (!targetUrl) {
-  console.error("DATABASE_URL is not set");
+  console.error('DATABASE_URL is not set');
   process.exit(1);
 }
 
 if (dryRun) {
-  console.log("[DRY-RUN] No writes will be performed. Pass --commit to write.");
+  console.log('[DRY-RUN] No writes will be performed. Pass --commit to write.');
 }
 
 const BACKFILL_WRITE_BATCH = 1000;
@@ -54,25 +54,24 @@ const dst = new pg.Client({ connectionString: targetUrl });
 
 async function resolvePlatformUserId(integratorUserId) {
   if (integratorUserId == null) return null;
-  const r = await dst.query(
-    "SELECT id FROM platform_users WHERE integrator_user_id = $1",
-    [String(integratorUserId)]
-  );
+  const r = await dst.query('SELECT id FROM platform_users WHERE integrator_user_id = $1', [
+    String(integratorUserId),
+  ]);
   return r.rows[0]?.id ?? null;
 }
 
 async function backfillReminderRules() {
-  const limitClause = limit > 0 ? ` LIMIT ${limit}` : "";
+  const limitClause = limit > 0 ? ` LIMIT ${limit}` : '';
   const { rows } = await src.query(
     `SELECT id, user_id, category, is_enabled, schedule_type, timezone,
             interval_minutes, window_start_minute, window_end_minute, days_mask, content_mode, updated_at
-     FROM user_reminder_rules ORDER BY updated_at ASC${limitClause}`
+     FROM user_reminder_rules ORDER BY updated_at ASC${limitClause}`,
   );
   console.log(`Reminder rules to backfill: ${rows.length}`);
   let n = 0;
   for (let i = 0; i < rows.length; i += BACKFILL_WRITE_BATCH) {
     const chunk = rows.slice(i, i + BACKFILL_WRITE_BATCH);
-    if (!dryRun) await dst.query("BEGIN");
+    if (!dryRun) await dst.query('BEGIN');
     try {
       for (const row of chunk) {
         const platformUserId = await resolvePlatformUserId(row.user_id);
@@ -110,16 +109,16 @@ async function backfillReminderRules() {
               row.days_mask,
               row.content_mode,
               row.updated_at,
-            ]
+            ],
           );
         }
         n++;
       }
-      if (!dryRun) await dst.query("COMMIT");
+      if (!dryRun) await dst.query('COMMIT');
     } catch (err) {
       if (!dryRun) {
         try {
-          await dst.query("ROLLBACK");
+          await dst.query('ROLLBACK');
         } catch {
           // Best effort rollback; preserve original batch error.
         }
@@ -127,24 +126,24 @@ async function backfillReminderRules() {
       throw err;
     }
   }
-  console.log(`  Rules ${dryRun ? "would upsert" : "upserted"}: ${n}`);
+  console.log(`  Rules ${dryRun ? 'would upsert' : 'upserted'}: ${n}`);
 }
 
 async function backfillReminderOccurrenceHistory() {
-  const limitClause = limit > 0 ? ` LIMIT ${limit}` : "";
+  const limitClause = limit > 0 ? ` LIMIT ${limit}` : '';
   const { rows } = await src.query(
     `SELECT o.id, o.rule_id, r.user_id, r.category, o.status, o.delivery_channel, o.error_code,
             COALESCE(o.sent_at, o.failed_at) AS occurred_at
      FROM user_reminder_occurrences o
      JOIN user_reminder_rules r ON r.id = o.rule_id
      WHERE o.status IN ('sent', 'failed')
-     ORDER BY occurred_at ASC${limitClause}`
+     ORDER BY occurred_at ASC${limitClause}`,
   );
   console.log(`Reminder occurrence history (sent/failed) to backfill: ${rows.length}`);
   let n = 0;
   for (let i = 0; i < rows.length; i += BACKFILL_WRITE_BATCH) {
     const chunk = rows.slice(i, i + BACKFILL_WRITE_BATCH);
-    if (!dryRun) await dst.query("BEGIN");
+    if (!dryRun) await dst.query('BEGIN');
     try {
       for (const row of chunk) {
         if (!dryRun) {
@@ -163,16 +162,16 @@ async function backfillReminderOccurrenceHistory() {
               row.delivery_channel ?? null,
               row.error_code ?? null,
               row.occurred_at,
-            ]
+            ],
           );
         }
         n++;
       }
-      if (!dryRun) await dst.query("COMMIT");
+      if (!dryRun) await dst.query('COMMIT');
     } catch (err) {
       if (!dryRun) {
         try {
-          await dst.query("ROLLBACK");
+          await dst.query('ROLLBACK');
         } catch {
           // Best effort rollback; preserve original batch error.
         }
@@ -180,23 +179,23 @@ async function backfillReminderOccurrenceHistory() {
       throw err;
     }
   }
-  console.log(`  Occurrence history ${dryRun ? "would insert" : "inserted"}: ${n}`);
+  console.log(`  Occurrence history ${dryRun ? 'would insert' : 'inserted'}: ${n}`);
 }
 
 async function backfillReminderDeliveryEvents() {
-  const limitClause = limit > 0 ? ` LIMIT ${limit}` : "";
+  const limitClause = limit > 0 ? ` LIMIT ${limit}` : '';
   const { rows } = await src.query(
     `SELECT l.id, l.occurrence_id, o.rule_id, r.user_id, l.channel, l.status, l.error_code, l.payload_json, l.created_at
      FROM user_reminder_delivery_logs l
      JOIN user_reminder_occurrences o ON o.id = l.occurrence_id
      JOIN user_reminder_rules r ON r.id = o.rule_id
-     ORDER BY l.created_at ASC${limitClause}`
+     ORDER BY l.created_at ASC${limitClause}`,
   );
   console.log(`Reminder delivery events to backfill: ${rows.length}`);
   let n = 0;
   for (let i = 0; i < rows.length; i += BACKFILL_WRITE_BATCH) {
     const chunk = rows.slice(i, i + BACKFILL_WRITE_BATCH);
-    if (!dryRun) await dst.query("BEGIN");
+    if (!dryRun) await dst.query('BEGIN');
     try {
       for (const row of chunk) {
         if (!dryRun) {
@@ -216,16 +215,16 @@ async function backfillReminderDeliveryEvents() {
               row.error_code ?? null,
               JSON.stringify(row.payload_json ?? {}),
               row.created_at,
-            ]
+            ],
           );
         }
         n++;
       }
-      if (!dryRun) await dst.query("COMMIT");
+      if (!dryRun) await dst.query('COMMIT');
     } catch (err) {
       if (!dryRun) {
         try {
-          await dst.query("ROLLBACK");
+          await dst.query('ROLLBACK');
         } catch {
           // Best effort rollback; preserve original batch error.
         }
@@ -233,20 +232,20 @@ async function backfillReminderDeliveryEvents() {
       throw err;
     }
   }
-  console.log(`  Delivery events ${dryRun ? "would insert" : "inserted"}: ${n}`);
+  console.log(`  Delivery events ${dryRun ? 'would insert' : 'inserted'}: ${n}`);
 }
 
 async function backfillContentAccessGrants() {
-  const limitClause = limit > 0 ? ` LIMIT ${limit}` : "";
+  const limitClause = limit > 0 ? ` LIMIT ${limit}` : '';
   const { rows } = await src.query(
     `SELECT id, user_id, content_id, purpose, token_hash, expires_at, revoked_at, meta_json, created_at
-     FROM content_access_grants ORDER BY created_at ASC${limitClause}`
+     FROM content_access_grants ORDER BY created_at ASC${limitClause}`,
   );
   console.log(`Content access grants to backfill: ${rows.length}`);
   let n = 0;
   for (let i = 0; i < rows.length; i += BACKFILL_WRITE_BATCH) {
     const chunk = rows.slice(i, i + BACKFILL_WRITE_BATCH);
-    if (!dryRun) await dst.query("BEGIN");
+    if (!dryRun) await dst.query('BEGIN');
     try {
       for (const row of chunk) {
         const platformUserId = await resolvePlatformUserId(row.user_id);
@@ -276,16 +275,16 @@ async function backfillContentAccessGrants() {
               row.revoked_at ?? null,
               JSON.stringify(row.meta_json ?? {}),
               row.created_at,
-            ]
+            ],
           );
         }
         n++;
       }
-      if (!dryRun) await dst.query("COMMIT");
+      if (!dryRun) await dst.query('COMMIT');
     } catch (err) {
       if (!dryRun) {
         try {
-          await dst.query("ROLLBACK");
+          await dst.query('ROLLBACK');
         } catch {
           // Best effort rollback; preserve original batch error.
         }
@@ -293,13 +292,13 @@ async function backfillContentAccessGrants() {
       throw err;
     }
   }
-  console.log(`  Content grants ${dryRun ? "would upsert" : "upserted"}: ${n}`);
+  console.log(`  Content grants ${dryRun ? 'would upsert' : 'upserted'}: ${n}`);
 }
 
 async function main() {
   await src.connect();
   await dst.connect();
-  console.log("Connected to source (integrator) and target (webapp) databases.\n");
+  console.log('Connected to source (integrator) and target (webapp) databases.\n');
 
   try {
     await backfillReminderRules();
@@ -311,9 +310,9 @@ async function main() {
     await dst.end();
   }
 
-  console.log("\nBackfill complete.");
+  console.log('\nBackfill complete.');
   if (dryRun) {
-    console.log("This was a DRY-RUN. Pass --commit to actually write data.");
+    console.log('This was a DRY-RUN. Pass --commit to actually write data.');
   }
 }
 

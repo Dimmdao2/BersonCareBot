@@ -3,14 +3,14 @@
  * Matches picker behavior in {@link filterMediaLibraryPickerItemsByQuery}.
  */
 export function normalizeRuSearchString(s: string): string {
-  return s.normalize("NFC").toLocaleLowerCase("ru-RU");
+  return s.normalize('NFC').toLocaleLowerCase('ru-RU');
 }
 
 /**
  * Экранирование `\`, `%`, `_` для литералов внутри паттерна `ILIKE … ESCAPE '\'`.
  */
 export function escapePgIlikeLiteral(value: string): string {
-  return value.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+  return value.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
 }
 
 /**

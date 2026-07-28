@@ -43,12 +43,12 @@
 
 **Статус:** OK
 
-| Артефакт | Описание |
-|----------|----------|
-| `integratorSmsAdapter.test.ts` | 500 от интегратора → `delivery_failed`; fetch throw → `delivery_failed` |
-| `phone/start/route.test.ts` | `delivery_failed` → 503, ожидаемый `message` |
-| `AuthFlowV2.test.tsx` | мок `phone/start` с `delivery_failed` → `toast` с корректным сообщением |
-| `pnpm run ci` | **exit 0** (2026-04-04): lint, typecheck, integrator test, webapp test, webapp:typecheck, build, build:webapp, audit --prod |
+| Артефакт                       | Описание                                                                                                                    |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| `integratorSmsAdapter.test.ts` | 500 от интегратора → `delivery_failed`; fetch throw → `delivery_failed`                                                     |
+| `phone/start/route.test.ts`    | `delivery_failed` → 503, ожидаемый `message`                                                                                |
+| `AuthFlowV2.test.tsx`          | мок `phone/start` с `delivery_failed` → `toast` с корректным сообщением                                                     |
+| `pnpm run ci`                  | **exit 0** (2026-04-04): lint, typecheck, integrator test, webapp test, webapp:typecheck, build, build:webapp, audit --prod |
 
 ---
 

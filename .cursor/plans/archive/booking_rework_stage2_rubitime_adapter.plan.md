@@ -1,30 +1,30 @@
 ---
 name: BOOKING REWORK — этап 2 Rubitime-адаптер
-overview: "Закрыть этап 2 BOOKING_REWORK: link service (2.0), mapping UI (2.1), internal adapter (2.2), canonical API (2.3a); 2.3b ops defer в LOG."
+overview: 'Закрыть этап 2 BOOKING_REWORK: link service (2.0), mapping UI (2.1), internal adapter (2.2), canonical API (2.3a); 2.3b ops defer в LOG.'
 todos:
   - id: 2.0-link-service
-    content: "POST rubitime-mapping/link: legacy row + SSA + availability mapping; verify resolveLegacyBranchServiceId"
+    content: 'POST rubitime-mapping/link: legacy row + SSA + availability mapping; verify resolveLegacyBranchServiceId'
     status: completed
   - id: 2.1-mapping-ui
-    content: "BookingRubitimeMappingSection, GET rubitime-mapping, overview warnings, RubitimeSection без branch-service matrix"
+    content: 'BookingRubitimeMappingSection, GET rubitime-mapping, overview warnings, RubitimeSection без branch-service matrix'
     status: completed
   - id: 2.2-adapter
-    content: "resolveInPersonBranchServiceId fail-closed; memberships/products; legacyProjection tests"
+    content: 'resolveInPersonBranchServiceId fail-closed; memberships/products; legacyProjection tests'
     status: completed
   - id: 2.3a-canonical-api
-    content: "Dual-input slots/create; GET in-person-services; patient/public wizard primary branchId+serviceId"
+    content: 'Dual-input slots/create; GET in-person-services; patient/public wizard primary branchId+serviceId'
     status: completed
   - id: 2.3b-ops-defer
-    content: "2.3b slots cutover — ops gate; appointments read-source defer → этап 4 (LOG)"
+    content: '2.3b slots cutover — ops gate; appointments read-source defer → этап 4 (LOG)'
     status: completed
   - id: audit-fixes
-    content: "Аудит: link verify, deprecation log, public deep link, расширенные тесты, api.md"
+    content: 'Аудит: link verify, deprecation log, public deep link, расширенные тесты, api.md'
     status: completed
   - id: docs-sync
-    content: "ROADMAP, ACCEPTANCE, STAGE2_DECOMPOSITION, INVENTORY §5, LOG, README"
+    content: 'ROADMAP, ACCEPTANCE, STAGE2_DECOMPOSITION, INVENTORY §5, LOG, README'
     status: completed
   - id: ci
-    content: "pnpm run ci зелёный; port-based Deps без import buildAppDeps в modules"
+    content: 'pnpm run ci зелёный; port-based Deps без import buildAppDeps в modules'
     status: completed
 isProject: false
 ---

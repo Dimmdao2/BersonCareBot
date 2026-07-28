@@ -1,13 +1,13 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
+import { useCallback, useEffect, useState } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import {
   doctorClientOverviewPrimaryCardClass,
   doctorClientPanelStackClass,
   doctorClientSectionTitleClass,
-} from "./doctorClientCardChrome";
+} from './doctorClientCardChrome';
 
 type Note = {
   id: string;
@@ -23,7 +23,7 @@ type Props = {
 
 export function DoctorNotesPanel({ userId, embedded = false }: Props) {
   const [notes, setNotes] = useState<Note[]>([]);
-  const [text, setText] = useState("");
+  const [text, setText] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +35,7 @@ export function DoctorNotesPanel({ userId, embedded = false }: Props) {
       const res = await fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/notes`);
       const data = (await res.json()) as { ok?: boolean; notes?: Note[] };
       if (!res.ok || !data.ok) {
-        setError("Не удалось загрузить заметки");
+        setError('Не удалось загрузить заметки');
         return;
       }
       setNotes(data.notes ?? []);
@@ -56,16 +56,16 @@ export function DoctorNotesPanel({ userId, embedded = false }: Props) {
     setError(null);
     try {
       const res = await fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/notes`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: trimmed }),
       });
       const data = (await res.json()) as { ok?: boolean };
       if (!res.ok || !data.ok) {
-        setError("Не удалось сохранить");
+        setError('Не удалось сохранить');
         return;
       }
-      setText("");
+      setText('');
       await load();
     } finally {
       setSaving(false);
@@ -78,9 +78,17 @@ export function DoctorNotesPanel({ userId, embedded = false }: Props) {
       {error ? <p className="text-destructive text-sm">{error}</p> : null}
       <ul id="doctor-notes-list" className="m-0 list-none space-y-2 p-0">
         {notes.map((n) => (
-          <li key={n.id} id={`doctor-note-${n.id}`} className="rounded-md border border-border p-2 text-sm">
+          <li
+            key={n.id}
+            id={`doctor-note-${n.id}`}
+            className="rounded-md border border-border p-2 text-sm"
+          >
             <span className="text-muted-foreground text-xs">
-              {new Date(n.createdAt).toLocaleString("ru-RU", { timeZone: "Europe/Moscow", dateStyle: "short", timeStyle: "short" })}
+              {new Date(n.createdAt).toLocaleString('ru-RU', {
+                timeZone: 'Europe/Moscow',
+                dateStyle: 'short',
+                timeStyle: 'short',
+              })}
             </span>
             <p className="mt-1 whitespace-pre-wrap">{n.text}</p>
           </li>
@@ -100,7 +108,7 @@ export function DoctorNotesPanel({ userId, embedded = false }: Props) {
           maxLength={8000}
         />
         <Button type="submit" disabled={saving || !text.trim()}>
-          {saving ? "Сохранение…" : "Добавить заметку"}
+          {saving ? 'Сохранение…' : 'Добавить заметку'}
         </Button>
       </form>
     </>

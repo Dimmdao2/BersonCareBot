@@ -27,14 +27,14 @@
 
 Закрытый цикл 2026-04 (read-only): отчёты аудита перенесены в архив. Новый цикл — по правилам `EXECUTION_RULES.md`, новые файлы именовать с датой/версией **в этом каталоге инициативы**, не перезаписывать архив.
 
-| Назначение | Архивный файл (цикл 2026-04) |
-|------------|------|
-| Готовность доков/правил перед работой по коду | `docs/archive/2026-04-docs-cleanup/test-api-di-optimization/AUDIT_INIT.md` |
-| Закрытие трека A (тесты), перед первым пушем | `docs/archive/2026-04-docs-cleanup/test-api-di-optimization/AUDIT_TRACK_A.md` |
-| **Pre-deploy** перед пушем после трека A (merge → обычный deploy) | `docs/archive/2026-04-docs-cleanup/test-api-di-optimization/AUDIT_PRE_DEPLOY_A.md` |
-| Закрытие логического кластера трека B | `docs/archive/2026-04-docs-cleanup/test-api-di-optimization/AUDIT_TRACK_B_CLUSTER.md` |
-| **Pre-deploy** перед пушем после трека B / всей инициативы | `docs/archive/2026-04-docs-cleanup/test-api-di-optimization/AUDIT_PRE_DEPLOY_B.md` |
-| Сквозной итог перед merge в main / закрытием ветки | `docs/archive/2026-04-docs-cleanup/test-api-di-optimization/AUDIT_FINAL.md` |
+| Назначение                                                        | Архивный файл (цикл 2026-04)                                                          |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Готовность доков/правил перед работой по коду                     | `docs/archive/2026-04-docs-cleanup/test-api-di-optimization/AUDIT_INIT.md`            |
+| Закрытие трека A (тесты), перед первым пушем                      | `docs/archive/2026-04-docs-cleanup/test-api-di-optimization/AUDIT_TRACK_A.md`         |
+| **Pre-deploy** перед пушем после трека A (merge → обычный deploy) | `docs/archive/2026-04-docs-cleanup/test-api-di-optimization/AUDIT_PRE_DEPLOY_A.md`    |
+| Закрытие логического кластера трека B                             | `docs/archive/2026-04-docs-cleanup/test-api-di-optimization/AUDIT_TRACK_B_CLUSTER.md` |
+| **Pre-deploy** перед пушем после трека B / всей инициативы        | `docs/archive/2026-04-docs-cleanup/test-api-di-optimization/AUDIT_PRE_DEPLOY_B.md`    |
+| Сквозной итог перед merge в main / закрытием ветки                | `docs/archive/2026-04-docs-cleanup/test-api-di-optimization/AUDIT_FINAL.md`           |
 
 ---
 

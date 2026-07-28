@@ -14,14 +14,17 @@ export type MessageRetryJobRow = {
   maxAttempts: number;
 };
 
-export async function enqueueMessageRetryJob(db: DbPort, input: {
-  phoneNormalized: string | null;
-  messageText: string | null;
-  firstTryDelaySeconds: number;
-  maxAttempts: number;
-  kind: string;
-  payloadJson: Record<string, unknown>;
-}): Promise<void> {
+export async function enqueueMessageRetryJob(
+  db: DbPort,
+  input: {
+    phoneNormalized: string | null;
+    messageText: string | null;
+    firstTryDelaySeconds: number;
+    maxAttempts: number;
+    kind: string;
+    payloadJson: Record<string, unknown>;
+  },
+): Promise<void> {
   const d = getIntegratorDrizzleSession(db);
   const delaySec = Math.max(0, Math.trunc(input.firstTryDelaySeconds));
   await d.insert(messageRetryJobs).values({
@@ -39,7 +42,10 @@ export async function enqueueMessageRetryJob(db: DbPort, input: {
 /**
  * Claim: CTE + UPDATE … FOR UPDATE SKIP LOCKED — та же семантика, что и legacy SQL, через `execute(sql)`.
  */
-export async function claimDueMessageRetryJobs(db: DbPort, limit: number): Promise<MessageRetryJobRow[]> {
+export async function claimDueMessageRetryJobs(
+  db: DbPort,
+  limit: number,
+): Promise<MessageRetryJobRow[]> {
   const d = getIntegratorDrizzleSession(db);
   const lim = Math.max(1, Math.trunc(limit));
   const res = await d.execute(sql`
@@ -70,12 +76,15 @@ export async function claimDueMessageRetryJobs(db: DbPort, limit: number): Promi
   return res.rows as MessageRetryJobRow[];
 }
 
-export async function rescheduleMessageRetryJob(db: DbPort, input: {
-  id: number;
-  attemptsDone: number;
-  retryDelaySeconds: number;
-  lastError?: string;
-}): Promise<void> {
+export async function rescheduleMessageRetryJob(
+  db: DbPort,
+  input: {
+    id: number;
+    attemptsDone: number;
+    retryDelaySeconds: number;
+    lastError?: string;
+  },
+): Promise<void> {
   const d = getIntegratorDrizzleSession(db);
   const delay = Math.max(1, Math.trunc(input.retryDelaySeconds));
   const attempts = Math.max(0, Math.trunc(input.attemptsDone));
@@ -99,7 +108,10 @@ export async function completeMessageRetryJob(db: DbPort, id: number): Promise<v
     .where(eq(messageRetryJobs.id, id));
 }
 
-export async function failMessageRetryJob(db: DbPort, input: { id: number; lastError?: string }): Promise<void> {
+export async function failMessageRetryJob(
+  db: DbPort,
+  input: { id: number; lastError?: string },
+): Promise<void> {
   const d = getIntegratorDrizzleSession(db);
   await d
     .update(messageRetryJobs)
@@ -114,7 +126,10 @@ export async function failMessageRetryJob(db: DbPort, input: { id: number; lastE
 /**
  * Отмена напоминаний по записи: те же фильтры, что и legacy `UPDATE … WHERE payload_json->'booking'->>'bookingId'`.
  */
-export async function cancelPendingBookingReminderJobsByBookingId(db: DbPort, bookingId: string): Promise<void> {
+export async function cancelPendingBookingReminderJobsByBookingId(
+  db: DbPort,
+  bookingId: string,
+): Promise<void> {
   const d = getIntegratorDrizzleSession(db);
   await d
     .update(messageRetryJobs)

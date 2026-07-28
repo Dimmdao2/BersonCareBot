@@ -9,16 +9,16 @@ import {
   PutObjectCommand,
   S3Client,
   UploadPartCommand,
-} from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { Readable } from "node:stream";
-import { env } from "@/config/env";
+} from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { Readable } from 'node:stream';
+import { env } from '@/config/env';
 
 const PRESIGN_PUT_EXPIRES_SEC = 900;
 const PRESIGN_PART_EXPIRES_SEC = 900;
 /** Browser / patient media redirect and doctor intake download. */
 const PRESIGN_GET_DEFAULT_SEC = 3600;
-const S3_KEY_PREFIX = "media";
+const S3_KEY_PREFIX = 'media';
 
 let clientSingleton: S3Client | null = null;
 
@@ -47,9 +47,9 @@ function privateBucket(): string {
 
 /** Sanitize original filename for object key segment. */
 export function sanitizeMediaFilename(name: string): string {
-  const base = name.replace(/\.\./g, "").replace(/\s+/g, "_").slice(0, 200);
-  const cleaned = base.replace(/[^a-zA-Z0-9._\-]/g, "_");
-  return cleaned.length > 0 ? cleaned : "file";
+  const base = name.replace(/\.\./g, '').replace(/\s+/g, '_').slice(0, 200);
+  const cleaned = base.replace(/[^a-zA-Z0-9._\-]/g, '_');
+  return cleaned.length > 0 ? cleaned : 'file';
 }
 
 export function s3ObjectKey(mediaId: string, filename: string): string {
@@ -58,7 +58,7 @@ export function s3ObjectKey(mediaId: string, filename: string): string {
 }
 
 /** Stable preview object keys (JPEG); content-addressed by media id + size tier. */
-export function s3PreviewKey(mediaId: string, size: "sm" | "md"): string {
+export function s3PreviewKey(mediaId: string, size: 'sm' | 'md'): string {
   return `previews/${size}/${mediaId}.jpg`;
 }
 
@@ -67,7 +67,7 @@ export function s3PreviewKey(mediaId: string, size: "sm" | "md"): string {
  * or optional future CDN assets when S3_PUBLIC_BUCKET is set.
  */
 export function s3PublicUrl(key: string): string {
-  const base = env.S3_ENDPOINT.replace(/\/$/, "");
+  const base = env.S3_ENDPOINT.replace(/\/$/, '');
   const bucket = env.S3_PUBLIC_BUCKET;
   return `${base}/${bucket}/${key}`;
 }
@@ -152,12 +152,16 @@ export async function s3CreateMultipartUpload(params: {
     }),
   );
   if (!out.UploadId) {
-    throw new Error("s3_multipart_no_upload_id");
+    throw new Error('s3_multipart_no_upload_id');
   }
   return { uploadId: out.UploadId };
 }
 
-export async function presignUploadPartUrl(key: string, uploadId: string, partNumber: number): Promise<string> {
+export async function presignUploadPartUrl(
+  key: string,
+  uploadId: string,
+  partNumber: number,
+): Promise<string> {
   const client = getS3Client();
   const cmd = new UploadPartCommand({
     Bucket: privateBucket(),
@@ -228,7 +232,7 @@ export async function s3GetPrivateObjectBuffer(
     );
     const body = out.Body;
     if (!body) {
-      return { ok: false, reason: "s3_read_failed" };
+      return { ok: false, reason: 's3_read_failed' };
     }
     const bytes = await body.transformToByteArray();
     return { ok: true, buf: Buffer.from(bytes) };
@@ -245,23 +249,23 @@ export async function s3GetObjectBody(key: string): Promise<Buffer | null> {
 
 /** Classify S3 GetObject failures for HLS proxy / streaming (typed reasons for metrics). */
 export function classifyS3GetObjectFailure(err: unknown): S3GetObjectStreamFailureReason {
-  if (typeof err === "object" && err !== null && "name" in err) {
+  if (typeof err === 'object' && err !== null && 'name' in err) {
     const name = String((err as { name?: string }).name);
-    if (name === "NoSuchKey") return "missing_object";
-    if (name === "AccessDenied") return "upstream_403";
-    if (name === "InvalidRange") return "range_not_satisfiable";
+    if (name === 'NoSuchKey') return 'missing_object';
+    if (name === 'AccessDenied') return 'upstream_403';
+    if (name === 'InvalidRange') return 'range_not_satisfiable';
   }
   const msg = err instanceof Error ? err.message : String(err);
-  if (/timeout|timed out|ETIMEDOUT|RequestTimeout/i.test(msg)) return "upstream_timeout";
-  return "s3_read_failed";
+  if (/timeout|timed out|ETIMEDOUT|RequestTimeout/i.test(msg)) return 'upstream_timeout';
+  return 's3_read_failed';
 }
 
 export type S3GetObjectStreamFailureReason =
-  | "missing_object"
-  | "upstream_403"
-  | "range_not_satisfiable"
-  | "s3_read_failed"
-  | "upstream_timeout";
+  | 'missing_object'
+  | 'upstream_403'
+  | 'range_not_satisfiable'
+  | 's3_read_failed'
+  | 'upstream_timeout';
 
 export type S3GetObjectStreamResult =
   | {
@@ -295,7 +299,7 @@ export async function s3GetObjectStream(params: {
     );
     const body = out.Body;
     if (!body) {
-      return { ok: false, reason: "s3_read_failed" };
+      return { ok: false, reason: 's3_read_failed' };
     }
     const nodeReadable = body as InstanceType<typeof Readable>;
     const stream = Readable.toWeb(nodeReadable) as ReadableStream<Uint8Array>;
@@ -331,8 +335,8 @@ export async function s3DeleteObject(key: string): Promise<void> {
  */
 export async function s3ListObjectKeysUnderPrefix(prefix: string): Promise<string[]> {
   const client = getS3Client();
-  const p = prefix.replace(/\/+$/, "");
-  const listPrefix = p.length > 0 ? `${p}/` : "";
+  const p = prefix.replace(/\/+$/, '');
+  const listPrefix = p.length > 0 ? `${p}/` : '';
   const keys: string[] = [];
   let continuationToken: string | undefined;
   for (;;) {
@@ -360,7 +364,9 @@ export type S3PerKeyDeleteResult =
 /**
  * Deletes each key independently; does not short-circuit on first failure (strict purge post-commit).
  */
-export async function deleteS3ObjectsWithPerKeyResults(keys: string[]): Promise<S3PerKeyDeleteResult[]> {
+export async function deleteS3ObjectsWithPerKeyResults(
+  keys: string[],
+): Promise<S3PerKeyDeleteResult[]> {
   const out: S3PerKeyDeleteResult[] = [];
   for (const key of keys) {
     try {

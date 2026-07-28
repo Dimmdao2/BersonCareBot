@@ -1,7 +1,7 @@
-import { lt, sql } from "drizzle-orm";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { logger } from "@/app-layer/logging/logger";
-import { mediaPlaybackStatsHourly } from "../../../db/schema";
+import { lt, sql } from 'drizzle-orm';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { logger } from '@/app-layer/logging/logger';
+import { mediaPlaybackStatsHourly } from '../../../db/schema';
 
 /** Oldest hourly buckets retained; older rows may be purged (KPI использует только скользящее окно). */
 export const PLAYBACK_HOURLY_STATS_RETENTION_DAYS = 90;
@@ -22,16 +22,19 @@ export async function purgeStalePlaybackHourlyStats(options?: {
   dryRun?: boolean;
   throwErrors?: boolean;
 }): Promise<PlaybackHourlyPurgeResult> {
-  const days = Math.max(1, Math.floor(options?.retentionDays ?? PLAYBACK_HOURLY_STATS_RETENTION_DAYS));
+  const days = Math.max(
+    1,
+    Math.floor(options?.retentionDays ?? PLAYBACK_HOURLY_STATS_RETENTION_DAYS),
+  );
   const cutoffExpr = sql`(now() - (${days}::integer * interval '1 day'))`;
   try {
     const db = getDrizzle();
     if (options?.dryRun) {
       const row = await db
-        .select({ c: sql<string>`COUNT(*)::text`.as("cnt") })
+        .select({ c: sql<string>`COUNT(*)::text`.as('cnt') })
         .from(mediaPlaybackStatsHourly)
         .where(lt(mediaPlaybackStatsHourly.bucketHour, cutoffExpr));
-      const n = Number.parseInt(row[0]?.c ?? "0", 10) || 0;
+      const n = Number.parseInt(row[0]?.c ?? '0', 10) || 0;
       return { deleted: n, retentionDays: days, dryRun: true };
     }
 
@@ -42,7 +45,7 @@ export async function purgeStalePlaybackHourlyStats(options?: {
 
     return { deleted: removed.length, retentionDays: days, dryRun: false };
   } catch (e) {
-    logger.error({ err: e, days }, "playback_hourly_stats_purge_failed");
+    logger.error({ err: e, days }, 'playback_hourly_stats_purge_failed');
     if (options?.throwErrors) throw e;
     return { deleted: 0, retentionDays: days, dryRun: Boolean(options?.dryRun) };
   }

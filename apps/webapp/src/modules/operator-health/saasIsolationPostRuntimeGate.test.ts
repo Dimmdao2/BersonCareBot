@@ -7,9 +7,7 @@ const FINISHED_AT = '2026-07-16T08:05:00.000Z';
 const COVERAGE_ID = '10000000-0000-4000-8000-000000000001';
 const SERVICES = ['webapp', 'integrator', 'worker', 'scheduler', 'media_worker', 'cron'] as const;
 
-function health(
-  overrides: Partial<SaasIsolationHealthPayload> = {},
-): SaasIsolationHealthPayload {
+function health(overrides: Partial<SaasIsolationHealthPayload> = {}): SaasIsolationHealthPayload {
   return {
     schemaVersion: 3,
     status: 'okay',
@@ -37,7 +35,13 @@ function health(
       previous24Hours: 0,
       delta: 0,
       daily7Days: [
-        '2026-07-10', '2026-07-11', '2026-07-12', '2026-07-13', '2026-07-14', '2026-07-15', '2026-07-16',
+        '2026-07-10',
+        '2026-07-11',
+        '2026-07-12',
+        '2026-07-13',
+        '2026-07-14',
+        '2026-07-15',
+        '2026-07-16',
       ].map((date) => ({ date, count: 0 })),
     },
     ...overrides,
@@ -80,12 +84,11 @@ describe('runSaasIsolationPostRuntimeGate', () => {
   });
 
   it('fails before the coverage write when an unexplained event is already active', async () => {
-    const gateDeps = deps([
-      health({ active: { unexplained: 1, explained: 0, occurrences: 1 } }),
-    ]);
+    const gateDeps = deps([health({ active: { unexplained: 1, explained: 0, occurrences: 1 } })]);
 
-    await expect(runSaasIsolationPostRuntimeGate(STARTED_AT, 8, gateDeps))
-      .rejects.toThrow('saas_isolation_post_runtime_gate_active_unexplained_before_coverage');
+    await expect(runSaasIsolationPostRuntimeGate(STARTED_AT, 8, gateDeps)).rejects.toThrow(
+      'saas_isolation_post_runtime_gate_active_unexplained_before_coverage',
+    );
     expect(gateDeps.recordCoverage).not.toHaveBeenCalled();
   });
 
@@ -94,23 +97,27 @@ describe('runSaasIsolationPostRuntimeGate', () => {
       health(),
       health({ active: { unexplained: 1, explained: 0, occurrences: 1 } }),
     ]);
-    await expect(runSaasIsolationPostRuntimeGate(STARTED_AT, 8, eventDeps))
-      .rejects.toThrow('saas_isolation_post_runtime_gate_active_unexplained_after_coverage');
+    await expect(runSaasIsolationPostRuntimeGate(STARTED_AT, 8, eventDeps)).rejects.toThrow(
+      'saas_isolation_post_runtime_gate_active_unexplained_after_coverage',
+    );
 
     const missingCoverageDeps = deps([
       health(),
       health({ lastCoverage: null, coverageComplete: false }),
     ]);
-    await expect(runSaasIsolationPostRuntimeGate(STARTED_AT, 8, missingCoverageDeps))
-      .rejects.toThrow('saas_isolation_post_runtime_gate_coverage_missing');
+    await expect(
+      runSaasIsolationPostRuntimeGate(STARTED_AT, 8, missingCoverageDeps),
+    ).rejects.toThrow('saas_isolation_post_runtime_gate_coverage_missing');
   });
 
   it('rejects an invalid time or a partial check count before any write', async () => {
     const invalidTimeDeps = deps([]);
-    await expect(runSaasIsolationPostRuntimeGate('not-a-time', 8, invalidTimeDeps))
-      .rejects.toThrow('saas_isolation_post_runtime_gate_invalid_started_at');
-    await expect(runSaasIsolationPostRuntimeGate(STARTED_AT, 5, invalidTimeDeps))
-      .rejects.toThrow('saas_isolation_post_runtime_gate_invalid_checks_count');
+    await expect(runSaasIsolationPostRuntimeGate('not-a-time', 8, invalidTimeDeps)).rejects.toThrow(
+      'saas_isolation_post_runtime_gate_invalid_started_at',
+    );
+    await expect(runSaasIsolationPostRuntimeGate(STARTED_AT, 5, invalidTimeDeps)).rejects.toThrow(
+      'saas_isolation_post_runtime_gate_invalid_checks_count',
+    );
     expect(invalidTimeDeps.recordCoverage).not.toHaveBeenCalled();
   });
 });

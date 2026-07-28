@@ -1,24 +1,24 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const guardMock = vi.hoisted(() => vi.fn());
 const buildDepsMock = vi.hoisted(() => vi.fn());
 
-vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-vi.mock("@/app-layer/guards/requireRole", () => ({ requireStaffWebPushSelfApiSession: guardMock }));
-vi.mock("@/app-layer/di/buildAppDeps", () => ({ buildAppDeps: buildDepsMock }));
+vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
+vi.mock('@/app-layer/guards/requireRole', () => ({ requireStaffWebPushSelfApiSession: guardMock }));
+vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: buildDepsMock }));
 
-import { POST } from "./route";
+import { POST } from './route';
 
 const globalAdmin = {
   user: {
-    userId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
-    role: "admin" as const,
+    userId: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+    role: 'admin' as const,
     bindings: {},
   },
   adminMode: true,
 };
 
-describe("POST /api/doctor/web-push/unsubscribe", () => {
+describe('POST /api/doctor/web-push/unsubscribe', () => {
   const removeSubscriptionsForUser = vi.fn();
   const hasAnyForUserId = vi.fn();
   const getChannelCards = vi.fn();
@@ -39,8 +39,8 @@ describe("POST /api/doctor/web-push/unsubscribe", () => {
 
   it("removes only the authenticated global admin's subscriptions", async () => {
     const res = await POST(
-      new Request("http://test/api/doctor/web-push/unsubscribe", {
-        method: "POST",
+      new Request('http://test/api/doctor/web-push/unsubscribe', {
+        method: 'POST',
         body: JSON.stringify({ all: true }),
       }),
     );
@@ -48,7 +48,7 @@ describe("POST /api/doctor/web-push/unsubscribe", () => {
     expect(res.status).toBe(200);
     expect(removeSubscriptionsForUser).toHaveBeenCalledWith(globalAdmin.user.userId);
     expect(hasAnyForUserId).toHaveBeenCalledWith(globalAdmin.user.userId);
-    expect(updatePreference).toHaveBeenCalledWith(globalAdmin.user.userId, "web_push", {
+    expect(updatePreference).toHaveBeenCalledWith(globalAdmin.user.userId, 'web_push', {
       isEnabledForMessages: false,
       isEnabledForNotifications: false,
     });

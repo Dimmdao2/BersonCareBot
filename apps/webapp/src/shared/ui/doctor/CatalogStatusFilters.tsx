@@ -1,16 +1,16 @@
-"use client";
+'use client';
 
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter } from 'next/navigation';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/ui/doctor/primitives/select";
-import type { DoctorCatalogPubArchQuery } from "@/shared/lib/doctorCatalogListStatus";
-import { applyDoctorCatalogPubArchToSearchParams } from "@/shared/lib/doctorCatalogListStatus";
-import { cn } from "@/lib/utils";
+} from '@/shared/ui/doctor/primitives/select';
+import type { DoctorCatalogPubArchQuery } from '@/shared/lib/doctorCatalogListStatus';
+import { applyDoctorCatalogPubArchToSearchParams } from '@/shared/lib/doctorCatalogListStatus';
+import { cn } from '@/lib/utils';
 
 export type CatalogStatusFiltersProps = {
   value: DoctorCatalogPubArchQuery;
@@ -24,11 +24,11 @@ export function CatalogStatusFilters({ value, extraParams, className }: CatalogS
   const pathname = usePathname();
 
   const pushNext = (next: DoctorCatalogPubArchQuery) => {
-    const sp = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
-    sp.delete("selected");
+    const sp = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+    sp.delete('selected');
     applyDoctorCatalogPubArchToSearchParams(sp, next);
     for (const [key, val] of Object.entries(extraParams ?? {})) {
-      if (val == null || val === "") sp.delete(key);
+      if (val == null || val === '') sp.delete(key);
       else sp.set(key, val);
     }
     const qs = sp.toString();
@@ -36,13 +36,13 @@ export function CatalogStatusFilters({ value, extraParams, className }: CatalogS
   };
 
   return (
-    <div className={cn("flex flex-wrap items-end gap-2", className)}>
+    <div className={cn('flex flex-wrap items-end gap-2', className)}>
       <div className="flex w-[128px] max-w-[128px] shrink-0 min-w-0 flex-col gap-1">
         <span className="text-[11px] text-muted-foreground sm:sr-only">Архив</span>
         <Select
           value={value.arch}
           onValueChange={(v) => {
-            if (v !== "active" && v !== "archived") return;
+            if (v !== 'active' && v !== 'archived') return;
             pushNext({ arch: v, pub: value.pub });
           }}
         >
@@ -60,7 +60,7 @@ export function CatalogStatusFilters({ value, extraParams, className }: CatalogS
         <Select
           value={value.pub}
           onValueChange={(v) => {
-            if (v !== "all" && v !== "draft" && v !== "published") return;
+            if (v !== 'all' && v !== 'draft' && v !== 'published') return;
             pushNext({ arch: value.arch, pub: v });
           }}
         >

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   stampBootstrapPrincipal: vi.fn(),
@@ -7,20 +7,20 @@ const mocks = vi.hoisted(() => ({
   checkSlugAvailability: vi.fn(),
 }));
 
-vi.mock("@/app-layer/principal/bootstrapPrincipal", () => ({
+vi.mock('@/app-layer/principal/bootstrapPrincipal', () => ({
   stampBootstrapPrincipal: (...args: unknown[]) => mocks.stampBootstrapPrincipal(...args),
 }));
 
-vi.mock("@/modules/auth/authConfirmRateLimit", () => ({
+vi.mock('@/modules/auth/authConfirmRateLimit', () => ({
   AUTH_CONFIRM_RATE_LIMIT_SEC: 600,
   checkAuthConfirmRateLimit: (...args: unknown[]) => mocks.checkAuthConfirmRateLimit(...args),
 }));
 
-vi.mock("@/modules/auth/specialistSignupRollout", () => ({
+vi.mock('@/modules/auth/specialistSignupRollout', () => ({
   getSpecialistSignupEnabled: () => mocks.getSpecialistSignupEnabled(),
 }));
 
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
     clinicDirectory: {
       checkSlugAvailability: mocks.checkSlugAvailability,
@@ -28,52 +28,49 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   }),
 }));
 
-import { POST } from "./route";
+import { POST } from './route';
 
 function request(slug: unknown) {
-  return new Request("http://localhost/api/auth/specialist-signup/slug", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
+  return new Request('http://localhost/api/auth/specialist-signup/slug', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ slug }),
   });
 }
 
-describe("POST /api/auth/specialist-signup/slug", () => {
+describe('POST /api/auth/specialist-signup/slug', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.checkAuthConfirmRateLimit.mockResolvedValue({ limited: false });
     mocks.getSpecialistSignupEnabled.mockResolvedValue(true);
   });
 
-  it("stamps bootstrap first and returns a non-enumerating rate-limit response before slug lookup", async () => {
+  it('stamps bootstrap first and returns a non-enumerating rate-limit response before slug lookup', async () => {
     mocks.checkAuthConfirmRateLimit.mockResolvedValueOnce({
       limited: true,
-      reason: "rate_limited",
+      reason: 'rate_limited',
     });
-    const request = new Request("http://localhost/api/auth/specialist-signup/slug", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ slug: "available-or-not" }),
+    const request = new Request('http://localhost/api/auth/specialist-signup/slug', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ slug: 'available-or-not' }),
     });
 
     const response = await POST(request);
 
     expect(mocks.stampBootstrapPrincipal).toHaveBeenCalledWith(
-      "api/auth/specialist-signup/slug:POST",
+      'api/auth/specialist-signup/slug:POST',
       request,
     );
     expect(mocks.stampBootstrapPrincipal.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.checkAuthConfirmRateLimit.mock.invocationCallOrder[0]!,
     );
-    expect(mocks.checkAuthConfirmRateLimit).toHaveBeenCalledWith(
-      request,
-      "specialist_signup_slug",
-    );
+    expect(mocks.checkAuthConfirmRateLimit).toHaveBeenCalledWith(request, 'specialist_signup_slug');
     expect(response.status).toBe(429);
-    expect(response.headers.get("Retry-After")).toBe("600");
+    expect(response.headers.get('Retry-After')).toBe('600');
     await expect(response.json()).resolves.toEqual({
       ok: false,
-      error: "rate_limited",
+      error: 'rate_limited',
       retryAfterSeconds: 600,
     });
     expect(mocks.getSpecialistSignupEnabled).not.toHaveBeenCalled();
@@ -81,10 +78,10 @@ describe("POST /api/auth/specialist-signup/slug", () => {
   });
 
   it.each([
-    ["ab", "slug_too_short"],
-    ["клиника!", "slug_invalid_characters"],
-    ["book", "reserved_slug"],
-  ])("returns the exact validation cause for %s", async (slug, code) => {
+    ['ab', 'slug_too_short'],
+    ['клиника!', 'slug_invalid_characters'],
+    ['book', 'reserved_slug'],
+  ])('returns the exact validation cause for %s', async (slug, code) => {
     mocks.checkSlugAvailability.mockResolvedValueOnce({ ok: false, code });
 
     const response = await POST(request(slug));
@@ -93,33 +90,33 @@ describe("POST /api/auth/specialist-signup/slug", () => {
     await expect(response.json()).resolves.toEqual({ ok: false, error: code });
   });
 
-  it("distinguishes a taken address from invalid input", async () => {
+  it('distinguishes a taken address from invalid input', async () => {
     mocks.checkSlugAvailability.mockResolvedValueOnce({
       ok: false,
-      code: "slug_unavailable",
+      code: 'slug_unavailable',
     });
 
-    const response = await POST(request("taken-clinic"));
+    const response = await POST(request('taken-clinic'));
 
     expect(response.status).toBe(409);
     await expect(response.json()).resolves.toEqual({
       ok: false,
-      error: "slug_unavailable",
+      error: 'slug_unavailable',
     });
   });
 
-  it("returns only the normalized free address", async () => {
+  it('returns only the normalized free address', async () => {
     mocks.checkSlugAvailability.mockResolvedValueOnce({
       ok: true,
-      slug: "clinic-one",
+      slug: 'clinic-one',
     });
 
-    const response = await POST(request("Clinic One"));
+    const response = await POST(request('Clinic One'));
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       ok: true,
-      slug: "clinic-one",
+      slug: 'clinic-one',
       available: true,
     });
   });

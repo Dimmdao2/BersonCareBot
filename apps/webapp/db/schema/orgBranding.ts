@@ -36,8 +36,12 @@ export const orgBrandRevisions = pgTable(
     archivedByPlatformUserId: uuid('archived_by_platform_user_id'),
     publishedAt: timestamp('published_at', { withTimezone: true, mode: 'string' }),
     archivedAt: timestamp('archived_at', { withTimezone: true, mode: 'string' }),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
   },
   (table) => [
     uniqueIndex('uq_org_brand_revisions_published')

@@ -13,8 +13,8 @@
  * Устойчив к сбоям: ошибка любого источника → 0; нулевые счётчики не попадают в результат
  * (бейдж не рисуется).
  */
-import type { OnlineIntakeService } from "@/modules/online-intake/ports";
-import type { CommunicationsTabId } from "./doctorCommunicationsTabs";
+import type { OnlineIntakeService } from '@/modules/online-intake/ports';
+import type { CommunicationsTabId } from './doctorCommunicationsTabs';
 
 export type DoctorCommunicationsBadges = Partial<Record<CommunicationsTabId, number>>;
 
@@ -28,12 +28,12 @@ export type DoctorCommunicationsBadgesDeps = {
 
 export async function loadDoctorCommunicationsBadges(
   deps: DoctorCommunicationsBadgesDeps,
-  intakeService: Pick<OnlineIntakeService, "listForDoctor">,
+  intakeService: Pick<OnlineIntakeService, 'listForDoctor'>,
 ): Promise<DoctorCommunicationsBadges> {
   const [unreadChats, newIntake] = await Promise.all([
     deps.messaging.doctorSupport.unreadFromUsers().catch(() => 0),
     intakeService
-      .listForDoctor({ status: "new", limit: 1, offset: 0 })
+      .listForDoctor({ status: 'new', limit: 1, offset: 0 })
       .then((r) => r.total)
       .catch(() => 0),
   ]);

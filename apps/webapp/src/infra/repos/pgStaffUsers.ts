@@ -1,8 +1,8 @@
-import { and, eq, inArray, isNull } from "drizzle-orm";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import type { StaffUsersPort } from "@/modules/doctor-notifications/staffUsersPort";
-import { platformUsers } from "../../../db/schema/schema";
-import { beOrganizationMembers } from "../../../db/schema/bookingEngine";
+import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import type { StaffUsersPort } from '@/modules/doctor-notifications/staffUsersPort';
+import { platformUsers } from '../../../db/schema/schema';
+import { beOrganizationMembers } from '../../../db/schema/bookingEngine';
 
 export function createPgStaffUsersPort(): StaffUsersPort {
   return {
@@ -12,10 +12,7 @@ export function createPgStaffUsersPort(): StaffUsersPort {
         .select({ id: platformUsers.id })
         .from(platformUsers)
         .where(
-          and(
-            inArray(platformUsers.role, ["doctor", "admin"]),
-            isNull(platformUsers.mergedIntoId),
-          ),
+          and(inArray(platformUsers.role, ['doctor', 'admin']), isNull(platformUsers.mergedIntoId)),
         );
       return rows.map((r) => r.id);
     },
@@ -25,11 +22,13 @@ export function createPgStaffUsersPort(): StaffUsersPort {
         .select({ userId: platformUsers.id, organizationId: beOrganizationMembers.organizationId })
         .from(beOrganizationMembers)
         .innerJoin(platformUsers, eq(platformUsers.id, beOrganizationMembers.platformUserId))
-        .where(and(
-          eq(beOrganizationMembers.status, "active"),
-          inArray(platformUsers.role, ["doctor", "admin"]),
-          isNull(platformUsers.mergedIntoId),
-        ));
+        .where(
+          and(
+            eq(beOrganizationMembers.status, 'active'),
+            inArray(platformUsers.role, ['doctor', 'admin']),
+            isNull(platformUsers.mergedIntoId),
+          ),
+        );
     },
   };
 }

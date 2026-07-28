@@ -1,15 +1,15 @@
-import { NextResponse } from "next/server";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
-import { getCachedWarmupSlugs } from "@/app-layer/reminders/warmupSlugCache";
-import { routePaths } from "@/app-layer/routes/paths";
-import { patientAnalyticsEventsBodySchema } from "@/modules/product-analytics/ingestSchemas";
-import { normalizePageKey } from "@/modules/product-analytics/normalizePageKey";
+import { NextResponse } from 'next/server';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
+import { getCachedWarmupSlugs } from '@/app-layer/reminders/warmupSlugCache';
+import { routePaths } from '@/app-layer/routes/paths';
+import { patientAnalyticsEventsBodySchema } from '@/modules/product-analytics/ingestSchemas';
+import { normalizePageKey } from '@/modules/product-analytics/normalizePageKey';
 import {
   groupProductAnalyticsPageKey,
   patientContentSlugFromPath,
-} from "@/modules/product-analytics/productAnalyticsPageKey";
-import type { ProductAnalyticsIngestEvent } from "@/modules/product-analytics/types";
+} from '@/modules/product-analytics/productAnalyticsPageKey';
+import type { ProductAnalyticsIngestEvent } from '@/modules/product-analytics/types';
 
 function resolvePageKeyFromClientEvent(
   event: { pageKey?: string; pathname?: string },
@@ -36,12 +36,12 @@ export async function POST(request: Request) {
   try {
     json = await request.json();
   } catch {
-    return NextResponse.json({ ok: false, error: "invalid_json" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 });
   }
 
   const parsed = patientAnalyticsEventsBodySchema.safeParse(json);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
 
   const userId = gate.session.user.userId;
@@ -49,11 +49,11 @@ export async function POST(request: Request) {
 
   const ingest: ProductAnalyticsIngestEvent[] = [];
   for (const event of parsed.data.events) {
-    if (event.eventType === "page_view") {
+    if (event.eventType === 'page_view') {
       const pageKey = resolvePageKeyFromClientEvent(event, warmupSlugs);
       if (!pageKey) continue;
       ingest.push({
-        eventType: "page_view",
+        eventType: 'page_view',
         entryChannel: event.entryChannel,
         occurredAt: event.occurredAt,
         pageKey,
@@ -82,11 +82,11 @@ export async function POST(request: Request) {
     const deps = buildAppDeps();
     await deps.productAnalytics.recordEventsBatch(ingest);
   } catch (err) {
-    const message = err instanceof Error ? err.message : "ingest_failed";
-    if (message === "batch_too_large") {
-      return NextResponse.json({ ok: false, error: "batch_too_large" }, { status: 400 });
+    const message = err instanceof Error ? err.message : 'ingest_failed';
+    if (message === 'batch_too_large') {
+      return NextResponse.json({ ok: false, error: 'batch_too_large' }, { status: 400 });
     }
-    return NextResponse.json({ ok: false, error: "ingest_failed" }, { status: 500 });
+    return NextResponse.json({ ok: false, error: 'ingest_failed' }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true, accepted: ingest.length });

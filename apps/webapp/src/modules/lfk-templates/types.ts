@@ -1,11 +1,11 @@
-import type { Exercise, ExerciseMedia } from "@/modules/lfk-exercises/types";
-import type { ExerciseOwnerKind } from "@/modules/lfk-exercises/types";
+import type { Exercise, ExerciseMedia } from '@/modules/lfk-exercises/types';
+import type { ExerciseOwnerKind } from '@/modules/lfk-exercises/types';
 
-import type { LfkExerciseSide } from "./lfkExerciseSide";
+import type { LfkExerciseSide } from './lfkExerciseSide';
 
-export type { LfkExerciseSide } from "./lfkExerciseSide";
+export type { LfkExerciseSide } from './lfkExerciseSide';
 
-export type TemplateStatus = "draft" | "published" | "archived";
+export type TemplateStatus = 'draft' | 'published' | 'archived';
 
 export type TemplateExercise = {
   id: string;
@@ -78,7 +78,7 @@ export type TemplateExerciseInput = {
 };
 
 /** Краткая карточка упражнения для picker (list из lfk-exercises). */
-export type ExerciseSummary = Pick<Exercise, "id" | "title" | "loadType" | "difficulty1_10"> & {
+export type ExerciseSummary = Pick<Exercise, 'id' | 'title' | 'loadType' | 'difficulty1_10'> & {
   previewMediaUrl?: string | null;
 };
 
@@ -87,9 +87,9 @@ export const LFK_TEMPLATE_USAGE_DETAIL_LIMIT = 12;
 
 /** Одна ссылка «где используется» для шаблона комплекса ЛФК. */
 export type LfkTemplateUsageRef =
-  | { kind: "treatment_program_template"; id: string; title: string }
+  | { kind: 'treatment_program_template'; id: string; title: string }
   | {
-      kind: "treatment_program_instance" | "patient_lfk_assignment_client";
+      kind: 'treatment_program_instance' | 'patient_lfk_assignment_client';
       id: string;
       title: string;
       patientUserId: string;

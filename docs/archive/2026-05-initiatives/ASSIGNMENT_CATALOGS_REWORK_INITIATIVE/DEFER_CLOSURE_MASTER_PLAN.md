@@ -36,6 +36,7 @@ D1 (measure_kinds access)
 ```
 
 Пояснения:
+
 - D5 допускает controlled defer, если spike покажет непропорциональный объём, либо явную **паузу владельца** (`deferred (owner pause)`) без spike до снятия паузы.
 - D6 закрывается после D1–D4 и явной фиксации статуса D5: **`done`**, **`deferred with spike evidence`**, или **`deferred (owner pause)`** — см. [`STAGE_D6_PLAN.md`](STAGE_D6_PLAN.md).
 
@@ -51,13 +52,13 @@ D1 (measure_kinds access)
 
 ## 4. Кодовая карта
 
-| Область | Ключевые пути |
-|---|---|
-| Справочники | `apps/webapp/src/app/app/doctor/references/**`, `apps/webapp/src/modules/references/**`, `apps/webapp/src/infra/repos/pgReferences.ts`, `apps/webapp/db/schema/schema.ts` (`reference_categories`, `reference_items`) |
-| Measure kinds | `apps/webapp/db/schema/clinicalTests.ts`, `apps/webapp/src/modules/tests/measureKinds*.ts`, `apps/webapp/src/app/api/doctor/measure-kinds/route.ts` |
-| Clinical tests | `apps/webapp/src/modules/tests/**`, `apps/webapp/src/app/app/doctor/clinical-tests/**`, `apps/webapp/src/infra/repos/pgClinicalTests.ts` |
-| Recommendations | `apps/webapp/src/modules/recommendations/**`, `apps/webapp/src/app/app/doctor/recommendations/**`, `apps/webapp/src/infra/repos/pgRecommendations.ts`, `apps/webapp/db/schema/recommendations.ts` |
-| Program progress | `apps/webapp/src/modules/treatment-program/progress-service.ts`, `patient-program-actions.ts`, `stage-semantics.ts` |
+| Область          | Ключевые пути                                                                                                                                                                                                         |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Справочники      | `apps/webapp/src/app/app/doctor/references/**`, `apps/webapp/src/modules/references/**`, `apps/webapp/src/infra/repos/pgReferences.ts`, `apps/webapp/db/schema/schema.ts` (`reference_categories`, `reference_items`) |
+| Measure kinds    | `apps/webapp/db/schema/clinicalTests.ts`, `apps/webapp/src/modules/tests/measureKinds*.ts`, `apps/webapp/src/app/api/doctor/measure-kinds/route.ts`                                                                   |
+| Clinical tests   | `apps/webapp/src/modules/tests/**`, `apps/webapp/src/app/app/doctor/clinical-tests/**`, `apps/webapp/src/infra/repos/pgClinicalTests.ts`                                                                              |
+| Recommendations  | `apps/webapp/src/modules/recommendations/**`, `apps/webapp/src/app/app/doctor/recommendations/**`, `apps/webapp/src/infra/repos/pgRecommendations.ts`, `apps/webapp/db/schema/recommendations.ts`                     |
+| Program progress | `apps/webapp/src/modules/treatment-program/progress-service.ts`, `patient-program-actions.ts`, `stage-semantics.ts`                                                                                                   |
 
 ## 5. Архитектурные правила
 
@@ -69,12 +70,14 @@ D1 (measure_kinds access)
 ## 6. Политика проверок
 
 На каждом D-этапе:
+
 - `rg`-проверка затронутых символов (до/после).
 - таргетный `eslint` по изменённым файлам;
 - таргетные `vitest` по изменённому модулю;
 - `pnpm --dir apps/webapp exec tsc --noEmit`.
 
 Перед push:
+
 ```bash
 pnpm install --frozen-lockfile
 pnpm run ci
@@ -91,7 +94,7 @@ pnpm run ci
 
 Задачи на потом после **снятия owner pause** по D5 и смежных хвостов по той же инициативе:
 
-| TODO | Где детали |
-|------|------------|
+| TODO                                                                                                                | Где детали                                                                                                                                                 |
+| ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **D5** — spike + gate по `recommendations.domain` → `kind` (Q4); при **Go** — миграция, API/UI, `AUDIT_STAGE_D5.md` | [`STAGE_D5_PLAN.md`](STAGE_D5_PLAN.md); операционный хвост — [`../BACKLOG_TAILS.md`](../../../BACKLOG_TAILS.md) §«Хвосты ASSIGNMENT_CATALOGS / defer-wave» |
-| **`DROP tests.scoring_config` (`0040`) на prod** | Только **production** БД (dev уже прогнан). [`AUDIT_DEFER_CLOSURE_GLOBAL.md`](AUDIT_DEFER_CLOSURE_GLOBAL.md) §8–§9 (R2); продуктовый план §7 |
+| **`DROP tests.scoring_config` (`0040`) на prod**                                                                    | Только **production** БД (dev уже прогнан). [`AUDIT_DEFER_CLOSURE_GLOBAL.md`](AUDIT_DEFER_CLOSURE_GLOBAL.md) §8–§9 (R2); продуктовый план §7               |

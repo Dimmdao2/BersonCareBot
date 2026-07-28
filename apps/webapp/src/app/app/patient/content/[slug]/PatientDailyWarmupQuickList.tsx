@@ -1,13 +1,13 @@
-import Link from "next/link";
-import type { RecommendationMediaItem } from "@/modules/recommendations/types";
-import type { DailyWarmupListEntry } from "@/modules/patient-home/todayConfig";
-import { PatientCatalogMediaStaticThumb } from "@/shared/ui/patient/PatientCatalogMediaStaticThumb";
-import { cn } from "@/lib/utils";
+import Link from 'next/link';
+import type { RecommendationMediaItem } from '@/modules/recommendations/types';
+import type { DailyWarmupListEntry } from '@/modules/patient-home/todayConfig';
+import { PatientCatalogMediaStaticThumb } from '@/shared/ui/patient/PatientCatalogMediaStaticThumb';
+import { cn } from '@/lib/utils';
 import {
   patientCompositionCurrentRowChromeClass,
   patientCompositionListThumbSlotClass,
   patientSectionTitleClass,
-} from "@/shared/ui/patient/patientVisual";
+} from '@/shared/ui/patient/patientVisual';
 
 export type PatientDailyWarmupListItem = {
   slug: string;
@@ -18,21 +18,23 @@ export type PatientDailyWarmupListItem = {
   isCurrent: boolean;
 };
 
-export function dailyWarmupListImageToMedia(imageUrl: string | null): RecommendationMediaItem | null {
+export function dailyWarmupListImageToMedia(
+  imageUrl: string | null,
+): RecommendationMediaItem | null {
   if (!imageUrl?.trim()) return null;
   const url = imageUrl.trim();
   return {
     mediaUrl: url,
-    mediaType: "image",
+    mediaType: 'image',
     sortOrder: 0,
     previewSmUrl: url,
-    previewStatus: "ready",
+    previewStatus: 'ready',
   };
 }
 
 export function buildPatientDailyWarmupQuickListItems(
   currentSlug: string,
-  pages: ReadonlyArray<Pick<DailyWarmupListEntry, "slug" | "title" | "summary" | "imageUrl">>,
+  pages: ReadonlyArray<Pick<DailyWarmupListEntry, 'slug' | 'title' | 'summary' | 'imageUrl'>>,
 ): PatientDailyWarmupListItem[] {
   return pages.map((page) => ({
     slug: page.slug,
@@ -46,7 +48,7 @@ export function buildPatientDailyWarmupQuickListItems(
 
 type Props = {
   currentSlug: string;
-  pages: ReadonlyArray<Pick<DailyWarmupListEntry, "slug" | "title" | "summary" | "imageUrl">>;
+  pages: ReadonlyArray<Pick<DailyWarmupListEntry, 'slug' | 'title' | 'summary' | 'imageUrl'>>;
   className?: string;
 };
 
@@ -56,14 +58,14 @@ export function PatientDailyWarmupQuickList({ currentSlug, pages, className }: P
   const items = buildPatientDailyWarmupQuickListItems(currentSlug, pages);
 
   return (
-    <section className={cn("flex flex-col gap-2", className)} aria-label="Все разминки">
+    <section className={cn('flex flex-col gap-2', className)} aria-label="Все разминки">
       <h2 className={patientSectionTitleClass}>Все разминки</h2>
       <ul className="flex flex-col gap-1.5">
         {items.map((item) => {
           const rowInner = (
             <div
               className={cn(
-                "flex items-center gap-2 rounded-xl border border-[var(--patient-border)]/60 px-2 py-2",
+                'flex items-center gap-2 rounded-xl border border-[var(--patient-border)]/60 px-2 py-2',
                 item.isCurrent && patientCompositionCurrentRowChromeClass,
               )}
             >
@@ -81,12 +83,13 @@ export function PatientDailyWarmupQuickList({ currentSlug, pages, className }: P
 
           return (
             <li key={item.slug} className="list-none">
-              {item.isCurrent ?
+              {item.isCurrent ? (
                 rowInner
-              : <Link href={item.href} prefetch={false} className="block no-underline outline-none">
+              ) : (
+                <Link href={item.href} prefetch={false} className="block no-underline outline-none">
                   {rowInner}
                 </Link>
-              }
+              )}
             </li>
           );
         })}

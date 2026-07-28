@@ -38,7 +38,10 @@ function safeAttemptFields(params: DeliveryAttemptLogParams): Record<string, unk
   };
 }
 
-export async function insertDeliveryAttemptLog(db: DbPort, params: DeliveryAttemptLogParams): Promise<void> {
+export async function insertDeliveryAttemptLog(
+  db: DbPort,
+  params: DeliveryAttemptLogParams,
+): Promise<void> {
   const channel = asString(params.channel);
   const status = asString(params.status);
   const attempt = asNumber(params.attempt);
@@ -63,9 +66,10 @@ export async function insertDeliveryAttemptLog(db: DbPort, params: DeliveryAttem
     const intentEventId = asString(params.intentEventId);
     const correlationId = asString(params.correlationId);
     const reason = asString(params.reason);
-    const payloadJson = typeof params.payload === 'object' && params.payload !== null
-      ? (params.payload as Record<string, unknown>)
-      : {};
+    const payloadJson =
+      typeof params.payload === 'object' && params.payload !== null
+        ? (params.payload as Record<string, unknown>)
+        : {};
     const occurredAt = asString(params.occurredAt) ?? new Date().toISOString();
     const principal = getCurrentDbPrincipal();
 

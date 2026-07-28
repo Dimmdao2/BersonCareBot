@@ -1,8 +1,8 @@
-import type { AppSession } from "@/shared/types/session";
+import type { AppSession } from '@/shared/types/session';
 import {
   canAccessProgramSubmissionMedia,
   type ProgramSubmissionAccessRow,
-} from "@/modules/media/programSubmissionPlaybackAccess";
+} from '@/modules/media/programSubmissionPlaybackAccess';
 
 /**
  * Phase-04 baseline: authenticated session required.

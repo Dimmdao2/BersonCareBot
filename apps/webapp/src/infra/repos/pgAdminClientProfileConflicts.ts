@@ -1,5 +1,5 @@
 /** Wave 3 phase 15E — admin profile patch conflict lookups via `runWebappPgText`. */
-import { runWebappPgText } from "@/infra/db/runWebappSql";
+import { runWebappPgText } from '@/infra/db/runWebappSql';
 
 export async function findPlatformUserIdWithEmailConflict(
   canonicalId: string,

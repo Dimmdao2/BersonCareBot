@@ -40,12 +40,12 @@
 
 ## 4. Tests reviewed / run
 
-| Проверка | Статус |
-|-----------|--------|
-| **`npx vitest run src/shared/ui/AppShell.test.tsx`** (по `LOG.md`) | Задокументировано как **3 passed** при EXEC. |
-| **ESLint** на затронутых ts/tsx | По `LOG.md` — ok. |
-| **Полный `pnpm run ci` / root CI** | Не запускался (по политике инициативы и запросу аудита). |
-| **`pnpm --dir apps/webapp typecheck`** | По `LOG.md` — падает на существующих ошибках `.next/types`; к Phase 1 не относится. |
+| Проверка                                                           | Статус                                                                              |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| **`npx vitest run src/shared/ui/AppShell.test.tsx`** (по `LOG.md`) | Задокументировано как **3 passed** при EXEC.                                        |
+| **ESLint** на затронутых ts/tsx                                    | По `LOG.md` — ok.                                                                   |
+| **Полный `pnpm run ci` / root CI**                                 | Не запускался (по политике инициативы и запросу аудита).                            |
+| **`pnpm --dir apps/webapp typecheck`**                             | По `LOG.md` — падает на существующих ошибках `.next/types`; к Phase 1 не относится. |
 
 Ревью содержимого тестов: покрыты **patient** (фон + сохранение `max-w-[480px]`), **default** и **doctor** без `patient-page-bg` — соответствует чеклисту `01_FOUNDATION_PLAN.md` (smoke для не-patient вариантов).
 
@@ -55,15 +55,15 @@
 
 ## 5. Explicit scope-leak check
 
-| Риск утечки | Результат |
-|-------------|-----------|
-| Редизайн отдельных **`PatientHome*`** блоков | **Нет** — импортов `patientHomeCardStyles` / `patientVisual` в компонентах home не найдено; файлы только добавлены. |
-| **`PatientHeader` / `PatientGatedHeader` / `navigation.ts`** | **Нет** изменений (по diff и grep). |
-| **`PatientBottomNav`** | Компонента нет; изменений нет. |
-| **`AppShell` `max-width` / nav / embed флаги** | **Нет** изменений max-width (`max-w-[480px]` сохранён); логика `patientEmbedMain` / `safe-padding-patient` сохранена. |
-| **DB / routes / services** | **Нет** затронутых файлов. |
-| **Намеренный doctor/admin UI** | **`button-variants.ts` не менялся**; ветка `variant="doctor"` `AppShell` по-прежнему только `DOCTOR_PAGE_CONTAINER_CLASS`; `default` — прежняя разметка. |
-| **Slug / CONTENT_PLAN** | В Phase 1 diff **нет** хардкода slug или контент-плана. |
+| Риск утечки                                                  | Результат                                                                                                                                                |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Редизайн отдельных **`PatientHome*`** блоков                 | **Нет** — импортов `patientHomeCardStyles` / `patientVisual` в компонентах home не найдено; файлы только добавлены.                                      |
+| **`PatientHeader` / `PatientGatedHeader` / `navigation.ts`** | **Нет** изменений (по diff и grep).                                                                                                                      |
+| **`PatientBottomNav`**                                       | Компонента нет; изменений нет.                                                                                                                           |
+| **`AppShell` `max-width` / nav / embed флаги**               | **Нет** изменений max-width (`max-w-[480px]` сохранён); логика `patientEmbedMain` / `safe-padding-patient` сохранена.                                    |
+| **DB / routes / services**                                   | **Нет** затронутых файлов.                                                                                                                               |
+| **Намеренный doctor/admin UI**                               | **`button-variants.ts` не менялся**; ветка `variant="doctor"` `AppShell` по-прежнему только `DOCTOR_PAGE_CONTAINER_CLASS`; `default` — прежняя разметка. |
+| **Slug / CONTENT_PLAN**                                      | В Phase 1 diff **нет** хардкода slug или контент-плана.                                                                                                  |
 
 **Итог:** утечки scope Phase 1 в запрещённые зоны **не обнаружены**.
 
@@ -81,4 +81,4 @@
 
 ---
 
-*Архивные PROMPT'ы закрытой patient-home инициативы не исполнялись.*
+_Архивные PROMPT'ы закрытой patient-home инициативы не исполнялись._

@@ -1,8 +1,8 @@
-import type { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { prepaymentContextFromBooking } from "@/modules/payments/prepaymentContextFromBooking";
-import type { AppointmentPaymentSummary } from "@/modules/payments/types";
+import type { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { prepaymentContextFromBooking } from '@/modules/payments/prepaymentContextFromBooking';
+import type { AppointmentPaymentSummary } from '@/modules/payments/types';
 
-type Deps = Pick<ReturnType<typeof buildAppDeps>, "payments" | "patientBooking">;
+type Deps = Pick<ReturnType<typeof buildAppDeps>, 'payments' | 'patientBooking'>;
 
 export async function loadStaffAppointmentPaymentSummary(
   deps: Deps,

@@ -1,148 +1,151 @@
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
-import { createInMemoryContentSectionsPort, inMemoryContentSectionsPort } from "./pgContentSections";
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
+import {
+  createInMemoryContentSectionsPort,
+  inMemoryContentSectionsPort,
+} from './pgContentSections';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-describe("pgContentSections (runtime constraints)", () => {
-  it("uses Drizzle only — no getPool / pool.query / client.query", () => {
-    const src = readFileSync(join(__dirname, "pgContentSections.ts"), "utf8");
+describe('pgContentSections (runtime constraints)', () => {
+  it('uses Drizzle only — no getPool / pool.query / client.query', () => {
+    const src = readFileSync(join(__dirname, 'pgContentSections.ts'), 'utf8');
     expect(src).not.toMatch(/\bgetPool\b/);
     expect(src).not.toMatch(/\bpool\.query\b/);
     expect(src).not.toMatch(/\bclient\.query\b/);
-    expect(src).toContain("getDrizzle");
+    expect(src).toContain('getDrizzle');
   });
 
-  it("runs section updates through a Drizzle transaction", () => {
-    const src = readFileSync(join(__dirname, "pgContentSections.ts"), "utf8");
-    const start = src.indexOf("    async update(slug, patch)");
-    const end = src.indexOf("    async reorderSlugs(orderedSlugs)", start);
+  it('runs section updates through a Drizzle transaction', () => {
+    const src = readFileSync(join(__dirname, 'pgContentSections.ts'), 'utf8');
+    const start = src.indexOf('    async update(slug, patch)');
+    const end = src.indexOf('    async reorderSlugs(orderedSlugs)', start);
     expect(start).toBeGreaterThanOrEqual(0);
     expect(end).toBeGreaterThan(start);
     const method = src.slice(start, end);
-    expect(method).toContain("runDrizzleMutationTransaction");
-    expect(method).toContain("tx.update(contentSections)");
+    expect(method).toContain('runDrizzleMutationTransaction');
+    expect(method).toContain('tx.update(contentSections)');
   });
 
-  it("runs section upserts through a Drizzle transaction and stamps current principal org", () => {
-    const src = readFileSync(join(__dirname, "pgContentSections.ts"), "utf8");
-    const start = src.indexOf("    async upsert(section: ContentSectionUpsertInput)");
-    const end = src.indexOf("    async update(slug, patch)", start);
+  it('runs section upserts through a Drizzle transaction and stamps current principal org', () => {
+    const src = readFileSync(join(__dirname, 'pgContentSections.ts'), 'utf8');
+    const start = src.indexOf('    async upsert(section: ContentSectionUpsertInput)');
+    const end = src.indexOf('    async update(slug, patch)', start);
     expect(start).toBeGreaterThanOrEqual(0);
     expect(end).toBeGreaterThan(start);
     const method = src.slice(start, end);
-    expect(method).toContain("currentPrincipalOrganizationId()");
-    expect(method).toContain("runDrizzleMutationTransaction");
-    expect(method).toContain("tx");
-    expect(method).toContain("organizationId");
+    expect(method).toContain('currentPrincipalOrganizationId()');
+    expect(method).toContain('runDrizzleMutationTransaction');
+    expect(method).toContain('tx');
+    expect(method).toContain('organizationId');
   });
 });
 
-describe("inMemoryContentSectionsPort", () => {
-  it("returns empty lists", async () => {
+describe('inMemoryContentSectionsPort', () => {
+  it('returns empty lists', async () => {
     expect(await inMemoryContentSectionsPort.listVisible()).toEqual([]);
     expect(await inMemoryContentSectionsPort.listAll()).toEqual([]);
-    expect(await inMemoryContentSectionsPort.getBySlug("x")).toBeNull();
+    expect(await inMemoryContentSectionsPort.getBySlug('x')).toBeNull();
   });
 });
 
-describe("createInMemoryContentSectionsPort", () => {
-  it("listVisible is empty initially", async () => {
+describe('createInMemoryContentSectionsPort', () => {
+  it('listVisible is empty initially', async () => {
     const p = createInMemoryContentSectionsPort();
     expect(await p.listVisible()).toEqual([]);
   });
 
-  it("upsert then getBySlug and listVisible", async () => {
+  it('upsert then getBySlug and listVisible', async () => {
     const p = createInMemoryContentSectionsPort();
     await p.upsert({
-      slug: "warmups",
-      title: "Разминки",
-      description: "",
+      slug: 'warmups',
+      title: 'Разминки',
+      description: '',
       sortOrder: 2,
       isVisible: true,
       requiresAuth: false,
       coverImageUrl: null,
       iconImageUrl: null,
-      kind: "system",
-      systemParentCode: "warmups",
+      kind: 'system',
+      systemParentCode: 'warmups',
     });
-    const row = await p.getBySlug("warmups");
-    expect(row?.title).toBe("Разминки");
+    const row = await p.getBySlug('warmups');
+    expect(row?.title).toBe('Разминки');
     expect(row?.coverImageUrl).toBeNull();
     expect(row?.iconImageUrl).toBeNull();
-    expect((await p.listVisible()).map((r) => r.slug)).toEqual(["warmups"]);
+    expect((await p.listVisible()).map((r) => r.slug)).toEqual(['warmups']);
   });
 
-  it("stores cover and icon media fields", async () => {
+  it('stores cover and icon media fields', async () => {
     const p = createInMemoryContentSectionsPort();
     await p.upsert({
-      slug: "with-media",
-      title: "With Media",
-      description: "",
+      slug: 'with-media',
+      title: 'With Media',
+      description: '',
       sortOrder: 0,
       isVisible: true,
       requiresAuth: false,
-      coverImageUrl: "/api/media/11111111-1111-1111-1111-111111111111",
-      iconImageUrl: "/api/media/22222222-2222-2222-2222-222222222222",
-      kind: "article",
+      coverImageUrl: '/api/media/11111111-1111-1111-1111-111111111111',
+      iconImageUrl: '/api/media/22222222-2222-2222-2222-222222222222',
+      kind: 'article',
       systemParentCode: null,
     });
-    const row = await p.getBySlug("with-media");
-    expect(row?.coverImageUrl).toContain("/api/media/");
-    expect(row?.iconImageUrl).toContain("/api/media/");
+    const row = await p.getBySlug('with-media');
+    expect(row?.coverImageUrl).toContain('/api/media/');
+    expect(row?.iconImageUrl).toContain('/api/media/');
     const visible = await p.listVisible();
-    expect(visible[0]?.coverImageUrl).toContain("/api/media/");
+    expect(visible[0]?.coverImageUrl).toContain('/api/media/');
   });
 
-  it("hides non-visible sections from listVisible", async () => {
+  it('hides non-visible sections from listVisible', async () => {
     const p = createInMemoryContentSectionsPort();
     await p.upsert({
-      slug: "hidden",
-      title: "H",
-      description: "",
+      slug: 'hidden',
+      title: 'H',
+      description: '',
       sortOrder: 0,
       isVisible: false,
       requiresAuth: false,
       coverImageUrl: null,
       iconImageUrl: null,
-      kind: "article",
+      kind: 'article',
       systemParentCode: null,
     });
     expect(await p.listVisible()).toEqual([]);
     expect((await p.listAll()).length).toBe(1);
   });
 
-  it("reorderSlugs updates sort_order indices", async () => {
+  it('reorderSlugs updates sort_order indices', async () => {
     const p = createInMemoryContentSectionsPort();
     await p.upsert({
-      slug: "a",
-      title: "A",
-      description: "",
+      slug: 'a',
+      title: 'A',
+      description: '',
       sortOrder: 0,
       isVisible: true,
       requiresAuth: false,
       coverImageUrl: null,
       iconImageUrl: null,
-      kind: "article",
+      kind: 'article',
       systemParentCode: null,
     });
     await p.upsert({
-      slug: "b",
-      title: "B",
-      description: "",
+      slug: 'b',
+      title: 'B',
+      description: '',
       sortOrder: 1,
       isVisible: true,
       requiresAuth: false,
       coverImageUrl: null,
       iconImageUrl: null,
-      kind: "article",
+      kind: 'article',
       systemParentCode: null,
     });
-    await p.reorderSlugs(["b", "a"]);
+    await p.reorderSlugs(['b', 'a']);
     const all = await p.listAll();
-    expect(all.find((r) => r.slug === "b")?.sortOrder).toBe(0);
-    expect(all.find((r) => r.slug === "a")?.sortOrder).toBe(1);
+    expect(all.find((r) => r.slug === 'b')?.sortOrder).toBe(0);
+    expect(all.find((r) => r.slug === 'a')?.sortOrder).toBe(1);
   });
 });

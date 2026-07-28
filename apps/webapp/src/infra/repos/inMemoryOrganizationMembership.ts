@@ -2,7 +2,7 @@ import type {
   OrganizationMembership,
   OrganizationMembershipPort,
   OrganizationSpecialistDirectoryRecord,
-} from "@/modules/organization-membership/ports";
+} from '@/modules/organization-membership/ports';
 
 const rows: OrganizationMembership[] = [];
 const specialists: OrganizationSpecialistDirectoryRecord[] = [];
@@ -24,7 +24,7 @@ export function createInMemoryOrganizationMembershipPort(): OrganizationMembersh
     },
 
     async listActiveByPlatformUser(platformUserId) {
-      return rows.filter((row) => row.platformUserId === platformUserId && row.status === "active");
+      return rows.filter((row) => row.platformUserId === platformUserId && row.status === 'active');
     },
 
     async listByOrganization(organizationId) {
@@ -40,7 +40,9 @@ export function createInMemoryOrganizationMembershipPort(): OrganizationMembersh
     },
 
     async getMemberByOrganization({ organizationId, membershipId }) {
-      const row = rows.find((candidate) => candidate.organizationId === organizationId && candidate.id === membershipId);
+      const row = rows.find(
+        (candidate) => candidate.organizationId === organizationId && candidate.id === membershipId,
+      );
       return row ? { ...row, displayName: null } : null;
     },
 
@@ -51,7 +53,8 @@ export function createInMemoryOrganizationMembershipPort(): OrganizationMembersh
     async getSpecialistByOrganization({ organizationId, specialistId }) {
       return (
         specialists.find(
-          (specialist) => specialist.organizationId === organizationId && specialist.id === specialistId,
+          (specialist) =>
+            specialist.organizationId === organizationId && specialist.id === specialistId,
         ) ?? null
       );
     },

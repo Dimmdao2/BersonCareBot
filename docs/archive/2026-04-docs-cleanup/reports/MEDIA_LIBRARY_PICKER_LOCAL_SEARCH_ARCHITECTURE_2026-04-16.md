@@ -2,12 +2,12 @@
 
 ## Сравнение вариантов
 
-| Аспект | Было: debounced server `q` | Стало: initial fetch + local filter |
-|--------|----------------------------|--------------------------------------|
-| Цикл ввода | После debounce менялся `listUrl` → новый `GET /api/admin/media?q=…` | `listUrl` стабилен при фиксированных `kind`/`folderId`; ввод только меняет локальный `query` |
-| Фильтрация | SQL `ILIKE` в `s3MediaStorage.list` | `filterMediaLibraryPickerItemsByQuery`: подстрока в `filename` и `displayName` (ru locale lower) |
-| Debounce / Abort / requestId | Уменьшали шум запросов и гонки, но не убирали сеть из typing | Abort/requestId остаются для смены `listUrl` (например другая папка), не для каждого символа поиска |
-| Лимит 200 | Тот же риск «не всё в выборке» | Тот же: локальный поиск только по уже загруженным до 200 строкам |
+| Аспект                       | Было: debounced server `q`                                          | Стало: initial fetch + local filter                                                                 |
+| ---------------------------- | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Цикл ввода                   | После debounce менялся `listUrl` → новый `GET /api/admin/media?q=…` | `listUrl` стабилен при фиксированных `kind`/`folderId`; ввод только меняет локальный `query`        |
+| Фильтрация                   | SQL `ILIKE` в `s3MediaStorage.list`                                 | `filterMediaLibraryPickerItemsByQuery`: подстрока в `filename` и `displayName` (ru locale lower)    |
+| Debounce / Abort / requestId | Уменьшали шум запросов и гонки, но не убирали сеть из typing        | Abort/requestId остаются для смены `listUrl` (например другая папка), не для каждого символа поиска |
+| Лимит 200                    | Тот же риск «не всё в выборке»                                      | Тот же: локальный поиск только по уже загруженным до 200 строкам                                    |
 
 ## Решение для этого экрана
 

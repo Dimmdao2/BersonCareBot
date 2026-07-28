@@ -1,13 +1,13 @@
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { logger } from "@/app-layer/logging/logger";
-import { pgWebPushOnlyRemindersPort } from "@/infra/repos/pgWebPushOnlyReminders";
-import { loadWarmupsSectionSlugs } from "@/infra/repos/pgWarmupsSectionSlugs";
-import { createLoadWarmupPushContext } from "@/modules/web-push/createLoadWarmupPushContext";
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { logger } from '@/app-layer/logging/logger';
+import { pgWebPushOnlyRemindersPort } from '@/infra/repos/pgWebPushOnlyReminders';
+import { loadWarmupsSectionSlugs } from '@/infra/repos/pgWarmupsSectionSlugs';
+import { createLoadWarmupPushContext } from '@/modules/web-push/createLoadWarmupPushContext';
 import {
   runWebPushOnlyReminderTick,
   webPushOnlyReminderTickMetaFromResult,
   type WebPushOnlyReminderTickResult,
-} from "@/modules/reminders/webPushOnlyScheduler";
+} from '@/modules/reminders/webPushOnlyScheduler';
 
 /**
  * Cron entry for `POST /api/internal/reminders/web-push-only/tick`.
@@ -58,7 +58,7 @@ export async function runWebPushOnlyReminderInternalTick(options?: {
   } catch (tickErr) {
     logger.warn(
       { err: tickErr },
-      "[internal/reminders/web-push-only/tick] operator_job_status success tick failed",
+      '[internal/reminders/web-push-only/tick] operator_job_status success tick failed',
     );
   }
 

@@ -5,19 +5,19 @@ status: completed
 isProject: false
 todos:
   - id: w3-p17-docs
-    content: "DRIZZLE_TRANSITION_PLAN фазы IX–X → Done/Partial; RAW_SQL дата; LOG итог Wave 3."
+    content: 'DRIZZLE_TRANSITION_PLAN фазы IX–X → Done/Partial; RAW_SQL дата; LOG итог Wave 3.'
     status: completed
   - id: w3-p17-plans-status
-    content: "wave3_phase_00..17 todos completed/cancelled; plans/README Wave 3 index."
+    content: 'wave3_phase_00..17 todos completed/cancelled; plans/README Wave 3 index.'
     status: completed
   - id: w3-p17-staging-smoke
-    content: "LOG L182 staging multipart→transcode — обязательный smoke по чеклисту; подтверждает owner или человек/агент с доступом к staging/prod logs, очередям, БД и внешним сервисам."
+    content: 'LOG L182 staging multipart→transcode — обязательный smoke по чеклисту; подтверждает owner или человек/агент с доступом к staging/prod logs, очередям, БД и внешним сервисам.'
     status: completed
   - id: w3-p17-ci
-    content: "pnpm install --frozen-lockfile && pnpm run ci — green на финальном коммите."
+    content: 'pnpm install --frozen-lockfile && pnpm run ci — green на финальном коммите.'
     status: completed
   - id: w3-p17-archive
-    content: "При полном closeout — перенос ~/.cursor/plans/drizzle_* в .cursor/plans/archive если есть."
+    content: 'При полном closeout — перенос ~/.cursor/plans/drizzle_* в .cursor/plans/archive если есть.'
     status: completed
 ---
 
@@ -43,20 +43,21 @@ todos:
 
 ## Финальный rg (ожидаемый остаток)
 
-| Зона | Допустимый остаток | Факт (2026-06-06) |
-|------|-------------------|-------------------|
-| `packages/platform-merge` | query() — ADR | 85 hits / 3 files |
-| `packages/booking-rubitime-sync` | SqlExecutor pg | 4 hits / 1 file |
-| `apps/media-worker/claim.ts` | pool.query | 1 |
-| `apps/integrator/migrate.ts` | db.query | 1 (client.ts health path) |
-| `apps/*/scripts/*` one-off | pg | documented Class C |
-| Class B execute paths | documented | 25 webapp runtime files |
+| Зона                             | Допустимый остаток | Факт (2026-06-06)         |
+| -------------------------------- | ------------------ | ------------------------- |
+| `packages/platform-merge`        | query() — ADR      | 85 hits / 3 files         |
+| `packages/booking-rubitime-sync` | SqlExecutor pg     | 4 hits / 1 file           |
+| `apps/media-worker/claim.ts`     | pool.query         | 1                         |
+| `apps/integrator/migrate.ts`     | db.query           | 1 (client.ts health path) |
+| `apps/*/scripts/*` one-off       | pg                 | documented Class C        |
+| Class B execute paths            | documented         | 25 webapp runtime files   |
 
 ## Staging smoke (обязательный gate)
 
 Из [LOG.md](../../../../INTEGRATOR_DRIZZLE_MIGRATION/LOG.md): e2e multipart upload + transcode claim на staging.
 
 Обязательная проверка перед закрытием Wave 3:
+
 - multipart upload на staging;
 - enqueue/claim транскода;
 - фиксация результата в `LOG.md`.

@@ -1,121 +1,121 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const runWebappPgTextMock = vi.hoisted(() => vi.fn());
 const getCurrentDbPrincipalMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/infra/db/runWebappSql", () => ({
+vi.mock('@/infra/db/runWebappSql', () => ({
   runWebappPgText: runWebappPgTextMock,
 }));
-vi.mock("@bersoncare/db-principal", () => ({
+vi.mock('@bersoncare/db-principal', () => ({
   getCurrentDbPrincipal: getCurrentDbPrincipalMock,
   getCurrentDbPrincipalOrganizationId: vi.fn(),
 }));
 
-import { pgLfkDiaryPort } from "./pgLfkDiary";
+import { pgLfkDiaryPort } from './pgLfkDiary';
 
-describe("pgLfkDiaryPort", () => {
+describe('pgLfkDiaryPort', () => {
   beforeEach(() => {
     runWebappPgTextMock.mockReset();
     getCurrentDbPrincipalMock.mockReset();
     getCurrentDbPrincipalMock.mockReturnValue({
-      kind: "patient",
-      organizationId: "a0000000-0000-4000-8000-000000000001",
-      platformUserId: "00000000-0000-4000-8000-000000000099",
+      kind: 'patient',
+      organizationId: 'a0000000-0000-4000-8000-000000000001',
+      platformUserId: '00000000-0000-4000-8000-000000000099',
     });
   });
 
-  it("listSessions scopes by user_id and limit", async () => {
+  it('listSessions scopes by user_id and limit', async () => {
     runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
-    await pgLfkDiaryPort.listSessions("patient-u1", 25);
-    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
-    expect(sql).toContain("s.user_id = $1");
-    expect(sql).toContain("ORDER BY s.completed_at DESC");
-    expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual(["patient-u1", 25]);
+    await pgLfkDiaryPort.listSessions('patient-u1', 25);
+    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? '');
+    expect(sql).toContain('s.user_id = $1');
+    expect(sql).toContain('ORDER BY s.completed_at DESC');
+    expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual(['patient-u1', 25]);
   });
 
-  it("getSessionForUser requires session id and user_id", async () => {
+  it('getSessionForUser requires session id and user_id', async () => {
     runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
     await pgLfkDiaryPort.getSessionForUser({
-      sessionId: "00000000-0000-4000-8000-000000000001",
-      userId: "patient-u1",
+      sessionId: '00000000-0000-4000-8000-000000000001',
+      userId: 'patient-u1',
     });
-    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
-    expect(sql).toContain("WHERE s.id = $1 AND s.user_id = $2");
+    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? '');
+    expect(sql).toContain('WHERE s.id = $1 AND s.user_id = $2');
   });
 
-  it("listSessionsInRange filters completed_at window", async () => {
+  it('listSessionsInRange filters completed_at window', async () => {
     runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
     await pgLfkDiaryPort.listSessionsInRange({
-      userId: "patient-u1",
-      fromCompletedAt: "2026-01-01T00:00:00.000Z",
-      toCompletedAtExclusive: "2026-02-01T00:00:00.000Z",
+      userId: 'patient-u1',
+      fromCompletedAt: '2026-01-01T00:00:00.000Z',
+      toCompletedAtExclusive: '2026-02-01T00:00:00.000Z',
     });
-    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
-    expect(sql).toContain("s.completed_at >=");
-    expect(sql).toContain("s.completed_at <");
+    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? '');
+    expect(sql).toContain('s.completed_at >=');
+    expect(sql).toContain('s.completed_at <');
   });
 
-  it("getComplexForUser uses platform_user_id or legacy user_id match", async () => {
+  it('getComplexForUser uses platform_user_id or legacy user_id match', async () => {
     runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
     await pgLfkDiaryPort.getComplexForUser({
-      complexId: "00000000-0000-4000-8000-000000000001",
-      userId: "00000000-0000-4000-8000-000000000099",
+      complexId: '00000000-0000-4000-8000-000000000001',
+      userId: '00000000-0000-4000-8000-000000000099',
     });
-    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
-    expect(sql).toContain("platform_user_id");
-    expect(sql).toContain("c.id = $1");
-    expect(sql).toContain("app.read_patient_lfk_complex_cover(c.id)");
-    expect(sql).not.toContain("JOIN lfk_exercise_media");
+    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? '');
+    expect(sql).toContain('platform_user_id');
+    expect(sql).toContain('c.id = $1');
+    expect(sql).toContain('app.read_patient_lfk_complex_cover(c.id)');
+    expect(sql).not.toContain('JOIN lfk_exercise_media');
   });
 
-  it("reads exercise lines only through the current-principal accessor", async () => {
+  it('reads exercise lines only through the current-principal accessor', async () => {
     runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
     const complexIds = [
-      "00000000-0000-4000-8000-000000000001",
-      "00000000-0000-4000-8000-000000000002",
+      '00000000-0000-4000-8000-000000000001',
+      '00000000-0000-4000-8000-000000000002',
     ];
     await pgLfkDiaryPort.listLfkComplexExerciseLinesForUser({
-      userId: "00000000-0000-4000-8000-000000000099",
+      userId: '00000000-0000-4000-8000-000000000099',
       complexIds,
     });
-    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
-    expect(sql).toContain("FROM app.read_patient_lfk_complex_exercise_lines($1::uuid[])");
-    expect(sql).not.toContain("JOIN lfk_exercises");
+    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? '');
+    expect(sql).toContain('FROM app.read_patient_lfk_complex_exercise_lines($1::uuid[])');
+    expect(sql).not.toContain('JOIN lfk_exercises');
     expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual([complexIds]);
   });
 
-  it("keeps the existing staff-only catalog joins for a doctor reading a client card", async () => {
+  it('keeps the existing staff-only catalog joins for a doctor reading a client card', async () => {
     getCurrentDbPrincipalMock.mockReturnValue({
-      kind: "organization",
-      organizationId: "a0000000-0000-4000-8000-000000000001",
-      actorPlatformUserId: "00000000-0000-4000-8000-000000000010",
+      kind: 'organization',
+      organizationId: 'a0000000-0000-4000-8000-000000000001',
+      actorPlatformUserId: '00000000-0000-4000-8000-000000000010',
     });
     runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
-    const complexIds = ["00000000-0000-4000-8000-000000000001"];
+    const complexIds = ['00000000-0000-4000-8000-000000000001'];
     await pgLfkDiaryPort.listLfkComplexExerciseLinesForUser({
-      userId: "00000000-0000-4000-8000-000000000099",
+      userId: '00000000-0000-4000-8000-000000000099',
       complexIds,
     });
-    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
-    expect(sql).toContain("INNER JOIN lfk_exercises e");
-    expect(sql).toContain("platform_user_id = $2::uuid");
+    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? '');
+    expect(sql).toContain('INNER JOIN lfk_exercises e');
+    expect(sql).toContain('platform_user_id = $2::uuid');
     expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual([
       complexIds,
-      "00000000-0000-4000-8000-000000000099",
+      '00000000-0000-4000-8000-000000000099',
     ]);
   });
 
-  it("addSession inserts session and enriches with complex title", async () => {
-    const completedAt = new Date("2026-01-15T12:00:00.000Z");
+  it('addSession inserts session and enriches with complex title', async () => {
+    const completedAt = new Date('2026-01-15T12:00:00.000Z');
     runWebappPgTextMock
       .mockResolvedValueOnce({
         rows: [
           {
-            id: "00000000-0000-4000-8000-000000000001",
-            user_id: "patient-u1",
-            complex_id: "00000000-0000-4000-8000-000000000002",
+            id: '00000000-0000-4000-8000-000000000001',
+            user_id: 'patient-u1',
+            complex_id: '00000000-0000-4000-8000-000000000002',
             completed_at: completedAt,
-            source: "webapp",
+            source: 'webapp',
             created_at: completedAt,
             recorded_at: completedAt,
             duration_minutes: 30,
@@ -125,49 +125,51 @@ describe("pgLfkDiaryPort", () => {
           },
         ],
       })
-      .mockResolvedValueOnce({ rows: [{ title: "Комплекс" }] });
+      .mockResolvedValueOnce({ rows: [{ title: 'Комплекс' }] });
     const session = await pgLfkDiaryPort.addSession({
-      userId: "patient-u1",
-      complexId: "00000000-0000-4000-8000-000000000002",
+      userId: 'patient-u1',
+      complexId: '00000000-0000-4000-8000-000000000002',
       completedAt: completedAt.toISOString(),
-      source: "webapp",
+      source: 'webapp',
       durationMinutes: 30,
       difficulty0_10: 3,
       pain0_10: 2,
     });
-    expect(session.complexTitle).toBe("Комплекс");
-    expect(String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "")).toContain("INSERT INTO lfk_sessions");
-    expect(String(runWebappPgTextMock.mock.calls[1]?.[0] ?? "")).toContain("lfk_complexes");
+    expect(session.complexTitle).toBe('Комплекс');
+    expect(String(runWebappPgTextMock.mock.calls[0]?.[0] ?? '')).toContain(
+      'INSERT INTO lfk_sessions',
+    );
+    expect(String(runWebappPgTextMock.mock.calls[1]?.[0] ?? '')).toContain('lfk_complexes');
   });
 
-  it("updateSession scopes by user_id and truncates comment to 200 chars", async () => {
+  it('updateSession scopes by user_id and truncates comment to 200 chars', async () => {
     runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
-    const longComment = "x".repeat(250);
+    const longComment = 'x'.repeat(250);
     await pgLfkDiaryPort.updateSession({
-      userId: "patient-u1",
-      sessionId: "00000000-0000-4000-8000-000000000001",
-      completedAt: "2026-01-15T12:00:00.000Z",
+      userId: 'patient-u1',
+      sessionId: '00000000-0000-4000-8000-000000000001',
+      completedAt: '2026-01-15T12:00:00.000Z',
       comment: longComment,
     });
-    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
-    expect(sql).toContain("UPDATE lfk_sessions");
-    expect(sql).toContain("WHERE id = $2 AND user_id = $1");
+    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? '');
+    expect(sql).toContain('UPDATE lfk_sessions');
+    expect(sql).toContain('WHERE id = $2 AND user_id = $1');
     const params = runWebappPgTextMock.mock.calls[0]?.[1] as unknown[];
     expect((params[6] as string).length).toBe(200);
   });
 
-  it("deleteSession scopes delete by user_id", async () => {
+  it('deleteSession scopes delete by user_id', async () => {
     runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
     await pgLfkDiaryPort.deleteSession({
-      userId: "patient-u1",
-      sessionId: "00000000-0000-4000-8000-000000000001",
+      userId: 'patient-u1',
+      sessionId: '00000000-0000-4000-8000-000000000001',
     });
-    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
-    expect(sql).toContain("DELETE FROM lfk_sessions");
-    expect(sql).toContain("user_id = $1");
+    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? '');
+    expect(sql).toContain('DELETE FROM lfk_sessions');
+    expect(sql).toContain('user_id = $1');
     expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual([
-      "patient-u1",
-      "00000000-0000-4000-8000-000000000001",
+      'patient-u1',
+      '00000000-0000-4000-8000-000000000001',
     ]);
   });
 });

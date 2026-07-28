@@ -1,26 +1,26 @@
-import { classifyOperatorHealthBannerSignals } from "@/modules/operator-health/criticalHealthSignals";
-import { collectOperatorHealthBannerInput } from "./collectCriticalHealthSignals";
-import type { SystemHealthResponse } from "./collectAdminSystemHealthData";
-import type { OperatorHealthBannerInput } from "@/modules/operator-health/criticalHealthSignals";
+import { classifyOperatorHealthBannerSignals } from '@/modules/operator-health/criticalHealthSignals';
+import { collectOperatorHealthBannerInput } from './collectCriticalHealthSignals';
+import type { SystemHealthResponse } from './collectAdminSystemHealthData';
+import type { OperatorHealthBannerInput } from '@/modules/operator-health/criticalHealthSignals';
 
-const SYSTEM_HEALTH_HREF = "/app/admin/system-health";
+const SYSTEM_HEALTH_HREF = '/app/admin/system-health';
 
 export type AdminDoctorTodayHealthBanner =
-  | { show: true; href: string; title: string; tone?: "warning" | "stop" }
+  | { show: true; href: string; title: string; tone?: 'warning' | 'stop' }
   | { show: false };
 
 const BANNER_ON: AdminDoctorTodayHealthBanner = {
   show: true,
   href: SYSTEM_HEALTH_HREF,
-  title: "Требуется внимание к здоровью системы",
-  tone: "warning",
+  title: 'Требуется внимание к здоровью системы',
+  tone: 'warning',
 };
 
 const DELIVERY_STOP_BANNER: AdminDoctorTodayHealthBanner = {
   show: true,
   href: SYSTEM_HEALTH_HREF,
-  title: "🛑 ! Остановлена исходящая доставка",
-  tone: "stop",
+  title: '🛑 ! Остановлена исходящая доставка',
+  tone: 'stop',
 };
 
 function hasOutboundDeliveryStop(input: OperatorHealthBannerInput): boolean {
@@ -33,9 +33,9 @@ function hasOutboundDeliveryStop(input: OperatorHealthBannerInput): boolean {
 
 function mapSystemHealthToBannerInput(s: SystemHealthResponse): OperatorHealthBannerInput {
   const snap = s.projection.snapshot;
-  const deadCount = typeof snap?.deadCount === "number" ? snap.deadCount : 0;
+  const deadCount = typeof snap?.deadCount === 'number' ? snap.deadCount : 0;
   const retriesOverThreshold =
-    typeof snap?.retriesOverThreshold === "number" ? snap.retriesOverThreshold : 0;
+    typeof snap?.retriesOverThreshold === 'number' ? snap.retriesOverThreshold : 0;
 
   const backupJobs: Record<string, { lastStatus: string }> = {};
   for (const [jobKey, job] of Object.entries(s.backupJobs)) {
@@ -65,7 +65,9 @@ function mapSystemHealthToBannerInput(s: SystemHealthResponse): OperatorHealthBa
 /**
  * Критерии баннера «Сегодня» — `classifyOperatorHealthBannerSignals` (матрица §3, warn + critical).
  */
-export function adminDoctorTodayHealthBannerFromSystemHealth(s: SystemHealthResponse): AdminDoctorTodayHealthBanner {
+export function adminDoctorTodayHealthBannerFromSystemHealth(
+  s: SystemHealthResponse,
+): AdminDoctorTodayHealthBanner {
   const input = mapSystemHealthToBannerInput(s);
   if (hasOutboundDeliveryStop(input)) return DELIVERY_STOP_BANNER;
   if (classifyOperatorHealthBannerSignals(input)) {

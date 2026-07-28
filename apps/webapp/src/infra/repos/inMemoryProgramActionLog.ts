@@ -1,8 +1,12 @@
-import { DateTime } from "luxon";
-import type { ProgramActionLogPort } from "@/modules/treatment-program/ports";
-import type { ProgramActionLogInsert, ProgramActionLogListRow, ProgramActionType } from "@/modules/treatment-program/types";
-import { PROGRAM_ACTION_TYPES } from "@/modules/treatment-program/types";
-import { programActionDoneActivityKey } from "@/modules/treatment-program/programActionActivityKey";
+import { DateTime } from 'luxon';
+import type { ProgramActionLogPort } from '@/modules/treatment-program/ports';
+import type {
+  ProgramActionLogInsert,
+  ProgramActionLogListRow,
+  ProgramActionType,
+} from '@/modules/treatment-program/types';
+import { PROGRAM_ACTION_TYPES } from '@/modules/treatment-program/types';
+import { programActionDoneActivityKey } from '@/modules/treatment-program/programActionActivityKey';
 
 type Row = ProgramActionLogInsert & { id: string; createdAt: string };
 
@@ -15,7 +19,7 @@ function isSimpleDonePayload(payload: Record<string, unknown> | null | undefined
   if (payload == null) return true;
   const src = payload.source;
   if (src == null) return true;
-  if (src === "test_submitted" || src === "lfk_exercise_done") return false;
+  if (src === 'test_submitted' || src === 'lfk_exercise_done') return false;
   return true;
 }
 
@@ -44,7 +48,7 @@ export function createInMemoryProgramActionLogPort(): ProgramActionLogPort {
             r.instanceId === params.instanceId &&
             r.patientUserId === params.patientUserId &&
             r.instanceStageItemId === params.instanceStageItemId &&
-            r.actionType === "done" &&
+            r.actionType === 'done' &&
             isSimpleDonePayload(r.payload ?? null),
         )
         .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0))[0];
@@ -60,7 +64,7 @@ export function createInMemoryProgramActionLogPort(): ProgramActionLogPort {
             r.instanceId === params.instanceId &&
             r.patientUserId === params.patientUserId &&
             r.instanceStageItemId === params.instanceStageItemId &&
-            r.actionType === "done" &&
+            r.actionType === 'done' &&
             isSimpleDonePayload(r.payload ?? null),
         )
         .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0))[0];
@@ -75,7 +79,7 @@ export function createInMemoryProgramActionLogPort(): ProgramActionLogPort {
           r.instanceId === params.instanceId &&
           r.patientUserId === params.patientUserId &&
           r.instanceStageItemId === params.instanceStageItemId &&
-          r.actionType === "done" &&
+          r.actionType === 'done' &&
           r.createdAt >= params.windowStartIso &&
           r.createdAt < params.windowEndIso &&
           isSimpleDonePayload(r.payload ?? null)
@@ -92,7 +96,7 @@ export function createInMemoryProgramActionLogPort(): ProgramActionLogPort {
           r.instanceId === params.instanceId &&
           r.patientUserId === params.patientUserId &&
           r.instanceStageItemId === params.instanceStageItemId &&
-          r.actionType === "done" &&
+          r.actionType === 'done' &&
           r.createdAt >= params.windowStartIso &&
           r.createdAt < params.windowEndIso
         ) {
@@ -107,7 +111,7 @@ export function createInMemoryProgramActionLogPort(): ProgramActionLogPort {
         if (
           r.instanceId === params.instanceId &&
           r.patientUserId === params.patientUserId &&
-          r.actionType === "done" &&
+          r.actionType === 'done' &&
           r.createdAt >= params.windowStartIso &&
           r.createdAt < params.windowEndIso
         ) {
@@ -123,7 +127,7 @@ export function createInMemoryProgramActionLogPort(): ProgramActionLogPort {
         if (
           r.instanceId === params.instanceId &&
           r.patientUserId === params.patientUserId &&
-          r.actionType === "done" &&
+          r.actionType === 'done' &&
           r.createdAt >= params.windowStartIso &&
           r.createdAt < params.windowEndIso
         ) {
@@ -139,7 +143,7 @@ export function createInMemoryProgramActionLogPort(): ProgramActionLogPort {
         if (
           r.instanceId === params.instanceId &&
           r.patientUserId === params.patientUserId &&
-          r.actionType === "done" &&
+          r.actionType === 'done' &&
           r.createdAt >= params.windowStartIso &&
           r.createdAt < params.windowEndIso
         ) {
@@ -159,7 +163,7 @@ export function createInMemoryProgramActionLogPort(): ProgramActionLogPort {
         if (
           r.instanceId !== params.instanceId ||
           r.patientUserId !== params.patientUserId ||
-          r.actionType !== "done"
+          r.actionType !== 'done'
         ) {
           continue;
         }
@@ -175,7 +179,7 @@ export function createInMemoryProgramActionLogPort(): ProgramActionLogPort {
         if (
           r.instanceId !== params.instanceId ||
           r.patientUserId !== params.patientUserId ||
-          r.actionType !== "done"
+          r.actionType !== 'done'
         ) {
           continue;
         }
@@ -195,7 +199,7 @@ export function createInMemoryProgramActionLogPort(): ProgramActionLogPort {
         if (
           r.instanceId !== params.instanceId ||
           r.patientUserId !== params.patientUserId ||
-          r.actionType !== "done"
+          r.actionType !== 'done'
         ) {
           continue;
         }
@@ -218,13 +222,13 @@ export function createInMemoryProgramActionLogPort(): ProgramActionLogPort {
         if (
           r.instanceId !== params.instanceId ||
           r.patientUserId !== params.patientUserId ||
-          r.actionType !== "done" ||
+          r.actionType !== 'done' ||
           r.createdAt < params.windowStartUtcIso ||
           r.createdAt >= params.windowEndUtcExclusiveIso
         ) {
           continue;
         }
-        const d = DateTime.fromISO(r.createdAt, { zone: "utc" }).setZone(iana);
+        const d = DateTime.fromISO(r.createdAt, { zone: 'utc' }).setZone(iana);
         if (!d.isValid) continue;
         const isoDate = d.toISODate();
         if (isoDate) days.add(isoDate);
@@ -238,13 +242,13 @@ export function createInMemoryProgramActionLogPort(): ProgramActionLogPort {
       for (const r of rows) {
         if (
           r.patientUserId !== params.patientUserId ||
-          r.actionType !== "done" ||
+          r.actionType !== 'done' ||
           r.createdAt < params.windowStartUtcIso ||
           r.createdAt >= params.windowEndUtcExclusiveIso
         ) {
           continue;
         }
-        const d = DateTime.fromISO(r.createdAt, { zone: "utc" }).setZone(iana);
+        const d = DateTime.fromISO(r.createdAt, { zone: 'utc' }).setZone(iana);
         if (!d.isValid) continue;
         const isoDate = d.toISODate();
         if (isoDate) days.add(isoDate);
@@ -260,13 +264,13 @@ export function createInMemoryProgramActionLogPort(): ProgramActionLogPort {
         if (
           r.instanceId !== params.instanceId ||
           r.patientUserId !== params.patientUserId ||
-          r.actionType !== "done" ||
+          r.actionType !== 'done' ||
           r.createdAt < params.windowStartUtcIso ||
           r.createdAt >= params.windowEndUtcExclusiveIso
         ) {
           continue;
         }
-        const d = DateTime.fromISO(r.createdAt, { zone: "utc" }).setZone(iana);
+        const d = DateTime.fromISO(r.createdAt, { zone: 'utc' }).setZone(iana);
         if (!d.isValid) continue;
         const localDate = d.toISODate();
         if (!localDate) continue;
@@ -285,13 +289,13 @@ export function createInMemoryProgramActionLogPort(): ProgramActionLogPort {
       for (const r of rows) {
         if (
           r.patientUserId !== params.patientUserId ||
-          r.actionType !== "done" ||
+          r.actionType !== 'done' ||
           r.createdAt < params.windowStartUtcIso ||
           r.createdAt >= params.windowEndUtcExclusiveIso
         ) {
           continue;
         }
-        const d = DateTime.fromISO(r.createdAt, { zone: "utc" }).setZone(iana);
+        const d = DateTime.fromISO(r.createdAt, { zone: 'utc' }).setZone(iana);
         if (!d.isValid) continue;
         const localDate = d.toISODate();
         if (!localDate) continue;
@@ -330,7 +334,7 @@ export function createInMemoryProgramActionLogPort(): ProgramActionLogPort {
         (r) =>
           r.instanceId === params.instanceId &&
           r.instanceStageItemId === params.instanceStageItemId &&
-          r.actionType === "done" &&
+          r.actionType === 'done' &&
           r.createdAt >= params.windowStartUtcIso &&
           r.createdAt < params.windowEndUtcExclusiveIso,
       );

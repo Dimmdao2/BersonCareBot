@@ -1,6 +1,7 @@
 # Инструкции для AI-агентов — BersonCareBot
 
 ## Поиск по коду — сначала code-search, потом слепой grep
+
 Есть готовый гибридный поиск по коду над индексом репозитория (BM25 + семантика, деградация до BM25). Для вопросов
 «где в коде X / кто вызывает Y / где определён Z» СНАЧАЛА зови его, а не грепай вслепую по всему репо:
 
@@ -13,6 +14,7 @@
 **Канонический источник правил:** `.cursor/rules/*.mdc` и `.cursor/rules/test-execution-policy.md`. При расхождении приоритет у файлов в `.cursor/rules/` (там есть `globs` и `alwaysApply` для scoped-правил). При изменении правил обновляйте **оба** места.
 
 **STOP-GATE: сначала существующие документы и scripts, потом действия.** Для ЛЮБОЙ существенной задачи агент НЕ имеет права изобретать последовательность, писать новый SQL/script, менять код или запускать команды, пока не:
+
 1. прочитал `AGENTS.md`, `README.md`, `docs/README.md` и релевантные docs/rules/runbooks по теме;
 2. нашёл существующие scripts/docs через code-search и точечное чтение;
 3. явно зафиксировал, какие существующие источники являются каноном для текущего действия.
@@ -21,6 +23,7 @@
 Если найденный документ противоречит плану агента — документ побеждает, агент перестраивает план.
 
 **Перед существенной работой** прочитайте также:
+
 - `README.md`
 - `docs/README.md`
 - `docs/ARCHITECTURE/SERVER CONVENTIONS.md`
@@ -34,12 +37,12 @@
 ## Оглавление
 
 1. [Онбординг и server conventions](#1-онбординг-и-server-conventions)
-1a. [Локальный dev и тестирование UI](#1a-локальный-dev-и-тестирование-ui)
-1b. [Безопасность dev-среды: изоляция от прод](#1b-безопасность-dev-среды-изоляция-от-прод-и-реальных-каналов)
+   1a. [Локальный dev и тестирование UI](#1a-локальный-dev-и-тестирование-ui)
+   1b. [Безопасность dev-среды: изоляция от прод](#1b-безопасность-dev-среды-изоляция-от-прод-и-реальных-каналов)
 2. [CRITICAL: конфигурация интеграций только в БД](#2-critical-конфигурация-интеграций-только-в-бд)
 3. [Runtime config: env vs database](#3-runtime-config-env-vs-database)
 4. [system_settings: зеркало public + integrator](#4-system_settings-зеркало-public--integrator)
-4a. [SaaS Foundation-aware development](#4a-saas-foundation-aware-development)
+   4a. [SaaS Foundation-aware development](#4a-saas-foundation-aware-development)
 5. [Clean Architecture: изоляция модулей](#5-clean-architecture-изоляция-модулей)
 6. [Host: PostgreSQL и DATABASE_URL](#6-host-postgresql-и-database_url)
 7. [Git: коммит и пуш](#7-git-коммит-и-пуш)
@@ -50,13 +53,13 @@
 12. [Plan Authoring And Execution Standard](#12-plan-authoring-and-execution-standard)
 13. [Формат ответа: ИТОГ](#13-формат-ответа-итог)
 14. [Коммуникация без навязанных концовок](#14-коммуникация-без-навязанных-концовок)
-14a. [Языковая политика Codex](#14a-языковая-политика-codex)
+    14a. [Языковая политика Codex](#14a-языковая-политика-codex)
 15. [Patient UI Shared Primitives](#15-patient-ui-shared-primitives)
 16. [Doctor UI Shared Primitives](#16-doctor-ui-shared-primitives)
 17. [Patient / Doctor UI Isolation](#17-patient--doctor-ui-isolation)
 18. [Пациент: «ЛФК» = программа реабилитации](#18-пациент-лфк--программа-реабилитации)
-19. [Patient media playback (HLS / MP4)](#19-patient-media-playback-hls--mp4) — *scoped: patient routes*
-20. [CMS: единый layout медиа-пикера](#20-cms-единый-layout-медиа-пикера) — *scoped: doctor CMS*
+19. [Patient media playback (HLS / MP4)](#19-patient-media-playback-hls--mp4) — _scoped: patient routes_
+20. [CMS: единый layout медиа-пикера](#20-cms-единый-layout-медиа-пикера) — _scoped: doctor CMS_
 21. [UI: тексты без избыточных пояснений](#21-ui-тексты-без-избыточных-пояснений)
 22. [UI: Select — displayLabel](#22-ui-select--displaylabel)
 23. [Справочник вне .cursor/rules](#23-справочник-вне-cursorrules)
@@ -66,14 +69,14 @@
 
 ## 1. Онбординг и server conventions
 
-*Источник: `.cursor/rules/server-conventions-and-doc-onboarding.mdc` (alwaysApply)*
+_Источник: `.cursor/rules/server-conventions-and-doc-onboarding.mdc` (alwaysApply)_
 
 - **STOP-GATE: сначала существующие документы и scripts, потом действия.** Для ЛЮБОЙ существенной задачи агент НЕ имеет права изобретать последовательность, писать новый SQL/script, менять код или запускать команды, пока не:
   1. прочитал `AGENTS.md`, `README.md`, `docs/README.md` и релевантные docs/rules/runbooks по теме;
   2. нашёл существующие scripts/docs через code-search и точечное чтение;
   3. явно зафиксировал, какие существующие источники являются каноном для текущего действия.
-  Для server/deploy/prod/test/env/DB/backup/migration/backfill/reconcile/cutover/clean dump это правило абсолютное и блокирующее.
-  Если найденный документ противоречит плану агента — документ побеждает, агент перестраивает план.
+     Для server/deploy/prod/test/env/DB/backup/migration/backfill/reconcile/cutover/clean dump это правило абсолютное и блокирующее.
+     Если найденный документ противоречит плану агента — документ побеждает, агент перестраивает план.
 - At the start of every new chat, first familiarize yourself with core project docs before giving substantial guidance:
   - `README.md`
   - `docs/README.md`
@@ -91,16 +94,18 @@
   - Store only non-secret operational facts in docs (paths, unit names, port numbers, DB names, env key names, URLs, users, ownership).
   - Never write secrets, passwords, tokens, or full credential-bearing connection strings into repo docs.
 
-**Production-хост:** пользователь `deploy` **не имеет** произвольного `sudo` в SSH — только whitelist (systemctl bersoncarebot-*, backup). Не давать агенту `sudo rm/chown/cp` от `deploy`; root-операции — явно «от root». Подробно: `docs/ARCHITECTURE/SERVER CONVENTIONS.md` §«КРИТИЧНО: deploy».
+**Production-хост:** пользователь `deploy` **не имеет** произвольного `sudo` в SSH — только whitelist (systemctl bersoncarebot-\*, backup). Не давать агенту `sudo rm/chown/cp` от `deploy`; root-операции — явно «от root». Подробно: `docs/ARCHITECTURE/SERVER CONVENTIONS.md` §«КРИТИЧНО: deploy».
 
 ### Задачи — только через taskdb-порт, не сырой SQL
 
 Канон: [`.cursor/rules/unified-task-db.mdc`](.cursor/rules/unified-task-db.mdc) (`alwaysApply`) + памятка [`docs/SHARED_TASKDB.md`](docs/SHARED_TASKDB.md). Кратко:
 
 - Все задачи репозитория ведём в ОБЩЕЙ базе задач (проект `bcb`) **только** через утилиту-порт:
+
   ```
   node /home/dev/brain/tools/taskdb.mjs <cmd>
   ```
+
   Основные команды: `list bcb` · `find bcb "<подстрока>"` · `waiting` · `add "<title>" "<details>" bcb-lead bcb` · `set <id> <field> <value>`
   Settable fields: `status` · `note` · `question` · `owner_waiting` · `commit_ref` · `seal_test` · `seal_audit` · `auto_ok` · `title` · `meta` · `category`
 
@@ -119,11 +124,13 @@
 ## Операционные правила (добавлено через Claude, 2026-06): проверки · deploy · индекс · задачи
 
 ### Прогон тестов и сборок — напрямую разрешено
+
 - Решение владельца от 2026-07-09: требование обязательного запуска проверок через `run-tests.sh` временно снято. Агенты могут запускать релевантные `pnpm test`, `vitest`, `typecheck`, `lint`, `build` и `pnpm run ci` напрямую.
 - `run-tests.sh` / throttling-wrapper остаётся опциональным инструментом для тяжёлых прогонов, высокой нагрузки на сервер или явной команды владельца, но не является обязательным gate.
 - Уровень проверки выбирается по `.cursor/rules/test-execution-policy.md` и `.cursor/rules/pre-push-ci.mdc`: step/phase/full CI по масштабу риска, без лишних повторов. Команды и результаты проверок указывать честно.
 
 ### CI / lint / build / fix-warnings — делегировать Sonnet, не гнать в Opus
+
 - **Opus** = оркестрация + принятие решений. **Sonnet** = механический run+fix цикл.
 - Как только нужен зелёный CI / починить lint / build / предупреждения — **сразу** спаунить одного Sonnet-агента с промптом:
   1. прогони нужный gate напрямую, например `pnpm run ci` для full CI или более узкую команду по `test-execution-policy`;
@@ -133,12 +140,14 @@
 - Ведущий (Opus) **не расследует логи, не правит файлы, не читает ошибки сам** — только бридж для сложных решений, которые Sonnet вынес.
 
 ### Deploy / push
+
 - **`feat/doctor-ui-rebuild`** (dev): коммить и пушить свободно (авто-push ок).
 - **`main` / `test`: НИКОГДА не пушить/мёрджить без прямой команды владельца.**
 - **Два репо:** `origin` = `Dimmdao2/BersonCareBot` (dev/backup; прод-деплой выключен `if:false`). `dimmdao` = `dimmdao/BersonCareBot` — **производственный**.
 - **Прод-деплой — ручной:** в `dimmdao` → Actions → workflow **«Deploy (production)»** (`workflow_dispatch`, ввод `confirm=deploy`) → аппрув окружения `production`. Гейты: зелёный CI на коммите + human-approval. Затем SSH под юзером `deploy` запускает `deploy/host/deploy-prod.sh` (хост: `git pull main` → install → build → `pnpm migrate` → рестарт systemd). Хост `135.106.162.170`, путь `/opt/projects/bersoncarebot`, секреты `DEPLOY_SSH_KEY/USER/HOST/PATH` + read-only deploy-key для pull. Детали: `deploy/HOST_DEPLOY_README.md`.
 
 ### 🔴 Индекс/векторы по коду — ГОТОВ, используй ПЕРЕД сканом кода (экономит токены всем)
+
 - По репо построен семантический индекс кода (pgvector, ~13k кусков, e5-1024; освежается инкрементально по `file_sha`). **ПРАВИЛО СТАРТА: прежде чем лезть в код `grep`/чтением файлов целиком — сперва спроси индекс** (дешевле по токенам и быстрее):
   - смысл / «где логика X, что отвечает за Y» → `bash /home/dev/brain/tools/codeq.sh "<запрос>" --repo bcb [--k N]` (семантический, вектор);
   - точное имя / строка / символ → `bash /home/dev/brain/tools/code-search.sh "<строка>" --repo bcb [-k N]` (лексический BM25).
@@ -147,13 +156,16 @@
 - Ключи/ссылки индекса можно хранить в `meta` задач (ниже).
 
 ### Задачи — расширенные конвенции (доп. к разделу «taskdb-порт» выше)
+
 - **`title`** = человеческий TL;DR (агент сразу отвечает «что это», без поиска). **`block`** = полное ТЗ/детали. **`note`** = ход + решения/ответы владельца. **`category`** = область/страница (Карточка/Пациенты/Расписание/Напоминания/Рассылки/…) для группировки. **`commit_ref`** = коммит.
 - **Слои состояния:** `status` (todo/doing/blocked/done) → `seal_test`/`seal_audit` (агент проверил) → **`accepted`** (+`accepted_at`) = **ВЛАДЕЛЕЦ принял**. «done» ≠ «accepted».
 - **Гейт автономного лупа:** воркер берёт задачу только при `status∈(todo,doing) AND owner_waiting=false AND auto_ok=true`. Новую/крупную/спорную заводить `auto_ok=false` (ждёт триажа); мелкую-безопасную — `auto_ok=true`.
 - **`meta jsonb`** (после добавления поля): ссылки на доки + AI-данные — `{"docs":{"plan":…,"audit":…,"log":…,"design":…},"ai":{"vectorIds":[…],"indexKeys":[…]}}`. Планы/аудиты/логи остаются ФАЙЛАМИ; в БД — статус + ссылки, не контент.
 
 ### 🔴 Чек-листы и коммиты: пять состояний галочки, отметка тем же коммитом, номер карточки в сообщении (владелец, 2026-07-27)
-*Полный канон: [`docs/ORCHESTRATION_BINDINGS.md`](docs/ORCHESTRATION_BINDINGS.md) §«Разметка чек-листов и связь с коммитами» — читать целиком перед первой правкой плана.*
+
+_Полный канон: [`docs/ORCHESTRATION_BINDINGS.md`](docs/ORCHESTRATION_BINDINGS.md) §«Разметка чек-листов и связь с коммитами» — читать целиком перед первой правкой плана._
+
 - **Состояний пять, не два:** `[x]` сделано · `[-]` + ⛔ отменено владельцем · `[-]` + ↪️ вытеснено · `[-]` + 🧊
   заморожено · `[-]` + ⏸ отложено владельцем · `[ ]` открыто. `[-]` не читается ни как работа, ни как
   достижение — мёртвое и отложенное выпадают из обоих счётчиков, оставаясь в файле.
@@ -171,7 +183,9 @@
   решение, даже когда он сказал «я это сделаю».
 
 ### Миграции: индекс на горячую колонку — в том же PR (владелец, 2026-07-20)
-*Источник: `.cursor/rules/db-migrations-hot-column-indexes.mdc` (globs на миграции/схему)*
+
+_Источник: `.cursor/rules/db-migrations-hot-column-indexes.mdc` (globs на миграции/схему)_
+
 - Индекс — **не «потом»**, а часть КАЖДОГО PR, добавляющего таблицу/колонку под фильтр-сортировку. Горячие
   классы: `org_id`/`clinic_id`/tenant (RLS), `user_id`+`created_at` (списки/ленты), таймстемпы event/delivery-
   таблиц (аналитика), уникальные ключи дедупа.
@@ -182,19 +196,19 @@
 
 ## 1a. Локальный dev и тестирование UI
 
-*Канон: [`docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md`](docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md)*
+_Канон: [`docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md`](docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md)_
 
 ### Запуск
 
-| Команда | Назначение |
-|---------|------------|
-| `pnpm run dev` | integrator + webapp (полный стек) |
-| `pnpm run webapp:dev` | только webapp (`127.0.0.1:5200`) |
-| `pnpm run dev:turbo` | webapp, Turbopack (быстрый HMR) |
+| Команда                                 | Назначение                        |
+| --------------------------------------- | --------------------------------- |
+| `pnpm run dev`                          | integrator + webapp (полный стек) |
+| `pnpm run webapp:dev`                   | только webapp (`127.0.0.1:5200`)  |
+| `pnpm run dev:turbo`                    | webapp, Turbopack (быстрый HMR)   |
 | `pnpm --dir apps/webapp run dev:visual` | webapp + file polling (VM/Docker) |
-| `pnpm run dev:integrator` | только API `:4200` |
-| `pnpm run worker:dev` / `scheduler:dev` | фоновые процессы integrator |
-| `pnpm run dev:stop` | освободить dev-порты 5200/4200 |
+| `pnpm run dev:integrator`               | только API `:4200`                |
+| `pnpm run worker:dev` / `scheduler:dev` | фоновые процессы integrator       |
+| `pnpm run dev:stop`                     | освободить dev-порты 5200/4200    |
 
 Перед UI-тестом: `pnpm run migrate`, env из `.env` + `apps/webapp/.env.dev`.
 
@@ -202,12 +216,12 @@
 
 Требуется `ALLOW_DEV_AUTH_BYPASS=true` в `apps/webapp/.env.dev`. Хост — **`http://127.0.0.1:5200`**, не `localhost`.
 
-| `token` | Роль |
-|---------|------|
-| `dev:admin` | врач + admin mode (настройки, audit-log) |
+| `token`            | Роль                                                         |
+| ------------------ | ------------------------------------------------------------ |
+| `dev:admin`        | врач + admin mode (настройки, audit-log)                     |
 | `dev:clinic-admin` | администратор/owner своей dev-клиники, без global admin mode |
-| `dev:doctor` | только кабинет специалиста |
-| `dev:client` | пациент |
+| `dev:doctor`       | только кабинет специалиста                                   |
+| `dev:client`       | пациент                                                      |
 
 ```
 http://127.0.0.1:5200/api/auth/dev-bypass?token=dev%3Aadmin
@@ -229,7 +243,7 @@ http://127.0.0.1:5200/api/auth/dev-bypass?token=dev%3Aadmin
 
 ## 1b. Безопасность dev-среды: изоляция от прод и реальных каналов
 
-*Источник: `.cursor/rules/dev-prod-isolation-no-real-creds.mdc` (alwaysApply)*
+_Источник: `.cursor/rules/dev-prod-isolation-no-real-creds.mdc` (alwaysApply)_
 
 Прод и dev — на одной машине. Прод: из `/opt/projects/bersoncarebot` (+ `/opt/env/bersoncarebot/*`, systemd `bersoncarebot-*-prod.service`, БД `bcb_webapp_prod`). Dev: из репо (`pnpm dev` → webapp `:5200` + integrator `:4200`, env `/.env` + `apps/webapp/.env.dev`, БД `bcb_webapp_dev`). Канонические пути — только из `docs/ARCHITECTURE/SERVER CONVENTIONS.md`.
 
@@ -244,7 +258,7 @@ http://127.0.0.1:5200/api/auth/dev-bypass?token=dev%3Aadmin
 
 ## 2. CRITICAL: конфигурация интеграций только в БД
 
-*Источник: `.cursor/rules/000-critical-integration-config-in-db.mdc` (alwaysApply)*
+_Источник: `.cursor/rules/000-critical-integration-config-in-db.mdc` (alwaysApply)_
 
 ## Absolute rule for all agents
 
@@ -273,7 +287,7 @@ http://127.0.0.1:5200/api/auth/dev-bypass?token=dev%3Aadmin
 
 ## 3. Runtime config: env vs database
 
-*Источник: `.cursor/rules/runtime-config-env-vs-db.mdc` (alwaysApply)*
+_Источник: `.cursor/rules/runtime-config-env-vs-db.mdc` (alwaysApply)_
 
 When adding or moving configuration:
 
@@ -303,7 +317,7 @@ See `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`.
 
 ## 4. system_settings: зеркало public + integrator
 
-*Источник: `.cursor/rules/system-settings-integrator-mirror.mdc` (alwaysApply)*
+_Источник: `.cursor/rules/system-settings-integrator-mirror.mdc` (alwaysApply)_
 
 Production uses **one PostgreSQL database** with schemas **`public`** (webapp tables including `system_settings`) and **`integrator`**. Integrator holds a mirror table `system_settings` with the same logical keys `(key, scope, organization_id)` and JSON `value_json`. `organization_id IS NULL` is the global default row; non-null `organization_id` rows are organization overrides and must fall back to the global row on reads when absent. Until refactored, push from webapp may still use signed HTTP `syncSettingToIntegrator`; do not bypass `updateSetting` for writes from webapp.
 
@@ -323,7 +337,7 @@ Canonical docs: `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`, `docs/ARCH
 
 ## 4a. SaaS Foundation-aware development
 
-*Источник: `.cursor/rules/saas-foundation-aware-development.mdc` (alwaysApply) + `docs/RULES/SAAS_FOUNDATION_AWARE_DEVELOPMENT.md`*
+_Источник: `.cursor/rules/saas-foundation-aware-development.mdc` (alwaysApply) + `docs/RULES/SAAS_FOUNDATION_AWARE_DEVELOPMENT.md`_
 
 Перед добавлением или изменением таблиц, колонок, миграций, репозиториев, API, write-paths или фоновых задач учитывай текущее направление `SAAS_FOUNDATION`: shared-DB SaaS, tenant = `Organization`, будущая изоляция данных.
 
@@ -338,7 +352,7 @@ Canonical docs: `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`, `docs/ARCH
 
 ## 5. Clean Architecture: изоляция модулей
 
-*Источник: `.cursor/rules/clean-architecture-module-isolation.mdc` (alwaysApply)*
+_Источник: `.cursor/rules/clean-architecture-module-isolation.mdc` (alwaysApply)_
 
 Every module in `apps/webapp/src/modules/` must follow strict layered isolation:
 
@@ -401,6 +415,7 @@ WRONG:
 ### 4. Route handlers are thin
 
 Route handlers (`app/api/**/route.ts`) do ONLY:
+
 - Parse request (headers, body, params)
 - Validate input (Zod schema)
 - Authenticate/authorize (session, guards)
@@ -412,6 +427,7 @@ Route handlers MUST NOT contain business logic, database queries, or direct infr
 ### 5. New entities use Drizzle ORM
 
 All new database tables and queries must use Drizzle ORM:
+
 - Schema in `apps/webapp/db/schema/*.ts`
 - Migrations via `drizzle-kit generate` + `drizzle-kit migrate`
 - Types inferred from schema (`typeof table.$inferSelect`)
@@ -423,14 +439,16 @@ All new database tables and queries must use Drizzle ORM:
 // CORRECT — service receives port via factory
 export function createTreatmentProgramService(port: TreatmentProgramPort) {
   return {
-    async assignToPatient(params) { /* uses port */ },
+    async assignToPatient(params) {
+      /* uses port */
+    },
   };
 }
 
 // WRONG — service grabs pool directly
 export function assignToPatient(params) {
   const pool = getPool(); // FORBIDDEN
-  await pool.query("INSERT INTO ..."); // FORBIDDEN
+  await pool.query('INSERT INTO ...'); // FORBIDDEN
 }
 ```
 
@@ -453,7 +471,7 @@ export function assignToPatient(params) {
 
 ## 6. Host: PostgreSQL и DATABASE_URL
 
-*Источник: `.cursor/rules/host-psql-database-url.mdc` (alwaysApply)*
+_Источник: `.cursor/rules/host-psql-database-url.mdc` (alwaysApply)_
 
 ### Сбой без env
 
@@ -510,7 +528,7 @@ Cutover / два URL — см. `SERVER CONVENTIONS.md` (`cutover.prod`, `INTEGRA
 
 ## 7. Git: коммит и пуш
 
-*Источник: `.cursor/rules/git-commit-push-full-worktree.mdc` (alwaysApply)*
+_Источник: `.cursor/rules/git-commit-push-full-worktree.mdc` (alwaysApply)_
 
 ### COMMIT — только зафиксировать то, что уже на диске
 
@@ -548,7 +566,7 @@ Cutover / два URL — см. `SERVER CONVENTIONS.md` (`cutover.prod`, `INTEGRA
 
 ## 8. Команда «пуш»
 
-*Источник: `.cursor/rules/push-means-ci-commit-push.mdc` (alwaysApply)*
+_Источник: `.cursor/rules/push-means-ci-commit-push.mdc` (alwaysApply)_
 
 Если пользователь пишет `пуш` (или эквиваленты: "push", "запушь"), агент должен трактовать это как полный поток:
 
@@ -566,7 +584,7 @@ Cutover / два URL — см. `SERVER CONVENTIONS.md` (`cutover.prod`, `INTEGRA
 
 ## 9. Full CI gate
 
-*Источник: `.cursor/rules/pre-push-ci.mdc` (alwaysApply)*
+_Источник: `.cursor/rules/pre-push-ci.mdc` (alwaysApply)_
 
 Многоуровневые прогоны во время работы (step / phase, без лишнего `ci`) — в разделе [Test execution policy](#10-test-execution-and-audit-policy). **Этот раздел** фиксирует случаи, когда нужен полный корневой `ci`.
 
@@ -616,7 +634,7 @@ pnpm run ci
 
 ## 10. Test execution and audit policy
 
-*Источник: `.cursor/rules/test-execution-policy.md` (alwaysApply)*
+_Источник: `.cursor/rules/test-execution-policy.md` (alwaysApply)_
 
 Связь с push/deploy/merge: обычный push в feature-ветку использует validation по масштабу изменения; full CI gate описан в разделе [Full CI gate](#9-full-ci-gate) и нужен перед deploy, merge/integration checkpoints и repo-level изменениями. Этот раздел задаёт поведение **между** коммитами и при аудите.
 
@@ -782,7 +800,7 @@ high-risk stage; изменивший код auditor/correction owner не пр�
 
 ## 11. Webapp-тесты: компактность
 
-*Источник: `.cursor/rules/webapp-tests-lean-no-bloat.mdc` (alwaysApply)*
+_Источник: `.cursor/rules/webapp-tests-lean-no-bloat.mdc` (alwaysApply)_
 
 Цель — не раздувать время прогона, граф модулей и число файлов без явной продуктовой необходимости.
 
@@ -814,7 +832,7 @@ high-risk stage; изменивший код auditor/correction owner не пр�
 
 ## 12. Plan Authoring And Execution Standard
 
-*Источник: `.cursor/rules/plan-authoring-execution-standard.mdc` (alwaysApply)*
+_Источник: `.cursor/rules/plan-authoring-execution-standard.mdc` (alwaysApply)_
 
 **Цель:** чтобы агентские планы были подробными, проверяемыми и безопасными по области изменений.
 
@@ -906,7 +924,7 @@ high-risk stage; изменивший код auditor/correction owner не пр�
 
 ## 13. Формат ответа: ИТОГ
 
-*Источник: `.cursor/rules/answer-itog-without-code-unless-asked.mdc` (alwaysApply)*
+_Источник: `.cursor/rules/answer-itog-without-code-unless-asked.mdc` (alwaysApply)_
 
 - Если пользователь **не просил** разбор кода, файлов, цитат, диффов и пошаговую трассировку реализации — отвечать **кратко**, с блоком **ИТОГ** (или эквивалентной одной сжатой формулировкой вывода).
 - **Не** включать в такой ответ: большие фрагменты кода, длинные списки путей/идентификаторов, подробные цепочки вызовов — **до тех пор**, пока пользователь явно не попросил «где в коде», «покажи код», «детали», «trace» и т.п.
@@ -917,7 +935,7 @@ high-risk stage; изменивший код auditor/correction owner не пр�
 
 ## 14. Коммуникация без навязанных концовок
 
-*Источник: `.cursor/rules/no-unsolicited-followups.mdc` (alwaysApply)*
+_Источник: `.cursor/rules/no-unsolicited-followups.mdc` (alwaysApply)_
 
 **Инструкция для агентов:** отвечать строго по запросу пользователя, без обязательных «хвостов» в конце.
 
@@ -938,7 +956,7 @@ high-risk stage; изменивший код auditor/correction owner не пр�
 
 ## 14a. Языковая политика Codex
 
-*Источник: `.cursor/rules/codex-language-policy.mdc` (alwaysApply)*
+_Источник: `.cursor/rules/codex-language-policy.mdc` (alwaysApply)_
 
 - Отвечать владельцу по-русски, если он явно не попросил другой язык.
 - Internal reasoning summaries, execution plans, inter-agent prompts/reports, and working notes should be in English to reduce token overhead.
@@ -948,7 +966,7 @@ high-risk stage; изменивший код auditor/correction owner не пр�
 
 ## 15. Patient UI Shared Primitives
 
-*Источник: `.cursor/rules/patient-ui-shared-primitives.mdc` (alwaysApply)*
+_Источник: `.cursor/rules/patient-ui-shared-primitives.mdc` (alwaysApply)_
 
 При работе с patient pages (`apps/webapp/src/app/app/patient/**`) сначала использовать готовые shared стили и UI-примитивы.
 
@@ -982,7 +1000,7 @@ high-risk stage; изменивший код auditor/correction owner не пр�
 
 ## 16. Doctor UI Shared Primitives
 
-*Источник: `.cursor/rules/doctor-ui-shared-primitives.mdc` (alwaysApply)*
+_Источник: `.cursor/rules/doctor-ui-shared-primitives.mdc` (alwaysApply)_
 
 При работе с кабинетом врача/админа (`apps/webapp/src/app/app/doctor/**`) и связанными shared-компонентами сначала использовать канон дизайн-системы проекта, а не локальные одноразовые обёртки.
 
@@ -1054,18 +1072,18 @@ rg "doctorSectionCardClass|DoctorSection|doctorClientCardChrome" apps/webapp/src
 
 ## 17. Patient / Doctor UI Isolation
 
-*Источник: `.cursor/rules/patient-doctor-ui-isolation.mdc`*
+_Источник: `.cursor/rules/patient-doctor-ui-isolation.mdc`_
 
 При правках patient или doctor product zones соблюдать физическое разделение UI и CSS.
 
 ### CSS
 
-| Файл | Подключение |
-|------|-------------|
-| `app/styles/tailwind-engine.css` | `app/layout.tsx` (Tailwind + shadcn `:root`) |
-| `app/styles/patient.css` | `app/app/layout.tsx`, `app/book/layout.tsx` |
-| `app/styles/doctor.css` | `app/app/doctor/layout.tsx`, `app/app/settings/layout.tsx` |
-| `app/styles/landing.css` | `app/page.tsx` |
+| Файл                             | Подключение                                                |
+| -------------------------------- | ---------------------------------------------------------- |
+| `app/styles/tailwind-engine.css` | `app/layout.tsx` (Tailwind + shadcn `:root`)               |
+| `app/styles/patient.css`         | `app/app/layout.tsx`, `app/book/layout.tsx`                |
+| `app/styles/doctor.css`          | `app/app/doctor/layout.tsx`, `app/app/settings/layout.tsx` |
+| `app/styles/landing.css`         | `app/page.tsx`                                             |
 
 **Запрещено:** импорт `globals.css`, дублирование `patient.css` в `app/patient/layout.tsx`.
 
@@ -1098,7 +1116,7 @@ Patient zone и doctor zone — `no-restricted-imports` в `eslint.config.mjs`:
 
 ## 18. Пациент: «ЛФК» = программа реабилитации
 
-*Источник: `.cursor/rules/patient-lfk-means-rehab-program.mdc` (alwaysApply)*
+_Источник: `.cursor/rules/patient-lfk-means-rehab-program.mdc` (alwaysApply)_
 
 **Решение зафиксировано: с 2026-05-09.**
 
@@ -1124,7 +1142,7 @@ Patient zone и doctor zone — `no-restricted-imports` в `eslint.config.mjs`:
 
 ## 19. Patient media playback (HLS / MP4)
 
-*Источник: `.cursor/rules/patient-media-playback-video.mdc` (scoped: `apps/webapp/src/app/app/patient/**`, media components)*
+_Источник: `.cursor/rules/patient-media-playback-video.mdc` (scoped: `apps/webapp/src/app/app/patient/**`, media components)_
 
 - Для **файлового** видео в `apps/webapp/src/app/app/patient/**` и в **Markdown-теле** страниц контента (`MarkdownEmbeddedLink`, `@/shared/ui/markdown/MarkdownEmbeddedLink.tsx`) используй **`PatientMediaPlaybackVideo`** (`@/shared/ui/media/PatientMediaPlaybackVideo`). Не добавляй «голый» `<video>` с прямым URL или отдельный progressive-only плеер вне этого компонента.
 - **Миниатюры** в списках пациента — по-прежнему только картинка (`PatientCatalogMediaStaticThumb`); воспроизведение — только в полноценном плеере.
@@ -1139,7 +1157,7 @@ Patient zone и doctor zone — `no-restricted-imports` в `eslint.config.mjs`:
 
 ## 20. CMS: единый layout медиа-пикера
 
-*Источник: `.cursor/rules/cms-unified-media-picker-layout.mdc` (scoped: doctor CMS media pickers)*
+_Источник: `.cursor/rules/cms-unified-media-picker-layout.mdc` (scoped: doctor CMS media pickers)_
 
 При добавлении или изменении **модалок выбора файла из медиабиблиотеки** в doctor CMS:
 
@@ -1157,7 +1175,7 @@ Patient zone и doctor zone — `no-restricted-imports` в `eslint.config.mjs`:
 
 ## 21. UI: тексты без избыточных пояснений
 
-*Источник: `.cursor/rules/ui-copy-no-excess-labels.mdc` (alwaysApply)*
+_Источник: `.cursor/rules/ui-copy-no-excess-labels.mdc` (alwaysApply)_
 
 При реализации или правке UI (пациентский кабинет, админка, публичные экраны):
 
@@ -1171,7 +1189,7 @@ Patient zone и doctor zone — `no-restricted-imports` в `eslint.config.mjs`:
 
 ## 22. UI: Select — displayLabel
 
-*Источник: `.cursor/rules/ui-select-trigger-display-label.mdc` (alwaysApply)*
+_Источник: `.cursor/rules/ui-select-trigger-display-label.mdc` (alwaysApply)_
 
 Проект использует `@base-ui/react/select` через `apps/webapp/src/components/ui/select.tsx`.
 
@@ -1210,23 +1228,23 @@ Patient zone и doctor zone — `no-restricted-imports` в `eslint.config.mjs`:
 
 Все **22** файла из `.cursor/rules/` (21× `.mdc` + `test-execution-policy.md`) продублированы в разделах 1–22. Исключение по смыслу: §1a ([`LOCAL_DEV_AND_AGENT_TESTING.md`](docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md)) — канон репозитория, не rule-файл.
 
-| Файл | В AGENTS | Примечание |
-|------|----------|------------|
-| `patient-doctor-ui-isolation.mdc` | §17 | **Нет YAML frontmatter** (`alwaysApply`/`globs`) — правило не scoped в IDE; опирайтесь на §17 при правках patient/doctor UI |
-| `cms-unified-media-picker-layout.mdc` | §20 | `alwaysApply: false` — только doctor CMS media pickers |
-| `patient-media-playback-video.mdc` | §19 | scoped: patient routes |
+| Файл                                  | В AGENTS | Примечание                                                                                                                  |
+| ------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `patient-doctor-ui-isolation.mdc`     | §17      | **Нет YAML frontmatter** (`alwaysApply`/`globs`) — правило не scoped в IDE; опирайтесь на §17 при правках patient/doctor UI |
+| `cms-unified-media-picker-layout.mdc` | §20      | `alwaysApply: false` — только doctor CMS media pickers                                                                      |
+| `patient-media-playback-video.mdc`    | §19      | scoped: patient routes                                                                                                      |
 
 ### Архитектура и контракты
 
-| Документ | Когда читать |
-|----------|----------------|
-| [`ARCHITECTURE.md`](ARCHITECTURE.md) | Integrator: слои, запреты, runtime-процессы |
-| [`apps/webapp/INTEGRATOR_CONTRACT.md`](apps/webapp/INTEGRATOR_CONTRACT.md) | M2M webapp↔integrator, idempotency, webhooks |
-| [`docs/ARCHITECTURE/DB_STRUCTURE.md`](docs/ARCHITECTURE/DB_STRUCTURE.md) | Карта таблиц PostgreSQL (`public` + `integrator`) |
-| [`docs/ARCHITECTURE/DOCTOR_CABINET_NAVIGATION.md`](docs/ARCHITECTURE/DOCTOR_CABINET_NAVIGATION.md) | Маршруты врача/admin, меню |
-| [`docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`](docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md) | Что в env, что в `system_settings` |
-| [`docs/RULES/README.md`](docs/RULES/README.md) | Нормативы исполнения (программы лечения, reminders DDL) |
-| [`docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md`](docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md) | Программы лечения, Drizzle, фазовые gate |
+| Документ                                                                                                   | Когда читать                                            |
+| ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| [`ARCHITECTURE.md`](ARCHITECTURE.md)                                                                       | Integrator: слои, запреты, runtime-процессы             |
+| [`apps/webapp/INTEGRATOR_CONTRACT.md`](apps/webapp/INTEGRATOR_CONTRACT.md)                                 | M2M webapp↔integrator, idempotency, webhooks            |
+| [`docs/ARCHITECTURE/DB_STRUCTURE.md`](docs/ARCHITECTURE/DB_STRUCTURE.md)                                   | Карта таблиц PostgreSQL (`public` + `integrator`)       |
+| [`docs/ARCHITECTURE/DOCTOR_CABINET_NAVIGATION.md`](docs/ARCHITECTURE/DOCTOR_CABINET_NAVIGATION.md)         | Маршруты врача/admin, меню                              |
+| [`docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`](docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md) | Что в env, что в `system_settings`                      |
+| [`docs/RULES/README.md`](docs/RULES/README.md)                                                             | Нормативы исполнения (программы лечения, reminders DDL) |
+| [`docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md`](docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md)       | Программы лечения, Drizzle, фазовые gate                |
 
 ### Модули в коде (`*.md` рядом с кодом)
 
@@ -1243,41 +1261,41 @@ Patient zone и doctor zone — `no-restricted-imports` в `eslint.config.mjs`:
 
 ### Деплой и ops (кратко)
 
-| Тема | Документ |
-|------|----------|
-| Host deploy, cron, nginx | [`deploy/HOST_DEPLOY_README.md`](deploy/HOST_DEPLOY_README.md) |
-| Env-шаблоны | [`deploy/env/README.md`](deploy/env/README.md) |
-| Backfill / cutover | [`deploy/DATA_MIGRATION_CHECKLIST.md`](deploy/DATA_MIGRATION_CHECKLIST.md) |
-| `psql` на production | §6 + полный префикс `set -a && source /opt/env/...` |
+| Тема                     | Документ                                                                   |
+| ------------------------ | -------------------------------------------------------------------------- |
+| Host deploy, cron, nginx | [`deploy/HOST_DEPLOY_README.md`](deploy/HOST_DEPLOY_README.md)             |
+| Env-шаблоны              | [`deploy/env/README.md`](deploy/env/README.md)                             |
+| Backfill / cutover       | [`deploy/DATA_MIGRATION_CHECKLIST.md`](deploy/DATA_MIGRATION_CHECKLIST.md) |
+| `psql` на production     | §6 + полный префикс `set -a && source /opt/env/...`                        |
 
 ---
 
 ## Справка: файлы правил
 
-| Файл | alwaysApply | globs (если scoped) |
-|------|-------------|---------------------|
-| `000-critical-integration-config-in-db.mdc` | да | — |
-| `answer-itog-without-code-unless-asked.mdc` | да | — |
-| `clean-architecture-module-isolation.mdc` | да | — |
-| `cms-unified-media-picker-layout.mdc` | нет | doctor CMS |
-| `doctor-ui-shared-primitives.mdc` | да | — |
-| `git-commit-push-full-worktree.mdc` | да | — |
-| `host-psql-database-url.mdc` | да | — |
-| `no-unsolicited-followups.mdc` | да | — |
-| `patient-doctor-ui-isolation.mdc` | нет (нет frontmatter) | patient + doctor zones; см. §17 |
-| `patient-lfk-means-rehab-program.mdc` | да | — |
-| `patient-media-playback-video.mdc` | нет | patient routes, media |
-| `patient-ui-shared-primitives.mdc` | да | — |
-| `plan-authoring-execution-standard.mdc` | да | — |
-| `pre-push-ci.mdc` | да | — |
-| `push-means-ci-commit-push.mdc` | да | — |
-| `runtime-config-env-vs-db.mdc` | да | — |
-| `server-conventions-and-doc-onboarding.mdc` | да | — |
-| `system-settings-integrator-mirror.mdc` | да | — |
-| `test-execution-policy.md` | да | — |
-| `ui-copy-no-excess-labels.mdc` | да | — |
-| `ui-select-trigger-display-label.mdc` | да | — |
-| `webapp-tests-lean-no-bloat.mdc` | да | — |
+| Файл                                        | alwaysApply           | globs (если scoped)             |
+| ------------------------------------------- | --------------------- | ------------------------------- |
+| `000-critical-integration-config-in-db.mdc` | да                    | —                               |
+| `answer-itog-without-code-unless-asked.mdc` | да                    | —                               |
+| `clean-architecture-module-isolation.mdc`   | да                    | —                               |
+| `cms-unified-media-picker-layout.mdc`       | нет                   | doctor CMS                      |
+| `doctor-ui-shared-primitives.mdc`           | да                    | —                               |
+| `git-commit-push-full-worktree.mdc`         | да                    | —                               |
+| `host-psql-database-url.mdc`                | да                    | —                               |
+| `no-unsolicited-followups.mdc`              | да                    | —                               |
+| `patient-doctor-ui-isolation.mdc`           | нет (нет frontmatter) | patient + doctor zones; см. §17 |
+| `patient-lfk-means-rehab-program.mdc`       | да                    | —                               |
+| `patient-media-playback-video.mdc`          | нет                   | patient routes, media           |
+| `patient-ui-shared-primitives.mdc`          | да                    | —                               |
+| `plan-authoring-execution-standard.mdc`     | да                    | —                               |
+| `pre-push-ci.mdc`                           | да                    | —                               |
+| `push-means-ci-commit-push.mdc`             | да                    | —                               |
+| `runtime-config-env-vs-db.mdc`              | да                    | —                               |
+| `server-conventions-and-doc-onboarding.mdc` | да                    | —                               |
+| `system-settings-integrator-mirror.mdc`     | да                    | —                               |
+| `test-execution-policy.md`                  | да                    | —                               |
+| `ui-copy-no-excess-labels.mdc`              | да                    | —                               |
+| `ui-select-trigger-display-label.mdc`       | да                    | —                               |
+| `webapp-tests-lean-no-bloat.mdc`            | да                    | —                               |
 
 **Документация репозитория (не rule-файл):** [`docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md`](docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md) — §1a; [`docs/ARCHITECTURE/DB_STRUCTURE.md`](docs/ARCHITECTURE/DB_STRUCTURE.md) — §23.
 
@@ -1287,7 +1305,7 @@ Patient zone и doctor zone — `no-restricted-imports` в `eslint.config.mjs`:
 
 ## 24. Оркестрация субагентов
 
-*Правила выведены из практики (2026-06): тихие смерти/зависания агентов, git-факапы в общем чек-ауте, дублирование с параллельным чатом.*
+_Правила выведены из практики (2026-06): тихие смерти/зависания агентов, git-факапы в общем чек-ауте, дублирование с параллельным чатом._
 
 **Канон:** общий метод — [`docs/AGENT_AUTORUN_SCHEME.md`](docs/AGENT_AUTORUN_SCHEME.md), обязательные актуальные
 привязки этого репозитория — [`docs/ORCHESTRATION_BINDINGS.md`](docs/ORCHESTRATION_BINDINGS.md). При конфликте
@@ -1300,16 +1318,19 @@ Patient zone и doctor zone — `no-restricted-imports` в `eslint.config.mjs`:
 Полностью — раздел «Универсальный режим исполнения многоэтапного плана» в `docs/ORCHESTRATION_BINDINGS.md`.
 
 ### Роли и стоимость
+
 - Дорогая модель (оркестратор) делает ТОЛЬКО: планирование, брифы, ревью, интеграцию. **Всю реализацию (включая «мелкий» код) отдавать Sonnet-субагентам.** Не писать рутинный код самому — это жжёт контекст чата и токены.
 - Для планирования / перепроверки плана дорогая модель допустима. Уровень модели/мышления подбирать под задачу (мелкая правка → дешевле; рискованная архитектура → дороже).
 
 ### Параллелизм
+
 - **Ориентир нагрузки: до 3 фоновых агентов одновременно** (тяжёлые build/dev — меньше). Лишнее — в очередь, не «веером».
 - **Независимые слайсы с непересекающимся file-scope гнать ПАРАЛЛЕЛЬНО (в пределах лимита), а не по очереди** — см.
   режим исполнения в `docs/ORCHESTRATION_BINDINGS.md`. Сериализуется только конкуренция за общий ресурс (единый
   dev-сервер под живой скрин, heavy CI под mutex).
 
 ### Бриф агента (self-contained)
+
 - В брифе: пути, эталон, ограничения, шаги проверки, **exact atomic checkbox IDs/текст + supersession map**,
   **запрет commit в main / push**. Ссылка только на roadmap summary — неполный brief; холодный старт — агент ничего
   не доводит «по памяти». Worker и auditor читают весь linked authority, получают один checklist и сдают построчную
@@ -1319,18 +1340,21 @@ Patient zone и doctor zone — `no-restricted-imports` в `eslint.config.mjs`:
 - По возможности **не давать агенту поднимать dev-сервер**: реализация = код + typecheck + тесты + commit (в своём worktree, без push). Живую проверку (скриншоты) делать отдельно — оркестратором или коротким verify-агентом. Меньше зависаний.
 
 ### Git в среде агентов (КРИТИЧНО)
+
 - cwd ненадёжен → все git-команды с явным `git -C <main-checkout>`.
 - Только явный `git add <пути>`. **Никогда `git add -A`** — однажды это втянуло в коммит файлы параллельного чата.
 - Агенты иногда ветвятся от УСТАРЕВШЕЙ базы. Новый/перезапущенный агент: STEP 0 — `git merge <ветка-feat> --no-edit` + проверить маркер актуальности (`grep` известной строки), иначе остановиться и доложить.
 - В общий feat не пушить без нужды; только **fast-forward, без `--force`**. Пуш feat может опубликовать неотправленные коммиты ПАРАЛЛЕЛЬНОГО чата — координировать.
 
 ### Живость агентов
+
 - При запуске **оценивать длительность и ставить себе напоминалку** (ScheduleWakeup) на проверку живости. Не полагаться только на нотификацию о завершении — агенты тихо умирают/виснут.
 - Проверка живости БЕЗ чтения транскрипта: `git worktree list` + коммиты на ветке агента; список задач (пусто = не отслеживается/мёртв); нотификация о завершении. ⚠️ Размер `.output`-файла НЕнадёжен (почти всегда ~179 байт) — не использовать как сигнал.
 - Мёртв/завис → проверить его worktree `git status` на несохранённое (салвадж) → прибрать (`git worktree remove --force`; если locked — сперва `git worktree unlock`) → перезапустить с корректной базой.
 - Codex-субагенты, зависшие в UI/лимите после `wait_agent completed/failed`, чистить через CLI: сначала `codex delete --help`, затем точечно `codex delete --force <subagent-session-uuid>`. Удалять только известные UUID текущей оркестрации; не трогать основную Codex-сессию и системные `app-server`/`proxy`/`codex-code-mode-host`. После удаления проверить процессы `ps -eo pid,ppid,stat,lstart,cmd | rg 'codex|multi_agent|subagent|<plan-key>|vitest|tsx'`. Упоминание UUID в родительском `.codex`-логе не считать живой сессией. Результат писать только в devlog/taskdb той задачи, к которой агенты реально относились.
 
 ### Интеграция и уборка
+
 - Интегрировать вывод агентов **по одному**: посмотреть diff/скриншоты → typecheck/тесты → merge (ff или 3-way) в feat → удалить worktree агента.
 - Убирать за собой dev-серверы и worktree: висящие серверы/worktree перегружают среду и могут заклинивать новых агентов.
 - Перед запуском проверять, не делает ли ту же работу **параллельный чат** (чужие ветки/worktree вида `claude/*`) — чтобы не дублировать.

@@ -69,6 +69,7 @@ For scenario selection, current `match` is sufficient and expressive. The main a
 Introduce a **delivery-policy resolver outside business scripts** and migrate scripts to intent-only notifications.
 
 Concretely (single step target):
+
 - Stop encoding `retry`, `onFail/fallbackIntent`, `delivery.channels`, `preferredLinkedChannels` directly in business scenarios.
 - Replace with a minimal intent marker (e.g., notification intent + template/business payload).
 - Resolve channel routing/retry/failover centrally in runtime/dispatcher policy layer.
@@ -128,6 +129,7 @@ This keeps `match` and business intent in content while moving operational deliv
 - Executor can render templates only when a `TemplatePort` is provided, but current incoming-event pipeline does not pass such dependency into executor.
 
 Result:
+
 - Rubitime notification texts may leave raw placeholders in outgoing messages.
 - Telegram `admin.forward` template text may leave raw placeholders in outgoing messages.
 
@@ -138,6 +140,7 @@ Result:
 - In the current production pipeline no `TemplatePort` is wired into executor.
 
 Result:
+
 - Menu/button markup is built, but button captions become empty strings in real execution.
 
 #### 3. Some script placeholders reference fields that are not populated anywhere
@@ -149,6 +152,7 @@ Result:
 These fields are present in script content, but no confirmed runtime population path was found for them.
 
 Result:
+
 - These values currently resolve to empty strings unless injected elsewhere outside the inspected path.
 
 #### 4. `params.vars` in `admin.forward` is not enough on its own
@@ -158,6 +162,7 @@ Result:
 - Final template rendering against `vars` does not happen in the production path.
 
 Result:
+
 - The script shape is accepted and parsed, but intended templating semantics are incomplete.
 
 ### Final assessment
@@ -165,6 +170,7 @@ Result:
 The current business script format is **structurally valid and parseable** in code.
 
 However, the runtime support is only **partially complete**:
+
 - **selection works**,
 - **action dispatch works**,
 - but **template-backed content semantics are incomplete in the real pipeline**.

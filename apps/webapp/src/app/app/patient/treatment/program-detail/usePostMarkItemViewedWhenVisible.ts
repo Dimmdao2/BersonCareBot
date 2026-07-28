@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef } from 'react';
 
 export function usePostMarkItemViewedWhenVisible(opts: {
   instanceId: string;
@@ -23,7 +23,7 @@ export function usePostMarkItemViewedWhenVisible(opts: {
         done = true;
         void fetch(
           `/api/patient/treatment-program-instances/${encodeURIComponent(instanceId)}/items/${encodeURIComponent(itemId)}/mark-viewed`,
-          { method: "POST" },
+          { method: 'POST' },
         )
           .then(() => onDone())
           .catch(() => {});

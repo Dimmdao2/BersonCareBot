@@ -1,8 +1,8 @@
-import type { UserByPhonePort } from "./userByPhonePort";
-import type { OAuthBindingsPort } from "./oauthBindingsPort";
-import type { UserPinsPort } from "./userPinsPort";
-import { isRuMobile } from "./phoneValidation";
-import type { AuthChannelPolicy } from "./authChannelPolicy";
+import type { UserByPhonePort } from './userByPhonePort';
+import type { OAuthBindingsPort } from './oauthBindingsPort';
+import type { UserPinsPort } from './userPinsPort';
+import { isRuMobile } from './phoneValidation';
+import type { AuthChannelPolicy } from './authChannelPolicy';
 
 export type AuthMethodsPayload = {
   /** SMS OTP (для контрактов вне публичного веб-входа). На `/app` через `check-phone` всегда `false`. */
@@ -46,7 +46,8 @@ export async function resolveAuthMethodsForPhone(
   | { exists: true; userId: string; methods: AuthMethodsPayload }
 > {
   const policy = options?.channelPolicy ?? { email: true, sms: true, telegram: true, max: true };
-  const smsAllowed = policy.sms &&
+  const smsAllowed =
+    policy.sms &&
     (options?.suppressSmsForPublicWebLogin === true ? false : isRuMobile(normalizedPhone));
   const telegramLogin = policy.telegram && options?.telegramLoginAvailable === true;
 
@@ -71,7 +72,7 @@ export async function resolveAuthMethodsForPhone(
       telegram: policy.telegram && !!user.bindings?.telegramId,
       max: policy.max && !!user.bindings?.maxId,
       email: policy.email && !!verifiedEmail,
-      emailAddress: policy.email ? verifiedEmail ?? undefined : undefined,
+      emailAddress: policy.email ? (verifiedEmail ?? undefined) : undefined,
     },
   };
 }

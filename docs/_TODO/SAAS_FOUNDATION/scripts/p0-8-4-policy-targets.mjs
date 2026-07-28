@@ -1,54 +1,54 @@
 #!/usr/bin/env node
 
-import { buildRlsDescriptors } from "./rls-descriptor-model.mjs";
+import { buildRlsDescriptors } from './rls-descriptor-model.mjs';
 import {
   renderFkPathDormantPolicyStatements,
   renderOrgColumnDormantPolicyStatements,
-} from "./rls-sql-renderer.mjs";
+} from './rls-sql-renderer.mjs';
 
-export const p084PolicyName = "saas_org_dormant_p0_8_4";
+export const p084PolicyName = 'saas_org_dormant_p0_8_4';
 
 export const expectedP084PublicFkPathTargets = Object.freeze([
-  "public.be_package_items",
-  "public.be_patient_package_items",
+  'public.be_package_items',
+  'public.be_patient_package_items',
 ]);
 
 export const expectedP084PublicDenormTargets = Object.freeze([
-  "public.broadcast_audit_recipients",
-  "public.clinical_complaint_update",
-  "public.clinical_diagnosis_status_history",
-  "public.clinical_diagnosis_update",
-  "public.content_section_slug_history",
-  "public.lfk_complex_exercises",
-  "public.lfk_complex_template_exercises",
-  "public.lfk_exercise_media",
-  "public.media_transcode_jobs",
-  "public.notification_delivery_attempts",
-  "public.online_intake_answers",
-  "public.online_intake_attachments",
-  "public.online_intake_status_history",
-  "public.patient_daily_warmup_video_views",
-  "public.patient_home_block_items",
-  "public.program_action_log",
-  "public.program_item_discussion_messages",
-  "public.program_item_discussion_reads",
-  "public.reference_items",
-  "public.reminder_delivery_events",
-  "public.reminder_occurrence_history",
-  "public.support_conversation_messages",
-  "public.support_delivery_events",
-  "public.support_question_messages",
-  "public.symptom_entries",
-  "public.test_results",
-  "public.test_set_items",
-  "public.treatment_program_events",
-  "public.treatment_program_instance_stage_groups",
-  "public.treatment_program_instance_stage_items",
-  "public.treatment_program_instance_stages",
-  "public.treatment_program_template_stage_groups",
-  "public.treatment_program_template_stage_items",
-  "public.treatment_program_template_stages",
-  "public.webapp_reminder_occurrences",
+  'public.broadcast_audit_recipients',
+  'public.clinical_complaint_update',
+  'public.clinical_diagnosis_status_history',
+  'public.clinical_diagnosis_update',
+  'public.content_section_slug_history',
+  'public.lfk_complex_exercises',
+  'public.lfk_complex_template_exercises',
+  'public.lfk_exercise_media',
+  'public.media_transcode_jobs',
+  'public.notification_delivery_attempts',
+  'public.online_intake_answers',
+  'public.online_intake_attachments',
+  'public.online_intake_status_history',
+  'public.patient_daily_warmup_video_views',
+  'public.patient_home_block_items',
+  'public.program_action_log',
+  'public.program_item_discussion_messages',
+  'public.program_item_discussion_reads',
+  'public.reference_items',
+  'public.reminder_delivery_events',
+  'public.reminder_occurrence_history',
+  'public.support_conversation_messages',
+  'public.support_delivery_events',
+  'public.support_question_messages',
+  'public.symptom_entries',
+  'public.test_results',
+  'public.test_set_items',
+  'public.treatment_program_events',
+  'public.treatment_program_instance_stage_groups',
+  'public.treatment_program_instance_stage_items',
+  'public.treatment_program_instance_stages',
+  'public.treatment_program_template_stage_groups',
+  'public.treatment_program_template_stage_items',
+  'public.treatment_program_template_stages',
+  'public.webapp_reminder_occurrences',
 ]);
 
 // B4-core-4 (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md, taskdb #660): public.comments
@@ -64,7 +64,7 @@ export const expectedP084PublicDenormTargets = Object.freeze([
 // or being silently skipped.
 export const expectedP084BlockedPolymorphicTargets = Object.freeze([]);
 
-export const expectedP084PublicPolymorphicTargets = Object.freeze(["public.comments"]);
+export const expectedP084PublicPolymorphicTargets = Object.freeze(['public.comments']);
 
 const expectedTargetSet = new Set([
   ...expectedP084PublicFkPathTargets,
@@ -73,7 +73,9 @@ const expectedTargetSet = new Set([
 ]);
 
 function setDiff(left, right) {
-  return Array.from(left).filter((value) => !right.has(value)).sort();
+  return Array.from(left)
+    .filter((value) => !right.has(value))
+    .sort();
 }
 
 function sortedDescriptors(descriptors) {
@@ -83,21 +85,23 @@ function sortedDescriptors(descriptors) {
 export function getP084PublicPathDescriptors({ descriptors = buildRlsDescriptors() } = {}) {
   const publicScopedPathDescriptors = Array.from(descriptors.values()).filter(
     (descriptor) =>
-      descriptor.tier === "SCOPED" &&
-      descriptor.table.startsWith("public.") &&
-      ["fk_path", "denorm_org_column", "polymorphic_resolver"].includes(descriptor.scopingKind),
+      descriptor.tier === 'SCOPED' &&
+      descriptor.table.startsWith('public.') &&
+      ['fk_path', 'denorm_org_column', 'polymorphic_resolver'].includes(descriptor.scopingKind),
   );
 
   const targets = sortedDescriptors(
     publicScopedPathDescriptors.filter(
       (descriptor) =>
-        ["fk_path", "denorm_org_column"].includes(descriptor.scopingKind) ||
-        (descriptor.scopingKind === "polymorphic_resolver" && Boolean(descriptor.patientPolymorphic)),
+        ['fk_path', 'denorm_org_column'].includes(descriptor.scopingKind) ||
+        (descriptor.scopingKind === 'polymorphic_resolver' &&
+          Boolean(descriptor.patientPolymorphic)),
     ),
   );
   const blockedPolymorphic = sortedDescriptors(
     publicScopedPathDescriptors.filter(
-      (descriptor) => descriptor.scopingKind === "polymorphic_resolver" && !descriptor.patientPolymorphic,
+      (descriptor) =>
+        descriptor.scopingKind === 'polymorphic_resolver' && !descriptor.patientPolymorphic,
     ),
   );
 
@@ -107,15 +111,21 @@ export function getP084PublicPathDescriptors({ descriptors = buildRlsDescriptors
 }
 
 export function getP084PublicDenormDescriptors(options) {
-  return getP084PublicPathDescriptors(options).filter((descriptor) => descriptor.scopingKind === "denorm_org_column");
+  return getP084PublicPathDescriptors(options).filter(
+    (descriptor) => descriptor.scopingKind === 'denorm_org_column',
+  );
 }
 
 export function getP084PublicFkPathDescriptors(options) {
-  return getP084PublicPathDescriptors(options).filter((descriptor) => descriptor.scopingKind === "fk_path");
+  return getP084PublicPathDescriptors(options).filter(
+    (descriptor) => descriptor.scopingKind === 'fk_path',
+  );
 }
 
 export function getP084PublicPolymorphicDescriptors(options) {
-  return getP084PublicPathDescriptors(options).filter((descriptor) => descriptor.scopingKind === "polymorphic_resolver");
+  return getP084PublicPathDescriptors(options).filter(
+    (descriptor) => descriptor.scopingKind === 'polymorphic_resolver',
+  );
 }
 
 export function assertP084PublicPathTargets(targets, blockedPolymorphic) {
@@ -123,11 +133,13 @@ export function assertP084PublicPathTargets(targets, blockedPolymorphic) {
   const actualSet = new Set(actualTables);
 
   if (actualTables.length !== 38) {
-    throw new Error(`Expected 38 P0.8.4 public FK/denorm/polymorphic path targets, got ${actualTables.length}`);
+    throw new Error(
+      `Expected 38 P0.8.4 public FK/denorm/polymorphic path targets, got ${actualTables.length}`,
+    );
   }
 
   if (actualSet.size !== actualTables.length) {
-    throw new Error("P0.8.4 public FK/denorm/polymorphic path targets contain duplicates");
+    throw new Error('P0.8.4 public FK/denorm/polymorphic path targets contain duplicates');
   }
 
   const expectedSet = expectedTargetSet;
@@ -136,18 +148,20 @@ export function assertP084PublicPathTargets(targets, blockedPolymorphic) {
 
   if (missing.length > 0 || extra.length > 0) {
     throw new Error(
-      `P0.8.4 target set mismatch. Missing: ${missing.join(", ") || "<none>"}. Extra: ${
-        extra.join(", ") || "<none>"
+      `P0.8.4 target set mismatch. Missing: ${missing.join(', ') || '<none>'}. Extra: ${
+        extra.join(', ') || '<none>'
       }`,
     );
   }
 
-  const fkTargets = targets.filter((descriptor) => descriptor.scopingKind === "fk_path").map((descriptor) => descriptor.table);
+  const fkTargets = targets
+    .filter((descriptor) => descriptor.scopingKind === 'fk_path')
+    .map((descriptor) => descriptor.table);
   const denormTargets = targets
-    .filter((descriptor) => descriptor.scopingKind === "denorm_org_column")
+    .filter((descriptor) => descriptor.scopingKind === 'denorm_org_column')
     .map((descriptor) => descriptor.table);
   const polymorphicTargets = targets
-    .filter((descriptor) => descriptor.scopingKind === "polymorphic_resolver")
+    .filter((descriptor) => descriptor.scopingKind === 'polymorphic_resolver')
     .map((descriptor) => descriptor.table);
 
   if (fkTargets.length !== 2) {
@@ -159,43 +173,52 @@ export function assertP084PublicPathTargets(targets, blockedPolymorphic) {
   }
 
   if (polymorphicTargets.length !== 1) {
-    throw new Error(`Expected 1 P0.8.4 resolved polymorphic target, got ${polymorphicTargets.length}`);
+    throw new Error(
+      `Expected 1 P0.8.4 resolved polymorphic target, got ${polymorphicTargets.length}`,
+    );
   }
 
   const blockedTables = blockedPolymorphic.map((descriptor) => descriptor.table);
   const blockedSet = new Set(blockedTables);
   const expectedBlockedSet = new Set(expectedP084BlockedPolymorphicTargets);
 
-  if (!blockedTables.every((table) => expectedBlockedSet.has(table)) || blockedSet.size !== expectedBlockedSet.size) {
+  if (
+    !blockedTables.every((table) => expectedBlockedSet.has(table)) ||
+    blockedSet.size !== expectedBlockedSet.size
+  ) {
     throw new Error(
       `Unexpected P0.8.4 blocked polymorphic set. Missing: ${
-        setDiff(expectedBlockedSet, blockedSet).join(", ") || "<none>"
-      }. Extra: ${setDiff(blockedSet, expectedBlockedSet).join(", ") || "<none>"}`,
+        setDiff(expectedBlockedSet, blockedSet).join(', ') || '<none>'
+      }. Extra: ${setDiff(blockedSet, expectedBlockedSet).join(', ') || '<none>'}`,
     );
   }
 
   for (const descriptor of blockedPolymorphic) {
-    if (descriptor.requiresFollowupStage !== "P0.12.1") {
+    if (descriptor.requiresFollowupStage !== 'P0.12.1') {
       throw new Error(`Blocked polymorphic descriptor ${descriptor.table} must require P0.12.1`);
     }
   }
 
-  for (const descriptor of targets.filter((candidate) => candidate.scopingKind === "polymorphic_resolver")) {
+  for (const descriptor of targets.filter(
+    (candidate) => candidate.scopingKind === 'polymorphic_resolver',
+  )) {
     if (!descriptor.patientPolymorphic) {
-      throw new Error(`Resolved polymorphic descriptor ${descriptor.table} must declare patientPolymorphic`);
+      throw new Error(
+        `Resolved polymorphic descriptor ${descriptor.table} must declare patientPolymorphic`,
+      );
     }
   }
 }
 
 export function renderP084PolicyStatements({ descriptors = getP084PublicPathDescriptors() } = {}) {
   return descriptors.flatMap((descriptor) => {
-    if (descriptor.scopingKind === "fk_path") {
+    if (descriptor.scopingKind === 'fk_path') {
       return renderFkPathDormantPolicyStatements(descriptor, { policyName: p084PolicyName });
     }
 
     return renderOrgColumnDormantPolicyStatements(descriptor, {
       policyName: p084PolicyName,
-      scopingKinds: ["denorm_org_column", "polymorphic_resolver"],
+      scopingKinds: ['denorm_org_column', 'polymorphic_resolver'],
     });
   });
 }
@@ -203,38 +226,50 @@ export function renderP084PolicyStatements({ descriptors = getP084PublicPathDesc
 function printCli(format) {
   const descriptors = getP084PublicPathDescriptors();
 
-  if (format === "--json") {
+  if (format === '--json') {
     console.log(JSON.stringify(descriptors, null, 2));
     return;
   }
 
-  if (format === "--sql") {
-    console.log(renderP084PolicyStatements({ descriptors }).join("\n"));
+  if (format === '--sql') {
+    console.log(renderP084PolicyStatements({ descriptors }).join('\n'));
     return;
   }
 
-  if (format === "--denorm-targets") {
-    console.log(getP084PublicDenormDescriptors().map((descriptor) => descriptor.table).join("\n"));
+  if (format === '--denorm-targets') {
+    console.log(
+      getP084PublicDenormDescriptors()
+        .map((descriptor) => descriptor.table)
+        .join('\n'),
+    );
     return;
   }
 
-  if (format === "--fk-targets") {
-    console.log(getP084PublicFkPathDescriptors().map((descriptor) => descriptor.table).join("\n"));
+  if (format === '--fk-targets') {
+    console.log(
+      getP084PublicFkPathDescriptors()
+        .map((descriptor) => descriptor.table)
+        .join('\n'),
+    );
     return;
   }
 
-  if (format === "--polymorphic-targets") {
-    console.log(getP084PublicPolymorphicDescriptors().map((descriptor) => descriptor.table).join("\n"));
+  if (format === '--polymorphic-targets') {
+    console.log(
+      getP084PublicPolymorphicDescriptors()
+        .map((descriptor) => descriptor.table)
+        .join('\n'),
+    );
     return;
   }
 
-  if (format === "--blocked-polymorphic") {
-    console.log(expectedP084BlockedPolymorphicTargets.join("\n"));
+  if (format === '--blocked-polymorphic') {
+    console.log(expectedP084BlockedPolymorphicTargets.join('\n'));
     return;
   }
 
-  if (format === "--targets" || format == null) {
-    console.log(descriptors.map((descriptor) => descriptor.table).join("\n"));
+  if (format === '--targets' || format == null) {
+    console.log(descriptors.map((descriptor) => descriptor.table).join('\n'));
     return;
   }
 

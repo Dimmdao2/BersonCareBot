@@ -1,8 +1,8 @@
-import { and, desc, eq, gte, like } from "drizzle-orm";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { operatorHealthAlertSent } from "../../../db/schema/operatorHealthAlertSent";
-import type { OperatorAlertDedupPort } from "@/modules/operator-alerts/ports";
-import type { OperatorAlertBlock } from "@/modules/operator-alerts/operatorHealthAlertConfig";
+import { and, desc, eq, gte, like } from 'drizzle-orm';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { operatorHealthAlertSent } from '../../../db/schema/operatorHealthAlertSent';
+import type { OperatorAlertDedupPort } from '@/modules/operator-alerts/ports';
+import type { OperatorAlertBlock } from '@/modules/operator-alerts/operatorHealthAlertConfig';
 
 export const pgOperatorHealthAlertSentPort: OperatorAlertDedupPort = {
   async wasSentWithinHours(dedupKey: string, hours: number): Promise<boolean> {
@@ -11,7 +11,12 @@ export const pgOperatorHealthAlertSentPort: OperatorAlertDedupPort = {
     const rows = await db
       .select({ id: operatorHealthAlertSent.id })
       .from(operatorHealthAlertSent)
-      .where(and(eq(operatorHealthAlertSent.dedupKey, dedupKey), gte(operatorHealthAlertSent.sentAt, since)))
+      .where(
+        and(
+          eq(operatorHealthAlertSent.dedupKey, dedupKey),
+          gte(operatorHealthAlertSent.sentAt, since),
+        ),
+      )
       .limit(1);
     return rows.length > 0;
   },

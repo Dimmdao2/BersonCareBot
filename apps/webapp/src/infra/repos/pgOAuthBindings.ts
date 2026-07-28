@@ -1,8 +1,8 @@
 /** Wave 3 phase 15B — domain SQL via `runWebappPgText`. */
-import { runWebappPgText } from "@/infra/db/runWebappSql";
-import type { OauthProvider, OAuthBindingsPort } from "@/modules/auth/oauthBindingsPort";
+import { runWebappPgText } from '@/infra/db/runWebappSql';
+import type { OauthProvider, OAuthBindingsPort } from '@/modules/auth/oauthBindingsPort';
 
-const ALLOWED_PROVIDERS: OauthProvider[] = ["google", "apple", "yandex"];
+const ALLOWED_PROVIDERS: OauthProvider[] = ['google', 'apple', 'yandex'];
 
 export const pgOAuthBindingsPort: OAuthBindingsPort = {
   async listProvidersForUser(userId: string): Promise<OauthProvider[]> {
@@ -19,7 +19,10 @@ export const pgOAuthBindingsPort: OAuthBindingsPort = {
     return out;
   },
 
-  async findUserByOAuthId(provider: OauthProvider, providerUserId: string): Promise<{ userId: string } | null> {
+  async findUserByOAuthId(
+    provider: OauthProvider,
+    providerUserId: string,
+  ): Promise<{ userId: string } | null> {
     const res = await runWebappPgText<{ user_id: string }>(
       `SELECT user_id::text AS user_id
        FROM app.auth_oauth_find_user($1::text, $2::text)`,

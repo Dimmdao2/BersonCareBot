@@ -1,21 +1,21 @@
-import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
+import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { ensureAuthModulePortsBound } from '@/app-layer/di/bindAuthModulePorts';
 import {
   AUTH_CHANNEL_DISABLED_ERROR,
   isAuthChannelEnabled,
-} from "@/modules/auth/authChannelPolicy";
-import { checkAuthConfirmRateLimit } from "@/modules/auth/authConfirmRateLimit";
+} from '@/modules/auth/authChannelPolicy';
+import { checkAuthConfirmRateLimit } from '@/modules/auth/authConfirmRateLimit';
 import {
   consumeEmailChallengeCode,
   consumeLatestEmailChallengeCodeForUser,
   normalizeEmail,
-} from "@/modules/auth/emailAuth";
-import { hashPin } from "@/modules/auth/pinHash";
-import { newPasswordSchema } from "@/modules/auth/passwordPolicy";
-import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
+} from '@/modules/auth/emailAuth';
+import { hashPin } from '@/modules/auth/pinHash';
+import { newPasswordSchema } from '@/modules/auth/passwordPolicy';
+import { enterStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
 
 const bodySchema = z.object({
   email: z.string().email(),
@@ -25,20 +25,20 @@ const bodySchema = z.object({
   newPassword: newPasswordSchema,
 });
 
-const DUMMY_RESET_USER_ID = "00000000-0000-4000-8000-000000000000";
+const DUMMY_RESET_USER_ID = '00000000-0000-4000-8000-000000000000';
 
 function resetNeutralFailureResponse() {
-  return NextResponse.json({ ok: false, error: "invalid_code" }, { status: 400 });
+  return NextResponse.json({ ok: false, error: 'invalid_code' }, { status: 400 });
 }
 
 export async function POST(request: Request) {
-  stampBootstrapPrincipal("api/auth/email-password/reset:POST", request);
+  stampBootstrapPrincipal('api/auth/email-password/reset:POST', request);
 
   ensureAuthModulePortsBound();
-  const rateLimit = await checkAuthConfirmRateLimit(request, "email_password_reset");
+  const rateLimit = await checkAuthConfirmRateLimit(request, 'email_password_reset');
   if (rateLimit.limited) {
-    if (rateLimit.reason === "proxy_configuration") {
-      return NextResponse.json({ ok: false, error: "proxy_configuration" }, { status: 503 });
+    if (rateLimit.reason === 'proxy_configuration') {
+      return NextResponse.json({ ok: false, error: 'proxy_configuration' }, { status: 503 });
     }
     // This route already gives ZERO distinguishing signal for ANY failure -- even a nonexistent
     // account -- to avoid an account-existence oracle. A rate-limited response keeps that same
@@ -46,16 +46,13 @@ export async function POST(request: Request) {
     return resetNeutralFailureResponse();
   }
 
-  if (!(await isAuthChannelEnabled("email"))) {
-    return NextResponse.json(
-      { ok: false, error: AUTH_CHANNEL_DISABLED_ERROR },
-      { status: 503 },
-    );
+  if (!(await isAuthChannelEnabled('email'))) {
+    return NextResponse.json({ ok: false, error: AUTH_CHANNEL_DISABLED_ERROR }, { status: 503 });
   }
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
 
   const emailNorm = normalizeEmail(parsed.data.email);
@@ -63,23 +60,40 @@ export async function POST(request: Request) {
   const userId = await deps.userPasswordCredentials.findVerifiedUserIdWithPassword(emailNorm);
   if (!userId) {
     if (parsed.data.challengeId) {
-      await consumeEmailChallengeCode(DUMMY_RESET_USER_ID, parsed.data.challengeId, parsed.data.code, "password_reset");
+      await consumeEmailChallengeCode(
+        DUMMY_RESET_USER_ID,
+        parsed.data.challengeId,
+        parsed.data.code,
+        'password_reset',
+      );
     } else {
-      await consumeLatestEmailChallengeCodeForUser(DUMMY_RESET_USER_ID, parsed.data.code, "password_reset");
+      await consumeLatestEmailChallengeCodeForUser(
+        DUMMY_RESET_USER_ID,
+        parsed.data.code,
+        'password_reset',
+      );
     }
     return resetNeutralFailureResponse();
   }
 
   const consumed = parsed.data.challengeId
-    ? await consumeEmailChallengeCode(userId, parsed.data.challengeId, parsed.data.code, "password_reset")
-    : await consumeLatestEmailChallengeCodeForUser(userId, parsed.data.code, "password_reset");
+    ? await consumeEmailChallengeCode(
+        userId,
+        parsed.data.challengeId,
+        parsed.data.code,
+        'password_reset',
+      )
+    : await consumeLatestEmailChallengeCodeForUser(userId, parsed.data.code, 'password_reset');
   if (!consumed.ok) {
     return resetNeutralFailureResponse();
   }
 
   const passwordHash = await hashPin(parsed.data.newPassword);
   try {
-    enterStaffSecuritySelfPrincipal(userId, "api/auth/email-password/reset:challenge-verified-self");
+    enterStaffSecuritySelfPrincipal(
+      userId,
+      'api/auth/email-password/reset:challenge-verified-self',
+    );
     const security = await deps.staffSecurity.getStatus();
     // Revoke first: if the credential write fails, existing staff sessions still
     // fail closed and the user can request a fresh reset challenge.
@@ -91,7 +105,7 @@ export async function POST(request: Request) {
     await deps.userByPhone.invalidateSessionsForSelf();
     await deps.userPasswordCredentials.updatePasswordHash(userId, passwordHash);
   } catch {
-    return NextResponse.json({ ok: false, error: "reset_failed" }, { status: 500 });
+    return NextResponse.json({ ok: false, error: 'reset_failed' }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true });

@@ -1,22 +1,20 @@
-"use client";
+'use client';
 
-import { useState, useCallback, useEffect, useRef } from "react";
-import Link from "next/link";
-import { cn } from "@/lib/utils";
-import { chatThreadSurfaceClass } from "@/shared/ui/chat/chatThreadSurface";
-import { MessageComposer } from "@/shared/ui/chat/MessageComposer";
-import type { TodayExerciseCommentAttentionItem } from "../loadDoctorExerciseCommentAttention";
-import type { DoctorExerciseCommentCursor } from "@/modules/program-item-discussion/types";
-import type {
-  ProgramItemDiscussionMessage,
-} from "@/modules/program-item-discussion/types";
-import type { CommentPatientRow } from "./loadDoctorCommentPatients";
+import { useState, useCallback, useEffect, useRef } from 'react';
+import Link from 'next/link';
+import { cn } from '@/lib/utils';
+import { chatThreadSurfaceClass } from '@/shared/ui/chat/chatThreadSurface';
+import { MessageComposer } from '@/shared/ui/chat/MessageComposer';
+import type { TodayExerciseCommentAttentionItem } from '../loadDoctorExerciseCommentAttention';
+import type { DoctorExerciseCommentCursor } from '@/modules/program-item-discussion/types';
+import type { ProgramItemDiscussionMessage } from '@/modules/program-item-discussion/types';
+import type { CommentPatientRow } from './loadDoctorCommentPatients';
 import type {
   PatientExercisesWithCommentsResult,
   ExerciseCommentStageGroup,
   ExerciseCommentItem,
-} from "./loadDoctorPatientExercisesWithComments";
-import { ExerciseListCatalogThumb } from "@/shared/ui/doctor/media/ExerciseListCatalogThumb";
+} from './loadDoctorPatientExercisesWithComments';
+import { ExerciseListCatalogThumb } from '@/shared/ui/doctor/media/ExerciseListCatalogThumb';
 import {
   DoctorDnaFlatListSelectionStrip,
   doctorDnaFlatListClass,
@@ -25,22 +23,19 @@ import {
   doctorDnaFlatListPrimaryClass,
   doctorDnaFlatListRowClass,
   doctorDnaFlatListSelectedPrimaryClass,
-} from "@/shared/ui/doctor/DoctorDnaFlatListRow";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
-import { doctorInlineLinkClass } from "@/shared/ui/doctor/doctorVisual";
-import { patientCardHref } from "../patients/patientCardHref";
-import { patientProgramInstanceHref } from "../patients/patientProgramInstanceHref";
-import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
-import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
-import { DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE } from "@/shared/ui/doctor/doctorWorkspaceLayout";
-import { type ExerciseMetricPoint } from "@/shared/ui/doctor/ExerciseMicroChart";
-import {
-  ExerciseExecutionGraph,
-  type DayBar,
-} from "@/shared/ui/doctor/ExerciseExecutionGraph";
-import { thumbToExerciseMedia } from "./exerciseCommentThumb";
+} from '@/shared/ui/doctor/DoctorDnaFlatListRow';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
+import { doctorInlineLinkClass } from '@/shared/ui/doctor/doctorVisual';
+import { patientCardHref } from '../patients/patientCardHref';
+import { patientProgramInstanceHref } from '../patients/patientProgramInstanceHref';
+import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
+import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
+import { DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE } from '@/shared/ui/doctor/doctorWorkspaceLayout';
+import { type ExerciseMetricPoint } from '@/shared/ui/doctor/ExerciseMicroChart';
+import { ExerciseExecutionGraph, type DayBar } from '@/shared/ui/doctor/ExerciseExecutionGraph';
+import { thumbToExerciseMedia } from './exerciseCommentThumb';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -86,11 +81,11 @@ export type DoctorCommentsTabProps = {
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const REPLY_ERROR_LABELS: Record<string, string> = {
-  empty: "Введите текст ответа",
-  too_long: "Ответ слишком длинный (максимум 4000 символов)",
-  program_not_doctor_assigned: "Нельзя ответить: программа не назначена врачом",
-  program_item_not_active: "Нельзя ответить: элемент программы неактивен",
-  feature_disabled: "Функция временно недоступна",
+  empty: 'Введите текст ответа',
+  too_long: 'Ответ слишком длинный (максимум 4000 символов)',
+  program_not_doctor_assigned: 'Нельзя ответить: программа не назначена врачом',
+  program_item_not_active: 'Нельзя ответить: элемент программы неактивен',
+  feature_disabled: 'Функция временно недоступна',
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -108,17 +103,17 @@ function filterPatients(patients: CommentPatientRow[], query: string): CommentPa
 }
 
 function formatRelativeTime(isoDate: string | null): string {
-  if (!isoDate) return "";
+  if (!isoDate) return '';
   const date = new Date(isoDate);
-  if (Number.isNaN(date.getTime())) return "";
+  if (Number.isNaN(date.getTime())) return '';
   const now = new Date();
   const isToday =
     date.getDate() === now.getDate() &&
     date.getMonth() === now.getMonth() &&
     date.getFullYear() === now.getFullYear();
-  const time = date.toLocaleString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+  const time = date.toLocaleString('ru-RU', { hour: '2-digit', minute: '2-digit' });
   if (isToday) return time;
-  return date.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit" }) + " · " + time;
+  return date.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit' }) + ' · ' + time;
 }
 
 // ── Left pane: patient row ───────────────────────────────────────────────────
@@ -144,8 +139,8 @@ function PatientRow({
         className={cn(
           doctorDnaFlatListRowClass,
           doctorDnaFlatListClickableClass,
-          "w-full rounded-none bg-transparent shadow-none",
-          isFirst && "border-t-0",
+          'w-full rounded-none bg-transparent shadow-none',
+          isFirst && 'border-t-0',
         )}
         aria-pressed={isSelected}
       >
@@ -155,16 +150,21 @@ function PatientRow({
             {/* Имя: жирное если есть непрочитанные, обычное если всё прочитано */}
             <span
               className={cn(
-                "min-w-0 truncate",
+                'min-w-0 truncate',
                 doctorDnaFlatListPrimaryClass,
-                hasUnread && "font-bold",
+                hasUnread && 'font-bold',
                 isSelected && doctorDnaFlatListSelectedPrimaryClass,
               )}
             >
               {patient.displayName}
               {/* ★ = на сопровождении (визуальный маркер, НЕ фильтр) */}
               {patient.isOnSupport && (
-                <span className="ml-1 text-[10px] font-semibold text-primary" title="На сопровождении">★</span>
+                <span
+                  className="ml-1 text-[10px] font-semibold text-primary"
+                  title="На сопровождении"
+                >
+                  ★
+                </span>
               )}
             </span>
             {hasUnread && (
@@ -202,8 +202,8 @@ function ExerciseRow({
         className={cn(
           doctorDnaFlatListRowClass,
           doctorDnaFlatListClickableClass,
-          "w-full rounded-none bg-transparent shadow-none",
-          isFirst && "border-t-0",
+          'w-full rounded-none bg-transparent shadow-none',
+          isFirst && 'border-t-0',
         )}
       >
         {isSelected ? <DoctorDnaFlatListSelectionStrip /> : null}
@@ -213,16 +213,16 @@ function ExerciseRow({
           {/* Название упражнения: жирное если есть непрочитанные, обычное если всё прочитано */}
           <p
             className={cn(
-              "truncate",
+              'truncate',
               doctorDnaFlatListPrimaryClass,
-              hasUnread && "font-bold",
+              hasUnread && 'font-bold',
               isSelected && doctorDnaFlatListSelectedPrimaryClass,
             )}
           >
             {item.title}
           </p>
           {item.latestCommentAt && (
-            <p className={cn("truncate", doctorDnaFlatListMetaClass)}>
+            <p className={cn('truncate', doctorDnaFlatListMetaClass)}>
               {formatRelativeTime(item.latestCommentAt)}
             </p>
           )}
@@ -284,12 +284,10 @@ function StageGroup({
         </span>
         {!group.isActive && (
           <span className="text-[10px] text-muted-foreground border border-border rounded px-1 py-0.5">
-            {collapsed ? "▶" : "▼"}
+            {collapsed ? '▶' : '▼'}
           </span>
         )}
-        {group.isActive && (
-          <span className="text-[10px] text-primary font-medium">активный</span>
-        )}
+        {group.isActive && <span className="text-[10px] text-primary font-medium">активный</span>}
       </Button>
       {!collapsed && (
         <ul className={doctorDnaFlatListClass}>
@@ -324,18 +322,17 @@ function ThreadMessage({
   onReplied: () => void;
 }) {
   const [replyOpen, setReplyOpen] = useState(false);
-  const [replyText, setReplyText] = useState("");
+  const [replyText, setReplyText] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  const isPatient = message.senderRole === "patient";
+  const isPatient = message.senderRole === 'patient';
   // Внутри треда визуально различаем прочитано/непрочитано. peerLastReadAt — курсор
   // последнего прочтения врачом, снятый при ОТКРЫТИИ треда (не обновляется после
   // mark-read), поэтому подсветка «непрочитано» заморожена на время просмотра.
   // Если врач ещё не открывал тред (курсор null) — все сообщения пациента непрочитаны.
-  const isUnread =
-    isPatient && (peerLastReadAt === null || message.createdAt > peerLastReadAt);
+  const isUnread = isPatient && (peerLastReadAt === null || message.createdAt > peerLastReadAt);
 
   async function handleSend() {
     if (!replyText.trim()) return;
@@ -345,22 +342,22 @@ function ThreadMessage({
       const res = await fetch(
         `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/items/${encodeURIComponent(stageItemId)}/program-note-reply`,
         {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: replyText.trim() }),
         },
       );
       const data = (await res.json()) as { ok: boolean; error?: string };
       if (!data.ok) {
-        setError(REPLY_ERROR_LABELS[data.error ?? ""] ?? "Ошибка отправки. Попробуйте ещё раз.");
+        setError(REPLY_ERROR_LABELS[data.error ?? ''] ?? 'Ошибка отправки. Попробуйте ещё раз.');
       } else {
         setSuccess(true);
-        setReplyText("");
+        setReplyText('');
         setReplyOpen(false);
         onReplied();
       }
     } catch {
-      setError("Ошибка сети. Попробуйте ещё раз.");
+      setError('Ошибка сети. Попробуйте ещё раз.');
     } finally {
       setSending(false);
     }
@@ -369,15 +366,13 @@ function ThreadMessage({
   return (
     <div
       className={cn(
-        "border-b border-border px-4 py-3 last:border-b-0",
-        isUnread
-          ? "border-l-2 border-l-primary bg-primary/5"
-          : isPatient && "opacity-80",
+        'border-b border-border px-4 py-3 last:border-b-0',
+        isUnread ? 'border-l-2 border-l-primary bg-primary/5' : isPatient && 'opacity-80',
       )}
     >
       <div className="flex items-baseline justify-between gap-2 mb-1">
         <span className="flex items-baseline gap-1.5 text-xs font-semibold text-muted-foreground">
-          {isPatient ? "Пациент" : "Врач"}
+          {isPatient ? 'Пациент' : 'Врач'}
           {isUnread && (
             <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
               новое
@@ -395,9 +390,7 @@ function ThreadMessage({
         <p className="text-sm text-muted-foreground italic">—</p>
       )}
 
-      {success && (
-        <p className="mt-1.5 text-xs text-primary">Ответ отправлен</p>
-      )}
+      {success && <p className="mt-1.5 text-xs text-primary">Ответ отправлен</p>}
 
       {isPatient && !success && (
         <div className="mt-1.5">
@@ -422,7 +415,7 @@ function ThreadMessage({
                   variant="ghost"
                   onClick={() => {
                     setReplyOpen(false);
-                    setReplyText("");
+                    setReplyText('');
                     setError(null);
                   }}
                 >
@@ -438,7 +431,7 @@ function ThreadMessage({
               variant="link"
               size="sm"
               onClick={() => setReplyOpen(true)}
-              className={cn(doctorInlineLinkClass, "text-xs h-auto p-0")}
+              className={cn(doctorInlineLinkClass, 'text-xs h-auto p-0')}
             >
               Ответить
             </Button>
@@ -451,20 +444,17 @@ function ThreadMessage({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function DoctorCommentsTab({
-  initialPatients,
-  displayIana,
-}: DoctorCommentsTabProps) {
+export function DoctorCommentsTab({ initialPatients, displayIana }: DoctorCommentsTabProps) {
   // ── View mode: «Непрочитанные» (unread) or «Все» (all) ──
   // Default: «Все» — показать всю историю комментариев; «Непрочитанные» — только непрочитанные.
-  const [viewMode, setViewMode] = useState<"unread" | "all">("all");
+  const [viewMode, setViewMode] = useState<'unread' | 'all'>('all');
 
   // ── «На сопровождении» — независимый toggle-фильтр (не визуальный маркер).
   // Комбинируется с viewMode: оба фильтра действуют независимо друг от друга.
   const [onSupportOnly, setOnSupportOnly] = useState(false);
 
   // ── Search / filter state ──
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState('');
 
   // ── All-mode: lazy-loaded patients ──
   const [allModePatients, setAllModePatients] = useState<CommentPatientRow[] | null>(null);
@@ -476,7 +466,9 @@ export function DoctorCommentsTab({
   const [selectedPatient, setSelectedPatient] = useState<CommentPatientRow | null>(null);
 
   // State B: exercises
-  const [exercisesData, setExercisesData] = useState<PatientExercisesWithCommentsResult | null>(null);
+  const [exercisesData, setExercisesData] = useState<PatientExercisesWithCommentsResult | null>(
+    null,
+  );
   const [exercisesLoading, setExercisesLoading] = useState(false);
   const [exercisesError, setExercisesError] = useState<string | null>(null);
 
@@ -508,9 +500,7 @@ export function DoctorCommentsTab({
   // Используется, чтобы бейджи/счётчики сходились без рефетча, и чтобы прочитанное
   // уезжало вниз/выпадало из фильтра «непрочитанные» — но БЕЗ живой перетасовки,
   // пока врач внутри пациента (см. snapshot-логику ниже).
-  const [locallyReadItems, setLocallyReadItems] = useState<ReadonlySet<string>>(
-    () => new Set(),
-  );
+  const [locallyReadItems, setLocallyReadItems] = useState<ReadonlySet<string>>(() => new Set());
   // Зеркала для синхронного чтения внутри applyLocalRead (без устаревших замыканий
   // и без двойного учёта в StrictMode).
   const locallyReadItemsRef = useRef<ReadonlySet<string>>(locallyReadItems);
@@ -536,21 +526,24 @@ export function DoctorCommentsTab({
     setAllModePatientsLoading(true);
     setAllModePatientsError(null);
     try {
-      const res = await fetch("/api/doctor/comments/patients?mode=all");
-      const data = (await res.json()) as { ok: boolean; patients?: CommentPatientRow[]; error?: string };
+      const res = await fetch('/api/doctor/comments/patients?mode=all');
+      const data = (await res.json()) as {
+        ok: boolean;
+        patients?: CommentPatientRow[];
+        error?: string;
+      };
       if (data.ok && data.patients) {
         setAllModePatients(data.patients);
       } else {
-        setAllModePatientsError("Не удалось загрузить список пациентов.");
+        setAllModePatientsError('Не удалось загрузить список пациентов.');
         allModeFetchedRef.current = false; // allow retry
       }
     } catch {
-      setAllModePatientsError("Ошибка сети. Попробуйте ещё раз.");
+      setAllModePatientsError('Ошибка сети. Попробуйте ещё раз.');
       allModeFetchedRef.current = false;
     } finally {
       setAllModePatientsLoading(false);
     }
-
   }, []);
 
   // Полная выборка пациентов грузится всегда — она нужна как активный датасет
@@ -563,7 +556,7 @@ export function DoctorCommentsTab({
   // ── Computed: patients list for left pane, depends on viewMode ──
   // In "unread" mode: SSR-provided patients (already filtered to unreadCount>0).
   // In "all" mode: lazy-fetched allModePatients (all on-support with any comment).
-  const activePatients = viewMode === "all" ? (allModePatients ?? []) : patients;
+  const activePatients = viewMode === 'all' ? (allModePatients ?? []) : patients;
   // «На сопровождении» — независимый toggle-фильтр (комбинируется с viewMode, а не заменяет его).
   const onSupportFilteredPatients = onSupportOnly
     ? activePatients.filter((p) => p.isOnSupport)
@@ -573,11 +566,9 @@ export function DoctorCommentsTab({
   // so it doesn't disappear from under the cursor while the doctor is reading.
   // «Все» mode: show all patients that have any comment (unreadCount may be 0).
   const patientsToShow =
-    viewMode === "unread"
+    viewMode === 'unread'
       ? patientsToShowRaw.filter(
-          (p) =>
-            p.unreadCount > 0 ||
-            p.patientUserId === selectedPatient?.patientUserId,
+          (p) => p.unreadCount > 0 || p.patientUserId === selectedPatient?.patientUserId,
         )
       : patientsToShowRaw;
 
@@ -591,7 +582,7 @@ export function DoctorCommentsTab({
         `/api/doctor/comments/patients/${encodeURIComponent(patientUserId)}/exercises?includePastPrograms=true`,
       );
       const data = (await res.json()) as ExercisesApiResponse;
-      if (!data.ok) throw new Error("api_error");
+      if (!data.ok) throw new Error('api_error');
       // Заморозить ранжирование на входе: фиксируем, какие упражнения были
       // непрочитаны (учитывая ранее прочитанное в этой сессии), чтобы порядок
       // не «прыгал», пока врач читает треды внутри пациента.
@@ -604,7 +595,7 @@ export function DoctorCommentsTab({
       entryUnreadSnapshotRef.current = snapshot;
       setExercisesData(data.data);
     } catch {
-      setExercisesError("Не удалось загрузить упражнения пациента.");
+      setExercisesError('Не удалось загрузить упражнения пациента.');
     } finally {
       setExercisesLoading(false);
     }
@@ -630,7 +621,7 @@ export function DoctorCommentsTab({
       );
       const data = (await res.json()) as ThreadApiResponse;
       if (version !== threadVersionRef.current) return;
-      if (!data.ok) throw new Error("api_error");
+      if (!data.ok) throw new Error('api_error');
       // Sort ascending for display
       const sorted = [...(data.messages ?? [])].sort((a, b) =>
         a.createdAt.localeCompare(b.createdAt),
@@ -639,7 +630,7 @@ export function DoctorCommentsTab({
       setPeerLastReadAt(data.peerLastReadAt ?? null);
     } catch {
       if (version !== threadVersionRef.current) return;
-      setThreadError("Не удалось загрузить тред.");
+      setThreadError('Не удалось загрузить тред.');
     } finally {
       if (version === threadVersionRef.current) setThreadLoading(false);
     }
@@ -648,47 +639,44 @@ export function DoctorCommentsTab({
   // Локальная сходимость счётчиков при просмотре треда: помечаем элемент прочитанным
   // и декрементируем бейджи упражнения/пациента, чтобы цифры сошлись без рефетча.
   // Перетасовки списков здесь НЕТ — порядок заморожен, пока врач внутри пациента.
-  const applyLocalRead = useCallback(
-    (patientUserId: string, stageItemId: string) => {
-      if (locallyReadItemsRef.current.has(stageItemId)) return;
-      locallyReadItemsRef.current = new Set(locallyReadItemsRef.current).add(stageItemId);
-      setLocallyReadItems(locallyReadItemsRef.current);
+  const applyLocalRead = useCallback((patientUserId: string, stageItemId: string) => {
+    if (locallyReadItemsRef.current.has(stageItemId)) return;
+    locallyReadItemsRef.current = new Set(locallyReadItemsRef.current).add(stageItemId);
+    setLocallyReadItems(locallyReadItemsRef.current);
 
-      // Сколько непрочитанных снимаем — читаем из актуального снимка exercisesData (ref),
-      // чтобы декремент счётчиков пациента/итога был согласован и без двойного учёта.
-      const current = exercisesDataRef.current;
-      let clearedUnread = 0;
-      for (const group of current?.groups ?? []) {
-        for (const ex of group.exercises) {
-          if (ex.stageItemId === stageItemId) clearedUnread = ex.unreadComments;
-        }
+    // Сколько непрочитанных снимаем — читаем из актуального снимка exercisesData (ref),
+    // чтобы декремент счётчиков пациента/итога был согласован и без двойного учёта.
+    const current = exercisesDataRef.current;
+    let clearedUnread = 0;
+    for (const group of current?.groups ?? []) {
+      for (const ex of group.exercises) {
+        if (ex.stageItemId === stageItemId) clearedUnread = ex.unreadComments;
       }
-      if (clearedUnread === 0) return;
+    }
+    if (clearedUnread === 0) return;
 
-      setExercisesData((prev) =>
-        prev
-          ? {
-              ...prev,
-              groups: prev.groups.map((g) => ({
-                ...g,
-                exercises: g.exercises.map((ex) =>
-                  ex.stageItemId === stageItemId ? { ...ex, unreadComments: 0 } : ex,
-                ),
-              })),
-              totalUnreadComments: Math.max(0, prev.totalUnreadComments - clearedUnread),
-            }
-          : prev,
-      );
-      setPatients((pp) =>
-        pp.map((p) =>
-          p.patientUserId === patientUserId
-            ? { ...p, unreadCount: Math.max(0, p.unreadCount - clearedUnread) }
-            : p,
-        ),
-      );
-    },
-    [],
-  );
+    setExercisesData((prev) =>
+      prev
+        ? {
+            ...prev,
+            groups: prev.groups.map((g) => ({
+              ...g,
+              exercises: g.exercises.map((ex) =>
+                ex.stageItemId === stageItemId ? { ...ex, unreadComments: 0 } : ex,
+              ),
+            })),
+            totalUnreadComments: Math.max(0, prev.totalUnreadComments - clearedUnread),
+          }
+        : prev,
+    );
+    setPatients((pp) =>
+      pp.map((p) =>
+        p.patientUserId === patientUserId
+          ? { ...p, unreadCount: Math.max(0, p.unreadCount - clearedUnread) }
+          : p,
+      ),
+    );
+  }, []);
 
   // Mark thread as read
   const markThreadRead = useCallback(
@@ -699,7 +687,7 @@ export function DoctorCommentsTab({
       try {
         await fetch(
           `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/items/${encodeURIComponent(stageItemId)}/discussion/read`,
-          { method: "POST" },
+          { method: 'POST' },
         );
       } catch {
         // silently ignore mark-read errors
@@ -714,40 +702,52 @@ export function DoctorCommentsTab({
   }, [selectedExercise, exercisesData, loadThread]);
 
   // ── Load exercise metrics for chart (CMT-01..04) ──
-  const loadMetrics = useCallback(async (instanceId: string, stageItemId: string, windowDays: 7 | 30 = 7) => {
-    setMetricsLoading(true);
-    setMetricsPoints(null);
-    try {
-      const params = new URLSearchParams({ instanceId, stageItemId, windowDays: String(windowDays) });
-      const res = await fetch(`/api/doctor/comments/exercise-metrics?${params.toString()}`);
-      const data = (await res.json()) as MetricsApiResponse;
-      if (data.ok && data.points) {
-        setMetricsPoints(data.points);
-      } else {
+  const loadMetrics = useCallback(
+    async (instanceId: string, stageItemId: string, windowDays: 7 | 30 = 7) => {
+      setMetricsLoading(true);
+      setMetricsPoints(null);
+      try {
+        const params = new URLSearchParams({
+          instanceId,
+          stageItemId,
+          windowDays: String(windowDays),
+        });
+        const res = await fetch(`/api/doctor/comments/exercise-metrics?${params.toString()}`);
+        const data = (await res.json()) as MetricsApiResponse;
+        if (data.ok && data.points) {
+          setMetricsPoints(data.points);
+        } else {
+          setMetricsPoints([]);
+        }
+      } catch {
         setMetricsPoints([]);
+      } finally {
+        setMetricsLoading(false);
       }
-    } catch {
-      setMetricsPoints([]);
-    } finally {
-      setMetricsLoading(false);
-    }
-  }, []);
+    },
+    [],
+  );
 
   // ── Load day-activity bars for chart (CMT-02) ──
-  const loadDayBars = useCallback(async (patientUserId: string, instanceId: string, windowDays: 7 | 30 = 7) => {
-    try {
-      const params = new URLSearchParams({ instanceId, windowDays: String(windowDays) });
-      const res = await fetch(`/api/doctor/clients/${encodeURIComponent(patientUserId)}/program-day-activity?${params.toString()}`);
-      const data = (await res.json()) as DayActivityApiResponse;
-      if (data.ok && data.days) {
-        setDayBars(data.days);
-      } else {
+  const loadDayBars = useCallback(
+    async (patientUserId: string, instanceId: string, windowDays: 7 | 30 = 7) => {
+      try {
+        const params = new URLSearchParams({ instanceId, windowDays: String(windowDays) });
+        const res = await fetch(
+          `/api/doctor/clients/${encodeURIComponent(patientUserId)}/program-day-activity?${params.toString()}`,
+        );
+        const data = (await res.json()) as DayActivityApiResponse;
+        if (data.ok && data.days) {
+          setDayBars(data.days);
+        } else {
+          setDayBars([]);
+        }
+      } catch {
         setDayBars([]);
       }
-    } catch {
-      setDayBars([]);
-    }
-  }, []);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!selectedExercise || !exercisesData) return;
@@ -756,13 +756,7 @@ export function DoctorCommentsTab({
   }, [selectedExercise, exercisesData, loadMetrics, loadDayBars, chartWindowDays]);
 
   useEffect(() => {
-    if (
-      !selectedExercise ||
-      !exercisesData ||
-      threadMessages.length === 0 ||
-      markReadSent
-    )
-      return;
+    if (!selectedExercise || !exercisesData || threadMessages.length === 0 || markReadSent) return;
     void markThreadRead(
       exercisesData.instanceId,
       selectedExercise.stageItemId,
@@ -811,7 +805,7 @@ export function DoctorCommentsTab({
   const onSupportCount = badgeCountSource.filter((p) => p.isOnSupport).length;
 
   // Handle view mode switch: reset navigation + query, then switch mode.
-  function handleSwitchViewMode(mode: "unread" | "all") {
+  function handleSwitchViewMode(mode: 'unread' | 'all') {
     if (mode === viewMode) return;
     // Reset drill-down + search so we don't leave stale state.
     setSelectedPatient(null);
@@ -820,7 +814,7 @@ export function DoctorCommentsTab({
     setExercisesData(null);
     setMarkReadSent(false);
     setMetricsPoints(null);
-    setQuery("");
+    setQuery('');
     setViewMode(mode);
   }
 
@@ -835,8 +829,8 @@ export function DoctorCommentsTab({
   }
 
   // Loading/error state for left pane in "all" mode
-  const patientsLoading = viewMode === "all" && allModePatientsLoading;
-  const patientsError = viewMode === "all" ? allModePatientsError : null;
+  const patientsLoading = viewMode === 'all' && allModePatientsLoading;
+  const patientsError = viewMode === 'all' ? allModePatientsError : null;
 
   const leftPane = (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
@@ -858,16 +852,16 @@ export function DoctorCommentsTab({
             type="button"
             variant="ghost"
             size="sm"
-            onClick={() => handleSwitchViewMode(viewMode === "unread" ? "all" : "unread")}
+            onClick={() => handleSwitchViewMode(viewMode === 'unread' ? 'all' : 'unread')}
             className={cn(
-              "cursor-pointer rounded-md px-2 py-1 text-xs font-medium transition-colors h-auto",
-              viewMode === "unread"
-                ? "bg-destructive/15 text-destructive"
-                : "border border-border text-muted-foreground hover:bg-muted/40",
+              'cursor-pointer rounded-md px-2 py-1 text-xs font-medium transition-colors h-auto',
+              viewMode === 'unread'
+                ? 'bg-destructive/15 text-destructive'
+                : 'border border-border text-muted-foreground hover:bg-muted/40',
             )}
-            aria-pressed={viewMode === "unread"}
+            aria-pressed={viewMode === 'unread'}
           >
-            Непрочитанные{totalUnread > 0 ? ` ${totalUnread}` : ""}
+            Непрочитанные{totalUnread > 0 ? ` ${totalUnread}` : ''}
           </Button>
           <Button
             type="button"
@@ -875,14 +869,14 @@ export function DoctorCommentsTab({
             size="sm"
             onClick={handleToggleOnSupportOnly}
             className={cn(
-              "cursor-pointer rounded-md px-2 py-1 text-xs font-medium transition-colors h-auto",
+              'cursor-pointer rounded-md px-2 py-1 text-xs font-medium transition-colors h-auto',
               onSupportOnly
-                ? "bg-primary/15 text-primary"
-                : "border border-border text-muted-foreground hover:bg-muted/40",
+                ? 'bg-primary/15 text-primary'
+                : 'border border-border text-muted-foreground hover:bg-muted/40',
             )}
             aria-pressed={onSupportOnly}
           >
-            ★ На сопровождении{onSupportCount > 0 ? ` ${onSupportCount}` : ""}
+            ★ На сопровождении{onSupportCount > 0 ? ` ${onSupportCount}` : ''}
           </Button>
         </div>
       </div>
@@ -894,16 +888,19 @@ export function DoctorCommentsTab({
             Загрузка…
           </DoctorEmptyState>
         ) : patientsError ? (
-          <DoctorEmptyState size="xs" className="flex flex-1 items-center justify-center py-6 text-destructive">
+          <DoctorEmptyState
+            size="xs"
+            className="flex flex-1 items-center justify-center py-6 text-destructive"
+          >
             {patientsError}
           </DoctorEmptyState>
         ) : patientsToShow.length === 0 ? (
           <DoctorEmptyState size="xs" className="flex flex-1 items-center justify-center py-6">
             {query.trim()
-              ? "Ничего не найдено"
-              : viewMode === "all"
-              ? "Нет пациентов с комментариями"
-              : "Нет пациентов с непрочитанными комментариями"}
+              ? 'Ничего не найдено'
+              : viewMode === 'all'
+                ? 'Нет пациентов с комментариями'
+                : 'Нет пациентов с непрочитанными комментариями'}
           </DoctorEmptyState>
         ) : (
           <ul className={doctorDnaFlatListClass}>
@@ -950,7 +947,7 @@ export function DoctorCommentsTab({
               <div className="flex items-baseline gap-2 flex-wrap">
                 <Link
                   href={patientCardHref(selectedPatient.patientUserId)}
-                  className={cn(doctorInlineLinkClass, "text-sm font-semibold")}
+                  className={cn(doctorInlineLinkClass, 'text-sm font-semibold')}
                 >
                   {selectedPatient.displayName}
                 </Link>
@@ -990,14 +987,20 @@ export function DoctorCommentsTab({
             </DoctorEmptyState>
           )}
           {exercisesError && (
-            <DoctorEmptyState size="xs" className="flex flex-1 items-center justify-center py-8 text-destructive">
+            <DoctorEmptyState
+              size="xs"
+              className="flex flex-1 items-center justify-center py-8 text-destructive"
+            >
               {exercisesError}
             </DoctorEmptyState>
           )}
           {!exercisesLoading && !exercisesError && exercisesData && (
             <>
               {exercisesData.groups.length === 0 ? (
-                <DoctorEmptyState size="xs" className="flex flex-1 items-center justify-center py-8">
+                <DoctorEmptyState
+                  size="xs"
+                  className="flex flex-1 items-center justify-center py-8"
+                >
                   Нет упражнений с комментариями
                 </DoctorEmptyState>
               ) : (
@@ -1020,7 +1023,7 @@ export function DoctorCommentsTab({
                       selectedPatient.patientUserId,
                       exercisesData.instanceId,
                     )}
-                    className={cn(doctorInlineLinkClass, "text-xs")}
+                    className={cn(doctorInlineLinkClass, 'text-xs')}
                   >
                     Открыть программу пациента →
                   </Link>
@@ -1038,7 +1041,7 @@ export function DoctorCommentsTab({
     );
   } else {
     // State C: thread for selected exercise
-    const instanceId = exercisesData?.instanceId ?? "";
+    const instanceId = exercisesData?.instanceId ?? '';
 
     rightPane = (
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
@@ -1049,7 +1052,7 @@ export function DoctorCommentsTab({
               <div className="flex items-baseline gap-1.5 flex-wrap text-xs text-muted-foreground">
                 <Link
                   href={patientCardHref(selectedPatient.patientUserId)}
-                  className={cn(doctorInlineLinkClass, "text-xs")}
+                  className={cn(doctorInlineLinkClass, 'text-xs')}
                 >
                   {selectedPatient.displayName}
                 </Link>
@@ -1087,7 +1090,7 @@ export function DoctorCommentsTab({
               variant="link"
               size="sm"
               onClick={handleCloseThread}
-              className={cn(doctorInlineLinkClass, "shrink-0 text-xs h-auto p-0")}
+              className={cn(doctorInlineLinkClass, 'shrink-0 text-xs h-auto p-0')}
             >
               Закрыть
             </Button>
@@ -1095,14 +1098,17 @@ export function DoctorCommentsTab({
         </div>
 
         {/* Thread messages */}
-        <div className={cn("flex flex-1 flex-col overflow-y-auto", chatThreadSurfaceClass)}>
+        <div className={cn('flex flex-1 flex-col overflow-y-auto', chatThreadSurfaceClass)}>
           {threadLoading && (
             <DoctorEmptyState size="xs" className="flex flex-1 items-center justify-center py-8">
               Загрузка…
             </DoctorEmptyState>
           )}
           {threadError && (
-            <DoctorEmptyState size="xs" className="flex flex-1 items-center justify-center py-8 text-destructive">
+            <DoctorEmptyState
+              size="xs"
+              className="flex flex-1 items-center justify-center py-8 text-destructive"
+            >
               {threadError}
             </DoctorEmptyState>
           )}
@@ -1132,33 +1138,20 @@ export function DoctorCommentsTab({
 
   // ── Layout ───────────────────────────────────────────────────────────────
 
-  const mobileView = selectedPatient ? "detail" : "list";
+  const mobileView = selectedPatient ? 'detail' : 'list';
 
   const mobileBackSlot = selectedExercise ? (
-    <Button
-      variant="ghost"
-      size="sm"
-      onClick={handleCloseThread}
-      className="mb-2 h-9 px-2"
-    >
+    <Button variant="ghost" size="sm" onClick={handleCloseThread} className="mb-2 h-9 px-2">
       ← Назад
     </Button>
   ) : selectedPatient ? (
-    <Button
-      variant="ghost"
-      size="sm"
-      onClick={handleDeselectPatient}
-      className="mb-2 h-9 px-2"
-    >
+    <Button variant="ghost" size="sm" onClick={handleDeselectPatient} className="mb-2 h-9 px-2">
       ← Назад
     </Button>
   ) : null;
 
   return (
-    <div
-      id="doctor-communications-comments"
-      className={DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE}
-    >
+    <div id="doctor-communications-comments" className={DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE}>
       <CatalogSplitLayout
         left={leftPane}
         right={rightPane}

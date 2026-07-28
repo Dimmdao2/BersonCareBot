@@ -1,4 +1,4 @@
-> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
+> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/\_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
 
 # ЦЕЛЬ #667 — одна чёткая последовательность деплоя SaaS-изоляции
 
@@ -14,6 +14,7 @@
 > `518ea988…`; текущий consolidation штатно переводит membership и все FK на `c951…`.
 
 ## Что уже готово и ПРОВЕРЕНО на копии прода (дамп 2026-07-11 22:15)
+
 - [x] **Data-fix аккаунтов** `deploy/postgres/p0-data-fix-doctor-admin-split.sql` (Codex + мой фикс preflight).
       Прогон на копии: doctor=1, admin=1; b0021a38→doctor(yandex,+79643805480,integrator2);
       новый admin(gmail,без тел); client 1c312a64 (почта стёрта, приёмы удалены); пустые дубли снесены;
@@ -39,6 +40,7 @@
       `contacts_null_org=0`, runtime-owner после trap = `NOSUPERUSER NOBYPASSRLS`.
 
 ## Порядок деплоя (option D — owner-мigration + временная эскалация)
+
 1. Свежий прод-дамп → (на проде: сначала бэкап).
 2. **Создать роли** `app_staff`/`app_patient` (`deploy/postgres/p0-5b-role-split-staff-patient.sql`) и
    app-owner роль для P2-B (по умолчанию `app_owner`), плюс `pgcrypto` в схеме `app_ext` — ДО migrate.
@@ -58,6 +60,7 @@
    (явно на success + `EXIT` trap на failure), затем проверять post-state через `SUPERUSER_URL`.
 
 ## Фаза 3 integrator / webapp owner DDL — РЕШЕНО (Option D)
+
 - **Почему отдельная BYPASSRLS-роль больше не подходит:** prod baseline применяет 0115..0177 впервые,
   а таблицы prod принадлежат runtime-роли `bcb_webapp_prod`. Миграция 0140 делает
   `ALTER SEQUENCE ... OWNED BY be_patient_packages.display_number`, где PostgreSQL требует одного owner
@@ -77,6 +80,7 @@
   и снять NOT NULL/исключить dead-таблицы из backfill. НЕ блокирует (в single-tenant org просто = дефолт-орг).
 
 ## REHEARSAL FACTS (дамп 2026-07-11 22:15)
+
 Старый план с отдельной BYPASSRLS-ролью признан невалидным: он не проходит owner-only DDL в 0140 и
 0160–0175. Prod-faithful rehearsal option D (migrate as runtime owner + temporary BYPASSRLS) прошёл
 data-fix, все webapp Drizzle 0115–0177 и integrator I1–I4/R2, затем упал в P2-B на

@@ -1,14 +1,14 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from 'vitest';
 import {
   startPhoneAuth,
   confirmPhoneAuth,
   consumePhoneOtpChallenge,
   normalizePhone,
-} from "./phoneAuth";
-import { OTP_MAX_VERIFY_ATTEMPTS } from "./otpConstants";
-import { createStubSmsAdapter } from "@/infra/integrations/sms/stubSmsAdapter";
-import { inMemoryPhoneChallengeStore } from "@/infra/repos/inMemoryPhoneChallengeStore";
-import { inMemoryUserByPhonePort } from "@/infra/repos/inMemoryUserByPhone";
+} from './phoneAuth';
+import { OTP_MAX_VERIFY_ATTEMPTS } from './otpConstants';
+import { createStubSmsAdapter } from '@/infra/integrations/sms/stubSmsAdapter';
+import { inMemoryPhoneChallengeStore } from '@/infra/repos/inMemoryPhoneChallengeStore';
+import { inMemoryUserByPhonePort } from '@/infra/repos/inMemoryUserByPhone';
 
 const deps = {
   smsPort: createStubSmsAdapter({ challengeStore: inMemoryPhoneChallengeStore }),
@@ -16,17 +16,17 @@ const deps = {
   userByPhonePort: inMemoryUserByPhonePort,
 };
 
-const webContext = { channel: "web" as const, chatId: "test-web-1" };
+const webContext = { channel: 'web' as const, chatId: 'test-web-1' };
 
-describe("normalizePhone (via phoneAuth re-export)", () => {
-  it("delegates to shared helper", () => {
-    expect(normalizePhone("+79991234567")).toBe("+79991234567");
+describe('normalizePhone (via phoneAuth re-export)', () => {
+  it('delegates to shared helper', () => {
+    expect(normalizePhone('+79991234567')).toBe('+79991234567');
   });
 });
 
-describe("startPhoneAuth", () => {
-  it("returns challengeId and retryAfter for valid phone", async () => {
-    const result = await startPhoneAuth("+79991234567", webContext, deps);
+describe('startPhoneAuth', () => {
+  it('returns challengeId and retryAfter for valid phone', async () => {
+    const result = await startPhoneAuth('+79991234567', webContext, deps);
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.challengeId).toBeDefined();
@@ -35,27 +35,27 @@ describe("startPhoneAuth", () => {
     }
   });
 
-  it("accepts valid non-RU E.164 (US)", async () => {
-    const result = await startPhoneAuth("+12025550123", webContext, deps);
+  it('accepts valid non-RU E.164 (US)', async () => {
+    const result = await startPhoneAuth('+12025550123', webContext, deps);
     expect(result.ok).toBe(true);
   });
 
-  it("returns invalid_phone for too short input", async () => {
-    const result = await startPhoneAuth("123", webContext, deps);
+  it('returns invalid_phone for too short input', async () => {
+    const result = await startPhoneAuth('123', webContext, deps);
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.code).toBe("invalid_phone");
+    if (!result.ok) expect(result.code).toBe('invalid_phone');
   });
 
-  it("returns invalid_phone when normalized length is not 12", async () => {
-    const result = await startPhoneAuth("+7999123456789", webContext, deps);
+  it('returns invalid_phone when normalized length is not 12', async () => {
+    const result = await startPhoneAuth('+7999123456789', webContext, deps);
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.code).toBe("invalid_phone");
+    if (!result.ok) expect(result.code).toBe('invalid_phone');
   });
 });
 
-describe("confirmPhoneAuth", () => {
-  it("returns user and redirectTo when code is correct", async () => {
-    const start = await startPhoneAuth("+79997654321", webContext, deps);
+describe('confirmPhoneAuth', () => {
+  it('returns user and redirectTo when code is correct', async () => {
+    const start = await startPhoneAuth('+79997654321', webContext, deps);
     expect(start.ok).toBe(true);
     if (!start.ok) return;
     const challenge = await inMemoryPhoneChallengeStore.get(start.challengeId);
@@ -63,45 +63,45 @@ describe("confirmPhoneAuth", () => {
     const confirm = await confirmPhoneAuth(start.challengeId, challenge!.code!, deps);
     expect(confirm.ok).toBe(true);
     if (confirm.ok) {
-      expect(confirm.user.role).toBe("client");
+      expect(confirm.user.role).toBe('client');
       expect(confirm.user.phone).toBeDefined();
-      expect(confirm.redirectTo).toBe("/app/patient");
+      expect(confirm.redirectTo).toBe('/app/patient');
     }
   });
 
-  it("returns invalid_code for wrong code", async () => {
-    const start = await startPhoneAuth("+79991111111", webContext, deps);
+  it('returns invalid_code for wrong code', async () => {
+    const start = await startPhoneAuth('+79991111111', webContext, deps);
     expect(start.ok).toBe(true);
     if (!start.ok) return;
-    const confirm = await confirmPhoneAuth(start.challengeId, "000000", deps); // wrong code
+    const confirm = await confirmPhoneAuth(start.challengeId, '000000', deps); // wrong code
     expect(confirm.ok).toBe(false);
-    if (!confirm.ok) expect(confirm.code).toBe("invalid_code");
+    if (!confirm.ok) expect(confirm.code).toBe('invalid_code');
   });
 
-  it("returns too_many_attempts after max wrong codes", async () => {
-    const start = await startPhoneAuth("+79990000099", webContext, deps);
+  it('returns too_many_attempts after max wrong codes', async () => {
+    const start = await startPhoneAuth('+79990000099', webContext, deps);
     expect(start.ok).toBe(true);
     if (!start.ok) return;
     const cid = start.challengeId;
     for (let i = 0; i < OTP_MAX_VERIFY_ATTEMPTS - 1; i++) {
-      const r = await confirmPhoneAuth(cid, "000000", deps);
+      const r = await confirmPhoneAuth(cid, '000000', deps);
       expect(r.ok).toBe(false);
       if (r.ok) return;
-      expect(r.code).toBe("invalid_code");
+      expect(r.code).toBe('invalid_code');
     }
-    const last = await confirmPhoneAuth(cid, "000000", deps);
+    const last = await confirmPhoneAuth(cid, '000000', deps);
     expect(last.ok).toBe(false);
     if (!last.ok) {
-      expect(last.code).toBe("too_many_attempts");
+      expect(last.code).toBe('too_many_attempts');
       expect(last.retryAfterSeconds).toBeDefined();
     }
   });
 
-  it("keeps challenge after wrong code until success consume", async () => {
-    const start = await startPhoneAuth("+79990000123", webContext, deps);
+  it('keeps challenge after wrong code until success consume', async () => {
+    const start = await startPhoneAuth('+79990000123', webContext, deps);
     expect(start.ok).toBe(true);
     if (!start.ok) return;
-    const wrong = await confirmPhoneAuth(start.challengeId, "000000", deps);
+    const wrong = await confirmPhoneAuth(start.challengeId, '000000', deps);
     expect(wrong.ok).toBe(false);
     const still = await inMemoryPhoneChallengeStore.get(start.challengeId);
     expect(still?.code).toBeDefined();
@@ -114,15 +114,19 @@ describe("confirmPhoneAuth", () => {
     expect(await inMemoryPhoneChallengeStore.get(start.challengeId)).toBeNull();
   });
 
-  it("returns expired_code for unknown challengeId", async () => {
-    const confirm = await confirmPhoneAuth("nonexistent-challenge-id", "123456", deps);
+  it('returns expired_code for unknown challengeId', async () => {
+    const confirm = await confirmPhoneAuth('nonexistent-challenge-id', '123456', deps);
     expect(confirm.ok).toBe(false);
-    if (!confirm.ok) expect(confirm.code).toBe("expired_code");
+    if (!confirm.ok) expect(confirm.code).toBe('expired_code');
   });
 
-  it("binding comes from challenge only, not from request (regression: spoofed chatId)", async () => {
-    const telegramContext = { channel: "telegram" as const, chatId: "trusted-telegram-456", displayName: "Test" };
-    const start = await startPhoneAuth("+79997777777", telegramContext, deps);
+  it('binding comes from challenge only, not from request (regression: spoofed chatId)', async () => {
+    const telegramContext = {
+      channel: 'telegram' as const,
+      chatId: 'trusted-telegram-456',
+      displayName: 'Test',
+    };
+    const start = await startPhoneAuth('+79997777777', telegramContext, deps);
     expect(start.ok).toBe(true);
     if (!start.ok) return;
     const challenge = await inMemoryPhoneChallengeStore.get(start.challengeId);
@@ -130,26 +134,26 @@ describe("confirmPhoneAuth", () => {
     const confirm = await confirmPhoneAuth(start.challengeId, challenge!.code!, deps);
     expect(confirm.ok).toBe(true);
     if (confirm.ok) {
-      expect(confirm.user.bindings.telegramId).toBe("trusted-telegram-456");
+      expect(confirm.user.bindings.telegramId).toBe('trusted-telegram-456');
     }
   });
 
-  it("challenge stores server-approved context at start", async () => {
-    const ctx = { channel: "web" as const, chatId: "server-web-id", displayName: "Web User" };
-    const start = await startPhoneAuth("+79998888888", ctx, deps);
+  it('challenge stores server-approved context at start', async () => {
+    const ctx = { channel: 'web' as const, chatId: 'server-web-id', displayName: 'Web User' };
+    const start = await startPhoneAuth('+79998888888', ctx, deps);
     expect(start.ok).toBe(true);
     if (!start.ok) return;
     const stored = await inMemoryPhoneChallengeStore.get(start.challengeId);
     expect(stored?.channelContext).toEqual(ctx);
   });
 
-  it("carries authenticated profile owner from start challenge into phone binding", async () => {
+  it('carries authenticated profile owner from start challenge into phone binding', async () => {
     const createOrBind = vi.fn().mockResolvedValue({
       user: {
-        userId: "profile-user",
-        role: "client",
-        displayName: "Profile",
-        phone: "+79998887766",
+        userId: 'profile-user',
+        role: 'client',
+        displayName: 'Profile',
+        phone: '+79998887766',
         bindings: {},
       },
       wasCreated: false,
@@ -158,21 +162,21 @@ describe("confirmPhoneAuth", () => {
       ...deps,
       userByPhonePort: { ...inMemoryUserByPhonePort, createOrBind },
     };
-    const start = await startPhoneAuth("+79998887766", webContext, profileDeps, {
-      profileBindUserId: "profile-user",
-      profileBindOrganizationId: "00000000-0000-4000-8000-000000000001",
+    const start = await startPhoneAuth('+79998887766', webContext, profileDeps, {
+      profileBindUserId: 'profile-user',
+      profileBindOrganizationId: '00000000-0000-4000-8000-000000000001',
     });
     expect(start.ok).toBe(true);
     if (!start.ok) return;
     const challenge = await inMemoryPhoneChallengeStore.get(start.challengeId);
-    expect(challenge?.profileBindUserId).toBe("profile-user");
-    expect(challenge?.profileBindOrganizationId).toBe("00000000-0000-4000-8000-000000000001");
+    expect(challenge?.profileBindUserId).toBe('profile-user');
+    expect(challenge?.profileBindOrganizationId).toBe('00000000-0000-4000-8000-000000000001');
 
     const confirmed = await confirmPhoneAuth(start.challengeId, challenge!.code!, profileDeps);
     expect(confirmed.ok).toBe(true);
-    expect(createOrBind).toHaveBeenCalledWith("+79998887766", webContext, {
-      profileBindUserId: "profile-user",
-      profileBindOrganizationId: "00000000-0000-4000-8000-000000000001",
+    expect(createOrBind).toHaveBeenCalledWith('+79998887766', webContext, {
+      profileBindUserId: 'profile-user',
+      profileBindOrganizationId: '00000000-0000-4000-8000-000000000001',
     });
   });
 });

@@ -1,4 +1,5 @@
 # Code Audit 2 — CR-5 (clean implementation) — 2026-06-18
+
 **Verdict: PASS**
 **Auditor: code-auditor-A-CR5**
 
@@ -79,25 +80,25 @@ element; TypeScript cannot infer this from array length comparison but the logic
 Full inspection of `computeSlots.ts` at `auto/cr-5-fix` confirms all types and functions
 that existed before the patch are intact:
 
-| Symbol | Status |
-|---|---|
-| `WorkingDayRow` type | Present (lines 16–22) |
-| `resolveWorkingDayBreaks` (private) | Present (lines 25–28) |
-| `splitByBreak` | Present (lines 30–83, N-break model) |
-| `BusyInterval` type | Present (line 85) |
-| `pickWorkingHours` | Present (lines 87–94, simplified to `return rows`) |
-| `localDateKey` | Present |
-| `localWeekday` | Present |
-| `wallClockToUtcIso` | Present |
-| `workingIntervalsForDate` | Present (per-date override + weekday paths) |
-| `deriveWorkingBounds` | Present |
-| `utcMsToLocalMinute` (private) | Present |
-| `subtractBusy` | Present |
-| `generateSlotsFromFree` | Present |
-| `busyFromRecords` | Present |
-| `isChainFree` | Present |
-| `computeNearestFreeWindowFromData` | Present |
-| `groupSlotsByLocalDate` | Present |
+| Symbol                              | Status                                             |
+| ----------------------------------- | -------------------------------------------------- |
+| `WorkingDayRow` type                | Present (lines 16–22)                              |
+| `resolveWorkingDayBreaks` (private) | Present (lines 25–28)                              |
+| `splitByBreak`                      | Present (lines 30–83, N-break model)               |
+| `BusyInterval` type                 | Present (line 85)                                  |
+| `pickWorkingHours`                  | Present (lines 87–94, simplified to `return rows`) |
+| `localDateKey`                      | Present                                            |
+| `localWeekday`                      | Present                                            |
+| `wallClockToUtcIso`                 | Present                                            |
+| `workingIntervalsForDate`           | Present (per-date override + weekday paths)        |
+| `deriveWorkingBounds`               | Present                                            |
+| `utcMsToLocalMinute` (private)      | Present                                            |
+| `subtractBusy`                      | Present                                            |
+| `generateSlotsFromFree`             | Present                                            |
+| `busyFromRecords`                   | Present                                            |
+| `isChainFree`                       | Present                                            |
+| `computeNearestFreeWindowFromData`  | Present                                            |
+| `groupSlotsByLocalDate`             | Present                                            |
 
 No regression against the post-0e5bb9f1 feature set.
 
@@ -120,6 +121,7 @@ code-path inspection (both are trivially correct given the implementation).
 ### 5. No raw SQL: PASS
 
 All three changed files examined:
+
 - `computeSlots.ts` — pure computation, no DB imports.
 - `computeSlots.test.ts` — pure unit test, no DB access.
 - `calendar/route.ts` — uses `deps.bookingEngine.catalog.listSpecialists` (DI port method).

@@ -57,6 +57,7 @@ pnpm run ci   # baseline зелёный
 Файл: `apps/webapp/src/app/app/patient/home/patientHomeCardStyles.ts`.
 
 Добавить экспорты:
+
 - `patientHomeCardClass` — оставить как сейчас (backward-compat).
 - `patientHomeCardCompactClass` — компактная карточка для carousels.
 - `patientHomeCardHeroClass` — hero gradient (warmup §10.2).
@@ -78,6 +79,7 @@ Commit: `feat(patient-visual): patientHomeCardStyles — variants по VISUAL_SY
 Файл: `apps/webapp/src/shared/ui/AppShell.tsx`.
 
 Изменить **только ветку `if (variant === "patient" || variant === "patient-wide")`**:
+
 - `bg-[var(--patient-surface)]` → `bg-[var(--patient-page-bg)]` (страничный fb).
 - `max-w-[480px]` → `max-w-[430px] lg:max-w-[min(1180px,calc(100vw-2rem))]` (mobile + desktop wide).
 - Добавить рендер `<PatientTopNav />` на `lg+` через `<div className="z-50 hidden shrink-0 lg:block"><PatientTopNav /></div>`, размещение — над `PatientGatedHeader`.
@@ -125,19 +127,19 @@ apps/webapp/src/app/app/patient/home/PatientHomeCoursesRow.tsx
 
 #### Соответствие компонент → §spec
 
-| Компонент | §spec | Tone |
-| --- | --- | --- |
-| Greeting | §10.1 | Time-of-day prefix (приветствие меняется) |
-| DailyWarmupCard | §10.2 | Hero gradient |
-| BookingCard | §10.3 | Success-toned (`Card` + green CTA) |
-| SituationsRow | §10.4 | Tile grid с CMS asset |
-| ProgressBlock | §10.5 | Двухколоночная progress + streak |
-| NextReminderCard | §10.6 | Warning-toned (amber) |
-| MoodCheckin | §10.7 | Pastel check-in 5 слотов |
-| SosCard | §10.8 | Danger-toned (red icon circle) |
-| PlanCard | §10.10 | Leading icon + opt progress |
-| SubscriptionCarousel | §10.11 | Compact base/badge |
-| CoursesRow | §10.12 | Compact base |
+| Компонент            | §spec  | Tone                                      |
+| -------------------- | ------ | ----------------------------------------- |
+| Greeting             | §10.1  | Time-of-day prefix (приветствие меняется) |
+| DailyWarmupCard      | §10.2  | Hero gradient                             |
+| BookingCard          | §10.3  | Success-toned (`Card` + green CTA)        |
+| SituationsRow        | §10.4  | Tile grid с CMS asset                     |
+| ProgressBlock        | §10.5  | Двухколоночная progress + streak          |
+| NextReminderCard     | §10.6  | Warning-toned (amber)                     |
+| MoodCheckin          | §10.7  | Pastel check-in 5 слотов                  |
+| SosCard              | §10.8  | Danger-toned (red icon circle)            |
+| PlanCard             | §10.10 | Leading icon + opt progress               |
+| SubscriptionCarousel | §10.11 | Compact base/badge                        |
+| CoursesRow           | §10.12 | Compact base                              |
 
 ⚠️ **Особый случай — Greeting:**
 home: `personalizedName?: string`.
@@ -148,7 +150,7 @@ visual+WIP: `timeOfDayPrefix, displayName, personalTierOk, subtitle`.
 type Props = {
   personalizedName?: string;
   /** §10.1: time-of-day («Доброе утро/день/вечер»). Если не передан — дефолтное «Здравствуйте». */
-  timeOfDayPrefix?: "morning" | "day" | "evening";
+  timeOfDayPrefix?: 'morning' | 'day' | 'evening';
   subtitle?: string;
 };
 ```

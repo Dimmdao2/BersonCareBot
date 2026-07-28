@@ -1,4 +1,4 @@
-import type { SystemSetting } from "@/modules/system-settings/types";
+import type { SystemSetting } from '@/modules/system-settings/types';
 
 const TTL_MS = 30_000;
 
@@ -6,9 +6,9 @@ type CacheEntry = { value: boolean; expiresAt: number };
 let cache: CacheEntry | null = null;
 
 function readBooleanValueJson(valueJson: unknown): boolean {
-  if (valueJson === null || typeof valueJson !== "object") return false;
+  if (valueJson === null || typeof valueJson !== 'object') return false;
   const v = (valueJson as Record<string, unknown>).value;
-  return v === true || v === "true";
+  return v === true || v === 'true';
 }
 
 /**
@@ -22,7 +22,7 @@ function readBooleanValueJson(valueJson: unknown): boolean {
  */
 export async function isOperationalVerboseLogEnabled(deps: {
   systemSettings: {
-    getSetting(key: "debug_forward_to_admin", scope: "admin"): Promise<SystemSetting | null>;
+    getSetting(key: 'debug_forward_to_admin', scope: 'admin'): Promise<SystemSetting | null>;
   };
 }): Promise<boolean> {
   const now = Date.now();
@@ -30,7 +30,7 @@ export async function isOperationalVerboseLogEnabled(deps: {
     return cache.value;
   }
   try {
-    const row = await deps.systemSettings.getSetting("debug_forward_to_admin", "admin");
+    const row = await deps.systemSettings.getSetting('debug_forward_to_admin', 'admin');
     const value = row != null && readBooleanValueJson(row.valueJson);
     cache = { value, expiresAt: now + TTL_MS };
     return value;

@@ -9,23 +9,23 @@ all tables in one diff.
 
 ## Batch counts
 
-| Batch | Count | Scope |
-|---|---:|---|
-| P0.4.I1 | 5 | Integrator direct `user_id` path tables. |
-| P0.4.I2 | 3 | Integrator `identities.user_id` path tables. |
-| P0.4.I3 | 4 | Integrator child tables that copy org from a scoped parent. |
-| P0.4.I4 | 1 | Integrator `mailings` direct org root. |
-| P0.4.P1 | 13 | Public clinical EHR, patient file/payment, merge candidates (12 DDL/backfill tables + 1 already-direct-org table). |
-| P0.4.P2 | 12 | Public treatment program templates/instances and discussion/action children. |
-| P0.4.P3 | 11 | Public LFK plus test attempts/results. |
-| P0.4.P4 | 7 | Public diary/activity/symptoms/warmup/home blocks. |
-| P0.4.P5 | 4 | Public online intake. |
-| P0.4.P6 | 8 | Public support, doctor notes, specialist tasks. |
-| P0.4.P7 | 23 | Public reminders, delivery/message logs, media, per-user analytics, ratings. |
-| P0.4.P8 | 17 | Public tenant catalogs, content, courses, test catalogs, recommendations, audit roots. |
-| P0.4.D | 2 | Polymorphic/declared denorm cases needing explicit resolver or parent path. |
-| P0.4.RC | 1 | `reference_categories` authoritative org semantics. |
-| **Total** | **111** | Matches `needs-orgid-FINAL.txt`. |
+| Batch     |   Count | Scope                                                                                                              |
+| --------- | ------: | ------------------------------------------------------------------------------------------------------------------ |
+| P0.4.I1   |       5 | Integrator direct `user_id` path tables.                                                                           |
+| P0.4.I2   |       3 | Integrator `identities.user_id` path tables.                                                                       |
+| P0.4.I3   |       4 | Integrator child tables that copy org from a scoped parent.                                                        |
+| P0.4.I4   |       1 | Integrator `mailings` direct org root.                                                                             |
+| P0.4.P1   |      13 | Public clinical EHR, patient file/payment, merge candidates (12 DDL/backfill tables + 1 already-direct-org table). |
+| P0.4.P2   |      12 | Public treatment program templates/instances and discussion/action children.                                       |
+| P0.4.P3   |      11 | Public LFK plus test attempts/results.                                                                             |
+| P0.4.P4   |       7 | Public diary/activity/symptoms/warmup/home blocks.                                                                 |
+| P0.4.P5   |       4 | Public online intake.                                                                                              |
+| P0.4.P6   |       8 | Public support, doctor notes, specialist tasks.                                                                    |
+| P0.4.P7   |      23 | Public reminders, delivery/message logs, media, per-user analytics, ratings.                                       |
+| P0.4.P8   |      17 | Public tenant catalogs, content, courses, test catalogs, recommendations, audit roots.                             |
+| P0.4.D    |       2 | Polymorphic/declared denorm cases needing explicit resolver or parent path.                                        |
+| P0.4.RC   |       1 | `reference_categories` authoritative org semantics.                                                                |
+| **Total** | **111** | Matches `needs-orgid-FINAL.txt`.                                                                                   |
 
 ## Validation gate
 

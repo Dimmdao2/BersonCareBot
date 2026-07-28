@@ -1,6 +1,6 @@
-import { redirect } from "next/navigation";
-import { PatientPackagePayClient } from "./PatientPackagePayClient";
-import { routePaths } from "@/app-layer/routes/paths";
+import { redirect } from 'next/navigation';
+import { PatientPackagePayClient } from './PatientPackagePayClient';
+import { routePaths } from '@/app-layer/routes/paths';
 
 type Props = { searchParams: Promise<{ patientPackageId?: string }> };
 

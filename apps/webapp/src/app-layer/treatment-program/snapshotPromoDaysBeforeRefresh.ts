@@ -1,7 +1,10 @@
-import { DateTime } from "luxon";
-import { resolveCalendarDayIanaForPatient } from "@/modules/system-settings/calendarIana";
-import { captureDiaryDaySnapshot, type CaptureDiaryDaySnapshotDeps } from "@/modules/patient-diary/captureDiaryDaySnapshot";
-import type { PatientDiarySnapshotsPort } from "@/modules/patient-diary/ports";
+import { DateTime } from 'luxon';
+import { resolveCalendarDayIanaForPatient } from '@/modules/system-settings/calendarIana';
+import {
+  captureDiaryDaySnapshot,
+  type CaptureDiaryDaySnapshotDeps,
+} from '@/modules/patient-diary/captureDiaryDaySnapshot';
+import type { PatientDiarySnapshotsPort } from '@/modules/patient-diary/ports';
 
 export type SnapshotPromoDaysBeforeRefreshDeps = CaptureDiaryDaySnapshotDeps & {
   diarySnapshots: PatientDiarySnapshotsPort;
@@ -26,7 +29,7 @@ export async function snapshotPromoDaysBeforeRefresh(
   const todayYmd = now.toISODate();
   if (!todayYmd) return;
 
-  const weekStart = now.startOf("week");
+  const weekStart = now.startOf('week');
   const firstYmd = weekStart.toISODate();
   if (!firstYmd) return;
 

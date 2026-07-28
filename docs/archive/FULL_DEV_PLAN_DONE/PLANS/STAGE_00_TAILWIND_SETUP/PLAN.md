@@ -22,6 +22,7 @@
 **Задача:** настроить Tailwind CSS в webapp.
 
 **Действия:**
+
 1. `pnpm --filter webapp add -D tailwindcss @tailwindcss/postcss postcss`.
 2. Создать `apps/webapp/postcss.config.mjs`:
    ```js
@@ -33,12 +34,13 @@
    ```
 3. Добавить в начало `globals.css`:
    ```css
-   @import "tailwindcss";
+   @import 'tailwindcss';
    ```
 4. Проверить, что Tailwind работает: добавить `className="text-red-500"` в любой компонент → красный текст.
 5. Убрать тестовый класс.
 
 **Критерий:**
+
 - `pnpm run ci` проходит.
 - Tailwind классы работают в компонентах.
 - Существующий CSS не сломан.
@@ -50,8 +52,10 @@
 **Задача:** инициализировать shadcn/ui.
 
 **Действия:**
+
 1. `pnpm --filter webapp add tailwind-merge clsx`.
 2. Создать `apps/webapp/src/lib/utils.ts`:
+
    ```ts
    import { type ClassValue, clsx } from 'clsx';
    import { twMerge } from 'tailwind-merge';
@@ -60,6 +64,7 @@
      return twMerge(clsx(inputs));
    }
    ```
+
 3. Инициализировать shadcn: `cd apps/webapp && npx shadcn@latest init`.
    - Style: Default.
    - Base color: Slate (настроим позже).
@@ -69,6 +74,7 @@
 4. Проверить, что `components.json` создан.
 
 **Критерий:**
+
 - shadcn инициализирован.
 - `cn()` доступен.
 - `pnpm run ci` проходит.
@@ -80,24 +86,26 @@
 **Задача:** настроить CSS-переменные shadcn под дизайн BersonCare.
 
 **Действия:**
+
 1. В `globals.css` (в секции shadcn CSS variables) настроить цвета:
    ```css
    :root {
-     --primary: 215 35% 40%;           /* тёплый приглушённый синий */
+     --primary: 215 35% 40%; /* тёплый приглушённый синий */
      --primary-foreground: 0 0% 100%;
-     --destructive: 0 55% 45%;         /* приглушённый красный */
+     --destructive: 0 55% 45%; /* приглушённый красный */
      --destructive-foreground: 0 0% 100%;
      --muted: 220 14% 96%;
      --muted-foreground: 220 9% 46%;
      --accent: 220 14% 96%;
      --accent-foreground: 220 40% 20%;
-     --radius: 0.5rem;                 /* 8px — уменьшено от текущих 12-16px */
+     --radius: 0.5rem; /* 8px — уменьшено от текущих 12-16px */
    }
    ```
 2. Настроить patient-specific переменные (если нужны) рядом.
 3. Удалить дублирующиеся `--patient-radius` и подобные после того, как компоненты перейдут на shadcn.
 
 **Критерий:**
+
 - Цвета соответствуют плану (синяя primary, красная destructive, скругления 8px).
 - `pnpm run ci` проходит.
 
@@ -108,6 +116,7 @@
 **Задача:** установить набор компонентов для использования в последующих этапах.
 
 **Действия:**
+
 1. Добавить компоненты:
    ```bash
    cd apps/webapp
@@ -123,6 +132,7 @@
    - Добавить кастомный `primary` если shadcn default не совпадает с `--primary`.
 
 **Критерий:**
+
 - Все компоненты установлены и импортируются без ошибок.
 - `pnpm run ci` проходит.
 
@@ -133,18 +143,24 @@
 **Задача:** настроить анализ размера бандла.
 
 **Действия:**
+
 1. `pnpm --filter webapp add -D @next/bundle-analyzer`.
 2. Обновить `next.config.ts`:
+
    ```ts
    import withBundleAnalyzer from '@next/bundle-analyzer';
 
    const config = withBundleAnalyzer({
      enabled: process.env.ANALYZE === 'true',
-   })({ /* existing config */ });
+   })({
+     /* existing config */
+   });
    ```
+
 3. Добавить скрипт в `package.json`: `"analyze": "ANALYZE=true next build"`.
 
 **Критерий:**
+
 - `pnpm --filter webapp run analyze` генерирует отчёт.
 - `pnpm run ci` проходит.
 

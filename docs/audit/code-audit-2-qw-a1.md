@@ -18,52 +18,52 @@ One behavioral defect found: stale form state when navigating between items (reg
 
 ### A. Pre-fill behavior
 
-| Check | Result |
-|---|---|
-| `repsRaw` set from `lds.reps` (String conversion) | PASS — line 532 |
-| `weightRaw` set from `lds.weightKg` (String conversion) | PASS — line 533 |
-| `difficulty` set from `lds.perceivedDifficulty` | PASS — line 534 |
-| Null guard: null values do not overwrite state | PASS — `if (lds.reps != null)` / `if (lds.weightKg != null)` / `if (lds.perceivedDifficulty)` |
-| **DEFECT: Fields NOT reset when switching to item with no history** | **FAIL — see §Defects** |
+| Check                                                               | Result                                                                                        |
+| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `repsRaw` set from `lds.reps` (String conversion)                   | PASS — line 532                                                                               |
+| `weightRaw` set from `lds.weightKg` (String conversion)             | PASS — line 533                                                                               |
+| `difficulty` set from `lds.perceivedDifficulty`                     | PASS — line 534                                                                               |
+| Null guard: null values do not overwrite state                      | PASS — `if (lds.reps != null)` / `if (lds.weightKg != null)` / `if (lds.perceivedDifficulty)` |
+| **DEFECT: Fields NOT reset when switching to item with no history** | **FAIL — see §Defects**                                                                       |
 
 ### B. Submit without modal
 
-| Check | Result |
-|---|---|
-| `handleComplete()` has no dialog-open call | PASS — no `setCompleteDialogOpen` anywhere in file |
-| After success: calls `refresh()` | PASS — line 560 |
-| After success: calls `loadDiscussionPreview()` | PASS — line 561 |
-| No `setCompleteDialogOpen(false)` in success path | PASS |
-| Error set via `setError(result.error)` when not ok | PASS — line 557 |
+| Check                                              | Result                                             |
+| -------------------------------------------------- | -------------------------------------------------- |
+| `handleComplete()` has no dialog-open call         | PASS — no `setCompleteDialogOpen` anywhere in file |
+| After success: calls `refresh()`                   | PASS — line 560                                    |
+| After success: calls `loadDiscussionPreview()`     | PASS — line 561                                    |
+| No `setCompleteDialogOpen(false)` in success path  | PASS                                               |
+| Error set via `setError(result.error)` when not ok | PASS — line 557                                    |
 
 ### C. Cooldown / frozen state
 
-| Check | Result |
-|---|---|
-| Submit button `disabled={busy !== null || simpleCompleteDoneFrozen}` | PASS — line 885 |
-| Reps input `disabled={busy !== null || simpleCompleteDoneFrozen}` | PASS — line 864 |
-| Weight input `disabled={busy !== null || simpleCompleteDoneFrozen}` | PASS — line 873 |
-| Difficulty buttons `disabled={busy !== null || simpleCompleteDoneFrozen}` | PASS — line 822 |
+| Check                                        | Result               |
+| -------------------------------------------- | -------------------- | -------------------------- | --------------- |
+| Submit button `disabled={busy !== null       |                      | simpleCompleteDoneFrozen}` | PASS — line 885 |
+| Reps input `disabled={busy !== null          |                      | simpleCompleteDoneFrozen}` | PASS — line 864 |
+| Weight input `disabled={busy !== null        |                      | simpleCompleteDoneFrozen}` | PASS — line 873 |
+| Difficulty buttons `disabled={busy !== null  |                      | simpleCompleteDoneFrozen}` | PASS — line 822 |
 | Frozen submit shows Check icon + "Выполнено" | PASS — lines 888–895 |
 
 ### D. API payload correctness
 
-| Check | Result |
-|---|---|
-| `perceivedDifficulty` from `difficulty` state (correct union type) | PASS |
-| `reps` via `parseOptionalPositiveInt(repsRaw)` → positive int or undefined | PASS |
-| `weightKg` via `parseOptionalNonNegativeNumber(weightRaw)` → non-negative or undefined | PASS |
-| Payload shape matches `ProgramItemCompleteDialogPayload` | PASS — TypeScript RC=0 |
+| Check                                                                                  | Result                 |
+| -------------------------------------------------------------------------------------- | ---------------------- |
+| `perceivedDifficulty` from `difficulty` state (correct union type)                     | PASS                   |
+| `reps` via `parseOptionalPositiveInt(repsRaw)` → positive int or undefined             | PASS                   |
+| `weightKg` via `parseOptionalNonNegativeNumber(weightRaw)` → non-negative or undefined | PASS                   |
+| Payload shape matches `ProgramItemCompleteDialogPayload`                               | PASS — TypeScript RC=0 |
 
 ### E. Dead code removal
 
-| Check | Result |
-|---|---|
-| `completeDialogOpen` state | PASS — removed |
-| `setCompleteDialogOpen` calls | PASS — zero occurrences |
-| `ProgramItemCompleteDialog` in JSX | PASS — removed |
+| Check                                     | Result                        |
+| ----------------------------------------- | ----------------------------- |
+| `completeDialogOpen` state                | PASS — removed                |
+| `setCompleteDialogOpen` calls             | PASS — zero occurrences       |
+| `ProgramItemCompleteDialog` in JSX        | PASS — removed                |
 | `ProgramItemCompleteDialogPayload` import | PASS — removed from this file |
-| `ProgramItemCompleteDialog` import | PASS — removed |
+| `ProgramItemCompleteDialog` import        | PASS — removed                |
 
 Note: `postProgramItemComplete.ts` still imports `ProgramItemCompleteDialogPayload` from
 `ProgramItemCompleteDialog` (the dialog file still exists). This is outside QW-A1 scope but is noted
@@ -71,8 +71,8 @@ for completeness — the dialog file is not deleted, only its usage in this comp
 
 ### F. itemId effect cleanup
 
-| Check | Result |
-|---|---|
+| Check                                                     | Result                                                                            |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------- |
 | `setCompleteDialogOpen(false)` removed from itemId effect | PASS — itemId effect (lines 537–539) only resets `setDiscussionDialogOpen(false)` |
 
 ### G. TypeScript compilation
@@ -111,6 +111,7 @@ effect fires but hits `if (!lds) return;` immediately, leaving all three form fi
 stale data.
 
 **Scenario:**
+
 1. Patient opens item A (has 3 reps, 10 kg, medium difficulty) — form shows A's data.
 2. Patient taps "Next" → item B loads (no completion history, `lastDoneSummary = null`).
 3. Form still shows "3" / "10" / "medium" from item A.
@@ -127,9 +128,9 @@ In the `useEffect([itemId])` at line 537–539, add form field resets:
 ```ts
 useEffect(() => {
   setDiscussionDialogOpen(false);
-  setRepsRaw("");
-  setWeightRaw("");
-  setDifficulty("medium");
+  setRepsRaw('');
+  setWeightRaw('');
+  setDifficulty('medium');
 }, [itemId]);
 ```
 

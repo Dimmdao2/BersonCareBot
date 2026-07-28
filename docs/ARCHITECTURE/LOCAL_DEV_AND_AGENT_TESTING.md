@@ -15,11 +15,11 @@ cp apps/webapp/.env.example apps/webapp/.env.dev
 pnpm run migrate  # только первичный bootstrap; prepared locked DEV — через migrate-dev.sh ниже
 ```
 
-| Файл | Назначение |
-|------|------------|
-| `.env` | integrator (API, worker при необходимости) |
-| `apps/webapp/.env.dev` | webapp Next.js |
-| `.env.cutover.dev` | ops: backfill/reconcile (не для обычного UI-теста) |
+| Файл                   | Назначение                                         |
+| ---------------------- | -------------------------------------------------- |
+| `.env`                 | integrator (API, worker при необходимости)         |
+| `apps/webapp/.env.dev` | webapp Next.js                                     |
+| `.env.cutover.dev`     | ops: backfill/reconcile (не для обычного UI-теста) |
 
 **База:** одна PostgreSQL `bcb_webapp_dev` (схемы `public` + `integrator`), один `DATABASE_URL` в обоих env — см. [`DATABASE_UNIFIED_POSTGRES.md`](./DATABASE_UNIFIED_POSTGRES.md).
 
@@ -27,11 +27,11 @@ pnpm run migrate  # только первичный bootstrap; prepared locked D
 
 Агент выбирает среду по задаче:
 
-| Нужно | Среда | Почему |
-|---|---|---|
-| Увидеть именно развёрнутый TEST-коммит, TEST-фикстуры и реальные tenant/RLS-gates | `https://test.bersoncare.ru` | Это deploy truth; вход — штатный email/password из защищённого TEST fixture packet |
-| Быстро менять код, данные и роли, делать повторные скриншоты | DEV `http://127.0.0.1:5200` | Hot reload, dev-bypass и свободные изменения `bcb_webapp_dev` |
-| Получить в DEV тот же состав данных, что сейчас на TEST | Сначала `bash deploy/host/refresh-dev-from-test.sh --execute` | Wrapper пересоздаёт **только** `bcb_webapp_dev` из **только** `bersoncarebot_test`, накатывает миграции текущей ветки, восстанавливает runtime grants/helpers после `--no-acl` restore и удаляет скопированные TEST-only locks настроек |
+| Нужно                                                                             | Среда                                                         | Почему                                                                                                                                                                                                                                  |
+| --------------------------------------------------------------------------------- | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Увидеть именно развёрнутый TEST-коммит, TEST-фикстуры и реальные tenant/RLS-gates | `https://test.bersoncare.ru`                                  | Это deploy truth; вход — штатный email/password из защищённого TEST fixture packet                                                                                                                                                      |
+| Быстро менять код, данные и роли, делать повторные скриншоты                      | DEV `http://127.0.0.1:5200`                                   | Hot reload, dev-bypass и свободные изменения `bcb_webapp_dev`                                                                                                                                                                           |
+| Получить в DEV тот же состав данных, что сейчас на TEST                           | Сначала `bash deploy/host/refresh-dev-from-test.sh --execute` | Wrapper пересоздаёт **только** `bcb_webapp_dev` из **только** `bersoncarebot_test`, накатывает миграции текущей ветки, восстанавливает runtime grants/helpers после `--no-acl` restore и удаляет скопированные TEST-only locks настроек |
 
 `bcb_webapp_dev` — рабочая песочница: её разрешено пересоздавать, сидировать и менять для разработки/UX.
 Копирование TEST→DEV также разрешено. Ограничение остаётся на внешние эффекты: из DEV нельзя отправлять
@@ -40,12 +40,12 @@ pnpm run migrate  # только первичный bootstrap; prepared locked D
 
 ### Обычная работа, миграция схемы и destructive refresh — три разных действия
 
-| Ситуация | Действие | Что происходит с данными DEV |
-|---|---|---|
-| Изменился только код/UI, схема уже актуальна | build/restart/dev server; DB-команда не нужна | Ничего |
+| Ситуация                                                              | Действие                                                                                         | Что происходит с данными DEV                                                                                         |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| Изменился только код/UI, схема уже актуальна                          | build/restart/dev server; DB-команда не нужна                                                    | Ничего                                                                                                               |
 | В текущей ветке есть pending migrations для уже подготовленной DEV-БД | `bash deploy/host/migrate-dev.sh --preflight`, затем `bash deploy/host/migrate-dev.sh --execute` | Существующие данные сохраняются; применяются только pending migrations, C4D online-index и canonical runtime closure |
-| Нужен новый снимок данных именно из TEST | только явно разрешённый `bash deploy/host/refresh-dev-from-test.sh --execute` | `bcb_webapp_dev` удаляется и создаётся заново |
-| Ledger актуален, разошлись только owner/ACL/runtime overlays | `bash deploy/host/dev-runtime-overlay-rehydrate.sh --execute` | Прикладные данные не меняются |
+| Нужен новый снимок данных именно из TEST                              | только явно разрешённый `bash deploy/host/refresh-dev-from-test.sh --execute`                    | `bcb_webapp_dev` удаляется и создаётся заново                                                                        |
+| Ledger актуален, разошлись только owner/ACL/runtime overlays          | `bash deploy/host/dev-runtime-overlay-rehydrate.sh --execute`                                    | Прикладные данные не меняются                                                                                        |
 
 `migrate-dev.sh` принимает только exact local `bcb_webapp_dev`/`bcb_webapp_dev_user`, сначала выполняет read-only
 preflight и не читает `/opt/env`, TEST или PROD. На время `pnpm migrate` он открывает тот же короткий
@@ -253,11 +253,11 @@ C0 runtime-login остаётся отдельным операторским ш
 
 ## 2. Порты и URL (dev)
 
-| Сервис | URL по умолчанию | Env |
-|--------|------------------|-----|
-| **Webapp** | `http://127.0.0.1:5200` | `apps/webapp/.env.dev` → `HOST`, `PORT` |
-| **Integrator API** | `http://127.0.0.1:4200` | корневой `.env` → `PORT` |
-| **Prod (не трогать)** | webapp `:6200`, integrator `:3200` | только systemd на хосте |
+| Сервис                | URL по умолчанию                   | Env                                     |
+| --------------------- | ---------------------------------- | --------------------------------------- |
+| **Webapp**            | `http://127.0.0.1:5200`            | `apps/webapp/.env.dev` → `HOST`, `PORT` |
+| **Integrator API**    | `http://127.0.0.1:4200`            | корневой `.env` → `PORT`                |
+| **Prod (не трогать)** | webapp `:6200`, integrator `:3200` | только systemd на хосте                 |
 
 Скрипт `dev:stop` / `kill-local-dev-ports.sh` освобождает **только** dev-порты (5200, 4200), **никогда** 6200/3200.
 
@@ -271,13 +271,13 @@ C0 runtime-login остаётся отдельным операторским ш
 
 ### 3.1 Webapp (UI)
 
-| Команда | Что делает | Когда использовать |
-|---------|------------|-------------------|
-| `pnpm run dev` | **Параллельно** integrator + webapp (`tsx watch` + `next dev --webpack`) | Полный стек: бот-API, webhooks, SMS relay, сценарии с integrator |
-| `pnpm run webapp:dev` | Только webapp; перед стартом `kill-local-dev-ports` | UI врача/пациента, API routes webapp, **без** integrator |
-| `pnpm run dev:turbo` | Webapp на **Turbopack** (`next dev`, без `--webpack`) | Быстрый HMR при правках React/страниц |
-| `pnpm --dir apps/webapp run dev:visual` | Webapp **webpack** + `WATCHPACK_POLLING` / `CHOKIDAR_USEPOLLING` | Удалённая FS, Docker volume, VM — когда hot reload «не видит» файлы |
-| `pnpm run dev:stop` | Остановить слушатели на dev-портах webapp + integrator | Перед повторным стартом, если порт занят |
+| Команда                                 | Что делает                                                               | Когда использовать                                                  |
+| --------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------- |
+| `pnpm run dev`                          | **Параллельно** integrator + webapp (`tsx watch` + `next dev --webpack`) | Полный стек: бот-API, webhooks, SMS relay, сценарии с integrator    |
+| `pnpm run webapp:dev`                   | Только webapp; перед стартом `kill-local-dev-ports`                      | UI врача/пациента, API routes webapp, **без** integrator            |
+| `pnpm run dev:turbo`                    | Webapp на **Turbopack** (`next dev`, без `--webpack`)                    | Быстрый HMR при правках React/страниц                               |
+| `pnpm --dir apps/webapp run dev:visual` | Webapp **webpack** + `WATCHPACK_POLLING` / `CHOKIDAR_USEPOLLING`         | Удалённая FS, Docker volume, VM — когда hot reload «не видит» файлы |
+| `pnpm run dev:stop`                     | Остановить слушатели на dev-портах webapp + integrator                   | Перед повторным стартом, если порт занят                            |
 
 Эквиваленты **внутри** `apps/webapp`:
 
@@ -296,11 +296,11 @@ pnpm dev:stop
 
 ### 3.2 Integrator (отдельно)
 
-| Команда | Процесс |
-|---------|---------|
-| `pnpm run dev:integrator` | API Fastify (`tsx watch src/main.ts`) |
-| `pnpm run worker:dev` | Worker: projection, outgoing delivery |
-| `pnpm run scheduler:dev` | Scheduler: `schedule.tick`, напоминания |
+| Команда                   | Процесс                                 |
+| ------------------------- | --------------------------------------- |
+| `pnpm run dev:integrator` | API Fastify (`tsx watch src/main.ts`)   |
+| `pnpm run worker:dev`     | Worker: projection, outgoing delivery   |
+| `pnpm run scheduler:dev`  | Scheduler: `schedule.tick`, напоминания |
 
 Worker и scheduler — **второй терминал**, если нужны фоновые джобы без полного `pnpm run dev`.
 
@@ -341,12 +341,12 @@ NODE_ENV=development
 
 ### 4.2 Токены (фиксированные, не секреты)
 
-| `token` | Роль в сессии | Admin mode | Типичное использование |
-|---------|---------------|------------|------------------------|
-| `dev:admin` | `admin` + membership `assistant` | **всегда включён** | Настройки `/app/doctor/admin/*`, audit-log, system-health, merge, опасные admin API |
-| `dev:clinic-admin` | `doctor` + membership `owner` | нет | Управление своей клиникой (`Врачи`, `Настройки клиники`) без global-admin экранов |
-| `dev:doctor` | `doctor` + membership `doctor` + specialist | нет | Кабинет специалиста без admin-only экранов |
-| `dev:client` | `client` | — | Кабинет пациента |
+| `token`            | Роль в сессии                               | Admin mode         | Типичное использование                                                              |
+| ------------------ | ------------------------------------------- | ------------------ | ----------------------------------------------------------------------------------- |
+| `dev:admin`        | `admin` + membership `assistant`            | **всегда включён** | Настройки `/app/doctor/admin/*`, audit-log, system-health, merge, опасные admin API |
+| `dev:clinic-admin` | `doctor` + membership `owner`               | нет                | Управление своей клиникой (`Врачи`, `Настройки клиники`) без global-admin экранов   |
+| `dev:doctor`       | `doctor` + membership `doctor` + specialist | нет                | Кабинет специалиста без admin-only экранов                                          |
+| `dev:client`       | `client`                                    | —                  | Кабинет пациента                                                                    |
 
 Когда включён DB-backed identity port, каждый `dev:*` preset требует уже подготовленные synthetic
 `platform_users` + точную messenger binding из preset. Dev bypass на входе делает только read-only lookup;
@@ -524,6 +524,7 @@ timeout 60 chromium-browser --headless --no-sandbox --disable-gpu --hide-scrollb
 ```
 
 Грабли (все встречены вживую):
+
 - **`next` для `dev:doctor`/`dev:admin` игнорируется** (§4.3) → на целевой маршрут ведём в шаге B, а не через redirect bypass.
 - **`--virtual-time-budget` на шаге A ломает персист cookie** (резкий выход до флаша) → на auth-шаге его НЕ ставить; повторное использование профиля без cookie = редирект на login.
 - Только **`127.0.0.1`**, не `localhost`. Нужен **`--no-sandbox`**. Скриншоты писать в **персистентный** путь (project dir): файлы в `/tmp` между вызовами могут не сохраняться.
@@ -541,11 +542,11 @@ curl -s -b $J "$B/api/doctor/schedule-kpis?from=2026-06-13T00:00:00&to=2026-06-1
 
 ## 5. `dev_mode` в БД — не путать с dev-bypass
 
-| | `ALLOW_DEV_AUTH_BYPASS` | `system_settings.dev_mode` |
-|--|-------------------------|----------------------------|
-| Где | env `apps/webapp/.env.dev` | БД, UI `/app/doctor/admin/app-settings` |
-| Зачем | Вход в UI без мессенджера | Включает **тестовые аккаунты** в аналитике; ограничивает relay в боты списком `test_account_identifiers` |
-| Для агента | обязателен для bypass-входа | нужен только при проверке метрик с тестовыми пользователями |
+|            | `ALLOW_DEV_AUTH_BYPASS`     | `system_settings.dev_mode`                                                                               |
+| ---------- | --------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Где        | env `apps/webapp/.env.dev`  | БД, UI `/app/doctor/admin/app-settings`                                                                  |
+| Зачем      | Вход в UI без мессенджера   | Включает **тестовые аккаунты** в аналитике; ограничивает relay в боты списком `test_account_identifiers` |
+| Для агента | обязателен для bypass-входа | нужен только при проверке метрик с тестовыми пользователями                                              |
 
 `debug_forward_to_admin` — verbose-логи, **не** вход и **не** аналитика.
 
@@ -556,14 +557,14 @@ curl -s -b $J "$B/api/doctor/schedule-kpis?from=2026-06-13T00:00:00&to=2026-06-1
 Для оценки состава экранов создавайте отдельный browser profile/cookie jar на каждую роль и не переиспользуйте
 сессию между строками:
 
-| Срез | DEV-вход | Что фиксировать минимум |
-|---|---|---|
-| Public | `/api/auth/dev-public` | landing и clean login; session отсутствует |
-| Registration | `/api/auth/dev-public?view=clinic-registration` | единая форма создания специалиста + его клиники; session отсутствует |
-| Patient | `dev:client` | home, appointments, treatment/program, profile/settings |
-| Doctor | `dev:doctor` | Today, patients, schedule, communications, content/LFK; отсутствие clinic/global пунктов |
-| Clinic admin | `dev:clinic-admin` | doctor-набор + `Врачи` + `Настройки клиники`; отсутствие global-admin разделов |
-| Global admin | `dev:admin` | полный doctor-набор + analytics, system-health, audit-log, global settings/integrations |
+| Срез         | DEV-вход                                        | Что фиксировать минимум                                                                  |
+| ------------ | ----------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Public       | `/api/auth/dev-public`                          | landing и clean login; session отсутствует                                               |
+| Registration | `/api/auth/dev-public?view=clinic-registration` | единая форма создания специалиста + его клиники; session отсутствует                     |
+| Patient      | `dev:client`                                    | home, appointments, treatment/program, profile/settings                                  |
+| Doctor       | `dev:doctor`                                    | Today, patients, schedule, communications, content/LFK; отсутствие clinic/global пунктов |
+| Clinic admin | `dev:clinic-admin`                              | doctor-набор + `Врачи` + `Настройки клиники`; отсутствие global-admin разделов           |
+| Global admin | `dev:admin`                                     | полный doctor-набор + analytics, system-health, audit-log, global settings/integrations  |
 
 Сначала снимайте desktop `1480×1024`, затем ключевые shell/navigation экраны mobile `390×844`. Имя каталога:
 `.claude/screenshots/UX-ROLE-MATRIX/<UTC>/<role>/`; рядом держите короткий `manifest.md` с URL, ролью, размером
@@ -631,12 +632,12 @@ locked runtime contract допустимость прямого `pnpm run migrat
 
 ## 7. Автотесты (не путать с живым UI)
 
-| Команда | Область |
-|---------|---------|
-| `pnpm test:webapp:fast` | Быстрые unit/contract |
-| `pnpm test:webapp:inprocess` | Тяжёлые in-process |
-| `pnpm test:webapp` | оба набора |
-| `pnpm run ci` | полный барьер перед push |
+| Команда                      | Область                  |
+| ---------------------------- | ------------------------ |
+| `pnpm test:webapp:fast`      | Быстрые unit/contract    |
+| `pnpm test:webapp:inprocess` | Тяжёлые in-process       |
+| `pnpm test:webapp`           | оба набора               |
+| `pnpm run ci`                | полный барьер перед push |
 
 Политика: [`.cursor/rules/test-execution-policy.md`](../../.cursor/rules/test-execution-policy.md), [`apps/webapp/e2e/README.md`](../../apps/webapp/e2e/README.md).
 
@@ -646,14 +647,14 @@ Opt-in тесты с реальной БД: `USE_REAL_DATABASE=1` + специф
 
 ## 8. Частые ошибки
 
-| Симптом | Причина | Решение |
-|---------|---------|---------|
-| Редирект на `/app` без сессии | `ALLOW_DEV_AUTH_BYPASS` не `true` или опечатка в `token` | Проверить `.env.dev`, перезапустить dev-сервер |
-| Bypass «не работает» на prod | Задумано | Только dev + non-production |
-| Сессия «залипает» / logout странный | Открыли `localhost` вместо `127.0.0.1` | Использовать `127.0.0.1:5200` |
-| Порт занят | Старый `next dev` | `pnpm run dev:stop`, затем снова старт |
-| 401 на integrator-зависимых фичах | Запущен только webapp | `pnpm run dev` или отдельно `dev:integrator` |
-| Admin API 403 | Вошли как `dev:doctor` | Использовать `dev:admin` |
+| Симптом                             | Причина                                                  | Решение                                        |
+| ----------------------------------- | -------------------------------------------------------- | ---------------------------------------------- |
+| Редирект на `/app` без сессии       | `ALLOW_DEV_AUTH_BYPASS` не `true` или опечатка в `token` | Проверить `.env.dev`, перезапустить dev-сервер |
+| Bypass «не работает» на prod        | Задумано                                                 | Только dev + non-production                    |
+| Сессия «залипает» / logout странный | Открыли `localhost` вместо `127.0.0.1`                   | Использовать `127.0.0.1:5200`                  |
+| Порт занят                          | Старый `next dev`                                        | `pnpm run dev:stop`, затем снова старт         |
+| 401 на integrator-зависимых фичах   | Запущен только webapp                                    | `pnpm run dev` или отдельно `dev:integrator`   |
+| Admin API 403                       | Вошли как `dev:doctor`                                   | Использовать `dev:admin`                       |
 
 ---
 

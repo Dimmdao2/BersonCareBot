@@ -24,12 +24,7 @@ import { assertOutboundMessagePolicy } from './outboundMessagePolicy.js';
 const DELIVERY_ATTEMPT_AUDIT_PERSIST_FAILED = 'DELIVERY_ATTEMPT_AUDIT_PERSIST_FAILED';
 let deliveryAttemptAuditPersistFailureCount = 0;
 
-export type DispatchPlatformIntegrationId =
-  | 'telegram'
-  | 'max'
-  | 'email'
-  | 'smsc'
-  | 'web_push';
+export type DispatchPlatformIntegrationId = 'telegram' | 'max' | 'email' | 'smsc' | 'web_push';
 
 type DeliveryPayload = {
   recipient?: { chatId?: unknown; phoneNormalized?: unknown };
@@ -65,9 +60,7 @@ function withChannel(intent: OutgoingIntent, channel: string): OutgoingIntent {
   };
 }
 
-function platformIntegrationIdForChannel(
-  channel: string,
-): DispatchPlatformIntegrationId | null {
+function platformIntegrationIdForChannel(channel: string): DispatchPlatformIntegrationId | null {
   if (channel === 'sms' || channel === 'smsc') return 'smsc';
   if (
     channel === 'telegram' ||
@@ -89,7 +82,7 @@ async function logDeliveryAttempt(
   reason?: string,
 ): Promise<void> {
   if (!writePort) return;
-  const safeCorrelationId = isOtpIntent(intent) ? null : intent.meta.correlationId ?? null;
+  const safeCorrelationId = isOtpIntent(intent) ? null : (intent.meta.correlationId ?? null);
   const organizationId = getCurrentOrganizationPrincipalId();
   const writeAttempt = () =>
     writePort.writeDb({
@@ -134,9 +127,10 @@ function reportDeliveryAttemptAuditPersistFailure(
     status,
     intentType: intent.type,
   };
-  const message = status === 'success'
-    ? 'Delivery succeeded but its attempt audit could not be persisted'
-    : 'Delivery provider failed and its attempt audit could not be persisted';
+  const message =
+    status === 'success'
+      ? 'Delivery succeeded but its attempt audit could not be persisted'
+      : 'Delivery provider failed and its attempt audit could not be persisted';
   try {
     logger.error(fields, message);
   } catch {
@@ -198,12 +192,12 @@ function applyPreForkDevRedirect(intent: OutgoingIntent): RedirectResult {
       ? origChatId
       : typeof origChatId === 'string'
         ? origChatId
-        : (origRecipient?.email as string | undefined) ??
+        : ((origRecipient?.email as string | undefined) ??
           (origRecipient?.phoneNormalized as string | undefined) ??
           (origRecipient?.pushUserId as string | undefined) ??
           (origRecipient?.userId as string | number | undefined) ??
           intent.meta.source ??
-          'unknown';
+          'unknown');
 
   const intendedChannel = readChannel(intent);
 
@@ -295,9 +289,7 @@ export function createDefaultDispatchPort(deps: {
   adapters: DeliveryAdapter[];
   writePort?: DbWritePort;
   readPort?: unknown;
-  isPlatformIntegrationEnabled?: (
-    integrationId: DispatchPlatformIntegrationId,
-  ) => Promise<boolean>;
+  isPlatformIntegrationEnabled?: (integrationId: DispatchPlatformIntegrationId) => Promise<boolean>;
 }): DispatchPort {
   return {
     async dispatchOutgoing(intent: OutgoingIntent): Promise<DeliverySendResult> {
@@ -343,7 +335,14 @@ export function createDefaultDispatchPort(deps: {
       } catch (providerError) {
         if (intent.type === 'message.send') {
           try {
-            await logDeliveryAttempt(deps.writePort, intent, channel, 'failed', 1, 'provider_rejected');
+            await logDeliveryAttempt(
+              deps.writePort,
+              intent,
+              channel,
+              'failed',
+              1,
+              'provider_rejected',
+            );
           } catch (auditError) {
             reportDeliveryAttemptAuditPersistFailure(auditError, intent, channel, 'failed');
           }

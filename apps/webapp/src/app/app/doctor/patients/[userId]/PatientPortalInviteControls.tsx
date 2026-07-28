@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { Copy, Link2, Link2Off, RotateCw } from "lucide-react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import type { PatientPortalStatus } from "@/modules/patient-invites/ports";
+import { useState } from 'react';
+import { Copy, Link2, Link2Off, RotateCw } from 'lucide-react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import type { PatientPortalStatus } from '@/modules/patient-invites/ports';
 
 type PortalState = {
   status: PatientPortalStatus;
@@ -21,9 +21,9 @@ type IssueResponse = {
 };
 
 const labels: Record<PatientPortalStatus, string> = {
-  not_activated: "Кабинет не активирован",
-  invited: "Приглашение создано",
-  linked: "Кабинет подключён",
+  not_activated: 'Кабинет не активирован',
+  invited: 'Приглашение создано',
+  linked: 'Кабинет подключён',
 };
 
 export function PatientPortalInviteControls({
@@ -42,29 +42,33 @@ export function PatientPortalInviteControls({
     setPending(true);
     setNotice(null);
     try {
-      const response = await fetch(`/api/doctor/patients/${patientUserId}/portal-invite`, { method: "POST" });
+      const response = await fetch(`/api/doctor/patients/${patientUserId}/portal-invite`, {
+        method: 'POST',
+      });
       const json = (await response.json().catch(() => null)) as IssueResponse | null;
       if (
         !response.ok ||
         json?.ok !== true ||
-        typeof json.inviteId !== "string" ||
-        typeof json.expiresAt !== "string" ||
-        typeof json.relativeUrl !== "string"
+        typeof json.inviteId !== 'string' ||
+        typeof json.expiresAt !== 'string' ||
+        typeof json.relativeUrl !== 'string'
       ) {
-        setNotice("Не удалось создать приглашение.");
+        setNotice('Не удалось создать приглашение.');
         return;
       }
       const absoluteUrl = `${window.location.origin}${json.relativeUrl}`;
-      setState({ status: "invited", inviteId: json.inviteId, expiresAt: json.expiresAt });
+      setState({ status: 'invited', inviteId: json.inviteId, expiresAt: json.expiresAt });
       setGeneratedUrl(absoluteUrl);
       try {
         await navigator.clipboard.writeText(absoluteUrl);
-        setNotice("Новая ссылка скопирована. Предыдущая ссылка больше не действует.");
+        setNotice('Новая ссылка скопирована. Предыдущая ссылка больше не действует.');
       } catch {
-        setNotice("Ссылка создана. Скопируйте её из поля ниже; предыдущая ссылка больше не действует.");
+        setNotice(
+          'Ссылка создана. Скопируйте её из поля ниже; предыдущая ссылка больше не действует.',
+        );
       }
     } catch {
-      setNotice("Не удалось создать приглашение.");
+      setNotice('Не удалось создать приглашение.');
     } finally {
       setPending(false);
     }
@@ -76,19 +80,19 @@ export function PatientPortalInviteControls({
     setNotice(null);
     try {
       const response = await fetch(`/api/doctor/patients/${patientUserId}/portal-invite`, {
-        method: "DELETE",
-        headers: { "content-type": "application/json" },
+        method: 'DELETE',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ inviteId: state.inviteId }),
       });
       if (!response.ok) {
-        setNotice("Не удалось отозвать приглашение.");
+        setNotice('Не удалось отозвать приглашение.');
         return;
       }
-      setState({ status: "not_activated", inviteId: null, expiresAt: null });
+      setState({ status: 'not_activated', inviteId: null, expiresAt: null });
       setGeneratedUrl(null);
-      setNotice("Приглашение отозвано.");
+      setNotice('Приглашение отозвано.');
     } catch {
-      setNotice("Не удалось отозвать приглашение.");
+      setNotice('Не удалось отозвать приглашение.');
     } finally {
       setPending(false);
     }
@@ -97,10 +101,14 @@ export function PatientPortalInviteControls({
   return (
     <div className="mt-2 flex flex-wrap items-center gap-2">
       <span className="inline-flex h-7 items-center gap-1 rounded-full border border-border bg-background px-2.5 text-xs text-foreground">
-        {state.status === "linked" ? <Link2 className="h-3.5 w-3.5 text-primary" /> : <Link2Off className="h-3.5 w-3.5 text-muted-foreground" />}
+        {state.status === 'linked' ? (
+          <Link2 className="h-3.5 w-3.5 text-primary" />
+        ) : (
+          <Link2Off className="h-3.5 w-3.5 text-muted-foreground" />
+        )}
         {labels[state.status]}
       </span>
-      {state.status !== "linked" ? (
+      {state.status !== 'linked' ? (
         <Button
           type="button"
           variant="outline"
@@ -109,11 +117,15 @@ export function PatientPortalInviteControls({
           onClick={() => void issueAndCopy()}
           className="h-7 gap-1 px-2.5 text-xs"
         >
-          {state.status === "invited" ? <RotateCw className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-          {state.status === "invited" ? "Новая ссылка" : "Скопировать приглашение"}
+          {state.status === 'invited' ? (
+            <RotateCw className="h-3.5 w-3.5" />
+          ) : (
+            <Copy className="h-3.5 w-3.5" />
+          )}
+          {state.status === 'invited' ? 'Новая ссылка' : 'Скопировать приглашение'}
         </Button>
       ) : null}
-      {state.status === "invited" ? (
+      {state.status === 'invited' ? (
         <Button
           type="button"
           variant="ghost"

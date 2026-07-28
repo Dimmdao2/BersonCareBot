@@ -13,14 +13,14 @@
  *
  * Default: dry-run (lists candidates, no UPDATE).
  */
-import "dotenv/config";
-import pg from "pg";
-import { createPgTreatmentProgramItemSnapshotPort } from "../src/infra/repos/pgTreatmentProgramItemSnapshot";
+import 'dotenv/config';
+import pg from 'pg';
+import { createPgTreatmentProgramItemSnapshotPort } from '../src/infra/repos/pgTreatmentProgramItemSnapshot';
 import {
   EDITOR_DRAFT_SNAPSHOT_SQL_PREDICATE,
   instanceStageItemSnapshotNeedsCatalogRebuild,
-} from "../src/modules/treatment-program/editorDraftSnapshotDetect";
-import type { TreatmentProgramItemType } from "../src/modules/treatment-program/types";
+} from '../src/modules/treatment-program/editorDraftSnapshotDetect';
+import type { TreatmentProgramItemType } from '../src/modules/treatment-program/types';
 
 type CandidateRow = {
   id: string;
@@ -85,10 +85,10 @@ function printHelp(): void {
 `);
 }
 
-function buildBaseWhere(params: {
-  sinceDays: number;
-  instanceId: string | null;
-}): { where: string[]; values: unknown[] } {
+function buildBaseWhere(params: { sinceDays: number; instanceId: string | null }): {
+  where: string[];
+  values: unknown[];
+} {
   const where: string[] = [
     `ti.item_type IN ('exercise', 'recommendation', 'clinical_test')`,
     `inst.status IN ('active', 'completed')`,
@@ -121,7 +121,7 @@ async function countCandidates(
   const sql = `
     SELECT COUNT(*)::int AS n
     ${fromJoinSql()}
-    WHERE ${base.where.join(" AND ")}
+    WHERE ${base.where.join(' AND ')}
   `;
   const { rows } = await pool.query<{ n: number }>(sql, base.values);
   return rows[0]?.n ?? 0;
@@ -150,7 +150,7 @@ async function fetchCandidateBatch(
       inst.title AS instance_title,
       inst.updated_at::text AS instance_updated_at
     ${fromJoinSql()}
-    WHERE ${where.join(" AND ")}
+    WHERE ${where.join(' AND ')}
     ORDER BY ${orderBy}
     LIMIT $${values.length}
   `;
@@ -215,22 +215,22 @@ async function processBatch(
 }
 
 async function main(): Promise<void> {
-  if (has("-h") || has("--help")) {
+  if (has('-h') || has('--help')) {
     printHelp();
     return;
   }
 
   if (!process.env.DATABASE_URL?.trim()) {
-    console.error("DATABASE_URL is not set");
+    console.error('DATABASE_URL is not set');
     process.exitCode = 1;
     return;
   }
 
-  const dryRun = !has("--commit");
-  const sinceDays = numArg("--since-days", 0);
-  const limit = Math.max(1, Math.min(numArg("--limit", 5000), 50_000));
-  const instanceId = strArg("--instance-id");
-  const processAll = has("--all");
+  const dryRun = !has('--commit');
+  const sinceDays = numArg('--since-days', 0);
+  const limit = Math.max(1, Math.min(numArg('--limit', 5000), 50_000));
+  const instanceId = strArg('--instance-id');
+  const processAll = has('--all');
 
   const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
   const snapshots = createPgTreatmentProgramItemSnapshotPort();

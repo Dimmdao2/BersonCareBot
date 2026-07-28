@@ -28,7 +28,10 @@ async function build(ready = true) {
 function requestBody(phase: 'initial' | 'one_hour_repeat', id = incident) {
   const messageId = `operator-alert:incident:${id}:phase:${phase}:telegram:4242`;
   return {
-    messageId, channel: 'telegram', recipient: '4242', text: 'alert',
+    messageId,
+    channel: 'telegram',
+    recipient: '4242',
+    text: 'alert',
     idempotencyKey: `global:${messageId}:telegram:4242`,
   };
 }
@@ -38,7 +41,9 @@ function headers(body: string) {
   return {
     'content-type': 'application/json',
     'x-bersoncare-timestamp': timestamp,
-    'x-bersoncare-signature': createHmac('sha256', SECRET).update(`${timestamp}.${body}`).digest('base64url'),
+    'x-bersoncare-signature': createHmac('sha256', SECRET)
+      .update(`${timestamp}.${body}`)
+      .digest('base64url'),
   };
 }
 
@@ -47,15 +52,24 @@ describe('POST /api/bersoncare/operator-alert-relay', () => {
     const { app, dispatchPort } = await build();
     const send = async (body: object) => {
       const raw = JSON.stringify(body);
-      return app.inject({ method: 'POST', url: '/api/bersoncare/operator-alert-relay', headers: headers(raw), body: raw });
+      return app.inject({
+        method: 'POST',
+        url: '/api/bersoncare/operator-alert-relay',
+        headers: headers(raw),
+        body: raw,
+      });
     };
     expect(JSON.parse((await send(requestBody('initial'))).body).status).toBe('accepted');
     expect(JSON.parse((await send(requestBody('initial'))).body).status).toBe('duplicate');
     expect(JSON.parse((await send(requestBody('one_hour_repeat'))).body).status).toBe('accepted');
-    expect(JSON.parse((await send(requestBody('initial', '22222222-2222-4222-8222-222222222222'))).body).status).toBe('accepted');
+    expect(
+      JSON.parse((await send(requestBody('initial', '22222222-2222-4222-8222-222222222222'))).body)
+        .status,
+    ).toBe('accepted');
     expect(dispatchPort.dispatchOutgoing).toHaveBeenCalledTimes(3);
     expect(vi.mocked(dispatchPort.dispatchOutgoing).mock.calls[0]![0].meta).toMatchObject({
-      outboundMessageClass: 'operator_security', outboundCapability: 'operator_alert',
+      outboundMessageClass: 'operator_security',
+      outboundCapability: 'operator_alert',
     });
   });
 
@@ -63,11 +77,25 @@ describe('POST /api/bersoncare/operator-alert-relay', () => {
     const { app, dispatchPort } = await build(false);
     const sms = { ...requestBody('initial'), channel: 'sms', recipient: '+79990001122' };
     const smsRaw = JSON.stringify(sms);
-    const smsResponse = await app.inject({ method: 'POST', url: '/api/bersoncare/operator-alert-relay', headers: headers(smsRaw), body: smsRaw });
+    const smsResponse = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/operator-alert-relay',
+      headers: headers(smsRaw),
+      body: smsRaw,
+    });
     expect(JSON.parse(smsResponse.body).status).toBe('skipped');
     const tg = requestBody('initial', '33333333-3333-4333-8333-333333333333');
     const tgRaw = JSON.stringify(tg);
-    expect((await app.inject({ method: 'POST', url: '/api/bersoncare/operator-alert-relay', headers: headers(tgRaw), body: tgRaw })).statusCode).toBe(200);
+    expect(
+      (
+        await app.inject({
+          method: 'POST',
+          url: '/api/bersoncare/operator-alert-relay',
+          headers: headers(tgRaw),
+          body: tgRaw,
+        })
+      ).statusCode,
+    ).toBe(200);
     expect(dispatchPort.dispatchOutgoing).toHaveBeenCalledTimes(1);
   });
 
@@ -78,8 +106,10 @@ describe('POST /api/bersoncare/operator-alert-relay', () => {
     try {
       const send = vi.fn(async () => ({}));
       const emailAdapter: DeliveryAdapter = {
-        canHandle: (intent) => intent.type === 'message.send'
-          && (intent.payload.delivery as { channels?: unknown[] } | undefined)?.channels?.[0] === 'email',
+        canHandle: (intent) =>
+          intent.type === 'message.send' &&
+          (intent.payload.delivery as { channels?: unknown[] } | undefined)?.channels?.[0] ===
+            'email',
         send,
       };
       const app = Fastify();
@@ -112,12 +142,14 @@ describe('POST /api/bersoncare/operator-alert-relay', () => {
 
       expect(response.statusCode).toBe(200);
       expect(JSON.parse(response.body)).toMatchObject({ ok: true, status: 'accepted' });
-      expect(send).toHaveBeenCalledWith(expect.objectContaining({
-        payload: expect.objectContaining({
-          recipient: { email: 'operator-email-recipient' },
-          subject: 'Operator alert subject',
+      expect(send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          payload: expect.objectContaining({
+            recipient: { email: 'operator-email-recipient' },
+            subject: 'Operator alert subject',
+          }),
         }),
-      }));
+      );
     } finally {
       if (originalNodeEnv === undefined) delete process.env.NODE_ENV;
       else process.env.NODE_ENV = originalNodeEnv;

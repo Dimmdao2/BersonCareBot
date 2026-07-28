@@ -1,1 +1,4 @@
-export { findCanonicalUserIdByIntegratorId, resolveCanonicalUserId } from "@/infra/repos/pgCanonicalPlatformUser";
+export {
+  findCanonicalUserIdByIntegratorId,
+  resolveCanonicalUserId,
+} from '@/infra/repos/pgCanonicalPlatformUser';

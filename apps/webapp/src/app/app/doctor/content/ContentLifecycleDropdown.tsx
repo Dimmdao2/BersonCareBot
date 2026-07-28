@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { useRouter } from "next/navigation";
-import { EllipsisVertical, Eye, EyeOff } from "lucide-react";
-import { applyContentLifecycleForm } from "./lifecycleActions";
-import { Button } from "@/shared/ui/doctor/primitives/button";
+import { useRouter } from 'next/navigation';
+import { EllipsisVertical, Eye, EyeOff } from 'lucide-react';
+import { applyContentLifecycleForm } from './lifecycleActions';
+import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,8 +12,8 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/shared/ui/doctor/primitives/dropdown-menu";
-import { cn } from "@/lib/utils";
+} from '@/shared/ui/doctor/primitives/dropdown-menu';
+import { cn } from '@/lib/utils';
 
 type Page = {
   id: string;
@@ -24,7 +24,12 @@ type Page = {
 
 function HiddenLifecycleForm({ id, op }: { id: string; op: string }) {
   return (
-    <form id={`content-lifecycle-${id}-${op}`} action={applyContentLifecycleForm} className="hidden" aria-hidden>
+    <form
+      id={`content-lifecycle-${id}-${op}`}
+      action={applyContentLifecycleForm}
+      className="hidden"
+      aria-hidden
+    >
       <input type="hidden" name="id" value={id} />
       <input type="hidden" name="op" value={op} />
       <Button type="submit" tabIndex={-1} variant="ghost" className="sr-only">
@@ -54,7 +59,7 @@ function LifecycleMenuItem({
         submitFormById(formId);
       }}
     >
-      <span className={cn(destructive && "text-destructive")}>{label}</span>
+      <span className={cn(destructive && 'text-destructive')}>{label}</span>
     </DropdownMenuItem>
   );
 }
@@ -88,10 +93,10 @@ export function ContentLifecycleDropdown({ page }: { page: Page }) {
             variant="ghost"
             size="icon"
             className="size-8 rounded-full border border-border/80"
-            title={published ? "Снять с публикации" : "Опубликовать"}
-            aria-label={published ? "Снять с публикации" : "Опубликовать"}
+            title={published ? 'Снять с публикации' : 'Опубликовать'}
+            aria-label={published ? 'Снять с публикации' : 'Опубликовать'}
             onClick={() =>
-              submitFormById(`content-lifecycle-${id}-${published ? "unpublish" : "publish"}`)
+              submitFormById(`content-lifecycle-${id}-${published ? 'unpublish' : 'publish'}`)
             }
           >
             {published ? (
@@ -124,11 +129,17 @@ export function ContentLifecycleDropdown({ page }: { page: Page }) {
                 Редактировать
               </DropdownMenuItem>
               {deleted ? (
-                <LifecycleMenuItem formId={`content-lifecycle-${id}-restore`} label="Восстановить" />
+                <LifecycleMenuItem
+                  formId={`content-lifecycle-${id}-restore`}
+                  label="Восстановить"
+                />
               ) : (
                 <>
                   {archived ? (
-                    <LifecycleMenuItem formId={`content-lifecycle-${id}-unarchive`} label="Из архива" />
+                    <LifecycleMenuItem
+                      formId={`content-lifecycle-${id}-unarchive`}
+                      label="Из архива"
+                    />
                   ) : (
                     <LifecycleMenuItem formId={`content-lifecycle-${id}-archive`} label="В архив" />
                   )}

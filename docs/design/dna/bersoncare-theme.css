@@ -4,7 +4,7 @@
    Подключение: @import этот файл после установки Tailwind v4.
    ============================================================ */
 
-@import "tailwindcss";
+@import 'tailwindcss';
 
 /* Шрифт: Nunito (Google Fonts, включает кириллицу).
    Альтернатива — самохостинг woff2 + @font-face, тогда убрать строку ниже. */
@@ -12,60 +12,66 @@
 
 @theme {
   /* — Типографика — */
-  --font-sans: "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: 'Nunito', system-ui, -apple-system, 'Segoe UI', sans-serif;
 
   /* — Нейтралы (тёплая основа) — */
-  --color-canvas:      #F6F4EF;   /* фон страницы */
-  --color-surface:     #FFFFFF;   /* карточки, панели */
-  --color-rail:        #FBFAF6;   /* меню, поля, второстепенные зоны */
-  --color-warm-sel:    #F1EEE7;   /* фон выбранной/наведённой строки */
+  --color-canvas: #f6f4ef; /* фон страницы */
+  --color-surface: #ffffff; /* карточки, панели */
+  --color-rail: #fbfaf6; /* меню, поля, второстепенные зоны */
+  --color-warm-sel: #f1eee7; /* фон выбранной/наведённой строки */
 
   /* — Акцент (синий, ядро бренда) — */
-  --color-accent-50:   #E9F0F8;   /* только мелкий тон (бейдж) */
-  --color-accent-100:  #DCE8F5;
-  --color-accent-200:  #C4D6EC;   /* обводка вторичной кнопки */
-  --color-accent-500:  #386FBA;   /* base: кнопки, полоска выделения, прогресс */
-  --color-accent-600:  #305F9F;   /* hover */
-  --color-accent-700:  #28518A;   /* press */
-  --color-accent-text: #2B548C;   /* ссылки, активный текст, статус-заголовки */
-  --color-accent-900:  #22406B;
+  --color-accent-50: #e9f0f8; /* только мелкий тон (бейдж) */
+  --color-accent-100: #dce8f5;
+  --color-accent-200: #c4d6ec; /* обводка вторичной кнопки */
+  --color-accent-500: #386fba; /* base: кнопки, полоска выделения, прогресс */
+  --color-accent-600: #305f9f; /* hover */
+  --color-accent-700: #28518a; /* press */
+  --color-accent-text: #2b548c; /* ссылки, активный текст, статус-заголовки */
+  --color-accent-900: #22406b;
 
   /* — Текст (графит, не чёрный) — */
-  --color-ink:         #232A31;
-  --color-ink-2:       #55606B;
-  --color-muted:       #8B94A0;
-  --color-faint:       #B4BAC2;
+  --color-ink: #232a31;
+  --color-ink-2: #55606b;
+  --color-muted: #8b94a0;
+  --color-faint: #b4bac2;
 
   /* — Границы (тёплые) — */
-  --color-line:        #EFECE4;   /* рамка карточек */
-  --color-divider:     #EDEAE2;
-  --color-hairline:    #F1EEE7;   /* волосяная линия строк */
+  --color-line: #efece4; /* рамка карточек */
+  --color-divider: #edeae2;
+  --color-hairline: #f1eee7; /* волосяная линия строк */
 
   /* — Функциональные (приглушённые, точечно) — */
-  --color-warn:        #C08A2E;
-  --color-warn-tint:   #F6EEDD;
-  --color-danger:      #B4544B;
-  --color-danger-tint: #F6E5E2;
-  --color-ok:          #3E7D68;   /* только маленький маркер «выполнено» */
-  --color-info:        #386FBA;
+  --color-warn: #c08a2e;
+  --color-warn-tint: #f6eedd;
+  --color-danger: #b4544b;
+  --color-danger-tint: #f6e5e2;
+  --color-ok: #3e7d68; /* только маленький маркер «выполнено» */
+  --color-info: #386fba;
 
   /* — Радиус (мягче/Apple, но в пределах шкалы; pill — через rounded-full) — */
   --radius-xs: 5px;
-  --radius-sm: 8px;    /* поля ввода */
+  --radius-sm: 8px; /* поля ввода */
   --radius-md: 11px;
-  --radius-lg: 14px;   /* карточки, панели — верхний край, мягкий Apple-край */
+  --radius-lg: 14px; /* карточки, панели — верхний край, мягкий Apple-край */
 
   /* — Тень — */
-  --shadow-micro:  0 1px 2px rgba(40,35,25,.028), 0 4px 14px rgba(40,35,25,.03);
-  --shadow-raised: 0 2px 4px rgba(40,35,25,.06), 0 16px 34px rgba(40,35,25,.10);
+  --shadow-micro: 0 1px 2px rgba(40, 35, 25, 0.028), 0 4px 14px rgba(40, 35, 25, 0.03);
+  --shadow-raised: 0 2px 4px rgba(40, 35, 25, 0.06), 0 16px 34px rgba(40, 35, 25, 0.1);
 
   /* — Движение — */
   --ease-bc: cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
 @layer base {
-  html { -webkit-font-smoothing: antialiased; font-variant-numeric: tabular-nums; }
-  body { background: var(--color-canvas); color: var(--color-ink); }
+  html {
+    -webkit-font-smoothing: antialiased;
+    font-variant-numeric: tabular-nums;
+  }
+  body {
+    background: var(--color-canvas);
+    color: var(--color-ink);
+  }
 }
 
 @layer components {
@@ -80,7 +86,9 @@
 
   /* Pill-контролы (правка v1.1): полное скругление для кнопок и поиска.
      На строки списка НЕ распространяется — строки плоские. */
-  .bc-pill { border-radius: 9999px; }
+  .bc-pill {
+    border-radius: 9999px;
+  }
 }
 
 /* Сгенерированные утилиты (примеры):

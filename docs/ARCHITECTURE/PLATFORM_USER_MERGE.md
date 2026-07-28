@@ -86,21 +86,21 @@
 
 Канон продуктового потока: [`../LOGIN_REGISTER_NEW_LOGIC/MAIN PLAN.md`](../LOGIN_REGISTER_NEW_LOGIC/MAIN%20PLAN.md) §1–7, журнал — [`../LOGIN_REGISTER_NEW_LOGIC/LOG.md`](../LOGIN_REGISTER_NEW_LOGIC/LOG.md).
 
-| Слой | Роль |
-|------|------|
-| **Live identity (фаза 1+)** | Предотвращение дублей: Rubitime `booking.upsert` → `appointment.record.upserted` → `ensureAppointmentClientTx` (phone → integrator_id → email); trusted phone; contact email без auto-password. |
-| **Email setup / register (фазы 3–5)** | Contact-only не плодит второго `platform_user`; `email_conflict` сначала пробует безопасный auto-merge дублей по email, но не сливает два полноценных password-login аккаунта. |
-| **Merge (этот документ)** | Страховка, если дубль уже есть: ручной merge в кабинете врача или auto-merge на ingestion / phone bind. |
+| Слой                                  | Роль                                                                                                                                                                                            |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Live identity (фаза 1+)**           | Предотвращение дублей: Rubitime `booking.upsert` → `appointment.record.upserted` → `ensureAppointmentClientTx` (phone → integrator_id → email); trusted phone; contact email без auto-password. |
+| **Email setup / register (фазы 3–5)** | Contact-only не плодит второго `platform_user`; `email_conflict` сначала пробует безопасный auto-merge дублей по email, но не сливает два полноценных password-login аккаунта.                  |
+| **Merge (этот документ)**             | Страховка, если дубль уже есть: ручной merge в кабинете врача или auto-merge на ingestion / phone bind.                                                                                         |
 
 ### Ограничения auto-merge (не заменяют support / manual merge)
 
-| Ситуация | Поведение |
-|----------|-----------|
-| Register/login: `email_conflict` (`resolveAuthState`) | Сначала безопасный auto-merge дублей по email через общий merge-engine. Если у двух строк есть пароль или merge-engine вернул blocker — HTTP **409** `email_conflict`, audit `email_auth_conflict`, оператор / support. |
-| Два canonical с **разным verified email** на одном нормализованном адресе | Ручной merge с выбором `resolution.fields.email`; auto-merge по email **не** выполняется. |
-| `appointment.record.upserted` / phone bind: `MergeConflictError` / `MergeDependentConflictError` | Событие **202**, аудит `auto_merge_conflict`, projection **без** привязки к «первому попавшемуся» user (см. § Projection ingestion ниже). |
-| Два **разных** non-null `integrator_user_id` | **v1:** hard blocker; **v2:** сначала integrator canonical merge, затем webapp merge. |
-| Один телефон, meaningful data на обоих | Hard blocker `shared_phone_both_have_meaningful_data` — только ручное решение. |
+| Ситуация                                                                                         | Поведение                                                                                                                                                                                                               |
+| ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Register/login: `email_conflict` (`resolveAuthState`)                                            | Сначала безопасный auto-merge дублей по email через общий merge-engine. Если у двух строк есть пароль или merge-engine вернул blocker — HTTP **409** `email_conflict`, audit `email_auth_conflict`, оператор / support. |
+| Два canonical с **разным verified email** на одном нормализованном адресе                        | Ручной merge с выбором `resolution.fields.email`; auto-merge по email **не** выполняется.                                                                                                                               |
+| `appointment.record.upserted` / phone bind: `MergeConflictError` / `MergeDependentConflictError` | Событие **202**, аудит `auto_merge_conflict`, projection **без** привязки к «первому попавшемуся» user (см. § Projection ingestion ниже).                                                                               |
+| Два **разных** non-null `integrator_user_id`                                                     | **v1:** hard blocker; **v2:** сначала integrator canonical merge, затем webapp merge.                                                                                                                                   |
+| Один телефон, meaningful data на обоих                                                           | Hard blocker `shared_phone_both_have_meaningful_data` — только ручное решение.                                                                                                                                          |
 
 Регрессия сценария «приёмы (Rubitime) + дневник/разминка (PWA) на одном canonical» — unit-тест `repoints appointments and diary/warmup domains to canonical user` в `pgPlatformUserMerge.test.ts` (manual merge path).
 
@@ -124,7 +124,7 @@ Helper: `apps/webapp/src/infra/repos/pgCanonicalPlatformUser.ts`.
 
 - lookup по телефону/integrator id — только canonical rows (`merged_into_id IS NULL`);
 - follow chain по `merged_into_id` с защитой от циклов;
-- >1 canonical row на strong ID — anomaly (лог + явный failure/null path).
+- > 1 canonical row на strong ID — anomaly (лог + явный failure/null path).
 
 Применение обязательно в read/write entry points (auth/support/reminder/doctor routes/ports), где раньше был direct lookup `platform_users ... LIMIT 1`.
 
@@ -143,26 +143,26 @@ Helper: `apps/webapp/src/infra/repos/pgCanonicalPlatformUser.ts`.
 
 При merge duplicate → target переносятся (UPDATE / UPSERT / dedupe) таблицы ниже. Реализация: `packages/platform-merge/src/pgPlatformUserMerge.ts`.
 
-| Таблица / область | Стратегия | Примечание |
-|-------------------|-----------|------------|
-| `material_ratings` | UPSERT ON CONFLICT | dedupe по `(user_id, target_kind, target_id)` |
-| `patient_daily_warmup_presentations` | UPSERT `(user_id)` | одна строка на пользователя |
-| `be_patient_booking_profiles` | UPSERT `(organization_id, platform_user_id)` | booking-репутация |
-| `product_analytics_user_hourly` | UPSERT pkey | агрегаты по часу |
-| `patient_diary_day_snapshots` | UPDATE `platform_user_id` | |
-| `webapp_reminder_occurrences` | UPDATE | |
-| `user_web_push_subscriptions` | UPDATE | |
-| `broadcast_audit_recipients` | UPDATE | |
-| `patient_content_rating_feedback` | UPDATE | |
-| `patient_practice_completions` | UPDATE | |
-| `patient_daily_warmup_video_views` | UPDATE | |
-| `program_action_log` | UPDATE | |
-| `test_attempts` | UPDATE | guard: open attempt conflict |
-| `treatment_program_instances` | UPDATE | две реальные active-программы — blocker; promo закрывается как superseded перед repoint |
-| `be_appointments`, `be_patient_timeline_events`, … | UPDATE | booking-engine domain |
-| `be_payment_*`, `be_patient_packages`, `be_product_purchases` | UPDATE | payments / memberships |
-| `product_push_notifications`, `product_analytics_events_recent` | UPDATE | analytics |
-| `platform_user_contacts` | repoint duplicate → target + merge fallback | см. ниже |
+| Таблица / область                                               | Стратегия                                    | Примечание                                                                              |
+| --------------------------------------------------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `material_ratings`                                              | UPSERT ON CONFLICT                           | dedupe по `(user_id, target_kind, target_id)`                                           |
+| `patient_daily_warmup_presentations`                            | UPSERT `(user_id)`                           | одна строка на пользователя                                                             |
+| `be_patient_booking_profiles`                                   | UPSERT `(organization_id, platform_user_id)` | booking-репутация                                                                       |
+| `product_analytics_user_hourly`                                 | UPSERT pkey                                  | агрегаты по часу                                                                        |
+| `patient_diary_day_snapshots`                                   | UPDATE `platform_user_id`                    |                                                                                         |
+| `webapp_reminder_occurrences`                                   | UPDATE                                       |                                                                                         |
+| `user_web_push_subscriptions`                                   | UPDATE                                       |                                                                                         |
+| `broadcast_audit_recipients`                                    | UPDATE                                       |                                                                                         |
+| `patient_content_rating_feedback`                               | UPDATE                                       |                                                                                         |
+| `patient_practice_completions`                                  | UPDATE                                       |                                                                                         |
+| `patient_daily_warmup_video_views`                              | UPDATE                                       |                                                                                         |
+| `program_action_log`                                            | UPDATE                                       |                                                                                         |
+| `test_attempts`                                                 | UPDATE                                       | guard: open attempt conflict                                                            |
+| `treatment_program_instances`                                   | UPDATE                                       | две реальные active-программы — blocker; promo закрывается как superseded перед repoint |
+| `be_appointments`, `be_patient_timeline_events`, …              | UPDATE                                       | booking-engine domain                                                                   |
+| `be_payment_*`, `be_patient_packages`, `be_product_purchases`   | UPDATE                                       | payments / memberships                                                                  |
+| `product_push_notifications`, `product_analytics_events_recent` | UPDATE                                       | analytics                                                                               |
+| `platform_user_contacts`                                        | repoint duplicate → target + merge fallback  | см. ниже                                                                                |
 
 Базовый перенос (до extended): bookings, diaries, media, reminders, channel/oauth bindings, scalar COALESCE на `platform_users`, email-order fix (`clearDuplicateEmailBeforeTargetNormalization`).
 
@@ -197,16 +197,16 @@ Helper: `apps/webapp/src/infra/repos/pgCanonicalPlatformUser.ts`.
 
 ### Hard blockers (совпадают с guard’ами merge engine)
 
-| Код | Смысл |
-|-----|--------|
-| `target_is_alias` / `duplicate_is_alias` | `merged_into_id IS NOT NULL` — merge alias в паре недопустим. |
-| `different_non_null_integrator_user_id` | **v1** (флаг `platform_user_merge_v2_enabled` выкл.): оба `integrator_user_id` заданы и **различны** — **жёсткий запрет** (риск phantom user / рассинхрон проекций). |
-| `integrator_canonical_merge_required` | **v2** (флаг вкл.): оба id заданы и различны, но в БД integrator canonical `users.id` ещё **не** совпали — сначала `mergeIntegratorUsers`, при необходимости realignment проекций webapp, затем снова preview. |
-| `integrator_merge_status_unavailable` | **v2:** не удалось получить integrator M2M `canonical-pair` status (нет `INTEGRATOR_API_URL`/webhook secret, timeout или иная временная недоступность). |
-| `active_bookings_time_overlap` | Тот же SQL, что `assertPatientBookingsSafeToMerge` в `pgPlatformUserMerge.ts` (пересечение слотов у «активных» статусов и согласованный cooperator snapshot). |
-| `active_lfk_template_conflict` | Два активных `patient_lfk_assignments` на одну `template_id` — как `assertPatientLfkAssignmentsSafe`. |
-| `active_treatment_program_conflict` | Две активные реальные (`doctor`/`course`) программы — blocker. `promo + promo` и `promo + real` разрешены: promo переводится в `completed`, пишется `treatment_program_events`, реальная программа остаётся active. |
-| `shared_phone_both_have_meaningful_data` | Одинаковый non-null телефон и «meaningful data» на обоих — как `assertSharedPhoneGuard` (**без** `message_log`; сумма счётчиков по остальным таблицам из merge guard). |
+| Код                                      | Смысл                                                                                                                                                                                                               |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `target_is_alias` / `duplicate_is_alias` | `merged_into_id IS NOT NULL` — merge alias в паре недопустим.                                                                                                                                                       |
+| `different_non_null_integrator_user_id`  | **v1** (флаг `platform_user_merge_v2_enabled` выкл.): оба `integrator_user_id` заданы и **различны** — **жёсткий запрет** (риск phantom user / рассинхрон проекций).                                                |
+| `integrator_canonical_merge_required`    | **v2** (флаг вкл.): оба id заданы и различны, но в БД integrator canonical `users.id` ещё **не** совпали — сначала `mergeIntegratorUsers`, при необходимости realignment проекций webapp, затем снова preview.      |
+| `integrator_merge_status_unavailable`    | **v2:** не удалось получить integrator M2M `canonical-pair` status (нет `INTEGRATOR_API_URL`/webhook secret, timeout или иная временная недоступность).                                                             |
+| `active_bookings_time_overlap`           | Тот же SQL, что `assertPatientBookingsSafeToMerge` в `pgPlatformUserMerge.ts` (пересечение слотов у «активных» статусов и согласованный cooperator snapshot).                                                       |
+| `active_lfk_template_conflict`           | Два активных `patient_lfk_assignments` на одну `template_id` — как `assertPatientLfkAssignmentsSafe`.                                                                                                               |
+| `active_treatment_program_conflict`      | Две активные реальные (`doctor`/`course`) программы — blocker. `promo + promo` и `promo + real` разрешены: promo переводится в `completed`, пишется `treatment_program_events`, реальная программа остаётся active. |
+| `shared_phone_both_have_meaningful_data` | Одинаковый non-null телефон и «meaningful data» на обоих — как `assertSharedPhoneGuard` (**без** `message_log`; сумма счётчиков по остальным таблицам из merge guard).                                              |
 
 `mergeAllowed === false` при любом hard blocker; конфликтные поля всё равно возвращаются для compare UI.
 
@@ -278,6 +278,7 @@ Helper: `apps/webapp/src/infra/repos/pgCanonicalPlatformUser.ts`.
 Журнал операций **`/app/doctor/audit-log`**: бейдж с **`openAutoMergeConflictCount`** — число **строк** `auto_merge_conflict` с `resolved_at IS NULL` (дедуп по `conflict_key` даёт одну открытую строку на конфликт; `repeat_count` на бейдж не влияет). Legacy URL `?adminTab=audit-log` редиректит сюда.
 
 **Устойчивость UI и навигация (после hardening):**
+
 - `merge-preview` в `AdminMergeAccountsPanel`: предыдущий запрос отменяется через `AbortController`; ответы от устаревших запросов не применяются (монотонный счётчик запроса), чтобы при быстрой смене второй записи или опций не показывался чужой preview. Пока раздел merge в аккордеоне карточки **не открыт** (`suspendHeavyFetch`), кандидаты / preview / поиск второй записи не запрашиваются, активные запросы отменяются.
 - Поиск второй записи (`merge-user-search`): сеть/403 показываются отдельно от пустого списка; UUID второй стороны, выбранной только из поиска, дублируется отдельной опцией в `<select>` и строкой с полным UUID.
 - Страница `/app/doctor/clients/name-match-hints`: ссылки на карточку ведут на `/app/doctor/clients/<uuid>?scope=all`; при новом запуске отчёта предыдущие строки очищаются до прихода ответа; «Назад» — в список **все подписчики** (`scope=all`).

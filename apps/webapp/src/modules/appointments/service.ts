@@ -3,7 +3,7 @@
  * TODO(AUDIT-BACKLOG-021): заменить на канонический integrator API.
  */
 
-export type AppointmentRecordStatus = "created" | "confirmed" | "rescheduled" | "cancelled";
+export type AppointmentRecordStatus = 'created' | 'confirmed' | 'rescheduled' | 'cancelled';
 
 export type AppointmentSummary = {
   id: string;

@@ -1,6 +1,6 @@
-import { redirect } from "next/navigation";
-import { publicBookPaths } from "@/shared/publicBook/paths";
-import { PublicBookingPayClient } from "./PublicBookingPayClient";
+import { redirect } from 'next/navigation';
+import { publicBookPaths } from '@/shared/publicBook/paths';
+import { PublicBookingPayClient } from './PublicBookingPayClient';
 
 type PageProps = { searchParams: Promise<{ bookingId?: string; phone?: string }> };
 

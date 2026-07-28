@@ -1,36 +1,36 @@
 ---
-name: "Own Booking Engine — Stage 8: Specialist/admin calendar"
-overview: "Этап 8 закрыт: календарь врача (luxon+shadcn) на каноне `be_appointments` + blocks + free/busy слоты; список записей на канон; GCal зеркало `be:{appointmentId}`; lifecycle/оплаты/абонементы в карточке."
+name: 'Own Booking Engine — Stage 8: Specialist/admin calendar'
+overview: 'Этап 8 закрыт: календарь врача (luxon+shadcn) на каноне `be_appointments` + blocks + free/busy слоты; список записей на канон; GCal зеркало `be:{appointmentId}`; lifecycle/оплаты/абонементы в карточке.'
 gitBranch: initiative/own-booking-engine
 status: completed
 isProject: false
 todos:
   - id: s8-component
-    content: "Выбор календарного компонента; решение Q3 в SCOPE_DECISIONS (luxon+shadcn grid)"
+    content: 'Выбор календарного компонента; решение Q3 в SCOPE_DECISIONS (luxon+shadcn grid)'
     status: completed
   - id: s8-read
-    content: "Read-модель booking-calendar из be_appointments + schedule_blocks; tenant-safe агрегация"
+    content: 'Read-модель booking-calendar из be_appointments + schedule_blocks; tenant-safe агрегация'
     status: completed
   - id: s8-view
-    content: "Представление: записи, free/busy слоты, статусы, оплаты, абонементы, блокировки, lifecycle"
+    content: 'Представление: записи, free/busy слоты, статусы, оплаты, абонементы, блокировки, lifecycle'
     status: completed
   - id: s8-actions
-    content: "Действия: manual create/reschedule/cancel через booking-engine lifecycle + assertSlotAvailable"
+    content: 'Действия: manual create/reschedule/cancel через booking-engine lifecycle + assertSlotAvailable'
     status: completed
   - id: s8-filters
-    content: "Фильтры: specialist/branch/room/service; view day|week|month; includeFreeSlots"
+    content: 'Фильтры: specialist/branch/room/service; view day|week|month; includeFreeSlots'
     status: completed
   - id: s8-gcal
-    content: "GCal зеркало syncCanonicalAppointmentToCalendar; booking.* + payment_captured"
+    content: 'GCal зеркало syncCanonicalAppointmentToCalendar; booking.* + payment_captured'
     status: completed
   - id: s8-list
-    content: "Список /doctor/appointments на pgDoctorCanonicalAppointments; actions booking-engine API"
+    content: 'Список /doctor/appointments на pgDoctorCanonicalAppointments; actions booking-engine API'
     status: completed
   - id: s8-verify
-    content: "Тесты; typecheck/lint; api.md, DOCTOR_CABINET_NAVIGATION, LOG, ROADMAP, STAGE_CHECKLISTS"
+    content: 'Тесты; typecheck/lint; api.md, DOCTOR_CABINET_NAVIGATION, LOG, ROADMAP, STAGE_CHECKLISTS'
     status: completed
   - id: s8-audit
-    content: "Post-audit: dedupe intents, SSA duration для слотов, lifecycle UI, docs B-list"
+    content: 'Post-audit: dedupe intents, SSA duration для слотов, lifecycle UI, docs B-list'
     status: completed
 ---
 
@@ -40,15 +40,15 @@ todos:
 
 ## Итог поставки
 
-| Область | Реализация |
-|---------|------------|
-| Read-модель | `modules/booking-calendar` + `infra/repos/pgBookingCalendar.ts` |
-| API | `GET /api/doctor|admin/booking-engine/calendar`; manual appointments |
-| UI врача | `/app/doctor/calendar` — `DoctorBookingCalendarClient` + `DoctorCalendarEventPanel` |
-| Список записей | `/app/doctor/appointments` → `pgDoctorCanonicalAppointments` (`be_appointments`) |
-| Free/busy | `includeFreeSlots=1` при specialist+branch+service; SSA duration/room |
-| GCal | `syncCanonicalAppointmentToCalendar`, map key `be:{id}`; integrator `booking.*` + `payment_captured` |
-| Компонент | Q3: собственный grid luxon + shadcn (без FullCalendar) |
+| Область        | Реализация                                                                                           |
+| -------------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| Read-модель    | `modules/booking-calendar` + `infra/repos/pgBookingCalendar.ts`                                      |
+| API            | `GET /api/doctor                                                                                     | admin/booking-engine/calendar`; manual appointments |
+| UI врача       | `/app/doctor/calendar` — `DoctorBookingCalendarClient` + `DoctorCalendarEventPanel`                  |
+| Список записей | `/app/doctor/appointments` → `pgDoctorCanonicalAppointments` (`be_appointments`)                     |
+| Free/busy      | `includeFreeSlots=1` при specialist+branch+service; SSA duration/room                                |
+| GCal           | `syncCanonicalAppointmentToCalendar`, map key `be:{id}`; integrator `booking.*` + `payment_captured` |
+| Компонент      | Q3: собственный grid luxon + shadcn (без FullCalendar)                                               |
 
 ## Scope boundaries (факт)
 

@@ -18,11 +18,11 @@
  * Test base URL:    https://alfa.rbsuat.com/payment/rest/
  * Can be overridden via providerConfig.gatewayUrl.
  */
-import { createHash, timingSafeEqual } from "node:crypto";
-import type { PaymentProviderPort } from "@/modules/payments/providerPort";
-import type { PaymentProviderConfig } from "@/modules/payments/types";
+import { createHash, timingSafeEqual } from 'node:crypto';
+import type { PaymentProviderPort } from '@/modules/payments/providerPort';
+import type { PaymentProviderConfig } from '@/modules/payments/types';
 
-const PROD_BASE = "https://pay.alfabank.ru/payment/rest";
+const PROD_BASE = 'https://pay.alfabank.ru/payment/rest';
 
 function requireAlfabankCredentials(config?: PaymentProviderConfig): {
   login: string;
@@ -30,63 +30,57 @@ function requireAlfabankCredentials(config?: PaymentProviderConfig): {
   baseUrl: string;
 } {
   // login can be stored in merchantLogin or shopId; password in apiKey.
-  const login = (config?.merchantLogin ?? config?.shopId ?? "").trim();
-  const password = (config?.apiKey ?? "").trim();
-  if (!login || !password) throw new Error("alfabank_credentials_missing");
-  const baseUrl = (config?.gatewayUrl ?? PROD_BASE).replace(/\/$/, "");
+  const login = (config?.merchantLogin ?? config?.shopId ?? '').trim();
+  const password = (config?.apiKey ?? '').trim();
+  if (!login || !password) throw new Error('alfabank_credentials_missing');
+  const baseUrl = (config?.gatewayUrl ?? PROD_BASE).replace(/\/$/, '');
   return { login, password, baseUrl };
 }
 
 function buildFormBody(params: Record<string, string>): string {
   return Object.entries(params)
     .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-    .join("&");
+    .join('&');
 }
 
 function inspectAlfabankWebhook(headers: Headers, bodyText: string) {
-  const contentType = headers.get("content-type") ?? "";
+  const contentType = headers.get('content-type') ?? '';
   let payload: Record<string, unknown>;
-  if (contentType.includes("application/x-www-form-urlencoded")) {
+  if (contentType.includes('application/x-www-form-urlencoded')) {
     payload = Object.fromEntries(new URLSearchParams(bodyText).entries());
-  } else if (bodyText.trim().startsWith("{")) {
+  } else if (bodyText.trim().startsWith('{')) {
     payload = JSON.parse(bodyText) as Record<string, unknown>;
   } else {
     payload = Object.fromEntries(new URLSearchParams(bodyText).entries());
   }
-  const mdOrder = String(payload["mdOrder"] ?? payload["orderId"] ?? "");
-  const orderNumber = String(payload["orderNumber"] ?? "");
-  const orderStatus = Number(payload["orderStatus"] ?? payload["status"] ?? -1);
+  const mdOrder = String(payload['mdOrder'] ?? payload['orderId'] ?? '');
+  const orderNumber = String(payload['orderNumber'] ?? '');
+  const orderStatus = Number(payload['orderStatus'] ?? payload['status'] ?? -1);
   const eventType =
     orderStatus === 2
-      ? "payment.succeeded"
+      ? 'payment.succeeded'
       : orderStatus === 4 || orderStatus === 6
-        ? "payment.refunded"
+        ? 'payment.refunded'
         : `alfabank.status_${orderStatus}`;
-  const amountRaw = payload["amount"] ?? payload["depositedAmount"];
+  const amountRaw = payload['amount'] ?? payload['depositedAmount'];
   const amountMinor =
     amountRaw != null && !Number.isNaN(Number(amountRaw))
       ? Math.round(Number(amountRaw))
       : undefined;
   const idempotencyKey = orderNumber || mdOrder;
-  if (!idempotencyKey || !mdOrder) throw new Error("invalid_webhook_payload");
+  if (!idempotencyKey || !mdOrder) throw new Error('invalid_webhook_payload');
   return { idempotencyKey, eventType, payload, intentRef: mdOrder, amountMinor };
 }
 
 export function createAlfabankPaymentProvider(): PaymentProviderPort {
   return {
-    async createIntent({
-      amountMinor,
-      currency,
-      idempotencyKey,
-      metadata,
-      providerConfig,
-    }) {
+    async createIntent({ amountMinor, currency, idempotencyKey, metadata, providerConfig }) {
       const { login, password, baseUrl } = requireAlfabankCredentials(providerConfig);
 
       const returnUrl =
-        typeof metadata.returnUrl === "string" && metadata.returnUrl.trim()
+        typeof metadata.returnUrl === 'string' && metadata.returnUrl.trim()
           ? metadata.returnUrl.trim()
-          : "https://pay.alfabank.ru";
+          : 'https://pay.alfabank.ru';
 
       // Alfa-Bank expects amount in kopecks — matches our minor-unit convention
       const params: Record<string, string> = {
@@ -94,20 +88,21 @@ export function createAlfabankPaymentProvider(): PaymentProviderPort {
         password,
         orderNumber: idempotencyKey, // our idempotency key as order number
         amount: String(amountMinor),
-        currency: currency === "RUB" ? "643" : currency, // ISO 4217 numeric
+        currency: currency === 'RUB' ? '643' : currency, // ISO 4217 numeric
         returnUrl,
-        description: typeof metadata.description === "string" ? metadata.description : idempotencyKey,
+        description:
+          typeof metadata.description === 'string' ? metadata.description : idempotencyKey,
         jsonParams: JSON.stringify({ idempotencyKey, ...metadata }),
       };
 
       const res = await fetch(`${baseUrl}/register.do`, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: buildFormBody(params),
       });
 
       if (!res.ok) {
-        const text = await res.text().catch(() => "");
+        const text = await res.text().catch(() => '');
         throw new Error(`alfabank_create_failed:${res.status}:${text.slice(0, 200)}`);
       }
 
@@ -118,12 +113,12 @@ export function createAlfabankPaymentProvider(): PaymentProviderPort {
         formUrl?: string;
       };
 
-      if (body.errorCode && body.errorCode !== "0") {
-        throw new Error(`alfabank_create_error:${body.errorCode}:${body.errorMessage ?? ""}`);
+      if (body.errorCode && body.errorCode !== '0') {
+        throw new Error(`alfabank_create_error:${body.errorCode}:${body.errorMessage ?? ''}`);
       }
 
-      const providerIntentRef = body.orderId ?? "";
-      if (!providerIntentRef) throw new Error("alfabank_missing_order_id");
+      const providerIntentRef = body.orderId ?? '';
+      if (!providerIntentRef) throw new Error('alfabank_missing_order_id');
 
       return {
         providerIntentRef,
@@ -131,12 +126,7 @@ export function createAlfabankPaymentProvider(): PaymentProviderPort {
       };
     },
 
-    async refund({
-      providerIntentRef,
-      amountMinor,
-      idempotencyKey,
-      providerConfig,
-    }) {
+    async refund({ providerIntentRef, amountMinor, idempotencyKey, providerConfig }) {
       const { login, password, baseUrl } = requireAlfabankCredentials(providerConfig);
 
       const params: Record<string, string> = {
@@ -147,13 +137,13 @@ export function createAlfabankPaymentProvider(): PaymentProviderPort {
       };
 
       const res = await fetch(`${baseUrl}/refund.do`, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: buildFormBody(params),
       });
 
       if (!res.ok) {
-        const text = await res.text().catch(() => "");
+        const text = await res.text().catch(() => '');
         throw new Error(`alfabank_refund_failed:${res.status}:${text.slice(0, 200)}`);
       }
 
@@ -162,8 +152,8 @@ export function createAlfabankPaymentProvider(): PaymentProviderPort {
         errorMessage?: string;
       };
 
-      if (body.errorCode && body.errorCode !== "0") {
-        throw new Error(`alfabank_refund_error:${body.errorCode}:${body.errorMessage ?? ""}`);
+      if (body.errorCode && body.errorCode !== '0') {
+        throw new Error(`alfabank_refund_error:${body.errorCode}:${body.errorMessage ?? ''}`);
       }
 
       return {
@@ -197,18 +187,18 @@ export function createAlfabankPaymentProvider(): PaymentProviderPort {
     verifyWebhook({ headers, bodyText, webhookSecret }) {
       const inspected = inspectAlfabankWebhook(headers, bodyText);
       const payload = inspected.payload;
-      const mdOrder = inspected.intentRef ?? "";
-      const checksumField = String(payload["checksum"] ?? "");
+      const mdOrder = inspected.intentRef ?? '';
+      const checksumField = String(payload['checksum'] ?? '');
 
       if (checksumField && webhookSecret.trim()) {
         // Alfa checksum: SHA-256(mdOrder + secret)
-        const expected = createHash("sha256")
+        const expected = createHash('sha256')
           .update(mdOrder + webhookSecret.trim())
-          .digest("hex");
+          .digest('hex');
         const a = Buffer.from(checksumField.toLowerCase());
         const b = Buffer.from(expected.toLowerCase());
         if (a.length !== b.length || !timingSafeEqual(a, b)) {
-          throw new Error("invalid_webhook_signature");
+          throw new Error('invalid_webhook_signature');
         }
       }
       // If no checksum field configured — accept (caller must verify via getOrderStatusExtended)

@@ -1,4 +1,4 @@
-import type { Pool, PoolClient } from "pg";
+import type { Pool, PoolClient } from 'pg';
 import {
   applyCurrentDbPrincipalToConnection,
   applyCurrentDbPrincipalToTransaction,
@@ -8,42 +8,50 @@ import {
   setDbOperationalRuntimeRole,
   type DbPrincipal,
   type DbPrincipalApplyOptions,
-} from "@bersoncare/db-principal";
+} from '@bersoncare/db-principal';
 
-const allowedLockedInfraSources = new Set(["media-worker:tick"]);
+const allowedLockedInfraSources = new Set(['media-worker:tick']);
 
 function getDbPrincipalApplyOptions(): DbPrincipalApplyOptions {
   return buildDbPrincipalApplyOptionsFromEnv(process.env);
 }
 
 function assertAllowedMediaWorkerPrincipal(principal: DbPrincipal): void {
-  const source = principal.source ?? "";
+  const source = principal.source ?? '';
   switch (principal.kind) {
-    case "organization":
-      throw new Error("DB organization principal is not allowed on media-worker pool in locked mode");
-    case "infra":
+    case 'organization':
+      throw new Error(
+        'DB organization principal is not allowed on media-worker pool in locked mode',
+      );
+    case 'infra':
       if (allowedLockedInfraSources.has(source)) {
         return;
       }
-      throw new Error(`DB infra principal source is not allowed on media-worker pool in locked mode: ${source || "missing"}`);
-    case "bootstrap":
-      throw new Error(`DB bootstrap principal source is not allowed on media-worker pool in locked mode: ${source || "missing"}`);
-    case "patient":
-      throw new Error("DB patient principal is not allowed on media-worker pool in locked mode");
-    case "staff":
-      throw new Error("DB staff principal is not allowed on media-worker pool in locked mode");
-    case "integrator":
-      throw new Error("DB integrator principal is not allowed on media-worker pool in locked mode");
+      throw new Error(
+        `DB infra principal source is not allowed on media-worker pool in locked mode: ${source || 'missing'}`,
+      );
+    case 'bootstrap':
+      throw new Error(
+        `DB bootstrap principal source is not allowed on media-worker pool in locked mode: ${source || 'missing'}`,
+      );
+    case 'patient':
+      throw new Error('DB patient principal is not allowed on media-worker pool in locked mode');
+    case 'staff':
+      throw new Error('DB staff principal is not allowed on media-worker pool in locked mode');
+    case 'integrator':
+      throw new Error('DB integrator principal is not allowed on media-worker pool in locked mode');
   }
 }
 
 export function assertMediaWorkerLockedPrincipalClassified(options: DbPrincipalApplyOptions): void {
-  if (options.mode !== "locked") {
+  if (options.mode !== 'locked') {
     return;
   }
   const principal = getCurrentDbPrincipal();
   if (!principal) {
-    throw new Error("DB principal context is required before media-worker scoped DB access in locked mode");
+    throw new Error(
+      'DB principal context is required before media-worker scoped DB access in locked mode',
+    );
   }
   assertAllowedMediaWorkerPrincipal(principal);
 }
@@ -53,8 +61,8 @@ async function prepareMediaWorkerClient(
   options: DbPrincipalApplyOptions,
 ): Promise<void> {
   await applyCurrentDbPrincipalToConnection(client, options);
-  if (options.mode === "locked") {
-    await setDbOperationalRuntimeRole(client, "app_operational_media_worker");
+  if (options.mode === 'locked') {
+    await setDbOperationalRuntimeRole(client, 'app_operational_media_worker');
   }
 }
 
@@ -63,8 +71,8 @@ async function prepareMediaWorkerTransactionClient(
   options: DbPrincipalApplyOptions,
 ): Promise<void> {
   await applyCurrentDbPrincipalToTransaction(client, options);
-  if (options.mode === "locked") {
-    await setDbOperationalRuntimeRole(client, "app_operational_media_worker");
+  if (options.mode === 'locked') {
+    await setDbOperationalRuntimeRole(client, 'app_operational_media_worker');
   }
 }
 
@@ -119,20 +127,22 @@ async function releasePreparedMediaWorkerClientAfterSetupFailure(
   }
 }
 
-export async function startMediaWorkerTransaction(pool: Pool): Promise<MediaWorkerTransactionHandle> {
+export async function startMediaWorkerTransaction(
+  pool: Pool,
+): Promise<MediaWorkerTransactionHandle> {
   const principalApplyOptions = getDbPrincipalApplyOptions();
   assertMediaWorkerLockedPrincipalClassified(principalApplyOptions);
   const client = await pool.connect();
   let transactionStarted = false;
   try {
     await prepareMediaWorkerClient(client, principalApplyOptions);
-    await client.query("BEGIN");
+    await client.query('BEGIN');
     transactionStarted = true;
     await prepareMediaWorkerTransactionClient(client, principalApplyOptions);
   } catch (err) {
     if (transactionStarted) {
       try {
-        await client.query("ROLLBACK");
+        await client.query('ROLLBACK');
       } catch {
         /* preserve original setup error */
       }
@@ -143,10 +153,10 @@ export async function startMediaWorkerTransaction(pool: Pool): Promise<MediaWork
   return {
     client,
     commit: async () => {
-      await client.query("COMMIT");
+      await client.query('COMMIT');
     },
     rollback: async () => {
-      await client.query("ROLLBACK");
+      await client.query('ROLLBACK');
     },
     release: () => releasePreparedMediaWorkerClient(client, principalApplyOptions),
   };

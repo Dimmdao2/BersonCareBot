@@ -53,6 +53,7 @@
 ## Обязательные правила проекта для всех исполнителей
 
 Перед любой реализацией прочитать и соблюдать (приоритет — always-apply):
+
 - `.cursor/rules/clean-architecture-module-isolation.mdc` (порты/DI, Drizzle для новых таблиц, тонкие route-хендлеры).
 - `.cursor/rules/000-critical-integration-config-in-db.mdc` + `.cursor/rules/runtime-config-env-vs-db.mdc` + `.cursor/rules/system-settings-integrator-mirror.mdc` (платёжные ключи/настройки — в `system_settings`, не в ENV).
 - `.cursor/rules/plan-authoring-execution-standard.mdc` (как оформлять планы, DoD, scope boundaries, LOG).

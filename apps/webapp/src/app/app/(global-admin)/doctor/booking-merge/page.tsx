@@ -1,6 +1,6 @@
-import { requirePlatformOperationsPage } from "@/app-layer/guards/requireRole";
-import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
-import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
+import { requirePlatformOperationsPage } from '@/app-layer/guards/requireRole';
+import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
+import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 
 export default async function DoctorBookingMergePage() {
   const session = await requirePlatformOperationsPage();

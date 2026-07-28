@@ -1,42 +1,42 @@
 #!/usr/bin/env node
-import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const repoRoot = resolve(process.cwd());
-const pgBin = process.env.PG_BINDIR?.trim() || "/usr/lib/postgresql/16/bin";
-const scratchRoot = mkdtempSync(join(tmpdir(), "bcb-integrator-smtp-acl-"));
-const dataDir = join(scratchRoot, "data");
-const socketDir = join(scratchRoot, "socket");
-const port = "55432";
+const pgBin = process.env.PG_BINDIR?.trim() || '/usr/lib/postgresql/16/bin';
+const scratchRoot = mkdtempSync(join(tmpdir(), 'bcb-integrator-smtp-acl-'));
+const dataDir = join(scratchRoot, 'data');
+const socketDir = join(scratchRoot, 'socket');
+const port = '55432';
 let started = false;
 
 const migrationPath = resolve(
   repoRoot,
-  "apps/webapp/db/drizzle-migrations/0235_integrator_smtp_restricted_accessor.sql",
+  'apps/webapp/db/drizzle-migrations/0235_integrator_smtp_restricted_accessor.sql',
 );
 const deliveryAuditMigrationPath = resolve(
   repoRoot,
   // 0269 -> 0268: closing the unused 0267 reservation shifts this unchanged audit migration down.
-  "apps/webapp/db/drizzle-migrations/0268_integrator_global_delivery_attempt_audit.sql",
+  'apps/webapp/db/drizzle-migrations/0268_integrator_global_delivery_attempt_audit.sql',
 );
-const overlayPath = resolve(repoRoot, "deploy/postgres/integrator-server-runtime-config.sql");
-const runtimeProbePath = join(scratchRoot, "smtp-runtime-path.probe.mts");
-readFileSync(migrationPath, "utf8");
-readFileSync(deliveryAuditMigrationPath, "utf8");
-readFileSync(overlayPath, "utf8");
+const overlayPath = resolve(repoRoot, 'deploy/postgres/integrator-server-runtime-config.sql');
+const runtimeProbePath = join(scratchRoot, 'smtp-runtime-path.probe.mts');
+readFileSync(migrationPath, 'utf8');
+readFileSync(deliveryAuditMigrationPath, 'utf8');
+readFileSync(overlayPath, 'utf8');
 
 function command(executable, args, options = {}) {
   const result = spawnSync(executable, args, {
     cwd: repoRoot,
-    encoding: "utf8",
+    encoding: 'utf8',
     env: options.env ?? process.env,
     input: options.input,
   });
   if (result.status !== 0) {
-    const diagnostic = `${result.stderr ?? ""}\n${result.stdout ?? ""}`.trim().slice(-6000);
+    const diagnostic = `${result.stderr ?? ''}\n${result.stdout ?? ''}`.trim().slice(-6000);
     throw new Error(
       `smoke-integrator-smtp-restricted-access: ${executable} failed (${result.status})\n${diagnostic}`,
     );
@@ -48,40 +48,37 @@ function psqlEnv() {
     ...process.env,
     PGHOST: socketDir,
     PGPORT: port,
-    PGUSER: "postgres",
-    PGDATABASE: "postgres",
+    PGUSER: 'postgres',
+    PGDATABASE: 'postgres',
   };
 }
 
 function sql(text) {
-  command(
-    join(pgBin, "psql"),
-    ["-X", "-v", "ON_ERROR_STOP=1", "-qAt"],
-    { env: psqlEnv(), input: text },
-  );
+  command(join(pgBin, 'psql'), ['-X', '-v', 'ON_ERROR_STOP=1', '-qAt'], {
+    env: psqlEnv(),
+    input: text,
+  });
 }
 
 function file(path, variables = []) {
-  command(
-    join(pgBin, "psql"),
-    ["-X", "-v", "ON_ERROR_STOP=1", "-qAt", ...variables, "-f", path],
-    { env: psqlEnv() },
-  );
+  command(join(pgBin, 'psql'), ['-X', '-v', 'ON_ERROR_STOP=1', '-qAt', ...variables, '-f', path], {
+    env: psqlEnv(),
+  });
 }
 
 function runtimeDatabaseUrl() {
-  const url = new URL("postgresql://smtp_runtime@localhost/postgres");
-  url.searchParams.set("host", socketDir);
-  url.searchParams.set("port", port);
+  const url = new URL('postgresql://smtp_runtime@localhost/postgres');
+  url.searchParams.set('host', socketDir);
+  url.searchParams.set('port', port);
   return url.toString();
 }
 
 function runRuntimePathProbe() {
   const dbClientUrl = pathToFileURL(
-    resolve(repoRoot, "apps/integrator/src/infra/db/client.ts"),
+    resolve(repoRoot, 'apps/integrator/src/infra/db/client.ts'),
   ).href;
   const smtpResolverUrl = pathToFileURL(
-    resolve(repoRoot, "apps/integrator/src/config/smtpOutbound.ts"),
+    resolve(repoRoot, 'apps/integrator/src/config/smtpOutbound.ts'),
   ).href;
   writeFileSync(
     runtimeProbePath,
@@ -101,18 +98,18 @@ try {
 `,
     { mode: 0o600 },
   );
-  command("pnpm", ["--dir", "apps/integrator", "exec", "tsx", runtimeProbePath], {
+  command('pnpm', ['--dir', 'apps/integrator', 'exec', 'tsx', runtimeProbePath], {
     env: {
       ...process.env,
-      NODE_ENV: "test",
+      NODE_ENV: 'test',
       DATABASE_URL: runtimeDatabaseUrl(),
-      DATABASE_URL_DIAGNOSTIC: "",
-      DATABASE_URL_DELIVERY_WORKER: "",
-      DATABASE_URL_SCHEDULER: "",
-      DB_PRINCIPAL_CONTEXT_MODE: "locked",
-      DB_PRINCIPAL_SIGNING_SECRET: "smtp-runtime-disposable-signing-secret",
-      BOOKING_URL: "http://127.0.0.1:4200",
-      LOG_LEVEL: "silent",
+      DATABASE_URL_DIAGNOSTIC: '',
+      DATABASE_URL_DELIVERY_WORKER: '',
+      DATABASE_URL_SCHEDULER: '',
+      DB_PRINCIPAL_CONTEXT_MODE: 'locked',
+      DB_PRINCIPAL_SIGNING_SECRET: 'smtp-runtime-disposable-signing-secret',
+      BOOKING_URL: 'http://127.0.0.1:4200',
+      LOG_LEVEL: 'silent',
     },
   });
 }
@@ -346,23 +343,23 @@ SELECT 1 / EXISTS (
 
 try {
   mkdirSync(socketDir, { mode: 0o700 });
-  command(join(pgBin, "initdb"), [
-    "-D",
+  command(join(pgBin, 'initdb'), [
+    '-D',
     dataDir,
-    "--no-locale",
-    "--encoding=UTF8",
-    "--auth=trust",
-    "--username=postgres",
+    '--no-locale',
+    '--encoding=UTF8',
+    '--auth=trust',
+    '--username=postgres',
   ]);
-  command(join(pgBin, "pg_ctl"), [
-    "-D",
+  command(join(pgBin, 'pg_ctl'), [
+    '-D',
     dataDir,
-    "-l",
-    join(scratchRoot, "postgres.log"),
-    "-o",
+    '-l',
+    join(scratchRoot, 'postgres.log'),
+    '-o',
     `-k ${socketDir} -p ${port} -h ''`,
-    "-w",
-    "start",
+    '-w',
+    'start',
   ]);
   started = true;
 
@@ -371,18 +368,18 @@ try {
     file(migrationPath);
     file(deliveryAuditMigrationPath);
     sql(injectStaleAcl);
-    file(overlayPath, ["-v", "integrator_runtime_config_role=smtp_runtime"]);
+    file(overlayPath, ['-v', 'integrator_runtime_config_role=smtp_runtime']);
     sql(proof);
     runRuntimePathProbe();
   }
 
   console.log(
-    "smoke-integrator-smtp-restricted-access: OK (locked runtime path, exact ACL, role denials, idempotent reapply)",
+    'smoke-integrator-smtp-restricted-access: OK (locked runtime path, exact ACL, role denials, idempotent reapply)',
   );
 } finally {
   if (started) {
-    spawnSync(join(pgBin, "pg_ctl"), ["-D", dataDir, "-m", "immediate", "-w", "stop"], {
-      encoding: "utf8",
+    spawnSync(join(pgBin, 'pg_ctl'), ['-D', dataDir, '-m', 'immediate', '-w', 'stop'], {
+      encoding: 'utf8',
     });
   }
   rmSync(scratchRoot, { recursive: true, force: true });

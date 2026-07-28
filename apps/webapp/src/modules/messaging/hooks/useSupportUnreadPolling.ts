@@ -1,23 +1,23 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
+import { useEffect, useState } from 'react';
 
-const DOCTOR_SUPPORT_UNREAD_REFRESH_EVENT = "bersoncare:doctor-support-unread-refresh";
-const PATIENT_SUPPORT_UNREAD_REFRESH_EVENT = "bersoncare:patient-support-unread-refresh";
-const PATIENT_NOTIFICATION_UNREAD_REFRESH_EVENT = "bersoncare:patient-notification-unread-refresh";
+const DOCTOR_SUPPORT_UNREAD_REFRESH_EVENT = 'bersoncare:doctor-support-unread-refresh';
+const PATIENT_SUPPORT_UNREAD_REFRESH_EVENT = 'bersoncare:patient-support-unread-refresh';
+const PATIENT_NOTIFICATION_UNREAD_REFRESH_EVENT = 'bersoncare:patient-notification-unread-refresh';
 
 export function notifyDoctorSupportUnreadCountChanged() {
-  if (typeof window === "undefined") return;
+  if (typeof window === 'undefined') return;
   window.dispatchEvent(new Event(DOCTOR_SUPPORT_UNREAD_REFRESH_EVENT));
 }
 
 export function notifyPatientSupportUnreadCountChanged() {
-  if (typeof window === "undefined") return;
+  if (typeof window === 'undefined') return;
   window.dispatchEvent(new Event(PATIENT_SUPPORT_UNREAD_REFRESH_EVENT));
 }
 
 export function notifyPatientNotificationUnreadCountChanged() {
-  if (typeof window === "undefined") return;
+  if (typeof window === 'undefined') return;
   window.dispatchEvent(new Event(PATIENT_NOTIFICATION_UNREAD_REFRESH_EVENT));
 }
 
@@ -28,11 +28,11 @@ export function usePatientSupportUnreadCount(enabled = true) {
     if (!enabled) return;
     let cancelled = false;
     const run = async () => {
-      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
       try {
-        const res = await fetch("/api/patient/messages/unread-count");
+        const res = await fetch('/api/patient/messages/unread-count');
         const j = (await res.json()) as { ok?: boolean; unreadCount?: number };
-        if (!cancelled && j.ok && typeof j.unreadCount === "number") setCount(j.unreadCount);
+        if (!cancelled && j.ok && typeof j.unreadCount === 'number') setCount(j.unreadCount);
       } catch {
         /* ignore */
       }
@@ -40,14 +40,14 @@ export function usePatientSupportUnreadCount(enabled = true) {
     void run();
     const t = setInterval(run, 20000);
     const onVis = () => {
-      if (document.visibilityState === "visible") void run();
+      if (document.visibilityState === 'visible') void run();
     };
-    document.addEventListener("visibilitychange", onVis);
+    document.addEventListener('visibilitychange', onVis);
     window.addEventListener(PATIENT_SUPPORT_UNREAD_REFRESH_EVENT, run);
     return () => {
       cancelled = true;
       clearInterval(t);
-      document.removeEventListener("visibilitychange", onVis);
+      document.removeEventListener('visibilitychange', onVis);
       window.removeEventListener(PATIENT_SUPPORT_UNREAD_REFRESH_EVENT, run);
     };
   }, [enabled]);
@@ -60,11 +60,11 @@ export function usePatientNotificationUnreadCount() {
   useEffect(() => {
     let cancelled = false;
     const run = async () => {
-      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
       try {
-        const res = await fetch("/api/patient/notifications/inbox");
+        const res = await fetch('/api/patient/notifications/inbox');
         const j = (await res.json()) as { ok?: boolean; unreadCount?: number };
-        if (!cancelled && j.ok && typeof j.unreadCount === "number") setCount(j.unreadCount);
+        if (!cancelled && j.ok && typeof j.unreadCount === 'number') setCount(j.unreadCount);
       } catch {
         /* ignore */
       }
@@ -72,14 +72,14 @@ export function usePatientNotificationUnreadCount() {
     void run();
     const t = setInterval(run, 20000);
     const onVis = () => {
-      if (document.visibilityState === "visible") void run();
+      if (document.visibilityState === 'visible') void run();
     };
-    document.addEventListener("visibilitychange", onVis);
+    document.addEventListener('visibilitychange', onVis);
     window.addEventListener(PATIENT_NOTIFICATION_UNREAD_REFRESH_EVENT, run);
     return () => {
       cancelled = true;
       clearInterval(t);
-      document.removeEventListener("visibilitychange", onVis);
+      document.removeEventListener('visibilitychange', onVis);
       window.removeEventListener(PATIENT_NOTIFICATION_UNREAD_REFRESH_EVENT, run);
     };
   }, []);
@@ -97,11 +97,11 @@ export function useDoctorSupportUnreadCountPolling(enabled = true) {
     if (!enabled) return;
     let cancelled = false;
     const run = async () => {
-      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
       try {
-        const res = await fetch("/api/doctor/messages/unread-count");
+        const res = await fetch('/api/doctor/messages/unread-count');
         const j = (await res.json()) as { ok?: boolean; unreadCount?: number };
-        if (!cancelled && j.ok && typeof j.unreadCount === "number") setCount(j.unreadCount);
+        if (!cancelled && j.ok && typeof j.unreadCount === 'number') setCount(j.unreadCount);
       } catch {
         /* ignore */
       }
@@ -109,14 +109,14 @@ export function useDoctorSupportUnreadCountPolling(enabled = true) {
     void run();
     const t = setInterval(run, 20000);
     const onVis = () => {
-      if (document.visibilityState === "visible") void run();
+      if (document.visibilityState === 'visible') void run();
     };
-    document.addEventListener("visibilitychange", onVis);
+    document.addEventListener('visibilitychange', onVis);
     window.addEventListener(DOCTOR_SUPPORT_UNREAD_REFRESH_EVENT, run);
     return () => {
       cancelled = true;
       clearInterval(t);
-      document.removeEventListener("visibilitychange", onVis);
+      document.removeEventListener('visibilitychange', onVis);
       window.removeEventListener(DOCTOR_SUPPORT_UNREAD_REFRESH_EVENT, run);
     };
   }, [enabled]);

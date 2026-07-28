@@ -1,4 +1,8 @@
-import type { DeliveryAdapter, DeliverySendResult, OutgoingIntent } from '../../kernel/contracts/index.js';
+import type {
+  DeliveryAdapter,
+  DeliverySendResult,
+  OutgoingIntent,
+} from '../../kernel/contracts/index.js';
 import type { SmsClient } from './types.js';
 import { readChannelWithDefault } from '../../infra/adapters/channelRouting.js';
 

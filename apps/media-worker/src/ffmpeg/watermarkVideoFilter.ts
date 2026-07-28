@@ -19,7 +19,7 @@ export function buildDrawtextWatermarkSuffix(params: WatermarkDrawtextParams): s
 }
 
 function posixSlash(p: string): string {
-  return p.replace(/\\/g, "/");
+  return p.replace(/\\/g, '/');
 }
 
 /** Plain-ASCII line for watermark file (UUID + label only — no PII). */
@@ -27,7 +27,10 @@ export function watermarkTextLine(mediaId: string): string {
   return `id ${mediaId}\n`;
 }
 
-export function composeHlsVideoFilter(baseScaleFilter: string, watermark: WatermarkDrawtextParams | null): string {
+export function composeHlsVideoFilter(
+  baseScaleFilter: string,
+  watermark: WatermarkDrawtextParams | null,
+): string {
   if (!watermark) return baseScaleFilter;
   return `${baseScaleFilter}${buildDrawtextWatermarkSuffix(watermark)}`;
 }

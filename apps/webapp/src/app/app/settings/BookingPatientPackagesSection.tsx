@@ -1,12 +1,18 @@
-"use client";
+'use client';
 
-import { useState, useTransition } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Label } from "@/shared/ui/doctor/primitives/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/doctor/primitives/select";
-import { apiJson } from "@/shared/lib/apiJson";
+import { useState, useTransition } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/shared/ui/doctor/primitives/select';
+import { apiJson } from '@/shared/lib/apiJson';
 
 type Props = {
   apiBase?: string;
@@ -17,25 +23,25 @@ type Props = {
 };
 
 const PACKAGE_STATUS_LABELS: Record<string, string> = {
-  draft: "Черновик",
-  active: "Активен",
-  expired: "Истёк",
-  paid: "Оплачен",
+  draft: 'Черновик',
+  active: 'Активен',
+  expired: 'Истёк',
+  paid: 'Оплачен',
 };
 
 const ERROR_LABELS: Record<string, string> = {
-  platform_user_id_required: "Укажите ID пациента.",
-  catalog_package_required: "Выберите абонемент из каталога.",
-  invalid_form: "Проверьте форму: цена и состав абонемента обязательны.",
-  invalid_body: "Некорректные данные запроса.",
-  catalog_not_found: "Абонемент не найден в каталоге.",
-  payments_disabled: "Оплата отключена — абонемент создан, но ссылку на оплату выставить нельзя.",
-  payment_provider_unavailable: "Платёжный провайдер не настроен — абонемент создан без онлайн-оплаты.",
-  payments_unavailable: "Модуль оплаты недоступен.",
-  failed: "Не удалось выполнить операцию.",
-  response_parse_failed: "Ошибка ответа сервера.",
+  platform_user_id_required: 'Укажите ID пациента.',
+  catalog_package_required: 'Выберите абонемент из каталога.',
+  invalid_form: 'Проверьте форму: цена и состав абонемента обязательны.',
+  invalid_body: 'Некорректные данные запроса.',
+  catalog_not_found: 'Абонемент не найден в каталоге.',
+  payments_disabled: 'Оплата отключена — абонемент создан, но ссылку на оплату выставить нельзя.',
+  payment_provider_unavailable:
+    'Платёжный провайдер не настроен — абонемент создан без онлайн-оплаты.',
+  payments_unavailable: 'Модуль оплаты недоступен.',
+  failed: 'Не удалось выполнить операцию.',
+  response_parse_failed: 'Ошибка ответа сервера.',
 };
-
 
 function errorLabel(code: string | null): string | null {
   if (!code) return null;
@@ -43,26 +49,31 @@ function errorLabel(code: string | null): string | null {
 }
 
 export function BookingPatientPackagesSection({
-  apiBase = "/api/admin/booking-engine/patient-packages",
-  packagesApi = "/api/admin/booking-engine/packages",
-  servicesApi = "/api/admin/booking-engine/services",
-  platformUserId: platformUserIdProp = "",
+  apiBase = '/api/admin/booking-engine/patient-packages',
+  packagesApi = '/api/admin/booking-engine/packages',
+  servicesApi = '/api/admin/booking-engine/services',
+  platformUserId: platformUserIdProp = '',
 }: Props) {
-  const [platformUserIdLocal, setPlatformUserIdLocal] = useState("");
+  const [platformUserIdLocal, setPlatformUserIdLocal] = useState('');
   const platformUserId = platformUserIdProp.trim() || platformUserIdLocal;
   const hidePatientIdField = Boolean(platformUserIdProp.trim());
-  const [catalogId, setCatalogId] = useState("");
-  const [manualNotes, setManualNotes] = useState("");
-  const [catalogNotes, setCatalogNotes] = useState("");
-  const [priceRub, setPriceRub] = useState("");
-  const [serviceId, setServiceId] = useState("");
-  const [quantity, setQuantity] = useState("1");
+  const [catalogId, setCatalogId] = useState('');
+  const [manualNotes, setManualNotes] = useState('');
+  const [catalogNotes, setCatalogNotes] = useState('');
+  const [priceRub, setPriceRub] = useState('');
+  const [serviceId, setServiceId] = useState('');
+  const [quantity, setQuantity] = useState('1');
   const [items, setItems] = useState<Array<{ serviceId: string; quantity: number }>>([]);
   const [services, setServices] = useState<Array<{ id: string; title: string }>>([]);
   const [catalog, setCatalog] = useState<Array<{ id: string; title: string }>>([]);
   const [resultId, setResultId] = useState<string | null>(null);
   const [listed, setListed] = useState<
-    Array<{ id: string; title: string; status: string; balance: { items: Array<{ remaining: number }> } }>
+    Array<{
+      id: string;
+      title: string;
+      status: string;
+      balance: { items: Array<{ remaining: number }> };
+    }>
   >([]);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -92,7 +103,7 @@ export function BookingPatientPackagesSection({
   function loadPatientPackages() {
     setError(null);
     if (!platformUserId.trim()) {
-      setError("platform_user_id_required");
+      setError('platform_user_id_required');
       return;
     }
     startTransition(async () => {
@@ -109,7 +120,7 @@ export function BookingPatientPackagesSection({
         }>(`${apiBase}?platformUserId=${encodeURIComponent(platformUserId.trim())}`);
         setListed(json.packages ?? []);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "failed");
+        setError(e instanceof Error ? e.message : 'failed');
       }
     });
   }
@@ -117,37 +128,40 @@ export function BookingPatientPackagesSection({
   function offerCatalog() {
     setError(null);
     if (!platformUserId.trim()) {
-      setError("platform_user_id_required");
+      setError('platform_user_id_required');
       return;
     }
     if (!catalogId) {
-      setError("catalog_package_required");
+      setError('catalog_package_required');
       return;
     }
     startTransition(async () => {
       try {
-        const json = await apiJson<{ ok?: boolean; package?: { id: string }; error?: string }>(apiBase, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            kind: "catalog",
-            platformUserId: platformUserId.trim(),
-            subscriptionPackageId: catalogId,
-            notes: catalogNotes.trim() || undefined,
-          }),
-        });
+        const json = await apiJson<{ ok?: boolean; package?: { id: string }; error?: string }>(
+          apiBase,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              kind: 'catalog',
+              platformUserId: platformUserId.trim(),
+              subscriptionPackageId: catalogId,
+              notes: catalogNotes.trim() || undefined,
+            }),
+          },
+        );
         setResultId(json.package?.id ?? null);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "failed");
+        setError(e instanceof Error ? e.message : 'failed');
       }
     });
   }
 
   function createManual() {
     setError(null);
-    const priceMinor = Math.round(Number.parseFloat(priceRub.replace(",", ".")) * 100);
+    const priceMinor = Math.round(Number.parseFloat(priceRub.replace(',', '.')) * 100);
     if (!platformUserId.trim() || items.length === 0 || !Number.isFinite(priceMinor)) {
-      setError("invalid_form");
+      setError('invalid_form');
       return;
     }
     startTransition(async () => {
@@ -157,10 +171,10 @@ export function BookingPatientPackagesSection({
           package?: { id: string; paymentIntentId?: string };
           error?: string;
         }>(apiBase, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            kind: "manual",
+            kind: 'manual',
             platformUserId: platformUserId.trim(),
             notes: manualNotes.trim() || undefined,
             priceMinor,
@@ -169,7 +183,7 @@ export function BookingPatientPackagesSection({
         });
         setResultId(json.package?.id ?? null);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "failed");
+        setError(e instanceof Error ? e.message : 'failed');
       }
     });
   }
@@ -193,22 +207,28 @@ export function BookingPatientPackagesSection({
             />
           </>
         ) : null}
-        <Button type="button" variant="outline" size="sm" disabled={pending} onClick={loadPatientPackages}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={pending}
+          onClick={loadPatientPackages}
+        >
           Абонементы пациента
         </Button>
         {listed.length > 0 ? (
           <ul className="text-sm">
             {listed.map((p) => (
               <li key={p.id}>
-                {p.title} · {PACKAGE_STATUS_LABELS[p.status] ?? p.status} · остаток{" "}
-                {p.balance.items.map((it) => it.remaining).join(", ")}
+                {p.title} · {PACKAGE_STATUS_LABELS[p.status] ?? p.status} · остаток{' '}
+                {p.balance.items.map((it) => it.remaining).join(', ')}
               </li>
             ))}
           </ul>
         ) : null}
         <div className="border-t pt-3">
           <p className="mb-2 text-sm font-medium">Из каталога</p>
-          <Select value={catalogId} onValueChange={(v) => setCatalogId(v ?? "")}>
+          <Select value={catalogId} onValueChange={(v) => setCatalogId(v ?? '')}>
             <SelectTrigger className="mb-2 w-full">
               <SelectValue />
             </SelectTrigger>
@@ -238,9 +258,14 @@ export function BookingPatientPackagesSection({
             value={manualNotes}
             onChange={(e) => setManualNotes(e.target.value)}
           />
-          <Input className="mt-2" placeholder="Цена ₽" value={priceRub} onChange={(e) => setPriceRub(e.target.value)} />
+          <Input
+            className="mt-2"
+            placeholder="Цена ₽"
+            value={priceRub}
+            onChange={(e) => setPriceRub(e.target.value)}
+          />
           <div className="mt-2 flex gap-2">
-            <Select value={serviceId} onValueChange={(v) => setServiceId(v ?? "")}>
+            <Select value={serviceId} onValueChange={(v) => setServiceId(v ?? '')}>
               <SelectTrigger className="flex-1">
                 <SelectValue />
               </SelectTrigger>
@@ -253,7 +278,12 @@ export function BookingPatientPackagesSection({
                 ))}
               </SelectContent>
             </Select>
-            <Input className="w-16" value={quantity} onChange={(e) => setQuantity(e.target.value)} aria-label="Кол-во" />
+            <Input
+              className="w-16"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+              aria-label="Кол-во"
+            />
             <Button type="button" variant="outline" size="sm" onClick={addItem}>
               +
             </Button>

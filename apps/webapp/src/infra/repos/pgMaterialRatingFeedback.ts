@@ -1,12 +1,12 @@
-import { and, desc, eq } from "drizzle-orm";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { patientContentRatingFeedback } from "../../../db/schema/patientContentRatingFeedback";
-import { platformUsers } from "../../../db/schema/schema";
-import type { MaterialRatingFeedbackPort } from "@/modules/material-rating-feedback/ports";
+import { and, desc, eq } from 'drizzle-orm';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { patientContentRatingFeedback } from '../../../db/schema/patientContentRatingFeedback';
+import { platformUsers } from '../../../db/schema/schema';
+import type { MaterialRatingFeedbackPort } from '@/modules/material-rating-feedback/ports';
 import {
   MATERIAL_RATING_FEEDBACK_REASON_CODES,
   type MaterialRatingFeedbackReasonCode,
-} from "@/modules/material-rating-feedback/reasonCodes";
+} from '@/modules/material-rating-feedback/reasonCodes';
 
 function emptyReasonCounts(): Record<MaterialRatingFeedbackReasonCode, number> {
   return MATERIAL_RATING_FEEDBACK_REASON_CODES.reduce(
@@ -33,7 +33,7 @@ export function createPgMaterialRatingFeedbackPort(): MaterialRatingFeedbackPort
           comment: input.comment,
         })
         .returning({ id: patientContentRatingFeedback.id });
-      if (!row) throw new Error("patient_content_rating_feedback insert returned no row");
+      if (!row) throw new Error('patient_content_rating_feedback insert returned no row');
       return { id: row.id };
     },
 
@@ -42,10 +42,12 @@ export function createPgMaterialRatingFeedbackPort(): MaterialRatingFeedbackPort
       const aggRows = await db
         .select({ reasonCodes: patientContentRatingFeedback.reasonCodes })
         .from(patientContentRatingFeedback)
-        .where(and(
-          eq(patientContentRatingFeedback.organizationId, organizationId),
-          eq(patientContentRatingFeedback.contentPageId, contentPageId),
-        ));
+        .where(
+          and(
+            eq(patientContentRatingFeedback.organizationId, organizationId),
+            eq(patientContentRatingFeedback.contentPageId, contentPageId),
+          ),
+        );
 
       const byReasonCode = emptyReasonCounts();
       for (const row of aggRows) {
@@ -69,10 +71,12 @@ export function createPgMaterialRatingFeedbackPort(): MaterialRatingFeedbackPort
         })
         .from(patientContentRatingFeedback)
         .leftJoin(platformUsers, eq(platformUsers.id, patientContentRatingFeedback.userId))
-        .where(and(
-          eq(patientContentRatingFeedback.organizationId, organizationId),
-          eq(patientContentRatingFeedback.contentPageId, contentPageId),
-        ))
+        .where(
+          and(
+            eq(patientContentRatingFeedback.organizationId, organizationId),
+            eq(patientContentRatingFeedback.contentPageId, contentPageId),
+          ),
+        )
         .orderBy(desc(patientContentRatingFeedback.createdAt))
         .limit(recentLimit);
 
@@ -82,10 +86,7 @@ export function createPgMaterialRatingFeedbackPort(): MaterialRatingFeedbackPort
         recent: recentRows.map((row) => ({
           id: row.id,
           userId: row.userId,
-          displayLabel:
-            row.displayName?.trim() ||
-            row.phoneNormalized?.trim() ||
-            row.userId,
+          displayLabel: row.displayName?.trim() || row.phoneNormalized?.trim() || row.userId,
           ratingValue: row.ratingValue,
           reasonCodes: (row.reasonCodes ?? []) as MaterialRatingFeedbackReasonCode[],
           comment: row.comment,
@@ -99,10 +100,12 @@ export function createPgMaterialRatingFeedbackPort(): MaterialRatingFeedbackPort
       const rows = await db
         .select()
         .from(patientContentRatingFeedback)
-        .where(and(
-          eq(patientContentRatingFeedback.organizationId, organizationId),
-          eq(patientContentRatingFeedback.contentPageId, contentPageId),
-        ))
+        .where(
+          and(
+            eq(patientContentRatingFeedback.organizationId, organizationId),
+            eq(patientContentRatingFeedback.contentPageId, contentPageId),
+          ),
+        )
         .orderBy(desc(patientContentRatingFeedback.createdAt))
         .limit(limit)
         .offset(offset);
@@ -133,20 +136,19 @@ export function createPgMaterialRatingFeedbackPort(): MaterialRatingFeedbackPort
         })
         .from(patientContentRatingFeedback)
         .leftJoin(platformUsers, eq(platformUsers.id, patientContentRatingFeedback.userId))
-        .where(and(
-          eq(patientContentRatingFeedback.organizationId, organizationId),
-          eq(patientContentRatingFeedback.contentPageId, contentPageId),
-        ))
+        .where(
+          and(
+            eq(patientContentRatingFeedback.organizationId, organizationId),
+            eq(patientContentRatingFeedback.contentPageId, contentPageId),
+          ),
+        )
         .orderBy(desc(patientContentRatingFeedback.createdAt))
         .limit(limit)
         .offset(offset);
       return rows.map((row) => ({
         id: row.id,
         userId: row.userId,
-        displayLabel:
-          row.displayName?.trim() ||
-          row.phoneNormalized?.trim() ||
-          row.userId,
+        displayLabel: row.displayName?.trim() || row.phoneNormalized?.trim() || row.userId,
         ratingValue: row.ratingValue,
         reasonCodes: (row.reasonCodes ?? []) as MaterialRatingFeedbackReasonCode[],
         comment: row.comment,

@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import type { ComponentProps } from "react";
-import { usePatientPhonePromptChrome } from "@/shared/ui/patient/PatientPhonePromptChromeContext";
-import { PatientHeader } from "@/shared/ui/patient/shell/PatientHeader";
+import type { ComponentProps } from 'react';
+import { usePatientPhonePromptChrome } from '@/shared/ui/patient/PatientPhonePromptChromeContext';
+import { PatientHeader } from '@/shared/ui/patient/shell/PatientHeader';
 
 type Props = ComponentProps<typeof PatientHeader>;
 

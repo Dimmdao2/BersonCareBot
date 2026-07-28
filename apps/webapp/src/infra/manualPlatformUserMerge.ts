@@ -1,11 +1,11 @@
-import type { Pool } from "pg";
-import { writeAuditLog } from "@/infra/adminAuditLog";
-import { fetchMergePartyDisplayLabels } from "@/infra/mergeAuditLabels";
-import type { ManualMergeResolution } from "@/infra/repos/manualMergeResolution";
-import { mergePlatformUsersInTransaction } from "@/infra/repos/pgPlatformUserMerge";
-import type { VerifiedDistinctIntegratorUserIds } from "@/infra/repos/pgPlatformUserMerge";
-import { MergeConflictError } from "@/infra/repos/platformUserMergeErrors";
-import { withTwoUserLifecycleLocksExclusive } from "@/infra/userLifecycleLock";
+import type { Pool } from 'pg';
+import { writeAuditLog } from '@/infra/adminAuditLog';
+import { fetchMergePartyDisplayLabels } from '@/infra/mergeAuditLabels';
+import type { ManualMergeResolution } from '@/infra/repos/manualMergeResolution';
+import { mergePlatformUsersInTransaction } from '@/infra/repos/pgPlatformUserMerge';
+import type { VerifiedDistinctIntegratorUserIds } from '@/infra/repos/pgPlatformUserMerge';
+import { MergeConflictError } from '@/infra/repos/platformUserMergeErrors';
+import { withTwoUserLifecycleLocksExclusive } from '@/infra/userLifecycleLock';
 
 export type ManualMergeOk = {
   ok: true;
@@ -34,42 +34,48 @@ export async function runManualPlatformUserMerge(
 ): Promise<ManualMergeOk | ManualMergeFail> {
   const { targetId, duplicateId } = resolution;
   const partyLabels = await fetchMergePartyDisplayLabels(pool, targetId, duplicateId);
-  let mergeContactsSaved: { contactType: "phone" | "email"; valueNormalized: string }[] = [];
+  let mergeContactsSaved: { contactType: 'phone' | 'email'; valueNormalized: string }[] = [];
   try {
     await withTwoUserLifecycleLocksExclusive(pool, targetId, duplicateId, async (client) => {
-      const mergeResult = await mergePlatformUsersInTransaction(client, targetId, duplicateId, "manual", {
-        resolution,
-        allowDistinctIntegratorUserIds: options?.allowDistinctIntegratorUserIds,
-        verifiedDistinctIntegratorUserIds: options?.verifiedDistinctIntegratorUserIds,
-      });
+      const mergeResult = await mergePlatformUsersInTransaction(
+        client,
+        targetId,
+        duplicateId,
+        'manual',
+        {
+          resolution,
+          allowDistinctIntegratorUserIds: options?.allowDistinctIntegratorUserIds,
+          verifiedDistinctIntegratorUserIds: options?.verifiedDistinctIntegratorUserIds,
+        },
+      );
       mergeContactsSaved = mergeResult.mergeContactsSaved;
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     const code =
-      e instanceof MergeConflictError && msg === "merge: integrator ids changed since gate"
-        ? "integrator_ids_changed_since_gate"
+      e instanceof MergeConflictError && msg === 'merge: integrator ids changed since gate'
+        ? 'integrator_ids_changed_since_gate'
         : undefined;
     await writeAuditLog(pool, {
       actorId,
-      action: "user_merge",
+      action: 'user_merge',
       targetId,
       details: {
         targetId,
         duplicateId,
         targetDisplayName: partyLabels.targetDisplayName,
         duplicateDisplayName: partyLabels.duplicateDisplayName,
-        phase: "merge_transaction",
+        phase: 'merge_transaction',
         error: msg,
       },
-      status: "error",
+      status: 'error',
     });
     return { ok: false, error: msg, code };
   }
 
   await writeAuditLog(pool, {
     actorId,
-    action: "user_merge",
+    action: 'user_merge',
     targetId,
     details: {
       targetId,
@@ -86,7 +92,7 @@ export async function runManualPlatformUserMerge(
       },
       mergeContactsSaved,
     },
-    status: "ok",
+    status: 'ok',
   });
 
   return { ok: true, targetId, duplicateId };

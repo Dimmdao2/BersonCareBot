@@ -31,12 +31,12 @@
 
 ## 4. Разрешённые области правок
 
-| Разрешено | Пути |
-|-----------|------|
-| API | `apps/webapp/src/app/api/admin/**/route.ts` — тонкие handlers |
-| Сервис | `apps/webapp/src/modules/**` через порты, чтение инцидентов через repo |
-| UI | `apps/webapp/src/app/app/settings/SystemHealthSection.tsx`, при необходимости маленький подкомпонент в той же папке |
-| Тесты | `*.test.ts` / `*.test.tsx` рядом |
+| Разрешено | Пути                                                                                                                |
+| --------- | ------------------------------------------------------------------------------------------------------------------- |
+| API       | `apps/webapp/src/app/api/admin/**/route.ts` — тонкие handlers                                                       |
+| Сервис    | `apps/webapp/src/modules/**` через порты, чтение инцидентов через repo                                              |
+| UI        | `apps/webapp/src/app/app/settings/SystemHealthSection.tsx`, при необходимости маленький подкомпонент в той же папке |
+| Тесты     | `*.test.ts` / `*.test.tsx` рядом                                                                                    |
 
 **Запрещено:** бизнес-логика в `route.ts`; прямые импорты `@/infra/db` из `modules/*`.
 

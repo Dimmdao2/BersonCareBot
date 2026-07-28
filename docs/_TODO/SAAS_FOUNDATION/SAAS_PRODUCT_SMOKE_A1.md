@@ -1,4 +1,4 @@
-> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
+> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/\_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
 
 # SaaS Product Smoke A1
 
@@ -63,15 +63,15 @@ fixture IDs only. The runner masks auth material and never prints response bodie
 - [x] Runner supports `--mode dormant|shadow|locked`. (✓ evidence)
 - [x] Runner emits machine-readable JSON and optional JUnit. (✓ evidence)
 - [x] Runner fails on 401/403/5xx, Next render digests, permission/RLS text, unexpected empty fixture facts, and
-  configured forbidden body text. (✓ evidence)
+      configured forbidden body text. (✓ evidence)
 - [x] JSON API scenarios assert successful response semantics and their relevant fixture fact; a non-empty error
-  object or an empty appointments/working-hours/slots/summary payload cannot count as PASS. (✓ evidence)
+      object or an empty appointments/working-hours/slots/summary payload cannot count as PASS. (✓ evidence)
 - [x] The `public` profile is required to have zero auth headers, authenticated profiles require non-empty auth
-  material, redirects are classified before they can resolve to a login page, and JSON/JUnit evidence records path
-  templates rather than rendered fixture identifiers. (✓ evidence)
+      material, redirects are classified before they can resolve to a login page, and JSON/JUnit evidence records path
+      templates rather than rendered fixture identifiers. (✓ evidence)
 - [x] Self-tests prove failure classifiers, including the known G1 doctor/admin identity symptom classifier. (✓ evidence)
 - [x] No prod auth bypass, env read, DB read/write, live delivery, S3 operation, or Rubitime cleanup is performed by
-  the contract validation command. (✓ evidence)
+      the contract validation command. (✓ evidence)
 
 ## Fixture Shape
 
@@ -123,8 +123,7 @@ pnpm run check:saas-a2-nginx-forwarded-host
 `deploy/host/deploy-test-saas.sh` runs the same check against `nginx -T` after TEST unit restart, and runs this
 product smoke only when `SAAS_PRODUCT_SMOKE_FIXTURE=/run/bersoncarebot/saas-smoke.fixture` is supplied by the
 operator. Without that fixture it records the product smoke as **SKIPPED/BLOCKED**, not PASS; D3, R1, R2, and any
-future flip gate must remain open until an owner/operator-managed fixture file path is supplied and the smoke exits
-0. The fixture path is a secret-file pointer outside the repo; fixture values, cookies, headers, and opaque IDs must
+future flip gate must remain open until an owner/operator-managed fixture file path is supplied and the smoke exits 0. The fixture path is a secret-file pointer outside the repo; fixture values, cookies, headers, and opaque IDs must
 not be written into repository docs, logs, or shell history.
 
 For B1 calibration, the same runner can narrow to the doctor/admin subset:

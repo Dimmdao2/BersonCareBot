@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useMemo } from "react";
+import { useMemo } from 'react';
 import {
   Bar,
   BarChart,
@@ -11,15 +11,15 @@ import {
   ResponsiveContainer,
   XAxis,
   YAxis,
-} from "recharts";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
-import type { ReminderPeopleWithNotificationsStats } from "@/app-layer/stats/reminderNotificationPeopleShared";
-import { reminderPeopleChannelSegmentColor } from "@/app-layer/stats/reminderNotificationPeopleShared";
+} from 'recharts';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
+import type { ReminderPeopleWithNotificationsStats } from '@/app-layer/stats/reminderNotificationPeopleShared';
+import { reminderPeopleChannelSegmentColor } from '@/app-layer/stats/reminderNotificationPeopleShared';
 import {
   formatDisplayZoneDayRuFromBucket,
   formatDisplayZoneDayShortFromBucket,
-} from "@/shared/datetime/displayTimeZoneFormat";
-import { DoctorRechartsTooltip } from "@/shared/ui/doctor/DoctorRechartsTooltip";
+} from '@/shared/datetime/displayTimeZoneFormat';
+import { DoctorRechartsTooltip } from '@/shared/ui/doctor/DoctorRechartsTooltip';
 
 const CHART_H = 160;
 
@@ -57,8 +57,10 @@ export function PeopleWithNotificationsCard({
         <div className="grid gap-3 md:grid-cols-2">
           <div className="min-w-0">
             <p className="mb-1 text-[10px] text-muted-foreground">
-              Сейчас:{" "}
-              <span className="font-semibold text-foreground tabular-nums">{stats.currentPeopleCount}</span>
+              Сейчас:{' '}
+              <span className="font-semibold text-foreground tabular-nums">
+                {stats.currentPeopleCount}
+              </span>
             </p>
             {dailyChartData.length === 0 ? (
               <p className="text-xs text-muted-foreground">Нет данных за период.</p>
@@ -66,17 +68,26 @@ export function PeopleWithNotificationsCard({
               <div className="w-full min-w-0" style={{ height: CHART_H }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={dailyChartData} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
-                    <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" vertical={false} />
+                    <CartesianGrid
+                      stroke="hsl(var(--border))"
+                      strokeDasharray="3 3"
+                      vertical={false}
+                    />
                     <XAxis dataKey="dayLabel" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
                     <YAxis allowDecimals={false} tick={{ fontSize: 10 }} width={28} />
                     <DoctorRechartsTooltip
                       labelFormatter={(_, payload) => {
                         const row = payload?.[0]?.payload as { dayRu?: string } | undefined;
-                        return row?.dayRu ?? "";
+                        return row?.dayRu ?? '';
                       }}
-                      formatter={(v) => [`${v} чел.`, "Люди"]}
+                      formatter={(v) => [`${v} чел.`, 'Люди']}
                     />
-                    <Bar dataKey="peopleCount" name="Люди" fill="hsl(215 55% 48% / 0.9)" radius={[3, 3, 0, 0]} />
+                    <Bar
+                      dataKey="peopleCount"
+                      name="Люди"
+                      fill="hsl(215 55% 48% / 0.9)"
+                      radius={[3, 3, 0, 0]}
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -85,7 +96,9 @@ export function PeopleWithNotificationsCard({
 
           <div className="min-w-0">
             {pieSlices.length === 0 ? (
-              <p className="text-xs text-muted-foreground">Нет людей с включёнными напоминаниями.</p>
+              <p className="text-xs text-muted-foreground">
+                Нет людей с включёнными напоминаниями.
+              </p>
             ) : (
               <div className="flex items-center gap-3">
                 <div className="h-[88px] w-[88px] shrink-0">
@@ -101,13 +114,16 @@ export function PeopleWithNotificationsCard({
                         dataKey="value"
                       >
                         {pieSlices.map((s) => (
-                          <Cell key={s.segment} fill={reminderPeopleChannelSegmentColor(s.segment)} />
+                          <Cell
+                            key={s.segment}
+                            fill={reminderPeopleChannelSegmentColor(s.segment)}
+                          />
                         ))}
                       </Pie>
                       <DoctorRechartsTooltip
                         formatter={(v, _n, item) => {
                           const row = item?.payload as { name?: string } | undefined;
-                          return [`${v} чел.`, row?.name ?? ""];
+                          return [`${v} чел.`, row?.name ?? ''];
                         }}
                       />
                     </PieChart>

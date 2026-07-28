@@ -1,11 +1,11 @@
-import { and, asc, count, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
-import type { DrizzleDb } from "@/app-layer/db/drizzle";
-import { getDrizzleOrMutationTx as getDrizzle } from "@/infra/db/drizzleMutationTx";
-import { runWebappTransaction } from "@/infra/db/runWebappSql";
-import { readAdminSystemSettingString } from "@/infra/repos/pgSystemSettings";
-import { resolveOrCreateDoctorClientByPhoneInTransaction } from "@/infra/repos/pgDoctorClientCreate";
-import { ensureInvitedOrganizationClientRelationship } from "@/infra/repos/pgPatientOrganizationEnrollment";
+import { and, asc, count, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import type { DrizzleDb } from '@/app-layer/db/drizzle';
+import { getDrizzleOrMutationTx as getDrizzle } from '@/infra/db/drizzleMutationTx';
+import { runWebappTransaction } from '@/infra/db/runWebappSql';
+import { readAdminSystemSettingString } from '@/infra/repos/pgSystemSettings';
+import { resolveOrCreateDoctorClientByPhoneInTransaction } from '@/infra/repos/pgDoctorClientCreate';
+import { ensureInvitedOrganizationClientRelationship } from '@/infra/repos/pgPatientOrganizationEnrollment';
 import {
   assertManualPatientCommandReplay,
   findManualPatientCommand,
@@ -13,8 +13,8 @@ import {
   isManualPatientCommandUniqueViolation,
   lockManualPatientCommand,
   manualPatientCommandFingerprint,
-} from "@/infra/repos/pgManualPatientCommand";
-import { BE_DEFAULT_ORGANIZATION_ID } from "../../../db/schema/bookingEngine";
+} from '@/infra/repos/pgManualPatientCommand';
+import { BE_DEFAULT_ORGANIZATION_ID } from '../../../db/schema/bookingEngine';
 import {
   beAppointmentEvents,
   beAppointmentHistoryEvents,
@@ -31,13 +31,13 @@ import {
   beSpecialistRooms,
   beSpecialistServiceAvailability,
   beSpecialists,
-} from "../../../db/schema/bookingEngine";
-import { clinicalVisit } from "../../../db/schema/patientClinical";
-import { platformUsers } from "../../../db/schema/schema";
-import { pickPreferredSsaId } from "@/modules/booking-scheduling/ssaResolve";
-import { isChainFree } from "@/modules/booking-scheduling/computeSlots";
-import { listBookingBusyIntervals } from "@/infra/repos/pgBookingScheduling";
-import type { BookingEngineCorePort } from "@/modules/booking-engine/ports";
+} from '../../../db/schema/bookingEngine';
+import { clinicalVisit } from '../../../db/schema/patientClinical';
+import { platformUsers } from '../../../db/schema/schema';
+import { pickPreferredSsaId } from '@/modules/booking-scheduling/ssaResolve';
+import { isChainFree } from '@/modules/booking-scheduling/computeSlots';
+import { listBookingBusyIntervals } from '@/infra/repos/pgBookingScheduling';
+import type { BookingEngineCorePort } from '@/modules/booking-engine/ports';
 import type {
   AppointmentStatus,
   BeAppointment,
@@ -52,7 +52,7 @@ import type {
   CreateManualPatientVisitInput,
   CreateManualPatientVisitResult,
   TransitionAppointmentStatusInput,
-} from "@/modules/booking-engine/types";
+} from '@/modules/booking-engine/types';
 
 function mapOrg(row: typeof beOrganizations.$inferSelect): BeOrganization {
   return {
@@ -133,8 +133,8 @@ function mapAppointment(row: typeof beAppointments.$inferSelect): BeAppointment 
     durationMinutes: row.durationMinutes,
     chainId: row.chainId ?? null,
     chainPosition: row.chainPosition ?? null,
-    source: row.source as BeAppointment["source"],
-    status: row.status as BeAppointment["status"],
+    source: row.source as BeAppointment['source'],
+    status: row.status as BeAppointment['status'],
     originalStartAt: row.originalStartAt ?? null,
     rescheduleCount: row.rescheduleCount,
     paymentRef: row.paymentRef ?? null,
@@ -150,10 +150,10 @@ async function insertAppointmentInTransaction(
   now: string,
   catalogValidated = false,
 ): Promise<BeAppointment> {
-  if (input.source === "admin_manual" && !catalogValidated) {
+  if (input.source === 'admin_manual' && !catalogValidated) {
     await assertManualAppointmentCatalogSelection(tx, input);
   }
-  const status = input.status ?? "created";
+  const status = input.status ?? 'created';
   const inserted = await tx
     .insert(beAppointments)
     .values({
@@ -183,14 +183,14 @@ async function insertAppointmentInTransaction(
   await tx.insert(beAppointmentEvents).values({
     organizationId: appointment.organizationId,
     appointmentId: appointment.id,
-    eventType: "created",
+    eventType: 'created',
     actorId: input.actorId ?? null,
     payload: { status },
   });
   await tx.insert(beAppointmentHistoryEvents).values({
     organizationId: appointment.organizationId,
     appointmentId: appointment.id,
-    eventType: "created",
+    eventType: 'created',
     actorId: input.actorId ?? null,
     payload: { status },
     occurredAt: now,
@@ -199,9 +199,9 @@ async function insertAppointmentInTransaction(
     await tx.insert(bePatientTimelineEvents).values({
       organizationId: appointment.organizationId,
       platformUserId: appointment.platformUserId,
-      domain: "appointment",
-      eventType: "appointment_created",
-      linkedObjectType: "appointment",
+      domain: 'appointment',
+      eventType: 'appointment_created',
+      linkedObjectType: 'appointment',
       linkedObjectId: appointment.id,
       payload: { status },
       occurredAt: now,
@@ -228,7 +228,7 @@ function onlineAppointmentLockKeys(
     startMs % ONLINE_LOCK_BUCKET_MS !== 0 ||
     endMs % ONLINE_LOCK_BUCKET_MS !== 0
   ) {
-    throw new Error("invalid_online_appointment_lock_range");
+    throw new Error('invalid_online_appointment_lock_range');
   }
   return Array.from(
     { length: bucketCount },
@@ -262,10 +262,10 @@ async function insertOnlineAppointmentsIfAvailableInTransaction(
 ): Promise<BeAppointment[]> {
   const first = inputs[0];
   const last = inputs.at(-1);
-  if (!first || !last) throw new Error("appointment_chain_required");
+  if (!first || !last) throw new Error('appointment_chain_required');
   const organizationId = first.organizationId;
   if (getCurrentDbPrincipalOrganizationId() !== organizationId) {
-    throw new Error("organization_principal_mismatch");
+    throw new Error('organization_principal_mismatch');
   }
   await lockOnlineAppointmentRange(tx, organizationId, first.startAt, last.endAt);
   const busy = await listBookingBusyIntervals(tx, {
@@ -276,10 +276,11 @@ async function insertOnlineAppointmentsIfAvailableInTransaction(
     rangeEnd: last.endAt,
   });
   if (inputs.some((input) => !isChainFree(input.startAt, 1, input.durationMinutes, busy))) {
-    throw new Error("slot_overlap");
+    throw new Error('slot_overlap');
   }
   const appointments: BeAppointment[] = [];
-  for (const input of inputs) appointments.push(await insertAppointmentInTransaction(tx, input, now));
+  for (const input of inputs)
+    appointments.push(await insertAppointmentInTransaction(tx, input, now));
   return appointments;
 }
 
@@ -289,7 +290,7 @@ async function assertManualSpecialistSelection(
   specialistId: string,
 ): Promise<void> {
   if (getCurrentDbPrincipalOrganizationId() !== organizationId) {
-    throw new Error("organization_principal_mismatch");
+    throw new Error('organization_principal_mismatch');
   }
   const [specialist] = await tx
     .select({ id: beSpecialists.id })
@@ -302,14 +303,14 @@ async function assertManualSpecialistSelection(
       ),
     )
     .limit(1);
-  if (!specialist) throw new Error("specialist_not_found");
+  if (!specialist) throw new Error('specialist_not_found');
 }
 
 async function assertManualAppointmentCatalogSelection(
   tx: DrizzleDb,
   input: CreateAppointmentInput,
 ): Promise<void> {
-  if (!input.specialistId) throw new Error("specialist_required");
+  if (!input.specialistId) throw new Error('specialist_required');
   await assertManualSpecialistSelection(tx, input.organizationId, input.specialistId);
 
   if (input.branchId) {
@@ -324,11 +325,11 @@ async function assertManualAppointmentCatalogSelection(
         ),
       )
       .limit(1);
-    if (!branch) throw new Error("branch_not_found");
+    if (!branch) throw new Error('branch_not_found');
   }
 
   if (input.roomId) {
-    if (!input.branchId) throw new Error("room_branch_mismatch");
+    if (!input.branchId) throw new Error('room_branch_mismatch');
     const [room] = await tx
       .select({ id: beRooms.id })
       .from(beRooms)
@@ -341,7 +342,7 @@ async function assertManualAppointmentCatalogSelection(
         ),
       )
       .limit(1);
-    if (!room) throw new Error("room_not_found");
+    if (!room) throw new Error('room_not_found');
   }
 
   if (!input.serviceId) return;
@@ -356,7 +357,7 @@ async function assertManualAppointmentCatalogSelection(
       ),
     )
     .limit(1);
-  if (!service) throw new Error("service_not_found");
+  if (!service) throw new Error('service_not_found');
 
   const availabilityConditions = [
     eq(beSpecialistServiceAvailability.organizationId, input.organizationId),
@@ -380,11 +381,11 @@ async function assertManualAppointmentCatalogSelection(
     .from(beSpecialistServiceAvailability)
     .where(and(...availabilityConditions))
     .limit(1);
-  if (!availability) throw new Error("service_not_available_for_specialist");
+  if (!availability) throw new Error('service_not_available_for_specialist');
 }
 
 function scheduledManualPatientCommandFingerprint(
-  input: Extract<CreateManualPatientVisitInput, { kind: "scheduled" }>,
+  input: Extract<CreateManualPatientVisitInput, { kind: 'scheduled' }>,
 ): string {
   const identity = {
     lastName: input.lastName,
@@ -398,7 +399,7 @@ function scheduledManualPatientCommandFingerprint(
 }
 
 function walkInManualPatientCommandFingerprint(
-  input: Extract<CreateManualPatientVisitInput, { kind: "walk_in" }>,
+  input: Extract<CreateManualPatientVisitInput, { kind: 'walk_in' }>,
 ): string {
   return manualPatientCommandFingerprint({
     kind: input.kind,
@@ -417,7 +418,7 @@ async function loadManualPatientForReplay(
   tx: DrizzleDb,
   organizationId: string,
   userId: string,
-): Promise<Pick<CreateManualPatientVisitResult, "patient" | "portalStatus">> {
+): Promise<Pick<CreateManualPatientVisitResult, 'patient' | 'portalStatus'>> {
   const [patient] = await tx
     .select({
       userId: platformUsers.id,
@@ -440,10 +441,10 @@ async function loadManualPatientForReplay(
       ),
     )
     .limit(1);
-  if (!patient || !relationship) throw new Error("idempotency_replay_missing");
+  if (!patient || !relationship) throw new Error('idempotency_replay_missing');
   return {
     patient: { ...patient, created: false },
-    portalStatus: relationship.portalActivatedAt ? "linked" : "not_activated",
+    portalStatus: relationship.portalActivatedAt ? 'linked' : 'not_activated',
   };
 }
 
@@ -461,36 +462,43 @@ async function lockManualPatientRelationship(
         eq(orgEnrollments.platformUserId, userId),
       ),
     )
-    .for("update");
-  if (!relationship) throw new Error("patient_not_available");
+    .for('update');
+  if (!relationship) throw new Error('patient_not_available');
   return relationship.status;
 }
 
 function isCommandPrimaryKeyConflict(error: unknown): boolean {
-  if (typeof error !== "object" || error === null) return false;
+  if (typeof error !== 'object' || error === null) return false;
   const value = error as { code?: unknown; constraint?: unknown };
   return (
-    value.code === "23505" &&
-    (value.constraint === "be_appointments_pkey" || value.constraint === "clinical_visit_pkey")
+    value.code === '23505' &&
+    (value.constraint === 'be_appointments_pkey' || value.constraint === 'clinical_visit_pkey')
   );
 }
 
 export function createPgBookingEnginePort(): BookingEngineCorePort {
   return {
     async getDefaultOrganizationId() {
-      const fromSettings = await readAdminSystemSettingString("booking_default_organization_id");
+      const fromSettings = await readAdminSystemSettingString('booking_default_organization_id');
       return fromSettings && fromSettings.length > 0 ? fromSettings : BE_DEFAULT_ORGANIZATION_ID;
     },
 
     async getOrganization(id) {
       const db = getDrizzle();
-      const rows = await db.select().from(beOrganizations).where(eq(beOrganizations.id, id)).limit(1);
+      const rows = await db
+        .select()
+        .from(beOrganizations)
+        .where(eq(beOrganizations.id, id))
+        .limit(1);
       return rows[0] ? mapOrg(rows[0]) : null;
     },
 
     async listOrganizations() {
       const db = getDrizzle();
-      const rows = await db.select().from(beOrganizations).orderBy(asc(beOrganizations.sortOrder), asc(beOrganizations.title));
+      const rows = await db
+        .select()
+        .from(beOrganizations)
+        .orderBy(asc(beOrganizations.sortOrder), asc(beOrganizations.title));
       return rows.map(mapOrg);
     },
 
@@ -508,9 +516,9 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
         })
         .where(eq(beOrganizations.id, id))
         .returning();
-      if (updated.length === 0) throw new Error("organization_not_found");
+      if (updated.length === 0) throw new Error('organization_not_found');
       const row = await this.getOrganization(id);
-      if (!row) throw new Error("organization_not_found");
+      if (!row) throw new Error('organization_not_found');
       return row;
     },
 
@@ -539,23 +547,23 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
             title: input.title,
             cityCode: input.cityCode,
             address: input.address ?? null,
-            timezone: input.timezone ?? "Europe/Moscow",
+            timezone: input.timezone ?? 'Europe/Moscow',
             isActive: input.isActive,
             sortOrder: input.sortOrder,
             updatedAt: now,
           };
           // Only write shortTitle when explicitly provided (preserve existing value otherwise)
-          if ("shortTitle" in input) {
+          if ('shortTitle' in input) {
             patch.shortTitle = (input as { shortTitle?: string | null }).shortTitle ?? null;
           }
-          if ("color" in input) {
+          if ('color' in input) {
             patch.color = (input as { color?: string | null }).color ?? null;
           }
           await tx.update(beBranches).set(patch).where(eq(beBranches.id, id));
           const rows = await tx.select().from(beBranches).where(eq(beBranches.id, id)).limit(1);
           return rows[0] ? mapBranch(rows[0]) : null;
         });
-        if (!row) throw new Error("branch_not_found");
+        if (!row) throw new Error('branch_not_found');
         return row;
       }
       const inserted = await runWebappTransaction((tx) =>
@@ -568,7 +576,7 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
             color: (input as { color?: string | null }).color ?? null,
             cityCode: input.cityCode,
             address: input.address ?? null,
-            timezone: input.timezone ?? "Europe/Moscow",
+            timezone: input.timezone ?? 'Europe/Moscow',
             isActive: input.isActive,
             sortOrder: input.sortOrder,
             createdAt: now,
@@ -581,18 +589,22 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
 
     async createPhysicalBranchWithDefaultColor(input) {
       return runWebappTransaction(async (tx) => {
-        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`booking-location-palette:${input.organizationId}`}, 0))`);
+        await tx.execute(
+          sql`SELECT pg_advisory_xact_lock(hashtextextended(${`booking-location-palette:${input.organizationId}`}, 0))`,
+        );
         const [row] = await tx
           .select({ value: count() })
           .from(beBranches)
-          .where(and(
-            eq(beBranches.organizationId, input.organizationId),
-            ne(sql`lower(${beBranches.cityCode})`, "online"),
-            ne(sql`lower(${beBranches.title})`, "онлайн"),
-          ));
+          .where(
+            and(
+              eq(beBranches.organizationId, input.organizationId),
+              ne(sql`lower(${beBranches.cityCode})`, 'online'),
+              ne(sql`lower(${beBranches.title})`, 'онлайн'),
+            ),
+          );
         const physicalCount = row?.value ?? 0;
         const color = input.physicalPalette[physicalCount % input.physicalPalette.length];
-        if (!color) throw new Error("booking_location_palette_empty");
+        if (!color) throw new Error('booking_location_palette_empty');
         const now = new Date().toISOString();
         const [inserted] = await tx
           .insert(beBranches)
@@ -603,14 +615,14 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
             color,
             cityCode: input.cityCode,
             address: input.address ?? null,
-            timezone: input.timezone ?? "Europe/Moscow",
+            timezone: input.timezone ?? 'Europe/Moscow',
             isActive: input.isActive,
             sortOrder: input.sortOrder,
             createdAt: now,
             updatedAt: now,
           })
           .returning();
-        if (!inserted) throw new Error("branch_create_failed");
+        if (!inserted) throw new Error('branch_create_failed');
         return mapBranch(inserted);
       });
     },
@@ -630,7 +642,11 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
       const cond = branchId
         ? and(eq(beRooms.organizationId, organizationId), eq(beRooms.branchId, branchId))
         : eq(beRooms.organizationId, organizationId);
-      const rows = await db.select().from(beRooms).where(cond).orderBy(asc(beRooms.sortOrder), asc(beRooms.title));
+      const rows = await db
+        .select()
+        .from(beRooms)
+        .where(cond)
+        .orderBy(asc(beRooms.sortOrder), asc(beRooms.title));
       return rows.map(mapRoom);
     },
 
@@ -657,7 +673,7 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
           const rows = await tx.select().from(beRooms).where(eq(beRooms.id, id)).limit(1);
           return rows[0] ? mapRoom(rows[0]) : null;
         });
-        if (!row) throw new Error("room_not_found");
+        if (!row) throw new Error('room_not_found');
         return row;
       }
       const inserted = await runWebappTransaction((tx) =>
@@ -718,10 +734,14 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
               updatedAt: now,
             })
             .where(eq(beSpecialists.id, id));
-          const rows = await tx.select().from(beSpecialists).where(eq(beSpecialists.id, id)).limit(1);
+          const rows = await tx
+            .select()
+            .from(beSpecialists)
+            .where(eq(beSpecialists.id, id))
+            .limit(1);
           return rows[0] ? mapSpecialist(rows[0]) : null;
         });
-        if (!row) throw new Error("specialist_not_found");
+        if (!row) throw new Error('specialist_not_found');
         return row;
       }
       const inserted = await runWebappTransaction((tx) =>
@@ -797,7 +817,11 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
 
     async getService(id) {
       const db = getDrizzle();
-      const rows = await db.select().from(beClinicServices).where(eq(beClinicServices.id, id)).limit(1);
+      const rows = await db
+        .select()
+        .from(beClinicServices)
+        .where(eq(beClinicServices.id, id))
+        .limit(1);
       return rows[0] ? mapService(rows[0]) : null;
     },
 
@@ -823,14 +847,21 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
         const id = input.id;
         const row = await runWebappTransaction(async (tx) => {
           await tx.update(beClinicServices).set(values).where(eq(beClinicServices.id, id));
-          const rows = await tx.select().from(beClinicServices).where(eq(beClinicServices.id, id)).limit(1);
+          const rows = await tx
+            .select()
+            .from(beClinicServices)
+            .where(eq(beClinicServices.id, id))
+            .limit(1);
           return rows[0] ? mapService(rows[0]) : null;
         });
-        if (!row) throw new Error("service_not_found");
+        if (!row) throw new Error('service_not_found');
         return row;
       }
       const inserted = await runWebappTransaction((tx) =>
-        tx.insert(beClinicServices).values({ ...values, createdAt: now }).returning(),
+        tx
+          .insert(beClinicServices)
+          .values({ ...values, createdAt: now })
+          .returning(),
       );
       return mapService(inserted[0]!);
     },
@@ -977,7 +1008,10 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
             isActive: input.isActive,
           })
           .onConflictDoUpdate({
-            target: [beServiceLocationAvailability.serviceId, beServiceLocationAvailability.branchId],
+            target: [
+              beServiceLocationAvailability.serviceId,
+              beServiceLocationAvailability.branchId,
+            ],
             set: { isActive: input.isActive },
           })
           .returning(),
@@ -1004,7 +1038,7 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
             ),
           )
           .limit(1);
-        if (!serviceRows[0]) throw new Error("service_not_found");
+        if (!serviceRows[0]) throw new Error('service_not_found');
 
         const branchRows = await tx
           .select({ id: beBranches.id })
@@ -1016,7 +1050,7 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
             ),
           )
           .limit(1);
-        if (!branchRows[0]) throw new Error("branch_not_found");
+        if (!branchRows[0]) throw new Error('branch_not_found');
 
         const specialistRows = await tx
           .select({ id: beSpecialists.id })
@@ -1028,7 +1062,7 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
             ),
           )
           .limit(1);
-        if (!specialistRows[0]) throw new Error("specialist_not_found");
+        if (!specialistRows[0]) throw new Error('specialist_not_found');
 
         const locationRows = await tx
           .insert(beServiceLocationAvailability)
@@ -1039,7 +1073,10 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
             isActive: input.isActive,
           })
           .onConflictDoUpdate({
-            target: [beServiceLocationAvailability.serviceId, beServiceLocationAvailability.branchId],
+            target: [
+              beServiceLocationAvailability.serviceId,
+              beServiceLocationAvailability.branchId,
+            ],
             set: { isActive: input.isActive },
           })
           .returning();
@@ -1171,7 +1208,7 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
     },
 
     async getStatusBeforePackageCharge(appointmentId) {
-      const revertTargets: AppointmentStatus[] = ["visit_confirmed", "confirmed", "completed"];
+      const revertTargets: AppointmentStatus[] = ['visit_confirmed', 'confirmed', 'completed'];
       const db = getDrizzle();
       const rows = await db
         .select({ payload: beAppointmentHistoryEvents.payload })
@@ -1181,9 +1218,12 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
         .limit(50);
       for (const row of rows) {
         const payload = row.payload;
-        if (payload?.toStatus !== "charged_to_package") continue;
+        if (payload?.toStatus !== 'charged_to_package') continue;
         const fromStatus = payload.fromStatus;
-        if (typeof fromStatus === "string" && revertTargets.includes(fromStatus as AppointmentStatus)) {
+        if (
+          typeof fromStatus === 'string' &&
+          revertTargets.includes(fromStatus as AppointmentStatus)
+        ) {
           return fromStatus as AppointmentStatus;
         }
       }
@@ -1193,9 +1233,7 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
     async createAppointment(input: CreateAppointmentInput) {
       const db = getDrizzle();
       const now = new Date().toISOString();
-      return db.transaction((tx) =>
-        insertAppointmentInTransaction(tx as DrizzleDb, input, now),
-      );
+      return db.transaction((tx) => insertAppointmentInTransaction(tx as DrizzleDb, input, now));
     },
 
     async createOnlineAppointmentsIfAvailable(inputs) {
@@ -1208,7 +1246,7 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
 
     async createManualPatientVisit(input: CreateManualPatientVisitInput) {
       if (getCurrentDbPrincipalOrganizationId() !== input.organizationId) {
-        throw new Error("organization_principal_mismatch");
+        throw new Error('organization_principal_mismatch');
       }
       const db = getDrizzle();
       const now = new Date().toISOString();
@@ -1217,30 +1255,136 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
           const tx = rawTx as DrizzleDb;
           await lockManualPatientCommand(tx, input.commandId);
 
-          if (input.kind === "scheduled") {
+          if (input.kind === 'scheduled') {
             const fingerprint = scheduledManualPatientCommandFingerprint(input);
             const command = await findManualPatientCommand(tx, input.commandId);
             if (command) {
               assertManualPatientCommandReplay(command, {
                 organizationId: input.organizationId,
-                commandKind: "scheduled",
+                commandKind: 'scheduled',
                 requestFingerprint: fingerprint,
               });
             }
-          const [oppositeVisit] = await tx
-            .select({ id: clinicalVisit.id })
-            .from(clinicalVisit)
-            .where(
-              and(
-                eq(clinicalVisit.id, input.commandId),
-                eq(clinicalVisit.organizationId, input.organizationId),
-              ),
-            )
-            .limit(1);
-          if (oppositeVisit) throw new Error("idempotency_conflict");
+            const [oppositeVisit] = await tx
+              .select({ id: clinicalVisit.id })
+              .from(clinicalVisit)
+              .where(
+                and(
+                  eq(clinicalVisit.id, input.commandId),
+                  eq(clinicalVisit.organizationId, input.organizationId),
+                ),
+              )
+              .limit(1);
+            if (oppositeVisit) throw new Error('idempotency_conflict');
 
-          const [existingAppointmentRow] = await tx
-            .select()
+            const [existingAppointmentRow] = await tx
+              .select()
+              .from(beAppointments)
+              .where(
+                and(
+                  eq(beAppointments.id, input.commandId),
+                  eq(beAppointments.organizationId, input.organizationId),
+                ),
+              )
+              .limit(1);
+            if (existingAppointmentRow) {
+              const appointment = mapAppointment(existingAppointmentRow);
+              if (
+                appointment.attributionJson.manualCommandFingerprint !== fingerprint ||
+                !appointment.platformUserId ||
+                (command && command.platformUserId !== appointment.platformUserId)
+              ) {
+                throw new Error('idempotency_conflict');
+              }
+              if (!command) {
+                await insertManualPatientCommand(tx, {
+                  commandId: input.commandId,
+                  organizationId: input.organizationId,
+                  commandKind: 'scheduled',
+                  requestFingerprint: fingerprint,
+                  platformUserId: appointment.platformUserId,
+                });
+              }
+              const replay = await loadManualPatientForReplay(
+                tx,
+                input.organizationId,
+                appointment.platformUserId,
+              );
+              return {
+                kind: 'scheduled' as const,
+                replayed: true,
+                appointment,
+                clinicalVisitId: null,
+                ...replay,
+              };
+            }
+            if (command) throw new Error('idempotency_replay_missing');
+
+            await assertManualAppointmentCatalogSelection(tx, {
+              ...input.appointment,
+              organizationId: input.organizationId,
+            });
+            const patient = await resolveOrCreateDoctorClientByPhoneInTransaction(
+              tx,
+              input.organizationId,
+              input,
+            );
+            const relationshipStatus = await ensureInvitedOrganizationClientRelationship(
+              tx,
+              input.organizationId,
+              patient.userId,
+            );
+            let appointment: BeAppointment;
+            try {
+              appointment = await insertAppointmentInTransaction(
+                tx,
+                {
+                  ...input.appointment,
+                  id: input.commandId,
+                  organizationId: input.organizationId,
+                  platformUserId: patient.userId,
+                  phoneNormalized: patient.phoneNormalized,
+                  attributionJson: {
+                    ...input.appointment.attributionJson,
+                    manualCommandFingerprint: fingerprint,
+                  },
+                },
+                now,
+                true,
+              );
+            } catch (error) {
+              if (isCommandPrimaryKeyConflict(error)) throw new Error('idempotency_conflict');
+              throw error;
+            }
+            await insertManualPatientCommand(tx, {
+              commandId: input.commandId,
+              organizationId: input.organizationId,
+              commandKind: 'scheduled',
+              requestFingerprint: fingerprint,
+              platformUserId: patient.userId,
+            });
+            return {
+              kind: 'scheduled' as const,
+              replayed: false,
+              patient,
+              appointment,
+              clinicalVisitId: null,
+              portalStatus:
+                relationshipStatus === 'active' ? ('linked' as const) : ('not_activated' as const),
+            };
+          }
+
+          const fingerprint = walkInManualPatientCommandFingerprint(input);
+          const command = await findManualPatientCommand(tx, input.commandId);
+          if (command) {
+            assertManualPatientCommandReplay(command, {
+              organizationId: input.organizationId,
+              commandKind: 'walk_in',
+              requestFingerprint: fingerprint,
+            });
+          }
+          const [oppositeAppointment] = await tx
+            .select({ id: beAppointments.id })
             .from(beAppointments)
             .where(
               and(
@@ -1249,121 +1393,78 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
               ),
             )
             .limit(1);
-          if (existingAppointmentRow) {
-            const appointment = mapAppointment(existingAppointmentRow);
-            if (
-              appointment.attributionJson.manualCommandFingerprint !== fingerprint ||
-              !appointment.platformUserId ||
-              (command && command.platformUserId !== appointment.platformUserId)
-            ) {
-              throw new Error("idempotency_conflict");
-            }
-            if (!command) {
-              await insertManualPatientCommand(tx, {
-                commandId: input.commandId,
-                organizationId: input.organizationId,
-                commandKind: "scheduled",
-                requestFingerprint: fingerprint,
-                platformUserId: appointment.platformUserId,
-              });
-            }
-            const replay = await loadManualPatientForReplay(
-              tx,
-              input.organizationId,
-              appointment.platformUserId,
-            );
-            return {
-              kind: "scheduled" as const,
-              replayed: true,
-              appointment,
-              clinicalVisitId: null,
-              ...replay,
-            };
-          }
-          if (command) throw new Error("idempotency_replay_missing");
+          if (oppositeAppointment) throw new Error('idempotency_conflict');
 
-          await assertManualAppointmentCatalogSelection(tx, {
-            ...input.appointment,
-            organizationId: input.organizationId,
-          });
+          await assertManualSpecialistSelection(
+            tx,
+            input.organizationId,
+            input.walkIn.specialistId,
+          );
+          if (input.phoneNormalized === null || command) {
+            const [existingContactlessVisit] = await tx
+              .select({
+                id: clinicalVisit.id,
+                patientUserId: clinicalVisit.patientUserId,
+                visitedAt: clinicalVisit.visitedAt,
+                createdBy: clinicalVisit.createdBy,
+              })
+              .from(clinicalVisit)
+              .where(
+                and(
+                  eq(clinicalVisit.id, input.commandId),
+                  eq(clinicalVisit.organizationId, input.organizationId),
+                ),
+              )
+              .limit(1);
+            if (existingContactlessVisit) {
+              if (
+                new Date(existingContactlessVisit.visitedAt).getTime() !==
+                  new Date(input.walkIn.visitedAt).getTime() ||
+                existingContactlessVisit.createdBy !== input.walkIn.actorId ||
+                (command && command.platformUserId !== existingContactlessVisit.patientUserId)
+              ) {
+                throw new Error('idempotency_conflict');
+              }
+              if (!command) {
+                await insertManualPatientCommand(tx, {
+                  commandId: input.commandId,
+                  organizationId: input.organizationId,
+                  commandKind: 'walk_in',
+                  requestFingerprint: fingerprint,
+                  platformUserId: existingContactlessVisit.patientUserId,
+                });
+              }
+              const replay = await loadManualPatientForReplay(
+                tx,
+                input.organizationId,
+                existingContactlessVisit.patientUserId,
+              );
+              return {
+                kind: 'walk_in' as const,
+                replayed: true,
+                appointment: null,
+                clinicalVisitId: existingContactlessVisit.id,
+                ...replay,
+              };
+            }
+            if (command) throw new Error('idempotency_replay_missing');
+          }
           const patient = await resolveOrCreateDoctorClientByPhoneInTransaction(
             tx,
             input.organizationId,
             input,
           );
-          const relationshipStatus = await ensureInvitedOrganizationClientRelationship(
+          await ensureInvitedOrganizationClientRelationship(
             tx,
             input.organizationId,
             patient.userId,
           );
-          let appointment: BeAppointment;
-          try {
-            appointment = await insertAppointmentInTransaction(
-              tx,
-              {
-                ...input.appointment,
-                id: input.commandId,
-                organizationId: input.organizationId,
-                platformUserId: patient.userId,
-                phoneNormalized: patient.phoneNormalized,
-                attributionJson: {
-                  ...input.appointment.attributionJson,
-                  manualCommandFingerprint: fingerprint,
-                },
-              },
-              now,
-              true,
-            );
-          } catch (error) {
-            if (isCommandPrimaryKeyConflict(error)) throw new Error("idempotency_conflict");
-            throw error;
-          }
-          await insertManualPatientCommand(tx, {
-            commandId: input.commandId,
-            organizationId: input.organizationId,
-            commandKind: "scheduled",
-            requestFingerprint: fingerprint,
-            platformUserId: patient.userId,
-          });
-          return {
-            kind: "scheduled" as const,
-            replayed: false,
-            patient,
-            appointment,
-            clinicalVisitId: null,
-            portalStatus:
-              relationshipStatus === "active" ? ("linked" as const) : ("not_activated" as const),
-          };
-          }
-
-        const fingerprint = walkInManualPatientCommandFingerprint(input);
-        const command = await findManualPatientCommand(tx, input.commandId);
-        if (command) {
-          assertManualPatientCommandReplay(command, {
-            organizationId: input.organizationId,
-            commandKind: "walk_in",
-            requestFingerprint: fingerprint,
-          });
-        }
-        const [oppositeAppointment] = await tx
-          .select({ id: beAppointments.id })
-          .from(beAppointments)
-          .where(
-            and(
-              eq(beAppointments.id, input.commandId),
-              eq(beAppointments.organizationId, input.organizationId),
-            ),
-          )
-          .limit(1);
-        if (oppositeAppointment) throw new Error("idempotency_conflict");
-
-        await assertManualSpecialistSelection(
-          tx,
-          input.organizationId,
-          input.walkIn.specialistId,
-        );
-        if (input.phoneNormalized === null || command) {
-          const [existingContactlessVisit] = await tx
+          const relationshipStatus = await lockManualPatientRelationship(
+            tx,
+            input.organizationId,
+            patient.userId,
+          );
+          const [existingVisit] = await tx
             .select({
               id: clinicalVisit.id,
               patientUserId: clinicalVisit.patientUserId,
@@ -1378,146 +1479,83 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
               ),
             )
             .limit(1);
-          if (existingContactlessVisit) {
+          if (existingVisit) {
             if (
-              new Date(existingContactlessVisit.visitedAt).getTime() !==
+              existingVisit.patientUserId !== patient.userId ||
+              new Date(existingVisit.visitedAt).getTime() !==
                 new Date(input.walkIn.visitedAt).getTime() ||
-              existingContactlessVisit.createdBy !== input.walkIn.actorId ||
-              (command && command.platformUserId !== existingContactlessVisit.patientUserId)
+              existingVisit.createdBy !== input.walkIn.actorId
             ) {
-              throw new Error("idempotency_conflict");
+              throw new Error('idempotency_conflict');
             }
-            if (!command) {
-              await insertManualPatientCommand(tx, {
-                commandId: input.commandId,
-                organizationId: input.organizationId,
-                commandKind: "walk_in",
-                requestFingerprint: fingerprint,
-                platformUserId: existingContactlessVisit.patientUserId,
-              });
-            }
-            const replay = await loadManualPatientForReplay(
-              tx,
-              input.organizationId,
-              existingContactlessVisit.patientUserId,
-            );
+            await insertManualPatientCommand(tx, {
+              commandId: input.commandId,
+              organizationId: input.organizationId,
+              commandKind: 'walk_in',
+              requestFingerprint: fingerprint,
+              platformUserId: patient.userId,
+            });
             return {
-              kind: "walk_in" as const,
+              kind: 'walk_in' as const,
               replayed: true,
+              patient: { ...patient, created: false },
               appointment: null,
-              clinicalVisitId: existingContactlessVisit.id,
-              ...replay,
+              clinicalVisitId: existingVisit.id,
+              portalStatus:
+                relationshipStatus === 'active' ? ('linked' as const) : ('not_activated' as const),
             };
           }
-          if (command) throw new Error("idempotency_replay_missing");
-        }
-        const patient = await resolveOrCreateDoctorClientByPhoneInTransaction(
-          tx,
-          input.organizationId,
-          input,
-        );
-        await ensureInvitedOrganizationClientRelationship(
-          tx,
-          input.organizationId,
-          patient.userId,
-        );
-        const relationshipStatus = await lockManualPatientRelationship(
-          tx,
-          input.organizationId,
-          patient.userId,
-        );
-        const [existingVisit] = await tx
-          .select({
-            id: clinicalVisit.id,
-            patientUserId: clinicalVisit.patientUserId,
-            visitedAt: clinicalVisit.visitedAt,
-            createdBy: clinicalVisit.createdBy,
-          })
-          .from(clinicalVisit)
-          .where(
-            and(
-              eq(clinicalVisit.id, input.commandId),
-              eq(clinicalVisit.organizationId, input.organizationId),
-            ),
-          )
-          .limit(1);
-        if (existingVisit) {
-          if (
-            existingVisit.patientUserId !== patient.userId ||
-            new Date(existingVisit.visitedAt).getTime() !==
-              new Date(input.walkIn.visitedAt).getTime() ||
-            existingVisit.createdBy !== input.walkIn.actorId
-          ) {
-            throw new Error("idempotency_conflict");
+
+          const [priorVisit] = await tx
+            .select({ id: clinicalVisit.id })
+            .from(clinicalVisit)
+            .where(
+              and(
+                eq(clinicalVisit.organizationId, input.organizationId),
+                eq(clinicalVisit.patientUserId, patient.userId),
+              ),
+            )
+            .limit(1);
+          let clinicalVisitId: string | null = null;
+          try {
+            const insertedVisit = await tx
+              .insert(clinicalVisit)
+              .values({
+                id: input.commandId,
+                organizationId: input.organizationId,
+                patientUserId: patient.userId,
+                visitType: priorVisit ? 'repeat' : 'first',
+                visitedAt: input.walkIn.visitedAt,
+                canonicalAppointmentId: null,
+                createdBy: input.walkIn.actorId,
+              })
+              .returning({ id: clinicalVisit.id });
+            clinicalVisitId = insertedVisit[0]?.id ?? null;
+          } catch (error) {
+            if (isCommandPrimaryKeyConflict(error)) throw new Error('idempotency_conflict');
+            throw error;
           }
+          if (!clinicalVisitId) throw new Error('clinical_visit_insert_failed');
           await insertManualPatientCommand(tx, {
             commandId: input.commandId,
             organizationId: input.organizationId,
-            commandKind: "walk_in",
+            commandKind: 'walk_in',
             requestFingerprint: fingerprint,
             platformUserId: patient.userId,
           });
           return {
-            kind: "walk_in" as const,
-            replayed: true,
-            patient: { ...patient, created: false },
+            kind: 'walk_in' as const,
+            replayed: false,
+            patient,
             appointment: null,
-            clinicalVisitId: existingVisit.id,
+            clinicalVisitId,
             portalStatus:
-              relationshipStatus === "active" ? ("linked" as const) : ("not_activated" as const),
+              relationshipStatus === 'active' ? ('linked' as const) : ('not_activated' as const),
           };
-        }
-
-        const [priorVisit] = await tx
-          .select({ id: clinicalVisit.id })
-          .from(clinicalVisit)
-          .where(
-            and(
-              eq(clinicalVisit.organizationId, input.organizationId),
-              eq(clinicalVisit.patientUserId, patient.userId),
-            ),
-          )
-          .limit(1);
-        let clinicalVisitId: string | null = null;
-        try {
-          const insertedVisit = await tx
-            .insert(clinicalVisit)
-            .values({
-              id: input.commandId,
-              organizationId: input.organizationId,
-              patientUserId: patient.userId,
-              visitType: priorVisit ? "repeat" : "first",
-              visitedAt: input.walkIn.visitedAt,
-              canonicalAppointmentId: null,
-              createdBy: input.walkIn.actorId,
-            })
-            .returning({ id: clinicalVisit.id });
-          clinicalVisitId = insertedVisit[0]?.id ?? null;
-        } catch (error) {
-          if (isCommandPrimaryKeyConflict(error)) throw new Error("idempotency_conflict");
-          throw error;
-        }
-        if (!clinicalVisitId) throw new Error("clinical_visit_insert_failed");
-        await insertManualPatientCommand(tx, {
-          commandId: input.commandId,
-          organizationId: input.organizationId,
-          commandKind: "walk_in",
-          requestFingerprint: fingerprint,
-          platformUserId: patient.userId,
-        });
-        return {
-          kind: "walk_in" as const,
-          replayed: false,
-          patient,
-          appointment: null,
-          clinicalVisitId,
-          portalStatus:
-            relationshipStatus === "active" ? ("linked" as const) : ("not_activated" as const),
-        };
         });
       } catch (error) {
         if (isManualPatientCommandUniqueViolation(error)) {
-          throw new Error("idempotency_conflict");
+          throw new Error('idempotency_conflict');
         }
         throw error;
       }
@@ -1529,7 +1567,7 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
       return db.transaction(async (tx) => {
         const appointments = [];
         for (const input of inputs) {
-          const status = input.status ?? "created";
+          const status = input.status ?? 'created';
           const inserted = await tx
             .insert(beAppointments)
             .values({
@@ -1556,18 +1594,30 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
             .returning();
           const appt = mapAppointment(inserted[0]!);
           await tx.insert(beAppointmentEvents).values({
-            organizationId: appt.organizationId, appointmentId: appt.id, eventType: "created",
-            actorId: input.actorId ?? null, payload: { status },
+            organizationId: appt.organizationId,
+            appointmentId: appt.id,
+            eventType: 'created',
+            actorId: input.actorId ?? null,
+            payload: { status },
           });
           await tx.insert(beAppointmentHistoryEvents).values({
-            organizationId: appt.organizationId, appointmentId: appt.id, eventType: "created",
-            actorId: input.actorId ?? null, payload: { status }, occurredAt: now,
+            organizationId: appt.organizationId,
+            appointmentId: appt.id,
+            eventType: 'created',
+            actorId: input.actorId ?? null,
+            payload: { status },
+            occurredAt: now,
           });
           if (appt.platformUserId) {
             await tx.insert(bePatientTimelineEvents).values({
-              organizationId: appt.organizationId, platformUserId: appt.platformUserId,
-              domain: "appointment", eventType: "appointment_created", linkedObjectType: "appointment",
-              linkedObjectId: appt.id, payload: { status }, occurredAt: now,
+              organizationId: appt.organizationId,
+              platformUserId: appt.platformUserId,
+              domain: 'appointment',
+              eventType: 'appointment_created',
+              linkedObjectType: 'appointment',
+              linkedObjectId: appt.id,
+              payload: { status },
+              occurredAt: now,
             });
           }
           appointments.push(appt);
@@ -1586,7 +1636,7 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
           .where(eq(beAppointments.id, input.appointmentId))
           .limit(1);
         const current = currentRows[0];
-        if (!current) throw new Error("appointment_not_found");
+        if (!current) throw new Error('appointment_not_found');
         const fromStatus = current.status;
         await tx
           .update(beAppointments)
@@ -1594,21 +1644,23 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
             status: input.toStatus,
             updatedAt: now,
             rescheduleCount:
-              input.toStatus === "rescheduled" ? current.rescheduleCount + 1 : current.rescheduleCount,
+              input.toStatus === 'rescheduled'
+                ? current.rescheduleCount + 1
+                : current.rescheduleCount,
           })
           .where(eq(beAppointments.id, input.appointmentId));
         const payload = { fromStatus, toStatus: input.toStatus, ...(input.payload ?? {}) };
         await tx.insert(beAppointmentEvents).values({
           organizationId: current.organizationId,
           appointmentId: input.appointmentId,
-          eventType: "status_changed",
+          eventType: 'status_changed',
           actorId: input.actorId ?? null,
           payload,
         });
         await tx.insert(beAppointmentHistoryEvents).values({
           organizationId: current.organizationId,
           appointmentId: input.appointmentId,
-          eventType: "status_changed",
+          eventType: 'status_changed',
           actorId: input.actorId ?? null,
           payload,
           occurredAt: now,
@@ -1617,9 +1669,9 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
           await tx.insert(bePatientTimelineEvents).values({
             organizationId: current.organizationId,
             platformUserId: current.platformUserId,
-            domain: "appointment",
-            eventType: "appointment_status_changed",
-            linkedObjectType: "appointment",
+            domain: 'appointment',
+            eventType: 'appointment_status_changed',
+            linkedObjectType: 'appointment',
             linkedObjectId: input.appointmentId,
             payload,
             occurredAt: now,
@@ -1642,8 +1694,8 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
           .where(
             and(
               eq(bePatientTimelineEvents.organizationId, input.organizationId),
-              eq(bePatientTimelineEvents.domain, "appointment"),
-              eq(bePatientTimelineEvents.linkedObjectType, "appointment"),
+              eq(bePatientTimelineEvents.domain, 'appointment'),
+              eq(bePatientTimelineEvents.linkedObjectType, 'appointment'),
               eq(bePatientTimelineEvents.linkedObjectId, input.appointmentId),
             ),
           );
@@ -1652,7 +1704,7 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
           .where(
             and(
               eq(beExternalEntityMappings.organizationId, input.organizationId),
-              eq(beExternalEntityMappings.entityType, "appointment"),
+              eq(beExternalEntityMappings.entityType, 'appointment'),
               eq(beExternalEntityMappings.canonicalId, input.appointmentId),
             ),
           );
@@ -1682,6 +1734,5 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
         .where(eq(beSpecialistRooms.organizationId, organizationId));
       return rows;
     },
-
   };
 }

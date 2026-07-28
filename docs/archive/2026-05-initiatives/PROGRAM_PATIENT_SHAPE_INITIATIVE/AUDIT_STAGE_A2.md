@@ -15,63 +15,63 @@
 
 ## 1b. Post-FIX (2026-05-03)
 
-| ID | Результат |
-|---|---|
-| **A2-READ-01** | **Закрыт:** `omitDisabledInstanceStageItemsForPatientApi` в `stage-semantics.ts`; применён в **`GET /api/patient/treatment-program-instances/[instanceId]`** и в RSC `app/app/patient/treatment-programs/[instanceId]/page.tsx`. Контракт — `api.md`. |
-| **A2-TXN-01** | **Закрыт:** порт **`patchInstanceStageItemWithEvent`** (PG — `db.transaction`: update item + insert event + touch instance; in-memory — patch + `appendProgramEvent` в одном замыкании). `doctorDisableInstanceStageItem` / `doctorEnableInstanceStageItem` при наличии `events` вызывают его; без `events` — только `patch` (обратная совместимость тестовых фикстур). |
-| **A2-LEGACY-01** | **Defer (Info):** контент/миграция шаблонов — вне runtime-FIX; рекомендация в `LOG.md` и §2.3 плана без изменения кода. |
+| ID               | Результат                                                                                                                                                                                                                                                                                                                                                               |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A2-READ-01**   | **Закрыт:** `omitDisabledInstanceStageItemsForPatientApi` в `stage-semantics.ts`; применён в **`GET /api/patient/treatment-program-instances/[instanceId]`** и в RSC `app/app/patient/treatment-programs/[instanceId]/page.tsx`. Контракт — `api.md`.                                                                                                                   |
+| **A2-TXN-01**    | **Закрыт:** порт **`patchInstanceStageItemWithEvent`** (PG — `db.transaction`: update item + insert event + touch instance; in-memory — patch + `appendProgramEvent` в одном замыкании). `doctorDisableInstanceStageItem` / `doctorEnableInstanceStageItem` при наличии `events` вызывают его; без `events` — только `patch` (обратная совместимость тестовых фикстур). |
+| **A2-LEGACY-01** | **Defer (Info):** контент/миграция шаблонов — вне runtime-FIX; рекомендация в `LOG.md` и §2.3 плана без изменения кода.                                                                                                                                                                                                                                                 |
 
 ## 2. Проверки по запросу аудита
 
 ### 2.1 `is_actionable` и `status` работают end-to-end
 
-| Критерий | Статус | Доказательство |
-|---|---|---|
-| Схема БД + миграция | **PASS** | `apps/webapp/db/schema/treatmentProgramInstances.ts` — `isActionable`, `status` + CHECK `active` \| `disabled`. Миграция `apps/webapp/db/drizzle-migrations/0028_treatment_program_a2_instance_item_status.sql`. |
-| Репозиторий | **PASS** | `pgTreatmentProgramInstance.ts`: `mapItem`, `createInstanceTree` / `addInstanceStageItem` / `patchInstanceStageItem` / **`patchInstanceStageItemWithEvent`**, `replaceInstanceStageItem` (сброс `status`/`isActionable` при замене). `inMemoryTreatmentProgramInstance.ts` — зеркально. |
-| Назначение с шаблона | **PASS** | `instance-service.ts` `assignTemplateToPatient`: для `recommendation` задаётся `isActionable: true`, `status: "active"`; логика стартовых статусов этапов (Этап 0 + первый FSM-этап). |
-| Doctor API | **PASS** | `apps/webapp/src/app/api/doctor/treatment-program-instances/[instanceId]/stage-items/[itemId]/route.ts` — `PATCH` с `status`, `isActionable`, `localComment`, `replace`. |
-| Doctor UI | **PASS** | `TreatmentProgramInstanceDetailClient.tsx` — `InstanceStageItemDoctorRow`: `Badge`, `Select`, `Отключить`/`Включить`, `Dialog` при истории. |
-| Тесты | **PASS** | `instance-service.test.ts` (ожидания `isActionable`/`status`), `treatment-program-events.test.ts`, `progress-service.test.ts` (A2-сценарии). |
+| Критерий             | Статус   | Доказательство                                                                                                                                                                                                                                                                          |
+| -------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Схема БД + миграция  | **PASS** | `apps/webapp/db/schema/treatmentProgramInstances.ts` — `isActionable`, `status` + CHECK `active` \| `disabled`. Миграция `apps/webapp/db/drizzle-migrations/0028_treatment_program_a2_instance_item_status.sql`.                                                                        |
+| Репозиторий          | **PASS** | `pgTreatmentProgramInstance.ts`: `mapItem`, `createInstanceTree` / `addInstanceStageItem` / `patchInstanceStageItem` / **`patchInstanceStageItemWithEvent`**, `replaceInstanceStageItem` (сброс `status`/`isActionable` при замене). `inMemoryTreatmentProgramInstance.ts` — зеркально. |
+| Назначение с шаблона | **PASS** | `instance-service.ts` `assignTemplateToPatient`: для `recommendation` задаётся `isActionable: true`, `status: "active"`; логика стартовых статусов этапов (Этап 0 + первый FSM-этап).                                                                                                   |
+| Doctor API           | **PASS** | `apps/webapp/src/app/api/doctor/treatment-program-instances/[instanceId]/stage-items/[itemId]/route.ts` — `PATCH` с `status`, `isActionable`, `localComment`, `replace`.                                                                                                                |
+| Doctor UI            | **PASS** | `TreatmentProgramInstanceDetailClient.tsx` — `InstanceStageItemDoctorRow`: `Badge`, `Select`, `Отключить`/`Включить`, `Dialog` при истории.                                                                                                                                             |
+| Тесты                | **PASS** | `instance-service.test.ts` (ожидания `isActionable`/`status`), `treatment-program-events.test.ts`, `progress-service.test.ts` (A2-сценарии).                                                                                                                                            |
 
 ### 2.2 Disabled items исключены из patient completion / read model
 
-| Критерий | Статус | Доказательство |
-|---|---|---|
-| Completion (мутации) | **PASS** | `progress-service.ts`: `patientCompleteSimpleItem`, `patientEnsureTestAttempt`, `patientSubmitTestResult` — отказ при `!isInstanceStageItemActiveForPatient(item)` («Элемент отключён»). |
-| Прогресс этапа | **PASS** | `maybeCompleteStageFromItems`: `isCompletableForStageProgress` исключает `status === "disabled"` и persistent recommendation. |
-| Read model в web UI | **PASS** | `PatientTreatmentProgramDetailClient.tsx` — `visibleItems = stage.items.filter(isInstanceStageItemActiveForPatient)`. |
-| Read model в JSON `GET` пациента | **PASS** | После FIX: `route.ts` вызывает `omitDisabledInstanceStageItemsForPatientApi` после `getInstanceForPatient`. Контракт в `api.md`. |
+| Критерий                         | Статус   | Доказательство                                                                                                                                                                           |
+| -------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Completion (мутации)             | **PASS** | `progress-service.ts`: `patientCompleteSimpleItem`, `patientEnsureTestAttempt`, `patientSubmitTestResult` — отказ при `!isInstanceStageItemActiveForPatient(item)` («Элемент отключён»). |
+| Прогресс этапа                   | **PASS** | `maybeCompleteStageFromItems`: `isCompletableForStageProgress` исключает `status === "disabled"` и persistent recommendation.                                                            |
+| Read model в web UI              | **PASS** | `PatientTreatmentProgramDetailClient.tsx` — `visibleItems = stage.items.filter(isInstanceStageItemActiveForPatient)`.                                                                    |
+| Read model в JSON `GET` пациента | **PASS** | После FIX: `route.ts` вызывает `omitDisabledInstanceStageItemsForPatientApi` после `getInstanceForPatient`. Контракт в `api.md`.                                                         |
 
 ### 2.3 Stage 0 всегда видим и не влияет на FSM
 
-| Критерий | Статус | Доказательство |
-|---|---|---|
-| Определение этапа 0 | **PASS** | `stage-semantics.ts` — `isStageZero(stage) => stage.sortOrder === 0`. |
-| FSM автозавершения | **PASS** | `progress-service.ts` `maybeCompleteStageFromItems`: `if (isStageZero(stage)) return;`. |
-| Доступ пациента при locked | **PASS** | `assertStageAccessibleForPatient`: для этапа 0 не блокирует по `locked`/`skipped`. |
-| UI: всегда отдельный блок | **PASS** | `PatientTreatmentProgramDetailClient.tsx` — `stageZeroStages` рендерятся с `patientSectionSurfaceClass` и заголовком «Общие рекомендации»; `ignoreStageLockForContent` для контента элементов. |
+| Критерий                      | Статус   | Доказательство                                                                                                                                                                                             |
+| ----------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Определение этапа 0           | **PASS** | `stage-semantics.ts` — `isStageZero(stage) => stage.sortOrder === 0`.                                                                                                                                      |
+| FSM автозавершения            | **PASS** | `progress-service.ts` `maybeCompleteStageFromItems`: `if (isStageZero(stage)) return;`.                                                                                                                    |
+| Доступ пациента при locked    | **PASS** | `assertStageAccessibleForPatient`: для этапа 0 не блокирует по `locked`/`skipped`.                                                                                                                         |
+| UI: всегда отдельный блок     | **PASS** | `PatientTreatmentProgramDetailClient.tsx` — `stageZeroStages` рендерятся с `patientSectionSurfaceClass` и заголовком «Общие рекомендации»; `ignoreStageLockForContent` для контента элементов.             |
 | Назначение: стартовые статусы | **PASS** | `instance-service.ts` `assignTemplateToPatient` — этап с `sortOrder === 0` → `available`; первый этап с `sortOrder > 0` → `available`; остальные FSM-этапы → `locked`; fallback без FSM-этапов — индекс 0. |
 
 ### 2.4 Events `item_disabled` / `item_enabled` пишутся корректно
 
-| Критерий | Статус | Доказательство |
-|---|---|---|
-| CHECK в БД | **PASS** | `treatmentProgramEvents.ts` и миграция `0028_*` — типы в enum. |
-| Запись из сервиса | **PASS** | `instance-service.ts` `doctorDisableInstanceStageItem` / `doctorEnableInstanceStageItem` — при наличии `events` вызывают **`patchInstanceStageItemWithEvent`** (PATCH + событие атомарно в PG), `targetType: "stage_item"`, `payload` с `stageId`, `itemType`, `itemRefId`. |
-| `reason` | **PASS** | `event-recording.ts` — обязательный `reason` только для `stage_skipped` и `item_removed`; для `item_disabled` / `item_enabled` не требуется. |
-| Идемпотентность | **PASS** | Повторный disable при уже `disabled` — ранний `return item` без второго события; аналогично enable. |
-| Тесты | **PASS** | `treatment-program-events.test.ts` — наличие `item_disabled` в ленте. |
-| Атомарность PATCH + event | **PASS** | `patchInstanceStageItemWithEvent` в PG — одна транзакция; in-memory — единое замыкание. Сервис: disable/enable при `events` используют этот путь. |
+| Критерий                  | Статус   | Доказательство                                                                                                                                                                                                                                                              |
+| ------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CHECK в БД                | **PASS** | `treatmentProgramEvents.ts` и миграция `0028_*` — типы в enum.                                                                                                                                                                                                              |
+| Запись из сервиса         | **PASS** | `instance-service.ts` `doctorDisableInstanceStageItem` / `doctorEnableInstanceStageItem` — при наличии `events` вызывают **`patchInstanceStageItemWithEvent`** (PATCH + событие атомарно в PG), `targetType: "stage_item"`, `payload` с `stageId`, `itemType`, `itemRefId`. |
+| `reason`                  | **PASS** | `event-recording.ts` — обязательный `reason` только для `stage_skipped` и `item_removed`; для `item_disabled` / `item_enabled` не требуется.                                                                                                                                |
+| Идемпотентность           | **PASS** | Повторный disable при уже `disabled` — ранний `return item` без второго события; аналогично enable.                                                                                                                                                                         |
+| Тесты                     | **PASS** | `treatment-program-events.test.ts` — наличие `item_disabled` в ленте.                                                                                                                                                                                                       |
+| Атомарность PATCH + event | **PASS** | `patchInstanceStageItemWithEvent` в PG — одна транзакция; in-memory — единое замыкание. Сервис: disable/enable при `events` используют этот путь.                                                                                                                           |
 
 ### 2.5 Нет hard delete instance items
 
-| Критерий | Статус | Доказательство |
-|---|---|---|
-| Порт инстанса | **PASS** | `ports.ts` — метода `removeInstanceStageItem` нет. |
-| PG in-memory | **PASS** | `pgTreatmentProgramInstance.ts` / `inMemoryTreatmentProgramInstance.ts` — нет `delete` по строке элемента экземпляра; удаление этапа каскадом БД — отдельная операция структуры, не «удалить item врачом». |
-| Doctor API | **PASS** | В `.../stage-items/[itemId]/route.ts` нет обработчика `DELETE` (файл только `PATCH`). |
-| Шаблонные stage-items | **Out of scope A2** | `deleteStageItem` в `treatment-program-templates` — **шаблон**, не экземпляр; не нарушает критерий A2. |
+| Критерий              | Статус              | Доказательство                                                                                                                                                                                             |
+| --------------------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Порт инстанса         | **PASS**            | `ports.ts` — метода `removeInstanceStageItem` нет.                                                                                                                                                         |
+| PG in-memory          | **PASS**            | `pgTreatmentProgramInstance.ts` / `inMemoryTreatmentProgramInstance.ts` — нет `delete` по строке элемента экземпляра; удаление этапа каскадом БД — отдельная операция структуры, не «удалить item врачом». |
+| Doctor API            | **PASS**            | В `.../stage-items/[itemId]/route.ts` нет обработчика `DELETE` (файл только `PATCH`).                                                                                                                      |
+| Шаблонные stage-items | **Out of scope A2** | `deleteStageItem` в `treatment-program-templates` — **шаблон**, не экземпляр; не нарушает критерий A2.                                                                                                     |
 
 ---
 
@@ -86,11 +86,11 @@
 
 ## 4. Регрессии / замечания
 
-| ID | Серьёзность | Описание |
-|---|---|---|
-| **A2-READ-01** | — | **Закрыт** (см. §1b). |
-| **A2-TXN-01** | — | **Закрыт** (см. §1b). |
-| **A2-LEGACY-01** | Info | **Defer:** контент/структура шаблонов; см. §1b и `LOG.md`. |
+| ID               | Серьёзность | Описание                                                   |
+| ---------------- | ----------- | ---------------------------------------------------------- |
+| **A2-READ-01**   | —           | **Закрыт** (см. §1b).                                      |
+| **A2-TXN-01**    | —           | **Закрыт** (см. §1b).                                      |
+| **A2-LEGACY-01** | Info        | **Defer:** контент/структура шаблонов; см. §1b и `LOG.md`. |
 
 ---
 

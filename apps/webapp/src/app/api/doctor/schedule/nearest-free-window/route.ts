@@ -13,12 +13,12 @@
  * Ответ: { ok: true, window: { from: ISO, to: ISO } | null }
  * Деградирует gracefully: если расчёт невозможен — window: null (не 500).
  */
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
-import { logger, serializeError } from "@/infra/logging/logger";
-import { resolveDoctorCalendarIana } from "@/app-layer/booking/resolveDoctorCalendarIana";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { logger, serializeError } from '@/infra/logging/logger';
+import { resolveDoctorCalendarIana } from '@/app-layer/booking/resolveDoctorCalendarIana';
 
 const QuerySchema = z.object({
   specialistId: z.string().uuid().optional().nullable(),
@@ -33,23 +33,23 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const raw = {
-    specialistId: url.searchParams.get("specialistId") ?? undefined,
-    branchId: url.searchParams.get("branchId") ?? undefined,
-    roomId: url.searchParams.get("roomId") ?? undefined,
-    timeZone: url.searchParams.get("timeZone") ?? undefined,
+    specialistId: url.searchParams.get('specialistId') ?? undefined,
+    branchId: url.searchParams.get('branchId') ?? undefined,
+    roomId: url.searchParams.get('roomId') ?? undefined,
+    timeZone: url.searchParams.get('timeZone') ?? undefined,
   };
 
   const parsed = QuerySchema.safeParse(raw);
   if (!parsed.success) {
     return NextResponse.json(
-      { ok: false, error: "invalid_params", issues: parsed.error.issues },
+      { ok: false, error: 'invalid_params', issues: parsed.error.issues },
       { status: 400 },
     );
   }
 
   const deps = buildAppDeps();
   if (!deps.bookingEngine) {
-    return NextResponse.json({ ok: false, error: "booking_engine_unavailable" }, { status: 503 });
+    return NextResponse.json({ ok: false, error: 'booking_engine_unavailable' }, { status: 503 });
   }
   if (!deps.bookingScheduling) {
     // Деградация: сервис недоступен — возвращаем null окно (не блокировать UI)
@@ -62,7 +62,7 @@ export async function GET(req: Request) {
     timeZone = parsed.data.timeZone;
   } else {
     timeZone = await resolveDoctorCalendarIana(gate.ctx.session.user.userId).catch(
-      () => "Europe/Moscow",
+      () => 'Europe/Moscow',
     );
   }
 
@@ -78,7 +78,7 @@ export async function GET(req: Request) {
   } catch (e) {
     logger.error(
       { err: serializeError(e), organizationId: gate.ctx.organizationId },
-      "nearest-free-window.failed",
+      'nearest-free-window.failed',
     );
     // Деградация: ошибка → null окно (не блокировать UI)
     return NextResponse.json({ ok: true, window: null });

@@ -36,8 +36,9 @@ Import block (lines 3–27) contains no `BookingSoloScheduleSection`. The `booki
 **PASS.**
 
 Line 425:
+
 ```ts
-const [selectionMode, setSelectionMode] = useState<"dates" | "weekday">("dates");
+const [selectionMode, setSelectionMode] = useState<'dates' | 'weekday'>('dates');
 ```
 
 Values are `"dates"` | `"weekday"` — this is the SCH-R-04 column-type selector (clicking a weekday header vs a date cell). All 12 usages are live: they control weekday panel visibility, `weekdayPermanent` save path, grid highlighting, and button label. None are the old top-level schedule-mode switcher (which used different strings and a different state variable).
@@ -62,7 +63,7 @@ ScheduleWorkTab.test.tsx:13    <div data-testid="booking-solo-schedule-section">
 
 The test file also retains five `CAL-02` test cases that assert `data-testid="mode-switcher"`, `mode-btn-per-date`, `mode-btn-weekly`, and `booking-solo-schedule-section` — DOM elements that no longer exist after SCH-R-05.
 
-**Classification:** Non-blocking stale test artifact. The test file (`ScheduleWorkTab.test.tsx`) was last modified at commit `e6c161a7` (before SCH-R-05). The entire jsdom test suite for this branch has a pre-existing environment failure (`ERR_UNKNOWN_BUILTIN_MODULE: node:`) that prevents any `.tsx` test from executing; the CAL-02 tests could not have been green in the current environment regardless of SCH-R-05.  SCH-R-05 did not introduce the test failure — it was already broken. However, SCH-R-05 did not clean up the stale mocks and orphaned CAL-02 assertions, which is a hygiene debt: once the jsdom environment is repaired, these 5 tests will fail with "Unable to find element by testId: mode-switcher".
+**Classification:** Non-blocking stale test artifact. The test file (`ScheduleWorkTab.test.tsx`) was last modified at commit `e6c161a7` (before SCH-R-05). The entire jsdom test suite for this branch has a pre-existing environment failure (`ERR_UNKNOWN_BUILTIN_MODULE: node:`) that prevents any `.tsx` test from executing; the CAL-02 tests could not have been green in the current environment regardless of SCH-R-05. SCH-R-05 did not introduce the test failure — it was already broken. However, SCH-R-05 did not clean up the stale mocks and orphaned CAL-02 assertions, which is a hygiene debt: once the jsdom environment is repaired, these 5 tests will fail with "Unable to find element by testId: mode-switcher".
 
 **Recommendation:** Remove or rewrite the 5 CAL-02 test cases in `ScheduleWorkTab.test.tsx` (lines 533–591) as a separate cleanup task. The stale `vi.mock("@/app/app/settings/BookingSoloScheduleSection", ...)` block (lines 10–14) should also be removed.
 
@@ -86,14 +87,14 @@ Zero occurrences of "По датам" or "Недельный шаблон" anywh
 
 All SCH-R-04 additions survive SCH-R-05 removal:
 
-| Symbol | Location | Status |
-|--------|----------|--------|
-| `weekdayPermanent` state | line 427 | present |
-| `handleSaveWeekdayTemplate()` | line 685 | present, full implementation |
-| `handleClearWeekdayTemplate()` | line 721 | present, full implementation |
-| `weekdayPermanent` in `handleSave` | line 741 | present |
-| `handleClearWeekdayTemplate` in clear path | line 791 | present |
-| `data-testid="weekday-permanent"` checkbox | line 1020 | present |
+| Symbol                                     | Location  | Status                       |
+| ------------------------------------------ | --------- | ---------------------------- |
+| `weekdayPermanent` state                   | line 427  | present                      |
+| `handleSaveWeekdayTemplate()`              | line 685  | present, full implementation |
+| `handleClearWeekdayTemplate()`             | line 721  | present, full implementation |
+| `weekdayPermanent` in `handleSave`         | line 741  | present                      |
+| `handleClearWeekdayTemplate` in clear path | line 791  | present                      |
+| `data-testid="weekday-permanent"` checkbox | line 1020 | present                      |
 
 ---
 

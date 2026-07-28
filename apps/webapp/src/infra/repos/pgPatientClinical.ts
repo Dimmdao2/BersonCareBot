@@ -4,10 +4,10 @@
  * latest update per complaint, trend oldest→newest) mirrors inMemoryPatientClinical.
  */
 
-import { and, asc, desc, eq, ilike, inArray, ne, sql } from "drizzle-orm";
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { runDrizzleMutationTransaction } from "@/infra/db/drizzleMutationTx";
+import { and, asc, desc, eq, ilike, inArray, ne, sql } from 'drizzle-orm';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
 import type {
   ActiveComplaint,
   ActiveDiagnosis,
@@ -31,7 +31,7 @@ import type {
   UpdateVisitFieldsInput,
   Visit,
   VisitFile,
-} from "@/modules/patient-clinical/ports";
+} from '@/modules/patient-clinical/ports';
 import {
   clinicalComplaint,
   clinicalComplaintUpdate,
@@ -40,18 +40,28 @@ import {
   clinicalDiagnosisStatusHistory,
   clinicalDiagnosisUpdate,
   clinicalVisit,
-} from "../../../db/schema/patientClinical";
+} from '../../../db/schema/patientClinical';
 import {
   clinicalAnamnesisTrauma,
   clinicalAnamnesisIllness,
   clinicalAnamnesisLifestyle,
-} from "../../../db/schema/patientClinicalAnamnesis";
-import { patientFiles } from "../../../db/schema/patientFiles";
-import { beAppointments } from "../../../db/schema/bookingEngine";
+} from '../../../db/schema/patientClinicalAnamnesis';
+import { patientFiles } from '../../../db/schema/patientFiles';
+import { beAppointments } from '../../../db/schema/bookingEngine';
 
 const RU_MONTHS = [
-  "января", "февраля", "марта", "апреля", "мая", "июня",
-  "июля", "августа", "сентября", "октября", "ноября", "декабря",
+  'января',
+  'февраля',
+  'марта',
+  'апреля',
+  'мая',
+  'июня',
+  'июля',
+  'августа',
+  'сентября',
+  'октября',
+  'ноября',
+  'декабря',
 ];
 
 function fmtVisitDate(iso: string): string {
@@ -61,13 +71,13 @@ function fmtVisitDate(iso: string): string {
 
 function fmtVisitTime(iso: string): string {
   const d = new Date(iso);
-  return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+  return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
 }
 
 function fmtDayMonth(iso: string): string {
   const d = new Date(iso);
-  const dd = String(d.getUTCDate()).padStart(2, "0");
-  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
   return `${dd}.${mm}`;
 }
 
@@ -81,17 +91,17 @@ function fmtSince(iso: string): string {
  */
 function fmtDisplayDate(isoOrLocal: string): string {
   // Handles both "2026-01-18" (date-only) and full ISO timestamps.
-  const d = new Date(isoOrLocal.length === 10 ? isoOrLocal + "T00:00:00Z" : isoOrLocal);
-  const dd = String(d.getUTCDate()).padStart(2, "0");
-  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const d = new Date(isoOrLocal.length === 10 ? isoOrLocal + 'T00:00:00Z' : isoOrLocal);
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
   const yyyy = d.getUTCFullYear();
   return `${dd}.${mm}.${yyyy}`;
 }
 
 function fileIconForMime(mime: string): string {
-  if (mime.startsWith("image/")) return "📷";
-  if (mime === "application/pdf") return "📄";
-  return "📎";
+  if (mime.startsWith('image/')) return '📷';
+  if (mime === 'application/pdf') return '📄';
+  return '📎';
 }
 
 function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[]): string | null {
@@ -101,9 +111,11 @@ function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[])
   const hasFallbackMismatch = fallbackOrganizationIds.some((id) => id !== fallbackOrganizationId);
   if (
     hasFallbackMismatch ||
-    (principalOrganizationId && fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)
+    (principalOrganizationId &&
+      fallbackOrganizationId &&
+      principalOrganizationId !== fallbackOrganizationId)
   ) {
-    throw new Error("organization_principal_mismatch");
+    throw new Error('organization_principal_mismatch');
   }
   return principalOrganizationId ?? fallbackOrganizationId;
 }
@@ -111,7 +123,7 @@ function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[])
 function requiredPrincipalOrganizationId(): string {
   const organizationId = currentWriteOrganizationId();
   if (!organizationId) {
-    throw new Error("organization_principal_required");
+    throw new Error('organization_principal_required');
   }
   return organizationId;
 }
@@ -132,8 +144,10 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
         .where(
           and(
             eq(clinicalComplaint.patientUserId, patientUserId),
-            eq(clinicalComplaint.status, "active"),
-            principalOrganizationId() ? eq(clinicalComplaint.organizationId, principalOrganizationId()!) : undefined,
+            eq(clinicalComplaint.status, 'active'),
+            principalOrganizationId()
+              ? eq(clinicalComplaint.organizationId, principalOrganizationId()!)
+              : undefined,
           ),
         )
         .orderBy(desc(clinicalComplaint.priority), asc(clinicalComplaint.createdAt));
@@ -154,8 +168,10 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
         .where(
           and(
             eq(clinicalDiagnosis.patientUserId, patientUserId),
-            ne(clinicalDiagnosis.status, "resolved"),
-            principalOrganizationId() ? eq(clinicalDiagnosis.organizationId, principalOrganizationId()!) : undefined,
+            ne(clinicalDiagnosis.status, 'resolved'),
+            principalOrganizationId()
+              ? eq(clinicalDiagnosis.organizationId, principalOrganizationId()!)
+              : undefined,
           ),
         )
         .orderBy(desc(clinicalDiagnosis.priority), asc(clinicalDiagnosis.createdAt));
@@ -189,9 +205,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
       const visitDateById = new Map(relevantVisits.map((v) => [v.id, v.visitedAt]));
 
       const complaints: ActiveComplaint[] = complaintRows.map((c) => {
-        const trend = updateRows
-          .filter((u) => u.complaintId === c.id)
-          .map((u) => u.severity);
+        const trend = updateRows.filter((u) => u.complaintId === c.id).map((u) => u.severity);
         return {
           id: c.id,
           text: c.text,
@@ -206,18 +220,18 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
       const diagnoses: ActiveDiagnosis[] = diagnosisRows.map((d) => {
         const updates = diagUpdateRows.filter((u) => u.diagnosisId === d.id);
         const last = updates[updates.length - 1];
-        const refinedDate = last ? visitDateById.get(last.visitId) ?? last.createdAt : null;
+        const refinedDate = last ? (visitDateById.get(last.visitId) ?? last.createdAt) : null;
         const placedDate = visitDateById.get(d.sourceVisitId) ?? d.createdAt;
         const meta =
-          d.status === "refined" && refinedDate
+          d.status === 'refined' && refinedDate
             ? `уточнён ${fmtDayMonth(refinedDate)}`
             : `поставлен ${fmtDayMonth(placedDate)}`;
         return {
           id: d.id,
           text: d.text,
           priority: d.priority,
-          status: d.status === "refined" ? "refined" : "active",
-          clinicalStatus: (d.clinicalStatus ?? "предварительный") as DiagnosisClinicalStatus,
+          status: d.status === 'refined' ? 'refined' : 'active',
+          clinicalStatus: (d.clinicalStatus ?? 'предварительный') as DiagnosisClinicalStatus,
           meta,
           comment: d.comment ?? null,
         };
@@ -236,7 +250,9 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
         .where(
           and(
             eq(clinicalVisit.patientUserId, patientUserId),
-            principalOrganizationId() ? eq(clinicalVisit.organizationId, principalOrganizationId()!) : undefined,
+            principalOrganizationId()
+              ? eq(clinicalVisit.organizationId, principalOrganizationId()!)
+              : undefined,
           ),
         )
         .orderBy(desc(clinicalVisit.visitedAt));
@@ -340,19 +356,22 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
             return {
               id: u.id,
               priority: complaint?.priority ?? false,
-              label: complaint?.text ?? "",
+              label: complaint?.text ?? '',
               from,
               to: u.severity,
-              note: u.note ?? "",
+              note: u.note ?? '',
             };
           });
 
         const sections: { title: string; body: string }[] = [];
-        if (v.anamnesisText) sections.push({ title: "Анамнез / история жалобы", body: v.anamnesisText });
-        if (v.exam) sections.push({ title: "Осмотр", body: v.exam });
-        if (v.manipulations) sections.push({ title: "Проведённые манипуляции", body: v.manipulations });
-        if (v.trialResults) sections.push({ title: "Результаты проб", body: v.trialResults });
-        if (v.recommendations) sections.push({ title: "Рекомендации / Назначения", body: v.recommendations });
+        if (v.anamnesisText)
+          sections.push({ title: 'Анамнез / история жалобы', body: v.anamnesisText });
+        if (v.exam) sections.push({ title: 'Осмотр', body: v.exam });
+        if (v.manipulations)
+          sections.push({ title: 'Проведённые манипуляции', body: v.manipulations });
+        if (v.trialResults) sections.push({ title: 'Результаты проб', body: v.trialResults });
+        if (v.recommendations)
+          sections.push({ title: 'Рекомендации / Назначения', body: v.recommendations });
 
         const files: VisitFile[] = fileRows
           .filter((f) => f.visitId === v.id)
@@ -366,9 +385,9 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
           id: v.id,
           date: fmtVisitDate(v.visitedAt),
           time: fmtVisitTime(v.visitedAt),
-          type: v.visitType as "first" | "repeat",
-          location: v.location ?? "",
-          duration: v.duration ?? "",
+          type: v.visitType as 'first' | 'repeat',
+          location: v.location ?? '',
+          duration: v.duration ?? '',
           anamnesisText: v.anamnesisText ?? null,
           filesCount: files.length > 0 ? files.length : undefined,
           dynamics: dynamics.length > 0 ? dynamics : undefined,
@@ -412,7 +431,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
           .returning(),
       );
       const row = inserted[0];
-      if (!row) throw new Error("clinical_diagnosis_catalog insert failed");
+      if (!row) throw new Error('clinical_diagnosis_catalog insert failed');
       return { id: row.id, label: row.label, note: row.note ?? null };
     },
 
@@ -434,7 +453,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
           if (canonicalAppointment.rows[0]) {
             canonicalAppointmentId = canonicalCandidate;
           } else {
-            throw new Error("clinical_target_not_found");
+            throw new Error('clinical_target_not_found');
           }
         }
         const insertedVisit = await tx
@@ -458,9 +477,9 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
           })
           .returning({ id: clinicalVisit.id });
         const visitId = insertedVisit[0]?.id;
-        if (!visitId) throw new Error("clinical_visit insert failed");
+        if (!visitId) throw new Error('clinical_visit insert failed');
 
-        if (input.visitType === "first") {
+        if (input.visitType === 'first') {
           for (const c of input.complaints ?? []) {
             const insertedComplaint = await tx
               .insert(clinicalComplaint)
@@ -470,12 +489,12 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
                 text: c.text,
                 description: c.description ?? null,
                 priority: c.priority,
-                status: "active",
+                status: 'active',
                 sourceVisitId: visitId,
               })
               .returning({ id: clinicalComplaint.id });
             const complaintId = insertedComplaint[0]?.id;
-            if (!complaintId) throw new Error("clinical_complaint insert failed");
+            if (!complaintId) throw new Error('clinical_complaint insert failed');
             await tx.insert(clinicalComplaintUpdate).values({
               organizationId,
               complaintId,
@@ -493,7 +512,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
               text: d.text,
               priority: d.priority,
               comment: d.comment ?? null,
-              status: "active",
+              status: 'active',
               sourceVisitId: visitId,
             });
           }
@@ -509,7 +528,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
                 ),
               )
               .limit(1);
-            if (!existingComplaint[0]) throw new Error("clinical_target_not_found");
+            if (!existingComplaint[0]) throw new Error('clinical_target_not_found');
             const complaintOrganizationId = currentWriteOrganizationId(
               organizationId,
               existingComplaint[0].organizationId,
@@ -524,10 +543,10 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
             });
             if (u.resolved) {
               await tx
-                  .update(clinicalComplaint)
+                .update(clinicalComplaint)
                 .set({
                   organizationId: complaintOrganizationId,
-                  status: "resolved",
+                  status: 'resolved',
                   resolvedAt: new Date().toISOString(),
                 })
                 .where(
@@ -549,12 +568,12 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
                 ),
               )
               .limit(1);
-            if (!existingDiagnosis[0]) throw new Error("clinical_target_not_found");
+            if (!existingDiagnosis[0]) throw new Error('clinical_target_not_found');
             const diagnosisOrganizationId = currentWriteOrganizationId(
               organizationId,
               existingDiagnosis[0].organizationId,
             );
-            const nextStatus = u.removed ? "resolved" : "refined";
+            const nextStatus = u.removed ? 'resolved' : 'refined';
             await tx.insert(clinicalDiagnosisUpdate).values({
               organizationId: diagnosisOrganizationId,
               diagnosisId: u.diagnosisId,
@@ -713,7 +732,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
           .limit(1);
         if (!existing[0]) return false;
 
-        const oldStatus = existing[0].clinicalStatus ?? "предварительный";
+        const oldStatus = existing[0].clinicalStatus ?? 'предварительный';
         const organizationId = currentWriteOrganizationId(existing[0].organizationId);
 
         await tx
@@ -787,38 +806,38 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
         db
           .select()
           .from(clinicalAnamnesisTrauma)
-              .where(
-                and(
-                  eq(clinicalAnamnesisTrauma.patientUserId, patientUserId),
-                  principalOrganizationId()
-                    ? eq(clinicalAnamnesisTrauma.organizationId, principalOrganizationId()!)
-                    : undefined,
-                ),
-              )
+          .where(
+            and(
+              eq(clinicalAnamnesisTrauma.patientUserId, patientUserId),
+              principalOrganizationId()
+                ? eq(clinicalAnamnesisTrauma.organizationId, principalOrganizationId()!)
+                : undefined,
+            ),
+          )
           .orderBy(asc(clinicalAnamnesisTrauma.createdAt)),
         db
           .select()
           .from(clinicalAnamnesisIllness)
-              .where(
-                and(
-                  eq(clinicalAnamnesisIllness.patientUserId, patientUserId),
-                  principalOrganizationId()
-                    ? eq(clinicalAnamnesisIllness.organizationId, principalOrganizationId()!)
-                    : undefined,
-                ),
-              )
+          .where(
+            and(
+              eq(clinicalAnamnesisIllness.patientUserId, patientUserId),
+              principalOrganizationId()
+                ? eq(clinicalAnamnesisIllness.organizationId, principalOrganizationId()!)
+                : undefined,
+            ),
+          )
           .orderBy(asc(clinicalAnamnesisIllness.createdAt)),
         db
           .select()
           .from(clinicalAnamnesisLifestyle)
-              .where(
-                and(
-                  eq(clinicalAnamnesisLifestyle.patientUserId, patientUserId),
-                  principalOrganizationId()
-                    ? eq(clinicalAnamnesisLifestyle.organizationId, principalOrganizationId()!)
-                    : undefined,
-                ),
-              )
+          .where(
+            and(
+              eq(clinicalAnamnesisLifestyle.patientUserId, patientUserId),
+              principalOrganizationId()
+                ? eq(clinicalAnamnesisLifestyle.organizationId, principalOrganizationId()!)
+                : undefined,
+            ),
+          )
           .orderBy(asc(clinicalAnamnesisLifestyle.createdAt)),
       ]);
 
@@ -844,26 +863,30 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
       };
     },
 
-    async appendAnamnesisTrauma(
-      input: AppendAnamnesisTraumaInput,
-    ): Promise<AnamnesisTraumaEntry> {
+    async appendAnamnesisTrauma(input: AppendAnamnesisTraumaInput): Promise<AnamnesisTraumaEntry> {
       const rows = await runDrizzleMutationTransaction((tx) =>
         tx
-        .insert(clinicalAnamnesisTrauma)
-        .values({
-          organizationId: currentWriteOrganizationId(),
-          patientUserId: input.patientUserId,
-          year: input.year,
-          what: input.what,
-          type: input.type,
-          immobilization: input.immobilization,
-          createdBy: input.createdBy,
-        })
-        .returning(),
+          .insert(clinicalAnamnesisTrauma)
+          .values({
+            organizationId: currentWriteOrganizationId(),
+            patientUserId: input.patientUserId,
+            year: input.year,
+            what: input.what,
+            type: input.type,
+            immobilization: input.immobilization,
+            createdBy: input.createdBy,
+          })
+          .returning(),
       );
       const row = rows[0];
-      if (!row) throw new Error("clinical_anamnesis_trauma insert failed");
-      return { id: row.id, year: row.year, what: row.what, type: row.type, immobilization: row.immobilization };
+      if (!row) throw new Error('clinical_anamnesis_trauma insert failed');
+      return {
+        id: row.id,
+        year: row.year,
+        what: row.what,
+        type: row.type,
+        immobilization: row.immobilization,
+      };
     },
 
     async appendAnamnesisIllness(
@@ -871,19 +894,19 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
     ): Promise<AnamnesisIllnessEntry> {
       const rows = await runDrizzleMutationTransaction((tx) =>
         tx
-        .insert(clinicalAnamnesisIllness)
-        .values({
-          organizationId: currentWriteOrganizationId(),
-          patientUserId: input.patientUserId,
-          period: input.period,
-          what: input.what,
-          comment: input.comment,
-          createdBy: input.createdBy,
-        })
-        .returning(),
+          .insert(clinicalAnamnesisIllness)
+          .values({
+            organizationId: currentWriteOrganizationId(),
+            patientUserId: input.patientUserId,
+            period: input.period,
+            what: input.what,
+            comment: input.comment,
+            createdBy: input.createdBy,
+          })
+          .returning(),
       );
       const row = rows[0];
-      if (!row) throw new Error("clinical_anamnesis_illness insert failed");
+      if (!row) throw new Error('clinical_anamnesis_illness insert failed');
       return { id: row.id, period: row.period, what: row.what, comment: row.comment };
     },
 
@@ -892,18 +915,18 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
     ): Promise<AnamnesisLifestyleEntry> {
       const rows = await runDrizzleMutationTransaction((tx) =>
         tx
-        .insert(clinicalAnamnesisLifestyle)
-        .values({
-          organizationId: currentWriteOrganizationId(),
-          patientUserId: input.patientUserId,
-          recordDate: input.recordDate,
-          text: input.text,
-          createdBy: input.createdBy,
-        })
-        .returning(),
+          .insert(clinicalAnamnesisLifestyle)
+          .values({
+            organizationId: currentWriteOrganizationId(),
+            patientUserId: input.patientUserId,
+            recordDate: input.recordDate,
+            text: input.text,
+            createdBy: input.createdBy,
+          })
+          .returning(),
       );
       const row = rows[0];
-      if (!row) throw new Error("clinical_anamnesis_lifestyle insert failed");
+      if (!row) throw new Error('clinical_anamnesis_lifestyle insert failed');
       return { id: row.id, date: fmtDisplayDate(row.recordDate), text: row.text };
     },
 

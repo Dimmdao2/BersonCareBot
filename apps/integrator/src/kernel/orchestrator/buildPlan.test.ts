@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { BaseContext, ContentPort, ContextQueryPort, IncomingEvent } from '../contracts/index.js';
+import type {
+  BaseContext,
+  ContentPort,
+  ContextQueryPort,
+  IncomingEvent,
+} from '../contracts/index.js';
 import { buildPlan } from './resolver.js';
 
 describe('orchestrator buildPlan', () => {
@@ -45,7 +50,10 @@ describe('orchestrator buildPlan', () => {
       request: vi.fn().mockResolvedValue({}),
     };
 
-    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+    const plan = await buildPlan(
+      { event, context: baseContext },
+      { contentPort, contextQueryPort },
+    );
 
     expect(getScriptsBySource).not.toHaveBeenCalled();
     expect(plan).toHaveLength(2);
@@ -100,7 +108,10 @@ describe('orchestrator buildPlan', () => {
       request: vi.fn().mockResolvedValue({}),
     };
 
-    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+    const plan = await buildPlan(
+      { event, context: baseContext },
+      { contentPort, contextQueryPort },
+    );
 
     expect(getScriptsBySource).not.toHaveBeenCalled();
     expect(plan).toHaveLength(2);
@@ -147,7 +158,13 @@ describe('orchestrator buildPlan', () => {
             input: { action: 'booking.open' },
             context: { linkedPhone: true },
           },
-          steps: [{ action: 'message.send', mode: 'async', params: { templateKey: 'telegram:bookingMessage' } }],
+          steps: [
+            {
+              action: 'message.send',
+              mode: 'async',
+              params: { templateKey: 'telegram:bookingMessage' },
+            },
+          ],
         },
       ]),
       getTemplate: vi.fn().mockResolvedValue(null),
@@ -157,7 +174,10 @@ describe('orchestrator buildPlan', () => {
       request: vi.fn().mockResolvedValue({}),
     };
 
-    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+    const plan = await buildPlan(
+      { event, context: baseContext },
+      { contentPort, contextQueryPort },
+    );
 
     expect(plan).toHaveLength(1);
     expect(plan[0]).toMatchObject({
@@ -212,7 +232,10 @@ describe('orchestrator buildPlan', () => {
       request: vi.fn().mockResolvedValue({ type: 'subscriptions.forUser', items: [] }),
     };
 
-    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+    const plan = await buildPlan(
+      { event, context: baseContext },
+      { contentPort, contextQueryPort },
+    );
 
     expect(contextQueryPort.request).toHaveBeenCalledTimes(1);
     expect(plan.length).toBeGreaterThan(0);
@@ -270,7 +293,10 @@ describe('orchestrator buildPlan', () => {
       request: vi.fn().mockResolvedValue({}),
     };
 
-    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+    const plan = await buildPlan(
+      { event, context: baseContext },
+      { contentPort, contextQueryPort },
+    );
 
     expect(plan).toHaveLength(1);
     expect(plan[0]?.payload).toMatchObject({
@@ -318,32 +344,45 @@ describe('orchestrator buildPlan', () => {
               params: {
                 chatId: '{{input.chatId}}',
                 messageId: '{{input.messageId}}',
-                inlineKeyboard: [[{
-                  textTemplateKey: 'telegram:reminders.category.exercise',
-                  prefixTemplateKey: 'telegram:reminders.togglePrefix',
-                  callbackData: 'reminders.toggle.exercise',
-                }]],
+                inlineKeyboard: [
+                  [
+                    {
+                      textTemplateKey: 'telegram:reminders.category.exercise',
+                      prefixTemplateKey: 'telegram:reminders.togglePrefix',
+                      callbackData: 'reminders.toggle.exercise',
+                    },
+                  ],
+                ],
               },
             },
           ],
         },
       ]),
-      getTemplate: vi.fn().mockResolvedValue({ id: 'reminders.category.exercise', text: 'Упражнения' }),
+      getTemplate: vi
+        .fn()
+        .mockResolvedValue({ id: 'reminders.category.exercise', text: 'Упражнения' }),
     };
 
     const contextQueryPort: ContextQueryPort = {
       request: vi.fn().mockResolvedValue({}),
     };
 
-    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+    const plan = await buildPlan(
+      { event, context: baseContext },
+      { contentPort, contextQueryPort },
+    );
 
     expect(plan).toHaveLength(1);
     expect(plan[0]?.payload).toMatchObject({
-      inlineKeyboard: [[{
-        textTemplateKey: 'telegram:reminders.category.exercise',
-        prefixTemplateKey: 'telegram:reminders.togglePrefix',
-        callbackData: 'reminders.toggle.exercise',
-      }]],
+      inlineKeyboard: [
+        [
+          {
+            textTemplateKey: 'telegram:reminders.category.exercise',
+            prefixTemplateKey: 'telegram:reminders.togglePrefix',
+            callbackData: 'reminders.toggle.exercise',
+          },
+        ],
+      ],
     });
   });
 
@@ -401,7 +440,10 @@ describe('orchestrator buildPlan', () => {
       request: vi.fn().mockResolvedValue({}),
     };
 
-    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+    const plan = await buildPlan(
+      { event, context: baseContext },
+      { contentPort, contextQueryPort },
+    );
 
     expect(plan).toHaveLength(1);
     expect(plan[0]?.payload).toMatchObject({
@@ -453,7 +495,10 @@ describe('orchestrator buildPlan', () => {
       request: vi.fn().mockResolvedValue({}),
     };
 
-    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+    const plan = await buildPlan(
+      { event, context: baseContext },
+      { contentPort, contextQueryPort },
+    );
 
     expect(contentPort.getScriptsBySource).not.toHaveBeenCalled();
     expect(plan).toHaveLength(3);
@@ -509,7 +554,10 @@ describe('orchestrator buildPlan', () => {
       request: vi.fn().mockResolvedValue({}),
     };
 
-    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+    const plan = await buildPlan(
+      { event, context: baseContext },
+      { contentPort, contextQueryPort },
+    );
 
     expect(contentPort.getScriptsBySource).toHaveBeenCalledWith('telegram');
     expect(plan).toHaveLength(1);
@@ -565,7 +613,10 @@ describe('orchestrator buildPlan', () => {
       request: vi.fn().mockResolvedValue({}),
     };
 
-    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+    const plan = await buildPlan(
+      { event, context: baseContext },
+      { contentPort, contextQueryPort },
+    );
 
     expect(plan).toHaveLength(1);
     expect(plan[0]).toMatchObject({
@@ -608,22 +659,46 @@ describe('orchestrator buildPlan', () => {
           match: {
             actor: { isAdmin: false },
             context: {
-              conversationState: { $notIn: ['diary.symptom.awaiting_title', 'diary.lfk.awaiting_title'] },
+              conversationState: {
+                $notIn: ['diary.symptom.awaiting_title', 'diary.lfk.awaiting_title'],
+              },
             },
             input: {
               textPresent: true,
               excludeActions: ['booking.open', 'menu.more', 'cabinet.open', 'diary.open'],
-              excludeTexts: ['/start', '⚙️ Меню', 'Меню', '📅 Запись на приём', 'Запись на приём', '📓 Дневник', 'Дневник', '👤 Кабинет', 'Кабинет'],
+              excludeTexts: [
+                '/start',
+                '⚙️ Меню',
+                'Меню',
+                '📅 Запись на приём',
+                'Запись на приём',
+                '📓 Дневник',
+                'Дневник',
+                '👤 Кабинет',
+                'Кабинет',
+              ],
             },
           },
-          steps: [{ action: 'message.send', mode: 'async', params: { templateKey: 'telegram:questionAccepted' } }],
+          steps: [
+            {
+              action: 'message.send',
+              mode: 'async',
+              params: { templateKey: 'telegram:questionAccepted' },
+            },
+          ],
         },
         {
           id: 'telegram.more.menu',
           source: 'telegram',
           event: 'message.received',
           match: { input: { action: 'menu.more' }, context: { linkedPhone: true } },
-          steps: [{ action: 'message.send', mode: 'async', params: { templateKey: 'telegram:menu.webapp.prompt' } }],
+          steps: [
+            {
+              action: 'message.send',
+              mode: 'async',
+              params: { templateKey: 'telegram:menu.webapp.prompt' },
+            },
+          ],
         },
       ]),
       getTemplate: vi.fn().mockResolvedValue(null),
@@ -633,7 +708,10 @@ describe('orchestrator buildPlan', () => {
       request: vi.fn().mockResolvedValue({}),
     };
 
-    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+    const plan = await buildPlan(
+      { event, context: baseContext },
+      { contentPort, contextQueryPort },
+    );
 
     expect(plan).toHaveLength(1);
     expect(plan[0]).toMatchObject({
@@ -645,7 +723,11 @@ describe('orchestrator buildPlan', () => {
   it('excludeTextPrefixes: any text starting with /start does not match question script', async () => {
     const event: IncomingEvent = {
       type: 'message.received',
-      meta: { eventId: 'evt-start-prefix', occurredAt: '2026-03-05T12:00:00.000Z', source: 'telegram' },
+      meta: {
+        eventId: 'evt-start-prefix',
+        occurredAt: '2026-03-05T12:00:00.000Z',
+        source: 'telegram',
+      },
       payload: {
         incoming: {
           action: 'unknown_future_command',
@@ -685,7 +767,10 @@ describe('orchestrator buildPlan', () => {
 
     const contextQueryPort: ContextQueryPort = { request: vi.fn().mockResolvedValue({}) };
 
-    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+    const plan = await buildPlan(
+      { event, context: baseContext },
+      { contentPort, contextQueryPort },
+    );
 
     expect(plan).toHaveLength(0);
   });
@@ -757,7 +842,10 @@ describe('orchestrator buildPlan', () => {
       request: vi.fn().mockResolvedValue({}),
     };
 
-    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+    const plan = await buildPlan(
+      { event, context: baseContext },
+      { contentPort, contextQueryPort },
+    );
 
     expect(plan).toHaveLength(2);
     expect(plan[0]).toMatchObject({
@@ -831,7 +919,10 @@ describe('orchestrator buildPlan', () => {
       request: vi.fn().mockResolvedValue({}),
     };
 
-    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+    const plan = await buildPlan(
+      { event, context: baseContext },
+      { contentPort, contextQueryPort },
+    );
 
     expect(plan).toHaveLength(2);
     expect(plan[0]).toMatchObject({
@@ -907,7 +998,10 @@ describe('orchestrator buildPlan', () => {
       request: vi.fn().mockResolvedValue({}),
     };
 
-    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+    const plan = await buildPlan(
+      { event, context: baseContext },
+      { contentPort, contextQueryPort },
+    );
 
     expect(plan).toHaveLength(3);
     expect(plan[0]).toMatchObject({
@@ -990,7 +1084,10 @@ describe('orchestrator buildPlan', () => {
       request: vi.fn().mockResolvedValue({}),
     };
 
-    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+    const plan = await buildPlan(
+      { event, context: baseContext },
+      { contentPort, contextQueryPort },
+    );
 
     expect(plan).toHaveLength(2);
     expect(plan[0]).toMatchObject({
@@ -1041,14 +1138,19 @@ describe('orchestrator buildPlan', () => {
             {
               action: 'user.state.set',
               mode: 'sync',
-              params: { channelUserId: '{{actor.channelUserId}}', state: 'await_contact:subscription' },
+              params: {
+                channelUserId: '{{actor.channelUserId}}',
+                state: 'await_contact:subscription',
+              },
             },
             {
               action: 'message.send',
               mode: 'async',
               params: {
                 templateKey: 'max:onboardingWelcome',
-                inlineKeyboard: [[{ textTemplateKey: 'max:requestContact.button', requestPhone: true }]],
+                inlineKeyboard: [
+                  [{ textTemplateKey: 'max:requestContact.button', requestPhone: true }],
+                ],
               },
             },
           ],
@@ -1071,7 +1173,10 @@ describe('orchestrator buildPlan', () => {
       request: vi.fn().mockResolvedValue({}),
     };
 
-    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+    const plan = await buildPlan(
+      { event, context: baseContext },
+      { contentPort, contextQueryPort },
+    );
 
     expect(plan).toHaveLength(2);
     expect(plan[0]).toMatchObject({
@@ -1141,7 +1246,10 @@ describe('orchestrator buildPlan', () => {
       request: vi.fn().mockResolvedValue({}),
     };
 
-    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+    const plan = await buildPlan(
+      { event, context: baseContext },
+      { contentPort, contextQueryPort },
+    );
 
     expect(plan).toHaveLength(1);
     expect(plan[0]).toMatchObject({
@@ -1192,11 +1300,19 @@ describe('orchestrator buildPlan', () => {
             context: { hasOpenConversation: true },
             input: {
               textPresent: true,
-              excludeActions: ['start.link', 'booking.open', 'menu.more', 'cabinet.open', 'diary.open'],
+              excludeActions: [
+                'start.link',
+                'booking.open',
+                'menu.more',
+                'cabinet.open',
+                'diary.open',
+              ],
               excludeTexts: ['/start', '/book'],
             },
           },
-          steps: [{ action: 'message.send', mode: 'async', params: { templateKey: 'max:chooseMenu' } }],
+          steps: [
+            { action: 'message.send', mode: 'async', params: { templateKey: 'max:chooseMenu' } },
+          ],
         },
         {
           id: 'max.start.link',
@@ -1224,7 +1340,10 @@ describe('orchestrator buildPlan', () => {
       request: vi.fn().mockResolvedValue({}),
     };
 
-    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+    const plan = await buildPlan(
+      { event, context: baseContext },
+      { contentPort, contextQueryPort },
+    );
 
     expect(plan).toHaveLength(1);
     expect(plan[0]?.kind).toBe('webapp.channelLink.complete');
@@ -1269,7 +1388,9 @@ describe('orchestrator buildPlan', () => {
           event: 'message.received',
           priority: 10,
           match: {
-            context: { conversationState: { $notStartsWith: ['await_phoneauth:', 'await_contact:'] } },
+            context: {
+              conversationState: { $notStartsWith: ['await_phoneauth:', 'await_contact:'] },
+            },
             input: { phonePresent: true },
           },
           steps: [{ action: 'user.phone.link', mode: 'sync', params: {} }],
@@ -1299,7 +1420,10 @@ describe('orchestrator buildPlan', () => {
       request: vi.fn().mockResolvedValue({}),
     };
 
-    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+    const plan = await buildPlan(
+      { event, context: baseContext },
+      { contentPort, contextQueryPort },
+    );
 
     expect(plan).toHaveLength(1);
     expect(plan[0]?.kind).toBe('webapp.phoneMessengerBind.complete');
@@ -1347,7 +1471,11 @@ describe('orchestrator buildPlan', () => {
           },
           steps: [
             { action: 'user.state.set', mode: 'sync', params: { state: 'idle' } },
-            { action: 'message.send', mode: 'async', params: { templateKey: 'telegram:phoneAuthCancelled' } },
+            {
+              action: 'message.send',
+              mode: 'async',
+              params: { templateKey: 'telegram:phoneAuthCancelled' },
+            },
           ],
         },
         {
@@ -1365,7 +1493,10 @@ describe('orchestrator buildPlan', () => {
     };
 
     const contextQueryPort: ContextQueryPort = { request: vi.fn().mockResolvedValue({}) };
-    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+    const plan = await buildPlan(
+      { event, context: baseContext },
+      { contentPort, contextQueryPort },
+    );
 
     expect(plan[0]?.kind).toBe('user.state.set');
     expect(plan.some((step) => step.kind === 'draft.upsertFromMessage')).toBe(false);
@@ -1431,7 +1562,10 @@ describe('orchestrator buildPlan', () => {
     };
 
     const contextQueryPort: ContextQueryPort = { request: vi.fn().mockResolvedValue({}) };
-    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+    const plan = await buildPlan(
+      { event, context: baseContext },
+      { contentPort, contextQueryPort },
+    );
 
     expect(plan[0]?.kind).toBe('user.state.set');
     expect(plan.some((step) => step.kind === 'draft.upsertFromMessage')).toBe(false);
@@ -1490,7 +1624,10 @@ describe('orchestrator buildPlan', () => {
     };
 
     const contextQueryPort: ContextQueryPort = { request: vi.fn().mockResolvedValue({}) };
-    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+    const plan = await buildPlan(
+      { event, context: baseContext },
+      { contentPort, contextQueryPort },
+    );
 
     expect(plan.some((step) => step.kind === 'message.replyKeyboard.show')).toBe(false);
     expect(plan.some((step) => step.kind === 'draft.upsertFromMessage')).toBe(true);
@@ -1530,14 +1667,23 @@ describe('orchestrator buildPlan', () => {
             input: { action: 'booking.open' },
             context: { linkedPhone: true },
           },
-          steps: [{ action: 'message.send', mode: 'async', params: { templateKey: 'telegram:bookingMessage' } }],
+          steps: [
+            {
+              action: 'message.send',
+              mode: 'async',
+              params: { templateKey: 'telegram:bookingMessage' },
+            },
+          ],
         },
       ]),
       getTemplate: vi.fn().mockResolvedValue(null),
     };
 
     const contextQueryPort: ContextQueryPort = { request: vi.fn().mockResolvedValue({}) };
-    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+    const plan = await buildPlan(
+      { event, context: baseContext },
+      { contentPort, contextQueryPort },
+    );
 
     expect(contentPort.getScriptsBySource).toHaveBeenCalled();
     expect(plan[0]?.kind).toBe('message.send');

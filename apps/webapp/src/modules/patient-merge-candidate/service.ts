@@ -1,9 +1,9 @@
-import type { PatientMergeCandidatePort, PatientMergeCandidateRecord } from "./ports";
+import type { PatientMergeCandidatePort, PatientMergeCandidateRecord } from './ports';
 
 export function createPatientMergeCandidateService(port: PatientMergeCandidatePort) {
   return {
     upsertPending(
-      input: Parameters<PatientMergeCandidatePort["upsertPendingCandidate"]>[0],
+      input: Parameters<PatientMergeCandidatePort['upsertPendingCandidate']>[0],
     ): Promise<PatientMergeCandidateRecord> {
       return port.upsertPendingCandidate(input);
     },
@@ -13,7 +13,11 @@ export function createPatientMergeCandidateService(port: PatientMergeCandidatePo
     dismiss(id: string, resolvedBy: string): Promise<boolean> {
       return port.dismissCandidate(id, resolvedBy);
     },
-    markResolvedForUserPair(anchorUserId: string, candidateUserId: string, resolvedBy: string): Promise<number> {
+    markResolvedForUserPair(
+      anchorUserId: string,
+      candidateUserId: string,
+      resolvedBy: string,
+    ): Promise<number> {
       return port.markResolvedForUserPair(anchorUserId, candidateUserId, resolvedBy);
     },
   };

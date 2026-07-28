@@ -1,23 +1,23 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
-import { Activity, Dumbbell, FileText, Flame, Sparkles, Trash2 } from "lucide-react";
-import { reminderRuleToPatientJson } from "@/app/api/patient/reminders/reminderPatientJson";
-import { routePaths } from "@/app-layer/routes/paths";
-import { Badge } from "@/shared/ui/patient/primitives/badge";
-import { Button, buttonVariants } from "@/shared/ui/patient/primitives/button";
-import { cn } from "@/lib/utils";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/patient/primitives/card";
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useState, useTransition } from 'react';
+import { Activity, Dumbbell, FileText, Flame, Sparkles, Trash2 } from 'lucide-react';
+import { reminderRuleToPatientJson } from '@/app/api/patient/reminders/reminderPatientJson';
+import { routePaths } from '@/app-layer/routes/paths';
+import { Badge } from '@/shared/ui/patient/primitives/badge';
+import { Button, buttonVariants } from '@/shared/ui/patient/primitives/button';
+import { cn } from '@/lib/utils';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/patient/primitives/card';
 import {
   patientHeroBookingSectionClass,
   patientListItemClass,
   patientMutedTextClass,
   patientSectionTitleNormalClass,
-} from "@/shared/ui/patient/patientVisual";
-import { Switch } from "@/shared/ui/patient/primitives/switch";
-import toast from "react-hot-toast";
+} from '@/shared/ui/patient/patientVisual';
+import { Switch } from '@/shared/ui/patient/primitives/switch';
+import toast from 'react-hot-toast';
 import {
   Dialog,
   DialogContent,
@@ -25,27 +25,27 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/shared/ui/patient/primitives/dialog";
-import { ReminderCreateDialog } from "@/modules/reminders/components/ReminderCreateDialog";
-import type { ReminderRule, ReminderCategory } from "@/modules/reminders/types";
-import { clampIntervalMinutes } from "@/modules/reminders/reminderIntervalBounds";
-import { formatReminderMinuteOfDayToHhMm } from "@/modules/reminders/reminderScheduleFormat";
-import { summarizeReminderForCalendarDay } from "@/modules/reminders/summarizeReminderForCalendarDay";
-import { DEFAULT_WARMUPS_SECTION_SLUG } from "@/modules/patient-home/warmupsSection";
-import { toggleReminderCategory } from "./actions";
-import { LegacyReminderScheduleDialog } from "./LegacyReminderScheduleDialog";
-import { ReminderExerciseDeliveryChannels } from "./ReminderExerciseDeliveryChannels";
-import { isPatientRehabProgramPromoPlaceholder } from "@/modules/reminders/rehabProgramLinkedObject";
+} from '@/shared/ui/patient/primitives/dialog';
+import { ReminderCreateDialog } from '@/modules/reminders/components/ReminderCreateDialog';
+import type { ReminderRule, ReminderCategory } from '@/modules/reminders/types';
+import { clampIntervalMinutes } from '@/modules/reminders/reminderIntervalBounds';
+import { formatReminderMinuteOfDayToHhMm } from '@/modules/reminders/reminderScheduleFormat';
+import { summarizeReminderForCalendarDay } from '@/modules/reminders/summarizeReminderForCalendarDay';
+import { DEFAULT_WARMUPS_SECTION_SLUG } from '@/modules/patient-home/warmupsSection';
+import { toggleReminderCategory } from './actions';
+import { LegacyReminderScheduleDialog } from './LegacyReminderScheduleDialog';
+import { ReminderExerciseDeliveryChannels } from './ReminderExerciseDeliveryChannels';
+import { isPatientRehabProgramPromoPlaceholder } from '@/modules/reminders/rehabProgramLinkedObject';
 
 const CATEGORY_LABELS: Record<ReminderCategory, string> = {
-  appointment: "Запись на приём",
-  lfk: "Уведомления по занятиям",
-  chat: "Чат",
-  important: "Важные сообщения",
-  broadcast: "Рассылки по темам",
+  appointment: 'Запись на приём',
+  lfk: 'Уведомления по занятиям',
+  chat: 'Чат',
+  important: 'Важные сообщения',
+  broadcast: 'Рассылки по темам',
 };
 
-export type PersonalReminderIconKind = "lfk" | "rehab" | "warmup" | "page" | "custom"; // `custom` — legacy; строки с custom не попадают в personalRowsMain
+export type PersonalReminderIconKind = 'lfk' | 'rehab' | 'warmup' | 'page' | 'custom'; // `custom` — legacy; строки с custom не попадают в personalRowsMain
 
 export type PersonalReminderRowVM = {
   rule: ReminderRule;
@@ -55,41 +55,41 @@ export type PersonalReminderRowVM = {
 };
 
 function formatScheduleSummary(rule: ReminderRule): string {
-  if (rule.scheduleType === "slots_v1" && rule.scheduleData?.timesLocal?.length) {
-    const times = rule.scheduleData.timesLocal.join(", ");
+  if (rule.scheduleType === 'slots_v1' && rule.scheduleData?.timesLocal?.length) {
+    const times = rule.scheduleData.timesLocal.join(', ');
     const df = rule.scheduleData.dayFilter;
     const dayHint =
-      df === "weekdays"
-        ? "Пн–Пт"
-        : df === "weekly_mask"
-          ? "по выбранным дням"
-          : df === "every_n_days"
-            ? "по графику «раз в N дней»"
-            : "";
+      df === 'weekdays'
+        ? 'Пн–Пт'
+        : df === 'weekly_mask'
+          ? 'по выбранным дням'
+          : df === 'every_n_days'
+            ? 'по графику «раз в N дней»'
+            : '';
     const q =
       rule.quietHoursStartMinute != null && rule.quietHoursEndMinute != null
         ? ` Тихие часы: ${formatReminderMinuteOfDayToHhMm(rule.quietHoursStartMinute)}–${formatReminderMinuteOfDayToHhMm(rule.quietHoursEndMinute)}.`
-        : "";
-    return `Слоты: ${times}${dayHint ? `. ${dayHint}` : ""}.${q}`;
+        : '';
+    return `Слоты: ${times}${dayHint ? `. ${dayHint}` : ''}.${q}`;
   }
   const q =
     rule.quietHoursStartMinute != null && rule.quietHoursEndMinute != null
       ? ` Тихие часы: ${formatReminderMinuteOfDayToHhMm(rule.quietHoursStartMinute)}–${formatReminderMinuteOfDayToHhMm(rule.quietHoursEndMinute)}.`
-      : "";
+      : '';
   const interval = clampIntervalMinutes(rule.intervalMinutes ?? 60);
   return `${formatReminderMinuteOfDayToHhMm(rule.windowStartMinute)}–${formatReminderMinuteOfDayToHhMm(rule.windowEndMinute)}, каждые ${interval} мин.${q}`;
 }
 
 function TypeIcon({ kind }: { kind: PersonalReminderIconKind }) {
-  const cls = "size-5 shrink-0 text-primary";
+  const cls = 'size-5 shrink-0 text-primary';
   switch (kind) {
-    case "lfk":
+    case 'lfk':
       return <Dumbbell className={cls} aria-hidden />;
-    case "rehab":
+    case 'rehab':
       return <Activity className={cls} aria-hidden />;
-    case "warmup":
+    case 'warmup':
       return <Flame className={cls} aria-hidden />;
-    case "page":
+    case 'page':
       return <FileText className={cls} aria-hidden />;
     default:
       // В т.ч. legacy iconKind `custom` (Sparkles); personalRowsMain custom не содержит.
@@ -116,7 +116,7 @@ function LegacyCategoryRuleCard({ rule }: { rule: ReminderRule }) {
   };
 
   return (
-    <Card className={cn(patientListItemClass, "mb-3")}>
+    <Card className={cn(patientListItemClass, 'mb-3')}>
       <CardHeader className="px-4 pb-2 pt-4">
         <div className="flex items-center justify-between gap-3">
           <CardTitle className="text-base font-medium leading-tight">
@@ -133,11 +133,16 @@ function LegacyCategoryRuleCard({ rule }: { rule: ReminderRule }) {
 
       {rule.enabled && (
         <CardContent className="px-4 pb-4 pt-0">
-          <p className={cn(patientMutedTextClass, "mb-2 text-xs")}>
+          <p className={cn(patientMutedTextClass, 'mb-2 text-xs')}>
             Расписание: {formatScheduleSummary(rule)}
           </p>
 
-          <Button variant="outline" size="sm" onClick={() => setScheduleOpen(true)} disabled={isPending}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setScheduleOpen(true)}
+            disabled={isPending}
+          >
             Изменить расписание
           </Button>
 
@@ -180,12 +185,12 @@ function PersonalReminderCard({
     setError(null);
     startTransition(async () => {
       const res = await fetch(`/api/patient/reminders/${encodeURIComponent(rule.id)}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled: checked }),
       });
       const data = (await res.json()) as { ok?: boolean };
-      if (!res.ok || !data.ok) setError("Не удалось обновить");
+      if (!res.ok || !data.ok) setError('Не удалось обновить');
       else onPatched();
     });
   };
@@ -194,11 +199,11 @@ function PersonalReminderCard({
     setError(null);
     startTransition(async () => {
       const res = await fetch(`/api/patient/reminders/${encodeURIComponent(rule.id)}`, {
-        method: "DELETE",
+        method: 'DELETE',
       });
       const data = (await res.json()) as { ok?: boolean };
       if (!res.ok || !data.ok) {
-        setError("Не удалось удалить");
+        setError('Не удалось удалить');
         return;
       }
       setDeleteOpen(false);
@@ -208,73 +213,100 @@ function PersonalReminderCard({
 
   return (
     <>
-    <Card className={cn(patientListItemClass, "mb-3 overflow-hidden")}>
-      <CardHeader className="space-y-0 px-4 pb-2 pt-4">
-        <div className="flex items-start gap-3">
-          <TypeIcon kind={iconKind} />
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <CardTitle className="text-base font-medium leading-tight">{label}</CardTitle>
-              <Switch
-                checked={rule.enabled}
-                onCheckedChange={patchEnabled}
-                disabled={isPending}
-                aria-label={`Включить: ${label}`}
-              />
+      <Card className={cn(patientListItemClass, 'mb-3 overflow-hidden')}>
+        <CardHeader className="space-y-0 px-4 pb-2 pt-4">
+          <div className="flex items-start gap-3">
+            <TypeIcon kind={iconKind} />
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <CardTitle className="text-base font-medium leading-tight">{label}</CardTitle>
+                <Switch
+                  checked={rule.enabled}
+                  onCheckedChange={patchEnabled}
+                  disabled={isPending}
+                  aria-label={`Включить: ${label}`}
+                />
+              </div>
+              <p className={cn(patientMutedTextClass, 'mt-1 text-xs')}>
+                {formatScheduleSummary(rule)}
+              </p>
+              <div className={cn(patientMutedTextClass, 'mt-2 flex flex-wrap gap-2 text-xs')}>
+                <span>
+                  <span className="font-medium text-[var(--patient-text-primary)]">
+                    {stats.done}
+                  </span>{' '}
+                  выполнено
+                </span>
+                <span>
+                  <span className="font-medium text-[var(--patient-text-primary)]">
+                    {stats.skipped}
+                  </span>{' '}
+                  пропущено
+                </span>
+                <span>
+                  <span className="font-medium text-[var(--patient-text-primary)]">
+                    {stats.snoozed}
+                  </span>{' '}
+                  отложено
+                </span>
+                <Badge variant="outline" className="font-normal">
+                  за 30 дней
+                </Badge>
+              </div>
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={onEdit}
+                  disabled={isPending}
+                >
+                  Изменить расписание
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive hover:text-destructive"
+                  onClick={() => setDeleteOpen(true)}
+                  disabled={isPending}
+                >
+                  <Trash2 className="mr-1 size-4" aria-hidden />
+                  Удалить
+                </Button>
+              </div>
+              {error ? <p className="mt-2 text-xs text-destructive">{error}</p> : null}
             </div>
-            <p className={cn(patientMutedTextClass, "mt-1 text-xs")}>{formatScheduleSummary(rule)}</p>
-            <div className={cn(patientMutedTextClass, "mt-2 flex flex-wrap gap-2 text-xs")}>
-              <span>
-                <span className="font-medium text-[var(--patient-text-primary)]">{stats.done}</span> выполнено
-              </span>
-              <span>
-                <span className="font-medium text-[var(--patient-text-primary)]">{stats.skipped}</span> пропущено
-              </span>
-              <span>
-                <span className="font-medium text-[var(--patient-text-primary)]">{stats.snoozed}</span> отложено
-              </span>
-              <Badge variant="outline" className="font-normal">
-                за 30 дней
-              </Badge>
-            </div>
-            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-              <Button type="button" variant="outline" size="sm" onClick={onEdit} disabled={isPending}>
-                Изменить расписание
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="text-destructive hover:text-destructive"
-                onClick={() => setDeleteOpen(true)}
-                disabled={isPending}
-              >
-                <Trash2 className="mr-1 size-4" aria-hidden />
-                Удалить
-              </Button>
-            </div>
-            {error ? <p className="mt-2 text-xs text-destructive">{error}</p> : null}
           </div>
-        </div>
-      </CardHeader>
-    </Card>
+        </CardHeader>
+      </Card>
 
-    <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-      <DialogContent className="border-[var(--patient-border)] bg-[var(--patient-card-bg)] sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Удалить напоминание?</DialogTitle>
-          <DialogDescription>Это действие нельзя отменить.</DialogDescription>
-        </DialogHeader>
-        <DialogFooter className="gap-2 sm:gap-0">
-          <Button type="button" variant="outline" onClick={() => setDeleteOpen(false)} disabled={isPending}>
-            Отмена
-          </Button>
-          <Button type="button" variant="destructive" onClick={confirmDelete} disabled={isPending}>
-            Удалить
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent className="border-[var(--patient-border)] bg-[var(--patient-card-bg)] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Удалить напоминание?</DialogTitle>
+            <DialogDescription>Это действие нельзя отменить.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDeleteOpen(false)}
+              disabled={isPending}
+            >
+              Отмена
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={confirmDelete}
+              disabled={isPending}
+            >
+              Удалить
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
@@ -285,11 +317,11 @@ export function ReminderRulesClient({
   activeProgram = null,
   warmupsSectionAvailable = false,
   warmupsSectionSlug = DEFAULT_WARMUPS_SECTION_SLUG,
-  warmupsSectionTitle = "Разминки",
+  warmupsSectionTitle = 'Разминки',
   rehabRuleForBlock = null,
   warmupRuleForBlock = null,
-  calendarDateKey = "",
-  patientCalendarDayIana = "Europe/Moscow",
+  calendarDateKey = '',
+  patientCalendarDayIana = 'Europe/Moscow',
   exerciseDeliveryChannelLabels = [],
 }: {
   personalRows: PersonalReminderRowVM[];
@@ -309,7 +341,9 @@ export function ReminderRulesClient({
   const [editRow, setEditRow] = useState<PersonalReminderRowVM | null>(null);
   const [rehabDialogOpen, setRehabDialogOpen] = useState(false);
   const [warmupDialogOpen, setWarmupDialogOpen] = useState(false);
-  const [blockDeleteTarget, setBlockDeleteTarget] = useState<{ id: string; title: string } | null>(null);
+  const [blockDeleteTarget, setBlockDeleteTarget] = useState<{ id: string; title: string } | null>(
+    null,
+  );
 
   const refresh = () => router.refresh();
 
@@ -320,48 +354,44 @@ export function ReminderRulesClient({
     (row) =>
       !hiddenIds.has(row.rule.id) &&
       // Legacy custom: не показываем в «Мои напоминания» (создание/редактирование снято с UI).
-      row.rule.linkedObjectType !== "custom",
+      row.rule.linkedObjectType !== 'custom',
   );
 
-  const rehabSummary =
-    activeProgram ?
-      rehabRuleForBlock ?
-        summarizeReminderForCalendarDay(rehabRuleForBlock, calendarDateKey, patientCalendarDayIana)
-      : ""
-    : "";
+  const rehabSummary = activeProgram
+    ? rehabRuleForBlock
+      ? summarizeReminderForCalendarDay(rehabRuleForBlock, calendarDateKey, patientCalendarDayIana)
+      : ''
+    : '';
 
-  const rehabCalendarLine =
-    activeProgram ?
-      rehabRuleForBlock ?
-        rehabSummary
-      : "Настройте время, и бот напомнит"
-    : "";
+  const rehabCalendarLine = activeProgram
+    ? rehabRuleForBlock
+      ? rehabSummary
+      : 'Настройте время, и бот напомнит'
+    : '';
 
-  const warmupSummary =
-    warmupsSectionAvailable ?
-      warmupRuleForBlock ?
-        summarizeReminderForCalendarDay(warmupRuleForBlock, calendarDateKey, patientCalendarDayIana)
-      : ""
-    : "";
+  const warmupSummary = warmupsSectionAvailable
+    ? warmupRuleForBlock
+      ? summarizeReminderForCalendarDay(warmupRuleForBlock, calendarDateKey, patientCalendarDayIana)
+      : ''
+    : '';
 
-  const warmupCalendarLine =
-    warmupsSectionAvailable ?
-      warmupRuleForBlock ?
-        warmupSummary
-      : "Настройте время, и бот напомнит"
-    : "";
+  const warmupCalendarLine = warmupsSectionAvailable
+    ? warmupRuleForBlock
+      ? warmupSummary
+      : 'Настройте время, и бот напомнит'
+    : '';
 
   const [blockPending, startBlock] = useTransition();
 
   const patchRuleEnabled = (ruleId: string, checked: boolean) => {
     startBlock(async () => {
       const res = await fetch(`/api/patient/reminders/${encodeURIComponent(ruleId)}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled: checked }),
       });
       const data = (await res.json()) as { ok?: boolean };
-      if (!res.ok || !data.ok) toast.error("Не удалось обновить");
+      if (!res.ok || !data.ok) toast.error('Не удалось обновить');
       else refresh();
     });
   };
@@ -370,10 +400,12 @@ export function ReminderRulesClient({
     if (!blockDeleteTarget) return;
     const id = blockDeleteTarget.id;
     startBlock(async () => {
-      const res = await fetch(`/api/patient/reminders/${encodeURIComponent(id)}`, { method: "DELETE" });
+      const res = await fetch(`/api/patient/reminders/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      });
       const data = (await res.json()) as { ok?: boolean };
       if (!res.ok || !data.ok) {
-        toast.error("Не удалось удалить");
+        toast.error('Не удалось удалить');
         return;
       }
       setBlockDeleteTarget(null);
@@ -390,7 +422,7 @@ export function ReminderRulesClient({
     const r = editRow.rule;
     const lt = r.linkedObjectType;
     const json = reminderRuleToPatientJson(r);
-    if (lt === "lfk_complex" && r.linkedObjectId) {
+    if (lt === 'lfk_complex' && r.linkedObjectId) {
       return (
         <ReminderCreateDialog
           open={Boolean(editRow)}
@@ -408,7 +440,7 @@ export function ReminderRulesClient({
         />
       );
     }
-    if (lt === "content_section" && r.linkedObjectId) {
+    if (lt === 'content_section' && r.linkedObjectId) {
       return (
         <ReminderCreateDialog
           open={Boolean(editRow)}
@@ -426,7 +458,7 @@ export function ReminderRulesClient({
         />
       );
     }
-    if (lt === "content_page" && r.linkedObjectId) {
+    if (lt === 'content_page' && r.linkedObjectId) {
       return (
         <ReminderCreateDialog
           open={Boolean(editRow)}
@@ -444,7 +476,7 @@ export function ReminderRulesClient({
         />
       );
     }
-    if (lt === "rehab_program" && r.linkedObjectId) {
+    if (lt === 'rehab_program' && r.linkedObjectId) {
       return (
         <ReminderCreateDialog
           open={Boolean(editRow)}
@@ -474,14 +506,19 @@ export function ReminderRulesClient({
   return (
     <div>
       {activeProgram ? (
-        <section id="patient-reminders-rehab" className={cn(patientHeroBookingSectionClass, "mb-4 !gap-3")}>
+        <section
+          id="patient-reminders-rehab"
+          className={cn(patientHeroBookingSectionClass, 'mb-4 !gap-3')}
+        >
           <h2 className={patientSectionTitleNormalClass}>Тренировки</h2>
-          <p className={cn(patientMutedTextClass, "text-xs font-normal")}>{activeProgram.title}</p>
-          <p className={cn(patientMutedTextClass, "text-sm")}>Сегодня: {rehabCalendarLine}</p>
+          <p className={cn(patientMutedTextClass, 'text-xs font-normal')}>{activeProgram.title}</p>
+          <p className={cn(patientMutedTextClass, 'text-sm')}>Сегодня: {rehabCalendarLine}</p>
           <ReminderExerciseDeliveryChannels deliveryChannelLabels={exerciseDeliveryChannelLabels} />
           {rehabRuleForBlock ? (
             <div className="space-y-2">
-              <p className="text-xs text-[var(--patient-text-primary)]">{formatScheduleSummary(rehabRuleForBlock)}</p>
+              <p className="text-xs text-[var(--patient-text-primary)]">
+                {formatScheduleSummary(rehabRuleForBlock)}
+              </p>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-sm text-[var(--patient-text-primary)]">Включено</span>
                 <Switch
@@ -508,17 +545,22 @@ export function ReminderRulesClient({
             </div>
           ) : null}
           <div className="flex flex-wrap gap-2">
-            {activeProgram && !isPatientRehabProgramPromoPlaceholder(activeProgram.id) ?
+            {activeProgram && !isPatientRehabProgramPromoPlaceholder(activeProgram.id) ? (
               <Link
                 href={routePaths.patientTreatmentProgram(activeProgram.id)}
                 prefetch={false}
-                className={cn(buttonVariants({ size: "sm" }), "no-underline")}
+                className={cn(buttonVariants({ size: 'sm' }), 'no-underline')}
               >
                 Открыть программу
               </Link>
-            : null}
-            <Button type="button" size="sm" variant="outline" onClick={() => setRehabDialogOpen(true)}>
-              {rehabRuleForBlock ? "Изменить" : "Создать напоминание"}
+            ) : null}
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setRehabDialogOpen(true)}
+            >
+              {rehabRuleForBlock ? 'Изменить' : 'Создать напоминание'}
             </Button>
           </div>
           <ReminderCreateDialog
@@ -537,13 +579,18 @@ export function ReminderRulesClient({
       ) : null}
 
       {warmupsSectionAvailable ? (
-        <section id="patient-reminders-warmups" className={cn(patientHeroBookingSectionClass, "mb-4 !gap-3")}>
+        <section
+          id="patient-reminders-warmups"
+          className={cn(patientHeroBookingSectionClass, 'mb-4 !gap-3')}
+        >
           <h2 className={patientSectionTitleNormalClass}>{warmupsSectionTitle}</h2>
-          <p className={cn(patientMutedTextClass, "text-sm")}>Сегодня: {warmupCalendarLine}</p>
+          <p className={cn(patientMutedTextClass, 'text-sm')}>Сегодня: {warmupCalendarLine}</p>
           <ReminderExerciseDeliveryChannels deliveryChannelLabels={exerciseDeliveryChannelLabels} />
           {warmupRuleForBlock ? (
             <div className="space-y-2">
-              <p className="text-xs text-[var(--patient-text-primary)]">{formatScheduleSummary(warmupRuleForBlock)}</p>
+              <p className="text-xs text-[var(--patient-text-primary)]">
+                {formatScheduleSummary(warmupRuleForBlock)}
+              </p>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-sm text-[var(--patient-text-primary)]">Включено</span>
                 <Switch
@@ -569,8 +616,13 @@ export function ReminderRulesClient({
               </div>
             </div>
           ) : null}
-          <Button type="button" size="sm" variant="outline" onClick={() => setWarmupDialogOpen(true)}>
-            {warmupRuleForBlock ? "Изменить" : "Создать напоминание"}
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setWarmupDialogOpen(true)}
+          >
+            {warmupRuleForBlock ? 'Изменить' : 'Создать напоминание'}
           </Button>
           <ReminderCreateDialog
             open={warmupDialogOpen}
@@ -604,15 +656,15 @@ export function ReminderRulesClient({
       ) : null}
 
       {showEmptyHint ? (
-        <p className={cn(patientMutedTextClass, "py-4 text-center")}>
-          Пока нет напоминаний.
-        </p>
+        <p className={cn(patientMutedTextClass, 'py-4 text-center')}>Пока нет напоминаний.</p>
       ) : null}
 
       {legacyRules.length > 0 ? (
         <>
-          <h2 className="mb-2 mt-4 text-sm font-semibold text-[var(--patient-text-primary)]">Системные уведомления</h2>
-          <p className={cn(patientMutedTextClass, "mb-3 text-xs")}>
+          <h2 className="mb-2 mt-4 text-sm font-semibold text-[var(--patient-text-primary)]">
+            Системные уведомления
+          </h2>
+          <p className={cn(patientMutedTextClass, 'mb-3 text-xs')}>
             Напоминания по типам событий. Расписание можно настроить под себя.
           </p>
           {legacyRules.map((r) => (
@@ -633,14 +685,24 @@ export function ReminderRulesClient({
             <DialogDescription>
               {blockDeleteTarget?.title
                 ? `«${blockDeleteTarget.title}» — это действие нельзя отменить.`
-                : "Это действие нельзя отменить."}
+                : 'Это действие нельзя отменить.'}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button type="button" variant="outline" onClick={() => setBlockDeleteTarget(null)} disabled={blockPending}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setBlockDeleteTarget(null)}
+              disabled={blockPending}
+            >
               Отмена
             </Button>
-            <Button type="button" variant="destructive" onClick={confirmBlockDelete} disabled={blockPending}>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={confirmBlockDelete}
+              disabled={blockPending}
+            >
               Удалить
             </Button>
           </DialogFooter>

@@ -17,25 +17,25 @@
  * For redirect (user-facing checkout), CloudPayments provides a widget JS embed or
  * a "Pay by link" approach. We expose the `checkoutUrl` from Pay by Link endpoint.
  */
-import { createHmac, timingSafeEqual } from "node:crypto";
-import type { PaymentProviderPort } from "@/modules/payments/providerPort";
-import type { PaymentProviderConfig } from "@/modules/payments/types";
+import { createHmac, timingSafeEqual } from 'node:crypto';
+import type { PaymentProviderPort } from '@/modules/payments/providerPort';
+import type { PaymentProviderConfig } from '@/modules/payments/types';
 
-const CLOUDPAYMENTS_API_BASE = "https://api.cloudpayments.ru";
+const CLOUDPAYMENTS_API_BASE = 'https://api.cloudpayments.ru';
 
 function requireCloudpaymentsCredentials(config?: PaymentProviderConfig): {
   publicId: string;
   apiSecret: string;
 } {
   // publicId can be stored in publicId or shopId; apiSecret in apiKey.
-  const publicId = (config?.publicId ?? config?.shopId ?? "").trim();
-  const apiSecret = (config?.apiKey ?? "").trim();
-  if (!publicId || !apiSecret) throw new Error("cloudpayments_credentials_missing");
+  const publicId = (config?.publicId ?? config?.shopId ?? '').trim();
+  const apiSecret = (config?.apiKey ?? '').trim();
+  if (!publicId || !apiSecret) throw new Error('cloudpayments_credentials_missing');
   return { publicId, apiSecret };
 }
 
 function basicAuth(publicId: string, apiSecret: string): string {
-  return `Basic ${Buffer.from(`${publicId}:${apiSecret}`).toString("base64")}`;
+  return `Basic ${Buffer.from(`${publicId}:${apiSecret}`).toString('base64')}`;
 }
 
 /**
@@ -44,80 +44,75 @@ function basicAuth(publicId: string, apiSecret: string): string {
  * Provider sends it in the `Content-HMAC` header.
  */
 export function computeCloudPaymentsHmac(body: string, apiSecret: string): string {
-  return createHmac("sha256", apiSecret).update(body).digest("base64");
+  return createHmac('sha256', apiSecret).update(body).digest('base64');
 }
 
 function inspectCloudpaymentsWebhook(headers: Headers, bodyText: string) {
   let payload: Record<string, unknown>;
-  const contentType = headers.get("content-type") ?? "";
-  if (contentType.includes("application/x-www-form-urlencoded")) {
+  const contentType = headers.get('content-type') ?? '';
+  if (contentType.includes('application/x-www-form-urlencoded')) {
     const params = new URLSearchParams(bodyText);
     payload = Object.fromEntries(params.entries());
   } else {
     payload = JSON.parse(bodyText) as Record<string, unknown>;
   }
 
-  const transactionId = String(payload["TransactionId"] ?? "");
-  const invoiceId = String(payload["InvoiceId"] ?? "");
-  const statusCode = Number(payload["Status"] ?? payload["StatusCode"] ?? 0);
-  const amountRaw = payload["Amount"] ?? payload["PaymentAmount"];
+  const transactionId = String(payload['TransactionId'] ?? '');
+  const invoiceId = String(payload['InvoiceId'] ?? '');
+  const statusCode = Number(payload['Status'] ?? payload['StatusCode'] ?? 0);
+  const amountRaw = payload['Amount'] ?? payload['PaymentAmount'];
   const amountMinor =
     amountRaw != null && !Number.isNaN(Number(amountRaw))
       ? Math.round(Number(amountRaw) * 100)
       : undefined;
   const idempotencyKey = invoiceId || transactionId;
   const eventType =
-    statusCode === 3 || payload["Status"] === "Completed"
-      ? "payment.succeeded"
-      : statusCode === 4 || payload["Status"] === "Cancelled"
-        ? "payment.refunded"
-        : `cloudpayments.${String(payload["Status"] ?? "unknown").toLowerCase()}`;
-  if (!idempotencyKey || !eventType) throw new Error("invalid_webhook_payload");
+    statusCode === 3 || payload['Status'] === 'Completed'
+      ? 'payment.succeeded'
+      : statusCode === 4 || payload['Status'] === 'Cancelled'
+        ? 'payment.refunded'
+        : `cloudpayments.${String(payload['Status'] ?? 'unknown').toLowerCase()}`;
+  if (!idempotencyKey || !eventType) throw new Error('invalid_webhook_payload');
   return { idempotencyKey, eventType, payload, intentRef: transactionId, amountMinor };
 }
 
 export function createCloudpaymentsPaymentProvider(): PaymentProviderPort {
   return {
-    async createIntent({
-      amountMinor,
-      currency,
-      idempotencyKey,
-      metadata,
-      providerConfig,
-    }) {
+    async createIntent({ amountMinor, currency, idempotencyKey, metadata, providerConfig }) {
       const { publicId, apiSecret } = requireCloudpaymentsCredentials(providerConfig);
       const amount = amountMinor / 100; // CloudPayments uses rubles (float string)
 
       const returnUrl =
-        typeof metadata.returnUrl === "string" && metadata.returnUrl.trim()
+        typeof metadata.returnUrl === 'string' && metadata.returnUrl.trim()
           ? metadata.returnUrl.trim()
-          : "https://cloudpayments.ru";
+          : 'https://cloudpayments.ru';
 
       // Create a pay-by-link order via CloudPayments Orders API
       const body: Record<string, unknown> = {
         Amount: amount,
-        Currency: currency || "RUB",
-        Description: typeof metadata.description === "string" ? metadata.description : idempotencyKey,
-        Email: typeof metadata.email === "string" ? metadata.email : undefined,
+        Currency: currency || 'RUB',
+        Description:
+          typeof metadata.description === 'string' ? metadata.description : idempotencyKey,
+        Email: typeof metadata.email === 'string' ? metadata.email : undefined,
         RequireConfirmation: false,
         SendEmail: false,
         InvoiceId: idempotencyKey,
-        AccountId: typeof metadata.patientUserId === "string" ? metadata.patientUserId : undefined,
+        AccountId: typeof metadata.patientUserId === 'string' ? metadata.patientUserId : undefined,
         SuccessRedirectUrl: returnUrl,
         JsonData: { idempotencyKey, ...metadata },
       };
 
       const res = await fetch(`${CLOUDPAYMENTS_API_BASE}/orders/create`, {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           Authorization: basicAuth(publicId, apiSecret),
         },
         body: JSON.stringify(body),
       });
 
       if (!res.ok) {
-        const text = await res.text().catch(() => "");
+        const text = await res.text().catch(() => '');
         throw new Error(`cloudpayments_create_failed:${res.status}:${text.slice(0, 200)}`);
       }
 
@@ -132,11 +127,11 @@ export function createCloudpaymentsPaymentProvider(): PaymentProviderPort {
       };
 
       if (!json.Success) {
-        throw new Error(`cloudpayments_create_error:${json.Message ?? "unknown"}`);
+        throw new Error(`cloudpayments_create_error:${json.Message ?? 'unknown'}`);
       }
 
-      const providerIntentRef = json.Model?.Id ?? json.Model?.Number ?? "";
-      if (!providerIntentRef) throw new Error("cloudpayments_missing_order_id");
+      const providerIntentRef = json.Model?.Id ?? json.Model?.Number ?? '';
+      if (!providerIntentRef) throw new Error('cloudpayments_missing_order_id');
 
       return {
         providerIntentRef,
@@ -144,19 +139,14 @@ export function createCloudpaymentsPaymentProvider(): PaymentProviderPort {
       };
     },
 
-    async refund({
-      providerIntentRef,
-      amountMinor,
-      idempotencyKey,
-      providerConfig,
-    }) {
+    async refund({ providerIntentRef, amountMinor, idempotencyKey, providerConfig }) {
       const { publicId, apiSecret } = requireCloudpaymentsCredentials(providerConfig);
       const amount = amountMinor / 100;
 
       const res = await fetch(`${CLOUDPAYMENTS_API_BASE}/payments/refund`, {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           Authorization: basicAuth(publicId, apiSecret),
         },
         body: JSON.stringify({
@@ -167,7 +157,7 @@ export function createCloudpaymentsPaymentProvider(): PaymentProviderPort {
       });
 
       if (!res.ok) {
-        const text = await res.text().catch(() => "");
+        const text = await res.text().catch(() => '');
         throw new Error(`cloudpayments_refund_failed:${res.status}:${text.slice(0, 200)}`);
       }
 
@@ -178,7 +168,7 @@ export function createCloudpaymentsPaymentProvider(): PaymentProviderPort {
       };
 
       if (!json.Success) {
-        throw new Error(`cloudpayments_refund_error:${json.Message ?? "unknown"}`);
+        throw new Error(`cloudpayments_refund_error:${json.Message ?? 'unknown'}`);
       }
 
       return {
@@ -192,14 +182,14 @@ export function createCloudpaymentsPaymentProvider(): PaymentProviderPort {
 
     verifyWebhook({ headers, bodyText, webhookSecret }) {
       // webhookSecret = CloudPayments API Secret
-      const signatureHeader = headers.get("content-hmac")?.trim() ?? "";
-      if (!signatureHeader) throw new Error("cloudpayments_webhook_missing_hmac");
+      const signatureHeader = headers.get('content-hmac')?.trim() ?? '';
+      if (!signatureHeader) throw new Error('cloudpayments_webhook_missing_hmac');
 
       const expectedHmac = computeCloudPaymentsHmac(bodyText, webhookSecret);
       const a = Buffer.from(signatureHeader);
       const b = Buffer.from(expectedHmac);
       if (a.length !== b.length || !timingSafeEqual(a, b)) {
-        throw new Error("invalid_webhook_signature");
+        throw new Error('invalid_webhook_signature');
       }
 
       return inspectCloudpaymentsWebhook(headers, bodyText);

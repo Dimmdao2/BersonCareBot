@@ -3,14 +3,14 @@
  * Mirrors the semantics of pgPatientPayments: newest-first order, amount>0 guard.
  */
 
-import { randomUUID } from "node:crypto";
+import { randomUUID } from 'node:crypto';
 import type {
   AddCashPaymentInput,
   InsertAcquiringPendingInput,
   PatientPayment,
   PatientPaymentStatus,
   PatientPaymentsPort,
-} from "@/modules/patient-payments/ports";
+} from '@/modules/patient-payments/ports';
 
 type PaymentRow = PatientPayment;
 
@@ -30,16 +30,16 @@ export const inMemoryPatientPaymentsPort: PatientPaymentsPort = {
 
   async addCashPayment(input: AddCashPaymentInput): Promise<PatientPayment> {
     if (!Number.isInteger(input.amountMinor) || input.amountMinor <= 0) {
-      throw new Error("payment_amount_must_be_positive_integer");
+      throw new Error('payment_amount_must_be_positive_integer');
     }
     const row: PaymentRow = {
       id: randomUUID(),
       organizationId: input.organizationId,
       patientUserId: input.patientUserId,
       amountMinor: input.amountMinor,
-      currency: input.currency ?? "RUB",
-      kind: "cash",
-      status: "paid",
+      currency: input.currency ?? 'RUB',
+      kind: 'cash',
+      status: 'paid',
       comment: input.comment ?? null,
       service: input.service ?? null,
       visitId: input.visitId ?? null,
@@ -76,8 +76,8 @@ export const inMemoryPatientPaymentsPort: PatientPaymentsPort = {
       patientUserId: input.patientUserId,
       amountMinor: input.amountMinor,
       currency: input.currency,
-      kind: "acquiring",
-      status: "pending",
+      kind: 'acquiring',
+      status: 'pending',
       comment: input.description ?? null,
       service: null,
       visitId: null,

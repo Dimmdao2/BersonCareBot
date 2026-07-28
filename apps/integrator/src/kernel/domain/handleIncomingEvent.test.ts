@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ActionResult, BaseContext, DomainContext, IncomingEvent, Step } from '../contracts/index.js';
+import type {
+  ActionResult,
+  BaseContext,
+  DomainContext,
+  IncomingEvent,
+  Step,
+} from '../contracts/index.js';
 import { handleIncomingEvent } from './handleIncomingEvent.js';
 
 describe('handleIncomingEvent (v3)', () => {
@@ -32,30 +38,32 @@ describe('handleIncomingEvent (v3)', () => {
       { id: 's2', kind: 'message.compose', mode: 'async', payload: { text: 'hello' } },
     ]) as unknown as () => Promise<Step[]>;
 
-    const executeAction = vi.fn<
-      (action: { id: string }, context: DomainContext) => Promise<ActionResult>
-    >().mockImplementation(async (action) => {
-      if (action.id === 's1') {
+    const executeAction = vi
+      .fn<(action: { id: string }, context: DomainContext) => Promise<ActionResult>>()
+      .mockImplementation(async (action) => {
+        if (action.id === 's1') {
+          return {
+            actionId: 's1',
+            status: 'success',
+            writes: [{ type: 'event.log', params: { event: 'received' } }],
+          };
+        }
         return {
-          actionId: 's1',
+          actionId: 's2',
           status: 'success',
-          writes: [{ type: 'event.log', params: { event: 'received' } }],
+          intents: [
+            {
+              type: 'message.send',
+              meta: {
+                eventId: 'out-1',
+                occurredAt: '2026-03-05T12:00:00.000Z',
+                source: 'source-a',
+              },
+              payload: { message: { text: 'hello' } },
+            },
+          ],
         };
-      }
-      return {
-        actionId: 's2',
-        status: 'success',
-        intents: [{
-          type: 'message.send',
-          meta: {
-            eventId: 'out-1',
-            occurredAt: '2026-03-05T12:00:00.000Z',
-            source: 'source-a',
-          },
-          payload: { message: { text: 'hello' } },
-        }],
-      };
-    });
+      });
 
     const result = await handleIncomingEvent(event, {
       buildBaseContext,
@@ -135,9 +143,11 @@ describe('handleIncomingEvent (v3)', () => {
     };
 
     const readPort = {
-      readDb: vi.fn().mockRejectedValue(
-        Object.assign(new Error('permission denied for function is_staff'), { code: '42501' }),
-      ),
+      readDb: vi
+        .fn()
+        .mockRejectedValue(
+          Object.assign(new Error('permission denied for function is_staff'), { code: '42501' }),
+        ),
     };
 
     const buildPlan = vi.fn().mockResolvedValue([]);
@@ -262,36 +272,36 @@ describe('handleIncomingEvent (v3)', () => {
       { id: 's2', kind: 'message.edit', mode: 'async', payload: {} },
     ]) as unknown as () => Promise<Step[]>;
 
-    const executeAction = vi.fn<
-      (action: { id: string }, context: DomainContext) => Promise<ActionResult>
-    >().mockImplementation(async (action, context) => {
-      if (action.id === 's1') {
-        return {
-          actionId: 's1',
-          status: 'success',
-          values: {
-            notifications: {
-              notify_spb: true,
-              notify_msk: false,
-              notify_online: false,
+    const executeAction = vi
+      .fn<(action: { id: string }, context: DomainContext) => Promise<ActionResult>>()
+      .mockImplementation(async (action, context) => {
+        if (action.id === 's1') {
+          return {
+            actionId: 's1',
+            status: 'success',
+            values: {
+              notifications: {
+                notify_spb: true,
+                notify_msk: false,
+                notify_online: false,
+              },
             },
+          };
+        }
+
+        expect(context.values).toMatchObject({
+          notifications: {
+            notify_spb: true,
+            notify_msk: false,
+            notify_online: false,
           },
+        });
+
+        return {
+          actionId: 's2',
+          status: 'success',
         };
-      }
-
-      expect(context.values).toMatchObject({
-        notifications: {
-          notify_spb: true,
-          notify_msk: false,
-          notify_online: false,
-        },
       });
-
-      return {
-        actionId: 's2',
-        status: 'success',
-      };
-    });
 
     const result = await handleIncomingEvent(event, {
       buildBaseContext: vi.fn().mockResolvedValue(baseContext),
@@ -330,19 +340,21 @@ describe('handleIncomingEvent (v3)', () => {
       { id: 'after', kind: 'message.send', mode: 'async', payload: { text: 'Номер привязан' } },
     ]) as unknown as () => Promise<Step[]>;
 
-    const executeAction = vi.fn<
-      (action: { id: string; type: string }, context: DomainContext) => Promise<ActionResult>
-    >().mockImplementation(async (action) => {
-      if (action.id === 'bind') {
-        return {
-          actionId: 'bind',
-          status: 'success',
-          abortPlan: true,
-          intents: [{ type: 'message.send', meta: event.meta, payload: { message: { text: 'ошибка' } } }],
-        };
-      }
-      return { actionId: action.id, status: 'success' };
-    });
+    const executeAction = vi
+      .fn<(action: { id: string; type: string }, context: DomainContext) => Promise<ActionResult>>()
+      .mockImplementation(async (action) => {
+        if (action.id === 'bind') {
+          return {
+            actionId: 'bind',
+            status: 'success',
+            abortPlan: true,
+            intents: [
+              { type: 'message.send', meta: event.meta, payload: { message: { text: 'ошибка' } } },
+            ],
+          };
+        }
+        return { actionId: action.id, status: 'success' };
+      });
 
     const result = await handleIncomingEvent(event, {
       buildBaseContext: vi.fn().mockResolvedValue(baseContext),
@@ -353,9 +365,11 @@ describe('handleIncomingEvent (v3)', () => {
     expect(executeAction).toHaveBeenCalledTimes(1);
     expect(result.actions).toHaveLength(1);
     expect(result.results).toHaveLength(1);
-    expect(result.intents.some((i) => (i.payload as { message?: { text?: string } }).message?.text === 'Номер привязан')).toBe(
-      false,
-    );
+    expect(
+      result.intents.some(
+        (i) => (i.payload as { message?: { text?: string } }).message?.text === 'Номер привязан',
+      ),
+    ).toBe(false);
   });
 
   it('re-interpolates values.* from prior step results before executing the next step', async () => {
@@ -380,18 +394,23 @@ describe('handleIncomingEvent (v3)', () => {
       },
     ]) as unknown as () => Promise<Step[]>;
 
-    const executeAction = vi.fn<
-      (action: { id: string; type: string; params?: Record<string, unknown> }, context: DomainContext) => Promise<ActionResult>
-    >().mockImplementation(async (action) => {
-      if (action.id === 's1') {
-        return {
-          actionId: 's1',
-          status: 'success',
-          values: { reminderUserId: 'integrator-user-99' },
-        };
-      }
-      return { actionId: action.id, status: 'success' };
-    });
+    const executeAction = vi
+      .fn<
+        (
+          action: { id: string; type: string; params?: Record<string, unknown> },
+          context: DomainContext,
+        ) => Promise<ActionResult>
+      >()
+      .mockImplementation(async (action) => {
+        if (action.id === 's1') {
+          return {
+            actionId: 's1',
+            status: 'success',
+            values: { reminderUserId: 'integrator-user-99' },
+          };
+        }
+        return { actionId: action.id, status: 'success' };
+      });
 
     await handleIncomingEvent(event, {
       buildBaseContext: vi.fn().mockResolvedValue({ actor: { isAdmin: false }, identityLinks: [] }),

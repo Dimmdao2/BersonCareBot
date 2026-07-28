@@ -2,11 +2,11 @@
  * Staff/admin cancel after canonical commit: partial outcomes with explicit flags.
  * @see docs/BOOKING_REWORK_INITIATIVE/BOOKING_MIRROR_INTEGRITY_CONTRACT.md
  */
-import { applyStaffCancelSideEffects } from "@/app-layer/booking/staffAppointmentLifecycleEffects";
-import type { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import type { BeAppointment } from "@/modules/booking-engine/types";
-import type { BookingSyncPort } from "@/modules/patient-booking/ports";
-import { createBookingSyncPort } from "@/modules/integrator/bookingM2mApi";
+import { applyStaffCancelSideEffects } from '@/app-layer/booking/staffAppointmentLifecycleEffects';
+import type { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import type { BeAppointment } from '@/modules/booking-engine/types';
+import type { BookingSyncPort } from '@/modules/patient-booking/ports';
+import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
 
 export type StaffManualCancelFlags = {
   notificationOutcomeFailed?: true;
@@ -19,14 +19,14 @@ export async function runStaffManualCancelAfterCanonical(input: {
   organizationId: string;
   appointmentId: string;
   actorId: string;
-  actorType: "admin" | "specialist";
+  actorType: 'admin' | 'specialist';
   decisionType: string;
   reason?: string;
   staffComment?: string;
   /** R21: false → не уведомлять пациента об отмене. По умолчанию уведомляем. */
   notifyPatient?: boolean;
   appointment: BeAppointment;
-  cancelPolicy: Parameters<typeof applyStaffCancelSideEffects>[0]["cancelPolicy"];
+  cancelPolicy: Parameters<typeof applyStaffCancelSideEffects>[0]['cancelPolicy'];
 }): Promise<StaffManualCancelFlags> {
   const flags: StaffManualCancelFlags = {};
   const bookingRow = input.deps.patientBooking
@@ -38,7 +38,7 @@ export async function runStaffManualCancelAfterCanonical(input: {
       await input.deps.memberships.applyCancelPackageOutcome({
         appointmentId: input.appointmentId,
         organizationId: input.organizationId,
-        packageLessonDeducted: input.decisionType === "package_charged",
+        packageLessonDeducted: input.decisionType === 'package_charged',
         createdByPlatformUserId: input.actorId,
       });
     } catch {
@@ -50,8 +50,8 @@ export async function runStaffManualCancelAfterCanonical(input: {
       await input.deps.payments.applyCancelPaymentOutcome({
         appointmentId: input.appointmentId,
         organizationId: input.organizationId,
-        prepaymentRetained: input.decisionType === "retain_prepayment",
-        prepaymentRefunded: input.decisionType === "refund_prepayment",
+        prepaymentRetained: input.decisionType === 'retain_prepayment',
+        prepaymentRefunded: input.decisionType === 'refund_prepayment',
         reason: input.reason,
       });
     } catch {
@@ -59,9 +59,8 @@ export async function runStaffManualCancelAfterCanonical(input: {
     }
   }
 
-  const { loadBookingLifecycleNotificationsFromSystemSettings } = await import(
-    "@/modules/booking-notifications/settings"
-  );
+  const { loadBookingLifecycleNotificationsFromSystemSettings } =
+    await import('@/modules/booking-notifications/settings');
   const lifecycleNotificationSettings = await loadBookingLifecycleNotificationsFromSystemSettings(
     (key, scope) => input.deps.systemSettings.getSetting(key, scope),
   );

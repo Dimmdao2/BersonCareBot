@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
-import { useState, useTransition } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
-import { parseIdTokens } from "@/shared/parsers/parseIdTokens";
-import { patchAdminSetting } from "./patchAdminSetting";
+import { useState, useTransition } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
+import { parseIdTokens } from '@/shared/parsers/parseIdTokens';
+import { patchAdminSetting } from './patchAdminSetting';
 
 type AccessListsValues = {
   allowedTelegramIds: string;
@@ -19,12 +19,12 @@ type AccessListsValues = {
 export type AccessListsSectionProps = AccessListsValues;
 
 const FIELDS: [keyof AccessListsValues, string][] = [
-  ["allowedTelegramIds", "Разрешённые Telegram ID (клиенты)"],
-  ["adminTelegramIds", "Telegram ID → admin"],
-  ["doctorTelegramIds", "Telegram ID → doctor"],
-  ["allowedMaxIds", "Разрешённые Max ID (клиенты)"],
-  ["adminMaxIds", "Max ID → admin"],
-  ["doctorMaxIds", "Max ID → doctor"],
+  ['allowedTelegramIds', 'Разрешённые Telegram ID (клиенты)'],
+  ['adminTelegramIds', 'Telegram ID → admin'],
+  ['doctorTelegramIds', 'Telegram ID → doctor'],
+  ['allowedMaxIds', 'Разрешённые Max ID (клиенты)'],
+  ['adminMaxIds', 'Max ID → admin'],
+  ['doctorMaxIds', 'Max ID → doctor'],
 ];
 
 export function AccessListsSection({
@@ -47,10 +47,9 @@ export function AccessListsSection({
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const set =
-    (k: keyof AccessListsValues) => (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      setVals((v) => ({ ...v, [k]: e.target.value }));
-    };
+  const set = (k: keyof AccessListsValues) => (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setVals((v) => ({ ...v, [k]: e.target.value }));
+  };
 
   function handleSave() {
     setSaved(false);
@@ -58,20 +57,20 @@ export function AccessListsSection({
     startTransition(async () => {
       try {
         const results = await Promise.all([
-          patchAdminSetting("allowed_telegram_ids", parseIdTokens(vals.allowedTelegramIds)),
-          patchAdminSetting("allowed_max_ids", parseIdTokens(vals.allowedMaxIds)),
-          patchAdminSetting("admin_telegram_ids", parseIdTokens(vals.adminTelegramIds)),
-          patchAdminSetting("doctor_telegram_ids", parseIdTokens(vals.doctorTelegramIds)),
-          patchAdminSetting("admin_max_ids", parseIdTokens(vals.adminMaxIds)),
-          patchAdminSetting("doctor_max_ids", parseIdTokens(vals.doctorMaxIds)),
+          patchAdminSetting('allowed_telegram_ids', parseIdTokens(vals.allowedTelegramIds)),
+          patchAdminSetting('allowed_max_ids', parseIdTokens(vals.allowedMaxIds)),
+          patchAdminSetting('admin_telegram_ids', parseIdTokens(vals.adminTelegramIds)),
+          patchAdminSetting('doctor_telegram_ids', parseIdTokens(vals.doctorTelegramIds)),
+          patchAdminSetting('admin_max_ids', parseIdTokens(vals.adminMaxIds)),
+          patchAdminSetting('doctor_max_ids', parseIdTokens(vals.doctorMaxIds)),
         ]);
         if (results.some((r) => !r)) {
-          setError("Не удалось сохранить часть настроек");
+          setError('Не удалось сохранить часть настроек');
           return;
         }
         setSaved(true);
       } catch {
-        setError("Ошибка при сохранении");
+        setError('Ошибка при сохранении');
       }
     });
   }
@@ -81,12 +80,14 @@ export function AccessListsSection({
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Вайтлисты ролей (legacy)</CardTitle>
         <p className="text-xs text-muted-foreground">
-          Компонент не подключён к вкладкам <code className="rounded bg-muted px-1">/app/settings</code> (2026-05-02). Ключи
-          по-прежнему в API; при необходимости правки — через{" "}
-          <code className="rounded bg-muted px-1">PATCH /api/admin/settings</code> или временный импорт. Основной UI
-          админских идентификаторов: вкладка «Режимы» (<code className="rounded bg-muted px-1">AdminSettingsSection</code>
-          ). Идентификаторы Telegram / Max: пробел, запятая или новая строка. Свой числовой ID —{" "}
-          <span className="font-mono">/show_my_id</span> в личном чате с ботом (в группе —{" "}
+          Компонент не подключён к вкладкам{' '}
+          <code className="rounded bg-muted px-1">/app/settings</code> (2026-05-02). Ключи
+          по-прежнему в API; при необходимости правки — через{' '}
+          <code className="rounded bg-muted px-1">PATCH /api/admin/settings</code> или временный
+          импорт. Основной UI админских идентификаторов: вкладка «Режимы» (
+          <code className="rounded bg-muted px-1">AdminSettingsSection</code>
+          ). Идентификаторы Telegram / Max: пробел, запятая или новая строка. Свой числовой ID —{' '}
+          <span className="font-mono">/show_my_id</span> в личном чате с ботом (в группе —{' '}
           <span className="font-mono">/show_my_id@имя_бота</span>).
         </p>
       </CardHeader>
@@ -109,7 +110,7 @@ export function AccessListsSection({
 
         <div className="flex items-center gap-3">
           <Button variant="outline" onClick={handleSave} disabled={isPending}>
-            {isPending ? "Сохранение…" : "Сохранить"}
+            {isPending ? 'Сохранение…' : 'Сохранить'}
           </Button>
           {saved && <span className="text-sm text-green-600">Сохранено</span>}
           {error && <span className="text-sm text-destructive">{error}</span>}

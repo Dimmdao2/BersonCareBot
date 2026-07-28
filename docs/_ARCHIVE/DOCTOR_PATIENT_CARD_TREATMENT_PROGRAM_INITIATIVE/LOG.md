@@ -215,6 +215,7 @@
 ## 2026-06-02 — UX-аудит 2B (P0/P1)
 
 **Сделано:**
+
 - Встроенный чат в табе «Коммуникации» (`DoctorClientEmbeddedChat`); Hero/Strip → таб + якорь; модалка чата убрана.
 - Inbox и Care Plan → deep link `?discussionItem=`; на экране инстанса автооткрытие `DoctorProgramItemDiscussionDialog`.
 - Action Strip: заголовок «Сейчас», variant по приоритету; «План не открыт» только в Strip.
@@ -236,6 +237,7 @@
 ## 2026-06-02 — Фаза 2B: доработки по аудиту
 
 **Сделано:**
+
 - `loadDoctorClientProgramCardData`: агрегаты + `carePlan` (текущий этап, goals/objectives, элементы с «Новое», static-превью) + `programInbox` (комментарии/медиа без ответа врача, CTA «Ответить в программе»).
 - Обзор: `buildDoctorClientCarePlanOverview`; спарклайн самочувствия с маркерами ЛФК (`warmupScatter`).
 - Тесты: `buildDoctorClientCarePlanOverview.test.ts`, `loadDoctorClientProgramCardAggregates.test.ts`; якоря `pending-program-tests` / `communications`, `?chat=1`, раскрытие графика.
@@ -248,6 +250,7 @@
 ## 2026-06-02 — Фаза 2B: карточка врача (Tabs + Hero + Action Strip)
 
 **Сделано:**
+
 - `ClientProfileCard` — каркас: `PatientCareBar`, `PatientActionStrip`, табы Обзор / Программа / Коммуникации / Записи / Учётка; якоря `#doctor-client-section-*` → таб + scroll (`useDoctorClientAnchorTab`).
 - RSC: `loadDoctorClientProgramCardData` (комментарии/медиа по последнему сообщению пациента в обсуждении элемента; «план не открыт» через `patientPlanUpdatedBadgeForInstance`), `buildDoctorClientWellbeingModel` + `displayTimeZone` на `[userId]/page.tsx`.
 - Обзор: Care Plan summary + CTA, спарклайн самочувствия + lazy полный график, заметки; Program/Records/Account — перенос существующих панелей по §4.5.
@@ -362,13 +365,13 @@
 
 Краткая матрица (template constructor vs doctor instance editor):
 
-| Блок | Шаблон (`TreatmentProgramConstructorClient`) | Инстанс (до работ) | Инстанс (цель) |
-|------|----------------------------------------------|--------------------|----------------|
-| Карточка этапа | `TPL_CONSTRUCTOR_LEARNING_STAGE_CARD_CLASS`, цветная шапка | Простая `section` + текст | Тот же shell + цветная шапка этапа |
-| Toolbar этапа | `+ Группа`, настройки этапа, reorder этапов | `StageDoctorControls` отдельным блоком | `+ Группа` в шапке карточки; управление этапом в теле |
-| Группа | Карточка с цветной шапкой, элементы inline в `ul` | Строка группы; элементы только в модалке «Изменить» | Карточка как в шаблоне; элементы inline под группой |
-| Элемент | Компактная строка + модалка настроек | Развёрнутая карточка | Компактный `<details>` + детали при раскрытии |
-| Мутации | Черновик/публикация | Без единого guard | `requestProgramInstanceDataMutation` для `active`; lock при `completed` |
+| Блок           | Шаблон (`TreatmentProgramConstructorClient`)               | Инстанс (до работ)                                  | Инстанс (цель)                                                          |
+| -------------- | ---------------------------------------------------------- | --------------------------------------------------- | ----------------------------------------------------------------------- |
+| Карточка этапа | `TPL_CONSTRUCTOR_LEARNING_STAGE_CARD_CLASS`, цветная шапка | Простая `section` + текст                           | Тот же shell + цветная шапка этапа                                      |
+| Toolbar этапа  | `+ Группа`, настройки этапа, reorder этапов                | `StageDoctorControls` отдельным блоком              | `+ Группа` в шапке карточки; управление этапом в теле                   |
+| Группа         | Карточка с цветной шапкой, элементы inline в `ul`          | Строка группы; элементы только в модалке «Изменить» | Карточка как в шаблоне; элементы inline под группой                     |
+| Элемент        | Компактная строка + модалка настроек                       | Развёрнутая карточка                                | Компактный `<details>` + детали при раскрытии                           |
+| Мутации        | Черновик/публикация                                        | Без единого guard                                   | `requestProgramInstanceDataMutation` для `active`; lock при `completed` |
 
 Общий код: `@/app/app/doctor/treatment-program-shared/*` (shell styles + guard).
 

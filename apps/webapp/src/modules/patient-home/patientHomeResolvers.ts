@@ -1,9 +1,9 @@
-import type { PatientHomeBlock, PatientHomeBlockItem } from "./ports";
-import type { ContentSectionKind, SystemParentCode } from "@/modules/content-sections/types";
+import type { PatientHomeBlock, PatientHomeBlockItem } from './ports';
+import type { ContentSectionKind, SystemParentCode } from '@/modules/content-sections/types';
 import {
   isPatientHomeContentPageCandidateForBlock,
   isPatientHomeContentSectionCandidateForBlock,
-} from "./blocks";
+} from './blocks';
 
 export type PatientHomeResolverDeps = {
   contentSections: {
@@ -95,14 +95,14 @@ export async function resolveSituationChips(
 ): Promise<ResolvedSituationChip[]> {
   const out: ResolvedSituationChip[] = [];
   for (const item of sortItems(items)) {
-    if (item.targetType !== "content_section") continue;
+    if (item.targetType !== 'content_section') continue;
     const slug = item.targetRef.trim();
     if (!slug) continue;
     const row = await deps.contentSections.getBySlug(slug);
     if (!row?.isVisible) continue;
     if (row.requiresAuth && !canViewAuthOnlyContent) continue;
     if (
-      !isPatientHomeContentSectionCandidateForBlock("situations", {
+      !isPatientHomeContentSectionCandidateForBlock('situations', {
         kind: row.kind,
         systemParentCode: row.systemParentCode,
       })
@@ -121,7 +121,7 @@ export async function resolveSituationChips(
 }
 
 /** Дефолтный бейдж для блока `subscription_carousel` и промо на странице раздела. */
-export const DEFAULT_SUBSCRIPTION_BADGE = "По подписке";
+export const DEFAULT_SUBSCRIPTION_BADGE = 'По подписке';
 
 /**
  * Промо «по подписке» для страницы CMS-раздела: раздел добавлен видимым item в видимый блок `subscription_carousel`.
@@ -133,14 +133,11 @@ export function getSubscriptionCarouselSectionPresentation(
 ): { badgeLabel: string } | null {
   const normalized = sectionSlug.trim();
   if (!normalized) return null;
-  const carousel = blocks.find((b) => b.code === "subscription_carousel");
+  const carousel = blocks.find((b) => b.code === 'subscription_carousel');
   if (!carousel?.isVisible) return null;
   const candidates = carousel.items
     .filter(
-      (i) =>
-        i.isVisible &&
-        i.targetType === "content_section" &&
-        i.targetRef.trim() === normalized,
+      (i) => i.isVisible && i.targetType === 'content_section' && i.targetRef.trim() === normalized,
     )
     .sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
   const item = candidates[0];
@@ -158,14 +155,14 @@ export async function resolveSubscriptionCarouselCards(
   const out: ResolvedCarouselCard[] = [];
   for (const item of sortItems(items)) {
     const badge = item.badgeLabel?.trim() || DEFAULT_SUBSCRIPTION_BADGE;
-    if (item.targetType === "content_section") {
+    if (item.targetType === 'content_section') {
       const slug = item.targetRef.trim();
       if (!slug) continue;
       const row = await deps.contentSections.getBySlug(slug);
       if (!row?.isVisible) continue;
       if (row.requiresAuth && !canViewAuthOnlyContent) continue;
       if (
-        !isPatientHomeContentSectionCandidateForBlock("subscription_carousel", {
+        !isPatientHomeContentSectionCandidateForBlock('subscription_carousel', {
           kind: row.kind,
           systemParentCode: row.systemParentCode,
         })
@@ -182,7 +179,7 @@ export async function resolveSubscriptionCarouselCards(
       });
       continue;
     }
-    if (item.targetType === "content_page") {
+    if (item.targetType === 'content_page') {
       const slug = item.targetRef.trim();
       if (!slug) continue;
       const row = await deps.contentPages.getBySlug(slug);
@@ -191,10 +188,13 @@ export async function resolveSubscriptionCarouselCards(
       const parent = await deps.contentSections.getBySlug(row.section);
       const sectionMap = parent
         ? new Map([[parent.slug, { kind: parent.kind, systemParentCode: parent.systemParentCode }]])
-        : new Map<string, { kind: ContentSectionKind; systemParentCode: SystemParentCode | null }>();
+        : new Map<
+            string,
+            { kind: ContentSectionKind; systemParentCode: SystemParentCode | null }
+          >();
       if (
         !isPatientHomeContentPageCandidateForBlock(
-          "subscription_carousel",
+          'subscription_carousel',
           {
             slug: row.slug,
             section: row.section,
@@ -217,11 +217,11 @@ export async function resolveSubscriptionCarouselCards(
       });
       continue;
     }
-    if (item.targetType === "course") {
+    if (item.targetType === 'course') {
       const id = item.targetRef.trim();
       if (!id) continue;
       const row = await deps.courses.getCourseForDoctor(id);
-      if (!row || row.status !== "published") continue;
+      if (!row || row.status !== 'published') continue;
       out.push({
         itemId: item.id,
         title: item.titleOverride?.trim() || row.title,
@@ -241,7 +241,7 @@ export async function resolveUsefulPostCard(
   canViewAuthOnlyContent: boolean,
 ): Promise<ResolvedUsefulPostCard | null> {
   for (const item of sortItems(items)) {
-    if (item.targetType !== "content_page") continue;
+    if (item.targetType !== 'content_page') continue;
     const slug = item.targetRef.trim();
     if (!slug) continue;
     const row = await deps.contentPages.getBySlug(slug);
@@ -253,7 +253,7 @@ export async function resolveUsefulPostCard(
       : new Map<string, { kind: ContentSectionKind; systemParentCode: SystemParentCode | null }>();
     if (
       !isPatientHomeContentPageCandidateForBlock(
-        "useful_post",
+        'useful_post',
         {
           slug: row.slug,
           section: row.section,
@@ -286,14 +286,14 @@ export async function resolveSosCard(
   canViewAuthOnlyContent: boolean,
 ): Promise<ResolvedSosCard | null> {
   for (const item of sortItems(items)) {
-    if (item.targetType === "content_section") {
+    if (item.targetType === 'content_section') {
       const slug = item.targetRef.trim();
       if (!slug) continue;
       const row = await deps.contentSections.getBySlug(slug);
       if (!row?.isVisible) continue;
       if (row.requiresAuth && !canViewAuthOnlyContent) continue;
       if (
-        !isPatientHomeContentSectionCandidateForBlock("sos", {
+        !isPatientHomeContentSectionCandidateForBlock('sos', {
           kind: row.kind,
           systemParentCode: row.systemParentCode,
         })
@@ -308,7 +308,7 @@ export async function resolveSosCard(
         href: `/app/patient/sections/${encodeURIComponent(row.slug)}`,
       };
     }
-    if (item.targetType === "content_page") {
+    if (item.targetType === 'content_page') {
       const slug = item.targetRef.trim();
       if (!slug) continue;
       const row = await deps.contentPages.getBySlug(slug);
@@ -317,10 +317,13 @@ export async function resolveSosCard(
       const parent = await deps.contentSections.getBySlug(row.section);
       const sectionMap = parent
         ? new Map([[parent.slug, { kind: parent.kind, systemParentCode: parent.systemParentCode }]])
-        : new Map<string, { kind: ContentSectionKind; systemParentCode: SystemParentCode | null }>();
+        : new Map<
+            string,
+            { kind: ContentSectionKind; systemParentCode: SystemParentCode | null }
+          >();
       if (
         !isPatientHomeContentPageCandidateForBlock(
-          "sos",
+          'sos',
           {
             slug: row.slug,
             section: row.section,
@@ -351,11 +354,11 @@ export async function resolveCourseRowCards(
 ): Promise<ResolvedCourseCard[]> {
   const out: ResolvedCourseCard[] = [];
   for (const item of sortItems(items)) {
-    if (item.targetType !== "course") continue;
+    if (item.targetType !== 'course') continue;
     const id = item.targetRef.trim();
     if (!id) continue;
     const row = await deps.courses.getCourseForDoctor(id);
-    if (!row || row.status !== "published") continue;
+    if (!row || row.status !== 'published') continue;
     out.push({
       itemId: item.id,
       courseId: row.id,

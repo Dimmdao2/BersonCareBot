@@ -52,7 +52,9 @@ function fixtureText(): string {
   )}\n`;
 }
 
-async function createFixture(): Promise<Readonly<{ root: string; fixture: string; previous: string }>> {
+async function createFixture(): Promise<
+  Readonly<{ root: string; fixture: string; previous: string }>
+> {
   const root = await mkdtemp(join(tmpdir(), 'bcb-canonical-slot-fixture.'));
   tempRoots.push(root);
   const fixture = join(root, 'saas-smoke.fixture');

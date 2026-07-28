@@ -1,14 +1,14 @@
-import { redirect } from "next/navigation";
-import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
-import { routePaths } from "@/app-layer/routes/paths";
-import type { BookingCategory } from "@/modules/patient-booking/types";
+import { redirect } from 'next/navigation';
+import { getOptionalPatientSession } from '@/app-layer/guards/requireRole';
+import { routePaths } from '@/app-layer/routes/paths';
+import type { BookingCategory } from '@/modules/patient-booking/types';
 import {
   loadInPersonSlotContextForPatientRsc,
   loadPatientBookingDisplaySettingsRsc,
-} from "../bookingCatalogRsc";
-import { BOOKING_WIZARD_TOTAL_STEPS } from "../constants";
-import { BookingWizardShell } from "../BookingWizardShell";
-import { SlotStepClient } from "./SlotStepClient";
+} from '../bookingCatalogRsc';
+import { BOOKING_WIZARD_TOTAL_STEPS } from '../constants';
+import { BookingWizardShell } from '../BookingWizardShell';
+import { SlotStepClient } from './SlotStepClient';
 
 type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -19,7 +19,7 @@ function first(v: string | string[] | undefined): string | undefined {
   return Array.isArray(v) ? v[0] : v;
 }
 
-const ONLINE_BOOKING_CATEGORIES: readonly BookingCategory[] = ["rehab_lfk", "nutrition", "general"];
+const ONLINE_BOOKING_CATEGORIES: readonly BookingCategory[] = ['rehab_lfk', 'nutrition', 'general'];
 
 function isOnlineBookingCategory(s: string): s is BookingCategory {
   return (ONLINE_BOOKING_CATEGORIES as readonly string[]).includes(s);
@@ -33,11 +33,11 @@ export default async function BookingNewSlotPage({ searchParams }: Props) {
 
   const raw = await searchParams;
   const type = first(raw.type)?.trim();
-  if (!type || (type !== "in_person" && type !== "online")) {
+  if (!type || (type !== 'in_person' && type !== 'online')) {
     redirect(routePaths.bookingNew);
   }
 
-  if (type === "in_person") {
+  if (type === 'in_person') {
     const branchId = first(raw.branchId)?.trim();
     const serviceId = first(raw.serviceId)?.trim();
     if (!branchId || !serviceId) {
@@ -52,12 +52,11 @@ export default async function BookingNewSlotPage({ searchParams }: Props) {
       redirect(routePaths.bookingNew);
     }
     const rescheduleBookingId = first(raw.rescheduleBookingId)?.trim();
-    const backHref =
-      `${routePaths.bookingNewService}?cityCode=${encodeURIComponent(slotContext.cityCode)}&cityTitle=${encodeURIComponent(slotContext.cityTitle)}`;
+    const backHref = `${routePaths.bookingNewService}?cityCode=${encodeURIComponent(slotContext.cityCode)}&cityTitle=${encodeURIComponent(slotContext.cityTitle)}`;
 
     return (
       <BookingWizardShell
-        title={rescheduleBookingId ? "Новое время приёма" : "Выберите дату и время"}
+        title={rescheduleBookingId ? 'Новое время приёма' : 'Выберите дату и время'}
         step={3}
         totalSteps={BOOKING_WIZARD_TOTAL_STEPS}
         backHref={backHref}
@@ -93,7 +92,7 @@ export default async function BookingNewSlotPage({ searchParams }: Props) {
 
   return (
     <BookingWizardShell
-      title={rescheduleBookingId ? "Новое время приёма" : "Выберите дату и время"}
+      title={rescheduleBookingId ? 'Новое время приёма' : 'Выберите дату и время'}
       step={3}
       totalSteps={BOOKING_WIZARD_TOTAL_STEPS}
       backHref={routePaths.bookingNew}

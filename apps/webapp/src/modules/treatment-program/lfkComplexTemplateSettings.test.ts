@@ -1,13 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'vitest';
 import {
   lfkComplexTemplateIdFromItemSettings,
   mergeLfkComplexTemplateIdIntoSettings,
   TREATMENT_PROGRAM_LFK_COMPLEX_TEMPLATE_ID_SETTINGS_KEY,
-} from "./lfkComplexTemplateSettings";
+} from './lfkComplexTemplateSettings';
 
-describe("lfkComplexTemplateSettings", () => {
-  it("reads and merges lfkComplexTemplateId", () => {
-    const id = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+describe('lfkComplexTemplateSettings', () => {
+  it('reads and merges lfkComplexTemplateId', () => {
+    const id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
     expect(lfkComplexTemplateIdFromItemSettings(null)).toBeNull();
     expect(
       lfkComplexTemplateIdFromItemSettings({

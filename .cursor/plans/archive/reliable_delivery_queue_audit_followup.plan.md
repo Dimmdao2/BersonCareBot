@@ -1,25 +1,25 @@
 ---
-name: "Надёжная очередь доставки + health (аудит 2026-05)"
-overview: "Доработки по аудиту: классификация dispatch, баннер «Сегодня» = system-health, метрики очереди, retryable/permanent, ретраи enqueue напоминаний, вынесение collectAdminSystemHealthData."
+name: 'Надёжная очередь доставки + health (аудит 2026-05)'
+overview: 'Доработки по аудиту: классификация dispatch, баннер «Сегодня» = system-health, метрики очереди, retryable/permanent, ретраи enqueue напоминаний, вынесение collectAdminSystemHealthData.'
 status: completed
 todos:
   - id: audit-c3-dispatch-classification
-    content: "C3 — документ OUTGOING_DISPATCH_CLASSIFICATION.md"
+    content: 'C3 — документ OUTGOING_DISPATCH_CLASSIFICATION.md'
     status: completed
   - id: audit-d1-banner-system-health
-    content: "D1 — баннер «Сегодня» через collectAdminSystemHealthData + adminDoctorTodayHealthBannerFromSystemHealth"
+    content: 'D1 — баннер «Сегодня» через collectAdminSystemHealthData + adminDoctorTodayHealthBannerFromSystemHealth'
     status: completed
   - id: audit-b2-queue-health-ui
-    content: "B2 — getOutgoingDeliveryQueueHealth (dueByChannel, processing, lastSentAt, lastQueueActivityAt) + SystemHealthSection"
+    content: 'B2 — getOutgoingDeliveryQueueHealth (dueByChannel, processing, lastSentAt, lastQueueActivityAt) + SystemHealthSection'
     status: completed
   - id: audit-a1-retry-taxonomy
-    content: "A1 — isOutgoingDeliveryDispatchErrorRetryable + воркер dead для permanent"
+    content: 'A1 — isOutgoingDeliveryDispatchErrorRetryable + воркер dead для permanent'
     status: completed
   - id: audit-reminders-enqueue-retries
-    content: "Reminders — enqueueReminderDispatchBatchWithRetries"
+    content: 'Reminders — enqueueReminderDispatchBatchWithRetries'
     status: completed
   - id: audit-refactor-system-health-collect
-    content: "Рефакторинг — collectAdminSystemHealthData.ts + тонкий route.ts"
+    content: 'Рефакторинг — collectAdminSystemHealthData.ts + тонкий route.ts'
     status: completed
 isProject: false
 ---
@@ -33,13 +33,13 @@ isProject: false
 
 ## Закрытые по аудиту пункты
 
-| Пункт аудита | Сделано |
-|--------------|---------|
-| **C3** Инвентаризация `dispatchOutgoing` | Документ `docs/ARCHITECTURE/OUTGOING_DISPATCH_CLASSIFICATION.md` |
+| Пункт аудита                                     | Сделано                                                                                                                                          |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **C3** Инвентаризация `dispatchOutgoing`         | Документ `docs/ARCHITECTURE/OUTGOING_DISPATCH_CLASSIFICATION.md`                                                                                 |
 | **D1** Баннер «Сегодня» = критерии system-health | `loadAdminDoctorTodayHealthBanner` использует тот же снимок, что `collectAdminSystemHealthData` (`adminDoctorTodayHealthBannerFromSystemHealth`) |
-| **B2** Per-channel + активность воркера | `getOutgoingDeliveryQueueHealth`: `dueByChannel`, `processingCount`, `lastSentAt`, `lastQueueActivityAt`; UI в `SystemHealthSection` |
-| **A1** Разделение retryable / permanent | `isOutgoingDeliveryDispatchErrorRetryable` в `deliveryContract.ts`, воркер: немедленный `dead` для постоянных ошибок |
-| **Reminders** Риск enqueue после `persistWrites` | `enqueueReminderDispatchBatchWithRetries` (3 попытки + backoff, затем `throw` + лог) |
+| **B2** Per-channel + активность воркера          | `getOutgoingDeliveryQueueHealth`: `dueByChannel`, `processingCount`, `lastSentAt`, `lastQueueActivityAt`; UI в `SystemHealthSection`             |
+| **A1** Разделение retryable / permanent          | `isOutgoingDeliveryDispatchErrorRetryable` в `deliveryContract.ts`, воркер: немедленный `dead` для постоянных ошибок                             |
+| **Reminders** Риск enqueue после `persistWrites` | `enqueueReminderDispatchBatchWithRetries` (3 попытки + backoff, затем `throw` + лог)                                                             |
 
 ## Общая реализация (рефакторинг)
 

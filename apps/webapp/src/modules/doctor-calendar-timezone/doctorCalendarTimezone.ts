@@ -14,8 +14,8 @@ import {
   normalizeAppDisplayTimeZone,
   isAcceptableIanaTimezone,
   DEFAULT_APP_DISPLAY_TIMEZONE,
-} from "@/modules/system-settings/calendarIana";
-import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
+} from '@/modules/system-settings/calendarIana';
+import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 
 export interface DoctorCalendarTimezonePort {
   /** Returns raw IANA from platform_users.calendar_timezone, or null if unset. */
@@ -34,10 +34,10 @@ export function resolveDoctorCalendarIana(
   branchRaw: string | null | undefined,
   appDefaultRaw: string,
 ): string {
-  const p = personalRaw?.trim() ?? "";
+  const p = personalRaw?.trim() ?? '';
   if (p.length > 0 && isAcceptableIanaTimezone(p)) return p;
 
-  const b = branchRaw?.trim() ?? "";
+  const b = branchRaw?.trim() ?? '';
   if (b.length > 0 && isAcceptableIanaTimezone(b)) return b;
 
   return normalizeAppDisplayTimeZone(appDefaultRaw);

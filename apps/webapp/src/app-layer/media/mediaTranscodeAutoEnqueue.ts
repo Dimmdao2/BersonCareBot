@@ -1,6 +1,6 @@
-import { logger } from "@/app-layer/logging/logger";
-import { enqueueMediaTranscodeJob } from "@/app-layer/media/mediaTranscodeJobs";
-import { getConfigBool } from "@/modules/system-settings/configAdapter";
+import { logger } from '@/app-layer/logging/logger';
+import { enqueueMediaTranscodeJob } from '@/app-layer/media/mediaTranscodeJobs';
+import { getConfigBool } from '@/modules/system-settings/configAdapter';
 
 /**
  * Phase-06: после финализации новой загрузки (confirm / multipart complete), ставит job в
@@ -10,8 +10,8 @@ import { getConfigBool } from "@/modules/system-settings/configAdapter";
  * Идемпотентность: `enqueueMediaTranscodeJob` (одна активная job на media).
  */
 export async function maybeAutoEnqueueVideoTranscodeAfterUpload(mediaId: string): Promise<void> {
-  const pipelineOn = await getConfigBool("video_hls_pipeline_enabled", false);
-  const autoOn = await getConfigBool("video_hls_new_uploads_auto_transcode", false);
+  const pipelineOn = await getConfigBool('video_hls_pipeline_enabled', false);
+  const autoOn = await getConfigBool('video_hls_new_uploads_auto_transcode', false);
   if (!pipelineOn || !autoOn) {
     return;
   }
@@ -19,12 +19,12 @@ export async function maybeAutoEnqueueVideoTranscodeAfterUpload(mediaId: string)
   try {
     const out = await enqueueMediaTranscodeJob(mediaId);
     if (!out.ok) {
-      if (out.error === "not_video") {
+      if (out.error === 'not_video') {
         return;
       }
-      logger.warn({ mediaId, error: out.error }, "[media] auto_transcode_enqueue_skipped");
+      logger.warn({ mediaId, error: out.error }, '[media] auto_transcode_enqueue_skipped');
     }
   } catch (e) {
-    logger.error({ err: e, mediaId }, "[media] auto_transcode_enqueue_failed");
+    logger.error({ err: e, mediaId }, '[media] auto_transcode_enqueue_failed');
   }
 }

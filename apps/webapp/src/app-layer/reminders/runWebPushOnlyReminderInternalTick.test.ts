@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { runTickMock, recordSuccessMock, loggerWarnMock } = vi.hoisted(() => ({
   runTickMock: vi.fn(),
@@ -6,15 +6,15 @@ const { runTickMock, recordSuccessMock, loggerWarnMock } = vi.hoisted(() => ({
   loggerWarnMock: vi.fn(),
 }));
 
-vi.mock("@/modules/reminders/webPushOnlyScheduler", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/modules/reminders/webPushOnlyScheduler")>();
+vi.mock('@/modules/reminders/webPushOnlyScheduler', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/modules/reminders/webPushOnlyScheduler')>();
   return {
     ...actual,
     runWebPushOnlyReminderTick: runTickMock,
   };
 });
 
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: vi.fn(() => ({
     channelPreferencesPort: {},
     topicChannelPrefs: {},
@@ -31,25 +31,25 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   })),
 }));
 
-vi.mock("@/infra/repos/pgWebPushOnlyReminders", () => ({
+vi.mock('@/infra/repos/pgWebPushOnlyReminders', () => ({
   pgWebPushOnlyRemindersPort: {},
 }));
 
-vi.mock("@/infra/db/client", () => ({
+vi.mock('@/infra/db/client', () => ({
   getPool: vi.fn(() => ({})),
 }));
 
-vi.mock("@/infra/repos/pgWarmupsSectionSlugs", () => ({
+vi.mock('@/infra/repos/pgWarmupsSectionSlugs', () => ({
   loadWarmupsSectionSlugs: vi.fn(async () => []),
 }));
 
-vi.mock("@/app-layer/logging/logger", () => ({
+vi.mock('@/app-layer/logging/logger', () => ({
   logger: { warn: loggerWarnMock },
 }));
 
-import { runWebPushOnlyReminderInternalTick } from "./runWebPushOnlyReminderInternalTick";
+import { runWebPushOnlyReminderInternalTick } from './runWebPushOnlyReminderInternalTick';
 
-describe("runWebPushOnlyReminderInternalTick", () => {
+describe('runWebPushOnlyReminderInternalTick', () => {
   beforeEach(() => {
     runTickMock.mockReset();
     recordSuccessMock.mockReset();
@@ -68,7 +68,7 @@ describe("runWebPushOnlyReminderInternalTick", () => {
     });
   });
 
-  it("records success heartbeat in operator_job_status", async () => {
+  it('records success heartbeat in operator_job_status', async () => {
     await runWebPushOnlyReminderInternalTick();
     expect(recordSuccessMock).toHaveBeenCalledTimes(1);
     expect(recordSuccessMock.mock.calls[0]?.[0]?.metaJson).toMatchObject({
@@ -78,8 +78,8 @@ describe("runWebPushOnlyReminderInternalTick", () => {
     });
   });
 
-  it("returns tick result even when heartbeat write fails", async () => {
-    recordSuccessMock.mockRejectedValue(new Error("db down"));
+  it('returns tick result even when heartbeat write fails', async () => {
+    recordSuccessMock.mockRejectedValue(new Error('db down'));
     const result = await runWebPushOnlyReminderInternalTick();
     expect(result.rulesFound).toBe(1);
     expect(loggerWarnMock).toHaveBeenCalled();

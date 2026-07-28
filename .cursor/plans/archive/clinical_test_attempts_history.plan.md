@@ -1,25 +1,25 @@
 ---
 name: Clinical test attempts history
-overview: "Разделить отправку полного набора пациентом и засчёт пункта врачом: test_attempts с submitted_at/accepted_at, неограниченные пересдачи после отправки предыдущей; история в UI; per-result decided_by + acceptAttempt (MVP-B) и сброс item.completed_at при новой попытке."
+overview: 'Разделить отправку полного набора пациентом и засчёт пункта врачом: test_attempts с submitted_at/accepted_at, неограниченные пересдачи после отправки предыдущей; история в UI; per-result decided_by + acceptAttempt (MVP-B) и сброс item.completed_at при новой попытке.'
 status: completed
 todos:
   - id: schema-attempt-lifecycle
-    content: "Drizzle: test_attempts — submitted_at, accepted_at, accepted_by; миграция данных; пересоздать partial unique idx на submitted_at IS NULL; in-memory зеркало"
+    content: 'Drizzle: test_attempts — submitted_at, accepted_at, accepted_by; миграция данных; пересоздать partial unique idx на submitted_at IS NULL; in-memory зеркало'
     status: completed
   - id: grep-completedAt-clinical
-    content: "rg по webapp: все использования item.completedAt / clinical_test / getPatientTestSetPageServerSnapshot; таблица изменений"
+    content: 'rg по webapp: все использования item.completedAt / clinical_test / getPatientTestSetPageServerSnapshot; таблица изменений'
     status: completed
   - id: progress-service-api
-    content: "progress-service: patientSubmitTestResult без вечного item.completed_at при allDone; patientStartNewTestAttempt; связка acceptAttempt → item.completed_at (MVP-B); patientEnsureTestAttempt согласовать"
+    content: 'progress-service: patientSubmitTestResult без вечного item.completed_at при allDone; patientStartNewTestAttempt; связка acceptAttempt → item.completed_at (MVP-B); patientEnsureTestAttempt согласовать'
     status: completed
   - id: port-list-attempts
-    content: "TreatmentProgramTestAttemptsPort + pg/in-memory: listAttemptsForStageItem, listResultDetailsForInstance (meta попытки), acceptAttempt (только хвостовая submitted), startNewAttemptAfterSubmitted, markAttemptSubmitted (идемпотентно)"
+    content: 'TreatmentProgramTestAttemptsPort + pg/in-memory: listAttemptsForStageItem, listResultDetailsForInstance (meta попытки), acceptAttempt (только хвостовая submitted), startNewAttemptAfterSubmitted, markAttemptSubmitted (идемпотентно)'
     status: completed
   - id: patient-api-ui
     content: POST patient start attempt; PatientTestSetProgressForm — история + новая попытка; RSC/snapshot страницы пункта
     status: completed
   - id: doctor-api-ui
-    content: "POST doctor acceptAttempt; TreatmentProgramInstanceDetailClient — группировка по attempt; inbox карт клиента без доработки (группировка по попытке — отдельная задача)"
+    content: 'POST doctor acceptAttempt; TreatmentProgramInstanceDetailClient — группировка по attempt; inbox карт клиента без доработки (группировка по попытке — отдельная задача)'
     status: completed
   - id: tests-docs-ci
     content: Тесты progress-service + модуль treatment-program; ARCHITECTURE + LOG; pnpm run ci
@@ -37,13 +37,13 @@ isProject: false
 
 ## Продуктовые инварианты (зафиксировано)
 
-| Понятие | Смысл |
-|--------|--------|
-| **Открытая попытка** | Ровно одна строка `test_attempts` с **`submitted_at IS NULL`** на пару `(instance_stage_item_id, patient_user_id)`. Partial unique index **`idx_test_attempts_one_open_per_item_patient`** на эту пару с **`WHERE submitted_at IS NULL`** (миграция **0062** сняла колонку `completed_at` у попытки). |
-| **Пациент отправил полный набор** | Все тесты из снимка имеют `test_results` в рамках этой попытки; попытка получает **`submitted_at`** (новое поле; смысл текущего `completed_at` у попытки). |
-| **Новая полная попытка** | Пациент **в любой момент** может начать следующую попытку после того, как предыдущая **отправлена** (`submitted_at` задан), **не дожидаясь** `decided_by` по старой попытке (ответ в уточняющем вопросе). |
-| **Оценка врача** | На уровне **`test_results`**: `decided_by` / PATCH override; **обязательно** действие **`acceptAttempt`** на попытке для засчёта пункта в чеклисте (`item.completed_at`, MVP-B). |
-| **`completed_at` пункта `clinical_test`** | **Не** выставляется пациентом при `allDone`. Связь с чеклистом/«пункт выполнен» — только после решения врача (см. **MVP-B** ниже). |
+| Понятие                                   | Смысл                                                                                                                                                                                                                                                                                                 |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Открытая попытка**                      | Ровно одна строка `test_attempts` с **`submitted_at IS NULL`** на пару `(instance_stage_item_id, patient_user_id)`. Partial unique index **`idx_test_attempts_one_open_per_item_patient`** на эту пару с **`WHERE submitted_at IS NULL`** (миграция **0062** сняла колонку `completed_at` у попытки). |
+| **Пациент отправил полный набор**         | Все тесты из снимка имеют `test_results` в рамках этой попытки; попытка получает **`submitted_at`** (новое поле; смысл текущего `completed_at` у попытки).                                                                                                                                            |
+| **Новая полная попытка**                  | Пациент **в любой момент** может начать следующую попытку после того, как предыдущая **отправлена** (`submitted_at` задан), **не дожидаясь** `decided_by` по старой попытке (ответ в уточняющем вопросе).                                                                                             |
+| **Оценка врача**                          | На уровне **`test_results`**: `decided_by` / PATCH override; **обязательно** действие **`acceptAttempt`** на попытке для засчёта пункта в чеклисте (`item.completed_at`, MVP-B).                                                                                                                      |
+| **`completed_at` пункта `clinical_test`** | **Не** выставляется пациентом при `allDone`. Связь с чеклистом/«пункт выполнен» — только после решения врача (см. **MVP-B** ниже).                                                                                                                                                                    |
 
 ## MVP-B (рекомендуемая одна линия реализации — без «или» в коде)
 
@@ -134,4 +134,5 @@ flowchart LR
 - Dev: `pnpm --dir apps/webapp run migrate` на целевой БД — `public.test_attempts` без `completed_at`, с `submitted_at` / `accepted_at` / `accepted_by`.
 
 ---
-*Синхронизация с репозиторием: 2026-05-14 — prod lifecycle (хвост accept, без `clearAcceptance*`, `attemptAcceptMap`, идемпотентный submit).*
+
+_Синхронизация с репозиторием: 2026-05-14 — prod lifecycle (хвост accept, без `clearAcceptance_`, `attemptAcceptMap`, идемпотентный submit).\*

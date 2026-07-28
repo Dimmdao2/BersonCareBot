@@ -30,13 +30,13 @@
 
 ## 4. Разрешённые области правок
 
-| Разрешено | Примеры путей |
-|-----------|----------------|
-| Схема БД webapp | `apps/webapp/db/schema/**`, миграции Drizzle |
-| Integrator DB repos | `apps/integrator/src/infra/db/**` при необходимости зеркала |
-| Webapp модуль | `apps/webapp/src/modules/*` через **новый** модуль `operator-incidents` или `system-health` расширение — **порты**, не прямой pool в `modules/*` |
-| Integrator | `apps/integrator/src/infra/**`, `apps/integrator/src/kernel/**` — точки вызова без нарушения слоёв integrator |
-| `system_settings` | `apps/webapp/src/modules/system-settings/types.ts` + UI settings при необходимости |
+| Разрешено           | Примеры путей                                                                                                                                    |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Схема БД webapp     | `apps/webapp/db/schema/**`, миграции Drizzle                                                                                                     |
+| Integrator DB repos | `apps/integrator/src/infra/db/**` при необходимости зеркала                                                                                      |
+| Webapp модуль       | `apps/webapp/src/modules/*` через **новый** модуль `operator-incidents` или `system-health` расширение — **порты**, не прямой pool в `modules/*` |
+| Integrator          | `apps/integrator/src/infra/**`, `apps/integrator/src/kernel/**` — точки вызова без нарушения слоёв integrator                                    |
+| `system_settings`   | `apps/webapp/src/modules/system-settings/types.ts` + UI settings при необходимости                                                               |
 
 **Запрещено:** новые env для ключей интеграций; прямые `import { getPool }` из `modules/*` (ESLint).
 

@@ -38,42 +38,42 @@ pnpm --dir apps/integrator exec vitest run \
 
 ## Верификация closeout (post-audit, 2026-06-05)
 
-| Проверка | Результат |
-|----------|-----------|
-| Targeted mirror matrix (webapp) | 20 files, 199 tests — passed |
-| Targeted mirror matrix (integrator) | 4 files, 53 tests — passed |
-| `pnpm --dir apps/webapp exec tsc --noEmit -p tsconfig.json` | OK |
-| `pnpm --dir apps/integrator exec tsc --noEmit` | OK |
-| `pnpm install --frozen-lockfile && pnpm run ci` | passed (post-audit, 2026-06-05; ~5 min) |
+| Проверка                                                    | Результат                               |
+| ----------------------------------------------------------- | --------------------------------------- |
+| Targeted mirror matrix (webapp)                             | 20 files, 199 tests — passed            |
+| Targeted mirror matrix (integrator)                         | 4 files, 53 tests — passed              |
+| `pnpm --dir apps/webapp exec tsc --noEmit -p tsconfig.json` | OK                                      |
+| `pnpm --dir apps/integrator exec tsc --noEmit`              | OK                                      |
+| `pnpm install --frozen-lockfile && pnpm run ci`             | passed (post-audit, 2026-06-05; ~5 min) |
 
-| Кейс | Покрытие |
-|------|----------|
-| Prepayment сохраняет `rubitime_id` | `canonicalCreate.test.ts` |
-| `markConfirmedByCanonicalAppointment` не затирает `rubitime_id` | `pgPatientBookings.test.ts` |
-| Admin manual create + Rubitime rollback | `admin/.../manual/route.test.ts` |
-| Doctor manual create + Rubitime rollback | `doctor/.../manual/route.test.ts` |
-| Rubitime-first package/product rollback | `canonicalCreate.test.ts` |
-| Rubitime-first projection wait + create rollback | `rubitimeCreateRollback.test.ts`, `canonicalCreate.test.ts` |
-| Patient reschedule skip assert при `slots=rubitime` | `service.test.ts` |
-| Patient partial outcome toast (mirror) | `bookingPartialOutcomeToast.test.ts`, `useRescheduleBooking.test.ts`, `CabinetBookingActions.test.tsx`, `ConfirmStepClient.test.tsx` |
-| Staff manual create rollback (shared helper) | `staffRubitimeManualBooking.test.ts`, `rubitimeCreateRollback.test.ts` |
-| Staff cancel partial flags (mirror/payment/membership/notify) | `staffManualCancelAfterCanonical.test.ts`, manual-cancel routes |
-| Staff reschedule bridge gate + Rubitime conflict | `manual-reschedule/route.test.ts` (doctor) |
-| Patient cancel partial flags (mirror/payment/membership/product/notify) | `service.test.ts` |
-| Patient reschedule partial flags (mirror/payment/notify) | `service.test.ts` |
-| Inbound echo / stale → no legacy fanout | `events.test.ts` |
-| Revive guard (cancelled native / terminal canonical) | `pgPatientBookings.test.ts`, `shouldSkipNativeReviveUpdate.test.ts` |
-| **Desync fix:** cancel mirror URL null + stale sweep | `pgPatientBookings.test.ts`, `bookingMirrorDesyncMatrix.test.ts` |
-| **Desync fix:** staff cancel closes `patient_bookings` | `staffManualCancelAfterCanonical.test.ts`, `bookingMirrorDesyncMatrix.test.ts` |
-| **Desync fix:** inbound cancel / projection DELETE | `upsertPatientBookingFromRubitime.test.ts`, `events.test.ts`, `bookingMirrorDesyncMatrix.test.ts` |
-| **Desync fix:** duplicate rows same `rubitime_id` (E) | `closeActivePatientBookingsByRubitimeId.test.ts`, `pgPatientBookings.test.ts` |
-| **Desync fix:** legacy `branches.id` in projection | `resolveLegacyBranchIdForProjection.test.ts`, `projectCanonicalAppointment.test.ts` |
-| **Desync fix:** GCal 410 + Rubitime idempotent delete/update | `client.nock.test.ts`, `sync.test.ts`, `connector.test.ts`, `client.test.ts`, `recordM2mRoute.test.ts` |
-| **Desync fix:** patient UI hide dead manage | `CabinetActiveBookings.test.tsx`, `BookingUpcomingSection.test.tsx` |
-| Lifecycle `state_conflict` + idempotent cancel | `pgBookingAppointmentLifecycle.test.ts` |
-| Dedup payload hash + pipeline retry | `rubitimePayloadHash.test.ts`, `eventGateway/index.test.ts` |
-| M2M empty patch / string status / branch TZ | `normalizeUpdateRecordPatch.test.ts`, `recordM2mRoute.test.ts` |
-| Online concurrent slot (no extra DDL) | `service.test.ts` (`concurrent same slot`) |
+| Кейс                                                                    | Покрытие                                                                                                                             |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Prepayment сохраняет `rubitime_id`                                      | `canonicalCreate.test.ts`                                                                                                            |
+| `markConfirmedByCanonicalAppointment` не затирает `rubitime_id`         | `pgPatientBookings.test.ts`                                                                                                          |
+| Admin manual create + Rubitime rollback                                 | `admin/.../manual/route.test.ts`                                                                                                     |
+| Doctor manual create + Rubitime rollback                                | `doctor/.../manual/route.test.ts`                                                                                                    |
+| Rubitime-first package/product rollback                                 | `canonicalCreate.test.ts`                                                                                                            |
+| Rubitime-first projection wait + create rollback                        | `rubitimeCreateRollback.test.ts`, `canonicalCreate.test.ts`                                                                          |
+| Patient reschedule skip assert при `slots=rubitime`                     | `service.test.ts`                                                                                                                    |
+| Patient partial outcome toast (mirror)                                  | `bookingPartialOutcomeToast.test.ts`, `useRescheduleBooking.test.ts`, `CabinetBookingActions.test.tsx`, `ConfirmStepClient.test.tsx` |
+| Staff manual create rollback (shared helper)                            | `staffRubitimeManualBooking.test.ts`, `rubitimeCreateRollback.test.ts`                                                               |
+| Staff cancel partial flags (mirror/payment/membership/notify)           | `staffManualCancelAfterCanonical.test.ts`, manual-cancel routes                                                                      |
+| Staff reschedule bridge gate + Rubitime conflict                        | `manual-reschedule/route.test.ts` (doctor)                                                                                           |
+| Patient cancel partial flags (mirror/payment/membership/product/notify) | `service.test.ts`                                                                                                                    |
+| Patient reschedule partial flags (mirror/payment/notify)                | `service.test.ts`                                                                                                                    |
+| Inbound echo / stale → no legacy fanout                                 | `events.test.ts`                                                                                                                     |
+| Revive guard (cancelled native / terminal canonical)                    | `pgPatientBookings.test.ts`, `shouldSkipNativeReviveUpdate.test.ts`                                                                  |
+| **Desync fix:** cancel mirror URL null + stale sweep                    | `pgPatientBookings.test.ts`, `bookingMirrorDesyncMatrix.test.ts`                                                                     |
+| **Desync fix:** staff cancel closes `patient_bookings`                  | `staffManualCancelAfterCanonical.test.ts`, `bookingMirrorDesyncMatrix.test.ts`                                                       |
+| **Desync fix:** inbound cancel / projection DELETE                      | `upsertPatientBookingFromRubitime.test.ts`, `events.test.ts`, `bookingMirrorDesyncMatrix.test.ts`                                    |
+| **Desync fix:** duplicate rows same `rubitime_id` (E)                   | `closeActivePatientBookingsByRubitimeId.test.ts`, `pgPatientBookings.test.ts`                                                        |
+| **Desync fix:** legacy `branches.id` in projection                      | `resolveLegacyBranchIdForProjection.test.ts`, `projectCanonicalAppointment.test.ts`                                                  |
+| **Desync fix:** GCal 410 + Rubitime idempotent delete/update            | `client.nock.test.ts`, `sync.test.ts`, `connector.test.ts`, `client.test.ts`, `recordM2mRoute.test.ts`                               |
+| **Desync fix:** patient UI hide dead manage                             | `CabinetActiveBookings.test.tsx`, `BookingUpcomingSection.test.tsx`                                                                  |
+| Lifecycle `state_conflict` + idempotent cancel                          | `pgBookingAppointmentLifecycle.test.ts`                                                                                              |
+| Dedup payload hash + pipeline retry                                     | `rubitimePayloadHash.test.ts`, `eventGateway/index.test.ts`                                                                          |
+| M2M empty patch / string status / branch TZ                             | `normalizeUpdateRecordPatch.test.ts`, `recordM2mRoute.test.ts`                                                                       |
+| Online concurrent slot (no extra DDL)                                   | `service.test.ts` (`concurrent same slot`)                                                                                           |
 
 **Закрыто (gaps closeout 2026-06-06):** legacy `POST /api/doctor/appointments/rubitime/cancel` → M2M `update-record` **status 4** (не `remove-record`); см. [`INTEGRATOR_CONTRACT.md`](../../apps/webapp/INTEGRATOR_CONTRACT.md).
 
@@ -81,22 +81,22 @@ pnpm --dir apps/integrator exec vitest run \
 
 ## Верификация gaps closeout (2026-06-06)
 
-| Проверка | Результат |
-|----------|-----------|
-| Targeted closeout vitest (10 files) | 86 tests — passed (agent-сессия closeout) |
+| Проверка                                        | Результат                                                                                                             |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Targeted closeout vitest (10 files)             | 86 tests — passed (agent-сессия closeout)                                                                             |
 | `pnpm install --frozen-lockfile && pnpm run ci` | **passed** (2026-06-06; полный барьер — в **отдельной agent-сессии** реализации closeout, не повторяли в docs-сессии) |
 
 План: [`.cursor/plans/archive/booking_gaps_closeout_e5b725fb.plan.md`](../../.cursor/plans/archive/booking_gaps_closeout_e5b725fb.plan.md) (`status: completed`). Журнал: [`LOG.md`](LOG.md) §2026-06-06 gaps closeout.
 
 ## Верификация sync desync fix (2026-06-06)
 
-| Проверка | Результат |
-|----------|-----------|
-| Targeted desync vitest (webapp) | 9 files, 176 tests — passed |
-| `@bersoncare/booking-rubitime-sync` | 5 files, 31 tests — passed |
-| Targeted desync vitest (integrator) | 4 files, 50 tests — passed |
-| Desync matrix P2 | 7/7 in `bookingMirrorDesyncMatrix.test.ts` |
-| `pnpm install --frozen-lockfile && pnpm run ci` | **passed** (2026-06-06) |
+| Проверка                                        | Результат                                  |
+| ----------------------------------------------- | ------------------------------------------ |
+| Targeted desync vitest (webapp)                 | 9 files, 176 tests — passed                |
+| `@bersoncare/booking-rubitime-sync`             | 5 files, 31 tests — passed                 |
+| Targeted desync vitest (integrator)             | 4 files, 50 tests — passed                 |
+| Desync matrix P2                                | 7/7 in `bookingMirrorDesyncMatrix.test.ts` |
+| `pnpm install --frozen-lockfile && pnpm run ci` | **passed** (2026-06-06)                    |
 
 План: [`.cursor/plans/archive/booking_sync_desync_fix_4709fb07.plan.md`](../../.cursor/plans/archive/booking_sync_desync_fix_4709fb07.plan.md) (`status: completed`). Журнал: [`LOG.md`](LOG.md) §2026-06-06 desync fix. Post-deploy ops gate — § ниже (не блокирует закрытие плана).
 
@@ -125,18 +125,18 @@ pnpm --dir apps/integrator exec vitest run \
 
 ## Smoke-матрица (10 + post-deploy ops)
 
-| # | Сценарий | Ожидание | Авто |
-|---|----------|----------|------|
-| 1 | Rubitime cancel → канон | `be_appointments.status` = cancelled*, mapping сохранён | unit inbound cancel |
-| 2 | Rubitime reschedule / duration / service | `startAt`/`endAt`/FK обновлены, partial FK не null | unit duration + snapshot |
-| 3 | Calendar staff cancel → Rubitime | канон `staffCancel`, затем `cancelRecord` (status 4) | route + mirror |
-| 4 | Calendar staff reschedule → Rubitime | `record`/`datetime_end`/scope ids | route + patch test |
-| 5 | native/admin + mapping inbound | update для `admin_manual` и любого `source` при mapping | bridge test `admin_manual` |
-| 6 | Patient cancel/reschedule + rubitimeId | mirror patch + `stampCanonicalOutbound` | patientMirrorOutbound |
-| 7 | CR-A-fail (slow projection) | `rubitime_projection_not_ready`, rollback `deleteRecord`, нет duplicate canon | `canonicalCreate.test.ts`, `rubitimeCreateRollback.test.ts` |
-| 8 | Partial cancel (Rubitime down) | HTTP `ok: true` + `rubitimeMirrorFailed`; UI success + warning toast | `bookingPartialOutcomeToast.test.ts`, `CabinetBookingActions.test.tsx` |
-| 9 | Rebook после cancel (prod #4) | тот же слот не `slot_overlap`; `patient_bookings` cancelled + URL null; staff cancel закрывает mirror | `bookingMirrorDesyncMatrix.test.ts`, `pgPatientBookings.test.ts`, `upsertPatientBookingFromRubitime.test.ts`, `closeActivePatientBookingsByRubitimeId.test.ts`, `service.test.ts`, `staffManualCancelAfterCanonical.test.ts`, `events.test.ts`, integrator GCal/Rubitime idempotent tests |
-| 10 | Staff delete после cancel | local purge (`deleted_at` + DELETE `patient_bookings`); только `booking.deleted`; `409 not_cancelled` на active; idempotent 200 (tombstone) | `staffPurgeCancelledAppointment.test.ts`, doctor/admin delete `route.test.ts`, `doctorAppointmentPurgeFilter.test.ts`, `pgBookingCalendar.test.ts`, `pgDoctorCanonicalAppointments.test.ts`, `bookingMirrorDesyncMatrix.test.ts` #10, `appointmentStatusLabels.test.ts`, `events.test.ts` `skipped_purged`, `pgDoctorAnalyticsMetricAccounts.test.ts` |
+| #   | Сценарий                                 | Ожидание                                                                                                                                    | Авто                                                                                                                                                                                                                                                                                                                                                  |
+| --- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Rubitime cancel → канон                  | `be_appointments.status` = cancelled\*, mapping сохранён                                                                                    | unit inbound cancel                                                                                                                                                                                                                                                                                                                                   |
+| 2   | Rubitime reschedule / duration / service | `startAt`/`endAt`/FK обновлены, partial FK не null                                                                                          | unit duration + snapshot                                                                                                                                                                                                                                                                                                                              |
+| 3   | Calendar staff cancel → Rubitime         | канон `staffCancel`, затем `cancelRecord` (status 4)                                                                                        | route + mirror                                                                                                                                                                                                                                                                                                                                        |
+| 4   | Calendar staff reschedule → Rubitime     | `record`/`datetime_end`/scope ids                                                                                                           | route + patch test                                                                                                                                                                                                                                                                                                                                    |
+| 5   | native/admin + mapping inbound           | update для `admin_manual` и любого `source` при mapping                                                                                     | bridge test `admin_manual`                                                                                                                                                                                                                                                                                                                            |
+| 6   | Patient cancel/reschedule + rubitimeId   | mirror patch + `stampCanonicalOutbound`                                                                                                     | patientMirrorOutbound                                                                                                                                                                                                                                                                                                                                 |
+| 7   | CR-A-fail (slow projection)              | `rubitime_projection_not_ready`, rollback `deleteRecord`, нет duplicate canon                                                               | `canonicalCreate.test.ts`, `rubitimeCreateRollback.test.ts`                                                                                                                                                                                                                                                                                           |
+| 8   | Partial cancel (Rubitime down)           | HTTP `ok: true` + `rubitimeMirrorFailed`; UI success + warning toast                                                                        | `bookingPartialOutcomeToast.test.ts`, `CabinetBookingActions.test.tsx`                                                                                                                                                                                                                                                                                |
+| 9   | Rebook после cancel (prod #4)            | тот же слот не `slot_overlap`; `patient_bookings` cancelled + URL null; staff cancel закрывает mirror                                       | `bookingMirrorDesyncMatrix.test.ts`, `pgPatientBookings.test.ts`, `upsertPatientBookingFromRubitime.test.ts`, `closeActivePatientBookingsByRubitimeId.test.ts`, `service.test.ts`, `staffManualCancelAfterCanonical.test.ts`, `events.test.ts`, integrator GCal/Rubitime idempotent tests                                                             |
+| 10  | Staff delete после cancel                | local purge (`deleted_at` + DELETE `patient_bookings`); только `booking.deleted`; `409 not_cancelled` на active; idempotent 200 (tombstone) | `staffPurgeCancelledAppointment.test.ts`, doctor/admin delete `route.test.ts`, `doctorAppointmentPurgeFilter.test.ts`, `pgBookingCalendar.test.ts`, `pgDoctorCanonicalAppointments.test.ts`, `bookingMirrorDesyncMatrix.test.ts` #10, `appointmentStatusLabels.test.ts`, `events.test.ts` `skipped_purged`, `pgDoctorAnalyticsMetricAccounts.test.ts` |
 
 \* при `booking_doctor_appointments_read_source=canonical` календарь читает `be_appointments`; purged projection скрыта из calendar/list.
 
@@ -146,14 +146,14 @@ Post-deploy smoke (ручной): CR-A, CR-A-fail, CN-P, RS-P, partial, **rebook
 
 После деплоя staff delete (см. [`LOG.md`](LOG.md) §2026-06-07):
 
-| ID | Шаг | Ожидание |
-|----|-----|----------|
-| SD-1 | Календарь: активная запись | нет кнопки «Удалить» |
-| SD-2 | Отменить (free) | одно уведомление пациенту; статус cancelled в panel |
-| SD-3 | Удалить | запись пропала из календаря и списка; **второго** уведомления нет |
-| SD-4 | Кабинет пациента → прошлые записи | записи нет |
-| SD-5 | Повторный delete (API) | 200 idempotent |
-| SD-6 | Rubitime journal | `remove-record`, если bridge on |
+| ID   | Шаг                               | Ожидание                                                          |
+| ---- | --------------------------------- | ----------------------------------------------------------------- |
+| SD-1 | Календарь: активная запись        | нет кнопки «Удалить»                                              |
+| SD-2 | Отменить (free)                   | одно уведомление пациенту; статус cancelled в panel               |
+| SD-3 | Удалить                           | запись пропала из календаря и списка; **второго** уведомления нет |
+| SD-4 | Кабинет пациента → прошлые записи | записи нет                                                        |
+| SD-5 | Повторный delete (API)            | 200 idempotent                                                    |
+| SD-6 | Rubitime journal                  | `remove-record`, если bridge on                                   |
 
 ### Post-deploy ops gate — sync desync fix (2026-06-06)
 
@@ -185,7 +185,6 @@ Live-path не требует ручного bridge для новых webhook.
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 - [x] Staff/admin manual cancel & reschedule → Rubitime + канон
 - [x] Patient cancel/reschedule → Rubitime (mirror patch)

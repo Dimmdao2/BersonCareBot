@@ -8,27 +8,27 @@ Run timestamp: `2026-07-14T02:49:53+03:00`.
 
 ## Environment
 
-| Field | Value |
-| --- | --- |
-| Worktree | `/home/dev/dev-projects/bcb-walls` |
-| Branch | `auto/code-pg-delta` |
-| Run HEAD | `90da725f55d938b29eb9d3bb846277689d29b384` |
-| Database | `bcb_webapp_dev` on `127.0.0.1:5432` |
-| Env source | `/home/dev/dev-projects/BersonCareBot/.env` + `/home/dev/dev-projects/BersonCareBot/apps/webapp/.env.dev` |
-| Telegram token | process-local non-secret placeholder, only for config parsing |
+| Field          | Value                                                                                                     |
+| -------------- | --------------------------------------------------------------------------------------------------------- |
+| Worktree       | `/home/dev/dev-projects/bcb-walls`                                                                        |
+| Branch         | `auto/code-pg-delta`                                                                                      |
+| Run HEAD       | `90da725f55d938b29eb9d3bb846277689d29b384`                                                                |
+| Database       | `bcb_webapp_dev` on `127.0.0.1:5432`                                                                      |
+| Env source     | `/home/dev/dev-projects/BersonCareBot/.env` + `/home/dev/dev-projects/BersonCareBot/apps/webapp/.env.dev` |
+| Telegram token | process-local non-secret placeholder, only for config parsing                                             |
 
 ## CSV shape
 
-| Check | Result |
-| --- | ---: |
-| File exists | yes |
-| Basename | `records-2.csv` |
-| Size | 127600 bytes |
-| Physical lines | 394 |
-| Header present | yes |
-| Header delimiter | semicolon |
-| Header fields | 22 |
-| Parsed Rubitime ids | 392 |
+| Check                            |                  Result |
+| -------------------------------- | ----------------------: |
+| File exists                      |                     yes |
+| Basename                         |         `records-2.csv` |
+| Size                             |            127600 bytes |
+| Physical lines                   |                     394 |
+| Header present                   |                     yes |
+| Header delimiter                 |               semicolon |
+| Header fields                    |                      22 |
+| Parsed Rubitime ids              |                     392 |
 | CSV date span reported by script | 2026-01-16...2026-08-29 |
 
 The shape check did not print row content, names, phones, or external ids.
@@ -70,36 +70,36 @@ node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-dual-source-audit.mjs \
 
 ## Backfill dry-run aggregate result
 
-| Check | Count |
-| --- | ---: |
-| Legacy live rows | 364 |
-| Canonical `rubitime_projection` live rows | 241 |
-| Unmapped legacy total | 112 |
-| Unmapped test/block | 0 |
-| Unmapped canceled | 13 |
-| Unmapped real active | 99 |
-| Unmapped future | 0 |
-| Duplicate clusters | 3 |
-| Duplicate clusters with multiple canonical rows | 0 |
-| Stale vs owner CSV | 29 |
+| Check                                           | Count |
+| ----------------------------------------------- | ----: |
+| Legacy live rows                                |   364 |
+| Canonical `rubitime_projection` live rows       |   241 |
+| Unmapped legacy total                           |   112 |
+| Unmapped test/block                             |     0 |
+| Unmapped canceled                               |    13 |
+| Unmapped real active                            |    99 |
+| Unmapped future                                 |     0 |
+| Duplicate clusters                              |     3 |
+| Duplicate clusters with multiple canonical rows |     0 |
+| Stale vs owner CSV                              |    29 |
 
 Interpretation: the owner CSV completed the previously missing stale-vs-CSV dry-run proof. The dry-run reports 29 live legacy records absent from the CSV within the CSV date range. No stale rows were soft-deleted because `--commit`, `--drop-stale-from-csv`, and `--drop-legacy` were not used.
 
 ## Post-dry-run dual-source audit
 
-| Check | Count |
-| --- | ---: |
-| raw-only records | 0 |
-| legacy-only records | 312 |
-| status mismatches | 4 |
-| `record_at` mismatches over 5 minutes | 2 |
-| raw mapping coverage | 91 of 91 |
-| legacy mapping coverage | 274 of 403 |
-| legacy unmapped | 129 |
-| raw mappings to soft-deleted canonical appointments | 4 |
-| legacy mappings to soft-deleted canonical appointments | 21 |
-| unexpected canonical source | 6 |
-| missing expected mapping metadata | 6 |
+| Check                                                  |      Count |
+| ------------------------------------------------------ | ---------: |
+| raw-only records                                       |          0 |
+| legacy-only records                                    |        312 |
+| status mismatches                                      |          4 |
+| `record_at` mismatches over 5 minutes                  |          2 |
+| raw mapping coverage                                   |   91 of 91 |
+| legacy mapping coverage                                | 274 of 403 |
+| legacy unmapped                                        |        129 |
+| raw mappings to soft-deleted canonical appointments    |          4 |
+| legacy mappings to soft-deleted canonical appointments |         21 |
+| unexpected canonical source                            |          6 |
+| missing expected mapping metadata                      |          6 |
 
 ## Remaining blockers
 
@@ -123,16 +123,16 @@ Run id: `R1-NON-CONFIRMED-CLEANUP-codex-2026-07-14`
 
 After the separate owner-approved non-confirmed status cleanup, the same owner CSV proof command was rerun with `records-2.csv` in summary-only dry-run mode. No `--commit`, `--drop-stale-from-csv`, `--drop-legacy`, production env, `/opt`, or R2 work was used.
 
-| Check | Count |
-| --- | ---: |
-| Legacy live rows | 317 |
-| Canonical `rubitime_projection` live rows | 207 |
-| Unmapped legacy total | 99 |
-| Unmapped cancelled | 0 |
-| Unmapped real active | 99 |
-| Duplicate clusters | 3 |
-| Duplicate clusters with multiple canonical rows | 0 |
-| Stale vs owner CSV | 28 |
-| Non-confirmed cleanup candidates | 0 |
+| Check                                           | Count |
+| ----------------------------------------------- | ----: |
+| Legacy live rows                                |   317 |
+| Canonical `rubitime_projection` live rows       |   207 |
+| Unmapped legacy total                           |    99 |
+| Unmapped cancelled                              |     0 |
+| Unmapped real active                            |    99 |
+| Duplicate clusters                              |     3 |
+| Duplicate clusters with multiple canonical rows |     0 |
+| Stale vs owner CSV                              |    28 |
+| Non-confirmed cleanup candidates                |     0 |
 
 The previous stale count dropped from 29 to 28 because one stale-vs-CSV row was also in the now-approved non-confirmed cleanup category. The remaining 28 stale-vs-CSV rows still require owner/reviewer classification before any broad stale cleanup.

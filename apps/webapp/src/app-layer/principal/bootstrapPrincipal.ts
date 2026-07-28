@@ -1,4 +1,4 @@
-import * as dbPrincipal from "@bersoncare/db-principal";
+import * as dbPrincipal from '@bersoncare/db-principal';
 
 /**
  * Establishes the bootstrap principal and adopts only the standard correlation header that the

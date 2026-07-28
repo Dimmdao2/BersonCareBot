@@ -8,18 +8,16 @@ const emitPackageLinkedCalendarSyncMock = vi.hoisted(() => vi.fn());
 const membershipsModuleEnabled = vi.hoisted(() => ({ value: true }));
 const principalState = vi.hoisted(() => ({ inside: false }));
 const withDoctorWorkspacePrincipalMock = vi.hoisted(() =>
-  vi.fn(async <T,>(
-    _workspace: { organizationId: string },
-    _source: string,
-    fn: () => Promise<T>,
-  ) => {
-    principalState.inside = true;
-    try {
-      return await fn();
-    } finally {
-      principalState.inside = false;
-    }
-  }),
+  vi.fn(
+    async <T>(_workspace: { organizationId: string }, _source: string, fn: () => Promise<T>) => {
+      principalState.inside = true;
+      try {
+        return await fn();
+      } finally {
+        principalState.inside = false;
+      }
+    },
+  ),
 );
 
 vi.mock('../../../_requireDoctorBookingEngine', () => ({

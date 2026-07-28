@@ -71,7 +71,10 @@
  */
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import type { DiaryLfkActorInput, DiaryLfkResolveDeps } from './writeDiaryLfkDirect.js';
-import { resolveExactActiveOrganizationId, resolvePlatformUserIdForActor } from './writeDiaryLfkDirect.js';
+import {
+  resolveExactActiveOrganizationId,
+  resolvePlatformUserIdForActor,
+} from './writeDiaryLfkDirect.js';
 
 function trimmedOrNull(value: string | null | undefined): string | null {
   if (typeof value !== 'string') return null;

@@ -1,17 +1,14 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import type { PatientCardHeader } from "@/modules/doctor-clients/ports";
-import {
-  doctorSectionCardClass,
-  doctorSectionTitleClass,
-} from "@/shared/ui/doctor/doctorVisual";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { cn } from "@/lib/utils";
-import type { TreatmentProgramInstanceSummary } from "@/modules/treatment-program/types";
-import { PatientProgramPanelLoader } from "./program/PatientProgramPanelLoader";
-import { ProgramHistoryModal } from "./program/ProgramHistoryModal";
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import type { PatientCardHeader } from '@/modules/doctor-clients/ports';
+import { doctorSectionCardClass, doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { cn } from '@/lib/utils';
+import type { TreatmentProgramInstanceSummary } from '@/modules/treatment-program/types';
+import { PatientProgramPanelLoader } from './program/PatientProgramPanelLoader';
+import { ProgramHistoryModal } from './program/ProgramHistoryModal';
 
 type Props = {
   userId: string;
@@ -20,7 +17,12 @@ type Props = {
   initialProgramInstances?: TreatmentProgramInstanceSummary[] | null;
 };
 
-export function PatientTabProgram({ userId, header: _header, active, initialProgramInstances }: Props) {
+export function PatientTabProgram({
+  userId,
+  header: _header,
+  active,
+  initialProgramInstances,
+}: Props) {
   const router = useRouter();
   const [historyOpen, setHistoryOpen] = useState(false);
   const [programCheckDone, setProgramCheckDone] = useState(false);
@@ -32,7 +34,7 @@ export function PatientTabProgram({ userId, header: _header, active, initialProg
   // active instance — even while this tab is still CSS-hidden — so the eventual tab-click
   // navigation is near-instant instead of showing a «Загрузка программы…» wait.
   const knownActiveInstanceId =
-    initialProgramInstances?.find((i) => i.status !== "completed")?.id ?? null;
+    initialProgramInstances?.find((i) => i.status !== 'completed')?.id ?? null;
   useEffect(() => {
     if (knownActiveInstanceId) router.prefetch(programHref(knownActiveInstanceId));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -44,12 +46,12 @@ export function PatientTabProgram({ userId, header: _header, active, initialProg
   useEffect(() => {
     if (!active) return;
     if (initialProgramInstances != null) {
-      const activeInstance = initialProgramInstances.find((i) => i.status !== "completed");
+      const activeInstance = initialProgramInstances.find((i) => i.status !== 'completed');
       if (activeInstance) {
         router.push(programHref(activeInstance.id));
         return;
       }
-       
+
       setProgramCheckDone(true);
       return;
     }
@@ -59,7 +61,7 @@ export function PatientTabProgram({ userId, header: _header, active, initialProg
       .then((data: { ok?: boolean; items?: TreatmentProgramInstanceSummary[] }) => {
         if (cancelled) return;
         if (data.ok && Array.isArray(data.items)) {
-          const activeInst = data.items.find((i) => i.status !== "completed");
+          const activeInst = data.items.find((i) => i.status !== 'completed');
           if (activeInst) {
             router.push(programHref(activeInst.id));
             return;
@@ -80,7 +82,7 @@ export function PatientTabProgram({ userId, header: _header, active, initialProg
     // Skeleton mirroring the editor (toolbar + stage cards) — shown only briefly while the
     // prefetched program route resolves; reads as intentional rather than a bare loading line.
     return (
-      <div className={cn(doctorSectionCardClass, "gap-3")} aria-busy="true">
+      <div className={cn(doctorSectionCardClass, 'gap-3')} aria-busy="true">
         <div className="flex items-center justify-between gap-2">
           <div className="h-5 w-44 animate-pulse rounded-md bg-muted" />
           <div className="h-7 w-32 animate-pulse rounded-md bg-muted" />
@@ -95,7 +97,7 @@ export function PatientTabProgram({ userId, header: _header, active, initialProg
 
   // PROG-12: no active program — show list/assign interface
   return (
-    <div className={cn(doctorSectionCardClass, "gap-4")}>
+    <div className={cn(doctorSectionCardClass, 'gap-4')}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className={doctorSectionTitleClass}>Программа лечения</p>
         <Button
@@ -111,11 +113,7 @@ export function PatientTabProgram({ userId, header: _header, active, initialProg
 
       <PatientProgramPanelLoader userId={userId} />
 
-      <ProgramHistoryModal
-        open={historyOpen}
-        onOpenChange={setHistoryOpen}
-        userId={userId}
-      />
+      <ProgramHistoryModal open={historyOpen} onOpenChange={setHistoryOpen} userId={userId} />
     </div>
   );
 }

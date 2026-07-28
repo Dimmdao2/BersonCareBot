@@ -37,7 +37,9 @@ export const pgDevBypassClinicAdminWorkspacePort: DevBypassClinicAdminWorkspaceP
 
       // Receipt-backed helper: first creation receives the current baseline; every later DEV
       // reconciliation is a strict no-op and preserves arbitrary UX-agent catalog edits.
-      await tx.execute(sql`SELECT app.seed_reference_catalog_snapshot(${desired.organization.id}::uuid)`);
+      await tx.execute(
+        sql`SELECT app.seed_reference_catalog_snapshot(${desired.organization.id}::uuid)`,
+      );
 
       if (desired.specialist) {
         await tx

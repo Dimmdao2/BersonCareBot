@@ -1,5 +1,5 @@
-import { parseExerciseTitleFromProgramNoteReplyMessage } from "@/modules/messaging/programNoteReplyContext";
-import type { ProgramItemDiscussionPort } from "./ports";
+import { parseExerciseTitleFromProgramNoteReplyMessage } from '@/modules/messaging/programNoteReplyContext';
+import type { ProgramItemDiscussionPort } from './ports';
 
 export async function syncDiscussionReadFromSupportInboundMessages(input: {
   port: ProgramItemDiscussionPort;
@@ -19,12 +19,15 @@ export async function syncDiscussionReadFromSupportInboundMessages(input: {
     const title = parseExerciseTitleFromProgramNoteReplyMessage(msg.text);
     if (!title) continue;
 
-    const matches = await input.port.listStageItemIdsByExerciseTitleForPatient(input.patientUserId, title);
+    const matches = await input.port.listStageItemIdsByExerciseTitleForPatient(
+      input.patientUserId,
+      title,
+    );
     if (matches.length === 1) {
       stageItemIds.add(matches[0]!);
     } else if (matches.length > 1) {
       skippedAmbiguous += 1;
-      console.warn("[program-item-discussion] ambiguous legacy program note reply title", {
+      console.warn('[program-item-discussion] ambiguous legacy program note reply title', {
         title,
         patientUserId: input.patientUserId,
         supportMessageId: msg.id,

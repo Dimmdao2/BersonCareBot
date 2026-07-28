@@ -1,14 +1,14 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { Badge } from "@/shared/ui/patient/primitives/badge";
-import { Button } from "@/shared/ui/patient/primitives/button";
-import { Input } from "@/shared/ui/patient/primitives/input";
-import type { BookingSelection } from "./useBookingSelection";
-import type { BookingSlot } from "@/modules/patient-booking/types";
-import { useCreateBooking } from "./useCreateBooking";
-import { cn } from "@/lib/utils";
-import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
+import { useState } from 'react';
+import { Badge } from '@/shared/ui/patient/primitives/badge';
+import { Button } from '@/shared/ui/patient/primitives/button';
+import { Input } from '@/shared/ui/patient/primitives/input';
+import type { BookingSelection } from './useBookingSelection';
+import type { BookingSlot } from '@/modules/patient-booking/types';
+import { useCreateBooking } from './useCreateBooking';
+import { cn } from '@/lib/utils';
+import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 
 type Props = {
   selection: BookingSelection | null;
@@ -27,10 +27,12 @@ export function BookingConfirmationForm({
 }: Props) {
   const [name, setName] = useState(defaultName);
   const [phone, setPhone] = useState(defaultPhone);
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState('');
   const { submitting, error, createBooking } = useCreateBooking();
 
-  const canSubmit = Boolean(selection && selectedSlot && name.trim() && phone.trim() && !submitting);
+  const canSubmit = Boolean(
+    selection && selectedSlot && name.trim() && phone.trim() && !submitting,
+  );
 
   return (
     <form
@@ -55,20 +57,20 @@ export function BookingConfirmationForm({
       </div>
 
       <label className="flex flex-col gap-1">
-        <span className={cn(patientMutedTextClass, "text-xs")}>Имя</span>
+        <span className={cn(patientMutedTextClass, 'text-xs')}>Имя</span>
         <Input value={name} onChange={(e) => setName(e.target.value)} required />
       </label>
       <label className="flex flex-col gap-1">
-        <span className={cn(patientMutedTextClass, "text-xs")}>Телефон</span>
+        <span className={cn(patientMutedTextClass, 'text-xs')}>Телефон</span>
         <Input value={phone} onChange={(e) => setPhone(e.target.value)} required />
       </label>
       <label className="flex flex-col gap-1">
-        <span className={cn(patientMutedTextClass, "text-xs")}>Email (опционально)</span>
+        <span className={cn(patientMutedTextClass, 'text-xs')}>Email (опционально)</span>
         <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
       </label>
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
       <Button type="submit" disabled={!canSubmit}>
-        {submitting ? "Создаём запись..." : "Подтвердить запись"}
+        {submitting ? 'Создаём запись...' : 'Подтвердить запись'}
       </Button>
     </form>
   );

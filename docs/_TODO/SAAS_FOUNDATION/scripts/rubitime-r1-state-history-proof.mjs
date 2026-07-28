@@ -6,16 +6,16 @@
  * have durable canonical state/history rows and that webapp runtime does not read
  * raw provider event archive (`integrator.rubitime_events`) for product state.
  */
-import { existsSync, readFileSync } from "node:fs";
-import { spawnSync } from "node:child_process";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { existsSync, readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(__dirname, "../../../..");
+const repoRoot = path.resolve(__dirname, '../../../..');
 const DEFAULT_ENV_FILES = [
-  path.join(repoRoot, ".env"),
-  path.join(repoRoot, "apps/webapp/.env.dev"),
+  path.join(repoRoot, '.env'),
+  path.join(repoRoot, 'apps/webapp/.env.dev'),
 ];
 
 function usage() {
@@ -32,7 +32,7 @@ Output is aggregate-only JSON. The script refuses non-dev DBs and never writes.
 function parseArgs(argv) {
   const args = { help: false };
   for (const arg of argv) {
-    if (arg === "--help" || arg === "-h") args.help = true;
+    if (arg === '--help' || arg === '-h') args.help = true;
     else throw new Error(`Unknown argument: ${arg}`);
   }
   return args;
@@ -42,9 +42,9 @@ function parseEnvFile(content) {
   const parsed = {};
   for (const rawLine of content.split(/\r?\n/)) {
     const line = rawLine.trim();
-    if (!line || line.startsWith("#")) continue;
-    const normalized = line.startsWith("export ") ? line.slice("export ".length).trim() : line;
-    const eqIdx = normalized.indexOf("=");
+    if (!line || line.startsWith('#')) continue;
+    const normalized = line.startsWith('export ') ? line.slice('export '.length).trim() : line;
+    const eqIdx = normalized.indexOf('=');
     if (eqIdx <= 0) continue;
     const key = normalized.slice(0, eqIdx).trim();
     let value = normalized.slice(eqIdx + 1).trim();
@@ -65,12 +65,12 @@ function loadLocalEnv() {
   const loaded = [];
   for (const file of DEFAULT_ENV_FILES) {
     if (!existsSync(file)) continue;
-    if (path.resolve(file).startsWith("/opt/")) {
+    if (path.resolve(file).startsWith('/opt/')) {
       throw new Error(`Refusing to load production env path: ${file}`);
     }
-    const parsed = parseEnvFile(readFileSync(file, "utf8"));
+    const parsed = parseEnvFile(readFileSync(file, 'utf8'));
     for (const [key, value] of Object.entries(parsed)) {
-      if (process.env[key] == null || process.env[key] === "") process.env[key] = value;
+      if (process.env[key] == null || process.env[key] === '') process.env[key] = value;
     }
     loaded.push(path.relative(repoRoot, file));
   }
@@ -78,9 +78,9 @@ function loadLocalEnv() {
 }
 
 function assertNoOptEnvReferences() {
-  for (const key of ["BASH_ENV", "DOTENV_CONFIG_PATH", "ENV_FILE", "PGPASSFILE", "PGSERVICEFILE"]) {
+  for (const key of ['BASH_ENV', 'DOTENV_CONFIG_PATH', 'ENV_FILE', 'PGPASSFILE', 'PGSERVICEFILE']) {
     const value = process.env[key];
-    if (value && path.resolve(value).startsWith("/opt/")) {
+    if (value && path.resolve(value).startsWith('/opt/')) {
       throw new Error(`Refusing to use /opt-backed environment reference: ${key}`);
     }
   }
@@ -91,10 +91,10 @@ function databaseInfo(databaseUrl) {
   try {
     url = new URL(databaseUrl);
   } catch {
-    throw new Error("DATABASE_URL is not a valid URL");
+    throw new Error('DATABASE_URL is not a valid URL');
   }
   return {
-    database: url.pathname.replace(/^\//, ""),
+    database: url.pathname.replace(/^\//, ''),
     host: url.hostname,
     port: url.port || null,
   };
@@ -102,18 +102,18 @@ function databaseInfo(databaseUrl) {
 
 function assertDevDatabase(info) {
   const normalized = info.database.toLowerCase();
-  if (!normalized.includes("dev") || normalized.includes("prod")) {
+  if (!normalized.includes('dev') || normalized.includes('prod')) {
     throw new Error(`Refusing to query non-dev database name: ${info.database}`);
   }
-  if (!["127.0.0.1", "localhost", "::1"].includes(info.host)) {
-    throw new Error(`Refusing non-loopback database host: ${info.host || "<empty>"}`);
+  if (!['127.0.0.1', 'localhost', '::1'].includes(info.host)) {
+    throw new Error(`Refusing non-loopback database host: ${info.host || '<empty>'}`);
   }
 }
 
 function runPsql(databaseUrl, sql) {
-  const result = spawnSync("psql", ["-X", "-q", "-v", "ON_ERROR_STOP=1", databaseUrl], {
+  const result = spawnSync('psql', ['-X', '-q', '-v', 'ON_ERROR_STOP=1', databaseUrl], {
     input: sql,
-    encoding: "utf8",
+    encoding: 'utf8',
     maxBuffer: 10 * 1024 * 1024,
   });
   if (result.error) throw result.error;
@@ -135,10 +135,10 @@ SELECT jsonb_build_object('current_database', current_database())::text;
 ROLLBACK;
 `;
   const parsed = JSON.parse(runPsql(databaseUrl, sql));
-  const currentDatabase = String(parsed.current_database ?? "");
+  const currentDatabase = String(parsed.current_database ?? '');
   const normalized = currentDatabase.toLowerCase();
-  if (!normalized.includes("dev") || normalized.includes("prod")) {
-    throw new Error(`Refusing connected non-dev database: ${currentDatabase || "<empty>"}`);
+  if (!normalized.includes('dev') || normalized.includes('prod')) {
+    throw new Error(`Refusing connected non-dev database: ${currentDatabase || '<empty>'}`);
   }
   return currentDatabase;
 }
@@ -238,9 +238,9 @@ ROLLBACK;
 `;
 
 function rgFiles(pattern, roots) {
-  const result = spawnSync("rg", ["-l", pattern, ...roots], {
+  const result = spawnSync('rg', ['-l', pattern, ...roots], {
     cwd: repoRoot,
-    encoding: "utf8",
+    encoding: 'utf8',
     maxBuffer: 1024 * 1024,
   });
   if (result.error) throw result.error;
@@ -263,7 +263,7 @@ function main() {
   assertNoOptEnvReferences();
   const loadedEnvFiles = loadLocalEnv();
   const databaseUrl = process.env.DATABASE_URL?.trim();
-  if (!databaseUrl) throw new Error("DATABASE_URL is not set after loading local env files");
+  if (!databaseUrl) throw new Error('DATABASE_URL is not set after loading local env files');
   const info = databaseInfo(databaseUrl);
   assertDevDatabase(info);
   const connectedDatabase = verifyConnectedDevDatabase(databaseUrl);
@@ -277,21 +277,20 @@ function main() {
     port: info.port,
   };
   proof.static_refs = {
-    webapp_src_rubitime_events_files: rgFiles("rubitime_events", ["apps/webapp/src"]),
-    integrator_src_rubitime_events_files: rgFiles("rubitime_events", ["apps/integrator/src"]),
+    webapp_src_rubitime_events_files: rgFiles('rubitime_events', ['apps/webapp/src']),
+    integrator_src_rubitime_events_files: rgFiles('rubitime_events', ['apps/integrator/src']),
   };
   proof.safety = {
     readOnly: true,
     aggregateOnly: true,
     noRowSamples: true,
     noPiiFieldsPrinted: true,
-    noRuntimeRawProviderEventReadClaim:
-      proof.static_refs.webapp_src_rubitime_events_files.every((file) =>
-        file === "apps/webapp/src/infra/platformUserFullPurge.ts",
-      ),
+    noRuntimeRawProviderEventReadClaim: proof.static_refs.webapp_src_rubitime_events_files.every(
+      (file) => file === 'apps/webapp/src/infra/platformUserFullPurge.ts',
+    ),
   };
   console.log(JSON.stringify(proof, null, 2));
-  if (proof.state_history_verdict !== "PASS") process.exitCode = 2;
+  if (proof.state_history_verdict !== 'PASS') process.exitCode = 2;
 }
 
 try {
@@ -301,4 +300,3 @@ try {
   console.error(`rubitime-r1-state-history-proof failed: ${message}`);
   process.exit(1);
 }
-

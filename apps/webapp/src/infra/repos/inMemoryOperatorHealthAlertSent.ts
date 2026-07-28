@@ -1,5 +1,5 @@
-import type { OperatorAlertDedupPort } from "@/modules/operator-alerts/ports";
-import type { OperatorAlertBlock } from "@/modules/operator-alerts/operatorHealthAlertConfig";
+import type { OperatorAlertDedupPort } from '@/modules/operator-alerts/ports';
+import type { OperatorAlertBlock } from '@/modules/operator-alerts/operatorHealthAlertConfig';
 
 type Row = { dedupKey: string; severity: OperatorAlertBlock; sentAt: string };
 

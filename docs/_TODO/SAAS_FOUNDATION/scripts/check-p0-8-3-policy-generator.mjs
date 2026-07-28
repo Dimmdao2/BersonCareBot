@@ -1,18 +1,18 @@
 #!/usr/bin/env node
 
-import assert from "node:assert/strict";
+import assert from 'node:assert/strict';
 import {
   expectedP083PublicDirectOrgTargets,
   getP083PublicDirectOrgDescriptors,
   p083PolicyName,
   renderP083PolicyStatements,
-} from "./p0-8-3-policy-targets.mjs";
+} from './p0-8-3-policy-targets.mjs';
 import {
   hasAnyPatientOwnership,
   renderOrgAndPatientPredicate,
   renderOrgPredicate,
   renderStaffActorCheck,
-} from "./rls-sql-renderer.mjs";
+} from './rls-sql-renderer.mjs';
 
 // B4-fanout gap closure (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md, taskdb #656) +
 // B4-core-3 census follow-up (LOG.md, taskdb #658): chain-owned P0.8.3 direct-org tables — patient
@@ -24,10 +24,10 @@ import {
 const expectedPatientChainOwnedTargets = 12;
 
 const parentCopyHolds = new Set([
-  "public.content_section_slug_history",
-  "public.media_transcode_jobs",
-  "public.patient_daily_warmup_video_views",
-  "public.reference_items",
+  'public.content_section_slug_history',
+  'public.media_transcode_jobs',
+  'public.patient_daily_warmup_video_views',
+  'public.reference_items',
 ]);
 
 // B4-core (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md, taskdb #653): patient-owned
@@ -43,23 +43,34 @@ const expectedPatientOwnedTargets = 49;
 const descriptors = getP083PublicDirectOrgDescriptors();
 const targets = descriptors.map((descriptor) => descriptor.table);
 const statements = renderP083PolicyStatements({ descriptors });
-const plainOrgPredicate = renderOrgPredicate(descriptors[0], { mode: "dormant_permissive" });
+const plainOrgPredicate = renderOrgPredicate(descriptors[0], { mode: 'dormant_permissive' });
 const patientOwnedDescriptors = descriptors.filter((descriptor) => descriptor.patientColumn);
 const patientChainOwnedDescriptors = descriptors.filter((descriptor) => descriptor.patientChain);
 
 function expectedPredicateFor(descriptor) {
   return hasAnyPatientOwnership(descriptor)
-    ? renderOrgAndPatientPredicate(descriptor, { mode: "dormant_permissive", patientMode: "dormant_symmetric" })
+    ? renderOrgAndPatientPredicate(descriptor, {
+        mode: 'dormant_permissive',
+        patientMode: 'dormant_symmetric',
+      })
     : plainOrgPredicate;
 }
 
-assert.equal(targets.length, 110, "P0.8.3 must target exactly 110 public direct-org tables");
-assert.deepEqual(targets, [...expectedP083PublicDirectOrgTargets].sort(), "P0.8.3 targets must stay stable");
-assert.equal(statements.length, targets.length * 3, "Each dormant target must render ENABLE, DROP, CREATE only");
+assert.equal(targets.length, 110, 'P0.8.3 must target exactly 110 public direct-org tables');
+assert.deepEqual(
+  targets,
+  [...expectedP083PublicDirectOrgTargets].sort(),
+  'P0.8.3 targets must stay stable',
+);
+assert.equal(
+  statements.length,
+  targets.length * 3,
+  'Each dormant target must render ENABLE, DROP, CREATE only',
+);
 assert.doesNotMatch(
-  statements.join("\n"),
+  statements.join('\n'),
   /FORCE ROW LEVEL SECURITY/,
-  "Dormant generated policy SQL must not include FORCE ROW LEVEL SECURITY",
+  'Dormant generated policy SQL must not include FORCE ROW LEVEL SECURITY',
 );
 
 for (const hold of parentCopyHolds) {
@@ -67,9 +78,9 @@ for (const hold of parentCopyHolds) {
 }
 
 for (const descriptor of descriptors) {
-  assert.equal(descriptor.tier, "SCOPED");
-  assert.equal(descriptor.scopingKind, "direct_org_column");
-  assert.equal(descriptor.orgColumn, "organization_id");
+  assert.equal(descriptor.tier, 'SCOPED');
+  assert.equal(descriptor.scopingKind, 'direct_org_column');
+  assert.equal(descriptor.orgColumn, 'organization_id');
 }
 
 // NOTE: statements are rendered exactly 3-per-descriptor, IN THE SAME ORDER as `descriptors` (see
@@ -80,15 +91,18 @@ for (const descriptor of descriptors) {
 descriptors.forEach((descriptor, index) => {
   const target = descriptor.table;
   const escapedTarget = target
-    .split(".")
+    .split('.')
     .map((part) => `"${part}"`)
-    .join(".");
+    .join('.');
   const targetStatements = statements.slice(index * 3, index * 3 + 3);
   const expectedPredicate = expectedPredicateFor(descriptor);
 
   assert.equal(targetStatements.length, 3, `${target} must have exactly three dormant statements`);
   assert.equal(targetStatements[0], `ALTER TABLE ${escapedTarget} ENABLE ROW LEVEL SECURITY;`);
-  assert.equal(targetStatements[1], `DROP POLICY IF EXISTS "${p083PolicyName}" ON ${escapedTarget};`);
+  assert.equal(
+    targetStatements[1],
+    `DROP POLICY IF EXISTS "${p083PolicyName}" ON ${escapedTarget};`,
+  );
   assert.equal(
     targetStatements[2],
     `CREATE POLICY "${p083PolicyName}" ON ${escapedTarget} FOR ALL USING (${expectedPredicate}) WITH CHECK (${expectedPredicate});`,
@@ -112,9 +126,9 @@ descriptors.forEach((descriptor, index) => {
 });
 
 assert.match(
-  statements.join("\n"),
+  statements.join('\n'),
   /app\.current_org_id\(\) IS NULL OR "organization_id" = app\.current_org_id\(\)/,
-  "Generated policy must use the dormant permissive org helper predicate",
+  'Generated policy must use the dormant permissive org helper predicate',
 );
 
 assert.equal(
@@ -132,20 +146,20 @@ assert.equal(
 assert.deepEqual(
   patientChainOwnedDescriptors.map((descriptor) => descriptor.table),
   [
-    "public.be_appointment_cancellations",
-    "public.be_appointment_events",
-    "public.be_appointment_history_events",
-    "public.be_appointment_no_shows",
-    "public.be_appointment_reschedules",
-    "public.be_booking_form_submissions",
-    "public.be_package_history_events",
-    "public.be_package_usages",
-    "public.be_product_history_events",
-    "public.be_refunds",
-    "public.reminder_journal",
-    "public.support_questions",
+    'public.be_appointment_cancellations',
+    'public.be_appointment_events',
+    'public.be_appointment_history_events',
+    'public.be_appointment_no_shows',
+    'public.be_appointment_reschedules',
+    'public.be_booking_form_submissions',
+    'public.be_package_history_events',
+    'public.be_package_usages',
+    'public.be_product_history_events',
+    'public.be_refunds',
+    'public.reminder_journal',
+    'public.support_questions',
   ],
-  "P0.8.3 patient-chain-owned target set must stay stable",
+  'P0.8.3 patient-chain-owned target set must stay stable',
 );
 
 // B4-core-4 (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md, taskdb #660): public.
@@ -154,7 +168,9 @@ assert.deepEqual(
 // usage_purpose. See rls-descriptor-model.mjs patientConditionalOwnedColumns +
 // rls-sql-renderer.mjs renderConditionalPatientPredicate.
 const expectedPatientConditionalOwnedTargets = 1;
-const patientConditionalOwnedDescriptors = descriptors.filter((descriptor) => descriptor.patientConditional);
+const patientConditionalOwnedDescriptors = descriptors.filter(
+  (descriptor) => descriptor.patientConditional,
+);
 
 assert.equal(
   patientConditionalOwnedDescriptors.length,
@@ -164,8 +180,8 @@ assert.equal(
 
 assert.deepEqual(
   patientConditionalOwnedDescriptors.map((descriptor) => descriptor.table),
-  ["public.media_files"],
-  "P0.8.3 patient-conditional-owned target must be public.media_files",
+  ['public.media_files'],
+  'P0.8.3 patient-conditional-owned target must be public.media_files',
 );
 
 for (const descriptor of patientConditionalOwnedDescriptors) {
@@ -194,7 +210,7 @@ for (const descriptor of patientConditionalOwnedDescriptors) {
 
 // Sanity: the staff-bypass check must be present verbatim so staff (org-wide, variant A) is
 // never additionally restricted by the patient branch.
-assert.equal(renderStaffActorCheck(), "app.is_staff()");
+assert.equal(renderStaffActorCheck(), 'app.is_staff()');
 
 console.log(
   `P0.8.3 policy generator OK: 110 targets (${patientOwnedDescriptors.length} patient-owned, ${patientChainOwnedDescriptors.length} patient-chain-owned, ${patientConditionalOwnedDescriptors.length} patient-conditional-owned) and deterministic dormant policy DDL.`,

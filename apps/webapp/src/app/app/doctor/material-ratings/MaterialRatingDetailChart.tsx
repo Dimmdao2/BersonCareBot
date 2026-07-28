@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import {
   CartesianGrid,
@@ -8,22 +8,25 @@ import {
   ResponsiveContainer,
   XAxis,
   YAxis,
-} from "recharts";
+} from 'recharts';
 
-import type { StatsPeriod } from "@/modules/diaries/stats/periodWindow";
-import { diaryChartFormatTickLabel, diaryChartShowTick } from "@/modules/diaries/stats/formatDiaryChartTick";
+import type { StatsPeriod } from '@/modules/diaries/stats/periodWindow';
+import {
+  diaryChartFormatTickLabel,
+  diaryChartShowTick,
+} from '@/modules/diaries/stats/formatDiaryChartTick';
 
-import type { MaterialRatingDoctorDetailDay } from "@/modules/material-rating/types";
-import { DoctorRechartsTooltip } from "@/shared/ui/doctor/DoctorRechartsTooltip";
+import type { MaterialRatingDoctorDetailDay } from '@/modules/material-rating/types';
+import { DoctorRechartsTooltip } from '@/shared/ui/doctor/DoctorRechartsTooltip';
 
-const STROKE_VIEWS = "hsl(215 65% 38%)";
-const STROKE_ACTIVITY = "hsl(28 78% 42%)";
-const STROKE_AVG = "hsl(142 55% 36%)";
+const STROKE_VIEWS = 'hsl(215 65% 38%)';
+const STROKE_ACTIVITY = 'hsl(28 78% 42%)';
+const STROKE_AVG = 'hsl(142 55% 36%)';
 
 function chartPeriodForPointCount(n: number): StatsPeriod {
-  if (n <= 7) return "week";
-  if (n <= 31) return "month";
-  return "all";
+  if (n <= 7) return 'week';
+  if (n <= 31) return 'month';
+  return 'all';
 }
 
 export function MaterialRatingDetailChart({ days }: { days: MaterialRatingDoctorDetailDay[] }) {
@@ -35,10 +38,7 @@ export function MaterialRatingDetailChart({ days }: { days: MaterialRatingDoctor
     avgStars: p.avgStarsInActivity,
   }));
 
-  const countMax = Math.max(
-    1,
-    ...days.flatMap((s) => [s.viewCount, s.ratingActivityCount]),
-  );
+  const countMax = Math.max(1, ...days.flatMap((s) => [s.viewCount, s.ratingActivityCount]));
 
   return (
     <div className="h-[280px] w-full min-w-0 pb-2">
@@ -47,12 +47,12 @@ export function MaterialRatingDetailChart({ days }: { days: MaterialRatingDoctor
           <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
           <XAxis
             dataKey="full"
-            tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+            tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
             tickLine={false}
             interval={0}
             tickFormatter={(full: string, index: number) => {
-              const prev = index > 0 ? data[index - 1]?.full ?? null : null;
-              if (!diaryChartShowTick(period, index, data.length, full, prev)) return "";
+              const prev = index > 0 ? (data[index - 1]?.full ?? null) : null;
+              if (!diaryChartShowTick(period, index, data.length, full, prev)) return '';
               return diaryChartFormatTickLabel(full, period);
             }}
           />
@@ -61,7 +61,7 @@ export function MaterialRatingDetailChart({ days }: { days: MaterialRatingDoctor
             domain={[0, countMax]}
             width={40}
             allowDecimals={false}
-            tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+            tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
             tickLine={false}
           />
           <YAxis
@@ -70,38 +70,38 @@ export function MaterialRatingDetailChart({ days }: { days: MaterialRatingDoctor
             domain={[0, 5]}
             width={36}
             allowDecimals
-            tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+            tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
             tickLine={false}
           />
           <DoctorRechartsTooltip
             formatter={(value, name) => {
-              const v = typeof value === "number" ? value : Number(value);
+              const v = typeof value === 'number' ? value : Number(value);
               const ok = Number.isFinite(v);
               const label =
-                name === "views"
-                  ? "Просмотры видео"
-                  : name === "ratingActivity"
-                    ? "Оценок (изменений)"
-                    : "Средняя за день";
-              if (name === "avgStars") {
-                return [`${ok ? v.toFixed(2) : "—"}`, label];
+                name === 'views'
+                  ? 'Просмотры видео'
+                  : name === 'ratingActivity'
+                    ? 'Оценок (изменений)'
+                    : 'Средняя за день';
+              if (name === 'avgStars') {
+                return [`${ok ? v.toFixed(2) : '—'}`, label];
               }
-              return [`${ok ? v : "—"}`, label];
+              return [`${ok ? v : '—'}`, label];
             }}
             labelFormatter={(_, payload) => {
               const p = payload?.[0]?.payload as { full?: string } | undefined;
-              return p?.full ?? "";
+              return p?.full ?? '';
             }}
           />
           <Legend
             verticalAlign="bottom"
             wrapperStyle={{ paddingTop: 8 }}
             formatter={(value) =>
-              value === "views"
-                ? "Просмотры видео"
-                : value === "ratingActivity"
-                  ? "Оценок (изменений)"
-                  : "Средняя за день"
+              value === 'views'
+                ? 'Просмотры видео'
+                : value === 'ratingActivity'
+                  ? 'Оценок (изменений)'
+                  : 'Средняя за день'
             }
           />
           <Line

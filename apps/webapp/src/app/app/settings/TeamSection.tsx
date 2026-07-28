@@ -1,33 +1,44 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { apiJson } from "@/shared/lib/apiJson";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Badge } from "@/shared/ui/doctor/primitives/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/doctor/primitives/select";
-import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
-import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { apiJson } from '@/shared/lib/apiJson';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Badge } from '@/shared/ui/doctor/primitives/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/shared/ui/doctor/primitives/select';
+import {
+  DoctorSection,
+  DoctorSectionHeader,
+  DoctorSectionTitle,
+} from '@/shared/ui/doctor/DoctorSection';
+import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import {
   doctorDnaFlatListClass,
   doctorDnaFlatListMetaClass,
   doctorDnaFlatListPrimaryClass,
   doctorDnaFlatListRowClass,
-} from "@/shared/ui/doctor/DoctorDnaFlatListRow";
-import type { OrganizationInviteRole } from "@/modules/organization-invites/ports";
+} from '@/shared/ui/doctor/DoctorDnaFlatListRow';
+import type { OrganizationInviteRole } from '@/modules/organization-invites/ports';
 
 const ROLE_LABELS: Record<string, string> = {
-  owner: "Владелец",
-  admin: "Администратор",
-  doctor: "Врач",
-  assistant: "Ассистент",
+  owner: 'Владелец',
+  admin: 'Администратор',
+  doctor: 'Врач',
+  assistant: 'Ассистент',
 };
 
 const INVITE_ERROR_MESSAGES: Record<string, string> = {
-  seat_limit_reached: "Достигнут лимит мест специалистов по тарифу. Освободите место или расширьте тариф.",
-  already_member: "Этот email уже участвует в организации.",
-  invalid_email: "Некорректный email",
+  seat_limit_reached:
+    'Достигнут лимит мест специалистов по тарифу. Освободите место или расширьте тариф.',
+  already_member: 'Этот email уже участвует в организации.',
+  invalid_email: 'Некорректный email',
 };
 
 export type TeamMemberRow = {
@@ -63,8 +74,8 @@ function formatSeatStatus(seats: TeamSeatStatus): string {
 
 export function TeamSection({ members, invites, seats }: Props) {
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [role, setRole] = useState<OrganizationInviteRole>("doctor");
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState<OrganizationInviteRole>('doctor');
   const [submitting, setSubmitting] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [revokingId, setRevokingId] = useState<string | null>(null);
@@ -75,21 +86,21 @@ export function TeamSection({ members, invites, seats }: Props) {
     setInviteError(null);
     const trimmedEmail = email.trim();
     if (!trimmedEmail) {
-      setInviteError("Введите email");
+      setInviteError('Введите email');
       return;
     }
     setSubmitting(true);
     try {
-      await apiJson("/api/clinic/invites", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
+      await apiJson('/api/clinic/invites', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ email: trimmedEmail, role }),
       });
-      setEmail("");
+      setEmail('');
       router.refresh();
     } catch (e) {
-      const code = e instanceof Error ? e.message : "error";
-      setInviteError(INVITE_ERROR_MESSAGES[code] ?? "Не удалось отправить приглашение");
+      const code = e instanceof Error ? e.message : 'error';
+      setInviteError(INVITE_ERROR_MESSAGES[code] ?? 'Не удалось отправить приглашение');
     } finally {
       setSubmitting(false);
     }
@@ -98,7 +109,7 @@ export function TeamSection({ members, invites, seats }: Props) {
   async function revokeInvite(inviteId: string) {
     setRevokingId(inviteId);
     try {
-      await apiJson(`/api/clinic/invites/${inviteId}`, { method: "DELETE" });
+      await apiJson(`/api/clinic/invites/${inviteId}`, { method: 'DELETE' });
       router.refresh();
     } finally {
       setRevokingId(null);
@@ -117,11 +128,16 @@ export function TeamSection({ members, invites, seats }: Props) {
         ) : (
           <ul aria-label="Участники команды" className={doctorDnaFlatListClass}>
             {members.map((member) => (
-              <li key={member.id} className={`${doctorDnaFlatListRowClass} flex-wrap justify-between gap-2`}>
+              <li
+                key={member.id}
+                className={`${doctorDnaFlatListRowClass} flex-wrap justify-between gap-2`}
+              >
                 <span className={`${doctorDnaFlatListPrimaryClass} min-w-0 flex-1 truncate`}>
-                  {member.displayName ?? "Без имени"}
+                  {member.displayName ?? 'Без имени'}
                 </span>
-                <span className={`${doctorDnaFlatListMetaClass} flex flex-wrap items-center gap-1.5`}>
+                <span
+                  className={`${doctorDnaFlatListMetaClass} flex flex-wrap items-center gap-1.5`}
+                >
                   <Badge variant="outline">{ROLE_LABELS[member.role] ?? member.role}</Badge>
                   {member.seatConsuming ? <Badge variant="secondary">Место</Badge> : null}
                 </span>
@@ -153,14 +169,14 @@ export function TeamSection({ members, invites, seats }: Props) {
               <SelectItem value="admin">Администратор</SelectItem>
             </SelectContent>
           </Select>
-          {role === "doctor" && seatsExhaustedForDoctor ? (
+          {role === 'doctor' && seatsExhaustedForDoctor ? (
             <p className="text-muted-foreground text-xs">
               Все места специалистов по тарифу заняты. Приглашение врача сейчас будет отклонено.
             </p>
           ) : null}
           {inviteError ? <p className="text-destructive text-sm">{inviteError}</p> : null}
           <Button type="button" size="sm" disabled={submitting} onClick={() => void submitInvite()}>
-            {submitting ? "Отправка…" : "Пригласить"}
+            {submitting ? 'Отправка…' : 'Пригласить'}
           </Button>
         </div>
       </DoctorSection>
@@ -174,7 +190,10 @@ export function TeamSection({ members, invites, seats }: Props) {
         ) : (
           <ul aria-label="Приглашения в ожидании" className={doctorDnaFlatListClass}>
             {invites.map((invite) => (
-              <li key={invite.id} className={`${doctorDnaFlatListRowClass} flex-wrap justify-between gap-2`}>
+              <li
+                key={invite.id}
+                className={`${doctorDnaFlatListRowClass} flex-wrap justify-between gap-2`}
+              >
                 <span className="min-w-0 flex-1">
                   <span className={`${doctorDnaFlatListPrimaryClass} block truncate`}>
                     {invite.invitedEmail}

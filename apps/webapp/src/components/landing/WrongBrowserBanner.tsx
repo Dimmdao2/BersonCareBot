@@ -1,24 +1,30 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { AlertTriangle, Check, Copy } from "lucide-react";
-import toast from "react-hot-toast";
-import type { LandingInstallPlatform } from "@/components/landing/detectLandingInstallPlatform";
-import { Button } from "@/components/ui/button";
+import { useState } from 'react';
+import { AlertTriangle, Check, Copy } from 'lucide-react';
+import toast from 'react-hot-toast';
+import type { LandingInstallPlatform } from '@/components/landing/detectLandingInstallPlatform';
+import { Button } from '@/components/ui/button';
 
 const REQUIRED_BROWSER: Record<LandingInstallPlatform, string> = {
-  ios: "Safari",
-  android: "Chrome",
+  ios: 'Safari',
+  android: 'Chrome',
 };
 
-export function WrongBrowserBanner({ platform, appBaseUrl }: { platform: LandingInstallPlatform; appBaseUrl: string }) {
+export function WrongBrowserBanner({
+  platform,
+  appBaseUrl,
+}: {
+  platform: LandingInstallPlatform;
+  appBaseUrl: string;
+}) {
   const [copied, setCopied] = useState(false);
   const siteLabel = new URL(appBaseUrl).host;
 
   function handleCopy() {
     void navigator.clipboard.writeText(appBaseUrl).then(() => {
       setCopied(true);
-      toast("Ссылка скопирована");
+      toast('Ссылка скопирована');
       setTimeout(() => setCopied(false), 2000);
     });
   }
@@ -30,19 +36,14 @@ export function WrongBrowserBanner({ platform, appBaseUrl }: { platform: Landing
       role="alert"
       className="flex items-start gap-3 rounded-xl border border-[#FECACA] bg-[#FFF1F1] px-4 py-3.5 text-[0.9375rem] leading-6 text-[#991B1B]"
     >
-      <AlertTriangle
-        className="mt-0.5 h-5 w-5 shrink-0 text-[#DC2626]"
-        aria-hidden
-      />
+      <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-[#DC2626]" aria-hidden />
       <span className="min-w-0">
-        <span className="font-semibold">
-          Установка работает только через {browser}.
-        </span>{" "}
-        Скопируйте ссылку{" "}
+        <span className="font-semibold">Установка работает только через {browser}.</span> Скопируйте
+        ссылку{' '}
         <Button
           type="button"
           onClick={handleCopy}
-          aria-label={copied ? "Ссылка скопирована" : "Скопировать ссылку"}
+          aria-label={copied ? 'Ссылка скопирована' : 'Скопировать ссылку'}
           variant="outline"
           size="xs"
           className="inline-flex items-center gap-1 border-[#FECACA] bg-white/70 font-mono text-[0.8125rem] font-medium text-[#991B1B] hover:bg-white focus-visible:ring-[#DC2626]/40"
@@ -53,7 +54,7 @@ export function WrongBrowserBanner({ platform, appBaseUrl }: { platform: Landing
           ) : (
             <Copy className="h-3.5 w-3.5 shrink-0" aria-hidden />
           )}
-        </Button>{" "}
+        </Button>{' '}
         и откройте сайт в {browser}.
       </span>
     </div>

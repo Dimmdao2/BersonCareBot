@@ -1,12 +1,26 @@
-"use client";
+'use client';
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
-import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { Eye, EyeOff, GripVertical, Trash2 } from "lucide-react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Checkbox } from "@/shared/ui/doctor/primitives/checkbox";
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { Eye, EyeOff, GripVertical, Trash2 } from 'lucide-react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Checkbox } from '@/shared/ui/doctor/primitives/checkbox';
 import {
   Dialog,
   DialogClose,
@@ -15,22 +29,22 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/shared/ui/doctor/primitives/dialog";
-import type { PatientHomeBlockItem } from "@/modules/patient-home/ports";
-import type { PatientHomeRefDisplayTitles } from "@/modules/patient-home/patientHomeBlockItemDisplayTitle";
-import { getPatientHomeBlockEditorMetadata } from "@/modules/patient-home/blockEditorMetadata";
-import { isPatientHomeBlockCode } from "@/modules/patient-home/blocks";
+} from '@/shared/ui/doctor/primitives/dialog';
+import type { PatientHomeBlockItem } from '@/modules/patient-home/ports';
+import type { PatientHomeRefDisplayTitles } from '@/modules/patient-home/patientHomeBlockItemDisplayTitle';
+import { getPatientHomeBlockEditorMetadata } from '@/modules/patient-home/blockEditorMetadata';
+import { isPatientHomeBlockCode } from '@/modules/patient-home/blocks';
 import {
   patientHomeBlockItemDisplayTitle,
   patientHomeBlockItemTargetTypeLabelRu,
-} from "@/modules/patient-home/patientHomeBlockItemDisplayTitle";
-import { PATIENT_HOME_USEFUL_POST_BADGE_LABEL } from "@/modules/patient-home/usefulPostPresentation";
+} from '@/modules/patient-home/patientHomeBlockItemDisplayTitle';
+import { PATIENT_HOME_USEFUL_POST_BADGE_LABEL } from '@/modules/patient-home/usefulPostPresentation';
 import {
   deletePatientHomeItem,
   reorderPatientHomeItems,
   updatePatientHomeItemPresentation,
   updatePatientHomeItemVisibility,
-} from "./actions";
+} from './actions';
 
 function normalizeUsefulPostBadge(label: string | null | undefined): string | null {
   const t = label?.trim();
@@ -55,7 +69,7 @@ function SortableItemRow({
   onShowTitleChange(itemId: string, showTitle: boolean): void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: item.id });
-  const usefulPost = blockCode === "useful_post";
+  const usefulPost = blockCode === 'useful_post';
   const badgeOn = normalizeUsefulPostBadge(item.badgeLabel) !== null;
   const usefulPostCustomBadge =
     usefulPost &&
@@ -83,17 +97,19 @@ function SortableItemRow({
         </Button>
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <div className="truncate text-sm font-medium">{patientHomeBlockItemDisplayTitle(item, refDisplayTitles)}</div>
-            {item.badgeLabel?.trim() ?
+            <div className="truncate text-sm font-medium">
+              {patientHomeBlockItemDisplayTitle(item, refDisplayTitles)}
+            </div>
+            {item.badgeLabel?.trim() ? (
               <span className="shrink-0 rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
                 {item.badgeLabel.trim()}
               </span>
-            : null}
+            ) : null}
           </div>
           <div className="text-xs text-muted-foreground">
             {patientHomeBlockItemTargetTypeLabelRu(item.targetType)} · {item.targetRef}
           </div>
-          {usefulPost ?
+          {usefulPost ? (
             <>
               <label className="mt-2 flex cursor-pointer items-center gap-2 text-xs text-foreground">
                 <Checkbox
@@ -111,13 +127,14 @@ function SortableItemRow({
                 />
                 Показывать бейдж «Новый пост»
               </label>
-              {usefulPostCustomBadge ?
+              {usefulPostCustomBadge ? (
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Задан свой текст бейджа. Включите переключатель, чтобы заменить его на «Новый пост» при сохранении.
+                  Задан свой текст бейджа. Включите переключатель, чтобы заменить его на «Новый
+                  пост» при сохранении.
                 </p>
-              : null}
+              ) : null}
             </>
-          : null}
+          ) : null}
         </div>
       </div>
       <div className="flex shrink-0 justify-end gap-1 sm:ml-auto">
@@ -125,7 +142,7 @@ function SortableItemRow({
           variant="ghost"
           size="icon"
           onClick={() => onToggleVisible(item.id, !item.isVisible)}
-          aria-label={item.isVisible ? "Скрыть" : "Показать"}
+          aria-label={item.isVisible ? 'Скрыть' : 'Показать'}
         >
           {item.isVisible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
         </Button>
@@ -214,7 +231,7 @@ export function PatientHomeBlockItemsDialog({
           }
         }
       }
-      if (blockCode === "useful_post") {
+      if (blockCode === 'useful_post') {
         for (const item of items) {
           const source = initialItems.find((x) => x.id === item.id);
           if (!source) continue;
@@ -223,7 +240,9 @@ export function PatientHomeBlockItemsDialog({
           const prevShowTitle = source.showTitle !== false;
           const nextShowTitle = item.showTitle !== false;
           if (prevB !== nextB || prevShowTitle !== nextShowTitle) {
-            const payload: { itemId: string; badgeLabel?: string | null; showTitle?: boolean } = { itemId: item.id };
+            const payload: { itemId: string; badgeLabel?: string | null; showTitle?: boolean } = {
+              itemId: item.id,
+            };
             if (prevB !== nextB) payload.badgeLabel = nextB;
             if (prevShowTitle !== nextShowTitle) payload.showTitle = nextShowTitle;
             const pres = await updatePatientHomeItemPresentation(payload);
@@ -251,16 +270,16 @@ export function PatientHomeBlockItemsDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
-            {blockEditorMeta ?
-              `Порядок и карточки: ${blockEditorMeta.displayTitle}`
-            : "Порядок и карточки блока"}
+            {blockEditorMeta
+              ? `Порядок и карточки: ${blockEditorMeta.displayTitle}`
+              : 'Порядок и карточки блока'}
           </DialogTitle>
           <DialogDescription>
-            Перетащите за ручку слева, скройте элемент для пациентов или удалите лишний. Кнопка «Сохранить» записывает
-            порядок и удаления.
-            {blockCode === "useful_post" ?
-              " Для «Полезного поста»: порядок сверху вниз — приоритет показа карточки; доступны бейдж «Новый пост» и подпись заголовка на обложке."
-            : null}
+            Перетащите за ручку слева, скройте элемент для пациентов или удалите лишний. Кнопка
+            «Сохранить» записывает порядок и удаления.
+            {blockCode === 'useful_post'
+              ? ' Для «Полезного поста»: порядок сверху вниз — приоритет показа карточки; доступны бейдж «Новый пост» и подпись заголовка на обложке.'
+              : null}
           </DialogDescription>
         </DialogHeader>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
@@ -273,7 +292,9 @@ export function PatientHomeBlockItemsDialog({
                   item={item}
                   refDisplayTitles={refDisplayTitles}
                   onToggleVisible={(itemId, next) =>
-                    setItems((prev) => prev.map((row) => (row.id === itemId ? { ...row, isVisible: next } : row)))
+                    setItems((prev) =>
+                      prev.map((row) => (row.id === itemId ? { ...row, isVisible: next } : row)),
+                    )
                   }
                   onBadgeChange={(itemId, badgeLabel) =>
                     setItems((prev) =>
@@ -281,7 +302,9 @@ export function PatientHomeBlockItemsDialog({
                     )
                   }
                   onShowTitleChange={(itemId, showTitle) =>
-                    setItems((prev) => prev.map((row) => (row.id === itemId ? { ...row, showTitle } : row)))
+                    setItems((prev) =>
+                      prev.map((row) => (row.id === itemId ? { ...row, showTitle } : row)),
+                    )
                   }
                   onDelete={(itemId) => {
                     setRemovedIds((prev) => (prev.includes(itemId) ? prev : [...prev, itemId]));

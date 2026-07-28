@@ -26,7 +26,12 @@ const bodySchema = z.object({
 type Body = z.infer<typeof bodySchema>;
 type ReqWithRawBody = FastifyRequest<{ Body: Body }> & { rawBody?: string };
 
-function verifySignature(timestamp: string, rawBody: string, signature: string, secret: string): boolean {
+function verifySignature(
+  timestamp: string,
+  rawBody: string,
+  signature: string,
+  secret: string,
+): boolean {
   const ts = Number(timestamp);
   if (!Number.isFinite(ts)) return false;
   const now = Math.floor(Date.now() / 1000);
@@ -126,13 +131,14 @@ export async function registerBersoncareRequestContactRoute(
     const writePort = createDbWritePort({ db });
 
     try {
-      const dispatchContact = (): Promise<void> => dispatchRequestContactToUser({
-        dispatchPort,
-        writePort,
-        channel,
-        recipientId,
-        correlationId: idempotencyKey,
-      });
+      const dispatchContact = (): Promise<void> =>
+        dispatchRequestContactToUser({
+          dispatchPort,
+          writePort,
+          channel,
+          recipientId,
+          correlationId: idempotencyKey,
+        });
       let organizationId: string | null = null;
       if (resolveOrganizationIdForMessengerIdentity) {
         try {
@@ -157,7 +163,10 @@ export async function registerBersoncareRequestContactRoute(
       if (organizationId) {
         await runWithOrganizationPrincipal(organizationId, dispatchContact);
       } else {
-        logger.warn({ channel }, 'request-contact: no organization resolvable for channel; dispatching without principal');
+        logger.warn(
+          { channel },
+          'request-contact: no organization resolvable for channel; dispatching without principal',
+        );
         await dispatchContact();
       }
       registerKey(idempotencyKey);

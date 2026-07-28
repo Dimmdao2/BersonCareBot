@@ -180,16 +180,17 @@ const occurrenceSelectShape = {
   updated_at: userReminderOccurrences.updatedAt,
 };
 
-export async function getReminderRulesForUser(db: DbPort, userId: string): Promise<ReminderRuleRecord[]> {
+export async function getReminderRulesForUser(
+  db: DbPort,
+  userId: string,
+): Promise<ReminderRuleRecord[]> {
   const d = getIntegratorDrizzleSession(db);
   const rows = await d
     .select(ruleSelectShape)
     .from(userReminderRules)
     .where(eq(userReminderRules.userId, Number(userId)))
     .orderBy(asc(userReminderRules.category));
-  return rows.map((r) =>
-    normalizeRuleRow(r as Parameters<typeof normalizeRuleRow>[0]),
-  );
+  return rows.map((r) => normalizeRuleRow(r as Parameters<typeof normalizeRuleRow>[0]));
 }
 
 export async function getReminderRuleForUserAndCategory(
@@ -201,7 +202,9 @@ export async function getReminderRuleForUserAndCategory(
   const rows = await d
     .select(ruleSelectShape)
     .from(userReminderRules)
-    .where(and(eq(userReminderRules.userId, Number(userId)), eq(userReminderRules.category, category)))
+    .where(
+      and(eq(userReminderRules.userId, Number(userId)), eq(userReminderRules.category, category)),
+    )
     .limit(1);
   const row = rows[0] as Parameters<typeof normalizeRuleRow>[0] | undefined;
   return row ? normalizeRuleRow(row) : null;
@@ -400,7 +403,10 @@ export async function upsertReminderRule(db: DbPort, input: ReminderRuleRecord):
   return rows[0]?.updated_at ?? new Date().toISOString();
 }
 
-export async function cancelPendingReminderOccurrencesForRule(db: DbPort, ruleId: string): Promise<void> {
+export async function cancelPendingReminderOccurrencesForRule(
+  db: DbPort,
+  ruleId: string,
+): Promise<void> {
   const d = getIntegratorDrizzleSession(db);
   await d
     .delete(userReminderOccurrences)
@@ -413,7 +419,10 @@ export async function cancelPendingReminderOccurrencesForRule(db: DbPort, ruleId
 }
 
 /** Pending rows left from legacy same-day backfill; grace matches webapp web-push tick. */
-export async function expireOrphanedPendingReminderOccurrences(db: DbPort, nowIso: string): Promise<void> {
+export async function expireOrphanedPendingReminderOccurrences(
+  db: DbPort,
+  nowIso: string,
+): Promise<void> {
   const orgs = await runIntegratorSql<{ organization_id: string }>(
     db,
     sql`
@@ -450,7 +459,10 @@ export async function expireOrphanedPendingReminderOccurrences(db: DbPort, nowIs
   }
 }
 
-export async function resolveReminderRuleOrganizationId(db: DbPort, ruleId: string): Promise<string | null> {
+export async function resolveReminderRuleOrganizationId(
+  db: DbPort,
+  ruleId: string,
+): Promise<string | null> {
   const res = await runIntegratorSql<{ organization_id: string | null }>(
     db,
     sql`
@@ -664,7 +676,10 @@ export async function createContentAccessGrant(
 }
 
 /** Integrator `users.id` (text) owning the occurrence's rule, or null if missing. */
-export async function getReminderOccurrenceOwnerUserId(db: DbPort, occurrenceId: string): Promise<string | null> {
+export async function getReminderOccurrenceOwnerUserId(
+  db: DbPort,
+  occurrenceId: string,
+): Promise<string | null> {
   const d = getIntegratorDrizzleSession(db);
   const rows = await d
     .select({ user_id: sql<string>`${userReminderRules.userId}::text` })
@@ -696,12 +711,20 @@ export async function rescheduleReminderOccurrencePlanned(
       errorCode: null,
       updatedAt: sql`now()`,
     })
-    .where(and(eq(userReminderOccurrences.id, occurrenceId), ne(userReminderOccurrences.status, 'skipped')))
+    .where(
+      and(
+        eq(userReminderOccurrences.id, occurrenceId),
+        ne(userReminderOccurrences.status, 'skipped'),
+      ),
+    )
     .returning({ id: userReminderOccurrences.id });
   return updated.length > 0;
 }
 
-export async function markReminderOccurrenceSkippedLocal(db: DbPort, occurrenceId: string): Promise<boolean> {
+export async function markReminderOccurrenceSkippedLocal(
+  db: DbPort,
+  occurrenceId: string,
+): Promise<boolean> {
   const d = getIntegratorDrizzleSession(db);
   const updated = await d
     .update(userReminderOccurrences)
@@ -709,7 +732,12 @@ export async function markReminderOccurrenceSkippedLocal(db: DbPort, occurrenceI
       status: 'skipped',
       updatedAt: sql`now()`,
     })
-    .where(and(eq(userReminderOccurrences.id, occurrenceId), ne(userReminderOccurrences.status, 'skipped')))
+    .where(
+      and(
+        eq(userReminderOccurrences.id, occurrenceId),
+        ne(userReminderOccurrences.status, 'skipped'),
+      ),
+    )
     .returning({ id: userReminderOccurrences.id });
   return updated.length > 0;
 }

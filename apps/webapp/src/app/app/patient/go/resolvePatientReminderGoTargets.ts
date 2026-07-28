@@ -1,19 +1,19 @@
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { routePaths } from "@/app-layer/routes/paths";
-import { resolveFirstPendingProgramTabItemId } from "@/app/app/patient/home/resolveFirstPendingProgramTabItemId";
-import { buildDailyWarmupPresentationSyncDeps } from "@/modules/patient-home/buildDailyWarmupPresentationSyncDeps";
-import { buildPatientHomeWarmupPickContext } from "@/modules/patient-home/buildPatientHomeWarmupPickContext";
-import { resolvePatientCanViewContent } from "@/app-layer/platform-access";
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { routePaths } from '@/app-layer/routes/paths';
+import { resolveFirstPendingProgramTabItemId } from '@/app/app/patient/home/resolveFirstPendingProgramTabItemId';
+import { buildDailyWarmupPresentationSyncDeps } from '@/modules/patient-home/buildDailyWarmupPresentationSyncDeps';
+import { buildPatientHomeWarmupPickContext } from '@/modules/patient-home/buildPatientHomeWarmupPickContext';
+import { resolvePatientCanViewContent } from '@/app-layer/platform-access';
 import {
   getPatientHomeTodayConfig,
   listDailyWarmupPagesForHome,
   resolveDailyWarmupPickIndex,
   type DailyWarmupListEntry,
   type DailyWarmupPickConsumer,
-} from "@/modules/patient-home/todayConfig";
-import { resolveActiveTreatmentProgramInstanceId } from "@/modules/treatment-program/patientTreatmentProgramEntry";
-import { omitDisabledInstanceStageItemsForPatientApi } from "@/modules/treatment-program/stage-semantics";
-import type { AppSession } from "@/shared/types/session";
+} from '@/modules/patient-home/todayConfig';
+import { resolveActiveTreatmentProgramInstanceId } from '@/modules/treatment-program/patientTreatmentProgramEntry';
+import { omitDisabledInstanceStageItemsForPatientApi } from '@/modules/treatment-program/stage-semantics';
+import type { AppSession } from '@/shared/types/session';
 
 type Deps = ReturnType<typeof buildAppDeps>;
 
@@ -21,7 +21,11 @@ function dailyWarmupContentHref(slug: string): string {
   return `/app/patient/content/${encodeURIComponent(slug)}?from=daily_warmup`;
 }
 
-async function canSessionOpenDailyWarmupSlug(deps: Deps, session: AppSession, slug: string): Promise<boolean> {
+async function canSessionOpenDailyWarmupSlug(
+  deps: Deps,
+  session: AppSession,
+  slug: string,
+): Promise<boolean> {
   const row = await deps.contentPages.getBySlug(slug);
   if (!row) return false;
   if (!row.requiresAuth) return true;
@@ -32,7 +36,7 @@ async function resolveFirstAccessibleDailyWarmupPath(
   deps: Deps,
   session: AppSession,
   preferredSlug: string | null,
-  orderedDailyWarmupPages: ReadonlyArray<Pick<DailyWarmupListEntry, "slug">>,
+  orderedDailyWarmupPages: ReadonlyArray<Pick<DailyWarmupListEntry, 'slug'>>,
 ): Promise<string | null> {
   const candidates: string[] = [];
   if (preferredSlug) candidates.push(preferredSlug);
@@ -58,7 +62,7 @@ export async function resolveDailyWarmupStartPathForPatient(
   deps: Deps,
   session: AppSession,
   personalTierOk: boolean,
-  pickConsumer: DailyWarmupPickConsumer = "home",
+  pickConsumer: DailyWarmupPickConsumer = 'home',
 ): Promise<string> {
   const homeDeps = {
     patientHomeBlocks: deps.patientHomeBlocks,
@@ -70,12 +74,12 @@ export async function resolveDailyWarmupStartPathForPatient(
   let orderedDailyWarmupPages: DailyWarmupListEntry[] | null = null;
 
   if (!personalTierOk) {
-    const todayCfg = await getPatientHomeTodayConfig(homeDeps, { tier: "no_tier" });
+    const todayCfg = await getPatientHomeTodayConfig(homeDeps, { tier: 'no_tier' });
     preferredSlug = todayCfg.dailyWarmupItem?.page?.slug?.trim() ?? null;
   } else {
     const warmupPick = buildPatientHomeWarmupPickContext(session.user.userId, deps);
     const presentationSyncDeps = buildDailyWarmupPresentationSyncDeps(deps);
-    if (pickConsumer === "home") {
+    if (pickConsumer === 'home') {
       const todayCfg = await getPatientHomeTodayConfig(homeDeps, warmupPick, presentationSyncDeps);
       preferredSlug = todayCfg.dailyWarmupItem?.page?.slug?.trim() ?? null;
     } else {
@@ -83,7 +87,7 @@ export async function resolveDailyWarmupStartPathForPatient(
       const pickIndex = await resolveDailyWarmupPickIndex(
         orderedDailyWarmupPages,
         warmupPick,
-        "push_reminder",
+        'push_reminder',
         presentationSyncDeps,
       );
       preferredSlug = orderedDailyWarmupPages[pickIndex]?.slug?.trim() ?? null;
@@ -98,7 +102,10 @@ export async function resolveDailyWarmupStartPathForPatient(
 /**
  * Тот же целевой путь, что у «Начать занятие» на карточке плана главной и в hero программы.
  */
-export async function resolvePlanStartLessonPathForPatient(deps: Deps, userId: string): Promise<string> {
+export async function resolvePlanStartLessonPathForPatient(
+  deps: Deps,
+  userId: string,
+): Promise<string> {
   const instanceId = await resolveActiveTreatmentProgramInstanceId(deps, userId);
   if (!instanceId) return routePaths.patientTreatmentPrograms;
 
@@ -109,7 +116,7 @@ export async function resolvePlanStartLessonPathForPatient(deps: Deps, userId: s
   const snap = await deps.treatmentProgramPatientActions.listChecklistDoneToday(userId, instanceId);
   const firstItemId = resolveFirstPendingProgramTabItemId(detail, snap.doneItemIds);
   if (firstItemId) {
-    href = routePaths.patientTreatmentProgramItem(instanceId, firstItemId, "exec", "program");
+    href = routePaths.patientTreatmentProgramItem(instanceId, firstItemId, 'exec', 'program');
   }
   return href;
 }

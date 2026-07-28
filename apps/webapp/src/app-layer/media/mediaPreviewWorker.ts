@@ -1,1 +1,1 @@
-export { processMediaPreviewBatch } from "@/infra/repos/mediaPreviewWorker";
+export { processMediaPreviewBatch } from '@/infra/repos/mediaPreviewWorker';

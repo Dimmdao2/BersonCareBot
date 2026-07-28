@@ -1,22 +1,24 @@
-import { NextResponse } from "next/server";
-import { env, isS3MediaEnabled } from "@/config/env";
-import { logger } from "@/app-layer/logging/logger";
-import { getStoredMediaBody } from "@/app-layer/media/mockMediaStorage";
-import { getMediaS3KeyForRedirect, getMediaAccessRow } from "@/app-layer/media/s3MediaStorage";
-import { serializePresignFailureForLog } from "@/app-layer/media/presignLogRedaction";
-import { presignGetUrl } from "@/app-layer/media/s3Client";
-import { getVideoPresignTtlSeconds } from "@/app-layer/media/videoPresignTtl";
-import { getCurrentSession } from "@/modules/auth/service";
-import { assertMediaPlaybackAccess } from "@/modules/media/assertMediaPlaybackAccess";
+import { NextResponse } from 'next/server';
+import { env, isS3MediaEnabled } from '@/config/env';
+import { logger } from '@/app-layer/logging/logger';
+import { getStoredMediaBody } from '@/app-layer/media/mockMediaStorage';
+import { getMediaS3KeyForRedirect, getMediaAccessRow } from '@/app-layer/media/s3MediaStorage';
+import { serializePresignFailureForLog } from '@/app-layer/media/presignLogRedaction';
+import { presignGetUrl } from '@/app-layer/media/s3Client';
+import { getVideoPresignTtlSeconds } from '@/app-layer/media/videoPresignTtl';
+import { getCurrentSession } from '@/modules/auth/service';
+import { assertMediaPlaybackAccess } from '@/modules/media/assertMediaPlaybackAccess';
 import { readSaasTestLocalMedia } from '@/app-layer/media/localSaasTestFixtureMedia';
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
-import { requireDoctorWorkspaceApiContext, requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
-import { canAccessDoctor } from "@/modules/roles/service";
-import type { AppSession } from "@/shared/types/session";
-import { resolvePlatformLfkMediaAccess } from "@/app-layer/media/resolvePlatformLfkMediaAccess";
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import {
+  requireDoctorWorkspaceApiContext,
+  requirePatientApiBusinessAccess,
+} from '@/app-layer/guards/requireRole';
+import { canAccessDoctor } from '@/modules/roles/service';
+import type { AppSession } from '@/shared/types/session';
+import { resolvePlatformLfkMediaAccess } from '@/app-layer/media/resolvePlatformLfkMediaAccess';
 
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 async function redirectPresignedOr503(s3Key: string): Promise<Response> {
   try {
@@ -24,31 +26,28 @@ async function redirectPresignedOr503(s3Key: string): Promise<Response> {
     const signed = await presignGetUrl(s3Key, ttlSec);
     /** 307 so clients (esp. Safari/WebKit video) re-issue GET+Range to the presigned URL; 302 often drops Range after redirect. */
     const res = NextResponse.redirect(signed, 307);
-    res.headers.set("Cache-Control", "private, max-age=0, must-revalidate");
+    res.headers.set('Cache-Control', 'private, max-age=0, must-revalidate');
     return res;
   } catch (e) {
-    logger.error({ err: serializePresignFailureForLog(e) }, "[media GET] presign failed");
-    return NextResponse.json({ error: "storage_error" }, { status: 503 });
+    logger.error({ err: serializePresignFailureForLog(e) }, '[media GET] presign failed');
+    return NextResponse.json({ error: 'storage_error' }, { status: 503 });
   }
 }
 
-export async function GET(
-  _request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!id) {
-    return NextResponse.json({ error: "missing id" }, { status: 400 });
+    return NextResponse.json({ error: 'missing id' }, { status: 400 });
   }
 
   const initialSession = await getCurrentSession();
   if (!initialSession) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
 
   const serve = async (session: AppSession): Promise<Response> => {
     const isUuid = UUID_RE.test(id);
-    const dbUrl = (env.DATABASE_URL ?? "").trim();
+    const dbUrl = (env.DATABASE_URL ?? '').trim();
 
     /** UUID in DB → bytes live in MinIO/S3; presigned GET only (never in-process mock). */
     if (dbUrl && isUuid) {
@@ -58,24 +57,43 @@ export async function GET(
         allowPlatformBase = await resolvePlatformLfkMediaAccess(id);
         if (allowPlatformBase) accessRow = await getMediaAccessRow(id, { allowPlatformBase: true });
       }
-      if (!accessRow) return NextResponse.json({ error: "not found" }, { status: 404 });
-      if (!assertMediaPlaybackAccess(session, { usagePurpose: accessRow.usage_purpose, uploadedBy: accessRow.uploaded_by })) {
-        return NextResponse.json({ error: "forbidden" }, { status: 403 });
+      if (!accessRow) return NextResponse.json({ error: 'not found' }, { status: 404 });
+      if (
+        !assertMediaPlaybackAccess(session, {
+          usagePurpose: accessRow.usage_purpose,
+          uploadedBy: accessRow.uploaded_by,
+        })
+      ) {
+        return NextResponse.json({ error: 'forbidden' }, { status: 403 });
       }
       const s3Key = await getMediaS3KeyForRedirect(id, { allowPlatformBase });
       if (s3Key) return redirectPresignedOr503(s3Key);
-      const localBody = await readSaasTestLocalMedia({ databaseUrl: dbUrl, storedPath: accessRow.stored_path, s3Key: accessRow.s3_key, mimeType: accessRow.mime_type });
+      const localBody = await readSaasTestLocalMedia({
+        databaseUrl: dbUrl,
+        storedPath: accessRow.stored_path,
+        s3Key: accessRow.s3_key,
+        mimeType: accessRow.mime_type,
+      });
       if (localBody) {
-        return new Response(localBody, { headers: { 'Content-Type': accessRow.mime_type, 'Content-Length': String(localBody.byteLength), 'Cache-Control': 'private, max-age=3600', 'X-Content-Type-Options': 'nosniff' } });
+        return new Response(localBody, {
+          headers: {
+            'Content-Type': accessRow.mime_type,
+            'Content-Length': String(localBody.byteLength),
+            'Cache-Control': 'private, max-age=3600',
+            'X-Content-Type-Options': 'nosniff',
+          },
+        });
       }
-      return NextResponse.json({ error: "not found" }, { status: 404 });
+      return NextResponse.json({ error: 'not found' }, { status: 404 });
     }
 
-    if (isS3MediaEnabled(env)) return NextResponse.json({ error: "not found" }, { status: 404 });
+    if (isS3MediaEnabled(env)) return NextResponse.json({ error: 'not found' }, { status: 404 });
 
     const stored = getStoredMediaBody(id);
-    if (!stored) return NextResponse.json({ error: "not found" }, { status: 404 });
-    return new Response(stored.body, { headers: { "Content-Type": stored.mimeType, "Cache-Control": "private, max-age=3600" } });
+    if (!stored) return NextResponse.json({ error: 'not found' }, { status: 404 });
+    return new Response(stored.body, {
+      headers: { 'Content-Type': stored.mimeType, 'Cache-Control': 'private, max-age=3600' },
+    });
   };
 
   if (canAccessDoctor(initialSession.user.role)) {

@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import { useEffect, useMemo, useState } from "react";
-import { Badge } from "@/shared/ui/patient/primitives/badge";
-import { Button } from "@/shared/ui/patient/primitives/button";
-import { cn } from "@/lib/utils";
-import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
+import { useEffect, useMemo, useState } from 'react';
+import { Badge } from '@/shared/ui/patient/primitives/badge';
+import { Button } from '@/shared/ui/patient/primitives/button';
+import { cn } from '@/lib/utils';
+import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 
 type Props = {
   availableDates: string[];
@@ -12,7 +12,7 @@ type Props = {
   onSelectDate: (date: string) => void;
 };
 
-const WEEKDAY_LABELS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"] as const;
+const WEEKDAY_LABELS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'] as const;
 
 type MonthCursor = {
   year: number;
@@ -27,8 +27,8 @@ type CalendarDay = {
 
 function toLocalIsoDate(d: Date): string {
   const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
 
@@ -78,16 +78,16 @@ function buildMonthDays({ year, monthIndex }: MonthCursor): CalendarDay[] {
 function formatDateLabel(date: string): string {
   const d = parseIsoDate(date);
   if (!d) return date;
-  return d.toLocaleDateString("ru-RU", {
-    day: "2-digit",
-    month: "2-digit",
-    weekday: "short",
+  return d.toLocaleDateString('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    weekday: 'short',
   });
 }
 
 function formatMonthLabel(cursor: MonthCursor): string {
   const d = new Date(Date.UTC(cursor.year, cursor.monthIndex, 1, 12));
-  return d.toLocaleDateString("ru-RU", { month: "long", year: "numeric" });
+  return d.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
 }
 
 export function BookingCalendar({ availableDates, selectedDate, onSelectDate }: Props) {
@@ -98,7 +98,9 @@ export function BookingCalendar({ availableDates, selectedDate, onSelectDate }: 
     [availableDates, todayIso],
   );
   const preferredDate = selectedDate ?? selectableDates[0] ?? todayIso;
-  const [displayedMonth, setDisplayedMonth] = useState<MonthCursor>(() => toMonthCursor(preferredDate));
+  const [displayedMonth, setDisplayedMonth] = useState<MonthCursor>(() =>
+    toMonthCursor(preferredDate),
+  );
 
   useEffect(() => {
     setDisplayedMonth(toMonthCursor(preferredDate));
@@ -107,7 +109,9 @@ export function BookingCalendar({ availableDates, selectedDate, onSelectDate }: 
   const days = useMemo(() => buildMonthDays(displayedMonth), [displayedMonth]);
   const currentMonthKey = monthKey(displayedMonth);
   const firstSelectableMonthKey = monthKey(toMonthCursor(selectableDates[0] ?? todayIso));
-  const hasNextMonthWithSlots = selectableDates.some((date) => monthKey(toMonthCursor(date)) > currentMonthKey);
+  const hasNextMonthWithSlots = selectableDates.some(
+    (date) => monthKey(toMonthCursor(date)) > currentMonthKey,
+  );
   const canGoPrev = currentMonthKey > firstSelectableMonthKey;
 
   if (selectableDates.length === 0) {
@@ -156,9 +160,16 @@ export function BookingCalendar({ availableDates, selectedDate, onSelectDate }: 
         </div>
       </div>
 
-      <div className="grid grid-cols-7 gap-1" role="grid" aria-label="Календарь доступных дат записи">
+      <div
+        className="grid grid-cols-7 gap-1"
+        role="grid"
+        aria-label="Календарь доступных дат записи"
+      >
         {WEEKDAY_LABELS.map((label) => (
-          <div key={label} className="py-1 text-center text-[11px] font-medium text-muted-foreground">
+          <div
+            key={label}
+            className="py-1 text-center text-[11px] font-medium text-muted-foreground"
+          >
             {label}
           </div>
         ))}
@@ -168,8 +179,8 @@ export function BookingCalendar({ availableDates, selectedDate, onSelectDate }: 
           const isPast = day.date < todayIso;
           const hasSlots = availableDateSet.has(day.date);
           const disabled = !day.inCurrentMonth || isPast || !hasSlots;
-          const ariaLabel = `${formatDateLabel(day.date)}${isToday ? ", сегодня" : ""}${
-            hasSlots && !isPast ? ", есть слоты" : ", нет доступных слотов"
+          const ariaLabel = `${formatDateLabel(day.date)}${isToday ? ', сегодня' : ''}${
+            hasSlots && !isPast ? ', есть слоты' : ', нет доступных слотов'
           }`;
           return (
             <button
@@ -180,21 +191,23 @@ export function BookingCalendar({ availableDates, selectedDate, onSelectDate }: 
               aria-pressed={isSelected}
               onClick={() => onSelectDate(day.date)}
               className={cn(
-                "flex min-h-14 flex-col items-center justify-center rounded-lg border text-sm font-medium transition-colors",
-                "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]",
+                'flex min-h-14 flex-col items-center justify-center rounded-lg border text-sm font-medium transition-colors',
+                'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]',
                 isSelected
-                  ? "border-[var(--patient-color-primary)] bg-[var(--patient-color-primary)] text-white"
-                  : "border-[var(--patient-border,#d8deef)] bg-[var(--patient-card-bg)] text-[var(--patient-text-main,#111827)]",
+                  ? 'border-[var(--patient-color-primary)] bg-[var(--patient-color-primary)] text-white'
+                  : 'border-[var(--patient-border,#d8deef)] bg-[var(--patient-card-bg)] text-[var(--patient-text-main,#111827)]',
                 !isSelected && hasSlots && !isPast && day.inCurrentMonth
-                  ? "hover:border-[var(--patient-color-primary)] hover:bg-[var(--patient-color-primary-soft)]"
+                  ? 'hover:border-[var(--patient-color-primary)] hover:bg-[var(--patient-color-primary-soft)]'
                   : null,
-                disabled ? "cursor-not-allowed opacity-35" : "cursor-pointer",
-                !day.inCurrentMonth ? "bg-transparent" : null,
+                disabled ? 'cursor-not-allowed opacity-35' : 'cursor-pointer',
+                !day.inCurrentMonth ? 'bg-transparent' : null,
               )}
             >
               <span>{day.dayOfMonth}</span>
               {isToday ? (
-                <span className={cn("mt-0.5 text-[10px]", isSelected ? "text-white" : "text-primary")}>
+                <span
+                  className={cn('mt-0.5 text-[10px]', isSelected ? 'text-white' : 'text-primary')}
+                >
                   Сегодня
                 </span>
               ) : null}

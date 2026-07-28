@@ -1,9 +1,13 @@
-import { createHash } from "node:crypto";
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { verifyIntegratorSignature } from "@/app-layer/integrator/verifyIntegratorSignature";
-import { getCachedResponse, isKeyValid, setCachedResponse } from "@/app-layer/idempotency/idempotencyStore";
-import { resolveProgramNoteReplyContext } from "@/app-layer/messaging/programNoteReplyContext";
+import { createHash } from 'node:crypto';
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { verifyIntegratorSignature } from '@/app-layer/integrator/verifyIntegratorSignature';
+import {
+  getCachedResponse,
+  isKeyValid,
+  setCachedResponse,
+} from '@/app-layer/idempotency/idempotencyStore';
+import { resolveProgramNoteReplyContext } from '@/app-layer/messaging/programNoteReplyContext';
 
 const bodySchema = z.object({
   stageItemId: z.string().uuid(),
@@ -13,27 +17,30 @@ const bodySchema = z.object({
  * POST /api/integrator/program-note/reply-begin — M2M: начало ответа врача на наблюдение пациента по упражнению.
  */
 export async function POST(request: Request) {
-  const timestamp = request.headers.get("x-bersoncare-timestamp");
-  const signature = request.headers.get("x-bersoncare-signature");
-  const idempotencyKey = request.headers.get("x-bersoncare-idempotency-key");
+  const timestamp = request.headers.get('x-bersoncare-timestamp');
+  const signature = request.headers.get('x-bersoncare-signature');
+  const idempotencyKey = request.headers.get('x-bersoncare-idempotency-key');
   const rawBody = await request.text();
 
   if (!timestamp || !signature || !idempotencyKey) {
-    return NextResponse.json({ ok: false, error: "missing webhook headers" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'missing webhook headers' }, { status: 400 });
   }
   if (!isKeyValid(idempotencyKey)) {
-    return NextResponse.json({ ok: false, error: "invalid idempotency key" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid idempotency key' }, { status: 400 });
   }
   if (!verifyIntegratorSignature(timestamp, rawBody, signature, request)) {
-    return NextResponse.json({ ok: false, error: "invalid signature" }, { status: 401 });
+    return NextResponse.json({ ok: false, error: 'invalid signature' }, { status: 401 });
   }
 
-  const requestHash = createHash("sha256").update(rawBody).digest("hex");
+  const requestHash = createHash('sha256').update(rawBody).digest('hex');
   const cached = await getCachedResponse(idempotencyKey, requestHash);
-  if (cached.hit && "mismatch" in cached && cached.mismatch) {
-    return NextResponse.json({ ok: false, error: "idempotency key reused with different payload" }, { status: 409 });
+  if (cached.hit && 'mismatch' in cached && cached.mismatch) {
+    return NextResponse.json(
+      { ok: false, error: 'idempotency key reused with different payload' },
+      { status: 409 },
+    );
   }
-  if (cached.hit && "status" in cached) {
+  if (cached.hit && 'status' in cached) {
     return NextResponse.json(cached.body, { status: cached.status });
   }
 
@@ -41,17 +48,17 @@ export async function POST(request: Request) {
   try {
     parsedJson = JSON.parse(rawBody) as unknown;
   } catch {
-    return NextResponse.json({ ok: false, error: "invalid json" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid json' }, { status: 400 });
   }
 
   const parsed = bodySchema.safeParse(parsedJson);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid body' }, { status: 400 });
   }
 
   const ctx = await resolveProgramNoteReplyContext(parsed.data.stageItemId);
   if (!ctx) {
-    const body = { ok: false, error: "stage_item_not_found" };
+    const body = { ok: false, error: 'stage_item_not_found' };
     await setCachedResponse(idempotencyKey, requestHash, 404, body);
     return NextResponse.json(body, { status: 404 });
   }

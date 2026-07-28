@@ -1,12 +1,12 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import {
   isTreatmentProgramExpandNotFoundError,
   isTreatmentProgramTemplateAlreadyArchivedError,
-} from "@/modules/treatment-program/errors";
+} from '@/modules/treatment-program/errors';
 
 const bodySchema = z.object({
   templateId: z.string().uuid(),
@@ -22,7 +22,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ stageId: s
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
 
   const deps = buildAppDeps();
@@ -33,18 +33,22 @@ export async function POST(request: Request, ctx: { params: Promise<{ stageId: s
       parsed.data.testSetId,
       {
         runTemplateWrite: (fn) =>
-          withDoctorWorkspacePrincipal(workspace, "doctor.treatment-program-templates.stage-items.expand-test-set", fn),
+          withDoctorWorkspacePrincipal(
+            workspace,
+            'doctor.treatment-program-templates.stage-items.expand-test-set',
+            fn,
+          ),
       },
     );
     return NextResponse.json({ ok: true, ...result });
   } catch (e) {
     if (isTreatmentProgramTemplateAlreadyArchivedError(e)) {
-      return NextResponse.json({ ok: false, error: "already_archived" }, { status: 400 });
+      return NextResponse.json({ ok: false, error: 'already_archived' }, { status: 400 });
     }
     if (isTreatmentProgramExpandNotFoundError(e)) {
       return NextResponse.json({ ok: false, error: e.message }, { status: 404 });
     }
-    const msg = e instanceof Error ? e.message : "error";
+    const msg = e instanceof Error ? e.message : 'error';
     return NextResponse.json({ ok: false, error: msg }, { status: 400 });
   }
 }

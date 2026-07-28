@@ -20,7 +20,9 @@ function sqlText(value: unknown): string {
 
 function createCaptureDb(captures: InsertCapture[]): DbPort {
   const query = vi.fn().mockResolvedValue({ rows: [] }) as DbPort['query'];
-  const tx = vi.fn(async <T>(fn: (txDb: DbPort) => Promise<T>) => fn({ query, tx } as DbPort)) as DbPort['tx'];
+  const tx = vi.fn(async <T>(fn: (txDb: DbPort) => Promise<T>) =>
+    fn({ query, tx } as DbPort),
+  ) as DbPort['tx'];
   const insert = () => ({
     values: (values: Record<string, unknown>) => {
       const capture: InsertCapture = { values };
@@ -77,7 +79,9 @@ describe('reminders repo organization context writes', () => {
     const captures: InsertCapture[] = [];
     const db = createCaptureDb(captures);
 
-    await runWithDbOrganizationPrincipal(organizationId, () => upsertReminderRule(db, reminderRule()));
+    await runWithDbOrganizationPrincipal(organizationId, () =>
+      upsertReminderRule(db, reminderRule()),
+    );
 
     const insertOrg = sqlText(captures[0]?.values.organizationId);
     expect(insertOrg).toContain(organizationId);
@@ -108,8 +112,12 @@ describe('reminders repo organization context writes', () => {
       status: 'success',
     });
 
-    expect(sqlText(captures[0]?.values.organizationId)).toContain('SELECT organization_id FROM user_reminder_rules');
-    expect(sqlText(captures[1]?.values.organizationId)).toContain('SELECT organization_id FROM user_reminder_occurrences');
+    expect(sqlText(captures[0]?.values.organizationId)).toContain(
+      'SELECT organization_id FROM user_reminder_rules',
+    );
+    expect(sqlText(captures[1]?.values.organizationId)).toContain(
+      'SELECT organization_id FROM user_reminder_occurrences',
+    );
   });
 
   it('stamps content access grants from current principal with single active org fallback', async () => {

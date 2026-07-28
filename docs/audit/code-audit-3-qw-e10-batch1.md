@@ -1,4 +1,5 @@
 # Code Audit 3 — QW-E10/batch1
+
 agentId: audit3-qw-e10-batch1
 Commit: 0014599ab497595b3c996b69288e910290c9d0ac
 Date: 2026-06-19
@@ -13,8 +14,8 @@ The 4 components that failed audit2 are now fully converted:
 
 - **BookingMergeCandidatesSection.tsx** — imports apiJson (line 8); `load()` uses
   `apiJson<...>(BASE, { cache: "no-store" })` (line 22); `dismiss()` uses
-  `apiJson(\`${BASE}/${id}/dismiss\`, { method: "POST" })` (line 46). Both wrapped in
-  try/catch with `setError`.
+  `apiJson(\`${BASE}/${id}/dismiss\`, { method: "POST" })`(line 46). Both wrapped in
+try/catch with`setError`.
 - **BookingPatientPackagesSection.tsx** — imports apiJson (line 8); all 4 fetch sites
   converted: `loadRefs()` (Promise.all of two apiJson, lines 73-74),
   `loadPatientPackages()` (line 99), `offerCatalog()` (line 128), `createManual()`
@@ -22,8 +23,8 @@ The 4 components that failed audit2 are now fully converted:
 - **BookingPublicWidgetSection.tsx** — imports apiJson (line 9); both fetches converted:
   overview load effect (line 48) and resolve-branch-service effect (line 75).
 - **BookingScheduleBlocksSection.tsx** — imports apiJson (line 17); `removeBlock()` now
-  uses `apiJson(\`${BASE}?id=...\`, { method: "DELETE" })` (line 175). `loadCatalog()`,
-  `load()`, and `createBlock()` also on apiJson.
+  uses `apiJson(\`${BASE}?id=...\`, { method: "DELETE" })`(line 175).`loadCatalog()`,
+`load()`, and `createBlock()` also on apiJson.
 
 Spot-checked others (BookingCatalogProductsSection, BookingEventNotificationsSection,
 BookingFormFieldsSection, BookingManualLifecycleSection, BookingPrepaymentSection,
@@ -36,10 +37,12 @@ etc.) still use raw fetch, but those are outside the QW-E10/batch1 scope (14 nam
 ## Clause A2 — No apiJson duplication — PASS
 
 `bookingSoloAdminApi.ts` no longer defines its own apiJson. Lines 1-2:
+
 ```
 import { apiJson } from "@/shared/lib/apiJson";
 export { apiJson } from "@/shared/lib/apiJson";
 ```
+
 It re-exports the shared helper and consumes it (e.g. `ensureDefaultSpecialist`,
 `setServiceLocationAvailability`). The single remaining hand-rolled fetch in the file is
 `fetchSoloOverview`, which is an intentional special case (maps the
@@ -49,13 +52,14 @@ not an apiJson duplication.
 ## Clause A3 — deactivate() uses apiJson — PASS
 
 `BookingWorkingHoursSection.deactivate()` (line 161) calls
-`apiJson(\`${BASE}?id=${encodeURIComponent(id)}\`, { method: "DELETE" })` (line 164),
-wrapped in try/catch with `setError(e instanceof Error ? e.message : "delete_failed")`
+`apiJson(\`${BASE}?id=${encodeURIComponent(id)}\`, { method: "DELETE" })`(line 164),
+wrapped in try/catch with`setError(e instanceof Error ? e.message : "delete_failed")`
 (line 166). No raw fetch in the file.
 
 ## Clause A4 — shared/lib/apiJson.ts correctness — PASS
 
 `apps/webapp/src/shared/lib/apiJson.ts` correctly:
+
 - throws on JSON parse failure (`invalid_json` when res.ok, else `http_${status}`),
 - throws on `!res.ok || body.ok === false`,
 - prefers `body.message` then `body.error`, falling back to `http_${status}`.

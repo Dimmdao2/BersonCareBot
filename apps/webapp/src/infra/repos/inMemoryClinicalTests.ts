@@ -1,4 +1,4 @@
-import type { ClinicalTestsPort } from "@/modules/tests/ports";
+import type { ClinicalTestsPort } from '@/modules/tests/ports';
 import type {
   ClinicalTest,
   ClinicalTestFilter,
@@ -7,14 +7,17 @@ import type {
   UpdateClinicalTestInput,
   ClinicalTestMediaItem,
   TestSetArchiveScope,
-} from "@/modules/tests/types";
-import { EMPTY_CLINICAL_TEST_USAGE_SNAPSHOT } from "@/modules/tests/types";
-import { mergeCatalogBodyRegionIds } from "@/shared/lib/mergeCatalogBodyRegionIds";
+} from '@/modules/tests/types';
+import { EMPTY_CLINICAL_TEST_USAGE_SNAPSHOT } from '@/modules/tests/types';
+import { mergeCatalogBodyRegionIds } from '@/shared/lib/mergeCatalogBodyRegionIds';
 
 const store = new Map<string, ClinicalTest>();
 const usageByTestId = new Map<string, ClinicalTestUsageSnapshot>();
 
-export function seedInMemoryClinicalTestUsageSnapshot(testId: string, snapshot: ClinicalTestUsageSnapshot): void {
+export function seedInMemoryClinicalTestUsageSnapshot(
+  testId: string,
+  snapshot: ClinicalTestUsageSnapshot,
+): void {
   usageByTestId.set(testId, snapshot);
 }
 
@@ -27,16 +30,16 @@ function normalizeMedia(raw: unknown): ClinicalTestMediaItem[] {
   if (!Array.isArray(raw)) return [];
   const out: ClinicalTestMediaItem[] = [];
   for (const m of raw) {
-    if (!m || typeof m !== "object") continue;
+    if (!m || typeof m !== 'object') continue;
     const mediaUrl = (m as { mediaUrl?: unknown }).mediaUrl;
     const mediaType = (m as { mediaType?: unknown }).mediaType;
     const sortOrder = (m as { sortOrder?: unknown }).sortOrder;
-    if (typeof mediaUrl !== "string" || !mediaUrl.trim()) continue;
-    if (mediaType !== "image" && mediaType !== "video" && mediaType !== "gif") continue;
+    if (typeof mediaUrl !== 'string' || !mediaUrl.trim()) continue;
+    if (mediaType !== 'image' && mediaType !== 'video' && mediaType !== 'gif') continue;
     out.push({
       mediaUrl: mediaUrl.trim(),
       mediaType,
-      sortOrder: typeof sortOrder === "number" ? sortOrder : out.length,
+      sortOrder: typeof sortOrder === 'number' ? sortOrder : out.length,
     });
   }
   return out;
@@ -44,14 +47,14 @@ function normalizeMedia(raw: unknown): ClinicalTestMediaItem[] {
 
 function archiveScopeFromFilter(f: ClinicalTestFilter): TestSetArchiveScope {
   if (f.archiveScope) return f.archiveScope;
-  if (f.includeArchived) return "all";
-  return "active";
+  if (f.includeArchived) return 'all';
+  return 'active';
 }
 
 function matchesFilter(t: ClinicalTest, f: ClinicalTestFilter): boolean {
   const scope = archiveScopeFromFilter(f);
-  if (scope === "active" && t.isArchived) return false;
-  if (scope === "archived" && !t.isArchived) return false;
+  if (scope === 'active' && t.isArchived) return false;
+  if (scope === 'archived' && !t.isArchived) return false;
   if (f.testType && f.testType.trim() && t.testType !== f.testType.trim()) return false;
   const region = f.regionRefId?.trim();
   if (region && !t.bodyRegionIds.includes(region)) return false;
@@ -59,7 +62,7 @@ function matchesFilter(t: ClinicalTest, f: ClinicalTestFilter): boolean {
   if (ak && t.assessmentKind !== ak) return false;
   if (f.search?.trim()) {
     const q = f.search.trim().toLowerCase();
-    if (!t.title.toLowerCase().includes(q) && !(t.description ?? "").toLowerCase().includes(q)) {
+    if (!t.title.toLowerCase().includes(q) && !(t.description ?? '').toLowerCase().includes(q)) {
       return false;
     }
   }
@@ -80,7 +83,10 @@ export const inMemoryClinicalTestsPort: ClinicalTestsPort = {
   async create(input: CreateClinicalTestInput, createdBy: string | null): Promise<ClinicalTest> {
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
-    const merged = mergeCatalogBodyRegionIds(input.bodyRegionId?.trim() || null, input.bodyRegionIds ?? null);
+    const merged = mergeCatalogBodyRegionIds(
+      input.bodyRegionId?.trim() || null,
+      input.bodyRegionIds ?? null,
+    );
     const row: ClinicalTest = {
       id,
       title: input.title,
@@ -119,7 +125,10 @@ export const inMemoryClinicalTestsPort: ClinicalTestsPort = {
       testType: input.testType !== undefined ? input.testType : cur.testType,
       scoring: input.scoring !== undefined ? input.scoring : cur.scoring,
       rawText: input.rawText !== undefined ? input.rawText : cur.rawText,
-      assessmentKind: input.assessmentKind !== undefined ? input.assessmentKind?.trim() || null : cur.assessmentKind,
+      assessmentKind:
+        input.assessmentKind !== undefined
+          ? input.assessmentKind?.trim() || null
+          : cur.assessmentKind,
       ...(regionMerged !== null
         ? { bodyRegionId: regionMerged[0] ?? null, bodyRegionIds: regionMerged }
         : {}),

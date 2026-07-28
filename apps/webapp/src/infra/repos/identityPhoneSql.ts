@@ -1,5 +1,9 @@
-import type { Pool, PoolClient, QueryResultRow } from "pg";
-import { getWebappSqlFromPgClient, runPgPoolPgText, runWebappPgText } from "@/infra/db/runWebappSql";
+import type { Pool, PoolClient, QueryResultRow } from 'pg';
+import {
+  getWebappSqlFromPgClient,
+  runPgPoolPgText,
+  runWebappPgText,
+} from '@/infra/db/runWebappSql';
 
 /** Domain SQL on default Drizzle pool (same `getPool()`). */
 export async function runIdentityPoolPgText<T = QueryResultRow>(
@@ -11,7 +15,7 @@ export async function runIdentityPoolPgText<T = QueryResultRow>(
 
 /** Domain SQL on an injected pool (tests / explicit pool arg). */
 export async function runIdentityPoolPgTextOnPool<T extends QueryResultRow = QueryResultRow>(
-  pool: Pick<Pool, "query">,
+  pool: Pick<Pool, 'query'>,
   queryText: string,
   values: readonly unknown[] = [],
 ) {

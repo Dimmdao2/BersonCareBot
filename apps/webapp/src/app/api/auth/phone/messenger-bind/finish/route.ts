@@ -1,27 +1,27 @@
-import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
+import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { ensureAuthModulePortsBound } from '@/app-layer/di/bindAuthModulePorts';
 import {
   recordAuthRegistrationFailure,
   recordAuthRegistrationSuccess,
-} from "@/app-layer/product-analytics/recordAuthRegistration";
+} from '@/app-layer/product-analytics/recordAuthRegistration';
 import {
   AUTH_CONFIRM_RATE_LIMIT_SEC,
   checkAuthConfirmRateLimit,
-} from "@/modules/auth/authConfirmRateLimit";
+} from '@/modules/auth/authConfirmRateLimit';
 import {
   formatOtpRetryAfterMessage,
   OTP_TOO_MANY_ATTEMPTS_MESSAGE,
-} from "@/modules/auth/otpConstants";
-import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
-import { getCurrentSession } from "@/modules/auth/service";
-import { readStaffLoginContinuation } from "@/modules/auth/staffLoginContinuation";
-import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
-import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
-import { prepareVerifiedPrimaryLogin } from "@/modules/auth/verifiedStaffPrimaryLogin";
-import { isAuthChannelEnabled } from "@/modules/auth/authChannelPolicy";
+} from '@/modules/auth/otpConstants';
+import { getRedirectPathForRole } from '@/modules/auth/redirectPolicy';
+import { getCurrentSession } from '@/modules/auth/service';
+import { readStaffLoginContinuation } from '@/modules/auth/staffLoginContinuation';
+import { enterStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
+import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
+import { prepareVerifiedPrimaryLogin } from '@/modules/auth/verifiedStaffPrimaryLogin';
+import { isAuthChannelEnabled } from '@/modules/auth/authChannelPolicy';
 
 const bodySchema = z
   .object({
@@ -35,23 +35,23 @@ const bodySchema = z
  * OTP подтверждается на сервере по challenge из bind secret — пользователю не нужно вводить код в PWA.
  */
 export async function POST(request: Request) {
-  stampBootstrapPrincipal("api/auth/phone/messenger-bind/finish:POST", request);
+  stampBootstrapPrincipal('api/auth/phone/messenger-bind/finish:POST', request);
 
   ensureAuthModulePortsBound();
-  const rateLimit = await checkAuthConfirmRateLimit(request, "phone_messenger_bind_finish");
+  const rateLimit = await checkAuthConfirmRateLimit(request, 'phone_messenger_bind_finish');
   if (rateLimit.limited) {
-    if (rateLimit.reason === "proxy_configuration") {
-      return NextResponse.json({ ok: false, error: "proxy_configuration" }, { status: 503 });
+    if (rateLimit.reason === 'proxy_configuration') {
+      return NextResponse.json({ ok: false, error: 'proxy_configuration' }, { status: 503 });
     }
     // Same shape this route already returns below for `result.code === "rate_limited"`.
     return NextResponse.json(
       {
         ok: false,
-        error: "rate_limited",
+        error: 'rate_limited',
         retryAfterSeconds: AUTH_CONFIRM_RATE_LIMIT_SEC,
-        message: errorMessage("rate_limited", AUTH_CONFIRM_RATE_LIMIT_SEC),
+        message: errorMessage('rate_limited', AUTH_CONFIRM_RATE_LIMIT_SEC),
       },
-      { status: 429, headers: { "Retry-After": String(AUTH_CONFIRM_RATE_LIMIT_SEC) } },
+      { status: 429, headers: { 'Retry-After': String(AUTH_CONFIRM_RATE_LIMIT_SEC) } },
     );
   }
 
@@ -59,7 +59,7 @@ export async function POST(request: Request) {
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
     return NextResponse.json(
-      { ok: false, error: "invalid_body", message: "Укажите setupToken" },
+      { ok: false, error: 'invalid_body', message: 'Укажите setupToken' },
       { status: 400 },
     );
   }
@@ -71,7 +71,7 @@ export async function POST(request: Request) {
   const resolved = await deps.phoneMessengerBind.resolveLoginChallenge(setupToken);
 
   if (!resolved.ok) {
-    if (resolved.code === "already_consumed") {
+    if (resolved.code === 'already_consumed') {
       const session = await getCurrentSession();
       if (session) {
         return NextResponse.json({
@@ -83,22 +83,22 @@ export async function POST(request: Request) {
       if (await readStaffLoginContinuation()) {
         return NextResponse.json({ ok: true, factorRequired: true });
       }
-      return NextResponse.json({ ok: false, error: "already_consumed" }, { status: 409 });
+      return NextResponse.json({ ok: false, error: 'already_consumed' }, { status: 409 });
     }
 
     const status =
-      resolved.code === "not_found"
+      resolved.code === 'not_found'
         ? 404
-        : resolved.code === "not_ready" || resolved.code === "challenge_expired"
+        : resolved.code === 'not_ready' || resolved.code === 'challenge_expired'
           ? 409
           : 400;
     return NextResponse.json({ ok: false, error: resolved.code }, { status });
   }
 
   const challenge = await deps.auth.getPhoneChallenge(resolved.challengeId);
-  const deliveryChannel = challenge?.deliveryChannel ?? "telegram";
+  const deliveryChannel = challenge?.deliveryChannel ?? 'telegram';
   if (!(await isAuthChannelEnabled(deliveryChannel))) {
-    return NextResponse.json({ ok: false, error: "auth_channel_disabled" }, { status: 403 });
+    return NextResponse.json({ ok: false, error: 'auth_channel_disabled' }, { status: 403 });
   }
   const isRegistrationIntent = challenge?.isRegistrationIntent === true;
 
@@ -107,17 +107,17 @@ export async function POST(request: Request) {
     if (isRegistrationIntent) {
       await recordAuthRegistrationFailure({
         attemptId,
-        authMethod: "messenger_bind",
-        stage: "confirm",
-        entryChannel: "browser",
-        contactType: "phone",
+        authMethod: 'messenger_bind',
+        stage: 'confirm',
+        entryChannel: 'browser',
+        contactType: 'phone',
         contactValue: challenge?.phone ?? null,
         challengeId: resolved.challengeId,
         errorCode: result.code,
       });
     }
     const status =
-      result.code === "too_many_attempts" || result.code === "rate_limited" ? 429 : 400;
+      result.code === 'too_many_attempts' || result.code === 'rate_limited' ? 429 : 400;
     return NextResponse.json(
       {
         ok: false,
@@ -128,7 +128,7 @@ export async function POST(request: Request) {
       {
         status,
         ...(result.retryAfterSeconds != null && {
-          headers: { "Retry-After": String(result.retryAfterSeconds) },
+          headers: { 'Retry-After': String(result.retryAfterSeconds) },
         }),
       },
     );
@@ -137,12 +137,12 @@ export async function POST(request: Request) {
   if (isPlatformUserUuid(result.user.userId)) {
     enterStaffSecuritySelfPrincipal(
       result.user.userId,
-      "api/auth/phone/messenger-bind/finish:otp-verified-self",
+      'api/auth/phone/messenger-bind/finish:otp-verified-self',
     );
   }
   const sessionUser = await deps.userByPhone.findByUserId(result.user.userId);
   if (!sessionUser) {
-    return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });
+    return NextResponse.json({ ok: false, error: 'server_error' }, { status: 500 });
   }
   const postLoginHints = { phoneOtpChannel: result.deliveryChannel ?? deliveryChannel } as const;
 
@@ -154,10 +154,10 @@ export async function POST(request: Request) {
   if (isRegistrationIntent) {
     await recordAuthRegistrationSuccess({
       attemptId,
-      authMethod: "messenger_bind",
-      stage: "session_set",
-      entryChannel: "browser",
-      contactType: "phone",
+      authMethod: 'messenger_bind',
+      stage: 'session_set',
+      entryChannel: 'browser',
+      contactType: 'phone',
       contactValue: sessionUser.phone ?? challenge?.phone ?? null,
       userId: sessionUser.userId,
       challengeId: resolved.challengeId,
@@ -185,17 +185,17 @@ export async function POST(request: Request) {
 
 function errorMessage(code: string, retryAfterSeconds?: number): string {
   switch (code) {
-    case "invalid_code":
-      return "Неверный код";
-    case "expired_code":
-      return "Код истёк. Запросите новый.";
-    case "too_many_attempts":
+    case 'invalid_code':
+      return 'Неверный код';
+    case 'expired_code':
+      return 'Код истёк. Запросите новый.';
+    case 'too_many_attempts':
       return OTP_TOO_MANY_ATTEMPTS_MESSAGE;
-    case "rate_limited":
+    case 'rate_limited':
       return retryAfterSeconds != null
         ? formatOtpRetryAfterMessage(retryAfterSeconds)
-        : "Слишком много запросов. Попробуйте позже.";
+        : 'Слишком много запросов. Попробуйте позже.';
     default:
-      return "Ошибка подтверждения.";
+      return 'Ошибка подтверждения.';
   }
 }

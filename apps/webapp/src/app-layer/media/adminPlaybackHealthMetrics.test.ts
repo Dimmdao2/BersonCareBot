@@ -1,36 +1,36 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { getDrizzleMock, loggerErrorMock } = vi.hoisted(() => ({
   getDrizzleMock: vi.fn(),
   loggerErrorMock: vi.fn(),
 }));
 
-vi.mock("@/app-layer/db/drizzle", () => ({
+vi.mock('@/app-layer/db/drizzle', () => ({
   getDrizzle: getDrizzleMock,
 }));
 
-vi.mock("@/app-layer/logging/logger", () => ({
+vi.mock('@/app-layer/logging/logger', () => ({
   logger: { error: loggerErrorMock, warn: vi.fn() },
 }));
 
 import {
   ADMIN_PLAYBACK_METRICS_WINDOW_HOURS,
   loadAdminPlaybackHealthMetrics,
-} from "./adminPlaybackHealthMetrics";
+} from './adminPlaybackHealthMetrics';
 
-describe("loadAdminPlaybackHealthMetrics", () => {
+describe('loadAdminPlaybackHealthMetrics', () => {
   beforeEach(() => {
     getDrizzleMock.mockReset();
     loggerErrorMock.mockReset();
   });
 
-  it("aggregates byDelivery, totals and unique pairs", async () => {
+  it('aggregates byDelivery, totals and unique pairs', async () => {
     const totalsRows = [
-      { delivery: "hls", resolvedSum: "7", fallbackSum: "3" },
-      { delivery: "mp4", resolvedSum: "2", fallbackSum: "1" },
-      { delivery: "file", resolvedSum: "1", fallbackSum: "0" },
+      { delivery: 'hls', resolvedSum: '7', fallbackSum: '3' },
+      { delivery: 'mp4', resolvedSum: '2', fallbackSum: '1' },
+      { delivery: 'file', resolvedSum: '1', fallbackSum: '0' },
     ];
-    const uniqueRows = [{ c: "5" }];
+    const uniqueRows = [{ c: '5' }];
 
     const groupByMock = vi.fn().mockResolvedValue(totalsRows);
     const totalsWhereMock = vi.fn(() => ({ groupBy: groupByMock }));
@@ -57,12 +57,12 @@ describe("loadAdminPlaybackHealthMetrics", () => {
     expect(loggerErrorMock).not.toHaveBeenCalled();
   });
 
-  it("does not fall back to hourly totals when audience is filtered and resolution events are empty", async () => {
+  it('does not fall back to hourly totals when audience is filtered and resolution events are empty', async () => {
     const audienceGroupByMock = vi.fn().mockResolvedValue([]);
     const audienceWhereMock = vi.fn(() => ({ groupBy: audienceGroupByMock }));
     const audienceFromMock = vi.fn(() => ({ where: audienceWhereMock }));
 
-    const uniqueWhereMock = vi.fn().mockResolvedValue([{ c: "0" }]);
+    const uniqueWhereMock = vi.fn().mockResolvedValue([{ c: '0' }]);
     const uniqueFromMock = vi.fn(() => ({ where: uniqueWhereMock }));
 
     const selectMock = vi
@@ -74,7 +74,7 @@ describe("loadAdminPlaybackHealthMetrics", () => {
 
     const result = await loadAdminPlaybackHealthMetrics({
       windowHours: 24,
-      excludedUserIds: ["cccccccc-cccc-4ccc-8ccc-cccccccccccc"],
+      excludedUserIds: ['cccccccc-cccc-4ccc-8ccc-cccccccccccc'],
     });
 
     expect(result.totalResolutions).toBe(0);
@@ -82,12 +82,12 @@ describe("loadAdminPlaybackHealthMetrics", () => {
     expect(selectMock).toHaveBeenCalledTimes(2);
   });
 
-  it("aggregates from per-user resolution events when excludedUserIds provided", async () => {
+  it('aggregates from per-user resolution events when excludedUserIds provided', async () => {
     const totalsRows = [
-      { delivery: "hls", resolvedSum: "4", fallbackSum: "2" },
-      { delivery: "mp4", resolvedSum: "1", fallbackSum: "0" },
+      { delivery: 'hls', resolvedSum: '4', fallbackSum: '2' },
+      { delivery: 'mp4', resolvedSum: '1', fallbackSum: '0' },
     ];
-    const uniqueRows = [{ c: "3" }];
+    const uniqueRows = [{ c: '3' }];
 
     const groupByMock = vi.fn().mockResolvedValue(totalsRows);
     const totalsWhereMock = vi.fn(() => ({ groupBy: groupByMock }));
@@ -105,7 +105,7 @@ describe("loadAdminPlaybackHealthMetrics", () => {
 
     const result = await loadAdminPlaybackHealthMetrics({
       windowHours: 24,
-      excludedUserIds: ["cccccccc-cccc-4ccc-8ccc-cccccccccccc"],
+      excludedUserIds: ['cccccccc-cccc-4ccc-8ccc-cccccccccccc'],
     });
 
     expect(result).toEqual({
@@ -118,11 +118,11 @@ describe("loadAdminPlaybackHealthMetrics", () => {
     expect(groupByMock).toHaveBeenCalled();
   });
 
-  it("uses default window when invalid windowHours provided", async () => {
+  it('uses default window when invalid windowHours provided', async () => {
     const groupByMock = vi.fn().mockResolvedValue([]);
     const totalsWhereMock = vi.fn(() => ({ groupBy: groupByMock }));
     const totalsFromMock = vi.fn(() => ({ where: totalsWhereMock }));
-    const uniqueWhereMock = vi.fn().mockResolvedValue([{ c: "0" }]);
+    const uniqueWhereMock = vi.fn().mockResolvedValue([{ c: '0' }]);
     const uniqueFromMock = vi.fn(() => ({ where: uniqueWhereMock }));
     getDrizzleMock.mockReturnValue({
       select: vi
@@ -141,8 +141,8 @@ describe("loadAdminPlaybackHealthMetrics", () => {
     expect(ADMIN_PLAYBACK_METRICS_WINDOW_HOURS).toBe(24);
   });
 
-  it("logs and rethrows on drizzle failure", async () => {
-    const err = new Error("db_down");
+  it('logs and rethrows on drizzle failure', async () => {
+    const err = new Error('db_down');
     getDrizzleMock.mockReturnValue({
       select: vi.fn(() => ({
         from: vi.fn(() => ({
@@ -153,10 +153,10 @@ describe("loadAdminPlaybackHealthMetrics", () => {
       })),
     });
 
-    await expect(loadAdminPlaybackHealthMetrics({ windowHours: 24 })).rejects.toThrow("db_down");
+    await expect(loadAdminPlaybackHealthMetrics({ windowHours: 24 })).rejects.toThrow('db_down');
     expect(loggerErrorMock).toHaveBeenCalledWith(
       expect.objectContaining({ err }),
-      "admin_playback_health_metrics_failed",
+      'admin_playback_health_metrics_failed',
     );
   });
 });

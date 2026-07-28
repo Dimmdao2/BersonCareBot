@@ -2,7 +2,7 @@
  * In-memory SubscriptionMailingProjectionPort for tests and no-DB environments.
  */
 
-import type { SubscriptionMailingProjectionPort } from "./pgSubscriptionMailingProjection";
+import type { SubscriptionMailingProjectionPort } from './pgSubscriptionMailingProjection';
 
 type TopicRow = {
   integratorTopicId: number;
@@ -69,9 +69,22 @@ export const inMemorySubscriptionMailingProjectionPort: SubscriptionMailingProje
   },
 
   async listTopics() {
-    const list: { integratorTopicId: string; code: string; title: string; key: string; isActive: boolean }[] = [];
+    const list: {
+      integratorTopicId: string;
+      code: string;
+      title: string;
+      key: string;
+      isActive: boolean;
+    }[] = [];
     for (const [id, t] of topicsByIntegratorId) {
-      if (t.isActive) list.push({ integratorTopicId: String(id), code: t.code, title: t.title, key: t.key, isActive: t.isActive });
+      if (t.isActive)
+        list.push({
+          integratorTopicId: String(id),
+          code: t.code,
+          title: t.title,
+          key: t.key,
+          isActive: t.isActive,
+        });
     }
     list.sort((a, b) => Number(a.integratorTopicId) - Number(b.integratorTopicId));
     return list;
@@ -85,7 +98,7 @@ export const inMemorySubscriptionMailingProjectionPort: SubscriptionMailingProje
       const topic = topicsByIntegratorId.get(sub.integratorTopicId);
       list.push({
         integratorTopicId: String(sub.integratorTopicId),
-        topicCode: topic?.code ?? "",
+        topicCode: topic?.code ?? '',
         isActive: sub.isActive,
       });
     }
@@ -100,17 +113,11 @@ export function _testGetTopicByIntegratorId(topicId: number): TopicRow | undefin
 }
 
 /** Test-only: read subscription (for idempotency tests). */
-export function _testGetSubscription(
-  userId: number,
-  topicId: number
-): SubscriptionRow | undefined {
+export function _testGetSubscription(userId: number, topicId: number): SubscriptionRow | undefined {
   return subscriptionsByKey.get(subscriptionKey(userId, topicId));
 }
 
 /** Test-only: read mailing log (for idempotency tests). */
-export function _testGetMailingLog(
-  userId: number,
-  mailingId: number
-): MailingLogRow | undefined {
+export function _testGetMailingLog(userId: number, mailingId: number): MailingLogRow | undefined {
   return mailingLogsByKey.get(mailingLogKey(userId, mailingId));
 }

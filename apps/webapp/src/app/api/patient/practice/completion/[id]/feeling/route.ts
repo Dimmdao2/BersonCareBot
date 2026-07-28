@@ -1,9 +1,9 @@
-import { revalidatePath } from "next/cache";
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { routePaths } from "@/app-layer/routes/paths";
+import { revalidatePath } from 'next/cache';
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { routePaths } from '@/app-layer/routes/paths';
 
 /** Та же шкала 1–5, что чек-ин на главной и `POST /api/patient/practice/completion` (симптом `warmup_feeling`). */
 const bodySchema = z.object({
@@ -16,19 +16,19 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
 
   const { id: completionId } = await context.params;
   if (!completionId || !z.string().uuid().safeParse(completionId).success) {
-    return NextResponse.json({ ok: false, error: "validation_error" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'validation_error' }, { status: 400 });
   }
 
   let json: unknown;
   try {
     json = await req.json();
   } catch {
-    return NextResponse.json({ ok: false, error: "invalid_json" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 });
   }
 
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "validation_error" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'validation_error' }, { status: 400 });
   }
 
   const feeling = parsed.data.feeling;
@@ -38,22 +38,25 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
 
   const completion = await deps.patientPractice.getCompletionByIdForUser(completionId, userId);
   if (!completion) {
-    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
-  if (completion.source !== "daily_warmup") {
-    return NextResponse.json({ ok: false, error: "not_daily_warmup" }, { status: 403 });
+  if (completion.source !== 'daily_warmup') {
+    return NextResponse.json({ ok: false, error: 'not_daily_warmup' }, { status: 403 });
   }
 
   if (completion.feeling !== null) {
     return NextResponse.json({ ok: true, duplicate: true });
   }
 
-  const items = await deps.references.listActiveItemsByCategoryCode("symptom_type");
-  const warmupRef = items.find((i) => i.code === "warmup_feeling");
+  const items = await deps.references.listActiveItemsByCategoryCode('symptom_type');
+  const warmupRef = items.find((i) => i.code === 'warmup_feeling');
   if (!warmupRef) {
-    return NextResponse.json({ ok: false, error: "warmup_feeling_reference_missing" }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: 'warmup_feeling_reference_missing' },
+      { status: 500 },
+    );
   }
-  const generalRef = items.find((i) => i.code === "general_wellbeing");
+  const generalRef = items.find((i) => i.code === 'general_wellbeing');
 
   const result = await deps.warmupFeelingCompletion.applyDailyWarmupFeeling({
     userId,
@@ -62,12 +65,12 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
     completedAtIso: completion.completedAt,
     symptomTypeRefId: warmupRef.id,
     symptomTitle: warmupRef.title,
-    ...(generalRef ?
-      {
-        generalWellbeingSymptomTypeRefId: generalRef.id,
-        generalWellbeingSymptomTitle: generalRef.title?.trim() || "Общее самочувствие",
-      }
-    : {}),
+    ...(generalRef
+      ? {
+          generalWellbeingSymptomTypeRefId: generalRef.id,
+          generalWellbeingSymptomTitle: generalRef.title?.trim() || 'Общее самочувствие',
+        }
+      : {}),
   });
 
   revalidatePath(routePaths.patient);

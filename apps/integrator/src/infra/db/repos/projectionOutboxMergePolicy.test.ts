@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { APPOINTMENT_RECORD_UPSERTED, REMINDER_RULE_UPSERTED } from '../../../kernel/contracts/index.js';
+import {
+  APPOINTMENT_RECORD_UPSERTED,
+  REMINDER_RULE_UPSERTED,
+} from '../../../kernel/contracts/index.js';
 import { hashPayload, projectionIdempotencyKey } from './projectionKeys.js';
 import {
   deepReplaceIntegratorUserIdInValue,
@@ -27,8 +30,15 @@ describe('projectionOutboxMergePolicy', () => {
 
   it('recomputeProjectionIdempotencyKeyAfterMerge: user.upserted tracks user in stable id', () => {
     const loserPayload = { integratorUserId: '5', channelCode: 'telegram', externalId: '1' };
-    const winnerPayload = deepReplaceIntegratorUserIdInValue(loserPayload, '5', '9') as Record<string, unknown>;
-    const oldKey = projectionIdempotencyKey('user.upserted', '5', hashPayload(loserPayload as Record<string, unknown>));
+    const winnerPayload = deepReplaceIntegratorUserIdInValue(loserPayload, '5', '9') as Record<
+      string,
+      unknown
+    >;
+    const oldKey = projectionIdempotencyKey(
+      'user.upserted',
+      '5',
+      hashPayload(loserPayload as Record<string, unknown>),
+    );
     const newKey = recomputeProjectionIdempotencyKeyAfterMerge('user.upserted', winnerPayload, 1);
     expect(newKey).not.toBe(oldKey);
     expect(newKey).toBe(projectionIdempotencyKey('user.upserted', '9', hashPayload(winnerPayload)));
@@ -97,7 +107,11 @@ describe('projectionOutboxMergePolicy', () => {
       linkedObjectType: 'lfk_complex',
       scheduleData: { foo: 1 },
     };
-    const kLegacy = recomputeProjectionIdempotencyKeyAfterMerge(REMINDER_RULE_UPSERTED, withLegacyFields, 8);
+    const kLegacy = recomputeProjectionIdempotencyKeyAfterMerge(
+      REMINDER_RULE_UPSERTED,
+      withLegacyFields,
+      8,
+    );
     expect(kLegacy).toBe(kA);
   });
 });

@@ -1,17 +1,17 @@
-"use server";
+'use server';
 
-import { z } from "zod";
-import { revalidatePath } from "next/cache";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireEntitlementForMutationAction } from "@/app-layer/guards/requireEntitlement";
-import { requireDoctorAccess, requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
+import { z } from 'zod';
+import { revalidatePath } from 'next/cache';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireEntitlementForMutationAction } from '@/app-layer/guards/requireEntitlement';
+import { requireDoctorAccess, requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import type {
   BroadcastAuditEntry,
   BroadcastCommand,
   BroadcastPreviewResult,
-} from "@/modules/doctor-broadcasts/ports";
-import type { BroadcastChannelCounts, BroadcastDraft } from "@/modules/doctor-broadcasts/draftPort";
+} from '@/modules/doctor-broadcasts/ports';
+import type { BroadcastChannelCounts, BroadcastDraft } from '@/modules/doctor-broadcasts/draftPort';
 
 /**
  * Zod-схема для входящего черновика рассылки.
@@ -21,30 +21,30 @@ import type { BroadcastChannelCounts, BroadcastDraft } from "@/modules/doctor-br
 const draftSchema = z.object({
   category: z
     .enum([
-      "service",
-      "organizational",
-      "marketing",
-      "important_notice",
-      "schedule_change",
-      "reminder",
-      "education",
-      "survey",
+      'service',
+      'organizational',
+      'marketing',
+      'important_notice',
+      'schedule_change',
+      'reminder',
+      'education',
+      'survey',
     ])
     .nullable(),
   audience: z
     .enum([
-      "all",
-      "active_clients",
-      "with_upcoming_appointment",
-      "without_appointment",
-      "with_telegram",
-      "with_max",
-      "sms_only",
-      "inactive",
+      'all',
+      'active_clients',
+      'with_upcoming_appointment',
+      'without_appointment',
+      'with_telegram',
+      'with_max',
+      'sms_only',
+      'inactive',
     ])
     .nullable(),
   channels: z
-    .array(z.enum(["bot_message", "sms", "push", "home_banner", "notification_bell"]))
+    .array(z.enum(['bot_message', 'sms', 'push', 'home_banner', 'notification_bell']))
     .max(10),
   title: z.string().max(200),
   body: z.string().max(4000),
@@ -54,7 +54,7 @@ const draftSchema = z.object({
 });
 
 export async function previewBroadcastAction(
-  command: Omit<BroadcastCommand, "actorId">
+  command: Omit<BroadcastCommand, 'actorId'>,
 ): Promise<BroadcastPreviewResult> {
   const session = await requireDoctorAccess();
   const deps = buildAppDeps();
@@ -62,7 +62,7 @@ export async function previewBroadcastAction(
 }
 
 export async function executeBroadcastAction(
-  command: Omit<BroadcastCommand, "actorId">
+  command: Omit<BroadcastCommand, 'actorId'>,
 ): Promise<{ auditEntry: BroadcastAuditEntry }> {
   const workspace = await requireDoctorWorkspaceContext();
   const deps = buildAppDeps();
@@ -74,14 +74,14 @@ export async function executeBroadcastAction(
     {
       organizationId: workspace.organizationId,
       reserveAudienceGrowth: async (audienceSize) => {
-        const entitlement = await requireEntitlementForMutationAction(workspace, "mailings");
+        const entitlement = await requireEntitlementForMutationAction(workspace, 'mailings');
         if (!entitlement.ok) throw new Error(`${entitlement.reason}:${entitlement.mechanic}`);
       },
       runDeliveryCommit: (fn) =>
-        withDoctorWorkspacePrincipal(workspace, "doctor.broadcasts.execute", fn),
+        withDoctorWorkspacePrincipal(workspace, 'doctor.broadcasts.execute', fn),
     },
   );
-  revalidatePath("/app/doctor/broadcasts");
+  revalidatePath('/app/doctor/broadcasts');
   return result;
 }
 
@@ -99,21 +99,18 @@ export async function loadDraftAction(): Promise<BroadcastDraft | null> {
 
 export async function saveDraftAction(draft: BroadcastDraft): Promise<void> {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForMutationAction(workspace, "mailings");
+  const entitlement = await requireEntitlementForMutationAction(workspace, 'mailings');
   if (!entitlement.ok) throw new Error(`${entitlement.reason}:${entitlement.mechanic}`);
   const parsed = draftSchema.safeParse(draft);
   if (!parsed.success) {
-    throw new Error("draft_validation_error");
+    throw new Error('draft_validation_error');
   }
   const deps = buildAppDeps();
-  await withDoctorWorkspacePrincipal(
-    workspace,
-    "doctor.broadcasts.draft.save",
-    () =>
-      deps.doctorBroadcastComposer.saveDraft(
-        workspace.session.user.userId,
-        parsed.data as BroadcastDraft,
-      ),
+  await withDoctorWorkspacePrincipal(workspace, 'doctor.broadcasts.draft.save', () =>
+    deps.doctorBroadcastComposer.saveDraft(
+      workspace.session.user.userId,
+      parsed.data as BroadcastDraft,
+    ),
   );
 }
 
@@ -124,14 +121,14 @@ export async function getChannelCountsAction(): Promise<BroadcastChannelCounts> 
 }
 
 const audienceFilterSchema = z.enum([
-  "all",
-  "active_clients",
-  "with_upcoming_appointment",
-  "without_appointment",
-  "with_telegram",
-  "with_max",
-  "sms_only",
-  "inactive",
+  'all',
+  'active_clients',
+  'with_upcoming_appointment',
+  'without_appointment',
+  'with_telegram',
+  'with_max',
+  'sms_only',
+  'inactive',
 ]);
 
 export async function getChannelCountsByAudienceAction(
@@ -139,7 +136,7 @@ export async function getChannelCountsByAudienceAction(
 ): Promise<BroadcastChannelCounts> {
   await requireDoctorAccess();
   const parsed = audienceFilterSchema.safeParse(audience);
-  if (!parsed.success) throw new Error("invalid_audience_filter");
+  if (!parsed.success) throw new Error('invalid_audience_filter');
   const deps = buildAppDeps();
   return deps.doctorBroadcastComposer.getChannelCountsByAudience(parsed.data);
 }

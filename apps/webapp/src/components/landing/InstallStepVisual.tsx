@@ -1,11 +1,11 @@
-import Image from "next/image";
+import Image from 'next/image';
 
 export type InstallHintKind =
-  | "ios-share"
-  | "ios-add-home"
-  | "ios-add"
-  | "android-menu"
-  | "android-install";
+  | 'ios-share'
+  | 'ios-add-home'
+  | 'ios-add'
+  | 'android-menu'
+  | 'android-install';
 
 type InstallStepVisualProps = {
   kind: InstallHintKind;
@@ -20,7 +20,13 @@ type ScreenshotProps = {
   maxW?: string;
 };
 
-function StepScreenshot({ src, alt, width, height, maxW = "max-w-[180px] sm:max-w-[210px]" }: ScreenshotProps) {
+function StepScreenshot({
+  src,
+  alt,
+  width,
+  height,
+  maxW = 'max-w-[180px] sm:max-w-[210px]',
+}: ScreenshotProps) {
   return (
     <Image
       src={src}
@@ -35,7 +41,7 @@ function StepScreenshot({ src, alt, width, height, maxW = "max-w-[180px] sm:max-
 /** Скриншоты-подсказки к шагам установки. */
 export function InstallStepVisual({ kind }: InstallStepVisualProps) {
   switch (kind) {
-    case "ios-share":
+    case 'ios-share':
       return (
         <StepScreenshot
           src="/images/landing/install/ios-step-1-share.png"
@@ -44,7 +50,7 @@ export function InstallStepVisual({ kind }: InstallStepVisualProps) {
           height={1024}
         />
       );
-    case "ios-add-home":
+    case 'ios-add-home':
       return (
         <StepScreenshot
           src="/images/landing/install/ios-step-2-add-home.png"
@@ -53,7 +59,7 @@ export function InstallStepVisual({ kind }: InstallStepVisualProps) {
           height={1024}
         />
       );
-    case "ios-add":
+    case 'ios-add':
       return (
         <StepScreenshot
           src="/images/landing/install/ios-step-3-confirm.png"
@@ -63,7 +69,7 @@ export function InstallStepVisual({ kind }: InstallStepVisualProps) {
           maxW="max-w-[260px] sm:max-w-[300px]"
         />
       );
-    case "android-menu":
+    case 'android-menu':
       return (
         <StepScreenshot
           src="/images/landing/install/android-step-1-menu.png"
@@ -72,7 +78,7 @@ export function InstallStepVisual({ kind }: InstallStepVisualProps) {
           height={1024}
         />
       );
-    case "android-install":
+    case 'android-install':
       return (
         <StepScreenshot
           src="/images/landing/install/android-step-2-install.png"

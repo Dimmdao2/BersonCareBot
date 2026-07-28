@@ -1,28 +1,28 @@
 ---
 name: Rubitime name mismatch (doctor UI)
-overview: "При расхождении имени в Rubitime (payload_json.name) и подписи профиля в списке записей показать врачу вторую строку; clientLabel и SQL не менять. Охват: /app/doctor/appointments и дашборд «Сегодня» (сегодня + ближайшие)."
+overview: 'При расхождении имени в Rubitime (payload_json.name) и подписи профиля в списке записей показать врачу вторую строку; clientLabel и SQL не менять. Охват: /app/doctor/appointments и дашборд «Сегодня» (сегодня + ближайшие).'
 status: completed
 todos:
   - id: shared-compare
-    content: "shared/lib: normalizeClientNameForCompare + rubitimeNameIfDifferent(profileLabel, rubitimeName); vitest unit-тесты (trim, пробелы, равенство, null/пусто)"
+    content: 'shared/lib: normalizeClientNameForCompare + rubitimeNameIfDifferent(profileLabel, rubitimeName); vitest unit-тесты (trim, пробелы, равенство, null/пусто)'
     status: completed
   - id: ports-mapper
-    content: "AppointmentRow в doctor-appointments/ports + mapListRows в pgDoctorAppointments (helper; clientLabel без изменений логики)"
+    content: 'AppointmentRow в doctor-appointments/ports + mapListRows в pgDoctorAppointments (helper; clientLabel без изменений логики)'
     status: completed
   - id: ui-appointments-page
-    content: "appointments/page.tsx: одна строка text-xs text-muted под ссылкой при rubitimeNameIfDifferent (копирайт краткий — ui-copy-no-excess-labels); href без clientUserId → /app/doctor/appointments"
+    content: 'appointments/page.tsx: одна строка text-xs text-muted под ссылкой при rubitimeNameIfDifferent (копирайт краткий — ui-copy-no-excess-labels); href без clientUserId → /app/doctor/appointments'
     status: completed
   - id: ui-today-dashboard
-    content: "TodayAppointmentItem + mapAppointmentToTodayItem; DoctorTodayDashboard.tsx — два блока (today + upcoming)"
+    content: 'TodayAppointmentItem + mapAppointmentToTodayItem; DoctorTodayDashboard.tsx — два блока (today + upcoming)'
     status: completed
   - id: tests-downstream
-    content: "Фикстуры: loadDoctorTodayDashboard.test.ts, DoctorTodayDashboard.test.tsx, doctor-appointments/service.test.ts"
+    content: 'Фикстуры: loadDoctorTodayDashboard.test.ts, DoctorTodayDashboard.test.tsx, doctor-appointments/service.test.ts'
     status: completed
   - id: doc-pipeline
-    content: "Док: RUBITIME_BOOKING_PIPELINE, DOCTOR_DASHBOARD_METRICS, docs/README, SPECIALIST_CABINET_STRUCTURE, STRUCTURE_AUDIT; changelog metrics; ссылка на changelog в DOCTOR_DASHBOARD_METRICS"
+    content: 'Док: RUBITIME_BOOKING_PIPELINE, DOCTOR_DASHBOARD_METRICS, docs/README, SPECIALIST_CABINET_STRUCTURE, STRUCTURE_AUDIT; changelog metrics; ссылка на changelog в DOCTOR_DASHBOARD_METRICS'
     status: completed
   - id: verify
-    content: "vitest (файлы этапа 5) + tsc --noEmit в apps/webapp"
+    content: 'vitest (файлы этапа 5) + tsc --noEmit в apps/webapp'
     status: completed
 isProject: false
 ---
@@ -39,14 +39,14 @@ isProject: false
 
 ## Разрешённый scope (можно менять)
 
-| Область | Пути |
-|--------|------|
-| Чистая логика сравнения | `apps/webapp/src/shared/lib/*` (новый файл, экспорт из `shared/lib` по существующему паттерну) |
-| Тип и маппинг записи | [`apps/webapp/src/modules/doctor-appointments/ports.ts`](apps/webapp/src/modules/doctor-appointments/ports.ts), [`apps/webapp/src/infra/repos/pgDoctorAppointments.ts`](apps/webapp/src/infra/repos/pgDoctorAppointments.ts) |
-| Сервис (проброс поля) | [`apps/webapp/src/modules/doctor-appointments/service.ts`](apps/webapp/src/modules/doctor-appointments/service.ts) — только если тип потребует явного spread (сейчас `{ ...row, time }` уже пробрасывает новые поля) |
-| UI | [`apps/webapp/src/app/app/doctor/appointments/page.tsx`](apps/webapp/src/app/app/doctor/appointments/page.tsx), [`apps/webapp/src/app/app/doctor/loadDoctorTodayDashboard.ts`](apps/webapp/src/app/app/doctor/loadDoctorTodayDashboard.ts), [`apps/webapp/src/app/app/doctor/DoctorTodayDashboard.tsx`](apps/webapp/src/app/app/doctor/DoctorTodayDashboard.tsx) |
-| Тесты | новый `*.test.ts` рядом с helper; [`loadDoctorTodayDashboard.test.ts`](apps/webapp/src/app/app/doctor/loadDoctorTodayDashboard.test.ts), [`DoctorTodayDashboard.test.tsx`](apps/webapp/src/app/app/doctor/DoctorTodayDashboard.test.tsx), [`service.test.ts`](apps/webapp/src/modules/doctor-appointments/service.test.ts) по факту падений |
-| Док | [`docs/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md`](docs/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md) |
+| Область                 | Пути                                                                                                                                                                                                                                                                                                                                                             |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Чистая логика сравнения | `apps/webapp/src/shared/lib/*` (новый файл, экспорт из `shared/lib` по существующему паттерну)                                                                                                                                                                                                                                                                   |
+| Тип и маппинг записи    | [`apps/webapp/src/modules/doctor-appointments/ports.ts`](apps/webapp/src/modules/doctor-appointments/ports.ts), [`apps/webapp/src/infra/repos/pgDoctorAppointments.ts`](apps/webapp/src/infra/repos/pgDoctorAppointments.ts)                                                                                                                                     |
+| Сервис (проброс поля)   | [`apps/webapp/src/modules/doctor-appointments/service.ts`](apps/webapp/src/modules/doctor-appointments/service.ts) — только если тип потребует явного spread (сейчас `{ ...row, time }` уже пробрасывает новые поля)                                                                                                                                             |
+| UI                      | [`apps/webapp/src/app/app/doctor/appointments/page.tsx`](apps/webapp/src/app/app/doctor/appointments/page.tsx), [`apps/webapp/src/app/app/doctor/loadDoctorTodayDashboard.ts`](apps/webapp/src/app/app/doctor/loadDoctorTodayDashboard.ts), [`apps/webapp/src/app/app/doctor/DoctorTodayDashboard.tsx`](apps/webapp/src/app/app/doctor/DoctorTodayDashboard.tsx) |
+| Тесты                   | новый `*.test.ts` рядом с helper; [`loadDoctorTodayDashboard.test.ts`](apps/webapp/src/app/app/doctor/loadDoctorTodayDashboard.test.ts), [`DoctorTodayDashboard.test.tsx`](apps/webapp/src/app/app/doctor/DoctorTodayDashboard.test.tsx), [`service.test.ts`](apps/webapp/src/modules/doctor-appointments/service.test.ts) по факту падений                      |
+| Док                     | [`docs/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md`](docs/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md)                                                                                                                                                                                                                                                               |
 
 ## Вне scope (не делать без отдельного запроса)
 
@@ -93,13 +93,13 @@ flowchart TB
 
 **Краевые случаи (таблица ожиданий в тестах):**
 
-| profileLabel (SQL) | payload.name | Подсказка |
-|--------------------|--------------|-----------|
-| `Иван` | `Иван` (лишние пробелы) | нет |
-| `Иван` | `Пётр` | да, «Пётр» |
-| `null` / пусто | `Иван` | нет (`clientLabel` уже берётся из `nameFromPayload`; вторая строка дублировала бы то же) |
-| `Иван` | отсутствует / пусто | нет |
-| Нет строки `platform_users` (`user_id` null, `display_name` null), `name` в payload пусто, `clientLabel` = телефон | — | нет подсказки (нет пары имён для сравнения) |
+| profileLabel (SQL)                                                                                                 | payload.name            | Подсказка                                                                                |
+| ------------------------------------------------------------------------------------------------------------------ | ----------------------- | ---------------------------------------------------------------------------------------- |
+| `Иван`                                                                                                             | `Иван` (лишние пробелы) | нет                                                                                      |
+| `Иван`                                                                                                             | `Пётр`                  | да, «Пётр»                                                                               |
+| `null` / пусто                                                                                                     | `Иван`                  | нет (`clientLabel` уже берётся из `nameFromPayload`; вторая строка дублировала бы то же) |
+| `Иван`                                                                                                             | отсутствует / пусто     | нет                                                                                      |
+| Нет строки `platform_users` (`user_id` null, `display_name` null), `name` в payload пусто, `clientLabel` = телефон | —                       | нет подсказки (нет пары имён для сравнения)                                              |
 
 **Чек-лист закрытия этапа:**
 

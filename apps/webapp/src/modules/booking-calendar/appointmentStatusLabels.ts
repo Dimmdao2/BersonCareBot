@@ -1,19 +1,19 @@
-import type { AppointmentStatus } from "@/modules/booking-engine/types";
+import type { AppointmentStatus } from '@/modules/booking-engine/types';
 
 const LABELS: Record<AppointmentStatus, string> = {
-  created: "Создана",
-  awaiting_payment: "Ожидает оплаты",
-  paid: "Оплачена",
-  confirmed: "Подтверждена",
-  rescheduled: "Перенесена",
-  cancelled_by_patient: "Отмена пациентом",
-  cancelled_by_specialist: "Отмена специалистом",
-  late_cancellation: "Поздняя отмена",
-  no_show: "Неявка",
-  completed: "Завершена",
-  visit_confirmed: "Визит подтверждён",
-  charged_to_package: "По абонементу",
-  manual_review_required: "На проверке",
+  created: 'Создана',
+  awaiting_payment: 'Ожидает оплаты',
+  paid: 'Оплачена',
+  confirmed: 'Подтверждена',
+  rescheduled: 'Перенесена',
+  cancelled_by_patient: 'Отмена пациентом',
+  cancelled_by_specialist: 'Отмена специалистом',
+  late_cancellation: 'Поздняя отмена',
+  no_show: 'Неявка',
+  completed: 'Завершена',
+  visit_confirmed: 'Визит подтверждён',
+  charged_to_package: 'По абонементу',
+  manual_review_required: 'На проверке',
 };
 
 export function appointmentStatusLabel(status: AppointmentStatus | string): string {
@@ -22,18 +22,18 @@ export function appointmentStatusLabel(status: AppointmentStatus | string): stri
 
 export function isCancelledAppointmentStatus(status: string): boolean {
   return (
-    status === "cancelled_by_patient"
-    || status === "cancelled_by_specialist"
-    || status === "late_cancellation"
-    || status === "no_show"
+    status === 'cancelled_by_patient' ||
+    status === 'cancelled_by_specialist' ||
+    status === 'late_cancellation' ||
+    status === 'no_show'
   );
 }
 
 /** Staff «Удалить» — только явная отмена (без no_show). */
 export const STAFF_DELETABLE_STATUSES = [
-  "cancelled_by_patient",
-  "cancelled_by_specialist",
-  "late_cancellation",
+  'cancelled_by_patient',
+  'cancelled_by_specialist',
+  'late_cancellation',
 ] as const;
 
 export type StaffDeletableCancelledStatus = (typeof STAFF_DELETABLE_STATUSES)[number];

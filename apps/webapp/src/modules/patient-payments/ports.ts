@@ -10,8 +10,8 @@
 
 // -- Доменный тип записи об оплате -------------------------------------------
 
-export type PaymentKind = "cash" | "acquiring";
-export type PaymentStatus = "paid" | "pending" | "refunded" | "failed";
+export type PaymentKind = 'cash' | 'acquiring';
+export type PaymentStatus = 'paid' | 'pending' | 'refunded' | 'failed';
 
 export type PatientPayment = {
   id: string;
@@ -105,7 +105,7 @@ export type AcquiringChargeInput = {
  */
 export type AcquiringChargeResult =
   | { ok: true; providerPaymentId: string; redirectUrl?: string }
-  | { ok: false; reason: "not_implemented" | "provider_error" | string };
+  | { ok: false; reason: 'not_implemented' | 'provider_error' | string };
 
 /**
  * AcquiringGatewayPort — seam для подключения эквайрингового провайдера.
@@ -143,11 +143,7 @@ export interface AcquiringGatewayPort {
    * Верифицировать входящий webhook от провайдера и извлечь событие.
    * Throws 'invalid_webhook_signature' if verification fails.
    */
-  verifyWebhook(input: {
-    headers: Headers;
-    bodyText: string;
-    webhookSecret: string;
-  }): {
+  verifyWebhook(input: { headers: Headers; bodyText: string; webhookSecret: string }): {
     idempotencyKey: string;
     eventType: string;
     payload: Record<string, unknown>;

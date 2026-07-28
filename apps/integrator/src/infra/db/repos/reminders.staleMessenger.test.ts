@@ -27,7 +27,8 @@ describe('getStaleReminderMessengerMessageIdForResend', () => {
     const arg0 = executeMock.mock.calls[0]?.[0];
     const flat = (n: unknown): string => {
       if (n === null || n === undefined) return '';
-      if (typeof n === 'string' || typeof n === 'number' || typeof n === 'boolean') return String(n);
+      if (typeof n === 'string' || typeof n === 'number' || typeof n === 'boolean')
+        return String(n);
       if (typeof n !== 'object') return '';
       const o = n as Record<string, unknown>;
       if (Array.isArray(o.queryChunks)) return o.queryChunks.map(flat).join('');

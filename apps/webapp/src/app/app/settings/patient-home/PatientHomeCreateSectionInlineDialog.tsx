@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useRef, useState, useTransition } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
+import { useRef, useState, useTransition } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
   Dialog,
   DialogContent,
@@ -9,16 +9,16 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/shared/ui/doctor/primitives/dialog";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Label } from "@/shared/ui/doctor/primitives/label";
-import { Switch } from "@/shared/ui/doctor/primitives/switch";
-import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
-import { MediaLibraryPickerDialog } from "@/app/app/doctor/content/MediaLibraryPickerDialog";
-import { getPatientHomeBlockEditorMetadata } from "@/modules/patient-home/blockEditorMetadata";
-import type { PatientHomeBlockCode } from "@/modules/patient-home/ports";
-import { fallbackSlug, slugFromTitle } from "@/shared/lib/slugify";
-import { createContentSectionForPatientHomeBlock } from "./actions";
+} from '@/shared/ui/doctor/primitives/dialog';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
+import { Switch } from '@/shared/ui/doctor/primitives/switch';
+import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
+import { MediaLibraryPickerDialog } from '@/app/app/doctor/content/MediaLibraryPickerDialog';
+import { getPatientHomeBlockEditorMetadata } from '@/modules/patient-home/blockEditorMetadata';
+import type { PatientHomeBlockCode } from '@/modules/patient-home/ports';
+import { fallbackSlug, slugFromTitle } from '@/shared/lib/slugify';
+import { createContentSectionForPatientHomeBlock } from './actions';
 
 export function PatientHomeCreateSectionInlineDialog({
   open,
@@ -32,15 +32,15 @@ export function PatientHomeCreateSectionInlineDialog({
   onSaved(): void;
 }) {
   const meta = getPatientHomeBlockEditorMetadata(blockCode);
-  const [title, setTitle] = useState("");
-  const [slug, setSlug] = useState("");
+  const [title, setTitle] = useState('');
+  const [slug, setSlug] = useState('');
   const slugManualRef = useRef(false);
-  const [description, setDescription] = useState("");
-  const [sortOrder, setSortOrder] = useState("0");
+  const [description, setDescription] = useState('');
+  const [sortOrder, setSortOrder] = useState('0');
   const [isVisible, setIsVisible] = useState(true);
   const [requiresAuth, setRequiresAuth] = useState(false);
-  const [iconImageUrl, setIconImageUrl] = useState("");
-  const [coverImageUrl, setCoverImageUrl] = useState("");
+  const [iconImageUrl, setIconImageUrl] = useState('');
+  const [coverImageUrl, setCoverImageUrl] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -72,18 +72,23 @@ export function PatientHomeCreateSectionInlineDialog({
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
-      key={open ? `ph-inline-section-${blockCode}` : "ph-inline-section-closed"}
+      key={open ? `ph-inline-section-${blockCode}` : 'ph-inline-section-closed'}
     >
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Новый раздел в блок «{meta.displayTitle}»</DialogTitle>
           <DialogDescription>
-            Раздел сохраняется в CMS и сразу добавляется в этот блок главной пациента как видимый элемент.
+            Раздел сохраняется в CMS и сразу добавляется в этот блок главной пациента как видимый
+            элемент.
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4 py-1">
           {error ? (
-            <p role="alert" className="text-sm text-destructive" data-testid="ph-inline-section-error">
+            <p
+              role="alert"
+              className="text-sm text-destructive"
+              data-testid="ph-inline-section-error"
+            >
               {error}
             </p>
           ) : null}
@@ -166,7 +171,11 @@ export function PatientHomeCreateSectionInlineDialog({
               </Label>
               <p className="text-xs text-muted-foreground">Раздел в меню и навигации пациента.</p>
             </div>
-            <Switch id="ph-inline-sec-vis" checked={isVisible} onCheckedChange={(v) => setIsVisible(Boolean(v))} />
+            <Switch
+              id="ph-inline-sec-vis"
+              checked={isVisible}
+              onCheckedChange={(v) => setIsVisible(Boolean(v))}
+            />
           </div>
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border/60 bg-muted/20 px-3 py-2">
             <div>
@@ -175,19 +184,40 @@ export function PatientHomeCreateSectionInlineDialog({
               </Label>
               <p className="text-xs text-muted-foreground">Требует авторизации пациента.</p>
             </div>
-            <Switch id="ph-inline-sec-auth" checked={requiresAuth} onCheckedChange={(v) => setRequiresAuth(Boolean(v))} />
+            <Switch
+              id="ph-inline-sec-auth"
+              checked={requiresAuth}
+              onCheckedChange={(v) => setRequiresAuth(Boolean(v))}
+            />
           </div>
           <div className="space-y-1">
-            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Иконка раздела</span>
-            <MediaLibraryPickerDialog kind="image" value={iconImageUrl} onChange={setIconImageUrl} />
+            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Иконка раздела
+            </span>
+            <MediaLibraryPickerDialog
+              kind="image"
+              value={iconImageUrl}
+              onChange={setIconImageUrl}
+            />
           </div>
           <div className="space-y-1">
-            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Обложка раздела</span>
-            <MediaLibraryPickerDialog kind="image" value={coverImageUrl} onChange={setCoverImageUrl} />
+            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Обложка раздела
+            </span>
+            <MediaLibraryPickerDialog
+              kind="image"
+              value={coverImageUrl}
+              onChange={setCoverImageUrl}
+            />
           </div>
         </div>
         <DialogFooter className="gap-2 sm:gap-0">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={pending}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={pending}
+          >
             Отмена
           </Button>
           <Button
@@ -196,7 +226,7 @@ export function PatientHomeCreateSectionInlineDialog({
             disabled={pending || !title.trim() || !slug.trim()}
             onClick={submit}
           >
-            {pending ? "Создание…" : "Создать и подключить к блоку"}
+            {pending ? 'Создание…' : 'Создать и подключить к блоку'}
           </Button>
         </DialogFooter>
       </DialogContent>

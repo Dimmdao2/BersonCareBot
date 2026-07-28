@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 type OverviewSlice = {
   specialists: { id: string; fullName: string }[];
@@ -25,24 +25,24 @@ export function BookingAvailabilityMatrixTable({ data }: { data: OverviewSlice }
     id: row.id,
     specialist: specById.get(row.specialistId) ?? row.specialistId,
     service: svcById.get(row.serviceId) ?? row.serviceId,
-    branch: row.branchId ? (branchById.get(row.branchId) ?? row.branchId) : "—",
-    kind: "Специалист × услуга",
+    branch: row.branchId ? (branchById.get(row.branchId) ?? row.branchId) : '—',
+    kind: 'Специалист × услуга',
   }));
 
   const locRows = data.locationAvailability.map((row) => ({
     id: row.id,
-    specialist: "—",
+    specialist: '—',
     service: svcById.get(row.serviceId) ?? row.serviceId,
     branch: branchById.get(row.branchId) ?? row.branchId,
-    kind: "Услуга × филиал",
+    kind: 'Услуга × филиал',
   }));
 
   const roomRows = data.specialistRooms.map((row) => ({
     id: row.id,
     specialist: specById.get(row.specialistId) ?? row.specialistId,
-    service: "—",
+    service: '—',
     branch: roomById.get(row.roomId) ?? row.roomId,
-    kind: "Специалист × кабинет",
+    kind: 'Специалист × кабинет',
   }));
 
   const rows = [...specServiceRows, ...locRows, ...roomRows];

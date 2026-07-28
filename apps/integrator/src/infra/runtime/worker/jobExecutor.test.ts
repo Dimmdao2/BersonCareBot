@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { assertWebappPushNotifyAccepted, executeJob } from './jobExecutor.js';
-import { OutboundMessagePolicyError, OUTBOUND_MESSAGE_POLICY_DENIED } from '../../adapters/outboundMessagePolicy.js';
+import {
+  OutboundMessagePolicyError,
+  OUTBOUND_MESSAGE_POLICY_DENIED,
+} from '../../adapters/outboundMessagePolicy.js';
 
 describe('executeJob', () => {
   it('converts a non-ok webapp M2M response into a retryable executor error', () => {
@@ -80,20 +83,30 @@ describe('executeJob', () => {
       expect(intent.meta).not.toHaveProperty('outboundCapability');
       throw new OutboundMessagePolicyError('missing_or_invalid_marker');
     });
-    const result = await executeJob({
-      id: 'job-forged-auth', kind: 'message.deliver', runAt: '2026-03-05T12:00:00.000Z', attempts: 0, maxAttempts: 3,
-      payload: {
-        intent: {
-          type: 'message.send',
-          meta: {
-            eventId: 'legacy-booking', occurredAt: '2026-03-05T12:00:00.000Z', source: 'telegram',
-            outboundMessageClass: 'auth_code', outboundCapability: 'auth_code',
+    const result = await executeJob(
+      {
+        id: 'job-forged-auth',
+        kind: 'message.deliver',
+        runAt: '2026-03-05T12:00:00.000Z',
+        attempts: 0,
+        maxAttempts: 3,
+        payload: {
+          intent: {
+            type: 'message.send',
+            meta: {
+              eventId: 'legacy-booking',
+              occurredAt: '2026-03-05T12:00:00.000Z',
+              source: 'telegram',
+              outboundMessageClass: 'auth_code',
+              outboundCapability: 'auth_code',
+            },
+            payload: { message: { text: 'legacy text' }, delivery: { channels: ['telegram'] } },
           },
-          payload: { message: { text: 'legacy text' }, delivery: { channels: ['telegram'] } },
+          targets: [{ resource: 'telegram', address: { chatId: '123' } }],
         },
-        targets: [{ resource: 'telegram', address: { chatId: '123' } }],
       },
-    }, { dispatchOutgoing });
+      { dispatchOutgoing },
+    );
 
     expect(result).toEqual({ ok: false, errorCode: OUTBOUND_MESSAGE_POLICY_DENIED, final: true });
   });
@@ -102,7 +115,11 @@ describe('executeJob', () => {
     const dispatchWebappPush = vi.fn();
     const result = await executeJob(
       {
-        id: 'job-push-no-org', kind: 'message.deliver', runAt: '2026-03-05T12:00:00.000Z', attempts: 0, maxAttempts: 3,
+        id: 'job-push-no-org',
+        kind: 'message.deliver',
+        runAt: '2026-03-05T12:00:00.000Z',
+        attempts: 0,
+        maxAttempts: 3,
         payload: {
           intent: {
             type: 'message.send',
@@ -111,15 +128,21 @@ describe('executeJob', () => {
           },
           targets: [{ resource: 'channel-a', address: { phoneNormalized: '+79990001122' } }],
           webappPushNotify: {
-            phoneNormalized: '+79990001122', slotStartIso: '2026-03-06T12:00:00.000Z', stableKey: 'booking:1:24h',
+            phoneNormalized: '+79990001122',
+            slotStartIso: '2026-03-06T12:00:00.000Z',
+            stableKey: 'booking:1:24h',
           },
         },
       },
       { dispatchOutgoing: vi.fn().mockResolvedValue({}), dispatchWebappPush },
     );
-    expect(result).toEqual(expect.objectContaining({
-      ok: false, final: false, errorCode: 'INVALID_WEBAPP_PUSH_NOTIFY_PAYLOAD',
-    }));
+    expect(result).toEqual(
+      expect.objectContaining({
+        ok: false,
+        final: false,
+        errorCode: 'INVALID_WEBAPP_PUSH_NOTIFY_PAYLOAD',
+      }),
+    );
     expect(dispatchWebappPush).not.toHaveBeenCalled();
   });
 
@@ -127,7 +150,11 @@ describe('executeJob', () => {
     const dispatchWebappPush = vi.fn().mockResolvedValue(undefined);
     const result = await executeJob(
       {
-        id: 'job-push-org', kind: 'message.deliver', runAt: '2026-03-05T12:00:00.000Z', attempts: 0, maxAttempts: 3,
+        id: 'job-push-org',
+        kind: 'message.deliver',
+        runAt: '2026-03-05T12:00:00.000Z',
+        attempts: 0,
+        maxAttempts: 3,
         payload: {
           intent: {
             type: 'message.send',
@@ -137,22 +164,30 @@ describe('executeJob', () => {
           targets: [{ resource: 'channel-a', address: { phoneNormalized: '+79990001122' } }],
           webappPushNotify: {
             organizationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-            phoneNormalized: '+79990001122', slotStartIso: '2026-03-06T12:00:00.000Z', stableKey: 'booking:1:24h',
+            phoneNormalized: '+79990001122',
+            slotStartIso: '2026-03-06T12:00:00.000Z',
+            stableKey: 'booking:1:24h',
           },
         },
       },
       { dispatchOutgoing: vi.fn().mockResolvedValue({}), dispatchWebappPush },
     );
     expect(result.ok).toBe(true);
-    expect(dispatchWebappPush).toHaveBeenCalledWith(expect.objectContaining({
-      organizationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-    }));
+    expect(dispatchWebappPush).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      }),
+    );
   });
 
   it('fails a queued webapp push when the dispatcher is unavailable', async () => {
     const result = await executeJob(
       {
-        id: 'job-push-unavailable', kind: 'message.deliver', runAt: '2026-03-05T12:00:00.000Z', attempts: 0, maxAttempts: 3,
+        id: 'job-push-unavailable',
+        kind: 'message.deliver',
+        runAt: '2026-03-05T12:00:00.000Z',
+        attempts: 0,
+        maxAttempts: 3,
         payload: {
           intent: {
             type: 'message.send',
@@ -162,14 +197,20 @@ describe('executeJob', () => {
           targets: [{ resource: 'channel-a', address: { phoneNormalized: '+79990001122' } }],
           webappPushNotify: {
             organizationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-            phoneNormalized: '+79990001122', slotStartIso: '2026-03-06T12:00:00.000Z', stableKey: 'booking:1:24h',
+            phoneNormalized: '+79990001122',
+            slotStartIso: '2026-03-06T12:00:00.000Z',
+            stableKey: 'booking:1:24h',
           },
         },
       },
       { dispatchOutgoing: vi.fn().mockResolvedValue({}) },
     );
-    expect(result).toEqual(expect.objectContaining({
-      ok: false, final: false, errorCode: 'WEBAPP_PUSH_DISPATCH_UNAVAILABLE',
-    }));
+    expect(result).toEqual(
+      expect.objectContaining({
+        ok: false,
+        final: false,
+        errorCode: 'WEBAPP_PUSH_DISPATCH_UNAVAILABLE',
+      }),
+    );
   });
 });

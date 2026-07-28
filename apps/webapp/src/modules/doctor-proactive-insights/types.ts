@@ -1,5 +1,5 @@
 /** Тип проактивного сигнала для ленты «Сегодня» (этап 8 RECOMMENDATIONS_AND_ROADMAP, MVP). */
-export const PROACTIVE_INSIGHT_KINDS = ["wellbeing_low_streak", "program_inactivity"] as const;
+export const PROACTIVE_INSIGHT_KINDS = ['wellbeing_low_streak', 'program_inactivity'] as const;
 export type ProactiveInsightKind = (typeof PROACTIVE_INSIGHT_KINDS)[number];
 
 export type ProactiveInsightRow = {

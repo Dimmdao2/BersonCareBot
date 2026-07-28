@@ -8,12 +8,9 @@
 // `/app/admin/admin/booking`) — this constant's value is now `/app/admin/booking`. It drives the
 // redirect-stub subpages (catalog, integrations) below, the tab nav, and the screen-title lookup
 // in doctorScreenTitles.ts.
-export const BOOKING_ADMIN_BASE = "/app/admin/booking";
+export const BOOKING_ADMIN_BASE = '/app/admin/booking';
 
-export type BookingAdminTabId =
-  | "overview"
-  | "form-public"
-  | "payments";
+export type BookingAdminTabId = 'overview' | 'form-public' | 'payments';
 
 export type BookingAdminTab = {
   id: BookingAdminTabId;
@@ -23,25 +20,29 @@ export type BookingAdminTab = {
 };
 
 export const BOOKING_ADMIN_TABS: BookingAdminTab[] = [
-  { id: "overview",     label: "Обзор и настройка",        href: BOOKING_ADMIN_BASE },
-  { id: "form-public",  label: "Форма и публичная запись",  href: `${BOOKING_ADMIN_BASE}/form-public` },
-  { id: "payments",     label: "Оплата",                   href: `${BOOKING_ADMIN_BASE}/payments` },
+  { id: 'overview', label: 'Обзор и настройка', href: BOOKING_ADMIN_BASE },
+  {
+    id: 'form-public',
+    label: 'Форма и публичная запись',
+    href: `${BOOKING_ADMIN_BASE}/form-public`,
+  },
+  { id: 'payments', label: 'Оплата', href: `${BOOKING_ADMIN_BASE}/payments` },
 ];
 
 /** Legacy маршруты → актуальная вкладка (redirect + подсветка nav). */
 const LEGACY_TAB_ALIASES: Record<string, BookingAdminTabId> = {
-  [`${BOOKING_ADMIN_BASE}/catalog`]: "overview",
+  [`${BOOKING_ADMIN_BASE}/catalog`]: 'overview',
 };
 
 export function bookingAdminTabFromPathname(pathname: string): BookingAdminTabId {
-  const norm = pathname.endsWith("/") && pathname !== "/" ? pathname.slice(0, -1) : pathname;
+  const norm = pathname.endsWith('/') && pathname !== '/' ? pathname.slice(0, -1) : pathname;
   const alias = LEGACY_TAB_ALIASES[norm];
   if (alias) return alias;
-  if (norm === BOOKING_ADMIN_BASE) return "overview";
+  if (norm === BOOKING_ADMIN_BASE) return 'overview';
   for (const tab of BOOKING_ADMIN_TABS) {
-    if (tab.id !== "overview" && (norm === tab.href || norm.startsWith(`${tab.href}/`))) {
+    if (tab.id !== 'overview' && (norm === tab.href || norm.startsWith(`${tab.href}/`))) {
       return tab.id;
     }
   }
-  return "overview";
+  return 'overview';
 }

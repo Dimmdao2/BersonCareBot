@@ -34,43 +34,43 @@
 
 ### 2.1. Контент (то, что мы зовём «CMS»)
 
-| Сущность | Таблица БД | Ключевое поле | Кто использует |
-|---|---|---|---|
-| Раздел контента | `content_sections` | `slug`, `title`, `requires_auth` | CMS sidebar, страницы, главная пациента (через `patient_home_block_items.target_type='content_section'`) |
-| Страница контента | `content_pages` | `section`, `slug`, `body_md`, `body_html`, `video_url`, `image_url`, `linked_course_id`, `requires_auth` | CMS список страниц, главная пациента, курсы (вступительная страница) |
-| История переименований раздела | `content_section_slug_history` | `old_slug`, `new_slug` | Редирект пациентских ссылок при смене slug |
-| Мотивационная цитата | `motivational_quotes` | `text`, `author`, `is_visible`, `sort_order` | CMS экран «Мотивации», мотивационный блок главной пациента |
+| Сущность                       | Таблица БД                     | Ключевое поле                                                                                            | Кто использует                                                                                           |
+| ------------------------------ | ------------------------------ | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Раздел контента                | `content_sections`             | `slug`, `title`, `requires_auth`                                                                         | CMS sidebar, страницы, главная пациента (через `patient_home_block_items.target_type='content_section'`) |
+| Страница контента              | `content_pages`                | `section`, `slug`, `body_md`, `body_html`, `video_url`, `image_url`, `linked_course_id`, `requires_auth` | CMS список страниц, главная пациента, курсы (вступительная страница)                                     |
+| История переименований раздела | `content_section_slug_history` | `old_slug`, `new_slug`                                                                                   | Редирект пациентских ссылок при смене slug                                                               |
+| Мотивационная цитата           | `motivational_quotes`          | `text`, `author`, `is_visible`, `sort_order`                                                             | CMS экран «Мотивации», мотивационный блок главной пациента                                               |
 
 ### 2.2. Главная пациента (управление содержимым главного экрана пациента)
 
-| Сущность | Таблица БД | Что это | Привязка к контенту |
-|---|---|---|---|
-| Блок главной | `patient_home_blocks` | Кодовые блоки: `daily_warmup`, `useful_post`, `booking`, `situations`, `progress`, `next_reminder`, `mood_checkin`, `sos`, `plan`, `subscription_carousel`, `courses` | Не привязан к таблицам контента напрямую |
-| Item блока | `patient_home_block_items` | Что показывается в блоке. Поле `target_type` ∈ {`content_page`, `content_section`, `course`, `static_action`}, `target_ref` — slug/uuid | Ссылается на `content_pages`, `content_sections`, `courses` по строке (без FK) |
+| Сущность     | Таблица БД                 | Что это                                                                                                                                                               | Привязка к контенту                                                            |
+| ------------ | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Блок главной | `patient_home_blocks`      | Кодовые блоки: `daily_warmup`, `useful_post`, `booking`, `situations`, `progress`, `next_reminder`, `mood_checkin`, `sos`, `plan`, `subscription_carousel`, `courses` | Не привязан к таблицам контента напрямую                                       |
+| Item блока   | `patient_home_block_items` | Что показывается в блоке. Поле `target_type` ∈ {`content_page`, `content_section`, `course`, `static_action`}, `target_ref` — slug/uuid                               | Ссылается на `content_pages`, `content_sections`, `courses` по строке (без FK) |
 
 Списки кодов блоков и допустимые типы ссылок — `apps/webapp/src/modules/patient-home/blocks.ts`.
 
 ### 2.3. Назначения (отдельные таблицы, не CMS)
 
-| Сущность | Таблица БД |
-|---|---|
-| Упражнение | `lfk_exercises` (+ `lfk_exercise_media`) |
-| Комплекс ЛФК (шаблон) | `lfk_complex_templates` (+ `lfk_complex_template_exercises`) |
-| Назначение комплекса пациенту | `patient_lfk_assignments` |
-| Клинический тест | `tests` |
-| Набор тестов | `test_sets` (+ `test_set_items`) |
-| Рекомендация | `recommendations` (поле `domain` — то, что в UI называется «Область») |
-| Шаблон программы лечения | `treatment_program_templates` (+ `treatment_program_template_stages` + `treatment_program_template_stage_items`) |
-| Курс | `courses` (метаданные + `program_template_id` + опциональная вступительная страница из `content_pages`) |
+| Сущность                      | Таблица БД                                                                                                       |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Упражнение                    | `lfk_exercises` (+ `lfk_exercise_media`)                                                                         |
+| Комплекс ЛФК (шаблон)         | `lfk_complex_templates` (+ `lfk_complex_template_exercises`)                                                     |
+| Назначение комплекса пациенту | `patient_lfk_assignments`                                                                                        |
+| Клинический тест              | `tests`                                                                                                          |
+| Набор тестов                  | `test_sets` (+ `test_set_items`)                                                                                 |
+| Рекомендация                  | `recommendations` (поле `domain` — то, что в UI называется «Область»)                                            |
+| Шаблон программы лечения      | `treatment_program_templates` (+ `treatment_program_template_stages` + `treatment_program_template_stage_items`) |
+| Курс                          | `courses` (метаданные + `program_template_id` + опциональная вступительная страница из `content_pages`)          |
 
 Шаблон программы внутри своих этапов (`treatment_program_template_stage_items.item_type`) ссылается на: `exercise`, `lfk_complex`, `recommendation`, `lesson`, `test_set`. То есть «урок» здесь — это страница из `content_pages` в разделе `lessons` или `course_lessons`.
 
 ### 2.4. Медиатека
 
-| Сущность | Таблица БД |
-|---|---|
-| Файл медиа | `media_files` |
-| Папка медиа | `media_folders` |
+| Сущность                  | Таблица БД              |
+| ------------------------- | ----------------------- |
+| Файл медиа                | `media_files`           |
+| Папка медиа               | `media_folders`         |
 | Сессия multipart-загрузки | `media_upload_sessions` |
 
 В UI лежит в CMS-сайдбаре «Библиотека файлов» (`/app/doctor/content/library`). По данным никак не связана с разделами/страницами контента — это библиотека ассетов, которые потом ссылаются URL-ом из `content_pages.image_url`, `tests.media`, `recommendations.media` и т.п.
@@ -110,20 +110,20 @@
 
 ## 4. Состояние существующих разделов кабинета врача (по скринам пользователя и коду)
 
-| Раздел меню | Маршрут | Состояние |
-|---|---|---|
-| CMS «Все страницы» | `/app/doctor/content` | Список страниц ограничен разделами `kind=article`; разминки/уроки не смешиваются в общей ленте (вариант C) |
-| CMS «Разделы» | `/app/doctor/content/sections` | Список с таксономией (`kind`, папка); системные слоты и статьи разведены в UI |
-| CMS «Мотивации» | `/app/doctor/content/motivation` | Работает; список читается через порт, мутации — server actions с raw SQL (отмечено как тех-долг в `LOG.md`) |
-| CMS «Библиотека файлов» | `/app/doctor/content/library` | Работает; по сути не CMS, а медиатека |
-| Главная пациента | `/app/doctor/patient-home` | Работает; редактирует `patient_home_blocks` + items |
-| Упражнения | `/app/doctor/exercises` | По комментарию пользователя: ок |
-| Комплексы | `/app/doctor/lfk-templates` | Кривые: не работает восстановление из архива, конструктор комплекса визуально плохой |
-| Клинические тесты | `/app/doctor/clinical-tests` | Приемлемо, но `scoring_config` неюзабельно (raw JSON), `test_type` — свободная строка вместо справочника |
-| Наборы тестов | `/app/doctor/test-sets` | Нерабочие |
-| Рекомендации | `/app/doctor/recommendations` | Более-менее ок; слово «Область» (поле `domain`) путается с областью тела; markdown-редактор имеет лишний preview |
-| Шаблоны программ | `/app/doctor/treatment-program-templates` | Почти нефункциональны |
-| Курсы | `/app/doctor/courses` | Заглушка: список и форма создания; нет реального управления уроками/прогрессом/ценой |
+| Раздел меню             | Маршрут                                   | Состояние                                                                                                        |
+| ----------------------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| CMS «Все страницы»      | `/app/doctor/content`                     | Список страниц ограничен разделами `kind=article`; разминки/уроки не смешиваются в общей ленте (вариант C)       |
+| CMS «Разделы»           | `/app/doctor/content/sections`            | Список с таксономией (`kind`, папка); системные слоты и статьи разведены в UI                                    |
+| CMS «Мотивации»         | `/app/doctor/content/motivation`          | Работает; список читается через порт, мутации — server actions с raw SQL (отмечено как тех-долг в `LOG.md`)      |
+| CMS «Библиотека файлов» | `/app/doctor/content/library`             | Работает; по сути не CMS, а медиатека                                                                            |
+| Главная пациента        | `/app/doctor/patient-home`                | Работает; редактирует `patient_home_blocks` + items                                                              |
+| Упражнения              | `/app/doctor/exercises`                   | По комментарию пользователя: ок                                                                                  |
+| Комплексы               | `/app/doctor/lfk-templates`               | Кривые: не работает восстановление из архива, конструктор комплекса визуально плохой                             |
+| Клинические тесты       | `/app/doctor/clinical-tests`              | Приемлемо, но `scoring_config` неюзабельно (raw JSON), `test_type` — свободная строка вместо справочника         |
+| Наборы тестов           | `/app/doctor/test-sets`                   | Нерабочие                                                                                                        |
+| Рекомендации            | `/app/doctor/recommendations`             | Более-менее ок; слово «Область» (поле `domain`) путается с областью тела; markdown-редактор имеет лишний preview |
+| Шаблоны программ        | `/app/doctor/treatment-program-templates` | Почти нефункциональны                                                                                            |
+| Курсы                   | `/app/doctor/courses`                     | Заглушка: список и форма создания; нет реального управления уроками/прогрессом/ценой                             |
 
 ---
 

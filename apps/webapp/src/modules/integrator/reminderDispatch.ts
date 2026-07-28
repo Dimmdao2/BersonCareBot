@@ -19,12 +19,19 @@ export type ReminderDispatchResult = {
   reason?: string;
 };
 
-export async function handleReminderDispatch(body: ReminderDispatchBody): Promise<ReminderDispatchResult> {
-  if (process.env.NODE_ENV !== "production") {
-    console.info("[integrator] reminder dispatch", body.userId, body.message?.title ?? "", body.channelBindings ?? {});
+export async function handleReminderDispatch(
+  body: ReminderDispatchBody,
+): Promise<ReminderDispatchResult> {
+  if (process.env.NODE_ENV !== 'production') {
+    console.info(
+      '[integrator] reminder dispatch',
+      body.userId,
+      body.message?.title ?? '',
+      body.channelBindings ?? {},
+    );
   }
   return {
     accepted: false,
-    reason: "use_integrator_reminders_dispatchDue_not_http_dispatch",
+    reason: 'use_integrator_reminders_dispatchDue_not_http_dispatch',
   };
 }

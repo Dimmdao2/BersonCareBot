@@ -37,8 +37,19 @@ describe('POST /internal/operator-health-probe', () => {
     mockGetOperatorHealthProbeConfig.mockResolvedValue({
       max: { enabled: true, intervalMs: 600_000, timeoutMs: 5_000, consecutiveFailures: 4 },
       telegram: { enabled: false, intervalMs: 600_000, timeoutMs: 5_000, consecutiveFailures: 4 },
-      google_calendar: { enabled: false, intervalMs: 600_000, timeoutMs: 5_000, consecutiveFailures: 4 },
-      email: { intervalMs: 900_000, timeoutMs: 60_000, roundTripDeadlineMs: 300_000, retentionMs: 604_800_000, cleanupIntervalMs: 86_400_000 },
+      google_calendar: {
+        enabled: false,
+        intervalMs: 600_000,
+        timeoutMs: 5_000,
+        consecutiveFailures: 4,
+      },
+      email: {
+        intervalMs: 900_000,
+        timeoutMs: 60_000,
+        roundTripDeadlineMs: 300_000,
+        retentionMs: 604_800_000,
+        cleanupIntervalMs: 86_400_000,
+      },
       quietWindowMaxDurationMs: 86_400_000,
       quietUntil: null,
     });
@@ -87,8 +98,19 @@ describe('POST /internal/operator-health-probe', () => {
       return {
         max: { enabled: true, intervalMs: 600_000, timeoutMs: 5_000, consecutiveFailures: 4 },
         telegram: { enabled: false, intervalMs: 600_000, timeoutMs: 5_000, consecutiveFailures: 4 },
-        google_calendar: { enabled: false, intervalMs: 600_000, timeoutMs: 5_000, consecutiveFailures: 4 },
-        email: { intervalMs: 900_000, timeoutMs: 60_000, roundTripDeadlineMs: 300_000, retentionMs: 604_800_000, cleanupIntervalMs: 86_400_000 },
+        google_calendar: {
+          enabled: false,
+          intervalMs: 600_000,
+          timeoutMs: 5_000,
+          consecutiveFailures: 4,
+        },
+        email: {
+          intervalMs: 900_000,
+          timeoutMs: 60_000,
+          roundTripDeadlineMs: 300_000,
+          retentionMs: 604_800_000,
+          cleanupIntervalMs: 86_400_000,
+        },
         quietWindowMaxDurationMs: 86_400_000,
         quietUntil: null,
       };

@@ -1,86 +1,87 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { requireDoctorWorkspaceApiContextMock, listMock, listClientsMock, buildAppDepsMock } = vi.hoisted(() => {
-  const listMockInner = vi.fn();
-  const listClientsMockInner = vi.fn().mockResolvedValue([]);
-  return {
-    requireDoctorWorkspaceApiContextMock: vi.fn(),
-    listMock: listMockInner,
-    listClientsMock: listClientsMockInner,
-    buildAppDepsMock: vi.fn(() => ({
-      messaging: {
-        doctorSupport: {
-          listOpenConversations: listMockInner,
-          ensureConversationForPatient: vi.fn(),
-          getMessages: vi.fn(),
-          sendAdminReply: vi.fn(),
-          markUserMessagesRead: vi.fn(),
-          unreadFromUsers: vi.fn(),
+const { requireDoctorWorkspaceApiContextMock, listMock, listClientsMock, buildAppDepsMock } =
+  vi.hoisted(() => {
+    const listMockInner = vi.fn();
+    const listClientsMockInner = vi.fn().mockResolvedValue([]);
+    return {
+      requireDoctorWorkspaceApiContextMock: vi.fn(),
+      listMock: listMockInner,
+      listClientsMock: listClientsMockInner,
+      buildAppDepsMock: vi.fn(() => ({
+        messaging: {
+          doctorSupport: {
+            listOpenConversations: listMockInner,
+            ensureConversationForPatient: vi.fn(),
+            getMessages: vi.fn(),
+            sendAdminReply: vi.fn(),
+            markUserMessagesRead: vi.fn(),
+            unreadFromUsers: vi.fn(),
+          },
         },
-      },
-      doctorClients: {
-        listClients: listClientsMockInner,
-      },
-    })),
-  };
-});
+        doctorClients: {
+          listClients: listClientsMockInner,
+        },
+      })),
+    };
+  });
 
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: buildAppDepsMock,
 }));
-vi.mock("@/app-layer/guards/requireRole", () => ({
+vi.mock('@/app-layer/guards/requireRole', () => ({
   requireDoctorWorkspaceApiContext: requireDoctorWorkspaceApiContextMock,
 }));
 
-import { GET } from "./route";
+import { GET } from './route';
 
-describe("GET /api/doctor/messages/conversations", () => {
+describe('GET /api/doctor/messages/conversations', () => {
   beforeEach(() => {
     requireDoctorWorkspaceApiContextMock.mockReset();
     requireDoctorWorkspaceApiContextMock.mockResolvedValue({
       ok: true,
-      ctx: { organizationId: "10000000-0000-4000-8000-000000000001" },
+      ctx: { organizationId: '10000000-0000-4000-8000-000000000001' },
     });
     listMock.mockReset();
     listClientsMock.mockReset();
     listClientsMock.mockResolvedValue([]);
   });
 
-  it("returns 401 without session", async () => {
+  it('returns 401 without session', async () => {
     requireDoctorWorkspaceApiContextMock.mockResolvedValue({
       ok: false,
       response: Response.json({}, { status: 401 }),
     });
-    const res = await GET(new Request("http://localhost/api/doctor/messages/conversations"));
+    const res = await GET(new Request('http://localhost/api/doctor/messages/conversations'));
     expect(res.status).toBe(401);
   });
 
-  it("returns 403 when not doctor", async () => {
+  it('returns 403 when not doctor', async () => {
     requireDoctorWorkspaceApiContextMock.mockResolvedValue({
       ok: false,
       response: Response.json({}, { status: 403 }),
     });
-    const res = await GET(new Request("http://localhost/api/doctor/messages/conversations"));
+    const res = await GET(new Request('http://localhost/api/doctor/messages/conversations'));
     expect(res.status).toBe(403);
   });
 
-  it("returns 200 with conversations for doctor", async () => {
+  it('returns 200 with conversations for doctor', async () => {
     listMock.mockResolvedValue([
       {
-        conversationId: "00000000-0000-4000-8000-000000000002",
-        integratorConversationId: "webapp:platform:x",
-        source: "webapp",
-        status: "open",
-        openedAt: "2025-01-01T00:00:00.000Z",
-        lastMessageAt: "2025-01-02T00:00:00.000Z",
-        displayName: "Пациент",
-        phoneNormalized: "+7",
-        lastMessageText: "Hi",
-        lastSenderRole: "user",
+        conversationId: '00000000-0000-4000-8000-000000000002',
+        integratorConversationId: 'webapp:platform:x',
+        source: 'webapp',
+        status: 'open',
+        openedAt: '2025-01-01T00:00:00.000Z',
+        lastMessageAt: '2025-01-02T00:00:00.000Z',
+        displayName: 'Пациент',
+        phoneNormalized: '+7',
+        lastMessageText: 'Hi',
+        lastSenderRole: 'user',
         unreadFromUserCount: 2,
       },
     ]);
-    const res = await GET(new Request("http://localhost/api/doctor/messages/conversations"));
+    const res = await GET(new Request('http://localhost/api/doctor/messages/conversations'));
     expect(res.status).toBe(200);
     const data = (await res.json()) as {
       ok: boolean;
@@ -92,41 +93,43 @@ describe("GET /api/doctor/messages/conversations", () => {
     expect(data.conversations[0]?.hasUnreadFromUser).toBe(true);
   });
 
-  it("passes unread=1 as unreadOnly to service", async () => {
+  it('passes unread=1 as unreadOnly to service', async () => {
     listMock.mockResolvedValue([]);
-    const res = await GET(new Request("http://localhost/api/doctor/messages/conversations?unread=1"));
+    const res = await GET(
+      new Request('http://localhost/api/doctor/messages/conversations?unread=1'),
+    );
     expect(res.status).toBe(200);
     expect(listMock).toHaveBeenCalledWith({
       limit: 50,
       unreadOnly: true,
-      organizationId: "10000000-0000-4000-8000-000000000001",
+      organizationId: '10000000-0000-4000-8000-000000000001',
     });
   });
 
-  it("marks onSupport=true when patient is in on-support list", async () => {
-    const supportUserId = "aaaaaaaa-0000-4000-8000-000000000001";
+  it('marks onSupport=true when patient is in on-support list', async () => {
+    const supportUserId = 'aaaaaaaa-0000-4000-8000-000000000001';
     listMock.mockResolvedValue([
       {
-        conversationId: "00000000-0000-4000-8000-000000000010",
+        conversationId: '00000000-0000-4000-8000-000000000010',
         integratorConversationId: `webapp:platform:${supportUserId}`,
-        source: "webapp",
-        status: "open",
-        openedAt: "2025-01-01T00:00:00.000Z",
-        lastMessageAt: "2025-01-02T00:00:00.000Z",
-        displayName: "Ирина Вовк",
+        source: 'webapp',
+        status: 'open',
+        openedAt: '2025-01-01T00:00:00.000Z',
+        lastMessageAt: '2025-01-02T00:00:00.000Z',
+        displayName: 'Ирина Вовк',
         phoneNormalized: null,
-        lastMessageText: "Спасибо",
-        lastSenderRole: "user",
+        lastMessageText: 'Спасибо',
+        lastSenderRole: 'user',
         unreadFromUserCount: 0,
       },
       {
-        conversationId: "00000000-0000-4000-8000-000000000011",
-        integratorConversationId: "webapp:platform:bbbbbbbb-0000-4000-8000-000000000002",
-        source: "webapp",
-        status: "open",
-        openedAt: "2025-01-01T00:00:00.000Z",
-        lastMessageAt: "2025-01-02T00:00:00.000Z",
-        displayName: "Другой Пациент",
+        conversationId: '00000000-0000-4000-8000-000000000011',
+        integratorConversationId: 'webapp:platform:bbbbbbbb-0000-4000-8000-000000000002',
+        source: 'webapp',
+        status: 'open',
+        openedAt: '2025-01-01T00:00:00.000Z',
+        lastMessageAt: '2025-01-02T00:00:00.000Z',
+        displayName: 'Другой Пациент',
         phoneNormalized: null,
         lastMessageText: null,
         lastSenderRole: null,
@@ -136,36 +139,38 @@ describe("GET /api/doctor/messages/conversations", () => {
     // isOnSupport must be included in the mock — the route reads it from the client object.
     listClientsMock.mockResolvedValue([{ userId: supportUserId, isOnSupport: true }]);
 
-    const res = await GET(new Request("http://localhost/api/doctor/messages/conversations"));
+    const res = await GET(new Request('http://localhost/api/doctor/messages/conversations'));
     expect(res.status).toBe(200);
     const data = (await res.json()) as {
       ok: boolean;
       conversations: { displayName: string; onSupport: boolean }[];
     };
     expect(data.conversations).toHaveLength(2);
-    expect(data.conversations.find((c) => c.displayName === "Ирина Вовк")?.onSupport).toBe(true);
-    expect(data.conversations.find((c) => c.displayName === "Другой Пациент")?.onSupport).toBe(false);
+    expect(data.conversations.find((c) => c.displayName === 'Ирина Вовк')?.onSupport).toBe(true);
+    expect(data.conversations.find((c) => c.displayName === 'Другой Пациент')?.onSupport).toBe(
+      false,
+    );
   });
 
-  it("gracefully sets onSupport=false for non-webapp conversation IDs", async () => {
+  it('gracefully sets onSupport=false for non-webapp conversation IDs', async () => {
     listMock.mockResolvedValue([
       {
-        conversationId: "00000000-0000-4000-8000-000000000012",
-        integratorConversationId: "telegram:12345",
-        source: "telegram",
-        status: "open",
-        openedAt: "2025-01-01T00:00:00.000Z",
-        lastMessageAt: "2025-01-02T00:00:00.000Z",
-        displayName: "TG User",
+        conversationId: '00000000-0000-4000-8000-000000000012',
+        integratorConversationId: 'telegram:12345',
+        source: 'telegram',
+        status: 'open',
+        openedAt: '2025-01-01T00:00:00.000Z',
+        lastMessageAt: '2025-01-02T00:00:00.000Z',
+        displayName: 'TG User',
         phoneNormalized: null,
         lastMessageText: null,
         lastSenderRole: null,
         unreadFromUserCount: 0,
       },
     ]);
-    listClientsMock.mockResolvedValue([{ userId: "some-user" }]);
+    listClientsMock.mockResolvedValue([{ userId: 'some-user' }]);
 
-    const res = await GET(new Request("http://localhost/api/doctor/messages/conversations"));
+    const res = await GET(new Request('http://localhost/api/doctor/messages/conversations'));
     const data = (await res.json()) as {
       ok: boolean;
       conversations: { onSupport: boolean; patientUserId: string | null }[];
@@ -174,17 +179,17 @@ describe("GET /api/doctor/messages/conversations", () => {
     expect(data.conversations[0]?.patientUserId).toBeNull();
   });
 
-  it("includes patientUserId (already derived, no extra query) for webapp conversations (#813)", async () => {
-    const patientId = "aaaaaaaa-0000-4000-8000-000000000001";
+  it('includes patientUserId (already derived, no extra query) for webapp conversations (#813)', async () => {
+    const patientId = 'aaaaaaaa-0000-4000-8000-000000000001';
     listMock.mockResolvedValue([
       {
-        conversationId: "00000000-0000-4000-8000-000000000020",
+        conversationId: '00000000-0000-4000-8000-000000000020',
         integratorConversationId: `webapp:platform:${patientId}`,
-        source: "webapp",
-        status: "open",
-        openedAt: "2025-01-01T00:00:00.000Z",
-        lastMessageAt: "2025-01-02T00:00:00.000Z",
-        displayName: "Пациент",
+        source: 'webapp',
+        status: 'open',
+        openedAt: '2025-01-01T00:00:00.000Z',
+        lastMessageAt: '2025-01-02T00:00:00.000Z',
+        displayName: 'Пациент',
         phoneNormalized: null,
         lastMessageText: null,
         lastSenderRole: null,
@@ -192,7 +197,7 @@ describe("GET /api/doctor/messages/conversations", () => {
       },
     ]);
 
-    const res = await GET(new Request("http://localhost/api/doctor/messages/conversations"));
+    const res = await GET(new Request('http://localhost/api/doctor/messages/conversations'));
     const data = (await res.json()) as {
       ok: boolean;
       conversations: { patientUserId: string | null }[];
@@ -200,31 +205,31 @@ describe("GET /api/doctor/messages/conversations", () => {
     expect(data.conversations[0]?.patientUserId).toBe(patientId);
   });
 
-  it("calls listClients with scoped userIds extracted from conversations (EXTRA-02)", async () => {
-    const p1 = "aaaaaaaa-0000-4000-8000-000000000001";
-    const p2 = "bbbbbbbb-0000-4000-8000-000000000002";
+  it('calls listClients with scoped userIds extracted from conversations (EXTRA-02)', async () => {
+    const p1 = 'aaaaaaaa-0000-4000-8000-000000000001';
+    const p2 = 'bbbbbbbb-0000-4000-8000-000000000002';
     listMock.mockResolvedValue([
       {
-        conversationId: "ccc1",
+        conversationId: 'ccc1',
         integratorConversationId: `webapp:platform:${p1}`,
-        source: "webapp",
-        status: "open",
-        openedAt: "2025-01-01T00:00:00.000Z",
-        lastMessageAt: "2025-01-02T00:00:00.000Z",
-        displayName: "Пациент 1",
+        source: 'webapp',
+        status: 'open',
+        openedAt: '2025-01-01T00:00:00.000Z',
+        lastMessageAt: '2025-01-02T00:00:00.000Z',
+        displayName: 'Пациент 1',
         phoneNormalized: null,
         lastMessageText: null,
         lastSenderRole: null,
         unreadFromUserCount: 0,
       },
       {
-        conversationId: "ccc2",
+        conversationId: 'ccc2',
         integratorConversationId: `webapp:platform:${p2}`,
-        source: "webapp",
-        status: "open",
-        openedAt: "2025-01-01T00:00:00.000Z",
-        lastMessageAt: "2025-01-02T00:00:00.000Z",
-        displayName: "Пациент 2",
+        source: 'webapp',
+        status: 'open',
+        openedAt: '2025-01-01T00:00:00.000Z',
+        lastMessageAt: '2025-01-02T00:00:00.000Z',
+        displayName: 'Пациент 2',
         phoneNormalized: null,
         lastMessageText: null,
         lastSenderRole: null,
@@ -232,11 +237,11 @@ describe("GET /api/doctor/messages/conversations", () => {
       },
     ]);
     listClientsMock.mockResolvedValue([
-      { userId: p1, firstName: "Иван", lastName: "Иванов", isOnSupport: true },
-      { userId: p2, firstName: "Мария", lastName: "Петрова", isOnSupport: false },
+      { userId: p1, firstName: 'Иван', lastName: 'Иванов', isOnSupport: true },
+      { userId: p2, firstName: 'Мария', lastName: 'Петрова', isOnSupport: false },
     ]);
 
-    const res = await GET(new Request("http://localhost/api/doctor/messages/conversations"));
+    const res = await GET(new Request('http://localhost/api/doctor/messages/conversations'));
     expect(res.status).toBe(200);
 
     // Verify listClients was called with exactly the two patient userIds, not an empty filter.
@@ -247,20 +252,25 @@ describe("GET /api/doctor/messages/conversations", () => {
 
     const data = (await res.json()) as {
       ok: boolean;
-      conversations: { displayName: string; patientUserId: string | null; firstName: string | null; onSupport: boolean }[];
+      conversations: {
+        displayName: string;
+        patientUserId: string | null;
+        firstName: string | null;
+        onSupport: boolean;
+      }[];
     };
     expect(data.ok).toBe(true);
     expect(data.conversations).toHaveLength(2);
-    const conv1 = data.conversations.find((c) => c.displayName === "Пациент 1");
+    const conv1 = data.conversations.find((c) => c.displayName === 'Пациент 1');
     expect(conv1?.patientUserId).toBe(p1);
-    expect(conv1?.firstName).toBe("Иван");
+    expect(conv1?.firstName).toBe('Иван');
     expect(conv1?.onSupport).toBe(true);
   });
 
-  it("skips listClients when conversation list is empty (EXTRA-02)", async () => {
+  it('skips listClients when conversation list is empty (EXTRA-02)', async () => {
     listMock.mockResolvedValue([]);
 
-    const res = await GET(new Request("http://localhost/api/doctor/messages/conversations"));
+    const res = await GET(new Request('http://localhost/api/doctor/messages/conversations'));
     expect(res.status).toBe(200);
 
     // No patient userIds → listClients must NOT be called at all.

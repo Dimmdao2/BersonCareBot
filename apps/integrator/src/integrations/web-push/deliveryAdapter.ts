@@ -21,7 +21,12 @@
  * S16: G2 guard in `sendWebPushToSubscriptions.ts` is now retired as primary sink — all 7
  * S14 legs (S14a–S14g) complete, 0 live callers. Kept as secondary safety layer only.
  */
-import type { DeliveryAdapter, DeliverySendResult, OutgoingIntent, WebPushAccessPort } from '../../kernel/contracts/index.js';
+import type {
+  DeliveryAdapter,
+  DeliverySendResult,
+  OutgoingIntent,
+  WebPushAccessPort,
+} from '../../kernel/contracts/index.js';
 import { readChannel } from '../../infra/adapters/channelRouting.js';
 import { logger } from '../../infra/observability/logger.js';
 import { sendWebPushViaProvider } from './client.js';
@@ -87,11 +92,27 @@ export function createWebPushDeliveryAdapter(deps: {
           { scope: 'web_push', event: 'web_push_vapid_missing', pushUserId },
           '[web-push] VAPID credentials not configured or unavailable — skipping push',
         );
-        return { webPushOutcome: { status: 'skipped', reason: 'vapid_missing', delivered: 0, errors: 0, deactivated: 0 } };
+        return {
+          webPushOutcome: {
+            status: 'skipped',
+            reason: 'vapid_missing',
+            delivered: 0,
+            errors: 0,
+            deactivated: 0,
+          },
+        };
       }
 
       if (subscriptions === null) {
-        return { webPushOutcome: { status: 'failed', reason: 'subscriptions_unavailable', delivered: 0, errors: 1, deactivated: 0 } };
+        return {
+          webPushOutcome: {
+            status: 'failed',
+            reason: 'subscriptions_unavailable',
+            delivered: 0,
+            errors: 1,
+            deactivated: 0,
+          },
+        };
       }
 
       if (subscriptions.length === 0) {
@@ -99,7 +120,15 @@ export function createWebPushDeliveryAdapter(deps: {
           { scope: 'web_push', event: 'web_push_no_subscriptions', pushUserId },
           '[web-push] no active subscriptions for user — skipping',
         );
-        return { webPushOutcome: { status: 'skipped', reason: 'no_active_subscriptions', delivered: 0, errors: 0, deactivated: 0 } };
+        return {
+          webPushOutcome: {
+            status: 'skipped',
+            reason: 'no_active_subscriptions',
+            delivered: 0,
+            errors: 0,
+            deactivated: 0,
+          },
+        };
       }
 
       const body = asString(payload.message?.text) ?? '';
@@ -119,11 +148,17 @@ export function createWebPushDeliveryAdapter(deps: {
           ...(extras.topicCode !== undefined ? { topicCode: extras.topicCode } : {}),
           ...(extras.intentType !== undefined ? { intentType: extras.intentType } : {}),
           ...(extras.pushKind !== undefined ? { pushKind: extras.pushKind } : {}),
-          ...(extras.warmupSloganKey !== undefined ? { warmupSloganKey: extras.warmupSloganKey } : {}),
+          ...(extras.warmupSloganKey !== undefined
+            ? { warmupSloganKey: extras.warmupSloganKey }
+            : {}),
           ...(extras.occurrenceId !== undefined ? { occurrenceId: extras.occurrenceId } : {}),
         },
         onSubscriptionDead: async (endpoint) => {
-          const deleted = await webPushAccessPort.deleteSubscriptionByEndpoint(pushUserId, endpoint, organizationId);
+          const deleted = await webPushAccessPort.deleteSubscriptionByEndpoint(
+            pushUserId,
+            endpoint,
+            organizationId,
+          );
           if (!deleted) {
             logger.warn(
               { scope: 'web_push', event: 'web_push_dead_sub_cleanup_failed', pushUserId },

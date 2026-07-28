@@ -1,4 +1,4 @@
-import type { ClientAccessTier } from "./types";
+import type { ClientAccessTier } from './types';
 
 /**
  * Единая политика маршрутов и API patient-контура (фаза D, MASTER_PLAN §5 D):
@@ -16,11 +16,11 @@ export type HeaderGetter = (name: string) => string | null;
 
 function normalizeAppPatientPath(pathname: string): string {
   let path = pathname.trim();
-  if (!path.startsWith("/app/patient")) {
+  if (!path.startsWith('/app/patient')) {
     return path;
   }
-  path = path.replace(/\/+$/, "");
-  if (!path) return "/";
+  path = path.replace(/\/+$/, '');
+  if (!path) return '/';
   return path;
 }
 
@@ -29,15 +29,15 @@ function normalizeAppPatientPath(pathname: string): string {
  * если пусто — пробуем `referer` (редкий случай без проброса заголовка), иначе `""`.
  */
 export function resolvePatientLayoutPathname(getHeader: HeaderGetter): string {
-  const injected = getHeader("x-bc-pathname")?.trim() ?? "";
+  const injected = getHeader('x-bc-pathname')?.trim() ?? '';
   if (injected) return injected;
-  const referer = getHeader("referer");
-  if (!referer) return "";
+  const referer = getHeader('referer');
+  if (!referer) return '';
   try {
     const path = new URL(referer).pathname;
-    return path.startsWith("/app/patient") ? path : "";
+    return path.startsWith('/app/patient') ? path : '';
   } catch {
-    return "";
+    return '';
   }
 }
 
@@ -47,31 +47,31 @@ export function resolvePatientLayoutPathname(getHeader: HeaderGetter): string {
  * Бизнес-мутации на этих страницах по-прежнему идут через API/server actions с `requirePatientApiBusinessAccess`.
  */
 const PATIENT_PAGE_PREFIXES_WITHOUT_PATIENT_TIER = [
-  "/app/patient/bind-phone",
-  "/app/patient/profile",
-  "/app/patient/organizations",
-  "/app/patient/sections",
-  "/app/patient/sections/",
-  "/app/patient/content/",
+  '/app/patient/bind-phone',
+  '/app/patient/profile',
+  '/app/patient/organizations',
+  '/app/patient/sections',
+  '/app/patient/sections/',
+  '/app/patient/content/',
   /** Редиректы из напоминаний бота → разминка дня / старт занятия (как CTA на главной, без лишнего bind-phone в legacy snapshot). */
-  "/app/patient/go/",
-  "/app/patient/help",
-  "/app/patient/support",
-  "/app/patient/install",
-  "/app/patient/address",
+  '/app/patient/go/',
+  '/app/patient/help',
+  '/app/patient/support',
+  '/app/patient/install',
+  '/app/patient/address',
   /** Редиректы на sections — промежуточные URL без patient tier. */
-  "/app/patient/lessons",
-  "/app/patient/emergency",
+  '/app/patient/lessons',
+  '/app/patient/emergency',
   /** Кабинет, визард записи, дневник (просмотр), покупки — RSC с optional session + гостевой UI. */
-  "/app/patient/cabinet",
-  "/app/patient/booking",
-  "/app/patient/diary",
-  "/app/patient/purchases",
-  "/app/patient/courses",
+  '/app/patient/cabinet',
+  '/app/patient/booking',
+  '/app/patient/diary',
+  '/app/patient/purchases',
+  '/app/patient/courses',
 ] as const;
 
 function isPatientHomePath(path: string): boolean {
-  return path === "/app/patient";
+  return path === '/app/patient';
 }
 
 function pathMatchesAnyPrefix(path: string, prefixes: readonly string[]): boolean {
@@ -88,16 +88,16 @@ function pathMatchesAnyPrefix(path: string, prefixes: readonly string[]): boolea
  * Не использовать префикс `/app/patient` целиком — иначе совпадёт с profile и т.д.
  */
 function patientPageAllowsGuestOptionalSession(path: string): boolean {
-  if (path === "/app/patient/cabinet") return true;
-  if (path === "/app/patient/purchases") return true;
-  if (path === "/app/patient/address") return true;
-  if (path === "/app/patient/lessons" || path === "/app/patient/emergency") return true;
-  if (path.startsWith("/app/patient/booking")) return true;
-  if (path === "/app/patient/sections") return true;
-  if (path.startsWith("/app/patient/sections/")) return true;
-  if (path.startsWith("/app/patient/content/")) return true;
-  if (path.startsWith("/app/patient/diary")) return true;
-  if (path === "/app/patient/courses") return true;
+  if (path === '/app/patient/cabinet') return true;
+  if (path === '/app/patient/purchases') return true;
+  if (path === '/app/patient/address') return true;
+  if (path === '/app/patient/lessons' || path === '/app/patient/emergency') return true;
+  if (path.startsWith('/app/patient/booking')) return true;
+  if (path === '/app/patient/sections') return true;
+  if (path.startsWith('/app/patient/sections/')) return true;
+  if (path.startsWith('/app/patient/content/')) return true;
+  if (path.startsWith('/app/patient/diary')) return true;
+  if (path === '/app/patient/courses') return true;
   return false;
 }
 
@@ -108,22 +108,22 @@ function patientPageAllowsGuestOptionalSession(path: string): boolean {
  * Пустой или не `/app/patient*` pathname → не разрешён (редирект).
  */
 const PATH_PREFIXES_ALLOWED_DURING_PHONE_ACTIVATION = [
-  "/app/patient/bind-phone",
-  "/app/patient/help",
-  "/app/patient/support",
-  "/app/patient/sections",
-  "/app/patient/sections/",
+  '/app/patient/bind-phone',
+  '/app/patient/help',
+  '/app/patient/support',
+  '/app/patient/sections',
+  '/app/patient/sections/',
   /** Публичные материалы CMS (`requires_auth = false`); доступность текста — на странице RSC. */
-  "/app/patient/content/",
+  '/app/patient/content/',
   /** Редиректы из напоминаний бота → главная разминка / старт занятия по программе. */
-  "/app/patient/go/",
+  '/app/patient/go/',
   /** Каталог курсов (метаданные) без записи — мутация через API с tier patient. */
-  "/app/patient/courses",
+  '/app/patient/courses',
 ] as const;
 
 export function patientPathsAllowedDuringPhoneActivation(pathname: string): boolean {
   const raw = pathname.trim();
-  if (!raw || !raw.startsWith("/app/patient")) {
+  if (!raw || !raw.startsWith('/app/patient')) {
     return false;
   }
   const path = normalizeAppPatientPath(raw);
@@ -140,7 +140,7 @@ export function patientPathsAllowedDuringPhoneActivation(pathname: string): bool
  */
 export function patientPathRequiresBoundPhone(pathname: string): boolean {
   const raw = pathname.trim();
-  if (!raw || !raw.startsWith("/app/patient")) {
+  if (!raw || !raw.startsWith('/app/patient')) {
     return false;
   }
   const path = normalizeAppPatientPath(raw);
@@ -162,29 +162,29 @@ export function patientPathRequiresBoundPhone(pathname: string): boolean {
  */
 export function patientPageMinAccessTier(pathname: string): ClientAccessTier {
   const raw = pathname.trim();
-  if (!raw || !raw.startsWith("/app/patient")) {
-    return "guest";
+  if (!raw || !raw.startsWith('/app/patient')) {
+    return 'guest';
   }
   const path = normalizeAppPatientPath(raw);
   if (patientPathRequiresBoundPhone(path)) {
-    return "patient";
+    return 'patient';
   }
   if (patientPageAllowsGuestOptionalSession(path)) {
-    return "guest";
+    return 'guest';
   }
-  return "onboarding";
+  return 'onboarding';
 }
 
 /** Префиксы API, где операции от имени пациента требуют tier patient (`patientClientBusinessGate`). Для подтверждения native-записи и отмены см. {@link requirePatientBookingTrustedPhoneAccess}. */
-export const PATIENT_BUSINESS_API_PREFIXES = ["/api/patient/", "/api/booking/"] as const;
+export const PATIENT_BUSINESS_API_PREFIXES = ['/api/patient/', '/api/booking/'] as const;
 
 /** `POST …/pin/set` и `…/verify` — с `requirePatientApiBusinessAccess`; `…/pin/login` — отдельный поток входа (без gate). */
-const PATIENT_BUSINESS_PIN_API_PREFIX = "/api/auth/pin/";
+const PATIENT_BUSINESS_PIN_API_PREFIX = '/api/auth/pin/';
 
 export function patientApiPathIsPatientBusinessSurface(apiPathname: string): boolean {
   const p = apiPathname.trim();
   if (PATIENT_BUSINESS_API_PREFIXES.some((prefix) => p.startsWith(prefix))) return true;
-  if (p.startsWith(PATIENT_BUSINESS_PIN_API_PREFIX) && !p.startsWith("/api/auth/pin/login")) {
+  if (p.startsWith(PATIENT_BUSINESS_PIN_API_PREFIX) && !p.startsWith('/api/auth/pin/login')) {
     return true;
   }
   return false;
@@ -197,10 +197,10 @@ export function patientApiPathIsPatientBusinessSurface(apiPathname: string): boo
  * **Runtime enforcement:** handlers профиля вызывают {@link patientOnboardingServerActionSurfaceOk} (`onboardingServerActionSurface.ts`) —
  * pathname из **`x-bc-pathname`** (middleware) или `referer` ({@link resolvePatientLayoutPathname}), как в layout.
  */
-export const PATIENT_ONBOARDING_SERVER_ACTION_PAGE_PREFIXES = ["/app/patient/profile"] as const;
+export const PATIENT_ONBOARDING_SERVER_ACTION_PAGE_PREFIXES = ['/app/patient/profile'] as const;
 
 export function patientServerActionPageAllowsOnboardingOnly(appPathname: string): boolean {
-  const path = normalizeAppPatientPath(appPathname.split("?")[0] ?? "");
+  const path = normalizeAppPatientPath(appPathname.split('?')[0] ?? '');
   return pathMatchesAnyPrefix(path, PATIENT_ONBOARDING_SERVER_ACTION_PAGE_PREFIXES);
 }
 
@@ -208,6 +208,8 @@ export function patientServerActionPageAllowsOnboardingOnly(appPathname: string)
  * Только для UI/RSC без повторного запроса к БД: snapshot телефона в cookie-сессии.
  * Решения о бизнес-доступе на сервере — {@link patientClientBusinessGate} / {@link resolvePlatformAccessContext}.
  */
-export function patientSessionSnapshotHasPhone(session: { user: { phone?: string | null } } | null): boolean {
+export function patientSessionSnapshotHasPhone(
+  session: { user: { phone?: string | null } } | null,
+): boolean {
   return Boolean(session?.user.phone?.trim());
 }

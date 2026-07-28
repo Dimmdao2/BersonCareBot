@@ -12,10 +12,10 @@
  * computes at startup (`config/env.ts`'s `NODE_ENV` and `isTestEnv`).
  */
 export type MockPaymentConfirmConfiguration = {
-  nodeEnv: "development" | "test" | "production";
+  nodeEnv: 'development' | 'test' | 'production';
   isTestEnv: boolean;
 };
 
 export function isMockPaymentConfirmEnabled(input: MockPaymentConfirmConfiguration): boolean {
-  return input.nodeEnv === "development" || input.isTestEnv;
+  return input.nodeEnv === 'development' || input.isTestEnv;
 }

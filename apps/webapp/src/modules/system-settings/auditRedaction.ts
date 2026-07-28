@@ -13,7 +13,7 @@
  */
 
 /** Envelope-shaped settings whose `value.password` must never be copied into the audit trail. */
-const PASSWORD_BEARING_KEYS = new Set<string>(["smtp_outbound", "operator_health_imap"]);
+const PASSWORD_BEARING_KEYS = new Set<string>(['smtp_outbound', 'operator_health_imap']);
 
 /**
  * Settings whose ENTIRE value is a credential — a bare string, not an envelope with a `password`
@@ -26,24 +26,24 @@ const PASSWORD_BEARING_KEYS = new Set<string>(["smtp_outbound", "operator_health
  * `value.password`, it belongs in PASSWORD_BEARING_KEYS above.
  */
 const SECRET_VALUE_KEYS = new Set<string>([
-  "max_bot_api_key",
-  "yandex_oauth_client_secret",
-  "vk_id_client_secret",
-  "google_client_secret",
-  "google_refresh_token",
-  "apple_oauth_private_key",
-  "smsc_api_key",
+  'max_bot_api_key',
+  'yandex_oauth_client_secret',
+  'vk_id_client_secret',
+  'google_client_secret',
+  'google_refresh_token',
+  'apple_oauth_private_key',
+  'smsc_api_key',
 ]);
 
 function redactEnvelopePassword(envelope: unknown): unknown {
-  if (envelope === null || typeof envelope !== "object") return envelope;
-  if (!("value" in envelope)) return envelope;
+  if (envelope === null || typeof envelope !== 'object') return envelope;
+  if (!('value' in envelope)) return envelope;
   const inner = (envelope as Record<string, unknown>).value;
-  if (inner === null || typeof inner !== "object" || Array.isArray(inner)) return envelope;
+  if (inner === null || typeof inner !== 'object' || Array.isArray(inner)) return envelope;
   const o = { ...(inner as Record<string, unknown>) };
-  if ("password" in o) {
-    const p = typeof o.password === "string" ? o.password.trim() : "";
-    o.password = p.length > 0 ? "[REDACTED]" : "";
+  if ('password' in o) {
+    const p = typeof o.password === 'string' ? o.password.trim() : '';
+    o.password = p.length > 0 ? '[REDACTED]' : '';
   }
   return { ...(envelope as Record<string, unknown>), value: o };
 }
@@ -57,8 +57,8 @@ export function redactSettingValueForAudit(key: string, value: unknown): unknown
   if (SECRET_VALUE_KEYS.has(key)) {
     // An empty value is not a secret and stays visible, so the trail still shows "it was cleared".
     if (value === null || value === undefined) return value;
-    if (typeof value === "string") return value.trim().length > 0 ? "[REDACTED]" : value;
-    return "[REDACTED]";
+    if (typeof value === 'string') return value.trim().length > 0 ? '[REDACTED]' : value;
+    return '[REDACTED]';
   }
   return value;
 }

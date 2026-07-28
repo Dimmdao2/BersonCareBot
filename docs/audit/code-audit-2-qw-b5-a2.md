@@ -14,6 +14,7 @@
 **PASS**
 
 **Как проверено:**
+
 - `reminders.ts:515` — `deliveryTargetsFetched = await deps.deliveryTargetsPort.getTargetsByChannelBinding(bindingParams)` — результат `DeliveryTargetsFetchResult | null`
 - `reminders.ts:516` — `const fetched = deliveryTargetsFetched` — локальный алиас для удобства optional chaining
 - Контракт: `contracts/notificationChannels.ts:34-37` — `DeliveryTargetsFetchResult = { channelBindings: Record<string,string>; resolution?: ResolvedNotificationChannelsPayload }`. Поле `resolution` — опциональное.
@@ -27,6 +28,7 @@
 **PASS**
 
 **Как проверено:**
+
 - `reminders.ts:538` — `if (fetched?.resolution?.selectedChannels)` — в JS пустой массив `[]` truthy.
 - При `selectedChannels = []`: условие ВХОДИТ в ветку → `selectedSet = new Set([])` → `channelsToSend.filter(ch => selectedSet.has(ch.channel))` → `filter` возвращает `[]` для любого ch → `sendChannels = []`.
 - `reminders.ts:689` — `for (const { channel, chatId, externalId } of sendChannels)` — цикл не выполняется, никаких отправок в мессенджер.
@@ -40,6 +42,7 @@
 **PASS**
 
 **Как проверено:**
+
 - `reminders.ts:504` — `if (topicCode && deps.deliveryTargetsPort)` — порт запрашивается только при наличии обоих.
 - Если `getTargetsByChannelBinding()` вернул `null`: `fetched = null` → `fetched?.resolution?.selectedChannels` = `undefined` → falsy → первая ветка НЕ входит.
 - `hasResolvedTopicBindings = null?.channelBindings && ...` = `undefined` = falsy → `else if` тоже НЕ входит.
@@ -54,6 +57,7 @@
 **PASS**
 
 **Как проверено:**
+
 - `reminders.ts:487` — `channelsToSend: Array<{ channel: 'telegram' | 'max'; ... }>` — строго typed, содержит только `'telegram'` и `'max'`, никогда `'web_push'`/`'email'`.
 - `selectedChannels: NotificationChannelCode[]` может содержать `'web_push'` или `'email'`, но `selectedSet.has(ch.channel)` где `ch.channel ∈ {'telegram','max'}` — совпадение только при наличии `'telegram'`/`'max'` в set.
 - Внешние каналы (`web_push`/`email`) в `selectedChannels` не вызывают ложных DROP-ов и не добавляют несуществующие каналы — фильтр работает только по совпадению.
@@ -117,6 +121,7 @@
 **PASS**
 
 **Как проверено:**
+
 - `PatientInstanceStageItemCard.tsx:56` — `planItemDoneRepeatCooldownMinutes: number` — required prop (нет `?`), присутствует в интерфейсе.
 - Деструктуризация в компоненте (L58-75): `planItemDoneRepeatCooldownMinutes` НЕ деструктурируется — прпос принимается но не используется.
 - TypeScript не выдаёт ошибку на «принятый, но неиспользованный» проп.
@@ -130,6 +135,7 @@
 **PASS**
 
 **Как проверено:**
+
 - `PatientInstanceStageItemCard.tsx:3` — `import { useCallback, useEffect, useMemo, useState } from "react"`
 - `useMemo` используется:
   - L81: `const recommendationPreviewMedia = useMemo(...)` — вычисление превью медиа рекомендации.
@@ -159,6 +165,7 @@
 **PASS**
 
 **Как проверено:** Проверка grep по всем удалённым символам:
+
 - `patientCompactActionClass` — не найдено (удалён)
 - `patientSimpleCompleteDoneButtonToneClass` — не найдено (удалён)
 - `mergeLastActivityDisplayedIso` — не найдено (удалён)
@@ -184,20 +191,20 @@
 
 ## Итоговая таблица
 
-| Пункт | Результат | Краткое основание |
-|-------|-----------|-------------------|
-| B5-C1: тип/источник `fetched` + `selectedChannels` | PASS | Типы корректны, `resolution?.selectedChannels` — `array\|undefined` |
-| B5-C2: `selectedChannels=[]` truthy → 0 sends | PASS | JS truthy [], Set.has→false, sendChannels=[], loop пустой |
-| B5-C3: legacy else-if при null-fetched | PASS | null?.x = undefined = falsy, легаси-поведение сохранено |
-| B5-C4: web_push/email в selectedChannels vs channelsToSend | PASS | channelsToSend строго typed telegram\|max, нет риска ложных DROP-ов |
-| B5-C5: покрытие тестами | PASS | 4 теста покрывают фикс-сценарий; легаси-путь не протестирован (не блокирует) |
-| B5-C6: §6 | PASS | Логика-only, нет SQL, нет дублирования |
-| A2-C1: JSX после удаления кнопки | PASS | null-ветки сбалансированы, семантика корректна |
-| A2-C2: planItemDoneRepeatCooldownMinutes в интерфейсе | PASS | Все callers передают, TS не ошибается |
-| A2-C3: useMemo не осиротел | PASS | useMemo используется в 2 местах |
-| **A2-C4: isPersistentRecommendation — осиротевший импорт** | **FAIL** | **L10: импортируется, нигде не вызывается в теле** |
-| A2-C5: удалённые импорты очищены | PASS | Все 8 удалённых символов отсутствуют |
-| A2-C6: §6 | PASS | Только удаление, нарушений нет |
+| Пункт                                                      | Результат | Краткое основание                                                            |
+| ---------------------------------------------------------- | --------- | ---------------------------------------------------------------------------- |
+| B5-C1: тип/источник `fetched` + `selectedChannels`         | PASS      | Типы корректны, `resolution?.selectedChannels` — `array\|undefined`          |
+| B5-C2: `selectedChannels=[]` truthy → 0 sends              | PASS      | JS truthy [], Set.has→false, sendChannels=[], loop пустой                    |
+| B5-C3: legacy else-if при null-fetched                     | PASS      | null?.x = undefined = falsy, легаси-поведение сохранено                      |
+| B5-C4: web_push/email в selectedChannels vs channelsToSend | PASS      | channelsToSend строго typed telegram\|max, нет риска ложных DROP-ов          |
+| B5-C5: покрытие тестами                                    | PASS      | 4 теста покрывают фикс-сценарий; легаси-путь не протестирован (не блокирует) |
+| B5-C6: §6                                                  | PASS      | Логика-only, нет SQL, нет дублирования                                       |
+| A2-C1: JSX после удаления кнопки                           | PASS      | null-ветки сбалансированы, семантика корректна                               |
+| A2-C2: planItemDoneRepeatCooldownMinutes в интерфейсе      | PASS      | Все callers передают, TS не ошибается                                        |
+| A2-C3: useMemo не осиротел                                 | PASS      | useMemo используется в 2 местах                                              |
+| **A2-C4: isPersistentRecommendation — осиротевший импорт** | **FAIL**  | **L10: импортируется, нигде не вызывается в теле**                           |
+| A2-C5: удалённые импорты очищены                           | PASS      | Все 8 удалённых символов отсутствуют                                         |
+| A2-C6: §6                                                  | PASS      | Только удаление, нарушений нет                                               |
 
 ---
 
@@ -208,17 +215,16 @@
 **Фикс:** Удалить `isPersistentRecommendation,` из строки 9-12 (или всю строку 10, если `patientStageItemShowsNewBadge` остаётся — он используется на L80).
 
 Точная замена:
+
 ```ts
 // было:
 import {
   isPersistentRecommendation,
   patientStageItemShowsNewBadge,
-} from "@/modules/treatment-program/stage-semantics";
+} from '@/modules/treatment-program/stage-semantics';
 
 // стало:
-import {
-  patientStageItemShowsNewBadge,
-} from "@/modules/treatment-program/stage-semantics";
+import { patientStageItemShowsNewBadge } from '@/modules/treatment-program/stage-semantics';
 ```
 
 Дополнительно (не блокирующее, рекомендация): убрать из интерфейса `lastDoneAtIsoByItemId?: Readonly<Record<string, string>>` (L52) — пропс принимается но нигде не используется после удаления кнопки.

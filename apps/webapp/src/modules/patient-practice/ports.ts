@@ -1,8 +1,4 @@
-import type {
-  PatientPracticeCompletionRow,
-  PracticeSource,
-  RecordPracticeInput,
-} from "./types";
+import type { PatientPracticeCompletionRow, PracticeSource, RecordPracticeInput } from './types';
 
 /** Минимальный контракт CMS для валидации материала перед записью completion. */
 export type PatientPracticeContentLookupPort = {
@@ -26,10 +22,16 @@ export type PatientPracticePort = {
     toUtcExclusiveIso: string,
     organizationId?: string,
   ): Promise<PatientPracticeCompletionRow[]>;
-  getByIdForUser(completionId: string, userId: string): Promise<PatientPracticeCompletionRow | null>;
+  getByIdForUser(
+    completionId: string,
+    userId: string,
+  ): Promise<PatientPracticeCompletionRow | null>;
   updateFeelingById(completionId: string, userId: string, feeling: number): Promise<boolean>;
   /** Последнее `completed_at` для разминки дня по странице, либо `null`. */
-  getLatestDailyWarmupCompletionCompletedAt(userId: string, contentPageId: string): Promise<string | null>;
+  getLatestDailyWarmupCompletionCompletedAt(
+    userId: string,
+    contentPageId: string,
+  ): Promise<string | null>;
   /** Последняя выполненная разминка дня (любая страница), либо `null`. */
   getLatestDailyWarmupCompletedContentPageId(userId: string): Promise<string | null>;
 };

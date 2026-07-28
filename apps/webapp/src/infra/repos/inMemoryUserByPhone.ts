@@ -1,8 +1,8 @@
-import type { ChannelBindings, SessionUser } from "@/shared/types/session";
-import type { ChannelContext } from "@/modules/auth/channelContext";
-import type { UserByPhonePort, CreateOrBindResult } from "@/modules/auth/userByPhonePort";
-import { channelToBindingKey } from "@/modules/auth/channelContext";
-import { normalizePhone } from "@/modules/auth/phoneNormalize";
+import type { ChannelBindings, SessionUser } from '@/shared/types/session';
+import type { ChannelContext } from '@/modules/auth/channelContext';
+import type { UserByPhonePort, CreateOrBindResult } from '@/modules/auth/userByPhonePort';
+import { channelToBindingKey } from '@/modules/auth/channelContext';
+import { normalizePhone } from '@/modules/auth/phoneNormalize';
 
 const usersByPhone = new Map<string, SessionUser>();
 let nextId = 1;
@@ -62,7 +62,7 @@ export const inMemoryUserByPhonePort: UserByPhonePort = {
     }
     const user: SessionUser = {
       userId: `phone:${nextId++}`,
-      role: "client",
+      role: 'client',
       displayName: context.displayName ?? normalized,
       phone: normalized,
       bindings,

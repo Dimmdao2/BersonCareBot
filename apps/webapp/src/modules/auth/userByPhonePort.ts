@@ -1,6 +1,6 @@
-import type { SessionUser } from "@/shared/types/session";
-import type { ChannelContext } from "./channelContext";
-import { channelToBindingKey } from "./channelContext";
+import type { SessionUser } from '@/shared/types/session';
+import type { ChannelContext } from './channelContext';
+import { channelToBindingKey } from './channelContext';
 
 export type CreateOrBindResult = {
   user: SessionUser;
@@ -33,7 +33,11 @@ export type UserByPhonePort = {
   /** Подтверждённый email для OTP (если есть). */
   getVerifiedEmailForUser(userId: string): Promise<string | null>;
   /** Создаёт пользователя с номером и привязкой канала или обновляет привязку у существующего. */
-  createOrBind(phone: string, context: ChannelContext, options?: CreateOrBindOptions): Promise<CreateOrBindResult>;
+  createOrBind(
+    phone: string,
+    context: ChannelContext,
+    options?: CreateOrBindOptions,
+  ): Promise<CreateOrBindResult>;
   /**
    * C-1 (2026-07-26, docs/_TODO/NIGHT_PLAN_2026-07-26.md): increments `platform_users.session_epoch`
    * for the CALLER's own row, killing every session that carries the previous epoch. Must be invoked

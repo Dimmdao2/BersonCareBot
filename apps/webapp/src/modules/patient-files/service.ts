@@ -8,7 +8,7 @@ import type {
   PatientFileRecord,
   PatientFilesPort,
   CreatePatientFileParams,
-} from "./ports";
+} from './ports';
 
 export type PatientFilesServiceDeps = {
   patientFilesPort: PatientFilesPort;
@@ -16,7 +16,10 @@ export type PatientFilesServiceDeps = {
 
 export function createPatientFilesService({ patientFilesPort }: PatientFilesServiceDeps) {
   return {
-    async listFiles(patientUserId: string, category?: PatientFileCategory): Promise<PatientFileRecord[]> {
+    async listFiles(
+      patientUserId: string,
+      category?: PatientFileCategory,
+    ): Promise<PatientFileRecord[]> {
       return patientFilesPort.listFiles(patientUserId, category);
     },
 

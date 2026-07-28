@@ -70,14 +70,14 @@
 
 **Статус: PASS**
 
-| Документ из `MASTER_PLAN.md` | Status | Rationale | Evidence |
-|------------------------------|--------|-----------|----------|
-| `apps/webapp/src/app/api/api.md` | `updated` | Для Cluster G добавлен guard-shim `assertIntegratorGetRequest` и описание подписанных GET | `api-di-boundary-normalization/LOG.md` (pre-deploy FIX) |
-| `apps/webapp/src/app-layer/di/di.md` | `updated` | Зафиксировано разделение guard integrator GET и `buildAppDeps()` | `api-di-boundary-normalization/LOG.md` (pre-deploy FIX) |
-| `apps/webapp/src/app-layer/app-layer.md` | `deferred` | Текущее описание корректно; новых composition-root правил вне уже задокументированных изменений не появилось | `api-di-boundary-normalization/LOG.md` (final closure entry) |
-| `docs/ARCHITECTURE/LOW_LEVEL_ARCHITECTURE_AUDIT_AND_REORG.md` | `deferred` | Документ крупный и исторический; точечный rebase примеров вынесен в отдельную архитектурную задачу вне текущего closure PR | `api-di-boundary-normalization/LOG.md` (final closure entry) |
-| `docs/ARCHITECTURE/ARCHITECTURE_GUARDRAILS.md` | `N/A` | Новых runtime guardrails в рамках Cluster G не вводилось | `api-di-boundary-normalization/LOG.md` (final closure entry) |
-| `docs/archive/2026-04-docs-cleanup/reports/TEST_AND_API_DI_OPTIMIZATION_INDEX_2026-04-16.md` | `updated` | Добавлена ссылка на `AUDIT_FINAL.md` и финальный статус closure; индекс перенесён в архив при уборке `docs/` | `docs/archive/2026-04-docs-cleanup/reports/TEST_AND_API_DI_OPTIMIZATION_INDEX_2026-04-16.md` |
+| Документ из `MASTER_PLAN.md`                                                                 | Status     | Rationale                                                                                                                  | Evidence                                                                                     |
+| -------------------------------------------------------------------------------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `apps/webapp/src/app/api/api.md`                                                             | `updated`  | Для Cluster G добавлен guard-shim `assertIntegratorGetRequest` и описание подписанных GET                                  | `api-di-boundary-normalization/LOG.md` (pre-deploy FIX)                                      |
+| `apps/webapp/src/app-layer/di/di.md`                                                         | `updated`  | Зафиксировано разделение guard integrator GET и `buildAppDeps()`                                                           | `api-di-boundary-normalization/LOG.md` (pre-deploy FIX)                                      |
+| `apps/webapp/src/app-layer/app-layer.md`                                                     | `deferred` | Текущее описание корректно; новых composition-root правил вне уже задокументированных изменений не появилось               | `api-di-boundary-normalization/LOG.md` (final closure entry)                                 |
+| `docs/ARCHITECTURE/LOW_LEVEL_ARCHITECTURE_AUDIT_AND_REORG.md`                                | `deferred` | Документ крупный и исторический; точечный rebase примеров вынесен в отдельную архитектурную задачу вне текущего closure PR | `api-di-boundary-normalization/LOG.md` (final closure entry)                                 |
+| `docs/ARCHITECTURE/ARCHITECTURE_GUARDRAILS.md`                                               | `N/A`      | Новых runtime guardrails в рамках Cluster G не вводилось                                                                   | `api-di-boundary-normalization/LOG.md` (final closure entry)                                 |
+| `docs/archive/2026-04-docs-cleanup/reports/TEST_AND_API_DI_OPTIMIZATION_INDEX_2026-04-16.md` | `updated`  | Добавлена ссылка на `AUDIT_FINAL.md` и финальный статус closure; индекс перенесён в архив при уборке `docs/`               | `docs/archive/2026-04-docs-cleanup/reports/TEST_AND_API_DI_OPTIMIZATION_INDEX_2026-04-16.md` |
 
 ## 5) CI перед последним push был green (evidence)
 
@@ -91,10 +91,10 @@
 
 ## Final CI evidence (единый блок)
 
-| Источник | Команда | Результат | Дата |
-|----------|---------|-----------|------|
-| `AUDIT_PRE_DEPLOY_A.md` + `test-optimization/LOG.md` | `pnpm install --frozen-lockfile && pnpm run ci` (после `rm -rf apps/webapp/.next`) | `exit 0` | 2026-04-17 |
-| `AUDIT_PRE_DEPLOY_B.md` + `api-di-boundary-normalization/LOG.md` | `pnpm install --frozen-lockfile && pnpm run ci` | `exit 0` | 2026-04-17 |
+| Источник                                                         | Команда                                                                            | Результат | Дата       |
+| ---------------------------------------------------------------- | ---------------------------------------------------------------------------------- | --------- | ---------- |
+| `AUDIT_PRE_DEPLOY_A.md` + `test-optimization/LOG.md`             | `pnpm install --frozen-lockfile && pnpm run ci` (после `rm -rf apps/webapp/.next`) | `exit 0`  | 2026-04-17 |
+| `AUDIT_PRE_DEPLOY_B.md` + `api-di-boundary-normalization/LOG.md` | `pnpm install --frozen-lockfile && pnpm run ci`                                    | `exit 0`  | 2026-04-17 |
 
 **Примечание по hash:** в pre-deploy отчётах инициативы фиксировались команды и результаты gate; отдельная привязка к commit hash для этих прогонов не велась.
 
@@ -102,11 +102,11 @@
 
 ## MANDATORY FIX INSTRUCTIONS — closure status
 
-| ID | Severity | Статус | Что закрыто |
-|----|----------|--------|-------------|
+| ID           | Severity | Статус     | Что закрыто                                                                                                                                 |
+| ------------ | -------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | `MF-FINAL-1` | Critical | **CLOSED** | Добавлен allowlist-артефакт с классификацией всех остаточных `@/infra` импортов и snapshot (`approved-exception/planned-cluster/violation`) |
-| `MF-FINAL-2` | Major | **CLOSED** | Добавлена полная `docs sync/defer`-матрица по всем документам из `MASTER_PLAN.md` |
-| `MF-FINAL-3` | Major | **CLOSED** | Добавлен единый блок `Final CI evidence` в `AUDIT_FINAL.md` |
+| `MF-FINAL-2` | Major    | **CLOSED** | Добавлена полная `docs sync/defer`-матрица по всем документам из `MASTER_PLAN.md`                                                           |
+| `MF-FINAL-3` | Major    | **CLOSED** | Добавлен единый блок `Final CI evidence` в `AUDIT_FINAL.md`                                                                                 |
 
 ## MANDATORY FIX INSTRUCTIONS — remediation (если появится новый дрейф)
 

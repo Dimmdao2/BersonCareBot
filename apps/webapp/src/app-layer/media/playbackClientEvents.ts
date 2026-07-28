@@ -1,26 +1,26 @@
-import { and, desc, eq, gte, sql } from "drizzle-orm";
-import { drizzleExcludeUserIdColumn } from "@/modules/analytics/analyticsAudience";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { logger } from "@/app-layer/logging/logger";
-import { mediaPlaybackClientEvents } from "../../../db/schema";
+import { and, desc, eq, gte, sql } from 'drizzle-orm';
+import { drizzleExcludeUserIdColumn } from '@/modules/analytics/analyticsAudience';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { logger } from '@/app-layer/logging/logger';
+import { mediaPlaybackClientEvents } from '../../../db/schema';
 
 export type PlaybackClientEventClass =
-  | "hls_fatal"
-  | "video_error"
-  | "hls_import_failed"
-  | "playback_refetch_failed"
-  | "playback_refetch_exception"
-  | "hls_js_unsupported";
+  | 'hls_fatal'
+  | 'video_error'
+  | 'hls_import_failed'
+  | 'playback_refetch_failed'
+  | 'playback_refetch_exception'
+  | 'hls_js_unsupported';
 
-export type PlaybackClientDelivery = "hls" | "mp4" | "file";
+export type PlaybackClientDelivery = 'hls' | 'mp4' | 'file';
 
 const KNOWN_EVENT_CLASSES: PlaybackClientEventClass[] = [
-  "hls_fatal",
-  "video_error",
-  "hls_import_failed",
-  "playback_refetch_failed",
-  "playback_refetch_exception",
-  "hls_js_unsupported",
+  'hls_fatal',
+  'video_error',
+  'hls_import_failed',
+  'playback_refetch_failed',
+  'playback_refetch_exception',
+  'hls_js_unsupported',
 ];
 
 function floorUtcHourIso(now: Date = new Date()): string {
@@ -66,7 +66,7 @@ export async function recordPlaybackClientEvent(input: {
         userId: input.userId,
         eventClass: input.eventClass,
       },
-      "playback_client_event_write_failed",
+      'playback_client_event_write_failed',
     );
   }
 }
@@ -104,7 +104,9 @@ export async function loadAdminPlaybackClientHealthMetrics(opts?: {
   excludedUserIds?: string[];
 }): Promise<AdminPlaybackClientHealthMetrics> {
   const windowHours =
-    typeof opts?.windowHours === "number" && Number.isFinite(opts.windowHours) && opts.windowHours > 0
+    typeof opts?.windowHours === 'number' &&
+    Number.isFinite(opts.windowHours) &&
+    opts.windowHours > 0
       ? Math.floor(opts.windowHours)
       : 24;
   const excludedUserIds = opts?.excludedUserIds ?? [];
@@ -170,7 +172,7 @@ export async function loadAdminPlaybackClientHealthMetrics(opts?: {
     .where(
       and(
         gte(mediaPlaybackClientEvents.createdAt, currentUtcHour),
-        eq(mediaPlaybackClientEvents.eventClass, "hls_fatal"),
+        eq(mediaPlaybackClientEvents.eventClass, 'hls_fatal'),
         userExclude,
       ),
     )
@@ -196,9 +198,9 @@ export async function loadAdminPlaybackClientHealthMetrics(opts?: {
   const byDelivery = { hls: 0, mp4: 0, file: 0 };
   for (const row of delivery24) {
     const n = Number.parseInt(row.c, 10) || 0;
-    if (row.delivery === "hls") byDelivery.hls = n;
-    else if (row.delivery === "mp4") byDelivery.mp4 = n;
-    else if (row.delivery === "file") byDelivery.file = n;
+    if (row.delivery === 'hls') byDelivery.hls = n;
+    else if (row.delivery === 'mp4') byDelivery.mp4 = n;
+    else if (row.delivery === 'file') byDelivery.file = n;
   }
 
   const likelyLooping = loops.some((row) => (Number.parseInt(row.c, 10) || 0) >= 3);
@@ -215,11 +217,9 @@ export async function loadAdminPlaybackClientHealthMetrics(opts?: {
       mediaId: r.mediaId,
       eventClass: KNOWN_EVENT_CLASSES.includes(r.eventClass as PlaybackClientEventClass)
         ? (r.eventClass as PlaybackClientEventClass)
-        : "video_error",
+        : 'video_error',
       delivery:
-        r.delivery === "hls" || r.delivery === "mp4" || r.delivery === "file"
-          ? r.delivery
-          : null,
+        r.delivery === 'hls' || r.delivery === 'mp4' || r.delivery === 'file' ? r.delivery : null,
       errorDetail: r.errorDetail ?? null,
     })),
     likelyLooping,

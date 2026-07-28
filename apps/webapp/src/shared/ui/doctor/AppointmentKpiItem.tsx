@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { doctorInlineLinkClass, doctorSectionItemClass } from "@/shared/ui/doctor/doctorVisual";
+import Link from 'next/link';
+import { doctorInlineLinkClass, doctorSectionItemClass } from '@/shared/ui/doctor/doctorVisual';
 
 /**
  * Normalized appointment shape accepted by AppointmentKpiItem.
@@ -35,23 +35,33 @@ export type AppointmentKpiItemData = {
  * Used by: DoctorTodayRightKpiRow, ScheduleCalendarTab.
  */
 export function AppointmentKpiItem({ item }: { item: AppointmentKpiItemData }) {
-  const { clientLabel, time, typeLabel, statusLabel, branchName, altNameNote, cancelled, href, ctaLabel } = item;
+  const {
+    clientLabel,
+    time,
+    typeLabel,
+    statusLabel,
+    branchName,
+    altNameNote,
+    cancelled,
+    href,
+    ctaLabel,
+  } = item;
 
   const secondary = [typeLabel, !cancelled ? statusLabel : null, branchName]
     .filter(Boolean)
-    .join(" · ");
+    .join(' · ');
 
   return (
     <div
       className={
         cancelled
-          ? "rounded-md border border-destructive/25 bg-destructive/5 px-3 py-2"
+          ? 'rounded-md border border-destructive/25 bg-destructive/5 px-3 py-2'
           : doctorSectionItemClass
       }
     >
       <div className="flex items-baseline justify-between gap-2">
         <p
-          className={`font-medium ${cancelled ? "text-destructive/80 line-through" : "text-foreground"}`}
+          className={`font-medium ${cancelled ? 'text-destructive/80 line-through' : 'text-foreground'}`}
         >
           {clientLabel}
         </p>
@@ -64,13 +74,9 @@ export function AppointmentKpiItem({ item }: { item: AppointmentKpiItemData }) {
         </p>
       ) : null}
 
-      {altNameNote ? (
-        <p className="mt-0.5 text-xs text-muted-foreground">{altNameNote}</p>
-      ) : null}
+      {altNameNote ? <p className="mt-0.5 text-xs text-muted-foreground">{altNameNote}</p> : null}
 
-      {secondary ? (
-        <p className="mt-0.5 text-xs text-muted-foreground">{secondary}</p>
-      ) : null}
+      {secondary ? <p className="mt-0.5 text-xs text-muted-foreground">{secondary}</p> : null}
 
       {!cancelled && href && ctaLabel ? (
         <p className="mt-2">

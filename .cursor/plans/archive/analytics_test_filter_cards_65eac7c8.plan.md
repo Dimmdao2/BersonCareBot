@@ -1,6 +1,6 @@
 ---
 name: Analytics test filter cards hardening
-overview: "Жестко унифицировать аналитику: тестовые пользователи исключаются везде по умолчанию и включаются только при dev/debug режиме; все KPI-карточки становятся полноценно кликабельными по всей площади; drill-down доводится до «Сегодня», «Использование», «Уведомления» и «По контенту» без размывания прав доступа."
+overview: 'Жестко унифицировать аналитику: тестовые пользователи исключаются везде по умолчанию и включаются только при dev/debug режиме; все KPI-карточки становятся полноценно кликабельными по всей площади; drill-down доводится до «Сегодня», «Использование», «Уведомления» и «По контенту» без размывания прав доступа.'
 todos:
   - id: phase-0-baseline
     content: Зафиксировать baseline по текущим расчетам и точкам клика, подтвердить границы scope
@@ -76,11 +76,11 @@ isProject: false
 ### Decision table: включать ли тестовых в аналитику
 
 | dev_mode | debug_forward_to_admin | includeTestAccounts |
-|---|---|---|
-| false | false | false |
-| true | false | true |
-| false | true | true |
-| true | true | true |
+| -------- | ---------------------- | ------------------- |
+| false    | false                  | false               |
+| true     | false                  | true                |
+| false    | true                   | true                |
+| true     | true                   | true                |
 
 ### Единый pipeline
 
@@ -278,25 +278,25 @@ flowchart LR
 
 #### Функциональная матрица
 
-| Сценарий | Ожидание |
-|---|---|
-| flags off + test account | не попадает ни в one KPI на Today/Analytics/Usage/Notifications/Content |
-| dev_mode on | test account попадает в выборки |
-| debug_forward_to_admin on | test account попадает в выборки |
-| оба флага on | поведение как include=true |
-| клик по цифре и по заголовку карточки | одинаковый result |
-| клавиатура Enter/Space на карточке-кнопке | тот же drill-down |
+| Сценарий                                  | Ожидание                                                                |
+| ----------------------------------------- | ----------------------------------------------------------------------- |
+| flags off + test account                  | не попадает ни в one KPI на Today/Analytics/Usage/Notifications/Content |
+| dev_mode on                               | test account попадает в выборки                                         |
+| debug_forward_to_admin on                 | test account попадает в выборки                                         |
+| оба флага on                              | поведение как include=true                                              |
+| клик по цифре и по заголовку карточки     | одинаковый result                                                       |
+| клавиатура Enter/Space на карточке-кнопке | тот же drill-down                                                       |
 
 #### Закрытый набор тестов (lean policy)
 
-| Область | Файл |
-|---|---|
-| audience flags (4 режима) + `resolveAnalyticsExcludedUserIds` + SQL helpers | `modules/analytics/analyticsAudience.test.ts` |
-| DoctorStatCard click + Enter/Space | `app/app/doctor/analytics/clients/DoctorStatCard.test.tsx` |
-| Today dashboard smoke | `app/app/doctor/DoctorTodayDashboard.test.tsx` |
-| Today KPI section + drill-down | `app/app/doctor/DoctorTodayKpiSection.test.tsx` |
-| doctor metric-accounts route (excluded + includeTestAccounts) | `app/api/doctor/analytics-metric-accounts/route.test.ts` |
-| metric-accounts repo (`today_*`, `notif_*`, windowHours) | `infra/repos/pgDoctorAnalyticsMetricAccounts.test.ts` |
+| Область                                                                     | Файл                                                       |
+| --------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| audience flags (4 режима) + `resolveAnalyticsExcludedUserIds` + SQL helpers | `modules/analytics/analyticsAudience.test.ts`              |
+| DoctorStatCard click + Enter/Space                                          | `app/app/doctor/analytics/clients/DoctorStatCard.test.tsx` |
+| Today dashboard smoke                                                       | `app/app/doctor/DoctorTodayDashboard.test.tsx`             |
+| Today KPI section + drill-down                                              | `app/app/doctor/DoctorTodayKpiSection.test.tsx`            |
+| doctor metric-accounts route (excluded + includeTestAccounts)               | `app/api/doctor/analytics-metric-accounts/route.test.ts`   |
+| metric-accounts repo (`today_*`, `notif_*`, windowHours)                    | `infra/repos/pgDoctorAnalyticsMetricAccounts.test.ts`      |
 
 #### Локальные команды проверки
 

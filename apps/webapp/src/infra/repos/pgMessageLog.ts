@@ -1,11 +1,19 @@
 /**
  * Wave 3 phase 14D — domain SQL via `runWebappPgText` (Class B dynamic filters in `buildWhere`).
  */
-import { runWebappPgText } from "@/infra/db/runWebappSql";
-import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
-import type { MessageLogEntry, MessageLogListFilters, MessageLogListResult, MessageLogPort } from "@/modules/doctor-messaging/ports";
+import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
+import type {
+  MessageLogEntry,
+  MessageLogListFilters,
+  MessageLogListResult,
+  MessageLogPort,
+} from '@/modules/doctor-messaging/ports';
 
-function normalizePage(page?: number, pageSize?: number): { page: number; pageSize: number; offset: number } {
+function normalizePage(
+  page?: number,
+  pageSize?: number,
+): { page: number; pageSize: number; offset: number } {
   const normalizedPage = Math.max(1, Math.floor(page ?? 1));
   const normalizedPageSize = Math.min(100, Math.max(1, Math.floor(pageSize ?? 20)));
   return {
@@ -20,7 +28,9 @@ function buildWhere(filters?: MessageLogListFilters): { whereSql: string; values
   const values: unknown[] = [];
   if (filters?.userId) {
     values.push(filters.userId);
-    where.push(`(platform_user_id = $${values.length}::uuid OR (platform_user_id IS NULL AND user_id = $${values.length}::text))`);
+    where.push(
+      `(platform_user_id = $${values.length}::uuid OR (platform_user_id IS NULL AND user_id = $${values.length}::text))`,
+    );
   }
   if (filters?.category) {
     values.push(filters.category);
@@ -35,7 +45,7 @@ function buildWhere(filters?: MessageLogListFilters): { whereSql: string; values
     where.push(`sent_at <= $${values.length}::timestamptz`);
   }
   return {
-    whereSql: where.length > 0 ? `WHERE ${where.join(" AND ")}` : "",
+    whereSql: where.length > 0 ? `WHERE ${where.join(' AND ')}` : '',
     values,
   };
 }
@@ -44,7 +54,7 @@ function mapRows(rows: MessageLogRow[]): MessageLogEntry[] {
   return rows.map((row) => ({
     id: String(row.id),
     userId:
-      row.platform_user_id != null && String(row.platform_user_id).trim() !== ""
+      row.platform_user_id != null && String(row.platform_user_id).trim() !== ''
         ? String(row.platform_user_id)
         : String(row.user_id),
     senderId: String(row.sender_id),
@@ -52,7 +62,7 @@ function mapRows(rows: MessageLogRow[]): MessageLogEntry[] {
     category: String(row.category),
     channelBindingsUsed: (row.channel_bindings_used as Record<string, string>) ?? {},
     sentAt: new Date(String(row.sent_at)).toISOString(),
-    outcome: row.outcome as MessageLogEntry["outcome"],
+    outcome: row.outcome as MessageLogEntry['outcome'],
     errorMessage: (row.error_message as string | null) ?? null,
   }));
 }
@@ -66,7 +76,7 @@ type MessageLogRow = {
   category: string;
   channel_bindings_used: Record<string, string> | null;
   sent_at: Date | string;
-  outcome: MessageLogEntry["outcome"];
+  outcome: MessageLogEntry['outcome'];
   error_message: string | null;
 };
 
@@ -82,7 +92,7 @@ export function createPgMessageLogPort(): MessageLogPort {
         category: string;
         channel_bindings_used: Record<string, string>;
         sent_at: Date;
-        outcome: MessageLogEntry["outcome"];
+        outcome: MessageLogEntry['outcome'];
         error_message: string | null;
       }>(
         `INSERT INTO message_log (
@@ -133,7 +143,7 @@ export function createPgMessageLogPort(): MessageLogPort {
       ]);
       return {
         items: mapRows(listRes.rows),
-        total: parseInt(countRes.rows[0]?.c ?? "0", 10),
+        total: parseInt(countRes.rows[0]?.c ?? '0', 10),
         page: paging.page,
         pageSize: paging.pageSize,
       };
@@ -158,7 +168,7 @@ export function createPgMessageLogPort(): MessageLogPort {
       ]);
       return {
         items: mapRows(listRes.rows),
-        total: parseInt(countRes.rows[0]?.c ?? "0", 10),
+        total: parseInt(countRes.rows[0]?.c ?? '0', 10),
         page: paging.page,
         pageSize: paging.pageSize,
       };

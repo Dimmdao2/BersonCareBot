@@ -1,9 +1,9 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { resolvePlatformAccessContext } from "./resolvePlatformAccessContext";
-import { bindPlatformAccessPort, resetPlatformAccessPortForTests } from "./ports";
+import { resolvePlatformAccessContext } from './resolvePlatformAccessContext';
+import { bindPlatformAccessPort, resetPlatformAccessPortForTests } from './ports';
 
-describe("resolvePlatformAccessContext", () => {
+describe('resolvePlatformAccessContext', () => {
   const resolveCanonicalUserIdMock = vi.fn();
   const loadCanonRowMock = vi.fn();
   let consoleInfoSpy: ReturnType<typeof vi.spyOn>;
@@ -15,7 +15,7 @@ describe("resolvePlatformAccessContext", () => {
       resolveCanonicalUserId: resolveCanonicalUserIdMock,
       loadCanonRow: loadCanonRowMock,
     });
-    consoleInfoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
+    consoleInfoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -23,148 +23,180 @@ describe("resolvePlatformAccessContext", () => {
     resetPlatformAccessPortForTests();
   });
 
-  it("returns guest when no session user id", async () => {
+  it('returns guest when no session user id', async () => {
     const ctx = await resolvePlatformAccessContext({ sessionUserId: null });
     expect(ctx).toMatchObject({
       canonicalUserId: null,
       dbRole: null,
-      tier: "guest",
-      resolution: "no_session",
+      tier: 'guest',
+      resolution: 'no_session',
     });
     expect(loadCanonRowMock).not.toHaveBeenCalled();
   });
 
-  it("legacy non-UUID session: onboarding for client hint", async () => {
+  it('legacy non-UUID session: onboarding for client hint', async () => {
     const ctx = await resolvePlatformAccessContext({
-      sessionUserId: "tg:123",
-      sessionRoleHint: "client",
+      sessionUserId: 'tg:123',
+      sessionRoleHint: 'client',
     });
     expect(ctx).toMatchObject({
       canonicalUserId: null,
-      dbRole: "client",
-      tier: "onboarding",
-      resolution: "legacy_non_uuid_session",
+      dbRole: 'client',
+      tier: 'onboarding',
+      resolution: 'legacy_non_uuid_session',
     });
     expect(loadCanonRowMock).not.toHaveBeenCalled();
   });
 
-  it("legacy non-UUID session: doctor has no client tier", async () => {
+  it('legacy non-UUID session: doctor has no client tier', async () => {
     const ctx = await resolvePlatformAccessContext({
-      sessionUserId: "tg:123",
-      sessionRoleHint: "doctor",
+      sessionUserId: 'tg:123',
+      sessionRoleHint: 'doctor',
     });
     expect(ctx.tier).toBeNull();
-    expect(ctx.dbRole).toBe("doctor");
+    expect(ctx.dbRole).toBe('doctor');
   });
 
-  it("resolved client with trusted phone → patient", async () => {
-    const uid = "00000000-0000-4000-8000-000000000001";
+  it('resolved client with trusted phone → patient', async () => {
+    const uid = '00000000-0000-4000-8000-000000000001';
     resolveCanonicalUserIdMock.mockResolvedValue(uid);
-    loadCanonRowMock.mockResolvedValueOnce({ role: "client", phone_normalized: "+79990000001", patient_phone_trust_at: new Date() });
+    loadCanonRowMock.mockResolvedValueOnce({
+      role: 'client',
+      phone_normalized: '+79990000001',
+      patient_phone_trust_at: new Date(),
+    });
     const ctx = await resolvePlatformAccessContext({ sessionUserId: uid });
     expect(ctx).toMatchObject({
       canonicalUserId: uid,
-      dbRole: "client",
-      tier: "patient",
+      dbRole: 'client',
+      tier: 'patient',
       hasPhoneInDb: true,
       phoneTrustedForPatient: true,
-      resolution: "resolved_canon",
+      resolution: 'resolved_canon',
     });
     expect(consoleInfoSpy).not.toHaveBeenCalled();
   });
 
-  it("resolved client with phone but no trust → onboarding", async () => {
-    const uid = "00000000-0000-4000-8000-000000000002";
+  it('resolved client with phone but no trust → onboarding', async () => {
+    const uid = '00000000-0000-4000-8000-000000000002';
     resolveCanonicalUserIdMock.mockResolvedValue(uid);
-    loadCanonRowMock.mockResolvedValueOnce({ role: "client", phone_normalized: "+79990000002", patient_phone_trust_at: null });
+    loadCanonRowMock.mockResolvedValueOnce({
+      role: 'client',
+      phone_normalized: '+79990000002',
+      patient_phone_trust_at: null,
+    });
     const ctx = await resolvePlatformAccessContext({ sessionUserId: uid });
-    expect(ctx.tier).toBe("onboarding");
+    expect(ctx.tier).toBe('onboarding');
     expect(ctx.phoneTrustedForPatient).toBe(false);
     expect(ctx.hasPhoneInDb).toBe(true);
   });
 
-  it("resolved client without phone → onboarding", async () => {
-    const uid = "00000000-0000-4000-8000-000000000003";
+  it('resolved client without phone → onboarding', async () => {
+    const uid = '00000000-0000-4000-8000-000000000003';
     resolveCanonicalUserIdMock.mockResolvedValue(uid);
-    loadCanonRowMock.mockResolvedValueOnce({ role: "client", phone_normalized: null, patient_phone_trust_at: null });
+    loadCanonRowMock.mockResolvedValueOnce({
+      role: 'client',
+      phone_normalized: null,
+      patient_phone_trust_at: null,
+    });
     const ctx = await resolvePlatformAccessContext({ sessionUserId: uid });
-    expect(ctx.tier).toBe("onboarding");
+    expect(ctx.tier).toBe('onboarding');
     expect(ctx.hasPhoneInDb).toBe(false);
   });
 
-  it("resolved doctor: tier N/A", async () => {
-    const uid = "00000000-0000-4000-8000-000000000004";
+  it('resolved doctor: tier N/A', async () => {
+    const uid = '00000000-0000-4000-8000-000000000004';
     resolveCanonicalUserIdMock.mockResolvedValue(uid);
-    loadCanonRowMock.mockResolvedValueOnce({ role: "doctor", phone_normalized: "+79990000003", patient_phone_trust_at: new Date() });
+    loadCanonRowMock.mockResolvedValueOnce({
+      role: 'doctor',
+      phone_normalized: '+79990000003',
+      patient_phone_trust_at: new Date(),
+    });
     const ctx = await resolvePlatformAccessContext({ sessionUserId: uid });
-    expect(ctx.dbRole).toBe("doctor");
+    expect(ctx.dbRole).toBe('doctor');
     expect(ctx.tier).toBeNull();
     expect(ctx.phoneTrustedForPatient).toBe(false);
   });
 
-  it("missing platform_users row → guest", async () => {
-    const uid = "00000000-0000-4000-8000-000000000005";
+  it('missing platform_users row → guest', async () => {
+    const uid = '00000000-0000-4000-8000-000000000005';
     resolveCanonicalUserIdMock.mockResolvedValue(uid);
     loadCanonRowMock.mockResolvedValueOnce(null);
     const ctx = await resolvePlatformAccessContext({ sessionUserId: uid });
     expect(ctx).toMatchObject({
       canonicalUserId: null,
-      tier: "guest",
-      resolution: "session_user_missing",
+      tier: 'guest',
+      resolution: 'session_user_missing',
     });
   });
 
   /** MASTER_PLAN §5 фаза E — сценарии tier/trust (имена привязаны к продуктовым потокам). */
-  describe("Phase E (MASTER_PLAN): identity → tier", () => {
-    it("OAuth / email-only sign-up row: client without phone → onboarding (trust not set)", async () => {
-      const uid = "00000000-0000-4000-8000-0000000000e1";
+  describe('Phase E (MASTER_PLAN): identity → tier', () => {
+    it('OAuth / email-only sign-up row: client without phone → onboarding (trust not set)', async () => {
+      const uid = '00000000-0000-4000-8000-0000000000e1';
       resolveCanonicalUserIdMock.mockResolvedValue(uid);
-      loadCanonRowMock.mockResolvedValueOnce({ role: "client", phone_normalized: null, patient_phone_trust_at: null });
+      loadCanonRowMock.mockResolvedValueOnce({
+        role: 'client',
+        phone_normalized: null,
+        patient_phone_trust_at: null,
+      });
       const ctx = await resolvePlatformAccessContext({ sessionUserId: uid });
-      expect(ctx.tier).toBe("onboarding");
+      expect(ctx.tier).toBe('onboarding');
       expect(ctx.phoneTrustedForPatient).toBe(false);
       expect(ctx.hasPhoneInDb).toBe(false);
     });
 
-    it("multi-channel: canon has phone before OTP — onboarding until patient_phone_trust_at", async () => {
-      const uid = "00000000-0000-4000-8000-0000000000e2";
+    it('multi-channel: canon has phone before OTP — onboarding until patient_phone_trust_at', async () => {
+      const uid = '00000000-0000-4000-8000-0000000000e2';
       resolveCanonicalUserIdMock.mockResolvedValue(uid);
-      loadCanonRowMock.mockResolvedValueOnce({ role: "client", phone_normalized: "+79990000002", patient_phone_trust_at: null });
+      loadCanonRowMock.mockResolvedValueOnce({
+        role: 'client',
+        phone_normalized: '+79990000002',
+        patient_phone_trust_at: null,
+      });
       const ctx = await resolvePlatformAccessContext({ sessionUserId: uid });
-      expect(ctx.tier).toBe("onboarding");
+      expect(ctx.tier).toBe('onboarding');
       expect(ctx.hasPhoneInDb).toBe(true);
       expect(ctx.phoneTrustedForPatient).toBe(false);
     });
 
-    it("after trusted OTP / phone_bind: patient_phone_trust_at set → patient tier", async () => {
-      const uid = "00000000-0000-4000-8000-0000000000e3";
+    it('after trusted OTP / phone_bind: patient_phone_trust_at set → patient tier', async () => {
+      const uid = '00000000-0000-4000-8000-0000000000e3';
       resolveCanonicalUserIdMock.mockResolvedValue(uid);
-      loadCanonRowMock.mockResolvedValueOnce({ role: "client", phone_normalized: "+79990000003", patient_phone_trust_at: new Date("2026-04-01") });
+      loadCanonRowMock.mockResolvedValueOnce({
+        role: 'client',
+        phone_normalized: '+79990000003',
+        patient_phone_trust_at: new Date('2026-04-01'),
+      });
       const ctx = await resolvePlatformAccessContext({ sessionUserId: uid });
-      expect(ctx.tier).toBe("patient");
+      expect(ctx.tier).toBe('patient');
       expect(ctx.phoneTrustedForPatient).toBe(true);
     });
 
-    it("legacy client transport (non-UUID sub) without DB phone — onboarding", async () => {
+    it('legacy client transport (non-UUID sub) without DB phone — onboarding', async () => {
       const ctx = await resolvePlatformAccessContext({
-        sessionUserId: "tg:999",
-        sessionRoleHint: "client",
+        sessionUserId: 'tg:999',
+        sessionRoleHint: 'client',
       });
-      expect(ctx.tier).toBe("onboarding");
-      expect(ctx.resolution).toBe("legacy_non_uuid_session");
+      expect(ctx.tier).toBe('onboarding');
+      expect(ctx.resolution).toBe('legacy_non_uuid_session');
     });
 
-    it("DoD §8: logs structured tier context for resolved client canon (no raw phone)", async () => {
-      const uid = "00000000-0000-4000-8000-0000000000e4";
+    it('DoD §8: logs structured tier context for resolved client canon (no raw phone)', async () => {
+      const uid = '00000000-0000-4000-8000-0000000000e4';
       resolveCanonicalUserIdMock.mockResolvedValue(uid);
-      loadCanonRowMock.mockResolvedValueOnce({ role: "client", phone_normalized: "+79990000004", patient_phone_trust_at: null });
+      loadCanonRowMock.mockResolvedValueOnce({
+        role: 'client',
+        phone_normalized: '+79990000004',
+        patient_phone_trust_at: null,
+      });
       await resolvePlatformAccessContext({ sessionUserId: uid });
       expect(consoleInfoSpy).toHaveBeenCalledWith(
-        "[platform_access] tier=%s resolution=%s phone_trusted=%s has_phone_db=%s canon=%s",
-        "onboarding",
-        "resolved_canon",
-        "false",
-        "true",
+        '[platform_access] tier=%s resolution=%s phone_trusted=%s has_phone_db=%s canon=%s',
+        'onboarding',
+        'resolved_canon',
+        'false',
+        'true',
         uid,
       );
     });

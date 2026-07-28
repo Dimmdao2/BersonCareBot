@@ -22,7 +22,12 @@ const recordedCalls: { path: string; method: string; body: unknown }[] = [];
 type FetchInput = Parameters<typeof fetch>[0];
 type FetchInit = Parameters<typeof fetch>[1];
 const mockFetch: typeof fetch = async (input: FetchInput, init?: FetchInit) => {
-  const url = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as { url: string }).url;
+  const url =
+    typeof input === 'string'
+      ? input
+      : input instanceof URL
+        ? input.href
+        : (input as { url: string }).url;
   const path = new URL(url).pathname;
   const method = path.replace(/^\/bot[^/]+\//, '') || 'unknown';
   let body: unknown = init?.body;
@@ -42,7 +47,12 @@ const mockFetch: typeof fetch = async (input: FetchInput, init?: FetchInit) => {
 
 const originalFetch = globalThis.fetch;
 globalThis.fetch = (input: FetchInput, init?: FetchInit) => {
-  const url = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as { url: string }).url;
+  const url =
+    typeof input === 'string'
+      ? input
+      : input instanceof URL
+        ? input.href
+        : (input as { url: string }).url;
   if (String(url).includes('api.telegram.org')) return mockFetch(input, init);
   return originalFetch(input, init);
 };
@@ -52,15 +62,19 @@ function clearRecordedCalls(): void {
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
-  return typeof value === 'object' && value !== null ? value as Record<string, unknown> : {};
+  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
 }
 
-function buildQueuedJob(task: { kind: string; payload: Record<string, unknown> }, suffix: string): DeliveryJob {
+function buildQueuedJob(
+  task: { kind: string; payload: Record<string, unknown> },
+  suffix: string,
+): DeliveryJob {
   const retry = asRecord(task.payload.retry);
   const maxAttemptsRaw = retry.maxAttempts;
-  const maxAttempts = typeof maxAttemptsRaw === 'number' && Number.isFinite(maxAttemptsRaw)
-    ? Math.max(1, Math.trunc(maxAttemptsRaw))
-    : 1;
+  const maxAttempts =
+    typeof maxAttemptsRaw === 'number' && Number.isFinite(maxAttemptsRaw)
+      ? Math.max(1, Math.trunc(maxAttemptsRaw))
+      : 1;
   return {
     id: `e2e-job:${suffix}`,
     kind: task.kind,
@@ -142,7 +156,10 @@ describe.skipIf(!runE2E)('Webhook scenarios (e2e)', () => {
   };
 
   const dbReadPort = {
-    async readDb<T = unknown>(query: { type: string; params: Record<string, unknown> }): Promise<T> {
+    async readDb<T = unknown>(query: {
+      type: string;
+      params: Record<string, unknown>;
+    }): Promise<T> {
       if (query.type === 'user.lookup') {
         const by = query.params.by;
         const value = query.params.value;
@@ -188,9 +205,10 @@ describe.skipIf(!runE2E)('Webhook scenarios (e2e)', () => {
 
       if (mutation.type === 'user.phone.link') {
         const channelUserId = asChannelUserId(mutation.params.channelUserId);
-        const phoneNormalized = typeof mutation.params.phoneNormalized === 'string'
-          ? mutation.params.phoneNormalized
-          : null;
+        const phoneNormalized =
+          typeof mutation.params.phoneNormalized === 'string'
+            ? mutation.params.phoneNormalized
+            : null;
         if (channelUserId && phoneNormalized) {
           inMemoryState.phones.set(channelUserId, phoneNormalized);
         }
@@ -211,12 +229,14 @@ describe.skipIf(!runE2E)('Webhook scenarios (e2e)', () => {
   beforeAll(async () => {
     fixtures = await loadFixtures();
     idempotencyKeys.clear();
-    const { createTelegramDeliveryAdapter } = await import('../src/integrations/telegram/deliveryAdapter.js');
+    const { createTelegramDeliveryAdapter } =
+      await import('../src/integrations/telegram/deliveryAdapter.js');
     dispatchPort = createDefaultDispatchPort({
       adapters: [createTelegramDeliveryAdapter()],
     });
     const { buildApp } = await import('../src/app/index.js');
-    const { registerTelegramWebhookRoutes } = await import('../src/integrations/telegram/webhook.js');
+    const { registerTelegramWebhookRoutes } =
+      await import('../src/integrations/telegram/webhook.js');
     app = await buildApp({
       dbReadPort,
       dbWritePort,
@@ -243,7 +263,8 @@ describe.skipIf(!runE2E)('Webhook scenarios (e2e)', () => {
 
   it('runs all fixture scenarios in order', async () => {
     const headers: Record<string, string> = { 'content-type': 'application/json' };
-    if (typeof webhookSecret === 'string') headers['x-telegram-bot-api-secret-token'] = webhookSecret;
+    if (typeof webhookSecret === 'string')
+      headers['x-telegram-bot-api-secret-token'] = webhookSecret;
 
     for (const { name, payload } of fixtures) {
       clearRecordedCalls();
@@ -281,7 +302,10 @@ describe.skipIf(!runE2E)('Webhook scenarios (e2e)', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/webhook/telegram',
-      headers: { 'content-type': 'application/json', 'x-telegram-bot-api-secret-token': 'wrong-secret' },
+      headers: {
+        'content-type': 'application/json',
+        'x-telegram-bot-api-secret-token': 'wrong-secret',
+      },
       payload: fixtures[0]!.payload as object,
     });
     expect(res.statusCode).toBe(403);

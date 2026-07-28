@@ -126,7 +126,8 @@ export type BuildDepsInput = {
 };
 
 /** Projection health snapshot for release gate. */
-export type ProjectionHealthSnapshot = import('../infra/db/repos/projectionHealth.js').ProjectionHealthSnapshot;
+export type ProjectionHealthSnapshot =
+  import('../infra/db/repos/projectionHealth.js').ProjectionHealthSnapshot;
 
 /** Зависимости app-слоя, используемые routes/server. */
 export type AppDeps = {
@@ -181,17 +182,23 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     integratorWebhookSecret().length >= 16 ? createRemindersWritesPort({ db: dbPort }) : undefined;
   /** Same condition: appointment product reads from webapp when configured. */
   const appointmentsReadsPort =
-    integratorWebhookSecret().length >= 16 ? createAppointmentsReadsPort({ db: dbPort }) : undefined;
+    integratorWebhookSecret().length >= 16
+      ? createAppointmentsReadsPort({ db: dbPort })
+      : undefined;
   /** Subscription/mailing product reads from webapp when configured. */
   const subscriptionMailingReadsPort =
-    integratorWebhookSecret().length >= 16 ? createSubscriptionMailingReadsPort({ db: dbPort }) : undefined;
-  const dbReadPort = input.dbReadPort ?? createDbReadPort({
-    db: dbPort,
-    communicationReadsPort,
-    ...(remindersReadsPort !== undefined ? { remindersReadsPort } : {}),
-    ...(appointmentsReadsPort !== undefined ? { appointmentsReadsPort } : {}),
-    ...(subscriptionMailingReadsPort !== undefined ? { subscriptionMailingReadsPort } : {}),
-  });
+    integratorWebhookSecret().length >= 16
+      ? createSubscriptionMailingReadsPort({ db: dbPort })
+      : undefined;
+  const dbReadPort =
+    input.dbReadPort ??
+    createDbReadPort({
+      db: dbPort,
+      communicationReadsPort,
+      ...(remindersReadsPort !== undefined ? { remindersReadsPort } : {}),
+      ...(appointmentsReadsPort !== undefined ? { appointmentsReadsPort } : {}),
+      ...(subscriptionMailingReadsPort !== undefined ? { subscriptionMailingReadsPort } : {}),
+    });
   const webappEventsPort = createWebappEventsPort({
     getAppBaseUrl: () => getAppBaseUrl(dbPort),
   });
@@ -206,10 +213,12 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
       webappEventsPort,
       getDispatchPort: () => dispatchPortRef.current,
     });
-  const queuePort = input.queuePort ?? createPostgresJobQueue({
-    db: dbPort,
-    retryDelaySeconds: appSettings.runtime.worker.retryDelaySeconds,
-  });
+  const queuePort =
+    input.queuePort ??
+    createPostgresJobQueue({
+      db: dbPort,
+      retryDelaySeconds: appSettings.runtime.worker.retryDelaySeconds,
+    });
 
   const contentPort = createContentPort({ rootDir: join(getAppRoot(), 'src', 'content') });
   const contentCatalogPort = createContentCatalogPort();
@@ -289,10 +298,9 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     ? (input.registerTelegramWebhookRoutes ?? registerTelegramWebhookRoutes)
     : undefined;
 
-  const maxRegistrar =
-    maxConfig.enabled
-      ? (input.registerMaxWebhookRoutes ?? registerMaxWebhookRoutes)
-      : undefined;
+  const maxRegistrar = maxConfig.enabled
+    ? (input.registerMaxWebhookRoutes ?? registerMaxWebhookRoutes)
+    : undefined;
 
   return {
     healthCheckDb,
@@ -310,7 +318,9 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     eventGateway,
     webappEventsPort,
     webPushAccessPort,
-    ...(telegramRegistrar !== undefined ? { registerTelegramWebhookRoutes: telegramRegistrar } : {}),
+    ...(telegramRegistrar !== undefined
+      ? { registerTelegramWebhookRoutes: telegramRegistrar }
+      : {}),
     ...(maxRegistrar !== undefined ? { registerMaxWebhookRoutes: maxRegistrar } : {}),
   };
 }

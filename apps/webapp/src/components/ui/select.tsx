@@ -1,4 +1,4 @@
-"use client"
+'use client';
 
 /**
  * Реэкспорт канонического примитива. Единственный источник — `@/shared/ui/primitives/select`
@@ -7,4 +7,4 @@
  * починка подписи в одном файле не доходит до вызовов, импортирующих другой.
  */
 
-export * from "@/shared/ui/primitives/select"
+export * from '@/shared/ui/primitives/select';

@@ -50,7 +50,8 @@ export async function openOrTouchOperatorIncident(
       set: {
         lastSeenAt: sql`now()` as unknown as string,
         occurrenceCount: sql`${operatorIncidents.occurrenceCount} + 1`,
-        errorDetail: sql`coalesce(excluded.error_detail, ${operatorIncidents.errorDetail})` as unknown as string,
+        errorDetail:
+          sql`coalesce(excluded.error_detail, ${operatorIncidents.errorDetail})` as unknown as string,
       },
     })
     .returning({
@@ -103,7 +104,11 @@ export async function recordOperatorOutboundProbeRun(input: {
   telegram: string;
   google_calendar: string;
   probed?: readonly OperatorOutboundProbeChannel[];
-}): Promise<{ consecutiveFailRuns: number; consecutiveFailures: Record<string, number>; lastRunAt: Record<string, string> }> {
+}): Promise<{
+  consecutiveFailRuns: number;
+  consecutiveFailures: Record<string, number>;
+  lastRunAt: Record<string, string>;
+}> {
   const db = getIntegratorDrizzle();
   const existing = await db
     .select({ metaJson: operatorJobStatus.metaJson })
@@ -112,26 +117,43 @@ export async function recordOperatorOutboundProbeRun(input: {
     .limit(1);
 
   const prevMeta =
-    existing[0]?.metaJson && typeof existing[0].metaJson === 'object' && !Array.isArray(existing[0].metaJson)
+    existing[0]?.metaJson &&
+    typeof existing[0].metaJson === 'object' &&
+    !Array.isArray(existing[0].metaJson)
       ? (existing[0].metaJson as Record<string, unknown>)
       : {};
-  const probed: readonly OperatorOutboundProbeChannel[] = input.probed ?? OPERATOR_OUTBOUND_PROBE_CHANNELS;
+  const probed: readonly OperatorOutboundProbeChannel[] =
+    input.probed ?? OPERATOR_OUTBOUND_PROBE_CHANNELS;
   const finishedIso = new Date().toISOString();
-  const previousFailures = prevMeta.consecutiveFailures && typeof prevMeta.consecutiveFailures === 'object'
-    ? prevMeta.consecutiveFailures as Record<string, unknown> : {};
-  const previousLastRunAt = prevMeta.lastRunAt && typeof prevMeta.lastRunAt === 'object'
-    ? prevMeta.lastRunAt as Record<string, unknown> : {};
+  const previousFailures =
+    prevMeta.consecutiveFailures && typeof prevMeta.consecutiveFailures === 'object'
+      ? (prevMeta.consecutiveFailures as Record<string, unknown>)
+      : {};
+  const previousLastRunAt =
+    prevMeta.lastRunAt && typeof prevMeta.lastRunAt === 'object'
+      ? (prevMeta.lastRunAt as Record<string, unknown>)
+      : {};
   const consecutiveFailures: Record<string, number> = {};
   const lastRunAt: Record<string, string> = {};
   for (const channel of OPERATOR_OUTBOUND_PROBE_CHANNELS) {
     const outcome = input[channel];
-    const previous = typeof previousFailures[channel] === 'number' && Number.isFinite(previousFailures[channel])
-      ? Math.max(0, Math.trunc(previousFailures[channel] as number)) : 0;
+    const previous =
+      typeof previousFailures[channel] === 'number' && Number.isFinite(previousFailures[channel])
+        ? Math.max(0, Math.trunc(previousFailures[channel] as number))
+        : 0;
     consecutiveFailures[channel] = probed.includes(channel)
-      ? outcome === 'fail' ? previous + 1 : outcome === 'ok' ? 0 : previous
+      ? outcome === 'fail'
+        ? previous + 1
+        : outcome === 'ok'
+          ? 0
+          : previous
       : previous;
     const previousAt = previousLastRunAt[channel];
-    lastRunAt[channel] = probed.includes(channel) ? finishedIso : typeof previousAt === 'string' ? previousAt : '';
+    lastRunAt[channel] = probed.includes(channel)
+      ? finishedIso
+      : typeof previousAt === 'string'
+        ? previousAt
+        : '';
   }
   const anyFail = probed.some((channel) => input[channel] === 'fail');
   const consecutiveFailRuns = Math.max(...Object.values(consecutiveFailures));
@@ -189,15 +211,30 @@ export async function recordOperatorOutboundProbeRun(input: {
 
 export async function getOperatorOutboundProbeLastRunAt(): Promise<Record<string, string | null>> {
   const db = getIntegratorDrizzle();
-  const rows = await db.select({ metaJson: operatorJobStatus.metaJson }).from(operatorJobStatus)
-    .where(eq(operatorJobStatus.jobKey, OPERATOR_OUTBOUND_PROBE_JOB_KEY)).limit(1);
-  const meta = rows[0]?.metaJson && typeof rows[0].metaJson === 'object' && !Array.isArray(rows[0].metaJson)
-    ? rows[0].metaJson as Record<string, unknown> : {};
-  const lastRunAt = meta.lastRunAt && typeof meta.lastRunAt === 'object' ? meta.lastRunAt as Record<string, unknown> : {};
-  return Object.fromEntries(OPERATOR_OUTBOUND_PROBE_CHANNELS.map((channel) => [channel, typeof lastRunAt[channel] === 'string' && lastRunAt[channel] ? lastRunAt[channel] : null]));
+  const rows = await db
+    .select({ metaJson: operatorJobStatus.metaJson })
+    .from(operatorJobStatus)
+    .where(eq(operatorJobStatus.jobKey, OPERATOR_OUTBOUND_PROBE_JOB_KEY))
+    .limit(1);
+  const meta =
+    rows[0]?.metaJson && typeof rows[0].metaJson === 'object' && !Array.isArray(rows[0].metaJson)
+      ? (rows[0].metaJson as Record<string, unknown>)
+      : {};
+  const lastRunAt =
+    meta.lastRunAt && typeof meta.lastRunAt === 'object'
+      ? (meta.lastRunAt as Record<string, unknown>)
+      : {};
+  return Object.fromEntries(
+    OPERATOR_OUTBOUND_PROBE_CHANNELS.map((channel) => [
+      channel,
+      typeof lastRunAt[channel] === 'string' && lastRunAt[channel] ? lastRunAt[channel] : null,
+    ]),
+  );
 }
 
-export async function resolveOpenOperatorIncidentsByDedupKeyPrefix(prefix: string): Promise<number> {
+export async function resolveOpenOperatorIncidentsByDedupKeyPrefix(
+  prefix: string,
+): Promise<number> {
   const db = getIntegratorDrizzle();
   const pattern = `${prefix}%`;
   const finishedAt = new Date().toISOString();

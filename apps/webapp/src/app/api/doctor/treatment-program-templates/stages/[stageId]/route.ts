@@ -1,8 +1,8 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 
 const patchBodySchema = z.object({
   title: z.string().min(1).max(2000).optional(),
@@ -23,19 +23,26 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ stageId: 
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = patchBodySchema.safeParse(raw);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
 
   const deps = buildAppDeps();
   try {
     const stage = await deps.treatmentProgram.updateStage(stageId, parsed.data, {
       runTemplateWrite: (fn) =>
-        withDoctorWorkspacePrincipal(workspace, "doctor.treatment-program-templates.stages.update", fn),
+        withDoctorWorkspacePrincipal(
+          workspace,
+          'doctor.treatment-program-templates.stages.update',
+          fn,
+        ),
     });
     return NextResponse.json({ ok: true, stage });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "error";
-    return NextResponse.json({ ok: false, error: msg }, { status: msg.includes("не найден") ? 404 : 400 });
+    const msg = e instanceof Error ? e.message : 'error';
+    return NextResponse.json(
+      { ok: false, error: msg },
+      { status: msg.includes('не найден') ? 404 : 400 },
+    );
   }
 }
 
@@ -49,11 +56,15 @@ export async function DELETE(_request: Request, ctx: { params: Promise<{ stageId
   try {
     await deps.treatmentProgram.deleteStage(stageId, {
       runTemplateWrite: (fn) =>
-        withDoctorWorkspacePrincipal(workspace, "doctor.treatment-program-templates.stages.delete", fn),
+        withDoctorWorkspacePrincipal(
+          workspace,
+          'doctor.treatment-program-templates.stages.delete',
+          fn,
+        ),
     });
     return NextResponse.json({ ok: true });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "error";
+    const msg = e instanceof Error ? e.message : 'error';
     return NextResponse.json({ ok: false, error: msg }, { status: 404 });
   }
 }

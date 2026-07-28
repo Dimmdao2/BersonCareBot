@@ -1,12 +1,12 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { MessageSquare, ImageIcon } from "lucide-react";
-import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
-import type { DoctorClientProgramInboxRow } from "@/modules/doctor-client-card/types";
-import { doctorClientTreatmentProgramInstanceHref } from "./doctorClientInstanceHref";
-import { doctorClientStackedCardClass } from "./doctorClientCardChrome";
-import { cn } from "@/lib/utils";
+import Link from 'next/link';
+import { MessageSquare, ImageIcon } from 'lucide-react';
+import { buttonVariants } from '@/shared/ui/doctor/primitives/button-variants';
+import type { DoctorClientProgramInboxRow } from '@/modules/doctor-client-card/types';
+import { doctorClientTreatmentProgramInstanceHref } from './doctorClientInstanceHref';
+import { doctorClientStackedCardClass } from './doctorClientCardChrome';
+import { cn } from '@/lib/utils';
 
 type Props = {
   userId: string;
@@ -15,11 +15,11 @@ type Props = {
 };
 
 const KIND_META: Record<
-  DoctorClientProgramInboxRow["kind"],
+  DoctorClientProgramInboxRow['kind'],
   { label: string; Icon: typeof MessageSquare }
 > = {
-  comment: { label: "Комментарий", Icon: MessageSquare },
-  media: { label: "Медиа", Icon: ImageIcon },
+  comment: { label: 'Комментарий', Icon: MessageSquare },
+  media: { label: 'Медиа', Icon: ImageIcon },
 };
 
 export function DoctorClientProgramInbox({ userId, profileListScope, rows }: Props) {
@@ -51,8 +51,8 @@ export function DoctorClientProgramInbox({ userId, profileListScope, rows }: Pro
                 discussionItemId: row.stageItemId,
               })}
               className={cn(
-                buttonVariants({ variant: "outline", size: "sm" }),
-                "mt-3 inline-flex w-full sm:w-auto",
+                buttonVariants({ variant: 'outline', size: 'sm' }),
+                'mt-3 inline-flex w-full sm:w-auto',
               )}
             >
               Ответить в программе

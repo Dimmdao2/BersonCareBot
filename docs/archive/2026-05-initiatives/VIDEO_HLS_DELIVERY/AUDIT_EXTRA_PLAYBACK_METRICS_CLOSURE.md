@@ -17,7 +17,7 @@
 ### Revision 2026-05-03 (batch 2: уникальные пары, Drizzle, UX «API выкл», retention)
 
 - **Схема + миграция:** `media_playback_user_video_first_resolve` (PK `(user_id, media_id)`), Drizzle в `db/schema`; запись из `resolveMediaPlaybackPayload` через **`recordPlaybackUserVideoFirstResolve`** (идемпотентный insert, ошибки не ломают выдачу).
-- **Дашборд:** `loadAdminPlaybackHealthMetrics` (**Drizzle**, без raw `pool.query`) — `uniquePlaybackPairsFirstSeenInWindow` = число новых dedup-строк с `first_resolved_at` в последних 24 ч UTC (первая «уникальная» пара пользователь+видео *в этом окне*; повторные визиты тем же пользователем к тому же файлу исторически уже не добавляются в dedup‑таблицу и не увеличивают счётчик; см. код).
+- **Дашборд:** `loadAdminPlaybackHealthMetrics` (**Drizzle**, без raw `pool.query`) — `uniquePlaybackPairsFirstSeenInWindow` = число новых dedup-строк с `first_resolved_at` в последних 24 ч UTC (первая «уникальная» пара пользователь+видео _в этом окне_; повторные визиты тем же пользователем к тому же файлу исторически уже не добавляются в dedup‑таблицу и не увеличивают счётчик; см. код).
 - **`GET /api/admin/system-health`:** при **`video_playback_api_enabled=false`** не выполняются запросы к `media_playback_*`; **`SystemHealthSection`** не показывает числовые ряды воспроизведения при выключенном API (**`playback_disabled`**).
 - **Retention почасового агрегата:** `POST /api/internal/media-playback-stats/retention` + `purgeStalePlaybackHourlyStats` (Drizzle), по умолчанию **90** суток; dedup‑таблица не режется.
 
@@ -33,16 +33,16 @@
 
 ## 1. Вердикт по соответствию плану
 
-| Блок плана | Статус | Комментарий |
-|------------|--------|-------------|
-| Таблица + миграция `media_playback_stats_hourly` | **Соответствует** | PK `(bucket_hour, delivery)`, CHECK по `delivery`, индекс по `bucket_hour`. |
-| Запись из `resolveMediaPlaybackPayload` | **Соответствует** | Ошибки записи глотаются, лог `playback_stats_hourly_write_failed`. |
-| System-health API + UI | **Соответствует** | `videoPlayback`, `meta.probes.videoPlayback`, карточка в `SystemHealthSection`. |
-| TTL preview + intake | **Соответствует** | `getVideoPresignTtlSeconds()` в preview и intake presign. |
-| Документы (S3 log, PHASE_10 TODO, media-worker README, AUDIT_GLOBAL §8, api.md) | **Соответствует** | Содержательно закрыто. |
-| **Чек-лист тестов upsert** | **Закрыто (revision 2026-05-03)** | Unit-тесты с моком Drizzle — см. Revision выше. |
-| **Чек-лист probe «ошибка БД»** | **Закрыто (revision 2026-05-03)** | Тест `video_playback_probe_failed` — см. Revision выше. |
-| **HOST_DEPLOY ↔ private bucket checklist** | **Закрыто (revision 2026-05-03)** | Ссылка из `deploy/HOST_DEPLOY_README.md` на § Private bucket policy. |
+| Блок плана                                                                      | Статус                            | Комментарий                                                                     |
+| ------------------------------------------------------------------------------- | --------------------------------- | ------------------------------------------------------------------------------- |
+| Таблица + миграция `media_playback_stats_hourly`                                | **Соответствует**                 | PK `(bucket_hour, delivery)`, CHECK по `delivery`, индекс по `bucket_hour`.     |
+| Запись из `resolveMediaPlaybackPayload`                                         | **Соответствует**                 | Ошибки записи глотаются, лог `playback_stats_hourly_write_failed`.              |
+| System-health API + UI                                                          | **Соответствует**                 | `videoPlayback`, `meta.probes.videoPlayback`, карточка в `SystemHealthSection`. |
+| TTL preview + intake                                                            | **Соответствует**                 | `getVideoPresignTtlSeconds()` в preview и intake presign.                       |
+| Документы (S3 log, PHASE_10 TODO, media-worker README, AUDIT_GLOBAL §8, api.md) | **Соответствует**                 | Содержательно закрыто.                                                          |
+| **Чек-лист тестов upsert**                                                      | **Закрыто (revision 2026-05-03)** | Unit-тесты с моком Drizzle — см. Revision выше.                                 |
+| **Чек-лист probe «ошибка БД»**                                                  | **Закрыто (revision 2026-05-03)** | Тест `video_playback_probe_failed` — см. Revision выше.                         |
+| **HOST_DEPLOY ↔ private bucket checklist**                                      | **Закрыто (revision 2026-05-03)** | Ссылка из `deploy/HOST_DEPLOY_README.md` на § Private bucket policy.            |
 
 ---
 
@@ -79,7 +79,7 @@
 
 **Историческое (до batch 2):** подписи о том, что `totalResolutions` — это частота успешных резолвов, а не «уникальные просмотры» только по почасовому счётчику.
 
-**Опционально в будущем:** метрика «уникальные просмотры в окне» в смысле *уникальных зрителей за 24 ч независимо от времени первой dedup‑записи* — **вне** текущей реализации (сейчас — «первые вхождения dedup‑строк за окно»).
+**Опционально в будущем:** метрика «уникальные просмотры в окне» в смысле _уникальных зрителей за 24 ч независимо от времени первой dedup‑записи_ — **вне** текущей реализации (сейчас — «первые вхождения dedup‑строк за окно»).
 
 ### 3.2 Выключенный playback API и нулевая статистика
 

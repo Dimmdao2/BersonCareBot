@@ -1,15 +1,15 @@
-import { describe, expect, it, vi } from "vitest";
-import { collectCronJobsHealth } from "@/app-layer/health/collectCronJobsHealth";
+import { describe, expect, it, vi } from 'vitest';
+import { collectCronJobsHealth } from '@/app-layer/health/collectCronJobsHealth';
 import {
   OPERATOR_HEALTH_JOB_FAMILY,
   OPERATOR_MEDIA_JOB_FAMILY,
   OPERATOR_MEDIA_PLAYBACK_STATS_RETENTION_JOB_KEY,
   OPERATOR_OUTBOUND_PROBE_JOB_KEY,
-} from "@/modules/operator-health/reconcileJobKeys";
+} from '@/modules/operator-health/reconcileJobKeys';
 
 const getOperatorJobStatusMock = vi.fn();
 
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
     operatorHealthRead: {
       getOperatorJobStatus: getOperatorJobStatusMock,
@@ -17,29 +17,31 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   }),
 }));
 
-describe("collectCronJobsHealth", () => {
-  it("uses supplied curated rows without querying the principal-aware repository", async () => {
+describe('collectCronJobsHealth', () => {
+  it('uses supplied curated rows without querying the principal-aware repository', async () => {
     getOperatorJobStatusMock.mockClear();
     const result = await collectCronJobsHealth({
-      jobRows: [{
-        jobKey: OPERATOR_MEDIA_PLAYBACK_STATS_RETENTION_JOB_KEY,
-        jobFamily: OPERATOR_MEDIA_JOB_FAMILY,
-        lastStatus: "success",
-        lastStartedAt: null,
-        lastFinishedAt: new Date().toISOString(),
-        lastSuccessAt: new Date(Date.now() - 60_000).toISOString(),
-        lastFailureAt: null,
-        lastDurationMs: 12,
-        lastError: null,
-        metaJson: {},
-      }],
+      jobRows: [
+        {
+          jobKey: OPERATOR_MEDIA_PLAYBACK_STATS_RETENTION_JOB_KEY,
+          jobFamily: OPERATOR_MEDIA_JOB_FAMILY,
+          lastStatus: 'success',
+          lastStartedAt: null,
+          lastFinishedAt: new Date().toISOString(),
+          lastSuccessAt: new Date(Date.now() - 60_000).toISOString(),
+          lastFailureAt: null,
+          lastDurationMs: 12,
+          lastError: null,
+          metaJson: {},
+        },
+      ],
     });
 
     expect(getOperatorJobStatusMock).not.toHaveBeenCalled();
-    expect(result.jobs.find((job) => job.id === "playback_retention")?.status).toBe("ok");
+    expect(result.jobs.find((job) => job.id === 'playback_retention')?.status).toBe('ok');
   });
 
-  it("includes playback retention job with ok status when tick is fresh", async () => {
+  it('includes playback retention job with ok status when tick is fresh', async () => {
     getOperatorJobStatusMock.mockImplementation((family: string, key: string) => {
       if (
         family === OPERATOR_MEDIA_JOB_FAMILY &&
@@ -48,9 +50,9 @@ describe("collectCronJobsHealth", () => {
         return Promise.resolve({
           jobKey: key,
           jobFamily: family,
-          lastStatus: "success",
-          lastStartedAt: "2026-05-28T04:15:00.000Z",
-          lastFinishedAt: "2026-05-28T04:15:01.000Z",
+          lastStatus: 'success',
+          lastStartedAt: '2026-05-28T04:15:00.000Z',
+          lastFinishedAt: '2026-05-28T04:15:01.000Z',
           lastSuccessAt: new Date(Date.now() - 60_000).toISOString(),
           lastFailureAt: null,
           lastDurationMs: 120,
@@ -62,20 +64,20 @@ describe("collectCronJobsHealth", () => {
     });
 
     const result = await collectCronJobsHealth();
-    const playback = result.jobs.find((j) => j.id === "playback_retention");
-    expect(playback?.status).toBe("ok");
+    const playback = result.jobs.find((j) => j.id === 'playback_retention');
+    expect(playback?.status).toBe('ok');
     expect(playback?.lastTick?.metaJson.deleted).toBe(0);
-    expect(result.status).not.toBe("no_data");
+    expect(result.status).not.toBe('no_data');
   });
 
-  it("merges backup job rows from backupJobs map", async () => {
+  it('merges backup job rows from backupJobs map', async () => {
     getOperatorJobStatusMock.mockResolvedValue(null);
     const result = await collectCronJobsHealth({
       backupJobs: {
-        "backup.hourly": {
-          lastStatus: "success",
+        'backup.hourly': {
+          lastStatus: 'success',
           lastStartedAt: null,
-          lastFinishedAt: "2026-05-28T10:00:00.000Z",
+          lastFinishedAt: '2026-05-28T10:00:00.000Z',
           lastSuccessAt: new Date(Date.now() - 30 * 60_000).toISOString(),
           lastFailureAt: null,
           lastDurationMs: 5000,
@@ -83,12 +85,12 @@ describe("collectCronJobsHealth", () => {
         },
       },
     });
-    const hourly = result.jobs.find((j) => j.id === "backup_hourly");
-    expect(hourly?.status).toBe("ok");
-    expect(hourly?.lastTick?.jobKey).toBe("backup.hourly");
+    const hourly = result.jobs.find((j) => j.id === 'backup_hourly');
+    expect(hourly?.status).toBe('ok');
+    expect(hourly?.lastTick?.jobKey).toBe('backup.hourly');
   });
 
-  it("marks the host job aggregate degraded when outbound integration probe never ticked", async () => {
+  it('marks the host job aggregate degraded when outbound integration probe never ticked', async () => {
     getOperatorJobStatusMock.mockImplementation((family: string, key: string) => {
       if (family === OPERATOR_HEALTH_JOB_FAMILY && key === OPERATOR_OUTBOUND_PROBE_JOB_KEY) {
         return Promise.resolve(null);
@@ -96,7 +98,7 @@ describe("collectCronJobsHealth", () => {
       return Promise.resolve({
         jobKey: key,
         jobFamily: family,
-        lastStatus: "success",
+        lastStatus: 'success',
         lastStartedAt: null,
         lastFinishedAt: new Date().toISOString(),
         lastSuccessAt: new Date(Date.now() - 60_000).toISOString(),
@@ -109,8 +111,8 @@ describe("collectCronJobsHealth", () => {
 
     const result = await collectCronJobsHealth({
       backupJobs: {
-        "backup.hourly": {
-          lastStatus: "success",
+        'backup.hourly': {
+          lastStatus: 'success',
           lastStartedAt: null,
           lastFinishedAt: new Date().toISOString(),
           lastSuccessAt: new Date(Date.now() - 30 * 60_000).toISOString(),
@@ -121,18 +123,18 @@ describe("collectCronJobsHealth", () => {
       },
     });
 
-    const outbound = result.jobs.find((j) => j.id === "outbound_integration_probes");
-    expect(outbound?.status).toBe("no_data");
-    expect(outbound?.label).toBe("Исходящие пробы интеграций");
-    expect(result.status).toBe("degraded");
+    const outbound = result.jobs.find((j) => j.id === 'outbound_integration_probes');
+    expect(outbound?.status).toBe('no_data');
+    expect(outbound?.label).toBe('Исходящие пробы интеграций');
+    expect(result.status).toBe('degraded');
   });
 
-  it("aggregate status stays ok when only optional backup jobs have no_data", async () => {
+  it('aggregate status stays ok when only optional backup jobs have no_data', async () => {
     getOperatorJobStatusMock.mockImplementation((family: string, key: string) => {
       return Promise.resolve({
         jobKey: key,
         jobFamily: family,
-        lastStatus: "success",
+        lastStatus: 'success',
         lastStartedAt: null,
         lastFinishedAt: new Date().toISOString(),
         lastSuccessAt: new Date(Date.now() - 60_000).toISOString(),
@@ -145,8 +147,8 @@ describe("collectCronJobsHealth", () => {
 
     const result = await collectCronJobsHealth({
       backupJobs: {
-        "backup.hourly": {
-          lastStatus: "success",
+        'backup.hourly': {
+          lastStatus: 'success',
           lastStartedAt: null,
           lastFinishedAt: new Date().toISOString(),
           lastSuccessAt: new Date(Date.now() - 30 * 60_000).toISOString(),
@@ -157,8 +159,8 @@ describe("collectCronJobsHealth", () => {
       },
     });
 
-    expect(result.jobs.find((j) => j.id === "backup_daily")?.status).toBe("no_data");
-    expect(result.jobs.find((j) => j.id === "backup_weekly")?.status).toBe("no_data");
-    expect(result.status).toBe("ok");
+    expect(result.jobs.find((j) => j.id === 'backup_daily')?.status).toBe('no_data');
+    expect(result.jobs.find((j) => j.id === 'backup_weekly')?.status).toBe('no_data');
+    expect(result.status).toBe('ok');
   });
 });

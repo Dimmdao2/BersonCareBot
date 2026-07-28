@@ -19,6 +19,8 @@ export type AuthRateLimitAttemptResult = {
 export type AuthRateLimitDbPort = {
   checkAndRecord: (params: AuthRateLimitCheckParams) => Promise<boolean>;
   recordAndCount: (params: AuthRateLimitCheckParams) => Promise<AuthRateLimitAttemptResult>;
-  countActive: (params: Pick<AuthRateLimitCheckParams, "scope" | "key" | "windowMs">) => Promise<number>;
-  reset: (params: Pick<AuthRateLimitCheckParams, "scope" | "key">) => Promise<void>;
+  countActive: (
+    params: Pick<AuthRateLimitCheckParams, 'scope' | 'key' | 'windowMs'>,
+  ) => Promise<number>;
+  reset: (params: Pick<AuthRateLimitCheckParams, 'scope' | 'key'>) => Promise<void>;
 };

@@ -38,44 +38,44 @@ None found.
 
 ## Audit questions
 
-| Question | Result | Evidence-based conclusion |
-| --- | --- | --- |
-| Are the current R1 artifacts PII-safe and sufficient read-only evidence? | **PASS, qualified** | They contain aggregate counts, operational DB identity, timestamps, and an internal organization id, but no patient names, phones, emails, raw external ids, payloads, or credentials. They are sufficient to prove the blocked state, not sufficient for R1 acceptance or row-level classification. |
-| Is RR-PROOF-01 correctly blocked? | **PASS** | All recorded blockers and missing gates require `BLOCKED`; the evidence does not support `PASS`. |
-| Is the owner packet complete enough and does it forbid R2? | **PASS, qualified** | It enumerates the required gate-level owner choices, the write gate, smoke acceptance, and an explicit hard prohibition on R2. Secure reviewer analysis is still required for row-level dispositions and the mapping anomalies noted above. |
-| Did the proof runner avoid DB writes, production env, and PII output? | **PASS for the recorded run** | The dual-source runner rejects non-dev DB names, refuses `/opt` env references, uses `BEGIN READ ONLY`, executes aggregate `SELECT` queries, and masks optional samples. The result records loopback `bcb_webapp_dev` with sample size zero. The backfill artifact records dry-run/summary-only and no `--commit`; its control flow exits before write paths. |
-| Are there P0/P1/P2 blockers to keeping task #757 blocked awaiting owner? | **No blocker to preserving the block** | No P0 was found. The P1/P2 items above are reasons to keep #757 blocked and must be resolved before changing the R1 verdict. |
+| Question                                                                 | Result                                 | Evidence-based conclusion                                                                                                                                                                                                                                                                                                                                     |
+| ------------------------------------------------------------------------ | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Are the current R1 artifacts PII-safe and sufficient read-only evidence? | **PASS, qualified**                    | They contain aggregate counts, operational DB identity, timestamps, and an internal organization id, but no patient names, phones, emails, raw external ids, payloads, or credentials. They are sufficient to prove the blocked state, not sufficient for R1 acceptance or row-level classification.                                                          |
+| Is RR-PROOF-01 correctly blocked?                                        | **PASS**                               | All recorded blockers and missing gates require `BLOCKED`; the evidence does not support `PASS`.                                                                                                                                                                                                                                                              |
+| Is the owner packet complete enough and does it forbid R2?               | **PASS, qualified**                    | It enumerates the required gate-level owner choices, the write gate, smoke acceptance, and an explicit hard prohibition on R2. Secure reviewer analysis is still required for row-level dispositions and the mapping anomalies noted above.                                                                                                                   |
+| Did the proof runner avoid DB writes, production env, and PII output?    | **PASS for the recorded run**          | The dual-source runner rejects non-dev DB names, refuses `/opt` env references, uses `BEGIN READ ONLY`, executes aggregate `SELECT` queries, and masks optional samples. The result records loopback `bcb_webapp_dev` with sample size zero. The backfill artifact records dry-run/summary-only and no `--commit`; its control flow exits before write paths. |
+| Are there P0/P1/P2 blockers to keeping task #757 blocked awaiting owner? | **No blocker to preserving the block** | No P0 was found. The P1/P2 items above are reasons to keep #757 blocked and must be resolved before changing the R1 verdict.                                                                                                                                                                                                                                  |
 
 ## R1 / RR-PROOF-01 checklist
 
-| Gate item | Status | Audit note |
-| --- | --- | --- |
-| `appointment_records` vs `integrator.rubitime_records` anti-join run | PASS | Aggregate dual-source result saved. |
-| Max `record_at` / freshness recorded for both sources | PASS | Both source maxima and canonical max start are saved. |
-| Raw-only delta imported or owner-waived | PASS | Raw-only count is zero; no import or waiver is required for this run. |
-| Legacy-only records classified | BLOCKED | `312` remain unclassified. |
-| Status/freshness mismatches classified | BLOCKED | `4` status and `2` `record_at` mismatches remain unclassified. |
-| Canonical mapping coverage recorded | PASS | Raw `91/91`; legacy `274/403`, with `129` unmapped. |
-| Backfill dry-run output saved in PII-safe mode | PASS | Summary-only artifact records dry-run and suppressed detail rows. |
-| Owner reviews `UNMAPPED`, `DUPLICATE`, `STALE`, `CONFLICTS` | BLOCKED | Owner packet is prepared, but decisions are unresolved. |
-| Commit approved before `--commit` | BLOCKED | No approval is recorded. |
-| Approved commit completes or no-commit exception is accepted | BLOCKED | No commit was run and no owner-approved exception exists. |
-| Post-run diagnosis is zero or has approved exceptions | BLOCKED | Unmapped and duplicate findings remain; stale was not evaluated. |
-| Doctor calendar/list/KPI smoke passes or is owner-waived | BLOCKED | No smoke or waiver is recorded. |
-| `RR-PROOF-01-DUAL-SOURCE` artifact can pass | BLOCKED | Read-only evidence is complete enough to prove blockers, not acceptance. |
-| Entry into R2 | BLOCKED | Explicitly forbidden by the plan and owner packet. |
+| Gate item                                                            | Status  | Audit note                                                               |
+| -------------------------------------------------------------------- | ------- | ------------------------------------------------------------------------ |
+| `appointment_records` vs `integrator.rubitime_records` anti-join run | PASS    | Aggregate dual-source result saved.                                      |
+| Max `record_at` / freshness recorded for both sources                | PASS    | Both source maxima and canonical max start are saved.                    |
+| Raw-only delta imported or owner-waived                              | PASS    | Raw-only count is zero; no import or waiver is required for this run.    |
+| Legacy-only records classified                                       | BLOCKED | `312` remain unclassified.                                               |
+| Status/freshness mismatches classified                               | BLOCKED | `4` status and `2` `record_at` mismatches remain unclassified.           |
+| Canonical mapping coverage recorded                                  | PASS    | Raw `91/91`; legacy `274/403`, with `129` unmapped.                      |
+| Backfill dry-run output saved in PII-safe mode                       | PASS    | Summary-only artifact records dry-run and suppressed detail rows.        |
+| Owner reviews `UNMAPPED`, `DUPLICATE`, `STALE`, `CONFLICTS`          | BLOCKED | Owner packet is prepared, but decisions are unresolved.                  |
+| Commit approved before `--commit`                                    | BLOCKED | No approval is recorded.                                                 |
+| Approved commit completes or no-commit exception is accepted         | BLOCKED | No commit was run and no owner-approved exception exists.                |
+| Post-run diagnosis is zero or has approved exceptions                | BLOCKED | Unmapped and duplicate findings remain; stale was not evaluated.         |
+| Doctor calendar/list/KPI smoke passes or is owner-waived             | BLOCKED | No smoke or waiver is recorded.                                          |
+| `RR-PROOF-01-DUAL-SOURCE` artifact can pass                          | BLOCKED | Read-only evidence is complete enough to prove blockers, not acceptance. |
+| Entry into R2                                                        | BLOCKED | Explicitly forbidden by the plan and owner packet.                       |
 
 ## Checks run
 
-| Check | Result |
-| --- | --- |
-| `git show --stat 2f354b09f7afc7f342d1d3005c0e0c76f73f288b` | PASS; confirms the owner packet commit and its report link update. |
-| `git status -sb` before editing | PASS; expected branch/HEAD confirmed and unrelated dirty `docs/ORCHESTRATION_BINDINGS.md` identified and left untouched. |
-| `node --check docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-dual-source-audit.mjs` | PASS. |
-| `pnpm run check:rubitime-retirement-r0` | PASS; `check-rubitime-retirement-r0-freeze: OK`. |
+| Check                                                                                          | Result                                                                                                                                        |
+| ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `git show --stat 2f354b09f7afc7f342d1d3005c0e0c76f73f288b`                                     | PASS; confirms the owner packet commit and its report link update.                                                                            |
+| `git status -sb` before editing                                                                | PASS; expected branch/HEAD confirmed and unrelated dirty `docs/ORCHESTRATION_BINDINGS.md` identified and left untouched.                      |
+| `node --check docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-dual-source-audit.mjs`            | PASS.                                                                                                                                         |
+| `pnpm run check:rubitime-retirement-r0`                                                        | PASS; `check-rubitime-retirement-r0-freeze: OK`.                                                                                              |
 | Targeted PII scan over the report, JSON result, backfill summary, owner packet, and this audit | PASS; zero email, E.164 phone, Telegram token, credential-bearing URL, or detail external-id patterns; all `masked_samples` arrays are empty. |
-| `git diff --check` | PASS. |
-| `git status -sb` before commit | PASS; only this audit artifact is selected for commit; unrelated orchestration bindings remain unstaged. |
+| `git diff --check`                                                                             | PASS.                                                                                                                                         |
+| `git status -sb` before commit                                                                 | PASS; only this audit artifact is selected for commit; unrelated orchestration bindings remain unstaged.                                      |
 
 No full CI, DB connection, production env access, smoke test, or R2 action was performed by this audit.
 

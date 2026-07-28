@@ -1,21 +1,20 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const querySchema = z.object({
-  kind: z.enum(["all", "image", "video", "audio", "file"]).optional(),
-  sortBy: z.enum(["date", "size", "type", "name"]).optional(),
-  sortDir: z.enum(["asc", "desc"]).optional(),
+  kind: z.enum(['all', 'image', 'video', 'audio', 'file']).optional(),
+  sortBy: z.enum(['date', 'size', 'type', 'name']).optional(),
+  sortDir: z.enum(['asc', 'desc']).optional(),
   q: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(200).optional(),
   offset: z.coerce.number().int().min(0).optional(),
   folderId: z.string().optional(),
-  includeDescendants: z.enum(["true", "false"]).optional(),
+  includeDescendants: z.enum(['true', 'false']).optional(),
 });
 
 export async function GET(request: Request) {
@@ -24,51 +23,53 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const parsed = querySchema.safeParse({
-    kind: url.searchParams.get("kind") ?? undefined,
-    sortBy: url.searchParams.get("sortBy") ?? undefined,
-    sortDir: url.searchParams.get("sortDir") ?? undefined,
-    q: url.searchParams.get("q") ?? undefined,
-    limit: url.searchParams.get("limit") ?? undefined,
-    offset: url.searchParams.get("offset") ?? undefined,
-    folderId: url.searchParams.get("folderId") ?? undefined,
-    includeDescendants: url.searchParams.get("includeDescendants") ?? undefined,
+    kind: url.searchParams.get('kind') ?? undefined,
+    sortBy: url.searchParams.get('sortBy') ?? undefined,
+    sortDir: url.searchParams.get('sortDir') ?? undefined,
+    q: url.searchParams.get('q') ?? undefined,
+    limit: url.searchParams.get('limit') ?? undefined,
+    offset: url.searchParams.get('offset') ?? undefined,
+    folderId: url.searchParams.get('folderId') ?? undefined,
+    includeDescendants: url.searchParams.get('includeDescendants') ?? undefined,
   });
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_query" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_query' }, { status: 400 });
   }
 
   let listFolderId: string | null | undefined;
   if (parsed.data.folderId === undefined) {
     listFolderId = undefined;
-  } else if (parsed.data.folderId === "" || parsed.data.folderId === "root") {
+  } else if (parsed.data.folderId === '' || parsed.data.folderId === 'root') {
     listFolderId = null;
   } else if (UUID_RE.test(parsed.data.folderId)) {
     listFolderId = parsed.data.folderId;
   } else {
-    return NextResponse.json({ ok: false, error: "invalid_folder_id" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_folder_id' }, { status: 400 });
   }
-  const includeDescendants = parsed.data.includeDescendants === "true";
+  const includeDescendants = parsed.data.includeDescendants === 'true';
 
   const sortByMap = {
-    date: "createdAt",
-    size: "size",
-    type: "kind",
-    name: "name",
+    date: 'createdAt',
+    size: 'size',
+    type: 'kind',
+    name: 'name',
   } as const;
 
   const deps = buildAppDeps();
   const limit = parsed.data.limit ?? 50;
   const offset = parsed.data.offset ?? 0;
-  const { items: records, total } = await withDoctorWorkspacePrincipal(gate.ctx, () => deps.media.list({
-    kind: parsed.data.kind ?? "all",
-    query: parsed.data.q ?? "",
-    sortBy: parsed.data.sortBy ? sortByMap[parsed.data.sortBy] : "createdAt",
-    sortDir: parsed.data.sortDir ?? "desc",
-    limit,
-    offset,
-    ...(listFolderId !== undefined ? { folderId: listFolderId } : {}),
-    ...(includeDescendants ? { includeDescendants: true } : {}),
-  }));
+  const { items: records, total } = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    deps.media.list({
+      kind: parsed.data.kind ?? 'all',
+      query: parsed.data.q ?? '',
+      sortBy: parsed.data.sortBy ? sortByMap[parsed.data.sortBy] : 'createdAt',
+      sortDir: parsed.data.sortDir ?? 'desc',
+      limit,
+      offset,
+      ...(listFolderId !== undefined ? { folderId: listFolderId } : {}),
+      ...(includeDescendants ? { includeDescendants: true } : {}),
+    }),
+  );
 
   const items = records.map((item) => ({
     ...item,

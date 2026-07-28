@@ -1,12 +1,10 @@
 import { z } from 'zod';
 
 /** Zod-схема метаданных event-конверта. */
-const dedupFingerprintSchema = z.record(z.string(), z.union([
+const dedupFingerprintSchema = z.record(
   z.string(),
-  z.number(),
-  z.boolean(),
-  z.null(),
-]));
+  z.union([z.string(), z.number(), z.boolean(), z.null()]),
+);
 
 const eventMetaSchema = z.object({
   eventId: z.string().min(1),
@@ -23,20 +21,26 @@ const baseContextSchema = z.object({
     tenantId: z.string().min(1).optional(),
     projectId: z.string().min(1).optional(),
   }),
-  identityLinks: z.array(z.object({
-    kind: z.string().min(1),
-    value: z.string().min(1),
-    provider: z.string().min(1).optional(),
-  })),
+  identityLinks: z.array(
+    z.object({
+      kind: z.string().min(1),
+      value: z.string().min(1),
+      provider: z.string().min(1).optional(),
+    }),
+  ),
   facts: z.record(z.string(), z.unknown()).optional(),
-  preferences: z.object({
-    locale: z.string().min(1).optional(),
-    channels: z.array(z.string().min(1)).optional(),
-    delivery: z.object({
-      firstAttemptDelaySeconds: z.number().int().min(0).optional(),
-      maxAttemptsBeforeFallback: z.number().int().min(1).optional(),
-    }).optional(),
-  }).optional(),
+  preferences: z
+    .object({
+      locale: z.string().min(1).optional(),
+      channels: z.array(z.string().min(1)).optional(),
+      delivery: z
+        .object({
+          firstAttemptDelaySeconds: z.number().int().min(0).optional(),
+          maxAttemptsBeforeFallback: z.number().int().min(1).optional(),
+        })
+        .optional(),
+    })
+    .optional(),
   conversationState: z.string().min(1).optional(),
   linkedPhone: z.boolean().optional(),
   phoneNormalized: z.string().min(1).optional(),
@@ -88,13 +92,15 @@ export const domainContextSchema = z.object({
   nowIso: z.iso.datetime(),
   values: z.record(z.string(), z.unknown()),
   base: baseContextSchema,
-  user: z.object({
-    id: z.string().min(1).optional(),
-    channelId: z.string().min(1).optional(),
-    phoneNormalized: z.string().min(1).nullable().optional(),
-    isAdmin: z.boolean().optional(),
-    channels: z.array(z.string().min(1)).optional(),
-  }).optional(),
+  user: z
+    .object({
+      id: z.string().min(1).optional(),
+      channelId: z.string().min(1).optional(),
+      phoneNormalized: z.string().min(1).nullable().optional(),
+      isAdmin: z.boolean().optional(),
+      channels: z.array(z.string().min(1)).optional(),
+    })
+    .optional(),
 });
 
 /** Валидация шага скрипта оркестратора. */
@@ -114,43 +120,59 @@ export const actionSchema = z.object({
 });
 
 /** Валидация задачи доставки/runtime. */
-export const deliveryJobSchema = z.object({
-  id: z.string().min(1),
-  kind: z.string().min(1),
-  jobId: z.string().min(1).optional(),
-  tenantId: z.string().min(1).nullable().optional(),
-  createdAt: z.iso.datetime().optional(),
-  status: z.enum(['pending', 'processing', 'done', 'dead']).optional(),
-  attemptsMade: z.number().int().min(0).optional(),
-  plan: z.array(z.object({
-    stageId: z.string().min(1),
-    channel: z.string().min(1),
+export const deliveryJobSchema = z
+  .object({
+    id: z.string().min(1),
+    kind: z.string().min(1),
+    jobId: z.string().min(1).optional(),
+    tenantId: z.string().min(1).nullable().optional(),
+    createdAt: z.iso.datetime().optional(),
+    status: z.enum(['pending', 'processing', 'done', 'dead']).optional(),
+    attemptsMade: z.number().int().min(0).optional(),
+    plan: z
+      .array(
+        z.object({
+          stageId: z.string().min(1),
+          channel: z.string().min(1),
+          maxAttempts: z.number().int().min(1),
+        }),
+      )
+      .optional(),
+    targets: z
+      .array(
+        z.object({
+          resource: z.string().min(1),
+          address: z.record(z.string(), z.unknown()),
+        }),
+      )
+      .optional(),
+    retry: z
+      .object({
+        maxAttempts: z.number().int().min(1),
+        backoffSeconds: z.array(z.number().int().min(0)),
+        deadlineAt: z.iso.datetime().optional(),
+      })
+      .optional(),
+    onFail: z
+      .object({
+        adminNotifyIntent: z
+          .object({
+            type: z.enum(['message.send', 'booking.changed', 'integration.sync', 'audit.log']),
+            meta: eventMetaSchema,
+            payload: z.record(z.string(), z.unknown()),
+          })
+          .optional(),
+      })
+      .optional(),
+    runAt: z.iso.datetime(),
+    attempts: z.number().int().min(0),
     maxAttempts: z.number().int().min(1),
-  })).optional(),
-  targets: z.array(z.object({
-    resource: z.string().min(1),
-    address: z.record(z.string(), z.unknown()),
-  })).optional(),
-  retry: z.object({
-    maxAttempts: z.number().int().min(1),
-    backoffSeconds: z.array(z.number().int().min(0)),
-    deadlineAt: z.iso.datetime().optional(),
-  }).optional(),
-  onFail: z.object({
-    adminNotifyIntent: z.object({
-      type: z.enum(['message.send', 'booking.changed', 'integration.sync', 'audit.log']),
-      meta: eventMetaSchema,
-      payload: z.record(z.string(), z.unknown()),
-    }).optional(),
-  }).optional(),
-  runAt: z.iso.datetime(),
-  attempts: z.number().int().min(0),
-  maxAttempts: z.number().int().min(1),
-  payload: z.record(z.string(), z.unknown()),
-}).refine((job) => job.attempts <= job.maxAttempts, {
-  message: 'attempts must be <= maxAttempts',
-  path: ['attempts'],
-});
+    payload: z.record(z.string(), z.unknown()),
+  })
+  .refine((job) => job.attempts <= job.maxAttempts, {
+    message: 'attempts must be <= maxAttempts',
+    path: ['attempts'],
+  });
 
 /** Валидация результата выполнения domain action. */
 export const actionResultSchema = z.object({

@@ -4,16 +4,16 @@ overview: КАНОН плана регионов каталога врача —
 status: completed
 todos:
   - id: hotfix-reference-select
-    content: "Регион в формах — ReferenceMultiSelect (снят баг схлопывания); ReferenceSelect — onFocus/showAllOnFocus/overflow hint"
+    content: 'Регион в формах — ReferenceMultiSelect (снят баг схлопывания); ReferenceSelect — onFocus/showAllOnFocus/overflow hint'
     status: completed
   - id: reference-select-scroll-hint
-    content: "ReferenceSelect: overflow hint (измерение scrollHeight/clientHeight, нижний fade + иконка «ещё ниже»; скрывать у низа списка)"
+    content: 'ReferenceSelect: overflow hint (измерение scrollHeight/clientHeight, нижний fade + иконка «ещё ниже»; скрывать у низа списка)'
     status: completed
   - id: db-m2m-migrations
     content: Drizzle schema + миграции M2M (lfk_exercise_regions, recommendation_regions, clinical_test_regions или согласованные имена); backfill из legacy FK; зафиксировать в PR политику legacy-колонок (dual-write vs read только M2M)
     status: completed
   - id: ports-list-filter
-    content: "pgLfkExercises + pgRecommendations + pgClinicalTests + in-memory порты + domain types: фильтр regionRefId = совпадение по M2M или deprecated колонке до удаления"
+    content: 'pgLfkExercises + pgRecommendations + pgClinicalTests + in-memory порты + domain types: фильтр regionRefId = совпадение по M2M или deprecated колонке до удаления'
     status: completed
   - id: catalog-display-list-region
     content: useDoctorCatalogDisplayList (getItemRegionCodes), клиенты каталогов + LfkTemplates/TestSets; SSR list с regionRefId; тесты
@@ -66,10 +66,10 @@ isProject: false
 
 Три таблицы связей, FK на `reference_items.id`, уникальность пары `(entity_id, region_id)`:
 
-| Домен | Предложение таблицы | Примечание |
-|-------|---------------------|------------|
-| Упражнения | `lfk_exercise_regions` | `(exercise_id, region_ref_id)` |
-| Рекомендации | `recommendation_regions` | после [`recommendations`](apps/webapp/db/schema/recommendations.ts) |
+| Домен                       | Предложение таблицы              | Примечание                                                                                 |
+| --------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------ |
+| Упражнения                  | `lfk_exercise_regions`           | `(exercise_id, region_ref_id)`                                                             |
+| Рекомендации                | `recommendation_regions`         | после [`recommendations`](apps/webapp/db/schema/recommendations.ts)                        |
 | Клинические тесты (`tests`) | например `clinical_test_regions` | `(clinical_test_id, body_region_id)` — имя согласовать с `tests`/`clinicalTests` в Drizzle |
 
 **Семантика пустого набора:** как сейчас при отсутствии региона — элемент **не** попадает под активный фильтр по региону (строгость сохранять).

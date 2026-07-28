@@ -1,12 +1,12 @@
-import { env } from "@/config/env";
-import { logger } from "@/infra/logging/logger";
-import type { AuthRateLimitDbPort } from "@/modules/auth/authRateLimitPort";
+import { env } from '@/config/env';
+import { logger } from '@/infra/logging/logger';
+import type { AuthRateLimitDbPort } from '@/modules/auth/authRateLimitPort';
 
 export type SlidingWindowRateLimitConfig = {
   scope: string;
   windowMs: number;
   maxPerWindow: number;
-  db: Pick<AuthRateLimitDbPort, "checkAndRecord">;
+  db: Pick<AuthRateLimitDbPort, 'checkAndRecord'>;
   /** Optional in-process cadence plus DB-bounded cleanup for this limiter scope. */
   scopePrune?: {
     retentionMs: number;
@@ -83,9 +83,9 @@ export function createSlidingWindowRateLimit(config: SlidingWindowRateLimitConfi
           {
             err,
             scope: config.scope,
-            event: "auth_rate_limit_db_fallback",
+            event: 'auth_rate_limit_db_fallback',
           },
-          "[auth-rate-limit] database unavailable; permanently using in-memory fallback",
+          '[auth-rate-limit] database unavailable; permanently using in-memory fallback',
         );
       }
       return isLimitedInMemory(key);

@@ -1,11 +1,11 @@
-import { redirect } from "next/navigation";
-import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
-import { routePaths } from "@/app-layer/routes/paths";
-import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
-import { getAppBaseUrl } from "@/modules/system-settings/integrationRuntime";
-import { BookingWizardShell } from "../BookingWizardShell";
-import { BookingDoneClient } from "./BookingDoneClient";
-import { bookingNewHref } from "../bookingNewHref";
+import { redirect } from 'next/navigation';
+import { getOptionalPatientSession } from '@/app-layer/guards/requireRole';
+import { routePaths } from '@/app-layer/routes/paths';
+import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
+import { getAppBaseUrl } from '@/modules/system-settings/integrationRuntime';
+import { BookingWizardShell } from '../BookingWizardShell';
+import { BookingDoneClient } from './BookingDoneClient';
+import { bookingNewHref } from '../bookingNewHref';
 
 type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -34,10 +34,13 @@ export default async function BookingNewDonePage({ searchParams }: Props) {
     redirect(routePaths.bookingNew);
   }
 
-  const locationLabel = first(raw.locationLabel)?.trim() ?? "";
+  const locationLabel = first(raw.locationLabel)?.trim() ?? '';
   const cityCode = first(raw.cityCode)?.trim();
   const backToHubHref = bookingNewHref(cityCode);
-  const [appDisplayTimeZone, appBaseUrl] = await Promise.all([getAppDisplayTimeZone(), getAppBaseUrl()]);
+  const [appDisplayTimeZone, appBaseUrl] = await Promise.all([
+    getAppDisplayTimeZone(),
+    getAppBaseUrl(),
+  ]);
 
   return (
     <BookingWizardShell

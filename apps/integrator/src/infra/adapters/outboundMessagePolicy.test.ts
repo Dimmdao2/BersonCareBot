@@ -8,7 +8,13 @@ import { createDefaultDispatchPort } from './dispatchPort.js';
 
 function intent(input: {
   channel: string;
-  messageClass?: 'auth_code' | 'routine_product' | 'conversation_event' | 'broadcast_event' | 'account_service' | 'operator_security';
+  messageClass?:
+    | 'auth_code'
+    | 'routine_product'
+    | 'conversation_event'
+    | 'broadcast_event'
+    | 'account_service'
+    | 'operator_security';
   capability?: 'auth_code' | 'contact_handshake' | 'app_push' | 'operator_alert';
   type?: OutgoingIntent['type'];
 }): OutgoingIntent {
@@ -48,7 +54,9 @@ describe('central outbound message policy', () => {
     ['smsc', 'operator_security', 'operator_alert'],
     ['web_push', 'operator_security', 'operator_alert'],
   ] as const)('allows %s only with %s/%s capability', (channel, messageClass, capability) => {
-    expect(assertOutboundMessagePolicy(intent({ channel, messageClass, capability }))).toBe(channel);
+    expect(assertOutboundMessagePolicy(intent({ channel, messageClass, capability }))).toBe(
+      channel,
+    );
   });
 
   it.each([
@@ -66,7 +74,9 @@ describe('central outbound message policy', () => {
   });
 
   it('does not change non-message intent behaviour before N4', () => {
-    expect(() => assertOutboundMessagePolicy(intent({ channel: 'telegram', type: 'message.delete' }))).not.toThrow();
+    expect(() =>
+      assertOutboundMessagePolicy(intent({ channel: 'telegram', type: 'message.delete' })),
+    ).not.toThrow();
   });
 
   it('stops an unclassified payload before adapter selection and delivery-attempt persistence', async () => {

@@ -17,28 +17,28 @@
 
 ## 2. Окружения
 
-| Этап | Где проверять |
-|------|----------------|
-| Локально | docker-compose / dev DB + MinIO; worker в отдельном терминале |
-| CI | unit/integration без реального FFmpeg (мок subprocess) + опциональный job с FFmpeg в будущем |
-| Staging | полный цикл upload → transcode → playback |
-| Production | флаги выкл → поэтапное включение |
+| Этап       | Где проверять                                                                                |
+| ---------- | -------------------------------------------------------------------------------------------- |
+| Локально   | docker-compose / dev DB + MinIO; worker в отдельном терминале                                |
+| CI         | unit/integration без реального FFmpeg (мок subprocess) + опциональный job с FFmpeg в будущем |
+| Staging    | полный цикл upload → transcode → playback                                                    |
+| Production | флаги выкл → поэтапное включение                                                             |
 
 ---
 
 ## 3. Фазы выкатки (сопоставление с кодом)
 
-| Порядок | Действие | Риск без флага |
-|---------|----------|----------------|
-| 1 | Миграции БД additive, деплой webapp, **поведение MP4 без изменений** | Низкий |
-| 2 | Деплой `media-worker` (может idle), мониторинг | Низкий |
-| 3 | Включить enqueue **только** для ручного тестового media id / admin action | Средний без ограничения |
-| 4 | Включить JSON playback API для внутренних тестов (feature flag) | Низкий |
-| 5 | Включить UI dual-mode **за флагом** или для staff | Средний |
-| 6 | Новые загрузки → auto-enqueue transcode при `video_hls_new_uploads_enabled` | Средний — нагрузка CPU |
-| 7 | Backfill батчами с rate limit | Высокий без лимитов |
-| 8 | Миграция **`0022`**: `video_default_delivery=auto` + MP4 fallback (см. phase-08) | Высокий без fallback — mitigated в резолвере |
-| 9–10 | TTL/signed hardening, watermark | Средний (кэш, стоимость CPU) |
+| Порядок | Действие                                                                         | Риск без флага                               |
+| ------- | -------------------------------------------------------------------------------- | -------------------------------------------- |
+| 1       | Миграции БД additive, деплой webapp, **поведение MP4 без изменений**             | Низкий                                       |
+| 2       | Деплой `media-worker` (может idle), мониторинг                                   | Низкий                                       |
+| 3       | Включить enqueue **только** для ручного тестового media id / admin action        | Средний без ограничения                      |
+| 4       | Включить JSON playback API для внутренних тестов (feature flag)                  | Низкий                                       |
+| 5       | Включить UI dual-mode **за флагом** или для staff                                | Средний                                      |
+| 6       | Новые загрузки → auto-enqueue transcode при `video_hls_new_uploads_enabled`      | Средний — нагрузка CPU                       |
+| 7       | Backfill батчами с rate limit                                                    | Высокий без лимитов                          |
+| 8       | Миграция **`0022`**: `video_default_delivery=auto` + MP4 fallback (см. phase-08) | Высокий без fallback — mitigated в резолвере |
+| 9–10    | TTL/signed hardening, watermark                                                  | Средний (кэш, стоимость CPU)                 |
 
 ---
 

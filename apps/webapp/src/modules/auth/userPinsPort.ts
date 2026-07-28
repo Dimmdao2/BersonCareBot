@@ -13,7 +13,11 @@ export type UserPinsPort = {
    * Увеличить число неудачных попыток; при достижении maxAttempts выставить lockedUntil.
    * Возвращает актуальные значения после обновления.
    */
-  incrementFailed(userId: string, maxAttempts: number, lockMinutes: number): Promise<{
+  incrementFailed(
+    userId: string,
+    maxAttempts: number,
+    lockMinutes: number,
+  ): Promise<{
     attemptsFailed: number;
     lockedUntil: Date | null;
   }>;

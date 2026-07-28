@@ -1,6 +1,6 @@
-import type { ReactNode } from "react";
-import "../styles/patient.css";
-import { PublicBookingAttributionCapture } from "./PublicBookingAttributionCapture";
+import type { ReactNode } from 'react';
+import '../styles/patient.css';
+import { PublicBookingAttributionCapture } from './PublicBookingAttributionCapture';
 
 export default function PublicBookLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (

@@ -7,7 +7,7 @@ import type {
   PatientPackageRecord,
   PatientPackageSessionRow,
   SubscriptionPackageRecord,
-} from "./types";
+} from './types';
 
 export type UpsertSubscriptionPackageInput = {
   organizationId: string;
@@ -42,7 +42,10 @@ export type CreateManualPatientPackageInput = {
 };
 
 export type MembershipsPort = {
-  listCatalogPackages(organizationId: string, activeOnly?: boolean): Promise<SubscriptionPackageRecord[]>;
+  listCatalogPackages(
+    organizationId: string,
+    activeOnly?: boolean,
+  ): Promise<SubscriptionPackageRecord[]>;
   resolveCatalogPackageOrganizationId(id: string): Promise<string | null>;
   getCatalogPackage(id: string, organizationId: string): Promise<SubscriptionPackageRecord | null>;
   upsertCatalogPackage(input: UpsertSubscriptionPackageInput): Promise<SubscriptionPackageRecord>;
@@ -151,7 +154,7 @@ export type MembershipsPort = {
   setPatientPackageStatus(
     id: string,
     organizationId: string,
-    status: PatientPackageRecord["status"],
+    status: PatientPackageRecord['status'],
     patch?: Partial<{
       paymentIntentId: string | null;
       paymentRef: string | null;
@@ -168,14 +171,20 @@ export type MembershipsPort = {
     patientPackageId: string;
     patientPackageItemId: string;
     appointmentId?: string | null;
-    usageKind: PackageUsageRecord["usageKind"];
+    usageKind: PackageUsageRecord['usageKind'];
     quantity?: number;
     comment?: string | null;
     createdByPlatformUserId?: string | null;
   }): Promise<PackageUsageRecord>;
 
-  listUsagesForPackage(patientPackageId: string, organizationId: string): Promise<PackageUsageRecord[]>;
-  listUsagesForAppointment(appointmentId: string, organizationId: string): Promise<PackageUsageRecord[]>;
+  listUsagesForPackage(
+    patientPackageId: string,
+    organizationId: string,
+  ): Promise<PackageUsageRecord[]>;
+  listUsagesForAppointment(
+    appointmentId: string,
+    organizationId: string,
+  ): Promise<PackageUsageRecord[]>;
 
   /**
    * Atomic appointment debit for an existing reservation.
@@ -190,7 +199,7 @@ export type MembershipsPort = {
     patientPackageId: string;
     patientPackageItemId: string;
     appointmentId: string;
-    usageKind: Extract<PackageUsageRecord["usageKind"], "consume" | "penalty">;
+    usageKind: Extract<PackageUsageRecord['usageKind'], 'consume' | 'penalty'>;
     createdByPlatformUserId?: string | null;
     eventType: string;
   }): Promise<PackageUsageRecord>;
@@ -216,8 +225,16 @@ export type MembershipsPort = {
     payloadJson?: Record<string, unknown>;
   }): Promise<void>;
 
-  listHistoryForPackage(patientPackageId: string, organizationId: string): Promise<
-    Array<{ id: string; eventType: string; payloadJson: Record<string, unknown>; occurredAt: string }>
+  listHistoryForPackage(
+    patientPackageId: string,
+    organizationId: string,
+  ): Promise<
+    Array<{
+      id: string;
+      eventType: string;
+      payloadJson: Record<string, unknown>;
+      occurredAt: string;
+    }>
   >;
 
   setAppointmentPackageUsageRef(appointmentId: string, usageRef: string | null): Promise<void>;

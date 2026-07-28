@@ -1,14 +1,14 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { MediaPickerShell } from "@/shared/ui/doctor/media/MediaPickerShell";
-import { MediaPickerPanel } from "@/shared/ui/doctor/media/MediaPickerPanel";
-import type { MediaListItem } from "@/shared/ui/doctor/media/MediaPickerList";
-import { MediaThumb } from "@/shared/ui/doctor/media/MediaThumb";
-import { libraryMediaRowToPreviewUi } from "@/shared/ui/doctor/media/mediaPreviewUiModel";
-import { fetchAdminMediaListItem } from "@/shared/ui/doctor/media/fetchAdminMediaListItem";
-import type { MediaPreviewStatus } from "@/modules/media/types";
+import { useEffect, useState } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { MediaPickerShell } from '@/shared/ui/doctor/media/MediaPickerShell';
+import { MediaPickerPanel } from '@/shared/ui/doctor/media/MediaPickerPanel';
+import type { MediaListItem } from '@/shared/ui/doctor/media/MediaPickerList';
+import { MediaThumb } from '@/shared/ui/doctor/media/MediaThumb';
+import { libraryMediaRowToPreviewUi } from '@/shared/ui/doctor/media/mediaPreviewUiModel';
+import { fetchAdminMediaListItem } from '@/shared/ui/doctor/media/fetchAdminMediaListItem';
+import type { MediaPreviewStatus } from '@/modules/media/types';
 
 type PickedLogo = {
   mediaId: string;
@@ -40,11 +40,22 @@ type Props = {
  * (the shared component other forms use) is left untouched because its "Изменить" dropdown chrome
  * does not match the owner's exact two-action naming for this screen.
  */
-export function OrgBrandLogoControl({ initialMediaId, initialUrl, onChange, disabled = false }: Props) {
+export function OrgBrandLogoControl({
+  initialMediaId,
+  initialUrl,
+  onChange,
+  disabled = false,
+}: Props) {
   const [open, setOpen] = useState(false);
   const [logo, setLogo] = useState<PickedLogo | null>(
     initialMediaId && initialUrl
-      ? { mediaId: initialMediaId, url: initialUrl, previewSmUrl: null, previewMdUrl: null, previewStatus: null }
+      ? {
+          mediaId: initialMediaId,
+          url: initialUrl,
+          previewSmUrl: null,
+          previewMdUrl: null,
+          previewStatus: null,
+        }
       : null,
   );
 
@@ -94,7 +105,7 @@ export function OrgBrandLogoControl({ initialMediaId, initialUrl, onChange, disa
           <MediaThumb
             media={libraryMediaRowToPreviewUi({
               id: logo.mediaId,
-              kind: "image",
+              kind: 'image',
               url: logo.url,
               previewSmUrl: logo.previewSmUrl,
               previewMdUrl: logo.previewMdUrl,
@@ -103,24 +114,36 @@ export function OrgBrandLogoControl({ initialMediaId, initialUrl, onChange, disa
             className="h-16 w-16"
             imgClassName="h-16 w-16 object-contain"
             sizes="64px"
-            labels={{ skipped: "Без превью", failed: "Ошибка превью" }}
+            labels={{ skipped: 'Без превью', failed: 'Ошибка превью' }}
           />
         ) : (
           <span className="px-1 text-center text-[10px] text-muted-foreground">Нет лого</span>
         )}
       </div>
       <div className="flex flex-wrap gap-2">
-        <Button type="button" variant="outline" size="sm" disabled={disabled} onClick={() => setOpen(true)}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={disabled}
+          onClick={() => setOpen(true)}
+        >
           Установить
         </Button>
-        <Button type="button" variant="outline" size="sm" disabled={disabled || !logo} onClick={handleClear}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={disabled || !logo}
+          onClick={handleClear}
+        >
           Очистить
         </Button>
       </div>
 
       <MediaPickerShell title="Логотип клиники" open={open} onOpenChange={setOpen}>
         <MediaPickerPanel
-          key={open ? "org-brand-logo-open" : "org-brand-logo-closed"}
+          key={open ? 'org-brand-logo-open' : 'org-brand-logo-closed'}
           open={open}
           apiKind="image"
           kind="image"

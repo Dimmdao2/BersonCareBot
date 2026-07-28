@@ -15,7 +15,7 @@ todos:
     content: Move dev-mode dispatch filtering from internal userId to channel/recipient test-account identifiers.
     status: completed
   - id: settings-ui
-    content: "Reorganize Settings UI: rename tab to Режимы, hide access tab, add admin, test account, and maintenance blocks."
+    content: 'Reorganize Settings UI: rename tab to Режимы, hide access tab, add admin, test account, and maintenance blocks.'
     status: completed
   - id: maintenance-bypass
     content: Apply fail-closed test-account bypass in patient maintenance layout gate.

@@ -57,11 +57,11 @@ phi-store patient branch <id> <key> set          # записать из stdin
 
 ## Ссылки на реализацию (brain repo)
 
-| Артефакт | Путь |
-|----------|------|
-| Реализация | `brain/tools/phi-store.sh` (секция `patient)` |
-| Тесты (16 шт.) | `brain/test/phi-store-patient.test.mjs` |
+| Артефакт             | Путь                                          |
+| -------------------- | --------------------------------------------- |
+| Реализация           | `brain/tools/phi-store.sh` (секция `patient)` |
+| Тесты (16 шт.)       | `brain/test/phi-store-patient.test.mjs`       |
 | Документация дохтора | `brain/docs/setup/DOCTOR_PATIENT_WORKFLOW.md` |
-| Пульт (описание) | `brain/registry/pult.json` |
+| Пульт (описание)     | `brain/registry/pult.json`                    |
 
 Commit в brain: `168f9a680d0b5ee5ca0cc0918aabb9f9503dbfc4`

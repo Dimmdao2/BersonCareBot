@@ -1,10 +1,10 @@
-import { DateTime } from "luxon";
-import type { PatientMoodScore, PatientMoodWeekMark } from "@/modules/patient-mood/types";
+import { DateTime } from 'luxon';
+import type { PatientMoodScore, PatientMoodWeekMark } from '@/modules/patient-mood/types';
 import {
   bucketInstantWellbeingChartPoints,
   WELLBEING_INSTANT_CHART_BUCKET_HOURS,
   WELLBEING_INSTANT_CHART_BUCKET_MS,
-} from "@/modules/patient-mood/wellbeingInstantChartBucketing";
+} from '@/modules/patient-mood/wellbeingInstantChartBucketing';
 
 export const HOME_WELLBEING_STRIP_CHART_WIDTH = 280;
 export const HOME_WELLBEING_STRIP_CHART_HEIGHT = 40;
@@ -22,7 +22,7 @@ type StripPoint = { x: number; y: number; score: PatientMoodScore };
 export type HomeWellbeingStripSegment = {
   key: string;
   path: string;
-  kind: "solid" | "dashed";
+  kind: 'solid' | 'dashed';
   x0: number;
   y0: number;
   x1: number;
@@ -77,7 +77,7 @@ export function bucketWellbeingStripMarksForChart(
 }
 
 function buildSmoothSegmentPath(points: Array<{ x: number; y: number }>): string {
-  if (points.length < 2) return "";
+  if (points.length < 2) return '';
   let path = `M ${points[0]!.x} ${points[0]!.y}`;
   for (let i = 1; i < points.length; i += 1) {
     const prev = points[i - 1]!;
@@ -111,7 +111,7 @@ function segmentBetween(
   key: string,
   a: StripPoint,
   b: StripPoint,
-  kind: "solid" | "dashed",
+  kind: 'solid' | 'dashed',
 ): HomeWellbeingStripSegment {
   return {
     key,
@@ -121,8 +121,8 @@ function segmentBetween(
     y0: a.y,
     x1: b.x,
     y1: b.y,
-    s0: kind === "solid" ? a.score : undefined,
-    s1: kind === "solid" ? b.score : undefined,
+    s0: kind === 'solid' ? a.score : undefined,
+    s1: kind === 'solid' ? b.score : undefined,
   };
 }
 
@@ -132,9 +132,10 @@ function segmentBetween(
  * Пунктир только: lead без якорного дня; хвост до nowX, если сегодня нет оценки.
  * Если сегодня была оценка — сплошной хвост от последней сегодняшней точки до nowX.
  */
-export function buildPatientHomeWellbeingWeekStripChart(
-  input: BuildHomeWellbeingStripChartInput,
-): { segments: HomeWellbeingStripSegment[]; nowX: number } {
+export function buildPatientHomeWellbeingWeekStripChart(input: BuildHomeWellbeingStripChartInput): {
+  segments: HomeWellbeingStripSegment[];
+  nowX: number;
+} {
   const {
     marks,
     timeZone,
@@ -146,8 +147,13 @@ export function buildPatientHomeWellbeingWeekStripChart(
     lastScoreBeforeWindow,
   } = input;
 
-  const windowStartMs = DateTime.fromISO(windowStartIso, { zone: timeZone }).startOf("day").toMillis();
-  const windowEndMs = DateTime.fromISO(todayIso, { zone: timeZone }).plus({ days: 1 }).startOf("day").toMillis();
+  const windowStartMs = DateTime.fromISO(windowStartIso, { zone: timeZone })
+    .startOf('day')
+    .toMillis();
+  const windowEndMs = DateTime.fromISO(todayIso, { zone: timeZone })
+    .plus({ days: 1 })
+    .startOf('day')
+    .toMillis();
   const nowX = weekStripTimeToX(nowMs, windowStartMs, windowEndMs);
 
   const bucketedMarks = bucketWellbeingStripMarksForChart(marks, windowStartMs, nowMs);
@@ -163,7 +169,8 @@ export function buildPatientHomeWellbeingWeekStripChart(
 
   const clippedMarks = clipPointsAtX(markPoints, nowX);
   const hasMarkToday = marks.some(
-    (m) => DateTime.fromISO(m.recordedAt, { zone: "utc" }).setZone(timeZone).toISODate() === todayIso,
+    (m) =>
+      DateTime.fromISO(m.recordedAt, { zone: 'utc' }).setZone(timeZone).toISODate() === todayIso,
   );
 
   const segments: HomeWellbeingStripSegment[] = [];
@@ -177,22 +184,18 @@ export function buildPatientHomeWellbeingWeekStripChart(
     const yLead =
       lastScoreBeforeWindow != null ? yForWellbeingStripScore(lastScoreBeforeWindow) : first.y;
     const leadScore = lastScoreBeforeWindow ?? first.score;
-    segments.push(
-      segmentBetween("lead", { x: 0, y: yLead, score: leadScore }, first, "dashed"),
-    );
+    segments.push(segmentBetween('lead', { x: 0, y: yLead, score: leadScore }, first, 'dashed'));
   } else if (anchorDayBeforeWindowLastScore != null) {
     const anchor: StripPoint = {
       x: 0,
       y: yForWellbeingStripScore(anchorDayBeforeWindowLastScore),
       score: anchorDayBeforeWindowLastScore,
     };
-    segments.push(segmentBetween("window-anchor", anchor, first, "solid"));
+    segments.push(segmentBetween('window-anchor', anchor, first, 'solid'));
   }
 
   for (let i = 0; i < clippedMarks.length - 1; i += 1) {
-    segments.push(
-      segmentBetween(`solid-${i}`, clippedMarks[i]!, clippedMarks[i + 1]!, "solid"),
-    );
+    segments.push(segmentBetween(`solid-${i}`, clippedMarks[i]!, clippedMarks[i + 1]!, 'solid'));
   }
 
   const sortedMarks = [...bucketedMarks].sort((a, b) => a.recordedAt.localeCompare(b.recordedAt));
@@ -200,7 +203,7 @@ export function buildPatientHomeWellbeingWeekStripChart(
   const lastMarkPointForDay = (dayIso: string): StripPoint | null => {
     for (let i = sortedMarks.length - 1; i >= 0; i -= 1) {
       const m = sortedMarks[i]!;
-      const localD = DateTime.fromISO(m.recordedAt, { zone: "utc" }).setZone(timeZone).toISODate();
+      const localD = DateTime.fromISO(m.recordedAt, { zone: 'utc' }).setZone(timeZone).toISODate();
       if (localD === dayIso) {
         return {
           x: weekStripTimeToX(new Date(m.recordedAt).getTime(), windowStartMs, windowEndMs),
@@ -212,25 +215,23 @@ export function buildPatientHomeWellbeingWeekStripChart(
     return null;
   };
 
-  const appendTailToNow = (tailFrom: StripPoint, kind: "solid" | "dashed") => {
+  const appendTailToNow = (tailFrom: StripPoint, kind: 'solid' | 'dashed') => {
     if (tailFrom.x >= nowX - 1e-6) return;
     segments.push(
-      segmentBetween(
-        "tail-now",
-        tailFrom,
-        { x: nowX, y: tailFrom.y, score: tailFrom.score },
-        kind,
-      ),
+      segmentBetween('tail-now', tailFrom, { x: nowX, y: tailFrom.y, score: tailFrom.score }, kind),
     );
   };
 
   if (!hasMarkToday) {
-    const yesterdayIso = DateTime.fromISO(todayIso, { zone: timeZone }).minus({ days: 1 }).toISODate();
-    const tailFrom = lastMarkPointForDay(yesterdayIso ?? "") ?? clippedMarks[clippedMarks.length - 1]!;
-    appendTailToNow(tailFrom, "dashed");
+    const yesterdayIso = DateTime.fromISO(todayIso, { zone: timeZone })
+      .minus({ days: 1 })
+      .toISODate();
+    const tailFrom =
+      lastMarkPointForDay(yesterdayIso ?? '') ?? clippedMarks[clippedMarks.length - 1]!;
+    appendTailToNow(tailFrom, 'dashed');
   } else {
     const tailFrom = lastMarkPointForDay(todayIso) ?? clippedMarks[clippedMarks.length - 1]!;
-    appendTailToNow(tailFrom, "solid");
+    appendTailToNow(tailFrom, 'solid');
   }
 
   return { segments, nowX };

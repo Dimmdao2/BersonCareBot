@@ -1,22 +1,22 @@
 ---
 name: Reminder bot buttons UX
-overview: "Закрыто (2026-05). Канон по боту — репозиторий: см. приложение webapp reminders.md §«Бот (Telegram / MAX)»; этот файл — архивный указатель статуса."
+overview: 'Закрыто (2026-05). Канон по боту — репозиторий: см. приложение webapp reminders.md §«Бот (Telegram / MAX)»; этот файл — архивный указатель статуса.'
 status: completed
 todos:
   - id: keyboard
-    content: "reminderInlineKeyboard — пять рядов; optional replyMarkup в buildReminderCallbackAckIntents"
+    content: 'reminderInlineKeyboard — пять рядов; optional replyMarkup в buildReminderCallbackAckIntents'
     status: completed
   - id: skip-one-tap
-    content: "scripts telegram/max skip.open → applyPreset none; reminder.skip.saved + fallback"
+    content: 'scripts telegram/max skip.open → applyPreset none; reminder.skip.saved + fallback'
     status: completed
   - id: webapp-api
-    content: "POST …/reminders/messenger-topic/disable + disableReminderMessengerTopic; route tests"
+    content: 'POST …/reminders/messenger-topic/disable + disableReminderMessengerTopic; route tests'
     status: completed
   - id: integrator-callback
-    content: "mapIn rem_bot_off, executeAction, handler, ports, integrations"
+    content: 'mapIn rem_bot_off, executeAction, handler, ports, integrations'
     status: completed
   - id: docs-tests
-    content: "reminders.md; parity topicCode; reminderInlineKeyboard/mapIn/executeAction/route tests"
+    content: 'reminders.md; parity topicCode; reminderInlineKeyboard/mapIn/executeAction/route tests'
     status: completed
 isProject: false
 ---

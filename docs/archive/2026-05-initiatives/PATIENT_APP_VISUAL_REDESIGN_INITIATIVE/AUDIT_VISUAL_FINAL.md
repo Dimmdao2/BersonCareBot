@@ -57,15 +57,15 @@
 
 ## 5. Tests reviewed/run
 
-| Источник | Содержание |
-|----------|------------|
-| **Ревью по spec §14 и `05`** | Покрытие: shell/header, bottom/top nav (**в т.ч. `aria-current`**, mutual exclusivity по классам), primary/secondary home-карточки, семантика без хрупких Tailwind-снапшотов на блоках (hero image/fallback, situations без slug-palette, subscription как link, mood disabled при pending POST и т.д.). |
-| **`AUDIT_PHASE_1` … `AUDIT_PHASE_4`** | Все фазы: **mandatory fixes = нет**; замечания перенесены в §3–4 при необходимости. |
-| **Прогон в рамках независимого повторного аудита** | `pnpm --dir apps/webapp exec vitest run` по пакету из **`LOG.md` Phase 5** (14 файлов: `PatientHome*` primary/secondary, `AppShell`, `PatientHeader`, `PatientBottomNav`, `PatientTopNav`) — **44 passed**, exit **0**. |
-| **Дополнительные home tests** | `PatientHomePlanCard.test.tsx`, `PatientHomeCoursesRow.test.tsx`, `PatientHomeGreeting.test.tsx` — **10 passed**, exit **0**. |
-| **`pnpm --dir apps/webapp typecheck`** | **passed** на повторной проверке 2026-04-29; старое замечание про `.next/types/validator.ts` на этом срезе больше не актуально. |
-| **`pnpm --dir apps/webapp lint`** | **passed** (`eslint .` + `check-media-preview-invariants.sh`) на повторной проверке 2026-04-29. |
-| **Root `pnpm run ci`** | **Не выполнялся** (не требовался для этого аудита). |
+| Источник                                           | Содержание                                                                                                                                                                                                                                                                                               |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Ревью по spec §14 и `05`**                       | Покрытие: shell/header, bottom/top nav (**в т.ч. `aria-current`**, mutual exclusivity по классам), primary/secondary home-карточки, семантика без хрупких Tailwind-снапшотов на блоках (hero image/fallback, situations без slug-palette, subscription как link, mood disabled при pending POST и т.д.). |
+| **`AUDIT_PHASE_1` … `AUDIT_PHASE_4`**              | Все фазы: **mandatory fixes = нет**; замечания перенесены в §3–4 при необходимости.                                                                                                                                                                                                                      |
+| **Прогон в рамках независимого повторного аудита** | `pnpm --dir apps/webapp exec vitest run` по пакету из **`LOG.md` Phase 5** (14 файлов: `PatientHome*` primary/secondary, `AppShell`, `PatientHeader`, `PatientBottomNav`, `PatientTopNav`) — **44 passed**, exit **0**.                                                                                  |
+| **Дополнительные home tests**                      | `PatientHomePlanCard.test.tsx`, `PatientHomeCoursesRow.test.tsx`, `PatientHomeGreeting.test.tsx` — **10 passed**, exit **0**.                                                                                                                                                                            |
+| **`pnpm --dir apps/webapp typecheck`**             | **passed** на повторной проверке 2026-04-29; старое замечание про `.next/types/validator.ts` на этом срезе больше не актуально.                                                                                                                                                                          |
+| **`pnpm --dir apps/webapp lint`**                  | **passed** (`eslint .` + `check-media-preview-invariants.sh`) на повторной проверке 2026-04-29.                                                                                                                                                                                                          |
+| **Root `pnpm run ci`**                             | **Не выполнялся** (не требовался для этого аудита).                                                                                                                                                                                                                                                      |
 
 Примечание: полный root **`pnpm run ci`** по правилам проекта остаётся pre-push барьером, а не обязательным шагом каждого визуального аудита.
 
@@ -73,16 +73,16 @@
 
 ## 6. Explicit confirmations
 
-| Утверждение | Подтверждение |
-|-------------|----------------|
-| **Нет runtime slug hardcode из `CONTENT_PLAN.md`** | В рабочем дереве patient home **нет** импорта/ссылки на `CONTENT_PLAN`; нет ветвлений стиля по slug из плана; slug в тестах — **фикстуры URL**. |
-| **Нет намеренного doctor/admin redesign** | `AppShell` для `variant === "doctor"` сохраняет узкий контейнер **`DOCTOR_PAGE_CONTAINER_CLASS`**; изменения сосредоточены на **`variant === "patient"`**. **`button-variants.ts`** в scope инициативы **не** менялся (LOG Phase 1 / grep по home-компонентам — опора на `patientVisual`, не рефактор `buttonVariants` doctor/admin). |
-| **Не добавлено subscription gating** | `PatientHomeSubscriptionCarousel`: визуальные ссылки/бейджи без enroll API (Phase 4 аудит + тест «только Link»). |
-| **Не добавлены env vars для интеграций/визуала** | Grep по `shared/ui` patient-файлам: **нет** новых `process.env` / `NEXT_PUBLIC_` в рамках проверенных путей; токены в **CSS** и существующие bootstrap-env не расширялись под эту задачу. |
-| **FAB не возвращён в runtime** | После FIX `AppShell` больше не монтирует `PatientQuickAddFAB`; запрет из `MASTER_PLAN.md §3` / `VISUAL_SYSTEM_SPEC.md §1.2` соблюдён. |
-| **Scope поставки отделяется commit-пакетом** | В рабочем дереве есть параллельные изменения других инициатив, но финальный commit по visual redesign формируется отдельно и не включает несвязанные файлы. |
-| **Full CI не гонялся без причины** | Root **`pnpm run ci`** в этом аудите **не** запускался; targeted Vitest — да; соответствует **`README.md` §Проверки** и **`MASTER_PLAN.md` §10**. |
+| Утверждение                                        | Подтверждение                                                                                                                                                                                                                                                                                                                         |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Нет runtime slug hardcode из `CONTENT_PLAN.md`** | В рабочем дереве patient home **нет** импорта/ссылки на `CONTENT_PLAN`; нет ветвлений стиля по slug из плана; slug в тестах — **фикстуры URL**.                                                                                                                                                                                       |
+| **Нет намеренного doctor/admin redesign**          | `AppShell` для `variant === "doctor"` сохраняет узкий контейнер **`DOCTOR_PAGE_CONTAINER_CLASS`**; изменения сосредоточены на **`variant === "patient"`**. **`button-variants.ts`** в scope инициативы **не** менялся (LOG Phase 1 / grep по home-компонентам — опора на `patientVisual`, не рефактор `buttonVariants` doctor/admin). |
+| **Не добавлено subscription gating**               | `PatientHomeSubscriptionCarousel`: визуальные ссылки/бейджи без enroll API (Phase 4 аудит + тест «только Link»).                                                                                                                                                                                                                      |
+| **Не добавлены env vars для интеграций/визуала**   | Grep по `shared/ui` patient-файлам: **нет** новых `process.env` / `NEXT_PUBLIC_` в рамках проверенных путей; токены в **CSS** и существующие bootstrap-env не расширялись под эту задачу.                                                                                                                                             |
+| **FAB не возвращён в runtime**                     | После FIX `AppShell` больше не монтирует `PatientQuickAddFAB`; запрет из `MASTER_PLAN.md §3` / `VISUAL_SYSTEM_SPEC.md §1.2` соблюдён.                                                                                                                                                                                                 |
+| **Scope поставки отделяется commit-пакетом**       | В рабочем дереве есть параллельные изменения других инициатив, но финальный commit по visual redesign формируется отдельно и не включает несвязанные файлы.                                                                                                                                                                           |
+| **Full CI не гонялся без причины**                 | Root **`pnpm run ci`** в этом аудите **не** запускался; targeted Vitest — да; соответствует **`README.md` §Проверки** и **`MASTER_PLAN.md` §10**.                                                                                                                                                                                     |
 
 ---
 
-*Архивные PROMPT'ы `PATIENT_HOME_REDESIGN_INITIATIVE` и планы `.cursor/plans/archive/phase_3_patient_home_*` / `phase_4.5_patient_home_*` не исполнялись.*
+_Архивные PROMPT'ы `PATIENT_HOME_REDESIGN_INITIATIVE` и планы `.cursor/plans/archive/phase*3_patient_home*_`/`phase*4.5_patient_home*_` не исполнялись._

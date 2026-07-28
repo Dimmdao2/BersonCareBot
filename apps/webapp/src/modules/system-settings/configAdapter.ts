@@ -10,8 +10,8 @@ import {
   readExactOrganizationAdminSystemSettingString,
   readIsSmtpOutboundConfigured,
   readPublicConfigBoolean,
-} from "@/infra/repos/pgSystemSettings";
-import { createPgAppRuntimeSettingsPort } from "@/infra/repos/pgAppRuntimeSettings";
+} from '@/infra/repos/pgSystemSettings';
+import { createPgAppRuntimeSettingsPort } from '@/infra/repos/pgAppRuntimeSettings';
 import {
   createRuntimeConfigProvider,
   type AuthenticatedRuntimeBooleanKey,
@@ -22,7 +22,7 @@ import {
   type ServerRuntimeBooleanKey,
   type ServerRuntimeIntegerKey,
   type ServerRuntimeTokenListKey,
-} from "./runtimeConfig";
+} from './runtimeConfig';
 
 const TTL_MS = 60_000;
 
@@ -36,14 +36,14 @@ const safeRuntimeConfig = createRuntimeConfigProvider(createPgAppRuntimeSettings
 
 export function getPublicRuntimeBool(
   key: PublicRuntimeBooleanKey,
-  operationFamily: RuntimeConfigOperationFamily = "public_auth_config",
+  operationFamily: RuntimeConfigOperationFamily = 'public_auth_config',
 ): Promise<boolean> {
   return safeRuntimeConfig.getPublicBoolean(key, operationFamily);
 }
 
 export function getPublicRuntimeValue(
   key: PublicRuntimeStringKey,
-  operationFamily: RuntimeConfigOperationFamily = "public_auth_config",
+  operationFamily: RuntimeConfigOperationFamily = 'public_auth_config',
 ): Promise<string> {
   return safeRuntimeConfig.getPublicString(key, operationFamily);
 }
@@ -77,10 +77,12 @@ export function getServerRuntimeTokenList(
   if (cached && now - cached.fetchedAt < TTL_MS) {
     return Promise.resolve(cached.value);
   }
-  return safeRuntimeConfig.getServerTokenList(key, envFallback, "auth_role_config").then((value) => {
-    cache.set(cacheKey, { value, fetchedAt: Date.now() });
-    return value;
-  });
+  return safeRuntimeConfig
+    .getServerTokenList(key, envFallback, 'auth_role_config')
+    .then((value) => {
+      cache.set(cacheKey, { value, fetchedAt: Date.now() });
+      return value;
+    });
 }
 
 /**
@@ -88,7 +90,7 @@ export function getServerRuntimeTokenList(
  * the 60-second compatibility cache and has no environment fallback.
  */
 export function getFreshServerRuntimeTokenList(key: ServerRuntimeTokenListKey): Promise<string> {
-  return safeRuntimeConfig.getServerTokenListStrict(key, "auth_role_config");
+  return safeRuntimeConfig.getServerTokenListStrict(key, 'auth_role_config');
 }
 
 /** Invalidate all cached entries (call after PATCH /api/admin/settings). */
@@ -100,7 +102,7 @@ export function invalidateConfigCache(): void {
 export function invalidateConfigKey(key: string): void {
   cache.delete(key);
   cache.delete(`server-token-list:${key}`);
-  if (key === "smtp_outbound") {
+  if (key === 'smtp_outbound') {
     cache.delete(SMTP_OUTBOUND_CONFIGURED_CACHE_KEY);
   }
 }
@@ -121,7 +123,10 @@ async function fetchFromDb(key: string): Promise<SettingReadOutcome> {
   }
 }
 
-async function fetchFromDbForOrganization(key: string, organizationId: string): Promise<SettingReadOutcome> {
+async function fetchFromDbForOrganization(
+  key: string,
+  organizationId: string,
+): Promise<SettingReadOutcome> {
   try {
     return { read: true, value: await readAdminSystemSettingString(key, { organizationId }) };
   } catch {
@@ -129,9 +134,15 @@ async function fetchFromDbForOrganization(key: string, organizationId: string): 
   }
 }
 
-async function fetchExactOrganizationValue(key: string, organizationId: string): Promise<SettingReadOutcome> {
+async function fetchExactOrganizationValue(
+  key: string,
+  organizationId: string,
+): Promise<SettingReadOutcome> {
   try {
-    return { read: true, value: await readExactOrganizationAdminSystemSettingString(key, organizationId) };
+    return {
+      read: true,
+      value: await readExactOrganizationAdminSystemSettingString(key, organizationId),
+    };
   } catch {
     return { read: false };
   }
@@ -268,8 +279,8 @@ export async function getPublicConfigValue(
  * Get a boolean config value (DB stores "true"/"false" or boolean).
  */
 export async function getConfigBool(key: string, envFallback: boolean): Promise<boolean> {
-  const val = await getConfigValue(key, envFallback ? "true" : "false");
-  return val === "true" || val === "1";
+  const val = await getConfigValue(key, envFallback ? 'true' : 'false');
+  return val === 'true' || val === '1';
 }
 
 /**
@@ -280,13 +291,13 @@ export async function getPublicConfigBool(key: string, envFallback: boolean): Pr
   const dbValue = await fetchPublicConfigBoolFromDb(key);
   if (dbValue !== null) {
     const now = Date.now();
-    cache.set(key, { value: dbValue ? "true" : "false", fetchedAt: now });
+    cache.set(key, { value: dbValue ? 'true' : 'false', fetchedAt: now });
     return dbValue;
   }
   return envFallback;
 }
 
-const SMTP_OUTBOUND_CONFIGURED_CACHE_KEY = "__smtp_outbound_configured_accessor__";
+const SMTP_OUTBOUND_CONFIGURED_CACHE_KEY = '__smtp_outbound_configured_accessor__';
 
 /**
  * Whether outbound SMTP is configured, via the whitelisted boolean-only SECURITY DEFINER accessor
@@ -300,11 +311,14 @@ export async function getIsSmtpOutboundConfiguredOrNull(): Promise<boolean | nul
   const now = Date.now();
   const cached = cache.get(SMTP_OUTBOUND_CONFIGURED_CACHE_KEY);
   if (cached && now - cached.fetchedAt < TTL_MS) {
-    return cached.value === "true";
+    return cached.value === 'true';
   }
   const dbValue = await fetchIsSmtpOutboundConfiguredFromDb();
   if (dbValue !== null) {
-    cache.set(SMTP_OUTBOUND_CONFIGURED_CACHE_KEY, { value: dbValue ? "true" : "false", fetchedAt: now });
+    cache.set(SMTP_OUTBOUND_CONFIGURED_CACHE_KEY, {
+      value: dbValue ? 'true' : 'false',
+      fetchedAt: now,
+    });
   }
   return dbValue;
 }

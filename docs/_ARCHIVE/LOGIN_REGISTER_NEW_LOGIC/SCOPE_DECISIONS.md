@@ -23,14 +23,14 @@
 
 ### 1. Новые Rubitime events
 
-| Правило | Требование |
-|---------|------------|
-| Поиск | Сначала **телефон**, затем **email** |
-| `appointment_records.platform_user_id` | Заполняется на live-path |
-| Существующий user | **Имя не трогать** |
-| Новый user | Имя из Rubitime |
-| Телефон | Из Rubitime — **trusted** (`patient_phone_trust_at`) |
-| Email | **Unverified** contact |
+| Правило                                | Требование                                           |
+| -------------------------------------- | ---------------------------------------------------- |
+| Поиск                                  | Сначала **телефон**, затем **email**                 |
+| `appointment_records.platform_user_id` | Заполняется на live-path                             |
+| Существующий user                      | **Имя не трогать**                                   |
+| Новый user                             | Имя из Rubitime                                      |
+| Телефон                                | Из Rubitime — **trusted** (`patient_phone_trust_at`) |
+| Email                                  | **Unverified** contact                               |
 
 ### 2. Email от врача / Rubitime (live)
 
@@ -40,12 +40,12 @@
 
 ### 3. Register / login (live)
 
-| Ситуация | Поведение |
-|----------|-----------|
-| Email свободен | Обычная регистрация |
-| Email у contact-only user, нет password | **Не** `duplicate_email` → `existing_account_needs_email_setup` / setup-required |
-| Пользователь запросил доступ (register / «отправить код») | Выпустить setup-code |
-| После setup | Подтвердить email + создать пароль + сессия |
+| Ситуация                                                  | Поведение                                                                        |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Email свободен                                            | Обычная регистрация                                                              |
+| Email у contact-only user, нет password                   | **Не** `duplicate_email` → `existing_account_needs_email_setup` / setup-required |
+| Пользователь запросил доступ (register / «отправить код») | Выпустить setup-code                                                             |
+| После setup                                               | Подтвердить email + создать пароль + сессия                                      |
 
 ### 4. Forgot (live)
 

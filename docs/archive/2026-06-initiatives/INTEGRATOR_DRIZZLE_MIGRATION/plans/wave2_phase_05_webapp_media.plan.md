@@ -5,19 +5,19 @@ status: completed
 isProject: false
 todos:
   - id: p05-inventory
-    content: "Сверка с RAW_SQL_INVENTORY §2.4 (медиа) + §2.5 multipart; порядок: сначала изолированные repos, затем preview worker (самый большой tx)."
+    content: 'Сверка с RAW_SQL_INVENTORY §2.4 (медиа) + §2.5 multipart; порядок: сначала изолированные repos, затем preview worker (самый большой tx).'
     status: completed
   - id: p05-core-repos
-    content: "s3MediaStorage.ts, mediaFoldersRepo.ts, mediaUploadSessionsRepo.ts, pgMediaTranscodeJobs.ts — Drizzle; advisory wrappers должны уже соответствовать этапу 3 или оставаться execute(sql) в той же tx."
+    content: 's3MediaStorage.ts, mediaFoldersRepo.ts, mediaUploadSessionsRepo.ts, pgMediaTranscodeJobs.ts — Drizzle; advisory wrappers должны уже соответствовать этапу 3 или оставаться execute(sql) в той же tx.'
     status: completed
   - id: p05-preview-multipart
-    content: "mediaPreviewWorker.ts, routes multipart cleanup/init — транзакции и cleanup путей; не ослаблять проверки статусов media_files."
+    content: 'mediaPreviewWorker.ts, routes multipart cleanup/init — транзакции и cleanup путей; не ослаблять проверки статусов media_files.'
     status: completed
   - id: p05-system-health
-    content: "Проверить, что метрики system-health / operator health по-прежнему согласованы с новыми запросами (при изменении полей)."
+    content: 'Проверить, что метрики system-health / operator health по-прежнему согласованы с новыми запросами (при изменении полей).'
     status: completed
   - id: p05-verify
-    content: "typecheck + P5 vitest bundle (56) + pnpm run ci; smoke-чеклист в LOG (unit + staging defer P8)."
+    content: 'typecheck + P5 vitest bundle (56) + pnpm run ci; smoke-чеклист в LOG (unit + staging defer P8).'
     status: completed
 ---
 

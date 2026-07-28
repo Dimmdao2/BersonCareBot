@@ -4,10 +4,10 @@
  * Данные только в sessionStorage текущего origin; не логируем строку целиком.
  */
 
-const STORAGE_KEY = "bersoncare_messenger_binding_candidate_v1";
+const STORAGE_KEY = 'bersoncare_messenger_binding_candidate_v1';
 const MAX_AGE_MS = 45 * 60 * 1000;
 
-export type MessengerBindingCandidateChannel = "telegram" | "max";
+export type MessengerBindingCandidateChannel = 'telegram' | 'max';
 
 export type MessengerBindingCandidateStored = {
   v: 1;
@@ -22,15 +22,15 @@ function parseStored(raw: string | null): MessengerBindingCandidateStored | null
   try {
     const o = JSON.parse(raw) as Partial<MessengerBindingCandidateStored>;
     if (o?.v !== 1) return null;
-    if (o.channel !== "telegram" && o.channel !== "max") return null;
-    if (typeof o.initData !== "string" || o.initData.trim().length === 0) return null;
-    if (typeof o.savedAt !== "number" || !Number.isFinite(o.savedAt)) return null;
+    if (o.channel !== 'telegram' && o.channel !== 'max') return null;
+    if (typeof o.initData !== 'string' || o.initData.trim().length === 0) return null;
+    if (typeof o.savedAt !== 'number' || !Number.isFinite(o.savedAt)) return null;
     return {
       v: 1,
       channel: o.channel,
       initData: o.initData.trim(),
       savedAt: o.savedAt,
-      correlationId: typeof o.correlationId === "string" ? o.correlationId : null,
+      correlationId: typeof o.correlationId === 'string' ? o.correlationId : null,
     };
   } catch {
     return null;
@@ -42,7 +42,7 @@ export function persistMessengerBindingCandidate(input: {
   initData: string;
   correlationId?: string | null;
 }): void {
-  if (typeof window === "undefined") return;
+  if (typeof window === 'undefined') return;
   const initData = input.initData.trim();
   if (!initData) return;
   const payload: MessengerBindingCandidateStored = {
@@ -60,7 +60,7 @@ export function persistMessengerBindingCandidate(input: {
 }
 
 export function readMessengerBindingCandidate(): MessengerBindingCandidateStored | null {
-  if (typeof window === "undefined") return null;
+  if (typeof window === 'undefined') return null;
   let raw: string | null = null;
   try {
     raw = sessionStorage.getItem(STORAGE_KEY);
@@ -77,7 +77,7 @@ export function readMessengerBindingCandidate(): MessengerBindingCandidateStored
 }
 
 export function clearMessengerBindingCandidate(): void {
-  if (typeof window === "undefined") return;
+  if (typeof window === 'undefined') return;
   try {
     sessionStorage.removeItem(STORAGE_KEY);
   } catch {

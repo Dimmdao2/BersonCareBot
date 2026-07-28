@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID } from 'node:crypto';
 import type {
   PatientHomeBlock,
   PatientHomeBlockCode,
@@ -6,21 +6,21 @@ import type {
   PatientHomeBlockItemAddInput,
   PatientHomeBlockItemPatch,
   PatientHomeBlocksPort,
-} from "@/modules/patient-home/ports";
-import { PATIENT_HOME_BLOCK_CODES } from "@/modules/patient-home/blocks";
+} from '@/modules/patient-home/ports';
+import { PATIENT_HOME_BLOCK_CODES } from '@/modules/patient-home/blocks';
 
 const defaultTitles: Record<PatientHomeBlockCode, string> = {
-  daily_warmup: "Разминка дня",
-  useful_post: "Полезный пост",
-  booking: "Запись на приём",
-  situations: "Ситуации",
-  progress: "Прогресс",
-  next_reminder: "Следующее напоминание",
-  mood_checkin: "Самочувствие",
-  sos: "Если болит сейчас",
-  plan: "Мой план",
-  subscription_carousel: "Материалы по подписке",
-  courses: "Курсы",
+  daily_warmup: 'Разминка дня',
+  useful_post: 'Полезный пост',
+  booking: 'Запись на приём',
+  situations: 'Ситуации',
+  progress: 'Прогресс',
+  next_reminder: 'Следующее напоминание',
+  mood_checkin: 'Самочувствие',
+  sos: 'Если болит сейчас',
+  plan: 'Мой план',
+  subscription_carousel: 'Материалы по подписке',
+  courses: 'Курсы',
 };
 
 export function createInMemoryPatientHomeBlocksPort(): PatientHomeBlocksPort {
@@ -32,7 +32,7 @@ export function createInMemoryPatientHomeBlocksPort(): PatientHomeBlocksPort {
     blocks.set(code, {
       code,
       title: defaultTitles[code],
-      description: "",
+      description: '',
       isVisible: true,
       sortOrder: i + 1,
       iconImageUrl: null,
@@ -81,9 +81,10 @@ export function createInMemoryPatientHomeBlocksPort(): PatientHomeBlocksPort {
         input.sortOrder ??
         Math.max(
           0,
-          ...[...items.values()].filter((item) => item.blockCode === input.blockCode).map((item) => item.sortOrder),
-        ) +
-          1;
+          ...[...items.values()]
+            .filter((item) => item.blockCode === input.blockCode)
+            .map((item) => item.sortOrder),
+        ) + 1;
       items.set(id, {
         id,
         blockCode: input.blockCode,
@@ -107,12 +108,12 @@ export function createInMemoryPatientHomeBlocksPort(): PatientHomeBlocksPort {
 
     async updateItem(id: string, patch: PatientHomeBlockItemPatch) {
       const current = items.get(id);
-      if (!current) throw new Error("unknown_item");
+      if (!current) throw new Error('unknown_item');
       items.set(id, { ...current, ...patch });
     },
 
     async deleteItem(id: string) {
-      if (!items.has(id)) throw new Error("unknown_item");
+      if (!items.has(id)) throw new Error('unknown_item');
       items.delete(id);
     },
 
@@ -121,7 +122,7 @@ export function createInMemoryPatientHomeBlocksPort(): PatientHomeBlocksPort {
         const itemId = orderedItemIds[i]!;
         const current = items.get(itemId);
         if (!current || current.blockCode !== blockCode) {
-          throw new Error("reorder_items_block_mismatch");
+          throw new Error('reorder_items_block_mismatch');
         }
         items.set(itemId, { ...current, sortOrder: i + 1 });
       }
@@ -131,7 +132,7 @@ export function createInMemoryPatientHomeBlocksPort(): PatientHomeBlocksPort {
       const oldT = oldSlug.trim();
       if (!oldT) return;
       for (const [id, item] of items) {
-        if (item.targetType !== "content_page") continue;
+        if (item.targetType !== 'content_page') continue;
         if (item.targetRef.trim() !== oldT) continue;
         items.set(id, { ...item, targetRef: newSlug });
       }

@@ -2,18 +2,18 @@
  * Manual merge preview (read-only): conflicts, hard blockers, dependent counts, recommendations.
  * Apply flow is implemented separately (manual merge engine).
  */
-import type { Pool } from "pg";
-import { runPgPoolPgText } from "@/infra/db/runWebappSql";
-import { checkIntegratorCanonicalPair } from "@/infra/integrations/integratorUserMergeM2mClient";
+import type { Pool } from 'pg';
+import { runPgPoolPgText } from '@/infra/db/runWebappSql';
+import { checkIntegratorCanonicalPair } from '@/infra/integrations/integratorUserMergeM2mClient';
 import {
   effectiveAutoMergedDisplayName,
   effectiveAutoMergedFirstName,
   effectiveAutoMergedLastName,
   effectiveAutoMergedPatronymic,
-} from "@/infra/repos/autoMergeScalarEffective";
-import { pickMergeTargetId } from "@/infra/repos/pgPlatformUserMerge";
-import { logger } from "@/infra/logging/logger";
-import { getConfigBool } from "@/modules/system-settings/configAdapter";
+} from '@/infra/repos/autoMergeScalarEffective';
+import { pickMergeTargetId } from '@/infra/repos/pgPlatformUserMerge';
+import { logger } from '@/infra/logging/logger';
+import { getConfigBool } from '@/modules/system-settings/configAdapter';
 
 /** Rows compatible with {@link pickMergeTargetId} / merge transaction loader. */
 export type MergePreviewPlatformUserRow = {
@@ -68,24 +68,24 @@ export type MergePreviewDependentCounts = {
 };
 
 export type MergePreviewHardBlockerCode =
-  | "target_is_alias"
-  | "duplicate_is_alias"
-  | "different_non_null_integrator_user_id"
-  | "integrator_canonical_merge_required"
-  | "integrator_merge_status_unavailable"
-  | "active_bookings_time_overlap"
-  | "active_lfk_template_conflict"
-  | "active_treatment_program_conflict"
-  | "open_test_attempt_conflict"
-  | "shared_phone_both_have_meaningful_data";
+  | 'target_is_alias'
+  | 'duplicate_is_alias'
+  | 'different_non_null_integrator_user_id'
+  | 'integrator_canonical_merge_required'
+  | 'integrator_merge_status_unavailable'
+  | 'active_bookings_time_overlap'
+  | 'active_lfk_template_conflict'
+  | 'active_treatment_program_conflict'
+  | 'open_test_attempt_conflict'
+  | 'shared_phone_both_have_meaningful_data';
 
 /** How to treat two different non-null integrator_user_id values in preview (v1 hard block vs v2 gate). */
 export type IntegratorPairPreview =
-  | { kind: "not_applicable" }
-  | { kind: "v1_both_different_non_null" }
-  | { kind: "v2_canonical_aligned" }
-  | { kind: "v2_merge_required" }
-  | { kind: "v2_status_unavailable" };
+  | { kind: 'not_applicable' }
+  | { kind: 'v1_both_different_non_null' }
+  | { kind: 'v2_canonical_aligned' }
+  | { kind: 'v2_merge_required' }
+  | { kind: 'v2_status_unavailable' };
 
 export type MergePreviewHardBlocker = {
   code: MergePreviewHardBlockerCode;
@@ -95,18 +95,18 @@ export type MergePreviewHardBlocker = {
 };
 
 export type MergePreviewScalarFieldKey =
-  | "phone_normalized"
-  | "display_name"
-  | "first_name"
-  | "last_name"
-  | "patronymic"
-  | "email";
+  | 'phone_normalized'
+  | 'display_name'
+  | 'first_name'
+  | 'last_name'
+  | 'patronymic'
+  | 'email';
 
 export type MergePreviewScalarConflict = {
   field: MergePreviewScalarFieldKey;
   targetValue: string | null;
   duplicateValue: string | null;
-  recommendedWinner: "target" | "duplicate";
+  recommendedWinner: 'target' | 'duplicate';
   reason: string;
 };
 
@@ -114,7 +114,7 @@ export type MergePreviewChannelConflict = {
   channelCode: string;
   targetExternalId: string | null;
   duplicateExternalId: string | null;
-  recommendedWinner: "target" | "duplicate";
+  recommendedWinner: 'target' | 'duplicate';
   reason: string;
 };
 
@@ -122,7 +122,7 @@ export type MergePreviewOauthConflict = {
   provider: string;
   targetProviderUserId: string | null;
   duplicateProviderUserId: string | null;
-  recommendedWinner: "target" | "duplicate";
+  recommendedWinner: 'target' | 'duplicate';
   reason: string;
 };
 
@@ -136,9 +136,9 @@ export type MergePreviewAutoMergeScalar = {
 export type MergePreviewRecommendation = {
   suggestedTargetId: string;
   suggestedDuplicateId: string;
-  basis: "pick_merge_target_heuristic";
+  basis: 'pick_merge_target_heuristic';
   /** Older account wins tie-break for scalar/binding conflicts (UI default). */
-  defaultWinnerBias: "older_created_at";
+  defaultWinnerBias: 'older_created_at';
 };
 
 export type MergePreviewModel = {
@@ -173,7 +173,7 @@ export type MergePreviewModel = {
   platformUserMergeV2Enabled: boolean;
 };
 
-export type MergePreviewErrorCode = "same_id" | "missing_user" | "not_client";
+export type MergePreviewErrorCode = 'same_id' | 'missing_user' | 'not_client';
 
 export type MergePreviewError = {
   ok: false;
@@ -184,18 +184,18 @@ export type MergePreviewError = {
 export type MergePreviewResult = MergePreviewModel | MergePreviewError;
 
 const SCALAR_FIELDS: MergePreviewScalarFieldKey[] = [
-  "phone_normalized",
-  "display_name",
-  "first_name",
-  "last_name",
-  "patronymic",
-  "email",
+  'phone_normalized',
+  'display_name',
+  'first_name',
+  'last_name',
+  'patronymic',
+  'email',
 ];
 
 function normStr(v: string | null | undefined): string | null {
   if (v == null) return null;
   const t = v.trim();
-  return t === "" ? null : t;
+  return t === '' ? null : t;
 }
 
 function emailsEqual(a: string | null, b: string | null): boolean {
@@ -213,27 +213,27 @@ function scalarConflict(
   let tv: string | null;
   let dv: string | null;
   switch (field) {
-    case "phone_normalized":
+    case 'phone_normalized':
       tv = normStr(target.phone_normalized);
       dv = normStr(duplicate.phone_normalized);
       break;
-    case "display_name":
+    case 'display_name':
       tv = normStr(target.display_name);
       dv = normStr(duplicate.display_name);
       break;
-    case "first_name":
+    case 'first_name':
       tv = normStr(target.first_name);
       dv = normStr(duplicate.first_name);
       break;
-    case "last_name":
+    case 'last_name':
       tv = normStr(target.last_name);
       dv = normStr(duplicate.last_name);
       break;
-    case "patronymic":
+    case 'patronymic':
       tv = normStr(target.patronymic);
       dv = normStr(duplicate.patronymic);
       break;
-    case "email":
+    case 'email':
       tv = normStr(target.email);
       dv = normStr(duplicate.email);
       break;
@@ -241,12 +241,15 @@ function scalarConflict(
       return null;
   }
   if (tv == null || dv == null || tv === dv) return null;
-  if (field === "email" && emailsEqual(tv, dv)) return null;
+  if (field === 'email' && emailsEqual(tv, dv)) return null;
 
   const pT = normStr(target.phone_normalized);
   const pD = normStr(duplicate.phone_normalized);
   if (
-    (field === "display_name" || field === "first_name" || field === "last_name" || field === "patronymic") &&
+    (field === 'display_name' ||
+      field === 'first_name' ||
+      field === 'last_name' ||
+      field === 'patronymic') &&
     pT != null &&
     pD != null &&
     pT === pD
@@ -255,13 +258,15 @@ function scalarConflict(
   }
 
   const older =
-    target.created_at.getTime() <= duplicate.created_at.getTime() ? ("target" as const) : ("duplicate" as const);
+    target.created_at.getTime() <= duplicate.created_at.getTime()
+      ? ('target' as const)
+      : ('duplicate' as const);
   return {
     field,
     targetValue: tv,
     duplicateValue: dv,
     recommendedWinner: older,
-    reason: "older_created_at_preferred",
+    reason: 'older_created_at_preferred',
   };
 }
 
@@ -285,8 +290,8 @@ function inferIntegratorPairPreview(
 ): IntegratorPairPreview {
   const iT = normStr(target.integrator_user_id);
   const iD = normStr(duplicate.integrator_user_id);
-  if (!iT || !iD || iT === iD) return { kind: "not_applicable" };
-  return { kind: "v1_both_different_non_null" };
+  if (!iT || !iD || iT === iD) return { kind: 'not_applicable' };
+  return { kind: 'v1_both_different_non_null' };
 }
 
 /** Exported for unit tests — pure preview from already-loaded rows. */
@@ -298,7 +303,10 @@ export function analyzeMergePreviewModel(
     duplicateBindings: MergePreviewChannelBinding[];
     targetOauth: MergePreviewOAuthBinding[];
     duplicateOauth: MergePreviewOAuthBinding[];
-    dependentCounts: { target: MergePreviewDependentCounts; duplicate: MergePreviewDependentCounts };
+    dependentCounts: {
+      target: MergePreviewDependentCounts;
+      duplicate: MergePreviewDependentCounts;
+    };
     activeBookingOverlapCount: number;
     activeLfkTemplateConflictCount: number;
     activeTreatmentProgramConflictCount: number;
@@ -314,23 +322,23 @@ export function analyzeMergePreviewModel(
   const recommendation: MergePreviewRecommendation = {
     suggestedTargetId: picked.target,
     suggestedDuplicateId: picked.duplicate,
-    basis: "pick_merge_target_heuristic",
-    defaultWinnerBias: "older_created_at",
+    basis: 'pick_merge_target_heuristic',
+    defaultWinnerBias: 'older_created_at',
   };
 
   const hardBlockers: MergePreviewHardBlocker[] = [];
 
   if (target.merged_into_id != null) {
     hardBlockers.push({
-      code: "target_is_alias",
-      message: "Target row is a merge alias (merged_into_id is set); resolve chain first.",
+      code: 'target_is_alias',
+      message: 'Target row is a merge alias (merged_into_id is set); resolve chain first.',
       details: { merged_into_id: target.merged_into_id },
     });
   }
   if (duplicate.merged_into_id != null) {
     hardBlockers.push({
-      code: "duplicate_is_alias",
-      message: "Duplicate row is a merge alias (merged_into_id is set); resolve chain first.",
+      code: 'duplicate_is_alias',
+      message: 'Duplicate row is a merge alias (merged_into_id is set); resolve chain first.',
       details: { merged_into_id: duplicate.merged_into_id },
     });
   }
@@ -339,25 +347,25 @@ export function analyzeMergePreviewModel(
   const iD = normStr(duplicate.integrator_user_id);
   const pair = opts.integratorPairPreview ?? inferIntegratorPairPreview(target, duplicate);
   if (iT != null && iD != null && iT !== iD) {
-    if (pair.kind === "v1_both_different_non_null") {
+    if (pair.kind === 'v1_both_different_non_null') {
       hardBlockers.push({
-        code: "different_non_null_integrator_user_id",
+        code: 'different_non_null_integrator_user_id',
         message:
-          "Both users have different non-null integrator_user_id — merge blocked (phantom user / projection risk).",
+          'Both users have different non-null integrator_user_id — merge blocked (phantom user / projection risk).',
         details: { targetIntegratorUserId: iT, duplicateIntegratorUserId: iD },
       });
-    } else if (pair.kind === "v2_merge_required") {
+    } else if (pair.kind === 'v2_merge_required') {
       hardBlockers.push({
-        code: "integrator_canonical_merge_required",
+        code: 'integrator_canonical_merge_required',
         message:
-          "Both users have different integrator_user_id — complete integrator canonical merge first (then webapp projection realignment if needed), then retry preview.",
+          'Both users have different integrator_user_id — complete integrator canonical merge first (then webapp projection realignment if needed), then retry preview.',
         details: { targetIntegratorUserId: iT, duplicateIntegratorUserId: iD },
       });
-    } else if (pair.kind === "v2_status_unavailable") {
+    } else if (pair.kind === 'v2_status_unavailable') {
       hardBlockers.push({
-        code: "integrator_merge_status_unavailable",
+        code: 'integrator_merge_status_unavailable',
         message:
-          "Cannot verify integrator canonical merge status (INTEGRATOR_API_URL / webhook secret missing or integrator error).",
+          'Cannot verify integrator canonical merge status (INTEGRATOR_API_URL / webhook secret missing or integrator error).',
         details: { targetIntegratorUserId: iT, duplicateIntegratorUserId: iD },
       });
     }
@@ -365,32 +373,34 @@ export function analyzeMergePreviewModel(
 
   if (opts.activeBookingOverlapCount > 0) {
     hardBlockers.push({
-      code: "active_bookings_time_overlap",
-      message: "Active patient_bookings overlap in time between candidates (same cooperator snapshot rule as merge guard).",
+      code: 'active_bookings_time_overlap',
+      message:
+        'Active patient_bookings overlap in time between candidates (same cooperator snapshot rule as merge guard).',
       details: { overlapPairCount: opts.activeBookingOverlapCount },
     });
   }
 
   if (opts.activeLfkTemplateConflictCount > 0) {
     hardBlockers.push({
-      code: "active_lfk_template_conflict",
-      message: "Active patient_lfk_assignments share the same template on both users.",
+      code: 'active_lfk_template_conflict',
+      message: 'Active patient_lfk_assignments share the same template on both users.',
       details: { conflictingTemplateRows: opts.activeLfkTemplateConflictCount },
     });
   }
 
   if (opts.activeTreatmentProgramConflictCount > 0) {
     hardBlockers.push({
-      code: "active_treatment_program_conflict",
-      message: "Both users have a non-promo active treatment program (one active per patient invariant).",
+      code: 'active_treatment_program_conflict',
+      message:
+        'Both users have a non-promo active treatment program (one active per patient invariant).',
       details: { conflictingActiveProgramRows: opts.activeTreatmentProgramConflictCount },
     });
   }
 
   if (opts.openTestAttemptConflictCount > 0) {
     hardBlockers.push({
-      code: "open_test_attempt_conflict",
-      message: "Both users have an open test_attempt on the same program stage item.",
+      code: 'open_test_attempt_conflict',
+      message: 'Both users have an open test_attempt on the same program stage item.',
       details: { conflictingOpenAttemptRows: opts.openTestAttemptConflictCount },
     });
   }
@@ -400,8 +410,9 @@ export function analyzeMergePreviewModel(
   if (pT != null && pD != null && pT === pD) {
     if (opts.meaningfulDataScoreTarget > 0 && opts.meaningfulDataScoreDuplicate > 0) {
       hardBlockers.push({
-        code: "shared_phone_both_have_meaningful_data",
-        message: "Shared phone with meaningful data on both users (same guard as assertSharedPhoneGuard).",
+        code: 'shared_phone_both_have_meaningful_data',
+        message:
+          'Shared phone with meaningful data on both users (same guard as assertSharedPhoneGuard).',
         details: {
           meaningfulDataScoreTarget: opts.meaningfulDataScoreTarget,
           meaningfulDataScoreDuplicate: opts.meaningfulDataScoreDuplicate,
@@ -429,13 +440,15 @@ export function analyzeMergePreviewModel(
     const de = db?.external_id ?? null;
     if (te != null && de != null && te !== de) {
       const older =
-        target.created_at.getTime() <= duplicate.created_at.getTime() ? ("target" as const) : ("duplicate" as const);
+        target.created_at.getTime() <= duplicate.created_at.getTime()
+          ? ('target' as const)
+          : ('duplicate' as const);
       channelConflicts.push({
         channelCode: code,
         targetExternalId: te,
         duplicateExternalId: de,
         recommendedWinner: older,
-        reason: "different_external_id_same_channel",
+        reason: 'different_external_id_same_channel',
       });
     }
   }
@@ -452,13 +465,15 @@ export function analyzeMergePreviewModel(
     const dp = du?.provider_user_id ?? null;
     if (tp != null && dp != null && tp !== dp) {
       const older =
-        target.created_at.getTime() <= duplicate.created_at.getTime() ? ("target" as const) : ("duplicate" as const);
+        target.created_at.getTime() <= duplicate.created_at.getTime()
+          ? ('target' as const)
+          : ('duplicate' as const);
       oauthConflicts.push({
         provider,
         targetProviderUserId: tp,
         duplicateProviderUserId: dp,
         recommendedWinner: older,
-        reason: "different_provider_user_id",
+        reason: 'different_provider_user_id',
       });
     }
   }
@@ -473,40 +488,43 @@ export function analyzeMergePreviewModel(
     let effective: string | null;
     let note: string;
     switch (f) {
-      case "phone_normalized":
+      case 'phone_normalized':
         effective = normStr(mergePu.phone_normalized) ?? normStr(mergeDup.phone_normalized);
-        note = "COALESCE after pickMergeTargetId — matches merge engine (auto).";
+        note = 'COALESCE after pickMergeTargetId — matches merge engine (auto).';
         break;
-      case "display_name":
+      case 'display_name':
         effective = effectiveAutoMergedDisplayName(mergePu, mergeDup);
-        note = "Phone-holding row, then older created_at — matches mergePlatformUsersInTransaction (auto).";
+        note =
+          'Phone-holding row, then older created_at — matches mergePlatformUsersInTransaction (auto).';
         break;
-      case "first_name":
+      case 'first_name':
         effective = effectiveAutoMergedFirstName(mergePu, mergeDup);
-        note = "Phone / older-created name priority — matches mergePlatformUsersInTransaction (auto).";
+        note =
+          'Phone / older-created name priority — matches mergePlatformUsersInTransaction (auto).';
         break;
-      case "last_name":
+      case 'last_name':
         effective = effectiveAutoMergedLastName(mergePu, mergeDup);
-        note = "Phone / older-created name priority — matches mergePlatformUsersInTransaction (auto).";
+        note =
+          'Phone / older-created name priority — matches mergePlatformUsersInTransaction (auto).';
         break;
-      case "patronymic":
+      case 'patronymic':
         effective = effectiveAutoMergedPatronymic(mergePu, mergeDup);
-        note = "Target patronymic, then duplicate patronymic — matches mergePlatformUsersInTransaction (auto).";
+        note =
+          'Target patronymic, then duplicate patronymic — matches mergePlatformUsersInTransaction (auto).';
         break;
-      case "email":
+      case 'email':
         effective = normStr(mergePu.email) ?? normStr(mergeDup.email);
-        note = "COALESCE after pickMergeTargetId — matches merge engine (auto).";
+        note = 'COALESCE after pickMergeTargetId — matches merge engine (auto).';
         break;
       default:
         effective = null;
-        note = "";
+        note = '';
     }
     autoMergeScalars.push({ field: f, effectiveValue: effective, note });
   }
 
   const mergeAllowed = hardBlockers.length === 0;
-  const differentNonNullPhones =
-    pT != null && pD != null && pT !== pD;
+  const differentNonNullPhones = pT != null && pD != null && pT !== pD;
   const v1MergeEngineCallable = mergeAllowed && !differentNonNullPhones;
   const platformUserMergeV2Enabled = opts.platformUserMergeV2Enabled === true;
 
@@ -533,7 +551,10 @@ export function analyzeMergePreviewModel(
   };
 }
 
-async function loadPlatformUser(pool: Pool, id: string): Promise<MergePreviewPlatformUserRow | null> {
+async function loadPlatformUser(
+  pool: Pool,
+  id: string,
+): Promise<MergePreviewPlatformUserRow | null> {
   const r = await runPgPoolPgText<MergePreviewPlatformUserRow>(
     pool,
     `SELECT id,
@@ -604,22 +625,7 @@ async function countMeaningfulData(pool: Pool, userId: string): Promise<number> 
 }
 
 async function countDependents(pool: Pool, userId: string): Promise<MergePreviewDependentCounts> {
-  const [
-    pb,
-    rr,
-    sc,
-    st,
-    lfk,
-    mf,
-    oi,
-    mr,
-    pcrf,
-    ppc,
-    tpi,
-    pal,
-    beAppt,
-    puc,
-  ] = await Promise.all([
+  const [pb, rr, sc, st, lfk, mf, oi, mr, pcrf, ppc, tpi, pal, beAppt, puc] = await Promise.all([
     runPgPoolPgText<{ c: number }>(
       pool,
       `SELECT COUNT(*)::int AS c FROM patient_bookings WHERE platform_user_id = $1::uuid`,
@@ -709,7 +715,11 @@ async function countDependents(pool: Pool, userId: string): Promise<MergePreview
   };
 }
 
-async function countActiveBookingOverlap(pool: Pool, targetId: string, duplicateId: string): Promise<number> {
+async function countActiveBookingOverlap(
+  pool: Pool,
+  targetId: string,
+  duplicateId: string,
+): Promise<number> {
   const overlap = await runPgPoolPgText<{ c: string }>(
     pool,
     `SELECT COUNT(*)::text AS c
@@ -724,10 +734,14 @@ async function countActiveBookingOverlap(pool: Pool, targetId: string, duplicate
       `,
     [targetId, duplicateId],
   );
-  return parseInt(overlap.rows[0]?.c ?? "0", 10);
+  return parseInt(overlap.rows[0]?.c ?? '0', 10);
 }
 
-async function countActiveLfkTemplateConflict(pool: Pool, targetId: string, duplicateId: string): Promise<number> {
+async function countActiveLfkTemplateConflict(
+  pool: Pool,
+  targetId: string,
+  duplicateId: string,
+): Promise<number> {
   const r = await runPgPoolPgText<{ c: string }>(
     pool,
     `SELECT COUNT(*)::text AS c
@@ -741,10 +755,14 @@ async function countActiveLfkTemplateConflict(pool: Pool, targetId: string, dupl
       AND b.is_active = true`,
     [targetId, duplicateId],
   );
-  return parseInt(r.rows[0]?.c ?? "0", 10);
+  return parseInt(r.rows[0]?.c ?? '0', 10);
 }
 
-async function countActiveTreatmentProgramConflict(pool: Pool, targetId: string, duplicateId: string): Promise<number> {
+async function countActiveTreatmentProgramConflict(
+  pool: Pool,
+  targetId: string,
+  duplicateId: string,
+): Promise<number> {
   const r = await runPgPoolPgText<{ c: string }>(
     pool,
     `SELECT COUNT(*)::text AS c
@@ -758,10 +776,14 @@ async function countActiveTreatmentProgramConflict(pool: Pool, targetId: string,
       AND d.assignment_source <> 'promo'`,
     [targetId, duplicateId],
   );
-  return parseInt(r.rows[0]?.c ?? "0", 10);
+  return parseInt(r.rows[0]?.c ?? '0', 10);
 }
 
-async function countOpenTestAttemptConflict(pool: Pool, targetId: string, duplicateId: string): Promise<number> {
+async function countOpenTestAttemptConflict(
+  pool: Pool,
+  targetId: string,
+  duplicateId: string,
+): Promise<number> {
   const r = await runPgPoolPgText<{ c: string }>(
     pool,
     `SELECT COUNT(*)::text AS c
@@ -774,22 +796,37 @@ async function countOpenTestAttemptConflict(pool: Pool, targetId: string, duplic
       AND t.instance_stage_item_id = d.instance_stage_item_id`,
     [targetId, duplicateId],
   );
-  return parseInt(r.rows[0]?.c ?? "0", 10);
+  return parseInt(r.rows[0]?.c ?? '0', 10);
 }
 
-export async function buildMergePreview(pool: Pool, targetId: string, duplicateId: string): Promise<MergePreviewResult> {
+export async function buildMergePreview(
+  pool: Pool,
+  targetId: string,
+  duplicateId: string,
+): Promise<MergePreviewResult> {
   if (targetId === duplicateId) {
-    return { ok: false, error: "same_id", message: "targetId and duplicateId must differ" };
+    return { ok: false, error: 'same_id', message: 'targetId and duplicateId must differ' };
   }
 
-  const [target, duplicate] = await Promise.all([loadPlatformUser(pool, targetId), loadPlatformUser(pool, duplicateId)]);
+  const [target, duplicate] = await Promise.all([
+    loadPlatformUser(pool, targetId),
+    loadPlatformUser(pool, duplicateId),
+  ]);
 
   if (!target || !duplicate) {
-    return { ok: false, error: "missing_user", message: "One or both platform_users rows were not found" };
+    return {
+      ok: false,
+      error: 'missing_user',
+      message: 'One or both platform_users rows were not found',
+    };
   }
 
-  if (target.role !== "client" || duplicate.role !== "client") {
-    return { ok: false, error: "not_client", message: "Manual merge preview is only defined for role=client users" };
+  if (target.role !== 'client' || duplicate.role !== 'client') {
+    return {
+      ok: false,
+      error: 'not_client',
+      message: 'Manual merge preview is only defined for role=client users',
+    };
   }
 
   const [
@@ -820,7 +857,7 @@ export async function buildMergePreview(pool: Pool, targetId: string, duplicateI
     countDependents(pool, duplicateId),
   ]);
 
-  const v2Enabled = await getConfigBool("platform_user_merge_v2_enabled", false);
+  const v2Enabled = await getConfigBool('platform_user_merge_v2_enabled', false);
   const iT = normStr(target.integrator_user_id);
   const iD = normStr(duplicate.integrator_user_id);
 
@@ -828,11 +865,11 @@ export async function buildMergePreview(pool: Pool, targetId: string, duplicateI
   if (v2Enabled && iT && iD && iT !== iD) {
     const st = await checkIntegratorCanonicalPair(iT, iD);
     if (!st.ok) {
-      integratorPairPreview = { kind: "v2_status_unavailable" };
+      integratorPairPreview = { kind: 'v2_status_unavailable' };
     } else if (st.sameCanonical) {
-      integratorPairPreview = { kind: "v2_canonical_aligned" };
+      integratorPairPreview = { kind: 'v2_canonical_aligned' };
     } else {
-      integratorPairPreview = { kind: "v2_merge_required" };
+      integratorPairPreview = { kind: 'v2_merge_required' };
     }
   }
 
@@ -862,7 +899,7 @@ export async function buildMergePreview(pool: Pool, targetId: string, duplicateI
       scalarConflictCount: model.scalarConflicts.length,
       platformUserMergeV2Enabled: model.platformUserMergeV2Enabled,
     },
-    "[merge-preview] computed",
+    '[merge-preview] computed',
   );
 
   return model;
@@ -888,22 +925,30 @@ export async function searchMergeCandidates(
   qRaw: string | null | undefined,
 ): Promise<
   | { ok: true; anchorUserId: string; candidates: MergeCandidateRow[] }
-  | { ok: false; error: "not_found" | "not_client" | "is_alias"; message: string }
+  | { ok: false; error: 'not_found' | 'not_client' | 'is_alias'; message: string }
 > {
   const anchor = await loadPlatformUser(pool, anchorUserId);
   if (!anchor) {
-    return { ok: false, error: "not_found", message: "Anchor user not found" };
+    return { ok: false, error: 'not_found', message: 'Anchor user not found' };
   }
-  if (anchor.role !== "client") {
-    return { ok: false, error: "not_client", message: "Merge candidates search is only for client users" };
+  if (anchor.role !== 'client') {
+    return {
+      ok: false,
+      error: 'not_client',
+      message: 'Merge candidates search is only for client users',
+    };
   }
   if (anchor.merged_into_id != null) {
-    return { ok: false, error: "is_alias", message: "Anchor user is a merge alias; resolve canonical user first" };
+    return {
+      ok: false,
+      error: 'is_alias',
+      message: 'Anchor user is a merge alias; resolve canonical user first',
+    };
   }
 
   const q = normStr(qRaw ?? null);
   const params: unknown[] = [anchorUserId];
-  let qFilter = "";
+  let qFilter = '';
   if (q) {
     params.push(`%${q}%`);
     const p = params.length;

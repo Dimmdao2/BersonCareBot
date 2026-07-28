@@ -7,6 +7,7 @@ route tree, traced every execution path against Next.js App Router precedence
 rules. Did NOT consult auditor-1 findings.
 
 The fix:
+
 ```diff
 - const tab = tabSlug[0];
 - if (!tab || !VALID_TABS.has(tab)) {
@@ -25,13 +26,13 @@ The fix:
 
 VALID_TABS = {overview, karta, program, records, files, comms, finances, account}.
 
-| URL | tabSlug array | `find()` result | Outcome |
-|-----|---------------|-----------------|---------|
-| `/patients/<uuid>/karta` | `["karta"]` | `"karta"` | redirect `?tab=karta` ✓ |
-| `/patients/<uuid>/tabs/karta` | `["tabs","karta"]` | `"karta"` (skips "tabs" ∉ set) | redirect `?tab=karta` ✓ |
-| `/patients/<uuid>/tabs` | `["tabs"]` | `undefined` ("tabs" ∉ set) | `notFound()` — correct, no valid tab |
-| `/patients/<uuid>/karta/injected` | `["karta","injected"]` | `"karta"` (first match) | redirect `?tab=karta`, "injected" dropped ✓ |
-| empty tabSlug | n/a — see note | n/a | unreachable |
+| URL                               | tabSlug array          | `find()` result                | Outcome                                     |
+| --------------------------------- | ---------------------- | ------------------------------ | ------------------------------------------- |
+| `/patients/<uuid>/karta`          | `["karta"]`            | `"karta"`                      | redirect `?tab=karta` ✓                     |
+| `/patients/<uuid>/tabs/karta`     | `["tabs","karta"]`     | `"karta"` (skips "tabs" ∉ set) | redirect `?tab=karta` ✓                     |
+| `/patients/<uuid>/tabs`           | `["tabs"]`             | `undefined` ("tabs" ∉ set)     | `notFound()` — correct, no valid tab        |
+| `/patients/<uuid>/karta/injected` | `["karta","injected"]` | `"karta"` (first match)        | redirect `?tab=karta`, "injected" dropped ✓ |
+| empty tabSlug                     | n/a — see note         | n/a                            | unreachable                                 |
 
 **How verified:** Manually evaluated `Array.prototype.find` semantics on each
 input against the literal `VALID_TABS` Set. `find` returns the first element
@@ -85,8 +86,7 @@ constant `"/app/doctor/patients"` (paths.ts:120), not user-derived.
 
 **PASS.**
 
-`redirect(\`${routePaths.doctorPatients}/${userId}?tab=${tab}\`)` →
-`/app/doctor/patients/<uuid>?tab=<allowlisted>`.
+`redirect(\`${routePaths.doctorPatients}/${userId}?tab=${tab}\`)`→`/app/doctor/patients/<uuid>?tab=<allowlisted>`.
 
 - `routePaths.doctorPatients` = `"/app/doctor/patients"` (verified paths.ts:120),
   a leading-slash absolute internal path — `next/navigation`'s `redirect` treats
@@ -110,6 +110,7 @@ target page reads.
 **PASS.**
 
 Order in the function body:
+
 1. `await params`
 2. `z.string().uuid().safeParse(userId)` → `notFound()` on failure (lines 34–36)
 3. `find()` for the tab (line 39)
@@ -133,6 +134,7 @@ short-circuit.
 **PASS.**
 
 Sibling tree under `[userId]/`:
+
 - `page.tsx` (the patient card, served for bare `/patients/<uuid>`)
 - `programs/[instanceId]/page.tsx` (specific dynamic route)
 - `[...tabSlug]/page.tsx` (this catch-all)

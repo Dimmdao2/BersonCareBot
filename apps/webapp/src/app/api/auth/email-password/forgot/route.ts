@@ -1,13 +1,13 @@
-import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
   AUTH_CHANNEL_DISABLED_ERROR,
   isAuthChannelEnabled,
-} from "@/modules/auth/authChannelPolicy";
-import { normalizeEmail, startEmailChallenge } from "@/modules/auth/emailAuth";
-import { OTP_RESEND_COOLDOWN_SEC } from "@/modules/auth/otpConstants";
+} from '@/modules/auth/authChannelPolicy';
+import { normalizeEmail, startEmailChallenge } from '@/modules/auth/emailAuth';
+import { OTP_RESEND_COOLDOWN_SEC } from '@/modules/auth/otpConstants';
 
 const bodySchema = z.object({
   email: z.string().email(),
@@ -29,30 +29,27 @@ function forgotPasswordNeutralResponse(challengeRetryAfter?: number) {
  * setup-код через тот же email challenge; явный UI lookup уже перевёл пользователя в setup-password flow.
  */
 export async function POST(request: Request) {
-  stampBootstrapPrincipal("api/auth/email-password/forgot:POST", request);
-  if (!(await isAuthChannelEnabled("email"))) {
-    return NextResponse.json(
-      { ok: false, error: AUTH_CHANNEL_DISABLED_ERROR },
-      { status: 503 },
-    );
+  stampBootstrapPrincipal('api/auth/email-password/forgot:POST', request);
+  if (!(await isAuthChannelEnabled('email'))) {
+    return NextResponse.json({ ok: false, error: AUTH_CHANNEL_DISABLED_ERROR }, { status: 503 });
   }
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
 
   const emailNorm = normalizeEmail(parsed.data.email);
   const deps = buildAppDeps();
   const userId = await deps.userPasswordCredentials.findVerifiedUserIdWithPassword(emailNorm);
   if (userId) {
-    void startEmailChallenge(userId, emailNorm, "password_reset").catch(() => undefined);
+    void startEmailChallenge(userId, emailNorm, 'password_reset').catch(() => undefined);
     return forgotPasswordNeutralResponse(OTP_RESEND_COOLDOWN_SEC);
   }
 
   const state = await deps.emailPasswordLookup.resolveAuthState(emailNorm);
-  if (state.kind === "needs_email_setup") {
-    const challenge = await startEmailChallenge(state.userId, emailNorm, "password_setup");
+  if (state.kind === 'needs_email_setup') {
+    const challenge = await startEmailChallenge(state.userId, emailNorm, 'password_setup');
     if (challenge.ok) {
       return NextResponse.json({
         ok: true,

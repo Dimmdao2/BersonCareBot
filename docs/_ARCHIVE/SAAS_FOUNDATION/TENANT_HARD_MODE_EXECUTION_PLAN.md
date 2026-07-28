@@ -83,23 +83,23 @@ Tenant isolation нельзя считать закрытой только по�
 
 ### 3.2. Целевая матрица ролей
 
-| Application principal | Целевая DB role | Обязательный scope | Разрешение |
-|---|---|---|---|
-| `doctor` | `app_doctor`, member of marker `app_staff` | `organization_id`, `actor_user_id` | Tenant clinical/content rows своей org; capability проверяется до DB call. |
-| `clinic_admin` | `app_clinic_admin`, member of `app_staff` | `organization_id`, `actor_user_id` | Tenant management rows своей org; нет platform-global CRUD/audit. |
-| `client` | `app_patient` | `organization_id`, `patient_user_id` | Только свои строки/назначенные ресурсы в выбранной org. |
-| `platform_admin` / platform scope | `app_platform_admin`, не runtime owner | `platform_scope`, `actor_user_id`, `reason` | Явные global/admin ports и отдельно разрешённые cross-tenant aggregate/audit policies. |
-| `platform_admin` / clinic scope | `app_clinic_admin` или `app_doctor` через отдельный scoped run | конкретная `organization_id`, actor, reason | Действует как tenant actor; cross-tenant право на этот run не переносится. |
-| enqueue writer | соответствующая doctor/clinic/public role | tenant/resource org | Только `INSERT`/enqueue function; queue SELECT/claim запрещены. |
-| broadcast/delivery worker | `app_worker` | сначала claim scope, затем `job.organization_id` | Claim технической очереди; business execution только под job principal. |
-| scheduler | `app_scheduler` | per-row/per-bucket org после scan | Читает только due-index/dispatcher view; tenant writes выполняет по org bucket. |
-| media worker | `app_media_worker` | `job.organization_id` | Claim media jobs; media/file update только в org задачи. |
-| public booking | `app_public_booking` | org, выведенная из host/link/branch/service | Узкий booking create/read contract; нет общего tenant read. |
-| signed webhook/M2M | `app_webhook` | org из trusted event/resource | Узкий ingress contract; mixed-org payload разбивается на per-org runs. |
-| pre-auth/bootstrap | `app_bootstrap` | без tenant scope | Только allowlisted identity/auth/org-resolution views/functions. |
-| infra/health | `app_infra` | без business scope | Технические health/idempotency/queue metrics; tenant business tables не доступны. |
-| migrator | deploy-only `app_migrator` | не применяется | DDL/backfill/policy install; не используется runtime units. |
-| owner | NOLOGIN owner role | не применяется | Владение схемой/таблицами; не содержится в runtime credentials. |
+| Application principal             | Целевая DB role                                                | Обязательный scope                               | Разрешение                                                                             |
+| --------------------------------- | -------------------------------------------------------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| `doctor`                          | `app_doctor`, member of marker `app_staff`                     | `organization_id`, `actor_user_id`               | Tenant clinical/content rows своей org; capability проверяется до DB call.             |
+| `clinic_admin`                    | `app_clinic_admin`, member of `app_staff`                      | `organization_id`, `actor_user_id`               | Tenant management rows своей org; нет platform-global CRUD/audit.                      |
+| `client`                          | `app_patient`                                                  | `organization_id`, `patient_user_id`             | Только свои строки/назначенные ресурсы в выбранной org.                                |
+| `platform_admin` / platform scope | `app_platform_admin`, не runtime owner                         | `platform_scope`, `actor_user_id`, `reason`      | Явные global/admin ports и отдельно разрешённые cross-tenant aggregate/audit policies. |
+| `platform_admin` / clinic scope   | `app_clinic_admin` или `app_doctor` через отдельный scoped run | конкретная `organization_id`, actor, reason      | Действует как tenant actor; cross-tenant право на этот run не переносится.             |
+| enqueue writer                    | соответствующая doctor/clinic/public role                      | tenant/resource org                              | Только `INSERT`/enqueue function; queue SELECT/claim запрещены.                        |
+| broadcast/delivery worker         | `app_worker`                                                   | сначала claim scope, затем `job.organization_id` | Claim технической очереди; business execution только под job principal.                |
+| scheduler                         | `app_scheduler`                                                | per-row/per-bucket org после scan                | Читает только due-index/dispatcher view; tenant writes выполняет по org bucket.        |
+| media worker                      | `app_media_worker`                                             | `job.organization_id`                            | Claim media jobs; media/file update только в org задачи.                               |
+| public booking                    | `app_public_booking`                                           | org, выведенная из host/link/branch/service      | Узкий booking create/read contract; нет общего tenant read.                            |
+| signed webhook/M2M                | `app_webhook`                                                  | org из trusted event/resource                    | Узкий ingress contract; mixed-org payload разбивается на per-org runs.                 |
+| pre-auth/bootstrap                | `app_bootstrap`                                                | без tenant scope                                 | Только allowlisted identity/auth/org-resolution views/functions.                       |
+| infra/health                      | `app_infra`                                                    | без business scope                               | Технические health/idempotency/queue metrics; tenant business tables не доступны.      |
+| migrator                          | deploy-only `app_migrator`                                     | не применяется                                   | DDL/backfill/policy install; не используется runtime units.                            |
+| owner                             | NOLOGIN owner role                                             | не применяется                                   | Владение схемой/таблицами; не содержится в runtime credentials.                        |
 
 Имена конкретных cluster roles утверждаются владельцем/оператором. Marker `app_staff` сохраняется для `app.is_staff()`, но не является login role и не даёт BYPASSRLS.
 
@@ -121,20 +121,20 @@ Tenant isolation нельзя считать закрытой только по�
 
 Целевой контекст:
 
-| Поле | Всегда | Обязательное для | Назначение |
-|---|---:|---|---|
-| `principal_kind` | да | все runtime runs | Тип actor/process; enum, не произвольная строка. |
-| `db_role_class` | да, DB-derived | все | Проверка соответствия principal фактической role. |
-| `source` | да | все | Стабильный code identifier entrypoint/job handler. |
-| `request_id` / `correlation_id` | да | request/job | Корреляция отказа без payload/ПДн. |
-| `organization_id` | условно | doctor, clinic_admin, client, per-org worker/public/webhook | Tenant wall. |
-| `actor_user_id` | условно | doctor, clinic_admin, platform_admin | Аудит actor; RLS не заменяет capability. |
-| `patient_user_id` | условно | client | Self wall внутри org. |
-| `integrator_user_id` | условно | integrator user-bound event | Messenger/reminder self/scoped policies. |
-| `job_id` | условно | worker/media-worker/scheduler execution | Связь с materialized job и audit. |
-| `scope_mode` | да | `tenant`, `platform`, `bootstrap`, `infra`, `claim` | Исключает неоднозначный empty org. |
-| `reason_code` | условно | platform scope, emergency/break-glass | Audit justification из allowlisted code. |
-| `expires_at`, `backend_pid`, `nonce`, signature | да | signed context | Anti-replay/connection binding. |
+| Поле                                            |         Всегда | Обязательное для                                            | Назначение                                         |
+| ----------------------------------------------- | -------------: | ----------------------------------------------------------- | -------------------------------------------------- |
+| `principal_kind`                                |             да | все runtime runs                                            | Тип actor/process; enum, не произвольная строка.   |
+| `db_role_class`                                 | да, DB-derived | все                                                         | Проверка соответствия principal фактической role.  |
+| `source`                                        |             да | все                                                         | Стабильный code identifier entrypoint/job handler. |
+| `request_id` / `correlation_id`                 |             да | request/job                                                 | Корреляция отказа без payload/ПДн.                 |
+| `organization_id`                               |        условно | doctor, clinic_admin, client, per-org worker/public/webhook | Tenant wall.                                       |
+| `actor_user_id`                                 |        условно | doctor, clinic_admin, platform_admin                        | Аудит actor; RLS не заменяет capability.           |
+| `patient_user_id`                               |        условно | client                                                      | Self wall внутри org.                              |
+| `integrator_user_id`                            |        условно | integrator user-bound event                                 | Messenger/reminder self/scoped policies.           |
+| `job_id`                                        |        условно | worker/media-worker/scheduler execution                     | Связь с materialized job и audit.                  |
+| `scope_mode`                                    |             да | `tenant`, `platform`, `bootstrap`, `infra`, `claim`         | Исключает неоднозначный empty org.                 |
+| `reason_code`                                   |        условно | platform scope, emergency/break-glass                       | Audit justification из allowlisted code.           |
+| `expires_at`, `backend_pid`, `nonce`, signature |             да | signed context                                              | Anti-replay/connection binding.                    |
 
 `source`, `reason_code` и role names — allowlisted constants. URL, request body, email, phone, patient name и message content в context/log не попадают.
 
@@ -216,16 +216,16 @@ Break-glass не входит в первый rollout. До отдельного
 
 ### 6.1. Классы
 
-| Класс | Policy shape | Примеры/правило |
-|---|---|---|
-| A. Direct tenant | `organization_id = app.current_org_id()` + matching `WITH CHECK` | media, broadcast audit/drafts/recipients, org settings override, most clinical/catalog rows. |
-| B. Scoped parent | `EXISTS`/FK ownership через immutable parent | stage items, messages, child media, appointment lifecycle. Child write копирует org parent; payload org запрещён. |
-| C. Enrollment/self | active enrollment в current org + `patient_user_id=self` | patient access to global identity/channel binding and patient resources. Не добавлять org в `platform_users`. |
-| D. Legitimate global catalog | global read policy; writes platform-admin only | настоящий platform catalog, tariff definitions, immutable reference definitions после ADR. |
-| E. Global default + org override | read exact org, fallback NULL; writes разделены | `system_settings`; global default не означает mutable shared row для clinic role. |
-| F. Queue/infra | writer INSERT-only; claim role via narrow function/view; execution per job org | outgoing delivery, media jobs, scheduler due index, idempotency/outbox. |
-| G. Telemetry/operator | process-specific grants; tenant dashboard via projections | health/security telemetry; raw cross-tenant data не доступна clinic role. |
-| H. Legacy/unclassified | observe, deny adding new writers, cutover plan | legacy booking/Rubitime projections; нельзя объявлять global ради прохождения теста. |
+| Класс                            | Policy shape                                                                   | Примеры/правило                                                                                                   |
+| -------------------------------- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| A. Direct tenant                 | `organization_id = app.current_org_id()` + matching `WITH CHECK`               | media, broadcast audit/drafts/recipients, org settings override, most clinical/catalog rows.                      |
+| B. Scoped parent                 | `EXISTS`/FK ownership через immutable parent                                   | stage items, messages, child media, appointment lifecycle. Child write копирует org parent; payload org запрещён. |
+| C. Enrollment/self               | active enrollment в current org + `patient_user_id=self`                       | patient access to global identity/channel binding and patient resources. Не добавлять org в `platform_users`.     |
+| D. Legitimate global catalog     | global read policy; writes platform-admin only                                 | настоящий platform catalog, tariff definitions, immutable reference definitions после ADR.                        |
+| E. Global default + org override | read exact org, fallback NULL; writes разделены                                | `system_settings`; global default не означает mutable shared row для clinic role.                                 |
+| F. Queue/infra                   | writer INSERT-only; claim role via narrow function/view; execution per job org | outgoing delivery, media jobs, scheduler due index, idempotency/outbox.                                           |
+| G. Telemetry/operator            | process-specific grants; tenant dashboard via projections                      | health/security telemetry; raw cross-tenant data не доступна clinic role.                                         |
+| H. Legacy/unclassified           | observe, deny adding new writers, cutover plan                                 | legacy booking/Rubitime projections; нельзя объявлять global ради прохождения теста.                              |
 
 ### 6.2. Enforcement order
 
@@ -567,19 +567,19 @@ Backfill запрещено угадывать org при нескольких a
 
 Минимальная матрица на каждый enforced domain:
 
-| Actor/scenario | Own org/self | Foreign org/user | Missing context | Expected |
-|---|---:|---:|---:|---|
-| doctor A | allow by capability | deny | deny | DB role + org RLS. |
-| clinic_admin A | allow management only | deny | deny | Capability отличается от doctor. |
-| client A | allow own resource | deny foreign patient/org | deny | org + patient wall. |
-| client enrolled A+B | allow resource-selected org | deny resource mismatch | ambiguous deny | No first/default org. |
-| platform_admin platform | allow explicit global port | tenant repo direct deny | missing reason deny | Audit required. |
-| platform_admin clinic A | allow A as tenant | deny B | deny | No inherited platform wildcard. |
-| enqueue writer A | insert A job | insert B/read/claim deny | deny | Separation of duties. |
-| worker claim | claim due metadata | business read before job deny | no job deny | Claim scope only. |
-| worker execute A | allow job A business data | deny B | deny | Per-job principal. |
-| bootstrap/public/webhook | narrow resolve/create | business scan deny | ambiguous org deny | No fallback bypass. |
-| migrator | allow only deploy window | never runtime | n/a | Separate credential/unit. |
+| Actor/scenario           |                Own org/self |              Foreign org/user |     Missing context | Expected                         |
+| ------------------------ | --------------------------: | ----------------------------: | ------------------: | -------------------------------- |
+| doctor A                 |         allow by capability |                          deny |                deny | DB role + org RLS.               |
+| clinic_admin A           |       allow management only |                          deny |                deny | Capability отличается от doctor. |
+| client A                 |          allow own resource |      deny foreign patient/org |                deny | org + patient wall.              |
+| client enrolled A+B      | allow resource-selected org |        deny resource mismatch |      ambiguous deny | No first/default org.            |
+| platform_admin platform  |  allow explicit global port |       tenant repo direct deny | missing reason deny | Audit required.                  |
+| platform_admin clinic A  |           allow A as tenant |                        deny B |                deny | No inherited platform wildcard.  |
+| enqueue writer A         |                insert A job |      insert B/read/claim deny |                deny | Separation of duties.            |
+| worker claim             |          claim due metadata | business read before job deny |         no job deny | Claim scope only.                |
+| worker execute A         |   allow job A business data |                        deny B |                deny | Per-job principal.               |
+| bootstrap/public/webhook |       narrow resolve/create |            business scan deny |  ambiguous org deny | No fallback bypass.              |
+| migrator                 |    allow only deploy window |                 never runtime |                 n/a | Separate credential/unit.        |
 
 Дополнительные обязательные tests:
 
@@ -631,21 +631,21 @@ Rollback не использует `DISABLE ROW LEVEL SECURITY` как штат�
 
 ## 12. Owner decisions до реализации
 
-| ID | Решение | Рекомендация | Блокирует |
-|---|---|---|---|
-| O1 | Distinct login roles для doctor и clinic_admin или один login + marker/capability? | Distinct `app_doctor`/`app_clinic_admin`, оба members `app_staff`; яснее grants/audit. | H2 role SQL. |
-| O2 | Семантика super-org | Reserved platform namespace, не wildcard; cross-tenant через `app_platform_admin` + explicit platform policy. | H2/platform policies. |
-| O3 | Может ли platform admin входить в clinic scope? | Да, только explicit org selection + reason + tenant role run; default platform scope не переносится. | Admin UX/API. |
-| O4 | References model | Global base + org overlay, если клиникам нужны свои одинаковые codes; иначе strict per-org. Не оставлять global unique при per-org. | H7. |
-| O5 | Media NULL rows | Backfill to owning org; действительно platform media вынести в отдельный class/catalog. Не показывать NULL всем clinic roles. | H1-B/H3. |
-| O6 | Broadcast recipient validity at execution | Materialized org recipient + recheck active enrollment/channel eligibility перед send. | H1-A/queue. |
-| O7 | Queue claim implementation | Narrow worker-only function/repository with lease token; writers INSERT-only. | H1-A/H3. |
-| O8 | Multi-org patient UX/source | Resource-derived org; explicit enrollment selection only для truly org-agnostic surface. | H5. |
-| O9 | Public booking tenant source priority | Verified host/link/branch-service exact-one mapping; no default org fallback after cutover. | H6. |
-| O10 | Rubitime legacy timing | Keep explicit observe exception until canonical org source/cutover package approved. | H6/H8. |
-| O11 | Shadow acceptance window/threshold | TEST: zero unexplained violations for one full representative process cycle; any P0 violation blocks enforce. | H3-H8. |
-| O12 | Break-glass | Отдельный later ADR/runbook; отсутствует в first cut. | Production operations. |
-| O13 | `platform_support` timing | Reserved extension point: не входит в первый rollout; support visibility сначала может идти через `platform_admin` + dedicated platform-support ports/audit, без tenant repo bypass. | Future support role/grants. |
+| ID  | Решение                                                                            | Рекомендация                                                                                                                                                                         | Блокирует                   |
+| --- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------- |
+| O1  | Distinct login roles для doctor и clinic_admin или один login + marker/capability? | Distinct `app_doctor`/`app_clinic_admin`, оба members `app_staff`; яснее grants/audit.                                                                                               | H2 role SQL.                |
+| O2  | Семантика super-org                                                                | Reserved platform namespace, не wildcard; cross-tenant через `app_platform_admin` + explicit platform policy.                                                                        | H2/platform policies.       |
+| O3  | Может ли platform admin входить в clinic scope?                                    | Да, только explicit org selection + reason + tenant role run; default platform scope не переносится.                                                                                 | Admin UX/API.               |
+| O4  | References model                                                                   | Global base + org overlay, если клиникам нужны свои одинаковые codes; иначе strict per-org. Не оставлять global unique при per-org.                                                  | H7.                         |
+| O5  | Media NULL rows                                                                    | Backfill to owning org; действительно platform media вынести в отдельный class/catalog. Не показывать NULL всем clinic roles.                                                        | H1-B/H3.                    |
+| O6  | Broadcast recipient validity at execution                                          | Materialized org recipient + recheck active enrollment/channel eligibility перед send.                                                                                               | H1-A/queue.                 |
+| O7  | Queue claim implementation                                                         | Narrow worker-only function/repository with lease token; writers INSERT-only.                                                                                                        | H1-A/H3.                    |
+| O8  | Multi-org patient UX/source                                                        | Resource-derived org; explicit enrollment selection only для truly org-agnostic surface.                                                                                             | H5.                         |
+| O9  | Public booking tenant source priority                                              | Verified host/link/branch-service exact-one mapping; no default org fallback after cutover.                                                                                          | H6.                         |
+| O10 | Rubitime legacy timing                                                             | Keep explicit observe exception until canonical org source/cutover package approved.                                                                                                 | H6/H8.                      |
+| O11 | Shadow acceptance window/threshold                                                 | TEST: zero unexplained violations for one full representative process cycle; any P0 violation blocks enforce.                                                                        | H3-H8.                      |
+| O12 | Break-glass                                                                        | Отдельный later ADR/runbook; отсутствует в first cut.                                                                                                                                | Production operations.      |
+| O13 | `platform_support` timing                                                          | Reserved extension point: не входит в первый rollout; support visibility сначала может идти через `platform_admin` + dedicated platform-support ports/audit, без tenant repo bypass. | Future support role/grants. |
 
 До O1–O3, O5–O7 нельзя начинать role/policy/queue implementation. P0 application scoping можно делать сразу при сохранении рекомендованных defaults.
 

@@ -1,63 +1,63 @@
 /**
  * In-memory ReferencesPort for tests and dev without DATABASE_URL.
  */
-import type { ReferencesPort } from "@/modules/references/ports";
-import type { ReferenceCategory, ReferenceItem } from "@/modules/references/types";
+import type { ReferencesPort } from '@/modules/references/ports';
+import type { ReferenceCategory, ReferenceItem } from '@/modules/references/types';
 
 const categories: ReferenceCategory[] = [
   {
-    id: "rc-symptom_type",
-    code: "symptom_type",
-    title: "Тип симптома",
+    id: 'rc-symptom_type',
+    code: 'symptom_type',
+    title: 'Тип симптома',
     isUserExtensible: false,
     tenantId: null,
   },
   {
-    id: "rc-body_region",
-    code: "body_region",
-    title: "Область тела",
+    id: 'rc-body_region',
+    code: 'body_region',
+    title: 'Область тела',
     isUserExtensible: false,
     tenantId: null,
   },
   {
-    id: "rc-diagnosis",
-    code: "diagnosis",
-    title: "Диагноз",
+    id: 'rc-diagnosis',
+    code: 'diagnosis',
+    title: 'Диагноз',
     isUserExtensible: true,
     tenantId: null,
   },
   {
-    id: "rc-disease_stage",
-    code: "disease_stage",
-    title: "Стадия",
+    id: 'rc-disease_stage',
+    code: 'disease_stage',
+    title: 'Стадия',
     isUserExtensible: false,
     tenantId: null,
   },
   {
-    id: "rc-load_type",
-    code: "load_type",
-    title: "Тип нагрузки",
+    id: 'rc-load_type',
+    code: 'load_type',
+    title: 'Тип нагрузки',
     isUserExtensible: false,
     tenantId: null,
   },
   {
-    id: "rc-clinical_assessment_kind",
-    code: "clinical_assessment_kind",
-    title: "Виды оценки (клинические тесты)",
+    id: 'rc-clinical_assessment_kind',
+    code: 'clinical_assessment_kind',
+    title: 'Виды оценки (клинические тесты)',
     isUserExtensible: false,
     tenantId: null,
   },
   {
-    id: "rc-recommendation_type",
-    code: "recommendation_type",
-    title: "Типы рекомендаций",
+    id: 'rc-recommendation_type',
+    code: 'recommendation_type',
+    title: 'Типы рекомендаций',
     isUserExtensible: false,
     tenantId: null,
   },
   {
-    id: "rc-visit_manipulation",
-    code: "visit_manipulation",
-    title: "Манипуляции визита",
+    id: 'rc-visit_manipulation',
+    code: 'visit_manipulation',
+    title: 'Манипуляции визита',
     isUserExtensible: true,
     tenantId: null,
   },
@@ -65,280 +65,280 @@ const categories: ReferenceCategory[] = [
 
 const items: ReferenceItem[] = [
   {
-    id: "ri-general_wellbeing",
-    categoryId: "rc-symptom_type",
-    code: "general_wellbeing",
-    title: "Общее самочувствие",
+    id: 'ri-general_wellbeing',
+    categoryId: 'rc-symptom_type',
+    code: 'general_wellbeing',
+    title: 'Общее самочувствие',
     sortOrder: 0,
     isActive: true,
     deletedAt: null,
     metaJson: { system: true },
   },
   {
-    id: "ri-pain",
-    categoryId: "rc-symptom_type",
-    code: "pain",
-    title: "Боль",
+    id: 'ri-pain',
+    categoryId: 'rc-symptom_type',
+    code: 'pain',
+    title: 'Боль',
     sortOrder: 1,
     isActive: true,
     deletedAt: null,
     metaJson: {},
   },
   {
-    id: "ri-neck",
-    categoryId: "rc-body_region",
-    code: "neck",
-    title: "Шея",
+    id: 'ri-neck',
+    categoryId: 'rc-body_region',
+    code: 'neck',
+    title: 'Шея',
     sortOrder: 1,
     isActive: true,
     deletedAt: null,
     metaJson: {},
   },
   {
-    id: "ri-ak-mobility",
-    categoryId: "rc-clinical_assessment_kind",
-    code: "mobility",
-    title: "Подвижность",
+    id: 'ri-ak-mobility',
+    categoryId: 'rc-clinical_assessment_kind',
+    code: 'mobility',
+    title: 'Подвижность',
     sortOrder: 1,
     isActive: true,
     deletedAt: null,
     metaJson: {},
   },
   {
-    id: "ri-ak-pain",
-    categoryId: "rc-clinical_assessment_kind",
-    code: "pain",
-    title: "Болезненность",
+    id: 'ri-ak-pain',
+    categoryId: 'rc-clinical_assessment_kind',
+    code: 'pain',
+    title: 'Болезненность',
     sortOrder: 2,
     isActive: true,
     deletedAt: null,
     metaJson: {},
   },
   {
-    id: "ri-ak-sensitivity",
-    categoryId: "rc-clinical_assessment_kind",
-    code: "sensitivity",
-    title: "Чувствительность",
+    id: 'ri-ak-sensitivity',
+    categoryId: 'rc-clinical_assessment_kind',
+    code: 'sensitivity',
+    title: 'Чувствительность',
     sortOrder: 3,
     isActive: true,
     deletedAt: null,
     metaJson: {},
   },
   {
-    id: "ri-ak-strength",
-    categoryId: "rc-clinical_assessment_kind",
-    code: "strength",
-    title: "Сила",
+    id: 'ri-ak-strength',
+    categoryId: 'rc-clinical_assessment_kind',
+    code: 'strength',
+    title: 'Сила',
     sortOrder: 4,
     isActive: true,
     deletedAt: null,
     metaJson: {},
   },
   {
-    id: "ri-ak-neurodynamics",
-    categoryId: "rc-clinical_assessment_kind",
-    code: "neurodynamics",
-    title: "Нейродинамика",
+    id: 'ri-ak-neurodynamics',
+    categoryId: 'rc-clinical_assessment_kind',
+    code: 'neurodynamics',
+    title: 'Нейродинамика',
     sortOrder: 5,
     isActive: true,
     deletedAt: null,
     metaJson: {},
   },
   {
-    id: "ri-ak-proprioception",
-    categoryId: "rc-clinical_assessment_kind",
-    code: "proprioception",
-    title: "Проприоцепция",
+    id: 'ri-ak-proprioception',
+    categoryId: 'rc-clinical_assessment_kind',
+    code: 'proprioception',
+    title: 'Проприоцепция',
     sortOrder: 6,
     isActive: true,
     deletedAt: null,
     metaJson: {},
   },
   {
-    id: "ri-ak-balance",
-    categoryId: "rc-clinical_assessment_kind",
-    code: "balance",
-    title: "Равновесие",
+    id: 'ri-ak-balance',
+    categoryId: 'rc-clinical_assessment_kind',
+    code: 'balance',
+    title: 'Равновесие',
     sortOrder: 7,
     isActive: true,
     deletedAt: null,
     metaJson: {},
   },
   {
-    id: "ri-ak-endurance",
-    categoryId: "rc-clinical_assessment_kind",
-    code: "endurance",
-    title: "Выносливость",
+    id: 'ri-ak-endurance',
+    categoryId: 'rc-clinical_assessment_kind',
+    code: 'endurance',
+    title: 'Выносливость',
     sortOrder: 8,
     isActive: true,
     deletedAt: null,
     metaJson: {},
   },
   {
-    id: "ri-rt-exercise_technique",
-    categoryId: "rc-recommendation_type",
-    code: "exercise_technique",
-    title: "Техника упражнений",
+    id: 'ri-rt-exercise_technique',
+    categoryId: 'rc-recommendation_type',
+    code: 'exercise_technique',
+    title: 'Техника упражнений',
     sortOrder: 1,
     isActive: true,
     deletedAt: null,
     metaJson: {},
   },
   {
-    id: "ri-rt-regimen",
-    categoryId: "rc-recommendation_type",
-    code: "regimen",
-    title: "Режим / график",
+    id: 'ri-rt-regimen',
+    categoryId: 'rc-recommendation_type',
+    code: 'regimen',
+    title: 'Режим / график',
     sortOrder: 2,
     isActive: true,
     deletedAt: null,
     metaJson: {},
   },
   {
-    id: "ri-rt-nutrition",
-    categoryId: "rc-recommendation_type",
-    code: "nutrition",
-    title: "Питание",
+    id: 'ri-rt-nutrition',
+    categoryId: 'rc-recommendation_type',
+    code: 'nutrition',
+    title: 'Питание',
     sortOrder: 3,
     isActive: true,
     deletedAt: null,
     metaJson: {},
   },
   {
-    id: "ri-rt-device",
-    categoryId: "rc-recommendation_type",
-    code: "device",
-    title: "Устройство / аппарат",
+    id: 'ri-rt-device',
+    categoryId: 'rc-recommendation_type',
+    code: 'device',
+    title: 'Устройство / аппарат',
     sortOrder: 4,
     isActive: true,
     deletedAt: null,
     metaJson: {},
   },
   {
-    id: "ri-rt-self_procedure",
-    categoryId: "rc-recommendation_type",
-    code: "self_procedure",
-    title: "Самостоятельная процедура",
+    id: 'ri-rt-self_procedure',
+    categoryId: 'rc-recommendation_type',
+    code: 'self_procedure',
+    title: 'Самостоятельная процедура',
     sortOrder: 5,
     isActive: true,
     deletedAt: null,
     metaJson: {},
   },
   {
-    id: "ri-rt-external_therapy",
-    categoryId: "rc-recommendation_type",
-    code: "external_therapy",
-    title: "Внешняя терапия",
+    id: 'ri-rt-external_therapy',
+    categoryId: 'rc-recommendation_type',
+    code: 'external_therapy',
+    title: 'Внешняя терапия',
     sortOrder: 6,
     isActive: true,
     deletedAt: null,
     metaJson: {},
   },
   {
-    id: "ri-rt-lifestyle",
-    categoryId: "rc-recommendation_type",
-    code: "lifestyle",
-    title: "Образ жизни",
+    id: 'ri-rt-lifestyle',
+    categoryId: 'rc-recommendation_type',
+    code: 'lifestyle',
+    title: 'Образ жизни',
     sortOrder: 7,
     isActive: true,
     deletedAt: null,
     metaJson: {},
   },
   {
-    id: "ri-rt-daily_activity",
-    categoryId: "rc-recommendation_type",
-    code: "daily_activity",
-    title: "Бытовая активность",
+    id: 'ri-rt-daily_activity',
+    categoryId: 'rc-recommendation_type',
+    code: 'daily_activity',
+    title: 'Бытовая активность',
     sortOrder: 8,
     isActive: true,
     deletedAt: null,
     metaJson: {},
   },
   {
-    id: "ri-rt-physiotherapy",
-    categoryId: "rc-recommendation_type",
-    code: "physiotherapy",
-    title: "Физиотерапия",
+    id: 'ri-rt-physiotherapy',
+    categoryId: 'rc-recommendation_type',
+    code: 'physiotherapy',
+    title: 'Физиотерапия',
     sortOrder: 9,
     isActive: true,
     deletedAt: null,
     metaJson: {},
   },
   {
-    id: "ri-rt-motivation",
-    categoryId: "rc-recommendation_type",
-    code: "motivation",
-    title: "Мотивация",
+    id: 'ri-rt-motivation',
+    categoryId: 'rc-recommendation_type',
+    code: 'motivation',
+    title: 'Мотивация',
     sortOrder: 10,
     isActive: true,
     deletedAt: null,
     metaJson: {},
   },
   {
-    id: "ri-rt-safety",
-    categoryId: "rc-recommendation_type",
-    code: "safety",
-    title: "Техника безопасности",
+    id: 'ri-rt-safety',
+    categoryId: 'rc-recommendation_type',
+    code: 'safety',
+    title: 'Техника безопасности',
     sortOrder: 11,
     isActive: true,
     deletedAt: null,
     metaJson: {},
   },
   {
-    id: "ri-lt-strength",
-    categoryId: "rc-load_type",
-    code: "strength",
-    title: "Силовая",
+    id: 'ri-lt-strength',
+    categoryId: 'rc-load_type',
+    code: 'strength',
+    title: 'Силовая',
     sortOrder: 1,
     isActive: true,
     deletedAt: null,
     metaJson: {},
   },
   {
-    id: "ri-lt-stretch",
-    categoryId: "rc-load_type",
-    code: "stretch",
-    title: "Растяжка",
+    id: 'ri-lt-stretch',
+    categoryId: 'rc-load_type',
+    code: 'stretch',
+    title: 'Растяжка',
     sortOrder: 2,
     isActive: true,
     deletedAt: null,
     metaJson: {},
   },
   {
-    id: "ri-lt-balance",
-    categoryId: "rc-load_type",
-    code: "balance",
-    title: "Баланс",
+    id: 'ri-lt-balance',
+    categoryId: 'rc-load_type',
+    code: 'balance',
+    title: 'Баланс',
     sortOrder: 3,
     isActive: true,
     deletedAt: null,
     metaJson: {},
   },
   {
-    id: "ri-lt-cardio",
-    categoryId: "rc-load_type",
-    code: "cardio",
-    title: "Кардио",
+    id: 'ri-lt-cardio',
+    categoryId: 'rc-load_type',
+    code: 'cardio',
+    title: 'Кардио',
     sortOrder: 4,
     isActive: true,
     deletedAt: null,
     metaJson: {},
   },
   {
-    id: "ri-lt-other",
-    categoryId: "rc-load_type",
-    code: "other",
-    title: "Другое",
+    id: 'ri-lt-other',
+    categoryId: 'rc-load_type',
+    code: 'other',
+    title: 'Другое',
     sortOrder: 5,
     isActive: true,
     deletedAt: null,
     metaJson: {},
   },
   {
-    id: "ri-lt-static-hold",
-    categoryId: "rc-load_type",
-    code: "static_hold",
-    title: "Статическое укрепление / удержание",
+    id: 'ri-lt-static-hold',
+    categoryId: 'rc-load_type',
+    code: 'static_hold',
+    title: 'Статическое укрепление / удержание',
     sortOrder: 6,
     isActive: true,
     deletedAt: null,
@@ -347,24 +347,20 @@ const items: ReferenceItem[] = [
 ];
 
 function throwDuplicateCode(conflictingCodes: string[]): never {
-  const err = new Error("duplicate_code") as Error & { conflictingCodes: string[] };
+  const err = new Error('duplicate_code') as Error & { conflictingCodes: string[] };
   err.conflictingCodes = conflictingCodes;
   throw err;
 }
 
 function ensureUniqueCode(categoryId: string, code: string): void {
-  if (
-    items.some(
-      (i) => i.categoryId === categoryId && i.code === code && i.deletedAt == null
-    )
-  ) {
+  if (items.some((i) => i.categoryId === categoryId && i.code === code && i.deletedAt == null)) {
     throwDuplicateCode([code]);
   }
 }
 
 export const inMemoryReferencesPort: ReferencesPort = {
   async listPublicBaselineItemsByCategoryCode(categoryCode) {
-    if (categoryCode === "visit_manipulation") return [];
+    if (categoryCode === 'visit_manipulation') return [];
     const category = categories.find((candidate) => candidate.code === categoryCode);
     if (!category) return [];
     return items
@@ -398,8 +394,8 @@ export const inMemoryReferencesPort: ReferencesPort = {
 
   async insertItem(params) {
     const cat = await this.findCategoryByCode(params.categoryCode);
-    if (!cat) throw new Error("category_not_found");
-    if (!cat.isUserExtensible) throw new Error("category_not_extensible");
+    if (!cat) throw new Error('category_not_found');
+    if (!cat.isUserExtensible) throw new Error('category_not_extensible');
     ensureUniqueCode(cat.id, params.code);
     const item: ReferenceItem = {
       id: `ri-${params.code}-${Date.now()}`,
@@ -417,7 +413,7 @@ export const inMemoryReferencesPort: ReferencesPort = {
 
   async insertItemStaff(params) {
     const cat = await this.findCategoryByCode(params.categoryCode);
-    if (!cat) throw new Error("category_not_found");
+    if (!cat) throw new Error('category_not_found');
     ensureUniqueCode(cat.id, params.code);
     const item: ReferenceItem = {
       id: `ri-${params.code}-${Date.now()}`,
@@ -435,7 +431,7 @@ export const inMemoryReferencesPort: ReferencesPort = {
 
   async updateItem(itemId, input) {
     const item = items.find((i) => i.id === itemId && i.deletedAt == null);
-    if (!item) throw new Error("item_not_found");
+    if (!item) throw new Error('item_not_found');
     if (input.title !== undefined) item.title = input.title;
     if (input.sortOrder !== undefined) item.sortOrder = input.sortOrder;
     if (input.isActive !== undefined) item.isActive = input.isActive;
@@ -444,7 +440,7 @@ export const inMemoryReferencesPort: ReferencesPort = {
 
   async saveCatalog(categoryCode, input) {
     const cat = await this.findCategoryByCode(categoryCode);
-    if (!cat) throw new Error("category_not_found");
+    if (!cat) throw new Error('category_not_found');
     const updateNormCodes = input.updates.map((u) => u.code.trim().toLowerCase());
     const additionNormCodes = input.additions.map((a) => a.code.trim().toLowerCase());
     const allNormCodes = [...updateNormCodes, ...additionNormCodes];
@@ -459,8 +455,10 @@ export const inMemoryReferencesPort: ReferencesPort = {
 
     const idsNeedingTemp: string[] = [];
     for (const update of input.updates) {
-      const item = items.find((i) => i.id === update.id && i.categoryId === cat.id && i.deletedAt == null);
-      if (!item) throw new Error("item_not_found");
+      const item = items.find(
+        (i) => i.id === update.id && i.categoryId === cat.id && i.deletedAt == null,
+      );
+      if (!item) throw new Error('item_not_found');
       const newCode = update.code.trim().toLowerCase();
       if (item.code.trim().toLowerCase() !== newCode) {
         idsNeedingTemp.push(item.id);
@@ -468,12 +466,14 @@ export const inMemoryReferencesPort: ReferencesPort = {
     }
     for (const id of idsNeedingTemp) {
       const item = items.find((i) => i.id === id);
-      if (item) item.code = `__tmpref${id.replace(/-/g, "")}`;
+      if (item) item.code = `__tmpref${id.replace(/-/g, '')}`;
     }
 
     for (const update of input.updates) {
-      const item = items.find((i) => i.id === update.id && i.categoryId === cat.id && i.deletedAt == null);
-      if (!item) throw new Error("item_not_found");
+      const item = items.find(
+        (i) => i.id === update.id && i.categoryId === cat.id && i.deletedAt == null,
+      );
+      if (!item) throw new Error('item_not_found');
       item.title = update.title;
       item.sortOrder = update.sortOrder;
       item.isActive = update.isActive;

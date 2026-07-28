@@ -111,7 +111,9 @@ describe('patient invite migration contract', () => {
     const startClient = readRepo('apps/webapp/src/app/join/start/JoinStartClient.tsx');
     const service = readRepo('apps/webapp/src/modules/patient-invites/service.ts');
     expect(startClient).toContain('window.location.hash.slice(1)');
-    expect(startClient).toMatch(/window\.history\.replaceState\(null, ['"]['"], ['"]\/join\/start['"]\)/);
+    expect(startClient).toMatch(
+      /window\.history\.replaceState\(null, ['"]['"], ['"]\/join\/start['"]\)/,
+    );
     expect(service).toMatch(/kind: ['"]patient['"] as const/);
     expect(exchangeRoute).toContain('kind: result.kind');
     expect(exchangeRoute).toContain('redirectTo: `/join/${result.continuation}`');
@@ -155,7 +157,9 @@ describe('patient invite migration contract', () => {
     const confirmRoute = readRepo('apps/webapp/src/app/api/join/email/confirm/route.ts');
     expect(exchangeRoute).toMatch(/checkPatientInvitePublicRateLimit\(request, ['"]exchange['"]/);
     expect(startRoute).toMatch(/checkPatientInvitePublicRateLimit\(request, ['"]email_start['"]/);
-    expect(confirmRoute).toMatch(/checkPatientInvitePublicRateLimit\(request, ['"]email_confirm['"]/);
+    expect(confirmRoute).toMatch(
+      /checkPatientInvitePublicRateLimit\(request, ['"]email_confirm['"]/,
+    );
     for (const route of [exchangeRoute, startRoute, confirmRoute]) {
       expect(route).toContain('proxy_configuration');
       expect(route).toContain('rate_limited');
@@ -173,7 +177,10 @@ describe('patient invite migration contract', () => {
     expect(doctorRoute).not.toMatch(/bodySchema[\s\S]*organizationId/);
     const verify = confirmRoute.indexOf('verifyEmailProof(');
     const lookup = confirmRoute.indexOf('lookupContinuation(', verify);
-    const unboundBranch = confirmRoute.indexOf("recipientBinding === 'unbound_email_claim'", lookup);
+    const unboundBranch = confirmRoute.indexOf(
+      "recipientBinding === 'unbound_email_claim'",
+      lookup,
+    );
     const claim = confirmRoute.indexOf('claimUnboundEmailProof(', unboundBranch);
     const resolveIdentity = confirmRoute.indexOf('findPublicEmailUser(', verify);
     const redeem = confirmRoute.indexOf('redeemEmailProof(', resolveIdentity);
@@ -251,8 +258,12 @@ describe('patient invite migration contract', () => {
     expect(claimMigration).toContain('manual_patient_commands_enrollment_fkey');
     expect(claimMigration).toContain('idx_manual_patient_commands_org_created');
     expect(commandSchema).toContain('manualPatientCommands');
-    expect(overlay).toContain('ALTER TABLE public.manual_patient_commands FORCE ROW LEVEL SECURITY');
-    expect(overlay).toContain('REVOKE ALL ON TABLE public.manual_patient_commands FROM app_patient');
+    expect(overlay).toContain(
+      'ALTER TABLE public.manual_patient_commands FORCE ROW LEVEL SECURITY',
+    );
+    expect(overlay).toContain(
+      'REVOKE ALL ON TABLE public.manual_patient_commands FROM app_patient',
+    );
     expect(bookingRepo).toMatch(/commandKind: ['"]scheduled['"]/);
     expect(bookingRepo).toMatch(/commandKind: ['"]walk_in['"]/);
     expect(organizationRepo).toMatch(/commandKind: ['"]standalone_no_contact_card['"]/);
@@ -261,9 +272,7 @@ describe('patient invite migration contract', () => {
   it('keeps an accepted unbound claim retryable only with the same live proof', () => {
     const claimFunction = claimMigration.slice(
       claimMigration.indexOf('CREATE OR REPLACE FUNCTION app.claim_unbound_patient_invite_email'),
-      claimMigration.indexOf(
-        'REVOKE ALL ON FUNCTION app.claim_unbound_patient_invite_email',
-      ),
+      claimMigration.indexOf('REVOKE ALL ON FUNCTION app.claim_unbound_patient_invite_email'),
     );
     const verifyFunction = claimMigration.slice(
       claimMigration.indexOf('CREATE OR REPLACE FUNCTION app.verify_patient_invite_email_proof'),

@@ -1,27 +1,27 @@
 /** @vitest-environment jsdom */
 
-import type React from "react";
-import { describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { PatientTreatmentProgramStagePageProgramSection } from "./PatientTreatmentProgramStagePageProgramSection";
-import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
+import type React from 'react';
+import { describe, expect, it, vi } from 'vitest';
+import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { PatientTreatmentProgramStagePageProgramSection } from './PatientTreatmentProgramStagePageProgramSection';
+import type { TreatmentProgramInstanceDetail } from '@/modules/treatment-program/types';
 
-const now = "2026-06-01T00:00:00.000Z";
-const itemId = "aaaaaaaa-1111-4111-8111-111111111111";
-const stageId = "33333333-3333-4333-8333-333333333333";
+const now = '2026-06-01T00:00:00.000Z';
+const itemId = 'aaaaaaaa-1111-4111-8111-111111111111';
+const stageId = '33333333-3333-4333-8333-333333333333';
 
-function makeStage(): TreatmentProgramInstanceDetail["stages"][number] {
+function makeStage(): TreatmentProgramInstanceDetail['stages'][number] {
   return {
     id: stageId,
-    instanceId: "11111111-1111-4111-8111-111111111111",
+    instanceId: '11111111-1111-4111-8111-111111111111',
     sourceStageId: null,
-    title: "Этап 1",
+    title: 'Этап 1',
     description: null,
     sortOrder: 1,
     localComment: null,
     skipReason: null,
-    status: "completed",
+    status: 'completed',
     startedAt: now,
     goals: null,
     objectives: null,
@@ -32,16 +32,16 @@ function makeStage(): TreatmentProgramInstanceDetail["stages"][number] {
       {
         id: itemId,
         stageId,
-        itemType: "exercise",
-        itemRefId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        itemType: 'exercise',
+        itemRefId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
         sortOrder: 0,
         comment: null,
         localComment: null,
         settings: null,
-        snapshot: { title: "Упражнение", media: [] },
+        snapshot: { title: 'Упражнение', media: [] },
         completedAt: now,
         isActionable: true,
-        status: "active",
+        status: 'active',
         groupId: null,
         createdAt: now,
         lastViewedAt: now,
@@ -52,9 +52,13 @@ function makeStage(): TreatmentProgramInstanceDetail["stages"][number] {
 }
 
 function renderProgramSection(
-  overrides: Partial<React.ComponentProps<typeof PatientTreatmentProgramStagePageProgramSection>> = {},
+  overrides: Partial<
+    React.ComponentProps<typeof PatientTreatmentProgramStagePageProgramSection>
+  > = {},
 ) {
-  global.fetch = vi.fn(async () => new Response(JSON.stringify({ ok: true, summaryByItemId: {} }))) as typeof fetch;
+  global.fetch = vi.fn(
+    async () => new Response(JSON.stringify({ ok: true, summaryByItemId: {} })),
+  ) as typeof fetch;
 
   return render(
     <PatientTreatmentProgramStagePageProgramSection
@@ -80,19 +84,21 @@ function renderProgramSection(
   );
 }
 
-describe("PatientTreatmentProgramStagePageProgramSection readOnly", () => {
-  it("does not render comment, complete, or camera actions on archive tile", () => {
-    renderProgramSection({ itemInteraction: "readOnly" });
+describe('PatientTreatmentProgramStagePageProgramSection readOnly', () => {
+  it('does not render comment, complete, or camera actions on archive tile', () => {
+    renderProgramSection({ itemInteraction: 'readOnly' });
 
-    const section = screen.getByRole("heading", { name: "Программа этапа" }).closest("section")!;
-    expect(within(section).queryByRole("button", { name: /Комментарии/i })).not.toBeInTheDocument();
-    expect(within(section).queryByRole("button", { name: /Отметить выполнение/i })).not.toBeInTheDocument();
-    expect(within(section).queryByRole("button", { name: "Камера" })).not.toBeInTheDocument();
+    const section = screen.getByRole('heading', { name: 'Программа этапа' }).closest('section')!;
+    expect(within(section).queryByRole('button', { name: /Комментарии/i })).not.toBeInTheDocument();
+    expect(
+      within(section).queryByRole('button', { name: /Отметить выполнение/i }),
+    ).not.toBeInTheDocument();
+    expect(within(section).queryByRole('button', { name: 'Камера' })).not.toBeInTheDocument();
   });
 });
 
-describe("PatientTreatmentProgramStagePageProgramSection tile footer", () => {
-  it("disables comment button when visible but support policy denies", () => {
+describe('PatientTreatmentProgramStagePageProgramSection tile footer', () => {
+  it('disables comment button when visible but support policy denies', () => {
     const stage = makeStage();
     stage.items[0] = { ...stage.items[0]!, completedAt: null };
 
@@ -101,57 +107,61 @@ describe("PatientTreatmentProgramStagePageProgramSection tile footer", () => {
       programCommentsInteraction: { visible: true, enabled: false },
     });
 
-    const section = screen.getByRole("heading", { name: "Программа этапа" }).closest("section")!;
-    const commentBtn = within(section).getByRole("button", { name: /Комментарии/i });
+    const section = screen.getByRole('heading', { name: 'Программа этапа' }).closest('section')!;
+    const commentBtn = within(section).getByRole('button', { name: /Комментарии/i });
     expect(commentBtn).toBeDisabled();
-    expect(commentBtn).toHaveAttribute("aria-disabled", "true");
+    expect(commentBtn).toHaveAttribute('aria-disabled', 'true');
   });
 
-  it("renders both comment and complete buttons when observation comments are allowed", () => {
+  it('renders both comment and complete buttons when observation comments are allowed', () => {
     const stage = makeStage();
     stage.items[0] = { ...stage.items[0]!, completedAt: null };
 
     renderProgramSection({ stage });
 
-    const section = screen.getByRole("heading", { name: "Программа этапа" }).closest("section")!;
-    expect(within(section).getByRole("button", { name: /Комментарии/i })).toBeInTheDocument();
-    expect(within(section).getByRole("button", { name: /Отметить выполнение/i })).toBeInTheDocument();
+    const section = screen.getByRole('heading', { name: 'Программа этапа' }).closest('section')!;
+    expect(within(section).getByRole('button', { name: /Комментарии/i })).toBeInTheDocument();
+    expect(
+      within(section).getByRole('button', { name: /Отметить выполнение/i }),
+    ).toBeInTheDocument();
   });
 
-  it("marks complete immediately and opens inline metrics panel with previous values", async () => {
+  it('marks complete immediately and opens inline metrics panel with previous values', async () => {
     const user = userEvent.setup();
     const stage = makeStage();
     stage.items[0] = { ...stage.items[0]!, completedAt: null };
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      if (url.endsWith("/progress/complete/metrics") && !init?.method) {
-        return new Response(JSON.stringify({
-          ok: true,
-          metrics: {
-            difficulty: "hard",
-            reps: 12,
-            sets: 3,
-            weightKg: 4.5,
-          },
-        }));
+      if (url.endsWith('/progress/complete/metrics') && !init?.method) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            metrics: {
+              difficulty: 'hard',
+              reps: 12,
+              sets: 3,
+              weightKg: 4.5,
+            },
+          }),
+        );
       }
-      if (url.endsWith("/progress/complete") && init?.method === "POST") {
+      if (url.endsWith('/progress/complete') && init?.method === 'POST') {
         return new Response(JSON.stringify({ ok: true }));
       }
       return new Response(JSON.stringify({ ok: true, summaryByItemId: {} }));
     });
     renderProgramSection({ stage });
     global.fetch = fetchMock as typeof fetch;
-    await user.click(screen.getByRole("button", { name: /Отметить выполнение/i }));
+    await user.click(screen.getByRole('button', { name: /Отметить выполнение/i }));
 
     expect(fetchMock).toHaveBeenCalledWith(expect.stringMatching(/\/progress\/complete$/), {
-      method: "POST",
+      method: 'POST',
       headers: undefined,
       body: undefined,
     });
-    expect(screen.getByRole("button", { name: "Тяжело" })).toBeInTheDocument();
-    expect(screen.getByLabelText("повторы")).toHaveValue("12");
-    expect(screen.getByLabelText("подходы")).toHaveValue("3");
-    expect(screen.getByLabelText("вес, кг")).toHaveValue("4.5");
+    expect(screen.getByRole('button', { name: 'Тяжело' })).toBeInTheDocument();
+    expect(screen.getByLabelText('повторы')).toHaveValue('12');
+    expect(screen.getByLabelText('подходы')).toHaveValue('3');
+    expect(screen.getByLabelText('вес, кг')).toHaveValue('4.5');
   });
 });

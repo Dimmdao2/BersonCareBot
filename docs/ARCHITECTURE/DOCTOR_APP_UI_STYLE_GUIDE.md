@@ -47,29 +47,29 @@
 
 Базовые токены живут в `apps/webapp/src/app/styles/tailwind-engine.css` (`:root`), зональные — в `doctor.css` (`#app-shell-doctor`). Целевые роли:
 
-| Роль | Назначение | Источник токена |
-|---|---|---|
-| Page / card | белая база | `--background`, `--card` |
-| Subtle surface | вложенные панели, инсет-строки | `bg-muted/15`, `#f7f9fc` |
-| Border | разделение поверхностей | `--border` (`#e3e8f0`) |
-| Text primary | основной текст | `--foreground` |
-| Text secondary | подписи, мета | `--muted-foreground` |
-| Primary | кнопки, акцент, active/focus, ссылки | doctor-zone `--primary: #406ca7` |
-| Primary soft | hover/active фон акцентных элементов | `bg-primary/10…/15` |
-| Success / Warning / Danger | статусы | мягкие, не кислотные (§17) |
+| Роль                       | Назначение                           | Источник токена                  |
+| -------------------------- | ------------------------------------ | -------------------------------- |
+| Page / card                | белая база                           | `--background`, `--card`         |
+| Subtle surface             | вложенные панели, инсет-строки       | `bg-muted/15`, `#f7f9fc`         |
+| Border                     | разделение поверхностей              | `--border` (`#e3e8f0`)           |
+| Text primary               | основной текст                       | `--foreground`                   |
+| Text secondary             | подписи, мета                        | `--muted-foreground`             |
+| Primary                    | кнопки, акцент, active/focus, ссылки | doctor-zone `--primary: #406ca7` |
+| Primary soft               | hover/active фон акцентных элементов | `bg-primary/10…/15`              |
+| Success / Warning / Danger | статусы                              | мягкие, не кислотные (§17)       |
 
 **Правило:** `#406ca7` задаётся один раз в doctor-zone theme adapter; компоненты используют `--primary`/Tailwind-семантику. Не вводить hex в компонентах. Хардкод-цвета навигации мигрировать на `--primary`/`primary soft`. Patient/public и destructive/warning/info роли этим решением не перекрашиваются.
 
 ### A.3. Радиусы поверхностей
 
-| Уровень | Радиус |
-|---|---|
-| Page section / основной блок | `12px` (`--doctor-page-block-radius`) |
-| KPI | `8px` (`--doctor-kpi-radius`) |
-| Панель внутри карточки | `rounded-lg` |
-| Строка списка / item | `rounded-md` |
-| Doctor button / input / select trigger | `24px` (`--doctor-control-radius`) |
-| Main sidebar / mobile menu item | минимальный shared menu radius; не 24px pill |
+| Уровень                                | Радиус                                       |
+| -------------------------------------- | -------------------------------------------- |
+| Page section / основной блок           | `12px` (`--doctor-page-block-radius`)        |
+| KPI                                    | `8px` (`--doctor-kpi-radius`)                |
+| Панель внутри карточки                 | `rounded-lg`                                 |
+| Строка списка / item                   | `rounded-md`                                 |
+| Doctor button / input / select trigger | `24px` (`--doctor-control-radius`)           |
+| Main sidebar / mobile menu item        | минимальный shared menu radius; не 24px pill |
 
 `rounded-2xl` — запрещён для page-level секций. Явные caller overrides (`rounded-none`, icon-only форма и т.п.) сохраняются.
 Пункты основного меню не относятся к control-radius: они остаются почти прямоугольными. Section tabs используют
@@ -79,14 +79,14 @@
 
 Все интерактивные элементы используют один словарь состояний:
 
-| Состояние | Оформление |
-|---|---|
-| Hover (нейтральный) | `hover:bg-muted` / `hover:bg-muted/50` |
-| Active / selected | `bg-primary/15 text-primary` + (для строк каталога) `border-primary/25`; для тайла — `ring-1 ring-primary/50` |
-| Focus-visible | `focus-visible:ring-2 focus-visible:ring-ring` (контролы — `ring-3 ring-ring/50`) |
-| Warning | `border-destructive/40 bg-destructive/5` |
-| Unsaved / amber | `border-amber-500/40 bg-amber-500/5` |
-| Disabled | `opacity-50 pointer-events-none` |
+| Состояние           | Оформление                                                                                                    |
+| ------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Hover (нейтральный) | `hover:bg-muted` / `hover:bg-muted/50`                                                                        |
+| Active / selected   | `bg-primary/15 text-primary` + (для строк каталога) `border-primary/25`; для тайла — `ring-1 ring-primary/50` |
+| Focus-visible       | `focus-visible:ring-2 focus-visible:ring-ring` (контролы — `ring-3 ring-ring/50`)                             |
+| Warning             | `border-destructive/40 bg-destructive/5`                                                                      |
+| Unsaved / amber     | `border-amber-500/40 bg-amber-500/5`                                                                          |
+| Disabled            | `opacity-50 pointer-events-none`                                                                              |
 
 Не изобретать новые active/hover-цвета на конкретной странице — брать из этой таблицы и §17.
 
@@ -100,29 +100,29 @@
 
 Основные роли (вся chrome-типографика — только отсюда):
 
-| Роль | Класс | px |
-|---|---|---|
-| Page title (h1) | `text-base font-semibold tracking-tight` | 16 |
-| Section title (h2/h3) | `text-sm font-semibold` | 14 |
-| Body | `text-sm` | 14 |
-| Первичная строка основного списка | `text-base font-normal` | 16 |
-| Secondary / meta | `text-xs text-muted-foreground` | 12 |
-| Metric (KPI) | `text-2xl font-semibold tabular-nums` | 24 |
+| Роль                              | Класс                                    | px  |
+| --------------------------------- | ---------------------------------------- | --- |
+| Page title (h1)                   | `text-base font-semibold tracking-tight` | 16  |
+| Section title (h2/h3)             | `text-sm font-semibold`                  | 14  |
+| Body                              | `text-sm`                                | 14  |
+| Первичная строка основного списка | `text-base font-normal`                  | 16  |
+| Secondary / meta                  | `text-xs text-muted-foreground`          | 12  |
+| Metric (KPI)                      | `text-2xl font-semibold tabular-nums`    | 24  |
 
 **Micro-роль (узкое исключение, 10–11px).** Разрешена **только** для плотных, нечитаемых-как-абзац подписей: статус-бейджи/пилюли (`Badge`, статус каталога), ячейки календаря, оси/тултипы графиков, технические mono-дампы. Класс: `text-[10px]` / `text-[11px]`. Micro-роль **не** применять к заголовкам, строкам сущностей, кнопкам и основному тексту.
 
-**Запрещено в `/app/doctor/**` (chrome):** `text-[13px]`, `text-lg`, `text-xl`, `text-3xl`, а также `text-2xl` вне роли Metric.
+**Запрещено в `/app/doctor/**`(chrome):**`text-[13px]`, `text-lg`, `text-xl`, `text-3xl`, а также `text-2xl` вне роли Metric.
 
 Миграция текущего кода: header-заголовок `text-[13px]` → `text-sm`; KPI-число `text-3xl` → `text-2xl`; прочие крупные числа-метрики `text-lg`/`text-xl` → роль Metric (`text-2xl`) или `text-base` для строчных; заголовки-`text-lg` → `text-base`; page-заголовки admin/ops `text-xl` → `text-base`.
 
 ### B.2. Контролы — базовый рост 32px
 
-| Контрол | Высота | Радиус |
-|---|---|---|
-| Input / Select / база тулбара | `h-8` (32) | `24px` |
-| Button база doctor (`sm`) | `h-8` (32) | `24px` |
-| Button главный CTA (`lg`, редко) | `h-10` (40) | `24px` |
-| Header icon-кнопки (исключение, тач-таргет) | `size-10` (40) | — |
+| Контрол                                     | Высота         | Радиус |
+| ------------------------------------------- | -------------- | ------ |
+| Input / Select / база тулбара               | `h-8` (32)     | `24px` |
+| Button база doctor (`sm`)                   | `h-8` (32)     | `24px` |
+| Button главный CTA (`lg`, редко)            | `h-10` (40)    | `24px` |
+| Header icon-кнопки (исключение, тач-таргет) | `size-10` (40) | —      |
 
 - В одной строке формы/тулбара поле и кнопка совпадают по высоте (32) и радиусу (24px).
 - Фактическая поверхность `input` белая; декоративный фон внешней области не должен просвечивать через поле.
@@ -170,13 +170,20 @@ aside: flex min-h-0 flex-1 flex-col overflow-hidden rounded-[12px] border border
 ### C.4. Tile-карточка — `ExerciseTileCard`
 
 ```tsx
-<Card size="sm" className={cn(
-  "h-full w-full min-w-0 rounded-[calc(var(--radius-xl)*0.5)] transition-shadow data-[size=sm]:py-1.5",
-  isActive && "ring-1 ring-primary/50 ring-offset-1 ring-offset-background",
-)}>
+<Card
+  size="sm"
+  className={cn(
+    'h-full w-full min-w-0 rounded-[calc(var(--radius-xl)*0.5)] transition-shadow data-[size=sm]:py-1.5',
+    isActive && 'ring-1 ring-primary/50 ring-offset-1 ring-offset-background',
+  )}
+>
   <CardContent className="flex h-full flex-col gap-1 py-px group-data-[size=sm]/card:px-1.5">
     <div className="w-full overflow-hidden rounded-[calc(var(--radius-md)*0.5)] border border-border/60 bg-muted/30 aspect-square">
-      <MediaThumb className="h-full w-full" imgClassName="h-full w-full object-cover" sizes="160px" />
+      <MediaThumb
+        className="h-full w-full"
+        imgClassName="h-full w-full object-cover"
+        sizes="160px"
+      />
     </div>
     <p className="line-clamp-2 text-center text-xs leading-snug text-foreground">{title}</p>
   </CardContent>
@@ -201,7 +208,7 @@ aside: flex min-h-0 flex-1 flex-col overflow-hidden rounded-[12px] border border
 
 ```ts
 // doctorWorkspaceLayout.ts
-DOCTOR_PAGE_CONTAINER_CLASS = "mx-auto w-full max-w-7xl px-3 pt-3 pb-6"
+DOCTOR_PAGE_CONTAINER_CLASS = 'mx-auto w-full max-w-7xl px-3 pt-3 pb-6';
 ```
 
 Прямое использование `DOCTOR_PAGE_CONTAINER_CLASS` — только если не используется `AppShell`.
@@ -214,18 +221,18 @@ DOCTOR_PAGE_CONTAINER_CLASS = "mx-auto w-full max-w-7xl px-3 pt-3 pb-6"
 
 Иерархия текста в кабинете врача. Базовые роли — закрытый набор из §B.1; ниже — их применение и вспомогательные стили ссылок:
 
-| Роль | Тег | Класс |
-|---|---|---|
-| Заголовок страницы (h1) | `h1` | `text-base font-semibold tracking-tight text-foreground` |
-| Заголовок секции / панели | `h2` или `h3` | `text-sm font-semibold text-foreground` |
-| Первичная строка сущности | `p` | `text-sm font-medium text-foreground` |
-| Обычный текст | `p` | `text-sm text-foreground` |
-| Вспомогательный текст / micro-label / бейдж-подпись | `p` / `span` | `text-xs text-muted-foreground` |
-| Числовая метрика (крупная, KPI) | `p` | `text-2xl font-semibold tabular-nums` |
-| Числовая метрика (строчная) | `span` | `font-semibold tabular-nums text-foreground` |
-| Inline-link | `Link/a` | `text-primary underline underline-offset-2` |
-| Hover-link (secondary) | `Link/a` | `text-primary underline-offset-4 hover:underline font-medium` |
-| Строка с адресом / телефон | `a` | `font-medium text-primary underline underline-offset-2` |
+| Роль                                                | Тег           | Класс                                                         |
+| --------------------------------------------------- | ------------- | ------------------------------------------------------------- |
+| Заголовок страницы (h1)                             | `h1`          | `text-base font-semibold tracking-tight text-foreground`      |
+| Заголовок секции / панели                           | `h2` или `h3` | `text-sm font-semibold text-foreground`                       |
+| Первичная строка сущности                           | `p`           | `text-sm font-medium text-foreground`                         |
+| Обычный текст                                       | `p`           | `text-sm text-foreground`                                     |
+| Вспомогательный текст / micro-label / бейдж-подпись | `p` / `span`  | `text-xs text-muted-foreground`                               |
+| Числовая метрика (крупная, KPI)                     | `p`           | `text-2xl font-semibold tabular-nums`                         |
+| Числовая метрика (строчная)                         | `span`        | `font-semibold tabular-nums text-foreground`                  |
+| Inline-link                                         | `Link/a`      | `text-primary underline underline-offset-2`                   |
+| Hover-link (secondary)                              | `Link/a`      | `text-primary underline-offset-4 hover:underline font-medium` |
+| Строка с адресом / телефон                          | `a`           | `font-medium text-primary underline underline-offset-2`       |
 
 **Запрещено:** голый `<h2>`, `<h3>` без className; chrome-размеры вне набора §B.1 (`text-[13px]`, `text-lg`, `text-xl`, `text-3xl`, `text-2xl` вне KPI).
 
@@ -237,22 +244,22 @@ DOCTOR_PAGE_CONTAINER_CLASS = "mx-auto w-full max-w-7xl px-3 pt-3 pb-6"
 
 Карта всех типов экранов в кабинете и применяемые к ним паттерны:
 
-| Экран | Паттерн UI |
-|---|---|
-| `/app/doctor` — «Сегодня» | Дашборд с секциями (§4.1) + KPI-сетка (§6) |
-| `/app/doctor/clients` | Компактный список с фильтрами (§5.3) |
-| `/app/doctor/clients/[id]` | Карточка сущности (§9) |
-| `/app/doctor/appointments` | Секции с inline-списком (§4.1, §5.1) |
-| `/app/doctor/analytics/clients` | Секции + chart-карточки + KPI-сетка (§6, §7) |
-| `/app/doctor/exercises` | Каталог split-layout (§8) |
-| `/app/doctor/recommendations` | Каталог split-layout (§8) |
-| `/app/doctor/lfk-templates` | Каталог split-layout (§8) |
-| `/app/doctor/treatment-program-templates` | Каталог split-layout (§8) |
-| `/app/doctor/online-intake` | Список с inline-детальным просмотром (§5.1) |
-| `/app/doctor/content` | CMS-страница с sidebar (§10) |
-| `/app/doctor/content/library` | Медиагрид (§11) |
-| `/app/doctor/clients/[id]/treatment-programs/[id]` | Конструктор с toolbar-шапкой (§12) |
-| `/app/doctor/broadcasts` | Форма с подтверждением (§4.1 + Dialog) |
+| Экран                                              | Паттерн UI                                   |
+| -------------------------------------------------- | -------------------------------------------- |
+| `/app/doctor` — «Сегодня»                          | Дашборд с секциями (§4.1) + KPI-сетка (§6)   |
+| `/app/doctor/clients`                              | Компактный список с фильтрами (§5.3)         |
+| `/app/doctor/clients/[id]`                         | Карточка сущности (§9)                       |
+| `/app/doctor/appointments`                         | Секции с inline-списком (§4.1, §5.1)         |
+| `/app/doctor/analytics/clients`                    | Секции + chart-карточки + KPI-сетка (§6, §7) |
+| `/app/doctor/exercises`                            | Каталог split-layout (§8)                    |
+| `/app/doctor/recommendations`                      | Каталог split-layout (§8)                    |
+| `/app/doctor/lfk-templates`                        | Каталог split-layout (§8)                    |
+| `/app/doctor/treatment-program-templates`          | Каталог split-layout (§8)                    |
+| `/app/doctor/online-intake`                        | Список с inline-детальным просмотром (§5.1)  |
+| `/app/doctor/content`                              | CMS-страница с sidebar (§10)                 |
+| `/app/doctor/content/library`                      | Медиагрид (§11)                              |
+| `/app/doctor/clients/[id]/treatment-programs/[id]` | Конструктор с toolbar-шапкой (§12)           |
+| `/app/doctor/broadcasts`                           | Форма с подтверждением (§4.1 + Dialog)       |
 
 ---
 
@@ -277,21 +284,27 @@ rounded-[12px] border border-border bg-card p-[18px] flex flex-col gap-3
 Используется для панелей внутри карточки клиента (overview grid, таб-контент).
 
 **Первичная панель** (светлая, с тенью):
+
 ```
 rounded-xl border border-border bg-card p-4 shadow-sm
 ```
+
 Константа: `doctorClientOverviewPrimaryCardClass` в `doctorClientCardChrome.ts`
 
 **Вторичная / вспомогательная панель** (слегка приглушённая, без тени):
+
 ```
 rounded-lg border border-border/80 bg-muted/15 p-4
 ```
+
 Константа: `doctorClientOverviewSecondaryCardClass` в `doctorClientCardChrome.ts`
 
 **Инлайн-стек карточка** (ещё компактнее, внутри таба):
+
 ```
 rounded-lg border border-border bg-card p-3 shadow-sm
 ```
+
 Константа: `doctorClientStackedCardClass` в `doctorClientCardChrome.ts`
 
 ### Дерево решений «какой класс выбрать»
@@ -308,6 +321,7 @@ rounded-lg border border-border bg-card p-3 shadow-sm
 ```
 
 **Антипаттерны (не вводить в новом коде; при ревью — исправлять):**
+
 - `rounded-2xl` в page-level секциях → `doctorSectionCardClass` / радиус 12px
 - `rounded-lg border border-border bg-card p-4 shadow-sm` на page-section без stat-карточек → `doctorSectionCardClass`, без лишнего `shadow-sm`
 - `p-4` / `p-3` в page-level секциях без особого контракта → общий padding 18px
@@ -329,7 +343,9 @@ rounded-lg border border-border bg-card p-3 shadow-sm
   <p className="font-medium text-foreground">{primaryLine}</p>
   <p className="text-xs text-muted-foreground mt-0.5">{secondaryLine}</p>
   <p className="mt-2">
-    <Link href={href} className="text-primary underline underline-offset-2">{cta}</Link>
+    <Link href={href} className="text-primary underline underline-offset-2">
+      {cta}
+    </Link>
   </p>
 </li>
 ```
@@ -339,12 +355,12 @@ rounded-lg border border-border bg-card p-3 shadow-sm
 Для задач, важных уведомлений — тон определяет border + background:
 
 ```tsx
-<li className={cn(
-  "flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between",
-  isUrgent
-    ? "border-destructive/40 bg-destructive/5"
-    : "border-border bg-muted/15",
-)}>
+<li
+  className={cn(
+    'flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between',
+    isUrgent ? 'border-destructive/40 bg-destructive/5' : 'border-border bg-muted/15',
+  )}
+>
   …
 </li>
 ```
@@ -358,6 +374,7 @@ rounded-lg border border-border bg-card p-3 shadow-sm
   …
 </li>
 ```
+
 Константа: `doctorClientInsetListRowClass` в `doctorClientCardChrome.ts`
 
 ### 5d. Хроника / мини-событие (компактная строка)
@@ -376,10 +393,15 @@ rounded-lg border border-border bg-card p-3 shadow-sm
 В каталожном split-layout:
 
 ```tsx
-<button className={cn(
-  "flex w-full items-center gap-2 border-b border-border px-[18px] py-2.5 text-left text-base font-normal hover:bg-muted last:border-b-0",
-  isActive && "border-primary/25 bg-primary/15 text-primary hover:bg-primary/20 dark:bg-primary/20 dark:hover:bg-primary/25",
-)}>…</button>
+<button
+  className={cn(
+    'flex w-full items-center gap-2 border-b border-border px-[18px] py-2.5 text-left text-base font-normal hover:bg-muted last:border-b-0',
+    isActive &&
+      'border-primary/25 bg-primary/15 text-primary hover:bg-primary/20 dark:bg-primary/20 dark:hover:bg-primary/25',
+  )}
+>
+  …
+</button>
 ```
 
 ### 5f. Внешняя карточка-ссылка (список клиентов)
@@ -388,9 +410,11 @@ rounded-lg border border-border bg-card p-3 shadow-sm
 
 ```tsx
 <li className="rounded-lg border border-border bg-card p-0">
-  <Link className="flex w-full items-start justify-between gap-3 rounded-lg px-3 py-2
+  <Link
+    className="flex w-full items-start justify-between gap-3 rounded-lg px-3 py-2
     text-left no-underline hover:bg-muted/50
-    focus-visible:outline focus-visible:ring-2 focus-visible:ring-ring">
+    focus-visible:outline focus-visible:ring-2 focus-visible:ring-ring"
+  >
     …
   </Link>
 </li>
@@ -451,11 +475,13 @@ Tone `warning`: `border-destructive/40 bg-destructive/5`.
           <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" vertical={false} />
           <XAxis dataKey="key" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
           <YAxis allowDecimals={false} tick={{ fontSize: 10 }} width={28} />
-          <Tooltip contentStyle={{
-            background: "hsl(var(--card))",
-            border: "1px solid hsl(var(--border))",
-            fontSize: 11,
-          }} />
+          <Tooltip
+            contentStyle={{
+              background: 'hsl(var(--card))',
+              border: '1px solid hsl(var(--border))',
+              fontSize: 11,
+            }}
+          />
           <Bar dataKey="value" fill="hsl(215 55% 48% / 0.9)" radius={[3, 3, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
@@ -464,19 +490,19 @@ Tone `warning`: `border-destructive/40 bg-destructive/5`.
 </Card>
 ```
 
-| Параметр | Значение |
-|---|---|
-| Grid stroke | `hsl(var(--border))` |
-| Axis font | `fontSize: 10` |
-| YAxis width | `28` |
-| XAxis interval | `"preserveStartEnd"` |
-| Bar radius | `[3, 3, 0, 0]` |
-| Bar fill | `hsl(215 55% 48% / 0.9)` |
-| Chart height (compact) | `160` |
-| Chart height (full) | `240` |
-| Tooltip background | `hsl(var(--card))` |
-| Tooltip border | `1px solid hsl(var(--border))` |
-| Tooltip fontSize | `11` |
+| Параметр               | Значение                       |
+| ---------------------- | ------------------------------ |
+| Grid stroke            | `hsl(var(--border))`           |
+| Axis font              | `fontSize: 10`                 |
+| YAxis width            | `28`                           |
+| XAxis interval         | `"preserveStartEnd"`           |
+| Bar radius             | `[3, 3, 0, 0]`                 |
+| Bar fill               | `hsl(215 55% 48% / 0.9)`       |
+| Chart height (compact) | `160`                          |
+| Chart height (full)    | `240`                          |
+| Tooltip background     | `hsl(var(--card))`             |
+| Tooltip border         | `1px solid hsl(var(--border))` |
+| Tooltip fontSize       | `11`                           |
 
 ---
 
@@ -487,24 +513,24 @@ Tone `warning`: `border-destructive/40 bg-destructive/5`.
 
 ### 8a. Компонентный стек
 
-| Компонент | Расположение | Роль |
-|---|---|---|
-| `DoctorCatalogPageLayout` | `shared/ui/` | Обёртка: toolbar + content |
-| `DoctorCatalogFiltersToolbar` | `shared/ui/doctor/` | Sticky toolbar: фильтры + action |
-| `DoctorCatalogToolbarFiltersSlot` | `shared/ui/doctor/` | Слот фильтров в toolbar |
-| `CatalogSplitLayout` | `shared/ui/` | Desktop split, mobile toggle |
-| `CatalogLeftPane` | `shared/ui/` | Левая панель: header + scrollable list |
-| `CatalogRightPane` | `shared/ui/` | Правая панель: форма |
-| `DoctorCatalogMasterListHeader` | `shared/ui/doctor/` | Счётчик + вид + сортировка |
-| `DoctorCatalogMasterListRow` | `shared/ui/doctor/` | Стандартная строка list-режима |
-| `DoctorCatalogListSortHeader` | `shared/ui/doctor/` | Заголовок-сортировщик колонки |
-| `VirtualizedItemGrid` | `shared/ui/` | Виртуальный grid tile-режима |
+| Компонент                         | Расположение        | Роль                                   |
+| --------------------------------- | ------------------- | -------------------------------------- |
+| `DoctorCatalogPageLayout`         | `shared/ui/`        | Обёртка: toolbar + content             |
+| `DoctorCatalogFiltersToolbar`     | `shared/ui/doctor/` | Sticky toolbar: фильтры + action       |
+| `DoctorCatalogToolbarFiltersSlot` | `shared/ui/doctor/` | Слот фильтров в toolbar                |
+| `CatalogSplitLayout`              | `shared/ui/`        | Desktop split, mobile toggle           |
+| `CatalogLeftPane`                 | `shared/ui/`        | Левая панель: header + scrollable list |
+| `CatalogRightPane`                | `shared/ui/`        | Правая панель: форма                   |
+| `DoctorCatalogMasterListHeader`   | `shared/ui/doctor/` | Счётчик + вид + сортировка             |
+| `DoctorCatalogMasterListRow`      | `shared/ui/doctor/` | Стандартная строка list-режима         |
+| `DoctorCatalogListSortHeader`     | `shared/ui/doctor/` | Заголовок-сортировщик колонки          |
+| `VirtualizedItemGrid`             | `shared/ui/`        | Виртуальный grid tile-режима           |
 
 ### 8b. Высота split-layout
 
 ```ts
-DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE   // 1 ряд toolbar (~3.25rem)
-DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED  // 2 ряда toolbar (~6.5rem)
+DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE; // 1 ряд toolbar (~3.25rem)
+DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED; // 2 ряда toolbar (~6.5rem)
 ```
 
 ### 8c. Tile-карточка каталога
@@ -528,21 +554,21 @@ DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED  // 2 ряда toolbar (~6.5rem)
 
 ### 8d. Число колонок тайлов
 
-| Контекст | Колонки |
-|---|---|
-| Mobile | 3 |
-| Desktop, ≤3 | 3 |
-| Desktop, 4 | 4 |
-| Desktop, 5–7 | 3 |
-| Desktop, 8+ | 4 |
+| Контекст     | Колонки |
+| ------------ | ------- |
+| Mobile       | 3       |
+| Desktop, ≤3  | 3       |
+| Desktop, 4   | 4       |
+| Desktop, 5–7 | 3       |
+| Desktop, 8+  | 4       |
 
 ### 8e. Primary action кнопка тулбара
 
 ```ts
 // из DoctorCatalogFiltersToolbar.tsx:
 export const doctorCatalogToolbarPrimaryActionClassName = cn(
-  buttonVariants({ size: "sm" }),
-  "box-box h-[32px] min-h-[32px] inline-flex shrink-0 gap-1 px-3 py-1 text-sm leading-5",
+  buttonVariants({ size: 'sm' }),
+  'box-box h-[32px] min-h-[32px] inline-flex shrink-0 gap-1 px-3 py-1 text-sm leading-5',
 );
 ```
 
@@ -582,10 +608,10 @@ article.rounded-lg.border.border-border.bg-card.shadow-sm
 ```tsx
 <div className="border-b border-border bg-card px-2 py-1.5">
   <div className="flex flex-wrap gap-1.5">
-    {chips.map(chip => (
+    {chips.map((chip) => (
       <button
         key={chip.key}
-        className={cn(buttonVariants({ size: "sm", variant: chip.variant }), "h-7 px-2.5 text-xs")}
+        className={cn(buttonVariants({ size: 'sm', variant: chip.variant }), 'h-7 px-2.5 text-xs')}
         onClick={chip.onClick}
       >
         {chip.label}
@@ -603,8 +629,13 @@ article.rounded-lg.border.border-border.bg-card.shadow-sm
 
 ```tsx
 <div className="overflow-x-auto border-b border-border bg-card px-2">
-  <TabsList variant="line" className="h-auto w-max min-w-full justify-start gap-0 bg-transparent p-0">
-    <TabsTrigger value="overview" className="rounded-none px-3 py-2">Обзор</TabsTrigger>
+  <TabsList
+    variant="line"
+    className="h-auto w-max min-w-full justify-start gap-0 bg-transparent p-0"
+  >
+    <TabsTrigger value="overview" className="rounded-none px-3 py-2">
+      Обзор
+    </TabsTrigger>
     <TabsTrigger value="program" className="rounded-none px-3 py-2">
       Программа
       {badgeCount > 0 && <Badge>{badgeCount}</Badge>}
@@ -643,13 +674,16 @@ article.rounded-lg.border.border-border.bg-card.shadow-sm
 
 ```tsx
 <details className={doctorClientOverviewPrimaryCardClass}>
-  <summary className={cn("mb-0 cursor-pointer list-none", doctorClientSectionTitleClass,
-    "[&::-webkit-details-marker]:hidden")}>
+  <summary
+    className={cn(
+      'mb-0 cursor-pointer list-none',
+      doctorClientSectionTitleClass,
+      '[&::-webkit-details-marker]:hidden',
+    )}
+  >
     Заметки
   </summary>
-  <div className="mt-3">
-    {/* контент */}
-  </div>
+  <div className="mt-3">{/* контент */}</div>
 </details>
 ```
 
@@ -657,25 +691,25 @@ article.rounded-lg.border.border-border.bg-card.shadow-sm
 
 ```ts
 // Shell (§9, §5f)
-doctorClientProfileCardClass           // article outer shell
-doctorClientProfileStickyShellClass    // sticky care bar + action strip
-doctorClientEntityHeaderClass          // PatientCareBar
-doctorClientActionStripClass           // chips strip (only if chips.length > 0)
-doctorClientTabsScrollClass            // tabs overflow row
-doctorClientTabTriggerClass            // TabsTrigger
-doctorClientBackLinkClass              // back to list CTA
-doctorClientListRowLinkClass           // §5f list row inner Link
-doctorClientPanelStackClass            // flex flex-col gap-3 inside tab/panel
+doctorClientProfileCardClass; // article outer shell
+doctorClientProfileStickyShellClass; // sticky care bar + action strip
+doctorClientEntityHeaderClass; // PatientCareBar
+doctorClientActionStripClass; // chips strip (only if chips.length > 0)
+doctorClientTabsScrollClass; // tabs overflow row
+doctorClientTabTriggerClass; // TabsTrigger
+doctorClientBackLinkClass; // back to list CTA
+doctorClientListRowLinkClass; // §5f list row inner Link
+doctorClientPanelStackClass; // flex flex-col gap-3 inside tab/panel
 
 // Tab / overview panels (§9d–§9e)
-doctorClientOverviewGridClass          // overview two-column grid (§9e)
-doctorClientOverviewPrimaryCardClass   // panel level 2, primary
-doctorClientOverviewSecondaryCardClass // panel level 2, secondary/muted
-doctorClientStackedCardClass           // panel level 2, compact stacked
-doctorClientTabSectionClass            // tab section with border-b
-doctorClientInsetListRowClass          // inset row inside panel
-doctorClientSectionTitleClass          // h2/h3 text-sm font-semibold
-doctorClientUrgentZoneClass            // urgent zone (same as primary)
+doctorClientOverviewGridClass; // overview two-column grid (§9e)
+doctorClientOverviewPrimaryCardClass; // panel level 2, primary
+doctorClientOverviewSecondaryCardClass; // panel level 2, secondary/muted
+doctorClientStackedCardClass; // panel level 2, compact stacked
+doctorClientTabSectionClass; // tab section with border-b
+doctorClientInsetListRowClass; // inset row inside panel
+doctorClientSectionTitleClass; // h2/h3 text-sm font-semibold
+doctorClientUrgentZoneClass; // urgent zone (same as primary)
 ```
 
 ---
@@ -713,8 +747,8 @@ doctorClientUrgentZoneClass            // urgent zone (same as primary)
 
 ```ts
 // treatmentProgramConstructorShellStyles.ts:
-INSTANCE_EDITOR_TOOLBAR_STICKY_CLASS  // sticky шапка конструктора
-tplToolbarTextBtnClass               // кнопки в шапке
+INSTANCE_EDITOR_TOOLBAR_STICKY_CLASS; // sticky шапка конструктора
+tplToolbarTextBtnClass; // кнопки в шапке
 ```
 
 Шапка имеет три зоны (`grid-cols-[1fr_auto_1fr]`): слева — breadcrumb (название + клиент), центр — «Комментарии», справа — действия (добавить этап, сохранить).
@@ -740,7 +774,9 @@ tplToolbarTextBtnClass               // кнопки в шапке
     <Textarea id="desc" rows={3} />
   </div>
   <div className="flex justify-end gap-2">
-    <Button type="button" variant="outline" onClick={onCancel}>Отмена</Button>
+    <Button type="button" variant="outline" onClick={onCancel}>
+      Отмена
+    </Button>
     <Button type="submit">Сохранить</Button>
   </div>
 </form>
@@ -770,11 +806,11 @@ tplToolbarTextBtnClass               // кнопки в шапке
 </Dialog>
 ```
 
-| Контекст | Width |
-|---|---|
-| Подтверждение / быстрая форма | `sm:max-w-md` |
+| Контекст                             | Width          |
+| ------------------------------------ | -------------- |
+| Подтверждение / быстрая форма        | `sm:max-w-md`  |
 | Пикер с библиотекой / большой список | `sm:max-w-2xl` |
-| Reorder / drag-and-drop | `sm:max-w-lg` |
+| Reorder / drag-and-drop              | `sm:max-w-lg`  |
 
 **Запрещено:** inline-раскрытие деталей через `useState` когда контент >4 строк или содержит destructive-действие. Разрешено: компактный accordion в каталоге (§9f).
 
@@ -797,11 +833,11 @@ tplToolbarTextBtnClass               // кнопки в шапке
 ```
 
 Классы sticky-полосы (если нужно собрать вручную):
+
 ```ts
 DOCTOR_CATALOG_STICKY_BAR_CLASS =
-  "sticky z-20 -mx-3 -mt-3 border-b border-border/60 bg-background/95 px-3 py-1.5 backdrop-blur-md"
-DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS =
-  "top-[calc(3.5rem+env(safe-area-inset-top,0px))]"
+  'sticky z-20 -mx-3 -mt-3 border-b border-border/60 bg-background/95 px-3 py-1.5 backdrop-blur-md';
+DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS = 'top-[calc(3.5rem+env(safe-area-inset-top,0px))]';
 ```
 
 **На страницах без каталога** (appointments, intake) — sticky toolbar не нужен. Фильтры-кнопки — в потоке страницы, `flex flex-wrap gap-2`.
@@ -810,17 +846,17 @@ DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS =
 
 ## 16. Кнопки
 
-| Контекст | Size | Variant |
-|---|---|---|
-| Тулбар, primary action (Создать) | `sm` | `default` |
-| Тулбар, secondary (Комментарии, Порядок) | `sm` | `outline` / `secondary` |
-| Scope-переключение (вид, фильтр) | `sm` | `default` / `outline` |
-| Icon-кнопка в строке | `icon` | `outline` |
-| Квадратная «+» в конструкторе | `icon`, доп. `size-7 shrink-0` | `outline` |
-| Назад / скрыть (мобильный) | — | `ghost`, `h-9 px-2` |
-| Destructive / удалить | `sm` | `destructive` |
-| Inline CTA в tab/секции | `sm` | `outline` |
-| Quick-action chips (action strip) | `sm` | `default` / `secondary` с `h-7 px-2.5 text-xs` |
+| Контекст                                 | Size                           | Variant                                        |
+| ---------------------------------------- | ------------------------------ | ---------------------------------------------- |
+| Тулбар, primary action (Создать)         | `sm`                           | `default`                                      |
+| Тулбар, secondary (Комментарии, Порядок) | `sm`                           | `outline` / `secondary`                        |
+| Scope-переключение (вид, фильтр)         | `sm`                           | `default` / `outline`                          |
+| Icon-кнопка в строке                     | `icon`                         | `outline`                                      |
+| Квадратная «+» в конструкторе            | `icon`, доп. `size-7 shrink-0` | `outline`                                      |
+| Назад / скрыть (мобильный)               | —                              | `ghost`, `h-9 px-2`                            |
+| Destructive / удалить                    | `sm`                           | `destructive`                                  |
+| Inline CTA в tab/секции                  | `sm`                           | `outline`                                      |
+| Quick-action chips (action strip)        | `sm`                           | `default` / `secondary` с `h-7 px-2.5 text-xs` |
 
 **Не использовать `ghost` как primary action.** Ghost — только навигация «назад», «скрыть».
 
@@ -829,6 +865,7 @@ DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS =
 ## 17. Статусные бейджи и тоны
 
 shadcn `Badge`:
+
 ```tsx
 <Badge variant="default">Новая</Badge>        // синий/primary
 <Badge variant="secondary">В работе</Badge>   // серый
@@ -837,29 +874,36 @@ shadcn `Badge`:
 ```
 
 Статус-пилюля (inline, не Badge):
+
 ```tsx
-<span className={cn(
-  "rounded-md px-1.5 py-0.5 text-xs font-medium uppercase tracking-wide",
-  isActive ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
-)}>{label}</span>
+<span
+  className={cn(
+    'rounded-md px-1.5 py-0.5 text-xs font-medium uppercase tracking-wide',
+    isActive ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground',
+  )}
+>
+  {label}
+</span>
 ```
 
 Семантические тоны для секций:
 
-| Тон | Border | Background |
-|---|---|---|
-| Предупреждение / warning | `border-destructive/40` | `bg-destructive/5` |
-| Amber (несохранённые изменения) | `border-amber-500/40` | `bg-amber-500/5` |
-| Акцент / deep-link | `border-primary/30` | `bg-card` |
-| Ошибка / блокировка | `border-destructive/50` | `bg-destructive/10` |
-| Amber info (предупреждение параметра) | `border-amber-500/40` | `bg-amber-500/10` |
+| Тон                                   | Border                  | Background          |
+| ------------------------------------- | ----------------------- | ------------------- |
+| Предупреждение / warning              | `border-destructive/40` | `bg-destructive/5`  |
+| Amber (несохранённые изменения)       | `border-amber-500/40`   | `bg-amber-500/5`    |
+| Акцент / deep-link                    | `border-primary/30`     | `bg-card`           |
+| Ошибка / блокировка                   | `border-destructive/50` | `bg-destructive/10` |
+| Amber info (предупреждение параметра) | `border-amber-500/40`   | `bg-amber-500/10`   |
 
 Счётчик непрочитанных (в tab или строке списка):
+
 ```
 rounded-full border border-border bg-muted/50 px-2 py-0.5 text-xs font-medium tabular-nums
 ```
 
 Счётчик в кнопке (на светлом фоне кнопки):
+
 ```
 ml-1.5 rounded-full bg-primary-foreground px-1.5 py-0.5 text-xs font-semibold tabular-nums text-primary
 ```
@@ -884,6 +928,7 @@ ml-1.5 rounded-full bg-primary-foreground px-1.5 py-0.5 text-xs font-semibold ta
 ```
 
 В каталожном list/tile режиме:
+
 ```tsx
 <p className="px-2 pb-2 text-sm text-muted-foreground">Нет элементов по заданным фильтрам.</p>
 ```
@@ -911,87 +956,85 @@ ml-1.5 rounded-full bg-primary-foreground px-1.5 py-0.5 text-xs font-semibold ta
 Содержимое (синхронизировать при добавлении экспортов):
 
 ```ts
-import { cn } from "@/lib/utils";
+import { cn } from '@/lib/utils';
 
 // ── Секции на странице ──────────────────────────────────────────────────────
 
 /** Page-level секция: основной контейнер на странице. */
 export const doctorSectionCardClass =
-  "rounded-[var(--doctor-page-block-radius,12px)] border border-border bg-card p-[var(--doctor-block-padding,18px)] flex flex-col gap-3";
+  'rounded-[var(--doctor-page-block-radius,12px)] border border-border bg-card p-[var(--doctor-block-padding,18px)] flex flex-col gap-3';
 
 /** Вложенная строка-карточка внутри page-section (записи, заявки, инсайты). */
 export const doctorSectionItemClass =
-  "rounded-lg border border-border/70 bg-background/40 p-3 text-sm";
+  'rounded-lg border border-border/70 bg-background/40 p-3 text-sm';
 
 /** Строка с семантическим тоном (urgent = destructive, normal = muted). */
-export const doctorSectionItemUrgentClass = "border-destructive/40 bg-destructive/5";
-export const doctorSectionItemNeutralClass = "border-border bg-muted/15";
+export const doctorSectionItemUrgentClass = 'border-destructive/40 bg-destructive/5';
+export const doctorSectionItemNeutralClass = 'border-border bg-muted/15';
 
 // ── Списки ──────────────────────────────────────────────────────────────────
 
 /** Внешняя карточка-ссылка (строка списка клиентов, standalone). */
-export const doctorListItemOuterClass = "rounded-lg border border-border bg-card p-0";
+export const doctorListItemOuterClass = 'rounded-lg border border-border bg-card p-0';
 
 /** Кликабельная строка master-list в каталоге. */
 export const doctorCatalogRowClass =
-  "flex w-full items-center gap-2 border-b border-border px-[var(--doctor-list-inline-padding,18px)] py-2.5 text-left text-base font-normal hover:bg-muted last:border-b-0";
+  'flex w-full items-center gap-2 border-b border-border px-[var(--doctor-list-inline-padding,18px)] py-2.5 text-left text-base font-normal hover:bg-muted last:border-b-0';
 
 /** Активная строка master-list. */
 export const doctorCatalogRowActiveClass =
-  "border-primary/25 bg-primary/15 text-primary hover:bg-primary/20 dark:bg-primary/20 dark:hover:bg-primary/25";
+  'border-primary/25 bg-primary/15 text-primary hover:bg-primary/20 dark:bg-primary/20 dark:hover:bg-primary/25';
 
 /** Пустой master-list (list mode). */
-export const doctorCatalogListEmptyClass = "px-2 pb-2 text-sm text-muted-foreground";
+export const doctorCatalogListEmptyClass = 'px-2 pb-2 text-sm text-muted-foreground';
 
 /** Пустая tile-сетка каталога. */
-export const doctorCatalogListEmptyTilesClass = "px-2 text-sm text-muted-foreground";
+export const doctorCatalogListEmptyTilesClass = 'px-2 text-sm text-muted-foreground';
 
 /** Standalone editor page (`new` / `[id]` вне split-layout). */
 export const doctorCatalogEditorSectionClass =
-  "flex flex-col gap-3 rounded-lg border border-border bg-card p-4 shadow-sm";
+  'flex flex-col gap-3 rounded-lg border border-border bg-card p-4 shadow-sm';
 
 /** Хроника / мини-событие внутри панели. */
-export const doctorHistoryRowClass =
-  "rounded-md border border-border/60 bg-muted/10 px-2 py-1.5";
+export const doctorHistoryRowClass = 'rounded-md border border-border/60 bg-muted/10 px-2 py-1.5';
 
 // ── Типографика ─────────────────────────────────────────────────────────────
 
 /** Заголовок секции / панели (h2, h3). */
-export const doctorSectionTitleClass = "text-sm font-semibold text-foreground";
+export const doctorSectionTitleClass = 'text-sm font-semibold text-foreground';
 
 /** Вспомогательный текст под заголовком. */
-export const doctorSectionSubtitleClass = "text-xs text-muted-foreground";
+export const doctorSectionSubtitleClass = 'text-xs text-muted-foreground';
 
 /** Inline-link. */
-export const doctorInlineLinkClass = "text-primary underline underline-offset-2";
+export const doctorInlineLinkClass = 'text-primary underline underline-offset-2';
 
 /** Hover-link (вторичная ссылка). */
-export const doctorHoverLinkClass = "text-primary underline-offset-4 hover:underline font-medium";
+export const doctorHoverLinkClass = 'text-primary underline-offset-4 hover:underline font-medium';
 
 // ── Пустые состояния ────────────────────────────────────────────────────────
 
 /** Обёртка пустого состояния. */
-export const doctorEmptyStateClass = "flex flex-col gap-2 text-sm text-muted-foreground";
+export const doctorEmptyStateClass = 'flex flex-col gap-2 text-sm text-muted-foreground';
 
 // ── Сетки ───────────────────────────────────────────────────────────────────
 
 /** Сетка KPI stat-карточек. */
-export const doctorStatCardGridClass = "grid gap-3 sm:grid-cols-2 xl:grid-cols-4";
+export const doctorStatCardGridClass = 'grid gap-3 sm:grid-cols-2 xl:grid-cols-4';
 
 /** Сетка медиакарточек библиотеки. */
-export const doctorMediaCardGridClass = "grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4";
+export const doctorMediaCardGridClass = 'grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4';
 
 // ── Лэйаут-хелперы ───────────────────────────────────────────────────────────
 
 /** Заголовок страницы (h1) в AppShell или standalone-header. */
-export const doctorPageTitleClass = "text-base font-semibold tracking-tight text-foreground";
+export const doctorPageTitleClass = 'text-base font-semibold tracking-tight text-foreground';
 
 /** Вертикальный стек контента doctor-страницы. */
-export const doctorPageStackClass = "flex flex-col gap-3";
+export const doctorPageStackClass = 'flex flex-col gap-3';
 
 /** Стек заголовка внутри page-level секции. */
-export const doctorSectionHeaderStackClass = "flex flex-col gap-0.5";
-
+export const doctorSectionHeaderStackClass = 'flex flex-col gap-0.5';
 ```
 
 Overview-сетка и панели уровня 2 — в `doctorClientCardChrome.ts` (`doctorClientOverviewGridClass`, primary/secondary/stacked).

@@ -1,15 +1,15 @@
 ---
 name: Reminder UX Full
-overview: "Reminder UX — закрыт (2026-05-09): rehab slots_v1, mute, integrator-проекция, главная n/N; документы в docs/archive/2026-05-initiatives/PATIENT_REMINDER_UX_INITIATIVE/; план ниже — нормативный слепок решений и этапов."
+overview: 'Reminder UX — закрыт (2026-05-09): rehab slots_v1, mute, integrator-проекция, главная n/N; документы в docs/archive/2026-05-initiatives/PATIENT_REMINDER_UX_INITIATIVE/; план ниже — нормативный слепок решений и этапов.'
 status: completed
-completedAt: "2026-05-09"
-mergeRef: "677a18d0"
+completedAt: '2026-05-09'
+mergeRef: '677a18d0'
 todos:
   - id: docs-initiative-and-decisions
     content: Создать docs/archive/2026-05-initiatives/PATIENT_REMINDER_UX_INITIATIVE (README/ROADMAP/LOG), cross-links в docs/README; зафиксировать ADR с Locked Decisions.
     status: completed
   - id: schema-domain-rehab-slots-mute
-    content: "Миграции и контракты: rehab_program, reminder_intent, slots_v1 JSON, optional label/description, сущность mute_until."
+    content: 'Миграции и контракты: rehab_program, reminder_intent, slots_v1 JSON, optional label/description, сущность mute_until.'
     status: completed
   - id: recurrence-policy-home-helpers
     content: Обновить policy (integrator) и nextReminderOccurrence + backward compat interval_window; дефолт будни 12/15/17 при первичной инициализации rehab.
@@ -218,13 +218,13 @@ Gate: component tests home reminder block; edge cases: N=0, all done, partially 
 
 ## Риски и меры
 
-| Риск | Мера |
-|------|------|
-| Коллизия `(user_id, category)` в integrator | **Снято:** источник истины — webapp `reminder_rules` по `rule.id`; projection по HTTP. |
-| Сложность recurrence | Выделить модуль нормализации + table-driven tests по TZ. |
-| Разъезд контрактов webapp/integrator | Сначала контракты и route tests, затем UI. |
-| Длинные `occurrenceId` и Telegram | Короткие префиксы callback; при нехватке места — только URL row; тесты как в [`reminderInlineKeyboard.test.ts`](apps/integrator/src/kernel/domain/reminders/reminderInlineKeyboard.test.ts). |
-| `handleReminderDispatch` stub — соблазн расширить | **Не трогать.** Dispatch только через integrator-планировщик. Stub документируется как «not implemented by design». |
+| Риск                                              | Мера                                                                                                                                                                                         |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Коллизия `(user_id, category)` в integrator       | **Снято:** источник истины — webapp `reminder_rules` по `rule.id`; projection по HTTP.                                                                                                       |
+| Сложность recurrence                              | Выделить модуль нормализации + table-driven tests по TZ.                                                                                                                                     |
+| Разъезд контрактов webapp/integrator              | Сначала контракты и route tests, затем UI.                                                                                                                                                   |
+| Длинные `occurrenceId` и Telegram                 | Короткие префиксы callback; при нехватке места — только URL row; тесты как в [`reminderInlineKeyboard.test.ts`](apps/integrator/src/kernel/domain/reminders/reminderInlineKeyboard.test.ts). |
+| `handleReminderDispatch` stub — соблазн расширить | **Не трогать.** Dispatch только через integrator-планировщик. Stub документируется как «not implemented by design».                                                                          |
 
 ---
 

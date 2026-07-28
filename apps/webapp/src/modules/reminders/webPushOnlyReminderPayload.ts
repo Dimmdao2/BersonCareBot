@@ -1,19 +1,21 @@
 import {
   buildReminderDeepLinkAsync,
   type BuildReminderDeepLinkOptions,
-} from "./buildReminderDeepLink";
-import type { ReminderIntentSectionLookup } from "./resolveReminderIntentForLinkedObject";
-import type { ReminderIntent } from "./types";
-import { notificationTopicCodeFromReminderRule } from "./notificationTopicCode";
-import type { WebPushOnlyReminderRuleRow } from "./webPushOnlyPorts";
+} from './buildReminderDeepLink';
+import type { ReminderIntentSectionLookup } from './resolveReminderIntentForLinkedObject';
+import type { ReminderIntent } from './types';
+import { notificationTopicCodeFromReminderRule } from './notificationTopicCode';
+import type { WebPushOnlyReminderRuleRow } from './webPushOnlyPorts';
 
-export function resolveWebPushOnlyReminderTopicCode(rule: WebPushOnlyReminderRuleRow): string | null {
+export function resolveWebPushOnlyReminderTopicCode(
+  rule: WebPushOnlyReminderRuleRow,
+): string | null {
   const explicit = rule.notificationTopicCode?.trim();
   if (explicit) return explicit;
   return notificationTopicCodeFromReminderRule({
     category: rule.category,
     linkedObjectType: rule.linkedObjectType,
-    reminderIntent: (rule.reminderIntent ?? "generic") as ReminderIntent,
+    reminderIntent: (rule.reminderIntent ?? 'generic') as ReminderIntent,
   });
 }
 
@@ -26,17 +28,14 @@ export async function buildWebPushOnlyReminderNotifyContent(
     targetOrganizationId?: string;
   },
 ): Promise<{ title: string; bodyText: string; openUrl: string; topicCode: string | null }> {
-  let title =
-    rule.customTitle?.trim() ||
-    rule.displayTitle?.trim() ||
-    null;
+  let title = rule.customTitle?.trim() || rule.displayTitle?.trim() || null;
 
   if (!title && rule.linkedObjectType && rule.linkedObjectId?.trim()) {
     title = await resolveLinkedTitle(rule.linkedObjectType, rule.linkedObjectId.trim());
   }
 
-  const notifyTitle = title?.trim() || "Напоминание";
-  const bodyText = rule.customText?.trim() ?? "";
+  const notifyTitle = title?.trim() || 'Напоминание';
+  const bodyText = rule.customText?.trim() ?? '';
   const openUrl = await buildReminderDeepLinkAsync(
     {
       linkedObjectType: rule.linkedObjectType,

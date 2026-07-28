@@ -1,11 +1,11 @@
 export type ClientTimelineCategory =
-  | "appointment"
-  | "payment"
-  | "package"
-  | "product"
-  | "comment"
-  | "reschedule"
-  | "cancellation";
+  | 'appointment'
+  | 'payment'
+  | 'package'
+  | 'product'
+  | 'comment'
+  | 'reschedule'
+  | 'cancellation';
 
 export type ClientTimelineItem = {
   id: string;

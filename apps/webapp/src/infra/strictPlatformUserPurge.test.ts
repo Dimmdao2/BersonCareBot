@@ -1,6 +1,6 @@
 /** @vitest-environment node */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { getIntegratorPoolMockRef } = vi.hoisted(() => ({
   getIntegratorPoolMockRef: { current: {} as unknown },
@@ -17,22 +17,22 @@ const poolQueryMock = vi.fn();
 const clientQueryMock = vi.fn();
 const pgAdvisoryXactLockMock = vi.fn();
 
-vi.mock("@/infra/db/pgAdvisoryLock", () => ({
+vi.mock('@/infra/db/pgAdvisoryLock', () => ({
   pgAdvisoryXactLock: (...a: unknown[]) => pgAdvisoryXactLockMock(...a),
 }));
 
-vi.mock("@/config/env", () => ({
+vi.mock('@/config/env', () => ({
   env: {},
   isS3MediaEnabled: () => true,
 }));
 
-vi.mock("@/infra/adminAuditLog", () => ({
+vi.mock('@/infra/adminAuditLog', () => ({
   writeAuditLog: (...a: unknown[]) => writeAuditLogMock(...a),
 }));
 
-vi.mock("@/infra/platformUserFullPurge", async () => {
-  const actual = await vi.importActual<typeof import("@/infra/platformUserFullPurge")>(
-    "@/infra/platformUserFullPurge",
+vi.mock('@/infra/platformUserFullPurge', async () => {
+  const actual = await vi.importActual<typeof import('@/infra/platformUserFullPurge')>(
+    '@/infra/platformUserFullPurge',
   );
   return {
     ...actual,
@@ -41,15 +41,15 @@ vi.mock("@/infra/platformUserFullPurge", async () => {
     runWebappPurgeCoreInTransaction: (...a: unknown[]) => runCoreMock(...a),
     deleteIntegratorPhoneDataWithResult: (...a: unknown[]) => deleteIntegratorResultMock(...a),
     resolveIntegratorUserIds: (...a: unknown[]) => resolveIntegratorIdsMock(...a),
-    getIntegratorPoolForPurge: () => getIntegratorPoolMockRef.current as import("pg").Pool | null,
+    getIntegratorPoolForPurge: () => getIntegratorPoolMockRef.current as import('pg').Pool | null,
   };
 });
 
-vi.mock("@/infra/s3/client", () => ({
+vi.mock('@/infra/s3/client', () => ({
   deleteS3ObjectsWithPerKeyResults: (...a: unknown[]) => deleteS3Mock(...a),
 }));
 
-vi.mock("@/infra/db/client", () => ({
+vi.mock('@/infra/db/client', () => ({
   getPool: () => ({
     connect: () =>
       Promise.resolve({
@@ -60,9 +60,9 @@ vi.mock("@/infra/db/client", () => ({
   }),
 }));
 
-const uid = "00000000-0000-4000-8000-000000000099";
+const uid = '00000000-0000-4000-8000-000000000099';
 
-describe("runStrictPurgePlatformUser", () => {
+describe('runStrictPurgePlatformUser', () => {
   beforeEach(() => {
     getIntegratorPoolMockRef.current = {};
     writeAuditLogMock.mockResolvedValue(undefined);
@@ -73,14 +73,14 @@ describe("runStrictPurgePlatformUser", () => {
     deleteIntegratorResultMock.mockResolvedValue({ ok: true, skipped: true });
     resolveIntegratorIdsMock.mockResolvedValue([]);
     poolQueryMock.mockImplementation((sql: string) => {
-      if (String(sql).includes("platform_users") && String(sql).includes("WHERE id")) {
+      if (String(sql).includes('platform_users') && String(sql).includes('WHERE id')) {
         return Promise.resolve({
           rows: [
             {
               id: uid,
-              phone_normalized: "+70000000000",
-              integrator_user_id: "42",
-              role: "client",
+              phone_normalized: '+70000000000',
+              integrator_user_id: '42',
+              role: 'client',
             },
           ],
         });
@@ -90,49 +90,53 @@ describe("runStrictPurgePlatformUser", () => {
     clientQueryMock.mockImplementation((sql: string) => Promise.resolve({ rows: [], rowCount: 0 }));
   });
 
-  it("writes audit with error when webapp transaction fails — separate from rolled-back tx", async () => {
-    const { runStrictPurgePlatformUser } = await import("@/infra/strictPlatformUserPurge");
+  it('writes audit with error when webapp transaction fails — separate from rolled-back tx', async () => {
+    const { runStrictPurgePlatformUser } = await import('@/infra/strictPlatformUserPurge');
     clientQueryMock.mockImplementation((sql: string) => {
-      if (sql === "COMMIT") return Promise.reject(new Error("forced_fail"));
+      if (sql === 'COMMIT') return Promise.reject(new Error('forced_fail'));
       return Promise.resolve({ rows: [], rowCount: 0 });
     });
 
     const r = await runStrictPurgePlatformUser({
       targetId: uid,
-      actorId: "00000000-0000-4000-8000-0000000000a1",
+      actorId: '00000000-0000-4000-8000-0000000000a1',
       audit: { enabled: true },
     });
 
     expect(r.ok).toBe(false);
-    if (r.ok) throw new Error("expected failure");
-    expect(r.error).toBe("transaction_failed");
+    if (r.ok) throw new Error('expected failure');
+    expect(r.error).toBe('transaction_failed');
     expect(writeAuditLogMock).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
-        action: "user_purge",
-        status: "error",
+        action: 'user_purge',
+        status: 'error',
         targetId: uid,
       }),
     );
   });
 
-  it("runs BEGIN → exclusive lock → collect keys → core → COMMIT", async () => {
-    const { runStrictPurgePlatformUser } = await import("@/infra/strictPlatformUserPurge");
+  it('runs BEGIN → exclusive lock → collect keys → core → COMMIT', async () => {
+    const { runStrictPurgePlatformUser } = await import('@/infra/strictPlatformUserPurge');
     const order: string[] = [];
     pgAdvisoryXactLockMock.mockImplementation(async () => {
-      order.push("lock");
+      order.push('lock');
     });
     clientQueryMock.mockImplementation((sql: string) => {
       order.push(sql);
       return Promise.resolve({ rows: [], rowCount: 0 });
     });
 
-    const r = await runStrictPurgePlatformUser({ targetId: uid, actorId: null, audit: { enabled: false } });
+    const r = await runStrictPurgePlatformUser({
+      targetId: uid,
+      actorId: null,
+      audit: { enabled: false },
+    });
 
     expect(r.ok).toBe(true);
-    const beginIdx = order.indexOf("BEGIN");
-    const lockIdx = order.indexOf("lock");
-    const commitIdx = order.indexOf("COMMIT");
+    const beginIdx = order.indexOf('BEGIN');
+    const lockIdx = order.indexOf('lock');
+    const commitIdx = order.indexOf('COMMIT');
     expect(beginIdx).toBeGreaterThanOrEqual(0);
     expect(lockIdx).toBeGreaterThan(beginIdx);
     expect(commitIdx).toBeGreaterThan(lockIdx);
@@ -141,178 +145,51 @@ describe("runStrictPurgePlatformUser", () => {
     expect(runCoreMock).toHaveBeenCalled();
   });
 
-  it("post-commit: S3 and integrator both run even when S3 has failures (no short-circuit)", async () => {
-    const { runStrictPurgePlatformUser } = await import("@/infra/strictPlatformUserPurge");
+  it('post-commit: S3 and integrator both run even when S3 has failures (no short-circuit)', async () => {
+    const { runStrictPurgePlatformUser } = await import('@/infra/strictPlatformUserPurge');
     collectKeysMock.mockResolvedValue({
-      intakeS3Keys: ["k1"],
-      mediaFiles: [{ id: "00000000-0000-4000-8000-0000000000aa", s3Key: "k2" }],
+      intakeS3Keys: ['k1'],
+      mediaFiles: [{ id: '00000000-0000-4000-8000-0000000000aa', s3Key: 'k2' }],
     });
     deleteS3Mock.mockResolvedValue([
-      { key: "k1", ok: false, error: "s3_down" },
-      { key: "k2", ok: true },
+      { key: 'k1', ok: false, error: 's3_down' },
+      { key: 'k2', ok: true },
     ]);
-    deleteIntegratorResultMock.mockResolvedValue({ ok: false, message: "integrator_down" });
-    resolveIntegratorIdsMock.mockResolvedValue(["1"]);
+    deleteIntegratorResultMock.mockResolvedValue({ ok: false, message: 'integrator_down' });
+    resolveIntegratorIdsMock.mockResolvedValue(['1']);
 
-    const r = await runStrictPurgePlatformUser({ targetId: uid, actorId: null, audit: { enabled: false } });
+    const r = await runStrictPurgePlatformUser({
+      targetId: uid,
+      actorId: null,
+      audit: { enabled: false },
+    });
 
     expect(deleteS3Mock).toHaveBeenCalled();
     expect(deleteIntegratorResultMock).toHaveBeenCalled();
     expect(r.ok).toBe(true);
-    if (r.ok) expect(r.outcome).toBe("partial_failed");
+    if (r.ok) expect(r.outcome).toBe('partial_failed');
   });
 
-  it("deletes media_files rows without s3_key as DB-only artifacts", async () => {
-    const { runStrictPurgePlatformUser } = await import("@/infra/strictPlatformUserPurge");
+  it('deletes media_files rows without s3_key as DB-only artifacts', async () => {
+    const { runStrictPurgePlatformUser } = await import('@/infra/strictPlatformUserPurge');
     collectKeysMock.mockResolvedValue({
       intakeS3Keys: [],
-      mediaFiles: [{ id: "00000000-0000-4000-8000-0000000000bb", s3Key: null }],
+      mediaFiles: [{ id: '00000000-0000-4000-8000-0000000000bb', s3Key: null }],
     });
     poolQueryMock.mockImplementation((sql: string) => {
-      if (String(sql).includes("platform_users") && String(sql).includes("WHERE id")) {
+      if (String(sql).includes('platform_users') && String(sql).includes('WHERE id')) {
         return Promise.resolve({
           rows: [
             {
               id: uid,
-              phone_normalized: "+70000000000",
-              integrator_user_id: "42",
-              role: "client",
+              phone_normalized: '+70000000000',
+              integrator_user_id: '42',
+              role: 'client',
             },
           ],
         });
       }
-      if (String(sql).includes("DELETE FROM media_files WHERE id")) {
-        return Promise.resolve({ rows: [], rowCount: 1 });
-      }
-      return Promise.resolve({ rows: [], rowCount: 0 });
-    });
-
-    const r = await runStrictPurgePlatformUser({ targetId: uid, actorId: null, audit: { enabled: false } });
-
-    expect(deleteS3Mock).toHaveBeenCalledWith([]);
-    expect(r.ok).toBe(true);
-    if (r.ok) expect(r.details.mediaRowsDeleted).toBe(1);
-  });
-
-  it("when integrator DB pool is missing but cleanup is required, outcome is needs_retry (not completed)", async () => {
-    const { runStrictPurgePlatformUser } = await import("@/infra/strictPlatformUserPurge");
-    getIntegratorPoolMockRef.current = null;
-    collectKeysMock.mockResolvedValue({ intakeS3Keys: [], mediaFiles: [] });
-    deleteS3Mock.mockResolvedValue([]);
-    deleteIntegratorResultMock.mockResolvedValue({ ok: true, skipped: true });
-    resolveIntegratorIdsMock.mockResolvedValue([]);
-
-    const r = await runStrictPurgePlatformUser({ targetId: uid, actorId: null, audit: { enabled: false } });
-
-    expect(r.ok).toBe(true);
-    if (r.ok) {
-      expect(r.integratorSkipped).toBe(true);
-      expect(r.outcome).toBe("needs_retry");
-    }
-  });
-
-  it("when integrator pool is null and only webappIntegratorUserId signals cleanup (no phone, no bindings), outcome is needs_retry", async () => {
-    const { runStrictPurgePlatformUser } = await import("@/infra/strictPlatformUserPurge");
-    getIntegratorPoolMockRef.current = null;
-    poolQueryMock.mockImplementation((sql: string) => {
-      if (String(sql).includes("platform_users") && String(sql).includes("WHERE id")) {
-        return Promise.resolve({
-          rows: [
-            {
-              id: uid,
-              phone_normalized: null,
-              integrator_user_id: "99",
-              role: "client",
-            },
-          ],
-        });
-      }
-      return Promise.resolve({ rows: [], rowCount: 0 });
-    });
-    collectKeysMock.mockResolvedValue({ intakeS3Keys: [], mediaFiles: [] });
-    deleteS3Mock.mockResolvedValue([]);
-    deleteIntegratorResultMock.mockResolvedValue({ ok: true, skipped: true });
-    resolveIntegratorIdsMock.mockResolvedValue([]);
-
-    const r = await runStrictPurgePlatformUser({ targetId: uid, actorId: null, audit: { enabled: false } });
-
-    expect(r.ok).toBe(true);
-    if (r.ok) {
-      expect(r.integratorSkipped).toBe(true);
-      expect(r.outcome).toBe("needs_retry");
-    }
-  });
-
-  it("when integrator pool is null and no integrator cleanup is needed, outcome is completed", async () => {
-    const { runStrictPurgePlatformUser } = await import("@/infra/strictPlatformUserPurge");
-    getIntegratorPoolMockRef.current = null;
-    poolQueryMock.mockImplementation((sql: string) => {
-      if (String(sql).includes("platform_users") && String(sql).includes("WHERE id")) {
-        return Promise.resolve({
-          rows: [
-            {
-              id: uid,
-              phone_normalized: null,
-              integrator_user_id: null,
-              role: "client",
-            },
-          ],
-        });
-      }
-      return Promise.resolve({ rows: [], rowCount: 0 });
-    });
-    collectKeysMock.mockResolvedValue({ intakeS3Keys: [], mediaFiles: [] });
-    deleteS3Mock.mockResolvedValue([]);
-    deleteIntegratorResultMock.mockResolvedValue({ ok: true, skipped: true });
-    resolveIntegratorIdsMock.mockResolvedValue([]);
-
-    const r = await runStrictPurgePlatformUser({ targetId: uid, actorId: null, audit: { enabled: false } });
-
-    expect(r.ok).toBe(true);
-    if (r.ok) {
-      expect(r.integratorSkipped).toBe(true);
-      expect(r.outcome).toBe("completed");
-    }
-  });
-
-  it("integrator-only failure yields needs_retry when S3 path is clean", async () => {
-    const { runStrictPurgePlatformUser } = await import("@/infra/strictPlatformUserPurge");
-    collectKeysMock.mockResolvedValue({ intakeS3Keys: [], mediaFiles: [] });
-    deleteS3Mock.mockResolvedValue([]);
-    deleteIntegratorResultMock.mockResolvedValue({ ok: false, message: "db_down" });
-    resolveIntegratorIdsMock.mockResolvedValue(["1"]);
-
-    const r = await runStrictPurgePlatformUser({ targetId: uid, actorId: null, audit: { enabled: false } });
-
-    expect(r.ok).toBe(true);
-    if (r.ok) expect(r.outcome).toBe("needs_retry");
-  });
-
-  it("stores retry payload in purge audit details", async () => {
-    const { runStrictPurgePlatformUser } = await import("@/infra/strictPlatformUserPurge");
-    collectKeysMock.mockResolvedValue({
-      intakeS3Keys: ["intake-k1"],
-      mediaFiles: [{ id: "00000000-0000-4000-8000-0000000000cc", s3Key: "media-k1" }],
-    });
-    resolveIntegratorIdsMock.mockResolvedValue(["42", "84"]);
-    deleteS3Mock.mockResolvedValue([
-      { key: "intake-k1", ok: true },
-      { key: "media-k1", ok: true },
-    ]);
-    poolQueryMock.mockImplementation((sql: string) => {
-      if (String(sql).includes("platform_users") && String(sql).includes("WHERE id")) {
-        return Promise.resolve({
-          rows: [
-            {
-              id: uid,
-              phone_normalized: "+70000000000",
-              integrator_user_id: "42",
-              role: "client",
-            },
-          ],
-        });
-      }
-      if (String(sql).includes("DELETE FROM media_files WHERE id")) {
+      if (String(sql).includes('DELETE FROM media_files WHERE id')) {
         return Promise.resolve({ rows: [], rowCount: 1 });
       }
       return Promise.resolve({ rows: [], rowCount: 0 });
@@ -320,7 +197,158 @@ describe("runStrictPurgePlatformUser", () => {
 
     const r = await runStrictPurgePlatformUser({
       targetId: uid,
-      actorId: "00000000-0000-4000-8000-0000000000a1",
+      actorId: null,
+      audit: { enabled: false },
+    });
+
+    expect(deleteS3Mock).toHaveBeenCalledWith([]);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.details.mediaRowsDeleted).toBe(1);
+  });
+
+  it('when integrator DB pool is missing but cleanup is required, outcome is needs_retry (not completed)', async () => {
+    const { runStrictPurgePlatformUser } = await import('@/infra/strictPlatformUserPurge');
+    getIntegratorPoolMockRef.current = null;
+    collectKeysMock.mockResolvedValue({ intakeS3Keys: [], mediaFiles: [] });
+    deleteS3Mock.mockResolvedValue([]);
+    deleteIntegratorResultMock.mockResolvedValue({ ok: true, skipped: true });
+    resolveIntegratorIdsMock.mockResolvedValue([]);
+
+    const r = await runStrictPurgePlatformUser({
+      targetId: uid,
+      actorId: null,
+      audit: { enabled: false },
+    });
+
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.integratorSkipped).toBe(true);
+      expect(r.outcome).toBe('needs_retry');
+    }
+  });
+
+  it('when integrator pool is null and only webappIntegratorUserId signals cleanup (no phone, no bindings), outcome is needs_retry', async () => {
+    const { runStrictPurgePlatformUser } = await import('@/infra/strictPlatformUserPurge');
+    getIntegratorPoolMockRef.current = null;
+    poolQueryMock.mockImplementation((sql: string) => {
+      if (String(sql).includes('platform_users') && String(sql).includes('WHERE id')) {
+        return Promise.resolve({
+          rows: [
+            {
+              id: uid,
+              phone_normalized: null,
+              integrator_user_id: '99',
+              role: 'client',
+            },
+          ],
+        });
+      }
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    });
+    collectKeysMock.mockResolvedValue({ intakeS3Keys: [], mediaFiles: [] });
+    deleteS3Mock.mockResolvedValue([]);
+    deleteIntegratorResultMock.mockResolvedValue({ ok: true, skipped: true });
+    resolveIntegratorIdsMock.mockResolvedValue([]);
+
+    const r = await runStrictPurgePlatformUser({
+      targetId: uid,
+      actorId: null,
+      audit: { enabled: false },
+    });
+
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.integratorSkipped).toBe(true);
+      expect(r.outcome).toBe('needs_retry');
+    }
+  });
+
+  it('when integrator pool is null and no integrator cleanup is needed, outcome is completed', async () => {
+    const { runStrictPurgePlatformUser } = await import('@/infra/strictPlatformUserPurge');
+    getIntegratorPoolMockRef.current = null;
+    poolQueryMock.mockImplementation((sql: string) => {
+      if (String(sql).includes('platform_users') && String(sql).includes('WHERE id')) {
+        return Promise.resolve({
+          rows: [
+            {
+              id: uid,
+              phone_normalized: null,
+              integrator_user_id: null,
+              role: 'client',
+            },
+          ],
+        });
+      }
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    });
+    collectKeysMock.mockResolvedValue({ intakeS3Keys: [], mediaFiles: [] });
+    deleteS3Mock.mockResolvedValue([]);
+    deleteIntegratorResultMock.mockResolvedValue({ ok: true, skipped: true });
+    resolveIntegratorIdsMock.mockResolvedValue([]);
+
+    const r = await runStrictPurgePlatformUser({
+      targetId: uid,
+      actorId: null,
+      audit: { enabled: false },
+    });
+
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.integratorSkipped).toBe(true);
+      expect(r.outcome).toBe('completed');
+    }
+  });
+
+  it('integrator-only failure yields needs_retry when S3 path is clean', async () => {
+    const { runStrictPurgePlatformUser } = await import('@/infra/strictPlatformUserPurge');
+    collectKeysMock.mockResolvedValue({ intakeS3Keys: [], mediaFiles: [] });
+    deleteS3Mock.mockResolvedValue([]);
+    deleteIntegratorResultMock.mockResolvedValue({ ok: false, message: 'db_down' });
+    resolveIntegratorIdsMock.mockResolvedValue(['1']);
+
+    const r = await runStrictPurgePlatformUser({
+      targetId: uid,
+      actorId: null,
+      audit: { enabled: false },
+    });
+
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.outcome).toBe('needs_retry');
+  });
+
+  it('stores retry payload in purge audit details', async () => {
+    const { runStrictPurgePlatformUser } = await import('@/infra/strictPlatformUserPurge');
+    collectKeysMock.mockResolvedValue({
+      intakeS3Keys: ['intake-k1'],
+      mediaFiles: [{ id: '00000000-0000-4000-8000-0000000000cc', s3Key: 'media-k1' }],
+    });
+    resolveIntegratorIdsMock.mockResolvedValue(['42', '84']);
+    deleteS3Mock.mockResolvedValue([
+      { key: 'intake-k1', ok: true },
+      { key: 'media-k1', ok: true },
+    ]);
+    poolQueryMock.mockImplementation((sql: string) => {
+      if (String(sql).includes('platform_users') && String(sql).includes('WHERE id')) {
+        return Promise.resolve({
+          rows: [
+            {
+              id: uid,
+              phone_normalized: '+70000000000',
+              integrator_user_id: '42',
+              role: 'client',
+            },
+          ],
+        });
+      }
+      if (String(sql).includes('DELETE FROM media_files WHERE id')) {
+        return Promise.resolve({ rows: [], rowCount: 1 });
+      }
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    });
+
+    const r = await runStrictPurgePlatformUser({
+      targetId: uid,
+      actorId: '00000000-0000-4000-8000-0000000000a1',
       audit: { enabled: true },
     });
 
@@ -328,17 +356,17 @@ describe("runStrictPurgePlatformUser", () => {
     expect(writeAuditLogMock).toHaveBeenLastCalledWith(
       expect.anything(),
       expect.objectContaining({
-        action: "user_purge",
-        status: "ok",
+        action: 'user_purge',
+        status: 'ok',
         details: expect.objectContaining({
           integratorCleanupNeeded: true,
-          phoneNormalized: "+70000000000",
-          webappIntegratorUserId: "42",
-          resolvedIntegratorUserIds: ["42", "84"],
+          phoneNormalized: '+70000000000',
+          webappIntegratorUserId: '42',
+          resolvedIntegratorUserIds: ['42', '84'],
           messengerBindingsCount: 0,
           artifact: {
-            intakeS3Keys: ["intake-k1"],
-            mediaFiles: [{ id: "00000000-0000-4000-8000-0000000000cc", s3Key: "media-k1" }],
+            intakeS3Keys: ['intake-k1'],
+            mediaFiles: [{ id: '00000000-0000-4000-8000-0000000000cc', s3Key: 'media-k1' }],
           },
         }),
       }),
@@ -346,7 +374,7 @@ describe("runStrictPurgePlatformUser", () => {
   });
 });
 
-describe("retryStrictPurgeExternalCleanup", () => {
+describe('retryStrictPurgeExternalCleanup', () => {
   beforeEach(() => {
     getIntegratorPoolMockRef.current = {};
     writeAuditLogMock.mockResolvedValue(undefined);
@@ -356,37 +384,37 @@ describe("retryStrictPurgeExternalCleanup", () => {
     poolQueryMock.mockResolvedValue({ rows: [], rowCount: 0 });
   });
 
-  it("smoke: runs post-commit helpers", async () => {
-    const { retryStrictPurgeExternalCleanup } = await import("@/infra/strictPlatformUserPurge");
+  it('smoke: runs post-commit helpers', async () => {
+    const { retryStrictPurgeExternalCleanup } = await import('@/infra/strictPlatformUserPurge');
     getIntegratorPoolMockRef.current = null;
     const r = await retryStrictPurgeExternalCleanup({
-      phoneNormalized: "+70000000000",
-      webappIntegratorUserId: "1",
+      phoneNormalized: '+70000000000',
+      webappIntegratorUserId: '1',
       artifact: { intakeS3Keys: [], mediaFiles: [] },
       actorId: null,
       audit: { enabled: false },
     });
     expect(r.ok).toBe(true);
-    if (r.ok) expect(r.outcome).toBe("needs_retry");
+    if (r.ok) expect(r.outcome).toBe('needs_retry');
   });
 
-  it("when pool is null and only webappIntegratorUserId signals cleanup (no phone), outcome is needs_retry", async () => {
-    const { retryStrictPurgeExternalCleanup } = await import("@/infra/strictPlatformUserPurge");
+  it('when pool is null and only webappIntegratorUserId signals cleanup (no phone), outcome is needs_retry', async () => {
+    const { retryStrictPurgeExternalCleanup } = await import('@/infra/strictPlatformUserPurge');
     getIntegratorPoolMockRef.current = null;
     resolveIntegratorIdsMock.mockResolvedValue([]);
     const r = await retryStrictPurgeExternalCleanup({
       phoneNormalized: null,
-      webappIntegratorUserId: "7",
+      webappIntegratorUserId: '7',
       artifact: { intakeS3Keys: [], mediaFiles: [] },
       actorId: null,
       audit: { enabled: false },
     });
     expect(r.ok).toBe(true);
-    if (r.ok) expect(r.outcome).toBe("needs_retry");
+    if (r.ok) expect(r.outcome).toBe('needs_retry');
   });
 
-  it("when pool is null and no cleanup signals, retry outcome is completed", async () => {
-    const { retryStrictPurgeExternalCleanup } = await import("@/infra/strictPlatformUserPurge");
+  it('when pool is null and no cleanup signals, retry outcome is completed', async () => {
+    const { retryStrictPurgeExternalCleanup } = await import('@/infra/strictPlatformUserPurge');
     getIntegratorPoolMockRef.current = null;
     resolveIntegratorIdsMock.mockResolvedValue([]);
     const r = await retryStrictPurgeExternalCleanup({
@@ -397,6 +425,6 @@ describe("retryStrictPurgeExternalCleanup", () => {
       audit: { enabled: false },
     });
     expect(r.ok).toBe(true);
-    if (r.ok) expect(r.outcome).toBe("completed");
+    if (r.ok) expect(r.outcome).toBe('completed');
   });
 });

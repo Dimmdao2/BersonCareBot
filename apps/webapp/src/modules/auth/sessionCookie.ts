@@ -1,11 +1,11 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
-import type { NextRequest, NextResponse } from "next/server";
-import { env, isProduction } from "@/config/env";
-import type { AppSession, SessionUser } from "@/shared/types/session";
-import { decodeBase64Url, encodeBase64Url } from "@/shared/utils/base64url";
-import { FRESH_LOGIN_COOKIE_NAME, SESSION_COOKIE_NAME } from "@/modules/auth/sessionCookieNames";
+import { createHmac, timingSafeEqual } from 'node:crypto';
+import type { NextRequest, NextResponse } from 'next/server';
+import { env, isProduction } from '@/config/env';
+import type { AppSession, SessionUser } from '@/shared/types/session';
+import { decodeBase64Url, encodeBase64Url } from '@/shared/utils/base64url';
+import { FRESH_LOGIN_COOKIE_NAME, SESSION_COOKIE_NAME } from '@/modules/auth/sessionCookieNames';
 
-export { FRESH_LOGIN_COOKIE_NAME, SESSION_COOKIE_NAME } from "@/modules/auth/sessionCookieNames";
+export { FRESH_LOGIN_COOKIE_NAME, SESSION_COOKIE_NAME } from '@/modules/auth/sessionCookieNames';
 const FRESH_LOGIN_COOKIE_MAX_AGE_SEC = 120;
 
 /**
@@ -40,7 +40,7 @@ export const SESSION_ABSOLUTE_MAX_AGE_SECONDS = 60 * 60 * 24 * 90;
 const RENEW_MIN_INTERVAL_SEC = 60 * 60 * 24;
 
 function sign(value: string, secret: string): string {
-  return createHmac("sha256", secret).update(value).digest("base64url");
+  return createHmac('sha256', secret).update(value).digest('base64url');
 }
 
 function safeEqual(a: string, b: string): boolean {
@@ -49,17 +49,17 @@ function safeEqual(a: string, b: string): boolean {
   return left.length === right.length && timingSafeEqual(left, right);
 }
 
-export function sessionTtlSecondsForRole(role: SessionUser["role"]): number {
+export function sessionTtlSecondsForRole(role: SessionUser['role']): number {
   // Staff = doctor + global-admin (`admin`). Idle/renewal TTL: staff 12h, patient 30d (S2 remedy,
   // 2026-07-25 — see the constant doc comments above for why this is no longer also the max age).
-  return role === "doctor" || role === "admin"
+  return role === 'doctor' || role === 'admin'
     ? SESSION_SLIDING_TTL_STAFF_SECONDS
     : SESSION_SLIDING_TTL_SECONDS;
 }
 
 /** Absolute-age ceiling for the role: staff 7 days, patient 90 days (S2 remedy, 2026-07-25). */
-export function sessionAbsoluteMaxAgeSecondsForRole(role: SessionUser["role"]): number {
-  return role === "doctor" || role === "admin"
+export function sessionAbsoluteMaxAgeSecondsForRole(role: SessionUser['role']): number {
+  return role === 'doctor' || role === 'admin'
     ? SESSION_ABSOLUTE_MAX_AGE_STAFF_SECONDS
     : SESSION_ABSOLUTE_MAX_AGE_SECONDS;
 }
@@ -71,10 +71,10 @@ export function sessionAbsoluteMaxAgeSecondsForRole(role: SessionUser["role"]): 
  * bounded TEST visual session is exempt, same as everywhere else it is checked.
  */
 export function isSessionBeyondAbsoluteMaxAge(
-  session: Pick<AppSession, "issuedAt" | "user" | "operatorSession">,
+  session: Pick<AppSession, 'issuedAt' | 'user' | 'operatorSession'>,
   nowSec: number = Math.floor(Date.now() / 1000),
 ): boolean {
-  if (session.operatorSession?.purpose === "test_global_admin_visual") return false;
+  if (session.operatorSession?.purpose === 'test_global_admin_visual') return false;
   return nowSec - session.issuedAt >= sessionAbsoluteMaxAgeSecondsForRole(session.user.role);
 }
 
@@ -88,7 +88,7 @@ export function encodeSessionCookie(session: AppSession): string {
   return `${payload}.${signature}`;
 }
 
-const SESSION_USER_ROLES = new Set<SessionUser["role"]>(["client", "doctor", "admin"]);
+const SESSION_USER_ROLES = new Set<SessionUser['role']>(['client', 'doctor', 'admin']);
 
 /**
  * Shape validation for a signature-verified session payload (D4, 2026-07-26).
@@ -106,13 +106,13 @@ const SESSION_USER_ROLES = new Set<SessionUser["role"]>(["client", "doctor", "ad
  * positive integer, and the chokepoint separately rejects its ABSENCE for any DB-backed identity.
  */
 function isWellFormedSessionPayload(parsed: unknown): parsed is AppSession {
-  if (!parsed || typeof parsed !== "object") return false;
+  if (!parsed || typeof parsed !== 'object') return false;
   const session = parsed as Partial<AppSession>;
   if (!Number.isSafeInteger(session.issuedAt)) return false;
   if (!Number.isSafeInteger(session.expiresAt)) return false;
   const user = session.user;
-  if (!user || typeof user !== "object") return false;
-  if (typeof user.userId !== "string" || user.userId.trim() === "") return false;
+  if (!user || typeof user !== 'object') return false;
+  if (typeof user.userId !== 'string' || user.userId.trim() === '') return false;
   if (!SESSION_USER_ROLES.has(user.role)) return false;
   if (user.sessionEpoch !== undefined) {
     if (!Number.isSafeInteger(user.sessionEpoch) || (user.sessionEpoch as number) < 1) return false;
@@ -121,7 +121,7 @@ function isWellFormedSessionPayload(parsed: unknown): parsed is AppSession {
 }
 
 export function decodeSessionCookie(raw: string): AppSession | null {
-  const [payload, signature] = raw.split(".");
+  const [payload, signature] = raw.split('.');
   if (!payload || !signature) return null;
   if (!safeEqual(signature, sign(payload, env.SESSION_COOKIE_SECRET))) return null;
 
@@ -136,8 +136,8 @@ export function decodeSessionCookie(raw: string): AppSession | null {
   if (
     operatorSession !== undefined &&
     (operatorSession === null ||
-      typeof operatorSession !== "object" ||
-      operatorSession.purpose !== "test_global_admin_visual" ||
+      typeof operatorSession !== 'object' ||
+      operatorSession.purpose !== 'test_global_admin_visual' ||
       !Number.isSafeInteger(operatorSession.expiresAt) ||
       operatorSession.expiresAt !== parsed.expiresAt)
   ) {
@@ -151,8 +151,11 @@ export function cookieMaxAgeSeconds(session: AppSession): number {
   return Math.max(0, session.expiresAt - Math.floor(Date.now() / 1000));
 }
 
-export function shouldRenewSession(session: AppSession, nowSec = Math.floor(Date.now() / 1000)): boolean {
-  if (session.operatorSession?.purpose === "test_global_admin_visual") return false;
+export function shouldRenewSession(
+  session: AppSession,
+  nowSec = Math.floor(Date.now() / 1000),
+): boolean {
+  if (session.operatorSession?.purpose === 'test_global_admin_visual') return false;
   // Hard ceiling first (S2 remedy, 2026-07-25): a session past its absolute max age never renews,
   // no matter how much idle TTL would otherwise remain — this is what stops "replay + renew
   // forever" now that the idle TTL alone no longer bounds total session lifetime.
@@ -165,7 +168,7 @@ export function shouldRenewSession(session: AppSession, nowSec = Math.floor(Date
 }
 
 export function renewSessionIfActive(session: AppSession): AppSession {
-  if (session.operatorSession?.purpose === "test_global_admin_visual") return session;
+  if (session.operatorSession?.purpose === 'test_global_admin_visual') return session;
   // Defense in depth alongside the shouldRenewSession() gate every caller already checks first
   // (S2 remedy, 2026-07-25): this function's own contract is "never extend past the absolute max
   // age", so it holds even if a future caller invokes it directly without the gate.
@@ -185,9 +188,9 @@ export function buildRenewedSessionCookieOptions(session: AppSession) {
 export function buildSessionCookieOptions(session: AppSession) {
   return {
     httpOnly: true as const,
-    sameSite: "lax" as const,
+    sameSite: 'lax' as const,
     secure: isProduction,
-    path: "/",
+    path: '/',
     maxAge: cookieMaxAgeSeconds(session),
   };
 }
@@ -195,9 +198,9 @@ export function buildSessionCookieOptions(session: AppSession) {
 export function buildFreshLoginMarkerCookieOptions() {
   return {
     httpOnly: false as const,
-    sameSite: "lax" as const,
+    sameSite: 'lax' as const,
     secure: isProduction,
-    path: "/",
+    path: '/',
     maxAge: FRESH_LOGIN_COOKIE_MAX_AGE_SEC,
   };
 }
@@ -211,11 +214,11 @@ type CookieWriter = {
 };
 
 export function writeFreshLoginMarkerCookie(cookieStore: CookieWriter): void {
-  cookieStore.set(FRESH_LOGIN_COOKIE_NAME, "1", buildFreshLoginMarkerCookieOptions());
+  cookieStore.set(FRESH_LOGIN_COOKIE_NAME, '1', buildFreshLoginMarkerCookieOptions());
 }
 
 export function clearFreshLoginMarkerCookie(cookieStore: CookieWriter): void {
-  cookieStore.set(FRESH_LOGIN_COOKIE_NAME, "", {
+  cookieStore.set(FRESH_LOGIN_COOKIE_NAME, '', {
     ...buildFreshLoginMarkerCookieOptions(),
     maxAge: 0,
   });

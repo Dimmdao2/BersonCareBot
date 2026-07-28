@@ -1,12 +1,12 @@
-import { and, eq } from "drizzle-orm";
-import type { DrizzleDb } from "@/app-layer/db/drizzle";
-import { orgEnrollments } from "../../../db/schema/bookingEngine";
+import { and, eq } from 'drizzle-orm';
+import type { DrizzleDb } from '@/app-layer/db/drizzle';
+import { orgEnrollments } from '../../../db/schema/bookingEngine';
 
-export type SchedulableClientEnrollmentStatus = "invited" | "active";
+export type SchedulableClientEnrollmentStatus = 'invited' | 'active';
 
 export class OrganizationClientRelationshipDeniedError extends Error {
   constructor() {
-    super("patient_not_available");
+    super('patient_not_available');
   }
 }
 
@@ -35,19 +35,19 @@ export async function ensureInvitedOrganizationClientRelationship(
 
   const existing = await findRelationship();
   if (existing) {
-    if (existing.status === "invited" || existing.status === "active") return existing.status;
+    if (existing.status === 'invited' || existing.status === 'active') return existing.status;
     throw new OrganizationClientRelationshipDeniedError();
   }
 
   await tx
     .insert(orgEnrollments)
-    .values({ organizationId, platformUserId, status: "invited" })
+    .values({ organizationId, platformUserId, status: 'invited' })
     .onConflictDoNothing({
       target: [orgEnrollments.organizationId, orgEnrollments.platformUserId],
     });
 
   const converged = await findRelationship();
-  if (converged?.status === "invited" || converged?.status === "active") {
+  if (converged?.status === 'invited' || converged?.status === 'active') {
     return converged.status;
   }
   throw new OrganizationClientRelationshipDeniedError();

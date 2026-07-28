@@ -1,6 +1,6 @@
-import { loadProductAnalyticsAudience } from "@/app-layer/analytics/loadAnalyticsAudience";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import type { ProductAnalyticsAdminDashboard } from "@/modules/product-analytics/types";
+import { loadProductAnalyticsAudience } from '@/app-layer/analytics/loadAnalyticsAudience';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import type { ProductAnalyticsAdminDashboard } from '@/modules/product-analytics/types';
 
 export async function loadAdminProductAnalytics(params: {
   windowHours: number;

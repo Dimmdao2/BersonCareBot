@@ -1,1 +1,1 @@
-export { verifyManualMergeIntegratorIntegratorGate } from "@/infra/manualMergeIntegratorGate";
+export { verifyManualMergeIntegratorIntegratorGate } from '@/infra/manualMergeIntegratorGate';

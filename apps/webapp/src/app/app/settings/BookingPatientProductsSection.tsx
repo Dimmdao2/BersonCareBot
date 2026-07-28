@@ -1,12 +1,18 @@
-"use client";
+'use client';
 
-import { useState, useTransition } from "react";
-import { apiJson } from "@/shared/lib/apiJson";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Label } from "@/shared/ui/doctor/primitives/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/doctor/primitives/select";
+import { useState, useTransition } from 'react';
+import { apiJson } from '@/shared/lib/apiJson';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/shared/ui/doctor/primitives/select';
 
 type Props = {
   apiBase?: string;
@@ -23,26 +29,26 @@ type PurchaseRow = {
 };
 
 const PRODUCT_STATUS_LABELS: Record<string, string> = {
-  awaiting_payment: "Ожидает оплаты",
-  paid: "Оплачен",
-  active: "Активен",
-  consumed: "Использован",
-  expired: "Истёк",
+  awaiting_payment: 'Ожидает оплаты',
+  paid: 'Оплачен',
+  active: 'Активен',
+  consumed: 'Использован',
+  expired: 'Истёк',
 };
 
 const PRODUCT_TYPE_LABELS: Record<string, string> = {
-  promo: "Акция",
-  gift_certificate: "Подарочный",
-  single_visit: "Разовый визит",
-  course: "Курс",
-  subscription: "Подписка",
+  promo: 'Акция',
+  gift_certificate: 'Подарочный',
+  single_visit: 'Разовый визит',
+  course: 'Курс',
+  subscription: 'Подписка',
 };
 
 const ERROR_LABELS: Record<string, string> = {
-  platform_user_id_required: "Укажите ID пациента.",
-  service_id_required: "Выберите услугу для списания.",
-  consume_failed: "Не удалось списать визит.",
-  failed: "Не удалось загрузить покупки.",
+  platform_user_id_required: 'Укажите ID пациента.',
+  service_id_required: 'Выберите услугу для списания.',
+  consume_failed: 'Не удалось списать визит.',
+  failed: 'Не удалось загрузить покупки.',
 };
 
 function errorLabel(code: string | null): string | null {
@@ -51,14 +57,14 @@ function errorLabel(code: string | null): string | null {
 }
 
 export function BookingPatientProductsSection({
-  apiBase = "/api/admin/booking-engine/patient-products",
-  servicesApi = "/api/admin/booking-engine/services",
-  platformUserId: platformUserIdProp = "",
+  apiBase = '/api/admin/booking-engine/patient-products',
+  servicesApi = '/api/admin/booking-engine/services',
+  platformUserId: platformUserIdProp = '',
 }: Props) {
-  const [platformUserIdLocal, setPlatformUserIdLocal] = useState("");
+  const [platformUserIdLocal, setPlatformUserIdLocal] = useState('');
   const platformUserId = platformUserIdProp.trim() || platformUserIdLocal;
   const hidePatientIdField = Boolean(platformUserIdProp.trim());
-  const [serviceId, setServiceId] = useState("");
+  const [serviceId, setServiceId] = useState('');
   const [services, setServices] = useState<Array<{ id: string; title: string }>>([]);
   const [listed, setListed] = useState<PurchaseRow[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -67,7 +73,10 @@ export function BookingPatientProductsSection({
   function loadServices() {
     startTransition(async () => {
       try {
-        const json = await apiJson<{ ok?: boolean; services?: Array<{ id: string; title: string }> }>(servicesApi);
+        const json = await apiJson<{
+          ok?: boolean;
+          services?: Array<{ id: string; title: string }>;
+        }>(servicesApi);
         if (json.services) setServices(json.services);
       } catch {
         // services load failure is non-critical
@@ -83,7 +92,7 @@ export function BookingPatientProductsSection({
       setListed(json.purchases ?? []);
       return true;
     } catch (e) {
-      setError(e instanceof Error ? e.message : "failed");
+      setError(e instanceof Error ? e.message : 'failed');
       return false;
     }
   }
@@ -91,7 +100,7 @@ export function BookingPatientProductsSection({
   function loadPurchases() {
     setError(null);
     if (!platformUserId.trim()) {
-      setError("platform_user_id_required");
+      setError('platform_user_id_required');
       return;
     }
     startTransition(async () => {
@@ -101,24 +110,27 @@ export function BookingPatientProductsSection({
 
   function consume(purchaseId: string) {
     if (!serviceId.trim()) {
-      setError("service_id_required");
+      setError('service_id_required');
       return;
     }
     if (!platformUserId.trim()) {
-      setError("platform_user_id_required");
+      setError('platform_user_id_required');
       return;
     }
     setError(null);
     startTransition(async () => {
       try {
         await apiJson(`${apiBase}/${purchaseId}/consume`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ platformUserId: platformUserId.trim(), serviceId: serviceId.trim() }),
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            platformUserId: platformUserId.trim(),
+            serviceId: serviceId.trim(),
+          }),
         });
         await fetchPurchases();
       } catch (e) {
-        setError(e instanceof Error ? e.message : "consume_failed");
+        setError(e instanceof Error ? e.message : 'consume_failed');
       }
     });
   }
@@ -143,7 +155,7 @@ export function BookingPatientProductsSection({
           </>
         ) : null}
         <Label htmlFor="pp-svc">Услуга для списания</Label>
-        <Select value={serviceId} onValueChange={(v) => setServiceId(v ?? "")} aria-label="Услуга">
+        <Select value={serviceId} onValueChange={(v) => setServiceId(v ?? '')} aria-label="Услуга">
           <SelectTrigger id="pp-svc" className="w-full">
             <SelectValue />
           </SelectTrigger>
@@ -162,15 +174,18 @@ export function BookingPatientProductsSection({
         <ul className="text-sm">
           {listed.map((p) => {
             const remaining =
-              typeof p.fulfillmentJson.visitsRemaining === "number"
+              typeof p.fulfillmentJson.visitsRemaining === 'number'
                 ? p.fulfillmentJson.visitsRemaining
                 : null;
             return (
-              <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 border-b py-1">
+              <li
+                key={p.id}
+                className="flex flex-wrap items-center justify-between gap-2 border-b py-1"
+              >
                 <span>
                   {p.title} — {PRODUCT_STATUS_LABELS[p.status] ?? p.status}
-                  {p.productType ? ` · ${PRODUCT_TYPE_LABELS[p.productType] ?? p.productType}` : ""}
-                  {remaining != null ? ` (${remaining})` : ""}
+                  {p.productType ? ` · ${PRODUCT_TYPE_LABELS[p.productType] ?? p.productType}` : ''}
+                  {remaining != null ? ` (${remaining})` : ''}
                 </span>
                 {remaining != null && remaining > 0 ? (
                   <Button type="button" variant="outline" size="sm" onClick={() => consume(p.id)}>

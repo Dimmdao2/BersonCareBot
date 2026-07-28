@@ -3,17 +3,17 @@
  * Must stay aligned with the UPDATE branch in `mergePlatformUsersInTransaction` (`@bersoncare/platform-merge`).
  */
 function normPhone(p: string | null | undefined): string | null {
-  const t = typeof p === "string" ? p.trim() : "";
+  const t = typeof p === 'string' ? p.trim() : '';
   return t ? t : null;
 }
 
 function normStr(s: string | null | undefined): string | null {
-  const t = typeof s === "string" ? s.trim() : "";
+  const t = typeof s === 'string' ? s.trim() : '';
   return t ? t : null;
 }
 
 function normStrField(s: string | null | undefined): string | null {
-  const t = typeof s === "string" ? s.trim() : "";
+  const t = typeof s === 'string' ? s.trim() : '';
   return t ? t : null;
 }
 
@@ -26,25 +26,25 @@ export type AutoMergeNameSideInput = {
  * Which side supplies names first in auto-merge SQL (`pu` / `dup` aliases).
  * Args are **not** commutative: pass merge target row first, duplicate second — same order as `mergePlatformUsersInTransaction`.
  */
-export function pickAutoMergeNamePrimarySide(pu: AutoMergeNameSideInput, dup: AutoMergeNameSideInput): "pu" | "dup" {
+export function pickAutoMergeNamePrimarySide(
+  pu: AutoMergeNameSideInput,
+  dup: AutoMergeNameSideInput,
+): 'pu' | 'dup' {
   const pp = normPhone(pu.phone_normalized);
   const pd = normPhone(dup.phone_normalized);
-  if (pp && !pd) return "pu";
-  if (pd && !pp) return "dup";
+  if (pp && !pd) return 'pu';
+  if (pd && !pp) return 'dup';
   if (pp && pd) {
-    return pu.created_at.getTime() <= dup.created_at.getTime() ? "pu" : "dup";
+    return pu.created_at.getTime() <= dup.created_at.getTime() ? 'pu' : 'dup';
   }
-  return "pu";
+  return 'pu';
 }
 
 function bothFirstLastParsed(side: {
   first_name: string | null;
   last_name: string | null;
 }): boolean {
-  return (
-    normStrField(side.first_name) !== null &&
-    normStrField(side.last_name) !== null
-  );
+  return normStrField(side.first_name) !== null && normStrField(side.last_name) !== null;
 }
 
 type PuDupNames = AutoMergeNameSideInput & {
@@ -59,21 +59,24 @@ export function effectiveAutoMergedDisplayName(pu: PuDupNames, dup: PuDupNames):
   const pp = normPhone(pu.phone_normalized);
   const pd = normPhone(dup.phone_normalized);
   if (pp && !pd) {
-    return normStr(pu.display_name) ?? normStr(dup.display_name) ?? "";
+    return normStr(pu.display_name) ?? normStr(dup.display_name) ?? '';
   }
   if (pd && !pp) {
-    return normStr(dup.display_name) ?? normStr(pu.display_name) ?? "";
+    return normStr(dup.display_name) ?? normStr(pu.display_name) ?? '';
   }
   if (pp && pd && pp === pd) {
     const olderFirst = pu.created_at.getTime() <= dup.created_at.getTime();
     const primary = olderFirst ? pu : dup;
     const other = olderFirst ? dup : pu;
-    return normStr(primary.display_name) ?? normStr(other.display_name) ?? "";
+    return normStr(primary.display_name) ?? normStr(other.display_name) ?? '';
   }
-  return normStr(pu.display_name) ?? normStr(dup.display_name) ?? "";
+  return normStr(pu.display_name) ?? normStr(dup.display_name) ?? '';
 }
 
-function firstLastOnePhoneXor(pu: PuDupNames, dup: PuDupNames): { first: string | null; last: string | null } {
+function firstLastOnePhoneXor(
+  pu: PuDupNames,
+  dup: PuDupNames,
+): { first: string | null; last: string | null } {
   const pp = normPhone(pu.phone_normalized);
   const pd = normPhone(dup.phone_normalized);
   if (pp && !pd) {
@@ -128,8 +131,8 @@ export function effectiveAutoMergedFirstName(pu: PuDupNames, dup: PuDupNames): s
   }
   if (pp && pd && pp === pd) {
     return pu.created_at.getTime() <= dup.created_at.getTime()
-      ? normStrField(pu.first_name) ?? normStrField(dup.first_name)
-      : normStrField(dup.first_name) ?? normStrField(pu.first_name);
+      ? (normStrField(pu.first_name) ?? normStrField(dup.first_name))
+      : (normStrField(dup.first_name) ?? normStrField(pu.first_name));
   }
   return normStrField(pu.first_name) ?? normStrField(dup.first_name);
 }
@@ -143,8 +146,8 @@ export function effectiveAutoMergedLastName(pu: PuDupNames, dup: PuDupNames): st
   }
   if (pp && pd && pp === pd) {
     return pu.created_at.getTime() <= dup.created_at.getTime()
-      ? normStrField(pu.last_name) ?? normStrField(dup.last_name)
-      : normStrField(dup.last_name) ?? normStrField(pu.last_name);
+      ? (normStrField(pu.last_name) ?? normStrField(dup.last_name))
+      : (normStrField(dup.last_name) ?? normStrField(pu.last_name));
   }
   return normStrField(pu.last_name) ?? normStrField(dup.last_name);
 }

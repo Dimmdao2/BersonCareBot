@@ -8,38 +8,38 @@
  *   "lifestyle" → добавить запись «Образ жизни»
  */
 
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
-import { requireEntitlementForMutation } from "@/app-layer/guards/requireEntitlement";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 
 // -- Request body schemas ----------------------------------------------------
 
 const appendTraumaSchema = z.object({
-  section: z.literal("trauma"),
+  section: z.literal('trauma'),
   year: z.string().min(1).max(100),
   what: z.string().min(1).max(1000),
   type: z.string().min(1).max(200),
-  immobilization: z.string().max(500).default("—"),
+  immobilization: z.string().max(500).default('—'),
 });
 
 const appendIllnessSchema = z.object({
-  section: z.literal("illness"),
+  section: z.literal('illness'),
   period: z.string().min(1).max(100),
   what: z.string().min(1).max(1000),
-  comment: z.string().max(2000).default(""),
+  comment: z.string().max(2000).default(''),
 });
 
 const appendLifestyleSchema = z.object({
-  section: z.literal("lifestyle"),
+  section: z.literal('lifestyle'),
   /** ISO date string, e.g. "2026-01-18". */
-  recordDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "expected YYYY-MM-DD"),
+  recordDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'expected YYYY-MM-DD'),
   text: z.string().min(1).max(5000),
 });
 
-const appendAnamnesisBodySchema = z.discriminatedUnion("section", [
+const appendAnamnesisBodySchema = z.discriminatedUnion('section', [
   appendTraumaSchema,
   appendIllnessSchema,
   appendLifestyleSchema,
@@ -47,16 +47,13 @@ const appendAnamnesisBodySchema = z.discriminatedUnion("section", [
 
 // -- Handlers ----------------------------------------------------------------
 
-export async function GET(
-  _request: Request,
-  { params }: { params: Promise<{ userId: string }> },
-) {
+export async function GET(_request: Request, { params }: { params: Promise<{ userId: string }> }) {
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
 
   const { userId } = await params;
   if (!z.string().uuid().safeParse(userId).success) {
-    return NextResponse.json({ ok: false, error: "invalid_user_id" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_user_id' }, { status: 400 });
   }
 
   const deps = buildAppDeps();
@@ -65,7 +62,7 @@ export async function GET(
     gate.ctx.organizationId,
   );
   if (!identity) {
-    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
   const patientUserId = identity.userId;
 
@@ -75,31 +72,28 @@ export async function GET(
   return NextResponse.json({ ok: true, anamnesis });
 }
 
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ userId: string }> },
-) {
+export async function POST(request: Request, { params }: { params: Promise<{ userId: string }> }) {
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
-  const entitlement = await requireEntitlementForMutation(gate.ctx, "patient_card");
+  const entitlement = await requireEntitlementForMutation(gate.ctx, 'patient_card');
   if (!entitlement.ok) return entitlement.response;
 
   const { userId } = await params;
   if (!z.string().uuid().safeParse(userId).success) {
-    return NextResponse.json({ ok: false, error: "invalid_user_id" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_user_id' }, { status: 400 });
   }
 
   let json: unknown;
   try {
     json = await request.json();
   } catch {
-    return NextResponse.json({ ok: false, error: "invalid_json" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 });
   }
 
   const parsed = appendAnamnesisBodySchema.safeParse(json);
   if (!parsed.success) {
     return NextResponse.json(
-      { ok: false, error: "invalid_body", details: parsed.error.flatten() },
+      { ok: false, error: 'invalid_body', details: parsed.error.flatten() },
       { status: 400 },
     );
   }
@@ -112,39 +106,39 @@ export async function POST(
     gate.ctx.organizationId,
   );
   if (!identity) {
-    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
   const patientUserId = identity.userId;
 
-  if (b.section === "trauma") {
+  if (b.section === 'trauma') {
     const entry = await withDoctorWorkspacePrincipal(
       gate.ctx,
-      "doctor.patients.clinical.anamnesis.trauma.create",
+      'doctor.patients.clinical.anamnesis.trauma.create',
       () =>
-      deps.patientClinical.appendAnamnesisTrauma({
-        patientUserId,
-        year: b.year,
-        what: b.what,
-        type: b.type,
-        immobilization: b.immobilization,
-        createdBy,
-      }),
+        deps.patientClinical.appendAnamnesisTrauma({
+          patientUserId,
+          year: b.year,
+          what: b.what,
+          type: b.type,
+          immobilization: b.immobilization,
+          createdBy,
+        }),
     );
     return NextResponse.json({ ok: true, entry }, { status: 201 });
   }
 
-  if (b.section === "illness") {
+  if (b.section === 'illness') {
     const entry = await withDoctorWorkspacePrincipal(
       gate.ctx,
-      "doctor.patients.clinical.anamnesis.illness.create",
+      'doctor.patients.clinical.anamnesis.illness.create',
       () =>
-      deps.patientClinical.appendAnamnesisIllness({
-        patientUserId,
-        period: b.period,
-        what: b.what,
-        comment: b.comment,
-        createdBy,
-      }),
+        deps.patientClinical.appendAnamnesisIllness({
+          patientUserId,
+          period: b.period,
+          what: b.what,
+          comment: b.comment,
+          createdBy,
+        }),
     );
     return NextResponse.json({ ok: true, entry }, { status: 201 });
   }
@@ -152,14 +146,14 @@ export async function POST(
   // section === "lifestyle"
   const entry = await withDoctorWorkspacePrincipal(
     gate.ctx,
-    "doctor.patients.clinical.anamnesis.lifestyle.create",
+    'doctor.patients.clinical.anamnesis.lifestyle.create',
     () =>
-    deps.patientClinical.appendAnamnesisLifestyle({
-      patientUserId,
-      recordDate: b.recordDate,
-      text: b.text,
-      createdBy,
-    }),
+      deps.patientClinical.appendAnamnesisLifestyle({
+        patientUserId,
+        recordDate: b.recordDate,
+        text: b.text,
+        createdBy,
+      }),
   );
   return NextResponse.json({ ok: true, entry }, { status: 201 });
 }

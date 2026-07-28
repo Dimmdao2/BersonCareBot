@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { apiJson } from "@/shared/lib/apiJson";
+import { useCallback, useEffect, useState } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { apiJson } from '@/shared/lib/apiJson';
 
 type Row = {
   id: string;
@@ -12,23 +12,23 @@ type Row = {
   createdAt: string;
 };
 
-const BASE = "/api/admin/booking-engine/public-appointments";
+const BASE = '/api/admin/booking-engine/public-appointments';
 
 function formatAttribution(attr: Record<string, unknown>): string {
   const keys = [
-    "utmSource",
-    "utmMedium",
-    "utmCampaign",
-    "trafficSource",
-    "presetCityCode",
-    "embedMode",
+    'utmSource',
+    'utmMedium',
+    'utmCampaign',
+    'trafficSource',
+    'presetCityCode',
+    'embedMode',
   ] as const;
   const parts: string[] = [];
   for (const k of keys) {
     const v = attr[k];
-    if (typeof v === "string" && v.trim()) parts.push(`${k}=${v}`);
+    if (typeof v === 'string' && v.trim()) parts.push(`${k}=${v}`);
   }
-  return parts.length > 0 ? parts.join(" · ") : JSON.stringify(attr);
+  return parts.length > 0 ? parts.join(' · ') : JSON.stringify(attr);
 }
 
 export function BookingPublicAttributionSection() {
@@ -40,10 +40,12 @@ export function BookingPublicAttributionSection() {
     setLoading(true);
     setError(null);
     try {
-      const json = await apiJson<{ ok: boolean; items?: Row[] }>(`${BASE}?limit=20`, { cache: "no-store" });
+      const json = await apiJson<{ ok: boolean; items?: Row[] }>(`${BASE}?limit=20`, {
+        cache: 'no-store',
+      });
       setItems(json.items ?? []);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Ошибка сети");
+      setError(e instanceof Error ? e.message : 'Ошибка сети');
       setItems([]);
     } finally {
       setLoading(false);

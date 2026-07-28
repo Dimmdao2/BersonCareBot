@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { MarkdownBodyTree } from "@/shared/ui/doctor/markdown/markdownRenderTree";
+import { MarkdownBodyTree } from '@/shared/ui/doctor/markdown/markdownRenderTree';
 
 type Props = {
   markdown: string;
@@ -9,8 +9,8 @@ type Props = {
 
 export function MarkdownPreview({ markdown, className }: Props) {
   return (
-    <div className={className ?? "markdown-preview text-sm"}>
-      <MarkdownBodyTree>{markdown.length > 0 ? markdown : "*Пусто*"}</MarkdownBodyTree>
+    <div className={className ?? 'markdown-preview text-sm'}>
+      <MarkdownBodyTree>{markdown.length > 0 ? markdown : '*Пусто*'}</MarkdownBodyTree>
     </div>
   );
 }

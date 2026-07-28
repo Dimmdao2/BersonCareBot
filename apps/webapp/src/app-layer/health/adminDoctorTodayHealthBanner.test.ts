@@ -1,9 +1,9 @@
-import { describe, expect, it } from "vitest";
-import type { IntegratorPushOutboxHealthSnapshot } from "@/modules/operator-health/ports";
-import type { SystemHealthResponse } from "./collectAdminSystemHealthData";
-import { ADMIN_DELIVERY_DUE_BACKLOG_WARNING } from "@/modules/operator-health/adminHealthThresholds";
-import { OPERATOR_HEALTH_PROBE_DEFAULT_VALUE } from "@/modules/system-settings/operatorHealthProbeConfig";
-import { adminDoctorTodayHealthBannerFromSystemHealth } from "./adminDoctorTodayHealthBanner";
+import { describe, expect, it } from 'vitest';
+import type { IntegratorPushOutboxHealthSnapshot } from '@/modules/operator-health/ports';
+import type { SystemHealthResponse } from './collectAdminSystemHealthData';
+import { ADMIN_DELIVERY_DUE_BACKLOG_WARNING } from '@/modules/operator-health/adminHealthThresholds';
+import { OPERATOR_HEALTH_PROBE_DEFAULT_VALUE } from '@/modules/system-settings/operatorHealthProbeConfig';
+import { adminDoctorTodayHealthBannerFromSystemHealth } from './adminDoctorTodayHealthBanner';
 
 function emptyIntegratorPushOutbox(): IntegratorPushOutboxHealthSnapshot {
   return {
@@ -20,83 +20,86 @@ function emptyIntegratorPushOutbox(): IntegratorPushOutboxHealthSnapshot {
 
 function healthyShell(overrides: Partial<SystemHealthResponse> = {}): SystemHealthResponse {
   return {
-    webappDb: "up",
-    integratorApi: { status: "ok" },
-    projection: { status: "ok" },
-    mediaCronWorkers: { status: "configured" },
+    webappDb: 'up',
+    integratorApi: { status: 'ok' },
+    projection: { status: 'ok' },
+    mediaCronWorkers: { status: 'configured' },
     mediaPreview: {
-      status: "error",
+      status: 'error',
       stalePendingCount: 99,
       byMimeAndStatus: {
-        "video/quicktime": { pending: 0, ready: 0, failed: 0, skipped: 0 },
-        "image/heic": { pending: 0, ready: 0, failed: 0, skipped: 0 },
-        "image/heif": { pending: 0, ready: 0, failed: 0, skipped: 0 },
+        'video/quicktime': { pending: 0, ready: 0, failed: 0, skipped: 0 },
+        'image/heic': { pending: 0, ready: 0, failed: 0, skipped: 0 },
+        'image/heif': { pending: 0, ready: 0, failed: 0, skipped: 0 },
       },
     },
-    videoPlayback: { status: "error" } as SystemHealthResponse["videoPlayback"],
-    videoPlaybackClient: { status: "error" } as SystemHealthResponse["videoPlaybackClient"],
-    videoHlsProxy: { status: "ok" } as SystemHealthResponse["videoHlsProxy"],
-    videoTranscode: { status: "ok" } as SystemHealthResponse["videoTranscode"],
+    videoPlayback: { status: 'error' } as SystemHealthResponse['videoPlayback'],
+    videoPlaybackClient: { status: 'error' } as SystemHealthResponse['videoPlaybackClient'],
+    videoHlsProxy: { status: 'ok' } as SystemHealthResponse['videoHlsProxy'],
+    videoTranscode: { status: 'ok' } as SystemHealthResponse['videoTranscode'],
     operatorIncidents: { openCount: 0, occurrenceCount: 0, lastSeenAt: null },
     backupJobs: {},
     outgoingDelivery: {
       deadTotal: 0,
       dueBacklog: 0,
-    } as SystemHealthResponse["outgoingDelivery"],
+    } as SystemHealthResponse['outgoingDelivery'],
     integratorPushOutbox: emptyIntegratorPushOutbox(),
-    remindersPipeline: {} as SystemHealthResponse["remindersPipeline"],
-    webPush: {} as SystemHealthResponse["webPush"],
-    webPushOnlyReminderTick: { status: "ok", lastTick: null },
-    notificationDelivery: {} as SystemHealthResponse["notificationDelivery"],
-    cronJobs: { status: "ok", jobs: [] },
+    remindersPipeline: {} as SystemHealthResponse['remindersPipeline'],
+    webPush: {} as SystemHealthResponse['webPush'],
+    webPushOnlyReminderTick: { status: 'ok', lastTick: null },
+    notificationDelivery: {} as SystemHealthResponse['notificationDelivery'],
+    cronJobs: { status: 'ok', jobs: [] },
     probeOutbound: { consecutiveFailRuns: 0 },
     ...overrides,
   } as SystemHealthResponse;
 }
 
-describe("adminDoctorTodayHealthBannerFromSystemHealth", () => {
-  it("does not show banner for mediaPreview/videoPlayback errors alone", () => {
+describe('adminDoctorTodayHealthBannerFromSystemHealth', () => {
+  it('does not show banner for mediaPreview/videoPlayback errors alone', () => {
     const banner = adminDoctorTodayHealthBannerFromSystemHealth(healthyShell());
     expect(banner).toEqual({ show: false });
   });
 
-  it("shows banner for due backlog without dead", () => {
+  it('shows banner for due backlog without dead', () => {
     const banner = adminDoctorTodayHealthBannerFromSystemHealth(
       healthyShell({
         outgoingDelivery: {
           deadTotal: 0,
           dueBacklog: ADMIN_DELIVERY_DUE_BACKLOG_WARNING,
-        } as SystemHealthResponse["outgoingDelivery"],
+        } as SystemHealthResponse['outgoingDelivery'],
       }),
     );
     expect(banner.show).toBe(true);
-    expect(banner).toMatchObject({ tone: "warning", title: "Требуется внимание к здоровью системы" });
+    expect(banner).toMatchObject({
+      tone: 'warning',
+      title: 'Требуется внимание к здоровью системы',
+    });
   });
 
-  it("uses the red stop presentation for a delivery-provider failure", () => {
+  it('uses the red stop presentation for a delivery-provider failure', () => {
     const banner = adminDoctorTodayHealthBannerFromSystemHealth(
       healthyShell({
         outgoingDelivery: {
           deadTotal: 1,
           dueBacklog: 0,
-        } as SystemHealthResponse["outgoingDelivery"],
+        } as SystemHealthResponse['outgoingDelivery'],
       }),
     );
     expect(banner).toMatchObject({
       show: true,
-      tone: "stop",
-      title: "🛑 ! Остановлена исходящая доставка",
+      tone: 'stop',
+      title: '🛑 ! Остановлена исходящая доставка',
     });
   });
 
-  it("shows banner when integrator API is unreachable", () => {
+  it('shows banner when integrator API is unreachable', () => {
     const banner = adminDoctorTodayHealthBannerFromSystemHealth(
-      healthyShell({ integratorApi: { status: "unreachable" } }),
+      healthyShell({ integratorApi: { status: 'unreachable' } }),
     );
     expect(banner.show).toBe(true);
   });
 
-  it("shows banner after the probe runner opens an incident at the configured default threshold", () => {
+  it('shows banner after the probe runner opens an incident at the configured default threshold', () => {
     const consecutiveFailRuns = OPERATOR_HEALTH_PROBE_DEFAULT_VALUE.max.consecutiveFailures;
     expect(
       adminDoctorTodayHealthBannerFromSystemHealth(
@@ -107,22 +110,26 @@ describe("adminDoctorTodayHealthBannerFromSystemHealth", () => {
     const banner = adminDoctorTodayHealthBannerFromSystemHealth(
       healthyShell({
         probeOutbound: { consecutiveFailRuns },
-        operatorIncidents: { openCount: 1, occurrenceCount: 1, lastSeenAt: "2026-07-27T00:00:00.000Z" },
+        operatorIncidents: {
+          openCount: 1,
+          occurrenceCount: 1,
+          lastSeenAt: '2026-07-27T00:00:00.000Z',
+        },
       }),
     );
     expect(banner.show).toBe(true);
   });
 
-  it("shows banner for video transcode error", () => {
+  it('shows banner for video transcode error', () => {
     const banner = adminDoctorTodayHealthBannerFromSystemHealth(
       healthyShell({
-        videoTranscode: { status: "error" } as SystemHealthResponse["videoTranscode"],
+        videoTranscode: { status: 'error' } as SystemHealthResponse['videoTranscode'],
       }),
     );
     expect(banner.show).toBe(true);
   });
 
-  it("tolerates missing probeOutbound (legacy partial snapshots)", () => {
+  it('tolerates missing probeOutbound (legacy partial snapshots)', () => {
     const shell = healthyShell();
     delete (shell as { probeOutbound?: { consecutiveFailRuns: number } }).probeOutbound;
     expect(adminDoctorTodayHealthBannerFromSystemHealth(shell)).toEqual({ show: false });

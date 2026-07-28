@@ -1,13 +1,13 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { AdminMergeAccountsPanel } from "@/app/app/doctor/clients/AdminMergeAccountsPanel";
-import type { PatientMergeCandidateRecord } from "@/modules/patient-merge-candidate/ports";
-import { apiJson } from "@/shared/lib/apiJson";
+import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { AdminMergeAccountsPanel } from '@/app/app/doctor/clients/AdminMergeAccountsPanel';
+import type { PatientMergeCandidateRecord } from '@/modules/patient-merge-candidate/ports';
+import { apiJson } from '@/shared/lib/apiJson';
 
-const BASE = "/api/admin/booking-engine/merge-candidates";
+const BASE = '/api/admin/booking-engine/merge-candidates';
 
 export function BookingMergeCandidatesSection() {
   const [items, setItems] = useState<PatientMergeCandidateRecord[]>([]);
@@ -19,17 +19,18 @@ export function BookingMergeCandidatesSection() {
     setLoading(true);
     setError(null);
     try {
-      const json = await apiJson<{ ok?: boolean; error?: string; candidates?: PatientMergeCandidateRecord[] }>(
-        BASE,
-        { cache: "no-store" },
-      );
+      const json = await apiJson<{
+        ok?: boolean;
+        error?: string;
+        candidates?: PatientMergeCandidateRecord[];
+      }>(BASE, { cache: 'no-store' });
       setItems(json.candidates ?? []);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "";
-      if (msg.includes("http_403")) {
-        setError("Нужна роль admin и включённый режим администратора.");
+      const msg = e instanceof Error ? e.message : '';
+      if (msg.includes('http_403')) {
+        setError('Нужна роль admin и включённый режим администратора.');
       } else {
-        setError("Не удалось загрузить кандидатов");
+        setError('Не удалось загрузить кандидатов');
       }
       setItems([]);
     } finally {
@@ -43,11 +44,11 @@ export function BookingMergeCandidatesSection() {
 
   async function dismiss(id: string) {
     try {
-      await apiJson(`${BASE}/${id}/dismiss`, { method: "POST" });
+      await apiJson(`${BASE}/${id}/dismiss`, { method: 'POST' });
       if (expandedRowId === id) setExpandedRowId(null);
       void load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Ошибка сети");
+      setError(e instanceof Error ? e.message : 'Ошибка сети');
     }
   }
 
@@ -69,13 +70,19 @@ export function BookingMergeCandidatesSection() {
           <li key={row.id} className="rounded border px-3 py-2 text-sm">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span>
-                Якорь{" "}
-                <Link href={`/app/doctor/clients/${row.anchorUserId}`} className="text-primary underline">
+                Якорь{' '}
+                <Link
+                  href={`/app/doctor/clients/${row.anchorUserId}`}
+                  className="text-primary underline"
+                >
                   {row.anchorUserId.slice(0, 8)}…
                 </Link>
-                {" · "}
-                кандидат{" "}
-                <Link href={`/app/doctor/clients/${row.candidateUserId}`} className="text-primary underline">
+                {' · '}
+                кандидат{' '}
+                <Link
+                  href={`/app/doctor/clients/${row.candidateUserId}`}
+                  className="text-primary underline"
+                >
                   {row.candidateUserId.slice(0, 8)}…
                 </Link>
               </span>
@@ -86,9 +93,14 @@ export function BookingMergeCandidatesSection() {
                   size="sm"
                   onClick={() => setExpandedRowId((cur) => (cur === row.id ? null : row.id))}
                 >
-                  {expandedRowId === row.id ? "Свернуть" : "Объединить"}
+                  {expandedRowId === row.id ? 'Свернуть' : 'Объединить'}
                 </Button>
-                <Button type="button" variant="ghost" size="sm" onClick={() => void dismiss(row.id)}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => void dismiss(row.id)}
+                >
                   Отклонить
                 </Button>
               </div>

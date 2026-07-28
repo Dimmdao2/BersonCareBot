@@ -5,19 +5,19 @@
 export function toYoutubeEmbedSrc(url: string): string | null {
   try {
     const u = new URL(url);
-    const host = u.hostname.replace(/^www\./, "");
-    if (host === "youtu.be") {
-      const id = u.pathname.replace(/^\//, "").split("/")[0];
+    const host = u.hostname.replace(/^www\./, '');
+    if (host === 'youtu.be') {
+      const id = u.pathname.replace(/^\//, '').split('/')[0];
       return id ? `https://www.youtube.com/embed/${encodeURIComponent(id)}` : null;
     }
-    if (host.includes("youtube.com")) {
-      if (u.pathname.startsWith("/embed/")) {
+    if (host.includes('youtube.com')) {
+      if (u.pathname.startsWith('/embed/')) {
         const normalized = new URL(u.href);
-        normalized.protocol = "https:";
+        normalized.protocol = 'https:';
         return normalized.toString();
       }
-      if (u.pathname === "/watch") {
-        const id = u.searchParams.get("v");
+      if (u.pathname === '/watch') {
+        const id = u.searchParams.get('v');
         return id ? `https://www.youtube.com/embed/${encodeURIComponent(id)}` : null;
       }
       const shortsMatch = /^\/shorts\/([^/?]+)/.exec(u.pathname);
@@ -35,8 +35,8 @@ export function toYoutubeEmbedSrc(url: string): string | null {
 export function toRutubeEmbedSrc(url: string): string | null {
   try {
     const u = new URL(url);
-    const host = u.hostname.replace(/^www\./, "");
-    if (host !== "rutube.ru") return null;
+    const host = u.hostname.replace(/^www\./, '');
+    if (host !== 'rutube.ru') return null;
 
     let videoId: string | null = null;
 

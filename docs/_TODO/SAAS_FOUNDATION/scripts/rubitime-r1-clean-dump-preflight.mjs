@@ -5,65 +5,65 @@
  * The script is read-only, requires an explicit loopback DATABASE_URL, refuses
  * production-shaped database names, and never selects row ids or PII fields.
  */
-import { existsSync, readFileSync, statSync } from "node:fs";
-import { spawnSync } from "node:child_process";
-import path from "node:path";
+import { existsSync, readFileSync, statSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import path from 'node:path';
 
 const REQUIRED_COLUMNS = {
-  "public.appointment_records": [
-    "integrator_record_id",
-    "record_at",
-    "status",
-    "payload_json",
-    "branch_id",
-    "deleted_at",
-    "platform_user_id",
+  'public.appointment_records': [
+    'integrator_record_id',
+    'record_at',
+    'status',
+    'payload_json',
+    'branch_id',
+    'deleted_at',
+    'platform_user_id',
   ],
-  "public.be_appointments": [
-    "organization_id",
-    "branch_id",
-    "specialist_id",
-    "service_id",
-    "platform_user_id",
-    "source",
-    "status",
-    "deleted_at",
+  'public.be_appointments': [
+    'organization_id',
+    'branch_id',
+    'specialist_id',
+    'service_id',
+    'platform_user_id',
+    'source',
+    'status',
+    'deleted_at',
   ],
-  "public.be_external_entity_mappings": [
-    "organization_id",
-    "entity_type",
-    "canonical_id",
-    "external_system",
-    "external_id",
-    "metadata",
+  'public.be_external_entity_mappings': [
+    'organization_id',
+    'entity_type',
+    'canonical_id',
+    'external_system',
+    'external_id',
+    'metadata',
   ],
-  "public.be_organizations": ["id"],
-  "public.be_specialists": ["id", "organization_id", "is_active"],
-  "public.be_branches": ["id", "organization_id"],
-  "public.be_clinic_services": ["id", "organization_id"],
-  "public.be_organization_members": [
-    "organization_id",
-    "platform_user_id",
-    "specialist_id",
-    "role",
-    "status",
+  'public.be_organizations': ['id'],
+  'public.be_specialists': ['id', 'organization_id', 'is_active'],
+  'public.be_branches': ['id', 'organization_id'],
+  'public.be_clinic_services': ['id', 'organization_id'],
+  'public.be_organization_members': [
+    'organization_id',
+    'platform_user_id',
+    'specialist_id',
+    'role',
+    'status',
   ],
-  "public.be_appointment_events": ["organization_id", "appointment_id"],
-  "public.be_appointment_history_events": ["organization_id", "appointment_id"],
-  "public.platform_users": ["id"],
-  "public.platform_user_contacts": ["platform_user_id", "value_normalized"],
-  "public.branches": ["id", "integrator_branch_id"],
-  "public.system_settings": ["key", "scope", "organization_id", "value_json"],
-  "integrator.rubitime_records": ["rubitime_record_id", "record_at", "status"],
-  "integrator.rubitime_events": ["id"],
+  'public.be_appointment_events': ['organization_id', 'appointment_id'],
+  'public.be_appointment_history_events': ['organization_id', 'appointment_id'],
+  'public.platform_users': ['id'],
+  'public.platform_user_contacts': ['platform_user_id', 'value_normalized'],
+  'public.branches': ['id', 'integrator_branch_id'],
+  'public.system_settings': ['key', 'scope', 'organization_id', 'value_json'],
+  'integrator.rubitime_records': ['rubitime_record_id', 'record_at', 'status'],
+  'integrator.rubitime_events': ['id'],
 };
 
 function parseArgs(argv) {
   const args = { csvPath: null, allowTestTarget: false, help: false };
   for (const arg of argv) {
-    if (arg === "--help" || arg === "-h") args.help = true;
-    else if (arg === "--allow-test-target") args.allowTestTarget = true;
-    else if (arg.startsWith("--csv=")) args.csvPath = arg.slice("--csv=".length).trim() || null;
+    if (arg === '--help' || arg === '-h') args.help = true;
+    else if (arg === '--allow-test-target') args.allowTestTarget = true;
+    else if (arg.startsWith('--csv=')) args.csvPath = arg.slice('--csv='.length).trim() || null;
     else throw new Error(`Unknown argument: ${arg}`);
   }
   return args;
@@ -87,28 +87,30 @@ function databaseInfo(databaseUrl, allowTestTarget) {
   try {
     url = new URL(databaseUrl);
   } catch {
-    throw new Error("DATABASE_URL is not a valid URL");
+    throw new Error('DATABASE_URL is not a valid URL');
   }
-  const database = url.pathname.replace(/^\//, "");
+  const database = url.pathname.replace(/^\//, '');
   const host = url.hostname;
-  if (!["127.0.0.1", "localhost", "::1"].includes(host)) {
-    throw new Error(`Refusing non-loopback database host: ${host || "<empty>"}`);
+  if (!['127.0.0.1', 'localhost', '::1'].includes(host)) {
+    throw new Error(`Refusing non-loopback database host: ${host || '<empty>'}`);
   }
   const normalized = database.toLowerCase();
-  const isTest = /(^|[_-])test($|[_-])/i.test(normalized) || normalized.endsWith("_test");
+  const isTest = /(^|[_-])test($|[_-])/i.test(normalized) || normalized.endsWith('_test');
   if (
-    normalized.includes("prod")
-    || (!normalized.includes("dev") && !normalized.includes("rehearsal") && !(allowTestTarget && isTest))
+    normalized.includes('prod') ||
+    (!normalized.includes('dev') &&
+      !normalized.includes('rehearsal') &&
+      !(allowTestTarget && isTest))
   ) {
-    throw new Error(`Refusing non-rehearsal database name: ${database || "<empty>"}`);
+    throw new Error(`Refusing non-rehearsal database name: ${database || '<empty>'}`);
   }
   return { database, host, port: url.port || null };
 }
 
 function runPsql(databaseUrl, sql) {
-  const result = spawnSync("psql", ["-X", "-q", "-v", "ON_ERROR_STOP=1", databaseUrl], {
+  const result = spawnSync('psql', ['-X', '-q', '-v', 'ON_ERROR_STOP=1', databaseUrl], {
     input: sql,
-    encoding: "utf8",
+    encoding: 'utf8',
     maxBuffer: 10 * 1024 * 1024,
   });
   if (result.error) throw result.error;
@@ -123,12 +125,12 @@ function sqlString(value) {
 function schemaSql() {
   const expected = Object.entries(REQUIRED_COLUMNS)
     .flatMap(([qualifiedTable, columns]) => {
-      const [schema, table] = qualifiedTable.split(".");
+      const [schema, table] = qualifiedTable.split('.');
       return columns.map(
         (column) => `(${sqlString(schema)}, ${sqlString(table)}, ${sqlString(column)})`,
       );
     })
-    .join(",\n");
+    .join(',\n');
   return `
 \\pset format unaligned
 \\pset tuples_only on
@@ -184,7 +186,7 @@ ROLLBACK;
 
 function parseCsv(text) {
   const rows = [];
-  let field = "";
+  let field = '';
   let inQuotes = false;
   let row = [];
   if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
@@ -198,15 +200,15 @@ function parseCsv(text) {
         } else inQuotes = false;
       } else field += char;
     } else if (char === '"') inQuotes = true;
-    else if (char === ";") {
+    else if (char === ';') {
       row.push(field);
-      field = "";
-    } else if (char === "\n") {
+      field = '';
+    } else if (char === '\n') {
       row.push(field);
       rows.push(row);
       row = [];
-      field = "";
-    } else if (char !== "\r") field += char;
+      field = '';
+    } else if (char !== '\r') field += char;
   }
   if (field.length > 0 || row.length > 0) {
     row.push(field);
@@ -216,7 +218,9 @@ function parseCsv(text) {
 }
 
 function parseRuDay(value) {
-  const match = String(value ?? "").trim().match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  const match = String(value ?? '')
+    .trim()
+    .match(/^(\d{2})\/(\d{2})\/(\d{4})/);
   if (!match) return null;
   return Date.UTC(Number(match[3]), Number(match[2]) - 1, Number(match[1]));
 }
@@ -225,13 +229,13 @@ function csvShape(csvPath) {
   if (!csvPath || !existsSync(csvPath)) return null;
   const stat = statSync(csvPath);
   if (!stat.isFile()) return null;
-  const text = readFileSync(csvPath, "utf8");
+  const text = readFileSync(csvPath, 'utf8');
   const rows = parseCsv(text);
   const ids = new Set();
   let minDay = Infinity;
   let maxDay = -Infinity;
   for (const row of rows.slice(1)) {
-    const id = String(row[0] ?? "").trim();
+    const id = String(row[0] ?? '').trim();
     if (id) ids.add(id);
     const day = parseRuDay(row[10]);
     if (day != null) {
@@ -257,36 +261,36 @@ function main() {
     return;
   }
   const databaseUrl = process.env.DATABASE_URL?.trim();
-  if (!databaseUrl) throw new Error("DATABASE_URL must be provided explicitly");
+  if (!databaseUrl) throw new Error('DATABASE_URL must be provided explicitly');
   const info = databaseInfo(databaseUrl, args.allowTestTarget);
   const schema = JSON.parse(runPsql(databaseUrl, schemaSql()));
   if (schema.current_database !== info.database) {
-    throw new Error(`Connected database mismatch: ${schema.current_database || "<empty>"}`);
+    throw new Error(`Connected database mismatch: ${schema.current_database || '<empty>'}`);
   }
   const csv = csvShape(args.csvPath);
   const failures = [];
   const missing = schema.missing_required_columns ?? [];
-  if (missing.length > 0) failures.push("schema_not_current");
-  if (!csv) failures.push("fresh_rubitime_csv_missing");
+  if (missing.length > 0) failures.push('schema_not_current');
+  if (!csv) failures.push('fresh_rubitime_csv_missing');
 
   let counts = null;
   if (missing.length === 0) {
     counts = JSON.parse(runPsql(databaseUrl, COUNTS_SQL));
     const requiredPositive = [
-      "legacy_total",
-      "canonical_rubitime_projection_total",
-      "rubitime_appointment_mappings",
-      "rubitime_branch_mappings",
-      "rubitime_specialist_mappings",
-      "rubitime_service_or_availability_mappings",
-      "active_specialists",
-      "canonical_branches",
-      "canonical_services",
-      "active_specialist_linked_members",
-      "platform_user_contacts",
-      "integrator_rubitime_records",
-      "default_org_setting_rows",
-      "bridge_setting_rows",
+      'legacy_total',
+      'canonical_rubitime_projection_total',
+      'rubitime_appointment_mappings',
+      'rubitime_branch_mappings',
+      'rubitime_specialist_mappings',
+      'rubitime_service_or_availability_mappings',
+      'active_specialists',
+      'canonical_branches',
+      'canonical_services',
+      'active_specialist_linked_members',
+      'platform_user_contacts',
+      'integrator_rubitime_records',
+      'default_org_setting_rows',
+      'bridge_setting_rows',
     ];
     for (const key of requiredPositive) {
       if (!Number.isInteger(counts[key]) || counts[key] <= 0) failures.push(`missing_seed:${key}`);
@@ -294,7 +298,7 @@ function main() {
   }
 
   const output = {
-    verdict: failures.length === 0 ? "PASS" : "FAIL",
+    verdict: failures.length === 0 ? 'PASS' : 'FAIL',
     database: info,
     csv,
     missingRequiredColumns: missing,

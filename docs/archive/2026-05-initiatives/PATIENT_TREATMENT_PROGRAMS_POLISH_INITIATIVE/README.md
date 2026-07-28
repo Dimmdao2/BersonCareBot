@@ -14,15 +14,15 @@
 
 ## Документы внутри инициативы
 
-| Файл | Назначение |
-|------|------------|
-| [`STAGE_PLAN.md`](STAGE_PLAN.md) | Индекс порядка A → B → C, таблица файлов, DoD всей мини-инициативы |
-| [`STAGE_A.md`](STAGE_A.md) | Этап **A** (roadmap **1.0**): `started_at`, миграция, тесты |
-| [`STAGE_B.md`](STAGE_B.md) | Этап **B** (roadmap **1.1a**): деталь `[instanceId]` |
-| [`STAGE_C.md`](STAGE_C.md) | Этап **C** (roadmap **1.1**): список `/treatment-programs` |
+| Файл                                           | Назначение                                                                                           |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| [`STAGE_PLAN.md`](STAGE_PLAN.md)               | Индекс порядка A → B → C, таблица файлов, DoD всей мини-инициативы                                   |
+| [`STAGE_A.md`](STAGE_A.md)                     | Этап **A** (roadmap **1.0**): `started_at`, миграция, тесты                                          |
+| [`STAGE_B.md`](STAGE_B.md)                     | Этап **B** (roadmap **1.1a**): деталь `[instanceId]`                                                 |
+| [`STAGE_C.md`](STAGE_C.md)                     | Этап **C** (roadmap **1.1**): список `/treatment-programs`                                           |
 | [`PROMPTS_COPYPASTE.md`](PROMPTS_COPYPASTE.md) | Копипаст-конвейер: `A/B/C (EXEC->AUDIT->FIX)` -> `GLOBAL AUDIT` -> `GLOBAL FIX` -> `PREPUSH POSTFIX` |
-| [`AUDIT_GLOBAL.md`](AUDIT_GLOBAL.md) | Итоговый аудит мини-инициативы после A/B/C + MANDATORY FIX по severity |
-| [`LOG.md`](LOG.md) | Журнал исполнения (решения, проверки, что не делали) |
+| [`AUDIT_GLOBAL.md`](AUDIT_GLOBAL.md)           | Итоговый аудит мини-инициативы после A/B/C + MANDATORY FIX по severity                               |
+| [`LOG.md`](LOG.md)                             | Журнал исполнения (решения, проверки, что не делали)                                                 |
 
 ## Продуктовые инварианты (MVP)
 

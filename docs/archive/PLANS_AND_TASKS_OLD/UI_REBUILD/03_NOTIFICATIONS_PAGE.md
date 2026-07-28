@@ -13,26 +13,26 @@
 **Создать файл:** `apps/webapp/src/app/app/patient/notifications/page.tsx`
 
 ```tsx
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requirePatientAccess } from "@/app-layer/guards/requireRole";
-import { routePaths } from "@/app-layer/routes/paths";
-import { AppShell } from "@/shared/ui/AppShell";
-import { SubscriptionsList } from "./SubscriptionsList";
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requirePatientAccess } from '@/app-layer/guards/requireRole';
+import { routePaths } from '@/app-layer/routes/paths';
+import { AppShell } from '@/shared/ui/AppShell';
+import { SubscriptionsList } from './SubscriptionsList';
 
 export default async function NotificationsPage() {
   const session = await requirePatientAccess(routePaths.notifications);
   const deps = buildAppDeps();
   const channelCards = await deps.channelPreferences.getChannelCards(
     session.user.userId,
-    session.user.bindings
+    session.user.bindings,
   );
 
   // Категории подписок (будет расширяться при реализации reminder rules)
   const subscriptions = [
-    { id: "exercise_reminders", title: "Напоминания об упражнениях" },
-    { id: "symptom_reminders", title: "Напоминания о симптомах" },
-    { id: "appointment_reminders", title: "Напоминания о записях" },
-    { id: "news", title: "Новости и обновления" },
+    { id: 'exercise_reminders', title: 'Напоминания об упражнениях' },
+    { id: 'symptom_reminders', title: 'Напоминания о симптомах' },
+    { id: 'appointment_reminders', title: 'Напоминания о записях' },
+    { id: 'news', title: 'Новости и обновления' },
   ];
 
   const linkedChannels = channelCards
@@ -71,10 +71,10 @@ export default async function NotificationsPage() {
 **Создать файл:** `apps/webapp/src/app/app/patient/notifications/SubscriptionsList.tsx`
 
 ```tsx
-"use client";
+'use client';
 
-import { useTransition } from "react";
-import { toggleSubscriptionChannel } from "./actions";
+import { useTransition } from 'react';
+import { toggleSubscriptionChannel } from './actions';
 
 type Subscription = { id: string; title: string };
 type LinkedChannel = { code: string; title: string };
@@ -95,13 +95,16 @@ export function SubscriptionsList({ subscriptions, linkedChannels, userId }: Pro
   };
 
   return (
-    <ul className="list" style={{ listStyle: "none", padding: 0, margin: 0 }}>
+    <ul className="list" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
       {subscriptions.map((sub) => (
         <li key={sub.id} className="list-item">
           <div style={{ fontWeight: 500, marginBottom: 8 }}>{sub.title}</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
             {linkedChannels.map((ch) => (
-              <label key={ch.code} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.9rem" }}>
+              <label
+                key={ch.code}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.9rem' }}
+              >
                 <input
                   type="checkbox"
                   defaultChecked
@@ -124,15 +127,15 @@ export function SubscriptionsList({ subscriptions, linkedChannels, userId }: Pro
 **Создать файл:** `apps/webapp/src/app/app/patient/notifications/actions.ts`
 
 ```tsx
-"use server";
+'use server';
 
-import { revalidatePath } from "next/cache";
-import { requirePatientAccess } from "@/app-layer/guards/requireRole";
+import { revalidatePath } from 'next/cache';
+import { requirePatientAccess } from '@/app-layer/guards/requireRole';
 
 export async function toggleSubscriptionChannel(
   subscriptionId: string,
   channelCode: string,
-  enabled: boolean
+  enabled: boolean,
 ) {
   const session = await requirePatientAccess();
   // TODO: Когда reminder rules будут реализованы в бэкенде,
@@ -142,7 +145,7 @@ export async function toggleSubscriptionChannel(
   void subscriptionId;
   void channelCode;
   void enabled;
-  revalidatePath("/app/patient/notifications");
+  revalidatePath('/app/patient/notifications');
 }
 ```
 
@@ -151,6 +154,7 @@ export async function toggleSubscriptionChannel(
 **Файл:** `apps/webapp/src/app/app/settings/page.tsx`
 
 Удалить из содержимого:
+
 1. Блок «Профиль» (секция `settings-profile-section`).
 2. Блок `ChannelSubscriptionBlock`.
 3. Блок «Мои покупки» (секция `settings-purchases-section`).
@@ -159,14 +163,12 @@ export async function toggleSubscriptionChannel(
 Если после удаления страница пуста — заменить содержимое на redirect:
 
 ```tsx
-import { redirect } from "next/navigation";
-import { getCurrentSession } from "@/modules/auth/service";
+import { redirect } from 'next/navigation';
+import { getCurrentSession } from '@/modules/auth/service';
 
 export default async function SettingsPage() {
   const session = await getCurrentSession();
-  const target = session?.user.role === "client"
-    ? "/app/patient/profile"
-    : "/app/doctor";
+  const target = session?.user.role === 'client' ? '/app/patient/profile' : '/app/doctor';
   redirect(target);
 }
 ```

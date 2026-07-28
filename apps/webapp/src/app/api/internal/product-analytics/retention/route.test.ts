@@ -1,19 +1,19 @@
 /** @vitest-environment node */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { envHolder, runRetentionMock, loggerInfoMock, recordTickMock } = vi.hoisted(() => ({
-  envHolder: { INTERNAL_JOB_SECRET: "test-internal-secret" as string },
+  envHolder: { INTERNAL_JOB_SECRET: 'test-internal-secret' as string },
   runRetentionMock: vi.fn(),
   loggerInfoMock: vi.fn(),
   recordTickMock: vi.fn(),
 }));
 
-vi.mock("@/config/env", () => ({
+vi.mock('@/config/env', () => ({
   env: envHolder,
 }));
 
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
     productAnalytics: {
       runRetention: (...args: unknown[]) => runRetentionMock(...args),
@@ -21,15 +21,15 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   }),
 }));
 
-vi.mock("@/app-layer/logging/logger", () => ({
+vi.mock('@/app-layer/logging/logger', () => ({
   logger: { info: loggerInfoMock, warn: vi.fn(), error: vi.fn() },
 }));
 
-vi.mock("@/app-layer/operator-health/recordOperatorCronJobTick", () => ({
+vi.mock('@/app-layer/operator-health/recordOperatorCronJobTick', () => ({
   recordOperatorCronJobTickBestEffort: (...args: unknown[]) => recordTickMock(...args),
 }));
 
-import { POST } from "./route";
+import { POST } from './route';
 
 const sampleResult = {
   dryRun: false,
@@ -43,9 +43,9 @@ const sampleResult = {
   deletedPushNotifications: 4,
 };
 
-describe("POST /api/internal/product-analytics/retention", () => {
+describe('POST /api/internal/product-analytics/retention', () => {
   beforeEach(() => {
-    envHolder.INTERNAL_JOB_SECRET = "test-internal-secret";
+    envHolder.INTERNAL_JOB_SECRET = 'test-internal-secret';
     runRetentionMock.mockReset();
     loggerInfoMock.mockReset();
     recordTickMock.mockReset();
@@ -53,43 +53,43 @@ describe("POST /api/internal/product-analytics/retention", () => {
     recordTickMock.mockResolvedValue(undefined);
   });
 
-  it("returns 503 when INTERNAL_JOB_SECRET is not configured", async () => {
-    envHolder.INTERNAL_JOB_SECRET = "";
+  it('returns 503 when INTERNAL_JOB_SECRET is not configured', async () => {
+    envHolder.INTERNAL_JOB_SECRET = '';
     const res = await POST(
-      new Request("http://localhost/api/internal/product-analytics/retention", {
-        method: "POST",
+      new Request('http://localhost/api/internal/product-analytics/retention', {
+        method: 'POST',
       }),
     );
     expect(res.status).toBe(503);
     expect(runRetentionMock).not.toHaveBeenCalled();
   });
 
-  it("returns 401 without bearer token", async () => {
+  it('returns 401 without bearer token', async () => {
     const res = await POST(
-      new Request("http://localhost/api/internal/product-analytics/retention", {
-        method: "POST",
+      new Request('http://localhost/api/internal/product-analytics/retention', {
+        method: 'POST',
       }),
     );
     expect(res.status).toBe(401);
     expect(runRetentionMock).not.toHaveBeenCalled();
   });
 
-  it("returns 400 for invalid recentDays", async () => {
+  it('returns 400 for invalid recentDays', async () => {
     const res = await POST(
-      new Request("http://localhost/api/internal/product-analytics/retention?recentDays=0", {
-        method: "POST",
-        headers: { authorization: "Bearer test-internal-secret" },
+      new Request('http://localhost/api/internal/product-analytics/retention?recentDays=0', {
+        method: 'POST',
+        headers: { authorization: 'Bearer test-internal-secret' },
       }),
     );
     expect(res.status).toBe(400);
     expect(runRetentionMock).not.toHaveBeenCalled();
   });
 
-  it("uses default retention windows when query is absent", async () => {
+  it('uses default retention windows when query is absent', async () => {
     const res = await POST(
-      new Request("http://localhost/api/internal/product-analytics/retention", {
-        method: "POST",
-        headers: { authorization: "Bearer test-internal-secret" },
+      new Request('http://localhost/api/internal/product-analytics/retention', {
+        method: 'POST',
+        headers: { authorization: 'Bearer test-internal-secret' },
       }),
     );
     expect(res.status).toBe(200);
@@ -103,19 +103,19 @@ describe("POST /api/internal/product-analytics/retention", () => {
     expect(recordTickMock).toHaveBeenCalledWith(
       expect.objectContaining({
         success: true,
-        jobKey: "analytics.product_analytics.retention",
+        jobKey: 'analytics.product_analytics.retention',
       }),
     );
   });
 
-  it("runs dryRun with custom day windows", async () => {
+  it('runs dryRun with custom day windows', async () => {
     runRetentionMock.mockResolvedValueOnce({ ...sampleResult, dryRun: true, recentDays: 30 });
     const res = await POST(
       new Request(
-        "http://localhost/api/internal/product-analytics/retention?dryRun=1&recentDays=30&userHourlyDays=60",
+        'http://localhost/api/internal/product-analytics/retention?dryRun=1&recentDays=30&userHourlyDays=60',
         {
-          method: "POST",
-          headers: { authorization: "Bearer test-internal-secret" },
+          method: 'POST',
+          headers: { authorization: 'Bearer test-internal-secret' },
         },
       ),
     );
@@ -132,7 +132,7 @@ describe("POST /api/internal/product-analytics/retention", () => {
     expect(json.dryRun).toBe(true);
     expect(loggerInfoMock).toHaveBeenCalledWith(
       expect.objectContaining({ dryRun: true, recentDays: 30 }),
-      "product_analytics_retention_job",
+      'product_analytics_retention_job',
     );
   });
 });

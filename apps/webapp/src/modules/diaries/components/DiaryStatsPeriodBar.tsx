@@ -1,15 +1,15 @@
-"use client";
+'use client';
 
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { Button } from "@/shared/ui/patient/primitives/button";
-import { SegmentControl } from "@/components/common/controls/SegmentControl";
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { Button } from '@/shared/ui/patient/primitives/button';
+import { SegmentControl } from '@/components/common/controls/SegmentControl';
 
-export type DiaryStatsPeriod = "week" | "month" | "all";
+export type DiaryStatsPeriod = 'week' | 'month' | 'all';
 
 const PERIOD_LABELS: readonly [DiaryStatsPeriod, string][] = [
-  ["week", "Неделя"],
-  ["month", "Месяц"],
-  ["all", "Всё"],
+  ['week', 'Неделя'],
+  ['month', 'Месяц'],
+  ['all', 'Всё'],
 ];
 
 const MAX_OFFSET = 520;

@@ -1,6 +1,6 @@
-import { getConfigValue } from "@/modules/system-settings/configAdapter";
-import { relayOutbound, type RelayInlineButton } from "@/modules/messaging/relayOutbound";
-import { parseIdTokens } from "@/shared/parsers/parseIdTokens";
+import { getConfigValue } from '@/modules/system-settings/configAdapter';
+import { relayOutbound, type RelayInlineButton } from '@/modules/messaging/relayOutbound';
+import { parseIdTokens } from '@/shared/parsers/parseIdTokens';
 
 function dedupe(ids: string[]): string[] {
   return [...new Set(ids)];
@@ -11,10 +11,10 @@ export async function loadDoctorNotifyTargets(): Promise<{
   max: string[];
 }> {
   const [adminTg, adminMax, doctorTg, doctorMax] = await Promise.all([
-    getConfigValue("admin_telegram_ids", ""),
-    getConfigValue("admin_max_ids", ""),
-    getConfigValue("doctor_telegram_ids", ""),
-    getConfigValue("doctor_max_ids", ""),
+    getConfigValue('admin_telegram_ids', ''),
+    getConfigValue('admin_max_ids', ''),
+    getConfigValue('doctor_telegram_ids', ''),
+    getConfigValue('doctor_max_ids', ''),
   ]);
   return {
     telegram: dedupe([...parseIdTokens(adminTg), ...parseIdTokens(doctorTg)]),
@@ -34,7 +34,7 @@ export async function relayTextToDoctorTargets(
     sends.push(
       relayOutbound({
         messageId: `${messageIdPrefix}:tg:${id}`,
-        channel: "telegram",
+        channel: 'telegram',
         recipient: id,
         text,
         ...(replyMarkup ? { replyMarkup } : {}),
@@ -51,7 +51,7 @@ export async function relayTextToDoctorTargets(
     sends.push(
       relayOutbound({
         messageId: `${messageIdPrefix}:max:${id}`,
-        channel: "max",
+        channel: 'max',
         recipient: id,
         text,
         ...(replyMarkup ? { replyMarkup } : {}),

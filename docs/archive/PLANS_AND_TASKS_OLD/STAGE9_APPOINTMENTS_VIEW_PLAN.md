@@ -39,28 +39,28 @@
 
 ## Затронутые файлы (сводка)
 
-| Файл / зона | Задачи |
-|-------------|--------|
-| `apps/integrator/src/kernel/contracts/projectionEventTypes.ts` | T1 |
-| `apps/webapp/migrations/` (новый файл) | T2 |
-| `apps/webapp/src/infra/repos/pgAppointmentProjection.ts` (новый) | T3 |
-| `apps/webapp/src/infra/repos/inMemoryAppointmentProjection.ts` (новый) | T3 |
-| `apps/webapp/src/modules/integrator/events.ts` | T4 |
-| `apps/webapp/src/app/api/integrator/events/route.ts` | T4 |
-| `apps/integrator/src/infra/db/writePort.ts` | T5 |
-| `apps/webapp/src/app/api/integrator/appointments/record/route.ts` (новый) | T6 |
-| `apps/webapp/src/app/api/integrator/appointments/active-by-user/route.ts` (новый) | T6 |
-| `apps/integrator/src/kernel/contracts/ports.ts` (AppointmentsReadsPort) | T7 |
-| `apps/integrator/src/infra/adapters/appointmentsReadsPort.ts` (новый) | T7 |
-| `apps/integrator/src/infra/db/readPort.ts` | T7 |
-| `apps/integrator/src/app/di.ts` | T7 |
-| `apps/webapp/src/infra/repos/pgDoctorAppointments.ts` | T8 |
-| `apps/webapp/src/modules/appointments/service.ts` | T8 |
-| `apps/webapp/src/app-layer/di/buildAppDeps.ts` | T8 |
-| `apps/webapp/scripts/backfill-appointments-domain.mjs` (новый) | T9 |
-| `apps/webapp/scripts/reconcile-appointments-domain.mjs` (новый) | T9 |
-| Тесты (unit + e2e) | T10 |
-| `scripts/stage9-release-gate.mjs` (новый) | T10 |
+| Файл / зона                                                                       | Задачи |
+| --------------------------------------------------------------------------------- | ------ |
+| `apps/integrator/src/kernel/contracts/projectionEventTypes.ts`                    | T1     |
+| `apps/webapp/migrations/` (новый файл)                                            | T2     |
+| `apps/webapp/src/infra/repos/pgAppointmentProjection.ts` (новый)                  | T3     |
+| `apps/webapp/src/infra/repos/inMemoryAppointmentProjection.ts` (новый)            | T3     |
+| `apps/webapp/src/modules/integrator/events.ts`                                    | T4     |
+| `apps/webapp/src/app/api/integrator/events/route.ts`                              | T4     |
+| `apps/integrator/src/infra/db/writePort.ts`                                       | T5     |
+| `apps/webapp/src/app/api/integrator/appointments/record/route.ts` (новый)         | T6     |
+| `apps/webapp/src/app/api/integrator/appointments/active-by-user/route.ts` (новый) | T6     |
+| `apps/integrator/src/kernel/contracts/ports.ts` (AppointmentsReadsPort)           | T7     |
+| `apps/integrator/src/infra/adapters/appointmentsReadsPort.ts` (новый)             | T7     |
+| `apps/integrator/src/infra/db/readPort.ts`                                        | T7     |
+| `apps/integrator/src/app/di.ts`                                                   | T7     |
+| `apps/webapp/src/infra/repos/pgDoctorAppointments.ts`                             | T8     |
+| `apps/webapp/src/modules/appointments/service.ts`                                 | T8     |
+| `apps/webapp/src/app-layer/di/buildAppDeps.ts`                                    | T8     |
+| `apps/webapp/scripts/backfill-appointments-domain.mjs` (новый)                    | T9     |
+| `apps/webapp/scripts/reconcile-appointments-domain.mjs` (новый)                   | T9     |
+| Тесты (unit + e2e)                                                                | T10    |
+| `scripts/stage9-release-gate.mjs` (новый)                                         | T10    |
 
 ---
 

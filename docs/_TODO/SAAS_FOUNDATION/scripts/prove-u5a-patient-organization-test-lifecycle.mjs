@@ -149,7 +149,8 @@ function cli(command, execute = false) {
   if (execute) args.push('--execute');
   const result = run('pnpm', args, { env, label: `operator CLI ${command}` });
   const output = `${result.stdout ?? ''}${result.stderr ?? ''}`;
-  if (/postgres(?:ql)?:\/\/|53000000-/.test(output)) fail('operator CLI disclosed protected connection or IDs');
+  if (/postgres(?:ql)?:\/\/|53000000-/.test(output))
+    fail('operator CLI disclosed protected connection or IDs');
   process.stdout.write(result.stdout ?? '');
 }
 
@@ -157,7 +158,18 @@ function proveUriOptionsRejectedBeforeCliConnection() {
   const maliciousUrl = `${operatorUrl()}&options=-c%20role%3D${optionSwitchedRole}`;
   const mismatch = run(
     path.join(pgBin, 'psql'),
-    ['-d', maliciousUrl, '-X', '-v', 'ON_ERROR_STOP=1', '-qAt', '-F', '|', '-c', 'SELECT session_user, current_user'],
+    [
+      '-d',
+      maliciousUrl,
+      '-X',
+      '-v',
+      'ON_ERROR_STOP=1',
+      '-qAt',
+      '-F',
+      '|',
+      '-c',
+      'SELECT session_user, current_user',
+    ],
     { label: 'URI options session/current mismatch proof' },
   );
   if (mismatch.stdout.trim() !== `${operatorRole}|${optionSwitchedRole}`) {
@@ -170,14 +182,7 @@ function proveUriOptionsRejectedBeforeCliConnection() {
   };
   const rejected = spawnSync(
     'pnpm',
-    [
-      '--dir',
-      'apps/webapp',
-      'run',
-      'test-fixture:patient-organization-lifecycle',
-      '--',
-      'status',
-    ],
+    ['--dir', 'apps/webapp', 'run', 'test-fixture:patient-organization-lifecycle', '--', 'status'],
     { cwd: repoRoot, encoding: 'utf8', env },
   );
   const output = `${rejected.stdout ?? ''}${rejected.stderr ?? ''}`;

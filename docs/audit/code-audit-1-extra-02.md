@@ -24,10 +24,11 @@ Five changed files: `ports.ts`, `pgDoctorClients.ts`, `conversations/route.ts`, 
 **E5 — PASS** — The route uses `list.flatMap((c) => { const uid = parsePlatformUserIdFromWebappConversationId(c.integratorConversationId); return uid ? [uid] : []; })`, explicitly filtering out nulls. Non-webapp conversations (where `parsePlatformUserIdFromWebappConversationId` returns null) are excluded from `patientUserIds`. Additionally `patientUserIds.length > 0` guards the `listClients` call; when empty, `scopedClients = []` without any DB call. At response-mapping time, conversations whose `integratorConversationId` parses to null produce `clientInfo = null`, and the output fields fall back to `null`/`false` — consistent with prior behaviour.
 
 **E6 — PASS** — Four new tests cover all required cases:
-  - (a) `route.test.ts`: scoped call asserts `listClientsMock` called once with `{ userIds: [p1, p2] }`.
-  - (b) `route.test.ts`: empty list asserts `listClientsMock` not called at all.
-  - (c) `pgDoctorClients.repo.test.ts`: `{ userIds: [] }` returns `[]` and `runWebappPgTextMock` not called.
-  - (d) `pgDoctorClients.repo.test.ts`: `{ userIds: ["uid-1","uid-2"] }` results in SQL containing `"ANY"` and `"uuid[]"`, and params containing both ids.
+
+- (a) `route.test.ts`: scoped call asserts `listClientsMock` called once with `{ userIds: [p1, p2] }`.
+- (b) `route.test.ts`: empty list asserts `listClientsMock` not called at all.
+- (c) `pgDoctorClients.repo.test.ts`: `{ userIds: [] }` returns `[]` and `runWebappPgTextMock` not called.
+- (d) `pgDoctorClients.repo.test.ts`: `{ userIds: ["uid-1","uid-2"] }` results in SQL containing `"ANY"` and `"uuid[]"`, and params containing both ids.
 
 **E7 — PASS** — `npx tsc --noEmit` exits 0 with no output on branch `auto/extra-02`.
 

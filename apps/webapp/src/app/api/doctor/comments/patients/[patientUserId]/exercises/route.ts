@@ -7,12 +7,12 @@
  * Query params:
  *   includePastPrograms — "true" для включения прошлых программ (по умолчанию — только активная).
  */
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
-import { loadDoctorPatientExercisesWithComments } from "@/app/app/doctor/comments/loadDoctorPatientExercisesWithComments";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { loadDoctorPatientExercisesWithComments } from '@/app/app/doctor/comments/loadDoctorPatientExercisesWithComments';
 
 const uuidSchema = z.string().uuid();
 
@@ -25,11 +25,11 @@ export async function GET(
 
   const { patientUserId } = await context.params;
   if (!uuidSchema.safeParse(patientUserId).success) {
-    return NextResponse.json({ ok: false, error: "invalid_patient_id" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_patient_id' }, { status: 400 });
   }
 
   const { searchParams } = new URL(request.url);
-  const includePastPrograms = searchParams.get("includePastPrograms") === "true";
+  const includePastPrograms = searchParams.get('includePastPrograms') === 'true';
 
   const deps = buildAppDeps();
   const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
@@ -37,7 +37,7 @@ export async function GET(
     gate.ctx.organizationId,
   );
   if (!identity) {
-    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
 
   const result = await withDoctorWorkspacePrincipal(gate.ctx, () =>

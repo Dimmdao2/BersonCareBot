@@ -1,7 +1,7 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
-import { requireClinicManagementBookingEngine } from "../_requireAdminBookingEngine";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import { requireClinicManagementBookingEngine } from '../_requireAdminBookingEngine';
 
 const PostSchema = z.object({
   fullName: z.string().min(1).max(200),
@@ -23,30 +23,35 @@ export async function POST(request: Request) {
   if (!gate.ok) return gate.response;
   const body = await request.json().catch(() => null);
   const parsed = PostSchema.safeParse(body);
-  if (!parsed.success) return NextResponse.json({ ok: false, error: "invalid_input" }, { status: 400 });
+  if (!parsed.success)
+    return NextResponse.json({ ok: false, error: 'invalid_input' }, { status: 400 });
   if (parsed.data.branchId) {
     const branch = await gate.ctx.service.catalog.getBranch(parsed.data.branchId);
     if (!branch || branch.organizationId !== gate.ctx.organizationId) {
-      return NextResponse.json({ ok: false, error: "branch_not_found" }, { status: 404 });
+      return NextResponse.json({ ok: false, error: 'branch_not_found' }, { status: 404 });
     }
   }
-  const specialist = await withDoctorWorkspacePrincipal(gate.ctx, "admin.booking-engine.specialists.upsert", async () => {
-    const row = await gate.ctx.service.catalog.upsertSpecialist({
-      organizationId: gate.ctx.organizationId,
-      fullName: parsed.data.fullName.trim(),
-      description: parsed.data.description ?? null,
-      isActive: parsed.data.isActive,
-      sortOrder: parsed.data.sortOrder,
-    });
-    if (parsed.data.branchId) {
-      await gate.ctx.service.catalog.setSpecialistLocation({
+  const specialist = await withDoctorWorkspacePrincipal(
+    gate.ctx,
+    'admin.booking-engine.specialists.upsert',
+    async () => {
+      const row = await gate.ctx.service.catalog.upsertSpecialist({
         organizationId: gate.ctx.organizationId,
-        specialistId: row.id,
-        branchId: parsed.data.branchId,
-        isActive: true,
+        fullName: parsed.data.fullName.trim(),
+        description: parsed.data.description ?? null,
+        isActive: parsed.data.isActive,
+        sortOrder: parsed.data.sortOrder,
       });
-    }
-    return row;
-  });
+      if (parsed.data.branchId) {
+        await gate.ctx.service.catalog.setSpecialistLocation({
+          organizationId: gate.ctx.organizationId,
+          specialistId: row.id,
+          branchId: parsed.data.branchId,
+          isActive: true,
+        });
+      }
+      return row;
+    },
+  );
   return NextResponse.json({ ok: true, specialist });
 }

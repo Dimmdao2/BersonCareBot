@@ -25,7 +25,10 @@ export type NotifTemplateVars = Partial<{
 }>;
 
 /** Defaults mirror the provider-neutral booking lifecycle notification text. */
-export const NOTIF_TEMPLATE_DEFAULTS: Record<NotifTemplateEvent, Record<NotifTemplateAudience, string>> = {
+export const NOTIF_TEMPLATE_DEFAULTS: Record<
+  NotifTemplateEvent,
+  Record<NotifTemplateAudience, string>
+> = {
   created: {
     patient: 'Запись подтверждена: {{date}}\n{{type}}{{city}}',
     doctor: 'Новая запись: {{name}}, {{phone}}\nДата: {{date}}',
@@ -40,7 +43,10 @@ export const NOTIF_TEMPLATE_DEFAULTS: Record<NotifTemplateEvent, Record<NotifTem
   },
 };
 
-export function notifTemplateKey(event: NotifTemplateEvent, audience: NotifTemplateAudience): string {
+export function notifTemplateKey(
+  event: NotifTemplateEvent,
+  audience: NotifTemplateAudience,
+): string {
   return `notif_template:${event}:${audience}`;
 }
 

@@ -1,18 +1,11 @@
-"use client";
+'use client';
 
-import {
-  CartesianGrid,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, XAxis, YAxis } from 'recharts';
 
-import type { ProductAnalyticsActiveUsersDailyRow } from "@/modules/product-analytics/types";
-import { DoctorRechartsTooltip } from "@/shared/ui/doctor/DoctorRechartsTooltip";
+import type { ProductAnalyticsActiveUsersDailyRow } from '@/modules/product-analytics/types';
+import { DoctorRechartsTooltip } from '@/shared/ui/doctor/DoctorRechartsTooltip';
 
-const STROKE = "hsl(215 65% 38%)";
+const STROKE = 'hsl(215 65% 38%)';
 
 export function ProductAnalyticsActiveUsersChart({
   rows,
@@ -33,7 +26,7 @@ export function ProductAnalyticsActiveUsersChart({
           <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
           <XAxis
             dataKey="day"
-            tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+            tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
             tickLine={false}
             interval="preserveStartEnd"
           />
@@ -41,19 +34,13 @@ export function ProductAnalyticsActiveUsersChart({
             domain={[0, yMax]}
             width={36}
             allowDecimals={false}
-            tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+            tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
             tickLine={false}
           />
           <DoctorRechartsTooltip
-            formatter={(value) => [typeof value === "number" ? value : "—", "Активные"]}
+            formatter={(value) => [typeof value === 'number' ? value : '—', 'Активные']}
           />
-          <Line
-            type="monotone"
-            dataKey="activeUsers"
-            stroke={STROKE}
-            strokeWidth={2}
-            dot={false}
-          />
+          <Line type="monotone" dataKey="activeUsers" stroke={STROKE} strokeWidth={2} dot={false} />
         </LineChart>
       </ResponsiveContainer>
     </div>

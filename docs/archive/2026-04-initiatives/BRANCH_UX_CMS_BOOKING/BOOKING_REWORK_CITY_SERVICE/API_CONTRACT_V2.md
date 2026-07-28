@@ -42,15 +42,15 @@ x-bersoncare-signature: <hmac_sha256>
 }
 ```
 
-| Поле | Тип | Обязательно | Описание |
-|---|---|---|---|
-| `version` | `"v2"` | да | Версия контракта |
-| `rubitimeBranchId` | `string` | да | ID филиала в Rubitime |
-| `rubitimeCooperatorId` | `string` | да | ID сотрудника в Rubitime |
-| `rubitimeServiceId` | `string` | да | ID услуги в Rubitime |
-| `slotDurationMinutes` | `number` (int > 0) | да | Длительность слота (мин.) для нормализации ответа Rubitime на стороне webapp/integrator |
-| `dateFrom` | `string` (YYYY-MM-DD) | нет | Фильтр одного дня или начало диапазона (webapp для одного дня шлёт `dateFrom` = `dateTo`) |
-| `dateTo` | `string` (YYYY-MM-DD) | нет | Конец диапазона |
+| Поле                   | Тип                   | Обязательно | Описание                                                                                  |
+| ---------------------- | --------------------- | ----------- | ----------------------------------------------------------------------------------------- |
+| `version`              | `"v2"`                | да          | Версия контракта                                                                          |
+| `rubitimeBranchId`     | `string`              | да          | ID филиала в Rubitime                                                                     |
+| `rubitimeCooperatorId` | `string`              | да          | ID сотрудника в Rubitime                                                                  |
+| `rubitimeServiceId`    | `string`              | да          | ID услуги в Rubitime                                                                      |
+| `slotDurationMinutes`  | `number` (int > 0)    | да          | Длительность слота (мин.) для нормализации ответа Rubitime на стороне webapp/integrator   |
+| `dateFrom`             | `string` (YYYY-MM-DD) | нет         | Фильтр одного дня или начало диапазона (webapp для одного дня шлёт `dateFrom` = `dateTo`) |
+| `dateTo`               | `string` (YYYY-MM-DD) | нет         | Конец диапазона                                                                           |
 
 **Не входит в v2 body:** `city`, `category`, `bookingType`, `bookingProfileId`.
 
@@ -74,12 +74,12 @@ x-bersoncare-signature: <hmac_sha256>
 }
 ```
 
-| Поле | Тип | Описание |
-|---|---|---|
-| `ok` | `true` | Успешный ответ |
-| `slots` | `Array<{ date: string; times: string[] }>` | Доступные слоты по дням |
-| `slots[].date` | `YYYY-MM-DD` | Дата |
-| `slots[].times` | `HH:MM[]` | Доступное время (timezone aware на стороне integrator) |
+| Поле            | Тип                                        | Описание                                               |
+| --------------- | ------------------------------------------ | ------------------------------------------------------ |
+| `ok`            | `true`                                     | Успешный ответ                                         |
+| `slots`         | `Array<{ date: string; times: string[] }>` | Доступные слоты по дням                                |
+| `slots[].date`  | `YYYY-MM-DD`                               | Дата                                                   |
+| `slots[].times` | `HH:MM[]`                                  | Доступное время (timezone aware на стороне integrator) |
 
 ### Response (error)
 
@@ -95,15 +95,16 @@ x-bersoncare-signature: <hmac_sha256>
 
 **Коды ошибок:**
 
-| Код | HTTP | Описание |
-|---|---|---|
-| `invalid_signature` | 401 | Неверная HMAC-подпись или истёкший window |
-| `missing_required_fields` | 400 | Отсутствует `rubitimeBranchId` / `rubitimeCooperatorId` / `rubitimeServiceId` |
-| `rubitime_branch_not_found` | 422 | Филиал не найден в Rubitime |
-| `rubitime_api_error` | 502 | Ошибка при запросе к Rubitime API |
-| `rubitime_timeout` | 504 | Таймаут запроса к Rubitime API |
+| Код                         | HTTP | Описание                                                                      |
+| --------------------------- | ---- | ----------------------------------------------------------------------------- |
+| `invalid_signature`         | 401  | Неверная HMAC-подпись или истёкший window                                     |
+| `missing_required_fields`   | 400  | Отсутствует `rubitimeBranchId` / `rubitimeCooperatorId` / `rubitimeServiceId` |
+| `rubitime_branch_not_found` | 422  | Филиал не найден в Rubitime                                                   |
+| `rubitime_api_error`        | 502  | Ошибка при запросе к Rubitime API                                             |
+| `rubitime_timeout`          | 504  | Таймаут запроса к Rubitime API                                                |
 
 **Упразднённые коды для in-person v2:**
+
 - `slots_mapping_not_configured` — **не используется** в v2 (mapping больше не нужен на стороне integrator)
 - `booking_profile_not_found` — **не используется** в v2
 
@@ -140,17 +141,17 @@ x-bersoncare-signature: <hmac_sha256>
 }
 ```
 
-| Поле | Тип | Обязательно | Описание |
-|---|---|---|---|
-| `version` | `"v2"` | да | Версия контракта |
-| `rubitimeBranchId` | `string` | да | ID филиала |
-| `rubitimeCooperatorId` | `string` | да | ID сотрудника |
-| `rubitimeServiceId` | `string` | да | ID услуги |
-| `slotStart` | `string` (ISO 8601 с timezone) | да | Дата и время начала |
-| `patient.name` | `string` | да | Имя пациента |
-| `patient.phone` | `string` | да | Телефон (snapshot) |
-| `patient.email` | `string` | нет | Email (snapshot, опционально) |
-| `localBookingId` | `string` (UUID) | да | ID записи в webapp DB (для idempotency и корреляции) |
+| Поле                   | Тип                            | Обязательно | Описание                                             |
+| ---------------------- | ------------------------------ | ----------- | ---------------------------------------------------- |
+| `version`              | `"v2"`                         | да          | Версия контракта                                     |
+| `rubitimeBranchId`     | `string`                       | да          | ID филиала                                           |
+| `rubitimeCooperatorId` | `string`                       | да          | ID сотрудника                                        |
+| `rubitimeServiceId`    | `string`                       | да          | ID услуги                                            |
+| `slotStart`            | `string` (ISO 8601 с timezone) | да          | Дата и время начала                                  |
+| `patient.name`         | `string`                       | да          | Имя пациента                                         |
+| `patient.phone`        | `string`                       | да          | Телефон (snapshot)                                   |
+| `patient.email`        | `string`                       | нет         | Email (snapshot, опционально)                        |
+| `localBookingId`       | `string` (UUID)                | да          | ID записи в webapp DB (для idempotency и корреляции) |
 
 **Не входит в v2 body:** `city`, `category`, `bookingType`, `bookingProfileId`, `slotEnd`.
 
@@ -166,11 +167,11 @@ x-bersoncare-signature: <hmac_sha256>
 }
 ```
 
-| Поле | Тип | Описание |
-|---|---|---|
-| `ok` | `true` | Успешный ответ |
-| `rubitimeRecordId` | `string` | ID созданной записи в Rubitime (сохраняется в `patient_bookings.rubitime_id`) |
-| `confirmedSlotStart` | `string` | Подтверждённое время начала (ISO 8601) |
+| Поле                 | Тип      | Описание                                                                      |
+| -------------------- | -------- | ----------------------------------------------------------------------------- |
+| `ok`                 | `true`   | Успешный ответ                                                                |
+| `rubitimeRecordId`   | `string` | ID созданной записи в Rubitime (сохраняется в `patient_bookings.rubitime_id`) |
+| `confirmedSlotStart` | `string` | Подтверждённое время начала (ISO 8601)                                        |
 
 ### Response (error)
 
@@ -186,15 +187,15 @@ x-bersoncare-signature: <hmac_sha256>
 
 **Коды ошибок:**
 
-| Код | HTTP | Описание |
-|---|---|---|
-| `invalid_signature` | 401 | Неверная подпись |
-| `missing_required_fields` | 400 | Отсутствует любое из обязательных полей |
-| `slot_already_taken` | 409 | Слот занят к моменту создания |
-| `rubitime_branch_not_found` | 422 | Филиал не найден |
-| `rubitime_api_error` | 502 | Ошибка Rubitime API |
-| `rubitime_timeout` | 504 | Таймаут Rubitime API |
-| `duplicate_local_booking_id` | 409 | Запись с этим `localBookingId` уже создана (idempotency) |
+| Код                          | HTTP | Описание                                                 |
+| ---------------------------- | ---- | -------------------------------------------------------- |
+| `invalid_signature`          | 401  | Неверная подпись                                         |
+| `missing_required_fields`    | 400  | Отсутствует любое из обязательных полей                  |
+| `slot_already_taken`         | 409  | Слот занят к моменту создания                            |
+| `rubitime_branch_not_found`  | 422  | Филиал не найден                                         |
+| `rubitime_api_error`         | 502  | Ошибка Rubitime API                                      |
+| `rubitime_timeout`           | 504  | Таймаут Rubitime API                                     |
+| `duplicate_local_booking_id` | 409  | Запись с этим `localBookingId` уже создана (idempotency) |
 
 ---
 
@@ -202,14 +203,14 @@ x-bersoncare-signature: <hmac_sha256>
 
 ### v1 → v2 переход
 
-| Аспект | v1 (legacy) | v2 (новый) |
-|---|---|---|
-| Резолв Rubitime IDs | Integrator (из `booking_profiles`) | Webapp (из `booking_catalog`) |
-| Поле `category` | Обязательно | Не используется |
-| Поле `city` | Обязательно | Не используется |
-| Поле `rubitimeBranchId` | Нет | Обязательно |
-| Поле `rubitimeServiceId` | Нет | Обязательно |
-| Версия в body | Нет (implicit v1) | `"version": "v2"` |
+| Аспект                   | v1 (legacy)                        | v2 (новый)                    |
+| ------------------------ | ---------------------------------- | ----------------------------- |
+| Резолв Rubitime IDs      | Integrator (из `booking_profiles`) | Webapp (из `booking_catalog`) |
+| Поле `category`          | Обязательно                        | Не используется               |
+| Поле `city`              | Обязательно                        | Не используется               |
+| Поле `rubitimeBranchId`  | Нет                                | Обязательно                   |
+| Поле `rubitimeServiceId` | Нет                                | Обязательно                   |
+| Версия в body            | Нет (implicit v1)                  | `"version": "v2"`             |
 
 ### Правила совместимости
 

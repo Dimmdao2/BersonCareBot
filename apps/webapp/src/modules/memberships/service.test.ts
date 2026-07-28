@@ -229,7 +229,9 @@ describe('createMembershipsService', () => {
     const ledger: PackageUsageRecord[] = [];
     let seq = 0;
     const port = makePort({
-      listUsagesForAppointment: vi.fn().mockImplementation(async () => ledger.map((u) => ({ ...u }))),
+      listUsagesForAppointment: vi
+        .fn()
+        .mockImplementation(async () => ledger.map((u) => ({ ...u }))),
       listUsagesForPackage: vi.fn().mockImplementation(async () => ledger.map((u) => ({ ...u }))),
       listPatientPackagesForUser: vi.fn().mockResolvedValue([activePkg]),
       getPatientPackage: vi.fn().mockResolvedValue(activePkg),
@@ -289,7 +291,9 @@ describe('createMembershipsService', () => {
     ];
     let seq = 0;
     const port = makePort({
-      listUsagesForAppointment: vi.fn().mockImplementation(async () => ledger.map((u) => ({ ...u }))),
+      listUsagesForAppointment: vi
+        .fn()
+        .mockImplementation(async () => ledger.map((u) => ({ ...u }))),
       recordReservedAppointmentDebit: vi.fn().mockImplementation(async (input) => {
         const debit: PackageUsageRecord = {
           id: `u-${input.usageKind}-${seq++}`,
@@ -370,7 +374,9 @@ describe('createMembershipsService', () => {
       },
     ];
     const port = makePort({
-      listUsagesForAppointment: vi.fn().mockImplementation(async () => ledger.map((u) => ({ ...u }))),
+      listUsagesForAppointment: vi
+        .fn()
+        .mockImplementation(async () => ledger.map((u) => ({ ...u }))),
       finalizeAppointmentDebit: vi.fn().mockImplementation(async (input) => {
         if (ledger.some((u) => u.usageKind === 'release')) return;
         ledger.push({

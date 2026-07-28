@@ -1,6 +1,6 @@
 ---
 name: unify doctor patient card
-overview: "Закрыто 2026-06-03: единый маршрут `/app/doctor/clients/[userId]`, убран desktop master-detail `?selected`, read-only дерево активной программы на табе «Программа», навигация «Сегодня» и возврат из editor через hash."
+overview: 'Закрыто 2026-06-03: единый маршрут `/app/doctor/clients/[userId]`, убран desktop master-detail `?selected`, read-only дерево активной программы на табе «Программа», навигация «Сегодня» и возврат из editor через hash.'
 status: completed
 todos:
   - id: remove-selected-master-detail

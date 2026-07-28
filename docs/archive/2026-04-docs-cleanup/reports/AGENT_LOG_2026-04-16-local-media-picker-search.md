@@ -37,12 +37,12 @@
 
 ## Тесты (автоматизация)
 
-| Файл | Назначение |
-|------|------------|
-| [`MediaLibraryPickerDialog.test.tsx`](../../apps/webapp/src/app/app/doctor/content/MediaLibraryPickerDialog.test.tsx) | Превью; один fetch при открытии; ввод не добавляет fetch; локальная фильтрация по filename/displayName |
-| [`MediaLibraryInsertDialog.test.tsx`](../../apps/webapp/src/shared/ui/markdown/MediaLibraryInsertDialog.test.tsx) | То же для вставки в Markdown |
-| [`useMediaLibraryPickerItems.test.ts`](../../apps/webapp/src/shared/ui/media/useMediaLibraryPickerItems.test.ts) | URL без `q`, `filterMediaLibraryPickerItemsByQuery`, `narrowMediaLibraryPickerItemsByKind` |
-| [`useMediaLibraryPickerItems.hook.test.tsx`](../../apps/webapp/src/shared/ui/media/useMediaLibraryPickerItems.hook.test.tsx) | Гонка: смена `listUrl` / закрытие до ответа |
+| Файл                                                                                                                         | Назначение                                                                                             |
+| ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| [`MediaLibraryPickerDialog.test.tsx`](../../apps/webapp/src/app/app/doctor/content/MediaLibraryPickerDialog.test.tsx)        | Превью; один fetch при открытии; ввод не добавляет fetch; локальная фильтрация по filename/displayName |
+| [`MediaLibraryInsertDialog.test.tsx`](../../apps/webapp/src/shared/ui/markdown/MediaLibraryInsertDialog.test.tsx)            | То же для вставки в Markdown                                                                           |
+| [`useMediaLibraryPickerItems.test.ts`](../../apps/webapp/src/shared/ui/media/useMediaLibraryPickerItems.test.ts)             | URL без `q`, `filterMediaLibraryPickerItemsByQuery`, `narrowMediaLibraryPickerItemsByKind`             |
+| [`useMediaLibraryPickerItems.hook.test.tsx`](../../apps/webapp/src/shared/ui/media/useMediaLibraryPickerItems.hook.test.tsx) | Гонка: смена `listUrl` / закрытие до ответа                                                            |
 
 ---
 

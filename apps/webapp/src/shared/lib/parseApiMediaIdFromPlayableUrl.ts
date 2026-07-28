@@ -4,7 +4,7 @@ const PATIENT_VIDEO_MEDIA_ID_RE =
 
 export function parseApiMediaIdFromPlayableUrl(path: string): string | null {
   const raw = path.trim();
-  const base = raw.split("#")[0]?.split("?")[0] ?? "";
+  const base = raw.split('#')[0]?.split('?')[0] ?? '';
   const m = PATIENT_VIDEO_MEDIA_ID_RE.exec(base);
   return m?.[1] ?? null;
 }
@@ -12,7 +12,10 @@ export function parseApiMediaIdFromPlayableUrl(path: string): string | null {
 /**
  * Абсолютный URL считается библиотечным только при совпадении `origin` с доверенным (например `window.location.origin` или `APP_BASE_URL`).
  */
-export function parseApiMediaIdFromHref(href: string, trustedOrigin: string | null | undefined): string | null {
+export function parseApiMediaIdFromHref(
+  href: string,
+  trustedOrigin: string | null | undefined,
+): string | null {
   const fromPath = parseApiMediaIdFromPlayableUrl(href);
   if (fromPath) return fromPath;
 
@@ -32,7 +35,10 @@ export function parseApiMediaIdFromHref(href: string, trustedOrigin: string | nu
  * Абсолютный `/api/media/{uuid}` в Markdown: проверка по списку доверенных origin (например `window.location.origin`
  * и опционально `NEXT_PUBLIC_APP_BASE_URL`, выровненный с каноническим `APP_BASE_URL` на деплое).
  */
-export function parseApiMediaIdFromMarkdownHref(href: string, trustedOrigins: Iterable<string>): string | null {
+export function parseApiMediaIdFromMarkdownHref(
+  href: string,
+  trustedOrigins: Iterable<string>,
+): string | null {
   const pathId = parseApiMediaIdFromPlayableUrl(href);
   if (pathId) return pathId;
 

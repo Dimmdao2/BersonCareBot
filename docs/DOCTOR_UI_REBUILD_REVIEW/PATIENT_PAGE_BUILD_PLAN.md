@@ -10,11 +10,13 @@
 **Branch:** working on `claude/admiring-hodgkin-c8fa92` (== `feat/doctor-ui-rebuild` at start). Parallel chat owns `feat/doctor-ui-rebuild` in the MAIN worktree (schedule/«Сегодня» work) — do NOT touch schedule/today files. Commit regularly here; push after big blocks. Do NOT run FULL CI (parallel dev). Use `pnpm test:webapp` / typecheck locally.
 
 ## Reference
+
 - Design: `docs/design/doctor-cabinet-wireframe.html` — `#p-patients` (list, ~lines 170-215), `#p-patient-card` (card, ~217-882), tabs `#pp-karta`, `#pp-program` (~695-810), visit panel `#visit-panel` (~401-471).
 - Backlog/intent: `docs/design/bersoncare-карточка-пациента-бэклог.md` (read it — defines the 6 tabs & data model).
 - ПРОГРАММА tab: **port existing implementation as-is**, redesign is a separate story.
 
 ## Canonical patterns (MUST reuse — don't hand-roll)
+
 - Etalon list/catalog page: `apps/webapp/src/app/app/doctor/exercises/page.tsx` + `ExercisesPageClient.tsx`.
 - Layout: `DoctorCatalogPageLayout`, `CatalogSplitLayout`, `CatalogLeftPane`, `CatalogRightPane`, `DoctorCatalogFiltersToolbar` under `@/shared/ui/doctor/...`.
 - Visual constants/classes: `@/shared/ui/doctor/doctorVisual.ts` (section card/title/metric classes; radii xl/lg/md only; text-base/sm/xs only).
@@ -23,23 +25,27 @@
 - Tabs: load page once, switch tabs client-side (hide inactive) — do not server-refetch per tab.
 
 ## Clean architecture (MUST follow)
+
 - DB only via ports (`modules/*/ports.ts` interfaces) implemented in `infra/repos/*`. No `@/infra/db` or `@/infra/repos` imports inside modules or routes.
 - Routes: parse → validate (Zod) → authorize (`requireDoctorAccess`) → call service via `buildAppDeps()` → return. No business logic in routes.
 - Migrations via Drizzle (`apps/webapp/db/schema/*.ts` + drizzle-kit generate), not raw SQL.
 
 ## Existing backend reuse
+
 - Module `modules/doctor-clients/` — `DoctorClientsPort`: `listClients(filters)`, `getClientIdentity(userId)`, `getClientSupport`, archive/block/support mutations, `getDashboardPatientMetrics`.
 - Types: `ClientListItem` (rich: contacts, nextAppointmentLabel, activeTreatmentProgram, cancellation/reschedule counts, visitedThisCalendarMonth, unread counts, isOnSupport, hasMemberships), `ClientIdentity` (name/phone/email/bindings/created/blocked/archived/firstName/lastName).
 - Repo: `infra/repos/pgDoctorClients.ts`. DI: `app-layer/di/buildAppDeps.ts`.
 - Tables: `platform_users`, `user_channel_bindings`, `doctor_patient_support`, `appointment_records`, `treatment_program_instances`, `entity_comments`.
 
 ## Run & verify
+
 - Dev: `pnpm run webapp:dev` → http://127.0.0.1:5200 . Doctor login bypass per memory `dev-doctor-login`.
 - Verify by running app + headless screenshots before declaring done.
 
 ---
 
 ## Scope decisions (OWNER-CONFIRMED 2026-06-14)
+
 **Global ordering rule (owner):** UI FIRST everywhere. Build each tab/page UI to match the wireframe etalon, verify it matches, THEN do backend functionality to the max. Don't block UI on backend.
 
 1. **Карта (clinical core)** — UI first (faithful to wireframe incl. visit history + «+ Новый визит» panel). After UI verified, build backend to the max: minimal data model (visit/complaint/complaint_update/diagnosis/diagnosis_catalog/file) + read + create-visit. Push backend as far as time allows.
@@ -52,22 +58,26 @@
 ---
 
 ## Waves
+
 - **Wave 1 (foundation+backend, sequential):** routes skeleton (`/app/doctor/patients`, `/app/doctor/patients/[userId]`), routePaths, sidebar nav link; backend: list endpoint w/ all filters+segments + multi-field search (extend repo for tg/max/email/name); identity aggregate endpoint for card header (last visit, next appt, totals, support). Commit.
 - **Wave 2 (parallel):** A=Patients list UI (filters/segments/search/preview/CTA). B=Patient card shell (header + 6-tab client nav + layout).
 - **Wave 3 (parallel, after shell):** Обзор+Записи (real); Учётка+Файлы; Карта (faithful UI); Программа (port existing).
 - **Wave 4:** audit each, fix, run app + screenshots.
 
 ## CONTRACTS (Wave 1 delivered — Wave 2+ consume these)
+
 **Deps:** worktree needs its own `node_modules` — already `pnpm install`ed. Typecheck: `cd apps/webapp && npx tsc --noEmit`.
 
 **Routes (paths.ts):** `routePaths.doctorPatients` = `/app/doctor/patients`; `routePaths.doctorPatientCard(userId)` = `/app/doctor/patients/:userId`. Nav link "Пациенты" added in `doctorNavLinks.ts`.
 
 **List endpoint:** `GET /api/doctor/patients?q=&segment=&channel=&archived=` → `{ clients: ClientListItem[] }`.
+
 - `segment` ∈ on_support | with_program | visited_month | memberships | new | former | subscriber | cancellations
 - `channel` ∈ telegram | max | email | phone ; `archived=true` for archive.
 - `ClientListItem` (modules/doctor-clients/ports.ts) fields: userId, displayName, phone, bindings(ChannelBindings), hasEmail, hasApp, nextAppointmentLabel, hasAppointmentHistory, activeAppointmentsCount, activeTreatmentProgram, activeTreatmentProgramInstanceId, cancellationCount30d, rescheduleCount30d, visitedThisCalendarMonth, hasConversation, unreadMessagesCount, unreadExerciseCommentsCount, isOnSupport, hasMemberships. (firstName/lastName NOT yet on list item — see TODO.)
 
 **Card-header endpoint:** `GET /api/doctor/patients/:userId` → `{ ok, header: PatientCardHeader }`.
+
 - `PatientCardHeader`: identity{userId,displayName,firstName,lastName,phone,email,bindings,isArchived,isBlocked,birthDate:null,age:null}, support{isOnSupport,supportMonthsApprox}, lastVisit{date,visitType:null,city:null}|null, nextAppointment{date,time,city:null,appointmentType:null}|null, totalVisits, cancellationsCount, reschedulesCount, firstVisitDate.
 - TODO (no data source yet): birthDate/age, visitType, city, appointmentType. supportMonthsApprox is approximate.
 
@@ -76,11 +86,13 @@
 **Wave-1 TODO for later backend depth:** add firstName/lastName to ClientListItem (needed for hidden-name display in list rows/preview — owner answer #3); real birthDate field; visit type/city.
 
 ## ORCHESTRATION RULES for subagents
+
 - Subagents DO NOT git commit/push (avoid index races when parallel). The orchestrator commits after each wave.
 - Stay on branch claude/admiring-hodgkin-c8fa92. Never touch schedule/«Сегодня»/FullCalendar files.
 - UI-first: match wireframe; use mock/stub data where backend absent; mark `// TODO(backend)`.
 
 ## Revised waves (UI-FIRST per owner)
+
 - **W1 ✅** foundation (routes, list filters/search, header aggregate). Committed 08181ce0.
 - **W2 (parallel):** A=Patients LIST full UI (search/segments/channels/preview w/ hidden name/CTA, real list endpoint). B=Patient CARD shell (real header + 6-tab client nav + per-tab content slots as placeholders).
 - **W3 (parallel, after W2-B):** per-tab UI faithful to wireframe (mock data ok): Обзор, Карта, Записи, Файлы, Учётка(+Платежи block), Программа(port existing as-is).
@@ -88,6 +100,7 @@
 - **W5:** audit + run app + headless screenshots + fixes.
 
 ## Status log (agents append here)
+
 - (init) plan created.
 - W1 done & committed (08181ce0). Deps installed in worktree. Typecheck clean for patient files.
 - W2 done (a357b6b4): list page UI + card shell (header + 6-tab nav + tab scaffolds). Typecheck clean.
@@ -97,7 +110,9 @@
 - PUSHED to dimmdao/claude/admiring-hodgkin-c8fa92.
 
 ## VERIFIED STATE (2026-06-14 ~05:00) — ready for owner test
+
 Run: from worktree `pnpm install` (done) → `cd apps/webapp && NODE_ENV=development npx next dev --webpack -H 127.0.0.1 -p 5300` → auth `/api/auth/dev-bypass?token=dev:doctor` → `/app/doctor/patients`. (Don't use webapp:dev — it kills :5200.)
+
 - Пациенты list: search, 9 real segment counts, channel filters, preview with hidden real name + CTA. REAL data.
 - Card header: REAL (displayName + hidden name, phone copy, channels, last/next/total). birthDate/age = «—» (no field yet).
 - Обзор: faithful UI, MOCK data (widgets) — TODO(backend) wiring.
@@ -108,6 +123,7 @@ Run: from worktree `pnpm install` (done) → `cd apps/webapp && NODE_ENV=develop
 - Учётка: faithful UI, MOST data MOCK; Платежи block (cash+acquiring note) per owner #2.
 
 ## SESSION 2 (2026-06-14) — branch claude/affectionate-booth-579d18
+
 - Owner UI review of Карта applied + verified live (0e4cf10b): tab width = «Обзор» full width; add-visit form widened; form/history STACK in add-mode; collapse-history toggle moved LEFT; blur clinical card ONLY when history open.
 - Карта clinical CORE (0e4cf10b): module patient-clinical + migration 0121 (clinical_visit/complaint/complaint_update/diagnosis/diagnosis_update/diagnosis_catalog + patient_files.visit_id) + endpoints + create-visit (Новый визит only; inline edit deferred). Сопутствующие+Анамнез stay mock.
 - Обзор (459969c9): all widgets wired real (+ new proactive-insights & exercise-calendar endpoints).
@@ -117,6 +133,7 @@ Run: from worktree `pnpm install` (done) → `cd apps/webapp && NODE_ENV=develop
 - Migrations 0121/0122/0123 APPLIED to dev DB. All verified live on :5300.
 
 ## REMAINING (next session, needs owner input where noted)
+
 - Карта clinical model: visit/complaint/complaint_update/diagnosis/diagnosis_catalog/file tables + create-visit form wiring (biggest piece, owner-decision-heavy).
 - Обзор widget wiring to real data (signals/symptoms/dynamics/exercise-calendar/notes/tasks/messages).
 - Учётка: wire support/block/archive to existing endpoints; Платежи real model (manual cash + acquiring integration ЮKassa/ЮMoney); merge link; audit set.

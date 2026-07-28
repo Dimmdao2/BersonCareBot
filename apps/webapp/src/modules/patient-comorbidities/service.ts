@@ -8,7 +8,7 @@ import type {
   Comorbidity,
   EditComorbidityTextInput,
   PatientComorbiditiesPort,
-} from "./ports";
+} from './ports';
 
 export type PatientComorbiditiesServiceDeps = {
   patientComorbiditiesPort: PatientComorbiditiesPort;
@@ -20,18 +20,18 @@ export function createPatientComorbiditiesService({
   return {
     /** Список активных заболеваний (вкладка «Текущие»). */
     async listActive(patientUserId: string): Promise<Comorbidity[]> {
-      return patientComorbiditiesPort.listByPatient(patientUserId, "active");
+      return patientComorbiditiesPort.listByPatient(patientUserId, 'active');
     },
 
     /** Список снятых заболеваний (вкладка «Снятые»). */
     async listRemoved(patientUserId: string): Promise<Comorbidity[]> {
-      return patientComorbiditiesPort.listByPatient(patientUserId, "removed");
+      return patientComorbiditiesPort.listByPatient(patientUserId, 'removed');
     },
 
     /** Добавить сопутствующее заболевание. */
     async add(input: AddComorbidityInput): Promise<Comorbidity> {
       const text = input.text.trim();
-      if (!text) throw new Error("comorbidity_text_required");
+      if (!text) throw new Error('comorbidity_text_required');
       const since = input.since != null ? input.since.trim() || null : null;
       return patientComorbiditiesPort.add({ ...input, text, since });
     },
@@ -47,14 +47,14 @@ export function createPatientComorbiditiesService({
       };
       if (input.text !== undefined) {
         const text = input.text.trim();
-        if (!text) throw new Error("comorbidity_text_required");
+        if (!text) throw new Error('comorbidity_text_required');
         patch.text = text;
       }
       if (input.since !== undefined) {
         patch.since = input.since != null ? input.since.trim() || null : null;
       }
       if (patch.text === undefined && patch.since === undefined) {
-        throw new Error("nothing_to_update");
+        throw new Error('nothing_to_update');
       }
       return patientComorbiditiesPort.editText(patch);
     },

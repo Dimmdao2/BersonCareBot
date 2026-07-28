@@ -14,7 +14,11 @@
  */
 import { createHmac } from 'node:crypto';
 import { integratorWebhookSecret } from '../../config/env.js';
-import type { VapidCredentials, WebPushAccessPort, WebPushSubscriptionPayload } from '../../kernel/contracts/index.js';
+import type {
+  VapidCredentials,
+  WebPushAccessPort,
+  WebPushSubscriptionPayload,
+} from '../../kernel/contracts/index.js';
 
 function signGet(timestamp: string, canonicalGet: string, secret: string): string {
   return createHmac('sha256', secret).update(`${timestamp}.${canonicalGet}`).digest('base64url');
@@ -63,7 +67,10 @@ export function createWebPushAccessPort(deps: {
   const { getAppBaseUrl } = deps;
 
   return {
-    async getSubscriptionsForUser(pushUserId: string, organizationId: string): Promise<WebPushSubscriptionPayload[] | null> {
+    async getSubscriptionsForUser(
+      pushUserId: string,
+      organizationId: string,
+    ): Promise<WebPushSubscriptionPayload[] | null> {
       const baseUrl = await getAppBaseUrl();
       const secret = integratorWebhookSecret();
       if (!baseUrl || !secret || !organizationId) return null;
@@ -76,14 +83,16 @@ export function createWebPushAccessPort(deps: {
         parseResponse: (data) => {
           if (!Array.isArray(data.subscriptions)) return null;
           // Validate and narrow the subscription shape
-          return (data.subscriptions as unknown[]).filter((sub): sub is WebPushSubscriptionPayload => {
-            if (sub === null || typeof sub !== 'object') return false;
-            const s = sub as Record<string, unknown>;
-            if (typeof s.endpoint !== 'string') return false;
-            if (typeof s.keys !== 'object' || s.keys === null) return false;
-            const k = s.keys as Record<string, unknown>;
-            return typeof k.p256dh === 'string' && typeof k.auth === 'string';
-          });
+          return (data.subscriptions as unknown[]).filter(
+            (sub): sub is WebPushSubscriptionPayload => {
+              if (sub === null || typeof sub !== 'object') return false;
+              const s = sub as Record<string, unknown>;
+              if (typeof s.endpoint !== 'string') return false;
+              if (typeof s.keys !== 'object' || s.keys === null) return false;
+              const k = s.keys as Record<string, unknown>;
+              return typeof k.p256dh === 'string' && typeof k.auth === 'string';
+            },
+          );
         },
       });
     },
@@ -110,7 +119,11 @@ export function createWebPushAccessPort(deps: {
       });
     },
 
-    async deleteSubscriptionByEndpoint(pushUserId: string, endpoint: string, organizationId: string): Promise<boolean> {
+    async deleteSubscriptionByEndpoint(
+      pushUserId: string,
+      endpoint: string,
+      organizationId: string,
+    ): Promise<boolean> {
       const baseUrl = await getAppBaseUrl();
       const secret = integratorWebhookSecret();
       if (!baseUrl || !secret || !organizationId || !pushUserId) return false;

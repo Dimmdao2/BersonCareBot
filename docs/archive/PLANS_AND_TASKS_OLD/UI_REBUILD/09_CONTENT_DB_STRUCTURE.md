@@ -10,12 +10,12 @@
 
 ## Текущее состояние
 
-| Компонент | Данные | Проблема |
-|-----------|--------|----------|
-| `catalog.ts` | 7 STUB_ENTRIES | Placeholder-тексты, в коде |
-| `lessons/service.ts` | 3 урока | Дублируют slug из каталога, в коде |
-| `emergency/service.ts` | 3 темы | Дублируют slug из каталога, в коде |
-| БД | Нет таблицы контента | Нельзя редактировать без деплоя |
+| Компонент              | Данные               | Проблема                           |
+| ---------------------- | -------------------- | ---------------------------------- |
+| `catalog.ts`           | 7 STUB_ENTRIES       | Placeholder-тексты, в коде         |
+| `lessons/service.ts`   | 3 урока              | Дублируют slug из каталога, в коде |
+| `emergency/service.ts` | 3 темы               | Дублируют slug из каталога, в коде |
+| БД                     | Нет таблицы контента | Нельзя редактировать без деплоя    |
 
 ## Шаги
 
@@ -46,6 +46,7 @@ CREATE INDEX IF NOT EXISTS idx_content_pages_slug ON content_pages(slug);
 ```
 
 **Разделы (section):**
+
 - `emergency` — скорая помощь
 - `lessons` — полезные уроки
 
@@ -58,21 +59,63 @@ CREATE INDEX IF NOT EXISTS idx_content_pages_slug ON content_pages(slug);
 **Создать файл:** `apps/webapp/scripts/seed-content-pages.mjs`
 
 ```js
-import pg from "pg";
-import dotenv from "dotenv";
+import pg from 'pg';
+import dotenv from 'dotenv';
 dotenv.config();
 
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 
 const pages = [
   // Emergency
-  { section: "emergency", slug: "back-pain", title: "Острая боль в спине", summary: "Быстрые рекомендации и безопасные первые шаги.", body_html: "", sort_order: 1 },
-  { section: "emergency", slug: "neck-pain", title: "Острая боль в шее", summary: "Короткие рекомендации для снижения нагрузки.", body_html: "", sort_order: 2 },
-  { section: "emergency", slug: "panic-attack", title: "Паническая атака", summary: "Поддерживающий сценарий с базовым дыханием.", body_html: "", sort_order: 3 },
+  {
+    section: 'emergency',
+    slug: 'back-pain',
+    title: 'Острая боль в спине',
+    summary: 'Быстрые рекомендации и безопасные первые шаги.',
+    body_html: '',
+    sort_order: 1,
+  },
+  {
+    section: 'emergency',
+    slug: 'neck-pain',
+    title: 'Острая боль в шее',
+    summary: 'Короткие рекомендации для снижения нагрузки.',
+    body_html: '',
+    sort_order: 2,
+  },
+  {
+    section: 'emergency',
+    slug: 'panic-attack',
+    title: 'Паническая атака',
+    summary: 'Поддерживающий сценарий с базовым дыханием.',
+    body_html: '',
+    sort_order: 3,
+  },
   // Lessons
-  { section: "lessons", slug: "neck-warmup", title: "Разминка для шеи", summary: "Короткая сессия для безопасного старта дня.", body_html: "", sort_order: 1 },
-  { section: "lessons", slug: "back-basics", title: "Базовые принципы разгрузки спины", summary: "Объяснение базовых привычек.", body_html: "", sort_order: 2 },
-  { section: "lessons", slug: "breathing-reset", title: "Дыхательная пауза при стрессе", summary: "Короткая практика для быстрого восстановления.", body_html: "", sort_order: 3 },
+  {
+    section: 'lessons',
+    slug: 'neck-warmup',
+    title: 'Разминка для шеи',
+    summary: 'Короткая сессия для безопасного старта дня.',
+    body_html: '',
+    sort_order: 1,
+  },
+  {
+    section: 'lessons',
+    slug: 'back-basics',
+    title: 'Базовые принципы разгрузки спины',
+    summary: 'Объяснение базовых привычек.',
+    body_html: '',
+    sort_order: 2,
+  },
+  {
+    section: 'lessons',
+    slug: 'breathing-reset',
+    title: 'Дыхательная пауза при стрессе',
+    summary: 'Короткая практика для быстрого восстановления.',
+    body_html: '',
+    sort_order: 3,
+  },
 ];
 
 async function seed() {
@@ -85,17 +128,21 @@ async function seed() {
          summary = EXCLUDED.summary,
          sort_order = EXCLUDED.sort_order,
          updated_at = now()`,
-      [p.section, p.slug, p.title, p.summary, p.body_html, p.sort_order]
+      [p.section, p.slug, p.title, p.summary, p.body_html, p.sort_order],
     );
   }
   console.log(`Seeded ${pages.length} content pages.`);
   await pool.end();
 }
 
-seed().catch((e) => { console.error(e); process.exit(1); });
+seed().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});
 ```
 
 Добавить script в `package.json`:
+
 ```json
 "seed-content": "node scripts/seed-content-pages.mjs"
 ```
@@ -105,7 +152,7 @@ seed().catch((e) => { console.error(e); process.exit(1); });
 **Создать файл:** `apps/webapp/src/infra/repos/pgContentPages.ts`
 
 ```ts
-import { getPool } from "@/infra/db/client";
+import { getPool } from '@/infra/db/client';
 
 export type ContentPageRow = {
   id: string;
@@ -130,7 +177,7 @@ export function createPgContentPagesPort() {
          FROM content_pages
          WHERE section = $1 AND is_published = true
          ORDER BY sort_order, title`,
-        [section]
+        [section],
       );
       return res.rows.map(mapRow);
     },
@@ -140,7 +187,7 @@ export function createPgContentPagesPort() {
       const res = await pool.query(
         `SELECT id, section, slug, title, summary, body_html, sort_order, is_published, video_url, video_type, image_url
          FROM content_pages WHERE slug = $1 AND is_published = true`,
-        [slug]
+        [slug],
       );
       return res.rows[0] ? mapRow(res.rows[0]) : null;
     },
@@ -149,12 +196,12 @@ export function createPgContentPagesPort() {
       const pool = getPool();
       const res = await pool.query(
         `SELECT id, section, slug, title, summary, body_html, sort_order, is_published, video_url, video_type, image_url
-         FROM content_pages ORDER BY section, sort_order, title`
+         FROM content_pages ORDER BY section, sort_order, title`,
       );
       return res.rows.map(mapRow);
     },
 
-    async upsert(page: Omit<ContentPageRow, "id"> & { id?: string }): Promise<string> {
+    async upsert(page: Omit<ContentPageRow, 'id'> & { id?: string }): Promise<string> {
       const pool = getPool();
       const res = await pool.query(
         `INSERT INTO content_pages (section, slug, title, summary, body_html, sort_order, is_published, video_url, video_type, image_url)
@@ -170,8 +217,18 @@ export function createPgContentPagesPort() {
            image_url = EXCLUDED.image_url,
            updated_at = now()
          RETURNING id`,
-        [page.section, page.slug, page.title, page.summary, page.bodyHtml,
-         page.sortOrder, page.isPublished, page.videoUrl, page.videoType, page.imageUrl]
+        [
+          page.section,
+          page.slug,
+          page.title,
+          page.summary,
+          page.bodyHtml,
+          page.sortOrder,
+          page.isPublished,
+          page.videoUrl,
+          page.videoType,
+          page.imageUrl,
+        ],
       );
       return res.rows[0].id;
     },
@@ -185,7 +242,7 @@ function mapRow(row: Record<string, unknown>): ContentPageRow {
     slug: row.slug as string,
     title: row.title as string,
     summary: row.summary as string,
-    bodyHtml: (row.body_html as string) ?? "",
+    bodyHtml: (row.body_html as string) ?? '',
     sortOrder: row.sort_order as number,
     isPublished: row.is_published as boolean,
     videoUrl: row.video_url as string | null,
@@ -220,6 +277,7 @@ function mapRow(row: Record<string, unknown>): ContentPageRow {
 **Файл:** `apps/webapp/src/app/app/patient/content/[slug]/page.tsx`
 
 Адаптировать под новый формат данных из БД:
+
 - `bodyText` → `bodyHtml` (рендерить как HTML через `dangerouslySetInnerHTML` или как текст).
 - `videoSource` → `videoUrl` + `videoType`.
 

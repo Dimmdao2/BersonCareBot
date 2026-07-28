@@ -1,37 +1,37 @@
 ---
 name: Rubitime transition stabilize
-overview: "Переходный Rubitime-режим стабилизирован (2026-05-30): read/write согласованы, календарь и create на settings, UI-паритет расписания, audit closure — чеклисты и DoD закрыты."
+overview: 'Переходный Rubitime-режим стабилизирован (2026-05-30): read/write согласованы, календарь и create на settings, UI-паритет расписания, audit closure — чеклисты и DoD закрыты.'
 gitBranch: initiative/own-booking-engine
 status: completed
 completedAt: 2026-05-30
 isProject: false
 todos:
   - id: p0-defaults-align
-    content: "П.0: migration 0100 booking_slots_read_source=rubitime + integrator.system_settings mirror"
+    content: 'П.0: migration 0100 booking_slots_read_source=rubitime + integrator.system_settings mirror'
     status: completed
   - id: p1-source-mode-ui
-    content: "П.1: labels источников, статус календаря, hybrid warning; overview; settings + overview route tests"
+    content: 'П.1: labels источников, статус календаря, hybrid warning; overview; settings + overview route tests'
     status: completed
   - id: p2-calendar-rubitime
-    content: "П.2: pgBookingCalendarLegacy, read switch, freeSlotsEnabled, calendarLegacyFilters, branchId mapping, route tests"
+    content: 'П.2: pgBookingCalendarLegacy, read switch, freeSlotsEnabled, calendarLegacyFilters, branchId mapping, route tests'
     status: completed
   - id: p3-rubitime-first-create
-    content: "П.3: Rubitime-first create, rollback, prepayment order; canonicalCreate tests (incl. rubitime_id_missing)"
+    content: 'П.3: Rubitime-first create, rollback, prepayment order; canonicalCreate tests (incl. rubitime_id_missing)'
     status: completed
   - id: p4-remove-duration-ui
-    content: "П.4: убрать select Длительность; slotCount=1; SlotStepClient test"
+    content: 'П.4: убрать select Длительность; slotCount=1; SlotStepClient test'
     status: completed
   - id: p5-working-hours-ui
-    content: "П.5: CRUD be_working_hours — API/UI; fallback; route tests GET/POST/PATCH/DELETE"
+    content: 'П.5: CRUD be_working_hours — API/UI; fallback; route tests GET/POST/PATCH/DELETE'
     status: completed
   - id: p6-scoped-blocks
-    content: "П.6: scoped schedule-blocks UI/API; scheduleBlockScope verify; route test"
+    content: 'П.6: scoped schedule-blocks UI/API; scheduleBlockScope verify; route test'
     status: completed
   - id: p7-docs
-    content: "П.7: MASTER_PLAN, STAGE_CHECKLISTS, LOG, api.md, DOCTOR_CABINET_NAVIGATION, UI_SURFACES, README"
+    content: 'П.7: MASTER_PLAN, STAGE_CHECKLISTS, LOG, api.md, DOCTOR_CABINET_NAVIGATION, UI_SURFACES, README'
     status: completed
   - id: p8-ci
-    content: "П.8: targeted vitest + lint + tsc green; полный pnpm run ci перед push"
+    content: 'П.8: targeted vitest + lint + tsc green; полный pnpm run ci перед push'
     status: completed
 ---
 
@@ -82,23 +82,23 @@ flowchart LR
   CREATE --> CANON["canonical primary + Rubitime best-effort if bridge"]
 ```
 
-| Проблема | Где | Риск |
-|----------|-----|------|
-| Календарь не читает `appointment_records` | [`pgBookingCalendar`](apps/webapp/src/infra/repos/pgBookingCalendar.ts) | Пустой календарь при `rubitime_legacy` |
-| Canonical free slots при Rubitime read | [`booking-calendar/service.ts`](apps/webapp/src/modules/booking-calendar/service.ts) | Ложные «Свободно» |
-| Hybrid slots≠create | `booking_slots_read_source` vs [`canonicalCreate.ts`](apps/webapp/src/modules/patient-booking/canonicalCreate.ts) | Пациент бронирует Rubitime-слот, create идёт в канон |
-| `assertSlotAvailable` до Rubitime | `canonicalCreate.ts` ~159–180 | Отклоняет валидные Rubitime-слоты |
-| Rubitime mirror только при bridge | `canonicalCreate.ts` ~287–328, `catch` гасит ошибку | Silent drift |
-| Defaults расходятся | seed [`0099_*`](apps/webapp/db/drizzle-migrations/0099_booking_doctor_appointments_read_source.sql) только appointments; slots → parser default `canonical` | Production hybrid «из коробки» |
-| Working hours read-only | [`pgBookingScheduling.listWorkingHours`](apps/webapp/src/infra/repos/pgBookingScheduling.ts) | UI-паритет stage 2 не закрыт |
-| Schedule blocks org-wide only | [`BookingScheduleBlocksSection`](apps/webapp/src/app/app/settings/BookingScheduleBlocksSection.tsx) | Scoped blocks в API есть, UI не шлёт |
+| Проблема                                  | Где                                                                                                                                                         | Риск                                                 |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| Календарь не читает `appointment_records` | [`pgBookingCalendar`](apps/webapp/src/infra/repos/pgBookingCalendar.ts)                                                                                     | Пустой календарь при `rubitime_legacy`               |
+| Canonical free slots при Rubitime read    | [`booking-calendar/service.ts`](apps/webapp/src/modules/booking-calendar/service.ts)                                                                        | Ложные «Свободно»                                    |
+| Hybrid slots≠create                       | `booking_slots_read_source` vs [`canonicalCreate.ts`](apps/webapp/src/modules/patient-booking/canonicalCreate.ts)                                           | Пациент бронирует Rubitime-слот, create идёт в канон |
+| `assertSlotAvailable` до Rubitime         | `canonicalCreate.ts` ~159–180                                                                                                                               | Отклоняет валидные Rubitime-слоты                    |
+| Rubitime mirror только при bridge         | `canonicalCreate.ts` ~287–328, `catch` гасит ошибку                                                                                                         | Silent drift                                         |
+| Defaults расходятся                       | seed [`0099_*`](apps/webapp/db/drizzle-migrations/0099_booking_doctor_appointments_read_source.sql) только appointments; slots → parser default `canonical` | Production hybrid «из коробки»                       |
+| Working hours read-only                   | [`pgBookingScheduling.listWorkingHours`](apps/webapp/src/infra/repos/pgBookingScheduling.ts)                                                                | UI-паритет stage 2 не закрыт                         |
+| Schedule blocks org-wide only             | [`BookingScheduleBlocksSection`](apps/webapp/src/app/app/settings/BookingScheduleBlocksSection.tsx)                                                         | Scoped blocks в API есть, UI не шлёт                 |
 
 **Целевая transitional-модель:**
 
-| Режим | Список | Календарь | Слоты пациента | Create |
-|-------|--------|-----------|----------------|--------|
-| Rubitime | `appointment_records` | `appointment_records` | Rubitime API | Rubitime-first (не зависит от bridge) |
-| Canonical | `be_appointments` | `be_appointments` + free slots | `booking-scheduling` | canonical + bridge best-effort |
+| Режим     | Список                | Календарь                      | Слоты пациента       | Create                                |
+| --------- | --------------------- | ------------------------------ | -------------------- | ------------------------------------- |
+| Rubitime  | `appointment_records` | `appointment_records`          | Rubitime API         | Rubitime-first (не зависит от bridge) |
+| Canonical | `be_appointments`     | `be_appointments` + free slots | `booking-scheduling` | canonical + bridge best-effort        |
 
 ---
 
@@ -195,15 +195,15 @@ AND status IN ('created', 'updated')  -- canceled: опционально mapped
 
 Файл [`modules/booking-calendar/mapLegacyRecordToCalendarEvent.ts`](apps/webapp/src/modules/booking-calendar/mapLegacyRecordToCalendarEvent.ts):
 
-| Legacy | CalendarAppointmentEvent |
-|--------|--------------------------|
-| `integrator_record_id` | `id` |
-| `record_at` | `startAt` |
-| payload duration / 60 min | `endAt` |
-| — | `source: "rubitime_legacy"` |
-| `created`/`updated` | `status: "confirmed"` |
-| join `platform_users` / payload | patient fields |
-| `branch_id` если есть | `branchId`; specialist/room/service — null или mapping best-effort |
+| Legacy                          | CalendarAppointmentEvent                                           |
+| ------------------------------- | ------------------------------------------------------------------ |
+| `integrator_record_id`          | `id`                                                               |
+| `record_at`                     | `startAt`                                                          |
+| payload duration / 60 min       | `endAt`                                                            |
+| —                               | `source: "rubitime_legacy"`                                        |
+| `created`/`updated`             | `status: "confirmed"`                                              |
+| join `platform_users` / payload | patient fields                                                     |
+| `branch_id` если есть           | `branchId`; specialist/room/service — null или mapping best-effort |
 
 Dedupe в Rubitime mode: если есть `be_external_entity_mappings` / projection в `be_appointments` с тем же rubitime id — показывать **только legacy row** (не дублировать).
 
@@ -219,7 +219,7 @@ Dedupe в Rubitime mode: если есть `be_external_entity_mappings` / proje
 Расширить [`CalendarAggregate`](apps/webapp/src/modules/booking-calendar/types.ts):
 
 ```typescript
-readSource: "rubitime_legacy" | "canonical";
+readSource: 'rubitime_legacy' | 'canonical';
 freeSlotsEnabled: boolean; // false в rubitime_legacy
 ```
 
@@ -246,13 +246,13 @@ freeSlotsEnabled: boolean; // false в rubitime_legacy
 
 ### Политика (уточнения vs первой версии плана)
 
-| Вопрос | Решение |
-|--------|---------|
-| Привязка | `booking_slots_read_source === "rubitime"` |
-| Bridge flag | **Игнорировать** для Rubitime-first — `syncPort.createRecord` обязателен; bridge = mirror **только** в canonical mode |
-| `assertSlotAvailable` | В Rubitime mode **пропустить** (canonical WH/slots не SoT); safety: overlap check через `createAppointment` exclusion / optional light overlap query |
-| Concurrency | Портировать `inFlightCreateBySlot` из legacy [`service.ts`](apps/webapp/src/modules/patient-booking/service.ts) на Rubitime-first canonical path |
-| Prepayment | Сохранить порядок: Rubitime create **до** `markAwaitingPayment` return (как сейчас bridge после `createAppointment`), но Rubitime step **fail-hard**. Тест: prepayment + rubitime mode — отдельный `it` |
+| Вопрос                | Решение                                                                                                                                                                                                 |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Привязка              | `booking_slots_read_source === "rubitime"`                                                                                                                                                              |
+| Bridge flag           | **Игнорировать** для Rubitime-first — `syncPort.createRecord` обязателен; bridge = mirror **только** в canonical mode                                                                                   |
+| `assertSlotAvailable` | В Rubitime mode **пропустить** (canonical WH/slots не SoT); safety: overlap check через `createAppointment` exclusion / optional light overlap query                                                    |
+| Concurrency           | Портировать `inFlightCreateBySlot` из legacy [`service.ts`](apps/webapp/src/modules/patient-booking/service.ts) на Rubitime-first canonical path                                                        |
+| Prepayment            | Сохранить порядок: Rubitime create **до** `markAwaitingPayment` return (как сейчас bridge после `createAppointment`), но Rubitime step **fail-hard**. Тест: prepayment + rubitime mode — отдельный `it` |
 
 ### Порядок Rubitime-first (in_person / online)
 
@@ -351,14 +351,14 @@ sequenceDiagram
 
 **Файлы:**
 
-| Файл | Что исправить |
-|------|----------------|
-| [`MASTER_PLAN.md`](docs/OWN_BOOKING_ENGINE_INITIATIVE/MASTER_PLAN.md) | §2 Read + calendar; §2 Календарь — убрать «список → pgDoctorCanonicalAppointments»; DoD §6 — transitional exception |
-| [`STAGE_CHECKLISTS.md`](docs/OWN_BOOKING_ENGINE_INITIATIVE/STAGE_CHECKLISTS.md) | §8.1 «оба читают канон» |
-| [`LOG.md`](docs/OWN_BOOKING_ENGINE_INITIATIVE/LOG.md) | Execution log П.0–П.8 |
-| [`api.md`](apps/webapp/src/app/api/api.md) | calendar `readSource`, working-hours, schedule-blocks filters |
-| [`DOCTOR_CABINET_NAVIGATION.md`](docs/ARCHITECTURE/DOCTOR_CABINET_NAVIGATION.md) | calendar read switch |
-| [`UI_SURFACES_CHECKLIST.md`](docs/OWN_BOOKING_ENGINE_INITIATIVE/UI_SURFACES_CHECKLIST.md) | working-hours + scoped blocks closed |
+| Файл                                                                                      | Что исправить                                                                                                       |
+| ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| [`MASTER_PLAN.md`](docs/OWN_BOOKING_ENGINE_INITIATIVE/MASTER_PLAN.md)                     | §2 Read + calendar; §2 Календарь — убрать «список → pgDoctorCanonicalAppointments»; DoD §6 — transitional exception |
+| [`STAGE_CHECKLISTS.md`](docs/OWN_BOOKING_ENGINE_INITIATIVE/STAGE_CHECKLISTS.md)           | §8.1 «оба читают канон»                                                                                             |
+| [`LOG.md`](docs/OWN_BOOKING_ENGINE_INITIATIVE/LOG.md)                                     | Execution log П.0–П.8                                                                                               |
+| [`api.md`](apps/webapp/src/app/api/api.md)                                                | calendar `readSource`, working-hours, schedule-blocks filters                                                       |
+| [`DOCTOR_CABINET_NAVIGATION.md`](docs/ARCHITECTURE/DOCTOR_CABINET_NAVIGATION.md)          | calendar read switch                                                                                                |
+| [`UI_SURFACES_CHECKLIST.md`](docs/OWN_BOOKING_ENGINE_INITIATIVE/UI_SURFACES_CHECKLIST.md) | working-hours + scoped blocks closed                                                                                |
 
 **Transitional matrix** — в MASTER_PLAN (см. таблицу в контексте).
 

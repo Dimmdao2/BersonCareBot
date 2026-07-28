@@ -8,19 +8,19 @@
  *
  * Извлечён из `loadDoctorTodayDashboard.ts` без изменения алгоритма (см. communications.md TODO#1).
  */
-import type { ClientListItem } from "@/modules/doctor-clients/ports";
-import type { ProgramItemDiscussionMessage } from "@/modules/program-item-discussion/types";
+import type { ClientListItem } from '@/modules/doctor-clients/ports';
+import type { ProgramItemDiscussionMessage } from '@/modules/program-item-discussion/types';
 import type {
   TreatmentProgramInstanceDetail,
   TreatmentProgramInstanceSummary,
-} from "@/modules/treatment-program/types";
-import { pickActivePlanInstance } from "@/modules/treatment-program/pickActivePlanInstance";
-import { formatDateTimeRu } from "./doctorTodayFormat";
-import { patientProgramInstanceHref } from "./patients/patientProgramInstanceHref";
+} from '@/modules/treatment-program/types';
+import { pickActivePlanInstance } from '@/modules/treatment-program/pickActivePlanInstance';
+import { formatDateTimeRu } from './doctorTodayFormat';
+import { patientProgramInstanceHref } from './patients/patientProgramInstanceHref';
 import {
   firstSnapshotMedia,
   type ExerciseCommentThumbMedia,
-} from "./comments/exerciseCommentThumb";
+} from './comments/exerciseCommentThumb';
 
 export const DOCTOR_TODAY_EXERCISE_COMMENTS_PREVIEW_LIMIT = 30;
 
@@ -52,10 +52,13 @@ export type DoctorExerciseCommentAttentionDeps = {
     listMessagesPage(input: {
       stageItemId: string;
       limit: number;
-      direction: "backward" | "forward";
+      direction: 'backward' | 'forward';
       cursor: null;
     }): Promise<ProgramItemDiscussionMessage[]>;
-    getLastReadAtForViewer(input: { viewerUserId: string; stageItemId: string }): Promise<string | null>;
+    getLastReadAtForViewer(input: {
+      viewerUserId: string;
+      stageItemId: string;
+    }): Promise<string | null>;
   };
 };
 
@@ -67,8 +70,8 @@ export type ExerciseCommentAttentionPatientGroup = {
 
 function stageItemSnapshotTitle(snapshot: Record<string, unknown>): string {
   const raw = snapshot.title;
-  if (typeof raw === "string" && raw.trim() !== "") return raw.trim();
-  return "Упражнение";
+  if (typeof raw === 'string' && raw.trim() !== '') return raw.trim();
+  return 'Упражнение';
 }
 
 /** Группирует строки по пациенту: внутри — по убыванию даты, группы — по имени пациента. */
@@ -92,7 +95,7 @@ export function groupExerciseCommentAttentionByPatient(
     group.items.sort((a, b) => b.latestMessage.createdAt.localeCompare(a.latestMessage.createdAt));
   }
   return [...groups.values()].sort((a, b) =>
-    a.patientDisplayName.localeCompare(b.patientDisplayName, "ru", { sensitivity: "base" }),
+    a.patientDisplayName.localeCompare(b.patientDisplayName, 'ru', { sensitivity: 'base' }),
   );
 }
 
@@ -117,13 +120,14 @@ export async function loadDoctorExerciseCommentAttention(
   for (const row of onSupportListRaw) {
     const uid = row.userId.trim();
     if (!uid) continue;
-    patientDisplayNameById.set(uid, row.displayName.trim() || "—");
+    patientDisplayNameById.set(uid, row.displayName.trim() || '—');
   }
 
   const perPatientRows = await Promise.all(
     [...patientDisplayNameById.keys()].map(async (patientUserId) => {
       try {
-        const allInstances = await deps.treatmentProgramInstance!.listForPatientClinicalView(patientUserId);
+        const allInstances =
+          await deps.treatmentProgramInstance!.listForPatientClinicalView(patientUserId);
         const instances = deps.organizationId
           ? allInstances.filter((instance) => instance.organizationId === deps.organizationId)
           : allInstances;
@@ -134,14 +138,16 @@ export async function loadDoctorExerciseCommentAttention(
           return [] as TodayExerciseCommentAttentionItem[];
         }
         const activeExerciseItems = detail.stages.flatMap((stage) =>
-          stage.items.filter((item) => item.status === "active" && item.itemType === "exercise"),
+          stage.items.filter((item) => item.status === 'active' && item.itemType === 'exercise'),
         );
         if (activeExerciseItems.length === 0) return [] as TodayExerciseCommentAttentionItem[];
 
         const summary = await deps.programItemDiscussion!.listAttentionSummaryForStageItems(
           activeExerciseItems.map((item) => item.id),
         );
-        const attentionStageItemIds = summary.filter((row) => row.comments > 0).map((row) => row.stageItemId);
+        const attentionStageItemIds = summary
+          .filter((row) => row.comments > 0)
+          .map((row) => row.stageItemId);
         if (attentionStageItemIds.length === 0) return [] as TodayExerciseCommentAttentionItem[];
 
         const itemById = new Map(activeExerciseItems.map((item) => [item.id, item]));
@@ -151,7 +157,7 @@ export async function loadDoctorExerciseCommentAttention(
               deps.programItemDiscussion!.listMessagesPage({
                 stageItemId,
                 limit: 1,
-                direction: "backward",
+                direction: 'backward',
                 cursor: null,
               }),
               deps.programItemDiscussion!.getLastReadAtForViewer({
@@ -160,13 +166,13 @@ export async function loadDoctorExerciseCommentAttention(
               }),
             ]);
             const latest = latestList[latestList.length - 1] ?? null;
-            if (!latest || latest.senderRole !== "patient" || latest.mediaFileId) return null;
+            if (!latest || latest.senderRole !== 'patient' || latest.mediaFileId) return null;
             if (lastReadAt && latest.createdAt <= lastReadAt) return null;
             const item = itemById.get(stageItemId);
             if (!item) return null;
             return {
               patientUserId,
-              patientDisplayName: patientDisplayNameById.get(patientUserId) ?? "—",
+              patientDisplayName: patientDisplayNameById.get(patientUserId) ?? '—',
               instanceId: active.id,
               stageItemId,
               stageItemTitle: stageItemSnapshotTitle(item.snapshot),

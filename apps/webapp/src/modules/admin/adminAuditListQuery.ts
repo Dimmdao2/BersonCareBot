@@ -1,9 +1,9 @@
-import { z } from "zod";
+import { z } from 'zod';
 
 /** Operator actions from «Здоровье системы» — показываем в пресете «Системные снимки». */
 export const ADMIN_AUDIT_SYSTEM_HEALTH_OPERATOR_ACTIONS = [
-  "health_failure_archive_clear_dead",
-  "operator_incidents_resolve_all",
+  'health_failure_archive_clear_dead',
+  'operator_incidents_resolve_all',
 ] as const;
 
 /** GET /api/admin/audit-log query params. */
@@ -14,7 +14,7 @@ export const adminAuditListQuerySchema = z.object({
   target: z.string().max(512).optional(),
   /** Filter: `target_id` match or merge-conflict `details.candidateIds`. */
   involvesPlatformUserId: z.string().uuid().optional(),
-  status: z.enum(["ok", "partial_failure", "error"]).optional(),
+  status: z.enum(['ok', 'partial_failure', 'error']).optional(),
   from: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -24,13 +24,13 @@ export const adminAuditListQuerySchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional(),
   excludeSystemHealth: z
-    .enum(["1", "true"])
+    .enum(['1', 'true'])
     .optional()
-    .transform((v) => v === "1" || v === "true"),
+    .transform((v) => v === '1' || v === 'true'),
   systemHealthOnly: z
-    .enum(["1", "true"])
+    .enum(['1', 'true'])
     .optional()
-    .transform((v) => v === "1" || v === "true"),
+    .transform((v) => v === '1' || v === 'true'),
 });
 
 export type AdminAuditListQuery = z.infer<typeof adminAuditListQuerySchema>;
@@ -41,11 +41,11 @@ export type AdminAuditListFilter = {
   action?: string;
   targetId?: string;
   involvesPlatformUserId?: string;
-  status?: "ok" | "partial_failure" | "error";
+  status?: 'ok' | 'partial_failure' | 'error';
   fromInclusive?: string;
   toInclusive?: string;
-  actionPrefix?: "system_health_";
-  excludeActionPrefix?: "system_health_";
+  actionPrefix?: 'system_health_';
+  excludeActionPrefix?: 'system_health_';
   /** `system_health_*` + {@link ADMIN_AUDIT_SYSTEM_HEALTH_OPERATOR_ACTIONS}. */
   systemHealthScopeOnly?: true;
 };
@@ -76,7 +76,7 @@ export function adminAuditListFilterFromQuery(q: AdminAuditListQuery): AdminAudi
     ...(q.systemHealthOnly
       ? { systemHealthScopeOnly: true as const }
       : q.excludeSystemHealth
-        ? { excludeActionPrefix: "system_health_" as const }
+        ? { excludeActionPrefix: 'system_health_' as const }
         : {}),
   };
 }

@@ -180,15 +180,15 @@ the current timeline already satisfies authored shared history.
 
 At minimum, each final history capability must state:
 
-| Dimension | Required values/decision |
-|---|---|
-| Organization relation | active staff membership in the same organization |
-| Patient relation | active/retained enrollment and object belongs to it |
-| Record class | visit, note, program, file, message, payment, task, intake, audit/export |
-| Actor relation | author, responsible specialist, care-team member, other specialist, admin/support |
-| Visibility | author-only, care-team, organization-clinical, management-only, patient-visible |
-| Operation | list, direct read, create, amend, reassign, export, delete/archive |
-| Result shaping | default filter and available filters after permission calculation |
+| Dimension             | Required values/decision                                                          |
+| --------------------- | --------------------------------------------------------------------------------- |
+| Organization relation | active staff membership in the same organization                                  |
+| Patient relation      | active/retained enrollment and object belongs to it                               |
+| Record class          | visit, note, program, file, message, payment, task, intake, audit/export          |
+| Actor relation        | author, responsible specialist, care-team member, other specialist, admin/support |
+| Visibility            | author-only, care-team, organization-clinical, management-only, patient-visible   |
+| Operation             | list, direct read, create, amend, reassign, export, delete/archive                |
+| Result shaping        | default filter and available filters after permission calculation                 |
 
 One organization-wide boolean such as `card_visibility_policy=all|assigned` may be a coarse policy input, but cannot
 replace record-class permissions or private/authored-entry rules.

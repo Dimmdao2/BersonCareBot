@@ -16,7 +16,7 @@
 
 Фактически:
 
-- Главная `/app/patient` собирается в **`apps/webapp/src/app/app/patient/page.tsx`** из легаси-блоков: `PatientHomeBrowserHero`, ~~`PatientHomeLessonsSection`~~ *(файл удалён 2026-05-04; в инвентаризации 2026-04-29 ещё фигурировал в списке)*, `PatientHomeExtraBlocks`, `PatientHomeNewsSection`, `PatientHomeMailingsSection`, `PatientHomeMotivationSection`, миниапп-ветка `PatientMiniAppPatientHome` и т.д.
+- Главная `/app/patient` собирается в **`apps/webapp/src/app/app/patient/page.tsx`** из легаси-блоков: `PatientHomeBrowserHero`, ~~`PatientHomeLessonsSection`~~ _(файл удалён 2026-05-04; в инвентаризации 2026-04-29 ещё фигурировал в списке)_, `PatientHomeExtraBlocks`, `PatientHomeNewsSection`, `PatientHomeMailingsSection`, `PatientHomeMotivationSection`, миниапп-ветка `PatientMiniAppPatientHome` и т.д.
 - **`PatientBottomNav.tsx`** — **файл отсутствует**; по репозиторию нет `PatientBottomNav`, `PATIENT_BOTTOM_NAV`, `patient-wide`.
 - **`apps/webapp/src/app/app/patient/home/patientHomeCardStyles.ts`** — **отсутствует**.
 - Компонентов вида **`PatientHomeToday*.tsx`**, **`PatientHomeGreeting.tsx`**, **`PatientHomeDailyWarmupCard.tsx`** и остальных из MASTER_PLAN Phase 3–4 — **нет**.
@@ -25,14 +25,14 @@
 
 ## 2. Shell и layout (текущее)
 
-| Артефакт | Файл | Наблюдение |
-|----------|------|------------|
-| Patient shell root | `apps/webapp/src/shared/ui/AppShell.tsx` | `id="app-shell-patient"`, `max-w-[480px]`, фон **`bg-[var(--patient-surface)]`** (сейчас совпадает с белым в `:root`). Нет `patient-wide` в этом файле. |
-| Patient header gate | `PatientGatedHeader.tsx` | Тонкая обёртка над `PatientHeader`; скрывает шапку при `suppressPatientHeader` (телефон mini-app). |
-| Patient header | `PatientHeader.tsx` | Sticky, `bg-[var(--patient-surface)]`. Слева: `Back` (если есть) + **иконка Home** → `/app/patient` (если не `hideHome`). Справа из **`patientNavByPlatform`**: на всех режимах **`["settings"]`** — ссылка на **`/app/settings`** (шестерёнка). Опционально sheet menu (`hasSheetMenu` сейчас false). |
-| Bottom nav | — | **Отсутствует** как компонент и как разметка. |
-| Layout обёртка | `PatientClientLayout.tsx` | Провайдеры телефона / mini-app; без nav. |
-| Сессия layout | `layout.tsx` | Редиректы, гейт доступа; без UI-навигации. |
+| Артефакт            | Файл                                     | Наблюдение                                                                                                                                                                                                                                                                                             |
+| ------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Patient shell root  | `apps/webapp/src/shared/ui/AppShell.tsx` | `id="app-shell-patient"`, `max-w-[480px]`, фон **`bg-[var(--patient-surface)]`** (сейчас совпадает с белым в `:root`). Нет `patient-wide` в этом файле.                                                                                                                                                |
+| Patient header gate | `PatientGatedHeader.tsx`                 | Тонкая обёртка над `PatientHeader`; скрывает шапку при `suppressPatientHeader` (телефон mini-app).                                                                                                                                                                                                     |
+| Patient header      | `PatientHeader.tsx`                      | Sticky, `bg-[var(--patient-surface)]`. Слева: `Back` (если есть) + **иконка Home** → `/app/patient` (если не `hideHome`). Справа из **`patientNavByPlatform`**: на всех режимах **`["settings"]`** — ссылка на **`/app/settings`** (шестерёнка). Опционально sheet menu (`hasSheetMenu` сейчас false). |
+| Bottom nav          | —                                        | **Отсутствует** как компонент и как разметка.                                                                                                                                                                                                                                                          |
+| Layout обёртка      | `PatientClientLayout.tsx`                | Провайдеры телефона / mini-app; без nav.                                                                                                                                                                                                                                                               |
+| Сессия layout       | `layout.tsx`                             | Редиректы, гейт доступа; без UI-навигации.                                                                                                                                                                                                                                                             |
 
 **Целевое поведение по инициативе (напоминание):** bottom nav `< lg`, top nav `lg+`, взаимоисключение; профиль справа; без отдельной шестерёнки в patient header; без desktop `Back` и без top `Home` на главной в целевой модели — всё это **Phase 2+**, не Phase 1.
 
@@ -64,11 +64,11 @@
 
 ### 4.3. Usages `--patient-*` (grep по `apps/webapp`)
 
-| Символ | Файлы |
-|--------|--------|
-| `--patient-surface` | `AppShell.tsx`, `PatientHeader.tsx` |
-| `--patient-gap` | `AppShell.tsx`, `BookingWizardShell.tsx` |
-| `--patient-bg` | `DiaryTabsClient.tsx` (градиент фона) |
+| Символ              | Файлы                                    |
+| ------------------- | ---------------------------------------- |
+| `--patient-surface` | `AppShell.tsx`, `PatientHeader.tsx`      |
+| `--patient-gap`     | `AppShell.tsx`, `BookingWizardShell.tsx` |
+| `--patient-bg`      | `DiaryTabsClient.tsx` (градиент фона)    |
 
 Старые `--patient-radius` / `--patient-shadow` в TSX на этом срезе **не найдены** grep’ом по показанному набору; могут быть в других путях — перед миграцией стоит повторить полный поиск.
 
@@ -84,12 +84,12 @@
 
 ### 6.1. Shell / header / navigation
 
-| Файл | Есть? |
-|------|--------|
-| `AppShell.test.tsx` | **Нет** в репозитории |
-| `PatientHeader.test.tsx` | **Да** — `apps/webapp/src/shared/ui/PatientHeader.test.tsx` (goBack, settings link, hideHome/hideRightIcons) |
-| `PatientBottomNav.test.tsx` | **Нет** (компонента нет) |
-| `navigation.test.ts` | **Да** — `apps/webapp/src/app-layer/routes/navigation.test.ts` (patientNavByPlatform, patientHomeBlocks*) |
+| Файл                        | Есть?                                                                                                        |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `AppShell.test.tsx`         | **Нет** в репозитории                                                                                        |
+| `PatientHeader.test.tsx`    | **Да** — `apps/webapp/src/shared/ui/PatientHeader.test.tsx` (goBack, settings link, hideHome/hideRightIcons) |
+| `PatientBottomNav.test.tsx` | **Нет** (компонента нет)                                                                                     |
+| `navigation.test.ts`        | **Да** — `apps/webapp/src/app-layer/routes/navigation.test.ts` (patientNavByPlatform, patientHomeBlocks\*)   |
 
 ### 6.2. Patient home (`app/app/patient/home/`)
 
@@ -106,14 +106,14 @@
 
 ## 8. High-risk файлы (blast radius)
 
-| Риск | Файл / зона | Почему |
-|------|-------------|--------|
-| Высокий | `button-variants.ts` | Общий doctor/patient/admin; ошибка варианта = визуальные регрессии вне patient. |
-| Высокий | `globals.css` | Глобальная тема Tailwind/shadcn; нарушение scope → побочный эффект на всё webapp. |
-| Средний | `AppShell.tsx` | Все варианты shell; нужен smoke default/doctor (Phase 1). |
-| Средний–высокий | `PatientHeader.tsx` + навигация Phase 2 | Много платформенных и UX-инвариантов; пересечение с mini-app, back, settings. |
-| Высокий (Phase 2) | Новый `PatientBottomNav` + `PatientTopNav` + `navigation.ts` | Новая поверхность поведения, breakpoints, a11y, тесты взаимоисключения. |
-| Высокий (Phase 3+) | Импорт/merge стека главной «Сегодня» | Пока файлов нет — риск планирования «в пустоту». |
+| Риск               | Файл / зона                                                  | Почему                                                                            |
+| ------------------ | ------------------------------------------------------------ | --------------------------------------------------------------------------------- |
+| Высокий            | `button-variants.ts`                                         | Общий doctor/patient/admin; ошибка варианта = визуальные регрессии вне patient.   |
+| Высокий            | `globals.css`                                                | Глобальная тема Tailwind/shadcn; нарушение scope → побочный эффект на всё webapp. |
+| Средний            | `AppShell.tsx`                                               | Все варианты shell; нужен smoke default/doctor (Phase 1).                         |
+| Средний–высокий    | `PatientHeader.tsx` + навигация Phase 2                      | Много платформенных и UX-инвариантов; пересечение с mini-app, back, settings.     |
+| Высокий (Phase 2)  | Новый `PatientBottomNav` + `PatientTopNav` + `navigation.ts` | Новая поверхность поведения, breakpoints, a11y, тесты взаимоисключения.           |
+| Высокий (Phase 3+) | Импорт/merge стека главной «Сегодня»                         | Пока файлов нет — риск планирования «в пустоту».                                  |
 
 ## 9. Файловый и тестовый scope по фазам (уточнение под текущее дерево)
 
@@ -153,12 +153,12 @@
 
 ## 10. Модельная эскалация (когда Codex 5.3 / GPT 5.5)
 
-| Ситуация | Рекомендация |
-|----------|----------------|
-| Противоречие **VISUAL_SYSTEM_SPEC §4** («текущее состояние») и фактического репозитория при планировании merge | **GPT 5.5** — один проход для согласования карты файлов и обновления spec/README (без исполнения архивных PROMPT’ов). |
-| Phase 2: сложный refactor nav + header + два nav + matchMedia / responsive тесты, два неудачных Composer-прохода | **Codex 5.3** (как в MASTER_PLAN §12). |
-| Phase 5: противоречивые аудиты | **GPT 5.5** по явной политике инициативы. |
-| Phase 1 | По умолчанию **Composer 2**; Codex — только при залипании на Tailwind v4 / `cva` / scope. |
+| Ситуация                                                                                                         | Рекомендация                                                                                                          |
+| ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Противоречие **VISUAL_SYSTEM_SPEC §4** («текущее состояние») и фактического репозитория при планировании merge   | **GPT 5.5** — один проход для согласования карты файлов и обновления spec/README (без исполнения архивных PROMPT’ов). |
+| Phase 2: сложный refactor nav + header + два nav + matchMedia / responsive тесты, два неудачных Composer-прохода | **Codex 5.3** (как в MASTER_PLAN §12).                                                                                |
+| Phase 5: противоречивые аудиты                                                                                   | **GPT 5.5** по явной политике инициативы.                                                                             |
+| Phase 1                                                                                                          | По умолчанию **Composer 2**; Codex — только при залипании на Tailwind v4 / `cva` / scope.                             |
 
 ## 11. GO / NO-GO для Phase 1
 
@@ -178,4 +178,4 @@
 
 ---
 
-*Инвентаризация выполнена без изменений app-кода и без `pnpm run ci`.*
+_Инвентаризация выполнена без изменений app-кода и без `pnpm run ci`._

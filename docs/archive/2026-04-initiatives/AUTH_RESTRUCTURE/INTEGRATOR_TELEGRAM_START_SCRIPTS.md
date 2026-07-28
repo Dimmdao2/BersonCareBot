@@ -16,14 +16,14 @@
 
 Порядок для входящего текста (важен для конкурирующих префиксов):
 
-| Шаг | Условие | Результат |
-|-----|---------|-----------|
-| 1 | `MESSAGE_TEXT_TO_ACTION` / меню | `action` из словаря или `''` |
-| 2 | `/start noticeme` | `start.noticeme` |
-| 3 | `/start link_<secret>` | `start.link`, поле `linkSecret` |
-| 4 | `/start setrubitimerecord_` | **`start.setrubitimerecord`**; суффикс `[A-Za-z0-9_-]{1,120}` → **`recordId`** (иначе `recordId` нет, `action` всё равно rubitime) |
-| 5 | если `action` всё ещё пустой: `/start setphone_<payload>` | нормализация номера → **`start.setphone`**, поле **`phone`** |
-| 6 | если пусто: `/start set<word>` | **`start.set`** (прочие deep link; отдельного сценария под все варианты нет) |
+| Шаг | Условие                                                   | Результат                                                                                                                          |
+| --- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `MESSAGE_TEXT_TO_ACTION` / меню                           | `action` из словаря или `''`                                                                                                       |
+| 2   | `/start noticeme`                                         | `start.noticeme`                                                                                                                   |
+| 3   | `/start link_<secret>`                                    | `start.link`, поле `linkSecret`                                                                                                    |
+| 4   | `/start setrubitimerecord_`                               | **`start.setrubitimerecord`**; суффикс `[A-Za-z0-9_-]{1,120}` → **`recordId`** (иначе `recordId` нет, `action` всё равно rubitime) |
+| 5   | если `action` всё ещё пустой: `/start setphone_<payload>` | нормализация номера → **`start.setphone`**, поле **`phone`**                                                                       |
+| 6   | если пусто: `/start set<word>`                            | **`start.set`** (прочие deep link; отдельного сценария под все варианты нет)                                                       |
 
 Логирование: после маппинга для сообщений с текстом, начинающимся с `/start`, пишется **`debug`** с ключом **`telegramStart`**: `action`, `recordIdPresent`, `linkSecretPresent`, `phoneFromDeepLink` (без самого номера).
 
@@ -40,14 +40,14 @@
 
 ## Основные id в `content/telegram/user/scripts.json`
 
-| id | Match | priority | Смысл |
-|----|--------|----------|--------|
-| `telegram.start.link` | `action: start.link` | 0 | Завершение channel link (`linkSecret` → webapp) |
-| `telegram.start.setphone` | `action: start.setphone` | **20** | Deep link: `user.phone.link` по `input.phone`, затем короткое `telegram:startSetphoneWelcome` + reply-меню (Запись / Дневник / Меню — см. `menu.json` `main`) |
-| `telegram.start.setrubitimerecord` | `action: start.setrubitimerecord` | 0 | Rubitime: `recordId` → запись → телефон из записи → `user.phone.link` |
-| `telegram.start.noticeme` | `action: start.noticeme` | 0 | В т.ч. запрос контакта |
-| `telegram.start.onboarding` | `text` **$startsWith** `/start`, **`excludeActions`**, `linkedPhone: false` | **15** | Короткий текст (`telegram:onboardingWelcome`) + кнопка `request_contact` в одном `message.replyKeyboard.show` |
-| `telegram.start` | то же по `text`, `linkedPhone: true` | 0 | `user.state.set` → `idle`, затем **`message.replyKeyboard.show`** с шаблоном **`telegram:chooseMenu`** и reply-меню из **`menu.json`** `main` (Запись / Дневник с WebApp / Меню с WebApp на дом) — как постоянное напоминание главного меню после `/start` |
+| id                                 | Match                                                                       | priority | Смысл                                                                                                                                                                                                                                                      |
+| ---------------------------------- | --------------------------------------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `telegram.start.link`              | `action: start.link`                                                        | 0        | Завершение channel link (`linkSecret` → webapp)                                                                                                                                                                                                            |
+| `telegram.start.setphone`          | `action: start.setphone`                                                    | **20**   | Deep link: `user.phone.link` по `input.phone`, затем короткое `telegram:startSetphoneWelcome` + reply-меню (Запись / Дневник / Меню — см. `menu.json` `main`)                                                                                              |
+| `telegram.start.setrubitimerecord` | `action: start.setrubitimerecord`                                           | 0        | Rubitime: `recordId` → запись → телефон из записи → `user.phone.link`                                                                                                                                                                                      |
+| `telegram.start.noticeme`          | `action: start.noticeme`                                                    | 0        | В т.ч. запрос контакта                                                                                                                                                                                                                                     |
+| `telegram.start.onboarding`        | `text` **$startsWith** `/start`, **`excludeActions`**, `linkedPhone: false` | **15**   | Короткий текст (`telegram:onboardingWelcome`) + кнопка `request_contact` в одном `message.replyKeyboard.show`                                                                                                                                              |
+| `telegram.start`                   | то же по `text`, `linkedPhone: true`                                        | 0        | `user.state.set` → `idle`, затем **`message.replyKeyboard.show`** с шаблоном **`telegram:chooseMenu`** и reply-меню из **`menu.json`** `main` (Запись / Дневник с WebApp / Меню с WebApp на дом) — как постоянное напоминание главного меню после `/start` |
 
 ### Почему онбординг не пересекается с payload
 
@@ -69,13 +69,13 @@
 
 ## Тесты
 
-| Файл | Что проверяет |
-|------|----------------|
-| [`buildPlan.test.ts`](../../apps/integrator/src/kernel/orchestrator/buildPlan.test.ts) | Onboarding vs `linkedPhone`, при `linkedPhone: true` на `/start` — план из `user.state.set`; deep link `/start …`, цепочка контакта |
-| [`rubitimeDeepLink.test.ts`](../../apps/integrator/src/kernel/orchestrator/rubitimeDeepLink.test.ts) | `setrubitimerecord` не уходит в «общий» текстовый сценарий |
-| [`webhook.test.ts`](../../apps/integrator/src/integrations/telegram/webhook.test.ts) | `mapBodyToIncoming`: contact, `setrubitimerecord`, `setphone`, `link` |
-| [`messengerStartParse.test.ts`](../../apps/integrator/src/integrations/common/messengerStartParse.test.ts) | Канонизация payload и `parseMessengerStartCommand` |
-| [`mapIn.test.ts` (max)](../../apps/integrator/src/integrations/max/mapIn.test.ts) | Max: `/start` и `bot_started` с теми же deep link, что в Telegram |
+| Файл                                                                                                       | Что проверяет                                                                                                                       |
+| ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| [`buildPlan.test.ts`](../../apps/integrator/src/kernel/orchestrator/buildPlan.test.ts)                     | Onboarding vs `linkedPhone`, при `linkedPhone: true` на `/start` — план из `user.state.set`; deep link `/start …`, цепочка контакта |
+| [`rubitimeDeepLink.test.ts`](../../apps/integrator/src/kernel/orchestrator/rubitimeDeepLink.test.ts)       | `setrubitimerecord` не уходит в «общий» текстовый сценарий                                                                          |
+| [`webhook.test.ts`](../../apps/integrator/src/integrations/telegram/webhook.test.ts)                       | `mapBodyToIncoming`: contact, `setrubitimerecord`, `setphone`, `link`                                                               |
+| [`messengerStartParse.test.ts`](../../apps/integrator/src/integrations/common/messengerStartParse.test.ts) | Канонизация payload и `parseMessengerStartCommand`                                                                                  |
+| [`mapIn.test.ts` (max)](../../apps/integrator/src/integrations/max/mapIn.test.ts)                          | Max: `/start` и `bot_started` с теми же deep link, что в Telegram                                                                   |
 
 Проекция `contact.linked` в webapp: [`events.test.ts`](../../apps/webapp/src/modules/integrator/events.test.ts); запись в БД при `user.phone.link`: [`writePort`](../../apps/integrator/src/infra/db/writePort.ts) (`setUserPhone` → `applied` / `noop_conflict` / `failed`; метаданные `userPhoneLinkApplied`, опционально `phoneLinkIndeterminate` для исполнителя сценариев).
 

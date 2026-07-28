@@ -17,29 +17,33 @@
  * TEST only, owner's own patient only — hardcoded ids below, no CLI args that could redirect this
  * at a different patient/org/database. Read-only preconditions are re-verified before any write.
  */
-import { execFileSync } from "node:child_process";
+import { execFileSync } from 'node:child_process';
 
-const ALLOWED_DB = "bersoncarebot_test";
+const ALLOWED_DB = 'bersoncarebot_test';
 // Owner's own accounts only (see docs/_TODO/SAAS_FOUNDATION/scripts/regenerate-saas-smoke-fixture.mjs
 // for the same-class convention). Never parameterize these from argv/env.
-const PATIENT_USER_ID = "1c312a64-fab8-4b75-b24e-88a1d6ebe4e0"; // Дмитрий Берсон
-const DOCTOR_USER_ID = "b0021a38-fb86-45e9-9aec-d85014e932d4"; // owner's clinic account
-const ORG_ID = "a0000000-0000-4000-8000-000000000001"; // Точка Здоровья
-const TEMPLATE_ID = "0b26db48-2e8f-406d-8bbf-a01cb2ec4225"; // "Стабилизация поясницы - острый период", published, org-owned, exercises carry media
+const PATIENT_USER_ID = '1c312a64-fab8-4b75-b24e-88a1d6ebe4e0'; // Дмитрий Берсон
+const DOCTOR_USER_ID = 'b0021a38-fb86-45e9-9aec-d85014e932d4'; // owner's clinic account
+const ORG_ID = 'a0000000-0000-4000-8000-000000000001'; // Точка Здоровья
+const TEMPLATE_ID = '0b26db48-2e8f-406d-8bbf-a01cb2ec4225'; // "Стабилизация поясницы - острый период", published, org-owned, exercises carry media
 
 function psql(sql, { db = ALLOWED_DB } = {}) {
-  return execFileSync("sudo", ["-u", "postgres", "psql", "-d", db, "-X", "-A", "-t", "-c", sql], {
-    encoding: "utf8",
+  return execFileSync('sudo', ['-u', 'postgres', 'psql', '-d', db, '-X', '-A', '-t', '-c', sql], {
+    encoding: 'utf8',
   });
 }
 
 function assertTestDb(db) {
   if (db !== ALLOWED_DB) {
-    throw new Error(`refusing: this script only ever targets "${ALLOWED_DB}", got ${JSON.stringify(db)}`);
+    throw new Error(
+      `refusing: this script only ever targets "${ALLOWED_DB}", got ${JSON.stringify(db)}`,
+    );
   }
-  const actual = psql("SELECT current_database();").trim();
+  const actual = psql('SELECT current_database();').trim();
   if (actual !== ALLOWED_DB) {
-    throw new Error(`refusing: current_database()=${JSON.stringify(actual)}, expected ${ALLOWED_DB}`);
+    throw new Error(
+      `refusing: current_database()=${JSON.stringify(actual)}, expected ${ALLOWED_DB}`,
+    );
   }
 }
 
@@ -57,8 +61,10 @@ function main() {
   const tpl = psql(
     `SELECT status FROM lfk_complex_templates WHERE id = '${TEMPLATE_ID}'::uuid AND organization_id = '${ORG_ID}'::uuid;`,
   ).trim();
-  if (tpl !== "published") {
-    throw new Error(`refusing: template ${TEMPLATE_ID} is not published for org ${ORG_ID} (status=${JSON.stringify(tpl)})`);
+  if (tpl !== 'published') {
+    throw new Error(
+      `refusing: template ${TEMPLATE_ID} is not published for org ${ORG_ID} (status=${JSON.stringify(tpl)})`,
+    );
   }
 
   const sql = `
@@ -87,12 +93,16 @@ VALUES ('${PATIENT_USER_ID}'::uuid, '${TEMPLATE_ID}'::uuid, :'complex_id', '${DO
 SELECT :'complex_id' AS created_complex_id;
 COMMIT;
 `;
-  const out = execFileSync("sudo", ["-u", "postgres", "psql", "-d", ALLOWED_DB, "-X", "-v", "ON_ERROR_STOP=1", "-f", "-"], {
-    input: sql,
-    encoding: "utf8",
-  });
+  const out = execFileSync(
+    'sudo',
+    ['-u', 'postgres', 'psql', '-d', ALLOWED_DB, '-X', '-v', 'ON_ERROR_STOP=1', '-f', '-'],
+    {
+      input: sql,
+      encoding: 'utf8',
+    },
+  );
   console.log(out);
-  console.log("seeded ok");
+  console.log('seeded ok');
 }
 
 main();

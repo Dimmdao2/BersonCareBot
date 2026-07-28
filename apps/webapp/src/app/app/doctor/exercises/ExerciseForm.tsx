@@ -1,35 +1,48 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useActionState, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { DoctorDifficulty1to10Slider } from "@/shared/ui/doctor/DoctorDifficulty1to10Slider";
-import { ReferenceSelect } from "@/shared/ui/doctor/ReferenceSelect";
-import { ReferenceMultiSelect } from "@/shared/ui/doctor/ReferenceMultiSelect";
-import { Button } from "@/shared/ui/doctor/primitives/button";
+import Link from 'next/link';
+import { useActionState, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { DoctorDifficulty1to10Slider } from '@/shared/ui/doctor/DoctorDifficulty1to10Slider';
+import { ReferenceSelect } from '@/shared/ui/doctor/ReferenceSelect';
+import { ReferenceMultiSelect } from '@/shared/ui/doctor/ReferenceMultiSelect';
+import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/shared/ui/doctor/primitives/dialog";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Label } from "@/shared/ui/doctor/primitives/label";
-import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
-import { EXERCISE_LOAD_TYPE_CATEGORY_CODE } from "@/modules/lfk-exercises/exerciseLoadTypeReference";
-import type { Exercise, ExerciseLoadType, ExerciseUsageSnapshot } from "@/modules/lfk-exercises/types";
-import type { RecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
-import { MediaLibraryPickerDialog } from "@/app/app/doctor/content/MediaLibraryPickerDialog";
-import { archiveDoctorExercise, fetchDoctorExerciseUsageSnapshot, saveDoctorExercise, unarchiveDoctorExercise } from "./actions";
-import type { ArchiveDoctorExerciseState, SaveDoctorExerciseState, UnarchiveDoctorExerciseState } from "./actionsShared";
-import { exerciseMediaTypeFromPick, exerciseTitleFromPickMeta } from "./exerciseMediaFromLibrary";
-import { doctorExerciseUsageHref } from "./exerciseUsageDocLinks";
+} from '@/shared/ui/doctor/primitives/dialog';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
+import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
+import { EXERCISE_LOAD_TYPE_CATEGORY_CODE } from '@/modules/lfk-exercises/exerciseLoadTypeReference';
+import type {
+  Exercise,
+  ExerciseLoadType,
+  ExerciseUsageSnapshot,
+} from '@/modules/lfk-exercises/types';
+import type { RecommendationListFilterScope } from '@/shared/lib/doctorCatalogListStatus';
+import { MediaLibraryPickerDialog } from '@/app/app/doctor/content/MediaLibraryPickerDialog';
+import {
+  archiveDoctorExercise,
+  fetchDoctorExerciseUsageSnapshot,
+  saveDoctorExercise,
+  unarchiveDoctorExercise,
+} from './actions';
+import type {
+  ArchiveDoctorExerciseState,
+  SaveDoctorExerciseState,
+  UnarchiveDoctorExerciseState,
+} from './actionsShared';
+import { exerciseMediaTypeFromPick, exerciseTitleFromPickMeta } from './exerciseMediaFromLibrary';
+import { doctorExerciseUsageHref } from './exerciseUsageDocLinks';
 import {
   exerciseUsageHasAnyReference,
   exerciseUsageSections,
   type ExerciseUsageSection,
-} from "./exerciseUsageSummaryText";
-import { MaterialRatingBlock } from "@/shared/ui/doctor/material-rating/MaterialRatingBlock";
+} from './exerciseUsageSummaryText';
+import { MaterialRatingBlock } from '@/shared/ui/doctor/material-rating/MaterialRatingBlock';
 
 function ExerciseUsageSectionsView({ sections }: { sections: ExerciseUsageSection[] }) {
   if (sections.length === 0) {
@@ -71,30 +84,33 @@ export type ExerciseFormValues = {
   tags: string;
   contraindications: string;
   regionRefIds: string[];
-  loadType: ExerciseLoadType | "";
+  loadType: ExerciseLoadType | '';
   difficulty: number;
   mediaUrl: string;
-  mediaType: "" | "image" | "video" | "gif";
+  mediaType: '' | 'image' | 'video' | 'gif';
 };
 
 export function exerciseToFormValues(exercise: Exercise | null | undefined): ExerciseFormValues {
   const initialMedia = exercise?.media[0];
   return {
-    title: exercise?.title ?? "",
-    description: exercise?.description ?? "",
-    tags: exercise?.tags?.join(", ") ?? "",
-    contraindications: exercise?.contraindications ?? "",
+    title: exercise?.title ?? '',
+    description: exercise?.description ?? '',
+    tags: exercise?.tags?.join(', ') ?? '',
+    contraindications: exercise?.contraindications ?? '',
     regionRefIds: exercise?.regionRefIds ? [...exercise.regionRefIds] : [],
-    loadType: (exercise?.loadType ?? "") as ExerciseLoadType | "",
+    loadType: (exercise?.loadType ?? '') as ExerciseLoadType | '',
     difficulty: exercise?.difficulty1_10 ?? 5,
-    mediaUrl: initialMedia?.mediaUrl ?? "",
-    mediaType: (initialMedia?.mediaType ?? "") as ExerciseFormValues["mediaType"],
+    mediaUrl: initialMedia?.mediaUrl ?? '',
+    mediaType: (initialMedia?.mediaType ?? '') as ExerciseFormValues['mediaType'],
   };
 }
 
 type ExerciseFormProps = {
   exercise?: Exercise | null;
-  saveAction?: (_prev: SaveDoctorExerciseState | null, formData: FormData) => Promise<SaveDoctorExerciseState>;
+  saveAction?: (
+    _prev: SaveDoctorExerciseState | null,
+    formData: FormData,
+  ) => Promise<SaveDoctorExerciseState>;
   archiveAction?: (
     _prev: ArchiveDoctorExerciseState | null,
     formData: FormData,
@@ -123,7 +139,7 @@ export function ExerciseForm({
   listArchiveScope,
   externalUsageSnapshot,
 }: ExerciseFormProps) {
-  const recordKey = exercise?.id ?? "create";
+  const recordKey = exercise?.id ?? 'create';
 
   const [values, setValues] = useState<ExerciseFormValues>(() => exerciseToFormValues(exercise));
   const [localError, setLocalError] = useState<string | null>(null);
@@ -144,7 +160,7 @@ export function ExerciseForm({
   }, [recordKey]);
 
   useEffect(() => {
-    if (!exercise?.id || exercise.ownerKind === "platform") {
+    if (!exercise?.id || exercise.ownerKind === 'platform') {
       setUsage(null);
       return;
     }
@@ -161,7 +177,7 @@ export function ExerciseForm({
       .catch(() => {
         if (!cancelled) {
           setUsage(null);
-          setUsageLoadError("Не удалось загрузить сводку использования");
+          setUsageLoadError('Не удалось загрузить сводку использования');
         }
       })
       .finally(() => {
@@ -182,7 +198,10 @@ export function ExerciseForm({
     [saveAction],
   );
 
-  const [, formAction, savePending] = useActionState(wrappedSaveAction, null as SaveDoctorExerciseState | null);
+  const [, formAction, savePending] = useActionState(
+    wrappedSaveAction,
+    null as SaveDoctorExerciseState | null,
+  );
 
   const [archiveState, archiveFormAction, archivePending] = useActionState(
     archiveAction,
@@ -197,8 +216,8 @@ export function ExerciseForm({
   useEffect(() => {
     if (
       archiveState?.ok === false &&
-      "code" in archiveState &&
-      archiveState.code === "USAGE_CONFIRMATION_REQUIRED"
+      'code' in archiveState &&
+      archiveState.code === 'USAGE_CONFIRMATION_REQUIRED'
     ) {
       setWarnOpen(true);
     }
@@ -214,8 +233,8 @@ export function ExerciseForm({
   const warnSections = useMemo(() => {
     if (
       archiveState?.ok === false &&
-      "code" in archiveState &&
-      archiveState.code === "USAGE_CONFIRMATION_REQUIRED"
+      'code' in archiveState &&
+      archiveState.code === 'USAGE_CONFIRMATION_REQUIRED'
     ) {
       const u = archiveState.usage;
       if (!exerciseUsageHasAnyReference(u)) return [];
@@ -225,13 +244,13 @@ export function ExerciseForm({
   }, [archiveState]);
 
   const archiveError =
-    archiveState?.ok === false && "error" in archiveState ? archiveState.error : null;
+    archiveState?.ok === false && 'error' in archiveState ? archiveState.error : null;
 
   const unarchiveError =
-    unarchiveState?.ok === false && "error" in unarchiveState ? unarchiveState.error : null;
+    unarchiveState?.ok === false && 'error' in unarchiveState ? unarchiveState.error : null;
 
   const isArchived = !!exercise?.isArchived;
-  const isReadOnly = exercise?.ownerKind === "platform";
+  const isReadOnly = exercise?.ownerKind === 'platform';
 
   return (
     <div className="flex max-w-2xl flex-col gap-4">
@@ -280,10 +299,10 @@ export function ExerciseForm({
                 onChange={(url, meta) => {
                   setValues((prev) => {
                     let nextTitle = prev.title;
-                    let nextType: ExerciseFormValues["mediaType"] = "";
+                    let nextType: ExerciseFormValues['mediaType'] = '';
                     if (url && meta) {
                       nextType = exerciseMediaTypeFromPick(meta);
-                      if (nextTitle.trim() === "") nextTitle = exerciseTitleFromPickMeta(meta);
+                      if (nextTitle.trim() === '') nextTitle = exerciseTitleFromPickMeta(meta);
                     }
                     return { ...prev, mediaUrl: url, mediaType: nextType, title: nextTitle };
                   });
@@ -331,7 +350,10 @@ export function ExerciseForm({
                 submitField="code"
                 value={values.loadType || null}
                 onChange={(code) => {
-                  setValues((prev) => ({ ...prev, loadType: code ? (code as ExerciseLoadType) : "" }));
+                  setValues((prev) => ({
+                    ...prev,
+                    loadType: code ? (code as ExerciseLoadType) : '',
+                  }));
                 }}
                 placeholder="Выберите тип нагрузки"
                 clearOptionLabel="Без типа нагрузки"
@@ -366,7 +388,7 @@ export function ExerciseForm({
             {!isReadOnly ? (
               <div className="flex flex-wrap gap-2">
                 <Button type="submit" disabled={savePending}>
-                  {savePending ? "Сохранение…" : exercise ? "Сохранить" : "Создать упражнение"}
+                  {savePending ? 'Сохранение…' : exercise ? 'Сохранить' : 'Создать упражнение'}
                 </Button>
               </div>
             ) : null}
@@ -377,7 +399,9 @@ export function ExerciseForm({
       {exercise && !isReadOnly && isArchived ? (
         <div className="rounded-md border border-border/60 bg-muted/30 p-3 text-sm">
           <p className="font-medium text-foreground">Упражнение в архиве</p>
-          <p className="mt-1 text-muted-foreground">Верните из архива, чтобы снова назначать и редактировать.</p>
+          <p className="mt-1 text-muted-foreground">
+            Верните из архива, чтобы снова назначать и редактировать.
+          </p>
           <div className="mb-3 mt-3 rounded-md border border-border/60 bg-muted/20 p-3">
             <p className="text-sm font-medium text-foreground">Где используется</p>
             {usageBusy ? (
@@ -398,9 +422,11 @@ export function ExerciseForm({
           <form action={unarchiveFormAction} className="mt-3 flex flex-col gap-2">
             <input type="hidden" name="id" value={exercise.id} />
             {viewHint ? <input type="hidden" name="view" value={viewHint} /> : null}
-            {listArchiveScope ? <input type="hidden" name="status" value={listArchiveScope} /> : null}
+            {listArchiveScope ? (
+              <input type="hidden" name="status" value={listArchiveScope} />
+            ) : null}
             <Button type="submit" variant="secondary" disabled={unarchivePending}>
-              {unarchivePending ? "Восстановление…" : "Вернуть из архива"}
+              {unarchivePending ? 'Восстановление…' : 'Вернуть из архива'}
             </Button>
           </form>
         </div>
@@ -438,8 +464,15 @@ export function ExerciseForm({
           <form ref={archiveFormRef} action={archiveFormAction} className="flex flex-col gap-2">
             <input type="hidden" name="id" value={exercise.id} />
             {viewHint ? <input type="hidden" name="view" value={viewHint} /> : null}
-            {listArchiveScope ? <input type="hidden" name="status" value={listArchiveScope} /> : null}
-            <input type="hidden" name="acknowledgeUsageWarning" value={archiveUsageAck ? "1" : ""} readOnly />
+            {listArchiveScope ? (
+              <input type="hidden" name="status" value={listArchiveScope} />
+            ) : null}
+            <input
+              type="hidden"
+              name="acknowledgeUsageWarning"
+              value={archiveUsageAck ? '1' : ''}
+              readOnly
+            />
             <Button
               type="submit"
               variant="destructive"
@@ -448,7 +481,7 @@ export function ExerciseForm({
                 setArchiveUsageAck(false);
               }}
             >
-              {archivePending ? "Архивация…" : "Архивировать"}
+              {archivePending ? 'Архивация…' : 'Архивировать'}
             </Button>
           </form>
 
@@ -458,13 +491,13 @@ export function ExerciseForm({
                 <DialogTitle>Элемент уже используется</DialogTitle>
                 <div className="space-y-2 text-sm text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground">
                   <span className="block">
-                    Архивация уберёт упражнение из каталога для новых назначений. Уже выданные назначения и история не
-                    удаляются.
+                    Архивация уберёт упражнение из каталога для новых назначений. Уже выданные
+                    назначения и история не удаляются.
                   </span>
                   {!warnSections.length &&
                   archiveState?.ok === false &&
-                  "code" in archiveState &&
-                  archiveState.code === "USAGE_CONFIRMATION_REQUIRED" &&
+                  'code' in archiveState &&
+                  archiveState.code === 'USAGE_CONFIRMATION_REQUIRED' &&
                   !exerciseUsageHasAnyReference(archiveState.usage) ? (
                     <span className="block text-sm">
                       Упражнение помечено как используемое — проверьте связи перед архивацией.

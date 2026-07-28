@@ -1,14 +1,14 @@
-import { NextResponse } from "next/server";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireAuthenticatedIdentitySelfApiSession } from "@/app-layer/guards/requireRole";
-import { env } from "@/config/env";
-import { renewSessionCookieFromRequest } from "@/modules/auth/service";
-import type { PlatformAccessContext } from "@/modules/platform-access";
-import { resolvePlatformAccessContext } from "@/app-layer/platform-access";
+import { NextResponse } from 'next/server';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireAuthenticatedIdentitySelfApiSession } from '@/app-layer/guards/requireRole';
+import { env } from '@/config/env';
+import { renewSessionCookieFromRequest } from '@/modules/auth/service';
+import type { PlatformAccessContext } from '@/modules/platform-access';
+import { resolvePlatformAccessContext } from '@/app-layer/platform-access';
 
 type MePlatformAccessPayload = Pick<
   PlatformAccessContext,
-  "canonicalUserId" | "dbRole" | "tier" | "hasPhoneInDb" | "phoneTrustedForPatient" | "resolution"
+  'canonicalUserId' | 'dbRole' | 'tier' | 'hasPhoneInDb' | 'phoneTrustedForPatient' | 'resolution'
 >;
 
 export async function GET() {

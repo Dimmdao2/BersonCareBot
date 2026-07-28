@@ -5,24 +5,24 @@
 **Baseline:** `STAGE_D.md`, `ROADMAP_2.md §1.1`  
 **Целевые файлы:**
 
-| Файл | Статус |
-|------|--------|
-| `apps/webapp/src/app/app/patient/treatment-programs/page.tsx` | в scope |
-| `apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramsListClient.tsx` | в scope |
+| Файл                                                                                             | Статус                              |
+| ------------------------------------------------------------------------------------------------ | ----------------------------------- |
+| `apps/webapp/src/app/app/patient/treatment-programs/page.tsx`                                    | в scope                             |
+| `apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramsListClient.tsx`      | в scope                             |
 | `apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramsListClient.test.tsx` | в scope (должен оставаться зелёным) |
-| `apps/webapp/src/app/app/patient/treatment-programs/page.nudgeResilience.test.tsx` | в scope (должен оставаться зелёным) |
+| `apps/webapp/src/app/app/patient/treatment-programs/page.nudgeResilience.test.tsx`               | в scope (должен оставаться зелёным) |
 
 ---
 
 ## 1. Scope check — нет изменений вне scope
 
-| Проверка | Результат |
-|----------|-----------|
-| Нет правок в `db/schema/` | ✅ |
-| Нет новых миграций | ✅ |
-| Нет правок в `modules/` | ✅ |
+| Проверка                                         | Результат                                                     |
+| ------------------------------------------------ | ------------------------------------------------------------- |
+| Нет правок в `db/schema/`                        | ✅                                                            |
+| Нет новых миграций                               | ✅                                                            |
+| Нет правок в `modules/`                          | ✅                                                            |
 | Нет новых `patientVisual` токенов (только reuse) | ✅ (`patientSurfaceProgramClass` — alias, добавлен в Stage C) |
-| Нет new custom chrome в route-компоненте | ✅ |
+| Нет new custom chrome в route-компоненте         | ✅                                                            |
 
 ---
 
@@ -30,42 +30,42 @@
 
 ### D1 — Hero активной программы
 
-| Критерий | Проверка | Результат |
-|----------|----------|-----------|
-| Название программы (`title`) | `<h2>{hero.title}</h2>` | ✅ |
-| `current_stage_title` | `Текущий этап: {hero.currentStageTitle}` (null → «—») | ✅ |
-| Бейдж `planUpdatedLabel` | `<span aria-hidden>●</span><span>{label}</span>` c `role="status"` | ✅ |
-| `planUpdatedLabel` через бэкенд-badge | `deps.treatmentProgramInstance.patientPlanUpdatedBadgeForInstance` → `formatBookingDateLongRu` | ✅ |
-| CTA → detail-страница | `routePaths.patientTreatmentProgram(hero.instanceId)` | ✅ |
-| Использует patient primitives | `patientSurfaceProgramClass`, `patientPrimaryActionClass`, `patientMutedTextClass` | ✅ |
-| Hero только при наличии активной программы | `{hero ? <section>…</section> : <emptyState>}` | ✅ |
+| Критерий                                   | Проверка                                                                                       | Результат |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------- | --------- |
+| Название программы (`title`)               | `<h2>{hero.title}</h2>`                                                                        | ✅        |
+| `current_stage_title`                      | `Текущий этап: {hero.currentStageTitle}` (null → «—»)                                          | ✅        |
+| Бейдж `planUpdatedLabel`                   | `<span aria-hidden>●</span><span>{label}</span>` c `role="status"`                             | ✅        |
+| `planUpdatedLabel` через бэкенд-badge      | `deps.treatmentProgramInstance.patientPlanUpdatedBadgeForInstance` → `formatBookingDateLongRu` | ✅        |
+| CTA → detail-страница                      | `routePaths.patientTreatmentProgram(hero.instanceId)`                                          | ✅        |
+| Использует patient primitives              | `patientSurfaceProgramClass`, `patientPrimaryActionClass`, `patientMutedTextClass`             | ✅        |
+| Hero только при наличии активной программы | `{hero ? <section>…</section> : <emptyState>}`                                                 | ✅        |
 
 ### D2 — Архив завершённых программ
 
-| Критерий | Проверка | Результат |
-|----------|----------|-----------|
-| Под `<details>` | `<details className={cn(patientCardClass, "group")}>` | ✅ |
-| Заголовок «Завершённые программы» | `<summary>Завершённые программы</summary>` + счётчик | ✅ |
-| Свёрнут по умолчанию | Нет атрибута `open` | ✅ |
-| Каждая позиция — ссылка на detail | `routePaths.patientTreatmentProgram(p.id)` | ✅ |
-| Используются patient primitives | `patientCardClass`, `patientCardCompactClass`, `patientMutedTextClass` | ✅ |
+| Критерий                          | Проверка                                                               | Результат |
+| --------------------------------- | ---------------------------------------------------------------------- | --------- |
+| Под `<details>`                   | `<details className={cn(patientCardClass, "group")}>`                  | ✅        |
+| Заголовок «Завершённые программы» | `<summary>Завершённые программы</summary>` + счётчик                   | ✅        |
+| Свёрнут по умолчанию              | Нет атрибута `open`                                                    | ✅        |
+| Каждая позиция — ссылка на detail | `routePaths.patientTreatmentProgram(p.id)`                             | ✅        |
+| Используются patient primitives   | `patientCardClass`, `patientCardCompactClass`, `patientMutedTextClass` | ✅        |
 
 ### D3 — Empty state
 
-| Критерий | Проверка | Результат |
-|----------|----------|-----------|
-| Текст «Здесь появится программа после назначения врачом» | Присутствует в `<p>` | ✅ |
-| Ссылка → `/messages` | `href={messagesHref}` → `routePaths.patientMessages` = `/app/patient/messages` | ✅ |
-| Текст ссылки осмыслен | «Написать в чат специалиста» | ✅ |
-| Нет несогласованных CTA | Только одна ссылка, нет кнопок без действия | ✅ |
-| Поверхность — patient primitive | `patientSurfaceInfoClass` | ✅ |
+| Критерий                                                 | Проверка                                                                       | Результат |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------ | --------- |
+| Текст «Здесь появится программа после назначения врачом» | Присутствует в `<p>`                                                           | ✅        |
+| Ссылка → `/messages`                                     | `href={messagesHref}` → `routePaths.patientMessages` = `/app/patient/messages` | ✅        |
+| Текст ссылки осмыслен                                    | «Написать в чат специалиста»                                                   | ✅        |
+| Нет несогласованных CTA                                  | Только одна ссылка, нет кнопок без действия                                    | ✅        |
+| Поверхность — patient primitive                          | `patientSurfaceInfoClass`                                                      | ✅        |
 
 ### D4 — Нет процентной аналитики
 
-| Проверка | Результат |
-|----------|-----------|
+| Проверка                                                                 | Результат       |
+| ------------------------------------------------------------------------ | --------------- |
 | `grep '%\|percent\|progress'` в `PatientTreatmentProgramsListClient.tsx` | 0 совпадений ✅ |
-| `grep '%\|percent\|progress'` в `page.tsx` | 0 совпадений ✅ |
+| `grep '%\|percent\|progress'` в `page.tsx`                               | 0 совпадений ✅ |
 
 ---
 
@@ -78,39 +78,39 @@ Test Files  4 passed (4)
 Tests       14 passed (14)
 ```
 
-| Файл | Статус |
-|------|--------|
-| `PatientTreatmentProgramsListClient.test.tsx` | ✅ зелёный |
-| `page.nudgeResilience.test.tsx` (список) | ✅ зелёный |
+| Файл                                           | Статус                              |
+| ---------------------------------------------- | ----------------------------------- |
+| `PatientTreatmentProgramsListClient.test.tsx`  | ✅ зелёный                          |
+| `page.nudgeResilience.test.tsx` (список)       | ✅ зелёный                          |
 | `PatientTreatmentProgramDetailClient.test.tsx` | ✅ зелёный (рядом, не деградировал) |
-| `[instanceId]/page.nudgeResilience.test.tsx` | ✅ зелёный (рядом, не деградировал) |
+| `[instanceId]/page.nudgeResilience.test.tsx`   | ✅ зелёный (рядом, не деградировал) |
 
 ---
 
 ## 4. Целевые проверки (D6)
 
-| Команда | Результат |
-|---------|-----------|
-| `pnpm --dir apps/webapp lint --max-warnings=0 -- src/app/app/patient/treatment-programs` | ✅ |
-| `pnpm --dir apps/webapp exec tsc --noEmit` | ✅ |
-| `pnpm --dir apps/webapp exec vitest run src/app/app/patient/treatment-programs` | ✅ |
+| Команда                                                                                  | Результат |
+| ---------------------------------------------------------------------------------------- | --------- |
+| `pnpm --dir apps/webapp lint --max-warnings=0 -- src/app/app/patient/treatment-programs` | ✅        |
+| `pnpm --dir apps/webapp exec tsc --noEmit`                                               | ✅        |
+| `pnpm --dir apps/webapp exec vitest run src/app/app/patient/treatment-programs`          | ✅        |
 
 ---
 
 ## 5. Соответствие ROADMAP_2 §1.1
 
-| Требование ROADMAP | Статус |
-|--------------------|--------|
-| Hero: название программы | ✅ |
-| Hero: текущий этап (`current_stage_title`) | ✅ |
-| Hero: бейдж «План обновлён» (через `planUpdatedLabel`) | ✅ |
-| Hero: CTA → `/app/patient/treatment-programs/[instanceId]` | ✅ |
-| Архивные программы — под `<details>`, «Завершённые программы» | ✅ |
-| Empty state: «Здесь появится программа после назначения врачом» | ✅ |
-| Empty state: ссылка на `/messages` | ✅ |
-| Нет процентной аналитики прогресса | ✅ |
-| Все стили — patient primitives / shadcn base | ✅ |
-| Нет новых одноразовых chrome-компонентов в route | ✅ |
+| Требование ROADMAP                                              | Статус |
+| --------------------------------------------------------------- | ------ |
+| Hero: название программы                                        | ✅     |
+| Hero: текущий этап (`current_stage_title`)                      | ✅     |
+| Hero: бейдж «План обновлён» (через `planUpdatedLabel`)          | ✅     |
+| Hero: CTA → `/app/patient/treatment-programs/[instanceId]`      | ✅     |
+| Архивные программы — под `<details>`, «Завершённые программы»   | ✅     |
+| Empty state: «Здесь появится программа после назначения врачом» | ✅     |
+| Empty state: ссылка на `/messages`                              | ✅     |
+| Нет процентной аналитики прогресса                              | ✅     |
+| Все стили — patient primitives / shadcn base                    | ✅     |
+| Нет новых одноразовых chrome-компонентов в route                | ✅     |
 
 ---
 
@@ -137,11 +137,11 @@ Tests       14 passed (14)
 
 ## 7. Итог
 
-| Уровень | Кол-во | Закрыто |
-|---------|--------|---------|
-| Critical | 0 | — |
-| Major | 0 | — |
-| Minor | 1 | defer (M1) |
+| Уровень  | Кол-во | Закрыто    |
+| -------- | ------ | ---------- |
+| Critical | 0      | —          |
+| Major    | 0      | —          |
+| Minor    | 1      | defer (M1) |
 
 **Вердикт: PASS.** Stage D полностью соответствует `STAGE_D.md` и `ROADMAP_2 §1.1`. Все 14 тестов зелёные, lint и typecheck чистые.
 

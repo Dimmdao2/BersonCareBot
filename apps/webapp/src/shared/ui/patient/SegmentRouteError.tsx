@@ -1,19 +1,19 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
-import { Button } from "@/shared/ui/patient/primitives/button";
-import { buttonVariants } from "@/shared/ui/patient/primitives/button-variants";
-import { routePaths } from "@/app-layer/routes/paths";
-import { DEFAULT_SUPPORT_CONTACT_URL } from "@/modules/system-settings/supportContactConstants";
-import { isStaleServerActionError } from "@/shared/lib/isStaleServerActionError";
-import { safeReload } from "@/shared/lib/safeReload";
-import { SupportContactLink } from "@/shared/ui/patient/SupportContactLink";
-import { cn } from "@/lib/utils";
+import { useEffect, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import { Button } from '@/shared/ui/patient/primitives/button';
+import { buttonVariants } from '@/shared/ui/patient/primitives/button-variants';
+import { routePaths } from '@/app-layer/routes/paths';
+import { DEFAULT_SUPPORT_CONTACT_URL } from '@/modules/system-settings/supportContactConstants';
+import { isStaleServerActionError } from '@/shared/lib/isStaleServerActionError';
+import { safeReload } from '@/shared/lib/safeReload';
+import { SupportContactLink } from '@/shared/ui/patient/SupportContactLink';
+import { cn } from '@/lib/utils';
 
 function resolveBackFallback(pathname: string): string {
-  if (pathname.startsWith("/app/patient")) return routePaths.patient;
-  if (pathname.startsWith("/app/doctor")) return routePaths.doctor;
+  if (pathname.startsWith('/app/patient')) return routePaths.patient;
+  if (pathname.startsWith('/app/doctor')) return routePaths.doctor;
   return routePaths.root;
 }
 
@@ -31,7 +31,7 @@ export function SegmentRouteError({
   backFallbackHref?: string;
 }) {
   const router = useRouter();
-  const pathname = usePathname() ?? "";
+  const pathname = usePathname() ?? '';
   const [supportContactHref, setSupportContactHref] = useState(DEFAULT_SUPPORT_CONTACT_URL);
 
   useEffect(() => {
@@ -40,10 +40,10 @@ export function SegmentRouteError({
 
   useEffect(() => {
     let cancelled = false;
-    void fetch("/api/public/support-contact-url")
+    void fetch('/api/public/support-contact-url')
       .then((res) => (res.ok ? res.json() : null))
       .then((data: { ok?: boolean; url?: string } | null) => {
-        const url = typeof data?.url === "string" ? data.url.trim() : "";
+        const url = typeof data?.url === 'string' ? data.url.trim() : '';
         if (!cancelled && url) setSupportContactHref(url);
       })
       .catch(() => {
@@ -58,14 +58,14 @@ export function SegmentRouteError({
 
   useEffect(() => {
     if (!isStaleAction) return;
-    void safeReload("stale-server-action");
+    void safeReload('stale-server-action');
   }, [isStaleAction]);
 
-  const message = error.message || "Не удалось загрузить раздел.";
+  const message = error.message || 'Не удалось загрузить раздел.';
   const backFallback = backFallbackHref ?? resolveBackFallback(pathname);
 
   const onBack = () => {
-    if (typeof window !== "undefined" && window.history.length > 1) {
+    if (typeof window !== 'undefined' && window.history.length > 1) {
       router.back();
       return;
     }
@@ -79,9 +79,7 @@ export function SegmentRouteError({
     >
       <h2 className="text-lg font-semibold">Что-то пошло не так</h2>
       <p className="max-w-md text-sm text-muted-foreground">{message}</p>
-      {error.digest ? (
-        <p className="text-xs text-muted-foreground">Код: {error.digest}</p>
-      ) : null}
+      {error.digest ? <p className="text-xs text-muted-foreground">Код: {error.digest}</p> : null}
       <div className="flex w-full max-w-xs flex-col gap-2">
         <Button
           type="button"
@@ -89,7 +87,7 @@ export function SegmentRouteError({
           className="w-full"
           onClick={() => {
             if (isStaleAction) {
-              void safeReload("stale-server-action");
+              void safeReload('stale-server-action');
               return;
             }
             reset();
@@ -100,8 +98,8 @@ export function SegmentRouteError({
         <SupportContactLink
           href={supportContactHref}
           className={cn(
-            buttonVariants({ variant: "outline", size: "sm" }),
-            "w-full justify-center no-underline",
+            buttonVariants({ variant: 'outline', size: 'sm' }),
+            'w-full justify-center no-underline',
           )}
         >
           Связаться с поддержкой

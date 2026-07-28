@@ -2,23 +2,23 @@
  * /app/doctor/patients/[userId] — карточка пациента.
  * Pattern: requireDoctorAccess → buildAppDeps → pass promise to PatientCardClient.
  */
-import { notFound } from "next/navigation";
-import Link from "next/link";
-import { z } from "zod";
-import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
-import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
-import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
-import { doctorPageStackClass } from "@/shared/ui/doctor/doctorVisual";
-import { cn } from "@/lib/utils";
-import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
-import { toDoctorSupplementaryContacts } from "@/modules/platform-user-contacts/bookingContactUpsert";
-import { loadDoctorPatientProgramActivity } from "../loadDoctorPatientProgramActivity";
-import { PatientCardClient } from "./PatientCardClient";
-import type { PatientProgramInteractionPolicy } from "@/modules/doctor-clients/supportPolicy";
-import { sanitizePatientListReturnHref } from "../patientListWorkspaceState";
+import { notFound } from 'next/navigation';
+import Link from 'next/link';
+import { z } from 'zod';
+import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
+import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
+import { buttonVariants } from '@/shared/ui/doctor/primitives/button-variants';
+import { doctorPageStackClass } from '@/shared/ui/doctor/doctorVisual';
+import { cn } from '@/lib/utils';
+import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
+import { toDoctorSupplementaryContacts } from '@/modules/platform-user-contacts/bookingContactUpsert';
+import { loadDoctorPatientProgramActivity } from '../loadDoctorPatientProgramActivity';
+import { PatientCardClient } from './PatientCardClient';
+import type { PatientProgramInteractionPolicy } from '@/modules/doctor-clients/supportPolicy';
+import { sanitizePatientListReturnHref } from '../patientListWorkspaceState';
 
 type PageProps = {
   params: Promise<{ userId: string }>;
@@ -65,7 +65,9 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
     portalState,
   ] = await Promise.all([
     deps.doctorClients.getPatientCardHeader(patientUserId),
-    withDoctorWorkspacePrincipal(workspace, () => deps.patientClinical.getClinicalState(patientUserId)),
+    withDoctorWorkspacePrincipal(workspace, () =>
+      deps.patientClinical.getClinicalState(patientUserId),
+    ),
     withDoctorWorkspacePrincipal(workspace, () => deps.patientClinical.listVisits(patientUserId)),
     deps.doctorNotes.listForUser(patientUserId),
     deps.specialistTasks.listPatientTasks(session.user.userId, patientUserId, false),
@@ -90,8 +92,12 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
     ),
     withDoctorWorkspacePrincipal(workspace, () => deps.patientFiles.listFiles(patientUserId)),
     withDoctorWorkspacePrincipal(workspace, () => deps.patientClinical.getAnamnesis(patientUserId)),
-    withDoctorWorkspacePrincipal(workspace, () => deps.patientComorbidities.listActive(patientUserId)),
-    withDoctorWorkspacePrincipal(workspace, () => deps.patientPayments.listPaymentsWithSummary(patientUserId)),
+    withDoctorWorkspacePrincipal(workspace, () =>
+      deps.patientComorbidities.listActive(patientUserId),
+    ),
+    withDoctorWorkspacePrincipal(workspace, () =>
+      deps.patientPayments.listPaymentsWithSummary(patientUserId),
+    ),
     deps.platformUserContacts.listForPlatformUser(patientUserId),
     withDoctorWorkspacePrincipal(workspace, () =>
       deps.patientInvites.getPortalStatus(workspace.organizationId, patientUserId),
@@ -104,42 +110,65 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
   // Parallel-fetch remaining SSR data that depends on selected workspace or is otherwise independent.
   const [historyEvents, initialPackages, , initialSupportEffectivePolicy] = await Promise.all([
     deps.payments
-      ? deps.payments.listPaymentHistoryForUser(patientUserId, workspace.organizationId).catch(() => [])
-      : Promise.resolve([] as Awaited<ReturnType<NonNullable<typeof deps.payments>["listPaymentHistoryForUser"]>>),
+      ? deps.payments
+          .listPaymentHistoryForUser(patientUserId, workspace.organizationId)
+          .catch(() => [])
+      : Promise.resolve(
+          [] as Awaited<ReturnType<NonNullable<typeof deps.payments>['listPaymentHistoryForUser']>>,
+        ),
     deps.memberships
-      ? deps.memberships.listPatientPackagesForUser(patientUserId, workspace.organizationId).catch(() => null)
+      ? deps.memberships
+          .listPatientPackagesForUser(patientUserId, workspace.organizationId)
+          .catch(() => null)
       : Promise.resolve(null),
     deps.doctorClients.getClientSupport(patientUserId).catch(() => null), // fetched but only effectivePolicy is surfaced to UI
-    deps.doctorClients.getPatientProgramInteractionPolicy(patientUserId).catch((): PatientProgramInteractionPolicy | null => null),
+    deps.doctorClients
+      .getPatientProgramInteractionPolicy(patientUserId)
+      .catch((): PatientProgramInteractionPolicy | null => null),
   ]);
 
   type TimelineEntry = {
-    id: string; occurredAt: string;
-    kind: "cash" | "acquiring" | "booking_prepayment" | "booking_refund";
-    status: string; amountMinor: number | null; currency: string;
-    description: string | null; provider: string | null; appointmentId: string | null;
+    id: string;
+    occurredAt: string;
+    kind: 'cash' | 'acquiring' | 'booking_prepayment' | 'booking_refund';
+    status: string;
+    amountMinor: number | null;
+    currency: string;
+    description: string | null;
+    provider: string | null;
+    appointmentId: string | null;
   };
   const financesTimeline: TimelineEntry[] = [
     ...patientPaymentRows.map((p) => ({
-      id: p.id, occurredAt: p.createdAt,
-      kind: p.kind as "cash" | "acquiring",
-      status: p.status, amountMinor: p.amountMinor, currency: p.currency,
-      description: p.service ?? p.comment ?? null, provider: p.provider ?? null,
+      id: p.id,
+      occurredAt: p.createdAt,
+      kind: p.kind as 'cash' | 'acquiring',
+      status: p.status,
+      amountMinor: p.amountMinor,
+      currency: p.currency,
+      description: p.service ?? p.comment ?? null,
+      provider: p.provider ?? null,
       appointmentId: p.visitId ?? null,
     })),
     ...historyEvents.map((e) => ({
-      id: e.id, occurredAt: e.occurredAt,
-      kind: (e.eventType.toLowerCase().includes("refund") ? "booking_refund" : "booking_prepayment") as "booking_prepayment" | "booking_refund",
-      status: e.status ?? e.eventType, amountMinor: e.amountMinor, currency: e.currency ?? "RUB",
-      description: e.purpose ?? e.comment ?? null, provider: e.providerId ?? null,
+      id: e.id,
+      occurredAt: e.occurredAt,
+      kind: (e.eventType.toLowerCase().includes('refund')
+        ? 'booking_refund'
+        : 'booking_prepayment') as 'booking_prepayment' | 'booking_refund',
+      status: e.status ?? e.eventType,
+      amountMinor: e.amountMinor,
+      currency: e.currency ?? 'RUB',
+      description: e.purpose ?? e.comment ?? null,
+      provider: e.providerId ?? null,
       appointmentId: e.appointmentId ?? null,
     })),
   ].sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
   const totalCashMinor = patientPaymentRows
-    .filter((p) => p.kind === "cash" && p.status === "paid")
+    .filter((p) => p.kind === 'cash' && p.status === 'paid')
     .reduce((s, p) => s + p.amountMinor, 0);
   const totalAcquiringMinor = patientPaymentRows
-    .filter((p) => p.kind === "acquiring" && p.status === "paid")
+    .filter((p) => p.kind === 'acquiring' && p.status === 'paid')
     .reduce((s, p) => s + p.amountMinor, 0);
   const initialFinancesData = { timeline: financesTimeline, totalCashMinor, totalAcquiringMinor };
 
@@ -149,7 +178,7 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
       id: p.id,
       amountMinor: p.amountMinor,
       currency: p.currency,
-      kind: p.kind as "cash" | "acquiring",
+      kind: p.kind as 'cash' | 'acquiring',
       status: p.status,
       comment: p.comment ?? null,
       service: p.service ?? null,
@@ -189,11 +218,16 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
         phone: cardHeaderPromise.identity.phone,
         email: cardHeaderPromise.identity.email,
       })
-    : rawContactRows.map((r) => ({ id: r.id, contactType: r.contactType, value: r.value, source: r.source }));
+    : rawContactRows.map((r) => ({
+        id: r.id,
+        contactType: r.contactType,
+        value: r.value,
+        source: r.source,
+      }));
 
-  const initialTab = typeof sp.tab === "string" ? sp.tab : undefined;
-  const createVisitFrom = typeof sp.createVisitFrom === "string" ? sp.createVisitFrom : undefined;
-  const visitDate = typeof sp.visitDate === "string" ? sp.visitDate : undefined;
+  const initialTab = typeof sp.tab === 'string' ? sp.tab : undefined;
+  const createVisitFrom = typeof sp.createVisitFrom === 'string' ? sp.createVisitFrom : undefined;
+  const visitDate = typeof sp.visitDate === 'string' ? sp.visitDate : undefined;
   const patientListHref = sanitizePatientListReturnHref(sp.returnTo);
 
   return (
@@ -205,8 +239,8 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
           <Link
             href={patientListHref}
             className={cn(
-              buttonVariants({ size: "sm", variant: "outline" }),
-              "h-8 rounded-[var(--doctor-control-radius,24px)] px-3",
+              buttonVariants({ size: 'sm', variant: 'outline' }),
+              'h-8 rounded-[var(--doctor-control-radius,24px)] px-3',
             )}
           >
             К клиентам
@@ -236,7 +270,7 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
           initialPaymentsSummary={initialPaymentsSummary}
           initialSupportEffectivePolicy={initialSupportEffectivePolicy}
           initialPortalState={portalState}
-          isAdmin={session.user.role === "admin"}
+          isAdmin={session.user.role === 'admin'}
         />
       </section>
     </DoctorAppShell>

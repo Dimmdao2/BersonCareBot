@@ -3,48 +3,48 @@
  * RSC-страницы дневника — в smoke-app-router-rsc-pages-inprocess.
  * Does not start a server. Requires DATABASE_URL for add/list (or use in-memory when DATABASE_URL unset).
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'vitest';
 
-describe("diaries e2e (in-process)", () => {
-  it("markLfkSession action is defined and callable", async () => {
-    const { markLfkSession } = await import("@/app/app/patient/diary/lfk/actions");
-    expect(typeof markLfkSession).toBe("function");
+describe('diaries e2e (in-process)', () => {
+  it('markLfkSession action is defined and callable', async () => {
+    const { markLfkSession } = await import('@/app/app/patient/diary/lfk/actions');
+    expect(typeof markLfkSession).toBe('function');
   });
 
-  it("QuickAddPopup client module loads", async () => {
-    const mod = await import("@/app/app/patient/diary/QuickAddPopup");
-    expect(typeof mod.QuickAddPopup).toBe("function");
+  it('QuickAddPopup client module loads', async () => {
+    const mod = await import('@/app/app/patient/diary/QuickAddPopup');
+    expect(typeof mod.QuickAddPopup).toBe('function');
   });
 
-  it("buildAppDeps references returns seeded symptom types (in-memory)", async () => {
-    const { buildAppDeps } = await import("@/app-layer/di/buildAppDeps");
+  it('buildAppDeps references returns seeded symptom types (in-memory)', async () => {
+    const { buildAppDeps } = await import('@/app-layer/di/buildAppDeps');
     const deps = buildAppDeps();
-    const items = await deps.references.listActiveItemsByCategoryCode("symptom_type");
+    const items = await deps.references.listActiveItemsByCategoryCode('symptom_type');
     expect(Array.isArray(items)).toBe(true);
     expect(items.length).toBeGreaterThan(0);
   });
 
-  it("buildAppDeps exposes lfkAssignments", async () => {
-    const { buildAppDeps } = await import("@/app-layer/di/buildAppDeps");
+  it('buildAppDeps exposes lfkAssignments', async () => {
+    const { buildAppDeps } = await import('@/app-layer/di/buildAppDeps');
     const deps = buildAppDeps();
     expect(deps.lfkAssignments).toBeDefined();
-    expect(typeof deps.lfkAssignments.assignTemplateToPatient).toBe("function");
+    expect(typeof deps.lfkAssignments.assignTemplateToPatient).toBe('function');
   });
 
-  it("buildAppDeps diaries createLfkComplex + addLfkSession + listLfkSessions roundtrip", async () => {
-    const { buildAppDeps } = await import("@/app-layer/di/buildAppDeps");
+  it('buildAppDeps diaries createLfkComplex + addLfkSession + listLfkSessions roundtrip', async () => {
+    const { buildAppDeps } = await import('@/app-layer/di/buildAppDeps');
     const deps = buildAppDeps();
-    const userId = "e2e-diaries-user";
-    const complex = await deps.diaries.createLfkComplex({ userId, title: "E2E complex" });
+    const userId = 'e2e-diaries-user';
+    const complex = await deps.diaries.createLfkComplex({ userId, title: 'E2E complex' });
     expect(complex.id).toBeDefined();
     const added = await deps.diaries.addLfkSession({
       userId,
       complexId: complex.id,
-      source: "webapp",
+      source: 'webapp',
       durationMinutes: 20,
       difficulty0_10: 3,
       pain0_10: 1,
-      comment: "e2e",
+      comment: 'e2e',
     });
     expect(added.id).toBeDefined();
     expect(added.userId).toBe(userId);
@@ -55,24 +55,24 @@ describe("diaries e2e (in-process)", () => {
     expect(list.some((s) => s.id === added.id)).toBe(true);
   });
 
-  it("buildAppDeps diaries createTracking + addSymptomEntry + listSymptomEntries roundtrip", async () => {
-    const { buildAppDeps } = await import("@/app-layer/di/buildAppDeps");
+  it('buildAppDeps diaries createTracking + addSymptomEntry + listSymptomEntries roundtrip', async () => {
+    const { buildAppDeps } = await import('@/app-layer/di/buildAppDeps');
     const deps = buildAppDeps();
-    const userId = "e2e-diaries-user";
+    const userId = 'e2e-diaries-user';
     const tracking = await deps.diaries.createSymptomTracking({
       userId,
-      symptomTitle: "E2E test symptom",
+      symptomTitle: 'E2E test symptom',
     });
     expect(tracking.id).toBeDefined();
-    expect(tracking.symptomTitle).toBe("E2E test symptom");
+    expect(tracking.symptomTitle).toBe('E2E test symptom');
 
     const added = await deps.diaries.addSymptomEntry({
       userId,
       trackingId: tracking.id,
       value0_10: 5,
-      entryType: "instant",
+      entryType: 'instant',
       recordedAt: new Date().toISOString(),
-      source: "webapp",
+      source: 'webapp',
     });
     expect(added.id).toBeDefined();
     expect(added.trackingId).toBe(tracking.id);

@@ -49,7 +49,7 @@ export type IncomingEventPipelineDeps = {
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
-  return typeof value === 'object' && value !== null ? value as Record<string, unknown> : null;
+  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null;
 }
 
 function asString(value: unknown): string | null {
@@ -72,10 +72,13 @@ async function ensureResolvedActor(
   const source = asString(event.meta.source);
   if (!source) return;
 
-  const externalActorId = asNumberString(incoming.channelUserId)
-    ?? asString(incoming.channelId)
-    ?? asString(event.meta.userId);
-  const isUserOriginated = externalActorId !== null && (event.type === 'message.received' || event.type === 'callback.received');
+  const externalActorId =
+    asNumberString(incoming.channelUserId) ??
+    asString(incoming.channelId) ??
+    asString(event.meta.userId);
+  const isUserOriginated =
+    externalActorId !== null &&
+    (event.type === 'message.received' || event.type === 'callback.received');
   const username = asString(incoming.channelUsername);
   const firstName = asString(incoming.channelFirstName);
   const lastName = asString(incoming.channelLastName);
@@ -84,7 +87,7 @@ async function ensureResolvedActor(
     source,
     isUserOriginated,
     ...(externalActorId ? { externalActorId } : {}),
-    ...((username || firstName || lastName)
+    ...(username || firstName || lastName
       ? {
           profile: {
             ...(username ? { username } : {}),
@@ -112,7 +115,10 @@ async function allowTelegramStartThroughDedup(
   if (!text.startsWith('/start')) return true;
   const action = typeof incoming.action === 'string' ? incoming.action.trim() : '';
   if (action && MESSENGER_START_SPECIAL_ACTIONS.has(action)) return true;
-  const rawId = asNumberString(incoming.channelUserId) ?? asString(incoming.channelId) ?? asString(event.meta.userId);
+  const rawId =
+    asNumberString(incoming.channelUserId) ??
+    asString(incoming.channelId) ??
+    asString(event.meta.userId);
   const telegramUserId = rawId ? Number(rawId) : NaN;
   if (!Number.isFinite(telegramUserId)) return true;
   return dedup(telegramUserId);
@@ -140,13 +146,21 @@ export function createIncomingEventPipeline(deps: IncomingEventPipelineDeps): {
             templatePort: deps.templatePort,
             ...(deps.contentCatalogPort ? { contentCatalogPort: deps.contentCatalogPort } : {}),
             ...(deps.protectedAccessPort ? { protectedAccessPort: deps.protectedAccessPort } : {}),
-            ...(deps.deliveryDefaultsPort !== undefined ? { deliveryDefaultsPort: deps.deliveryDefaultsPort } : {}),
-            ...(deps.sendMenuOnButtonPress !== undefined ? { sendMenuOnButtonPress: deps.sendMenuOnButtonPress } : {}),
+            ...(deps.deliveryDefaultsPort !== undefined
+              ? { deliveryDefaultsPort: deps.deliveryDefaultsPort }
+              : {}),
+            ...(deps.sendMenuOnButtonPress !== undefined
+              ? { sendMenuOnButtonPress: deps.sendMenuOnButtonPress }
+              : {}),
             ...(deps.contentPort ? { contentPort: deps.contentPort } : {}),
-            ...(deps.supportRelayPolicy !== undefined && deps.supportRelayPolicy !== null ? { supportRelayPolicy: deps.supportRelayPolicy } : {}),
+            ...(deps.supportRelayPolicy !== undefined && deps.supportRelayPolicy !== null
+              ? { supportRelayPolicy: deps.supportRelayPolicy }
+              : {}),
             ...(deps.webappEventsPort ? { webappEventsPort: deps.webappEventsPort } : {}),
             ...(deps.deliveryTargetsPort ? { deliveryTargetsPort: deps.deliveryTargetsPort } : {}),
-            ...(deps.remindersWebappWritesPort ? { remindersWebappWritesPort: deps.remindersWebappWritesPort } : {}),
+            ...(deps.remindersWebappWritesPort
+              ? { remindersWebappWritesPort: deps.remindersWebappWritesPort }
+              : {}),
             executeAction: executeDomainAction,
           };
           return executeDomainAction(action, context, executorDeps);

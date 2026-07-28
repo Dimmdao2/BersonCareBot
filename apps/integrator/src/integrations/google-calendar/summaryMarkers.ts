@@ -1,9 +1,9 @@
 /** Префиксы в `summary` события Google Calendar (перед ФИО клиента). */
-export const GCAL_SUMMARY_CANCELLED_PREFIX = "❌ ";
-export const GCAL_SUMMARY_RESCHEDULE_PENDING_PREFIX = "⚠️ ";
-export const GCAL_SUMMARY_PACKAGE_PREFIX = "✅ ";
+export const GCAL_SUMMARY_CANCELLED_PREFIX = '❌ ';
+export const GCAL_SUMMARY_RESCHEDULE_PENDING_PREFIX = '⚠️ ';
+export const GCAL_SUMMARY_PACKAGE_PREFIX = '✅ ';
 
-export type GoogleCalendarTitleMarker = "none" | "cancelled" | "reschedule_pending";
+export type GoogleCalendarTitleMarker = 'none' | 'cancelled' | 'reschedule_pending';
 
 const MARKER_PREFIXES = [
   GCAL_SUMMARY_CANCELLED_PREFIX,
@@ -19,7 +19,7 @@ export function stripGoogleCalendarSummaryMarkers(clientName: string): string {
     if (!hit) break;
     name = name.slice(hit.length).trimStart();
   }
-  return name || "Клиент";
+  return name || 'Клиент';
 }
 
 /** Заголовок события: только ФИО (без услуги), с опциональным маркером отмены/переноса. */
@@ -29,13 +29,13 @@ export function buildGoogleCalendarSummary(
   marker: GoogleCalendarTitleMarker,
   packageLinked = false,
 ): string {
-  const base = stripGoogleCalendarSummaryMarkers(clientName?.trim() || "Клиент");
+  const base = stripGoogleCalendarSummaryMarkers(clientName?.trim() || 'Клиент');
   const statusPrefix =
-    marker === "cancelled"
+    marker === 'cancelled'
       ? GCAL_SUMMARY_CANCELLED_PREFIX
-      : marker === "reschedule_pending"
+      : marker === 'reschedule_pending'
         ? GCAL_SUMMARY_RESCHEDULE_PENDING_PREFIX
-        : "";
-  const packagePrefix = packageLinked ? GCAL_SUMMARY_PACKAGE_PREFIX : "";
+        : '';
+  const packagePrefix = packageLinked ? GCAL_SUMMARY_PACKAGE_PREFIX : '';
   return `${statusPrefix}${packagePrefix}${base}`;
 }

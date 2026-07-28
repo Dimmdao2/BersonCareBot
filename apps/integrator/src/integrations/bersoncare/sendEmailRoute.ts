@@ -48,7 +48,12 @@ type ReqWithRawBody = FastifyRequest<{
   Body: SendEmailBody;
 }> & { rawBody?: string };
 
-function verifySignature(timestamp: string, rawBody: string, signature: string, secret: string): boolean {
+function verifySignature(
+  timestamp: string,
+  rawBody: string,
+  signature: string,
+  secret: string,
+): boolean {
   const ts = Number(timestamp);
   if (!Number.isFinite(ts)) return false;
   const now = Math.floor(Date.now() / 1000);
@@ -92,8 +97,7 @@ export async function registerBersoncareSendEmailRoute(
 
   if (!app.hasContentTypeParser('application/json')) {
     app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
-      const raw: string =
-        typeof body === 'string' ? body : (body as Buffer).toString('utf8');
+      const raw: string = typeof body === 'string' ? body : (body as Buffer).toString('utf8');
       (req as ReqWithRawBody).rawBody = raw;
       try {
         done(null, JSON.parse(raw) as SendEmailBody);
@@ -113,7 +117,10 @@ export async function registerBersoncareSendEmailRoute(
       return reply.code(400).send({ ok: false, error: 'missing_headers' });
     }
     if (!sharedSecret) {
-      logger.warn({}, 'bersoncare send-email: webhook secret not set (INTEGRATOR_WEBHOOK_SECRET or INTEGRATOR_SHARED_SECRET)');
+      logger.warn(
+        {},
+        'bersoncare send-email: webhook secret not set (INTEGRATOR_WEBHOOK_SECRET or INTEGRATOR_SHARED_SECRET)',
+      );
       return reply.code(503).send({ ok: false, error: 'service_unconfigured' });
     }
     if (!verifySignature(timestamp, rawBody, signature, sharedSecret)) {
@@ -122,7 +129,9 @@ export async function registerBersoncareSendEmailRoute(
 
     const parsed = sendEmailBodySchema.safeParse(request.body);
     if (!parsed.success) {
-      return reply.code(400).send({ ok: false, error: 'invalid_payload', details: parsed.error.flatten() });
+      return reply
+        .code(400)
+        .send({ ok: false, error: 'invalid_payload', details: parsed.error.flatten() });
     }
 
     const payload = parsed.data;
@@ -138,12 +147,8 @@ export async function registerBersoncareSendEmailRoute(
       return reply.code(503).send({ ok: false, error: 'email_not_configured' });
     }
 
-    const subject = isAuthCode
-      ? 'Код подтверждения BersonCare'
-      : (payload.subject ?? 'BersonCare');
-    const text = isAuthCode
-      ? `Ваш код BersonCare: ${payload.code}`
-      : (payload.text?.trim() ?? '');
+    const subject = isAuthCode ? 'Код подтверждения BersonCare' : (payload.subject ?? 'BersonCare');
+    const text = isAuthCode ? `Ваш код BersonCare: ${payload.code}` : (payload.text?.trim() ?? '');
 
     // OTP safety: prefix eventId with 'otp:email:' when a code is present so that
     // sanitizePayloadForLogs (dispatchPort) redacts it from delivery_attempt_logs.
@@ -161,7 +166,9 @@ export async function registerBersoncareSendEmailRoute(
         eventId,
         occurredAt: new Date().toISOString(),
         source: 'email',
-        ...(isAuthCode ? { outboundMessageClass: 'auth_code' as const, outboundCapability: 'auth_code' as const } : {}),
+        ...(isAuthCode
+          ? { outboundMessageClass: 'auth_code' as const, outboundCapability: 'auth_code' as const }
+          : {}),
       },
     };
 

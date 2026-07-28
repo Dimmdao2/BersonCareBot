@@ -1,22 +1,22 @@
-import { and, eq } from "drizzle-orm";
-import { getCurrentDbPrincipal } from "@bersoncare/db-principal";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { runWithWebappDbOperationFamily } from "@/infra/db/saasIsolationOperationContext";
-import { runWebappPgText } from "@/infra/db/runWebappSql";
-import { CMS_PAGES_USAGE_SQL } from "@/infra/repos/cmsPagesUsageSql";
-import type { OrgEntitlementsPort } from "@/modules/org-entitlements/ports";
+import { and, eq } from 'drizzle-orm';
+import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { runWithWebappDbOperationFamily } from '@/infra/db/saasIsolationOperationContext';
+import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { CMS_PAGES_USAGE_SQL } from '@/infra/repos/cmsPagesUsageSql';
+import type { OrgEntitlementsPort } from '@/modules/org-entitlements/ports';
 import type {
   EffectiveOrgCommercialAccess,
   OrgEntitlementSnapshot,
   TariffQuota,
   TariffQuotaMap,
-} from "@/modules/org-entitlements/types";
-import { beOrganizations } from "../../../db/schema/bookingEngine";
+} from '@/modules/org-entitlements/types';
+import { beOrganizations } from '../../../db/schema/bookingEngine';
 import {
   saasOrganizationTrials,
   saasOrgEntitlementOverrides,
   saasTariffs,
-} from "../../../db/schema/saasEntitlements";
+} from '../../../db/schema/saasEntitlements';
 
 type CurrentPatientEntitlementRow = {
   tariff_mechanics: Record<string, boolean> | null;
@@ -27,14 +27,14 @@ type CurrentPatientEntitlementRow = {
   override_quota: TariffQuota | null;
   override_expires_at: string | null;
   seat_limit_override: number | null;
-  lifecycle: EffectiveOrgCommercialAccess["lifecycle"];
+  lifecycle: EffectiveOrgCommercialAccess['lifecycle'];
   effective_tariff_id: string | null;
-  access_source: EffectiveOrgCommercialAccess["source"];
+  access_source: EffectiveOrgCommercialAccess['source'];
 };
 
 function snapshotFromPatientRows(rows: CurrentPatientEntitlementRow[]): OrgEntitlementSnapshot {
   const first = rows[0];
-  if (!first) throw new Error("patient_entitlement_context_denied");
+  if (!first) throw new Error('patient_entitlement_context_denied');
   return {
     tariff: first.tariff_mechanics
       ? {
@@ -46,13 +46,15 @@ function snapshotFromPatientRows(rows: CurrentPatientEntitlementRow[]): OrgEntit
     overrides: rows.flatMap((row) =>
       row.override_mechanic === null || row.override_enabled === null
         ? []
-        : [{
-            mechanic: row.override_mechanic,
-            enabled: row.override_enabled,
-            quota: row.override_quota,
-            expiresAt: row.override_expires_at,
-            seatLimitOverride: row.seat_limit_override,
-          }],
+        : [
+            {
+              mechanic: row.override_mechanic,
+              enabled: row.override_enabled,
+              quota: row.override_quota,
+              expiresAt: row.override_expires_at,
+              seatLimitOverride: row.seat_limit_override,
+            },
+          ],
     ),
     access: {
       lifecycle: first.lifecycle,
@@ -66,13 +68,13 @@ async function readCurrentPatientSnapshot(
   organizationId: string,
 ): Promise<OrgEntitlementSnapshot | null> {
   const principal = getCurrentDbPrincipal();
-  if (principal?.kind !== "patient") return null;
+  if (principal?.kind !== 'patient') return null;
   if (principal.organizationId !== organizationId) {
-    throw new Error("patient_entitlement_organization_mismatch");
+    throw new Error('patient_entitlement_organization_mismatch');
   }
-  const result = await runWithWebappDbOperationFamily("patient_ui_config", () =>
+  const result = await runWithWebappDbOperationFamily('patient_ui_config', () =>
     runWebappPgText<CurrentPatientEntitlementRow>(
-      "SELECT * FROM app.read_current_patient_organization_entitlements()",
+      'SELECT * FROM app.read_current_patient_organization_entitlements()',
     ),
   );
   return snapshotFromPatientRows(result.rows);
@@ -80,7 +82,7 @@ async function readCurrentPatientSnapshot(
 
 function resolveAccess(input: {
   organizationTariffId: string | null;
-  commercialAccessState: "compatibility" | "no_trial" | "trial_pending" | "active";
+  commercialAccessState: 'compatibility' | 'no_trial' | 'trial_pending' | 'active';
   trial: {
     tariffId: string;
     endsAt: string;
@@ -93,35 +95,35 @@ function resolveAccess(input: {
   const { trial } = input;
   if (!trial) {
     return {
-      lifecycle: "active",
+      lifecycle: 'active',
       tariffId: input.organizationTariffId,
       source:
-        input.commercialAccessState === "compatibility"
-          ? "compatibility"
-          : input.commercialAccessState === "no_trial"
-            ? "no_trial"
-            : "assignment",
+        input.commercialAccessState === 'compatibility'
+          ? 'compatibility'
+          : input.commercialAccessState === 'no_trial'
+            ? 'no_trial'
+            : 'assignment',
     };
   }
   const trialDates = { trialEndsAt: trial.endsAt, trialGraceEndsAt: trial.graceEndsAt };
   if (input.now <= new Date(trial.endsAt).getTime()) {
-    return { lifecycle: "active", tariffId: trial.tariffId, source: "trial", ...trialDates };
+    return { lifecycle: 'active', tariffId: trial.tariffId, source: 'trial', ...trialDates };
   }
   if (input.now <= new Date(trial.graceEndsAt).getTime()) {
-    return { lifecycle: "grace", tariffId: trial.tariffId, source: "trial", ...trialDates };
+    return { lifecycle: 'grace', tariffId: trial.tariffId, source: 'trial', ...trialDates };
   }
-  if (trial.postTrialBehavior === "tariff") {
+  if (trial.postTrialBehavior === 'tariff') {
     return {
-      lifecycle: "active",
+      lifecycle: 'active',
       tariffId: trial.postTrialTariffId,
-      source: "post_trial_tariff",
+      source: 'post_trial_tariff',
       ...trialDates,
     };
   }
   return {
-    lifecycle: trial.postTrialBehavior === "blocked" ? "blocked" : "read_only",
+    lifecycle: trial.postTrialBehavior === 'blocked' ? 'blocked' : 'read_only',
     tariffId: trial.tariffId,
-    source: "trial",
+    source: 'trial',
     ...trialDates,
   };
 }
@@ -136,7 +138,7 @@ async function readStaffSnapshot(organizationId: string): Promise<OrgEntitlement
       .from(beOrganizations)
       .where(eq(beOrganizations.id, organizationId))
       .limit(1);
-    if (!organization) throw new Error("organization_not_found");
+    if (!organization) throw new Error('organization_not_found');
 
     const [trial] = await tx
       .select({
@@ -150,17 +152,17 @@ async function readStaffSnapshot(organizationId: string): Promise<OrgEntitlement
       .where(
         and(
           eq(saasOrganizationTrials.organizationId, organizationId),
-          eq(saasOrganizationTrials.status, "active"),
+          eq(saasOrganizationTrials.status, 'active'),
         ),
       )
       .limit(1);
     const access = resolveAccess({
       organizationTariffId: organization.tariffId,
       commercialAccessState: organization.commercialAccessState as
-        | "compatibility"
-        | "no_trial"
-        | "trial_pending"
-        | "active",
+        | 'compatibility'
+        | 'no_trial'
+        | 'trial_pending'
+        | 'active',
       trial: trial ?? null,
       now: Date.now(),
     });
@@ -230,10 +232,9 @@ export function createPgOrgEntitlementsPort(): OrgEntitlementsPort {
            FROM app.read_org_enforced_quota_usage($1::uuid)`,
           [organizationId],
         ),
-        runWebappPgText<{ used_value: number }>(
-          `SELECT ${CMS_PAGES_USAGE_SQL} AS used_value`,
-          [organizationId],
-        ),
+        runWebappPgText<{ used_value: number }>(`SELECT ${CMS_PAGES_USAGE_SQL} AS used_value`, [
+          organizationId,
+        ]),
       ]);
       const usage = enforcedUsage.rows[0];
       return {

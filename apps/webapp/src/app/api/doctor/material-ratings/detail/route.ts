@@ -1,28 +1,28 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
 
-import { loadDoctorAnalyticsAudience } from "@/app-layer/analytics/loadAnalyticsAudience";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import type { MaterialRatingDetailPreset } from "@/modules/material-rating/detailTimeRange";
-import { resolveMaterialRatingDetailLocalRange } from "@/modules/material-rating/detailTimeRange";
-import { MaterialRatingAccessError } from "@/modules/material-rating/types";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
-import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
+import { loadDoctorAnalyticsAudience } from '@/app-layer/analytics/loadAnalyticsAudience';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import type { MaterialRatingDetailPreset } from '@/modules/material-rating/detailTimeRange';
+import { resolveMaterialRatingDetailLocalRange } from '@/modules/material-rating/detailTimeRange';
+import { MaterialRatingAccessError } from '@/modules/material-rating/types';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 
 const dayParam = z
   .string()
   .trim()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "expected YYYY-MM-DD");
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'expected YYYY-MM-DD');
 
 function parsePreset(raw: string | null): MaterialRatingDetailPreset {
-  if (raw === "day" || raw === "week" || raw === "month" || raw === "custom") return raw;
-  return "week";
+  if (raw === 'day' || raw === 'week' || raw === 'month' || raw === 'custom') return raw;
+  return 'week';
 }
 
 const querySchema = z.object({
-  kind: z.enum(["content_page", "lfk_exercise", "lfk_complex"]),
+  kind: z.enum(['content_page', 'lfk_exercise', 'lfk_complex']),
   id: z.string().uuid(),
-  preset: z.enum(["day", "week", "month", "custom"]).optional(),
+  preset: z.enum(['day', 'week', 'month', 'custom']).optional(),
   from: z.string().optional(),
   to: z.string().optional(),
 });
@@ -34,21 +34,21 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const parsed = querySchema.safeParse(Object.fromEntries(searchParams));
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_query" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_query' }, { status: 400 });
   }
 
-  const preset = parsed.data.preset ?? parsePreset(searchParams.get("preset"));
-  const fromRaw = parsed.data.from ?? searchParams.get("from");
-  const toRaw = parsed.data.to ?? searchParams.get("to");
+  const preset = parsed.data.preset ?? parsePreset(searchParams.get('preset'));
+  const fromRaw = parsed.data.from ?? searchParams.get('from');
+  const toRaw = parsed.data.to ?? searchParams.get('to');
 
-  if (preset === "custom") {
-    const fp = dayParam.safeParse(fromRaw ?? "");
-    const tp = dayParam.safeParse(toRaw ?? "");
+  if (preset === 'custom') {
+    const fp = dayParam.safeParse(fromRaw ?? '');
+    const tp = dayParam.safeParse(toRaw ?? '');
     if (!fp.success || !tp.success) {
-      return NextResponse.json({ ok: false, error: "custom_range_required" }, { status: 400 });
+      return NextResponse.json({ ok: false, error: 'custom_range_required' }, { status: 400 });
     }
   } else if (fromRaw || toRaw) {
-    return NextResponse.json({ ok: false, error: "unexpected_from_to" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'unexpected_from_to' }, { status: 400 });
   }
 
   const iana = await getAppDisplayTimeZone();
@@ -57,14 +57,19 @@ export async function GET(request: Request) {
 
   let range: ReturnType<typeof resolveMaterialRatingDetailLocalRange>;
   try {
-    range = resolveMaterialRatingDetailLocalRange(iana, preset, fromRaw ?? undefined, toRaw ?? undefined);
+    range = resolveMaterialRatingDetailLocalRange(
+      iana,
+      preset,
+      fromRaw ?? undefined,
+      toRaw ?? undefined,
+    );
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "error";
+    const msg = e instanceof Error ? e.message : 'error';
     if (
-      msg === "custom_range_required" ||
-      msg === "range_inverted" ||
-      msg === "range_too_long" ||
-      msg === "invalid_date"
+      msg === 'custom_range_required' ||
+      msg === 'range_inverted' ||
+      msg === 'range_too_long' ||
+      msg === 'invalid_date'
     ) {
       return NextResponse.json({ ok: false, error: msg }, { status: 400 });
     }
@@ -93,8 +98,8 @@ export async function GET(request: Request) {
       raters: detail.raters,
     });
   } catch (e) {
-    if (e instanceof MaterialRatingAccessError && e.accessCode === "not_found") {
-      return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    if (e instanceof MaterialRatingAccessError && e.accessCode === 'not_found') {
+      return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
     }
     throw e;
   }

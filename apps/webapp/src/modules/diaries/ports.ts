@@ -1,8 +1,15 @@
 /**
  * Ports for diary modules. Implementations live in infra (in-memory or DB).
  */
-import type { SQLWrapper } from "drizzle-orm";
-import type { LfkComplex, LfkComplexExerciseLine, LfkSession, SymptomEntry, SymptomSide, SymptomTracking } from "./types";
+import type { SQLWrapper } from 'drizzle-orm';
+import type {
+  LfkComplex,
+  LfkComplexExerciseLine,
+  LfkSession,
+  SymptomEntry,
+  SymptomSide,
+  SymptomTracking,
+} from './types';
 
 /** Transaction session with SQL execution — PG реализация приводит к Drizzle `tx` внутри infra. */
 export type SymptomDiarySqlTx = {
@@ -49,16 +56,19 @@ export type SymptomDiaryPort = {
     userId: string;
     trackingId: string;
     value0_10: number;
-    entryType: "instant" | "daily";
+    entryType: 'instant' | 'daily';
     recordedAt: string;
-    source: "bot" | "webapp" | "import";
+    source: 'bot' | 'webapp' | 'import';
     notes?: string | null;
     /** Связь с `patient_practice_completions` для разминки (`warmup_feeling`). */
     patientPracticeCompletionId?: string | null;
   }): Promise<SymptomEntry>;
   listEntries(userId: string, limit?: number): Promise<SymptomEntry[]>;
   /** Tracking owned by user (not soft-deleted), or null. */
-  getTrackingForUser(params: { userId: string; trackingId: string }): Promise<SymptomTracking | null>;
+  getTrackingForUser(params: {
+    userId: string;
+    trackingId: string;
+  }): Promise<SymptomTracking | null>;
   /** Entries for one tracking in `[fromRecordedAt, toRecordedAtExclusive)` (ISO timestamps). */
   listEntriesForTrackingInRange(params: {
     userId: string;
@@ -81,13 +91,21 @@ export type SymptomDiaryPort = {
     userId: string;
     entryId: string;
     value0_10: number;
-    entryType: "instant" | "daily";
+    entryType: 'instant' | 'daily';
     recordedAt: string;
     notes: string | null;
   }): Promise<void>;
   deleteEntry(params: { userId: string; entryId: string }): Promise<void>;
-  updateTrackingTitle(params: { userId: string; trackingId: string; symptomTitle: string }): Promise<void>;
-  setTrackingActive(params: { userId: string; trackingId: string; isActive: boolean }): Promise<void>;
+  updateTrackingTitle(params: {
+    userId: string;
+    trackingId: string;
+    symptomTitle: string;
+  }): Promise<void>;
+  setTrackingActive(params: {
+    userId: string;
+    trackingId: string;
+    isActive: boolean;
+  }): Promise<void>;
   softDeleteTracking(params: { userId: string; trackingId: string }): Promise<void>;
 };
 
@@ -95,7 +113,7 @@ export type LfkDiaryPort = {
   createComplex(params: {
     userId: string;
     title: string;
-    origin?: "manual" | "assigned_by_specialist";
+    origin?: 'manual' | 'assigned_by_specialist';
     symptomTrackingId?: string | null;
     regionRefId?: string | null;
     side?: SymptomSide | null;
@@ -107,7 +125,7 @@ export type LfkDiaryPort = {
     userId: string;
     complexId: string;
     completedAt: string;
-    source: "bot" | "webapp";
+    source: 'bot' | 'webapp';
     recordedAt?: string | null;
     durationMinutes?: number | null;
     difficulty0_10?: number | null;

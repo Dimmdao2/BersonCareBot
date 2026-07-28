@@ -1,13 +1,13 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
-import { verifyIntegratorSignature } from "@/app-layer/integrator/verifyIntegratorSignature";
-import { completeChannelLinkFromIntegrator } from "@/modules/auth/channelLink";
-import { isAuthChannelEnabled } from "@/modules/auth/authChannelPolicy";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { ensureAuthModulePortsBound } from '@/app-layer/di/bindAuthModulePorts';
+import { verifyIntegratorSignature } from '@/app-layer/integrator/verifyIntegratorSignature';
+import { completeChannelLinkFromIntegrator } from '@/modules/auth/channelLink';
+import { isAuthChannelEnabled } from '@/modules/auth/authChannelPolicy';
 
 const bodySchema = z.object({
   linkToken: z.string().min(4).max(500),
-  channelCode: z.enum(["telegram", "max"]),
+  channelCode: z.enum(['telegram', 'max']),
   /** ID пользователя в мессенджере (Telegram id / MAX user_id), строка; не chat_id чата. */
   externalId: z.string().min(1).max(64),
 });
@@ -15,32 +15,32 @@ const bodySchema = z.object({
 export async function POST(request: Request) {
   ensureAuthModulePortsBound();
 
-  const timestamp = request.headers.get("x-bersoncare-timestamp");
-  const signature = request.headers.get("x-bersoncare-signature");
+  const timestamp = request.headers.get('x-bersoncare-timestamp');
+  const signature = request.headers.get('x-bersoncare-signature');
   const rawBody = await request.text();
 
   if (!timestamp || !signature) {
-    return NextResponse.json({ ok: false, error: "missing webhook headers" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'missing webhook headers' }, { status: 400 });
   }
 
   if (!verifyIntegratorSignature(timestamp, rawBody, signature, request)) {
-    return NextResponse.json({ ok: false, error: "invalid signature" }, { status: 401 });
+    return NextResponse.json({ ok: false, error: 'invalid signature' }, { status: 401 });
   }
 
   let json: unknown;
   try {
     json = JSON.parse(rawBody) as unknown;
   } catch {
-    return NextResponse.json({ ok: false, error: "invalid json" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid json' }, { status: 400 });
   }
 
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "validation_error" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'validation_error' }, { status: 400 });
   }
 
   if (!(await isAuthChannelEnabled(parsed.data.channelCode))) {
-    return NextResponse.json({ ok: false, error: "auth_channel_disabled" }, { status: 403 });
+    return NextResponse.json({ ok: false, error: 'auth_channel_disabled' }, { status: 403 });
   }
 
   const result = await completeChannelLinkFromIntegrator({
@@ -50,20 +50,20 @@ export async function POST(request: Request) {
   });
 
   if (!result.ok) {
-    if (result.code === "used_token") {
+    if (result.code === 'used_token') {
       // Idempotent completion for repeated webhook deliveries; needsPhone — повторный запрос контакта в боте.
       return NextResponse.json({
         ok: true,
-        status: "already_used",
+        status: 'already_used',
         needsPhone: Boolean(result.needsPhone),
       });
     }
-    if (result.code === "conflict") {
+    if (result.code === 'conflict') {
       return NextResponse.json(
         {
           ok: false,
-          error: "conflict",
-          ...(typeof result.mergeReason === "string" && result.mergeReason.length > 0
+          error: 'conflict',
+          ...(typeof result.mergeReason === 'string' && result.mergeReason.length > 0
             ? { mergeReason: result.mergeReason }
             : {}),
         },
@@ -76,7 +76,7 @@ export async function POST(request: Request) {
   return NextResponse.json({
     ok: true,
     needsPhone: result.needsPhone,
-    ...(typeof result.phoneNormalized === "string" && result.phoneNormalized.trim().length > 0
+    ...(typeof result.phoneNormalized === 'string' && result.phoneNormalized.trim().length > 0
       ? { phoneNormalized: result.phoneNormalized.trim() }
       : {}),
   });

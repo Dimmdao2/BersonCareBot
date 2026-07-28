@@ -1,26 +1,30 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState, useTransition } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Label } from "@/shared/ui/doctor/primitives/label";
-import { Switch } from "@/shared/ui/doctor/primitives/switch";
+import { useCallback, useEffect, useState, useTransition } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Label } from '@/shared/ui/doctor/primitives/label';
+import { Switch } from '@/shared/ui/doctor/primitives/switch';
 import {
   defaultBookingLifecycleNotificationsSettings,
   type BookingLifecycleNotificationEventKey,
   type BookingLifecycleNotificationsSettings,
-} from "@/modules/booking-notifications/settings";
-import { patchAdminSetting } from "./patchAdminSetting";
-import { apiJson } from "@/shared/lib/apiJson";
+} from '@/modules/booking-notifications/settings';
+import { patchAdminSetting } from './patchAdminSetting';
+import { apiJson } from '@/shared/lib/apiJson';
 
 const EVENT_LABELS: Record<BookingLifecycleNotificationEventKey, string> = {
-  "booking.created": "Новая запись",
-  "booking.cancelled": "Отмена",
-  "booking.rescheduled": "Перенос",
-  "booking.payment_captured": "Оплата",
+  'booking.created': 'Новая запись',
+  'booking.cancelled': 'Отмена',
+  'booking.rescheduled': 'Перенос',
+  'booking.payment_captured': 'Оплата',
 };
 
-export function BookingEventNotificationsSection({ layout = "cards" }: { layout?: "cards" | "compact" }) {
+export function BookingEventNotificationsSection({
+  layout = 'cards',
+}: {
+  layout?: 'cards' | 'compact';
+}) {
   const [settings, setSettings] = useState<BookingLifecycleNotificationsSettings>(
     defaultBookingLifecycleNotificationsSettings(),
   );
@@ -32,19 +36,18 @@ export function BookingEventNotificationsSection({ layout = "cards" }: { layout?
       const json = await apiJson<{
         ok?: boolean;
         settings?: Array<{ key: string; valueJson: unknown }>;
-      }>("/api/admin/settings");
-      const row = json.settings?.find((s) => s.key === "booking_lifecycle_notifications");
+      }>('/api/admin/settings');
+      const row = json.settings?.find((s) => s.key === 'booking_lifecycle_notifications');
       const inner =
-        row?.valueJson && typeof row.valueJson === "object" && "value" in (row.valueJson as object)
+        row?.valueJson && typeof row.valueJson === 'object' && 'value' in (row.valueJson as object)
           ? (row.valueJson as { value: unknown }).value
           : row?.valueJson;
-      const { parseBookingLifecycleNotificationsSettings } = await import(
-        "@/modules/booking-notifications/settings"
-      );
+      const { parseBookingLifecycleNotificationsSettings } =
+        await import('@/modules/booking-notifications/settings');
       setSettings(parseBookingLifecycleNotificationsSettings(inner ?? null));
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "load_failed");
+      setError(e instanceof Error ? e.message : 'load_failed');
     }
   }, []);
 
@@ -56,7 +59,9 @@ export function BookingEventNotificationsSection({ layout = "cards" }: { layout?
 
   function updateEvent(
     key: BookingLifecycleNotificationEventKey,
-    patch: Partial<BookingLifecycleNotificationsSettings["events"][BookingLifecycleNotificationEventKey]>,
+    patch: Partial<
+      BookingLifecycleNotificationsSettings['events'][BookingLifecycleNotificationEventKey]
+    >,
   ) {
     setSettings((prev) => ({
       events: {
@@ -68,8 +73,10 @@ export function BookingEventNotificationsSection({ layout = "cards" }: { layout?
 
   function save() {
     startTransition(async () => {
-      const ok = await patchAdminSetting("booking_lifecycle_notifications", { events: settings.events });
-      if (!ok) setError("Не удалось сохранить");
+      const ok = await patchAdminSetting('booking_lifecycle_notifications', {
+        events: settings.events,
+      });
+      if (!ok) setError('Не удалось сохранить');
       else await load();
     });
   }
@@ -81,7 +88,7 @@ export function BookingEventNotificationsSection({ layout = "cards" }: { layout?
       </CardHeader>
       <CardContent className="space-y-4">
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
-        {layout === "compact" ? (
+        {layout === 'compact' ? (
           <div className="overflow-x-auto rounded-md border">
             <table className="w-full text-sm">
               <thead>
@@ -93,31 +100,36 @@ export function BookingEventNotificationsSection({ layout = "cards" }: { layout?
                 </tr>
               </thead>
               <tbody>
-                {(Object.keys(EVENT_LABELS) as BookingLifecycleNotificationEventKey[]).map((key) => {
-                  const row = settings.events[key];
-                  return (
-                    <tr key={key} className="border-b border-border/60 last:border-0">
-                      <td className="px-3 py-2 font-medium">{EVENT_LABELS[key]}</td>
-                      <td className="px-3 py-2">
-                        <Switch checked={row.enabled} onCheckedChange={(v) => updateEvent(key, { enabled: v })} />
-                      </td>
-                      <td className="px-3 py-2">
-                        <Switch
-                          checked={row.notifyPatient}
-                          disabled={!row.enabled}
-                          onCheckedChange={(v) => updateEvent(key, { notifyPatient: v })}
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <Switch
-                          checked={row.notifyStaff}
-                          disabled={!row.enabled}
-                          onCheckedChange={(v) => updateEvent(key, { notifyStaff: v })}
-                        />
-                      </td>
-                    </tr>
-                  );
-                })}
+                {(Object.keys(EVENT_LABELS) as BookingLifecycleNotificationEventKey[]).map(
+                  (key) => {
+                    const row = settings.events[key];
+                    return (
+                      <tr key={key} className="border-b border-border/60 last:border-0">
+                        <td className="px-3 py-2 font-medium">{EVENT_LABELS[key]}</td>
+                        <td className="px-3 py-2">
+                          <Switch
+                            checked={row.enabled}
+                            onCheckedChange={(v) => updateEvent(key, { enabled: v })}
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <Switch
+                            checked={row.notifyPatient}
+                            disabled={!row.enabled}
+                            onCheckedChange={(v) => updateEvent(key, { notifyPatient: v })}
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <Switch
+                            checked={row.notifyStaff}
+                            disabled={!row.enabled}
+                            onCheckedChange={(v) => updateEvent(key, { notifyStaff: v })}
+                          />
+                        </td>
+                      </tr>
+                    );
+                  },
+                )}
               </tbody>
             </table>
           </div>
@@ -125,10 +137,16 @@ export function BookingEventNotificationsSection({ layout = "cards" }: { layout?
           (Object.keys(EVENT_LABELS) as BookingLifecycleNotificationEventKey[]).map((key) => {
             const row = settings.events[key];
             return (
-              <div key={key} className="grid gap-2 rounded-md border border-border p-3 sm:grid-cols-2">
+              <div
+                key={key}
+                className="grid gap-2 rounded-md border border-border p-3 sm:grid-cols-2"
+              >
                 <p className="text-sm font-medium sm:col-span-2">{EVENT_LABELS[key]}</p>
                 <div className="flex items-center gap-2">
-                  <Switch checked={row.enabled} onCheckedChange={(v) => updateEvent(key, { enabled: v })} />
+                  <Switch
+                    checked={row.enabled}
+                    onCheckedChange={(v) => updateEvent(key, { enabled: v })}
+                  />
                   <Label>Включено</Label>
                 </div>
                 <div className="flex items-center gap-2">

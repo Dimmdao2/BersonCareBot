@@ -154,9 +154,9 @@ describe('smtp outbound restricted DB config', () => {
   });
 
   it('fails closed without logging database error details or credential material', async () => {
-    const query = vi.fn().mockRejectedValue(
-      new Error('permission denied while reading password=do-not-log'),
-    );
+    const query = vi
+      .fn()
+      .mockRejectedValue(new Error('permission denied while reading password=do-not-log'));
 
     const r = await resolveSmtpOutboundConfig(mockDb(query));
 
@@ -187,7 +187,19 @@ describe('smtp outbound restricted DB config', () => {
   it('caches result for TTL and skips repeat DB hits', async () => {
     vi.useFakeTimers({ now: 10_000 });
     const query = vi.fn().mockResolvedValue({
-      rows: [{ value_json: { value: { host: 'c.example.com', port: 587, user: 'u', password: 'p', from: 'f@example.com' } } }],
+      rows: [
+        {
+          value_json: {
+            value: {
+              host: 'c.example.com',
+              port: 587,
+              user: 'u',
+              password: 'p',
+              from: 'f@example.com',
+            },
+          },
+        },
+      ],
     });
 
     const db = mockDb(query);

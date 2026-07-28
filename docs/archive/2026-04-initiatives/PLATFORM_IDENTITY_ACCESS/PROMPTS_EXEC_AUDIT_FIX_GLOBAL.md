@@ -12,14 +12,14 @@
 
 Выполняй **строго по порядку** (закрытие инициативы — финальным сквозным аудитом и фиксом):
 
-0. **ПЕРВИЧНЫЙ_AUDIT** — только по необходимости, **до** фазы A (см. блок промпта ниже)  
-1. Фаза **A** — EXEC → AUDIT → FIX  
-2. Фаза **B** — EXEC → AUDIT → FIX → при необходимости **повторный AUDIT после FIX** (блок ниже) — актуализировать `SCENARIOS_AND_CODE_MAP.md` §10 (статус / остатки)  
-3. Фаза **C** — EXEC → AUDIT → FIX  
-4. Фаза **C.02** — EXEC → AUDIT → FIX (**после** закрытия C по плану; см. `MASTER_PLAN.md` §5 C.02 — единый patient business gate: booking, layout, RSC)  
-5. Фаза **D** — EXEC → AUDIT → FIX  
-6. Фаза **E** — EXEC → AUDIT → FIX  
-7. **GLOBAL_AUDIT** — сквозная проверка DoD и плана **после всех фаз**; решение «инициатива закрыта» или список остаточных зазоров  
+0. **ПЕРВИЧНЫЙ_AUDIT** — только по необходимости, **до** фазы A (см. блок промпта ниже)
+1. Фаза **A** — EXEC → AUDIT → FIX
+2. Фаза **B** — EXEC → AUDIT → FIX → при необходимости **повторный AUDIT после FIX** (блок ниже) — актуализировать `SCENARIOS_AND_CODE_MAP.md` §10 (статус / остатки)
+3. Фаза **C** — EXEC → AUDIT → FIX
+4. Фаза **C.02** — EXEC → AUDIT → FIX (**после** закрытия C по плану; см. `MASTER_PLAN.md` §5 C.02 — единый patient business gate: booking, layout, RSC)
+5. Фаза **D** — EXEC → AUDIT → FIX
+6. Фаза **E** — EXEC → AUDIT → FIX
+7. **GLOBAL_AUDIT** — сквозная проверка DoD и плана **после всех фаз**; решение «инициатива закрыта» или список остаточных зазоров
 8. **GLOBAL_FIX** — устранение зазоров, выявленных **GLOBAL_AUDIT** (если аудит не дал полного «зелёного» закрытия); затем повтор `pnpm run ci` и актуализация `AGENT_EXECUTION_LOG.md`
 
 Ниже блоки: **ПЕРВИЧНЫЙ_AUDIT** (опционально), затем фазы A–E и **C.02**, в конце — **GLOBAL_AUDIT** и **GLOBAL_FIX**.
@@ -33,11 +33,13 @@
 Цель: понять **что в коде уже есть** относительно инициативы Platform Identity & Access, чтобы следующий шаг **Фаза A — EXEC** не дублировал модули и не ломал уже начатую работу.
 
 Опирайся на:
+
 - `docs/PLATFORM_IDENTITY_ACCESS/MASTER_PLAN.md` §2, §3 DoD, §5 фазы A–E
 - `docs/PLATFORM_IDENTITY_ACCESS/SPECIFICATION.md`
 - `docs/PLATFORM_IDENTITY_ACCESS/SCENARIOS_AND_CODE_MAP.md`
 
 Сделай по фактам в `apps/webapp` (и смежных путях из карты кода):
+
 1. По **каждой фазе A, B, C, C.02, D, E** одной строкой: статус **нет / частично / похоже на готово** и **2–5 путей к файлам**, которые это подтверждают (C.02 — booking/layout/RSC vs tier, см. `MASTER_PLAN.md` §5).
 2. Три целевых модуля из §2 плана (access context / tier, trusted phone policy, route & API policy): есть ли явные зачатки или аналоги под другими именами; где сейчас живёт похожая логика (guards, `phone`, session).
 3. Один абзац **рисков**: что сломается, если вслепую начать фазу A (дубли, конфликтующие guards, частичный перенос).
@@ -52,6 +54,7 @@
 Реализуй **фазу A** из `docs/PLATFORM_IDENTITY_ACCESS/MASTER_PLAN.md` §5 «Контракт и кодовая точка истины» в `apps/webapp`.
 
 Сделай:
+
 1. Типы **access context**: `dbRole` и `tier` (tier осмыслен только для `client`; для doctor/admin — по `SPECIFICATION.md` §3).
 2. Модуль **access context / tier**: резолв канона из БД и вычисление объекта с `canonicalUserId`, `dbRole`, `tier` и прочими полями, нужными потребителям; это единая точка политики для всех новых и переведённых проверок.
 3. Модуль **trusted phone policy**: закрытый перечень того, что считается доверенной активацией телефона для tier **patient**. Любая новая запись в `phone_normalized` **не** считается trusted, пока явно не зарегистрирована в этой политике.
@@ -66,6 +69,7 @@
 Проверь **только фазу A** Platform Identity & Access: контракт access context и два модуля (tier resolution и trusted phone policy) плюс обновление `docs/PLATFORM_IDENTITY_ACCESS/SCENARIOS_AND_CODE_MAP.md`.
 
 Критерии из `MASTER_PLAN.md` §5 фаза A и §2 таблица модулей:
+
 - Типы и единая точка резолва tier из канона БД.
 - Trusted policy — единственный закрытый перечень; нет автоматического trusted от любого writer `phone_normalized`.
 - Документ сценариев содержит явный список trusted-путей.
@@ -85,6 +89,7 @@
 Реализуй **фазу B** из `docs/PLATFORM_IDENTITY_ACCESS/MASTER_PLAN.md` §5: канал ↔ канон и trusted resolution **до** лишних INSERT.
 
 Сделай:
+
 1. Усиль порядок на первом входе мессенджера: до `INSERT` нового `platform_users` — поиск существующего канона (integrator token, `integrator_user_id`, известные bindings, доверенные сигналы из проекций — по продуктовым правилам из спецификации).
 2. Интегратор: события в духе `contact.linked`, `user.upserted`, `ensureClientFromAppointmentProjection` должны **сокращать дубли** и кормить канон; не подменяют server-side tier policy на web, но данные согласованы с каноном.
 
@@ -119,6 +124,7 @@
 Реализуй **фазу C** из `docs/PLATFORM_IDENTITY_ACCESS/MASTER_PLAN.md` §5: session и входы.
 
 Сделай:
+
 1. На путях exchange (integrator token, Telegram initData/widget, OAuth callback, phone confirm): после резолва канона в cookie **канонический** userId везде, где штатный вход уже позволяет доверенно сопоставить identity; иначе сессия только в рамках **onboarding** без patient-доступа (DoD §2).
 2. **Legacy `tg:…` vs UUID** — зафиксируй **архитектурное решение** в коде и кратко в существующих доках инициативы (не только runbook): либо временный onboarding-only compatibility mode, либо вытеснение из основных login flows; не оставляй формат, влияющий на access decisions, без явного решения.
 
@@ -147,6 +153,7 @@
 Реализуй **фазу C.02** из `docs/PLATFORM_IDENTITY_ACCESS/MASTER_PLAN.md` §5: **единый patient business gate** между завершённой фазой C и полной фазой D.
 
 Сделай:
+
 1. **Booking API:** все Route Handlers в `apps/webapp/src/app/api/booking/**/*.ts`, которые от имени пациента создают/отменяют записи, отдают «мои» записи, слоты или каталог для записи — подключи **тот же** критерий доступа, что у `requirePatientApiSessionWithPhone` в `apps/webapp/src/app-layer/guards/requireRole.ts` (tier **`patient`** при `DATABASE_URL`, fallback на телефон в сессии без БД или при ошибке БД — без изменения семантики). Ответы API: 401 неавторизован / 403 с телом в духе `patient_activation_required` и `redirectTo` на bind-phone, согласованно с существующим `requirePatientApiSessionWithPhone`.
 2. **Общий helper:** вынеси дублирование — экспорт из `requireRole.ts` или тонкий re-export/wrapper в `apps/webapp/src/modules/platform-access/`, чтобы booking и guards вызывали **одну** реализацию gate (не копируй условия tier/phone в каждом файле).
 3. **`apps/webapp/src/app/app/patient/layout.tsx`:** для `client` при наличии БД согласуй редирект с **tier** (как `requirePatientBusinessTierOrRedirect` / `resolvePlatformAccessContext`), а не только `session.user.phone` + `patientPathRequiresBoundPhone`; учти заголовки `x-bc-pathname` / `x-bc-search` из middleware (см. комментарии в `guards.md`).
@@ -165,6 +172,7 @@
 Аудит **только фазы C.02** Platform Identity & Access по `MASTER_PLAN.md` §5 C.02 и `SPECIFICATION.md` §4, §6; карта — `SCENARIOS_AND_CODE_MAP.md` §7.
 
 Проверь по коду:
+
 1. Все релевантные handlers в `apps/webapp/src/app/api/booking/` используют общий patient business gate (не осталось только `getCurrentSession` + `canAccessPatient` для бизнес-операций от имени пациента).
 2. Нет трёх копий одной логики tier/phone — один helper или делегирование в `requireRole` / `platform-access`.
 3. `patient/layout.tsx` для `client` с `DATABASE_URL` согласован с tier (не только snapshot телефона в cookie).
@@ -186,6 +194,7 @@
 Реализуй **фазу D** из `docs/PLATFORM_IDENTITY_ACCESS/MASTER_PLAN.md` §5: **route & API policy** как единый модуль.
 
 Сделай:
+
 1. Whitelist guest / onboarding / patient для страниц под `/app/patient/*` (дерево `apps/webapp/src/app/app/patient/`) и **те же правила** для API и server actions через тот же access context из модуля tier.
 2. Вытесни разрозненные guards и точечные проверки `phone` в patient-контуре в этот модуль или делегирование в него.
 
@@ -216,6 +225,7 @@ Runbook — только дополнение к архитектурному р
 Реализуй **фазу E** из `docs/PLATFORM_IDENTITY_ACCESS/MASTER_PLAN.md` §5: тесты, наблюдаемость, документация.
 
 Сделай:
+
 1. Тесты: OAuth без телефона → onboarding; канон с телефоном плюс новый канал → OTP → patient; legacy client без телефона → onboarding; **негативные**: API или server action в onboarding без whitelist → отказ. Опционально по глубокому аудиту D: **D-TST-1** — warmups RSC + gate (`page.warmupsGate.test.tsx`).
 2. Проверь наличие логирования по DoD §8 в `MASTER_PLAN.md` §3 пункт 8 (`[platform_access]` в `resolvePlatformAccessContext` и агрегат см. `PHASE_E_AUDIT_REPORT.md` §6).
 3. `pnpm run ci` зелёный; обнови `docs/PLATFORM_IDENTITY_ACCESS/AGENT_EXECUTION_LOG.md`; при необходимости кратко обнови `docs/README.md` только если инициатива стала видимой на верхнем уровне доков (не раздувай).
@@ -241,11 +251,13 @@ Runbook — только дополнение к архитектурному р
 Ты работаешь в репозитории BersonCareBot. Фазы **A–E** и при плане из `MASTER_PLAN.md` §5 — **C.02** инициативы Platform Identity & Access **уже реализованы** (или считаешься в точке «вся запланированная работа по фазам сделана»). Проведи **финальный сквозной аудит без правок кода** — это шаг **закрытия инициативы**: подтвердить соответствие DoD и отсутствие регрессий по всему контуру.
 
 Опирайся строго на:
+
 - `docs/PLATFORM_IDENTITY_ACCESS/MASTER_PLAN.md` (§2 три модуля, §3 DoD §1–§4 и §8, §5 фазы A–E, §6 риски)
 - `docs/PLATFORM_IDENTITY_ACCESS/SPECIFICATION.md`
 - `docs/PLATFORM_IDENTITY_ACCESS/SCENARIOS_AND_CODE_MAP.md`
 
 Проверь по фактам в коде:
+
 1. Есть ли **ровно три** централизованных модуля с фиксированной ответственностью: access context / tier; trusted phone policy (закрытый перечень доверенных путей записи телефона для tier patient); route & API policy (единый whitelist и те же правила для страниц, API и server actions). Нет ли параллельных guard-файлов с дублирующей бизнес-логикой без делегирования в эти модули.
 2. Для роли `client`: вычисляется ли tier guest / onboarding / patient согласно спецификации; для doctor/admin tier не смешан с patient-политикой.
 3. Session cookie: в штатных точках входа после доверенного сопоставления с каноном попадает ли **канонический** userId; где сопоставление невозможно — нет ли patient-доступа до прояснения (явная onboarding-only сессия и политика).
@@ -267,6 +279,7 @@ Runbook — только дополнение к архитектурному р
 Задача: **устранить остаточные зазоры** до полного закрытия инициативы, с минимальным диффом, без расширения scope вне DoD плана. Соблюдай правила репозитория: интеграционный конфиг в `system_settings`, не в env; зеркалирование webapp/integrator для новых ключей по существующим правилам; doctor/admin без регрессий.
 
 Порядок работы:
+
 1. Закрой все P0 из отчёта GLOBAL_AUDIT.
 2. Затем P1, затем P2 по согласованию с приоритетом продукта и риском.
 

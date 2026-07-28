@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
   Dialog,
   DialogContent,
@@ -11,25 +11,30 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/shared/ui/doctor/primitives/dialog";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Label } from "@/shared/ui/doctor/primitives/label";
+} from '@/shared/ui/doctor/primitives/dialog';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/ui/doctor/primitives/select";
-import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
-import { USAGE_CONFIRMATION_REQUIRED } from "@/modules/courses/errors";
-import type { CourseRecord, CourseStatus, CourseUsageRef, CourseUsageSnapshot } from "@/modules/courses/types";
-import { doctorCourseUsageHref } from "../courseUsageDocLinks";
+} from '@/shared/ui/doctor/primitives/select';
+import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
+import { USAGE_CONFIRMATION_REQUIRED } from '@/modules/courses/errors';
+import type {
+  CourseRecord,
+  CourseStatus,
+  CourseUsageRef,
+  CourseUsageSnapshot,
+} from '@/modules/courses/types';
+import { doctorCourseUsageHref } from '../courseUsageDocLinks';
 import {
   courseUsageHasSecondaryReferences,
   courseUsageSections,
   type CourseUsageSection,
-} from "../courseUsageSummaryText";
+} from '../courseUsageSummaryText';
 
 type TemplateOption = { id: string; title: string; status: string };
 
@@ -44,9 +49,9 @@ type Props = {
 };
 
 const STATUS_OPTIONS: { value: CourseStatus; label: string }[] = [
-  { value: "draft", label: "Черновик" },
-  { value: "published", label: "Опубликован" },
-  { value: "archived", label: "Архив" },
+  { value: 'draft', label: 'Черновик' },
+  { value: 'published', label: 'Опубликован' },
+  { value: 'archived', label: 'Архив' },
 ];
 
 function CourseUsageSectionsView({ sections }: { sections: CourseUsageSection[] }) {
@@ -89,9 +94,9 @@ export function DoctorCourseEditForm({
 }: Props) {
   const router = useRouter();
   const [title, setTitle] = useState(initial.title);
-  const [description, setDescription] = useState(initial.description ?? "");
+  const [description, setDescription] = useState(initial.description ?? '');
   const [programTemplateId, setProgramTemplateId] = useState(initial.programTemplateId);
-  const [introLessonPageId, setIntroLessonPageId] = useState(initial.introLessonPageId ?? "");
+  const [introLessonPageId, setIntroLessonPageId] = useState(initial.introLessonPageId ?? '');
   const [status, setStatus] = useState<CourseStatus>(initial.status);
   const [priceMinor, setPriceMinor] = useState(String(initial.priceMinor));
   const [currency, setCurrency] = useState(initial.currency);
@@ -107,9 +112,9 @@ export function DoctorCourseEditForm({
 
   useEffect(() => {
     setTitle(initial.title);
-    setDescription(initial.description ?? "");
+    setDescription(initial.description ?? '');
     setProgramTemplateId(initial.programTemplateId);
-    setIntroLessonPageId(initial.introLessonPageId ?? "");
+    setIntroLessonPageId(initial.introLessonPageId ?? '');
     setStatus(initial.status);
     setPriceMinor(String(initial.priceMinor));
     setCurrency(initial.currency);
@@ -136,14 +141,14 @@ export function DoctorCourseEditForm({
           if (res.ok && json.ok && json.usage) setUsage(json.usage);
           else {
             setUsage(null);
-            setUsageLoadError("Не удалось загрузить сводку использования");
+            setUsageLoadError('Не удалось загрузить сводку использования');
           }
         }
       })
       .catch(() => {
         if (!cancelled) {
           setUsage(null);
-          setUsageLoadError("Не удалось загрузить сводку использования");
+          setUsageLoadError('Не удалось загрузить сводку использования');
         }
       })
       .finally(() => {
@@ -174,14 +179,14 @@ export function DoctorCourseEditForm({
       currency: cur,
       introLessonPageId: introLessonPageId.trim() ? introLessonPageId.trim() : null,
     };
-    const transitioningToArchived = status === "archived" && initial.status !== "archived";
+    const transitioningToArchived = status === 'archived' && initial.status !== 'archived';
     if (transitioningToArchived && acknowledgeArchive) {
       body.acknowledgeUsageWarning = true;
     }
 
     const res = await fetch(`/api/doctor/courses/${encodeURIComponent(courseId)}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
     const data = (await res.json()) as {
@@ -195,7 +200,10 @@ export function DoctorCourseEditForm({
       return { ok: false, code: data.code, usage: data.usage };
     }
     if (!res.ok || !data.ok) {
-      return { ok: false, error: typeof data.error === "string" ? data.error : "Не удалось сохранить" };
+      return {
+        ok: false,
+        error: typeof data.error === 'string' ? data.error : 'Не удалось сохранить',
+      };
     }
     return { ok: true };
   }
@@ -205,36 +213,41 @@ export function DoctorCourseEditForm({
     setError(null);
     const t = title.trim();
     if (!t) {
-      setError("Введите название курса");
+      setError('Введите название курса');
       return;
     }
     const price = Number.parseInt(priceMinor, 10);
     if (!Number.isFinite(price) || price < 0) {
-      setError("Цена (коп.) — целое число ≥ 0");
+      setError('Цена (коп.) — целое число ≥ 0');
       return;
     }
     const cur = currency.trim();
     if (!cur || cur.length > 8) {
-      setError("Валюта — от 1 до 8 символов (например RUB)");
+      setError('Валюта — от 1 до 8 символов (например RUB)');
       return;
     }
     if (!programTemplateId) {
-      setError("Выберите шаблон программы лечения");
+      setError('Выберите шаблон программы лечения');
       return;
     }
 
-    const transitioningToArchived = status === "archived" && initial.status !== "archived";
+    const transitioningToArchived = status === 'archived' && initial.status !== 'archived';
 
     setPending(true);
     try {
       const first = await persistToServer(false);
-      if (!first.ok && transitioningToArchived && first.code === USAGE_CONFIRMATION_REQUIRED && first.usage) {
+      if (
+        !first.ok &&
+        transitioningToArchived &&
+        first.code === USAGE_CONFIRMATION_REQUIRED &&
+        first.usage
+      ) {
         setWarnUsage(first.usage);
         setWarnOpen(true);
         return;
       }
       if (!first.ok) {
-        setError(first.error ?? "Не удалось сохранить");
+        setError(first.error ?? 'Не удалось сохранить');
         return;
       }
       setSavedAt(Date.now());
@@ -248,7 +261,7 @@ export function DoctorCourseEditForm({
           .catch(() => {});
       }
     } catch {
-      setError("Сеть недоступна. Попробуйте ещё раз.");
+      setError('Сеть недоступна. Попробуйте ещё раз.');
     } finally {
       setPending(false);
     }
@@ -260,7 +273,7 @@ export function DoctorCourseEditForm({
     try {
       const r = await persistToServer(true);
       if (!r.ok) {
-        setError(r.error ?? "Не удалось отправить курс в архив");
+        setError(r.error ?? 'Не удалось отправить курс в архив');
         return;
       }
       setWarnOpen(false);
@@ -276,7 +289,7 @@ export function DoctorCourseEditForm({
           .catch(() => {});
       }
     } catch {
-      setError("Сеть недоступна. Попробуйте ещё раз.");
+      setError('Сеть недоступна. Попробуйте ещё раз.');
     } finally {
       setPending(false);
     }
@@ -297,9 +310,9 @@ export function DoctorCourseEditForm({
             <CourseUsageSectionsView sections={usageSections} />
             {!courseUsageHasSecondaryReferences(usage) ? (
               <p className="mt-2 text-xs text-muted-foreground">
-                Нет опубликованных промо-страниц с привязкой к этому курсу и нет активных программ по шаблону
-                (завершённые программы и черновики страниц ниже не требуют подтверждения при переводе курса в
-                архив).
+                Нет опубликованных промо-страниц с привязкой к этому курсу и нет активных программ
+                по шаблону (завершённые программы и черновики страниц ниже не требуют подтверждения
+                при переводе курса в архив).
               </p>
             ) : null}
           </>
@@ -342,7 +355,7 @@ export function DoctorCourseEditForm({
           <Label htmlFor="edit-course-template">Шаблон программы лечения</Label>
           <Select
             value={programTemplateId}
-            onValueChange={(v) => setProgramTemplateId(v ?? "")}
+            onValueChange={(v) => setProgramTemplateId(v ?? '')}
             required
           >
             <SelectTrigger id="edit-course-template" className="w-full">
@@ -359,10 +372,7 @@ export function DoctorCourseEditForm({
         </div>
         <div className="space-y-1">
           <Label htmlFor="edit-course-status">Статус</Label>
-          <Select
-            value={status}
-            onValueChange={(v) => setStatus((v ?? "draft") as CourseStatus)}
-          >
+          <Select value={status} onValueChange={(v) => setStatus((v ?? 'draft') as CourseStatus)}>
             <SelectTrigger id="edit-course-status" className="w-full">
               <SelectValue />
             </SelectTrigger>
@@ -377,10 +387,7 @@ export function DoctorCourseEditForm({
         </div>
         <div className="space-y-1">
           <Label htmlFor="edit-course-intro">Вступительный урок (страница CMS)</Label>
-          <Select
-            value={introLessonPageId}
-            onValueChange={(v) => setIntroLessonPageId(v ?? "")}
-          >
+          <Select value={introLessonPageId} onValueChange={(v) => setIntroLessonPageId(v ?? '')}>
             <SelectTrigger id="edit-course-intro" className="w-full">
               <SelectValue />
             </SelectTrigger>
@@ -393,7 +400,9 @@ export function DoctorCourseEditForm({
               ))}
             </SelectContent>
           </Select>
-          <p className="text-xs text-muted-foreground">Только страницы в секциях lessons / course_lessons.</p>
+          <p className="text-xs text-muted-foreground">
+            Только страницы в секциях lessons / course_lessons.
+          </p>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
@@ -421,7 +430,7 @@ export function DoctorCourseEditForm({
           </div>
         </div>
         <Button type="submit" disabled={pending}>
-          {pending ? "Сохранение…" : "Сохранить"}
+          {pending ? 'Сохранение…' : 'Сохранить'}
         </Button>
       </form>
 
@@ -436,9 +445,9 @@ export function DoctorCourseEditForm({
           <DialogHeader>
             <DialogTitle>Отправить курс в архив?</DialogTitle>
             <DialogDescription>
-              Есть активные программы у пациентов по шаблону этого курса или опубликованные страницы контента с
-              привязкой к курсу. В архиве курс не показывается в каталоге; связи шаблона и записи пациентов в базе не
-              удаляются.
+              Есть активные программы у пациентов по шаблону этого курса или опубликованные страницы
+              контента с привязкой к курсу. В архиве курс не показывается в каталоге; связи шаблона
+              и записи пациентов в базе не удаляются.
             </DialogDescription>
           </DialogHeader>
           <CourseUsageSectionsView sections={warnSections} />
@@ -446,7 +455,12 @@ export function DoctorCourseEditForm({
             <Button type="button" variant="outline" onClick={() => setWarnOpen(false)}>
               Отмена
             </Button>
-            <Button type="button" variant="destructive" disabled={pending} onClick={() => void confirmArchiveDialog()}>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={pending}
+              onClick={() => void confirmArchiveDialog()}
+            >
               В архив, с подтверждением
             </Button>
           </DialogFooter>

@@ -18,13 +18,15 @@ export const googleCalendarConfig: GoogleCalendarConfig = {
   refreshToken: env.GOOGLE_REFRESH_TOKEN,
 };
 
-export function isGoogleCalendarConfigured(config: GoogleCalendarConfig = googleCalendarConfig): boolean {
+export function isGoogleCalendarConfigured(
+  config: GoogleCalendarConfig = googleCalendarConfig,
+): boolean {
   if (!config.enabled) return false;
   return (
-    config.clientId.trim().length > 0
-    && config.clientSecret.trim().length > 0
-    && config.redirectUri.trim().length > 0
-    && config.calendarId.trim().length > 0
-    && config.refreshToken.trim().length > 0
+    config.clientId.trim().length > 0 &&
+    config.clientSecret.trim().length > 0 &&
+    config.redirectUri.trim().length > 0 &&
+    config.calendarId.trim().length > 0 &&
+    config.refreshToken.trim().length > 0
   );
 }

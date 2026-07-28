@@ -39,7 +39,9 @@ describe('fromTelegram', () => {
       action: 'bookings.show',
       callbackData: 'bookings.show',
     });
-    expect(update && 'hasLinkedPhone' in update ? update.hasLinkedPhone : undefined).toBeUndefined();
+    expect(
+      update && 'hasLinkedPhone' in update ? update.hasLinkedPhone : undefined,
+    ).toBeUndefined();
   });
 
   it('does not force idle user state when context is absent', () => {

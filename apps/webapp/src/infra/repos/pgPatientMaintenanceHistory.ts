@@ -1,10 +1,10 @@
-import { runWithWebappDbOperationFamily } from "@/infra/db/saasIsolationOperationContext";
-import { runWebappPgText } from "@/infra/db/runWebappSql";
+import { runWithWebappDbOperationFamily } from '@/infra/db/saasIsolationOperationContext';
+import { runWebappPgText } from '@/infra/db/runWebappSql';
 import type {
   PatientMaintenanceAppointment,
   PatientMaintenanceHistoryPort,
-} from "@/modules/patient-booking/maintenanceHistory";
-import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
+} from '@/modules/patient-booking/maintenanceHistory';
+import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
 
 type PatientMaintenanceHistoryRow = {
   appointment_id: string;
@@ -35,9 +35,9 @@ function mapRow(row: PatientMaintenanceHistoryRow): PatientMaintenanceAppointmen
 export function createPgPatientMaintenanceHistoryPort(): PatientMaintenanceHistoryPort {
   return {
     async listCurrentPatientHistory() {
-      const result = await runWithWebappDbOperationFamily("patient_booking_history", () =>
+      const result = await runWithWebappDbOperationFamily('patient_booking_history', () =>
         runWebappPgText<PatientMaintenanceHistoryRow>(
-          "SELECT * FROM app.read_current_patient_appointment_history()",
+          'SELECT * FROM app.read_current_patient_appointment_history()',
         ),
       );
       return result.rows.map(mapRow);

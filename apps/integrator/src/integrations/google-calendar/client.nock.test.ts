@@ -85,6 +85,8 @@ describe('Google Calendar client (nock)', () => {
       .reply(500);
 
     const client = createGoogleCalendarClient(globalThis.fetch, async () => testConfig);
-    await expect(client.deleteEvent('bad-event')).rejects.toThrow(/GOOGLE_CALENDAR_DELETE_HTTP_500/);
+    await expect(client.deleteEvent('bad-event')).rejects.toThrow(
+      /GOOGLE_CALENDAR_DELETE_HTTP_500/,
+    );
   });
 });

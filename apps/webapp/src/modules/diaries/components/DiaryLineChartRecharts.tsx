@@ -1,23 +1,19 @@
-"use client";
+'use client';
 
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, XAxis, YAxis } from 'recharts';
+import type { StatsPeriod } from '@/modules/diaries/stats/periodWindow';
 import {
-  CartesianGrid,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  XAxis,
-  YAxis,
-} from "recharts";
-import type { StatsPeriod } from "@/modules/diaries/stats/periodWindow";
-import { diaryChartFormatTickLabel, diaryChartShowTick } from "@/modules/diaries/stats/formatDiaryChartTick";
-import { AppRechartsTooltip } from "@/shared/ui/charts/AppRechartsTooltip";
+  diaryChartFormatTickLabel,
+  diaryChartShowTick,
+} from '@/modules/diaries/stats/formatDiaryChartTick';
+import { AppRechartsTooltip } from '@/shared/ui/charts/AppRechartsTooltip';
 
 export type DiaryLineChartPoint = { date: string; value: number };
 
 export default function DiaryLineChartRecharts({
   points,
   period,
-  valueTooltipLabel = "Значение",
+  valueTooltipLabel = 'Значение',
 }: {
   points: DiaryLineChartPoint[];
   period: StatsPeriod;
@@ -32,12 +28,12 @@ export default function DiaryLineChartRecharts({
           <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
           <XAxis
             dataKey="full"
-            tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+            tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
             tickLine={false}
             interval={0}
             tickFormatter={(full: string, index: number) => {
-              const prev = index > 0 ? data[index - 1]?.full ?? null : null;
-              if (!diaryChartShowTick(period, index, data.length, full, prev)) return "";
+              const prev = index > 0 ? (data[index - 1]?.full ?? null) : null;
+              if (!diaryChartShowTick(period, index, data.length, full, prev)) return '';
               return diaryChartFormatTickLabel(full, period);
             }}
           />
@@ -45,18 +41,18 @@ export default function DiaryLineChartRecharts({
             domain={[0, 10]}
             width={32}
             ticks={[0, 5, 10]}
-            tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+            tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
             tickLine={false}
-            label={{ value: "0–10", angle: -90, position: "insideLeft", fontSize: 10, dx: -4 }}
+            label={{ value: '0–10', angle: -90, position: 'insideLeft', fontSize: 10, dx: -4 }}
           />
           <AppRechartsTooltip
             formatter={(value) => {
-              const v = typeof value === "number" ? value : Number(value);
-              return [`${Number.isFinite(v) ? v : "—"}/10`, valueTooltipLabel];
+              const v = typeof value === 'number' ? value : Number(value);
+              return [`${Number.isFinite(v) ? v : '—'}/10`, valueTooltipLabel];
             }}
             labelFormatter={(_, payload) => {
               const p = payload?.[0]?.payload as { full?: string } | undefined;
-              return p?.full ?? "";
+              return p?.full ?? '';
             }}
           />
           <Line
@@ -64,7 +60,7 @@ export default function DiaryLineChartRecharts({
             dataKey="value"
             stroke="hsl(215 65% 38%)"
             strokeWidth={3}
-            dot={{ r: 4, fill: "hsl(215 65% 38%)", strokeWidth: 0 }}
+            dot={{ r: 4, fill: 'hsl(215 65% 38%)', strokeWidth: 0 }}
             activeDot={{ r: 5 }}
             isAnimationActive={false}
           />

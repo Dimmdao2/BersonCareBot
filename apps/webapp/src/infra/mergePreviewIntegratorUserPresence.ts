@@ -1,6 +1,6 @@
-import type { Pool } from "pg";
-import { runPgPoolPgText } from "@/infra/db/runWebappSql";
-import { getIntegratorPoolForPurge } from "@/infra/platformUserFullPurge";
+import type { Pool } from 'pg';
+import { runPgPoolPgText } from '@/infra/db/runWebappSql';
+import { getIntegratorPoolForPurge } from '@/infra/platformUserFullPurge';
 
 const NUMERIC_ID = /^\d+$/;
 
@@ -15,13 +15,13 @@ export type MergePreviewIntegratorUserPresence = {
     rowExistsInIntegratorDb: boolean | null;
   };
   /** `ok` — проверка выполнена для всех непустых id; иначе причина пропуска/сбоя. */
-  checkStatus: "ok" | "skipped_no_integrator_db" | "query_failed";
+  checkStatus: 'ok' | 'skipped_no_integrator_db' | 'query_failed';
 };
 
 function normalizeIntegratorUserId(raw: string | null | undefined): string | null {
   if (raw == null) return null;
   const t = raw.trim();
-  if (t === "" || !NUMERIC_ID.test(t)) return null;
+  if (t === '' || !NUMERIC_ID.test(t)) return null;
   try {
     return String(BigInt(t));
   } catch {
@@ -30,10 +30,10 @@ function normalizeIntegratorUserId(raw: string | null | undefined): string | nul
 }
 
 async function resolveWithPool(
-  pool: Pick<Pool, "query"> | null,
+  pool: Pick<Pool, 'query'> | null,
   targetRaw: string | null | undefined,
   duplicateRaw: string | null | undefined,
-  noPoolStatus: MergePreviewIntegratorUserPresence["checkStatus"],
+  noPoolStatus: MergePreviewIntegratorUserPresence['checkStatus'],
 ): Promise<MergePreviewIntegratorUserPresence> {
   const target = normalizeIntegratorUserId(targetRaw ?? null);
   const duplicate = normalizeIntegratorUserId(duplicateRaw ?? null);
@@ -51,7 +51,7 @@ async function resolveWithPool(
     return {
       target: { webappIntegratorUserId: null, rowExistsInIntegratorDb: null },
       duplicate: { webappIntegratorUserId: null, rowExistsInIntegratorDb: null },
-      checkStatus: "ok",
+      checkStatus: 'ok',
     };
   }
 
@@ -69,13 +69,13 @@ async function resolveWithPool(
     return {
       target: { webappIntegratorUserId: target, rowExistsInIntegratorDb: exists(target) },
       duplicate: { webappIntegratorUserId: duplicate, rowExistsInIntegratorDb: exists(duplicate) },
-      checkStatus: "ok",
+      checkStatus: 'ok',
     };
   } catch {
     return {
       target: { webappIntegratorUserId: target, rowExistsInIntegratorDb: null },
       duplicate: { webappIntegratorUserId: duplicate, rowExistsInIntegratorDb: null },
-      checkStatus: "query_failed",
+      checkStatus: 'query_failed',
     };
   }
 }
@@ -94,17 +94,22 @@ export async function resolveMergePreviewIntegratorUserPresence(params: {
     getIntegratorPoolForPurge(),
     params.targetIntegratorUserId,
     params.duplicateIntegratorUserId,
-    "skipped_no_integrator_db",
+    'skipped_no_integrator_db',
   );
 }
 
 /** Тесты: подмена pool. */
 export async function resolveMergePreviewIntegratorUserPresenceForTest(
-  pool: Pick<Pool, "query"> | null,
+  pool: Pick<Pool, 'query'> | null,
   params: {
     targetIntegratorUserId: string | null | undefined;
     duplicateIntegratorUserId: string | null | undefined;
   },
 ): Promise<MergePreviewIntegratorUserPresence> {
-  return resolveWithPool(pool, params.targetIntegratorUserId, params.duplicateIntegratorUserId, "skipped_no_integrator_db");
+  return resolveWithPool(
+    pool,
+    params.targetIntegratorUserId,
+    params.duplicateIntegratorUserId,
+    'skipped_no_integrator_db',
+  );
 }

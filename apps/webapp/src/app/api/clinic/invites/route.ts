@@ -1,27 +1,30 @@
-import { z } from "zod";
-import { env } from "@/config/env";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireEntitlementForRead, requireEntitlementForMutation } from "@/app-layer/guards/requireEntitlement";
-import { requireClinicManagementApiContext } from "@/app-layer/guards/requireRole";
-import { sendEmailSetupLinkViaIntegrator } from "@/infra/integrations/email/integratorEmailAdapter";
-import { getAppBaseUrl } from "@/modules/system-settings/integrationRuntime";
-import { jsonError, jsonOk } from "@/shared/http/apiResponse";
+import { z } from 'zod';
+import { env } from '@/config/env';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import {
+  requireEntitlementForRead,
+  requireEntitlementForMutation,
+} from '@/app-layer/guards/requireEntitlement';
+import { requireClinicManagementApiContext } from '@/app-layer/guards/requireRole';
+import { sendEmailSetupLinkViaIntegrator } from '@/infra/integrations/email/integratorEmailAdapter';
+import { getAppBaseUrl } from '@/modules/system-settings/integrationRuntime';
+import { jsonError, jsonOk } from '@/shared/http/apiResponse';
 
 const bodySchema = z.object({
   email: z.string().email(),
-  role: z.enum(["admin", "doctor"]),
+  role: z.enum(['admin', 'doctor']),
 });
 
 function buildInviteUrl(baseUrl: string, token: string): string {
-  const url = new URL("/app/clinic/invites/accept", baseUrl);
-  url.searchParams.set("token", token);
+  const url = new URL('/app/clinic/invites/accept', baseUrl);
+  url.searchParams.set('token', token);
   return url.toString();
 }
 
 export async function GET() {
   const gate = await requireClinicManagementApiContext();
   if (!gate.ok) return gate.response;
-  const entitlement = await requireEntitlementForRead(gate.ctx, "clinic_team");
+  const entitlement = await requireEntitlementForRead(gate.ctx, 'clinic_team');
   if (!entitlement.ok) return entitlement.response;
 
   const deps = buildAppDeps();
@@ -35,13 +38,13 @@ export async function GET() {
 export async function POST(request: Request) {
   const gate = await requireClinicManagementApiContext();
   if (!gate.ok) return gate.response;
-  const entitlement = await requireEntitlementForMutation(gate.ctx, "clinic_team");
+  const entitlement = await requireEntitlementForMutation(gate.ctx, 'clinic_team');
   if (!entitlement.ok) return entitlement.response;
 
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
-    return jsonError("invalid_body", {}, { status: 400 });
+    return jsonError('invalid_body', {}, { status: 400 });
   }
 
   const deps = buildAppDeps();
@@ -61,31 +64,31 @@ export async function POST(request: Request) {
 
   const token = result.token;
   if (!token) {
-    return jsonError("server_error", {}, { status: 500 });
+    return jsonError('server_error', {}, { status: 500 });
   }
 
   // Preview links are a non-production delivery aid. Never let a dev-auth flag reclassify a
   // production process: production must require successful delivery and must not return the token.
-  const mayExposeInviteUrl = env.NODE_ENV !== "production";
+  const mayExposeInviteUrl = env.NODE_ENV !== 'production';
 
   const baseUrl = await getAppBaseUrl();
   const inviteUrl = buildInviteUrl(baseUrl, token);
   const emailResult = await sendEmailSetupLinkViaIntegrator(
     result.invite.invitedEmail,
-    "Приглашение в BersonCare",
+    'Приглашение в BersonCare',
     [
-      `Вас пригласили в клинику ${result.invite.organizationTitle ?? ""}.`.trim(),
-      "Откройте ссылку и подтвердите email кодом:",
+      `Вас пригласили в клинику ${result.invite.organizationTitle ?? ''}.`.trim(),
+      'Откройте ссылку и подтвердите email кодом:',
       inviteUrl,
-      "Ссылка действует 7 дней.",
-    ].join("\n\n"),
+      'Ссылка действует 7 дней.',
+    ].join('\n\n'),
   );
   // The invite row is already committed. On real production a failed email means the invitee
   // can't receive the link → surface it so the admin can retry. In a non-prod env (dev/test,
   // where email is redirected/stubbed) don't hard-fail — return the invite + link so the flow
   // stays usable/verifiable without an inbox.
   if (!emailResult.ok && !mayExposeInviteUrl) {
-    return jsonError("email_send_failed", {}, { status: 503 });
+    return jsonError('email_send_failed', {}, { status: 503 });
   }
 
   return jsonOk({

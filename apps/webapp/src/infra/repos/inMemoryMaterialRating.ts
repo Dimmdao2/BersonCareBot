@@ -1,12 +1,12 @@
-import type { MaterialRatingPort } from "@/modules/material-rating/ports";
+import type { MaterialRatingPort } from '@/modules/material-rating/ports';
 import type {
   MaterialRatingAggregate,
   MaterialRatingDoctorDetailDay,
   MaterialRatingDoctorDetailRater,
   MaterialRatingDoctorSummaryRow,
   MaterialRatingTargetKind,
-} from "@/modules/material-rating/types";
-import { DateTime } from "luxon";
+} from '@/modules/material-rating/types';
+import { DateTime } from 'luxon';
 
 type Row = {
   organizationId: string;
@@ -45,7 +45,11 @@ export function createInMemoryMaterialRatingPort(): MaterialRatingPort {
     const distribution: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
     for (const r of rows.values()) {
       if (isExcluded(r.userId, excludedUserIds)) continue;
-      if (r.organizationId === organizationId && r.targetKind === targetKind && r.targetId === targetId) {
+      if (
+        r.organizationId === organizationId &&
+        r.targetKind === targetKind &&
+        r.targetId === targetId
+      ) {
         cnt += 1;
         sum += r.stars;
         bump(distribution, r.stars);
@@ -64,7 +68,7 @@ export function createInMemoryMaterialRatingPort(): MaterialRatingPort {
       const key = rowKey(input.userId, input.targetKind, input.targetId);
       const existing = rows.get(key);
       if (existing && existing.organizationId !== input.organizationId) {
-        throw new Error("material_rating organization mismatch");
+        throw new Error('material_rating organization mismatch');
       }
       rows.set(key, {
         organizationId: input.organizationId,
@@ -82,13 +86,23 @@ export function createInMemoryMaterialRatingPort(): MaterialRatingPort {
     },
 
     async getAggregate(input) {
-      return aggregateFor(input.targetKind, input.targetId, input.organizationId, input.excludedUserIds);
+      return aggregateFor(
+        input.targetKind,
+        input.targetId,
+        input.organizationId,
+        input.excludedUserIds,
+      );
     },
 
     async listAggregates(input) {
       const result = new Map<string, MaterialRatingAggregate>();
       for (const targetId of input.targetIds) {
-        const agg = aggregateFor(input.targetKind, targetId, input.organizationId, input.excludedUserIds);
+        const agg = aggregateFor(
+          input.targetKind,
+          targetId,
+          input.organizationId,
+          input.excludedUserIds,
+        );
         if (agg.count > 0) result.set(targetId, agg);
       }
       return result;
@@ -102,9 +116,7 @@ export function createInMemoryMaterialRatingPort(): MaterialRatingPort {
         if (input.targetKind && r.targetKind !== input.targetKind) continue;
         const gk = `${r.targetKind}\0${r.targetId}`;
         const prev = grouped.get(gk)?.row;
-        const distribution = prev
-          ? { ...prev.distribution }
-          : { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+        const distribution = prev ? { ...prev.distribution } : { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
         bump(distribution, r.stars);
         const nextCount = (prev?.count ?? 0) + 1;
         const nextSum = (prev?.avg != null ? prev.avg * prev.count : 0) + r.stars;
@@ -118,9 +130,7 @@ export function createInMemoryMaterialRatingPort(): MaterialRatingPort {
           },
         });
       }
-      const sorted = [...grouped.values()]
-        .map((x) => x.row)
-        .sort((a, b) => b.count - a.count);
+      const sorted = [...grouped.values()].map((x) => x.row).sort((a, b) => b.count - a.count);
       return sorted.slice(input.offset, input.offset + input.limit);
     },
 
@@ -144,7 +154,9 @@ export function createInMemoryMaterialRatingPort(): MaterialRatingPort {
 
       const ratingByDay = new Map<string, { cnt: number; sum: number }>();
       for (const r of matching) {
-        const day = DateTime.fromISO(r.updatedAt, { zone: "utc" }).setZone(zone).toFormat("yyyy-LL-dd");
+        const day = DateTime.fromISO(r.updatedAt, { zone: 'utc' })
+          .setZone(zone)
+          .toFormat('yyyy-LL-dd');
         const prev = ratingByDay.get(day);
         if (prev) {
           prev.cnt += 1;

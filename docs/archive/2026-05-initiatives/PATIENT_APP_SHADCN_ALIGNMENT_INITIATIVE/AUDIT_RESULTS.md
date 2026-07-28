@@ -64,7 +64,7 @@
 
 Исторически (аудит 2026-05-01) кабинет был главным кандидатом для первого shadcn alignment pass; **по коду Phase 2 закрыт 2026-05-04.**
 
-Найденные элементы *(снимок 2026-05-01; фактическое состояние после Phase 2 — [`LOG.md`](LOG.md))*:
+Найденные элементы _(снимок 2026-05-01; фактическое состояние после Phase 2 — [`LOG.md`](LOG.md))_:
 
 - `CabinetPastBookings` — custom accordion-like раскрытие через raw `<button>` + local state.
 - `AppointmentStatusBadge` — custom status badge на `<span>` + ручные tone classes.
@@ -79,7 +79,7 @@
 Важная оговорка (актуализировано 2026-05-04):
 
 - В `apps/webapp/src/components/ui/` есть в т.ч. **`accordion`** и **`collapsible`** (Phase 1); accordion-like в кабинете переведены на `Collapsible` где запланировано (Phase 2).
-- *(На снимок аудита 2026-05-01: `accordion` / `collapsible` отсутствовали; добавление — Phase 1.)*
+- _(На снимок аудита 2026-05-01: `accordion` / `collapsible` отсутствовали; добавление — Phase 1.)_
 
 ### `/app/patient/sections`
 
@@ -87,7 +87,7 @@
 
 Кандидат связан с `FeatureCard`.
 
-Найденные элементы *(снимок 2026-05-01; фактическое состояние после Phase 3 — [`LOG.md`](LOG.md))*:
+Найденные элементы _(снимок 2026-05-01; фактическое состояние после Phase 3 — [`LOG.md`](LOG.md))_:
 
 - `sections/page.tsx` использует `FeatureCard`.
 - `FeatureCard` — custom clickable card abstraction; внутри использует `Badge`, но не построен как shadcn `Card` composition.
@@ -138,13 +138,13 @@
 
 **2026-05-04 (Phase 6):** form controls дневника и журналов симптомов/ЛФК выровнены (`Select` / `Textarea`); FAB [`QuickAddPopup`](../../../apps/webapp/src/app/app/patient/diary/QuickAddPopup.tsx) смонтирован на [`diary/page.tsx`](../../../apps/webapp/src/app/app/patient/diary/page.tsx) — детали в [`LOG.md`](./LOG.md).
 
-*Архив аудита 2026-05-01:* дневник изначально помечался как высокорисковый для первого pass из‑за плотных form contracts; отдельная **Phase 6** закрыла согласованный поднабор экранов без смены ключей `FormData`.
+_Архив аудита 2026-05-01:_ дневник изначально помечался как высокорисковый для первого pass из‑за плотных form contracts; отдельная **Phase 6** закрыла согласованный поднабор экранов без смены ключей `FormData`.
 
 ### `/app/patient/support`
 
 **2026-05-04 (Phase 6):** [`PatientSupportForm`](../../../apps/webapp/src/app/app/patient/support/PatientSupportForm.tsx) — **`Textarea`** для текста сообщения.
 
-*Архив 2026-05-01:* откладывался в общий form-controls pass — выполнено в Phase 6.
+_Архив 2026-05-01:_ откладывался в общий form-controls pass — выполнено в Phase 6.
 
 ### `/app/patient/courses`
 
@@ -177,12 +177,12 @@
 
 ## 5. Рекомендуемый порядок
 
-1. **Infrastructure check:** решить, добавляем ли shadcn-compatible `Accordion` / `Collapsible`, и нужен ли adapter для link-like buttons вместо несуществующего сейчас `Button asChild`. *(Выполнено: Phase 1, 2026-05-04 — см. `LOG.md`.)*
-2. **Cabinet pass:** `CabinetPastBookings`, `AppointmentStatusBadge`, при необходимости small cleanup вокруг info links. *(✅ Phase 2, 2026-05-04.)*
-3. **Sections / FeatureCard pass:** перевести `FeatureCard` на shadcn-compatible `Card` composition без изменения links/copy/status semantics. *(✅ Phase 3, 2026-05-04.)*
-4. **Profile accordion pass:** `ProfileAccordionSection` → `Collapsible`. *(✅ Phase 4, 2026-05-04.)*
-5. **Notifications control pass:** `ChannelNotificationToggles` → `Switch`. *(✅ Phase 5, 2026-05-04.)*
-6. **Diary/support/intake form controls pass:** `Select` / `Textarea` / `Switch` / `RadioGroup` на целевых экранах; `QuickAddPopup` на дневнике. *(✅ Phase 6, 2026-05-04 — см. `LOG.md`.)*
+1. **Infrastructure check:** решить, добавляем ли shadcn-compatible `Accordion` / `Collapsible`, и нужен ли adapter для link-like buttons вместо несуществующего сейчас `Button asChild`. _(Выполнено: Phase 1, 2026-05-04 — см. `LOG.md`.)_
+2. **Cabinet pass:** `CabinetPastBookings`, `AppointmentStatusBadge`, при необходимости small cleanup вокруг info links. _(✅ Phase 2, 2026-05-04.)_
+3. **Sections / FeatureCard pass:** перевести `FeatureCard` на shadcn-compatible `Card` composition без изменения links/copy/status semantics. _(✅ Phase 3, 2026-05-04.)_
+4. **Profile accordion pass:** `ProfileAccordionSection` → `Collapsible`. _(✅ Phase 4, 2026-05-04.)_
+5. **Notifications control pass:** `ChannelNotificationToggles` → `Switch`. _(✅ Phase 5, 2026-05-04.)_
+6. **Diary/support/intake form controls pass:** `Select` / `Textarea` / `Switch` / `RadioGroup` на целевых экранах; `QuickAddPopup` на дневнике. _(✅ Phase 6, 2026-05-04 — см. `LOG.md`.)_
 7. **Deferred routes restyle pass:** отдельная инициатива или отдельная фаза, не смешивать с shadcn alignment core.
 
 ## 6. Что считать успехом
@@ -193,4 +193,3 @@
 - No content/copy/product changes.
 - No business/API/DB/env changes.
 - Targeted tests/checks покрывают каждый pass.
-

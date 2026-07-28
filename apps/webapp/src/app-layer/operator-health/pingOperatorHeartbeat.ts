@@ -1,11 +1,11 @@
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { logger } from "@/app-layer/logging/logger";
-import { env } from "@/config/env";
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { logger } from '@/app-layer/logging/logger';
+import { env } from '@/config/env';
 import {
   OPERATOR_HEARTBEAT_JOB_FAMILY,
   findOperatorHeartbeat,
   type OperatorHeartbeatName,
-} from "@/modules/operator-health/heartbeat";
+} from '@/modules/operator-health/heartbeat';
 
 /**
  * Излучающая сторона dead man's switch (design D-d).
@@ -25,26 +25,28 @@ const EXTERNAL_PING_TIMEOUT_MS = 5_000;
 
 function externalPingUrl(name: OperatorHeartbeatName): string {
   switch (name) {
-    case "pipeline_delivery":
+    case 'pipeline_delivery':
       return env.OPERATOR_HEARTBEAT_PIPELINE_URL;
-    case "digest":
+    case 'digest':
       return env.OPERATOR_HEARTBEAT_DIGEST_URL;
     default:
-      return "";
+      return '';
   }
 }
 
-async function pingExternalReceiver(name: OperatorHeartbeatName): Promise<"skipped" | "ok" | "failed"> {
+async function pingExternalReceiver(
+  name: OperatorHeartbeatName,
+): Promise<'skipped' | 'ok' | 'failed'> {
   const url = externalPingUrl(name);
-  if (!url) return "skipped";
+  if (!url) return 'skipped';
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), EXTERNAL_PING_TIMEOUT_MS);
   try {
     // Тело намеренно пустое: пульс не несёт ничего о пациентах (design D-h).
-    const res = await fetch(url, { method: "POST", signal: controller.signal });
-    return res.ok ? "ok" : "failed";
+    const res = await fetch(url, { method: 'POST', signal: controller.signal });
+    return res.ok ? 'ok' : 'failed';
   } catch {
-    return "failed";
+    return 'failed';
   } finally {
     clearTimeout(timer);
   }
@@ -52,7 +54,7 @@ async function pingExternalReceiver(name: OperatorHeartbeatName): Promise<"skipp
 
 export type PingOperatorHeartbeatResult = {
   recordedLocally: boolean;
-  external: "skipped" | "ok" | "failed";
+  external: 'skipped' | 'ok' | 'failed';
 };
 
 /**
@@ -67,8 +69,8 @@ export async function pingOperatorHeartbeatBestEffort(
 ): Promise<PingOperatorHeartbeatResult> {
   const definition = findOperatorHeartbeat(name);
   if (!definition) {
-    logger.warn({ heartbeat: name }, "heartbeat ping for unknown heartbeat name");
-    return { recordedLocally: false, external: "skipped" };
+    logger.warn({ heartbeat: name }, 'heartbeat ping for unknown heartbeat name');
+    return { recordedLocally: false, external: 'skipped' };
   }
 
   const startedAtIso = new Date().toISOString();
@@ -83,12 +85,12 @@ export async function pingOperatorHeartbeatBestEffort(
     });
     recordedLocally = true;
   } catch (err) {
-    logger.warn({ err, heartbeat: name }, "heartbeat local record failed");
+    logger.warn({ err, heartbeat: name }, 'heartbeat local record failed');
   }
 
   const external = await pingExternalReceiver(name);
-  if (external === "failed") {
-    logger.warn({ heartbeat: name }, "heartbeat external ping failed");
+  if (external === 'failed') {
+    logger.warn({ heartbeat: name }, 'heartbeat external ping failed');
   }
 
   return { recordedLocally, external };

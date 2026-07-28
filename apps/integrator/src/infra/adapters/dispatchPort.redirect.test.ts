@@ -54,7 +54,9 @@ function buildChannelCaptureAdapter(channel: string): {
     canHandle: (intent) =>
       intent.type === 'message.send' &&
       Array.isArray((intent.payload as { delivery?: { channels?: unknown } }).delivery?.channels) &&
-      ((intent.payload as { delivery?: { channels?: string[] } }).delivery?.channels ?? []).includes(channel),
+      (
+        (intent.payload as { delivery?: { channels?: string[] } }).delivery?.channels ?? []
+      ).includes(channel),
     send: async (intent) => {
       captured.push(intent);
       return {};
@@ -75,7 +77,9 @@ function buildForbiddenAdapter(
     canHandle: (intent) =>
       intent.type === 'message.send' &&
       Array.isArray((intent.payload as { delivery?: { channels?: unknown } }).delivery?.channels) &&
-      ((intent.payload as { delivery?: { channels?: string[] } }).delivery?.channels ?? []).includes(channel),
+      (
+        (intent.payload as { delivery?: { channels?: string[] } }).delivery?.channels ?? []
+      ).includes(channel),
     send: sendSpy,
   };
   return { adapter, sendSpy };
@@ -137,8 +141,11 @@ const CHANNEL_CASES: ChannelCase[] = [
     intent: (eventId) => ({
       type: 'message.send',
       meta: {
-        eventId, occurredAt: NOW, source: 'telegram',
-        outboundMessageClass: 'auth_code', outboundCapability: 'auth_code',
+        eventId,
+        occurredAt: NOW,
+        source: 'telegram',
+        outboundMessageClass: 'auth_code',
+        outboundCapability: 'auth_code',
       },
       payload: {
         recipient: { chatId: 999111222 },
@@ -157,8 +164,11 @@ const CHANNEL_CASES: ChannelCase[] = [
     intent: (eventId) => ({
       type: 'message.send',
       meta: {
-        eventId, occurredAt: NOW, source: 'max',
-        outboundMessageClass: 'auth_code', outboundCapability: 'auth_code',
+        eventId,
+        occurredAt: NOW,
+        source: 'max',
+        outboundMessageClass: 'auth_code',
+        outboundCapability: 'auth_code',
       },
       payload: {
         recipient: { userId: 8877665544, chatId: 8877665544 },
@@ -177,8 +187,11 @@ const CHANNEL_CASES: ChannelCase[] = [
     intent: (eventId) => ({
       type: 'message.send',
       meta: {
-        eventId, occurredAt: NOW, source: 'smsc',
-        outboundMessageClass: 'auth_code', outboundCapability: 'auth_code',
+        eventId,
+        occurredAt: NOW,
+        source: 'smsc',
+        outboundMessageClass: 'auth_code',
+        outboundCapability: 'auth_code',
       },
       payload: {
         recipient: { phoneNormalized: '+79991234567' },
@@ -197,8 +210,11 @@ const CHANNEL_CASES: ChannelCase[] = [
     intent: (eventId) => ({
       type: 'message.send',
       meta: {
-        eventId, occurredAt: NOW, source: 'email',
-        outboundMessageClass: 'auth_code', outboundCapability: 'auth_code',
+        eventId,
+        occurredAt: NOW,
+        source: 'email',
+        outboundMessageClass: 'auth_code',
+        outboundCapability: 'auth_code',
       },
       payload: {
         recipient: { email: 'real.patient@example.com' },
@@ -218,8 +234,11 @@ const CHANNEL_CASES: ChannelCase[] = [
     intent: (eventId) => ({
       type: 'message.send',
       meta: {
-        eventId, occurredAt: NOW, source: 'web_push',
-        outboundMessageClass: 'conversation_event', outboundCapability: 'app_push',
+        eventId,
+        occurredAt: NOW,
+        source: 'web_push',
+        outboundMessageClass: 'conversation_event',
+        outboundCapability: 'app_push',
       },
       payload: {
         recipient: { pushUserId: 'real-webapp-user-id-42' },
@@ -298,10 +317,13 @@ describe('PER-CHANNEL PRE-FORK REDIRECT: each channel → Дмитрий, channe
       await port.dispatchOutgoing(intent(`pc-c-${channel}`));
 
       expect(target.captured).toHaveLength(1);
-      const recipient = (target.captured[0]!.payload as { recipient: Record<string, unknown> }).recipient;
+      const recipient = (target.captured[0]!.payload as { recipient: Record<string, unknown> })
+        .recipient;
 
       for (const field of realFieldsThatMustNotLeak) {
-        expect(recipient, `recipient.${field} must be absent for ${channel}`).not.toHaveProperty(field);
+        expect(recipient, `recipient.${field} must be absent for ${channel}`).not.toHaveProperty(
+          field,
+        );
       }
     },
   );
@@ -322,7 +344,10 @@ describe('PER-CHANNEL PRE-FORK REDIRECT: each channel → Дмитрий, channe
     await port.dispatchOutgoing({
       type: 'message.send',
       meta: {
-        eventId: 'pc-d-email', occurredAt: NOW, source: 'email', ...outboundPolicyMarker('email'),
+        eventId: 'pc-d-email',
+        occurredAt: NOW,
+        source: 'email',
+        ...outboundPolicyMarker('email'),
       },
       payload: {
         recipient: { email: 'real.patient@clinic.example.com' },
@@ -337,9 +362,9 @@ describe('PER-CHANNEL PRE-FORK REDIRECT: each channel → Дмитрий, channe
     expect(max.sendSpy).not.toHaveBeenCalled();
     expect(sms.sendSpy).not.toHaveBeenCalled();
     expect(push.sendSpy).not.toHaveBeenCalled();
-    expect((email.captured[0]!.payload as { recipient: Record<string, unknown> }).recipient.email).toBe(
-      EMAIL_TARGET,
-    );
+    expect(
+      (email.captured[0]!.payload as { recipient: Record<string, unknown> }).recipient.email,
+    ).toBe(EMAIL_TARGET);
   });
 });
 
@@ -368,24 +393,32 @@ describe('SUPPRESS-D7: a channel with no binding never reaches an adapter', () =
     { channel: 'smsc', source: 'smsc', recipient: { phoneNormalized: '+79991234567' } },
     { channel: 'web_push', source: 'web_push', recipient: { pushUserId: 'real-user-1' } },
     { channel: 'max', source: 'max', recipient: { userId: 42, chatId: 42 } },
-  ])('channel=$channel with no binding → no-op success, adapter never called', async ({ channel, source, recipient }) => {
-    const forbidden = buildForbiddenAdapter(channel, channel);
-    const port = createDefaultDispatchPort({ adapters: [forbidden.adapter] });
+  ])(
+    'channel=$channel with no binding → no-op success, adapter never called',
+    async ({ channel, source, recipient }) => {
+      const forbidden = buildForbiddenAdapter(channel, channel);
+      const port = createDefaultDispatchPort({ adapters: [forbidden.adapter] });
 
-    await expect(
-      port.dispatchOutgoing({
-        type: 'message.send',
-        meta: { eventId: `sup-${channel}`, occurredAt: NOW, source, ...outboundPolicyMarker(channel) },
-        payload: {
-          recipient,
-          message: { text: 'must be suppressed' },
-          delivery: { channels: [channel], maxAttempts: 1 },
-        },
-      }),
-    ).resolves.toEqual({});
+      await expect(
+        port.dispatchOutgoing({
+          type: 'message.send',
+          meta: {
+            eventId: `sup-${channel}`,
+            occurredAt: NOW,
+            source,
+            ...outboundPolicyMarker(channel),
+          },
+          payload: {
+            recipient,
+            message: { text: 'must be suppressed' },
+            delivery: { channels: [channel], maxAttempts: 1 },
+          },
+        }),
+      ).resolves.toEqual({});
 
-    expect(forbidden.sendSpy).not.toHaveBeenCalled();
-  });
+      expect(forbidden.sendSpy).not.toHaveBeenCalled();
+    },
+  );
 });
 
 // ─── Production: redirect inactive, real recipients pass through ───────────────
@@ -407,7 +440,12 @@ describe('PRODUCTION: redirect inactive — real recipients pass through to own 
 
     await port.dispatchOutgoing({
       type: 'message.send',
-      meta: { eventId: 'prod-email', occurredAt: NOW, source: 'email', ...outboundPolicyMarker('email') },
+      meta: {
+        eventId: 'prod-email',
+        occurredAt: NOW,
+        source: 'email',
+        ...outboundPolicyMarker('email'),
+      },
       payload: {
         recipient: { email: 'prod.patient@example.com' },
         subject: 'Your appointment',
@@ -417,9 +455,9 @@ describe('PRODUCTION: redirect inactive — real recipients pass through to own 
     });
 
     expect(email.captured).toHaveLength(1);
-    expect((email.captured[0]!.payload as { recipient: Record<string, unknown> }).recipient.email).toBe(
-      'prod.patient@example.com',
-    );
+    expect(
+      (email.captured[0]!.payload as { recipient: Record<string, unknown> }).recipient.email,
+    ).toBe('prod.patient@example.com');
   });
 
   it('production: web_push intent reaches web_push adapter with the REAL pushUserId', async () => {
@@ -429,7 +467,10 @@ describe('PRODUCTION: redirect inactive — real recipients pass through to own 
     await port.dispatchOutgoing({
       type: 'message.send',
       meta: {
-        eventId: 'prod-push', occurredAt: NOW, source: 'web_push', ...outboundPolicyMarker('web_push'),
+        eventId: 'prod-push',
+        occurredAt: NOW,
+        source: 'web_push',
+        ...outboundPolicyMarker('web_push'),
       },
       payload: {
         recipient: { pushUserId: 'prod-user-id-999' },
@@ -439,9 +480,9 @@ describe('PRODUCTION: redirect inactive — real recipients pass through to own 
     });
 
     expect(push.captured).toHaveLength(1);
-    expect((push.captured[0]!.payload as { recipient: Record<string, unknown> }).recipient.pushUserId).toBe(
-      'prod-user-id-999',
-    );
+    expect(
+      (push.captured[0]!.payload as { recipient: Record<string, unknown> }).recipient.pushUserId,
+    ).toBe('prod-user-id-999');
   });
 });
 
@@ -478,7 +519,12 @@ describe('PASSTHROUGH: allowlisted accounts bypass redirect; everyone else still
 
     await port.dispatchOutgoing({
       type: 'message.send',
-      meta: { eventId: 'pass-tg', occurredAt: NOW, source: 'telegram', ...outboundPolicyMarker('telegram') },
+      meta: {
+        eventId: 'pass-tg',
+        occurredAt: NOW,
+        source: 'telegram',
+        ...outboundPolicyMarker('telegram'),
+      },
       payload: {
         recipient: { chatId: ADMIN_TG },
         message: { text: 'Hello admin' },
@@ -497,7 +543,9 @@ describe('PASSTHROUGH: allowlisted accounts bypass redirect; everyone else still
     expect(payload.message.text).toBe('Hello admin');
 
     const passLogs = warnSpy.mock.calls.filter((a) => a[1] === 'PRE_FORK_DEV_DELIVERY_PASSTHROUGH');
-    const redirectLogs = warnSpy.mock.calls.filter((a) => a[1] === 'PRE_FORK_DEV_DELIVERY_REDIRECT');
+    const redirectLogs = warnSpy.mock.calls.filter(
+      (a) => a[1] === 'PRE_FORK_DEV_DELIVERY_REDIRECT',
+    );
     expect(passLogs.length, 'PASSTHROUGH logged').toBeGreaterThan(0);
     expect(redirectLogs.length, 'REDIRECT NOT logged for passthrough').toBe(0);
   });
@@ -509,7 +557,10 @@ describe('PASSTHROUGH: allowlisted accounts bypass redirect; everyone else still
     await port.dispatchOutgoing({
       type: 'message.send',
       meta: {
-        eventId: 'pass-tg-client', occurredAt: NOW, source: 'telegram', ...outboundPolicyMarker('telegram'),
+        eventId: 'pass-tg-client',
+        occurredAt: NOW,
+        source: 'telegram',
+        ...outboundPolicyMarker('telegram'),
       },
       payload: {
         recipient: { chatId: 999111222 },
@@ -528,7 +579,12 @@ describe('PASSTHROUGH: allowlisted accounts bypass redirect; everyone else still
 
     await port.dispatchOutgoing({
       type: 'message.send',
-      meta: { eventId: 'pass-sms-ok', occurredAt: NOW, source: 'smsc', ...outboundPolicyMarker('smsc') },
+      meta: {
+        eventId: 'pass-sms-ok',
+        occurredAt: NOW,
+        source: 'smsc',
+        ...outboundPolicyMarker('smsc'),
+      },
       payload: {
         recipient: { phoneNormalized: ADMIN_PHONE },
         message: { text: 'code 1' },
@@ -538,7 +594,10 @@ describe('PASSTHROUGH: allowlisted accounts bypass redirect; everyone else still
     await port.dispatchOutgoing({
       type: 'message.send',
       meta: {
-        eventId: 'pass-sms-client', occurredAt: NOW, source: 'smsc', ...outboundPolicyMarker('smsc'),
+        eventId: 'pass-sms-client',
+        occurredAt: NOW,
+        source: 'smsc',
+        ...outboundPolicyMarker('smsc'),
       },
       payload: {
         recipient: { phoneNormalized: '+79991234567' },
@@ -562,7 +621,12 @@ describe('PASSTHROUGH: allowlisted accounts bypass redirect; everyone else still
 
     await port.dispatchOutgoing({
       type: 'message.send',
-      meta: { eventId: 'pass-empty', occurredAt: NOW, source: 'telegram', ...outboundPolicyMarker('telegram') },
+      meta: {
+        eventId: 'pass-empty',
+        occurredAt: NOW,
+        source: 'telegram',
+        ...outboundPolicyMarker('telegram'),
+      },
       payload: {
         recipient: { chatId: ADMIN_TG },
         message: { text: 'Hello admin' },
@@ -571,6 +635,8 @@ describe('PASSTHROUGH: allowlisted accounts bypass redirect; everyone else still
     });
 
     const recipient = (tg.captured[0]!.payload as { recipient: Record<string, unknown> }).recipient;
-    expect(recipient, 'no passthrough env → collapsed to redirect target').toEqual({ chatId: TG_TARGET });
+    expect(recipient, 'no passthrough env → collapsed to redirect target').toEqual({
+      chatId: TG_TARGET,
+    });
   });
 });

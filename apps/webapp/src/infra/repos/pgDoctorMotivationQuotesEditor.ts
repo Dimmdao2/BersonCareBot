@@ -1,10 +1,14 @@
-import { asc } from "drizzle-orm";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { getPool } from "@/infra/db/client";
-import { getWebappSqlFromPgClient, runWebappPgText, runWebappTransaction } from "@/infra/db/runWebappSql";
-import { withPoolTransaction } from "@/infra/db/withClient";
-import type { DoctorMotivationQuotesEditorPort } from "@/modules/doctor-motivation-quotes/ports";
-import { motivationalQuotes } from "../../../db/schema";
+import { asc } from 'drizzle-orm';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { getPool } from '@/infra/db/client';
+import {
+  getWebappSqlFromPgClient,
+  runWebappPgText,
+  runWebappTransaction,
+} from '@/infra/db/runWebappSql';
+import { withPoolTransaction } from '@/infra/db/withClient';
+import type { DoctorMotivationQuotesEditorPort } from '@/modules/doctor-motivation-quotes/ports';
+import { motivationalQuotes } from '../../../db/schema';
 
 /** Wave 3 phase 13D — list via Drizzle; writes via `runWebappPgText`. */
 export function createPgDoctorMotivationQuotesEditorPort(): DoctorMotivationQuotesEditorPort {
@@ -41,7 +45,7 @@ export function createPgDoctorMotivationQuotesEditorPort(): DoctorMotivationQuot
           [],
           tx,
         );
-        const insertOrder = Number(nextOrder.rows[0]?.n ?? "0");
+        const insertOrder = Number(nextOrder.rows[0]?.n ?? '0');
         await runWebappPgText(
           `INSERT INTO motivational_quotes (body_text, author, is_active, sort_order) VALUES ($1, $2, $3, $4)`,
           [params.bodyText, params.author, params.isActive, insertOrder],
@@ -79,9 +83,9 @@ export function createPgDoctorMotivationQuotesEditorPort(): DoctorMotivationQuot
           getWebappSqlFromPgClient(client),
         );
         const inDb = new Set(check.rows.map((r) => r.id));
-        if (inDb.size !== orderedIds.length) throw new Error("mismatch");
+        if (inDb.size !== orderedIds.length) throw new Error('mismatch');
         for (const id of orderedIds) {
-          if (!inDb.has(id)) throw new Error("unknown");
+          if (!inDb.has(id)) throw new Error('unknown');
         }
         for (let i = 0; i < orderedIds.length; i++) {
           await runWebappPgText(

@@ -1,17 +1,17 @@
-import Link from "next/link";
-import { Bell } from "lucide-react";
-import type { ReminderRule } from "@/modules/reminders/types";
-import { routePaths } from "@/app-layer/routes/paths";
+import Link from 'next/link';
+import { Bell } from 'lucide-react';
+import type { ReminderRule } from '@/modules/reminders/types';
+import { routePaths } from '@/app-layer/routes/paths';
 import {
   patientHomeBlockCaptionSmClamp2Mt1Class,
   patientHomeCardTitleClampSmClass,
   patientHomeReminderCardGeometryClass,
   patientHomeReminderMobileHeadingClass,
   patientHomeReminderMobileSubtitleClass,
-} from "./patientHomeCardStyles";
-import { appLoginWithNextHref } from "./patientHomeGuestNav";
-import { PatientHomeSafeImage } from "./PatientHomeSafeImage";
-import { cn } from "@/lib/utils";
+} from './patientHomeCardStyles';
+import { appLoginWithNextHref } from './patientHomeGuestNav';
+import { PatientHomeSafeImage } from './PatientHomeSafeImage';
+import { cn } from '@/lib/utils';
 
 /**
  * Warning-кнопка по ширине контента (reminder CTA).
@@ -19,12 +19,18 @@ import { cn } from "@/lib/utils";
  * классы собраны вручную без него.
  */
 const reminderCtaBaseClass = cn(
-  "inline-flex min-w-0 items-center justify-center gap-2 rounded-md border border-[#fde68a] bg-[#fffbeb] font-bold text-[#d97706] transition-colors",
-  "hover:bg-[#fef3c7]/80 active:bg-[#fef3c7]",
-  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f59e0b]",
+  'inline-flex min-w-0 items-center justify-center gap-2 rounded-md border border-[#fde68a] bg-[#fffbeb] font-bold text-[#d97706] transition-colors',
+  'hover:bg-[#fef3c7]/80 active:bg-[#fef3c7]',
+  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f59e0b]',
 );
-const reminderCtaMobileClass = cn(reminderCtaBaseClass, "min-h-8 min-w-[5rem] self-end px-2 text-[12px] md:hidden");
-const reminderCtaDesktopClass = cn(reminderCtaBaseClass, "min-h-9 min-w-[7.5rem] self-end px-3 text-sm max-md:hidden");
+const reminderCtaMobileClass = cn(
+  reminderCtaBaseClass,
+  'min-h-8 min-w-[5rem] self-end px-2 text-[12px] md:hidden',
+);
+const reminderCtaDesktopClass = cn(
+  reminderCtaBaseClass,
+  'min-h-9 min-w-[7.5rem] self-end px-3 text-sm max-md:hidden',
+);
 
 type Props = {
   rule: ReminderRule | null;
@@ -60,23 +66,33 @@ export function PatientHomeNextReminderCard({
   personalTierOk = true,
 }: Props) {
   if (!rule) {
-    const remindersHref = anonymousGuest ? appLoginWithNextHref(routePaths.patientReminders) : routePaths.patientReminders;
-    const ctaLabel = anonymousGuest ? "Войти" : "Настроить";
+    const remindersHref = anonymousGuest
+      ? appLoginWithNextHref(routePaths.patientReminders)
+      : routePaths.patientReminders;
+    const ctaLabel = anonymousGuest ? 'Войти' : 'Настроить';
     return (
       <section aria-labelledby="patient-home-reminder-heading" data-reminder-empty>
-        <article id="patient-home-next-reminder-card" className={patientHomeReminderCardGeometryClass}>
+        <article
+          id="patient-home-next-reminder-card"
+          className={patientHomeReminderCardGeometryClass}
+        >
           <div className="flex min-h-0 gap-2 max-md:items-center md:gap-2.5">
             <LeadingIcon blockIconImageUrl={blockIconImageUrl} />
             <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-              <h3 id="patient-home-reminder-heading" className={cn(patientHomeReminderMobileHeadingClass, "md:whitespace-nowrap")}>
+              <h3
+                id="patient-home-reminder-heading"
+                className={cn(patientHomeReminderMobileHeadingClass, 'md:whitespace-nowrap')}
+              >
                 Следующее напоминание
               </h3>
-              <p className={cn(patientHomeReminderMobileSubtitleClass, "md:hidden")}>{scheduleLabel}</p>
+              <p className={cn(patientHomeReminderMobileSubtitleClass, 'md:hidden')}>
+                {scheduleLabel}
+              </p>
               <div className="hidden md:block">
-                <p className={cn(patientHomeCardTitleClampSmClass, "mt-1")}>{scheduleLabel}</p>
+                <p className={cn(patientHomeCardTitleClampSmClass, 'mt-1')}>{scheduleLabel}</p>
                 {(anonymousGuest || !personalTierOk) && (
                   <p className={patientHomeBlockCaptionSmClamp2Mt1Class}>
-                    {anonymousGuest ? "Чтобы настроить напоминания." : "После активации профиля."}
+                    {anonymousGuest ? 'Чтобы настроить напоминания.' : 'После активации профиля.'}
                   </p>
                 )}
               </div>
@@ -95,23 +111,39 @@ export function PatientHomeNextReminderCard({
 
   return (
     <section aria-labelledby="patient-home-reminder-heading" data-reminder-rule-id={rule.id}>
-      <article id="patient-home-next-reminder-card" className={patientHomeReminderCardGeometryClass}>
+      <article
+        id="patient-home-next-reminder-card"
+        className={patientHomeReminderCardGeometryClass}
+      >
         <div className="flex min-h-0 gap-2 max-md:items-center md:gap-2.5">
           <LeadingIcon blockIconImageUrl={blockIconImageUrl} />
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            <h3 id="patient-home-reminder-heading" className={cn(patientHomeReminderMobileHeadingClass, "md:whitespace-nowrap")}>
+            <h3
+              id="patient-home-reminder-heading"
+              className={cn(patientHomeReminderMobileHeadingClass, 'md:whitespace-nowrap')}
+            >
               Следующее напоминание
             </h3>
-            <p className={cn(patientHomeReminderMobileSubtitleClass, "md:hidden")}>{scheduleLabel}</p>
+            <p className={cn(patientHomeReminderMobileSubtitleClass, 'md:hidden')}>
+              {scheduleLabel}
+            </p>
             <div className="hidden md:block">
-              <p className={cn(patientHomeCardTitleClampSmClass, "mt-1")}>{scheduleLabel}</p>
+              <p className={cn(patientHomeCardTitleClampSmClass, 'mt-1')}>{scheduleLabel}</p>
             </div>
           </div>
-          <Link href={routePaths.patientReminders} prefetch={false} className={reminderCtaMobileClass}>
+          <Link
+            href={routePaths.patientReminders}
+            prefetch={false}
+            className={reminderCtaMobileClass}
+          >
             Изменить
           </Link>
         </div>
-        <Link href={routePaths.patientReminders} prefetch={false} className={reminderCtaDesktopClass}>
+        <Link
+          href={routePaths.patientReminders}
+          prefetch={false}
+          className={reminderCtaDesktopClass}
+        >
           Изменить
         </Link>
       </article>

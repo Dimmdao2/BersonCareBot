@@ -9,8 +9,8 @@
  * - **Обычный браузер:** `window.open`; на мобильном UA для Telegram — `tg://` при разборе `t.me`.
  */
 
-import { inferMessengerChannelForRequestContact } from "@/shared/lib/messengerMiniApp";
-import { isStandalonePwa } from "@/shared/lib/webPush/pwaDisplay";
+import { inferMessengerChannelForRequestContact } from '@/shared/lib/messengerMiniApp';
+import { isStandalonePwa } from '@/shared/lib/webPush/pwaDisplay';
 
 /**
  * Раньше использовалось, чтобы решить, открывать ли преждевременную вкладку `about:blank`.
@@ -37,18 +37,18 @@ export function buildTgAppDeepLink(tmeUrl: string): string | null {
     return null;
   }
   const host = u.hostname.toLowerCase();
-  if (host !== "t.me" && host !== "telegram.me") {
+  if (host !== 't.me' && host !== 'telegram.me') {
     return null;
   }
-  const path = u.pathname.replace(/^\//, "").split("/")[0]?.trim() ?? "";
-  if (!path || path.startsWith("+")) {
+  const path = u.pathname.replace(/^\//, '').split('/')[0]?.trim() ?? '';
+  if (!path || path.startsWith('+')) {
     return null;
   }
-  const domain = path.startsWith("@") ? path.slice(1) : path;
+  const domain = path.startsWith('@') ? path.slice(1) : path;
   if (!domain) {
     return null;
   }
-  const start = u.searchParams.get("start");
+  const start = u.searchParams.get('start');
   if (!start || !start.trim()) {
     return null;
   }
@@ -70,7 +70,7 @@ export function pickChannelLinkOpenUrl(
   userAgent: string,
   options?: { standalonePwa?: boolean },
 ): string {
-  if (channel === "telegram") {
+  if (channel === 'telegram') {
     if (options?.standalonePwa) {
       return buildTgAppDeepLink(url) ?? url;
     }
@@ -83,7 +83,7 @@ export function pickChannelLinkOpenUrl(
 function tryOpenMaxDeepLinkViaBridge(url: string): boolean {
   if (!isMaxChannelDeepLinkUrl(url)) return false;
   const w = (window as Window & { WebApp?: MaxWebAppOpen }).WebApp;
-  if (typeof w?.openMaxLink === "function") {
+  if (typeof w?.openMaxLink === 'function') {
     w.openMaxLink(url);
     return true;
   }
@@ -92,13 +92,13 @@ function tryOpenMaxDeepLinkViaBridge(url: string): boolean {
 
 /** Новая вкладка / внешний браузер (не навигация текущего WebView). */
 function openInNewBrowserTab(url: string): boolean {
-  const opened = window.open(url, "_blank", "noopener,noreferrer");
+  const opened = window.open(url, '_blank', 'noopener,noreferrer');
   if (opened) return true;
-  const anchor = document.createElement("a");
+  const anchor = document.createElement('a');
   anchor.href = url;
-  anchor.rel = "noopener noreferrer";
-  anchor.target = "_blank";
-  anchor.style.display = "none";
+  anchor.rel = 'noopener noreferrer';
+  anchor.target = '_blank';
+  anchor.style.display = 'none';
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
@@ -114,7 +114,7 @@ function openChannelLinkInBrowserOrPwa(
   standalonePwa: boolean,
   channel: ChannelLinkOpenChannel,
 ): void {
-  if (standalonePwa && channel === "max") {
+  if (standalonePwa && channel === 'max') {
     if (tryOpenMaxDeepLinkViaBridge(toOpen)) return;
     if (!isMaxChannelDeepLinkUrl(toOpen)) return;
     const opened = openInNewBrowserTab(toOpen);
@@ -148,14 +148,14 @@ function openChannelLinkInBrowserOrPwa(
 export function isMaxChannelDeepLinkUrl(url: string): boolean {
   try {
     const u = new URL(url);
-    const host = u.hostname.replace(/^www\./i, "").toLowerCase();
-    return host === "max.ru" && u.searchParams.has("start");
+    const host = u.hostname.replace(/^www\./i, '').toLowerCase();
+    return host === 'max.ru' && u.searchParams.has('start');
   } catch {
     return false;
   }
 }
 
-export type ChannelLinkOpenChannel = "telegram" | "max";
+export type ChannelLinkOpenChannel = 'telegram' | 'max';
 
 /**
  * Навигация заранее открытой вкладки `about:blank` на итоговый URL.
@@ -165,7 +165,7 @@ export function assignChannelLinkToBlankWindow(
   blankWin: Window,
   url: string,
   channel: ChannelLinkOpenChannel,
-  userAgent: string
+  userAgent: string,
 ): void {
   try {
     const finalUrl = pickChannelLinkOpenUrl(url, channel, userAgent, {
@@ -217,12 +217,12 @@ export function finishChannelLinkNavigation(params: {
 
   const tg = (window as Window & { Telegram?: { WebApp?: TelegramWebAppOpen } }).Telegram?.WebApp;
   if (tg) {
-    if (channel === "telegram" && typeof tg.openTelegramLink === "function") {
+    if (channel === 'telegram' && typeof tg.openTelegramLink === 'function') {
       tg.openTelegramLink(url);
       safeCloseBlank(blankWin);
       return;
     }
-    if (typeof tg.openLink === "function") {
+    if (typeof tg.openLink === 'function') {
       const toOpen = pickChannelLinkOpenUrl(url, channel, userAgent);
       tg.openLink(toOpen, { try_instant_view: false });
       safeCloseBlank(blankWin);
@@ -232,15 +232,19 @@ export function finishChannelLinkNavigation(params: {
 
   const host = inferMessengerChannelForRequestContact();
 
-  if (host === "max") {
+  if (host === 'max') {
     const w = (window as Window & { WebApp?: MaxWebAppOpen }).WebApp;
     if (w) {
-      if (channel === "max" && isMaxChannelDeepLinkUrl(url) && typeof w.openMaxLink === "function") {
+      if (
+        channel === 'max' &&
+        isMaxChannelDeepLinkUrl(url) &&
+        typeof w.openMaxLink === 'function'
+      ) {
         w.openMaxLink(url);
         safeCloseBlank(blankWin);
         return;
       }
-      if (typeof w.openLink === "function") {
+      if (typeof w.openLink === 'function') {
         const toOpen = pickChannelLinkOpenUrl(url, channel, userAgent);
         w.openLink(toOpen);
         safeCloseBlank(blankWin);

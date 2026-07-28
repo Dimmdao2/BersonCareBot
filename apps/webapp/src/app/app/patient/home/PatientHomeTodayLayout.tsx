@@ -1,15 +1,15 @@
-import type { ReactNode } from "react";
-import type { PatientHomeBlockCode } from "@/modules/patient-home/ports";
-import { cn } from "@/lib/utils";
+import type { ReactNode } from 'react';
+import type { PatientHomeBlockCode } from '@/modules/patient-home/ports';
+import { cn } from '@/lib/utils';
 import {
   patientHomeTodayGridCellPadBorderedSymClass,
   patientHomeTodayGridCellPadMoodTopClass,
   patientHomeTodayGridCellPadProgressBottomClass,
   patientHomeTodayGridCellPullNextReminderAfterProgressClass,
-} from "./patientHomeCardStyles";
-import { PatientHomeGreeting, type PatientGreetingPrefix } from "./PatientHomeGreeting";
+} from './patientHomeCardStyles';
+import { PatientHomeGreeting, type PatientGreetingPrefix } from './PatientHomeGreeting';
 
-export type PatientHomeTodayLayoutBlockCode = PatientHomeBlockCode | "sos_booking_split";
+export type PatientHomeTodayLayoutBlockCode = PatientHomeBlockCode | 'sos_booking_split';
 
 export type PatientHomeTodayLayoutBlock = {
   code: PatientHomeTodayLayoutBlockCode;
@@ -28,141 +28,151 @@ function smHeroRowLayout(
   code: PatientHomeTodayLayoutBlockCode,
   ctx: { hasDailyWarmup: boolean; hasUsefulPost: boolean },
 ): string {
-  if (code === "daily_warmup") {
-    return ctx.hasUsefulPost ? "sm:col-span-8 sm:col-start-1" : "sm:col-span-12 sm:col-start-1";
+  if (code === 'daily_warmup') {
+    return ctx.hasUsefulPost ? 'sm:col-span-8 sm:col-start-1' : 'sm:col-span-12 sm:col-start-1';
   }
-  if (code === "useful_post") {
-    return ctx.hasDailyWarmup ? "sm:col-span-4 sm:col-start-9" : "sm:col-span-12 sm:col-start-1";
+  if (code === 'useful_post') {
+    return ctx.hasDailyWarmup ? 'sm:col-span-4 sm:col-start-9' : 'sm:col-span-12 sm:col-start-1';
   }
-  return "sm:col-span-12 sm:col-start-1";
+  return 'sm:col-span-12 sm:col-start-1';
 }
 
 /** Wide-viewport grid placement (`md+`): Tailwind classes + stable `data-md-*` for tests (avoid coupling tests to full class strings). */
 function desktopBlockLayout(
   code: PatientHomeTodayLayoutBlockCode,
-  ctx: { hasDailyWarmup: boolean; hasUsefulPost: boolean; hasPlan: boolean; hasSituations: boolean },
+  ctx: {
+    hasDailyWarmup: boolean;
+    hasUsefulPost: boolean;
+    hasPlan: boolean;
+    hasSituations: boolean;
+  },
 ): {
   className: string;
-  "data-md-order"?: string;
-  "data-md-col-start"?: string;
-  "data-md-col-span"?: string;
+  'data-md-order'?: string;
+  'data-md-col-start'?: string;
+  'data-md-col-span'?: string;
 } {
   switch (code) {
-    case "daily_warmup":
+    case 'daily_warmup':
       return {
-        className: ctx.hasUsefulPost ?
-          "md:col-span-8 md:col-start-1 md:order-[10]"
-        : "md:col-span-12 md:col-start-1 md:order-[10]",
-        "data-md-order": "10",
-        "data-md-col-start": "1",
-        "data-md-col-span": ctx.hasUsefulPost ? "8" : "12",
+        className: ctx.hasUsefulPost
+          ? 'md:col-span-8 md:col-start-1 md:order-[10]'
+          : 'md:col-span-12 md:col-start-1 md:order-[10]',
+        'data-md-order': '10',
+        'data-md-col-start': '1',
+        'data-md-col-span': ctx.hasUsefulPost ? '8' : '12',
       };
-    case "useful_post":
+    case 'useful_post':
       return {
-        className: ctx.hasDailyWarmup ?
-          "md:col-span-4 md:col-start-9 md:order-[10]"
-        : "md:col-span-12 md:col-start-1 md:order-[10]",
-        "data-md-order": "10",
-        "data-md-col-start": ctx.hasDailyWarmup ? "9" : "1",
-        "data-md-col-span": ctx.hasDailyWarmup ? "4" : "12",
+        className: ctx.hasDailyWarmup
+          ? 'md:col-span-4 md:col-start-9 md:order-[10]'
+          : 'md:col-span-12 md:col-start-1 md:order-[10]',
+        'data-md-order': '10',
+        'data-md-col-start': ctx.hasDailyWarmup ? '9' : '1',
+        'data-md-col-span': ctx.hasDailyWarmup ? '4' : '12',
       };
-    case "situations":
-      return ctx.hasPlan ?
-          {
-            className: "md:col-span-8 md:col-start-1 md:order-[20]",
-            "data-md-order": "20",
-            "data-md-col-start": "1",
-            "data-md-col-span": "8",
+    case 'situations':
+      return ctx.hasPlan
+        ? {
+            className: 'md:col-span-8 md:col-start-1 md:order-[20]',
+            'data-md-order': '20',
+            'data-md-col-start': '1',
+            'data-md-col-span': '8',
           }
         : {
-            className: "md:col-span-12 md:col-start-1 md:order-[20]",
-            "data-md-order": "20",
-            "data-md-col-start": "1",
-            "data-md-col-span": "12",
+            className: 'md:col-span-12 md:col-start-1 md:order-[20]',
+            'data-md-order': '20',
+            'data-md-col-start': '1',
+            'data-md-col-span': '12',
           };
-    case "booking":
+    case 'booking':
       return {
-        className: "md:col-span-4 md:col-start-9 md:order-[21]",
-        "data-md-order": "21",
-        "data-md-col-start": "9",
-        "data-md-col-span": "4",
+        className: 'md:col-span-4 md:col-start-9 md:order-[21]',
+        'data-md-order': '21',
+        'data-md-col-start': '9',
+        'data-md-col-span': '4',
       };
     /** Полная ширина: напоминание сразу под «Сегодня выполнено» (md:order после progress). */
-    case "next_reminder":
+    case 'next_reminder':
       return {
-        className: "md:col-span-12 md:col-start-1 md:order-[42]",
-        "data-md-order": "42",
-        "data-md-col-start": "1",
-        "data-md-col-span": "12",
+        className: 'md:col-span-12 md:col-start-1 md:order-[42]',
+        'data-md-order': '42',
+        'data-md-col-start': '1',
+        'data-md-col-span': '12',
       };
     /** Compact desktop row: SOS под полноширинным блоком настроения (тот же `order`, новая строка). */
-    case "sos":
+    case 'sos':
       return {
-        className: "md:col-span-4 md:col-start-5 md:order-[40]",
-        "data-md-order": "40",
-        "data-md-col-start": "5",
-        "data-md-col-span": "4",
+        className: 'md:col-span-4 md:col-start-5 md:order-[40]',
+        'data-md-order': '40',
+        'data-md-col-start': '5',
+        'data-md-col-span': '4',
       };
     /** «Сегодня выполнено» — под блоком самочувствия, полная ширина, перед SOS+запись. */
-    case "progress":
+    case 'progress':
       return {
-        className: "md:col-span-12 md:col-start-1 md:order-[41]",
-        "data-md-order": "41",
-        "data-md-col-start": "1",
-        "data-md-col-span": "12",
+        className: 'md:col-span-12 md:col-start-1 md:order-[41]',
+        'data-md-order': '41',
+        'data-md-col-start': '1',
+        'data-md-col-span': '12',
       };
     /** SOS + запись — под напоминанием (md:order после next_reminder). */
-    case "sos_booking_split":
+    case 'sos_booking_split':
       return {
-        className: "md:col-span-12 md:col-start-1 md:order-[43]",
-        "data-md-order": "43",
-        "data-md-col-start": "1",
-        "data-md-col-span": "12",
+        className: 'md:col-span-12 md:col-start-1 md:order-[43]',
+        'data-md-order': '43',
+        'data-md-col-start': '1',
+        'data-md-col-span': '12',
       };
-    case "plan":
-      return ctx.hasSituations ?
-          {
-            className: "md:col-span-4 md:col-start-9 md:order-[20]",
-            "data-md-order": "20",
-            "data-md-col-start": "9",
-            "data-md-col-span": "4",
+    case 'plan':
+      return ctx.hasSituations
+        ? {
+            className: 'md:col-span-4 md:col-start-9 md:order-[20]',
+            'data-md-order': '20',
+            'data-md-col-start': '9',
+            'data-md-col-span': '4',
           }
         : {
-            className: "md:col-span-12 md:col-start-1 md:order-[20]",
-            "data-md-order": "20",
-            "data-md-col-start": "1",
-            "data-md-col-span": "12",
+            className: 'md:col-span-12 md:col-start-1 md:order-[20]',
+            'data-md-order': '20',
+            'data-md-col-start': '1',
+            'data-md-col-span': '12',
           };
     /** Полная ширина: неделя + самочувствие (на `md+` не сжимать в 4 колонки). */
-    case "mood_checkin":
+    case 'mood_checkin':
       return {
-        className: "md:col-span-12 md:col-start-1 md:order-[40]",
-        "data-md-order": "40",
-        "data-md-col-start": "1",
-        "data-md-col-span": "12",
+        className: 'md:col-span-12 md:col-start-1 md:order-[40]',
+        'data-md-order': '40',
+        'data-md-col-start': '1',
+        'data-md-col-span': '12',
       };
-    case "courses":
+    case 'courses':
       return {
-        className: "md:col-span-12 md:col-start-1 md:order-[60]",
-        "data-md-order": "60",
-        "data-md-col-start": "1",
-        "data-md-col-span": "12",
+        className: 'md:col-span-12 md:col-start-1 md:order-[60]',
+        'data-md-order': '60',
+        'data-md-col-start': '1',
+        'data-md-col-span': '12',
       };
-    case "subscription_carousel":
+    case 'subscription_carousel':
       return {
-        className: "md:col-span-12 md:col-start-1 md:order-[50]",
-        "data-md-order": "50",
-        "data-md-col-start": "1",
-        "data-md-col-span": "12",
+        className: 'md:col-span-12 md:col-start-1 md:order-[50]',
+        'data-md-order': '50',
+        'data-md-col-start': '1',
+        'data-md-col-span': '12',
       };
   }
 }
 
-export function PatientHomeTodayLayout({ personalizedName, timeOfDayPrefix, unreadChatCount, blocks }: Props) {
-  const hasDailyWarmup = blocks.some((b) => b.code === "daily_warmup");
-  const hasUsefulPost = blocks.some((b) => b.code === "useful_post");
-  const hasPlan = blocks.some((b) => b.code === "plan");
-  const hasSituations = blocks.some((b) => b.code === "situations");
+export function PatientHomeTodayLayout({
+  personalizedName,
+  timeOfDayPrefix,
+  unreadChatCount,
+  blocks,
+}: Props) {
+  const hasDailyWarmup = blocks.some((b) => b.code === 'daily_warmup');
+  const hasUsefulPost = blocks.some((b) => b.code === 'useful_post');
+  const hasPlan = blocks.some((b) => b.code === 'plan');
+  const hasSituations = blocks.some((b) => b.code === 'situations');
   const heroRowCtx = { hasDailyWarmup, hasUsefulPost };
   const desktopCtx = { hasDailyWarmup, hasUsefulPost, hasPlan, hasSituations };
 
@@ -191,19 +201,22 @@ export function PatientHomeTodayLayout({ personalizedName, timeOfDayPrefix, unre
             <div
               key={block.code}
               className={cn(
-                "min-w-0",
-                block.code === "next_reminder" && patientHomeTodayGridCellPullNextReminderAfterProgressClass,
-                (block.code === "sos_booking_split" || block.code === "booking" || block.code === "sos") &&
+                'min-w-0',
+                block.code === 'next_reminder' &&
+                  patientHomeTodayGridCellPullNextReminderAfterProgressClass,
+                (block.code === 'sos_booking_split' ||
+                  block.code === 'booking' ||
+                  block.code === 'sos') &&
                   patientHomeTodayGridCellPadBorderedSymClass,
-                block.code === "mood_checkin" && patientHomeTodayGridCellPadMoodTopClass,
-                block.code === "progress" && patientHomeTodayGridCellPadProgressBottomClass,
+                block.code === 'mood_checkin' && patientHomeTodayGridCellPadMoodTopClass,
+                block.code === 'progress' && patientHomeTodayGridCellPadProgressBottomClass,
                 smHeroRowLayout(block.code, heroRowCtx),
                 layout.className,
               )}
               data-patient-home-block={block.code}
-              data-md-order={layout["data-md-order"]}
-              data-md-col-start={layout["data-md-col-start"]}
-              data-md-col-span={layout["data-md-col-span"]}
+              data-md-order={layout['data-md-order']}
+              data-md-col-start={layout['data-md-col-start']}
+              data-md-col-span={layout['data-md-col-span']}
             >
               {block.node}
             </div>

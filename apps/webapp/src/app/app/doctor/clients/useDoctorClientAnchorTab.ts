@@ -1,23 +1,23 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from 'react';
 import {
   DOCTOR_CLIENT_ANCHOR_TO_TAB,
   DOCTOR_CLIENT_TAB_IDS,
   type DoctorClientTabId,
-} from "@/modules/doctor-client-card/types";
+} from '@/modules/doctor-client-card/types';
 
 function parseHashAnchor(): string | null {
-  if (typeof window === "undefined") return null;
-  const raw = window.location.hash.replace(/^#/, "").trim();
+  if (typeof window === 'undefined') return null;
+  const raw = window.location.hash.replace(/^#/, '').trim();
   return raw.length > 0 ? raw : null;
 }
 
 function scrollToAnchor(anchorId: string): void {
   requestAnimationFrame(() => {
     const el = document.getElementById(anchorId);
-    if (el && typeof el.scrollIntoView === "function") {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (el && typeof el.scrollIntoView === 'function') {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   });
 }
@@ -30,7 +30,7 @@ function initialTabFromHash(defaultTab: DoctorClientTabId): DoctorClientTabId {
   return defaultTab;
 }
 
-export function useDoctorClientAnchorTab(defaultTab: DoctorClientTabId = "overview") {
+export function useDoctorClientAnchorTab(defaultTab: DoctorClientTabId = 'overview') {
   const [activeTab, setActiveTab] = useState<DoctorClientTabId>(() =>
     initialTabFromHash(defaultTab),
   );
@@ -41,7 +41,7 @@ export function useDoctorClientAnchorTab(defaultTab: DoctorClientTabId = "overvi
     if (options?.replaceHash !== false) {
       const url = new URL(window.location.href);
       url.hash = anchorId;
-      window.history.replaceState(null, "", url.toString());
+      window.history.replaceState(null, '', url.toString());
     }
     scrollToAnchor(anchorId);
   }, []);
@@ -63,8 +63,8 @@ export function useDoctorClientAnchorTab(defaultTab: DoctorClientTabId = "overvi
         scrollToAnchor(anchor);
       }
     };
-    window.addEventListener("hashchange", onHashChange);
-    return () => window.removeEventListener("hashchange", onHashChange);
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
 
   const navigateToTab = useCallback((tab: DoctorClientTabId) => {

@@ -62,11 +62,11 @@
 
 ## 2. Состав и роли
 
-| Роль | Зона ответственности |
-|---|---|
+| Роль              | Зона ответственности                                                                    |
+| ----------------- | --------------------------------------------------------------------------------------- |
 | Владелец продукта | Контент: тексты разделов, обложки, иконки, видео, выбор «Разминки дня», список ситуаций |
-| Разработчик-агент | Все технические фазы (1–9) по этому ТЗ |
-| Аудитор-агент | После каждой фазы: проверка по acceptance criteria + правилам репо |
+| Разработчик-агент | Все технические фазы (1–9) по этому ТЗ                                                  |
+| Аудитор-агент     | После каждой фазы: проверка по acceptance criteria + правилам репо                      |
 
 **Разделение работ**: агенту-исполнителю **не назначается** Phase 0 (это для владельца). Агент начинает с Phase 1 и далее.
 
@@ -119,19 +119,19 @@ Runtime-источник главной:
 
 ## 4. Глоссарий
 
-| Термин | Значение |
-|---|---|
-| **Блок главной** | Настраиваемая область страницы «Сегодня»: `daily_warmup`, `booking`, `situations`, `progress`, `next_reminder`, `mood_checkin`, `sos`, `plan`, `subscription_carousel`, `courses` |
-| **Разминка дня** | Блок главной `daily_warmup`; содержит один или несколько материалов `content_pages`, первый видимый item показывается как большая hero-карточка |
-| **Ситуация** | Раздел контента (`content_sections`), добавленный в блок `situations`; отображается как маленькая иконка в горизонтальном ряду |
-| **Подписочная карусель** | Блок `subscription_carousel`; содержит CMS-разделы / материалы / курсы и показывает их горизонтальными карточками с бейджем |
-| **SOS** | Блок `sos`; обычно содержит один материал или раздел с быстрыми рекомендациями при боли |
-| **Настройка главной** | Отдельная admin-страница для управления видимостью/порядком блоков и списками материалов внутри блоков |
-| **Стрик** | Количество последовательных дней (по timezone приложения), в которые у пользователя есть ≥1 запись `patient_practice_completions` |
-| **Чек-ин самочувствия** | Запись `patient_daily_mood` со score 1..5; одна на пользователя в день (override переписывает) |
-| **Промо-страница курса** | `content_pages.linked_course_id` указывает на курс; на странице материала — кнопка «Открыть курс» |
+| Термин                             | Значение                                                                                                                                                                                                             |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Блок главной**                   | Настраиваемая область страницы «Сегодня»: `daily_warmup`, `booking`, `situations`, `progress`, `next_reminder`, `mood_checkin`, `sos`, `plan`, `subscription_carousel`, `courses`                                    |
+| **Разминка дня**                   | Блок главной `daily_warmup`; содержит один или несколько материалов `content_pages`, первый видимый item показывается как большая hero-карточка                                                                      |
+| **Ситуация**                       | Раздел контента (`content_sections`), добавленный в блок `situations`; отображается как маленькая иконка в горизонтальном ряду                                                                                       |
+| **Подписочная карусель**           | Блок `subscription_carousel`; содержит CMS-разделы / материалы / курсы и показывает их горизонтальными карточками с бейджем                                                                                          |
+| **SOS**                            | Блок `sos`; обычно содержит один материал или раздел с быстрыми рекомендациями при боли                                                                                                                              |
+| **Настройка главной**              | Отдельная admin-страница для управления видимостью/порядком блоков и списками материалов внутри блоков                                                                                                               |
+| **Стрик**                          | Количество последовательных дней (по timezone приложения), в которые у пользователя есть ≥1 запись `patient_practice_completions`                                                                                    |
+| **Чек-ин самочувствия**            | Запись `patient_daily_mood` со score 1..5; одна на пользователя в день (override переписывает)                                                                                                                       |
+| **Промо-страница курса**           | `content_pages.linked_course_id` указывает на курс; на странице материала — кнопка «Открыть курс»                                                                                                                    |
 | **Ежедневное напоминание от бота** | Исходящее сообщение **пользователю в мессенджер** в заданное время (глобально на продукт), а не напоминание админу. Ключи `patient_home_morning_ping_*`; deeplink на главную / разминку; UI сохранения — у **admin** |
-| **FAB дневника (устар.)** | Историческая плавающая кнопка в углу экрана из `AppShell`; **не использовать** в том же виде дальше. См. §1.5 |
+| **FAB дневника (устар.)**          | Историческая плавающая кнопка в углу экрана из `AppShell`; **не использовать** в том же виде дальше. См. §1.5                                                                                                        |
 
 ---
 
@@ -214,26 +214,26 @@ Runtime-источник главной:
 **Таблица A. Ситуации (бесплатные):**
 
 | slug | Название | Краткое описание | Идея иконки | Кол-во готовых видео | Slug первого/главного материала |
-|---|---|---|---|---|---|
+| ---- | -------- | ---------------- | ----------- | -------------------- | ------------------------------- |
 
 Минимально стартовать с разделов: `office`, `neck-shoulders`, `back-low-back`, `breathing`, `mom`, `antistress-sleep`, `pain-now`. Если по разделу нет хотя бы 1 видео — раздел временно НЕ публикуется (`is_visible=false`).
 
 **Таблица B. Подписочная карусель:**
 
 | slug | Название | Сколько материалов | Превью-картинка (имя файла) | Слоган |
-|---|---|---|---|---|
+| ---- | -------- | ------------------ | --------------------------- | ------ |
 
 **Таблица C. Большие курсы:**
 
 | Идентификатор курса (slug) | Название | Результат для пациента | Длительность | Промо-материалы (slug content_pages) |
-|---|---|---|---|---|
+| -------------------------- | -------- | ---------------------- | ------------ | ------------------------------------ |
 
 Старт: один курс — `back-and-neck-recovery` («Здоровая спина и шея»).
 
 **Таблица D. Разминка дня:**
 
 | Slug материала | Кандидат на старте | Замены через 1–2 недели |
-|---|---|---|
+| -------------- | ------------------ | ----------------------- |
 
 #### 0.2. Графика
 
@@ -284,32 +284,44 @@ iconImageUrl: text("icon_image_url"),
 Добавить новые таблицы:
 
 ```ts
-export const patientHomeBlocks = pgTable("patient_home_blocks", {
-  code: text("code").primaryKey().notNull(),
-  title: text("title").notNull(),
-  description: text("description").default("").notNull(),
-  isVisible: boolean("is_visible").default(true).notNull(),
-  sortOrder: integer("sort_order").default(0).notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+export const patientHomeBlocks = pgTable('patient_home_blocks', {
+  code: text('code').primaryKey().notNull(),
+  title: text('title').notNull(),
+  description: text('description').default('').notNull(),
+  isVisible: boolean('is_visible').default(true).notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 });
 
-export const patientHomeBlockItems = pgTable("patient_home_block_items", {
-  id: uuid().defaultRandom().primaryKey().notNull(),
-  blockCode: text("block_code").notNull(),
-  targetType: text("target_type").notNull(),
-  targetRef: text("target_ref").notNull(),
-  titleOverride: text("title_override"),
-  subtitleOverride: text("subtitle_override"),
-  imageUrlOverride: text("image_url_override"),
-  badgeLabel: text("badge_label"),
-  isVisible: boolean("is_visible").default(true).notNull(),
-  sortOrder: integer("sort_order").default(0).notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-}, (table) => [
-  index("idx_patient_home_block_items_block_sort").using("btree", table.blockCode.asc(), table.sortOrder.asc()),
-]);
+export const patientHomeBlockItems = pgTable(
+  'patient_home_block_items',
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    blockCode: text('block_code').notNull(),
+    targetType: text('target_type').notNull(),
+    targetRef: text('target_ref').notNull(),
+    titleOverride: text('title_override'),
+    subtitleOverride: text('subtitle_override'),
+    imageUrlOverride: text('image_url_override'),
+    badgeLabel: text('badge_label'),
+    isVisible: boolean('is_visible').default(true).notNull(),
+    sortOrder: integer('sort_order').default(0).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index('idx_patient_home_block_items_block_sort').using(
+      'btree',
+      table.blockCode.asc(),
+      table.sortOrder.asc(),
+    ),
+  ],
+);
 ```
 
 SQL FK/constraints в миграции:
@@ -335,7 +347,7 @@ FK на `content_pages`/`content_sections`/`courses` в `target_ref` **не де
 
 #### 1.2. Миграция
 
-Сгенерировать `pnpm --dir apps/webapp run db:generate` (или эквивалент в проекте — см. EXECUTION_RULES.md TREATMENT_PROGRAM_INITIATIVE раздел «Правила Drizzle»). Следующий номер миграции — `0008_*`. Имя осмысленное (например `0008_patient_home_blocks.sql`).
+Сгенерировать `pnpm --dir apps/webapp run db:generate` (или эквивалент в проекте — см. EXECUTION*RULES.md TREATMENT_PROGRAM_INITIATIVE раздел «Правила Drizzle»). Следующий номер миграции — `0008*\*`. Имя осмысленное (например `0008_patient_home_blocks.sql`).
 
 Дополнить миграцию вручную:
 
@@ -392,22 +404,22 @@ export type ContentSectionRow = {
 
 ```ts
 export type PatientHomeBlockCode =
-  | "daily_warmup"
-  | "booking"
-  | "situations"
-  | "progress"
-  | "next_reminder"
-  | "mood_checkin"
-  | "sos"
-  | "plan"
-  | "subscription_carousel"
-  | "courses";
+  | 'daily_warmup'
+  | 'booking'
+  | 'situations'
+  | 'progress'
+  | 'next_reminder'
+  | 'mood_checkin'
+  | 'sos'
+  | 'plan'
+  | 'subscription_carousel'
+  | 'courses';
 
 export type PatientHomeBlockItemTargetType =
-  | "content_page"
-  | "content_section"
-  | "course"
-  | "static_action";
+  | 'content_page'
+  | 'content_section'
+  | 'course'
+  | 'static_action';
 
 export type PatientHomeBlock = {
   code: PatientHomeBlockCode;
@@ -435,8 +447,23 @@ export type PatientHomeBlocksPort = {
   listBlocksWithItems(): Promise<PatientHomeBlock[]>;
   setBlockVisibility(code: PatientHomeBlockCode, visible: boolean): Promise<void>;
   reorderBlocks(orderedCodes: PatientHomeBlockCode[]): Promise<void>;
-  addItem(input: Omit<PatientHomeBlockItem, "id" | "sortOrder"> & { sortOrder?: number }): Promise<string>;
-  updateItem(id: string, patch: Partial<Pick<PatientHomeBlockItem, "titleOverride" | "subtitleOverride" | "imageUrlOverride" | "badgeLabel" | "isVisible" | "sortOrder">>): Promise<void>;
+  addItem(
+    input: Omit<PatientHomeBlockItem, 'id' | 'sortOrder'> & { sortOrder?: number },
+  ): Promise<string>;
+  updateItem(
+    id: string,
+    patch: Partial<
+      Pick<
+        PatientHomeBlockItem,
+        | 'titleOverride'
+        | 'subtitleOverride'
+        | 'imageUrlOverride'
+        | 'badgeLabel'
+        | 'isVisible'
+        | 'sortOrder'
+      >
+    >,
+  ): Promise<void>;
   deleteItem(id: string): Promise<void>;
   reorderItems(blockCode: PatientHomeBlockCode, orderedItemIds: string[]): Promise<void>;
 };
@@ -732,11 +759,11 @@ export async function getPatientHomeTodayConfig(deps: AppDeps): Promise<{
 
 Важно по текущей архитектуре `/app/patient`: в Phase 3 `patient/layout.tsx` всё ещё редиректит пользователя без сессии на вход. Поэтому строка «Гость» ниже описывает **целевой non-personal UI-режим**, а не требование открыть `/app/patient` анонимно в Phase 3. На практике в Phase 3 этот режим чаще соответствует авторизованному пользователю без активного patient-tier (`personalTierOk === false`). Настоящая публичная главная без сессии вынесена в отдельную Phase 4.5.
 
-| Состояние | Что показываем |
-|---|---|
+| Состояние                                                                   | Что показываем                                                                                                                                                                         |
+| --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Non-personal mode (без patient-tier; после Phase 4.5 также anonymous guest) | Greeting → DailyWarmupCard (из настройки админа; кнопка «Войти, чтобы отмечать прогресс») → BookingCard → SituationsRow → SosCard → SubscriptionCarousel. Никаких персональных данных. |
-| Авторизован, без tier `patient` | То же + кнопка «Активировать профиль» в BookingCard. |
-| Авторизован, tier `patient` | Полный набор блоков + персональные (PlanCard, NextReminderCard). |
+| Авторизован, без tier `patient`                                             | То же + кнопка «Активировать профиль» в BookingCard.                                                                                                                                   |
+| Авторизован, tier `patient`                                                 | Полный набор блоков + персональные (PlanCard, NextReminderCard).                                                                                                                       |
 
 #### 3.3. Источники данных
 
@@ -911,18 +938,28 @@ export async function getPatientHomeTodayConfig(deps: AppDeps): Promise<{
 Файл: новый schema `apps/webapp/db/schema/patientPractice.ts` (или добавить в существующий, если применимо). Таблица:
 
 ```ts
-export const patientPracticeCompletions = pgTable("patient_practice_completions", {
-  id: uuid().defaultRandom().primaryKey().notNull(),
-  userId: uuid("user_id").notNull(),  // ← canonical platform user id (см. PLATFORM_IDENTITY)
-  contentPageId: uuid("content_page_id").notNull(),
-  completedAt: timestamp("completed_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-  source: text().notNull(), // 'home' | 'reminder' | 'section_page' | 'daily_warmup'
-  feeling: smallint(),       // 1..5 nullable
-  notes: text().default("").notNull(),
-}, (table) => [
-  index("idx_ppc_user_completed_desc").using("btree", table.userId.asc(), table.completedAt.desc()),
-  index("idx_ppc_user_page").using("btree", table.userId.asc(), table.contentPageId.asc()),
-]);
+export const patientPracticeCompletions = pgTable(
+  'patient_practice_completions',
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    userId: uuid('user_id').notNull(), // ← canonical platform user id (см. PLATFORM_IDENTITY)
+    contentPageId: uuid('content_page_id').notNull(),
+    completedAt: timestamp('completed_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    source: text().notNull(), // 'home' | 'reminder' | 'section_page' | 'daily_warmup'
+    feeling: smallint(), // 1..5 nullable
+    notes: text().default('').notNull(),
+  },
+  (table) => [
+    index('idx_ppc_user_completed_desc').using(
+      'btree',
+      table.userId.asc(),
+      table.completedAt.desc(),
+    ),
+    index('idx_ppc_user_page').using('btree', table.userId.asc(), table.contentPageId.asc()),
+  ],
+);
 ```
 
 Миграция `0010_*`.
@@ -951,7 +988,12 @@ ALTER TABLE patient_practice_completions
 - `apps/webapp/src/modules/patient-practice/ports.ts`:
   ```ts
   export type PatientPracticePort = {
-    record(input: { userId: string; contentPageId: string; source: PracticeSource; feeling?: number | null }): Promise<{ id: string }>;
+    record(input: {
+      userId: string;
+      contentPageId: string;
+      source: PracticeSource;
+      feeling?: number | null;
+    }): Promise<{ id: string }>;
     countToday(userId: string, tz: string): Promise<number>;
     streak(userId: string, tz: string): Promise<number>;
     /** Последние N completions (для аналитики/будущих экранов) */
@@ -1058,16 +1100,24 @@ Server component:
 #### 6.1. Schema: `patient_daily_mood`
 
 ```ts
-export const patientDailyMood = pgTable("patient_daily_mood", {
-  userId: uuid("user_id").notNull(),
-  moodDate: date("mood_date").notNull(),
-  score: smallint().notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-}, (table) => [
-  primaryKey({ columns: [table.userId, table.moodDate] }),
-  check("pdm_score_check", sql`score BETWEEN 1 AND 5`),
-]);
+export const patientDailyMood = pgTable(
+  'patient_daily_mood',
+  {
+    userId: uuid('user_id').notNull(),
+    moodDate: date('mood_date').notNull(),
+    score: smallint().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.moodDate] }),
+    check('pdm_score_check', sql`score BETWEEN 1 AND 5`),
+  ],
+);
 ```
 
 Миграция `0011_*`.
@@ -1079,7 +1129,11 @@ export const patientDailyMood = pgTable("patient_daily_mood", {
 - `modules/patient-mood/ports.ts`:
   ```ts
   export type PatientMoodPort = {
-    upsertToday(userId: string, tz: string, score: number): Promise<{ moodDate: string; score: number }>;
+    upsertToday(
+      userId: string,
+      tz: string,
+      score: number,
+    ): Promise<{ moodDate: string; score: number }>;
     getToday(userId: string, tz: string): Promise<{ score: number; moodDate: string } | null>;
   };
   ```
@@ -1293,18 +1347,18 @@ export const patientDailyMood = pgTable("patient_daily_mood", {
 
 ## 8. Acceptance criteria — сводка по фазам
 
-| Phase | Главный гейт |
-|---|---|
-| 1 | Миграция применена; CMS форма раздела поддерживает обложку/иконку; `/app/settings/patient-home` управляет блоками и items; phase-level webapp checks зелёные |
-| 2 | `linked_course_id` сохраняется и видно в форме; admin может задать daily_warmup через блок главной; тесты `todayConfig` зелёные |
-| 3 | Главная пациента переписана на новые компоненты; non-personal/без tier/patient — разные наборы блоков; deprecated компоненты удалены |
-| 4 | На lg+ две колонки + полноширинная карусель; на md одна колонка; другие пациентские маршруты не задеты |
-| 4.5 | Точный `/app/patient` открыт без сессии; внутренние `/app/patient/...` остаются за авторизацией; protected media не раскрыты |
-| 5 | Кнопка «Готово» работает; стрик корректно считается; PatientHomeProgressBlock показывает реальные данные |
-| 6 | Mood checkin сохраняется/перезаписывается; «сегодня» по TZ |
-| 7 | Карусель + бейджи; контент остаётся открытым; никакого gate |
-| 8 | Утренний пинг включается флагом; ссылка ведёт в mini-app; ближайшее напоминание на главной считается по расписанию/timezone |
-| 9 | Все QA-сценарии пройдены; release snapshots сохранены; `pnpm install --frozen-lockfile && pnpm run ci` зелёный; LOG.md закрыт |
+| Phase | Главный гейт                                                                                                                                                 |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1     | Миграция применена; CMS форма раздела поддерживает обложку/иконку; `/app/settings/patient-home` управляет блоками и items; phase-level webapp checks зелёные |
+| 2     | `linked_course_id` сохраняется и видно в форме; admin может задать daily_warmup через блок главной; тесты `todayConfig` зелёные                              |
+| 3     | Главная пациента переписана на новые компоненты; non-personal/без tier/patient — разные наборы блоков; deprecated компоненты удалены                         |
+| 4     | На lg+ две колонки + полноширинная карусель; на md одна колонка; другие пациентские маршруты не задеты                                                       |
+| 4.5   | Точный `/app/patient` открыт без сессии; внутренние `/app/patient/...` остаются за авторизацией; protected media не раскрыты                                 |
+| 5     | Кнопка «Готово» работает; стрик корректно считается; PatientHomeProgressBlock показывает реальные данные                                                     |
+| 6     | Mood checkin сохраняется/перезаписывается; «сегодня» по TZ                                                                                                   |
+| 7     | Карусель + бейджи; контент остаётся открытым; никакого gate                                                                                                  |
+| 8     | Утренний пинг включается флагом; ссылка ведёт в mini-app; ближайшее напоминание на главной считается по расписанию/timezone                                  |
+| 9     | Все QA-сценарии пройдены; release snapshots сохранены; `pnpm install --frozen-lockfile && pnpm run ci` зелёный; LOG.md закрыт                                |
 
 ---
 

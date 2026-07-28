@@ -16,6 +16,7 @@
 ### Шаг 9.1: profile/actions.ts — displayName max 200
 
 **Добавить после `trimmedName` проверки:**
+
 ```ts
 if (trimmedName.length > 200) return;
 ```
@@ -24,12 +25,14 @@ if (trimmedName.length > 200) return;
 
 **addSymptomEntry:**
 После `const notes = ...`:
+
 ```ts
 if (notes && notes.length > 2000) return;
 ```
 
 **createSymptomTracking:**
 После trim:
+
 ```ts
 if (symptomTitleRaw.trim().length > 200) return;
 ```
@@ -37,6 +40,7 @@ if (symptomTitleRaw.trim().length > 200) return;
 ### Шаг 9.3: lfk/actions.ts — complexTitle max 200
 
 После trim title:
+
 ```ts
 if (title.length > 200) return;
 ```
@@ -44,6 +48,7 @@ if (title.length > 200) return;
 ### Шаг 9.4: doctor/content/actions.ts — limits
 
 После переменных:
+
 ```ts
 if (title.length > 500) return;
 if (summary.length > 2000) return;

@@ -19,15 +19,22 @@ const DEV_PUSH_USER_ID = '1c312a64-fab8-4b75-b24e-88a1d6ebe4e0'; // Дмитри
 const now = '2026-06-17T00:00:00.000Z';
 
 /** A channel-specific capture adapter that matches by delivery.channels[0]. */
-function buildChannelCapture(channel: string): { adapter: DeliveryAdapter; captured: OutgoingIntent[] } {
+function buildChannelCapture(channel: string): {
+  adapter: DeliveryAdapter;
+  captured: OutgoingIntent[];
+} {
   const captured: OutgoingIntent[] = [];
   return {
     captured,
     adapter: {
       canHandle: (intent) =>
         intent.type === 'message.send' &&
-        Array.isArray((intent.payload as { delivery?: { channels?: unknown } }).delivery?.channels) &&
-        ((intent.payload as { delivery?: { channels?: string[] } }).delivery?.channels ?? []).includes(channel),
+        Array.isArray(
+          (intent.payload as { delivery?: { channels?: unknown } }).delivery?.channels,
+        ) &&
+        (
+          (intent.payload as { delivery?: { channels?: string[] } }).delivery?.channels ?? []
+        ).includes(channel),
       send: async (intent) => {
         captured.push(intent);
         return {};
@@ -82,7 +89,11 @@ describe('createUnifiedSender — channel validation', () => {
   it('accepts all valid Channel values', () => {
     // Static check — these should compile without error.
     const validChannels: UnifiedOutgoingMessage['channel'][] = [
-      'telegram', 'max', 'smsc', 'email', 'web_push',
+      'telegram',
+      'max',
+      'smsc',
+      'email',
+      'web_push',
     ];
     expect(validChannels).toHaveLength(5);
   });
@@ -109,8 +120,11 @@ describe('createUnifiedSender — PRE-FORK PER-CHANNEL DEV REDIRECT (PLAN S3 DoD
       recipient: { email: 'real-patient@example.com' },
       content: { text: 'Your appointment is confirmed.', title: 'Appointment Reminder' },
       meta: {
-        eventId: 'email-001', occurredAt: now, source: 'email',
-        outboundMessageClass: 'auth_code', outboundCapability: 'auth_code',
+        eventId: 'email-001',
+        occurredAt: now,
+        source: 'email',
+        outboundMessageClass: 'auth_code',
+        outboundCapability: 'auth_code',
       },
     };
 
@@ -146,8 +160,11 @@ describe('createUnifiedSender — PRE-FORK PER-CHANNEL DEV REDIRECT (PLAN S3 DoD
         pushExtras: { tag: 'chat-msg', topicCode: 'patient_chat' },
       },
       meta: {
-        eventId: 'push-001', occurredAt: now, source: 'web_push',
-        outboundMessageClass: 'routine_product', outboundCapability: 'app_push',
+        eventId: 'push-001',
+        occurredAt: now,
+        source: 'web_push',
+        outboundMessageClass: 'routine_product',
+        outboundCapability: 'app_push',
       },
     };
 
@@ -182,8 +199,11 @@ describe('createUnifiedSender — PRE-FORK PER-CHANNEL DEV REDIRECT (PLAN S3 DoD
       recipient: { email: 'test@example.com' },
       content: { text: 'test' },
       meta: {
-        eventId: 'e-log', occurredAt: now, source: 'email',
-        outboundMessageClass: 'auth_code', outboundCapability: 'auth_code',
+        eventId: 'e-log',
+        occurredAt: now,
+        source: 'email',
+        outboundMessageClass: 'auth_code',
+        outboundCapability: 'auth_code',
       },
     });
 
@@ -218,13 +238,19 @@ describe('createUnifiedSender — telegram message delegated to dispatchPort (pr
       recipient: { chatId: 364943522 },
       content: { text: 'Hello doctor!' },
       meta: {
-        eventId: 'tg-001', occurredAt: now, source: 'telegram',
-        outboundMessageClass: 'auth_code', outboundCapability: 'auth_code',
+        eventId: 'tg-001',
+        occurredAt: now,
+        source: 'telegram',
+        outboundMessageClass: 'auth_code',
+        outboundCapability: 'auth_code',
       },
     });
 
     expect(captured).toHaveLength(1);
-    const payload = captured[0]!.payload as { recipient: { chatId: unknown }; delivery: { channels: string[] } };
+    const payload = captured[0]!.payload as {
+      recipient: { chatId: unknown };
+      delivery: { channels: string[] };
+    };
     expect(payload.recipient.chatId).toBe(364943522);
     expect(payload.delivery.channels).toEqual(['telegram']);
   });

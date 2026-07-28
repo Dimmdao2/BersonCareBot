@@ -5,7 +5,7 @@ export function wrapSelection(
   start: number,
   end: number,
   wrap: string,
-  placeholder = "текст",
+  placeholder = 'текст',
 ): { next: string; caret: number } {
   const safeStart = Math.max(0, Math.min(start, text.length));
   const safeEnd = Math.max(safeStart, Math.min(end, text.length));
@@ -23,7 +23,7 @@ export function insertLinePrefix(
   prefix: string,
 ): { next: string; caret: number } {
   const safeStart = Math.max(0, Math.min(start, text.length));
-  const lineStart = text.lastIndexOf("\n", safeStart - 1) + 1;
+  const lineStart = text.lastIndexOf('\n', safeStart - 1) + 1;
   const next = text.slice(0, lineStart) + prefix + text.slice(lineStart);
   const caret = safeStart + prefix.length;
   return { next, caret };

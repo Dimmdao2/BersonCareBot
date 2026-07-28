@@ -15,10 +15,7 @@ describe('smsc client nock', () => {
   });
 
   it('calls smsc provider endpoint and returns ok', async () => {
-    nock('https://smsc.ru')
-      .get('/sys/send.php')
-      .query(true)
-      .reply(200, { id: 123, cnt: 1 });
+    nock('https://smsc.ru').get('/sys/send.php').query(true).reply(200, { id: 123, cnt: 1 });
 
     const client = createSmscClient({
       apiKey: 'test-key',

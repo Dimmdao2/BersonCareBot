@@ -1,18 +1,18 @@
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray } from 'drizzle-orm';
 
-import { getDrizzle } from "@/app-layer/db/drizzle";
+import { getDrizzle } from '@/app-layer/db/drizzle';
 import {
   contentPages,
   lfkComplexTemplateExercises,
   lfkExerciseMedia,
-} from "../../../db/schema/schema";
-import type { MaterialRatingTargetKind } from "@/modules/material-rating/types";
-import { parseMediaFileIdFromAppUrl } from "@/shared/lib/mediaPreviewUrls";
+} from '../../../db/schema/schema';
+import type { MaterialRatingTargetKind } from '@/modules/material-rating/types';
+import { parseMediaFileIdFromAppUrl } from '@/shared/lib/mediaPreviewUrls';
 
 /** UUID из `/api/media/{uuid}` в строке URL (query/hash отрезаются). */
 export function extractMediaFileIdFromMaterialUrl(raw: string | null | undefined): string | null {
   if (!raw?.trim()) return null;
-  const base = raw.trim().split("#")[0]?.split("?")[0] ?? "";
+  const base = raw.trim().split('#')[0]?.split('?')[0] ?? '';
   return parseMediaFileIdFromAppUrl(base);
 }
 
@@ -26,7 +26,7 @@ export async function resolveMaterialRatingTargetVideoMediaIds(
   const db = getDrizzle();
   const ids = new Set<string>();
 
-  if (targetKind === "content_page") {
+  if (targetKind === 'content_page') {
     const row = await db
       .select({ videoUrl: contentPages.videoUrl })
       .from(contentPages)
@@ -37,13 +37,13 @@ export async function resolveMaterialRatingTargetVideoMediaIds(
     return [...ids];
   }
 
-  if (targetKind === "lfk_exercise") {
+  if (targetKind === 'lfk_exercise') {
     const mediaRows = await db
       .select({ mediaUrl: lfkExerciseMedia.mediaUrl, mediaType: lfkExerciseMedia.mediaType })
       .from(lfkExerciseMedia)
       .where(eq(lfkExerciseMedia.exerciseId, targetId));
     for (const m of mediaRows) {
-      if (m.mediaType !== "video") continue;
+      if (m.mediaType !== 'video') continue;
       const mid = extractMediaFileIdFromMaterialUrl(m.mediaUrl);
       if (mid) ids.add(mid);
     }
@@ -62,7 +62,7 @@ export async function resolveMaterialRatingTargetVideoMediaIds(
     .from(lfkExerciseMedia)
     .where(inArray(lfkExerciseMedia.exerciseId, exerciseIds));
   for (const m of mediaRows) {
-    if (m.mediaType !== "video") continue;
+    if (m.mediaType !== 'video') continue;
     const mid = extractMediaFileIdFromMaterialUrl(m.mediaUrl);
     if (mid) ids.add(mid);
   }

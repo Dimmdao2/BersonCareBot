@@ -1,75 +1,77 @@
 import type { Pool, PoolClient } from 'pg';
 import {
-	applyCurrentDbPrincipalToConnection,
-	applyCurrentDbPrincipalToTransaction,
-	buildDbPrincipalApplyOptionsFromEnv,
-	clearDbPrincipalFromConnection,
-	getCurrentDbPrincipal,
-	setDbOperationalRuntimeRole,
-	type DbPrincipal,
-	type DbPrincipalApplyOptions,
+  applyCurrentDbPrincipalToConnection,
+  applyCurrentDbPrincipalToTransaction,
+  buildDbPrincipalApplyOptionsFromEnv,
+  clearDbPrincipalFromConnection,
+  getCurrentDbPrincipal,
+  setDbOperationalRuntimeRole,
+  type DbPrincipal,
+  type DbPrincipalApplyOptions,
 } from '@bersoncare/db-principal';
 
 const principalApplyOptionsByClient = new WeakMap<PoolClient, DbPrincipalApplyOptions>();
 const allowedLockedBootstrapSources = new Set([
-	'integrator-deployment-org-resolution',
-	'integrator-server-runtime-config',
-	'integrator-user-org-resolution',
-	'max-webhook:pre-routing',
-	'max-webhook:unresolved-org',
-	'max-webhook:verbose-config',
-	'telegram-webhook:clear-menu-unresolved-org',
-	'telegram-webhook:pre-routing',
-	'telegram-webhook:unresolved-org',
+  'integrator-deployment-org-resolution',
+  'integrator-server-runtime-config',
+  'integrator-user-org-resolution',
+  'max-webhook:pre-routing',
+  'max-webhook:unresolved-org',
+  'max-webhook:verbose-config',
+  'telegram-webhook:clear-menu-unresolved-org',
+  'telegram-webhook:pre-routing',
+  'telegram-webhook:unresolved-org',
 ]);
 const allowedLockedInfraSources = new Set([
-	'delivery-handler',
-	'integrator-health-check',
-	'integrator-projection-health',
-	'max-webhook:record-outcome',
-	'scheduler:acquire-lock',
-	'scheduler:claim-due-jobs',
-	'scheduler:handle-tick-event',
-	'telegram-webhook:record-outcome',
-	'worker:job-queue-drain',
-	'worker:outgoing-delivery-tick',
-	'worker:projection-outbox-tick',
+  'delivery-handler',
+  'integrator-health-check',
+  'integrator-projection-health',
+  'max-webhook:record-outcome',
+  'scheduler:acquire-lock',
+  'scheduler:claim-due-jobs',
+  'scheduler:handle-tick-event',
+  'telegram-webhook:record-outcome',
+  'worker:job-queue-drain',
+  'worker:outgoing-delivery-tick',
+  'worker:projection-outbox-tick',
 ]);
 
 export type IntegratorTechnicalRuntimeRole =
-	| 'app_operational_diagnostic'
-	| 'app_operational_delivery_worker'
-	| 'app_operational_scheduler';
+  | 'app_operational_diagnostic'
+  | 'app_operational_delivery_worker'
+  | 'app_operational_scheduler';
 
 const diagnosticInfraSources = new Set(['integrator-projection-health']);
 const workerInfraSources = new Set([
-	'worker:job-queue-drain',
-	'worker:outgoing-delivery-tick',
-	'worker:projection-outbox-tick',
+  'worker:job-queue-drain',
+  'worker:outgoing-delivery-tick',
+  'worker:projection-outbox-tick',
 ]);
 const schedulerInfraSources = new Set([
-	'scheduler:acquire-lock',
-	'scheduler:claim-due-jobs',
-	'scheduler:handle-tick-event',
+  'scheduler:acquire-lock',
+  'scheduler:claim-due-jobs',
+  'scheduler:handle-tick-event',
 ]);
 
-export function getCurrentIntegratorTechnicalRuntimeRole(): IntegratorTechnicalRuntimeRole | undefined {
-	const principal = getCurrentDbPrincipal();
-	if (principal?.kind !== 'infra') return undefined;
-	const source = principal.source ?? '';
-	if (diagnosticInfraSources.has(source)) return 'app_operational_diagnostic';
-	if (workerInfraSources.has(source)) return 'app_operational_delivery_worker';
-	if (schedulerInfraSources.has(source)) return 'app_operational_scheduler';
-	return undefined;
+export function getCurrentIntegratorTechnicalRuntimeRole():
+  | IntegratorTechnicalRuntimeRole
+  | undefined {
+  const principal = getCurrentDbPrincipal();
+  if (principal?.kind !== 'infra') return undefined;
+  const source = principal.source ?? '';
+  if (diagnosticInfraSources.has(source)) return 'app_operational_diagnostic';
+  if (workerInfraSources.has(source)) return 'app_operational_delivery_worker';
+  if (schedulerInfraSources.has(source)) return 'app_operational_scheduler';
+  return undefined;
 }
 
 export async function prepareIntegratorTechnicalPoolClient(
-	client: PoolClient,
-	options: DbPrincipalApplyOptions,
+  client: PoolClient,
+  options: DbPrincipalApplyOptions,
 ): Promise<void> {
-	if (options.mode !== 'locked') return;
-	const role = getCurrentIntegratorTechnicalRuntimeRole();
-	if (role !== undefined) await setDbOperationalRuntimeRole(client, role);
+  if (options.mode !== 'locked') return;
+  const role = getCurrentIntegratorTechnicalRuntimeRole();
+  if (role !== undefined) await setDbOperationalRuntimeRole(client, role);
 }
 
 function getDbPrincipalApplyOptions(): DbPrincipalApplyOptions {
@@ -89,33 +91,39 @@ function getPreparedClientOptions(client: PoolClient): DbPrincipalApplyOptions {
 }
 
 function toReleaseError(err: unknown): Error {
-	return err instanceof Error ? err : new Error(String(err));
+  return err instanceof Error ? err : new Error(String(err));
 }
 
 function assertAllowedTechnicalPrincipal(principal: DbPrincipal): void {
-	const source = principal.source ?? '';
-	if (principal.kind === 'bootstrap' && !allowedLockedBootstrapSources.has(source)) {
-		throw new Error(`DB bootstrap principal source is not allowed on integrator request pool in locked mode: ${source || 'missing'}`);
-	}
-	if (principal.kind === 'infra' && !allowedLockedInfraSources.has(source)) {
-		throw new Error(`DB infra principal source is not allowed on integrator request pool in locked mode: ${source || 'missing'}`);
-	}
+  const source = principal.source ?? '';
+  if (principal.kind === 'bootstrap' && !allowedLockedBootstrapSources.has(source)) {
+    throw new Error(
+      `DB bootstrap principal source is not allowed on integrator request pool in locked mode: ${source || 'missing'}`,
+    );
+  }
+  if (principal.kind === 'infra' && !allowedLockedInfraSources.has(source)) {
+    throw new Error(
+      `DB infra principal source is not allowed on integrator request pool in locked mode: ${source || 'missing'}`,
+    );
+  }
 }
 
 export function assertIntegratorLockedPrincipalClassified(options: DbPrincipalApplyOptions): void {
-	if (options.mode !== 'locked') {
-		return;
-	}
-	const principal = getCurrentDbPrincipal();
-	if (!principal) {
-		throw new Error('DB principal context is required before integrator scoped DB access in locked mode');
-	}
-	assertAllowedTechnicalPrincipal(principal);
+  if (options.mode !== 'locked') {
+    return;
+  }
+  const principal = getCurrentDbPrincipal();
+  if (!principal) {
+    throw new Error(
+      'DB principal context is required before integrator scoped DB access in locked mode',
+    );
+  }
+  assertAllowedTechnicalPrincipal(principal);
 }
 
 async function prepareIntegratorClient(
-	client: PoolClient,
-	options: DbPrincipalApplyOptions,
+  client: PoolClient,
+  options: DbPrincipalApplyOptions,
 ): Promise<void> {
   await applyCurrentDbPrincipalToConnection(client, options);
   await prepareIntegratorTechnicalPoolClient(client, options);
@@ -150,7 +158,10 @@ export async function releasePreparedIntegratorClient(
   }
 }
 
-export async function destroyPreparedIntegratorClient(client: PoolClient, err: unknown): Promise<void> {
+export async function destroyPreparedIntegratorClient(
+  client: PoolClient,
+  err: unknown,
+): Promise<void> {
   forgetPreparedClient(client);
   const releaseWithError = client.release as unknown as (releaseError?: Error) => void;
   releaseWithError(toReleaseError(err));
@@ -175,10 +186,10 @@ async function releasePreparedIntegratorClientAfterSetupFailure(
 }
 
 export async function checkoutIntegratorPoolClient(pool: Pool): Promise<PoolClient> {
-	const principalApplyOptions = getDbPrincipalApplyOptions();
-	assertIntegratorLockedPrincipalClassified(principalApplyOptions);
-	const client = await pool.connect();
-	try {
+  const principalApplyOptions = getDbPrincipalApplyOptions();
+  assertIntegratorLockedPrincipalClassified(principalApplyOptions);
+  const client = await pool.connect();
+  try {
     await prepareIntegratorClient(client, principalApplyOptions);
     return client;
   } catch (err) {
@@ -200,12 +211,12 @@ export async function withIntegratorPoolClient<T>(
 }
 
 export async function withIntegratorPoolTransaction<T>(
-	pool: Pool,
-	fn: (client: PoolClient) => Promise<T>,
+  pool: Pool,
+  fn: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
-	const principalApplyOptions = getDbPrincipalApplyOptions();
-	assertIntegratorLockedPrincipalClassified(principalApplyOptions);
-	const client = await pool.connect();
+  const principalApplyOptions = getDbPrincipalApplyOptions();
+  assertIntegratorLockedPrincipalClassified(principalApplyOptions);
+  const client = await pool.connect();
   try {
     await prepareIntegratorClient(client, principalApplyOptions);
     await client.query('BEGIN');

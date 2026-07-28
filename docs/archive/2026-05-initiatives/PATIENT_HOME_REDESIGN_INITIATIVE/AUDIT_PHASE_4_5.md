@@ -5,7 +5,7 @@
 Phase 4.5 соответствует ТЗ инициативы ([README §6 Phase 4.5](README.md)) и проверенным пунктам ниже:
 
 - **Точный `/app/patient` без сессии:** в [`apps/webapp/src/app/app/patient/layout.tsx`](apps/webapp/src/app/app/patient/layout.tsx) при `!session` и [`patientLayoutAllowsUnauthenticatedAccess(pathname)`](apps/webapp/src/modules/platform-access/patientRouteApiPolicy.ts) рендерится `PatientClientLayout` без `redirect`. В [`page.tsx`](apps/webapp/src/app/app/patient/page.tsx) при `!session` нет `redirect`, рендерится non-personal главная.
-- **Внутренние `/app/patient/...` без сессии:** если `patientLayoutAllowsUnauthenticatedAccess` ложно (любой путь кроме нормализованного `"/app/patient"`), layout выполняет `redirect(\`${routePaths.root}?next=...\`)` с `returnTo = pathname + search` (или fallback на `routePaths.patient`).
+- **Внутренние `/app/patient/...` без сессии:** если `patientLayoutAllowsUnauthenticatedAccess` ложно (любой путь кроме нормализованного `"/app/patient"`), layout выполняет `redirect(\`${routePaths.root}?next=...\`)`с`returnTo = pathname + search`(или fallback на`routePaths.patient`).
 - **Персональные данные без сессии:** [`PatientHomeToday.tsx`](apps/webapp/src/app/app/patient/home/PatientHomeToday.tsx) — `listRulesByUser` / `listForPatient` только при `personalTierOk && session`; `personalizedName` только при `personalTierOk && session`. Анонимная главная: [`AppShell`](apps/webapp/src/app/app/patient/page.tsx) с `user={null}`, `patientHideRightIcons`, `patientHideHome` — нет опроса [`useReminderUnreadCount`](apps/webapp/src/modules/reminders/hooks/useReminderUnreadCount.ts) из шапки.
 - **`session === null`:** тип `AppSession | null`, ветка `anonymousGuest`, маппинг drilldown и media в [`patientHomeGuestNav.ts`](apps/webapp/src/app/app/patient/home/patientHomeGuestNav.ts).
 - **Media:** публичная отдача через API не расширялась; для анонима в UI обнуляются превью с префиксом `/api/media/` ([`stripApiMediaForAnonymousGuest`](apps/webapp/src/app/app/patient/home/patientHomeGuestNav.ts), использование в `PatientHomeToday`).
@@ -45,14 +45,14 @@ Result:
 
 ## 5. Explicit security/auth boundary confirmation
 
-| Граница | Подтверждение |
-|--------|----------------|
+| Граница                                        | Подтверждение                                                                                                                                                            |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Единственная публичная точка layout без сессии | `normalizeAppPatientPath(pathname) === "/app/patient"` в [`patientLayoutAllowsUnauthenticatedAccess`](apps/webapp/src/modules/platform-access/patientRouteApiPolicy.ts). |
-| Вложенные маршруты без сессии | Редирект на [`routePaths.root`](apps/webapp/src/app-layer/routes/paths.ts) с `next` в [`layout.tsx`](apps/webapp/src/app/app/patient/layout.tsx). |
-| Персональные порты БД на RSC главной | Только при `personalTierOk && session` в [`PatientHomeToday.tsx`](apps/webapp/src/app/app/patient/home/PatientHomeToday.tsx). |
-| Auth-on-drilldown | Внутренние цели оборачиваются в `appLoginWithNextHref` для `anonymousGuest` (карточки + маппинг списков в `PatientHomeToday`). |
-| Cookies / session model | Не менялись (нет правок `modules/auth/*` и cookie-логики в Phase 4.5). |
-| `GET /api/media/:id` | Нет изменений в `app/api/media` в рамках этой фазы; аноним не получает новых прав на ассеты — только деградация превью на главной для URL с префиксом `/api/media/`. |
+| Вложенные маршруты без сессии                  | Редирект на [`routePaths.root`](apps/webapp/src/app-layer/routes/paths.ts) с `next` в [`layout.tsx`](apps/webapp/src/app/app/patient/layout.tsx).                        |
+| Персональные порты БД на RSC главной           | Только при `personalTierOk && session` в [`PatientHomeToday.tsx`](apps/webapp/src/app/app/patient/home/PatientHomeToday.tsx).                                            |
+| Auth-on-drilldown                              | Внутренние цели оборачиваются в `appLoginWithNextHref` для `anonymousGuest` (карточки + маппинг списков в `PatientHomeToday`).                                           |
+| Cookies / session model                        | Не менялись (нет правок `modules/auth/*` и cookie-логики в Phase 4.5).                                                                                                   |
+| `GET /api/media/:id`                           | Нет изменений в `app/api/media` в рамках этой фазы; аноним не получает новых прав на ассеты — только деградация превью на главной для URL с префиксом `/api/media/`.     |
 
 ## 6. No slug hardcode confirmation
 

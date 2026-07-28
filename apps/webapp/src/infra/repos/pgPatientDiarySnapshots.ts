@@ -1,11 +1,11 @@
-import { and, asc, eq, gte, lte, min } from "drizzle-orm";
-import { getDrizzle } from "@/app-layer/db/drizzle";
+import { and, asc, eq, gte, lte, min } from 'drizzle-orm';
+import { getDrizzle } from '@/app-layer/db/drizzle';
 import {
   patientDiaryDaySnapshots,
   type PatientDiaryDaySnapshotInsert,
   type PatientDiaryDaySnapshotRow,
-} from "../../../db/schema/patientDiarySnapshots";
-import type { PatientDiarySnapshotsPort } from "@/modules/patient-diary/ports";
+} from '../../../db/schema/patientDiarySnapshots';
+import type { PatientDiarySnapshotsPort } from '@/modules/patient-diary/ports';
 
 export function createPgPatientDiarySnapshotsPort(): PatientDiarySnapshotsPort {
   return {
@@ -14,7 +14,9 @@ export function createPgPatientDiarySnapshotsPort(): PatientDiarySnapshotsPort {
       const inserted = await db
         .insert(patientDiaryDaySnapshots)
         .values(row)
-        .onConflictDoNothing({ target: [patientDiaryDaySnapshots.platformUserId, patientDiaryDaySnapshots.localDate] })
+        .onConflictDoNothing({
+          target: [patientDiaryDaySnapshots.platformUserId, patientDiaryDaySnapshots.localDate],
+        })
         .returning({ platformUserId: patientDiaryDaySnapshots.platformUserId });
       return inserted.length > 0;
     },

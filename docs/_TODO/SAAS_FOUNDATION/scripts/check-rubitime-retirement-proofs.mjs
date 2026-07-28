@@ -204,7 +204,13 @@ if (process.argv.includes('--help')) {
 
 const materializedProofs = materializeProofs();
 const errors = validate(materializedProofs);
-console.log(JSON.stringify({ proofs: materializedProofs, requireComplete: process.argv.includes('--require-complete') }, null, 2));
+console.log(
+  JSON.stringify(
+    { proofs: materializedProofs, requireComplete: process.argv.includes('--require-complete') },
+    null,
+    2,
+  ),
+);
 
 if (errors.length > 0) {
   console.error('check-rubitime-retirement-proofs: FAILED');

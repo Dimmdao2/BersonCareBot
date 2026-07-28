@@ -6,7 +6,7 @@ import type {
   TemplateExerciseInput,
   TemplateFilter,
   UpdateTemplateInput,
-} from "./types";
+} from './types';
 
 export type LfkTemplatesPort = {
   list(filter: TemplateFilter): Promise<Template[]>;
@@ -18,6 +18,6 @@ export type LfkTemplatesPort = {
     exercises: TemplateExerciseInput[],
     options?: TemplateAccessOptions,
   ): Promise<void>;
-  setStatus(id: string, status: Template["status"]): Promise<Template | null>;
+  setStatus(id: string, status: Template['status']): Promise<Template | null>;
   getTemplateUsageSummary(templateId: string): Promise<LfkTemplateUsageSnapshot>;
 };

@@ -40,7 +40,9 @@ export function resolveLinkedPhoneNormalized(
  * Reads `integrator_linked_phone_source` from `public.system_settings` (TTL cache).
  * Default `public_then_contacts` for safe staged rollout.
  */
-export async function getIntegratorLinkedPhoneSource(db: DbPort): Promise<IntegratorLinkedPhoneSource> {
+export async function getIntegratorLinkedPhoneSource(
+  db: DbPort,
+): Promise<IntegratorLinkedPhoneSource> {
   const now = Date.now();
   if (cache && cache.expiresAt > now) {
     return cache.value;
@@ -55,7 +57,10 @@ export async function getIntegratorLinkedPhoneSource(db: DbPort): Promise<Integr
     cache = { value, expiresAt: now + TTL_MS };
     return value;
   } catch (err) {
-    logger.warn({ err, key: KEY }, '[linkedPhoneSource] query failed, default public_then_contacts');
+    logger.warn(
+      { err, key: KEY },
+      '[linkedPhoneSource] query failed, default public_then_contacts',
+    );
     return 'public_then_contacts';
   }
 }

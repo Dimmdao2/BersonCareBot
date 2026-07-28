@@ -1,68 +1,68 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'vitest';
 import {
   REMINDER_NOTIFICATION_TOPIC_APPOINTMENT,
   REMINDER_NOTIFICATION_TOPIC_EXERCISE,
   notificationTopicCodeFromReminderRule,
-} from "./notificationTopicCode";
+} from './notificationTopicCode';
 
-describe("notificationTopicCodeFromReminderRule", () => {
-  it("maps appointment category", () => {
+describe('notificationTopicCodeFromReminderRule', () => {
+  it('maps appointment category', () => {
     expect(
       notificationTopicCodeFromReminderRule({
-        category: "appointment",
+        category: 'appointment',
         linkedObjectType: null,
       }),
     ).toBe(REMINDER_NOTIFICATION_TOPIC_APPOINTMENT);
   });
 
-  it("maps lfk category with warmup intent to warmup topic", () => {
+  it('maps lfk category with warmup intent to warmup topic', () => {
     expect(
       notificationTopicCodeFromReminderRule({
-        category: "lfk",
-        linkedObjectType: "lfk_complex",
-        reminderIntent: "warmup",
+        category: 'lfk',
+        linkedObjectType: 'lfk_complex',
+        reminderIntent: 'warmup',
       }),
-    ).toBe("warmup_reminders");
+    ).toBe('warmup_reminders');
   });
 
-  it("maps lfk category", () => {
+  it('maps lfk category', () => {
     expect(
       notificationTopicCodeFromReminderRule({
-        category: "lfk",
-        linkedObjectType: "lfk_complex",
-        reminderIntent: "generic",
-      }),
-    ).toBe(REMINDER_NOTIFICATION_TOPIC_EXERCISE);
-  });
-
-  it("maps linked content types when category is chat", () => {
-    expect(
-      notificationTopicCodeFromReminderRule({
-        category: "chat",
-        linkedObjectType: "content_section",
+        category: 'lfk',
+        linkedObjectType: 'lfk_complex',
+        reminderIntent: 'generic',
       }),
     ).toBe(REMINDER_NOTIFICATION_TOPIC_EXERCISE);
   });
 
-  it("returns null for important even if linked object looks like rehab", () => {
+  it('maps linked content types when category is chat', () => {
     expect(
       notificationTopicCodeFromReminderRule({
-        category: "important",
-        linkedObjectType: "rehab_program",
+        category: 'chat',
+        linkedObjectType: 'content_section',
+      }),
+    ).toBe(REMINDER_NOTIFICATION_TOPIC_EXERCISE);
+  });
+
+  it('returns null for important even if linked object looks like rehab', () => {
+    expect(
+      notificationTopicCodeFromReminderRule({
+        category: 'important',
+        linkedObjectType: 'rehab_program',
       }),
     ).toBeNull();
     expect(
       notificationTopicCodeFromReminderRule({
-        category: "important",
+        category: 'important',
         linkedObjectType: null,
       }),
     ).toBeNull();
   });
 
-  it("returns null for categories without topic mapping (e.g. broadcast; symptom_reminders reserved)", () => {
+  it('returns null for categories without topic mapping (e.g. broadcast; symptom_reminders reserved)', () => {
     expect(
       notificationTopicCodeFromReminderRule({
-        category: "broadcast",
+        category: 'broadcast',
         linkedObjectType: null,
       }),
     ).toBeNull();

@@ -1,32 +1,32 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { getDrizzleMock } = vi.hoisted(() => ({
   getDrizzleMock: vi.fn(),
 }));
 
-vi.mock("@/app-layer/db/drizzle", () => ({
+vi.mock('@/app-layer/db/drizzle', () => ({
   getDrizzle: getDrizzleMock,
 }));
 
-vi.mock("@/modules/booking-scheduling/service", () => ({
+vi.mock('@/modules/booking-scheduling/service', () => ({
   buildSlotsForContext: vi.fn(),
 }));
 
-import { createPgBookingSchedulingPort } from "./pgBookingScheduling";
+import { createPgBookingSchedulingPort } from './pgBookingScheduling';
 
-const ORG = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
-const TMPL = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
-const WD = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
-const SPEC = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
-const WH = "ffffffff-ffff-4fff-8fff-ffffffffffff";
-const SB = "11111111-1111-4111-8111-111111111111";
+const ORG = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const TMPL = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+const WD = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+const SPEC = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+const WH = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+const SB = '11111111-1111-4111-8111-111111111111';
 
 function templateRow() {
   return {
     id: TMPL,
     organizationId: ORG,
     branchId: null,
-    name: "Стандарт",
+    name: 'Стандарт',
     startMinute: 540,
     endMinute: 1080,
     breaks: [],
@@ -42,7 +42,7 @@ function rawWorkingDayRow(overrides: Partial<Record<string, unknown>> = {}) {
     specialist_id: SPEC,
     branch_id: null,
     room_id: null,
-    work_date: "2026-07-10",
+    work_date: '2026-07-10',
     start_minute: 540,
     end_minute: 1080,
     breaks: [],
@@ -72,20 +72,20 @@ function scheduleBlockRow() {
     specialistId: SPEC,
     branchId: null,
     roomId: null,
-    startAt: "2026-07-10T09:00:00.000Z",
-    endAt: "2026-07-10T10:00:00.000Z",
-    blockType: "block" as const,
-    title: "Перерыв",
-    createdByActorId: "user-1",
+    startAt: '2026-07-10T09:00:00.000Z',
+    endAt: '2026-07-10T10:00:00.000Z',
+    blockType: 'block' as const,
+    title: 'Перерыв',
+    createdByActorId: 'user-1',
   };
 }
 
-describe("pgBookingScheduling principal-safe schedule template mutations", () => {
+describe('pgBookingScheduling principal-safe schedule template mutations', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("creates schedule templates through db.transaction", async () => {
+  it('creates schedule templates through db.transaction', async () => {
     const returning = vi.fn(async () => [templateRow()]);
     const values = vi.fn(() => ({ returning }));
     const insert = vi.fn(() => ({ values }));
@@ -100,7 +100,7 @@ describe("pgBookingScheduling principal-safe schedule template mutations", () =>
     const port = createPgBookingSchedulingPort(async () => ORG);
     const row = await port.createScheduleTemplate({
       organizationId: ORG,
-      name: "Стандарт",
+      name: 'Стандарт',
       startMinute: 540,
       endMinute: 1080,
     });
@@ -112,7 +112,7 @@ describe("pgBookingScheduling principal-safe schedule template mutations", () =>
       expect.objectContaining({
         organizationId: ORG,
         branchId: null,
-        name: "Стандарт",
+        name: 'Стандарт',
         startMinute: 540,
         endMinute: 1080,
         breaks: [],
@@ -123,7 +123,7 @@ describe("pgBookingScheduling principal-safe schedule template mutations", () =>
     expect(returning).toHaveBeenCalledTimes(1);
   });
 
-  it("deletes schedule templates through db.transaction", async () => {
+  it('deletes schedule templates through db.transaction', async () => {
     const where = vi.fn(async () => undefined);
     const set = vi.fn(() => ({ where }));
     const update = vi.fn(() => ({ set }));
@@ -144,7 +144,7 @@ describe("pgBookingScheduling principal-safe schedule template mutations", () =>
     expect(where).toHaveBeenCalledTimes(1);
   });
 
-  it("upserts working days through db.transaction", async () => {
+  it('upserts working days through db.transaction', async () => {
     const execute = vi.fn(async () => ({ rows: [rawWorkingDayRow()] }));
     const tx = { execute };
     const db = {
@@ -158,7 +158,7 @@ describe("pgBookingScheduling principal-safe schedule template mutations", () =>
     const rows = await port.upsertWorkingDays({
       organizationId: ORG,
       specialistId: SPEC,
-      dates: ["2026-07-10"],
+      dates: ['2026-07-10'],
       startMinute: 540,
       endMinute: 1080,
     });
@@ -168,7 +168,7 @@ describe("pgBookingScheduling principal-safe schedule template mutations", () =>
         id: WD,
         organizationId: ORG,
         specialistId: SPEC,
-        workDate: "2026-07-10",
+        workDate: '2026-07-10',
         isClosed: false,
       }),
     ]);
@@ -176,7 +176,7 @@ describe("pgBookingScheduling principal-safe schedule template mutations", () =>
     expect(execute).toHaveBeenCalledTimes(1);
   });
 
-  it("closes working days through db.transaction", async () => {
+  it('closes working days through db.transaction', async () => {
     const execute = vi.fn(async () => ({
       rows: [rawWorkingDayRow({ start_minute: null, end_minute: null, is_closed: true })],
     }));
@@ -192,7 +192,7 @@ describe("pgBookingScheduling principal-safe schedule template mutations", () =>
     const rows = await port.closeWorkingDays({
       organizationId: ORG,
       specialistId: SPEC,
-      dates: ["2026-07-10"],
+      dates: ['2026-07-10'],
     });
 
     expect(rows).toEqual([
@@ -209,7 +209,7 @@ describe("pgBookingScheduling principal-safe schedule template mutations", () =>
     expect(execute).toHaveBeenCalledTimes(1);
   });
 
-  it("clears working days through db.transaction", async () => {
+  it('clears working days through db.transaction', async () => {
     const where = vi.fn(async () => undefined);
     const deleteFrom = vi.fn(() => ({ where }));
     const tx = { delete: deleteFrom };
@@ -224,7 +224,7 @@ describe("pgBookingScheduling principal-safe schedule template mutations", () =>
     await port.clearWorkingDays({
       organizationId: ORG,
       specialistId: SPEC,
-      dates: ["2026-07-10"],
+      dates: ['2026-07-10'],
     });
 
     expect(db.transaction).toHaveBeenCalledTimes(1);
@@ -232,14 +232,14 @@ describe("pgBookingScheduling principal-safe schedule template mutations", () =>
     expect(where).toHaveBeenCalledTimes(1);
   });
 
-  it("creates schedule blocks through db.transaction", async () => {
+  it('creates schedule blocks through db.transaction', async () => {
     const returning = vi.fn(async () => [scheduleBlockRow()]);
     const values = vi.fn(() => ({ returning }));
     const insert = vi.fn(() => ({ values }));
     const tx = { insert };
     const db = {
       insert: vi.fn(() => {
-        throw new Error("db insert should not run outside transaction");
+        throw new Error('db insert should not run outside transaction');
       }),
       transaction: vi.fn(async (callback: (executor: typeof tx) => Promise<unknown>) =>
         callback(tx),
@@ -251,11 +251,11 @@ describe("pgBookingScheduling principal-safe schedule template mutations", () =>
     const row = await port.createScheduleBlock({
       organizationId: ORG,
       specialistId: SPEC,
-      startAt: "2026-07-10T09:00:00.000Z",
-      endAt: "2026-07-10T10:00:00.000Z",
-      blockType: "block",
-      title: "Перерыв",
-      createdByActorId: "user-1",
+      startAt: '2026-07-10T09:00:00.000Z',
+      endAt: '2026-07-10T10:00:00.000Z',
+      blockType: 'block',
+      title: 'Перерыв',
+      createdByActorId: 'user-1',
     });
 
     expect(row).toEqual(expect.objectContaining({ id: SB, organizationId: ORG }));
@@ -267,21 +267,21 @@ describe("pgBookingScheduling principal-safe schedule template mutations", () =>
         specialistId: SPEC,
         branchId: null,
         roomId: null,
-        blockType: "block",
-        title: "Перерыв",
-        createdByActorId: "user-1",
+        blockType: 'block',
+        title: 'Перерыв',
+        createdByActorId: 'user-1',
       }),
     );
     expect(db.insert).not.toHaveBeenCalled();
   });
 
-  it("deletes schedule blocks through db.transaction", async () => {
+  it('deletes schedule blocks through db.transaction', async () => {
     const where = vi.fn(async () => undefined);
     const deleteFrom = vi.fn(() => ({ where }));
     const tx = { delete: deleteFrom };
     const db = {
       delete: vi.fn(() => {
-        throw new Error("db delete should not run outside transaction");
+        throw new Error('db delete should not run outside transaction');
       }),
       transaction: vi.fn(async (callback: (executor: typeof tx) => Promise<unknown>) =>
         callback(tx),
@@ -298,14 +298,14 @@ describe("pgBookingScheduling principal-safe schedule template mutations", () =>
     expect(db.delete).not.toHaveBeenCalled();
   });
 
-  it("creates working hours through db.transaction", async () => {
+  it('creates working hours through db.transaction', async () => {
     const returning = vi.fn(async () => [workingHoursRow()]);
     const values = vi.fn(() => ({ returning }));
     const insert = vi.fn(() => ({ values }));
     const tx = { insert };
     const db = {
       insert: vi.fn(() => {
-        throw new Error("db insert should not run outside transaction");
+        throw new Error('db insert should not run outside transaction');
       }),
       transaction: vi.fn(async (callback: (executor: typeof tx) => Promise<unknown>) =>
         callback(tx),
@@ -328,7 +328,7 @@ describe("pgBookingScheduling principal-safe schedule template mutations", () =>
     expect(db.insert).not.toHaveBeenCalled();
   });
 
-  it("updates working hours through db.transaction", async () => {
+  it('updates working hours through db.transaction', async () => {
     const returning = vi.fn(async () => [{ ...workingHoursRow(), endMinute: 1020 }]);
     const where = vi.fn(() => ({ returning }));
     const set = vi.fn(() => ({ where }));
@@ -336,7 +336,7 @@ describe("pgBookingScheduling principal-safe schedule template mutations", () =>
     const tx = { update };
     const db = {
       update: vi.fn(() => {
-        throw new Error("db update should not run outside transaction");
+        throw new Error('db update should not run outside transaction');
       }),
       transaction: vi.fn(async (callback: (executor: typeof tx) => Promise<unknown>) =>
         callback(tx),
@@ -357,14 +357,14 @@ describe("pgBookingScheduling principal-safe schedule template mutations", () =>
     expect(db.update).not.toHaveBeenCalled();
   });
 
-  it("deactivates working hours through db.transaction", async () => {
+  it('deactivates working hours through db.transaction', async () => {
     const where = vi.fn(async () => undefined);
     const set = vi.fn(() => ({ where }));
     const update = vi.fn(() => ({ set }));
     const tx = { update };
     const db = {
       update: vi.fn(() => {
-        throw new Error("db update should not run outside transaction");
+        throw new Error('db update should not run outside transaction');
       }),
       transaction: vi.fn(async (callback: (executor: typeof tx) => Promise<unknown>) =>
         callback(tx),

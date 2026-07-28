@@ -57,7 +57,10 @@ export type WriteIdentityAndPreferencesDeps = {
    * (see the `user.upsert` case in writePort.ts). Returns `null` when the anchor cannot be resolved
    * (e.g. non-numeric telegram id / missing identity) — the caller then aborts without any public write.
    */
-  writeChannelAnchor(txDb: DbPort, input: DirectPublicIdentityInput): Promise<ChannelAnchorResult | null>;
+  writeChannelAnchor(
+    txDb: DbPort,
+    input: DirectPublicIdentityInput,
+  ): Promise<ChannelAnchorResult | null>;
   /**
    * Collapses duplicate canonical `public.platform_users` rows to a single id.
    * TODO(server-agent): wire to `mergePlatformUsersInTransaction` from `@bersoncare/platform-merge`
@@ -85,7 +88,10 @@ export class DirectPublicWriteError extends Error {
 
   readonly candidateIds: string[];
 
-  constructor(code: DirectPublicWriteFailureCode, options?: { candidateIds?: string[]; cause?: unknown }) {
+  constructor(
+    code: DirectPublicWriteFailureCode,
+    options?: { candidateIds?: string[]; cause?: unknown },
+  ) {
     super(code);
     this.name = 'DirectPublicWriteError';
     this.code = code;
@@ -110,13 +116,16 @@ function trimmedOrNull(value: string | null | undefined): string | null {
  * SECURITY DEFINER function (`hashtextextended('<ns>:' || id, 0)`), reproduced here as plain TS/SQL.
  */
 async function lockOnIntegratorUserId(txDb: DbPort, integratorUserId: string): Promise<void> {
-  await txDb.query(`SELECT pg_advisory_xact_lock(hashtextextended('direct-public-identity:' || $1::text, 0))`, [
-    integratorUserId,
-  ]);
+  await txDb.query(
+    `SELECT pg_advisory_xact_lock(hashtextextended('direct-public-identity:' || $1::text, 0))`,
+    [integratorUserId],
+  );
 }
 
 async function defaultMergeCandidateIds(_txDb: DbPort, candidateIds: string[]): Promise<string> {
-  const uniq = [...new Set(candidateIds.filter((id): id is string => typeof id === 'string' && id.length > 0))];
+  const uniq = [
+    ...new Set(candidateIds.filter((id): id is string => typeof id === 'string' && id.length > 0)),
+  ];
   if (uniq.length === 1) return uniq[0]!;
   if (uniq.length === 0) throw new DirectPublicWriteError('no_platform_user_candidate');
   // TODO(server-agent): replace with a real transactional merge before live wiring.
@@ -134,7 +143,12 @@ async function defaultMergeCandidateIds(_txDb: DbPort, candidateIds: string[]): 
  */
 export async function collectPlatformUserCandidates(
   txDb: DbPort,
-  input: { integratorUserId: string; phoneNormalized: string | null; channelCode: string; externalId: string },
+  input: {
+    integratorUserId: string;
+    phoneNormalized: string | null;
+    channelCode: string;
+    externalId: string;
+  },
 ): Promise<string[]> {
   const ids: string[] = [];
 
@@ -146,7 +160,9 @@ export async function collectPlatformUserCandidates(
     [input.integratorUserId],
   );
   if (byInt.rows.length > 1) {
-    throw new DirectPublicWriteError('ambiguous_platform_user_candidates', { candidateIds: byInt.rows.map((r) => r.id) });
+    throw new DirectPublicWriteError('ambiguous_platform_user_candidates', {
+      candidateIds: byInt.rows.map((r) => r.id),
+    });
   }
   if (byInt.rows[0]) ids.push(byInt.rows[0].id);
 
@@ -182,7 +198,13 @@ export async function collectPlatformUserCandidates(
 
 export async function insertPlatformUser(
   txDb: DbPort,
-  input: { integratorUserId: string; phoneNormalized: string | null; displayName: string | null; firstName: string | null; lastName: string | null },
+  input: {
+    integratorUserId: string;
+    phoneNormalized: string | null;
+    displayName: string | null;
+    firstName: string | null;
+    lastName: string | null;
+  },
 ): Promise<string> {
   // TODO(server-agent): confirm the exact NOT NULL columns / defaults (display_name default '',
   // role default 'client', patient_phone_trust_at policy) on live `public.platform_users`.
@@ -211,7 +233,14 @@ export async function insertPlatformUser(
 export async function enrichPlatformUser(
   txDb: DbPort,
   platformUserId: string,
-  input: { integratorUserId: string; phoneNormalized: string | null; displayName: string | null; firstName: string | null; lastName: string | null; channelCode: string },
+  input: {
+    integratorUserId: string;
+    phoneNormalized: string | null;
+    displayName: string | null;
+    firstName: string | null;
+    lastName: string | null;
+    channelCode: string;
+  },
 ): Promise<void> {
   // Enrich semantics mirror pgUserProjection.upsertFromProjectionTx (pgUserProjection.ts:276-289)
   // EXACTLY: display_name IS overwritten when displayName+firstName+lastName are ALL non-empty
@@ -257,7 +286,9 @@ export async function enrichPlatformUser(
     ],
   );
   if ((upd.rowCount ?? 0) < 1) {
-    throw new DirectPublicWriteError('platform_user_write_failed', { candidateIds: [platformUserId] });
+    throw new DirectPublicWriteError('platform_user_write_failed', {
+      candidateIds: [platformUserId],
+    });
   }
 }
 

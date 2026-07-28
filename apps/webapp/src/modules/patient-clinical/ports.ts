@@ -30,12 +30,12 @@ export type ActiveComplaint = {
  * Врачебный клинический статус диагноза.
  * Независим от visit-based lifecycle (active/refined/resolved).
  */
-export type DiagnosisClinicalStatus = "предварительный" | "подтверждённый" | "закрытый";
+export type DiagnosisClinicalStatus = 'предварительный' | 'подтверждённый' | 'закрытый';
 
 export const DIAGNOSIS_CLINICAL_STATUS_VALUES: DiagnosisClinicalStatus[] = [
-  "предварительный",
-  "подтверждённый",
-  "закрытый",
+  'предварительный',
+  'подтверждённый',
+  'закрытый',
 ];
 
 /** Запись в истории изменений клинического статуса. */
@@ -54,7 +54,7 @@ export type ActiveDiagnosis = {
   id: string;
   text: string;
   priority: boolean;
-  status: "active" | "refined";
+  status: 'active' | 'refined';
   /** Врачебный клинический статус. */
   clinicalStatus: DiagnosisClinicalStatus;
   /** Человекочитаемая мета, напр. «уточнён 22.01» / «поставлен 05.01». */
@@ -96,7 +96,7 @@ export type Visit = {
   date: string;
   /** Человекочитаемое время визита, напр. «14:30». */
   time: string;
-  type: "first" | "repeat";
+  type: 'first' | 'repeat';
   location: string;
   duration: string;
   anamnesisText: string | null;
@@ -222,7 +222,7 @@ export type CreateVisitDiagnosisUpdate = {
 
 export type CreateVisitInput = {
   patientUserId: string;
-  visitType: "first" | "repeat";
+  visitType: 'first' | 'repeat';
   /** ISO-строка момента визита. */
   visitedAt: string;
   location?: string | null;
@@ -327,7 +327,10 @@ export interface PatientClinicalPort {
   setDiagnosisClinicalStatus(input: SetDiagnosisClinicalStatusInput): Promise<boolean>;
 
   /** История изменений клинического статуса (старые→новые). */
-  getDiagnosisStatusHistory(patientUserId: string, diagnosisId: string): Promise<DiagnosisStatusHistoryEntry[]>;
+  getDiagnosisStatusHistory(
+    patientUserId: string,
+    diagnosisId: string,
+  ): Promise<DiagnosisStatusHistoryEntry[]>;
 
   // -- Анамнез (append-log, не per-visit) -----------------------------------
 

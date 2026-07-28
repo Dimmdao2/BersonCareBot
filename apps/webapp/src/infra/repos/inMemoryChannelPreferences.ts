@@ -1,12 +1,12 @@
-import type { BroadcastNotificationPrefsFlags } from "@/modules/doctor-broadcasts/ports";
-import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
+import type { BroadcastNotificationPrefsFlags } from '@/modules/doctor-broadcasts/ports';
+import type { ChannelPreferencesPort } from '@/modules/channel-preferences/ports';
 import {
   assertChannelAllowedForPreferredAuth,
   isChannelAllowedForPreferredAuth,
-} from "@/modules/channel-preferences/preferredAuthChannelPolicy";
-import type { ChannelCode, ChannelPreference } from "@/modules/channel-preferences/types";
+} from '@/modules/channel-preferences/preferredAuthChannelPolicy';
+import type { ChannelCode, ChannelPreference } from '@/modules/channel-preferences/types';
 
-const CODES: ChannelCode[] = ["telegram", "max", "vk", "sms", "email", "web_push"];
+const CODES: ChannelCode[] = ['telegram', 'max', 'vk', 'sms', 'email', 'web_push'];
 
 const store = new Map<string, Map<ChannelCode, ChannelPreference>>();
 
@@ -51,14 +51,16 @@ export const inMemoryChannelPreferencesPort: ChannelPreferencesPort = {
     return pref;
   },
 
-  async getBroadcastNotificationFlagsBatch(platformUserIds): Promise<Map<string, BroadcastNotificationPrefsFlags>> {
+  async getBroadcastNotificationFlagsBatch(
+    platformUserIds,
+  ): Promise<Map<string, BroadcastNotificationPrefsFlags>> {
     const out = new Map<string, BroadcastNotificationPrefsFlags>();
     for (const id of platformUserIds) {
       const m = getPrefs(id);
       out.set(id, {
-        telegram: m.get("telegram")!.isEnabledForNotifications !== false,
-        max: m.get("max")!.isEnabledForNotifications !== false,
-        sms: m.get("sms")!.isEnabledForNotifications !== false,
+        telegram: m.get('telegram')!.isEnabledForNotifications !== false,
+        max: m.get('max')!.isEnabledForNotifications !== false,
+        sms: m.get('sms')!.isEnabledForNotifications !== false,
       });
     }
     return out;

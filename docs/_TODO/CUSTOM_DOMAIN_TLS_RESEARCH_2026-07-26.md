@@ -24,12 +24,13 @@ per the hard prohibition. Where this report describes PROD's setup it is inferre
 and marked as such.
 
 ### TLS termination, TEST (measured on this box)
+
 - nginx `1.24.0` (Ubuntu), confirmed by `nginx -v`.
 - `test.bersoncare.ru` vhost: `/etc/nginx/sites-available/test.bersoncare.ru` (live content matches
   `deploy/host/apply-test-nginx-webapp.sh:95-157`, the repo-managed source of truth). TLS via
   `ssl_certificate /etc/letsencrypt/live/test.bersoncare.ru/{fullchain,privkey}.pem`.
 - **This vhost is IP-allowlisted at the nginx layer**: `allow 10.9.0.0/24; allow 172.17.0.0/16; allow
-  151.241.228.122; allow 127.0.0.1; deny all;` (same file, lines 111-115). Confirmed live via `sudo cat`
+151.241.228.122; allow 127.0.0.1; deny all;` (same file, lines 111-115). Confirmed live via `sudo cat`
   of the active config.
 - At the OS/firewall layer there is **no restriction**: `ufw status` returned nothing (inactive), and
   `sudo iptables -L INPUT -n` shows the default `ACCEPT` policy with zero rules. `ss -lntup` shows nginx
@@ -37,17 +38,18 @@ and marked as such.
   is purely an nginx `allow/deny` directive on that one vhost — the port itself is reachable from the
   public internet, confirmed by the routing table (`default via 151.241.228.1 dev ens1`, a real WAN
   route, not NAT-behind-something).
-- **Consequence for this research's own recommendation**: a *new* vhost/edge added for arbitrary
+- **Consequence for this research's own recommendation**: a _new_ vhost/edge added for arbitrary
   customer hostnames would not need to fight this allowlist — it would be reachable from the internet
   today, on this same public IP, without any firewall change. The allowlist is a property of the
   `test.bersoncare.ru` server block, not of the box.
 
 ### TLS termination, PROD (from docs only — not probed, per hard prohibition)
+
 - `docs/ARCHITECTURE/SERVER CONVENTIONS.md:216-218`: nginx vhost
   `/etc/nginx/sites-available/bersoncarebot-webapp` serves `bersoncare.ru`/`www.bersoncare.ru` →
   `127.0.0.1:6200`; separate vhost `tgcarebot.conf` serves the integrator API. TLS via Let's Encrypt at
   `/etc/letsencrypt/live/bersoncare.ru/`.
-- Note (unverified, out of scope to chase further): this same *research* box also has a live
+- Note (unverified, out of scope to chase further): this same _research_ box also has a live
   `/etc/letsencrypt/live/bersoncare.ru/` cert and an enabled `bersoncarebot-webapp` nginx site
   (`ls /etc/nginx/sites-enabled/`), which — read together with
   `docs/archive/FULL_DEV_PLAN_DONE/PLANS/STAGE_18_SERVER_MIGRATION/PLAN.md` — looks like a pre-migration
@@ -55,6 +57,7 @@ and marked as such.
   nobody mistakes this box for a second live PROD.
 
 ### Certificate issuance/renewal today (measured)
+
 - `certbot 2.9.0-1` (apt package, `python3-certbot-nginx` plugin) — confirmed by `dpkg -l`.
 - Renewal is a **systemd timer**, not the cron layer covered by `cronport.mjs`:
   `systemctl list-timers` shows `certbot.timer` (`Run certbot twice daily`, next-fire ~07:20/~19:20
@@ -77,6 +80,7 @@ and marked as such.
   automatically."
 
 ### Public reachability of port 80 (the HTTP-01 precondition)
+
 - Measured: `0.0.0.0:80`/`0.0.0.0:443` bound, no `ufw`/`iptables` restriction, a real WAN route. Port 80
   is reachable from the internet for **this box** generally.
 - **But `test.bersoncare.ru` specifically is not**, because of the nginx-layer allowlist above — and its
@@ -87,7 +91,7 @@ and marked as such.
   nothing on it answers that path for an unrecognized hostname yet. This is exactly the kind of vhost a
   new edge (Caddy or otherwise) is meant to add, it is not evidence against the approach.
 - **What this means for testing this specific feature on TEST**: you cannot validate on-demand issuance
-  *through the existing `test.bersoncare.ru` vhost*, because its `allow`/`deny` would need loosening
+  _through the existing `test.bersoncare.ru` vhost_, because its `allow`/`deny` would need loosening
   (defeats the point of the VPN lock) or the new custom-domain vhost has to be a genuinely separate
   server block that does not inherit that allowlist. It can share the box and the IP — nginx serves
   many independent vhosts on one IP already (10 sites-available today) — it just must be its own
@@ -97,14 +101,14 @@ and marked as such.
 
 ## 2. Candidates, evaluated
 
-| Candidate | On-demand issuance for *arbitrary* hostnames, zero config/restart per domain? | What our app must expose | Migration cost from today | Verdict |
-|---|---|---|---|---|
-| **Caddy `on_demand_tls`** | **Yes — this is the literal feature.** Cert requested at first TLS handshake for any hostname that passes the `ask` check; cached; auto-renewed; auto-expired when traffic stops. [caddyserver.com/docs/automatic-https](https://caddyserver.com/docs/automatic-https), [caddyserver.com/on-demand-tls](https://caddyserver.com/on-demand-tls) | One HTTP endpoint: `GET /ask?domain=<host>` → `2xx` = allow, anything else = deny. Must respond in low milliseconds (Caddy's own guidance), constant-time DB lookup only, no network calls inside it. | New standalone edge (see §4) — **does not require touching PROD's existing nginx/cert estate at all**. | **Recommended.** |
-| **Traefik (ACME + dynamic providers)** | **No**, not for truly arbitrary/unknown hostnames without a config push first. Traefik requests a cert only for domains that already appear in its *dynamic configuration* (labels, file provider, etc.); an unconfigured `Host` gets served Traefik's invalid default self-signed cert instead of failing closed or issuing on demand — confirmed as expected-but-surprising behavior by Traefik's own maintainers on [github.com/traefik/traefik/issues/6848](https://github.com/traefik/traefik/issues/6848). There is no `ask`-style abuse-controlled on-demand mode in Traefik at all. | A config-push mechanism per new domain (file provider write + reload, or a custom provider) — i.e. we'd be building the "on demand" part ourselves, defeating the point of "find ready-made." | Would replace nginx as edge, same as Caddy, but for less capability. | **Rejected for this use case** — it does the *fixed multi-domain* ACME case well, not the *arbitrary customer-typed domain* case. |
-| **nginx + companion (`lua-resty-auto-ssl` / OpenResty)** | Yes, this is the historical prior-art for exactly this problem (predates Caddy's on-demand feature). Runs inside OpenResty (nginx + LuaJIT), stores certs in Redis/SQLite, calls a configurable `allow_domain`/`request_domain` Lua callback per new hostname. Actively used in production (Hostinger's fork: [github.com/hostinger/lua-resty-auto-ssl-multi](https://github.com/hostinger/lua-resty-auto-ssl-multi); multi-tenant Redis-backed fork: [github.com/ronaldgrn/docker-lua-resty-auto-ssl](https://github.com/ronaldgrn/docker-lua-resty-auto-ssl)). | Same shape of check, but as a Lua callback embedded in nginx config rather than an HTTP endpoint — less clean to keep app-side, and couples cert logic into nginx's own process. | **Requires OpenResty**, not stock nginx (`nginx -V` on this box shows `--with-http_ssl_module` only, **no** `--with-http_lua_module` — confirmed by grepping `nginx -V` output for `lua`, zero hits). So this is not a drop-in for the nginx binary already running here; it's a parallel/replacement install, same order of migration cost as switching to Caddy, for a less actively-maintained, more DIY-assembly path (you are wiring Lua + Redis + an ACME client yourself; Caddy ships this as one binary). | **Not recommended** — same migration cost as Caddy, more moving parts, thinner ecosystem support in 2026. |
+| Candidate                                                | On-demand issuance for _arbitrary_ hostnames, zero config/restart per domain?                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | What our app must expose                                                                                                                                                                              | Migration cost from today                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Verdict                                                                                                                           |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| **Caddy `on_demand_tls`**                                | **Yes — this is the literal feature.** Cert requested at first TLS handshake for any hostname that passes the `ask` check; cached; auto-renewed; auto-expired when traffic stops. [caddyserver.com/docs/automatic-https](https://caddyserver.com/docs/automatic-https), [caddyserver.com/on-demand-tls](https://caddyserver.com/on-demand-tls)                                                                                                                                                                                                                                              | One HTTP endpoint: `GET /ask?domain=<host>` → `2xx` = allow, anything else = deny. Must respond in low milliseconds (Caddy's own guidance), constant-time DB lookup only, no network calls inside it. | New standalone edge (see §4) — **does not require touching PROD's existing nginx/cert estate at all**.                                                                                                                                                                                                                                                                                                                                                                                                            | **Recommended.**                                                                                                                  |
+| **Traefik (ACME + dynamic providers)**                   | **No**, not for truly arbitrary/unknown hostnames without a config push first. Traefik requests a cert only for domains that already appear in its _dynamic configuration_ (labels, file provider, etc.); an unconfigured `Host` gets served Traefik's invalid default self-signed cert instead of failing closed or issuing on demand — confirmed as expected-but-surprising behavior by Traefik's own maintainers on [github.com/traefik/traefik/issues/6848](https://github.com/traefik/traefik/issues/6848). There is no `ask`-style abuse-controlled on-demand mode in Traefik at all. | A config-push mechanism per new domain (file provider write + reload, or a custom provider) — i.e. we'd be building the "on demand" part ourselves, defeating the point of "find ready-made."         | Would replace nginx as edge, same as Caddy, but for less capability.                                                                                                                                                                                                                                                                                                                                                                                                                                              | **Rejected for this use case** — it does the _fixed multi-domain_ ACME case well, not the _arbitrary customer-typed domain_ case. |
+| **nginx + companion (`lua-resty-auto-ssl` / OpenResty)** | Yes, this is the historical prior-art for exactly this problem (predates Caddy's on-demand feature). Runs inside OpenResty (nginx + LuaJIT), stores certs in Redis/SQLite, calls a configurable `allow_domain`/`request_domain` Lua callback per new hostname. Actively used in production (Hostinger's fork: [github.com/hostinger/lua-resty-auto-ssl-multi](https://github.com/hostinger/lua-resty-auto-ssl-multi); multi-tenant Redis-backed fork: [github.com/ronaldgrn/docker-lua-resty-auto-ssl](https://github.com/ronaldgrn/docker-lua-resty-auto-ssl)).                            | Same shape of check, but as a Lua callback embedded in nginx config rather than an HTTP endpoint — less clean to keep app-side, and couples cert logic into nginx's own process.                      | **Requires OpenResty**, not stock nginx (`nginx -V` on this box shows `--with-http_ssl_module` only, **no** `--with-http_lua_module` — confirmed by grepping `nginx -V` output for `lua`, zero hits). So this is not a drop-in for the nginx binary already running here; it's a parallel/replacement install, same order of migration cost as switching to Caddy, for a less actively-maintained, more DIY-assembly path (you are wiring Lua + Redis + an ACME client yourself; Caddy ships this as one binary). | **Not recommended** — same migration cost as Caddy, more moving parts, thinner ecosystem support in 2026.                         |
 
 **Why not "sit nginx in front, Caddy behind"?** On-demand TLS is decided at the TLS ClientHello (the
-`ask` check happens *during the handshake*, before decryption) — the component doing `on_demand_tls`
+`ask` check happens _during the handshake_, before decryption) — the component doing `on_demand_tls`
 must be the one terminating TLS for that hostname. If nginx keeps terminating TLS for these hostnames,
 Caddy never sees the handshake and can't act. This is confirmed by community guidance: "if your load
 balancer rewrites the SNI or terminates TLS, the challenge fails" ([stackharbor.com/en/knowledge-base/caddy-on-demand-tls](https://stackharbor.com/en/knowledge-base/caddy-on-demand-tls)).
@@ -116,6 +120,7 @@ those hostnames.**
 ## 3. The parts that bite
 
 ### Abuse / authorization (fail-closed shape)
+
 Caddy's own docs are explicit that `on_demand` without the global `on_demand_tls` restriction is
 "insecure... in production" ([caddyserver.com/docs/caddyfile/directives/tls](https://caddyserver.com/docs/caddyfile/directives/tls)).
 The `ask` endpoint is the entire abuse gate: `GET /ask?domain=<hostname>`, `2xx` → proceed with
@@ -128,14 +133,16 @@ per-hostname `interval`/`burst` Caddyfile knobs are now **explicitly deprecated*
 remove them from your config") in favor of the `ask` check doing the real gating.
 
 ### Let's Encrypt rate limits — the real numbers, and whether we'd hit them
+
 Source: [letsencrypt.org/docs/rate-limits/](https://letsencrypt.org/docs/rate-limits/) (fetched live,
 current page):
+
 - **New orders per account:** 300 / 3 hours (refill 1 per 36s). This is the one that could matter at
   scale — every new clinic onboarding a domain is one order — but at clinic-SaaS volume (tens to low
   hundreds of clinics, not thousands per hour) this is nowhere close.
-- **New certificates per *registered* domain:** 50 / 7 days, **global across all accounts, scoped to
-  that one registered domain** (e.g. `tochka-zdorovya.ru`). This limit is about *one customer's own
-  domain getting re-issued many times*, not about our platform's total domain count — each clinic has a
+- **New certificates per _registered_ domain:** 50 / 7 days, **global across all accounts, scoped to
+  that one registered domain** (e.g. `tochka-zdorovya.ru`). This limit is about _one customer's own
+  domain getting re-issued many times_, not about our platform's total domain count — each clinic has a
   different registered domain, so this practically never bites a multi-tenant platform. It would only
   bite one clinic that keeps forcing re-issuance (e.g. a broken retry loop) for its own domain.
 - **Duplicate certificate limit:** 5 / 7 days for the exact same identifier set — same story, per-domain
@@ -148,13 +155,15 @@ current page):
   this quickly; the ask endpoint should not be the retry driver, Caddy's own on-demand logic already
   avoids hammering (it issues once per handshake, not per request).
 - **Conclusion: a clinic-SaaS with realistic onboarding volume does not realistically hit these limits.**
-  The design risk is not rate limits, it's the abuse/auth gate above (unbounded *attempts* from
+  The design risk is not rate limits, it's the abuse/auth gate above (unbounded _attempts_ from
   unrelated domains being pointed at us, which the `ask` check is specifically what prevents — see
   above).
 
 ### Renewal failure — the signal, not the intention
+
 This is explicitly the same silent-failure class flagged elsewhere in this repo's own history (`docs`
 memory: "Алертинг не ловит отказ доставки email/SMS"). For on-demand TLS specifically:
+
 - Caddy exposes Prometheus metrics; `caddy_storage_io_errors_total` was called out by one production
   write-up as the metric to alert on for a **shared storage backend** (Redis/etc.) going down silently —
   "if Redis is down, every node falls back to its local view, which may not include the cert" —
@@ -172,14 +181,16 @@ memory: "Алертинг не ловит отказ доставки email/SMS"
   is an implementation decision for build time, not something a "ready-made" search resolves further.
 
 ### Russia specifics — verified, not assumed
+
 This is the one area the task explicitly warned is expensive to get wrong, so it got the most direct
 verification, including against our own live evidence:
+
 - **Direct evidence on this box**: `bersoncare.ru` and `test.bersoncare.ru` — both `.ru` — **already
   have live, valid, auto-renewing Let's Encrypt certificates today** (`/etc/letsencrypt/live/`, expiring
   2026-09-06 and 2026-09-23 respectively). Let's Encrypt issuing for `.ru` is not hypothetical here, it
   is the status quo this repo already runs on.
 - **The June 2026 subscriber-agreement change is real but is not a technical block on `.ru`/`.su`**:
-  Let's Encrypt's Subscriber Agreement v1.7 (dated 2026-06-04) added a *warranty clause* — the
+  Let's Encrypt's Subscriber Agreement v1.7 (dated 2026-06-04) added a _warranty clause_ — the
   certificate applicant confirms they are not a sanctioned party / not subject to comprehensive US
   export-control prohibitions. This is legal-agreement language, not a new ACME-protocol-level
   country-code filter. Verified via Let's Encrypt's own community forum
@@ -191,7 +202,7 @@ verification, including against our own live evidence:
   has a Let's Encrypt staff member (`danb35`) stating "LE has never had a ban on Russian domains
   generally" — the SDN-list check is the same mechanism that has existed since 2022, this year's
   agreement update just wrote it into the contract text explicitly.
-  - Caveat worth carrying forward, from the same thread: a moderator notes it's *possible* for an order
+  - Caveat worth carrying forward, from the same thread: a moderator notes it's _possible_ for an order
     to succeed and then get revoked later if the registrant is subsequently identified as SDN-listed.
     For an ordinary Russian medical clinic this is not a realistic scenario, but it means "issued" is
     not permanently risk-free the way it would be for a US/EU domain — flagged for completeness, not
@@ -207,8 +218,8 @@ verification, including against our own live evidence:
     community forum (staff/moderator posts) plus our own live evidence.
 - **The separate Минцифры/НУЦ (Russian national root CA) story is unrelated and not a requirement
   here.** Recent RIA Novosti coverage (2026-07-23, [ria.ru/20260723/mintsifry-2106485138.html](https://ria.ru/20260723/mintsifry-2106485138.html))
-  is Минцифры *recommending users install the Russian national root CA certificate on their own
-  devices/browsers*, framed around sites whose **foreign-issued** certificates have already been
+  is Минцифры _recommending users install the Russian national root CA certificate on their own
+  devices/browsers_, framed around sites whose **foreign-issued** certificates have already been
   revoked (mostly sanctioned banks, e.g. Sberbank/VTB, a story that dates back to 2022, resurfacing now
   because more revocations are happening). This is not a rule that a private clinic's Let's
   Encrypt-issued site needs a НУЦ certificate instead — nothing found requires it for a normal, non-SDN
@@ -219,13 +230,14 @@ verification, including against our own live evidence:
   needs a follow-up check closer to build time, not a one-time research answer.
 
 ### Wildcard for our own subdomains (`clinic.<our-domain>`)
+
 **Same component, no separate mechanism needed — and no wildcard actually required.** The owner already
 decided subdomains come first; the reason wildcard sounds necessary is "so we don't reconfigure per
 subdomain," but that is precisely what on-demand TLS already gives you without a wildcard: Caddy issues
 an individual HTTP-01 certificate for `clinic-a.<our-domain>` the first time it's hit, same as for a
 fully external customer domain — no DNS-01 challenge, no DNS-provider API plugin, no wildcard cert
 needed at all. A wildcard (`*.<our-domain>`) would only earn its keep if subdomains were ever created
-*without* Caddy ever seeing a first request for them (e.g., issued out-of-band) — not the case here. One
+_without_ Caddy ever seeing a first request for them (e.g., issued out-of-band) — not the case here. One
 Caddy instance, one `on_demand_tls` config, covers both the owner's subdomain-first path and the
 external custom-domain path; the only difference between the two is which hostnames the `ask` endpoint
 is willing to say yes to (our own subdomain pattern vs. a clinic's verified custom domain).
@@ -243,12 +255,13 @@ domains (and, if desired, our own `*.{subdomain}.<our-domain>` traffic too), the
 existing app over the network. This is not a novel pattern — it's the documented production shape for
 this exact problem (one public write-up ran this for 100k+ users on a single small VPS for over a year:
 [jhumanj.com/saas-custom-domain-feature-caddy-dynamodb](https://jhumanj.com/saas-custom-domain-feature-caddy-dynamodb)).
-Rationale for *not* replacing the box's existing nginx instead: this host runs nginx for ten unrelated
+Rationale for _not_ replacing the box's existing nginx instead: this host runs nginx for ten unrelated
 vhosts (`brain`, `storylama`, `penpot`, `minio`, `fs`, plus BCB's own test/legacy configs) — swapping
 the front door for all of them to touch one feature is a large, unrelated blast radius for zero benefit;
 a dedicated edge has none of that risk and is cheaper to build.
 
 **Config shape (illustrative, not final):**
+
 ```
 {
     on_demand_tls {
@@ -265,9 +278,11 @@ a dedicated edge has none of that risk and is cheaper to build.
     }
 }
 ```
+
 Two things in that snippet are load-bearing and easy to get wrong silently:
+
 1. `header_up Host {hostport}` is **required**, not optional decoration. As of Caddy v2.11.0,
-   `reverse_proxy` to an **HTTPS** upstream *automatically rewrites* the `Host` header to match the
+   `reverse_proxy` to an **HTTPS** upstream _automatically rewrites_ the `Host` header to match the
    upstream's own hostname (`bersoncare.ru`) unless told otherwise
    ([caddyserver.com/docs/caddyfile/directives/reverse_proxy](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy)).
    Without the explicit override, the app would receive every clinic's traffic with
@@ -282,11 +297,11 @@ Two things in that snippet are load-bearing and easy to get wrong silently:
 
 **Existing product contract vs. this task's framing — a discrepancy worth surfacing, not resolving here.**
 `docs/_TODO/SAAS_PRODUCT_UX_INITIATIVE/BRANDING_DOMAIN_CONTRACT.md:340-356` already defines a
-`HostnameBase` state machine with an explicit `ownership_pending → ownership_verified` step *before*
+`HostnameBase` state machine with an explicit `ownership_pending → ownership_verified` step _before_
 `certificate_pending`. This task's brief states the owner's newer, verbal instruction is that **pointing
 DNS at us is itself the proof — there is no separate verification step**, citing Tilda as precedent.
 Technically the two are reconcilable: the ACME HTTP-01 challenge itself only succeeds if DNS already
-points at us and port 80 is reachable, so a successful on-demand issuance *is* the ownership proof,
+points at us and port 80 is reachable, so a successful on-demand issuance _is_ the ownership proof,
 collapsed into the same step as certificate issuance rather than a distinct screen before it. Whether
 `HostnameBase`'s `ownership_pending`/`ownership_verified` states get **collapsed into**
 `certificate_pending` (matching "no separate screen") or kept as a UI-only status label over the same
@@ -309,7 +324,7 @@ the fallback is the SNI-passthrough architecture below, which is real but adds a
    write-up ran comfortably on a `t3.small`-class box for 100k+ users) with its own public IPv4, DNS
    pointed at it. Alternative without new infrastructure spend: nginx `stream { ssl_preread on; }` on
    an existing box, routing by SNI to either the existing nginx TLS vhosts (moved to a different local
-   port) or to Caddy — confirmed *possible* on this box specifically, since `nginx -V` shows
+   port) or to Caddy — confirmed _possible_ on this box specifically, since `nginx -V` shows
    `--with-stream_ssl_preread_module` already compiled in, but this is a more invasive change to the
    existing working nginx setup and is the "bigger, riskier" of the two options, not the recommended
    default.
@@ -343,6 +358,7 @@ validation loop working end to end, which depends on the still-open "where does 
 in step 1). Caddy install/config itself (steps 1–2) is closer to hours than days — it is one binary and
 a config file, that is the entire point of picking a component built for this. What drives the estimate
 up or down:
+
 - **Up**: if the owner wants the SNI-passthrough-behind-existing-nginx architecture instead of a
   dedicated edge (more moving parts, more risk to the working PROD nginx estate, harder to validate
   safely).
@@ -363,7 +379,7 @@ up or down:
   interface config was not probed per the hard prohibition on touching `135.x`).
 - The `abit.ee` source on `.ru` LE restrictions could not be fetched (HTTP 403) — not relied upon;
   Let's Encrypt's own community forum was used instead and is the stronger source regardless.
-- Whether Минцифры/НУЦ certificates will ever become a practical requirement for an *unsanctioned*
+- Whether Минцифры/НУЦ certificates will ever become a practical requirement for an _unsanctioned_
   Russian small business's website — nothing found says yes today; this is a slow-moving regulatory
   question worth a fresh check close to actual build/launch time, not resolvable definitively from a
   single research pass now.

@@ -1,10 +1,10 @@
-import type { ReferenceItem } from "@/modules/references/types";
+import type { ReferenceItem } from '@/modules/references/types';
 import {
   DOCTOR_CATALOG_FILTER_MISSING,
   type DoctorCatalogMissingFilter,
   isDoctorCatalogMissingFilterToken,
-} from "@/shared/lib/doctorCatalogEmptyFieldFilter";
-import type { ExerciseLoadType } from "./types";
+} from '@/shared/lib/doctorCatalogEmptyFieldFilter';
+import type { ExerciseLoadType } from './types';
 
 const LOAD_TYPE_CODE_TOKEN = /^[a-z0-9_]+$/;
 
@@ -21,15 +21,15 @@ const LOAD_TYPE_CODE_TOKEN = /^[a-z0-9_]+$/;
  *
  * Регрессия: `src/modules/lfk-exercises/exerciseLoadTypeSeedParity.test.ts`.
  */
-export const EXERCISE_LOAD_TYPE_CATEGORY_CODE = "load_type" as const;
+export const EXERCISE_LOAD_TYPE_CATEGORY_CODE = 'load_type' as const;
 
 export const EXERCISE_LOAD_TYPE_SEED_V1 = [
-  { code: "strength" as const, title: "Силовая", sortOrder: 1 },
-  { code: "stretch" as const, title: "Растяжка", sortOrder: 2 },
-  { code: "balance" as const, title: "Баланс", sortOrder: 3 },
-  { code: "cardio" as const, title: "Кардио", sortOrder: 4 },
-  { code: "other" as const, title: "Другое", sortOrder: 5 },
-  { code: "static_hold" as const, title: "Статическое укрепление / удержание", sortOrder: 6 },
+  { code: 'strength' as const, title: 'Силовая', sortOrder: 1 },
+  { code: 'stretch' as const, title: 'Растяжка', sortOrder: 2 },
+  { code: 'balance' as const, title: 'Баланс', sortOrder: 3 },
+  { code: 'cardio' as const, title: 'Кардио', sortOrder: 4 },
+  { code: 'other' as const, title: 'Другое', sortOrder: 5 },
+  { code: 'static_hold' as const, title: 'Статическое укрепление / удержание', sortOrder: 6 },
 ] as const;
 
 function seedCodesSet(): Set<string> {
@@ -46,7 +46,10 @@ export const EXERCISE_LOAD_TYPE_SEED_CODES_ORDERED: readonly ExerciseLoadType[] 
  */
 export function exerciseLoadTypeWriteAllowSet(items: ReferenceItem[]): Set<string> {
   const fromDb = new Set(
-    items.filter((i) => i.isActive && i.deletedAt == null).map((i) => i.code.trim()).filter(Boolean),
+    items
+      .filter((i) => i.isActive && i.deletedAt == null)
+      .map((i) => i.code.trim())
+      .filter(Boolean),
   );
   if (fromDb.size > 0) return fromDb;
   return seedCodesSet();
@@ -56,7 +59,7 @@ export function parseExerciseLoadQueryParam(
   raw: string | undefined,
   allowSet: Set<string>,
 ): ExerciseLoadType | undefined {
-  if (typeof raw !== "string") return undefined;
+  if (typeof raw !== 'string') return undefined;
   const t = raw.trim();
   if (!t || !allowSet.has(t)) return undefined;
   return t as ExerciseLoadType;
@@ -67,7 +70,7 @@ export function parseExerciseLoadFilterQueryParam(
   raw: string | undefined,
   allowSet: Set<string>,
 ): ExerciseLoadType | DoctorCatalogMissingFilter | undefined {
-  if (isDoctorCatalogMissingFilterToken(typeof raw === "string" ? raw : undefined)) {
+  if (isDoctorCatalogMissingFilterToken(typeof raw === 'string' ? raw : undefined)) {
     return DOCTOR_CATALOG_FILTER_MISSING;
   }
   return parseExerciseLoadQueryParam(raw, allowSet);
@@ -94,7 +97,7 @@ export function parseExerciseLoadFormValue(
   raw: FormDataEntryValue | null,
   allowSet: Set<string>,
 ): ExerciseLoadType | null {
-  if (typeof raw !== "string") return null;
+  if (typeof raw !== 'string') return null;
   const t = raw.trim();
   if (!t) return null;
   if (!allowSet.has(t)) return null;

@@ -1,28 +1,28 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { getDrizzleMock, poolQueryMock } = vi.hoisted(() => ({
   getDrizzleMock: vi.fn(),
   poolQueryMock: vi.fn(),
 }));
 
-vi.mock("@/app-layer/db/drizzle", () => ({
+vi.mock('@/app-layer/db/drizzle', () => ({
   getDrizzle: getDrizzleMock,
 }));
 
-vi.mock("@/app-layer/db/client", () => ({
+vi.mock('@/app-layer/db/client', () => ({
   getPool: vi.fn(() => ({ query: poolQueryMock })),
 }));
 
-vi.mock("@/infra/db/runWebappSql", () => ({
+vi.mock('@/infra/db/runWebappSql', () => ({
   runWebappPgText: vi.fn(),
 }));
 
-vi.mock("@/app-layer/logging/logger", () => ({
+vi.mock('@/app-layer/logging/logger', () => ({
   logger: { error: vi.fn() },
 }));
 
-import { loadAdminTranscodeHealthMetrics } from "./adminTranscodeHealthMetrics";
-import { runWebappPgText } from "@/infra/db/runWebappSql";
+import { loadAdminTranscodeHealthMetrics } from './adminTranscodeHealthMetrics';
+import { runWebappPgText } from '@/infra/db/runWebappSql';
 
 function mockSelectSequence(rowsPerCall: unknown[][]) {
   const selectMock = vi.fn();
@@ -35,15 +35,15 @@ function mockSelectSequence(rowsPerCall: unknown[][]) {
   return selectMock;
 }
 
-describe("loadAdminTranscodeHealthMetrics", () => {
+describe('loadAdminTranscodeHealthMetrics', () => {
   beforeEach(() => {
     getDrizzleMock.mockReset();
     poolQueryMock.mockReset();
     vi.mocked(runWebappPgText).mockReset();
-    vi.mocked(runWebappPgText).mockResolvedValue({ rows: [{ c: "0" }] });
+    vi.mocked(runWebappPgText).mockResolvedValue({ rows: [{ c: '0' }] });
   });
 
-  it("maps parallel aggregates and parses avg / oldest pending age", async () => {
+  it('maps parallel aggregates and parses avg / oldest pending age', async () => {
     mockSelectSequence([
       [{ c: 4 }],
       [{ c: 1 }],
@@ -53,13 +53,13 @@ describe("loadAdminTranscodeHealthMetrics", () => {
       [{ c: 3 }],
       [{ c: 100 }],
       [{ c: 5 }],
-      [{ avgMs: "2500.75" }],
-      [{ oldestSec: "90.25" }],
+      [{ avgMs: '2500.75' }],
+      [{ oldestSec: '90.25' }],
     ]);
 
     vi.mocked(runWebappPgText)
-      .mockResolvedValueOnce({ rows: [{ c: "42" }] })
-      .mockResolvedValueOnce({ rows: [{ c: "7" }] });
+      .mockResolvedValueOnce({ rows: [{ c: '42' }] })
+      .mockResolvedValueOnce({ rows: [{ c: '7' }] });
 
     const result = await loadAdminTranscodeHealthMetrics();
 
@@ -79,7 +79,7 @@ describe("loadAdminTranscodeHealthMetrics", () => {
     });
   });
 
-  it("returns null oldest age when no pending jobs", async () => {
+  it('returns null oldest age when no pending jobs', async () => {
     mockSelectSequence([
       [{ c: 0 }],
       [{ c: 0 }],
@@ -90,7 +90,7 @@ describe("loadAdminTranscodeHealthMetrics", () => {
       [{ c: 0 }],
       [{ c: 0 }],
       [{ avgMs: null }],
-      [{ oldestSec: "999" }],
+      [{ oldestSec: '999' }],
     ]);
 
     const result = await loadAdminTranscodeHealthMetrics();
@@ -99,7 +99,7 @@ describe("loadAdminTranscodeHealthMetrics", () => {
     expect(result.oldestPendingAgeSeconds).toBeNull();
   });
 
-  it("returns null avg when avg row is empty or non-finite", async () => {
+  it('returns null avg when avg row is empty or non-finite', async () => {
     mockSelectSequence([
       [{ c: 0 }],
       [{ c: 0 }],
@@ -109,7 +109,7 @@ describe("loadAdminTranscodeHealthMetrics", () => {
       [{ c: 0 }],
       [{ c: 0 }],
       [{ c: 0 }],
-      [{ avgMs: "" }],
+      [{ avgMs: '' }],
       [{ oldestSec: null }],
     ]);
 
@@ -125,7 +125,7 @@ describe("loadAdminTranscodeHealthMetrics", () => {
       [{ c: 0 }],
       [{ c: 0 }],
       [{ c: 0 }],
-      [{ avgMs: "not-a-number" }],
+      [{ avgMs: 'not-a-number' }],
       [{ oldestSec: null }],
     ]);
     const r2 = await loadAdminTranscodeHealthMetrics();

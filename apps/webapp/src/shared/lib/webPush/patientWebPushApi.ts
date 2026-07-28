@@ -1,4 +1,4 @@
-import type { WebPushClientPlatform } from "@/shared/lib/webPush/pushPlatform";
+import type { WebPushClientPlatform } from '@/shared/lib/webPush/pushPlatform';
 
 export type PatientWebPushStatusResponse = {
   ok?: boolean;
@@ -10,17 +10,17 @@ export type PatientWebPushStatusResponse = {
 
 /** Удалить все push-подписки пользователя на сервере (нет локальной PushSubscription). */
 export async function unsubscribeAllPatientWebPush(): Promise<boolean> {
-  const res = await fetch("/api/patient/web-push/unsubscribe", {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
+  const res = await fetch('/api/patient/web-push/unsubscribe', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ all: true }),
   });
   return res.ok;
 }
 
 export async function fetchPatientWebPushStatus(): Promise<PatientWebPushStatusResponse> {
-  const res = await fetch("/api/patient/web-push/status", { credentials: "include" });
+  const res = await fetch('/api/patient/web-push/status', { credentials: 'include' });
   if (!res.ok) {
     return {
       ok: false,
@@ -37,10 +37,10 @@ export async function registerPatientWebPushSubscription(
   subscription: PushSubscriptionJSON,
   platform: WebPushClientPlatform,
 ): Promise<boolean> {
-  const res = await fetch("/api/patient/web-push/subscribe", {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
+  const res = await fetch('/api/patient/web-push/subscribe', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       ...subscription,
       platform,
@@ -52,13 +52,13 @@ export async function registerPatientWebPushSubscription(
 export async function reportPwaLaunchSnapshot(body: {
   isStandalone: boolean;
   pushSupported: boolean;
-  notificationPermission: "default" | "granted" | "denied" | "unsupported";
+  notificationPermission: 'default' | 'granted' | 'denied' | 'unsupported';
 }): Promise<void> {
   try {
-    await fetch("/api/patient/pwa/launch", {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
+    await fetch('/api/patient/pwa/launch', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
   } catch {

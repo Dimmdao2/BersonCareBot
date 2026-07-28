@@ -18,31 +18,31 @@
 
 ## 2. Checklist coverage (`05_CREATE_RETURN_FLOWS_PLAN.md` §Phase Checklist)
 
-| Пункт чеклиста | Статус | Доказательство |
-| --- | --- | --- |
-| `content_page` create path from block editor implemented. | **Да** | `buildPatientHomeContentNewUrl` → `/app/doctor/content/new?…`; `PatientHomeBlockCandidatePicker` — ссылка «Создать материал в CMS» для релевантных блоков/групп (`PatientHomeBlockCandidatePicker.tsx`). |
-| `course` create path from block editor implemented. | **Да** | `buildPatientHomeCourseNewUrl`; страница `doctor/courses/new` + `DoctorCourseDraftCreateForm` (POST `/api/doctor/courses`, `status: "draft"`). |
-| Return context preserved. | **Да** *(после Phase 6 FIX для раздела)* | Контент, курс — как в исходном аудите. Раздел: `sections/new/page.tsx` + баннер в `SectionForm` (см. §5.1). |
-| Mixed block shows grouped create actions. | **Да** | Для `subscription_carousel`: группы `content_section` / `content_page` / `course` с заголовками и CTA (`alwaysShowGroupHeading`, `showCreateCtaForGroup` в `PatientHomeBlockCandidatePicker.tsx`). |
-| Tests for context/return flow updated. | **Да** | `patientHomeCmsReturnUrls.test.ts`, `patientHomeBlockEditor.test.tsx`; дискриминированный `SaveContentPageState` в `actions.test.ts`, `ContentForm.test.tsx` (по журналу EXEC). |
-| `LOG.md` updated. | **Да** | Запись **2026-04-29 — Phase 5 — EXEC**. |
+| Пункт чеклиста                                            | Статус                                   | Доказательство                                                                                                                                                                                           |
+| --------------------------------------------------------- | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `content_page` create path from block editor implemented. | **Да**                                   | `buildPatientHomeContentNewUrl` → `/app/doctor/content/new?…`; `PatientHomeBlockCandidatePicker` — ссылка «Создать материал в CMS» для релевантных блоков/групп (`PatientHomeBlockCandidatePicker.tsx`). |
+| `course` create path from block editor implemented.       | **Да**                                   | `buildPatientHomeCourseNewUrl`; страница `doctor/courses/new` + `DoctorCourseDraftCreateForm` (POST `/api/doctor/courses`, `status: "draft"`).                                                           |
+| Return context preserved.                                 | **Да** _(после Phase 6 FIX для раздела)_ | Контент, курс — как в исходном аудите. Раздел: `sections/new/page.tsx` + баннер в `SectionForm` (см. §5.1).                                                                                              |
+| Mixed block shows grouped create actions.                 | **Да**                                   | Для `subscription_carousel`: группы `content_section` / `content_page` / `course` с заголовками и CTA (`alwaysShowGroupHeading`, `showCreateCtaForGroup` в `PatientHomeBlockCandidatePicker.tsx`).       |
+| Tests for context/return flow updated.                    | **Да**                                   | `patientHomeCmsReturnUrls.test.ts`, `patientHomeBlockEditor.test.tsx`; дискриминированный `SaveContentPageState` в `actions.test.ts`, `ContentForm.test.tsx` (по журналу EXEC).                          |
+| `LOG.md` updated.                                         | **Да**                                   | Запись **2026-04-29 — Phase 5 — EXEC**.                                                                                                                                                                  |
 
 ---
 
 ## 3. Behavior requirements (`05` §Behavior Requirements)
 
-| Требование | Статус | Комментарий |
-| --- | --- | --- |
-| User always sees a path to create missing target from block editor. | **Почти** | Для `daily_warmup`, `sos`, `subscription_carousel`, `courses` — CTA покрывают заявленные типы. Для `situations` при непустом списке отдельного CTA «ещё один раздел» в пикере нет (контракт Phase 3 — полный inline для разделов; частичный разрыв с «всегда виден путь» в смысле §Completion). |
-| Return to block editor context is explicit and reliable. | **Да для страницы, курса и нового раздела** *(раздел — после Phase 6 FIX)* | `parsePatientHomeCmsReturnQuery`, баннеры. Для `sections/new` до FIX см. §5.1 (история). |
-| Mixed block create actions are grouped and clearly labeled. | **Да** | Заголовки «Разделы» / «Материалы» / «Курсы» + кнопки-ссылки внутри группы. |
+| Требование                                                          | Статус                                                                     | Комментарий                                                                                                                                                                                                                                                                                     |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| User always sees a path to create missing target from block editor. | **Почти**                                                                  | Для `daily_warmup`, `sos`, `subscription_carousel`, `courses` — CTA покрывают заявленные типы. Для `situations` при непустом списке отдельного CTA «ещё один раздел» в пикере нет (контракт Phase 3 — полный inline для разделов; частичный разрыв с «всегда виден путь» в смысле §Completion). |
+| Return to block editor context is explicit and reliable.            | **Да для страницы, курса и нового раздела** _(раздел — после Phase 6 FIX)_ | `parsePatientHomeCmsReturnQuery`, баннеры. Для `sections/new` до FIX см. §5.1 (история).                                                                                                                                                                                                        |
+| Mixed block create actions are grouped and clearly labeled.         | **Да**                                                                     | Заголовки «Разделы» / «Материалы» / «Курсы» + кнопки-ссылки внутри группы.                                                                                                                                                                                                                      |
 
 ---
 
 ## 4. Completion criteria (`05` §Completion Criteria)
 
-| Критерий | Статус |
-| --- | --- |
+| Критерий                                                                                | Статус       |
+| --------------------------------------------------------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Editors can create or reach creation flow for every target type without losing context. | **Частично** | `content_page` и `course` — контекст и возврат согласованы с планом. `content_section` через `/app/doctor/content/sections/new` — после **Phase 6 FIX** баннер возврата и `savedSlug` как у новой страницы контента (см. §5.1). Остаётся UX без второго CTA «раздел» при непустом `situations` (§5.3). |
 
 ---
@@ -67,19 +67,19 @@
 
 ## 6. Out of scope (негативная проверка)
 
-| Запрет (`05` §Out Of Scope) | Статус |
-| --- | --- |
-| No course model changes. | **Ок** | Черновик через существующий API с полями, ожидаемыми эндпоинтом (`DoctorCourseDraftCreateForm`); отдельной смены схемы курса в Phase 5 не видно. |
-| No billing or subscription gating. | **Ок** | Нет новых gate/billing веток в проверенных файлах Phase 5. |
-| No broad redesign of CMS content/course forms. | **Ок** | Точечные пропсы/баннеры и отдельная страница курса, без переразметки всего CMS. |
+| Запрет (`05` §Out Of Scope)                    | Статус |
+| ---------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| No course model changes.                       | **Ок** | Черновик через существующий API с полями, ожидаемыми эндпоинтом (`DoctorCourseDraftCreateForm`); отдельной смены схемы курса в Phase 5 не видно. |
+| No billing or subscription gating.             | **Ок** | Нет новых gate/billing веток в проверенных файлах Phase 5.                                                                                       |
+| No broad redesign of CMS content/course forms. | **Ок** | Точечные пропсы/баннеры и отдельная страница курса, без переразметки всего CMS.                                                                  |
 
 ---
 
 ## 7. Documentation artifacts (`05` §Documentation Artifacts)
 
-| Артефакт | Статус |
-| --- | --- |
-| `LOG.md` with chosen strategy | **Да** | EXEC Phase 5. |
+| Артефакт                                           | Статус |
+| -------------------------------------------------- | ------ | -------------------------------------------- |
+| `LOG.md` with chosen strategy                      | **Да** | EXEC Phase 5.                                |
 | `BLOCK_EDITOR_CONTRACT.md` if create paths changed | **Да** | Пункт Phase 5 в «Заметки для следующих фаз». |
 
 ---

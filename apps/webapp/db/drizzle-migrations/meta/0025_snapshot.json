@@ -171,12 +171,8 @@
           "name": "admin_audit_log_actor_id_fkey",
           "tableFrom": "admin_audit_log",
           "tableTo": "platform_users",
-          "columnsFrom": [
-            "actor_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["actor_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -382,12 +378,8 @@
           "name": "appointment_records_branch_id_fkey",
           "tableFrom": "appointment_records",
           "tableTo": "branches",
-          "columnsFrom": [
-            "branch_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["branch_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -397,9 +389,7 @@
         "appointment_records_integrator_record_id_key": {
           "name": "appointment_records_integrator_record_id_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "integrator_record_id"
-          ]
+          "columns": ["integrator_record_id"]
         }
       },
       "policies": {},
@@ -593,12 +583,8 @@
           "name": "booking_branch_services_branch_id_fkey",
           "tableFrom": "booking_branch_services",
           "tableTo": "booking_branches",
-          "columnsFrom": [
-            "branch_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["branch_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -606,12 +592,8 @@
           "name": "booking_branch_services_service_id_fkey",
           "tableFrom": "booking_branch_services",
           "tableTo": "booking_services",
-          "columnsFrom": [
-            "service_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["service_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -619,12 +601,8 @@
           "name": "booking_branch_services_specialist_id_fkey",
           "tableFrom": "booking_branch_services",
           "tableTo": "booking_specialists",
-          "columnsFrom": [
-            "specialist_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["specialist_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -634,10 +612,7 @@
         "uq_booking_branch_services": {
           "name": "uq_booking_branch_services",
           "nullsNotDistinct": false,
-          "columns": [
-            "branch_id",
-            "service_id"
-          ]
+          "columns": ["branch_id", "service_id"]
         }
       },
       "policies": {},
@@ -770,12 +745,8 @@
           "name": "booking_branches_city_id_fkey",
           "tableFrom": "booking_branches",
           "tableTo": "booking_cities",
-          "columnsFrom": [
-            "city_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["city_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -847,9 +818,7 @@
         "booking_calendar_map_rubitime_record_id_key": {
           "name": "booking_calendar_map_rubitime_record_id_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "rubitime_record_id"
-          ]
+          "columns": ["rubitime_record_id"]
         }
       },
       "policies": {},
@@ -932,9 +901,7 @@
         "booking_cities_code_key": {
           "name": "booking_cities_code_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "code"
-          ]
+          "columns": ["code"]
         }
       },
       "policies": {},
@@ -1029,10 +996,7 @@
         "uq_booking_services_title_duration": {
           "name": "uq_booking_services_title_duration",
           "nullsNotDistinct": false,
-          "columns": [
-            "title",
-            "duration_minutes"
-          ]
+          "columns": ["title", "duration_minutes"]
         }
       },
       "policies": {},
@@ -1165,12 +1129,8 @@
           "name": "booking_specialists_branch_id_fkey",
           "tableFrom": "booking_specialists",
           "tableTo": "booking_branches",
-          "columnsFrom": [
-            "branch_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["branch_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1257,9 +1217,7 @@
         "branches_integrator_branch_id_key": {
           "name": "branches_integrator_branch_id_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "integrator_branch_id"
-          ]
+          "columns": ["integrator_branch_id"]
         }
       },
       "policies": {},
@@ -1464,12 +1422,8 @@
           "name": "channel_link_secrets_user_id_fkey",
           "tableFrom": "channel_link_secrets",
           "tableTo": "platform_users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1563,12 +1517,8 @@
           "name": "contacts_user_id_fkey",
           "tableFrom": "contacts",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1578,10 +1528,7 @@
         "contacts_type_value_normalized_key": {
           "name": "contacts_type_value_normalized_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "type",
-            "value_normalized"
-          ]
+          "columns": ["type", "value_normalized"]
         }
       },
       "policies": {},
@@ -1679,12 +1626,8 @@
           "name": "content_access_grants_user_id_fkey",
           "tableFrom": "content_access_grants",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1824,12 +1767,8 @@
           "name": "content_access_grants_webapp_platform_user_id_fkey",
           "tableFrom": "content_access_grants_webapp",
           "tableTo": "platform_users",
-          "columnsFrom": [
-            "platform_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["platform_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1839,9 +1778,7 @@
         "content_access_grants_webapp_integrator_grant_id_key": {
           "name": "content_access_grants_webapp_integrator_grant_id_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "integrator_grant_id"
-          ]
+          "columns": ["integrator_grant_id"]
         }
       },
       "policies": {},
@@ -2033,10 +1970,7 @@
         "content_pages_section_slug_key": {
           "name": "content_pages_section_slug_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "section",
-            "slug"
-          ]
+          "columns": ["section", "slug"]
         }
       },
       "policies": {},
@@ -2104,9 +2038,7 @@
         "content_section_slug_history_old_slug_key": {
           "name": "content_section_slug_history_old_slug_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "old_slug"
-          ]
+          "columns": ["old_slug"]
         }
       },
       "policies": {},
@@ -2272,9 +2204,7 @@
         "content_sections_slug_key": {
           "name": "content_sections_slug_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "slug"
-          ]
+          "columns": ["slug"]
         }
       },
       "policies": {},
@@ -2377,12 +2307,8 @@
           "name": "conversation_messages_conversation_id_fkey",
           "tableFrom": "conversation_messages",
           "tableTo": "conversations",
-          "columnsFrom": [
-            "conversation_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["conversation_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2511,12 +2437,8 @@
           "name": "conversations_user_identity_id_fkey",
           "tableFrom": "conversations",
           "tableTo": "identities",
-          "columnsFrom": [
-            "user_identity_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_identity_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2753,12 +2675,8 @@
           "name": "doctor_notes_author_id_fkey",
           "tableFrom": "doctor_notes",
           "tableTo": "platform_users",
-          "columnsFrom": [
-            "author_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["author_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -2766,12 +2684,8 @@
           "name": "doctor_notes_user_id_fkey",
           "tableFrom": "doctor_notes",
           "tableTo": "platform_users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2871,12 +2785,8 @@
           "name": "email_challenges_user_id_fkey",
           "tableFrom": "email_challenges",
           "tableTo": "platform_users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2916,12 +2826,8 @@
           "name": "email_send_cooldowns_user_id_fkey",
           "tableFrom": "email_send_cooldowns",
           "tableTo": "platform_users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2929,10 +2835,7 @@
       "compositePrimaryKeys": {
         "email_send_cooldowns_pkey": {
           "name": "email_send_cooldowns_pkey",
-          "columns": [
-            "user_id",
-            "email_normalized"
-          ]
+          "columns": ["user_id", "email_normalized"]
         }
       },
       "uniqueConstraints": {},
@@ -3083,12 +2986,8 @@
           "name": "identities_user_id_fkey",
           "tableFrom": "identities",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3098,10 +2997,7 @@
         "identities_resource_external_id_key": {
           "name": "identities_resource_external_id_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "resource",
-            "external_id"
-          ]
+          "columns": ["resource", "external_id"]
         }
       },
       "policies": {},
@@ -3213,13 +3109,7 @@
         "integration_data_quality_incidents_dedup": {
           "name": "integration_data_quality_incidents_dedup",
           "nullsNotDistinct": false,
-          "columns": [
-            "integration",
-            "entity",
-            "external_id",
-            "field",
-            "error_reason"
-          ]
+          "columns": ["integration", "entity", "external_id", "field", "error_reason"]
         }
       },
       "policies": {},
@@ -3345,9 +3235,7 @@
         "integrator_push_outbox_idempotency_key_key": {
           "name": "integrator_push_outbox_idempotency_key_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "idempotency_key"
-          ]
+          "columns": ["idempotency_key"]
         }
       },
       "policies": {},
@@ -3450,12 +3338,8 @@
           "name": "lfk_complex_exercises_complex_id_fkey",
           "tableFrom": "lfk_complex_exercises",
           "tableTo": "lfk_complexes",
-          "columnsFrom": [
-            "complex_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["complex_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -3463,12 +3347,8 @@
           "name": "lfk_complex_exercises_exercise_id_fkey",
           "tableFrom": "lfk_complex_exercises",
           "tableTo": "lfk_exercises",
-          "columnsFrom": [
-            "exercise_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["exercise_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -3478,10 +3358,7 @@
         "lfk_complex_exercises_complex_id_exercise_id_key": {
           "name": "lfk_complex_exercises_complex_id_exercise_id_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "complex_id",
-            "exercise_id"
-          ]
+          "columns": ["complex_id", "exercise_id"]
         }
       },
       "policies": {},
@@ -3588,12 +3465,8 @@
           "name": "lfk_complex_template_exercises_exercise_id_fkey",
           "tableFrom": "lfk_complex_template_exercises",
           "tableTo": "lfk_exercises",
-          "columnsFrom": [
-            "exercise_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["exercise_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -3601,12 +3474,8 @@
           "name": "lfk_complex_template_exercises_template_id_fkey",
           "tableFrom": "lfk_complex_template_exercises",
           "tableTo": "lfk_complex_templates",
-          "columnsFrom": [
-            "template_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["template_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3616,10 +3485,7 @@
         "lfk_complex_template_exercises_template_id_exercise_id_key": {
           "name": "lfk_complex_template_exercises_template_id_exercise_id_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "template_id",
-            "exercise_id"
-          ]
+          "columns": ["template_id", "exercise_id"]
         }
       },
       "policies": {},
@@ -3692,12 +3558,8 @@
           "name": "lfk_complex_templates_created_by_fkey",
           "tableFrom": "lfk_complex_templates",
           "tableTo": "platform_users",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["created_by"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -3848,12 +3710,8 @@
           "name": "lfk_complexes_diagnosis_ref_id_fkey",
           "tableFrom": "lfk_complexes",
           "tableTo": "reference_items",
-          "columnsFrom": [
-            "diagnosis_ref_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["diagnosis_ref_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -3861,12 +3719,8 @@
           "name": "lfk_complexes_platform_user_id_fkey",
           "tableFrom": "lfk_complexes",
           "tableTo": "platform_users",
-          "columnsFrom": [
-            "platform_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["platform_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -3874,12 +3728,8 @@
           "name": "lfk_complexes_region_ref_id_fkey",
           "tableFrom": "lfk_complexes",
           "tableTo": "reference_items",
-          "columnsFrom": [
-            "region_ref_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["region_ref_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -3887,12 +3737,8 @@
           "name": "lfk_complexes_symptom_tracking_id_fkey",
           "tableFrom": "lfk_complexes",
           "tableTo": "symptom_trackings",
-          "columnsFrom": [
-            "symptom_tracking_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["symptom_tracking_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -3986,12 +3832,8 @@
           "name": "lfk_exercise_media_exercise_id_fkey",
           "tableFrom": "lfk_exercise_media",
           "tableTo": "lfk_exercises",
-          "columnsFrom": [
-            "exercise_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["exercise_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -4128,12 +3970,8 @@
           "name": "lfk_exercises_created_by_fkey",
           "tableFrom": "lfk_exercises",
           "tableTo": "platform_users",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["created_by"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -4141,12 +3979,8 @@
           "name": "lfk_exercises_region_ref_id_fkey",
           "tableFrom": "lfk_exercises",
           "tableTo": "reference_items",
-          "columnsFrom": [
-            "region_ref_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["region_ref_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -4292,12 +4126,8 @@
           "name": "lfk_sessions_complex_id_fkey",
           "tableFrom": "lfk_sessions",
           "tableTo": "lfk_complexes",
-          "columnsFrom": [
-            "complex_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["complex_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -4305,12 +4135,8 @@
           "name": "lfk_sessions_user_id_fkey",
           "tableFrom": "lfk_sessions",
           "tableTo": "platform_users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -4427,12 +4253,8 @@
           "name": "login_tokens_user_id_fkey",
           "tableFrom": "login_tokens",
           "tableTo": "platform_users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -4442,9 +4264,7 @@
         "login_tokens_token_hash_key": {
           "name": "login_tokens_token_hash_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "token_hash"
-          ]
+          "columns": ["token_hash"]
         }
       },
       "policies": {},
@@ -4502,12 +4322,8 @@
           "name": "mailing_logs_mailing_id_fkey",
           "tableFrom": "mailing_logs",
           "tableTo": "mailings",
-          "columnsFrom": [
-            "mailing_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["mailing_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -4515,12 +4331,8 @@
           "name": "mailing_logs_user_id_fkey",
           "tableFrom": "mailing_logs",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -4528,10 +4340,7 @@
       "compositePrimaryKeys": {
         "mailing_logs_pkey": {
           "name": "mailing_logs_pkey",
-          "columns": [
-            "user_id",
-            "mailing_id"
-          ]
+          "columns": ["user_id", "mailing_id"]
         }
       },
       "uniqueConstraints": {},
@@ -4629,10 +4438,7 @@
         "mailing_logs_webapp_integrator_user_id_integrator_mailing_i_key": {
           "name": "mailing_logs_webapp_integrator_user_id_integrator_mailing_i_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "integrator_user_id",
-            "integrator_mailing_id"
-          ]
+          "columns": ["integrator_user_id", "integrator_mailing_id"]
         }
       },
       "policies": {},
@@ -4689,9 +4495,7 @@
         "subscriptions_code_key": {
           "name": "subscriptions_code_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "code"
-          ]
+          "columns": ["code"]
         }
       },
       "policies": {},
@@ -4795,9 +4599,7 @@
         "mailing_topics_webapp_integrator_topic_id_key": {
           "name": "mailing_topics_webapp_integrator_topic_id_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "integrator_topic_id"
-          ]
+          "columns": ["integrator_topic_id"]
         }
       },
       "policies": {},
@@ -4865,12 +4667,8 @@
           "name": "mailings_topic_id_fkey",
           "tableFrom": "mailings",
           "tableTo": "mailing_topics",
-          "columnsFrom": [
-            "topic_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["topic_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -5174,12 +4972,8 @@
           "name": "media_files_folder_id_fkey",
           "tableFrom": "media_files",
           "tableTo": "media_folders",
-          "columnsFrom": [
-            "folder_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["folder_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -5187,12 +4981,8 @@
           "name": "media_files_uploaded_by_fkey",
           "tableFrom": "media_files",
           "tableTo": "platform_users",
-          "columnsFrom": [
-            "uploaded_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["uploaded_by"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -5342,12 +5132,8 @@
           "name": "media_folders_created_by_fkey",
           "tableFrom": "media_folders",
           "tableTo": "platform_users",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["created_by"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -5355,12 +5141,8 @@
           "name": "media_folders_parent_id_fkey",
           "tableFrom": "media_folders",
           "tableTo": "media_folders",
-          "columnsFrom": [
-            "parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -5498,12 +5280,8 @@
           "name": "media_transcode_jobs_media_id_fkey",
           "tableFrom": "media_transcode_jobs",
           "tableTo": "media_files",
-          "columnsFrom": [
-            "media_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["media_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -5675,12 +5453,8 @@
           "name": "media_upload_sessions_media_id_fkey",
           "tableFrom": "media_upload_sessions",
           "tableTo": "media_files",
-          "columnsFrom": [
-            "media_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["media_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -5688,12 +5462,8 @@
           "name": "media_upload_sessions_owner_user_id_fkey",
           "tableFrom": "media_upload_sessions",
           "tableTo": "platform_users",
-          "columnsFrom": [
-            "owner_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["owner_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -5832,12 +5602,8 @@
           "name": "message_drafts_identity_id_fkey",
           "tableFrom": "message_drafts",
           "tableTo": "identities",
-          "columnsFrom": [
-            "identity_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["identity_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -5977,12 +5743,8 @@
           "name": "message_log_platform_user_id_fkey",
           "tableFrom": "message_log",
           "tableTo": "platform_users",
-          "columnsFrom": [
-            "platform_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["platform_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -6147,12 +5909,8 @@
           "name": "online_intake_answers_request_id_fkey",
           "tableFrom": "online_intake_answers",
           "tableTo": "online_intake_requests",
-          "columnsFrom": [
-            "request_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["request_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -6162,10 +5920,7 @@
         "online_intake_answers_request_id_question_id_key": {
           "name": "online_intake_answers_request_id_question_id_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "request_id",
-            "question_id"
-          ]
+          "columns": ["request_id", "question_id"]
         }
       },
       "policies": {},
@@ -6256,12 +6011,8 @@
           "name": "online_intake_attachments_request_id_fkey",
           "tableFrom": "online_intake_attachments",
           "tableTo": "online_intake_requests",
-          "columnsFrom": [
-            "request_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["request_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -6403,12 +6154,8 @@
           "name": "online_intake_requests_user_id_fkey",
           "tableFrom": "online_intake_requests",
           "tableTo": "platform_users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -6516,12 +6263,8 @@
           "name": "online_intake_status_history_changed_by_fkey",
           "tableFrom": "online_intake_status_history",
           "tableTo": "platform_users",
-          "columnsFrom": [
-            "changed_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["changed_by"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -6529,12 +6272,8 @@
           "name": "online_intake_status_history_request_id_fkey",
           "tableFrom": "online_intake_status_history",
           "tableTo": "online_intake_requests",
-          "columnsFrom": [
-            "request_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["request_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -6900,12 +6639,8 @@
           "name": "patient_bookings_branch_id_fkey",
           "tableFrom": "patient_bookings",
           "tableTo": "booking_branches",
-          "columnsFrom": [
-            "branch_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["branch_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -6913,12 +6648,8 @@
           "name": "patient_bookings_branch_service_id_fkey",
           "tableFrom": "patient_bookings",
           "tableTo": "booking_branch_services",
-          "columnsFrom": [
-            "branch_service_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["branch_service_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -6926,12 +6657,8 @@
           "name": "patient_bookings_platform_user_id_fkey",
           "tableFrom": "patient_bookings",
           "tableTo": "platform_users",
-          "columnsFrom": [
-            "platform_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["platform_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -6939,12 +6666,8 @@
           "name": "patient_bookings_service_id_fkey",
           "tableFrom": "patient_bookings",
           "tableTo": "booking_services",
-          "columnsFrom": [
-            "service_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["service_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -6954,9 +6677,7 @@
         "patient_bookings_rubitime_id_key": {
           "name": "patient_bookings_rubitime_id_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "rubitime_id"
-          ]
+          "columns": ["rubitime_id"]
         }
       },
       "policies": {},
@@ -7111,12 +6832,8 @@
           "name": "patient_home_block_items_block_fkey",
           "tableFrom": "patient_home_block_items",
           "tableTo": "patient_home_blocks",
-          "columnsFrom": [
-            "block_code"
-          ],
-          "columnsTo": [
-            "code"
-          ],
+          "columnsFrom": ["block_code"],
+          "columnsTo": ["code"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -7302,12 +7019,8 @@
           "name": "patient_lfk_assignments_assigned_by_fkey",
           "tableFrom": "patient_lfk_assignments",
           "tableTo": "platform_users",
-          "columnsFrom": [
-            "assigned_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["assigned_by"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -7315,12 +7028,8 @@
           "name": "patient_lfk_assignments_complex_id_fkey",
           "tableFrom": "patient_lfk_assignments",
           "tableTo": "lfk_complexes",
-          "columnsFrom": [
-            "complex_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["complex_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -7328,12 +7037,8 @@
           "name": "patient_lfk_assignments_patient_user_id_fkey",
           "tableFrom": "patient_lfk_assignments",
           "tableTo": "platform_users",
-          "columnsFrom": [
-            "patient_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["patient_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -7341,12 +7046,8 @@
           "name": "patient_lfk_assignments_template_id_fkey",
           "tableFrom": "patient_lfk_assignments",
           "tableTo": "lfk_complex_templates",
-          "columnsFrom": [
-            "template_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["template_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -7650,12 +7351,8 @@
           "name": "platform_users_blocked_by_fkey",
           "tableFrom": "platform_users",
           "tableTo": "platform_users",
-          "columnsFrom": [
-            "blocked_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["blocked_by"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -7663,12 +7360,8 @@
           "name": "platform_users_merged_into_id_fkey",
           "tableFrom": "platform_users",
           "tableTo": "platform_users",
-          "columnsFrom": [
-            "merged_into_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["merged_into_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -7678,16 +7371,12 @@
         "platform_users_phone_normalized_key": {
           "name": "platform_users_phone_normalized_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "phone_normalized"
-          ]
+          "columns": ["phone_normalized"]
         },
         "platform_users_integrator_user_id_key": {
           "name": "platform_users_integrator_user_id_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "integrator_user_id"
-          ]
+          "columns": ["integrator_user_id"]
         }
       },
       "policies": {},
@@ -7903,12 +7592,8 @@
           "name": "question_messages_question_id_fkey",
           "tableFrom": "question_messages",
           "tableTo": "user_questions",
-          "columnsFrom": [
-            "question_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["question_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -7976,9 +7661,7 @@
         "reference_categories_code_key": {
           "name": "reference_categories_code_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "code"
-          ]
+          "columns": ["code"]
         }
       },
       "policies": {},
@@ -8116,12 +7799,8 @@
           "name": "reference_items_category_id_fkey",
           "tableFrom": "reference_items",
           "tableTo": "reference_categories",
-          "columnsFrom": [
-            "category_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["category_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -8131,10 +7810,7 @@
         "reference_items_category_id_code_key": {
           "name": "reference_items_category_id_code_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "category_id",
-            "code"
-          ]
+          "columns": ["category_id", "code"]
         }
       },
       "policies": {},
@@ -8265,9 +7941,7 @@
         "reminder_delivery_events_integrator_delivery_log_id_key": {
           "name": "reminder_delivery_events_integrator_delivery_log_id_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "integrator_delivery_log_id"
-          ]
+          "columns": ["integrator_delivery_log_id"]
         }
       },
       "policies": {},
@@ -8479,12 +8153,8 @@
           "name": "reminder_journal_occurrence_id_fkey",
           "tableFrom": "reminder_journal",
           "tableTo": "reminder_occurrence_history",
-          "columnsFrom": [
-            "occurrence_id"
-          ],
-          "columnsTo": [
-            "integrator_occurrence_id"
-          ],
+          "columnsFrom": ["occurrence_id"],
+          "columnsTo": ["integrator_occurrence_id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -8492,12 +8162,8 @@
           "name": "reminder_journal_rule_id_fkey",
           "tableFrom": "reminder_journal",
           "tableTo": "reminder_rules",
-          "columnsFrom": [
-            "rule_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["rule_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -8725,9 +8391,7 @@
         "reminder_occurrence_history_integrator_occurrence_id_key": {
           "name": "reminder_occurrence_history_integrator_occurrence_id_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "integrator_occurrence_id"
-          ]
+          "columns": ["integrator_occurrence_id"]
         }
       },
       "policies": {},
@@ -9018,12 +8682,8 @@
           "name": "reminder_rules_platform_user_id_fkey",
           "tableFrom": "reminder_rules",
           "tableTo": "platform_users",
-          "columnsFrom": [
-            "platform_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["platform_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -9033,9 +8693,7 @@
         "reminder_rules_integrator_rule_id_key": {
           "name": "reminder_rules_integrator_rule_id_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "integrator_rule_id"
-          ]
+          "columns": ["integrator_rule_id"]
         }
       },
       "policies": {},
@@ -9208,12 +8866,8 @@
           "name": "rubitime_booking_profiles_branch_id_fkey",
           "tableFrom": "rubitime_booking_profiles",
           "tableTo": "rubitime_branches",
-          "columnsFrom": [
-            "branch_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["branch_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -9221,12 +8875,8 @@
           "name": "rubitime_booking_profiles_cooperator_id_fkey",
           "tableFrom": "rubitime_booking_profiles",
           "tableTo": "rubitime_cooperators",
-          "columnsFrom": [
-            "cooperator_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["cooperator_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -9234,12 +8884,8 @@
           "name": "rubitime_booking_profiles_service_id_fkey",
           "tableFrom": "rubitime_booking_profiles",
           "tableTo": "rubitime_services",
-          "columnsFrom": [
-            "service_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["service_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -9326,9 +8972,7 @@
         "rubitime_branches_rubitime_branch_id_key": {
           "name": "rubitime_branches_rubitime_branch_id_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "rubitime_branch_id"
-          ]
+          "columns": ["rubitime_branch_id"]
         }
       },
       "policies": {},
@@ -9386,9 +9030,7 @@
         "rubitime_cooperators_rubitime_cooperator_id_key": {
           "name": "rubitime_cooperators_rubitime_cooperator_id_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "rubitime_cooperator_id"
-          ]
+          "columns": ["rubitime_cooperator_id"]
         }
       },
       "policies": {},
@@ -9661,9 +9303,7 @@
         "rubitime_records_rubitime_record_id_key": {
           "name": "rubitime_records_rubitime_record_id_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "rubitime_record_id"
-          ]
+          "columns": ["rubitime_record_id"]
         }
       },
       "policies": {},
@@ -9738,9 +9378,7 @@
         "rubitime_services_rubitime_service_id_key": {
           "name": "rubitime_services_rubitime_service_id_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "rubitime_service_id"
-          ]
+          "columns": ["rubitime_service_id"]
         }
       },
       "policies": {},
@@ -9978,12 +9616,8 @@
           "name": "support_conversation_messages_conversation_id_fkey",
           "tableFrom": "support_conversation_messages",
           "tableTo": "support_conversations",
-          "columnsFrom": [
-            "conversation_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["conversation_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -9993,9 +9627,7 @@
         "support_conversation_messages_integrator_message_id_key": {
           "name": "support_conversation_messages_integrator_message_id_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "integrator_message_id"
-          ]
+          "columns": ["integrator_message_id"]
         }
       },
       "policies": {},
@@ -10173,12 +9805,8 @@
           "name": "support_conversations_platform_user_id_fkey",
           "tableFrom": "support_conversations",
           "tableTo": "platform_users",
-          "columnsFrom": [
-            "platform_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["platform_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -10188,9 +9816,7 @@
         "support_conversations_integrator_conversation_id_key": {
           "name": "support_conversations_integrator_conversation_id_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "integrator_conversation_id"
-          ]
+          "columns": ["integrator_conversation_id"]
         }
       },
       "policies": {},
@@ -10362,12 +9988,8 @@
           "name": "support_delivery_events_conversation_message_id_fkey",
           "tableFrom": "support_delivery_events",
           "tableTo": "support_conversation_messages",
-          "columnsFrom": [
-            "conversation_message_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["conversation_message_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -10466,12 +10088,8 @@
           "name": "support_question_messages_question_id_fkey",
           "tableFrom": "support_question_messages",
           "tableTo": "support_questions",
-          "columnsFrom": [
-            "question_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["question_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -10481,9 +10099,7 @@
         "support_question_messages_integrator_question_message_id_key": {
           "name": "support_question_messages_integrator_question_message_id_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "integrator_question_message_id"
-          ]
+          "columns": ["integrator_question_message_id"]
         }
       },
       "policies": {},
@@ -10596,12 +10212,8 @@
           "name": "support_questions_conversation_id_fkey",
           "tableFrom": "support_questions",
           "tableTo": "support_conversations",
-          "columnsFrom": [
-            "conversation_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["conversation_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -10611,9 +10223,7 @@
         "support_questions_integrator_question_id_key": {
           "name": "support_questions_integrator_question_id_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "integrator_question_id"
-          ]
+          "columns": ["integrator_question_id"]
         }
       },
       "policies": {},
@@ -10764,12 +10374,8 @@
           "name": "symptom_entries_platform_user_id_fkey",
           "tableFrom": "symptom_entries",
           "tableTo": "platform_users",
-          "columnsFrom": [
-            "platform_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["platform_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -10777,12 +10383,8 @@
           "name": "symptom_entries_tracking_id_fkey",
           "tableFrom": "symptom_entries",
           "tableTo": "symptom_trackings",
-          "columnsFrom": [
-            "tracking_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["tracking_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -10969,12 +10571,8 @@
           "name": "symptom_trackings_diagnosis_ref_id_fkey",
           "tableFrom": "symptom_trackings",
           "tableTo": "reference_items",
-          "columnsFrom": [
-            "diagnosis_ref_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["diagnosis_ref_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -10982,12 +10580,8 @@
           "name": "symptom_trackings_platform_user_id_fkey",
           "tableFrom": "symptom_trackings",
           "tableTo": "platform_users",
-          "columnsFrom": [
-            "platform_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["platform_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -10995,12 +10589,8 @@
           "name": "symptom_trackings_region_ref_id_fkey",
           "tableFrom": "symptom_trackings",
           "tableTo": "reference_items",
-          "columnsFrom": [
-            "region_ref_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["region_ref_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -11008,12 +10598,8 @@
           "name": "symptom_trackings_stage_ref_id_fkey",
           "tableFrom": "symptom_trackings",
           "tableTo": "reference_items",
-          "columnsFrom": [
-            "stage_ref_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["stage_ref_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -11021,12 +10607,8 @@
           "name": "symptom_trackings_symptom_type_ref_id_fkey",
           "tableFrom": "symptom_trackings",
           "tableTo": "reference_items",
-          "columnsFrom": [
-            "symptom_type_ref_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["symptom_type_ref_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -11086,12 +10668,8 @@
           "name": "system_settings_updated_by_fkey",
           "tableFrom": "system_settings",
           "tableTo": "platform_users",
-          "columnsFrom": [
-            "updated_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["updated_by"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -11099,10 +10677,7 @@
       "compositePrimaryKeys": {
         "system_settings_pkey": {
           "name": "system_settings_pkey",
-          "columns": [
-            "key",
-            "scope"
-          ]
+          "columns": ["key", "scope"]
         }
       },
       "uniqueConstraints": {},
@@ -11250,12 +10825,8 @@
           "name": "telegram_state_identity_id_fkey",
           "tableFrom": "telegram_state",
           "tableTo": "identities",
-          "columnsFrom": [
-            "identity_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["identity_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -11407,9 +10978,7 @@
         "telegram_users_chat_id_key": {
           "name": "telegram_users_chat_id_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "telegram_id"
-          ]
+          "columns": ["telegram_id"]
         }
       },
       "policies": {},
@@ -11492,12 +11061,8 @@
           "name": "user_channel_bindings_user_id_fkey",
           "tableFrom": "user_channel_bindings",
           "tableTo": "platform_users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -11507,10 +11072,7 @@
         "user_channel_bindings_channel_code_external_id_key": {
           "name": "user_channel_bindings_channel_code_external_id_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "channel_code",
-            "external_id"
-          ]
+          "columns": ["channel_code", "external_id"]
         }
       },
       "policies": {},
@@ -11667,12 +11229,8 @@
           "name": "user_channel_preferences_platform_user_id_fkey",
           "tableFrom": "user_channel_preferences",
           "tableTo": "platform_users",
-          "columnsFrom": [
-            "platform_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["platform_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -11682,10 +11240,7 @@
         "user_channel_preferences_user_id_channel_code_key": {
           "name": "user_channel_preferences_user_id_channel_code_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "user_id",
-            "channel_code"
-          ]
+          "columns": ["user_id", "channel_code"]
         }
       },
       "policies": {},
@@ -11751,12 +11306,8 @@
           "name": "user_notification_topics_user_id_fkey",
           "tableFrom": "user_notification_topics",
           "tableTo": "platform_users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -11764,10 +11315,7 @@
       "compositePrimaryKeys": {
         "user_notification_topics_pkey": {
           "name": "user_notification_topics_pkey",
-          "columns": [
-            "user_id",
-            "topic_code"
-          ]
+          "columns": ["user_id", "topic_code"]
         }
       },
       "uniqueConstraints": {},
@@ -11841,12 +11389,8 @@
           "name": "user_oauth_bindings_user_id_fkey",
           "tableFrom": "user_oauth_bindings",
           "tableTo": "platform_users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -11856,10 +11400,7 @@
         "user_oauth_bindings_provider_provider_user_id_key": {
           "name": "user_oauth_bindings_provider_provider_user_id_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "provider",
-            "provider_user_id"
-          ]
+          "columns": ["provider", "provider_user_id"]
         }
       },
       "policies": {},
@@ -11921,12 +11462,8 @@
           "name": "user_pins_user_id_fkey",
           "tableFrom": "user_pins",
           "tableTo": "platform_users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -12040,12 +11577,8 @@
           "name": "user_questions_conversation_id_fkey",
           "tableFrom": "user_questions",
           "tableTo": "conversations",
-          "columnsFrom": [
-            "conversation_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["conversation_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -12053,12 +11586,8 @@
           "name": "user_questions_user_identity_id_fkey",
           "tableFrom": "user_questions",
           "tableTo": "identities",
-          "columnsFrom": [
-            "user_identity_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_identity_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -12148,12 +11677,8 @@
           "name": "user_reminder_delivery_logs_occurrence_id_fkey",
           "tableFrom": "user_reminder_delivery_logs",
           "tableTo": "user_reminder_occurrences",
-          "columnsFrom": [
-            "occurrence_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["occurrence_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -12280,12 +11805,8 @@
           "name": "user_reminder_occurrences_rule_id_fkey",
           "tableFrom": "user_reminder_occurrences",
           "tableTo": "user_reminder_rules",
-          "columnsFrom": [
-            "rule_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["rule_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -12295,9 +11816,7 @@
         "user_reminder_occurrences_occurrence_key_key": {
           "name": "user_reminder_occurrences_occurrence_key_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "occurrence_key"
-          ]
+          "columns": ["occurrence_key"]
         }
       },
       "policies": {},
@@ -12424,12 +11943,8 @@
           "name": "user_reminder_rules_user_id_fkey",
           "tableFrom": "user_reminder_rules",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -12439,10 +11954,7 @@
         "user_reminder_rules_user_category_uniq": {
           "name": "user_reminder_rules_user_category_uniq",
           "nullsNotDistinct": false,
-          "columns": [
-            "user_id",
-            "category"
-          ]
+          "columns": ["user_id", "category"]
         }
       },
       "policies": {},
@@ -12486,12 +11998,8 @@
           "name": "user_subscriptions_subscription_id_fkey",
           "tableFrom": "user_subscriptions",
           "tableTo": "mailing_topics",
-          "columnsFrom": [
-            "topic_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["topic_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -12499,12 +12007,8 @@
           "name": "user_subscriptions_user_id_fkey",
           "tableFrom": "user_subscriptions",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -12512,10 +12016,7 @@
       "compositePrimaryKeys": {
         "user_subscriptions_pkey": {
           "name": "user_subscriptions_pkey",
-          "columns": [
-            "user_id",
-            "topic_id"
-          ]
+          "columns": ["user_id", "topic_id"]
         }
       },
       "uniqueConstraints": {},
@@ -12601,10 +12102,7 @@
         "user_subscriptions_webapp_integrator_user_id_integrator_top_key": {
           "name": "user_subscriptions_webapp_integrator_user_id_integrator_top_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "integrator_user_id",
-            "integrator_topic_id"
-          ]
+          "columns": ["integrator_user_id", "integrator_topic_id"]
         }
       },
       "policies": {},
@@ -12666,12 +12164,8 @@
           "name": "users_merged_into_user_id_fkey",
           "tableFrom": "users",
           "tableTo": "users",
-          "columnsFrom": [
-            "merged_into_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["merged_into_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -12828,12 +12322,8 @@
           "name": "tests_created_by_fkey",
           "tableFrom": "tests",
           "tableTo": "platform_users",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["created_by"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -12905,12 +12395,8 @@
           "name": "test_set_items_test_set_id_fkey",
           "tableFrom": "test_set_items",
           "tableTo": "test_sets",
-          "columnsFrom": [
-            "test_set_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["test_set_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -12918,12 +12404,8 @@
           "name": "test_set_items_test_id_fkey",
           "tableFrom": "test_set_items",
           "tableTo": "tests",
-          "columnsFrom": [
-            "test_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["test_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -13008,12 +12490,8 @@
           "name": "test_sets_created_by_fkey",
           "tableFrom": "test_sets",
           "tableTo": "platform_users",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["created_by"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -13117,12 +12595,8 @@
           "name": "recommendations_created_by_fkey",
           "tableFrom": "recommendations",
           "tableTo": "platform_users",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["created_by"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -13212,12 +12686,8 @@
           "name": "treatment_program_template_stage_items_stage_id_fkey",
           "tableFrom": "treatment_program_template_stage_items",
           "tableTo": "treatment_program_template_stages",
-          "columnsFrom": [
-            "stage_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["stage_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -13324,12 +12794,8 @@
           "name": "treatment_program_template_stages_template_id_fkey",
           "tableFrom": "treatment_program_template_stages",
           "tableTo": "treatment_program_templates",
-          "columnsFrom": [
-            "template_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["template_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -13414,12 +12880,8 @@
           "name": "treatment_program_templates_created_by_fkey",
           "tableFrom": "treatment_program_templates",
           "tableTo": "platform_users",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["created_by"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -13532,12 +12994,8 @@
           "name": "treatment_program_instance_stage_items_stage_id_fkey",
           "tableFrom": "treatment_program_instance_stage_items",
           "tableTo": "treatment_program_instance_stages",
-          "columnsFrom": [
-            "stage_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["stage_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -13668,12 +13126,8 @@
           "name": "treatment_program_instance_stages_instance_id_fkey",
           "tableFrom": "treatment_program_instance_stages",
           "tableTo": "treatment_program_instances",
-          "columnsFrom": [
-            "instance_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["instance_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -13681,12 +13135,8 @@
           "name": "treatment_program_instance_stages_source_stage_id_fkey",
           "tableFrom": "treatment_program_instance_stages",
           "tableTo": "treatment_program_template_stages",
-          "columnsFrom": [
-            "source_stage_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["source_stage_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -13805,12 +13255,8 @@
           "name": "treatment_program_instances_template_id_fkey",
           "tableFrom": "treatment_program_instances",
           "tableTo": "treatment_program_templates",
-          "columnsFrom": [
-            "template_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["template_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -13818,12 +13264,8 @@
           "name": "treatment_program_instances_patient_user_id_fkey",
           "tableFrom": "treatment_program_instances",
           "tableTo": "platform_users",
-          "columnsFrom": [
-            "patient_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["patient_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -13831,12 +13273,8 @@
           "name": "treatment_program_instances_assigned_by_fkey",
           "tableFrom": "treatment_program_instances",
           "tableTo": "platform_users",
-          "columnsFrom": [
-            "assigned_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["assigned_by"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -13950,12 +13388,8 @@
           "name": "test_attempts_instance_stage_item_id_fkey",
           "tableFrom": "test_attempts",
           "tableTo": "treatment_program_instance_stage_items",
-          "columnsFrom": [
-            "instance_stage_item_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["instance_stage_item_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -13963,12 +13397,8 @@
           "name": "test_attempts_patient_user_id_fkey",
           "tableFrom": "test_attempts",
           "tableTo": "platform_users",
-          "columnsFrom": [
-            "patient_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["patient_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -14088,12 +13518,8 @@
           "name": "test_results_attempt_id_fkey",
           "tableFrom": "test_results",
           "tableTo": "test_attempts",
-          "columnsFrom": [
-            "attempt_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["attempt_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -14101,12 +13527,8 @@
           "name": "test_results_test_id_fkey",
           "tableFrom": "test_results",
           "tableTo": "tests",
-          "columnsFrom": [
-            "test_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["test_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -14114,12 +13536,8 @@
           "name": "test_results_decided_by_fkey",
           "tableFrom": "test_results",
           "tableTo": "platform_users",
-          "columnsFrom": [
-            "decided_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["decided_by"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -14227,12 +13645,8 @@
           "name": "treatment_program_events_instance_id_fkey",
           "tableFrom": "treatment_program_events",
           "tableTo": "treatment_program_instances",
-          "columnsFrom": [
-            "instance_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["instance_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -14240,12 +13654,8 @@
           "name": "treatment_program_events_actor_id_fkey",
           "tableFrom": "treatment_program_events",
           "tableTo": "platform_users",
-          "columnsFrom": [
-            "actor_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["actor_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -14351,12 +13761,8 @@
           "name": "comments_author_id_fkey",
           "tableFrom": "comments",
           "tableTo": "platform_users",
-          "columnsFrom": [
-            "author_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["author_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -14492,12 +13898,8 @@
           "name": "courses_program_template_id_fkey",
           "tableFrom": "courses",
           "tableTo": "treatment_program_templates",
-          "columnsFrom": [
-            "program_template_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["program_template_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -14505,12 +13907,8 @@
           "name": "courses_intro_lesson_page_id_fkey",
           "tableFrom": "courses",
           "tableTo": "content_pages",
-          "columnsFrom": [
-            "intro_lesson_page_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["intro_lesson_page_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -14629,12 +14027,8 @@
           "name": "patient_practice_completions_content_page_id_content_pages_id_fk",
           "tableFrom": "patient_practice_completions",
           "tableTo": "content_pages",
-          "columnsFrom": [
-            "content_page_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["content_page_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -14696,10 +14090,7 @@
       "compositePrimaryKeys": {
         "patient_daily_mood_user_id_mood_date_pk": {
           "name": "patient_daily_mood_user_id_mood_date_pk",
-          "columns": [
-            "user_id",
-            "mood_date"
-          ]
+          "columns": ["user_id", "mood_date"]
         }
       },
       "uniqueConstraints": {},

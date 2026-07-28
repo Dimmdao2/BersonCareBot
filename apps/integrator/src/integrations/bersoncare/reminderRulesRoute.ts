@@ -9,7 +9,9 @@ const WINDOW_SECONDS = 300;
 
 const payloadSchema = z.object({
   integratorRuleId: z.string().min(1),
-  integratorUserId: z.union([z.string().min(1), z.number().int()]).transform((value) => String(value)),
+  integratorUserId: z
+    .union([z.string().min(1), z.number().int()])
+    .transform((value) => String(value)),
   category: z.string().min(1),
   isEnabled: z.boolean(),
   scheduleType: z.string().min(1),
@@ -40,7 +42,12 @@ const bodySchema = z.object({
 type ReminderRuleUpsertBody = z.infer<typeof bodySchema>;
 type ReqWithRawBody = FastifyRequest<{ Body: ReminderRuleUpsertBody }> & { rawBody?: string };
 
-function verifySignature(timestamp: string, rawBody: string, signature: string, secret: string): boolean {
+function verifySignature(
+  timestamp: string,
+  rawBody: string,
+  signature: string,
+  secret: string,
+): boolean {
   const ts = Number(timestamp);
   if (!Number.isFinite(ts)) return false;
   const now = Math.floor(Date.now() / 1000);
@@ -76,85 +83,93 @@ export async function registerBersoncareReminderRulesRoute(
     });
   }
 
-  app.post<{ Body: ReminderRuleUpsertBody }>('/api/integrator/reminders/rules', async (request, reply) => {
-    const req = request as ReqWithRawBody;
-    const rawBody = req.rawBody ?? JSON.stringify(request.body ?? {});
-    const timestamp = request.headers['x-bersoncare-timestamp'];
-    const signature = request.headers['x-bersoncare-signature'];
+  app.post<{ Body: ReminderRuleUpsertBody }>(
+    '/api/integrator/reminders/rules',
+    async (request, reply) => {
+      const req = request as ReqWithRawBody;
+      const rawBody = req.rawBody ?? JSON.stringify(request.body ?? {});
+      const timestamp = request.headers['x-bersoncare-timestamp'];
+      const signature = request.headers['x-bersoncare-signature'];
 
-    if (typeof timestamp !== 'string' || typeof signature !== 'string') {
-      return reply.code(400).send({ ok: false, error: 'missing_headers' });
-    }
-    if (!sharedSecret) {
-      logger.warn({}, 'bersoncare reminders/rules: webhook secret not set');
-      return reply.code(503).send({ ok: false, error: 'service_unconfigured' });
-    }
-    if (!verifySignature(timestamp, rawBody, signature, sharedSecret)) {
-      return reply.code(401).send({ ok: false, error: 'invalid_signature' });
-    }
+      if (typeof timestamp !== 'string' || typeof signature !== 'string') {
+        return reply.code(400).send({ ok: false, error: 'missing_headers' });
+      }
+      if (!sharedSecret) {
+        logger.warn({}, 'bersoncare reminders/rules: webhook secret not set');
+        return reply.code(503).send({ ok: false, error: 'service_unconfigured' });
+      }
+      if (!verifySignature(timestamp, rawBody, signature, sharedSecret)) {
+        return reply.code(401).send({ ok: false, error: 'invalid_signature' });
+      }
 
-    const parsed = bodySchema.safeParse(request.body);
-    if (!parsed.success) {
-      return reply.code(400).send({ ok: false, error: 'invalid_payload' });
-    }
+      const parsed = bodySchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.code(400).send({ ok: false, error: 'invalid_payload' });
+      }
 
-    const payload = parsed.data.payload;
-    if (payload.scheduleType !== 'slots_v1' && payload.windowStartMinute >= payload.windowEndMinute) {
-      return reply.code(400).send({ ok: false, error: 'invalid_window' });
-    }
+      const payload = parsed.data.payload;
+      if (
+        payload.scheduleType !== 'slots_v1' &&
+        payload.windowStartMinute >= payload.windowEndMinute
+      ) {
+        return reply.code(400).send({ ok: false, error: 'invalid_window' });
+      }
 
-    try {
-      const writeRule = (): Promise<void | DbWriteDbResult> =>
-        writePort.writeDb({
-          type: 'reminders.rule.upsert',
-          params: {
-            id: payload.integratorRuleId,
-            userId: payload.integratorUserId,
-            category: payload.category,
-            isEnabled: payload.isEnabled,
-            scheduleType: payload.scheduleType,
-            timezone: payload.timezone,
-            intervalMinutes: payload.intervalMinutes,
-            windowStartMinute: payload.windowStartMinute,
-            windowEndMinute: payload.windowEndMinute,
-            daysMask: payload.daysMask,
-            contentMode: payload.contentMode,
-            linkedObjectType: payload.linkedObjectType ?? null,
-            linkedObjectId: payload.linkedObjectId ?? null,
-            customTitle: payload.customTitle ?? null,
-            customText: payload.customText ?? null,
-            deepLink: payload.deepLink ?? null,
-            scheduleData: payload.scheduleData,
-            reminderIntent: payload.reminderIntent ?? null,
-            quietHoursStartMinute: payload.quietHoursStartMinute ?? null,
-            quietHoursEndMinute: payload.quietHoursEndMinute ?? null,
-            ...(payload.notificationTopicCode !== undefined
-              ? {
-                  notificationTopicCode:
-                    typeof payload.notificationTopicCode === 'string'
-                      ? payload.notificationTopicCode.trim() || null
-                      : payload.notificationTopicCode,
-                }
-              : {}),
-          },
-        });
-      let organizationId: string | null = null;
-      if (resolveOrganizationIdForIntegratorUserId) {
-        try {
-          organizationId = await resolveOrganizationIdForIntegratorUserId(payload.integratorUserId);
-        } catch {
-          organizationId = null;
+      try {
+        const writeRule = (): Promise<void | DbWriteDbResult> =>
+          writePort.writeDb({
+            type: 'reminders.rule.upsert',
+            params: {
+              id: payload.integratorRuleId,
+              userId: payload.integratorUserId,
+              category: payload.category,
+              isEnabled: payload.isEnabled,
+              scheduleType: payload.scheduleType,
+              timezone: payload.timezone,
+              intervalMinutes: payload.intervalMinutes,
+              windowStartMinute: payload.windowStartMinute,
+              windowEndMinute: payload.windowEndMinute,
+              daysMask: payload.daysMask,
+              contentMode: payload.contentMode,
+              linkedObjectType: payload.linkedObjectType ?? null,
+              linkedObjectId: payload.linkedObjectId ?? null,
+              customTitle: payload.customTitle ?? null,
+              customText: payload.customText ?? null,
+              deepLink: payload.deepLink ?? null,
+              scheduleData: payload.scheduleData,
+              reminderIntent: payload.reminderIntent ?? null,
+              quietHoursStartMinute: payload.quietHoursStartMinute ?? null,
+              quietHoursEndMinute: payload.quietHoursEndMinute ?? null,
+              ...(payload.notificationTopicCode !== undefined
+                ? {
+                    notificationTopicCode:
+                      typeof payload.notificationTopicCode === 'string'
+                        ? payload.notificationTopicCode.trim() || null
+                        : payload.notificationTopicCode,
+                  }
+                : {}),
+            },
+          });
+        let organizationId: string | null = null;
+        if (resolveOrganizationIdForIntegratorUserId) {
+          try {
+            organizationId = await resolveOrganizationIdForIntegratorUserId(
+              payload.integratorUserId,
+            );
+          } catch {
+            organizationId = null;
+          }
         }
+        if (organizationId) {
+          await runWithOrganizationPrincipal(organizationId, writeRule);
+        } else {
+          await writeRule();
+        }
+        return reply.code(200).send({ ok: true });
+      } catch (err) {
+        logger.error({ err }, 'bersoncare reminders/rules: write failed');
+        return reply.code(502).send({ ok: false, error: 'write_failed' });
       }
-      if (organizationId) {
-        await runWithOrganizationPrincipal(organizationId, writeRule);
-      } else {
-        await writeRule();
-      }
-      return reply.code(200).send({ ok: true });
-    } catch (err) {
-      logger.error({ err }, 'bersoncare reminders/rules: write failed');
-      return reply.code(502).send({ ok: false, error: 'write_failed' });
-    }
-  });
+    },
+  );
 }

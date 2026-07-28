@@ -1,5 +1,5 @@
-import type { SessionUser } from "@/shared/types/session";
-import type { AccountOutcome } from "@/modules/auth/oauthYandexResolve";
+import type { SessionUser } from '@/shared/types/session';
+import type { AccountOutcome } from '@/modules/auth/oauthYandexResolve';
 
 export type FindOrCreateByChannelBindingResult = {
   user: SessionUser;
@@ -26,14 +26,14 @@ export type MessengerIdentityResolutionHints = {
  */
 export type IdentityResolutionPort = {
   findOrCreateByChannelBinding(params: {
-    channelCode: "telegram" | "max" | "vk";
+    channelCode: 'telegram' | 'max' | 'vk';
     externalId: string;
     displayName?: string;
-    role?: SessionUser["role"];
+    role?: SessionUser['role'];
     resolutionHints?: MessengerIdentityResolutionHints;
   }): Promise<FindOrCreateByChannelBindingResult>;
   findByChannelBinding(params: {
-    channelCode: "telegram" | "max" | "vk";
+    channelCode: 'telegram' | 'max' | 'vk';
     externalId: string;
   }): Promise<SessionUser | null>;
 };

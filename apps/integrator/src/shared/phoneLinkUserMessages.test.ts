@@ -28,7 +28,9 @@ describe('phoneLinkUserMessages (TX path copy)', () => {
 
   it('phoneLinkIntegratorMismatchUserMessage: telegram vs max', () => {
     expect(phoneLinkIntegratorMismatchUserMessage('telegram')).toContain('приложением');
-    expect(phoneLinkIntegratorMismatchUserMessage('max')).toBe('Не удалось сопоставить аккаунт. Напишите в поддержку.');
+    expect(phoneLinkIntegratorMismatchUserMessage('max')).toBe(
+      'Не удалось сопоставить аккаунт. Напишите в поддержку.',
+    );
   });
 
   it('phoneLinkConflictUserMessage: telegram vs max', () => {

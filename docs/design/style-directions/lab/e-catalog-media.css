@@ -12,7 +12,7 @@
 
 /* The sticky top filter bar */
 #app-shell-content .sticky {
-  background: rgba(249,249,246,.97) !important;
+  background: rgba(249, 249, 246, 0.97) !important;
   border-bottom-color: #e7e3db !important;
   backdrop-filter: blur(12px) !important;
 }
@@ -21,33 +21,35 @@
    1. SEARCH + FILTER INPUTS  (#ex-q and sibling comboboxes)
    ------------------------------------------------------- */
 
-#app-shell-content [data-slot="input"],
-#app-shell-content [data-slot="select-trigger"] {
+#app-shell-content [data-slot='input'],
+#app-shell-content [data-slot='select-trigger'] {
   background: #ffffff !important;
   border-color: #e7e3db !important;
   border-radius: 9px !important;
   color: #16202e !important;
-  transition: border-color .15s, box-shadow .15s !important;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s !important;
 }
 
-#app-shell-content [data-slot="input"]:focus,
-#app-shell-content [data-slot="input"]:focus-visible {
+#app-shell-content [data-slot='input']:focus,
+#app-shell-content [data-slot='input']:focus-visible {
   border-color: #42608a !important;
-  box-shadow: 0 0 0 3px rgba(66,96,138,.18) !important;
+  box-shadow: 0 0 0 3px rgba(66, 96, 138, 0.18) !important;
   outline: none !important;
 }
 
-#app-shell-content [data-slot="input"]::placeholder {
+#app-shell-content [data-slot='input']::placeholder {
   color: #8b95a3 !important;
 }
 
 /* Sort / archive select triggers */
-#app-shell-content [data-slot="select-trigger"] {
+#app-shell-content [data-slot='select-trigger'] {
   border-radius: 9px !important;
 }
-#app-shell-content [data-slot="select-trigger"]:focus-visible {
+#app-shell-content [data-slot='select-trigger']:focus-visible {
   border-color: #42608a !important;
-  box-shadow: 0 0 0 3px rgba(66,96,138,.18) !important;
+  box-shadow: 0 0 0 3px rgba(66, 96, 138, 0.18) !important;
 }
 
 /* -------------------------------------------------------
@@ -56,15 +58,15 @@
 
 #doctor-exercises-create-link-desktop {
   background: #42608a !important;
-  border-color: rgba(0,0,0,.10) !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
   color: #ffffff !important;
   border-radius: 9px !important;
   font-weight: 600 !important;
-  letter-spacing: .01em;
+  letter-spacing: 0.01em;
 }
 #doctor-exercises-create-link-desktop:hover {
   background: #34507a !important;
-  border-color: rgba(0,0,0,.14) !important;
+  border-color: rgba(0, 0, 0, 0.14) !important;
 }
 
 /* -------------------------------------------------------
@@ -77,9 +79,9 @@
   border-color: #e7e3db !important;
   border-radius: 12px !important;
   box-shadow:
-    0 1px 2px rgba(28,24,18,.04),
-    0 4px 12px rgba(28,24,18,.07),
-    0 0 0 1px rgba(28,24,18,.04) !important;
+    0 1px 2px rgba(28, 24, 18, 0.04),
+    0 4px 12px rgba(28, 24, 18, 0.07),
+    0 0 0 1px rgba(28, 24, 18, 0.04) !important;
 }
 
 /* Sort/filter row inside aside */
@@ -90,14 +92,14 @@
 }
 
 /* View toggle buttons (list / grid) */
-#app-shell-content aside [data-slot="button"][aria-label],
+#app-shell-content aside [data-slot='button'][aria-label],
 #app-shell-content aside button[title] {
   border-color: #e7e3db !important;
   background: #ffffff !important;
   color: #5a6675 !important;
   border-radius: 8px !important;
 }
-#app-shell-content aside [data-slot="button"][aria-label]:hover,
+#app-shell-content aside [data-slot='button'][aria-label]:hover,
 #app-shell-content aside button[title]:hover {
   background: #f1f2ef !important;
   color: #16202e !important;
@@ -114,7 +116,7 @@
    ------------------------------------------------------- */
 
 /* Kill TW's ring shadow variables so our box-shadow wins cleanly */
-#app-shell-content [data-slot="card"][data-size="sm"] {
+#app-shell-content [data-slot='card'][data-size='sm'] {
   --tw-ring-shadow: none !important;
   --tw-inset-ring-shadow: none !important;
   --tw-inset-shadow: none !important;
@@ -122,32 +124,34 @@
 }
 
 /* Card shell — white, warm border, soft shadow, 9px radius */
-#app-shell-content [data-slot="card"][data-size="sm"] {
+#app-shell-content [data-slot='card'][data-size='sm'] {
   background: #ffffff !important;
   border-radius: 9px !important;
   box-shadow:
     0 0 0 1px #e7e3db,
-    0 1px 2px rgba(28,24,18,.05),
-    0 3px 8px rgba(28,24,18,.07) !important;
-  transition: box-shadow .18s ease, transform .18s ease !important;
+    0 1px 2px rgba(28, 24, 18, 0.05),
+    0 3px 8px rgba(28, 24, 18, 0.07) !important;
+  transition:
+    box-shadow 0.18s ease,
+    transform 0.18s ease !important;
   padding-top: 8px !important;
   padding-bottom: 8px !important;
 }
 
 /* Card hover — lift + accent border tint */
-#app-shell-content button:hover > [data-slot="card"][data-size="sm"] {
+#app-shell-content button:hover > [data-slot='card'][data-size='sm'] {
   box-shadow:
     0 0 0 1.5px #42608a,
-    0 3px 8px rgba(28,24,18,.10),
-    0 8px 20px rgba(28,24,18,.12) !important;
+    0 3px 8px rgba(28, 24, 18, 0.1),
+    0 8px 20px rgba(28, 24, 18, 0.12) !important;
   transform: translateY(-2px) !important;
 }
-#app-shell-content button:hover > [data-slot="card"][data-size="sm"] .aspect-square {
+#app-shell-content button:hover > [data-slot='card'][data-size='sm'] .aspect-square {
   border-color: #c8d6e8 !important;
 }
 
 /* Card content padding */
-#app-shell-content [data-slot="card"][data-size="sm"] [data-slot="card-content"] {
+#app-shell-content [data-slot='card'][data-size='sm'] [data-slot='card-content'] {
   padding: 6px !important;
   gap: 5px !important;
 }
@@ -157,7 +161,7 @@
    ------------------------------------------------------- */
 
 /* The image container — intentional placeholder design for broken images */
-#app-shell-content [data-slot="card"][data-size="sm"] .aspect-square {
+#app-shell-content [data-slot='card'][data-size='sm'] .aspect-square {
   background: #f1ede7 !important;
   border-color: #e2dbd2 !important;
   border-radius: 7px !important;
@@ -170,8 +174,8 @@
 }
 
 /* Warm radial gradient wash — sits at z:0 as base background */
-#app-shell-content [data-slot="card"][data-size="sm"] .aspect-square::before {
-  content: "" !important;
+#app-shell-content [data-slot='card'][data-size='sm'] .aspect-square::before {
+  content: '' !important;
   position: absolute !important;
   inset: 0 !important;
   background: radial-gradient(ellipse at 50% 44%, #e5dfd6 0%, transparent 65%) !important;
@@ -180,8 +184,8 @@
 }
 
 /* Bullseye placeholder dot — z:1, centered */
-#app-shell-content [data-slot="card"][data-size="sm"] .aspect-square::after {
-  content: "" !important;
+#app-shell-content [data-slot='card'][data-size='sm'] .aspect-square::after {
+  content: '' !important;
   position: absolute !important;
   top: 50% !important;
   left: 50% !important;
@@ -190,13 +194,15 @@
   height: 22px !important;
   border-radius: 50% !important;
   background: #d8d0c5 !important;
-  box-shadow: 0 0 0 5px #eae4dc, 0 0 0 11px #f0ece5 !important;
+  box-shadow:
+    0 0 0 5px #eae4dc,
+    0 0 0 11px #f0ece5 !important;
   z-index: 1 !important;
   pointer-events: none !important;
 }
 
 /* Actual image — z:2, covers the pseudo-elements when loaded */
-#app-shell-content [data-slot="card"][data-size="sm"] .aspect-square img {
+#app-shell-content [data-slot='card'][data-size='sm'] .aspect-square img {
   position: absolute !important;
   inset: 0 !important;
   z-index: 2 !important;
@@ -217,18 +223,18 @@
    6. EXERCISE TITLE LABEL (below thumbnail)
    ------------------------------------------------------- */
 
-#app-shell-content [data-slot="card"][data-size="sm"] p.text-center {
+#app-shell-content [data-slot='card'][data-size='sm'] p.text-center {
   font-size: 11.5px !important;
   line-height: 1.4 !important;
   color: #2a3546 !important;
   font-weight: 500 !important;
   margin-top: 4px !important;
   padding: 0 3px !important;
-  letter-spacing: .01em;
+  letter-spacing: 0.01em;
 }
 
 /* On hover — accent tint */
-#app-shell-content button:hover [data-slot="card"][data-size="sm"] p.text-center {
+#app-shell-content button:hover [data-slot='card'][data-size='sm'] p.text-center {
   color: #42608a !important;
   font-weight: 600 !important;
 }
@@ -242,9 +248,9 @@
   background: #ffffff !important;
   border-radius: 12px !important;
   box-shadow:
-    0 1px 2px rgba(28,24,18,.04),
-    0 4px 12px rgba(28,24,18,.07),
-    0 0 0 1px rgba(28,24,18,.04) !important;
+    0 1px 2px rgba(28, 24, 18, 0.04),
+    0 4px 12px rgba(28, 24, 18, 0.07),
+    0 0 0 1px rgba(28, 24, 18, 0.04) !important;
 }
 
 /* Form section headers ("Медиа", "Регион", etc. spans) */
@@ -252,30 +258,32 @@
   color: #16202e !important;
   font-weight: 600 !important;
   font-size: 13px !important;
-  letter-spacing: .01em;
+  letter-spacing: 0.01em;
 }
 
 /* Form labels */
-#app-shell-content [data-slot="label"] {
+#app-shell-content [data-slot='label'] {
   color: #16202e !important;
   font-weight: 500 !important;
   font-size: 13px !important;
-  letter-spacing: .005em;
+  letter-spacing: 0.005em;
 }
 
 /* Form inputs and textareas on right panel */
-#app-shell-content [data-slot="textarea"] {
+#app-shell-content [data-slot='textarea'] {
   background: #ffffff !important;
   border-color: #e7e3db !important;
   border-radius: 9px !important;
   color: #16202e !important;
-  transition: border-color .15s, box-shadow .15s !important;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s !important;
   font-size: 13px !important;
 }
-#app-shell-content [data-slot="textarea"]:focus,
-#app-shell-content [data-slot="textarea"]:focus-visible {
+#app-shell-content [data-slot='textarea']:focus,
+#app-shell-content [data-slot='textarea']:focus-visible {
   border-color: #42608a !important;
-  box-shadow: 0 0 0 3px rgba(66,96,138,.18) !important;
+  box-shadow: 0 0 0 3px rgba(66, 96, 138, 0.18) !important;
   outline: none !important;
 }
 
@@ -285,32 +293,32 @@
 }
 
 /* Secondary (outline) buttons in detail panel */
-#app-shell-content [data-slot="button"].border-border,
-#app-shell-content [data-slot="button"].bg-background {
+#app-shell-content [data-slot='button'].border-border,
+#app-shell-content [data-slot='button'].bg-background {
   background: #ffffff !important;
   border-color: #e7e3db !important;
   color: #16202e !important;
   border-radius: 9px !important;
   font-weight: 500 !important;
 }
-#app-shell-content [data-slot="button"].border-border:hover,
-#app-shell-content [data-slot="button"].bg-background:hover {
+#app-shell-content [data-slot='button'].border-border:hover,
+#app-shell-content [data-slot='button'].bg-background:hover {
   background: #f1f2ef !important;
   border-color: #d5d0c8 !important;
 }
 
 /* Primary submit button */
-#app-shell-content [data-slot="button"].bg-primary,
-#app-shell-content button[type="submit"] {
+#app-shell-content [data-slot='button'].bg-primary,
+#app-shell-content button[type='submit'] {
   background: #42608a !important;
-  border-color: rgba(0,0,0,.10) !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
   color: #ffffff !important;
   border-radius: 9px !important;
   font-weight: 600 !important;
-  letter-spacing: .01em;
+  letter-spacing: 0.01em;
 }
-#app-shell-content [data-slot="button"].bg-primary:hover,
-#app-shell-content button[type="submit"]:hover {
+#app-shell-content [data-slot='button'].bg-primary:hover,
+#app-shell-content button[type='submit']:hover {
   background: #34507a !important;
 }
 
@@ -364,7 +372,7 @@
 #doctor-header {
   background: #ffffff !important;
   border-bottom: 1px solid #e7e3db !important;
-  box-shadow: 0 1px 3px rgba(28,24,18,.04) !important;
+  box-shadow: 0 1px 3px rgba(28, 24, 18, 0.04) !important;
 }
 
 /* Breadcrumb / nav links */
@@ -373,7 +381,9 @@
   color: #5a6675 !important;
   text-decoration: none !important;
 }
-#doctor-header a:hover { color: #42608a !important; }
+#doctor-header a:hover {
+  color: #42608a !important;
+}
 
 /* Page title in header */
 #doctor-header h1,
@@ -386,23 +396,23 @@
    ------------------------------------------------------- */
 
 /* Combobox dropdown triggers inside form */
-#app-shell-content form [data-slot="input"][role="combobox"] {
+#app-shell-content form [data-slot='input'][role='combobox'] {
   background: #ffffff !important;
   border-color: #e7e3db !important;
   border-radius: 9px !important;
   color: #16202e !important;
   cursor: pointer !important;
 }
-#app-shell-content form [data-slot="input"][role="combobox"]:focus {
+#app-shell-content form [data-slot='input'][role='combobox']:focus {
   border-color: #42608a !important;
-  box-shadow: 0 0 0 3px rgba(66,96,138,.18) !important;
+  box-shadow: 0 0 0 3px rgba(66, 96, 138, 0.18) !important;
 }
 
 /* -------------------------------------------------------
    12. FILTER BAR INNER SELECT TRIGGERS (sort + archive)
    ------------------------------------------------------- */
 
-#app-shell-content aside [data-slot="select-trigger"] {
+#app-shell-content aside [data-slot='select-trigger'] {
   background: #ffffff !important;
   border-color: #e7e3db !important;
   border-radius: 9px !important;
@@ -410,18 +420,18 @@
   font-size: 12px !important;
 }
 /* Text values in select */
-#app-shell-content aside [data-slot="select-value"] {
+#app-shell-content aside [data-slot='select-value'] {
   color: #16202e !important;
 }
 /* Chevron icon in select */
-#app-shell-content aside [data-slot="select-trigger"] .lucide-chevron-down {
+#app-shell-content aside [data-slot='select-trigger'] .lucide-chevron-down {
   color: #8b95a3 !important;
 }
 /* Sort label above select */
 #app-shell-content aside .text-muted-foreground.text-\[11px\] {
   font-size: 11px !important;
   color: #8b95a3 !important;
-  letter-spacing: .02em;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
   font-weight: 500;
 }
@@ -461,7 +471,7 @@
 /* Button wrapping each card — should have no chrome of its own */
 #app-shell-content aside button.flex.cursor-pointer.justify-center {
   border-radius: 9px !important;
-  transition: transform .18s ease !important;
+  transition: transform 0.18s ease !important;
 }
 #app-shell-content aside button.flex.cursor-pointer.justify-center:focus-visible {
   outline: 2px solid #42608a !important;

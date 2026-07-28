@@ -45,17 +45,17 @@
 
 ## Затронутые файлы (сводка)
 
-| Файл / зона | Задачи |
-|-------------|--------|
-| `apps/integrator/src/infra/db/readPort.ts` | T1 |
-| `apps/integrator/src/infra/db/readPort.test.ts` | T2 |
-| `apps/webapp/scripts/reconcile-subscription-mailing-domain.mjs` | T3 (опционально: расширить) |
-| Документация или скрипт reconciliation delivery | T3 |
-| `apps/webapp/src/app/api/...` (delivery analytics, при необходимости) | T4 |
-| Тесты API subscriptions (webapp) | T2, T5 |
-| E2e-сценарий (описание + при необходимости Playwright) | T6 |
-| `scripts/stage12-release-gate.mjs` (новый) | T7 |
-| `package.json` (root, webapp) | T7 |
+| Файл / зона                                                           | Задачи                      |
+| --------------------------------------------------------------------- | --------------------------- |
+| `apps/integrator/src/infra/db/readPort.ts`                            | T1                          |
+| `apps/integrator/src/infra/db/readPort.test.ts`                       | T2                          |
+| `apps/webapp/scripts/reconcile-subscription-mailing-domain.mjs`       | T3 (опционально: расширить) |
+| Документация или скрипт reconciliation delivery                       | T3                          |
+| `apps/webapp/src/app/api/...` (delivery analytics, при необходимости) | T4                          |
+| Тесты API subscriptions (webapp)                                      | T2, T5                      |
+| E2e-сценарий (описание + при необходимости Playwright)                | T6                          |
+| `scripts/stage12-release-gate.mjs` (новый)                            | T7                          |
+| `package.json` (root, webapp)                                         | T7                          |
 
 ---
 

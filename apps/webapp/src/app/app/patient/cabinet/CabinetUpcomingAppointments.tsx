@@ -1,11 +1,15 @@
-"use client";
+'use client';
 
-import type { AppointmentSummary } from "@/modules/appointments/service";
-import { TooltipProvider } from "@/shared/ui/patient/primitives/tooltip";
-import { isSafeExternalHref } from "@/lib/url/isSafeExternalHref";
-import { cn } from "@/lib/utils";
-import { patientInlineLinkClass, patientListItemClass, patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
-import { AppointmentStatusBadge } from "./AppointmentStatusBadge";
+import type { AppointmentSummary } from '@/modules/appointments/service';
+import { TooltipProvider } from '@/shared/ui/patient/primitives/tooltip';
+import { isSafeExternalHref } from '@/lib/url/isSafeExternalHref';
+import { cn } from '@/lib/utils';
+import {
+  patientInlineLinkClass,
+  patientListItemClass,
+  patientMutedTextClass,
+} from '@/shared/ui/patient/patientVisual';
+import { AppointmentStatusBadge } from './AppointmentStatusBadge';
 
 type Props = {
   appointments: AppointmentSummary[];
@@ -27,7 +31,7 @@ export function CabinetUpcomingAppointments({ appointments }: Props) {
                 href={a.link}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={cn(patientInlineLinkClass, "font-medium")}
+                className={cn(patientInlineLinkClass, 'font-medium')}
               >
                 {a.timeLabel}
               </a>
@@ -35,23 +39,22 @@ export function CabinetUpcomingAppointments({ appointments }: Props) {
               <span className="font-medium tabular-nums">{a.timeLabel}</span>
             );
           return (
-            <li
-              key={a.id}
-              className={cn(patientListItemClass, "flex flex-col gap-1 !px-3 !py-2")}
-            >
+            <li key={a.id} className={cn(patientListItemClass, 'flex flex-col gap-1 !px-3 !py-2')}>
               {a.scheduleProvenancePrefix ? (
-                <span className={cn(patientMutedTextClass, "text-xs")}>{a.scheduleProvenancePrefix}</span>
+                <span className={cn(patientMutedTextClass, 'text-xs')}>
+                  {a.scheduleProvenancePrefix}
+                </span>
               ) : null}
               <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
-              <span className="min-w-0 text-left text-sm tabular-nums">{a.dateLabel}</span>
-              <span className="min-w-0 shrink-0 text-center text-sm">{timeContent}</span>
-              <span className="flex min-w-0 justify-end">
-                <AppointmentStatusBadge
-                  mode="upcoming"
-                  status={a.status}
-                  cancelReason={a.cancelReason}
-                />
-              </span>
+                <span className="min-w-0 text-left text-sm tabular-nums">{a.dateLabel}</span>
+                <span className="min-w-0 shrink-0 text-center text-sm">{timeContent}</span>
+                <span className="flex min-w-0 justify-end">
+                  <AppointmentStatusBadge
+                    mode="upcoming"
+                    status={a.status}
+                    cancelReason={a.cancelReason}
+                  />
+                </span>
               </div>
             </li>
           );

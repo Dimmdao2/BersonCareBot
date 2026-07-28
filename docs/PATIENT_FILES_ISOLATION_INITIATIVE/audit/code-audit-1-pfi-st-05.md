@@ -1,4 +1,5 @@
 # Code Audit 1 — PFI-ST-05
+
 **Auditor:** Sonnet (1st independent)  
 **Date:** 2026-06-19  
 **Branch:** `auto/pfi-st-05`  

@@ -1,30 +1,30 @@
-import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 
 const bodySchema = z.object({
   setupToken: z.string().min(4),
 });
 
 export async function POST(request: Request) {
-  stampBootstrapPrincipal("api/auth/phone/messenger-bind/status:POST", request);
+  stampBootstrapPrincipal('api/auth/phone/messenger-bind/status:POST', request);
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
     return NextResponse.json(
-      { ok: false, error: "invalid_body", message: "Укажите setupToken" },
+      { ok: false, error: 'invalid_body', message: 'Укажите setupToken' },
       { status: 400 },
     );
   }
 
   const result = await buildAppDeps().phoneMessengerBind.getStatus(parsed.data.setupToken);
   if (!result.ok) {
-    const status = result.code === "not_found" ? 404 : 400;
+    const status = result.code === 'not_found' ? 404 : 400;
     return NextResponse.json({ ok: false, error: result.code }, { status });
   }
 
-  if (result.status === "otp_ready") {
+  if (result.status === 'otp_ready') {
     return NextResponse.json({
       ok: true,
       status: result.status,
@@ -36,6 +36,6 @@ export async function POST(request: Request) {
   return NextResponse.json({
     ok: true,
     status: result.status,
-    ...(result.status === "failed" && result.error ? { error: result.error } : {}),
+    ...(result.status === 'failed' && result.error ? { error: result.error } : {}),
   });
 }

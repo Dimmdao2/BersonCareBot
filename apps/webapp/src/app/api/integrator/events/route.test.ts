@@ -1,8 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { resetIdempotencyStoreForTests } from "@/infra/idempotency/store";
-import { getCurrentDbPrincipal } from "@bersoncare/db-principal";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { resetIdempotencyStoreForTests } from '@/infra/idempotency/store';
+import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 
-const { verifySignatureMock, handleIntegratorEventMock, getPoolMock, getCachedResponseMock, setCachedResponseMock } = vi.hoisted(() => ({
+const {
+  verifySignatureMock,
+  handleIntegratorEventMock,
+  getPoolMock,
+  getCachedResponseMock,
+  setCachedResponseMock,
+} = vi.hoisted(() => ({
   verifySignatureMock: vi.fn(),
   handleIntegratorEventMock: vi.fn(),
   getPoolMock: vi.fn(() => ({
@@ -16,28 +22,28 @@ const { verifySignatureMock, handleIntegratorEventMock, getPoolMock, getCachedRe
   setCachedResponseMock: vi.fn(),
 }));
 
-vi.mock("@/app-layer/integrator/verifyIntegratorSignature", () => ({
+vi.mock('@/app-layer/integrator/verifyIntegratorSignature', () => ({
   verifyIntegratorSignature: verifySignatureMock,
 }));
 
-vi.mock("@/modules/integrator/events", () => ({
+vi.mock('@/modules/integrator/events', () => ({
   handleIntegratorEvent: handleIntegratorEventMock,
 }));
 
-vi.mock("@/infra/logging/logger", () => ({
+vi.mock('@/infra/logging/logger', () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
-vi.mock("@/app-layer/db/client", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/app-layer/db/client")>();
+vi.mock('@/app-layer/db/client', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/app-layer/db/client')>();
   return {
     ...actual,
     getPool: () => getPoolMock(),
   };
 });
 
-vi.mock("@/app-layer/idempotency/idempotencyStore", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/app-layer/idempotency/idempotencyStore")>();
+vi.mock('@/app-layer/idempotency/idempotencyStore', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/app-layer/idempotency/idempotencyStore')>();
   getCachedResponseMock.mockImplementation(actual.getCachedResponse);
   setCachedResponseMock.mockImplementation(actual.setCachedResponse);
   return {
@@ -47,25 +53,25 @@ vi.mock("@/app-layer/idempotency/idempotencyStore", async (importOriginal) => {
   };
 });
 
-import { POST } from "./route";
+import { POST } from './route';
 
-describe("POST /api/integrator/events", () => {
+describe('POST /api/integrator/events', () => {
   beforeEach(async () => {
-    process.env.IDEMPOTENCY_STORE_PATH = "/tmp/bersoncare-webapp-idempotency-events-test.json";
+    process.env.IDEMPOTENCY_STORE_PATH = '/tmp/bersoncare-webapp-idempotency-events-test.json';
     await resetIdempotencyStoreForTests();
     verifySignatureMock.mockReset();
     verifySignatureMock.mockReturnValue(true);
     handleIntegratorEventMock.mockReset();
     handleIntegratorEventMock.mockResolvedValue({
       accepted: false,
-      reason: "durable ingest is not implemented",
+      reason: 'durable ingest is not implemented',
     });
     getCachedResponseMock.mockClear();
     setCachedResponseMock.mockClear();
   });
 
-  it("installs delivery-attempt tenant principal before idempotency and handler", async () => {
-    const organizationId = "11111111-1111-4111-8111-111111111111";
+  it('installs delivery-attempt tenant principal before idempotency and handler', async () => {
+    const organizationId = '11111111-1111-4111-8111-111111111111';
     const principalsAtBoundary: unknown[] = [];
     getCachedResponseMock.mockImplementationOnce(async () => {
       principalsAtBoundary.push(getCurrentDbPrincipal());
@@ -81,16 +87,16 @@ describe("POST /api/integrator/events", () => {
     });
 
     const response = await POST(
-      new Request("http://localhost/api/integrator/events", {
-        method: "POST",
+      new Request('http://localhost/api/integrator/events', {
+        method: 'POST',
         headers: {
-          "x-bersoncare-timestamp": "1700000000",
-          "x-bersoncare-signature": "sig",
-          "x-bersoncare-idempotency-key": "delivery-org-boundary",
-          "content-type": "application/json",
+          'x-bersoncare-timestamp': '1700000000',
+          'x-bersoncare-signature': 'sig',
+          'x-bersoncare-idempotency-key': 'delivery-org-boundary',
+          'content-type': 'application/json',
         },
         body: JSON.stringify({
-          eventType: "support.delivery.attempt.logged",
+          eventType: 'support.delivery.attempt.logged',
           payload: { organizationId },
         }),
       }),
@@ -98,26 +104,26 @@ describe("POST /api/integrator/events", () => {
 
     expect(response.status).toBe(202);
     expect(principalsAtBoundary).toEqual([
-      expect.objectContaining({ kind: "organization", organizationId }),
-      expect.objectContaining({ kind: "organization", organizationId }),
-      expect.objectContaining({ kind: "organization", organizationId }),
+      expect.objectContaining({ kind: 'organization', organizationId }),
+      expect.objectContaining({ kind: 'organization', organizationId }),
+      expect.objectContaining({ kind: 'organization', organizationId }),
     ]);
   });
 
-  it.each([undefined, "not-a-uuid"])(
-    "rejects delivery-attempt event organization %s before idempotency and handler",
+  it.each([undefined, 'not-a-uuid'])(
+    'rejects delivery-attempt event organization %s before idempotency and handler',
     async (organizationId) => {
       const response = await POST(
-        new Request("http://localhost/api/integrator/events", {
-          method: "POST",
+        new Request('http://localhost/api/integrator/events', {
+          method: 'POST',
           headers: {
-            "x-bersoncare-timestamp": "1700000000",
-            "x-bersoncare-signature": "sig",
-            "x-bersoncare-idempotency-key": `delivery-org-invalid-${String(organizationId)}`,
-            "content-type": "application/json",
+            'x-bersoncare-timestamp': '1700000000',
+            'x-bersoncare-signature': 'sig',
+            'x-bersoncare-idempotency-key': `delivery-org-invalid-${String(organizationId)}`,
+            'content-type': 'application/json',
           },
           body: JSON.stringify({
-            eventType: "support.delivery.attempt.logged",
+            eventType: 'support.delivery.attempt.logged',
             payload: organizationId === undefined ? {} : { organizationId },
           }),
         }),
@@ -130,17 +136,17 @@ describe("POST /api/integrator/events", () => {
     },
   );
 
-  it("returns 400 for malformed JSON instead of 500", async () => {
+  it('returns 400 for malformed JSON instead of 500', async () => {
     const response = await POST(
-      new Request("http://localhost/api/integrator/events", {
-        method: "POST",
+      new Request('http://localhost/api/integrator/events', {
+        method: 'POST',
         headers: {
-          "x-bersoncare-timestamp": "1700000000",
-          "x-bersoncare-signature": "sig",
-          "x-bersoncare-idempotency-key": "idem-1",
-          "content-type": "application/json",
+          'x-bersoncare-timestamp': '1700000000',
+          'x-bersoncare-signature': 'sig',
+          'x-bersoncare-idempotency-key': 'idem-1',
+          'content-type': 'application/json',
         },
-        body: "{bad-json",
+        body: '{bad-json',
       }),
     );
 
@@ -149,41 +155,44 @@ describe("POST /api/integrator/events", () => {
     expect(handleIntegratorEventMock).not.toHaveBeenCalled();
   });
 
-  it("returns 422 when handler marks non-retryable semantic failure", async () => {
+  it('returns 422 when handler marks non-retryable semantic failure', async () => {
     handleIntegratorEventMock.mockResolvedValueOnce({
       accepted: false,
-      reason: "duplicate key",
+      reason: 'duplicate key',
       retryable: false,
     });
     const response = await POST(
-      new Request("http://localhost/api/integrator/events", {
-        method: "POST",
+      new Request('http://localhost/api/integrator/events', {
+        method: 'POST',
         headers: {
-          "x-bersoncare-timestamp": "1700000000",
-          "x-bersoncare-signature": "sig",
-          "x-bersoncare-idempotency-key": "idem-422",
-          "content-type": "application/json",
+          'x-bersoncare-timestamp': '1700000000',
+          'x-bersoncare-signature': 'sig',
+          'x-bersoncare-idempotency-key': 'idem-422',
+          'content-type': 'application/json',
         },
-        body: JSON.stringify({ eventType: "contact.linked", payload: { integratorUserId: "1", phoneNormalized: "+79990001122" } }),
+        body: JSON.stringify({
+          eventType: 'contact.linked',
+          payload: { integratorUserId: '1', phoneNormalized: '+79990001122' },
+        }),
       }),
     );
     expect(response.status).toBe(422);
     expect(await response.json()).toMatchObject({ ok: false, accepted: false });
   });
 
-  it("returns 400 on header/body idempotency mismatch", async () => {
+  it('returns 400 on header/body idempotency mismatch', async () => {
     const response = await POST(
-      new Request("http://localhost/api/integrator/events", {
-        method: "POST",
+      new Request('http://localhost/api/integrator/events', {
+        method: 'POST',
         headers: {
-          "x-bersoncare-timestamp": "1700000000",
-          "x-bersoncare-signature": "sig",
-          "x-bersoncare-idempotency-key": "idem-header",
-          "content-type": "application/json",
+          'x-bersoncare-timestamp': '1700000000',
+          'x-bersoncare-signature': 'sig',
+          'x-bersoncare-idempotency-key': 'idem-header',
+          'content-type': 'application/json',
         },
         body: JSON.stringify({
-          eventType: "appointment.updated",
-          idempotencyKey: "idem-body",
+          eventType: 'appointment.updated',
+          idempotencyKey: 'idem-body',
         }),
       }),
     );
@@ -193,23 +202,23 @@ describe("POST /api/integrator/events", () => {
     expect(handleIntegratorEventMock).not.toHaveBeenCalled();
   });
 
-  it("out-of-order retry converges: first 503 then same key succeeds 202", async () => {
+  it('out-of-order retry converges: first 503 then same key succeeds 202', async () => {
     handleIntegratorEventMock
-      .mockResolvedValueOnce({ accepted: false, reason: "transient" })
+      .mockResolvedValueOnce({ accepted: false, reason: 'transient' })
       .mockResolvedValueOnce({ accepted: true });
-    const body = JSON.stringify({ eventType: "user.upserted", payload: { integratorUserId: "1" } });
+    const body = JSON.stringify({ eventType: 'user.upserted', payload: { integratorUserId: '1' } });
     const headers = {
-      "x-bersoncare-timestamp": "1700000000",
-      "x-bersoncare-signature": "sig",
-      "x-bersoncare-idempotency-key": "idem-converge",
-      "content-type": "application/json",
+      'x-bersoncare-timestamp': '1700000000',
+      'x-bersoncare-signature': 'sig',
+      'x-bersoncare-idempotency-key': 'idem-converge',
+      'content-type': 'application/json',
     };
 
     const first = await POST(
-      new Request("http://localhost/api/integrator/events", { method: "POST", headers, body }),
+      new Request('http://localhost/api/integrator/events', { method: 'POST', headers, body }),
     );
     const second = await POST(
-      new Request("http://localhost/api/integrator/events", { method: "POST", headers, body }),
+      new Request('http://localhost/api/integrator/events', { method: 'POST', headers, body }),
     );
 
     expect(first.status).toBe(503);
@@ -218,18 +227,18 @@ describe("POST /api/integrator/events", () => {
     expect(handleIntegratorEventMock).toHaveBeenCalledTimes(2);
   });
 
-  it("does not cache 503 so retry with same key re-runs handler", async () => {
-    const body = JSON.stringify({ eventType: "appointment.updated", eventId: "evt-1" });
+  it('does not cache 503 so retry with same key re-runs handler', async () => {
+    const body = JSON.stringify({ eventType: 'appointment.updated', eventId: 'evt-1' });
     const headers = {
-      "x-bersoncare-timestamp": "1700000000",
-      "x-bersoncare-signature": "sig",
-      "x-bersoncare-idempotency-key": "idem-retry-1",
-      "content-type": "application/json",
+      'x-bersoncare-timestamp': '1700000000',
+      'x-bersoncare-signature': 'sig',
+      'x-bersoncare-idempotency-key': 'idem-retry-1',
+      'content-type': 'application/json',
     };
 
     const first = await POST(
-      new Request("http://localhost/api/integrator/events", {
-        method: "POST",
+      new Request('http://localhost/api/integrator/events', {
+        method: 'POST',
         headers,
         body,
       }),
@@ -237,8 +246,8 @@ describe("POST /api/integrator/events", () => {
     const firstJson = await first.json();
 
     const second = await POST(
-      new Request("http://localhost/api/integrator/events", {
-        method: "POST",
+      new Request('http://localhost/api/integrator/events', {
+        method: 'POST',
         headers,
         body,
       }),
@@ -252,19 +261,22 @@ describe("POST /api/integrator/events", () => {
     expect(handleIntegratorEventMock).toHaveBeenCalledTimes(2);
   });
 
-  it("caches 202 and second attempt with same key returns cached without re-running handler", async () => {
+  it('caches 202 and second attempt with same key returns cached without re-running handler', async () => {
     handleIntegratorEventMock.mockResolvedValueOnce({ accepted: true });
-    const body = JSON.stringify({ eventType: "user.upserted", payload: { integratorUserId: "42" } });
+    const body = JSON.stringify({
+      eventType: 'user.upserted',
+      payload: { integratorUserId: '42' },
+    });
     const headers = {
-      "x-bersoncare-timestamp": "1700000000",
-      "x-bersoncare-signature": "sig",
-      "x-bersoncare-idempotency-key": "idem-success-1",
-      "content-type": "application/json",
+      'x-bersoncare-timestamp': '1700000000',
+      'x-bersoncare-signature': 'sig',
+      'x-bersoncare-idempotency-key': 'idem-success-1',
+      'content-type': 'application/json',
     };
 
     const first = await POST(
-      new Request("http://localhost/api/integrator/events", {
-        method: "POST",
+      new Request('http://localhost/api/integrator/events', {
+        method: 'POST',
         headers,
         body,
       }),
@@ -272,8 +284,8 @@ describe("POST /api/integrator/events", () => {
     const firstJson = await first.json();
 
     const second = await POST(
-      new Request("http://localhost/api/integrator/events", {
-        method: "POST",
+      new Request('http://localhost/api/integrator/events', {
+        method: 'POST',
         headers,
         body,
       }),
@@ -287,30 +299,38 @@ describe("POST /api/integrator/events", () => {
     expect(handleIntegratorEventMock).toHaveBeenCalledTimes(1);
   });
 
-  it("same idempotency key and business payload with different occurredAt does not 409 and caches once", async () => {
+  it('same idempotency key and business payload with different occurredAt does not 409 and caches once', async () => {
     handleIntegratorEventMock.mockResolvedValueOnce({ accepted: true });
     const headers = {
-      "x-bersoncare-timestamp": "1700000000",
-      "x-bersoncare-signature": "sig",
-      "x-bersoncare-idempotency-key": "idem-same-payload-diff-at",
-      "content-type": "application/json",
+      'x-bersoncare-timestamp': '1700000000',
+      'x-bersoncare-signature': 'sig',
+      'x-bersoncare-idempotency-key': 'idem-same-payload-diff-at',
+      'content-type': 'application/json',
     };
     const bodyA = JSON.stringify({
-      eventType: "user.upserted",
-      occurredAt: "2026-01-01T00:00:00.000Z",
-      payload: { integratorUserId: "1" },
+      eventType: 'user.upserted',
+      occurredAt: '2026-01-01T00:00:00.000Z',
+      payload: { integratorUserId: '1' },
     });
     const bodyB = JSON.stringify({
-      eventType: "user.upserted",
-      occurredAt: "2026-01-02T00:00:00.000Z",
-      payload: { integratorUserId: "1" },
+      eventType: 'user.upserted',
+      occurredAt: '2026-01-02T00:00:00.000Z',
+      payload: { integratorUserId: '1' },
     });
 
     const first = await POST(
-      new Request("http://localhost/api/integrator/events", { method: "POST", headers, body: bodyA }),
+      new Request('http://localhost/api/integrator/events', {
+        method: 'POST',
+        headers,
+        body: bodyA,
+      }),
     );
     const second = await POST(
-      new Request("http://localhost/api/integrator/events", { method: "POST", headers, body: bodyB }),
+      new Request('http://localhost/api/integrator/events', {
+        method: 'POST',
+        headers,
+        body: bodyB,
+      }),
     );
 
     const firstJson = await first.json();
@@ -322,41 +342,49 @@ describe("POST /api/integrator/events", () => {
     expect(handleIntegratorEventMock).toHaveBeenCalledTimes(1);
   });
 
-  it("same idempotency key and reminder.rule.upserted with different payload.updatedAt does not 409", async () => {
+  it('same idempotency key and reminder.rule.upserted with different payload.updatedAt does not 409', async () => {
     handleIntegratorEventMock.mockResolvedValueOnce({ accepted: true });
     const headers = {
-      "x-bersoncare-timestamp": "1700000000",
-      "x-bersoncare-signature": "sig",
-      "x-bersoncare-idempotency-key": "reminder.rule.upserted:wp-1:abc123",
-      "content-type": "application/json",
+      'x-bersoncare-timestamp': '1700000000',
+      'x-bersoncare-signature': 'sig',
+      'x-bersoncare-idempotency-key': 'reminder.rule.upserted:wp-1:abc123',
+      'content-type': 'application/json',
     };
     const payloadBase = {
-      integratorRuleId: "wp-1",
-      integratorUserId: "87",
-      category: "exercise",
+      integratorRuleId: 'wp-1',
+      integratorUserId: '87',
+      category: 'exercise',
       isEnabled: true,
-      scheduleType: "slots_v1",
-      timezone: "Europe/Moscow",
+      scheduleType: 'slots_v1',
+      timezone: 'Europe/Moscow',
       intervalMinutes: 60,
       windowStartMinute: 0,
       windowEndMinute: 1440,
-      daysMask: "1111111",
-      contentMode: "none",
+      daysMask: '1111111',
+      contentMode: 'none',
     };
     const bodyA = JSON.stringify({
-      eventType: "reminder.rule.upserted",
-      payload: { ...payloadBase, updatedAt: "2026-05-28T10:00:00.093Z" },
+      eventType: 'reminder.rule.upserted',
+      payload: { ...payloadBase, updatedAt: '2026-05-28T10:00:00.093Z' },
     });
     const bodyB = JSON.stringify({
-      eventType: "reminder.rule.upserted",
-      payload: { ...payloadBase, updatedAt: "2026-05-28T12:04:00.181Z" },
+      eventType: 'reminder.rule.upserted',
+      payload: { ...payloadBase, updatedAt: '2026-05-28T12:04:00.181Z' },
     });
 
     const first = await POST(
-      new Request("http://localhost/api/integrator/events", { method: "POST", headers, body: bodyA }),
+      new Request('http://localhost/api/integrator/events', {
+        method: 'POST',
+        headers,
+        body: bodyA,
+      }),
     );
     const second = await POST(
-      new Request("http://localhost/api/integrator/events", { method: "POST", headers, body: bodyB }),
+      new Request('http://localhost/api/integrator/events', {
+        method: 'POST',
+        headers,
+        body: bodyB,
+      }),
     );
 
     expect(first.status).toBe(202);
@@ -364,45 +392,53 @@ describe("POST /api/integrator/events", () => {
     expect(handleIntegratorEventMock).toHaveBeenCalledTimes(1);
   });
 
-  it("same idempotency key and reminder.rule.upserted with extra payload fields does not 409", async () => {
+  it('same idempotency key and reminder.rule.upserted with extra payload fields does not 409', async () => {
     handleIntegratorEventMock.mockResolvedValueOnce({ accepted: true });
     const headers = {
-      "x-bersoncare-timestamp": "1700000000",
-      "x-bersoncare-signature": "sig",
-      "x-bersoncare-idempotency-key": "reminder.rule.upserted:wp-extra:abc",
-      "content-type": "application/json",
+      'x-bersoncare-timestamp': '1700000000',
+      'x-bersoncare-signature': 'sig',
+      'x-bersoncare-idempotency-key': 'reminder.rule.upserted:wp-extra:abc',
+      'content-type': 'application/json',
     };
     const payloadBase = {
-      integratorRuleId: "wp-extra",
-      integratorUserId: "87",
-      category: "exercise",
+      integratorRuleId: 'wp-extra',
+      integratorUserId: '87',
+      category: 'exercise',
       isEnabled: true,
-      scheduleType: "slots_v1",
-      timezone: "Europe/Moscow",
+      scheduleType: 'slots_v1',
+      timezone: 'Europe/Moscow',
       intervalMinutes: 60,
       windowStartMinute: 0,
       windowEndMinute: 1440,
-      daysMask: "1111111",
-      contentMode: "none",
+      daysMask: '1111111',
+      contentMode: 'none',
     };
     const bodyA = JSON.stringify({
-      eventType: "reminder.rule.upserted",
+      eventType: 'reminder.rule.upserted',
       payload: {
         ...payloadBase,
-        updatedAt: "2026-05-28T10:00:00.093Z",
-        linkedObjectType: "lfk_complex",
+        updatedAt: '2026-05-28T10:00:00.093Z',
+        linkedObjectType: 'lfk_complex',
       },
     });
     const bodyB = JSON.stringify({
-      eventType: "reminder.rule.upserted",
-      payload: { ...payloadBase, updatedAt: "2026-05-28T12:04:00.181Z" },
+      eventType: 'reminder.rule.upserted',
+      payload: { ...payloadBase, updatedAt: '2026-05-28T12:04:00.181Z' },
     });
 
     const first = await POST(
-      new Request("http://localhost/api/integrator/events", { method: "POST", headers, body: bodyA }),
+      new Request('http://localhost/api/integrator/events', {
+        method: 'POST',
+        headers,
+        body: bodyA,
+      }),
     );
     const second = await POST(
-      new Request("http://localhost/api/integrator/events", { method: "POST", headers, body: bodyB }),
+      new Request('http://localhost/api/integrator/events', {
+        method: 'POST',
+        headers,
+        body: bodyB,
+      }),
     );
 
     expect(first.status).toBe(202);
@@ -410,20 +446,26 @@ describe("POST /api/integrator/events", () => {
     expect(handleIntegratorEventMock).toHaveBeenCalledTimes(1);
   });
 
-  it("returns 409 when same idempotency key is reused with different payload", async () => {
+  it('returns 409 when same idempotency key is reused with different payload', async () => {
     handleIntegratorEventMock.mockResolvedValue({ accepted: true });
-    const bodyA = JSON.stringify({ eventType: "user.upserted", payload: { integratorUserId: "1" } });
-    const bodyB = JSON.stringify({ eventType: "user.upserted", payload: { integratorUserId: "2" } });
+    const bodyA = JSON.stringify({
+      eventType: 'user.upserted',
+      payload: { integratorUserId: '1' },
+    });
+    const bodyB = JSON.stringify({
+      eventType: 'user.upserted',
+      payload: { integratorUserId: '2' },
+    });
     const headers = {
-      "x-bersoncare-timestamp": "1700000000",
-      "x-bersoncare-signature": "sig",
-      "x-bersoncare-idempotency-key": "idem-conflict",
-      "content-type": "application/json",
+      'x-bersoncare-timestamp': '1700000000',
+      'x-bersoncare-signature': 'sig',
+      'x-bersoncare-idempotency-key': 'idem-conflict',
+      'content-type': 'application/json',
     };
 
     const first = await POST(
-      new Request("http://localhost/api/integrator/events", {
-        method: "POST",
+      new Request('http://localhost/api/integrator/events', {
+        method: 'POST',
         headers,
         body: bodyA,
       }),
@@ -431,14 +473,17 @@ describe("POST /api/integrator/events", () => {
     expect(first.status).toBe(202);
 
     const second = await POST(
-      new Request("http://localhost/api/integrator/events", {
-        method: "POST",
+      new Request('http://localhost/api/integrator/events', {
+        method: 'POST',
         headers,
         body: bodyB,
       }),
     );
     expect(second.status).toBe(409);
-    expect(await second.json()).toMatchObject({ ok: false, error: "idempotency key reused with different payload" });
+    expect(await second.json()).toMatchObject({
+      ok: false,
+      error: 'idempotency key reused with different payload',
+    });
     expect(handleIntegratorEventMock).toHaveBeenCalledTimes(1);
   });
 });

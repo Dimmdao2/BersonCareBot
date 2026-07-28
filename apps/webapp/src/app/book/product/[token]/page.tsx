@@ -1,4 +1,4 @@
-import { PublicProductPurchaseClient } from "./PublicProductPurchaseClient";
+import { PublicProductPurchaseClient } from './PublicProductPurchaseClient';
 
 type Props = { params: Promise<{ token: string }> };
 

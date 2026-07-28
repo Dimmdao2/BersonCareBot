@@ -12,15 +12,17 @@ describe('runSchedulerOrganizationTicks', () => {
     ];
     const principals: unknown[] = [];
     const events: IncomingEvent[] = [];
-    const handleIncomingEvent: EventGateway['handleIncomingEvent'] = vi.fn(async (event, options) => {
-      events.push(event);
-      principals.push(getCurrentDbPrincipal());
-      await options?.runPipeline?.(async () => {
+    const handleIncomingEvent: EventGateway['handleIncomingEvent'] = vi.fn(
+      async (event, options) => {
+        events.push(event);
         principals.push(getCurrentDbPrincipal());
-      });
-      principals.push(getCurrentDbPrincipal());
-      return { status: 'accepted' as const, dedupKey: event.meta.eventId, event };
-    });
+        await options?.runPipeline?.(async () => {
+          principals.push(getCurrentDbPrincipal());
+        });
+        principals.push(getCurrentDbPrincipal());
+        return { status: 'accepted' as const, dedupKey: event.meta.eventId, event };
+      },
+    );
     const ids = ['event-a', 'event-b'];
 
     const count = await runSchedulerOrganizationTicks({
@@ -53,17 +55,19 @@ describe('runSchedulerOrganizationTicks', () => {
 
   it('surfaces a rejected organization pipeline to the scheduler loop', async () => {
     const organizationId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
-    await expect(runSchedulerOrganizationTicks({
-      eventGateway: {
-        handleIncomingEvent: vi.fn(async () => ({
-          status: 'rejected' as const,
-          dedupKey: 'scheduler-key',
-          reason: 'PIPELINE_FAILED',
-        })),
-      },
-      listOrganizationIds: vi.fn(async () => [organizationId]),
-      nowIso: () => '2026-07-16T10:00:00.000Z',
-      newEventId: () => 'event-a',
-    })).rejects.toThrow(`Scheduler organization tick rejected for ${organizationId}`);
+    await expect(
+      runSchedulerOrganizationTicks({
+        eventGateway: {
+          handleIncomingEvent: vi.fn(async () => ({
+            status: 'rejected' as const,
+            dedupKey: 'scheduler-key',
+            reason: 'PIPELINE_FAILED',
+          })),
+        },
+        listOrganizationIds: vi.fn(async () => [organizationId]),
+        nowIso: () => '2026-07-16T10:00:00.000Z',
+        newEventId: () => 'event-a',
+      }),
+    ).rejects.toThrow(`Scheduler organization tick rejected for ${organizationId}`);
   });
 });

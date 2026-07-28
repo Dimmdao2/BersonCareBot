@@ -1,4 +1,4 @@
-import type { PatientTopicChannelCode } from "./topicChannelRules";
+import type { PatientTopicChannelCode } from './topicChannelRules';
 
 export type TopicChannelPrefRow = {
   topicCode: string;

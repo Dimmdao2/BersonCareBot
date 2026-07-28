@@ -1,4 +1,4 @@
-import type { UserPinRecord, UserPinsPort } from "@/modules/auth/userPinsPort";
+import type { UserPinRecord, UserPinsPort } from '@/modules/auth/userPinsPort';
 
 const byUser = new Map<string, UserPinRecord>();
 
@@ -20,7 +20,7 @@ export const inMemoryUserPinsPort: UserPinsPort = {
   async incrementFailed(
     userId: string,
     maxAttempts: number,
-    lockMinutes: number
+    lockMinutes: number,
   ): Promise<{ attemptsFailed: number; lockedUntil: Date | null }> {
     const prev = byUser.get(userId);
     if (!prev) {

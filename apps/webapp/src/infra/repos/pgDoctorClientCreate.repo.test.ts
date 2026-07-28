@@ -1,15 +1,15 @@
-import { describe, expect, it, vi } from "vitest";
-import { platformUsers, userPhoneHistory } from "../../../db/schema/schema";
+import { describe, expect, it, vi } from 'vitest';
+import { platformUsers, userPhoneHistory } from '../../../db/schema/schema';
 import {
   DoctorClientIdentityError,
   resolveOrCreateDoctorClientByPhoneInTransaction,
-} from "./pgDoctorClientCreate";
+} from './pgDoctorClientCreate';
 
-const ORG_ID = "11111111-1111-4111-8111-111111111111";
+const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const input = {
-  phoneNormalized: "+79991234567",
-  lastName: "новый",
-  firstName: "пациент",
+  phoneNormalized: '+79991234567',
+  lastName: 'новый',
+  firstName: 'пациент',
   patronymic: null,
   emailRaw: null,
   emailNormalized: null,
@@ -25,21 +25,23 @@ function selectQueue(rows: unknown[][]) {
   }));
 }
 
-describe("resolveOrCreateDoctorClientByPhoneInTransaction", () => {
-  it("creates a real canonical contactless client without phone history", async () => {
+describe('resolveOrCreateDoctorClientByPhoneInTransaction', () => {
+  it('creates a real canonical contactless client without phone history', async () => {
     const values: unknown[] = [];
     const insert = vi.fn((table: unknown) => ({
       values: vi.fn((inputValues: unknown) => {
         values.push(inputValues);
         expect(table).toBe(platformUsers);
         return {
-          returning: async () => [{
-            id: "contactless-user",
-            displayName: "Новый Пациент",
-            lastName: "Новый",
-            firstName: "Пациент",
-            patronymic: null,
-          }],
+          returning: async () => [
+            {
+              id: 'contactless-user',
+              displayName: 'Новый Пациент',
+              lastName: 'Новый',
+              firstName: 'Пациент',
+              patronymic: null,
+            },
+          ],
         };
       }),
     }));
@@ -51,10 +53,10 @@ describe("resolveOrCreateDoctorClientByPhoneInTransaction", () => {
         phoneNormalized: null,
       }),
     ).resolves.toEqual({
-      userId: "contactless-user",
-      displayName: "Новый Пациент",
-      lastName: "Новый",
-      firstName: "Пациент",
+      userId: 'contactless-user',
+      displayName: 'Новый Пациент',
+      lastName: 'Новый',
+      firstName: 'Пациент',
       patronymic: null,
       phoneNormalized: null,
       created: true,
@@ -65,23 +67,23 @@ describe("resolveOrCreateDoctorClientByPhoneInTransaction", () => {
         email: null,
         emailNormalized: null,
         patientPhoneTrustAt: null,
-        role: "client",
+        role: 'client',
       }),
     ]);
     expect(insert).toHaveBeenCalledTimes(1);
   });
 
-  it("reuses an existing canonical client without a second writer", async () => {
+  it('reuses an existing canonical client without a second writer', async () => {
     const insert = vi.fn();
     const tx = {
       select: selectQueue([
         [
           {
-            id: "existing-user",
-            role: "client",
-            displayName: "Существующий",
-            lastName: "Существующий",
-            firstName: "Пациент",
+            id: 'existing-user',
+            role: 'client',
+            displayName: 'Существующий',
+            lastName: 'Существующий',
+            firstName: 'Пациент',
             patronymic: null,
             phoneNormalized: input.phoneNormalized,
           },
@@ -93,10 +95,10 @@ describe("resolveOrCreateDoctorClientByPhoneInTransaction", () => {
     await expect(
       resolveOrCreateDoctorClientByPhoneInTransaction(tx as never, ORG_ID, input),
     ).resolves.toEqual({
-      userId: "existing-user",
-      displayName: "Существующий",
-      lastName: "Существующий",
-      firstName: "Пациент",
+      userId: 'existing-user',
+      displayName: 'Существующий',
+      lastName: 'Существующий',
+      firstName: 'Пациент',
       patronymic: null,
       phoneNormalized: input.phoneNormalized,
       created: false,
@@ -104,21 +106,21 @@ describe("resolveOrCreateDoctorClientByPhoneInTransaction", () => {
     expect(insert).not.toHaveBeenCalled();
   });
 
-  it("fails on an email owned by another canonical identity", async () => {
+  it('fails on an email owned by another canonical identity', async () => {
     const tx = {
-      select: selectQueue([[], [{ id: "other-user" }]]),
+      select: selectQueue([[], [{ id: 'other-user' }]]),
       insert: vi.fn(),
     };
     await expect(
       resolveOrCreateDoctorClientByPhoneInTransaction(tx as never, ORG_ID, {
         ...input,
-        emailRaw: "taken@example.com",
-        emailNormalized: "taken@example.com",
+        emailRaw: 'taken@example.com',
+        emailNormalized: 'taken@example.com',
       }),
-    ).rejects.toEqual(new DoctorClientIdentityError("email_conflict"));
+    ).rejects.toEqual(new DoctorClientIdentityError('email_conflict'));
   });
 
-  it("creates identity and organization-attributed phone history through one tx executor", async () => {
+  it('creates identity and organization-attributed phone history through one tx executor', async () => {
     const insertedValues: unknown[] = [];
     const insert = vi.fn((table: unknown) => ({
       values: vi.fn((values: unknown) => {
@@ -127,10 +129,10 @@ describe("resolveOrCreateDoctorClientByPhoneInTransaction", () => {
           return {
             returning: async () => [
               {
-                id: "new-user",
-                displayName: "Новый Пациент",
-                lastName: "Новый",
-                firstName: "Пациент",
+                id: 'new-user',
+                displayName: 'Новый Пациент',
+                lastName: 'Новый',
+                firstName: 'Пациент',
                 patronymic: null,
               },
             ],
@@ -150,45 +152,45 @@ describe("resolveOrCreateDoctorClientByPhoneInTransaction", () => {
 
     await expect(
       resolveOrCreateDoctorClientByPhoneInTransaction(tx as never, ORG_ID, input),
-    ).resolves.toMatchObject({ userId: "new-user", created: true });
+    ).resolves.toMatchObject({ userId: 'new-user', created: true });
     expect(insertedValues).toEqual([
       expect.objectContaining({
         phoneNormalized: input.phoneNormalized,
-        role: "client",
-        displayName: "Новый Пациент",
-        lastName: "Новый",
-        firstName: "Пациент",
+        role: 'client',
+        displayName: 'Новый Пациент',
+        lastName: 'Новый',
+        firstName: 'Пациент',
         patronymic: null,
       }),
       expect.objectContaining({
-        platformUserId: "new-user",
+        platformUserId: 'new-user',
         organizationId: ORG_ID,
         phoneNormalized: input.phoneNormalized,
-        source: "admin",
+        source: 'admin',
       }),
     ]);
     expect(tx.transaction).toHaveBeenCalledOnce();
   });
 
-  it("converges after a deferrable phone uniqueness conflict without aborting the outer transaction", async () => {
+  it('converges after a deferrable phone uniqueness conflict without aborting the outer transaction', async () => {
     const select = selectQueue([
       [],
       [
         {
-          id: "concurrent-user",
-          role: "client",
-          displayName: "Уже создан",
-          lastName: "Уже",
-          firstName: "Создан",
+          id: 'concurrent-user',
+          role: 'client',
+          displayName: 'Уже создан',
+          lastName: 'Уже',
+          firstName: 'Создан',
           patronymic: null,
           phoneNormalized: input.phoneNormalized,
         },
       ],
     ]);
     const insert = vi.fn();
-    const conflict = Object.assign(new Error("duplicate phone"), {
-      code: "23505",
-      constraint: "platform_users_phone_normalized_key",
+    const conflict = Object.assign(new Error('duplicate phone'), {
+      code: '23505',
+      constraint: 'platform_users_phone_normalized_key',
     });
     const transaction = vi.fn().mockRejectedValue(conflict);
 
@@ -198,27 +200,27 @@ describe("resolveOrCreateDoctorClientByPhoneInTransaction", () => {
         ORG_ID,
         input,
       ),
-    ).resolves.toMatchObject({ userId: "concurrent-user", created: false });
+    ).resolves.toMatchObject({ userId: 'concurrent-user', created: false });
     expect(transaction).toHaveBeenCalledOnce();
     expect(insert).not.toHaveBeenCalled();
   });
 
-  it("rethrows a non-phone uniqueness conflict even when the repeated phone lookup succeeds", async () => {
-    const conflict = Object.assign(new Error("duplicate email"), {
-      code: "23505",
-      constraint: "uq_platform_users_email_normalized_active",
+  it('rethrows a non-phone uniqueness conflict even when the repeated phone lookup succeeds', async () => {
+    const conflict = Object.assign(new Error('duplicate email'), {
+      code: '23505',
+      constraint: 'uq_platform_users_email_normalized_active',
     });
     const tx = {
       select: selectQueue([
         [],
         [
           {
-            id: "concurrent-user",
-            displayName: "Existing Client",
-            lastName: "Existing",
-            firstName: "Client",
+            id: 'concurrent-user',
+            displayName: 'Existing Client',
+            lastName: 'Existing',
+            firstName: 'Client',
             patronymic: null,
-            role: "client",
+            role: 'client',
           },
         ],
       ]),

@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
-import { ChevronLeft } from "lucide-react";
-import { Button } from "@/shared/ui/patient/primitives/button";
-import { cn } from "@/lib/utils";
-import { usePatientShellGoBack } from "@/shared/hooks/usePatientShellGoBack";
-import { NAV_STRIP_ICON_STROKE } from "@/shared/ui/patient/navChrome";
-import { patientSectionTitleClass } from "@/shared/ui/patient/patientVisual";
+import { ChevronLeft } from 'lucide-react';
+import { Button } from '@/shared/ui/patient/primitives/button';
+import { cn } from '@/lib/utils';
+import { usePatientShellGoBack } from '@/shared/hooks/usePatientShellGoBack';
+import { NAV_STRIP_ICON_STROKE } from '@/shared/ui/patient/navChrome';
+import { patientSectionTitleClass } from '@/shared/ui/patient/patientVisual';
 
 type Props = {
   title: string;
@@ -17,7 +17,7 @@ type Props = {
 /** Заголовок под {@link PatientTopNav}: стрелка «назад» (history) слева от названия страницы. */
 export function PatientShellPageTitleWithHistoryBack({
   title,
-  backLabel = "Назад",
+  backLabel = 'Назад',
   fallbackHref,
 }: Props) {
   const goBack = usePatientShellGoBack(fallbackHref);
@@ -34,7 +34,7 @@ export function PatientShellPageTitleWithHistoryBack({
       >
         <ChevronLeft className="size-5" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
       </Button>
-      <h1 className={cn(patientSectionTitleClass, "min-w-0 flex-1 truncate pl-3")}>{title}</h1>
+      <h1 className={cn(patientSectionTitleClass, 'min-w-0 flex-1 truncate pl-3')}>{title}</h1>
     </div>
   );
 }

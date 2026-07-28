@@ -123,10 +123,10 @@ describe('webPushAccessPort', () => {
           ok: true,
           subscriptions: [
             STUB_SUBSCRIPTION,
-            { endpoint: 'https://example.com', expirationTime: null },    // missing keys
-            { keys: { p256dh: 'x', auth: 'y' } },                        // missing endpoint
-            null,                                                          // null
-            'not-an-object',                                              // string
+            { endpoint: 'https://example.com', expirationTime: null }, // missing keys
+            { keys: { p256dh: 'x', auth: 'y' } }, // missing endpoint
+            null, // null
+            'not-an-object', // string
           ],
         }),
       });
@@ -146,7 +146,10 @@ describe('webPushAccessPort', () => {
 
       await port.getSubscriptionsForUser('user-uuid', ORGANIZATION_ID);
       const [, options] = fetchMock.mock.calls[0]!;
-      const headers = (options as { headers?: Record<string, string> }).headers as Record<string, string>;
+      const headers = (options as { headers?: Record<string, string> }).headers as Record<
+        string,
+        string
+      >;
       expect(headers['X-Bersoncare-Timestamp']).toBeDefined();
       expect(headers['X-Bersoncare-Signature']).toBeDefined();
     });
@@ -231,7 +234,10 @@ describe('webPushAccessPort', () => {
 
       await port.getVapidCredentials(ORGANIZATION_ID);
       const [, options] = fetchMock.mock.calls[0]!;
-      const headers = (options as { headers?: Record<string, string> }).headers as Record<string, string>;
+      const headers = (options as { headers?: Record<string, string> }).headers as Record<
+        string,
+        string
+      >;
       expect(headers['X-Bersoncare-Timestamp']).toBeDefined();
       expect(headers['X-Bersoncare-Signature']).toBeDefined();
     });

@@ -11,32 +11,38 @@
  * temp-cluster subset when host sudo/prod dumps are unavailable.
  */
 
-import { spawnSync } from "node:child_process";
-import { randomBytes, randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
-import { createRequire } from "node:module";
-import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { spawnSync } from 'node:child_process';
+import { randomBytes, randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(__dirname, "..", "..", "..", "..");
-const dbPrincipalPackagePath = path.join(repoRoot, "packages/db-principal");
-const dbPrincipalRuntimePath = path.join(repoRoot, "packages/db-principal/dist/index.js");
-const p2bSqlPath = path.join(repoRoot, "deploy/postgres/p2-b-protected-principal-context.sql");
-const phase4PolicySqlPath = path.join(repoRoot, "deploy/postgres/phase4-locked-helper-rls-policies.sql");
-const phase4ForceSqlPath = path.join(repoRoot, "deploy/postgres/phase4-force-rls-cutover.sql");
-const d2Fb1BootstrapGrantSqlPath = path.join(repoRoot, "deploy/postgres/d2-fb1-bootstrap-phone-write-grants.sql");
-const p0_5bGrantsSqlPath = path.join(repoRoot, "deploy/postgres/p0-5b-grants.sql");
-const deploySaas667Path = path.join(repoRoot, "scripts/deploy-saas-667.sh");
-const pgBinDir = "/usr/lib/postgresql/16/bin";
-const defaultOrgId = "a0000000-0000-4000-8000-000000000001";
+const repoRoot = path.resolve(__dirname, '..', '..', '..', '..');
+const dbPrincipalPackagePath = path.join(repoRoot, 'packages/db-principal');
+const dbPrincipalRuntimePath = path.join(repoRoot, 'packages/db-principal/dist/index.js');
+const p2bSqlPath = path.join(repoRoot, 'deploy/postgres/p2-b-protected-principal-context.sql');
+const phase4PolicySqlPath = path.join(
+  repoRoot,
+  'deploy/postgres/phase4-locked-helper-rls-policies.sql',
+);
+const phase4ForceSqlPath = path.join(repoRoot, 'deploy/postgres/phase4-force-rls-cutover.sql');
+const d2Fb1BootstrapGrantSqlPath = path.join(
+  repoRoot,
+  'deploy/postgres/d2-fb1-bootstrap-phone-write-grants.sql',
+);
+const p0_5bGrantsSqlPath = path.join(repoRoot, 'deploy/postgres/p0-5b-grants.sql');
+const deploySaas667Path = path.join(repoRoot, 'scripts/deploy-saas-667.sh');
+const pgBinDir = '/usr/lib/postgresql/16/bin';
+const defaultOrgId = 'a0000000-0000-4000-8000-000000000001';
 
-const requireFromWebapp = createRequire(path.join(repoRoot, "apps/webapp/package.json"));
-const { Client } = requireFromWebapp("pg");
+const requireFromWebapp = createRequire(path.join(repoRoot, 'apps/webapp/package.json'));
+const { Client } = requireFromWebapp('pg');
 
 const args = new Set(process.argv.slice(2));
-const syntheticMode = args.has("--synthetic");
-if (args.has("--help")) {
+const syntheticMode = args.has('--synthetic');
+if (args.has('--help')) {
   console.log(`Usage:
   node docs/_TODO/SAAS_FOUNDATION/scripts/rehearse-multitenant-isolation.mjs
   node docs/_TODO/SAAS_FOUNDATION/scripts/rehearse-multitenant-isolation.mjs --synthetic
@@ -49,23 +55,26 @@ Optional:
   process.exit(0);
 }
 
-const stamp = `${new Date().toISOString().replace(/[-:TZ.]/g, "").slice(0, 14)}_p${process.pid}_${randomBytes(3).toString("hex")}`;
-const resourceKind = syntheticMode ? "scratch" : "rehearsal";
+const stamp = `${new Date()
+  .toISOString()
+  .replace(/[-:TZ.]/g, '')
+  .slice(0, 14)}_p${process.pid}_${randomBytes(3).toString('hex')}`;
+const resourceKind = syntheticMode ? 'scratch' : 'rehearsal';
 const dbName = `bcb_saas_multitenant_${resourceKind}_${stamp}`;
-const appOwnerRole = syntheticMode ? `bcb_saas_mt_own_scratch_${stamp}` : "app_owner";
+const appOwnerRole = syntheticMode ? `bcb_saas_mt_own_scratch_${stamp}` : 'app_owner';
 const fullOwnerRole = `bcb_saas_mt_owner_rehearsal_${stamp}`;
 const fullSuperuserRole = `bcb_saas_mt_su_rehearsal_${stamp}`;
 const staffLoginRole = `bcb_saas_mt_stf_scratch_${stamp}`;
 const patientLoginRole = `bcb_saas_mt_pat_scratch_${stamp}`;
-const fullOwnerPassword = randomBytes(32).toString("hex");
-const fullSuperuserPassword = randomBytes(32).toString("hex");
-const staffPassword = randomBytes(32).toString("base64url");
-const patientPassword = randomBytes(32).toString("base64url");
-const signingSecret = randomBytes(32).toString("hex");
+const fullOwnerPassword = randomBytes(32).toString('hex');
+const fullSuperuserPassword = randomBytes(32).toString('hex');
+const staffPassword = randomBytes(32).toString('base64url');
+const patientPassword = randomBytes(32).toString('base64url');
+const signingSecret = randomBytes(32).toString('hex');
 const marker = `mt_iso_${stamp}`;
 const tempClusterRoot = `/tmp/${dbName}_pg`;
-const tempClusterDataDir = path.join(tempClusterRoot, "data");
-const tempClusterSocketDir = path.join(tempClusterRoot, "socket");
+const tempClusterDataDir = path.join(tempClusterRoot, 'data');
+const tempClusterSocketDir = path.join(tempClusterRoot, 'socket');
 const tempClusterPort = String(55432 + (process.pid % 1000));
 const appointmentDurationMinutes = 45;
 const appointmentSlotGapMinutes = 120;
@@ -96,10 +105,12 @@ main().catch((error) => {
 
 async function main() {
   try {
-    run("pnpm", ["--dir", dbPrincipalPackagePath, "run", "build"], {
-      label: "pnpm --dir packages/db-principal run build",
+    run('pnpm', ['--dir', dbPrincipalPackagePath, 'run', 'build'], {
+      label: 'pnpm --dir packages/db-principal run build',
     });
-    proofApi = await import(`${pathToFileURL(dbPrincipalRuntimePath).href}?rehearsal=${Date.now()}`);
+    proofApi = await import(
+      `${pathToFileURL(dbPrincipalRuntimePath).href}?rehearsal=${Date.now()}`
+    );
 
     if (syntheticMode) {
       createTempClusterScratchDb();
@@ -112,11 +123,13 @@ async function main() {
       createScratchLoginRoles();
       // Apply the canonical B5 runtime table grants before any app_staff/app_patient read
       // (deploy-saas-667 creates the roles WITHOUT grants; grants are a separate cutover step).
-      console.log("--- full: applying p0-5b runtime table grants to app_staff/app_patient ---");
+      console.log('--- full: applying p0-5b runtime table grants to app_staff/app_patient ---');
       psqlUrlFile(fullOwnerUrl, p0_5bGrantsSqlPath);
-      console.log("--- full: applying D2 FB#1 bootstrap phone-write direct grants to the nonstaff base login ---");
+      console.log(
+        '--- full: applying D2 FB#1 bootstrap phone-write direct grants to the nonstaff base login ---',
+      );
       psqlUrlFile(fullOwnerUrl, d2Fb1BootstrapGrantSqlPath, [
-        "-v",
+        '-v',
         `d2_fb1_bootstrap_base_role=${patientLoginRole}`,
       ]);
       proveLegacyDormantCompatibility();
@@ -158,10 +171,10 @@ function quoteLiteral(value) {
 function run(command, commandArgs, options = {}) {
   const result = spawnSync(command, commandArgs, {
     cwd: repoRoot,
-    encoding: "utf8",
+    encoding: 'utf8',
     env: options.env ?? sanitizedChildEnv(),
     input: options.input,
-    stdio: options.input != null ? ["pipe", "pipe", "pipe"] : "inherit",
+    stdio: options.input != null ? ['pipe', 'pipe', 'pipe'] : 'inherit',
   });
   if (result.error) {
     throw new Error(`${options.label ?? command} failed to start: ${result.error.message}`);
@@ -169,7 +182,7 @@ function run(command, commandArgs, options = {}) {
   if (result.status !== 0) {
     if (result.stdout) process.stdout.write(result.stdout);
     if (result.stderr) process.stderr.write(result.stderr);
-    throw new Error(`${options.label ?? command} failed with status ${result.status ?? "unknown"}`);
+    throw new Error(`${options.label ?? command} failed with status ${result.status ?? 'unknown'}`);
   }
   if (result.stdout) process.stdout.write(result.stdout);
   if (result.stderr) process.stderr.write(result.stderr);
@@ -179,10 +192,10 @@ function run(command, commandArgs, options = {}) {
 function runCaptured(command, commandArgs, options = {}) {
   const result = spawnSync(command, commandArgs, {
     cwd: repoRoot,
-    encoding: "utf8",
+    encoding: 'utf8',
     env: options.env ?? sanitizedChildEnv(),
     input: options.input,
-    stdio: ["pipe", "pipe", "pipe"],
+    stdio: ['pipe', 'pipe', 'pipe'],
   });
   if (result.error) {
     throw new Error(`${options.label ?? command} failed to start: ${result.error.message}`);
@@ -190,7 +203,7 @@ function runCaptured(command, commandArgs, options = {}) {
   if (result.status !== 0) {
     if (result.stdout) process.stdout.write(result.stdout);
     if (result.stderr) process.stderr.write(result.stderr);
-    throw new Error(`${options.label ?? command} failed with status ${result.status ?? "unknown"}`);
+    throw new Error(`${options.label ?? command} failed with status ${result.status ?? 'unknown'}`);
   }
   return result;
 }
@@ -198,10 +211,10 @@ function runCaptured(command, commandArgs, options = {}) {
 function runResult(command, commandArgs, options = {}) {
   return spawnSync(command, commandArgs, {
     cwd: repoRoot,
-    encoding: "utf8",
+    encoding: 'utf8',
     env: options.env ?? sanitizedChildEnv(),
     input: options.input,
-    stdio: options.input != null ? ["pipe", "pipe", "pipe"] : ["ignore", "pipe", "pipe"],
+    stdio: options.input != null ? ['pipe', 'pipe', 'pipe'] : ['ignore', 'pipe', 'pipe'],
   });
 }
 
@@ -215,18 +228,18 @@ function safeRun(command, commandArgs, options = {}) {
 function sanitizedChildEnv(extra = {}) {
   const env = { ...process.env, ...extra };
   for (const key of [
-    "DATABASE_URL",
-    "PGDATABASE",
-    "PGHOST",
-    "PGPASSWORD",
-    "PGPASSFILE",
-    "PGPORT",
-    "PGSERVICE",
-    "PGSERVICEFILE",
-    "PGUSER",
-    "SUPERUSER_URL",
-    "REHEARSAL_SUPERUSER_URL",
-    "REHEARSAL_OWNER_URL",
+    'DATABASE_URL',
+    'PGDATABASE',
+    'PGHOST',
+    'PGPASSWORD',
+    'PGPASSFILE',
+    'PGPORT',
+    'PGSERVICE',
+    'PGSERVICEFILE',
+    'PGUSER',
+    'SUPERUSER_URL',
+    'REHEARSAL_SUPERUSER_URL',
+    'REHEARSAL_OWNER_URL',
   ]) {
     if (!(key in extra)) delete env[key];
   }
@@ -234,30 +247,33 @@ function sanitizedChildEnv(extra = {}) {
 }
 
 function createTempClusterScratchDb() {
-  console.log("--- synthetic: starting private /tmp PostgreSQL cluster ---");
-  run("mkdir", ["-p", tempClusterDataDir, tempClusterSocketDir]);
-  run(path.join(pgBinDir, "initdb"), ["-D", tempClusterDataDir, "-A", "trust", "--no-locale"]);
-  run(path.join(pgBinDir, "pg_ctl"), [
-    "-D",
+  console.log('--- synthetic: starting private /tmp PostgreSQL cluster ---');
+  run('mkdir', ['-p', tempClusterDataDir, tempClusterSocketDir]);
+  run(path.join(pgBinDir, 'initdb'), ['-D', tempClusterDataDir, '-A', 'trust', '--no-locale']);
+  run(path.join(pgBinDir, 'pg_ctl'), [
+    '-D',
     tempClusterDataDir,
-    "-o",
+    '-o',
     `-k ${tempClusterSocketDir} -p ${tempClusterPort} -c listen_addresses=''`,
-    "-w",
-    "start",
+    '-w',
+    'start',
   ]);
-  run(path.join(pgBinDir, "createdb"), ["-h", tempClusterSocketDir, "-p", tempClusterPort, dbName]);
-  pgHarness = { kind: "temp" };
+  run(path.join(pgBinDir, 'createdb'), ['-h', tempClusterSocketDir, '-p', tempClusterPort, dbName]);
+  pgHarness = { kind: 'temp' };
 }
 
 function prepareFullModeRolesAndUrls() {
-  console.log("--- full: creating throwaway owner and superuser roles ---");
-  pgHarness = { kind: "host" };
-  fullPreexistingAppStaff = postgresRoleExists("app_staff");
-  fullPreexistingAppPatient = postgresRoleExists("app_patient");
-  postgresPsql("postgres", `
+  console.log('--- full: creating throwaway owner and superuser roles ---');
+  pgHarness = { kind: 'host' };
+  fullPreexistingAppStaff = postgresRoleExists('app_staff');
+  fullPreexistingAppPatient = postgresRoleExists('app_patient');
+  postgresPsql(
+    'postgres',
+    `
 CREATE ROLE ${quoteIdent(fullOwnerRole)} LOGIN NOSUPERUSER NOBYPASSRLS PASSWORD ${quoteLiteral(fullOwnerPassword)};
 CREATE ROLE ${quoteIdent(fullSuperuserRole)} LOGIN SUPERUSER PASSWORD ${quoteLiteral(fullSuperuserPassword)};
-`);
+`,
+  );
   fullSuperuserUrl = buildLocalRoleUrl(dbName, fullSuperuserRole, fullSuperuserPassword);
   fullOwnerUrl = buildLocalRoleUrl(dbName, fullOwnerRole, fullOwnerPassword);
   fullScratchStaffUrl = buildLocalRoleUrl(dbName, staffLoginRole, staffPassword);
@@ -272,16 +288,16 @@ function buildLocalRoleUrl(databaseName, role, password) {
 }
 
 function restoreNewestProdDump() {
-  console.log("--- full: restoring newest production dump into disposable rehearsal DB ---");
+  console.log('--- full: restoring newest production dump into disposable rehearsal DB ---');
   assertSafeDisposableName(dbName);
-  const dumpDir = process.env.REHEARSAL_DUMP_DIR ?? "/opt/backups/postgres/hourly";
+  const dumpDir = process.env.REHEARSAL_DUMP_DIR ?? '/opt/backups/postgres/hourly';
   const findDump = [
     // no pipefail: `head -n 1` closes the pipe early and SIGPIPEs find/sort (exit 141)
-    "set -eu",
+    'set -eu',
     `find ${quoteShell(dumpDir)} -maxdepth 1 -type f \\( -name '*.dump' -o -name '*.sql' -o -name '*.sql.gz' \\) -printf '%T@ %p\\n' | sort -nr | head -n 1 | cut -d' ' -f2-`,
-  ].join("\n");
-  const dumpResult = runCaptured("sudo", ["-n", "-u", "postgres", "bash", "-lc", findDump], {
-    label: "find newest production dump",
+  ].join('\n');
+  const dumpResult = runCaptured('sudo', ['-n', '-u', 'postgres', 'bash', '-lc', findDump], {
+    label: 'find newest production dump',
   });
   latestDumpPath = dumpResult.stdout.trim();
   if (!latestDumpPath) {
@@ -289,83 +305,97 @@ function restoreNewestProdDump() {
   }
   console.log(`--- full: selected dump ${path.basename(latestDumpPath)} ---`);
 
-  safeRun("sudo", ["-n", "-u", "postgres", "dropdb", "--if-exists", dbName]);
-  run("sudo", ["-n", "-u", "postgres", "createdb", "-O", fullOwnerRole, dbName], {
-    label: "createdb rehearsal DB",
+  safeRun('sudo', ['-n', '-u', 'postgres', 'dropdb', '--if-exists', dbName]);
+  run('sudo', ['-n', '-u', 'postgres', 'createdb', '-O', fullOwnerRole, dbName], {
+    label: 'createdb rehearsal DB',
   });
-  run("sudo", [
-    "-n",
-    "-u",
-    "postgres",
-    "psql",
-    "-v",
-    "ON_ERROR_STOP=1",
-    "-d",
-    dbName,
-    "-c",
-    "CREATE EXTENSION IF NOT EXISTS btree_gist;",
-  ], {
-    label: "pre-create btree_gist extension",
-  });
+  run(
+    'sudo',
+    [
+      '-n',
+      '-u',
+      'postgres',
+      'psql',
+      '-v',
+      'ON_ERROR_STOP=1',
+      '-d',
+      dbName,
+      '-c',
+      'CREATE EXTENSION IF NOT EXISTS btree_gist;',
+    ],
+    {
+      label: 'pre-create btree_gist extension',
+    },
+  );
 
   const setRoleSql = `SET ROLE ${quoteIdent(fullOwnerRole)};`;
-  if (latestDumpPath.endsWith(".sql")) {
-    run("sudo", [
-      "-n",
-      "-u",
-      "postgres",
-      "bash",
-      "-lc",
-      `{ printf '%s\\n' ${quoteShell(setRoleSql)}; cat ${quoteShell(latestDumpPath)}; } | psql -v ON_ERROR_STOP=1 -d ${quoteShell(dbName)}`,
-    ], {
-      label: "restore plain SQL dump",
-    });
+  if (latestDumpPath.endsWith('.sql')) {
+    run(
+      'sudo',
+      [
+        '-n',
+        '-u',
+        'postgres',
+        'bash',
+        '-lc',
+        `{ printf '%s\\n' ${quoteShell(setRoleSql)}; cat ${quoteShell(latestDumpPath)}; } | psql -v ON_ERROR_STOP=1 -d ${quoteShell(dbName)}`,
+      ],
+      {
+        label: 'restore plain SQL dump',
+      },
+    );
     return;
   }
-  if (latestDumpPath.endsWith(".sql.gz")) {
-    run("sudo", [
-      "-n",
-      "-u",
-      "postgres",
-      "bash",
-      "-lc",
-      `{ printf '%s\\n' ${quoteShell(setRoleSql)}; gzip -dc ${quoteShell(latestDumpPath)}; } | psql -v ON_ERROR_STOP=1 -d ${quoteShell(dbName)}`,
-    ], {
-      label: "restore gzipped SQL dump",
-    });
+  if (latestDumpPath.endsWith('.sql.gz')) {
+    run(
+      'sudo',
+      [
+        '-n',
+        '-u',
+        'postgres',
+        'bash',
+        '-lc',
+        `{ printf '%s\\n' ${quoteShell(setRoleSql)}; gzip -dc ${quoteShell(latestDumpPath)}; } | psql -v ON_ERROR_STOP=1 -d ${quoteShell(dbName)}`,
+      ],
+      {
+        label: 'restore gzipped SQL dump',
+      },
+    );
     return;
   }
   // pg_restore under a non-superuser --role emits benign non-zero on things like
   // COMMENT ON EXTENSION btree_gist (must be owner) — the data still restores. Add
   // --no-comments to drop those, tolerate a non-zero exit, then VERIFY by row count.
-  const restoreResult = runResult("sudo", [
-    "-n",
-    "-u",
-    "postgres",
-    "pg_restore",
-    "--no-owner",
+  const restoreResult = runResult('sudo', [
+    '-n',
+    '-u',
+    'postgres',
+    'pg_restore',
+    '--no-owner',
     `--role=${fullOwnerRole}`,
-    "--no-acl",
-    "--no-comments",
-    "-d",
+    '--no-acl',
+    '--no-comments',
+    '-d',
     dbName,
     latestDumpPath,
   ]);
   if (restoreResult.stderr) process.stderr.write(restoreResult.stderr);
-  const restoreCheck = runResult("sudo", [
-    "-n",
-    "-u",
-    "postgres",
-    "psql",
-    "-X",
-    "-Atqc",
-    "SELECT count(*) FROM public.platform_users",
-    "-d",
+  const restoreCheck = runResult('sudo', [
+    '-n',
+    '-u',
+    'postgres',
+    'psql',
+    '-X',
+    '-Atqc',
+    'SELECT count(*) FROM public.platform_users',
+    '-d',
     dbName,
   ]);
-  const restoredRows = Number((restoreCheck.stdout ?? "").trim());
+  const restoredRows = Number((restoreCheck.stdout ?? '').trim());
   if (!Number.isFinite(restoredRows) || restoredRows <= 0) {
-    throw new Error(`restore failed: public.platform_users rows=${(restoreCheck.stdout ?? "").trim() || "0"}`);
+    throw new Error(
+      `restore failed: public.platform_users rows=${(restoreCheck.stdout ?? '').trim() || '0'}`,
+    );
   }
   console.log(`--- full: restore verified (public.platform_users rows=${restoredRows}) ---`);
 }
@@ -375,53 +405,60 @@ function quoteShell(value) {
 }
 
 function postgresPsql(databaseName, sql) {
-  run("sudo", ["-n", "-u", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-d", databaseName], {
+  run('sudo', ['-n', '-u', 'postgres', 'psql', '-v', 'ON_ERROR_STOP=1', '-d', databaseName], {
     input: sql,
-    label: "sudo -u postgres psql (secrets redacted)",
+    label: 'sudo -u postgres psql (secrets redacted)',
   });
 }
 
 function postgresRoleExists(roleName) {
-  const result = runCaptured("sudo", [
-    "-n",
-    "-u",
-    "postgres",
-    "psql",
-    "-v",
-    "ON_ERROR_STOP=1",
-    "-d",
-    "postgres",
-    "-Atqc",
-    `SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = ${quoteLiteral(roleName)})::int`,
-  ], {
-    label: "check role existence",
-  });
-  return result.stdout.trim() === "1";
+  const result = runCaptured(
+    'sudo',
+    [
+      '-n',
+      '-u',
+      'postgres',
+      'psql',
+      '-v',
+      'ON_ERROR_STOP=1',
+      '-d',
+      'postgres',
+      '-Atqc',
+      `SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = ${quoteLiteral(roleName)})::int`,
+    ],
+    {
+      label: 'check role existence',
+    },
+  );
+  return result.stdout.trim() === '1';
 }
 
 function runDeploy667Chain() {
-  console.log("--- full: running deploy-saas-667 option-D chain on restored copy ---");
+  console.log('--- full: running deploy-saas-667 option-D chain on restored copy ---');
   const env = sanitizedChildEnv({
     SUPERUSER_URL: fullSuperuserUrl,
     DATABASE_URL: fullOwnerUrl,
     P2_B_SIGNING_SECRET: signingSecret,
     DB_PRINCIPAL_SIGNING_SECRET: signingSecret,
-    API_ENV_FILE: "/nonexistent",
-    WEBAPP_ENV_FILE: "/nonexistent",
-    BOOKING_URL: "http://localhost:3000",
+    API_ENV_FILE: '/nonexistent',
+    WEBAPP_ENV_FILE: '/nonexistent',
+    BOOKING_URL: 'http://localhost:3000',
   });
-  run("bash", [deploySaas667Path], {
+  run('bash', [deploySaas667Path], {
     env,
-    label: "scripts/deploy-saas-667.sh (URLs and signing secret redacted)",
+    label: 'scripts/deploy-saas-667.sh (URLs and signing secret redacted)',
   });
 
-  psqlUrl(fullSuperuserUrl, `
+  psqlUrl(
+    fullSuperuserUrl,
+    `
 GRANT USAGE ON SCHEMA app_ext TO ${quoteIdent(appOwnerRole)};
-`);
+`,
+  );
 }
 
 function createScratchLoginRoles() {
-  console.log("--- roles: creating disposable app login roles ---");
+  console.log('--- roles: creating disposable app login roles ---');
   const sql = `
 DROP ROLE IF EXISTS ${quoteIdent(patientLoginRole)};
 DROP ROLE IF EXISTS ${quoteIdent(staffLoginRole)};
@@ -444,7 +481,7 @@ GRANT EXECUTE ON FUNCTION app.is_staff() TO ${quoteIdent(staffLoginRole)}, ${quo
 }
 
 function installSyntheticSchemaAndRls() {
-  console.log("--- synthetic: installing P2-B helpers and minimal policy subset ---");
+  console.log('--- synthetic: installing P2-B helpers and minimal policy subset ---');
   psqlAdmin(`
 CREATE ROLE ${quoteIdent(appOwnerRole)} NOLOGIN BYPASSRLS;
 CREATE ROLE app_staff NOLOGIN NOBYPASSRLS;
@@ -452,8 +489,8 @@ CREATE ROLE app_patient NOLOGIN NOBYPASSRLS;
 `);
   psqlFile(p2bSqlPath, {
     p2_b_owner_role: appOwnerRole,
-    p2_b_staff_role: "app_staff",
-    p2_b_patient_role: "app_patient",
+    p2_b_staff_role: 'app_staff',
+    p2_b_patient_role: 'app_patient',
     p2_b_signing_secret: signingSecret,
   });
   psqlAdmin(`GRANT USAGE ON SCHEMA app_ext TO ${quoteIdent(appOwnerRole)};`);
@@ -634,14 +671,20 @@ VALUES (${quoteLiteral(defaultOrgId)}::uuid, ${quoteLiteral(p1)}::uuid, 'active'
 }
 
 function proveLegacyDormantCompatibility() {
-  console.log("--- full: applying dormant helper policies and proving legacy compatibility before strict flip ---");
+  console.log(
+    '--- full: applying dormant helper policies and proving legacy compatibility before strict flip ---',
+  );
   psqlUrlFile(fullOwnerUrl, phase4PolicySqlPath);
   // Legacy runtime pre-flip is the plain owner/runtime role (NOT app_staff): under dormant NO-FORCE
   // RLS the table owner reads clinic #1 fine. (The dormant POLICY permit path is covered by the R2 smoke.)
   const legacyUrl = fullOwnerUrl;
-  const result = runCaptured("node", ["-e", `
+  const result = runCaptured(
+    'node',
+    [
+      '-e',
+      `
 const { createRequire } = require("node:module");
-const { Client } = createRequire(${JSON.stringify(path.join(repoRoot, "apps/webapp/package.json"))})("pg");
+const { Client } = createRequire(${JSON.stringify(path.join(repoRoot, 'apps/webapp/package.json'))})("pg");
 (async () => {
   const c = new Client({ connectionString: process.env.CHECK_URL });
   await c.connect();
@@ -649,29 +692,34 @@ const { Client } = createRequire(${JSON.stringify(path.join(repoRoot, "apps/weba
   await c.end();
   if (Number(r.rows[0].count) < 1) throw new Error("legacy dormant clinic #1 read returned no rows");
 })().catch((e) => { console.error(e.message); process.exit(1); });
-`], {
-    env: sanitizedChildEnv({ CHECK_URL: legacyUrl, DEFAULT_ORG_ID: defaultOrgId }),
-    label: "legacy dormant compatibility check",
-  });
+`,
+    ],
+    {
+      env: sanitizedChildEnv({ CHECK_URL: legacyUrl, DEFAULT_ORG_ID: defaultOrgId }),
+      label: 'legacy dormant compatibility check',
+    },
+  );
   if (result.stderr) process.stderr.write(result.stderr);
-  console.log("CONFIRMED: legacy-guc/dormant compatibility still reads clinic #1 before strict flip.");
+  console.log(
+    'CONFIRMED: legacy-guc/dormant compatibility still reads clinic #1 before strict flip.',
+  );
 }
 
 function applyStrictLockedForceCutover() {
-  console.log("--- full: applying strict locked-helper policies and FORCE RLS cutover ---");
-  psqlUrlFile(fullOwnerUrl, phase4PolicySqlPath, ["-v", "phase4_enforce_locked_context=1"]);
+  console.log('--- full: applying strict locked-helper policies and FORCE RLS cutover ---');
+  psqlUrlFile(fullOwnerUrl, phase4PolicySqlPath, ['-v', 'phase4_enforce_locked_context=1']);
   psqlUrlFile(fullOwnerUrl, phase4ForceSqlPath, [
-    "-v",
+    '-v',
     `phase4_bootstrap_base_role=${patientLoginRole}`,
-    "-v",
-    "phase4_staff_role=app_staff",
-    "-v",
+    '-v',
+    'phase4_staff_role=app_staff',
+    '-v',
     `phase4_owner_role=${appOwnerRole}`,
   ]);
 }
 
 function provePhoneHistoryTransitionUnderForce() {
-  console.log("--- full: proving phone-history close+insert transition under strict+FORCE ---");
+  console.log('--- full: proving phone-history close+insert transition under strict+FORCE ---');
   const orgUserId = randomUUID();
   const bootstrapUserId = randomUUID();
   const orgOldHistoryId = randomUUID();
@@ -679,7 +727,9 @@ function provePhoneHistoryTransitionUnderForce() {
   const bootstrapOldHistoryId = randomUUID();
   const bootstrapNewHistoryId = randomUUID();
   const bootstrapForbiddenHistoryId = randomUUID();
-  psqlUrl(fullSuperuserUrl, String.raw`
+  psqlUrl(
+    fullSuperuserUrl,
+    String.raw`
 \set ON_ERROR_STOP on
 
 INSERT INTO public.platform_users (id, display_name, role, created_at, updated_at)
@@ -693,7 +743,7 @@ VALUES
   (${quoteLiteral(bootstrapOldHistoryId)}::uuid, ${quoteLiteral(bootstrapUserId)}::uuid, ${quoteLiteral(`${marker}:fb1:bootstrap:old`)}, now(), NULL, 'otp', NULL);
 
 ${installPsqlSignedContextSql({
-  role: "app_staff",
+  role: 'app_staff',
   nonce: `fb1_staff_${stamp}`,
   orgId: defaultOrgId,
 })}
@@ -807,17 +857,22 @@ SELECT 1/0;
 \endif
 
 RESET ROLE;
-`);
-  console.log("CONFIRMED: FB#1 SQL phone-history close+insert path works for org signed context and bootstrap base role.");
+`,
+  );
+  console.log(
+    'CONFIRMED: FB#1 SQL phone-history close+insert path works for org signed context and bootstrap base role.',
+  );
 
-  console.log("--- full: proving FB#1 through the webapp phone-history repository path ---");
+  console.log('--- full: proving FB#1 through the webapp phone-history repository path ---');
   const appOrgStampedUserId = randomUUID();
   const appNullToOrgUserId = randomUUID();
   const appBootstrapUserId = randomUUID();
   const appOrgOldHistoryId = randomUUID();
   const appNullToOrgOldHistoryId = randomUUID();
   const appBootstrapOldHistoryId = randomUUID();
-  psqlUrl(fullSuperuserUrl, String.raw`
+  psqlUrl(
+    fullSuperuserUrl,
+    String.raw`
 \set ON_ERROR_STOP on
 
 INSERT INTO public.platform_users (id, display_name, role, created_at, updated_at)
@@ -831,7 +886,8 @@ VALUES
   (${quoteLiteral(appOrgOldHistoryId)}::uuid, ${quoteLiteral(appOrgStampedUserId)}::uuid, ${quoteLiteral(`${marker}:fb1:app:org:old`)}, now(), NULL, 'otp', ${quoteLiteral(defaultOrgId)}::uuid),
   (${quoteLiteral(appNullToOrgOldHistoryId)}::uuid, ${quoteLiteral(appNullToOrgUserId)}::uuid, ${quoteLiteral(`${marker}:fb1:app:null-to-org:old`)}, now(), NULL, 'otp', NULL),
   (${quoteLiteral(appBootstrapOldHistoryId)}::uuid, ${quoteLiteral(appBootstrapUserId)}::uuid, ${quoteLiteral(`${marker}:fb1:app:bootstrap:old`)}, now(), NULL, 'otp', NULL);
-`);
+`,
+  );
 
   const appRepoSmoke = String.raw`
 import { runWithDbBootstrapPrincipal, runWithDbStaffPrincipal } from "@bersoncare/db-principal";
@@ -877,24 +933,30 @@ await runWithDbBootstrapPrincipal({ source: "d2-fb1-app-repo-smoke" }, () =>
 );
 `;
 
-  run("pnpm", ["--dir", "apps/webapp", "exec", "tsx", "--tsconfig", "tsconfig.json", "-e", appRepoSmoke], {
-    env: sanitizedChildEnv({
-      DATABASE_URL: fullScratchPatientUrl,
-      DATABASE_URL_STAFF: fullScratchStaffUrl,
-      DATABASE_URL_NONSTAFF: fullScratchPatientUrl,
-      DB_PRINCIPAL_CONTEXT_MODE: "locked",
-      DB_PRINCIPAL_SIGNING_SECRET: signingSecret,
-      D2_FB1_ORG_ID: defaultOrgId,
-      D2_FB1_STAFF_USER_ID: appOrgStampedUserId,
-      D2_FB1_APP_ORG_STAMPED_USER_ID: appOrgStampedUserId,
-      D2_FB1_APP_NULL_TO_ORG_USER_ID: appNullToOrgUserId,
-      D2_FB1_APP_BOOTSTRAP_USER_ID: appBootstrapUserId,
-      D2_FB1_MARKER: marker,
-    }),
-    label: "D2 FB#1 webapp repository phone-history smoke",
-  });
+  run(
+    'pnpm',
+    ['--dir', 'apps/webapp', 'exec', 'tsx', '--tsconfig', 'tsconfig.json', '-e', appRepoSmoke],
+    {
+      env: sanitizedChildEnv({
+        DATABASE_URL: fullScratchPatientUrl,
+        DATABASE_URL_STAFF: fullScratchStaffUrl,
+        DATABASE_URL_NONSTAFF: fullScratchPatientUrl,
+        DB_PRINCIPAL_CONTEXT_MODE: 'locked',
+        DB_PRINCIPAL_SIGNING_SECRET: signingSecret,
+        D2_FB1_ORG_ID: defaultOrgId,
+        D2_FB1_STAFF_USER_ID: appOrgStampedUserId,
+        D2_FB1_APP_ORG_STAMPED_USER_ID: appOrgStampedUserId,
+        D2_FB1_APP_NULL_TO_ORG_USER_ID: appNullToOrgUserId,
+        D2_FB1_APP_BOOTSTRAP_USER_ID: appBootstrapUserId,
+        D2_FB1_MARKER: marker,
+      }),
+      label: 'D2 FB#1 webapp repository phone-history smoke',
+    },
+  );
 
-  psqlUrl(fullSuperuserUrl, String.raw`
+  psqlUrl(
+    fullSuperuserUrl,
+    String.raw`
 \set ON_ERROR_STOP on
 
 SELECT (count(*) = 1)::int AS fb1_app_org_old_closed_ok
@@ -1001,16 +1063,21 @@ WHERE platform_user_id = ${quoteLiteral(appBootstrapUserId)}::uuid
 \echo 'FATAL: FB#1 app repo bootstrap user must have exactly one active row.'
 SELECT 1/0;
 \endif
-`);
-  console.log("CONFIRMED: FB#1 webapp repository phone-history close+insert path works for org-stamped, NULL-to-org, and bootstrap NULL rows.");
+`,
+  );
+  console.log(
+    'CONFIRMED: FB#1 webapp repository phone-history close+insert path works for org-stamped, NULL-to-org, and bootstrap NULL rows.',
+  );
 }
 
 async function seedRehearsalData() {
-  console.log("--- seed: creating clinic B, S3, P2, P_SHARED, and controlled scoped rows ---");
+  console.log('--- seed: creating clinic B, S3, P2, P_SHARED, and controlled scoped rows ---');
   const client = makeAdminClient();
   await client.connect();
   try {
-    const s1 = await fetchRequiredRow(client, `
+    const s1 = await fetchRequiredRow(
+      client,
+      `
       SELECT m.platform_user_id::text AS platform_user_id, m.specialist_id::text AS specialist_id
       FROM public.be_organization_members m
       JOIN public.be_specialists s ON s.id = m.specialist_id
@@ -1019,9 +1086,14 @@ async function seedRehearsalData() {
         AND s.is_active IS TRUE
       ORDER BY CASE WHEN m.role = 'owner' THEN 0 WHEN m.role = 'doctor' THEN 1 ELSE 2 END, m.created_at
       LIMIT 1
-    `, [defaultOrgId], "clinic #1 active staff membership");
+    `,
+      [defaultOrgId],
+      'clinic #1 active staff membership',
+    );
 
-    const p1 = await fetchRequiredRow(client, `
+    const p1 = await fetchRequiredRow(
+      client,
+      `
       SELECT oe.platform_user_id::text AS platform_user_id
       FROM public.org_enrollments oe
       JOIN public.platform_users pu ON pu.id = oe.platform_user_id
@@ -1032,7 +1104,10 @@ async function seedRehearsalData() {
         AND COALESCE(pu.is_archived, false) IS FALSE
       ORDER BY oe.created_at, oe.platform_user_id
       LIMIT 1
-    `, [defaultOrgId], "clinic #1 existing patient");
+    `,
+      [defaultOrgId],
+      'clinic #1 existing patient',
+    );
 
     const ids = {
       orgB: randomUUID(),
@@ -1048,52 +1123,64 @@ async function seedRehearsalData() {
       pShared: randomUUID(),
     };
 
-    await client.query("BEGIN");
+    await client.query('BEGIN');
     try {
-      await client.query(`
+      await client.query(
+        `
         INSERT INTO public.platform_users (id, display_name, role, email_normalized, email_verified_at, created_at, updated_at)
         VALUES
           ($1::uuid, 'Rehearsal Specialist S2', 'client', $2, now(), now(), now()),
           ($3::uuid, 'Rehearsal Specialist S3', 'doctor', $4, now(), now(), now()),
           ($5::uuid, 'Rehearsal Patient P2', 'client', $6, now(), now(), now()),
           ($7::uuid, 'Rehearsal Patient Shared', 'client', $8, now(), now(), now())
-      `, [
-        ids.s2User,
-        `${marker}.s2@example.invalid`,
-        ids.s3User,
-        `${marker}.s3@example.invalid`,
-        ids.p2,
-        `${marker}.p2@example.invalid`,
-        ids.pShared,
-        `${marker}.shared@example.invalid`,
-      ]);
+      `,
+        [
+          ids.s2User,
+          `${marker}.s2@example.invalid`,
+          ids.s3User,
+          `${marker}.s3@example.invalid`,
+          ids.p2,
+          `${marker}.p2@example.invalid`,
+          ids.pShared,
+          `${marker}.shared@example.invalid`,
+        ],
+      );
 
       await mirrorSpecialistOwnerProvisioning(client, ids);
 
-      await client.query(`
+      await client.query(
+        `
         INSERT INTO public.be_specialists (id, organization_id, full_name, is_active, sort_order, created_at, updated_at)
         VALUES ($1::uuid, $2::uuid, 'Rehearsal Specialist S3', true, 1, now(), now())
-      `, [ids.s3Specialist, ids.orgB]);
-      await client.query(`
+      `,
+        [ids.s3Specialist, ids.orgB],
+      );
+      await client.query(
+        `
         INSERT INTO public.be_organization_members (id, organization_id, platform_user_id, role, specialist_id, status, created_at, updated_at)
         VALUES ($1::uuid, $2::uuid, $3::uuid, 'doctor', $4::uuid, 'active', now(), now())
-      `, [ids.s3Membership, ids.orgB, ids.s3User, ids.s3Specialist]);
+      `,
+        [ids.s3Membership, ids.orgB, ids.s3User, ids.s3Specialist],
+      );
 
-      await client.query(`
+      await client.query(
+        `
         INSERT INTO public.org_enrollments (organization_id, platform_user_id, status, created_at)
         VALUES
           ($1::uuid, $2::uuid, 'active', now()),
           ($3::uuid, $4::uuid, 'active', now()),
           ($1::uuid, $4::uuid, 'active', now())
         ON CONFLICT (organization_id, platform_user_id) DO NOTHING
-      `, [ids.orgB, ids.p2, defaultOrgId, ids.pShared]);
+      `,
+        [ids.orgB, ids.p2, defaultOrgId, ids.pShared],
+      );
 
       await insertPatientRows(client, {
         orgId: defaultOrgId,
         patientId: p1.platform_user_id,
         specialistId: s1.specialist_id,
         assignedBy: s1.platform_user_id,
-        label: "p1_org1",
+        label: 'p1_org1',
         appointmentSlotIndex: 0,
       });
       await insertPatientRows(client, {
@@ -1101,7 +1188,7 @@ async function seedRehearsalData() {
         patientId: ids.pShared,
         specialistId: s1.specialist_id,
         assignedBy: s1.platform_user_id,
-        label: "shared_org1",
+        label: 'shared_org1',
         appointmentSlotIndex: 1,
       });
       await insertPatientRows(client, {
@@ -1109,7 +1196,7 @@ async function seedRehearsalData() {
         patientId: ids.pShared,
         specialistId: ids.s2Specialist,
         assignedBy: ids.s2User,
-        label: "shared_orgb",
+        label: 'shared_orgb',
         appointmentSlotIndex: 2,
       });
       await insertPatientRows(client, {
@@ -1117,13 +1204,13 @@ async function seedRehearsalData() {
         patientId: ids.p2,
         specialistId: ids.s3Specialist,
         assignedBy: ids.s3User,
-        label: "p2_orgb_by_s3",
+        label: 'p2_orgb_by_s3',
         appointmentSlotIndex: 3,
       });
 
-      await client.query("COMMIT");
+      await client.query('COMMIT');
     } catch (error) {
-      await client.query("ROLLBACK");
+      await client.query('ROLLBACK');
       throw error;
     }
 
@@ -1140,7 +1227,8 @@ async function seedRehearsalData() {
       p1UserId: p1.platform_user_id,
       p2UserId: ids.p2,
       pSharedUserId: ids.pShared,
-      seedApproach: "S2 owner provisioning mirrored exact OrganizationProvisioningService SQL; S3/P2/P_SHARED/enrollments/scoped rows mirrored documented SQL.",
+      seedApproach:
+        'S2 owner provisioning mirrored exact OrganizationProvisioningService SQL; S3/P2/P_SHARED/enrollments/scoped rows mirrored documented SQL.',
     };
   } finally {
     await client.end();
@@ -1148,7 +1236,8 @@ async function seedRehearsalData() {
 }
 
 async function mirrorSpecialistOwnerProvisioning(client, ids) {
-  await client.query(`
+  await client.query(
+    `
     INSERT INTO public.specialist_signup_intents (
       id,
       user_id,
@@ -1169,9 +1258,12 @@ async function mirrorSpecialistOwnerProvisioning(client, ids) {
       'pending',
       now()
     )
-  `, [ids.s2Intent, ids.s2User, ids.s2Challenge, `${marker}.s2@example.invalid`]);
+  `,
+    [ids.s2Intent, ids.s2User, ids.s2Challenge, `${marker}.s2@example.invalid`],
+  );
 
-  await client.query(`
+  await client.query(
+    `
     UPDATE public.platform_users
     SET role = 'doctor',
         display_name = 'Rehearsal Specialist S2',
@@ -1179,19 +1271,28 @@ async function mirrorSpecialistOwnerProvisioning(client, ids) {
     WHERE id = $1::uuid
       AND merged_into_id IS NULL
       AND email_verified_at IS NOT NULL
-  `, [ids.s2User]);
+  `,
+    [ids.s2User],
+  );
 
-  await client.query(`
+  await client.query(
+    `
     INSERT INTO public.be_organizations (id, title, is_active, sort_order, created_at, updated_at)
     VALUES ($1::uuid, 'Rehearsal Clinic B', true, 0, now(), now())
-  `, [ids.orgB]);
+  `,
+    [ids.orgB],
+  );
 
-  await client.query(`
+  await client.query(
+    `
     INSERT INTO public.be_specialists (id, organization_id, full_name, is_active, sort_order, created_at, updated_at)
     VALUES ($1::uuid, $2::uuid, 'Rehearsal Specialist S2', true, 0, now(), now())
-  `, [ids.s2Specialist, ids.orgB]);
+  `,
+    [ids.s2Specialist, ids.orgB],
+  );
 
-  await client.query(`
+  await client.query(
+    `
     INSERT INTO public.be_organization_members (
       id,
       organization_id,
@@ -1203,9 +1304,12 @@ async function mirrorSpecialistOwnerProvisioning(client, ids) {
       updated_at
     )
     VALUES ($1::uuid, $2::uuid, $3::uuid, 'owner', $4::uuid, 'active', now(), now())
-  `, [ids.s2Membership, ids.orgB, ids.s2User, ids.s2Specialist]);
+  `,
+    [ids.s2Membership, ids.orgB, ids.s2User, ids.s2Specialist],
+  );
 
-  await client.query(`
+  await client.query(
+    `
     UPDATE public.specialist_signup_intents
     SET status = 'provisioned',
         provisioned_organization_id = $2::uuid,
@@ -1213,7 +1317,9 @@ async function mirrorSpecialistOwnerProvisioning(client, ids) {
         provisioned_membership_id = $4::uuid,
         provisioned_at = now()
     WHERE id = $1::uuid
-  `, [ids.s2Intent, ids.orgB, ids.s2Specialist, ids.s2Membership]);
+  `,
+    [ids.s2Intent, ids.orgB, ids.s2Specialist, ids.s2Membership],
+  );
 }
 
 async function insertPatientRows(client, input) {
@@ -1222,8 +1328,13 @@ async function insertPatientRows(client, input) {
   const conversationId = randomUUID();
   const messageId = randomUUID();
   const label = `${marker}:${input.label}`;
-  const appointmentSlot = await findNonOverlappingAppointmentSlot(client, input.specialistId, input.appointmentSlotIndex);
-  await client.query(`
+  const appointmentSlot = await findNonOverlappingAppointmentSlot(
+    client,
+    input.specialistId,
+    input.appointmentSlotIndex,
+  );
+  await client.query(
+    `
     INSERT INTO public.be_appointments (
       id,
       organization_id,
@@ -1252,17 +1363,20 @@ async function insertPatientRows(client, input) {
       now(),
       now()
     )
-  `, [
-    appointmentId,
-    input.orgId,
-    input.specialistId,
-    input.patientId,
-    label,
-    appointmentSlot.startAt,
-    appointmentSlot.endAt,
-    appointmentDurationMinutes,
-  ]);
-  await client.query(`
+  `,
+    [
+      appointmentId,
+      input.orgId,
+      input.specialistId,
+      input.patientId,
+      label,
+      appointmentSlot.startAt,
+      appointmentSlot.endAt,
+      appointmentDurationMinutes,
+    ],
+  );
+  await client.query(
+    `
     INSERT INTO public.treatment_program_instances (
       id,
       organization_id,
@@ -1275,8 +1389,11 @@ async function insertPatientRows(client, input) {
       assignment_source
     )
     VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, 'completed', now(), now(), 'doctor')
-  `, [programId, input.orgId, input.patientId, input.assignedBy, label]);
-  await client.query(`
+  `,
+    [programId, input.orgId, input.patientId, input.assignedBy, label],
+  );
+  await client.query(
+    `
     INSERT INTO public.support_conversations (
       id,
       organization_id,
@@ -1291,8 +1408,11 @@ async function insertPatientRows(client, input) {
       updated_at
     )
     VALUES ($1::uuid, $2::uuid, $3, $4::uuid, 'webapp', 'support', 'open', now(), now(), now(), now())
-  `, [conversationId, input.orgId, `${label}:conversation`, input.patientId]);
-  await client.query(`
+  `,
+    [conversationId, input.orgId, `${label}:conversation`, input.patientId],
+  );
+  await client.query(
+    `
     INSERT INTO public.support_conversation_messages (
       id,
       organization_id,
@@ -1305,13 +1425,16 @@ async function insertPatientRows(client, input) {
       created_at
     )
     VALUES ($1::uuid, $2::uuid, $3, $4::uuid, 'admin', 'text', $5, 'webapp', now())
-  `, [messageId, input.orgId, `${label}:message`, conversationId, label]);
+  `,
+    [messageId, input.orgId, `${label}:message`, conversationId, label],
+  );
 }
 
 async function findNonOverlappingAppointmentSlot(client, specialistId, preferredSlotIndex) {
   for (let slotIndex = preferredSlotIndex; slotIndex < preferredSlotIndex + 1_000; slotIndex += 1) {
     const slot = buildAppointmentSlot(slotIndex);
-    const overlap = await client.query(`
+    const overlap = await client.query(
+      `
       SELECT 1
       FROM public.be_appointments
       WHERE specialist_id = $1::uuid
@@ -1326,10 +1449,14 @@ async function findNonOverlappingAppointmentSlot(client, specialistId, preferred
         AND start_at < $3::timestamptz
         AND end_at > $2::timestamptz
       LIMIT 1
-    `, [specialistId, slot.startAt, slot.endAt]);
+    `,
+      [specialistId, slot.startAt, slot.endAt],
+    );
     if (overlap.rowCount === 0) return slot;
   }
-  throw new Error(`could not find non-overlapping rehearsal appointment slot for specialist ${specialistId}`);
+  throw new Error(
+    `could not find non-overlapping rehearsal appointment slot for specialist ${specialistId}`,
+  );
 }
 
 function buildAppointmentSlot(slotIndex) {
@@ -1342,58 +1469,62 @@ function buildAppointmentSlot(slotIndex) {
 }
 
 async function proveIsolation(seed) {
-  console.log("--- prove: signed locked runtime principals under FORCE RLS ---");
+  console.log('--- prove: signed locked runtime principals under FORCE RLS ---');
   const matrix = {};
 
-  matrix.s1 = await withActorClient("staff", async (client) => {
+  matrix.s1 = await withActorClient('staff', async (client) => {
     await applyStaffPrincipal(client, seed.org1, seed.s1UserId);
     const counts = await readMatrixCounts(client, seed);
-    assert(counts.org1Rows > 0, "staff S1 must see clinic #1 rehearsal rows");
-    assert(counts.orgBRows === 0, "staff S1 must see ZERO clinic B rehearsal rows");
+    assert(counts.org1Rows > 0, 'staff S1 must see clinic #1 rehearsal rows');
+    assert(counts.orgBRows === 0, 'staff S1 must see ZERO clinic B rehearsal rows');
     return counts;
   });
-  console.log("CONFIRMED: staff S1 sees clinic #1 rows and zero clinic B rows.");
+  console.log('CONFIRMED: staff S1 sees clinic #1 rows and zero clinic B rows.');
 
-  matrix.s2 = await withActorClient("staff", async (client) => {
+  matrix.s2 = await withActorClient('staff', async (client) => {
     await applyStaffPrincipal(client, seed.orgB, seed.s2UserId);
     const counts = await readMatrixCounts(client, seed);
-    assert(counts.orgBRows > 0, "staff S2 must see clinic B rehearsal rows");
-    assert(counts.org1Rows === 0, "staff S2 must see ZERO clinic #1 rehearsal rows");
-    assert(counts.s3Rows > 0, "staff S2 must see clinic B rows created for/through S3");
+    assert(counts.orgBRows > 0, 'staff S2 must see clinic B rehearsal rows');
+    assert(counts.org1Rows === 0, 'staff S2 must see ZERO clinic #1 rehearsal rows');
+    assert(counts.s3Rows > 0, 'staff S2 must see clinic B rows created for/through S3');
     return counts;
   });
-  console.log("CONFIRMED: staff S2 sees clinic B org-wide rows, including S3 rows, and zero clinic #1 rows.");
+  console.log(
+    'CONFIRMED: staff S2 sees clinic B org-wide rows, including S3 rows, and zero clinic #1 rows.',
+  );
 
-  matrix.s3 = await withActorClient("staff", async (client) => {
+  matrix.s3 = await withActorClient('staff', async (client) => {
     await applyStaffPrincipal(client, seed.orgB, seed.s3UserId);
     const counts = await readMatrixCounts(client, seed);
-    assert(counts.orgBRows > 0, "staff S3 must see clinic B rehearsal rows");
-    assert(counts.org1Rows === 0, "staff S3 must see ZERO clinic #1 rehearsal rows");
-    assert(counts.s3Rows > 0, "staff S3 must see its own clinic B rows");
+    assert(counts.orgBRows > 0, 'staff S3 must see clinic B rehearsal rows');
+    assert(counts.org1Rows === 0, 'staff S3 must see ZERO clinic #1 rehearsal rows');
+    assert(counts.s3Rows > 0, 'staff S3 must see its own clinic B rows');
     return counts;
   });
-  console.log("CONFIRMED: staff S3 sees clinic B org-wide rows and zero clinic #1 rows.");
+  console.log('CONFIRMED: staff S3 sees clinic B org-wide rows and zero clinic #1 rows.');
 
-  matrix.pShared = await withActorClient("patient", async (client) => {
+  matrix.pShared = await withActorClient('patient', async (client) => {
     await applyPatientPrincipal(client, seed.pSharedUserId);
     const counts = await readMatrixCounts(client, seed);
-    assert(counts.pSharedRows > 0, "P_SHARED must see its own rehearsal rows");
-    assert(counts.pSharedOrg1Rows > 0, "P_SHARED must see own clinic #1 rows");
-    assert(counts.pSharedOrgBRows > 0, "P_SHARED must see own clinic B rows");
-    assert(counts.p1Rows === 0 && counts.p2Rows === 0, "P_SHARED must not see other patient rows");
-    await assertForgeBlocked(client, seed, "p_shared");
+    assert(counts.pSharedRows > 0, 'P_SHARED must see its own rehearsal rows');
+    assert(counts.pSharedOrg1Rows > 0, 'P_SHARED must see own clinic #1 rows');
+    assert(counts.pSharedOrgBRows > 0, 'P_SHARED must see own clinic B rows');
+    assert(counts.p1Rows === 0 && counts.p2Rows === 0, 'P_SHARED must not see other patient rows');
+    await assertForgeBlocked(client, seed, 'p_shared');
     return counts;
   });
-  console.log("CONFIRMED: patient P_SHARED identity-only sees own rows in both clinics and no other patient rows.");
+  console.log(
+    'CONFIRMED: patient P_SHARED identity-only sees own rows in both clinics and no other patient rows.',
+  );
 
-  matrix.p2 = await withActorClient("patient", async (client) => {
+  matrix.p2 = await withActorClient('patient', async (client) => {
     await applyPatientPrincipal(client, seed.p2UserId);
     const counts = await readMatrixCounts(client, seed);
-    assert(counts.p2Rows > 0, "P2 must see its own rehearsal rows");
-    assert(counts.p1Rows === 0 && counts.pSharedRows === 0, "P2 must not see P1 or P_SHARED rows");
+    assert(counts.p2Rows > 0, 'P2 must see its own rehearsal rows');
+    assert(counts.p1Rows === 0 && counts.pSharedRows === 0, 'P2 must not see P1 or P_SHARED rows');
     return counts;
   });
-  console.log("CONFIRMED: patient P2 sees only own rows and cannot see P1/P_SHARED rows.");
+  console.log('CONFIRMED: patient P2 sees only own rows and cannot see P1/P_SHARED rows.');
 
   await proveNoSignedContextFailsClosed(seed);
   return matrix;
@@ -1401,7 +1532,7 @@ async function proveIsolation(seed) {
 
 function lockedOptions() {
   return proofApi.buildDbPrincipalApplyOptions({
-    mode: "locked",
+    mode: 'locked',
     signingSecret,
     ttlMs: 120_000,
     nonce: () => `mt_${randomUUID()}`,
@@ -1411,24 +1542,30 @@ function lockedOptions() {
 async function applyStaffPrincipal(client, organizationId, platformUserId) {
   await proofApi.runWithDbStaffPrincipal({ organizationId, platformUserId }, async () => {
     const applied = await proofApi.applyCurrentDbPrincipalToConnection(client, lockedOptions());
-    assert(applied === true, "staff principal should be applied");
+    assert(applied === true, 'staff principal should be applied');
   });
 }
 
 async function applyPatientPrincipal(client, platformUserId) {
   await proofApi.runWithDbPatientPrincipal({ platformUserId }, async () => {
     const applied = await proofApi.applyCurrentDbPrincipalToConnection(client, lockedOptions());
-    assert(applied === true, "patient principal should be applied");
+    assert(applied === true, 'patient principal should be applied');
   });
 }
 
-function installPsqlSignedContextSql({ role, nonce, orgId = null, patientId = null, integratorUserId = null }) {
-  const orgCanonical = orgId ?? "";
-  const patientCanonical = patientId ?? "";
-  const integratorCanonical = integratorUserId == null ? "" : String(integratorUserId);
-  const orgArg = orgId == null ? "NULL::uuid" : `${quoteLiteral(orgId)}::uuid`;
-  const patientArg = patientId == null ? "NULL::uuid" : `${quoteLiteral(patientId)}::uuid`;
-  const integratorArg = integratorUserId == null ? "NULL::bigint" : `${integratorUserId}::bigint`;
+function installPsqlSignedContextSql({
+  role,
+  nonce,
+  orgId = null,
+  patientId = null,
+  integratorUserId = null,
+}) {
+  const orgCanonical = orgId ?? '';
+  const patientCanonical = patientId ?? '';
+  const integratorCanonical = integratorUserId == null ? '' : String(integratorUserId);
+  const orgArg = orgId == null ? 'NULL::uuid' : `${quoteLiteral(orgId)}::uuid`;
+  const patientArg = patientId == null ? 'NULL::uuid' : `${quoteLiteral(patientId)}::uuid`;
+  const integratorArg = integratorUserId == null ? 'NULL::bigint' : `${integratorUserId}::bigint`;
 
   return `
 RESET ROLE;
@@ -1448,7 +1585,7 @@ SELECT app.install_signed_context(${quoteLiteral(nonce)}, (:ctx_pid)::integer, (
 }
 
 async function withActorClient(kind, fn) {
-  const client = kind === "staff" ? makeStaffClient() : makePatientClient();
+  const client = kind === 'staff' ? makeStaffClient() : makePatientClient();
   await client.connect();
   try {
     return await fn(client);
@@ -1459,20 +1596,20 @@ async function withActorClient(kind, fn) {
 }
 
 function makeAdminClient() {
-  if (pgHarness?.kind === "temp") {
+  if (pgHarness?.kind === 'temp') {
     return new Client({
       database: dbName,
       host: tempClusterSocketDir,
       port: Number(tempClusterPort),
       ssl: false,
-      user: process.env.USER || "dev",
+      user: process.env.USER || 'dev',
     });
   }
   return new Client({ connectionString: fullSuperuserUrl, ssl: false });
 }
 
 function makeStaffClient() {
-  if (pgHarness?.kind === "temp") {
+  if (pgHarness?.kind === 'temp') {
     return new Client({
       database: dbName,
       host: tempClusterSocketDir,
@@ -1486,7 +1623,7 @@ function makeStaffClient() {
 }
 
 function makePatientClient() {
-  if (pgHarness?.kind === "temp") {
+  if (pgHarness?.kind === 'temp') {
     return new Client({
       database: dbName,
       host: tempClusterSocketDir,
@@ -1500,7 +1637,9 @@ function makePatientClient() {
 }
 
 async function readMatrixCounts(client, seed) {
-  const row = await fetchRequiredRow(client, `
+  const row = await fetchRequiredRow(
+    client,
+    `
     WITH appointment_rows AS (
       SELECT organization_id, platform_user_id AS patient_user_id, specialist_id::uuid AS specialist_id, NULL::uuid AS assigned_by
       FROM public.be_appointments
@@ -1535,17 +1674,20 @@ async function readMatrixCounts(client, seed) {
       count(*) FILTER (WHERE patient_user_id = $7::uuid AND organization_id = $3::uuid)::int AS pshared_orgb_rows,
       count(*) FILTER (WHERE specialist_id = $8::uuid OR assigned_by = $9::uuid)::int AS s3_rows
     FROM rows
-  `, [
-    `${seed.marker}%`,
-    seed.org1,
-    seed.orgB,
-    [seed.p1UserId, seed.p2UserId, seed.pSharedUserId],
-    seed.p1UserId,
-    seed.p2UserId,
-    seed.pSharedUserId,
-    seed.s3SpecialistId,
-    seed.s3UserId,
-  ], "matrix counts");
+  `,
+    [
+      `${seed.marker}%`,
+      seed.org1,
+      seed.orgB,
+      [seed.p1UserId, seed.p2UserId, seed.pSharedUserId],
+      seed.p1UserId,
+      seed.p2UserId,
+      seed.pSharedUserId,
+      seed.s3SpecialistId,
+      seed.s3UserId,
+    ],
+    'matrix counts',
+  );
   return {
     totalRows: Number(row.total_rows),
     org1Rows: Number(row.org1_rows),
@@ -1562,36 +1704,51 @@ async function readMatrixCounts(client, seed) {
 async function assertForgeBlocked(client, seed, label) {
   await client.query("SELECT set_config('app.org', $1, false)", [seed.orgB]);
   await client.query("SELECT set_config('app.patient_user_id', $1, false)", [seed.p2UserId]);
-  const helper = await fetchRequiredRow(client, `
+  const helper = await fetchRequiredRow(
+    client,
+    `
     SELECT app.current_org_id()::text AS org_id, app.current_patient_user_id()::text AS patient_user_id
-  `, [], `${label} helper state after raw SET`);
+  `,
+    [],
+    `${label} helper state after raw SET`,
+  );
   assert(helper.org_id === null, `${label}: raw SET app.org changed helper-visible org`);
-  assert(helper.patient_user_id === seed.pSharedUserId, `${label}: raw SET app.patient_user_id changed helper-visible patient`);
+  assert(
+    helper.patient_user_id === seed.pSharedUserId,
+    `${label}: raw SET app.patient_user_id changed helper-visible patient`,
+  );
   const counts = await readMatrixCounts(client, seed);
   assert(counts.p2Rows === 0, `${label}: raw SET forged visibility to P2 rows`);
-  console.log("CONFIRMED: plain SET app.org/app.patient_user_id does not change signed-context visibility.");
+  console.log(
+    'CONFIRMED: plain SET app.org/app.patient_user_id does not change signed-context visibility.',
+  );
 }
 
 async function proveNoSignedContextFailsClosed(seed) {
-  await withActorClient("staff", async (client) => {
+  await withActorClient('staff', async (client) => {
     let runtimeFailed = false;
     try {
       await proofApi.applyCurrentDbPrincipalToConnection(client, lockedOptions());
     } catch (error) {
       runtimeFailed =
         error instanceof Error &&
-        error.message.includes("DB principal context is required before scoped DB access in locked mode");
+        error.message.includes(
+          'DB principal context is required before scoped DB access in locked mode',
+        );
     }
-    assert(runtimeFailed, "locked runtime must fail before DB access without a principal");
-    await client.query("SET ROLE app_staff");
+    assert(runtimeFailed, 'locked runtime must fail before DB access without a principal');
+    await client.query('SET ROLE app_staff');
     const counts = await readMatrixCounts(client, seed);
-    assert(counts.totalRows === 0, "app_staff scoped read without signed context must return zero rows");
+    assert(
+      counts.totalRows === 0,
+      'app_staff scoped read without signed context must return zero rows',
+    );
   });
-  console.log("CONFIRMED: scoped read with no signed context fails CLOSED.");
+  console.log('CONFIRMED: scoped read with no signed context fails CLOSED.');
 }
 
 function printFinalMatrix(seed, matrix) {
-  console.log("\nFinal visibility matrix (controlled rehearsal rows only; ids only, no PII):");
+  console.log('\nFinal visibility matrix (controlled rehearsal rows only; ids only, no PII):');
   console.table({
     S1_staff_clinic_1: matrix.s1,
     S2_staff_clinic_B: matrix.s2,
@@ -1599,7 +1756,9 @@ function printFinalMatrix(seed, matrix) {
     P_SHARED_patient: matrix.pShared,
     P2_patient: matrix.p2,
   });
-  console.log(`Seed ids: org1=${seed.org1}; orgB=${seed.orgB}; S1=${seed.s1UserId}; S2=${seed.s2UserId}; S3=${seed.s3UserId}; P1=${seed.p1UserId}; P2=${seed.p2UserId}; P_SHARED=${seed.pSharedUserId}`);
+  console.log(
+    `Seed ids: org1=${seed.org1}; orgB=${seed.orgB}; S1=${seed.s1UserId}; S2=${seed.s2UserId}; S3=${seed.s3UserId}; P1=${seed.p1UserId}; P2=${seed.p2UserId}; P_SHARED=${seed.pSharedUserId}`,
+  );
   console.log(`Seed approach: ${seed.seedApproach}`);
 }
 
@@ -1611,74 +1770,66 @@ async function fetchRequiredRow(client, queryText, values, label) {
 }
 
 function psqlAdmin(sql) {
-  if (pgHarness?.kind === "temp") {
-    run(path.join(pgBinDir, "psql"), [
-      "-h",
-      tempClusterSocketDir,
-      "-p",
-      tempClusterPort,
-      "-v",
-      "ON_ERROR_STOP=1",
-      "-d",
-      dbName,
-    ], { input: sql });
+  if (pgHarness?.kind === 'temp') {
+    run(
+      path.join(pgBinDir, 'psql'),
+      ['-h', tempClusterSocketDir, '-p', tempClusterPort, '-v', 'ON_ERROR_STOP=1', '-d', dbName],
+      { input: sql },
+    );
     return;
   }
   psqlUrl(fullSuperuserUrl, sql);
 }
 
 function psqlFile(filePath, variables = {}) {
-  const input = `${buildPsqlVariablePrelude(variables)}\n${readFileSync(filePath, "utf8")}`;
-  if (pgHarness?.kind === "temp") {
-    run(path.join(pgBinDir, "psql"), [
-      "-h",
-      tempClusterSocketDir,
-      "-p",
-      tempClusterPort,
-      "-v",
-      "ON_ERROR_STOP=1",
-      "-d",
-      dbName,
-    ], {
-      input,
-      label: `psql < ${path.relative(repoRoot, filePath)} (variables redacted)`,
-    });
+  const input = `${buildPsqlVariablePrelude(variables)}\n${readFileSync(filePath, 'utf8')}`;
+  if (pgHarness?.kind === 'temp') {
+    run(
+      path.join(pgBinDir, 'psql'),
+      ['-h', tempClusterSocketDir, '-p', tempClusterPort, '-v', 'ON_ERROR_STOP=1', '-d', dbName],
+      {
+        input,
+        label: `psql < ${path.relative(repoRoot, filePath)} (variables redacted)`,
+      },
+    );
     return;
   }
   psqlUrl(fullOwnerUrl, input);
 }
 
 function psqlUrlFile(url, filePath, extraArgs = []) {
-  psqlUrl(url, readFileSync(filePath, "utf8"), extraArgs);
+  psqlUrl(url, readFileSync(filePath, 'utf8'), extraArgs);
 }
 
 function psqlUrl(url, sql, extraArgs = []) {
-  run("psql", ["-X", "-v", "ON_ERROR_STOP=1", ...extraArgs, url], {
+  run('psql', ['-X', '-v', 'ON_ERROR_STOP=1', ...extraArgs, url], {
     input: sql,
     env: sanitizedChildEnv(),
-    label: "psql (connection URL redacted)",
+    label: 'psql (connection URL redacted)',
   });
 }
 
 function buildPsqlVariablePrelude(variables) {
-  if (Object.keys(variables).length === 0) return "";
+  if (Object.keys(variables).length === 0) return '';
   const assignments = Object.entries(variables).map(([key, value]) => {
     if (!/^[a-z][a-z0-9_]*$/.test(key)) throw new Error(`unsafe psql variable key: ${key}`);
     return `  ${quoteLiteral(value)} AS ${key}`;
   });
-  return `SELECT\n${assignments.join(",\n")}\n\\gset\n`;
+  return `SELECT\n${assignments.join(',\n')}\n\\gset\n`;
 }
 
 async function cleanupScratchResources() {
   if (cleanupStarted) return;
   cleanupStarted = true;
-  console.log("--- cleanup: dropping disposable DB and scratch roles ---");
+  console.log('--- cleanup: dropping disposable DB and scratch roles ---');
 
-  if (pgHarness?.kind === "host") {
-    safeRun("sudo", ["-n", "-u", "postgres", "dropdb", "--if-exists", dbName]);
-    const dropCanonicalAppPatient = fullPreexistingAppPatient === false ? "DROP ROLE IF EXISTS app_patient;" : "";
-    const dropCanonicalAppStaff = fullPreexistingAppStaff === false ? "DROP ROLE IF EXISTS app_staff;" : "";
-    safeRun("sudo", ["-n", "-u", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-d", "postgres"], {
+  if (pgHarness?.kind === 'host') {
+    safeRun('sudo', ['-n', '-u', 'postgres', 'dropdb', '--if-exists', dbName]);
+    const dropCanonicalAppPatient =
+      fullPreexistingAppPatient === false ? 'DROP ROLE IF EXISTS app_patient;' : '';
+    const dropCanonicalAppStaff =
+      fullPreexistingAppStaff === false ? 'DROP ROLE IF EXISTS app_staff;' : '';
+    safeRun('sudo', ['-n', '-u', 'postgres', 'psql', '-v', 'ON_ERROR_STOP=1', '-d', 'postgres'], {
       input: `
 DROP ROLE IF EXISTS ${quoteIdent(patientLoginRole)};
 DROP ROLE IF EXISTS ${quoteIdent(staffLoginRole)};
@@ -1691,27 +1842,47 @@ ${dropCanonicalAppStaff}
     return;
   }
 
-  if (pgHarness?.kind === "temp") {
-    safeRun(path.join(pgBinDir, "dropdb"), ["-h", tempClusterSocketDir, "-p", tempClusterPort, "--if-exists", dbName]);
-    safeRun(path.join(pgBinDir, "psql"), ["-h", tempClusterSocketDir, "-p", tempClusterPort, "-v", "ON_ERROR_STOP=1", "-d", "postgres"], {
-      input: `
+  if (pgHarness?.kind === 'temp') {
+    safeRun(path.join(pgBinDir, 'dropdb'), [
+      '-h',
+      tempClusterSocketDir,
+      '-p',
+      tempClusterPort,
+      '--if-exists',
+      dbName,
+    ]);
+    safeRun(
+      path.join(pgBinDir, 'psql'),
+      [
+        '-h',
+        tempClusterSocketDir,
+        '-p',
+        tempClusterPort,
+        '-v',
+        'ON_ERROR_STOP=1',
+        '-d',
+        'postgres',
+      ],
+      {
+        input: `
 DROP ROLE IF EXISTS ${quoteIdent(patientLoginRole)};
 DROP ROLE IF EXISTS ${quoteIdent(staffLoginRole)};
 DROP ROLE IF EXISTS app_patient;
 DROP ROLE IF EXISTS app_staff;
 DROP ROLE IF EXISTS ${quoteIdent(appOwnerRole)};
 `,
-    });
-    safeRun(path.join(pgBinDir, "pg_ctl"), ["-D", tempClusterDataDir, "-m", "fast", "-w", "stop"]);
-    if (tempClusterRoot.startsWith("/tmp/bcb_saas_")) safeRun("rm", ["-rf", tempClusterRoot]);
+      },
+    );
+    safeRun(path.join(pgBinDir, 'pg_ctl'), ['-D', tempClusterDataDir, '-m', 'fast', '-w', 'stop']);
+    if (tempClusterRoot.startsWith('/tmp/bcb_saas_')) safeRun('rm', ['-rf', tempClusterRoot]);
   }
 }
 
 function installSignalCleanup() {
-  for (const signal of ["SIGINT", "SIGTERM"]) {
+  for (const signal of ['SIGINT', 'SIGTERM']) {
     process.once(signal, () => {
       cleanupScratchResources().finally(() => {
-        process.exit(signal === "SIGINT" ? 130 : 143);
+        process.exit(signal === 'SIGINT' ? 130 : 143);
       });
     });
   }

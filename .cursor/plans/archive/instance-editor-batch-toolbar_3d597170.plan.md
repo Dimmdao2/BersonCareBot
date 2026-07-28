@@ -1,31 +1,31 @@
 ---
 name: instance-editor-batch-toolbar
-overview: "Редизайн редактора инстанса программы: sticky toolbar, сворачиваемые этапы, модалка порядка этапов, общий диалог комментариев и единое batch-сохранение. План закрыт (2026-06-03, фазы 1–7)."
+overview: 'Редизайн редактора инстанса программы: sticky toolbar, сворачиваемые этапы, модалка порядка этапов, общий диалог комментариев и единое batch-сохранение. План закрыт (2026-06-03, фазы 1–7).'
 status: completed
 todos:
   - id: phase-1-draft-model
-    content: "Фаза 1: Расширить InstanceEditorDraft, merge/normalize, context API, flush vs structural split"
+    content: 'Фаза 1: Расширить InstanceEditorDraft, merge/normalize, context API, flush vs structural split'
     status: completed
   - id: draft-model
-    content: "Фаза 2: Editor → in-memory draft + аудит remediation (gate, RTL smoke, guard-тесты)"
+    content: 'Фаза 2: Editor → in-memory draft + аудит remediation (gate, RTL smoke, guard-тесты)'
     status: completed
   - id: batch-save
-    content: "Фаза 3: editor-batch + program_changed + tx + pre-validate (audit remediation)"
+    content: 'Фаза 3: editor-batch + program_changed + tx + pre-validate (audit remediation)'
     status: completed
   - id: toolbar-stages
-    content: "Фаза 4: Sticky toolbar, InstanceEditorAddStageDialog, audit remediation — закрыта"
+    content: 'Фаза 4: Sticky toolbar, InstanceEditorAddStageDialog, audit remediation — закрыта'
     status: completed
   - id: stage-order-modal
-    content: "Фаза 5 (часть): InstanceEditorStageOrderDialog → draft stageOrder; inline stage DnD снят"
+    content: 'Фаза 5 (часть): InstanceEditorStageOrderDialog → draft stageOrder; inline stage DnD снят'
     status: completed
   - id: collapsible-stages
-    content: "Фаза 5: Collapsible этапы (default expanded active) + тесты toggle — закрыта"
+    content: 'Фаза 5: Collapsible этапы (default expanded active) + тесты toggle — закрыта'
     status: completed
   - id: comments-dialog
-    content: "Фаза 6: Общий диалог комментариев по всем пунктам с searchable фильтром — закрыта"
+    content: 'Фаза 6: Общий диалог комментариев по всем пунктам с searchable фильтром — закрыта'
     status: completed
   - id: history-gate-tests
-    content: "Фаза 7: program_changed в timeline, unsaved gate UX, документация — закрыта"
+    content: 'Фаза 7: program_changed в timeline, unsaved gate UX, документация — закрыта'
     status: completed
 isProject: false
 ---
@@ -34,21 +34,22 @@ isProject: false
 
 ## Статус плана (2026-06-03)
 
-| Фаза | Статус |
-|------|--------|
-| 1 — browser draft model | **Закрыта** |
-| 2 — UI → in-memory draft | **Закрыта** (аудит remediation 2026-06-03) |
-| 3 — server `editor-batch` | **Закрыта полностью** (2026-06-03; audit remediation: tx, pre-validate) |
-| 4 — sticky toolbar | **Закрыта полностью** (2026-06-03; audit remediation) |
-| 5 — collapsible этапы + модалка порядка | **Закрыта полностью** (2026-06-03) |
-| 6 — общий диалог комментариев | **Закрыта полностью** (2026-06-03) |
-| 7 — история, unsaved gate, регрессия | **Закрыта полностью** (2026-06-03) |
+| Фаза                                    | Статус                                                                  |
+| --------------------------------------- | ----------------------------------------------------------------------- |
+| 1 — browser draft model                 | **Закрыта**                                                             |
+| 2 — UI → in-memory draft                | **Закрыта** (аудит remediation 2026-06-03)                              |
+| 3 — server `editor-batch`               | **Закрыта полностью** (2026-06-03; audit remediation: tx, pre-validate) |
+| 4 — sticky toolbar                      | **Закрыта полностью** (2026-06-03; audit remediation)                   |
+| 5 — collapsible этапы + модалка порядка | **Закрыта полностью** (2026-06-03)                                      |
+| 6 — общий диалог комментариев           | **Закрыта полностью** (2026-06-03)                                      |
+| 7 — история, unsaved gate, регрессия    | **Закрыта полностью** (2026-06-03)                                      |
 
 LOG: [`docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) §2026-06-03 ф.7 (итог). **План закрыт** — архив: [`.cursor/plans/archive/instance-editor-batch-toolbar_3d597170.plan.md`](archive/instance-editor-batch-toolbar_3d597170.plan.md).
 
 ## Scope
 
 Разрешено трогать:
+
 - [apps/webapp/src/app/app/doctor/clients/[userId]/treatment-programs/[instanceId]/TreatmentProgramInstanceDetailClient.tsx](apps/webapp/src/app/app/doctor/clients/[userId]/treatment-programs/[instanceId]/TreatmentProgramInstanceDetailClient.tsx)
 - shared editor/DnD файлы в [apps/webapp/src/app/app/doctor/treatment-program-shared/](apps/webapp/src/app/app/doctor/treatment-program-shared/)
 - doctor API routes под [apps/webapp/src/app/api/doctor/treatment-program-instances/](apps/webapp/src/app/api/doctor/treatment-program-instances/)
@@ -57,6 +58,7 @@ LOG: [`docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](docs/DOCTO
 - релевантные тесты и LOG активной инициативы [docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md](docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md)
 
 Вне scope:
+
 - patient UI и patient routes, кроме возможной cache revalidation после сохранения
 - GitHub Actions / CI workflow
 - новая БД-схема, если `treatment_program_events.event_type` не требует DDL; если обнаружится DB enum/check, сначала остановиться и уточнить миграцию
@@ -104,6 +106,7 @@ LOG: [`docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](docs/DOCTO
 - [x] Тесты: `instanceEditorBatch.test.ts` (11 кейсов: empty/combined/rollback/tx), `instanceEditorBatchSchema.test.ts`, `editor-batch/route.test.ts`, guard flush → editor-batch, flush/context/SaveBar, `doctor-timeline-text`.
 
 ### Фаза 4 — Sticky toolbar и режимы экрана ✅ (2026-06-03, закрыта полностью)
+
 - [x] Sticky toolbar в `#app-shell-doctor`: `INSTANCE_EDITOR_TOOLBAR_STICKY_CLASS` (`top-[calc(3.5rem+safe-area)]`, full-bleed `-mx-3`); `--doctor-sticky-offset` на `#app-shell-doctor` (`AppShell` doctor).
 - [x] Три зоны на `lg`: meta | «Комментарии» | actions (`Добавить этап`, «Изменить порядок», save/discard).
 - [x] `InstanceEditorSaveBar` снят с экрана (`@deprecated`); `InstanceEditorAddStageDialog`; toolbar «Комментарии» → `DoctorProgramInstanceDiscussionDialog`.
@@ -111,6 +114,7 @@ LOG: [`docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](docs/DOCTO
 - [x] RTL: `InstanceEditorToolbar.test.tsx`, `InstanceEditorAddStageDialog.test.tsx`, `InstanceEditorStageOrderDialog.test.tsx`, `TreatmentProgramInstanceDetailClient.phase4.test.tsx`; `api.md`; 20 vitest (phase2/4/guard); `tsc --noEmit`.
 
 ### Фаза 5 — Сворачиваемые этапы ✅ (2026-06-03, закрыта полностью)
+
 - [x] `InstanceEditorStageOrderDialog`: DnD списка названий, «Сохранить порядок» → draft `stageOrder` (2026-06-03).
 - [x] Stage DnD/drag-handle в основном списке сняты (2026-06-03).
 - [x] Collapsible этапы: default expanded active (`in_progress` → `available` → первый незавершённый); `pickDefaultExpandedPipelineStageId`, `useInstanceEditorPipelineStageExpansion`; «+ Группа» auto-expand на свёрнутом этапе.
@@ -120,6 +124,7 @@ LOG: [`docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](docs/DOCTO
 - [x] `tsc --noEmit` webapp.
 
 ### Фаза 6 — Общий диалог комментариев по всем пунктам
+
 - [x] Doctor API: `GET …/[instanceId]/discussion?stageItemId=` (optional), `GET …/discussion/summary?stageItemIds=`; сервис `listInstanceDiscussionPageMerged`.
 - [x] `DoctorProgramInstanceDiscussionDialog` + shared `DoctorProgramDiscussionMessagesPanel`; toolbar «Комментарии» → instance dialog.
 - [x] Searchable select по пунктам; default «Все пункты»; per-item `DoctorProgramItemDiscussionDialog` + `?discussionItem=` без регресса.
@@ -127,6 +132,7 @@ LOG: [`docs/DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md`](docs/DOCTO
 - [x] Проверки: 28 vitest (listInstanceDiscussionPage 3, discussion route 7, summary route 4, instance dialog RTL 5, messages panel 1, item dialog 1, phase4 3, phase6 integration 4); `api.md`; `tsc --noEmit` webapp.
 
 ### Фаза 7 — История, unsaved gate, документация, регрессия ✅ (2026-06-03)
+
 - [x] `program_changed`: «Программа изменена» + `formatProgramChangedEventDetailLinesForDoctorRu` (`types.ts`).
 - [x] Timeline: раскрытие diff по клику — `DoctorProgramInstanceTimelineEventRow`.
 - [x] `InstanceEditorUnsavedChangesDialog`: текст gate + кнопки «Сохранить» / «Вернуться к редактированию».

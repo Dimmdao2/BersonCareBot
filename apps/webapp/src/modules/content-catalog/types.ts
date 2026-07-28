@@ -1,10 +1,8 @@
-import type { MediaRecord } from "@/modules/media/types";
+import type { MediaRecord } from '@/modules/media/types';
 
-export type ContentVideoSource =
-  | { type: "url"; url: string }
-  | { type: "api"; mediaId: string };
+export type ContentVideoSource = { type: 'url'; url: string } | { type: 'api'; mediaId: string };
 
-export type ContentBodyFormat = "markdown" | "legacy-html";
+export type ContentBodyFormat = 'markdown' | 'legacy-html';
 
 export type ContentStubItem = {
   slug: string;

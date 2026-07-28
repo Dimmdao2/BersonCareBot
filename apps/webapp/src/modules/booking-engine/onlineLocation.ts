@@ -1,13 +1,13 @@
-import type { OrganizationCatalogPort } from "./ports";
-import type { BeBranch } from "./types";
+import type { OrganizationCatalogPort } from './ports';
+import type { BeBranch } from './types';
 
-export const ONLINE_LOCATION_CITY_CODE = "online";
-export const ONLINE_LOCATION_TITLE = "Онлайн";
-export const ONLINE_LOCATION_SHORT_TITLE = "Онлайн";
+export const ONLINE_LOCATION_CITY_CODE = 'online';
+export const ONLINE_LOCATION_TITLE = 'Онлайн';
+export const ONLINE_LOCATION_SHORT_TITLE = 'Онлайн';
 
-const ONLINE_LOCATION_DEFAULT_TIMEZONE = "Europe/Moscow";
+const ONLINE_LOCATION_DEFAULT_TIMEZONE = 'Europe/Moscow';
 
-type OnlineLocationIdentity = Pick<BeBranch, "cityCode" | "title">;
+type OnlineLocationIdentity = Pick<BeBranch, 'cityCode' | 'title'>;
 
 export function isBuiltInOnlineLocation(location: OnlineLocationIdentity): boolean {
   return isReservedOnlineLocationIdentity(location);
@@ -20,7 +20,7 @@ export function isBuiltInOnlineLocationCityCode(cityCode: string | null | undefi
 export function isReservedOnlineLocationIdentity(input: OnlineLocationIdentity): boolean {
   return (
     input.cityCode.trim().toLowerCase() === ONLINE_LOCATION_CITY_CODE ||
-    input.title.trim().toLocaleLowerCase("ru") === ONLINE_LOCATION_TITLE.toLocaleLowerCase("ru")
+    input.title.trim().toLocaleLowerCase('ru') === ONLINE_LOCATION_TITLE.toLocaleLowerCase('ru')
   );
 }
 
@@ -31,11 +31,11 @@ export function findBuiltInOnlineLocation(
   const matches = branches.filter(
     (branch) => branch.organizationId === organizationId && isBuiltInOnlineLocation(branch),
   );
-  if (matches.length > 1) throw new Error("online_location_duplicate");
+  if (matches.length > 1) throw new Error('online_location_duplicate');
   return matches[0] ?? null;
 }
 
-type OnlineLocationCatalog = Pick<OrganizationCatalogPort, "listBranches" | "upsertBranch">;
+type OnlineLocationCatalog = Pick<OrganizationCatalogPort, 'listBranches' | 'upsertBranch'>;
 
 /**
  * Lazy-provisions the one organization-owned built-in Online location and changes only its

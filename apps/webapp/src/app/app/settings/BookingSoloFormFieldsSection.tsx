@@ -1,29 +1,29 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState, useTransition } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Label } from "@/shared/ui/doctor/primitives/label";
-import { Switch } from "@/shared/ui/doctor/primitives/switch";
+import { useCallback, useEffect, useState, useTransition } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
+import { Switch } from '@/shared/ui/doctor/primitives/switch';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/ui/doctor/primitives/select";
-import { apiJson } from "@/shared/lib/apiJson";
-import { slugFieldKey } from "@/app/app/settings/bookingSoloAdminApi";
+} from '@/shared/ui/doctor/primitives/select';
+import { apiJson } from '@/shared/lib/apiJson';
+import { slugFieldKey } from '@/app/app/settings/bookingSoloAdminApi';
 
-const BASE = "/api/admin/booking-engine/form-fields";
+const BASE = '/api/admin/booking-engine/form-fields';
 
 const QUESTION_TYPES = [
-  { value: "first_name", label: "Имя" },
-  { value: "phone", label: "Телефон" },
-  { value: "email", label: "Email" },
-  { value: "comment", label: "Комментарий" },
-  { value: "free_text", label: "Текст" },
+  { value: 'first_name', label: 'Имя' },
+  { value: 'phone', label: 'Телефон' },
+  { value: 'email', label: 'Email' },
+  { value: 'comment', label: 'Комментарий' },
+  { value: 'free_text', label: 'Текст' },
 ] as const;
 
 type Field = {
@@ -43,8 +43,8 @@ export function BookingSoloFormFieldsSection() {
   const [fields, setFields] = useState<Field[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const [newLabel, setNewLabel] = useState("");
-  const [newType, setNewType] = useState<string>("free_text");
+  const [newLabel, setNewLabel] = useState('');
+  const [newType, setNewType] = useState<string>('free_text');
 
   const sorted = [...fields].sort((a, b) => a.sortOrder - b.sortOrder);
 
@@ -54,7 +54,7 @@ export function BookingSoloFormFieldsSection() {
       setFields(json.fields);
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "load_failed");
+      setError(e instanceof Error ? e.message : 'load_failed');
     }
   }, []);
 
@@ -66,8 +66,8 @@ export function BookingSoloFormFieldsSection() {
 
   async function saveFieldAsync(field: Field) {
     await apiJson(BASE, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         id: field.id,
         fieldKey: field.fieldKey,
@@ -90,7 +90,7 @@ export function BookingSoloFormFieldsSection() {
         await saveFieldAsync(field);
         await load();
       } catch (e) {
-        setError(e instanceof Error ? e.message : "save_failed");
+        setError(e instanceof Error ? e.message : 'save_failed');
       }
     });
   }
@@ -109,7 +109,7 @@ export function BookingSoloFormFieldsSection() {
         await saveFieldAsync({ ...b, sortOrder: a.sortOrder });
         await load();
       } catch (e) {
-        setError(e instanceof Error ? e.message : "reorder_failed");
+        setError(e instanceof Error ? e.message : 'reorder_failed');
       }
     });
   }
@@ -124,8 +124,8 @@ export function BookingSoloFormFieldsSection() {
     startTransition(async () => {
       try {
         await apiJson(BASE, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             fieldKey,
             fieldType: newType,
@@ -137,10 +137,10 @@ export function BookingSoloFormFieldsSection() {
             isActive: true,
           }),
         });
-        setNewLabel("");
+        setNewLabel('');
         await load();
       } catch (e) {
-        setError(e instanceof Error ? e.message : "create_failed");
+        setError(e instanceof Error ? e.message : 'create_failed');
       }
     });
   }
@@ -195,7 +195,7 @@ export function BookingSoloFormFieldsSection() {
                   <label className="flex flex-col gap-1 sm:col-span-2">
                     <Label>Подсказка в поле</Label>
                     <Input
-                      value={f.placeholder ?? ""}
+                      value={f.placeholder ?? ''}
                       onChange={(e) =>
                         setFields((prev) =>
                           prev.map((x) =>
@@ -292,7 +292,12 @@ export function BookingSoloFormFieldsSection() {
                 ))}
               </SelectContent>
             </Select>
-            <Button type="button" size="sm" disabled={pending || !newLabel.trim()} onClick={createField}>
+            <Button
+              type="button"
+              size="sm"
+              disabled={pending || !newLabel.trim()}
+              onClick={createField}
+            >
               Добавить
             </Button>
           </div>

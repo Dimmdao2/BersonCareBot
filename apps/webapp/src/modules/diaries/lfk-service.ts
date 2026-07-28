@@ -3,10 +3,10 @@
  * Используется веб-приложением (страница дневника ЛФК, форма «Отметить занятие») и API интегратора для бота.
  */
 
-import type { LfkDiaryPort } from "./ports";
-import type { LfkComplex, LfkComplexExerciseLine, LfkSession, SymptomSide } from "./types";
+import type { LfkDiaryPort } from './ports';
+import type { LfkComplex, LfkComplexExerciseLine, LfkSession, SymptomSide } from './types';
 
-export type { LfkComplex, LfkSession, LfkComplexExerciseLine } from "./types";
+export type { LfkComplex, LfkSession, LfkComplexExerciseLine } from './types';
 
 const COMMENT_MAX = 200;
 const LFK_COMPLEX_EXERCISE_LOCAL_COMMENT_MAX = 5000;
@@ -18,18 +18,18 @@ export function createLfkDiaryService(port: LfkDiaryPort) {
     async createComplex(params: {
       userId: string;
       title: string;
-      origin?: "manual" | "assigned_by_specialist";
+      origin?: 'manual' | 'assigned_by_specialist';
       symptomTrackingId?: string | null;
       regionRefId?: string | null;
       side?: SymptomSide | null;
       diagnosisText?: string | null;
       diagnosisRefId?: string | null;
     }): Promise<LfkComplex> {
-      const titleTrimmed = params.title.trim() || "—";
+      const titleTrimmed = params.title.trim() || '—';
       return port.createComplex({
         userId: params.userId,
         title: titleTrimmed,
-        origin: params.origin ?? "manual",
+        origin: params.origin ?? 'manual',
         symptomTrackingId: params.symptomTrackingId ?? null,
         regionRefId: params.regionRefId ?? null,
         side: params.side ?? null,
@@ -44,7 +44,7 @@ export function createLfkDiaryService(port: LfkDiaryPort) {
       userId: string;
       complexId: string;
       completedAt?: string;
-      source: "bot" | "webapp";
+      source: 'bot' | 'webapp';
       recordedAt?: string | null;
       durationMinutes?: number | null;
       difficulty0_10?: number | null;
@@ -71,7 +71,10 @@ export function createLfkDiaryService(port: LfkDiaryPort) {
     async listLfkSessions(userId: string, limit?: number): Promise<LfkSession[]> {
       return port.listSessions(userId, limit);
     },
-    async getLfkComplexForUser(params: { userId: string; complexId: string }): Promise<LfkComplex | null> {
+    async getLfkComplexForUser(params: {
+      userId: string;
+      complexId: string;
+    }): Promise<LfkComplex | null> {
       return port.getComplexForUser(params);
     },
     async listLfkSessionsInRange(params: {
@@ -87,7 +90,10 @@ export function createLfkDiaryService(port: LfkDiaryPort) {
     async minCompletedAtForUser(userId: string): Promise<string | null> {
       return port.minCompletedAtForUser(userId);
     },
-    async getLfkSessionForUser(params: { userId: string; sessionId: string }): Promise<LfkSession | null> {
+    async getLfkSessionForUser(params: {
+      userId: string;
+      sessionId: string;
+    }): Promise<LfkSession | null> {
       return port.getSessionForUser(params);
     },
     async updateLfkSession(params: {

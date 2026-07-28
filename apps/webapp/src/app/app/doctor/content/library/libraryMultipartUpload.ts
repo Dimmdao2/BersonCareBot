@@ -1,11 +1,14 @@
-import { putPartWithProgress, UploadRequestError } from "@/shared/ui/doctor/media/uploadWithProgress";
-import { beginBusy, endBusy } from "@/shared/lib/busyRegistry";
+import {
+  putPartWithProgress,
+  UploadRequestError,
+} from '@/shared/ui/doctor/media/uploadWithProgress';
+import { beginBusy, endBusy } from '@/shared/lib/busyRegistry';
 
 export async function libraryMultipartAbort(sessionId: string): Promise<void> {
-  await fetch("/api/media/multipart/abort", {
-    method: "POST",
-    credentials: "same-origin",
-    headers: { "content-type": "application/json" },
+  await fetch('/api/media/multipart/abort', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ sessionId }),
   });
 }
@@ -23,18 +26,22 @@ async function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-async function withRetries<T>(fn: () => Promise<T>, signal: AbortSignal, label: string): Promise<T> {
+async function withRetries<T>(
+  fn: () => Promise<T>,
+  signal: AbortSignal,
+  label: string,
+): Promise<T> {
   const max = 5;
   for (let attempt = 0; attempt < max; attempt += 1) {
     if (signal.aborted) {
-      throw new UploadRequestError(0, { error: "aborted" });
+      throw new UploadRequestError(0, { error: 'aborted' });
     }
     try {
       return await fn();
     } catch (e) {
       if (attempt + 1 >= max) {
         throw new UploadRequestError(0, {
-          error: "part_retry_exhausted",
+          error: 'part_retry_exhausted',
           cause: e instanceof UploadRequestError ? e.data : undefined,
         });
       }
@@ -56,17 +63,17 @@ export async function libraryMultipartUpload(params: {
   signal: AbortSignal;
   onSessionReady?: (sessionId: string) => void;
 }): Promise<{ url: string; mediaId: string }> {
-  const busyId = `media-upload:${params.file.name || "upload"}:${params.file.size}:${Date.now()}`;
+  const busyId = `media-upload:${params.file.name || 'upload'}:${params.file.size}:${Date.now()}`;
   beginBusy(busyId);
-  const mime = (params.file.type || "application/octet-stream").toLowerCase();
+  const mime = (params.file.type || 'application/octet-stream').toLowerCase();
   const totalBytes = params.file.size;
 
-  const initRes = await fetch("/api/media/multipart/init", {
-    method: "POST",
-    credentials: "same-origin",
-    headers: { "content-type": "application/json" },
+  const initRes = await fetch('/api/media/multipart/init', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
-      filename: params.file.name || "upload",
+      filename: params.file.name || 'upload',
       mimeType: mime,
       size: totalBytes,
       folderId: params.folderId,
@@ -74,7 +81,13 @@ export async function libraryMultipartUpload(params: {
     signal: params.signal,
   });
   const initJson = (await initRes.json().catch(() => ({}))) as InitOk;
-  if (!initRes.ok || !initJson.ok || !initJson.sessionId || !initJson.partSizeBytes || !initJson.maxParts) {
+  if (
+    !initRes.ok ||
+    !initJson.ok ||
+    !initJson.sessionId ||
+    !initJson.partSizeBytes ||
+    !initJson.maxParts
+  ) {
     throw new UploadRequestError(initRes.status, initJson);
   }
 
@@ -99,21 +112,25 @@ export async function libraryMultipartUpload(params: {
 
     const putUrl = await withRetries(
       async () => {
-        const r = await fetch("/api/media/multipart/part-url", {
-          method: "POST",
-          credentials: "same-origin",
-          headers: { "content-type": "application/json" },
+        const r = await fetch('/api/media/multipart/part-url', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ sessionId, partNumber }),
           signal: params.signal,
         });
-        const j = (await r.json().catch(() => ({}))) as { ok?: boolean; uploadUrl?: string; error?: string };
+        const j = (await r.json().catch(() => ({}))) as {
+          ok?: boolean;
+          uploadUrl?: string;
+          error?: string;
+        };
         if (!r.ok || !j.ok || !j.uploadUrl) {
           throw new UploadRequestError(r.status, j);
         }
         return j.uploadUrl;
       },
       params.signal,
-      "part-url",
+      'part-url',
     );
 
     const etag = await withRetries(
@@ -160,15 +177,15 @@ export async function libraryMultipartUpload(params: {
 
     for (let i = 0; i < parts.length; i += 1) {
       if (!parts[i]) {
-        throw new UploadRequestError(0, { error: "incomplete_parts" });
+        throw new UploadRequestError(0, { error: 'incomplete_parts' });
       }
     }
     const sortedParts = [...parts].sort((a, b) => a.PartNumber - b.PartNumber);
 
-    const completeRes = await fetch("/api/media/multipart/complete", {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { "content-type": "application/json" },
+    const completeRes = await fetch('/api/media/multipart/complete', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ sessionId, parts: sortedParts }),
       signal: params.signal,
     });

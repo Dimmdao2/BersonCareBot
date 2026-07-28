@@ -1,1 +1,1 @@
-export { runManualPlatformUserMerge } from "@/infra/manualPlatformUserMerge";
+export { runManualPlatformUserMerge } from '@/infra/manualPlatformUserMerge';

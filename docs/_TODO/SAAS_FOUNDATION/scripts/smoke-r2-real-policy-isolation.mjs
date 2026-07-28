@@ -16,35 +16,37 @@
  *   - releasing the locked context under strict mode fails closed.
  */
 
-import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(__dirname, "..", "..", "..", "..");
+const repoRoot = path.resolve(__dirname, '..', '..', '..', '..');
 
-const { getPhase4LockedPolicyTargets } = await import(path.join(__dirname, "phase4-locked-policy-artifact.mjs"));
+const { getPhase4LockedPolicyTargets } = await import(
+  path.join(__dirname, 'phase4-locked-policy-artifact.mjs')
+);
 
-const stamp = `${process.pid}_${Date.now()}`.replace(/[^a-zA-Z0-9_]/g, "_");
+const stamp = `${process.pid}_${Date.now()}`.replace(/[^a-zA-Z0-9_]/g, '_');
 const dbName = `bcb_saas_r2_locked_scratch_${stamp}`;
 const ownerRole = `r2_locked_owner_${stamp}`;
 const staffRole = `r2_locked_staff_${stamp}`;
 const patientRole = `r2_locked_patient_${stamp}`;
-const signingSecret = "scratch_locked_context_secret_0123456789abcdef";
-const pgBinDir = "/usr/lib/postgresql/16/bin";
+const signingSecret = 'scratch_locked_context_secret_0123456789abcdef';
+const pgBinDir = '/usr/lib/postgresql/16/bin';
 const tempClusterRoot = `/tmp/${dbName}_pg`;
-const tempClusterDataDir = path.join(tempClusterRoot, "data");
-const tempClusterSocketDir = path.join(tempClusterRoot, "socket");
+const tempClusterDataDir = path.join(tempClusterRoot, 'data');
+const tempClusterSocketDir = path.join(tempClusterRoot, 'socket');
 const tempClusterPort = String(55432 + (process.pid % 1000));
 
 let pgHarness = null;
 
-if (!dbName.startsWith("bcb_saas_") || !dbName.includes("_scratch_")) {
+if (!dbName.startsWith('bcb_saas_') || !dbName.includes('_scratch_')) {
   throw new Error(`refusing unsafe scratch DB name: ${dbName}`);
 }
 if (/bcb_webapp_(dev|prod|test)/.test(dbName)) {
-  throw new Error("refusing dev/prod/test-shaped scratch DB name");
+  throw new Error('refusing dev/prod/test-shaped scratch DB name');
 }
 
 function quoteIdent(identifier) {
@@ -54,15 +56,17 @@ function quoteIdent(identifier) {
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
     cwd: repoRoot,
-    encoding: "utf8",
-    stdio: options.input != null ? ["pipe", "pipe", "pipe"] : "inherit",
+    encoding: 'utf8',
+    stdio: options.input != null ? ['pipe', 'pipe', 'pipe'] : 'inherit',
     input: options.input,
   });
 
   if (result.status !== 0) {
     if (result.stdout) process.stdout.write(result.stdout);
     if (result.stderr) process.stderr.write(result.stderr);
-    throw new Error(`${command} ${args.join(" ")} failed with ${result.status ?? "unknown status"}`);
+    throw new Error(
+      `${command} ${args.join(' ')} failed with ${result.status ?? 'unknown status'}`,
+    );
   }
 
   if (result.stdout) process.stdout.write(result.stdout);
@@ -73,8 +77,8 @@ function run(command, args, options = {}) {
 function runResult(command, args, options = {}) {
   return spawnSync(command, args, {
     cwd: repoRoot,
-    encoding: "utf8",
-    stdio: options.input != null ? ["pipe", "pipe", "pipe"] : ["ignore", "pipe", "pipe"],
+    encoding: 'utf8',
+    stdio: options.input != null ? ['pipe', 'pipe', 'pipe'] : ['ignore', 'pipe', 'pipe'],
     input: options.input,
   });
 }
@@ -87,91 +91,82 @@ function safeRun(command, args, options = {}) {
 }
 
 function createScratchDatabase() {
-  const hostCreatedb = runResult("sudo", ["-n", "-u", "postgres", "createdb", dbName]);
+  const hostCreatedb = runResult('sudo', ['-n', '-u', 'postgres', 'createdb', dbName]);
 
   if (hostCreatedb.status === 0) {
-    pgHarness = { kind: "host" };
+    pgHarness = { kind: 'host' };
     return;
   }
 
-  const hostError = `${hostCreatedb.stdout ?? ""}${hostCreatedb.stderr ?? ""}`;
+  const hostError = `${hostCreatedb.stdout ?? ''}${hostCreatedb.stderr ?? ''}`;
   if (!/no new privileges|sudo\.conf|permission denied/i.test(hostError)) {
     if (hostCreatedb.stdout) process.stdout.write(hostCreatedb.stdout);
     if (hostCreatedb.stderr) process.stderr.write(hostCreatedb.stderr);
-    throw new Error(`sudo -n -u postgres createdb ${dbName} failed with ${hostCreatedb.status ?? "unknown status"}`);
+    throw new Error(
+      `sudo -n -u postgres createdb ${dbName} failed with ${hostCreatedb.status ?? 'unknown status'}`,
+    );
   }
 
   process.stderr.write(hostError);
-  console.log("--- host sudo unavailable in this sandbox; starting private /tmp PostgreSQL cluster ---");
-  run("mkdir", ["-p", tempClusterDataDir, tempClusterSocketDir]);
-  run(path.join(pgBinDir, "initdb"), ["-D", tempClusterDataDir, "-A", "trust", "--no-locale"]);
-  run(path.join(pgBinDir, "pg_ctl"), [
-    "-D",
+  console.log(
+    '--- host sudo unavailable in this sandbox; starting private /tmp PostgreSQL cluster ---',
+  );
+  run('mkdir', ['-p', tempClusterDataDir, tempClusterSocketDir]);
+  run(path.join(pgBinDir, 'initdb'), ['-D', tempClusterDataDir, '-A', 'trust', '--no-locale']);
+  run(path.join(pgBinDir, 'pg_ctl'), [
+    '-D',
     tempClusterDataDir,
-    "-o",
+    '-o',
     `-k ${tempClusterSocketDir} -p ${tempClusterPort} -c listen_addresses=''`,
-    "-w",
-    "start",
+    '-w',
+    'start',
   ]);
-  run(path.join(pgBinDir, "createdb"), ["-h", tempClusterSocketDir, "-p", tempClusterPort, dbName]);
-  pgHarness = { kind: "temp" };
+  run(path.join(pgBinDir, 'createdb'), ['-h', tempClusterSocketDir, '-p', tempClusterPort, dbName]);
+  pgHarness = { kind: 'temp' };
 }
 
 function psql(sql, database = dbName) {
-  if (!pgHarness) throw new Error("PostgreSQL harness is not initialized");
+  if (!pgHarness) throw new Error('PostgreSQL harness is not initialized');
 
-  if (pgHarness.kind === "host") {
-    run("sudo", ["-n", "-u", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-d", database], { input: sql });
+  if (pgHarness.kind === 'host') {
+    run('sudo', ['-n', '-u', 'postgres', 'psql', '-v', 'ON_ERROR_STOP=1', '-d', database], {
+      input: sql,
+    });
     return;
   }
 
-  run(path.join(pgBinDir, "psql"), [
-    "-h",
-    tempClusterSocketDir,
-    "-p",
-    tempClusterPort,
-    "-v",
-    "ON_ERROR_STOP=1",
-    "-d",
-    database,
-  ], { input: sql });
+  run(
+    path.join(pgBinDir, 'psql'),
+    ['-h', tempClusterSocketDir, '-p', tempClusterPort, '-v', 'ON_ERROR_STOP=1', '-d', database],
+    { input: sql },
+  );
 }
 
 function psqlFile(relPath, extraArgs = []) {
-  if (!pgHarness) throw new Error("PostgreSQL harness is not initialized");
+  if (!pgHarness) throw new Error('PostgreSQL harness is not initialized');
 
-  if (pgHarness.kind === "host") {
+  if (pgHarness.kind === 'host') {
     // Read the SQL ourselves and pipe via stdin: the `postgres` OS user cannot read
     // repo files under /home/dev (perm-denied on `-f <repo path>`), but we can.
     run(
-      "sudo",
-      [
-        "-n",
-        "-u",
-        "postgres",
-        "psql",
-        "-v",
-        "ON_ERROR_STOP=1",
-        ...extraArgs,
-        "-d",
-        dbName,
-      ],
-      { input: readFileSync(relPath, "utf8") },
+      'sudo',
+      ['-n', '-u', 'postgres', 'psql', '-v', 'ON_ERROR_STOP=1', ...extraArgs, '-d', dbName],
+      { input: readFileSync(relPath, 'utf8') },
     );
     return;
   }
 
-  run(path.join(pgBinDir, "psql"), [
-    "-h",
+  run(path.join(pgBinDir, 'psql'), [
+    '-h',
     tempClusterSocketDir,
-    "-p",
+    '-p',
     tempClusterPort,
-    "-v",
-    "ON_ERROR_STOP=1",
+    '-v',
+    'ON_ERROR_STOP=1',
     ...extraArgs,
-    "-d",
+    '-d',
     dbName,
-    "-f",
+    '-f',
     relPath,
   ]);
 }
@@ -179,9 +174,9 @@ function psqlFile(relPath, extraArgs = []) {
 function cleanupScratchDatabase() {
   if (!pgHarness) return;
 
-  if (pgHarness.kind === "host") {
-    safeRun("sudo", ["-n", "-u", "postgres", "dropdb", "--if-exists", dbName]);
-    safeRun("sudo", ["-n", "-u", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-d", "postgres"], {
+  if (pgHarness.kind === 'host') {
+    safeRun('sudo', ['-n', '-u', 'postgres', 'dropdb', '--if-exists', dbName]);
+    safeRun('sudo', ['-n', '-u', 'postgres', 'psql', '-v', 'ON_ERROR_STOP=1', '-d', 'postgres'], {
       input: `
 DROP ROLE IF EXISTS ${quoteIdent(patientRole)};
 DROP ROLE IF EXISTS ${quoteIdent(staffRole)};
@@ -191,17 +186,28 @@ DROP ROLE IF EXISTS ${quoteIdent(ownerRole)};
     return;
   }
 
-  safeRun(path.join(pgBinDir, "dropdb"), ["-h", tempClusterSocketDir, "-p", tempClusterPort, "--if-exists", dbName]);
-  safeRun(path.join(pgBinDir, "psql"), ["-h", tempClusterSocketDir, "-p", tempClusterPort, "-v", "ON_ERROR_STOP=1", "-d", "postgres"], {
-    input: `
+  safeRun(path.join(pgBinDir, 'dropdb'), [
+    '-h',
+    tempClusterSocketDir,
+    '-p',
+    tempClusterPort,
+    '--if-exists',
+    dbName,
+  ]);
+  safeRun(
+    path.join(pgBinDir, 'psql'),
+    ['-h', tempClusterSocketDir, '-p', tempClusterPort, '-v', 'ON_ERROR_STOP=1', '-d', 'postgres'],
+    {
+      input: `
 DROP ROLE IF EXISTS ${quoteIdent(patientRole)};
 DROP ROLE IF EXISTS ${quoteIdent(staffRole)};
 DROP ROLE IF EXISTS ${quoteIdent(ownerRole)};
 `,
-  });
-  safeRun(path.join(pgBinDir, "pg_ctl"), ["-D", tempClusterDataDir, "-m", "fast", "-w", "stop"]);
-  if (tempClusterRoot.startsWith("/tmp/bcb_saas_")) {
-    safeRun("rm", ["-rf", tempClusterRoot]);
+    },
+  );
+  safeRun(path.join(pgBinDir, 'pg_ctl'), ['-D', tempClusterDataDir, '-m', 'fast', '-w', 'stop']);
+  if (tempClusterRoot.startsWith('/tmp/bcb_saas_')) {
+    safeRun('rm', ['-rf', tempClusterRoot]);
   }
 }
 
@@ -213,13 +219,13 @@ CREATE ROLE ${quoteIdent(patientRole)} NOLOGIN NOBYPASSRLS;
 `;
 }
 
-function columnTypeForPatientCast(castType = "uuid") {
-  return castType === "bigint" ? "bigint" : "uuid";
+function columnTypeForPatientCast(castType = 'uuid') {
+  return castType === 'bigint' ? 'bigint' : 'uuid';
 }
 
 function defaultPkType(table, column) {
-  if (table === "integrator.identities" && column === "id") return "bigint";
-  return "uuid";
+  if (table === 'integrator.identities' && column === 'id') return 'bigint';
+  return 'uuid';
 }
 
 function addColumn(columnsByTable, table, column, type) {
@@ -235,10 +241,10 @@ function addColumn(columnsByTable, table, column, type) {
 }
 
 function addBaseTable(columnsByTable, table) {
-  addColumn(columnsByTable, table, "id", defaultPkType(table, "id"));
+  addColumn(columnsByTable, table, 'id', defaultPkType(table, 'id'));
 }
 
-function addHopColumns(columnsByTable, outerTable, hops, terminalColumn, castType = "uuid") {
+function addHopColumns(columnsByTable, outerTable, hops, terminalColumn, castType = 'uuid') {
   hops.forEach((hop, index) => {
     const parentPkType = defaultPkType(hop.table, hop.parentPk);
     const localTable = index === 0 ? outerTable : hops[index - 1].table;
@@ -260,24 +266,39 @@ function collectPolicySurfaceColumns() {
     addBaseTable(columnsByTable, descriptor.table);
 
     if (descriptor.orgColumn) {
-      addColumn(columnsByTable, descriptor.table, descriptor.orgColumn, "uuid");
+      addColumn(columnsByTable, descriptor.table, descriptor.orgColumn, 'uuid');
     }
 
     if (descriptor.fkPath) {
       addBaseTable(columnsByTable, descriptor.fkPath.parentTable);
       addBaseTable(columnsByTable, descriptor.fkPath.crossCheckTable);
-      addColumn(columnsByTable, descriptor.table, descriptor.fkPath.localFk, "uuid");
-      addColumn(columnsByTable, descriptor.table, descriptor.fkPath.crossCheckLocalFk, "uuid");
-      addColumn(columnsByTable, descriptor.fkPath.parentTable, descriptor.fkPath.parentPk, "uuid");
-      addColumn(columnsByTable, descriptor.fkPath.parentTable, descriptor.fkPath.parentOrgColumn, "uuid");
-      addColumn(columnsByTable, descriptor.fkPath.crossCheckTable, descriptor.fkPath.crossCheckPk, "uuid");
-      addColumn(columnsByTable, descriptor.fkPath.crossCheckTable, descriptor.fkPath.crossCheckOrgColumn, "uuid");
+      addColumn(columnsByTable, descriptor.table, descriptor.fkPath.localFk, 'uuid');
+      addColumn(columnsByTable, descriptor.table, descriptor.fkPath.crossCheckLocalFk, 'uuid');
+      addColumn(columnsByTable, descriptor.fkPath.parentTable, descriptor.fkPath.parentPk, 'uuid');
+      addColumn(
+        columnsByTable,
+        descriptor.fkPath.parentTable,
+        descriptor.fkPath.parentOrgColumn,
+        'uuid',
+      );
+      addColumn(
+        columnsByTable,
+        descriptor.fkPath.crossCheckTable,
+        descriptor.fkPath.crossCheckPk,
+        'uuid',
+      );
+      addColumn(
+        columnsByTable,
+        descriptor.fkPath.crossCheckTable,
+        descriptor.fkPath.crossCheckOrgColumn,
+        'uuid',
+      );
     }
 
     if (descriptor.patientColumn) {
       addColumn(
         columnsByTable,
-        descriptor.scopingKind === "fk_path" ? descriptor.fkPath.parentTable : descriptor.table,
+        descriptor.scopingKind === 'fk_path' ? descriptor.fkPath.parentTable : descriptor.table,
         descriptor.patientColumn,
         columnTypeForPatientCast(descriptor.patientColumnCastType),
       );
@@ -294,12 +315,18 @@ function collectPolicySurfaceColumns() {
     }
 
     if (descriptor.patientConditionalChain) {
-      const { hop, patientColumn, castType, discriminatorColumn } = descriptor.patientConditionalChain;
+      const { hop, patientColumn, castType, discriminatorColumn } =
+        descriptor.patientConditionalChain;
       addBaseTable(columnsByTable, hop.table);
-      addColumn(columnsByTable, descriptor.table, hop.localFk, defaultPkType(hop.table, hop.parentPk));
+      addColumn(
+        columnsByTable,
+        descriptor.table,
+        hop.localFk,
+        defaultPkType(hop.table, hop.parentPk),
+      );
       addColumn(columnsByTable, hop.table, hop.parentPk, defaultPkType(hop.table, hop.parentPk));
       addColumn(columnsByTable, hop.table, patientColumn, columnTypeForPatientCast(castType));
-      addColumn(columnsByTable, hop.table, discriminatorColumn, "text");
+      addColumn(columnsByTable, hop.table, discriminatorColumn, 'text');
     }
 
     if (descriptor.patientConditional) {
@@ -309,32 +336,47 @@ function collectPolicySurfaceColumns() {
         descriptor.patientConditional.patientColumn,
         columnTypeForPatientCast(descriptor.patientConditional.castType),
       );
-      addColumn(columnsByTable, descriptor.table, descriptor.patientConditional.discriminatorColumn, "text");
+      addColumn(
+        columnsByTable,
+        descriptor.table,
+        descriptor.patientConditional.discriminatorColumn,
+        'text',
+      );
     }
 
     if (descriptor.patientPolymorphic) {
-      addColumn(columnsByTable, descriptor.table, descriptor.patientPolymorphic.typeColumn, "text");
+      addColumn(columnsByTable, descriptor.table, descriptor.patientPolymorphic.typeColumn, 'text');
       for (const variant of descriptor.patientPolymorphic.variants) {
-        addHopColumns(columnsByTable, descriptor.table, variant.hops, variant.terminalColumn, variant.castType);
+        addHopColumns(
+          columnsByTable,
+          descriptor.table,
+          variant.hops,
+          variant.terminalColumn,
+          variant.castType,
+        );
       }
     }
   }
 
-  addBaseTable(columnsByTable, "public.be_organizations");
-  addColumn(columnsByTable, "public.be_organizations", "organization_id", "uuid");
-  addBaseTable(columnsByTable, "public.platform_users");
-  addBaseTable(columnsByTable, "integrator.identities");
-  addColumn(columnsByTable, "integrator.identities", "user_id", "bigint");
+  addBaseTable(columnsByTable, 'public.be_organizations');
+  addColumn(columnsByTable, 'public.be_organizations', 'organization_id', 'uuid');
+  addBaseTable(columnsByTable, 'public.platform_users');
+  addBaseTable(columnsByTable, 'integrator.identities');
+  addColumn(columnsByTable, 'integrator.identities', 'user_id', 'bigint');
 
-  return new Map([...columnsByTable.entries()].sort(([left], [right]) => left.localeCompare(right)));
+  return new Map(
+    [...columnsByTable.entries()].sort(([left], [right]) => left.localeCompare(right)),
+  );
 }
 
 function createPolicySurfaceSchemaSql() {
-  const statements = ["CREATE SCHEMA IF NOT EXISTS integrator;"];
+  const statements = ['CREATE SCHEMA IF NOT EXISTS integrator;'];
 
   for (const [table, columns] of collectPolicySurfaceColumns()) {
-    const [schema, name] = table.split(".");
-    const columnSql = [...columns.entries()].map(([column, type]) => `${quoteIdent(column)} ${type}`).join(",\n  ");
+    const [schema, name] = table.split('.');
+    const columnSql = [...columns.entries()]
+      .map(([column, type]) => `${quoteIdent(column)} ${type}`)
+      .join(',\n  ');
     statements.push(`CREATE TABLE ${quoteIdent(schema)}.${quoteIdent(name)} (\n  ${columnSql}\n);`);
   }
 
@@ -345,23 +387,23 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA integrator TO ${quo
 GRANT SELECT, UPDATE ON public.user_phone_history TO ${quoteIdent(ownerRole)};
 `);
 
-  return statements.join("\n\n");
+  return statements.join('\n\n');
 }
 
-const orgA = "b6000000-0000-4000-8000-0000000000a1";
-const orgB = "b6000000-0000-4000-8000-0000000000b1";
-const patientP = "b6000000-0000-4000-8000-00000000a101";
-const patientQ = "b6000000-0000-4000-8000-00000000a102";
-const rowA1 = "b6100000-0000-4000-8000-000000000001";
-const rowA2 = "b6100000-0000-4000-8000-000000000002";
-const rowB1 = "b6100000-0000-4000-8000-000000000003";
-const writeProbe = "b6100000-0000-4000-8000-000000000004";
+const orgA = 'b6000000-0000-4000-8000-0000000000a1';
+const orgB = 'b6000000-0000-4000-8000-0000000000b1';
+const patientP = 'b6000000-0000-4000-8000-00000000a101';
+const patientQ = 'b6000000-0000-4000-8000-00000000a102';
+const rowA1 = 'b6100000-0000-4000-8000-000000000001';
+const rowA2 = 'b6100000-0000-4000-8000-000000000002';
+const rowB1 = 'b6100000-0000-4000-8000-000000000003';
+const writeProbe = 'b6100000-0000-4000-8000-000000000004';
 // P0.8.6 PII org-gated bootstrap-hybrid probes (platform_user_contacts, user_phone_history):
 // one org-A row + one genuine bootstrap NULL-org row per table.
-const pucOrgA = "b6200000-0000-4000-8000-000000000001";
-const pucNull = "b6200000-0000-4000-8000-000000000002";
-const uphOrgA = "b6200000-0000-4000-8000-000000000011";
-const uphNull = "b6200000-0000-4000-8000-000000000012";
+const pucOrgA = 'b6200000-0000-4000-8000-000000000001';
+const pucNull = 'b6200000-0000-4000-8000-000000000002';
+const uphOrgA = 'b6200000-0000-4000-8000-000000000011';
+const uphNull = 'b6200000-0000-4000-8000-000000000012';
 
 const fixtureSql = `
 INSERT INTO public.be_organizations (id, organization_id) VALUES
@@ -392,12 +434,12 @@ INSERT INTO public.user_phone_history (id, organization_id) VALUES
 `;
 
 function installContextSql({ role, nonce, orgId, patientId = null, integratorUserId = null }) {
-  const orgCanonical = orgId ?? "";
-  const orgArg = orgId == null ? "NULL::uuid" : `'${orgId}'::uuid`;
-  const patientCanonical = patientId ?? "";
-  const integratorCanonical = integratorUserId == null ? "" : String(integratorUserId);
-  const patientArg = patientId == null ? "NULL::uuid" : `'${patientId}'::uuid`;
-  const integratorArg = integratorUserId == null ? "NULL::bigint" : `${integratorUserId}::bigint`;
+  const orgCanonical = orgId ?? '';
+  const orgArg = orgId == null ? 'NULL::uuid' : `'${orgId}'::uuid`;
+  const patientCanonical = patientId ?? '';
+  const integratorCanonical = integratorUserId == null ? '' : String(integratorUserId);
+  const patientArg = patientId == null ? 'NULL::uuid' : `'${patientId}'::uuid`;
+  const integratorArg = integratorUserId == null ? 'NULL::bigint' : `${integratorUserId}::bigint`;
 
   return `
 RESET ROLE;
@@ -646,18 +688,18 @@ SELECT 1/0;
 try {
   createScratchDatabase();
 
-  console.log("--- phase 0: scratch roles ---");
-  psql(createRolesSql(), "postgres");
+  console.log('--- phase 0: scratch roles ---');
+  psql(createRolesSql(), 'postgres');
 
-  console.log("--- phase 1: P2-B protected principal context ---");
-  psqlFile("deploy/postgres/p2-b-protected-principal-context.sql", [
-    "-v",
+  console.log('--- phase 1: P2-B protected principal context ---');
+  psqlFile('deploy/postgres/p2-b-protected-principal-context.sql', [
+    '-v',
     `p2_b_owner_role=${ownerRole}`,
-    "-v",
+    '-v',
     `p2_b_staff_role=${staffRole}`,
-    "-v",
+    '-v',
     `p2_b_patient_role=${patientRole}`,
-    "-v",
+    '-v',
     `p2_b_signing_secret=${signingSecret}`,
   ]);
 
@@ -665,32 +707,38 @@ try {
   // (that owner-only GRANT must run as superuser on the real non-superuser migrator path).
   psql(`GRANT USAGE ON SCHEMA app_ext TO ${quoteIdent(ownerRole)};`);
 
-  console.log("--- phase 2: generated policy-surface schema ---");
+  console.log('--- phase 2: generated policy-surface schema ---');
   psql(createPolicySurfaceSchemaSql());
 
-  console.log("--- phase 3: apply locked-helper artifact in dormant-compatible mode twice ---");
-  psqlFile("deploy/postgres/phase4-locked-helper-rls-policies.sql");
-  psqlFile("deploy/postgres/phase4-locked-helper-rls-policies.sql");
+  console.log('--- phase 3: apply locked-helper artifact in dormant-compatible mode twice ---');
+  psqlFile('deploy/postgres/phase4-locked-helper-rls-policies.sql');
+  psqlFile('deploy/postgres/phase4-locked-helper-rls-policies.sql');
 
-  console.log("--- phase 4: seed two orgs and two same-org patients ---");
+  console.log('--- phase 4: seed two orgs and two same-org patients ---');
   psql(fixtureSql);
 
-  console.log("--- phase 5: dormant compatibility assertions ---");
+  console.log('--- phase 5: dormant compatibility assertions ---');
   psql(assertSql());
 
-  console.log("--- phase 6: apply strict locked-helper artifact twice + FORCE cutover ---");
-  psqlFile("deploy/postgres/phase4-locked-helper-rls-policies.sql", ["-v", "phase4_enforce_locked_context=1"]);
-  psqlFile("deploy/postgres/phase4-locked-helper-rls-policies.sql", ["-v", "phase4_enforce_locked_context=1"]);
-  psqlFile("deploy/postgres/phase4-force-rls-cutover.sql", [
-    "-v",
+  console.log('--- phase 6: apply strict locked-helper artifact twice + FORCE cutover ---');
+  psqlFile('deploy/postgres/phase4-locked-helper-rls-policies.sql', [
+    '-v',
+    'phase4_enforce_locked_context=1',
+  ]);
+  psqlFile('deploy/postgres/phase4-locked-helper-rls-policies.sql', [
+    '-v',
+    'phase4_enforce_locked_context=1',
+  ]);
+  psqlFile('deploy/postgres/phase4-force-rls-cutover.sql', [
+    '-v',
     `phase4_bootstrap_base_role=${patientRole}`,
-    "-v",
+    '-v',
     `phase4_staff_role=${staffRole}`,
-    "-v",
+    '-v',
     `phase4_owner_role=${ownerRole}`,
   ]);
 
-  console.log("--- phase 7: strict isolation and un-forgeability assertions ---");
+  console.log('--- phase 7: strict isolation and un-forgeability assertions ---');
   psql(strictAssertionSql());
 
   console.log(`smoke-r2-real-policy-isolation: OK (${dbName})`);

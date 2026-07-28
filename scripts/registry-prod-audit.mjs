@@ -5,16 +5,19 @@
  * all installed dependencies (including dev), transitive tree (`--depth 999`),
  * and `--audit-level` (default `low`, same as pnpm).
  */
-import { execFileSync } from "node:child_process";
-import fs from "node:fs";
-import path from "node:path";
-import { createRequire } from "node:module";
-import { fileURLToPath } from "node:url";
+import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
+import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const BULK_URL = "https://registry.npmjs.org/-/npm/v1/security/advisories/bulk";
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const BULK_URL = 'https://registry.npmjs.org/-/npm/v1/security/advisories/bulk';
 const BATCH = 180;
-const ALLOWLIST_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), "registry-prod-audit-allowlist.json");
+const ALLOWLIST_PATH = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  'registry-prod-audit-allowlist.json',
+);
 
 /** @type {Record<string, number>} */
 const SEVERITY_RANK = {
@@ -25,7 +28,7 @@ const SEVERITY_RANK = {
   critical: 4,
 };
 
-const ALLOWED_LEVELS = new Set(["low", "moderate", "high", "critical"]);
+const ALLOWED_LEVELS = new Set(['low', 'moderate', 'high', 'critical']);
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -40,23 +43,31 @@ function todayIso() {
 export function loadAdvisoryAllowlist({ filePath = ALLOWLIST_PATH, today = todayIso() } = {}) {
   let policy;
   try {
-    policy = JSON.parse(fs.readFileSync(filePath, "utf8"));
+    policy = JSON.parse(fs.readFileSync(filePath, 'utf8'));
   } catch (error) {
-    throw new Error(`registry-prod-audit: cannot read advisory allowlist ${filePath}: ${error.message}`);
+    throw new Error(
+      `registry-prod-audit: cannot read advisory allowlist ${filePath}: ${error.message}`,
+    );
   }
 
-  if (!policy || typeof policy !== "object" || !Array.isArray(policy.advisories)) {
-    throw new Error("registry-prod-audit: advisory allowlist must contain an advisories array");
+  if (!policy || typeof policy !== 'object' || !Array.isArray(policy.advisories)) {
+    throw new Error('registry-prod-audit: advisory allowlist must contain an advisories array');
   }
 
   const seen = new Set();
   return policy.advisories.map((entry, index) => {
-    if (!entry || typeof entry !== "object") {
+    if (!entry || typeof entry !== 'object') {
       throw new Error(`registry-prod-audit: allowlist entry ${index + 1} must be an object`);
     }
     const { id, package: packageName, reason, reviewBy } = entry;
-    if (![id, packageName, reason, reviewBy].every((value) => typeof value === "string" && value.trim())) {
-      throw new Error(`registry-prod-audit: allowlist entry ${index + 1} requires id, package, reason, and reviewBy`);
+    if (
+      ![id, packageName, reason, reviewBy].every(
+        (value) => typeof value === 'string' && value.trim(),
+      )
+    ) {
+      throw new Error(
+        `registry-prod-audit: allowlist entry ${index + 1} requires id, package, reason, and reviewBy`,
+      );
     }
     const reviewDate = new Date(`${reviewBy}T00:00:00.000Z`);
     if (
@@ -64,7 +75,9 @@ export function loadAdvisoryAllowlist({ filePath = ALLOWLIST_PATH, today = today
       Number.isNaN(reviewDate.getTime()) ||
       reviewDate.toISOString().slice(0, 10) !== reviewBy
     ) {
-      throw new Error(`registry-prod-audit: allowlist entry ${index + 1} has invalid reviewBy date ${reviewBy}`);
+      throw new Error(
+        `registry-prod-audit: allowlist entry ${index + 1} has invalid reviewBy date ${reviewBy}`,
+      );
     }
     const key = `${id}\u0000${packageName}`;
     if (seen.has(key)) {
@@ -81,8 +94,8 @@ export function loadAdvisoryAllowlist({ filePath = ALLOWLIST_PATH, today = today
 }
 
 function advisoryId(advisory) {
-  if (typeof advisory?.github_advisory_id === "string") return advisory.github_advisory_id;
-  if (typeof advisory?.url === "string") {
+  if (typeof advisory?.github_advisory_id === 'string') return advisory.github_advisory_id;
+  if (typeof advisory?.url === 'string') {
     const match = advisory.url.match(/\/advisories\/(GHSA-[a-z0-9-]+)\/?$/iu);
     if (match) return match[1];
   }
@@ -108,30 +121,34 @@ export function classifyAdvisoryHits(hits, allowlist) {
 function parseArgs(argv) {
   let prodOnly = false;
   /** @type {"low"|"moderate"|"high"|"critical"} */
-  let auditLevel = "low";
+  let auditLevel = 'low';
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i];
-    if (a === "--prod" || a === "-P") {
+    if (a === '--prod' || a === '-P') {
       prodOnly = true;
       continue;
     }
-    if (a.startsWith("--audit-level=")) {
-      const v = a.slice("--audit-level=".length).toLowerCase();
+    if (a.startsWith('--audit-level=')) {
+      const v = a.slice('--audit-level='.length).toLowerCase();
       if (!ALLOWED_LEVELS.has(v)) {
-        throw new Error(`registry-prod-audit: invalid --audit-level=${v} (use low|moderate|high|critical)`);
+        throw new Error(
+          `registry-prod-audit: invalid --audit-level=${v} (use low|moderate|high|critical)`,
+        );
       }
       auditLevel = /** @type {"low"|"moderate"|"high"|"critical"} */ (v);
       continue;
     }
-    if (a === "--audit-level" && argv[i + 1]) {
+    if (a === '--audit-level' && argv[i + 1]) {
       const v = argv[++i].toLowerCase();
       if (!ALLOWED_LEVELS.has(v)) {
-        throw new Error(`registry-prod-audit: invalid --audit-level ${v} (use low|moderate|high|critical)`);
+        throw new Error(
+          `registry-prod-audit: invalid --audit-level ${v} (use low|moderate|high|critical)`,
+        );
       }
       auditLevel = /** @type {"low"|"moderate"|"high"|"critical"} */ (v);
       continue;
     }
-    if (a === "--help" || a === "-h") {
+    if (a === '--help' || a === '-h') {
       console.log(`Usage: node scripts/registry-prod-audit.mjs [options]
 
 Options:
@@ -146,24 +163,24 @@ Options:
 }
 
 function severityMeetsThreshold(severityRaw, minLevel) {
-  const key = typeof severityRaw === "string" ? severityRaw.trim().toLowerCase() : "";
+  const key = typeof severityRaw === 'string' ? severityRaw.trim().toLowerCase() : '';
   const advRank = SEVERITY_RANK[key] ?? SEVERITY_RANK.low;
   const minRank = SEVERITY_RANK[minLevel];
   return advRank >= minRank;
 }
 
 function loadSemver() {
-  const pnpmDir = path.join(root, "node_modules", ".pnpm");
+  const pnpmDir = path.join(root, 'node_modules', '.pnpm');
   if (!fs.existsSync(pnpmDir)) {
-    throw new Error("node_modules/.pnpm missing; run pnpm install first");
+    throw new Error('node_modules/.pnpm missing; run pnpm install first');
   }
   const candidates = fs
     .readdirSync(pnpmDir)
-    .filter((n) => n.startsWith("semver@"))
-    .map((n) => path.join(pnpmDir, n, "node_modules", "semver"))
-    .filter((p) => fs.existsSync(path.join(p, "package.json")));
+    .filter((n) => n.startsWith('semver@'))
+    .map((n) => path.join(pnpmDir, n, 'node_modules', 'semver'))
+    .filter((p) => fs.existsSync(path.join(p, 'package.json')));
   if (candidates.length === 0) {
-    throw new Error("semver not found under node_modules/.pnpm");
+    throw new Error('semver not found under node_modules/.pnpm');
   }
   candidates.sort();
   const pick = candidates[candidates.length - 1];
@@ -172,17 +189,17 @@ function loadSemver() {
 }
 
 function shouldRecord(meta) {
-  if (!meta || typeof meta !== "object") return false;
+  if (!meta || typeof meta !== 'object') return false;
   const v = meta.version;
-  if (typeof v !== "string") return false;
-  if (v.startsWith("link:") || v.startsWith("workspace:") || v.startsWith("file:")) return false;
+  if (typeof v !== 'string') return false;
+  if (v.startsWith('link:') || v.startsWith('workspace:') || v.startsWith('file:')) return false;
   const r = meta.resolved;
-  if (typeof r === "string" && r.includes("registry.npmjs.org")) return true;
+  if (typeof r === 'string' && r.includes('registry.npmjs.org')) return true;
   return /^[\d.]+(?:-[\w.-]+)?$/.test(v) || /^\d+\.\d+\.\d+/.test(v);
 }
 
 function visitDeps(deps, acc) {
-  if (!deps || typeof deps !== "object") return;
+  if (!deps || typeof deps !== 'object') return;
   for (const [name, meta] of Object.entries(deps)) {
     if (shouldRecord(meta)) {
       let s = acc.get(name);
@@ -211,14 +228,14 @@ function visitProjectDependencyFields(p, acc, opts) {
 }
 
 function collectInstalledPackages(prodOnly) {
-  const args = ["list", "-r", "--depth", "999", "--json"];
+  const args = ['list', '-r', '--depth', '999', '--json'];
   if (prodOnly) {
-    args.splice(2, 0, "--prod");
+    args.splice(2, 0, '--prod');
   }
-  const raw = execFileSync("pnpm", args, {
+  const raw = execFileSync('pnpm', args, {
     cwd: root,
     maxBuffer: 128 * 1024 * 1024,
-    encoding: "utf8",
+    encoding: 'utf8',
   });
   const projects = JSON.parse(raw);
   const acc = new Map();
@@ -240,8 +257,8 @@ function chunkEntries(map) {
 
 async function postBatch(body) {
   const res = await fetch(BULK_URL, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
   });
   if (!res.ok) {
@@ -258,7 +275,7 @@ async function main() {
   const packages = collectInstalledPackages(prodOnly);
   const batches = chunkEntries(packages);
   if (batches.length === 0) {
-    console.log("registry-prod-audit: no registry dependencies found");
+    console.log('registry-prod-audit: no registry dependencies found');
     return;
   }
 
@@ -277,7 +294,7 @@ async function main() {
         for (const adv of advisories) {
           if (!severityMeetsThreshold(adv.severity, auditLevel)) continue;
           const range = adv.vulnerable_versions;
-          if (typeof range !== "string" || !range.trim()) continue;
+          if (typeof range !== 'string' || !range.trim()) continue;
           try {
             if (semver.satisfies(coerced, range, { includePrerelease: true })) {
               hits.push({ pkg, version, advisory: adv });
@@ -298,7 +315,7 @@ async function main() {
     );
   }
 
-  const scope = prodOnly ? "production" : "all";
+  const scope = prodOnly ? 'production' : 'all';
   if (failures.length === 0) {
     console.log(
       `registry-prod-audit: no known vulnerabilities (${scope} deps, audit-level >= ${auditLevel})`,
@@ -314,7 +331,7 @@ async function main() {
     console.error(
       `  - ${h.pkg}@${h.version}: [${a.severity}] ${a.title} (${a.vulnerable_versions})`,
     );
-    if (typeof a.url === "string" && a.url) console.error(`    ${a.url}`);
+    if (typeof a.url === 'string' && a.url) console.error(`    ${a.url}`);
   }
   process.exitCode = 1;
 }

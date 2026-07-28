@@ -2,13 +2,13 @@
  * Cross-zone access block (волна 2): редирект на свой hub + одноразовый query для toast.
  * Guards (2.A2/A3) вызывают {@link buildOwnHubUrlWithAccessDeniedToast}; shell (2.A1) — toast + strip query.
  */
-import toast from "react-hot-toast";
-import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
-import type { UserRole } from "@/shared/types/session";
+import toast from 'react-hot-toast';
+import { getRedirectPathForRole } from '@/modules/auth/redirectPolicy';
+import type { UserRole } from '@/shared/types/session';
 
-export const APP_ACCESS_DENIED_QUERY_KEY = "app_access_denied";
-export const APP_ACCESS_DENIED_QUERY_VALUE = "1";
-export const APP_ACCESS_DENIED_TOAST_MESSAGE = "Нет доступа к этому разделу";
+export const APP_ACCESS_DENIED_QUERY_KEY = 'app_access_denied';
+export const APP_ACCESS_DENIED_QUERY_VALUE = '1';
+export const APP_ACCESS_DENIED_TOAST_MESSAGE = 'Нет доступа к этому разделу';
 
 export function getOwnHubPathForRole(role: UserRole): string {
   return getRedirectPathForRole(role);
@@ -22,25 +22,27 @@ export function buildOwnHubUrlWithAccessDeniedToast(role: UserRole): string {
   return `${hub}?${params.toString()}`;
 }
 
-function toSearchParams(search: string | URLSearchParams | null | undefined): URLSearchParams | null {
+function toSearchParams(
+  search: string | URLSearchParams | null | undefined,
+): URLSearchParams | null {
   if (search == null) return null;
   if (search instanceof URLSearchParams) return search;
   const trimmed = search.trim();
   if (!trimmed) return new URLSearchParams();
-  const raw = trimmed.startsWith("?") ? trimmed.slice(1) : trimmed;
+  const raw = trimmed.startsWith('?') ? trimmed.slice(1) : trimmed;
   return new URLSearchParams(raw);
 }
 
 export function parseReturnToPath(returnTo: string): { pathname: string; search: string } | null {
   const trimmed = returnTo.trim();
   if (!trimmed) return null;
-  if (trimmed.startsWith("/")) {
-    const qIndex = trimmed.indexOf("?");
-    if (qIndex === -1) return { pathname: trimmed, search: "" };
+  if (trimmed.startsWith('/')) {
+    const qIndex = trimmed.indexOf('?');
+    if (qIndex === -1) return { pathname: trimmed, search: '' };
     return { pathname: trimmed.slice(0, qIndex), search: trimmed.slice(qIndex) };
   }
   try {
-    const u = new URL(trimmed, "http://localhost");
+    const u = new URL(trimmed, 'http://localhost');
     return { pathname: u.pathname, search: u.search };
   } catch {
     return null;
@@ -56,7 +58,9 @@ export function searchParamsHasAccessDeniedToast(
 }
 
 /** Флаг toast внутри `next=` (PwaAppAccessGate → install landing сохраняет deep link). */
-export function searchParamsHasAccessDeniedToastInNext(nextParam: string | null | undefined): boolean {
+export function searchParamsHasAccessDeniedToastInNext(
+  nextParam: string | null | undefined,
+): boolean {
   if (!nextParam?.trim()) return false;
   const parsed = parseReturnToPath(nextParam);
   if (!parsed) return false;
@@ -81,7 +85,7 @@ export function stripAccessDeniedToastFromUrl(
   const next = params.toString();
   return {
     pathname,
-    search: next ? `?${next}` : "",
+    search: next ? `?${next}` : '',
   };
 }
 

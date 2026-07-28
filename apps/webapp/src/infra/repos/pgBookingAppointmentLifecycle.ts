@@ -1,25 +1,25 @@
-import { and, asc, desc, eq } from "drizzle-orm";
-import { sql as drizzleSql } from "drizzle-orm";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { assertValidAppointmentStatusTransition } from "@/modules/booking-engine/appointmentStatusFsm";
-import type { BeAppointment } from "@/modules/booking-engine/types";
+import { and, asc, desc, eq } from 'drizzle-orm';
+import { sql as drizzleSql } from 'drizzle-orm';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { assertValidAppointmentStatusTransition } from '@/modules/booking-engine/appointmentStatusFsm';
+import type { BeAppointment } from '@/modules/booking-engine/types';
 import type {
   AppointmentCancellationRecord,
   AppointmentLifecyclePort,
   AppointmentNoShowRecord,
   AppointmentRescheduleRecord,
-} from "@/modules/booking-appointment-lifecycle/ports";
+} from '@/modules/booking-appointment-lifecycle/ports';
 import {
   beAppointmentCancellations,
   beAppointmentNoShows,
   beAppointmentReschedules,
-} from "../../../db/schema/bookingPolicies";
+} from '../../../db/schema/bookingPolicies';
 import {
   beAppointmentEvents,
   beAppointmentHistoryEvents,
   beAppointments,
   bePatientTimelineEvents,
-} from "../../../db/schema/bookingEngine";
+} from '../../../db/schema/bookingEngine';
 
 function mapAppointment(row: typeof beAppointments.$inferSelect): BeAppointment {
   return {
@@ -33,8 +33,8 @@ function mapAppointment(row: typeof beAppointments.$inferSelect): BeAppointment 
     startAt: row.startAt,
     endAt: row.endAt,
     durationMinutes: row.durationMinutes,
-    source: row.source as BeAppointment["source"],
-    status: row.status as BeAppointment["status"],
+    source: row.source as BeAppointment['source'],
+    status: row.status as BeAppointment['status'],
     originalStartAt: row.originalStartAt ?? null,
     rescheduleCount: row.rescheduleCount,
     paymentRef: row.paymentRef ?? null,
@@ -44,7 +44,9 @@ function mapAppointment(row: typeof beAppointments.$inferSelect): BeAppointment 
   };
 }
 
-function mapReschedule(row: typeof beAppointmentReschedules.$inferSelect): AppointmentRescheduleRecord {
+function mapReschedule(
+  row: typeof beAppointmentReschedules.$inferSelect,
+): AppointmentRescheduleRecord {
   return {
     id: row.id,
     organizationId: row.organizationId,
@@ -53,7 +55,7 @@ function mapReschedule(row: typeof beAppointmentReschedules.$inferSelect): Appoi
     fromEndAt: row.fromEndAt,
     toStartAt: row.toStartAt,
     toEndAt: row.toEndAt,
-    actorType: row.actorType as AppointmentRescheduleRecord["actorType"],
+    actorType: row.actorType as AppointmentRescheduleRecord['actorType'],
     actorId: row.actorId ?? null,
     wasInFreeRescheduleWindow: row.wasInFreeRescheduleWindow,
     freeCancellationAvailableAtReschedule: row.freeCancellationAvailableAtReschedule,
@@ -68,14 +70,16 @@ function mapReschedule(row: typeof beAppointmentReschedules.$inferSelect): Appoi
   };
 }
 
-function mapCancellation(row: typeof beAppointmentCancellations.$inferSelect): AppointmentCancellationRecord {
+function mapCancellation(
+  row: typeof beAppointmentCancellations.$inferSelect,
+): AppointmentCancellationRecord {
   return {
     id: row.id,
     organizationId: row.organizationId,
     appointmentId: row.appointmentId,
-    actorType: row.actorType as AppointmentCancellationRecord["actorType"],
+    actorType: row.actorType as AppointmentCancellationRecord['actorType'],
     actorId: row.actorId ?? null,
-    cancellationType: row.cancellationType as AppointmentCancellationRecord["cancellationType"],
+    cancellationType: row.cancellationType as AppointmentCancellationRecord['cancellationType'],
     reason: row.reason ?? null,
     wasFree: row.wasFree,
     wasPenalized: row.wasPenalized,
@@ -96,7 +100,7 @@ function mapNoShow(row: typeof beAppointmentNoShows.$inferSelect): AppointmentNo
     id: row.id,
     organizationId: row.organizationId,
     appointmentId: row.appointmentId,
-    actorType: row.actorType as AppointmentNoShowRecord["actorType"],
+    actorType: row.actorType as AppointmentNoShowRecord['actorType'],
     actorId: row.actorId ?? null,
     reason: row.reason ?? null,
     staffComment: row.staffComment ?? null,
@@ -113,7 +117,12 @@ export function createPgBookingAppointmentLifecyclePort(): AppointmentLifecycleP
       const rows = await db
         .select()
         .from(beAppointments)
-        .where(and(eq(beAppointments.id, appointmentId), eq(beAppointments.organizationId, organizationId)))
+        .where(
+          and(
+            eq(beAppointments.id, appointmentId),
+            eq(beAppointments.organizationId, organizationId),
+          ),
+        )
         .limit(1);
       return rows[0] ? mapAppointment(rows[0]) : null;
     },
@@ -156,28 +165,31 @@ export function createPgBookingAppointmentLifecyclePort(): AppointmentLifecycleP
           .select()
           .from(beAppointments)
           .where(
-            and(eq(beAppointments.id, input.appointmentId), eq(beAppointments.organizationId, input.organizationId)),
+            and(
+              eq(beAppointments.id, input.appointmentId),
+              eq(beAppointments.organizationId, input.organizationId),
+            ),
           )
-          .for("update");
+          .for('update');
         const current = currentRows[0];
-        if (!current) throw new Error("appointment_not_found");
+        if (!current) throw new Error('appointment_not_found');
 
-        const fromStatus = current.status as BeAppointment["status"];
-        const terminal = new Set<BeAppointment["status"]>([
-          "cancelled_by_patient",
-          "cancelled_by_specialist",
-          "no_show",
-          "late_cancellation",
+        const fromStatus = current.status as BeAppointment['status'];
+        const terminal = new Set<BeAppointment['status']>([
+          'cancelled_by_patient',
+          'cancelled_by_specialist',
+          'no_show',
+          'late_cancellation',
         ]);
         if (terminal.has(fromStatus)) {
-          throw new Error("state_conflict");
+          throw new Error('state_conflict');
         }
-        if (fromStatus !== "rescheduled") {
-          assertValidAppointmentStatusTransition(fromStatus, "rescheduled");
+        if (fromStatus !== 'rescheduled') {
+          assertValidAppointmentStatusTransition(fromStatus, 'rescheduled');
         }
         await tx
           .update(beAppointments)
-          .set({ status: "rescheduled", updatedAt: now })
+          .set({ status: 'rescheduled', updatedAt: now })
           .where(eq(beAppointments.id, input.appointmentId));
 
         const originalStartAt = current.originalStartAt ?? current.startAt;
@@ -193,7 +205,7 @@ export function createPgBookingAppointmentLifecyclePort(): AppointmentLifecycleP
             serviceId: input.serviceId ?? current.serviceId,
             originalStartAt,
             rescheduleCount: current.rescheduleCount + 1,
-            status: "confirmed",
+            status: 'confirmed',
             updatedAt: now,
           })
           .where(eq(beAppointments.id, input.appointmentId));
@@ -210,8 +222,11 @@ export function createPgBookingAppointmentLifecyclePort(): AppointmentLifecycleP
           wasInFreeRescheduleWindow: input.wasInFreeRescheduleWindow,
           freeCancellationAvailableAtReschedule: input.freeCancellationAvailableAtReschedule,
           freeCancellationAvailableAfter: input.freeCancellationAvailableAfter,
-          appliedPolicyId: input.policy.id === "default" ? null : input.policy.id,
-          appliedPolicySnapshot: { ...input.policy, cancellationPolicyId: input.cancellationPolicy.id },
+          appliedPolicyId: input.policy.id === 'default' ? null : input.policy.id,
+          appliedPolicySnapshot: {
+            ...input.policy,
+            cancellationPolicyId: input.cancellationPolicy.id,
+          },
           reason: input.reason ?? null,
           staffComment: input.staffComment ?? null,
           manualOverride: input.manualOverride ?? false,
@@ -221,7 +236,7 @@ export function createPgBookingAppointmentLifecyclePort(): AppointmentLifecycleP
 
         const payload = {
           fromStatus,
-          toStatus: "confirmed",
+          toStatus: 'confirmed',
           fromStartAt: current.startAt,
           toStartAt: input.newStartAt,
           manualOverride: input.manualOverride ?? false,
@@ -229,14 +244,14 @@ export function createPgBookingAppointmentLifecyclePort(): AppointmentLifecycleP
         await tx.insert(beAppointmentEvents).values({
           organizationId: input.organizationId,
           appointmentId: input.appointmentId,
-          eventType: "rescheduled",
+          eventType: 'rescheduled',
           actorId: input.actorId,
           payload,
         });
         await tx.insert(beAppointmentHistoryEvents).values({
           organizationId: input.organizationId,
           appointmentId: input.appointmentId,
-          eventType: "rescheduled",
+          eventType: 'rescheduled',
           actorId: input.actorId,
           payload,
           occurredAt: now,
@@ -245,9 +260,9 @@ export function createPgBookingAppointmentLifecyclePort(): AppointmentLifecycleP
           await tx.insert(bePatientTimelineEvents).values({
             organizationId: input.organizationId,
             platformUserId: current.platformUserId,
-            domain: "appointment",
-            eventType: "appointment_rescheduled",
-            linkedObjectType: "appointment",
+            domain: 'appointment',
+            eventType: 'appointment_rescheduled',
+            linkedObjectType: 'appointment',
             linkedObjectId: input.appointmentId,
             payload,
             occurredAt: now,
@@ -271,18 +286,21 @@ export function createPgBookingAppointmentLifecyclePort(): AppointmentLifecycleP
           .select()
           .from(beAppointments)
           .where(
-            and(eq(beAppointments.id, input.appointmentId), eq(beAppointments.organizationId, input.organizationId)),
+            and(
+              eq(beAppointments.id, input.appointmentId),
+              eq(beAppointments.organizationId, input.organizationId),
+            ),
           )
-          .for("update");
+          .for('update');
         const current = currentRows[0];
-        if (!current) throw new Error("appointment_not_found");
+        if (!current) throw new Error('appointment_not_found');
 
-        const fromStatus = current.status as BeAppointment["status"];
-        const cancelledStatuses = new Set<BeAppointment["status"]>([
-          "cancelled_by_patient",
-          "cancelled_by_specialist",
-          "no_show",
-          "late_cancellation",
+        const fromStatus = current.status as BeAppointment['status'];
+        const cancelledStatuses = new Set<BeAppointment['status']>([
+          'cancelled_by_patient',
+          'cancelled_by_specialist',
+          'no_show',
+          'late_cancellation',
         ]);
         if (cancelledStatuses.has(fromStatus) && cancelledStatuses.has(input.targetStatus)) {
           const updated = await tx
@@ -293,7 +311,7 @@ export function createPgBookingAppointmentLifecyclePort(): AppointmentLifecycleP
           return mapAppointment(updated[0]!);
         }
         if (cancelledStatuses.has(fromStatus)) {
-          throw new Error("state_conflict");
+          throw new Error('state_conflict');
         }
         assertValidAppointmentStatusTransition(fromStatus, input.targetStatus);
 
@@ -319,7 +337,7 @@ export function createPgBookingAppointmentLifecyclePort(): AppointmentLifecycleP
           prepaymentRefunded: input.prepaymentRefunded,
           staffComment: input.staffComment ?? null,
           manualOverride: input.manualOverride ?? false,
-          appliedPolicyId: input.policy.id === "default" ? null : input.policy.id,
+          appliedPolicyId: input.policy.id === 'default' ? null : input.policy.id,
           appliedPolicySnapshot: input.policy as unknown as Record<string, unknown>,
           notificationsSent: input.notificationsSent ?? {},
           createdAt: now,
@@ -335,14 +353,14 @@ export function createPgBookingAppointmentLifecyclePort(): AppointmentLifecycleP
         await tx.insert(beAppointmentEvents).values({
           organizationId: input.organizationId,
           appointmentId: input.appointmentId,
-          eventType: "cancelled",
+          eventType: 'cancelled',
           actorId: input.actorId,
           payload,
         });
         await tx.insert(beAppointmentHistoryEvents).values({
           organizationId: input.organizationId,
           appointmentId: input.appointmentId,
-          eventType: "cancelled",
+          eventType: 'cancelled',
           actorId: input.actorId,
           payload,
           occurredAt: now,
@@ -351,9 +369,9 @@ export function createPgBookingAppointmentLifecyclePort(): AppointmentLifecycleP
           await tx.insert(bePatientTimelineEvents).values({
             organizationId: input.organizationId,
             platformUserId: current.platformUserId,
-            domain: "appointment",
-            eventType: "appointment_cancelled",
-            linkedObjectType: "appointment",
+            domain: 'appointment',
+            eventType: 'appointment_cancelled',
+            linkedObjectType: 'appointment',
             linkedObjectId: input.appointmentId,
             payload,
             occurredAt: now,
@@ -419,25 +437,32 @@ export function createPgBookingAppointmentLifecyclePort(): AppointmentLifecycleP
           .select()
           .from(beAppointments)
           .where(
-            and(eq(beAppointments.id, input.appointmentId), eq(beAppointments.organizationId, input.organizationId)),
+            and(
+              eq(beAppointments.id, input.appointmentId),
+              eq(beAppointments.organizationId, input.organizationId),
+            ),
           )
-          .for("update");
+          .for('update');
         const current = currentRows[0];
-        if (!current) throw new Error("appointment_not_found");
+        if (!current) throw new Error('appointment_not_found');
 
-        const fromStatus = current.status as BeAppointment["status"];
+        const fromStatus = current.status as BeAppointment['status'];
         // no_show is terminal — idempotent if already there
-        if (fromStatus === "no_show") {
-          const existing = await tx.select().from(beAppointments).where(eq(beAppointments.id, input.appointmentId)).limit(1);
+        if (fromStatus === 'no_show') {
+          const existing = await tx
+            .select()
+            .from(beAppointments)
+            .where(eq(beAppointments.id, input.appointmentId))
+            .limit(1);
           return mapAppointment(existing[0]!);
         }
         // Guard: FSM allows confirmed → no_show
-        assertValidAppointmentStatusTransition(fromStatus, "no_show");
+        assertValidAppointmentStatusTransition(fromStatus, 'no_show');
 
         // 1. Transition appointment status
         await tx
           .update(beAppointments)
-          .set({ status: "no_show", updatedAt: now })
+          .set({ status: 'no_show', updatedAt: now })
           .where(eq(beAppointments.id, input.appointmentId));
 
         // 2. Write history record (mirrors beAppointmentCancellations pattern)
@@ -454,18 +479,22 @@ export function createPgBookingAppointmentLifecyclePort(): AppointmentLifecycleP
         });
 
         // 3. Appointment-level events (mirrors rescheduled / cancelled pattern)
-        const payload = { fromStatus, toStatus: "no_show", manualOverride: input.manualOverride ?? true };
+        const payload = {
+          fromStatus,
+          toStatus: 'no_show',
+          manualOverride: input.manualOverride ?? true,
+        };
         await tx.insert(beAppointmentEvents).values({
           organizationId: input.organizationId,
           appointmentId: input.appointmentId,
-          eventType: "no_show",
+          eventType: 'no_show',
           actorId: input.actorId,
           payload,
         });
         await tx.insert(beAppointmentHistoryEvents).values({
           organizationId: input.organizationId,
           appointmentId: input.appointmentId,
-          eventType: "no_show",
+          eventType: 'no_show',
           actorId: input.actorId,
           payload,
           occurredAt: now,
@@ -474,9 +503,9 @@ export function createPgBookingAppointmentLifecyclePort(): AppointmentLifecycleP
           await tx.insert(bePatientTimelineEvents).values({
             organizationId: input.organizationId,
             platformUserId: current.platformUserId,
-            domain: "appointment",
-            eventType: "appointment_no_show",
-            linkedObjectType: "appointment",
+            domain: 'appointment',
+            eventType: 'appointment_no_show',
+            linkedObjectType: 'appointment',
             linkedObjectId: input.appointmentId,
             payload,
             occurredAt: now,
@@ -498,7 +527,11 @@ export function createPgBookingAppointmentLifecyclePort(): AppointmentLifecycleP
           );
         }
 
-        const updated = await tx.select().from(beAppointments).where(eq(beAppointments.id, input.appointmentId)).limit(1);
+        const updated = await tx
+          .select()
+          .from(beAppointments)
+          .where(eq(beAppointments.id, input.appointmentId))
+          .limit(1);
         return mapAppointment(updated[0]!);
       });
     },

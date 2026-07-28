@@ -1,8 +1,8 @@
-import { DateTime } from "luxon";
-import type { ReminderRule } from "@/modules/reminders/types";
-import type { PatientPracticeCompletionRow } from "@/modules/patient-practice/types";
-import { computePracticeStreak } from "@/modules/patient-practice/streakLogic";
-import { countReminderIntentSlotsInUtcRange } from "./nextReminderOccurrence";
+import { DateTime } from 'luxon';
+import type { ReminderRule } from '@/modules/reminders/types';
+import type { PatientPracticeCompletionRow } from '@/modules/patient-practice/types';
+import { computePracticeStreak } from '@/modules/patient-practice/streakLogic';
+import { countReminderIntentSlotsInUtcRange } from './nextReminderOccurrence';
 
 /** Пауза между отметками программы: всё в пределах 100 мин от первой отметки занятия = одно занятие. */
 export const PATIENT_HOME_TRAINING_SESSION_GAP_MINUTES = 100;
@@ -20,7 +20,7 @@ export type PatientHomeProgressDisplay = PatientHomeProgressMetrics & {
   plannedTotal: number;
 };
 
-const WARMUP_DONE_SOURCES = new Set<PatientPracticeCompletionRow["source"]>(["daily_warmup"]);
+const WARMUP_DONE_SOURCES = new Set<PatientPracticeCompletionRow['source']>(['daily_warmup']);
 
 /** (1) Слоты разминок в расписании на сегодня. */
 export function countWarmupPlannedSlotsInUtcRange(
@@ -28,7 +28,7 @@ export function countWarmupPlannedSlotsInUtcRange(
   rangeStart: Date,
   rangeEnd: Date,
 ): number {
-  return countReminderIntentSlotsInUtcRange(rules, "warmup", rangeStart, rangeEnd);
+  return countReminderIntentSlotsInUtcRange(rules, 'warmup', rangeStart, rangeEnd);
 }
 
 /** (3) Слоты тренировок в расписании на сегодня. */
@@ -37,7 +37,7 @@ export function countTrainingPlannedSlotsInUtcRange(
   rangeStart: Date,
   rangeEnd: Date,
 ): number {
-  return countReminderIntentSlotsInUtcRange(rules, "exercises", rangeStart, rangeEnd);
+  return countReminderIntentSlotsInUtcRange(rules, 'exercises', rangeStart, rangeEnd);
 }
 
 /** (2) Отметки «Выполнено» на страницах разминки дня. */
@@ -76,7 +76,9 @@ export function computePatientHomeActivityStreak(
   return computePracticeStreak(activityLocalDates, patientDayIana);
 }
 
-export function buildPatientHomeProgressDisplay(metrics: PatientHomeProgressMetrics): PatientHomeProgressDisplay {
+export function buildPatientHomeProgressDisplay(
+  metrics: PatientHomeProgressMetrics,
+): PatientHomeProgressDisplay {
   return {
     ...metrics,
     doneTotal: metrics.warmupDone + metrics.trainingDone,
@@ -92,7 +94,9 @@ export function collectActivityLocalDates(params: {
   const dates = new Set<string>();
   for (const row of params.practiceRows) {
     if (!WARMUP_DONE_SOURCES.has(row.source)) continue;
-    const d = DateTime.fromISO(row.completedAt, { setZone: true }).setZone(params.patientDayIana).toISODate();
+    const d = DateTime.fromISO(row.completedAt, { setZone: true })
+      .setZone(params.patientDayIana)
+      .toISODate();
     if (d) dates.add(d);
   }
   for (const key of params.programDoneDateKeys) {

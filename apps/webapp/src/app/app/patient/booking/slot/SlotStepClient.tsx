@@ -1,18 +1,21 @@
-"use client";
+'use client';
 
-import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Button } from "@/shared/ui/patient/primitives/button";
-import { routePaths } from "@/app-layer/routes/paths";
-import { patientButtonPrimaryClass, patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
-import type { BookingCategory, BookingSlot } from "@/modules/patient-booking/types";
-import { BookingCalendar } from "../../cabinet/BookingCalendar";
-import { BookingSlotList } from "../../cabinet/BookingSlotList";
-import type { BookingSelection } from "../../cabinet/useBookingSelection";
-import { useBookingSlots } from "../../cabinet/useBookingSlots";
+import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Button } from '@/shared/ui/patient/primitives/button';
+import { routePaths } from '@/app-layer/routes/paths';
+import {
+  patientButtonPrimaryClass,
+  patientMutedTextClass,
+} from '@/shared/ui/patient/patientVisual';
+import type { BookingCategory, BookingSlot } from '@/modules/patient-booking/types';
+import { BookingCalendar } from '../../cabinet/BookingCalendar';
+import { BookingSlotList } from '../../cabinet/BookingSlotList';
+import type { BookingSelection } from '../../cabinet/useBookingSelection';
+import { useBookingSlots } from '../../cabinet/useBookingSlots';
 
 type InPersonProps = {
-  type: "in_person";
+  type: 'in_person';
   cityCode: string;
   cityTitle: string;
   serviceTitle: string;
@@ -27,7 +30,7 @@ type InPersonProps = {
 };
 
 type OnlineProps = {
-  type: "online";
+  type: 'online';
   category: string;
   appDisplayTimeZone: string;
   maxConsecutiveSlotHours?: number;
@@ -44,8 +47,8 @@ type Props = (InPersonProps | OnlineProps) & SlotStepOptions;
 function todayIsoDate(): string {
   const d = new Date();
   const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
 
@@ -56,26 +59,26 @@ function buildConfirmQuery(
   slotCount: number,
 ): string {
   const q = new URLSearchParams();
-  q.set("type", props.type);
-  q.set("date", date);
-  q.set("slot", slot.startAt);
-  q.set("slotEnd", slot.endAt);
-  q.set("slotCount", String(slotCount));
-  if (props.type === "in_person") {
-    q.set("cityCode", props.cityCode);
-    q.set("cityTitle", props.cityTitle);
-    if (!props.branchId || !props.serviceId) return "";
-    q.set("branchId", props.branchId);
-    q.set("serviceId", props.serviceId);
-    q.set("serviceTitle", props.serviceTitle);
-    q.set("durationMinutes", String(props.durationMinutes));
-    q.set("priceMinor", String(props.priceMinor ?? 0));
-    if (props.orgSlug) q.set("orgSlug", props.orgSlug);
+  q.set('type', props.type);
+  q.set('date', date);
+  q.set('slot', slot.startAt);
+  q.set('slotEnd', slot.endAt);
+  q.set('slotCount', String(slotCount));
+  if (props.type === 'in_person') {
+    q.set('cityCode', props.cityCode);
+    q.set('cityTitle', props.cityTitle);
+    if (!props.branchId || !props.serviceId) return '';
+    q.set('branchId', props.branchId);
+    q.set('serviceId', props.serviceId);
+    q.set('serviceTitle', props.serviceTitle);
+    q.set('durationMinutes', String(props.durationMinutes));
+    q.set('priceMinor', String(props.priceMinor ?? 0));
+    if (props.orgSlug) q.set('orgSlug', props.orgSlug);
   } else {
-    q.set("category", props.category);
+    q.set('category', props.category);
   }
   if (props.rescheduleBookingId) {
-    q.set("rescheduleBookingId", props.rescheduleBookingId);
+    q.set('rescheduleBookingId', props.rescheduleBookingId);
   }
   return q.toString();
 }
@@ -84,18 +87,18 @@ export function SlotStepClient(props: Props) {
   const router = useRouter();
 
   const selection: BookingSelection = useMemo(() => {
-    if (props.type === "online") {
+    if (props.type === 'online') {
       return {
-        type: "online",
+        type: 'online',
         category: props.category as BookingCategory,
       };
     }
     return {
-      type: "in_person",
+      type: 'in_person',
       cityCode: props.cityCode,
       cityTitle: props.cityTitle,
-      branchId: props.branchId ?? "",
-      serviceId: props.serviceId ?? "",
+      branchId: props.branchId ?? '',
+      serviceId: props.serviceId ?? '',
       serviceTitle: props.serviceTitle,
       ...(props.orgSlug ? { orgSlug: props.orgSlug } : {}),
     };
@@ -113,7 +116,7 @@ export function SlotStepClient(props: Props) {
     [slotsState.availableDates, today],
   );
   const effectiveDate = selectedDate ?? firstSelectableDate;
-  const unitMinutes = props.type === "in_person" ? props.durationMinutes : 60;
+  const unitMinutes = props.type === 'in_person' ? props.durationMinutes : 60;
   const maxConsecutiveMinutes = Math.max(60, Math.round((props.maxConsecutiveSlotHours ?? 3) * 60));
   const canExtend = (slotCount + 1) * unitMinutes <= maxConsecutiveMinutes;
   const currentSlots = effectiveDate ? slotsState.slotsForDate(effectiveDate) : [];
@@ -149,7 +152,12 @@ export function SlotStepClient(props: Props) {
       {slotsState.error ? (
         <div className="flex flex-col gap-2">
           <p className="text-sm text-destructive">{slotsState.error}</p>
-          <Button type="button" variant="outline" size="sm" onClick={() => void slotsState.reload()}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => void slotsState.reload()}
+          >
             Повторить
           </Button>
         </div>
@@ -164,7 +172,9 @@ export function SlotStepClient(props: Props) {
               setSlotCount((count) => count + 1);
               setSelectedSlot({
                 startAt: selectedSlot.startAt,
-                endAt: new Date(new Date(selectedSlot.endAt).getTime() + unitMinutes * 60_000).toISOString(),
+                endAt: new Date(
+                  new Date(selectedSlot.endAt).getTime() + unitMinutes * 60_000,
+                ).toISOString(),
               });
               return;
             }
@@ -175,7 +185,10 @@ export function SlotStepClient(props: Props) {
             selectedSlot
               ? new Set(
                   currentSlots.flatMap((slot) =>
-                    (slot.startAt === selectedSlot.endAt && canExtend) || slot.startAt === selectedSlot.startAt ? [] : [slot.startAt],
+                    (slot.startAt === selectedSlot.endAt && canExtend) ||
+                    slot.startAt === selectedSlot.startAt
+                      ? []
+                      : [slot.startAt],
                   ),
                 )
               : undefined

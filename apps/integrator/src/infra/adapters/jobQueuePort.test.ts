@@ -8,7 +8,8 @@ vi.mock('../db/drizzle.js', () => ({
 
 function drizzleSqlNodeToText(node: unknown): string {
   if (node === null || node === undefined) return '';
-  if (typeof node === 'string' || typeof node === 'number' || typeof node === 'boolean') return String(node);
+  if (typeof node === 'string' || typeof node === 'number' || typeof node === 'boolean')
+    return String(node);
   if (typeof node !== 'object') return '';
   const rec = node as Record<string, unknown>;
   if (Array.isArray(rec.queryChunks)) {
@@ -33,7 +34,8 @@ describe('createPostgresJobQueue', () => {
     const queue = createPostgresJobQueue({
       db: {
         query,
-        tx: async (fn) => fn({ query, tx: async (inner) => inner({ query, tx: async () => undefined as never }) }),
+        tx: async (fn) =>
+          fn({ query, tx: async (inner) => inner({ query, tx: async () => undefined as never }) }),
       },
       retryDelaySeconds: 60,
     });
@@ -80,31 +82,33 @@ describe('createPostgresJobQueue', () => {
 
   it('claims generic jobs with original payload and channels intact', async () => {
     const execute = vi.fn().mockResolvedValue({
-      rows: [{
-        id: 42,
-        phoneNormalized: null,
-        messageText: 'hello telegram',
-        kind: 'message.deliver',
-        runAt: '2026-03-10T10:00:00.000Z',
-        payloadJson: {
-          intent: {
-            type: 'message.send',
-            meta: {
-              eventId: 'evt-42',
-              occurredAt: '2026-03-10T10:00:00.000Z',
-              source: 'domain',
+      rows: [
+        {
+          id: 42,
+          phoneNormalized: null,
+          messageText: 'hello telegram',
+          kind: 'message.deliver',
+          runAt: '2026-03-10T10:00:00.000Z',
+          payloadJson: {
+            intent: {
+              type: 'message.send',
+              meta: {
+                eventId: 'evt-42',
+                occurredAt: '2026-03-10T10:00:00.000Z',
+                source: 'domain',
+              },
+              payload: {
+                message: { text: 'hello telegram' },
+                delivery: { channels: ['telegram'], maxAttempts: 1 },
+              },
             },
-            payload: {
-              message: { text: 'hello telegram' },
-              delivery: { channels: ['telegram'], maxAttempts: 1 },
-            },
+            targets: [{ resource: 'telegram', address: { chatId: 123 } }],
+            retry: { maxAttempts: 1, backoffSeconds: [0] },
           },
-          targets: [{ resource: 'telegram', address: { chatId: 123 } }],
-          retry: { maxAttempts: 1, backoffSeconds: [0] },
+          attemptsDone: 0,
+          maxAttempts: 1,
         },
-        attemptsDone: 0,
-        maxAttempts: 1,
-      }],
+      ],
     });
     vi.mocked(getIntegratorDrizzleSession).mockReturnValue({ insert: vi.fn(), execute } as never);
 
@@ -112,7 +116,8 @@ describe('createPostgresJobQueue', () => {
     const queue = createPostgresJobQueue({
       db: {
         query,
-        tx: async (fn) => fn({ query, tx: async (inner) => inner({ query, tx: async () => undefined as never }) }),
+        tx: async (fn) =>
+          fn({ query, tx: async (inner) => inner({ query, tx: async () => undefined as never }) }),
       },
       retryDelaySeconds: 60,
     });

@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useMemo } from "react";
+import { useMemo } from 'react';
 import {
   Bar,
   BarChart,
@@ -11,24 +11,24 @@ import {
   ResponsiveContainer,
   XAxis,
   YAxis,
-} from "recharts";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
-import type { ContentEngagementStatsResponse } from "@/app-layer/stats/loadAdminReminderStats";
+} from 'recharts';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
+import type { ContentEngagementStatsResponse } from '@/app-layer/stats/loadAdminReminderStats';
 import {
   formatDisplayZoneDayShortFromBucket,
   formatDisplayZoneHourFromBucket,
-} from "@/shared/datetime/displayTimeZoneFormat";
-import { DoctorRechartsTooltip } from "@/shared/ui/doctor/DoctorRechartsTooltip";
+} from '@/shared/datetime/displayTimeZoneFormat';
+import { DoctorRechartsTooltip } from '@/shared/ui/doctor/DoctorRechartsTooltip';
 
-const STROKE_SENT = "hsl(215 65% 42%)";
-const STROKE_PUSH_OPEN = "hsl(142 50% 38%)";
-const FILL_PUSH_OPEN = "hsl(142 45% 42% / 0.85)";
-const FILL_PUSH_SENT = "hsl(215 55% 52% / 0.85)";
+const STROKE_SENT = 'hsl(215 65% 42%)';
+const STROKE_PUSH_OPEN = 'hsl(142 50% 38%)';
+const FILL_PUSH_OPEN = 'hsl(142 45% 42% / 0.85)';
+const FILL_PUSH_SENT = 'hsl(215 55% 52% / 0.85)';
 
 const CHART_H = 160;
 
 function formatPushOpenRate(rate: number): string {
-  if (!Number.isFinite(rate) || rate <= 0) return "0%";
+  if (!Number.isFinite(rate) || rate <= 0) return '0%';
   return `${(rate * 100).toFixed(1)}%`;
 }
 
@@ -39,14 +39,14 @@ function KpiMini({
 }: {
   label: string;
   value: string | number;
-  accent?: "blue" | "green" | "muted";
+  accent?: 'blue' | 'green' | 'muted';
 }) {
   const border =
-    accent === "blue"
-      ? "border-l-4 border-l-blue-500/70"
-      : accent === "green"
-        ? "border-l-4 border-l-emerald-500/70"
-        : "";
+    accent === 'blue'
+      ? 'border-l-4 border-l-blue-500/70'
+      : accent === 'green'
+        ? 'border-l-4 border-l-emerald-500/70'
+        : '';
   return (
     <div className={`rounded-md border border-border/60 bg-card px-3 py-2 ${border}`}>
       <p className="text-[10px] text-muted-foreground">{label}</p>
@@ -60,7 +60,7 @@ export function PushOpensAnalyticsCard({
   variant,
 }: {
   data: ContentEngagementStatsResponse;
-  variant: "1" | "2";
+  variant: '1' | '2';
 }) {
   const pushDailyChartData = useMemo(
     () =>
@@ -80,7 +80,7 @@ export function PushOpensAnalyticsCard({
     [data.pushOpensHourly],
   );
 
-  const showHourlyLine = variant === "1";
+  const showHourlyLine = variant === '1';
 
   return (
     <Card className="h-full">
@@ -96,7 +96,7 @@ export function PushOpensAnalyticsCard({
           <KpiMini
             label="Open rate"
             value={formatPushOpenRate(data.pushOpensSummary.openRate)}
-            accent={data.pushOpensSummary.openRate >= 0.1 ? "green" : "muted"}
+            accent={data.pushOpensSummary.openRate >= 0.1 ? 'green' : 'muted'}
           />
         </div>
         <div className="w-full min-w-0" style={{ height: CHART_H }}>
@@ -105,7 +105,7 @@ export function PushOpensAnalyticsCard({
               <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
               <XAxis
                 dataKey="day"
-                tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
+                tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }}
                 interval="preserveStartEnd"
                 angle={-30}
                 textAnchor="end"
@@ -122,11 +122,14 @@ export function PushOpensAnalyticsCard({
         {showHourlyLine ? (
           <div className="w-full min-w-0" style={{ height: CHART_H }}>
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={pushHourlyChartData} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
+              <LineChart
+                data={pushHourlyChartData}
+                margin={{ top: 4, right: 8, left: 0, bottom: 4 }}
+              >
                 <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
                 <XAxis
                   dataKey="hour"
-                  tick={{ fontSize: 8, fill: "hsl(var(--muted-foreground))" }}
+                  tick={{ fontSize: 8, fill: 'hsl(var(--muted-foreground))' }}
                   interval="preserveStartEnd"
                   minTickGap={20}
                 />
@@ -141,7 +144,14 @@ export function PushOpensAnalyticsCard({
                   dot={false}
                   strokeWidth={2}
                 />
-                <Line type="monotone" dataKey="sent" name="Отправлено" stroke={STROKE_SENT} dot={false} strokeWidth={2} />
+                <Line
+                  type="monotone"
+                  dataKey="sent"
+                  name="Отправлено"
+                  stroke={STROKE_SENT}
+                  dot={false}
+                  strokeWidth={2}
+                />
               </LineChart>
             </ResponsiveContainer>
           </div>

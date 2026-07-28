@@ -1,6 +1,6 @@
-import { normalizePhone } from "@/modules/auth/phoneNormalize";
-import { isValidPhoneE164 } from "@/modules/auth/phoneValidation";
-import { normalizeEmail } from "@/modules/auth/emailAuth";
+import { normalizePhone } from '@/modules/auth/phoneNormalize';
+import { isValidPhoneE164 } from '@/modules/auth/phoneValidation';
+import { normalizeEmail } from '@/modules/auth/emailAuth';
 
 /** Stored under `system_settings.test_account_identifiers` (admin). */
 export type TestAccountIdentifiers = {
@@ -39,19 +39,22 @@ function normalizeTestAccountEmailToken(raw: string): string | null {
   return email;
 }
 
-function parseStringArrayField(raw: unknown, field: "phones" | "telegramIds" | "maxIds" | "emails"): string[] {
+function parseStringArrayField(
+  raw: unknown,
+  field: 'phones' | 'telegramIds' | 'maxIds' | 'emails',
+): string[] {
   if (raw === undefined || raw === null) return [];
   if (!Array.isArray(raw)) return [];
   const out: string[] = [];
   for (const item of raw) {
-    if (typeof item !== "string") continue;
+    if (typeof item !== 'string') continue;
     const t = item.trim();
     if (!t) continue;
-    if (field === "phones") {
+    if (field === 'phones') {
       const n = normalizeTestAccountPhoneToken(t);
       if (n === null) continue;
       out.push(n);
-    } else if (field === "emails") {
+    } else if (field === 'emails') {
       const email = normalizeTestAccountEmailToken(t);
       if (email === null) continue;
       out.push(email);
@@ -106,13 +109,15 @@ export function previewTestAccountPhoneTokens(rawTokens: string[]): {
  * Validates and normalizes PATCH body value for `test_account_identifiers`.
  * Returns null if the top-level shape is invalid.
  */
-export function normalizeTestAccountIdentifiersValue(inner: unknown): TestAccountIdentifiers | null {
-  if (inner === null || typeof inner !== "object" || Array.isArray(inner)) return null;
+export function normalizeTestAccountIdentifiersValue(
+  inner: unknown,
+): TestAccountIdentifiers | null {
+  if (inner === null || typeof inner !== 'object' || Array.isArray(inner)) return null;
   const o = inner as Record<string, unknown>;
-  const phones = parseStringArrayField(o.phones, "phones");
-  const telegramIds = parseStringArrayField(o.telegramIds, "telegramIds");
-  const maxIds = parseStringArrayField(o.maxIds, "maxIds");
-  const emails = parseStringArrayField(o.emails, "emails");
+  const phones = parseStringArrayField(o.phones, 'phones');
+  const telegramIds = parseStringArrayField(o.telegramIds, 'telegramIds');
+  const maxIds = parseStringArrayField(o.maxIds, 'maxIds');
+  const emails = parseStringArrayField(o.emails, 'emails');
   return { phones, telegramIds, maxIds, emails };
 }
 
@@ -143,9 +148,9 @@ export function relayRecipientAllowedInDevMode(
   const ch = channel.trim().toLowerCase();
   const rec = recipient.trim();
   if (!rec) return false;
-  if (ch === "telegram") return spec.telegramIds.includes(rec);
-  if (ch === "max") return spec.maxIds.includes(rec);
-  if (ch === "email") return spec.emails.includes(normalizeTestAccountEmailToken(rec) ?? "");
-  if (ch === "sms") return spec.phones.includes(normalizeTestAccountPhoneToken(rec) ?? "");
+  if (ch === 'telegram') return spec.telegramIds.includes(rec);
+  if (ch === 'max') return spec.maxIds.includes(rec);
+  if (ch === 'email') return spec.emails.includes(normalizeTestAccountEmailToken(rec) ?? '');
+  if (ch === 'sms') return spec.phones.includes(normalizeTestAccountPhoneToken(rec) ?? '');
   return false;
 }

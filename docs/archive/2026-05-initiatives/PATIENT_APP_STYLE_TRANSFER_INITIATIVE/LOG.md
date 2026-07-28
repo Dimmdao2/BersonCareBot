@@ -90,7 +90,7 @@
 
 - Agent/model: Composer (Cursor).
 - Scope: docs-only prep по **`05_QA_DOCS_PLAN.md`** — без нового page style pass; app-код не менялся.
-- Mandatory fixes: проверено закрытие — **Phase 0** (`PLAN_INVENTORY.md` + записи `LOG`); **Phase 1–4** в соответствующих **`AUDIT_PHASE_*.md` §3** — *No mandatory fixes.* Новых mandatory не вводилось.
+- Mandatory fixes: проверено закрытие — **Phase 0** (`PLAN_INVENTORY.md` + записи `LOG`); **Phase 1–4** в соответствующих **`AUDIT_PHASE_*.md` §3** — _No mandatory fixes._ Новых mandatory не вводилось.
 - Files changed: `docs/PATIENT_APP_STYLE_TRANSFER_INITIATIVE/CHECKLISTS.md` (§4 отмечен выполненным по EXEC фаз 2–4; добавлен §4.1 deferred routes), `docs/PATIENT_APP_STYLE_TRANSFER_INITIATIVE/GLOBAL_AUDIT.md` (prep + инструкция к глобальному аудиту), `docs/PATIENT_APP_STYLE_TRANSFER_INITIATIVE/05_QA_DOCS_PLAN.md` (чеклист Phase 5), `docs/README.md` (active initiative links), этот **`LOG.md`**.
 - Product/content gaps **deferred** (зафиксировано для global audit / не решалось в transfer):
   - Маршруты из **`CHECKLISTS.md` §4.1** и **`PLAN_INVENTORY.md` §1** (home, messages, emergency, lessons, booking landing, address, intake, и пр.) — вне пофазовой матрицы §4.

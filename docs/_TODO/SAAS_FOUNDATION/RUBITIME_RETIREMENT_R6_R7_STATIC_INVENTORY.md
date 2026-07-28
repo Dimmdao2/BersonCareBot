@@ -46,23 +46,23 @@ consumer. The same helper remains visible when any runtime module imports it.
 
 Latest run time against current branch baseline: 2026-07-23 (D0 truthful-retirement-gate correction).
 
-| Category | Phase | Current result | Meaning |
-| --- | --- | ---: | --- |
-| `mountedRubitimeRouteLiterals` | R6 | 0 hits / 0 files | No Rubitime-named runtime route surfaces remain in scanned runtime source. |
-| `integratorRubitimeRuntimeImports` | R6 | 0 hits / 0 files | Integrator app wiring no longer imports/mounts Rubitime runtime registrars. |
-| `rubitimeApiClientRuntimeTokens` | R6 | 0 hits / 0 files | No Rubitime API client/throttle/post-create runtime tokens remain. |
-| `rubitimeBookingUpsertRuntime` | R6/D9 | 35 hits / 10 files | The Rubitime-specific `booking.upsert` branch and executable `booking-rubitime-sync` package modules remain active. |
-| `appointmentRecordUpsertedFanoutBuilder` | R6/D9 | 5 hits / 2 files | `buildAppointmentRecordUpsertedFanout` remains in the integrator write path. |
-| `appointmentRecordUpsertedProducer` | R6/D9 | 2 hits / 2 files | Integrator still produces `appointment.record.upserted`. |
-| `appointmentRecordUpsertedHandler` | R6/D9 | 2 hits / 1 file | Webapp still handles `appointment.record.upserted`. |
-| `integratorEventsRoute` | D10 | 1 hit / 1 file | The filesystem-mounted `/api/integrator/events` receiver remains. |
-| `projectionEmitOrEnqueueRuntime` | D10 | 3 hits / 2 files | `tryEmitWebappProjectionThenEnqueue` remains in runtime. |
-| `projectionOutboxRuntime` | D10 | 52 hits / 10 files | Projection transport storage, repositories and health/runtime references remain; comments, migrations, ops scripts and test-only stubs do not inflate the count. |
-| `projectionWorkerRuntime` | D10 | 6 hits / 2 files | The executable projection worker implementation and runtime loop remain. |
-| `legacyAppointmentRecordRuntimeRefs` | R6/R7 | 150 hits / 28 files | Legacy appointment table references remain for archive/backfill/compat paths. |
-| `rubitimeRawTableRuntimeRefs` | R7 | 21 hits / 6 files | Raw Rubitime table/queue references remain in runtime/schema/readiness/active purge storage until R7 archive/drop/defer decision. Ops tooling is reported separately. |
-| `providerNeutralKeepTableRefs` | R7 keep-list | 160 hits / 43 files | Explicit keep-list references, not a drop signal. |
-| `rubitimeOpsToolingRefs` | R6/R7 ops | 543 hits / 25 files | Ops/audit/backfill scripts with Rubitime references; reported, not a post-R6 runtime blocker. |
+| Category                                 | Phase        |      Current result | Meaning                                                                                                                                                               |
+| ---------------------------------------- | ------------ | ------------------: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mountedRubitimeRouteLiterals`           | R6           |    0 hits / 0 files | No Rubitime-named runtime route surfaces remain in scanned runtime source.                                                                                            |
+| `integratorRubitimeRuntimeImports`       | R6           |    0 hits / 0 files | Integrator app wiring no longer imports/mounts Rubitime runtime registrars.                                                                                           |
+| `rubitimeApiClientRuntimeTokens`         | R6           |    0 hits / 0 files | No Rubitime API client/throttle/post-create runtime tokens remain.                                                                                                    |
+| `rubitimeBookingUpsertRuntime`           | R6/D9        |  35 hits / 10 files | The Rubitime-specific `booking.upsert` branch and executable `booking-rubitime-sync` package modules remain active.                                                   |
+| `appointmentRecordUpsertedFanoutBuilder` | R6/D9        |    5 hits / 2 files | `buildAppointmentRecordUpsertedFanout` remains in the integrator write path.                                                                                          |
+| `appointmentRecordUpsertedProducer`      | R6/D9        |    2 hits / 2 files | Integrator still produces `appointment.record.upserted`.                                                                                                              |
+| `appointmentRecordUpsertedHandler`       | R6/D9        |     2 hits / 1 file | Webapp still handles `appointment.record.upserted`.                                                                                                                   |
+| `integratorEventsRoute`                  | D10          |      1 hit / 1 file | The filesystem-mounted `/api/integrator/events` receiver remains.                                                                                                     |
+| `projectionEmitOrEnqueueRuntime`         | D10          |    3 hits / 2 files | `tryEmitWebappProjectionThenEnqueue` remains in runtime.                                                                                                              |
+| `projectionOutboxRuntime`                | D10          |  52 hits / 10 files | Projection transport storage, repositories and health/runtime references remain; comments, migrations, ops scripts and test-only stubs do not inflate the count.      |
+| `projectionWorkerRuntime`                | D10          |    6 hits / 2 files | The executable projection worker implementation and runtime loop remain.                                                                                              |
+| `legacyAppointmentRecordRuntimeRefs`     | R6/R7        | 150 hits / 28 files | Legacy appointment table references remain for archive/backfill/compat paths.                                                                                         |
+| `rubitimeRawTableRuntimeRefs`            | R7           |   21 hits / 6 files | Raw Rubitime table/queue references remain in runtime/schema/readiness/active purge storage until R7 archive/drop/defer decision. Ops tooling is reported separately. |
+| `providerNeutralKeepTableRefs`           | R7 keep-list | 160 hits / 43 files | Explicit keep-list references, not a drop signal.                                                                                                                     |
+| `rubitimeOpsToolingRefs`                 | R6/R7 ops    | 543 hits / 25 files | Ops/audit/backfill scripts with Rubitime references; reported, not a post-R6 runtime blocker.                                                                         |
 
 The three narrow legacy route/API categories remain zero, but they were an incomplete gate. The corrected post-R6
 and direct-public retirement verdict is **FAIL** while the eight D0 categories below remain:

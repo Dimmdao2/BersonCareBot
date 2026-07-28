@@ -1,36 +1,45 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
 
-import { loadDoctorAnalyticsAudience } from "@/app-layer/analytics/loadAnalyticsAudience";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { loadDoctorAnalyticsAudience } from '@/app-layer/analytics/loadAnalyticsAudience';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import {
   DOCTOR_TODAY_METRIC_KEYS,
   type DoctorAnalyticsMetricAccountItem,
   type DoctorAnalyticsMetricKey,
-} from "@/modules/doctor-analytics-metric-accounts/ports";
-import type { AppointmentRow, DoctorAppointmentsListFilter } from "@/modules/doctor-appointments/ports";
-import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
-import { parseReminderStatsWindowHours } from "@/app-layer/stats/loadAdminReminderStats";
+} from '@/modules/doctor-analytics-metric-accounts/ports';
+import type {
+  AppointmentRow,
+  DoctorAppointmentsListFilter,
+} from '@/modules/doctor-appointments/ports';
+import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
+import { parseReminderStatsWindowHours } from '@/app-layer/stats/loadAdminReminderStats';
 
-const doctorMetricEnum = z.enum([
-  ...DOCTOR_TODAY_METRIC_KEYS,
-] as [DoctorAnalyticsMetricKey, ...DoctorAnalyticsMetricKey[]]);
+const doctorMetricEnum = z.enum([...DOCTOR_TODAY_METRIC_KEYS] as [
+  DoctorAnalyticsMetricKey,
+  ...DoctorAnalyticsMetricKey[],
+]);
 
-const APPOINTMENT_METRIC_FILTERS: Partial<Record<DoctorAnalyticsMetricKey, DoctorAppointmentsListFilter>> = {
-  today_appointments_today: { kind: "range", range: "today" },
-  today_appointments_week: { kind: "range", range: "week" },
-  today_cancellations_30d: { kind: "cancellations30d" },
+const APPOINTMENT_METRIC_FILTERS: Partial<
+  Record<DoctorAnalyticsMetricKey, DoctorAppointmentsListFilter>
+> = {
+  today_appointments_today: { kind: 'range', range: 'today' },
+  today_appointments_week: { kind: 'range', range: 'week' },
+  today_cancellations_30d: { kind: 'cancellations30d' },
 };
 
 function mapAppointmentMetricLabel(metric: DoctorAnalyticsMetricKey): string {
-  if (metric === "today_appointments_today") return "Запись сегодня";
-  if (metric === "today_appointments_week") return "Запись на неделе";
-  if (metric === "today_cancellations_30d") return "Отмена";
-  return "Запись";
+  if (metric === 'today_appointments_today') return 'Запись сегодня';
+  if (metric === 'today_appointments_week') return 'Запись на неделе';
+  if (metric === 'today_cancellations_30d') return 'Отмена';
+  return 'Запись';
 }
 
-function mapAppointmentMetricItem(metric: DoctorAnalyticsMetricKey, row: AppointmentRow): DoctorAnalyticsMetricAccountItem {
+function mapAppointmentMetricItem(
+  metric: DoctorAnalyticsMetricKey,
+  row: AppointmentRow,
+): DoctorAnalyticsMetricAccountItem {
   return {
     userId: row.clientUserId,
     displayName: row.clientLabel,
@@ -48,20 +57,20 @@ export async function GET(req: Request) {
   if (!gate.ok) return gate.response;
 
   const url = new URL(req.url);
-  const metricParsed = doctorMetricEnum.safeParse(url.searchParams.get("metric"));
+  const metricParsed = doctorMetricEnum.safeParse(url.searchParams.get('metric'));
   if (!metricParsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_metric" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_metric' }, { status: 400 });
   }
   const metric = metricParsed.data;
-  const limit = Number.parseInt(url.searchParams.get("limit") ?? "20", 10);
-  const offset = Number.parseInt(url.searchParams.get("offset") ?? "0", 10);
-  const windowHours = parseReminderStatsWindowHours(url.searchParams.get("windowHours"));
+  const limit = Number.parseInt(url.searchParams.get('limit') ?? '20', 10);
+  const offset = Number.parseInt(url.searchParams.get('offset') ?? '0', 10);
+  const windowHours = parseReminderStatsWindowHours(url.searchParams.get('windowHours'));
 
   if (!Number.isFinite(limit) || limit < 1 || limit > 100) {
-    return NextResponse.json({ ok: false, error: "invalid_limit" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_limit' }, { status: 400 });
   }
   if (!Number.isFinite(offset) || offset < 0) {
-    return NextResponse.json({ ok: false, error: "invalid_offset" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_offset' }, { status: 400 });
   }
 
   try {
@@ -89,7 +98,7 @@ export async function GET(req: Request) {
     const isToday = (DOCTOR_TODAY_METRIC_KEYS as readonly string[]).includes(metric);
     const result = await deps.doctorAnalyticsMetricAccounts.listMetricAccounts({
       metric,
-      period: { preset: "week" },
+      period: { preset: 'week' },
       limit,
       offset,
       iana,
@@ -98,6 +107,6 @@ export async function GET(req: Request) {
     });
     return NextResponse.json({ ok: true as const, ...result });
   } catch {
-    return NextResponse.json({ ok: false, error: "metric_list_failed" }, { status: 500 });
+    return NextResponse.json({ ok: false, error: 'metric_list_failed' }, { status: 500 });
   }
 }

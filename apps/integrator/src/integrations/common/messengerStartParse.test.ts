@@ -17,7 +17,9 @@ describe('messengerStartParse', () => {
   });
 
   it('canonicalizeMessengerStartText strips BOM then prepends /start for bare link', () => {
-    expect(canonicalizeMessengerStartText('\uFEFF\uFEFFlink_afterBom')).toBe('/start link_afterBom');
+    expect(canonicalizeMessengerStartText('\uFEFF\uFEFFlink_afterBom')).toBe(
+      '/start link_afterBom',
+    );
   });
 
   it('parseMessengerStartCommand decodes percent-encoded setphone payload', () => {

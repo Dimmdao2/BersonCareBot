@@ -1,15 +1,15 @@
 /**
  * Client-only UI for admin name-match hints. Links open canonical client card (`scope=all`).
  */
-"use client";
+'use client';
 
-import { useCallback, useState } from "react";
-import Link from "next/link";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Checkbox } from "@/shared/ui/doctor/primitives/checkbox";
-import { cn } from "@/lib/utils";
-import { doctorClientSectionTitleClass } from "../doctorClientCardChrome";
-import { doctorHoverLinkClass } from "@/shared/ui/doctor/doctorVisual";
+import { useCallback, useState } from 'react';
+import Link from 'next/link';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Checkbox } from '@/shared/ui/doctor/primitives/checkbox';
+import { cn } from '@/lib/utils';
+import { doctorClientSectionTitleClass } from '../doctorClientCardChrome';
+import { doctorHoverLinkClass } from '@/shared/ui/doctor/doctorVisual';
 
 type Member = {
   id: string;
@@ -54,9 +54,9 @@ export function NameMatchHintsClient({ clientsListBase }: Props) {
     setDisclaimer(null);
     try {
       const params = new URLSearchParams();
-      if (missingPhone) params.set("missingPhone", "1");
+      if (missingPhone) params.set('missingPhone', '1');
       const res = await fetch(`/api/doctor/clients/name-match-hints?${params.toString()}`, {
-        credentials: "include",
+        credentials: 'include',
       });
       const data = (await res.json()) as {
         ok?: boolean;
@@ -68,8 +68,8 @@ export function NameMatchHintsClient({ clientsListBase }: Props) {
       if (!res.ok || !data.ok) {
         setError(
           res.status === 403
-            ? "Нужны роль admin и включённый режим администратора."
-            : data.error ?? `request_failed_${res.status}`,
+            ? 'Нужны роль admin и включённый режим администратора.'
+            : (data.error ?? `request_failed_${res.status}`),
         );
         setOrderedGroups(null);
         setSwappedPairs(null);
@@ -80,7 +80,7 @@ export function NameMatchHintsClient({ clientsListBase }: Props) {
       setOrderedGroups(data.orderedGroups ?? []);
       setSwappedPairs(data.swappedPairs ?? []);
     } catch {
-      setError("network");
+      setError('network');
       setOrderedGroups(null);
       setSwappedPairs(null);
       setDisclaimer(null);
@@ -92,7 +92,8 @@ export function NameMatchHintsClient({ clientsListBase }: Props) {
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6 p-4">
       <p className="text-muted-foreground text-sm">
-        Справочный отчёт для ручной проверки. Совпадения по ФИО не означают, что записи относятся к одному человеку.
+        Справочный отчёт для ручной проверки. Совпадения по ФИО не означают, что записи относятся к
+        одному человеку.
       </p>
 
       <div className="flex flex-col gap-3 rounded-xl border border-border/60 bg-card p-4 sm:flex-row sm:flex-wrap sm:items-end">
@@ -104,7 +105,7 @@ export function NameMatchHintsClient({ clientsListBase }: Props) {
           Только записи без телефона
         </label>
         <Button type="button" onClick={() => void runSearch()} disabled={loading}>
-          {loading ? "Загрузка…" : "Запустить поиск"}
+          {loading ? 'Загрузка…' : 'Запустить поиск'}
         </Button>
       </div>
 
@@ -114,7 +115,11 @@ export function NameMatchHintsClient({ clientsListBase }: Props) {
         </p>
       ) : null}
 
-      {disclaimer ? <p className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">{disclaimer}</p> : null}
+      {disclaimer ? (
+        <p className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+          {disclaimer}
+        </p>
+      ) : null}
 
       {orderedGroups && orderedGroups.length > 0 ? (
         <section className="space-y-3" aria-labelledby="name-hints-ordered-heading">
@@ -132,17 +137,26 @@ export function NameMatchHintsClient({ clientsListBase }: Props) {
                 </p>
                 <ul className="m-0 list-none space-y-2 p-0">
                   {g.members.map((m) => (
-                    <li key={m.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm">
+                    <li
+                      key={m.id}
+                      className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm"
+                    >
                       <Link
                         href={clientProfileHref(clientsListBase, m.id)}
-                        className={cn("font-medium", doctorHoverLinkClass)}
+                        className={cn('font-medium', doctorHoverLinkClass)}
                       >
                         {m.displayName}
                       </Link>
-                      <span className="font-mono text-xs text-muted-foreground">{m.id.slice(0, 8)}…</span>
-                      <span className="text-xs text-muted-foreground">{m.phoneNormalized ?? "нет тел."}</span>
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {m.id.slice(0, 8)}…
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {m.phoneNormalized ?? 'нет тел.'}
+                      </span>
                       {m.integratorUserId ? (
-                        <span className="text-xs text-muted-foreground">int:{m.integratorUserId}</span>
+                        <span className="text-xs text-muted-foreground">
+                          int:{m.integratorUserId}
+                        </span>
                       ) : null}
                     </li>
                   ))}
@@ -153,7 +167,12 @@ export function NameMatchHintsClient({ clientsListBase }: Props) {
         </section>
       ) : null}
 
-      {orderedGroups && orderedGroups.length === 0 && swappedPairs && swappedPairs.length === 0 && !loading && !error ? (
+      {orderedGroups &&
+      orderedGroups.length === 0 &&
+      swappedPairs &&
+      swappedPairs.length === 0 &&
+      !loading &&
+      !error ? (
         <p className="text-muted-foreground text-sm">Нет групп по текущим критериям.</p>
       ) : null}
 
@@ -164,32 +183,39 @@ export function NameMatchHintsClient({ clientsListBase }: Props) {
           </h2>
           <ul className="m-0 list-none space-y-3 p-0">
             {swappedPairs.map((p) => (
-              <li key={`${p.userA.id}-${p.userB.id}`} className="rounded-lg border border-border/70 bg-background p-3 text-sm">
+              <li
+                key={`${p.userA.id}-${p.userB.id}`}
+                className="rounded-lg border border-border/70 bg-background p-3 text-sm"
+              >
                 <div className="flex flex-wrap gap-4">
                   <div>
                     <Link
                       href={clientProfileHref(clientsListBase, p.userA.id)}
-                      className={cn("font-medium", doctorHoverLinkClass)}
+                      className={cn('font-medium', doctorHoverLinkClass)}
                     >
                       {p.userA.displayName}
                     </Link>
-                    <span className="ml-2 font-mono text-xs text-muted-foreground">{p.userA.id.slice(0, 8)}…</span>
+                    <span className="ml-2 font-mono text-xs text-muted-foreground">
+                      {p.userA.id.slice(0, 8)}…
+                    </span>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {[p.userA.firstName, p.userA.lastName].filter(Boolean).join(" ") || "—"} ·{" "}
-                      {p.userA.phoneNormalized ?? "нет тел."}
+                      {[p.userA.firstName, p.userA.lastName].filter(Boolean).join(' ') || '—'} ·{' '}
+                      {p.userA.phoneNormalized ?? 'нет тел.'}
                     </p>
                   </div>
                   <div>
                     <Link
                       href={clientProfileHref(clientsListBase, p.userB.id)}
-                      className={cn("font-medium", doctorHoverLinkClass)}
+                      className={cn('font-medium', doctorHoverLinkClass)}
                     >
                       {p.userB.displayName}
                     </Link>
-                    <span className="ml-2 font-mono text-xs text-muted-foreground">{p.userB.id.slice(0, 8)}…</span>
+                    <span className="ml-2 font-mono text-xs text-muted-foreground">
+                      {p.userB.id.slice(0, 8)}…
+                    </span>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {[p.userB.firstName, p.userB.lastName].filter(Boolean).join(" ") || "—"} ·{" "}
-                      {p.userB.phoneNormalized ?? "нет тел."}
+                      {[p.userB.firstName, p.userB.lastName].filter(Boolean).join(' ') || '—'} ·{' '}
+                      {p.userB.phoneNormalized ?? 'нет тел.'}
                     </p>
                   </div>
                 </div>

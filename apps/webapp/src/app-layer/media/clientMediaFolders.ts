@@ -6,6 +6,6 @@ export {
   pgValidateManualFolderParent,
   pgValidatePatientFolderRename,
   pgValidateUserAssignableMediaFolder,
-} from "@/infra/repos/pgClientMediaFolders";
+} from '@/infra/repos/pgClientMediaFolders';
 
-export type { MediaFolderAssignmentError } from "@/infra/repos/pgClientMediaFolders";
+export type { MediaFolderAssignmentError } from '@/infra/repos/pgClientMediaFolders';

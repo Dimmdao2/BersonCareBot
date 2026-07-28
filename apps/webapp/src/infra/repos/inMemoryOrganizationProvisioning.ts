@@ -1,8 +1,8 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID } from 'node:crypto';
 import type {
   OrganizationProvisioningPort,
   SpecialistSignupIntent,
-} from "@/modules/organization-provisioning/ports";
+} from '@/modules/organization-provisioning/ports';
 
 const intents: SpecialistSignupIntent[] = [];
 
@@ -11,7 +11,7 @@ export function resetInMemoryOrganizationProvisioningForTests(): void {
 }
 
 export function createInMemoryOrganizationProvisioningPort(
-  selfUserId = "11111111-1111-4111-8111-111111111111",
+  selfUserId = '11111111-1111-4111-8111-111111111111',
 ): OrganizationProvisioningPort {
   return {
     async createSpecialistSignupIntent(input) {
@@ -19,7 +19,7 @@ export function createInMemoryOrganizationProvisioningPort(
         ...input,
         userId: selfUserId,
         id: randomUUID(),
-        status: "pending",
+        status: 'pending',
         provisionedOrganizationId: null,
         provisionedSpecialistId: null,
         provisionedMembershipId: null,
@@ -30,7 +30,9 @@ export function createInMemoryOrganizationProvisioningPort(
       return (
         intents.find(
           (intent) =>
-            intent.userId === userId && intent.challengeId === challengeId && intent.status === "pending",
+            intent.userId === userId &&
+            intent.challengeId === challengeId &&
+            intent.status === 'pending',
         ) ?? null
       );
     },
@@ -44,7 +46,7 @@ export function createInMemoryOrganizationProvisioningPort(
     },
 
     async replacePendingSpecialistSignupChallenge({ challengeId, organizationSlug }) {
-      const intent = [...intents].reverse().find((candidate) => candidate.status === "pending");
+      const intent = [...intents].reverse().find((candidate) => candidate.status === 'pending');
       if (!intent) return false;
       intent.challengeId = challengeId;
       intent.organizationSlug = organizationSlug;
@@ -56,13 +58,13 @@ export function createInMemoryOrganizationProvisioningPort(
         (candidate) =>
           candidate.userId === selfUserId &&
           candidate.challengeId === challengeId &&
-          (candidate.status === "pending" || candidate.status === "provisioned"),
+          (candidate.status === 'pending' || candidate.status === 'provisioned'),
       );
       if (!intent) {
-        throw new Error("specialist_signup_intent_not_found");
+        throw new Error('specialist_signup_intent_not_found');
       }
       if (
-        intent.status === "provisioned" &&
+        intent.status === 'provisioned' &&
         intent.provisionedOrganizationId &&
         intent.provisionedMembershipId
       ) {
@@ -77,7 +79,7 @@ export function createInMemoryOrganizationProvisioningPort(
       const organizationId = randomUUID();
       const membershipId = randomUUID();
       const specialistId = randomUUID();
-      intent.status = "provisioned";
+      intent.status = 'provisioned';
       intent.provisionedOrganizationId = organizationId;
       intent.provisionedSpecialistId = specialistId;
       intent.provisionedMembershipId = membershipId;

@@ -1,17 +1,17 @@
-import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
-import type { TopicChannelPrefsPort } from "@/modules/patient-notifications/topicChannelPrefsPort";
-import { parseSpecialistTaskReminderChannels } from "@/modules/specialist-tasks/reminderChannels";
-import type { SpecialistTaskReminderChannelCode } from "@/modules/specialist-tasks/types";
-import type { SystemSettingsService } from "@/modules/system-settings/service";
-import { getWebPushVapidKeyPair } from "@/modules/system-settings/webPushVapidRuntime";
-import type { WebPushSubscriptionsPort } from "@/modules/web-push/ports";
-import { resolveDoctorNotificationChannels } from "./resolveDoctorNotificationChannels";
+import type { ChannelPreferencesPort } from '@/modules/channel-preferences/ports';
+import type { TopicChannelPrefsPort } from '@/modules/patient-notifications/topicChannelPrefsPort';
+import { parseSpecialistTaskReminderChannels } from '@/modules/specialist-tasks/reminderChannels';
+import type { SpecialistTaskReminderChannelCode } from '@/modules/specialist-tasks/types';
+import type { SystemSettingsService } from '@/modules/system-settings/service';
+import { getWebPushVapidKeyPair } from '@/modules/system-settings/webPushVapidRuntime';
+import type { WebPushSubscriptionsPort } from '@/modules/web-push/ports';
+import { resolveDoctorNotificationChannels } from './resolveDoctorNotificationChannels';
 
 export type ResolveSpecialistTaskReminderChannelsDeps = {
   topicChannelPrefs: TopicChannelPrefsPort;
   channelPreferences: ChannelPreferencesPort;
   webPushSubscriptions: WebPushSubscriptionsPort;
-  systemSettings: Pick<SystemSettingsService, "getSetting">;
+  systemSettings: Pick<SystemSettingsService, 'getSetting'>;
   getChannelBindings: (
     platformUserId: string,
   ) => Promise<{ telegramId?: string | null; maxId?: string | null }>;
@@ -19,7 +19,7 @@ export type ResolveSpecialistTaskReminderChannelsDeps = {
   getProfileEmailVerified: (platformUserId: string) => Promise<boolean>;
 };
 
-const TOPIC_CODE = "doctor_specialist_task_reminders";
+const TOPIC_CODE = 'doctor_specialist_task_reminders';
 
 export async function resolveSpecialistTaskReminderChannelsForUser(
   ownerUserId: string,
@@ -29,7 +29,7 @@ export async function resolveSpecialistTaskReminderChannelsForUser(
     await Promise.all([
       deps.topicChannelPrefs.listByUserId(ownerUserId),
       deps.channelPreferences.getPreferences(ownerUserId),
-      deps.systemSettings.getSetting("doctor_specialist_task_reminder_channels", "doctor"),
+      deps.systemSettings.getSetting('doctor_specialist_task_reminder_channels', 'doctor'),
       getWebPushVapidKeyPair(deps.systemSettings),
       deps.getChannelBindings(ownerUserId),
       deps.getProfileEmail(ownerUserId),

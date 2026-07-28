@@ -9,11 +9,11 @@ import {
   openSync,
   readFileSync,
   realpathSync,
-} from "node:fs";
-import { dirname, extname, isAbsolute, relative, resolve, sep } from "node:path";
-import { Readable } from "node:stream";
-import { pipeline } from "node:stream/promises";
-import { fileURLToPath } from "node:url";
+} from 'node:fs';
+import { dirname, extname, isAbsolute, relative, resolve, sep } from 'node:path';
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
+import { fileURLToPath } from 'node:url';
 
 const MAX_RELATIVE_INCLUDE_DEPTH = 16;
 const MAX_EXPANDED_SQL_FILES = 64;
@@ -25,19 +25,19 @@ function sameFile(left, right) {
 
 export function openCanonicalRegularFile(filePath, expectedPath) {
   if (
-    typeof filePath !== "string" ||
-    typeof expectedPath !== "string" ||
+    typeof filePath !== 'string' ||
+    typeof expectedPath !== 'string' ||
     !isAbsolute(filePath) ||
     !isAbsolute(expectedPath) ||
     filePath !== expectedPath ||
     realpathSync(dirname(expectedPath)) !== dirname(expectedPath)
   ) {
-    throw new Error("canonical file path rejected");
+    throw new Error('canonical file path rejected');
   }
 
   const beforeOpen = lstatSync(filePath);
   if (beforeOpen.isSymbolicLink() || !beforeOpen.isFile()) {
-    throw new Error("canonical input is not a regular file");
+    throw new Error('canonical input is not a regular file');
   }
 
   let descriptor;
@@ -61,7 +61,7 @@ export function openCanonicalRegularFile(filePath, expectedPath) {
       !sameFile(opened, afterCanonicalization) ||
       canonicalPath !== expectedPath
     ) {
-      throw new Error("canonical file changed while opening");
+      throw new Error('canonical file changed while opening');
     }
     return descriptor;
   } catch (error) {
@@ -72,20 +72,20 @@ export function openCanonicalRegularFile(filePath, expectedPath) {
 
 export function openCanonicalSqlFile(sqlPath, allowedDirectory) {
   if (
-    typeof sqlPath !== "string" ||
-    typeof allowedDirectory !== "string" ||
-    extname(sqlPath) !== ".sql" ||
+    typeof sqlPath !== 'string' ||
+    typeof allowedDirectory !== 'string' ||
+    extname(sqlPath) !== '.sql' ||
     dirname(sqlPath) !== allowedDirectory ||
     realpathSync(allowedDirectory) !== allowedDirectory
   ) {
-    throw new Error("canonical SQL path rejected");
+    throw new Error('canonical SQL path rejected');
   }
   return openCanonicalRegularFile(sqlPath, sqlPath);
 }
 
 function validateCanonicalIncludeRoot(includeRoot) {
-  if (typeof includeRoot !== "string" || !isAbsolute(includeRoot)) {
-    throw new Error("canonical SQL include root rejected");
+  if (typeof includeRoot !== 'string' || !isAbsolute(includeRoot)) {
+    throw new Error('canonical SQL include root rejected');
   }
   const rootMetadata = lstatSync(includeRoot);
   if (
@@ -93,40 +93,40 @@ function validateCanonicalIncludeRoot(includeRoot) {
     !rootMetadata.isDirectory() ||
     realpathSync(includeRoot) !== includeRoot
   ) {
-    throw new Error("canonical SQL include root rejected");
+    throw new Error('canonical SQL include root rejected');
   }
 }
 
 function openCanonicalIncludedSqlFile(sqlPath, includeRoot) {
-  if (typeof sqlPath !== "string") {
-    throw new Error("canonical SQL include path rejected");
+  if (typeof sqlPath !== 'string') {
+    throw new Error('canonical SQL include path rejected');
   }
   const relativePath = relative(includeRoot, sqlPath);
   if (
-    extname(sqlPath) !== ".sql" ||
-    relativePath === "" ||
-    relativePath === ".." ||
+    extname(sqlPath) !== '.sql' ||
+    relativePath === '' ||
+    relativePath === '..' ||
     relativePath.startsWith(`..${sep}`) ||
     isAbsolute(relativePath)
   ) {
-    throw new Error("canonical SQL include path rejected");
+    throw new Error('canonical SQL include path rejected');
   }
   return openCanonicalRegularFile(sqlPath, sqlPath);
 }
 
 function expandPinnedSqlDescriptor(sqlPath, descriptor, includeRoot, state, activeFiles, depth) {
   if (depth > MAX_RELATIVE_INCLUDE_DEPTH) {
-    throw new Error("canonical SQL include depth exceeded");
+    throw new Error('canonical SQL include depth exceeded');
   }
   state.fileCount += 1;
   if (state.fileCount > MAX_EXPANDED_SQL_FILES) {
-    throw new Error("canonical SQL include count exceeded");
+    throw new Error('canonical SQL include count exceeded');
   }
 
   const opened = fstatSync(descriptor);
   const fileIdentity = `${opened.dev}:${opened.ino}`;
   if (activeFiles.has(fileIdentity)) {
-    throw new Error("canonical SQL include cycle rejected");
+    throw new Error('canonical SQL include cycle rejected');
   }
   activeFiles.add(fileIdentity);
 
@@ -134,14 +134,14 @@ function expandPinnedSqlDescriptor(sqlPath, descriptor, includeRoot, state, acti
     const bytes = readFileSync(descriptor);
     state.byteCount += bytes.byteLength;
     if (state.byteCount > MAX_EXPANDED_SQL_BYTES) {
-      throw new Error("canonical SQL expanded size exceeded");
+      throw new Error('canonical SQL expanded size exceeded');
     }
-    const content = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-    let expanded = "";
+    const content = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    let expanded = '';
 
     for (const line of content.split(/(?<=\n)/u)) {
-      const withoutNewline = line.endsWith("\n") ? line.slice(0, -1) : line;
-      const directiveLine = withoutNewline.endsWith("\r")
+      const withoutNewline = line.endsWith('\n') ? line.slice(0, -1) : line;
+      const directiveLine = withoutNewline.endsWith('\r')
         ? withoutNewline.slice(0, -1)
         : withoutNewline;
       if (!/^[\t ]*\\ir/u.test(directiveLine)) {
@@ -151,7 +151,7 @@ function expandPinnedSqlDescriptor(sqlPath, descriptor, includeRoot, state, acti
 
       const directive = directiveLine.match(/^[\t ]*\\ir[\t ]+([A-Za-z0-9._/-]+)[\t ]*$/u);
       if (!directive || isAbsolute(directive[1])) {
-        throw new Error("malformed canonical SQL relative include");
+        throw new Error('malformed canonical SQL relative include');
       }
       const includedPath = resolve(dirname(sqlPath), directive[1]);
       const includedDescriptor = openCanonicalIncludedSqlFile(includedPath, includeRoot);
@@ -165,7 +165,7 @@ function expandPinnedSqlDescriptor(sqlPath, descriptor, includeRoot, state, acti
           depth + 1,
         );
         expanded += included;
-        if (line.endsWith("\n") && !included.endsWith("\n")) expanded += "\n";
+        if (line.endsWith('\n') && !included.endsWith('\n')) expanded += '\n';
       } finally {
         closeSync(includedDescriptor);
       }
@@ -178,16 +178,16 @@ function expandPinnedSqlDescriptor(sqlPath, descriptor, includeRoot, state, acti
 
 export function expandCanonicalSqlFile(sqlPath, allowedDirectory, includeRoot) {
   validateCanonicalIncludeRoot(includeRoot);
-  if (typeof allowedDirectory !== "string") {
-    throw new Error("canonical SQL primary directory rejected");
+  if (typeof allowedDirectory !== 'string') {
+    throw new Error('canonical SQL primary directory rejected');
   }
   const allowedDirectoryRelativePath = relative(includeRoot, allowedDirectory);
   if (
-    allowedDirectoryRelativePath === ".." ||
+    allowedDirectoryRelativePath === '..' ||
     allowedDirectoryRelativePath.startsWith(`..${sep}`) ||
     isAbsolute(allowedDirectoryRelativePath)
   ) {
-    throw new Error("canonical SQL primary directory escapes include root");
+    throw new Error('canonical SQL primary directory escapes include root');
   }
   const descriptor = openCanonicalSqlFile(sqlPath, allowedDirectory);
   try {
@@ -228,10 +228,10 @@ export async function streamCanonicalSqlFileWithRelativeIncludes(
 const modulePath = fileURLToPath(import.meta.url);
 if (process.argv[1] && resolve(process.argv[1]) === modulePath) {
   const expandRelativeIncludes =
-    process.argv.length === 6 && process.argv[4] === "--expand-relative-includes";
+    process.argv.length === 6 && process.argv[4] === '--expand-relative-includes';
   if (process.argv.length !== 4 && !expandRelativeIncludes) {
     console.error(
-      "FATAL: canonical SQL reader requires one file and one allowed directory, plus an optional guarded include root",
+      'FATAL: canonical SQL reader requires one file and one allowed directory, plus an optional guarded include root',
     );
     process.exitCode = 2;
   } else {
@@ -246,7 +246,7 @@ if (process.argv[1] && resolve(process.argv[1]) === modulePath) {
         await streamCanonicalSqlFile(process.argv[2], process.argv[3]);
       }
     } catch {
-      console.error("FATAL: canonical SQL reader rejected the input");
+      console.error('FATAL: canonical SQL reader rejected the input');
       process.exitCode = 1;
     }
   }

@@ -1,25 +1,27 @@
 /** @vitest-environment jsdom */
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 
-const mockPathname = vi.fn(() => "/app/patient");
+const mockPathname = vi.fn(() => '/app/patient');
 const mockRefresh = vi.fn();
 
-vi.mock("next/navigation", () => ({
+vi.mock('next/navigation', () => ({
   usePathname: () => mockPathname(),
   useRouter: () => ({ refresh: mockRefresh }),
 }));
 
-import { MiniAppShareContactGate } from "./MiniAppShareContactGate";
+import { MiniAppShareContactGate } from './MiniAppShareContactGate';
 
-describe("MiniAppShareContactGate", () => {
+describe('MiniAppShareContactGate', () => {
   const origFetch = globalThis.fetch;
 
   beforeEach(() => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    mockPathname.mockReturnValue("/app/patient");
-    (window as unknown as { Telegram?: { WebApp?: { initData: string; close?: () => void } } }).Telegram = {
-      WebApp: { initData: "mock-init-data", close: vi.fn() },
+    mockPathname.mockReturnValue('/app/patient');
+    (
+      window as unknown as { Telegram?: { WebApp?: { initData: string; close?: () => void } } }
+    ).Telegram = {
+      WebApp: { initData: 'mock-init-data', close: vi.fn() },
     };
   });
 
@@ -31,138 +33,144 @@ describe("MiniAppShareContactGate", () => {
     delete (window as unknown as { WebApp?: unknown }).WebApp;
   });
 
-  it("renders children when /api/me has phone", async () => {
+  it('renders children when /api/me has phone', async () => {
     globalThis.fetch = vi.fn(async (url: string | Request) => {
-      const u = typeof url === "string" ? url : (url as Request).url;
-      if (u.includes("/api/me")) {
+      const u = typeof url === 'string' ? url : (url as Request).url;
+      if (u.includes('/api/me')) {
         return new Response(
           JSON.stringify({
             ok: true,
-            user: { phone: "+79990001122", bindings: { telegramId: "123" } },
+            user: { phone: '+79990001122', bindings: { telegramId: '123' } },
           }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
         );
       }
-      if (u.includes("/api/auth/telegram-login/config")) {
-        return new Response(JSON.stringify({ ok: true, botUsername: "test_bot" }), {
+      if (u.includes('/api/auth/telegram-login/config')) {
+        return new Response(JSON.stringify({ ok: true, botUsername: 'test_bot' }), {
           status: 200,
-          headers: { "Content-Type": "application/json" },
+          headers: { 'Content-Type': 'application/json' },
         });
       }
-      return new Response("", { status: 404 });
+      return new Response('', { status: 404 });
     }) as typeof fetch;
 
     render(
-      <MiniAppShareContactGate channelPolicy={{ email: true, sms: false, telegram: true, max: true }}>
+      <MiniAppShareContactGate
+        channelPolicy={{ email: true, sms: false, telegram: true, max: true }}
+      >
         <div data-testid="inner">Inside</div>
       </MiniAppShareContactGate>,
     );
 
     await waitFor(() => {
-      expect(screen.getByTestId("inner")).toBeInTheDocument();
+      expect(screen.getByTestId('inner')).toBeInTheDocument();
     });
-    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
   });
 
-  it("does not offer MAX bot fallback or initiate request-contact when MAX is disabled", async () => {
+  it('does not offer MAX bot fallback or initiate request-contact when MAX is disabled', async () => {
     delete (window as unknown as { Telegram?: unknown }).Telegram;
     (window as unknown as { WebApp?: { initData: string; ready: () => void } }).WebApp = {
-      initData: "max-init-data",
+      initData: 'max-init-data',
       ready: vi.fn(),
     };
     globalThis.fetch = vi.fn(async (url: string | Request) => {
-      const u = typeof url === "string" ? url : (url as Request).url;
-      if (u.includes("/api/me")) {
+      const u = typeof url === 'string' ? url : (url as Request).url;
+      if (u.includes('/api/me')) {
         return new Response(
           JSON.stringify({
             ok: true,
-            user: { phone: "", bindings: { maxId: "max-123" } },
-            platformAccess: { tier: "onboarding" },
+            user: { phone: '', bindings: { maxId: 'max-123' } },
+            platformAccess: { tier: 'onboarding' },
           }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
         );
       }
-      return new Response("", { status: 404 });
+      return new Response('', { status: 404 });
     }) as typeof fetch;
 
     render(
-      <MiniAppShareContactGate channelPolicy={{ email: true, sms: false, telegram: true, max: false }}>
+      <MiniAppShareContactGate
+        channelPolicy={{ email: true, sms: false, telegram: true, max: false }}
+      >
         <div data-testid="inner">Inside</div>
       </MiniAppShareContactGate>,
     );
 
     await waitFor(() => {
-      expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+      expect(screen.getByRole('alertdialog')).toBeInTheDocument();
     });
-    expect(screen.queryByRole("button", { name: /Предоставить контакт/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: /Открыть бота/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Предоставить контакт/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Открыть бота/i })).not.toBeInTheDocument();
     expect(screen.queryByText(/Откройте чат с ботом/i)).not.toBeInTheDocument();
     expect(globalThis.fetch).not.toHaveBeenCalledWith(
-      expect.stringContaining("/api/patient/messenger/request-contact"),
+      expect.stringContaining('/api/patient/messenger/request-contact'),
       expect.anything(),
     );
   });
 
-  it("shows gate when /api/me has phone but tier is onboarding (untrusted phone)", async () => {
+  it('shows gate when /api/me has phone but tier is onboarding (untrusted phone)', async () => {
     globalThis.fetch = vi.fn(async (url: string | Request) => {
-      const u = typeof url === "string" ? url : (url as Request).url;
-      if (u.includes("/api/me")) {
+      const u = typeof url === 'string' ? url : (url as Request).url;
+      if (u.includes('/api/me')) {
         return new Response(
           JSON.stringify({
             ok: true,
-            user: { phone: "+79990001122", bindings: { telegramId: "123" } },
+            user: { phone: '+79990001122', bindings: { telegramId: '123' } },
             platformAccess: {
-              canonicalUserId: "00000000-0000-4000-8000-000000000001",
-              dbRole: "client",
-              tier: "onboarding",
+              canonicalUserId: '00000000-0000-4000-8000-000000000001',
+              dbRole: 'client',
+              tier: 'onboarding',
               hasPhoneInDb: true,
               phoneTrustedForPatient: false,
-              resolution: "resolved_canon",
+              resolution: 'resolved_canon',
             },
           }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
         );
       }
-      if (u.includes("/api/auth/telegram-login/config")) {
-        return new Response(JSON.stringify({ ok: true, botUsername: "test_bot" }), {
+      if (u.includes('/api/auth/telegram-login/config')) {
+        return new Response(JSON.stringify({ ok: true, botUsername: 'test_bot' }), {
           status: 200,
-          headers: { "Content-Type": "application/json" },
+          headers: { 'Content-Type': 'application/json' },
         });
       }
-      return new Response("", { status: 404 });
+      return new Response('', { status: 404 });
     }) as typeof fetch;
 
     render(
-      <MiniAppShareContactGate channelPolicy={{ email: true, sms: false, telegram: true, max: true }}>
+      <MiniAppShareContactGate
+        channelPolicy={{ email: true, sms: false, telegram: true, max: true }}
+      >
         <div data-testid="inner">Inside</div>
       </MiniAppShareContactGate>,
     );
 
     await waitFor(() => {
-      expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+      expect(screen.getByRole('alertdialog')).toBeInTheDocument();
     });
-    expect(screen.queryByTestId("inner")).not.toBeInTheDocument();
+    expect(screen.queryByTestId('inner')).not.toBeInTheDocument();
   });
 
-  it("shows gate when telegram session has no phone", async () => {
+  it('shows gate when telegram session has no phone', async () => {
     globalThis.fetch = vi.fn(async (url: string | Request) => {
-      const u = typeof url === "string" ? url : (url as Request).url;
-      if (u.includes("/api/me")) {
+      const u = typeof url === 'string' ? url : (url as Request).url;
+      if (u.includes('/api/me')) {
         return new Response(
           JSON.stringify({
             ok: true,
-            user: { phone: "", bindings: { telegramId: "123" } },
+            user: { phone: '', bindings: { telegramId: '123' } },
           }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
         );
       }
-      if (u.includes("/api/auth/telegram-login/config")) {
-        return new Response(JSON.stringify({ ok: true, botUsername: "test_bot" }), {
+      if (u.includes('/api/auth/telegram-login/config')) {
+        return new Response(JSON.stringify({ ok: true, botUsername: 'test_bot' }), {
           status: 200,
-          headers: { "Content-Type": "application/json" },
+          headers: { 'Content-Type': 'application/json' },
         });
       }
-      return new Response("", { status: 404 });
+      return new Response('', { status: 404 });
     }) as typeof fetch;
 
     render(
@@ -172,41 +180,46 @@ describe("MiniAppShareContactGate", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+      expect(screen.getByRole('alertdialog')).toBeInTheDocument();
     });
-    expect(screen.queryByTestId("inner")).not.toBeInTheDocument();
+    expect(screen.queryByTestId('inner')).not.toBeInTheDocument();
   });
 
-  it("calls telegram-init when /api/me is 401 then shows contact gate (deep link without /app login)", async () => {
+  it('calls telegram-init when /api/me is 401 then shows contact gate (deep link without /app login)', async () => {
     let meCalls = 0;
     globalThis.fetch = vi.fn(async (url: string | Request) => {
-      const u = typeof url === "string" ? url : (url as Request).url;
-      if (u.includes("/api/me")) {
+      const u = typeof url === 'string' ? url : (url as Request).url;
+      if (u.includes('/api/me')) {
         meCalls += 1;
         if (meCalls === 1) {
-          return new Response(JSON.stringify({ ok: false, error: "unauthorized" }), { status: 401 });
+          return new Response(JSON.stringify({ ok: false, error: 'unauthorized' }), {
+            status: 401,
+          });
         }
         return new Response(
           JSON.stringify({
             ok: true,
-            user: { phone: null, bindings: { telegramId: "123" } },
+            user: { phone: null, bindings: { telegramId: '123' } },
           }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
         );
       }
-      if (u.includes("/api/auth/telegram-init")) {
-        return new Response(JSON.stringify({ ok: true, role: "client", redirectTo: "/app/patient" }), {
+      if (u.includes('/api/auth/telegram-init')) {
+        return new Response(
+          JSON.stringify({ ok: true, role: 'client', redirectTo: '/app/patient' }),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        );
+      }
+      if (u.includes('/api/auth/telegram-login/config')) {
+        return new Response(JSON.stringify({ ok: true, botUsername: 'test_bot' }), {
           status: 200,
-          headers: { "Content-Type": "application/json" },
+          headers: { 'Content-Type': 'application/json' },
         });
       }
-      if (u.includes("/api/auth/telegram-login/config")) {
-        return new Response(JSON.stringify({ ok: true, botUsername: "test_bot" }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
-      }
-      return new Response("", { status: 404 });
+      return new Response('', { status: 404 });
     }) as typeof fetch;
 
     render(
@@ -216,39 +229,42 @@ describe("MiniAppShareContactGate", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+      expect(screen.getByRole('alertdialog')).toBeInTheDocument();
     });
     expect(globalThis.fetch).toHaveBeenCalledWith(
-      expect.stringContaining("/api/auth/telegram-init"),
-      expect.objectContaining({ method: "POST" }),
+      expect.stringContaining('/api/auth/telegram-init'),
+      expect.objectContaining({ method: 'POST' }),
     );
     expect(mockRefresh).toHaveBeenCalled();
   });
 
-  it("calls auth exchange when /api/me is 401 and URL has token (Max-style deep link)", async () => {
+  it('calls auth exchange when /api/me is 401 and URL has token (Max-style deep link)', async () => {
     delete (window as unknown as { Telegram?: unknown }).Telegram;
     (window as unknown as { WebApp?: { ready: () => void } }).WebApp = { ready: () => {} };
     const origCookie = document.cookie;
     /** `isMessengerMiniAppHost()` requires bot cookie when MAX `initData` is empty — then recovery uses `?t=` exchange. */
-    document.cookie = "bersoncare_platform=bot; path=/";
+    document.cookie = 'bersoncare_platform=bot; path=/';
     const origSearch = window.location.search;
-    Object.defineProperty(window, "location", {
+    Object.defineProperty(window, 'location', {
       configurable: true,
-      value: { ...window.location, search: "?t=max-entry-token" },
+      value: { ...window.location, search: '?t=max-entry-token' },
     });
 
     globalThis.fetch = vi.fn(async (url: string | Request) => {
-      const u = typeof url === "string" ? url : (url as Request).url;
-      if (u.includes("/api/me")) {
-        return new Response(JSON.stringify({ ok: false, error: "unauthorized" }), { status: 401 });
+      const u = typeof url === 'string' ? url : (url as Request).url;
+      if (u.includes('/api/me')) {
+        return new Response(JSON.stringify({ ok: false, error: 'unauthorized' }), { status: 401 });
       }
-      if (u.includes("/api/auth/exchange")) {
-        return new Response(JSON.stringify({ ok: true, role: "client", redirectTo: "/app/patient" }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
+      if (u.includes('/api/auth/exchange')) {
+        return new Response(
+          JSON.stringify({ ok: true, role: 'client', redirectTo: '/app/patient' }),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        );
       }
-      return new Response("", { status: 404 });
+      return new Response('', { status: 404 });
     }) as typeof fetch;
 
     try {
@@ -260,13 +276,13 @@ describe("MiniAppShareContactGate", () => {
 
       await waitFor(() => {
         expect(globalThis.fetch).toHaveBeenCalledWith(
-          expect.stringContaining("/api/auth/exchange"),
-          expect.objectContaining({ method: "POST" }),
+          expect.stringContaining('/api/auth/exchange'),
+          expect.objectContaining({ method: 'POST' }),
         );
       });
     } finally {
       document.cookie = origCookie;
-      Object.defineProperty(window, "location", {
+      Object.defineProperty(window, 'location', {
         configurable: true,
         value: { ...window.location, search: origSearch },
       });
@@ -274,81 +290,85 @@ describe("MiniAppShareContactGate", () => {
     }
   });
 
-  it("clicking Provide contact POSTs request-contact then closes WebApp", async () => {
+  it('clicking Provide contact POSTs request-contact then closes WebApp', async () => {
     const closeSpy = vi.fn();
-    (window as unknown as { Telegram?: { WebApp?: { initData: string; close: () => void } } }).Telegram = {
-      WebApp: { initData: "mock-init-data", close: closeSpy },
+    (
+      window as unknown as { Telegram?: { WebApp?: { initData: string; close: () => void } } }
+    ).Telegram = {
+      WebApp: { initData: 'mock-init-data', close: closeSpy },
     };
 
     globalThis.fetch = vi.fn(async (url: string | Request) => {
-      const u = typeof url === "string" ? url : (url as Request).url;
-      if (u.includes("/api/me")) {
+      const u = typeof url === 'string' ? url : (url as Request).url;
+      if (u.includes('/api/me')) {
         return new Response(
           JSON.stringify({
             ok: true,
-            user: { phone: "", bindings: { telegramId: "123" } },
+            user: { phone: '', bindings: { telegramId: '123' } },
             platformAccess: {
-              tier: "onboarding",
-              canonicalUserId: "00000000-0000-4000-8000-000000000099",
-              dbRole: "client",
+              tier: 'onboarding',
+              canonicalUserId: '00000000-0000-4000-8000-000000000099',
+              dbRole: 'client',
             },
           }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
         );
       }
-      if (u.includes("/api/patient/messenger/request-contact")) {
+      if (u.includes('/api/patient/messenger/request-contact')) {
         return new Response(JSON.stringify({ ok: true }), {
           status: 200,
-          headers: { "Content-Type": "application/json" },
+          headers: { 'Content-Type': 'application/json' },
         });
       }
-      if (u.includes("/api/auth/telegram-login/config")) {
-        return new Response(JSON.stringify({ ok: true, botUsername: "test_bot" }), {
+      if (u.includes('/api/auth/telegram-login/config')) {
+        return new Response(JSON.stringify({ ok: true, botUsername: 'test_bot' }), {
           status: 200,
-          headers: { "Content-Type": "application/json" },
+          headers: { 'Content-Type': 'application/json' },
         });
       }
-      return new Response("", { status: 404 });
+      return new Response('', { status: 404 });
     }) as typeof fetch;
 
     render(
-      <MiniAppShareContactGate channelPolicy={{ email: true, sms: false, telegram: true, max: true }}>
+      <MiniAppShareContactGate
+        channelPolicy={{ email: true, sms: false, telegram: true, max: true }}
+      >
         <div data-testid="inner">Inside</div>
       </MiniAppShareContactGate>,
     );
 
     await waitFor(() => {
-      expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+      expect(screen.getByRole('alertdialog')).toBeInTheDocument();
     });
 
-    expect(screen.queryByRole("button", { name: /Проверить снова/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Проверить снова/i })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /Предоставить контакт/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Предоставить контакт/i }));
 
     await waitFor(() => {
       expect(globalThis.fetch).toHaveBeenCalledWith(
-        expect.stringContaining("/api/patient/messenger/request-contact"),
-        expect.objectContaining({ method: "POST", credentials: "include" }),
+        expect.stringContaining('/api/patient/messenger/request-contact'),
+        expect.objectContaining({ method: 'POST', credentials: 'include' }),
       );
       expect(closeSpy).toHaveBeenCalledTimes(1);
     });
   });
 
-  it("skips gate on bind-phone path", async () => {
-    mockPathname.mockReturnValue("/app/patient/bind-phone");
+  it('skips gate on bind-phone path', async () => {
+    mockPathname.mockReturnValue('/app/patient/bind-phone');
 
     globalThis.fetch = vi.fn(async (url: string | Request) => {
-      const u = typeof url === "string" ? url : (url as Request).url;
-      if (u.includes("/api/me")) {
+      const u = typeof url === 'string' ? url : (url as Request).url;
+      if (u.includes('/api/me')) {
         return new Response(
           JSON.stringify({
             ok: true,
-            user: { bindings: { telegramId: "1" } },
+            user: { bindings: { telegramId: '1' } },
           }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
         );
       }
-      return new Response("", { status: 404 });
+      return new Response('', { status: 404 });
     }) as typeof fetch;
 
     render(
@@ -358,8 +378,8 @@ describe("MiniAppShareContactGate", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByTestId("inner")).toBeInTheDocument();
+      expect(screen.getByTestId('inner')).toBeInTheDocument();
     });
-    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
   });
 });

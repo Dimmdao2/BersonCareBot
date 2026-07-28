@@ -1,36 +1,36 @@
-import { collectOperatorHealthDigestInput } from "@/app-layer/health/collectOperatorHealthDigestInput";
-import { tickProjectionDigestDebounce } from "@/app-layer/health/tickProjectionDigestDebounce";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { buildOperatorHealthDigest } from "@/modules/operator-health/buildOperatorHealthDigest";
+import { collectOperatorHealthDigestInput } from '@/app-layer/health/collectOperatorHealthDigestInput';
+import { tickProjectionDigestDebounce } from '@/app-layer/health/tickProjectionDigestDebounce';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { buildOperatorHealthDigest } from '@/modules/operator-health/buildOperatorHealthDigest';
 import {
   buildDigestDedupKey,
   isDigestSendSlot,
   resolveDigestWindowStartIso,
-} from "@/modules/operator-health/digestSchedule";
-import { dispatchOperatorAlert } from "@/modules/operator-alerts/dispatchOperatorAlert";
-import { getOperatorAlertDedupPort } from "@/modules/operator-alerts/operatorAlertRuntime";
+} from '@/modules/operator-health/digestSchedule';
+import { dispatchOperatorAlert } from '@/modules/operator-alerts/dispatchOperatorAlert';
+import { getOperatorAlertDedupPort } from '@/modules/operator-alerts/operatorAlertRuntime';
 import {
   isOperatorAlertBlockEnabled,
   mergeOperatorHealthAlertConfigFromLegacy,
   OPERATOR_HEALTH_ALERT_CONFIG_KEY,
   type OperatorHealthAlertConfig,
-} from "@/modules/operator-alerts/operatorHealthAlertConfig";
-import { ADMIN_INCIDENT_ALERT_CONFIG_KEY } from "@/modules/admin-incidents/adminIncidentAlertConfig";
-import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
-import { getConfigValue } from "@/modules/system-settings/configAdapter";
-import { pingOperatorHeartbeatBestEffort } from "@/app-layer/operator-health/pingOperatorHeartbeat";
-import { reportEmptyNotificationAudience } from "@/app-layer/operator-alerts/reportEmptyNotificationAudience";
+} from '@/modules/operator-alerts/operatorHealthAlertConfig';
+import { ADMIN_INCIDENT_ALERT_CONFIG_KEY } from '@/modules/admin-incidents/adminIncidentAlertConfig';
+import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
+import { getConfigValue } from '@/modules/system-settings/configAdapter';
+import { pingOperatorHeartbeatBestEffort } from '@/app-layer/operator-health/pingOperatorHeartbeat';
+import { reportEmptyNotificationAudience } from '@/app-layer/operator-alerts/reportEmptyNotificationAudience';
 
 export type RunOperatorHealthDigestTickResult = {
   sent: boolean;
-  reason?: "disabled" | "not_slot" | "dedup" | "no_recipients";
+  reason?: 'disabled' | 'not_slot' | 'dedup' | 'no_recipients';
   dedupKey?: string;
 };
 
 async function loadDigestConfig(): Promise<OperatorHealthAlertConfig> {
   const [operatorRaw, legacyRaw] = await Promise.all([
-    getConfigValue(OPERATOR_HEALTH_ALERT_CONFIG_KEY, ""),
-    getConfigValue(ADMIN_INCIDENT_ALERT_CONFIG_KEY, ""),
+    getConfigValue(OPERATOR_HEALTH_ALERT_CONFIG_KEY, ''),
+    getConfigValue(ADMIN_INCIDENT_ALERT_CONFIG_KEY, ''),
   ]);
   const parseJson = (raw: string): unknown | null => {
     const t = raw.trim();
@@ -53,24 +53,24 @@ export async function runOperatorHealthDigestTick(
   await tickProjectionDigestDebounce(now.getTime());
 
   const cfg = await loadDigestConfig();
-  if (!isOperatorAlertBlockEnabled(cfg, "digest")) {
-    return { sent: false, reason: "disabled" };
+  if (!isOperatorAlertBlockEnabled(cfg, 'digest')) {
+    return { sent: false, reason: 'disabled' };
   }
 
   const timeZone = await getAppDisplayTimeZone();
   if (!isDigestSendSlot(now, timeZone, cfg.digestTime)) {
-    return { sent: false, reason: "not_slot" };
+    return { sent: false, reason: 'not_slot' };
   }
 
   const dedupKey = buildDigestDedupKey(now, timeZone);
   const dedupPort = getOperatorAlertDedupPort();
   if (dedupPort) {
     const recent = await dedupPort.wasSentWithinHours(dedupKey, 24);
-    if (recent) return { sent: false, reason: "dedup", dedupKey };
+    if (recent) return { sent: false, reason: 'dedup', dedupKey };
   }
 
   const lastDigestSentAt = dedupPort
-    ? await dedupPort.getLatestSentAtByDedupKeyPrefix("digest:")
+    ? await dedupPort.getLatestSentAtByDedupKeyPrefix('digest:')
     : null;
   const windowStartIso = resolveDigestWindowStartIso(lastDigestSentAt, now);
   const windowEndIso = now.toISOString();
@@ -89,33 +89,33 @@ export async function runOperatorHealthDigestTick(
   const digest = buildOperatorHealthDigest(input);
 
   const result = await dispatchOperatorAlert({
-    block: "digest",
-    topic: "operator_health_digest",
+    block: 'digest',
+    topic: 'operator_health_digest',
     dedupKey,
     lines: digest.lines,
     pushTitle:
-      digest.icon === "🛑"
-        ? "🛑 ! Отказ провайдера доставки"
+      digest.icon === '🛑'
+        ? '🛑 ! Отказ провайдера доставки'
         : digest.hasIssues
-          ? "Сводка здоровья системы"
-          : "Всё в порядке",
-    pushUrl: "/app/admin/system-health",
+          ? 'Сводка здоровья системы'
+          : 'Всё в порядке',
+    pushUrl: '/app/admin/system-health',
   });
 
   if (!result.dispatched) {
     const reason =
-      result.reason === "dedup"
-        ? "dedup"
-        : result.reason === "disabled"
-          ? "disabled"
-          : "no_recipients";
-    if (reason === "no_recipients") {
+      result.reason === 'dedup'
+        ? 'dedup'
+        : result.reason === 'disabled'
+          ? 'disabled'
+          : 'no_recipients';
+    if (reason === 'no_recipients') {
       // D-b: сводка — последняя страховка, и её собственная пустая аудитория не имеет
       // права быть тихим `return`. Считаем, логируем и уводим в fallback из окружения.
       await reportEmptyNotificationAudience({
-        topic: "operator_health_digest",
-        severity: "operational",
-        channels: ["digest"],
+        topic: 'operator_health_digest',
+        severity: 'operational',
+        channels: ['digest'],
         context: { dedupKey },
       });
     }
@@ -124,7 +124,7 @@ export async function runOperatorHealthDigestTick(
 
   // D-d, пульс 2: сводка, которая не запустилась, выглядит ровно как тихий день.
   // Поэтому у неё собственный пульс, и алертом является его отсутствие.
-  await pingOperatorHeartbeatBestEffort("digest", "digest_tick", { dedupKey });
+  await pingOperatorHeartbeatBestEffort('digest', 'digest_tick', { dedupKey });
 
   return { sent: true, dedupKey };
 }

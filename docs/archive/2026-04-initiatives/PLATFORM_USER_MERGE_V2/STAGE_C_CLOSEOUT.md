@@ -78,7 +78,7 @@ cd apps/webapp && pnpm exec vitest run \
   src/infra/integrations/integratorUserMergeM2mClient.flow.test.ts
 ```
 
-  - **integrator** (4 файла, **26** тестов, OK):
+- **integrator** (4 файла, **26** тестов, OK):
 
 ```bash
 cd apps/integrator && pnpm exec vitest run \
@@ -104,12 +104,12 @@ cd apps/integrator && pnpm exec vitest run \
 
 ### 1. Снятые риски
 
-| Риск | Как снят (проверяемо) |
-|------|------------------------|
-| Phantom user / рассинхрон при двух non-null `integrator_user_id` | Integrator canonical merge + outbox policy + webapp conditional flow под флагом; см. [`AUDIT_STAGE_3.md`](AUDIT_STAGE_3.md), [`AUDIT_STAGE_4.md`](AUDIT_STAGE_4.md), [`AUDIT_STAGE_5.md`](AUDIT_STAGE_5.md), targeted тесты выше. |
-| Loser id в read-side webapp projection после merge | Job/SQL realignment + gate UNION в коде с CI-сверкой файла; см. Stage 4 doc и `webappIntegratorUserProjectionRealignment.ts`. |
-| Нарушение `UNIQUE(idempotency_key)` в `projection_outbox` при merge | Логика rewrite/dedup в транзакции merge; тесты `mergeIntegratorUsers`, `projectionOutboxMergePolicy`; см. [`AUDIT_STAGE_3.md`](AUDIT_STAGE_3.md). |
-| Регрессия ingestion / merge-class 503-loop | `events.test.ts`, `integrator/events/route.test.ts` (в полном webapp suite); Stage A аудит. |
+| Риск                                                                | Как снят (проверяемо)                                                                                                                                                                                                             |
+| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Phantom user / рассинхрон при двух non-null `integrator_user_id`    | Integrator canonical merge + outbox policy + webapp conditional flow под флагом; см. [`AUDIT_STAGE_3.md`](AUDIT_STAGE_3.md), [`AUDIT_STAGE_4.md`](AUDIT_STAGE_4.md), [`AUDIT_STAGE_5.md`](AUDIT_STAGE_5.md), targeted тесты выше. |
+| Loser id в read-side webapp projection после merge                  | Job/SQL realignment + gate UNION в коде с CI-сверкой файла; см. Stage 4 doc и `webappIntegratorUserProjectionRealignment.ts`.                                                                                                     |
+| Нарушение `UNIQUE(idempotency_key)` в `projection_outbox` при merge | Логика rewrite/dedup в транзакции merge; тесты `mergeIntegratorUsers`, `projectionOutboxMergePolicy`; см. [`AUDIT_STAGE_3.md`](AUDIT_STAGE_3.md).                                                                                 |
+| Регрессия ingestion / merge-class 503-loop                          | `events.test.ts`, `integrator/events/route.test.ts` (в полном webapp suite); Stage A аудит.                                                                                                                                       |
 
 ### 2. Оставшееся вне scope (как в `MASTER_PLAN`)
 

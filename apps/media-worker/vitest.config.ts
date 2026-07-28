@@ -1,9 +1,9 @@
-import { defineConfig } from "vitest/config";
+import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    environment: "node",
-    include: ["src/**/*.test.ts"],
+    environment: 'node',
+    include: ['src/**/*.test.ts'],
     // §owner 28.06: кап воркеров — тесты не вешают коробку/мозг. Дефолт 2; полная: VITEST_MAX_WORKERS=8.
     maxWorkers: Number(process.env.VITEST_MAX_WORKERS ?? 2),
   },

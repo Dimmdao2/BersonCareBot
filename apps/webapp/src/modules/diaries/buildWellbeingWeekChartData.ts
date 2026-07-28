@@ -1,5 +1,5 @@
-import { DateTime } from "luxon";
-import type { SymptomEntry } from "@/modules/diaries/types";
+import { DateTime } from 'luxon';
+import type { SymptomEntry } from '@/modules/diaries/types';
 
 /** Опции расчёта недели: либо явные ms-границы (как у SQL-окна загрузки), либо якорная дата. */
 export type BuildWellbeingWeekChartOptions = {
@@ -12,7 +12,7 @@ export type BuildWellbeingWeekChartOptions = {
 
 export type WellbeingWeekPoint = { t: number; v: number };
 
-export type WarmupScatterBand = "low" | "mid" | "high";
+export type WarmupScatterBand = 'low' | 'mid' | 'high';
 
 export type WarmupScatterPoint = { t: number; v: number; band: WarmupScatterBand };
 
@@ -25,15 +25,15 @@ export type WellbeingWeekChartModel = {
 };
 
 function warmupValueToBand(value: number): WarmupScatterBand | null {
-  if (value === 1 || value === 2) return "low";
-  if (value === 3) return "mid";
-  if (value === 4 || value === 5) return "high";
+  if (value === 1 || value === 2) return 'low';
+  if (value === 3) return 'mid';
+  if (value === 4 || value === 5) return 'high';
   return null;
 }
 
 /** Локальная полночь календарного дня — чтобы график «Среднее за день» начинался у левой границы дня и совпадал с осью (не полдень). */
 function startOfLocalDayMillis(localYmd: string, iana: string): number {
-  return DateTime.fromISO(localYmd, { zone: iana }).startOf("day").toMillis();
+  return DateTime.fromISO(localYmd, { zone: iana }).startOf('day').toMillis();
 }
 
 /**
@@ -53,7 +53,7 @@ export function buildWellbeingWeekChartData(
     weekEndMs = options.weekEndMs;
   } else {
     const anchor = (options?.anchor ?? DateTime.now()).setZone(iana);
-    const weekStart = anchor.startOf("week");
+    const weekStart = anchor.startOf('week');
     const weekEnd = weekStart.plus({ weeks: 1 });
     weekStartMs = weekStart.toMillis();
     weekEndMs = weekEnd.toMillis();
@@ -67,10 +67,10 @@ export function buildWellbeingWeekChartData(
   const generalInWeek = generalEntries.filter((e) => inWeek(e.recordedAt));
   const warmupInWeek = warmupEntries.filter((e) => inWeek(e.recordedAt));
 
-  const instantForAgg = generalInWeek.filter((e) => e.entryType === "instant");
+  const instantForAgg = generalInWeek.filter((e) => e.entryType === 'instant');
   const byDay = new Map<string, number[]>();
   for (const e of instantForAgg) {
-    const localD = DateTime.fromISO(e.recordedAt, { zone: "utc" }).setZone(iana).toISODate();
+    const localD = DateTime.fromISO(e.recordedAt, { zone: 'utc' }).setZone(iana).toISODate();
     if (!localD) continue;
     const arr = byDay.get(localD) ?? [];
     arr.push(e.value0_10);
@@ -88,7 +88,7 @@ export function buildWellbeingWeekChartData(
 
   /** Линия «в течение дня» — только instant; daily не смешиваем с поминутной шкалой. */
   const instantSeries: WellbeingWeekPoint[] = generalInWeek
-    .filter((e) => e.entryType === "instant")
+    .filter((e) => e.entryType === 'instant')
     .map((e) => ({ t: new Date(e.recordedAt).getTime(), v: e.value0_10 }))
     .sort((a, b) => a.t - b.t);
 

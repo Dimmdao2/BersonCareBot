@@ -1,27 +1,29 @@
 #!/usr/bin/env node
-import { readFileSync } from "node:fs";
-import { spawnSync } from "node:child_process";
-import { join } from "node:path";
+import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { join } from 'node:path';
 
 const repoRoot = process.cwd();
 const dbName = `bcb_saas_p0_11_1_scratch_${process.pid}_${Date.now()}`;
 
-if (!dbName.startsWith("bcb_saas_") || !dbName.includes("scratch")) {
+if (!dbName.startsWith('bcb_saas_') || !dbName.includes('scratch')) {
   throw new Error(`refusing unsafe scratch DB name: ${dbName}`);
 }
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
     cwd: repoRoot,
-    encoding: "utf8",
-    stdio: options.input ? ["pipe", "pipe", "pipe"] : "inherit",
+    encoding: 'utf8',
+    stdio: options.input ? ['pipe', 'pipe', 'pipe'] : 'inherit',
     input: options.input,
   });
 
   if (result.status !== 0) {
     if (result.stdout) process.stdout.write(result.stdout);
     if (result.stderr) process.stderr.write(result.stderr);
-    throw new Error(`${command} ${args.join(" ")} failed with ${result.status ?? "unknown status"}`);
+    throw new Error(
+      `${command} ${args.join(' ')} failed with ${result.status ?? 'unknown status'}`,
+    );
   }
 
   if (result.stdout) process.stdout.write(result.stdout);
@@ -29,12 +31,14 @@ function run(command, args, options = {}) {
 }
 
 function psql(sql) {
-  run("sudo", ["-n", "-u", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-d", dbName], { input: sql });
+  run('sudo', ['-n', '-u', 'postgres', 'psql', '-v', 'ON_ERROR_STOP=1', '-d', dbName], {
+    input: sql,
+  });
 }
 
 const migration = readFileSync(
-  join(repoRoot, "apps/webapp/db/drizzle-migrations/0163_p0_8_6_bootstrap_hybrid_rls.sql"),
-  "utf8",
+  join(repoRoot, 'apps/webapp/db/drizzle-migrations/0163_p0_8_6_bootstrap_hybrid_rls.sql'),
+  'utf8',
 );
 
 const setupSql = `
@@ -138,11 +142,11 @@ ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE
 `;
 
 try {
-  run("sudo", ["-n", "-u", "postgres", "createdb", dbName]);
+  run('sudo', ['-n', '-u', 'postgres', 'createdb', dbName]);
   psql(setupSql);
   psql(migration);
   psql(assertionSql);
   console.log(`smoke-p0-11-system-settings-storage: OK (${dbName})`);
 } finally {
-  run("sudo", ["-n", "-u", "postgres", "dropdb", "--if-exists", dbName]);
+  run('sudo', ['-n', '-u', 'postgres', 'dropdb', '--if-exists', dbName]);
 }

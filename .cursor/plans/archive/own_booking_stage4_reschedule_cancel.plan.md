@@ -1,42 +1,42 @@
 ---
-name: "Own Booking Engine — Stage 4: Reschedule & cancellation policies"
-overview: "Этап 4 (done): раздельные политики отмены/переноса, самостоятельный перенос/отмена, ручные решения, anti-bypass §8.4, append-only история, integrator booking.rescheduled, проекция appointment_records. План в archive; статус этапа — ROADMAP/MASTER_PLAN/LOG."
+name: 'Own Booking Engine — Stage 4: Reschedule & cancellation policies'
+overview: 'Этап 4 (done): раздельные политики отмены/переноса, самостоятельный перенос/отмена, ручные решения, anti-bypass §8.4, append-only история, integrator booking.rescheduled, проекция appointment_records. План в archive; статус этапа — ROADMAP/MASTER_PLAN/LOG.'
 status: completed
 gitBranch: initiative/own-booking-engine
 isProject: false
 todos:
   - id: s4-policies
-    content: "Drizzle 0091: be_cancellation_policies, be_reschedule_policies; booking-policies resolver"
+    content: 'Drizzle 0091: be_cancellation_policies, be_reschedule_policies; booking-policies resolver'
     status: completed
   - id: s4-reschedule
-    content: "Самостоятельный перенос (lifecycle + UI rescheduleBookingId); excludeAppointmentId в слотах"
+    content: 'Самостоятельный перенос (lifecycle + UI rescheduleBookingId); excludeAppointmentId в слотах'
     status: completed
   - id: s4-cancel
-    content: "Отмена по политикам; порядок Rubitime → канон; legacy без canonical_appointment_id"
+    content: 'Отмена по политикам; порядок Rubitime → канон; legacy без canonical_appointment_id'
     status: completed
   - id: s4-manual
-    content: "Admin/doctor manual-cancel|manual-reschedule; staffAppointmentLifecycleEffects"
+    content: 'Admin/doctor manual-cancel|manual-reschedule; staffAppointmentLifecycleEffects'
     status: completed
   - id: s4-antibypass
-    content: "original_start_at + история; policyResolver §8.4 + unit-тесты"
+    content: 'original_start_at + история; policyResolver §8.4 + unit-тесты'
     status: completed
   - id: s4-history
-    content: "be_appointment_reschedules / be_appointment_cancellations; GET .../lifecycle (admin + doctor)"
+    content: 'be_appointment_reschedules / be_appointment_cancellations; GET .../lifecycle (admin + doctor)'
     status: completed
   - id: s4-notify
-    content: "emit booking.cancelled|rescheduled; integrator schema+handler; notifications_sent"
+    content: 'emit booking.cancelled|rescheduled; integrator schema+handler; notifications_sent'
     status: completed
   - id: s4-projection
-    content: "projectCanonicalAppointment Rescheduled/Cancelled → appointment_records"
+    content: 'projectCanonicalAppointment Rescheduled/Cancelled → appointment_records'
     status: completed
   - id: s4-ui
-    content: "BookingPoliciesSection, BookingManualLifecycleSection, CabinetBookingActions"
+    content: 'BookingPoliciesSection, BookingManualLifecycleSection, CabinetBookingActions'
     status: completed
   - id: s4-verify
-    content: "Тесты policyResolver, lifecycle, routes, integrator; typecheck; docs sync"
+    content: 'Тесты policyResolver, lifecycle, routes, integrator; typecheck; docs sync'
     status: completed
   - id: s4-audit
-    content: "Аудит: lifecycle_failed, doctor API, api.md, DB_STRUCTURE, patient-booking.md"
+    content: 'Аудит: lifecycle_failed, doctor API, api.md, DB_STRUCTURE, patient-booking.md'
     status: completed
 ---
 
@@ -46,18 +46,18 @@ todos:
 
 ## Реализовано (карта кода)
 
-| Область | Пути |
-|--------|------|
-| Миграция | `apps/webapp/db/drizzle-migrations/0091_booking_stage4_policies_lifecycle.sql`, `db/schema/bookingPolicies.ts` |
-| Политики | `modules/booking-policies/` (`policyResolver.ts`, `service.ts`) |
-| Lifecycle | `modules/booking-appointment-lifecycle/`, `infra/repos/pgBookingAppointmentLifecycle.ts` |
-| Пациент | `modules/patient-booking/service.ts` (cancel/reschedule/preview), `projectCanonicalAppointment.ts`, `bookingLifecycleNotifications.ts` |
-| API пациент | `GET /api/booking/actions`, `POST /api/booking/reschedule`, `POST /api/booking/cancel` |
-| API admin | `.../policies`, `.../appointments/[id]/manual-cancel`, `manual-reschedule`, `GET .../lifecycle` |
-| API doctor | `/api/doctor/booking-engine/appointments/[id]/manual-cancel`, `manual-reschedule`, `GET .../lifecycle` |
-| Staff FX | `app-layer/booking/staffAppointmentLifecycleEffects.ts` |
-| Integrator | `booking.rescheduled` в `schema.ts` + `recordM2mRoute.ts`; webapp `bookingM2mApi.updateRecord` |
-| UI | `BookingPoliciesSection`, `BookingManualLifecycleSection`, `CabinetBookingActions`, режим переноса в booking wizard |
+| Область     | Пути                                                                                                                                   |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Миграция    | `apps/webapp/db/drizzle-migrations/0091_booking_stage4_policies_lifecycle.sql`, `db/schema/bookingPolicies.ts`                         |
+| Политики    | `modules/booking-policies/` (`policyResolver.ts`, `service.ts`)                                                                        |
+| Lifecycle   | `modules/booking-appointment-lifecycle/`, `infra/repos/pgBookingAppointmentLifecycle.ts`                                               |
+| Пациент     | `modules/patient-booking/service.ts` (cancel/reschedule/preview), `projectCanonicalAppointment.ts`, `bookingLifecycleNotifications.ts` |
+| API пациент | `GET /api/booking/actions`, `POST /api/booking/reschedule`, `POST /api/booking/cancel`                                                 |
+| API admin   | `.../policies`, `.../appointments/[id]/manual-cancel`, `manual-reschedule`, `GET .../lifecycle`                                        |
+| API doctor  | `/api/doctor/booking-engine/appointments/[id]/manual-cancel`, `manual-reschedule`, `GET .../lifecycle`                                 |
+| Staff FX    | `app-layer/booking/staffAppointmentLifecycleEffects.ts`                                                                                |
+| Integrator  | `booking.rescheduled` в `schema.ts` + `recordM2mRoute.ts`; webapp `bookingM2mApi.updateRecord`                                         |
+| UI          | `BookingPoliciesSection`, `BookingManualLifecycleSection`, `CabinetBookingActions`, режим переноса в booking wizard                    |
 
 ## Поведение (контракты)
 

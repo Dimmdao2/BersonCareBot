@@ -7,12 +7,12 @@
 
 ## Итоговый verdict
 
-| Вид готовности | Verdict | Комментарий |
-|----------------|---------|---------------|
-| **Код + миграции + fallback** | **PASS** | Резолвер `resolveVideoPlaybackDelivery` поддерживает `auto`: HLS при `hls_ready`, иначе прогрессивный MP4; payload всегда содержит `mp4.url` для retry. Миграция webapp **`0022_video_default_delivery_auto.sql`** и зеркало integrator **`20260505_0001_video_default_delivery_auto.sql`** выставляют `video_default_delivery` в **`auto`**. Кодовый fallback в `resolveMediaPlaybackPayload` при отсутствии ключа в конфиге — **`auto`**. |
-| **Количественные предпосылки продукта** (≥ X% `hls_ready`, ошибки плеера &lt; порога за неделю) | **PASS (repo)** + **sign-off (ops)** | Шаблоны и события логов: [§ Repo acceptance](#repo-acceptance--find-p08-1-global-fix-2026-05-03). Выполнение на БД/дашборде — ops. |
-| **QA Safari / staging runbook вживую** | **PASS (repo)** + **QA (ops)** | Чеклист [`BROWSER_SMOKE_PHASE05_CHECKLIST.md`](./BROWSER_SMOKE_PHASE05_CHECKLIST.md); фактический прогон — вне CI. |
-| **Rollback rehearsal** | **PASS (документированный сценарий)** | Ниже: админка или один SQL UPDATE + зеркало integrator; откат без редеплоя. |
+| Вид готовности                                                                                  | Verdict                               | Комментарий                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ----------------------------------------------------------------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Код + миграции + fallback**                                                                   | **PASS**                              | Резолвер `resolveVideoPlaybackDelivery` поддерживает `auto`: HLS при `hls_ready`, иначе прогрессивный MP4; payload всегда содержит `mp4.url` для retry. Миграция webapp **`0022_video_default_delivery_auto.sql`** и зеркало integrator **`20260505_0001_video_default_delivery_auto.sql`** выставляют `video_default_delivery` в **`auto`**. Кодовый fallback в `resolveMediaPlaybackPayload` при отсутствии ключа в конфиге — **`auto`**. |
+| **Количественные предпосылки продукта** (≥ X% `hls_ready`, ошибки плеера &lt; порога за неделю) | **PASS (repo)** + **sign-off (ops)**  | Шаблоны и события логов: [§ Repo acceptance](#repo-acceptance--find-p08-1-global-fix-2026-05-03). Выполнение на БД/дашборде — ops.                                                                                                                                                                                                                                                                                                          |
+| **QA Safari / staging runbook вживую**                                                          | **PASS (repo)** + **QA (ops)**        | Чеклист [`BROWSER_SMOKE_PHASE05_CHECKLIST.md`](./BROWSER_SMOKE_PHASE05_CHECKLIST.md); фактический прогон — вне CI.                                                                                                                                                                                                                                                                                                                          |
+| **Rollback rehearsal**                                                                          | **PASS (документированный сценарий)** | Ниже: админка или один SQL UPDATE + зеркало integrator; откат без редеплоя.                                                                                                                                                                                                                                                                                                                                                                 |
 
 **Сводка:** **техническая готовность к переключению по умолчанию на `auto` — PASS**; артефакты репозитория для количественного и QA gate — **PASS** (см. [§ Repo acceptance — FIND-P08-1](#repo-acceptance--find-p08-1-global-fix-2026-05-03)); подпись на конкретном окружении (staging/prod) остаётся за **ops/продуктом**.
 
@@ -53,21 +53,21 @@ WHERE (status IS NULL OR status NOT IN ('pending', 'deleting', 'pending_delete')
 
 ### Статус FIND-P08-1 после global fix
 
-| Часть | Статус |
-|-------|--------|
-| Шаблоны SQL, ссылки на логи и Safari в этом документе | **CLOSED (repo)** |
-| Выполнение замеров и sign-off на staging/prod | **Ответственность ops** — не блокирует merge репозитория |
+| Часть                                                 | Статус                                                   |
+| ----------------------------------------------------- | -------------------------------------------------------- |
+| Шаблоны SQL, ссылки на логи и Safari в этом документе | **CLOSED (repo)**                                        |
+| Выполнение замеров и sign-off на staging/prod         | **Ответственность ops** — не блокирует merge репозитория |
 
 ---
 
 ## Условия gate из phase-08 (статус)
 
-| Условие | Статус |
-|---------|--------|
-| ≥ X% целевых видео в `hls_ready` | **Repo: CLOSED** — шаблон SQL выше; **env sign-off: ops** |
-| Ошибки воспроизведения HLS за неделю &lt; порога | **Repo: CLOSED** — указаны события логов; **порог: ops** |
-| Runbook отката проверен на staging | **READY для rehearsal** — см. «Rollback rehearsal»; выполнение на staging остаётся за ops. |
-| Поддержка Safari подтверждена QA | **Repo: CLOSED** — чеклист `BROWSER_SMOKE_PHASE05_CHECKLIST.md`; **Pass/Fail: QA** |
+| Условие                                          | Статус                                                                                     |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| ≥ X% целевых видео в `hls_ready`                 | **Repo: CLOSED** — шаблон SQL выше; **env sign-off: ops**                                  |
+| Ошибки воспроизведения HLS за неделю &lt; порога | **Repo: CLOSED** — указаны события логов; **порог: ops**                                   |
+| Runbook отката проверен на staging               | **READY для rehearsal** — см. «Rollback rehearsal»; выполнение на staging остаётся за ops. |
+| Поддержка Safari подтверждена QA                 | **Repo: CLOSED** — чеклист `BROWSER_SMOKE_PHASE05_CHECKLIST.md`; **Pass/Fail: QA**         |
 
 ---
 

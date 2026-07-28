@@ -1,18 +1,18 @@
-import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { reconcileDbRoleWithEnvRole, resolveRoleFromEnv } from "@/modules/auth/envRole";
-import { verifyPinForLogin } from "@/modules/auth/pinAuth";
-import { normalizePhone } from "@/modules/auth/phoneNormalize";
-import { isValidPhoneE164 } from "@/modules/auth/phoneValidation";
-import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
-import { setSessionFromUser } from "@/modules/auth/service";
-import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
-import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
-import { prepareVerifiedPrimaryLogin } from "@/modules/auth/verifiedStaffPrimaryLogin";
+import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { reconcileDbRoleWithEnvRole, resolveRoleFromEnv } from '@/modules/auth/envRole';
+import { verifyPinForLogin } from '@/modules/auth/pinAuth';
+import { normalizePhone } from '@/modules/auth/phoneNormalize';
+import { isValidPhoneE164 } from '@/modules/auth/phoneValidation';
+import { getRedirectPathForRole } from '@/modules/auth/redirectPolicy';
+import { setSessionFromUser } from '@/modules/auth/service';
+import { enterStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
+import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
+import { prepareVerifiedPrimaryLogin } from '@/modules/auth/verifiedStaffPrimaryLogin';
 
-const GENERIC_PIN_FAIL = "Неверный номер или PIN";
+const GENERIC_PIN_FAIL = 'Неверный номер или PIN';
 
 const bodySchema = z.object({
   phone: z.string().min(1).max(32),
@@ -20,21 +20,21 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
-  stampBootstrapPrincipal("api/auth/pin/login:POST", request);
+  stampBootstrapPrincipal('api/auth/pin/login:POST', request);
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
     return NextResponse.json(
-      { ok: false, error: "invalid_body", message: "Номер и PIN обязательны (ровно 4 цифры)" },
-      { status: 400 }
+      { ok: false, error: 'invalid_body', message: 'Номер и PIN обязательны (ровно 4 цифры)' },
+      { status: 400 },
     );
   }
 
   const phone = normalizePhone(parsed.data.phone);
   if (!isValidPhoneE164(phone)) {
     return NextResponse.json(
-      { ok: false, error: "invalid_phone", message: "Неверный формат номера" },
-      { status: 400 }
+      { ok: false, error: 'invalid_phone', message: 'Неверный формат номера' },
+      { status: 400 },
     );
   }
 
@@ -42,48 +42,48 @@ export async function POST(request: Request) {
   const user = await deps.userByPhone.findByPhone(phone);
   if (!user) {
     return NextResponse.json(
-      { ok: false, error: "invalid_credentials", message: GENERIC_PIN_FAIL },
-      { status: 401 }
+      { ok: false, error: 'invalid_credentials', message: GENERIC_PIN_FAIL },
+      { status: 401 },
     );
   }
 
   const v = await verifyPinForLogin(user.userId, parsed.data.pin, deps.userPins);
   if (!v.ok) {
-    if (v.code === "no_pin") {
+    if (v.code === 'no_pin') {
       return NextResponse.json(
-        { ok: false, error: "invalid_credentials", message: GENERIC_PIN_FAIL },
-        { status: 401 }
+        { ok: false, error: 'invalid_credentials', message: GENERIC_PIN_FAIL },
+        { status: 401 },
       );
     }
-    if (v.code === "locked") {
+    if (v.code === 'locked') {
       return NextResponse.json(
         {
           ok: false,
-          error: "lockout",
-          message: "Слишком много попыток. Попробуйте позже.",
+          error: 'lockout',
+          message: 'Слишком много попыток. Попробуйте позже.',
           lockedUntil: v.lockedUntilIso,
         },
-        { status: 423 }
+        { status: 423 },
       );
     }
     return NextResponse.json(
       {
         ok: false,
-        error: "invalid_credentials",
+        error: 'invalid_credentials',
         message: GENERIC_PIN_FAIL,
         attemptsLeft: v.attemptsLeft,
       },
-      { status: 401 }
+      { status: 401 },
     );
   }
 
   if (isPlatformUserUuid(user.userId)) {
-    enterStaffSecuritySelfPrincipal(user.userId, "api/auth/pin/login:pin-verified-self");
+    enterStaffSecuritySelfPrincipal(user.userId, 'api/auth/pin/login:pin-verified-self');
   }
   const exactUser = await deps.userByPhone.findByUserId(user.userId);
   if (!exactUser) {
     return NextResponse.json(
-      { ok: false, error: "invalid_credentials", message: GENERIC_PIN_FAIL },
+      { ok: false, error: 'invalid_credentials', message: GENERIC_PIN_FAIL },
       { status: 401 },
     );
   }

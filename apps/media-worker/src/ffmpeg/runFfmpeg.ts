@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn } from 'node:child_process';
 
 export type RunFfmpegOptions = {
   cwd?: string;
@@ -16,24 +16,24 @@ export async function runFfmpeg(
 ): Promise<{ code: number; stderrTail: string }> {
   const child = spawn(ffmpegBin, args, {
     cwd: options.cwd,
-    stdio: ["ignore", "ignore", "pipe"],
+    stdio: ['ignore', 'ignore', 'pipe'],
   });
 
-  let stderr = "";
+  let stderr = '';
   const max = options.collectStderrMaxBytes;
-  child.stderr?.on("data", (chunk: Buffer) => {
-    stderr = (stderr + chunk.toString("utf8")).slice(-max);
+  child.stderr?.on('data', (chunk: Buffer) => {
+    stderr = (stderr + chunk.toString('utf8')).slice(-max);
   });
 
   const exitPromise = new Promise<number>((resolve, reject) => {
-    child.once("exit", (code) => {
+    child.once('exit', (code) => {
       resolve(code ?? 1);
     });
-    child.once("error", reject);
+    child.once('error', reject);
   });
 
   const timer = setTimeout(() => {
-    child.kill("SIGKILL");
+    child.kill('SIGKILL');
   }, options.timeoutMs);
 
   try {

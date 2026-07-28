@@ -1,8 +1,8 @@
-import type { Pool } from "pg";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { findPublicBookingNameCollisionCandidates } from "@/infra/repos/pgPublicBookingMergeCandidates";
+import type { Pool } from 'pg';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { findPublicBookingNameCollisionCandidates } from '@/infra/repos/pgPublicBookingMergeCandidates';
 
-const REASON = "public_booking_phone_collision";
+const REASON = 'public_booking_phone_collision';
 
 /**
  * При публичной записи по телефону: если есть другие client-профили без телефона

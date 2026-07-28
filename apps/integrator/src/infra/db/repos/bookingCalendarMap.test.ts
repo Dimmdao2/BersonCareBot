@@ -22,7 +22,7 @@ describe('bookingCalendarMap (Drizzle + public.patient_bookings sync)', () => {
     vi.clearAllMocks();
   });
 
-  it("returns Google calendar event id from first map row", async () => {
+  it('returns Google calendar event id from first map row', async () => {
     const limit = vi.fn().mockResolvedValue([{ gcalEventId: 'gcal-99' }]);
     const where = vi.fn().mockReturnValue({ limit });
     const from = vi.fn().mockReturnValue({ where });
@@ -34,7 +34,7 @@ describe('bookingCalendarMap (Drizzle + public.patient_bookings sync)', () => {
     expect(select).toHaveBeenCalledTimes(1);
   });
 
-  it("returns null when an appointment has no calendar map row", async () => {
+  it('returns null when an appointment has no calendar map row', async () => {
     const limit = vi.fn().mockResolvedValue([]);
     const where = vi.fn().mockReturnValue({ limit });
     const from = vi.fn().mockReturnValue({ where });
@@ -88,5 +88,4 @@ describe('bookingCalendarMap (Drizzle + public.patient_bookings sync)', () => {
     expect(flat).toContain('public.patient_bookings');
     expect(flat).toMatch(/gcal_event_id\s*=\s*NULL/i);
   });
-
 });

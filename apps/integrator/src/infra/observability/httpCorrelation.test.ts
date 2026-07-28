@@ -31,22 +31,19 @@ describe('integrator HTTP correlation ingress', () => {
   it.each([
     { label: 'forged', input: 'patient-name-or-token' },
     { label: 'oversized', input: 'x'.repeat(10_000) },
-  ])(
-    'replaces $label input instead of copying it into context',
-    async ({ input: forged }) => {
-      const app = await buildProbe();
-      const response = await app.inject({
-        method: 'GET',
-        url: '/probe',
-        headers: { [BC_CORRELATION_ID_HEADER]: forged },
-      });
-      const correlationId = (response.json() as { correlationId: string }).correlationId;
-      expect(correlationId).toMatch(/^[0-9a-f-]{36}$/);
-      expect(correlationId).not.toBe(forged);
-      expect(response.headers[BC_CORRELATION_ID_HEADER]).toBe(correlationId);
-      await app.close();
-    },
-  );
+  ])('replaces $label input instead of copying it into context', async ({ input: forged }) => {
+    const app = await buildProbe();
+    const response = await app.inject({
+      method: 'GET',
+      url: '/probe',
+      headers: { [BC_CORRELATION_ID_HEADER]: forged },
+    });
+    const correlationId = (response.json() as { correlationId: string }).correlationId;
+    expect(correlationId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(correlationId).not.toBe(forged);
+    expect(response.headers[BC_CORRELATION_ID_HEADER]).toBe(correlationId);
+    await app.close();
+  });
 
   it('keeps parallel requests isolated', async () => {
     const app = await buildProbe();

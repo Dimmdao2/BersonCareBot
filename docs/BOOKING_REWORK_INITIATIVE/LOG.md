@@ -13,6 +13,7 @@
 3. **Уведомление пациента.** `applyStaffNoShowSideEffects` — тот же механизм подавления R21 что и `applyStaffCancelSideEffects` (`suppressPatientNotification`). Интегратор получает `booking.cancelled` (no-show — вариант отмены без визита). Проекция обновляется в `"canceled"` / `lastEvent="native.no_show"`.
 
 **Ключевые файлы изменены:**
+
 - `db/schema/bookingPolicies.ts` — добавлена `beAppointmentNoShows`
 - `db/schema/bookingClientProfile.ts` — добавлена `noShowCount`
 - `db/drizzle-migrations/0115_be_no_show_handling.sql` — миграция (в orchestrator ветке она уже `0124`; при merge переименовать)
@@ -31,6 +32,7 @@
 **Проверки:** 6 тестов (5 новых + 1 существующий) — все зелёные. Более широкий набор (30 тестов booking) — зелёный.
 
 **Паттерны переиспользованы:**
+
 - Status/history: зеркало `applyCancellation` (be_appointment_cancellations / be_appointment_events / be_appointment_history_events / be_patient_timeline_events)
 - Counter: аналог `reschedule_count` (но атомарный upsert вместо UPDATE)
 - Notification suppression: R21 pattern из `applyStaffCancelSideEffects` / `staffManualCancelAfterCanonical`
@@ -38,11 +40,12 @@
 **TODO для оркестратора (НЕИЗВЕСТНОЕ «something else»):**
 
 > Владелец на этапе выбора отметил «что-то ещё» без детализации. Конкретное поведение неизвестно — НЕ реализовывалось и НЕ угадывалось. Нужно уточнить у владельца перед merge: возможно речь идёт об одном из вариантов:
+>
 > - Автоматическое выставление штрафа / блокировки после N неявок
 > - Пометка пациента как «проблемный» (`isProblematic`) при превышении порога
 > - Создание задачи специалисту для follow-up
 > - Что-то в интерфейсе (кнопка/бейдж)
-> Без явного подтверждения ничего из этого не реализовано.
+>   Без явного подтверждения ничего из этого не реализовано.
 
 **Примечание по миграции:** в worktree номер `0115`, в orchestrator ветке (`claude/blissful-lichterman-0705eb`) тот же функционал уже существует под номером `0124`. При merge нужно привести к одному номеру и обновить `_journal.json`.
 
@@ -81,6 +84,7 @@
 **Prod smoke (до фикса):** rebook на отменённый слот → `slot_overlap`; GCal `410` на remove webhook; «Управлять» на dead Rubitime rows; FK `appointment_records_branch_id_fkey` при patient cancel projection.
 
 **Код:**
+
 - `pgPatientBookings`: `markCancelled` → `rubitime_manage_url = NULL`; stale sweep `cancelling`/`cancel_failed` в `createPending`; `listUpcomingByUser` → `cancelled_at IS NULL`.
 - `upsertPatientBookingFromRubitime`: native inbound cancel clears manage URL; `closeActivePatientBookingsByRubitimeId` on cancel (scenario E duplicate rows).
 - `pgPatientBookings.markCancelled`: sibling close by `rubitime_id`.
@@ -114,6 +118,7 @@ WHERE status = 'cancelling' AND updated_at < now() - interval '15 minutes';
 **План:** [`.cursor/plans/archive/booking_gaps_closeout_e5b725fb.plan.md`](../../.cursor/plans/archive/booking_gaps_closeout_e5b725fb.plan.md).
 
 **Код:**
+
 - `canonicalCreate.ts` + `rubitimeCreateRollback.ts`: retry projection mapping; **запрет** native `createAppointment` fallback; `rubitime_projection_not_ready` + rollback `deleteRecord`.
 - `service.ts`: reschedule skip `assertSlotAvailable` при `slots=rubitime`; legacy create rollback → `deleteRecord`.
 - `staffRubitimeManualBooking.ts`: create-rollback → `deleteRecord`.
@@ -136,6 +141,7 @@ WHERE status = 'cancelling' AND updated_at < now() - interval '15 minutes';
 **Контекст:** prod-инцидент rubitime-first create (double insert → overlap → rollback → orphan GCal). План: [`.cursor/plans/archive/booking_scenarios_audit_e9c4ce97.plan.md`](../../.cursor/plans/archive/booking_scenarios_audit_e9c4ce97.plan.md).
 
 **Код:**
+
 - `canonicalCreate.ts`: `rollbackRubitimeFirstCreate` — `deleteRecord` + cancel orphan `be_appointments` (G2/G3); package/product rollback унифицирован на `deleteRecord`.
 - `cancel/route.ts`, `reschedule/route.ts`: проброс partial flags из service (G1).
 - `integrator/recordM2mRoute.ts`: GCal delete на `remove-record` (ранее).
@@ -146,6 +152,7 @@ WHERE status = 'cancelling' AND updated_at < now() - interval '15 minutes';
 **Проверки:** mirror bundle webapp 224 + integrator 53; `pnpm run ci` green (~6.5 min).
 
 **Prod deploy (ручной):**
+
 1. Деплой `webapp` + `integrator` на хост.
 2. Smoke CR-A: patient create → 1× Rubitime, 1× `be_appointments`, 1× GCal, `confirmed`.
 3. Cleanup orphan GCal от инцидента (Rubitime IDs 8449506, 8449507).
@@ -168,6 +175,7 @@ WHERE status = 'cancelling' AND updated_at < now() - interval '15 minutes';
 **Closeout commits:** `377f3d51` → `d9bf2335` → `e823a581` → `f960825b` → `9e2ef6c3` → `13abe6d7` (план: [`.cursor/plans/archive/booking_mirror_integrity_hardening_8f043ac3.plan.md`](../../.cursor/plans/archive/booking_mirror_integrity_hardening_8f043ac3.plan.md), `status: completed`). Канонический plan-файл — только архив в репозитории; копия в `~/.cursor/plans/` не является source-of-truth.
 
 **Сделано (фазы 0–7):**
+
 - Контракт: [`BOOKING_MIRROR_INTEGRITY_CONTRACT.md`](BOOKING_MIRROR_INTEGRITY_CONTRACT.md).
 - Create: `markAwaitingPayment` сохраняет `rubitime_id` / manage URL; admin manual create = doctor (Rubitime sync + rollback); rollback Rubitime при package/product failure после rubitime-first; `projectionWarning` в логе.
 - Cancel/reschedule: staff cancel → `ok` + флаги partial failure; patient cancel — side effects в try/catch + флаги; patient reschedule — `rubitimeMirrorFailed`; staff outbound уважает `booking_rubitime_bridge_enabled`.
@@ -177,31 +185,34 @@ WHERE status = 'cancelling' AND updated_at < now() - interval '15 minutes';
 - Тесты: `rubitimePayloadHash`, gateway release, обновления manual/cancel/canonicalCreate.
 
 **Финал (audit closeout — полное закрытие):**
+
 - `notificationOutcomeFailed` в patient cancel/reschedule и staff `runStaffManualCancelAfterCanonical`.
 - `paymentOutcomeFailed` на patient reschedule при сбое carry-over.
 - Тесты: `staffManualCancelAfterCanonical.test.ts`, partial flags в manual-cancel routes, patient side-effect/reschedule flags в `service.test.ts`, `markConfirmedByCanonicalAppointment` в `pgPatientBookings.test.ts`.
-- Docs: полная матрица в `ACCEPTANCE_MIRROR_SYNC.md`; defer legacy `remove-record` + online double-book в `BOOKING_MIRROR_INTEGRITY_CONTRACT.md`; partial flags по поверхностям (`9e2ef6c3`). *Defer doctor `remove-record` снят в gaps closeout 2026-06-06 — см. § выше.*
+- Docs: полная матрица в `ACCEPTANCE_MIRROR_SYNC.md`; defer legacy `remove-record` + online double-book в `BOOKING_MIRROR_INTEGRITY_CONTRACT.md`; partial flags по поверхностям (`9e2ef6c3`). _Defer doctor `remove-record` снят в gaps closeout 2026-06-06 — см. § выше._
 - Plan archive: frontmatter `status: completed`, todos `completed`, чеклисты `[x]`, `closeoutCommits` в YAML.
 
 **Доработка (audit closeout):**
+
 - Patient cancel: `patchLatestCancellationNotifications` в try/catch; staff manual-reschedule — gate `booking_rubitime_bridge_enabled`.
 - Тесты: admin `appointments/manual`, echo-guard fanout, revive-guard `pgPatientBookings`, package/product rubitime-first rollback, `pgBookingAppointmentLifecycle` state_conflict/idempotent cancel, M2M `empty_patch`; CI-fix — mock `loadDoctorAnalyticsAudience` в stats routes.
 - Docs: `RUBITIME_BOOKING_PIPELINE` § integrity, `patient-booking.md`, `api.md`, `INTEGRATOR_CONTRACT` empty_patch.
 
 **Фазовый execution ledger (audit trail):**
 
-| Фаза | Коммиты | Ключевые изменения | Проверки/артефакты |
-|------|---------|--------------------|--------------------|
-| 0. Контракт и рамки | `377f3d51`, `d9bf2335` | Контракт поведения и defer-ограничения (`BOOKING_MIRROR_INTEGRITY_CONTRACT.md`) | `rg`-проверки в plan; docs sync в этом разделе и в `ACCEPTANCE_MIRROR_SYNC.md` |
-| 1. Create consistency | `377f3d51`, `d9bf2335` | prepayment linkage, admin/doctor parity, rollback Rubitime-first create | `canonicalCreate.test.ts`, `manual/route.test.ts` (doctor/admin) |
-| 2. Cancel/reschedule consistency | `377f3d51`, `d9bf2335`, `e823a581` | partial outcome flags после canonical commit, bridge gate, side-effect isolation | `manual-cancel/route.test.ts`, `service.test.ts`, `staffManualCancelAfterCanonical.test.ts` |
-| 3. Lifecycle race hardening | `377f3d51`, `d9bf2335` | `FOR UPDATE`, `state_conflict`, idempotent cancel, revive guard | `pgBookingAppointmentLifecycle.test.ts`, `pgPatientBookings.test.ts` |
-| 4. Inbound dedup/echo | `377f3d51`, `d9bf2335` | `payloadHash`, release dedup on `PIPELINE_FAILED`, echo/stale mapping ветки | `rubitimePayloadHash.test.ts`, `eventGateway/index.test.ts`, `events.test.ts` |
-| 5. Timezone + cancel semantics | `377f3d51`, `d9bf2335` | branch timezone для update, `empty_patch` 400, `update-record` в контракте | `normalizeUpdateRecordPatch.test.ts`, `recordM2mRoute.test.ts`, `INTEGRATOR_CONTRACT.md` |
-| 6. Test matrix + docs sync | `d9bf2335`, `e823a581`, `9e2ef6c3` | regression matrix, acceptance/architecture/module docs, partial flags by surface | `ACCEPTANCE_MIRROR_SYNC.md`, `BOOKING_MIRROR_INTEGRITY_CONTRACT.md`, `RUBITIME_BOOKING_PIPELINE.md`, `api.md`, `patient-booking.md`, `README.md`, `ROADMAP.md` |
-| 7. Финальный closeout | `e823a581`, `f960825b`, `9e2ef6c3`, `13abe6d7` | partial-flag tests, plan/LOG ledger, docs reconciliation, post-audit plan/docs sync | targeted matrix + `tsc` + полный `pnpm run ci` (см. `ACCEPTANCE_MIRROR_SYNC.md` § «Верификация closeout») |
+| Фаза                             | Коммиты                                        | Ключевые изменения                                                                  | Проверки/артефакты                                                                                                                                             |
+| -------------------------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0. Контракт и рамки              | `377f3d51`, `d9bf2335`                         | Контракт поведения и defer-ограничения (`BOOKING_MIRROR_INTEGRITY_CONTRACT.md`)     | `rg`-проверки в plan; docs sync в этом разделе и в `ACCEPTANCE_MIRROR_SYNC.md`                                                                                 |
+| 1. Create consistency            | `377f3d51`, `d9bf2335`                         | prepayment linkage, admin/doctor parity, rollback Rubitime-first create             | `canonicalCreate.test.ts`, `manual/route.test.ts` (doctor/admin)                                                                                               |
+| 2. Cancel/reschedule consistency | `377f3d51`, `d9bf2335`, `e823a581`             | partial outcome flags после canonical commit, bridge gate, side-effect isolation    | `manual-cancel/route.test.ts`, `service.test.ts`, `staffManualCancelAfterCanonical.test.ts`                                                                    |
+| 3. Lifecycle race hardening      | `377f3d51`, `d9bf2335`                         | `FOR UPDATE`, `state_conflict`, idempotent cancel, revive guard                     | `pgBookingAppointmentLifecycle.test.ts`, `pgPatientBookings.test.ts`                                                                                           |
+| 4. Inbound dedup/echo            | `377f3d51`, `d9bf2335`                         | `payloadHash`, release dedup on `PIPELINE_FAILED`, echo/stale mapping ветки         | `rubitimePayloadHash.test.ts`, `eventGateway/index.test.ts`, `events.test.ts`                                                                                  |
+| 5. Timezone + cancel semantics   | `377f3d51`, `d9bf2335`                         | branch timezone для update, `empty_patch` 400, `update-record` в контракте          | `normalizeUpdateRecordPatch.test.ts`, `recordM2mRoute.test.ts`, `INTEGRATOR_CONTRACT.md`                                                                       |
+| 6. Test matrix + docs sync       | `d9bf2335`, `e823a581`, `9e2ef6c3`             | regression matrix, acceptance/architecture/module docs, partial flags by surface    | `ACCEPTANCE_MIRROR_SYNC.md`, `BOOKING_MIRROR_INTEGRITY_CONTRACT.md`, `RUBITIME_BOOKING_PIPELINE.md`, `api.md`, `patient-booking.md`, `README.md`, `ROADMAP.md` |
+| 7. Финальный closeout            | `e823a581`, `f960825b`, `9e2ef6c3`, `13abe6d7` | partial-flag tests, plan/LOG ledger, docs reconciliation, post-audit plan/docs sync | targeted matrix + `tsc` + полный `pnpm run ci` (см. `ACCEPTANCE_MIRROR_SYNC.md` § «Верификация closeout»)                                                      |
 
 **Реконсиляция scope drift (closeout):**
+
 - Промежуточный коммит `659f0166` включал смежные правки analytics/stats routes как CI-fix для общих зависимостей (`loadDoctorAnalyticsAudience`) и не менял контракт mirror hardening.
 - В closeout-патче удалены случайно закоммиченные временные дампы `.tmp/db-sync/unified_bcb_webapp_prod_20260605_123244.dump` и `.tmp/db-sync/unified_bcb_webapp_prod_20260605_123251.dump`.
 - Docs reconciliation (`9e2ef6c3`): surface-specific partial flags в `api.md`, контракте, `patient-booking.md`, pipeline; cross-refs в `README.md` / `ROADMAP.md` / `.cursor/plans/archive/README.md`.
@@ -211,12 +222,12 @@ WHERE status = 'cancelling' AND updated_at < now() - interval '15 minutes';
 
 **Повторный аудит closeout (после ревью плана):**
 
-| Замечание | Статус | Действие |
-|-----------|--------|----------|
+| Замечание                                                                                                                    | Статус  | Действие                                                                            |
+| ---------------------------------------------------------------------------------------------------------------------------- | ------- | ----------------------------------------------------------------------------------- |
 | `~/.cursor/plans/booking_mirror_integrity_hardening_8f043ac3.plan.md` оставался с `phase7: pending` и незакрытыми чекбоксами | закрыто | синхронизирован с архивом репозитория (`status: completed`, todos/checklists `[x]`) |
-| Расхождение closeout-доков (`closeoutCommits`, execution ledger) | закрыто | `13abe6d7` — выравнивание plan YAML, LOG, ACCEPTANCE, contract, README, ROADMAP |
-| Targeted matrix не была зафиксирована в LOG с числами прогона | закрыто | см. § «Верификация closeout» в `ACCEPTANCE_MIRROR_SYNC.md` |
-| Полный `pnpm run ci` не был записан как фактический барьер | закрыто | прогон и результат — § «Верификация closeout» ниже |
+| Расхождение closeout-доков (`closeoutCommits`, execution ledger)                                                             | закрыто | `13abe6d7` — выравнивание plan YAML, LOG, ACCEPTANCE, contract, README, ROADMAP     |
+| Targeted matrix не была зафиксирована в LOG с числами прогона                                                                | закрыто | см. § «Верификация closeout» в `ACCEPTANCE_MIRROR_SYNC.md`                          |
+| Полный `pnpm run ci` не был записан как фактический барьер                                                                   | закрыто | прогон и результат — § «Верификация closeout» ниже                                  |
 
 ```bash
 # Targeted mirror matrix (webapp + integrator) — полный список в ACCEPTANCE_MIRROR_SYNC.md
@@ -227,6 +238,7 @@ pnpm install --frozen-lockfile && pnpm run ci  # post-audit — passed (~5 min)
 ## 2026-06-05 — Двусторонняя синхронизация Rubitime ↔ канон (`AppointmentMirrorSync`) — закрыто
 
 **Сделано:**
+
 - Модуль [`booking-appointment-sync/README.md`](../../apps/webapp/src/modules/booking-appointment-sync/README.md): `buildCanonicalInboundSnapshot`, fan-out merge, partial FK + warn, loop guard, `syncVersion`, outbound patch.
 - Inbound: любой mapped `source`; recovery → immediate update; `events.ts`: mirror first → единый snapshot в `appointment_records`.
 - Outbound: doctor + **admin** manual routes, **patient** cancel/reschedule (`patientMirrorOutbound.ts`); integrator `normalizeUpdateRecordPatch.ts`.
@@ -248,6 +260,7 @@ pnpm install --frozen-lockfile && pnpm run ci  # post-audit — passed (~5 min)
 ### Сделано (код)
 
 **Блок A — Admin «Настройки записи»:**
+
 - `bookingAdminTabs.ts`: 12 вкладок → 4 (`overview`, `form-public`, `payments`, `integrations`); legacy `/catalog` → alias на overview.
 - `layout.tsx`: заголовок «Запись» → «Настройки записи».
 - `page.tsx` (overview): прокрутка — `BookingCatalogHelp` (runbook с якорными ссылками) → `BookingOverviewPanel` → `BookingSoloLocationsSection` → grid(services, availability) → `BookingRulesPageClient`.
@@ -257,10 +270,12 @@ pnpm install --frozen-lockfile && pnpm run ci  # post-audit — passed (~5 min)
 - Удалены route-папки: `locations/`, `services/`, `availability/`, `schedule/`, `form/`, `rules/`, `memberships/`, `public/`, `operations/`.
 
 **Блок B — Навигация:**
+
 - `doctorNavLinks.ts`: `admin-booking` метка «Запись» → «Настройки записи»; `booking-merge` перенесён из «Работа с пациентами» в «Администрирование».
 - `doctorScreenTitles.ts`: все шаблоны заголовков обновлены; `doctorScreenTitles.test.ts` обновлён под 4-вкладочную структуру.
 
 **Блок C — Страница «Записи» врача:**
+
 - `ports.ts`: `AppointmentRow.dateKey`, `DoctorAppointmentsListFilter { kind: "past"; limit?; offset? }`.
 - `service.ts`: `dateKey` вычисляется из `recordAtIso` в `Intl.DateTimeFormat("sv-SE", { timeZone })`.
 - `pgDoctorAppointments.ts` (legacy) + `pgDoctorCanonicalAppointments.ts` (Drizzle): реализован `case "past"` с `ORDER BY DESC`, `LIMIT/OFFSET`.
@@ -271,6 +286,7 @@ pnpm install --frozen-lockfile && pnpm run ci  # post-audit — passed (~5 min)
 - `GET /api/doctor/appointments/list`: новый endpoint, auth-guard, пагинация.
 
 **Исправления после аудита кода:**
+
 - Удалены неиспользуемые `useRouter`/`router` и prop `isAdmin` из `DoctorAppointmentsListClient`.
 - Удалён неиспользуемый `useRef` из `DoctorCreateAppointmentDialog`.
 - Исправлен порядок сортировки групп в архиве (ASC → DESC).
@@ -304,12 +320,12 @@ pnpm install --frozen-lockfile && pnpm run ci  # post-audit — passed (~5 min)
 
 ### Замечания владельца (IA / UX)
 
-| # | Тема | Замечание | Намеченное действие |
-|---|------|-----------|---------------------|
-| 5.1 | Обзор — дубли ссылок | Отдельный блок «Быстрые действия» (`BookingOverviewPanel`) избыточен: есть `BookingCatalogHelp` («Порядок настройки») с описанием шагов. Ссылки — в **названиях шагов** runbook, не во второй карточке. | Убрать карточку «Быстрые действия»; в `BookingCatalogHelp` сделать пункты списка ссылками на целевые разделы (после слияния вкладок — на якоря/подразделы одного экрана). |
-| 5.2 | Локации + услуги + доступность + правила | Четыре вкладки — лишнее дробление; одна настройка каталога/доступности/политик. | Слить в **один экран** (секции или внутренние табы), вместе с обзором/runbook на **одной вкладке** «Настройка» / «Обзор» (уточнить финальное имя). |
-| 5.3 | Абонементы и продукты vs Операции | Каталог пакетов/продуктов (`/memberships`) и patient-bound блоки на `/operations` (`BookingPatientPackagesSection`, `BookingPatientProductsSection`) логически один домен. | Один экран: каталог офферов + работа с абонементами/продуктами выбранного пациента; на «Операциях» оставить только manual lifecycle, merge и прочее **не** каталожное. |
-| 5.4 | Форма + публичная запись | Две вкладки связаны по смыслу (вопросы записи + виджет/ссылка). | Один экран: `BookingSoloFormFieldsSection` + `BookingPublicWidgetSection` + attribution. |
+| #   | Тема                                     | Замечание                                                                                                                                                                                               | Намеченное действие                                                                                                                                                       |
+| --- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 5.1 | Обзор — дубли ссылок                     | Отдельный блок «Быстрые действия» (`BookingOverviewPanel`) избыточен: есть `BookingCatalogHelp` («Порядок настройки») с описанием шагов. Ссылки — в **названиях шагов** runbook, не во второй карточке. | Убрать карточку «Быстрые действия»; в `BookingCatalogHelp` сделать пункты списка ссылками на целевые разделы (после слияния вкладок — на якоря/подразделы одного экрана). |
+| 5.2 | Локации + услуги + доступность + правила | Четыре вкладки — лишнее дробление; одна настройка каталога/доступности/политик.                                                                                                                         | Слить в **один экран** (секции или внутренние табы), вместе с обзором/runbook на **одной вкладке** «Настройка» / «Обзор» (уточнить финальное имя).                        |
+| 5.3 | Абонементы и продукты vs Операции        | Каталог пакетов/продуктов (`/memberships`) и patient-bound блоки на `/operations` (`BookingPatientPackagesSection`, `BookingPatientProductsSection`) логически один домен.                              | Один экран: каталог офферов + работа с абонементами/продуктами выбранного пациента; на «Операциях» оставить только manual lifecycle, merge и прочее **не** каталожное.    |
+| 5.4 | Форма + публичная запись                 | Две вкладки связаны по смыслу (вопросы записи + виджет/ссылка).                                                                                                                                         | Один экран: `BookingSoloFormFieldsSection` + `BookingPublicWidgetSection` + attribution.                                                                                  |
 
 **Не затронуто в первом проходе:** Оплата, Интеграция Rubitime, patient/public flow, touch DnD/resize (defer из этапа 4).
 
@@ -317,11 +333,11 @@ pnpm install --frozen-lockfile && pnpm run ci  # post-audit — passed (~5 min)
 
 **Разделение «настройки» vs «работа»:**
 
-| Зона | Назначение | Не здесь |
-|------|------------|----------|
-| **Настройки записи** (`/app/doctor/admin/booking`) | Как устроена запись: каталог, правила, форма, оплата, Rubitime | Рабочие действия с записями, расписание дня, абонементы пациента |
-| **Рабочая «Запись»** (кабинет врача, рядом с календарём) | После настройки: сетка/календарь, актуальные записи, действия с выбранной записью | Вкладка «Операции» в админке |
-| **Карточка клиента / кабинет врача** | Продажа и работа с абонементами/продуктами, списания, отвязка | Админка «Абонементы» как ежедневный экран |
+| Зона                                                     | Назначение                                                                        | Не здесь                                                         |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| **Настройки записи** (`/app/doctor/admin/booking`)       | Как устроена запись: каталог, правила, форма, оплата, Rubitime                    | Рабочие действия с записями, расписание дня, абонементы пациента |
+| **Рабочая «Запись»** (кабинет врача, рядом с календарём) | После настройки: сетка/календарь, актуальные записи, действия с выбранной записью | Вкладка «Операции» в админке                                     |
+| **Карточка клиента / кабинет врача**                     | Продажа и работа с абонементами/продуктами, списания, отвязка                     | Админка «Абонементы» как ежедневный экран                        |
 
 **Настройки записи — 4 вкладки (принято):**
 
@@ -343,20 +359,20 @@ pnpm install --frozen-lockfile && pnpm run ci  # post-audit — passed (~5 min)
 
 ### Решения владельца (2026-06-04, ответы на вопросы реализации)
 
-| Тема | Решение |
-|------|---------|
-| Календарь vs «Запись» | **Отдельно.** Календарь не в правую колонку списка — на экран не влезает. |
-| Admin nav | Пункт **«Настройки записи»** (не «Запись»). |
-| Ручное создание / перенос / отмена | Только **работа врача** → страница **«Запись»** (`/app/doctor/appointments` или переименование), не admin. |
-| Список слева | Без выбранной записи — нормальные **фильтры** (дни/даты); по умолчанию **будущие**, сгруппированные **по датам**; отдельно **архив** (прошедшие). |
-| Настройка расписания (часы, исключения) | У **врача**, не в admin «Настройки записи». |
-| «Обзор и настройка» (admin) | Одна **прокрутка**; на desktop блоки в **два ряда**, где нет широких таблиц. |
-| Правила абонементов (past unlink и т.п.) | Остаются в **настройках записи** (редко меняются). |
-| **Создание** абонементов (регулярная работа) | На **странице «Запись» врача**, не в admin. |
-| Legacy URL admin booking | **Не нужны** редиректы. |
-| Мердж пациентов | **Убрать** из главного меню врача; это **админская** задача, не отдельная вкладка «настройки записи» — разместить в общей **админ-зоне** (куда именно — при реализации). |
-| `ACCEPTANCE_STAGE1` (старый список 12 вкладок) | **Снят** 2026-06-06; приёмка — [`ACCEPTANCE_STAGE5.md`](ACCEPTANCE_STAGE5.md). |
-| Warning при resize (duration ≠ service default) | Пока **не делать**; оставить в defer без блокировки этапа 5. |
+| Тема                                            | Решение                                                                                                                                                                  |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Календарь vs «Запись»                           | **Отдельно.** Календарь не в правую колонку списка — на экран не влезает.                                                                                                |
+| Admin nav                                       | Пункт **«Настройки записи»** (не «Запись»).                                                                                                                              |
+| Ручное создание / перенос / отмена              | Только **работа врача** → страница **«Запись»** (`/app/doctor/appointments` или переименование), не admin.                                                               |
+| Список слева                                    | Без выбранной записи — нормальные **фильтры** (дни/даты); по умолчанию **будущие**, сгруппированные **по датам**; отдельно **архив** (прошедшие).                        |
+| Настройка расписания (часы, исключения)         | У **врача**, не в admin «Настройки записи».                                                                                                                              |
+| «Обзор и настройка» (admin)                     | Одна **прокрутка**; на desktop блоки в **два ряда**, где нет широких таблиц.                                                                                             |
+| Правила абонементов (past unlink и т.п.)        | Остаются в **настройках записи** (редко меняются).                                                                                                                       |
+| **Создание** абонементов (регулярная работа)    | На **странице «Запись» врача**, не в admin.                                                                                                                              |
+| Legacy URL admin booking                        | **Не нужны** редиректы.                                                                                                                                                  |
+| Мердж пациентов                                 | **Убрать** из главного меню врача; это **админская** задача, не отдельная вкладка «настройки записи» — разместить в общей **админ-зоне** (куда именно — при реализации). |
+| `ACCEPTANCE_STAGE1` (старый список 12 вкладок)  | **Снят** 2026-06-06; приёмка — [`ACCEPTANCE_STAGE5.md`](ACCEPTANCE_STAGE5.md).                                                                                           |
+| Warning при resize (duration ≠ service default) | Пока **не делать**; оставить в defer без блокировки этапа 5.                                                                                                             |
 
 **Уточнённая карта (код ещё не совпадает):**
 

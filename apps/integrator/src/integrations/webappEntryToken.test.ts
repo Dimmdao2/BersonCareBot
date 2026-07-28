@@ -22,7 +22,9 @@ const { buildWebappEntryTokenFromSource } = await import('./webappEntryToken.js'
 
 function decodeTokenPayload(token: string): Record<string, unknown> {
   const payloadB64 = token.split('.')[0] ?? '';
-  const json = Buffer.from(payloadB64.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8');
+  const json = Buffer.from(payloadB64.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString(
+    'utf8',
+  );
   return JSON.parse(json) as Record<string, unknown>;
 }
 

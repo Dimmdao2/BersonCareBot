@@ -1,5 +1,5 @@
-import { DateTime } from "luxon";
-import type { PatientDiaryDaySnapshotRow } from "../../../db/schema/patientDiarySnapshots";
+import { DateTime } from 'luxon';
+import type { PatientDiaryDaySnapshotRow } from '../../../db/schema/patientDiarySnapshots';
 
 export function snapshotDayHasPlanOrWarmupActivity(snap: PatientDiaryDaySnapshotRow): boolean {
   if (snap.warmupDoneCount > 0) return true;
@@ -30,7 +30,8 @@ export function localDatesWithActivityFromSnapshots(
 ): Set<string> {
   const out = new Set<string>();
   for (const snap of snapshots) {
-    if (snap.localDate < windowStartLocalYmd || snap.localDate > windowEndLocalYmdInclusive) continue;
+    if (snap.localDate < windowStartLocalYmd || snap.localDate > windowEndLocalYmdInclusive)
+      continue;
     if (snapshotDayHasPlanOrWarmupActivity(snap)) out.add(snap.localDate);
   }
   return out;
@@ -49,8 +50,13 @@ export function aggregatePassageStatsFromSnapshots(params: {
   avgCompletionsPerDay: number;
   totalPlanCompletionsInWindow: number;
 } {
-  const { snapshots, calendarDaysInWindow, windowStartLocalYmd, windowEndLocalYmdInclusive, logActivityLocalDates } =
-    params;
+  const {
+    snapshots,
+    calendarDaysInWindow,
+    windowStartLocalYmd,
+    windowEndLocalYmdInclusive,
+    logActivityLocalDates,
+  } = params;
 
   const activeDates = localDatesWithActivityFromSnapshots(
     snapshots,
@@ -65,14 +71,17 @@ export function aggregatePassageStatsFromSnapshots(params: {
 
   let totalPlanCompletions = 0;
   for (const snap of snapshots) {
-    if (snap.localDate < windowStartLocalYmd || snap.localDate > windowEndLocalYmdInclusive) continue;
+    if (snap.localDate < windowStartLocalYmd || snap.localDate > windowEndLocalYmdInclusive)
+      continue;
     totalPlanCompletions += countPlanCompletionsInSnapshot(snap);
   }
 
   const daysWithActivity = activeDates.size;
   const missedDays = Math.max(0, calendarDaysInWindow - daysWithActivity);
   const avgCompletionsPerDay =
-    calendarDaysInWindow > 0 ? Math.round((totalPlanCompletions / calendarDaysInWindow) * 10) / 10 : 0;
+    calendarDaysInWindow > 0
+      ? Math.round((totalPlanCompletions / calendarDaysInWindow) * 10) / 10
+      : 0;
 
   return {
     daysWithActivity,
@@ -88,7 +97,9 @@ export function hasPriorDiaryActivityBeforeInstance(
   instanceCreatedAtIso: string,
   displayIana: string,
 ): boolean {
-  const createdDay = DateTime.fromISO(instanceCreatedAtIso, { zone: "utc" }).setZone(displayIana).startOf("day");
+  const createdDay = DateTime.fromISO(instanceCreatedAtIso, { zone: 'utc' })
+    .setZone(displayIana)
+    .startOf('day');
   if (!createdDay.isValid) return false;
   const createdYmd = createdDay.toISODate();
   if (!createdYmd) return false;

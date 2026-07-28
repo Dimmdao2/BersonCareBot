@@ -1,4 +1,8 @@
-import type { DeliveryAdapter, DeliverySendResult, OutgoingIntent } from '../../kernel/contracts/index.js';
+import type {
+  DeliveryAdapter,
+  DeliverySendResult,
+  OutgoingIntent,
+} from '../../kernel/contracts/index.js';
 import { classifyTelegramRecipientBlockedError } from '../../infra/delivery/recipientBotBlocked.js';
 import { createMessagingPort } from './client.js';
 import { readChannelWithDefault } from '../../infra/adapters/channelRouting.js';
@@ -19,7 +23,6 @@ type DeliveryPayload = {
   imageUrl?: unknown;
   delivery?: { channels?: unknown };
 } & Record<string, unknown>;
-
 
 function asNonEmptyString(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value : null;
@@ -99,7 +102,16 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
 
   return {
     canHandle(intent: OutgoingIntent): boolean {
-      if (!['message.send', 'message.copy', 'message.edit', 'message.replyMarkup.edit', 'message.delete', 'callback.answer'].includes(intent.type)) {
+      if (
+        ![
+          'message.send',
+          'message.copy',
+          'message.edit',
+          'message.replyMarkup.edit',
+          'message.delete',
+          'callback.answer',
+        ].includes(intent.type)
+      ) {
         return false;
       }
       if (intent.type === 'message.send' || intent.type === 'message.copy') {
@@ -120,7 +132,10 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
         const imageUrl = asNonEmptyString(payload.imageUrl);
         if (chatId === null || !text) {
           if (reqLogger) {
-            reqLogger.error({ recipient: payload.recipient, intent }, '[telegram][deliveryAdapter] TELEGRAM_PAYLOAD_INVALID diagnostics');
+            reqLogger.error(
+              { recipient: payload.recipient, intent },
+              '[telegram][deliveryAdapter] TELEGRAM_PAYLOAD_INVALID diagnostics',
+            );
           }
           const err = new Error('TELEGRAM_PAYLOAD_INVALID');
           (err as { code?: number }).code = 400;
@@ -178,9 +193,12 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
       if (intent.type === 'message.copy') {
         const chatId = asChatId(payload.recipient?.chatId ?? payload.chat_id);
         const fromChatId = asChatId(payload.from_chat_id);
-        const msgId = typeof payload.message_id === 'number' && Number.isFinite(payload.message_id)
-          ? payload.message_id
-          : (typeof payload.message_id === 'string' ? Number(payload.message_id) : NaN);
+        const msgId =
+          typeof payload.message_id === 'number' && Number.isFinite(payload.message_id)
+            ? payload.message_id
+            : typeof payload.message_id === 'string'
+              ? Number(payload.message_id)
+              : NaN;
         if (chatId === null || fromChatId === null || !Number.isFinite(msgId)) {
           const err = new Error('TELEGRAM_PAYLOAD_INVALID');
           (err as { code?: number }).code = 400;
@@ -199,7 +217,12 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
       if (intent.type === 'message.edit') {
         const chatId = asChatId(rawChatId);
         const replyMarkup = sanitizeTelegramReplyMarkup(payload.replyMarkup);
-        const numMessageId = typeof messageId === 'number' && Number.isFinite(messageId) ? messageId : (typeof messageId === 'string' ? Number(messageId) : NaN);
+        const numMessageId =
+          typeof messageId === 'number' && Number.isFinite(messageId)
+            ? messageId
+            : typeof messageId === 'string'
+              ? Number(messageId)
+              : NaN;
         if (chatId === null || !Number.isFinite(numMessageId) || !text) {
           const err = new Error('TELEGRAM_PAYLOAD_INVALID');
           (err as { code?: number }).code = 400;
@@ -220,7 +243,12 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
       if (intent.type === 'message.replyMarkup.edit') {
         const chatId = asChatId(rawChatId);
         const replyMarkup = sanitizeTelegramReplyMarkup(payload.replyMarkup);
-        const numMessageId = typeof messageId === 'number' && Number.isFinite(messageId) ? messageId : (typeof messageId === 'string' ? Number(messageId) : NaN);
+        const numMessageId =
+          typeof messageId === 'number' && Number.isFinite(messageId)
+            ? messageId
+            : typeof messageId === 'string'
+              ? Number(messageId)
+              : NaN;
         if (chatId === null || !Number.isFinite(numMessageId)) {
           const err = new Error('TELEGRAM_PAYLOAD_INVALID');
           (err as { code?: number }).code = 400;
@@ -238,7 +266,12 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
 
       if (intent.type === 'message.delete') {
         const chatId = asChatId(rawChatId);
-        const numMessageId = typeof messageId === 'number' && Number.isFinite(messageId) ? messageId : (typeof messageId === 'string' ? Number(messageId) : NaN);
+        const numMessageId =
+          typeof messageId === 'number' && Number.isFinite(messageId)
+            ? messageId
+            : typeof messageId === 'string'
+              ? Number(messageId)
+              : NaN;
         if (chatId === null || !Number.isFinite(numMessageId)) {
           const err = new Error('TELEGRAM_PAYLOAD_INVALID');
           (err as { code?: number }).code = 400;

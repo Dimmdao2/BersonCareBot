@@ -1,7 +1,7 @@
-import Link from "next/link";
-import type { ReactNode } from "react";
-import { buttonVariants } from "@/shared/ui/patient/primitives/button-variants";
-import { cn } from "@/lib/utils";
+import Link from 'next/link';
+import type { ReactNode } from 'react';
+import { buttonVariants } from '@/shared/ui/patient/primitives/button-variants';
+import { cn } from '@/lib/utils';
 
 export type GuestPlaceholderProps = {
   title: string;
@@ -36,7 +36,10 @@ export function GuestPlaceholder({
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         <Link
           href={actionHref}
-          className={cn(buttonVariants({ size: "default" }), "inline-flex w-full justify-center sm:w-auto")}
+          className={cn(
+            buttonVariants({ size: 'default' }),
+            'inline-flex w-full justify-center sm:w-auto',
+          )}
         >
           {actionLabel}
         </Link>
@@ -44,8 +47,8 @@ export function GuestPlaceholder({
           <Link
             href={secondaryHref}
             className={cn(
-              buttonVariants({ variant: "outline", size: "default" }),
-              "inline-flex w-full justify-center sm:w-auto"
+              buttonVariants({ variant: 'outline', size: 'default' }),
+              'inline-flex w-full justify-center sm:w-auto',
             )}
           >
             {secondaryLabel}

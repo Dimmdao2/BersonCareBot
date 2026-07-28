@@ -5,7 +5,7 @@ import type {
   CreateCourseInput,
   IntroLessonPageRecord,
   UpdateCourseInput,
-} from "./types";
+} from './types';
 
 export type CourseIntroPagesPort = {
   getById: (id: string) => Promise<IntroLessonPageRecord | null>;
@@ -19,7 +19,10 @@ export type CoursesPort = {
    * Полная витрина/маркетплейс — отдельная будущая задача (taskdb #724).
    */
   listAssignedToPatient: (patientUserId: string) => Promise<CourseRecord[]>;
-  listForDoctor: (filter: { status?: CourseStatus | null; includeArchived?: boolean }) => Promise<CourseRecord[]>;
+  listForDoctor: (filter: {
+    status?: CourseStatus | null;
+    includeArchived?: boolean;
+  }) => Promise<CourseRecord[]>;
   getById: (id: string) => Promise<CourseRecord | null>;
   create: (input: CreateCourseInput) => Promise<CourseRecord>;
   update: (id: string, patch: UpdateCourseInput) => Promise<CourseRecord | null>;

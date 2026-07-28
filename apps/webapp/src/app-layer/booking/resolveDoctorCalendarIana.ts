@@ -1,5 +1,5 @@
-import { getDoctorEffectiveCalendarIana } from "@/modules/doctor-calendar-timezone/doctorCalendarTimezone";
-import { pgDoctorCalendarTimezonePort } from "@/infra/repos/pgDoctorCalendarTimezone";
+import { getDoctorEffectiveCalendarIana } from '@/modules/doctor-calendar-timezone/doctorCalendarTimezone';
+import { pgDoctorCalendarTimezonePort } from '@/infra/repos/pgDoctorCalendarTimezone';
 
 /**
  * App-layer facade: resolve a doctor's effective calendar timezone (IANA).

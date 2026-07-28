@@ -1,46 +1,44 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const requireAdminBookingEngineMock = vi.hoisted(() => vi.fn());
 const withDoctorWorkspacePrincipalMock = vi.hoisted(() =>
-  vi.fn(async <T,>(
-    _workspace: { organizationId: string },
-    _source: string,
-    fn: () => Promise<T>,
-  ) => fn()),
+  vi.fn(async <T>(_workspace: { organizationId: string }, _source: string, fn: () => Promise<T>) =>
+    fn(),
+  ),
 );
 const runPackageDetachMock = vi.hoisted(() => vi.fn());
 
-vi.mock("../../../../_requireAdminBookingEngine", () => ({
+vi.mock('../../../../_requireAdminBookingEngine', () => ({
   requireAdminBookingEngine: requireAdminBookingEngineMock,
 }));
 
-vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
+vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
   withDoctorWorkspacePrincipal: withDoctorWorkspacePrincipalMock,
 }));
 
-vi.mock("@/app/api/booking-engine/packageDetachShared", () => ({
+vi.mock('@/app/api/booking-engine/packageDetachShared', () => ({
   runPackageDetach: runPackageDetachMock,
 }));
 
-import { POST } from "./route";
+import { POST } from './route';
 
-const APPT_ID = "550e8400-e29b-41d4-a716-446655440122";
+const APPT_ID = '550e8400-e29b-41d4-a716-446655440122';
 
-describe("POST admin appointments/[id]/package/unlink", () => {
+describe('POST admin appointments/[id]/package/unlink', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     requireAdminBookingEngineMock.mockResolvedValue({
       ok: true,
-      ctx: { organizationId: "org-1", session: { user: { userId: "admin-1" } } },
+      ctx: { organizationId: 'org-1', session: { user: { userId: 'admin-1' } } },
     });
     runPackageDetachMock.mockResolvedValue(Response.json({ ok: true }, { status: 200 }));
   });
 
-  it("passes admin unlink principal wrapper to shared detach helper", async () => {
+  it('passes admin unlink principal wrapper to shared detach helper', async () => {
     await POST(
-      new Request("http://localhost", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      new Request('http://localhost', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ confirmPastTwice: true }),
       }),
       { params: Promise.resolve({ id: APPT_ID }) },
@@ -48,17 +46,17 @@ describe("POST admin appointments/[id]/package/unlink", () => {
     expect(runPackageDetachMock).toHaveBeenCalledWith(
       expect.objectContaining({
         appointmentId: APPT_ID,
-        outcome: "release_reserve",
+        outcome: 'release_reserve',
         confirmPastTwice: true,
       }),
     );
     const [{ runDetachMutation }] = runPackageDetachMock.mock.calls[0] as [
       { runDetachMutation: <T>(fn: () => Promise<T>) => Promise<T> },
     ];
-    await runDetachMutation(async () => "ok");
+    await runDetachMutation(async () => 'ok');
     expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
-      expect.objectContaining({ organizationId: "org-1" }),
-      "admin.booking-engine.package.unlink",
+      expect.objectContaining({ organizationId: 'org-1' }),
+      'admin.booking-engine.package.unlink',
       expect.any(Function),
     );
   });

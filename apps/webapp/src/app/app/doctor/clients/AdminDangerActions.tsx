@@ -1,12 +1,12 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { cn } from "@/lib/utils";
+import { useState } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { cn } from '@/lib/utils';
 import {
   doctorClientOverviewPrimaryCardClass,
   doctorClientSectionTitleClass,
-} from "./doctorClientCardChrome";
+} from './doctorClientCardChrome';
 
 type Props = {
   userId: string;
@@ -15,28 +15,28 @@ type Props = {
 };
 
 export function AdminDangerActions({ userId, sampleIntegratorRecordId }: Props) {
-  const [busy, setBusy] = useState<"record" | null>(null);
+  const [busy, setBusy] = useState<'record' | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
 
   async function softDeleteRecord() {
     if (!sampleIntegratorRecordId?.trim()) {
-      setMsg("Нет id записи для удаления.");
+      setMsg('Нет id записи для удаления.');
       return;
     }
-    if (!window.confirm("Пометить запись на приём как удалённую?")) return;
-    setBusy("record");
+    if (!window.confirm('Пометить запись на приём как удалённую?')) return;
+    setBusy('record');
     setMsg(null);
     try {
       const res = await fetch(
         `/api/admin/appointment-records/${encodeURIComponent(sampleIntegratorRecordId)}/soft-delete`,
-        { method: "POST" }
+        { method: 'POST' },
       );
       const data = (await res.json()) as { ok?: boolean };
       if (!res.ok || !data.ok) {
-        setMsg("Ошибка удаления записи");
+        setMsg('Ошибка удаления записи');
         return;
       }
-      setMsg("Запись помечена удалённой.");
+      setMsg('Запись помечена удалённой.');
     } finally {
       setBusy(null);
     }
@@ -44,14 +44,18 @@ export function AdminDangerActions({ userId, sampleIntegratorRecordId }: Props) 
 
   return (
     <section
-      className={cn(doctorClientOverviewPrimaryCardClass, "border-destructive/40")}
+      className={cn(doctorClientOverviewPrimaryCardClass, 'border-destructive/40')}
       aria-labelledby="admin-danger-heading"
     >
-      <h2 id="admin-danger-heading" className={cn(doctorClientSectionTitleClass, "text-destructive")}>
+      <h2
+        id="admin-danger-heading"
+        className={cn(doctorClientSectionTitleClass, 'text-destructive')}
+      >
         Администратор
       </h2>
       <p className="text-muted-foreground text-sm">
-        Дополнительные действия администратора (проверка на сервере). Архив и удаление — в блоке «Учётная запись» выше.
+        Дополнительные действия администратора (проверка на сервере). Архив и удаление — в блоке
+        «Учётная запись» выше.
       </p>
       {msg ? <p className="text-sm">{msg}</p> : null}
       <div className="flex flex-wrap gap-2">
@@ -62,7 +66,7 @@ export function AdminDangerActions({ userId, sampleIntegratorRecordId }: Props) 
             disabled={busy !== null}
             onClick={() => void softDeleteRecord()}
           >
-            {busy === "record" ? "…" : "Удалить запись (soft)"}
+            {busy === 'record' ? '…' : 'Удалить запись (soft)'}
           </Button>
         ) : null}
       </div>

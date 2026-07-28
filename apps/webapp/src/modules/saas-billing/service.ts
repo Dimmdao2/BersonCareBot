@@ -4,11 +4,9 @@ import type {
   SaasBillingProviderEventEnvelope,
   SaasBillingRepositoryPort,
   SaasBillingSettingsReadPort,
-} from "./ports";
-import { sanitizeSaasBillingProviderEventEnvelope } from "./providerEventEnvelope";
-import {
-  parseSaasBillingPaymentProviderSettings,
-} from "./settings";
+} from './ports';
+import { sanitizeSaasBillingProviderEventEnvelope } from './providerEventEnvelope';
+import { parseSaasBillingPaymentProviderSettings } from './settings';
 
 export function createSaasBillingService(dependencies: {
   repository: SaasBillingRepositoryPort;
@@ -45,7 +43,7 @@ export function createSaasBillingService(dependencies: {
       return dependencies.repository.runManualAssignmentTransaction(async (transaction) => {
         const state = await transaction.loadManualAssignmentState(input.organizationId);
         const currentManualTariffId =
-          state.manualSaasBillingSubscription?.status === "active"
+          state.manualSaasBillingSubscription?.status === 'active'
             ? state.manualSaasBillingSubscription.tariffId
             : null;
         if (
@@ -72,10 +70,10 @@ export function createSaasBillingService(dependencies: {
         await transaction.appendManualAssignmentAudit({
           ...input.audit,
           action: state.activeTrial
-            ? "saas_trial_convert_to_manual_tariff"
+            ? 'saas_trial_convert_to_manual_tariff'
             : input.tariffId
-              ? "saas_tariff_assign"
-              : "saas_tariff_unassign",
+              ? 'saas_tariff_assign'
+              : 'saas_tariff_unassign',
           targetId: input.organizationId,
           organizationId: input.organizationId,
           before: {

@@ -105,11 +105,17 @@ function parseOperatorConfig(valueJson: unknown): OperatorHealthAlertConfigInteg
   const out = defaultConfig();
   const o = parsed.data;
   if (o.topics) {
-    if (typeof o.topics.critical_enabled === 'boolean') out.topics.critical_enabled = o.topics.critical_enabled;
-    if (typeof o.topics.digest_enabled === 'boolean') out.topics.digest_enabled = o.topics.digest_enabled;
-    if (typeof o.topics.account_conflicts === 'boolean') out.topics.account_conflicts = o.topics.account_conflicts;
+    if (typeof o.topics.critical_enabled === 'boolean')
+      out.topics.critical_enabled = o.topics.critical_enabled;
+    if (typeof o.topics.digest_enabled === 'boolean')
+      out.topics.digest_enabled = o.topics.digest_enabled;
+    if (typeof o.topics.account_conflicts === 'boolean')
+      out.topics.account_conflicts = o.topics.account_conflicts;
   }
-  const mergeBlock = (block: keyof OperatorHealthAlertConfigIntegrator['channels'], raw: unknown) => {
+  const mergeBlock = (
+    block: keyof OperatorHealthAlertConfigIntegrator['channels'],
+    raw: unknown,
+  ) => {
     const p = z
       .object({
         telegram: z.boolean().optional(),
@@ -138,7 +144,8 @@ function parseLegacyConfig(valueJson: unknown): OperatorHealthAlertConfigIntegra
   if (!parsed.success) return out;
   const topics = parsed.data.topics ?? {};
   out.topics.account_conflicts = LEGACY_IDENTITY_TOPICS.some((k) => topics[k] === true);
-  out.topics.critical_enabled = topics.system_health_db_guard === true || out.topics.critical_enabled;
+  out.topics.critical_enabled =
+    topics.system_health_db_guard === true || out.topics.critical_enabled;
   const ch = parsed.data.channels;
   if (ch) {
     out.channels.account_conflicts = {

@@ -9,14 +9,14 @@
 
 ## Проверка readiness
 
-| Критерий | Статус | Комментарий |
-|----------|--------|-------------|
-| Scope ограничен schema-only изменением | **PASS** | `20260410_0001_users_merged_into_user_id.sql`, без снятия webapp blocker |
-| Миграция лежит в правильной папке | **PASS** | `apps/integrator/src/infra/db/migrations/core/` |
-| Rollback-путь описан | **PASS** | `CHECKLISTS.md` Deploy 1, `CUTOVER_RUNBOOK.md` Deploy 1 |
-| SQL gates / post-check готовы | **PASS** | `\d users` / integrator schema docs согласованы |
-| Нет нарушения server conventions | **PASS** | env/DB инструкции идут через `SERVER CONVENTIONS.md` / `CUTOVER_RUNBOOK.md` |
-| `pnpm run ci` зелёный | **PASS** | подтверждено в `AGENT_EXECUTION_LOG.md` и повторно в финальном fix-pass |
+| Критерий                               | Статус   | Комментарий                                                                 |
+| -------------------------------------- | -------- | --------------------------------------------------------------------------- |
+| Scope ограничен schema-only изменением | **PASS** | `20260410_0001_users_merged_into_user_id.sql`, без снятия webapp blocker    |
+| Миграция лежит в правильной папке      | **PASS** | `apps/integrator/src/infra/db/migrations/core/`                             |
+| Rollback-путь описан                   | **PASS** | `CHECKLISTS.md` Deploy 1, `CUTOVER_RUNBOOK.md` Deploy 1                     |
+| SQL gates / post-check готовы          | **PASS** | `\d users` / integrator schema docs согласованы                             |
+| Нет нарушения server conventions       | **PASS** | env/DB инструкции идут через `SERVER CONVENTIONS.md` / `CUTOVER_RUNBOOK.md` |
+| `pnpm run ci` зелёный                  | **PASS** | подтверждено в `AGENT_EXECUTION_LOG.md` и повторно в финальном fix-pass     |
 
 ## Verdict
 

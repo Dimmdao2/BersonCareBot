@@ -1,20 +1,20 @@
-import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
   AUTH_CHANNEL_DISABLED_ERROR,
   isAuthChannelEnabled,
-} from "@/modules/auth/authChannelPolicy";
+} from '@/modules/auth/authChannelPolicy';
 import {
   newRegistrationAttemptId,
   recordAuthRegistrationAttempt,
   recordAuthRegistrationFailure,
   recordAuthRegistrationSuccess,
-} from "@/app-layer/product-analytics/recordAuthRegistration";
-import { normalizeEmail, startEmailChallenge } from "@/modules/auth/emailAuth";
-import { hashPin } from "@/modules/auth/pinHash";
-import { normalizeFioPart } from "@/shared/lib/fio";
+} from '@/app-layer/product-analytics/recordAuthRegistration';
+import { normalizeEmail, startEmailChallenge } from '@/modules/auth/emailAuth';
+import { hashPin } from '@/modules/auth/pinHash';
+import { normalizeFioPart } from '@/shared/lib/fio';
 
 const bodySchema = z.object({
   email: z.string().email(),
@@ -25,19 +25,16 @@ const bodySchema = z.object({
 });
 
 const LOG_BASE = {
-  authMethod: "email_password" as const,
-  entryChannel: "browser" as const,
-  contactType: "email" as const,
+  authMethod: 'email_password' as const,
+  entryChannel: 'browser' as const,
+  contactType: 'email' as const,
 };
 
 /** Регистрация email+password: строка канона + пароль; подтверждение почты через существующий email challenge. */
 export async function POST(request: Request) {
-  stampBootstrapPrincipal("api/auth/email-password/register:POST", request);
-  if (!(await isAuthChannelEnabled("email"))) {
-    return NextResponse.json(
-      { ok: false, error: AUTH_CHANNEL_DISABLED_ERROR },
-      { status: 503 },
-    );
+  stampBootstrapPrincipal('api/auth/email-password/register:POST', request);
+  if (!(await isAuthChannelEnabled('email'))) {
+    return NextResponse.json({ ok: false, error: AUTH_CHANNEL_DISABLED_ERROR }, { status: 503 });
   }
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
@@ -47,11 +44,11 @@ export async function POST(request: Request) {
     await recordAuthRegistrationFailure({
       ...LOG_BASE,
       attemptId,
-      stage: "start",
+      stage: 'start',
       contactValue: null,
-      errorCode: "invalid_body",
+      errorCode: 'invalid_body',
     });
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
 
   const emailNorm = normalizeEmail(parsed.data.email);
@@ -62,17 +59,17 @@ export async function POST(request: Request) {
     await recordAuthRegistrationFailure({
       ...LOG_BASE,
       attemptId,
-      stage: "start",
+      stage: 'start',
       contactValue: emailNorm,
-      errorCode: "invalid_body",
+      errorCode: 'invalid_body',
     });
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
 
   await recordAuthRegistrationAttempt({
     ...LOG_BASE,
     attemptId,
-    stage: "start",
+    stage: 'start',
     contactValue: emailNorm,
   });
 
@@ -88,7 +85,7 @@ export async function POST(request: Request) {
   });
 
   async function respondWithChallenge(userId: string, rollbackOnSendFail: boolean) {
-    const challenge = await startEmailChallenge(userId, emailNorm, "password_register");
+    const challenge = await startEmailChallenge(userId, emailNorm, 'password_register');
     if (!challenge.ok) {
       if (rollbackOnSendFail) {
         await deps.userPasswordCredentials.deleteUnverifiedEmailPasswordRegistration(userId);
@@ -96,20 +93,20 @@ export async function POST(request: Request) {
       await recordAuthRegistrationFailure({
         ...LOG_BASE,
         attemptId,
-        stage: "challenge_sent",
+        stage: 'challenge_sent',
         contactValue: emailNorm,
         userId,
         errorCode: challenge.code,
       });
       return NextResponse.json(
         { ok: false, error: challenge.code, retryAfterSeconds: challenge.retryAfterSeconds },
-        { status: challenge.code === "rate_limited" ? 429 : 400 },
+        { status: challenge.code === 'rate_limited' ? 429 : 400 },
       );
     }
     await recordAuthRegistrationSuccess({
       ...LOG_BASE,
       attemptId,
-      stage: "challenge_sent",
+      stage: 'challenge_sent',
       contactValue: emailNorm,
       userId,
       challengeId: challenge.challengeId,
@@ -127,67 +124,67 @@ export async function POST(request: Request) {
     return respondWithChallenge(reg.userId, true);
   }
 
-  if (reg.reason === "duplicate_email") {
+  if (reg.reason === 'duplicate_email') {
     const state = await deps.emailPasswordLookup.resolveAuthState(emailNorm);
 
-    if (state.kind === "needs_email_setup") {
-      const challenge = await startEmailChallenge(state.userId, emailNorm, "password_register");
+    if (state.kind === 'needs_email_setup') {
+      const challenge = await startEmailChallenge(state.userId, emailNorm, 'password_register');
       if (!challenge.ok) {
         await recordAuthRegistrationFailure({
           ...LOG_BASE,
           attemptId,
-          stage: "start",
+          stage: 'start',
           contactValue: emailNorm,
           userId: state.userId,
           errorCode: challenge.code,
         });
         return NextResponse.json(
           { ok: false, error: challenge.code, retryAfterSeconds: challenge.retryAfterSeconds },
-          { status: challenge.code === "rate_limited" ? 429 : 503 },
+          { status: challenge.code === 'rate_limited' ? 429 : 503 },
         );
       }
       await recordAuthRegistrationFailure({
         ...LOG_BASE,
         attemptId,
-        stage: "challenge_sent",
+        stage: 'challenge_sent',
         contactValue: emailNorm,
         userId: state.userId,
         challengeId: challenge.challengeId,
-        errorCode: "existing_account_needs_email_setup",
+        errorCode: 'existing_account_needs_email_setup',
       });
       return NextResponse.json({
         ok: true,
         attemptId,
         challengeId: challenge.challengeId,
         retryAfterSeconds: challenge.retryAfterSeconds,
-        error: "existing_account_needs_email_setup",
+        error: 'existing_account_needs_email_setup',
         setupCodeSent: true,
       });
     }
 
-    if (state.kind === "email_conflict") {
+    if (state.kind === 'email_conflict') {
       await recordAuthRegistrationFailure({
         ...LOG_BASE,
         attemptId,
-        stage: "start",
+        stage: 'start',
         contactValue: emailNorm,
-        errorCode: "email_conflict",
+        errorCode: 'email_conflict',
       });
-      return NextResponse.json({ ok: false, error: "email_conflict" }, { status: 409 });
+      return NextResponse.json({ ok: false, error: 'email_conflict' }, { status: 409 });
     }
 
-    if (state.kind === "verified_with_password") {
+    if (state.kind === 'verified_with_password') {
       await recordAuthRegistrationFailure({
         ...LOG_BASE,
         attemptId,
-        stage: "start",
+        stage: 'start',
         contactValue: emailNorm,
-        errorCode: "duplicate_email",
+        errorCode: 'duplicate_email',
       });
-      return NextResponse.json({ ok: false, error: "duplicate_email" }, { status: 409 });
+      return NextResponse.json({ ok: false, error: 'duplicate_email' }, { status: 409 });
     }
 
-    if (state.kind === "pending_registration") {
+    if (state.kind === 'pending_registration') {
       const resent = await deps.userPasswordCredentials.tryResendRegistrationChallenge({
         emailNormalized: emailNorm,
         plainPassword: parsed.data.password,
@@ -196,11 +193,11 @@ export async function POST(request: Request) {
         await recordAuthRegistrationFailure({
           ...LOG_BASE,
           attemptId,
-          stage: "start",
+          stage: 'start',
           contactValue: emailNorm,
-          errorCode: "duplicate_email",
+          errorCode: 'duplicate_email',
         });
-        return NextResponse.json({ ok: false, error: "duplicate_email" }, { status: 409 });
+        return NextResponse.json({ ok: false, error: 'duplicate_email' }, { status: 409 });
       }
       return respondWithChallenge(resent.userId, false);
     }
@@ -208,19 +205,19 @@ export async function POST(request: Request) {
     await recordAuthRegistrationFailure({
       ...LOG_BASE,
       attemptId,
-      stage: "start",
+      stage: 'start',
       contactValue: emailNorm,
-      errorCode: "duplicate_email",
+      errorCode: 'duplicate_email',
     });
-    return NextResponse.json({ ok: false, error: "duplicate_email" }, { status: 409 });
+    return NextResponse.json({ ok: false, error: 'duplicate_email' }, { status: 409 });
   }
 
   await recordAuthRegistrationFailure({
     ...LOG_BASE,
     attemptId,
-    stage: "start",
+    stage: 'start',
     contactValue: emailNorm,
-    errorCode: "duplicate_email",
+    errorCode: 'duplicate_email',
   });
-  return NextResponse.json({ ok: false, error: "duplicate_email" }, { status: 409 });
+  return NextResponse.json({ ok: false, error: 'duplicate_email' }, { status: 409 });
 }

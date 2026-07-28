@@ -1,30 +1,30 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState, useTransition } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
+import { useCallback, useEffect, useState, useTransition } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
 import type {
   ManagedNotifPresentationEntry,
   ManagedNotifTemplateEntry,
-} from "@/modules/notif-templates/managedNotifTemplate";
-import { NotificationTemplatesPageClient } from "./NotificationTemplatesPageClient";
+} from '@/modules/notif-templates/managedNotifTemplate';
+import { NotificationTemplatesPageClient } from './NotificationTemplatesPageClient';
 
 type State =
-  | { phase: "loading" }
-  | { phase: "error"; message: string }
+  | { phase: 'loading' }
+  | { phase: 'error'; message: string }
   | {
-      phase: "ready";
+      phase: 'ready';
       templates: ManagedNotifTemplateEntry[];
       presentation: ManagedNotifPresentationEntry;
     };
 
 type Props = Readonly<{
-  endpoint?: "/api/doctor/notification-templates" | "/api/admin/notification-templates";
+  endpoint?: '/api/doctor/notification-templates' | '/api/admin/notification-templates';
 }>;
 
 export function ScheduleNotificationsSection({
-  endpoint = "/api/doctor/notification-templates",
+  endpoint = '/api/doctor/notification-templates',
 }: Props = {}) {
-  const [state, setState] = useState<State>({ phase: "loading" });
+  const [state, setState] = useState<State>({ phase: 'loading' });
   const [, startTransition] = useTransition();
 
   const load = useCallback(() => {
@@ -36,10 +36,10 @@ export function ScheduleNotificationsSection({
         presentation?: ManagedNotifPresentationEntry;
       } | null;
       if (!res.ok || !json?.ok || !json.templates || !json.presentation) {
-        setState({ phase: "error", message: "Не удалось загрузить шаблоны уведомлений" });
+        setState({ phase: 'error', message: 'Не удалось загрузить шаблоны уведомлений' });
         return;
       }
-      setState({ phase: "ready", templates: json.templates, presentation: json.presentation });
+      setState({ phase: 'ready', templates: json.templates, presentation: json.presentation });
     });
   }, [endpoint]);
 
@@ -47,10 +47,10 @@ export function ScheduleNotificationsSection({
     load();
   }, [load]);
 
-  if (state.phase === "loading") {
+  if (state.phase === 'loading') {
     return <p className="text-sm text-muted-foreground">Загрузка шаблонов уведомлений…</p>;
   }
-  if (state.phase === "error") {
+  if (state.phase === 'error') {
     return (
       <div className="flex items-center gap-2">
         <p className="text-sm text-destructive">{state.message}</p>

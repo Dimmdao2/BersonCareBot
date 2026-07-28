@@ -1,7 +1,7 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
-import { requireAdminBookingEngine } from "../_requireAdminBookingEngine";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import { requireAdminBookingEngine } from '../_requireAdminBookingEngine';
 
 const PostSchema = z.object({
   branchId: z.string().uuid(),
@@ -13,8 +13,11 @@ const PostSchema = z.object({
 export async function GET(request: Request) {
   const gate = await requireAdminBookingEngine();
   if (!gate.ok) return gate.response;
-  const branchId = new URL(request.url).searchParams.get("branchId") ?? undefined;
-  const rooms = await gate.ctx.service.catalog.listRooms(gate.ctx.organizationId, branchId ?? undefined);
+  const branchId = new URL(request.url).searchParams.get('branchId') ?? undefined;
+  const rooms = await gate.ctx.service.catalog.listRooms(
+    gate.ctx.organizationId,
+    branchId ?? undefined,
+  );
   return NextResponse.json({ ok: true, rooms });
 }
 
@@ -23,15 +26,19 @@ export async function POST(request: Request) {
   if (!gate.ok) return gate.response;
   const body = await request.json().catch(() => null);
   const parsed = PostSchema.safeParse(body);
-  if (!parsed.success) return NextResponse.json({ ok: false, error: "invalid_input" }, { status: 400 });
-  const room = await withDoctorWorkspacePrincipal(gate.ctx, "admin.booking-engine.rooms.upsert", () =>
-    gate.ctx.service.catalog.upsertRoom({
-      organizationId: gate.ctx.organizationId,
-      branchId: parsed.data.branchId,
-      title: parsed.data.title.trim(),
-      isActive: parsed.data.isActive,
-      sortOrder: parsed.data.sortOrder,
-    }),
+  if (!parsed.success)
+    return NextResponse.json({ ok: false, error: 'invalid_input' }, { status: 400 });
+  const room = await withDoctorWorkspacePrincipal(
+    gate.ctx,
+    'admin.booking-engine.rooms.upsert',
+    () =>
+      gate.ctx.service.catalog.upsertRoom({
+        organizationId: gate.ctx.organizationId,
+        branchId: parsed.data.branchId,
+        title: parsed.data.title.trim(),
+        isActive: parsed.data.isActive,
+        sortOrder: parsed.data.sortOrder,
+      }),
   );
   return NextResponse.json({ ok: true, room });
 }

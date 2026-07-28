@@ -1,1 +1,1 @@
-export { isMessengerStartRateLimited } from "@/modules/auth/authRateLimits";
+export { isMessengerStartRateLimited } from '@/modules/auth/authRateLimits';

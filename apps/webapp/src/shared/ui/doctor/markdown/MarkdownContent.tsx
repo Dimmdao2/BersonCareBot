@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import DOMPurify from "isomorphic-dompurify";
-import type { ContentBodyFormat } from "@/modules/content-catalog/types";
-import { MarkdownBodyTree } from "@/shared/ui/doctor/markdown/markdownRenderTree";
+import DOMPurify from 'isomorphic-dompurify';
+import type { ContentBodyFormat } from '@/modules/content-catalog/types';
+import { MarkdownBodyTree } from '@/shared/ui/doctor/markdown/markdownRenderTree';
 
 type Props = {
   text: string;
@@ -15,20 +15,18 @@ type Props = {
  * Does not enable raw HTML inside Markdown (no `rehype-raw`).
  */
 export function MarkdownContent({ text, bodyFormat, className }: Props) {
-  const wrap = className ?? "markdown-preview";
+  const wrap = className ?? 'markdown-preview';
 
-  if (bodyFormat === "legacy-html") {
+  if (bodyFormat === 'legacy-html') {
     const html = DOMPurify.sanitize(text, {
       USE_PROFILES: { html: true },
     });
-    return (
-      <div className={wrap} dangerouslySetInnerHTML={{ __html: html }} />
-    );
+    return <div className={wrap} dangerouslySetInnerHTML={{ __html: html }} />;
   }
 
   return (
     <div className={wrap}>
-      <MarkdownBodyTree>{text.length > 0 ? text : ""}</MarkdownBodyTree>
+      <MarkdownBodyTree>{text.length > 0 ? text : ''}</MarkdownBodyTree>
     </div>
   );
 }

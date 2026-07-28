@@ -1,13 +1,17 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Label } from "@/shared/ui/doctor/primitives/label";
-import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
-import { OrgBrandLogoControl, type OrgBrandLogoChange } from "./OrgBrandLogoControl";
-import { saveOrgBranding } from "./brandingActions";
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
+import {
+  DoctorSection,
+  DoctorSectionHeader,
+  DoctorSectionTitle,
+} from '@/shared/ui/doctor/DoctorSection';
+import { OrgBrandLogoControl, type OrgBrandLogoChange } from './OrgBrandLogoControl';
+import { saveOrgBranding } from './brandingActions';
 
 type Props = {
   brandingMechanicEnabled: boolean;
@@ -20,7 +24,7 @@ type Props = {
 };
 
 const SAVE_ERROR_MESSAGES: Record<string, string> = {
-  entitlement_disabled: "Брендирование недоступно на текущем тарифе.",
+  entitlement_disabled: 'Брендирование недоступно на текущем тарифе.',
 };
 
 /**
@@ -59,10 +63,11 @@ export function OrgBrandingSection({
       const trimmedName = name.trim();
       // No override recorded when the field matches the canonical core name — keeps a
       // straightforward "cleared back to platform default" state instead of an inert duplicate.
-      const displayName = trimmedName === "" || trimmedName === coreDisplayName.trim() ? null : trimmedName;
+      const displayName =
+        trimmedName === '' || trimmedName === coreDisplayName.trim() ? null : trimmedName;
       const result = await saveOrgBranding({ displayName, logoMediaId });
       if (!result.ok) {
-        setError(SAVE_ERROR_MESSAGES[result.error] ?? "Не удалось сохранить.");
+        setError(SAVE_ERROR_MESSAGES[result.error] ?? 'Не удалось сохранить.');
         return;
       }
       setJustSaved(true);
@@ -80,8 +85,8 @@ export function OrgBrandingSection({
 
       {!brandingMechanicEnabled ? (
         <p className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-muted-foreground">
-          Брендирование не входит в ваш текущий тариф. Ниже показаны сохранённые название и логотип —
-          они не удалены и снова применятся, если тариф подключит эту возможность.
+          Брендирование не входит в ваш текущий тариф. Ниже показаны сохранённые название и логотип
+          — они не удалены и снова применятся, если тариф подключит эту возможность.
         </p>
       ) : null}
 
@@ -120,7 +125,7 @@ export function OrgBrandingSection({
             disabled={!brandingMechanicEnabled || saving || !dirty}
             onClick={() => void handleSave()}
           >
-            {saving ? "Сохранение…" : "Сохранить"}
+            {saving ? 'Сохранение…' : 'Сохранить'}
           </Button>
         </div>
       </div>

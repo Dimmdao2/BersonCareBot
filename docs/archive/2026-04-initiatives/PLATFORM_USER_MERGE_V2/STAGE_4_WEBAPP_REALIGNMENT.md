@@ -6,16 +6,16 @@
 
 См. [`../ARCHITECTURE/DB_STRUCTURE.md`](../ARCHITECTURE/DB_STRUCTURE.md) и purge-путь [`apps/webapp/src/infra/platformUserFullPurge.ts`](../../apps/webapp/src/infra/platformUserFullPurge.ts):
 
-| Таблица | Колонка | Примечание |
-|---------|---------|------------|
-| `reminder_rules` | `integrator_user_id` | upsert в [`pgReminderProjection.ts`](../../apps/webapp/src/infra/repos/pgReminderProjection.ts) |
-| `reminder_occurrence_history` | `integrator_user_id` | append-only rows |
-| `reminder_delivery_events` | `integrator_user_id` | append-only |
-| `content_access_grants_webapp` | `integrator_user_id` | upsert |
-| `support_conversations` | `integrator_user_id` | COALESCE при upsert — realignment должен быть согласован |
-| `user_subscriptions_webapp` | `integrator_user_id` | |
-| `mailing_logs_webapp` | `integrator_user_id` | |
-| `support_question_messages` / `support_questions` | — | отдельного `integrator_user_id` нет; связь через `conversation_id` → `support_conversations` (достаточно rekey родительской строки) |
+| Таблица                                           | Колонка              | Примечание                                                                                                                          |
+| ------------------------------------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `reminder_rules`                                  | `integrator_user_id` | upsert в [`pgReminderProjection.ts`](../../apps/webapp/src/infra/repos/pgReminderProjection.ts)                                     |
+| `reminder_occurrence_history`                     | `integrator_user_id` | append-only rows                                                                                                                    |
+| `reminder_delivery_events`                        | `integrator_user_id` | append-only                                                                                                                         |
+| `content_access_grants_webapp`                    | `integrator_user_id` | upsert                                                                                                                              |
+| `support_conversations`                           | `integrator_user_id` | COALESCE при upsert — realignment должен быть согласован                                                                            |
+| `user_subscriptions_webapp`                       | `integrator_user_id` |                                                                                                                                     |
+| `mailing_logs_webapp`                             | `integrator_user_id` |                                                                                                                                     |
+| `support_question_messages` / `support_questions` | —                    | отдельного `integrator_user_id` нет; связь через `conversation_id` → `support_conversations` (достаточно rekey родительской строки) |
 
 **Дополнительно:** `platform_users.integrator_user_id` на стороне duplicate/target — решается существующим webapp merge **после** integrator merge (Stage 5 flow).
 

@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * PatientTabRecords — Wave 3: appointment history, KPIs, upcoming, membership.
@@ -9,10 +9,10 @@
  * Note: booking-reputation & merge removed from this tab per owner decision 2026-06-14.
  */
 
-import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, Eye } from "lucide-react";
-import type { PatientAppointmentItem, PatientCardHeader } from "@/modules/doctor-clients/ports";
-import { MembershipCardHeader } from "@/shared/ui/doctor/MembershipCardHeader";
+import { useEffect, useMemo, useState } from 'react';
+import { ChevronDown, ChevronRight, Eye } from 'lucide-react';
+import type { PatientAppointmentItem, PatientCardHeader } from '@/modules/doctor-clients/ports';
+import { MembershipCardHeader } from '@/shared/ui/doctor/MembershipCardHeader';
 import {
   doctorSectionCardClass,
   doctorSectionTitleClass,
@@ -25,28 +25,31 @@ import {
   doctorSectionItemClass,
   doctorSectionItemUrgentClass,
   doctorPageStackClass,
-} from "@/shared/ui/doctor/doctorVisual";
-import { cn } from "@/lib/utils";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { formatPatientPackageLongLabel, formatPatientPackageShortLabel } from "@/modules/memberships/display";
+} from '@/shared/ui/doctor/doctorVisual';
+import { cn } from '@/lib/utils';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import {
+  formatPatientPackageLongLabel,
+  formatPatientPackageShortLabel,
+} from '@/modules/memberships/display';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 type AppointmentStatus =
-  | "completed"   // состоялась
-  | "rescheduled" // перенос
-  | "canceled"    // отмена
-  | "no_show"     // неявка (маппинг от canceled — не используется в реальных данных)
-  | "upcoming";   // предстоящая
+  | 'completed' // состоялась
+  | 'rescheduled' // перенос
+  | 'canceled' // отмена
+  | 'no_show' // неявка (маппинг от canceled — не используется в реальных данных)
+  | 'upcoming'; // предстоящая
 
 /** Нормализованный элемент для рендера — общий формат для real + mock данных. */
 interface DisplayAppointment {
   id: string;
-  date: string;       // YYYY-MM-DD
-  time: string;       // HH:MM
+  date: string; // YYYY-MM-DD
+  time: string; // HH:MM
   location: string;
   service: string;
   status: AppointmentStatus;
@@ -65,18 +68,18 @@ interface DisplayAppointment {
 function mapRealToDisplay(item: PatientAppointmentItem): DisplayAppointment {
   const dt = item.dateTime ? new Date(item.dateTime) : null;
   const date = dt
-    ? `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`
-    : "";
+    ? `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
+    : '';
   const time = dt
-    ? `${String(dt.getHours()).padStart(2, "0")}:${String(dt.getMinutes()).padStart(2, "0")}`
-    : "";
+    ? `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`
+    : '';
   return {
     id: item.id,
     date,
     time,
-    location: item.location ?? "",
-    service: item.serviceName ?? "Запись",
-    status: item.status === "rescheduled" ? "rescheduled" : item.status,
+    location: item.location ?? '',
+    service: item.serviceName ?? 'Запись',
+    status: item.status === 'rescheduled' ? 'rescheduled' : item.status,
     durationMin: item.durationMin ?? undefined,
     hasVisitRecord: false, // PatientAppointmentItem doesn't include visit-record presence yet
     isPackage: item.isPackage ?? null,
@@ -91,9 +94,33 @@ function mapRealToDisplay(item: PatientAppointmentItem): DisplayAppointment {
 // ---------------------------------------------------------------------------
 
 const MOCK_HISTORY_FALLBACK: DisplayAppointment[] = [
-  { id: "m-1", date: "2026-06-04", time: "10:00", location: "Студия на Лесной", service: "Тренировка ЛФК", status: "completed", hasVisitRecord: false },
-  { id: "m-2", date: "2026-05-28", time: "10:00", location: "Студия на Лесной", service: "Тренировка ЛФК", status: "rescheduled", rescheduledToDate: "04.06" },
-  { id: "m-3", date: "2026-04-14", time: "18:30", location: "Онлайн", service: "Консультация", status: "canceled", cancelReason: "болезнь" },
+  {
+    id: 'm-1',
+    date: '2026-06-04',
+    time: '10:00',
+    location: 'Студия на Лесной',
+    service: 'Тренировка ЛФК',
+    status: 'completed',
+    hasVisitRecord: false,
+  },
+  {
+    id: 'm-2',
+    date: '2026-05-28',
+    time: '10:00',
+    location: 'Студия на Лесной',
+    service: 'Тренировка ЛФК',
+    status: 'rescheduled',
+    rescheduledToDate: '04.06',
+  },
+  {
+    id: 'm-3',
+    date: '2026-04-14',
+    time: '18:30',
+    location: 'Онлайн',
+    service: 'Консультация',
+    status: 'canceled',
+    cancelReason: 'болезнь',
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -102,27 +129,29 @@ const MOCK_HISTORY_FALLBACK: DisplayAppointment[] = [
 
 function fmtDate(isoOrSlash: string): string {
   // Accepts YYYY-MM-DD → DD.MM.YYYY
-  const parts = isoOrSlash.split("-");
+  const parts = isoOrSlash.split('-');
   if (parts.length === 3) return `${parts[2]}.${parts[1]}.${parts[0]}`;
   return isoOrSlash;
 }
 
 function fmtDateShort(iso: string): string {
-  const parts = iso.split("-");
+  const parts = iso.split('-');
   if (parts.length === 3) return `${parts[2]}.${parts[1]}`;
   return iso;
 }
 
 function fmtWeekday(iso: string): string {
-  const d = new Date(iso + "T00:00:00");
-  if (isNaN(d.getTime())) return "";
-  return d.toLocaleDateString("ru-RU", { timeZone: "Europe/Moscow", weekday: "short" }).replace(".", "");
+  const d = new Date(iso + 'T00:00:00');
+  if (isNaN(d.getTime())) return '';
+  return d
+    .toLocaleDateString('ru-RU', { timeZone: 'Europe/Moscow', weekday: 'short' })
+    .replace('.', '');
 }
 
 /** Dispatch custom event to switch PatientCardClient to a different tab. */
 function openTab(tabId: string) {
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent("patient:open-tab", { detail: { tab: tabId } }));
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('patient:open-tab', { detail: { tab: tabId } }));
   }
 }
 
@@ -130,22 +159,28 @@ function openTab(tabId: string) {
 // Sub-components
 // ---------------------------------------------------------------------------
 
-function StatusChip({ status, rescheduledToDate }: { status: AppointmentStatus; rescheduledToDate?: string }) {
-  if (status === "completed") {
+function StatusChip({
+  status,
+  rescheduledToDate,
+}: {
+  status: AppointmentStatus;
+  rescheduledToDate?: string;
+}) {
+  if (status === 'completed') {
     return (
       <span className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium whitespace-nowrap bg-[#e7f4ec] text-[#1f7a45]">
         состоялась
       </span>
     );
   }
-  if (status === "rescheduled") {
+  if (status === 'rescheduled') {
     return (
       <span className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium whitespace-nowrap bg-[#fdf3dd] text-[#9a6b15]">
-        перенос{rescheduledToDate ? ` → ${rescheduledToDate}` : ""}
+        перенос{rescheduledToDate ? ` → ${rescheduledToDate}` : ''}
       </span>
     );
   }
-  if (status === "no_show") {
+  if (status === 'no_show') {
     return (
       <span className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium whitespace-nowrap bg-destructive/10 text-destructive">
         отмена ⚠
@@ -183,19 +218,26 @@ type Props = {
   initialPaymentsSummary?: { payments: PaymentItem[]; totalPaidMinor: number } | null;
 };
 
-export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment, initialAppointments, initialPackages, initialPaymentsSummary }: Props) {
+export function PatientTabRecords({
+  userId,
+  header,
+  onCreateVisitFromAppointment,
+  initialAppointments,
+  initialPackages,
+  initialPaymentsSummary,
+}: Props) {
   const [cancelsPanelOpen, setCancelsPanelOpen] = useState(false);
   const [highlightedPackageId, setHighlightedPackageId] = useState<string | null>(null);
 
   // Real appointments fetch. Track the userId the loaded state belongs to so we
   // can derive «loading» when the prop changes — instead of resetting state
   // synchronously inside the effect (which triggers cascading renders).
-  const [allAppointments, setAllAppointments] = useState<DisplayAppointment[] | null>(
-    () => initialAppointments != null ? initialAppointments.map(mapRealToDisplay) : null,
+  const [allAppointments, setAllAppointments] = useState<DisplayAppointment[] | null>(() =>
+    initialAppointments != null ? initialAppointments.map(mapRealToDisplay) : null,
   );
   const [fetchError, setFetchError] = useState(false);
-  const [loadedUserId, setLoadedUserId] = useState<string | null>(
-    () => initialAppointments != null ? userId : null,
+  const [loadedUserId, setLoadedUserId] = useState<string | null>(() =>
+    initialAppointments != null ? userId : null,
   );
 
   useEffect(() => {
@@ -222,7 +264,7 @@ export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment
     return () => {
       active = false;
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
   // Stale = loaded state belongs to a previous userId → treat as loading.
@@ -235,42 +277,49 @@ export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment
       ? MOCK_HISTORY_FALLBACK
       : (allAppointments ?? []);
 
-  const upcomingList = displayList.filter((a) => a.status === "upcoming");
-  const historyList = displayList.filter((a) => a.status !== "upcoming");
+  const upcomingList = displayList.filter((a) => a.status === 'upcoming');
+  const historyList = displayList.filter((a) => a.status !== 'upcoming');
 
   // KPI: real values from header where available
-  const completedCount = header?.totalVisits ?? historyList.filter((a) => a.status === "completed").length;
-  const cancelsCount = header?.cancellationsCount ?? historyList.filter((a) => a.status === "canceled" || a.status === "no_show").length;
-  const reschedulesCount = header?.reschedulesCount ?? historyList.filter((a) => a.status === "rescheduled").length;
+  const completedCount =
+    header?.totalVisits ?? historyList.filter((a) => a.status === 'completed').length;
+  const cancelsCount =
+    header?.cancellationsCount ??
+    historyList.filter((a) => a.status === 'canceled' || a.status === 'no_show').length;
+  const reschedulesCount =
+    header?.reschedulesCount ?? historyList.filter((a) => a.status === 'rescheduled').length;
   const totalRecords = completedCount + cancelsCount + reschedulesCount;
   const firstVisitDate = header?.firstVisitDate;
 
-  const hasNoShows = historyList.some((a) => a.status === "no_show");
-  const cancelsHistory = historyList.filter((a) => a.status === "canceled" || a.status === "no_show");
+  const hasNoShows = historyList.some((a) => a.status === 'no_show');
+  const cancelsHistory = historyList.filter(
+    (a) => a.status === 'canceled' || a.status === 'no_show',
+  );
 
   return (
     <div className={cn(doctorPageStackClass)}>
-
       {/* ================================================================
           KPI ROW — 4 stat cards
       ================================================================ */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-
         {/* Всего записей */}
         <div className={doctorStatCardShellClass}>
           <p className={doctorMetricLabelClass}>Всего записей</p>
-          <p className={cn(doctorMetricValueClass, "mt-0.5")}>{totalRecords}</p>
+          <p className={cn(doctorMetricValueClass, 'mt-0.5')}>{totalRecords}</p>
           <p className="mt-0.5 text-[11px] text-muted-foreground">
             {firstVisitDate
-              ? `с ${(() => { const p = firstVisitDate.split("-"); return p.length === 3 ? `${p[1]}.${p[0]}` : firstVisitDate; })()}`
-              : "с 09.2025"}
+              ? `с ${(() => {
+                  const p = firstVisitDate.split('-');
+                  return p.length === 3 ? `${p[1]}.${p[0]}` : firstVisitDate;
+                })()}`
+              : 'с 09.2025'}
           </p>
         </div>
 
         {/* Состоялись */}
         <div className={doctorStatCardShellClass}>
           <p className={doctorMetricLabelClass}>Состоялись</p>
-          <p className={cn(doctorMetricValueClass, "mt-0.5")}>{completedCount}</p>
+          <p className={cn(doctorMetricValueClass, 'mt-0.5')}>{completedCount}</p>
           <p className="mt-0.5 text-[11px] text-muted-foreground">посещений за всё время</p>
         </div>
 
@@ -280,27 +329,25 @@ export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment
           variant="ghost"
           onClick={() => setCancelsPanelOpen((v) => !v)}
           className={cn(
-            "text-left",
+            'text-left',
             hasNoShows ? doctorStatCardShellWarningClass : doctorStatCardShellClass,
             doctorStatCardInteractiveClass,
           )}
         >
           <p className={doctorMetricLabelClass}>Отмены</p>
-          <p className={cn(doctorMetricValueClass, "mt-0.5")}>
+          <p className={cn(doctorMetricValueClass, 'mt-0.5')}>
             {cancelsCount}
-            {hasNoShows && (
-              <span className="ml-1 text-destructive font-black">!</span>
-            )}
+            {hasNoShows && <span className="ml-1 text-destructive font-black">!</span>}
           </p>
           <p className="mt-0.5 text-[11px] text-muted-foreground">
-            {hasNoShows ? "есть неявка · детали ↓" : "за всё время"}
+            {hasNoShows ? 'есть неявка · детали ↓' : 'за всё время'}
           </p>
         </Button>
 
         {/* Переносы */}
         <div className={doctorStatCardShellClass}>
           <p className={doctorMetricLabelClass}>Переносы</p>
-          <p className={cn(doctorMetricValueClass, "mt-0.5")}>{reschedulesCount}</p>
+          <p className={cn(doctorMetricValueClass, 'mt-0.5')}>{reschedulesCount}</p>
           <p className="mt-0.5 text-[11px] text-muted-foreground">за всё время</p>
         </div>
       </div>
@@ -309,8 +356,13 @@ export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment
           CANCELS DETAIL PANEL — opens on click of Отмены card
       ================================================================ */}
       {cancelsPanelOpen && cancelsHistory.length > 0 && (
-        <div className={cn(doctorSectionCardClass, "border-destructive/30")}>
-          <p className={cn(doctorSectionTitleClass, "text-xs uppercase tracking-wide text-muted-foreground")}>
+        <div className={cn(doctorSectionCardClass, 'border-destructive/30')}>
+          <p
+            className={cn(
+              doctorSectionTitleClass,
+              'text-xs uppercase tracking-wide text-muted-foreground',
+            )}
+          >
             Отмены · детали
           </p>
           <div className="flex flex-col gap-1.5">
@@ -319,17 +371,19 @@ export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment
                 key={a.id}
                 className={cn(
                   doctorSectionItemClass,
-                  a.status === "no_show" ? doctorSectionItemUrgentClass : "bg-muted/10",
-                  "flex items-center gap-3 text-xs",
+                  a.status === 'no_show' ? doctorSectionItemUrgentClass : 'bg-muted/10',
+                  'flex items-center gap-3 text-xs',
                 )}
               >
-                <span className="font-semibold text-foreground whitespace-nowrap">{fmtDate(a.date)}</span>
+                <span className="font-semibold text-foreground whitespace-nowrap">
+                  {fmtDate(a.date)}
+                </span>
                 <span className="text-muted-foreground flex-1 min-w-0">
-                  {a.status === "canceled"
-                    ? `отменена клиентом · причина: ${a.cancelReason ?? "—"}`
+                  {a.status === 'canceled'
+                    ? `отменена клиентом · причина: ${a.cancelReason ?? '—'}`
                     : `отменена · причина: клиент не пришёл`}
                 </span>
-                {a.status === "no_show" && (
+                {a.status === 'no_show' && (
                   <span className="inline-flex items-center rounded-md bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive whitespace-nowrap flex-none">
                     ⚠ неявка
                   </span>
@@ -337,7 +391,7 @@ export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment
               </div>
             ))}
           </div>
-          <p className={cn(doctorSectionSubtitleClass, "text-[11px] leading-relaxed")}>
+          <p className={cn(doctorSectionSubtitleClass, 'text-[11px] leading-relaxed')}>
             Неявка — не отдельный статус, а причина отмены.
           </p>
         </div>
@@ -347,12 +401,13 @@ export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment
           TWO-COLUMN: История записей | Предстоящие + Абонемент
       ================================================================ */}
       <div className="grid grid-cols-1 gap-3 md:grid-cols-[1.25fr_1fr] md:items-start">
-
         {/* LEFT: Визиты */}
         <div className={doctorSectionCardClass}>
           <div className="flex items-center justify-between gap-2">
             <p className={doctorSectionTitleClass}>Визиты</p>
-            <span className={cn(doctorSectionSubtitleClass, "text-[11px]")}>новые сверху · прокручивается</span>
+            <span className={cn(doctorSectionSubtitleClass, 'text-[11px]')}>
+              новые сверху · прокручивается
+            </span>
           </div>
 
           <div className="flex flex-col gap-1.5 max-h-[420px] overflow-y-auto pr-0.5">
@@ -360,7 +415,9 @@ export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment
               <p className="text-xs text-muted-foreground animate-pulse py-2">Загрузка записей…</p>
             )}
             {fetchError && (
-              <p className="text-xs text-destructive py-1">Не удалось загрузить записи. Показаны примеры.</p>
+              <p className="text-xs text-destructive py-1">
+                Не удалось загрузить записи. Показаны примеры.
+              </p>
             )}
             {!isLoading && !fetchError && historyList.length === 0 && (
               <p className="text-xs text-muted-foreground py-2">Записей пока нет.</p>
@@ -369,10 +426,10 @@ export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment
               <div
                 key={appt.id}
                 className={cn(
-                  "flex items-center gap-2.5 rounded-lg border bg-background px-2.5 py-2 text-xs",
+                  'flex items-center gap-2.5 rounded-lg border bg-background px-2.5 py-2 text-xs',
                   highlightedPackageId && appt.patientPackageId === highlightedPackageId
-                    ? "border-violet-500/60"
-                    : "border-border/70",
+                    ? 'border-violet-500/60'
+                    : 'border-border/70',
                 )}
               >
                 {/* Date */}
@@ -397,7 +454,7 @@ export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment
                 {/* Status chip */}
                 <StatusChip status={appt.status} rescheduledToDate={appt.rescheduledToDate} />
                 {/* Action */}
-                {appt.status === "completed" && !appt.hasVisitRecord && (
+                {appt.status === 'completed' && !appt.hasVisitRecord && (
                   <Button
                     type="button"
                     variant="ghost"
@@ -410,7 +467,7 @@ export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment
                           durationMin: appt.durationMin,
                         });
                       } else {
-                        openTab("karta");
+                        openTab('karta');
                       }
                     }}
                     className="rounded-md bg-primary/15 px-2.5 py-1 text-xs font-medium text-primary hover:bg-primary/25 whitespace-nowrap flex-none"
@@ -418,7 +475,7 @@ export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment
                     Оформить визит
                   </Button>
                 )}
-                {appt.status === "completed" && appt.hasVisitRecord && (
+                {appt.status === 'completed' && appt.hasVisitRecord && (
                   <Button
                     type="button"
                     variant="ghost"
@@ -431,7 +488,7 @@ export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment
                           durationMin: appt.durationMin,
                         });
                       } else {
-                        openTab("karta");
+                        openTab('karta');
                       }
                     }}
                     className="text-[11px] text-muted-foreground whitespace-nowrap flex-none hover:text-primary"
@@ -443,16 +500,14 @@ export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment
             ))}
           </div>
 
-          <p className={cn(doctorSectionSubtitleClass, "text-[11px] leading-relaxed")}>
-            У состоявшейся записи — либо ссылка «визит → » (Карта, визит раскрыт),
-            либо кнопка «Оформить визит», если визит не оформлен.
-            Создание новой записи — в Расписании.
+          <p className={cn(doctorSectionSubtitleClass, 'text-[11px] leading-relaxed')}>
+            У состоявшейся записи — либо ссылка «визит → » (Карта, визит раскрыт), либо кнопка
+            «Оформить визит», если визит не оформлен. Создание новой записи — в Расписании.
           </p>
         </div>
 
         {/* RIGHT column: Предстоящие + Абонемент */}
         <div className="flex flex-col gap-3">
-
           {/* Предстоящие */}
           <div className={doctorSectionCardClass}>
             <div className="flex items-center gap-2">
@@ -472,26 +527,27 @@ export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment
                   <div
                     key={appt.id}
                     className={cn(
-                      "rounded-xl border bg-primary/5 p-3",
+                      'rounded-xl border bg-primary/5 p-3',
                       highlightedPackageId && appt.patientPackageId === highlightedPackageId
-                        ? "border-violet-500/60"
-                        : "border-primary/30",
+                        ? 'border-violet-500/60'
+                        : 'border-primary/30',
                     )}
                   >
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-bold text-foreground">
-                        {appt.date ? `${fmtWeekday(appt.date)} ${fmtDate(appt.date)}` : "—"}{appt.time ? ` · ${appt.time}` : ""}
+                        {appt.date ? `${fmtWeekday(appt.date)} ${fmtDate(appt.date)}` : '—'}
+                        {appt.time ? ` · ${appt.time}` : ''}
                       </span>
                       <span className="inline-flex items-center rounded-md bg-background px-2 py-0.5 text-xs font-medium text-primary border border-primary/20">
                         подтверждена
                       </span>
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {[appt.location, appt.service].filter(Boolean).join(" · ")}
-                      {appt.durationMin ? ` · ${appt.durationMin} мин` : ""}
+                      {[appt.location, appt.service].filter(Boolean).join(' · ')}
+                      {appt.durationMin ? ` · ${appt.durationMin} мин` : ''}
                     </p>
                     <div className="flex gap-1.5 mt-3 flex-wrap">
-                      {["Перенести", "Отменить", "Комментарий"].map((label) => (
+                      {['Перенести', 'Отменить', 'Комментарий'].map((label) => (
                         <Button
                           key={label}
                           type="button"
@@ -525,7 +581,6 @@ export function PatientTabRecords({ userId, header, onCreateVisitFromAppointment
           ФИНАНСЫ — Платежи (moved from Учётка S2.5)
       ================================================================ */}
       <PaymentsPanel userId={userId} initialPaymentsSummary={initialPaymentsSummary} />
-
     </div>
   );
 }
@@ -552,7 +607,7 @@ export type ApiPackage = {
   items?: Array<{ serviceId: string; quantityInitial: number; sortOrder: number }> | null;
 };
 
-const isActivePackageStatus = (s: string) => s === "active" || s === "activated";
+const isActivePackageStatus = (s: string) => s === 'active' || s === 'activated';
 
 type ConsumeSession = {
   startsAt: string;
@@ -569,20 +624,32 @@ type PackageSessionState = {
   loading: boolean;
 };
 
-function packageTotals(pkg: ApiPackage): { balanceItems: ApiPackageItemBalance[]; totalSessions: number; remainingSessions: number } {
+function packageTotals(pkg: ApiPackage): {
+  balanceItems: ApiPackageItemBalance[];
+  totalSessions: number;
+  remainingSessions: number;
+} {
   const balanceItems = pkg.balance?.items ?? [];
   return {
     balanceItems,
     totalSessions: balanceItems.reduce((s, it) => s + (it.quantityInitial ?? 0), 0),
-    remainingSessions: balanceItems.reduce((s, it) => s + (it.displayRemaining ?? it.remaining ?? 0), 0),
+    remainingSessions: balanceItems.reduce(
+      (s, it) => s + (it.displayRemaining ?? it.remaining ?? 0),
+      0,
+    ),
   };
 }
 
-function isClosedByConsumedPastSessions(pkg: ApiPackage, sessions: PackageSession[] | null): boolean {
+function isClosedByConsumedPastSessions(
+  pkg: ApiPackage,
+  sessions: PackageSession[] | null,
+): boolean {
   if (!sessions) return false;
   const { totalSessions } = packageTotals(pkg);
   if (totalSessions <= 0) return false;
-  const consumedPastCount = sessions.filter((s) => s.linkage === "consumed" && s.isPast === true).length;
+  const consumedPastCount = sessions.filter(
+    (s) => s.linkage === 'consumed' && s.isPast === true,
+  ).length;
   return consumedPastCount >= totalSessions;
 }
 
@@ -598,7 +665,9 @@ function MembershipPanel({
   highlightedPackageId: string | null;
   onToggleHighlight: (packageId: string) => void;
 }) {
-  const [openHistoryPackageIds, setOpenHistoryPackageIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [openHistoryPackageIds, setOpenHistoryPackageIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
   const [packages, setPackages] = useState<ApiPackage[] | null>(() => initialPackages ?? null);
   const [error, setError] = useState(false);
   const [packageSessions, setPackageSessions] = useState<Record<string, PackageSessionState>>({});
@@ -607,7 +676,9 @@ function MembershipPanel({
     // Skip initial fetch when SSR data provided.
     if (initialPackages != null) return;
     let active = true;
-    fetch(`/api/doctor/booking-engine/patient-packages?platformUserId=${userId}`, { credentials: "include" })
+    fetch(`/api/doctor/booking-engine/patient-packages?platformUserId=${userId}`, {
+      credentials: 'include',
+    })
       .then((r) => {
         if (!r.ok) throw new Error(`status ${r.status}`);
         return r.json() as Promise<{ ok: boolean; packages: ApiPackage[] }>;
@@ -623,13 +694,15 @@ function MembershipPanel({
     return () => {
       active = false;
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
   useEffect(() => {
     let active = true;
     const loadPackages = () => {
-      fetch(`/api/doctor/booking-engine/patient-packages?platformUserId=${userId}`, { credentials: "include" })
+      fetch(`/api/doctor/booking-engine/patient-packages?platformUserId=${userId}`, {
+        credentials: 'include',
+      })
         .then((r) => {
           if (!r.ok) throw new Error(`status ${r.status}`);
           return r.json() as Promise<{ ok: boolean; packages: ApiPackage[] }>;
@@ -643,10 +716,10 @@ function MembershipPanel({
           if (active) setError(true);
         });
     };
-    window.addEventListener("patient:packages-changed", loadPackages);
+    window.addEventListener('patient:packages-changed', loadPackages);
     return () => {
       active = false;
-      window.removeEventListener("patient:packages-changed", loadPackages);
+      window.removeEventListener('patient:packages-changed', loadPackages);
     };
   }, [userId]);
 
@@ -678,9 +751,7 @@ function MembershipPanel({
     setPackageSessions((prev) => {
       const next: Record<string, PackageSessionState> = {};
       for (const pkg of rows) {
-        next[pkg.id] = prev[pkg.id]?.sessions
-          ? prev[pkg.id]!
-          : { sessions: null, loading: true };
+        next[pkg.id] = prev[pkg.id]?.sessions ? prev[pkg.id]! : { sessions: null, loading: true };
       }
       return next;
     });
@@ -688,7 +759,7 @@ function MembershipPanel({
       rows.map(async (pkg) => {
         const response = await fetch(
           `/api/doctor/booking-engine/patient-packages/${pkg.id}/sessions?includePast=true`,
-          { credentials: "include" },
+          { credentials: 'include' },
         ).catch(() => null);
         const data = response?.ok
           ? ((await response.json().catch(() => null)) as { sessions?: PackageSession[] } | null)
@@ -703,9 +774,11 @@ function MembershipPanel({
       }
       setPackageSessions(next);
     });
-    return () => { alive = false; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [packages?.map((pkg) => pkg.id).join("|") ?? ""]);
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [packages?.map((pkg) => pkg.id).join('|') ?? '']);
 
   function toggleHistoryPackage(packageId: string) {
     setOpenHistoryPackageIds((prev) => {
@@ -728,9 +801,11 @@ function MembershipPanel({
       </div>
 
       {packages === null && !error ? (
-        <p className={cn(doctorSectionSubtitleClass, "text-xs")}>Загрузка…</p>
+        <p className={cn(doctorSectionSubtitleClass, 'text-xs')}>Загрузка…</p>
       ) : error ? (
-        <p className={cn(doctorSectionSubtitleClass, "text-xs")}>Не удалось загрузить абонементы.</p>
+        <p className={cn(doctorSectionSubtitleClass, 'text-xs')}>
+          Не удалось загрузить абонементы.
+        </p>
       ) : classifiedPackages.active.length > 0 ? (
         <div className="flex flex-col gap-2">
           {classifiedPackages.active.map((pkg) => {
@@ -738,15 +813,15 @@ function MembershipPanel({
             const sessionState = packageSessions[pkg.id];
             const consumeDates: ConsumeSession[] | null = sessionState?.sessions
               ? sessionState.sessions
-                  .filter((s) => s.linkage === "consumed")
+                  .filter((s) => s.linkage === 'consumed')
                   .map((s) => ({ startsAt: s.startsAt }))
               : null;
             return (
               <div
                 key={pkg.id}
                 className={cn(
-                  "rounded-lg border bg-background p-2.5",
-                  highlightedPackageId === pkg.id ? "border-violet-500/60" : "border-border/70",
+                  'rounded-lg border bg-background p-2.5',
+                  highlightedPackageId === pkg.id ? 'border-violet-500/60' : 'border-border/70',
                 )}
               >
                 <div className="flex items-start gap-2">
@@ -775,8 +850,8 @@ function MembershipPanel({
                     aria-pressed={highlightedPackageId === pkg.id}
                     onClick={() => onToggleHighlight(pkg.id)}
                     className={cn(
-                      "size-8 flex-none text-muted-foreground hover:text-violet-700",
-                      highlightedPackageId === pkg.id ? "bg-violet-500/10 text-violet-700" : "",
+                      'size-8 flex-none text-muted-foreground hover:text-violet-700',
+                      highlightedPackageId === pkg.id ? 'bg-violet-500/10 text-violet-700' : '',
                     )}
                   >
                     <Eye className="size-4" aria-hidden="true" />
@@ -792,7 +867,7 @@ function MembershipPanel({
           })}
         </div>
       ) : (
-        <p className={cn(doctorSectionSubtitleClass, "text-xs")}>Активного абонемента нет.</p>
+        <p className={cn(doctorSectionSubtitleClass, 'text-xs')}>Активного абонемента нет.</p>
       )}
 
       {classifiedPackages.history.length > 0 ? (
@@ -806,23 +881,24 @@ function MembershipPanel({
           {classifiedPackages.history.map((pkg) => {
             const items = pkg.balance?.items ?? [];
             const total = items.reduce((s, it) => s + (it.quantityInitial ?? 0), 0);
-            const remaining = items.reduce((s, it) => s + (it.displayRemaining ?? it.remaining ?? 0), 0);
+            const remaining = items.reduce(
+              (s, it) => s + (it.displayRemaining ?? it.remaining ?? 0),
+              0,
+            );
             const isOpen = openHistoryPackageIds.has(pkg.id);
             const sessionState = packageSessions[pkg.id];
             const consumeDates = sessionState?.sessions
-              ? sessionState.sessions.filter((s) => s.linkage === "consumed").map((s) => s.startsAt)
+              ? sessionState.sessions.filter((s) => s.linkage === 'consumed').map((s) => s.startsAt)
               : null;
             return (
               <div
                 key={pkg.id}
                 className={cn(
-                  "rounded-lg border bg-muted/10",
-                  highlightedPackageId === pkg.id ? "border-violet-500/60" : "border-border/60",
+                  'rounded-lg border bg-muted/10',
+                  highlightedPackageId === pkg.id ? 'border-violet-500/60' : 'border-border/60',
                 )}
               >
-                <div
-                  className="flex items-center gap-1 px-1 py-1"
-                >
+                <div className="flex items-center gap-1 px-1 py-1">
                   <Button
                     type="button"
                     variant="ghost"
@@ -831,9 +907,15 @@ function MembershipPanel({
                     className="flex min-w-0 flex-1 items-center gap-2 px-1 py-1 text-left text-xs text-muted-foreground hover:bg-muted/40"
                   >
                     {isOpen ? (
-                      <ChevronDown className="size-3.5 flex-none text-muted-foreground/70" aria-hidden="true" />
+                      <ChevronDown
+                        className="size-3.5 flex-none text-muted-foreground/70"
+                        aria-hidden="true"
+                      />
                     ) : (
-                      <ChevronRight className="size-3.5 flex-none text-muted-foreground/70" aria-hidden="true" />
+                      <ChevronRight
+                        className="size-3.5 flex-none text-muted-foreground/70"
+                        aria-hidden="true"
+                      />
                     )}
                     <span className="min-w-0 flex-1 truncate font-medium text-muted-foreground">
                       {formatPatientPackageShortLabel(pkg.displayNumber)} · {pkg.title}
@@ -850,8 +932,8 @@ function MembershipPanel({
                     aria-pressed={highlightedPackageId === pkg.id}
                     onClick={() => onToggleHighlight(pkg.id)}
                     className={cn(
-                      "size-7 flex-none text-muted-foreground hover:text-violet-700",
-                      highlightedPackageId === pkg.id ? "bg-violet-500/10 text-violet-700" : "",
+                      'size-7 flex-none text-muted-foreground hover:text-violet-700',
+                      highlightedPackageId === pkg.id ? 'bg-violet-500/10 text-violet-700' : '',
                     )}
                   >
                     <Eye className="size-3.5" aria-hidden="true" />
@@ -875,8 +957,10 @@ function MembershipPanel({
                       consumeLoading={sessionState?.loading ?? false}
                     />
                     <p className="mt-1 text-xs text-muted-foreground/80">
-                      {pkg.soldAt ? `куплен ${fmtDate(pkg.soldAt.slice(0, 10))}` : "дата покупки не указана"}
-                      {pkg.validUntil ? ` · до ${fmtDate(pkg.validUntil.slice(0, 10))}` : ""}
+                      {pkg.soldAt
+                        ? `куплен ${fmtDate(pkg.soldAt.slice(0, 10))}`
+                        : 'дата покупки не указана'}
+                      {pkg.validUntil ? ` · до ${fmtDate(pkg.validUntil.slice(0, 10))}` : ''}
                     </p>
                   </div>
                 ) : null}
@@ -886,7 +970,7 @@ function MembershipPanel({
         </div>
       ) : null}
 
-      <p className={cn(doctorSectionSubtitleClass, "text-[11px] leading-relaxed")}>
+      <p className={cn(doctorSectionSubtitleClass, 'text-[11px] leading-relaxed')}>
         Работа с абонементом — здесь. Карточка «Абонемент» на Обзоре ведёт сюда по клику.
       </p>
     </div>
@@ -902,7 +986,7 @@ export type PaymentItem = {
   id: string;
   amountMinor: number;
   currency?: string;
-  kind: "cash" | "acquiring";
+  kind: 'cash' | 'acquiring';
   status: string;
   comment?: string | null;
   service?: string | null;
@@ -917,14 +1001,19 @@ type PaymentsResponse = {
 };
 
 function fmtRub(minorAmount: number): string {
-  return (minorAmount / 100).toLocaleString("ru-RU") + " ₽";
+  return (minorAmount / 100).toLocaleString('ru-RU') + ' ₽';
 }
 
 function fmtPaymentDate(iso: string | null | undefined): string {
-  if (!iso) return "—";
+  if (!iso) return '—';
   const d = new Date(iso);
-  if (isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("ru-RU", { timeZone: "Europe/Moscow", day: "2-digit", month: "2-digit", year: "numeric" });
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('ru-RU', {
+    timeZone: 'Europe/Moscow',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
 }
 
 function PaymentsPanel({
@@ -938,15 +1027,19 @@ function PaymentsPanel({
   const [loading, setLoading] = useState(false);
   const [unavailable, setUnavailable] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [payments, setPayments] = useState<PaymentItem[] | null>(() => initialPaymentsSummary?.payments ?? null);
-  const [totalPaidMinor, setTotalPaidMinor] = useState(() => initialPaymentsSummary?.totalPaidMinor ?? 0);
+  const [payments, setPayments] = useState<PaymentItem[] | null>(
+    () => initialPaymentsSummary?.payments ?? null,
+  );
+  const [totalPaidMinor, setTotalPaidMinor] = useState(
+    () => initialPaymentsSummary?.totalPaidMinor ?? 0,
+  );
   const [fetched, setFetched] = useState(() => initialPaymentsSummary != null);
 
   // Cash form state
   const [showCashForm, setShowCashForm] = useState(false);
-  const [cashAmountRub, setCashAmountRub] = useState("");
-  const [cashComment, setCashComment] = useState("");
-  const [cashService, setCashService] = useState("");
+  const [cashAmountRub, setCashAmountRub] = useState('');
+  const [cashComment, setCashComment] = useState('');
+  const [cashService, setCashService] = useState('');
   const [cashPending, setCashPending] = useState(false);
   const [cashError, setCashError] = useState<string | null>(null);
 
@@ -955,10 +1048,9 @@ function PaymentsPanel({
     setError(null);
     setUnavailable(false);
     try {
-      const res = await fetch(
-        `/api/doctor/patients/${encodeURIComponent(userId)}/payments`,
-        { credentials: "include" },
-      );
+      const res = await fetch(`/api/doctor/patients/${encodeURIComponent(userId)}/payments`, {
+        credentials: 'include',
+      });
       if (res.status === 404 || res.status === 501) {
         setUnavailable(true);
         return;
@@ -986,30 +1078,27 @@ function PaymentsPanel({
   }, [userId]);
 
   const handleSubmitCash = async () => {
-    const rubles = parseFloat(cashAmountRub.replace(",", "."));
+    const rubles = parseFloat(cashAmountRub.replace(',', '.'));
     if (!rubles || rubles <= 0) {
-      setCashError("Введите сумму > 0");
+      setCashError('Введите сумму > 0');
       return;
     }
     const amountMinor = Math.round(rubles * 100);
     setCashPending(true);
     setCashError(null);
     try {
-      const res = await fetch(
-        `/api/doctor/patients/${encodeURIComponent(userId)}/payments`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            amountMinor,
-            comment: cashComment.trim() || undefined,
-            service: cashService.trim() || undefined,
-          }),
-        },
-      );
+      const res = await fetch(`/api/doctor/patients/${encodeURIComponent(userId)}/payments`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amountMinor,
+          comment: cashComment.trim() || undefined,
+          service: cashService.trim() || undefined,
+        }),
+      });
       if (res.status === 404 || res.status === 501) {
-        setCashError("Эндпоинт платежей ещё не готов — попробуйте позже.");
+        setCashError('Эндпоинт платежей ещё не готов — попробуйте позже.');
         return;
       }
       const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
@@ -1017,13 +1106,13 @@ function PaymentsPanel({
         setCashError(data?.error ?? `Ошибка ${res.status}`);
         return;
       }
-      setCashAmountRub("");
-      setCashComment("");
-      setCashService("");
+      setCashAmountRub('');
+      setCashComment('');
+      setCashService('');
       setShowCashForm(false);
       setFetched(false);
     } catch {
-      setCashError("network");
+      setCashError('network');
     } finally {
       setCashPending(false);
     }
@@ -1055,43 +1144,41 @@ function PaymentsPanel({
       </div>
 
       {loading && (
-        <p className={cn(doctorSectionSubtitleClass, "text-[11px]")}>Загрузка платежей…</p>
+        <p className={cn(doctorSectionSubtitleClass, 'text-[11px]')}>Загрузка платежей…</p>
       )}
 
       {unavailable && !loading && (
         <div className="rounded-lg border border-border bg-muted/10 px-3 py-2 text-[11px] text-muted-foreground">
-          Платежи недоступны — эндпоинт строится параллельным агентом.
-          Данные появятся после деплоя миграции.
+          Платежи недоступны — эндпоинт строится параллельным агентом. Данные появятся после деплоя
+          миграции.
         </div>
       )}
 
-      {error && !unavailable && !loading && (
-        <p className="text-[11px] text-destructive">{error}</p>
-      )}
+      {error && !unavailable && !loading && <p className="text-[11px] text-destructive">{error}</p>}
 
       {!unavailable && !loading && payments !== null && (
         <>
           {/* Total */}
           <div className={cn(doctorStatCardShellClass)}>
-            <div className={cn(doctorMetricLabelClass, "mb-0.5")}>Итого оплачено</div>
-            <div className={cn(doctorMetricValueClass, "text-base")}>{fmtRub(totalPaidMinor)}</div>
+            <div className={cn(doctorMetricLabelClass, 'mb-0.5')}>Итого оплачено</div>
+            <div className={cn(doctorMetricValueClass, 'text-base')}>{fmtRub(totalPaidMinor)}</div>
           </div>
 
           {/* Payment list */}
           {payments.length === 0 ? (
-            <p className={cn(doctorSectionSubtitleClass, "text-[11px]")}>Нет записей об оплате.</p>
+            <p className={cn(doctorSectionSubtitleClass, 'text-[11px]')}>Нет записей об оплате.</p>
           ) : (
             <div className="flex flex-col gap-1">
               {payments.map((p) => (
                 <div
                   key={p.id}
-                  className={cn(doctorSectionItemClass, "flex items-center gap-2 text-xs")}
+                  className={cn(doctorSectionItemClass, 'flex items-center gap-2 text-xs')}
                 >
                   <span className="flex-none text-muted-foreground text-[11px] font-medium">
-                    {p.kind === "cash" ? "нал" : "экв"}
+                    {p.kind === 'cash' ? 'нал' : 'экв'}
                   </span>
                   <span className="flex-1 truncate">
-                    {p.service ?? p.comment ?? (p.kind === "cash" ? "Наличные" : "Эквайринг")}
+                    {p.service ?? p.comment ?? (p.kind === 'cash' ? 'Наличные' : 'Эквайринг')}
                     {p.comment && p.service && (
                       <span className="text-muted-foreground ml-1">· {p.comment}</span>
                     )}
@@ -1099,7 +1186,7 @@ function PaymentsPanel({
                   <span className="font-semibold tabular-nums whitespace-nowrap">
                     {fmtRub(p.amountMinor)}
                   </span>
-                  <span className={cn(doctorSectionSubtitleClass, "whitespace-nowrap pl-2")}>
+                  <span className={cn(doctorSectionSubtitleClass, 'whitespace-nowrap pl-2')}>
                     {fmtPaymentDate(p.createdAt)}
                   </span>
                 </div>
@@ -1124,7 +1211,7 @@ function PaymentsPanel({
 
           {showCashForm && (
             <div className="rounded-lg border border-border bg-background p-3 flex flex-col gap-2 shadow-sm">
-              <p className={cn(doctorSectionTitleClass, "text-xs")}>Внести наличные</p>
+              <p className={cn(doctorSectionTitleClass, 'text-xs')}>Внести наличные</p>
               <div className="flex gap-2 items-end flex-wrap">
                 <div className="flex flex-col gap-0.5 flex-1 min-w-[100px]">
                   <label className="text-[11px] text-muted-foreground">Сумма, ₽</label>
@@ -1156,16 +1243,17 @@ function PaymentsPanel({
                   />
                 </div>
               </div>
-              {cashError && (
-                <p className="text-[11px] text-destructive">{cashError}</p>
-              )}
+              {cashError && <p className="text-[11px] text-destructive">{cashError}</p>}
               <div className="flex gap-2 justify-end">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   disabled={cashPending}
-                  onClick={() => { setShowCashForm(false); setCashError(null); }}
+                  onClick={() => {
+                    setShowCashForm(false);
+                    setCashError(null);
+                  }}
                 >
                   Отмена
                 </Button>
@@ -1176,7 +1264,7 @@ function PaymentsPanel({
                   disabled={cashPending}
                   onClick={() => void handleSubmitCash()}
                 >
-                  {cashPending ? "…" : "Сохранить"}
+                  {cashPending ? '…' : 'Сохранить'}
                 </Button>
               </div>
             </div>
@@ -1184,7 +1272,7 @@ function PaymentsPanel({
         </>
       )}
 
-      <p className={cn(doctorSectionSubtitleClass, "text-[11px]")}>
+      <p className={cn(doctorSectionSubtitleClass, 'text-[11px]')}>
         Учёт наличных платежей. Эквайринг (провайдер не выбран) — следующий этап.
       </p>
     </div>

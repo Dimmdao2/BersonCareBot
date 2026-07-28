@@ -1,8 +1,8 @@
 ---
 name: Notification topic alignment
-overview: "Устранить разрыв между темами рассылок webapp (`notifications_topics`) и движком напоминаний integrator (`ReminderCategory`), не расширяя `REMINDER_CATEGORIES`: явный `notification_topic_code` на правиле + `topic` в Rubitime slot reminders; «важное» без фильтра по теме. Пост-аудит 2026-05-10: хвосты тестов/доков закрыты; репозиторий: `docs/archive/2026-05-initiatives/PATIENT_REMINDER_UX_INITIATIVE/NOTIFICATION_TOPIC_ALIGNMENT.md`."
+overview: 'Устранить разрыв между темами рассылок webapp (`notifications_topics`) и движком напоминаний integrator (`ReminderCategory`), не расширяя `REMINDER_CATEGORIES`: явный `notification_topic_code` на правиле + `topic` в Rubitime slot reminders; «важное» без фильтра по теме. Пост-аудит 2026-05-10: хвосты тестов/доков закрыты; репозиторий: `docs/archive/2026-05-initiatives/PATIENT_REMINDER_UX_INITIATIVE/NOTIFICATION_TOPIC_ALIGNMENT.md`.'
 implementationStatus: verified
-implementationVerifiedAt: "2026-05-10"
+implementationVerifiedAt: '2026-05-10'
 build:
   status: completed
 todos:

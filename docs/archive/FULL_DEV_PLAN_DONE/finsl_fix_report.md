@@ -3,10 +3,12 @@
 ## Iteration 1
 
 ### Task ID / Stage
+
 - `phase0-backlog-matrix`
 - `phase1-critical-sec-perf` (partial)
 
 ### Что сделано
+
 - Зафиксирован baseline задач из `FIX_PLAN_EXECUTION_REPORT` и `FINAL_FIX_RECOMMENDATIONS`.
 - Закрыты точечные правки по:
   - `SEC-01`: безопасное сравнение hash для Telegram initData через timing-safe helper.
@@ -17,6 +19,7 @@
   - `TEST-03`: унифицировано SQL-правило исключения удалений из отмен и добавлены тесты.
 
 ### Какие файлы изменены
+
 - `apps/webapp/src/modules/auth/service.ts`
 - `apps/webapp/src/modules/messaging/doctorSupportMessagingService.ts`
 - `apps/webapp/src/modules/doctor-stats/service.ts`
@@ -30,30 +33,38 @@
 - `apps/webapp/src/infra/repos/pgDoctorAppointments.test.ts`
 
 ### Какие команды проверок запускались
+
 - Pending (будут добавлены после полного прогона обязательных проверок).
 
 ### Результат проверок
+
 - Pending.
 
 ### Проблемы/сложности
+
 - В проекте есть параллельно запущенные незавершенные интерактивные terminal-сессии от прошлых запусков (не использовались для текущих правок).
 
 ### Как решено
+
 - Текущая итерация выполняется в отдельных командах/проверках без зависимости от чужих интерактивных сессий.
 
 ### Остаточные риски
+
 - До выполнения полного `pnpm run ci` и целевых тестов статус этапа `phase1-critical-sec-perf` считается предварительным.
 
 ### Статус
+
 - `Needs Rework` (до завершения полного verify-блока).
 
 ## Iteration 2
 
 ### Task ID / Stage
+
 - `phase1-critical-sec-perf`
 - `phase2-execution-gaps` (частично: Stage 05 auth validation)
 
 ### Что сделано
+
 - Добавлены/обновлены тесты для security/perf фиксов:
   - `modules/auth/service.test.ts` (malformed signed token не приводит к падению).
   - `modules/messaging/doctorSupportMessagingService.test.ts` (использование `conversationExists`, корректные ветки reply/getMessages).
@@ -64,6 +75,7 @@
   - Для `exchange` и `telegram-init` добавлены route tests.
 
 ### Какие файлы изменены
+
 - `apps/webapp/src/app/api/auth/phone/confirm/route.ts`
 - `apps/webapp/src/app/api/auth/exchange/route.ts`
 - `apps/webapp/src/app/api/auth/telegram-init/route.ts`
@@ -75,33 +87,41 @@
 - `apps/webapp/src/modules/doctor-stats/service.test.ts`
 
 ### Какие команды проверок запускались
+
 - `pnpm vitest run src/modules/auth/service.test.ts src/modules/messaging/doctorSupportMessagingService.test.ts src/modules/doctor-stats/service.test.ts src/infra/repos/pgDoctorAppointments.test.ts`
 - `pnpm install --frozen-lockfile && pnpm run ci`
 - `pnpm vitest run src/app/api/auth/phone/confirm/route.test.ts src/app/api/auth/exchange/route.test.ts src/app/api/auth/telegram-init/route.test.ts src/modules/auth/service.test.ts src/modules/messaging/doctorSupportMessagingService.test.ts src/modules/doctor-stats/service.test.ts src/infra/repos/pgDoctorAppointments.test.ts`
 - `pnpm run ci` (повторный полный прогон после второго пакета правок)
 
 ### Результат проверок
+
 - Все перечисленные таргетные тесты: `PASS`.
 - Полный `pnpm run ci`: `PASS` (lint, typecheck, integrator tests, webapp tests, build, audit).
 
 ### Проблемы/сложности
+
 - Первичный запуск таргетных тестов через `pnpm --dir apps/webapp ...` из корня был выполнен неверно (команда пакета не найдена).
 
 ### Как решено
+
 - Запуск тестов переведен в `working_directory=apps/webapp`, после чего тесты выполнились штатно.
 
 ### Остаточные риски
+
 - По мастер-плану остаются крупные незакрытые блоки Stage 11–14 (новые модули/миграции) и отдельные задачи Stage 10 e2e-flow.
 
 ### Статус
+
 - `phase1-critical-sec-perf`: `Done`.
 - `phase2-execution-gaps`: `In Progress` (не закрыты все пункты Stage 10/11/12/13/14).
 
 ## Production Readiness Verdict
+
 - Частично готово: критичные security/perf фиксы и обязательный CI-gate пройдены.
 - Полная production readiness по master-plan не достигнута: не реализованы крупные этапы 11–14 и часть roadmap-задач Stage 10.
 
 ## Open Blockers
+
 - Полная реализация Stage 11 (LFK).
 - Полная реализация Stage 12 (Reminders full flow).
 - Полная реализация Stage 13 (Integrations full flow).
@@ -109,15 +129,18 @@
 - Расширение Stage 10 e2e сценария `upload -> saveContentPage`.
 
 ## Follow-up required before deploy
+
 - Дореализовать незакрытые этапы 11–14 по планам и прогнать `pnpm run ci` после каждого крупного блока.
 - Добавить/прогнать e2e для Stage 10 media upload -> content save.
 
 ## Pack A (`EXEC_A_QUICK_FIXES.md`) — 2026-03-25
 
 ### Статус
+
 - Все шаги A.1–A.5 выполнены; после правок: `pnpm run ci` — **PASS** (один прогон полного CI после исправления теста мемоизации).
 
 ### Шаги
+
 - **A.1 (PERF-04 + QA-02):** `buildAppDeps` обёрнут в `React.cache(_buildAppDeps)`; unit-тест на `Object.is` между вызовами в Vitest **не** используется — в среде тестов без Next request scope `cache` не гарантирует ту же ссылку (см. комментарий у экспорта).
 - **A.2 (ARCH-01):** добавлен `shared/hooks/useSupportUnreadPolling.ts` (re-export), `PatientHeader` / `DoctorHeader` переведены на `@/shared/hooks/useSupportUnreadPolling`.
 - **A.3 (ARCH-02):** прямой SQL на телефон убран из `buildAppDeps`; добавлен `UserByPhonePort.getPhoneByUserId` (pg + in-memory).
@@ -125,6 +148,7 @@
 - **A.5 (TEST-01 + QA-03):** тесты: POST patient messages → 403 при `blocked`; GET doctor unread-count; PATCH admin archive → 403 для `doctor`; стабильность индекса цитаты через `quoteIndexForDaySeed` / `quoteDayKeyUtc`; опциональный второй аргумент `referenceDate` у `getQuoteForDay`.
 
 ### Изменённые / новые файлы
+
 - `apps/webapp/src/app-layer/di/buildAppDeps.ts`
 - `apps/webapp/src/modules/auth/userByPhonePort.ts`
 - `apps/webapp/src/infra/repos/pgUserByPhone.ts`
@@ -143,13 +167,16 @@
 - `apps/webapp/src/app/api/admin/users/[userId]/archive/route.test.ts` (новый)
 
 ### Результат проверок
+
 - `pnpm install --frozen-lockfile && pnpm run ci` — **PASS** (lint, typecheck, integrator test, webapp test, build, audit --prod).
 
 ### Блокеры / риски
+
 - Дедупликация `buildAppDeps` через `React.cache` завязана на request scope Next/RSC; в голом Vitest повторные вызовы могут возвращать разные объекты — это ожидаемо и задокументировано в коде.
 - Статистика отмен в карточке клиента опирается на полноту `appointment_records` в истории (лимит 80 строк в `listHistoryByPhoneNormalized`).
 
 ### Code review Pack A (2026-03-25)
+
 - Добавлены тесты: `newsMotivation.getQuoteForDay.test.ts` (два вызова `getQuoteForDay(seed, date)` при моке БД — одинаковый результат, EXEC A.5 QA-03); расширен `service.test.ts` (интеграция `appointmentStats` с историей).
 - `docs/FULL_DEV_PLAN/EXEC/QA_CHECKLIST.md` (секция Pack A): пункты отмечены с уточнением scope ARCH-01 только для шапок.
 
@@ -158,16 +185,19 @@
 ## Pack B (`EXEC_B_SETTINGS_ADMIN!!.md`) — 2026-03-25
 
 ### Статус
+
 - Все шаги B.1–B.6 выполнены; `pnpm run ci` — **PASS** на каждом шаге и после финального.
 
 ### Шаги
 
 **B.1 — Миграция `031_system_settings.sql`**
+
 - Таблица `system_settings (key, scope PK, value_json JSONB, updated_at, updated_by FK)`.
 - Seed 5 дефолтных ключей с `ON CONFLICT DO NOTHING`.
 - CI: PASS.
 
 **B.2 — Модуль `system-settings`**
+
 - `types.ts`: `ALLOWED_KEYS`, `SystemSettingKey`, `SystemSettingScope`, `SystemSetting`.
 - `ports.ts`: `SystemSettingsPort` (getByKey, getByScope, upsert).
 - `service.ts`: `createSystemSettingsService` — whitelist guard, `shouldDispatch` (dev_mode + test IDs).
@@ -177,18 +207,21 @@
 - CI: PASS.
 
 **B.3 — API с role-guard**
+
 - `GET/PATCH /api/doctor/settings` — guard: role >= doctor, scope=doctor.
 - `GET/PATCH /api/admin/settings` — guard: role === admin, scope=admin; audit log в PATCH.
 - Тесты: client → 403; doctor → 200/403 по scope; admin → 200 оба; invalid key → 400.
 - CI: PASS.
 
 **B.4 — UI `/app/settings`**
+
 - Для `client` → redirect `/app/patient/profile`.
 - Для `doctor`/`admin` → страница с `DoctorHeader` + `SettingsForm`.
 - `SettingsForm`: Select (patient_label), Toggle (sms_fallback_enabled), кнопка «Сохранить» через `PATCH /api/doctor/settings`.
 - CI: PASS (исправлен TS-error по типу onValueChange Select).
 
 **B.5 — Admin mode**
+
 - `AppSession.adminMode?: boolean` добавлен в типы сессии.
 - `toggleAdminMode()` в `auth/service.ts` — читает cookie, переключает флаг, записывает.
 - `POST /api/admin/mode` — guard admin, вызывает toggleAdminMode.
@@ -198,6 +231,7 @@
 - CI: PASS.
 
 **B.6 — Admin UI + `shouldDispatch` + audit**
+
 - `AdminSettingsSection.tsx`: toggles dev_mode, debug_forward_to_admin; textarea integration_test_ids (JSON); числовой input important_fallback_delay_minutes.
 - Видна только при `adminMode === true`.
 - Сохранение через `PATCH /api/admin/settings` (x4 ключа).
@@ -208,6 +242,7 @@
 ### Изменённые / новые файлы
 
 **Новые:**
+
 - `apps/webapp/migrations/031_system_settings.sql`
 - `apps/webapp/src/modules/system-settings/types.ts`
 - `apps/webapp/src/modules/system-settings/ports.ts`
@@ -226,6 +261,7 @@
 - `apps/webapp/src/app/app/settings/AdminSettingsSection.tsx`
 
 **Изменённые:**
+
 - `apps/webapp/src/shared/types/session.ts` (добавлен `adminMode?: boolean`)
 - `apps/webapp/src/modules/auth/service.ts` (добавлен `toggleAdminMode`)
 - `apps/webapp/src/shared/ui/DoctorHeader.tsx` (prop adminMode, badge, bg-destructive/10)
@@ -234,10 +270,12 @@
 - `apps/webapp/src/app-layer/di/buildAppDeps.ts` (регистрация systemSettings)
 
 ### Результат проверок
+
 - `pnpm run ci` после каждого шага: **PASS**.
 - Финальный `pnpm run ci` (B.6): **PASS** (lint, typecheck, integrator tests, webapp tests, build, audit --prod).
 
 ### Блокеры / риски
+
 - `AdminModeToggle` после toggle использует `router.refresh()` (без полного reload) — риск отсутствует.
 - `DoctorHeader.adminMode` получает значение из серверного компонента layout/page; при переходах внутри `/app/doctor/*` значение обновляется автоматически через layout re-render.
 - `shouldDispatch` читает настройки из БД при каждом вызове; при высокой нагрузке возможно добавить кэш.
@@ -249,17 +287,21 @@
 ### Findings
 
 **[CRITICAL — ИСПРАВЛЕНО]** `AdminSettingsSection.patchAdminSetting` отправляла «голые» значения (`true`, `[...]`, `60`) вместо `{value: X}`. После сохранения через UI:
+
 - `shouldDispatch` проверяет `(valueJson as object).value === true` — на boolean это false → dev_mode не работал.
 - `getAdminValue` на странице аналогично не мог прочитать сохранённое значение.
 - **Фикс**: обёртка в `{ value: rawValue }` в `patchAdminSetting`.
 
 **[HIGH — ИСПРАВЛЕНО]** Отсутствовал тест "admin → 200 PATCH /api/doctor/settings" (требуется B.3 spec).
+
 - **Фикс**: добавлен тест `returns 200 for admin role patching doctor scope key`.
 
 **[HIGH — ИСПРАВЛЕНО]** Отсутствовал unit-тест `AdminModeToggle` (требуется B.5 spec).
+
 - **Фикс**: `AdminModeToggle.test.ts` — smoke-тест экспортов + API contract для fetch. Полный render-тест недоступен (vitest env: node, jsdom не настроен в проекте).
 
 **[MEDIUM — ИСПРАВЛЕНО]** `beforeEach` в doctor route test не сбрасывал `getSettingMock` в PATCH-блоке.
+
 - **Фикс**: добавлен `getSettingMock.mockReset()`.
 
 **[MEDIUM — ИСПРАВЛЕНО]** Добавлены тесты для admin/settings: `updated_by` корректно передаётся; 401 при отсутствии сессии на PATCH.
@@ -267,9 +309,11 @@
 **[MEDIUM — ИСПРАВЛЕНО]** Добавлен тест `shouldDispatch — dev_mode true, integration_test_ids отсутствует → false`.
 
 **[LOW — ИСПРАВЛЕНО]** `window.location.reload()` в AdminModeToggle.
+
 - **Фикс**: заменено на `router.refresh()` (Next.js), чтобы обновлять серверные данные без полного перезагрузки вкладки.
 
 ### Итоговый статус
+
 - `pnpm run ci`: **PASS** после всех фиксов.
 - Критических блокеров деплоя нет.
 
@@ -280,11 +324,13 @@
 ### Шаг C.1 — Endpoint relay-outbound в integrator
 
 **Файлы:**
+
 - `apps/integrator/src/integrations/bersoncare/relayOutboundRoute.ts` (новый)
 - `apps/integrator/src/integrations/bersoncare/relayOutboundRoute.test.ts` (новый)
 - `apps/integrator/src/app/routes.ts` (зарегистрирован новый route)
 
 **Что сделано:**
+
 - HMAC-валидация: `verifySignature` по образцу `sendSmsRoute.ts` (timestamp + rawBody).
 - Zod-схема payload: `messageId`, `channel` (telegram/max/email/sms), `recipient`, `text`, `idempotencyKey`, `metadata?`.
 - In-memory dedup Map с TTL 24h.
@@ -293,6 +339,7 @@
 - Тесты: valid → 200 accepted, invalid sig → 401, duplicate key → 200 duplicate, invalid payload → 400, dispatch throw → 502.
 
 **Фиксы при CI:**
+
 - `z.record(z.unknown())` → `z.record(z.string(), z.unknown())` (Zod v4 требует 2 аргумента).
 
 **CI:** PASS
@@ -300,11 +347,13 @@
 ### Шаг C.2 — Клиент relay в webapp
 
 **Файлы:**
+
 - `apps/webapp/src/modules/messaging/relayOutbound.ts` (переписан с нуля)
 - `apps/webapp/src/modules/messaging/relayOutbound.test.ts` (переписан)
 - `apps/webapp/src/modules/messaging/patientMessagingService.ts` (удалён устаревший вызов maybeRelayOutbound)
 
 **Что сделано:**
+
 - `relayOutbound(params, deps?)` — подписывает HMAC, строит idempotencyKey, retry 4 попытки с задержками [0, 10s, 60s, 5min].
 - `shouldDispatch` guard: если передан и возвращает false → skip с reason `dev_mode_skip`.
 - Нет `INTEGRATOR_API_URL` → warn один раз + return `{ ok: false, reason: "no_integrator_url" }`.
@@ -315,11 +364,13 @@
 ### Шаг C.3 — Интеграция в doctorSupportMessagingService
 
 **Файлы:**
+
 - `apps/webapp/src/modules/messaging/doctorSupportMessagingService.ts` (обновлён)
 - `apps/webapp/src/modules/messaging/doctorSupportMessagingService.test.ts` (обновлён)
 - `apps/webapp/src/app-layer/di/buildAppDeps.ts` (передаётся shouldDispatch)
 
 **Что сделано:**
+
 - `createDoctorSupportMessagingService(port, opts?)` — принимает `opts: RelayOutboundDeps` с `shouldDispatch?`.
 - В `sendAdminReply` после сохранения сообщения используется лёгкий `getConversationRelayInfo` для `channelCode`/`channelExternalId`/`platformUserId` без чтения message history.
 - Fire-and-forget relay через `relayOutbound(...)` — ошибка relay не ломает ответ API.
@@ -332,6 +383,7 @@
 ### Шаг C.4 — INTEGRATOR_CONTRACT.md
 
 **Файлы:**
+
 - `apps/webapp/INTEGRATOR_CONTRACT.md` (добавлен раздел «Flow 5: relay-outbound»)
 
 **CI:** PASS
@@ -352,17 +404,20 @@
 ### Findings
 
 **[CRITICAL — ИСПРАВЛЕНО]** `shouldDispatch` bypass при `userId = null`:
+
 - Условие `if (userId && shouldDispatch)` полностью пропускало whitelist-проверку когда `platformUserId` отсутствует в conversation.
 - При активном `dev_mode` это посылало сообщения всем пациентам без фильтра.
 - **Фикс**: инвертирована логика — если `shouldDispatch` задан, но `userId` нет → `{ ok: false, reason: 'dev_mode_skip_no_user' }`.
 - **Тест**: добавлен `shouldDispatch задан, но userId отсутствует → dev_mode_skip_no_user`.
 
 **[HIGH — ИСПРАВЛЕНО]** Нет ранней остановки retry на 4xx:
+
 - Webapp повторял запрос 4 раза при 401/400, что при неверном секрете только маскировало проблему.
 - **Фикс**: `attemptRelay` возвращает `httpStatus`; при `4xx` retry прерывается немедленно.
 - **Тесты**: добавлены `401 → прерывает retry (1 попытка)` и `400 → прерывает retry`.
 
 **[HIGH — ИСПРАВЛЕНО]** Пропущенные тесты в integrator:
+
 - Нет теста `missing_headers → 400` (оба заголовка отсутствуют, только timestamp отсутствует).
 - Нет теста dispatch intent для `max` и `sms` каналов.
 - **Фикс**: добавлены 4 новых теста в `relayOutboundRoute.test.ts`.
@@ -370,10 +425,12 @@
 **[MEDIUM — ИСПРАВЛЕНО]** QA Checklist Pack C не был отмечен выполненным.
 
 **[MEDIUM — ИСПРАВЛЕНО]** Двойное чтение БД в `sendAdminReply`.
+
 - Было: `conversationExists` + `getConversationWithMessages` (лишний второй запрос и загрузка всех сообщений).
 - **Фикс**: добавлен лёгкий метод порта `getConversationRelayInfo(conversationId)`; `sendAdminReply` использует его для проверки существования и получения channel binding, без загрузки message history.
 
 ### Итоговый статус
+
 - `pnpm run ci`: **PASS** после всех фиксов.
 - Критических блокеров деплоя нет.
 
@@ -382,11 +439,13 @@
 ## Pack D — Reminders (Stage 12)
 
 ### Дата выполнения
+
 2026-03-25
 
 ### Шаги выполнены
 
 **D.1 — Реальный сервис reminders**
+
 - Созданы `types.ts`, `ports.ts`, `pgReminderRules.ts`, `inMemoryReminderRules.ts`.
 - `service.ts` переписан: `listRulesByUser`, `toggleCategory`, `updateRule` с валидацией bounds.
 - `validateReminderDispatchPayload` сохранён (используется dispatch-роутом).
@@ -395,6 +454,7 @@
 - CI: PASS.
 
 **D.2 — Patient UI /app/patient/reminders**
+
 - Страница `/app/patient/reminders` (Server Component + `ReminderRulesClient`).
 - Server Actions `toggleReminderCategory`, `updateReminderRule` с Zod-валидацией.
 - Добавлены shadcn: `switch`, `label` (отсутствовали).
@@ -403,6 +463,7 @@
 - CI: PASS после исправления Zod `.errors` → `.issues`.
 
 **D.3 — Синхронизация с integrator**
+
 - `notifyIntegrator.ts`: HMAC-signed POST к integrator; `idempotencyKey` в теле; URL `{INTEGRATOR_API_URL}/api/integrator/reminders/rules`.
 - Сервис после успешного сохранения в БД `await`-ит нотификатор; при ошибке relay — `console.warn`, правило сохранено, в ответе `syncWarning` (текст `REMINDER_INTEGRATOR_SYNC_WARNING`) для UI.
 - Server Actions и `ReminderRulesClient` показывают предупреждение пользователю (янтарный текст), не блокируя сохранение.
@@ -410,6 +471,7 @@
 - CI: PASS после добавления `vi.clearAllMocks()` в beforeEach.
 
 **D.4 — Колокольчик в PatientHeader**
+
 - `GET /api/patient/reminders/unread-count` → `{ ok, count }`.
 - `getUnseenCount`, `getStats`, `markSeen` добавлены в `ReminderProjectionPort`.
 - Реализации: pgReminderProjection (try/catch для отсутствующей seen_at), inMemory (0).
@@ -419,6 +481,7 @@
 - CI: PASS.
 
 **D.5 — Миграция seen_at + статистика**
+
 - Миграция `032_reminder_seen_status.sql`: `ADD COLUMN IF NOT EXISTS seen_at TIMESTAMPTZ`.
 - `POST /api/patient/reminders/mark-seen` → `markSeen(userId, ids)`.
 - Статистика «За 30 дней» на странице reminders (Card).
@@ -428,6 +491,7 @@
 ### Изменённые файлы
 
 **Новые файлы:**
+
 - `apps/webapp/src/modules/reminders/types.ts`
 - `apps/webapp/src/modules/reminders/ports.ts`
 - `apps/webapp/src/modules/reminders/notifyIntegrator.ts`
@@ -445,6 +509,7 @@
 - `apps/webapp/src/components/ui/label.tsx` (shadcn)
 
 **Изменённые файлы:**
+
 - `apps/webapp/src/modules/reminders/service.ts` (полная перезапись)
 - `apps/webapp/src/modules/reminders/service.test.ts` (полная перезапись)
 - `apps/webapp/src/infra/repos/pgReminderProjection.ts` (добавлены getUnseenCount, getStats, markSeen)
@@ -458,6 +523,7 @@
 - `apps/webapp/src/modules/integrator/events.test.ts` (мок обновлён)
 
 ### Результаты pnpm run ci
+
 - D.1: PASS
 - D.2: PASS (после fix: `switch`/`label` shadcn + Zod `.issues`)
 - D.3: PASS (после fix: `vi.clearAllMocks()` в beforeEach)
@@ -465,10 +531,12 @@
 - D.5: PASS
 
 ### Итоговый статус
+
 - `pnpm run ci`: **PASS**
 - Критических блокеров деплоя нет.
 
 ### Риски / Долг
+
 - `getUnseenCount`/`getStats`/`markSeen` в pg-реализации работают только после применения миграции 032.
   До применения миграции — graceful fallback: 0 (try/catch в pg-методах).
 - `notifyIntegratorRuleUpdated` отправляет POST на `/api/integrator/reminders/rules` на integrator.
@@ -490,6 +558,7 @@
 **Проблема**: `handleMarkAllSeen` в `ReminderRulesClient` отправлял `{ occurrenceIds: ["__mark_all__"] }` — fake ID. В БД обновлялось 0 строк, badge никогда не уменьшался.
 
 **Фикс**:
+
 - Добавлен `markAllSeen(platformUserId)` в `ReminderProjectionPort` + pg/inMemory реализации.
 - Маршрут `mark-seen` обновлён: принимает `{ all: true }` (вызывает `markAllSeen`) или `{ occurrenceIds: string[] }`.
 - Клиент отправляет `{ all: true }`.
@@ -504,6 +573,7 @@
 ### [HIGH — ИСПРАВЛЕНО] Отсутствовали тесты роутов и action
 
 **Добавлено**:
+
 - `GET /api/patient/reminders/unread-count` — 3 тест-кейса.
 - `POST /api/patient/reminders/mark-seen` — 7 тест-кейсов (auth, invalid JSON, specific IDs, all: true, empty array, non-strings, missing body).
 - `actions.test.ts` — 8 тест-кейсов для `toggleReminderCategory` и `updateReminderRule`.
@@ -521,6 +591,7 @@
 Все завершённые пункты отмечены `[x]`. Policy "важных сообщений" отмечена как вне scope Pack D.
 
 ### Итоговый статус после review
+
 - `pnpm run ci`: **PASS** после всех фиксов.
 - Блокеров deploy нет.
 
@@ -530,14 +601,14 @@
 
 ### Findings (до фиксов)
 
-| Severity | Finding |
-|----------|---------|
-| **HIGH** | `GET /api/patient/reminders/unread-count` использовал `requirePatientAccess` внутри `try/catch`: для Route Handler это конфликтует с `redirect()` (NEXT_REDIRECT) и маскировало отсутствие сессии под `{ ok: true, count: 0 }`. Контракт patient API должен совпадать с `/api/patient/messages/unread-count` (401/403). |
-| **MEDIUM** | EXEC D.1: не было отдельного теста на SQL-репозиторий `pgReminderRules` (read/update path). |
-| **MEDIUM** | EXEC D.4: не было unit-теста на `useReminderUnreadCount` (mount, hidden tab, polling). |
-| **LOW** | EXEC D.3: усилить assert формата `idempotencyKey` в `notifyIntegrator.test.ts`. |
-| **INFO** | `daysMask` в коде — строка из 7 символов (совместимость с БД); в EXEC пример — `number` — расхождение документа и реализации, не баг. |
-| **INFO** | Policy «важных сообщений» (вариант B), лимит 20/день, пауза 30 с — вне scope Pack D (см. `QA_CHECKLIST.md`). |
+| Severity   | Finding                                                                                                                                                                                                                                                                                                                 |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **HIGH**   | `GET /api/patient/reminders/unread-count` использовал `requirePatientAccess` внутри `try/catch`: для Route Handler это конфликтует с `redirect()` (NEXT_REDIRECT) и маскировало отсутствие сессии под `{ ok: true, count: 0 }`. Контракт patient API должен совпадать с `/api/patient/messages/unread-count` (401/403). |
+| **MEDIUM** | EXEC D.1: не было отдельного теста на SQL-репозиторий `pgReminderRules` (read/update path).                                                                                                                                                                                                                             |
+| **MEDIUM** | EXEC D.4: не было unit-теста на `useReminderUnreadCount` (mount, hidden tab, polling).                                                                                                                                                                                                                                  |
+| **LOW**    | EXEC D.3: усилить assert формата `idempotencyKey` в `notifyIntegrator.test.ts`.                                                                                                                                                                                                                                         |
+| **INFO**   | `daysMask` в коде — строка из 7 символов (совместимость с БД); в EXEC пример — `number` — расхождение документа и реализации, не баг.                                                                                                                                                                                   |
+| **INFO**   | Policy «важных сообщений» (вариант B), лимит 20/день, пауза 30 с — вне scope Pack D (см. `QA_CHECKLIST.md`).                                                                                                                                                                                                            |
 
 ### Исправления
 
@@ -548,9 +619,11 @@
 - `notifyIntegrator.test.ts`: assert `idempotencyKey` вида `rule_rule-abc_<timestamp>`.
 
 ### Результат
+
 - `pnpm run ci`: **PASS** (122 test files webapp).
 
 ### Остаточные риски
+
 - E2E (Playwright) для reminders по EXEC D.2/D.5 по-прежнему не в репозитории — приоритет отложенных тестов при появлении e2e-инфраструктуры для patient.
 
 ---
@@ -558,10 +631,12 @@
 ## Pack D — верификация EXEC + доработка D.3 (сессия 2026-03-25)
 
 ### Что сделано
+
 - Проверено соответствие дереву кода шагам D.1–D.5 из `EXEC_D_REMINDERS!!.md`; полный `pnpm run ci`: **PASS**.
 - Закрыт пробел EXEC D.3: при ошибке relay после успешного commit в БД пользователь видит явное сообщение (константа `REMINDER_INTEGRATOR_SYNC_WARNING` в `service.ts`, прокидка через actions в `ReminderRulesClient`).
 
 ### Файлы (изменения сессии)
+
 - `apps/webapp/src/modules/reminders/service.ts`
 - `apps/webapp/src/modules/reminders/service.test.ts`
 - `apps/webapp/src/app/app/patient/reminders/actions.ts`
@@ -569,9 +644,11 @@
 - `apps/webapp/src/app/app/patient/reminders/ReminderRulesClient.tsx`
 
 ### Результат проверок
+
 - `pnpm install --frozen-lockfile && pnpm run ci` — **PASS** (lint, typecheck, integrator test, webapp test, build, audit --prod).
 
 ### Блокеры / риски
+
 - На стороне **integrator** inbound `POST /api/integrator/reminders/rules` для upsert-события из webapp может отсутствовать или отличаться по контракту — при 4xx/5xx пользователь увидит `syncWarning`, данные в webapp остаются согласованными с БД.
 - E2E из инструкции D.2/D.5 (Playwright: patient opens reminders, toggles, mark-seen → badge) в репозитории не добавлены; покрытие — unit/integration по роутам и actions.
 - Лимит 20/день, пауза 30 с между совпадающими правилами, цепочки fallback по типам — в этом пакете не реализованы полностью (политика зафиксирована в `USER_TODO_STAGE.md`, scope шире экрана настроек).
@@ -583,6 +660,7 @@
 ### Шаг E.1 — `POST /api/bersoncare/send-email` в integrator
 
 **Что сделано:**
+
 - Добавлен маршрут `POST /api/bersoncare/send-email` по образцу `send-sms`:
   - HMAC-проверка `X-Bersoncare-Timestamp` + `X-Bersoncare-Signature`,
   - Zod-валидация payload (`to`, `subject?`, `code`, `templateId?`),
@@ -594,12 +672,14 @@
 - Обновлён `INTEGRATOR_CONTRACT.md`: добавлен раздел **Flow 5: send-email**; прежний relay раздел сдвинут в Flow 6.
 
 **Файлы:**
+
 - `apps/integrator/src/integrations/bersoncare/sendEmailRoute.ts` (новый)
 - `apps/integrator/src/integrations/bersoncare/sendEmailRoute.test.ts` (новый)
 - `apps/integrator/src/app/routes.ts`
 - `apps/webapp/INTEGRATOR_CONTRACT.md`
 
 **Проверки (`pnpm run ci`):**
+
 - Попытка 1: **FAIL** на существующем тесте `apps/integrator/src/infra/db/writePort.reminders.test.ts` (`reminder.rule.upsert idempotency key has no random component`) — регулярка по длинной цифровой последовательности оказалась флакной для hex-хеша.
 - Исправление: тест переписан на проверку детерминизма ключа (два одинаковых upsert → одинаковый idempotency key).
   - Файл: `apps/integrator/src/infra/db/writePort.reminders.test.ts`
@@ -610,6 +690,7 @@
 ### Шаг E.2 — Webapp email OTP через integrator
 
 **Что сделано:**
+
 - Добавлен email-adapter для webapp -> integrator:
   - `sendEmailCode(to, code)` делает `POST /api/bersoncare/send-email` с HMAC-подписью.
 - `startEmailChallenge` в `emailAuth.ts` переведён с локального логирования OTP на реальную отправку через adapter.
@@ -618,11 +699,13 @@
 - Route `/api/auth/email/start` обновлён: `email_send_failed` -> `503` + понятный message.
 
 **Тесты:**
+
 - Новый unit test adapter: success / failure.
 - Обновлён unit test `emailAuth`: проверка вызова adapter с 6-значным кодом и ветки `email_send_failed`.
 - Новый route test `/api/auth/email/start`: авторизованный вызов создаёт challenge и вызывает adapter.
 
 **Файлы:**
+
 - `apps/webapp/src/infra/integrations/email/integratorEmailAdapter.ts` (новый)
 - `apps/webapp/src/infra/integrations/email/integratorEmailAdapter.test.ts` (новый)
 - `apps/webapp/src/modules/auth/emailAuth.ts`
@@ -631,6 +714,7 @@
 - `apps/webapp/src/app/api/auth/email/start/route.test.ts` (новый)
 
 **Проверки (`pnpm run ci`):**
+
 - Попытка 1: **PASS**.
 
 **Статус шага E.2:** Done.
@@ -638,6 +722,7 @@
 ### Шаг E.3 — Telegram deep-link hardening
 
 **Что сделано:**
+
 - `channelLink.ts`:
   - TTL link-secret приведён к решению владельца: `SECRET_TTL_MIN = 10`.
   - One-time-use усилен: повторное использование токена теперь возвращает `used_token`.
@@ -648,11 +733,13 @@
   - Подтверждён regex `/start link_*` и добавлен явный тест fixture на `start.link`.
 
 **Тесты:**
+
 - Unit `channelLink`: expired token -> rejected; used token -> rejected (`used_token`).
 - Integration `channel-link/complete` route: valid signature -> 200; invalid signature -> 401.
 - Integration `telegram webhook`: `/start link_xxx` -> action `start.link` + `linkSecret`.
 
 **Файлы:**
+
 - `apps/webapp/src/modules/auth/channelLink.ts`
 - `apps/webapp/src/modules/auth/channelLink.test.ts` (новый)
 - `apps/webapp/src/app/api/integrator/channel-link/complete/route.ts`
@@ -660,6 +747,7 @@
 - `apps/integrator/src/integrations/telegram/webhook.test.ts`
 
 **Проверки (`pnpm run ci`):**
+
 - Попытка 1: **FAIL** (`TS2339` в новом webhook-тесте: `linkSecret` не в narrowed type).
 - Исправление: type-safe cast в тесте (`(incoming as { linkSecret?: string }).linkSecret`).
 - Попытка 2: **PASS** (полный `pnpm run ci` зелёный).
@@ -669,6 +757,7 @@
 ### Шаг E.4 — Max channel-link
 
 **Что сделано:**
+
 - `max/mapIn.ts`:
   - Добавлен парсинг `link_*` из `message_created` (`/start link_xxx`) и из `bot_started` payload (`payload`/`data`).
   - Для таких входящих событий формируется `action: "start.link"` и прокидывается `linkSecret`.
@@ -683,12 +772,14 @@
   - `POST /api/auth/channel-link/start` теперь отдаёт `manualCommand` при MAX.
 
 **Тесты:**
+
 - `max/mapIn.test.ts`: `/start link_xxx` -> `start.link` + `linkSecret`.
 - `max/webhook.test.ts`: webhook fixture с link payload -> в event `incoming.action = start.link`.
 - `channelLink.test.ts` (webapp): `startChannelLink(channelCode=max)` возвращает валидные данные + `manualCommand`.
 - `channel-link/complete/route.test.ts`: добавлен успешный кейс `channelCode=max`.
 
 **Файлы:**
+
 - `apps/integrator/src/integrations/max/mapIn.ts`
 - `apps/integrator/src/integrations/max/mapIn.test.ts`
 - `apps/integrator/src/integrations/max/webhook.test.ts`
@@ -700,6 +791,7 @@
 - `apps/webapp/src/app/api/auth/channel-link/start/route.ts`
 
 **Проверки (`pnpm run ci`):**
+
 - Попытка 1: **PASS**.
 
 **Статус шага E.4:** Done.
@@ -707,6 +799,7 @@
 ### Шаг E.5 — Google Calendar sync
 
 **Что сделано в коде:**
+
 - Добавлен модуль `apps/integrator/src/integrations/google-calendar/`:
   - `config.ts` — feature-flag + проверка конфигурации.
   - `client.ts` — OAuth refresh token + вызовы Google Calendar API v3 через HTTP.
@@ -717,6 +810,7 @@
 - В `apps/integrator/src/integrations/rubitime/webhook.ts` добавлен вызов `syncAppointmentToCalendar` для `created/updated/canceled` после нормализации входящего Rubitime события (ошибки sync логируются как warning и не валят основной webhook pipeline).
 
 **Файлы:**
+
 - `apps/integrator/src/config/env.ts`
 - `apps/integrator/src/integrations/google-calendar/config.ts` (новый)
 - `apps/integrator/src/integrations/google-calendar/client.ts` (новый)
@@ -725,6 +819,7 @@
 - `apps/integrator/src/integrations/rubitime/webhook.ts`
 
 **Проверки (`pnpm run ci`):**
+
 - БЛОКЕР ИНФРА: shell-команды в текущей сессии начали возвращать `exit code 0` с пустым выводом и `0 ms` даже для `echo/pwd`, поэтому факт выполнения `pnpm run ci` для E.5 недостоверен и не верифицируем в рамках этой сессии.
 
 **Статус шага E.5:** Blocked (нельзя подтвердить зелёный CI в текущем окружении агента).
@@ -732,10 +827,12 @@
 ### Pack E — Code Review (2026-03-25)
 
 **Мелкие фиксы, внесены сразу:**
+
 - `apps/integrator/src/integrations/bersoncare/sendEmailRoute.ts`: исправлен комментарий контракта `Flow 6` -> `Flow 5`.
 - `apps/webapp/src/app/api/integrator/channel-link/complete/route.test.ts`: добавлен тест идемпотентной ветки `used_token -> 200 { ok: true, status: "already_used" }`.
 
 **Findings (исторические; часть закрыта remediation 2026-03-25):**
+
 - ~~**CRITICAL:** takeover channel-link~~ → закрыто **E-R1.1** (`conflict` + 409).
 - ~~**HIGH:** нет `googleapis`/`nock`~~ → закрыто **E-R1.2**.
 - ~~**HIGH:** нет nock Google Calendar~~ → закрыто **E-R2.2**.
@@ -929,15 +1026,15 @@
 
 ### Шаги и `pnpm run ci`
 
-| Шаг | Содержание | CI |
-|-----|------------|-----|
-| F.1 | Миграция `033_lfk_exercises.sql` | PASS |
-| F.2 | Миграция `034_lfk_templates.sql` (+ исправленный CHECK для `side`, partial unique на активное назначение) | PASS |
-| F.3 | Модуль `lfk-exercises`, PG + in-memory, DI | PASS |
+| Шаг | Содержание                                                                                                                                      | CI   |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
+| F.1 | Миграция `033_lfk_exercises.sql`                                                                                                                | PASS |
+| F.2 | Миграция `034_lfk_templates.sql` (+ исправленный CHECK для `side`, partial unique на активное назначение)                                       | PASS |
+| F.3 | Модуль `lfk-exercises`, PG + in-memory, DI                                                                                                      | PASS |
 | F.4 | UI врача: справочник упражнений; **первая попытка CI: FAIL** (TS: `Button` без `asChild`) → замена на `Link` + `buttonVariants`; вторая попытка | PASS |
-| F.5 | Модуль `lfk-templates`, PG + in-memory, DI | PASS |
-| F.6 | UI шаблонов + `@dnd-kit/*`, `TemplateEditor` | PASS |
-| F.7 | Миграция `035_lfk_complex_exercises.sql`, `lfk-assignments`, назначение с карточки клиента, метка в дневнике пациента | PASS |
+| F.5 | Модуль `lfk-templates`, PG + in-memory, DI                                                                                                      | PASS |
+| F.6 | UI шаблонов + `@dnd-kit/*`, `TemplateEditor`                                                                                                    | PASS |
+| F.7 | Миграция `035_lfk_complex_exercises.sql`, `lfk-assignments`, назначение с карточки клиента, метка в дневнике пациента                           | PASS |
 
 Финальный gate: `pnpm install --frozen-lockfile` — PASS; `pnpm run ci` — PASS.
 
@@ -968,13 +1065,13 @@
 
 **Findings (до правок):**
 
-| Severity | Найдено | Исправление |
-|----------|---------|-------------|
-| **High** | Опубликованный шаблон теоретически можно было сохранить с **0** упражнениями через «Сохранить черновик» (нарушение QA «Publish / пустой шаблон»). | В `lfk-templates/service.ts` → `updateExercises`: если `status === "published"` и массив пуст — throw. Тест `updateExercises rejects clearing all exercises on published template`. |
-| **Medium** | `ROLLBACK` в `catch` после сбоя транзакции мог в редких случаях бросить вторичную ошибку. | `pgLfkAssignments.ts`, `pgLfkTemplates.ts` (updateExercises): `ROLLBACK` обёрнут в try/catch. |
-| **Medium** | Нет целевых тестов на слой назначений (транзакция, COMMIT). | `pgLfkAssignments.test.ts` (mock pool): негативный путь + happy path первого назначения. |
-| **Low** | `EXEC F.7` явно просил расширить `pgLfkDiary.ts` / `lfk-service.ts` — фактически `listComplexes` уже отдаёт все комплексы пользователя; отдельное расширение не потребовалось. | Зафиксировано в отчёте; при появлении отображения строк упражнений в дневнике — читать из `lfk_complex_exercises`. |
-| **Low** | `EXEC F.4/F.6/F.7`: полный E2E в браузере (create → list → … → assign → mark session) не реализован; вместо этого in-process импорты страниц и сервисные тесты. | Оставлено как технический долг / ручная проверка на стенде. |
+| Severity   | Найдено                                                                                                                                                                        | Исправление                                                                                                                                                                         |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **High**   | Опубликованный шаблон теоретически можно было сохранить с **0** упражнениями через «Сохранить черновик» (нарушение QA «Publish / пустой шаблон»).                              | В `lfk-templates/service.ts` → `updateExercises`: если `status === "published"` и массив пуст — throw. Тест `updateExercises rejects clearing all exercises on published template`. |
+| **Medium** | `ROLLBACK` в `catch` после сбоя транзакции мог в редких случаях бросить вторичную ошибку.                                                                                      | `pgLfkAssignments.ts`, `pgLfkTemplates.ts` (updateExercises): `ROLLBACK` обёрнут в try/catch.                                                                                       |
+| **Medium** | Нет целевых тестов на слой назначений (транзакция, COMMIT).                                                                                                                    | `pgLfkAssignments.test.ts` (mock pool): негативный путь + happy path первого назначения.                                                                                            |
+| **Low**    | `EXEC F.7` явно просил расширить `pgLfkDiary.ts` / `lfk-service.ts` — фактически `listComplexes` уже отдаёт все комплексы пользователя; отдельное расширение не потребовалось. | Зафиксировано в отчёте; при появлении отображения строк упражнений в дневнике — читать из `lfk_complex_exercises`.                                                                  |
+| **Low**    | `EXEC F.4/F.6/F.7`: полный E2E в браузере (create → list → … → assign → mark session) не реализован; вместо этого in-process импорты страниц и сервисные тесты.                | Оставлено как технический долг / ручная проверка на стенде.                                                                                                                         |
 
 **USER_TODO_STAGE.md:** политики LFK/напоминаний не затрагивались в Pack F — нарушений нет.
 
@@ -999,14 +1096,14 @@
 
 ### Findings (до правок)
 
-| Severity | Что найдено | Файл |
-|----------|-------------|------|
-| **Critical** | `start/route.ts` не генерировал `state` и не устанавливал cookie → CSRF-защита отсутствовала полностью. | `api/auth/oauth/start/route.ts` |
-| **Critical** | `callback/route.ts` не проверял `state` (CSRF) и всегда редиректил с `exchange_not_implemented`. | `api/auth/oauth/callback/route.ts` |
-| **Critical** | `oauthService.ts` отсутствовал; обмен кода, профиль, сессия — не реализованы. | (новый файл) |
-| **High** | `callback/route.test.ts` — только smoke-проверка на наличие redirect; не тестировался state mismatch → 403. | `api/auth/oauth/callback/route.test.ts` |
-| **High** | `e2e/cms-content.test.ts` отсутствовал; `cms-media-inprocess.test.ts` — только проверка экспорта функций (smoke). DoD требовал upload → saveContentPage chain. | `e2e/cms-content.test.ts` |
-| **Medium** | `OAuthBindingsPort` не имел `findUserByOAuthId` — port был неполным для callback flow. | `modules/auth/oauthBindingsPort.ts`, `pgOAuthBindings.ts`, `inMemoryOAuthBindings.ts` |
+| Severity     | Что найдено                                                                                                                                                    | Файл                                                                                  |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| **Critical** | `start/route.ts` не генерировал `state` и не устанавливал cookie → CSRF-защита отсутствовала полностью.                                                        | `api/auth/oauth/start/route.ts`                                                       |
+| **Critical** | `callback/route.ts` не проверял `state` (CSRF) и всегда редиректил с `exchange_not_implemented`.                                                               | `api/auth/oauth/callback/route.ts`                                                    |
+| **Critical** | `oauthService.ts` отсутствовал; обмен кода, профиль, сессия — не реализованы.                                                                                  | (новый файл)                                                                          |
+| **High**     | `callback/route.test.ts` — только smoke-проверка на наличие redirect; не тестировался state mismatch → 403.                                                    | `api/auth/oauth/callback/route.test.ts`                                               |
+| **High**     | `e2e/cms-content.test.ts` отсутствовал; `cms-media-inprocess.test.ts` — только проверка экспорта функций (smoke). DoD требовал upload → saveContentPage chain. | `e2e/cms-content.test.ts`                                                             |
+| **Medium**   | `OAuthBindingsPort` не имел `findUserByOAuthId` — port был неполным для callback flow.                                                                         | `modules/auth/oauthBindingsPort.ts`, `pgOAuthBindings.ts`, `inMemoryOAuthBindings.ts` |
 
 ### Что исправлено
 
@@ -1030,9 +1127,9 @@
 
 ### Результат CI
 
-| Шаг | Попытка | Статус |
-|-----|---------|--------|
-| G.1 + G.2 все правки в один прогон | 1 | **PASS** |
+| Шаг                                | Попытка | Статус   |
+| ---------------------------------- | ------- | -------- |
+| G.1 + G.2 все правки в один прогон | 1       | **PASS** |
 
 - Integrator tests: 386 passed / 6 skipped
 - Webapp tests: 631 passed / 5 skipped (+17 новых тестов по сравнению с Pack F)
@@ -1129,13 +1226,13 @@
 
 **EXEC / QA сверка**
 
-| Пункт | Находка | Действие |
-|-------|---------|----------|
-| `normalizePhone` + варианты EXEC | Не было явного кейса `8(918)900-07-82` | Добавлен тест в `phoneNormalize.test.ts`. |
-| Валидация «`n.length < 12`» | Условие из EXEC не отсекает номер длиннее 12 символов; `check-phone` / PIN / messenger использовали `length < 10` — тоже пропускали «лишние» цифры | Введён `isValidRuMobileNormalized()` → `^\+7\d{10}$`; используется в `PhoneInput`, `phoneAuth`, `check-phone`, `pin/login`, `messenger/start`. |
-| Rate limit после коррекции | Логика integrator уже не пишет challenge до успеха; не хватало регрессионного теста | Добавлен `integratorSmsAdapter.test.ts` (после ошибки интегратора gate снова ok, второй `sendCode` успешен). |
-| Padding header ↔ shell | Совпадение `px-4` уже было | Подтверждено без изменений. |
-| Touch-target ≥ 44px | `size="icon"` в UI kit = `size-8` (32px) | В `PatientHeader` / `DoctorHeader`: класс `HEADER_ICON_CLASS` с `size-11` (44px), спейсер `w-11` без кнопки «Назад». |
+| Пункт                            | Находка                                                                                                                                            | Действие                                                                                                                                       |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `normalizePhone` + варианты EXEC | Не было явного кейса `8(918)900-07-82`                                                                                                             | Добавлен тест в `phoneNormalize.test.ts`.                                                                                                      |
+| Валидация «`n.length < 12`»      | Условие из EXEC не отсекает номер длиннее 12 символов; `check-phone` / PIN / messenger использовали `length < 10` — тоже пропускали «лишние» цифры | Введён `isValidRuMobileNormalized()` → `^\+7\d{10}$`; используется в `PhoneInput`, `phoneAuth`, `check-phone`, `pin/login`, `messenger/start`. |
+| Rate limit после коррекции       | Логика integrator уже не пишет challenge до успеха; не хватало регрессионного теста                                                                | Добавлен `integratorSmsAdapter.test.ts` (после ошибки интегратора gate снова ok, второй `sendCode` успешен).                                   |
+| Padding header ↔ shell           | Совпадение `px-4` уже было                                                                                                                         | Подтверждено без изменений.                                                                                                                    |
+| Touch-target ≥ 44px              | `size="icon"` в UI kit = `size-8` (32px)                                                                                                           | В `PatientHeader` / `DoctorHeader`: класс `HEADER_ICON_CLASS` с `size-11` (44px), спейсер `w-11` без кнопки «Назад».                           |
 
 **Новые/существенно затронутые файлы review:** `phoneValidation.ts`, `phoneValidation.test.ts`, `integratorSmsAdapter.test.ts`, правки `check-phone/route.ts`, `pin/login/route.ts`, `messenger/start/route.ts`, `PatientHeader.tsx`, `DoctorHeader.tsx`, `PhoneInput.tsx`, `phoneAuth.ts`.
 
@@ -1184,11 +1281,11 @@
 
 **Находки и исправления**
 
-| Пункт | Находка | Действие |
-|-------|---------|----------|
+| Пункт      | Находка                                                                                                           | Действие                                                                                                   |
+| ---------- | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | EXEC H.1.5 | Подсказка «Привяжите Telegram» показывалась при любом входе без Telegram (в т.ч. PIN), не только при входе по SMS | `PostLoginSuggestion`: `telegramLine` и PIN-строка завязаны на `postLoginHints.phoneOtpChannel === "sms"`. |
-| UX | `onRequestSms` обнулял `challengeId` до `startPhoneOtp`; при ошибке отправки SMS экран кода пропадал | Убран `setChallengeId(null)` перед `startPhoneOtp` в `AuthFlowV2`. |
-| EXEC H.1.3 | SMS на экране канала — «мелкий шрифт» | `ChannelPicker`: ссылка SMS `text-sm` → `text-xs`. |
+| UX         | `onRequestSms` обнулял `challengeId` до `startPhoneOtp`; при ошибке отправки SMS экран кода пропадал              | Убран `setChallengeId(null)` перед `startPhoneOtp` в `AuthFlowV2`.                                         |
+| EXEC H.1.3 | SMS на экране канала — «мелкий шрифт»                                                                             | `ChannelPicker`: ссылка SMS `text-sm` → `text-xs`.                                                         |
 
 **Проверено**
 
@@ -1452,10 +1549,12 @@
 ## Pack A re-run (EXEC_A_QUICK_FIXES) — 2026-03-26
 
 ### Контекст
+
 - Выполнена повторная проверка пакета A по инструкции `EXEC_A_QUICK_FIXES.md` с порядком шагов A.1 → A.5.
 - Новых кодовых правок не потребовалось: пункты A.1–A.5 уже присутствуют в репозитории.
 
 ### Targeted проверки по шагам
+
 - **A.1**: `pnpm --dir apps/webapp exec tsc --noEmit`; `pnpm --dir apps/webapp exec vitest run src/app-layer/di/buildAppDeps.test.ts`; `pnpm --dir apps/webapp exec eslint src/app-layer/di/buildAppDeps.ts` — PASS.
 - **A.2**: `pnpm --dir apps/webapp exec eslint src/shared/ui/PatientHeader.tsx src/shared/ui/DoctorHeader.tsx src/shared/hooks/useSupportUnreadPolling.ts` — PASS.
 - **A.3**: `pnpm --dir apps/webapp exec tsc --noEmit`; `pnpm --dir apps/webapp exec vitest run src/modules/integrator/deliveryTargetsApi.test.ts src/app-layer/di/buildAppDeps.test.ts`; `pnpm --dir apps/webapp exec eslint src/app-layer/di/buildAppDeps.ts src/infra/repos/pgUserByPhone.ts src/infra/repos/inMemoryUserByPhone.ts src/modules/auth/userByPhonePort.ts` — PASS.
@@ -1463,7 +1562,9 @@
 - **A.5**: `pnpm --dir apps/webapp exec tsc --noEmit`; `pnpm --dir apps/webapp exec vitest run src/app/api/patient/messages/route.test.ts src/app/api/doctor/messages/unread-count/route.test.ts src/app/api/admin/users/[userId]/archive/route.test.ts src/modules/patient-home/newsMotivation.test.ts`; `pnpm --dir apps/webapp exec eslint src/app/api/patient/messages/route.test.ts src/app/api/doctor/messages/unread-count/route.test.ts src/app/api/admin/users/[userId]/archive/route.test.ts src/modules/patient-home/newsMotivation.test.ts` — PASS.
 
 ### Полный CI после последнего шага
+
 - `pnpm install --frozen-lockfile && pnpm run ci` — PASS.
 
 ### Блокеры
+
 - Нет.

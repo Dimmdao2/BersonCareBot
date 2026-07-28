@@ -1,15 +1,15 @@
-import { applyDailyWarmupScheduledRotations } from "@/modules/patient-home/applyDailyWarmupScheduledRotations";
-import { collectDailyWarmupRotationSlotInstants } from "@/modules/patient-home/collectDailyWarmupRotationSlotInstants";
-import type { DailyWarmupPresentationState } from "@/modules/patient-home/dailyWarmupPresentationPorts";
-import { pickDailyWarmupFromOrderedList } from "@/modules/patient-home/pickDailyWarmupFromOrderedList";
+import { applyDailyWarmupScheduledRotations } from '@/modules/patient-home/applyDailyWarmupScheduledRotations';
+import { collectDailyWarmupRotationSlotInstants } from '@/modules/patient-home/collectDailyWarmupRotationSlotInstants';
+import type { DailyWarmupPresentationState } from '@/modules/patient-home/dailyWarmupPresentationPorts';
+import { pickDailyWarmupFromOrderedList } from '@/modules/patient-home/pickDailyWarmupFromOrderedList';
 import {
   parsePatientHomeDailyWarmupRotationEnabled,
   parsePatientHomeDailyWarmupRotationTimes,
-} from "@/modules/patient-home/patientHomeDailyWarmupRotationSettings";
-import type { PatientHomeTodayConfigDeps } from "@/modules/patient-home/todayConfig";
-import type { PatientDailyWarmupPresentationPort } from "@/modules/patient-home/dailyWarmupPresentationPorts";
-import { resolveCalendarDayIanaForPatient } from "@/modules/system-settings/calendarIana";
-import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
+} from '@/modules/patient-home/patientHomeDailyWarmupRotationSettings';
+import type { PatientHomeTodayConfigDeps } from '@/modules/patient-home/todayConfig';
+import type { PatientDailyWarmupPresentationPort } from '@/modules/patient-home/dailyWarmupPresentationPorts';
+import { resolveCalendarDayIanaForPatient } from '@/modules/system-settings/calendarIana';
+import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 
 export type SyncDailyWarmupScheduledRotationDeps = PatientHomeTodayConfigDeps & {
   patientDailyWarmupPresentation: PatientDailyWarmupPresentationPort;
@@ -35,9 +35,8 @@ function buildInitialPresentationState(
   nowIso: string,
 ): DailyWarmupPresentationState | null {
   if (pages.length === 0) return null;
-  const anchorIndex =
-    lastCompletedContentPageId ?
-      pickDailyWarmupFromOrderedList(pages, lastCompletedContentPageId)
+  const anchorIndex = lastCompletedContentPageId
+    ? pickDailyWarmupFromOrderedList(pages, lastCompletedContentPageId)
     : 0;
   const contentPageId = pages[anchorIndex]?.contentPageId;
   if (!contentPageId) return null;
@@ -56,23 +55,24 @@ export async function syncDailyWarmupScheduledRotation(
 ): Promise<DailyWarmupPresentationState | null> {
   if (pages.length === 0) return null;
 
-  const [enabledSetting, timesSetting, existing, lastCompleted, patientIanaRaw, appTz] = await Promise.all([
-    deps.systemSettings.getSetting("patient_home_daily_warmup_rotation_enabled", "admin"),
-    deps.systemSettings.getSetting("patient_home_daily_warmup_rotation_times", "admin"),
-    deps.patientDailyWarmupPresentation.getPresentationState(userId),
-    deps.patientPractice.getLatestDailyWarmupCompletedContentPageId(userId),
-    deps.patientCalendarTimezone.getIanaForUser(userId),
-    getAppDisplayTimeZone(),
-  ]);
+  const [enabledSetting, timesSetting, existing, lastCompleted, patientIanaRaw, appTz] =
+    await Promise.all([
+      deps.systemSettings.getSetting('patient_home_daily_warmup_rotation_enabled', 'admin'),
+      deps.systemSettings.getSetting('patient_home_daily_warmup_rotation_times', 'admin'),
+      deps.patientDailyWarmupPresentation.getPresentationState(userId),
+      deps.patientPractice.getLatestDailyWarmupCompletedContentPageId(userId),
+      deps.patientCalendarTimezone.getIanaForUser(userId),
+      getAppDisplayTimeZone(),
+    ]);
 
-  const rotationEnabled = parsePatientHomeDailyWarmupRotationEnabled(enabledSetting?.valueJson ?? null);
+  const rotationEnabled = parsePatientHomeDailyWarmupRotationEnabled(
+    enabledSetting?.valueJson ?? null,
+  );
   const scheduleTimes = parsePatientHomeDailyWarmupRotationTimes(timesSetting?.valueJson ?? null);
   const patientIana = resolveCalendarDayIanaForPatient(patientIanaRaw, appTz);
   const nowIso = now.toISOString();
 
-  let state =
-    existing ??
-    buildInitialPresentationState(pages, lastCompleted, nowIso);
+  let state = existing ?? buildInitialPresentationState(pages, lastCompleted, nowIso);
 
   if (!state) return null;
 

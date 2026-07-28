@@ -1,45 +1,54 @@
-import { config } from "dotenv";
-import { createRequire } from "node:module";
-import { hostname } from "node:os";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { z } from "zod";
+import { config } from 'dotenv';
+import { createRequire } from 'node:module';
+import { hostname } from 'node:os';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { z } from 'zod';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 
 /** Local dev: optional webapp `.env.dev` + `apps/media-worker/.env`. Production uses only process env (e.g. systemd `EnvironmentFile`). */
 function loadDotenv() {
-  if (process.env.NODE_ENV !== "production") {
-    config({ path: join(__dirname, "../../webapp/.env.dev") });
+  if (process.env.NODE_ENV !== 'production') {
+    config({ path: join(__dirname, '../../webapp/.env.dev') });
   }
   config();
 }
 
 const schema = z.object({
-  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   DATABASE_URL: z.string().min(1),
-  DB_PRINCIPAL_CONTEXT_MODE: z.enum(["legacy-guc", "shadow", "locked"]).optional().default("legacy-guc"),
+  DB_PRINCIPAL_CONTEXT_MODE: z
+    .enum(['legacy-guc', 'shadow', 'locked'])
+    .optional()
+    .default('legacy-guc'),
   DB_PRINCIPAL_SIGNING_SECRET: z
     .string()
     .optional()
-    .transform((value) => (value ?? "").trim()),
+    .transform((value) => (value ?? '').trim()),
   POLL_MS: z.coerce.number().int().positive().default(5000),
   STALE_LOCK_MINUTES: z.coerce.number().int().positive().default(30),
   MAX_TRANSCODE_ATTEMPTS: z.coerce.number().int().positive().default(5),
   FFMPEG_TIMEOUT_MS: z.coerce.number().int().positive().default(7200000),
-  LOG_LEVEL: z.string().optional().default("info"),
-  FFMPEG_PATH: z.string().optional().transform((v) => (v ?? "").trim()),
-  MEDIA_WORKER_LOCK_ID: z.string().optional().transform((v) => (v ?? "").trim()),
+  LOG_LEVEL: z.string().optional().default('info'),
+  FFMPEG_PATH: z
+    .string()
+    .optional()
+    .transform((v) => (v ?? '').trim()),
+  MEDIA_WORKER_LOCK_ID: z
+    .string()
+    .optional()
+    .transform((v) => (v ?? '').trim()),
   S3_ENDPOINT: z.string().min(1),
   S3_ACCESS_KEY: z.string().min(1),
   S3_SECRET_KEY: z.string().min(1),
   S3_PRIVATE_BUCKET: z.string().min(1),
-  S3_REGION: z.string().optional().default("us-east-1"),
+  S3_REGION: z.string().optional().default('us-east-1'),
   S3_FORCE_PATH_STYLE: z
     .string()
     .optional()
-    .transform((v) => v === "true"),
+    .transform((v) => v === 'true'),
 });
 
 export type MediaWorkerEnv = z.infer<typeof schema> & {
@@ -69,7 +78,8 @@ export function loadMediaWorkerEnv(): MediaWorkerEnv {
     S3_FORCE_PATH_STYLE: process.env.S3_FORCE_PATH_STYLE,
   });
   if (
-    (parsed.DB_PRINCIPAL_CONTEXT_MODE === "shadow" || parsed.DB_PRINCIPAL_CONTEXT_MODE === "locked") &&
+    (parsed.DB_PRINCIPAL_CONTEXT_MODE === 'shadow' ||
+      parsed.DB_PRINCIPAL_CONTEXT_MODE === 'locked') &&
     !parsed.DB_PRINCIPAL_SIGNING_SECRET
   ) {
     throw new Error(
@@ -77,7 +87,7 @@ export function loadMediaWorkerEnv(): MediaWorkerEnv {
     );
   }
   const ffmpegPathResolved =
-    parsed.FFMPEG_PATH || (require("@ffmpeg-installer/ffmpeg").path as string);
+    parsed.FFMPEG_PATH || (require('@ffmpeg-installer/ffmpeg').path as string);
   const lockId = parsed.MEDIA_WORKER_LOCK_ID || `${hostname()}-${process.pid}`;
   return { ...parsed, ffmpegPathResolved, lockId };
 }

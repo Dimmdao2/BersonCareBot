@@ -5,22 +5,22 @@ status: completed
 isProject: false
 todos:
   - id: p08-packages
-    content: "Под-PR A: packages/platform-merge — inventory + решение pg-only (merge tx); consumer-тесты без изменения API."
+    content: 'Под-PR A: packages/platform-merge — inventory + решение pg-only (merge tx); consumer-тесты без изменения API.'
     status: completed
   - id: p08-booking-sync
-    content: "Под-PR B: packages/booking-rubitime-sync — единый upsert/find/lookup; webapp pgPatientBookings делегирует; unit-тесты пакета + consumer."
+    content: 'Под-PR B: packages/booking-rubitime-sync — единый upsert/find/lookup; webapp pgPatientBookings делегирует; unit-тесты пакета + consumer.'
     status: completed
   - id: p08-media-worker
-    content: "Под-PR C: apps/media-worker — schema decision (pg-only + shared schema backlog); claim unit-тесты."
+    content: 'Под-PR C: apps/media-worker — schema decision (pg-only + shared schema backlog); claim unit-тесты.'
     status: completed
   - id: p08-scripts
-    content: "Под-PR D: классификация webapp/integrator scripts — pg-only с причиной в LOG."
+    content: 'Под-PR D: классификация webapp/integrator scripts — pg-only с причиной в LOG.'
     status: completed
   - id: p08-verify
-    content: "typecheck/test затронутых пакетов; lockfile vitest booking-rubitime-sync."
+    content: 'typecheck/test затронутых пакетов; lockfile vitest booking-rubitime-sync.'
     status: completed
   - id: p08-post-audit
-    content: "Post-audit + remarks closure: lookup/revive tests, integrator writePort contract, claim race, platform-merge gate, backfill→package, LOG/RAW_SQL построчно, full CI."
+    content: 'Post-audit + remarks closure: lookup/revive tests, integrator writePort contract, claim race, platform-merge gate, backfill→package, LOG/RAW_SQL построчно, full CI.'
     status: completed
 ---
 

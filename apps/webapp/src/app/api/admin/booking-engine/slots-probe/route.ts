@@ -1,7 +1,7 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireAdminBookingEngine } from "../_requireAdminBookingEngine";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireAdminBookingEngine } from '../_requireAdminBookingEngine';
 
 const QuerySchema = z.object({
   branchId: z.string().uuid(),
@@ -10,10 +10,10 @@ const QuerySchema = z.object({
 });
 
 function formatSlotTime(iso: string, timeZone: string): string {
-  return new Date(iso).toLocaleString("ru-RU", {
+  return new Date(iso).toLocaleString('ru-RU', {
     timeZone,
-    hour: "2-digit",
-    minute: "2-digit",
+    hour: '2-digit',
+    minute: '2-digit',
   });
 }
 
@@ -23,28 +23,28 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const parsed = QuerySchema.safeParse({
-    branchId: url.searchParams.get("branchId"),
-    serviceId: url.searchParams.get("serviceId"),
-    date: url.searchParams.get("date"),
+    branchId: url.searchParams.get('branchId'),
+    serviceId: url.searchParams.get('serviceId'),
+    date: url.searchParams.get('date'),
   });
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_query" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_query' }, { status: 400 });
   }
 
   const deps = buildAppDeps();
   if (!deps.bookingScheduling || !deps.patientBooking) {
-    return NextResponse.json({ ok: false, error: "booking_unavailable" }, { status: 503 });
+    return NextResponse.json({ ok: false, error: 'booking_unavailable' }, { status: 503 });
   }
 
   const { organizationId } = gate.ctx;
   const branch = await gate.ctx.service.catalog.getBranch(parsed.data.branchId);
   if (!branch || branch.organizationId !== organizationId) {
-    return NextResponse.json({ ok: false, error: "branch_not_found" }, { status: 404 });
+    return NextResponse.json({ ok: false, error: 'branch_not_found' }, { status: 404 });
   }
 
   try {
     const byDate = await deps.patientBooking.getSlots({
-      type: "in_person",
+      type: 'in_person',
       organizationId,
       branchId: parsed.data.branchId,
       serviceId: parsed.data.serviceId,
@@ -57,11 +57,11 @@ export async function GET(request: Request) {
     return NextResponse.json({
       ok: true,
       date: parsed.data.date,
-      bookingSlotsReadSource: "canonical",
+      bookingSlotsReadSource: 'canonical',
       slots,
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "probe_failed";
+    const message = err instanceof Error ? err.message : 'probe_failed';
     return NextResponse.json({ ok: false, error: message }, { status: 502 });
   }
 }

@@ -7,18 +7,18 @@
  * or `public.phone_otp_locks`. That is the whole point — `deploy/postgres/p0-5b-grants.sql` grants
  * those two tables to app_staff only, and the anonymous booking handlers run as app_patient.
  */
-import { runWebappPgText } from "@/infra/db/runWebappSql";
-import type { PhoneChallengePayload } from "@/modules/auth/phoneChallengeStore";
+import { runWebappPgText } from '@/infra/db/runWebappSql';
+import type { PhoneChallengePayload } from '@/modules/auth/phoneChallengeStore';
 import type {
   PublicBookingOtpConsumeResult,
   PublicBookingOtpPort,
-} from "@/modules/public-booking/publicBookingOtpPort";
+} from '@/modules/public-booking/publicBookingOtpPort';
 
-const OTP_DELIVERY_KEYS = new Set(["sms", "telegram", "max", "email"]);
+const OTP_DELIVERY_KEYS = new Set(['sms', 'telegram', 'max', 'email']);
 
-function deliveryChannelFromRow(raw: unknown): PhoneChallengePayload["deliveryChannel"] {
-  if (typeof raw !== "string" || !OTP_DELIVERY_KEYS.has(raw)) return undefined;
-  return raw as PhoneChallengePayload["deliveryChannel"];
+function deliveryChannelFromRow(raw: unknown): PhoneChallengePayload['deliveryChannel'] {
+  if (typeof raw !== 'string' || !OTP_DELIVERY_KEYS.has(raw)) return undefined;
+  return raw as PhoneChallengePayload['deliveryChannel'];
 }
 
 export function createPgPublicBookingOtpPort(): PublicBookingOtpPort {
@@ -51,7 +51,7 @@ export function createPgPublicBookingOtpPort(): PublicBookingOtpPort {
         [challengeId, code, maxAttempts, lockDurationSec],
       );
       const row = result.rows[0];
-      if (!row) throw new Error("phone_otp_public_booking_consume_challenge_failed");
+      if (!row) throw new Error('phone_otp_public_booking_consume_challenge_failed');
       if (row.ok) {
         return {
           ok: true as const,
@@ -77,7 +77,7 @@ type MemChallenge = {
   code: string;
   expiresAtSec: number;
   attempts: number;
-  deliveryChannel: PhoneChallengePayload["deliveryChannel"];
+  deliveryChannel: PhoneChallengePayload['deliveryChannel'];
   intent: unknown;
   createdAtSec: number;
 };
@@ -100,7 +100,10 @@ export const inMemoryPublicBookingOtpPort: PublicBookingOtpPort = {
     if (lockedUntil != null && lockedUntil > now) return false;
 
     for (const challenge of memChallenges.values()) {
-      if (challenge.phone === input.phone && now - challenge.createdAtSec < input.resendCooldownSec) {
+      if (
+        challenge.phone === input.phone &&
+        now - challenge.createdAtSec < input.resendCooldownSec
+      ) {
         return false;
       }
     }

@@ -14,6 +14,7 @@ shell/chrome in the wireframe is stale; canonical shell comes from the live
 Сегодня/Расписание pages).
 
 ## Ground rules for this phase
+
 - Build **inside the page container**; do not rebuild the shell. Reuse
   `DoctorAppShell`, `DoctorPageHeader` (title/subtitle/tabs/toolbar slots),
   `DoctorWorkspaceShell`/`DoctorAdminSidebar`.
@@ -26,6 +27,7 @@ shell/chrome in the wireframe is stale; canonical shell comes from the live
   Avoid those files; defer Настройки/Система (overlap risk).
 
 ## Sequencing
+
 1. **#3 Курсы → top-level nav** — DONE (commit `feat(doctor-nav): promote Курсы…`).
    Route already existed; pure `doctorNavLinks.ts` reorg + test.
 2. **#1 Аналитика → one page, 4 tabs** (Клиенты · Контент · Приложение · Уведомления)
@@ -87,7 +89,9 @@ shell/chrome in the wireframe is stale; canonical shell comes from the live
    (touches shared shell).
 
 ## Current implementation map (verified 2026-06-14)
+
 ### Analytics (4 subpages today)
+
 - `…/app/doctor/analytics/clients/page.tsx` (+ `DoctorAnalyticsClientsPageClient`):
   `loadDoctorAnalyticsAudience`, `doctorClientsPort.getClientContactBreakdown`,
   `GET /api/doctor/analytics-metric-accounts`,
@@ -108,6 +112,7 @@ shell/chrome in the wireframe is stale; canonical shell comes from the live
   (`analytics/shared/analyticsWindowHourPresets.ts`).
 
 ### Content
+
 - `…/app/doctor/content/page.tsx` — already sidebar + right panel
   (`ContentPagesSidebar`, switches on `?section=`/`?systemParentCode=`).
 - Material = "content page"; editor `…/content/edit/[id]` (`ContentForm`,
@@ -117,15 +122,18 @@ shell/chrome in the wireframe is stale; canonical shell comes from the live
   `ContentPagesSectionList`.
 
 ### Patient-home
+
 - `…/app/doctor/patient-home/page.tsx`; `patient_home_blocks` via
   `patientHomeBlocks` port / `pgPatientHomeBlocks` repo. 11 block codes incl.
   `plan`, `booking` (candidates for 🔒). Params in `system_settings`.
 
 ### Routing / redirects
+
 - `routePaths` at `app-layer/routes/paths.ts`. Redirects via `src/proxy.ts` →
   `middleware/doctorRouteRedirects.ts` (`legacyRedirects` 308s). No Next middleware.
 
 ## Backend data gaps (analytics) — confirmed MISSING, do not fabricate
+
 `product_analytics` events tracked: `app_open | page_view | push_open | heartbeat |
 push_sent`. NOT tracked: slot-view, slot-select, "left without booking", "no slots
 available" (booking funnel); broadcast read-receipts (`broadcast_audit` has
@@ -135,6 +143,7 @@ sent/error counts, no `opened_count`; `broadcast_audit_recipients` has no `read_
 "данные пока не собираются"; client/potential definition is an open product item.
 
 ## TODO — housekeeping: prune backup branches
+
 Several throwaway `claude/*` orchestration/backup branches accumulated over the
 rebuild. Once their content is confirmed merged into `feat/doctor-ui-rebuild` (or
 deliberately discarded), delete them locally + on `origin` to keep the branch list clean.
@@ -143,6 +152,7 @@ commits are on `feat`/`main` (`git log <branch> --not feat/doctor-ui-rebuild`), 
 the owner has signed off on discarding them.
 
 Candidates (as of 2026-06-15):
+
 - `claude/patients-rework` — Пациенты rework backup. Local branch + worktree PRUNED
   2026-06-15; kept only on `origin` as a safety backup. Its impl was SUPERSEDED by the
   main-tree version and is essentially a pure duplicate (verified: the kept version also

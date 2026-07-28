@@ -19,9 +19,11 @@ type MockDbPort = DbPort & {
 function createMockDb(): MockDbPort {
   const query = vi.fn().mockResolvedValue({ rows: [] });
   const integratorDrizzle = stubIntegratorDrizzleForTests();
-  const tx = vi.fn().mockImplementation(async (fn: (client: DbPort) => Promise<unknown>) =>
-    fn({ query, tx, integratorDrizzle } as DbPort),
-  );
+  const tx = vi
+    .fn()
+    .mockImplementation(async (fn: (client: DbPort) => Promise<unknown>) =>
+      fn({ query, tx, integratorDrizzle } as DbPort),
+    );
   return { query, tx, integratorDrizzle } as MockDbPort;
 }
 
@@ -233,7 +235,7 @@ describe('createDbReadPort', () => {
         port.readDb({
           type: 'reminders.rules.forUser',
           params: { userId: '42', organizationId: '11111111-1111-4111-8111-111111111111' },
-        })
+        }),
       ).rejects.toThrow('reminders product reads require remindersReadsPort');
     });
 
@@ -277,7 +279,7 @@ describe('createDbReadPort', () => {
         port.readDb({
           type: 'reminders.rule.forUserAndCategory',
           params: { userId: '42', category: 'exercise' },
-        })
+        }),
       ).rejects.toThrow('reminders product reads require remindersReadsPort');
     });
 
@@ -352,13 +354,18 @@ describe('createDbReadPort', () => {
         port.readDb({
           type: 'booking.byExternalId',
           params: { externalRecordId: 'rec-1' },
-        })
+        }),
       ).rejects.toThrow(/appointmentsReadsPort|appointments product reads/);
     });
 
     it('booking.activeByUser delegates to appointmentsReadsPort when available', async () => {
       const adapterList = [
-        { rubitimeRecordId: 'rec-1', recordAt: '2025-06-01T10:00:00.000Z', status: 'created', link: null },
+        {
+          rubitimeRecordId: 'rec-1',
+          recordAt: '2025-06-01T10:00:00.000Z',
+          status: 'created',
+          link: null,
+        },
       ];
       const appointmentsReadsPort: AppointmentsReadsPort = {
         getRecordByExternalId: vi.fn(),
@@ -385,7 +392,7 @@ describe('createDbReadPort', () => {
         port.readDb({
           type: 'booking.activeByUser',
           params: { userId: '+79991234567' },
-        })
+        }),
       ).rejects.toThrow(/appointmentsReadsPort|appointments product reads/);
     });
   });
@@ -457,9 +464,7 @@ describe('createDbReadPort', () => {
     });
 
     it('subscriptions.byUser with port delegates to port', async () => {
-      const adapterSubs = [
-        { integratorTopicId: '1', topicCode: 'news', isActive: true },
-      ];
+      const adapterSubs = [{ integratorTopicId: '1', topicCode: 'news', isActive: true }];
       const subscriptionMailingReadsPort: SubscriptionMailingReadsPort = {
         listTopics: vi.fn(),
         getSubscriptionsByUserId: vi.fn().mockResolvedValue(adapterSubs),

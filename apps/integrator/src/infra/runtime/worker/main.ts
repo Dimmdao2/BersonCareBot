@@ -77,8 +77,10 @@ async function startWorker(): Promise<void> {
                 const tickDeps: import('./runner.js').WorkerRunnerDeps = {
                   claimNextJob: async () => job,
                   completeJob: async (jobId) => queue.completeJob(jobId),
-                  failJob: async (jobId, errorCode) => queue.failJob(jobId, { ok: false, errorCode, final: true }),
-                  rescheduleJob: async (jobId, runAt, attempts) => queue.rescheduleJob(jobId, runAt, attempts),
+                  failJob: async (jobId, errorCode) =>
+                    queue.failJob(jobId, { ok: false, errorCode, final: true }),
+                  rescheduleJob: async (jobId, runAt, attempts) =>
+                    queue.rescheduleJob(jobId, runAt, attempts),
                   logAttempt: async (jobId, result) => queue.logAttempt(jobId, result),
                   dispatchOutgoing: (intent) => deps.dispatchPort.dispatchOutgoing(intent),
                   nowIso: () => new Date().toISOString(),

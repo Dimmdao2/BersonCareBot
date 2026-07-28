@@ -22,4 +22,6 @@ export function createPatientMaintenanceHistoryService(port: PatientMaintenanceH
   };
 }
 
-export type PatientMaintenanceHistoryService = ReturnType<typeof createPatientMaintenanceHistoryService>;
+export type PatientMaintenanceHistoryService = ReturnType<
+  typeof createPatientMaintenanceHistoryService
+>;

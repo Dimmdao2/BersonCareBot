@@ -1,13 +1,13 @@
 /** @vitest-environment jsdom */
 
-import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
-import { CommentsTab } from "./CommentsTab";
+import { describe, expect, it, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { CommentsTab } from './CommentsTab';
 
 // Перехватываем DoctorCommentsTab, чтобы проверить, какие пропы реально доходят
 // после маппинга initialData.
 const receivedProps = vi.hoisted(() => ({ current: null as unknown }));
-vi.mock("../../comments/DoctorCommentsTab", () => ({
+vi.mock('../../comments/DoctorCommentsTab', () => ({
   DoctorCommentsTab: (props: unknown) => {
     receivedProps.current = props;
     return <div data-testid="comments-tab-inner" />;
@@ -28,13 +28,15 @@ function lastProps(): {
   };
 }
 
-describe("CommentsTab (initialData → props mapping)", () => {
+describe('CommentsTab (initialData → props mapping)', () => {
   const noop = () => {};
 
-  it("maps v2 shape {feed,patients} → component props", () => {
-    const items = [{ patientUserId: "p1" }];
-    const cursor = { createdAt: "2026-06-01T00:00:00.000Z", id: "m1" };
-    const patients = [{ patientUserId: "p1", displayName: "Иванов", isOnSupport: true, unreadCount: 1 }];
+  it('maps v2 shape {feed,patients} → component props', () => {
+    const items = [{ patientUserId: 'p1' }];
+    const cursor = { createdAt: '2026-06-01T00:00:00.000Z', id: 'm1' };
+    const patients = [
+      { patientUserId: 'p1', displayName: 'Иванов', isOnSupport: true, unreadCount: 1 },
+    ];
 
     render(
       <CommentsTab
@@ -47,7 +49,7 @@ describe("CommentsTab (initialData → props mapping)", () => {
       />,
     );
 
-    expect(screen.getByTestId("comments-tab-inner")).toBeInTheDocument();
+    expect(screen.getByTestId('comments-tab-inner')).toBeInTheDocument();
     const p = lastProps();
     expect(p.initialItems).toBe(items);
     expect(p.initialCursor).toBe(cursor);
@@ -55,9 +57,9 @@ describe("CommentsTab (initialData → props mapping)", () => {
     expect(p.initialPatients).toBe(patients);
   });
 
-  it("maps legacy flat shape {items,nextCursor,hasMore} with empty patients", () => {
-    const items = [{ patientUserId: "p1" }];
-    const cursor = { createdAt: "2026-06-01T00:00:00.000Z", id: "m1" };
+  it('maps legacy flat shape {items,nextCursor,hasMore} with empty patients', () => {
+    const items = [{ patientUserId: 'p1' }];
+    const cursor = { createdAt: '2026-06-01T00:00:00.000Z', id: 'm1' };
 
     render(
       <CommentsTab
@@ -74,7 +76,7 @@ describe("CommentsTab (initialData → props mapping)", () => {
     expect(p.initialPatients).toEqual([]);
   });
 
-  it("falls back to empty props when initialData is undefined", () => {
+  it('falls back to empty props when initialData is undefined', () => {
     render(<CommentsTab deepLinkParams={{}} onDeepLinkChange={noop} initialData={undefined} />);
     const p = lastProps();
     expect(p.initialItems).toEqual([]);
@@ -83,12 +85,12 @@ describe("CommentsTab (initialData → props mapping)", () => {
     expect(p.initialPatients).toEqual([]);
   });
 
-  it("never passes undefined initialItems even for partial/garbage data", () => {
+  it('never passes undefined initialItems even for partial/garbage data', () => {
     render(
       <CommentsTab
         deepLinkParams={{}}
         onDeepLinkChange={noop}
-        initialData={{ foo: "bar" } as unknown}
+        initialData={{ foo: 'bar' } as unknown}
       />,
     );
     const p = lastProps();
@@ -99,7 +101,7 @@ describe("CommentsTab (initialData → props mapping)", () => {
     expect(Array.isArray(p.initialPatients)).toBe(true);
   });
 
-  it("maps v2 shape with empty feed and empty patients", () => {
+  it('maps v2 shape with empty feed and empty patients', () => {
     render(
       <CommentsTab
         deepLinkParams={{}}

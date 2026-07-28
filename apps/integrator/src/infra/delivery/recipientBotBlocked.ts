@@ -57,7 +57,9 @@ function extractTelegramProviderError(err: unknown): { code?: number; descriptio
   return { description: String(err) };
 }
 
-export function classifyTelegramRecipientBlockedError(err: unknown): RecipientBlockedBotError | null {
+export function classifyTelegramRecipientBlockedError(
+  err: unknown,
+): RecipientBlockedBotError | null {
   const { code, description } = extractTelegramProviderError(err);
   if (code === 403 && isRecipientBlockedBotMessage(description)) {
     return new RecipientBlockedBotError('telegram', description);
@@ -71,7 +73,10 @@ export function classifyTelegramRecipientBlockedError(err: unknown): RecipientBl
 export function classifyMaxRecipientBlockedError(err: unknown): RecipientBlockedBotError | null {
   const msg = err instanceof Error ? err.message : String(err);
   const apiMessage =
-    err && typeof err === 'object' && 'apiMessage' in err && typeof (err as { apiMessage: unknown }).apiMessage === 'string'
+    err &&
+    typeof err === 'object' &&
+    'apiMessage' in err &&
+    typeof (err as { apiMessage: unknown }).apiMessage === 'string'
       ? (err as { apiMessage: string }).apiMessage
       : msg;
   if (isRecipientBlockedBotMessage(apiMessage) || isRecipientBlockedBotMessage(msg)) {
@@ -88,7 +93,9 @@ export function classifyRecipientBlockedBotError(
   if (channel === 'telegram') return classifyTelegramRecipientBlockedError(err);
   if (channel === 'max') return classifyMaxRecipientBlockedError(err);
   const msg = err instanceof Error ? err.message : String(err);
-  return isRecipientBlockedBotMessage(msg) ? new RecipientBlockedBotError(channel as MessengerBlockChannel, msg) : null;
+  return isRecipientBlockedBotMessage(msg)
+    ? new RecipientBlockedBotError(channel as MessengerBlockChannel, msg)
+    : null;
 }
 
 export function isRecipientBlockedBotDispatchError(errorMessage: string): boolean {

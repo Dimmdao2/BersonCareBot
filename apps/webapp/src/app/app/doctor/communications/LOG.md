@@ -3,6 +3,7 @@
 ## Block 1 (2026-06-11) — Data-слой: doctor-wide read-метод
 
 ### Что сделано
+
 - **1.A** `types.ts`: добавлены `DoctorExerciseCommentCursor`, `ListDoctorExerciseCommentsInput`, `DoctorExerciseCommentRow`.
 - **1.A** `ports.ts`: добавлены `listUnreadExerciseCommentsForDoctor` + `listExerciseCommentsForDoctor`.
 - **1.B** `pgProgramItemDiscussion.ts`: helper `queryDoctorExerciseComments` — CTE с `selectDistinctOn` по `instanceStageItemId`, внешний фильтр `senderRole='patient'` + `mediaFileId IS NULL` (применяется ПОСЛЕ DISTINCT ON, чтобы учитывать admin-reply как latest), LEFT JOIN `_reads` по viewer, keyset-пагинация.
@@ -12,13 +13,16 @@
 - `service.unread.test.ts`, `syncDiscussionReadFromSupportInbound.test.ts`: добавлены `vi.fn()` для новых методов в существующие моки.
 
 ### Проверки
+
 - `pnpm --dir apps/webapp typecheck` — зелёный
 - `pnpm --dir apps/webapp test -- src/modules/program-item-discussion` — зелёный (1129 passed)
 
 ### DI
+
 `buildAppDeps.ts` не менялся — `programItemDiscussionService` автоматически содержит новые методы (строки 756/799/979/1498).
 
 ### Сознательно не сделано
+
 - `EXPLAIN` на реальной БД (нет миграции, в рамках Block 1 не требуется).
 - Рефактор «Сегодня» на новый метод — вне scope (отдельный backlog-шаг).
 
@@ -29,6 +33,7 @@
 > компонент удалён как мёртвый. Записи ниже сохранены как исторический лог.
 
 ### Что сделано
+
 - **2.A** `loadDoctorExerciseCommentsForTab.ts` — загрузчик: on-support один раз, один doctor-wide
   вызов `listUnreadExerciseCommentsForDoctor`, обогащение displayName/href/label; совместим с
   `TodayExerciseCommentAttentionItem[]` для reuse `DoctorExerciseCommentsList`. 9 unit-тестов.
@@ -44,6 +49,7 @@
   3 unit-теста чистой утилиты.
 
 ### Проверки
+
 - Все 4 тест-файла зелёные (28 тестов):
   - `src/app/app/doctor/comments/loadDoctorExerciseCommentsForTab` — 9 passed
   - `src/app/api/doctor/exercise-comments/route` — 8 passed
@@ -53,16 +59,19 @@
 - Phase-gate `src/app/app/doctor/comments` — 20 passed (3 files)
 
 ### rg-чеклисты
+
 - `rg "loadDoctorExerciseCommentAttention" src/app/app/doctor/comments/DoctorCommentsTab.tsx` → не найдено ✅
 - `rg "ProgramItemDiscussionMessageBody" src/app/app/doctor/comments` → найдено в `DoctorExerciseCommentsList.tsx` ✅
 
 ### Сознательно не сделано
+
 - Серверная пагинация поиска (глобальный поиск не нужен по scope).
 - Интеграция в shell/page.tsx — это Этапы 3 и 6.
 
 ## Block 3 (2026-06-11) — Клиентский шелл с реестром и URL-sync
 
 ### Что сделано
+
 - **3.A** `communicationsTabRegistry.ts` — реестр: `CommunicationsTabProps` (deepLinkParams / onDeepLinkChange / initialData),
   `CommunicationsTabRegistryEntry` (id / loader / deepLinkKeys), массив 4 записей; добавление таба = компонент + строка.
 - **3.B** `DoctorCommunicationsShell.tsx` — `"use client"`: `DoctorAppShell` + `DoctorCommunicationsTabsNav` (reuse),
@@ -82,10 +91,12 @@
   Чанки прогреты в `beforeAll` (правило webapp-tests-lean-no-bloat).
 
 ### Проверки
+
 - `pnpm --dir apps/webapp typecheck` — зелёный
 - `pnpm --dir apps/webapp exec vitest run src/app/app/doctor/communications` — 20 passed (3 файла)
 
 ### Сознательно не сделано
+
 - Умный поллинг чатов (только активный+видимый таб) — Block 4.
 - Полный deep-link write-sync для intake (onDeepLinkChange при открытии карточки) — Block 4.
 - `page.tsx` (серверный вход-шелл с requireDoctorAccess + бейджи) — Block 6.
@@ -93,6 +104,7 @@
 ## Block 4 (2026-06-11) — Компоненты-табы
 
 ### Что сделано
+
 - **4.A** `CommunicationsTabProps` — добавлен `isActive?: boolean`; шелл прокидывает `isActive={tabId === activeTab}`.
 - **4.A** `DoctorSupportInbox.tsx` — добавлен `active?: boolean` проп; поллинг-`useEffect` (POLL_INTERVAL_MS=1000):
   `setInterval` только при `active=true`, внутри `pollOnce` guard `document.visibilityState !== "visible"` → ранний выход;
@@ -105,6 +117,7 @@
 - **4.C** `tabs/BroadcastsTab.test.tsx` — 3 теста: default-вид (Form), archive=1 (ArchiveClient), кнопка «← Рассылки».
 
 ### Проверки
+
 - messages zone — 5 passed (3 старых + 2 новых polling-теста)
 - online-intake zone — 5 passed (3 старых + 2 новых onDetailChange-теста)
 - broadcasts zone — все зелёные
@@ -112,16 +125,19 @@
 - `pnpm --dir apps/webapp typecheck` — зелёный
 
 ### rg-чеклисты
+
 - `rg "setInterval" src/app/app/doctor/messages/DoctorSupportInbox.tsx` → найдено ✅
 - `rg "onDetailChange" src/app/app/doctor/online-intake/DoctorOnlineIntakeClient.tsx` → найдено ✅
 
 ### Сознательно не сделано
+
 - `page.tsx` (серверный вход-шелл с requireDoctorAccess + бейджи) — Block 6.
 - Живая проверка поллинга в браузере — Block 7.
 
 ## Block 5 (2026-06-12) — Routing: убрать internal-rewrite communications
 
 ### Что сделано
+
 - **5.A** `doctorRouteRedirects.ts` — удалён блок `if (pathname === "/app/doctor/communications")` (rewrite на легаси-страницы);
   `/communications` теперь проходит насквозь (null) → рендерится настоящая страница-шелл.
   308-редиректы со старых URL (`/messages`, `/online-intake`, `/comments`, `/broadcasts[/archive]`, deep-link `id`) сохранены.
@@ -131,15 +147,18 @@
   describe «internal rewrites» переименован в «schedule only»; schedule-тесты и re-entry guard без изменений.
 
 ### Проверки
+
 - `pnpm --dir apps/webapp exec vitest run src/middleware/doctorRouteRedirects` — **27 passed (1 файл)**
 - rg-чеклист: `rg "pathname.*communications" src/middleware/doctorRouteRedirects.ts` → нет ветки rewrite ✅
 
 ### Сознательно не сделано
+
 - `page.tsx` (серверный вход-шелл с requireDoctorAccess + бейджи) — Block 6.
 
 ## Block 6 (2026-06-12) — Страница-шелл + чистка легаси-страниц
 
 ### Что сделано
+
 - **6.A** `communications/page.tsx` — серверный вход-шелл: `requireDoctorAccess` + параллельная загрузка
   `loadDoctorCommunicationsBadges` + `loadDoctorAnalyticsAudience`, затем SSR-предзагрузка
   непрочитанных комментариев через `loadDoctorExerciseCommentsForTab`; рендерит
@@ -154,17 +173,20 @@
 - `DoctorCommunicationsTabsNav` теперь только в шелле (убрано из 4 страниц-вкладок).
 
 ### Проверки
+
 - `rg "DoctorCommunicationsTabsNav" apps/webapp/src/app/app/doctor/` → только в `communications/` ✅
 - `pnpm --dir apps/webapp typecheck` — зелёный ✅
 - `pnpm --dir apps/webapp exec vitest run src/app/app/doctor/communications` — 23 passed ✅
 - `pnpm --dir apps/webapp lint` — зелёный ✅
 
 ### Коммит
+
 `225b1755` feat(doctor-comms): /communications как страница-шелл, чистка легаси-страниц (TODO#3 Block 6)
 
 ## Аудит-правки по ревью (2026-06-12) — Blocks 1–6
 
 Самостоятельное ревью выполненной части выявило долги (тесты/доки/чистота), закрытые в `0982d1f0`:
+
 - 🔴 **pg-тест** `pgProgramItemDiscussion.doctorComments.test.ts` (8) — закрыл пропуск чек-листа Block 1.B
   (mock-based: ранний выход, маппинг строки→Row, snapshot-fallback, safeLimit trunc/min-1).
 - 🔴 **Promo-расхождение** задокументировано в `loadDoctorExerciseCommentsForTab`: новый запрос берёт
@@ -188,6 +210,7 @@
   против БД. Проверено против `bcb_webapp_dev`: 2 passed. Коммит `149179c1`.
 
 ### Вывод
+
 Mock-тесты не ловят SQL-ошибки построения запроса — для raw-SQL/CTE нужен реальный прогон против БД.
 Opt-in dev-DB тест добавлен именно для этого класса регрессий.
 
@@ -203,5 +226,6 @@ Opt-in dev-DB тест добавлен именно для этого клас�
   audit (no known vulnerabilities) ✅. **Не пушено** (по правилу — пуш отдельной командой).
 
 ### Статус TODO#3
+
 Все этапы (Blocks 1–6 + e7a docs + e7c CI) закрыты. e7b (живая проверка в браузере) —
 за пользователем на `127.0.0.1:5200` (dev:doctor); SQL-fix снял падение экрана на живом dev.

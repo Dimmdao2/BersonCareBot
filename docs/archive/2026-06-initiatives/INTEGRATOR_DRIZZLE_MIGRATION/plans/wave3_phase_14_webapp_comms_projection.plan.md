@@ -1,23 +1,23 @@
 ---
 name: Wave3 Phase14 Webapp comms projection
-overview: "Phase 14 completed (2026-06-06): support comms, user projection, admin audit, comms tail — runWebappPgText bridge, Zod boundaries, gate 10 files, Vitest 118/11."
+overview: 'Phase 14 completed (2026-06-06): support comms, user projection, admin audit, comms tail — runWebappPgText bridge, Zod boundaries, gate 10 files, Vitest 118/11.'
 status: completed
 isProject: false
 todos:
   - id: w3-p14a-support-core
-    content: "14A: pgSupportCommunication.ts (46) — по подсекциям (threads, messages, filters) в отдельных commit-батчах."
+    content: '14A: pgSupportCommunication.ts (46) — по подсекциям (threads, messages, filters) в отдельных commit-батчах.'
     status: completed
   - id: w3-p14b-user-projection-core
-    content: "14B: pgUserProjection.ts (43) — patch profile, admin client, joins; без изменения контрактов ответов."
+    content: '14B: pgUserProjection.ts (43) — patch profile, admin client, joins; без изменения контрактов ответов.'
     status: completed
   - id: w3-p14c-audit-merge
-    content: "14C: adminAuditLog.ts (16) — insert/list parity; mergeLegacySupportConversations.ts — verify only (SQL bridge done in 14A post-audit)."
+    content: '14C: adminAuditLog.ts (16) — insert/list parity; mergeLegacySupportConversations.ts — verify only (SQL bridge done in 14A post-audit).'
     status: completed
   - id: w3-p14d-comms-tail
-    content: "14D: pgMessageLog.ts, pgChannelPreferences.ts, pgWebPushSubscriptions.ts, pgBroadcastAudit.ts, pgSubscriptionMailingProjection.ts, pgPatientCalendarTimezone.ts."
+    content: '14D: pgMessageLog.ts, pgChannelPreferences.ts, pgWebPushSubscriptions.ts, pgBroadcastAudit.ts, pgSubscriptionMailingProjection.ts, pgPatientCalendarTimezone.ts.'
     status: completed
   - id: w3-p14-verify
-    content: "14E: messaging/support tests; rg zero по scope фазы; Zod boundary checks на filters/params."
+    content: '14E: messaging/support tests; rg zero по scope фазы; Zod boundary checks на filters/params.'
     status: completed
 ---
 
@@ -90,20 +90,20 @@ todos:
 
 ## Scope
 
-| Файл | bridge calls (14E) | pre-14 baseline (`pool.query`) |
-|------|-------------------:|-------------------------------:|
-| `pgSupportCommunication.ts` | 46 | 46 |
-| `pgUserProjection.ts` | 32 (15 `runWebappPgText` + 17 `txPgText`) | 43 |
-| `adminAuditLog.ts` | 17 (11 + 6 `txPgText`) | 16 |
-| `mergeLegacySupportConversations.ts` | 2 | 6 |
-| `pgMessageLog.ts` | 7 | 5 |
-| `pgChannelPreferences.ts` | 11 | 11 |
-| `pgWebPushSubscriptions.ts` | 11 | 10 |
-| `pgBroadcastAudit.ts` | 4 | 2 |
-| `pgSubscriptionMailingProjection.ts` | 7 | 5 |
-| `pgPatientCalendarTimezone.ts` | 5 | 3 |
+| Файл                                 |                        bridge calls (14E) | pre-14 baseline (`pool.query`) |
+| ------------------------------------ | ----------------------------------------: | -----------------------------: |
+| `pgSupportCommunication.ts`          |                                        46 |                             46 |
+| `pgUserProjection.ts`                | 32 (15 `runWebappPgText` + 17 `txPgText`) |                             43 |
+| `adminAuditLog.ts`                   |                    17 (11 + 6 `txPgText`) |                             16 |
+| `mergeLegacySupportConversations.ts` |                                         2 |                              6 |
+| `pgMessageLog.ts`                    |                                         7 |                              5 |
+| `pgChannelPreferences.ts`            |                                        11 |                             11 |
+| `pgWebPushSubscriptions.ts`          |                                        11 |                             10 |
+| `pgBroadcastAudit.ts`                |                                         4 |                              2 |
+| `pgSubscriptionMailingProjection.ts` |                                         7 |                              5 |
+| `pgPatientCalendarTimezone.ts`       |                                         5 |                              3 |
 
-*Baseline — снимок inventory до миграции; bridge — факт после gate 14E (`rg 'runWebappPgText|txPgText'`). Расхождения — консолидация call sites, не регресс gate.*
+_Baseline — снимок inventory до миграции; bridge — факт после gate 14E (`rg 'runWebappPgText|txPgText'`). Расхождения — консолидация call sites, не регресс gate._
 
 **Вне scope:** integrator `messageThreads` (уже runIntegratorSql).
 
@@ -146,14 +146,14 @@ pnpm --dir apps/webapp exec vitest run --project fast \
 
 ## Закрытие (2026-06-06)
 
-| Подфаза | Коммит | Результат |
-|---------|--------|-----------|
-| **14A** | `e9a33a1e` | `pgSupportCommunication` → `runWebappPgText`; merge helper bridge; Zod `supportAdminListQuery`; Class C merge TX |
-| **14B** | `53f414b3` | `pgUserProjection` → `runWebappPgText`/`txPgText`; 4 Class C TX; repo + devDb |
-| **14C** | `c288d942` | `adminAuditLog` → bridge; dedupe TX; merge helper verify-only |
-| **14D** | `18ce7e6e` | 6 comms/subscription repos → bridge; Class C channel prefs + web-push |
-| **14E** | `ae07ad0e`, `c3b18629` | gate + Zod modules; RAW_SQL §14; full audit doc sync |
-| **14 sidecar** | `8d213076` | doctor KPI drill-down fix в диапазоне фазы; задокументирован отдельно, без влияния на SQL gate 14 |
+| Подфаза        | Коммит                 | Результат                                                                                                        |
+| -------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| **14A**        | `e9a33a1e`             | `pgSupportCommunication` → `runWebappPgText`; merge helper bridge; Zod `supportAdminListQuery`; Class C merge TX |
+| **14B**        | `53f414b3`             | `pgUserProjection` → `runWebappPgText`/`txPgText`; 4 Class C TX; repo + devDb                                    |
+| **14C**        | `c288d942`             | `adminAuditLog` → bridge; dedupe TX; merge helper verify-only                                                    |
+| **14D**        | `18ce7e6e`             | 6 comms/subscription repos → bridge; Class C channel prefs + web-push                                            |
+| **14E**        | `ae07ad0e`, `c3b18629` | gate + Zod modules; RAW_SQL §14; full audit doc sync                                                             |
+| **14 sidecar** | `8d213076`             | doctor KPI drill-down fix в диапазоне фазы; задокументирован отдельно, без влияния на SQL gate 14                |
 
 **Gate:** runtime `pool.query` = **0** в 10 scope-файлах (см. §Scope, §Проверки).
 

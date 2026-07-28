@@ -10,11 +10,11 @@
  * #81: email delivery of .ics on booking confirmation.
  */
 
-import { relayOutbound } from "@/modules/messaging/relayOutbound";
-import type { RelayOutboundDeps } from "@/modules/messaging/relayOutbound";
-import { getAppBaseUrl } from "@/modules/system-settings/integrationRuntime";
-import { buildIcsContent } from "@/shared/lib/buildCalendarLinks";
-import { logger } from "@/infra/logging/logger";
+import { relayOutbound } from '@/modules/messaging/relayOutbound';
+import type { RelayOutboundDeps } from '@/modules/messaging/relayOutbound';
+import { getAppBaseUrl } from '@/modules/system-settings/integrationRuntime';
+import { buildIcsContent } from '@/shared/lib/buildCalendarLinks';
+import { logger } from '@/infra/logging/logger';
 
 export type BookingConfirmationEmailInput = {
   /** Уникальный ID брони (для idempotencyKey и UID ICS). */
@@ -64,40 +64,40 @@ export async function sendBookingConfirmationEmail(
     );
 
     // Base64 для передачи через relay-outbound JSON body.
-    const icsBase64 = Buffer.from(icsText, "utf-8").toString("base64");
+    const icsBase64 = Buffer.from(icsText, 'utf-8').toString('base64');
 
     const greeting = input.contactName?.trim()
       ? `Здравствуйте, ${input.contactName.trim()}!`
-      : "Здравствуйте!";
-    const location = input.locationLabel?.trim() ?? "Онлайн";
+      : 'Здравствуйте!';
+    const location = input.locationLabel?.trim() ?? 'Онлайн';
 
     const textBody = [
       greeting,
-      "",
-      "Ваша запись подтверждена.",
+      '',
+      'Ваша запись подтверждена.',
       `Услуга: ${input.serviceTitle}`,
       `Место: ${location}`,
-      "",
-      "Файл .ics во вложении — добавьте событие в свой календарь.",
-      "",
-      "С уважением, BersonCare",
-    ].join("\n");
+      '',
+      'Файл .ics во вложении — добавьте событие в свой календарь.',
+      '',
+      'С уважением, BersonCare',
+    ].join('\n');
 
     const htmlBody = [
       `<p>${greeting}</p>`,
-      "<p>Ваша запись <strong>подтверждена</strong>.</p>",
-      "<ul>",
+      '<p>Ваша запись <strong>подтверждена</strong>.</p>',
+      '<ul>',
       `  <li>Услуга: ${escapeHtmlSimple(input.serviceTitle)}</li>`,
       `  <li>Место: ${escapeHtmlSimple(location)}</li>`,
-      "</ul>",
-      "<p>Файл <code>.ics</code> во вложении — добавьте событие в свой календарь.</p>",
-      "<p>С уважением, BersonCare</p>",
-    ].join("\n");
+      '</ul>',
+      '<p>Файл <code>.ics</code> во вложении — добавьте событие в свой календарь.</p>',
+      '<p>С уважением, BersonCare</p>',
+    ].join('\n');
 
     const result = await relayOutbound(
       {
         messageId: `booking.confirmation.ics:${input.bookingId}`,
-        channel: "email",
+        channel: 'email',
         recipient: contactEmail.trim(),
         text: textBody,
         html: htmlBody,
@@ -113,32 +113,32 @@ export async function sendBookingConfirmationEmail(
     if (!result.ok) {
       logger.warn(
         {
-          event: "booking.confirmation_email.relay_failed",
+          event: 'booking.confirmation_email.relay_failed',
           bookingId: input.bookingId,
           reason: result.reason,
         },
-        "booking confirmation email relay failed (best-effort, booking already confirmed)",
+        'booking confirmation email relay failed (best-effort, booking already confirmed)',
       );
       return false;
     }
 
     logger.info(
       {
-        event: "booking.confirmation_email.sent",
+        event: 'booking.confirmation_email.sent',
         bookingId: input.bookingId,
         status: result.status,
       },
-      "booking confirmation email sent",
+      'booking confirmation email sent',
     );
     return true;
   } catch (err) {
     logger.warn(
       {
         err,
-        event: "booking.confirmation_email.error",
+        event: 'booking.confirmation_email.error',
         bookingId: input.bookingId,
       },
-      "booking confirmation email failed (best-effort, booking already confirmed)",
+      'booking confirmation email failed (best-effort, booking already confirmed)',
     );
     return false;
   }
@@ -147,8 +147,8 @@ export async function sendBookingConfirmationEmail(
 /** Минимальный HTML-escape для вставки в тело письма. */
 function escapeHtmlSimple(s: string): string {
   return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }

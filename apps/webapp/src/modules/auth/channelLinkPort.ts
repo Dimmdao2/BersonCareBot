@@ -1,4 +1,4 @@
-export type ChannelLinkChannelCode = "telegram" | "max";
+export type ChannelLinkChannelCode = 'telegram' | 'max';
 
 export type ChannelLinkSecretRow = {
   id: string;
@@ -12,9 +12,7 @@ export type ChannelLinkPhoneBindingInfo = {
   phoneNormalized?: string;
 };
 
-export type ChannelBindingOwnerClass =
-  | { kind: "disposable" }
-  | { kind: "real"; reason: string };
+export type ChannelBindingOwnerClass = { kind: 'disposable' } | { kind: 'real'; reason: string };
 
 export type ChannelLinkOwnersMergeResult =
   | { ok: true }
@@ -22,13 +20,13 @@ export type ChannelLinkOwnersMergeResult =
 
 export type ClaimMessengerChannelBindingResult =
   | { ok: true }
-  | { ok: false; code: "rejected"; reason: string }
-  | { ok: false; code: "failed"; err: unknown };
+  | { ok: false; code: 'rejected'; reason: string }
+  | { ok: false; code: 'failed'; err: unknown };
 
 export type ChannelLinkConflictRecordResult =
-  | { kind: "anomaly" }
-  | { kind: "conflict"; insertedFirst: boolean }
-  | { kind: "skipped" };
+  | { kind: 'anomaly' }
+  | { kind: 'conflict'; insertedFirst: boolean }
+  | { kind: 'skipped' };
 
 export type ChannelLinkConflictContext = {
   channelCode: string;
@@ -72,7 +70,10 @@ export type ChannelLinkDbPort = {
     channelCode: ChannelLinkChannelCode;
     externalId: string;
   }): Promise<void>;
-  upsertBroadcastDefaultsAfterChannelBind(userId: string, channelCode: ChannelLinkChannelCode): Promise<void>;
+  upsertBroadcastDefaultsAfterChannelBind(
+    userId: string,
+    channelCode: ChannelLinkChannelCode,
+  ): Promise<void>;
   markChannelLinkSecretUsed(secretRowId: string): Promise<void>;
   resolveCanonicalUserId(userId: string): Promise<string | null>;
   recordOwnershipConflict(

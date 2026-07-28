@@ -1,6 +1,6 @@
-import type { MediaPreviewStatus } from "@/modules/media/types";
+import type { MediaPreviewStatus } from '@/modules/media/types';
 
-export type SymptomSide = "left" | "right" | "both";
+export type SymptomSide = 'left' | 'right' | 'both';
 
 export type SymptomTracking = {
   id: string;
@@ -24,9 +24,9 @@ export type SymptomEntry = {
   userId: string;
   trackingId: string;
   value0_10: number;
-  entryType: "instant" | "daily";
+  entryType: 'instant' | 'daily';
   recordedAt: string;
-  source: "bot" | "webapp" | "import";
+  source: 'bot' | 'webapp' | 'import';
   notes: string | null;
   createdAt: string;
   /** Set when listing (join with trackings). */
@@ -43,8 +43,8 @@ export type LfkComplex = {
   coverPreviewSmUrl?: string | null;
   coverPreviewMdUrl?: string | null;
   coverPreviewStatus?: MediaPreviewStatus;
-  coverKind?: "image" | "video";
-  origin: "manual" | "assigned_by_specialist";
+  coverKind?: 'image' | 'video';
+  origin: 'manual' | 'assigned_by_specialist';
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -61,7 +61,7 @@ export type LfkSession = {
   userId: string;
   complexId: string;
   completedAt: string;
-  source: "bot" | "webapp";
+  source: 'bot' | 'webapp';
   createdAt: string;
   /** When the patient recorded the session (may differ from completed_at). */
   recordedAt?: string | null;

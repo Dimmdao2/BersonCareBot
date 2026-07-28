@@ -1,13 +1,13 @@
-import { NextResponse } from "next/server";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireAdminWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { NextResponse } from 'next/server';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireAdminWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 
 export async function POST() {
   const gate = await requireAdminWorkspaceApiContext();
   if (!gate.ok) return gate.response;
   const { ctx } = gate;
-  if (ctx.membershipRole !== "owner") {
-    return NextResponse.json({ ok: false, error: "owner_required" }, { status: 403 });
+  if (ctx.membershipRole !== 'owner') {
+    return NextResponse.json({ ok: false, error: 'owner_required' }, { status: 403 });
   }
   const deps = buildAppDeps();
   const specialistId = await deps.organizationProvisioning.ensureOwnBookableSpecialist({
@@ -19,7 +19,7 @@ export async function POST() {
     displayName: ctx.session.user.displayName,
   });
   if (!specialistId) {
-    return NextResponse.json({ ok: false, error: "specialist_binding_failed" }, { status: 409 });
+    return NextResponse.json({ ok: false, error: 'specialist_binding_failed' }, { status: 409 });
   }
-  return NextResponse.json({ ok: true, specialistId, redirectTo: "/app/doctor" });
+  return NextResponse.json({ ok: true, specialistId, redirectTo: '/app/doctor' });
 }

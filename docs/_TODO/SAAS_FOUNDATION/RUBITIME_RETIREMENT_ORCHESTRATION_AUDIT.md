@@ -16,14 +16,14 @@ Current branch:
 
 Subagents visible in the UI/API:
 
-| Agent id | Role | Status |
-| --- | --- | --- |
+| Agent id                               | Role                             | Status    |
+| -------------------------------------- | -------------------------------- | --------- |
 | `019f5ddf-ab1e-7723-88d4-cab7dcbba156` | duplicate stale CSV proof worker | completed |
-| `019f5de1-831d-75f0-a941-a41fb285aa0b` | stale CSV proof worker | completed |
-| `019f5de7-58ab-7a20-afcf-c9ef7d966e76` | stale CSV proof auditor | completed |
-| `019f5deb-cc48-7fd0-a640-3c58988225ca` | blocker classifier | completed |
-| `019f5def-c25d-7b70-b77e-17f2f131f336` | non-confirmed cleanup worker | completed |
-| `019f5dfc-5754-7e70-ad13-e2c3ddf77690` | non-confirmed cleanup auditor | completed |
+| `019f5de1-831d-75f0-a941-a41fb285aa0b` | stale CSV proof worker           | completed |
+| `019f5de7-58ab-7a20-afcf-c9ef7d966e76` | stale CSV proof auditor          | completed |
+| `019f5deb-cc48-7fd0-a640-3c58988225ca` | blocker classifier               | completed |
+| `019f5def-c25d-7b70-b77e-17f2f131f336` | non-confirmed cleanup worker     | completed |
+| `019f5dfc-5754-7e70-ad13-e2c3ddf77690` | non-confirmed cleanup auditor    | completed |
 
 Process scan found no active backfill/vitest/tsx/Rubitime worker processes. Only Codex runtime processes were visible.
 

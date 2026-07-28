@@ -75,7 +75,11 @@ export async function completeProjectionEvent(db: DbPort, id: number): Promise<v
     .where(eq(projectionOutbox.id, id));
 }
 
-export async function failProjectionEvent(db: DbPort, id: number, lastError: string): Promise<void> {
+export async function failProjectionEvent(
+  db: DbPort,
+  id: number,
+  lastError: string,
+): Promise<void> {
   const d = getIntegratorDrizzleSession(db);
   await d
     .update(projectionOutbox)

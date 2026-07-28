@@ -10,13 +10,13 @@
 
 ## Коммиты, миграции и деплой (координация)
 
-| Факт | Деталь |
-|------|--------|
-| Один репозиторий | Push в `main` деплоит **весь** монорепо (integrator + webapp). |
-| Порядок миграций | Сначала integrator (`pnpm --dir apps/integrator run db:migrate:prod`), затем webapp (`pnpm --dir apps/webapp run migrate`). |
-| Пути миграций | Integrator core: `apps/integrator/src/infra/db/migrations/core/`. Webapp: `apps/webapp/migrations/`. |
-| CI-only webapp | Скрипт `deploy-webapp-prod.sh` существует, в CI **не** используется; для v2 cross-DB — предпочтительно только полный `deploy-prod.sh`. |
-| Обратная совместимость | Пока webapp не меняется, новая колонка/инвариант integrator не должен ломать существующий webapp runtime. |
+| Факт                   | Деталь                                                                                                                                 |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Один репозиторий       | Push в `main` деплоит **весь** монорепо (integrator + webapp).                                                                         |
+| Порядок миграций       | Сначала integrator (`pnpm --dir apps/integrator run db:migrate:prod`), затем webapp (`pnpm --dir apps/webapp run migrate`).            |
+| Пути миграций          | Integrator core: `apps/integrator/src/infra/db/migrations/core/`. Webapp: `apps/webapp/migrations/`.                                   |
+| CI-only webapp         | Скрипт `deploy-webapp-prod.sh` существует, в CI **не** используется; для v2 cross-DB — предпочтительно только полный `deploy-prod.sh`. |
+| Обратная совместимость | Пока webapp не меняется, новая колонка/инвариант integrator не должен ломать существующий webapp runtime.                              |
 
 Имена БД и схемы на production: см. [`../ARCHITECTURE/SERVER CONVENTIONS.md`](../ARCHITECTURE/SERVER%20CONVENTIONS.md) и [`../ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`](../ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md) — **одна** БД, схемы `integrator` / `public` (старые имена отдельных БД — только historical).
 

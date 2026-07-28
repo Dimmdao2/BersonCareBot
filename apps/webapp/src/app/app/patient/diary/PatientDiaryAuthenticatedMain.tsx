@@ -1,24 +1,24 @@
-import { DateTime } from "luxon";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { cn } from "@/lib/utils";
+import { DateTime } from 'luxon';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { cn } from '@/lib/utils';
 import {
   patientMutedTextClass,
   patientSectionSurfaceClass,
   patientSectionTitleClass,
-} from "@/shared/ui/patient/patientVisual";
-import { DiaryTabsClient } from "./DiaryTabsClient";
-import { PatientWarmupWeekImpactBanner } from "@/modules/diaries/components/PatientWarmupWeekImpactBanner";
-import { PatientWellbeingWeekChart } from "@/modules/diaries/components/PatientWellbeingWeekChart";
-import { loadPatientDiaryWeekWellbeing } from "@/modules/diaries/loadPatientDiaryWeekWellbeing";
-import { loadPatientDiaryWeekActivity } from "@/modules/patient-diary/loadPatientDiaryWeekActivity";
-import { PatientDiaryWarmupWeekBars } from "@/modules/patient-diary/components/PatientDiaryWarmupWeekBars";
-import { PatientDiaryPlanWeekStripes } from "@/modules/patient-diary/components/PatientDiaryPlanWeekStripes";
-import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
-import { PatientDiaryWeekNavStrip } from "./PatientDiaryWeekNavStrip";
-import { runWithWebappDbOperationFamily } from "@/infra/db/saasIsolationOperationContext";
+} from '@/shared/ui/patient/patientVisual';
+import { DiaryTabsClient } from './DiaryTabsClient';
+import { PatientWarmupWeekImpactBanner } from '@/modules/diaries/components/PatientWarmupWeekImpactBanner';
+import { PatientWellbeingWeekChart } from '@/modules/diaries/components/PatientWellbeingWeekChart';
+import { loadPatientDiaryWeekWellbeing } from '@/modules/diaries/loadPatientDiaryWeekWellbeing';
+import { loadPatientDiaryWeekActivity } from '@/modules/patient-diary/loadPatientDiaryWeekActivity';
+import { PatientDiaryWarmupWeekBars } from '@/modules/patient-diary/components/PatientDiaryWarmupWeekBars';
+import { PatientDiaryPlanWeekStripes } from '@/modules/patient-diary/components/PatientDiaryPlanWeekStripes';
+import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
+import { PatientDiaryWeekNavStrip } from './PatientDiaryWeekNavStrip';
+import { runWithWebappDbOperationFamily } from '@/infra/db/saasIsolationOperationContext';
 
 const EMPTY_STATS =
-  "За эту неделю пока нет отметок общего самочувствия. Отметки можно добавить на главной «Сегодня».";
+  'За эту неделю пока нет отметок общего самочувствия. Отметки можно добавить на главной «Сегодня».';
 
 export async function PatientDiaryAuthenticatedMain({
   userId,
@@ -28,7 +28,9 @@ export async function PatientDiaryAuthenticatedMain({
   /** Сырой query `week` (YYYY-MM-DD); парсинг и clamp — в {@link loadPatientDiaryWeekWellbeing}. */
   week?: string;
 }) {
-  return runWithWebappDbOperationFamily("patient_diary", () => renderPatientDiaryAuthenticatedMain({ userId, week }));
+  return runWithWebappDbOperationFamily('patient_diary', () =>
+    renderPatientDiaryAuthenticatedMain({ userId, week }),
+  );
 }
 
 async function renderPatientDiaryAuthenticatedMain({
@@ -74,25 +76,27 @@ async function renderPatientDiaryAuthenticatedMain({
   const weekDayLabels = Array.from({ length: 7 }, (_, i) =>
     DateTime.fromMillis(wellbeing.chart.weekStartMs, { zone: wellbeing.iana })
       .plus({ days: i })
-      .setLocale("ru")
-      .toFormat("ccc d"),
+      .setLocale('ru')
+      .toFormat('ccc d'),
   );
 
   const wellbeingMvpSingle = (
     <section
       id="patient-diary-wellbeing-week-section"
-      className={cn(patientSectionSurfaceClass, "overflow-x-visible border-0 shadow-none")}
+      className={cn(patientSectionSurfaceClass, 'overflow-x-visible border-0 shadow-none')}
     >
-      {!wellbeing.hasAnyInstant ?
+      {!wellbeing.hasAnyInstant ? (
         <>
           <h2 className={patientSectionTitleClass}>Самочувствие за неделю</h2>
           <p className={patientMutedTextClass}>{EMPTY_STATS}</p>
         </>
-      : <>
+      ) : (
+        <>
           <PatientWarmupWeekImpactBanner summary={wellbeing.warmupImpactSummary} />
           <h2 className={patientSectionTitleClass}>Самочувствие за неделю</h2>
           <PatientWellbeingWeekChart model={wellbeing.chart} iana={wellbeing.iana} />
-        </>}
+        </>
+      )}
     </section>
   );
 

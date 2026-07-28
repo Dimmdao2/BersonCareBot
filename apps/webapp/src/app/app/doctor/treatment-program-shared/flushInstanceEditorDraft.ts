@@ -1,12 +1,15 @@
-import type { TreatmentProgramInstanceDetail, TreatmentProgramInstanceStatus } from "@/modules/treatment-program/types";
-import { confirmActiveProgramInstanceBatchSave } from "./programInstanceMutationGuard";
+import type {
+  TreatmentProgramInstanceDetail,
+  TreatmentProgramInstanceStatus,
+} from '@/modules/treatment-program/types';
+import { confirmActiveProgramInstanceBatchSave } from './programInstanceMutationGuard';
 import {
   isInstanceEditorDraftDirty,
   normalizeInstanceEditorDraft,
   type InstanceEditorDraft,
-} from "./instanceEditorDraft";
-import { validateInstanceEditorDraftLoadSettings } from "./instanceEditorLoadSettings";
-import { serializeInstanceEditorBatchDraftForApi } from "./serializeInstanceEditorBatchDraftForApi";
+} from './instanceEditorDraft';
+import { validateInstanceEditorDraftLoadSettings } from './instanceEditorLoadSettings';
+import { serializeInstanceEditorBatchDraftForApi } from './serializeInstanceEditorBatchDraftForApi';
 
 /** Сохранить накопленный черновик редактора одним POST editor-batch. */
 export async function flushInstanceEditorDraft(input: {
@@ -28,19 +31,19 @@ export async function flushInstanceEditorDraft(input: {
   }
 
   if (!confirmActiveProgramInstanceBatchSave(input.programStatus)) {
-    return { ok: false, error: "cancelled", cancelled: true };
+    return { ok: false, error: 'cancelled', cancelled: true };
   }
 
   const encInstance = encodeURIComponent(input.instanceId);
   const wireDraft = serializeInstanceEditorBatchDraftForApi(normalized);
   const res = await fetch(`/api/doctor/treatment-program-instances/${encInstance}/editor-batch`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ draft: wireDraft }),
   });
   const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
   if (!res.ok || !data?.ok) {
-    return { ok: false, error: data?.error ?? "Ошибка сохранения" };
+    return { ok: false, error: data?.error ?? 'Ошибка сохранения' };
   }
   return { ok: true };
 }

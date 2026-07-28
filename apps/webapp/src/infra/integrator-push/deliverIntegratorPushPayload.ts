@@ -1,17 +1,17 @@
-import type { ReminderRule } from "@/modules/reminders/types";
+import type { ReminderRule } from '@/modules/reminders/types';
 import {
   postReminderRuleUpsertToIntegrator,
   postSystemSettingsSyncToIntegrator,
   type SystemSettingsSyncWireInput,
-} from "./integratorM2mPosts";
-import type { IntegratorPushOutboxRow } from "./integratorPushOutbox";
+} from './integratorM2mPosts';
+import type { IntegratorPushOutboxRow } from './integratorPushOutbox';
 
 export async function deliverIntegratorPushPayload(row: IntegratorPushOutboxRow): Promise<void> {
-  if (row.kind === "system_settings_sync") {
+  if (row.kind === 'system_settings_sync') {
     await postSystemSettingsSyncToIntegrator(row.payload as unknown as SystemSettingsSyncWireInput);
     return;
   }
-  if (row.kind === "reminder_rule_upsert") {
+  if (row.kind === 'reminder_rule_upsert') {
     const rule = row.payload as unknown as ReminderRule;
     if (!rule.integratorUserId) return;
     await postReminderRuleUpsertToIntegrator(rule);

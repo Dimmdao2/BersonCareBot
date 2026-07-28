@@ -6,8 +6,8 @@ import {
   HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE,
   HEALTH_FAILURE_ARCHIVE_RETENTION_DAYS,
   type HealthFailureArchiveProbe,
-} from "./healthFailureArchiveConstants";
-import type { HealthFailureArchivePort } from "./healthFailureArchivePort";
+} from './healthFailureArchiveConstants';
+import type { HealthFailureArchivePort } from './healthFailureArchivePort';
 
 export function createHealthFailureArchiveService(port: HealthFailureArchivePort) {
   return {
@@ -66,7 +66,9 @@ export function createHealthFailureArchiveService(port: HealthFailureArchivePort
     listForDoctor: port.listForDoctor.bind(port),
 
     async purgeExpired(): Promise<{ deleted: number }> {
-      const cutoff = new Date(Date.now() - HEALTH_FAILURE_ARCHIVE_RETENTION_DAYS * 86400000).toISOString();
+      const cutoff = new Date(
+        Date.now() - HEALTH_FAILURE_ARCHIVE_RETENTION_DAYS * 86400000,
+      ).toISOString();
       const deleted = await port.deleteArchivedBefore(cutoff);
       return { deleted };
     },

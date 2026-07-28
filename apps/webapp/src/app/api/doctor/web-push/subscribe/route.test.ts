@@ -1,29 +1,29 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const guardMock = vi.hoisted(() => vi.fn());
 const buildDepsMock = vi.hoisted(() => vi.fn());
 const enableDefaultsMock = vi.hoisted(() => vi.fn());
 
-vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-vi.mock("@/app-layer/guards/requireRole", () => ({ requireStaffWebPushSelfApiSession: guardMock }));
-vi.mock("@/app-layer/di/buildAppDeps", () => ({ buildAppDeps: buildDepsMock }));
-vi.mock("@/modules/doctor-notifications/enableStaffWebPushNotificationDefaults", () => ({
+vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
+vi.mock('@/app-layer/guards/requireRole', () => ({ requireStaffWebPushSelfApiSession: guardMock }));
+vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: buildDepsMock }));
+vi.mock('@/modules/doctor-notifications/enableStaffWebPushNotificationDefaults', () => ({
   enableStaffWebPushNotificationDefaults: enableDefaultsMock,
 }));
-vi.mock("@/infra/logging/logger", () => ({ logger: { info: vi.fn() } }));
+vi.mock('@/infra/logging/logger', () => ({ logger: { info: vi.fn() } }));
 
-import { POST } from "./route";
+import { POST } from './route';
 
 const globalAdmin = {
   user: {
-    userId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
-    role: "admin" as const,
+    userId: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+    role: 'admin' as const,
     bindings: {},
   },
   adminMode: true,
 };
 
-describe("POST /api/doctor/web-push/subscribe", () => {
+describe('POST /api/doctor/web-push/subscribe', () => {
   const saveSubscription = vi.fn();
   const getChannelCards = vi.fn();
   const updatePreference = vi.fn();
@@ -42,14 +42,14 @@ describe("POST /api/doctor/web-push/subscribe", () => {
     });
   });
 
-  it("writes a global admin subscription only for the authenticated platform user", async () => {
+  it('writes a global admin subscription only for the authenticated platform user', async () => {
     const res = await POST(
-      new Request("http://test/api/doctor/web-push/subscribe", {
-        method: "POST",
+      new Request('http://test/api/doctor/web-push/subscribe', {
+        method: 'POST',
         body: JSON.stringify({
-          endpoint: "https://push.example.test/subscription",
-          keys: { p256dh: "public-key", auth: "auth-key" },
-          platform: "pwa",
+          endpoint: 'https://push.example.test/subscription',
+          keys: { p256dh: 'public-key', auth: 'auth-key' },
+          platform: 'pwa',
         }),
       }),
     );
@@ -57,10 +57,10 @@ describe("POST /api/doctor/web-push/subscribe", () => {
     expect(res.status).toBe(200);
     expect(saveSubscription).toHaveBeenCalledWith(
       globalAdmin.user.userId,
-      expect.objectContaining({ endpoint: "https://push.example.test/subscription" }),
+      expect.objectContaining({ endpoint: 'https://push.example.test/subscription' }),
       expect.anything(),
     );
-    expect(updatePreference).toHaveBeenCalledWith(globalAdmin.user.userId, "web_push", {
+    expect(updatePreference).toHaveBeenCalledWith(globalAdmin.user.userId, 'web_push', {
       isEnabledForMessages: false,
       isEnabledForNotifications: true,
     });

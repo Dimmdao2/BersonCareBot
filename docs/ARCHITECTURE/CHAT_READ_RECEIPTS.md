@@ -2,23 +2,23 @@
 
 Telegram-style галочки на **исходящих** сообщениях во всех чатах webapp:
 
-| Галочка | Значение |
-|---------|----------|
+| Галочка  | Значение                                                                    |
+| -------- | --------------------------------------------------------------------------- |
 | ✓ (одна) | Сообщение записано в БД и отображается в thread (ушло с клиента на сервер). |
-| ✓✓ (две) | Собеседник просмотрел thread (курсор прочтения ≥ время сообщения). |
+| ✓✓ (две) | Собеседник просмотрел thread (курсор прочтения ≥ время сообщения).          |
 
 Входящие сообщения галочек **не** показывают.
 
 ## UI
 
-| Компонент | Путь |
-|-----------|------|
-| Логика статуса | [`chatMessageDeliveryStatus.ts`](../../apps/webapp/src/modules/messaging/chatMessageDeliveryStatus.ts) |
-| Иконки ✓ / ✓✓ | [`ChatMessageDeliveryTicks.tsx`](../../apps/webapp/src/shared/ui/chat/ChatMessageDeliveryTicks.tsx) |
-| Время + галочки в пузыре | [`ChatBubbleOutgoingMeta.tsx`](../../apps/webapp/src/shared/ui/chat/ChatBubbleOutgoingMeta.tsx) |
-| Support-чат (пациент / врач) | [`ChatView.tsx`](../../apps/webapp/src/modules/messaging/components/ChatView.tsx) |
-| Комментарии к упражнению (пациент) | [`ProgramItemDiscussionDialog.tsx`](../../apps/webapp/src/app/app/patient/treatment/ProgramItemDiscussionDialog.tsx) |
-| Комментарии (врач) | [`DoctorProgramDiscussionMessagesPanel.tsx`](../../apps/webapp/src/app/app/doctor/clients/[userId]/treatment-programs/[instanceId]/DoctorProgramDiscussionMessagesPanel.tsx) |
+| Компонент                          | Путь                                                                                                                                                                         |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Логика статуса                     | [`chatMessageDeliveryStatus.ts`](../../apps/webapp/src/modules/messaging/chatMessageDeliveryStatus.ts)                                                                       |
+| Иконки ✓ / ✓✓                      | [`ChatMessageDeliveryTicks.tsx`](../../apps/webapp/src/shared/ui/chat/ChatMessageDeliveryTicks.tsx)                                                                          |
+| Время + галочки в пузыре           | [`ChatBubbleOutgoingMeta.tsx`](../../apps/webapp/src/shared/ui/chat/ChatBubbleOutgoingMeta.tsx)                                                                              |
+| Support-чат (пациент / врач)       | [`ChatView.tsx`](../../apps/webapp/src/modules/messaging/components/ChatView.tsx)                                                                                            |
+| Комментарии к упражнению (пациент) | [`ProgramItemDiscussionDialog.tsx`](../../apps/webapp/src/app/app/patient/treatment/ProgramItemDiscussionDialog.tsx)                                                         |
+| Комментарии (врач)                 | [`DoctorProgramDiscussionMessagesPanel.tsx`](../../apps/webapp/src/app/app/doctor/clients/[userId]/treatment-programs/[instanceId]/DoctorProgramDiscussionMessagesPanel.tsx) |
 
 Время и галочки — **внутри** исходящего пузыря справа внизу (как в Telegram 1:1).
 
@@ -26,10 +26,10 @@ Telegram-style галочки на **исходящих** сообщениях �
 
 Поле `read_at` на строке сообщения:
 
-| Отправитель | ✓✓ когда |
-|-------------|----------|
+| Отправитель                    | ✓✓ когда                                                                                               |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------ |
 | Пациент (`sender_role = user`) | Врач открыл диалог → `POST /api/doctor/messages/{conversationId}/read` → `markUserMessagesReadByAdmin` |
-| Врач (`sender_role = admin`) | Пациент открыл чат → `POST /api/patient/messages/read` → `markInboundReadForUser` |
+| Врач (`sender_role = admin`)   | Пациент открыл чат → `POST /api/patient/messages/read` → `markInboundReadForUser`                      |
 
 **Live-обновление UI:** polling (~18 с) делает **полный** refetch списка сообщений (не только `since`), чтобы обновлять `read_at` на уже показанных исходящих без перезагрузки страницы.
 
@@ -42,10 +42,10 @@ Telegram-style галочки на **исходящих** сообщениях �
 
 Per-message `read_at` **нет**. Курсор прочтения — `program_item_discussion_reads.last_read_at` по паре `(viewer_user_id, instance_stage_item_id)`.
 
-| Сторона | Исходящие | ✓✓ по курсору |
-|---------|-----------|---------------|
+| Сторона | Исходящие               | ✓✓ по курсору                                                                           |
+| ------- | ----------------------- | --------------------------------------------------------------------------------------- |
 | Пациент | `sender_role = patient` | `peerLastReadAt` = max `last_read_at` среди active staff (`getMaxLastReadAtForViewers`) |
-| Врач | `sender_role = admin` | `peerLastReadAt` / `peerLastReadAtByStageItemId` = `last_read_at` пациента по пункту |
+| Врач    | `sender_role = admin`   | `peerLastReadAt` / `peerLastReadAtByStageItemId` = `last_read_at` пациента по пункту    |
 
 **Mark read врача (staff cursor):**
 
@@ -59,11 +59,11 @@ Per-message `read_at` **нет**. Курсор прочтения — `program_i
 
 ## API (discussion GET)
 
-| Route | Поле |
-|-------|------|
-| `GET /api/patient/.../items/{itemId}/discussion` | `peerLastReadAt` |
-| `GET /api/doctor/.../items/{stageItemId}/discussion` | `peerLastReadAt` |
-| `GET /api/doctor/.../discussion` (instance) | `peerLastReadAtByStageItemId` |
+| Route                                                | Поле                          |
+| ---------------------------------------------------- | ----------------------------- |
+| `GET /api/patient/.../items/{itemId}/discussion`     | `peerLastReadAt`              |
+| `GET /api/doctor/.../items/{stageItemId}/discussion` | `peerLastReadAt`              |
+| `GET /api/doctor/.../discussion` (instance)          | `peerLastReadAtByStageItemId` |
 
 ## Тесты
 

@@ -26,11 +26,11 @@
 
 Файлы аудита (создавай в каталоге инициативы):
 
-| Назначение | Файл |
-|------------|------|
+| Назначение   | Файл                                                                      |
+| ------------ | ------------------------------------------------------------------------- |
 | Аудит фазы N | `docs/TREATMENT_PROGRAM_INITIATIVE/AUDIT_PHASE_N.md` (где N — номер фазы) |
-| Pre-deploy | `docs/TREATMENT_PROGRAM_INITIATIVE/AUDIT_PRE_DEPLOY_PHASE_N.md` |
-| Финальный | `docs/TREATMENT_PROGRAM_INITIATIVE/AUDIT_FINAL.md` |
+| Pre-deploy   | `docs/TREATMENT_PROGRAM_INITIATIVE/AUDIT_PRE_DEPLOY_PHASE_N.md`           |
+| Финальный    | `docs/TREATMENT_PROGRAM_INITIATIVE/AUDIT_FINAL.md`                        |
 
 ---
 

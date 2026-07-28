@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const getCurrentSessionMock = vi.hoisted(() => vi.fn());
 const requireDoctorWorkspaceApiContextMock = vi.hoisted(() => vi.fn());
@@ -10,22 +10,25 @@ const bookingEngineMock = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("@/modules/auth/service", () => ({
+vi.mock('@/modules/auth/service', () => ({
   getCurrentSession: getCurrentSessionMock,
 }));
 
-vi.mock("@/app-layer/guards/requireRole", () => ({
+vi.mock('@/app-layer/guards/requireRole', () => ({
   requireDoctorWorkspaceApiContext: requireDoctorWorkspaceApiContextMock,
   requireClinicManagementApiContext: requireClinicManagementApiContextMock,
 }));
 
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: vi.fn(() => ({
     bookingEngine: bookingEngineMock,
   })),
 }));
 
-import { requireAdminBookingEngine, requireClinicManagementBookingEngine } from "./_requireAdminBookingEngine";
+import {
+  requireAdminBookingEngine,
+  requireClinicManagementBookingEngine,
+} from './_requireAdminBookingEngine';
 
 beforeEach(() => {
   getCurrentSessionMock.mockReset();
@@ -34,10 +37,10 @@ beforeEach(() => {
   getDefaultOrganizationIdMock.mockReset();
 });
 
-describe("requireAdminBookingEngine", () => {
-  it("keeps adminMode requirement before workspace resolution", async () => {
+describe('requireAdminBookingEngine', () => {
+  it('keeps adminMode requirement before workspace resolution', async () => {
     getCurrentSessionMock.mockResolvedValueOnce({
-      user: { userId: "admin-1", role: "admin", displayName: "Admin", bindings: {} },
+      user: { userId: 'admin-1', role: 'admin', displayName: 'Admin', bindings: {} },
       issuedAt: 1,
       expiresAt: 9e9,
       adminMode: false,
@@ -49,9 +52,9 @@ describe("requireAdminBookingEngine", () => {
     expect(requireDoctorWorkspaceApiContextMock).not.toHaveBeenCalled();
   });
 
-  it("returns strict-admin workspace context without a default organization fallback", async () => {
+  it('returns strict-admin workspace context without a default organization fallback', async () => {
     const session = {
-      user: { userId: "admin-1", role: "admin", displayName: "Admin", bindings: {} },
+      user: { userId: 'admin-1', role: 'admin', displayName: 'Admin', bindings: {} },
       issuedAt: 1,
       expiresAt: 9e9,
       adminMode: true,
@@ -61,9 +64,9 @@ describe("requireAdminBookingEngine", () => {
       ok: true,
       ctx: {
         session,
-        organizationId: "org-from-membership",
-        membershipId: "membership-1",
-        membershipRole: "admin",
+        organizationId: 'org-from-membership',
+        membershipId: 'membership-1',
+        membershipRole: 'admin',
         specialistId: null,
         canManageOrganization: true,
         canManageAllSpecialists: true,
@@ -74,15 +77,15 @@ describe("requireAdminBookingEngine", () => {
 
     expect(gate.ok).toBe(true);
     if (!gate.ok) return;
-    expect(gate.ctx.organizationId).toBe("org-from-membership");
-    expect(gate.ctx.membershipRole).toBe("admin");
+    expect(gate.ctx.organizationId).toBe('org-from-membership');
+    expect(gate.ctx.membershipRole).toBe('admin');
     expect(gate.ctx.service).toBe(bookingEngineMock);
     expect(getDefaultOrganizationIdMock).not.toHaveBeenCalled();
   });
 
-  it("returns clinic-management organization context for management-capable members", async () => {
+  it('returns clinic-management organization context for management-capable members', async () => {
     const session = {
-      user: { userId: "doctor-1", role: "doctor", displayName: "Doctor", bindings: {} },
+      user: { userId: 'doctor-1', role: 'doctor', displayName: 'Doctor', bindings: {} },
       issuedAt: 1,
       expiresAt: 9e9,
     };
@@ -90,10 +93,10 @@ describe("requireAdminBookingEngine", () => {
       ok: true,
       ctx: {
         session,
-        organizationId: "org-from-membership",
-        membershipId: "membership-1",
-        membershipRole: "owner",
-        specialistId: "specialist-1",
+        organizationId: 'org-from-membership',
+        membershipId: 'membership-1',
+        membershipRole: 'owner',
+        specialistId: 'specialist-1',
         canManageOrganization: true,
         canManageAllSpecialists: true,
       },
@@ -104,12 +107,12 @@ describe("requireAdminBookingEngine", () => {
     expect(gate.ok).toBe(true);
     if (!gate.ok) return;
     expect(gate.ctx.session).toBe(session);
-    expect(gate.ctx.organizationId).toBe("org-from-membership");
+    expect(gate.ctx.organizationId).toBe('org-from-membership');
     expect(gate.ctx.service).toBe(bookingEngineMock);
   });
 
-  it("returns clinic-management gate response before resolving booking service", async () => {
-    const response = new Response("forbidden", { status: 403 });
+  it('returns clinic-management gate response before resolving booking service', async () => {
+    const response = new Response('forbidden', { status: 403 });
     requireClinicManagementApiContextMock.mockResolvedValueOnce({ ok: false, response });
 
     const gate = await requireClinicManagementBookingEngine();
@@ -117,5 +120,4 @@ describe("requireAdminBookingEngine", () => {
     expect(gate).toEqual({ ok: false, response });
     expect(getDefaultOrganizationIdMock).not.toHaveBeenCalled();
   });
-
 });

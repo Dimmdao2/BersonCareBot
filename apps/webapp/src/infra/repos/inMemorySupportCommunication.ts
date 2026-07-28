@@ -4,15 +4,16 @@ import type {
   SupportConversationMessageRow,
   SupportQuestionRow,
   SupportDeliveryEventRow,
-} from "./pgSupportCommunication";
-import { isSupportNotificationMessage } from "@/shared/lib/supportMessageKinds";
+} from './pgSupportCommunication';
+import { isSupportNotificationMessage } from '@/shared/lib/supportMessageKinds';
 
 const questionMessageTexts = new Map<string, string>();
 
 const conversations = new Map<string, SupportConversationRow>();
 const messages = new Map<string, SupportConversationMessageRow>();
 const questions = new Map<string, SupportQuestionRow>();
-const questionMessages: { id: string; questionId: string; integratorQuestionMessageId: string }[] = [];
+const questionMessages: { id: string; questionId: string; integratorQuestionMessageId: string }[] =
+  [];
 const deliveryEvents: SupportDeliveryEventRow[] = [];
 let conversationIdSeq = 0;
 let messageIdSeq = 0;
@@ -26,9 +27,9 @@ function nextId(prefix: string, seq: number): string {
 export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
   async upsertConversationFromProjection(params) {
     const existing = Array.from(conversations.values()).find(
-      (c) => c.integratorConversationId === params.integratorConversationId
+      (c) => c.integratorConversationId === params.integratorConversationId,
     );
-    const id = existing?.id ?? nextId("conv", ++conversationIdSeq);
+    const id = existing?.id ?? nextId('conv', ++conversationIdSeq);
     const row: SupportConversationRow = {
       id,
       organizationId: null,
@@ -53,14 +54,14 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
 
   async appendConversationMessageFromProjection(params) {
     const existingMsg = Array.from(messages.values()).find(
-      (m) => m.integratorMessageId === params.integratorMessageId
+      (m) => m.integratorMessageId === params.integratorMessageId,
     );
     if (existingMsg) return { id: existingMsg.id };
 
     const conv = Array.from(conversations.values()).find(
-      (c) => c.integratorConversationId === params.integratorConversationId
+      (c) => c.integratorConversationId === params.integratorConversationId,
     );
-    const conversationId = conv?.id ?? nextId("conv", ++conversationIdSeq);
+    const conversationId = conv?.id ?? nextId('conv', ++conversationIdSeq);
     if (!conv) {
       conversations.set(conversationId, {
         id: conversationId,
@@ -69,8 +70,8 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
         platformUserId: null,
         integratorUserId: null,
         source: params.source,
-        adminScope: "",
-        status: "open",
+        adminScope: '',
+        status: 'open',
         openedAt: params.createdAt,
         lastMessageAt: params.createdAt,
         closedAt: null,
@@ -81,14 +82,14 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
         updatedAt: params.createdAt,
       });
     }
-    const id = nextId("msg", ++messageIdSeq);
+    const id = nextId('msg', ++messageIdSeq);
     const row: SupportConversationMessageRow = {
       id,
       organizationId: conv?.organizationId ?? null,
       integratorMessageId: params.integratorMessageId,
       conversationId,
       senderRole: params.senderRole,
-      messageType: params.messageType ?? "text",
+      messageType: params.messageType ?? 'text',
       text: params.text,
       source: params.source,
       externalChatId: params.externalChatId ?? null,
@@ -106,7 +107,7 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
 
   async setConversationStatusFromProjection(params) {
     const conv = Array.from(conversations.values()).find(
-      (c) => c.integratorConversationId === params.integratorConversationId
+      (c) => c.integratorConversationId === params.integratorConversationId,
     );
     if (conv) {
       conv.status = params.status;
@@ -115,15 +116,15 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
       if (params.closeReason != null) conv.closeReason = params.closeReason;
       conv.updatedAt = new Date().toISOString();
     } else {
-      const id = nextId("conv", ++conversationIdSeq);
+      const id = nextId('conv', ++conversationIdSeq);
       conversations.set(id, {
         id,
         organizationId: null,
         integratorConversationId: params.integratorConversationId,
         platformUserId: null,
         integratorUserId: null,
-        source: "ingest",
-        adminScope: "",
+        source: 'ingest',
+        adminScope: '',
         status: params.status,
         openedAt: params.lastMessageAt ?? new Date().toISOString(),
         lastMessageAt: params.lastMessageAt ?? new Date().toISOString(),
@@ -141,14 +142,14 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
     let conversationId: string | null = null;
     if (params.integratorConversationId) {
       const c = Array.from(conversations.values()).find(
-        (x) => x.integratorConversationId === params.integratorConversationId
+        (x) => x.integratorConversationId === params.integratorConversationId,
       );
       conversationId = c?.id ?? null;
     }
     const existing = Array.from(questions.values()).find(
-      (q) => q.integratorQuestionId === params.integratorQuestionId
+      (q) => q.integratorQuestionId === params.integratorQuestionId,
     );
-    const id = existing?.id ?? nextId("q", ++questionIdSeq);
+    const id = existing?.id ?? nextId('q', ++questionIdSeq);
     const row: SupportQuestionRow = {
       id,
       integratorQuestionId: params.integratorQuestionId,
@@ -164,25 +165,25 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
 
   async appendQuestionMessageFromProjection(params) {
     const q = Array.from(questions.values()).find(
-      (x) => x.integratorQuestionId === params.integratorQuestionId
+      (x) => x.integratorQuestionId === params.integratorQuestionId,
     );
-    const questionId = q?.id ?? nextId("q", ++questionIdSeq);
+    const questionId = q?.id ?? nextId('q', ++questionIdSeq);
     if (!q) {
       questions.set(questionId, {
         id: questionId,
         integratorQuestionId: params.integratorQuestionId,
         conversationId: null,
-        status: "open",
+        status: 'open',
         createdAt: params.createdAt,
         answeredAt: null,
         updatedAt: params.createdAt,
       });
     }
     const existing = questionMessages.find(
-      (m) => m.integratorQuestionMessageId === params.integratorQuestionMessageId
+      (m) => m.integratorQuestionMessageId === params.integratorQuestionMessageId,
     );
     if (existing) return { id: existing.id };
-    const id = nextId("qm", ++messageIdSeq);
+    const id = nextId('qm', ++messageIdSeq);
     questionMessageTexts.set(params.integratorQuestionId, params.text);
     questionMessages.push({
       id,
@@ -199,7 +200,7 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
       );
       if (existing) return { id: existing.id };
     }
-    const id = nextId("del", ++deliveryIdSeq);
+    const id = nextId('del', ++deliveryIdSeq);
     deliveryEvents.push({
       id,
       conversationMessageId: params.conversationMessageId,
@@ -223,9 +224,14 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
 
   async getConversationWithMessages(conversationId, organizationId) {
     const conversation = conversations.get(conversationId);
-    if (!conversation || (organizationId != null && conversation.organizationId !== organizationId)) return null;
+    if (!conversation || (organizationId != null && conversation.organizationId !== organizationId))
+      return null;
     const messagesList = Array.from(messages.values())
-      .filter((m) => m.conversationId === conversationId && (organizationId == null || m.organizationId === organizationId))
+      .filter(
+        (m) =>
+          m.conversationId === conversationId &&
+          (organizationId == null || m.organizationId === organizationId),
+      )
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
     return { conversation, messages: messagesList };
   },
@@ -250,13 +256,11 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
   },
 
   async listOpenConversationsForAdmin(params) {
-    const limit = typeof params.limit === "number" && params.limit > 0 ? params.limit : 20;
-    const source = typeof params.source === "string" && params.source.trim() ? params.source.trim() : null;
+    const limit = typeof params.limit === 'number' && params.limit > 0 ? params.limit : 20;
+    const source =
+      typeof params.source === 'string' && params.source.trim() ? params.source.trim() : null;
     let list = Array.from(conversations.values()).filter(
-      (c) =>
-        c.status !== "closed" &&
-        c.closedAt == null &&
-        (source == null || c.source === source)
+      (c) => c.status !== 'closed' && c.closedAt == null && (source == null || c.source === source),
     );
     const lastChatMessage = (conversationId: string) =>
       Array.from(messages.values())
@@ -265,7 +269,7 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
     const unreadCount = (conversationId: string) =>
       Array.from(messages.values()).filter(
-        (m) => m.conversationId === conversationId && m.senderRole === "user" && m.readAt == null,
+        (m) => m.conversationId === conversationId && m.senderRole === 'user' && m.readAt == null,
       ).length;
     list = list.filter((c) => lastChatMessage(c.id) != null);
     if (params.unreadOnly) {
@@ -295,7 +299,7 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
         lastMessageAt: c.lastMessageAt,
         closedAt: c.closedAt,
         closeReason: c.closeReason,
-        displayName: "",
+        displayName: '',
         phoneNormalized: null,
         channelExternalId: c.channelExternalId,
         lastMessageText: lastMsg?.text ?? null,
@@ -307,7 +311,7 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
 
   async getConversationByIntegratorId(integratorConversationId) {
     const c = Array.from(conversations.values()).find(
-      (x) => x.integratorConversationId === integratorConversationId
+      (x) => x.integratorConversationId === integratorConversationId,
     );
     if (!c) return null;
     const lastMsg = Array.from(messages.values())
@@ -315,7 +319,9 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
       .filter((m) => !isSupportNotificationMessage(m))
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
     const userMsg = Array.from(messages.values())
-      .filter((m) => m.conversationId === c.id && m.senderRole === "user" && m.externalChatId != null)
+      .filter(
+        (m) => m.conversationId === c.id && m.senderRole === 'user' && m.externalChatId != null,
+      )
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
     return {
       conversationId: c.id,
@@ -328,21 +334,21 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
       lastMessageAt: c.lastMessageAt,
       closedAt: c.closedAt,
       closeReason: c.closeReason,
-      displayName: "",
+      displayName: '',
       phoneNormalized: null,
       channelExternalId: c.channelExternalId,
       lastMessageText: lastMsg?.text ?? null,
       lastSenderRole: lastMsg?.senderRole ?? null,
       unreadFromUserCount: Array.from(messages.values()).filter(
-        (m) => m.conversationId === c.id && m.senderRole === "user" && m.readAt == null,
+        (m) => m.conversationId === c.id && m.senderRole === 'user' && m.readAt == null,
       ).length,
       userChatId: userMsg?.externalChatId ?? null,
     };
   },
 
   async listUnansweredQuestionsForAdmin(params) {
-    const limit = typeof params.limit === "number" && params.limit > 0 ? params.limit : 50;
-    let list = Array.from(questions.values()).filter((q) => q.status !== "answered");
+    const limit = typeof params.limit === 'number' && params.limit > 0 ? params.limit : 50;
+    let list = Array.from(questions.values()).filter((q) => q.status !== 'answered');
     list = list
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .slice(0, limit);
@@ -350,15 +356,15 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
       const conv = q.conversationId
         ? Array.from(conversations.values()).find((c) => c.id === q.conversationId)
         : null;
-      const text = questionMessageTexts.get(q.integratorQuestionId) ?? "";
+      const text = questionMessageTexts.get(q.integratorQuestionId) ?? '';
       return {
         integratorQuestionId: q.integratorQuestionId,
         integratorConversationId: conv?.integratorConversationId ?? null,
         text,
         createdAt: q.createdAt,
-        answered: q.status === "answered",
+        answered: q.status === 'answered',
         answeredAt: q.answeredAt,
-        displayName: "",
+        displayName: '',
         phoneNormalized: null,
         channelExternalId: conv?.channelExternalId ?? null,
       };
@@ -367,14 +373,14 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
 
   async getQuestionByIntegratorConversationId(integratorConversationId) {
     const conv = Array.from(conversations.values()).find(
-      (c) => c.integratorConversationId === integratorConversationId
+      (c) => c.integratorConversationId === integratorConversationId,
     );
     if (!conv) return null;
     const q = Array.from(questions.values())
       .filter((x) => x.conversationId === conv.id)
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
     if (!q) return null;
-    return { id: q.integratorQuestionId, answered: q.status === "answered" };
+    return { id: q.integratorQuestionId, answered: q.status === 'answered' };
   },
 
   async mergeLegacySupportConversationsForPlatformUser(_platformUserId) {
@@ -385,16 +391,16 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
     const key = `webapp:platform:${platformUserId}`;
     let c = Array.from(conversations.values()).find((x) => x.integratorConversationId === key);
     if (!c) {
-      const id = nextId("conv", ++conversationIdSeq);
+      const id = nextId('conv', ++conversationIdSeq);
       c = {
         id,
         organizationId: null,
         integratorConversationId: key,
         platformUserId,
         integratorUserId: null,
-        source: "webapp",
-        adminScope: "support",
-        status: "open",
+        source: 'webapp',
+        adminScope: 'support',
+        status: 'open',
         openedAt: new Date().toISOString(),
         lastMessageAt: new Date().toISOString(),
         closedAt: null,
@@ -412,16 +418,18 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
   },
 
   async appendWebappMessage(params) {
-    const existing = Array.from(messages.values()).find((m) => m.integratorMessageId === params.integratorMessageId);
+    const existing = Array.from(messages.values()).find(
+      (m) => m.integratorMessageId === params.integratorMessageId,
+    );
     if (existing) return { id: existing.id, created: false };
-    const id = nextId("msg", ++messageIdSeq);
+    const id = nextId('msg', ++messageIdSeq);
     const row: SupportConversationMessageRow = {
       id,
       organizationId: conversations.get(params.conversationId)?.organizationId ?? null,
       integratorMessageId: params.integratorMessageId,
       conversationId: params.conversationId,
       senderRole: params.senderRole,
-      messageType: "text",
+      messageType: 'text',
       text: params.text,
       source: params.source,
       externalChatId: null,
@@ -445,7 +453,9 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
   async listMessagesSince(conversationId, params) {
     let list = Array.from(messages.values()).filter((m) => m.conversationId === conversationId);
     if (params.sinceCreatedAt) {
-      list = list.filter((m) => new Date(m.createdAt).getTime() > new Date(params.sinceCreatedAt!).getTime());
+      list = list.filter(
+        (m) => new Date(m.createdAt).getTime() > new Date(params.sinceCreatedAt!).getTime(),
+      );
       list.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
       return list.slice(0, params.limit);
     }
@@ -484,7 +494,7 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
     for (const m of messages.values()) {
       if (
         m.conversationId === conversationId &&
-        m.senderRole !== "user" &&
+        m.senderRole !== 'user' &&
         !isSupportNotificationMessage(m) &&
         m.readAt == null
       ) {
@@ -505,7 +515,7 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
     for (const m of messages.values()) {
       if (!ids.has(m.id)) continue;
       if (!convIds.has(m.conversationId)) continue;
-      if (m.senderRole === "user" || isSupportNotificationMessage(m) || m.readAt != null) continue;
+      if (m.senderRole === 'user' || isSupportNotificationMessage(m) || m.readAt != null) continue;
       m.readAt = now;
     }
   },
@@ -519,14 +529,14 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
     const now = new Date().toISOString();
     for (const m of messages.values()) {
       if (!convIds.has(m.conversationId)) continue;
-      if (m.senderRole === "user" || !isSupportNotificationMessage(m) || m.readAt != null) continue;
+      if (m.senderRole === 'user' || !isSupportNotificationMessage(m) || m.readAt != null) continue;
       m.readAt = now;
     }
   },
 
   async markUserMessagesReadByAdmin(conversationId) {
     for (const m of messages.values()) {
-      if (m.conversationId === conversationId && m.senderRole === "user" && m.readAt == null) {
+      if (m.conversationId === conversationId && m.senderRole === 'user' && m.readAt == null) {
         m.readAt = new Date().toISOString();
       }
     }
@@ -536,16 +546,17 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
     const convIds = new Set(
       Array.from(conversations.values())
         .filter((c) => c.platformUserId === platformUserId)
-        .map((c) => c.id)
+        .map((c) => c.id),
     );
     let n = 0;
     for (const m of messages.values()) {
       if (
         convIds.has(m.conversationId) &&
-        m.senderRole !== "user" &&
+        m.senderRole !== 'user' &&
         !isSupportNotificationMessage(m) &&
         m.readAt == null
-      ) n += 1;
+      )
+        n += 1;
     }
     return n;
   },
@@ -560,10 +571,11 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
     for (const m of messages.values()) {
       if (
         convIds.has(m.conversationId) &&
-        m.senderRole !== "user" &&
+        m.senderRole !== 'user' &&
         isSupportNotificationMessage(m) &&
         m.readAt == null
-      ) n += 1;
+      )
+        n += 1;
     }
     return n;
   },
@@ -578,7 +590,7 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
       .filter(
         (m) =>
           convIds.has(m.conversationId) &&
-          m.senderRole !== "user" &&
+          m.senderRole !== 'user' &&
           !isSupportNotificationMessage(m) &&
           m.readAt == null,
       )
@@ -594,7 +606,12 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
     );
     const lim = Math.min(Math.max(limit, 1), 200);
     const list = [...messages.values()]
-      .filter((m) => convIds.has(m.conversationId) && m.senderRole !== "user" && isSupportNotificationMessage(m))
+      .filter(
+        (m) =>
+          convIds.has(m.conversationId) &&
+          m.senderRole !== 'user' &&
+          isSupportNotificationMessage(m),
+      )
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .slice(0, lim)
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
@@ -607,8 +624,8 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
       const conversation = conversations.get(m.conversationId);
       if (!conversation || conversation.organizationId !== organizationId) continue;
       const c = conversations.get(m.conversationId);
-      if (!c || c.status === "closed" || c.closedAt != null) continue;
-      if (m.senderRole === "user" && m.readAt == null) n += 1;
+      if (!c || c.status === 'closed' || c.closedAt != null) continue;
+      if (m.senderRole === 'user' && m.readAt == null) n += 1;
     }
     return n;
   },
@@ -616,7 +633,8 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
   async countUnreadUserMessagesForAdminByConversation(conversationId) {
     let n = 0;
     for (const m of messages.values()) {
-      if (m.conversationId === conversationId && m.senderRole === "user" && m.readAt == null) n += 1;
+      if (m.conversationId === conversationId && m.senderRole === 'user' && m.readAt == null)
+        n += 1;
     }
     return n;
   },
@@ -629,7 +647,7 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
     );
     let n = 0;
     for (const m of messages.values()) {
-      if (convIds.has(m.conversationId) && m.senderRole === "user" && m.readAt == null) n += 1;
+      if (convIds.has(m.conversationId) && m.senderRole === 'user' && m.readAt == null) n += 1;
     }
     return n;
   },

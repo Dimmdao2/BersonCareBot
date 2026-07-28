@@ -1,22 +1,22 @@
 /** @vitest-environment jsdom */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { SystemHealthSection } from "./SystemHealthSection";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { SystemHealthSection } from './SystemHealthSection';
 
 const mediaPreviewShell = {
-  status: "ok" as const,
+  status: 'ok' as const,
   stalePendingCount: 0,
   byMimeAndStatus: {
-    "video/quicktime": { pending: 0, ready: 0, failed: 0, skipped: 0 },
-    "image/heic": { pending: 0, ready: 0, failed: 0, skipped: 0 },
-    "image/heif": { pending: 0, ready: 0, failed: 0, skipped: 0 },
+    'video/quicktime': { pending: 0, ready: 0, failed: 0, skipped: 0 },
+    'image/heic': { pending: 0, ready: 0, failed: 0, skipped: 0 },
+    'image/heif': { pending: 0, ready: 0, failed: 0, skipped: 0 },
   },
 };
 
 const videoPlaybackShell = {
-  status: "ok" as const,
+  status: 'ok' as const,
   windowHours: 24,
   windowHoursShort: 1,
   playbackApiEnabled: false,
@@ -30,7 +30,7 @@ const videoPlaybackShell = {
 };
 
 const videoTranscodeShell = {
-  status: "ok" as const,
+  status: 'ok' as const,
   pipelineEnabled: false,
   reconcileEnabled: false,
   pendingCount: 0,
@@ -49,24 +49,27 @@ const videoTranscodeShell = {
 };
 
 const probeShell = {
-  webappDb: { status: "ok", durationMs: 1 },
-  integratorApi: { status: "ok", durationMs: 1 },
-  projection: { status: "ok", durationMs: 1 },
-  mediaPreview: { status: "ok", durationMs: 1 },
-  videoPlayback: { status: "ok", durationMs: 1 },
-  videoTranscode: { status: "ok", durationMs: 1 },
-  operatorIncidents: { status: "ok", durationMs: 1 },
-  operatorBackupJobs: { status: "ok", durationMs: 1 },
-  outgoingDelivery: { status: "ok", durationMs: 1 },
-  integratorPushOutbox: { status: "ok", durationMs: 1 },
+  webappDb: { status: 'ok', durationMs: 1 },
+  integratorApi: { status: 'ok', durationMs: 1 },
+  projection: { status: 'ok', durationMs: 1 },
+  mediaPreview: { status: 'ok', durationMs: 1 },
+  videoPlayback: { status: 'ok', durationMs: 1 },
+  videoTranscode: { status: 'ok', durationMs: 1 },
+  operatorIncidents: { status: 'ok', durationMs: 1 },
+  operatorBackupJobs: { status: 'ok', durationMs: 1 },
+  outgoingDelivery: { status: 'ok', durationMs: 1 },
+  integratorPushOutbox: { status: 'ok', durationMs: 1 },
 };
 
 function healthJson(overrides: Record<string, unknown> = {}) {
   return {
-    webappDb: "up",
-    integratorApi: { status: "ok", db: "up" },
-    projection: { status: "ok", snapshot: { pendingCount: 0, processingCount: 0, lastSuccessAt: null } },
-    mediaCronWorkers: { status: "configured" },
+    webappDb: 'up',
+    integratorApi: { status: 'ok', db: 'up' },
+    projection: {
+      status: 'ok',
+      snapshot: { pendingCount: 0, processingCount: 0, lastSuccessAt: null },
+    },
+    mediaCronWorkers: { status: 'configured' },
     mediaPreview: mediaPreviewShell,
     videoPlayback: videoPlaybackShell,
     videoTranscode: videoTranscodeShell,
@@ -96,38 +99,44 @@ function healthJson(overrides: Record<string, unknown> = {}) {
     probeOutbound: { consecutiveFailRuns: 2 },
     integrations: {
       telegram: {
-        outbound: { status: "fail", lastFinishedAt: "2026-06-09T10:00:00.000Z" },
+        outbound: { status: 'fail', lastFinishedAt: '2026-06-09T10:00:00.000Z' },
         inbound: {
-          receivedAt: "2026-06-09T09:30:00.000Z",
+          receivedAt: '2026-06-09T09:30:00.000Z',
           processedOk: false,
-          errorClass: "webhook_parse_failed",
+          errorClass: 'webhook_parse_failed',
           httpStatusReturned: 200,
-          detail: "bad body",
+          detail: 'bad body',
         },
       },
       max: {
-        outbound: { status: "skipped_not_configured", lastFinishedAt: null },
-        inbound: { receivedAt: null, processedOk: null, errorClass: null, httpStatusReturned: null, detail: null },
+        outbound: { status: 'skipped_not_configured', lastFinishedAt: null },
+        inbound: {
+          receivedAt: null,
+          processedOk: null,
+          errorClass: null,
+          httpStatusReturned: null,
+          detail: null,
+        },
       },
       google_calendar: {
-        outbound: { status: "ok", lastFinishedAt: "2026-06-09T10:00:00.000Z" },
+        outbound: { status: 'ok', lastFinishedAt: '2026-06-09T10:00:00.000Z' },
       },
     },
     meta: { probes: probeShell },
-    fetchedAt: "2026-06-09T10:05:00.000Z",
+    fetchedAt: '2026-06-09T10:05:00.000Z',
     ...overrides,
   };
 }
 
-describe("SystemHealthSection integrations", () => {
+describe('SystemHealthSection integrations', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("renders integrations accordion with outbound and inbound rows", async () => {
+  it('renders integrations accordion with outbound and inbound rows', async () => {
     const user = userEvent.setup();
     vi.stubGlobal(
-      "fetch",
+      'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
         text: () => Promise.resolve(JSON.stringify(healthJson())),
@@ -137,23 +146,23 @@ describe("SystemHealthSection integrations", () => {
     render(<SystemHealthSection />);
 
     await waitFor(() => {
-      expect(screen.getAllByText("Интеграции").length).toBeGreaterThanOrEqual(2);
+      expect(screen.getAllByText('Интеграции').length).toBeGreaterThanOrEqual(2);
     });
 
-    const accordionTrigger = screen.getByRole("button", { name: /Интеграции/i });
+    const accordionTrigger = screen.getByRole('button', { name: /Интеграции/i });
     await user.click(accordionTrigger);
 
-    expect(screen.getByText("Подряд неуспешных проб")).toBeInTheDocument();
-    expect(screen.getByText("2")).toBeInTheDocument();
-    expect(screen.getAllByText("Исходящий (API)").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText("Входящий (вебхук)").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText("ошибка").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText("не удалось разобрать тело вебхука")).toBeInTheDocument();
+    expect(screen.getByText('Подряд неуспешных проб')).toBeInTheDocument();
+    expect(screen.getByText('2')).toBeInTheDocument();
+    expect(screen.getAllByText('Исходящий (API)').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Входящий (вебхук)').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('ошибка').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('не удалось разобрать тело вебхука')).toBeInTheDocument();
   });
 
-  it("does not degrade integrations when outbound probe is intentionally not configured", async () => {
+  it('does not degrade integrations when outbound probe is intentionally not configured', async () => {
     vi.stubGlobal(
-      "fetch",
+      'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
         text: () =>
@@ -163,9 +172,9 @@ describe("SystemHealthSection integrations", () => {
                 probeOutbound: { consecutiveFailRuns: 0 },
                 integrations: {
                   telegram: {
-                    outbound: { status: "ok", lastFinishedAt: "2026-06-09T10:00:00.000Z" },
+                    outbound: { status: 'ok', lastFinishedAt: '2026-06-09T10:00:00.000Z' },
                     inbound: {
-                      receivedAt: "2026-06-09T09:30:00.000Z",
+                      receivedAt: '2026-06-09T09:30:00.000Z',
                       processedOk: true,
                       errorClass: null,
                       httpStatusReturned: 200,
@@ -173,9 +182,9 @@ describe("SystemHealthSection integrations", () => {
                     },
                   },
                   max: {
-                    outbound: { status: "ok", lastFinishedAt: "2026-06-09T10:00:00.000Z" },
+                    outbound: { status: 'ok', lastFinishedAt: '2026-06-09T10:00:00.000Z' },
                     inbound: {
-                      receivedAt: "2026-06-09T09:30:00.000Z",
+                      receivedAt: '2026-06-09T09:30:00.000Z',
                       processedOk: true,
                       errorClass: null,
                       httpStatusReturned: 200,
@@ -183,7 +192,7 @@ describe("SystemHealthSection integrations", () => {
                     },
                   },
                   google_calendar: {
-                    outbound: { status: "ok", lastFinishedAt: "2026-06-09T10:00:00.000Z" },
+                    outbound: { status: 'ok', lastFinishedAt: '2026-06-09T10:00:00.000Z' },
                   },
                 },
               }),
@@ -195,14 +204,14 @@ describe("SystemHealthSection integrations", () => {
     render(<SystemHealthSection />);
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /Интеграции успешно/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Интеграции успешно/i })).toBeInTheDocument();
     });
   });
 
-  it("shows missing outbound probe tick in checker health", async () => {
+  it('shows missing outbound probe tick in checker health', async () => {
     const user = userEvent.setup();
     vi.stubGlobal(
-      "fetch",
+      'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
         text: () =>
@@ -210,17 +219,17 @@ describe("SystemHealthSection integrations", () => {
             JSON.stringify(
               healthJson({
                 cronJobs: {
-                  status: "degraded",
+                  status: 'degraded',
                   jobs: [
                     {
-                      id: "outbound_integration_probes",
-                      jobFamily: "health",
-                      jobKey: "health.outbound_probe.run",
-                      label: "Исходящие пробы интеграций",
-                      scheduleHint: "ежечасно",
-                      kind: "internal_http",
-                      internalPath: "/internal/operator-health-probe",
-                      status: "no_data",
+                      id: 'outbound_integration_probes',
+                      jobFamily: 'health',
+                      jobKey: 'health.outbound_probe.run',
+                      label: 'Исходящие пробы интеграций',
+                      scheduleHint: 'ежечасно',
+                      kind: 'internal_http',
+                      internalPath: '/internal/operator-health-probe',
+                      status: 'no_data',
                       lastTick: null,
                     },
                   ],
@@ -228,7 +237,7 @@ describe("SystemHealthSection integrations", () => {
                 meta: {
                   probes: {
                     ...probeShell,
-                    cronJobs: { status: "degraded", durationMs: 3 },
+                    cronJobs: { status: 'degraded', durationMs: 3 },
                   },
                 },
               }),
@@ -240,13 +249,13 @@ describe("SystemHealthSection integrations", () => {
     render(<SystemHealthSection />);
 
     await waitFor(() => {
-      expect(screen.getByText("Проверяльщики и cron-задачи")).toBeInTheDocument();
+      expect(screen.getByText('Проверяльщики и cron-задачи')).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole("button", { name: /Проверяльщики и cron-задачи хоста/i }));
+    await user.click(screen.getByRole('button', { name: /Проверяльщики и cron-задачи хоста/i }));
 
-    expect(screen.getByText("Исходящие пробы интеграций")).toBeInTheDocument();
-    expect(screen.getAllByText("нет данных").length).toBeGreaterThan(0);
-    expect(screen.getByText("ежечасно")).toBeInTheDocument();
+    expect(screen.getByText('Исходящие пробы интеграций')).toBeInTheDocument();
+    expect(screen.getAllByText('нет данных').length).toBeGreaterThan(0);
+    expect(screen.getByText('ежечасно')).toBeInTheDocument();
   });
 });

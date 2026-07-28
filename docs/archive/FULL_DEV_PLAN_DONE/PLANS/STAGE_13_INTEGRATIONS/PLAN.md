@@ -272,6 +272,7 @@
 **Задача:** обеспечить автоматическое тестирование всех интеграций без реальных внешних сервисов в CI.
 
 **Файлы:**
+
 - `apps/integrator/package.json` (dev-зависимость `nock`)
 - `apps/integrator/src/integrations/*/` — тестовые файлы
 - `apps/integrator/e2e/`
@@ -281,6 +282,7 @@
 ### Уровень 1: Unit-тесты (fake-порты)
 
 Integrator построен на портах/адаптерах — подставляем fake-реализации:
+
 1. Для каждого delivery adapter (Telegram, Max, SMSC, Email) создать `*.test.ts` рядом с модулем.
 2. Мокать порты через `vi.fn()`:
    ```ts
@@ -293,6 +295,7 @@ Integrator построен на портах/адаптерах — подст�
 ### Уровень 2: HTTP-моки (nock)
 
 Перехват исходящих HTTP-запросов к внешним API:
+
 1. Установить: `pnpm --filter integrator add -D nock`.
 2. Для Telegram:
    ```ts
@@ -309,6 +312,7 @@ Integrator построен на портах/адаптерах — подст�
 ### Уровень 3: Webhook-тесты (fastify.inject)
 
 Эмуляция входящих webhook-запросов без реального сервера:
+
 1. Использовать `fastify.inject()` для имитации входящего webhook:
    ```ts
    const res = await app.inject({
@@ -326,6 +330,7 @@ Integrator построен на портах/адаптерах — подст�
 ### Уровень 4: E2E / smoke — реальные тестовые боты
 
 Для ручной проверки владельцем (не в CI):
+
 1. После каждой интеграции агент предоставляет **чёткие инструкции**:
    - Какое тестовое событие отправить (текст команды в боте, webhook payload).
    - Какую команду выполнить на сервере и под каким пользователем.
@@ -335,6 +340,7 @@ Integrator построен на портах/адаптерах — подст�
 3. Документировать smoke-тесты в `apps/integrator/e2e/README.md`.
 
 **Критерий:**
+
 - Unit-тесты: покрыты все delivery adapters и основные event flows.
 - HTTP-моки: nock перехватывает все исходящие запросы к TG/Max/SMSC/Calendar/Email.
 - Webhook-тесты: fastify.inject для всех входящих webhook endpoints.
@@ -359,15 +365,18 @@ Integrator построен на портах/адаптерах — подст�
 ## Новая рабочая версия плана (для auto-агента)
 
 ### Цель этапа
+
 Сделать интеграции webapp/integrator предсказуемыми: единый M2M-контракт отправки email, устойчивые deep-link сценарии, управляемые внешние интеграции (Max, Google Calendar, Rubitime reverse API) и обязательное тестовое покрытие без внешней сети в CI.
 
 ### Зона изменений этапа
+
 - `apps/integrator/src/integrations/*`, `apps/integrator/src/kernel/*` (только где требуется для действия интеграции), `apps/webapp/src/modules/auth/*`, `apps/webapp/src/app/api/auth/*`, `apps/webapp/src/app/api/integrator/*`, `apps/webapp/src/modules/integrator/events.ts`, тесты и документация контрактов.
 - Не менять unrelated модули UI/диарей/настроек.
 
 ### Последовательность действий для автоагента
 
 #### Шаг 13.1 — Единый M2M endpoint отправки email в integrator
+
 1. **Цель шага**: ввести production-ready `send-email` по шаблону `send-sms`.
 2. **Точная область изменений**: `apps/integrator/src/integrations/bersoncare/sendSmsRoute.ts` (эталон), новый `apps/integrator/src/integrations/bersoncare/sendEmailRoute.ts`, регистрация route в integrator bootstrap.
 3. **Конкретные действия**:
@@ -389,6 +398,7 @@ Integrator построен на портах/адаптерах — подст�
 8. **Обновление документации**: обновить `apps/webapp/INTEGRATOR_CONTRACT.md` разделом `send-email`.
 
 #### Шаг 13.2 — Перевести webapp email OTP на integrator endpoint
+
 1. **Цель шага**: убрать прямую SMTP-логику из webapp OTP потока.
 2. **Точная область изменений**: `apps/webapp/src/modules/auth/emailAuth.ts`, `apps/webapp/src/app/api/auth/email/start/route.ts`, новый/обновлённый adapter в `apps/webapp/src/infra/integrations/email/*`, `apps/webapp/src/config/env.ts`.
 3. **Конкретные действия**:
@@ -410,6 +420,7 @@ Integrator построен на портах/адаптерах — подст�
 8. **Обновление документации**: обновить `apps/webapp/.env.example` и auth-контракт email flow.
 
 #### Шаг 13.3 — Telegram deep-link channel-link hardening
+
 1. **Цель шага**: сделать Telegram link flow однозначным, одноразовым и тестируемым.
 2. **Точная область изменений**: `apps/integrator/src/integrations/telegram/webhook.ts`, `apps/integrator/src/content/telegram/user/scripts.json`, `apps/webapp/src/modules/auth/channelLink.ts`, `apps/webapp/src/app/api/integrator/channel-link/complete/route.ts`.
 3. **Конкретные действия**:
@@ -431,6 +442,7 @@ Integrator построен на портах/адаптерах — подст�
 8. **Обновление документации**: обновить `INTEGRATOR_CONTRACT.md` раздел channel-link.
 
 #### Шаг 13.4 — Max channel-link: реализовать выбранный сценарий без неопределённости
+
 1. **Цель шага**: добавить рабочий сценарий привязки Max с теми же гарантиями, что у Telegram.
 2. **Точная область изменений**: `apps/integrator/src/integrations/max/webhook.ts`, `apps/integrator/src/content/max/user/scripts.json` (создать или обновить), `apps/webapp/src/modules/auth/channelLink.ts`, `apps/webapp/src/app/api/auth/channel-link/start/route.ts`.
 3. **Конкретные действия**:
@@ -452,6 +464,7 @@ Integrator построен на портах/адаптерах — подст�
 8. **Обновление документации**: обновить интеграционный контракт по Max-link сценарию.
 
 #### Шаг 13.5 — Google Calendar sync как опциональный интеграционный модуль
+
 1. **Цель шага**: синхронизировать Rubitime записи в Google Calendar под feature flag.
 2. **Точная область изменений**: новый модуль `apps/integrator/src/integrations/google-calendar/*`, `apps/integrator/src/integrations/rubitime/*`, `apps/integrator/src/config/env.ts`, миграция/хранилище токенов integrator.
 3. **Конкретные действия**:
@@ -473,6 +486,7 @@ Integrator построен на портах/адаптерах — подст�
 8. **Обновление документации**: добавить README в модуль `google-calendar` и env keys в примеры.
 
 #### Шаг 13.6 — Rubitime reverse API + автопривязка email из Rubitime
+
 1. **Цель шага**: закрыть двустороннюю синхронизацию Rubitime и корректную проекцию email.
 2. **Точная область изменений**: `apps/integrator/src/integrations/rubitime/client.ts`, новый bersoncare route для reverse-операций, `apps/webapp/src/modules/integrator/events.ts`, `apps/integrator/src/integrations/rubitime/connector.ts`.
 3. **Конкретные действия**:
@@ -494,6 +508,7 @@ Integrator построен на портах/адаптерах — подст�
 8. **Обновление документации**: обновить `INTEGRATOR_CONTRACT.md` и описание projection правил email.
 
 #### Шаг 13.7 — Стандартизация тестовой инфраструктуры интеграций
+
 1. **Цель шага**: гарантировать зелёный CI без доступа к внешним сервисам.
 2. **Точная область изменений**: `apps/integrator/src/integrations/**/*.test.ts`, `apps/integrator/package.json` (dev deps), `apps/integrator/e2e/README.md`.
 3. **Конкретные действия**:
@@ -514,6 +529,7 @@ Integrator построен на портах/адаптерах — подст�
 8. **Обновление документации**: обновить `apps/integrator/e2e/README.md`.
 
 ### Финальный критерий этапа 13
+
 - Все шаги 13.1–13.7 выполнены с указанным покрытием тестами.
 - Контракты webapp/integrator обновлены и синхронизированы.
 - `pnpm run ci` проходит.

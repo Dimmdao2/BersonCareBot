@@ -1,47 +1,50 @@
-"use client";
+'use client';
 
-import { useRouter } from "next/navigation";
-import type { ReactNode } from "react";
-import { useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
-import { ClipboardList } from "lucide-react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
+import { useRouter } from 'next/navigation';
+import type { ReactNode } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, useTransition } from 'react';
+import { ClipboardList } from 'lucide-react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
 import type {
   TreatmentProgramTemplate,
   TreatmentProgramTemplateDetail,
   TreatmentProgramTemplateListPreviewMedia,
-} from "@/modules/treatment-program/types";
-import { cn } from "@/lib/utils";
-import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
-import { useDoctorCatalogClientFilterMerge } from "@/shared/hooks/useDoctorCatalogClientFilterMerge";
-import { doctorCatalogListEmptyClass } from "@/shared/ui/doctor/doctorVisual";
-import { useDoctorCatalogMasterSelectionSync } from "@/shared/hooks/useDoctorCatalogMasterSelectionSync";
-import type { CatalogMasterTitleSort } from "@/shared/ui/doctor/DoctorCatalogMasterListHeader";
-import { DoctorCatalogFiltersForm } from "@/shared/ui/doctor/DoctorCatalogFiltersForm";
-import { DoctorCatalogListSortHeader } from "@/shared/ui/doctor/DoctorCatalogListSortHeader";
+} from '@/modules/treatment-program/types';
+import { cn } from '@/lib/utils';
+import { useDoctorCatalogDisplayList } from '@/shared/hooks/useDoctorCatalogDisplayList';
+import { useDoctorCatalogClientFilterMerge } from '@/shared/hooks/useDoctorCatalogClientFilterMerge';
+import { doctorCatalogListEmptyClass } from '@/shared/ui/doctor/doctorVisual';
+import { useDoctorCatalogMasterSelectionSync } from '@/shared/hooks/useDoctorCatalogMasterSelectionSync';
+import type { CatalogMasterTitleSort } from '@/shared/ui/doctor/DoctorCatalogMasterListHeader';
+import { DoctorCatalogFiltersForm } from '@/shared/ui/doctor/DoctorCatalogFiltersForm';
+import { DoctorCatalogListSortHeader } from '@/shared/ui/doctor/DoctorCatalogListSortHeader';
 import {
   doctorCatalogToolbarPrimaryActionClassName,
   DoctorCatalogFiltersToolbar,
   DoctorCatalogToolbarFiltersSlot,
-} from "@/shared/ui/doctor/DoctorCatalogFiltersToolbar";
-import { CatalogLeftPane } from "@/shared/ui/doctor/catalog/CatalogLeftPane";
-import { CatalogRightPane } from "@/shared/ui/doctor/catalog/CatalogRightPane";
-import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
-import { DoctorCatalogPageLayout } from "@/shared/ui/doctor/catalog/DoctorCatalogPageLayout";
-import { DoctorCatalogMasterListRow } from "@/shared/ui/doctor/DoctorCatalogMasterListRow";
+} from '@/shared/ui/doctor/DoctorCatalogFiltersToolbar';
+import { CatalogLeftPane } from '@/shared/ui/doctor/catalog/CatalogLeftPane';
+import { CatalogRightPane } from '@/shared/ui/doctor/catalog/CatalogRightPane';
+import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
+import { DoctorCatalogPageLayout } from '@/shared/ui/doctor/catalog/DoctorCatalogPageLayout';
+import { DoctorCatalogMasterListRow } from '@/shared/ui/doctor/DoctorCatalogMasterListRow';
 import {
   TreatmentProgramConstructorClient,
   type TreatmentProgramLibraryPickers,
-} from "./[id]/TreatmentProgramConstructorClient";
-import { NewTemplateForm } from "./new/NewTemplateForm";
-import type { DoctorCatalogPubArchQuery } from "@/shared/lib/doctorCatalogListStatus";
-import { MediaThumb } from "@/shared/ui/doctor/media/MediaThumb";
-import { templateListPreviewToPreviewUi } from "@/shared/ui/doctor/media/mediaPreviewUiModel";
-import { DoctorCatalogInvalidPubArchToast } from "@/shared/ui/doctor/DoctorCatalogInvalidPubArchToast";
-import { DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE } from "@/shared/ui/doctor/doctorWorkspaceLayout";
-import { TreatmentProgramTemplateStatusBadge } from "./TreatmentProgramTemplateStatusBadge";
+} from './[id]/TreatmentProgramConstructorClient';
+import { NewTemplateForm } from './new/NewTemplateForm';
+import type { DoctorCatalogPubArchQuery } from '@/shared/lib/doctorCatalogListStatus';
+import { MediaThumb } from '@/shared/ui/doctor/media/MediaThumb';
+import { templateListPreviewToPreviewUi } from '@/shared/ui/doctor/media/mediaPreviewUiModel';
+import { DoctorCatalogInvalidPubArchToast } from '@/shared/ui/doctor/DoctorCatalogInvalidPubArchToast';
+import { DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE } from '@/shared/ui/doctor/doctorWorkspaceLayout';
+import { TreatmentProgramTemplateStatusBadge } from './TreatmentProgramTemplateStatusBadge';
 
 /** Краткая строка счётчиков + подпись для aria (список шаблонов). */
-function templateListCountsText(stageCount: number, itemCount: number): { line: string; ariaLabel: string } {
+function templateListCountsText(
+  stageCount: number,
+  itemCount: number,
+): { line: string; ariaLabel: string } {
   const ru = (n: number, one: string, few: string, many: string) => {
     const m = n % 100;
     const t = n % 10;
@@ -49,34 +52,36 @@ function templateListCountsText(stageCount: number, itemCount: number): { line: 
     if (t >= 2 && t <= 4 && (m < 12 || m > 14)) return `${n} ${few}`;
     return `${n} ${many}`;
   };
-  const line = `${ru(stageCount, "этап", "этапа", "этапов")} · ${ru(itemCount, "элемент", "элемента", "элементов")}`;
+  const line = `${ru(stageCount, 'этап', 'этапа', 'этапов')} · ${ru(itemCount, 'элемент', 'элемента', 'элементов')}`;
   return { line, ariaLabel: `В шаблоне: ${line}` };
 }
 
 function TreatmentProgramTemplateRowPreviewMedia({
   preview,
   active,
-  size = "md",
+  size = 'md',
 }: {
   preview: TreatmentProgramTemplateListPreviewMedia | null;
   active: boolean;
   /** `sm` — 30px как в списке комплексов ЛФК; `md` — 40px (прежний список шаблонов). */
-  size?: "sm" | "md";
+  size?: 'sm' | 'md';
 }): ReactNode {
-  const box = size === "sm" ? "size-[30px]" : "size-10";
+  const box = size === 'sm' ? 'size-[30px]' : 'size-10';
   const shellClass = cn(
-    size === "md" && "mt-0.5",
-    "flex shrink-0 overflow-hidden rounded-md border bg-muted/50",
+    size === 'md' && 'mt-0.5',
+    'flex shrink-0 overflow-hidden rounded-md border bg-muted/50',
     box,
-    active && "border-primary/20 bg-primary/10",
+    active && 'border-primary/20 bg-primary/10',
   );
-  const iconClass = size === "sm" ? "size-4" : "size-5";
-  const videoSizes = size === "sm" ? "30px" : "40px";
+  const iconClass = size === 'sm' ? 'size-4' : 'size-5';
+  const videoSizes = size === 'sm' ? '30px' : '40px';
   if (!preview?.mediaUrl) {
     return (
       <div className={shellClass} aria-hidden>
         <div className="flex size-full items-center justify-center">
-          <ClipboardList className={cn(iconClass, active ? "text-primary" : "text-muted-foreground")} />
+          <ClipboardList
+            className={cn(iconClass, active ? 'text-primary' : 'text-muted-foreground')}
+          />
         </div>
       </div>
     );
@@ -101,7 +106,7 @@ type Props = {
     q: string;
     listPubArch: DoctorCatalogPubArchQuery;
   };
-  initialTitleSort: "asc" | "desc" | null;
+  initialTitleSort: 'asc' | 'desc' | null;
 };
 
 export function TreatmentProgramTemplatesPageClient({
@@ -146,7 +151,7 @@ export function TreatmentProgramTemplatesPageClient({
   const displayList = useDoctorCatalogDisplayList(
     templates,
     mergedFilters.q,
-    mergedFilters.titleSort === null ? "default" : mergedFilters.titleSort,
+    mergedFilters.titleSort === null ? 'default' : mergedFilters.titleSort,
   );
 
   useDoctorCatalogMasterSelectionSync({
@@ -160,7 +165,9 @@ export function TreatmentProgramTemplatesPageClient({
   const selected = creating ? null : (displayList.find((t) => t.id === selectedId) ?? null);
 
   const titleSortForHeader: CatalogMasterTitleSort | null =
-    mergedFilters.titleSort === "asc" || mergedFilters.titleSort === "desc" ? mergedFilters.titleSort : null;
+    mergedFilters.titleSort === 'asc' || mergedFilters.titleSort === 'desc'
+      ? mergedFilters.titleSort
+      : null;
 
   const changeTitleSort = (next: CatalogMasterTitleSort | null) => {
     startListTransition(() => {
@@ -198,15 +205,15 @@ export function TreatmentProgramTemplatesPageClient({
           setDetail(json.item);
         } else {
           setDetail(null);
-          setDetailError(json.error ?? "Не удалось загрузить шаблон");
+          setDetailError(json.error ?? 'Не удалось загрузить шаблон');
         }
       })
       .catch((err: unknown) => {
         if (cancelled || gen !== detailFetchGenRef.current) return;
-        const aborted = err instanceof DOMException && err.name === "AbortError";
+        const aborted = err instanceof DOMException && err.name === 'AbortError';
         if (aborted) return;
         setDetail(null);
-        setDetailError("Ошибка загрузки");
+        setDetailError('Ошибка загрузки');
       })
       .finally(() => {
         if (cancelled || gen !== detailFetchGenRef.current) return;
@@ -241,7 +248,7 @@ export function TreatmentProgramTemplatesPageClient({
               }
               title={t.title}
               meta={
-                <span aria-label={counts.ariaLabel} className={cn(active && "text-primary/80")}>
+                <span aria-label={counts.ariaLabel} className={cn(active && 'text-primary/80')}>
                   {counts.line}
                 </span>
               }
@@ -257,35 +264,36 @@ export function TreatmentProgramTemplatesPageClient({
       </ul>
     );
 
-  const rightInner =
-    detailLoading ? (
-      <p className="text-sm text-muted-foreground">Загрузка конструктора…</p>
-    ) : detailError ? (
-      <p className="text-sm text-destructive">{detailError}</p>
-    ) : detail && selected ? (
-      <TreatmentProgramConstructorClient
-        templateId={selected.id}
-        initialDetail={detail}
-        library={library}
-        onArchived={() => {
-          router.refresh();
-          setCreating(false);
-          setSelectedId(null);
-          setMobileSheet(null);
-          setDetail(null);
-        }}
+  const rightInner = detailLoading ? (
+    <p className="text-sm text-muted-foreground">Загрузка конструктора…</p>
+  ) : detailError ? (
+    <p className="text-sm text-destructive">{detailError}</p>
+  ) : detail && selected ? (
+    <TreatmentProgramConstructorClient
+      templateId={selected.id}
+      initialDetail={detail}
+      library={library}
+      onArchived={() => {
+        router.refresh();
+        setCreating(false);
+        setSelectedId(null);
+        setMobileSheet(null);
+        setDetail(null);
+      }}
+    />
+  ) : (
+    <div className="flex flex-col gap-3">
+      <p className="text-sm font-medium text-foreground">Новый шаблон программы</p>
+      <p className="text-sm text-muted-foreground">
+        Задайте название и откройте конструктор этапов.
+      </p>
+      <NewTemplateForm
+        showCancelLink={false}
+        showStatusField={false}
+        titleInputId="tpl-title-catalog-inline"
       />
-    ) : (
-      <div className="flex flex-col gap-3">
-        <p className="text-sm font-medium text-foreground">Новый шаблон программы</p>
-        <p className="text-sm text-muted-foreground">Задайте название и откройте конструктор этапов.</p>
-        <NewTemplateForm
-          showCancelLink={false}
-          showStatusField={false}
-          titleInputId="tpl-title-catalog-inline"
-        />
-      </div>
-    );
+    </div>
+  );
 
   const desktopRight = <CatalogRightPane className="h-full">{rightInner}</CatalogRightPane>;
 
@@ -337,7 +345,7 @@ export function TreatmentProgramTemplatesPageClient({
               headerSlot={
                 <DoctorCatalogListSortHeader
                   summaryLine={
-                    displayList.length === 0 ? "Нет шаблонов" : `Шаблонов: ${displayList.length}`
+                    displayList.length === 0 ? 'Нет шаблонов' : `Шаблонов: ${displayList.length}`
                   }
                   titleSort={titleSortForHeader}
                   onTitleSortChange={changeTitleSort}
@@ -350,21 +358,24 @@ export function TreatmentProgramTemplatesPageClient({
             >
               <div
                 className={cn(
-                  "min-h-0 flex-1 overflow-hidden transition-opacity",
-                  isListPending && "opacity-80",
+                  'min-h-0 flex-1 overflow-hidden transition-opacity',
+                  isListPending && 'opacity-80',
                 )}
                 aria-busy={isListPending}
               >
-                {renderRows((t) => {
-                  setCreating(false);
-                  setSelectedId(t.id);
-                  setMobileSheet(t);
-                }, creating ? null : selected?.id ?? mobileSheet?.id ?? null)}
+                {renderRows(
+                  (t) => {
+                    setCreating(false);
+                    setSelectedId(t.id);
+                    setMobileSheet(t);
+                  },
+                  creating ? null : (selected?.id ?? mobileSheet?.id ?? null),
+                )}
               </div>
             </CatalogLeftPane>
           }
           right={desktopRight}
-          mobileView={mobileDetailOpen ? "detail" : "list"}
+          mobileView={mobileDetailOpen ? 'detail' : 'list'}
           mobileBackSlot={
             mobileDetailOpen ? (
               <Button
@@ -381,7 +392,7 @@ export function TreatmentProgramTemplatesPageClient({
             ) : null
           }
         />
-    </DoctorCatalogPageLayout>
+      </DoctorCatalogPageLayout>
     </>
   );
 }

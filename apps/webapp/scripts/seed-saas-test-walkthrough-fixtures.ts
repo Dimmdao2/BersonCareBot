@@ -17,7 +17,8 @@ const PACKET_PATH_ENV = 'SAAS_TEST_FIXTURE_ENV_FILE';
 const REHEARSAL_MODE_ENV = 'SAAS_TEST_FIXTURE_REHEARSAL_MODE';
 const REHEARSAL_DATABASE_ENV = 'SAAS_TEST_FIXTURE_REHEARSAL_DATABASE';
 const REHEARSAL_DATABASE_PATTERN = /^bcb_saas_[a-z0-9_]+_rehearsal_[a-z0-9_]+$/;
-const UNSAFE_DATABASE_TOKEN_PATTERN = /(^|[_-])(prod|production|test|testing|dev|development)([_-]|$)/;
+const UNSAFE_DATABASE_TOKEN_PATTERN =
+  /(^|[_-])(prod|production|test|testing|dev|development)([_-]|$)/;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** Reserved NANP 555-01xx numbers: valid E.164, non-routable fictional TEST identities. */
@@ -671,7 +672,10 @@ export function assertAllowedFixtureDatabaseTarget(input: {
     input.attestedRehearsalDatabaseName !== input.databaseName ||
     (() => {
       try {
-        return decodeURIComponent(new URL(input.databaseUrl).pathname.replace(/^\/+/, '')) !== input.databaseName;
+        return (
+          decodeURIComponent(new URL(input.databaseUrl).pathname.replace(/^\/+/, '')) !==
+          input.databaseName
+        );
       } catch {
         return true;
       }
@@ -907,7 +911,13 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
         })
         .onConflictDoUpdate({
           target: schema.clinicPublicDirectoryEntries.organizationId,
-          set: { slug, displayName: title, isPublished: true, publishedAt: nowIso, updatedAt: nowIso },
+          set: {
+            slug,
+            displayName: title,
+            isPublished: true,
+            publishedAt: nowIso,
+            updatedAt: nowIso,
+          },
         });
     }
 
@@ -918,8 +928,7 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
     };
     for (const person of [...staff, ...plan.patients, globalAdmin]) {
       const email = 'email' in person ? person.email : person.emailNormalized;
-      const fixturePatientPhone =
-        'phoneNormalized' in person ? person.phoneNormalized : undefined;
+      const fixturePatientPhone = 'phoneNormalized' in person ? person.phoneNormalized : undefined;
       if (email) {
         const collision = await tx
           .select({ id: schema.platformUsers.id })
@@ -964,9 +973,7 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
           set: {
             displayName: person.displayName,
             role,
-            ...(fixturePatientPhone !== undefined
-              ? { phoneNormalized: fixturePatientPhone }
-              : {}),
+            ...(fixturePatientPhone !== undefined ? { phoneNormalized: fixturePatientPhone } : {}),
             firstName: 'firstName' in person ? person.firstName : null,
             lastName: 'lastName' in person ? person.lastName : null,
             email: email ?? null,

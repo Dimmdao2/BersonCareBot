@@ -1,36 +1,36 @@
 /** @vitest-environment node */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { envHolder, purgeMock, loggerInfoMock, recordTickMock } = vi.hoisted(() => ({
-  envHolder: { INTERNAL_JOB_SECRET: "test-internal-secret" as string },
+  envHolder: { INTERNAL_JOB_SECRET: 'test-internal-secret' as string },
   purgeMock: vi.fn(),
   loggerInfoMock: vi.fn(),
   recordTickMock: vi.fn(),
 }));
 
-vi.mock("@/config/env", () => ({
+vi.mock('@/config/env', () => ({
   env: envHolder,
 }));
 
-vi.mock("@/app-layer/logging/logger", () => ({
+vi.mock('@/app-layer/logging/logger', () => ({
   logger: { info: loggerInfoMock, warn: vi.fn(), error: vi.fn() },
 }));
 
-vi.mock("@/app-layer/media/hlsProxyErrorEvents", () => ({
+vi.mock('@/app-layer/media/hlsProxyErrorEvents', () => ({
   MEDIA_HLS_PROXY_ERROR_RETENTION_DAYS_DEFAULT: 90,
   purgeStaleMediaHlsProxyErrorEvents: (...args: unknown[]) => purgeMock(...args),
 }));
 
-vi.mock("@/app-layer/operator-health/recordOperatorCronJobTick", () => ({
+vi.mock('@/app-layer/operator-health/recordOperatorCronJobTick', () => ({
   recordOperatorCronJobTickBestEffort: (...args: unknown[]) => recordTickMock(...args),
 }));
 
-import { POST } from "./route";
+import { POST } from './route';
 
-describe("POST /api/internal/media-hls-proxy-errors/retention", () => {
+describe('POST /api/internal/media-hls-proxy-errors/retention', () => {
   beforeEach(() => {
-    envHolder.INTERNAL_JOB_SECRET = "test-internal-secret";
+    envHolder.INTERNAL_JOB_SECRET = 'test-internal-secret';
     purgeMock.mockReset();
     loggerInfoMock.mockReset();
     recordTickMock.mockReset();
@@ -38,47 +38,50 @@ describe("POST /api/internal/media-hls-proxy-errors/retention", () => {
     recordTickMock.mockResolvedValue(undefined);
   });
 
-  it("returns 503 when INTERNAL_JOB_SECRET is not configured", async () => {
-    envHolder.INTERNAL_JOB_SECRET = "";
+  it('returns 503 when INTERNAL_JOB_SECRET is not configured', async () => {
+    envHolder.INTERNAL_JOB_SECRET = '';
     const res = await POST(
-      new Request("http://localhost/api/internal/media-hls-proxy-errors/retention", {
-        method: "POST",
-        headers: { Authorization: "Bearer x" },
+      new Request('http://localhost/api/internal/media-hls-proxy-errors/retention', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer x' },
       }),
     );
     expect(res.status).toBe(503);
     expect(purgeMock).not.toHaveBeenCalled();
   });
 
-  it("returns 401 when bearer secret mismatches", async () => {
+  it('returns 401 when bearer secret mismatches', async () => {
     const res = await POST(
-      new Request("http://localhost/api/internal/media-hls-proxy-errors/retention", {
-        method: "POST",
-        headers: { Authorization: "Bearer wrong" },
+      new Request('http://localhost/api/internal/media-hls-proxy-errors/retention', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer wrong' },
       }),
     );
     expect(res.status).toBe(401);
     expect(purgeMock).not.toHaveBeenCalled();
   });
 
-  it("returns 400 when days invalid", async () => {
+  it('returns 400 when days invalid', async () => {
     const res = await POST(
-      new Request("http://localhost/api/internal/media-hls-proxy-errors/retention?days=0", {
-        method: "POST",
-        headers: { Authorization: "Bearer test-internal-secret" },
+      new Request('http://localhost/api/internal/media-hls-proxy-errors/retention?days=0', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer test-internal-secret' },
       }),
     );
     expect(res.status).toBe(400);
     expect(purgeMock).not.toHaveBeenCalled();
   });
 
-  it("runs dry run without deleting when dryRun=1", async () => {
+  it('runs dry run without deleting when dryRun=1', async () => {
     purgeMock.mockResolvedValueOnce({ deleted: 12, dryRun: true, retentionDays: 14 });
     const res = await POST(
-      new Request("http://localhost/api/internal/media-hls-proxy-errors/retention?dryRun=1&days=14", {
-        method: "POST",
-        headers: { Authorization: "Bearer test-internal-secret" },
-      }),
+      new Request(
+        'http://localhost/api/internal/media-hls-proxy-errors/retention?dryRun=1&days=14',
+        {
+          method: 'POST',
+          headers: { Authorization: 'Bearer test-internal-secret' },
+        },
+      ),
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as { ok?: boolean; deleted?: number; dryRun?: boolean };
@@ -88,11 +91,11 @@ describe("POST /api/internal/media-hls-proxy-errors/retention", () => {
     expect(purgeMock).toHaveBeenCalledWith({ dryRun: true, retentionDays: 14 });
   });
 
-  it("runs purge when authorized", async () => {
+  it('runs purge when authorized', async () => {
     const res = await POST(
-      new Request("http://localhost/api/internal/media-hls-proxy-errors/retention", {
-        method: "POST",
-        headers: { Authorization: "Bearer test-internal-secret" },
+      new Request('http://localhost/api/internal/media-hls-proxy-errors/retention', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer test-internal-secret' },
       }),
     );
     expect(res.status).toBe(200);

@@ -1,6 +1,6 @@
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { patientDailyWarmupVideoViews } from "../../../db/schema";
-import type { PatientDailyWarmupVideoViewPort } from "@/modules/patient-home/dailyWarmupVideoViewPorts";
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { patientDailyWarmupVideoViews } from '../../../db/schema';
+import type { PatientDailyWarmupVideoViewPort } from '@/modules/patient-home/dailyWarmupVideoViewPorts';
 
 export function createPgPatientDailyWarmupVideoViewPort(): PatientDailyWarmupVideoViewPort {
   return {

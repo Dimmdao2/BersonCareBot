@@ -1,31 +1,32 @@
-import { describe, expect, it, vi } from "vitest";
-import { createSendProgramNoteReply } from "./sendProgramNoteReply";
-import type { ProgramItemDiscussionService } from "@/modules/program-item-discussion/service";
-import type { PatientInboundChatPort } from "@/modules/messaging/ports";
+import { describe, expect, it, vi } from 'vitest';
+import { createSendProgramNoteReply } from './sendProgramNoteReply';
+import type { ProgramItemDiscussionService } from '@/modules/program-item-discussion/service';
+import type { PatientInboundChatPort } from '@/modules/messaging/ports';
 
-vi.mock("@/modules/messaging/programNoteReplyContext", () => ({
-  formatPatientExerciseCommentReplyText: vi.fn(({ exerciseTitle, doctorText }: { exerciseTitle: string; doctorText: string }) =>
-    `Ответ на ваш комментарий к упражнению «${exerciseTitle}»:\n\n${doctorText}`,
+vi.mock('@/modules/messaging/programNoteReplyContext', () => ({
+  formatPatientExerciseCommentReplyText: vi.fn(
+    ({ exerciseTitle, doctorText }: { exerciseTitle: string; doctorText: string }) =>
+      `Ответ на ваш комментарий к упражнению «${exerciseTitle}»:\n\n${doctorText}`,
   ),
 }));
 
-describe("createSendProgramNoteReply", () => {
-  it("writes support message and discussion row", async () => {
-    const platformUserId = "00000000-0000-4000-8000-000000000001";
-    const stageItemId = "00000000-0000-4000-8000-000000000002";
+describe('createSendProgramNoteReply', () => {
+  it('writes support message and discussion row', async () => {
+    const platformUserId = '00000000-0000-4000-8000-000000000001';
+    const stageItemId = '00000000-0000-4000-8000-000000000002';
     const resolveProgramNoteReplyContext = vi.fn().mockResolvedValue({
       platformUserId,
       stageItemId,
-      exerciseTitle: "Присед",
+      exerciseTitle: 'Присед',
       integratorConversationId: `webapp:platform:${platformUserId}`,
       programNoteReplyState: `admin_reply:webapp:platform:${platformUserId}#pn:${stageItemId}`,
-      assignmentSource: "doctor",
-      itemStatus: "active",
+      assignmentSource: 'doctor',
+      itemStatus: 'active',
     });
-    const ensureWebappConversationForUser = vi.fn().mockResolvedValue({ id: "conv-1" });
-    const appendWebappMessage = vi.fn().mockResolvedValue({ id: "support-msg-1", created: true });
+    const ensureWebappConversationForUser = vi.fn().mockResolvedValue({ id: 'conv-1' });
+    const appendWebappMessage = vi.fn().mockResolvedValue({ id: 'support-msg-1', created: true });
     const notifyPatientOfDoctorReply = vi.fn().mockResolvedValue(undefined);
-    const appendDoctorReplyForProgramNote = vi.fn().mockResolvedValue({ id: "discussion-1" });
+    const appendDoctorReplyForProgramNote = vi.fn().mockResolvedValue({ id: 'discussion-1' });
 
     const sendProgramNoteReply = createSendProgramNoteReply({
       supportCommunication: {
@@ -41,59 +42,61 @@ describe("createSendProgramNoteReply", () => {
 
     const result = await sendProgramNoteReply({
       integratorConversationId: `webapp:platform:${platformUserId}`,
-      integratorMessageId: "webapp-msg:1",
+      integratorMessageId: 'webapp-msg:1',
       stageItemId,
-      text: "Делайте медленнее",
-      senderDisplayName: "Доктор Берсон",
-      createdAt: "2026-05-30T03:00:00.000Z",
-      source: "webapp",
+      text: 'Делайте медленнее',
+      senderDisplayName: 'Доктор Берсон',
+      createdAt: '2026-05-30T03:00:00.000Z',
+      source: 'webapp',
     });
 
     expect(result).toEqual({
       ok: true,
       platformUserId,
-      chatText: "Ответ на ваш комментарий к упражнению «Присед»:\n\nДелайте медленнее",
-      supportMessageId: "support-msg-1",
+      chatText: 'Ответ на ваш комментарий к упражнению «Присед»:\n\nДелайте медленнее',
+      supportMessageId: 'support-msg-1',
     });
     expect(appendWebappMessage).toHaveBeenCalledWith(
       expect.objectContaining({
-        senderRole: "admin",
-        text: "Ответ на ваш комментарий к упражнению «Присед»:\n\nДелайте медленнее",
+        senderRole: 'admin',
+        text: 'Ответ на ваш комментарий к упражнению «Присед»:\n\nДелайте медленнее',
       }),
     );
     expect(appendDoctorReplyForProgramNote).toHaveBeenCalledWith(
       expect.objectContaining({
         instanceStageItemId: stageItemId,
         patientUserId: platformUserId,
-        supportMessageId: "support-msg-1",
+        supportMessageId: 'support-msg-1',
       }),
     );
     expect(notifyPatientOfDoctorReply).toHaveBeenCalledWith(
-      expect.objectContaining({ senderDisplayName: "Доктор Берсон" }),
+      expect.objectContaining({ senderDisplayName: 'Доктор Берсон' }),
     );
   });
 
-  it("passes integratorMessageId to support append for idempotent dedup (P19)", async () => {
-    const platformUserId = "00000000-0000-4000-8000-000000000001";
-    const stageItemId = "00000000-0000-4000-8000-000000000002";
+  it('passes integratorMessageId to support append for idempotent dedup (P19)', async () => {
+    const platformUserId = '00000000-0000-4000-8000-000000000001';
+    const stageItemId = '00000000-0000-4000-8000-000000000002';
     const resolveProgramNoteReplyContext = vi.fn().mockResolvedValue({
       platformUserId,
       stageItemId,
-      exerciseTitle: "Присед",
+      exerciseTitle: 'Присед',
       integratorConversationId: `webapp:platform:${platformUserId}`,
       programNoteReplyState: `admin_reply:webapp:platform:${platformUserId}#pn:${stageItemId}`,
-      assignmentSource: "doctor",
-      itemStatus: "active",
+      assignmentSource: 'doctor',
+      itemStatus: 'active',
     });
-    const appendWebappMessage = vi.fn().mockResolvedValue({ id: "support-msg-dup", created: false });
+    const appendWebappMessage = vi
+      .fn()
+      .mockResolvedValue({ id: 'support-msg-dup', created: false });
     const notifyPatientOfDoctorReply = vi.fn().mockResolvedValue(undefined);
     const sendProgramNoteReply = createSendProgramNoteReply({
       supportCommunication: {
-        ensureWebappConversationForUser: vi.fn().mockResolvedValue({ id: "conv-1" }),
+        ensureWebappConversationForUser: vi.fn().mockResolvedValue({ id: 'conv-1' }),
         appendWebappMessage,
       } as unknown as PatientInboundChatPort,
       discussion: {
-        appendDoctorReplyForProgramNote: vi.fn().mockResolvedValue({ id: "discussion-dup" }),
+        appendDoctorReplyForProgramNote: vi.fn().mockResolvedValue({ id: 'discussion-dup' }),
       } as unknown as ProgramItemDiscussionService,
       resolveProgramNoteReplyContext,
       notifyPatientOfDoctorReply,
@@ -101,28 +104,28 @@ describe("createSendProgramNoteReply", () => {
 
     await sendProgramNoteReply({
       integratorConversationId: `webapp:platform:${platformUserId}`,
-      integratorMessageId: "webapp-msg:idempotent-1",
+      integratorMessageId: 'webapp-msg:idempotent-1',
       stageItemId,
-      text: "Повтор",
-      senderDisplayName: "Доктор Берсон",
+      text: 'Повтор',
+      senderDisplayName: 'Доктор Берсон',
     });
 
     expect(appendWebappMessage).toHaveBeenCalledWith(
-      expect.objectContaining({ integratorMessageId: "webapp-msg:idempotent-1" }),
+      expect.objectContaining({ integratorMessageId: 'webapp-msg:idempotent-1' }),
     );
     expect(notifyPatientOfDoctorReply).not.toHaveBeenCalled();
   });
 
-  it("returns mismatch when stage item belongs another patient", async () => {
-    const stageItemId = "00000000-0000-4000-8000-000000000002";
+  it('returns mismatch when stage item belongs another patient', async () => {
+    const stageItemId = '00000000-0000-4000-8000-000000000002';
     const resolveProgramNoteReplyContext = vi.fn().mockResolvedValue({
-      platformUserId: "00000000-0000-4000-8000-000000000009",
+      platformUserId: '00000000-0000-4000-8000-000000000009',
       stageItemId,
-      exerciseTitle: "Присед",
-      integratorConversationId: "webapp:platform:00000000-0000-4000-8000-000000000009",
-      programNoteReplyState: "state",
-      assignmentSource: "doctor",
-      itemStatus: "active",
+      exerciseTitle: 'Присед',
+      integratorConversationId: 'webapp:platform:00000000-0000-4000-8000-000000000009',
+      programNoteReplyState: 'state',
+      assignmentSource: 'doctor',
+      itemStatus: 'active',
     });
 
     const sendProgramNoteReply = createSendProgramNoteReply({
@@ -132,13 +135,13 @@ describe("createSendProgramNoteReply", () => {
     });
 
     const result = await sendProgramNoteReply({
-      integratorConversationId: "webapp:platform:00000000-0000-4000-8000-000000000001",
-      integratorMessageId: "webapp-msg:2",
+      integratorConversationId: 'webapp:platform:00000000-0000-4000-8000-000000000001',
+      integratorMessageId: 'webapp-msg:2',
       stageItemId,
-      text: "Ок",
-      senderDisplayName: "Доктор Берсон",
+      text: 'Ок',
+      senderDisplayName: 'Доктор Берсон',
     });
 
-    expect(result).toEqual({ ok: false, error: "stage_item_mismatch" });
+    expect(result).toEqual({ ok: false, error: 'stage_item_mismatch' });
   });
 });

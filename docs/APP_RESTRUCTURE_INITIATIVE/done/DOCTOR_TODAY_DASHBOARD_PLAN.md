@@ -197,7 +197,7 @@ MVP этапа 4:
 Источник:
 
 ```ts
-deps.doctorAppointments.listAppointmentsForSpecialist({ kind: "range", range: "today" })
+deps.doctorAppointments.listAppointmentsForSpecialist({ kind: 'range', range: 'today' });
 ```
 
 ### Секция 2. Новые онлайн-заявки
@@ -215,10 +215,10 @@ deps.doctorAppointments.listAppointmentsForSpecialist({ kind: "range", range: "t
 
 ```ts
 getOnlineIntakeService().listForDoctor({
-  status: "new",
+  status: 'new',
   limit: 3,
   offset: 0,
-})
+});
 ```
 
 Ссылка на заявку:
@@ -249,13 +249,13 @@ getOnlineIntakeService().listForDoctor({
 deps.messaging.doctorSupport.listOpenConversations({
   unreadOnly: true,
   limit: 3,
-})
+});
 ```
 
 Дополнительно можно получить общий счётчик:
 
 ```ts
-deps.messaging.doctorSupport.unreadFromUsers()
+deps.messaging.doctorSupport.unreadFromUsers();
 ```
 
 Пустое состояние:
@@ -275,7 +275,7 @@ deps.messaging.doctorSupport.unreadFromUsers()
 Рекомендация для первого прохода:
 
 ```ts
-deps.doctorAppointments.listAppointmentsForSpecialist({ kind: "range", range: "week" })
+deps.doctorAppointments.listAppointmentsForSpecialist({ kind: 'range', range: 'week' });
 ```
 
 Затем отфильтровать уже показанные `id` из «Записи сегодня» и взять первые 5. Если фильтрация по датам/часовым поясам начинает усложнять этап, использовать `futureActive.slice(0, 5)` и явно записать это в `LOG.md`.
@@ -414,9 +414,9 @@ export type TodayDashboardData = {
 ```ts
 const [todayAppointments, weekAppointments, newIntake, unreadConversations, unreadTotal] =
   await Promise.all([
-    deps.doctorAppointments.listAppointmentsForSpecialist({ kind: "range", range: "today" }),
-    deps.doctorAppointments.listAppointmentsForSpecialist({ kind: "range", range: "week" }),
-    getOnlineIntakeService().listForDoctor({ status: "new", limit: 3, offset: 0 }),
+    deps.doctorAppointments.listAppointmentsForSpecialist({ kind: 'range', range: 'today' }),
+    deps.doctorAppointments.listAppointmentsForSpecialist({ kind: 'range', range: 'week' }),
+    getOnlineIntakeService().listForDoctor({ status: 'new', limit: 3, offset: 0 }),
     deps.messaging.doctorSupport.listOpenConversations({ unreadOnly: true, limit: 3 }),
     deps.messaging.doctorSupport.unreadFromUsers(),
   ]);

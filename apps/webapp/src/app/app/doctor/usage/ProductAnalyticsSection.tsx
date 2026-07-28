@@ -1,41 +1,41 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { UsageMetricAccountsDialog } from "./UsageMetricAccountsDialog";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { UsageMetricAccountsDialog } from './UsageMetricAccountsDialog';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from "@/shared/ui/doctor/primitives/collapsible";
+} from '@/shared/ui/doctor/primitives/collapsible';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/ui/doctor/primitives/select";
-import { DOCTOR_ANALYTICS_WINDOW_HOUR_PRESETS } from "@/app/app/doctor/analytics/shared/analyticsWindowHourPresets";
-import { DoctorStatCard } from "@/app/app/doctor/analytics/clients/DoctorStatCard";
-import { PRODUCT_ANALYTICS_PUSH_TOPIC_HINT } from "@/modules/product-analytics/productAnalyticsTopicLabels";
-import type { ProductAnalyticsAdminDashboard } from "@/modules/product-analytics/types";
-import { formatDisplayZoneInstantRu } from "@/shared/datetime/displayTimeZoneFormat";
-import { ProductAnalyticsActiveUsersChart } from "./ProductAnalyticsActiveUsersChart";
-import { ProductAnalyticsEntryChannelChart } from "./ProductAnalyticsEntryChannelChart";
-import { ProductAnalyticsPushByTopicChart } from "./ProductAnalyticsPushByTopicChart";
-import { ProductAnalyticsTopPagesChart } from "./ProductAnalyticsTopPagesChart";
+} from '@/shared/ui/doctor/primitives/select';
+import { DOCTOR_ANALYTICS_WINDOW_HOUR_PRESETS } from '@/app/app/doctor/analytics/shared/analyticsWindowHourPresets';
+import { DoctorStatCard } from '@/app/app/doctor/analytics/clients/DoctorStatCard';
+import { PRODUCT_ANALYTICS_PUSH_TOPIC_HINT } from '@/modules/product-analytics/productAnalyticsTopicLabels';
+import type { ProductAnalyticsAdminDashboard } from '@/modules/product-analytics/types';
+import { formatDisplayZoneInstantRu } from '@/shared/datetime/displayTimeZoneFormat';
+import { ProductAnalyticsActiveUsersChart } from './ProductAnalyticsActiveUsersChart';
+import { ProductAnalyticsEntryChannelChart } from './ProductAnalyticsEntryChannelChart';
+import { ProductAnalyticsPushByTopicChart } from './ProductAnalyticsPushByTopicChart';
+import { ProductAnalyticsTopPagesChart } from './ProductAnalyticsTopPagesChart';
 
 const PRESETS = DOCTOR_ANALYTICS_WINDOW_HOUR_PRESETS;
 
 const CHANNEL_LABEL: Record<string, string> = {
-  pwa: "PWA",
-  telegram: "Telegram",
-  max: "MAX",
-  browser: "Браузер",
+  pwa: 'PWA',
+  telegram: 'Telegram',
+  max: 'MAX',
+  browser: 'Браузер',
 };
 
 function formatOpenRate(rate: number): string {
-  if (!Number.isFinite(rate) || rate <= 0) return "0%";
+  if (!Number.isFinite(rate) || rate <= 0) return '0%';
   return `${(rate * 100).toFixed(1)}%`;
 }
 
@@ -64,7 +64,7 @@ function StatTable({
             <tr key={i} className="border-b border-border/40 last:border-0">
               {columns.map((c) => (
                 <td key={c.key} className="px-2 py-1.5 font-mono">
-                  {row[c.key] ?? "—"}
+                  {row[c.key] ?? '—'}
                 </td>
               ))}
             </tr>
@@ -89,17 +89,17 @@ export function ProductAnalyticsSection() {
     setData(null);
     try {
       const res = await fetch(`/api/admin/product-analytics?windowHours=${hours}`, {
-        credentials: "include",
+        credentials: 'include',
       });
       if (!res.ok) {
-        setError(res.status === 403 ? "Доступ запрещён" : `Ошибка ${res.status}`);
+        setError(res.status === 403 ? 'Доступ запрещён' : `Ошибка ${res.status}`);
         setData(null);
         return;
       }
       const json = (await res.json()) as ProductAnalyticsAdminDashboard;
       setData(json);
     } catch {
-      setError("Не удалось загрузить");
+      setError('Не удалось загрузить');
       setData(null);
     } finally {
       setLoading(false);
@@ -123,7 +123,7 @@ export function ProductAnalyticsSection() {
   const channelTotalsText =
     data?.entryChannelTotals
       .map((row) => `${CHANNEL_LABEL[row.entryChannel] ?? row.entryChannel}: ${row.appOpens}`)
-      .join(" · ") ?? "—";
+      .join(' · ') ?? '—';
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-4">
@@ -131,7 +131,7 @@ export function ProductAnalyticsSection() {
         <Select
           value={String(windowHours)}
           onValueChange={(v) => {
-            if (v == null || v === "") return;
+            if (v == null || v === '') return;
             const n = Number.parseInt(v, 10);
             if (Number.isFinite(n)) setWindowHours(n);
           }}
@@ -160,7 +160,11 @@ export function ProductAnalyticsSection() {
               value={data.summary.uniqueActiveUsers}
               onClick={() => setClientsDialogOpen(true)}
             />
-            <DoctorStatCard id="usage-kpi-app-opens" title="Заходы" value={data.summary.totalAppOpens} />
+            <DoctorStatCard
+              id="usage-kpi-app-opens"
+              title="Заходы"
+              value={data.summary.totalAppOpens}
+            />
             <DoctorStatCard
               id="usage-kpi-page-views"
               title="Просмотры страниц"
@@ -234,15 +238,15 @@ export function ProductAnalyticsSection() {
                 <CollapsibleContent className="pt-3">
                   <StatTable
                     columns={[
-                      { key: "sloganKey", header: "Ключ" },
-                      { key: "sampleText", header: "Текст" },
-                      { key: "sent", header: "Отправлено" },
-                      { key: "opened", header: "Открыто" },
-                      { key: "openRate", header: "Open rate" },
+                      { key: 'sloganKey', header: 'Ключ' },
+                      { key: 'sampleText', header: 'Текст' },
+                      { key: 'sent', header: 'Отправлено' },
+                      { key: 'opened', header: 'Открыто' },
+                      { key: 'openRate', header: 'Open rate' },
                     ]}
                     rows={data.warmupSlogans.map((r) => ({
                       sloganKey: r.sloganKey,
-                      sampleText: r.sampleText ?? "—",
+                      sampleText: r.sampleText ?? '—',
                       sent: r.sent,
                       opened: r.opened,
                       openRate: formatOpenRate(r.openRate),
@@ -260,13 +264,13 @@ export function ProductAnalyticsSection() {
             <CardContent className="space-y-3">
               <StatTable
                 columns={[
-                  { key: "displayName", header: "Клиент" },
-                  { key: "lastSeenAt", header: "Последний визит" },
-                  { key: "appOpens", header: "Заходы" },
-                  { key: "pageViews", header: "Страницы" },
-                  { key: "pushOpens", header: "Push open" },
-                  { key: "activeMinutes", header: "Минуты" },
-                  { key: "channels", header: "Каналы" },
+                  { key: 'displayName', header: 'Клиент' },
+                  { key: 'lastSeenAt', header: 'Последний визит' },
+                  { key: 'appOpens', header: 'Заходы' },
+                  { key: 'pageViews', header: 'Страницы' },
+                  { key: 'pushOpens', header: 'Push open' },
+                  { key: 'activeMinutes', header: 'Минуты' },
+                  { key: 'channels', header: 'Каналы' },
                 ]}
                 rows={topClientRows.map((r) => ({
                   displayName: r.displayName,
@@ -277,25 +281,28 @@ export function ProductAnalyticsSection() {
                   activeMinutes: r.activeMinutes,
                   channels:
                     r.channels
-                      .map((c) => `${CHANNEL_LABEL[c.entryChannel] ?? c.entryChannel}: ${c.totalActivity}`)
-                      .join(", ") || "—",
+                      .map(
+                        (c) =>
+                          `${CHANNEL_LABEL[c.entryChannel] ?? c.entryChannel}: ${c.totalActivity}`,
+                      )
+                      .join(', ') || '—',
                 }))}
               />
               {extraClientRows.length > 0 ? (
                 <Collapsible open={showAllClients} onOpenChange={setShowAllClients}>
                   <CollapsibleTrigger className="text-xs text-primary underline underline-offset-2">
-                    {showAllClients ? "Скрыть" : `Показать всех (${sortedClientRows.length})`}
+                    {showAllClients ? 'Скрыть' : `Показать всех (${sortedClientRows.length})`}
                   </CollapsibleTrigger>
                   <CollapsibleContent className="pt-3">
                     <StatTable
                       columns={[
-                        { key: "displayName", header: "Клиент" },
-                        { key: "lastSeenAt", header: "Последний визит" },
-                        { key: "appOpens", header: "Заходы" },
-                        { key: "pageViews", header: "Страницы" },
-                        { key: "pushOpens", header: "Push open" },
-                        { key: "activeMinutes", header: "Минуты" },
-                        { key: "channels", header: "Каналы" },
+                        { key: 'displayName', header: 'Клиент' },
+                        { key: 'lastSeenAt', header: 'Последний визит' },
+                        { key: 'appOpens', header: 'Заходы' },
+                        { key: 'pageViews', header: 'Страницы' },
+                        { key: 'pushOpens', header: 'Push open' },
+                        { key: 'activeMinutes', header: 'Минуты' },
+                        { key: 'channels', header: 'Каналы' },
                       ]}
                       rows={extraClientRows.map((r) => ({
                         displayName: r.displayName,
@@ -306,8 +313,11 @@ export function ProductAnalyticsSection() {
                         activeMinutes: r.activeMinutes,
                         channels:
                           r.channels
-                            .map((c) => `${CHANNEL_LABEL[c.entryChannel] ?? c.entryChannel}: ${c.totalActivity}`)
-                            .join(", ") || "—",
+                            .map(
+                              (c) =>
+                                `${CHANNEL_LABEL[c.entryChannel] ?? c.entryChannel}: ${c.totalActivity}`,
+                            )
+                            .join(', ') || '—',
                       }))}
                     />
                   </CollapsibleContent>

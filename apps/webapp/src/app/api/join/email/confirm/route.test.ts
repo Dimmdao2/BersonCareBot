@@ -18,7 +18,8 @@ vi.mock('@/app-layer/principal/staffSecuritySelfPrincipal', () => ({
 }));
 vi.mock('@/modules/auth/service', () => ({ setSessionFromUser: setSessionFromUserMock }));
 vi.mock('@/modules/patient-invites/continuationCookie', () => ({
-  readPatientInviteContinuationCookie: async () => 'continuation-token-with-at-least-thirty-two-characters',
+  readPatientInviteContinuationCookie: async () =>
+    'continuation-token-with-at-least-thirty-two-characters',
   clearPatientInviteContinuationCookie: clearContinuationMock,
 }));
 vi.mock('@/modules/patient-invites/rateLimit', () => ({

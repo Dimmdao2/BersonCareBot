@@ -5,25 +5,30 @@
  * или legacy-совпадению `integratorUserId === platformUserId`.
  * Реальная PG-реализация использует `reminder_rules.platform_user_id`.
  */
-import { randomUUID } from "node:crypto";
-import type { ReminderRulesPort } from "@/modules/reminders/ports";
-import type { ReminderCategory, ReminderLinkedObjectType, ReminderRule, ReminderUpdateSchedule } from "@/modules/reminders/types";
-import type { SlotsV1ScheduleData } from "@/modules/reminders/scheduleSlots";
-import { DEFAULT_REHAB_DAILY_SLOTS } from "@/modules/reminders/scheduleSlots";
-import { notificationTopicCodeFromReminderRule } from "@/modules/reminders/notificationTopicCode";
+import { randomUUID } from 'node:crypto';
+import type { ReminderRulesPort } from '@/modules/reminders/ports';
+import type {
+  ReminderCategory,
+  ReminderLinkedObjectType,
+  ReminderRule,
+  ReminderUpdateSchedule,
+} from '@/modules/reminders/types';
+import type { SlotsV1ScheduleData } from '@/modules/reminders/scheduleSlots';
+import { DEFAULT_REHAB_DAILY_SLOTS } from '@/modules/reminders/scheduleSlots';
+import { notificationTopicCodeFromReminderRule } from '@/modules/reminders/notificationTopicCode';
 
-const FALLBACK_CATEGORIES = new Set(["appointment", "lfk", "chat", "important"]);
+const FALLBACK_CATEGORIES = new Set(['appointment', 'lfk', 'chat', 'important']);
 
 function mapLinkedTypeToCategory(linked: ReminderLinkedObjectType): ReminderCategory {
   if (
-    linked === "lfk_complex" ||
-    linked === "content_section" ||
-    linked === "rehab_program" ||
-    linked === "treatment_program_item"
+    linked === 'lfk_complex' ||
+    linked === 'content_section' ||
+    linked === 'rehab_program' ||
+    linked === 'treatment_program_item'
   ) {
-    return "lfk";
+    return 'lfk';
   }
-  return "important";
+  return 'important';
 }
 
 export function createInMemoryReminderRulesPort(
@@ -58,29 +63,29 @@ export function createInMemoryReminderRulesPort(
     },
 
     async listByPlatformUser(platformUserId) {
-      return getRulesForUser(platformUserId).sort((a, b) =>
-        a.category.localeCompare(b.category),
-      );
+      return getRulesForUser(platformUserId).sort((a, b) => a.category.localeCompare(b.category));
     },
 
     async listByPlatformUserWithObjects(platformUserId) {
-      return getRulesForUser(platformUserId).sort(
-        (a, b) => (a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : 0),
+      return getRulesForUser(platformUserId).sort((a, b) =>
+        a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : 0,
       );
     },
 
     async getByPlatformUserAndCategory(platformUserId, category) {
-      return (
-        getRulesForUser(platformUserId).find((r) => r.category === category) ?? null
-      );
+      return getRulesForUser(platformUserId).find((r) => r.category === category) ?? null;
     },
 
     async create(input) {
       const id = `wp-${randomUUID()}`;
       const category = mapLinkedTypeToCategory(input.linkedObjectType);
-      const scheduleType = input.scheduleType ?? "interval_window";
+      const scheduleType = input.scheduleType ?? 'interval_window';
       let scheduleData: SlotsV1ScheduleData | null = input.scheduleData ?? null;
-      if (input.linkedObjectType === "rehab_program" && scheduleType === "slots_v1" && !scheduleData) {
+      if (
+        input.linkedObjectType === 'rehab_program' &&
+        scheduleType === 'slots_v1' &&
+        !scheduleData
+      ) {
         scheduleData = DEFAULT_REHAB_DAILY_SLOTS;
       }
       const rule: ReminderRule = {
@@ -88,7 +93,7 @@ export function createInMemoryReminderRulesPort(
         integratorUserId: input.integratorUserId,
         category,
         enabled: input.enabled,
-        timezone: input.timezone?.trim() || "Europe/Moscow",
+        timezone: input.timezone?.trim() || 'Europe/Moscow',
         intervalMinutes: input.schedule.intervalMinutes,
         windowStartMinute: input.schedule.windowStartMinute,
         windowEndMinute: input.schedule.windowEndMinute,
@@ -100,7 +105,7 @@ export function createInMemoryReminderRulesPort(
         customText: input.customText,
         scheduleType,
         scheduleData,
-        reminderIntent: input.reminderIntent ?? "generic",
+        reminderIntent: input.reminderIntent ?? 'generic',
         displayTitle: input.displayTitle ?? null,
         displayDescription: input.displayDescription ?? null,
         quietHoursStartMinute: input.quietHoursStartMinute ?? null,
@@ -108,7 +113,7 @@ export function createInMemoryReminderRulesPort(
         notificationTopicCode: notificationTopicCodeFromReminderRule({
           category,
           linkedObjectType: input.linkedObjectType,
-          reminderIntent: input.reminderIntent ?? "generic",
+          reminderIntent: input.reminderIntent ?? 'generic',
         }),
         updatedAt: new Date().toISOString(),
       };
@@ -126,7 +131,8 @@ export function createInMemoryReminderRulesPort(
 
     async updateEnabled(ruleIntegratorId, enabled) {
       const rule = store.get(ruleIntegratorId);
-      if (rule) store.set(ruleIntegratorId, { ...rule, enabled, updatedAt: new Date().toISOString() });
+      if (rule)
+        store.set(ruleIntegratorId, { ...rule, enabled, updatedAt: new Date().toISOString() });
     },
 
     async updateSchedule(ruleIntegratorId, schedule: ReminderUpdateSchedule) {
@@ -191,7 +197,7 @@ export function createInMemoryReminderRulesPort(
 
     async getReminderMutedUntil(platformUserId) {
       return muteUntilByPlatformUser.has(platformUserId)
-        ? muteUntilByPlatformUser.get(platformUserId) ?? null
+        ? (muteUntilByPlatformUser.get(platformUserId) ?? null)
         : null;
     },
 
@@ -199,14 +205,18 @@ export function createInMemoryReminderRulesPort(
       const oldT = oldSlug.trim();
       if (!oldT) return;
       for (const [id, rule] of store) {
-        if (rule.linkedObjectType !== "content_page") continue;
+        if (rule.linkedObjectType !== 'content_page') continue;
         const rid = rule.linkedObjectId?.trim();
         if (!rid || rid !== oldT) continue;
         store.set(id, { ...rule, linkedObjectId: newSlug, updatedAt: new Date().toISOString() });
       }
     },
 
-    async retargetRehabProgramInstanceLinkedId(platformUserId: string, oldInstanceId: string, newInstanceId: string) {
+    async retargetRehabProgramInstanceLinkedId(
+      platformUserId: string,
+      oldInstanceId: string,
+      newInstanceId: string,
+    ) {
       const oldT = oldInstanceId.trim();
       const newT = newInstanceId.trim();
       if (!oldT || !newT || oldT === newT) return 0;
@@ -214,7 +224,7 @@ export function createInMemoryReminderRulesPort(
       for (const [id, rule] of store) {
         const rulePlatformUserId = platformUserIdByRuleId.get(id) ?? rule.integratorUserId;
         if (rulePlatformUserId !== platformUserId) continue;
-        if (rule.linkedObjectType !== "rehab_program") continue;
+        if (rule.linkedObjectType !== 'rehab_program') continue;
         const rid = rule.linkedObjectId?.trim();
         if (!rid || rid !== oldT) continue;
         store.set(id, { ...rule, linkedObjectId: newT, updatedAt: new Date().toISOString() });

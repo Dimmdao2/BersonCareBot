@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import {
   createContext,
@@ -8,11 +8,11 @@ import {
   useMemo,
   useState,
   type ReactNode,
-} from "react";
+} from 'react';
 import type {
   TreatmentProgramInstanceDetail,
   TreatmentProgramInstanceStatus,
-} from "@/modules/treatment-program/types";
+} from '@/modules/treatment-program/types';
 import {
   applyItemPatchToItemCreates,
   applyItemStructuralPatchToItemCreates,
@@ -35,9 +35,12 @@ import {
   type InstanceEditorItemStructuralPatch,
   type InstanceEditorStageCreate,
   type InstanceEditorStageMetadataPatch,
-} from "./instanceEditorDraft";
-import { flushInstanceEditorDraft } from "./flushInstanceEditorDraft";
-import { formatInstanceEditorSaveError, isStaleInstanceEditorSaveError } from "./instanceEditorLoadSettings";
+} from './instanceEditorDraft';
+import { flushInstanceEditorDraft } from './flushInstanceEditorDraft';
+import {
+  formatInstanceEditorSaveError,
+  isStaleInstanceEditorSaveError,
+} from './instanceEditorLoadSettings';
 
 type InstanceEditorDraftContextValue = {
   programStatus: TreatmentProgramInstanceStatus;
@@ -49,14 +52,17 @@ type InstanceEditorDraftContextValue = {
   patchStageMetadata: (stageId: string, patch: InstanceEditorStageMetadataPatch) => void;
   patchGroup: (groupId: string, patch: InstanceEditorGroupPatch) => void;
   patchItem: (itemId: string, patch: InstanceEditorItemPatch) => void;
-  patchItemLoadSettings: (itemId: string, loadSettings: InstanceEditorItemLoadSettingsPatch) => void;
+  patchItemLoadSettings: (
+    itemId: string,
+    loadSettings: InstanceEditorItemLoadSettingsPatch,
+  ) => void;
   patchItemLocalComment: (itemId: string, localComment: string | null) => void;
   setStageOrder: (orderedStageIds: string[]) => void;
   addStageCreate: (
-    input: Omit<InstanceEditorStageCreate, "clientId"> & { clientId?: string },
+    input: Omit<InstanceEditorStageCreate, 'clientId'> & { clientId?: string },
   ) => string;
   addGroupCreate: (
-    input: Omit<InstanceEditorGroupCreate, "clientId"> & { clientId?: string },
+    input: Omit<InstanceEditorGroupCreate, 'clientId'> & { clientId?: string },
   ) => string;
   addItemCreate: (input: InstanceEditorItemCreateInput) => string[];
   deleteItem: (itemId: string) => void;
@@ -89,7 +95,7 @@ export function InstanceEditorDraftProvider(props: {
   }, [baseline]);
 
   useEffect(() => {
-    if (baseline.status === "completed") {
+    if (baseline.status === 'completed') {
       setDraft(createEmptyInstanceEditorDraft());
     }
   }, [baseline.status]);
@@ -105,10 +111,10 @@ export function InstanceEditorDraftProvider(props: {
     if (!isDirty) return;
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
-      e.returnValue = "";
+      e.returnValue = '';
     };
-    window.addEventListener("beforeunload", onBeforeUnload);
-    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
   }, [isDirty]);
 
   const mergeDraft = useCallback(
@@ -122,7 +128,10 @@ export function InstanceEditorDraftProvider(props: {
     (stageId: string, patch: InstanceEditorStageMetadataPatch) => {
       mergeDraft((prev) => ({
         ...prev,
-        stageMetadata: { ...prev.stageMetadata, [stageId]: { ...prev.stageMetadata[stageId], ...patch } },
+        stageMetadata: {
+          ...prev.stageMetadata,
+          [stageId]: { ...prev.stageMetadata[stageId], ...patch },
+        },
       }));
     },
     [mergeDraft],
@@ -132,7 +141,10 @@ export function InstanceEditorDraftProvider(props: {
     (groupId: string, patch: InstanceEditorGroupPatch) => {
       mergeDraft((prev) => ({
         ...prev,
-        groupPatches: { ...prev.groupPatches, [groupId]: { ...prev.groupPatches[groupId], ...patch } },
+        groupPatches: {
+          ...prev.groupPatches,
+          [groupId]: { ...prev.groupPatches[groupId], ...patch },
+        },
       }));
     },
     [mergeDraft],
@@ -180,7 +192,7 @@ export function InstanceEditorDraftProvider(props: {
   );
 
   const addStageCreate = useCallback(
-    (input: Omit<InstanceEditorStageCreate, "clientId"> & { clientId?: string }) => {
+    (input: Omit<InstanceEditorStageCreate, 'clientId'> & { clientId?: string }) => {
       const clientId = input.clientId ?? createInstanceEditorDraftClientId();
       mergeDraft((prev) => ({
         ...prev,
@@ -192,7 +204,7 @@ export function InstanceEditorDraftProvider(props: {
   );
 
   const addGroupCreate = useCallback(
-    (input: Omit<InstanceEditorGroupCreate, "clientId"> & { clientId?: string }) => {
+    (input: Omit<InstanceEditorGroupCreate, 'clientId'> & { clientId?: string }) => {
       const clientId = input.clientId ?? createInstanceEditorDraftClientId();
       mergeDraft((prev) => ({
         ...prev,
@@ -240,8 +252,8 @@ export function InstanceEditorDraftProvider(props: {
             groupCreates: prev.groupCreates.filter((g) => g.clientId !== groupId),
             groupPatches,
             itemCreates: prev.itemCreates.filter((create) => {
-              if (create.kind === "library_item" && create.groupId === groupId) return false;
-              if (create.kind === "lfk_complex_expand" && create.groupId === groupId) return false;
+              if (create.kind === 'library_item' && create.groupId === groupId) return false;
+              if (create.kind === 'lfk_complex_expand' && create.groupId === groupId) return false;
               return true;
             }),
           };
@@ -307,7 +319,7 @@ export function InstanceEditorDraftProvider(props: {
       let saveBaseline = baseline;
       try {
         const synced = await onBaselineSynced();
-        if (synced && typeof synced === "object" && "stages" in synced) {
+        if (synced && typeof synced === 'object' && 'stages' in synced) {
           saveBaseline = synced;
         }
       } catch {
@@ -333,7 +345,7 @@ export function InstanceEditorDraftProvider(props: {
         }
         return {
           ok: false,
-          error: formatInstanceEditorSaveError(result.error ?? "Ошибка сохранения", staleRefreshed),
+          error: formatInstanceEditorSaveError(result.error ?? 'Ошибка сохранения', staleRefreshed),
         };
       }
       setDraft(createEmptyInstanceEditorDraft());
@@ -393,13 +405,17 @@ export function InstanceEditorDraftProvider(props: {
     ],
   );
 
-  return <InstanceEditorDraftContext.Provider value={value}>{children}</InstanceEditorDraftContext.Provider>;
+  return (
+    <InstanceEditorDraftContext.Provider value={value}>
+      {children}
+    </InstanceEditorDraftContext.Provider>
+  );
 }
 
 export function useInstanceEditorDraft(): InstanceEditorDraftContextValue {
   const ctx = useContext(InstanceEditorDraftContext);
   if (!ctx) {
-    throw new Error("useInstanceEditorDraft must be used within InstanceEditorDraftProvider");
+    throw new Error('useInstanceEditorDraft must be used within InstanceEditorDraftProvider');
   }
   return ctx;
 }

@@ -5,22 +5,33 @@
  * It now emits a web_push intent via relayOutbound (-> integrator).
  * The integrator's WebPushDeliveryAdapter performs the actual send.
  */
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 // Mock relayOutbound — this is now THE call we want to assert.
-const relayOutboundMock = vi.hoisted(() => vi.fn().mockResolvedValue({ ok: true, status: "accepted" }));
+const relayOutboundMock = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({ ok: true, status: 'accepted' }),
+);
 
-vi.mock("@/modules/operator-alerts/relayOperatorAlert", () => ({
+vi.mock('@/modules/operator-alerts/relayOperatorAlert', () => ({
   relayOperatorAlert: relayOutboundMock,
 }));
 
-import { sendAdminIncidentStaffWebPush, type AdminIncidentStaffPushDeps } from "./sendAdminIncidentStaffWebPush";
-import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
-import type { WebPushSubscriptionsPort } from "@/modules/web-push/ports";
+import {
+  sendAdminIncidentStaffWebPush,
+  type AdminIncidentStaffPushDeps,
+} from './sendAdminIncidentStaffWebPush';
+import type { ChannelPreferencesPort } from '@/modules/channel-preferences/ports';
+import type { WebPushSubscriptionsPort } from '@/modules/web-push/ports';
 
-const STAFF_ID = "admin-1";
-const ORGANIZATION_ID = "11111111-1111-4111-8111-111111111111";
-const incident = (input: { topic: string; dedupKey: string; pushTitle: string; pushBody: string; pushUrl: string }) => ({
+const STAFF_ID = 'admin-1';
+const ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
+const incident = (input: {
+  topic: string;
+  dedupKey: string;
+  pushTitle: string;
+  pushBody: string;
+  pushUrl: string;
+}) => ({
   organizationId: ORGANIZATION_ID,
   ...input,
 });
@@ -39,22 +50,22 @@ function makeDeps(overrides: Partial<AdminIncidentStaffPushDeps> = {}): AdminInc
   };
 }
 
-describe("sendAdminIncidentStaffWebPush — CANARY MIGRATION (S14a)", () => {
+describe('sendAdminIncidentStaffWebPush — CANARY MIGRATION (S14a)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    relayOutboundMock.mockResolvedValue({ ok: true, status: "accepted" });
+    relayOutboundMock.mockResolvedValue({ ok: true, status: 'accepted' });
   });
 
   // ─── PRIMARY: confirms P18 no longer calls sendWebPushToSubscriptions ────────
 
-  it("emits a web_push intent via relayOutbound (not sendWebPushToSubscriptions)", async () => {
+  it('emits a web_push intent via relayOutbound (not sendWebPushToSubscriptions)', async () => {
     const result = await sendAdminIncidentStaffWebPush(
       incident({
-        topic: "channel_link",
-        dedupKey: "abc",
-        pushTitle: "Конфликт привязки канала",
-        pushBody: "binding conflict body",
-        pushUrl: "/app/doctor/admin/technical",
+        topic: 'channel_link',
+        dedupKey: 'abc',
+        pushTitle: 'Конфликт привязки канала',
+        pushBody: 'binding conflict body',
+        pushUrl: '/app/doctor/admin/technical',
       }),
       makeDeps(),
     );
@@ -62,23 +73,25 @@ describe("sendAdminIncidentStaffWebPush — CANARY MIGRATION (S14a)", () => {
     // relayOutbound must have been called exactly once
     expect(relayOutboundMock).toHaveBeenCalledTimes(1);
     const [params] = relayOutboundMock.mock.calls[0]!;
-    expect(params.channel).toBe("web_push");
+    expect(params.channel).toBe('web_push');
     expect(params.recipient).toBe(STAFF_ID);
-    expect(params.text).toBe("binding conflict body");
-    expect(params.metadata?.title).toBe("Конфликт привязки канала");
-    expect(params.metadata?.url).toBe("/app/doctor/admin/technical");
-    expect((params.metadata?.pushExtras as Record<string, string>)?.tag).toContain("channel_link");
-    expect((params.metadata?.pushExtras as Record<string, string>)?.tag).toContain("abc");
+    expect(params.text).toBe('binding conflict body');
+    expect(params.metadata?.title).toBe('Конфликт привязки канала');
+    expect(params.metadata?.url).toBe('/app/doctor/admin/technical');
+    expect((params.metadata?.pushExtras as Record<string, string>)?.tag).toContain('channel_link');
+    expect((params.metadata?.pushExtras as Record<string, string>)?.tag).toContain('abc');
     // Return value is now dispatched count (1 for successful relay)
     expect(result).toBe(1);
   });
 
-  it("skips staff with global web_push disabled (no relay call)", async () => {
+  it('skips staff with global web_push disabled (no relay call)', async () => {
     const result = await sendAdminIncidentStaffWebPush(
-      incident({ topic: "t", dedupKey: "k", pushTitle: "t", pushBody: "b", pushUrl: "/" }),
+      incident({ topic: 't', dedupKey: 'k', pushTitle: 't', pushBody: 'b', pushUrl: '/' }),
       makeDeps({
         channelPreferences: {
-          getPreferences: async () => [{ channelCode: "web_push", isEnabledForNotifications: false }],
+          getPreferences: async () => [
+            { channelCode: 'web_push', isEnabledForNotifications: false },
+          ],
         } as unknown as ChannelPreferencesPort,
       }),
     );
@@ -87,9 +100,9 @@ describe("sendAdminIncidentStaffWebPush — CANARY MIGRATION (S14a)", () => {
     expect(relayOutboundMock).not.toHaveBeenCalled();
   });
 
-  it("skips staff with no subscriptions (hasAnyForUserId returns false)", async () => {
+  it('skips staff with no subscriptions (hasAnyForUserId returns false)', async () => {
     const result = await sendAdminIncidentStaffWebPush(
-      incident({ topic: "t", dedupKey: "k", pushTitle: "t", pushBody: "b", pushUrl: "/" }),
+      incident({ topic: 't', dedupKey: 'k', pushTitle: 't', pushBody: 'b', pushUrl: '/' }),
       makeDeps({
         webPushSubscriptions: {
           hasAnyForUserId: async () => false,
@@ -103,9 +116,9 @@ describe("sendAdminIncidentStaffWebPush — CANARY MIGRATION (S14a)", () => {
     expect(relayOutboundMock).not.toHaveBeenCalled();
   });
 
-  it("returns 0 when no staff users", async () => {
+  it('returns 0 when no staff users', async () => {
     const result = await sendAdminIncidentStaffWebPush(
-      incident({ topic: "t", dedupKey: "k", pushTitle: "t", pushBody: "b", pushUrl: "/" }),
+      incident({ topic: 't', dedupKey: 'k', pushTitle: 't', pushBody: 'b', pushUrl: '/' }),
       makeDeps({
         staffUsers: { listActiveStaffUserIds: async () => [] },
       }),
@@ -115,11 +128,11 @@ describe("sendAdminIncidentStaffWebPush — CANARY MIGRATION (S14a)", () => {
     expect(relayOutboundMock).not.toHaveBeenCalled();
   });
 
-  it("counts only successful relay calls (relay failure returns 0)", async () => {
-    relayOutboundMock.mockResolvedValueOnce({ ok: false, reason: "no_integrator_url" });
+  it('counts only successful relay calls (relay failure returns 0)', async () => {
+    relayOutboundMock.mockResolvedValueOnce({ ok: false, reason: 'no_integrator_url' });
 
     const result = await sendAdminIncidentStaffWebPush(
-      incident({ topic: "t", dedupKey: "k", pushTitle: "t", pushBody: "b", pushUrl: "/" }),
+      incident({ topic: 't', dedupKey: 'k', pushTitle: 't', pushBody: 'b', pushUrl: '/' }),
       makeDeps(),
     );
 
@@ -127,22 +140,22 @@ describe("sendAdminIncidentStaffWebPush — CANARY MIGRATION (S14a)", () => {
     expect(relayOutboundMock).toHaveBeenCalledTimes(1);
   });
 
-  it("relay error (throw) is caught and logs a warning — returns 0", async () => {
-    relayOutboundMock.mockRejectedValueOnce(new Error("network error"));
+  it('relay error (throw) is caught and logs a warning — returns 0', async () => {
+    relayOutboundMock.mockRejectedValueOnce(new Error('network error'));
 
     const result = await sendAdminIncidentStaffWebPush(
-      incident({ topic: "t", dedupKey: "k", pushTitle: "t", pushBody: "b", pushUrl: "/" }),
+      incident({ topic: 't', dedupKey: 'k', pushTitle: 't', pushBody: 'b', pushUrl: '/' }),
       makeDeps(),
     );
 
     expect(result).toBe(0);
   });
 
-  it("dispatches a relay for each eligible staff member", async () => {
+  it('dispatches a relay for each eligible staff member', async () => {
     const result = await sendAdminIncidentStaffWebPush(
-      incident({ topic: "t", dedupKey: "k", pushTitle: "t", pushBody: "b", pushUrl: "/" }),
+      incident({ topic: 't', dedupKey: 'k', pushTitle: 't', pushBody: 'b', pushUrl: '/' }),
       makeDeps({
-        staffUsers: { listActiveStaffUserIds: async () => ["admin-1", "admin-2"] },
+        staffUsers: { listActiveStaffUserIds: async () => ['admin-1', 'admin-2'] },
       }),
     );
 
@@ -151,9 +164,15 @@ describe("sendAdminIncidentStaffWebPush — CANARY MIGRATION (S14a)", () => {
     expect(result).toBe(2);
   });
 
-  it("fans a global alert through exact active organization memberships", async () => {
+  it('fans a global alert through exact active organization memberships', async () => {
     const result = await sendAdminIncidentStaffWebPush(
-      { topic: "provider", dedupKey: "incident:1:phase:initial", pushTitle: "stop", pushBody: "body", pushUrl: "/health" },
+      {
+        topic: 'provider',
+        dedupKey: 'incident:1:phase:initial',
+        pushTitle: 'stop',
+        pushBody: 'body',
+        pushUrl: '/health',
+      },
       makeDeps({
         staffUsers: {
           listActiveStaffUserIds: async () => [],
@@ -164,20 +183,24 @@ describe("sendAdminIncidentStaffWebPush — CANARY MIGRATION (S14a)", () => {
       }),
     );
     expect(result).toBe(1);
-    expect(relayOutboundMock).toHaveBeenCalledWith(expect.objectContaining({
-      channel: "web_push", recipient: STAFF_ID, organizationId: ORGANIZATION_ID,
-    }));
+    expect(relayOutboundMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channel: 'web_push',
+        recipient: STAFF_ID,
+        organizationId: ORGANIZATION_ID,
+      }),
+    );
   });
 
   // ─── CONFIRM: sendWebPushToSubscriptions is NOT imported/called ──────────────
 
-  it("sendWebPushToSubscriptions is NOT called from this module", async () => {
+  it('sendWebPushToSubscriptions is NOT called from this module', async () => {
     // This test verifies the canary migration at the module level:
     // the module should not import sendWebPushToSubscriptions at all.
     // We verify by confirming only relayOutbound was called and checking no
     // push-specific mocked side-effects occurred.
     await sendAdminIncidentStaffWebPush(
-      incident({ topic: "t", dedupKey: "k", pushTitle: "t", pushBody: "b", pushUrl: "/" }),
+      incident({ topic: 't', dedupKey: 'k', pushTitle: 't', pushBody: 'b', pushUrl: '/' }),
       makeDeps(),
     );
 

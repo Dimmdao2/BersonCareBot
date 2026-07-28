@@ -1,36 +1,36 @@
-import type { Dispatch, SetStateAction } from "react";
-import { Badge } from "@/shared/ui/patient/primitives/badge";
-import { Button, buttonVariants } from "@/shared/ui/patient/primitives/button";
-import { PatientDurationHmWheels } from "@/shared/ui/patient/PatientDurationHmWheels";
-import { Input } from "@/shared/ui/patient/primitives/input";
-import { Label } from "@/shared/ui/patient/primitives/label";
-import { cn } from "@/lib/utils";
-import type { ReminderLinkedObjectType } from "@/modules/reminders/types";
-import type { ReminderDayFilter } from "@/modules/reminders/scheduleSlots";
-import { DEFAULT_REHAB_DAILY_SLOTS } from "@/modules/reminders/scheduleSlots";
-import { DEFAULT_REMINDER_FORM_FIRST_SLOT_TIME } from "@/modules/reminders/reminderFormDefaults";
+import type { Dispatch, SetStateAction } from 'react';
+import { Badge } from '@/shared/ui/patient/primitives/badge';
+import { Button, buttonVariants } from '@/shared/ui/patient/primitives/button';
+import { PatientDurationHmWheels } from '@/shared/ui/patient/PatientDurationHmWheels';
+import { Input } from '@/shared/ui/patient/primitives/input';
+import { Label } from '@/shared/ui/patient/primitives/label';
+import { cn } from '@/lib/utils';
+import type { ReminderLinkedObjectType } from '@/modules/reminders/types';
+import type { ReminderDayFilter } from '@/modules/reminders/scheduleSlots';
+import { DEFAULT_REHAB_DAILY_SLOTS } from '@/modules/reminders/scheduleSlots';
+import { DEFAULT_REMINDER_FORM_FIRST_SLOT_TIME } from '@/modules/reminders/reminderFormDefaults';
 import {
   REMINDER_INTERVAL_WINDOW_MAX_MINUTES,
   REMINDER_INTERVAL_WINDOW_MIN_MINUTES,
-} from "@/modules/reminders/reminderIntervalBounds";
+} from '@/modules/reminders/reminderIntervalBounds';
 import {
   patientHeroBookingCardChromeClass,
   patientSectionTitleNormalClass,
-} from "@/shared/ui/patient/patientVisual";
-import type { ReminderScheduleFieldInvalid } from "@/modules/reminders/reminderFormAria";
+} from '@/shared/ui/patient/patientVisual';
+import type { ReminderScheduleFieldInvalid } from '@/modules/reminders/reminderFormAria';
 
-const WEEKDAY_LABELS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"] as const;
+const WEEKDAY_LABELS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'] as const;
 
 /** Панель настроек в модалке: градиент записи на каждом блоке, без общей «коробки вокруг коробок». */
 const reminderScheduleSettingPanelClass = cn(
   patientHeroBookingCardChromeClass,
-  "flex flex-col gap-3 p-4 md:p-[18px]",
+  'flex flex-col gap-3 p-4 md:p-[18px]',
 );
 
 export function toggleDayMaskReminder(mask: string, index: number): string {
-  const chars = mask.padEnd(7, "0").slice(0, 7).split("");
-  chars[index] = chars[index] === "1" ? "0" : "1";
-  return chars.join("");
+  const chars = mask.padEnd(7, '0').slice(0, 7).split('');
+  chars[index] = chars[index] === '1' ? '0' : '1';
+  return chars.join('');
 }
 
 export type ReminderScheduleFormProps = {
@@ -38,8 +38,8 @@ export type ReminderScheduleFormProps = {
   submitting: boolean;
   /** Режим создания (без existingRule): для rehab_program слоты по умолчанию из реабилитации. */
   linkedObjectTypeForDefaults: ReminderLinkedObjectType;
-  scheduleMode: "interval_window" | "slots_v1";
-  setScheduleMode: (m: "interval_window" | "slots_v1") => void;
+  scheduleMode: 'interval_window' | 'slots_v1';
+  setScheduleMode: (m: 'interval_window' | 'slots_v1') => void;
   intervalMinutes: number;
   setIntervalMinutes: (n: number) => void;
   startTime: string;
@@ -99,17 +99,17 @@ export function ReminderScheduleForm({
     slotTimes: fieldInvalid?.slotTimes ?? false,
   };
 
-  const hideWeekdayMaskRow = scheduleMode === "slots_v1" && slotsDayFilter === "weekdays";
+  const hideWeekdayMaskRow = scheduleMode === 'slots_v1' && slotsDayFilter === 'weekdays';
 
-  const applyWeekdayPreset = (preset: "all" | "weekdays" | "clear") => {
-    if (preset === "all") setDaysMask("1111111");
-    else if (preset === "weekdays") setDaysMask("1111100");
-    else setDaysMask("0000000");
+  const applyWeekdayPreset = (preset: 'all' | 'weekdays' | 'clear') => {
+    if (preset === 'all') setDaysMask('1111111');
+    else if (preset === 'weekdays') setDaysMask('1111100');
+    else setDaysMask('0000000');
   };
 
   const defaultSlotForNewRow =
-    linkedObjectTypeForDefaults === "rehab_program"
-      ? DEFAULT_REHAB_DAILY_SLOTS.timesLocal[0] ?? "09:00"
+    linkedObjectTypeForDefaults === 'rehab_program'
+      ? (DEFAULT_REHAB_DAILY_SLOTS.timesLocal[0] ?? '09:00')
       : DEFAULT_REMINDER_FORM_FIRST_SLOT_TIME;
 
   return (
@@ -119,33 +119,33 @@ export function ReminderScheduleForm({
         <div className="grid grid-cols-2 gap-2">
           <Button
             type="button"
-            variant={scheduleMode === "interval_window" ? "default" : "outline"}
+            variant={scheduleMode === 'interval_window' ? 'default' : 'outline'}
             size="sm"
             className="w-full"
-            onClick={() => setScheduleMode("interval_window")}
+            onClick={() => setScheduleMode('interval_window')}
             disabled={submitting}
           >
             Интервальные
           </Button>
           <Button
             type="button"
-            variant={scheduleMode === "slots_v1" ? "default" : "outline"}
+            variant={scheduleMode === 'slots_v1' ? 'default' : 'outline'}
             size="sm"
             className="w-full"
-            onClick={() => setScheduleMode("slots_v1")}
+            onClick={() => setScheduleMode('slots_v1')}
             disabled={submitting}
           >
             Точное время
           </Button>
         </div>
         <p className="text-xs text-muted-foreground">
-          {scheduleMode === "slots_v1"
-            ? "Напоминать несколько раз в день в выбранное время."
-            : "Напоминать каждые N минут в выбранном периоде времени."}
+          {scheduleMode === 'slots_v1'
+            ? 'Напоминать несколько раз в день в выбранное время.'
+            : 'Напоминать каждые N минут в выбранном периоде времени.'}
         </p>
       </div>
 
-      {scheduleMode === "interval_window" ? (
+      {scheduleMode === 'interval_window' ? (
         <div className={reminderScheduleSettingPanelClass}>
           <h3 className={patientSectionTitleNormalClass}>Период и интервал</h3>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -187,10 +187,14 @@ export function ReminderScheduleForm({
                   type="button"
                   size="sm"
                   variant="outline"
-                  disabled={submitting || m < REMINDER_INTERVAL_WINDOW_MIN_MINUTES || m > REMINDER_INTERVAL_WINDOW_MAX_MINUTES}
+                  disabled={
+                    submitting ||
+                    m < REMINDER_INTERVAL_WINDOW_MIN_MINUTES ||
+                    m > REMINDER_INTERVAL_WINDOW_MAX_MINUTES
+                  }
                   onClick={() => setIntervalMinutes(m)}
                 >
-                  {m === 60 ? "1 ч" : `${m / 60} ч`}
+                  {m === 60 ? '1 ч' : `${m / 60} ч`}
                 </Button>
               ))}
             </div>
@@ -205,7 +209,7 @@ export function ReminderScheduleForm({
               size="sm"
               variant="outline"
               disabled={submitting}
-              onClick={() => setSlotTimeRows([DEFAULT_REHAB_DAILY_SLOTS.timesLocal[0] ?? "09:00"])}
+              onClick={() => setSlotTimeRows([DEFAULT_REHAB_DAILY_SLOTS.timesLocal[0] ?? '09:00'])}
             >
               Утро
             </Button>
@@ -216,7 +220,9 @@ export function ReminderScheduleForm({
               disabled={submitting}
               onClick={() =>
                 setSlotTimeRows([
-                  DEFAULT_REHAB_DAILY_SLOTS.timesLocal[DEFAULT_REHAB_DAILY_SLOTS.timesLocal.length - 1] ?? "19:00",
+                  DEFAULT_REHAB_DAILY_SLOTS.timesLocal[
+                    DEFAULT_REHAB_DAILY_SLOTS.timesLocal.length - 1
+                  ] ?? '19:00',
                 ])
               }
             >
@@ -229,8 +235,10 @@ export function ReminderScheduleForm({
               disabled={submitting}
               onClick={() =>
                 setSlotTimeRows([
-                  DEFAULT_REHAB_DAILY_SLOTS.timesLocal[0] ?? "09:00",
-                  DEFAULT_REHAB_DAILY_SLOTS.timesLocal[DEFAULT_REHAB_DAILY_SLOTS.timesLocal.length - 1] ?? "19:00",
+                  DEFAULT_REHAB_DAILY_SLOTS.timesLocal[0] ?? '09:00',
+                  DEFAULT_REHAB_DAILY_SLOTS.timesLocal[
+                    DEFAULT_REHAB_DAILY_SLOTS.timesLocal.length - 1
+                  ] ?? '19:00',
                 ])
               }
             >
@@ -243,10 +251,11 @@ export function ReminderScheduleForm({
               disabled={submitting}
               onClick={() =>
                 setSlotTimeRows([
-                  DEFAULT_REHAB_DAILY_SLOTS.timesLocal[0] ?? "09:00",
-                  "13:00",
-                  DEFAULT_REHAB_DAILY_SLOTS.timesLocal[DEFAULT_REHAB_DAILY_SLOTS.timesLocal.length - 1] ??
-                    "19:00",
+                  DEFAULT_REHAB_DAILY_SLOTS.timesLocal[0] ?? '09:00',
+                  '13:00',
+                  DEFAULT_REHAB_DAILY_SLOTS.timesLocal[
+                    DEFAULT_REHAB_DAILY_SLOTS.timesLocal.length - 1
+                  ] ?? '19:00',
                 ])
               }
             >
@@ -295,18 +304,18 @@ export function ReminderScheduleForm({
             <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
-                variant={slotsDayFilter === "weekdays" ? "default" : "outline"}
+                variant={slotsDayFilter === 'weekdays' ? 'default' : 'outline'}
                 size="sm"
-                onClick={() => setSlotsDayFilter("weekdays")}
+                onClick={() => setSlotsDayFilter('weekdays')}
                 disabled={submitting}
               >
                 Пн–Пт
               </Button>
               <Button
                 type="button"
-                variant={slotsDayFilter === "weekly_mask" ? "default" : "outline"}
+                variant={slotsDayFilter === 'weekly_mask' ? 'default' : 'outline'}
                 size="sm"
-                onClick={() => setSlotsDayFilter("weekly_mask")}
+                onClick={() => setSlotsDayFilter('weekly_mask')}
                 disabled={submitting}
               >
                 Свои дни (маска)
@@ -317,42 +326,62 @@ export function ReminderScheduleForm({
       )}
 
       {!hideWeekdayMaskRow ? (
-      <div className={reminderScheduleSettingPanelClass}>
-        <Label>Дни недели</Label>
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" size="sm" variant="secondary" disabled={submitting} onClick={() => applyWeekdayPreset("weekdays")}>
-            Будни
-          </Button>
-          <Button type="button" size="sm" variant="secondary" disabled={submitting} onClick={() => applyWeekdayPreset("all")}>
-            Все дни
-          </Button>
-          <Button type="button" size="sm" variant="secondary" disabled={submitting} onClick={() => applyWeekdayPreset("clear")}>
-            Снять все
-          </Button>
+        <div className={reminderScheduleSettingPanelClass}>
+          <Label>Дни недели</Label>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              disabled={submitting}
+              onClick={() => applyWeekdayPreset('weekdays')}
+            >
+              Будни
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              disabled={submitting}
+              onClick={() => applyWeekdayPreset('all')}
+            >
+              Все дни
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              disabled={submitting}
+              onClick={() => applyWeekdayPreset('clear')}
+            >
+              Снять все
+            </Button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {WEEKDAY_LABELS.map((label, i) => {
+              const on = daysMask[i] === '1';
+              return (
+                <Button
+                  key={label}
+                  type="button"
+                  size="sm"
+                  variant={on ? 'default' : 'outline'}
+                  className={cn('min-w-11', !on && 'text-muted-foreground')}
+                  onClick={() => setDaysMask((m) => toggleDayMaskReminder(m, i))}
+                  disabled={submitting}
+                  aria-invalid={fi.daysMask && i === 0 ? true : undefined}
+                >
+                  {label}
+                </Button>
+              );
+            })}
+          </div>
+          {scheduleMode === 'slots_v1' && slotsDayFilter === 'weekly_mask' ? (
+            <p className="text-xs text-muted-foreground">
+              Выберите дни для фиксированных напоминаний.
+            </p>
+          ) : null}
         </div>
-        <div className="flex flex-wrap gap-2">
-          {WEEKDAY_LABELS.map((label, i) => {
-            const on = daysMask[i] === "1";
-            return (
-              <Button
-                key={label}
-                type="button"
-                size="sm"
-                variant={on ? "default" : "outline"}
-                className={cn("min-w-11", !on && "text-muted-foreground")}
-                onClick={() => setDaysMask((m) => toggleDayMaskReminder(m, i))}
-                disabled={submitting}
-                aria-invalid={fi.daysMask && i === 0 ? true : undefined}
-              >
-                {label}
-              </Button>
-            );
-          })}
-        </div>
-        {scheduleMode === "slots_v1" && slotsDayFilter === "weekly_mask" ? (
-          <p className="text-xs text-muted-foreground">Выберите дни для фиксированных напоминаний.</p>
-        ) : null}
-      </div>
       ) : (
         <div className={reminderScheduleSettingPanelClass}>
           <p className="text-xs text-muted-foreground">
@@ -363,7 +392,9 @@ export function ReminderScheduleForm({
 
       <div className={reminderScheduleSettingPanelClass}>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Предпросмотр</span>
+          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Предпросмотр
+          </span>
           <Badge variant="secondary" className="font-normal">
             {previewBadgeLabel}
           </Badge>

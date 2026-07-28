@@ -1,34 +1,36 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { NextResponse } from "next/server";
-import type { ReminderRule } from "@/modules/reminders/types";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { NextResponse } from 'next/server';
+import type { ReminderRule } from '@/modules/reminders/types';
 
 const requireDoctorWorkspaceApiContextMock = vi.hoisted(() => vi.fn());
-const withDoctorWorkspacePrincipalMock = vi.hoisted(() => vi.fn((_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
-  const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
-  if (!fn) throw new Error("principal_callback_required");
-  return fn();
-}));
+const withDoctorWorkspacePrincipalMock = vi.hoisted(() =>
+  vi.fn((_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
+    const fn = typeof sourceOrFn === 'function' ? sourceOrFn : maybeFn;
+    if (!fn) throw new Error('principal_callback_required');
+    return fn();
+  }),
+);
 const getClientIdentityForOrganizationMock = vi.hoisted(() => vi.fn());
 const listRulesByUserMock = vi.hoisted(() => vi.fn());
 const updateRuleMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/app-layer/guards/requireRole", () => ({
+vi.mock('@/app-layer/guards/requireRole', () => ({
   requireDoctorWorkspaceApiContext: () => requireDoctorWorkspaceApiContextMock(),
 }));
 
-vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
+vi.mock('@/app-layer/guards/doctorWorkspacePrincipal', () => ({
   withDoctorWorkspacePrincipal: (
     ctx: unknown,
     sourceOrFn: string | (() => unknown),
     maybeFn?: () => unknown,
   ) => {
-    const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
-    if (!fn) throw new Error("principal_callback_required");
+    const fn = typeof sourceOrFn === 'function' ? sourceOrFn : maybeFn;
+    if (!fn) throw new Error('principal_callback_required');
     return withDoctorWorkspacePrincipalMock(ctx, fn);
   },
 }));
 
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
     doctorClientsPort: {
       getClientIdentityForOrganization: getClientIdentityForOrganizationMock,
@@ -40,62 +42,62 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   }),
 }));
 
-import { GET, PATCH } from "./route";
+import { GET, PATCH } from './route';
 
-const patientId = "123e4567-e89b-42d3-a456-426614174000";
-const organizationId = "223e4567-e89b-42d3-a456-426614174000";
+const patientId = '123e4567-e89b-42d3-a456-426614174000';
+const organizationId = '223e4567-e89b-42d3-a456-426614174000';
 
 const warmupRule: ReminderRule = {
-  id: "rule-1",
+  id: 'rule-1',
   integratorUserId: null,
-  category: "important",
+  category: 'important',
   enabled: true,
   intervalMinutes: null,
   windowStartMinute: 8 * 60,
   windowEndMinute: 20 * 60,
-  daysMask: "1111111",
-  timezone: "Europe/Moscow",
+  daysMask: '1111111',
+  timezone: 'Europe/Moscow',
   fallbackEnabled: true,
-  linkedObjectType: "content_section",
-  linkedObjectId: "warmups",
+  linkedObjectType: 'content_section',
+  linkedObjectId: 'warmups',
   customTitle: null,
   customText: null,
-  scheduleType: "slots_v1",
+  scheduleType: 'slots_v1',
   scheduleData: {
-    timesLocal: ["09:00"],
-    dayFilter: "weekdays",
+    timesLocal: ['09:00'],
+    dayFilter: 'weekdays',
   },
-  reminderIntent: "warmup",
+  reminderIntent: 'warmup',
   displayTitle: null,
   displayDescription: null,
   quietHoursStartMinute: null,
   quietHoursEndMinute: null,
   notificationTopicCode: null,
-  updatedAt: "2026-01-01T00:00:00.000Z",
+  updatedAt: '2026-01-01T00:00:00.000Z',
 };
 
 function patch(body: unknown) {
   return new Request(`http://localhost/api/doctor/clients/${patientId}/warmup-schedule`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
 }
 
-describe("doctor client warmup-schedule route", () => {
+describe('doctor client warmup-schedule route', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     requireDoctorWorkspaceApiContextMock.mockResolvedValue({
       ok: true,
       ctx: {
         organizationId,
-        session: { user: { userId: "doc-1", role: "doctor" } },
+        session: { user: { userId: 'doc-1', role: 'doctor' } },
       },
     });
     withDoctorWorkspacePrincipalMock.mockImplementation(
       (_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
-        const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
-        if (!fn) throw new Error("principal_callback_required");
+        const fn = typeof sourceOrFn === 'function' ? sourceOrFn : maybeFn;
+        if (!fn) throw new Error('principal_callback_required');
         return fn();
       },
     );
@@ -104,13 +106,16 @@ describe("doctor client warmup-schedule route", () => {
     updateRuleMock.mockResolvedValue({ ok: true, data: warmupRule });
   });
 
-  it("GET returns workspace gate response when doctor workspace is unavailable", async () => {
+  it('GET returns workspace gate response when doctor workspace is unavailable', async () => {
     requireDoctorWorkspaceApiContextMock.mockResolvedValueOnce({
       ok: false,
-      response: NextResponse.json({ ok: false, error: "doctor_workspace_membership_required" }, { status: 403 }),
+      response: NextResponse.json(
+        { ok: false, error: 'doctor_workspace_membership_required' },
+        { status: 403 },
+      ),
     });
 
-    const res = await GET(new Request("http://localhost"), {
+    const res = await GET(new Request('http://localhost'), {
       params: Promise.resolve({ userId: patientId }),
     });
 
@@ -118,15 +123,15 @@ describe("doctor client warmup-schedule route", () => {
     expect(listRulesByUserMock).not.toHaveBeenCalled();
   });
 
-  it("GET resolves patient inside selected organization", async () => {
-    const res = await GET(new Request("http://localhost"), {
+  it('GET resolves patient inside selected organization', async () => {
+    const res = await GET(new Request('http://localhost'), {
       params: Promise.resolve({ userId: patientId }),
     });
 
     const body = (await res.json()) as { ok: boolean; rule: { id: string } | null };
     expect(res.status).toBe(200);
     expect(body.ok).toBe(true);
-    expect(body.rule?.id).toBe("rule-1");
+    expect(body.rule?.id).toBe('rule-1');
     expect(getClientIdentityForOrganizationMock).toHaveBeenCalledWith(patientId, organizationId);
     expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
       expect.objectContaining({ organizationId }),
@@ -134,8 +139,8 @@ describe("doctor client warmup-schedule route", () => {
     );
   });
 
-  it("PATCH updates warmup rule under workspace principal", async () => {
-    const res = await PATCH(patch({ timesLocal: ["10:30"], dayFilter: "weekdays" }), {
+  it('PATCH updates warmup rule under workspace principal', async () => {
+    const res = await PATCH(patch({ timesLocal: ['10:30'], dayFilter: 'weekdays' }), {
       params: Promise.resolve({ userId: patientId }),
     });
 
@@ -147,20 +152,20 @@ describe("doctor client warmup-schedule route", () => {
     );
     expect(updateRuleMock).toHaveBeenCalledWith(
       patientId,
-      "rule-1",
+      'rule-1',
       expect.objectContaining({
         schedule: expect.objectContaining({
-          scheduleType: "slots_v1",
-          scheduleData: expect.objectContaining({ timesLocal: ["10:30"] }),
+          scheduleType: 'slots_v1',
+          scheduleData: expect.objectContaining({ timesLocal: ['10:30'] }),
         }),
       }),
     );
   });
 
-  it("PATCH returns 404 when patient is outside selected organization", async () => {
+  it('PATCH returns 404 when patient is outside selected organization', async () => {
     getClientIdentityForOrganizationMock.mockResolvedValueOnce(null);
 
-    const res = await PATCH(patch({ timesLocal: ["10:30"] }), {
+    const res = await PATCH(patch({ timesLocal: ['10:30'] }), {
       params: Promise.resolve({ userId: patientId }),
     });
 

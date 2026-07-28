@@ -1,4 +1,4 @@
-export const PROGRAM_NOTE_REPLY_STATE_SUFFIX = "#pn:";
+export const PROGRAM_NOTE_REPLY_STATE_SUFFIX = '#pn:';
 
 export type ProgramNoteReplyContext = {
   organizationId: string;
@@ -11,29 +11,32 @@ export type ProgramNoteReplyContext = {
   itemStatus: string;
 };
 
-export function buildProgramNoteReplyState(integratorConversationId: string, stageItemId: string): string {
+export function buildProgramNoteReplyState(
+  integratorConversationId: string,
+  stageItemId: string,
+): string {
   return `admin_reply:${integratorConversationId}${PROGRAM_NOTE_REPLY_STATE_SUFFIX}${stageItemId}`;
 }
 
 export function exerciseTitleFromSnapshot(snapshot: unknown): string {
-  if (snapshot && typeof snapshot === "object" && "title" in snapshot) {
+  if (snapshot && typeof snapshot === 'object' && 'title' in snapshot) {
     const title = (snapshot as { title?: unknown }).title;
-    if (typeof title === "string" && title.trim()) return title.trim();
+    if (typeof title === 'string' && title.trim()) return title.trim();
   }
-  return "Пункт программы";
+  return 'Пункт программы';
 }
 
 export function formatPatientExerciseCommentReplyText(input: {
   exerciseTitle: string;
   doctorText: string;
 }): string {
-  const title = input.exerciseTitle.trim() || "Пункт программы";
+  const title = input.exerciseTitle.trim() || 'Пункт программы';
   const body = input.doctorText.trim();
   return `${patientExerciseCommentReplyPrefix(title)}\n\n${body}`;
 }
 
 export function patientExerciseCommentReplyPrefix(exerciseTitle: string): string {
-  const title = exerciseTitle.trim() || "Пункт программы";
+  const title = exerciseTitle.trim() || 'Пункт программы';
   return `Ответ на ваш комментарий к упражнению «${title}»:`;
 }
 

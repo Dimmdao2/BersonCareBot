@@ -1,19 +1,23 @@
-import { isRecipientBlockedBotDispatchError } from "./recipientBotBlocked.js";
+import { isRecipientBlockedBotDispatchError } from './recipientBotBlocked.js';
 
 /** Статусы строки `public.outgoing_delivery_queue` (см. миграцию webapp). */
 export const OUTGOING_DELIVERY_STATUSES = [
-  "pending",
-  "processing",
-  "sent",
-  "failed_retryable",
-  "dead",
+  'pending',
+  'processing',
+  'sent',
+  'failed_retryable',
+  'dead',
 ] as const;
 
 export type OutgoingDeliveryStatus = (typeof OUTGOING_DELIVERY_STATUSES)[number];
 
-export type OutgoingDeliveryKind = "operator_alert" | "reminder_dispatch" | "doctor_broadcast_intent";
+export type OutgoingDeliveryKind =
+  | 'operator_alert'
+  | 'reminder_dispatch'
+  | 'doctor_broadcast_intent';
 
-export const DOCTOR_BROADCAST_INTENT_QUEUE_KIND = "doctor_broadcast_intent" as const satisfies OutgoingDeliveryKind;
+export const DOCTOR_BROADCAST_INTENT_QUEUE_KIND =
+  'doctor_broadcast_intent' as const satisfies OutgoingDeliveryKind;
 
 export const DEFAULT_REMINDER_DELIVERY_MAX_ATTEMPTS = 6;
 
@@ -46,13 +50,13 @@ export function truncateDeliveryErrorMessage(message: string, maxLen = 900): str
 export function isOutgoingDeliveryDispatchErrorRetryable(errorMessage: string): boolean {
   const m = errorMessage.trim();
   if (isRecipientBlockedBotDispatchError(m)) return false;
-  if (m.startsWith("CHANNEL_NOT_SPECIFIED")) return false;
-  if (m.startsWith("CHANNEL_NOT_SUPPORTED:")) return false;
-  if (m.startsWith("PLATFORM_INTEGRATION_DISABLED:")) return false;
-  if (m.startsWith("BAD_PAYLOAD")) return false;
-  if (m.startsWith("MISSING_INCIDENT_ID")) return false;
-  if (m.startsWith("MISSING_REMINDER_FIELDS")) return false;
-  if (m.startsWith("MISSING_BROADCAST_AUDIT_ID")) return false;
-  if (m.startsWith("UNKNOWN_KIND:")) return false;
+  if (m.startsWith('CHANNEL_NOT_SPECIFIED')) return false;
+  if (m.startsWith('CHANNEL_NOT_SUPPORTED:')) return false;
+  if (m.startsWith('PLATFORM_INTEGRATION_DISABLED:')) return false;
+  if (m.startsWith('BAD_PAYLOAD')) return false;
+  if (m.startsWith('MISSING_INCIDENT_ID')) return false;
+  if (m.startsWith('MISSING_REMINDER_FIELDS')) return false;
+  if (m.startsWith('MISSING_BROADCAST_AUDIT_ID')) return false;
+  if (m.startsWith('UNKNOWN_KIND:')) return false;
   return true;
 }

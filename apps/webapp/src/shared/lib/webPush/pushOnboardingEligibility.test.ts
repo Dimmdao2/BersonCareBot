@@ -1,130 +1,130 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'vitest';
 import {
   resolveWebPushUiStatus,
   shouldShowPushOnboardingPrompt,
-} from "@/shared/lib/webPush/pushOnboardingEligibility";
+} from '@/shared/lib/webPush/pushOnboardingEligibility';
 
 const grantedBase = {
   pushSupported: true,
   pushNeedsPwaInstall: false,
   standalone: true,
-  permission: "granted" as const,
+  permission: 'granted' as const,
   hasLocalSubscription: true,
   hasServerSubscription: true,
   globalWebPushEnabled: true,
   vapidConfigured: true,
 };
 
-describe("resolveWebPushUiStatus", () => {
-  it("marks browser tab on phone as needs_pwa before push probe", () => {
+describe('resolveWebPushUiStatus', () => {
+  it('marks browser tab on phone as needs_pwa before push probe', () => {
     expect(
       resolveWebPushUiStatus({
         pushSupported: false,
         pushNeedsPwaInstall: true,
         standalone: false,
-        permission: "default",
+        permission: 'default',
         hasLocalSubscription: false,
         hasServerSubscription: false,
         globalWebPushEnabled: false,
         vapidConfigured: true,
       }),
-    ).toBe("needs_pwa");
+    ).toBe('needs_pwa');
   });
 
-  it("marks browser-only as needs_pwa when push is supported but not standalone", () => {
+  it('marks browser-only as needs_pwa when push is supported but not standalone', () => {
     expect(
       resolveWebPushUiStatus({
         pushSupported: true,
         pushNeedsPwaInstall: false,
         standalone: false,
-        permission: "default",
+        permission: 'default',
         hasLocalSubscription: false,
         hasServerSubscription: false,
         globalWebPushEnabled: false,
         vapidConfigured: true,
       }),
-    ).toBe("needs_pwa");
+    ).toBe('needs_pwa');
   });
 
-  it("marks granted without full chain as restore candidate", () => {
+  it('marks granted without full chain as restore candidate', () => {
     expect(
       resolveWebPushUiStatus({
         ...grantedBase,
         hasServerSubscription: false,
       }),
-    ).toBe("granted_no_subscription");
+    ).toBe('granted_no_subscription');
   });
 
-  it("marks enabled when local, server and global pref are active", () => {
-    expect(resolveWebPushUiStatus(grantedBase)).toBe("enabled");
+  it('marks enabled when local, server and global pref are active', () => {
+    expect(resolveWebPushUiStatus(grantedBase)).toBe('enabled');
   });
 
-  it("marks granted with server only as restore candidate", () => {
+  it('marks granted with server only as restore candidate', () => {
     expect(
       resolveWebPushUiStatus({
         ...grantedBase,
         hasLocalSubscription: false,
       }),
-    ).toBe("granted_no_subscription");
+    ).toBe('granted_no_subscription');
   });
 
-  it("marks denied in standalone PWA", () => {
+  it('marks denied in standalone PWA', () => {
     expect(
       resolveWebPushUiStatus({
         ...grantedBase,
-        permission: "denied",
+        permission: 'denied',
         hasLocalSubscription: false,
         hasServerSubscription: false,
         globalWebPushEnabled: false,
       }),
-    ).toBe("denied_system");
+    ).toBe('denied_system');
   });
 });
 
-describe("shouldShowPushOnboardingPrompt", () => {
+describe('shouldShowPushOnboardingPrompt', () => {
   const base = {
     standalone: true,
     pushSupported: true,
-    permission: "default" as const,
+    permission: 'default' as const,
     hasLocalSubscription: false,
     hasServerSubscription: false,
     promptDismissedAt: null,
     dismissedCooldownDays: 14,
     vapidConfigured: true,
-    now: new Date("2026-05-18T12:00:00.000Z"),
+    now: new Date('2026-05-18T12:00:00.000Z'),
   };
 
-  it("shows when all gates pass", () => {
+  it('shows when all gates pass', () => {
     expect(shouldShowPushOnboardingPrompt(base)).toBe(true);
   });
 
-  it("hides in browser tab", () => {
+  it('hides in browser tab', () => {
     expect(shouldShowPushOnboardingPrompt({ ...base, standalone: false })).toBe(false);
   });
 
-  it("hides when dismissed recently", () => {
+  it('hides when dismissed recently', () => {
     expect(
       shouldShowPushOnboardingPrompt({
         ...base,
-        promptDismissedAt: "2026-05-10T12:00:00.000Z",
+        promptDismissedAt: '2026-05-10T12:00:00.000Z',
       }),
     ).toBe(false);
   });
 
-  it("shows again after cooldown", () => {
+  it('shows again after cooldown', () => {
     expect(
       shouldShowPushOnboardingPrompt({
         ...base,
-        promptDismissedAt: "2026-04-01T12:00:00.000Z",
+        promptDismissedAt: '2026-04-01T12:00:00.000Z',
       }),
     ).toBe(true);
   });
 
-  it("hides when server subscription exists", () => {
+  it('hides when server subscription exists', () => {
     expect(shouldShowPushOnboardingPrompt({ ...base, hasServerSubscription: true })).toBe(false);
   });
 
-  it("hides when permission denied", () => {
-    expect(shouldShowPushOnboardingPrompt({ ...base, permission: "denied" })).toBe(false);
+  it('hides when permission denied', () => {
+    expect(shouldShowPushOnboardingPrompt({ ...base, permission: 'denied' })).toBe(false);
   });
 });

@@ -3,7 +3,7 @@ import type {
   OperatorHealthReadPort,
   OperatorJobStatusTickRow,
   OutgoingDeliveryQueueHealthSnapshot,
-} from "@/modules/operator-health/ports";
+} from '@/modules/operator-health/ports';
 
 export const inMemoryOperatorHealthReadPort: OperatorHealthReadPort = {
   async listOpenIncidents() {

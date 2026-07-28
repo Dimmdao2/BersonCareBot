@@ -1,51 +1,51 @@
-import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { createLoginTokenPlain, hashLoginTokenPlain } from "@/modules/auth/messengerLoginToken";
-import { getTelegramLoginBotUsername } from "@/modules/system-settings/telegramLoginBotUsername";
-import { isMessengerStartRateLimited } from "@/modules/auth/messengerStartRateLimit";
-import { normalizePhone } from "@/modules/auth/phoneNormalize";
-import { isValidPhoneE164 } from "@/modules/auth/phoneValidation";
-import { isAuthChannelEnabled } from "@/modules/auth/authChannelPolicy";
+import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { ensureAuthModulePortsBound } from '@/app-layer/di/bindAuthModulePorts';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { createLoginTokenPlain, hashLoginTokenPlain } from '@/modules/auth/messengerLoginToken';
+import { getTelegramLoginBotUsername } from '@/modules/system-settings/telegramLoginBotUsername';
+import { isMessengerStartRateLimited } from '@/modules/auth/messengerStartRateLimit';
+import { normalizePhone } from '@/modules/auth/phoneNormalize';
+import { isValidPhoneE164 } from '@/modules/auth/phoneValidation';
+import { isAuthChannelEnabled } from '@/modules/auth/authChannelPolicy';
 
 const bodySchema = z.object({
   phone: z.string().min(1),
-  method: z.enum(["telegram", "max"]),
+  method: z.enum(['telegram', 'max']),
 });
 
 const LOGIN_TTL_MS = 10 * 60 * 1000;
 
 export async function POST(request: Request) {
-  stampBootstrapPrincipal("api/auth/messenger/start:POST", request);
+  stampBootstrapPrincipal('api/auth/messenger/start:POST', request);
   ensureAuthModulePortsBound();
 
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
     return NextResponse.json(
-      { ok: false, error: "invalid_body", message: "Укажите телефон и канал" },
-      { status: 400 }
+      { ok: false, error: 'invalid_body', message: 'Укажите телефон и канал' },
+      { status: 400 },
     );
   }
 
   const phone = normalizePhone(parsed.data.phone);
   if (!isValidPhoneE164(phone)) {
     return NextResponse.json(
-      { ok: false, error: "invalid_phone", message: "Неверный формат номера" },
-      { status: 400 }
+      { ok: false, error: 'invalid_phone', message: 'Неверный формат номера' },
+      { status: 400 },
     );
   }
 
   if (!(await isAuthChannelEnabled(parsed.data.method))) {
-    return NextResponse.json({ ok: false, error: "auth_channel_disabled" }, { status: 403 });
+    return NextResponse.json({ ok: false, error: 'auth_channel_disabled' }, { status: 403 });
   }
 
   if (await isMessengerStartRateLimited(phone)) {
     return NextResponse.json(
-      { ok: false, error: "rate_limited", message: "Слишком много запросов. Попробуйте позже." },
-      { status: 429 }
+      { ok: false, error: 'rate_limited', message: 'Слишком много запросов. Попробуйте позже.' },
+      { status: 429 },
     );
   }
 
@@ -53,8 +53,8 @@ export async function POST(request: Request) {
   const user = await deps.userByPhone.findByPhone(phone);
   if (!user) {
     return NextResponse.json(
-      { ok: false, error: "user_not_found", message: "Пользователь не найден" },
-      { status: 404 }
+      { ok: false, error: 'user_not_found', message: 'Пользователь не найден' },
+      { status: 404 },
     );
   }
 
@@ -68,9 +68,9 @@ export async function POST(request: Request) {
     expiresAt,
   });
 
-  const bot = (await getTelegramLoginBotUsername()).replace(/^@/, "");
+  const bot = (await getTelegramLoginBotUsername()).replace(/^@/, '');
   const deepLink =
-    parsed.data.method === "telegram"
+    parsed.data.method === 'telegram'
       ? `https://t.me/${bot}?start=${encodeURIComponent(plain)}`
       : null;
 

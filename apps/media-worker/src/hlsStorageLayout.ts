@@ -1,4 +1,4 @@
-import { posix } from "node:path";
+import { posix } from 'node:path';
 
 /**
  * VIDEO_HLS_DELIVERY phase-03: canonical private-bucket layout next to source MP4.
@@ -10,24 +10,24 @@ import { posix } from "node:path";
  * Keep in sync with `apps/webapp/src/shared/lib/hlsStorageLayout.ts` (verified in CI: `pnpm run check:hls-helpers-sync`).
  */
 export function mediaRootFromSourceS3Key(s3Key: string): string {
-  return posix.dirname(s3Key.replace(/\/+$/, ""));
+  return posix.dirname(s3Key.replace(/\/+$/, ''));
 }
 
 export function hlsTreePrefixFromMediaRoot(mediaRoot: string): string {
-  return posix.join(mediaRoot.replace(/\/+$/, ""), "hls");
+  return posix.join(mediaRoot.replace(/\/+$/, ''), 'hls');
 }
 
 export function posterObjectKeyFromMediaRoot(mediaRoot: string): string {
-  return posix.join(mediaRoot.replace(/\/+$/, ""), "poster", "poster.jpg");
+  return posix.join(mediaRoot.replace(/\/+$/, ''), 'poster', 'poster.jpg');
 }
 
 export function masterPlaylistKeyFromMediaRoot(mediaRoot: string): string {
-  return posix.join(hlsTreePrefixFromMediaRoot(mediaRoot), "master.m3u8");
+  return posix.join(hlsTreePrefixFromMediaRoot(mediaRoot), 'master.m3u8');
 }
 
 /** Reject purge listing outside `media/{mediaId}/…`. */
 export function isCanonicalMediaRootForId(mediaRoot: string, mediaId: string): boolean {
-  return mediaRoot.replace(/\/+$/, "") === posix.join("media", mediaId);
+  return mediaRoot.replace(/\/+$/, '') === posix.join('media', mediaId);
 }
 
 /** Normalized HLS prefix for purge: must live under mediaRoot/hls. */
@@ -39,7 +39,7 @@ export function resolveHlsPurgeListPrefix(params: {
   const root = mediaRootFromSourceS3Key(params.sourceS3Key);
   if (!isCanonicalMediaRootForId(root, params.mediaId)) return null;
   const canonical = hlsTreePrefixFromMediaRoot(root);
-  const fromDb = params.hlsArtifactPrefix?.trim().replace(/\/+$/, "");
+  const fromDb = params.hlsArtifactPrefix?.trim().replace(/\/+$/, '');
   if (!fromDb) return canonical;
   if (fromDb === canonical || fromDb.startsWith(`${canonical}/`)) return fromDb;
   return canonical;
@@ -49,12 +49,12 @@ export function resolveHlsPurgeListPrefix(params: {
 export function resolvePosterPurgeListPrefix(mediaId: string, sourceS3Key: string): string | null {
   const root = mediaRootFromSourceS3Key(sourceS3Key);
   if (!isCanonicalMediaRootForId(root, mediaId)) return null;
-  return posix.join(root, "poster");
+  return posix.join(root, 'poster');
 }
 
 /** Trim + strip trailing slashes (S3 object keys use `/` as separator). */
 export function normalizeMediaS3Key(key: string): string {
-  return key.trim().replace(/\/+$/, "");
+  return key.trim().replace(/\/+$/, '');
 }
 
 /**
@@ -63,7 +63,7 @@ export function normalizeMediaS3Key(key: string): string {
  */
 export function isTrustedHlsArtifactS3Key(mediaId: string, key: string): boolean {
   const k = normalizeMediaS3Key(key);
-  const hlsDir = posix.join("media", mediaId, "hls");
+  const hlsDir = posix.join('media', mediaId, 'hls');
   return k === hlsDir || k.startsWith(`${hlsDir}/`);
 }
 
@@ -73,6 +73,6 @@ export function isTrustedHlsArtifactS3Key(mediaId: string, key: string): boolean
  */
 export function isTrustedPosterS3Key(mediaId: string, key: string): boolean {
   const k = normalizeMediaS3Key(key);
-  const posterDir = posix.join("media", mediaId, "poster");
+  const posterDir = posix.join('media', mediaId, 'poster');
   return k === posterDir || k.startsWith(`${posterDir}/`);
 }

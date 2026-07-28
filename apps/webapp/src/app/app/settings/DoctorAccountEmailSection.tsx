@@ -1,19 +1,23 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { apiJson } from "@/shared/lib/apiJson";
-import { Button } from "@/shared/ui/doctor/primitives/button";
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { apiJson } from '@/shared/lib/apiJson';
+import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/shared/ui/doctor/primitives/dialog";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
-import { OTP_TOO_MANY_ATTEMPTS_MESSAGE } from "@/modules/auth/otpConstants";
+} from '@/shared/ui/doctor/primitives/dialog';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import {
+  DoctorSection,
+  DoctorSectionHeader,
+  DoctorSectionTitle,
+} from '@/shared/ui/doctor/DoctorSection';
+import { OTP_TOO_MANY_ATTEMPTS_MESSAGE } from '@/modules/auth/otpConstants';
 
 type Props = {
   initialEmail: string | null;
@@ -22,12 +26,12 @@ type Props = {
 
 export function DoctorAccountEmailSection({ initialEmail, emailVerified }: Props) {
   const router = useRouter();
-  const [step, setStep] = useState<"view" | "enter" | "code">("view");
-  const [emailDraft, setEmailDraft] = useState("");
+  const [step, setStep] = useState<'view' | 'enter' | 'code'>('view');
+  const [emailDraft, setEmailDraft] = useState('');
   const [challengeId, setChallengeId] = useState<string | null>(null);
   const [retrySec, setRetrySec] = useState(60);
   const [startError, setStartError] = useState<string | null>(null);
-  const [code, setCode] = useState("");
+  const [code, setCode] = useState('');
   const [codeError, setCodeError] = useState<string | null>(null);
   const [codeLoading, setCodeLoading] = useState(false);
   const [resendCountdown, setResendCountdown] = useState(60);
@@ -38,8 +42,8 @@ export function DoctorAccountEmailSection({ initialEmail, emailVerified }: Props
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (step !== "code" || !challengeId) return;
-    setCode("");
+    if (step !== 'code' || !challengeId) return;
+    setCode('');
     setCodeError(null);
     setHardBlocked(false);
     setResendCountdown(retrySec);
@@ -47,7 +51,7 @@ export function DoctorAccountEmailSection({ initialEmail, emailVerified }: Props
   }, [challengeId, retrySec, step]);
 
   useEffect(() => {
-    if (step !== "code" || canResend) return;
+    if (step !== 'code' || canResend) return;
     if (resendCountdown <= 0) {
       setCanResend(true);
       return;
@@ -59,16 +63,19 @@ export function DoctorAccountEmailSection({ initialEmail, emailVerified }: Props
   const startEmail = async () => {
     setStartError(null);
     try {
-      const data = await apiJson<{ ok: boolean; challengeId: string; retryAfterSeconds?: number }>("/api/auth/email/start", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email: emailDraft.trim() }),
-      });
+      const data = await apiJson<{ ok: boolean; challengeId: string; retryAfterSeconds?: number }>(
+        '/api/auth/email/start',
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ email: emailDraft.trim() }),
+        },
+      );
       setChallengeId(data.challengeId);
       setRetrySec(data.retryAfterSeconds ?? 60);
-      setStep("code");
+      setStep('code');
     } catch (e) {
-      setStartError(e instanceof Error ? e.message : "Не удалось отправить код");
+      setStartError(e instanceof Error ? e.message : 'Не удалось отправить код');
     }
   };
 
@@ -77,22 +84,22 @@ export function DoctorAccountEmailSection({ initialEmail, emailVerified }: Props
     setCodeError(null);
     const raw = code.trim();
     if (!raw) {
-      setCodeError("Введите код");
+      setCodeError('Введите код');
       return;
     }
     setCodeLoading(true);
     try {
-      await apiJson<{ ok: boolean }>("/api/auth/email/confirm", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
+      await apiJson<{ ok: boolean }>('/api/auth/email/confirm', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ challengeId, code: raw }),
       });
-      setStep("view");
+      setStep('view');
       setChallengeId(null);
       router.refresh();
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Ошибка";
-      if (msg === "too_many_attempts") {
+      const msg = e instanceof Error ? e.message : 'Ошибка';
+      if (msg === 'too_many_attempts') {
         setHardBlocked(true);
         setCodeError(OTP_TOO_MANY_ATTEMPTS_MESSAGE);
         return;
@@ -107,13 +114,13 @@ export function DoctorAccountEmailSection({ initialEmail, emailVerified }: Props
     setDeleteError(null);
     setDeleteLoading(true);
     try {
-      await apiJson<{ ok: boolean }>("/api/doctor/account/email", { method: "DELETE" });
+      await apiJson<{ ok: boolean }>('/api/doctor/account/email', { method: 'DELETE' });
       setDeleteDialogOpen(false);
       router.refresh();
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Не удалось удалить email";
-      if (msg === "already_empty") {
-        setDeleteError("Email уже не указан");
+      const msg = e instanceof Error ? e.message : 'Не удалось удалить email';
+      if (msg === 'already_empty') {
+        setDeleteError('Email уже не указан');
         return;
       }
       setDeleteError(msg);
@@ -126,16 +133,19 @@ export function DoctorAccountEmailSection({ initialEmail, emailVerified }: Props
     if (hardBlocked) return;
     setCodeError(null);
     try {
-      const data = await apiJson<{ ok: boolean; challengeId: string; retryAfterSeconds?: number }>("/api/auth/email/start", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email: emailDraft.trim() }),
-      });
+      const data = await apiJson<{ ok: boolean; challengeId: string; retryAfterSeconds?: number }>(
+        '/api/auth/email/start',
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ email: emailDraft.trim() }),
+        },
+      );
       setChallengeId(data.challengeId);
       setRetrySec(data.retryAfterSeconds ?? 60);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Не удалось отправить код";
-      if (msg === "rate_limited") {
+      const msg = e instanceof Error ? e.message : 'Не удалось отправить код';
+      if (msg === 'rate_limited') {
         setCanResend(false);
         setResendCountdown(60);
         return;
@@ -150,7 +160,7 @@ export function DoctorAccountEmailSection({ initialEmail, emailVerified }: Props
         <DoctorSectionTitle>Email аккаунта</DoctorSectionTitle>
       </DoctorSectionHeader>
 
-      {step === "view" ? (
+      {step === 'view' ? (
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
@@ -158,7 +168,7 @@ export function DoctorAccountEmailSection({ initialEmail, emailVerified }: Props
                 <p className="text-sm">
                   {initialEmail}
                   <span className="text-muted-foreground ml-2 text-xs">
-                    {emailVerified ? "(подтверждён)" : "(не подтверждён)"}
+                    {emailVerified ? '(подтверждён)' : '(не подтверждён)'}
                   </span>
                 </p>
               ) : (
@@ -171,12 +181,12 @@ export function DoctorAccountEmailSection({ initialEmail, emailVerified }: Props
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  setStep("enter");
-                  setEmailDraft(initialEmail ?? "");
+                  setStep('enter');
+                  setEmailDraft(initialEmail ?? '');
                   setStartError(null);
                 }}
               >
-                {initialEmail ? "Изменить" : "Добавить"}
+                {initialEmail ? 'Изменить' : 'Добавить'}
               </Button>
               {initialEmail ? (
                 <Button
@@ -202,21 +212,32 @@ export function DoctorAccountEmailSection({ initialEmail, emailVerified }: Props
             <DialogTitle>Удалить email?</DialogTitle>
           </DialogHeader>
           <p className="text-muted-foreground text-sm">
-            Email будет сброшен у вашего аккаунта. Вход по email и уведомления на этот адрес перестанут работать.
+            Email будет сброшен у вашего аккаунта. Вход по email и уведомления на этот адрес
+            перестанут работать.
           </p>
           {deleteError ? <p className="text-destructive text-sm">{deleteError}</p> : null}
           <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setDeleteDialogOpen(false)} disabled={deleteLoading}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setDeleteDialogOpen(false)}
+              disabled={deleteLoading}
+            >
               Отмена
             </Button>
-            <Button variant="destructive" size="sm" onClick={() => void deleteEmail()} disabled={deleteLoading}>
-              {deleteLoading ? "Удаление…" : "Удалить"}
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => void deleteEmail()}
+              disabled={deleteLoading}
+            >
+              {deleteLoading ? 'Удаление…' : 'Удалить'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {step === "enter" ? (
+      {step === 'enter' ? (
         <div className="flex max-w-md flex-col gap-3">
           <label className="text-sm font-medium" htmlFor="doctor-account-email">
             Новый email
@@ -239,7 +260,7 @@ export function DoctorAccountEmailSection({ initialEmail, emailVerified }: Props
               variant="outline"
               size="sm"
               onClick={() => {
-                setStep("view");
+                setStep('view');
                 setChallengeId(null);
                 setStartError(null);
               }}
@@ -250,9 +271,11 @@ export function DoctorAccountEmailSection({ initialEmail, emailVerified }: Props
         </div>
       ) : null}
 
-      {step === "code" && challengeId ? (
+      {step === 'code' && challengeId ? (
         <div className="flex max-w-md flex-col gap-3">
-          <p className="text-muted-foreground text-sm">Код отправлен на указанный email. Введите его ниже.</p>
+          <p className="text-muted-foreground text-sm">
+            Код отправлен на указанный email. Введите его ниже.
+          </p>
           <label className="text-sm font-medium" htmlFor="doctor-account-email-code">
             Код подтверждения
           </label>
@@ -264,20 +287,25 @@ export function DoctorAccountEmailSection({ initialEmail, emailVerified }: Props
             placeholder="000000"
             maxLength={8}
             value={code}
-            onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
             disabled={codeLoading || hardBlocked}
           />
           {codeError ? <p className="text-destructive text-sm">{codeError}</p> : null}
           <div className="flex flex-wrap gap-2">
-            <Button type="button" size="sm" disabled={codeLoading || hardBlocked} onClick={() => void confirmCode()}>
-              {codeLoading ? "Проверка…" : "Подтвердить email"}
+            <Button
+              type="button"
+              size="sm"
+              disabled={codeLoading || hardBlocked}
+              onClick={() => void confirmCode()}
+            >
+              {codeLoading ? 'Проверка…' : 'Подтвердить email'}
             </Button>
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={() => {
-                setStep("enter");
+                setStep('enter');
                 setChallengeId(null);
               }}
             >
@@ -288,7 +316,9 @@ export function DoctorAccountEmailSection({ initialEmail, emailVerified }: Props
                 Отправить снова
               </Button>
             ) : !hardBlocked ? (
-              <span className="text-muted-foreground self-center text-xs">Повтор через {resendCountdown} с</span>
+              <span className="text-muted-foreground self-center text-xs">
+                Повтор через {resendCountdown} с
+              </span>
             ) : null}
           </div>
         </div>

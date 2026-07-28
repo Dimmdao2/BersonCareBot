@@ -8,14 +8,17 @@ export function mediaReadableSql(tableAlias: string): string {
 }
 
 /** Readable library rows (alias `m`). @deprecated Prefer `mediaReadableSql("m")` for clarity. */
-export const MEDIA_READABLE_SQL_M = mediaReadableSql("m");
+export const MEDIA_READABLE_SQL_M = mediaReadableSql('m');
 
 /**
  * WHERE clause fragment (without cursor/cutoff/limit) aligned with legacy reconcile candidate selection.
  * Use the same alias in `FROM media_files <alias>` and in {@link legacyHlsReconcileEligibleForEnqueueSqlFilter}
  * (`size_bytes` cap applies only to enqueue / health COUNT semantics).
  */
-export function legacyHlsBackfillCandidateWhereClause(tableAlias: string, includeFailed: boolean): string {
+export function legacyHlsBackfillCandidateWhereClause(
+  tableAlias: string,
+  includeFailed: boolean,
+): string {
   const m = tableAlias;
   const readable = mediaReadableSql(m);
   const statusMatch = includeFailed
@@ -45,7 +48,7 @@ export function legacyHlsBackfillCandidateWhereClause(tableAlias: string, includ
     )
     AND ${statusMatch}
   `
-    .replace(/\s+/g, " ")
+    .replace(/\s+/g, ' ')
     .trim();
 }
 
@@ -53,7 +56,10 @@ export function legacyHlsBackfillCandidateWhereClause(tableAlias: string, includ
  * Extra filter applied when counting / enqueueing reconcile candidates beyond SQL batch fetch:
  * objects over the cap are skipped in the JS loop (`runVideoHlsLegacyBackfill`) — mirror in SQL COUNT.
  */
-export function legacyHlsReconcileEligibleForEnqueueSqlFilter(tableAlias: string, maxSizeBytes: number): string {
+export function legacyHlsReconcileEligibleForEnqueueSqlFilter(
+  tableAlias: string,
+  maxSizeBytes: number,
+): string {
   const m = tableAlias;
   return `(${m}.size_bytes IS NULL OR ${m}.size_bytes <= ${maxSizeBytes}::bigint)`;
 }

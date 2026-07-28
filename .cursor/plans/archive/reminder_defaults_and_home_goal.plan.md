@@ -4,19 +4,19 @@ overview: Обновить дефолты расписания (rehab slots + «
 status: completed
 todos:
   - id: defaults-slots-office
-    content: "scheduleSlots: rehab 09:00/19:00 + weekly_mask 1111111; ОБЯЗАТЕЛЬНО rename константы (напр. DEFAULT_REHAB_DAILY_SLOTS) + все импорты; reminderFormDefaults; ReminderCreateDialog/LegacyReminderScheduleDialog/ReminderScheduleForm + pg/inMemory/service; rehab reset: slotsDayFilter/daysMask согласованы с константой"
+    content: 'scheduleSlots: rehab 09:00/19:00 + weekly_mask 1111111; ОБЯЗАТЕЛЬНО rename константы (напр. DEFAULT_REHAB_DAILY_SLOTS) + все импорты; reminderFormDefaults; ReminderCreateDialog/LegacyReminderScheduleDialog/ReminderScheduleForm + pg/inMemory/service; rehab reset: slotsDayFilter/daysMask согласованы с константой'
     status: completed
   - id: count-split-helpers
-    content: "nextReminderOccurrence (или patient-home): countPlannedHomeReminderOccurrencesForRule + countPlannedSubset(predicate); hasEnabledWarmupsSectionReminder(rules, resolvedWarmupsSlug); unit-тесты на subset и warmups-only"
+    content: 'nextReminderOccurrence (или patient-home): countPlannedHomeReminderOccurrencesForRule + countPlannedSubset(predicate); hasEnabledWarmupsSectionReminder(rules, resolvedWarmupsSlug); unit-тесты на subset и warmups-only'
     status: completed
   - id: patient-home-today
-    content: "PatientHomeToday: resolvePatientContentSectionSlug→warmupsLinkedId; plannedTotal/warmupPlanned/lfkPlanned; practiceTarget по матрице; mute→plannedTotal=0 practiceTarget=0; getProgress после финального practiceTarget для personalTier; пропсы разбивки; ОБЯЗАТЕЛЬНО один расчёт plannedTotal для reminderDaySummary и цели/разбивки"
+    content: 'PatientHomeToday: resolvePatientContentSectionSlug→warmupsLinkedId; plannedTotal/warmupPlanned/lfkPlanned; practiceTarget по матрице; mute→plannedTotal=0 practiceTarget=0; getProgress после финального practiceTarget для personalTier; пропсы разбивки; ОБЯЗАТЕЛЬНО один расчёт plannedTotal для reminderDaySummary и цели/разбивки'
     status: completed
   - id: progress-block-ui
-    content: "PatientHomeProgressBlock: flex items-baseline ряд «из N» + микроколонка справа от N; при mute или N=0 без разбивки — не рендерить микротекст; компактные подписи (без лишних пояснений); aria-label с суммой при разбивке"
+    content: 'PatientHomeProgressBlock: flex items-baseline ряд «из N» + микроколонка справа от N; при mute или N=0 без разбивки — не рендерить микротекст; компактные подписи (без лишних пояснений); aria-label с суммой при разбивке'
     status: completed
   - id: tests-docs
-    content: "ОБЯЗАТЕЛЬНО: vitest scheduleSlots, reminders service, nextReminderOccurrence, PatientHomeToday, POST create route.test; тесты ProgressBlock (узкий файл/расширение); rg по монорепо — все вхождения старых дефолтов закрыть в этом PR (включая integrator тесты/фикстуры); docs patient-home.md, reminders.md, CONFIGURATION"
+    content: 'ОБЯЗАТЕЛЬНО: vitest scheduleSlots, reminders service, nextReminderOccurrence, PatientHomeToday, POST create route.test; тесты ProgressBlock (узкий файл/расширение); rg по монорепо — все вхождения старых дефолтов закрыть в этом PR (включая integrator тесты/фикстуры); docs patient-home.md, reminders.md, CONFIGURATION'
     status: completed
 isProject: false
 ---
@@ -31,15 +31,15 @@ isProject: false
 
 ### Ранее было «мягко» — теперь обязательно к исполнению
 
-| Было в плане | Статус |
-|--------------|--------|
-| Переименование rehab-константы | **Обязательно** (ясность + поиск по репо) |
-| Выровнять `reminderDaySummary` с `plannedTotal` | **Обязательно** (единый источник в одном RSC-блоке) |
-| Поведение mute для микротекста | **Обязательно** скрывать разбивку, без «0/0» |
-| Варианты вёрстки `items-baseline` / `items-start` | **Обязательно** один вариант: `items-baseline` + бар ниже ряда |
-| «Склонения или короткие подписи» | **Обязательно** компактные подписи (минимум слов, без тяжёлого склонения), в духе ui-copy |
-| Тесты ProgressBlock «при наличии» | **Обязательно** покрытие разбивки / отсутствия при `null` |
-| Правки integrator «если найдётся» | **Обязательно** закрыть все вхождения, найденные `rg`, в том же PR |
+| Было в плане                                      | Статус                                                                                    |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Переименование rehab-константы                    | **Обязательно** (ясность + поиск по репо)                                                 |
+| Выровнять `reminderDaySummary` с `plannedTotal`   | **Обязательно** (единый источник в одном RSC-блоке)                                       |
+| Поведение mute для микротекста                    | **Обязательно** скрывать разбивку, без «0/0»                                              |
+| Варианты вёрстки `items-baseline` / `items-start` | **Обязательно** один вариант: `items-baseline` + бар ниже ряда                            |
+| «Склонения или короткие подписи»                  | **Обязательно** компактные подписи (минимум слов, без тяжёлого склонения), в духе ui-copy |
+| Тесты ProgressBlock «при наличии»                 | **Обязательно** покрытие разбивки / отсутствия при `null`                                 |
+| Правки integrator «если найдётся»                 | **Обязательно** закрыть все вхождения, найденные `rg`, в том же PR                        |
 
 ## Продуктовые решения
 
@@ -56,11 +56,11 @@ isProject: false
 
 ## Матрица «было → станет» (главная, tier patient)
 
-| Ситуация | Сейчас ([`PatientHomeToday.tsx`](apps/webapp/src/app/app/patient/home/PatientHomeToday.tsx)) | Станет |
-|----------|-----------------------------------------------------------------------------------------------|--------|
-| Есть любые linked enabled rules | Если `hasConfiguredHomeLinkedReminders` → `practiceTarget = plannedTotal` | Если **нет** warmups-section rule enabled → **`todayCfg.practiceTarget`** (даже при rehab-only и др.) |
-| Есть warmups-section rule enabled | Как строка выше | `practiceTarget = plannedTotal` |
-| Mute активен | `plannedTotal = 0`, но `practiceTarget` всё ещё мог переключаться на 0 при hasConfigured | **Обязательно:** `plannedTotal = 0` → `practiceTarget = 0`; микроколонку разбивки **не рендерить** (никаких «0 / 0»), только строка «из 0» и полоса как сейчас |
+| Ситуация                          | Сейчас ([`PatientHomeToday.tsx`](apps/webapp/src/app/app/patient/home/PatientHomeToday.tsx)) | Станет                                                                                                                                                         |
+| --------------------------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Есть любые linked enabled rules   | Если `hasConfiguredHomeLinkedReminders` → `practiceTarget = plannedTotal`                    | Если **нет** warmups-section rule enabled → **`todayCfg.practiceTarget`** (даже при rehab-only и др.)                                                          |
+| Есть warmups-section rule enabled | Как строка выше                                                                              | `practiceTarget = plannedTotal`                                                                                                                                |
+| Mute активен                      | `plannedTotal = 0`, но `practiceTarget` всё ещё мог переключаться на 0 при hasConfigured     | **Обязательно:** `plannedTotal = 0` → `practiceTarget = 0`; микроколонку разбивки **не рендерить** (никаких «0 / 0»), только строка «из 0» и полоса как сейчас |
 
 ```mermaid
 flowchart TD

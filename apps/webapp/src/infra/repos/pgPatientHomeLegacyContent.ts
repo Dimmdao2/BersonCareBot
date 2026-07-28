@@ -1,19 +1,19 @@
-import { and, asc, count, desc, eq, isNull, sql } from "drizzle-orm";
-import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { quoteDayKeyUtc, quoteIndexForDaySeed } from "@/modules/patient-home/patientHomeQuoteUtils";
+import { and, asc, count, desc, eq, isNull, sql } from 'drizzle-orm';
+import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { quoteDayKeyUtc, quoteIndexForDaySeed } from '@/modules/patient-home/patientHomeQuoteUtils';
 import type {
   HomeQuote,
   PatientHomeBanner,
   PatientHomeLegacyContentPort,
   PatientHomeMailingRow,
-} from "@/modules/patient-home/patientHomeLegacyContentPort";
+} from '@/modules/patient-home/patientHomeLegacyContentPort';
 import {
   mailingLogsWebapp,
   mailingTopicsWebapp,
   motivationalQuotes,
   platformUsers,
-} from "../../../db/schema";
+} from '../../../db/schema';
 
 function toIsoString(value: string): string {
   const d = new Date(value);
@@ -39,14 +39,16 @@ export function createPgPatientHomeLegacyContentPort(): PatientHomeLegacyContent
         const row = rows[0];
         if (!row) return null;
         const important =
-          row.key.toLowerCase().includes("important") || row.code.toLowerCase() === "important";
-        return { title: row.title, variant: important ? "important" : "info", key: row.key };
+          row.key.toLowerCase().includes('important') || row.code.toLowerCase() === 'important';
+        return { title: row.title, variant: important ? 'important' : 'info', key: row.key };
       } catch {
         return null;
       }
     },
 
-    async listRecentMailingLogsForPlatformUser(platformUserId: string): Promise<PatientHomeMailingRow[]> {
+    async listRecentMailingLogsForPlatformUser(
+      platformUserId: string,
+    ): Promise<PatientHomeMailingRow[]> {
       try {
         const db = getDrizzle();
         const rows = await db
@@ -77,7 +79,10 @@ export function createPgPatientHomeLegacyContentPort(): PatientHomeLegacyContent
       }
     },
 
-    async getQuoteForDay(daySeed: string, referenceDate: Date = new Date()): Promise<HomeQuote | null> {
+    async getQuoteForDay(
+      daySeed: string,
+      referenceDate: Date = new Date(),
+    ): Promise<HomeQuote | null> {
       try {
         const db = getDrizzle();
         const [countRow] = await db

@@ -56,10 +56,7 @@ export function createPostgresIdempotencyPort(db: DbPort): IdempotencyPort {
       return (res.rowCount ?? 0) > 0;
     },
     async release(key: string): Promise<void> {
-      await runIntegratorSql(
-        db,
-        sql`DELETE FROM integrator.idempotency_keys WHERE key = ${key}`,
-      );
+      await runIntegratorSql(db, sql`DELETE FROM integrator.idempotency_keys WHERE key = ${key}`);
     },
   };
 }

@@ -20,7 +20,7 @@
 
 ## 2. Методология проверки
 
-*(Без изменений по смыслу от первоначального аудита.)*
+_(Без изменений по смыслу от первоначального аудита.)_
 
 1. Построчное сопоставление разделов ТЗ «Целевое меню», «Поведение аккордеона», «Scope», «Definition of Done» с текущим кодом в `apps/webapp/src/shared/ui/` и CMS-сайдбаром.
 2. Просмотр [`doctorNavLinks.ts`](../../apps/webapp/src/shared/ui/doctorNavLinks.ts), [`DoctorMenuAccordion.tsx`](../../apps/webapp/src/shared/ui/DoctorMenuAccordion.tsx), интеграций в sidebar/header, [`doctorScreenTitles.ts`](../../apps/webapp/src/shared/ui/doctorScreenTitles.ts), [`ContentPagesSidebar.tsx`](../../apps/webapp/src/app/app/doctor/content/ContentPagesSidebar.tsx).
@@ -78,13 +78,13 @@
 
 ## 4. Логика функций (инспекция кода)
 
-| Функция / участок | Назначение | Проверка корректности |
-|-------------------|------------|------------------------|
-| `getDoctorMenuRenderSections()` | Единый порядок секций для sidebar и Sheet | Фиксированная последовательность: 3 кластера → standalone → 2 кластера; покрыто unit-тестом порядка типов секций. |
-| `isDoctorMenuClusterId(id)` | Валидация значения из `localStorage` | Совпадение с `DOCTOR_MENU_CLUSTERS[].id`. |
-| `isDoctorNavItemActive(href, pathname)` | Подсветка активного пункта | Спец-случай `/app/doctor` (только корень); для `/app/doctor/content` исключён префикс `/app/doctor/content/library`, чтобы медиатека не подсвечивала «CMS» — разумное уточнение UX; тесты в `doctorNavLinks.test.ts`. |
-| `DOCTOR_MENU_LINKS` | Плоский список без служебных действий | Сборка из кластеров + standalone; тест на отсутствие `/app/settings` и наличие library. |
-| `DoctorMenuAccordion` | UI + состояние открытого кластера | `persistOpenCluster` синхронизирует React и `localStorage`; ссылки вызывают `onNavigate` в Sheet; кластерные кнопки с `aria-expanded` / `aria-controls`. |
+| Функция / участок                       | Назначение                                | Проверка корректности                                                                                                                                                                                                 |
+| --------------------------------------- | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `getDoctorMenuRenderSections()`         | Единый порядок секций для sidebar и Sheet | Фиксированная последовательность: 3 кластера → standalone → 2 кластера; покрыто unit-тестом порядка типов секций.                                                                                                     |
+| `isDoctorMenuClusterId(id)`             | Валидация значения из `localStorage`      | Совпадение с `DOCTOR_MENU_CLUSTERS[].id`.                                                                                                                                                                             |
+| `isDoctorNavItemActive(href, pathname)` | Подсветка активного пункта                | Спец-случай `/app/doctor` (только корень); для `/app/doctor/content` исключён префикс `/app/doctor/content/library`, чтобы медиатека не подсвечивала «CMS» — разумное уточнение UX; тесты в `doctorNavLinks.test.ts`. |
+| `DOCTOR_MENU_LINKS`                     | Плоский список без служебных действий     | Сборка из кластеров + standalone; тест на отсутствие `/app/settings` и наличие library.                                                                                                                               |
+| `DoctorMenuAccordion`                   | UI + состояние открытого кластера         | `persistOpenCluster` синхронизирует React и `localStorage`; ссылки вызывают `onNavigate` в Sheet; кластерные кнопки с `aria-expanded` / `aria-controls`.                                                              |
 
 ---
 
@@ -122,12 +122,12 @@ cd apps/webapp && pnpm exec vitest run \
 
 ## 7. Пометки о выполнении в планах
 
-| Артефакт | Состояние (после пост-аудита 2026-05-02) |
-|-----------|------------------------------------------|
+| Артефакт                                                             | Состояние (после пост-аудита 2026-05-02)                                                    |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
 | [`DOCTOR_MENU_RESTRUCTURE_PLAN.md`](DOCTOR_MENU_RESTRUCTURE_PLAN.md) | Статус «выполнено», раздел «Аудит выполнения», уточнение про `aria-label` в `DoctorHeader`. |
-| Cursor plan (`.cursor/plans/…`) | Вне репозитория; канон — ТЗ + этот аудит + `LOG.md`. |
-| [PLAN_DOCTOR_CABINET.md](../PLAN_DOCTOR_CABINET.md) | Шаги этапа 2 и проверка `rg` приведены в соответствие с кодом. |
-| [RECOMMENDATIONS_AND_ROADMAP.md](../RECOMMENDATIONS_AND_ROADMAP.md) | Таблица «выполнено» и этап 6: ссылки на кластерное меню вместо `DOCTOR_MENU_ENTRIES`. |
+| Cursor plan (`.cursor/plans/…`)                                      | Вне репозитория; канон — ТЗ + этот аудит + `LOG.md`.                                        |
+| [PLAN_DOCTOR_CABINET.md](../PLAN_DOCTOR_CABINET.md)                  | Шаги этапа 2 и проверка `rg` приведены в соответствие с кодом.                              |
+| [RECOMMENDATIONS_AND_ROADMAP.md](../RECOMMENDATIONS_AND_ROADMAP.md)  | Таблица «выполнено» и этап 6: ссылки на кластерное меню вместо `DOCTOR_MENU_ENTRIES`.       |
 
 ---
 

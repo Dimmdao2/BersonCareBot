@@ -1,8 +1,8 @@
 #!/usr/bin/env tsx
 // HISTORICAL ONE-SHOT TOOL — Rubitime выведено 2026-07-27.
 // Kept for reproducible integrator-schema migration audits; it is not a live runtime workflow.
-import "dotenv/config";
-import pg from "pg";
+import 'dotenv/config';
+import pg from 'pg';
 
 const HELP = `Usage:
   DATABASE_URL=... pnpm --dir apps/webapp exec tsx scripts/integrator-schema-cleanup/02_backfill.ts
@@ -17,7 +17,7 @@ type CountRow = { count: string };
 type CopyResult = { inserted: string; updated: string };
 
 function toNumber(value: string | undefined): number {
-  const n = Number(value ?? "0");
+  const n = Number(value ?? '0');
   return Number.isFinite(n) ? n : 0;
 }
 
@@ -63,7 +63,7 @@ async function dryRunSystemSettingsMirror(client: pg.Client): Promise<Record<str
 }
 
 async function commitSystemSettingsMirror(client: pg.Client): Promise<CopyResult> {
-  await client.query("BEGIN");
+  await client.query('BEGIN');
   try {
     const inserted = await client.query<CountRow>(
       `WITH inserted AS (
@@ -94,44 +94,44 @@ async function commitSystemSettingsMirror(client: pg.Client): Promise<CopyResult
        )
        SELECT count(*)::text AS count FROM updated`,
     );
-    await client.query("COMMIT");
+    await client.query('COMMIT');
     return {
-      inserted: inserted.rows[0]?.count ?? "0",
-      updated: updated.rows[0]?.count ?? "0",
+      inserted: inserted.rows[0]?.count ?? '0',
+      updated: updated.rows[0]?.count ?? '0',
     };
   } catch (err) {
-    await client.query("ROLLBACK");
+    await client.query('ROLLBACK');
     throw err;
   }
 }
 
 async function main(): Promise<void> {
-  if (process.argv.includes("--help")) {
+  if (process.argv.includes('--help')) {
     console.log(HELP);
     return;
   }
-  const target = argValue("target") ?? "system-settings-mirror";
-  if (target !== "system-settings-mirror") {
+  const target = argValue('target') ?? 'system-settings-mirror';
+  if (target !== 'system-settings-mirror') {
     console.error(`Unknown target: ${target}`);
     process.exit(1);
   }
   const dbUrl = process.env.DATABASE_URL;
   if (!dbUrl) {
-    console.error("DATABASE_URL is required");
+    console.error('DATABASE_URL is required');
     process.exit(1);
   }
-  const commit = process.argv.includes("--commit");
+  const commit = process.argv.includes('--commit');
   const client = new pg.Client({ connectionString: dbUrl });
   await client.connect();
   try {
     const before = await dryRunSystemSettingsMirror(client);
     if (!commit) {
-      console.log(JSON.stringify({ mode: "dry-run", target, before }, null, 2));
+      console.log(JSON.stringify({ mode: 'dry-run', target, before }, null, 2));
       return;
     }
     const applied = await commitSystemSettingsMirror(client);
     const after = await dryRunSystemSettingsMirror(client);
-    console.log(JSON.stringify({ mode: "commit", target, before, applied, after }, null, 2));
+    console.log(JSON.stringify({ mode: 'commit', target, before, applied, after }, null, 2));
   } finally {
     await client.end();
   }

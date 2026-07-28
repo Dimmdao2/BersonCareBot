@@ -1,21 +1,21 @@
-import { parsePhoneNumberFromString } from "libphonenumber-js/min";
+import { parsePhoneNumberFromString } from 'libphonenumber-js/min';
 
 /**
  * РФ-only нормализация (цифры, 8→7, 10 цифр без кода страны → +7).
  * Сохранена для совместимости и как fallback после `parsePhoneNumberFromString`.
  */
 export function normalizePhoneRuLegacy(phone: string): string {
-  let digits = phone.replace(/\D/g, "");
-  if (digits.startsWith("00")) {
+  let digits = phone.replace(/\D/g, '');
+  if (digits.startsWith('00')) {
     digits = digits.slice(2);
   }
-  if (digits.length === 11 && digits.startsWith("8")) {
-    digits = "7" + digits.slice(1);
+  if (digits.length === 11 && digits.startsWith('8')) {
+    digits = '7' + digits.slice(1);
   }
   if (digits.length === 10) {
     digits = `7${digits}`;
   }
-  if (digits.length === 11 && digits.startsWith("7")) {
+  if (digits.length === 11 && digits.startsWith('7')) {
     return `+${digits}`;
   }
   return `+${digits}`;
@@ -34,24 +34,24 @@ export function normalizePhoneRuLegacy(phone: string): string {
 export function normalizePhoneInternational(phone: string): string {
   const trimmed = phone.trim();
   if (!trimmed) {
-    return "+";
+    return '+';
   }
 
-  if (trimmed.startsWith("+")) {
+  if (trimmed.startsWith('+')) {
     const parsed = parsePhoneNumberFromString(trimmed);
     if (parsed?.isValid()) {
-      return parsed.format("E.164");
+      return parsed.format('E.164');
     }
-    const compact = trimmed.replace(/\s/g, "");
-    if (compact.startsWith("+7") || compact.startsWith("+8")) {
+    const compact = trimmed.replace(/\s/g, '');
+    if (compact.startsWith('+7') || compact.startsWith('+8')) {
       return normalizePhoneRuLegacy(trimmed);
     }
     return trimmed;
   }
 
-  const parsedRu = parsePhoneNumberFromString(trimmed, "RU");
+  const parsedRu = parsePhoneNumberFromString(trimmed, 'RU');
   if (parsedRu?.isValid()) {
-    return parsedRu.format("E.164");
+    return parsedRu.format('E.164');
   }
 
   return normalizePhoneRuLegacy(trimmed);

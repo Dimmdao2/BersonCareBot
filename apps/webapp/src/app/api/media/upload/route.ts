@@ -1,10 +1,10 @@
-import { NextResponse } from "next/server";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { pgValidateUserAssignableMediaFolder } from "@/app-layer/media/clientMediaFolders";
-import { logger } from "@/app-layer/logging/logger";
-import { ALLOWED_MEDIA_MIME, MAX_PROXY_UPLOAD_BYTES } from "@/modules/media/uploadAllowedMime";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { NextResponse } from 'next/server';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { pgValidateUserAssignableMediaFolder } from '@/app-layer/media/clientMediaFolders';
+import { logger } from '@/app-layer/logging/logger';
+import { ALLOWED_MEDIA_MIME, MAX_PROXY_UPLOAD_BYTES } from '@/modules/media/uploadAllowedMime';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 
 function hasPrefix(bytes: Uint8Array, prefix: number[]): boolean {
   if (bytes.length < prefix.length) return false;
@@ -16,11 +16,17 @@ function hasPrefix(bytes: Uint8Array, prefix: number[]): boolean {
 
 /** ISO BMFF: 4-byte size then "ftyp" at offset 4. */
 function isIsoBmffFtyp(bytes: Uint8Array): boolean {
-  return bytes.length >= 12 && bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70;
+  return (
+    bytes.length >= 12 &&
+    bytes[4] === 0x66 &&
+    bytes[5] === 0x74 &&
+    bytes[6] === 0x79 &&
+    bytes[7] === 0x70
+  );
 }
 
 function readBrand4(bytes: Uint8Array, offset: number): string {
-  if (bytes.length < offset + 4) return "";
+  if (bytes.length < offset + 4) return '';
   return String.fromCharCode(
     bytes[offset]!,
     bytes[offset + 1]!,
@@ -32,72 +38,95 @@ function readBrand4(bytes: Uint8Array, offset: number): string {
 function isHeicHeif(bytes: Uint8Array): boolean {
   if (!isIsoBmffFtyp(bytes)) return false;
   const b = readBrand4(bytes, 8);
-  return ["heic", "heix", "hevc", "hevx", "mif1", "msf1"].includes(b);
+  return ['heic', 'heix', 'hevc', 'hevx', 'mif1', 'msf1'].includes(b);
 }
 
 function isAvifBrand(bytes: Uint8Array): boolean {
   if (!isIsoBmffFtyp(bytes)) return false;
   const b = readBrand4(bytes, 8);
-  return b === "avif" || b === "avis";
+  return b === 'avif' || b === 'avis';
 }
 
 /** M4A / generic audio in MP4 container. */
 function isAudioMp4Container(bytes: Uint8Array): boolean {
   if (!isIsoBmffFtyp(bytes)) return false;
   const b = readBrand4(bytes, 8);
-  return ["isom", "iso2", "mp41", "mp42", "M4A ", "M4V ", "dash"].includes(b);
+  return ['isom', 'iso2', 'mp41', 'mp42', 'M4A ', 'M4V ', 'dash'].includes(b);
 }
 
 function isSvgText(bytes: Uint8Array): boolean {
   try {
-    const dec = new TextDecoder("utf-8", { fatal: false }).decode(bytes.subarray(0, Math.min(512, bytes.length)));
-    const t = dec.trimStart().replace(/^\uFEFF/, "");
+    const dec = new TextDecoder('utf-8', { fatal: false }).decode(
+      bytes.subarray(0, Math.min(512, bytes.length)),
+    );
+    const t = dec.trimStart().replace(/^\uFEFF/, '');
     const lower = t.slice(0, 32).toLowerCase();
-    return lower.startsWith("<?xml") || lower.startsWith("<svg");
+    return lower.startsWith('<?xml') || lower.startsWith('<svg');
   } catch {
     return false;
   }
 }
 
 function isAllowedByMagicBytes(mime: string, bytes: Uint8Array): boolean {
-  if (mime === "image/jpeg") {
+  if (mime === 'image/jpeg') {
     return hasPrefix(bytes, [0xff, 0xd8, 0xff]);
   }
-  if (mime === "image/png") {
+  if (mime === 'image/png') {
     return hasPrefix(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
   }
-  if (mime === "image/gif") {
-    return hasPrefix(bytes, [0x47, 0x49, 0x46, 0x38, 0x37, 0x61]) || hasPrefix(bytes, [0x47, 0x49, 0x46, 0x38, 0x39, 0x61]);
-  }
-  if (mime === "image/webp") {
-    return bytes.length >= 12 && hasPrefix(bytes, [0x52, 0x49, 0x46, 0x46]) && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50;
-  }
-  if (mime === "image/heic" || mime === "image/heif") {
-    return isHeicHeif(bytes);
-  }
-  if (mime === "image/avif") {
-    return isAvifBrand(bytes);
-  }
-  if (mime === "image/tiff") {
+  if (mime === 'image/gif') {
     return (
-      (bytes.length >= 4 && bytes[0] === 0x49 && bytes[1] === 0x49 && bytes[2] === 0x2a && bytes[3] === 0) ||
-      (bytes.length >= 4 && bytes[0] === 0x4d && bytes[1] === 0x4d && bytes[2] === 0 && bytes[3] === 0x2a)
+      hasPrefix(bytes, [0x47, 0x49, 0x46, 0x38, 0x37, 0x61]) ||
+      hasPrefix(bytes, [0x47, 0x49, 0x46, 0x38, 0x39, 0x61])
     );
   }
-  if (mime === "image/svg+xml") {
+  if (mime === 'image/webp') {
+    return (
+      bytes.length >= 12 &&
+      hasPrefix(bytes, [0x52, 0x49, 0x46, 0x46]) &&
+      bytes[8] === 0x57 &&
+      bytes[9] === 0x45 &&
+      bytes[10] === 0x42 &&
+      bytes[11] === 0x50
+    );
+  }
+  if (mime === 'image/heic' || mime === 'image/heif') {
+    return isHeicHeif(bytes);
+  }
+  if (mime === 'image/avif') {
+    return isAvifBrand(bytes);
+  }
+  if (mime === 'image/tiff') {
+    return (
+      (bytes.length >= 4 &&
+        bytes[0] === 0x49 &&
+        bytes[1] === 0x49 &&
+        bytes[2] === 0x2a &&
+        bytes[3] === 0) ||
+      (bytes.length >= 4 &&
+        bytes[0] === 0x4d &&
+        bytes[1] === 0x4d &&
+        bytes[2] === 0 &&
+        bytes[3] === 0x2a)
+    );
+  }
+  if (mime === 'image/svg+xml') {
     /* Do not render raw SVG in <img> without sanitization — download-only in CMS. */
     return isSvgText(bytes);
   }
-  if (mime === "video/mp4" || mime === "video/quicktime") {
+  if (mime === 'video/mp4' || mime === 'video/quicktime') {
     return isIsoBmffFtyp(bytes);
   }
-  if (mime === "video/webm") {
+  if (mime === 'video/webm') {
     return hasPrefix(bytes, [0x1a, 0x45, 0xdf, 0xa3]);
   }
-  if (mime === "audio/mpeg") {
-    return hasPrefix(bytes, [0x49, 0x44, 0x33]) || (bytes.length >= 2 && bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0);
+  if (mime === 'audio/mpeg') {
+    return (
+      hasPrefix(bytes, [0x49, 0x44, 0x33]) ||
+      (bytes.length >= 2 && bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0)
+    );
   }
-  if (mime === "audio/wav") {
+  if (mime === 'audio/wav') {
     return (
       bytes.length >= 12 &&
       hasPrefix(bytes, [0x52, 0x49, 0x46, 0x46]) &&
@@ -107,32 +136,37 @@ function isAllowedByMagicBytes(mime: string, bytes: Uint8Array): boolean {
       bytes[11] === 0x45
     );
   }
-  if (mime === "audio/ogg") {
+  if (mime === 'audio/ogg') {
     return hasPrefix(bytes, [0x4f, 0x67, 0x67, 0x53]);
   }
-  if (mime === "audio/aac") {
+  if (mime === 'audio/aac') {
     /* ADTS sync (0xFFF…) or MP4-wrapped AAC. */
     return (
-      (bytes.length >= 2 && bytes[0] === 0xff && (bytes[1] & 0xf0) === 0xf0) || isAudioMp4Container(bytes)
+      (bytes.length >= 2 && bytes[0] === 0xff && (bytes[1] & 0xf0) === 0xf0) ||
+      isAudioMp4Container(bytes)
     );
   }
-  if (mime === "audio/mp4" || mime === "audio/x-m4a") {
+  if (mime === 'audio/mp4' || mime === 'audio/x-m4a') {
     return isAudioMp4Container(bytes);
   }
-  if (mime === "application/pdf") {
+  if (mime === 'application/pdf') {
     return hasPrefix(bytes, [0x25, 0x50, 0x44, 0x46, 0x2d]);
   }
-  if (mime === "application/msword" || mime === "application/vnd.ms-excel" || mime === "application/vnd.ms-powerpoint") {
+  if (
+    mime === 'application/msword' ||
+    mime === 'application/vnd.ms-excel' ||
+    mime === 'application/vnd.ms-powerpoint'
+  ) {
     return hasPrefix(bytes, [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]);
   }
   if (
-    mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
-    mime === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
-    mime === "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+    mime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+    mime === 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
   ) {
     return hasPrefix(bytes, [0x50, 0x4b, 0x03, 0x04]) || hasPrefix(bytes, [0x50, 0x4b, 0x05, 0x06]);
   }
-  if (mime === "text/plain" || mime === "text/csv") {
+  if (mime === 'text/plain' || mime === 'text/csv') {
     return true;
   }
   return false;
@@ -151,8 +185,7 @@ type UploadCandidateMeta = {
   mime: string;
 };
 
-const MEDIA_FOLDER_ID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const MEDIA_FOLDER_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 async function resolveUploadFolderIdFromForm(
   folderExists: (folderId: string) => Promise<boolean>,
@@ -161,17 +194,17 @@ async function resolveUploadFolderIdFromForm(
   | { ok: true; folderId: string | null | undefined }
   | { ok: false; status: number; payload: Record<string, unknown> }
 > {
-  const raw = form.get("folderId");
+  const raw = form.get('folderId');
   if (raw === null || raw === undefined) return { ok: true, folderId: undefined };
-  if (typeof raw !== "string") return { ok: true, folderId: undefined };
+  if (typeof raw !== 'string') return { ok: true, folderId: undefined };
   const t = raw.trim();
-  if (t === "" || t === "root") return { ok: true, folderId: null };
+  if (t === '' || t === 'root') return { ok: true, folderId: null };
   if (!MEDIA_FOLDER_ID_RE.test(t)) {
-    return { ok: false, status: 400, payload: { error: "invalid_folder_id" } };
+    return { ok: false, status: 400, payload: { error: 'invalid_folder_id' } };
   }
   const exists = await folderExists(t);
   if (!exists) {
-    return { ok: false, status: 400, payload: { error: "folder_not_found" } };
+    return { ok: false, status: 400, payload: { error: 'folder_not_found' } };
   }
   const assignable = await pgValidateUserAssignableMediaFolder(t);
   if (!assignable.ok) {
@@ -181,9 +214,9 @@ async function resolveUploadFolderIdFromForm(
 }
 
 function collectFilesFromForm(form: FormData): File[] {
-  const fromSingle = form.get("file");
-  const fromFiles = form.getAll("files");
-  const fromFilesArray = form.getAll("files[]");
+  const fromSingle = form.get('file');
+  const fromFiles = form.getAll('files');
+  const fromFilesArray = form.getAll('files[]');
   const all = [fromSingle, ...fromFiles, ...fromFilesArray];
   return all.filter((entry): entry is File => entry instanceof File);
 }
@@ -191,34 +224,41 @@ function collectFilesFromForm(form: FormData): File[] {
 function validateFile(
   file: File,
   index: number,
-): { ok: true; value: UploadCandidateMeta } | { ok: false; status: number; payload: Record<string, unknown> } {
+):
+  | { ok: true; value: UploadCandidateMeta }
+  | { ok: false; status: number; payload: Record<string, unknown> } {
   if (file.size > MAX_PROXY_UPLOAD_BYTES) {
     return {
       ok: false,
       status: 413,
-      payload: { error: "file_too_large", maxBytes: MAX_PROXY_UPLOAD_BYTES, index, filename: file.name || "upload" },
+      payload: {
+        error: 'file_too_large',
+        maxBytes: MAX_PROXY_UPLOAD_BYTES,
+        index,
+        filename: file.name || 'upload',
+      },
     };
   }
   if (file.size === 0) {
     return {
       ok: false,
       status: 400,
-      payload: { error: "empty_file", index, filename: file.name || "upload" },
+      payload: { error: 'empty_file', index, filename: file.name || 'upload' },
     };
   }
-  const mime = (file.type || "application/octet-stream").toLowerCase();
+  const mime = (file.type || 'application/octet-stream').toLowerCase();
   if (!ALLOWED_MEDIA_MIME.has(mime)) {
     return {
       ok: false,
       status: 415,
-      payload: { error: "mime_not_allowed", mime, index, filename: file.name || "upload" },
+      payload: { error: 'mime_not_allowed', mime, index, filename: file.name || 'upload' },
     };
   }
   return {
     ok: true,
     value: {
       file,
-      filename: file.name || "upload",
+      filename: file.name || 'upload',
       mime,
     },
   };
@@ -229,21 +269,21 @@ export async function POST(request: Request) {
   if (!gate.ok) return gate.response;
   const session = gate.ctx.session;
 
-  const ct = request.headers.get("content-type") ?? "";
-  if (!ct.includes("multipart/form-data")) {
-    return NextResponse.json({ error: "expected_multipart" }, { status: 400 });
+  const ct = request.headers.get('content-type') ?? '';
+  if (!ct.includes('multipart/form-data')) {
+    return NextResponse.json({ error: 'expected_multipart' }, { status: 400 });
   }
 
   let form: FormData;
   try {
     form = await request.formData();
   } catch {
-    return NextResponse.json({ error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ error: 'invalid_body' }, { status: 400 });
   }
 
   const files = collectFilesFromForm(form);
   if (files.length === 0) {
-    return NextResponse.json({ error: "missing_file" }, { status: 400 });
+    return NextResponse.json({ error: 'missing_file' }, { status: 400 });
   }
 
   const deps = buildAppDeps();
@@ -266,7 +306,7 @@ export async function POST(request: Request) {
     if (!isAllowedByMagicBytes(validation.value.mime, bytes)) {
       return NextResponse.json(
         {
-          error: "file_signature_mismatch",
+          error: 'file_signature_mismatch',
           mime: validation.value.mime,
           index: i,
           filename: validation.value.filename,
@@ -289,13 +329,15 @@ export async function POST(request: Request) {
   }> = [];
   try {
     for (const candidate of candidates) {
-      const result = await withDoctorWorkspacePrincipal(gate.ctx, () => deps.media.upload({
-        body: candidate.body,
-        filename: candidate.filename,
-        mimeType: candidate.mime,
-        userId: session.user.userId,
-        ...(folderRes.folderId !== undefined ? { folderId: folderRes.folderId } : {}),
-      }));
+      const result = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+        deps.media.upload({
+          body: candidate.body,
+          filename: candidate.filename,
+          mimeType: candidate.mime,
+          userId: session.user.userId,
+          ...(folderRes.folderId !== undefined ? { folderId: folderRes.folderId } : {}),
+        }),
+      );
       uploaded.push({
         mediaId: result.record.id,
         url: result.url,
@@ -318,11 +360,11 @@ export async function POST(request: Request) {
       uploaded,
     });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "upload_failed";
-    if (msg === "media_upload_too_large") {
-      return NextResponse.json({ error: "file_too_large" }, { status: 413 });
+    const msg = e instanceof Error ? e.message : 'upload_failed';
+    if (msg === 'media_upload_too_large') {
+      return NextResponse.json({ error: 'file_too_large' }, { status: 413 });
     }
-    logger.error({ err: e }, "[media/upload] failed");
-    return NextResponse.json({ error: "upload_failed" }, { status: 500 });
+    logger.error({ err: e }, '[media/upload] failed');
+    return NextResponse.json({ error: 'upload_failed' }, { status: 500 });
   }
 }

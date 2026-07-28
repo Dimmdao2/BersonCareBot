@@ -1,29 +1,29 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import toast from "react-hot-toast";
-import { routePaths } from "@/app-layer/routes/paths";
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
+import { routePaths } from '@/app-layer/routes/paths';
 import type {
   PatientMoodIntent,
   PatientMoodLastEntry,
   PatientMoodScore,
   PatientMoodToday,
   PatientMoodWeekMark,
-} from "@/modules/patient-mood/types";
-import type { PatientHomeMoodIconOption } from "@/modules/patient-home/patientHomeMoodIcons";
+} from '@/modules/patient-mood/types';
+import type { PatientHomeMoodIconOption } from '@/modules/patient-home/patientHomeMoodIcons';
 import {
   patientHomeMoodCardGeometryClass,
   patientHomeMoodCheckinShellClass,
   patientHomeMoodColumnHeadingClass,
   patientHomeMoodStatusSlotClass,
-} from "./patientHomeCardStyles";
-import { appLoginWithNextHref } from "./patientHomeGuestNav";
-import { cn } from "@/lib/utils";
-import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
-import { PatientHomeWellbeingWeekStrip } from "./PatientHomeWellbeingWeekStrip";
-import { PatientHomeMoodScoreRow } from "./PatientHomeMoodScoreRow";
+} from './patientHomeCardStyles';
+import { appLoginWithNextHref } from './patientHomeGuestNav';
+import { cn } from '@/lib/utils';
+import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import { PatientHomeWellbeingWeekStrip } from './PatientHomeWellbeingWeekStrip';
+import { PatientHomeMoodScoreRow } from './PatientHomeMoodScoreRow';
 
 type Props = {
   moodOptions: readonly PatientHomeMoodIconOption[];
@@ -51,7 +51,7 @@ export function PatientHomeMoodCheckin({
   moodWeekAnchorDayBeforeWindowHadMarks = false,
   moodWeekAnchorDayBeforeWindowLastScore = null,
   moodWeekLastScoreBeforeWindow = null,
-  wellbeingWeekTimeZone = "UTC",
+  wellbeingWeekTimeZone = 'UTC',
   wellbeingWeekAnchorNowMs,
   wellbeingWeekTodayIso,
 }: Props) {
@@ -67,13 +67,16 @@ export function PatientHomeMoodCheckin({
     setLastEntry(initialLastEntry);
   }, [initialMood, initialLastEntry]);
 
-  function toastAfterSuccessfulSave(previousLast: PatientMoodLastEntry | null, newLast: PatientMoodLastEntry | null) {
+  function toastAfterSuccessfulSave(
+    previousLast: PatientMoodLastEntry | null,
+    newLast: PatientMoodLastEntry | null,
+  ) {
     if (!newLast) {
-      toast.success("Сохранено");
+      toast.success('Сохранено');
       return;
     }
     const added = !previousLast || previousLast.id !== newLast.id;
-    toast.success(added ? "Запись добавлена" : "Запись обновлена");
+    toast.success(added ? 'Запись добавлена' : 'Запись обновлена');
   }
 
   async function postMood(score: number, intent: PatientMoodIntent): Promise<boolean> {
@@ -83,9 +86,9 @@ export function PatientHomeMoodCheckin({
     setSelectedScore(score);
     setSubmittingScore(score);
     try {
-      const res = await fetch("/api/patient/mood", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch('/api/patient/mood', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ score, intent }),
       });
       const data = (await res.json().catch(() => ({}))) as {
@@ -98,12 +101,12 @@ export function PatientHomeMoodCheckin({
         setSelectedScore(previousSelected);
         setSavedScore(previousSaved);
         setLastEntry(previousLast);
-        toast.error("Не удалось сохранить, попробуйте позже.");
+        toast.error('Не удалось сохранить, попробуйте позже.');
         return false;
       }
       setSelectedScore(data.mood.score);
       setSavedScore(data.mood.score);
-      const newLast = "lastEntry" in data ? data.lastEntry : undefined;
+      const newLast = 'lastEntry' in data ? data.lastEntry : undefined;
       if (newLast !== undefined) {
         setLastEntry(newLast);
       }
@@ -114,7 +117,7 @@ export function PatientHomeMoodCheckin({
       setSelectedScore(previousSelected);
       setSavedScore(previousSaved);
       setLastEntry(previousLast);
-      toast.error("Не удалось сохранить, попробуйте позже.");
+      toast.error('Не удалось сохранить, попробуйте позже.');
       return false;
     } finally {
       setSubmittingScore(null);
@@ -122,13 +125,10 @@ export function PatientHomeMoodCheckin({
   }
 
   async function onPickScore(score: number) {
-    await postMood(score, "auto");
+    await postMood(score, 'auto');
   }
 
-  const statusLine =
-    submittingScore !== null ?
-      "Сохраняем..."
-    : null;
+  const statusLine = submittingScore !== null ? 'Сохраняем...' : null;
   const hasWellbeingWeekMarks = moodWeekMarks.length > 0;
 
   const renderMoodScale = (frozenDisabled: boolean) => (
@@ -148,38 +148,53 @@ export function PatientHomeMoodCheckin({
         id="patient-home-mood-checkin"
         className={cn(patientHomeMoodCheckinShellClass, patientHomeMoodCardGeometryClass)}
         aria-labelledby={
-          personalTierOk && !anonymousGuest && hasWellbeingWeekMarks ?
-            "patient-home-mood-week-heading patient-home-mood-heading"
-          : "patient-home-mood-heading"
+          personalTierOk && !anonymousGuest && hasWellbeingWeekMarks
+            ? 'patient-home-mood-week-heading patient-home-mood-heading'
+            : 'patient-home-mood-heading'
         }
       >
         <div className="relative z-[1] flex h-full min-h-0 flex-col">
-          {anonymousGuest ?
+          {anonymousGuest ? (
             <div className="flex min-h-0 flex-1 flex-col justify-between gap-1.5 pt-1">
-              <h3 id="patient-home-mood-heading" className={cn(patientHomeMoodColumnHeadingClass, "shrink-0 px-4")}>
+              <h3
+                id="patient-home-mood-heading"
+                className={cn(patientHomeMoodColumnHeadingClass, 'shrink-0 px-4')}
+              >
                 Как ваше сегодня?
               </h3>
               {renderMoodScale(true)}
               <p className={patientHomeMoodStatusSlotClass}>
-                <Link href={appLoginWithNextHref(routePaths.patient)} className="font-medium text-primary underline-offset-4 hover:underline">
+                <Link
+                  href={appLoginWithNextHref(routePaths.patient)}
+                  className="font-medium text-primary underline-offset-4 hover:underline"
+                >
                   Войдите
                 </Link>
                 , чтобы отмечать самочувствие.
               </p>
             </div>
-          : !personalTierOk ?
+          ) : !personalTierOk ? (
             <div className="flex min-h-0 flex-1 flex-col justify-between gap-1.5 pt-1">
-              <h3 id="patient-home-mood-heading" className={cn(patientHomeMoodColumnHeadingClass, "shrink-0 px-4")}>
+              <h3
+                id="patient-home-mood-heading"
+                className={cn(patientHomeMoodColumnHeadingClass, 'shrink-0 px-4')}
+              >
                 Как ваше сегодня?
               </h3>
               {renderMoodScale(true)}
-              <p className={patientHomeMoodStatusSlotClass}>Чек-ин самочувствия будет доступен после активации профиля.</p>
+              <p className={patientHomeMoodStatusSlotClass}>
+                Чек-ин самочувствия будет доступен после активации профиля.
+              </p>
             </div>
-          : <div className="flex min-h-0 flex-1 flex-col gap-1.5 px-4 pt-1">
+          ) : (
+            <div className="flex min-h-0 flex-1 flex-col gap-1.5 px-4 pt-1">
               <div className="flex min-h-0 flex-1 flex-col gap-6 min-[560px]:flex-row min-[560px]:items-stretch min-[560px]:gap-4">
-                {hasWellbeingWeekMarks ?
+                {hasWellbeingWeekMarks ? (
                   <div className="order-2 flex min-h-0 w-full min-w-0 flex-col min-[560px]:order-1 min-[560px]:flex-1 min-[560px]:basis-0 min-[560px]:min-w-0">
-                    <h3 id="patient-home-mood-week-heading" className={patientHomeMoodColumnHeadingClass}>
+                    <h3
+                      id="patient-home-mood-week-heading"
+                      className={patientHomeMoodColumnHeadingClass}
+                    >
                       Ваша неделя
                     </h3>
                     {wellbeingWeekAnchorNowMs != null && wellbeingWeekTodayIso ? (
@@ -194,18 +209,20 @@ export function PatientHomeMoodCheckin({
                       />
                     ) : null}
                   </div>
-                : null}
+                ) : null}
                 <div
                   className={cn(
-                    "order-1 flex min-h-0 w-full min-w-0 flex-col",
+                    'order-1 flex min-h-0 w-full min-w-0 flex-col',
                     /** Ряд с 560px (кастом); Tailwind `sm` = 640px. Минимум ширины колонки иконок — как при 50% при viewport 640. */
-                    "min-[560px]:order-2 min-[560px]:flex-1 min-[560px]:basis-0 min-[560px]:min-w-[calc((640px_-_5.5rem)_/_2)]",
+                    'min-[560px]:order-2 min-[560px]:flex-1 min-[560px]:basis-0 min-[560px]:min-w-[calc((640px_-_5.5rem)_/_2)]',
                   )}
                 >
                   <h3 id="patient-home-mood-heading" className={patientHomeMoodColumnHeadingClass}>
                     Как ваше сегодня?
                   </h3>
-                  <div className="flex min-h-0 flex-1 flex-col justify-end">{renderMoodScale(false)}</div>
+                  <div className="flex min-h-0 flex-1 flex-col justify-end">
+                    {renderMoodScale(false)}
+                  </div>
                 </div>
               </div>
               <div className="mt-3 flex shrink-0 justify-end">
@@ -216,12 +233,13 @@ export function PatientHomeMoodCheckin({
                   Подробная статистика
                 </Link>
               </div>
-              {statusLine ?
+              {statusLine ? (
                 <p className={patientHomeMoodStatusSlotClass} aria-live="polite">
                   {statusLine}
                 </p>
-              : null}
-            </div>}
+              ) : null}
+            </div>
+          )}
         </div>
       </section>
     </>

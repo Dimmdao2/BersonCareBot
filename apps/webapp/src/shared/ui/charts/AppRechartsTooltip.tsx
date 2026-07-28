@@ -1,12 +1,14 @@
-"use client";
+'use client';
 
-import type { ComponentProps } from "react";
-import { Tooltip } from "recharts";
+import type { ComponentProps } from 'react';
+import { Tooltip } from 'recharts';
 
-export const appRechartsTooltipContentStyle: NonNullable<ComponentProps<typeof Tooltip>["contentStyle"]> = {
-  background: "#ffffff",
-  border: "1px solid hsl(var(--border))",
-  borderRadius: "6px",
+export const appRechartsTooltipContentStyle: NonNullable<
+  ComponentProps<typeof Tooltip>['contentStyle']
+> = {
+  background: '#ffffff',
+  border: '1px solid hsl(var(--border))',
+  borderRadius: '6px',
   fontSize: 11,
 };
 

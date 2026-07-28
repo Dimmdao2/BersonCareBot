@@ -1,20 +1,20 @@
 #!/usr/bin/env node
 
-import { spawnSync } from "node:child_process";
+import { spawnSync } from 'node:child_process';
 
-const scriptPath = "docs/_TODO/SAAS_FOUNDATION/scripts/check-b1-doctor-admin-identity.mjs";
+const scriptPath = 'docs/_TODO/SAAS_FOUNDATION/scripts/check-b1-doctor-admin-identity.mjs';
 
 function usage() {
   return [
-    "Usage:",
+    'Usage:',
     `  node ${scriptPath}`,
     `  node ${scriptPath} --self-test`,
     `  node ${scriptPath} --print-sql`,
     `  node ${scriptPath} --execute --database-url='<disposable-fresh-copy-runtime-url>' [--required-current-user='<owner-role>']`,
     `  node ${scriptPath} --execute --allow-test-target --database-url='<owner-authorized-test-url>' --required-current-user='bersoncarebot_test'`,
-    "",
-    "Safety: execution refuses prod/test/dev-shaped DB names and requires scratch/rehearsal/copy in the DB name.",
-  ].join("\n");
+    '',
+    'Safety: execution refuses prod/test/dev-shaped DB names and requires scratch/rehearsal/copy in the DB name.',
+  ].join('\n');
 }
 
 function parseArgs(argv) {
@@ -29,44 +29,44 @@ function parseArgs(argv) {
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
-    if (arg === "--help" || arg === "-h") {
+    if (arg === '--help' || arg === '-h') {
       console.log(usage());
       process.exit(0);
     }
-    if (arg === "--self-test") {
+    if (arg === '--self-test') {
       options.selfTest = true;
       continue;
     }
-    if (arg === "--print-sql") {
+    if (arg === '--print-sql') {
       options.printSql = true;
       continue;
     }
-    if (arg === "--execute") {
+    if (arg === '--execute') {
       options.execute = true;
       continue;
     }
-    if (arg === "--allow-test-target") {
+    if (arg === '--allow-test-target') {
       options.allowTestTarget = true;
       continue;
     }
-    if (arg.startsWith("--database-url=")) {
-      options.databaseUrl = arg.slice("--database-url=".length);
+    if (arg.startsWith('--database-url=')) {
+      options.databaseUrl = arg.slice('--database-url='.length);
       continue;
     }
-    if (arg === "--database-url") {
+    if (arg === '--database-url') {
       const value = argv[index + 1];
-      assert(value && !value.startsWith("--"), "--database-url requires a value");
+      assert(value && !value.startsWith('--'), '--database-url requires a value');
       options.databaseUrl = value;
       index += 1;
       continue;
     }
-    if (arg.startsWith("--required-current-user=")) {
-      options.requiredCurrentUser = arg.slice("--required-current-user=".length);
+    if (arg.startsWith('--required-current-user=')) {
+      options.requiredCurrentUser = arg.slice('--required-current-user='.length);
       continue;
     }
-    if (arg === "--required-current-user") {
+    if (arg === '--required-current-user') {
       const value = argv[index + 1];
-      assert(value && !value.startsWith("--"), "--required-current-user requires a value");
+      assert(value && !value.startsWith('--'), '--required-current-user requires a value');
       options.requiredCurrentUser = value;
       index += 1;
       continue;
@@ -98,7 +98,7 @@ function assertPgIdentifier(value, label) {
 function databaseNameFromUrl(value) {
   try {
     const parsed = new URL(value);
-    return decodeURIComponent(parsed.pathname.replace(/^\/+/, ""));
+    return decodeURIComponent(parsed.pathname.replace(/^\/+/, ''));
   } catch {
     return null;
   }
@@ -107,24 +107,27 @@ function databaseNameFromUrl(value) {
 function unsafeDbNameReason(name, options = {}) {
   const normalized = name.toLowerCase();
   const allowTestTarget = options.allowTestTarget === true;
-  if (allowTestTarget && (normalized === "bersoncarebot_test" || normalized === "bcb_webapp_test")) {
+  if (
+    allowTestTarget &&
+    (normalized === 'bersoncarebot_test' || normalized === 'bcb_webapp_test')
+  ) {
     return null;
   }
   const forbiddenExact = new Set([
-    "bcb_webapp_prod",
-    "bcb_webapp_test",
-    "bcb_webapp_dev",
-    "bersoncarebot",
-    "bersoncarebot_prod",
-    "bersoncarebot_test",
-    "bersoncarebot_dev",
-    "production",
-    "prod",
-    "test",
-    "dev",
+    'bcb_webapp_prod',
+    'bcb_webapp_test',
+    'bcb_webapp_dev',
+    'bersoncarebot',
+    'bersoncarebot_prod',
+    'bersoncarebot_test',
+    'bersoncarebot_dev',
+    'production',
+    'prod',
+    'test',
+    'dev',
   ]);
 
-  if (!normalized) return "empty database name";
+  if (!normalized) return 'empty database name';
   if (forbiddenExact.has(normalized)) return `forbidden database name ${name}`;
   if (/(^|[_-])(prod|production|test|testing|dev|development)([_-]|$)/.test(normalized)) {
     return `prod/test/dev-shaped database name ${name}`;
@@ -136,9 +139,9 @@ function unsafeDbNameReason(name, options = {}) {
 }
 
 function assertSafeDatabaseUrl(databaseUrl, options = {}) {
-  assert(databaseUrl, "execution requires --database-url");
+  assert(databaseUrl, 'execution requires --database-url');
   const dbName = databaseNameFromUrl(databaseUrl);
-  assert(dbName, "could not parse database name from URL");
+  assert(dbName, 'could not parse database name from URL');
   const reason = unsafeDbNameReason(dbName, options);
   assert(!reason, reason);
 }
@@ -147,11 +150,11 @@ function assertExecutionOwnerContextContract(options) {
   if (options.allowTestTarget) {
     assert(
       options.requiredCurrentUser,
-      "TEST target execution requires --required-current-user to pin the owner-role context",
+      'TEST target execution requires --required-current-user to pin the owner-role context',
     );
   }
   if (options.requiredCurrentUser) {
-    assertPgIdentifier(options.requiredCurrentUser, "--required-current-user");
+    assertPgIdentifier(options.requiredCurrentUser, '--required-current-user');
   }
 }
 
@@ -224,59 +227,66 @@ SELECT value::text FROM facts;
 function classifyFacts(facts) {
   const failures = [];
 
-  if (facts.doctorLiveRows !== 1) failures.push("doctor_phone_live_row_count");
-  if (facts.clientHasDoctorEmail === true) failures.push("client_still_holds_doctor_email");
-  if (facts.doctorRoleOk !== true) failures.push("data_fix_not_applied_or_partial");
-  if (facts.legacyEmailDerivedAdminRows !== 0) failures.push("legacy_email_admin_artifact_not_demoted");
-  if (facts.doctorOwnerMemberships !== 1) failures.push("doctor_owner_membership_missing_or_wrong");
+  if (facts.doctorLiveRows !== 1) failures.push('doctor_phone_live_row_count');
+  if (facts.clientHasDoctorEmail === true) failures.push('client_still_holds_doctor_email');
+  if (facts.doctorRoleOk !== true) failures.push('data_fix_not_applied_or_partial');
+  if (facts.legacyEmailDerivedAdminRows !== 0)
+    failures.push('legacy_email_admin_artifact_not_demoted');
+  if (facts.doctorOwnerMemberships !== 1) failures.push('doctor_owner_membership_missing_or_wrong');
 
   const ok = failures.length === 0;
   return {
     ok,
     failureReasons: failures,
     nextDiagnosis: ok
-      ? "db_identity_shape_ok_run_a1_doctor_admin_smoke_to_check_session_or_route_failure"
-      : "fix_datafix_or_membership_seed_before_app_smoke",
+      ? 'db_identity_shape_ok_run_a1_doctor_admin_smoke_to_check_session_or_route_failure'
+      : 'fix_datafix_or_membership_seed_before_app_smoke',
   };
 }
 
 function parsePsqlJson(stdout) {
   const lines = stdout
-    .split("\n")
+    .split('\n')
     .map((line) => line.trim())
     .filter(Boolean);
-  assert(lines.length > 0, "psql returned no JSON facts");
+  assert(lines.length > 0, 'psql returned no JSON facts');
   return JSON.parse(lines.at(-1));
 }
 
 function parsePsqlText(stdout) {
   const lines = stdout
-    .split("\n")
+    .split('\n')
     .map((line) => line.trim())
     .filter(Boolean);
-  assert(lines.length > 0, "psql returned no rows");
+  assert(lines.length > 0, 'psql returned no rows');
   return lines.at(-1);
 }
 
 function runPsqlText(databaseUrl, sql) {
-  const result = spawnSync("psql", [databaseUrl, "-X", "-v", "ON_ERROR_STOP=1", "--no-align", "--tuples-only"], {
-    input: sql,
-    encoding: "utf8",
-    stdio: ["pipe", "pipe", "pipe"],
-  });
+  const result = spawnSync(
+    'psql',
+    [databaseUrl, '-X', '-v', 'ON_ERROR_STOP=1', '--no-align', '--tuples-only'],
+    {
+      input: sql,
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    },
+  );
 
   if (result.error) {
     throw new Error(`failed to start psql: ${result.error.message}`);
   }
   if (result.status !== 0) {
-    throw new Error(`psql failed with status ${result.status ?? "unknown"}: ${result.stderr.trim()}`);
+    throw new Error(
+      `psql failed with status ${result.status ?? 'unknown'}: ${result.stderr.trim()}`,
+    );
   }
   return parsePsqlText(result.stdout);
 }
 
 function assertCurrentUser(databaseUrl, requiredCurrentUser) {
   if (!requiredCurrentUser) return;
-  const currentUser = runPsqlText(databaseUrl, "SELECT current_user;");
+  const currentUser = runPsqlText(databaseUrl, 'SELECT current_user;');
   assert(
     currentUser === requiredCurrentUser,
     `owner context mismatch: current_user=${currentUser}, expected ${requiredCurrentUser}`,
@@ -284,17 +294,23 @@ function assertCurrentUser(databaseUrl, requiredCurrentUser) {
 }
 
 function runPsql(databaseUrl) {
-  const result = spawnSync("psql", [databaseUrl, "-X", "-v", "ON_ERROR_STOP=1", "--no-align", "--tuples-only"], {
-    input: buildSql(),
-    encoding: "utf8",
-    stdio: ["pipe", "pipe", "pipe"],
-  });
+  const result = spawnSync(
+    'psql',
+    [databaseUrl, '-X', '-v', 'ON_ERROR_STOP=1', '--no-align', '--tuples-only'],
+    {
+      input: buildSql(),
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    },
+  );
 
   if (result.error) {
     throw new Error(`failed to start psql: ${result.error.message}`);
   }
   if (result.status !== 0) {
-    throw new Error(`psql failed with status ${result.status ?? "unknown"}: ${result.stderr.trim()}`);
+    throw new Error(
+      `psql failed with status ${result.status ?? 'unknown'}: ${result.stderr.trim()}`,
+    );
   }
   return parsePsqlJson(result.stdout);
 }
@@ -302,12 +318,12 @@ function runPsql(databaseUrl) {
 function validateContract() {
   const sql = buildSql();
   for (const needle of [
-    "doctorLiveRows",
-    "doctorRoleOk",
-    "doctorOwnerMemberships",
-    "legacyEmailDerivedAdminRows",
-    "clientHasDoctorEmail",
-    "adminPhonesGlobalValue",
+    'doctorLiveRows',
+    'doctorRoleOk',
+    'doctorOwnerMemberships',
+    'legacyEmailDerivedAdminRows',
+    'clientHasDoctorEmail',
+    'adminPhonesGlobalValue',
   ]) {
     assert(sql.includes(needle), `SQL missing ${needle}`);
   }
@@ -317,17 +333,17 @@ function validateContract() {
   for (const needle of [
     "pu.role = 'admin'",
     "pu.display_name = 'Дмитрий Берсон'",
-    "pu.email = c.admin_email",
-    "pu.email_normalized = c.admin_email",
-    "pu.phone_normalized IS NULL",
-    "pu.integrator_user_id IS NULL",
-    "pu.merged_into_id IS NULL",
-    "pu.is_archived IS FALSE",
-    "NOT EXISTS (SELECT 1 FROM public.user_channel_bindings b WHERE b.user_id = pu.id)",
-    "NOT EXISTS (SELECT 1 FROM public.user_oauth_bindings b WHERE b.user_id = pu.id)",
-    "NOT EXISTS (SELECT 1 FROM public.user_password_credentials c WHERE c.user_id = pu.id)",
-    "NOT EXISTS (SELECT 1 FROM public.user_pins p WHERE p.user_id = pu.id)",
-    "NOT EXISTS (SELECT 1 FROM public.login_tokens t WHERE t.user_id = pu.id)",
+    'pu.email = c.admin_email',
+    'pu.email_normalized = c.admin_email',
+    'pu.phone_normalized IS NULL',
+    'pu.integrator_user_id IS NULL',
+    'pu.merged_into_id IS NULL',
+    'pu.is_archived IS FALSE',
+    'NOT EXISTS (SELECT 1 FROM public.user_channel_bindings b WHERE b.user_id = pu.id)',
+    'NOT EXISTS (SELECT 1 FROM public.user_oauth_bindings b WHERE b.user_id = pu.id)',
+    'NOT EXISTS (SELECT 1 FROM public.user_password_credentials c WHERE c.user_id = pu.id)',
+    'NOT EXISTS (SELECT 1 FROM public.user_pins p WHERE p.user_id = pu.id)',
+    'NOT EXISTS (SELECT 1 FROM public.login_tokens t WHERE t.user_id = pu.id)',
   ]) {
     assert(sql.includes(needle), `legacy artifact predicate missing ${needle}`);
   }
@@ -336,27 +352,30 @@ function validateContract() {
 function runSelfTest() {
   validateContract();
 
-  const disposableUrl = "postgres://user:pass@localhost/bcb_saas_rehearsal_20260714";
+  const disposableUrl = 'postgres://user:pass@localhost/bcb_saas_rehearsal_20260714';
   assert(
-    parseArgs(["--execute", `--database-url=${disposableUrl}`]).databaseUrl === disposableUrl,
-    "self-test expected --database-url=<url> parsing",
+    parseArgs(['--execute', `--database-url=${disposableUrl}`]).databaseUrl === disposableUrl,
+    'self-test expected --database-url=<url> parsing',
   );
   assert(
-    parseArgs(["--execute", "--database-url", disposableUrl]).databaseUrl === disposableUrl,
-    "self-test expected --database-url <url> parsing",
+    parseArgs(['--execute', '--database-url', disposableUrl]).databaseUrl === disposableUrl,
+    'self-test expected --database-url <url> parsing',
   );
   const testTargetOptions = parseArgs([
-    "--execute",
-    "--allow-test-target",
-    "--database-url",
-    "postgres://user:pass@localhost/bersoncarebot_test",
-    "--required-current-user",
-    "bersoncarebot_test",
+    '--execute',
+    '--allow-test-target',
+    '--database-url',
+    'postgres://user:pass@localhost/bersoncarebot_test',
+    '--required-current-user',
+    'bersoncarebot_test',
   ]);
-  assert(testTargetOptions.allowTestTarget, "self-test expected wrapper-style test target flag parsing");
   assert(
-    testTargetOptions.requiredCurrentUser === "bersoncarebot_test",
-    "self-test expected --required-current-user parsing",
+    testTargetOptions.allowTestTarget,
+    'self-test expected wrapper-style test target flag parsing',
+  );
+  assert(
+    testTargetOptions.requiredCurrentUser === 'bersoncarebot_test',
+    'self-test expected --required-current-user parsing',
   );
   assertExecutionOwnerContextContract(testTargetOptions);
   assertThrows(
@@ -365,23 +384,29 @@ function runSelfTest() {
         allowTestTarget: true,
         requiredCurrentUser: null,
       }),
-    "self-test expected TEST target execution without owner context to fail",
+    'self-test expected TEST target execution without owner context to fail',
   );
   assertThrows(
     () =>
       assertExecutionOwnerContextContract({
         allowTestTarget: true,
-        requiredCurrentUser: "bersoncarebot-test",
+        requiredCurrentUser: 'bersoncarebot-test',
       }),
-    "self-test expected invalid owner role identifier to fail",
+    'self-test expected invalid owner role identifier to fail',
   );
 
-  assert(unsafeDbNameReason("bcb_webapp_prod"), "self-test expected prod DB refusal");
-  assert(unsafeDbNameReason("bersoncarebot_test"), "self-test expected test DB refusal");
-  assert(!unsafeDbNameReason("bersoncarebot_test", { allowTestTarget: true }), "self-test expected explicit test allow");
-  assert(unsafeDbNameReason("bcb_webapp_dev"), "self-test expected dev DB refusal");
-  assert(!unsafeDbNameReason("bcb_saas_rehearsal_20260714"), "self-test expected rehearsal DB allow");
-  assert(!unsafeDbNameReason("bcb_saas_scratch_b1"), "self-test expected scratch DB allow");
+  assert(unsafeDbNameReason('bcb_webapp_prod'), 'self-test expected prod DB refusal');
+  assert(unsafeDbNameReason('bersoncarebot_test'), 'self-test expected test DB refusal');
+  assert(
+    !unsafeDbNameReason('bersoncarebot_test', { allowTestTarget: true }),
+    'self-test expected explicit test allow',
+  );
+  assert(unsafeDbNameReason('bcb_webapp_dev'), 'self-test expected dev DB refusal');
+  assert(
+    !unsafeDbNameReason('bcb_saas_rehearsal_20260714'),
+    'self-test expected rehearsal DB allow',
+  );
+  assert(!unsafeDbNameReason('bcb_saas_scratch_b1'), 'self-test expected scratch DB allow');
 
   const okFacts = {
     doctorLiveRows: 1,
@@ -391,18 +416,18 @@ function runSelfTest() {
     clientHasDoctorEmail: false,
     adminPhonesGlobalValue: { value: [] },
   };
-  assert(classifyFacts(okFacts).ok, "self-test expected ok facts to pass");
+  assert(classifyFacts(okFacts).ok, 'self-test expected ok facts to pass');
 
   const badFacts = { ...okFacts, doctorRoleOk: false, doctorOwnerMemberships: 0 };
   const classified = classifyFacts(badFacts);
-  assert(!classified.ok, "self-test expected bad facts to fail");
+  assert(!classified.ok, 'self-test expected bad facts to fail');
   assert(
-    classified.failureReasons.includes("data_fix_not_applied_or_partial") &&
-      classified.failureReasons.includes("doctor_owner_membership_missing_or_wrong"),
-    "self-test expected data-fix and membership failure reasons",
+    classified.failureReasons.includes('data_fix_not_applied_or_partial') &&
+      classified.failureReasons.includes('doctor_owner_membership_missing_or_wrong'),
+    'self-test expected data-fix and membership failure reasons',
   );
 
-  console.log("check-b1-doctor-admin-identity self-test: OK");
+  console.log('check-b1-doctor-admin-identity self-test: OK');
 }
 
 try {
@@ -423,7 +448,7 @@ try {
       JSON.stringify(
         {
           schemaVersion: 1,
-          phase: "B1",
+          phase: 'B1',
           checkedAt: new Date().toISOString(),
           facts,
           classification,
@@ -435,7 +460,7 @@ try {
     if (!classification.ok) process.exit(1);
   } else {
     validateContract();
-    console.log("check-b1-doctor-admin-identity contract: OK");
+    console.log('check-b1-doctor-admin-identity contract: OK');
   }
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);

@@ -94,7 +94,9 @@ describe('notificationDeliveryAttempts', () => {
     expect(query).not.toHaveBeenCalled();
     expect(runIntegratorSql).toHaveBeenCalledOnce();
     const fragment = vi.mocked(runIntegratorSql).mock.calls[0]?.[1];
-    expect(drizzleSqlFragmentToApproximateSql(fragment)).toContain('notification_delivery_attempts');
+    expect(drizzleSqlFragmentToApproximateSql(fragment)).toContain(
+      'notification_delivery_attempts',
+    );
   });
 
   it('recordMessengerNotEnqueuedSkipsBestEffort skips channels already in resolution', async () => {
@@ -124,6 +126,8 @@ describe('notificationDeliveryAttempts', () => {
     expect(query).not.toHaveBeenCalled();
     expect(runIntegratorSql).toHaveBeenCalledOnce();
     const fragment = vi.mocked(runIntegratorSql).mock.calls[0]?.[1];
-    expect(drizzleSqlFragmentToApproximateSql(fragment)).toContain('notification_delivery_attempts');
+    expect(drizzleSqlFragmentToApproximateSql(fragment)).toContain(
+      'notification_delivery_attempts',
+    );
   });
 });

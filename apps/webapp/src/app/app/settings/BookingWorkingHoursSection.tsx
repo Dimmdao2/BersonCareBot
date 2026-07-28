@@ -1,30 +1,30 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState, useTransition } from "react";
-import { apiJson } from "@/shared/lib/apiJson";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Label } from "@/shared/ui/doctor/primitives/label";
+import { useCallback, useEffect, useState, useTransition } from 'react';
+import { apiJson } from '@/shared/lib/apiJson';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/ui/doctor/primitives/select";
+} from '@/shared/ui/doctor/primitives/select';
 
-const BASE = "/api/admin/booking-engine/working-hours";
-const OVERVIEW = "/api/admin/booking-engine/overview";
+const BASE = '/api/admin/booking-engine/working-hours';
+const OVERVIEW = '/api/admin/booking-engine/overview';
 
 const WEEKDAYS = [
-  { value: 1, label: "Пн" },
-  { value: 2, label: "Вт" },
-  { value: 3, label: "Ср" },
-  { value: 4, label: "Чт" },
-  { value: 5, label: "Пт" },
-  { value: 6, label: "Сб" },
-  { value: 0, label: "Вс" },
+  { value: 1, label: 'Пн' },
+  { value: 2, label: 'Вт' },
+  { value: 3, label: 'Ср' },
+  { value: 4, label: 'Чт' },
+  { value: 5, label: 'Пт' },
+  { value: 6, label: 'Сб' },
+  { value: 0, label: 'Вс' },
 ];
 
 type Row = {
@@ -47,11 +47,11 @@ type Catalog = {
 function minuteToTime(m: number): string {
   const h = Math.floor(m / 60);
   const min = m % 60;
-  return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+  return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
 }
 
 function timeToMinute(v: string): number {
-  const [h, m] = v.split(":").map(Number);
+  const [h, m] = v.split(':').map(Number);
   return h * 60 + m;
 }
 
@@ -61,20 +61,20 @@ export function BookingWorkingHoursSection({ soloUx = false }: { soloUx?: boolea
   const [usesFallback, setUsesFallback] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const [specialistId, setSpecialistId] = useState<string>("");
-  const [branchId, setBranchId] = useState<string>("");
-  const [roomId, setRoomId] = useState<string>("");
-  const [weekday, setWeekday] = useState("1");
-  const [startTime, setStartTime] = useState("09:00");
-  const [endTime, setEndTime] = useState("18:00");
+  const [specialistId, setSpecialistId] = useState<string>('');
+  const [branchId, setBranchId] = useState<string>('');
+  const [roomId, setRoomId] = useState<string>('');
+  const [weekday, setWeekday] = useState('1');
+  const [startTime, setStartTime] = useState('09:00');
+  const [endTime, setEndTime] = useState('18:00');
 
   const loadCatalog = useCallback(async () => {
     try {
       const json = await apiJson<{
         ok?: boolean;
-        specialists?: Catalog["specialists"];
-        branches?: Catalog["branches"];
-        rooms?: Catalog["rooms"];
+        specialists?: Catalog['specialists'];
+        branches?: Catalog['branches'];
+        rooms?: Catalog['rooms'];
       }>(OVERVIEW);
       if (json.specialists && json.branches && json.rooms) {
         setCatalog({ specialists: json.specialists, branches: json.branches, rooms: json.rooms });
@@ -92,9 +92,9 @@ export function BookingWorkingHoursSection({ soloUx = false }: { soloUx?: boolea
 
   const load = useCallback(async () => {
     const qs = new URLSearchParams();
-    if (specialistId) qs.set("specialistId", specialistId);
-    if (branchId) qs.set("branchId", branchId);
-    if (roomId) qs.set("roomId", roomId);
+    if (specialistId) qs.set('specialistId', specialistId);
+    if (branchId) qs.set('branchId', branchId);
+    if (roomId) qs.set('roomId', roomId);
     try {
       const json = await apiJson<{
         ok?: boolean;
@@ -103,14 +103,14 @@ export function BookingWorkingHoursSection({ soloUx = false }: { soloUx?: boolea
         error?: string;
       }>(`${BASE}?${qs.toString()}`);
       if (!json.rows) {
-        setError("load_failed");
+        setError('load_failed');
         return;
       }
       setRows(json.rows.filter((r) => r.isActive));
       setUsesFallback(json.usesFallback === true);
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "load_failed");
+      setError(e instanceof Error ? e.message : 'load_failed');
     }
   }, [branchId, roomId, specialistId]);
 
@@ -130,8 +130,8 @@ export function BookingWorkingHoursSection({ soloUx = false }: { soloUx?: boolea
     startTransition(async () => {
       try {
         await apiJson(BASE, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             weekday: Number(weekday),
             startMinute: timeToMinute(startTime),
@@ -143,7 +143,7 @@ export function BookingWorkingHoursSection({ soloUx = false }: { soloUx?: boolea
         });
         await load();
       } catch (e) {
-        setError(e instanceof Error ? e.message : "create_failed");
+        setError(e instanceof Error ? e.message : 'create_failed');
       }
     });
   }
@@ -151,9 +151,9 @@ export function BookingWorkingHoursSection({ soloUx = false }: { soloUx?: boolea
   function deactivate(id: string) {
     startTransition(async () => {
       try {
-        await apiJson(`${BASE}?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+        await apiJson(`${BASE}?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
       } catch (e) {
-        setError(e instanceof Error ? e.message : "delete_failed");
+        setError(e instanceof Error ? e.message : 'delete_failed');
         return;
       }
       await load();
@@ -172,30 +172,36 @@ export function BookingWorkingHoursSection({ soloUx = false }: { soloUx?: boolea
             Расписание не настроено — используется временный режим 09:00–18:00.
           </p>
         ) : null}
-        <div className={soloUx ? "grid gap-3 sm:grid-cols-1" : "grid gap-3 sm:grid-cols-3"}>
+        <div className={soloUx ? 'grid gap-3 sm:grid-cols-1' : 'grid gap-3 sm:grid-cols-3'}>
           {!soloUx ? (
-          <div className="flex flex-col gap-1">
-            <Label>Специалист</Label>
-            <Select value={specialistId || "__none__"} onValueChange={(v) => setSpecialistId(!v || v === "__none__" ? "" : v)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__" label="Вся клиника">
-                  Вся клиника
-                </SelectItem>
-                {(catalog?.specialists ?? []).map((s) => (
-                  <SelectItem key={s.id} value={s.id} label={s.fullName}>
-                    {s.fullName}
+            <div className="flex flex-col gap-1">
+              <Label>Специалист</Label>
+              <Select
+                value={specialistId || '__none__'}
+                onValueChange={(v) => setSpecialistId(!v || v === '__none__' ? '' : v)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__" label="Вся клиника">
+                    Вся клиника
                   </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+                  {(catalog?.specialists ?? []).map((s) => (
+                    <SelectItem key={s.id} value={s.id} label={s.fullName}>
+                      {s.fullName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           ) : null}
           <div className="flex flex-col gap-1">
-            <Label>{soloUx ? "Локация" : "Филиал"}</Label>
-            <Select value={branchId || "__none__"} onValueChange={(v) => setBranchId(!v || v === "__none__" ? "" : v)}>
+            <Label>{soloUx ? 'Локация' : 'Филиал'}</Label>
+            <Select
+              value={branchId || '__none__'}
+              onValueChange={(v) => setBranchId(!v || v === '__none__' ? '' : v)}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -212,30 +218,33 @@ export function BookingWorkingHoursSection({ soloUx = false }: { soloUx?: boolea
             </Select>
           </div>
           {!soloUx ? (
-          <div className="flex flex-col gap-1">
-            <Label>Кабинет</Label>
-            <Select value={roomId || "__none__"} onValueChange={(v) => setRoomId(!v || v === "__none__" ? "" : v)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__" label="Все">
-                  Все
-                </SelectItem>
-                {(catalog?.rooms ?? []).map((r) => (
-                  <SelectItem key={r.id} value={r.id} label={r.title}>
-                    {r.title}
+            <div className="flex flex-col gap-1">
+              <Label>Кабинет</Label>
+              <Select
+                value={roomId || '__none__'}
+                onValueChange={(v) => setRoomId(!v || v === '__none__' ? '' : v)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__" label="Все">
+                    Все
                   </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+                  {(catalog?.rooms ?? []).map((r) => (
+                    <SelectItem key={r.id} value={r.id} label={r.title}>
+                      {r.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           ) : null}
         </div>
         <div className="grid gap-3 sm:grid-cols-4">
           <div className="flex flex-col gap-1">
             <Label>День</Label>
-            <Select value={weekday} onValueChange={(v) => setWeekday(v ?? "1")}>
+            <Select value={weekday} onValueChange={(v) => setWeekday(v ?? '1')}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -262,12 +271,21 @@ export function BookingWorkingHoursSection({ soloUx = false }: { soloUx?: boolea
         </Button>
         <ul className="space-y-2 text-sm">
           {rows.map((r) => (
-            <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-2">
+            <li
+              key={r.id}
+              className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-2"
+            >
               <span>
-                {WEEKDAYS.find((d) => d.value === r.weekday)?.label ?? r.weekday} · {minuteToTime(r.startMinute)} —{" "}
-                {minuteToTime(r.endMinute)}
+                {WEEKDAYS.find((d) => d.value === r.weekday)?.label ?? r.weekday} ·{' '}
+                {minuteToTime(r.startMinute)} — {minuteToTime(r.endMinute)}
               </span>
-              <Button type="button" variant="outline" size="sm" onClick={() => deactivate(r.id)} disabled={pending}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => deactivate(r.id)}
+                disabled={pending}
+              >
                 Отключить
               </Button>
             </li>

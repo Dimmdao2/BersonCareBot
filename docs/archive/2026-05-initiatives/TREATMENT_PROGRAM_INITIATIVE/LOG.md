@@ -3,16 +3,18 @@
 ## 2026-04-17 — инициатива создана
 
 **Сделано:**
+
 - Создана папка `docs/TREATMENT_PROGRAM_INITIATIVE/` с полным комплектом документации.
 - `MASTER_PLAN.md` — 10 фаз, критерии, порядок.
 - `SYSTEM_LOGIC_SCHEMA.md` — эталон логики: таблицы, потоки, статусы, типы элементов, копирование, override, events, курсы.
 - `EXECUTION_RULES.md` — жёсткие правила для агентов.
 - `PROMPTS_EXEC_AUDIT_FIX.md` — промпты EXEC/AUDIT/FIX для каждой фазы.
-- `LEGACY_CLEANUP_BACKLOG.md` — allowlist legacy modules/* + исторический перечень routes в архиве.
+- `LEGACY_CLEANUP_BACKLOG.md` — allowlist legacy modules/\* + исторический перечень routes в архиве.
 - ESLint rule `no-restricted-imports` добавлен в `apps/webapp/eslint.config.mjs` — lint проходит на текущем коде; новые нарушения ловятся.
 - Cursor rule `.cursor/rules/clean-architecture-module-isolation.mdc` — запрет прямого infra-доступа из модулей.
 
 **Проверки:**
+
 - `npx eslint src/modules/` — PASS (0 errors) — allowlist корректен.
 - Ручная проверка: `channelLink.ts` без allowlist даёт 4 ошибки (getPool + 3 infra imports) — rule работает.
 
@@ -23,6 +25,7 @@
 ## 2026-04-18 — Фаза 0 (enforcement) — закрыта
 
 **Сделано:**
+
 - Проверено: ESLint `no-restricted-imports` в `apps/webapp/eslint.config.mjs` — для `src/modules/**/*.ts(x)` паттерны `@/infra/db/*`, `@/infra/db/client`, `@/infra/repos/*`; allowlist legacy-файлов синхронизирован с документом.
 - Добавлено то же ограничение для `src/app/api/**/route.ts` (MASTER_PLAN 0.1); на текущем коде нарушений нет — отдельный allowlist для routes не используется.
 - Проверено: `.cursor/rules/clean-architecture-module-isolation.mdc` существует (`alwaysApply: true`).
@@ -45,6 +48,7 @@
 ## 2026-04-18 — Фаза 1 (Drizzle ORM setup) — выполнено
 
 **Сделано:**
+
 - Зависимости: `drizzle-orm`, dev `drizzle-kit` в `apps/webapp/package.json` (+ lockfile).
 - `apps/webapp/drizzle.config.ts` — PostgreSQL, `DATABASE_URL` из `.env.dev` / `.env` (как `loadEnv`), schema `./db/schema`, артефакты миграций Drizzle `./db/drizzle-migrations` (**отдельно** от существующих SQL `apps/webapp/migrations/`).
 - `pnpm exec drizzle-kit introspect` → снимок схемы `public`; таблицы и связи в `apps/webapp/db/schema/schema.ts`, `relations.ts`, реэкспорт `index.ts`.
@@ -54,6 +58,7 @@
 - Скрипт `pnpm --dir apps/webapp run db:introspect` → `drizzle-kit introspect`.
 
 **Проверки:**
+
 - Step: `pnpm --dir apps/webapp run typecheck`, `pnpm --dir apps/webapp run lint` — PASS.
 - Phase: `pnpm test:webapp` — PASS (`355 passed | 5 skipped`).
 - Smoke с БД: `USE_REAL_DATABASE=1 pnpm --dir apps/webapp exec vitest run src/app-layer/db/drizzle.smoke.test.ts` — PASS.
@@ -68,12 +73,12 @@
 
 **Сделано:**
 
-| Таблица | Поля (кратко) |
-|---------|----------------|
-| `tests` | id UUID PK, title, description, test_type, scoring_config JSONB, media JSONB (`[]` default), tags text[], is_archived, created_by → platform_users, created_at, updated_at |
-| `test_sets` | id, title, description, is_archived, created_by, created_at, updated_at |
-| `test_set_items` | id, test_set_id → test_sets CASCADE, test_id → tests RESTRICT, sort_order |
-| `recommendations` | id, title, body_md, media JSONB, tags text[], is_archived, created_by, timestamps |
+| Таблица           | Поля (кратко)                                                                                                                                                              |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tests`           | id UUID PK, title, description, test_type, scoring_config JSONB, media JSONB (`[]` default), tags text[], is_archived, created_by → platform_users, created_at, updated_at |
+| `test_sets`       | id, title, description, is_archived, created_by, created_at, updated_at                                                                                                    |
+| `test_set_items`  | id, test_set_id → test_sets CASCADE, test_id → tests RESTRICT, sort_order                                                                                                  |
+| `recommendations` | id, title, body_md, media JSONB, tags text[], is_archived, created_by, timestamps                                                                                          |
 
 **Drizzle:** `apps/webapp/db/schema/clinicalTests.ts`, `recommendations.ts`; связи в `relations.ts`; миграция Drizzle `db/drizzle-migrations/0001_charming_champions.sql` (из сгенерированного файла удалены посторонние изменения индекса `rubitime_booking_profiles`). `drizzle.config.ts`: schema как массив файлов таблиц + новые файлы.
 
@@ -93,6 +98,7 @@
 **Тесты:** `modules/tests/service.test.ts`, `modules/recommendations/service.test.ts`; обновлён `doctorScreenTitles.test.ts`.
 
 **Проверки:**
+
 - Step (модули): `pnpm --dir apps/webapp run lint` — PASS после правки `TestSetItemsForm`.
 - Phase: `pnpm test:webapp` — PASS (1811 tests passed).
 
@@ -108,21 +114,21 @@
 
 **Закрыты все пункты MANDATORY FIX из `AUDIT_PHASE_2.md`:**
 
-| Пункт | Результат |
-|-------|-----------|
-| (critical/major в аудите отсутствовали) | Нечего закрывать дополнительно |
-| §1 minor — документация API | Добавлены описания в `apps/webapp/src/app/api/api.md` для `doctor/clinical-tests`, `doctor/test-sets`, `doctor/recommendations` |
-| §2 minor — `di.md` | Обновлён `apps/webapp/src/app-layer/di/di.md` (`clinicalTests`, `testSets`, `recommendations`) |
+| Пункт                                       | Результат                                                                                                                                                                 |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| (critical/major в аудите отсутствовали)     | Нечего закрывать дополнительно                                                                                                                                            |
+| §1 minor — документация API                 | Добавлены описания в `apps/webapp/src/app/api/api.md` для `doctor/clinical-tests`, `doctor/test-sets`, `doctor/recommendations`                                           |
+| §2 minor — `di.md`                          | Обновлён `apps/webapp/src/app-layer/di/di.md` (`clinicalTests`, `testSets`, `recommendations`)                                                                            |
 | §3 minor — изоляция тестов модулей от infra | `app-layer/testing/clinicalLibraryInMemory.ts`; тесты модулей импортируют только `@/app-layer/testing/...`; в `modules/tests` и `modules/recommendations` нет `@/infra/*` |
-| §4 minor — smoke | `apps/webapp/e2e/treatment-program-blocks-inprocess.test.ts` |
-| §5 informational — migrate на окружениях | Defer операционный (зафиксировано в `AUDIT_PHASE_2.md`) |
-| §6 informational — snapshot фаза 4 | Defer до фазы 4 (эталон без изменений) |
+| §4 minor — smoke                            | `apps/webapp/e2e/treatment-program-blocks-inprocess.test.ts`                                                                                                              |
+| §5 informational — migrate на окружениях    | Defer операционный (зафиксировано в `AUDIT_PHASE_2.md`)                                                                                                                   |
+| §6 informational — snapshot фаза 4          | Defer до фазы 4 (эталон без изменений)                                                                                                                                    |
 
 **Проверки перед пушем (step/phase + pre-deploy):**
 
-- `pnpm --dir apps/webapp run lint` — PASS  
-- `pnpm --dir apps/webapp run typecheck` — PASS (после правки `FormData.get` / `Button asChild` на страницах библиотеки)  
-- `pnpm test:webapp` — PASS (**358** test files, **1816** tests passed; +5 файлов относительно отчёта до FIX — включая `e2e/treatment-program-blocks-inprocess.test.ts`)  
+- `pnpm --dir apps/webapp run lint` — PASS
+- `pnpm --dir apps/webapp run typecheck` — PASS (после правки `FormData.get` / `Button asChild` на страницах библиотеки)
+- `pnpm test:webapp` — PASS (**358** test files, **1816** tests passed; +5 файлов относительно отчёта до FIX — включая `e2e/treatment-program-blocks-inprocess.test.ts`)
 - Корневой **`pnpm run ci`**: `lint` → `typecheck` → `test` (integrator) → `test:webapp` → **`pnpm build`** → **`pnpm build:webapp`** — PASS; шаг **`pnpm run audit`** (`scripts/registry-prod-audit.mjs`) — **FAIL** из‑за уже зафиксированных advisories в lockfile (**esbuild**, **drizzle-orm** GHSA и т.д.), не следствие правок FIX аудита. Закрытие advisories — отдельное изменение версий зависимостей / политика репозитория.
 
 **Следующий шаг:** Фаза 3 по MASTER_PLAN; перед продакшеном на БД применить миграцию Drizzle фазы 2 при необходимости.
@@ -133,10 +139,10 @@
 
 **Сделано:**
 
-| Таблица | Назначение |
-|---------|------------|
-| `treatment_program_templates` | шаблон: `title`, `description`, `status` (draft / published / archived), `created_by` |
-| `treatment_program_template_stages` | этап: `template_id` FK CASCADE, `title`, `description`, `sort_order` |
+| Таблица                                  | Назначение                                                                                                                                                                            |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `treatment_program_templates`            | шаблон: `title`, `description`, `status` (draft / published / archived), `created_by`                                                                                                 |
+| `treatment_program_template_stages`      | этап: `template_id` FK CASCADE, `title`, `description`, `sort_order`                                                                                                                  |
 | `treatment_program_template_stage_items` | элемент: `stage_id` FK CASCADE; `item_type` CHECK (exercise, lfk_complex, recommendation, lesson, test_set); **`item_ref_id` UUID без FK**; `sort_order`, `comment`, `settings` JSONB |
 
 **Drizzle:** `apps/webapp/db/schema/treatmentProgramTemplates.ts`; связи в `relations.ts`; миграция `db/drizzle-migrations/0002_sweet_ikaris.sql`. `drizzle.config.ts` дополнен путём к файлу схемы.
@@ -179,8 +185,8 @@
 
 **Step / phase (выполнено при закрытии FIX):**
 
-- `pnpm --dir apps/webapp run lint` — **PASS**  
-- `pnpm --dir apps/webapp run typecheck` — **PASS**  
+- `pnpm --dir apps/webapp run lint` — **PASS**
+- `pnpm --dir apps/webapp run typecheck` — **PASS**
 - `pnpm --dir apps/webapp run test` — **PASS** (на момент прогона: **359** test files, **1822** tests passed, 8 skipped)
 
 **Pre-deploy / полный CI (корень репозитория):**
@@ -197,11 +203,11 @@
 
 **Сделано:**
 
-| Таблица | Назначение |
-|---------|------------|
-| `treatment_program_instances` | экземпляр: `template_id` FK SET NULL, `patient_user_id` FK CASCADE, `assigned_by` FK SET NULL, `title`, `status` (active / completed), timestamps |
-| `treatment_program_instance_stages` | этап: `instance_id` FK CASCADE, `source_stage_id` FK → шаблонный этап SET NULL, `title`, `description`, `sort_order`, `local_comment`, `status` CHECK (locked / available / in_progress / completed / skipped) |
-| `treatment_program_instance_stage_items` | элемент: `stage_id` FK CASCADE; тот же CHECK `item_type`, что у шаблона; `item_ref_id` без FK; `comment`, **`local_comment`**, `settings`, **`snapshot` JSONB NOT NULL** |
+| Таблица                                  | Назначение                                                                                                                                                                                                     |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `treatment_program_instances`            | экземпляр: `template_id` FK SET NULL, `patient_user_id` FK CASCADE, `assigned_by` FK SET NULL, `title`, `status` (active / completed), timestamps                                                              |
+| `treatment_program_instance_stages`      | этап: `instance_id` FK CASCADE, `source_stage_id` FK → шаблонный этап SET NULL, `title`, `description`, `sort_order`, `local_comment`, `status` CHECK (locked / available / in_progress / completed / skipped) |
+| `treatment_program_instance_stage_items` | элемент: `stage_id` FK CASCADE; тот же CHECK `item_type`, что у шаблона; `item_ref_id` без FK; `comment`, **`local_comment`**, `settings`, **`snapshot` JSONB NOT NULL**                                       |
 
 **Deep copy (§5):** сервис `createTreatmentProgramInstanceService` + `assignTemplateToPatient`: только **опубликованный** шаблон; этапы и элементы в порядке `sort_order`; у элементов `comment` из шаблона, **`local_comment` = NULL**, `settings` и **snapshot** (порт `TreatmentProgramItemSnapshotPort`, реализация PG по §4: exercise, lfk_complex, test_set, recommendation, lesson); первый этап **`available`**, остальные **`locked`**.
 
@@ -251,14 +257,14 @@
 
 **Сделано:**
 
-| Пункт AUDIT_PHASE_5 | Результат |
-|---------------------|-----------|
-| Critical / major | В аудите **не было** — закрывать нечего; повторная сверка схемы/индекса/`listByTarget` |
-| Informational #1 ACL | **Defer (обоснованно)** — §7 без ACL; зафиксировано в обновлённом `AUDIT_PHASE_5.md` |
-| Informational #2 `tenant_id` | **Defer** — мультитенант |
-| Informational #3 события §8 | **Defer фазы 7** |
-| Informational #4 миграция 0004 | **Defer операционный** |
-| Optional #5 `EXPLAIN` | **Defer** — при нагрузочных сомнениях на стенде |
+| Пункт AUDIT_PHASE_5            | Результат                                                                              |
+| ------------------------------ | -------------------------------------------------------------------------------------- |
+| Critical / major               | В аудите **не было** — закрывать нечего; повторная сверка схемы/индекса/`listByTarget` |
+| Informational #1 ACL           | **Defer (обоснованно)** — §7 без ACL; зафиксировано в обновлённом `AUDIT_PHASE_5.md`   |
+| Informational #2 `tenant_id`   | **Defer** — мультитенант                                                               |
+| Informational #3 события §8    | **Defer фазы 7**                                                                       |
+| Informational #4 миграция 0004 | **Defer операционный**                                                                 |
+| Optional #5 `EXPLAIN`          | **Defer** — при нагрузочных сомнениях на стенде                                        |
 
 **Усиление регрессии (minor):** тест «`listByTarget` только для пары `target_type` + `target_id`» в `modules/comments/service.test.ts`; JSDoc у `CommentBlock` о политике переиспользования.
 
@@ -272,14 +278,14 @@
 
 **Сделано:**
 
-| Пункт AUDIT_PHASE_4 | Результат |
-|---------------------|-----------|
-| Critical / major | В аудите **не было** — закрывать нечего |
-| Minor #1 — тест `settings` | Добавлен кейс «deep copy preserves settings from template stage item (§5)» в `modules/treatment-program/instance-service.test.ts` |
-| Minor #2 — независимость от шаблона | Добавлен кейс «instance item comment and snapshot are independent of template edits after assign (§5)» |
-| Optional minor #4 — §6 пустая строка | JSDoc у `effectiveInstanceStageItemComment` в `types.ts` (контракт API/UI и нормализация PATCH) |
-| Informational #3 — `comment_changed` | **Defer фазы 7** — без изменений кода |
-| Informational #5 — миграция на стендах | **Defer операционный** (как в фазах 2–3) |
+| Пункт AUDIT_PHASE_4                    | Результат                                                                                                                         |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Critical / major                       | В аудите **не было** — закрывать нечего                                                                                           |
+| Minor #1 — тест `settings`             | Добавлен кейс «deep copy preserves settings from template stage item (§5)» в `modules/treatment-program/instance-service.test.ts` |
+| Minor #2 — независимость от шаблона    | Добавлен кейс «instance item comment and snapshot are independent of template edits after assign (§5)»                            |
+| Optional minor #4 — §6 пустая строка   | JSDoc у `effectiveInstanceStageItemComment` в `types.ts` (контракт API/UI и нормализация PATCH)                                   |
+| Informational #3 — `comment_changed`   | **Defer фазы 7** — без изменений кода                                                                                             |
+| Informational #5 — миграция на стендах | **Defer операционный** (как в фазах 2–3)                                                                                          |
 
 **Перепроверка эталона:**
 
@@ -290,8 +296,8 @@
 
 **Step / phase (webapp):**
 
-- `pnpm --dir apps/webapp run lint` — **PASS**  
-- `pnpm --dir apps/webapp run typecheck` — **PASS**  
+- `pnpm --dir apps/webapp run lint` — **PASS**
+- `pnpm --dir apps/webapp run typecheck` — **PASS**
 - `pnpm --dir apps/webapp run test` — **PASS** (на прогоне FIX: **360** test files, **1829** tests passed, 8 skipped)
 
 **Pre-deploy / полный CI (корень репозитория):**
@@ -300,7 +306,7 @@
 
 **Gate verdict (AUDIT_PHASE_4 FIX):** **PASS** — все minor из MANDATORY закрыты тестами или документацией; informational только defer (фаза 7 + миграция на окружениях).
 
-**Следующий шаг:** Фаза 5 или 6/7 по MASTER_PLAN; перед продом применить `0003_*` на БД webapp при необходимости.
+**Следующий шаг:** Фаза 5 или 6/7 по MASTER*PLAN; перед продом применить `0003*\*` на БД webapp при необходимости.
 
 ---
 
@@ -310,12 +316,12 @@
 
 **Сделано (MANDATORY FIX INSTRUCTIONS):**
 
-| # | Инструкция | Результат |
-|---|----------------|-----------|
-| 1 | П.7–8 «Абсолютные запреты» в alwaysApply-контексте | В `.cursor/rules/clean-architecture-module-isolation.mdc` добавлен **§1b** (не смешивать фазы; не менять GitHub CI без решения) со ссылками на `test-execution-policy.md` и `pre-push-ci.mdc`. |
-| 2 | Чеклисты 29 / 48 / не путать с «23» | Подтверждено: `README.md`, `PROMPTS_EXEC_AUDIT_FIX.md`, `LEGACY_CLEANUP_BACKLOG.md`; в `README.md` добавлена строка таблицы про `AUDIT_PHASE_0.md`. |
-| 3 | Расширить ESLint на весь `@/infra/*` | **Defer (обоснованно)** — зафиксировано в `AUDIT_PHASE_0.md`: scope фазы 0 = `db` + `repos` по `MASTER_PLAN` / `EXECUTION_RULES` §2; остальной `@/infra` — отдельное решение. |
-| 4 | Список 48 маршрутов из git | Без действий (как ранее). |
+| #   | Инструкция                                         | Результат                                                                                                                                                                                      |
+| --- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | П.7–8 «Абсолютные запреты» в alwaysApply-контексте | В `.cursor/rules/clean-architecture-module-isolation.mdc` добавлен **§1b** (не смешивать фазы; не менять GitHub CI без решения) со ссылками на `test-execution-policy.md` и `pre-push-ci.mdc`. |
+| 2   | Чеклисты 29 / 48 / не путать с «23»                | Подтверждено: `README.md`, `PROMPTS_EXEC_AUDIT_FIX.md`, `LEGACY_CLEANUP_BACKLOG.md`; в `README.md` добавлена строка таблицы про `AUDIT_PHASE_0.md`.                                            |
+| 3   | Расширить ESLint на весь `@/infra/*`               | **Defer (обоснованно)** — зафиксировано в `AUDIT_PHASE_0.md`: scope фазы 0 = `db` + `repos` по `MASTER_PLAN` / `EXECUTION_RULES` §2; остальной `@/infra` — отдельное решение.                  |
+| 4   | Список 48 маршрутов из git                         | Без действий (как ранее).                                                                                                                                                                      |
 
 **`AUDIT_PHASE_0.md`:** обновлены краткий вердикт, таблица п.7–8, gate, блок MANDATORY FIX (статусы закрытия), секция «Статус закрытия (после FIX)» и сверка с `SYSTEM_LOGIC_SCHEMA.md` (изменений доменного кода нет).
 
@@ -365,13 +371,13 @@
 
 **Список фиксов:**
 
-| Что | Деталь |
-|-----|--------|
-| **`0000_wandering_famine.sql`** | Заменён на исполняемый no-op (`SELECT 1`); старый полностью закомментированный introspect-снимок убран из файла (доступен в git history). Устранена поломка `drizzle-kit migrate` из-за `--> statement-breakpoint` внутри блока `/* … */`. |
-| **`scripts/seed-drizzle-migrations-meta.mjs`** | Вставка строк в `drizzle.__drizzle_migrations` по `meta/_journal.json` (sha256 содержимого `.sql`, как в drizzle-orm), если hash ещё нет — для БД, где DDL уже применён вне migrate. |
-| **`package.json` (webapp)** | Скрипты `db:migrate:drizzle`, `db:seed-drizzle-meta`. |
-| **`EXECUTION_RULES.md`** | В «Правила Drizzle» добавлены команды `db:migrate:drizzle` и `db:seed-drizzle-meta`. |
-| **`AUDIT_PHASE_1.md`** | Обновлены §3, MANDATORY FIX, команды, статус закрытия FIX; minor — defer единого manifest путей schema. |
+| Что                                            | Деталь                                                                                                                                                                                                                                     |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **`0000_wandering_famine.sql`**                | Заменён на исполняемый no-op (`SELECT 1`); старый полностью закомментированный introspect-снимок убран из файла (доступен в git history). Устранена поломка `drizzle-kit migrate` из-за `--> statement-breakpoint` внутри блока `/* … */`. |
+| **`scripts/seed-drizzle-migrations-meta.mjs`** | Вставка строк в `drizzle.__drizzle_migrations` по `meta/_journal.json` (sha256 содержимого `.sql`, как в drizzle-orm), если hash ещё нет — для БД, где DDL уже применён вне migrate.                                                       |
+| **`package.json` (webapp)**                    | Скрипты `db:migrate:drizzle`, `db:seed-drizzle-meta`.                                                                                                                                                                                      |
+| **`EXECUTION_RULES.md`**                       | В «Правила Drizzle» добавлены команды `db:migrate:drizzle` и `db:seed-drizzle-meta`.                                                                                                                                                       |
+| **`AUDIT_PHASE_1.md`**                         | Обновлены §3, MANDATORY FIX, команды, статус закрытия FIX; minor — defer единого manifest путей schema.                                                                                                                                    |
 
 **Сверка схемы и БД:**
 
@@ -399,10 +405,10 @@
 
 **Сверка §3 (элементы):** завершение этапа при всех элементах с заполненным **`completed_at`**; для **`test_set`** — после закрытия попытки (все тесты набора имеют строки в **`test_results`**).
 
-| Таблица | Назначение |
-|---------|------------|
-| **`test_attempts`** | `instance_stage_item_id` FK CASCADE → `treatment_program_instance_stage_items`, `patient_user_id` FK CASCADE, `started_at`, `completed_at`; частичный уникальный индекс одна открытая попытка на пару (элемент, пациент). |
-| **`test_results`** | `attempt_id` FK CASCADE, `test_id` FK → `tests` RESTRICT, **`raw_value` JSONB**, **`normalized_decision`** CHECK (`passed` / `failed` / `partial`), **`decided_by`** FK SET NULL → `platform_users`, `created_at`; уникальность `(attempt_id, test_id)`. |
+| Таблица             | Назначение                                                                                                                                                                                                                                               |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`test_attempts`** | `instance_stage_item_id` FK CASCADE → `treatment_program_instance_stage_items`, `patient_user_id` FK CASCADE, `started_at`, `completed_at`; частичный уникальный индекс одна открытая попытка на пару (элемент, пациент).                                |
+| **`test_results`**  | `attempt_id` FK CASCADE, `test_id` FK → `tests` RESTRICT, **`raw_value` JSONB**, **`normalized_decision`** CHECK (`passed` / `failed` / `partial`), **`decided_by`** FK SET NULL → `platform_users`, `created_at`; уникальность `(attempt_id, test_id)`. |
 
 **Расширение существующих таблиц:** `treatment_program_instance_stages.skip_reason` (TEXT); `treatment_program_instance_stage_items.completed_at` (timestamptz).
 
@@ -512,12 +518,12 @@
 
 **Закрытие MANDATORY FIX INSTRUCTIONS:**
 
-| Пункт | Результат |
-|-------|-----------|
-| Critical / major | **N/A** — в аудите не заводились. |
+| Пункт                                                                    | Результат                                                                                                                                                                                                                                                    |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Critical / major                                                         | **N/A** — в аудите не заводились.                                                                                                                                                                                                                            |
 | **9-M-1** — HTTP integrator `lfk-complexes` + `includeTreatmentPrograms` | **Закрыт:** `apps/webapp/src/app/api/integrator/diary/lfk-complexes/route.test.ts` переведён на мок `buildAppDeps` (`listLfkComplexes`, `listTreatmentProgramLfkBlocksForIntegratorPatient`); кейсы `true` / `false` / без флага; базовый 200 с `complexes`. |
-| **9-M-2** — регрессия цепочки правок | **Закрыт:** `treatment-program-events.test.ts` — add → replace → reorder, стабильный `stage_item` id, обновление `snapshot`, события `item_added` / `item_replaced` / `stage_items_reordered`. |
-| **9-I-1 … 9-I-6** | **Defer** — без изменений (см. `AUDIT_PHASE_9.md`). |
+| **9-M-2** — регрессия цепочки правок                                     | **Закрыт:** `treatment-program-events.test.ts` — add → replace → reorder, стабильный `stage_item` id, обновление `snapshot`, события `item_added` / `item_replaced` / `stage_items_reordered`.                                                               |
+| **9-I-1 … 9-I-6**                                                        | **Defer** — без изменений (см. `AUDIT_PHASE_9.md`).                                                                                                                                                                                                          |
 
 **Подтверждения:**
 
@@ -546,11 +552,11 @@
 
 **Закрытие MANDATORY FIX INSTRUCTIONS:**
 
-| Пункт | Результат |
-|-------|-----------|
-| Critical / major | В аудите **не было** — **N/A** |
+| Пункт                        | Результат                                                                                                                                                                                                                                                            |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Critical / major             | В аудите **не было** — **N/A**                                                                                                                                                                                                                                       |
 | **8-M-1** — HTTP-слой enroll | **Закрыт:** `apps/webapp/src/app/api/patient/courses/[courseId]/enroll/route.test.ts` — 401 (gate unauthorized), 403 (patient activation), 400 (`invalid_course` / сообщение сервиса), 200 + `{ ok, instance }` и вызов `enrollPatient({ courseId, patientUserId })` |
-| **8-I-1 … 8-I-4** | **Defer** с обоснованием в обновлённом `AUDIT_PHASE_8.md` (платежи, дубли экземпляров, валидация intro в каталоге, doctor UI) |
+| **8-I-1 … 8-I-4**            | **Defer** с обоснованием в обновлённом `AUDIT_PHASE_8.md` (платежи, дубли экземпляров, валидация intro в каталоге, doctor UI)                                                                                                                                        |
 
 **Подтверждения повторной сверки:**
 
@@ -576,13 +582,13 @@
 
 **Закрытие MANDATORY FIX INSTRUCTIONS:**
 
-| Пункт | Результат |
-|-------|-----------|
-| Critical / major | В аудите **не было** — **N/A** |
-| **7-M-1** — таймлайн / хронология | **Закрыт:** `listEventsForInstance` (PG + in-memory): после выборки последних N по убыванию времени результат **реверсируется** — порядок **старые → новые**; UI: подпись «от старых к новым (до последних 200 записей)», список **`ul`** вместо нумерованного `ol` |
-| **7-M-2** — тесты replace / remove stage / program status | **Закрыт:** в `treatment-program-events.test.ts` добавлены кейсы `item_replaced` (payload), `stage_removed`, `status_changed` программы (`active` → `completed`), монотонность `created_at` в выдаче |
-| **7-I-1** | **Закрыт документально:** уточнение строки про `status_changed` в `SYSTEM_LOGIC_SCHEMA.md` §8 |
-| **7-I-2, 7-I-3** | **Defer** — как в обновлённом `AUDIT_PHASE_7.md` |
+| Пункт                                                     | Результат                                                                                                                                                                                                                                                           |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Critical / major                                          | В аудите **не было** — **N/A**                                                                                                                                                                                                                                      |
+| **7-M-1** — таймлайн / хронология                         | **Закрыт:** `listEventsForInstance` (PG + in-memory): после выборки последних N по убыванию времени результат **реверсируется** — порядок **старые → новые**; UI: подпись «от старых к новым (до последних 200 записей)», список **`ul`** вместо нумерованного `ol` |
+| **7-M-2** — тесты replace / remove stage / program status | **Закрыт:** в `treatment-program-events.test.ts` добавлены кейсы `item_replaced` (payload), `stage_removed`, `status_changed` программы (`active` → `completed`), монотонность `created_at` в выдаче                                                                |
+| **7-I-1**                                                 | **Закрыт документально:** уточнение строки про `status_changed` в `SYSTEM_LOGIC_SCHEMA.md` §8                                                                                                                                                                       |
+| **7-I-2, 7-I-3**                                          | **Defer** — как в обновлённом `AUDIT_PHASE_7.md`                                                                                                                                                                                                                    |
 
 **Подтверждения:**
 
@@ -607,11 +613,11 @@
 
 **Закрытие MANDATORY FIX INSTRUCTIONS:**
 
-| Пункт AUDIT_PHASE_6 | Результат |
-|---------------------|-----------|
-| Critical / major | **Не было** — N/A |
+| Пункт AUDIT_PHASE_6                                         | Результат                                                                                                                                                                                           |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Critical / major                                            | **Не было** — N/A                                                                                                                                                                                   |
 | Minor #1 — единые подписи статуса этапа (doctor vs patient) | **Закрыт:** `formatTreatmentProgramStageStatusRu` в `modules/treatment-program/types.ts`; импорт в `PatientTreatmentProgramDetailClient` и `TreatmentProgramInstanceDetailClient`; Vitest на хелпер |
-| Minor #2 — FSM или документация | **Закрыт как документация:** в `apps/webapp/src/app/api/api.md` у маршрута `doctor/.../stages/[stageId]` зафиксировано: сервис не валидирует полную FSM; ужесточение — отдельное изменение |
+| Minor #2 — FSM или документация                             | **Закрыт как документация:** в `apps/webapp/src/app/api/api.md` у маршрута `doctor/.../stages/[stageId]` зафиксировано: сервис не валидирует полную FSM; ужесточение — отдельное изменение          |
 
 **Подтверждения (§3):**
 
@@ -641,12 +647,12 @@
 
 **Закрытие пунктов MANDATORY FIX INSTRUCTIONS:**
 
-| Пункт | Результат |
-|-------|-----------|
-| Critical / major | В аудите **не было** — **закрыто** как N/A; изменений коду `modules/tests`, `modules/recommendations`, doctor API/UI не вносилось. |
-| #1 informational (миграции на окружениях) | **Defer (операционно)** — зафиксировано в обновлённом `AUDIT_PHASE_2.md`; исполнение на стендах вне этого FIX. |
-| #2 hygiene (`api.md` / `di.md`) | **Закрыто для текущего scope** — секции уже есть; процесс на будущие эндпоинты описан в аудите. |
-| #3 ESLint / `modules/**/*.test.ts` | **Defer (обоснованно)** — см. `AUDIT_PHASE_2.md`; текущие тесты через `app-layer/testing/clinicalLibraryInMemory`. |
+| Пункт                                     | Результат                                                                                                                          |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Critical / major                          | В аудите **не было** — **закрыто** как N/A; изменений коду `modules/tests`, `modules/recommendations`, doctor API/UI не вносилось. |
+| #1 informational (миграции на окружениях) | **Defer (операционно)** — зафиксировано в обновлённом `AUDIT_PHASE_2.md`; исполнение на стендах вне этого FIX.                     |
+| #2 hygiene (`api.md` / `di.md`)           | **Закрыто для текущего scope** — секции уже есть; процесс на будущие эндпоинты описан в аудите.                                    |
+| #3 ESLint / `modules/**/*.test.ts`        | **Defer (обоснованно)** — см. `AUDIT_PHASE_2.md`; текущие тесты через `app-layer/testing/clinicalLibraryInMemory`.                 |
 
 **Подтверждения:**
 
@@ -689,12 +695,12 @@
 
 **Закрытие MANDATORY FIX INSTRUCTIONS:**
 
-| Пункт | Результат |
-|-------|-----------|
-| Critical / major | В аудите **не было** — **N/A**. |
+| Пункт                                                  | Результат                                                                                                                                                                                     |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Critical / major                                       | В аудите **не было** — **N/A**.                                                                                                                                                               |
 | #1 optional § 6 UX (предзаполнение черновика override) | **Закрыто:** `TreatmentProgramInstanceDetailClient.tsx` — `initialDraft={item.effectiveComment ?? ""}` (шаг 1 § 6: при пустом `localComment` в форме виден тот же текст, что и для пациента). |
-| #2 `comment_changed` | **Defer фазы 7** — без изменения кода. |
-| #3 миграция `0003_*` на окружениях | **Defer (операционно)** — зафиксировано в `AUDIT_PHASE_4.md`. |
+| #2 `comment_changed`                                   | **Defer фазы 7** — без изменения кода.                                                                                                                                                        |
+| #3 миграция `0003_*` на окружениях                     | **Defer (операционно)** — зафиксировано в `AUDIT_PHASE_4.md`.                                                                                                                                 |
 
 **Перепроверка эталона (без полного `pnpm test:webapp`):**
 
@@ -729,14 +735,14 @@
 
 **Закрытие MANDATORY FIX INSTRUCTIONS:**
 
-| Пункт | Результат |
-|-------|-----------|
-| Critical / major | **N/A** — не выявлялись; формально закрыто. |
-| #1 ACL по `target_id` | **Defer (продукт)** — § 7 не задаёт ACL; зафиксировано в `AUDIT_PHASE_5.md`. |
-| #2 `tenant_id` | **Defer** — «при мультитенанте» в § 7. |
-| #3 События § 8 | **Defer фазы 7**. |
-| #4 Миграция `0004_*` на окружениях | **Defer (операционно)**. |
-| #5 optional EXPLAIN | **Defer (обоснованно)** — см. обновлённую таблицу в `AUDIT_PHASE_5.md`. |
+| Пункт                              | Результат                                                                    |
+| ---------------------------------- | ---------------------------------------------------------------------------- |
+| Critical / major                   | **N/A** — не выявлялись; формально закрыто.                                  |
+| #1 ACL по `target_id`              | **Defer (продукт)** — § 7 не задаёт ACL; зафиксировано в `AUDIT_PHASE_5.md`. |
+| #2 `tenant_id`                     | **Defer** — «при мультитенанте» в § 7.                                       |
+| #3 События § 8                     | **Defer фазы 7**.                                                            |
+| #4 Миграция `0004_*` на окружениях | **Defer (операционно)**.                                                     |
+| #5 optional EXPLAIN                | **Defer (обоснованно)** — см. обновлённую таблицу в `AUDIT_PHASE_5.md`.      |
 
 **Подтверждение эталона (повторная сверка):**
 
@@ -765,12 +771,12 @@
 
 **Закрытие MANDATORY FIX INSTRUCTIONS:**
 
-| Пункт | Результат |
-|-------|-----------|
-| Critical / major | В аудите **не выявлялись** — **N/A**, формально закрыто; процедура перепроверки при будущих правках — в обновлённом `AUDIT_PHASE_6.md`. |
-| Minor #1 — FSM vs документация для `PATCH` статуса этапа | **Закрыто документацией:** уточнена формулировка в `apps/webapp/src/app/api/api.md` (политика «без полной FSM», исправлена отсылка к номеру minor). Матрица переходов в коде — **defer** продукта. |
-| Minor #2 — паритет результатов тестов пациент/врач | **Закрыто кодом:** `GET /api/patient/treatment-program-instances/[instanceId]/test-results` (`requirePatientApiBusinessAccess`, `getInstanceForPatient` + `listTestResultsForInstance`); SSR `initialTestResults` в `app/patient/treatment-programs/[instanceId]/page.tsx`; клиент `PatientTreatmentProgramDetailClient` — блок «Ваши результаты тестов», `refresh` подгружает дерево и результаты параллельно. |
-| Minor #3 — подпись после override (`decided_by`) | **Закрыто кодом:** бейдж «переопределено врачом» / «итог уточнён врачом» в doctor/patient UI; **`formatNormalizedTestDecisionRu`** в `modules/treatment-program/types.ts`; тест подписей в `progress-service.test.ts`. |
+| Пункт                                                    | Результат                                                                                                                                                                                                                                                                                                                                                                                                       |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Critical / major                                         | В аудите **не выявлялись** — **N/A**, формально закрыто; процедура перепроверки при будущих правках — в обновлённом `AUDIT_PHASE_6.md`.                                                                                                                                                                                                                                                                         |
+| Minor #1 — FSM vs документация для `PATCH` статуса этапа | **Закрыто документацией:** уточнена формулировка в `apps/webapp/src/app/api/api.md` (политика «без полной FSM», исправлена отсылка к номеру minor). Матрица переходов в коде — **defer** продукта.                                                                                                                                                                                                              |
+| Minor #2 — паритет результатов тестов пациент/врач       | **Закрыто кодом:** `GET /api/patient/treatment-program-instances/[instanceId]/test-results` (`requirePatientApiBusinessAccess`, `getInstanceForPatient` + `listTestResultsForInstance`); SSR `initialTestResults` в `app/patient/treatment-programs/[instanceId]/page.tsx`; клиент `PatientTreatmentProgramDetailClient` — блок «Ваши результаты тестов», `refresh` подгружает дерево и результаты параллельно. |
+| Minor #3 — подпись после override (`decided_by`)         | **Закрыто кодом:** бейдж «переопределено врачом» / «итог уточнён врачом» в doctor/patient UI; **`formatNormalizedTestDecisionRu`** в `modules/treatment-program/types.ts`; тест подписей в `progress-service.test.ts`.                                                                                                                                                                                          |
 
 **Перепроверка § 3 (статусы этапов, автопереход `completed`/`skipped` → `available` следующего):** код `pgTreatmentProgramInstance.updateInstanceStage` / in-memory `unlockNextLockedStage`; сценарии в `progress-service.test.ts` (в т.ч. skipped → next available, test_set → stage completed → next available). Skip/reason и `test_results` (`raw_value`, `normalized_decision`, `decided_by`) — без изменения контракта; override по-прежнему через `doctorOverrideTestResult`.
 
@@ -797,11 +803,11 @@
 
 **Закрытие MANDATORY FIX INSTRUCTIONS:**
 
-| Пункт | Результат |
-|-------|-----------|
-| Critical / major | В аудите **не выявлялись** — **N/A**, формально закрыто; матрица мутаций → события зафиксирована в `AUDIT_PHASE_7.md` («AUDIT_PHASE_7 FIX — перепроверка мутаций»). |
-| Minor (таймлайн, интеграционные тесты) | **Подтверждено закрытыми** без доработки кода; добавлены **unit-тесты** правил `reason`: `apps/webapp/src/modules/treatment-program/event-recording.test.ts`. |
-| Informational (CHECK в БД, событие override теста, событие rename title) | **Defer** без изменения кода — таблица в `AUDIT_PHASE_7.md`. |
+| Пункт                                                                    | Результат                                                                                                                                                           |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Critical / major                                                         | В аудите **не выявлялись** — **N/A**, формально закрыто; матрица мутаций → события зафиксирована в `AUDIT_PHASE_7.md` («AUDIT_PHASE_7 FIX — перепроверка мутаций»). |
+| Minor (таймлайн, интеграционные тесты)                                   | **Подтверждено закрытыми** без доработки кода; добавлены **unit-тесты** правил `reason`: `apps/webapp/src/modules/treatment-program/event-recording.test.ts`.       |
+| Informational (CHECK в БД, событие override теста, событие rename title) | **Defer** без изменения кода — таблица в `AUDIT_PHASE_7.md`.                                                                                                        |
 
 **Перепроверка § 8:** все структурные и прогресс-мутации из `instance-service` / `progress-service`, для которых в § 8 предусмотрен тип события, ведут в `appendEvent` / `appendEv`; исключения документированы (назначение экземпляра, смена только `title`). **`stage_skipped` / `item_removed`:** валидация `reason` в `doctorSetStageStatus`, `doctorRemoveStageItem`, `normalizeEventReason`, API DELETE элемента; дублирование подтверждено тестами.
 
@@ -823,11 +829,11 @@
 
 **Закрытие MANDATORY FIX INSTRUCTIONS:**
 
-| Пункт | Результат |
-|-------|-----------|
-| Critical / major | В аудите **не выявлялись** — **N/A**, формально закрыто; **изменений кода не потребовалось** (связь `courses.program_template_id` → `treatment_program_templates`, `enrollPatient` → `assignTemplateToPatient` уже соответствуют § 9). |
-| Minor **8-M-1** (тесты HTTP enroll) | **Закрыто без правок** — `src/app/api/patient/courses/[courseId]/enroll/route.test.ts` уже в репозитории. |
-| Informational **8-I-1 … 8-I-4** | **Defer** с обоснованием в обновлённом `AUDIT_PHASE_8.md` (оплата, дубли enroll, intro в каталоге, doctor UI). |
+| Пункт                               | Результат                                                                                                                                                                                                                              |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Critical / major                    | В аудите **не выявлялись** — **N/A**, формально закрыто; **изменений кода не потребовалось** (связь `courses.program_template_id` → `treatment_program_templates`, `enrollPatient` → `assignTemplateToPatient` уже соответствуют § 9). |
+| Minor **8-M-1** (тесты HTTP enroll) | **Закрыто без правок** — `src/app/api/patient/courses/[courseId]/enroll/route.test.ts` уже в репозитории.                                                                                                                              |
+| Informational **8-I-1 … 8-I-4**     | **Defer** с обоснованием в обновлённом `AUDIT_PHASE_8.md` (оплата, дубли enroll, intro в каталоге, doctor UI).                                                                                                                         |
 
 **Перепроверка FIX:**
 

@@ -2,16 +2,16 @@
  * /app/doctor/patients — список пациентов врача.
  * Pattern: follows exercises/page.tsx (workspace guard → buildAppDeps → pass promise to Client).
  */
-import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
-import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
-import { resolvePatientTerms } from "@/modules/system-settings/patientTerms";
-import { PatientsPageClient } from "./PatientsPageClient";
-import { parsePatientListWorkspaceState } from "./patientListWorkspaceState";
+import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
+import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
+import { resolvePatientTerms } from '@/modules/system-settings/patientTerms';
+import { PatientsPageClient } from './PatientsPageClient';
+import { parsePatientListWorkspaceState } from './patientListWorkspaceState';
 
 function getValueJson<T>(v: unknown, fallback: T): T {
-  if (v !== null && typeof v === "object" && "value" in (v as Record<string, unknown>)) {
+  if (v !== null && typeof v === 'object' && 'value' in (v as Record<string, unknown>)) {
     return (v as Record<string, unknown>).value as T;
   }
   return fallback;
@@ -31,10 +31,13 @@ export default async function DoctorPatientsPage({ searchParams }: PageProps) {
 
   const displayIana = await getAppDisplayTimeZone();
 
-  const doctorSettings = await deps.systemSettings.listSettingsByScope("doctor", {
+  const doctorSettings = await deps.systemSettings.listSettingsByScope('doctor', {
     organizationId: workspace.organizationId,
   });
-  const patientSingular = getValueJson(doctorSettings.find((x) => x.key === "patient_label")?.valueJson, "пациент");
+  const patientSingular = getValueJson(
+    doctorSettings.find((x) => x.key === 'patient_label')?.valueJson,
+    'пациент',
+  );
   const { patientPluralLabel, patientSingularLabel } = resolvePatientTerms(String(patientSingular));
 
   const listPromise = deps.doctorClients.listClients({

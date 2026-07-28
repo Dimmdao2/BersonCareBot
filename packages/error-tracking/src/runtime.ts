@@ -1,5 +1,5 @@
-import { execFileSync } from "node:child_process";
-import { createHash } from "node:crypto";
+import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 
 import type {
   ErrorTrackingCapturePoint,
@@ -7,13 +7,16 @@ import type {
   ErrorTrackingInitResult,
   ErrorTrackingProcessRole,
   ErrorTrackingService,
-} from "./types.js";
+} from './types.js';
 
 type UnknownRecord = Record<string, unknown>;
 
 export type ErrorTrackingSdkAdapter = Readonly<{
   init(options: UnknownRecord): void;
-  captureException(error: unknown, hint: Readonly<{ tags: Readonly<{ capture_point: string }> }>): string;
+  captureException(
+    error: unknown,
+    hint: Readonly<{ tags: Readonly<{ capture_point: string }> }>,
+  ): string;
   flush(timeoutMs: number): PromiseLike<boolean> | boolean;
   close(timeoutMs: number): PromiseLike<boolean> | boolean;
 }>;
@@ -49,63 +52,65 @@ const MAX_RELEASE_LENGTH = 128;
 const MAX_FRAME_COUNT = 40;
 const MAX_FRAME_PATH_LENGTH = 240;
 const VALID_CAPTURE_POINTS: ReadonlySet<string> = new Set<ErrorTrackingCapturePoint>([
-  "webapp_request_error",
-  "integrator_http_error",
-  "integrator_startup_fatal",
-  "worker_loop_error",
-  "worker_startup_fatal",
-  "scheduler_loop_error",
-  "scheduler_startup_fatal",
-  "media_worker_loop_error",
-  "media_worker_startup_fatal",
+  'webapp_request_error',
+  'integrator_http_error',
+  'integrator_startup_fatal',
+  'worker_loop_error',
+  'worker_startup_fatal',
+  'scheduler_loop_error',
+  'scheduler_startup_fatal',
+  'media_worker_loop_error',
+  'media_worker_startup_fatal',
 ]);
 
 let activeState: ActiveState | null = null;
 
 function isRecord(value: unknown): value is UnknownRecord {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
 function boundedRelease(value: string | null | undefined): string | null {
-  const normalized = value?.trim() ?? "";
+  const normalized = value?.trim() ?? '';
   if (!normalized || normalized.length > MAX_RELEASE_LENGTH) return null;
   if (!/^[A-Za-z0-9._:@/+-]+$/.test(normalized)) return null;
   return normalized;
 }
 
-export function resolveErrorTrackingRelease(input: Readonly<{
-  buildId?: string | null;
-  nodeEnv?: string | null;
-  cwd?: string;
-}> = {}): string {
+export function resolveErrorTrackingRelease(
+  input: Readonly<{
+    buildId?: string | null;
+    nodeEnv?: string | null;
+    cwd?: string;
+  }> = {},
+): string {
   const buildId = boundedRelease(input.buildId ?? process.env.BUILD_ID);
   if (buildId) return buildId;
 
   try {
-    const gitSha = execFileSync("git", ["rev-parse", "--short=12", "HEAD"], {
+    const gitSha = execFileSync('git', ['rev-parse', '--short=12', 'HEAD'], {
       cwd: input.cwd ?? process.cwd(),
-      encoding: "utf8",
+      encoding: 'utf8',
       timeout: 250,
       maxBuffer: 256,
-      stdio: ["ignore", "pipe", "ignore"],
+      stdio: ['ignore', 'pipe', 'ignore'],
     }).trim();
     if (/^[0-9a-f]{7,12}$/i.test(gitSha)) return gitSha.toLowerCase();
   } catch {
     // A source checkout is not guaranteed in standalone/runtime images.
   }
 
-  return (input.nodeEnv ?? process.env.NODE_ENV) === "development" ? "dev" : "unknown";
+  return (input.nodeEnv ?? process.env.NODE_ENV) === 'development' ? 'dev' : 'unknown';
 }
 
 function validSentryDsn(value: string | null): string | null {
-  const raw = value?.trim() ?? "";
+  const raw = value?.trim() ?? '';
   if (!raw || raw.length > 2_048) return null;
   try {
     const parsed = new URL(raw);
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
     if (!parsed.hostname || !parsed.username || parsed.search || parsed.hash) return null;
-    const pathParts = parsed.pathname.split("/").filter(Boolean);
-    if (pathParts.length === 0 || !/^[A-Za-z0-9_-]+$/.test(pathParts.at(-1) ?? "")) return null;
+    const pathParts = parsed.pathname.split('/').filter(Boolean);
+    if (pathParts.length === 0 || !/^[A-Za-z0-9_-]+$/.test(pathParts.at(-1) ?? '')) return null;
     return parsed.toString();
   } catch {
     return null;
@@ -113,38 +118,44 @@ function validSentryDsn(value: string | null): string | null {
 }
 
 function sanitizeExceptionType(value: unknown): string {
-  if (typeof value !== "string") return "Error";
+  if (typeof value !== 'string') return 'Error';
   const normalized = value.trim().slice(0, 80);
-  return /^[A-Za-z_$][A-Za-z0-9_.$-]*$/.test(normalized) ? normalized : "Error";
+  return /^[A-Za-z_$][A-Za-z0-9_.$-]*$/.test(normalized) ? normalized : 'Error';
 }
 
 function stableSafeToken(value: string): string {
-  return createHash("sha256").update(value).digest("hex").slice(0, 16);
+  return createHash('sha256').update(value).digest('hex').slice(0, 16);
 }
 
 function repoRelativeFilename(value: unknown): string | null {
-  if (typeof value !== "string") return null;
-  const normalized = value.replaceAll("\\", "/").split(/[?#]/, 1)[0] ?? "";
+  if (typeof value !== 'string') return null;
+  const normalized = value.replaceAll('\\', '/').split(/[?#]/, 1)[0] ?? '';
   const match = normalized.match(/(?:^|\/)(apps|packages|scripts)\/([^\s]+)$/);
   if (!match) return null;
   const relative = `${match[1]}/${match[2]}`;
-  if (relative.includes("../") || relative.includes("node_modules/") || relative.length > MAX_FRAME_PATH_LENGTH) {
+  if (
+    relative.includes('../') ||
+    relative.includes('node_modules/') ||
+    relative.length > MAX_FRAME_PATH_LENGTH
+  ) {
     return null;
   }
   const extensionCandidate = relative.match(/\.([A-Za-z0-9]+)$/)?.[1]?.toLowerCase();
-  const extension = extensionCandidate && ["ts", "tsx", "js", "mjs", "cjs"].includes(extensionCandidate)
-    ? `.${extensionCandidate}`
-    : "";
+  const extension =
+    extensionCandidate && ['ts', 'tsx', 'js', 'mjs', 'cjs'].includes(extensionCandidate)
+      ? `.${extensionCandidate}`
+      : '';
   return `${match[1]}/_frame/${stableSafeToken(relative)}${extension}`;
 }
 
 function boundedPositiveInteger(value: unknown): number | undefined {
-  if (typeof value !== "number" || !Number.isInteger(value) || value <= 0 || value > 10_000_000) return undefined;
+  if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0 || value > 10_000_000)
+    return undefined;
   return value;
 }
 
 function sanitizedFunctionName(value: unknown): string | undefined {
-  if (typeof value !== "string") return undefined;
+  if (typeof value !== 'string') return undefined;
   const normalized = value.trim().slice(0, 100);
   return normalized && /^[A-Za-z0-9_.$<>-]+$/.test(normalized)
     ? `fn_${stableSafeToken(normalized)}`
@@ -179,9 +190,9 @@ function firstException(event: UnknownRecord): UnknownRecord {
 
 function capturePointFromEvent(event: UnknownRecord): ErrorTrackingCapturePoint {
   const candidate = isRecord(event.tags) ? event.tags.capture_point : null;
-  return typeof candidate === "string" && VALID_CAPTURE_POINTS.has(candidate)
-    ? candidate as ErrorTrackingCapturePoint
-    : "integrator_startup_fatal";
+  return typeof candidate === 'string' && VALID_CAPTURE_POINTS.has(candidate)
+    ? (candidate as ErrorTrackingCapturePoint)
+    : 'integrator_startup_fatal';
 }
 
 export function sanitizeErrorTrackingEvent(
@@ -198,7 +209,7 @@ export function sanitizeErrorTrackingEvent(
   const frames = sanitizeFrames(sourceStacktrace.frames);
   const exception: UnknownRecord = {
     type: sanitizeExceptionType(sourceException.type),
-    value: "[REDACTED]",
+    value: '[REDACTED]',
   };
   if (frames.length > 0) exception.stacktrace = { frames };
 
@@ -216,7 +227,7 @@ export function sanitizeErrorTrackingEvent(
 }
 
 async function loadNodeSdk(): Promise<ErrorTrackingSdkAdapter> {
-  const sdk = await import("@sentry/node");
+  const sdk = await import('@sentry/node');
   return {
     init(options) {
       sdk.init(options as Parameters<typeof sdk.init>[0]);
@@ -238,9 +249,9 @@ export async function initErrorTrackingWithLoader(
   loadSdk: () => Promise<ErrorTrackingSdkAdapter>,
 ): Promise<ErrorTrackingInitResult> {
   const release = resolveErrorTrackingRelease(input);
-  if (!input.enabled) return { enabled: false, release, reason: "disabled" };
+  if (!input.enabled) return { enabled: false, release, reason: 'disabled' };
   const dsn = validSentryDsn(input.dsn);
-  if (!dsn) return { enabled: false, release, reason: "invalid_dsn" };
+  if (!dsn) return { enabled: false, release, reason: 'invalid_dsn' };
   if (activeState) return { enabled: true, release: activeState.release };
 
   try {
@@ -270,7 +281,7 @@ export async function initErrorTrackingWithLoader(
     return { enabled: true, release };
   } catch {
     activeState = null;
-    return { enabled: false, release, reason: "sdk_unavailable" };
+    return { enabled: false, release, reason: 'sdk_unavailable' };
   }
 }
 
@@ -278,7 +289,10 @@ export function initErrorTracking(input: ErrorTrackingInitInput): Promise<ErrorT
   return initErrorTrackingWithLoader(input, loadNodeSdk);
 }
 
-export function captureErrorTrackingException(error: unknown, capturePoint: ErrorTrackingCapturePoint): void {
+export function captureErrorTrackingException(
+  error: unknown,
+  capturePoint: ErrorTrackingCapturePoint,
+): void {
   activeState?.sdk.captureException(error, { tags: { capture_point: capturePoint } });
 }
 

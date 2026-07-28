@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   gateMock,
@@ -39,20 +39,20 @@ const {
   };
 });
 
-vi.mock("@/app-layer/guards/requireRole", () => ({
+vi.mock('@/app-layer/guards/requireRole', () => ({
   requirePatientApiBusinessAccess: gateMock,
 }));
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: buildAppDepsMock,
 }));
 
-import { POST } from "./route";
+import { POST } from './route';
 
-const conversationId = "11111111-1111-4111-8111-111111111111";
-const patientUserId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
-const supportMessageId = "22222222-2222-4222-8222-222222222222";
+const conversationId = '11111111-1111-4111-8111-111111111111';
+const patientUserId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const supportMessageId = '22222222-2222-4222-8222-222222222222';
 
-describe("POST patient messages/read", () => {
+describe('POST patient messages/read', () => {
   beforeEach(() => {
     gateMock.mockReset();
     getConversationIfOwnedByUserMock.mockReset();
@@ -66,24 +66,30 @@ describe("POST patient messages/read", () => {
       session: {
         user: {
           userId: patientUserId,
-          role: "client" as const,
-          phone: "+79990001122",
+          role: 'client' as const,
+          phone: '+79990001122',
           bindings: {},
         },
       },
     });
-    getConversationIfOwnedByUserMock.mockResolvedValue({ id: conversationId, organizationId: "org-1" });
+    getConversationIfOwnedByUserMock.mockResolvedValue({
+      id: conversationId,
+      organizationId: 'org-1',
+    });
     getBooleanMock.mockResolvedValue(true);
-    listUnreadInboundMock.mockResolvedValue([{ id: supportMessageId, text: "Ответ..." }]);
-    syncDiscussionReadMock.mockResolvedValue({ markedStageItemIds: ["33333333-3333-4333-8333-333333333333"], skippedAmbiguous: 0 });
+    listUnreadInboundMock.mockResolvedValue([{ id: supportMessageId, text: 'Ответ...' }]);
+    syncDiscussionReadMock.mockResolvedValue({
+      markedStageItemIds: ['33333333-3333-4333-8333-333333333333'],
+      skippedAmbiguous: 0,
+    });
     markInboundReadMock.mockResolvedValue(undefined);
   });
 
-  it("syncs program discussion read before marking support inbound read", async () => {
+  it('syncs program discussion read before marking support inbound read', async () => {
     const res = await POST(
-      new Request("http://localhost", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      new Request('http://localhost', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ conversationId }),
       }),
     );
@@ -91,7 +97,7 @@ describe("POST patient messages/read", () => {
     expect(listUnreadInboundMock).toHaveBeenCalledWith(patientUserId);
     expect(syncDiscussionReadMock).toHaveBeenCalledWith({
       patientUserId,
-      inboundAdminMessages: [{ id: supportMessageId, text: "Ответ..." }],
+      inboundAdminMessages: [{ id: supportMessageId, text: 'Ответ...' }],
     });
     expect(markInboundReadMock).toHaveBeenCalledWith(patientUserId, conversationId);
   });
@@ -99,14 +105,14 @@ describe("POST patient messages/read", () => {
   it("marks a CLOSED own conversation read with 200 — a closed thread is history, not 'not found'", async () => {
     getConversationIfOwnedByUserMock.mockResolvedValue({
       id: conversationId,
-      organizationId: "org-1",
-      status: "closed",
-      closedAt: "2026-01-02T00:00:00.000Z",
+      organizationId: 'org-1',
+      status: 'closed',
+      closedAt: '2026-01-02T00:00:00.000Z',
     });
     const res = await POST(
-      new Request("http://localhost", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      new Request('http://localhost', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ conversationId }),
       }),
     );
@@ -115,12 +121,12 @@ describe("POST patient messages/read", () => {
     expect(markInboundReadMock).toHaveBeenCalledWith(patientUserId, conversationId);
   });
 
-  it("returns 404 for a conversation owned by someone else", async () => {
+  it('returns 404 for a conversation owned by someone else', async () => {
     getConversationIfOwnedByUserMock.mockResolvedValue(null);
     const res = await POST(
-      new Request("http://localhost", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      new Request('http://localhost', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ conversationId }),
       }),
     );
@@ -128,26 +134,29 @@ describe("POST patient messages/read", () => {
     expect(markInboundReadMock).not.toHaveBeenCalled();
   });
 
-  it("passes the requested conversation id straight through — never a user-wide sweep", async () => {
-    const otherConversationId = "44444444-4444-4444-8444-444444444444";
+  it('passes the requested conversation id straight through — never a user-wide sweep', async () => {
+    const otherConversationId = '44444444-4444-4444-8444-444444444444';
     const res = await POST(
-      new Request("http://localhost", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      new Request('http://localhost', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ conversationId: otherConversationId }),
       }),
     );
     expect(res.status).toBe(200);
-    expect(getConversationIfOwnedByUserMock).toHaveBeenCalledWith(otherConversationId, patientUserId);
+    expect(getConversationIfOwnedByUserMock).toHaveBeenCalledWith(
+      otherConversationId,
+      patientUserId,
+    );
     expect(markInboundReadMock).toHaveBeenCalledWith(patientUserId, otherConversationId);
   });
 
-  it("skips discussion sync when feature disabled", async () => {
+  it('skips discussion sync when feature disabled', async () => {
     getBooleanMock.mockResolvedValue(false);
     const res = await POST(
-      new Request("http://localhost", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      new Request('http://localhost', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ conversationId }),
       }),
     );

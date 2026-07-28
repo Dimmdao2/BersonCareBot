@@ -108,7 +108,7 @@
 
 **Модель:** Composer 1.5 (auto)
 
-*(Запускать только если аудит дал rework)*
+_(Запускать только если аудит дал rework)_
 
 ```
 Изучи docs/BRANCH_UX_CMS_BOOKING/AUDIT_PHASE_0.md.
@@ -161,6 +161,7 @@
 Запускается 3 раза — по одному на блок.
 
 ### Блок 1.A (загрузка):
+
 ```
 Выполни задачи блока 1.A из docs/BRANCH_UX_CMS_BOOKING/PHASE_1_TASKS.md (задачи 1.1–1.4).
 
@@ -174,6 +175,7 @@
 ```
 
 ### Блок 1.B (просмотр):
+
 ```
 Выполни задачи блока 1.B из docs/BRANCH_UX_CMS_BOOKING/PHASE_1_TASKS.md (задачи 1.5–1.9).
 
@@ -181,6 +183,7 @@
 ```
 
 ### Блок 1.C (picker/CMS):
+
 ```
 Выполни задачи блока 1.C из docs/BRANCH_UX_CMS_BOOKING/PHASE_1_TASKS.md (задачи 1.10–1.13).
 
@@ -218,7 +221,7 @@
 
 **Модель:** Composer 1.5 (auto)
 
-*(Только при rework)*
+_(Только при rework)_
 
 ```
 Изучи docs/BRANCH_UX_CMS_BOOKING/AUDIT_PHASE_1.md.
@@ -260,6 +263,7 @@
 **Модель:** Composer 1.5 (auto)
 
 ### Блок 2.A (backend):
+
 ```
 Выполни задачи блока 2.A из docs/BRANCH_UX_CMS_BOOKING/PHASE_2_TASKS.md.
 
@@ -274,6 +278,7 @@ pnpm run ci после блока. Обнови AGENT_LOG.md.
 ```
 
 ### Блок 2.B (frontend):
+
 ```
 Выполни задачи блока 2.B из docs/BRANCH_UX_CMS_BOOKING/PHASE_2_TASKS.md.
 
@@ -286,6 +291,7 @@ pnpm run ci после блока. Обнови AGENT_LOG.md.
 ```
 
 ### Блок 2.C (интеграция):
+
 ```
 Выполни задачи блока 2.C из docs/BRANCH_UX_CMS_BOOKING/PHASE_2_TASKS.md.
 

@@ -1,11 +1,11 @@
 /**
  * GET/PATCH /api/doctor/clients/:userId/support-settings — «На сопровождении» и гейты комментариев/медиа.
  */
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 
 const patchBodySchema = z.object({
   onSupport: z.boolean().optional(),
@@ -13,16 +13,13 @@ const patchBodySchema = z.object({
   mediaEnabled: z.boolean().nullable().optional(),
 });
 
-export async function GET(
-  _request: Request,
-  context: { params: Promise<{ userId: string }> },
-) {
+export async function GET(_request: Request, context: { params: Promise<{ userId: string }> }) {
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
 
   const { userId } = await context.params;
   if (!z.string().uuid().safeParse(userId).success) {
-    return NextResponse.json({ ok: false, error: "invalid_user" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_user' }, { status: 400 });
   }
 
   const deps = buildAppDeps();
@@ -30,7 +27,7 @@ export async function GET(
     userId,
     gate.ctx.organizationId,
   );
-  if (!identity) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  if (!identity) return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
 
   const [profile, policy] = await withDoctorWorkspacePrincipal(gate.ctx, () =>
     Promise.all([
@@ -53,23 +50,20 @@ export async function GET(
   });
 }
 
-export async function PATCH(
-  request: Request,
-  context: { params: Promise<{ userId: string }> },
-) {
+export async function PATCH(request: Request, context: { params: Promise<{ userId: string }> }) {
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
   const { session } = gate.ctx;
 
   const { userId } = await context.params;
   if (!z.string().uuid().safeParse(userId).success) {
-    return NextResponse.json({ ok: false, error: "invalid_user" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_user' }, { status: 400 });
   }
 
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = patchBodySchema.safeParse(raw);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
 
   const deps = buildAppDeps();
@@ -77,7 +71,7 @@ export async function PATCH(
     userId,
     gate.ctx.organizationId,
   );
-  if (!identity) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  if (!identity) return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
 
   const profile = await withDoctorWorkspacePrincipal(gate.ctx, () =>
     deps.doctorClients.updateClientSupport({

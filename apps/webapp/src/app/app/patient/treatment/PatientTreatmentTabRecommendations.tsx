@@ -1,28 +1,28 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useMemo } from "react";
-import { PatientCatalogMediaStaticThumb } from "@/shared/ui/patient/PatientCatalogMediaStaticThumb";
-import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
+import Link from 'next/link';
+import { useMemo } from 'react';
+import { PatientCatalogMediaStaticThumb } from '@/shared/ui/patient/PatientCatalogMediaStaticThumb';
+import type { TreatmentProgramInstanceDetail } from '@/modules/treatment-program/types';
 import {
   isInstanceStageItemShownOnPatientProgramSurfaces,
   isPersistentRecommendation,
-} from "@/modules/treatment-program/stage-semantics";
-import { routePaths } from "@/app-layer/routes/paths";
-import type { PatientPlanTab } from "@/app/app/patient/treatment/patientPlanTab";
+} from '@/modules/treatment-program/stage-semantics';
+import { routePaths } from '@/app-layer/routes/paths';
+import type { PatientPlanTab } from '@/app/app/patient/treatment/patientPlanTab';
 import {
   parseRecommendationMediaFromSnapshot,
   pickRecommendationRowPreviewMedia,
   recommendationBodyMdPreviewPlain,
-} from "@/app/app/patient/treatment/stageItemSnapshot";
+} from '@/app/app/patient/treatment/stageItemSnapshot';
 import {
   patientMutedTextClass,
   patientSectionTitleClass,
   patientInnerPageStackClass,
-} from "@/shared/ui/patient/patientVisual";
-import { cn } from "@/lib/utils";
+} from '@/shared/ui/patient/patientVisual';
+import { cn } from '@/lib/utils';
 
-type Stage = TreatmentProgramInstanceDetail["stages"][number];
+type Stage = TreatmentProgramInstanceDetail['stages'][number];
 
 function sortByOrderThenId<T extends { sortOrder: number; id: string }>(rows: T[]): T[] {
   return [...rows].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
@@ -30,7 +30,7 @@ function sortByOrderThenId<T extends { sortOrder: number; id: string }>(rows: T[
 
 function rowTitle(snapshot: Record<string, unknown>, itemType: string): string {
   const t = snapshot.title;
-  if (typeof t === "string" && t.trim() !== "") return t;
+  if (typeof t === 'string' && t.trim() !== '') return t;
   return itemType;
 }
 
@@ -40,31 +40,44 @@ export function PatientTreatmentTabRecommendations(props: {
   stageZeroStages: Stage[];
   itemLinksPlanTab?: PatientPlanTab | null;
 }) {
-  const { instanceId, currentWorkingStage, stageZeroStages, itemLinksPlanTab = "recommendations" } = props;
+  const {
+    instanceId,
+    currentWorkingStage,
+    stageZeroStages,
+    itemLinksPlanTab = 'recommendations',
+  } = props;
 
   const stagePersistent = useMemo(
     () =>
       currentWorkingStage
-        ? sortByOrderThenId(currentWorkingStage.items.filter((it) => isPersistentRecommendation(it)))
+        ? sortByOrderThenId(
+            currentWorkingStage.items.filter((it) => isPersistentRecommendation(it)),
+          )
         : [],
     [currentWorkingStage],
   );
 
   const generalItems = useMemo(() => {
-    const rows: Stage["items"] = [];
+    const rows: Stage['items'] = [];
     for (const st of stageZeroStages) {
       for (const it of sortByOrderThenId(st.items)) {
-        if (isPersistentRecommendation(it) && isInstanceStageItemShownOnPatientProgramSurfaces(it)) rows.push(it);
+        if (isPersistentRecommendation(it) && isInstanceStageItemShownOnPatientProgramSurfaces(it))
+          rows.push(it);
       }
     }
     return rows;
   }, [stageZeroStages]);
 
-  const renderRow = (item: Stage["items"][number]) => {
+  const renderRow = (item: Stage['items'][number]) => {
     const snap = item.snapshot as Record<string, unknown>;
     const media = pickRecommendationRowPreviewMedia(parseRecommendationMediaFromSnapshot(snap));
     const bodyPreview = recommendationBodyMdPreviewPlain(snap.bodyMd);
-    const href = routePaths.patientTreatmentProgramItem(instanceId, item.id, "rec-read", itemLinksPlanTab ?? null);
+    const href = routePaths.patientTreatmentProgramItem(
+      instanceId,
+      item.id,
+      'rec-read',
+      itemLinksPlanTab ?? null,
+    );
     return (
       <li key={item.id} className="list-none">
         <Link
@@ -81,7 +94,9 @@ export function PatientTreatmentTabRecommendations(props: {
               {rowTitle(snap, item.itemType)}
             </span>
             {bodyPreview ? (
-              <span className={cn(patientMutedTextClass, "line-clamp-2 text-xs leading-snug")}>{bodyPreview}</span>
+              <span className={cn(patientMutedTextClass, 'line-clamp-2 text-xs leading-snug')}>
+                {bodyPreview}
+              </span>
             ) : null}
           </div>
         </Link>
@@ -90,7 +105,7 @@ export function PatientTreatmentTabRecommendations(props: {
   };
 
   return (
-    <div className={cn(patientInnerPageStackClass, "gap-4")}>
+    <div className={cn(patientInnerPageStackClass, 'gap-4')}>
       {stagePersistent.length > 0 ? (
         <section aria-labelledby="patient-tp-rec-stage-heading">
           <h3 id="patient-tp-rec-stage-heading" className={patientSectionTitleClass}>

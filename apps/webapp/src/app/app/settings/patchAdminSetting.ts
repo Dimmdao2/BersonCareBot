@@ -1,13 +1,13 @@
-import { apiJson } from "@/shared/lib/apiJson";
+import { apiJson } from '@/shared/lib/apiJson';
 
 /**
  * PATCH ключей scope=admin через `/api/admin/settings`.
  */
 export async function patchAdminSetting(key: string, value: unknown): Promise<boolean> {
   try {
-    await apiJson<{ ok: boolean }>("/api/admin/settings", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+    await apiJson<{ ok: boolean }>('/api/admin/settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ key, value: { value } }),
     });
     return true;
@@ -25,11 +25,13 @@ export type PatchAdminSettingsBatchResult =
 /**
  * Один PATCH со списком ключей формы «Режимы» (`items`), атомарная запись в БД.
  */
-export async function patchAdminSettingsBatch(items: AdminModesBatchItem[]): Promise<PatchAdminSettingsBatchResult> {
+export async function patchAdminSettingsBatch(
+  items: AdminModesBatchItem[],
+): Promise<PatchAdminSettingsBatchResult> {
   try {
-    await apiJson<{ ok: boolean }>("/api/admin/settings", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+    await apiJson<{ ok: boolean }>('/api/admin/settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         items: items.map((it) => ({
           key: it.key,

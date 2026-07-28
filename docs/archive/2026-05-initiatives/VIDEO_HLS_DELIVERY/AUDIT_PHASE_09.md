@@ -3,12 +3,12 @@
 **Дата:** 2026-05-03  
 **Источник требований:** [phases/phase-09-signed-urls-ttl-and-private-access.md](./phases/phase-09-signed-urls-ttl-and-private-access.md)
 
-| # | Проверка | Вердикт |
-|---|----------|---------|
-| 1 | TTL из `system_settings`, не из нового env | **PASS** |
-| 2 | Истечение URL не ломает просмотр (перезапрос playback) | **PASS** (оговорки) |
-| 3 | Bucket private, нет анонимного доступа через приложение | **PASS** (код); **PENDING (ops)** политика бакета вне репо |
-| 4 | Полные presigned URL не в логах / внешней телеметрии | **PASS** |
+| #   | Проверка                                                | Вердикт                                                    |
+| --- | ------------------------------------------------------- | ---------------------------------------------------------- |
+| 1   | TTL из `system_settings`, не из нового env              | **PASS**                                                   |
+| 2   | Истечение URL не ломает просмотр (перезапрос playback)  | **PASS** (оговорки)                                        |
+| 3   | Bucket private, нет анонимного доступа через приложение | **PASS** (код); **PENDING (ops)** политика бакета вне репо |
+| 4   | Полные presigned URL не в логах / внешней телеметрии    | **PASS**                                                   |
 
 ---
 
@@ -66,13 +66,13 @@
 
 ## Findings
 
-| ID | Уровень | Описание | Статус (после FIX) |
-|----|---------|----------|----------------------|
-| — | Critical | В аудите не зафиксировано. | **N/A → CLOSED** |
-| — | Major | В аудите не зафиксировано. | **N/A → CLOSED** |
-| P09-0 | Minor | Текст `err` в `playback_presign_failed` / `[media GET] presign failed` теоретически мог содержать URL из сообщения SDK. | **CLOSED** — `serializePresignFailureForLog` + редакция http(s) в `presignLogRedaction.ts`. |
-| P09-1 | Minor | Preview / worker / intake: одноаргументный `presignGetUrl` и дефолт 3600 в SDK — не env; не влияет на DB TTL playback. | **DEFERRED (scope)** — менять preview/worker TTL только отдельной политикой продукта (не регресс phase-09). |
-| P09-2 | Minor | Bucket policy «только presigned» на стенде/prod. | **CLOSED (док)** — чеклист в `docs/REPORTS/S3_PRIVATE_MEDIA_EXECUTION_LOG.md` § Revision phase-09; **DEFERRED (ops)** — фактическое подтверждение на хосте вне репо. |
+| ID    | Уровень  | Описание                                                                                                                | Статус (после FIX)                                                                                                                                                   |
+| ----- | -------- | ----------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| —     | Critical | В аудите не зафиксировано.                                                                                              | **N/A → CLOSED**                                                                                                                                                     |
+| —     | Major    | В аудите не зафиксировано.                                                                                              | **N/A → CLOSED**                                                                                                                                                     |
+| P09-0 | Minor    | Текст `err` в `playback_presign_failed` / `[media GET] presign failed` теоретически мог содержать URL из сообщения SDK. | **CLOSED** — `serializePresignFailureForLog` + редакция http(s) в `presignLogRedaction.ts`.                                                                          |
+| P09-1 | Minor    | Preview / worker / intake: одноаргументный `presignGetUrl` и дефолт 3600 в SDK — не env; не влияет на DB TTL playback.  | **DEFERRED (scope)** — менять preview/worker TTL только отдельной политикой продукта (не регресс phase-09).                                                          |
+| P09-2 | Minor    | Bucket policy «только presigned» на стенде/prod.                                                                        | **CLOSED (док)** — чеклист в `docs/REPORTS/S3_PRIVATE_MEDIA_EXECUTION_LOG.md` § Revision phase-09; **DEFERRED (ops)** — фактическое подтверждение на хосте вне репо. |
 
 ---
 

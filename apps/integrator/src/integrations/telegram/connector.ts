@@ -67,7 +67,10 @@ export function telegramActionsToOutgoingEvents(input: {
 }
 
 /** Отправляет отфильтрованные telegram-события через Telegram API. */
-export async function dispatchTelegramOutgoingEvents(events: OutgoingEvent[], api: TelegramApi): Promise<void> {
+export async function dispatchTelegramOutgoingEvents(
+  events: OutgoingEvent[],
+  api: TelegramApi,
+): Promise<void> {
   const actions: OutgoingAction[] = [];
   for (const event of events) {
     if (event.type !== 'message.send' || event.meta.source !== 'telegram') continue;

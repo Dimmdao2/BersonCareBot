@@ -1,4 +1,4 @@
-import type { BookingSlotsByDate } from "@/modules/patient-booking/types";
+import type { BookingSlotsByDate } from '@/modules/patient-booking/types';
 
 export type SchedulingContext = {
   organizationId: string;
@@ -128,7 +128,10 @@ export type BookingSchedulingPort = {
     serviceId: string;
     specialistId?: string | null;
   }): Promise<string | null>;
-  listServicesByCityCode(organizationId: string, cityCode: string): Promise<{ serviceId: string; branchId: string }[]>;
+  listServicesByCityCode(
+    organizationId: string,
+    cityCode: string,
+  ): Promise<{ serviceId: string; branchId: string }[]>;
   getSlots(context: SchedulingContext): Promise<BookingSlotsByDate[]>;
   listBusyIntervals(input: {
     organizationId: string;
@@ -213,7 +216,7 @@ export type CreateScheduleBlockInput = {
   roomId?: string | null;
   startAt: string;
   endAt: string;
-  blockType: "block" | "absence";
+  blockType: 'block' | 'absence';
   title?: string | null;
   createdByActorId?: string | null;
 };
@@ -303,7 +306,7 @@ export type BookingSchedulingService = {
     roomId?: string | null;
   }): Promise<ScheduleBlockRecord[]>;
   createScheduleBlock(
-    input: Omit<CreateScheduleBlockInput, "organizationId"> & { organizationId?: string },
+    input: Omit<CreateScheduleBlockInput, 'organizationId'> & { organizationId?: string },
   ): Promise<ScheduleBlockRecord>;
   deleteScheduleBlock(blockId: string, organizationId: string): Promise<void>;
   listWorkingHoursAdmin(input: {
@@ -314,7 +317,7 @@ export type BookingSchedulingService = {
     weekday?: number;
   }): Promise<WorkingHoursRecord[]>;
   createWorkingHours(
-    input: Omit<CreateWorkingHoursInput, "organizationId"> & { organizationId?: string },
+    input: Omit<CreateWorkingHoursInput, 'organizationId'> & { organizationId?: string },
   ): Promise<WorkingHoursRecord>;
   updateWorkingHours(input: UpdateWorkingHoursInput): Promise<WorkingHoursRecord>;
   deactivateWorkingHours(id: string, organizationId: string): Promise<void>;
@@ -348,7 +351,12 @@ export type BookingSchedulingService = {
   listScheduleTemplates(organizationId: string): Promise<ScheduleTemplateRecord[]>;
   createScheduleTemplate(input: CreateScheduleTemplateInput): Promise<ScheduleTemplateRecord>;
   deleteScheduleTemplate(id: string, organizationId: string): Promise<void>;
-  applyScheduleTemplate(input: { organizationId: string; specialistId?: string | null; templateId: string; dates: string[] }): Promise<WorkingDayRecord[]>;
+  applyScheduleTemplate(input: {
+    organizationId: string;
+    specialistId?: string | null;
+    templateId: string;
+    dates: string[];
+  }): Promise<WorkingDayRecord[]>;
   // Nearest free window
   nearestFreeWindow(input: NearestFreeWindowInput): Promise<NearestFreeWindowResult>;
 };

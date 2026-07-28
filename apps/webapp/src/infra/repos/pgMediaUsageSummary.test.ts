@@ -1,25 +1,33 @@
-import { PgDialect } from "drizzle-orm/pg-core";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { PgDialect } from 'drizzle-orm/pg-core';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const runWebappSqlMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/infra/db/runWebappSql", () => ({
+vi.mock('@/infra/db/runWebappSql', () => ({
   getWebappSqlDb: () => ({}),
   runWebappSql: runWebappSqlMock,
 }));
 
-import { pgMediaUsageSummaryForMediaId } from "./pgMediaUsageSummary";
+import { pgMediaUsageSummaryForMediaId } from './pgMediaUsageSummary';
 
-const MEDIA_ID = "10000000-0000-4000-8000-000000000001";
+const MEDIA_ID = '10000000-0000-4000-8000-000000000001';
 
-describe("pgMediaUsageSummaryForMediaId", () => {
+describe('pgMediaUsageSummaryForMediaId', () => {
   beforeEach(() => {
     runWebappSqlMock.mockReset();
   });
 
-  it("counts only catalog exercises and keeps personal instance media outside generic usage", async () => {
+  it('counts only catalog exercises and keeps personal instance media outside generic usage', async () => {
     runWebappSqlMock.mockResolvedValue({
-      rows: [{ materials: "0", exercises: "1", clinical_tests: "0", recommendations: "0", sections: "0" }],
+      rows: [
+        {
+          materials: '0',
+          exercises: '1',
+          clinical_tests: '0',
+          recommendations: '0',
+          sections: '0',
+        },
+      ],
     });
 
     const summary = await pgMediaUsageSummaryForMediaId(MEDIA_ID);

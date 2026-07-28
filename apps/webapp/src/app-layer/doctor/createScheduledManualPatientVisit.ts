@@ -1,18 +1,18 @@
-import type { EmailSetupAccessService } from "@/modules/auth/emailSetupAccess/service";
-import { fireAndForgetContactEmailSetup } from "@/modules/auth/emailSetupAccess/enqueueContactEmailSetup";
-import { normalizeEmail } from "@/modules/auth/emailAuth";
-import type { createBookingEngineService } from "@/modules/booking-engine/service";
-import type { CreateAppointmentInput } from "@/modules/booking-engine/types";
+import type { EmailSetupAccessService } from '@/modules/auth/emailSetupAccess/service';
+import { fireAndForgetContactEmailSetup } from '@/modules/auth/emailSetupAccess/enqueueContactEmailSetup';
+import { normalizeEmail } from '@/modules/auth/emailAuth';
+import type { createBookingEngineService } from '@/modules/booking-engine/service';
+import type { CreateAppointmentInput } from '@/modules/booking-engine/types';
 import {
   TrustedPatientPhoneSource,
   trustedPatientPhoneWriteAnchor,
-} from "@/modules/platform-access/trustedPhonePolicy";
-import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
-import { normalizeFioPart } from "@/shared/lib/fio";
+} from '@/modules/platform-access/trustedPhonePolicy';
+import { normalizeRuPhoneE164 } from '@/shared/phone/normalizeRuPhoneE164';
+import { normalizeFioPart } from '@/shared/lib/fio';
 
 type BookingEngineManualPatientVisitService = Pick<
   ReturnType<typeof createBookingEngineService>,
-  "createManualPatientVisit"
+  'createManualPatientVisit'
 >;
 
 type ManualPatientIdentityInput = {
@@ -29,7 +29,7 @@ type ManualPatientIdentityInput = {
 export type CreateScheduledManualPatientVisitInput = ManualPatientIdentityInput & {
   appointment: Omit<
     CreateAppointmentInput,
-    "organizationId" | "platformUserId" | "phoneNormalized"
+    'organizationId' | 'platformUserId' | 'phoneNormalized'
   >;
 };
 
@@ -45,23 +45,23 @@ function normalizeManualPatientIdentity(input: ManualPatientIdentityInput) {
     emailNormalized &&
     (emailNormalized.length > 320 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailNormalized))
   ) {
-    return { ok: false as const, error: "invalid_email" as const };
+    return { ok: false as const, error: 'invalid_email' as const };
   }
 
-  const phoneRaw = input.phone?.trim() ?? "";
+  const phoneRaw = input.phone?.trim() ?? '';
   const phoneNormalized = phoneRaw ? normalizeRuPhoneE164(phoneRaw) : null;
   if (phoneRaw && (!phoneNormalized || !/^\+7\d{10}$/.test(phoneNormalized))) {
-    return { ok: false as const, error: "invalid_phone" as const };
+    return { ok: false as const, error: 'invalid_phone' as const };
   }
   if (!phoneNormalized && emailNormalized) {
-    return { ok: false as const, error: "invalid_phone" as const };
+    return { ok: false as const, error: 'invalid_phone' as const };
   }
 
   const lastName = normalizeFioPart(input.lastName);
   const firstName = normalizeFioPart(input.firstName);
   const patronymic = normalizeFioPart(input.patronymic);
   if (!lastName || !firstName) {
-    return { ok: false as const, error: "invalid_fio" as const };
+    return { ok: false as const, error: 'invalid_fio' as const };
   }
   return {
     ok: true as const,
@@ -71,9 +71,9 @@ function normalizeManualPatientIdentity(input: ManualPatientIdentityInput) {
 
 function enqueueManualPatientContactSetup(
   input: ManualPatientIdentityInput,
-  result: Awaited<ReturnType<BookingEngineManualPatientVisitService["createManualPatientVisit"]>>,
+  result: Awaited<ReturnType<BookingEngineManualPatientVisitService['createManualPatientVisit']>>,
   emailNormalized: string | null,
-  deps: { emailSetupAccess: Pick<EmailSetupAccessService, "requestContactEmailSetup"> },
+  deps: { emailSetupAccess: Pick<EmailSetupAccessService, 'requestContactEmailSetup'> },
 ) {
   if (result.replayed) return;
   if (result.patient.created && result.patient.phoneNormalized) {
@@ -85,10 +85,10 @@ function enqueueManualPatientContactSetup(
       {
         userId: result.patient.userId,
         emailNormalized,
-        source: "doctor_profile",
+        source: 'doctor_profile',
         createdByUserId: input.createdByUserId,
       },
-      { hook: "doctor.booking-engine.appointments.manual-patient-visit" },
+      { hook: 'doctor.booking-engine.appointments.manual-patient-visit' },
     );
   }
 }
@@ -97,7 +97,7 @@ export async function createScheduledManualPatientVisit(
   input: CreateScheduledManualPatientVisitInput,
   deps: {
     bookingEngine: BookingEngineManualPatientVisitService;
-    emailSetupAccess: Pick<EmailSetupAccessService, "requestContactEmailSetup">;
+    emailSetupAccess: Pick<EmailSetupAccessService, 'requestContactEmailSetup'>;
   },
 ) {
   const normalized = normalizeManualPatientIdentity(input);
@@ -106,7 +106,7 @@ export async function createScheduledManualPatientVisit(
     organizationId: input.organizationId,
     commandId: input.requestId,
     ...normalized.identity,
-    kind: "scheduled",
+    kind: 'scheduled',
     appointment: input.appointment,
   });
   enqueueManualPatientContactSetup(input, result, normalized.identity.emailNormalized, deps);
@@ -118,23 +118,23 @@ export async function createWalkInManualPatientVisit(
   input: CreateWalkInManualPatientVisitInput,
   deps: {
     bookingEngine: BookingEngineManualPatientVisitService;
-    emailSetupAccess: Pick<EmailSetupAccessService, "requestContactEmailSetup">;
+    emailSetupAccess: Pick<EmailSetupAccessService, 'requestContactEmailSetup'>;
   },
 ) {
   const normalized = normalizeManualPatientIdentity(input);
   if (!normalized.ok) return normalized;
   const visitedAtMs = new Date(input.visitedAt).getTime();
   if (Number.isNaN(visitedAtMs)) {
-    return { ok: false as const, error: "invalid_visit_time" as const };
+    return { ok: false as const, error: 'invalid_visit_time' as const };
   }
   if (visitedAtMs > Date.now() + 2 * 60_000) {
-    return { ok: false as const, error: "visit_in_future" as const };
+    return { ok: false as const, error: 'visit_in_future' as const };
   }
   const result = await deps.bookingEngine.createManualPatientVisit({
     organizationId: input.organizationId,
     commandId: input.requestId,
     ...normalized.identity,
-    kind: "walk_in",
+    kind: 'walk_in',
     walkIn: {
       specialistId: input.specialistId,
       visitedAt: input.visitedAt,

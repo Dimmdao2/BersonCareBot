@@ -1,8 +1,8 @@
-import { describe, expect, it } from "vitest";
-import { resolveSkipBindPhoneSurface } from "./resolveSkipBindPhoneSurface";
+import { describe, expect, it } from 'vitest';
+import { resolveSkipBindPhoneSurface } from './resolveSkipBindPhoneSurface';
 
-describe("resolveSkipBindPhoneSurface", () => {
-  it("does not skip when DB trusted tier is false and snapshot has no phone", () => {
+describe('resolveSkipBindPhoneSurface', () => {
+  it('does not skip when DB trusted tier is false and snapshot has no phone', () => {
     expect(
       resolveSkipBindPhoneSurface({
         databaseUrlSet: true,
@@ -12,7 +12,7 @@ describe("resolveSkipBindPhoneSurface", () => {
     ).toBe(false);
   });
 
-  it("skips when phoneTrustedForPatient is true", () => {
+  it('skips when phoneTrustedForPatient is true', () => {
     expect(
       resolveSkipBindPhoneSurface({
         databaseUrlSet: true,
@@ -22,7 +22,7 @@ describe("resolveSkipBindPhoneSurface", () => {
     ).toBe(true);
   });
 
-  it("falls back to snapshot when platform context failed", () => {
+  it('falls back to snapshot when platform context failed', () => {
     expect(
       resolveSkipBindPhoneSurface({
         databaseUrlSet: true,

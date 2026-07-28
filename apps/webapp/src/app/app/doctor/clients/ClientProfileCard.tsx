@@ -1,19 +1,19 @@
 /**
  * Карточка клиента: Hero + Action Strip + табы (фаза 2B CARD_REDESIGN_PLAN).
  */
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/doctor/primitives/tabs";
-import type { ClientProfile } from "@/modules/doctor-clients/service";
-import type { MessageLogEntry } from "@/modules/doctor-messaging/ports";
-import type { LfkComplexExerciseLine } from "@/modules/diaries/types";
+import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/doctor/primitives/tabs';
+import type { ClientProfile } from '@/modules/doctor-clients/service';
+import type { MessageLogEntry } from '@/modules/doctor-messaging/ports';
+import type { LfkComplexExerciseLine } from '@/modules/diaries/types';
 import type {
   PendingProgramTestEvaluationRow,
   TreatmentProgramInstanceSummary,
-} from "@/modules/treatment-program/types";
-import type { WellbeingWeekChartModel } from "@/modules/diaries/buildWellbeingWeekChartData";
+} from '@/modules/treatment-program/types';
+import type { WellbeingWeekChartModel } from '@/modules/diaries/buildWellbeingWeekChartData';
 import type {
   DoctorClientActiveProgramTreeModel,
   DoctorClientOverviewCarePlanModel,
@@ -22,21 +22,17 @@ import type {
   DoctorClientRecentProgramChangeRow,
   DoctorClientTabId,
   DoctorClientTaskSummary,
-} from "@/modules/doctor-client-card/types";
-import type { ProactiveInsightRow } from "@/modules/doctor-proactive-insights/types";
-import { PatientCareBar } from "./PatientCareBar";
-import {
-  PatientActionStrip,
-  programTabBadgeCount,
-  ProgramTabBadge,
-} from "./PatientActionStrip";
-import { useDoctorClientAnchorTab } from "./useDoctorClientAnchorTab";
-import { DoctorClientOverviewTab } from "./DoctorClientOverviewTab";
-import { DoctorClientProgramTab } from "./DoctorClientProgramTab";
-import { DoctorClientCommunicationsTab } from "./DoctorClientCommunicationsTab";
-import { DoctorClientRecordsTab } from "./DoctorClientRecordsTab";
-import { DoctorClientAccountTab } from "./DoctorClientAccountTab";
-import { DoctorClientCardAdminSection } from "./DoctorClientCardAdminSection";
+} from '@/modules/doctor-client-card/types';
+import type { ProactiveInsightRow } from '@/modules/doctor-proactive-insights/types';
+import { PatientCareBar } from './PatientCareBar';
+import { PatientActionStrip, programTabBadgeCount, ProgramTabBadge } from './PatientActionStrip';
+import { useDoctorClientAnchorTab } from './useDoctorClientAnchorTab';
+import { DoctorClientOverviewTab } from './DoctorClientOverviewTab';
+import { DoctorClientProgramTab } from './DoctorClientProgramTab';
+import { DoctorClientCommunicationsTab } from './DoctorClientCommunicationsTab';
+import { DoctorClientRecordsTab } from './DoctorClientRecordsTab';
+import { DoctorClientAccountTab } from './DoctorClientAccountTab';
+import { DoctorClientCardAdminSection } from './DoctorClientCardAdminSection';
 import {
   doctorClientBackLinkClass,
   doctorClientBlockedBannerClass,
@@ -45,8 +41,8 @@ import {
   doctorClientTabTriggerClass,
   doctorClientTabsListClass,
   doctorClientTabsScrollClass,
-} from "./doctorClientCardChrome";
-import { doctorPageStackClass } from "@/shared/ui/doctor/doctorVisual";
+} from './doctorClientCardChrome';
+import { doctorPageStackClass } from '@/shared/ui/doctor/doctorVisual';
 
 const EMPTY_AGGREGATES: DoctorClientProgramCardAggregates = {
   newCommentsCount: 0,
@@ -90,7 +86,7 @@ function ClientProfileCardInner({
   profile,
   messageHistory,
   userId,
-  listBasePath = "/app/doctor/patients",
+  listBasePath = '/app/doctor/patients',
   profileListScope,
   isAdmin = false,
   canPermanentDelete = false,
@@ -106,7 +102,7 @@ function ClientProfileCardInner({
   activeProgramTree = null,
   programInbox = [],
   recentProgramChanges = [],
-  displayTimeZone = "Europe/Moscow",
+  displayTimeZone = 'Europe/Moscow',
   wellbeingChartModel,
   taskSummary = null,
   proactiveInsights = [],
@@ -114,18 +110,18 @@ function ClientProfileCardInner({
 }: ClientProfileCardProps) {
   const { identity, upcomingAppointments, appointmentHistory } = profile;
   const { activeTab, setActiveTab, applyAnchor } = useDoctorClientAnchorTab(
-    autoOpenChat ? "communications" : "overview",
+    autoOpenChat ? 'communications' : 'overview',
   );
 
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
 
   const sampleRecordId = appointmentHistory[0]?.id ?? null;
   const backLabel =
-    listBasePath.includes("subscribers") || listBasePath.includes("scope=all")
-      ? "К списку подписчиков"
-      : listBasePath.includes("scope=archived")
-        ? "К архиву"
-        : "К списку клиентов";
+    listBasePath.includes('subscribers') || listBasePath.includes('scope=all')
+      ? 'К списку подписчиков'
+      : listBasePath.includes('scope=archived')
+        ? 'К архиву'
+        : 'К списку клиентов';
 
   const firstUpcoming = upcomingAppointments[0];
   const pendingTestsCount = pendingProgramTestEvaluations.length;
@@ -135,13 +131,13 @@ function ClientProfileCardInner({
     let cancelled = false;
     void (async () => {
       try {
-        const res = await fetch("/api/doctor/messages/conversations/unread-by-patient", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+        const res = await fetch('/api/doctor/messages/conversations/unread-by-patient', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ patientUserId: userId }),
         });
         const data = (await res.json()) as { ok?: boolean; unreadCount?: number };
-        if (!cancelled && res.ok && data.ok && typeof data.unreadCount === "number") {
+        if (!cancelled && res.ok && data.ok && typeof data.unreadCount === 'number') {
           setChatUnreadCount(data.unreadCount);
         }
       } catch {
@@ -154,17 +150,17 @@ function ClientProfileCardInner({
   }, [userId]);
 
   const openCommunications = useCallback(() => {
-    applyAnchor("doctor-client-section-communications");
+    applyAnchor('doctor-client-section-communications');
   }, [applyAnchor]);
 
   useEffect(() => {
     if (!autoOpenChat) return;
-    applyAnchor("doctor-client-section-communications", { replaceHash: true });
+    applyAnchor('doctor-client-section-communications', { replaceHash: true });
   }, [autoOpenChat, applyAnchor]);
 
   const navigateProgram = () => {
-    setActiveTab("program");
-    applyAnchor("doctor-client-section-treatment-programs");
+    setActiveTab('program');
+    applyAnchor('doctor-client-section-treatment-programs');
   };
 
   const wellbeingModelResolved =
@@ -186,14 +182,11 @@ function ClientProfileCardInner({
           role="status"
         >
           Подписчик заблокирован для отправки сообщений в чат поддержки
-          {identity.blockedReason ? `: ${identity.blockedReason}` : "."}
+          {identity.blockedReason ? `: ${identity.blockedReason}` : '.'}
         </div>
       ) : null}
 
-      <article
-        id={`doctor-client-profile-card-${userId}`}
-        className={doctorClientProfileCardClass}
-      >
+      <article id={`doctor-client-profile-card-${userId}`} className={doctorClientProfileCardClass}>
         <div className={doctorClientProfileStickyShellClass}>
           <PatientCareBar
             identity={identity}

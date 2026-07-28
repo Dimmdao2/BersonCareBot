@@ -32,12 +32,12 @@
 
 ## 4. Разрешённые области правок
 
-| Разрешено | Пути |
-|-----------|------|
+| Разрешено  | Пути                                                                                              |
+| ---------- | ------------------------------------------------------------------------------------------------- |
 | Integrator | `apps/integrator/src/integrations/**`, `apps/integrator/src/infra/**`, worker entry если цикл там |
-| Конфиг | `system_settings` keys, `runtimeConfig` читатели в integrator |
-| Webapp | только если cron живёт в webapp (нежелательно по нагрузке) — согласовать в LOG |
-| Доки | `docs/ARCHITECTURE/`, `LOG.md` |
+| Конфиг     | `system_settings` keys, `runtimeConfig` читатели в integrator                                     |
+| Webapp     | только если cron живёт в webapp (нежелательно по нагрузке) — согласовать в LOG                    |
+| Доки       | `docs/ARCHITECTURE/`, `LOG.md`                                                                    |
 
 **Вне scope:** правки Rubitime бизнес-логики вебхука кроме вызова throttle-aware probe.
 

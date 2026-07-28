@@ -1,24 +1,28 @@
-"use client";
+'use client';
 
-import { startTransition, useCallback, useEffect, useRef, useState } from "react";
-import { usePatientPhonePromptChrome } from "@/shared/ui/patient/PatientPhonePromptChromeContext";
+import { startTransition, useCallback, useEffect, useRef, useState } from 'react';
+import { usePatientPhonePromptChrome } from '@/shared/ui/patient/PatientPhonePromptChromeContext';
 import {
   getPatientMessengerContactGateDetail,
   resolveBotHrefAfterMessengerSessionLoss,
   resolveMessengerContactGateBotHref,
-} from "@/shared/lib/patientMessengerContactGate";
-import { emitAuthFlowEvent } from "@/modules/auth/authFlowObservability";
-import { readMessengerBindingCandidate } from "@/shared/lib/messengerBindingCandidate";
-import { closeMessengerMiniApp, inferMessengerChannelForRequestContact, isMessengerMiniAppHost } from "@/shared/lib/messengerMiniApp";
-import { postPatientMessengerRequestContact } from "@/shared/lib/patientMessengerContactClient";
-import toast from "react-hot-toast";
-import { PatientSharePhoneViaBotPanel } from "@/shared/ui/patient/PatientSharePhoneViaBotPanel";
-import { PatientBrowserMessengerBindPanel } from "./PatientBrowserMessengerBindPanel";
-import { patientMutedTextClass, PatientShimmerPanel } from "@/shared/ui/patient/patientVisual";
+} from '@/shared/lib/patientMessengerContactGate';
+import { emitAuthFlowEvent } from '@/modules/auth/authFlowObservability';
+import { readMessengerBindingCandidate } from '@/shared/lib/messengerBindingCandidate';
+import {
+  closeMessengerMiniApp,
+  inferMessengerChannelForRequestContact,
+  isMessengerMiniAppHost,
+} from '@/shared/lib/messengerMiniApp';
+import { postPatientMessengerRequestContact } from '@/shared/lib/patientMessengerContactClient';
+import toast from 'react-hot-toast';
+import { PatientSharePhoneViaBotPanel } from '@/shared/ui/patient/PatientSharePhoneViaBotPanel';
+import { PatientBrowserMessengerBindPanel } from './PatientBrowserMessengerBindPanel';
+import { patientMutedTextClass, PatientShimmerPanel } from '@/shared/ui/patient/patientVisual';
 import {
   FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY,
   type AuthChannelUiPolicy,
-} from "@/modules/auth/otpChannelUi";
+} from '@/modules/auth/otpChannelUi';
 
 type Props = {
   telegramId: string;
@@ -40,40 +44,42 @@ export function PatientBindPhoneClient({
   channelPolicy = FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY,
 }: Props) {
   const phoneChrome = usePatientPhonePromptChrome();
-  const tg = channelPolicy.telegram ? telegramId?.trim() ?? "" : "";
-  const mx = channelPolicy.max ? maxId?.trim() ?? "" : "";
+  const tg = channelPolicy.telegram ? (telegramId?.trim() ?? '') : '';
+  const mx = channelPolicy.max ? (maxId?.trim() ?? '') : '';
   /** null — ждём решения или refresh после привязки номера. */
   const [useMessengerPanel, setUseMessengerPanel] = useState<boolean | null>(null);
   const [botHref, setBotHref] = useState<string | null>(null);
-  const [panelMode, setPanelMode] = useState<"blocked" | "timed_out" | "session_lost" | "me_unavailable">("blocked");
+  const [panelMode, setPanelMode] = useState<
+    'blocked' | 'timed_out' | 'session_lost' | 'me_unavailable'
+  >('blocked');
   const postAuthBindingEmittedRef = useRef(false);
 
   const runRecoveryAndDecide = useCallback(async () => {
     try {
       const detail = await getPatientMessengerContactGateDetail();
-      if (detail.kind === "unauthenticated") {
+      if (detail.kind === 'unauthenticated') {
         const href = await resolveBotHrefAfterMessengerSessionLoss();
         startTransition(() => {
           setBotHref(href);
-          setPanelMode("session_lost");
+          setPanelMode('session_lost');
           setUseMessengerPanel(true);
         });
         return;
       }
-      if (detail.kind === "need_contact") {
+      if (detail.kind === 'need_contact') {
         const href = await resolveMessengerContactGateBotHref(detail.hasTelegram, detail.hasMax);
         startTransition(() => {
           setBotHref(href);
-          setPanelMode("blocked");
+          setPanelMode('blocked');
           setUseMessengerPanel(true);
         });
         return;
       }
-      if (detail.kind === "me_unavailable") {
+      if (detail.kind === 'me_unavailable') {
         const href = await resolveMessengerContactGateBotHref(Boolean(tg), Boolean(mx));
         startTransition(() => {
           setBotHref(href);
-          setPanelMode("me_unavailable");
+          setPanelMode('me_unavailable');
           setUseMessengerPanel(true);
         });
         return;
@@ -83,7 +89,7 @@ export function PatientBindPhoneClient({
       const href = await resolveMessengerContactGateBotHref(Boolean(tg), Boolean(mx));
       startTransition(() => {
         setBotHref(href);
-        setPanelMode("me_unavailable");
+        setPanelMode('me_unavailable');
         setUseMessengerPanel(true);
       });
     }
@@ -102,22 +108,27 @@ export function PatientBindPhoneClient({
     if (!phoneChrome || !isMessengerMiniAppHost()) {
       return;
     }
-    const onPhoneFlow = Boolean(tg || mx) && (useMessengerPanel === true || useMessengerPanel === null);
+    const onPhoneFlow =
+      Boolean(tg || mx) && (useMessengerPanel === true || useMessengerPanel === null);
     phoneChrome.setSuppressPatientHeader(onPhoneFlow);
     return () => phoneChrome.setSuppressPatientHeader(false);
   }, [phoneChrome, tg, mx, useMessengerPanel]);
 
   useEffect(() => {
-    if (!isMessengerMiniAppHost() || useMessengerPanel !== true || postAuthBindingEmittedRef.current) {
+    if (
+      !isMessengerMiniAppHost() ||
+      useMessengerPanel !== true ||
+      postAuthBindingEmittedRef.current
+    ) {
       return;
     }
     postAuthBindingEmittedRef.current = true;
     const channel = inferMessengerChannelForRequestContact();
-    emitAuthFlowEvent("post_auth_binding_required", {
-      reason: "oauth_in_miniapp_no_bot_phone",
+    emitAuthFlowEvent('post_auth_binding_required', {
+      reason: 'oauth_in_miniapp_no_bot_phone',
       panelMode,
       hasBindings: Boolean(tg || mx),
-      channel: channel ?? "unknown",
+      channel: channel ?? 'unknown',
       hasDeferredMessengerInitCandidate: Boolean(readMessengerBindingCandidate()),
     });
   }, [useMessengerPanel, panelMode, tg, mx]);
@@ -126,39 +137,42 @@ export function PatientBindPhoneClient({
     void runRecoveryAndDecide();
   }, [runRecoveryAndDecide]);
 
-  const requestContactBrowser = useCallback(async (channel: "telegram" | "max") => {
-    if (!channelPolicy[channel]) return;
-    const r = await postPatientMessengerRequestContact(channel);
-    if (!r.ok) {
-      toast.error(
-        r.error === "contact_channel_required"
-          ? "Выберите мессенджер."
-          : r.error === "no_messenger_binding"
-            ? "Нет привязки к мессенджеру."
-            : r.error === "rate_limited"
-              ? "Подождите минуту перед повторной отправкой."
-              : "Не удалось запросить контакт.",
-      );
-      return;
-    }
-    toast.success("Откройте чат с ботом и отправьте контакт по кнопке.");
-  }, [channelPolicy]);
+  const requestContactBrowser = useCallback(
+    async (channel: 'telegram' | 'max') => {
+      if (!channelPolicy[channel]) return;
+      const r = await postPatientMessengerRequestContact(channel);
+      if (!r.ok) {
+        toast.error(
+          r.error === 'contact_channel_required'
+            ? 'Выберите мессенджер.'
+            : r.error === 'no_messenger_binding'
+              ? 'Нет привязки к мессенджеру.'
+              : r.error === 'rate_limited'
+                ? 'Подождите минуту перед повторной отправкой.'
+                : 'Не удалось запросить контакт.',
+        );
+        return;
+      }
+      toast.success('Откройте чат с ботом и отправьте контакт по кнопке.');
+    },
+    [channelPolicy],
+  );
 
   const onProvideContact = useCallback(async () => {
     if (isMessengerMiniAppHost()) {
       const r = await postPatientMessengerRequestContact();
       if (!r.ok) {
-        if (r.error === "not_required") {
+        if (r.error === 'not_required') {
           closeMessengerMiniApp();
           await runRecoveryAndDecide();
           return;
         }
         toast.error(
-          r.error === "no_messenger_binding"
-            ? "Нет привязки к мессенджеру."
-            : r.error === "rate_limited"
-              ? "Подождите минуту перед повторной отправкой."
-              : "Не удалось запросить контакт.",
+          r.error === 'no_messenger_binding'
+            ? 'Нет привязки к мессенджеру.'
+            : r.error === 'rate_limited'
+              ? 'Подождите минуту перед повторной отправкой.'
+              : 'Не удалось запросить контакт.',
         );
         return;
       }
@@ -166,10 +180,11 @@ export function PatientBindPhoneClient({
       return;
     }
     const inferred = inferMessengerChannelForRequestContact();
-    const channel: "telegram" | "max" | null =
-      inferred ?? (tg && !mx ? "telegram" : mx && !tg ? "max" : tg ? "telegram" : mx ? "max" : null);
+    const channel: 'telegram' | 'max' | null =
+      inferred ??
+      (tg && !mx ? 'telegram' : mx && !tg ? 'max' : tg ? 'telegram' : mx ? 'max' : null);
     if (!channel) {
-      toast.error("Не удалось определить мессенджер.");
+      toast.error('Не удалось определить мессенджер.');
       return;
     }
     await requestContactBrowser(channel);

@@ -83,21 +83,28 @@ export async function runOperatorHealthProbes(input: {
   const probes = requestedProbes.filter((name) => {
     if (!config[name].enabled) return false;
     const lastAttemptAtMs = lastProbeAttemptAtMs.get(name);
-    return lastAttemptAtMs === undefined || attemptStartedAtMs - lastAttemptAtMs >= config[name].intervalMs;
+    return (
+      lastAttemptAtMs === undefined ||
+      attemptStartedAtMs - lastAttemptAtMs >= config[name].intervalMs
+    );
   });
   for (const name of probes) {
     // Mark before touching the provider: even a persistence failure must not make the 5-second
     // scheduler poll immediately repeat a probe that already consumed provider capacity.
     lastProbeAttemptAtMs.set(name, attemptStartedAtMs);
   }
-  const shouldProbe = (name: OperatorHealthProbeName) => probes.includes(name) && config[name].enabled;
+  const shouldProbe = (name: OperatorHealthProbeName) =>
+    probes.includes(name) && config[name].enabled;
   const details: Record<string, string> = {};
   let max: ProbeOutcome = 'skipped_not_configured';
   let telegram: ProbeOutcome = 'skipped_not_configured';
   let google_calendar: ProbeOutcome = 'skipped_not_configured';
 
   if (shouldProbe('max') && maxConfig.enabled && maxConfig.apiKey.trim().length > 0) {
-    const info = await withProbeTimeout(getMaxBotInfo({ apiKey: maxConfig.apiKey }), config.max.timeoutMs).catch(() => null);
+    const info = await withProbeTimeout(
+      getMaxBotInfo({ apiKey: maxConfig.apiKey }),
+      config.max.timeoutMs,
+    ).catch(() => null);
     if (info === null) {
       max = 'fail';
       details.max = 'getMyInfo returned null';
@@ -113,10 +120,7 @@ export async function runOperatorHealthProbes(input: {
 
   if (shouldProbe('telegram') && telegramConfig.botToken.trim().length > 0) {
     try {
-      await withProbeTimeout(
-        getBotInstance().api.getMe(),
-        config.telegram.timeoutMs,
-      );
+      await withProbeTimeout(getBotInstance().api.getMe(), config.telegram.timeoutMs);
       telegram = 'ok';
       details.telegram = 'ok';
       const n = await resolveOpenOperatorIncidentsByDedupKeyPrefix('outbound:telegram:');
@@ -183,14 +187,28 @@ export async function runOperatorHealthProbes(input: {
     const failures: Array<[OperatorHealthProbeName, ProbeOutcome, string, string, string]> = [
       ['max', max, 'max', 'max_probe_failed', 'MAX probe failed'],
       ['telegram', telegram, 'telegram', 'telegram_probe_failed', 'Telegram getMe probe failed'],
-      ['google_calendar', google_calendar, 'google_calendar', 'google_calendar_probe_failed', 'Google Calendar probe failed'],
+      [
+        'google_calendar',
+        google_calendar,
+        'google_calendar',
+        'google_calendar_probe_failed',
+        'Google Calendar probe failed',
+      ],
     ];
     for (const [name, outcome, integration, errorClass, title] of failures) {
-      if (outcome !== 'fail' || (streak.consecutiveFailures[name] ?? 0) < config[name].consecutiveFailures) continue;
+      if (
+        outcome !== 'fail' ||
+        (streak.consecutiveFailures[name] ?? 0) < config[name].consecutiveFailures
+      )
+        continue;
       const detail = details[name] ?? 'probe failed';
       await reportOperatorFailure({
         dispatchPort: input.dispatchPort,
-        direction: 'outbound', integration, errorClass, errorDetail: detail, alertLines: [title, detail],
+        direction: 'outbound',
+        integration,
+        errorClass,
+        errorDetail: detail,
+        alertLines: [title, detail],
       });
     }
   } catch (err) {

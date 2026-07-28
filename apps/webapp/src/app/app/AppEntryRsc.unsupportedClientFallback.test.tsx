@@ -8,49 +8,53 @@
  * behavior in clientBootWatchdog.test.tsx.
  */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ReactElement } from "react";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ReactElement } from 'react';
 
 const getCurrentSessionMock = vi.hoisted(() => vi.fn());
 const headersMock = vi.hoisted(() => vi.fn());
 const getUnsupportedClientFallbackEnabledMock = vi.hoisted(() => vi.fn());
 
-vi.mock("next/navigation", () => ({ redirect: vi.fn(() => { throw new Error("unexpected redirect"); }) }));
-vi.mock("next/headers", () => ({ headers: headersMock, cookies: vi.fn() }));
-vi.mock("@/config/env", () => ({
-  env: { NODE_ENV: "test", ALLOW_DEV_AUTH_BYPASS: false },
+vi.mock('next/navigation', () => ({
+  redirect: vi.fn(() => {
+    throw new Error('unexpected redirect');
+  }),
 }));
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('next/headers', () => ({ headers: headersMock, cookies: vi.fn() }));
+vi.mock('@/config/env', () => ({
+  env: { NODE_ENV: 'test', ALLOW_DEV_AUTH_BYPASS: false },
+}));
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
     auth: { getCurrentSession: getCurrentSessionMock },
   }),
 }));
-vi.mock("@/modules/auth/publicAuthSnapshot", () => ({
+vi.mock('@/modules/auth/publicAuthSnapshot', () => ({
   buildPrefetchedPublicAuthConfig: vi.fn().mockResolvedValue(undefined),
 }));
-vi.mock("@/modules/auth/unsupportedClientFallback", () => ({
+vi.mock('@/modules/auth/unsupportedClientFallback', () => ({
   getUnsupportedClientFallbackEnabled: getUnsupportedClientFallbackEnabledMock,
 }));
-vi.mock("@/shared/lib/platformCookie.server", () => ({
+vi.mock('@/shared/lib/platformCookie.server', () => ({
   getPlatformEntry: vi.fn().mockResolvedValue(null),
   getMessengerSurfaceHint: vi.fn().mockResolvedValue(null),
 }));
-vi.mock("@/shared/ui/patient/PatientAppShell", () => ({
+vi.mock('@/shared/ui/patient/PatientAppShell', () => ({
   PatientAppShell: vi.fn(),
 }));
-vi.mock("./AppEntryLoginContent", () => ({
+vi.mock('./AppEntryLoginContent', () => ({
   AppEntryLoginContent: vi.fn(),
 }));
-vi.mock("./PatientUnsupportedClientFallback", () => ({
+vi.mock('./PatientUnsupportedClientFallback', () => ({
   PatientUnsupportedClientFallback: vi.fn(),
 }));
 
-import { AppEntryRsc } from "./AppEntryRsc";
-import { PatientUnsupportedClientFallback } from "./PatientUnsupportedClientFallback";
-import { routePaths } from "@/app-layer/routes/paths";
+import { AppEntryRsc } from './AppEntryRsc';
+import { PatientUnsupportedClientFallback } from './PatientUnsupportedClientFallback';
+import { routePaths } from '@/app-layer/routes/paths';
 
 const OLD_IOS_UA =
-  "Mozilla/5.0 (iPhone; CPU iPhone OS 15_5 like Mac OS X) AppleWebKit/605.1.15 Version/15.5 Mobile Safari/604.1";
+  'Mozilla/5.0 (iPhone; CPU iPhone OS 15_5 like Mac OS X) AppleWebKit/605.1.15 Version/15.5 Mobile Safari/604.1';
 
 function fallbackChildren(shell: ReactElement): unknown[] {
   const children = (shell.props as { children?: unknown }).children;
@@ -61,19 +65,19 @@ function findFallbackElement(shell: ReactElement): ReactElement | undefined {
   return fallbackChildren(shell).find(
     (child): child is ReactElement =>
       Boolean(child) &&
-      typeof child === "object" &&
+      typeof child === 'object' &&
       (child as ReactElement).type === PatientUnsupportedClientFallback,
   );
 }
 
-describe("AppEntryRsc unsupported-client fallback wiring", () => {
+describe('AppEntryRsc unsupported-client fallback wiring', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getCurrentSessionMock.mockResolvedValue(null);
     headersMock.mockResolvedValue({ get: () => OLD_IOS_UA });
   });
 
-  it("omits the fallback entirely for every client while the rollout flag is disabled", async () => {
+  it('omits the fallback entirely for every client while the rollout flag is disabled', async () => {
     getUnsupportedClientFallbackEnabledMock.mockResolvedValue(false);
 
     const result = (await AppEntryRsc({
@@ -85,7 +89,7 @@ describe("AppEntryRsc unsupported-client fallback wiring", () => {
     expect(headersMock).not.toHaveBeenCalled();
   });
 
-  it("mounts the fallback with the SSR-parsed client environment and browser entrySurface when enabled", async () => {
+  it('mounts the fallback with the SSR-parsed client environment and browser entrySurface when enabled', async () => {
     getUnsupportedClientFallbackEnabledMock.mockResolvedValue(true);
 
     const result = (await AppEntryRsc({
@@ -100,24 +104,24 @@ describe("AppEntryRsc unsupported-client fallback wiring", () => {
       supportContactHref: string;
       client: { osFamily: string; browserFamily: string; supportBucket: string };
     };
-    expect(props.entrySurface).toBe("browser");
+    expect(props.entrySurface).toBe('browser');
     expect(props.supportContactHref).toBe(routePaths.loginContactSupport);
     expect(props.client).toMatchObject({
-      osFamily: "ios",
-      browserFamily: "safari",
-      supportBucket: "within_matrix",
+      osFamily: 'ios',
+      browserFamily: 'safari',
+      supportBucket: 'within_matrix',
     });
   });
 
-  it("routes the Telegram miniapp entry surface into the fallback when enabled", async () => {
+  it('routes the Telegram miniapp entry surface into the fallback when enabled', async () => {
     getUnsupportedClientFallbackEnabledMock.mockResolvedValue(true);
 
     const result = (await AppEntryRsc({
       searchParams: Promise.resolve({}),
-      routeBoundMessengerSurface: "telegram",
+      routeBoundMessengerSurface: 'telegram',
     })) as ReactElement;
 
     const fallback = findFallbackElement(result);
-    expect((fallback!.props as { entrySurface: string }).entrySurface).toBe("tg");
+    expect((fallback!.props as { entrySurface: string }).entrySurface).toBe('tg');
   });
 });

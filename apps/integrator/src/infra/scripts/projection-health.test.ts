@@ -30,7 +30,10 @@ describe('projection health CLI', () => {
     const stderr = createWritableMock();
 
     const exitCode = await runProjectionHealthCli({
-      env: { CUTOVER_ENV_FILE: '/tmp/bersoncarebot-missing-cutover.env', DATABASE_URL: 'postgres://example' },
+      env: {
+        CUTOVER_ENV_FILE: '/tmp/bersoncarebot-missing-cutover.env',
+        DATABASE_URL: 'postgres://example',
+      },
       createPool: (connectionString) => {
         expect(connectionString).toBe('postgres://example');
         return { query, end };
@@ -92,6 +95,8 @@ describe('projection health CLI', () => {
 
     expect(exitCode).toBe(1);
     expect(createPool).not.toHaveBeenCalled();
-    expect(stderr.write).toHaveBeenCalledWith('INTEGRATOR_DATABASE_URL or DATABASE_URL is not set\n');
+    expect(stderr.write).toHaveBeenCalledWith(
+      'INTEGRATOR_DATABASE_URL or DATABASE_URL is not set\n',
+    );
   });
 });

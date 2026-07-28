@@ -12,31 +12,38 @@
  *   node scripts/fio-backfill/download-russiannames-dataset.mjs
  *   node scripts/fio-backfill/download-russiannames-dataset.mjs --force
  */
-import { createHash } from "node:crypto";
-import { createWriteStream, existsSync, mkdirSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { rm } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
-import { pipeline } from "node:stream/promises";
-import { fileURLToPath } from "node:url";
-import { spawnSync } from "node:child_process";
+import { createHash } from 'node:crypto';
+import {
+  createWriteStream,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+} from 'node:fs';
+import { rm } from 'node:fs/promises';
+import { dirname, resolve } from 'node:path';
+import { pipeline } from 'node:stream/promises';
+import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
 
 const DATASET = {
-  url: "https://zenodo.org/records/2747011/files/russiannames_db_jsonl.zip?download=1",
-  filename: "russiannames_db_jsonl.zip",
-  md5: "10b4bf03e1eea33f72d4284fd2a582b9",
+  url: 'https://zenodo.org/records/2747011/files/russiannames_db_jsonl.zip?download=1',
+  filename: 'russiannames_db_jsonl.zip',
+  md5: '10b4bf03e1eea33f72d4284fd2a582b9',
 };
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const repoRoot = resolve(__dirname, "../../../..");
-const targetDir = resolve(repoRoot, ".tmp/fio-backfill/russiannames");
+const repoRoot = resolve(__dirname, '../../../..');
+const targetDir = resolve(repoRoot, '.tmp/fio-backfill/russiannames');
 const zipPath = resolve(targetDir, DATASET.filename);
-const extractDir = resolve(targetDir, "jsonl");
-const force = process.argv.includes("--force");
+const extractDir = resolve(targetDir, 'jsonl');
+const force = process.argv.includes('--force');
 
 function md5File(path) {
-  const hash = createHash("md5");
+  const hash = createHash('md5');
   hash.update(readFileSync(path));
-  return hash.digest("hex");
+  return hash.digest('hex');
 }
 
 function listExtractedFiles() {
@@ -58,7 +65,7 @@ async function download() {
   console.log(`[fio-backfill] Downloading ${DATASET.url}`);
   const response = await fetch(DATASET.url, {
     headers: {
-      "user-agent": "BersonCareBot-fio-backfill/1.0 (local development script)",
+      'user-agent': 'BersonCareBot-fio-backfill/1.0 (local development script)',
     },
   });
   if (!response.ok || !response.body) {
@@ -87,14 +94,14 @@ async function extract() {
     return;
   }
 
-  const unzip = spawnSync("unzip", ["-o", zipPath, "-d", extractDir], {
-    encoding: "utf8",
-    stdio: "pipe",
+  const unzip = spawnSync('unzip', ['-o', zipPath, '-d', extractDir], {
+    encoding: 'utf8',
+    stdio: 'pipe',
   });
   if (unzip.status !== 0) {
-    const py = spawnSync("python3", ["-m", "zipfile", "-e", zipPath, extractDir], {
-      encoding: "utf8",
-      stdio: "pipe",
+    const py = spawnSync('python3', ['-m', 'zipfile', '-e', zipPath, extractDir], {
+      encoding: 'utf8',
+      stdio: 'pipe',
     });
     if (py.status !== 0) {
       const unzipMessage = unzip.stderr || unzip.stdout || `status=${String(unzip.status)}`;
@@ -110,7 +117,7 @@ async function extract() {
 async function main() {
   await download();
   await extract();
-  console.log("[fio-backfill] Dataset is local-only and ignored by git under .tmp/.");
+  console.log('[fio-backfill] Dataset is local-only and ignored by git under .tmp/.');
 }
 
 main().catch((err) => {

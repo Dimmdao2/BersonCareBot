@@ -1,6 +1,6 @@
-import Link from "next/link";
-import { ArrowRight } from "lucide-react";
-import { landingContainer } from "@/components/landing/landingTypography";
+import Link from 'next/link';
+import { ArrowRight } from 'lucide-react';
+import { landingContainer } from '@/components/landing/landingTypography';
 
 export function FinalCta() {
   return (
@@ -12,7 +12,8 @@ export function FinalCta() {
               Начните с кабинета специалиста
             </h2>
             <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-white/80 sm:text-lg">
-              Настройте расписание, добавьте первого клиента и соберите работу между приёмами в одном месте.
+              Настройте расписание, добавьте первого клиента и соберите работу между приёмами в
+              одном месте.
             </p>
             <div className="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Link
@@ -29,7 +30,10 @@ export function FinalCta() {
                 Демо для клиники
               </Link>
             </div>
-            <Link href="/app" className="mt-5 inline-flex text-sm font-medium text-white/80 underline underline-offset-4 transition hover:text-white">
+            <Link
+              href="/app"
+              className="mt-5 inline-flex text-sm font-medium text-white/80 underline underline-offset-4 transition hover:text-white"
+            >
               У меня есть приглашение / Войти
             </Link>
           </div>

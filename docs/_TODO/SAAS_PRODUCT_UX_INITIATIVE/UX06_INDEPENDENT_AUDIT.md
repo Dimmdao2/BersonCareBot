@@ -87,7 +87,7 @@ composition. Это не продуктовый дубль route tree, но уж
 
 1. В `TARGET_IA.md` определить один master screen registry для всех target IDs, включая ACC-family.
 2. Для first-run/invite aliases выбрать один из двух вариантов: отдельный canonical ID либо явно `flow state of
-   <canonical screen ID>`; не оставлять параллельное имя без mapping.
+<canonical screen ID>`; не оставлять параллельное имя без mapping.
 3. `OPS-05` свести с ACC-family как shared account destination, а не второй assistant-owned account screen.
 4. `PUB-06` и `ORG-PUB-04` либо дать полноценную composition/state mapping, либо явно оформить как gated future
    surface / state of existing canonical screen без самостоятельного screen ID.
@@ -157,27 +157,27 @@ multi-org, но не перечисляет SMS fallback и public booking chain
 
 ## 4. Whole-phase acceptance trace
 
-| Проверка | Результат |
-|---|---|
-| Все 150 current page files перечислены ровно один раз | PASS — `150/150`, no duplicate/missing/stale |
-| Все current user-visible states имеют target destination | FAIL — registration state `/app?view=registration` не связан с PUB-03 |
-| Global admin отделён от clinical shell | PASS |
-| Owner/admin management ↔ clinical composition | PASS as safe candidate; OM-1 не выдан за ruling |
-| Solo specialist vs clinic specialist | PASS |
-| Assistant safe default и direct/list/export boundary | PASS; final permissions остаются OM-2 |
-| Patient one/multi-org и direct-object context | PASS; OM-3 сохранён |
-| One-card/history alternative и permission-before-filter | PASS as candidate; OM-4/5 не заморожены |
-| Primary/care-team/work-item/cross-org handoff semantics | PASS; OM-6/7 сохранены |
-| Acquisition/invite/install state coverage | PASS in compositions |
-| Branding/domain/sender/PWA degraded states | PASS |
-| Shared loading/empty/permission/entitlement/context/error states | PASS |
-| Desktop/mobile staff, assistant, platform-admin and patient navigation | PASS |
-| Desktop/mobile platform-public and organization-public navigation | FAIL — явный contract отсутствует |
-| Canonical target IDs согласованы между тремя outputs | FAIL — ACC/OPS/PUB/ORG-PUB и flow aliases расходятся |
-| UX-04 priority journeys полностью переданы UX-07 | FAIL — SMS и public booking отсутствуют в handoff list |
-| Current facts, candidates, safe defaults и owner rulings разделены | PASS |
-| Parallel solo/clinic/per-specialist IA не создана | PASS |
-| Reuse boundaries и implementation dependency order достаточны | PASS, после устранения ID/mapping ambiguity |
+| Проверка                                                               | Результат                                                             |
+| ---------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Все 150 current page files перечислены ровно один раз                  | PASS — `150/150`, no duplicate/missing/stale                          |
+| Все current user-visible states имеют target destination               | FAIL — registration state `/app?view=registration` не связан с PUB-03 |
+| Global admin отделён от clinical shell                                 | PASS                                                                  |
+| Owner/admin management ↔ clinical composition                          | PASS as safe candidate; OM-1 не выдан за ruling                       |
+| Solo specialist vs clinic specialist                                   | PASS                                                                  |
+| Assistant safe default и direct/list/export boundary                   | PASS; final permissions остаются OM-2                                 |
+| Patient one/multi-org и direct-object context                          | PASS; OM-3 сохранён                                                   |
+| One-card/history alternative и permission-before-filter                | PASS as candidate; OM-4/5 не заморожены                               |
+| Primary/care-team/work-item/cross-org handoff semantics                | PASS; OM-6/7 сохранены                                                |
+| Acquisition/invite/install state coverage                              | PASS in compositions                                                  |
+| Branding/domain/sender/PWA degraded states                             | PASS                                                                  |
+| Shared loading/empty/permission/entitlement/context/error states       | PASS                                                                  |
+| Desktop/mobile staff, assistant, platform-admin and patient navigation | PASS                                                                  |
+| Desktop/mobile platform-public and organization-public navigation      | FAIL — явный contract отсутствует                                     |
+| Canonical target IDs согласованы между тремя outputs                   | FAIL — ACC/OPS/PUB/ORG-PUB и flow aliases расходятся                  |
+| UX-04 priority journeys полностью переданы UX-07                       | FAIL — SMS и public booking отсутствуют в handoff list                |
+| Current facts, candidates, safe defaults и owner rulings разделены     | PASS                                                                  |
+| Parallel solo/clinic/per-specialist IA не создана                      | PASS                                                                  |
+| Reuse boundaries и implementation dependency order достаточны          | PASS, после устранения ID/mapping ambiguity                           |
 
 ## 5. Re-audit gate
 
@@ -219,49 +219,49 @@ decision-safe входом UX-07. Он не утверждает открыты�
 
 ### 7.2 Независимые структурные инварианты
 
-| Проверка | Фактический результат |
-|---|---|
-| Current `page.tsx` | `150 actual = 150 references = 150 unique`; duplicate `0`, missing `0`, stale `0` |
-| Allocation families | `20 platform/public + 81 staff/platform + 49 patient = 150` |
-| Canonical registry | `57 rows = 57 unique IDs` в `TARGET_IA.md` |
-| Screen compositions | `57 rows = 57 unique canonical IDs` |
-| Registry ↔ composition | missing `0`, extra `0` |
-| Route-map target references | unknown canonical IDs `0`; каждый используемый ID существует в registry |
-| Alias classification | `MGMT-SETUP`, `MGMT-TEAM`, `MGMT-INVITE`, `CLIN-PAT-INVITE`, `ACC-FIRST`, `PAT-INSTALL`, `OPS-05`, `ORG-PUB-04` классифицированы |
-| Journey families | ACQ, STF, PIN, SMS, PBK, MOR и ERR сопоставлены как UX-04 states, не parallel screen IDs |
-| Markdown structure | code fences balanced; tables structurally present; `git diff --check` PASS |
+| Проверка                    | Фактический результат                                                                                                            |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Current `page.tsx`          | `150 actual = 150 references = 150 unique`; duplicate `0`, missing `0`, stale `0`                                                |
+| Allocation families         | `20 platform/public + 81 staff/platform + 49 patient = 150`                                                                      |
+| Canonical registry          | `57 rows = 57 unique IDs` в `TARGET_IA.md`                                                                                       |
+| Screen compositions         | `57 rows = 57 unique canonical IDs`                                                                                              |
+| Registry ↔ composition      | missing `0`, extra `0`                                                                                                           |
+| Route-map target references | unknown canonical IDs `0`; каждый используемый ID существует в registry                                                          |
+| Alias classification        | `MGMT-SETUP`, `MGMT-TEAM`, `MGMT-INVITE`, `CLIN-PAT-INVITE`, `ACC-FIRST`, `PAT-INSTALL`, `OPS-05`, `ORG-PUB-04` классифицированы |
+| Journey families            | ACQ, STF, PIN, SMS, PBK, MOR и ERR сопоставлены как UX-04 states, не parallel screen IDs                                         |
+| Markdown structure          | code fences balanced; tables structurally present; `git diff --check` PASS                                                       |
 
 ### 7.3 Закрытие F1–F4
 
-| Finding | Результат re-audit |
-|---|---|
-| F1 — screen-ID registry | PASS: `TARGET_IA.md` задаёт единственные 57 canonical IDs; ACC-family включена; OPS-05 и flow aliases сведены в shared/state destinations; PUB-06 имеет gated composition, unavailable projection — state ORG-PUB-01/02/03 |
-| F2 — multi-state migration | PASS: exact file accounting сохранён, а отдельная trace покрывает `/app?view=registration → PUB-03`, auth/role entry, patient-card tabs, schedule/communications/analytics query tabs, mixed settings/content/booking, redirects и deep-link resolvers |
-| F3 — public responsive navigation | PASS: platform public и published organization получили desktop/mobile hierarchy, CTA priority, profile→booking/join transitions, legal/support и one-way canonical recovery без изменения trust/token rules |
-| F4 — UX-07 handoff | PASS: все шесть UX-04 priority flows переданы canonical compositions; SMS-01…03 остаётся transport-only branch, PBK-01…08 доходит до exact appointment/enrollment/portal state before install; recovery branches обязательны |
+| Finding                           | Результат re-audit                                                                                                                                                                                                                                     |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| F1 — screen-ID registry           | PASS: `TARGET_IA.md` задаёт единственные 57 canonical IDs; ACC-family включена; OPS-05 и flow aliases сведены в shared/state destinations; PUB-06 имеет gated composition, unavailable projection — state ORG-PUB-01/02/03                             |
+| F2 — multi-state migration        | PASS: exact file accounting сохранён, а отдельная trace покрывает `/app?view=registration → PUB-03`, auth/role entry, patient-card tabs, schedule/communications/analytics query tabs, mixed settings/content/booking, redirects и deep-link resolvers |
+| F3 — public responsive navigation | PASS: platform public и published organization получили desktop/mobile hierarchy, CTA priority, profile→booking/join transitions, legal/support и one-way canonical recovery без изменения trust/token rules                                           |
+| F4 — UX-07 handoff                | PASS: все шесть UX-04 priority flows переданы canonical compositions; SMS-01…03 остаётся transport-only branch, PBK-01…08 доходит до exact appointment/enrollment/portal state before install; recovery branches обязательны                           |
 
 ### 7.4 Полный acceptance trace
 
-| Проверка | Результат |
-|---|---|
-| Все human actors и system-actor boundary | PASS |
-| Platform admin отдельно от clinical shell | PASS |
-| Owner/admin с binding и без него; management ↔ clinical | PASS как safe candidate, OM-1 не выдан за ruling |
-| Solo и clinic: одна organization model, разные композиции | PASS |
-| Assistant bounded operations и direct/list/count/search/export parity | PASS; OM-2 остаётся gate |
-| Staff one-org и patient multi-org | PASS |
-| Patient chooser/deep link/cache/context recovery | PASS; OM-3 остаётся gate |
-| One-card candidate без заморозки альтернативы | PASS; OM-4/5 остаются gate |
-| Permission-before-filter и private-entry boundary | PASS |
-| Primary assignment / care team / work item / cross-org transfer | PASS; generic transfer отсутствует, OM-6/7 сохранены |
-| Acquisition, signup, staff/patient invite, install/push | PASS |
-| Public booking и SMS fallback | PASS |
-| Branding, Host/domain, sender, manifest/PWA и degraded fallback | PASS |
-| Loading/empty/permission/entitlement/context/suspended/error states | PASS |
-| Desktop/mobile platform public, organization public, staff/assistant/admin и patient navigation | PASS |
-| Current reuse, redirects, no duplicate solo/clinic/per-specialist IA | PASS |
-| Implementation dependency order и data/API gaps | PASS |
-| Current fact / recommendation / safe default / owner ruling provenance | PASS |
+| Проверка                                                                                        | Результат                                            |
+| ----------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| Все human actors и system-actor boundary                                                        | PASS                                                 |
+| Platform admin отдельно от clinical shell                                                       | PASS                                                 |
+| Owner/admin с binding и без него; management ↔ clinical                                         | PASS как safe candidate, OM-1 не выдан за ruling     |
+| Solo и clinic: одна organization model, разные композиции                                       | PASS                                                 |
+| Assistant bounded operations и direct/list/count/search/export parity                           | PASS; OM-2 остаётся gate                             |
+| Staff one-org и patient multi-org                                                               | PASS                                                 |
+| Patient chooser/deep link/cache/context recovery                                                | PASS; OM-3 остаётся gate                             |
+| One-card candidate без заморозки альтернативы                                                   | PASS; OM-4/5 остаются gate                           |
+| Permission-before-filter и private-entry boundary                                               | PASS                                                 |
+| Primary assignment / care team / work item / cross-org transfer                                 | PASS; generic transfer отсутствует, OM-6/7 сохранены |
+| Acquisition, signup, staff/patient invite, install/push                                         | PASS                                                 |
+| Public booking и SMS fallback                                                                   | PASS                                                 |
+| Branding, Host/domain, sender, manifest/PWA и degraded fallback                                 | PASS                                                 |
+| Loading/empty/permission/entitlement/context/suspended/error states                             | PASS                                                 |
+| Desktop/mobile platform public, organization public, staff/assistant/admin и patient navigation | PASS                                                 |
+| Current reuse, redirects, no duplicate solo/clinic/per-specialist IA                            | PASS                                                 |
+| Implementation dependency order и data/API gaps                                                 | PASS                                                 |
+| Current fact / recommendation / safe default / owner ruling provenance                          | PASS                                                 |
 
 ### 7.5 Residual gates, not audit failures
 

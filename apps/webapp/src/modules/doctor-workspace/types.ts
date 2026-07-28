@@ -1,7 +1,7 @@
 import type {
   OrganizationMembershipRole,
   OrganizationMembershipStatus,
-} from "@/modules/organization-membership/ports";
+} from '@/modules/organization-membership/ports';
 
 export type DoctorWorkspaceContext = {
   organizationId: string;

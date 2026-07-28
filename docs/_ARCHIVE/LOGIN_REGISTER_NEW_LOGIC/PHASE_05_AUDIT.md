@@ -9,23 +9,23 @@
 
 ## 1. Цель фазы и границы
 
-| | |
-|--|--|
-| **Цель** | Предсказуемые состояния email: register / login / forgot без тупика contact-only. |
-| **В scope** | Register, forgot, `AuthFlowV2`, lookup, setup-access, тесты Auth §11. |
-| **Вне scope** | Rubitime create (PHASE_01), merge (PHASE_06). |
+|               |                                                                                   |
+| ------------- | --------------------------------------------------------------------------------- |
+| **Цель**      | Предсказуемые состояния email: register / login / forgot без тупика contact-only. |
+| **В scope**   | Register, forgot, `AuthFlowV2`, lookup, setup-access, тесты Auth §11.             |
+| **Вне scope** | Rubitime create (PHASE_01), merge (PHASE_06).                                     |
 
 ---
 
 ## 2. Канон состояний (MAIN PLAN §5) vs реализация
 
-| # | Состояние | `resolveAuthState` | Поведение API/UI |
-|---|-----------|-------------------|------------------|
-| 1 | Email свободен | `free` | Обычная регистрация + challenge |
-| 2 | Verified + password | `verified_with_password` | Login / forgot → reset OTP |
-| 3 | Contact-only / unverified, нет credentials | `needs_email_setup` | Register → **200** `existing_account_needs_email_setup`; forgot → setup-code |
-| 4 | Verified, нет credentials | `needs_email_setup` | Тот же fallback (ветка `else` после проверок verified+password и pending) |
-| 5 | Конфликт (несколько строк) | `email_conflict` | Register **409** `email_conflict`; UI «Обратитесь в поддержку» |
+| #   | Состояние                                  | `resolveAuthState`       | Поведение API/UI                                                             |
+| --- | ------------------------------------------ | ------------------------ | ---------------------------------------------------------------------------- |
+| 1   | Email свободен                             | `free`                   | Обычная регистрация + challenge                                              |
+| 2   | Verified + password                        | `verified_with_password` | Login / forgot → reset OTP                                                   |
+| 3   | Contact-only / unverified, нет credentials | `needs_email_setup`      | Register → **200** `existing_account_needs_email_setup`; forgot → setup-code |
+| 4   | Verified, нет credentials                  | `needs_email_setup`      | Тот же fallback (ветка `else` после проверок verified+password и pending)    |
+| 5   | Конфликт (несколько строк)                 | `email_conflict`         | Register **409** `email_conflict`; UI «Обратитесь в поддержку»               |
 
 **Реализация lookup:** `infra/repos/pgEmailPasswordLookup.ts` — один SQL по `email_normalized`, `merged_into_id IS NULL`.
 
@@ -33,14 +33,14 @@
 
 ## 3. Definition of Done — по пунктам
 
-| Критерий (PHASE_05) | Статус | Доказательство |
-|---------------------|--------|----------------|
-| Register + bot/doctor contact email → setup, не `duplicate_email` | **Выполнено** | `register/route.ts`: `needs_email_setup` → `registration_claim` + **200**; `register/route.test.ts`; `AuthFlowV2.test.tsx` |
-| Forgot + contact-only → setup mail, не silent no-op | **Выполнено** | `forgot/route.ts`: после `findVerifiedUserIdWithPassword` null → `needs_email_setup` → `requestEmailSetupAccessForUser(manual_resend)`; `forgot/route.test.ts` |
-| Forgot + verified+password → reset как раньше | **Выполнено** | `findVerifiedUserIdWithPassword` → `startEmailChallenge`; тест neutral 200 + вызов challenge |
-| Forgot не шлёт reset на unverified doctor-only | **Выполнено** | Reset только при verified+password; contact-only не проходит `findVerifiedUserIdWithPassword` |
-| Существующий email+password без регрессий | **Выполнено** | `verified_with_password` → register **409** `duplicate_email`; login/forgot paths сохранены |
-| `LOG.md` | **Выполнено** | `2026-05-20 — PHASE_05` |
+| Критерий (PHASE_05)                                               | Статус        | Доказательство                                                                                                                                                 |
+| ----------------------------------------------------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Register + bot/doctor contact email → setup, не `duplicate_email` | **Выполнено** | `register/route.ts`: `needs_email_setup` → `registration_claim` + **200**; `register/route.test.ts`; `AuthFlowV2.test.tsx`                                     |
+| Forgot + contact-only → setup mail, не silent no-op               | **Выполнено** | `forgot/route.ts`: после `findVerifiedUserIdWithPassword` null → `needs_email_setup` → `requestEmailSetupAccessForUser(manual_resend)`; `forgot/route.test.ts` |
+| Forgot + verified+password → reset как раньше                     | **Выполнено** | `findVerifiedUserIdWithPassword` → `startEmailChallenge`; тест neutral 200 + вызов challenge                                                                   |
+| Forgot не шлёт reset на unverified doctor-only                    | **Выполнено** | Reset только при verified+password; contact-only не проходит `findVerifiedUserIdWithPassword`                                                                  |
+| Существующий email+password без регрессий                         | **Выполнено** | `verified_with_password` → register **409** `duplicate_email`; login/forgot paths сохранены                                                                    |
+| `LOG.md`                                                          | **Выполнено** | `2026-05-20 — PHASE_05`                                                                                                                                        |
 
 **Локальные проверки (аудит 2026-05-20):**
 
@@ -56,12 +56,12 @@ pnpm --filter @bersoncare/webapp exec vitest run \
 
 ### 4.1 `POST /api/auth/email-password/register`
 
-| `resolveAuthState` после `duplicate_email` | HTTP | Тело |
-|------------------------------------------|------|------|
-| `needs_email_setup` | **200** | `ok: true`, `error: existing_account_needs_email_setup`, `setupCodeSent: true`, `challengeId` |
-| `email_conflict` | **409** | `email_conflict` |
-| `verified_with_password` | **409** | `duplicate_email` |
-| `pending_registration` | **200** | challenge (tryResend + `startEmailChallenge`) |
+| `resolveAuthState` после `duplicate_email` | HTTP    | Тело                                                                                          |
+| ------------------------------------------ | ------- | --------------------------------------------------------------------------------------------- |
+| `needs_email_setup`                        | **200** | `ok: true`, `error: existing_account_needs_email_setup`, `setupCodeSent: true`, `challengeId` |
+| `email_conflict`                           | **409** | `email_conflict`                                                                              |
+| `verified_with_password`                   | **409** | `duplicate_email`                                                                             |
+| `pending_registration`                     | **200** | challenge (tryResend + `startEmailChallenge`)                                                 |
 
 Источник setup: `registration_claim`.
 
@@ -92,14 +92,14 @@ findVerifiedUserIdWithPassword → да → startEmailChallenge (reset OTP), neu
 
 ## 5. UI: `AuthFlowV2`
 
-| Сценарий | Поведение |
-|----------|-----------|
+| Сценарий                                        | Поведение                                                             |
+| ----------------------------------------------- | --------------------------------------------------------------------- |
 | Register → `existing_account_needs_email_setup` | `emailVerifyPurpose=setup`, экран ввода кода, resend → `setup-access` |
-| Register/login → `duplicate_email` / 409 | «Войдите с паролем или восстановите доступ» |
-| Login 401 + lookup `needs_email_setup` | Экран setup (без лишнего duplicate) |
-| Forgot + lookup `needs_email_setup` | `forgot` (setup в фоне) + экран setup |
-| Forgot + `verified_with_password` | Код сброса (reset flow) |
-| `email_conflict` | «Обратитесь в поддержку» |
+| Register/login → `duplicate_email` / 409        | «Войдите с паролем или восстановите доступ»                           |
+| Login 401 + lookup `needs_email_setup`          | Экран setup (без лишнего duplicate)                                   |
+| Forgot + lookup `needs_email_setup`             | `forgot` (setup в фоне) + экран setup                                 |
+| Forgot + `verified_with_password`               | Код сброса (reset flow)                                               |
+| `email_conflict`                                | «Обратитесь в поддержку»                                              |
 
 Копирайт setup-блока: «Аккаунт с этой почтой уже есть…» (см. RTL test).
 
@@ -122,12 +122,12 @@ flowchart TD
 
 **Модули:**
 
-| Слой | Файл |
-|------|------|
-| Lookup port | `modules/auth/emailPasswordLookup/ports.ts`, `types.ts` |
-| Lookup PG | `infra/repos/pgEmailPasswordLookup.ts` |
+| Слой                 | Файл                                                     |
+| -------------------- | -------------------------------------------------------- |
+| Lookup port          | `modules/auth/emailPasswordLookup/ports.ts`, `types.ts`  |
+| Lookup PG            | `infra/repos/pgEmailPasswordLookup.ts`                   |
 | Setup enqueue helper | `modules/auth/emailPasswordLookup/requestSetupAccess.ts` |
-| DI | `buildAppDeps.emailPasswordLookup` |
+| DI                   | `buildAppDeps.emailPasswordLookup`                       |
 
 **Документация:** `modules/auth/auth.md` § Email + пароль обновлён (register, lookup, setup-access, forgot).
 
@@ -135,11 +135,11 @@ flowchart TD
 
 ## 7. `duplicate_email` — согласованность
 
-| Место | Когда |
-|-------|--------|
-| `register/route.ts` | `verified_with_password`, failed pending resend, fallback |
-| `AuthFlowV2.tsx` | 409 или `error === "duplicate_email"` → подсказка войти/восстановить |
-| **Не** для contact-only | Заменён на `existing_account_needs_email_setup` (**200**) |
+| Место                   | Когда                                                                |
+| ----------------------- | -------------------------------------------------------------------- |
+| `register/route.ts`     | `verified_with_password`, failed pending resend, fallback            |
+| `AuthFlowV2.tsx`        | 409 или `error === "duplicate_email"` → подсказка войти/восстановить |
+| **Не** для contact-only | Заменён на `existing_account_needs_email_setup` (**200**)            |
 
 `rg duplicate_email` в webapp: register + UI + credentials repo + тесты — согласовано с политикой фазы.
 
@@ -147,13 +147,13 @@ flowchart TD
 
 ## 8. Тестовое покрытие
 
-| Файл | Сценарии |
-|------|----------|
-| `register/route.test.ts` | challenge rollback; contact-only setup; pending resend |
-| `forgot/route.test.ts` | neutral 200; verified reset; contact setup; send fail neutral |
-| `lookup/route.test.ts` | public state |
-| `reset/route.test.ts` | (регрессия reset, вне ядра PHASE_05) |
-| `AuthFlowV2.test.tsx` | setup prompt на register; forgot subflow |
+| Файл                     | Сценарии                                                      |
+| ------------------------ | ------------------------------------------------------------- |
+| `register/route.test.ts` | challenge rollback; contact-only setup; pending resend        |
+| `forgot/route.test.ts`   | neutral 200; verified reset; contact setup; send fail neutral |
+| `lookup/route.test.ts`   | public state                                                  |
+| `reset/route.test.ts`    | (регрессия reset, вне ядра PHASE_05)                          |
+| `AuthFlowV2.test.tsx`    | setup prompt на register; forgot subflow                      |
 
 **Пробелы:**
 
@@ -190,19 +190,19 @@ flowchart TD
 
 ## 10. Зависимости от предыдущих фаз
 
-| Фаза | Использование в PHASE_05 |
-|------|-------------------------|
-| PHASE_03 | `emailSetupAccess.requestContactEmailSetup` |
+| Фаза     | Использование в PHASE_05                           |
+| -------- | -------------------------------------------------- |
+| PHASE_03 | `emailSetupAccess.requestContactEmailSetup`        |
 | PHASE_04 | Ссылка в письме → `/app/auth/email-setup` complete |
 
 ---
 
 ## 11. Scope boundaries
 
-| Вне scope | Подтверждение |
-|-----------|---------------|
-| Merge PHASE_06 | Не в diff |
-| Rubitime user create | PHASE_01 |
+| Вне scope            | Подтверждение |
+| -------------------- | ------------- |
+| Merge PHASE_06       | Не в diff     |
+| Rubitime user create | PHASE_01      |
 
 ---
 

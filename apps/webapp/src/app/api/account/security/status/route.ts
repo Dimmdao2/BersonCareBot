@@ -1,6 +1,6 @@
-import { NextResponse } from "next/server";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireStaffSecurityApiSession } from "@/app-layer/guards/requireRole";
+import { NextResponse } from 'next/server';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireStaffSecurityApiSession } from '@/app-layer/guards/requireRole';
 
 export async function GET() {
   const gate = await requireStaffSecurityApiSession();

@@ -5,19 +5,19 @@ status: completed
 isProject: false
 todos:
   - id: w3-p10a-preflight
-    content: "10A: preflight перед кодом — зафиксировать SQL inventory media-worker, подготовить executor contract, список инвариантов claim/transcode."
+    content: '10A: preflight перед кодом — зафиксировать SQL inventory media-worker, подготовить executor contract, список инвариантов claim/transcode.'
     status: completed
   - id: w3-p10b-runtime
-    content: "10B: minimal sql executor + миграция processTranscodeJob/processProgramSubmissionTranscode/watermarkEnabled/pipelineEnabled на executor."
+    content: '10B: minimal sql executor + миграция processTranscodeJob/processProgramSubmissionTranscode/watermarkEnabled/pipelineEnabled на executor.'
     status: completed
   - id: w3-p10c-ops-prep
-    content: "10C: подготовить staging smoke pack (чеклист, команды, expected logs/queries, rollback hints) для обязательного gate фазы 17."
+    content: '10C: подготовить staging smoke pack (чеклист, команды, expected logs/queries, rollback hints) для обязательного gate фазы 17.'
     status: completed
   - id: w3-p10-claim-adr
-    content: "claim.ts без изменений; ADR в RAW_SQL если ещё нет."
+    content: 'claim.ts без изменений; ADR в RAW_SQL если ещё нет.'
     status: completed
   - id: w3-p10-verify
-    content: "После 10A-10C: pnpm --dir apps/media-worker test (22); rg pool.query (claim+transport); pnpm run ci green; smoke pack в LOG."
+    content: 'После 10A-10C: pnpm --dir apps/media-worker test (22); rg pool.query (claim+transport); pnpm run ci green; smoke pack в LOG.'
     status: completed
 ---
 
@@ -106,14 +106,14 @@ Pool → thin runMediaWorkerSql(pool, sqlFragment)
 
 ## Inventory (baseline до 10B, 2026-06-05)
 
-| Файл | `pool.query` (до) | После фазы 10 |
-|------|-------------------|---------------|
-| `jobs/claim.ts` | 8 — **Class C, без изменений** | 8 |
-| `processTranscodeJob.ts` | 10 | **0** → `runMediaWorkerPgText` |
-| `processProgramSubmissionTranscode.ts` | 7 | **0** → `runMediaWorkerPgText` |
-| `watermarkEnabled.ts` | 1 | **0** → `runMediaWorkerPgText` + Zod |
-| `pipelineEnabled.ts` | 1 | **0** → `runMediaWorkerPgText` + Zod |
-| *(новый)* `runMediaWorkerSql.ts` | — | Class B transport (1× `pool.query`) |
+| Файл                                   | `pool.query` (до)              | После фазы 10                        |
+| -------------------------------------- | ------------------------------ | ------------------------------------ |
+| `jobs/claim.ts`                        | 8 — **Class C, без изменений** | 8                                    |
+| `processTranscodeJob.ts`               | 10                             | **0** → `runMediaWorkerPgText`       |
+| `processProgramSubmissionTranscode.ts` | 7                              | **0** → `runMediaWorkerPgText`       |
+| `watermarkEnabled.ts`                  | 1                              | **0** → `runMediaWorkerPgText` + Zod |
+| `pipelineEnabled.ts`                   | 1                              | **0** → `runMediaWorkerPgText` + Zod |
+| _(новый)_ `runMediaWorkerSql.ts`       | —                              | Class B transport (1× `pool.query`)  |
 
 ## Проверки
 

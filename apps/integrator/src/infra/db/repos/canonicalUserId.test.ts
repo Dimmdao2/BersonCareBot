@@ -31,7 +31,8 @@ describe('resolveCanonicalIntegratorUserId', () => {
   });
 
   it('follows a chain of merge hops', async () => {
-    const query = vi.fn()
+    const query = vi
+      .fn()
       .mockResolvedValueOnce({ rows: [{ merged_into_user_id: '9' }] })
       .mockResolvedValueOnce({ rows: [{ merged_into_user_id: '12' }] })
       .mockResolvedValueOnce({ rows: [{ merged_into_user_id: null }] });
@@ -49,7 +50,8 @@ describe('canonical user id from identity row', () => {
   });
 
   it('maps identity to canonical user id', async () => {
-    const query = vi.fn()
+    const query = vi
+      .fn()
       .mockResolvedValueOnce({ rows: [{ user_id: '7' }] })
       .mockResolvedValueOnce({ rows: [{ merged_into_user_id: null }] });
     const db = makeDb(query);
@@ -59,7 +61,8 @@ describe('canonical user id from identity row', () => {
 
 describe('appointment payloadJson user id keys', () => {
   it('rewrites integrator_user_id and integratorUserId to canonical', async () => {
-    const query = vi.fn()
+    const query = vi
+      .fn()
       .mockResolvedValueOnce({ rows: [{ merged_into_user_id: null }] })
       .mockResolvedValueOnce({ rows: [{ merged_into_user_id: '100' }] })
       .mockResolvedValueOnce({ rows: [{ merged_into_user_id: null }] });

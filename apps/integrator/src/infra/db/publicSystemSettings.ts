@@ -34,7 +34,10 @@ export const systemSettingStringInnerSchema = z.union([
     return t.length > 0 ? t : null;
   }),
   z.boolean().transform((b) => (b ? 'true' : 'false')),
-  z.number().finite().transform((n) => String(n)),
+  z
+    .number()
+    .finite()
+    .transform((n) => String(n)),
 ]);
 
 export function parseSystemSettingStringValue(valueJson: unknown): string | null {

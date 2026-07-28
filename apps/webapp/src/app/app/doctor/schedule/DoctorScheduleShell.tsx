@@ -1,23 +1,20 @@
-"use client";
+'use client';
 
-import dynamic from "next/dynamic";
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { ComponentType } from "react";
-import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
-import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { doctorSectionTabClass } from "@/shared/ui/doctor/DoctorSectionTabs";
+import dynamic from 'next/dynamic';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { ComponentType } from 'react';
+import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
+import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { doctorSectionTabClass } from '@/shared/ui/doctor/DoctorSectionTabs';
 import {
   SCHEDULE_BASE,
   SCHEDULE_TABS,
   SCHEDULE_DEFAULT_TAB,
   scheduleTabFromQuery,
   type ScheduleTabId,
-} from "./doctorScheduleTabs";
-import {
-  SCHEDULE_TAB_REGISTRY,
-  type ScheduleTabProps,
-} from "./scheduleTabRegistry";
+} from './doctorScheduleTabs';
+import { SCHEDULE_TAB_REGISTRY, type ScheduleTabProps } from './scheduleTabRegistry';
 
 // ---------------------------------------------------------------------------
 // Dynamic tab components — built once per module load
@@ -76,7 +73,7 @@ function ScheduleTabsNav({ activeTab, onTabClick }: ScheduleTabsNavProps) {
             key={tab.id}
             type="button"
             variant="ghost"
-            aria-current={active ? "page" : undefined}
+            aria-current={active ? 'page' : undefined}
             onClick={() => onTabClick(tab.id)}
             className={doctorSectionTabClass(active)}
             data-testid={`tab-btn-${tab.id}`}
@@ -113,14 +110,11 @@ export type DoctorScheduleShellProps = {
  * KPI (9 метрик) живут только внутри таба «Записи» (ScheduleCalendarTab) и загружаются
  * там же; шелл не знает о KPI (§3.1 ТЗ).
  */
-export function DoctorScheduleShell({
-  initialTab,
-  initialTimeZone,
-}: DoctorScheduleShellProps) {
+export function DoctorScheduleShell({ initialTab, initialTimeZone }: DoctorScheduleShellProps) {
   const resolvedInit: ScheduleTabId = (() => {
     if (initialTab) return initialTab;
-    if (typeof window !== "undefined") {
-      return scheduleTabFromQuery(new URLSearchParams(window.location.search).get("tab"));
+    if (typeof window !== 'undefined') {
+      return scheduleTabFromQuery(new URLSearchParams(window.location.search).get('tab'));
     }
     return SCHEDULE_DEFAULT_TAB;
   })();
@@ -135,7 +129,7 @@ export function DoctorScheduleShell({
   const [deepLinks, setDeepLinks] = useState<
     Partial<Record<ScheduleTabId, Record<string, string>>>
   >(() =>
-    typeof window !== "undefined"
+    typeof window !== 'undefined'
       ? readDeepLinksFromSearchParams(new URLSearchParams(window.location.search))
       : {},
   );
@@ -143,30 +137,31 @@ export function DoctorScheduleShell({
 
   // ── sync refs ──────────────────────────────────────────────────────────────
 
-  useEffect(() => { activeTabRef.current = activeTab; }, [activeTab]);
-  useEffect(() => { deepLinksRef.current = deepLinks; }, [deepLinks]);
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
+  useEffect(() => {
+    deepLinksRef.current = deepLinks;
+  }, [deepLinks]);
 
   // ── back/forward restore ───────────────────────────────────────────────────
 
   useEffect(() => {
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search);
-      const tab = scheduleTabFromQuery(params.get("tab"));
+      const tab = scheduleTabFromQuery(params.get('tab'));
       setActiveTab(tab);
       setMountedTabs((prev) => new Set([...prev, tab]));
       setDeepLinks(readDeepLinksFromSearchParams(params));
     };
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   // ── URL builder ───────────────────────────────────────────────────────────
 
   const buildTabUrl = useCallback(
-    (
-      tabId: ScheduleTabId,
-      tabDeepLinks: Record<string, string>,
-    ): string => {
+    (tabId: ScheduleTabId, tabDeepLinks: Record<string, string>): string => {
       const params = new URLSearchParams({ tab: tabId });
       for (const [k, v] of Object.entries(tabDeepLinks)) {
         if (v) params.set(k, v);
@@ -182,11 +177,7 @@ export function DoctorScheduleShell({
     (tabId: ScheduleTabId) => {
       setActiveTab(tabId);
       setMountedTabs((prev) => new Set([...prev, tabId]));
-      window.history.replaceState(
-        null,
-        "",
-        buildTabUrl(tabId, deepLinksRef.current[tabId] ?? {}),
-      );
+      window.history.replaceState(null, '', buildTabUrl(tabId, deepLinksRef.current[tabId] ?? {}));
     },
     [buildTabUrl],
   );
@@ -207,7 +198,7 @@ export function DoctorScheduleShell({
       deepLinksRef.current = next;
       setDeepLinks(next);
       if (activeTabRef.current === tabId) {
-        window.history.replaceState(null, "", buildTabUrl(tabId, tabParams));
+        window.history.replaceState(null, '', buildTabUrl(tabId, tabParams));
       }
     },
     [buildTabUrl],
@@ -225,7 +216,12 @@ export function DoctorScheduleShell({
         const TabComponent = DYNAMIC_TABS.get(entry.id)!;
         const tabId = entry.id;
         return (
-          <div key={tabId} hidden={tabId !== activeTab} className="flex min-h-0 flex-1 flex-col" data-testid={`tab-panel-${tabId}`}>
+          <div
+            key={tabId}
+            hidden={tabId !== activeTab}
+            className="flex min-h-0 flex-1 flex-col"
+            data-testid={`tab-panel-${tabId}`}
+          >
             <TabComponent
               deepLinkParams={deepLinks[tabId] ?? {}}
               onDeepLinkChange={(key, value) => handleDeepLinkChange(tabId, key, value)}

@@ -62,7 +62,11 @@ describe('max schema', () => {
   });
 
   it('parses bot_started', () => {
-    const result = parseMaxUpdate({ update_type: 'bot_started', timestamp: 1, message: { recipient: { chat_id: 1 }, sender: { user_id: 2 } } });
+    const result = parseMaxUpdate({
+      update_type: 'bot_started',
+      timestamp: 1,
+      message: { recipient: { chat_id: 1 }, sender: { user_id: 2 } },
+    });
     expect(result.success).toBe(true);
     if (result.success) expect(result.data.update_type).toBe('bot_started');
   });

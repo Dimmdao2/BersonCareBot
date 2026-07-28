@@ -1,94 +1,94 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'vitest';
 import {
   classifyUnauthenticatedAppEntry,
   isDevBypassToken,
   shouldAllowStandaloneTokenExchange,
-} from "./appEntryClassification";
+} from './appEntryClassification';
 
-describe("appEntryClassification", () => {
-  it("detects dev bypass tokens", () => {
-    expect(isDevBypassToken("dev:admin")).toBe(true);
-    expect(isDevBypassToken("dev:client")).toBe(true);
-    expect(isDevBypassToken("dev:clinic-admin")).toBe(true);
-    expect(isDevBypassToken("token")).toBe(false);
+describe('appEntryClassification', () => {
+  it('detects dev bypass tokens', () => {
+    expect(isDevBypassToken('dev:admin')).toBe(true);
+    expect(isDevBypassToken('dev:client')).toBe(true);
+    expect(isDevBypassToken('dev:clinic-admin')).toBe(true);
+    expect(isDevBypassToken('token')).toBe(false);
     expect(isDevBypassToken(null)).toBe(false);
   });
 
-  it("allows normal standalone token exchange without switch=1", () => {
+  it('allows normal standalone token exchange without switch=1', () => {
     expect(
       shouldAllowStandaloneTokenExchange({
-        token: "signed-token",
+        token: 'signed-token',
         switchParam: null,
       }),
     ).toBe(true);
   });
 
-  it("blocks dev bypass token exchange without switch=1", () => {
+  it('blocks dev bypass token exchange without switch=1', () => {
     expect(
       shouldAllowStandaloneTokenExchange({
-        token: "dev:admin",
+        token: 'dev:admin',
         switchParam: null,
       }),
     ).toBe(false);
     expect(
       shouldAllowStandaloneTokenExchange({
-        token: "dev:admin",
-        switchParam: "0",
+        token: 'dev:admin',
+        switchParam: '0',
       }),
     ).toBe(false);
   });
 
-  it("allows dev bypass token exchange only with switch=1", () => {
+  it('allows dev bypass token exchange only with switch=1', () => {
     expect(
       shouldAllowStandaloneTokenExchange({
-        token: "dev:admin",
-        switchParam: "1",
+        token: 'dev:admin',
+        switchParam: '1',
       }),
     ).toBe(true);
   });
 
-  it("classifies browser_interactive when dev token is present without allow flag", () => {
+  it('classifies browser_interactive when dev token is present without allow flag', () => {
     expect(
       classifyUnauthenticatedAppEntry({
-        platformEntry: "standalone",
+        platformEntry: 'standalone',
         messengerSurface: null,
-        token: "dev:admin",
+        token: 'dev:admin',
         allowStandaloneTokenExchange: false,
       }),
-    ).toBe("browser_interactive");
+    ).toBe('browser_interactive');
   });
 
-  it("classifies token_exchange when standalone token exchange is allowed", () => {
+  it('classifies token_exchange when standalone token exchange is allowed', () => {
     expect(
       classifyUnauthenticatedAppEntry({
-        platformEntry: "standalone",
+        platformEntry: 'standalone',
         messengerSurface: null,
-        token: "dev:admin",
+        token: 'dev:admin',
         allowStandaloneTokenExchange: true,
       }),
-    ).toBe("token_exchange");
+    ).toBe('token_exchange');
   });
 
-  it("route-bound /app/max wins over bot+telegram cookies", () => {
+  it('route-bound /app/max wins over bot+telegram cookies', () => {
     expect(
       classifyUnauthenticatedAppEntry({
-        platformEntry: "bot",
-        messengerSurface: "telegram",
-        token: "jwt",
+        platformEntry: 'bot',
+        messengerSurface: 'telegram',
+        token: 'jwt',
         allowStandaloneTokenExchange: true,
-        routeBoundMessengerSurface: "max",
+        routeBoundMessengerSurface: 'max',
       }),
-    ).toBe("max_miniapp");
+    ).toBe('max_miniapp');
   });
 
-  it("route-bound /app/tg wins over bot+max surface", () => {
+  it('route-bound /app/tg wins over bot+max surface', () => {
     expect(
       classifyUnauthenticatedAppEntry({
-        platformEntry: "bot",
-        messengerSurface: "max",
+        platformEntry: 'bot',
+        messengerSurface: 'max',
         token: null,
-        routeBoundMessengerSurface: "telegram",
+        routeBoundMessengerSurface: 'telegram',
       }),
-    ).toBe("telegram_miniapp");
+    ).toBe('telegram_miniapp');
   });
 });

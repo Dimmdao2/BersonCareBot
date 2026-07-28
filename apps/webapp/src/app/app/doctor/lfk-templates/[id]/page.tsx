@@ -1,11 +1,11 @@
-import { notFound } from "next/navigation";
-import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
-import { requireEntitlementForReadAction } from "@/app-layer/guards/requireEntitlement";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
-import { doctorCatalogEditorSectionClass } from "@/shared/ui/doctor/doctorVisual";
-import { TemplateEditor } from "../TemplateEditor";
-import { LfkTemplatePreviewPanel } from "../LfkTemplatePreviewPanel";
+import { notFound } from 'next/navigation';
+import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
+import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
+import { doctorCatalogEditorSectionClass } from '@/shared/ui/doctor/doctorVisual';
+import { TemplateEditor } from '../TemplateEditor';
+import { LfkTemplatePreviewPanel } from '../LfkTemplatePreviewPanel';
 
 type PageProps = { params: Promise<{ id: string }> };
 
@@ -14,16 +14,17 @@ export default async function DoctorLfkTemplateEditPage({ params }: PageProps) {
   const session = workspace.session;
   const { id } = await params;
   const deps = buildAppDeps();
-  const includePlatformBase = (
-    await requireEntitlementForReadAction(workspace, "exercise_catalog")
-  ).ok;
+  const includePlatformBase = (await requireEntitlementForReadAction(workspace, 'exercise_catalog'))
+    .ok;
   const template = await deps.lfkTemplates.getTemplate(id, { includePlatformBase });
   if (!template) {
     notFound();
   }
 
   const [usage, exercises] = await Promise.all([
-    template.ownerKind === "organization" ? deps.lfkTemplates.getTemplateUsage(template.id) : Promise.resolve(undefined),
+    template.ownerKind === 'organization'
+      ? deps.lfkTemplates.getTemplateUsage(template.id)
+      : Promise.resolve(undefined),
     deps.lfkExercises.listExercises({ includeArchived: false, includePlatformBase }),
   ]);
   const exerciseCatalog = exercises.map((e) => ({
@@ -36,11 +37,10 @@ export default async function DoctorLfkTemplateEditPage({ params }: PageProps) {
     <DoctorAppShell
       title="Конструктор комплекса"
       user={session.user}
-     
       backHref="/app/doctor/lfk-templates"
     >
       <section className={doctorCatalogEditorSectionClass}>
-        {template.ownerKind === "platform" ? (
+        {template.ownerKind === 'platform' ? (
           <LfkTemplatePreviewPanel template={template} showOpenButton={false} />
         ) : (
           <TemplateEditor

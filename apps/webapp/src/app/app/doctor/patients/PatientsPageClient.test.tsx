@@ -1,29 +1,29 @@
 /** @vitest-environment jsdom */
 
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { getClientCategory, PatientsPageClient } from "./PatientsPageClient";
-import type { ClientListItem, DoctorDashboardPatientMetrics } from "@/modules/doctor-clients/ports";
-import type { PatientListWorkspaceState } from "./patientListWorkspaceState";
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { getClientCategory, PatientsPageClient } from './PatientsPageClient';
+import type { ClientListItem, DoctorDashboardPatientMetrics } from '@/modules/doctor-clients/ports';
+import type { PatientListWorkspaceState } from './patientListWorkspaceState';
 import {
   buildPatientListWorkspaceHref,
   parsePatientListWorkspaceState,
   sanitizePatientListReturnHref,
-} from "./patientListWorkspaceState";
+} from './patientListWorkspaceState';
 
 const routerPushMock = vi.hoisted(() => vi.fn());
 const routerRefreshMock = vi.hoisted(() => vi.fn());
-const PATIENT_ID = "550e8400-e29b-41d4-a716-446655440001";
+const PATIENT_ID = '550e8400-e29b-41d4-a716-446655440001';
 
-vi.mock("next/navigation", () => ({
+vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: routerPushMock, refresh: routerRefreshMock }),
 }));
 
 function client(overrides: Partial<ClientListItem> = {}): ClientListItem {
   return {
-    userId: overrides.userId ?? "u1",
-    displayName: overrides.displayName ?? "Пациент",
+    userId: overrides.userId ?? 'u1',
+    displayName: overrides.displayName ?? 'Пациент',
     firstName: overrides.firstName ?? null,
     lastName: overrides.lastName ?? null,
     patronymic: overrides.patronymic ?? null,
@@ -67,12 +67,12 @@ const metrics: DoctorDashboardPatientMetrics = {
 };
 
 const defaultWorkspaceState: PatientListWorkspaceState = {
-  q: "",
+  q: '',
   segments: [],
   channel: null,
   archivedOnly: false,
-  sort: "recent_appointments",
-  sortDirection: "desc",
+  sort: 'recent_appointments',
+  sortDirection: 'desc',
   selectedPatientId: null,
   scrollTop: 0,
 };
@@ -98,363 +98,426 @@ async function renderPatientsPage(
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.clearAllMocks();
-  window.history.replaceState({}, "", "/");
+  window.history.replaceState({}, '', '/');
 });
 
-describe("PatientsPageClient", () => {
-  it("shows all organization people by default and keeps factual KPI and channel filters on the desktop right panel", async () => {
+describe('PatientsPageClient', () => {
+  it('shows all organization people by default and keeps factual KPI and channel filters on the desktop right panel', async () => {
     const user = userEvent.setup();
     await renderPatientsPage([
       client({
-        userId: "with-appointment-support",
-        displayName: "С записью и сопровождением",
+        userId: 'with-appointment-support',
+        displayName: 'С записью и сопровождением',
         activeAppointmentsCount: 1,
         isOnSupport: true,
       }),
       client({
-        userId: "support-only",
-        displayName: "Только сопровождение",
+        userId: 'support-only',
+        displayName: 'Только сопровождение',
         isOnSupport: true,
       }),
       client({
-        userId: "appointment-only",
-        displayName: "Только запись",
+        userId: 'appointment-only',
+        displayName: 'Только запись',
         activeAppointmentsCount: 1,
       }),
       client({
-        userId: "subscriber-only",
-        displayName: "Подписчик",
+        userId: 'subscriber-only',
+        displayName: 'Подписчик',
       }),
       client({
-        userId: "membership-only",
-        displayName: "Только абонемент",
+        userId: 'membership-only',
+        displayName: 'Только абонемент',
         hasMemberships: true,
       }),
     ]);
 
     // Owner correction: the search field lives in the LEFT clients-list block, not the page header.
-    const search = await screen.findByRole("searchbox", { name: "Поиск: клиенты" });
-    const leftListBlock = search.closest("[data-doctor-flat-list-surface]");
+    const search = await screen.findByRole('searchbox', { name: 'Поиск: клиенты' });
+    const leftListBlock = search.closest('[data-doctor-flat-list-surface]');
     expect(leftListBlock).not.toBeNull();
-    expect(leftListBlock).toContainElement(document.getElementById("doctor-patients-list"));
-    const pageHeader = document.getElementById("doctor-patients-header");
+    expect(leftListBlock).toContainElement(document.getElementById('doctor-patients-list'));
+    const pageHeader = document.getElementById('doctor-patients-header');
     expect(pageHeader).not.toBeNull();
     expect(pageHeader).not.toContainElement(search);
-    expect(pageHeader?.querySelector("[data-doctor-page-header-toolbar]")).toBeNull();
+    expect(pageHeader?.querySelector('[data-doctor-page-header-toolbar]')).toBeNull();
     // Owner punch-list item 2: the "new person" button stays in the page header.
-    const newClientButton = screen.getByRole("button", { name: "Новый клиент" });
+    const newClientButton = screen.getByRole('button', { name: 'Новый клиент' });
     expect(pageHeader).toContainElement(newClientButton);
-    expect(screen.queryByRole("group", { name: "Фильтр: пациенты или все" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("group", { name: "Категория клиентов" })).not.toBeInTheDocument();
-    expect(screen.getByText("Подписчик")).toBeInTheDocument();
-    expect(screen.getByText("Только абонемент")).toBeInTheDocument();
+    expect(
+      screen.queryByRole('group', { name: 'Фильтр: пациенты или все' }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Категория клиентов' })).not.toBeInTheDocument();
+    expect(screen.getByText('Подписчик')).toBeInTheDocument();
+    expect(screen.getByText('Только абонемент')).toBeInTheDocument();
     // Owner punch-list item 4: communication-channel filters are hidden from the UI.
-    expect(screen.queryByText("Каналы связи")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Фильтр записей" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Фильтр программы упражнений" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Фильтр сопровождения" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Фильтр абонементов" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Пуш-уведомления" })).not.toBeInTheDocument();
-    const allClientsCard = screen.getByRole("button", { name: /^Все клиенты/i });
-    expect(allClientsCard.parentElement).toHaveClass("grid-cols-3", "xl:grid-cols-3", "2xl:grid-cols-3");
-    expect(screen.getByRole("button", { name: /^Все/i })).toHaveAttribute("aria-pressed", "true");
-    const rightPanel = allClientsCard.closest("section");
+    expect(screen.queryByText('Каналы связи')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Фильтр записей' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Фильтр программы упражнений' }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Фильтр сопровождения' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Фильтр абонементов' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Пуш-уведомления' })).not.toBeInTheDocument();
+    const allClientsCard = screen.getByRole('button', { name: /^Все клиенты/i });
+    expect(allClientsCard.parentElement).toHaveClass(
+      'grid-cols-3',
+      'xl:grid-cols-3',
+      '2xl:grid-cols-3',
+    );
+    expect(screen.getByRole('button', { name: /^Все/i })).toHaveAttribute('aria-pressed', 'true');
+    const rightPanel = allClientsCard.closest('section');
     expect(rightPanel).toBeVisible();
-    const splitLayout = Array.from(document.querySelectorAll("div")).find((element) => element.className.includes("lg:grid-cols-2"));
+    const splitLayout = Array.from(document.querySelectorAll('div')).find((element) =>
+      element.className.includes('lg:grid-cols-2'),
+    );
     expect(splitLayout).toBeDefined();
-    expect(document.getElementById("doctor-patients-card-with-appointment-support")).toHaveClass(
-      "px-[var(--doctor-list-inline-padding,18px)]",
-      "text-base",
-      "font-normal",
+    expect(document.getElementById('doctor-patients-card-with-appointment-support')).toHaveClass(
+      'px-[var(--doctor-list-inline-padding,18px)]',
+      'text-base',
+      'font-normal',
     );
     // Between-rows divider moved from each row's own `border-t` to the list wrapper's
     // `[&>li+li]:border-t` (DoctorDnaFlatListRow fix — `first:border-t-0` broke when the row
     // class sits on an inner Link/Button that is always its <li>'s first child). The row itself
     // no longer carries a top border; the sibling-order divider lives on the enclosing <ul>.
-    const supportOnlyRow = document.getElementById("doctor-patients-card-support-only");
-    expect(supportOnlyRow).toHaveClass("border-t-0", "border-x-0", "border-b-0");
-    expect(supportOnlyRow?.closest("ul")?.className).toContain("[&>li+li]:border-t");
-    expect(document.getElementById("doctor-patients-list")).toHaveClass(
-      "mx-[var(--doctor-block-padding,18px)]",
+    const supportOnlyRow = document.getElementById('doctor-patients-card-support-only');
+    expect(supportOnlyRow).toHaveClass('border-t-0', 'border-x-0', 'border-b-0');
+    expect(supportOnlyRow?.closest('ul')?.className).toContain('[&>li+li]:border-t');
+    expect(document.getElementById('doctor-patients-list')).toHaveClass(
+      'mx-[var(--doctor-block-padding,18px)]',
     );
-    const flatListSurface = document.querySelector("[data-doctor-flat-list-surface]");
+    const flatListSurface = document.querySelector('[data-doctor-flat-list-surface]');
     expect(flatListSurface).toBeInTheDocument();
     // Owner correction: DNA rounded corners restored on the left list container.
     expect(flatListSurface?.className).toMatch(/rounded-/);
 
-    await user.click(screen.getByRole("button", { name: /С записями/i }));
+    await user.click(screen.getByRole('button', { name: /С записями/i }));
 
-    expect(screen.getByRole("button", { name: /^Все/i })).toHaveAttribute("aria-pressed", "false");
-    expect(screen.getByRole("button", { name: /С записями/i })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: /С записями/i })).toHaveClass("bg-primary/15", "text-primary");
-    expect(screen.getByRole("button", { name: /С записями/i })).not.toHaveClass("bg-destructive/5");
+    expect(screen.getByRole('button', { name: /^Все/i })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: /С записями/i })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(screen.getByRole('button', { name: /С записями/i })).toHaveClass(
+      'bg-primary/15',
+      'text-primary',
+    );
+    expect(screen.getByRole('button', { name: /С записями/i })).not.toHaveClass('bg-destructive/5');
 
-    const supportCard = document.getElementById("doctor-patients-segment-on_support");
+    const supportCard = document.getElementById('doctor-patients-segment-on_support');
     expect(supportCard).not.toBeNull();
-    expect(within(supportCard as HTMLElement).getByText("1")).toBeInTheDocument();
-    expect(within(supportCard as HTMLElement).getByText("2")).toBeInTheDocument();
-    expect(within(supportCard as HTMLElement).getByLabelText("После фильтров: 1")).toBeInTheDocument();
-    expect(within(supportCard as HTMLElement).queryByText("/")).not.toBeInTheDocument();
-    expect(within(supportCard as HTMLElement).queryByText("всего")).not.toBeInTheDocument();
+    expect(within(supportCard as HTMLElement).getByText('1')).toBeInTheDocument();
+    expect(within(supportCard as HTMLElement).getByText('2')).toBeInTheDocument();
+    expect(
+      within(supportCard as HTMLElement).getByLabelText('После фильтров: 1'),
+    ).toBeInTheDocument();
+    expect(within(supportCard as HTMLElement).queryByText('/')).not.toBeInTheDocument();
+    expect(within(supportCard as HTMLElement).queryByText('всего')).not.toBeInTheDocument();
 
-    expect(screen.getByText("С записью и сопровождением")).toBeInTheDocument();
-    expect(screen.getByText("Только запись")).toBeInTheDocument();
-    expect(screen.queryByText("Только сопровождение")).not.toBeInTheDocument();
+    expect(screen.getByText('С записью и сопровождением')).toBeInTheDocument();
+    expect(screen.getByText('Только запись')).toBeInTheDocument();
+    expect(screen.queryByText('Только сопровождение')).not.toBeInTheDocument();
 
     await user.click(supportCard as HTMLElement);
 
-    expect(screen.getByText("С записью и сопровождением")).toBeInTheDocument();
-    expect(screen.queryByText("Только запись")).not.toBeInTheDocument();
-    expect(screen.queryByText("Только сопровождение")).not.toBeInTheDocument();
+    expect(screen.getByText('С записью и сопровождением')).toBeInTheDocument();
+    expect(screen.queryByText('Только запись')).not.toBeInTheDocument();
+    expect(screen.queryByText('Только сопровождение')).not.toBeInTheDocument();
 
-    const appointmentsCard = document.getElementById("doctor-patients-segment-appointments");
-    const membershipsCard = document.getElementById("doctor-patients-segment-memberships");
+    const appointmentsCard = document.getElementById('doctor-patients-segment-appointments');
+    const membershipsCard = document.getElementById('doctor-patients-segment-memberships');
     expect(appointmentsCard).not.toBeNull();
     expect(membershipsCard).not.toBeNull();
-    expect(within(appointmentsCard as HTMLElement).getByText("1")).toBeInTheDocument();
-    expect(within(appointmentsCard as HTMLElement).getByText("2")).toBeInTheDocument();
+    expect(within(appointmentsCard as HTMLElement).getByText('1')).toBeInTheDocument();
+    expect(within(appointmentsCard as HTMLElement).getByText('2')).toBeInTheDocument();
   });
 
-  it("renders each client row as a full-width link that opens the full patient card without a list side frame", async () => {
+  it('renders each client row as a full-width link that opens the full patient card without a list side frame', async () => {
     await renderPatientsPage([
-      client({ userId: "first", displayName: "Первый клиент" }),
-      client({ userId: "second", displayName: "Второй клиент" }),
+      client({ userId: 'first', displayName: 'Первый клиент' }),
+      client({ userId: 'second', displayName: 'Второй клиент' }),
     ]);
 
-    const firstRow = screen.getByRole("link", { name: /Первый клиент/i });
-    expect(firstRow).toHaveClass("w-full", "cursor-pointer", "hover:bg-muted");
-    expect(firstRow).toHaveClass("border-x-0", "border-b-0");
+    const firstRow = screen.getByRole('link', { name: /Первый клиент/i });
+    expect(firstRow).toHaveClass('w-full', 'cursor-pointer', 'hover:bg-muted');
+    expect(firstRow).toHaveClass('border-x-0', 'border-b-0');
     // The row is a real navigation link to the full card, not a selection toggle.
-    expect(firstRow).not.toHaveAttribute("aria-pressed");
-    const href = new URL(firstRow.getAttribute("href") ?? "", "https://bersoncare.local");
-    expect(href.pathname).toBe("/app/doctor/patients/first");
-    expect(href.searchParams.get("returnTo")).toBeTruthy();
+    expect(firstRow).not.toHaveAttribute('aria-pressed');
+    const href = new URL(firstRow.getAttribute('href') ?? '', 'https://bersoncare.local');
+    expect(href.pathname).toBe('/app/doctor/patients/first');
+    expect(href.searchParams.get('returnTo')).toBeTruthy();
 
-    const secondRow = screen.getByRole("link", { name: /Второй клиент/i });
-    const secondHref = new URL(secondRow.getAttribute("href") ?? "", "https://bersoncare.local");
-    expect(secondHref.pathname).toBe("/app/doctor/patients/second");
+    const secondRow = screen.getByRole('link', { name: /Второй клиент/i });
+    const secondHref = new URL(secondRow.getAttribute('href') ?? '', 'https://bersoncare.local');
+    expect(secondHref.pathname).toBe('/app/doctor/patients/second');
 
     // No right-pane preview is rendered anymore.
-    expect(document.querySelector("[data-patient-preview-surface]")).toBeNull();
+    expect(document.querySelector('[data-patient-preview-surface]')).toBeNull();
 
-    const flatListSurface = document.querySelector("[data-doctor-flat-list-surface]");
+    const flatListSurface = document.querySelector('[data-doctor-flat-list-surface]');
     // Owner correction: DNA rounded corners restored on the left list container.
     expect(flatListSurface?.className).toMatch(/rounded-/);
   });
 
-  it("separates all-time records, occurred visits, and visit history without future appointments", async () => {
+  it('separates all-time records, occurred visits, and visit history without future appointments', async () => {
     const user = userEvent.setup();
     await renderPatientsPage([
-      client({ userId: "future", displayName: "Только будущая", activeAppointmentsCount: 1 }),
+      client({ userId: 'future', displayName: 'Только будущая', activeAppointmentsCount: 1 }),
       client({
-        userId: "past",
-        displayName: "Только прошлый визит",
+        userId: 'past',
+        displayName: 'Только прошлый визит',
         hasAppointmentHistory: true,
-        lastAppointmentAt: "2026-07-01T09:00:00.000Z",
+        lastAppointmentAt: '2026-07-01T09:00:00.000Z',
       }),
       client({
-        userId: "both",
-        displayName: "Прошлый и будущий",
+        userId: 'both',
+        displayName: 'Прошлый и будущий',
         hasAppointmentHistory: true,
-        lastAppointmentAt: "2026-07-02T09:00:00.000Z",
+        lastAppointmentAt: '2026-07-02T09:00:00.000Z',
         activeAppointmentsCount: 1,
       }),
-      client({ userId: "none", displayName: "Без записей" }),
+      client({ userId: 'none', displayName: 'Без записей' }),
     ]);
 
-    expect(screen.getByRole("button", { name: /С визитами/i })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /^Новые/i })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Без будущих/i })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /^Бывшие/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /С визитами/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Новые/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Без будущих/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Бывшие/i })).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /С записями/i }));
-    expect(screen.getByText("Только будущая")).toBeInTheDocument();
-    expect(screen.getByText("Только прошлый визит")).toBeInTheDocument();
-    expect(screen.getByText("Прошлый и будущий")).toBeInTheDocument();
-    expect(screen.queryByText("Без записей")).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /С записями/i }));
+    expect(screen.getByText('Только будущая')).toBeInTheDocument();
+    expect(screen.getByText('Только прошлый визит')).toBeInTheDocument();
+    expect(screen.getByText('Прошлый и будущий')).toBeInTheDocument();
+    expect(screen.queryByText('Без записей')).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /С записями/i }));
-    await user.click(screen.getByRole("button", { name: /С визитами/i }));
-    expect(screen.queryByText("Только будущая")).not.toBeInTheDocument();
-    expect(screen.getByText("Только прошлый визит")).toBeInTheDocument();
-    expect(screen.getByText("Прошлый и будущий")).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /С записями/i }));
+    await user.click(screen.getByRole('button', { name: /С визитами/i }));
+    expect(screen.queryByText('Только будущая')).not.toBeInTheDocument();
+    expect(screen.getByText('Только прошлый визит')).toBeInTheDocument();
+    expect(screen.getByText('Прошлый и будущий')).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /С визитами/i }));
-    await user.click(screen.getByRole("button", { name: /Без будущих/i }));
-    expect(screen.getByText("Только прошлый визит")).toBeInTheDocument();
-    expect(screen.queryByText("Прошлый и будущий")).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /С визитами/i }));
+    await user.click(screen.getByRole('button', { name: /Без будущих/i }));
+    expect(screen.getByText('Только прошлый визит')).toBeInTheDocument();
+    expect(screen.queryByText('Прошлый и будущий')).not.toBeInTheDocument();
   });
 
-  it("separates active and expired memberships and filters lifetime cancellations and reschedules", async () => {
+  it('separates active and expired memberships and filters lifetime cancellations and reschedules', async () => {
     const user = userEvent.setup();
     await renderPatientsPage([
       client({
-        userId: "active-membership",
-        displayName: "Действующий абонемент",
+        userId: 'active-membership',
+        displayName: 'Действующий абонемент',
         hasMemberships: true,
         hasActiveMemberships: true,
       }),
       client({
-        userId: "awaiting-membership",
-        displayName: "Ожидает оплаты",
+        userId: 'awaiting-membership',
+        displayName: 'Ожидает оплаты',
         hasMemberships: true,
         hasActiveMemberships: false,
       }),
       client({
-        userId: "expired-membership",
-        displayName: "Истёкший абонемент",
+        userId: 'expired-membership',
+        displayName: 'Истёкший абонемент',
         hasExpiredMemberships: true,
       }),
-      client({ userId: "cancelled", displayName: "Старые отмены", cancellationsCount: 2 }),
-      client({ userId: "rescheduled", displayName: "Старые переносы", reschedulesCount: 3 }),
+      client({ userId: 'cancelled', displayName: 'Старые отмены', cancellationsCount: 2 }),
+      client({ userId: 'rescheduled', displayName: 'Старые переносы', reschedulesCount: 3 }),
     ]);
 
-    const activeMemberships = screen.getByRole("button", { name: /С абонементами/i });
+    const activeMemberships = screen.getByRole('button', { name: /С абонементами/i });
     await user.click(activeMemberships);
-    expect(screen.getByText("Действующий абонемент")).toBeInTheDocument();
-    expect(screen.queryByText("Ожидает оплаты")).not.toBeInTheDocument();
-    expect(screen.queryByText("Истёкший абонемент")).not.toBeInTheDocument();
+    expect(screen.getByText('Действующий абонемент')).toBeInTheDocument();
+    expect(screen.queryByText('Ожидает оплаты')).not.toBeInTheDocument();
+    expect(screen.queryByText('Истёкший абонемент')).not.toBeInTheDocument();
 
     await user.click(activeMemberships);
-    await user.click(screen.getByRole("button", { name: /Истёкшие абонементы/i }));
-    expect(screen.getByText("Истёкший абонемент")).toBeInTheDocument();
-    expect(screen.queryByText("Действующий абонемент")).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Истёкшие абонементы/i }));
+    expect(screen.getByText('Истёкший абонемент')).toBeInTheDocument();
+    expect(screen.queryByText('Действующий абонемент')).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /Истёкшие абонементы/i }));
-    await user.click(screen.getByRole("button", { name: /С отменами/i }));
-    expect(screen.getByText("Старые отмены")).toBeInTheDocument();
-    expect(screen.queryByText("Старые переносы")).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Истёкшие абонементы/i }));
+    await user.click(screen.getByRole('button', { name: /С отменами/i }));
+    expect(screen.getByText('Старые отмены')).toBeInTheDocument();
+    expect(screen.queryByText('Старые переносы')).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /С отменами/i }));
-    await user.click(screen.getByRole("button", { name: /С переносами/i }));
-    expect(screen.getByText("Старые переносы")).toBeInTheDocument();
-    expect(screen.queryByText("Старые отмены")).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /С отменами/i }));
+    await user.click(screen.getByRole('button', { name: /С переносами/i }));
+    expect(screen.getByText('Старые переносы')).toBeInTheDocument();
+    expect(screen.queryByText('Старые отмены')).not.toBeInTheDocument();
   });
 
   // The channel-filter buttons are hidden (owner punch-list item 4) — coverage for the underlying
   // mechanism moved to "keeps the communication-channel filter mechanism wired..." below, which
   // seeds `activeChannel` via URL state instead of clicking a (now hidden) button.
 
-  it("sorts recent occurred appointments first, supports FIO sorting, and preserves search", async () => {
+  it('sorts recent occurred appointments first, supports FIO sorting, and preserves search', async () => {
     const user = userEvent.setup();
     await renderPatientsPage([
-      client({ userId: "null", displayName: "Яна", lastName: "Яна" }),
+      client({ userId: 'null', displayName: 'Яна', lastName: 'Яна' }),
       client({
-        userId: "same-b",
-        displayName: "Борис",
-        lastName: "Борис",
-        lastAppointmentAt: "2026-07-01T09:00:00.000Z",
+        userId: 'same-b',
+        displayName: 'Борис',
+        lastName: 'Борис',
+        lastAppointmentAt: '2026-07-01T09:00:00.000Z',
       }),
       client({
-        userId: "newest",
-        displayName: "Вера",
-        lastName: "Вера",
-        lastAppointmentAt: "2026-07-02T09:00:00.000Z",
+        userId: 'newest',
+        displayName: 'Вера',
+        lastName: 'Вера',
+        lastAppointmentAt: '2026-07-02T09:00:00.000Z',
       }),
       client({
-        userId: "same-a",
-        displayName: "Алексей",
-        lastName: "Алексей",
-        lastAppointmentAt: "2026-07-01T09:00:00.000Z",
+        userId: 'same-a',
+        displayName: 'Алексей',
+        lastName: 'Алексей',
+        lastAppointmentAt: '2026-07-01T09:00:00.000Z',
       }),
     ]);
 
-    const listIds = () => Array.from(document.querySelectorAll("#doctor-patients-list > li")).map((item) => item.id);
-    expect(listIds()).toEqual(["doctor-patients-item-newest", "doctor-patients-item-same-a", "doctor-patients-item-same-b", "doctor-patients-item-null"]);
+    const listIds = () =>
+      Array.from(document.querySelectorAll('#doctor-patients-list > li')).map((item) => item.id);
+    expect(listIds()).toEqual([
+      'doctor-patients-item-newest',
+      'doctor-patients-item-same-a',
+      'doctor-patients-item-same-b',
+      'doctor-patients-item-null',
+    ]);
 
-    const recentSort = screen.getByRole("button", { name: "Недавние: недавние сверху" });
-    expect(recentSort).toHaveAttribute("aria-pressed", "true");
+    const recentSort = screen.getByRole('button', { name: 'Недавние: недавние сверху' });
+    expect(recentSort).toHaveAttribute('aria-pressed', 'true');
     await user.click(recentSort);
-    expect(listIds()).toEqual(["doctor-patients-item-same-a", "doctor-patients-item-same-b", "doctor-patients-item-newest", "doctor-patients-item-null"]);
+    expect(listIds()).toEqual([
+      'doctor-patients-item-same-a',
+      'doctor-patients-item-same-b',
+      'doctor-patients-item-newest',
+      'doctor-patients-item-null',
+    ]);
 
-    const fioSort = screen.getByRole("button", { name: "По фамилии: А–Я" });
+    const fioSort = screen.getByRole('button', { name: 'По фамилии: А–Я' });
     await user.click(fioSort);
-    expect(listIds()).toEqual(["doctor-patients-item-same-a", "doctor-patients-item-same-b", "doctor-patients-item-newest", "doctor-patients-item-null"]);
+    expect(listIds()).toEqual([
+      'doctor-patients-item-same-a',
+      'doctor-patients-item-same-b',
+      'doctor-patients-item-newest',
+      'doctor-patients-item-null',
+    ]);
 
-    await user.click(screen.getByRole("button", { name: "По фамилии: А–Я" }));
-    expect(listIds()).toEqual(["doctor-patients-item-null", "doctor-patients-item-newest", "doctor-patients-item-same-b", "doctor-patients-item-same-a"]);
+    await user.click(screen.getByRole('button', { name: 'По фамилии: А–Я' }));
+    expect(listIds()).toEqual([
+      'doctor-patients-item-null',
+      'doctor-patients-item-newest',
+      'doctor-patients-item-same-b',
+      'doctor-patients-item-same-a',
+    ]);
 
-    await user.type(screen.getByRole("searchbox", { name: "Поиск: клиенты" }), "Вера");
+    await user.type(screen.getByRole('searchbox', { name: 'Поиск: клиенты' }), 'Вера');
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 220));
     });
 
-    expect(listIds()).toEqual(["doctor-patients-item-newest"]);
+    expect(listIds()).toEqual(['doctor-patients-item-newest']);
   });
 
-  it("keeps membership-only classification dormant and shows only approved informational row indicators", async () => {
+  it('keeps membership-only classification dormant and shows only approved informational row indicators', async () => {
     await renderPatientsPage([
-      client({ userId: "subscriber", displayName: "Подписчик" }),
-      client({ userId: "history", displayName: "Только история", hasAppointmentHistory: true }),
-      client({ userId: "future", displayName: "Будущая запись", activeAppointmentsCount: 3 }),
-      client({ userId: "support", displayName: "Только сопровождение", isOnSupport: true }),
-      client({ userId: "program", displayName: "Только программа", activeTreatmentProgram: true }),
+      client({ userId: 'subscriber', displayName: 'Подписчик' }),
+      client({ userId: 'history', displayName: 'Только история', hasAppointmentHistory: true }),
+      client({ userId: 'future', displayName: 'Будущая запись', activeAppointmentsCount: 3 }),
+      client({ userId: 'support', displayName: 'Только сопровождение', isOnSupport: true }),
+      client({ userId: 'program', displayName: 'Только программа', activeTreatmentProgram: true }),
       client({
-        userId: "program-support",
-        displayName: "Программа и сопровождение",
+        userId: 'program-support',
+        displayName: 'Программа и сопровождение',
         activeTreatmentProgram: true,
         isOnSupport: true,
       }),
-      client({ userId: "membership", displayName: "С абонементом", hasMemberships: true }),
+      client({ userId: 'membership', displayName: 'С абонементом', hasMemberships: true }),
     ]);
 
-    expect(getClientCategory(client({ hasMemberships: true }))).toBe("client");
-    expect(screen.getByText("Подписчик")).toBeInTheDocument();
+    expect(getClientCategory(client({ hasMemberships: true }))).toBe('client');
+    expect(screen.getByText('Подписчик')).toBeInTheDocument();
 
-    const historyRow = within(document.getElementById("doctor-patients-item-history") as HTMLElement);
-    const futureRow = within(document.getElementById("doctor-patients-item-future") as HTMLElement);
-    const supportRow = within(document.getElementById("doctor-patients-item-support") as HTMLElement);
-    const programRow = within(document.getElementById("doctor-patients-item-program") as HTMLElement);
-    const programSupportRow = within(document.getElementById("doctor-patients-item-program-support") as HTMLElement);
-    const membershipRow = within(document.getElementById("doctor-patients-item-membership") as HTMLElement);
+    const historyRow = within(
+      document.getElementById('doctor-patients-item-history') as HTMLElement,
+    );
+    const futureRow = within(document.getElementById('doctor-patients-item-future') as HTMLElement);
+    const supportRow = within(
+      document.getElementById('doctor-patients-item-support') as HTMLElement,
+    );
+    const programRow = within(
+      document.getElementById('doctor-patients-item-program') as HTMLElement,
+    );
+    const programSupportRow = within(
+      document.getElementById('doctor-patients-item-program-support') as HTMLElement,
+    );
+    const membershipRow = within(
+      document.getElementById('doctor-patients-item-membership') as HTMLElement,
+    );
 
     expect(historyRow.queryByLabelText(/Будущие записи/)).not.toBeInTheDocument();
-    expect(futureRow.getByLabelText("Будущие записи: 3")).toBeInTheDocument();
-    expect(supportRow.getByLabelText("Клиент на сопровождении")).toBeInTheDocument();
-    expect(programRow.getByLabelText("Назначенная программа")).toBeInTheDocument();
-    expect(programSupportRow.getByLabelText("Клиент на сопровождении")).toBeInTheDocument();
-    expect(programSupportRow.queryByLabelText("Назначенная программа")).not.toBeInTheDocument();
-    expect(membershipRow.getByLabelText("Есть абонемент")).toBeInTheDocument();
-    expect(membershipRow.getByLabelText("Есть абонемент")).not.toHaveClass("bg-muted/40", "border-border/60");
+    expect(futureRow.getByLabelText('Будущие записи: 3')).toBeInTheDocument();
+    expect(supportRow.getByLabelText('Клиент на сопровождении')).toBeInTheDocument();
+    expect(programRow.getByLabelText('Назначенная программа')).toBeInTheDocument();
+    expect(programSupportRow.getByLabelText('Клиент на сопровождении')).toBeInTheDocument();
+    expect(programSupportRow.queryByLabelText('Назначенная программа')).not.toBeInTheDocument();
+    expect(membershipRow.getByLabelText('Есть абонемент')).toBeInTheDocument();
+    expect(membershipRow.getByLabelText('Есть абонемент')).not.toHaveClass(
+      'bg-muted/40',
+      'border-border/60',
+    );
 
-    for (const row of [historyRow, futureRow, supportRow, programRow, programSupportRow, membershipRow]) {
-      expect(row.queryByLabelText(/Переписка|История|Telegram|MAX|Телефон|email|приложение/i)).not.toBeInTheDocument();
-      const indicatorRail = row.getByLabelText("Статусы клиента");
-      expect(indicatorRail).toHaveClass("grid", "w-[5.75rem]", "grid-cols-3");
+    for (const row of [
+      historyRow,
+      futureRow,
+      supportRow,
+      programRow,
+      programSupportRow,
+      membershipRow,
+    ]) {
+      expect(
+        row.queryByLabelText(/Переписка|История|Telegram|MAX|Телефон|email|приложение/i),
+      ).not.toBeInTheDocument();
+      const indicatorRail = row.getByLabelText('Статусы клиента');
+      expect(indicatorRail).toHaveClass('grid', 'w-[5.75rem]', 'grid-cols-3');
       expect(indicatorRail.children).toHaveLength(3);
     }
 
-    const combinedRow = programSupportRow.getByLabelText("Статусы клиента");
-    expect(combinedRow.children[0]).not.toHaveAttribute("aria-label");
-    expect(within(combinedRow.children[1] as HTMLElement).getByLabelText("Клиент на сопровождении")).toBeInTheDocument();
-    expect(combinedRow.children[2]).not.toHaveAttribute("aria-label");
+    const combinedRow = programSupportRow.getByLabelText('Статусы клиента');
+    expect(combinedRow.children[0]).not.toHaveAttribute('aria-label');
+    expect(
+      within(combinedRow.children[1] as HTMLElement).getByLabelText('Клиент на сопровождении'),
+    ).toBeInTheDocument();
+    expect(combinedRow.children[2]).not.toHaveAttribute('aria-label');
   });
 
-  it("shows one structured FIO line without repeating the legacy display name", async () => {
+  it('shows one structured FIO line without repeating the legacy display name', async () => {
     await renderPatientsPage([
       client({
-        userId: "structured-fio",
-        displayName: "Старая строка",
-        lastName: "Петров",
-        firstName: "Иван",
-        patronymic: "Сергеевич",
+        userId: 'structured-fio',
+        displayName: 'Старая строка',
+        lastName: 'Петров',
+        firstName: 'Иван',
+        patronymic: 'Сергеевич',
       }),
     ]);
 
-    expect(await screen.findByText("Петров Иван Сергеевич")).toBeInTheDocument();
-    expect(screen.queryByText("Старая строка")).not.toBeInTheDocument();
+    expect(await screen.findByText('Петров Иван Сергеевич')).toBeInTheDocument();
+    expect(screen.queryByText('Старая строка')).not.toBeInTheDocument();
   });
 
-  it("opens the full patient card directly from a client-row click and encodes list state in returnTo", async () => {
+  it('opens the full patient card directly from a client-row click and encodes list state in returnTo', async () => {
     const user = userEvent.setup();
     await renderPatientsPage([
       client({
         userId: PATIENT_ID,
-        displayName: "Петров Иван",
-        firstName: "Иван",
-        lastName: "Петров",
-        phone: "+79990000001",
-        bindings: { telegramId: "123456", maxId: "max-1" },
+        displayName: 'Петров Иван',
+        firstName: 'Иван',
+        lastName: 'Петров',
+        phone: '+79990000001',
+        bindings: { telegramId: '123456', maxId: 'max-1' },
         hasEmail: true,
         hasApp: true,
         hasWebPush: true,
@@ -467,37 +530,37 @@ describe("PatientsPageClient", () => {
     ]);
 
     // No right-pane preview card exists anymore — the row itself is the link to the full card.
-    expect(screen.queryByText("Выберите пациента, чтобы открыть превью")).not.toBeInTheDocument();
-    expect(document.querySelector("[data-patient-preview-surface]")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Закрыть" })).not.toBeInTheDocument();
+    expect(screen.queryByText('Выберите пациента, чтобы открыть превью')).not.toBeInTheDocument();
+    expect(document.querySelector('[data-patient-preview-surface]')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Закрыть' })).not.toBeInTheDocument();
 
-    const patientRow = screen.getByRole("link", { name: /Петров Иван/i });
-    expect(patientRow).not.toHaveAttribute("aria-pressed");
-    expect(new URL(patientRow.getAttribute("href") ?? "", "https://bersoncare.local").pathname).toBe(
-      `/app/doctor/patients/${PATIENT_ID}`,
-    );
-    expect(screen.getByLabelText("Сортировка: клиенты")).toHaveClass(
-      "w-full",
-      "min-w-0",
-      "flex-wrap",
-      "lg:w-auto",
-      "lg:shrink-0",
+    const patientRow = screen.getByRole('link', { name: /Петров Иван/i });
+    expect(patientRow).not.toHaveAttribute('aria-pressed');
+    expect(
+      new URL(patientRow.getAttribute('href') ?? '', 'https://bersoncare.local').pathname,
+    ).toBe(`/app/doctor/patients/${PATIENT_ID}`);
+    expect(screen.getByLabelText('Сортировка: клиенты')).toHaveClass(
+      'w-full',
+      'min-w-0',
+      'flex-wrap',
+      'lg:w-auto',
+      'lg:shrink-0',
     );
 
     // Filters live in the right pane / mobile drawer only.
-    await user.click(screen.getByRole("button", { name: "Фильтры" }));
-    expect(screen.getByRole("button", { name: "← Назад" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^Все/i })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "← Назад" }));
-    expect(screen.queryByRole("button", { name: "← Назад" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Фильтры' }));
+    expect(screen.getByRole('button', { name: '← Назад' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Все/i })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '← Назад' }));
+    expect(screen.queryByRole('button', { name: '← Назад' })).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /С записями/i }));
-    await user.click(screen.getByRole("button", { name: "По фамилии: А–Я" }));
-    await user.type(screen.getByRole("searchbox", { name: "Поиск: клиенты" }), "Петров");
+    await user.click(screen.getByRole('button', { name: /С записями/i }));
+    await user.click(screen.getByRole('button', { name: 'По фамилии: А–Я' }));
+    await user.type(screen.getByRole('searchbox', { name: 'Поиск: клиенты' }), 'Петров');
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 220));
     });
-    const list = document.getElementById("doctor-patients-list") as HTMLUListElement;
+    const list = document.getElementById('doctor-patients-list') as HTMLUListElement;
     list.scrollTop = 64;
     fireEvent.scroll(list);
     // The scroll position is committed to state on a debounce (see handleListScroll) so it
@@ -507,54 +570,69 @@ describe("PatientsPageClient", () => {
     });
 
     // The row href reflects the current list workspace so the full card can return to it.
-    const fullCardLink = screen.getByRole("link", { name: /Петров Иван/i });
-    const cardUrl = new URL(fullCardLink.getAttribute("href") ?? "", "https://bersoncare.local");
+    const fullCardLink = screen.getByRole('link', { name: /Петров Иван/i });
+    const cardUrl = new URL(fullCardLink.getAttribute('href') ?? '', 'https://bersoncare.local');
     expect(cardUrl.pathname).toBe(`/app/doctor/patients/${PATIENT_ID}`);
-    const returnTo = new URL(cardUrl.searchParams.get("returnTo") ?? "", "https://bersoncare.local");
-    expect(returnTo.pathname).toBe("/app/doctor/patients");
-    expect(returnTo.searchParams.get("q")).toBe("Петров");
-    expect(returnTo.searchParams.get("segments")).toBe("appointments");
-    expect(returnTo.searchParams.get("sort")).toBe("fio");
-    expect(returnTo.searchParams.get("scroll")).toBe("64");
+    const returnTo = new URL(
+      cardUrl.searchParams.get('returnTo') ?? '',
+      'https://bersoncare.local',
+    );
+    expect(returnTo.pathname).toBe('/app/doctor/patients');
+    expect(returnTo.searchParams.get('q')).toBe('Петров');
+    expect(returnTo.searchParams.get('segments')).toBe('appointments');
+    expect(returnTo.searchParams.get('sort')).toBe('fio');
+    expect(returnTo.searchParams.get('scroll')).toBe('64');
     // Selection is no longer tracked now that the preview is gone.
-    expect(returnTo.searchParams.get("selected")).toBeNull();
+    expect(returnTo.searchParams.get('selected')).toBeNull();
   });
 
-  it("restores search, sort, and list scroll from the list URL state without tracking a selection", async () => {
+  it('restores search, sort, and list scroll from the list URL state without tracking a selection', async () => {
     await renderPatientsPage(
-      [client({ userId: PATIENT_ID, displayName: "Петров Иван", firstName: "Иван", lastName: "Петров" })],
+      [
+        client({
+          userId: PATIENT_ID,
+          displayName: 'Петров Иван',
+          firstName: 'Иван',
+          lastName: 'Петров',
+        }),
+      ],
       {
-        q: "Петров",
-        sort: "fio",
-        sortDirection: "asc",
+        q: 'Петров',
+        sort: 'fio',
+        sortDirection: 'asc',
         selectedPatientId: PATIENT_ID,
         scrollTop: 42,
       },
     );
 
-    expect(screen.getByRole("searchbox", { name: "Поиск: клиенты" })).toHaveValue("Петров");
-    expect(screen.getByRole("button", { name: "По фамилии: А–Я" })).toHaveAttribute("aria-pressed", "true");
-    const patientRow = screen.getByRole("link", { name: /Петров Иван/i });
-    expect(patientRow).not.toHaveAttribute("aria-pressed");
-    expect(patientRow.getAttribute("href")).toContain(`/app/doctor/patients/${PATIENT_ID}`);
-    expect(patientRow.getAttribute("href")).toContain("returnTo=");
-    await waitFor(() => expect(document.getElementById("doctor-patients-list")).toHaveProperty("scrollTop", 42));
+    expect(screen.getByRole('searchbox', { name: 'Поиск: клиенты' })).toHaveValue('Петров');
+    expect(screen.getByRole('button', { name: 'По фамилии: А–Я' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    const patientRow = screen.getByRole('link', { name: /Петров Иван/i });
+    expect(patientRow).not.toHaveAttribute('aria-pressed');
+    expect(patientRow.getAttribute('href')).toContain(`/app/doctor/patients/${PATIENT_ID}`);
+    expect(patientRow.getAttribute('href')).toContain('returnTo=');
+    await waitFor(() =>
+      expect(document.getElementById('doctor-patients-list')).toHaveProperty('scrollTop', 42),
+    );
     // The right-pane preview is gone and the incoming `selected` param is dropped from list URL state.
-    expect(document.querySelector("[data-patient-preview-surface]")).toBeNull();
-    expect(window.location.search).not.toContain("selected=");
-    expect(window.location.search).toContain("scroll=42");
+    expect(document.querySelector('[data-patient-preview-surface]')).toBeNull();
+    expect(window.location.search).not.toContain('selected=');
+    expect(window.location.search).toContain('scroll=42');
   });
 
-  it("round-trips only validated list workspace state and rejects non-list return targets", () => {
+  it('round-trips only validated list workspace state and rejects non-list return targets', () => {
     const parsed = parsePatientListWorkspaceState({
-      q: " Иван ",
-      segments: "appointments,on_support,unknown",
-      channel: "telegram",
-      archived: "true",
-      sort: "fio",
-      direction: "asc",
+      q: ' Иван ',
+      segments: 'appointments,on_support,unknown',
+      channel: 'telegram',
+      archived: 'true',
+      sort: 'fio',
+      direction: 'asc',
       selected: PATIENT_ID.toUpperCase(),
-      scroll: "75",
+      scroll: '75',
     });
     const href = buildPatientListWorkspaceHref(parsed);
 
@@ -562,39 +640,45 @@ describe("PatientsPageClient", () => {
       `/app/doctor/patients?q=%D0%98%D0%B2%D0%B0%D0%BD&segments=appointments%2Con_support&channel=telegram&archived=true&sort=fio&direction=asc&selected=${PATIENT_ID}&scroll=75`,
     );
     expect(sanitizePatientListReturnHref(href)).toBe(href);
-    const directUrl = new URL(href, "https://bersoncare.local");
-    expect(parsePatientListWorkspaceState(Object.fromEntries(directUrl.searchParams.entries()))).toEqual(parsed);
-    expect(sanitizePatientListReturnHref("/app/doctor/patients/patient-1")).toBe("/app/doctor/patients");
-    expect(sanitizePatientListReturnHref("https://example.com/app/doctor/patients")).toBe("/app/doctor/patients");
+    const directUrl = new URL(href, 'https://bersoncare.local');
+    expect(
+      parsePatientListWorkspaceState(Object.fromEntries(directUrl.searchParams.entries())),
+    ).toEqual(parsed);
+    expect(sanitizePatientListReturnHref('/app/doctor/patients/patient-1')).toBe(
+      '/app/doctor/patients',
+    );
+    expect(sanitizePatientListReturnHref('https://example.com/app/doctor/patients')).toBe(
+      '/app/doctor/patients',
+    );
   });
 
-  it("drops unknown channels and malformed patient IDs from list URL state", () => {
+  it('drops unknown channels and malformed patient IDs from list URL state', () => {
     const parsed = parsePatientListWorkspaceState({
-      channel: "signal",
-      selected: "patient-1",
+      channel: 'signal',
+      selected: 'patient-1',
     });
 
     expect(parsed.channel).toBeNull();
     expect(parsed.selectedPatientId).toBeNull();
-    expect(buildPatientListWorkspaceHref(parsed)).toBe("/app/doctor/patients");
+    expect(buildPatientListWorkspaceHref(parsed)).toBe('/app/doctor/patients');
   });
 
-  it.each(["75junk", "-1", "9007199254740992"])("rejects malformed list scroll %s", (scroll) => {
+  it.each(['75junk', '-1', '9007199254740992'])('rejects malformed list scroll %s', (scroll) => {
     const parsed = parsePatientListWorkspaceState({ scroll });
 
     expect(parsed.scrollTop).toBe(0);
-    expect(buildPatientListWorkspaceHref(parsed)).toBe("/app/doctor/patients");
+    expect(buildPatientListWorkspaceHref(parsed)).toBe('/app/doctor/patients');
   });
 
-  it("sanitizes returnTo into canonical validated list state", () => {
+  it('sanitizes returnTo into canonical validated list state', () => {
     expect(
       sanitizePatientListReturnHref(
         `/app/doctor/patients?direction=desc&channel=signal&selected=patient-1&scroll=75junk&q=%20%D0%98%D0%B2%D0%B0%D0%BD%20&segment=appointments&extra=drop`,
       ),
-    ).toBe("/app/doctor/patients?q=%D0%98%D0%B2%D0%B0%D0%BD&segments=appointments");
+    ).toBe('/app/doctor/patients?q=%D0%98%D0%B2%D0%B0%D0%BD&segments=appointments');
   });
 
-  it("creates a client only (no visit) by default when the visit date/time is left empty", async () => {
+  it('creates a client only (no visit) by default when the visit date/time is left empty', async () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
@@ -602,102 +686,106 @@ describe("PatientsPageClient", () => {
         ok: true,
         created: true,
         emailSetupEnqueued: true,
-        client: { id: "created-client" },
+        client: { id: 'created-client' },
       }),
     });
-    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal('fetch', fetchMock);
     await renderPatientsPage([]);
 
-    await user.click(screen.getByRole("button", { name: "Новый клиент" }));
-    expect(screen.getByRole("dialog")).toHaveTextContent("Новый клиент");
-    await user.type(screen.getByLabelText("Фамилия"), "Петров");
-    await user.type(screen.getByLabelText("Имя"), "Иван");
-    await user.type(screen.getByLabelText("Отчество"), "Сергеевич");
-    await user.type(screen.getByLabelText("Телефон, если есть"), "+7 999 000-00-00");
-    await user.type(screen.getByLabelText("Email, если есть"), "patient@example.com");
+    await user.click(screen.getByRole('button', { name: 'Новый клиент' }));
+    expect(screen.getByRole('dialog')).toHaveTextContent('Новый клиент');
+    await user.type(screen.getByLabelText('Фамилия'), 'Петров');
+    await user.type(screen.getByLabelText('Имя'), 'Иван');
+    await user.type(screen.getByLabelText('Отчество'), 'Сергеевич');
+    await user.type(screen.getByLabelText('Телефон, если есть'), '+7 999 000-00-00');
+    await user.type(screen.getByLabelText('Email, если есть'), 'patient@example.com');
     // The visit date/time is empty by default and not required (owner punch-list item 2).
-    expect(screen.getByLabelText("Дата и время визита, если есть")).toHaveValue("");
-    await user.click(screen.getByRole("button", { name: "Создать" }));
+    expect(screen.getByLabelText('Дата и время визита, если есть')).toHaveValue('');
+    await user.click(screen.getByRole('button', { name: 'Создать' }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
     const [url, init] = fetchMock.mock.calls[0] ?? [];
-    expect(url).toBe("/api/doctor/clients");
+    expect(url).toBe('/api/doctor/clients');
     const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
     expect(body).toMatchObject({
       requestId: expect.stringMatching(/^[0-9a-f-]{36}$/),
-      lastName: "Петров",
-      firstName: "Иван",
-      patronymic: "Сергеевич",
-      phone: "+7 999 000-00-00",
-      email: "patient@example.com",
+      lastName: 'Петров',
+      firstName: 'Иван',
+      patronymic: 'Сергеевич',
+      phone: '+7 999 000-00-00',
+      email: 'patient@example.com',
     });
-    expect(body).not.toHaveProperty("kind");
-    expect(body).not.toHaveProperty("visitedAt");
-    expect(body).not.toHaveProperty("organizationId");
-    expect(body).not.toHaveProperty("specialistId");
-    expect(routerPushMock).toHaveBeenCalledWith("/app/doctor/patients/created-client");
+    expect(body).not.toHaveProperty('kind');
+    expect(body).not.toHaveProperty('visitedAt');
+    expect(body).not.toHaveProperty('organizationId');
+    expect(body).not.toHaveProperty('specialistId');
+    expect(routerPushMock).toHaveBeenCalledWith('/app/doctor/patients/created-client');
   });
 
-  it("also creates a walk-in visit when a visit date/time is filled in, without sending organization or specialist authority", async () => {
+  it('also creates a walk-in visit when a visit date/time is filled in, without sending organization or specialist authority', async () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
         ok: true,
-        visitKind: "walk_in",
-        portalStatus: "not_activated",
-        client: { id: "created-patient" },
+        visitKind: 'walk_in',
+        portalStatus: 'not_activated',
+        client: { id: 'created-patient' },
       }),
     });
-    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal('fetch', fetchMock);
     await renderPatientsPage([]);
 
-    await user.click(screen.getByRole("button", { name: "Новый клиент" }));
-    await user.type(screen.getByLabelText("Фамилия"), "Петров");
-    await user.type(screen.getByLabelText("Имя"), "Иван");
-    await user.type(screen.getByLabelText("Отчество"), "Сергеевич");
-    await user.type(screen.getByLabelText("Телефон, если есть"), "+7 999 000-00-00");
-    await user.type(screen.getByLabelText("Email, если есть"), "patient@example.com");
-    const visitedAtInput = screen.getByLabelText("Дата и время визита, если есть");
-    expect(visitedAtInput).toHaveAttribute("max");
-    fireEvent.change(visitedAtInput, { target: { value: "2026-07-01T09:00" } });
-    await user.click(screen.getByRole("button", { name: "Создать" }));
+    await user.click(screen.getByRole('button', { name: 'Новый клиент' }));
+    await user.type(screen.getByLabelText('Фамилия'), 'Петров');
+    await user.type(screen.getByLabelText('Имя'), 'Иван');
+    await user.type(screen.getByLabelText('Отчество'), 'Сергеевич');
+    await user.type(screen.getByLabelText('Телефон, если есть'), '+7 999 000-00-00');
+    await user.type(screen.getByLabelText('Email, если есть'), 'patient@example.com');
+    const visitedAtInput = screen.getByLabelText('Дата и время визита, если есть');
+    expect(visitedAtInput).toHaveAttribute('max');
+    fireEvent.change(visitedAtInput, { target: { value: '2026-07-01T09:00' } });
+    await user.click(screen.getByRole('button', { name: 'Создать' }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
     const [url, init] = fetchMock.mock.calls[0] ?? [];
-    expect(url).toBe("/api/doctor/booking-engine/appointments/manual-patient-visit");
+    expect(url).toBe('/api/doctor/booking-engine/appointments/manual-patient-visit');
     const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
     expect(body).toMatchObject({
       requestId: expect.stringMatching(/^[0-9a-f-]{36}$/),
-      kind: "walk_in",
-      lastName: "Петров",
-      firstName: "Иван",
-      patronymic: "Сергеевич",
-      phone: "+7 999 000-00-00",
-      email: "patient@example.com",
+      kind: 'walk_in',
+      lastName: 'Петров',
+      firstName: 'Иван',
+      patronymic: 'Сергеевич',
+      phone: '+7 999 000-00-00',
+      email: 'patient@example.com',
     });
-    expect(body).not.toHaveProperty("organizationId");
-    expect(body).not.toHaveProperty("specialistId");
-    expect(routerPushMock).toHaveBeenCalledWith("/app/doctor/patients/created-patient");
+    expect(body).not.toHaveProperty('organizationId');
+    expect(body).not.toHaveProperty('specialistId');
+    expect(routerPushMock).toHaveBeenCalledWith('/app/doctor/patients/created-patient');
   });
 
-  it("keeps the communication-channel filter mechanism wired even though its UI is hidden", async () => {
+  it('keeps the communication-channel filter mechanism wired even though its UI is hidden', async () => {
     // Owner punch-list item 4: the channel-filter buttons are hidden, but the state/prop wiring
     // (activeChannel, applyChannelFilter, the `channel` URL param) must still work — e.g. a
     // previously-shared/bookmarked list link with `?channel=...` should keep filtering correctly.
     await renderPatientsPage(
       [
-        client({ userId: "telegram", displayName: "Telegram client", bindings: { telegramId: "tg-1" } }),
-        client({ userId: "push", displayName: "Push client", hasWebPush: true }),
-        client({ userId: "plain", displayName: "Plain client" }),
+        client({
+          userId: 'telegram',
+          displayName: 'Telegram client',
+          bindings: { telegramId: 'tg-1' },
+        }),
+        client({ userId: 'push', displayName: 'Push client', hasWebPush: true }),
+        client({ userId: 'plain', displayName: 'Plain client' }),
       ],
-      { channel: "web_push" },
+      { channel: 'web_push' },
     );
 
-    expect(screen.queryByText("Каналы связи")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Пуш-уведомления" })).not.toBeInTheDocument();
-    expect(await screen.findByText("Push client")).toBeInTheDocument();
-    expect(screen.queryByText("Telegram client")).not.toBeInTheDocument();
-    expect(screen.queryByText("Plain client")).not.toBeInTheDocument();
+    expect(screen.queryByText('Каналы связи')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Пуш-уведомления' })).not.toBeInTheDocument();
+    expect(await screen.findByText('Push client')).toBeInTheDocument();
+    expect(screen.queryByText('Telegram client')).not.toBeInTheDocument();
+    expect(screen.queryByText('Plain client')).not.toBeInTheDocument();
   });
 });

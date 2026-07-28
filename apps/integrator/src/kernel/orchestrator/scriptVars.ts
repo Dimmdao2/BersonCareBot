@@ -20,21 +20,30 @@ export function buildScriptInterpolationVars(input: {
   const ctx = input.context as Record<string, unknown>;
   const conversationState = isTruthyString(normalizedInput.userState)
     ? normalizedInput.userState
-    : (isTruthyString(ctx.conversationState) ? ctx.conversationState : undefined);
+    : isTruthyString(ctx.conversationState)
+      ? ctx.conversationState
+      : undefined;
   const actor = {
     ...(isRecord(input.context.actor) ? input.context.actor : {}),
-    ...(typeof normalizedInput.channelUserId === 'number' || isTruthyString(normalizedInput.channelUserId)
+    ...(typeof normalizedInput.channelUserId === 'number' ||
+    isTruthyString(normalizedInput.channelUserId)
       ? { channelUserId: normalizedInput.channelUserId }
       : {}),
-    ...(typeof normalizedInput.channelId === 'string' ? { channelUserId: normalizedInput.channelId } : {}),
+    ...(typeof normalizedInput.channelId === 'string'
+      ? { channelUserId: normalizedInput.channelId }
+      : {}),
     ...(typeof normalizedInput.chatId === 'number' ? { chatId: normalizedInput.chatId } : {}),
-    ...(typeof normalizedInput.channelUsername === 'string' ? { username: normalizedInput.channelUsername } : {}),
+    ...(typeof normalizedInput.channelUsername === 'string'
+      ? { username: normalizedInput.channelUsername }
+      : {}),
     ...(conversationState ? { userState: conversationState } : {}),
   };
   const context = {
     ...input.context,
     ...(conversationState ? { conversationState } : {}),
-    ...(typeof normalizedInput.hasLinkedPhone === 'boolean' ? { linkedPhone: normalizedInput.hasLinkedPhone } : {}),
+    ...(typeof normalizedInput.hasLinkedPhone === 'boolean'
+      ? { linkedPhone: normalizedInput.hasLinkedPhone }
+      : {}),
   };
 
   return {

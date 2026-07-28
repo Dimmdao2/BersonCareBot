@@ -1,14 +1,14 @@
-"use client";
+'use client';
 
-import { useEffect, useRef } from "react";
-import { safeReload } from "@/shared/lib/safeReload";
+import { useEffect, useRef } from 'react';
+import { safeReload } from '@/shared/lib/safeReload';
 import {
   AUTO_RELOAD_ENABLED,
   BUILD_ID_META_NAME,
   WATCHER_BASE_INTERVAL_MS,
   WATCHER_MAX_CONSECUTIVE_ERRORS,
   WATCHER_MAX_INTERVAL_MS,
-} from "@/shared/lib/reloadConstants";
+} from '@/shared/lib/reloadConstants';
 
 type VersionResponse = {
   buildId?: string;
@@ -16,11 +16,11 @@ type VersionResponse = {
 
 function readInitialBuildId(): string {
   const meta = document.querySelector(`meta[name="${BUILD_ID_META_NAME}"]`);
-  return meta?.getAttribute("content")?.trim() || "";
+  return meta?.getAttribute('content')?.trim() || '';
 }
 
 export function BuildVersionWatcher() {
-  const initialBuildIdRef = useRef("");
+  const initialBuildIdRef = useRef('');
   const inFlightRef = useRef(false);
   const intervalIdRef = useRef<number | null>(null);
   const backoffMsRef = useRef(WATCHER_BASE_INTERVAL_MS);
@@ -29,7 +29,7 @@ export function BuildVersionWatcher() {
   const controllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    if (!AUTO_RELOAD_ENABLED || typeof window === "undefined") return;
+    if (!AUTO_RELOAD_ENABLED || typeof window === 'undefined') return;
     initialBuildIdRef.current = readInitialBuildId();
 
     const clearLoop = () => {
@@ -41,7 +41,7 @@ export function BuildVersionWatcher() {
 
     const restartLoop = () => {
       clearLoop();
-      if (document.visibilityState !== "visible") return;
+      if (document.visibilityState !== 'visible') return;
       if (!navigator.onLine) return;
       intervalIdRef.current = window.setInterval(() => {
         void probeVersion();
@@ -49,7 +49,7 @@ export function BuildVersionWatcher() {
     };
 
     const probeVersion = async () => {
-      if (inFlightRef.current || document.visibilityState !== "visible" || !navigator.onLine) {
+      if (inFlightRef.current || document.visibilityState !== 'visible' || !navigator.onLine) {
         return;
       }
       if (stoppedUntilFocusRef.current) return;
@@ -59,16 +59,16 @@ export function BuildVersionWatcher() {
       const controller = new AbortController();
       controllerRef.current = controller;
       try {
-        const response = await fetch("/api/version", {
-          cache: "no-store",
+        const response = await fetch('/api/version', {
+          cache: 'no-store',
           signal: controller.signal,
-          headers: { pragma: "no-cache" },
+          headers: { pragma: 'no-cache' },
         });
         if (!response.ok) {
           throw new Error(`version endpoint failed: ${response.status}`);
         }
         const payload = (await response.json()) as VersionResponse;
-        const serverBuildId = (payload.buildId || "").trim();
+        const serverBuildId = (payload.buildId || '').trim();
         if (!serverBuildId) {
           consecutiveErrorsRef.current = 0;
           backoffMsRef.current = WATCHER_BASE_INTERVAL_MS;
@@ -85,7 +85,7 @@ export function BuildVersionWatcher() {
           return;
         }
         if (serverBuildId !== initialBuildIdRef.current) {
-          await safeReload("version-mismatch", serverBuildId);
+          await safeReload('version-mismatch', serverBuildId);
           return;
         }
         consecutiveErrorsRef.current = 0;
@@ -106,7 +106,7 @@ export function BuildVersionWatcher() {
     };
 
     const onVisible = () => {
-      if (document.visibilityState === "hidden") {
+      if (document.visibilityState === 'hidden') {
         controllerRef.current?.abort();
         clearLoop();
         return;
@@ -135,16 +135,16 @@ export function BuildVersionWatcher() {
 
     restartLoop();
     void probeVersion();
-    document.addEventListener("visibilitychange", onVisible);
-    window.addEventListener("focus", onFocus);
-    window.addEventListener("offline", onOffline);
-    window.addEventListener("online", onOnline);
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onFocus);
+    window.addEventListener('offline', onOffline);
+    window.addEventListener('online', onOnline);
 
     return () => {
-      document.removeEventListener("visibilitychange", onVisible);
-      window.removeEventListener("focus", onFocus);
-      window.removeEventListener("offline", onOffline);
-      window.removeEventListener("online", onOnline);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('offline', onOffline);
+      window.removeEventListener('online', onOnline);
       controllerRef.current?.abort();
       clearLoop();
     };

@@ -1,8 +1,8 @@
-export const DEV_CLINIC_ADMIN_ORGANIZATION_ID = "d0000000-0000-4000-8000-000000000004";
-export const DEV_CLINIC_ADMIN_SPECIALIST_ID = "d0000000-0000-4000-8000-000000000005";
-export const DEV_DOCTOR_SPECIALIST_ID = "d0000000-0000-4000-8000-000000000006";
+export const DEV_CLINIC_ADMIN_ORGANIZATION_ID = 'd0000000-0000-4000-8000-000000000004';
+export const DEV_CLINIC_ADMIN_SPECIALIST_ID = 'd0000000-0000-4000-8000-000000000005';
+export const DEV_DOCTOR_SPECIALIST_ID = 'd0000000-0000-4000-8000-000000000006';
 
-export type DevBypassStaffWorkspaceKind = "doctor" | "clinic_admin" | "global_admin";
+export type DevBypassStaffWorkspaceKind = 'doctor' | 'clinic_admin' | 'global_admin';
 
 export type DevBypassStaffWorkspaceState = {
   organization: {
@@ -21,9 +21,9 @@ export type DevBypassStaffWorkspaceState = {
   membership: {
     organizationId: string;
     platformUserId: string;
-    role: "owner" | "doctor" | "assistant";
+    role: 'owner' | 'doctor' | 'assistant';
     specialistId: string | null;
-    status: "active";
+    status: 'active';
   };
 };
 
@@ -35,21 +35,21 @@ export function reconcileDevBypassStaffWorkspace(input: {
 }): DevBypassStaffWorkspaceState {
   const staff = (() => {
     switch (input.kind) {
-      case "clinic_admin":
+      case 'clinic_admin':
         return {
-          role: "owner" as const,
+          role: 'owner' as const,
           specialistId: DEV_CLINIC_ADMIN_SPECIALIST_ID,
           specialistSortOrder: 0,
         };
-      case "doctor":
+      case 'doctor':
         return {
-          role: "doctor" as const,
+          role: 'doctor' as const,
           specialistId: DEV_DOCTOR_SPECIALIST_ID,
           specialistSortOrder: 1,
         };
-      case "global_admin":
+      case 'global_admin':
         return {
-          role: "assistant" as const,
+          role: 'assistant' as const,
           specialistId: null,
           specialistSortOrder: null,
         };
@@ -59,7 +59,7 @@ export function reconcileDevBypassStaffWorkspace(input: {
   return {
     organization: {
       id: DEV_CLINIC_ADMIN_ORGANIZATION_ID,
-      title: "DEV UX Clinic",
+      title: 'DEV UX Clinic',
       isActive: true,
       sortOrder: 0,
     },
@@ -78,7 +78,7 @@ export function reconcileDevBypassStaffWorkspace(input: {
       platformUserId: input.platformUserId,
       role: staff.role,
       specialistId: staff.specialistId,
-      status: "active",
+      status: 'active',
     },
   };
 }

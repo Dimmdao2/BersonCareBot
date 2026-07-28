@@ -7,12 +7,12 @@ import type {
   CreatePatientBookingInput,
   PatientBookingRecord,
   PatientBookingStatus,
-} from "./types";
+} from './types';
 
 /** Patient-facing slots query (cabinet / public booking API). */
 export type BookingSlotsQuery =
   | {
-      type: "online";
+      type: 'online';
       /** Trusted server-side tenant context; never accepted directly from public client query. */
       organizationId?: string;
       category: BookingCategory;
@@ -20,7 +20,7 @@ export type BookingSlotsQuery =
       slotCount?: number;
     }
   | {
-      type: "in_person";
+      type: 'in_person';
       /** Trusted server-side tenant context derived from canonical branch/service. */
       organizationId?: string;
       branchId: string;
@@ -67,14 +67,14 @@ export type CreatePendingPatientBookingInput = {
 export type BookingSyncPort = {
   emitBookingEvent(input: {
     eventType:
-      | "booking.created"
-      | "booking.cancelled"
-      | "booking.rescheduled"
-      | "booking.reschedule_requested"
-      | "booking.deleted"
-      | "booking.payment_captured"
-      | "booking.package_linked"
-      | "booking.package_unlinked";
+      | 'booking.created'
+      | 'booking.cancelled'
+      | 'booking.rescheduled'
+      | 'booking.reschedule_requested'
+      | 'booking.deleted'
+      | 'booking.payment_captured'
+      | 'booking.package_linked'
+      | 'booking.package_unlinked';
     idempotencyKey: string;
     payload: {
       organizationId?: string;
@@ -142,10 +142,10 @@ export type PatientBookingService = {
     | {
         ok: true;
         booking: PatientBookingRecord;
-        summary: import("@/modules/payments/types").AppointmentPaymentSummary | null;
+        summary: import('@/modules/payments/types').AppointmentPaymentSummary | null;
         intentId: string | null;
       }
-    | { ok: false; error: "not_found" }
+    | { ok: false; error: 'not_found' }
   >;
   getBookingPaymentStatusForContact(
     bookingId: string,
@@ -154,12 +154,14 @@ export type PatientBookingService = {
     | {
         ok: true;
         booking: PatientBookingRecord;
-        summary: import("@/modules/payments/types").AppointmentPaymentSummary | null;
+        summary: import('@/modules/payments/types').AppointmentPaymentSummary | null;
         intentId: string | null;
       }
-    | { ok: false; error: "not_found" | "forbidden" }
+    | { ok: false; error: 'not_found' | 'forbidden' }
   >;
-  getBookingByCanonicalAppointment(canonicalAppointmentId: string): Promise<PatientBookingRecord | null>;
+  getBookingByCanonicalAppointment(
+    canonicalAppointmentId: string,
+  ): Promise<PatientBookingRecord | null>;
   syncLinkedPatientBookingCancelled(input: {
     canonicalAppointmentId: string;
     reason?: string;
@@ -176,17 +178,20 @@ export type PatientBookingService = {
     | {
         ok: false;
         error:
-          | "not_found"
-          | "sync_failed"
-          | "lifecycle_failed"
-          | "already_cancelled"
-          | "not_allowed"
-          | "staff_confirmation_required";
+          | 'not_found'
+          | 'sync_failed'
+          | 'lifecycle_failed'
+          | 'already_cancelled'
+          | 'not_allowed'
+          | 'staff_confirmation_required';
       }
   >;
-  previewCancel(input: { userId: string; bookingId: string }): Promise<
+  previewCancel(input: {
+    userId: string;
+    bookingId: string;
+  }): Promise<
     | { ok: true; isFree: boolean; allowed: boolean; messageKey: string }
-    | { ok: false; error: "not_found" | "no_canonical" }
+    | { ok: false; error: 'not_found' | 'no_canonical' }
   >;
   rescheduleBooking(input: {
     userId: string;
@@ -204,20 +209,23 @@ export type PatientBookingService = {
     | {
         ok: false;
         error:
-          | "not_found"
-          | "no_canonical"
-          | "canonical_appointment_incomplete"
-          | "too_late"
-          | "limit_exceeded"
-          | "change_not_allowed"
-          | "staff_confirmation_required"
-          | "slot_overlap"
-          | "sync_failed";
+          | 'not_found'
+          | 'no_canonical'
+          | 'canonical_appointment_incomplete'
+          | 'too_late'
+          | 'limit_exceeded'
+          | 'change_not_allowed'
+          | 'staff_confirmation_required'
+          | 'slot_overlap'
+          | 'sync_failed';
       }
   >;
-  previewReschedule(input: { userId: string; bookingId: string }): Promise<
+  previewReschedule(input: {
+    userId: string;
+    bookingId: string;
+  }): Promise<
     | { ok: true; allowed: boolean; messageKey: string; remainingSelfReschedules: number }
-    | { ok: false; error: "not_found" | "no_canonical" | "canonical_appointment_incomplete" }
+    | { ok: false; error: 'not_found' | 'no_canonical' | 'canonical_appointment_incomplete' }
   >;
   listMyBookings(userId: string): Promise<{
     upcoming: PatientBookingRecord[];

@@ -1,8 +1,8 @@
-import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { notificationDeliveryAttempts } from "../../../db/schema/notificationDeliveryAttempts";
-import type { NotificationDeliveryAttemptsPort } from "@/modules/notification-delivery/ports";
+import { and, count, desc, eq, inArray, sql } from 'drizzle-orm';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { notificationDeliveryAttempts } from '../../../db/schema/notificationDeliveryAttempts';
+import type { NotificationDeliveryAttemptsPort } from '@/modules/notification-delivery/ports';
 import {
   NOTIFICATION_DELIVERY_CHANNELS,
   type NotificationDeliveryChannel,
@@ -10,7 +10,7 @@ import {
   type NotificationDeliveryHealthSnapshot,
   type NotificationDeliveryRecentIssue,
   type RecordNotificationDeliveryAttemptInput,
-} from "@/modules/notification-delivery/types";
+} from '@/modules/notification-delivery/types';
 
 const HEALTH_WINDOW_HOURS = 24;
 
@@ -87,9 +87,9 @@ export const pgNotificationDeliveryAttemptsPort: NotificationDeliveryAttemptsPor
       const n = Number(row.c ?? 0);
       totalAttempts24h += n;
       const agg = byChannel[row.channel];
-      if (row.status === "success") agg.successCount = n;
-      else if (row.status === "failed") agg.failedCount = n;
-      else if (row.status === "skipped") agg.skippedCount = n;
+      if (row.status === 'success') agg.successCount = n;
+      else if (row.status === 'failed') agg.failedCount = n;
+      else if (row.status === 'skipped') agg.skippedCount = n;
     }
 
     for (const channel of NOTIFICATION_DELIVERY_CHANNELS) {
@@ -108,7 +108,7 @@ export const pgNotificationDeliveryAttemptsPort: NotificationDeliveryAttemptsPor
 
       if (lastAttempt) {
         byChannel[channel].lastAttemptAt = lastAttempt.createdAt;
-        if (lastAttempt.status === "failed" || lastAttempt.status === "skipped") {
+        if (lastAttempt.status === 'failed' || lastAttempt.status === 'skipped') {
           byChannel[channel].lastErrorAt = lastAttempt.createdAt;
           byChannel[channel].lastProviderStatusCode = lastAttempt.providerStatusCode ?? null;
           byChannel[channel].lastErrorReason = lastAttempt.reason ?? null;
@@ -122,7 +122,7 @@ export const pgNotificationDeliveryAttemptsPort: NotificationDeliveryAttemptsPor
         .where(
           and(
             eq(notificationDeliveryAttempts.channel, channel),
-            eq(notificationDeliveryAttempts.status, "success"),
+            eq(notificationDeliveryAttempts.status, 'success'),
             windowFilter,
           ),
         )
@@ -143,7 +143,7 @@ export const pgNotificationDeliveryAttemptsPort: NotificationDeliveryAttemptsPor
         .where(
           and(
             eq(notificationDeliveryAttempts.channel, channel),
-            inArray(notificationDeliveryAttempts.status, ["failed", "skipped"]),
+            inArray(notificationDeliveryAttempts.status, ['failed', 'skipped']),
             windowFilter,
           ),
         )
@@ -169,7 +169,7 @@ export const pgNotificationDeliveryAttemptsPort: NotificationDeliveryAttemptsPor
         errorMessage: notificationDeliveryAttempts.errorMessage,
       })
       .from(notificationDeliveryAttempts)
-      .where(and(windowFilter, inArray(notificationDeliveryAttempts.status, ["failed", "skipped"])))
+      .where(and(windowFilter, inArray(notificationDeliveryAttempts.status, ['failed', 'skipped'])))
       .orderBy(desc(notificationDeliveryAttempts.createdAt))
       .limit(10);
 
@@ -179,7 +179,7 @@ export const pgNotificationDeliveryAttemptsPort: NotificationDeliveryAttemptsPor
       recentIssues.push({
         createdAt: row.createdAt,
         channel: row.channel,
-        status: row.status as "failed" | "skipped",
+        status: row.status as 'failed' | 'skipped',
         reason: row.reason ?? null,
         topicCode: row.topicCode ?? null,
         recipientRef: row.recipientRef ?? null,

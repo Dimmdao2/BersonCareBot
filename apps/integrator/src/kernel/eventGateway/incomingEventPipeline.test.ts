@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ContentPort, ContextQueryPort, IncomingEvent, Orchestrator } from '../contracts/index.js';
+import type {
+  ContentPort,
+  ContextQueryPort,
+  IncomingEvent,
+  Orchestrator,
+} from '../contracts/index.js';
 import { createIncomingEventPipeline } from './incomingEventPipeline.js';
 import { createOrchestrator } from '../orchestrator/index.js';
 import { createTemplatePort } from '../../infra/adapters/templatePort.js';
@@ -121,10 +126,14 @@ describe('incomingEventPipeline', () => {
           ],
         },
       ]),
-      getTemplate: vi.fn().mockImplementation(async (_scope: { source: string; audience: string }, templateId: string) => {
-        if (templateId === 'chooseMenu') return { id: 'chooseMenu', text: 'Выберите действие' };
-        return null;
-      }),
+      getTemplate: vi
+        .fn()
+        .mockImplementation(
+          async (_scope: { source: string; audience: string }, templateId: string) => {
+            if (templateId === 'chooseMenu') return { id: 'chooseMenu', text: 'Выберите действие' };
+            return null;
+          },
+        ),
     };
     const contextQueryPort: ContextQueryPort = {
       request: vi.fn().mockResolvedValue({}),
@@ -158,12 +167,14 @@ describe('incomingEventPipeline', () => {
 
     await pipeline.run(event);
 
-    expect(dispatchOutgoing).toHaveBeenCalledWith(expect.objectContaining({
-      type: 'message.send',
-      payload: expect.objectContaining({
-        message: { text: 'Выберите действие' },
+    expect(dispatchOutgoing).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'message.send',
+        payload: expect.objectContaining({
+          message: { text: 'Выберите действие' },
+        }),
       }),
-    }));
+    );
   });
 
   it('skips orchestrator when telegramStartDedup returns false (repeat /start within window)', async () => {

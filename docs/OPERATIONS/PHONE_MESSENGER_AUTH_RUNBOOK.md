@@ -14,20 +14,20 @@
 
 ## Integrator
 
-| Элемент | Значение |
-|--------|----------|
-| Deep link payload | `auth_<base64url>` (префикс `auth_`) |
-| State | `await_phoneauth:{{input.authSecret}}` |
-| Script TG | `telegram.start.phoneauth` (priority **56**) |
-| Script Max | `max.start.phoneauth` (priority **56**) |
-| Contact | `telegram.contact.phoneauth` / `max.contact.phoneauth` (priority **54**, action `webapp.phoneMessengerBind.complete`) |
-| Cancel phoneauth | `telegram.phoneauth.cancel.*` / `max.phoneauth.cancel.*` (priority **57**); Max `mapIn`: «Отмена», «Вернуться в меню» → `phone.request.cancel` |
-| Catch-all excludes | `menu.default`, `draft.replace`, `max.default`, `max.draft.replace` — exclude `phone.request.cancel`, `start.phoneauth`, «Отмена», «Вернуться в меню» |
-| Max inline menu | Executor `expandContentMenuParam` — `menu: main` → `inlineKeyboard` (как в orchestrator `buildPlan`) |
-| `start.onboarding` | `excludeActions` включает `start.phoneauth` |
-| Шаблоны | `phoneAuthWelcome`, `phoneAuthAccountCreated`, `phoneAuthLoginCode`, `phoneAuthOpenAppPrompt`, `phoneAuthOpenAppButton`, `phoneAuthPhoneLinked`, `phoneAuthCancelled`, `phoneAuthMismatch`, … |
-| Failure bind UX | После любой ошибки complete — главное меню без `request_contact` (`appendPhoneMessengerBindFailureRecovery`) |
-| Max `phone.link` | Script `max.contact.phone.link` priority **10**, не матчит `await_phoneauth:` / `await_contact:` (`$notStartsWith`) |
+| Элемент            | Значение                                                                                                                                                                                      |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Deep link payload  | `auth_<base64url>` (префикс `auth_`)                                                                                                                                                          |
+| State              | `await_phoneauth:{{input.authSecret}}`                                                                                                                                                        |
+| Script TG          | `telegram.start.phoneauth` (priority **56**)                                                                                                                                                  |
+| Script Max         | `max.start.phoneauth` (priority **56**)                                                                                                                                                       |
+| Contact            | `telegram.contact.phoneauth` / `max.contact.phoneauth` (priority **54**, action `webapp.phoneMessengerBind.complete`)                                                                         |
+| Cancel phoneauth   | `telegram.phoneauth.cancel.*` / `max.phoneauth.cancel.*` (priority **57**); Max `mapIn`: «Отмена», «Вернуться в меню» → `phone.request.cancel`                                                |
+| Catch-all excludes | `menu.default`, `draft.replace`, `max.default`, `max.draft.replace` — exclude `phone.request.cancel`, `start.phoneauth`, «Отмена», «Вернуться в меню»                                         |
+| Max inline menu    | Executor `expandContentMenuParam` — `menu: main` → `inlineKeyboard` (как в orchestrator `buildPlan`)                                                                                          |
+| `start.onboarding` | `excludeActions` включает `start.phoneauth`                                                                                                                                                   |
+| Шаблоны            | `phoneAuthWelcome`, `phoneAuthAccountCreated`, `phoneAuthLoginCode`, `phoneAuthOpenAppPrompt`, `phoneAuthOpenAppButton`, `phoneAuthPhoneLinked`, `phoneAuthCancelled`, `phoneAuthMismatch`, … |
+| Failure bind UX    | После любой ошибки complete — главное меню без `request_contact` (`appendPhoneMessengerBindFailureRecovery`)                                                                                  |
+| Max `phone.link`   | Script `max.contact.phone.link` priority **10**, не матчит `await_phoneauth:` / `await_contact:` (`$notStartsWith`)                                                                           |
 
 Парсинг `/start auth_*`: `apps/integrator/src/integrations/common/messengerStartParse.ts`.
 
@@ -46,15 +46,15 @@
 
 ## Типичные ошибки
 
-| Код / статус | Причина | UX (PWA) |
-|--------------|---------|----------|
-| `phone_mismatch` | Контакт в боте ≠ номер, введённый в webapp | Toast, «Начать снова» |
-| `expired` | TTL secret (15 мин) | Toast, сброс на выбор мессенджера |
-| `failed` | Конфликт привязки / лимит OTP | Toast + повтор |
-| `conflict` / `merge_blocked_*` | Merge-engine отказал: разные реальные пациенты, доменный blocker, конфликт данных | Открытая строка `messenger_phone_bind_blocked` / `messenger_phone_bind_anomaly` в admin audit с `candidateIds`; админ закрывает вручную после решения |
-| `already_used` (integrator replay) | Secret `consumed` | Бот без кода |
-| Replay `otp_ready` (`login`) | Повторный контакт до confirm | **200** с тем же `otpCode` (`replay: true`, `purpose: login`) |
-| `consumed` (`profile_bind`) | Повторный poll в PWA после привязки | **200** `status: consumed` → клиент завершает bind-phone |
+| Код / статус                       | Причина                                                                           | UX (PWA)                                                                                                                                              |
+| ---------------------------------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `phone_mismatch`                   | Контакт в боте ≠ номер, введённый в webapp                                        | Toast, «Начать снова»                                                                                                                                 |
+| `expired`                          | TTL secret (15 мин)                                                               | Toast, сброс на выбор мессенджера                                                                                                                     |
+| `failed`                           | Конфликт привязки / лимит OTP                                                     | Toast + повтор                                                                                                                                        |
+| `conflict` / `merge_blocked_*`     | Merge-engine отказал: разные реальные пациенты, доменный blocker, конфликт данных | Открытая строка `messenger_phone_bind_blocked` / `messenger_phone_bind_anomaly` в admin audit с `candidateIds`; админ закрывает вручную после решения |
+| `already_used` (integrator replay) | Secret `consumed`                                                                 | Бот без кода                                                                                                                                          |
+| Replay `otp_ready` (`login`)       | Повторный контакт до confirm                                                      | **200** с тем же `otpCode` (`replay: true`, `purpose: login`)                                                                                         |
+| `consumed` (`profile_bind`)        | Повторный poll в PWA после привязки                                               | **200** `status: consumed` → клиент завершает bind-phone                                                                                              |
 
 ## Логи (без OTP)
 

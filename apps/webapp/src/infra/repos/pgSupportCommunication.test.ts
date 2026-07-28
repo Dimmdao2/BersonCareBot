@@ -1,15 +1,15 @@
-import { describe, expect, it } from "vitest";
-import { inMemorySupportCommunicationPort } from "./inMemorySupportCommunication";
+import { describe, expect, it } from 'vitest';
+import { inMemorySupportCommunicationPort } from './inMemorySupportCommunication';
 
-describe("SupportCommunicationPort (in-memory)", () => {
-  it("upsert conversation by integrator_conversation_id is idempotent", async () => {
+describe('SupportCommunicationPort (in-memory)', () => {
+  it('upsert conversation by integrator_conversation_id is idempotent', async () => {
     const port = inMemorySupportCommunicationPort;
     const params = {
-      integratorConversationId: "conv-idemp-1",
-      integratorUserId: "100",
-      source: "telegram",
-      adminScope: "support",
-      status: "open",
+      integratorConversationId: 'conv-idemp-1',
+      integratorUserId: '100',
+      source: 'telegram',
+      adminScope: 'support',
+      status: 'open',
       openedAt: new Date().toISOString(),
       lastMessageAt: new Date().toISOString(),
     };
@@ -17,26 +17,26 @@ describe("SupportCommunicationPort (in-memory)", () => {
     const b = await port.upsertConversationFromProjection(params);
     expect(a.id).toBe(b.id);
     const conv = await port.getConversationWithMessages(a.id);
-    expect(conv?.conversation.integratorConversationId).toBe("conv-idemp-1");
+    expect(conv?.conversation.integratorConversationId).toBe('conv-idemp-1');
   });
 
-  it("append message by integrator_message_id is idempotent", async () => {
+  it('append message by integrator_message_id is idempotent', async () => {
     const port = inMemorySupportCommunicationPort;
     await port.upsertConversationFromProjection({
-      integratorConversationId: "conv-msg-1",
+      integratorConversationId: 'conv-msg-1',
       integratorUserId: null,
-      source: "telegram",
-      adminScope: "",
-      status: "open",
+      source: 'telegram',
+      adminScope: '',
+      status: 'open',
       openedAt: new Date().toISOString(),
       lastMessageAt: new Date().toISOString(),
     });
     const msgParams = {
-      integratorMessageId: "msg-idemp-1",
-      integratorConversationId: "conv-msg-1",
-      senderRole: "user",
-      text: "Hello",
-      source: "telegram",
+      integratorMessageId: 'msg-idemp-1',
+      integratorConversationId: 'conv-msg-1',
+      senderRole: 'user',
+      text: 'Hello',
+      source: 'telegram',
       createdAt: new Date().toISOString(),
     };
     const a = await port.appendConversationMessageFromProjection(msgParams);
@@ -44,12 +44,12 @@ describe("SupportCommunicationPort (in-memory)", () => {
     expect(a.id).toBe(b.id);
   });
 
-  it("question upsert and message append are idempotent", async () => {
+  it('question upsert and message append are idempotent', async () => {
     const port = inMemorySupportCommunicationPort;
     const qParams = {
-      integratorQuestionId: "q-idemp-1",
+      integratorQuestionId: 'q-idemp-1',
       integratorConversationId: null,
-      status: "open",
+      status: 'open',
       createdAt: new Date().toISOString(),
     };
     const qa = await port.upsertQuestionFromProjection(qParams);
@@ -57,10 +57,10 @@ describe("SupportCommunicationPort (in-memory)", () => {
     expect(qa.id).toBe(qb.id);
 
     const qmParams = {
-      integratorQuestionMessageId: "qm-idemp-1",
-      integratorQuestionId: "q-idemp-1",
-      senderRole: "user",
-      text: "Question?",
+      integratorQuestionMessageId: 'qm-idemp-1',
+      integratorQuestionId: 'q-idemp-1',
+      senderRole: 'user',
+      text: 'Question?',
       createdAt: new Date().toISOString(),
     };
     const ma = await port.appendQuestionMessageFromProjection(qmParams);
@@ -68,15 +68,15 @@ describe("SupportCommunicationPort (in-memory)", () => {
     expect(ma.id).toBe(mb.id);
   });
 
-  it("delivery event append is idempotent by integratorIntentEventId", async () => {
+  it('delivery event append is idempotent by integratorIntentEventId', async () => {
     const port = inMemorySupportCommunicationPort;
     const params = {
-      organizationId: "10000000-0000-4000-8000-000000000001",
+      organizationId: '10000000-0000-4000-8000-000000000001',
       conversationMessageId: null,
-      integratorIntentEventId: "evt-idemp-1",
-      correlationId: "corr-idemp-1",
-      channelCode: "telegram",
-      status: "success",
+      integratorIntentEventId: 'evt-idemp-1',
+      correlationId: 'corr-idemp-1',
+      channelCode: 'telegram',
+      status: 'success',
       attempt: 1,
       reason: null,
       payloadJson: {},
@@ -87,32 +87,32 @@ describe("SupportCommunicationPort (in-memory)", () => {
     expect(a.id).toBe(b.id);
   });
 
-  it("delivery event append stores per-channel status trail", async () => {
+  it('delivery event append stores per-channel status trail', async () => {
     const port = inMemorySupportCommunicationPort;
     const { id: conversationId } = await port.upsertConversationFromProjection({
-      integratorConversationId: "conv-del-1",
+      integratorConversationId: 'conv-del-1',
       integratorUserId: null,
-      source: "telegram",
-      adminScope: "",
-      status: "open",
+      source: 'telegram',
+      adminScope: '',
+      status: 'open',
       openedAt: new Date().toISOString(),
       lastMessageAt: new Date().toISOString(),
     });
     const msg = await port.appendConversationMessageFromProjection({
-      integratorMessageId: "msg-del-1",
-      integratorConversationId: "conv-del-1",
-      senderRole: "admin",
-      text: "Hi",
-      source: "telegram",
+      integratorMessageId: 'msg-del-1',
+      integratorConversationId: 'conv-del-1',
+      senderRole: 'admin',
+      text: 'Hi',
+      source: 'telegram',
       createdAt: new Date().toISOString(),
     });
     await port.appendDeliveryEventFromProjection({
-      organizationId: "10000000-0000-4000-8000-000000000001",
+      organizationId: '10000000-0000-4000-8000-000000000001',
       conversationMessageId: msg.id,
-      integratorIntentEventId: "evt-1",
-      correlationId: "corr-1",
-      channelCode: "telegram",
-      status: "success",
+      integratorIntentEventId: 'evt-1',
+      correlationId: 'corr-1',
+      channelCode: 'telegram',
+      status: 'success',
       attempt: 1,
       reason: null,
       payloadJson: {},
@@ -123,268 +123,272 @@ describe("SupportCommunicationPort (in-memory)", () => {
     expect(conv!.messages.length).toBe(1);
     const trail = await port.listRecentDeliveryTrailForConversation(conversationId);
     expect(trail.length).toBe(1);
-    expect(trail[0].channelCode).toBe("telegram");
-    expect(trail[0].status).toBe("success");
+    expect(trail[0].channelCode).toBe('telegram');
+    expect(trail[0].status).toBe('success');
   });
 
-  it("platform_user_id remains null when platform_users link is absent", async () => {
+  it('platform_user_id remains null when platform_users link is absent', async () => {
     const port = inMemorySupportCommunicationPort;
     const { id } = await port.upsertConversationFromProjection({
-      integratorConversationId: "conv-no-platform",
-      integratorUserId: "999",
-      source: "telegram",
-      adminScope: "",
-      status: "open",
+      integratorConversationId: 'conv-no-platform',
+      integratorUserId: '999',
+      source: 'telegram',
+      adminScope: '',
+      status: 'open',
       openedAt: new Date().toISOString(),
       lastMessageAt: new Date().toISOString(),
     });
     const conv = await port.getConversationWithMessages(id);
     expect(conv).not.toBeNull();
     expect(conv!.conversation.platformUserId).toBeNull();
-    expect(conv!.conversation.integratorUserId).toBe("999");
+    expect(conv!.conversation.integratorUserId).toBe('999');
   });
 });
 
-describe("SupportCommunicationPort admin reads (in-memory)", () => {
+describe('SupportCommunicationPort admin reads (in-memory)', () => {
   const port = inMemorySupportCommunicationPort;
 
-  it("listOpenConversationsForAdmin returns open conversations", async () => {
+  it('listOpenConversationsForAdmin returns open conversations', async () => {
     await port.upsertConversationFromProjection({
-      integratorConversationId: "conv-admin-open-1",
-      integratorUserId: "1",
-      source: "telegram",
-      adminScope: "support",
-      status: "open",
-      openedAt: "2025-01-01T10:00:00Z",
-      lastMessageAt: "2025-01-01T10:01:00Z",
+      integratorConversationId: 'conv-admin-open-1',
+      integratorUserId: '1',
+      source: 'telegram',
+      adminScope: 'support',
+      status: 'open',
+      openedAt: '2025-01-01T10:00:00Z',
+      lastMessageAt: '2025-01-01T10:01:00Z',
     });
     await port.appendConversationMessageFromProjection({
-      integratorMessageId: "msg-admin-open-1",
-      integratorConversationId: "conv-admin-open-1",
-      senderRole: "admin",
-      text: "Open chat",
-      source: "webapp",
-      createdAt: "2025-01-01T10:01:00Z",
+      integratorMessageId: 'msg-admin-open-1',
+      integratorConversationId: 'conv-admin-open-1',
+      senderRole: 'admin',
+      text: 'Open chat',
+      source: 'webapp',
+      createdAt: '2025-01-01T10:01:00Z',
     });
     const list = await port.listOpenConversationsForAdmin({ limit: 50 });
-    expect(list.some((c) => c.integratorConversationId === "conv-admin-open-1")).toBe(true);
+    expect(list.some((c) => c.integratorConversationId === 'conv-admin-open-1')).toBe(true);
   });
 
-  it("listOpenConversationsForAdmin excludes notification-only conversations", async () => {
+  it('listOpenConversationsForAdmin excludes notification-only conversations', async () => {
     await port.upsertConversationFromProjection({
-      integratorConversationId: "conv-admin-notification-only",
-      integratorUserId: "3",
-      source: "webapp",
-      adminScope: "support",
-      status: "open",
-      openedAt: "2025-01-01T10:00:00Z",
-      lastMessageAt: "2025-01-01T10:01:00Z",
+      integratorConversationId: 'conv-admin-notification-only',
+      integratorUserId: '3',
+      source: 'webapp',
+      adminScope: 'support',
+      status: 'open',
+      openedAt: '2025-01-01T10:00:00Z',
+      lastMessageAt: '2025-01-01T10:01:00Z',
     });
     await port.appendConversationMessageFromProjection({
-      integratorMessageId: "broadcast:audit-only:user-1",
-      integratorConversationId: "conv-admin-notification-only",
-      senderRole: "admin",
-      text: "Broadcast only",
-      source: "doctor_broadcast",
-      createdAt: "2025-01-01T10:01:00Z",
+      integratorMessageId: 'broadcast:audit-only:user-1',
+      integratorConversationId: 'conv-admin-notification-only',
+      senderRole: 'admin',
+      text: 'Broadcast only',
+      source: 'doctor_broadcast',
+      createdAt: '2025-01-01T10:01:00Z',
     });
 
     const list = await port.listOpenConversationsForAdmin({ limit: 50 });
 
-    expect(list.some((c) => c.integratorConversationId === "conv-admin-notification-only")).toBe(false);
+    expect(list.some((c) => c.integratorConversationId === 'conv-admin-notification-only')).toBe(
+      false,
+    );
   });
 
-  it("listOpenConversationsForAdmin includes unread user count and supports unreadOnly", async () => {
+  it('listOpenConversationsForAdmin includes unread user count and supports unreadOnly', async () => {
     const { id } = await port.upsertConversationFromProjection({
-      integratorConversationId: "conv-admin-unread-1",
-      integratorUserId: "10",
-      source: "telegram",
-      adminScope: "support",
-      status: "open",
-      openedAt: "2025-01-01T10:00:00Z",
-      lastMessageAt: "2025-01-01T10:03:00Z",
+      integratorConversationId: 'conv-admin-unread-1',
+      integratorUserId: '10',
+      source: 'telegram',
+      adminScope: 'support',
+      status: 'open',
+      openedAt: '2025-01-01T10:00:00Z',
+      lastMessageAt: '2025-01-01T10:03:00Z',
     });
     await port.appendConversationMessageFromProjection({
-      integratorMessageId: "msg-admin-unread-1",
-      integratorConversationId: "conv-admin-unread-1",
-      senderRole: "user",
-      text: "Unread",
-      source: "telegram",
-      createdAt: "2025-01-01T10:03:00Z",
+      integratorMessageId: 'msg-admin-unread-1',
+      integratorConversationId: 'conv-admin-unread-1',
+      senderRole: 'user',
+      text: 'Unread',
+      source: 'telegram',
+      createdAt: '2025-01-01T10:03:00Z',
     });
 
     const list = await port.listOpenConversationsForAdmin({ limit: 50, unreadOnly: true });
-    const row = list.find((c) => c.integratorConversationId === "conv-admin-unread-1");
+    const row = list.find((c) => c.integratorConversationId === 'conv-admin-unread-1');
 
     expect(row?.conversationId).toBe(id);
     expect(row?.unreadFromUserCount).toBe(1);
     expect(await port.countUnreadUserMessagesForAdminByConversation(id)).toBe(1);
   });
 
-  it("does not expose a legacy unscoped patient conversation to an organization read", async () => {
-    const patientUserId = "00000000-0000-4000-8000-000000000123";
-    const organizationId = "10000000-0000-4000-8000-000000000001";
+  it('does not expose a legacy unscoped patient conversation to an organization read', async () => {
+    const patientUserId = '00000000-0000-4000-8000-000000000123';
+    const organizationId = '10000000-0000-4000-8000-000000000001';
     const { id } = await port.ensureWebappConversationForUser(patientUserId);
     await port.appendWebappMessage({
       conversationId: id,
-      integratorMessageId: "msg-admin-unread-by-patient-1",
-      senderRole: "user",
-      text: "Unread from patient",
-      source: "webapp",
-      createdAt: "2025-01-01T10:04:00Z",
+      integratorMessageId: 'msg-admin-unread-by-patient-1',
+      senderRole: 'user',
+      text: 'Unread from patient',
+      source: 'webapp',
+      createdAt: '2025-01-01T10:04:00Z',
     });
 
-    expect(await port.countUnreadUserMessagesForAdminByPatient(patientUserId, organizationId)).toBe(0);
+    expect(await port.countUnreadUserMessagesForAdminByPatient(patientUserId, organizationId)).toBe(
+      0,
+    );
   });
 
-  it("listOpenConversationsForAdmin excludes closed conversations", async () => {
+  it('listOpenConversationsForAdmin excludes closed conversations', async () => {
     await port.upsertConversationFromProjection({
-      integratorConversationId: "conv-admin-closed-1",
-      integratorUserId: "2",
-      source: "telegram",
-      adminScope: "support",
-      status: "closed",
-      openedAt: "2025-01-01T10:00:00Z",
-      lastMessageAt: "2025-01-01T10:01:00Z",
-      closedAt: "2025-01-01T10:02:00Z",
-      closeReason: "resolved",
+      integratorConversationId: 'conv-admin-closed-1',
+      integratorUserId: '2',
+      source: 'telegram',
+      adminScope: 'support',
+      status: 'closed',
+      openedAt: '2025-01-01T10:00:00Z',
+      lastMessageAt: '2025-01-01T10:01:00Z',
+      closedAt: '2025-01-01T10:02:00Z',
+      closeReason: 'resolved',
     });
     const list = await port.listOpenConversationsForAdmin({ limit: 50 });
-    expect(list.some((c) => c.integratorConversationId === "conv-admin-closed-1")).toBe(false);
+    expect(list.some((c) => c.integratorConversationId === 'conv-admin-closed-1')).toBe(false);
   });
 
-  it("organization unread count excludes legacy unscoped open and closed conversations", async () => {
-    const organizationId = "10000000-0000-4000-8000-000000000001";
+  it('organization unread count excludes legacy unscoped open and closed conversations', async () => {
+    const organizationId = '10000000-0000-4000-8000-000000000001';
     const baseline = await port.countUnreadUserMessagesForAdmin({ organizationId });
 
     await port.upsertConversationFromProjection({
-      integratorConversationId: "conv-closed-unread",
-      integratorUserId: "20",
-      source: "telegram",
-      adminScope: "support",
-      status: "closed",
-      openedAt: "2025-01-01T10:00:00Z",
-      lastMessageAt: "2025-01-01T10:01:00Z",
-      closedAt: "2025-01-01T10:02:00Z",
-      closeReason: "resolved",
+      integratorConversationId: 'conv-closed-unread',
+      integratorUserId: '20',
+      source: 'telegram',
+      adminScope: 'support',
+      status: 'closed',
+      openedAt: '2025-01-01T10:00:00Z',
+      lastMessageAt: '2025-01-01T10:01:00Z',
+      closedAt: '2025-01-01T10:02:00Z',
+      closeReason: 'resolved',
     });
     await port.appendConversationMessageFromProjection({
-      integratorMessageId: "msg-in-closed",
-      integratorConversationId: "conv-closed-unread",
-      senderRole: "user",
-      text: "Still unread but closed",
-      source: "telegram",
-      createdAt: "2025-01-01T10:03:00Z",
+      integratorMessageId: 'msg-in-closed',
+      integratorConversationId: 'conv-closed-unread',
+      senderRole: 'user',
+      text: 'Still unread but closed',
+      source: 'telegram',
+      createdAt: '2025-01-01T10:03:00Z',
     });
 
     expect(await port.countUnreadUserMessagesForAdmin({ organizationId })).toBe(baseline);
 
     const { id: openId } = await port.upsertConversationFromProjection({
-      integratorConversationId: "conv-open-unread",
-      integratorUserId: "21",
-      source: "telegram",
-      adminScope: "support",
-      status: "open",
-      openedAt: "2025-01-01T11:00:00Z",
-      lastMessageAt: "2025-01-01T11:01:00Z",
+      integratorConversationId: 'conv-open-unread',
+      integratorUserId: '21',
+      source: 'telegram',
+      adminScope: 'support',
+      status: 'open',
+      openedAt: '2025-01-01T11:00:00Z',
+      lastMessageAt: '2025-01-01T11:01:00Z',
     });
     await port.appendConversationMessageFromProjection({
-      integratorMessageId: "msg-in-open",
-      integratorConversationId: "conv-open-unread",
-      senderRole: "user",
-      text: "Unread open",
-      source: "telegram",
-      createdAt: "2025-01-01T11:02:00Z",
+      integratorMessageId: 'msg-in-open',
+      integratorConversationId: 'conv-open-unread',
+      senderRole: 'user',
+      text: 'Unread open',
+      source: 'telegram',
+      createdAt: '2025-01-01T11:02:00Z',
     });
 
     expect(await port.countUnreadUserMessagesForAdmin({ organizationId })).toBe(baseline);
     expect(await port.countUnreadUserMessagesForAdminByConversation(openId)).toBe(1);
   });
 
-  it("getConversationByIntegratorId returns enriched conversation", async () => {
+  it('getConversationByIntegratorId returns enriched conversation', async () => {
     await port.upsertConversationFromProjection({
-      integratorConversationId: "conv-admin-detail-1",
-      integratorUserId: "3",
-      source: "telegram",
-      adminScope: "support",
-      status: "open",
-      openedAt: "2025-01-01T10:00:00Z",
-      lastMessageAt: "2025-01-01T10:00:00Z",
+      integratorConversationId: 'conv-admin-detail-1',
+      integratorUserId: '3',
+      source: 'telegram',
+      adminScope: 'support',
+      status: 'open',
+      openedAt: '2025-01-01T10:00:00Z',
+      lastMessageAt: '2025-01-01T10:00:00Z',
     });
     await port.appendConversationMessageFromProjection({
-      integratorMessageId: "msg-admin-detail-1",
-      integratorConversationId: "conv-admin-detail-1",
-      senderRole: "user",
-      text: "Help",
-      source: "telegram",
-      createdAt: "2025-01-01T10:01:00Z",
+      integratorMessageId: 'msg-admin-detail-1',
+      integratorConversationId: 'conv-admin-detail-1',
+      senderRole: 'user',
+      text: 'Help',
+      source: 'telegram',
+      createdAt: '2025-01-01T10:01:00Z',
     });
-    const conv = await port.getConversationByIntegratorId("conv-admin-detail-1");
+    const conv = await port.getConversationByIntegratorId('conv-admin-detail-1');
     expect(conv).not.toBeNull();
-    expect(conv!.integratorConversationId).toBe("conv-admin-detail-1");
-    expect(conv!.lastMessageText).toBe("Help");
-    expect(conv!.lastSenderRole).toBe("user");
+    expect(conv!.integratorConversationId).toBe('conv-admin-detail-1');
+    expect(conv!.lastMessageText).toBe('Help');
+    expect(conv!.lastSenderRole).toBe('user');
   });
 
-  it("getConversationByIntegratorId returns null for missing", async () => {
-    const conv = await port.getConversationByIntegratorId("conv-nonexistent-xyz");
+  it('getConversationByIntegratorId returns null for missing', async () => {
+    const conv = await port.getConversationByIntegratorId('conv-nonexistent-xyz');
     expect(conv).toBeNull();
   });
 
-  it("listUnansweredQuestionsForAdmin returns open questions", async () => {
+  it('listUnansweredQuestionsForAdmin returns open questions', async () => {
     await port.upsertConversationFromProjection({
-      integratorConversationId: "conv-q-admin-1",
-      integratorUserId: "4",
-      source: "telegram",
-      adminScope: "support",
-      status: "open",
-      openedAt: "2025-01-01T10:00:00Z",
-      lastMessageAt: "2025-01-01T10:00:00Z",
+      integratorConversationId: 'conv-q-admin-1',
+      integratorUserId: '4',
+      source: 'telegram',
+      adminScope: 'support',
+      status: 'open',
+      openedAt: '2025-01-01T10:00:00Z',
+      lastMessageAt: '2025-01-01T10:00:00Z',
     });
     await port.upsertQuestionFromProjection({
-      integratorQuestionId: "q-admin-1",
-      integratorConversationId: "conv-q-admin-1",
-      status: "open",
-      createdAt: "2025-01-01T10:02:00Z",
+      integratorQuestionId: 'q-admin-1',
+      integratorConversationId: 'conv-q-admin-1',
+      status: 'open',
+      createdAt: '2025-01-01T10:02:00Z',
     });
     await port.appendQuestionMessageFromProjection({
-      integratorQuestionMessageId: "qm-admin-1",
-      integratorQuestionId: "q-admin-1",
-      senderRole: "user",
-      text: "Why?",
-      createdAt: "2025-01-01T10:02:00Z",
+      integratorQuestionMessageId: 'qm-admin-1',
+      integratorQuestionId: 'q-admin-1',
+      senderRole: 'user',
+      text: 'Why?',
+      createdAt: '2025-01-01T10:02:00Z',
     });
     const list = await port.listUnansweredQuestionsForAdmin({ limit: 50 });
-    expect(list.some((q) => q.integratorQuestionId === "q-admin-1")).toBe(true);
-    const q = list.find((x) => x.integratorQuestionId === "q-admin-1");
-    expect(q?.text).toBe("Why?");
+    expect(list.some((q) => q.integratorQuestionId === 'q-admin-1')).toBe(true);
+    const q = list.find((x) => x.integratorQuestionId === 'q-admin-1');
+    expect(q?.text).toBe('Why?');
   });
 
-  it("getQuestionByIntegratorConversationId returns question for conversation", async () => {
-    const q = await port.getQuestionByIntegratorConversationId("conv-q-admin-1");
+  it('getQuestionByIntegratorConversationId returns question for conversation', async () => {
+    const q = await port.getQuestionByIntegratorConversationId('conv-q-admin-1');
     expect(q).not.toBeNull();
-    expect(q!.id).toBe("q-admin-1");
+    expect(q!.id).toBe('q-admin-1');
     expect(q!.answered).toBe(false);
   });
 
-  it("markInboundReadForUser clears all inbound unread for platform user", async () => {
-    const platformUserId = "patient-unread-mark-1";
+  it('markInboundReadForUser clears all inbound unread for platform user', async () => {
+    const platformUserId = 'patient-unread-mark-1';
     const { id: convId } = await port.ensureWebappConversationForUser(platformUserId);
     const now = new Date().toISOString();
     await port.appendWebappMessage({
       conversationId: convId,
-      integratorMessageId: "webapp-unread-a",
-      senderRole: "admin",
-      text: "One",
-      source: "webapp",
+      integratorMessageId: 'webapp-unread-a',
+      senderRole: 'admin',
+      text: 'One',
+      source: 'webapp',
       createdAt: now,
     });
     await port.appendWebappMessage({
       conversationId: convId,
-      integratorMessageId: "webapp-unread-b",
-      senderRole: "admin",
-      text: "Two",
-      source: "webapp",
+      integratorMessageId: 'webapp-unread-b',
+      senderRole: 'admin',
+      text: 'Two',
+      source: 'webapp',
       createdAt: now,
     });
 
@@ -396,15 +400,15 @@ describe("SupportCommunicationPort admin reads (in-memory)", () => {
   // Regression (F-4): this used to assert the leak — one mark-read cleared BOTH conversations of the
   // user. Opening one thread must clear that thread only; the other keeps its unread message, which
   // is exactly what `countUnreadForUser` keeps counting.
-  it("markInboundReadForUser clears unread ONLY in the conversation that was opened", async () => {
-    const platformUserId = "patient-unread-legacy-2";
+  it('markInboundReadForUser clears unread ONLY in the conversation that was opened', async () => {
+    const platformUserId = 'patient-unread-legacy-2';
     const { id: canonicalId } = await port.ensureWebappConversationForUser(platformUserId);
     const legacy = await port.upsertConversationFromProjection({
-      integratorConversationId: "legacy-unread-conv-2",
+      integratorConversationId: 'legacy-unread-conv-2',
       integratorUserId: null,
-      source: "telegram",
-      adminScope: "support",
-      status: "open",
+      source: 'telegram',
+      adminScope: 'support',
+      status: 'open',
       openedAt: new Date().toISOString(),
       lastMessageAt: new Date().toISOString(),
     });
@@ -414,18 +418,18 @@ describe("SupportCommunicationPort admin reads (in-memory)", () => {
     const now = new Date().toISOString();
     await port.appendWebappMessage({
       conversationId: canonicalId,
-      integratorMessageId: "webapp-unread-canonical-2",
-      senderRole: "admin",
-      text: "Canonical",
-      source: "webapp",
+      integratorMessageId: 'webapp-unread-canonical-2',
+      senderRole: 'admin',
+      text: 'Canonical',
+      source: 'webapp',
       createdAt: now,
     });
     await port.appendWebappMessage({
       conversationId: legacy.id,
-      integratorMessageId: "webapp-unread-legacy-2",
-      senderRole: "admin",
-      text: "Legacy",
-      source: "webapp",
+      integratorMessageId: 'webapp-unread-legacy-2',
+      senderRole: 'admin',
+      text: 'Legacy',
+      source: 'webapp',
       createdAt: now,
     });
 
@@ -442,31 +446,33 @@ describe("SupportCommunicationPort admin reads (in-memory)", () => {
     expect(await port.countUnreadForUser(platformUserId)).toBe(0);
   });
 
-  it("markInboundReadForUser is a successful no-op for a foreign conversation", async () => {
-    const owner = "patient-unread-owner-4";
-    const stranger = "patient-unread-stranger-4";
+  it('markInboundReadForUser is a successful no-op for a foreign conversation', async () => {
+    const owner = 'patient-unread-owner-4';
+    const stranger = 'patient-unread-stranger-4';
     const { id: ownerConversationId } = await port.ensureWebappConversationForUser(owner);
     await port.appendWebappMessage({
       conversationId: ownerConversationId,
-      integratorMessageId: "webapp-unread-foreign-4",
-      senderRole: "admin",
-      text: "Owner only",
-      source: "webapp",
+      integratorMessageId: 'webapp-unread-foreign-4',
+      senderRole: 'admin',
+      text: 'Owner only',
+      source: 'webapp',
       createdAt: new Date().toISOString(),
     });
 
-    await expect(port.markInboundReadForUser(ownerConversationId, stranger)).resolves.toBeUndefined();
+    await expect(
+      port.markInboundReadForUser(ownerConversationId, stranger),
+    ).resolves.toBeUndefined();
     expect(await port.countUnreadForUser(owner)).toBe(1);
   });
 
   it("markInboundReadForUser still clears a CLOSED own conversation (owner ruling: read-only, not 'not found')", async () => {
-    const platformUserId = "patient-unread-closed-5";
+    const platformUserId = 'patient-unread-closed-5';
     const closed = await port.upsertConversationFromProjection({
-      integratorConversationId: "closed-unread-conv-5",
+      integratorConversationId: 'closed-unread-conv-5',
       integratorUserId: null,
-      source: "webapp",
-      adminScope: "support",
-      status: "closed",
+      source: 'webapp',
+      adminScope: 'support',
+      status: 'closed',
       openedAt: new Date().toISOString(),
       lastMessageAt: new Date().toISOString(),
       closedAt: new Date().toISOString(),
@@ -475,10 +481,10 @@ describe("SupportCommunicationPort admin reads (in-memory)", () => {
     (closedRow as { platformUserId: string | null }).platformUserId = platformUserId;
     await port.appendWebappMessage({
       conversationId: closed.id,
-      integratorMessageId: "webapp-unread-closed-5",
-      senderRole: "admin",
-      text: "Closed thread reply",
-      source: "webapp",
+      integratorMessageId: 'webapp-unread-closed-5',
+      senderRole: 'admin',
+      text: 'Closed thread reply',
+      source: 'webapp',
       createdAt: new Date().toISOString(),
     });
 
@@ -487,24 +493,24 @@ describe("SupportCommunicationPort admin reads (in-memory)", () => {
     expect(await port.countUnreadForUser(platformUserId)).toBe(0);
   });
 
-  it("markInboundMessagesReadForUser marks only selected inbound ids", async () => {
-    const platformUserId = "patient-unread-selective-3";
+  it('markInboundMessagesReadForUser marks only selected inbound ids', async () => {
+    const platformUserId = 'patient-unread-selective-3';
     const { id: convId } = await port.ensureWebappConversationForUser(platformUserId);
     const now = new Date().toISOString();
     const first = await port.appendWebappMessage({
       conversationId: convId,
-      integratorMessageId: "webapp-unread-selective-a",
-      senderRole: "admin",
-      text: "First",
-      source: "webapp",
+      integratorMessageId: 'webapp-unread-selective-a',
+      senderRole: 'admin',
+      text: 'First',
+      source: 'webapp',
       createdAt: now,
     });
     await port.appendWebappMessage({
       conversationId: convId,
-      integratorMessageId: "webapp-unread-selective-b",
-      senderRole: "admin",
-      text: "Second",
-      source: "webapp",
+      integratorMessageId: 'webapp-unread-selective-b',
+      senderRole: 'admin',
+      text: 'Second',
+      source: 'webapp',
       createdAt: now,
     });
 

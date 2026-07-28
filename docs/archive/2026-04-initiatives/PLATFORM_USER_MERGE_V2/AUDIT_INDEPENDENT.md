@@ -9,7 +9,7 @@
 ## Verdict
 
 **Исторический verdict на момент независимого прогона:** **PASS, но с обязательным усилением**.  
-**Текущий статус после follow-up:** **PASS, hardening findings closed**.  
+**Текущий статус после follow-up:** **PASS, hardening findings closed**.
 
 Критических release-blocker’ов по текущему `Platform User Merge v2` не найдено; findings ниже сохранены как исторический audit trail того, что было дополнительно усилено, чтобы:
 

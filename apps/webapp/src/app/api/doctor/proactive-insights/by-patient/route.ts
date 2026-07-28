@@ -7,12 +7,12 @@
  * surfaces as an «внимание» attention mark + reason tooltip on the patient's row in the
  * support/messages list (DoctorSupportInbox.tsx) instead of its own section.
  */
-import { NextResponse } from "next/server";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
-import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
-import { DOCTOR_TODAY_PROACTIVE_INSIGHTS_PREVIEW_LIMIT } from "@/modules/doctor-proactive-insights/constants";
+import { NextResponse } from 'next/server';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
+import { DOCTOR_TODAY_PROACTIVE_INSIGHTS_PREVIEW_LIMIT } from '@/modules/doctor-proactive-insights/constants';
 
 export async function GET(_request: Request) {
   const gate = await requireDoctorWorkspaceApiContext();

@@ -4,7 +4,7 @@ Critical: webapp запускается с известными fallback-сек�
 Покрытие: явного теста на запрет insecure defaults не увидел.
 
 High: привязку телефона можно перехватить и переназначить на другой Telegram identity.
-src/integrations/telegram/webhook.ts принимает /start setphone_<number>, затем src/content/telegram/user/scripts.json вызывает user.phone.link, а src/infra/db/repos/channelUsers.ts в setUserPhone() делает ON CONFLICT (type, value_normalized) DO UPDATE SET user_id = EXCLUDED.user_id. Это значит, что уже привязанный телефон можно перепривязать. Дополнительно я не нашёл проверки contact.user_id === from.id в контактном сценарии.
+src/integrations/telegram/webhook.ts принимает /start setphone\_<number>, затем src/content/telegram/user/scripts.json вызывает user.phone.link, а src/infra/db/repos/channelUsers.ts в setUserPhone() делает ON CONFLICT (type, value_normalized) DO UPDATE SET user_id = EXCLUDED.user_id. Это значит, что уже привязанный телефон можно перепривязать. Дополнительно я не нашёл проверки contact.user_id === from.id в контактном сценарии.
 Последствие: захват чужих записей, напоминаний, диалогов.
 Покрытие: есть тесты на SQL-форму записи, но нет hostile-path тестов на takeover/relink.
 
@@ -43,7 +43,7 @@ webapp/src/app/api/integrator/events/route.ts и webapp/src/app/api/integrator/r
 
 Architectural Drift
 Legacy и новая архитектура живут параллельно.
-Production path идёт через src/kernel/eventGateway -> orchestrator -> executor, но рядом всё ещё существуют src/kernel/domain/usecases/*, src/integrations/telegram/connector.ts, mapIn.ts-логика и старые content bundles. Это уже сейчас размывает границы “что реально продовое”.
+Production path идёт через src/kernel/eventGateway -> orchestrator -> executor, но рядом всё ещё существуют src/kernel/domain/usecases/\*, src/integrations/telegram/connector.ts, mapIn.ts-логика и старые content bundles. Это уже сейчас размывает границы “что реально продовое”.
 
 Межсервисные контракты описаны раньше, чем реализованы.
 webapp/INTEGRATOR_CONTRACT.md и API routes уже есть, но webapp/src/modules/integrator/events.ts и webapp/src/modules/integrator/reminderDispatch.ts по сути заглушки. Риск: команды будут считать интеграцию настоящей, а на деле она фальшиво “accepted”.
@@ -52,7 +52,7 @@ Telegram UX не моделируется как единый доменный �
 Сейчас поведение зависит от комбинации content JSON, action types, transport constraints и env-флагов. Это уже не “данные управляют ботом”, а “данные + код + побочные эффекты transport-а”.
 
 Feature taxonomy дублируется по слоям.
-Одни и те же сущности и переходы описаны в mapIn.ts, scripts.json, templates.json, menu.json, replyMenu.json, webapp/src/modules/*, webapp/src/app/*. Цена любого rename/рефактора уже чрезмерна.
+Одни и те же сущности и переходы описаны в mapIn.ts, scripts.json, templates.json, menu.json, replyMenu.json, webapp/src/modules/_, webapp/src/app/_. Цена любого rename/рефактора уже чрезмерна.
 
 Security Risks
 Fallback secrets в webapp/src/config/env.ts недопустимы для production-grade системы.
@@ -63,7 +63,7 @@ validateTelegramInitData() в webapp/src/modules/auth/service.ts использ�
 Redundancy / Dead Code
 src/content/telegram/scripts.json и src/content/telegram/templates.json выглядят как dead/shadow content при наличии src/content/telegram/user и admin.
 В src/kernel/domain/executor/executeAction.ts и handler-файлах есть признаки дублирования responsibility по delivery/reminders/booking.
-src/kernel/domain/usecases/* похожи на legacy stack, который уже не является canonical runtime path.
+src/kernel/domain/usecases/\* похожи на legacy stack, который уже не является canonical runtime path.
 telegram.more.menu.byText / byText.plain частично дублируют action-based routing через mapIn.ts.
 menu.ask и связанные шаблоны остались после изменения reply-menu и создают ложный след для будущих правок.
 В webapp рядом сосуществуют DI/Repo-подход и page-local/mock-подход, что плодит два стиля реализации в одной кодовой базе.

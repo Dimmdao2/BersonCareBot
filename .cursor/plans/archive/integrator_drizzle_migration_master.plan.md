@@ -14,16 +14,16 @@ todos:
       вынос в workspace-пакет (как operator-db-schema) — отдельный backlog при росте дубля.
     status: completed
   - id: phase-1
-    content: "Выполнить план integrator_drizzle_phase_1_simple_repos.plan.md — P1 простые репозитории"
+    content: 'Выполнить план integrator_drizzle_phase_1_simple_repos.plan.md — P1 простые репозитории'
     status: completed
   - id: phase-2
-    content: "Выполнить план integrator_drizzle_phase_2_outbox_job_queue.plan.md — outbox + job queue"
+    content: 'Выполнить план integrator_drizzle_phase_2_outbox_job_queue.plan.md — outbox + job queue'
     status: completed
   - id: phase-3
-    content: "Выполнить план integrator_drizzle_phase_3_domain_repos.plan.md — доменные репозитории"
+    content: 'Выполнить план integrator_drizzle_phase_3_domain_repos.plan.md — доменные репозитории'
     status: completed
   - id: phase-4
-    content: "Выполнить план integrator_drizzle_phase_4_complex_sql.plan.md — сложный SQL последним"
+    content: 'Выполнить план integrator_drizzle_phase_4_complex_sql.plan.md — сложный SQL последним'
     status: completed
   - id: dod-master
     content: Definition of Done мастера — все этапы закрыты, integrator-тесты и typecheck по зоне зелёные, запись финала в docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md
@@ -86,12 +86,12 @@ isProject: true
 
 ## Карта репозиториев по приоритетам
 
-| Приоритет | Файлы | Этап-план |
-|-----------|-------|-----------|
-| P1 | `subscriptions.ts`, `topics.ts`, `bookingCalendarMap.ts`, `mailingLogs.ts`, `messageLogs.ts` | Этап 1 |
-| P2 | `projectionOutbox.ts`, `jobQueue.ts` | Этап 2 |
-| P3 | `reminders.ts`, `bookingRecords.ts`, `publicAppointmentRecordSync.ts` | Этап 3 |
-| P4 | `messageThreads.ts`, `channelUsers.ts`, `mergeIntegratorUsers.ts` | Этап 4 |
+| Приоритет | Файлы                                                                                        | Этап-план |
+| --------- | -------------------------------------------------------------------------------------------- | --------- |
+| P1        | `subscriptions.ts`, `topics.ts`, `bookingCalendarMap.ts`, `mailingLogs.ts`, `messageLogs.ts` | Этап 1    |
+| P2        | `projectionOutbox.ts`, `jobQueue.ts`                                                         | Этап 2    |
+| P3        | `reminders.ts`, `bookingRecords.ts`, `publicAppointmentRecordSync.ts`                        | Этап 3    |
+| P4        | `messageThreads.ts`, `channelUsers.ts`, `mergeIntegratorUsers.ts`                            | Этап 4    |
 
 ## Definition of Done (мастер)
 

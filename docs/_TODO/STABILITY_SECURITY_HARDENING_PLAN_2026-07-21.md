@@ -1,5 +1,5 @@
-> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
-> STATUS (verified 2026-07-23, code-reconciled): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/CHECKPOINT_2026-07-23_STATE_AND_BACKEND_WORK_ORDER.md
+> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/\_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
+> STATUS (verified 2026-07-23, code-reconciled): see docs/\_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/CHECKPOINT_2026-07-23_STATE_AND_BACKEND_WORK_ORDER.md
 > verified 2026-07-23: Phase 0-2 largely integrated; 28 open = genuine remaining backend (D1 session-revoke [blocked on owner TTL], E3 Zod SSOT #980, A4 RLS cutover, A2 matrix, E1 lint boundary, C3/F2/F3 post-launch); 1 owner-gated (D1 TTL decision).
 
 # План: безопасность, стабильность и проверяемость (2026-07-21)
@@ -13,12 +13,14 @@
 качество тестов, наблюдаемость, устойчивость/конкурентность, безопасность+зависимости).
 
 ## Цель
+
 Замкнуть критичные гарантии системы — **изоляцию тенантов** и **целостность денег/данных** —
 сквозным ТЕСТОМ в CI и сквозным ДЕТЕКТОМ в проде, и снять остаточный долг по безопасности,
 наблюдаемости и контрактам. Не «полировать структуру» (она здоровая), а сделать несущие
-гарантии *проверяемыми*, а не держащимися на честном слове.
+гарантии _проверяемыми_, а не держащимися на честном слове.
 
 ## Definition of Done (жёстко)
+
 Пункт считается технически закрытым только при: (1) галочка в этом файле; (2) риск-соразмерные targeted checks;
 (3) один full CI на phase/milestone gate, а не после каждого мелкого слайса; (4) живая проверка, где она действительно
 нужна и достижима. TEST-проверка/deploy выполняется только после отдельного разрешения владельца. «Audit PASS» и
@@ -27,6 +29,7 @@
 production activation остаются отдельными owner gates.
 
 ## Правило источника скоупа
+
 Скоуп берётся ТОЛЬКО из этого файла (владелец авторизовал его findings→план явно). Находки аудиторов,
 которых здесь нет, — вопрос владельцу, а не новая работа. >2 correction-раундов на одном этапе без закрытия
 его чек-листа = СТОП + эскалация.
@@ -52,27 +55,27 @@ taskdb-карта создаётся только для доказанного 
 Эта таблица является текущим launch selector, а не исходным снимком до исполнения. Закрытые пункты нельзя брать
 повторно из старого `residual_gap/dependency_waiting`; точные evidence ниже и в фазах являются authority.
 
-| Item | Status | Current truth / exact residual |
-|---|---|---|
-| A0 | `covered` | `#938` закрыт интеграционными коммитами `dd4241f65` + `b6222cd40`: versioned PII-free schema baseline, repo-bound ledger manifest, synthetic `.test` seed, disposable restore/pending-migration proof и fail-closed signal cleanup прошли полный независимый re-audit. A0 доказывает DDL/migration reproducibility, не RLS от owner-role. |
-| A1 | `covered` | `#937`, `296ec6e33` + `14c9b7ca7`: canonical non-owner runtime roles и locked/FORCE two-org/no-principal/principal-full PostgreSQL proof; full re-audit PASS. |
-| C2 | `covered` | `#940`, `693c10d98` + `7055287ba`: bounded correlation + trusted organization context webapp→integrator→worker; terminal audit PASS. |
-| F1 | `covered` | `#942`, `03c1dfac1`: bounded Dependabot updater, `shadcn` dev-only, production graph proof; audit PASS. Fresh later advisories закрыты отдельно `#955`. |
-| D3 | `covered` | `#941`, `a70b7ce4a`: production+dev-bypass startup hard guard и invite-path negatives; audit PASS. |
-| A3 | `covered` | `#946`, `3f684d135` + `7bc938e03`: existing isolation signals и bounded went-dark canary подключены к current critical tick; audit PASS. |
-| B1 | `covered` | `#949`, integration through `ba6a9242b`: least-privilege bootstrap lookup и atomic/replay-safe payment UoW; private PostgreSQL proofs and audit PASS. |
-| B2 | `covered` | `#947`, `ff11d416a` + `3f484ea60`: bounded payment/OAuth request and body-consumption deadlines; audit PASS. |
-| B3 | `covered` | `#948`, `fdbea3b0e` + `d640d93b9`: full-range ordered advisory locks and atomic online slot recheck/insert; concurrency proof and audit PASS. |
-| C1 | `covered` | `#969` integrated through `ad398fe36`; terminal full-checklist re-audit PASS (`0/0/0`). Repository dark launch закрыт; host/backend/production activation остаётся отдельным `SEC-02/PR-04` owner gate. |
-| D1 | `residual_gap` | `#919`/migration `0215` уже дают staff `session_version`, но doctor TTL остаётся 90 дней. Нужны короткий doctor TTL и revocation без per-request DB round-trip с p95 proof. |
-| D2 | `covered` | `#973` заморозил census/contract; `#974` интегрирован через `2d3c98acc`: central Origin/Sec-Fetch guard, exact exemptions, Server Action/GET compatibility, regression/load proof и один risk-sized audit закрыты. Full CI остаётся phase milestone. |
-| E2 | `residual_gap` | Source contract/census `#975` закрыт; implementation `#976` берёт только pure helper + exact `11` launch-risk routes после TEST-checkpoint, без массовой косметической миграции. |
-| E3 | `residual_gap` | Integrator↔webapp event contract продублирован вручную и JSON artifact расходится. Нужен один shared Zod SSOT и runtime validation на обоих концах. |
-| A4 | `dependency_waiting` | Большой chokepoint уже в основном закрыт `#770/#797`; после ранних фаз выводится только exact launch-critical exception/manual-NULL matrix. Старое число файлов не является автоматическим scope. |
-| A2 | `dependency_waiting` | `#652` и существующие real-policy proofs репрезентативны, но не покрывают каждый чувствительный домен через live RLS route. Ждёт A1/A4 matrix. |
-| C3 | `post_launch` | Prometheus exporter отсутствует; раньше запуска допускается только точный low-cardinality signal, если его требует C6/release gate. |
-| F2 | `post_launch` | God-components остаются, но их structural split идёт после UX stabilization. |
-| F3 | `post_launch` | Booking/notifications фрагментированы; сначала ownership map, без pre-launch behavioral rewrite. |
+| Item | Status               | Current truth / exact residual                                                                                                                                                                                                                                                                                                            |
+| ---- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A0   | `covered`            | `#938` закрыт интеграционными коммитами `dd4241f65` + `b6222cd40`: versioned PII-free schema baseline, repo-bound ledger manifest, synthetic `.test` seed, disposable restore/pending-migration proof и fail-closed signal cleanup прошли полный независимый re-audit. A0 доказывает DDL/migration reproducibility, не RLS от owner-role. |
+| A1   | `covered`            | `#937`, `296ec6e33` + `14c9b7ca7`: canonical non-owner runtime roles и locked/FORCE two-org/no-principal/principal-full PostgreSQL proof; full re-audit PASS.                                                                                                                                                                             |
+| C2   | `covered`            | `#940`, `693c10d98` + `7055287ba`: bounded correlation + trusted organization context webapp→integrator→worker; terminal audit PASS.                                                                                                                                                                                                      |
+| F1   | `covered`            | `#942`, `03c1dfac1`: bounded Dependabot updater, `shadcn` dev-only, production graph proof; audit PASS. Fresh later advisories закрыты отдельно `#955`.                                                                                                                                                                                   |
+| D3   | `covered`            | `#941`, `a70b7ce4a`: production+dev-bypass startup hard guard и invite-path negatives; audit PASS.                                                                                                                                                                                                                                        |
+| A3   | `covered`            | `#946`, `3f684d135` + `7bc938e03`: existing isolation signals и bounded went-dark canary подключены к current critical tick; audit PASS.                                                                                                                                                                                                  |
+| B1   | `covered`            | `#949`, integration through `ba6a9242b`: least-privilege bootstrap lookup и atomic/replay-safe payment UoW; private PostgreSQL proofs and audit PASS.                                                                                                                                                                                     |
+| B2   | `covered`            | `#947`, `ff11d416a` + `3f484ea60`: bounded payment/OAuth request and body-consumption deadlines; audit PASS.                                                                                                                                                                                                                              |
+| B3   | `covered`            | `#948`, `fdbea3b0e` + `d640d93b9`: full-range ordered advisory locks and atomic online slot recheck/insert; concurrency proof and audit PASS.                                                                                                                                                                                             |
+| C1   | `covered`            | `#969` integrated through `ad398fe36`; terminal full-checklist re-audit PASS (`0/0/0`). Repository dark launch закрыт; host/backend/production activation остаётся отдельным `SEC-02/PR-04` owner gate.                                                                                                                                   |
+| D1   | `residual_gap`       | `#919`/migration `0215` уже дают staff `session_version`, но doctor TTL остаётся 90 дней. Нужны короткий doctor TTL и revocation без per-request DB round-trip с p95 proof.                                                                                                                                                               |
+| D2   | `covered`            | `#973` заморозил census/contract; `#974` интегрирован через `2d3c98acc`: central Origin/Sec-Fetch guard, exact exemptions, Server Action/GET compatibility, regression/load proof и один risk-sized audit закрыты. Full CI остаётся phase milestone.                                                                                      |
+| E2   | `residual_gap`       | Source contract/census `#975` закрыт; implementation `#976` берёт только pure helper + exact `11` launch-risk routes после TEST-checkpoint, без массовой косметической миграции.                                                                                                                                                          |
+| E3   | `residual_gap`       | Integrator↔webapp event contract продублирован вручную и JSON artifact расходится. Нужен один shared Zod SSOT и runtime validation на обоих концах.                                                                                                                                                                                       |
+| A4   | `dependency_waiting` | Большой chokepoint уже в основном закрыт `#770/#797`; после ранних фаз выводится только exact launch-critical exception/manual-NULL matrix. Старое число файлов не является автоматическим scope.                                                                                                                                         |
+| A2   | `dependency_waiting` | `#652` и существующие real-policy proofs репрезентативны, но не покрывают каждый чувствительный домен через live RLS route. Ждёт A1/A4 matrix.                                                                                                                                                                                            |
+| C3   | `post_launch`        | Prometheus exporter отсутствует; раньше запуска допускается только точный low-cardinality signal, если его требует C6/release gate.                                                                                                                                                                                                       |
+| F2   | `post_launch`        | God-components остаются, но их structural split идёт после UX stabilization.                                                                                                                                                                                                                                                              |
+| F3   | `post_launch`        | Booking/notifications фрагментированы; сначала ownership map, без pre-launch behavioral rewrite.                                                                                                                                                                                                                                          |
 
 **Текущий исполнимый порядок после закрытых Phase 0 и A3/B1/B2/B3:** C1 error tracking и Phase 2 D1/D2/E2/E3
 открыты как независимые stages; запускаются не более трёх одновременно после exact file-scope manifest. D1 и E3
@@ -83,15 +86,16 @@ server сериализуются. A4/A2/E1 остаются Phase 3 и не с�
 
 ## 🔀 Развилки владельца — РЕШЕНО (владелец, 21.07)
 
-| # | Развилка | Решение |
-|---|---|---|
-| F-1 | Глубина RLS-cutover (A4) | **Fail-closed + детект СЕЙЧАС**; полный cutover — отдельный follow-up |
-| F-2 | Трекинг ошибок | **Self-hosted**, dark-launch (данные не покидают бокс) |
-| F-3 | Сессии | **Ревокация + короткий TTL врача** (low-overhead дизайн, см. ниже) |
-| F-4 | Метрики | **Phase 4**, только pull-модель + низкая кардинальность |
-| F-5 | Матрица cross-tenant тестов | Стартовый тир: patients/PII, payments, bookings, messaging, diaries |
+| #   | Развилка                    | Решение                                                               |
+| --- | --------------------------- | --------------------------------------------------------------------- |
+| F-1 | Глубина RLS-cutover (A4)    | **Fail-closed + детект СЕЙЧАС**; полный cutover — отдельный follow-up |
+| F-2 | Трекинг ошибок              | **Self-hosted**, dark-launch (данные не покидают бокс)                |
+| F-3 | Сессии                      | **Ревокация + короткий TTL врача** (low-overhead дизайн, см. ниже)    |
+| F-4 | Метрики                     | **Phase 4**, только pull-модель + низкая кардинальность               |
+| F-5 | Матрица cross-tenant тестов | Стартовый тир: patients/PII, payments, bookings, messaging, diaries   |
 
 ## ⚡ Сквозной load-бюджет (жёсткий критерий приёмки, владелец 21.07)
+
 Каждый пункт обязан доказать **околонулевую стоимость в steady-state hot-path**. «Работает» без «не грузит» = НЕ done.
 Общие запреты: (1) никакого нового per-request DB round-trip; (2) никакой синхронной сети в request-path;
 (3) метки метрик — только низкой кардинальности (НЕ orgId/userId); (4) новые фоновые задачи цепляем к
@@ -99,6 +103,7 @@ server сериализуются. A4/A2/E1 остаются Phase 3 и не с�
 RSS) как часть приёмки этапа.
 
 **Классификация пунктов по нагрузке:**
+
 - _Снижают нагрузку:_ B2 (таймауты освобождают зависшие коннекты), B1 (tx дешевле recovery орфанов).
 - _Нулевая hot-path:_ A1 (CI-only), A3/C2 (переиспользуют уже собираемые in-process счётчики и principal-ALS),
   B3 (advisory-lock только на booking-create, редкий путь; ещё лучше — partial constraint = 0 рантайма),
@@ -121,8 +126,8 @@ RSS) как часть приёмки этапа.
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 ### Phase 0 — Фундамент проверяемости (keystone, разблокирует всё)
+
 - [x] **A0. PII-free greenfield baseline для CI (`#938`, prerequisite A1).** Версионированный структурный baseline
       из текущей подготовленной DEV-схемы (`pg_dump --schema-only --no-owner --no-privileges`, без строк данных),
       точный manifest обоих migration ledgers и минимальный детерминированный seed на зарезервированных
@@ -174,6 +179,7 @@ already-green expensive steps. Working DEV migration `0224` remained fail-closed
 apply, TEST/PROD or deploy is claimed.
 
 ### Phase 1 — Максимальное снижение риска (параллельно, независимые file-scope)
+
 - [x] **A3. Замкнуть детект в проде.** Завести isolation-события (`missing_principal`) в 5-минутный
       `collectCriticalHealthSignals` алерт-тик + добавить per-org «went-dark» канарейку (падение row-count/активных орг в ноль).
       Файлы: `app-layer/health/collectCriticalHealthSignals.ts`, `infra/db/saasIsolationDbFailureReporting.ts`,
@@ -227,7 +233,6 @@ apply, TEST/PROD or deploy is claimed.
       (repository dark launch; host-инфра отдельно) · Аудит: один.
 
   Exact repository/DEV checklist (authority для worker/auditor; host activation в него не входит):
-
   - [x] Один backend-neutral shared package инкапсулирует Sentry protocol SDK и экспортирует только typed
         `init/capture/flush/close/release` contract; SDK динамически загружается только после enabled + valid DSN.
   - [x] Конфигурация `error_tracking_enabled` + `error_tracking_dsn` хранится как global/admin/server-only
@@ -263,6 +268,7 @@ apply, TEST/PROD or deploy is claimed.
         `SEC-02/PR-04`; GlitchTip пока только инженерная рекомендация, не принятое owner решение.
 
 ### Phase 2 — Остаточная безопасность + контракты (параллельно)
+
 - [ ] **D1. Ревокация сессий** (per F-3, task `#970`): существующий `session_version` + bounded staff cache → точечный «выйти везде»
       без глобального разлогина; TTL врача заметно ниже 90д. Файлы: `modules/auth/sessionCookie.ts:10-97`.
       Размер: **M** · Аудит: полный (auth).
@@ -301,6 +307,7 @@ apply, TEST/PROD or deploy is claimed.
             p95 after ≤ baseline ×1.05; записаны p50/p99/throughput, DB pool waits/connections и RSS без monotonic growth.
       - [ ] Live TEST использует два production-like doctor browser profiles без dev-bypass: revoke A сохраняет A,
             инвалидирует B ≤30с; другой doctor/patient не затронут; Max-Age соответствует ruling.
+
 - [x] **D2. CSRF/Origin-проверка** на мутирующих роутах как defense-in-depth поверх `SameSite=lax`.
       Размер: **S-M** · Аудит: один.
 
@@ -516,6 +523,7 @@ apply, TEST/PROD or deploy is claimed.
       unknown errors сохранить текущие HTTP statuses; (2) не нормализовать пропущенный
       `Retry-After` в старых `429` в этой волне; (3) оставить pre-existing boundary debt для Phase 3 E1.
       Эти safe defaults уже вшиты в checklist/matrix и не блокируют следующую implementation-карточку.
+
 - [ ] **E3. Единая Zod-схема границы integrator↔webapp** — заменить фактические дубли transport-envelope одним
       shared runtime SSOT, валидировать им producer и receiver и удалить только подтверждённо осиротевший
       `contracts/integrator-events-body.json`. Размер: **M** · Аудит: полный независимый
@@ -733,6 +741,7 @@ apply, TEST/PROD or deploy is claimed.
       только отдельный owner question, не автоматический E3 scope.
 
 ### Phase 3 — Большой cutover (длинный полюс, высший риск, приёмка владельца по кускам)
+
 - [ ] **A4. Довести класс #821/#815** (объём per F-1): «нет принципала → fail-closed», ретайр несущих ручных
       `org_id … OR IS NULL`-фильтров (~87 файлов) по мере покрытия A1/A2. Свести отдельные пулы (migrator/media-worker/
       integrator) к принципал-aware доступу или явно задокументировать их как infra-исключения.
@@ -749,6 +758,7 @@ apply, TEST/PROD or deploy is claimed.
       Файлы: `apps/webapp/eslint.config.mjs`. Размер: **L** (ongoing) · Аудит: один на волну.
 
 ### Phase 4 — Дальнейшее (по ёмкости, не блокирует)
+
 - [ ] **C3. Метрики** (per F-4): latency, насыщение пула БД, глубина очереди → экспорт/скрейп.
       **Load-дизайн (обязателен):** только **pull-модель** (Prometheus скрейпит `/metrics` раз в 15-30с) —
       в hot-path лишь инкремент атомарного счётчика в памяти (наносекунды), никакой сети на запрос.
@@ -757,12 +767,13 @@ apply, TEST/PROD or deploy is claimed.
       (route-class, status, provider) — НИКОГДА orgId/userId (иначе взрыв кардинальности → рост RSS и медленный скрейп).
       Гистограммы latency — с ограниченными бакетами, не на каждый вызов. Итог: метрики — самый ДЕШЁВЫЙ слой
       наблюдаемости при таком дизайне; «нагрузка» возникает только от плохой кардинальности, которую тут запрещаем.
-- [ ] **F2. Разбор UI god-компонентов** (2000-2500 строк: TreatmentProgram*, ScheduleCalendarTab, PatientTabKarta).
+- [ ] **F2. Разбор UI god-компонентов** (2000-2500 строк: TreatmentProgram\*, ScheduleCalendarTab, PatientTabKarta).
 - [ ] **F3. Де-фрагментация модулей** (нотификации по ≥6 модулям, booking по 4 слоям) — консолидация владения.
 
 ---
 
 ## Карта параллелизации
+
 - **Phase 0**: A0 сначала делает полную ephemeral DB воспроизводимой без PII; затем A1 доказывает current conformance.
   Только после этого
   подтверждённые residual C2/F1/D3 могут идти параллельно друг другу. Старая схема «запустить всё рядом с A1» не
@@ -773,12 +784,14 @@ apply, TEST/PROD or deploy is claimed.
 - Сериализуется только конкуренция за общий ресурс (heavy CI под mutex, живой dev-сервер под скрин).
 
 ## Приёмка в середине
+
 После Phase 1 — только при отдельном прямом разрешении владельца выкатить накопленное на ТЕСТ (code-only) и
 передать владельцу на click-through до старта Phase 3. Без такого разрешения фиксируется готовый DEV/evidence packet,
 а TEST deploy остаётся pending owner gate. Не полировать A4, пока Phase 0-1 не приняты живьём либо владелец явно не
 перенёс этот checkpoint.
 
 ## Оценка объёма (честно)
+
 - **Risk-closing спина (Phase 0 + Phase 1)**: ~**2.5–4 недели** сфокусированной работы с параллелью.
   Даёт ~80% снижения риска: инвариант изоляции становится проверяемым в CI и детектируемым в проде,
   деньги — атомарны, внешние вызовы — с таймаутами, ошибки — видимы.

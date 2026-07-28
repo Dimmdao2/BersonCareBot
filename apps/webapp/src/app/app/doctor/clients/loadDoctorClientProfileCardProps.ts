@@ -1,10 +1,10 @@
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { env } from "@/config/env";
-import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
-import { loadDoctorClientProgramCardData } from "@/modules/doctor-client-card/loadDoctorClientProgramCardAggregates";
-import type { ClientProfile } from "@/modules/doctor-clients/service";
-import type { MessageLogEntry } from "@/modules/doctor-messaging/ports";
-import type { LfkComplexExerciseLine } from "@/modules/diaries/types";
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { env } from '@/config/env';
+import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
+import { loadDoctorClientProgramCardData } from '@/modules/doctor-client-card/loadDoctorClientProgramCardAggregates';
+import type { ClientProfile } from '@/modules/doctor-clients/service';
+import type { MessageLogEntry } from '@/modules/doctor-messaging/ports';
+import type { LfkComplexExerciseLine } from '@/modules/diaries/types';
 import type {
   DoctorClientActiveProgramTreeModel,
   DoctorClientOverviewCarePlanModel,
@@ -12,12 +12,15 @@ import type {
   DoctorClientProgramInboxRow,
   DoctorClientRecentProgramChangeRow,
   DoctorClientTaskSummary,
-} from "@/modules/doctor-client-card/types";
-import type { WellbeingWeekChartModel } from "@/modules/diaries/buildWellbeingWeekChartData";
-import type { PendingProgramTestEvaluationRow, TreatmentProgramInstanceSummary } from "@/modules/treatment-program/types";
-import type { ProactiveInsightRow } from "@/modules/doctor-proactive-insights/types";
-import { buildDoctorClientWellbeingModel } from "./buildDoctorClientWellbeingModel";
-import { normalizeDoctorClientProfileScope } from "./doctorClientProfileHref";
+} from '@/modules/doctor-client-card/types';
+import type { WellbeingWeekChartModel } from '@/modules/diaries/buildWellbeingWeekChartData';
+import type {
+  PendingProgramTestEvaluationRow,
+  TreatmentProgramInstanceSummary,
+} from '@/modules/treatment-program/types';
+import type { ProactiveInsightRow } from '@/modules/doctor-proactive-insights/types';
+import { buildDoctorClientWellbeingModel } from './buildDoctorClientWellbeingModel';
+import { normalizeDoctorClientProfileScope } from './doctorClientProfileHref';
 
 export type DoctorClientProfileCardPageProps = {
   profile: ClientProfile;
@@ -43,13 +46,13 @@ export type DoctorClientProfileCardPageProps = {
 };
 
 export type LoadDoctorClientProfileCardResult =
-  | { kind: "not_found" }
-  | { kind: "found"; props: DoctorClientProfileCardPageProps };
+  | { kind: 'not_found' }
+  | { kind: 'found'; props: DoctorClientProfileCardPageProps };
 
-function listBasePathForScope(scope: "appointments" | "all" | "archived"): string {
-  if (scope === "all") return "/app/doctor/clients?scope=all";
-  if (scope === "archived") return "/app/doctor/clients?scope=archived";
-  return "/app/doctor/clients?scope=appointments";
+function listBasePathForScope(scope: 'appointments' | 'all' | 'archived'): string {
+  if (scope === 'all') return '/app/doctor/clients?scope=all';
+  if (scope === 'archived') return '/app/doctor/clients?scope=archived';
+  return '/app/doctor/clients?scope=appointments';
 }
 
 /** Единая загрузка props для `ClientProfileCard` (RSC). */
@@ -66,17 +69,23 @@ export async function loadDoctorClientProfileCardProps(input: {
   const profileListScope = normalizeDoctorClientProfileScope(scopeParam);
   const listBasePath = listBasePathForScope(profileListScope);
 
-  const [profile, messageHistory, publishedTreatmentTemplates, pendingProgramTests, treatmentProgramInstances, displayTimeZone] =
-    await Promise.all([
-      deps.doctorClients.getClientProfile(userId),
-      deps.doctorMessaging.listMessageHistory({ userId, pageSize: 10 }),
-      deps.treatmentProgram.listTemplates({ includeArchived: false, status: "published" }),
-      deps.treatmentProgramProgress.listPendingTestEvaluationsForPatient(userId),
-      hasDb ? deps.treatmentProgramInstance.listForPatientClinicalView(userId) : Promise.resolve([]),
-      getAppDisplayTimeZone(),
-    ]);
+  const [
+    profile,
+    messageHistory,
+    publishedTreatmentTemplates,
+    pendingProgramTests,
+    treatmentProgramInstances,
+    displayTimeZone,
+  ] = await Promise.all([
+    deps.doctorClients.getClientProfile(userId),
+    deps.doctorMessaging.listMessageHistory({ userId, pageSize: 10 }),
+    deps.treatmentProgram.listTemplates({ includeArchived: false, status: 'published' }),
+    deps.treatmentProgramProgress.listPendingTestEvaluationsForPatient(userId),
+    hasDb ? deps.treatmentProgramInstance.listForPatientClinicalView(userId) : Promise.resolve([]),
+    getAppDisplayTimeZone(),
+  ]);
 
-  if (!profile) return { kind: "not_found" };
+  if (!profile) return { kind: 'not_found' };
 
   const programCardData = hasDb
     ? await loadDoctorClientProgramCardData(
@@ -117,7 +126,7 @@ export async function loadDoctorClientProfileCardProps(input: {
     : [];
 
   return {
-    kind: "found",
+    kind: 'found',
     props: {
       profile,
       messageHistory: messageHistory.items,

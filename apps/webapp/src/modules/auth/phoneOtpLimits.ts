@@ -1,12 +1,12 @@
-import { webappReposAreInMemory } from "@/config/env";
-import type { PhoneOtpLimitsDbPort } from "@/modules/auth/phoneOtpLimitsPort";
-import type { PhoneChallengeStore } from "@/modules/auth/phoneChallengeStore";
+import { webappReposAreInMemory } from '@/config/env';
+import type { PhoneOtpLimitsDbPort } from '@/modules/auth/phoneOtpLimitsPort';
+import type { PhoneChallengeStore } from '@/modules/auth/phoneChallengeStore';
 import {
   OTP_MAX_VERIFY_ATTEMPTS,
   OTP_RESEND_COOLDOWN_SEC,
   nextOtpLockoutDurationSeconds,
-} from "@/modules/auth/otpConstants";
-import type { SendCodeResult, VerifyCodeResult } from "@/modules/auth/smsPort";
+} from '@/modules/auth/otpConstants';
+import type { SendCodeResult, VerifyCodeResult } from '@/modules/auth/smsPort';
 
 export type PhoneChallengeGateResult = SendCodeResult | { ok: true };
 
@@ -20,7 +20,7 @@ export function bindPhoneOtpLimitsDbPort(port: PhoneOtpLimitsDbPort): void {
 
 function requirePhoneOtpDb(): PhoneOtpLimitsDbPort {
   if (!phoneOtpLimitsDbPort) {
-    throw new Error("PhoneOtpLimitsDbPort is not bound. Call ensureAuthModulePortsBound().");
+    throw new Error('PhoneOtpLimitsDbPort is not bound. Call ensureAuthModulePortsBound().');
   }
   return phoneOtpLimitsDbPort;
 }
@@ -33,14 +33,16 @@ const memLocks = new Map<string, number>();
 const memLockCycles = new Map<string, number>();
 const memLastSend = new Map<string, number>();
 
-export async function assertPhoneCanStartChallenge(phone: string): Promise<PhoneChallengeGateResult> {
+export async function assertPhoneCanStartChallenge(
+  phone: string,
+): Promise<PhoneChallengeGateResult> {
   const n = phone;
   if (webappReposAreInMemory()) {
     const lockedUntil = memLocks.get(n);
     if (lockedUntil != null && lockedUntil > nowSec()) {
       return {
         ok: false,
-        code: "too_many_attempts",
+        code: 'too_many_attempts',
         retryAfterSeconds: Math.max(1, lockedUntil - nowSec()),
       };
     }
@@ -48,7 +50,7 @@ export async function assertPhoneCanStartChallenge(phone: string): Promise<Phone
     if (last != null && nowSec() - last < OTP_RESEND_COOLDOWN_SEC) {
       return {
         ok: false,
-        code: "rate_limited",
+        code: 'rate_limited',
         retryAfterSeconds: OTP_RESEND_COOLDOWN_SEC - (nowSec() - last),
       };
     }
@@ -62,7 +64,7 @@ export async function assertPhoneCanStartChallenge(phone: string): Promise<Phone
     if (lu > nowSec()) {
       return {
         ok: false,
-        code: "too_many_attempts",
+        code: 'too_many_attempts',
         retryAfterSeconds: Math.max(1, lu - nowSec()),
       };
     }
@@ -74,7 +76,7 @@ export async function assertPhoneCanStartChallenge(phone: string): Promise<Phone
     if (delta < OTP_RESEND_COOLDOWN_SEC) {
       return {
         ok: false,
-        code: "rate_limited",
+        code: 'rate_limited',
         retryAfterSeconds: OTP_RESEND_COOLDOWN_SEC - delta,
       };
     }
@@ -92,11 +94,11 @@ export async function registerPhoneSend(phone: string): Promise<void> {
 export async function onPhoneWrongCode(
   phone: string,
   challengeId: string,
-  challengeStore: PhoneChallengeStore
+  challengeStore: PhoneChallengeStore,
 ): Promise<VerifyCodeResult> {
   const stored = await challengeStore.get(challengeId);
   if (!stored) {
-    return { ok: false, code: "expired_code" };
+    return { ok: false, code: 'expired_code' };
   }
 
   // Atomic: the store computes verifyAttempts + 1 itself in one round trip (never a full-payload
@@ -108,7 +110,7 @@ export async function onPhoneWrongCode(
     // The challenge vanished between the read above and this increment (e.g. a concurrent resend,
     // expiry cleanup, or a second confirm that already succeeded and deleted it) -- treat exactly
     // like "no such challenge", never "invalid code" against a challenge that no longer exists.
-    return { ok: false, code: "expired_code" };
+    return { ok: false, code: 'expired_code' };
   }
 
   if (attempts >= OTP_MAX_VERIFY_ATTEMPTS) {
@@ -128,12 +130,12 @@ export async function onPhoneWrongCode(
     }
     return {
       ok: false,
-      code: "too_many_attempts",
+      code: 'too_many_attempts',
       retryAfterSeconds: Math.max(1, lockedUntil - nowSec()),
     };
   }
 
-  return { ok: false, code: "invalid_code" };
+  return { ok: false, code: 'invalid_code' };
 }
 
 /**

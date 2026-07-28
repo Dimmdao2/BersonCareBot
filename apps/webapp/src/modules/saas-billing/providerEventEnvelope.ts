@@ -1,14 +1,14 @@
-import type { SaasBillingProviderEventEnvelope } from "./ports";
+import type { SaasBillingProviderEventEnvelope } from './ports';
 
 function requiredString(value: unknown, field: string): string {
-  if (typeof value !== "string" || value.trim() === "") {
+  if (typeof value !== 'string' || value.trim() === '') {
     throw new Error(`saas_billing_provider_event_${field}_invalid`);
   }
   return value;
 }
 
 function optionalString(value: unknown): string | null | undefined {
-  return value === null || typeof value === "string" ? value : undefined;
+  return value === null || typeof value === 'string' ? value : undefined;
 }
 
 export function sanitizeSaasBillingProviderEventEnvelope(
@@ -16,9 +16,9 @@ export function sanitizeSaasBillingProviderEventEnvelope(
 ): SaasBillingProviderEventEnvelope {
   const candidate = input as unknown as Record<string, unknown>;
   const envelope: SaasBillingProviderEventEnvelope = {
-    providerId: requiredString(candidate.providerId, "provider_id"),
-    providerEventId: requiredString(candidate.providerEventId, "provider_event_id"),
-    type: requiredString(candidate.type, "type"),
+    providerId: requiredString(candidate.providerId, 'provider_id'),
+    providerEventId: requiredString(candidate.providerEventId, 'provider_event_id'),
+    type: requiredString(candidate.type, 'type'),
   };
 
   const status = optionalString(candidate.status);
@@ -29,7 +29,7 @@ export function sanitizeSaasBillingProviderEventEnvelope(
   if (status !== undefined) envelope.status = status;
   if (
     candidate.amountMinor === null ||
-    (typeof candidate.amountMinor === "number" && Number.isSafeInteger(candidate.amountMinor))
+    (typeof candidate.amountMinor === 'number' && Number.isSafeInteger(candidate.amountMinor))
   ) {
     envelope.amountMinor = candidate.amountMinor;
   }

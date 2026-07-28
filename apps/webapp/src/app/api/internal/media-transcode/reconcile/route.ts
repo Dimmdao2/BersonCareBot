@@ -1,19 +1,19 @@
-import { timingSafeEqual } from "node:crypto";
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { enterWithDbInfraPrincipal } from "@bersoncare/db-principal";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { env } from "@/config/env";
-import { logger } from "@/app-layer/logging/logger";
+import { timingSafeEqual } from 'node:crypto';
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { enterWithDbInfraPrincipal } from '@bersoncare/db-principal';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { env } from '@/config/env';
+import { logger } from '@/app-layer/logging/logger';
 import {
   runVideoHlsLegacyBackfill,
   VIDEO_HLS_LEGACY_MAX_OBJECT_BYTES,
-} from "@/app-layer/media/videoHlsLegacyBackfill";
-import { getConfigBool } from "@/modules/system-settings/configAdapter";
+} from '@/app-layer/media/videoHlsLegacyBackfill';
+import { getConfigBool } from '@/modules/system-settings/configAdapter';
 
 function bearerMatchesSecret(token: string, secret: string): boolean {
-  const a = Buffer.from(token, "utf8");
-  const b = Buffer.from(secret, "utf8");
+  const a = Buffer.from(token, 'utf8');
+  const b = Buffer.from(secret, 'utf8');
   if (a.length !== b.length) {
     return false;
   }
@@ -39,25 +39,25 @@ const MAX_META_ABORTED_LEN = 480;
 export async function POST(request: Request) {
   const secret = env.INTERNAL_JOB_SECRET;
   if (!secret) {
-    return NextResponse.json({ ok: false, error: "not_configured" }, { status: 503 });
+    return NextResponse.json({ ok: false, error: 'not_configured' }, { status: 503 });
   }
 
-  const auth = request.headers.get("authorization") ?? "";
-  const token = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
+  const auth = request.headers.get('authorization') ?? '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
   if (!token || !bearerMatchesSecret(token, secret)) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+    return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
   }
   // INFRA: reconcile sweeps legacy video rows across organizations to enqueue missing HLS jobs.
-  enterWithDbInfraPrincipal({ source: "api/internal/media-transcode/reconcile:POST" });
+  enterWithDbInfraPrincipal({ source: 'api/internal/media-transcode/reconcile:POST' });
 
-  const pipelineOn = await getConfigBool("video_hls_pipeline_enabled", false);
+  const pipelineOn = await getConfigBool('video_hls_pipeline_enabled', false);
   if (!pipelineOn) {
-    return NextResponse.json({ ok: false, error: "pipeline_disabled" }, { status: 503 });
+    return NextResponse.json({ ok: false, error: 'pipeline_disabled' }, { status: 503 });
   }
 
-  const reconcileOn = await getConfigBool("video_hls_reconcile_enabled", false);
+  const reconcileOn = await getConfigBool('video_hls_reconcile_enabled', false);
   if (!reconcileOn) {
-    return NextResponse.json({ ok: false, error: "reconcile_disabled" }, { status: 503 });
+    return NextResponse.json({ ok: false, error: 'reconcile_disabled' }, { status: 503 });
   }
 
   const rawText = await request.text();
@@ -66,12 +66,12 @@ export async function POST(request: Request) {
     try {
       bodyJson = JSON.parse(rawText) as unknown;
     } catch {
-      return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+      return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
     }
   }
   const parsed = bodySchema.safeParse(bodyJson);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
 
   const cap = Math.min(parsed.data.limit, RECONCILE_SERVER_CAP);
@@ -101,7 +101,7 @@ export async function POST(request: Request) {
         errors: report.enqueue.errors,
         abortedReason: report.abortedReason,
       },
-      "[internal/media-transcode/reconcile] batch",
+      '[internal/media-transcode/reconcile] batch',
     );
 
     const durationMs = Date.now() - reconcileStartedAt;
@@ -131,12 +131,15 @@ export async function POST(request: Request) {
         metaJson,
       });
     } catch (tickErr) {
-      logger.warn({ err: tickErr }, "[internal/media-transcode/reconcile] operator_job_status success tick failed");
+      logger.warn(
+        { err: tickErr },
+        '[internal/media-transcode/reconcile] operator_job_status success tick failed',
+      );
     }
 
     return NextResponse.json({ ok: true, report });
   } catch (e) {
-    logger.error({ err: e }, "[internal/media-transcode/reconcile] failed");
+    logger.error({ err: e }, '[internal/media-transcode/reconcile] failed');
     const durationMs = Date.now() - reconcileStartedAt;
     const msg = e instanceof Error ? e.message : String(e);
     try {
@@ -146,8 +149,11 @@ export async function POST(request: Request) {
         error: msg,
       });
     } catch (tickErr) {
-      logger.warn({ err: tickErr }, "[internal/media-transcode/reconcile] operator_job_status failure tick failed");
+      logger.warn(
+        { err: tickErr },
+        '[internal/media-transcode/reconcile] operator_job_status failure tick failed',
+      );
     }
-    return NextResponse.json({ ok: false, error: "reconcile_failed" }, { status: 500 });
+    return NextResponse.json({ ok: false, error: 'reconcile_failed' }, { status: 500 });
   }
 }

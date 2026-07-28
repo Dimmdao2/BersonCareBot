@@ -1,13 +1,17 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { StylesConfig } from "react-select";
-import TimezoneSelect, { type ITimezone, type ITimezoneOption } from "react-timezone-select";
-import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { apiJson } from "@/shared/lib/apiJson";
-import { getBrowserCalendarIanaForAuth } from "@/shared/lib/browserCalendarIana";
-import { mergePatientTimezoneSelectLabels } from "@/shared/timezone/patientTimezoneSelectLabels";
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { StylesConfig } from 'react-select';
+import TimezoneSelect, { type ITimezone, type ITimezoneOption } from 'react-timezone-select';
+import {
+  DoctorSection,
+  DoctorSectionHeader,
+  DoctorSectionTitle,
+} from '@/shared/ui/doctor/DoctorSection';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { apiJson } from '@/shared/lib/apiJson';
+import { getBrowserCalendarIanaForAuth } from '@/shared/lib/browserCalendarIana';
+import { mergePatientTimezoneSelectLabels } from '@/shared/timezone/patientTimezoneSelectLabels';
 
 /**
  * Styles for react-timezone-select adapted to the doctor Shadcn theme.
@@ -17,55 +21,57 @@ export const doctorTimezoneSelectStyles: StylesConfig<ITimezone, false> = {
   control: (base, state) => ({
     ...base,
     minHeight: 36,
-    borderRadius: "calc(var(--radius) - 2px)",
-    borderColor: state.isFocused ? "var(--ring)" : "var(--border)",
-    backgroundColor: "var(--background)",
-    boxShadow: state.isFocused ? "0 0 0 2px color-mix(in oklch, var(--ring), transparent 80%)" : "none",
-    cursor: "pointer",
+    borderRadius: 'calc(var(--radius) - 2px)',
+    borderColor: state.isFocused ? 'var(--ring)' : 'var(--border)',
+    backgroundColor: 'var(--background)',
+    boxShadow: state.isFocused
+      ? '0 0 0 2px color-mix(in oklch, var(--ring), transparent 80%)'
+      : 'none',
+    cursor: 'pointer',
     opacity: state.isDisabled ? 0.5 : 1,
-    "&:hover": { borderColor: "var(--border)" },
-    fontSize: "0.875rem",
+    '&:hover': { borderColor: 'var(--border)' },
+    fontSize: '0.875rem',
   }),
   menuPortal: (base) => ({ ...base, zIndex: 60 }),
   menu: (base) => ({
     ...base,
-    borderRadius: "calc(var(--radius) - 2px)",
-    border: "1px solid var(--border)",
-    overflow: "hidden",
-    backgroundColor: "var(--popover)",
-    boxShadow: "0 4px 16px rgb(0 0 0 / 0.12)",
-    fontSize: "0.875rem",
+    borderRadius: 'calc(var(--radius) - 2px)',
+    border: '1px solid var(--border)',
+    overflow: 'hidden',
+    backgroundColor: 'var(--popover)',
+    boxShadow: '0 4px 16px rgb(0 0 0 / 0.12)',
+    fontSize: '0.875rem',
   }),
   menuList: (base) => ({ ...base, padding: 0 }),
   option: (base, state) => ({
     ...base,
-    backgroundColor: state.isFocused ? "var(--accent)" : "var(--popover)",
-    color: state.isFocused ? "var(--accent-foreground)" : "var(--popover-foreground)",
-    cursor: "pointer",
-    fontSize: "0.875rem",
+    backgroundColor: state.isFocused ? 'var(--accent)' : 'var(--popover)',
+    color: state.isFocused ? 'var(--accent-foreground)' : 'var(--popover-foreground)',
+    cursor: 'pointer',
+    fontSize: '0.875rem',
     lineHeight: 1.4,
   }),
   singleValue: (base) => ({
     ...base,
-    color: "var(--foreground)",
-    fontSize: "0.875rem",
+    color: 'var(--foreground)',
+    fontSize: '0.875rem',
   }),
   placeholder: (base) => ({
     ...base,
-    color: "var(--muted-foreground)",
-    fontSize: "0.875rem",
+    color: 'var(--muted-foreground)',
+    fontSize: '0.875rem',
   }),
   input: (base) => ({
     ...base,
-    color: "var(--foreground)",
-    fontSize: "0.875rem",
+    color: 'var(--foreground)',
+    fontSize: '0.875rem',
   }),
-  indicatorSeparator: () => ({ display: "none" }),
+  indicatorSeparator: () => ({ display: 'none' }),
   dropdownIndicator: (base, state) => ({
     ...base,
-    color: "var(--muted-foreground)",
-    transform: state.selectProps.menuIsOpen ? "rotate(180deg)" : undefined,
-    transition: "transform 0.15s ease",
+    color: 'var(--muted-foreground)',
+    transform: state.selectProps.menuIsOpen ? 'rotate(180deg)' : undefined,
+    transition: 'transform 0.15s ease',
   }),
 };
 
@@ -74,7 +80,7 @@ export type DoctorTimezoneSectionProps = {
 };
 
 export function DoctorTimezoneSection({ initialTimezone }: DoctorTimezoneSectionProps) {
-  const [iana, setIana] = useState<string>(initialTimezone ?? "Europe/Moscow");
+  const [iana, setIana] = useState<string>(initialTimezone ?? 'Europe/Moscow');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -94,15 +100,15 @@ export function DoctorTimezoneSection({ initialTimezone }: DoctorTimezoneSection
     setSaved(false);
     setError(null);
     try {
-      await apiJson<{ ok: boolean }>("/api/doctor/account/timezone", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+      await apiJson<{ ok: boolean }>('/api/doctor/account/timezone', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ timezone: value }),
       });
       setSaved(true);
       return true;
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Ошибка при сохранении");
+      setError(e instanceof Error ? e.message : 'Ошибка при сохранении');
       return false;
     } finally {
       setSaving(false);
@@ -116,7 +122,7 @@ export function DoctorTimezoneSection({ initialTimezone }: DoctorTimezoneSection
   const handleDetectFromBrowser = async () => {
     const browserTz = getBrowserCalendarIanaForAuth();
     if (!browserTz) {
-      setError("Не удалось определить пояс в браузере.");
+      setError('Не удалось определить пояс в браузере.');
       return;
     }
     setIana(browserTz);
@@ -148,13 +154,13 @@ export function DoctorTimezoneSection({ initialTimezone }: DoctorTimezoneSection
           isDisabled={saving}
           isSearchable
           styles={doctorTimezoneSelectStyles as never}
-          menuPortalTarget={typeof document !== "undefined" ? document.body : null}
+          menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
           menuPosition="fixed"
           maxMenuHeight={280}
         />
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" onClick={handleSave} disabled={saving}>
-            {saving ? "Сохранение…" : "Сохранить"}
+            {saving ? 'Сохранение…' : 'Сохранить'}
           </Button>
           <Button
             type="button"

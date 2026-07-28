@@ -1,5 +1,5 @@
-import type { DailyWarmupPresentationState } from "@/modules/patient-home/dailyWarmupPresentationPorts";
-import { pickDailyWarmupFromOrderedList } from "@/modules/patient-home/pickDailyWarmupFromOrderedList";
+import type { DailyWarmupPresentationState } from '@/modules/patient-home/dailyWarmupPresentationPorts';
+import { pickDailyWarmupFromOrderedList } from '@/modules/patient-home/pickDailyWarmupFromOrderedList';
 
 export function applyDailyWarmupScheduledRotations(params: {
   pages: ReadonlyArray<{ contentPageId: string }>;

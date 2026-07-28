@@ -30,7 +30,6 @@
 
 ## Self-check матрица
 
-
 | Требование плана                                  | Статус      |
 | ------------------------------------------------- | ----------- |
 | Плоский список разделов                           | done        |
@@ -39,7 +38,6 @@
 | Регрессии PIN / merge / LFK / logout / AuthFlowV2 | done        |
 | Доки FINAL_AUDIT + AGENT_LOG 1.13                 | done        |
 | nginx на хосте                                    | manual-prod |
-
 
 ## Audit follow-up remediation (2026-04-01)
 

@@ -29,19 +29,19 @@ route allocation. Dependency graph дополнительно разобран �
 
 ## 2. Что прошло
 
-| Проверка | Результат |
-|---|---|
-| Canonical target registry | PASS: `57` unique canonical IDs; composition parity `57/57` |
-| Current route allocation | PASS: `150 actual = 150 references = 150 unique`; duplicate/missing/stale `0` |
-| Stage registry | PASS: ровно 17 leaf stages `U0, U1, U2, U3A, U3B, U4, U5A…C, U6A…B, U7, U8A…C, U9, U10` |
-| Stage structure | PASS: у всех 17 есть outcome, screens/flows, reuse/gaps, scope/forbidden, boundaries, decisions, dependencies, workstreams, migration/compat, validation, rollback, completion и merge dependency |
-| Ten UX08 IDs | PASS по наличию: `UX08-01…10` представлены как pending gates, recommendation не названа ruling |
-| Flow families | PASS по наличию: `ACQ/STF/PIN/SMS/PBK/MOR/ERR`, J1…J7 и девять prototype scenarios упомянуты |
-| Foundation boundary | PASS: roadmap не меняет `SEQUENCE.md`, не предлагает второй principal/settings/membership path, не разрешает TEST/deploy или main/test merge |
-| Tenant/identity/authz invariants | PASS: organization authority server-side, staff one-org, patient multi-org, permission before filter, capability before entitlement, parity paths и fail-closed defaults сохранены |
-| Migration/backfill/compat/rollback | PASS как planning boundary: schema names не выдуманы, persistence требует отдельного reviewed contract, ambiguity/idempotency/rollback/compat evidence предусмотрены |
-| Anti-duplication | PASS как invariant: solo/clinic, assistant, patient card, booking, account и white-label не получают параллельные route/component trees |
-| Validation model | В основном PASS: targeted/phase/final gates, DB-role negatives, runtime smoke, screenshots и implementation-only visual seals разделены пропорционально риску |
+| Проверка                           | Результат                                                                                                                                                                                         |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Canonical target registry          | PASS: `57` unique canonical IDs; composition parity `57/57`                                                                                                                                       |
+| Current route allocation           | PASS: `150 actual = 150 references = 150 unique`; duplicate/missing/stale `0`                                                                                                                     |
+| Stage registry                     | PASS: ровно 17 leaf stages `U0, U1, U2, U3A, U3B, U4, U5A…C, U6A…B, U7, U8A…C, U9, U10`                                                                                                           |
+| Stage structure                    | PASS: у всех 17 есть outcome, screens/flows, reuse/gaps, scope/forbidden, boundaries, decisions, dependencies, workstreams, migration/compat, validation, rollback, completion и merge dependency |
+| Ten UX08 IDs                       | PASS по наличию: `UX08-01…10` представлены как pending gates, recommendation не названа ruling                                                                                                    |
+| Flow families                      | PASS по наличию: `ACQ/STF/PIN/SMS/PBK/MOR/ERR`, J1…J7 и девять prototype scenarios упомянуты                                                                                                      |
+| Foundation boundary                | PASS: roadmap не меняет `SEQUENCE.md`, не предлагает второй principal/settings/membership path, не разрешает TEST/deploy или main/test merge                                                      |
+| Tenant/identity/authz invariants   | PASS: organization authority server-side, staff one-org, patient multi-org, permission before filter, capability before entitlement, parity paths и fail-closed defaults сохранены                |
+| Migration/backfill/compat/rollback | PASS как planning boundary: schema names не выдуманы, persistence требует отдельного reviewed contract, ambiguity/idempotency/rollback/compat evidence предусмотрены                              |
+| Anti-duplication                   | PASS как invariant: solo/clinic, assistant, patient card, booking, account и white-label не получают параллельные route/component trees                                                           |
+| Validation model                   | В основном PASS: targeted/phase/final gates, DB-role negatives, runtime smoke, screenshots и implementation-only visual seals разделены пропорционально риску                                     |
 
 Эти части не надо переписывать заново. FAIL вызван четырьмя связанными planning/root-cause проблемами ниже.
 
@@ -183,28 +183,28 @@ sequence/enforcement/readiness inputs, текущие `OWNER_DECISION_PACKET.md`
 
 ### 7.2 Закрытие исходных F1–F4
 
-| Finding | Re-audit | Доказательство |
-|---|---|---|
-| F1 — нет owner для J1 | **CLOSED** | Новый meaningful stage `U3S` владеет J1 и `ACQ-01…05`: secure retry/session, exactly-once organization + owner membership, authorized specialist binding, truthful clinical actor, first-run password/2FA/recovery, migration/rollback и полный acceptance. `U4` и `U6A` зависят от этого output. |
-| F2 — цикл U3B/U4/U5A | **CLOSED** | `U5A` зависит только от U0/U1 и независимо реализует zero/one/many resolver, chooser, switch и object authorization. Затем `U3B` зависит от U3A/U5A, а `U4` — от завершённых U3S/U3A/U3B/U5A. Reverse merge edge отсутствует. |
-| F3 — core U9 после optional U8 | **CLOSED** | `U9` находится в P5 после U7 и до P6. Он создаёт единый PLAT/config/reliability/org-ops path; U8A/B/C используют его как dependency. Отсутствующая U8-ветка не является node/pseudo-stage и не блокирует U9 или U10. |
-| F4 — потеряны enrollment timing и communication topology | **CLOSED** | Добавлены отдельные pending owner gates `UX08-11` и `UX08-12`; roadmap связывает с ними U3B и U5D и сохраняет до ответа только явно ограниченные safe subsets. Полная upstream-сверка классифицирует все 24 literal choices. |
+| Finding                                                  | Re-audit   | Доказательство                                                                                                                                                                                                                                                                                    |
+| -------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F1 — нет owner для J1                                    | **CLOSED** | Новый meaningful stage `U3S` владеет J1 и `ACQ-01…05`: secure retry/session, exactly-once organization + owner membership, authorized specialist binding, truthful clinical actor, first-run password/2FA/recovery, migration/rollback и полный acceptance. `U4` и `U6A` зависят от этого output. |
+| F2 — цикл U3B/U4/U5A                                     | **CLOSED** | `U5A` зависит только от U0/U1 и независимо реализует zero/one/many resolver, chooser, switch и object authorization. Затем `U3B` зависит от U3A/U5A, а `U4` — от завершённых U3S/U3A/U3B/U5A. Reverse merge edge отсутствует.                                                                     |
+| F3 — core U9 после optional U8                           | **CLOSED** | `U9` находится в P5 после U7 и до P6. Он создаёт единый PLAT/config/reliability/org-ops path; U8A/B/C используют его как dependency. Отсутствующая U8-ветка не является node/pseudo-stage и не блокирует U9 или U10.                                                                              |
+| F4 — потеряны enrollment timing и communication topology | **CLOSED** | Добавлены отдельные pending owner gates `UX08-11` и `UX08-12`; roadmap связывает с ними U3B и U5D и сохраняет до ответа только явно ограниченные safe subsets. Полная upstream-сверка классифицирует все 24 literal choices.                                                                      |
 
 ### 7.3 Механические доказательства
 
-| Проверка | Фактический результат |
-|---|---|
-| Canonical target registry | `57 rows = 57 unique IDs` |
-| Screen composition registry | `57 rows = 57 unique IDs`; target ↔ composition missing `0`, extra `0` |
-| Current `page.tsx` allocation | `150 actual = 150 references = 150 unique`; duplicate `0`, missing `0`, stale `0` |
-| Stage headings/contracts | `19 headings = 19 unique`; обязательные 14 полей присутствуют у `19/19` stages |
-| Normative dependency registry | `19/19` stages; unknown direct dependencies `0` |
-| DAG | acyclic; topological coverage `19/19` |
-| Одна допустимая topological order | `U0 → U1 → U2 → U5A → U3S → U3A → U5B → U6A → U3B → U5C → U5D → U4 → U6B → U7 → U9 → U8A → U8C → U8B → U10` |
-| Decision packet | `12/12` IDs (`UX08-01…12`), unique `12`; у каждого status/source/question/3 options/recommendation/safe boundary/consequences/screens/UX-09 boundary |
-| Upstream provenance registry | `24` substantive choices, каждый имеет одну явную classification; semantic omissions F4 не повторились |
-| Journey coverage | J1…J7; `ACQ/STF/PIN/SMS/PBK/MOR/ERR`; девять UX-07 prototype scenarios сохранены в stage/final acceptance |
-| Phase CI checkpoints | P1 after U2, P2 after U4, P3 after last included U5, P4 after U6B, P5 after U9, optional P6 after last included U8, P7/final after U10; P0 docs-only |
+| Проверка                          | Фактический результат                                                                                                                                |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Canonical target registry         | `57 rows = 57 unique IDs`                                                                                                                            |
+| Screen composition registry       | `57 rows = 57 unique IDs`; target ↔ composition missing `0`, extra `0`                                                                               |
+| Current `page.tsx` allocation     | `150 actual = 150 references = 150 unique`; duplicate `0`, missing `0`, stale `0`                                                                    |
+| Stage headings/contracts          | `19 headings = 19 unique`; обязательные 14 полей присутствуют у `19/19` stages                                                                       |
+| Normative dependency registry     | `19/19` stages; unknown direct dependencies `0`                                                                                                      |
+| DAG                               | acyclic; topological coverage `19/19`                                                                                                                |
+| Одна допустимая topological order | `U0 → U1 → U2 → U5A → U3S → U3A → U5B → U6A → U3B → U5C → U5D → U4 → U6B → U7 → U9 → U8A → U8C → U8B → U10`                                          |
+| Decision packet                   | `12/12` IDs (`UX08-01…12`), unique `12`; у каждого status/source/question/3 options/recommendation/safe boundary/consequences/screens/UX-09 boundary |
+| Upstream provenance registry      | `24` substantive choices, каждый имеет одну явную classification; semantic omissions F4 не повторились                                               |
+| Journey coverage                  | J1…J7; `ACQ/STF/PIN/SMS/PBK/MOR/ERR`; девять UX-07 prototype scenarios сохранены в stage/final acceptance                                            |
+| Phase CI checkpoints              | P1 after U2, P2 after U4, P3 after last included U5, P4 after U6B, P5 after U9, optional P6 after last included U8, P7/final after U10; P0 docs-only |
 
 Topological order выше не является новой execution sequence: это механическое доказательство существования полного
 порядка для normative DAG. Diagram является его компактной transitive projection; textual dependencies и merge
@@ -212,25 +212,25 @@ dependencies не добавляют обратных stage edges.
 
 ### 7.4 Полный исходный checklist
 
-| Область | Результат |
-|---|---|
-| 19 meaningful stage scopes | **PASS** — outcome, screens/flows, reuse/gaps, scope/forbidden, boundaries, decisions, dependencies, workstreams, migration/compat, validation, rollback/degradation, completion и merge dependency у всех стадий |
-| J1 acquisition ownership | **PASS** — U3S закрывает все текущие ACQ gaps и имеет самостоятельный acceptance |
-| Early patient resolver | **PASS** — U5A независим от invite/booking/install; U3B/U4 используют его только вперёд |
-| Core vs optional platform work | **PASS** — U9 предшествует U8, один ops/config path, отсутствие U8 не блокирует core |
-| Owner-decision minimality | **PASS** — только 12 материальных product choices; recommendations не названы rulings; architecture/security/engineering choices имеют источник и safe boundary |
-| Literal open-choice provenance | **FAIL по ссылочной целостности** — классификации полны, но одна execution consequence указывает на неизвестный `U3C` |
-| Role/capability model | **PASS** — platform admin, owner/admin, bound specialist, assistant-safe, patient и public разделены; membership label/UI hiding не используются как authz |
-| Solo vs clinic | **PASS** — capability/composition variants одного shell; team/filter/collaboration chrome появляется только по смыслу и праву, без второго route tree |
-| Patient card/history/handoff | **PASS как decision-safe plan** — one card shell, authorization-before-filter, own/assigned safe subset; shared history/private classes/handoff остаются под UX08-01/02 |
-| Tenant/object security | **PASS** — server-trusted organization, staff one-org, patient multi-org via enrollment, direct/list/count/search/export/write parity, two-org/two-patient negatives и fail-closed defaults |
-| Foundation boundary | **PASS** — нет второго principal/settings/membership path, изменения `SEQUENCE.md`, ad hoc RLS или premature TEST/deploy gate |
-| Branding/domain/PWA/senders | **PASS** — P/O core отдельно от W, hostname не authz, base ≠ binding, canonical fallback, per-origin isolation и truthful sender/hold policy |
-| No duplication | **PASS** — solo/clinic, assistant, patient card, booking, account и white-label используют общие sanctioned families; aliases не превращены в screen IDs |
-| Migration/backfill/compatibility | **PASS как implementation contract** — ownership review, deterministic/ambiguity handling, idempotency, forward/rollback, compatibility census и no invented schema |
-| Rollback/degradation | **PASS** — fail-closed and canonical fallback по стадиям; optional capability absence не ломает core |
-| Proportional validation | **PASS** — один цельный targeted pass на stage, full CI на phase/final gates, DB/runtime/browser/security evidence только по соответствующему риску |
-| Final acceptance | **PASS по полноте контракта** — 57/57, 150/150, J1…J7, roles/tenant/parity, migrations, fallbacks, no-dup, CI, screenshots/seals, docs и authorized branch/environment operations |
+| Область                          | Результат                                                                                                                                                                                                         |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 19 meaningful stage scopes       | **PASS** — outcome, screens/flows, reuse/gaps, scope/forbidden, boundaries, decisions, dependencies, workstreams, migration/compat, validation, rollback/degradation, completion и merge dependency у всех стадий |
+| J1 acquisition ownership         | **PASS** — U3S закрывает все текущие ACQ gaps и имеет самостоятельный acceptance                                                                                                                                  |
+| Early patient resolver           | **PASS** — U5A независим от invite/booking/install; U3B/U4 используют его только вперёд                                                                                                                           |
+| Core vs optional platform work   | **PASS** — U9 предшествует U8, один ops/config path, отсутствие U8 не блокирует core                                                                                                                              |
+| Owner-decision minimality        | **PASS** — только 12 материальных product choices; recommendations не названы rulings; architecture/security/engineering choices имеют источник и safe boundary                                                   |
+| Literal open-choice provenance   | **FAIL по ссылочной целостности** — классификации полны, но одна execution consequence указывает на неизвестный `U3C`                                                                                             |
+| Role/capability model            | **PASS** — platform admin, owner/admin, bound specialist, assistant-safe, patient и public разделены; membership label/UI hiding не используются как authz                                                        |
+| Solo vs clinic                   | **PASS** — capability/composition variants одного shell; team/filter/collaboration chrome появляется только по смыслу и праву, без второго route tree                                                             |
+| Patient card/history/handoff     | **PASS как decision-safe plan** — one card shell, authorization-before-filter, own/assigned safe subset; shared history/private classes/handoff остаются под UX08-01/02                                           |
+| Tenant/object security           | **PASS** — server-trusted organization, staff one-org, patient multi-org via enrollment, direct/list/count/search/export/write parity, two-org/two-patient negatives и fail-closed defaults                       |
+| Foundation boundary              | **PASS** — нет второго principal/settings/membership path, изменения `SEQUENCE.md`, ad hoc RLS или premature TEST/deploy gate                                                                                     |
+| Branding/domain/PWA/senders      | **PASS** — P/O core отдельно от W, hostname не authz, base ≠ binding, canonical fallback, per-origin isolation и truthful sender/hold policy                                                                      |
+| No duplication                   | **PASS** — solo/clinic, assistant, patient card, booking, account и white-label используют общие sanctioned families; aliases не превращены в screen IDs                                                          |
+| Migration/backfill/compatibility | **PASS как implementation contract** — ownership review, deterministic/ambiguity handling, idempotency, forward/rollback, compatibility census и no invented schema                                               |
+| Rollback/degradation             | **PASS** — fail-closed and canonical fallback по стадиям; optional capability absence не ломает core                                                                                                              |
+| Proportional validation          | **PASS** — один цельный targeted pass на stage, full CI на phase/final gates, DB/runtime/browser/security evidence только по соответствующему риску                                                               |
+| Final acceptance                 | **PASS по полноте контракта** — 57/57, 150/150, J1…J7, roles/tenant/parity, migrations, fallbacks, no-dup, CI, screenshots/seals, docs и authorized branch/environment operations                                 |
 
 ### 7.5 Residual finding F5
 
@@ -279,46 +279,46 @@ operating/capability model, invite/entry journeys, branding/domain matrix, targe
 
 ### 8.2 F1–F5
 
-| Finding | Итог полного re-audit |
-|---|---|
-| F1 — J1 owner | **CLOSED:** U3S полностью владеет J1/ACQ-01…05, provisioning/binding/first-run/security и acceptance; U4/U6A потребляют его output. |
-| F2 — U3B/U4/U5A cycle | **CLOSED:** U5A независим и ранний; направление `U5A → U3B → U4`; textual, merge и normative dependencies не создают reverse edge. |
-| F3 — U9 after optional U8 | **CLOSED:** core U9 precedes/supports U8A/B/C; absent optional branch не является gate для U9/U10. |
-| F4 — missing enrollment/communication choices | **CLOSED:** UX08-11/12 присутствуют и имеют conditional safe subsets; все upstream choices классифицированы. |
-| F5 — unknown `U3C` | **CLOSED:** booking activation provenance теперь указывает на существующий owner `U3B`; unknown leaf-stage references `0`. |
+| Finding                                       | Итог полного re-audit                                                                                                               |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| F1 — J1 owner                                 | **CLOSED:** U3S полностью владеет J1/ACQ-01…05, provisioning/binding/first-run/security и acceptance; U4/U6A потребляют его output. |
+| F2 — U3B/U4/U5A cycle                         | **CLOSED:** U5A независим и ранний; направление `U5A → U3B → U4`; textual, merge и normative dependencies не создают reverse edge.  |
+| F3 — U9 after optional U8                     | **CLOSED:** core U9 precedes/supports U8A/B/C; absent optional branch не является gate для U9/U10.                                  |
+| F4 — missing enrollment/communication choices | **CLOSED:** UX08-11/12 присутствуют и имеют conditional safe subsets; все upstream choices классифицированы.                        |
+| F5 — unknown `U3C`                            | **CLOSED:** booking activation provenance теперь указывает на существующий owner `U3B`; unknown leaf-stage references `0`.          |
 
 ### 8.3 Повторные механические результаты
 
-| Проверка | Результат |
-|---|---|
-| Target registry ↔ composition | `57 rows / 57 unique` с каждой стороны; missing `0`, extra `0`, duplicate `0` |
-| Current page allocation | `150 actual = 150 references = 150 unique`; missing `0`, stale `0`, duplicate `0` |
-| Stage contracts | `19 headings = 19 unique`; `19 × 14` mandatory fields, missing `0` |
-| Normative DAG | `19/19` registry rows; cycles `0`; unknown direct dependencies `0`; topological coverage `19/19` |
-| Допустимый topological order | `U0 → U1 → U2 → U5A → U3S → U3A → U5B → U6A → U3B → U5C → U5D → U4 → U6B → U7 → U9 → U8A → U8C → U8B → U10` |
-| Все textual stage refs | unknown leaf-stage references `0`; group labels U3/U5/U8 не являются leaf dependencies |
-| Owner decision packet | `UX08-01…12 = 12/12`, unique `12`; по три alternatives и все обязательные provenance/recommendation/safe-boundary поля |
-| Upstream reconciliation | `24` substantive choices; каждый имеет ровно один явный provenance class и execution consequence |
-| Journey/flow trace | J1…J7 и `ACQ/STF/PIN/SMS/PBK/MOR/ERR` присутствуют; девять prototype scenarios входят в final acceptance |
-| Full-CI placement | P1 after U2; P2 after U4; P3 after last included U5; P4 after U6B; P5 after U9; optional P6 after last included U8; P7/final after U10; P0 docs-only |
-| Markdown/worktree hygiene | `git diff --check` PASS; application/schema/runtime/DB не менялись |
+| Проверка                      | Результат                                                                                                                                            |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Target registry ↔ composition | `57 rows / 57 unique` с каждой стороны; missing `0`, extra `0`, duplicate `0`                                                                        |
+| Current page allocation       | `150 actual = 150 references = 150 unique`; missing `0`, stale `0`, duplicate `0`                                                                    |
+| Stage contracts               | `19 headings = 19 unique`; `19 × 14` mandatory fields, missing `0`                                                                                   |
+| Normative DAG                 | `19/19` registry rows; cycles `0`; unknown direct dependencies `0`; topological coverage `19/19`                                                     |
+| Допустимый topological order  | `U0 → U1 → U2 → U5A → U3S → U3A → U5B → U6A → U3B → U5C → U5D → U4 → U6B → U7 → U9 → U8A → U8C → U8B → U10`                                          |
+| Все textual stage refs        | unknown leaf-stage references `0`; group labels U3/U5/U8 не являются leaf dependencies                                                               |
+| Owner decision packet         | `UX08-01…12 = 12/12`, unique `12`; по три alternatives и все обязательные provenance/recommendation/safe-boundary поля                               |
+| Upstream reconciliation       | `24` substantive choices; каждый имеет ровно один явный provenance class и execution consequence                                                     |
+| Journey/flow trace            | J1…J7 и `ACQ/STF/PIN/SMS/PBK/MOR/ERR` присутствуют; девять prototype scenarios входят в final acceptance                                             |
+| Full-CI placement             | P1 after U2; P2 after U4; P3 after last included U5; P4 after U6B; P5 after U9; optional P6 after last included U8; P7/final after U10; P0 docs-only |
+| Markdown/worktree hygiene     | `git diff --check` PASS; application/schema/runtime/DB не менялись                                                                                   |
 
 ### 8.4 Полный смысловой checklist
 
-| Область | Итог |
-|---|---|
-| Role/capability and direct-object parity | **PASS:** server-side permission precedes filters/entitlements; global admin, owner/admin, bound specialist, assistant-safe, patient и public имеют разные bounded surfaces. |
-| Solo/clinic UI | **PASS:** одна tenant/account/component model с capability/composition variants; team/handoff/filter chrome отсутствует у solo и условно доступен в clinic, без parallel tree. |
-| Patient card/history/handoff | **PASS:** один organization card shell и authorization-before-filter; own/assigned safe subset; shared/private/history/handoff target branches остаются за UX08-01/02. |
-| Multi-org patient context | **PASS:** zero/one/many resolver, verified target, chooser/switch, cache/deep-link isolation и no silent substitution принадлежат раннему U5A. |
-| Foundation/no-overlap | **PASS:** `SEQUENCE.md` не переопределяется; нет второго principal/settings/membership path, ad hoc RLS, premature TEST/deploy или invented schema. |
-| Tenant/security/privacy | **PASS:** staff one-org, patient enrollment context, specialist binding, persona separation, raw-token/session boundaries, two-org/two-patient negatives и fail-closed recovery сохранены. |
-| Branding/domain/PWA/senders | **PASS:** core P/O identity отделена от owner-gated W; Host не authz; base/binding lifecycle, canonical fallback, per-origin isolation и truthful sender policy согласованы. |
-| No duplication | **PASS:** solo/clinic, assistant, card, booking, account и white-label остаются sanctioned shared families; aliases не становятся screens/routes. |
-| Migration/backfill/compatibility | **PASS:** reviewed ownership contract precedes persistence; deterministic/ambiguity proof, idempotency, forward/rollback и guarded compatibility census обязательны. |
-| Rollback/degradation | **PASS:** каждый stage имеет fail-closed или canonical fallback; отключение optional branch не ломает core. |
-| Validation and CI proportionality | **PASS:** targeted checks на цельный stage, accumulated full CI на phase gates, risk-specific DB/runtime/browser/security evidence и final two-seal visual gate. |
-| Final acceptance completeness | **PASS:** 57/57, 150/150, J1…J7, decisions, role/tenant/parity, migration, fallback, no-dup, tests, screenshots/seals, docs и authorized branch/environment operations перечислены. |
+| Область                                  | Итог                                                                                                                                                                                       |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Role/capability and direct-object parity | **PASS:** server-side permission precedes filters/entitlements; global admin, owner/admin, bound specialist, assistant-safe, patient и public имеют разные bounded surfaces.               |
+| Solo/clinic UI                           | **PASS:** одна tenant/account/component model с capability/composition variants; team/handoff/filter chrome отсутствует у solo и условно доступен в clinic, без parallel tree.             |
+| Patient card/history/handoff             | **PASS:** один organization card shell и authorization-before-filter; own/assigned safe subset; shared/private/history/handoff target branches остаются за UX08-01/02.                     |
+| Multi-org patient context                | **PASS:** zero/one/many resolver, verified target, chooser/switch, cache/deep-link isolation и no silent substitution принадлежат раннему U5A.                                             |
+| Foundation/no-overlap                    | **PASS:** `SEQUENCE.md` не переопределяется; нет второго principal/settings/membership path, ad hoc RLS, premature TEST/deploy или invented schema.                                        |
+| Tenant/security/privacy                  | **PASS:** staff one-org, patient enrollment context, specialist binding, persona separation, raw-token/session boundaries, two-org/two-patient negatives и fail-closed recovery сохранены. |
+| Branding/domain/PWA/senders              | **PASS:** core P/O identity отделена от owner-gated W; Host не authz; base/binding lifecycle, canonical fallback, per-origin isolation и truthful sender policy согласованы.               |
+| No duplication                           | **PASS:** solo/clinic, assistant, card, booking, account и white-label остаются sanctioned shared families; aliases не становятся screens/routes.                                          |
+| Migration/backfill/compatibility         | **PASS:** reviewed ownership contract precedes persistence; deterministic/ambiguity proof, idempotency, forward/rollback и guarded compatibility census обязательны.                       |
+| Rollback/degradation                     | **PASS:** каждый stage имеет fail-closed или canonical fallback; отключение optional branch не ломает core.                                                                                |
+| Validation and CI proportionality        | **PASS:** targeted checks на цельный stage, accumulated full CI на phase gates, risk-specific DB/runtime/browser/security evidence и final two-seal visual gate.                           |
+| Final acceptance completeness            | **PASS:** 57/57, 150/150, J1…J7, decisions, role/tenant/parity, migration, fallback, no-dup, tests, screenshots/seals, docs и authorized branch/environment operations перечислены.        |
 
 ### 8.5 Residual risks
 

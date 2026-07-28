@@ -13,7 +13,12 @@ const WINDOW_SECONDS = 300;
 
 type ReqWithRawBody = FastifyRequest & { rawBody?: string };
 
-function verifySignature(timestamp: string, rawBody: string, signature: string, secret: string): boolean {
+function verifySignature(
+  timestamp: string,
+  rawBody: string,
+  signature: string,
+  secret: string,
+): boolean {
   const ts = Number(timestamp);
   if (!Number.isFinite(ts)) return false;
   const now = Math.floor(Date.now() / 1000);

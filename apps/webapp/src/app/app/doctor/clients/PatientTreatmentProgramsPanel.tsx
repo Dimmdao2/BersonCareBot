@@ -1,22 +1,22 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
-import toast from "react-hot-toast";
-import type { TreatmentProgramInstanceSummary } from "@/modules/treatment-program/types";
-import { Button } from "@/shared/ui/doctor/primitives/button";
+import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
+import toast from 'react-hot-toast';
+import type { TreatmentProgramInstanceSummary } from '@/modules/treatment-program/types';
+import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/shared/ui/doctor/primitives/dialog";
-import { Input } from "@/shared/ui/doctor/primitives/input";
+} from '@/shared/ui/doctor/primitives/dialog';
+import { Input } from '@/shared/ui/doctor/primitives/input';
 
 type TemplateOption = { id: string; title: string };
 
-type AssignMode = "template" | "blank";
+type AssignMode = 'template' | 'blank';
 
 export function PatientTreatmentProgramsPanel(props: {
   patientUserId: string;
@@ -31,9 +31,7 @@ export function PatientTreatmentProgramsPanel(props: {
 }) {
   const { patientUserId, templates, disabled, profileListScope, initialInstances } = props;
   const serverProvidedList = initialInstances !== undefined;
-  const scopeQs = profileListScope
-    ? `?scope=${encodeURIComponent(profileListScope)}`
-    : "";
+  const scopeQs = profileListScope ? `?scope=${encodeURIComponent(profileListScope)}` : '';
   const [items, setItems] = useState<TreatmentProgramInstanceSummary[] | null>(() =>
     serverProvidedList ? initialInstances : null,
   );
@@ -41,11 +39,11 @@ export function PatientTreatmentProgramsPanel(props: {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [open, setOpen] = useState(false);
-  const [assignMode, setAssignMode] = useState<AssignMode>("template");
+  const [assignMode, setAssignMode] = useState<AssignMode>('template');
   /** Необязательный заголовок инстанса при `kind: "blank"` (сервер подставит дефолт, если пусто). */
-  const [blankTitle, setBlankTitle] = useState("");
-  const [search, setSearch] = useState("");
-  const [selectedTpl, setSelectedTpl] = useState<string>("");
+  const [blankTitle, setBlankTitle] = useState('');
+  const [search, setSearch] = useState('');
+  const [selectedTpl, setSelectedTpl] = useState<string>('');
   const [assigning, setAssigning] = useState(false);
   const [assignError, setAssignError] = useState<string | null>(null);
 
@@ -61,13 +59,13 @@ export function PatientTreatmentProgramsPanel(props: {
         items?: TreatmentProgramInstanceSummary[];
       };
       if (!res.ok || !data.ok || !data.items) {
-        setLoadError("Не удалось загрузить программы");
+        setLoadError('Не удалось загрузить программы');
         setItems([]);
         return;
       }
       setItems(data.items);
     } catch {
-      setLoadError("Не удалось загрузить программы");
+      setLoadError('Не удалось загрузить программы');
       setItems([]);
     } finally {
       setLoading(false);
@@ -80,21 +78,21 @@ export function PatientTreatmentProgramsPanel(props: {
   }, [load, serverProvidedList]);
 
   function openModal() {
-    setSearch("");
-    setSelectedTpl("");
-    setBlankTitle("");
+    setSearch('');
+    setSelectedTpl('');
+    setBlankTitle('');
     setAssignError(null);
-    setAssignMode(templates.length === 0 ? "blank" : "template");
+    setAssignMode(templates.length === 0 ? 'blank' : 'template');
     setOpen(true);
   }
 
   function closeModal() {
     setOpen(false);
-    setSearch("");
-    setSelectedTpl("");
-    setBlankTitle("");
+    setSearch('');
+    setSelectedTpl('');
+    setBlankTitle('');
     setAssignError(null);
-    setAssignMode("template");
+    setAssignMode('template');
   }
 
   async function assignFromTemplate() {
@@ -105,21 +103,21 @@ export function PatientTreatmentProgramsPanel(props: {
       const res = await fetch(
         `/api/doctor/clients/${encodeURIComponent(patientUserId)}/treatment-program-instances`,
         {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ kind: "from_template", templateId: selectedTpl }),
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ kind: 'from_template', templateId: selectedTpl }),
         },
       );
       const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
       if (!res.ok || !data.ok) {
-        setAssignError(data?.error ?? "Ошибка назначения");
+        setAssignError(data?.error ?? 'Ошибка назначения');
         return;
       }
-      toast.success("Программа лечения назначена");
+      toast.success('Программа лечения назначена');
       closeModal();
       await load();
     } catch {
-      setAssignError("Ошибка назначения");
+      setAssignError('Ошибка назначения');
     } finally {
       setAssigning(false);
     }
@@ -133,34 +131,32 @@ export function PatientTreatmentProgramsPanel(props: {
       const trimmedBlankTitle = blankTitle.trim();
       const body =
         trimmedBlankTitle.length > 0
-          ? { kind: "blank" as const, title: trimmedBlankTitle }
-          : { kind: "blank" as const };
+          ? { kind: 'blank' as const, title: trimmedBlankTitle }
+          : { kind: 'blank' as const };
       const res = await fetch(
         `/api/doctor/clients/${encodeURIComponent(patientUserId)}/treatment-program-instances`,
         {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         },
       );
       const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
       if (!res.ok || !data.ok) {
-        setAssignError(data?.error ?? "Ошибка назначения");
+        setAssignError(data?.error ?? 'Ошибка назначения');
         return;
       }
-      toast.success("Программа лечения назначена");
+      toast.success('Программа лечения назначена');
       closeModal();
       await load();
     } catch {
-      setAssignError("Ошибка назначения");
+      setAssignError('Ошибка назначения');
     } finally {
       setAssigning(false);
     }
   }
 
-  const filtered = templates.filter((t) =>
-    t.title.toLowerCase().includes(search.toLowerCase()),
-  );
+  const filtered = templates.filter((t) => t.title.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <div className="flex flex-col gap-3">
@@ -193,8 +189,8 @@ export function PatientTreatmentProgramsPanel(props: {
                   {row.title}
                 </Link>
                 <span className="ml-2 text-xs text-muted-foreground">
-                  {row.status === "completed" ? "завершена" : "активна"}
-                  {row.templateId == null ? " · без шаблона" : ""}
+                  {row.status === 'completed' ? 'завершена' : 'активна'}
+                  {row.templateId == null ? ' · без шаблона' : ''}
                 </span>
               </li>
             ))}
@@ -202,7 +198,12 @@ export function PatientTreatmentProgramsPanel(props: {
         )}
       </div>
 
-      <Dialog open={open} onOpenChange={(v) => { if (!v) closeModal(); }}>
+      <Dialog
+        open={open}
+        onOpenChange={(v) => {
+          if (!v) closeModal();
+        }}
+      >
         <DialogContent className="max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Назначить программу лечения</DialogTitle>
@@ -216,13 +217,13 @@ export function PatientTreatmentProgramsPanel(props: {
             <Button
               type="button"
               role="radio"
-              aria-checked={assignMode === "template"}
+              aria-checked={assignMode === 'template'}
               disabled={templates.length === 0}
-              variant={assignMode === "template" ? "default" : "ghost"}
+              variant={assignMode === 'template' ? 'default' : 'ghost'}
               size="sm"
               className="h-full rounded-none text-xs font-medium"
               onClick={() => {
-                setAssignMode("template");
+                setAssignMode('template');
                 setAssignError(null);
               }}
             >
@@ -231,12 +232,12 @@ export function PatientTreatmentProgramsPanel(props: {
             <Button
               type="button"
               role="radio"
-              aria-checked={assignMode === "blank"}
-              variant={assignMode === "blank" ? "default" : "ghost"}
+              aria-checked={assignMode === 'blank'}
+              variant={assignMode === 'blank' ? 'default' : 'ghost'}
               size="sm"
               className="h-full rounded-none text-xs font-medium"
               onClick={() => {
-                setAssignMode("blank");
+                setAssignMode('blank');
                 setAssignError(null);
               }}
             >
@@ -244,7 +245,7 @@ export function PatientTreatmentProgramsPanel(props: {
             </Button>
           </div>
 
-          {assignMode === "blank" ? (
+          {assignMode === 'blank' ? (
             <Input
               id="tp-blank-instance-title"
               value={blankTitle}
@@ -257,7 +258,7 @@ export function PatientTreatmentProgramsPanel(props: {
             />
           ) : null}
 
-          {assignMode === "template" ? (
+          {assignMode === 'template' ? (
             <>
               <Input
                 type="text"
@@ -277,7 +278,7 @@ export function PatientTreatmentProgramsPanel(props: {
                       aria-selected={selectedTpl === t.id}
                       onClick={() => setSelectedTpl(t.id)}
                       className={`flex cursor-pointer items-center justify-between rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent hover:text-accent-foreground ${
-                        selectedTpl === t.id ? "bg-accent text-accent-foreground font-medium" : ""
+                        selectedTpl === t.id ? 'bg-accent text-accent-foreground font-medium' : ''
                       }`}
                     >
                       <span className="break-words">{t.title}</span>
@@ -308,17 +309,17 @@ export function PatientTreatmentProgramsPanel(props: {
               disabled={
                 assigning ||
                 disabled ||
-                (assignMode === "template" && (!selectedTpl || templates.length === 0))
+                (assignMode === 'template' && (!selectedTpl || templates.length === 0))
               }
               onClick={() =>
-                void (assignMode === "template" ? assignFromTemplate() : assignBlank())
+                void (assignMode === 'template' ? assignFromTemplate() : assignBlank())
               }
             >
               {assigning
-                ? "Назначение…"
-                : assignMode === "blank"
-                  ? "Создать пустой план"
-                  : "Назначить"}
+                ? 'Назначение…'
+                : assignMode === 'blank'
+                  ? 'Создать пустой план'
+                  : 'Назначить'}
             </Button>
           </DialogFooter>
         </DialogContent>

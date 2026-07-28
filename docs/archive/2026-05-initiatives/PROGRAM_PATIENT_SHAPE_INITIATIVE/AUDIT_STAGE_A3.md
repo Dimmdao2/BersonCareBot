@@ -15,24 +15,24 @@
 
 ## 1b. Post-FIX (аудит → код)
 
-| ID | Результат |
-|---|---|
-| **Critical / Major** | **N/A:** в §7 первичного аудита не заводились отдельные Critical/Major — вердикт **PASS** по §2–§6 без блокирующих дефектов. |
-| **A3-ASSIGN-DEF** | **Закрыт:** `instance-service.ts` `assignTemplateToPatient` — `const groupRows = [...(st.groups ?? [])].sort(...)` (см. §8.1 п.3). |
-| **A3-UI-INST-01** | **Defer (product):** полноценный UI «редактировать instance-группу» не требовался для PASS; **`PATCH .../stage-groups/[groupId]`** остаётся каналом до отдельной UI-задачи. |
-| **Пустой этап у пациента (Info §5)** | **Defer (UX):** не нарушение контракта A3; улучшение подписи/скрытия пустого тела этапа — вне scope этого FIX. |
+| ID                                   | Результат                                                                                                                                                                   |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Critical / Major**                 | **N/A:** в §7 первичного аудита не заводились отдельные Critical/Major — вердикт **PASS** по §2–§6 без блокирующих дефектов.                                                |
+| **A3-ASSIGN-DEF**                    | **Закрыт:** `instance-service.ts` `assignTemplateToPatient` — `const groupRows = [...(st.groups ?? [])].sort(...)` (см. §8.1 п.3).                                          |
+| **A3-UI-INST-01**                    | **Defer (product):** полноценный UI «редактировать instance-группу» не требовался для PASS; **`PATCH .../stage-groups/[groupId]`** остаётся каналом до отдельной UI-задачи. |
+| **Пустой этап у пациента (Info §5)** | **Defer (UX):** не нарушение контракта A3; улучшение подписи/скрытия пустого тела этапа — вне scope этого FIX.                                                              |
 
 ---
 
 ## 2. Таблицы групп и `group_id`
 
-| Критерий | Статус | Доказательство |
-|---|---|---|
-| Таблица групп шаблона | **PASS** | `apps/webapp/db/drizzle-migrations/0029_treatment_program_a3_stage_groups.sql` — `treatment_program_template_stage_groups` (`id`, `stage_id`, `title`, `description`, `schedule_text`, `sort_order`); FK `stage_id` → `treatment_program_template_stages` **ON DELETE CASCADE**. |
-| Таблица групп экземпляра | **PASS** | Там же — `treatment_program_instance_stage_groups` + `source_group_id` → `treatment_program_template_stage_groups` **ON DELETE SET NULL**. |
-| `group_id` на элементах | **PASS** | `ALTER TABLE ..._template_stage_items` / `..._instance_stage_items` ADD `group_id uuid`; FK на соответствующую таблицу групп **ON DELETE SET NULL** (при удалении группы ссылка обнуляется). |
-| Индексы | **PASS** | `idx_treatment_program_tpl_stage_groups_stage_order`, `idx_treatment_program_inst_stage_groups_stage_order` на `(stage_id, sort_order)`. |
-| Согласованность Drizzle | **PASS** | `apps/webapp/db/schema/treatmentProgramTemplates.ts` — `treatmentProgramTemplateStageGroups`, `groupId` на `treatmentProgramTemplateStageItems`; `treatmentProgramInstances.ts` — `treatmentProgramInstanceStageGroups`, `groupId` на instance items. |
+| Критерий                 | Статус   | Доказательство                                                                                                                                                                                                                                                                   |
+| ------------------------ | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Таблица групп шаблона    | **PASS** | `apps/webapp/db/drizzle-migrations/0029_treatment_program_a3_stage_groups.sql` — `treatment_program_template_stage_groups` (`id`, `stage_id`, `title`, `description`, `schedule_text`, `sort_order`); FK `stage_id` → `treatment_program_template_stages` **ON DELETE CASCADE**. |
+| Таблица групп экземпляра | **PASS** | Там же — `treatment_program_instance_stage_groups` + `source_group_id` → `treatment_program_template_stage_groups` **ON DELETE SET NULL**.                                                                                                                                       |
+| `group_id` на элементах  | **PASS** | `ALTER TABLE ..._template_stage_items` / `..._instance_stage_items` ADD `group_id uuid`; FK на соответствующую таблицу групп **ON DELETE SET NULL** (при удалении группы ссылка обнуляется).                                                                                     |
+| Индексы                  | **PASS** | `idx_treatment_program_tpl_stage_groups_stage_order`, `idx_treatment_program_inst_stage_groups_stage_order` на `(stage_id, sort_order)`.                                                                                                                                         |
+| Согласованность Drizzle  | **PASS** | `apps/webapp/db/schema/treatmentProgramTemplates.ts` — `treatmentProgramTemplateStageGroups`, `groupId` на `treatmentProgramTemplateStageItems`; `treatmentProgramInstances.ts` — `treatmentProgramInstanceStageGroups`, `groupId` на instance items.                            |
 
 **Замечание (Info):** на таблицах групп **нет** `created_at`/`updated_at` — это согласовано с текущим паттерном этапов шаблона (там тоже нет audit-колонок в миграции A1/A3).
 
@@ -40,14 +40,14 @@
 
 ## 3. Copy service (назначение шаблона → экземпляр)
 
-| Критерий | Статус | Доказательство |
-|---|---|---|
-| Порядок: группы до элементов | **PASS** | `pgTreatmentProgramInstance.ts` `createInstanceTree`: цикл по `st.groups` (sorted) → `insert(instGroupTable)`, затем цикл по `st.items` с `groupId` из карты `templateGroupIdToInstance.get(...)`. |
-| NULL-группы у элементов | **PASS** | `it.templateGroupId == null ? null : … ?? null` — элемент без группы в шаблоне остаётся с `group_id = NULL` в экземпляре. |
-| Сохранение полей группы | **PASS** | Вставка `title`, `description`, `scheduleText`, `sortOrder`, `sourceGroupId` из входного `CreateTreatmentProgramInstanceTreeInput`. |
-| Источник данных для copy | **PASS** | `instance-service.ts` `assignTemplateToPatient`: `groupInputs` из **`(st.groups ?? [])`** (sorted), `templateGroupId: it.groupId` для каждого элемента шаблона; затем `instances.createInstanceTree({ stages: stageInputs })`. |
-| In-memory паритет | **PASS** | `inMemoryTreatmentProgramInstance.ts` — тот же порядок `(st.groups ?? [])`, карта, `groupId` на item row. |
-| Защита от «битой» ссылки на группу шаблона | **PASS** | Если `templateGroupId` не попал в карту (устаревший id), выражение даёт **`null`** — элемент не остаётся с несуществующим FK instance-группы. |
+| Критерий                                   | Статус   | Доказательство                                                                                                                                                                                                                 |
+| ------------------------------------------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Порядок: группы до элементов               | **PASS** | `pgTreatmentProgramInstance.ts` `createInstanceTree`: цикл по `st.groups` (sorted) → `insert(instGroupTable)`, затем цикл по `st.items` с `groupId` из карты `templateGroupIdToInstance.get(...)`.                             |
+| NULL-группы у элементов                    | **PASS** | `it.templateGroupId == null ? null : … ?? null` — элемент без группы в шаблоне остаётся с `group_id = NULL` в экземпляре.                                                                                                      |
+| Сохранение полей группы                    | **PASS** | Вставка `title`, `description`, `scheduleText`, `sortOrder`, `sourceGroupId` из входного `CreateTreatmentProgramInstanceTreeInput`.                                                                                            |
+| Источник данных для copy                   | **PASS** | `instance-service.ts` `assignTemplateToPatient`: `groupInputs` из **`(st.groups ?? [])`** (sorted), `templateGroupId: it.groupId` для каждого элемента шаблона; затем `instances.createInstanceTree({ stages: stageInputs })`. |
+| In-memory паритет                          | **PASS** | `inMemoryTreatmentProgramInstance.ts` — тот же порядок `(st.groups ?? [])`, карта, `groupId` на item row.                                                                                                                      |
+| Защита от «битой» ссылки на группу шаблона | **PASS** | Если `templateGroupId` не попал в карту (устаревший id), выражение даёт **`null`** — элемент не остаётся с несуществующим FK instance-группы.                                                                                  |
 
 **~~Низкий риск~~ (закрыт FIX):** `assignTemplateToPatient` использует **`[...(st.groups ?? [])]`** — см. §1b **A3-ASSIGN-DEF**.
 
@@ -55,25 +55,25 @@
 
 ## 4. Удаление группы и строки элементов
 
-| Критерий | Статус | Доказательство |
-|---|---|---|
-| Шаблон: элементы не удаляются | **PASS** | `pgTreatmentProgram.ts` `deleteTemplateStageGroup`: `update(itemTable).set({ groupId: null }).where(eq(itemTable.groupId, groupId))`, затем `delete` группы. |
-| Экземпляр: элементы не удаляются | **PASS** | `pgTreatmentProgramInstance.ts` `deleteInstanceStageGroup`: аналогично `UPDATE ... group_id = NULL`, затем `DELETE` группы. |
-| In-memory | **PASS** | `inMemoryTreatmentProgram.ts` / `inMemoryTreatmentProgramInstance.ts` — цикл по items с обнулением `groupId` перед удалением группы из Map. |
-| FK как запасной рельс | **PASS** | Миграция: FK item → group **ON DELETE SET NULL** (двойная защита при прямом удалении группы на уровне БД). |
+| Критерий                         | Статус   | Доказательство                                                                                                                                               |
+| -------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Шаблон: элементы не удаляются    | **PASS** | `pgTreatmentProgram.ts` `deleteTemplateStageGroup`: `update(itemTable).set({ groupId: null }).where(eq(itemTable.groupId, groupId))`, затем `delete` группы. |
+| Экземпляр: элементы не удаляются | **PASS** | `pgTreatmentProgramInstance.ts` `deleteInstanceStageGroup`: аналогично `UPDATE ... group_id = NULL`, затем `DELETE` группы.                                  |
+| In-memory                        | **PASS** | `inMemoryTreatmentProgram.ts` / `inMemoryTreatmentProgramInstance.ts` — цикл по items с обнулением `groupId` перед удалением группы из Map.                  |
+| FK как запасной рельс            | **PASS** | Миграция: FK item → group **ON DELETE SET NULL** (двойная защита при прямом удалении группы на уровне БД).                                                   |
 
 ---
 
 ## 5. Patient render (grouped / ungrouped)
 
-| Критерий | Статус | Доказательство |
-|---|---|---|
-| Группы с видимыми элементами | **PASS** | `PatientTreatmentProgramDetailClient.tsx` `PatientInstanceStageBody`: `sortedGroups` = группы, у которых есть хотя бы один `visibleItems` с `groupId === g.id`; внутри `<details open>` список элементов группы. |
-| «Без группы» после групп | **PASS** | Блок `ungroupedItems`; заголовок «Без группы» только если `sortedGroups.length > 0` (как в плане A3.5). |
-| Только негруппированные элементы | **PASS** | Если групп нет, заголовок «Без группы» не показывается — один список без лишней подписи. |
-| `schedule_text` в summary | **PASS** | В `<summary>` выводится `g.scheduleText` при непустом значении (`text-xs text-muted-foreground`). |
-| Пустые группы у пациента | **PASS** | Группа без видимых активных элементов не попадает в `sortedGroups`. Дополнительно read-model: `omitDisabledInstanceStageItemsForPatientApi` в `stage-semantics.ts` убирает из `stages[].groups` группы, у которых не осталось видимых элементов после фильтра `disabled` (`GET` пациента и RSC `page.tsx` используют helper). |
-| Тест | **PASS** | `stage-semantics.test.ts` — кейс «группа только из disabled» → `groups` пустой. |
+| Критерий                         | Статус   | Доказательство                                                                                                                                                                                                                                                                                                                |
+| -------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Группы с видимыми элементами     | **PASS** | `PatientTreatmentProgramDetailClient.tsx` `PatientInstanceStageBody`: `sortedGroups` = группы, у которых есть хотя бы один `visibleItems` с `groupId === g.id`; внутри `<details open>` список элементов группы.                                                                                                              |
+| «Без группы» после групп         | **PASS** | Блок `ungroupedItems`; заголовок «Без группы» только если `sortedGroups.length > 0` (как в плане A3.5).                                                                                                                                                                                                                       |
+| Только негруппированные элементы | **PASS** | Если групп нет, заголовок «Без группы» не показывается — один список без лишней подписи.                                                                                                                                                                                                                                      |
+| `schedule_text` в summary        | **PASS** | В `<summary>` выводится `g.scheduleText` при непустом значении (`text-xs text-muted-foreground`).                                                                                                                                                                                                                             |
+| Пустые группы у пациента         | **PASS** | Группа без видимых активных элементов не попадает в `sortedGroups`. Дополнительно read-model: `omitDisabledInstanceStageItemsForPatientApi` в `stage-semantics.ts` убирает из `stages[].groups` группы, у которых не осталось видимых элементов после фильтра `disabled` (`GET` пациента и RSC `page.tsx` используют helper). |
+| Тест                             | **PASS** | `stage-semantics.test.ts` — кейс «группа только из disabled» → `groups` пустой.                                                                                                                                                                                                                                               |
 
 **Замечание (Info):** при этапе без видимых элементов остаётся пустой блок контента под заголовком этапа — UX edge, не нарушение контракта A3.
 
@@ -81,20 +81,20 @@
 
 ## 6. Зависимости drag-and-drop
 
-| Критерий | Статус | Доказательство |
-|---|---|---|
-| Нет новых импортов DnD в A3-файлах | **PASS** | `rg "@dnd-kit|dnd-kit"` по `apps/webapp/src/app/app/patient/treatment-programs/**`, `.../doctor/treatment-program-templates/**`, `.../doctor/clients/treatment-programs/**` — **0** совпадений. |
-| Перестановка в UI A3 | **PASS** | Конструктор шаблона и панель групп экземпляра врача: кнопки ↑/↓ + `POST .../groups/reorder` (или обмен `sortOrder` у элементов шаблона через PATCH `stage-items`); выбор группы у элемента — **Select**, не drag. |
-| Корневой `package.json` | **Info** | В `apps/webapp/package.json` по-прежнему указаны `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities` — **другие** фичи репозитория; в рамках A3 зависимости не расширялись под группы программ. |
+| Критерий                           | Статус   | Доказательство                                                                                                                                                                                                    |
+| ---------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Нет новых импортов DnD в A3-файлах | **PASS** | `rg "@dnd-kit                                                                                                                                                                                                     | dnd-kit"`по`apps/webapp/src/app/app/patient/treatment-programs/**`, `.../doctor/treatment-program-templates/**`, `.../doctor/clients/treatment-programs/**` — **0\*\* совпадений. |
+| Перестановка в UI A3               | **PASS** | Конструктор шаблона и панель групп экземпляра врача: кнопки ↑/↓ + `POST .../groups/reorder` (или обмен `sortOrder` у элементов шаблона через PATCH `stage-items`); выбор группы у элемента — **Select**, не drag. |
+| Корневой `package.json`            | **Info** | В `apps/webapp/package.json` по-прежнему указаны `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities` — **другие** фичи репозитория; в рамках A3 зависимости не расширялись под группы программ.            |
 
 ---
 
 ## 7. Замечания вне критерия «PASS» (product / backlog)
 
-| ID | Уровень | Статус / описание |
-|---|---|---|
-| **A3-UI-INST-01** | Info | **Defer:** см. §1b — UI редактирования текста instance-группы; API `PATCH .../stage-groups/[groupId]` без изменений. |
-| **A3-ASSIGN-DEF** | Low | **Закрыт:** см. §1b — `st.groups ?? []` в `assignTemplateToPatient`. |
+| ID                | Уровень | Статус / описание                                                                                                    |
+| ----------------- | ------- | -------------------------------------------------------------------------------------------------------------------- |
+| **A3-UI-INST-01** | Info    | **Defer:** см. §1b — UI редактирования текста instance-группы; API `PATCH .../stage-groups/[groupId]` без изменений. |
+| **A3-ASSIGN-DEF** | Low     | **Закрыт:** см. §1b — `st.groups ?? []` в `assignTemplateToPatient`.                                                 |
 
 ---
 
@@ -146,12 +146,12 @@ pnpm --dir apps/webapp exec tsc --noEmit
 
 ## 10. Ключевые ссылки на код
 
-| Тема | Путь |
-|---|---|
-| Миграция A3 | `apps/webapp/db/drizzle-migrations/0029_treatment_program_a3_stage_groups.sql` |
-| Copy tree PG | `apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts` (`createInstanceTree`, `deleteInstanceStageGroup`) |
-| Copy tree in-memory | `apps/webapp/src/infra/repos/inMemoryTreatmentProgramInstance.ts` |
-| Назначение шаблона | `apps/webapp/src/modules/treatment-program/instance-service.ts` (`assignTemplateToPatient`) |
-| Удаление группы шаблона | `apps/webapp/src/infra/repos/pgTreatmentProgram.ts` (`deleteTemplateStageGroup`) |
-| Patient read-model | `apps/webapp/src/modules/treatment-program/stage-semantics.ts` |
-| Patient UI | `apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.tsx` |
+| Тема                    | Путь                                                                                                           |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Миграция A3             | `apps/webapp/db/drizzle-migrations/0029_treatment_program_a3_stage_groups.sql`                                 |
+| Copy tree PG            | `apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts` (`createInstanceTree`, `deleteInstanceStageGroup`) |
+| Copy tree in-memory     | `apps/webapp/src/infra/repos/inMemoryTreatmentProgramInstance.ts`                                              |
+| Назначение шаблона      | `apps/webapp/src/modules/treatment-program/instance-service.ts` (`assignTemplateToPatient`)                    |
+| Удаление группы шаблона | `apps/webapp/src/infra/repos/pgTreatmentProgram.ts` (`deleteTemplateStageGroup`)                               |
+| Patient read-model      | `apps/webapp/src/modules/treatment-program/stage-semantics.ts`                                                 |
+| Patient UI              | `apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.tsx`                   |

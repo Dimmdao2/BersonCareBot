@@ -1,7 +1,7 @@
-import type { VideoDeliveryOverride, VideoProcessingStatus } from "./types";
+import type { VideoDeliveryOverride, VideoProcessingStatus } from './types';
 
 /** User-facing strategy (system_settings, per-file override, or ?prefer= for admin). */
-export type PlaybackDeliveryStrategy = "mp4" | "hls" | "auto";
+export type PlaybackDeliveryStrategy = 'mp4' | 'hls' | 'auto';
 
 export type ResolveVideoPlaybackInput = {
   /** Normalized `system_settings.video_default_delivery`. */
@@ -27,12 +27,15 @@ export type ResolveVideoPlaybackResult = {
 
 function normalizeStrategy(raw: string): PlaybackDeliveryStrategy | null {
   const s = raw.trim().toLowerCase();
-  if (s === "mp4" || s === "hls" || s === "auto") return s;
+  if (s === 'mp4' || s === 'hls' || s === 'auto') return s;
   return null;
 }
 
 /** Read `video_default_delivery` from config string (DB or env fallback). */
-export function parseDefaultDeliveryConfig(raw: string, fallback: PlaybackDeliveryStrategy): PlaybackDeliveryStrategy {
+export function parseDefaultDeliveryConfig(
+  raw: string,
+  fallback: PlaybackDeliveryStrategy,
+): PlaybackDeliveryStrategy {
   return normalizeStrategy(raw) ?? fallback;
 }
 
@@ -40,16 +43,16 @@ export function isHlsAssetReady(
   videoProcessingStatus: VideoProcessingStatus | null,
   hlsMasterPlaylistS3Key: string | null,
 ): boolean {
-  return (
-    videoProcessingStatus === "ready" && Boolean(hlsMasterPlaylistS3Key?.trim())
-  );
+  return videoProcessingStatus === 'ready' && Boolean(hlsMasterPlaylistS3Key?.trim());
 }
 
 /**
  * Pure delivery resolution for **video/** MIME rows.
  * Does not presign; caller supplies DB flags and keys.
  */
-export function resolveVideoPlaybackDelivery(input: ResolveVideoPlaybackInput): ResolveVideoPlaybackResult {
+export function resolveVideoPlaybackDelivery(
+  input: ResolveVideoPlaybackInput,
+): ResolveVideoPlaybackResult {
   const hlsReady = isHlsAssetReady(input.videoProcessingStatus, input.hlsMasterPlaylistS3Key);
   const strategy: PlaybackDeliveryStrategy =
     input.perFileOverride ?? input.adminPrefer ?? input.systemDefaultDelivery;
@@ -57,9 +60,9 @@ export function resolveVideoPlaybackDelivery(input: ResolveVideoPlaybackInput): 
   let useHls = false;
   let fallbackUsed = false;
 
-  if (strategy === "mp4") {
+  if (strategy === 'mp4') {
     useHls = false;
-  } else if (strategy === "hls") {
+  } else if (strategy === 'hls') {
     if (hlsReady) {
       useHls = true;
     } else {

@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { Flame, Info } from "lucide-react";
-import { routePaths } from "@/app-layer/routes/paths";
-import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/patient/primitives/popover";
-import type { PatientHomeProgressDisplay } from "@/modules/patient-home/patientHomeProgressMetrics";
+import Link from 'next/link';
+import { Flame, Info } from 'lucide-react';
+import { routePaths } from '@/app-layer/routes/paths';
+import { Popover, PopoverContent, PopoverTrigger } from '@/shared/ui/patient/primitives/popover';
+import type { PatientHomeProgressDisplay } from '@/modules/patient-home/patientHomeProgressMetrics';
 import {
   patientHomeBlockHeadingClass,
   patientHomeCardClass,
@@ -15,17 +15,17 @@ import {
   patientHomeProgressValueSuffixClass,
   patientHomeBlockBodySmClamp2Mt2Class,
   patientHomeBlockBodySmClass,
-} from "./patientHomeCardStyles";
-import { appLoginWithNextHref } from "./patientHomeGuestNav";
-import { PatientHomeSafeImage } from "./PatientHomeSafeImage";
+} from './patientHomeCardStyles';
+import { appLoginWithNextHref } from './patientHomeGuestNav';
+import { PatientHomeSafeImage } from './PatientHomeSafeImage';
 import {
   patientHomeGoalsFlameCaption,
   patientHomeGoalsFlameOpacity,
   resolvePatientHomeGoalsFlameState,
-} from "./patientHomeGoalsFlame";
-import { cn } from "@/lib/utils";
+} from './patientHomeGoalsFlame';
+import { cn } from '@/lib/utils';
 
-const PROGRESS_HINT = "Сколько напоминаний в расписании, столько и занятий в Цели дня.";
+const PROGRESS_HINT = 'Сколько напоминаний в расписании, столько и занятий в Цели дня.';
 
 type Props = {
   metrics: PatientHomeProgressDisplay | null;
@@ -42,13 +42,15 @@ function buildProgressAriaLabel(metrics: PatientHomeProgressDisplay, displayDone
   const parts = [base];
   if (warmupPlanned > 0) parts.push(`Разминки: ${warmupDone} из ${warmupPlanned}`);
   if (trainingPlanned > 0) parts.push(`Тренировки: ${trainingDone} из ${trainingPlanned}`);
-  return `${parts.join(". ")}.`;
+  return `${parts.join('. ')}.`;
 }
 
 export function PatientHomeProgressBlock({ metrics, anonymousGuest, blockIconImageUrl }: Props) {
   const showGoal = (metrics?.plannedTotal ?? 0) > 0;
   const displayDone =
-    metrics && showGoal ? Math.min(metrics.doneTotal, metrics.plannedTotal) : metrics?.doneTotal ?? 0;
+    metrics && showGoal
+      ? Math.min(metrics.doneTotal, metrics.plannedTotal)
+      : (metrics?.doneTotal ?? 0);
   const pct =
     metrics && showGoal && metrics.plannedTotal > 0
       ? Math.min(100, Math.round((displayDone / metrics.plannedTotal) * 100))
@@ -58,16 +60,21 @@ export function PatientHomeProgressBlock({ metrics, anonymousGuest, blockIconIma
   const showTrainingBreakdown = (metrics?.trainingPlanned ?? 0) > 0;
   const showBreakdown = metrics != null && (showWarmupBreakdown || showTrainingBreakdown);
 
-  const progressAriaLabel = metrics ? buildProgressAriaLabel(metrics, displayDone) : "Выполнено сегодня";
+  const progressAriaLabel = metrics
+    ? buildProgressAriaLabel(metrics, displayDone)
+    : 'Выполнено сегодня';
 
-  const guestCopy = anonymousGuest ?
+  const guestCopy = anonymousGuest ? (
     <>
-      <Link href={appLoginWithNextHref(routePaths.patient)} className="font-medium text-primary underline-offset-4 hover:underline">
+      <Link
+        href={appLoginWithNextHref(routePaths.patient)}
+        className="font-medium text-primary underline-offset-4 hover:underline"
+      >
         Войдите
       </Link>
       , чтобы видеть прогресс.
     </>
-  : null;
+  ) : null;
 
   const goalsFlameState =
     metrics && showGoal && !anonymousGuest
@@ -83,11 +90,18 @@ export function PatientHomeProgressBlock({ metrics, anonymousGuest, blockIconIma
     <section aria-labelledby="patient-home-progress-heading">
       <article
         id="patient-home-progress-block"
-        className={cn(patientHomeCardClass, patientHomeProgressCardGeometryClass, "w-full min-w-0 max-w-full")}
+        className={cn(
+          patientHomeCardClass,
+          patientHomeProgressCardGeometryClass,
+          'w-full min-w-0 max-w-full',
+        )}
       >
         <div className={patientHomeProgressGridClass}>
           <div className="flex min-h-0 flex-col justify-center pr-3 md:pr-0">
-            <h3 id="patient-home-progress-heading" className={cn(patientHomeBlockHeadingClass, "inline-flex items-center gap-1.5")}>
+            <h3
+              id="patient-home-progress-heading"
+              className={cn(patientHomeBlockHeadingClass, 'inline-flex items-center gap-1.5')}
+            >
               Сегодня выполнено
               <Popover>
                 <PopoverTrigger
@@ -102,9 +116,9 @@ export function PatientHomeProgressBlock({ metrics, anonymousGuest, blockIconIma
                 </PopoverContent>
               </Popover>
             </h3>
-            {anonymousGuest ?
+            {anonymousGuest ? (
               <p className={patientHomeBlockBodySmClamp2Mt2Class}>{guestCopy}</p>
-            : !metrics ?
+            ) : !metrics ? (
               <div className="mt-2 space-y-2" aria-busy="true">
                 <div className="h-9 min-h-[36px] w-24 animate-pulse rounded-lg bg-muted/80 sm:h-10 sm:min-h-[40px]" />
                 <div className="h-2 w-full overflow-hidden rounded-full bg-[#e5e7eb]">
@@ -112,36 +126,40 @@ export function PatientHomeProgressBlock({ metrics, anonymousGuest, blockIconIma
                 </div>
                 <p className={patientHomeBlockBodySmClass}>Загрузка прогресса…</p>
               </div>
-            : <>
+            ) : (
+              <>
                 <div className="mt-0.5 flex flex-row flex-nowrap items-start gap-x-3">
-                  <p className="m-0 shrink-0 tabular-nums leading-none" aria-label={progressAriaLabel}>
+                  <p
+                    className="m-0 shrink-0 tabular-nums leading-none"
+                    aria-label={progressAriaLabel}
+                  >
                     <span className={patientHomeProgressValueClass}>{displayDone}</span>
-                    {showGoal ?
+                    {showGoal ? (
                       <span className={patientHomeProgressValueSuffixClass}>
-                        {" "}
+                        {' '}
                         из {metrics.plannedTotal}
                       </span>
-                    : null}
+                    ) : null}
                   </p>
-                  {showBreakdown ?
+                  {showBreakdown ? (
                     <div
                       className="min-w-0 shrink pt-0.5 text-[10px] leading-tight text-[var(--patient-text-muted)] md:text-xs"
                       aria-hidden
                     >
-                      {showWarmupBreakdown ?
+                      {showWarmupBreakdown ? (
                         <div>
                           Разминки {metrics.warmupDone} из {metrics.warmupPlanned}
                         </div>
-                      : null}
-                      {showTrainingBreakdown ?
+                      ) : null}
+                      {showTrainingBreakdown ? (
                         <div>
                           Тренировки {metrics.trainingDone} из {metrics.trainingPlanned}
                         </div>
-                      : null}
+                      ) : null}
                     </div>
-                  : null}
+                  ) : null}
                 </div>
-                {showGoal ?
+                {showGoal ? (
                   <div
                     className="mt-2 h-2 w-full overflow-hidden rounded-full bg-[#e5e7eb]"
                     role="progressbar"
@@ -155,9 +173,9 @@ export function PatientHomeProgressBlock({ metrics, anonymousGuest, blockIconIma
                       style={{ width: `${pct}%` }}
                     />
                   </div>
-                : null}
+                ) : null}
               </>
-            }
+            )}
           </div>
           <div className={patientHomeProgressStreakColClass}>
             <div className="flex min-h-0 flex-col items-center justify-center gap-1 md:size-24 md:justify-start md:gap-0.5 md:rounded-full md:bg-white md:px-1 md:pt-2 md:ring-[8px] md:ring-[#f3f4f6]">
@@ -178,14 +196,14 @@ export function PatientHomeProgressBlock({ metrics, anonymousGuest, blockIconIma
                   }
                 />
               </span>
-              {goalsFlameCaption ?
+              {goalsFlameCaption ? (
                 <p
                   className="m-0 max-w-[5.25rem] text-center text-[10px] font-semibold leading-[11px] text-[var(--patient-block-caption)] md:max-w-[7.25rem] md:text-[11px] md:leading-3"
                   aria-label={goalsFlameCaption}
                 >
                   {goalsFlameCaption}
                 </p>
-              : null}
+              ) : null}
             </div>
           </div>
         </div>

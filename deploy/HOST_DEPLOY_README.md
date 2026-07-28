@@ -21,17 +21,17 @@
 
 ## Кратко
 
-| Параметр | Значение |
-|----------|----------|
-| Deploy user | `deploy` |
-| Prod project dir | `/opt/projects/bersoncarebot` |
-| Prod env dir | `/opt/env/bersoncarebot` |
-| PostgreSQL | `127.0.0.1:5432` |
-| Integrator API (prod) | `127.0.0.1:3200` |
-| Webapp (prod) | `127.0.0.1:6200` |
-| Public integrator URL | `https://tgcarebot.bersonservices.ru` |
-| Public webapp URL | `https://bersoncare.ru` |
-| Backup script | `/opt/backups/scripts/postgres-backup.sh` (источник в репо: [`deploy/postgres/postgres-backup.sh`](../postgres/postgres-backup.sh)); при **одной** БД см. [`docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`](../docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md) |
+| Параметр              | Значение                                                                                                                                                                                                                                                        |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Deploy user           | `deploy`                                                                                                                                                                                                                                                        |
+| Prod project dir      | `/opt/projects/bersoncarebot`                                                                                                                                                                                                                                   |
+| Prod env dir          | `/opt/env/bersoncarebot`                                                                                                                                                                                                                                        |
+| PostgreSQL            | `127.0.0.1:5432`                                                                                                                                                                                                                                                |
+| Integrator API (prod) | `127.0.0.1:3200`                                                                                                                                                                                                                                                |
+| Webapp (prod)         | `127.0.0.1:6200`                                                                                                                                                                                                                                                |
+| Public integrator URL | `https://tgcarebot.bersonservices.ru`                                                                                                                                                                                                                           |
+| Public webapp URL     | `https://bersoncare.ru`                                                                                                                                                                                                                                         |
+| Backup script         | `/opt/backups/scripts/postgres-backup.sh` (источник в репо: [`deploy/postgres/postgres-backup.sh`](../postgres/postgres-backup.sh)); при **одной** БД см. [`docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`](../docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md) |
 
 ### GitHub Actions (репозиторий)
 
@@ -74,16 +74,16 @@ systemctl reset-failed
 
 ### Пути
 
-| Что | Путь |
-|-----|------|
-| Project root | `/opt/projects/bersoncarebot` |
-| Integrator app dir | `/opt/projects/bersoncarebot/apps/integrator` |
-| Webapp app dir | `/opt/projects/bersoncarebot/apps/webapp` |
+| Что                            | Путь                                            |
+| ------------------------------ | ----------------------------------------------- |
+| Project root                   | `/opt/projects/bersoncarebot`                   |
+| Integrator app dir             | `/opt/projects/bersoncarebot/apps/integrator`   |
+| Webapp app dir                 | `/opt/projects/bersoncarebot/apps/webapp`       |
 | **Media-worker app dir (HLS)** | `/opt/projects/bersoncarebot/apps/media-worker` |
-| Prod env dir | `/opt/env/bersoncarebot` |
-| Integrator env | `/opt/env/bersoncarebot/api.prod` |
-| Webapp env | `/opt/env/bersoncarebot/webapp.prod` |
-| Cutover env | `/opt/env/bersoncarebot/cutover.prod` |
+| Prod env dir                   | `/opt/env/bersoncarebot`                        |
+| Integrator env                 | `/opt/env/bersoncarebot/api.prod`               |
+| Webapp env                     | `/opt/env/bersoncarebot/webapp.prod`            |
+| Cutover env                    | `/opt/env/bersoncarebot/cutover.prod`           |
 
 ### systemd units
 
@@ -292,12 +292,12 @@ restore/reset или отправку приглашений.
 
 ### Production
 
-| Сервис | Порт |
-|--------|------|
-| PostgreSQL | `127.0.0.1:5432` |
-| Integrator API | `127.0.0.1:3200` |
-| Webapp | `127.0.0.1:6200` |
-| Worker | нет публичного порта |
+| Сервис         | Порт                 |
+| -------------- | -------------------- |
+| PostgreSQL     | `127.0.0.1:5432`     |
+| Integrator API | `127.0.0.1:3200`     |
+| Webapp         | `127.0.0.1:6200`     |
+| Worker         | нет публичного порта |
 
 ### Development
 
@@ -1024,15 +1024,15 @@ sudo systemctl reload nginx
 
 Все изменения расписания выполняются через `node /home/dev/brain/tools/cronport.mjs`; сырой `crontab` и `/etc/cron.d` не используются. Web Push-задача управляется репозиторной обёрткой.
 
-| Именованная задача | Обязательность | Назначение |
-|---------------------|----------------|------------|
-| **`bersoncarebot-prod-web-push-only-reminders`** | **обязательна** после deploy | `POST /api/internal/reminders/web-push-only/tick` каждую минуту — Web Push для `reminder_rules` без бота (`integrator_user_id IS NULL`) |
-| **`bersoncarebot-specialist-task-reminders`** (имя на усмотрение) | **рекомендуется** после миграции `0102` | `POST /api/internal/specialist-task-reminders/tick` каждые 5–15 мин — напоминания врачу по `specialist_tasks` |
-| `bersoncarebot-media-purge` | обязателен (медиа CMS) | purge очереди удаления `media-pending-delete` |
-| `bersoncarebot-media-multipart` (имя на усмотрение) | рекомендуется | multipart cleanup |
-| `bersoncarebot-webapp-hls-retention` | рекомендуется | playback + HLS proxy errors retention (weekly) |
-| `bersoncarebot-product-analytics-retention` | рекомендуется | `POST /api/internal/product-analytics/retention` (weekly) |
-| прочие | см. раздел **Nginx → Webapp → CMS медиа и S3** выше | превью, reconcile HLS, health-guard и т.д. |
+| Именованная задача                                                | Обязательность                                      | Назначение                                                                                                                              |
+| ----------------------------------------------------------------- | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| **`bersoncarebot-prod-web-push-only-reminders`**                  | **обязательна** после deploy                        | `POST /api/internal/reminders/web-push-only/tick` каждую минуту — Web Push для `reminder_rules` без бота (`integrator_user_id IS NULL`) |
+| **`bersoncarebot-specialist-task-reminders`** (имя на усмотрение) | **рекомендуется** после миграции `0102`             | `POST /api/internal/specialist-task-reminders/tick` каждые 5–15 мин — напоминания врачу по `specialist_tasks`                           |
+| `bersoncarebot-media-purge`                                       | обязателен (медиа CMS)                              | purge очереди удаления `media-pending-delete`                                                                                           |
+| `bersoncarebot-media-multipart` (имя на усмотрение)               | рекомендуется                                       | multipart cleanup                                                                                                                       |
+| `bersoncarebot-webapp-hls-retention`                              | рекомендуется                                       | playback + HLS proxy errors retention (weekly)                                                                                          |
+| `bersoncarebot-product-analytics-retention`                       | рекомендуется                                       | `POST /api/internal/product-analytics/retention` (weekly)                                                                               |
+| прочие                                                            | см. раздел **Nginx → Webapp → CMS медиа и S3** выше | превью, reconcile HLS, health-guard и т.д.                                                                                              |
 
 Проверка обязательного webpush-cron:
 

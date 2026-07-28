@@ -1,52 +1,52 @@
-import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import type { OtpUiChannel } from "@/modules/auth/otpChannelUi";
-import { resolveAuthMethodsForPhone } from "@/modules/auth/checkPhoneMethods";
-import { isCheckPhoneRateLimited } from "@/modules/auth/checkPhoneRateLimit";
-import { normalizePhone } from "@/modules/auth/phoneNormalize";
-import { isValidPhoneE164 } from "@/modules/auth/phoneValidation";
-import { getTelegramLoginBotUsername } from "@/modules/system-settings/telegramLoginBotUsername";
-import { getClientVisibleAuthChannelPolicy } from "@/modules/auth/authChannelPolicy";
+import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { ensureAuthModulePortsBound } from '@/app-layer/di/bindAuthModulePorts';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import type { OtpUiChannel } from '@/modules/auth/otpChannelUi';
+import { resolveAuthMethodsForPhone } from '@/modules/auth/checkPhoneMethods';
+import { isCheckPhoneRateLimited } from '@/modules/auth/checkPhoneRateLimit';
+import { normalizePhone } from '@/modules/auth/phoneNormalize';
+import { isValidPhoneE164 } from '@/modules/auth/phoneValidation';
+import { getTelegramLoginBotUsername } from '@/modules/system-settings/telegramLoginBotUsername';
+import { getClientVisibleAuthChannelPolicy } from '@/modules/auth/authChannelPolicy';
 
 const bodySchema = z.object({
   phone: z.string().min(1).max(32),
 });
 
 export async function POST(request: Request) {
-  stampBootstrapPrincipal("api/auth/check-phone:POST", request);
+  stampBootstrapPrincipal('api/auth/check-phone:POST', request);
   ensureAuthModulePortsBound();
 
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
     return NextResponse.json(
-      { ok: false, error: "invalid_body", message: "Укажите номер телефона" },
-      { status: 400 }
+      { ok: false, error: 'invalid_body', message: 'Укажите номер телефона' },
+      { status: 400 },
     );
   }
 
   const phone = normalizePhone(parsed.data.phone);
   if (!isValidPhoneE164(phone)) {
     return NextResponse.json(
-      { ok: false, error: "invalid_phone", message: "Неверный формат номера" },
-      { status: 400 }
+      { ok: false, error: 'invalid_phone', message: 'Неверный формат номера' },
+      { status: 400 },
     );
   }
 
   if (await isCheckPhoneRateLimited(phone)) {
     return NextResponse.json(
-      { ok: false, error: "rate_limited", message: "Слишком много запросов. Попробуйте позже." },
-      { status: 429 }
+      { ok: false, error: 'rate_limited', message: 'Слишком много запросов. Попробуйте позже.' },
+      { status: 429 },
     );
   }
 
   // Owner ruling 2026-07-24: a channel toggled on but unconfigured must not appear to the client.
   const channelPolicy = await getClientVisibleAuthChannelPolicy();
   const deps = buildAppDeps();
-  const botUsername = channelPolicy.telegram ? (await getTelegramLoginBotUsername()).trim() : "";
+  const botUsername = channelPolicy.telegram ? (await getTelegramLoginBotUsername()).trim() : '';
   const telegramLoginAvailable = channelPolicy.telegram && botUsername.length > 0;
   const result = await resolveAuthMethodsForPhone(
     phone,

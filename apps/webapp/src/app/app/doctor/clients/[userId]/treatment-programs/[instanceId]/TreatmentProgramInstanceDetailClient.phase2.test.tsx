@@ -1,22 +1,24 @@
 /** @vitest-environment jsdom */
 
-import type { ComponentType, ReactNode } from "react";
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
-import type { TreatmentProgramLibraryPickers } from "@/app/app/doctor/treatment-program-shared/treatmentProgramLibraryTypes";
-import { TEST_EDITOR_PATIENT_PROFILE_HREF } from "../../../doctorClientProfileHref.testFixtures";
+import type { ComponentType, ReactNode } from 'react';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import type { TreatmentProgramInstanceDetail } from '@/modules/treatment-program/types';
+import type { TreatmentProgramLibraryPickers } from '@/app/app/doctor/treatment-program-shared/treatmentProgramLibraryTypes';
+import { TEST_EDITOR_PATIENT_PROFILE_HREF } from '../../../doctorClientProfileHref.testFixtures';
 
-vi.mock("next/link", () => ({
-  default: ({ href, children }: { href: string; children: ReactNode }) => <a href={href}>{children}</a>,
+vi.mock('next/link', () => ({
+  default: ({ href, children }: { href: string; children: ReactNode }) => (
+    <a href={href}>{children}</a>
+  ),
 }));
 
-vi.mock("./DoctorProgramItemDiscussionDialog", () => ({
+vi.mock('./DoctorProgramItemDiscussionDialog', () => ({
   DoctorProgramItemDiscussionDialog: () => null,
 }));
 
-vi.mock("@/app/app/doctor/treatment-program-shared/TreatmentProgramDndUi", () => ({
+vi.mock('@/app/app/doctor/treatment-program-shared/TreatmentProgramDndUi', () => ({
   TreatmentProgramPipelineStagesDnd: ({ children }: { children: ReactNode }) => (
     <div data-testid="pipeline-dnd">{children}</div>
   ),
@@ -39,7 +41,7 @@ vi.mock("@/app/app/doctor/treatment-program-shared/TreatmentProgramDndUi", () =>
   }) => <li data-item-id={id}>{children(<span aria-hidden />)}</li>,
 }));
 
-vi.mock("react-hot-toast", () => {
+vi.mock('react-hot-toast', () => {
   const toastFn = Object.assign(vi.fn(), {
     success: vi.fn(),
     error: vi.fn(),
@@ -47,21 +49,21 @@ vi.mock("react-hot-toast", () => {
   return { default: toastFn };
 });
 
-vi.mock("@/app/app/doctor/treatment-program-shared/flushInstanceEditorDraft", () => ({
+vi.mock('@/app/app/doctor/treatment-program-shared/flushInstanceEditorDraft', () => ({
   flushInstanceEditorDraft: vi.fn(async () => ({ ok: true as const })),
 }));
 
-const INSTANCE_ID = "11111111-1111-4111-8111-111111111111";
-const STAGE_ZERO = "00000000-0000-4000-8000-000000000001";
+const INSTANCE_ID = '11111111-1111-4111-8111-111111111111';
+const STAGE_ZERO = '00000000-0000-4000-8000-000000000001';
 
 const FORBIDDEN_EDITOR_FETCH_SNIPPETS = [
-  "stage-items/",
-  "stage-groups/",
-  "from-test-set",
-  "from-lfk-complex",
-  "from-freeform-recommendation",
-  "groups/reorder",
-  "stages/reorder",
+  'stage-items/',
+  'stage-groups/',
+  'from-test-set',
+  'from-lfk-complex',
+  'from-freeform-recommendation',
+  'groups/reorder',
+  'stages/reorder',
 ] as const;
 
 const emptyLibrary: TreatmentProgramLibraryPickers = {
@@ -74,7 +76,7 @@ const emptyLibrary: TreatmentProgramLibraryPickers = {
 };
 
 function requestUrl(input: RequestInfo | URL): string {
-  if (typeof input === "string") return input;
+  if (typeof input === 'string') return input;
   if (input instanceof URL) return input.href;
   return input.url;
 }
@@ -82,24 +84,24 @@ function requestUrl(input: RequestInfo | URL): string {
 function minimalInstanceDetail(): TreatmentProgramInstanceDetail {
   return {
     id: INSTANCE_ID,
-    patientUserId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    patientUserId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
     templateId: null,
-    title: "План реабилитации",
-    status: "active",
-    assignmentSource: "doctor",
+    title: 'План реабилитации',
+    status: 'active',
+    assignmentSource: 'doctor',
     assignedBy: null,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z",
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
     patientPlanLastOpenedAt: null,
     stages: [
       {
         id: STAGE_ZERO,
         instanceId: INSTANCE_ID,
         sourceStageId: null,
-        title: "Общие рекомендации",
+        title: 'Общие рекомендации',
         description: null,
         sortOrder: 0,
-        status: "available",
+        status: 'available',
         skipReason: null,
         localComment: null,
         startedAt: null,
@@ -128,11 +130,12 @@ let TreatmentProgramInstanceDetailClient: ComponentType<{
   doctorReplyFromLogEnabled: boolean;
 }>;
 
-describe("TreatmentProgramInstanceDetailClient phase 2 draft smoke", () => {
+describe('TreatmentProgramInstanceDetailClient phase 2 draft smoke', () => {
   const fetchMock = vi.fn();
 
   beforeAll(async () => {
-    ({ TreatmentProgramInstanceDetailClient } = await import("./TreatmentProgramInstanceDetailClient"));
+    ({ TreatmentProgramInstanceDetailClient } =
+      await import('./TreatmentProgramInstanceDetailClient'));
   }, 25_000);
 
   beforeEach(() => {
@@ -161,27 +164,31 @@ describe("TreatmentProgramInstanceDetailClient phase 2 draft smoke", () => {
   function assertNoForbiddenEditorFetch() {
     for (const [input, init] of fetchMock.mock.calls) {
       const url = requestUrl(input as RequestInfo);
-      const method = (init as RequestInit | undefined)?.method ?? "GET";
-      if (method === "GET") continue;
+      const method = (init as RequestInit | undefined)?.method ?? 'GET';
+      if (method === 'GET') continue;
       for (const snippet of FORBIDDEN_EDITOR_FETCH_SNIPPETS) {
         expect(url.includes(snippet), `unexpected editor fetch ${method} ${url}`).toBe(false);
       }
     }
   }
 
-  it("add pipeline stage updates draft without immediate editor mutation fetch", async () => {
+  it('add pipeline stage updates draft without immediate editor mutation fetch', async () => {
     const user = userEvent.setup();
     renderClient();
 
-    await user.click(within(screen.getByTestId("instance-editor-toolbar")).getByTestId("instance-editor-add-stage"));
+    await user.click(
+      within(screen.getByTestId('instance-editor-toolbar')).getByTestId(
+        'instance-editor-add-stage',
+      ),
+    );
     const titleInput = await screen.findByLabelText(/название/i);
-    await user.type(titleInput, "Этап 2");
-    await user.click(screen.getByRole("button", { name: /^добавить$/i }));
+    await user.type(titleInput, 'Этап 2');
+    await user.click(screen.getByRole('button', { name: /^добавить$/i }));
 
     await waitFor(() => {
-      expect(screen.getByRole("status")).toHaveTextContent(/несохранённые изменения/i);
+      expect(screen.getByRole('status')).toHaveTextContent(/несохранённые изменения/i);
     });
-    expect(screen.getByText("Этап 2")).toBeInTheDocument();
+    expect(screen.getByText('Этап 2')).toBeInTheDocument();
     assertNoForbiddenEditorFetch();
   });
 });

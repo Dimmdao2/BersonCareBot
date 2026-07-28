@@ -1,11 +1,11 @@
-import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import type { TelegramLoginWidgetPayload } from "@/modules/auth/telegramLoginVerify";
-import { verifyTelegramLoginWidgetSignature } from "@/modules/auth/telegramLoginVerify";
-import { getTelegramBotToken } from "@/modules/system-settings/integrationRuntime";
-import { isAuthChannelEnabled } from "@/modules/auth/authChannelPolicy";
+import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import type { TelegramLoginWidgetPayload } from '@/modules/auth/telegramLoginVerify';
+import { verifyTelegramLoginWidgetSignature } from '@/modules/auth/telegramLoginVerify';
+import { getTelegramBotToken } from '@/modules/system-settings/integrationRuntime';
+import { isAuthChannelEnabled } from '@/modules/auth/authChannelPolicy';
 
 const bodySchema = z.record(z.string(), z.unknown());
 
@@ -13,25 +13,25 @@ const bodySchema = z.record(z.string(), z.unknown());
  * POST /api/auth/telegram-login — вход через Telegram Login Widget (JSON payload от callback виджета).
  */
 export async function POST(request: Request) {
-  stampBootstrapPrincipal("api/auth/telegram-login:POST", request);
+  stampBootstrapPrincipal('api/auth/telegram-login:POST', request);
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
 
-  if (!(await isAuthChannelEnabled("telegram"))) {
-    return NextResponse.json({ ok: false, error: "auth_channel_disabled" }, { status: 403 });
+  if (!(await isAuthChannelEnabled('telegram'))) {
+    return NextResponse.json({ ok: false, error: 'auth_channel_disabled' }, { status: 403 });
   }
 
   const botToken = (await getTelegramBotToken()).trim();
   if (!botToken) {
-    return NextResponse.json({ ok: false, error: "telegram_not_configured" }, { status: 503 });
+    return NextResponse.json({ ok: false, error: 'telegram_not_configured' }, { status: 503 });
   }
 
   const rawBody = { ...parsed.data } as Record<string, unknown>;
   const webappEntryToken =
-    typeof rawBody.webappEntryToken === "string" && rawBody.webappEntryToken.trim() !== ""
+    typeof rawBody.webappEntryToken === 'string' && rawBody.webappEntryToken.trim() !== ''
       ? rawBody.webappEntryToken.trim()
       : undefined;
   delete rawBody.webappEntryToken;
@@ -40,18 +40,18 @@ export async function POST(request: Request) {
   const result = await deps.auth.exchangeTelegramLoginWidget(payload, webappEntryToken);
   if (!result) {
     const diag = verifyTelegramLoginWidgetSignature(payload, botToken);
-    if (!diag.ok && diag.reason === "expired") {
+    if (!diag.ok && diag.reason === 'expired') {
       return NextResponse.json(
         {
           ok: false,
-          error: "auth_expired",
-          message: "Сессия Telegram устарела. Попробуйте снова.",
+          error: 'auth_expired',
+          message: 'Сессия Telegram устарела. Попробуйте снова.',
         },
         { status: 403 },
       );
     }
     return NextResponse.json(
-      { ok: false, error: "access_denied", message: "Вход не разрешён." },
+      { ok: false, error: 'access_denied', message: 'Вход не разрешён.' },
       { status: 403 },
     );
   }

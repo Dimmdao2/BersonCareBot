@@ -1,10 +1,10 @@
-import { logger } from "@/app-layer/logging/logger";
+import { logger } from '@/app-layer/logging/logger';
 import {
   createSaasIsolationDiagnosticsService,
   redactSaasIsolationEventInput,
   type ReportSaasIsolationEventInput,
-} from "@/modules/operator-health/saasIsolationDiagnostics";
-import { pgSaasIsolationDiagnosticsPort } from "@/infra/repos/pgSaasIsolationDiagnostics";
+} from '@/modules/operator-health/saasIsolationDiagnostics';
+import { pgSaasIsolationDiagnosticsPort } from '@/infra/repos/pgSaasIsolationDiagnostics';
 
 export const runtimeSaasIsolationDiagnostics = createSaasIsolationDiagnosticsService(
   pgSaasIsolationDiagnosticsPort,
@@ -14,7 +14,11 @@ const MAX_QUEUE = 64;
 const WRITE_TIMEOUT_MS = 250;
 const CIRCUIT_OPEN_MS = 30_000;
 
-type ReporterClock = { now(): number; setTimeout: typeof setTimeout; clearTimeout: typeof clearTimeout };
+type ReporterClock = {
+  now(): number;
+  setTimeout: typeof setTimeout;
+  clearTimeout: typeof clearTimeout;
+};
 
 export function createBestEffortSaasIsolationReporter(
   writer: (input: ReportSaasIsolationEventInput) => Promise<void>,
@@ -30,7 +34,10 @@ export function createBestEffortSaasIsolationReporter(
       await Promise.race([
         writer(input),
         new Promise<never>((_, reject) => {
-          timer = clock.setTimeout(() => reject(new Error("saas_isolation_telemetry_timeout")), WRITE_TIMEOUT_MS);
+          timer = clock.setTimeout(
+            () => reject(new Error('saas_isolation_telemetry_timeout')),
+            WRITE_TIMEOUT_MS,
+          );
         }),
       ]);
     } finally {
@@ -54,11 +61,14 @@ export function createBestEffortSaasIsolationReporter(
         } catch {
           circuitOpenUntil = clock.now() + CIRCUIT_OPEN_MS;
           queue.length = 0;
-          logger.warn({
-            eventClass: input.eventClass,
-            sourceService: input.sourceService,
-            sourceOperation: input.sourceOperation,
-          }, "saas_isolation_telemetry_persist_failed");
+          logger.warn(
+            {
+              eventClass: input.eventClass,
+              sourceService: input.sourceService,
+              sourceOperation: input.sourceOperation,
+            },
+            'saas_isolation_telemetry_persist_failed',
+          );
         }
       }
     } finally {
@@ -89,7 +99,9 @@ const runtimeReporter = createBestEffortSaasIsolationReporter((input) =>
 );
 
 /** Synchronous enqueue only: the primary failing path never awaits telemetry I/O. */
-export function reportSaasIsolationEventBestEffort(input: ReportSaasIsolationEventInput): Promise<void> {
+export function reportSaasIsolationEventBestEffort(
+  input: ReportSaasIsolationEventInput,
+): Promise<void> {
   runtimeReporter.report(input);
   return Promise.resolve();
 }

@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 type SendDoctorProgramDiscussionReplyInput = {
   instanceId: string;
@@ -14,12 +14,13 @@ export type SendDoctorProgramDiscussionReplyResult =
     };
 
 function mapReplyErrorToRu(errorCode: string | null | undefined): string {
-  if (errorCode === "feature_disabled") return "Ответы временно отключены";
-  if (errorCode === "program_not_doctor_assigned") return "Ответ доступен только для программ, назначенных врачом";
-  if (errorCode === "program_item_not_active") return "Нельзя ответить по неактивному пункту";
-  if (errorCode === "stage_item_not_found" || errorCode === "not_found") return "Пункт не найден";
-  if (errorCode === "invalid_body") return "Некорректный текст ответа";
-  return "Не удалось отправить ответ";
+  if (errorCode === 'feature_disabled') return 'Ответы временно отключены';
+  if (errorCode === 'program_not_doctor_assigned')
+    return 'Ответ доступен только для программ, назначенных врачом';
+  if (errorCode === 'program_item_not_active') return 'Нельзя ответить по неактивному пункту';
+  if (errorCode === 'stage_item_not_found' || errorCode === 'not_found') return 'Пункт не найден';
+  if (errorCode === 'invalid_body') return 'Некорректный текст ответа';
+  return 'Не удалось отправить ответ';
 }
 
 export async function sendDoctorProgramDiscussionReply(
@@ -28,8 +29,8 @@ export async function sendDoctorProgramDiscussionReply(
   const res = await fetch(
     `/api/doctor/treatment-program-instances/${encodeURIComponent(input.instanceId)}/items/${encodeURIComponent(input.stageItemId)}/program-note-reply`,
     {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: input.text }),
     },
   );

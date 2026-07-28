@@ -27,4 +27,4 @@
 
 ---
 
-*Отчёты по этой теме вели в этом файле; файл перенесён в архив (`docs/archive/2026-04-docs-cleanup/reports/CMS_DOCTOR_HUB_EXECUTION_LOG.md`).*
+_Отчёты по этой теме вели в этом файле; файл перенесён в архив (`docs/archive/2026-04-docs-cleanup/reports/CMS_DOCTOR_HUB_EXECUTION_LOG.md`)._

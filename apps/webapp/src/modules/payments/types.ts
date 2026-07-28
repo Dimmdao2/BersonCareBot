@@ -1,4 +1,4 @@
-import type { PrepaymentMode } from "../../../db/schema/bookingPayments";
+import type { PrepaymentMode } from '../../../db/schema/bookingPayments';
 
 export type { PrepaymentMode };
 

@@ -1,23 +1,23 @@
-import Link from "next/link";
-import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
-import { cn } from "@/lib/utils";
-import { doctorSectionTitleClass } from "@/shared/ui/doctor/doctorVisual";
-import type { Template, TemplateExercise } from "@/modules/lfk-templates/types";
-import { lfkExerciseSideRu } from "@/modules/lfk-templates/lfkExerciseSide";
-import { MediaThumb } from "@/shared/ui/doctor/media/MediaThumb";
-import { exerciseMediaToPreviewUi } from "@/shared/ui/doctor/media/mediaPreviewUiModel";
-import { LfkTemplateStatusBadge } from "./LfkTemplateStatusBadge";
+import Link from 'next/link';
+import { buttonVariants } from '@/shared/ui/doctor/primitives/button-variants';
+import { cn } from '@/lib/utils';
+import { doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
+import type { Template, TemplateExercise } from '@/modules/lfk-templates/types';
+import { lfkExerciseSideRu } from '@/modules/lfk-templates/lfkExerciseSide';
+import { MediaThumb } from '@/shared/ui/doctor/media/MediaThumb';
+import { exerciseMediaToPreviewUi } from '@/shared/ui/doctor/media/mediaPreviewUiModel';
+import { LfkTemplateStatusBadge } from './LfkTemplateStatusBadge';
 
 function TemplateExercisePreviewRow({ line }: { line: TemplateExercise }) {
   const title = line.exerciseTitle ?? line.exerciseId;
   const preview = line.firstMedia ? exerciseMediaToPreviewUi(line.firstMedia) : null;
   const side = lfkExerciseSideRu(line.side);
   const parts: { label: string; value: string }[] = [];
-  if (line.reps != null) parts.push({ label: "Повторы", value: String(line.reps) });
-  if (line.sets != null) parts.push({ label: "Подходы", value: String(line.sets) });
-  if (side) parts.push({ label: "Сторона", value: side });
-  if (line.maxPain0_10 != null) parts.push({ label: "Боль max", value: String(line.maxPain0_10) });
-  if (line.comment?.trim()) parts.push({ label: "Комментарий", value: line.comment.trim() });
+  if (line.reps != null) parts.push({ label: 'Повторы', value: String(line.reps) });
+  if (line.sets != null) parts.push({ label: 'Подходы', value: String(line.sets) });
+  if (side) parts.push({ label: 'Сторона', value: side });
+  if (line.maxPain0_10 != null) parts.push({ label: 'Боль max', value: String(line.maxPain0_10) });
+  if (line.comment?.trim()) parts.push({ label: 'Комментарий', value: line.comment.trim() });
 
   return (
     <li className="flex w-full flex-col gap-2 rounded-lg border border-border/70 bg-card p-3">
@@ -64,7 +64,9 @@ export function LfkTemplatePreviewPanel({
   return (
     <div className="flex min-w-0 flex-col gap-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <h2 className={cn("min-w-0 flex-1 leading-tight", doctorSectionTitleClass)}>{template.title}</h2>
+        <h2 className={cn('min-w-0 flex-1 leading-tight', doctorSectionTitleClass)}>
+          {template.title}
+        </h2>
         <LfkTemplateStatusBadge status={template.status} className="shrink-0" />
       </div>
       {template.description?.trim() ? (
@@ -73,7 +75,7 @@ export function LfkTemplatePreviewPanel({
       <p className="text-xs text-muted-foreground tabular-nums">
         Упражнений: {template.exerciseCount ?? lines.length}
       </p>
-      {template.ownerKind === "platform" ? (
+      {template.ownerKind === 'platform' ? (
         <p className="rounded-md border border-primary/25 bg-primary/5 p-3 text-sm text-muted-foreground">
           Базовый комплекс платформы доступен для назначения и не редактируется клиникой.
         </p>
@@ -81,9 +83,9 @@ export function LfkTemplatePreviewPanel({
       {showOpenButton ? (
         <Link
           href={`/app/doctor/lfk-templates/${template.id}`}
-          className={cn(buttonVariants(), "w-full sm:w-auto")}
+          className={cn(buttonVariants(), 'w-full sm:w-auto')}
         >
-          {template.ownerKind === "platform" ? "Открыть" : "Открыть конструктор"}
+          {template.ownerKind === 'platform' ? 'Открыть' : 'Открыть конструктор'}
         </Link>
       ) : null}
       {lines.length === 0 ? (

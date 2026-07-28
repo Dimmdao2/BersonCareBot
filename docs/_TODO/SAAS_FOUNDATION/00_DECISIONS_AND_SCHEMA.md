@@ -11,6 +11,7 @@ SKELETON (2026-06-17). Decisions are **settled** (concrete); schema is the **tar
 generated via Drizzle. Grounded against prod-mirror `bcb_webapp_dev` (read-only) — see FOUNDATION_PLAN §v3.
 
 ## Settled decisions
+
 - **D1 — Tenant = Organization.** Cabinet ≡ Organization; reuse existing `be_organizations` (do NOT add a parallel `cabinet_id`). Solo specialist = org with 1 specialist; clinic = org with N specialists/branches (hierarchy already exists: `be_organizations → be_branches → be_rooms`, `be_specialists.organization_id`).
 - **D2 — Identity.** Patient = `platform_users` (global enum role `client|doctor|admin`). **No `persons`/`directory` split in Phase 0** (region-phase work; would fight `be_appointments.platform_user_id`). Enrollment = explicit `(organization_id, platform_user_id)` table (NOT derived: `be_patient_timeline_events` has only 4 rows; 102/241 patients have no `be_*` footprint).
 - **D3 — Membership is net-new.** No login-user↔specialist↔org link exists; `be_specialists` = name only. Build `be_organization_members`. Seed: 1 doctor + 5 admins → the single org; doctor → active specialist `518e…` (ignore inactive duplicate `c951…`).
@@ -23,6 +24,7 @@ generated via Drizzle. Grounded against prod-mirror `bcb_webapp_dev` (read-only)
 - **D10 — Rubitime/legacy frozen.** `patient_bookings`/`appointment_records` (branch-scoped, Rubitime-fed) excluded from scoping; dropped after the ~1-month sunset.
 
 ## Open product decisions (do NOT block Phase 0)
+
 - Intra-clinic card visibility `card_visibility_policy` on `be_organizations`: default `all` (every org specialist sees every org patient) vs `assigned`. Deferred — a column + optional 2nd RLS predicate, switchable later. Default `all`.
 - Cross-region enrollment policy (region phase).
 - Doctor client block/archive semantics: current implementation uses global account flags
@@ -39,6 +41,7 @@ generated via Drizzle. Grounded against prod-mirror `bcb_webapp_dev` (read-only)
   operations, and suspension behavior are R5 commercial SaaS work, not Phase 0.
 
 ## Target schema (sketch — to be generated via Drizzle)
+
 ```
 be_organization_members
   id, organization_id FK be_organizations, platform_user_id FK platform_users,
@@ -60,4 +63,5 @@ RLS (raw-SQL custom Drizzle migration, dormant via GUC):
   POLICY using ( current_setting('app.enforce_tenancy',true) IS DISTINCT FROM 'on'
                  OR organization_id = current_setting('app.organization_id',true)::uuid )
 ```
+
 Exact clinical-table list = stage F0.8 (generated from `information_schema`, not guessed here).

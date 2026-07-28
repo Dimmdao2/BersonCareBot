@@ -9,11 +9,11 @@
 `/app/doctor/schedule` — настоящая страница-шелл (`page.tsx`). Internal-rewrite убран (этап e12).
 Старые прямые URL → **308** на агрегатный URL.
 
-| Вкладка | `?tab=` | Старый URL (308 → агрегатный) |
-|---------|---------|-------------------------------|
-| Записи | `cal` (default) | `/app/doctor/calendar` → `?tab=cal` |
-| Записи | `cal` | `/app/doctor/appointments` (включая `?view=future\|past`) → `?tab=cal`; legacy query отбрасывается |
-| Настройки | `setup` | `/app/doctor/admin/booking` → `?tab=setup` |
+| Вкладка   | `?tab=`         | Старый URL (308 → агрегатный)                                                                      |
+| --------- | --------------- | -------------------------------------------------------------------------------------------------- |
+| Записи    | `cal` (default) | `/app/doctor/calendar` → `?tab=cal`                                                                |
+| Записи    | `cal`           | `/app/doctor/appointments` (включая `?view=future\|past`) → `?tab=cal`; legacy query отбрасывается |
+| Настройки | `setup`         | `/app/doctor/admin/booking` → `?tab=setup`                                                         |
 
 **Loop-guard:** `x-bc-doctor-rewrite` в `doctorRouteRedirects.ts` сохранён (защита от петли для
 других rewrite в proxy).
@@ -37,33 +37,34 @@
 
 ## KPI (9 карточек) — только в табе «Записи»
 
-| Карточка | Поле `ScheduleKpis` |
-|----------|---------------------|
-| Записей | `recordsInPeriod` |
-| Прошло | `pastInPeriod` |
-| Впереди | `futureInPeriod` |
+| Карточка      | Поле `ScheduleKpis`      |
+| ------------- | ------------------------ |
+| Записей       | `recordsInPeriod`        |
+| Прошло        | `pastInPeriod`           |
+| Впереди       | `futureInPeriod`         |
 | По абонементу | `bySubscriptionInPeriod` |
-| Первичных | `firstVisitInPeriod` |
-| Повторных | `repeatVisitInPeriod` |
-| Уникальных | `uniquePatientsInPeriod` |
-| Отмены | `cancellationsInPeriod` |
-| Переносы | `reschedulesInPeriod` |
+| Первичных     | `firstVisitInPeriod`     |
+| Повторных     | `repeatVisitInPeriod`    |
+| Уникальных    | `uniquePatientsInPeriod` |
+| Отмены        | `cancellationsInPeriod`  |
+| Переносы      | `reschedulesInPeriod`    |
 
 Отображаются только в «Записях» (не в drill-down «День»). Параллельная загрузка событий + KPI
 по одному диапазону + фильтрам. API: `GET /api/doctor/schedule-kpis?from=&to=&branchId?=&serviceId?=`.
 
 **Семантика ключевых полей:**
+
 - `firstVisitInPeriod` — пациент, у которого **нет ни одной** более ранней не-отменённой записи
   за весь период (§13.5 ТЗ): `NOT EXISTS(start_at < outer.start_at)`, строгий порядок `(start_at,id)`.
 - `cancellationsInPeriod` / `reschedulesInPeriod` — считаются по дате **визита** (`start_at ∈ [from,to)`), не по дате события (§13.1 ТЗ).
 
 ## Реестр табов (`scheduleTabRegistry.ts`)
 
-| id | Метка | Компонент | deep-link ключи |
-|----|-------|-----------|-----------------|
-| `cal` | Записи | `ScheduleCalendarTab` | `view`, `date`, `location`, `service`, `appt`, `from` |
-| `work` | График работы | `ScheduleWorkTab` | `location`, `month` |
-| `setup` | Настройки | `ScheduleSetupTab` | `section` |
+| id      | Метка         | Компонент             | deep-link ключи                                       |
+| ------- | ------------- | --------------------- | ----------------------------------------------------- |
+| `cal`   | Записи        | `ScheduleCalendarTab` | `view`, `date`, `location`, `service`, `appt`, `from` |
+| `work`  | График работы | `ScheduleWorkTab`     | `location`, `month`                                   |
+| `setup` | Настройки     | `ScheduleSetupTab`    | `section`                                             |
 
 Тип пропов вкладки: `ScheduleTabProps { deepLinkParams, onDeepLinkChange, initialData, isActive }`.
 
@@ -108,17 +109,17 @@
 
 Admin-only (обеспечено на уровне nav и шелла). Под-навигация секций:
 
-| `?section=` | Компоненты |
-|-------------|-----------|
-| `calendar` (default) | `ScheduleCalendarDefaultsSection` |
-| `locations` | `BookingSoloLocationsSection` + `BookingSoloAvailabilitySection` |
-| `services` | `BookingSoloServicesSection` — canonical booking catalog (create/edit/deactivate) |
-| `specialists` | `BookingSoloSpecialistsSection` — canonical booking-engine specialists (owner/себя + сотрудники); отдельно от личных «Настроек специалиста» аккаунта |
-| `form` | `BookingSoloFormFieldsSection` + `BookingPublicWidgetSection` + `BookingPublicAttributionSection` |
-| `payments` | `BookingPaymentsSectionLoader` + `BookingPrepaymentSection` |
-| `rules` | `BookingRulesLoader` (→ `BookingRulesPageClient`) |
-| `notifications` | `ScheduleNotificationsSection` |
-| `packages` | Шаблоны абонементов (создание/деактивация) |
+| `?section=`          | Компоненты                                                                                                                                           |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `calendar` (default) | `ScheduleCalendarDefaultsSection`                                                                                                                    |
+| `locations`          | `BookingSoloLocationsSection` + `BookingSoloAvailabilitySection`                                                                                     |
+| `services`           | `BookingSoloServicesSection` — canonical booking catalog (create/edit/deactivate)                                                                    |
+| `specialists`        | `BookingSoloSpecialistsSection` — canonical booking-engine specialists (owner/себя + сотрудники); отдельно от личных «Настроек специалиста» аккаунта |
+| `form`               | `BookingSoloFormFieldsSection` + `BookingPublicWidgetSection` + `BookingPublicAttributionSection`                                                    |
+| `payments`           | `BookingPaymentsSectionLoader` + `BookingPrepaymentSection`                                                                                          |
+| `rules`              | `BookingRulesLoader` (→ `BookingRulesPageClient`)                                                                                                    |
+| `notifications`      | `ScheduleNotificationsSection`                                                                                                                       |
+| `packages`           | Шаблоны абонементов (создание/деактивация)                                                                                                           |
 
 В секции `locations` строка **«Онлайн»** — встроенная локация организации поверх существующей
 `be_branches`, а не отдельный тип записи. Её нельзя переименовать, удалить или создать повторно.
@@ -132,7 +133,7 @@ Admin-only (обеспечено на уровне nav и шелла). Под-н
 
 - `be_working_days` — рабочий день по конкретной дате:
   `(organization_id, specialist_id, branch_id, room_id, work_date, start_minute, end_minute,
-  breaks jsonb NOT NULL DEFAULT '[]', isClosed)`.
+breaks jsonb NOT NULL DEFAULT '[]', isClosed)`.
   - Partial-unique: `(organization_id, COALESCE(specialist_id, sentinel), work_date)`.
   - `breaks: Array<{startMinute, endMinute}>` — N-break модель (B1/B3); до 6 перерывов;
     legаси-колонки `break_start_minute`/`break_end_minute` сохранены для backward-compat.
@@ -144,6 +145,7 @@ Admin-only (обеспечено на уровне nav и шелла). Под-н
 ### Интеграция со слот-движком
 
 `booking-scheduling/computeSlots.ts:workingIntervalsForDate(…, perDayRow?)`:
+
 - N перерывов: `resolveWorkingDayBreaks` → cursor-based `splitByBreak` → N+1 интервалов (B3).
 - Нет perDayRow → weekday `be_working_hours` (backward-compatible).
 

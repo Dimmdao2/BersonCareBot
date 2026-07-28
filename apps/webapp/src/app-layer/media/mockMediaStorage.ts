@@ -1,1 +1,1 @@
-export { getStoredMediaBody } from "@/infra/repos/mockMediaStorage";
+export { getStoredMediaBody } from '@/infra/repos/mockMediaStorage';

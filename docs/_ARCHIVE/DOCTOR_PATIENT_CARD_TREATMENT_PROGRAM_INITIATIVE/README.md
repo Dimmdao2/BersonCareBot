@@ -18,12 +18,12 @@
 
 ### Маршруты (канон после 2026-06-03)
 
-| Экран | URL | Примечание |
-|-------|-----|------------|
-| Список клиентов | `/app/doctor/clients?scope=appointments\|all\|archived` | Только список; `?selected=<uuid>` → redirect на карточку |
-| Карточка клиента | `/app/doctor/clients/[userId]?scope=…` | `ClientProfileCard`; loader `loadDoctorClientProfileCardProps` |
-| Секция программы (hash) | `…#doctor-client-section-treatment-programs` | Таб «Программа»; read-only `activeProgramTree` |
-| Editor инстанса | `/app/doctor/clients/[userId]/treatment-programs/[instanceId]` | Back/имя → карточка с hash программы |
+| Экран                   | URL                                                            | Примечание                                                     |
+| ----------------------- | -------------------------------------------------------------- | -------------------------------------------------------------- |
+| Список клиентов         | `/app/doctor/clients?scope=appointments\|all\|archived`        | Только список; `?selected=<uuid>` → redirect на карточку       |
+| Карточка клиента        | `/app/doctor/clients/[userId]?scope=…`                         | `ClientProfileCard`; loader `loadDoctorClientProfileCardProps` |
+| Секция программы (hash) | `…#doctor-client-section-treatment-programs`                   | Таб «Программа»; read-only `activeProgramTree`                 |
+| Editor инстанса         | `/app/doctor/clients/[userId]/treatment-programs/[instanceId]` | Back/имя → карточка с hash программы                           |
 
 ---
 
@@ -35,16 +35,16 @@
 
 ## Каноничные спецификации (не копировать сюда дословно)
 
-| Тема | Документ |
-|------|----------|
-| Целевая IA кабинета, Tab «Назначения», CTA «Назначить новое» | [`../APP_RESTRUCTURE_INITIATIVE/TARGET_STRUCTURE_DOCTOR.md`](../APP_RESTRUCTURE_INITIATIVE/TARGET_STRUCTURE_DOCTOR.md) §5–§6 |
-| Заморозка глубокой карточки в прошлом проходе + «что после» | [`../APP_RESTRUCTURE_INITIATIVE/PLAN_DOCTOR_CABINET.md`](../APP_RESTRUCTURE_INITIATIVE/PLAN_DOCTOR_CABINET.md) этап 6, §«Этап 10» |
-| Домен плана лечения, deep copy, правка инстанса, inbox, §4 UX врача | [`../APP_RESTRUCTURE_INITIATIVE/PROGRAM_PATIENT_SHAPE_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/PROGRAM_PATIENT_SHAPE_PLAN.md) |
-| Сводка инициатив и статус A1–A5 / B1–B7 | [`../APP_RESTRUCTURE_INITIATIVE/README.md`](../APP_RESTRUCTURE_INITIATIVE/README.md) |
-| Каталоги «Назначений», comment pattern, хвост по шаблонам | [`../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md) |
+| Тема                                                                 | Документ                                                                                                                                                                                                                                                                 |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Целевая IA кабинета, Tab «Назначения», CTA «Назначить новое»         | [`../APP_RESTRUCTURE_INITIATIVE/TARGET_STRUCTURE_DOCTOR.md`](../APP_RESTRUCTURE_INITIATIVE/TARGET_STRUCTURE_DOCTOR.md) §5–§6                                                                                                                                             |
+| Заморозка глубокой карточки в прошлом проходе + «что после»          | [`../APP_RESTRUCTURE_INITIATIVE/PLAN_DOCTOR_CABINET.md`](../APP_RESTRUCTURE_INITIATIVE/PLAN_DOCTOR_CABINET.md) этап 6, §«Этап 10»                                                                                                                                        |
+| Домен плана лечения, deep copy, правка инстанса, inbox, §4 UX врача  | [`../APP_RESTRUCTURE_INITIATIVE/PROGRAM_PATIENT_SHAPE_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/PROGRAM_PATIENT_SHAPE_PLAN.md)                                                                                                                                             |
+| Сводка инициатив и статус A1–A5 / B1–B7                              | [`../APP_RESTRUCTURE_INITIATIVE/README.md`](../APP_RESTRUCTURE_INITIATIVE/README.md)                                                                                                                                                                                     |
+| Каталоги «Назначений», comment pattern, хвост по шаблонам            | [`../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md)                                                                                                                                   |
 | Пациент: страницы программы (смежный контур), инициатива **закрыта** | [`../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md`](../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md) · [`LOG.md`](../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/LOG.md) |
-| Реестр HTTP webapp (doctor/patient, test-results + accept) | [`../../apps/webapp/src/app/api/api.md`](../../apps/webapp/src/app/api/api.md) |
-| Правила исполнения (Drizzle, LFK, фазы) | [`../RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md`](../RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md) |
+| Реестр HTTP webapp (doctor/patient, test-results + accept)           | [`../../apps/webapp/src/app/api/api.md`](../../apps/webapp/src/app/api/api.md)                                                                                                                                                                                           |
+| Правила исполнения (Drizzle, LFK, фазы)                              | [`../RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md`](../RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md)                                                                                                                                                                         |
 
 ---
 

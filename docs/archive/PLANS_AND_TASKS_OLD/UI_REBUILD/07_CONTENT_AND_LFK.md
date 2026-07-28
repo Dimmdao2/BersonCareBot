@@ -13,6 +13,7 @@
 **Файл:** `apps/webapp/src/modules/content-catalog/types.ts`
 
 Убедиться, что тип `ContentStubItem` содержит `videoSource?`:
+
 - Если да — использовать его.
 - Если нет — добавить поле `videoUrl?: string`.
 
@@ -23,13 +24,18 @@
 **Файл:** `apps/webapp/src/app/app/patient/content/[slug]/page.tsx`
 
 **Найти:**
+
 ```tsx
-<section id={`patient-content-video-section-${slug}`} className="stack" style={{ marginTop: "1rem" }}>
+<section
+  id={`patient-content-video-section-${slug}`}
+  className="stack"
+  style={{ marginTop: '1rem' }}
+>
   <h3>Видео</h3>
   <img
     src="https://placehold.co/640x360?text=Video"
     alt=""
-    style={{ maxWidth: "100%", height: "auto", borderRadius: "8px" }}
+    style={{ maxWidth: '100%', height: 'auto', borderRadius: '8px' }}
     width={640}
     height={360}
   />
@@ -37,35 +43,57 @@
 ```
 
 **Заменить на:**
+
 ```tsx
-{item.videoSource?.url ? (
-  <section id={`patient-content-video-section-${slug}`} className="stack" style={{ marginTop: "1rem" }}>
-    <h3>Видео</h3>
-    {item.videoSource.type === "youtube" ? (
-      <div style={{ position: "relative", paddingBottom: "56.25%", height: 0, overflow: "hidden", borderRadius: 8 }}>
-        <iframe
-          src={item.videoSource.url}
-          style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: "none" }}
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowFullScreen
-          title={item.title}
-        />
-      </div>
-    ) : (
-      <video
-        controls
-        preload="metadata"
-        style={{ maxWidth: "100%", borderRadius: 8 }}
-      >
-        <source src={item.videoSource.url} />
-      </video>
-    )}
-  </section>
-) : (
-  <section id={`patient-content-video-section-${slug}`} className="stack" style={{ marginTop: "1rem" }}>
-    <p className="empty-state">Видео будет добавлено в ближайшее время.</p>
-  </section>
-)}
+{
+  item.videoSource?.url ? (
+    <section
+      id={`patient-content-video-section-${slug}`}
+      className="stack"
+      style={{ marginTop: '1rem' }}
+    >
+      <h3>Видео</h3>
+      {item.videoSource.type === 'youtube' ? (
+        <div
+          style={{
+            position: 'relative',
+            paddingBottom: '56.25%',
+            height: 0,
+            overflow: 'hidden',
+            borderRadius: 8,
+          }}
+        >
+          <iframe
+            src={item.videoSource.url}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              border: 'none',
+            }}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            title={item.title}
+          />
+        </div>
+      ) : (
+        <video controls preload="metadata" style={{ maxWidth: '100%', borderRadius: 8 }}>
+          <source src={item.videoSource.url} />
+        </video>
+      )}
+    </section>
+  ) : (
+    <section
+      id={`patient-content-video-section-${slug}`}
+      className="stack"
+      style={{ marginTop: '1rem' }}
+    >
+      <p className="empty-state">Видео будет добавлено в ближайшее время.</p>
+    </section>
+  );
+}
 ```
 
 ### Шаг 7.2: Форма создания ЛФК-комплекса (P-17)
@@ -77,14 +105,14 @@
 ```tsx
 export async function createLfkComplex(formData: FormData) {
   const session = await requirePatientAccess();
-  const title = (formData.get("complexTitle") as string)?.trim();
+  const title = (formData.get('complexTitle') as string)?.trim();
   if (!title) return;
   const deps = buildAppDeps();
   await deps.diaries.createLfkComplex({
     userId: session.user.userId,
     title,
   });
-  revalidatePath("/app/patient/diary/lfk");
+  revalidatePath('/app/patient/diary/lfk');
 }
 ```
 
@@ -93,6 +121,7 @@ export async function createLfkComplex(formData: FormData) {
 В блоке, где показывается пустое состояние (нет комплексов), заменить заглушку на форму:
 
 **Найти:**
+
 ```tsx
 {complexes.length === 0 ? (
   <p className="empty-state">{EMPTY_STATE_PLACEHOLDER}</p>
@@ -100,6 +129,7 @@ export async function createLfkComplex(formData: FormData) {
 ```
 
 **Заменить на:**
+
 ```tsx
 {complexes.length === 0 ? (
   <div className="stack" style={{ gap: 12 }}>
@@ -129,6 +159,7 @@ export async function createLfkComplex(formData: FormData) {
 **Файл:** `apps/webapp/src/app/app/page.tsx`
 
 **Найти:**
+
 ```tsx
 <Link id="app-entry-dev-login-doctor" href="/app?t=dev:client" className="button">
   Как врач / админ
@@ -136,6 +167,7 @@ export async function createLfkComplex(formData: FormData) {
 ```
 
 **Заменить на:**
+
 ```tsx
 <Link id="app-entry-dev-login-doctor" href="/app?t=dev:admin" className="button">
   Как врач / админ

@@ -55,25 +55,25 @@
  *                              never silently dropped.
  *   --include=<regex>          Only walk routes whose rendered path matches this regex.
  */
-import { readFileSync, writeFileSync, readdirSync, statSync } from "node:fs";
-import { dirname, join, relative, resolve, sep } from "node:path";
-import { fileURLToPath } from "node:url";
+import { readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs';
+import { dirname, join, relative, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const repoRoot = resolve(__dirname, "..", "..", "..", "..");
-const appRouterRoot = resolve(repoRoot, "apps/webapp/src/app");
-const appDir = resolve(appRouterRoot, "app");
+const repoRoot = resolve(__dirname, '..', '..', '..', '..');
+const appRouterRoot = resolve(repoRoot, 'apps/webapp/src/app');
+const appDir = resolve(appRouterRoot, 'app');
 
-const SESSION_COOKIE_NAME = "bersoncare_webapp_session";
+const SESSION_COOKIE_NAME = 'bersoncare_webapp_session';
 const LOGIN_PAGE_MARKER = 'id="app-entry-content"';
-const ENTRY_PATHS = new Set(["/app", "/app/tg", "/app/max"]);
+const ENTRY_PATHS = new Set(['/app', '/app/tg', '/app/max']);
 
-const ROLES = ["doctor", "clinic_admin", "patient", "global_admin", "public"];
+const ROLES = ['doctor', 'clinic_admin', 'patient', 'global_admin', 'public'];
 const DEV_BYPASS_TOKEN_BY_ROLE = {
-  doctor: "dev:doctor",
-  clinic_admin: "dev:clinic-admin",
-  patient: "dev:client",
-  global_admin: "dev:admin",
+  doctor: 'dev:doctor',
+  clinic_admin: 'dev:clinic-admin',
+  patient: 'dev:client',
+  global_admin: 'dev:admin',
   // public: no token, no session
 };
 
@@ -87,7 +87,7 @@ function parseArgs(argv) {
   const options = {
     baseUrl: null,
     auth: null,
-    fixtureFile: "/run/bersoncarebot/saas-smoke.fixture",
+    fixtureFile: '/run/bersoncarebot/saas-smoke.fixture',
     concurrency: 6,
     timeoutMs: 15000,
     paramsFile: null,
@@ -96,25 +96,29 @@ function parseArgs(argv) {
     include: null,
   };
   for (const arg of argv) {
-    if (arg.startsWith("--base-url=")) options.baseUrl = arg.slice("--base-url=".length);
-    else if (arg.startsWith("--auth=")) options.auth = arg.slice("--auth=".length);
-    else if (arg.startsWith("--fixture-file=")) options.fixtureFile = arg.slice("--fixture-file=".length);
-    else if (arg.startsWith("--concurrency=")) options.concurrency = Number(arg.slice("--concurrency=".length));
-    else if (arg.startsWith("--timeout-ms=")) options.timeoutMs = Number(arg.slice("--timeout-ms=".length));
-    else if (arg.startsWith("--params-file=")) options.paramsFile = arg.slice("--params-file=".length);
-    else if (arg.startsWith("--out-json=")) options.outJson = arg.slice("--out-json=".length);
-    else if (arg.startsWith("--out-csv=")) options.outCsv = arg.slice("--out-csv=".length);
-    else if (arg.startsWith("--include=")) options.include = arg.slice("--include=".length);
+    if (arg.startsWith('--base-url=')) options.baseUrl = arg.slice('--base-url='.length);
+    else if (arg.startsWith('--auth=')) options.auth = arg.slice('--auth='.length);
+    else if (arg.startsWith('--fixture-file='))
+      options.fixtureFile = arg.slice('--fixture-file='.length);
+    else if (arg.startsWith('--concurrency='))
+      options.concurrency = Number(arg.slice('--concurrency='.length));
+    else if (arg.startsWith('--timeout-ms='))
+      options.timeoutMs = Number(arg.slice('--timeout-ms='.length));
+    else if (arg.startsWith('--params-file='))
+      options.paramsFile = arg.slice('--params-file='.length);
+    else if (arg.startsWith('--out-json=')) options.outJson = arg.slice('--out-json='.length);
+    else if (arg.startsWith('--out-csv=')) options.outCsv = arg.slice('--out-csv='.length);
+    else if (arg.startsWith('--include=')) options.include = arg.slice('--include='.length);
     else fail(`unknown argument: ${arg}`);
   }
-  if (!options.baseUrl) fail("--base-url=<url> is required");
-  if (options.auth !== "dev-bypass" && options.auth !== "fixture") {
+  if (!options.baseUrl) fail('--base-url=<url> is required');
+  if (options.auth !== 'dev-bypass' && options.auth !== 'fixture') {
     fail('--auth=dev-bypass|fixture is required');
   }
   if (!Number.isFinite(options.concurrency) || options.concurrency < 1) {
-    fail("--concurrency must be a positive integer");
+    fail('--concurrency must be a positive integer');
   }
-  options.baseUrl = options.baseUrl.replace(/\/+$/, "");
+  options.baseUrl = options.baseUrl.replace(/\/+$/, '');
   return options;
 }
 
@@ -128,7 +132,7 @@ function findPageFiles(dir, out = []) {
     const st = statSync(full);
     if (st.isDirectory()) {
       findPageFiles(full, out);
-    } else if (entry === "page.tsx") {
+    } else if (entry === 'page.tsx') {
       out.push(full);
     }
   }
@@ -163,7 +167,7 @@ function toRouteTemplate(pageFilePath) {
       kept.push(segment);
     }
   }
-  return { template: `/${kept.join("/")}`, dynamicParams };
+  return { template: `/${kept.join('/')}`, dynamicParams };
 }
 
 function discoverRoutes() {
@@ -215,18 +219,18 @@ async function acquireDevBypassCookies(baseUrl) {
     }
     const response = await fetch(
       `${baseUrl}/api/auth/dev-bypass?token=${encodeURIComponent(token)}`,
-      { redirect: "manual" },
+      { redirect: 'manual' },
     );
     const setCookies = response.headers.getSetCookie ? response.headers.getSetCookie() : [];
     const cookie = firstSessionCookie(setCookies);
     const observedStatus = response.status;
-    const observedLocation = response.headers.get("location");
+    const observedLocation = response.headers.get('location');
     // Drain body so the socket is released; ignore contents.
     await response.arrayBuffer().catch(() => {});
     if (!cookie) {
       console.warn(
         `auth: WARNING dev-bypass login failed closed for role=${role} ` +
-          `(status=${observedStatus}, location=${observedLocation ?? "(none)"}, no Set-Cookie). ` +
+          `(status=${observedStatus}, location=${observedLocation ?? '(none)'}, no Set-Cookie). ` +
           `This DEV instance has no seeded account for this role (see LOCAL_DEV_AND_AGENT_TESTING.md §4.2.1). ` +
           `Excluding role=${role} from the probe matrix — reported explicitly, not dropped silently.`,
       );
@@ -243,7 +247,7 @@ async function acquireDevBypassCookies(baseUrl) {
 function loadFixtureCookies(fixtureFile) {
   let raw;
   try {
-    raw = readFileSync(fixtureFile, "utf8");
+    raw = readFileSync(fixtureFile, 'utf8');
   } catch (error) {
     fail(
       `cannot read fixture file ${fixtureFile}: ${error.code ?? error.message}. ` +
@@ -252,14 +256,16 @@ function loadFixtureCookies(fixtureFile) {
     );
   }
   const fixture = JSON.parse(raw);
-  if (fixture.schemaVersion !== 1) fail("fixture schemaVersion must be 1");
+  if (fixture.schemaVersion !== 1) fail('fixture schemaVersion must be 1');
   const headersByRole = {};
   for (const role of ROLES) {
     const profile = fixture.authProfiles?.[role];
     if (!profile) fail(`fixture missing authProfiles.${role}`);
     headersByRole[role] = { ...(profile.headers ?? {}) };
   }
-  console.log(`auth: loaded fixture auth profiles for roles: ${ROLES.join(", ")} (headers not printed)`);
+  console.log(
+    `auth: loaded fixture auth profiles for roles: ${ROLES.join(', ')} (headers not printed)`,
+  );
   return { headersByRole, unavailableRoles: [] };
 }
 
@@ -269,10 +275,10 @@ function loadFixtureCookies(fixtureFile) {
 
 function classify(status, location, isLoginPageBody) {
   if (status >= 300 && status < 400) {
-    return `REDIRECT->${location ?? "(no Location header)"}`;
+    return `REDIRECT->${location ?? '(no Location header)'}`;
   }
-  if (status === 200 && isLoginPageBody) return "LOGIN-PAGE-AS-200";
-  if (status >= 200 && status < 300) return "OK";
+  if (status === 200 && isLoginPageBody) return 'LOGIN-PAGE-AS-200';
+  if (status >= 200 && status < 300) return 'OK';
   if (status >= 400 && status < 500) return `4xx:${status}`;
   if (status >= 500 && status < 600) return `5xx:${status}`;
   return `OTHER:${status}`;
@@ -292,10 +298,10 @@ async function probe({ baseUrl, path, role, headers, timeoutMs }) {
   const url = `${baseUrl}${path}`;
   const startedAt = Date.now();
   try {
-    const response = await fetchWithTimeout(url, { redirect: "manual", headers }, timeoutMs);
+    const response = await fetchWithTimeout(url, { redirect: 'manual', headers }, timeoutMs);
     const status = response.status;
-    const location = response.headers.get("location");
-    const contentType = response.headers.get("content-type") ?? "";
+    const location = response.headers.get('location');
+    const contentType = response.headers.get('content-type') ?? '';
     let bytes = 0;
     let isLoginPageBody = false;
     if (status >= 300 && status < 400) {
@@ -305,13 +311,14 @@ async function probe({ baseUrl, path, role, headers, timeoutMs }) {
     } else {
       const buf = await response.arrayBuffer().catch(() => new ArrayBuffer(0));
       bytes = buf.byteLength;
-      if (contentType.includes("html")) {
-        const text = Buffer.from(buf).toString("utf8");
+      if (contentType.includes('html')) {
+        const text = Buffer.from(buf).toString('utf8');
         isLoginPageBody = text.includes(LOGIN_PAGE_MARKER);
       }
     }
     const judgement = classify(status, location, isLoginPageBody);
-    const expected = role === "public" && ENTRY_PATHS.has(path) && judgement === "LOGIN-PAGE-AS-200";
+    const expected =
+      role === 'public' && ENTRY_PATHS.has(path) && judgement === 'LOGIN-PAGE-AS-200';
     return {
       path,
       role,
@@ -327,7 +334,7 @@ async function probe({ baseUrl, path, role, headers, timeoutMs }) {
       path,
       role,
       status: null,
-      judgement: `ERROR:${error.name === "AbortError" ? "timeout" : (error.code ?? error.message)}`,
+      judgement: `ERROR:${error.name === 'AbortError' ? 'timeout' : (error.code ?? error.message)}`,
       location: null,
       bytes: 0,
       expected: false,
@@ -355,25 +362,34 @@ async function runPool(tasks, worker, concurrency) {
 // ---------------------------------------------------------------------------
 
 function toCsv(rows) {
-  const header = ["path", "role", "status", "judgement", "location", "bytes", "expected", "durationMs"];
+  const header = [
+    'path',
+    'role',
+    'status',
+    'judgement',
+    'location',
+    'bytes',
+    'expected',
+    'durationMs',
+  ];
   const escape = (v) => {
-    const s = v === null || v === undefined ? "" : String(v);
+    const s = v === null || v === undefined ? '' : String(v);
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
-  const lines = [header.join(",")];
+  const lines = [header.join(',')];
   for (const row of rows) {
-    lines.push(header.map((key) => escape(row[key])).join(","));
+    lines.push(header.map((key) => escape(row[key])).join(','));
   }
-  return lines.join("\n") + "\n";
+  return lines.join('\n') + '\n';
 }
 
 function summarize(rows, skipped) {
   const byJudgementClass = {};
   const nonOk = [];
   for (const row of rows) {
-    const bucket = row.judgement.split("->")[0].split(":")[0];
+    const bucket = row.judgement.split('->')[0].split(':')[0];
     byJudgementClass[bucket] = (byJudgementClass[bucket] ?? 0) + 1;
-    if (row.judgement !== "OK" && !row.expected) {
+    if (row.judgement !== 'OK' && !row.expected) {
       nonOk.push(row);
     }
   }
@@ -390,16 +406,19 @@ function summarize(rows, skipped) {
 async function main() {
   const options = parseArgs(process.argv.slice(2));
 
-  if (options.auth === "dev-bypass" && !/^https?:\/\/(127\.0\.0\.1|localhost)(:|\/|$)/.test(options.baseUrl)) {
+  if (
+    options.auth === 'dev-bypass' &&
+    !/^https?:\/\/(127\.0\.0\.1|localhost)(:|\/|$)/.test(options.baseUrl)
+  ) {
     fail(
-      "--auth=dev-bypass refused against a non-loopback base URL. Dev bypass does not exist on " +
-        "TEST/PROD; use --auth=fixture there.",
+      '--auth=dev-bypass refused against a non-loopback base URL. Dev bypass does not exist on ' +
+        'TEST/PROD; use --auth=fixture there.',
     );
   }
 
   let paramsByName = {};
   if (options.paramsFile) {
-    paramsByName = JSON.parse(readFileSync(options.paramsFile, "utf8"));
+    paramsByName = JSON.parse(readFileSync(options.paramsFile, 'utf8'));
   }
 
   const routes = discoverRoutes();
@@ -417,7 +436,7 @@ async function main() {
     if (rendered === null) {
       skipped.push({
         template: routeInfo.template,
-        reason: `needs concrete id(s) for param(s): ${routeInfo.dynamicParams.join(", ")}`,
+        reason: `needs concrete id(s) for param(s): ${routeInfo.dynamicParams.join(', ')}`,
         missingParams: routeInfo.dynamicParams.filter((p) => !(p in paramsByName)),
       });
     } else {
@@ -431,7 +450,7 @@ async function main() {
   );
 
   const { headersByRole, unavailableRoles } =
-    options.auth === "dev-bypass"
+    options.auth === 'dev-bypass'
       ? await acquireDevBypassCookies(options.baseUrl)
       : loadFixtureCookies(options.fixtureFile);
 
@@ -446,12 +465,12 @@ async function main() {
   if (unavailableRoles.length > 0) {
     console.log(
       `roles unavailable on this target (excluded from probe matrix, reported explicitly): ` +
-        unavailableRoles.map((r) => r.role).join(", "),
+        unavailableRoles.map((r) => r.role).join(', '),
     );
   }
 
   console.log(
-    `probing ${probeTasks.length} (path, role) combinations across roles [${activeRoles.join(", ")}] against ` +
+    `probing ${probeTasks.length} (path, role) combinations across roles [${activeRoles.join(', ')}] against ` +
       `${options.baseUrl} at concurrency=${options.concurrency}, redirect: manual, GET-only...`,
   );
 
@@ -470,23 +489,25 @@ async function main() {
 
   const summary = summarize(results, skipped);
 
-  console.log("\n=== SUMMARY ===");
+  console.log('\n=== SUMMARY ===');
   console.log(`base URL:        ${options.baseUrl}`);
   console.log(`auth mode:       ${options.auth}`);
-  console.log(`roles active:    ${activeRoles.join(", ")}`);
-  console.log(`roles skipped:   ${unavailableRoles.map((r) => r.role).join(", ") || "(none)"}`);
+  console.log(`roles active:    ${activeRoles.join(', ')}`);
+  console.log(`roles skipped:   ${unavailableRoles.map((r) => r.role).join(', ') || '(none)'}`);
   console.log(`total probes:    ${summary.totalProbes}`);
   console.log(`by class:        ${JSON.stringify(summary.byJudgementClass)}`);
   console.log(`non-OK (real):   ${summary.nonOkCount}`);
   console.log(`dynamic skipped: ${summary.skippedRouteCount}`);
   if (summary.skipped.length > 0) {
-    console.log("\n--- skipped dynamic routes ---");
+    console.log('\n--- skipped dynamic routes ---');
     for (const s of summary.skipped) console.log(`  ${s.template}  (${s.reason})`);
   }
   if (summary.nonOk.length > 0) {
-    console.log("\n--- non-OK (path, role, status, judgement, location) ---");
+    console.log('\n--- non-OK (path, role, status, judgement, location) ---');
     for (const r of summary.nonOk) {
-      console.log(`  ${r.path}  [${r.role}]  status=${r.status}  ${r.judgement}${r.location ? `  location=${r.location}` : ""}`);
+      console.log(
+        `  ${r.path}  [${r.role}]  status=${r.status}  ${r.judgement}${r.location ? `  location=${r.location}` : ''}`,
+      );
     }
   }
 
@@ -514,6 +535,8 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(`walk-app-pages-no-redirect: fatal: ${error instanceof Error ? error.message : String(error)}`);
+  console.error(
+    `walk-app-pages-no-redirect: fatal: ${error instanceof Error ? error.message : String(error)}`,
+  );
   process.exitCode = 1;
 });

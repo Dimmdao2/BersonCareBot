@@ -1,13 +1,16 @@
-import { describe, expect, it, vi } from "vitest";
-import { createMaterialRatingService } from "./service";
-import type { MaterialRatingPort } from "./ports";
-import type { MaterialRatingAggregate } from "./types";
-import type { TreatmentProgramInstancePort, TreatmentProgramItemRefValidationPort } from "@/modules/treatment-program/ports";
+import { describe, expect, it, vi } from 'vitest';
+import { createMaterialRatingService } from './service';
+import type { MaterialRatingPort } from './ports';
+import type { MaterialRatingAggregate } from './types';
+import type {
+  TreatmentProgramInstancePort,
+  TreatmentProgramItemRefValidationPort,
+} from '@/modules/treatment-program/ports';
 
-describe("createMaterialRatingService putForPatient snapshot", () => {
-  const organizationId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
-  it("uses the assigned program item as the patient read capability without probing the staff catalog", async () => {
-    const assertItemRefExists = vi.fn().mockRejectedValue(new Error("permission denied"));
+describe('createMaterialRatingService putForPatient snapshot', () => {
+  const organizationId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  it('uses the assigned program item as the patient read capability without probing the staff catalog', async () => {
+    const assertItemRefExists = vi.fn().mockRejectedValue(new Error('permission denied'));
     const ratings: MaterialRatingPort = {
       upsertRating: vi.fn(),
       getMyRating: vi.fn().mockResolvedValue(null),
@@ -26,29 +29,33 @@ describe("createMaterialRatingService putForPatient snapshot", () => {
       itemRefs: { assertItemRefExists } as unknown as TreatmentProgramItemRefValidationPort,
       instances: {
         getInstanceForPatient: vi.fn().mockResolvedValue({
-          stages: [{
-            id: "stage-1",
-            sortOrder: 0,
-            status: "active",
-            items: [{
-              id: "550e8400-e29b-41d4-a716-446655440003",
-              stageId: "stage-1",
-              itemType: "exercise",
-              itemRefId: "550e8400-e29b-41d4-a716-446655440099",
-              status: "active",
-            }],
-          }],
+          stages: [
+            {
+              id: 'stage-1',
+              sortOrder: 0,
+              status: 'active',
+              items: [
+                {
+                  id: '550e8400-e29b-41d4-a716-446655440003',
+                  stageId: 'stage-1',
+                  itemType: 'exercise',
+                  itemRefId: '550e8400-e29b-41d4-a716-446655440099',
+                  status: 'active',
+                },
+              ],
+            },
+          ],
         }),
       } as unknown as TreatmentProgramInstancePort,
     });
 
     const out = await svc.getForPatient({
       organizationId,
-      userId: "550e8400-e29b-41d4-a716-446655440001",
-      targetKind: "lfk_exercise",
-      targetId: "550e8400-e29b-41d4-a716-446655440099",
-      programInstanceId: "550e8400-e29b-41d4-a716-446655440002",
-      programStageItemId: "550e8400-e29b-41d4-a716-446655440003",
+      userId: '550e8400-e29b-41d4-a716-446655440001',
+      targetKind: 'lfk_exercise',
+      targetId: '550e8400-e29b-41d4-a716-446655440099',
+      programInstanceId: '550e8400-e29b-41d4-a716-446655440002',
+      programStageItemId: '550e8400-e29b-41d4-a716-446655440003',
       canViewAuthOnlyContent: true,
     });
 
@@ -57,7 +64,7 @@ describe("createMaterialRatingService putForPatient snapshot", () => {
     expect(ratings.getAggregate).toHaveBeenCalledOnce();
   });
 
-  it("returns aggregate and myStars after content_page upsert", async () => {
+  it('returns aggregate and myStars after content_page upsert', async () => {
     const ratings: MaterialRatingPort = {
       upsertRating: vi.fn().mockResolvedValue(undefined),
       getMyRating: vi.fn().mockResolvedValue(4),
@@ -81,15 +88,17 @@ describe("createMaterialRatingService putForPatient snapshot", () => {
           requiresAuth: false,
         }),
       },
-      itemRefs: { assertItemRefExists: vi.fn() } as unknown as TreatmentProgramItemRefValidationPort,
+      itemRefs: {
+        assertItemRefExists: vi.fn(),
+      } as unknown as TreatmentProgramItemRefValidationPort,
       instances: { getInstanceForPatient: vi.fn() } as unknown as TreatmentProgramInstancePort,
     });
     const out = await svc.putForPatient({
       organizationId,
-      userId: "u1",
+      userId: 'u1',
       stars: 4,
-      targetKind: "content_page",
-      targetId: "550e8400-e29b-41d4-a716-446655440099",
+      targetKind: 'content_page',
+      targetId: '550e8400-e29b-41d4-a716-446655440099',
       canViewAuthOnlyContent: true,
     });
     expect(out.ok).toBe(true);
@@ -101,7 +110,7 @@ describe("createMaterialRatingService putForPatient snapshot", () => {
     expect(ratings.getMyRating).toHaveBeenCalled();
   });
 
-  it("rejects content_page when only one of programInstanceId / programStageItemId is set", async () => {
+  it('rejects content_page when only one of programInstanceId / programStageItemId is set', async () => {
     const ratings: MaterialRatingPort = {
       upsertRating: vi.fn(),
       getMyRating: vi.fn(),
@@ -121,24 +130,26 @@ describe("createMaterialRatingService putForPatient snapshot", () => {
           requiresAuth: false,
         }),
       },
-      itemRefs: { assertItemRefExists: vi.fn() } as unknown as TreatmentProgramItemRefValidationPort,
+      itemRefs: {
+        assertItemRefExists: vi.fn(),
+      } as unknown as TreatmentProgramItemRefValidationPort,
       instances: { getInstanceForPatient: vi.fn() } as unknown as TreatmentProgramInstancePort,
     });
     const out = await svc.putForPatient({
       organizationId,
-      userId: "u1",
+      userId: 'u1',
       stars: 4,
-      targetKind: "content_page",
-      targetId: "550e8400-e29b-41d4-a716-446655440099",
+      targetKind: 'content_page',
+      targetId: '550e8400-e29b-41d4-a716-446655440099',
       canViewAuthOnlyContent: true,
-      programInstanceId: "660e8400-e29b-41d4-a716-446655440088",
+      programInstanceId: '660e8400-e29b-41d4-a716-446655440088',
       programStageItemId: null,
     });
-    expect(out).toEqual({ ok: false, code: "missing_program_context" });
+    expect(out).toEqual({ ok: false, code: 'missing_program_context' });
     expect(ratings.upsertRating).not.toHaveBeenCalled();
   });
 
-  it("fails closed for a foreign or NULL content target before it can write a rating", async () => {
+  it('fails closed for a foreign or NULL content target before it can write a rating', async () => {
     const ratings: MaterialRatingPort = {
       upsertRating: vi.fn(),
       getMyRating: vi.fn(),
@@ -149,28 +160,48 @@ describe("createMaterialRatingService putForPatient snapshot", () => {
     };
     const getById = vi
       .fn()
-      .mockResolvedValueOnce({ organizationId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", deletedAt: null, archivedAt: null, isPublished: true, requiresAuth: false })
-      .mockResolvedValueOnce({ organizationId: null, deletedAt: null, archivedAt: null, isPublished: true, requiresAuth: false });
+      .mockResolvedValueOnce({
+        organizationId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        deletedAt: null,
+        archivedAt: null,
+        isPublished: true,
+        requiresAuth: false,
+      })
+      .mockResolvedValueOnce({
+        organizationId: null,
+        deletedAt: null,
+        archivedAt: null,
+        isPublished: true,
+        requiresAuth: false,
+      });
     const service = createMaterialRatingService({
       ratings,
       contentPages: { getById },
-      itemRefs: { assertItemRefExists: vi.fn() } as unknown as TreatmentProgramItemRefValidationPort,
+      itemRefs: {
+        assertItemRefExists: vi.fn(),
+      } as unknown as TreatmentProgramItemRefValidationPort,
       instances: { getInstanceForPatient: vi.fn() } as unknown as TreatmentProgramInstancePort,
     });
 
-    for (const targetId of ["550e8400-e29b-41d4-a716-446655440098", "550e8400-e29b-41d4-a716-446655440097"]) {
+    for (const targetId of [
+      '550e8400-e29b-41d4-a716-446655440098',
+      '550e8400-e29b-41d4-a716-446655440097',
+    ]) {
       await expect(
         service.putForPatient({
           organizationId,
-          userId: "550e8400-e29b-41d4-a716-446655440001",
+          userId: '550e8400-e29b-41d4-a716-446655440001',
           stars: 3,
-          targetKind: "content_page",
+          targetKind: 'content_page',
           targetId,
           canViewAuthOnlyContent: true,
         }),
-      ).resolves.toEqual({ ok: false, code: "not_found" });
+      ).resolves.toEqual({ ok: false, code: 'not_found' });
     }
-    expect(getById).toHaveBeenNthCalledWith(1, { id: "550e8400-e29b-41d4-a716-446655440098", organizationId });
+    expect(getById).toHaveBeenNthCalledWith(1, {
+      id: '550e8400-e29b-41d4-a716-446655440098',
+      organizationId,
+    });
     expect(ratings.upsertRating).not.toHaveBeenCalled();
   });
 });

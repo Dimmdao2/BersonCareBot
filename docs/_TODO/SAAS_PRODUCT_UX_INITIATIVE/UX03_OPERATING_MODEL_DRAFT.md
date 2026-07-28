@@ -60,19 +60,19 @@
 
 ## 3. Термины модели
 
-| Термин | Значение в этом draft |
-|---|---|
-| Organization | Tenant и рабочее пространство практики; solo и clinic — формы одной сущности, не разные типы аккаунтов. |
-| Staff identity | Login персонала с одним active organization membership. Не имеет org switcher. |
-| Membership role | Базовая organizational роль `owner/admin/doctor/assistant`; сама по себе не заменяет granular capabilities. |
-| Specialist binding | Связь staff membership с clinical specialist. Может отсутствовать у non-clinical owner/admin/assistant. |
-| Workspace surface | Management, clinical или platform-operations композиция экранов в рамках одной session. Это не новая identity и не повышение прав. |
-| Patient identity | Глобальный canonical user, общий для всех организаций и каналов. |
-| Enrollment | Явная связь patient identity с одной organization. Несколько active enrollment разрешены. |
-| Patient record | Organization-owned clinical representation пациента; не равна global identity/profile. |
-| Attribution | Неизменяемая связь события/визита/назначения с автором и clinical source context. |
-| Assignment | Текущая операционная ответственность; может меняться, не переписывая attribution истории. |
-| Filter | Представление уже разрешённого набора данных. Никогда не источник authorization. |
+| Термин             | Значение в этом draft                                                                                                              |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Organization       | Tenant и рабочее пространство практики; solo и clinic — формы одной сущности, не разные типы аккаунтов.                            |
+| Staff identity     | Login персонала с одним active organization membership. Не имеет org switcher.                                                     |
+| Membership role    | Базовая organizational роль `owner/admin/doctor/assistant`; сама по себе не заменяет granular capabilities.                        |
+| Specialist binding | Связь staff membership с clinical specialist. Может отсутствовать у non-clinical owner/admin/assistant.                            |
+| Workspace surface  | Management, clinical или platform-operations композиция экранов в рамках одной session. Это не новая identity и не повышение прав. |
+| Patient identity   | Глобальный canonical user, общий для всех организаций и каналов.                                                                   |
+| Enrollment         | Явная связь patient identity с одной organization. Несколько active enrollment разрешены.                                          |
+| Patient record     | Organization-owned clinical representation пациента; не равна global identity/profile.                                             |
+| Attribution        | Неизменяемая связь события/визита/назначения с автором и clinical source context.                                                  |
+| Assignment         | Текущая операционная ответственность; может меняться, не переписывая attribution истории.                                          |
+| Filter             | Представление уже разрешённого набора данных. Никогда не источник authorization.                                                   |
 
 ## 4. Непереговорные инварианты
 
@@ -127,16 +127,16 @@
 Использовать одну `Organization` model и один staff shell contract. Разница solo/clinic определяется не отдельным
 route tree, а фактическими capabilities и состоянием организации.
 
-| Аспект | Solo specialist | Clinic specialist |
-|---|---|---|
-| Organization | Одна организация, обычно один active specialist | Одна организация, несколько staff/specialists |
-| Primary context | Имя специалиста/кабинета; specialist filter не показывается, если выбор всегда единственный | Клиника и команда; собственный specialist context является default |
-| Patients default | Мои active patients без лишнего selector chrome | «Мои пациенты»; при наличии права доступно «Все пациенты организации» |
-| History default | Вся разрешённая история solo practice | Мои визиты/entries; optional «Вся разрешённая история» и specialist filter |
-| Team UI | Нет members, handoff, care-team и specialist selectors в daily clinical flow | Team, assignment, care team и handoff actions по capabilities |
-| Schedule | Мой календарь + setup, если owner | Мой календарь; organization schedule/setup — management capability |
-| Settings | «Настройки» кабинета + отдельный «Аккаунт» | «Настройки» организации + отдельный «Аккаунт» |
-| Growth | Invite first staff переводит composition в team mode без миграции account | Seat/staff lifecycle и team capabilities |
+| Аспект           | Solo specialist                                                                             | Clinic specialist                                                          |
+| ---------------- | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Organization     | Одна организация, обычно один active specialist                                             | Одна организация, несколько staff/specialists                              |
+| Primary context  | Имя специалиста/кабинета; specialist filter не показывается, если выбор всегда единственный | Клиника и команда; собственный specialist context является default         |
+| Patients default | Мои active patients без лишнего selector chrome                                             | «Мои пациенты»; при наличии права доступно «Все пациенты организации»      |
+| History default  | Вся разрешённая история solo practice                                                       | Мои визиты/entries; optional «Вся разрешённая история» и specialist filter |
+| Team UI          | Нет members, handoff, care-team и specialist selectors в daily clinical flow                | Team, assignment, care team и handoff actions по capabilities              |
+| Schedule         | Мой календарь + setup, если owner                                                           | Мой календарь; organization schedule/setup — management capability         |
+| Settings         | «Настройки» кабинета + отдельный «Аккаунт»                                                  | «Настройки» организации + отдельный «Аккаунт»                              |
+| Growth           | Invite first staff переводит composition в team mode без миграции account                   | Seat/staff lifecycle и team capabilities                                   |
 
 Важно: `staff_count === 1` не должен сам навсегда определять коммерческий тип. UI composition лучше вычислять из
 specialist count, role/capabilities, entitlement и активированных team features. Иначе solo owner, заранее
@@ -213,18 +213,18 @@ Default context при нескольких enrollment требует решен
 Это не финальная permission matrix. Таблица показывает ожидаемую форму продукта и места, где capability должна
 быть отдельной от role.
 
-| Actor | Context source | Surface candidate | Baseline capabilities | Не следует автоматически |
-|---|---|---|---|---|
-| Global admin | Platform session/admin mode | Platform operations | Organizations, tariffs, billing/usage, health, platform settings | Обычный clinical workflow конкретной organization |
-| Organization owner, non-clinical | Единственный membership | Management + Account | Lifecycle, ownership, billing, plan, staff, org settings | Clinical authorship/write без specialist binding; допустимый clinic-record read scope TBD |
-| Organization owner + specialist | Тот же membership + specialist binding | Clinical + Management + Account | Собственная clinical работа и owner management | Неограниченная private history только из owner role |
-| Organization admin, non-clinical | Единственный membership | Management + Account | Делегированные organization operations | Ownership transfer/billing contract и clinical authorship; допустимый clinic-record read scope TBD |
-| Organization admin + specialist | Membership + specialist binding | Clinical + Management + Account | Clinical work + делегированные management actions | Owner-only lifecycle actions |
-| Doctor/specialist | Membership + specialist binding | Clinical + Account | Own work, authorized patients/history, authored entries | Team/settings/billing и hidden history |
-| Assistant | Membership; specialist binding обычно отсутствует | Operational + Account, точный состав TBD | Кандидаты: schedule/intake/contact admin | Clinical authorship, unrestricted chart, billing/ownership |
-| Patient | Canonical identity + selected active enrollment | Patient org context + global Account | Own authorized data and care flows | Данные другой organization или staff management |
-| Onboarding patient | Canonical identity without patient tier | Activation only | Identity activation/support allowlist | Business actions до patient tier |
-| Anonymous/public | Trusted public route/entry context | Landing, public org, booking, join | Published allowlisted data | Internal organization directory/clinical data |
+| Actor                            | Context source                                    | Surface candidate                        | Baseline capabilities                                            | Не следует автоматически                                                                           |
+| -------------------------------- | ------------------------------------------------- | ---------------------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Global admin                     | Platform session/admin mode                       | Platform operations                      | Organizations, tariffs, billing/usage, health, platform settings | Обычный clinical workflow конкретной organization                                                  |
+| Organization owner, non-clinical | Единственный membership                           | Management + Account                     | Lifecycle, ownership, billing, plan, staff, org settings         | Clinical authorship/write без specialist binding; допустимый clinic-record read scope TBD          |
+| Organization owner + specialist  | Тот же membership + specialist binding            | Clinical + Management + Account          | Собственная clinical работа и owner management                   | Неограниченная private history только из owner role                                                |
+| Organization admin, non-clinical | Единственный membership                           | Management + Account                     | Делегированные organization operations                           | Ownership transfer/billing contract и clinical authorship; допустимый clinic-record read scope TBD |
+| Organization admin + specialist  | Membership + specialist binding                   | Clinical + Management + Account          | Clinical work + делегированные management actions                | Owner-only lifecycle actions                                                                       |
+| Doctor/specialist                | Membership + specialist binding                   | Clinical + Account                       | Own work, authorized patients/history, authored entries          | Team/settings/billing и hidden history                                                             |
+| Assistant                        | Membership; specialist binding обычно отсутствует | Operational + Account, точный состав TBD | Кандидаты: schedule/intake/contact admin                         | Clinical authorship, unrestricted chart, billing/ownership                                         |
+| Patient                          | Canonical identity + selected active enrollment   | Patient org context + global Account     | Own authorized data and care flows                               | Данные другой organization или staff management                                                    |
+| Onboarding patient               | Canonical identity without patient tier           | Activation only                          | Identity activation/support allowlist                            | Business actions до patient tier                                                                   |
+| Anonymous/public                 | Trusted public route/entry context                | Landing, public org, booking, join       | Published allowlisted data                                       | Internal organization directory/clinical data                                                      |
 
 Кандидат на capability vocabulary для последующей matrix:
 
@@ -405,21 +405,21 @@ source enrollment/record
 
 ## 10. Required states и edge cases для следующей matrix/IA
 
-| Сценарий | Ожидаемое operating behavior |
-|---|---|
-| Solo owner без specialist binding | Management first; clinical surfaces недоступны до создания/binding специалиста. |
-| Owner+specialist | Один login; clinical daily mode + явный management entry. |
-| Clinic doctor без shared-history capability | «Мои пациенты/entries»; чужая история не загружается, даже если URL известен. |
-| Clinic doctor с shared-history capability | Может выбрать «Вся доступная история»/specialist X; attribution всегда видима. |
-| Multiple active staff memberships | Fail closed как ошибка данных; никакого org picker. |
-| Patient с одним enrollment | Org context видим, selector compact/hidden. |
-| Patient с несколькими enrollment | Явный picker; каждая organization surface изолирована. |
-| Deep link в другую доступную organization | Явное переключение context для journey; возврат контролируемый. |
-| Deep link в revoked/foreign enrollment | Neutral access/recovery state без clinical data. |
-| Primary handoff pending | Старый ответственный остаётся действующим до accept, если owner policy не выберет instant transfer. |
-| Принимающий specialist disabled/removed | Pending transfer отменяется/эскалируется; patient не остаётся скрыто unassigned. |
-| Private note автора A | Не появляется у B через filter, care-team membership или primary reassignment без отдельного права. |
-| Organization suspended | Staff management/recovery и patient safe messaging policy требуют отдельного state contract; не молча выбирать другую org. |
+| Сценарий                                    | Ожидаемое operating behavior                                                                                               |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Solo owner без specialist binding           | Management first; clinical surfaces недоступны до создания/binding специалиста.                                            |
+| Owner+specialist                            | Один login; clinical daily mode + явный management entry.                                                                  |
+| Clinic doctor без shared-history capability | «Мои пациенты/entries»; чужая история не загружается, даже если URL известен.                                              |
+| Clinic doctor с shared-history capability   | Может выбрать «Вся доступная история»/specialist X; attribution всегда видима.                                             |
+| Multiple active staff memberships           | Fail closed как ошибка данных; никакого org picker.                                                                        |
+| Patient с одним enrollment                  | Org context видим, selector compact/hidden.                                                                                |
+| Patient с несколькими enrollment            | Явный picker; каждая organization surface изолирована.                                                                     |
+| Deep link в другую доступную organization   | Явное переключение context для journey; возврат контролируемый.                                                            |
+| Deep link в revoked/foreign enrollment      | Neutral access/recovery state без clinical data.                                                                           |
+| Primary handoff pending                     | Старый ответственный остаётся действующим до accept, если owner policy не выберет instant transfer.                        |
+| Принимающий specialist disabled/removed     | Pending transfer отменяется/эскалируется; patient не остаётся скрыто unassigned.                                           |
+| Private note автора A                       | Не появляется у B через filter, care-team membership или primary reassignment без отдельного права.                        |
+| Organization suspended                      | Staff management/recovery и patient safe messaging policy требуют отдельного state contract; не молча выбирать другую org. |
 
 ## 11. Альтернативы operating model
 

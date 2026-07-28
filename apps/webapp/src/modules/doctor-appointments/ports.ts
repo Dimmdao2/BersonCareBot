@@ -1,12 +1,12 @@
-import type { AdminStatsTimePreset } from "@/modules/admin-platform-stats/types";
+import type { AdminStatsTimePreset } from '@/modules/admin-platform-stats/types';
 
 /** Диапазон для агрегатов `getAppointmentStats` (сегодня / завтра / неделя в `app_display_timezone`). */
-export type DoctorAppointmentsStatsRange = "today" | "tomorrow" | "week";
+export type DoctorAppointmentsStatsRange = 'today' | 'tomorrow' | 'week';
 
 export type DoctorAppointmentStatsFilter =
-  | { kind: "range"; range: DoctorAppointmentsStatsRange }
+  | { kind: 'range'; range: DoctorAppointmentsStatsRange }
   | {
-      kind: "preset";
+      kind: 'preset';
       preset: AdminStatsTimePreset;
       customFrom?: string;
       customTo?: string;
@@ -17,16 +17,16 @@ export type DoctorAppointmentStatsFilter =
  * `range` — окно по `record_at`; остальные — согласованы с плитками дашборда (см. docs/ARCHITECTURE/DOCTOR_DASHBOARD_METRICS.md).
  */
 export type DoctorAppointmentsListFilter =
-  | { kind: "range"; range: DoctorAppointmentsStatsRange }
+  | { kind: 'range'; range: DoctorAppointmentsStatsRange }
   /** Диапазон как в `getAppointmentStats.total` (включая отмененные). Для KPI drill-down. */
-  | { kind: "statsRange"; range: DoctorAppointmentsStatsRange }
-  | { kind: "futureActive" }
-  | { kind: "recordsInCalendarMonth" }
-  | { kind: "cancellationsInCalendarMonth" }
+  | { kind: 'statsRange'; range: DoctorAppointmentsStatsRange }
+  | { kind: 'futureActive' }
+  | { kind: 'recordsInCalendarMonth' }
+  | { kind: 'cancellationsInCalendarMonth' }
   /** Отмены за 30 суток по `updated_at` — как в `getAppointmentStats.cancellations30d`. */
-  | { kind: "cancellations30d" }
+  | { kind: 'cancellations30d' }
   /** Прошедшие записи с пагинацией для архива. */
-  | { kind: "past"; limit?: number; offset?: number };
+  | { kind: 'past'; limit?: number; offset?: number };
 
 /** Строка записи в списке специалиста. */
 export type AppointmentRow = {
@@ -158,7 +158,9 @@ export type DoctorAppointmentsPort = {
     audience?: { excludedUserIds?: string[] },
   ): Promise<AppointmentStats>;
   /** Агрегаты для плиток дашборда; без React. */
-  getDashboardAppointmentMetrics(audience?: DoctorAppointmentsAudience): Promise<DoctorDashboardAppointmentMetrics>;
+  getDashboardAppointmentMetrics(
+    audience?: DoctorAppointmentsAudience,
+  ): Promise<DoctorDashboardAppointmentMetrics>;
   /** KPI строка раздела «Расписание»: 9 метрик по произвольному диапазону + фильтры. */
   getScheduleKpis(
     query: ScheduleKpisQuery,

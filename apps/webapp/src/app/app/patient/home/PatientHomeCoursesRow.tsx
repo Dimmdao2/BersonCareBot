@@ -1,5 +1,5 @@
-import Link from "next/link";
-import type { ResolvedCourseCard } from "@/modules/patient-home/patientHomeResolvers";
+import Link from 'next/link';
+import type { ResolvedCourseCard } from '@/modules/patient-home/patientHomeResolvers';
 import {
   patientHomeBlockHeadingClass,
   patientHomeCardCompactClass,
@@ -7,8 +7,8 @@ import {
   patientHomeCardTitleClampSmClass,
   patientHomeCourseRowItemLayoutClass,
   patientHomeTodaySectionStackClass,
-} from "./patientHomeCardStyles";
-import { cn } from "@/lib/utils";
+} from './patientHomeCardStyles';
+import { cn } from '@/lib/utils';
 
 type Props = {
   cards: ResolvedCourseCard[];
@@ -22,8 +22,15 @@ export function PatientHomeCoursesRow({ cards }: Props) {
   }
 
   return (
-    <section id="patient-home-courses-row" className={patientHomeTodaySectionStackClass} aria-labelledby="patient-home-courses-heading">
-      <h3 id="patient-home-courses-heading" className={cn(patientHomeBlockHeadingClass, "px-4 md:px-[18px]")}>
+    <section
+      id="patient-home-courses-row"
+      className={patientHomeTodaySectionStackClass}
+      aria-labelledby="patient-home-courses-heading"
+    >
+      <h3
+        id="patient-home-courses-heading"
+        className={cn(patientHomeBlockHeadingClass, 'px-4 md:px-[18px]')}
+      >
         Курсы
       </h3>
       <ul className="m-0 flex list-none flex-col gap-3 p-0">
@@ -35,13 +42,15 @@ export function PatientHomeCoursesRow({ cards }: Props) {
               className={cn(
                 patientHomeCardCompactClass,
                 patientHomeCourseRowItemLayoutClass,
-                "transition-opacity hover:opacity-95 active:scale-[0.99]",
+                'transition-opacity hover:opacity-95 active:scale-[0.99]',
               )}
             >
               <span className={patientHomeCardTitleClampSmClass}>{c.title}</span>
-              {c.subtitle?.trim() ?
-                <span className={cn(patientHomeCardSubtitleClampXs3Class, "mt-1")}>{c.subtitle.trim()}</span>
-              : null}
+              {c.subtitle?.trim() ? (
+                <span className={cn(patientHomeCardSubtitleClampXs3Class, 'mt-1')}>
+                  {c.subtitle.trim()}
+                </span>
+              ) : null}
             </Link>
           </li>
         ))}

@@ -1,4 +1,8 @@
-export const MATERIAL_RATING_TARGET_KINDS = ["content_page", "lfk_exercise", "lfk_complex"] as const;
+export const MATERIAL_RATING_TARGET_KINDS = [
+  'content_page',
+  'lfk_exercise',
+  'lfk_complex',
+] as const;
 
 export type MaterialRatingTargetKind = (typeof MATERIAL_RATING_TARGET_KINDS)[number];
 
@@ -36,11 +40,11 @@ export type MaterialRatingDoctorDetailRater = {
 
 /** Доступ к материалу для оценок (пациентский API). */
 export class MaterialRatingAccessError extends Error {
-  readonly accessCode: "not_found" | "forbidden";
+  readonly accessCode: 'not_found' | 'forbidden';
 
-  constructor(accessCode: "not_found" | "forbidden") {
+  constructor(accessCode: 'not_found' | 'forbidden') {
     super(accessCode);
     this.accessCode = accessCode;
-    this.name = "MaterialRatingAccessError";
+    this.name = 'MaterialRatingAccessError';
   }
 }

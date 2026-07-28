@@ -24,6 +24,7 @@ disposable roles, refuses dev/prod/test-shaped database names, and drops scratch
 It does not read `DATABASE_URL` and must not be pointed at prod/test/dev DBs.
 
 Proof coverage:
+
 - `app_patient` cannot read or write the protected backend context table.
 - Raw `SET app.org`, `SET app.patient_user_id`, `SET app.integrator_user_id`, and `SET app.is_staff` are
   not trusted by the helper functions.
@@ -35,6 +36,7 @@ Proof coverage:
 ## 2026-07-12 checkout/reset integration checkpoint
 
 Runtime wiring added after the proof smoke:
+
 - Webapp, integrator, and media-worker checkout helpers apply the current async DB principal to checked-out
   clients and clear labels before releasing clients back to the pool.
 - Webapp, integrator, and media-worker pool providers wrap promise-form `pool.query(...)` with the same
@@ -48,6 +50,7 @@ Runtime wiring added after the proof smoke:
 - `scripts/check-db-chokepoint.mjs` allowlists only those provider-level wrappers for internal `pool.connect()`.
 
 Validation run:
+
 - `pnpm --dir packages/db-principal run build`
 - `pnpm --dir packages/db-principal run typecheck`
 - `node --check docs/_TODO/SAAS_FOUNDATION/scripts/smoke-phase1-locked-label-proof.mjs`

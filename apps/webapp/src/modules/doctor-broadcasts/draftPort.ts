@@ -1,4 +1,4 @@
-import type { BroadcastAudienceFilter, BroadcastCategory, BroadcastChannel } from "./ports";
+import type { BroadcastAudienceFilter, BroadcastCategory, BroadcastChannel } from './ports';
 
 export type BroadcastDraft = {
   category: BroadcastCategory | null;

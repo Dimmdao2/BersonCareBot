@@ -20,19 +20,23 @@ describe('userLookup', () => {
       tx: vi.fn(),
     };
 
-    const findByIdentityByPhoneSpy = vi.spyOn(channelUsers, 'findByIdentityByPhone').mockResolvedValue({
-      chatId: 123,
-      channelId: '123',
-      username: 'alice',
-    });
-    const getLinkDataByIdentitySpy = vi.spyOn(channelUsers, 'getLinkDataByIdentity').mockResolvedValue({
-      userId: 'user-uuid-1',
-      chatId: 123,
-      channelId: '123',
-      username: 'alice',
-      phoneNormalized: '+79990001122',
-      userState: 'idle',
-    });
+    const findByIdentityByPhoneSpy = vi
+      .spyOn(channelUsers, 'findByIdentityByPhone')
+      .mockResolvedValue({
+        chatId: 123,
+        channelId: '123',
+        username: 'alice',
+      });
+    const getLinkDataByIdentitySpy = vi
+      .spyOn(channelUsers, 'getLinkDataByIdentity')
+      .mockResolvedValue({
+        userId: 'user-uuid-1',
+        chatId: 123,
+        channelId: '123',
+        username: 'alice',
+        phoneNormalized: '+79990001122',
+        userState: 'idle',
+      });
 
     const byPhone = await lookupUser(db, 'channel', 'phone', '+79990001122');
     const byChannel = await lookupUser(db, 'telegram', 'channelId', '123');

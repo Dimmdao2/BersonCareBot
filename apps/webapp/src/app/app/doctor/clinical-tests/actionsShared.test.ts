@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ClinicalTestWriteOptions } from "@/modules/tests/service";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ClinicalTestWriteOptions } from '@/modules/tests/service';
 
 const {
   archiveClinicalTestMock,
@@ -22,7 +22,7 @@ const {
     unarchiveClinicalTestMock: vi.fn(),
     updateClinicalTestMock: vi.fn(),
     withDoctorWorkspacePrincipalMock: vi.fn(
-      async <T,>(_workspace: { organizationId: string }, _source: string, fn: () => Promise<T>) => {
+      async <T>(_workspace: { organizationId: string }, _source: string, fn: () => Promise<T>) => {
         principalState.inside = true;
         try {
           return await fn();
@@ -35,15 +35,15 @@ const {
   };
 });
 
-vi.mock("@/app-layer/guards/requireRole", () => ({
+vi.mock('@/app-layer/guards/requireRole', () => ({
   requireDoctorWorkspaceContext: requireDoctorWorkspaceContextMock,
 }));
 
-vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
+vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
   withDoctorWorkspacePrincipal: withDoctorWorkspacePrincipalMock,
 }));
 
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
     clinicalTests: {
       archiveClinicalTest: archiveClinicalTestMock,
@@ -62,14 +62,14 @@ import {
   archiveClinicalTestCore,
   saveClinicalTestCore,
   unarchiveClinicalTestCore,
-} from "./actionsShared";
+} from './actionsShared';
 
-const actorUserId = "00000000-0000-4000-8000-000000000001";
-const clinicalTestId = "550e8400-e29b-41d4-a716-446655440000";
+const actorUserId = '00000000-0000-4000-8000-000000000001';
+const clinicalTestId = '550e8400-e29b-41d4-a716-446655440000';
 
 function workspaceContext() {
   return {
-    organizationId: "org-1",
+    organizationId: 'org-1',
     session: {
       user: {
         userId: actorUserId,
@@ -94,7 +94,7 @@ async function runWriteOption<T>(
   return options!.runClinicalTestWrite!(fn);
 }
 
-describe("doctor clinical test action shared principal writes", () => {
+describe('doctor clinical test action shared principal writes', () => {
   beforeEach(() => {
     archiveClinicalTestMock.mockReset();
     createClinicalTestMock.mockReset();
@@ -110,7 +110,7 @@ describe("doctor clinical test action shared principal writes", () => {
     listActiveItemsByCategoryCodeMock.mockResolvedValue([]);
   });
 
-  it("creates a clinical test inside doctor workspace principal with the create source", async () => {
+  it('creates a clinical test inside doctor workspace principal with the create source', async () => {
     createClinicalTestMock.mockImplementation(
       async (_input, _actorId, options: ClinicalTestWriteOptions) =>
         runWriteOption(options, async () => {
@@ -119,22 +119,22 @@ describe("doctor clinical test action shared principal writes", () => {
         }),
     );
 
-    const result = await saveClinicalTestCore(formWith({ title: " Новый тест " }));
+    const result = await saveClinicalTestCore(formWith({ title: ' Новый тест ' }));
 
     expect(result).toEqual({ ok: true, testId: clinicalTestId, wasUpdate: false });
     expect(createClinicalTestMock).toHaveBeenCalledWith(
-      expect.objectContaining({ title: "Новый тест" }),
+      expect.objectContaining({ title: 'Новый тест' }),
       actorUserId,
       { runClinicalTestWrite: expect.any(Function) },
     );
     expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
       workspaceContext(),
-      "doctor.clinical-tests.create",
+      'doctor.clinical-tests.create',
       expect.any(Function),
     );
   });
 
-  it("keeps update pre-read outside principal, then updates inside principal", async () => {
+  it('keeps update pre-read outside principal, then updates inside principal', async () => {
     getClinicalTestMock.mockImplementation(async () => {
       expect(principalState.inside).toBe(false);
       return { id: clinicalTestId, isArchived: false };
@@ -149,22 +149,24 @@ describe("doctor clinical test action shared principal writes", () => {
       },
     );
 
-    const result = await saveClinicalTestCore(formWith({ id: clinicalTestId, title: " Обновлено " }));
+    const result = await saveClinicalTestCore(
+      formWith({ id: clinicalTestId, title: ' Обновлено ' }),
+    );
 
     expect(result).toEqual({ ok: true, testId: clinicalTestId, wasUpdate: true });
     expect(updateClinicalTestMock).toHaveBeenCalledWith(
       clinicalTestId,
-      expect.objectContaining({ title: "Обновлено" }),
+      expect.objectContaining({ title: 'Обновлено' }),
       { runClinicalTestWrite: expect.any(Function) },
     );
     expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
       workspaceContext(),
-      "doctor.clinical-tests.update",
+      'doctor.clinical-tests.update',
       expect.any(Function),
     );
   });
 
-  it("archives and unarchives through source-tagged write options", async () => {
+  it('archives and unarchives through source-tagged write options', async () => {
     archiveClinicalTestMock.mockImplementation(
       async (_id, _archiveOptions, options: ClinicalTestWriteOptions) =>
         runWriteOption(options, async () => {
@@ -178,23 +180,23 @@ describe("doctor clinical test action shared principal writes", () => {
     );
 
     expect(await archiveClinicalTestCore(formWith({ id: clinicalTestId }))).toEqual({
-      kind: "archived",
+      kind: 'archived',
       id: clinicalTestId,
     });
     expect(await unarchiveClinicalTestCore(formWith({ id: clinicalTestId }))).toEqual({
-      kind: "unarchived",
+      kind: 'unarchived',
       id: clinicalTestId,
     });
     expect(withDoctorWorkspacePrincipalMock).toHaveBeenNthCalledWith(
       1,
       workspaceContext(),
-      "doctor.clinical-tests.archive",
+      'doctor.clinical-tests.archive',
       expect.any(Function),
     );
     expect(withDoctorWorkspacePrincipalMock).toHaveBeenNthCalledWith(
       2,
       workspaceContext(),
-      "doctor.clinical-tests.unarchive",
+      'doctor.clinical-tests.unarchive',
       expect.any(Function),
     );
   });

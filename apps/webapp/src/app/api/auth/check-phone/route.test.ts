@@ -1,72 +1,73 @@
-import { describe, expect, it, vi } from "vitest";
-import { inMemoryChannelPreferencesPort } from "@/infra/repos/inMemoryChannelPreferences";
-import { inMemoryUserByPhonePort } from "@/infra/repos/inMemoryUserByPhone";
-import { inMemoryUserPinsPort } from "@/infra/repos/inMemoryUserPins";
+import { describe, expect, it, vi } from 'vitest';
+import { inMemoryChannelPreferencesPort } from '@/infra/repos/inMemoryChannelPreferences';
+import { inMemoryUserByPhonePort } from '@/infra/repos/inMemoryUserByPhone';
+import { inMemoryUserPinsPort } from '@/infra/repos/inMemoryUserPins';
 
-vi.mock("@/modules/system-settings/telegramLoginBotUsername", () => ({
-  getTelegramLoginBotUsername: () => Promise.resolve(""),
+vi.mock('@/modules/system-settings/telegramLoginBotUsername', () => ({
+  getTelegramLoginBotUsername: () => Promise.resolve(''),
 }));
 
 // Client-visible channel policy = admin toggle AND configured (owner ruling 2026-07-24). These
 // route tests exercise phone/OTP-method resolution, not channel configuration, so keep every
 // channel "configured" here and let the (unmocked) admin toggle default resolve as before.
-vi.mock("@/modules/system-settings/configAdapter", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/modules/system-settings/configAdapter")>();
+vi.mock('@/modules/system-settings/configAdapter', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/modules/system-settings/configAdapter')>();
   return {
     ...actual,
     getConfigValue: async (key: string, envFallback: string) => {
-      if (key === "smtp_outbound") {
+      if (key === 'smtp_outbound') {
         return JSON.stringify({
-          value: { host: "smtp.example.com", port: 587, secure: false, user: "u", from: "a@b.co" },
+          value: { host: 'smtp.example.com', port: 587, secure: false, user: 'u', from: 'a@b.co' },
         });
       }
-      if (key === "smsc_api_key") return "sms-key";
+      if (key === 'smsc_api_key') return 'sms-key';
       return actual.getConfigValue(key, envFallback);
     },
   };
 });
-vi.mock("@/modules/system-settings/integrationRuntime", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/modules/system-settings/integrationRuntime")>();
+vi.mock('@/modules/system-settings/integrationRuntime', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/modules/system-settings/integrationRuntime')>();
   return {
     ...actual,
-    getTelegramBotToken: async () => "bot-token",
-    getMaxBotApiKey: async () => "max-key",
+    getTelegramBotToken: async () => 'bot-token',
+    getMaxBotApiKey: async () => 'max-key',
   };
 });
 
-import { POST } from "./route";
+import { POST } from './route';
 
-describe("POST /api/auth/check-phone", () => {
-  it("returns 400 when phone is not valid E.164", async () => {
+describe('POST /api/auth/check-phone', () => {
+  it('returns 400 when phone is not valid E.164', async () => {
     const res = await POST(
-      new Request("http://localhost/api/auth/check-phone", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ phone: "not-a-number" }),
-      })
+      new Request('http://localhost/api/auth/check-phone', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ phone: 'not-a-number' }),
+      }),
     );
     expect(res.status).toBe(400);
     const data = (await res.json()) as { error?: string };
-    expect(data.error).toBe("invalid_phone");
+    expect(data.error).toBe('invalid_phone');
   });
 
-  it("returns 400 on invalid body", async () => {
+  it('returns 400 on invalid body', async () => {
     const res = await POST(
-      new Request("http://localhost/api/auth/check-phone", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
+      new Request('http://localhost/api/auth/check-phone', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({}),
-      })
+      }),
     );
     expect(res.status).toBe(400);
   });
 
-  it("returns sms false for unknown non-RU phone", async () => {
+  it('returns sms false for unknown non-RU phone', async () => {
     const res = await POST(
-      new Request("http://localhost/api/auth/check-phone", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ phone: "+4915123456789" }),
+      new Request('http://localhost/api/auth/check-phone', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ phone: '+4915123456789' }),
       }),
     );
     expect(res.status).toBe(200);
@@ -76,13 +77,13 @@ describe("POST /api/auth/check-phone", () => {
     expect(data.methods.sms).toBe(false);
   });
 
-  it("returns exists false for unknown phone", async () => {
+  it('returns exists false for unknown phone', async () => {
     const res = await POST(
-      new Request("http://localhost/api/auth/check-phone", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ phone: "+79993456789" }),
-      })
+      new Request('http://localhost/api/auth/check-phone', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ phone: '+79993456789' }),
+      }),
     );
     expect(res.status).toBe(200);
     const data = (await res.json()) as { ok: boolean; exists: boolean; methods: { sms: boolean } };
@@ -91,23 +92,23 @@ describe("POST /api/auth/check-phone", () => {
     expect(data.methods.sms).toBe(false);
   });
 
-  it("returns exists true when user is in store", async () => {
-    const phone = "+79997654321";
+  it('returns exists true when user is in store', async () => {
+    const phone = '+79997654321';
     await inMemoryUserByPhonePort.createOrBind(phone, {
-      channel: "web",
-      chatId: "web-check-phone-1",
-      displayName: "Test",
+      channel: 'web',
+      chatId: 'web-check-phone-1',
+      displayName: 'Test',
     });
     const u = await inMemoryUserByPhonePort.findByPhone(phone);
     expect(u).not.toBeNull();
-    await inMemoryUserPinsPort.upsertPinHash(u!.userId, "argon2-hash-placeholder");
+    await inMemoryUserPinsPort.upsertPinHash(u!.userId, 'argon2-hash-placeholder');
 
     const res = await POST(
-      new Request("http://localhost/api/auth/check-phone", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
+      new Request('http://localhost/api/auth/check-phone', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ phone }),
-      })
+      }),
     );
     expect(res.status).toBe(200);
     const data = (await res.json()) as { ok: boolean; exists: boolean; methods: { pin?: boolean } };
@@ -115,23 +116,23 @@ describe("POST /api/auth/check-phone", () => {
     expect(data.methods.pin).toBe(true);
   });
 
-  it("returns preferredOtpChannel when set in channel preferences", async () => {
-    const phone = "+79991112233";
+  it('returns preferredOtpChannel when set in channel preferences', async () => {
+    const phone = '+79991112233';
     await inMemoryUserByPhonePort.createOrBind(phone, {
-      channel: "web",
-      chatId: "web-pref-otp-1",
-      displayName: "Pref",
+      channel: 'web',
+      chatId: 'web-pref-otp-1',
+      displayName: 'Pref',
     });
     const u = await inMemoryUserByPhonePort.findByPhone(phone);
     expect(u).not.toBeNull();
-    await inMemoryChannelPreferencesPort.setPreferredAuthChannel(u!.userId, "email");
+    await inMemoryChannelPreferencesPort.setPreferredAuthChannel(u!.userId, 'email');
 
     const res = await POST(
-      new Request("http://localhost/api/auth/check-phone", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
+      new Request('http://localhost/api/auth/check-phone', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ phone }),
-      })
+      }),
     );
     expect(res.status).toBe(200);
     const data = (await res.json()) as {
@@ -140,6 +141,6 @@ describe("POST /api/auth/check-phone", () => {
       preferredOtpChannel?: string | null;
     };
     expect(data.exists).toBe(true);
-    expect(data.preferredOtpChannel).toBe("email");
+    expect(data.preferredOtpChannel).toBe('email');
   });
 });

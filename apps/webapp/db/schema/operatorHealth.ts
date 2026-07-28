@@ -4,4 +4,4 @@ export {
   operatorJobStatus,
   integrationWebhookLastStatus,
   integrationWebhookErrorEvents,
-} from "@bersoncare/operator-db-schema";
+} from '@bersoncare/operator-db-schema';

@@ -10,14 +10,14 @@
  *  3. program_action_log (done) — treatment program exercise completions (main source)
  */
 
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 
-const FALLBACK_IANA = "UTC";
+const FALLBACK_IANA = 'UTC';
 
-const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "expected YYYY-MM-DD");
+const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'expected YYYY-MM-DD');
 
 function currentMonthRange(): { from: string; to: string } {
   const now = new Date();
@@ -31,21 +31,18 @@ function currentMonthRange(): { from: string; to: string } {
   };
 }
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ userId: string }> },
-) {
+export async function GET(request: Request, { params }: { params: Promise<{ userId: string }> }) {
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
 
   const { userId } = await params;
   if (!z.string().uuid().safeParse(userId).success) {
-    return NextResponse.json({ ok: false, error: "invalid_user_id" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_user_id' }, { status: 400 });
   }
 
   const url = new URL(request.url);
-  const rawFrom = url.searchParams.get("from");
-  const rawTo = url.searchParams.get("to");
+  const rawFrom = url.searchParams.get('from');
+  const rawTo = url.searchParams.get('to');
 
   let fromDate: string;
   let toDate: string;
@@ -55,7 +52,11 @@ export async function GET(
     const toResult = dateSchema.safeParse(rawTo);
     if (!fromResult.success || !toResult.success) {
       return NextResponse.json(
-        { ok: false, error: "invalid_date_params", detail: "expected from=YYYY-MM-DD&to=YYYY-MM-DD" },
+        {
+          ok: false,
+          error: 'invalid_date_params',
+          detail: 'expected from=YYYY-MM-DD&to=YYYY-MM-DD',
+        },
         { status: 400 },
       );
     }
@@ -79,13 +80,14 @@ export async function GET(
     gate.ctx.organizationId,
   );
   if (!identity) {
-    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
   const patientUserId = identity.userId;
 
   // Resolve patient's local timezone for program_action_log date bucketing.
   // Falls back to UTC when the patient hasn't set a timezone yet.
-  const patientIana = (await deps.patientCalendarTimezone.getIanaForUser(patientUserId)) ?? FALLBACK_IANA;
+  const patientIana =
+    (await deps.patientCalendarTimezone.getIanaForUser(patientUserId)) ?? FALLBACK_IANA;
 
   // Fetch all three sources in parallel:
   //  1. lfk_sessions — personal LFK diary sessions (manual complexes in bot/app)
@@ -122,7 +124,7 @@ export async function GET(
   }
   for (const completion of practiceCompletions) {
     // Skip warmup-only sources — only exercise completions count for the calendar
-    if (completion.source === "daily_warmup") continue;
+    if (completion.source === 'daily_warmup') continue;
     const day = completion.completedAt.slice(0, 10);
     counts.set(day, (counts.get(day) ?? 0) + 1);
   }

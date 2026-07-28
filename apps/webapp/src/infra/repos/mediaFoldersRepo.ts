@@ -1,9 +1,9 @@
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { runDrizzleMutationTransaction } from "@/infra/db/drizzleMutationTx";
-import { mediaFiles, mediaFolders } from "../../../db/schema/schema";
-import type { MediaFolderRecord } from "@/modules/media/types";
+import { and, asc, eq, isNull, sql } from 'drizzle-orm';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
+import { mediaFiles, mediaFolders } from '../../../db/schema/schema';
+import type { MediaFolderRecord } from '@/modules/media/types';
 
 function mapFolderRow(row: {
   id: string;
@@ -17,7 +17,7 @@ function mapFolderRow(row: {
     id: row.id,
     parentId: row.parentId,
     name: row.name,
-    kind: row.kind as MediaFolderRecord["kind"],
+    kind: row.kind as MediaFolderRecord['kind'],
     patientUserId: row.patientUserId,
     createdAt: row.createdAt,
   };
@@ -26,7 +26,7 @@ function mapFolderRow(row: {
 function currentPrincipalOrganizationId(): string {
   const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
   if (!principalOrganizationId) {
-    throw new Error("organization_principal_required");
+    throw new Error('organization_principal_required');
   }
   return principalOrganizationId;
 }
@@ -36,8 +36,11 @@ function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[])
   const fallbackOrganizationIds = fallbacks.filter((x): x is string => Boolean(x));
   const fallbackOrganizationId = fallbackOrganizationIds[0] ?? null;
   const hasFallbackMismatch = fallbackOrganizationIds.some((id) => id !== fallbackOrganizationId);
-  if (hasFallbackMismatch || (fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)) {
-    throw new Error("organization_principal_mismatch");
+  if (
+    hasFallbackMismatch ||
+    (fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)
+  ) {
+    throw new Error('organization_principal_mismatch');
   }
   return principalOrganizationId;
 }
@@ -57,7 +60,11 @@ export async function pgListFolders(parentId: string | null): Promise<MediaFolde
     .from(mediaFolders)
     .where(
       parentId === null
-        ? and(isNull(mediaFolders.parentId), eq(mediaFolders.kind, "standard"), eq(mediaFolders.organizationId, organizationId))
+        ? and(
+            isNull(mediaFolders.parentId),
+            eq(mediaFolders.kind, 'standard'),
+            eq(mediaFolders.organizationId, organizationId),
+          )
         : and(eq(mediaFolders.parentId, parentId), eq(mediaFolders.organizationId, organizationId)),
     )
     .orderBy(asc(mediaFolders.nameNormalized));
@@ -95,9 +102,9 @@ export async function pgCreateFolder(params: {
         patientUserId: mediaFolders.patientUserId,
         createdAt: mediaFolders.createdAt,
       });
-    });
+  });
   const row = rows[0];
-  if (!row) throw new Error("folder_create_failed");
+  if (!row) throw new Error('folder_create_failed');
   return mapFolderRow(row);
 }
 
@@ -147,14 +154,16 @@ export async function pgMoveFolder(folderId: string, newParentId: string | null)
   return rows.length > 0;
 }
 
-export async function pgDeleteFolderIfEmpty(folderId: string): Promise<{ ok: true } | { ok: false; error: "not_empty" }> {
+export async function pgDeleteFolderIfEmpty(
+  folderId: string,
+): Promise<{ ok: true } | { ok: false; error: 'not_empty' }> {
   return runDrizzleMutationTransaction(async (tx) => {
     const [folder] = await tx
       .select({ organizationId: mediaFolders.organizationId })
       .from(mediaFolders)
       .where(eq(mediaFolders.id, folderId))
       .limit(1);
-    if (!folder) return { ok: false, error: "not_empty" };
+    if (!folder) return { ok: false, error: 'not_empty' };
     currentWriteOrganizationId(folder.organizationId);
     const child = await tx
       .select({ one: sql<number>`1` })
@@ -162,7 +171,7 @@ export async function pgDeleteFolderIfEmpty(folderId: string): Promise<{ ok: tru
       .where(eq(mediaFolders.parentId, folderId))
       .limit(1);
     if (child.length > 0) {
-      return { ok: false, error: "not_empty" };
+      return { ok: false, error: 'not_empty' };
     }
     const files = await tx
       .select({ one: sql<number>`1` })
@@ -170,10 +179,13 @@ export async function pgDeleteFolderIfEmpty(folderId: string): Promise<{ ok: tru
       .where(eq(mediaFiles.folderId, folderId))
       .limit(1);
     if (files.length > 0) {
-      return { ok: false, error: "not_empty" };
+      return { ok: false, error: 'not_empty' };
     }
-    const del = await tx.delete(mediaFolders).where(eq(mediaFolders.id, folderId)).returning({ id: mediaFolders.id });
-    return del.length > 0 ? { ok: true } : { ok: false, error: "not_empty" };
+    const del = await tx
+      .delete(mediaFolders)
+      .where(eq(mediaFolders.id, folderId))
+      .returning({ id: mediaFolders.id });
+    return del.length > 0 ? { ok: true } : { ok: false, error: 'not_empty' };
   });
 }
 

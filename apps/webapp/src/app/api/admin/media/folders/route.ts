@@ -1,13 +1,12 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
-import { pgFolderExists } from "@/app-layer/media/mediaFoldersRepo";
-import { pgValidateManualFolderParent } from "@/app-layer/media/clientMediaFolders";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { pgFolderExists } from '@/app-layer/media/mediaFoldersRepo';
+import { pgValidateManualFolderParent } from '@/app-layer/media/clientMediaFolders';
 
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const postBodySchema = z.object({
   name: z.string().min(1).max(180),
@@ -19,24 +18,26 @@ export async function GET(request: Request) {
   if (!gate.ok) return gate.response;
 
   const url = new URL(request.url);
-  if (url.searchParams.get("flat") === "true") {
+  if (url.searchParams.get('flat') === 'true') {
     const deps = buildAppDeps();
     const items = await withDoctorWorkspacePrincipal(gate.ctx, () => deps.media.listAllFolders());
     return NextResponse.json({ ok: true, items });
   }
 
-  const rawParent = url.searchParams.get("parentId");
+  const rawParent = url.searchParams.get('parentId');
   let parentId: string | null = null;
-  if (rawParent === null || rawParent === "" || rawParent === "root") {
+  if (rawParent === null || rawParent === '' || rawParent === 'root') {
     parentId = null;
   } else if (UUID_RE.test(rawParent)) {
     parentId = rawParent;
   } else {
-    return NextResponse.json({ ok: false, error: "invalid_parent_id" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_parent_id' }, { status: 400 });
   }
 
   const deps = buildAppDeps();
-  const items = await withDoctorWorkspacePrincipal(gate.ctx, () => deps.media.listFolders(parentId));
+  const items = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    deps.media.listFolders(parentId),
+  );
   return NextResponse.json({ ok: true, items });
 }
 
@@ -47,22 +48,24 @@ export async function POST(request: Request) {
   const raw = await request.json().catch(() => null);
   const parsed = postBodySchema.safeParse(raw);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
 
   const parentId = parsed.data.parentId === undefined ? null : parsed.data.parentId;
   const parentGate = await pgValidateManualFolderParent(parentId);
   if (!parentGate.ok) {
     const status =
-      parentGate.error === "folder_not_found" ? 404
-      : parentGate.error === "system_folder_readonly" ? 409
-      : 400;
+      parentGate.error === 'folder_not_found'
+        ? 404
+        : parentGate.error === 'system_folder_readonly'
+          ? 409
+          : 400;
     return NextResponse.json({ ok: false, error: parentGate.error }, { status });
   }
   if (parentId !== null) {
     const exists = await pgFolderExists(parentId);
     if (!exists) {
-      return NextResponse.json({ ok: false, error: "parent_not_found" }, { status: 404 });
+      return NextResponse.json({ ok: false, error: 'parent_not_found' }, { status: 404 });
     }
   }
 
@@ -77,6 +80,6 @@ export async function POST(request: Request) {
     );
     return NextResponse.json({ ok: true, folder });
   } catch {
-    return NextResponse.json({ ok: false, error: "create_failed" }, { status: 409 });
+    return NextResponse.json({ ok: false, error: 'create_failed' }, { status: 409 });
   }
 }

@@ -27,7 +27,12 @@ type CanonicalBody = z.infer<typeof canonicalBodySchema>;
 type MergeBody = z.infer<typeof mergeBodySchema>;
 type ReqWithRawBody = FastifyRequest & { rawBody?: string };
 
-function verifySignature(timestamp: string, rawBody: string, signature: string, secret: string): boolean {
+function verifySignature(
+  timestamp: string,
+  rawBody: string,
+  signature: string,
+  secret: string,
+): boolean {
   const ts = Number(timestamp);
   if (!Number.isFinite(ts)) return false;
   const now = Math.floor(Date.now() / 1000);
@@ -60,7 +65,12 @@ export async function registerBersoncareUserMergeM2mRoutes(
   app: FastifyInstance,
   deps: BersoncareUserMergeM2mDeps,
 ): Promise<void> {
-  const { db, sharedSecret, resolveOrganizationIdForIntegratorUserId, resolveDeploymentOrganizationId } = deps;
+  const {
+    db,
+    sharedSecret,
+    resolveOrganizationIdForIntegratorUserId,
+    resolveDeploymentOrganizationId,
+  } = deps;
 
   if (!app.hasContentTypeParser('application/json')) {
     app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
@@ -74,44 +84,47 @@ export async function registerBersoncareUserMergeM2mRoutes(
     });
   }
 
-  app.post<{ Body: CanonicalBody }>('/api/integrator/users/canonical-pair', async (request, reply) => {
-    const req = request as ReqWithRawBody;
-    const rawBody = req.rawBody ?? JSON.stringify(request.body ?? {});
-    const timestamp = request.headers['x-bersoncare-timestamp'];
-    const signature = request.headers['x-bersoncare-signature'];
+  app.post<{ Body: CanonicalBody }>(
+    '/api/integrator/users/canonical-pair',
+    async (request, reply) => {
+      const req = request as ReqWithRawBody;
+      const rawBody = req.rawBody ?? JSON.stringify(request.body ?? {});
+      const timestamp = request.headers['x-bersoncare-timestamp'];
+      const signature = request.headers['x-bersoncare-signature'];
 
-    if (typeof timestamp !== 'string' || typeof signature !== 'string') {
-      return reply.code(400).send({ ok: false, error: 'missing_headers' });
-    }
-    if (!sharedSecret) {
-      logger.warn({}, 'bersoncare users/canonical-pair: webhook secret not set');
-      return reply.code(503).send({ ok: false, error: 'service_unconfigured' });
-    }
-    if (!verifySignature(timestamp, rawBody, signature, sharedSecret)) {
-      return reply.code(401).send({ ok: false, error: 'invalid_signature' });
-    }
+      if (typeof timestamp !== 'string' || typeof signature !== 'string') {
+        return reply.code(400).send({ ok: false, error: 'missing_headers' });
+      }
+      if (!sharedSecret) {
+        logger.warn({}, 'bersoncare users/canonical-pair: webhook secret not set');
+        return reply.code(503).send({ ok: false, error: 'service_unconfigured' });
+      }
+      if (!verifySignature(timestamp, rawBody, signature, sharedSecret)) {
+        return reply.code(401).send({ ok: false, error: 'invalid_signature' });
+      }
 
-    const parsed = canonicalBodySchema.safeParse(request.body);
-    if (!parsed.success) {
-      return reply.code(400).send({ ok: false, error: 'invalid_payload' });
-    }
+      const parsed = canonicalBodySchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.code(400).send({ ok: false, error: 'invalid_payload' });
+      }
 
-    const { integratorUserIdA, integratorUserIdB } = parsed.data;
-    try {
-      const canonicalA = await resolveCanonicalIntegratorUserId(db, integratorUserIdA);
-      const canonicalB = await resolveCanonicalIntegratorUserId(db, integratorUserIdB);
-      const sameCanonical = canonicalA === canonicalB;
-      return reply.code(200).send({
-        ok: true,
-        sameCanonical,
-        canonicalA,
-        canonicalB,
-      });
-    } catch (err) {
-      logger.error({ err }, 'bersoncare users/canonical-pair: resolve failed');
-      return reply.code(502).send({ ok: false, error: 'read_failed' });
-    }
-  });
+      const { integratorUserIdA, integratorUserIdB } = parsed.data;
+      try {
+        const canonicalA = await resolveCanonicalIntegratorUserId(db, integratorUserIdA);
+        const canonicalB = await resolveCanonicalIntegratorUserId(db, integratorUserIdB);
+        const sameCanonical = canonicalA === canonicalB;
+        return reply.code(200).send({
+          ok: true,
+          sameCanonical,
+          canonicalA,
+          canonicalB,
+        });
+      } catch (err) {
+        logger.error({ err }, 'bersoncare users/canonical-pair: resolve failed');
+        return reply.code(502).send({ ok: false, error: 'read_failed' });
+      }
+    },
+  );
 
   app.post<{ Body: MergeBody }>('/api/integrator/users/merge', async (request, reply) => {
     const req = request as ReqWithRawBody;
@@ -139,7 +152,12 @@ export async function registerBersoncareUserMergeM2mRoutes(
 
     try {
       const runMerge = (): Promise<Awaited<ReturnType<typeof mergeIntegratorUsers>>> =>
-        mergeIntegratorUsers(db, winnerIntegratorUserId, loserIntegratorUserId, dryRun === true ? { dryRun: true } : {});
+        mergeIntegratorUsers(
+          db,
+          winnerIntegratorUserId,
+          loserIntegratorUserId,
+          dryRun === true ? { dryRun: true } : {},
+        );
 
       // Defect fix (post-audit-71b05b493): without a principal in scope, every SCOPED reparent
       // UPDATE inside mergeIntegratorUsers falls back to (winner single-active-org) which is NULL
@@ -168,7 +186,9 @@ export async function registerBersoncareUserMergeM2mRoutes(
         }
       }
 
-      const result = organizationId ? await runWithOrganizationPrincipal(organizationId, runMerge) : await runMerge();
+      const result = organizationId
+        ? await runWithOrganizationPrincipal(organizationId, runMerge)
+        : await runMerge();
       return reply.code(200).send({ ok: true, result });
     } catch (err) {
       if (err instanceof MergeIntegratorUsersError) {

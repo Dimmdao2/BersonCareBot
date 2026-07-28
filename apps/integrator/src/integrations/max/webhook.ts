@@ -104,7 +104,9 @@ async function resolveMaxIntegratorUserId(
 /** Экспорт для тестов контракта URL miniapp (`/app/max`, `next=`). */
 export async function buildMaxLinks(
   data: MaxUpdateValidated,
-  resolveIntegratorUserIdForMessenger: MaxWebhookDeps['resolveIntegratorUserIdForMessenger'] | undefined,
+  resolveIntegratorUserIdForMessenger:
+    | MaxWebhookDeps['resolveIntegratorUserIdForMessenger']
+    | undefined,
   appBaseUrl: string | undefined,
 ): Promise<Record<string, unknown>> {
   const maxId = data.message?.sender?.user_id ?? data.callback?.user?.user_id ?? data.user?.user_id;
@@ -113,7 +115,7 @@ export async function buildMaxLinks(
   const displayName =
     sender?.first_name != null || sender?.last_name != null
       ? [sender?.first_name, sender?.last_name].filter(Boolean).join(' ').trim() || undefined
-      : sender?.name ?? undefined;
+      : (sender?.name ?? undefined);
   let integratorUserId: string | undefined;
   try {
     if (resolveIntegratorUserIdForMessenger) {
@@ -149,7 +151,9 @@ export async function buildMaxLinks(
 /** Exported for tests. */
 export async function buildMaxFacts(
   data: MaxUpdateValidated,
-  resolveIntegratorUserIdForMessenger: MaxWebhookDeps['resolveIntegratorUserIdForMessenger'] | undefined,
+  resolveIntegratorUserIdForMessenger:
+    | MaxWebhookDeps['resolveIntegratorUserIdForMessenger']
+    | undefined,
   getAppBaseUrl: MaxWebhookDeps['getAppBaseUrl'],
   resolveMessengerStaffAdmin?: ResolveMessengerStaffAdmin,
 ): Promise<Record<string, unknown>> {
@@ -160,11 +164,7 @@ export async function buildMaxFacts(
   const senderUserId =
     data.callback?.user?.user_id ?? data.message?.sender?.user_id ?? data.user?.user_id;
   const actorId =
-    senderUserId != null
-      ? String(senderUserId)
-      : chatId != null
-        ? String(chatId)
-        : '';
+    senderUserId != null ? String(senderUserId) : chatId != null ? String(chatId) : '';
   const envAdmin =
     (typeof adminUserId === 'number' &&
       typeof senderUserId === 'number' &&
@@ -184,7 +184,10 @@ export async function buildMaxFacts(
       // app.current_org_id()) must degrade admin-detection to "not admin", not crash the whole inbound
       // MAX pipeline. See deploy/postgres/integrator-login-public-identity-grants.sql for why granting
       // this access is the WRONG fix (it took TEST down) and fail-open in code is the correct one.
-      logger.warn({ err }, 'buildMaxFacts: resolveMessengerStaffAdmin failed, treating as non-admin');
+      logger.warn(
+        { err },
+        'buildMaxFacts: resolveMessengerStaffAdmin failed, treating as non-admin',
+      );
       dbAdmin = false;
     }
   }
@@ -271,7 +274,10 @@ export async function registerMaxWebhookRoutes(
       const incoming = fromMax(data, maxConfig.apiKey);
       if (!incoming) {
         if (verbose) {
-          reqLogger.info({ update_type: data.update_type }, 'max webhook skipped (unsupported or missing chatId/userId)');
+          reqLogger.info(
+            { update_type: data.update_type },
+            'max webhook skipped (unsupported or missing chatId/userId)',
+          );
         }
         recordMaxWebhookOutcome({
           source: 'max',
@@ -288,8 +294,10 @@ export async function registerMaxWebhookRoutes(
             {
               maxStart: {
                 action: incoming.action ?? '',
-                linkSecretPresent: typeof incoming.linkSecret === 'string' && incoming.linkSecret.length > 0,
-                phoneFromDeepLink: incoming.action === 'start.setphone' && typeof incoming.phone === 'string',
+                linkSecretPresent:
+                  typeof incoming.linkSecret === 'string' && incoming.linkSecret.length > 0,
+                phoneFromDeepLink:
+                  incoming.action === 'start.setphone' && typeof incoming.phone === 'string',
               },
             },
             '[max] /start classified',
@@ -321,16 +329,23 @@ export async function registerMaxWebhookRoutes(
       const integratorUserId = preRouting.integratorUserId;
       const handleEvent = (): Promise<Awaited<ReturnType<EventGateway['handleIncomingEvent']>>> =>
         deps.eventGateway.handleIncomingEvent(event);
-      const result = organizationId && integratorUserId
-        ? await runWithIntegratorPrincipal(
-            { organizationId, integratorUserId, source: 'max-webhook' },
-            handleEvent,
-          )
-        : organizationId
-          ? await runWithOrganizationPrincipal(organizationId, handleEvent)
-          : await runWithDbBootstrapPrincipal({ source: 'max-webhook:unresolved-org' }, handleEvent);
+      const result =
+        organizationId && integratorUserId
+          ? await runWithIntegratorPrincipal(
+              { organizationId, integratorUserId, source: 'max-webhook' },
+              handleEvent,
+            )
+          : organizationId
+            ? await runWithOrganizationPrincipal(organizationId, handleEvent)
+            : await runWithDbBootstrapPrincipal(
+                { source: 'max-webhook:unresolved-org' },
+                handleEvent,
+              );
       if (result.status === 'rejected') {
-        reqLogger.warn({ reason: result.reason, dedupKey: result.dedupKey }, 'max webhook pipeline rejected');
+        reqLogger.warn(
+          { reason: result.reason, dedupKey: result.dedupKey },
+          'max webhook pipeline rejected',
+        );
         recordMaxWebhookOutcome({
           source: 'max',
           processedOk: false,

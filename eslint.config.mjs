@@ -1,34 +1,34 @@
-import js from "@eslint/js";
-import tsParser from "@typescript-eslint/parser";
-import tsPlugin from "@typescript-eslint/eslint-plugin";
-import noSecrets from "eslint-plugin-no-secrets";
-import prettier from "eslint-config-prettier";
-import globals from "globals";
+import js from '@eslint/js';
+import tsParser from '@typescript-eslint/parser';
+import tsPlugin from '@typescript-eslint/eslint-plugin';
+import noSecrets from 'eslint-plugin-no-secrets';
+import prettier from 'eslint-config-prettier';
+import globals from 'globals';
 
 export default [
   {
     ignores: [
-      "dist/**",
-      "node_modules/**",
-      "coverage/**",
+      'dist/**',
+      'node_modules/**',
+      'coverage/**',
       // Локальные агент-worktree/состояние Claude Code — полные копии репо,
       // не линтуем (иначе вложенный apps/webapp-копия даёт тысячи ложных ошибок).
-      ".claude/**",
-      "_old/**",
-      "admin/dist/**",
-      "admin/node_modules/**",
-      "apps/webapp/**",
-      "apps/integrator/dist/**",
-      "apps/media-worker/dist/**",
+      '.claude/**',
+      '_old/**',
+      'admin/dist/**',
+      'admin/node_modules/**',
+      'apps/webapp/**',
+      'apps/integrator/dist/**',
+      'apps/media-worker/dist/**',
       // Local/untracked workspace packages (pnpm-workspace lists only apps/* until a package is merged).
-      "packages/**",
+      'packages/**',
     ],
   },
 
   js.configs.recommended,
 
   {
-    files: ["**/*.ts"],
+    files: ['**/*.ts'],
     languageOptions: {
       parser: tsParser,
       globals: {
@@ -36,47 +36,53 @@ export default [
       },
     },
     plugins: {
-      "@typescript-eslint": tsPlugin,
-      "no-secrets": noSecrets,
+      '@typescript-eslint': tsPlugin,
+      'no-secrets': noSecrets,
     },
     rules: {
       ...tsPlugin.configs.recommended.rules,
-      "no-secrets/no-secrets": "error",
-      "@typescript-eslint/no-explicit-any": "warn",
-      "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
+      'no-secrets/no-secrets': 'error',
+      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     },
   },
 
   {
-    files: ["apps/integrator/src/integrations/telegram/**/*.ts"],
+    files: ['apps/integrator/src/integrations/telegram/**/*.ts'],
     rules: {
-      "no-restricted-imports": ["error", { patterns: ["*db*"] }],
+      'no-restricted-imports': ['error', { patterns: ['*db*'] }],
     },
   },
 
   {
-    files: ["apps/integrator/src/domain/**/*.ts"],
+    files: ['apps/integrator/src/domain/**/*.ts'],
     rules: {
-      "no-restricted-imports": ["error", { patterns: ["*adapters*", "*persistence*", "*channels*", "*integrations*", "*db*"] }],
+      'no-restricted-imports': [
+        'error',
+        { patterns: ['*adapters*', '*persistence*', '*channels*', '*integrations*', '*db*'] },
+      ],
     },
   },
 
   {
-    files: ["apps/integrator/src/infra/runtime/worker/**/*.ts"],
+    files: ['apps/integrator/src/infra/runtime/worker/**/*.ts'],
     rules: {
-      "no-restricted-imports": ["error", { patterns: ["*channels*", "**/app/di*", "**/app/index*"] }],
+      'no-restricted-imports': [
+        'error',
+        { patterns: ['*channels*', '**/app/di*', '**/app/index*'] },
+      ],
     },
   },
 
   {
-    files: ["**/*.test.ts"],
+    files: ['**/*.test.ts'],
     rules: {
-      "@typescript-eslint/no-unused-vars": "off",
+      '@typescript-eslint/no-unused-vars': 'off',
     },
   },
 
   {
-    files: ["**/*.mjs"],
+    files: ['**/*.mjs'],
     languageOptions: {
       globals: {
         ...globals.node,

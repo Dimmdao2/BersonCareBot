@@ -106,18 +106,20 @@ describe('getGoogleCalendarConfig', () => {
         return Promise.resolve(dbRow(key, 'true'));
       }
       if (key === 'platform_integration_availability') {
-        return Promise.resolve(dbRow(key, {
-          version: 1,
-          integrations: {
-            telegram: true,
-            max: true,
-            email: true,
-            smsc: true,
-            web_push: true,
-            google_calendar: true,
-            yandex_calendar: false,
-          },
-        }));
+        return Promise.resolve(
+          dbRow(key, {
+            version: 1,
+            integrations: {
+              telegram: true,
+              max: true,
+              email: true,
+              smsc: true,
+              web_push: true,
+              google_calendar: true,
+              yandex_calendar: false,
+            },
+          }),
+        );
       }
       return Promise.resolve(emptyResult());
     });

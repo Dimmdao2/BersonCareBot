@@ -1,32 +1,34 @@
-import { boolean, foreignKey, index, pgTable, timestamp, uuid } from "drizzle-orm/pg-core";
-import { contentPages, platformUsers } from "./schema";
-import { beOrganizations } from "./bookingEngine";
+import { boolean, foreignKey, index, pgTable, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { contentPages, platformUsers } from './schema';
+import { beOrganizations } from './bookingEngine';
 
 /** Текущая разминка дня на главной (обновляется при открытии push-напоминания). */
 export const patientDailyWarmupPresentations = pgTable(
-  "patient_daily_warmup_presentations",
+  'patient_daily_warmup_presentations',
   {
-    organizationId: uuid("organization_id"),
-    userId: uuid("user_id")
+    organizationId: uuid('organization_id'),
+    userId: uuid('user_id')
       .primaryKey()
       .notNull()
-      .references(() => platformUsers.id, { onDelete: "cascade" }),
-    contentPageId: uuid("content_page_id")
+      .references(() => platformUsers.id, { onDelete: 'cascade' }),
+    contentPageId: uuid('content_page_id')
       .notNull()
-      .references(() => contentPages.id, { onDelete: "cascade" }),
-    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+      .references(() => contentPages.id, { onDelete: 'cascade' }),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
     /** Момент последней смены presented (scheduled или manual); слоты применяются только после этой точки. */
-    lastRotationAt: timestamp("last_rotation_at", { withTimezone: true, mode: "string" }),
+    lastRotationAt: timestamp('last_rotation_at', { withTimezone: true, mode: 'string' }),
     /** Пропустить ровно одну ближайшую scheduled-смену после manual advance. */
-    skipNextScheduledRotation: boolean("skip_next_scheduled_rotation").default(false).notNull(),
+    skipNextScheduledRotation: boolean('skip_next_scheduled_rotation').default(false).notNull(),
   },
   (table) => [
-    index("idx_patient_daily_warmup_presentations_organization_id").on(table.organizationId),
-    index("idx_patient_daily_warmup_presentations_content_page").on(table.contentPageId),
+    index('idx_patient_daily_warmup_presentations_organization_id').on(table.organizationId),
+    index('idx_patient_daily_warmup_presentations_content_page').on(table.contentPageId),
     foreignKey({
       columns: [table.organizationId],
       foreignColumns: [beOrganizations.id],
-      name: "patient_daily_warmup_presentations_organization_id_fkey",
-    }).onDelete("cascade"),
+      name: 'patient_daily_warmup_presentations_organization_id_fkey',
+    }).onDelete('cascade'),
   ],
 );

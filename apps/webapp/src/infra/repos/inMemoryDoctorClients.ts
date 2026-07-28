@@ -1,14 +1,14 @@
-import type { ChannelBindings } from "@/shared/types/session";
+import type { ChannelBindings } from '@/shared/types/session';
 import type {
   ClientIdentity,
   ClientListItem,
   DoctorClientsFilters,
   DoctorClientsPort,
   DoctorDashboardPatientMetrics,
-} from "@/modules/doctor-clients/ports";
-import type { ClientSupportProfile } from "@/modules/doctor-clients/supportPolicy";
-import { emptyClientContactBreakdown } from "@/modules/doctor-clients/clientContactSegments";
-import { matchesDoctorClientSearch } from "@/modules/doctor-clients/clientSearchMatch";
+} from '@/modules/doctor-clients/ports';
+import type { ClientSupportProfile } from '@/modules/doctor-clients/supportPolicy';
+import { emptyClientContactBreakdown } from '@/modules/doctor-clients/clientContactSegments';
+import { matchesDoctorClientSearch } from '@/modules/doctor-clients/clientSearchMatch';
 
 const STUB_CLIENTS: ClientListItem[] = [];
 const supportProfiles = new Map<string, ClientSupportProfile>();
@@ -29,7 +29,10 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
     filters: DoctorClientsFilters,
     _audience?: { excludedUserIds?: string[] },
   ): Promise<ClientListItem[]> {
-    let list = STUB_CLIENTS.map((item) => ({ ...item, lastAppointmentAt: item.lastAppointmentAt ?? null }));
+    let list = STUB_CLIENTS.map((item) => ({
+      ...item,
+      lastAppointmentAt: item.lastAppointmentAt ?? null,
+    }));
     if (filters.search?.trim()) {
       list = list.filter((item) => matchesSearch(item, filters.search!));
     }
@@ -52,7 +55,9 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
       list = list.filter((item) => item.hasWebPush === true);
     }
     if (filters.hasUpcomingAppointment === true) {
-      list = list.filter((item) => (item.activeAppointmentsCount ?? 0) > 0 || Boolean(item.nextAppointmentLabel));
+      list = list.filter(
+        (item) => (item.activeAppointmentsCount ?? 0) > 0 || Boolean(item.nextAppointmentLabel),
+      );
     }
     if (filters.hasActiveTreatmentProgram === true) {
       list = list.filter((item) => item.activeTreatmentProgram);
@@ -78,12 +83,13 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
     if (filters.archivedOnly === true) {
       list = [];
     }
-    if (filters.supportStatus === "on") {
+    if (filters.supportStatus === 'on') {
       list = list.filter((item) => supportProfiles.get(item.userId)?.onSupport === true);
     }
-    if (filters.supportStatus === "programWithoutSupport") {
+    if (filters.supportStatus === 'programWithoutSupport') {
       list = list.filter(
-        (item) => item.activeTreatmentProgram && supportProfiles.get(item.userId)?.onSupport !== true,
+        (item) =>
+          item.activeTreatmentProgram && supportProfiles.get(item.userId)?.onSupport !== true,
       );
     }
     return list;
@@ -117,12 +123,15 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
     return this.getClientIdentity(userId);
   },
 
-  async getClientIdentityForOrganization(userId: string, _organizationId: string): Promise<ClientIdentity | null> {
+  async getClientIdentityForOrganization(
+    userId: string,
+    _organizationId: string,
+  ): Promise<ClientIdentity | null> {
     return this.getPatientClientIdentity(userId);
   },
 
   async getPlatformUserRole(userId: string): Promise<string | null> {
-    return STUB_CLIENTS.some((c) => c.userId === userId) ? "client" : null;
+    return STUB_CLIENTS.some((c) => c.userId === userId) ? 'client' : null;
   },
 
   async getClientIdentity(userId: string): Promise<ClientIdentity | null> {
@@ -185,8 +194,11 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
       onSupport: nextOnSupport,
       supportStartedAt,
       commentsEnabled:
-        params.commentsEnabled !== undefined ? params.commentsEnabled : (existing?.commentsEnabled ?? null),
-      mediaEnabled: params.mediaEnabled !== undefined ? params.mediaEnabled : (existing?.mediaEnabled ?? null),
+        params.commentsEnabled !== undefined
+          ? params.commentsEnabled
+          : (existing?.commentsEnabled ?? null),
+      mediaEnabled:
+        params.mediaEnabled !== undefined ? params.mediaEnabled : (existing?.mediaEnabled ?? null),
       updatedAt: now,
       updatedBy: params.actorId,
     };
@@ -198,7 +210,7 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
     /* no-op in memory stub */
   },
 
-  async setPatientGender(_userId: string, _gender: "male" | "female" | null): Promise<void> {
+  async setPatientGender(_userId: string, _gender: 'male' | 'female' | null): Promise<void> {
     /* no-op in memory stub */
   },
 

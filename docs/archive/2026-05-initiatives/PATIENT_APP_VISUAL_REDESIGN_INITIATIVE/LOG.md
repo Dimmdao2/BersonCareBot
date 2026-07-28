@@ -102,7 +102,7 @@ Audit выявил 16 узких мест; внесены исправления
 - **Hero daily_warmup:** `PatientHomeDailyWarmupCard` — градиент `patientHomeCardHeroClass`, бейджи «Разминка дня» + длительность; **fallback длительности `≈ 5 мин`**, если в CMS нет поля (отдельный numeric в `content_sections` сейчас не подключён); `?from=daily_warmup` на ссылке первого раздела по `sort_order`; картинка — `<img>` при `imageUrl` (сейчас не передаётся) или декоративный блок `Sparkles`.
 - **Источник hero/ситуаций:** сортировка `content_sections` из существующего `listVisible` (**без** смены модели БД); первый элемент — hero, остальные — горизонтальный ряд плиток; **без** привязки цвета к slug/title (нейтральный `bg-muted/80`).
 - **Booking:** `PatientHomeBookingCard` — success surface, `Calendar`, CTA «Записаться» / «Мои приёмы»; **guestMode** — оба линка на `/app?next=/app/patient`.
-- **`page.tsx` (минимальная склейка):** при `cabinet | materials` рендерится `PatientHomeToday`; блок **`PatientHomeLessonsSection`** скрыт при `showPrimaryToday`, чтобы не дублировать карточки разделов; **`PatientHomeBrowserHero`** снят с главной в пользу primary-зоны (дневник/прочее остаются в bottom nav и остальных экранах). *(2026-05-04: компонент `PatientHomeLessonsSection` удалён из репозитория; при возврате блока на главную — новая реализация.)*
+- **`page.tsx` (минимальная склейка):** при `cabinet | materials` рендерится `PatientHomeToday`; блок **`PatientHomeLessonsSection`** скрыт при `showPrimaryToday`, чтобы не дублировать карточки разделов; **`PatientHomeBrowserHero`** снят с главной в пользу primary-зоны (дневник/прочее остаются в bottom nav и остальных экранах). _(2026-05-04: компонент `PatientHomeLessonsSection` удалён из репозитория; при возврате блока на главную — новая реализация.)_
 - **`patientHomeCardStyles`:** уточнён комментарий hero-класса (граница `#ddd6fe` по spec).
 - **Проверки (targeted, без root `ci`):**  
   `npx vitest run src/app/app/patient/home/PatientHomeTodayLayout.test.tsx src/app/app/patient/home/PatientHomeToday.test.tsx src/app/app/patient/home/PatientHomeDailyWarmupCard.test.tsx src/app/app/patient/home/PatientHomeBookingCard.test.tsx src/app/app/patient/home/PatientHomeSituationsRow.test.tsx src/app/app/patient/home/PatientHomeGreeting.test.tsx` — **15 passed**;  
@@ -150,7 +150,7 @@ Audit выявил 16 узких мест; внесены исправления
 - **Скриншоты before/after (рекомендовано, плейсхолдеры — файлов в `references/` пока нет):**
   - Mobile **390px:** `references/before-after/mobile-390-hero.png`, `…-booking.png`, `…-situations.png`, `…-progress.png`, `…-reminder.png`, `…-mood.png`, `…-sos.png`, `…-plan.png`
   - Desktop **1280px:** `references/before-after/desktop-1280-hero.png`, `…-booking.png`, `…-situations.png`, `…-progress.png`, `…-reminder.png`, `…-mood.png`, `…-sos.png`, `…-plan.png`  
-  (после съёмки заменить на реальные имена файлов и закоммитить в `docs/PATIENT_APP_VISUAL_REDESIGN_INITIATIVE/references/`.)
+    (после съёмки заменить на реальные имена файлов и закоммитить в `docs/PATIENT_APP_VISUAL_REDESIGN_INITIATIVE/references/`.)
 
 ## 2026-04-29 — FIX (AUDIT_VISUAL_FINAL, только mandatory)
 
@@ -220,4 +220,3 @@ Audit выявил 16 узких мест; внесены исправления
 - Deviations from spec:
 - Next step:
 ```
-

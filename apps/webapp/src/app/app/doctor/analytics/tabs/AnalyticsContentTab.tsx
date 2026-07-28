@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import Link from "next/link";
+import Link from 'next/link';
 
-import { MaterialContentStatsClient } from "@/app/app/doctor/material-ratings/MaterialContentStatsClient";
+import { MaterialContentStatsClient } from '@/app/app/doctor/material-ratings/MaterialContentStatsClient';
 
 /**
  * Вкладка «Контент» агрегированной аналитики.

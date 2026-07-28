@@ -1,13 +1,13 @@
-import { logger } from "@/infra/logging/logger";
-import type { ClientListItem } from "@/modules/doctor-clients/ports";
+import { logger } from '@/infra/logging/logger';
+import type { ClientListItem } from '@/modules/doctor-clients/ports';
 import {
   runPatientWebPushNotify,
   type PatientWebPushNotifyDeps,
-} from "@/modules/patient-notifications/patientWebPushNotify";
-import { broadcastNotificationTopicCode } from "@/modules/patient-notifications/notificationTopicCodes";
-import { broadcastIncludeWebPushJob } from "./broadcastEligible";
-import { buildBroadcastMessageText, stripMarkdownToPlain } from "./deliveryJobs";
-import type { BroadcastCategory } from "./ports";
+} from '@/modules/patient-notifications/patientWebPushNotify';
+import { broadcastNotificationTopicCode } from '@/modules/patient-notifications/notificationTopicCodes';
+import { broadcastIncludeWebPushJob } from './broadcastEligible';
+import { buildBroadcastMessageText, stripMarkdownToPlain } from './deliveryJobs';
+import type { BroadcastCategory } from './ports';
 
 export type FanOutBroadcastWebPushInput = {
   organizationId: string;
@@ -38,7 +38,7 @@ export async function fanOutBroadcastWebPush(
   const topicCode = broadcastNotificationTopicCode(input.broadcastCategory);
 
   for (const client of input.eligibleClients) {
-    if (!broadcastIncludeWebPushJob(["push"], input.webPushEligibleUserIds, client.userId)) {
+    if (!broadcastIncludeWebPushJob(['push'], input.webPushEligibleUserIds, client.userId)) {
       continue;
     }
 
@@ -49,7 +49,7 @@ export async function fanOutBroadcastWebPush(
           organizationId: input.organizationId,
           platformUserId: client.userId,
           topicCode,
-          intentType: "news",
+          intentType: 'news',
           broadcastTitle: stripMarkdownToPlain(
             buildBroadcastMessageText(input.broadcastTitle, input.broadcastBody),
           ),
@@ -59,11 +59,12 @@ export async function fanOutBroadcastWebPush(
         deps,
       );
 
-      const pushDelivered = typeof result.webPushDelivered === "number" ? result.webPushDelivered : 0;
-      const pushErrors = typeof result.webPushErrors === "number" ? result.webPushErrors : 0;
+      const pushDelivered =
+        typeof result.webPushDelivered === 'number' ? result.webPushDelivered : 0;
+      const pushErrors = typeof result.webPushErrors === 'number' ? result.webPushErrors : 0;
       delivered += pushDelivered;
       errors += pushErrors;
-      if (pushDelivered === 0 && pushErrors === 0 && typeof result.skipped === "string") {
+      if (pushDelivered === 0 && pushErrors === 0 && typeof result.skipped === 'string') {
         skipped += 1;
       }
     } catch (err) {
@@ -71,25 +72,25 @@ export async function fanOutBroadcastWebPush(
       logger.warn(
         {
           err,
-          event: "doctor_broadcast.web_push.client_failed",
+          event: 'doctor_broadcast.web_push.client_failed',
           auditId: input.auditId,
           platformUserId: client.userId,
         },
-        "doctor broadcast web push client failed",
+        'doctor broadcast web push client failed',
       );
     }
   }
 
   logger.info(
     {
-      event: "doctor_broadcast.web_push.result",
+      event: 'doctor_broadcast.web_push.result',
       auditId: input.auditId,
       attempted,
       delivered,
       errors,
       skipped,
     },
-    "doctor broadcast web push result",
+    'doctor broadcast web push result',
   );
 
   return { attempted, delivered, errors, skipped };

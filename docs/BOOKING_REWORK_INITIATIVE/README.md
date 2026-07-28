@@ -48,4 +48,3 @@
 - [`ACCEPTANCE_MIRROR_SYNC.md`](ACCEPTANCE_MIRROR_SYNC.md) — приёмка двустороннего зеркалирования.
 - [`../../apps/webapp/src/modules/booking-appointment-sync/README.md`](../../apps/webapp/src/modules/booking-appointment-sync/README.md) — модуль mirror (код).
 - [`../ARCHITECTURE/DOCTOR_CABINET_NAVIGATION.md`](../ARCHITECTURE/DOCTOR_CABINET_NAVIGATION.md) — навигация кабинета врача/админа.
-

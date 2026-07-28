@@ -1,9 +1,9 @@
-import { sql, type Column, type SQL } from "drizzle-orm";
+import { sql, type Column, type SQL } from 'drizzle-orm';
 import {
   normalizeTestAccountIdentifiersValue,
   type TestAccountIdentifiers,
-} from "@/modules/system-settings/testAccounts";
-import type { SystemSetting } from "@/modules/system-settings/types";
+} from '@/modules/system-settings/testAccounts';
+import type { SystemSetting } from '@/modules/system-settings/types';
 const TTL_MS = 30_000;
 
 type IncludeTestCacheEntry = { value: boolean; expiresAt: number };
@@ -16,13 +16,16 @@ export type AnalyticsAudienceContext = {
 };
 
 function readBooleanValueJson(valueJson: unknown): boolean {
-  if (valueJson === null || typeof valueJson !== "object") return false;
+  if (valueJson === null || typeof valueJson !== 'object') return false;
   const v = (valueJson as Record<string, unknown>).value;
-  return v === true || v === "true";
+  return v === true || v === 'true';
 }
 
 type SettingsReader = {
-  getSetting(key: "dev_mode" | "test_account_identifiers", scope: "admin"): Promise<SystemSetting | null>;
+  getSetting(
+    key: 'dev_mode' | 'test_account_identifiers',
+    scope: 'admin',
+  ): Promise<SystemSetting | null>;
 };
 
 /**
@@ -36,7 +39,7 @@ export async function readAnalyticsIncludeTestAccounts(deps: {
     return includeTestCache.value;
   }
   try {
-    const devRow = await deps.systemSettings.getSetting("dev_mode", "admin");
+    const devRow = await deps.systemSettings.getSetting('dev_mode', 'admin');
     const value = readBooleanValueJson(devRow?.valueJson ?? null);
     includeTestCache = { value, expiresAt: now + TTL_MS };
     return value;
@@ -53,8 +56,8 @@ export function resetAnalyticsIncludeTestAccountsCacheForTests(): void {
 async function readAnalyticsTestAccountIdentifiers(deps: {
   systemSettings: SettingsReader;
 }): Promise<TestAccountIdentifiers | null> {
-  const row = await deps.systemSettings.getSetting("test_account_identifiers", "admin");
-  if (!row?.valueJson || typeof row.valueJson !== "object") return null;
+  const row = await deps.systemSettings.getSetting('test_account_identifiers', 'admin');
+  if (!row?.valueJson || typeof row.valueJson !== 'object') return null;
   const inner = (row.valueJson as Record<string, unknown>).value;
   return normalizeTestAccountIdentifiersValue(inner);
 }
@@ -69,7 +72,9 @@ export async function loadAnalyticsAudienceContext(deps: {
   excludeStaffRoles?: boolean;
 }): Promise<AnalyticsAudienceContext> {
   const includeTestAccounts = await readAnalyticsIncludeTestAccounts(deps);
-  const testAccountIdentifiers = includeTestAccounts ? null : await readAnalyticsTestAccountIdentifiers(deps);
+  const testAccountIdentifiers = includeTestAccounts
+    ? null
+    : await readAnalyticsTestAccountIdentifiers(deps);
   const excludedUserIds = await deps.loadExcludedUserIds({
     includeTestAccounts,
     excludeStaffRoles: deps.excludeStaffRoles,
@@ -109,5 +114,8 @@ export function drizzleExcludeUserIdColumn(
  * Do not use `<> ALL(${excludedUserIds}::uuid[])` in drizzle templates — pg driver gets a scalar, not uuid[].
  */
 export function drizzleSqlUuidInList(excludedUserIds: string[]): SQL {
-  return sql.join(excludedUserIds.map((id) => sql`${id}::uuid`), sql`, `);
+  return sql.join(
+    excludedUserIds.map((id) => sql`${id}::uuid`),
+    sql`, `,
+  );
 }

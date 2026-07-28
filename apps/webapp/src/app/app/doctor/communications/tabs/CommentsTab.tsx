@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
-import type { DoctorCommentsTabProps } from "../../comments/DoctorCommentsTab";
-import { DoctorCommentsTab } from "../../comments/DoctorCommentsTab";
-import type { TodayExerciseCommentAttentionItem } from "../../loadDoctorExerciseCommentAttention";
-import type { DoctorExerciseCommentCursor } from "@/modules/program-item-discussion/types";
-import type { CommentPatientRow } from "../../comments/loadDoctorCommentPatients";
-import type { CommunicationsTabProps } from "../communicationsTabRegistry";
+import type { DoctorCommentsTabProps } from '../../comments/DoctorCommentsTab';
+import { DoctorCommentsTab } from '../../comments/DoctorCommentsTab';
+import type { TodayExerciseCommentAttentionItem } from '../../loadDoctorExerciseCommentAttention';
+import type { DoctorExerciseCommentCursor } from '@/modules/program-item-discussion/types';
+import type { CommentPatientRow } from '../../comments/loadDoctorCommentPatients';
+import type { CommunicationsTabProps } from '../communicationsTabRegistry';
 
 /**
  * Форма SSR-данных от страницы-шелла (выход `loadDoctorExerciseCommentsForTab` + `loadDoctorCommentPatients`).
@@ -43,18 +43,18 @@ const EMPTY: DoctorCommentsTabProps = {
 
 function isV2Shape(d: unknown): d is CommentsInitialDataV2 {
   return (
-    typeof d === "object" &&
+    typeof d === 'object' &&
     d !== null &&
-    "feed" in d &&
-    typeof (d as CommentsInitialDataV2).feed === "object"
+    'feed' in d &&
+    typeof (d as CommentsInitialDataV2).feed === 'object'
   );
 }
 
 function isLegacyShape(d: unknown): d is CommentsInitialDataLegacy {
   return (
-    typeof d === "object" &&
+    typeof d === 'object' &&
     d !== null &&
-    "items" in d &&
+    'items' in d &&
     Array.isArray((d as CommentsInitialDataLegacy).items)
   );
 }

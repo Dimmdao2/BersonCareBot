@@ -7,14 +7,14 @@
 
 ## Краткий вердикт
 
-| # | Проверка | Статус |
-|---|-----------|--------|
-| 1 | `drizzle-orm` / `drizzle-kit` в зависимостях webapp | **PASS** |
-| 2 | `drizzle.config.ts` и источник `DATABASE_URL` | **PASS** |
-| 3 | Схема Drizzle ↔ таблицы `public` в БД | **PASS** — `db:verify-public-table-count` **OK** при 108 таблицах; миграции Drizzle применимы через `db:migrate:drizzle` (см. §3) |
-| 4 | Smoke-тест | **PASS** (с `USE_REAL_DATABASE=1` + `DATABASE_URL`) |
-| 5 | Существующие тесты | **PASS** |
-| 6 | Сверка с `SYSTEM_LOGIC_SCHEMA.md` § 12 | **PASS** (§ 12 уточнён в ходе аудита) |
+| #   | Проверка                                            | Статус                                                                                                                            |
+| --- | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `drizzle-orm` / `drizzle-kit` в зависимостях webapp | **PASS**                                                                                                                          |
+| 2   | `drizzle.config.ts` и источник `DATABASE_URL`       | **PASS**                                                                                                                          |
+| 3   | Схема Drizzle ↔ таблицы `public` в БД               | **PASS** — `db:verify-public-table-count` **OK** при 108 таблицах; миграции Drizzle применимы через `db:migrate:drizzle` (см. §3) |
+| 4   | Smoke-тест                                          | **PASS** (с `USE_REAL_DATABASE=1` + `DATABASE_URL`)                                                                               |
+| 5   | Существующие тесты                                  | **PASS**                                                                                                                          |
+| 6   | Сверка с `SYSTEM_LOGIC_SCHEMA.md` § 12              | **PASS** (§ 12 уточнён в ходе аудита)                                                                                             |
 
 ---
 
@@ -22,10 +22,10 @@
 
 ### Verdict: **PASS**
 
-| Пакет | Раздел | Версия в манифесте |
-|--------|--------|---------------------|
-| `drizzle-orm` | `dependencies` | `^0.44.7` |
-| `drizzle-kit` | `devDependencies` | `^0.31.10` |
+| Пакет         | Раздел            | Версия в манифесте |
+| ------------- | ----------------- | ------------------ |
+| `drizzle-orm` | `dependencies`    | `^0.44.7`          |
+| `drizzle-kit` | `devDependencies` | `^0.31.10`         |
 
 ---
 
@@ -33,14 +33,14 @@
 
 ### Verdict: **PASS**
 
-| Критерий | Результат |
-|----------|-----------|
-| Файл | `apps/webapp/drizzle.config.ts` |
-| Диалект | `postgresql` |
-| `DATABASE_URL` | Через `dotenv`: сначала `apps/webapp/.env.dev`, затем `.env` — **тот же порядок**, что комментируется для согласования с `src/config/loadEnv.ts` (в dev; без `ENV_FILE` приложение использует ту же пару файлов). |
-| `schema` | Массив файлов: `schema.ts`, `clinicalTests.ts`, `recommendations.ts`, `treatmentProgramTemplates.ts`, `treatmentProgramInstances.ts`, `entityComments.ts` — **согласовано** с `db/schema/index.ts`. |
-| `out` | `./db/drizzle-migrations` (отдельно от legacy SQL `apps/webapp/migrations/`). |
-| Без `DATABASE_URL` | При запуске `drizzle-kit` конфиг **бросает** понятную ошибку — ожидаемо для CLI. |
+| Критерий           | Результат                                                                                                                                                                                                         |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Файл               | `apps/webapp/drizzle.config.ts`                                                                                                                                                                                   |
+| Диалект            | `postgresql`                                                                                                                                                                                                      |
+| `DATABASE_URL`     | Через `dotenv`: сначала `apps/webapp/.env.dev`, затем `.env` — **тот же порядок**, что комментируется для согласования с `src/config/loadEnv.ts` (в dev; без `ENV_FILE` приложение использует ту же пару файлов). |
+| `schema`           | Массив файлов: `schema.ts`, `clinicalTests.ts`, `recommendations.ts`, `treatmentProgramTemplates.ts`, `treatmentProgramInstances.ts`, `entityComments.ts` — **согласовано** с `db/schema/index.ts`.               |
+| `out`              | `./db/drizzle-migrations` (отдельно от legacy SQL `apps/webapp/migrations/`).                                                                                                                                     |
+| Без `DATABASE_URL` | При запуске `drizzle-kit` конфиг **бросает** понятную ошибку — ожидаемо для CLI.                                                                                                                                  |
 
 **Замечание:** рантайм-валидация env — Zod в `src/config/env.ts` после `loadEnv`; kit читает только `dotenv`. Источник строки подключения при локальной разработке совпадает по файлам; расхождение возможно только при экспорте `DATABASE_URL` только в shell.
 
@@ -50,12 +50,12 @@
 
 ### Verdict: **PASS по полноте описания в коде; verify — после FIX**
 
-| Источник | Значение |
-|----------|----------|
-| `pgTable` в `db/schema/schema.ts` | **97** |
-| Доп. файлы (`clinicalTests`, `recommendations`, `treatmentProgramTemplates`, `treatmentProgramInstances`, `entityComments`) | **11** |
-| **Всего** `export const … = pgTable(` в наборах из `drizzle.config.ts` | **108** |
-| `db/schema/relations.ts` | Только `relations()`, в подсчёт таблиц **не** входит |
+| Источник                                                                                                                    | Значение                                             |
+| --------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `pgTable` в `db/schema/schema.ts`                                                                                           | **97**                                               |
+| Доп. файлы (`clinicalTests`, `recommendations`, `treatmentProgramTemplates`, `treatmentProgramInstances`, `entityComments`) | **11**                                               |
+| **Всего** `export const … = pgTable(` в наборах из `drizzle.config.ts`                                                      | **108**                                              |
+| `db/schema/relations.ts`                                                                                                    | Только `relations()`, в подсчёт таблиц **не** входит |
 
 **Оговорки (как в прошлых аудитах):**
 
@@ -79,11 +79,11 @@
 
 ### Verdict: **PASS**
 
-| Элемент | Описание |
-|---------|----------|
-| Файл | `apps/webapp/src/app-layer/db/drizzle.smoke.test.ts` |
-| Действие | `getDrizzle()` + `db.execute(sql\`select 1 as n\`)` |
-| Обычный `pnpm test` | `it.skipIf(!hasRealDb)` — **пропуск** без `USE_REAL_DATABASE=1` и `DATABASE_URL` (как в `EXECUTION_RULES.md`). |
+| Элемент              | Описание                                                                                                                           |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Файл                 | `apps/webapp/src/app-layer/db/drizzle.smoke.test.ts`                                                                               |
+| Действие             | `getDrizzle()` + `db.execute(sql\`select 1 as n\`)`                                                                                |
+| Обычный `pnpm test`  | `it.skipIf(!hasRealDb)` — **пропуск** без `USE_REAL_DATABASE=1` и `DATABASE_URL` (как в `EXECUTION_RULES.md`).                     |
 | Прогон с реальной БД | `USE_REAL_DATABASE=1 pnpm --dir apps/webapp exec vitest run src/app-layer/db/drizzle.smoke.test.ts` — **PASS** (на момент аудита). |
 
 `getDrizzle()` в `app-layer/db/drizzle.ts` использует **тот же** `pg.Pool`, что `getPool()` — дубля подключений нет.
@@ -113,11 +113,11 @@ app/api/**/route.ts  →  modules/<domain>/ (service, ports, types)
 
 **Соответствие:**
 
-| Ожидание § 12 | Факт в репозитории |
-|---------------|-------------------|
+| Ожидание § 12                         | Факт в репозитории                                                                                 |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | `db/schema/` как слой описания таблиц | Да: `apps/webapp/db/schema/*`, реэкспорт через `index.ts`, подключение в `getDrizzle({ schema })`. |
-| Маршруты тонкие, логика в modules | Ограничивается фазой 0 + `EXECUTION_RULES` / cursor rules; к Drizzle относится косвенно — **OK**. |
-| Data access в infra | Репозитории `infra/repos/pg*.ts` используют Drizzle / pool по принятой архитектуре. |
+| Маршруты тонкие, логика в modules     | Ограничивается фазой 0 + `EXECUTION_RULES` / cursor rules; к Drizzle относится косвенно — **OK**.  |
+| Data access в infra                   | Репозитории `infra/repos/pg*.ts` используют Drizzle / pool по принятой архитектуре.                |
 
 **Уточнение:** после правки § 12 эталон явно фиксирует **реализацию портов в `infra/repos`** и Drizzle из `db/schema/`; запреты согласованы с `EXECUTION_RULES` и legacy allowlist в `modules/*`.
 
@@ -125,10 +125,10 @@ app/api/**/route.ts  →  modules/<domain>/ (service, ports, types)
 
 ## Gate фазы 1 (из `MASTER_PLAN.md`)
 
-| Критерий | Статус |
-|----------|--------|
+| Критерий                                          | Статус                                         |
+| ------------------------------------------------- | ---------------------------------------------- |
 | Drizzle установлен, schema отражает БД (`public`) | **OK** — verify + применённые миграции Drizzle |
-| Smoke / тесты | **OK** |
+| Smoke / тесты                                     | **OK**                                         |
 
 ---
 
@@ -179,12 +179,12 @@ pnpm --dir apps/webapp run db:seed-drizzle-meta
 
 ## FIX verification — 2026-04-18
 
-| # | Инструкция | Статус |
-|---|----------------|--------|
-| 1 | Verify по всем schema-файлам | **Закрыт** — `scripts/verify-drizzle-public-table-count.mjs` |
-| 2 | Уточнить § 12 | **Закрыт** — `SYSTEM_LOGIC_SCHEMA.md` § 12 |
-| 3 | Миграции / операционный контур | **Закрыт** — `0000` no-op, `db:migrate:drizzle`, `db:seed-drizzle-meta`, verify **OK** на БД с 108 таблицами |
-| 4 | Единый manifest путей schema | **Defer** — см. MANDATORY FIX #5 |
+| #   | Инструкция                     | Статус                                                                                                       |
+| --- | ------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| 1   | Verify по всем schema-файлам   | **Закрыт** — `scripts/verify-drizzle-public-table-count.mjs`                                                 |
+| 2   | Уточнить § 12                  | **Закрыт** — `SYSTEM_LOGIC_SCHEMA.md` § 12                                                                   |
+| 3   | Миграции / операционный контур | **Закрыт** — `0000` no-op, `db:migrate:drizzle`, `db:seed-drizzle-meta`, verify **OK** на БД с 108 таблицами |
+| 4   | Единый manifest путей schema   | **Defer** — см. MANDATORY FIX #5                                                                             |
 
 ---
 

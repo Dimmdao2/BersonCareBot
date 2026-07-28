@@ -1,1 +1,1 @@
-export { MetricAccountsDialog } from "@/shared/ui/doctor/analytics/MetricAccountsDialog";
+export { MetricAccountsDialog } from '@/shared/ui/doctor/analytics/MetricAccountsDialog';

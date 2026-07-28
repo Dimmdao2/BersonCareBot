@@ -13,37 +13,74 @@ chain, complete mode runs every sub-gate and reports all blockers in one pass.`;
 
 const gates = {
   current: [
-    ['R0 freeze', ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-retirement-r0-freeze.mjs']],
-    ['R6/R7 pre-cutoff inventory', ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r6-r7-static-inventory.mjs']],
+    [
+      'R0 freeze',
+      ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-retirement-r0-freeze.mjs'],
+    ],
+    [
+      'R6/R7 pre-cutoff inventory',
+      ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r6-r7-static-inventory.mjs'],
+    ],
     [
       'doctor/client no appointment_records reads',
-      ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-doctor-client-no-appointment-records.mjs'],
+      [
+        'node',
+        'docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-doctor-client-no-appointment-records.mjs',
+      ],
     ],
-    ['RR proof manifest', ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-retirement-proofs.mjs']],
+    [
+      'RR proof manifest',
+      ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-retirement-proofs.mjs'],
+    ],
     [
       'DB cleanup sequence',
       ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-db-cleanup-sequence.mjs'],
     ],
-    ['R7 table disposition', ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-r7-table-disposition.mjs']],
-    ['section 10 docs', ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-section10-docs.mjs']],
-    ['final gate manifest', ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-final-gate.mjs']],
+    [
+      'R7 table disposition',
+      ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-r7-table-disposition.mjs'],
+    ],
+    [
+      'section 10 docs',
+      ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-section10-docs.mjs'],
+    ],
+    [
+      'final gate manifest',
+      ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-final-gate.mjs'],
+    ],
   ],
   complete: [
     [
       'final gate complete',
-      ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-final-gate.mjs', '--require-complete'],
+      [
+        'node',
+        'docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-final-gate.mjs',
+        '--require-complete',
+      ],
     ],
     [
       'RR proofs complete',
-      ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-retirement-proofs.mjs', '--require-complete'],
+      [
+        'node',
+        'docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-retirement-proofs.mjs',
+        '--require-complete',
+      ],
     ],
     [
       'post-R6 inventory',
-      ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r6-r7-static-inventory.mjs', '--expect-post-r6'],
+      [
+        'node',
+        'docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r6-r7-static-inventory.mjs',
+        '--expect-post-r6',
+      ],
     ],
     [
       'R7 drop-ready disposition',
-      ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-r7-table-disposition.mjs', '--require-drop-ready'],
+      [
+        'node',
+        'docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-r7-table-disposition.mjs',
+        '--require-drop-ready',
+      ],
     ],
   ],
 };

@@ -1,4 +1,4 @@
-import type { DoctorBookingEngineContext } from "./_requireDoctorBookingEngine";
+import type { DoctorBookingEngineContext } from './_requireDoctorBookingEngine';
 
 /**
  * Resolves the specialist whose schedule the logged-in doctor owns.
@@ -19,6 +19,6 @@ export async function resolveDoctorOwnSpecialistId(
   const specialists = await ctx.service.catalog.listSpecialists(ctx.organizationId);
   const own = ctx.specialistId
     ? specialists.find((specialist) => specialist.id === ctx.specialistId && specialist.isActive)
-    : specialists.find((specialist) => specialist.isActive) ?? null;
+    : (specialists.find((specialist) => specialist.isActive) ?? null);
   return own?.id ?? null;
 }

@@ -1,4 +1,4 @@
-import type { LfkAssignmentsPort } from "./ports";
+import type { LfkAssignmentsPort } from './ports';
 
 export function createLfkAssignmentsService(port: LfkAssignmentsPort) {
   return {
@@ -10,7 +10,7 @@ export function createLfkAssignmentsService(port: LfkAssignmentsPort) {
       const tid = params.templateId?.trim();
       const pid = params.patientUserId?.trim();
       if (!tid || !pid) {
-        throw new Error("Некорректные идентификаторы");
+        throw new Error('Некорректные идентификаторы');
       }
       return port.assignPublishedTemplateToPatient({
         templateId: tid,

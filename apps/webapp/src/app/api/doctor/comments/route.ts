@@ -1,10 +1,10 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
-import { COMMENT_TARGET_TYPES, COMMENT_TYPES } from "@/modules/comments/types";
-import type { CommentTargetType } from "@/modules/comments/types";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { COMMENT_TARGET_TYPES, COMMENT_TYPES } from '@/modules/comments/types';
+import type { CommentTargetType } from '@/modules/comments/types';
 
 const listQuerySchema = z.object({
   targetType: z.enum(COMMENT_TARGET_TYPES),
@@ -21,7 +21,7 @@ const postBodySchema = z.object({
 type AppDeps = ReturnType<typeof buildAppDeps>;
 
 function isSupportedDoctorCommentTarget(targetType: CommentTargetType): boolean {
-  return targetType === "program_instance";
+  return targetType === 'program_instance';
 }
 
 async function ensureDoctorCommentTargetInWorkspace(
@@ -47,12 +47,12 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const parsed = listQuerySchema.safeParse(Object.fromEntries(searchParams));
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_query" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_query' }, { status: 400 });
   }
 
   const deps = buildAppDeps();
   if (!isSupportedDoctorCommentTarget(parsed.data.targetType)) {
-    return NextResponse.json({ ok: false, error: "unsupported_target_type" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'unsupported_target_type' }, { status: 400 });
   }
   const targetOk = await ensureDoctorCommentTargetInWorkspace(
     deps,
@@ -61,7 +61,7 @@ export async function GET(request: Request) {
     gate.ctx.organizationId,
   );
   if (!targetOk) {
-    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
 
   try {
@@ -70,7 +70,7 @@ export async function GET(request: Request) {
     );
     return NextResponse.json({ ok: true, items });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "error";
+    const msg = e instanceof Error ? e.message : 'error';
     return NextResponse.json({ ok: false, error: msg }, { status: 400 });
   }
 }
@@ -82,12 +82,12 @@ export async function POST(request: Request) {
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = postBodySchema.safeParse(raw);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
 
   const deps = buildAppDeps();
   if (!isSupportedDoctorCommentTarget(parsed.data.targetType)) {
-    return NextResponse.json({ ok: false, error: "unsupported_target_type" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'unsupported_target_type' }, { status: 400 });
   }
   const targetOk = await ensureDoctorCommentTargetInWorkspace(
     deps,
@@ -96,7 +96,7 @@ export async function POST(request: Request) {
     gate.ctx.organizationId,
   );
   if (!targetOk) {
-    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
 
   try {
@@ -113,7 +113,7 @@ export async function POST(request: Request) {
     );
     return NextResponse.json({ ok: true, item });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "error";
+    const msg = e instanceof Error ? e.message : 'error';
     return NextResponse.json({ ok: false, error: msg }, { status: 400 });
   }
 }

@@ -9,8 +9,8 @@
 
 ## 1) Размещение миграции
 
-| Критерий | Статус |
-|----------|--------|
+| Критерий                                               | Статус   |
+| ------------------------------------------------------ | -------- |
 | Файл в `apps/integrator/src/infra/db/migrations/core/` | **PASS** |
 
 **Факт:** `apps/integrator/src/infra/db/migrations/core/20260410_0001_users_merged_into_user_id.sql`.
@@ -19,10 +19,10 @@
 
 ## 2) Колонка `users.merged_into_user_id`: nullable и FK на `users(id)`
 
-| Критерий | Статус |
-|----------|--------|
+| Критерий                             | Статус   |
+| ------------------------------------ | -------- |
 | Тип `BIGINT`, явно `NULL` (nullable) | **PASS** |
-| Внешний ключ на `users(id)` | **PASS** |
+| Внешний ключ на `users(id)`          | **PASS** |
 
 Фрагмент миграции:
 
@@ -37,10 +37,10 @@ ALTER TABLE users
 
 ## 3) CHECK (запрет self-reference) и индекс для alias lookup
 
-| Критерий | Статус |
-|----------|--------|
-| CHECK: нельзя `merged_into_user_id = id` при non-null указателе | **PASS** |
-| Индекс по `merged_into_user_id` для поиска alias → canonical | **PASS** (частичный индекс, только `IS NOT NULL`) |
+| Критерий                                                        | Статус                                            |
+| --------------------------------------------------------------- | ------------------------------------------------- |
+| CHECK: нельзя `merged_into_user_id = id` при non-null указателе | **PASS**                                          |
+| Индекс по `merged_into_user_id` для поиска alias → canonical    | **PASS** (частичный индекс, только `IS NOT NULL`) |
 
 ```7:14:apps/integrator/src/infra/db/migrations/core/20260410_0001_users_merged_into_user_id.sql
 ALTER TABLE users
@@ -62,10 +62,10 @@ CREATE INDEX idx_users_merged_into_user_id
 
 ## 4) Документация: обновлена и согласована
 
-| Документ | Статус | Комментарий |
-|----------|--------|-------------|
-| [`apps/integrator/src/infra/db/schema.md`](../../apps/integrator/src/infra/db/schema.md) § `users` | **PASS** | Описаны колонка, смысл NULL vs alias, CHECK, partial index. |
-| [`docs/ARCHITECTURE/DB_STRUCTURE.md`](../ARCHITECTURE/DB_STRUCTURE.md) § 1.1 | **PASS** | `users` и связь `users.merged_into_user_id -> users.id` отражены. |
+| Документ                                                                                           | Статус   | Комментарий                                                       |
+| -------------------------------------------------------------------------------------------------- | -------- | ----------------------------------------------------------------- |
+| [`apps/integrator/src/infra/db/schema.md`](../../apps/integrator/src/infra/db/schema.md) § `users` | **PASS** | Описаны колонка, смысл NULL vs alias, CHECK, partial index.       |
+| [`docs/ARCHITECTURE/DB_STRUCTURE.md`](../ARCHITECTURE/DB_STRUCTURE.md) § 1.1                       | **PASS** | `users` и связь `users.merged_into_user_id -> users.id` отражены. |
 
 **Согласованность с [`STAGE_1_INTEGRATOR_CANONICAL_SCHEMA.md`](STAGE_1_INTEGRATOR_CANONICAL_SCHEMA.md):** разделы «Предлагаемый DDL» и инварианты (canonical = NULL, alias → canonical) соответствуют реализации.
 
@@ -77,8 +77,8 @@ CREATE INDEX idx_users_merged_into_user_id
 
 ## 5) CI evidence
 
-| Проверка | Результат |
-|----------|-----------|
+| Проверка                    | Результат                                |
+| --------------------------- | ---------------------------------------- |
 | Полный pipeline репозитория | **`pnpm run ci`** — **OK** (exit code 0) |
 
 **Прогон для этого аудита:** 2026-04-10, из корня репозитория:
@@ -149,11 +149,11 @@ pnpm run ci
 
 Закрыты пункты, отмеченные в первичном отчёте как неблокирующие / §6 optional:
 
-| Замечание | Действие |
-|-----------|----------|
-| Устаревший контекст «`users` сегодня» в Stage 1 spec | В [`STAGE_1_INTEGRATOR_CANONICAL_SCHEMA.md`](STAGE_1_INTEGRATOR_CANONICAL_SCHEMA.md) раздел «Контекст схемы» разделён на **до Deploy 1** / **после Deploy 1** с именем миграции. |
-| Расхождение формулировки CHECK в `CHECKLISTS.md` | Deploy 1 чекбокс приведён к `CHECK (merged_into_user_id IS NULL OR merged_into_user_id <> id)` и именам `users_merged_into_user_id_not_self_check`, `idx_users_merged_into_user_id`. |
-| Дамп integrator без новой колонки | В [`integrator_bersoncarebot_dev_schema.sql`](../ARCHITECTURE/DB_DUMPS/integrator_bersoncarebot_dev_schema.sql) добавлены колонка, CHECK, partial index, FK (в стиле существующего pg_dump-артефакта). |
+| Замечание                                            | Действие                                                                                                                                                                                               |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Устаревший контекст «`users` сегодня» в Stage 1 spec | В [`STAGE_1_INTEGRATOR_CANONICAL_SCHEMA.md`](STAGE_1_INTEGRATOR_CANONICAL_SCHEMA.md) раздел «Контекст схемы» разделён на **до Deploy 1** / **после Deploy 1** с именем миграции.                       |
+| Расхождение формулировки CHECK в `CHECKLISTS.md`     | Deploy 1 чекбокс приведён к `CHECK (merged_into_user_id IS NULL OR merged_into_user_id <> id)` и именам `users_merged_into_user_id_not_self_check`, `idx_users_merged_into_user_id`.                   |
+| Дамп integrator без новой колонки                    | В [`integrator_bersoncarebot_dev_schema.sql`](../ARCHITECTURE/DB_DUMPS/integrator_bersoncarebot_dev_schema.sql) добавлены колонка, CHECK, partial index, FK (в стиле существующего pg_dump-артефакта). |
 
 **Проверки после правок:** целевой integrator vitest (`writePort.userUpsert.test.ts`, `userLookup.test.ts`) + полный **`pnpm run ci`** — см. [`AGENT_EXECUTION_LOG.md`](AGENT_EXECUTION_LOG.md).
 
@@ -166,18 +166,18 @@ pnpm run ci
 
 ### Сводка проверок
 
-| Область | Что сделано | Результат |
-|--------|-------------|-----------|
-| **§1 Миграция** | Путь `apps/integrator/src/infra/db/migrations/core/20260410_0001_users_merged_into_user_id.sql`, наличие файла | **PASS** |
-| **§2 Колонка + FK** | `BIGINT NULL`, `REFERENCES users (id)` в миграции | **PASS** |
-| **§3 CHECK + index** | Constraint `users_merged_into_user_id_not_self_check`, partial index `idx_users_merged_into_user_id` | **PASS** |
-| **Follow-up CHECKLISTS** | [`CHECKLISTS.md`](CHECKLISTS.md) Deploy 1 — CHECK и имена объектов как в миграции | **PASS** |
-| **Follow-up STAGE_1** | [`STAGE_1_INTEGRATOR_CANONICAL_SCHEMA.md`](STAGE_1_INTEGRATOR_CANONICAL_SCHEMA.md) — контекст до/после Deploy 1; в § «Предлагаемый DDL» имя индекса приведено к **`idx_users_merged_into_user_id`** (устранён остаточный пример `idx_users_merged_into_*`) | **PASS** |
-| **Follow-up дамп** | [`integrator_bersoncarebot_dev_schema.sql`](../ARCHITECTURE/DB_DUMPS/integrator_bersoncarebot_dev_schema.sql) — `merged_into_user_id`, CHECK, index, FK `users_merged_into_user_id_fkey` | **PASS** |
-| **`schema.md` / `DB_STRUCTURE.md`** | Разделы `users` / §1.1 integrator | **PASS** |
-| **MASTER_PLAN** | Таблица этапов: Deploy 1 = DDL `merged_into_user_id` без смены поведения | **PASS** |
-| **Журнал** | [`AGENT_EXECUTION_LOG.md`](AGENT_EXECUTION_LOG.md) — записи Stage 1 и Stage 1 follow-up | **PASS** |
-| **§5 CI** | `pnpm install --frozen-lockfile` && **`pnpm run ci`** из корня (pass 2) | **OK** — integrator **619 passed** (6 skipped); webapp **1391 passed** (5 skipped); lint, typecheck, build, `pnpm audit --prod` без ошибок |
+| Область                             | Что сделано                                                                                                                                                                                                                                                | Результат                                                                                                                                  |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| **§1 Миграция**                     | Путь `apps/integrator/src/infra/db/migrations/core/20260410_0001_users_merged_into_user_id.sql`, наличие файла                                                                                                                                             | **PASS**                                                                                                                                   |
+| **§2 Колонка + FK**                 | `BIGINT NULL`, `REFERENCES users (id)` в миграции                                                                                                                                                                                                          | **PASS**                                                                                                                                   |
+| **§3 CHECK + index**                | Constraint `users_merged_into_user_id_not_self_check`, partial index `idx_users_merged_into_user_id`                                                                                                                                                       | **PASS**                                                                                                                                   |
+| **Follow-up CHECKLISTS**            | [`CHECKLISTS.md`](CHECKLISTS.md) Deploy 1 — CHECK и имена объектов как в миграции                                                                                                                                                                          | **PASS**                                                                                                                                   |
+| **Follow-up STAGE_1**               | [`STAGE_1_INTEGRATOR_CANONICAL_SCHEMA.md`](STAGE_1_INTEGRATOR_CANONICAL_SCHEMA.md) — контекст до/после Deploy 1; в § «Предлагаемый DDL» имя индекса приведено к **`idx_users_merged_into_user_id`** (устранён остаточный пример `idx_users_merged_into_*`) | **PASS**                                                                                                                                   |
+| **Follow-up дамп**                  | [`integrator_bersoncarebot_dev_schema.sql`](../ARCHITECTURE/DB_DUMPS/integrator_bersoncarebot_dev_schema.sql) — `merged_into_user_id`, CHECK, index, FK `users_merged_into_user_id_fkey`                                                                   | **PASS**                                                                                                                                   |
+| **`schema.md` / `DB_STRUCTURE.md`** | Разделы `users` / §1.1 integrator                                                                                                                                                                                                                          | **PASS**                                                                                                                                   |
+| **MASTER_PLAN**                     | Таблица этапов: Deploy 1 = DDL `merged_into_user_id` без смены поведения                                                                                                                                                                                   | **PASS**                                                                                                                                   |
+| **Журнал**                          | [`AGENT_EXECUTION_LOG.md`](AGENT_EXECUTION_LOG.md) — записи Stage 1 и Stage 1 follow-up                                                                                                                                                                    | **PASS**                                                                                                                                   |
+| **§5 CI**                           | `pnpm install --frozen-lockfile` && **`pnpm run ci`** из корня (pass 2)                                                                                                                                                                                    | **OK** — integrator **619 passed** (6 skipped); webapp **1391 passed** (5 skipped); lint, typecheck, build, `pnpm audit --prod` без ошибок |
 
 ### Ограничения evidence (без изменений)
 

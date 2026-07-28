@@ -1,7 +1,7 @@
-import type { Pool } from "pg";
-import { probeVideoDurationSeconds } from "./ffmpeg/probeVideoDurationSeconds.js";
-import type { Logger } from "./logger.js";
-import { runMediaWorkerPgText } from "./runMediaWorkerSql.js";
+import type { Pool } from 'pg';
+import { probeVideoDurationSeconds } from './ffmpeg/probeVideoDurationSeconds.js';
+import type { Logger } from './logger.js';
+import { runMediaWorkerPgText } from './runMediaWorkerSql.js';
 
 export async function persistVideoDurationSecondsIfMissing(
   pool: Pool,
@@ -30,7 +30,11 @@ export async function probeAndPersistVideoDurationSeconds(
     log: Logger;
   },
 ): Promise<number | null> {
-  const seconds = await probeVideoDurationSeconds(params.ffmpegBin, params.localPath, params.timeoutMs);
+  const seconds = await probeVideoDurationSeconds(
+    params.ffmpegBin,
+    params.localPath,
+    params.timeoutMs,
+  );
   if (seconds == null) return null;
   await persistVideoDurationSecondsIfMissing(pool, params.mediaId, seconds);
   return seconds;

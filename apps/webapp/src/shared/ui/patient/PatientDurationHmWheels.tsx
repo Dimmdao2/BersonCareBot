@@ -1,17 +1,17 @@
-"use client";
+'use client';
 
-import { useId } from "react";
-import { Label } from "@/shared/ui/patient/primitives/label";
-import { inputFieldSurfaceClassName } from "@/shared/ui/patient/primitives/input";
-import { cn } from "@/lib/utils";
+import { useId } from 'react';
+import { Label } from '@/shared/ui/patient/primitives/label';
+import { inputFieldSurfaceClassName } from '@/shared/ui/patient/primitives/input';
+import { cn } from '@/lib/utils';
 import {
   REMINDER_INTERVAL_WINDOW_MAX_MINUTES,
   REMINDER_INTERVAL_WINDOW_MIN_MINUTES,
   clampIntervalMinutes,
   hourMinuteToInterval,
   intervalToHourMinute,
-} from "@/modules/reminders/reminderIntervalBounds";
-import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
+} from '@/modules/reminders/reminderIntervalBounds';
+import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 
 export type PatientDurationHmWheelsProps = {
   value: number;
@@ -32,7 +32,13 @@ function minuteOptionsForHour(hour: number): number[] {
  * Two side-by-side native selects (mobile often shows scroll-wheel picker).
  * Interval total: {@link REMINDER_INTERVAL_WINDOW_MIN_MINUTES}…{@link REMINDER_INTERVAL_WINDOW_MAX_MINUTES}.
  */
-export function PatientDurationHmWheels({ value, onChange, disabled, className, ariaInvalid }: PatientDurationHmWheelsProps) {
+export function PatientDurationHmWheels({
+  value,
+  onChange,
+  disabled,
+  className,
+  ariaInvalid,
+}: PatientDurationHmWheelsProps) {
   const baseId = useId();
   const hourId = `${baseId}-h`;
   const minId = `${baseId}-m`;
@@ -54,16 +60,16 @@ export function PatientDurationHmWheels({ value, onChange, disabled, className, 
   };
 
   return (
-    <div className={cn("flex flex-wrap items-end gap-3", className)}>
+    <div className={cn('flex flex-wrap items-end gap-3', className)}>
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <Label htmlFor={hourId} className={cn(patientMutedTextClass, "text-xs")}>
+        <Label htmlFor={hourId} className={cn(patientMutedTextClass, 'text-xs')}>
           ч
         </Label>
         <select
           id={hourId}
           className={cn(
             inputFieldSurfaceClassName,
-            "h-11 px-2 text-center text-base font-medium shadow-sm",
+            'h-11 px-2 text-center text-base font-medium shadow-sm',
           )}
           disabled={disabled}
           value={hour}
@@ -79,14 +85,14 @@ export function PatientDurationHmWheels({ value, onChange, disabled, className, 
         </select>
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <Label htmlFor={minId} className={cn(patientMutedTextClass, "text-xs")}>
+        <Label htmlFor={minId} className={cn(patientMutedTextClass, 'text-xs')}>
           мин
         </Label>
         <select
           id={minId}
           className={cn(
             inputFieldSurfaceClassName,
-            "h-11 px-2 text-center text-base font-medium shadow-sm",
+            'h-11 px-2 text-center text-base font-medium shadow-sm',
           )}
           disabled={disabled}
           value={minuteVal}
@@ -96,13 +102,14 @@ export function PatientDurationHmWheels({ value, onChange, disabled, className, 
         >
           {minuteOpts.map((m) => (
             <option key={m} value={m}>
-              {String(m).padStart(2, "0")}
+              {String(m).padStart(2, '0')}
             </option>
           ))}
         </select>
       </div>
       <p className="sr-only">
-        Интервал от {REMINDER_INTERVAL_WINDOW_MIN_MINUTES} до {REMINDER_INTERVAL_WINDOW_MAX_MINUTES} минут
+        Интервал от {REMINDER_INTERVAL_WINDOW_MIN_MINUTES} до {REMINDER_INTERVAL_WINDOW_MAX_MINUTES}{' '}
+        минут
       </p>
     </div>
   );

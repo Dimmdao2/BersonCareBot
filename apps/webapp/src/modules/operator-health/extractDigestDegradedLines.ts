@@ -1,12 +1,12 @@
-import type { CronJobsHealthPayload } from "@/app-layer/health/collectCronJobsHealth";
-import { ADMIN_DELIVERY_DUE_BACKLOG_WARNING } from "./adminHealthThresholds";
-import { classifyIntegratorPushOutboxSystemHealthStatus } from "./integratorPushOutboxHealth";
-import { isProjectionCritical } from "./criticalHealthSignals";
-import type { IntegratorPushOutboxHealthSnapshot } from "./ports";
+import type { CronJobsHealthPayload } from '@/app-layer/health/collectCronJobsHealth';
+import { ADMIN_DELIVERY_DUE_BACKLOG_WARNING } from './adminHealthThresholds';
+import { classifyIntegratorPushOutboxSystemHealthStatus } from './integratorPushOutboxHealth';
+import { isProjectionCritical } from './criticalHealthSignals';
+import type { IntegratorPushOutboxHealthSnapshot } from './ports';
 
 export type DigestDegradedSnapshot = {
   projection: {
-    probeStatus: "ok" | "degraded" | "unreachable" | "error";
+    probeStatus: 'ok' | 'degraded' | 'unreachable' | 'error';
     deadCount: number;
     retriesOverThreshold: number;
     oldestPendingAt?: string | null;
@@ -18,7 +18,7 @@ export type DigestDegradedSnapshot = {
   };
   outgoingDelivery: { dueBacklog: number; deadTotal: number };
   integratorPushOutbox: IntegratorPushOutboxHealthSnapshot;
-  videoTranscodeStatus: "ok" | "degraded" | "error";
+  videoTranscodeStatus: 'ok' | 'degraded' | 'error';
   cronJobs: CronJobsHealthPayload;
   operatorIncidentsOpenCount: number;
 };
@@ -38,8 +38,8 @@ export function extractDigestDegradedLines(snapshot: DigestDegradedSnapshot): st
   if (!projectionCritical && includeRetries) {
     if (snapshot.projection.retriesOverThreshold > 0) {
       lines.push(`Projection: ретраи (${snapshot.projection.retriesOverThreshold})`);
-    } else if (snapshot.projection.probeStatus === "degraded") {
-      lines.push("Projection: деградация");
+    } else if (snapshot.projection.probeStatus === 'degraded') {
+      lines.push('Projection: деградация');
     }
   }
   const includeStale = snapshot.projectionDigestDebounce?.includeStalePendingLine === true;
@@ -55,16 +55,16 @@ export function extractDigestDegradedLines(snapshot: DigestDegradedSnapshot): st
   }
 
   const ipoStatus = classifyIntegratorPushOutboxSystemHealthStatus(snapshot.integratorPushOutbox);
-  if (ipoStatus === "degraded") {
-    lines.push("Очередь синка integrator: деградация");
+  if (ipoStatus === 'degraded') {
+    lines.push('Очередь синка integrator: деградация');
   }
 
-  if (snapshot.videoTranscodeStatus === "degraded") {
-    lines.push("Транскод HLS: деградация");
+  if (snapshot.videoTranscodeStatus === 'degraded') {
+    lines.push('Транскод HLS: деградация');
   }
 
   for (const job of snapshot.cronJobs.jobs) {
-    if (job.status === "degraded" || job.status === "error") {
+    if (job.status === 'degraded' || job.status === 'error') {
       lines.push(`Cron: ${job.label} — ${job.status}`);
     }
   }

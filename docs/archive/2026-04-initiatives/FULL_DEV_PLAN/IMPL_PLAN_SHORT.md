@@ -24,12 +24,12 @@
 
 **Решение для Max:** inline-меню в боте должно компенсировать отсутствие reply keyboard:
 
-| Элемент | Telegram (reply keyboard) | Max (inline keyboard) |
-|---------|--------------------------|----------------------|
-| Дневник | Кнопка в reply keyboard | Кнопка в inline-меню бота |
-| Записи | Кнопка в reply keyboard | Блок в inline-меню: если есть активные записи — список, иначе кнопка «Записаться» |
-| Кабинет (webapp) | Кнопка в reply keyboard → Mini App | Кнопка `open_app` (или `link`) → webapp |
-| Настройки | Через reply keyboard / webapp | Кнопка в inline-меню |
+| Элемент          | Telegram (reply keyboard)          | Max (inline keyboard)                                                             |
+| ---------------- | ---------------------------------- | --------------------------------------------------------------------------------- |
+| Дневник          | Кнопка в reply keyboard            | Кнопка в inline-меню бота                                                         |
+| Записи           | Кнопка в reply keyboard            | Блок в inline-меню: если есть активные записи — список, иначе кнопка «Записаться» |
+| Кабинет (webapp) | Кнопка в reply keyboard → Mini App | Кнопка `open_app` (или `link`) → webapp                                           |
+| Настройки        | Через reply keyboard / webapp      | Кнопка в inline-меню                                                              |
 
 **Правило для bot-режима webapp:** раз у Max нет reply keyboard → на главной в bot-режиме должны быть и кнопка «Дневник», и блок записей (ближайших, если есть).
 
@@ -42,6 +42,7 @@ patientHomeBlocksByPlatform.bot:
 ```
 
 Также inline-меню бота в integrator (Max adapter) должно содержать:
+
 - «📖 Дневник» → webapp diary page
 - «📋 Мои записи» → webapp appointments page (или список, если есть активные)
 - «🏠 Кабинет» → webapp home
@@ -54,6 +55,7 @@ patientHomeBlocksByPlatform.bot:
 ### Фаза A: Стабилизация и pre-prod (Этапы 0–1 + PRE_PROD)
 
 **A.1 — Багфиксы (Этап 1)**
+
 - 1.1 Fix: кнопка «изменить» телефон
 - 1.2 Fix: привязка Max
 - 1.3 Fix: кнопка «задать вопрос» — видимость (уже частично сделано через platform context)
@@ -65,6 +67,7 @@ patientHomeBlocksByPlatform.bot:
 - 1.9 Fix: дневник кнопки
 
 **A.2 — Pre-prod инфраструктура**
+
 - Перенос ключей интеграций env → admin/DB (system_settings, configAdapter, dual-read)
 - Перенос whitelist ID → admin/DB
 - Durable dispatch для reminders: multi-channel + delivery_log + SMS fallback
@@ -72,27 +75,32 @@ patientHomeBlocksByPlatform.bot:
 ### Фаза B: Дизайн-система и навигация (Этап 2)
 
 **B.1 — Шапка и меню (patient)**
+
 - Уменьшить шапку 15%, заголовок по центру
 - Переписать правую часть на Tailwind (уже частично — platform context)
 - Sheet-меню: равные отступы, новые пункты (Сообщения, Адрес, Справка, Поделиться)
 
 **B.2 — Шапка и меню (doctor)**
+
 - Фиксированная шапка на Tailwind
 - Sheet для правого меню: Клиенты, Записи, Рассылки, Справочники, CMS, Статистика, (низ) Профиль, Настройки
 - Убрать старую навигацию кнопками
 
 **B.3 — Базовые компоненты**
+
 - InfoBlock, EmptyState, StatusBadge, PageHeader
 - react-hot-toast
 - Responsive breakpoints
 
 **B.4 — Inline-меню Max бота (integrator)**
+
 - Создать/обновить inline keyboard для Max с кнопками: Дневник, Записи, Кабинет, Настройки
 - При наличии активных записей — показывать их в inline-сообщении бота
 
 ### Фаза C: Профиль и авторизация (Этапы 3, 5)
 
 **C.1 — Профиль (Этап 3)**
+
 - Inline-edit ФИО, телефон, email
 - Привязка email через integrator (OTP)
 - OTP: таймер 60 сек, блокировка 3 попытки / 10 мин
@@ -100,6 +108,7 @@ patientHomeBlocksByPlatform.bot:
 - Переиспользуемый BindPhoneBlock
 
 **C.2 — Авторизация multi-method (Этап 5)**
+
 - Backend: check-phone → доступные методы
 - UI: телефон → выбор метода → авторизация
 - PIN (4–6 цифр, auto-submit, блокировка 5 попыток)
@@ -111,11 +120,13 @@ patientHomeBlocksByPlatform.bot:
 ### Фаза D: Главная и записи (Этап 4)
 
 **D.1 — Главная (patient)**
+
 - Реструктуризация блоков: Кабинет (Дневник, Записи, ЛФК-скрыто), Уроки, Новости, Уведомления, Мотивашка, Статистика
 - **Для bot-режима:** добавить блоки «Дневник» и «Записи» (отсутствуют в reply keyboard Max)
 - Мини-статистика: sparkline + кружочки ЛФК
 
 **D.2 — Экран «Мои записи»**
+
 - Статусы: подтверждён (зелёный), перенос (сиреневый), отмена (красный)
 - Виджет Rubitime (кнопка «Записаться»)
 - Инфо-блок: адрес, подготовка
@@ -125,20 +136,24 @@ patientHomeBlocksByPlatform.bot:
 ### Фаза E: Дневники расширение (Этап 6)
 
 **E.1 — Справочники**
+
 - DB: reference_categories + reference_items (seed: типы, регионы, диагнозы, стадии)
 - UI: ReferenceSelect
 
 **E.2 — Расширение symptom_trackings**
+
 - Миграция: symptom_type_ref_id, region_ref_id, side, diagnosis_text/ref_id, stage_ref_id
 - UI: расширенная форма
 - Управление симптомами: три-точки (переименовать, архивировать, удалить)
 
 **E.3 — Расширение lfk_sessions**
+
 - Миграция: duration_minutes, difficulty_0_10, pain_0_10, comment, recorded_at
 - UI: расширенная форма
 - Вкладки «Симптомы» / «ЛФК»
 
 **E.4 — Попап быстрого добавления**
+
 - Кнопка «+» под шапкой → мини-формы
 
 ### Фаза F: Графики и статистика (Этап 7)
@@ -185,11 +200,13 @@ patientHomeBlocksByPlatform.bot:
 ### Фаза K: Напоминания + Интеграции (Этапы 12–13)
 
 **K.1 — Напоминания UI (Этап 12)**
+
 - Страница «Бот заботы»: каналы, расписание, тип
 - Бейдж колокольчика в шапке
 - Статистика напоминаний
 
 **K.2 — Интеграции (Этап 13)**
+
 - Email adapter (nodemailer, SMTP reg.ru)
 - Deep-link привязка TG + Max
 - Google Calendar sync (Rubitime master → GCal projection)

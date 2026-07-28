@@ -1,5 +1,5 @@
-import type { ComponentType } from "react";
-import type { CommunicationsTabId } from "./doctorCommunicationsTabs";
+import type { ComponentType } from 'react';
+import type { CommunicationsTabId } from './doctorCommunicationsTabs';
 
 /** Стандартные пропы, которые шелл передаёт каждому компоненту-табу. */
 export type CommunicationsTabProps = {
@@ -29,26 +29,26 @@ export type CommunicationsTabRegistryEntry = {
  */
 export const COMMUNICATIONS_TAB_REGISTRY: CommunicationsTabRegistryEntry[] = [
   {
-    id: "chats",
-    loader: () => import("./tabs/ChatsTab").then((m) => ({ default: m.ChatsTab })),
+    id: 'chats',
+    loader: () => import('./tabs/ChatsTab').then((m) => ({ default: m.ChatsTab })),
     // #812: ?chatId= selects the conversation (DoctorSupportInbox onSelectedConversationChange).
     // NOT "id" — the shell copies a URL key into EVERY tab declaring it, and "id" is intake's key;
     // sharing it leaks the conversationId into intake as a request-id (stray 404 fetch).
-    deepLinkKeys: ["chatId"],
+    deepLinkKeys: ['chatId'],
   },
   {
-    id: "comments",
-    loader: () => import("./tabs/CommentsTab").then((m) => ({ default: m.CommentsTab })),
+    id: 'comments',
+    loader: () => import('./tabs/CommentsTab').then((m) => ({ default: m.CommentsTab })),
     deepLinkKeys: [],
   },
   {
-    id: "intake",
-    loader: () => import("./tabs/IntakeTab").then((m) => ({ default: m.IntakeTab })),
-    deepLinkKeys: ["id"],
+    id: 'intake',
+    loader: () => import('./tabs/IntakeTab').then((m) => ({ default: m.IntakeTab })),
+    deepLinkKeys: ['id'],
   },
   {
-    id: "broadcasts",
-    loader: () => import("./tabs/BroadcastsTab").then((m) => ({ default: m.BroadcastsTab })),
-    deepLinkKeys: ["archive"],
+    id: 'broadcasts',
+    loader: () => import('./tabs/BroadcastsTab').then((m) => ({ default: m.BroadcastsTab })),
+    deepLinkKeys: ['archive'],
   },
 ];

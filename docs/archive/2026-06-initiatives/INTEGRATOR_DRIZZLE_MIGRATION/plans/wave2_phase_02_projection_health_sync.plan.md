@@ -5,16 +5,16 @@ status: completed
 isProject: false
 todos:
   - id: p02-single-source
-    content: "Вынести общие SQL/агрегаты projection_outbox в один runtime-канон (например apps/integrator/src/infra/db/repos/projectionHealthCore.ts), использовать из projectionHealth.ts и CLI; не оставлять второй SQL-клон в scripts/projection-health.mjs."
+    content: 'Вынести общие SQL/агрегаты projection_outbox в один runtime-канон (например apps/integrator/src/infra/db/repos/projectionHealthCore.ts), использовать из projectionHealth.ts и CLI; не оставлять второй SQL-клон в scripts/projection-health.mjs.'
     status: completed
   - id: p02-cli-align
-    content: "Обновить CLI так, чтобы цифры совпадали с библиотечной функцией: предпочтительно перенести исполняемый CLI в src/infra/scripts/projection-health.ts и запускать host через dist; scripts/projection-health.mjs оставить thin compatibility wrapper, если нужен старый npm script."
+    content: 'Обновить CLI так, чтобы цифры совпадали с библиотечной функцией: предпочтительно перенести исполняемый CLI в src/infra/scripts/projection-health.ts и запускать host через dist; scripts/projection-health.mjs оставить thin compatibility wrapper, если нужен старый npm script.'
     status: completed
   - id: p02-drizzle-deferred
-    content: "Drizzle builder для агрегатов projectionHealth не входит в этап 2: перенос cancelled до отдельного follow-up после выравнивания CLI/HTTP цифр."
+    content: 'Drizzle builder для агрегатов projectionHealth не входит в этап 2: перенос cancelled до отдельного follow-up после выравнивания CLI/HTTP цифр.'
     status: cancelled
   - id: p02-verify
-    content: "Сравнение вывода CLI и GET integrator /health/projection (ручной или скриптовый smoke); integrator test/typecheck."
+    content: 'Сравнение вывода CLI и GET integrator /health/projection (ручной или скриптовый smoke); integrator test/typecheck.'
     status: completed
 ---
 

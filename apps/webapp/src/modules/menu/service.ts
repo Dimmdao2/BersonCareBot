@@ -4,14 +4,14 @@
  * Используется на странице /app/patient для отображения сетки карточек.
  */
 
-import type { ContentSectionRow } from "@/infra/repos/pgContentSections";
-import type { UserRole } from "@/shared/types/session";
+import type { ContentSectionRow } from '@/infra/repos/pgContentSections';
+import type { UserRole } from '@/shared/types/session';
 
 export type MenuItem = {
   id: string;
   title: string;
   href: string;
-  status: "available" | "locked" | "coming-soon";
+  status: 'available' | 'locked' | 'coming-soon';
 };
 
 export type GetMenuForRoleOptions = {
@@ -21,19 +21,19 @@ export type GetMenuForRoleOptions = {
 
 /** Возвращает список пунктов меню в зависимости от роли (пациент или врач). */
 export function getMenuForRole(role: UserRole, options?: GetMenuForRoleOptions): MenuItem[] {
-  if (role === "doctor" || role === "admin") {
+  if (role === 'doctor' || role === 'admin') {
     return [
       {
-        id: "doctor-workspace",
-        title: "Кабинет специалиста",
-        href: "/app/doctor",
-        status: "available",
+        id: 'doctor-workspace',
+        title: 'Кабинет специалиста',
+        href: '/app/doctor',
+        status: 'available',
       },
       {
-        id: "doctor-settings",
-        title: "Настройки",
-        href: "/app/settings",
-        status: "available",
+        id: 'doctor-settings',
+        title: 'Настройки',
+        href: '/app/settings',
+        status: 'available',
       },
     ];
   }
@@ -42,14 +42,19 @@ export function getMenuForRole(role: UserRole, options?: GetMenuForRoleOptions):
     id: s.slug,
     title: s.title,
     href: `/app/patient/sections/${encodeURIComponent(s.slug)}`,
-    status: "available" as const,
+    status: 'available' as const,
   }));
 
   return [
     ...sectionItems,
-    { id: "booking", title: "Записаться на приём", href: "/app/patient/booking", status: "available" },
-    { id: "cabinet", title: "Мои приёмы", href: "/app/patient/cabinet", status: "available" },
+    {
+      id: 'booking',
+      title: 'Записаться на приём',
+      href: '/app/patient/booking',
+      status: 'available',
+    },
+    { id: 'cabinet', title: 'Мои приёмы', href: '/app/patient/cabinet', status: 'available' },
     // Единый «Дневник» (вкладки на `/app/patient/diary`); отдельная карточка ЛФК на главной не показывается (RAW §7).
-    { id: "diary", title: "Дневник", href: "/app/patient/diary", status: "available" },
+    { id: 'diary', title: 'Дневник', href: '/app/patient/diary', status: 'available' },
   ];
 }

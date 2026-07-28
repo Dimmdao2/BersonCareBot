@@ -20,7 +20,11 @@ describe('Stage 13 freeze legacy subscription tables migration', () => {
 
   it('raises explicit exception for frozen tables', () => {
     const sql = readFileSync(MIGRATION_PATH, 'utf-8');
-    expect(sql).toContain("RAISE EXCEPTION 'mailing_topics is frozen (Stage 13): use webapp projection only'");
-    expect(sql).toContain("RAISE EXCEPTION 'user_subscriptions is frozen (Stage 13): use webapp projection only'");
+    expect(sql).toContain(
+      "RAISE EXCEPTION 'mailing_topics is frozen (Stage 13): use webapp projection only'",
+    );
+    expect(sql).toContain(
+      "RAISE EXCEPTION 'user_subscriptions is frozen (Stage 13): use webapp projection only'",
+    );
   });
 });

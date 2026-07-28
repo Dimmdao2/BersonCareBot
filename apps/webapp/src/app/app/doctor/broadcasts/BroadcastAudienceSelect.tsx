@@ -1,26 +1,24 @@
-"use client";
+'use client';
 
-import type { BroadcastAudienceFilter } from "@/modules/doctor-broadcasts/ports";
-import { ReferenceSelect } from "@/shared/ui/doctor/ReferenceSelect";
-import { BROADCAST_AUDIENCE_FILTERS_ORDER, getAudienceOptionLabel } from "./labels";
-import type { ReferenceItemDto } from "@/modules/references/referenceCache";
+import type { BroadcastAudienceFilter } from '@/modules/doctor-broadcasts/ports';
+import { ReferenceSelect } from '@/shared/ui/doctor/ReferenceSelect';
+import { BROADCAST_AUDIENCE_FILTERS_ORDER, getAudienceOptionLabel } from './labels';
+import type { ReferenceItemDto } from '@/modules/references/referenceCache';
 
 type Props = {
-  value: BroadcastAudienceFilter | "";
+  value: BroadcastAudienceFilter | '';
   onChange: (v: BroadcastAudienceFilter) => void;
   disabled?: boolean;
   id?: string;
 };
 
 /** Список сегментов аудитории как псевдо-справочник для ReferenceSelect. */
-const AUDIENCE_ITEMS: ReferenceItemDto[] = BROADCAST_AUDIENCE_FILTERS_ORDER.map(
-  (filter, idx) => ({
-    id: filter,
-    code: filter,
-    title: getAudienceOptionLabel(filter),
-    sortOrder: idx,
-  }),
-);
+const AUDIENCE_ITEMS: ReferenceItemDto[] = BROADCAST_AUDIENCE_FILTERS_ORDER.map((filter, idx) => ({
+  id: filter,
+  code: filter,
+  title: getAudienceOptionLabel(filter),
+  sortOrder: idx,
+}));
 
 export function BroadcastAudienceSelect({ value, onChange, disabled, id }: Props) {
   return (

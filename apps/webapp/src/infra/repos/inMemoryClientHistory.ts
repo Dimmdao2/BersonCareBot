@@ -1,8 +1,8 @@
-import type { ClientHistoryPort } from "@/modules/client-history/ports";
+import type { ClientHistoryPort } from '@/modules/client-history/ports';
 
 const emptyProfile = {
-  platformUserId: "",
-  organizationId: "",
+  platformUserId: '',
+  organizationId: '',
   isProblematic: false,
   bookingBlocked: false,
   problematicNote: null,
@@ -31,7 +31,7 @@ export const inMemoryClientHistoryPort: ClientHistoryPort = {
   isBookingBlocked: async () => false,
   listAppointmentComments: async () => [],
   createAppointmentComment: async (input) => ({
-    id: "comment-1",
+    id: 'comment-1',
     appointmentId: input.appointmentId,
     platformUserId: input.platformUserId,
     authorId: input.authorId,

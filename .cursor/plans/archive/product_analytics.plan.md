@@ -1,24 +1,24 @@
 ---
 name: Product Analytics Plan
-overview: "Ввести контур продуктовой аналитики в webapp: сбор заходов (PWA / Telegram / MAX / browser), просмотров страниц, push-open с темой и слоганом разминки, почасовые агрегаты и активность клиентов; admin UI — новая вкладка в Settings с развёрнутыми срезами."
+overview: 'Ввести контур продуктовой аналитики в webapp: сбор заходов (PWA / Telegram / MAX / browser), просмотров страниц, push-open с темой и слоганом разминки, почасовые агрегаты и активность клиентов; admin UI — новая вкладка в Settings с развёрнутыми срезами.'
 todos:
   - id: phase-1-schema-module
-    content: "Блок 1: schema+migration+module skeleton (ports/service/types, pg/inMemory, buildAppDeps, normalizePageKey)"
+    content: 'Блок 1: schema+migration+module skeleton (ports/service/types, pg/inMemory, buildAppDeps, normalizePageKey)'
     status: completed
   - id: phase-2-ingest-auth-client
-    content: "Блок 2: ingest app_open/page_view/auth_login (routes + patient reporter + /api/patient/analytics/events + pwa/launch)"
+    content: 'Блок 2: ingest app_open/page_view/auth_login (routes + patient reporter + /api/patient/analytics/events + pwa/launch)'
     status: completed
   - id: phase-3-push-pipeline
-    content: "Блок 3: push pipeline (sloganKey, trackingId, push fact table, sw notificationclick, /api/patient/analytics/push-open)"
+    content: 'Блок 3: push pipeline (sloganKey, trackingId, push fact table, sw notificationclick, /api/patient/analytics/push-open)'
     status: completed
   - id: phase-4-admin-api
-    content: "Блок 4: admin read model/API (GET /api/admin/product-analytics, service aggregations, api.md)"
+    content: 'Блок 4: admin read model/API (GET /api/admin/product-analytics, service aggregations, api.md)'
     status: completed
   - id: phase-5-admin-ui
-    content: "Блок 5: admin UI в Settings (new tab + ProductAnalyticsSection: каналы/страницы/push/slogan/активность)"
+    content: 'Блок 5: admin UI в Settings (new tab + ProductAnalyticsSection: каналы/страницы/push/slogan/активность)'
     status: completed
   - id: phase-6-retention-docs
-    content: "Блок 6: retention+docs+hardening (internal retention endpoint, host cron docs, LOG.md, final tests)"
+    content: 'Блок 6: retention+docs+hardening (internal retention endpoint, host cron docs, LOG.md, final tests)'
     status: completed
 isProject: false
 ---
@@ -68,6 +68,7 @@ flowchart LR
 ## Scope
 
 **Разрешено трогать:**
+
 - [`apps/webapp/db/schema/`](apps/webapp/db/schema/), [`apps/webapp/db/drizzle-migrations/`](apps/webapp/db/drizzle-migrations/), [`apps/webapp/drizzle.config.ts`](apps/webapp/drizzle.config.ts)
 - [`apps/webapp/src/modules/product-analytics/`](apps/webapp/src/modules/product-analytics/) (новый)
 - [`apps/webapp/src/infra/repos/pgProductAnalytics.ts`](apps/webapp/src/infra/repos/pgProductAnalytics.ts) + inMemory
@@ -79,6 +80,7 @@ flowchart LR
 - [`docs/PRODUCT_ANALYTICS_INITIATIVE/LOG.md`](docs/PRODUCT_ANALYTICS_INITIATIVE/LOG.md), [`apps/webapp/src/app/api/api.md`](apps/webapp/src/app/api/api.md)
 
 **Вне scope (явно не делать в этом плане):**
+
 - Новые env / `system_settings` для включения аналитики (всегда on; при необходимости feature flag — отдельная задача)
 - Аналитика кликов в Telegram/MAX боте (только webapp/PWA)
 - Изменение GitHub CI workflow
@@ -100,17 +102,17 @@ flowchart LR
 
 Создаётся **до** `webpush.send`, одна строка на логическое уведомление.
 
-| Поле | Назначение |
-|------|------------|
-| `id` (uuid, PK) | `pushTrackingId` в payload SW |
-| `user_id` | `platform_users.id` |
-| `topic_code`, `intent_type` | тема / тип (reminder, broadcast, …) |
-| `occurrence_id` | nullable, связь с напоминанием |
-| `push_kind` | `warmup` \| `training` \| `custom` \| `news` \| … |
-| `warmup_slogan_key` | стабильный ключ фразы из пула (см. фаза push) |
-| `warmup_slogan_text` | итоговый `body` (для админ-таблицы; короткий text) |
-| `open_url`, `title` | deep link / заголовок |
-| `created_at` | timestamptz |
+| Поле                        | Назначение                                         |
+| --------------------------- | -------------------------------------------------- |
+| `id` (uuid, PK)             | `pushTrackingId` в payload SW                      |
+| `user_id`                   | `platform_users.id`                                |
+| `topic_code`, `intent_type` | тема / тип (reminder, broadcast, …)                |
+| `occurrence_id`             | nullable, связь с напоминанием                     |
+| `push_kind`                 | `warmup` \| `training` \| `custom` \| `news` \| …  |
+| `warmup_slogan_key`         | стабильный ключ фразы из пула (см. фаза push)      |
+| `warmup_slogan_text`        | итоговый `body` (для админ-таблицы; короткий text) |
+| `open_url`, `title`         | deep link / заголовок                              |
+| `created_at`                | timestamptz                                        |
 
 Индексы: `(user_id, created_at)`, `(topic_code, created_at)`, `(push_kind, warmup_slogan_key, created_at)`.
 
@@ -118,16 +120,16 @@ flowchart LR
 
 Только диагностика и drill-down; основные отчёты — из hourly.
 
-| Поле | Назначение |
-|------|------------|
-| `event_type` | `auth_login` \| `app_open` \| `page_view` \| `push_open` \| `heartbeat` |
-| `entry_channel` | `pwa` \| `telegram` \| `max` \| `browser` |
-| `page_key` | нормализованный путь (см. ниже) |
-| `user_id` | nullable для pre-auth (не писать PII в metadata) |
-| `client_session_id` | uuid с клиента, сессия 30 мин idle |
-| `push_tracking_id` | FK-логика к `product_push_notifications.id` |
-| `topic_code`, `push_kind`, `warmup_slogan_key` | для push_open |
-| `metadata` | jsonb, только enum/ids (authMethod, isStandalone) |
+| Поле                                           | Назначение                                                              |
+| ---------------------------------------------- | ----------------------------------------------------------------------- |
+| `event_type`                                   | `auth_login` \| `app_open` \| `page_view` \| `push_open` \| `heartbeat` |
+| `entry_channel`                                | `pwa` \| `telegram` \| `max` \| `browser`                               |
+| `page_key`                                     | нормализованный путь (см. ниже)                                         |
+| `user_id`                                      | nullable для pre-auth (не писать PII в metadata)                        |
+| `client_session_id`                            | uuid с клиента, сессия 30 мин idle                                      |
+| `push_tracking_id`                             | FK-логика к `product_push_notifications.id`                             |
+| `topic_code`, `push_kind`, `warmup_slogan_key` | для push_open                                                           |
+| `metadata`                                     | jsonb, только enum/ids (authMethod, isStandalone)                       |
 
 Индекс: `(occurred_at)`, `(event_type, occurred_at)`, partial на `push_tracking_id` where not null.
 
@@ -160,18 +162,19 @@ PK: `bucket_hour`, `user_id`, `entry_channel`, `page_key` (page_key `__all__` д
 
 По образцу [`admin-platform-stats`](apps/webapp/src/modules/admin-platform-stats/):
 
-| Файл | Ответственность |
-|------|-----------------|
-| [`ports.ts`](apps/webapp/src/modules/product-analytics/ports.ts) | `ProductAnalyticsPort` |
-| [`types.ts`](apps/webapp/src/modules/product-analytics/types.ts) | DTO admin API, ingest types |
-| [`service.ts`](apps/webapp/src/modules/product-analytics/service.ts) | debounce-правила на сервере, сбор ответа admin, retention |
-| [`registrationTimeRange.ts`](apps/webapp/src/modules/product-analytics/timeRange.ts) | переиспользовать паттерн `windowHours` 1–720 как в [`loadAdminReminderStats.ts`](apps/webapp/src/app-layer/stats/loadAdminReminderStats.ts) |
-| [`pgProductAnalytics.ts`](apps/webapp/src/infra/repos/pgProductAnalytics.ts) | Drizzle-only |
-| [`inMemoryProductAnalytics.ts`](apps/webapp/src/infra/repos/inMemoryProductAnalytics.ts) | Vitest |
+| Файл                                                                                     | Ответственность                                                                                                                             |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`ports.ts`](apps/webapp/src/modules/product-analytics/ports.ts)                         | `ProductAnalyticsPort`                                                                                                                      |
+| [`types.ts`](apps/webapp/src/modules/product-analytics/types.ts)                         | DTO admin API, ingest types                                                                                                                 |
+| [`service.ts`](apps/webapp/src/modules/product-analytics/service.ts)                     | debounce-правила на сервере, сбор ответа admin, retention                                                                                   |
+| [`registrationTimeRange.ts`](apps/webapp/src/modules/product-analytics/timeRange.ts)     | переиспользовать паттерн `windowHours` 1–720 как в [`loadAdminReminderStats.ts`](apps/webapp/src/app-layer/stats/loadAdminReminderStats.ts) |
+| [`pgProductAnalytics.ts`](apps/webapp/src/infra/repos/pgProductAnalytics.ts)             | Drizzle-only                                                                                                                                |
+| [`inMemoryProductAnalytics.ts`](apps/webapp/src/infra/repos/inMemoryProductAnalytics.ts) | Vitest                                                                                                                                      |
 
 Регистрация: `deps.productAnalytics` в [`buildAppDeps.ts`](apps/webapp/src/app-layer/di/buildAppDeps.ts).
 
 **Порт (минимальный контракт):**
+
 - `recordEventsBatch(events[])` — upsert recent + hourly + user_hourly
 - `createPushNotification(row)` / `recordPushOpen({ pushTrackingId, userId? })`
 - `getAdminDashboard({ windowHours })` — структурированный JSON для UI
@@ -181,12 +184,12 @@ PK: `bucket_hour`, `user_id`, `entry_channel`, `page_key` (page_key `__all__` д
 
 ### Канал (`entry_channel`)
 
-| Значение | Правило |
-|----------|---------|
+| Значение   | Правило                                                                             |
+| ---------- | ----------------------------------------------------------------------------------- |
 | `telegram` | `/app/tg`, cookie `bersoncare_messenger_surface=telegram`, успешный `telegram-init` |
-| `max` | `/app/max`, surface `max`, успешный `max-init` |
-| `pwa` | `isStandalonePwa()` и не mini app |
-| `browser` | остальное |
+| `max`      | `/app/max`, surface `max`, успешный `max-init`                                      |
+| `pwa`      | `isStandalonePwa()` и не mini app                                                   |
+| `browser`  | остальное                                                                           |
 
 Клиент: читать [`platform.ts`](apps/webapp/src/shared/lib/platform.ts), [`pwaDisplay.ts`](apps/webapp/src/shared/lib/webPush/pwaDisplay.ts), [`messengerMiniApp.ts`](apps/webapp/src/shared/lib/messengerMiniApp.ts).
 
@@ -199,6 +202,7 @@ Composition root [`apps/webapp/src/app-layer/product-analytics/recordAuthLogin.t
 ```
 
 Вызывать **после** `setSessionFromUser` в:
+
 - [`telegram-init/route.ts`](apps/webapp/src/app/api/auth/telegram-init/route.ts)
 - [`max-init/route.ts`](apps/webapp/src/app/api/auth/max-init/route.ts)
 - [`exchange/route.ts`](apps/webapp/src/app/api/auth/exchange/route.ts) (и dev-bypass если нужен parity)
@@ -250,6 +254,7 @@ Composition root [`apps/webapp/src/app-layer/product-analytics/recordAuthLogin.t
 ### Service Worker
 
 [`public/sw.js`](apps/webapp/public/sw.js) в `notificationclick`:
+
 - читать `data.trackingId`, `topicCode`, `pushKind`, `warmupSloganKey`
 - `fetch('/api/patient/analytics/push-open', { method:'POST', credentials:'include', keepalive:true, body })` **до** navigate
 - endpoint: **`POST /api/patient/analytics/push-open`** — auth patient, dedupe unique `(push_tracking_id)` в recent или отдельная таблица opens
@@ -259,6 +264,7 @@ Composition root [`apps/webapp/src/app-layer/product-analytics/recordAuthLogin.t
 ### Метрики push-open для UI
 
 Admin API отдаёт:
+
 - `pushSentByTopic` / `pushOpenByTopic` → conversion %
 - `pushOpenByWarmupSlogan` (только `push_kind=warmup`)
 - `pushOpenByPushKind`
@@ -368,25 +374,27 @@ Admin API отдаёт:
 
 ## Тесты (lean)
 
-| Область | Файлы |
-|---------|--------|
-| normalizePageKey | `normalizePageKey.test.ts` |
-| sloganKey | `pushNotificationCopy.test.ts` (extend) |
-| service aggregation | `service.test.ts` + inMemory port |
-| patient events API | `api/patient/analytics/events/route.test.ts` |
-| push-open API | `api/patient/analytics/push-open/route.test.ts` |
-| admin API | `api/admin/product-analytics/route.test.ts` |
-| retention | `internal/.../retention/route.test.ts` |
+| Область             | Файлы                                           |
+| ------------------- | ----------------------------------------------- |
+| normalizePageKey    | `normalizePageKey.test.ts`                      |
+| sloganKey           | `pushNotificationCopy.test.ts` (extend)         |
+| service aggregation | `service.test.ts` + inMemory port               |
+| patient events API  | `api/patient/analytics/events/route.test.ts`    |
+| push-open API       | `api/patient/analytics/push-open/route.test.ts` |
+| admin API           | `api/admin/product-analytics/route.test.ts`     |
+| retention           | `internal/.../retention/route.test.ts`          |
 
 **Не** добавлять cold `import` patient pages в e2e; route tests достаточно.
 
 ## Проверки по фазам
 
 После каждой фазы:
+
 - `pnpm --dir apps/webapp exec vitest run <затронутые tests>`
 - `pnpm --dir apps/webapp run typecheck`
 
 Финал задачи (не после каждого шага):
+
 - `pnpm --dir apps/webapp run migrate` (dev) + проверка таблиц
 - smoke: login → patient home → смена страницы; отправить test push → клик → строка в admin UI
 - при полном закрытии инициативы: один `pnpm run ci` перед merge (см. [.cursor/rules/pre-push-ci.mdc](.cursor/rules/pre-push-ci.mdc))

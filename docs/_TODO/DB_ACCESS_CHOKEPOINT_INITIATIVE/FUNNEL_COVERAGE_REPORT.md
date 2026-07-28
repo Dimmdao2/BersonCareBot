@@ -9,15 +9,15 @@ R0 is a behavior-preserving pre-SaaS chokepoint initiative. It does not add `org
 
 ## Process trunks
 
-| Process / path | Pool provider | Checkout / transaction path | Dormant identity hook |
-|---|---|---|---|
-| Webapp main runtime | `apps/webapp/src/infra/db/webappPoolProvider.ts` | `apps/webapp/src/infra/db/withClient.ts` (`withPoolClient`, `withPoolTransaction`, `startPoolTransaction`) | `prepareWebappPoolClient`; `prepareClientForRequest` |
-| Webapp integrator purge cleanup | `apps/webapp/src/infra/db/integratorPurgePoolProvider.ts` | `apps/webapp/src/infra/db/withClient.ts` | `prepareIntegratorPurgePoolClient`; `prepareClientForRequest` |
-| Integrator main runtime | `apps/integrator/src/infra/db/integratorPoolProvider.ts` | `apps/integrator/src/infra/db/withClient.ts` (`checkoutIntegratorPoolClient`) | `prepareIntegratorPoolClient`; `prepareIntegratorClient` |
-| Integrator migrator | `apps/integrator/src/infra/db/integratorMigrationPoolProvider.ts` | migrator `Pool.query` transport | `prepareIntegratorMigrationPoolClient` |
-| Integrator projection-health ops script | `apps/integrator/src/infra/scripts/projectionHealthPoolProvider.ts` | script `ProjectionHealthQueryable` transport | `prepareProjectionHealthPoolClient` |
-| Integrator stage6 historical backfill ops script | `apps/integrator/src/infra/scripts/stage6HistoricalBackfillPoolProvider.ts` | script-owned paired sessions + savepoints (`KEEP`) | `prepareStage6HistoricalBackfillPoolClient` |
-| Media worker | `apps/media-worker/src/poolProvider.ts` | `apps/media-worker/src/withClient.ts` (`startMediaWorkerTransaction`) | `prepareMediaWorkerPoolClient`; `prepareMediaWorkerClient` |
+| Process / path                                   | Pool provider                                                               | Checkout / transaction path                                                                                | Dormant identity hook                                         |
+| ------------------------------------------------ | --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| Webapp main runtime                              | `apps/webapp/src/infra/db/webappPoolProvider.ts`                            | `apps/webapp/src/infra/db/withClient.ts` (`withPoolClient`, `withPoolTransaction`, `startPoolTransaction`) | `prepareWebappPoolClient`; `prepareClientForRequest`          |
+| Webapp integrator purge cleanup                  | `apps/webapp/src/infra/db/integratorPurgePoolProvider.ts`                   | `apps/webapp/src/infra/db/withClient.ts`                                                                   | `prepareIntegratorPurgePoolClient`; `prepareClientForRequest` |
+| Integrator main runtime                          | `apps/integrator/src/infra/db/integratorPoolProvider.ts`                    | `apps/integrator/src/infra/db/withClient.ts` (`checkoutIntegratorPoolClient`)                              | `prepareIntegratorPoolClient`; `prepareIntegratorClient`      |
+| Integrator migrator                              | `apps/integrator/src/infra/db/integratorMigrationPoolProvider.ts`           | migrator `Pool.query` transport                                                                            | `prepareIntegratorMigrationPoolClient`                        |
+| Integrator projection-health ops script          | `apps/integrator/src/infra/scripts/projectionHealthPoolProvider.ts`         | script `ProjectionHealthQueryable` transport                                                               | `prepareProjectionHealthPoolClient`                           |
+| Integrator stage6 historical backfill ops script | `apps/integrator/src/infra/scripts/stage6HistoricalBackfillPoolProvider.ts` | script-owned paired sessions + savepoints (`KEEP`)                                                         | `prepareStage6HistoricalBackfillPoolClient`                   |
+| Media worker                                     | `apps/media-worker/src/poolProvider.ts`                                     | `apps/media-worker/src/withClient.ts` (`startMediaWorkerTransaction`)                                      | `prepareMediaWorkerPoolClient`; `prepareMediaWorkerClient`    |
 
 ## Verified inventory
 

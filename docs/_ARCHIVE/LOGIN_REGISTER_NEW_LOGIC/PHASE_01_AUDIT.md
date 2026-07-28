@@ -20,7 +20,6 @@ PHASE_01 нацелен именно на это; backfill, email setup, AuthFlo
 
 ## 2. Definition of Done — по пунктам
 
-
 | Критерий (PHASE_01)                                              | Статус        | Доказательство                                                                                                                                                                                                                              |
 | ---------------------------------------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Новый phone → `platform_user` + привязка appointment             | **Выполнено** | `ensureAppointmentClientTx`: INSERT с `patient_phone_trust_at` при phone; integrator fan-out → webapp `appointment.record.upserted` → `ensureClient` + `upsertRecordFromProjection`                                                         |
@@ -30,7 +29,6 @@ PHASE_01 нацелен именно на это; backfill, email setup, AuthFlo
 | bot/phone user + Rubitime → без дубля                            | **Частично**  | В `ensureAppointmentClientTx` есть поиск по `integrator_user_id` (2-й шаг после phone). Явного unit-теста «бот + Rubitime» **нет**; в `events.test.ts` есть fallback `findByIntegratorId` для `patient_bookings`, но **без** `ensureClient` |
 | Тесты MAIN PLAN §11 (Rubitime)                                   | **Частично**  | 3 сценария в `pgUserProjection.ensureAppointmentClient.test.ts` + integrator fan-out + `events.test.ts`; **нет** отдельного теста «только phone» и «bot user»                                                                               |
 | Запись в `LOG.md`                                                | **Выполнено** | Секция `2026-05-19 — PHASE_01`                                                                                                                                                                                                              |
-
 
 **Локальные проверки из фазы:** integrator/webapp тесты по затронутым файлам — **прогнаны сейчас, зелёные** (8 + 3 теста).
 
@@ -55,8 +53,6 @@ sequenceDiagram
   WW->>AR: SQL platform_user_id по phone/history
   WW->>WW: applyRubitimeUpdate(patient_bookings)
 ```
-
-
 
 ### 3.1 Integrator
 
@@ -87,7 +83,6 @@ sequenceDiagram
 
 ## 4. Сверка с правилами фазы
 
-
 | Правило                                                      | Оценка                                                                                                                    |
 | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
 | Телефон обязателен, без phone не проектируем                 | **Соблюдено** в hot path: `ensureClient` только при `phoneNormalized`                                                     |
@@ -97,22 +92,19 @@ sequenceDiagram
 | Новый user: имя из Rubitime, phone trusted, email unverified | **Соблюдено**                                                                                                             |
 | Autobind не ломать                                           | **Соблюдено** — `applyRubitimeEmailAutobind` отдельный путь; тесты в `patchAdminClientProfile.test.ts` / `events.test.ts` |
 
-
 **Вне scope (корректно не тронуто):** setup tokens (PHASE_03–04), AuthFlow (PHASE_05), backfill (PHASE_07) — в `LOG.md` явно «не делали».
 
 ---
 
 ## 5. Тесты vs MAIN PLAN §11 (Rubitime)
 
-
 | Сценарий §11                      | Покрытие                                                                                                          |
 | --------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
 | new phone → `platform_user`       | **Логика есть**, отдельного теста «только phone без email» **нет** (ближайший — phone+email)                      |
-| phone+email, trusted + unverified | `**ensureAppointmentClient.test.ts`**                                                                             |
+| phone+email, trusted + unverified | `**ensureAppointmentClient.test.ts`\*\*                                                                           |
 | existing phone, name preserved    | **тот же файл**                                                                                                   |
 | existing email + trusted phone    | **тот же файл**                                                                                                   |
 | bot/phone + Rubitime attach       | **Нет** целевого теста на `ensureClient` + `integrator_user_id`; есть **другой** тест fallback без `ensureClient` |
-
 
 **Integrator/events:** нормализация phone, merge-conflict, branch/FIO, `applyRubitimeUpdate` — покрыты в `events.test.ts`, но **не** end-to-end связка «fan-out → ensure → `appointment_records.platform_user_id`».
 
@@ -142,12 +134,10 @@ sequenceDiagram
 
 ### 6.4 Устаревшие документы
 
-
 | Файл                                           | Проблема                                                                                            |
 | ---------------------------------------------- | --------------------------------------------------------------------------------------------------- |
 | `AUDIT_REPORT.md`                              | Шапка: «реализация **не начата**» — **не соответствует** PHASE_01                                   |
 | `apps/webapp/scripts/PLATFORM_IDENTITY_OPS.md` | Утверждение, что `ensureClient` **не** ставит `patient_phone_trust_at` — **неверно** после PHASE_01 |
-
 
 ### 6.5 Ops / исторические данные
 
@@ -157,7 +147,6 @@ sequenceDiagram
 
 ## 7. Scope boundaries
 
-
 | В scope PHASE_01                                    | Статус                                             |
 | --------------------------------------------------- | -------------------------------------------------- |
 | integrator/webapp Rubitime handlers                 | **Сделано**                                        |
@@ -165,19 +154,15 @@ sequenceDiagram
 | `appointment_records.platform_user_id` на live-path | **Сделано** (через webapp projection после ensure) |
 | trusted phone при match по email                    | **Сделано**                                        |
 
-
-
 | Вне scope                | Подтверждение                         |
 | ------------------------ | ------------------------------------- |
 | Email setup tokens       | Не в этом diff                        |
 | AuthFlow register/forgot | Не в этом diff                        |
 | Backfill истории         | Отложено в SCOPE_DECISIONS / PHASE_07 |
 
-
 ---
 
 ## 8. Итоговая оценка
-
 
 | Измерение                                                       | Оценка                                                        |
 | --------------------------------------------------------------- | ------------------------------------------------------------- |
@@ -185,7 +170,6 @@ sequenceDiagram
 | Соответствие MAIN PLAN §1 / SCOPE_DECISIONS                     | **Высокое**                                                   |
 | Definition of Done в документе фазы                             | **5/6 полностью**, **1/6 частично** (тест bot + полнота §11)  |
 | Готовность к PHASE_02                                           | **Да** — identity live-path не блокирует contact-email policy |
-
 
 **Рекомендации (не блокеры закрытия фазы):**
 
@@ -196,15 +180,14 @@ sequenceDiagram
 
 ---
 
-**ИТОГ:** PHASE_01 **можно считать выполненной** для live-flow: fan-out после `booking.upsert`, исправленный `ensureClientFromAppointmentProjection`, правила phone/email/trust/имени соблюдены, журнал и pipeline-doc обновлены. Для «аудиторской строгости» остаются **дыры в тестах** (bot, phone-only), **косвенная** запись `platform_user_id` и **устаревший** AUDIT_REPORT — на прод-поведение live-записей это не должно влиять при рабочем poller/outbox.
----
+## **ИТОГ:** PHASE_01 **можно считать выполненной** для live-flow: fan-out после `booking.upsert`, исправленный `ensureClientFromAppointmentProjection`, правила phone/email/trust/имени соблюдены, журнал и pipeline-doc обновлены. Для «аудиторской строгости» остаются **дыры в тестах** (bot, phone-only), **косвенная** запись `platform_user_id` и **устаревший** AUDIT_REPORT — на прод-поведение live-записей это не должно влиять при рабочем poller/outbox.
 
 ## Follow-up 2026-05-20 (post-MVP hardening)
 
-| Рекомендация §8 | Статус |
-|-----------------|--------|
-| `PLATFORM_IDENTITY_OPS.md` про `patient_phone_trust_at` | **Исправлено** |
-| `AUDIT_REPORT.md` §12 | **Добавлен** актуальный статус |
-| Enqueue setup при email из projection (PHASE_02 gap) | **Реализовано:** `contactEmailSetup` + handler |
-| Unit-тесты bot / phone-only | **Открыто** |
-| Явный `platformUserId` в `upsertRecordFromProjection` | **Открыто** (опционально) |
+| Рекомендация §8                                         | Статус                                         |
+| ------------------------------------------------------- | ---------------------------------------------- |
+| `PLATFORM_IDENTITY_OPS.md` про `patient_phone_trust_at` | **Исправлено**                                 |
+| `AUDIT_REPORT.md` §12                                   | **Добавлен** актуальный статус                 |
+| Enqueue setup при email из projection (PHASE_02 gap)    | **Реализовано:** `contactEmailSetup` + handler |
+| Unit-тесты bot / phone-only                             | **Открыто**                                    |
+| Явный `platformUserId` в `upsertRecordFromProjection`   | **Открыто** (опционально)                      |

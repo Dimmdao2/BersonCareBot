@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * PatientTabAccount — S2.5 cleaned-up version.
@@ -16,21 +16,21 @@
  *  - Репутация записи → PatientTabRecords already shows KPIs
  */
 
-import { useEffect, useState } from "react";
-import type { PatientCardHeader } from "@/modules/doctor-clients/ports";
-import { Phone, Send, Smartphone, Mail, Key } from "lucide-react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
+import { useEffect, useState } from 'react';
+import type { PatientCardHeader } from '@/modules/doctor-clients/ports';
+import { Phone, Send, Smartphone, Mail, Key } from 'lucide-react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
 import {
   doctorSectionCardClass,
   doctorSectionTitleClass,
   doctorSectionSubtitleClass,
   doctorHistoryRowClass,
   doctorSectionItemClass,
-} from "@/shared/ui/doctor/doctorVisual";
-import { cn } from "@/lib/utils";
-import { AdminMergeAccountsPanel } from "@/app/app/doctor/clients/AdminMergeAccountsPanel";
-import { AdminClientAuditHistorySection } from "@/app/app/doctor/clients/AdminClientAuditHistorySection";
+} from '@/shared/ui/doctor/doctorVisual';
+import { cn } from '@/lib/utils';
+import { AdminMergeAccountsPanel } from '@/app/app/doctor/clients/AdminMergeAccountsPanel';
+import { AdminClientAuditHistorySection } from '@/app/app/doctor/clients/AdminClientAuditHistorySection';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -58,9 +58,9 @@ type Props = {
 // ---------------------------------------------------------------------------
 
 function fmtBirthDateDisplay(iso: string | null | undefined): string {
-  if (!iso) return "—";
-  const [year, month, day] = iso.split("-");
-  if (!year || !month || !day) return "—";
+  if (!iso) return '—';
+  const [year, month, day] = iso.split('-');
+  if (!year || !month || !day) return '—';
   return `${day}.${month}.${year}`;
 }
 
@@ -124,39 +124,44 @@ function ChannelRow({
   label: string;
   value: string;
   hint?: string;
-  status: "active" | "problem" | "none";
+  status: 'active' | 'problem' | 'none';
   actionLabel?: string;
   onAction?: () => void;
   warning?: boolean;
 }) {
   const chipStyles =
-    status === "active"
-      ? "bg-primary/10 text-primary border border-primary/20"
-      : status === "problem"
-        ? "bg-destructive/10 text-destructive border border-destructive/20"
-        : "bg-muted text-muted-foreground border border-border";
-  const chipText = status === "active" ? "подключён" : status === "problem" ? "не подтв." : "нет";
+    status === 'active'
+      ? 'bg-primary/10 text-primary border border-primary/20'
+      : status === 'problem'
+        ? 'bg-destructive/10 text-destructive border border-destructive/20'
+        : 'bg-muted text-muted-foreground border border-border';
+  const chipText = status === 'active' ? 'подключён' : status === 'problem' ? 'не подтв.' : 'нет';
 
   return (
     <div
       className={cn(
-        "flex items-center gap-2 rounded-lg border px-2.5 py-1.5",
-        warning
-          ? "border-orange-200 bg-orange-50/60"
-          : "border-border bg-background",
+        'flex items-center gap-2 rounded-lg border px-2.5 py-1.5',
+        warning ? 'border-orange-200 bg-orange-50/60' : 'border-border bg-background',
       )}
     >
-      <span className={cn(
-        "w-5 flex-none flex items-center justify-center",
-        status === "active" ? "text-primary" : "text-muted-foreground",
-      )}>
+      <span
+        className={cn(
+          'w-5 flex-none flex items-center justify-center',
+          status === 'active' ? 'text-primary' : 'text-muted-foreground',
+        )}
+      >
         {icon}
       </span>
       <div className="flex-1 min-w-0">
         <div className="text-xs font-mono leading-tight text-foreground truncate">{value}</div>
-        <div className={cn(doctorSectionSubtitleClass, "text-[11px]")}>{hint ?? label}</div>
+        <div className={cn(doctorSectionSubtitleClass, 'text-[11px]')}>{hint ?? label}</div>
       </div>
-      <span className={cn("inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium", chipStyles)}>
+      <span
+        className={cn(
+          'inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium',
+          chipStyles,
+        )}
+      >
         {chipText}
       </span>
       {actionLabel && (
@@ -191,18 +196,18 @@ function SecondaryPhones({
   initialContacts?: SupplementaryContact[];
 }) {
   // Filter to phones on init; client re-fetch returns all types so filter is applied there too.
-  const [phones, setPhones] = useState<SupplementaryContact[] | null>(
-    () => initialContacts != null ? initialContacts.filter((c) => c.contactType === "phone") : null,
+  const [phones, setPhones] = useState<SupplementaryContact[] | null>(() =>
+    initialContacts != null ? initialContacts.filter((c) => c.contactType === 'phone') : null,
   );
   const [error, setError] = useState(false);
   const [adding, setAdding] = useState(false);
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState('');
   const [saving, setSaving] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
 
   const load = () => {
     fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/supplementary-contacts`, {
-      credentials: "include",
+      credentials: 'include',
     })
       .then((r) => (r.ok ? (r.json() as Promise<{ contacts: SupplementaryContact[] }>) : null))
       .then((d) => {
@@ -212,7 +217,7 @@ function SecondaryPhones({
           return;
         }
         setError(false);
-        setPhones((d.contacts ?? []).filter((c) => c.contactType === "phone"));
+        setPhones((d.contacts ?? []).filter((c) => c.contactType === 'phone'));
       })
       .catch(() => {
         setError(true);
@@ -230,7 +235,7 @@ function SecondaryPhones({
   const add = async () => {
     const value = input.trim();
     if (!value) {
-      setAddError("Введите номер");
+      setAddError('Введите номер');
       return;
     }
     setSaving(true);
@@ -239,28 +244,28 @@ function SecondaryPhones({
       const res = await fetch(
         `/api/doctor/clients/${encodeURIComponent(userId)}/supplementary-contacts`,
         {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ contactType: "phone", value }),
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contactType: 'phone', value }),
         },
       );
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as { error?: string } | null;
         setAddError(
-          body?.error === "matches_identity"
-            ? "Совпадает с основным телефоном"
-            : body?.error === "invalid_value"
-              ? "Некорректный номер"
-              : "Не удалось добавить",
+          body?.error === 'matches_identity'
+            ? 'Совпадает с основным телефоном'
+            : body?.error === 'invalid_value'
+              ? 'Некорректный номер'
+              : 'Не удалось добавить',
         );
         return;
       }
-      setInput("");
+      setInput('');
       setAdding(false);
       load();
     } catch {
-      setAddError("Не удалось добавить");
+      setAddError('Не удалось добавить');
     } finally {
       setSaving(false);
     }
@@ -272,7 +277,7 @@ function SecondaryPhones({
     try {
       const res = await fetch(
         `/api/doctor/clients/${encodeURIComponent(userId)}/supplementary-contacts/${encodeURIComponent(id)}`,
-        { method: "DELETE", credentials: "include" },
+        { method: 'DELETE', credentials: 'include' },
       );
       if (!res.ok) setPhones(prev ?? null);
     } catch {
@@ -291,7 +296,7 @@ function SecondaryPhones({
             <Phone className="h-3.5 w-3.5" />
           </span>
           <span className="flex-1 min-w-0 truncate font-mono">{p.value}</span>
-          <span className={cn(doctorSectionSubtitleClass, "text-[11px]")}>доп. телефон</span>
+          <span className={cn(doctorSectionSubtitleClass, 'text-[11px]')}>доп. телефон</span>
           <Button
             type="button"
             variant="ghost"
@@ -315,10 +320,10 @@ function SecondaryPhones({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") {
+              if (e.key === 'Enter') {
                 e.preventDefault();
                 void add();
-              } else if (e.key === "Escape") {
+              } else if (e.key === 'Escape') {
                 setAdding(false);
               }
             }}
@@ -332,7 +337,7 @@ function SecondaryPhones({
             disabled={saving}
             className="px-2 py-1 text-[11px]"
           >
-            {saving ? "…" : "Добавить"}
+            {saving ? '…' : 'Добавить'}
           </Button>
           <Button
             type="button"
@@ -366,7 +371,7 @@ function SecondaryPhones({
 function EmailChange({ userId }: { userId: string }) {
   const [pending, setPending] = useState<{ email: string; expiresAt: string } | null>(null);
   const [editing, setEditing] = useState(false);
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -374,7 +379,7 @@ function EmailChange({ userId }: { userId: string }) {
 
   useEffect(() => {
     let alive = true;
-    fetch(base, { credentials: "include" })
+    fetch(base, { credentials: 'include' })
       .then(async (r) => {
         if (!alive) return;
         if (!r.ok) return;
@@ -390,30 +395,34 @@ function EmailChange({ userId }: { userId: string }) {
   const submit = async () => {
     const email = input.trim();
     if (!email) {
-      setError("Введите email");
+      setError('Введите email');
       return;
     }
     setSaving(true);
     setError(null);
     try {
       const res = await fetch(base, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
       });
-      const body = (await res.json().catch(() => null)) as
-        | { pending?: { email: string; expiresAt: string }; error?: string; message?: string }
-        | null;
+      const body = (await res.json().catch(() => null)) as {
+        pending?: { email: string; expiresAt: string };
+        error?: string;
+        message?: string;
+      } | null;
       if (!res.ok) {
-        setError(body?.message ?? (body?.error === "invalid_body" ? "Некорректный email" : "Не удалось"));
+        setError(
+          body?.message ?? (body?.error === 'invalid_body' ? 'Некорректный email' : 'Не удалось'),
+        );
         return;
       }
-      setPending(body?.pending ?? { email, expiresAt: "" });
-      setInput("");
+      setPending(body?.pending ?? { email, expiresAt: '' });
+      setInput('');
       setEditing(false);
     } catch {
-      setError("Не удалось");
+      setError('Не удалось');
     } finally {
       setSaving(false);
     }
@@ -428,11 +437,11 @@ function EmailChange({ userId }: { userId: string }) {
         <div className="flex-1 min-w-0">
           <div className="text-xs text-foreground leading-tight">Смена email (админ)</div>
           {pending ? (
-            <div className={cn(doctorSectionSubtitleClass, "text-[11px]")}>
+            <div className={cn(doctorSectionSubtitleClass, 'text-[11px]')}>
               ожидает подтверждения пациентом: <span className="font-mono">{pending.email}</span>
             </div>
           ) : (
-            <div className={cn(doctorSectionSubtitleClass, "text-[11px]")}>
+            <div className={cn(doctorSectionSubtitleClass, 'text-[11px]')}>
               применится после подтверждения кодом пациентом
             </div>
           )}
@@ -444,7 +453,7 @@ function EmailChange({ userId }: { userId: string }) {
             onClick={() => setEditing(true)}
             className="flex-none text-[11px] h-auto p-0"
           >
-            {pending ? "сменить другой" : "сменить email"}
+            {pending ? 'сменить другой' : 'сменить email'}
           </Button>
         )}
       </div>
@@ -457,10 +466,10 @@ function EmailChange({ userId }: { userId: string }) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") {
+              if (e.key === 'Enter') {
                 e.preventDefault();
                 void submit();
-              } else if (e.key === "Escape") setEditing(false);
+              } else if (e.key === 'Escape') setEditing(false);
             }}
             placeholder="новый email пациента"
             className="flex-1 text-xs py-1"
@@ -472,7 +481,7 @@ function EmailChange({ userId }: { userId: string }) {
             disabled={saving}
             className="px-2 py-1 text-[11px]"
           >
-            {saving ? "…" : "Отправить код"}
+            {saving ? '…' : 'Отправить код'}
           </Button>
           <Button
             type="button"
@@ -494,7 +503,13 @@ function EmailChange({ userId }: { userId: string }) {
 // Main component
 // ---------------------------------------------------------------------------
 
-export function PatientTabAccount({ userId, header, active = false, initialSupplementaryContacts, isAdmin = false }: Props) {
+export function PatientTabAccount({
+  userId,
+  header,
+  active = false,
+  initialSupplementaryContacts,
+  isAdmin = false,
+}: Props) {
   const identity = header?.identity;
 
   // Derived channel info from header
@@ -505,7 +520,7 @@ export function PatientTabAccount({ userId, header, active = false, initialSuppl
   const maxId = identity?.bindings?.maxId ?? null;
 
   // Personal data — read-only display values from header
-  const displayName = identity?.displayName ?? "";
+  const displayName = identity?.displayName ?? '';
   const firstName = identity?.firstName ?? null;
   const lastName = identity?.lastName ?? null;
   const birthDate = identity?.birthDate ?? null;
@@ -531,9 +546,9 @@ export function PatientTabAccount({ userId, header, active = false, initialSuppl
     setIsBlocked(nextBlocked);
     try {
       const res = await fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/block`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ blocked: nextBlocked }),
       });
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
@@ -544,7 +559,7 @@ export function PatientTabAccount({ userId, header, active = false, initialSuppl
       }
     } catch {
       setIsBlocked(!nextBlocked);
-      setBlockError("network");
+      setBlockError('network');
     } finally {
       setBlockPending(false);
     }
@@ -570,9 +585,9 @@ export function PatientTabAccount({ userId, header, active = false, initialSuppl
     setIsArchived(nextArchived); // optimistic
     try {
       const res = await fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/archive`, {
-        method: "PATCH",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ archived: nextArchived }),
       });
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
@@ -582,7 +597,7 @@ export function PatientTabAccount({ userId, header, active = false, initialSuppl
       }
     } catch {
       setIsArchived(!nextArchived);
-      setArchiveError("network");
+      setArchiveError('network');
     } finally {
       setArchivePending(false);
     }
@@ -598,17 +613,16 @@ export function PatientTabAccount({ userId, header, active = false, initialSuppl
   // ---------------------------------------------------------------------------
 
   return (
-    <div className="grid gap-3" style={{ gridTemplateColumns: "1fr 1fr", alignItems: "start" }}>
+    <div className="grid gap-3" style={{ gridTemplateColumns: '1fr 1fr', alignItems: 'start' }}>
       {/* ====================================================================
           LEFT COLUMN
       ==================================================================== */}
       <div className="flex flex-col gap-3">
-
         {/* ── 1. Личные данные (read-only) ─────────────────────────── */}
         <SectionCard
           title="Личные данные"
           titleRight={
-            <span className={cn(doctorSectionSubtitleClass, "text-[11px]")}>
+            <span className={cn(doctorSectionSubtitleClass, 'text-[11px]')}>
               редактирование — в заголовке карточки
             </span>
           }
@@ -617,13 +631,13 @@ export function PatientTabAccount({ userId, header, active = false, initialSuppl
             <tbody>
               {/* displayName — bold primary name */}
               <KVRow label="Отображаемое имя">
-                <span className="font-semibold">{displayName || "—"}</span>
+                <span className="font-semibold">{displayName || '—'}</span>
               </KVRow>
               {/* Hidden real name */}
               <KVRow label="ФИО (скрытое)">
-                {(firstName || lastName) ? (
+                {firstName || lastName ? (
                   <span className="text-muted-foreground text-[11px]">
-                    {[lastName, firstName].filter(Boolean).join(" ")}
+                    {[lastName, firstName].filter(Boolean).join(' ')}
                   </span>
                 ) : (
                   <span className="text-muted-foreground text-[11px]">не указано</span>
@@ -659,13 +673,11 @@ export function PatientTabAccount({ userId, header, active = false, initialSuppl
               </KVRow>
               {/* Gender */}
               <KVRow label="Пол">
-                <span>
-                  {gender === "male" ? "Мужской" : gender === "female" ? "Женский" : "—"}
-                </span>
+                <span>{gender === 'male' ? 'Мужской' : gender === 'female' ? 'Женский' : '—'}</span>
               </KVRow>
             </tbody>
           </table>
-          <p className={cn(doctorSectionSubtitleClass, "text-[11px]")}>
+          <p className={cn(doctorSectionSubtitleClass, 'text-[11px]')}>
             ФИО видит только специалист, пациенту показывается отображаемое имя.
           </p>
         </SectionCard>
@@ -684,11 +696,11 @@ export function PatientTabAccount({ userId, header, active = false, initialSuppl
             <ChannelRow
               icon={<Phone className="h-3.5 w-3.5" />}
               label="Телефон"
-              value={identity?.phone ?? "—"}
+              value={identity?.phone ?? '—'}
               hint="основной телефон · не редактируется"
-              status={identity?.phone ? "active" : "none"}
+              status={identity?.phone ? 'active' : 'none'}
               actionLabel="⧉"
-              onAction={() => void copyText(identity?.phone ?? "")}
+              onAction={() => void copyText(identity?.phone ?? '')}
             />
 
             {/* Доп. телефоны (основной не меняется; только добавление вторичных) */}
@@ -701,18 +713,18 @@ export function PatientTabAccount({ userId, header, active = false, initialSuppl
             <ChannelRow
               icon={<Send className="h-3.5 w-3.5" />}
               label="Telegram"
-              value={hasTelegram ? `id ${telegramId}` : "не привязан"}
+              value={hasTelegram ? `id ${telegramId}` : 'не привязан'}
               hint="Telegram"
-              status={hasTelegram ? "active" : "none"}
+              status={hasTelegram ? 'active' : 'none'}
             />
 
             {/* MAX */}
             <ChannelRow
               icon={<Smartphone className="h-3.5 w-3.5" />}
               label="MAX"
-              value={hasMax ? `id ${maxId}` : "не привязан"}
+              value={hasMax ? `id ${maxId}` : 'не привязан'}
               hint="MAX"
-              status={hasMax ? "active" : "none"}
+              status={hasMax ? 'active' : 'none'}
             />
 
             {/* Email */}
@@ -720,12 +732,12 @@ export function PatientTabAccount({ userId, header, active = false, initialSuppl
               <ChannelRow
                 icon={<Mail className="h-3.5 w-3.5" />}
                 label="Email"
-                value={identity?.email ?? "—"}
+                value={identity?.email ?? '—'}
                 hint="Email · статус неизвестен"
                 status="problem"
                 warning
                 actionLabel="→"
-                onAction={() => window.open(`mailto:${identity?.email}`, "_blank")}
+                onAction={() => window.open(`mailto:${identity?.email}`, '_blank')}
               />
             ) : (
               <ChannelRow
@@ -742,25 +754,29 @@ export function PatientTabAccount({ userId, header, active = false, initialSuppl
 
             {/* PWA / App — скрыто до реализации backend (push/install status не отслеживается в текущей схеме) */}
           </div>
-          <p className={cn(doctorSectionSubtitleClass, "text-[11px]")}>
-            <span className="text-primary font-medium">подключён</span> → иконка активна и кликабельна ·{" "}
-            <span className="text-destructive font-medium">проблема</span> — подсвечена.
+          <p className={cn(doctorSectionSubtitleClass, 'text-[11px]')}>
+            <span className="text-primary font-medium">подключён</span> → иконка активна и
+            кликабельна · <span className="text-destructive font-medium">проблема</span> —
+            подсвечена.
           </p>
         </SectionCard>
-
       </div>
 
       {/* ====================================================================
           RIGHT COLUMN
       ==================================================================== */}
       <div className="flex flex-col gap-3">
-
         {/* ── 3. Блокировки и доступ ───────────────────────────────── */}
         <SectionCard title="Блокировки и доступ">
           <div className="flex flex-col gap-1.5">
             {/* Telegram bot status */}
-            <div className={cn(doctorHistoryRowClass, "flex items-center gap-2 text-xs")}>
-              <Send className={cn("h-3.5 w-3.5 flex-none", hasTelegram ? "text-primary" : "text-muted-foreground")} />
+            <div className={cn(doctorHistoryRowClass, 'flex items-center gap-2 text-xs')}>
+              <Send
+                className={cn(
+                  'h-3.5 w-3.5 flex-none',
+                  hasTelegram ? 'text-primary' : 'text-muted-foreground',
+                )}
+              />
               <span className="flex-1">Telegram-бот</span>
               {hasTelegram ? (
                 <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-primary/10 text-primary border border-primary/20">
@@ -774,9 +790,14 @@ export function PatientTabAccount({ userId, header, active = false, initialSuppl
             </div>
 
             {/* MAX bot */}
-            <div className={cn(doctorHistoryRowClass, "flex items-center gap-2 text-xs")}>
-              <Smartphone className={cn("h-3.5 w-3.5 flex-none", hasMax ? "text-primary" : "text-muted-foreground")} />
-              <span className="flex-1">{hasMax ? "MAX-бот" : "MAX-бот не привязан"}</span>
+            <div className={cn(doctorHistoryRowClass, 'flex items-center gap-2 text-xs')}>
+              <Smartphone
+                className={cn(
+                  'h-3.5 w-3.5 flex-none',
+                  hasMax ? 'text-primary' : 'text-muted-foreground',
+                )}
+              />
+              <span className="flex-1">{hasMax ? 'MAX-бот' : 'MAX-бот не привязан'}</span>
               {hasMax ? (
                 <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-primary/10 text-primary border border-primary/20">
                   привязан
@@ -790,7 +811,12 @@ export function PatientTabAccount({ userId, header, active = false, initialSuppl
 
             {/* Block status indicator */}
             {isBlocked && (
-              <div className={cn(doctorSectionItemClass, "flex items-center gap-2 text-xs border-destructive/30 bg-destructive/5")}>
+              <div
+                className={cn(
+                  doctorSectionItemClass,
+                  'flex items-center gap-2 text-xs border-destructive/30 bg-destructive/5',
+                )}
+              >
                 <span className="text-destructive flex-none font-bold">✕</span>
                 <span className="flex-1 text-destructive font-medium">Пациент заблокирован</span>
               </div>
@@ -802,15 +828,16 @@ export function PatientTabAccount({ userId, header, active = false, initialSuppl
             {/* Block / Unblock — POST /api/doctor/clients/{userId}/block {blocked, reason?} */}
             <Button
               type="button"
-              variant={isBlocked ? "destructive" : "outline"}
+              variant={isBlocked ? 'destructive' : 'outline'}
               disabled={blockPending}
               onClick={() => void handleBlockToggle()}
               className={cn(
-                "px-2.5 py-1 text-xs",
-                isBlocked && "bg-destructive/10 text-destructive hover:bg-destructive/20 border-destructive/40",
+                'px-2.5 py-1 text-xs',
+                isBlocked &&
+                  'bg-destructive/10 text-destructive hover:bg-destructive/20 border-destructive/40',
               )}
             >
-              {blockPending ? "…" : isBlocked ? "Снять блокировку" : "Ограничить доступ"}
+              {blockPending ? '…' : isBlocked ? 'Снять блокировку' : 'Ограничить доступ'}
             </Button>
 
             {/* Archive / Unarchive — PATCH /api/doctor/clients/{userId}/archive {archived} */}
@@ -821,17 +848,17 @@ export function PatientTabAccount({ userId, header, active = false, initialSuppl
                 disabled={archivePending}
                 onClick={() => setArchiveConfirm(true)}
                 className={cn(
-                  "px-2.5 py-1 text-xs",
+                  'px-2.5 py-1 text-xs',
                   isArchived
-                    ? "border-primary/30 bg-primary/10 text-primary hover:bg-primary/20"
-                    : "",
+                    ? 'border-primary/30 bg-primary/10 text-primary hover:bg-primary/20'
+                    : '',
                 )}
               >
-                {archivePending ? "…" : isArchived ? "Вернуть из архива" : "В архив"}
+                {archivePending ? '…' : isArchived ? 'Вернуть из архива' : 'В архив'}
               </Button>
             ) : (
               <span className="flex items-center gap-1.5 text-xs text-destructive">
-                Подтвердить?{" "}
+                Подтвердить?{' '}
                 <Button
                   type="button"
                   variant="link"
@@ -839,7 +866,7 @@ export function PatientTabAccount({ userId, header, active = false, initialSuppl
                   className="h-auto p-0 text-xs underline text-destructive"
                 >
                   Да
-                </Button>{" "}
+                </Button>{' '}
                 <Button
                   type="button"
                   variant="link"
@@ -852,86 +879,80 @@ export function PatientTabAccount({ userId, header, active = false, initialSuppl
             )}
           </div>
 
-          {blockError && (
-            <p className="text-[11px] text-destructive">Блокировка: {blockError}</p>
-          )}
-          {archiveError && (
-            <p className="text-[11px] text-destructive">Архив: {archiveError}</p>
-          )}
+          {blockError && <p className="text-[11px] text-destructive">Блокировка: {blockError}</p>}
+          {archiveError && <p className="text-[11px] text-destructive">Архив: {archiveError}</p>}
 
-          <p className={cn(doctorSectionSubtitleClass, "text-[11px]")}>
-            «Ограничить доступ» → POST /block · «В архив» → PATCH /archive. Оптимистичное обновление с rollback.
+          <p className={cn(doctorSectionSubtitleClass, 'text-[11px]')}>
+            «Ограничить доступ» → POST /block · «В архив» → PATCH /archive. Оптимистичное обновление
+            с rollback.
           </p>
         </SectionCard>
 
         {/* ── 4. Администрирование ─────────────────────────────────── */}
-        {isAdmin && <SectionCard title="Администрирование">
-          {/* Technical IDs */}
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Технические идентификаторы
-          </p>
-          <table className="w-full border-separate border-spacing-0 mb-1">
-            <tbody>
-              <KVRow label="ID пациента">
-                <span className="font-mono text-[11px]">
-                  {userId.slice(0, 12)}…{userId.slice(-4)}{" "}
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    title="Скопировать"
-                    onClick={() => void copyText(userId)}
-                    className="inline-flex h-4 w-4 text-[10px] ml-0.5 align-middle p-0"
-                  >
-                    ⧉
-                  </Button>
-                </span>
-              </KVRow>
-              {telegramId && (
-                <KVRow label="Telegram ID">
-                  <span className="font-mono text-[11px]">{telegramId}</span>
+        {isAdmin && (
+          <SectionCard title="Администрирование">
+            {/* Technical IDs */}
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Технические идентификаторы
+            </p>
+            <table className="w-full border-separate border-spacing-0 mb-1">
+              <tbody>
+                <KVRow label="ID пациента">
+                  <span className="font-mono text-[11px]">
+                    {userId.slice(0, 12)}…{userId.slice(-4)}{' '}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      title="Скопировать"
+                      onClick={() => void copyText(userId)}
+                      className="inline-flex h-4 w-4 text-[10px] ml-0.5 align-middle p-0"
+                    >
+                      ⧉
+                    </Button>
+                  </span>
                 </KVRow>
-              )}
-              <KVRow label="Регистрация">
-                {/* TODO(backend): identity.createdAt not in PatientCardHeader; available in ClientIdentity */}
-                <span className="text-muted-foreground">—</span>
-              </KVRow>
-            </tbody>
-          </table>
+                {telegramId && (
+                  <KVRow label="Telegram ID">
+                    <span className="font-mono text-[11px]">{telegramId}</span>
+                  </KVRow>
+                )}
+                <KVRow label="Регистрация">
+                  {/* TODO(backend): identity.createdAt not in PatientCardHeader; available in ClientIdentity */}
+                  <span className="text-muted-foreground">—</span>
+                </KVRow>
+              </tbody>
+            </table>
 
-          {/* Merge — collapsible, suspended until opened */}
-          <details
-            open={mergeOpen}
-            onToggle={(e) => setMergeOpen((e.currentTarget as HTMLDetailsElement).open)}
-            className="group"
-          >
-            <summary className="flex cursor-pointer list-none items-center gap-1 py-0.5">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground select-none">
-                Объединение (merge)
-              </p>
-              <span className="ml-auto text-[10px] text-muted-foreground/60 select-none">
-                {mergeOpen ? "▾" : "▸"}
-              </span>
-            </summary>
-            <div className="mt-1">
-              <AdminMergeAccountsPanel
-                anchorUserId={userId}
-                enabled
-                suspendHeavyFetch={!active || !mergeOpen}
-              />
-            </div>
-          </details>
+            {/* Merge — collapsible, suspended until opened */}
+            <details
+              open={mergeOpen}
+              onToggle={(e) => setMergeOpen((e.currentTarget as HTMLDetailsElement).open)}
+              className="group"
+            >
+              <summary className="flex cursor-pointer list-none items-center gap-1 py-0.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground select-none">
+                  Объединение (merge)
+                </p>
+                <span className="ml-auto text-[10px] text-muted-foreground/60 select-none">
+                  {mergeOpen ? '▾' : '▸'}
+                </span>
+              </summary>
+              <div className="mt-1">
+                <AdminMergeAccountsPanel
+                  anchorUserId={userId}
+                  enabled
+                  suspendHeavyFetch={!active || !mergeOpen}
+                />
+              </div>
+            </details>
 
-          {/* Audit log — AdminClientAuditHistorySection (handles 403 gracefully) */}
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mt-2">
-            История изменений (audit)
-          </p>
-          <AdminClientAuditHistorySection
-            platformUserId={userId}
-            enabled
-            suspendLoad={!active}
-          />
-
-        </SectionCard>}
+            {/* Audit log — AdminClientAuditHistorySection (handles 403 gracefully) */}
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mt-2">
+              История изменений (audit)
+            </p>
+            <AdminClientAuditHistorySection platformUserId={userId} enabled suspendLoad={!active} />
+          </SectionCard>
+        )}
       </div>
     </div>
   );

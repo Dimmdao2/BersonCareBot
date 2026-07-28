@@ -17,7 +17,7 @@ diagnostics/support-report zone) → `TARGET_IA.md` / `ROLE_CAPABILITY_MATRIX.md
 **This is not a from-scratch redesign.** The audited UX package already assigns a zone ID to every surface this
 card touches (`PLAT-01/02/05/07/09`, `MGMT-01`) and a capability-matrix row to the exact actor ("Global admin /
 support"). What it does not do — by its own stated contract — is choose a persistence shape, a reuse-vs-new
-call for messaging infra, or a route for *this specific pass*; `IMPLEMENTATION_ROADMAP.md:199` says this
+call for messaging infra, or a route for _this specific pass_; `IMPLEMENTATION_ROADMAP.md:199` says this
 directly for any gap "that assumes a new persistence shape" and U9's own `Workstreams` row only promises
 "dedicated capabilities and audit" (`IMPLEMENTATION_ROADMAP.md:720-721`), not a data model. §0 below cites
 exactly what already exists; §1 is the current-code reality audit; §2-§4 are the delta this doc adds (IA
@@ -40,25 +40,25 @@ support chat).
 
 ### 0.a What the package already specifies
 
-| Topic | Source | What it fixes |
-|---|---|---|
-| Platform admin is a separate shell | `TARGET_IA.md:177` ("Platform administration uses a separate shell and route namespace. It is never an expanded clinical sidebar"), `TARGET_IA.md:328` ("Global admin has its own platform shell and never inherits clinical navigation") | No new admin work may be bolted onto the doctor sidebar as a permanent home |
-| Zone registry for this card | `TARGET_IA.md:84-91` (`PLAT-02` Organizations, `PLAT-05` Configuration, `PLAT-07` Reliability, `PLAT-09` Support reports and escalation) | Every surface this doc touches already has a canonical ID; none may be invented |
-| PLAT-09 candidate route + composition | `SCREEN_COMPOSITION.md:72` (`/app/platform/support/[orgId]` — "Organization/platform diagnostics, support reports and escalation … purpose required; no clinical section or patient-record mutation") | Final target route namespace and composition contract for the admin-side support surface |
-| PLAT-09 capability row | `ROLE_CAPABILITY_MATRIX.md:39` ("Global admin / support … Aggregate/org/platform diagnostics and support reports … No patient-card navigation … approved by owner 2026-07-16") and `:74` ("Explicit server-resolved organization support target … Purpose-specific support capability and audited operation; no normal chart route or `adminMode` shortcut") | The actor/target/audit shape of the admin-side interaction: explicit org target, purpose-specific, audited — matches a "admin opens org X's thread and replies" model directly |
-| Clinic-side entry candidate | `SCREEN_COMPOSITION.md:78` (`MGMT-01 /app/manage` — "Setup/lifecycle, booking, delivery, domain, plan **and recent admin actions**") | `MGMT-01` already anticipates an "admin actions" surface at the owner/admin landing; no new canonical ID is needed for the clinic-side entry point |
-| U9 owns the final shell | `IMPLEMENTATION_ROADMAP.md:699-732` (U9 — "global administration and bounded support"; scope includes "aggregate identity-integrity diagnostics and support reports"; dependency "U1, U7 core identity … platform data ownership classification") | The *final*, single, unified platform shell (nav, route rename to `/app/platform/**`, full PLAT ownership split) is U9's job, not this card's |
-| Non-duplication precedent already set tonight | `TARIFFS_PAYMENTS_ADMIN_PLAN.md:126-133,271-282,405-411` | #751 Phase 3 already chose an *interim* placement pattern (`(global-admin)` route group under `/app/doctor/**`, mirroring `system-health`) precisely so it does not race U9. This card must reuse the identical interim pattern, not invent a second one |
-| Owner's organization-visibility model | `OWNER_RULINGS_2026-07-15.md:135-149` (§12: public directory = separate public table; "внутренние данные... никто не должен видеть, кроме старшего верхнего админа. Ну и если будет потом техническая поддержка отдельно, но сейчас просто админ и всё") | Confirms: today there is one admin actor; a *future* separate "техподдержка" role is anticipated but not required now — matches UX08-10's "no patient workflow" framing, and directly anticipates this card's chat as the seed of that future role, not a blocker for it |
-| Owner's aggregates model | `OWNER_RULINGS_2026-07-15.md:44-72` (§5) | Clinics as clients: billing + usage + platform load. This is `PLAT-04` analytics scope (`#800`), explicitly **not** in this wave (`OWNER_RULINGS_2026-07-17.md:29`: "НЕ выбрана: аналитика специалиста (#800)") |
+| Topic                                         | Source                                                                                                                                                                                                                                                                                                                                                       | What it fixes                                                                                                                                                                                                                                                            |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Platform admin is a separate shell            | `TARGET_IA.md:177` ("Platform administration uses a separate shell and route namespace. It is never an expanded clinical sidebar"), `TARGET_IA.md:328` ("Global admin has its own platform shell and never inherits clinical navigation")                                                                                                                    | No new admin work may be bolted onto the doctor sidebar as a permanent home                                                                                                                                                                                              |
+| Zone registry for this card                   | `TARGET_IA.md:84-91` (`PLAT-02` Organizations, `PLAT-05` Configuration, `PLAT-07` Reliability, `PLAT-09` Support reports and escalation)                                                                                                                                                                                                                     | Every surface this doc touches already has a canonical ID; none may be invented                                                                                                                                                                                          |
+| PLAT-09 candidate route + composition         | `SCREEN_COMPOSITION.md:72` (`/app/platform/support/[orgId]` — "Organization/platform diagnostics, support reports and escalation … purpose required; no clinical section or patient-record mutation")                                                                                                                                                        | Final target route namespace and composition contract for the admin-side support surface                                                                                                                                                                                 |
+| PLAT-09 capability row                        | `ROLE_CAPABILITY_MATRIX.md:39` ("Global admin / support … Aggregate/org/platform diagnostics and support reports … No patient-card navigation … approved by owner 2026-07-16") and `:74` ("Explicit server-resolved organization support target … Purpose-specific support capability and audited operation; no normal chart route or `adminMode` shortcut") | The actor/target/audit shape of the admin-side interaction: explicit org target, purpose-specific, audited — matches a "admin opens org X's thread and replies" model directly                                                                                           |
+| Clinic-side entry candidate                   | `SCREEN_COMPOSITION.md:78` (`MGMT-01 /app/manage` — "Setup/lifecycle, booking, delivery, domain, plan **and recent admin actions**")                                                                                                                                                                                                                         | `MGMT-01` already anticipates an "admin actions" surface at the owner/admin landing; no new canonical ID is needed for the clinic-side entry point                                                                                                                       |
+| U9 owns the final shell                       | `IMPLEMENTATION_ROADMAP.md:699-732` (U9 — "global administration and bounded support"; scope includes "aggregate identity-integrity diagnostics and support reports"; dependency "U1, U7 core identity … platform data ownership classification")                                                                                                            | The _final_, single, unified platform shell (nav, route rename to `/app/platform/**`, full PLAT ownership split) is U9's job, not this card's                                                                                                                            |
+| Non-duplication precedent already set tonight | `TARIFFS_PAYMENTS_ADMIN_PLAN.md:126-133,271-282,405-411`                                                                                                                                                                                                                                                                                                     | #751 Phase 3 already chose an _interim_ placement pattern (`(global-admin)` route group under `/app/doctor/**`, mirroring `system-health`) precisely so it does not race U9. This card must reuse the identical interim pattern, not invent a second one                 |
+| Owner's organization-visibility model         | `OWNER_RULINGS_2026-07-15.md:135-149` (§12: public directory = separate public table; "внутренние данные... никто не должен видеть, кроме старшего верхнего админа. Ну и если будет потом техническая поддержка отдельно, но сейчас просто админ и всё")                                                                                                     | Confirms: today there is one admin actor; a _future_ separate "техподдержка" role is anticipated but not required now — matches UX08-10's "no patient workflow" framing, and directly anticipates this card's chat as the seed of that future role, not a blocker for it |
+| Owner's aggregates model                      | `OWNER_RULINGS_2026-07-15.md:44-72` (§5)                                                                                                                                                                                                                                                                                                                     | Clinics as clients: billing + usage + platform load. This is `PLAT-04` analytics scope (`#800`), explicitly **not** in this wave (`OWNER_RULINGS_2026-07-17.md:29`: "НЕ выбрана: аналитика специалиста (#800)")                                                          |
 
 ### 0.b What the package leaves open that #808 needs decided
 
 - Whether `PLAT-09`'s "support reports and escalation … system/code defects only" phrasing (`TARGET_IA.md:189`)
-  is a scope *narrower* than the owner's literal "чат техподдержки" ask (which reads as general clinic↔platform
+  is a scope _narrower_ than the owner's literal "чат техподдержки" ask (which reads as general clinic↔platform
   support, not defect-report-only). Flagged in §7, not resolved by invention.
 - The actual persistence shape (tables, ownership path) for a thread/message model — no such table exists;
-  `support_conversations` (§1.5) is a *different* actor pair (patient ↔ org "admin"=doctor), not clinic ↔
+  `support_conversations` (§1.5) is a _different_ actor pair (patient ↔ org "admin"=doctor), not clinic ↔
   platform admin.
 - Thread lifecycle (one continuous thread per org vs. ticket-per-topic) — not specified anywhere in the package.
 - Notification/unread wiring for a brand-new topic — the package says "reuse existing notification infra" is a
@@ -99,7 +99,7 @@ any reuse … No global-admin patient-repair destination" (`ROUTE_MIGRATION_MAP.
 Its `layout.tsx` (`apps/webapp/src/app/app/(global-admin)/doctor/system-health/layout.tsx:1-27`) uses the
 `(global-admin)` **route group** (a Next.js parenthesised segment — contributes no URL segment, so the page
 still resolves at `/app/doctor/system-health`), gates with `requireGlobalAdminDoctorPage()`, and renders
-`DoctorWorkspaceShell` with `enableTenantRuntime={false}` — i.e. explicitly *no* organization-tenant runtime
+`DoctorWorkspaceShell` with `enableTenantRuntime={false}` — i.e. explicitly _no_ organization-tenant runtime
 context, because a global operator has no organization membership. Its `page.tsx`
 (`.../system-health/page.tsx:1-14`) re-confirms the guard and renders `DoctorAppShell` + `DoctorPageHeader` +
 one content section (`SystemHealthSection`). `health-archive/page.tsx` and `audit-log/page.tsx` are **still**
@@ -160,7 +160,7 @@ describe the canonical 1:1 chat: `support_conversations` / `support_conversation
 when an organization principal is active, legacy `webapp:platform:{userId}` otherwise
 (`messaging/README.md:4-8`). The "admin" `sender_role` in this schema means **the clinic/doctor side replying to
 a patient** (`doctorSupportMessagingService.ts:17-123`, especially `sendAdminReply` at line 58 — appends a
-message with `senderRole: "admin"` and notifies the *patient*), not a platform operator. Signed integrator
+message with `senderRole: "admin"` and notifies the _patient_), not a platform operator. Signed integrator
 `admin-reply` explicitly does **not** establish an organization principal and rejects org-scoped keys
 (`messaging/README.md:6-8`, `PATIENT_SUPPORT_CHAT_INBOX.md:11-13`) — the entire schema, its ID scheme, its
 Telegram/MAX channel-relay plumbing (`channelCode`/`channelExternalId`/`external_chat_id`) and its RLS/tenant-wall
@@ -209,7 +209,7 @@ per-table tenant isolation today is enforced by RLS policies keyed on the reques
 Final target namespace for platform screens is `/app/platform/**` (`SCREEN_COMPOSITION.md:20-26`, explicitly
 "Target route names are migration candidates, not an authorization source or an implementation commitment" —
 `SCREEN_COMPOSITION.md:6-7`). `#751` Phase 3 already decided, for exactly this reason, to place its new UI at
-`apps/webapp/src/app/app/(global-admin)/doctor/tariffs/**` — interim, IA-*compatible*, not IA-*final*
+`apps/webapp/src/app/app/(global-admin)/doctor/tariffs/**` — interim, IA-_compatible_, not IA-_final_
 (`TARIFFS_PAYMENTS_ADMIN_PLAN.md:271-278`, risk #6 at `:407-411` names the danger explicitly: "if U9 starts in
 parallel, two teams may independently build two different 'platform shells'"). This document's admin-side
 support surface follows the identical interim convention (§4.7) for the identical reason.
@@ -218,15 +218,15 @@ support surface follows the identical interim convention (§4.7) for the identic
 
 ## 2. UX/IA zone mapping for this card
 
-| Zone ID | Candidate route (final, U9) | Interim route (this pass, matching #751) | What this document does with it |
-|---|---|---|---|
-| `PLAT-02` Organizations | `/app/platform/organizations` | reuses `#751`'s `GET /api/admin/organizations` (extend field set, §3) | Baseline "clinics as clients" list — identity + tariff + status; no new endpoint |
-| `PLAT-03` Commercial | `/app/platform/commercial` | `#751` Phase 3, unchanged | Not touched by this document |
-| `PLAT-05` Configuration | `/app/platform/configuration` | existing `admin/app-settings`, `admin/auth`, `admin/integrations`, `admin/technical` (unmoved) | Inventoried only (§1.1); no move performed here — S23 migration itself is U9/#751-Phase-3-adjacent, out of this card's scope |
-| `PLAT-07` Reliability | `/app/platform/reliability` | `system-health` (moved), `health-archive`/`audit-log` (not yet moved) | Inventoried only (§1.1); no move performed here |
-| `PLAT-08` Identity-integrity diagnostics | `/app/platform/identity-integrity` | not built | Explicitly **not** this card (patient merge/name-match retirement, `ROUTE_MIGRATION_MAP.md:65`, is its own future contract) |
-| `PLAT-09` Support reports and escalation | `/app/platform/support/[orgId]` | **new**: `apps/webapp/src/app/app/(global-admin)/doctor/support/[orgId]/page.tsx` | Admin-side support-chat surface (§4.7) |
-| `MGMT-01` Organization overview | `/app/manage` | existing owner/admin landing under `/app/doctor` (today's non-clinical-owner destination) | Clinic-side support entry point, as a widget/action, not a new canonical ID (§4.7) |
+| Zone ID                                  | Candidate route (final, U9)        | Interim route (this pass, matching #751)                                                       | What this document does with it                                                                                              |
+| ---------------------------------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `PLAT-02` Organizations                  | `/app/platform/organizations`      | reuses `#751`'s `GET /api/admin/organizations` (extend field set, §3)                          | Baseline "clinics as clients" list — identity + tariff + status; no new endpoint                                             |
+| `PLAT-03` Commercial                     | `/app/platform/commercial`         | `#751` Phase 3, unchanged                                                                      | Not touched by this document                                                                                                 |
+| `PLAT-05` Configuration                  | `/app/platform/configuration`      | existing `admin/app-settings`, `admin/auth`, `admin/integrations`, `admin/technical` (unmoved) | Inventoried only (§1.1); no move performed here — S23 migration itself is U9/#751-Phase-3-adjacent, out of this card's scope |
+| `PLAT-07` Reliability                    | `/app/platform/reliability`        | `system-health` (moved), `health-archive`/`audit-log` (not yet moved)                          | Inventoried only (§1.1); no move performed here                                                                              |
+| `PLAT-08` Identity-integrity diagnostics | `/app/platform/identity-integrity` | not built                                                                                      | Explicitly **not** this card (patient merge/name-match retirement, `ROUTE_MIGRATION_MAP.md:65`, is its own future contract)  |
+| `PLAT-09` Support reports and escalation | `/app/platform/support/[orgId]`    | **new**: `apps/webapp/src/app/app/(global-admin)/doctor/support/[orgId]/page.tsx`              | Admin-side support-chat surface (§4.7)                                                                                       |
+| `MGMT-01` Organization overview          | `/app/manage`                      | existing owner/admin landing under `/app/doctor` (today's non-clinical-owner destination)      | Clinic-side support entry point, as a widget/action, not a new canonical ID (§4.7)                                           |
 
 No new canonical screen ID is proposed. Every surface maps to an ID already frozen by the audited package.
 
@@ -252,14 +252,14 @@ auth, integrations, technical — §1.1), `PLAT-07`-destined pages (system-healt
    `be_organization_members`) and **one** page
    (`apps/webapp/src/app/app/(global-admin)/doctor/organizations/page.tsx`, same shell pattern as
    `system-health`) that lists them + links into a detail view. Per §0a of `TARIFFS_PAYMENTS_ADMIN_PLAN.md`,
-   the *identity* row already opened for the tariff picker is the correct place to add these fields — not a
+   the _identity_ row already opened for the tariff picker is the correct place to add these fields — not a
    second, independently-guarded endpoint. This satisfies "видеть список клиник … наверное, админ только"
    (`OWNER_RULINGS_2026-07-15.md:141`) directly, without touching `#800` analytics.
 2. **A visible connective thread between the clusters** — today "Настройки" and "Система" are two independent
    accordions with no shared landing. This document does **not** propose restructuring `doctorNavLinks.ts`
    (that restructuring is exactly the S23/S24 "move" work owned by U9/#751-adjacent follow-up, not this card);
    it only adds the two new items (`organizations`, `support`) as siblings inside the existing "Система" cluster
-   (or a renamed cluster, engineering choice, not a new IA decision) so a global admin's *current* single
+   (or a renamed cluster, engineering choice, not a new IA decision) so a global admin's _current_ single
    accordion menu already reads as "Organizations · Support · Health · Archive · Audit log" — coherent without
    a shell rewrite.
 3. **The support chat itself** (§4).
@@ -267,7 +267,7 @@ auth, integrations, technical — §1.1), `PLAT-07`-destined pages (system-healt
 **Explicitly excluded from "хотя бы базово"** (do not build here): full `PLAT-04` analytics/aggregates (`#800`,
 owner-excluded this wave), `PLAT-06` catalog governance (needs an ownership-split gate first, per
 `IMPLEMENTATION_ROADMAP.md`), `PLAT-08` identity-integrity diagnostics (separate, patient-merge-adjacent, needs
-its own reviewed contract per `ROUTE_MIGRATION_MAP.md:65`), any S23/S24 physical route *move* (config/reliability
+its own reviewed contract per `ROUTE_MIGRATION_MAP.md:65`), any S23/S24 physical route _move_ (config/reliability
 pages stay where they are; only two new pages are added), and U9's full shell/nav rebuild.
 
 ---
@@ -275,7 +275,8 @@ pages stay where they are; only two new pages are added), and U9's full shell/na
 ## 4. Support chat design
 
 ### 4.1 Reuse vs. new — verdict: **new, narrow model**; reuse only architecture patterns and the guard/audit/
-notification *primitives*, not the `support_conversations` schema or service.
+
+notification _primitives_, not the `support_conversations` schema or service.
 
 **Why not reuse `support_conversations`:**
 
@@ -286,7 +287,7 @@ notification *primitives*, not the `support_conversations` schema or service.
   existing table to fit would mean either inventing a fake "patient" row per organization (semantically wrong,
   and risks the exact merge/legacy machinery built for patients firing on non-patient rows) or adding a large
   optional-everything branch to an already message-critical, bot-integrated table.
-- **Different tenant-wall shape.** `support_conversations` is *strictly* single-org-scoped per row by design (a
+- **Different tenant-wall shape.** `support_conversations` is _strictly_ single-org-scoped per row by design (a
   patient's conversation with clinic A must never be visible to clinic B — confirmed by the "два изолированных
   диалога" rule, `messaging/README.md:9`). Our admin side needs the **opposite**: one explicit actor (global
   admin) reading **across all organizations**, which `ROLE_CAPABILITY_MATRIX.md:38,73` says must go through "a
@@ -298,7 +299,7 @@ notification *primitives*, not the `support_conversations` schema or service.
   (`channelCode`, `channelExternalId`, `external_chat_id`) that exist purely to support the bot-integrated
   patient-support flow (`integratorSupportBridge.ts`, `relayOutbound`). None of that applies to a clinic-owner ↔
   platform-admin conversation, which is webapp-only in-app for the baseline (§4.6).
-- **What *is* reused:** the architectural *pattern* — one "ensure conversation" idempotent entry point, a
+- **What _is_ reused:** the architectural _pattern_ — one "ensure conversation" idempotent entry point, a
   message table with `sender_role` + `read_at` for unread computation, a thin service layer, a notify-on-reply
   side effect — is proven and directly copyable in shape (not in code) from
   `doctorSupportMessagingService.ts`/`pgSupportCommunication.ts`. The **guard** primitives
@@ -397,7 +398,7 @@ baseline — if the owner wants topic-separated tickets later, that is an additi
   `PLAT-09` interim page and, if placed inside the "Система" nav cluster (§3), on that nav item. No push/email
   escalation to the admin's own account in the baseline (§7 asks whether this is sufficient).
 - **Audit:** every message send and every close/reopen writes one `writeAuditLog` row. Because the admin side
-  acts on a *target* org that is never the admin's own principal (§1.7's gap), this feature is one of the two
+  acts on a _target_ org that is never the admin's own principal (§1.7's gap), this feature is one of the two
   concrete callers (with `#751`) that needs `AuditLogWriteEntry`/`writeAuditLog` extended with an optional
   explicit `organizationId` parameter (falling back to `currentAuditOrganizationId()` when absent, so every
   existing caller is unaffected) — **one** extension, consumed by both features, not two separate audit paths.
@@ -430,7 +431,7 @@ No patient PII channel (this is staff-identity ↔ platform-identity; if staff p
 copy/product-policy question flagged in §7, not something the schema prevents — there is no clinical-object
 reference in this model by design, unlike `support_conversations`). No ticket categorization/SLA/routing
 automation. No email/SMS escalation to either side. No merge with `support_conversations`' unread bell. No
-change to `doctorNavLinks.ts` cluster *names* or to any S22/S23/S24 route *move*.
+change to `doctorNavLinks.ts` cluster _names_ or to any S22/S23/S24 route _move_.
 
 ---
 

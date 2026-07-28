@@ -1,7 +1,12 @@
-import Link from "next/link";
-import { ArrowRight } from "lucide-react";
-import { landingBodySecondary, landingContainer, landingCtaPrimary, landingH2 } from "@/components/landing/landingTypography";
-import { cn } from "@/lib/utils";
+import Link from 'next/link';
+import { ArrowRight } from 'lucide-react';
+import {
+  landingBodySecondary,
+  landingContainer,
+  landingCtaPrimary,
+  landingH2,
+} from '@/components/landing/landingTypography';
+import { cn } from '@/lib/utils';
 
 export function PricingTeaserSection() {
   return (
@@ -12,8 +17,8 @@ export function PricingTeaserSection() {
             <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#406CA7] sm:text-[0.8125rem]">
               Тарифы
             </p>
-            <h2 className={cn(landingH2, "mt-2")}>Условия запуска — перед релизом</h2>
-            <p className={cn(landingBodySecondary, "mt-3")}>
+            <h2 className={cn(landingH2, 'mt-2')}>Условия запуска — перед релизом</h2>
+            <p className={cn(landingBodySecondary, 'mt-3')}>
               Мы опубликуем тарифы и состав пакетов отдельно. Сейчас можно создать кабинет
               специалиста или запросить демо для клиники.
             </p>

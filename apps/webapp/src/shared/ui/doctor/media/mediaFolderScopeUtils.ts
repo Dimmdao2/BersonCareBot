@@ -1,4 +1,4 @@
-import type { MediaFolderRecord } from "@/modules/media/types";
+import type { MediaFolderRecord } from '@/modules/media/types';
 
 /** Цепочка «Корень» → … → папка для хлебных кроек и навигации. */
 export function buildCrumbsForMediaFolder(
@@ -6,7 +6,7 @@ export function buildCrumbsForMediaFolder(
   folderId: string | null,
 ): { id: string | null; label: string }[] {
   if (folderId === null) {
-    return [{ id: null, label: "Корень" }];
+    return [{ id: null, label: 'Корень' }];
   }
   const byId = new Map(flat.map((f) => [f.id, f]));
   const chain: MediaFolderRecord[] = [];
@@ -17,7 +17,7 @@ export function buildCrumbsForMediaFolder(
     chain.unshift(cur);
     cur = cur.parentId ? byId.get(cur.parentId) : undefined;
   }
-  return [{ id: null, label: "Корень" }, ...chain.map((f) => ({ id: f.id, label: f.name }))];
+  return [{ id: null, label: 'Корень' }, ...chain.map((f) => ({ id: f.id, label: f.name }))];
 }
 
 /** Полный путь «родитель / … / имя» для плоского списка папок. */
@@ -31,7 +31,7 @@ export function mediaFolderPathLabel(folder: MediaFolderRecord, all: MediaFolder
     parts.unshift(cur.name);
     cur = cur.parentId ? byId.get(cur.parentId) : undefined;
   }
-  return parts.join(" / ");
+  return parts.join(' / ');
 }
 
 export function sortMediaFoldersByPathRu(folders: MediaFolderRecord[]): MediaFolderRecord[] {
@@ -39,6 +39,6 @@ export function sortMediaFoldersByPathRu(folders: MediaFolderRecord[]): MediaFol
   return folders.slice().sort((a, b) => {
     const pa = mediaFolderPathLabel(a, folders);
     const pb = mediaFolderPathLabel(b, folders);
-    return pa.localeCompare(pb, "ru");
+    return pa.localeCompare(pb, 'ru');
   });
 }

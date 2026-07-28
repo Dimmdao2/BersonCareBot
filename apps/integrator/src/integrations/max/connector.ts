@@ -18,7 +18,9 @@ export function maxIncomingToEvent(input: {
   const dedupFingerprint =
     input.incoming.kind === 'callback' && input.incoming.callbackQueryId
       ? { callbackId: input.incoming.callbackQueryId }
-      : (typeof input.updateId === 'number' ? { updateId: input.updateId } : undefined);
+      : typeof input.updateId === 'number'
+        ? { updateId: input.updateId }
+        : undefined;
   return {
     type: input.incoming.kind === 'callback' ? 'callback.received' : 'message.received',
     meta: {

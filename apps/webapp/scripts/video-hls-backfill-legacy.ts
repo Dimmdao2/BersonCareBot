@@ -11,9 +11,9 @@
  *
  * Ops: enable `video_hls_pipeline_enabled` before --commit, or use dry-run to inspect counts.
  */
-import "dotenv/config";
-import { readFile, writeFile } from "node:fs/promises";
-import process from "node:process";
+import 'dotenv/config';
+import { readFile, writeFile } from 'node:fs/promises';
+import process from 'node:process';
 
 const MAX_MEDIA_BYTES = 3 * 1024 * 1024 * 1024;
 
@@ -45,9 +45,9 @@ function strArg(prefix: string): string | null {
 
 async function loadState(path: string): Promise<string | null> {
   try {
-    const raw = await readFile(path, "utf8");
+    const raw = await readFile(path, 'utf8');
     const j = JSON.parse(raw) as StateV1;
-    if (j?.version === 1 && (j.lastMediaId === null || typeof j.lastMediaId === "string")) {
+    if (j?.version === 1 && (j.lastMediaId === null || typeof j.lastMediaId === 'string')) {
       return j.lastMediaId;
     }
   } catch {
@@ -62,11 +62,11 @@ async function saveState(path: string, lastMediaId: string | null): Promise<void
     lastMediaId,
     updatedAt: new Date().toISOString(),
   };
-  await writeFile(path, `${JSON.stringify(body, null, 2)}\n`, "utf8");
+  await writeFile(path, `${JSON.stringify(body, null, 2)}\n`, 'utf8');
 }
 
 function parseCutoff(): Date | null {
-  const iso = strArg("--cutoff");
+  const iso = strArg('--cutoff');
   if (!iso) return null;
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? null : d;
@@ -93,60 +93,62 @@ function mainPrintHelp(): void {
 
 async function main(): Promise<void> {
   if (!process.env.SESSION_COOKIE_SECRET?.trim()) {
-    process.env.SESSION_COOKIE_SECRET = "cli-video-hls-backfill-local-only-not-prod";
+    process.env.SESSION_COOKIE_SECRET = 'cli-video-hls-backfill-local-only-not-prod';
   }
 
-  if (has("-h") || has("--help")) {
+  if (has('-h') || has('--help')) {
     mainPrintHelp();
     return;
   }
 
   if (!process.env.DATABASE_URL?.trim()) {
-    console.error("DATABASE_URL is not set");
+    console.error('DATABASE_URL is not set');
     process.exitCode = 1;
     return;
   }
 
-  const [{ runVideoHlsLegacyBackfill, clampBackfillBatchSize, clampBackfillSleepMs }, { getConfigBool }] =
-    await Promise.all([
-      import("../src/app-layer/media/videoHlsLegacyBackfill.js"),
-      import("../src/modules/system-settings/configAdapter.js"),
-    ]);
+  const [
+    { runVideoHlsLegacyBackfill, clampBackfillBatchSize, clampBackfillSleepMs },
+    { getConfigBool },
+  ] = await Promise.all([
+    import('../src/app-layer/media/videoHlsLegacyBackfill.js'),
+    import('../src/modules/system-settings/configAdapter.js'),
+  ]);
 
-  const dryRun = !has("--commit");
-  const statePath = strArg("--state-file");
+  const dryRun = !has('--commit');
+  const statePath = strArg('--state-file');
   let cursorFromState: string | null = null;
-  if (statePath && has("--reset-state")) {
+  if (statePath && has('--reset-state')) {
     await saveState(statePath, null);
     console.log(`[state] reset ${statePath}`);
   } else if (statePath) {
     cursorFromState = await loadState(statePath);
   }
 
-  const cursorArg = strArg("--cursor");
+  const cursorArg = strArg('--cursor');
   const cursorAfterMediaId = cursorArg ?? cursorFromState;
 
-  const limit = numArg("--limit", 0);
-  const batchSize = clampBackfillBatchSize(numArg("--batch-size", 50));
-  const sleepMs = clampBackfillSleepMs(numArg("--sleep-ms", 2000));
+  const limit = numArg('--limit', 0);
+  const batchSize = clampBackfillBatchSize(numArg('--batch-size', 50));
+  const sleepMs = clampBackfillSleepMs(numArg('--sleep-ms', 2000));
   const maxSizeBytes = Math.min(
-    Math.max(1, Math.floor(numArg("--max-size-bytes", MAX_MEDIA_BYTES))),
+    Math.max(1, Math.floor(numArg('--max-size-bytes', MAX_MEDIA_BYTES))),
     MAX_MEDIA_BYTES,
   );
   const defaultRunCap = Math.min(
-    Math.max(1, Math.floor(numArg("--default-run-cap", 10_000))),
+    Math.max(1, Math.floor(numArg('--default-run-cap', 10_000))),
     1_000_000,
   );
 
-  const pipelineOn = await getConfigBool("video_hls_pipeline_enabled", false);
+  const pipelineOn = await getConfigBool('video_hls_pipeline_enabled', false);
   if (!pipelineOn && dryRun) {
     console.warn(
-      "[warn] video_hls_pipeline_enabled is false — dry-run still lists candidates; worker will idle until enabled.",
+      '[warn] video_hls_pipeline_enabled is false — dry-run still lists candidates; worker will idle until enabled.',
     );
   }
 
   if (dryRun) {
-    console.log("[DRY-RUN] No enqueue. Pass --commit to enqueue jobs.");
+    console.log('[DRY-RUN] No enqueue. Pass --commit to enqueue jobs.');
   }
 
   const report = await runVideoHlsLegacyBackfill(
@@ -157,9 +159,9 @@ async function main(): Promise<void> {
       sleepMsBetweenBatches: sleepMs,
       cursorAfterMediaId,
       cutoffCreatedBefore: parseCutoff(),
-      includeFailed: has("--include-failed"),
+      includeFailed: has('--include-failed'),
       maxSizeBytes,
-      requirePipelineEnabled: !has("--no-require-pipeline"),
+      requirePipelineEnabled: !has('--no-require-pipeline'),
       defaultRunCap,
     },
     {},
@@ -183,11 +185,11 @@ async function main(): Promise<void> {
 }
 
 let shuttingDown = false;
-process.on("SIGINT", () => {
+process.on('SIGINT', () => {
   if (shuttingDown) return;
   shuttingDown = true;
   console.error(
-    "\n[interrupt] stopping — if --state-file was used with --commit, last checkpoint was written after each batch.",
+    '\n[interrupt] stopping — if --state-file was used with --commit, last checkpoint was written after each batch.',
   );
   process.exit(130);
 });

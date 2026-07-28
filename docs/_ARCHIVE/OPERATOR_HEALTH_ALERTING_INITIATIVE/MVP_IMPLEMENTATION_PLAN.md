@@ -20,8 +20,8 @@
 
 1. **Dedup key:** `direction:integration:error_class` (без `recordId`).
 2. **GCal сбой:** `direction = outbound`, `integration = google_calendar`.
-3. **Оба GCal entrypoint под хук инцидентов:**  
-   - [postCreateProjection.ts](../../apps/integrator/src/integrations/rubitime/postCreateProjection.ts)  
+3. **Оба GCal entrypoint под хук инцидентов:**
+   - [postCreateProjection.ts](../../apps/integrator/src/integrations/rubitime/postCreateProjection.ts)
    - [webhook.ts](../../apps/integrator/src/integrations/rubitime/webhook.ts)
 4. **Таблица:** `public.operator_incidents`.
 5. **Пробы:** только MAX + Rubitime.
@@ -368,14 +368,14 @@
 
 ## 8. Риски и смягчение
 
-| Риск | Смягчение |
-|------|-----------|
-| Rubitime throttle конфликтует с пиком записи | запуск пробы в тихом окне + уважать `withRubitimeApiThrottle` |
-| MAX отключён/не настроен | `skipped_not_configured`, без открытия инцидента |
-| Рост таблицы | для MVP без retention; post-MVP добавить архив/TTL |
-| Секрет случайно не проверяется в endpoint | обязательный negative-test без секрета |
-| Лишняя нагрузка от очистки бэкапов | prune 1 раз/сутки в тихое окно, без постоянного daemon |
-| Потеря точки отката pre-migrations | политика "30d + минимум top-20 newest", а не только age-based delete |
+| Риск                                         | Смягчение                                                                                                                              |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Rubitime throttle конфликтует с пиком записи | запуск пробы в тихом окне + уважать `withRubitimeApiThrottle`                                                                          |
+| MAX отключён/не настроен                     | `skipped_not_configured`, без открытия инцидента                                                                                       |
+| Рост таблицы                                 | для MVP без retention; post-MVP добавить архив/TTL                                                                                     |
+| Секрет случайно не проверяется в endpoint    | обязательный negative-test без секрета                                                                                                 |
+| Лишняя нагрузка от очистки бэкапов           | prune 1 раз/сутки в тихое окно, без постоянного daemon                                                                                 |
+| Потеря точки отката pre-migrations           | политика "30d + минимум top-20 newest", а не только age-based delete                                                                   |
 | Сбой `dispatchOutgoing` при первом TG-алерте | `alert_sent_at` остаётся null; повтор того же dedup_key даёт `occurrence_count > 1` и **не** ретраит TG в MVP (осознанное ограничение) |
 
 ---

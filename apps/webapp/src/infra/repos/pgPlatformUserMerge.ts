@@ -6,6 +6,10 @@ export type {
   MergePlatformUsersReason,
   PickMergeTargetCandidate,
   VerifiedDistinctIntegratorUserIds,
-} from "@bersoncare/platform-merge";
+} from '@bersoncare/platform-merge';
 
-export { mergePlatformUsersInTransaction, pickMergeTargetId, enrichPickMergeCandidatesWithBookingCounts } from "@bersoncare/platform-merge";
+export {
+  mergePlatformUsersInTransaction,
+  pickMergeTargetId,
+  enrichPickMergeCandidatesWithBookingCounts,
+} from '@bersoncare/platform-merge';

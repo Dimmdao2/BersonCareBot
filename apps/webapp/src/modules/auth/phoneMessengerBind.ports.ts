@@ -1,14 +1,14 @@
-import type { PoolClient } from "pg";
+import type { PoolClient } from 'pg';
 
-export type PhoneMessengerBindPurpose = "login" | "profile_bind";
-export type PhoneMessengerBindChannel = "telegram" | "max";
+export type PhoneMessengerBindPurpose = 'login' | 'profile_bind';
+export type PhoneMessengerBindChannel = 'telegram' | 'max';
 
 export type PhoneMessengerBindStatus =
-  | "pending_contact"
-  | "otp_ready"
-  | "failed"
-  | "consumed"
-  | "expired";
+  | 'pending_contact'
+  | 'otp_ready'
+  | 'failed'
+  | 'consumed'
+  | 'expired';
 
 export type PhoneMessengerBindSecretRow = {
   id: string;

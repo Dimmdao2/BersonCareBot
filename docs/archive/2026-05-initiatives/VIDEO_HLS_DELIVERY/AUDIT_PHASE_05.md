@@ -18,14 +18,14 @@
 
 ### Проверено в коде
 
-| Сценарий | Поведение | Статус |
-|----------|-----------|--------|
-| **Safari / iOS (native HLS)** | `shouldUseNativeHls()` → `true` → `attachNativeHls`: `video.src = masterUrl`, poster опционально | OK |
-| **Chrome (и прочие без native HLS)** | `shouldUseNativeHls()` → `false` → lazy `import("hls.js")`, `Hls.isSupported()` → `loadSource` + `attachMedia` | OK |
-| **hls.js не поддерживается** | `attachProgressive` на `mp4.url` (`/api/media/{id}`) без автофлага fallback — прямой MP4 | OK |
-| **MP4-only (флаг выкл / нет сессии / resolve не ok)** | `initialPlayback === null` → `LegacyInlineVideo`: `<source src={mp4Url}>` к тому же `/api/media/...`, что и до phase-05 | OK |
-| **Сервер отдаёт `delivery: mp4`** | начальный `sourceKind === "mp4"` → только `attachProgressive` | OK |
-| **Внешний URL видео (не `/api/media/uuid`)** | `apiMediaId` не матчится → `patientPlaybackInitial` остаётся `null` → legacy progressive по полному URL | OK |
+| Сценарий                                              | Поведение                                                                                                               | Статус |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------ |
+| **Safari / iOS (native HLS)**                         | `shouldUseNativeHls()` → `true` → `attachNativeHls`: `video.src = masterUrl`, poster опционально                        | OK     |
+| **Chrome (и прочие без native HLS)**                  | `shouldUseNativeHls()` → `false` → lazy `import("hls.js")`, `Hls.isSupported()` → `loadSource` + `attachMedia`          | OK     |
+| **hls.js не поддерживается**                          | `attachProgressive` на `mp4.url` (`/api/media/{id}`) без автофлага fallback — прямой MP4                                | OK     |
+| **MP4-only (флаг выкл / нет сессии / resolve не ok)** | `initialPlayback === null` → `LegacyInlineVideo`: `<source src={mp4Url}>` к тому же `/api/media/...`, что и до phase-05 | OK     |
+| **Сервер отдаёт `delivery: mp4`**                     | начальный `sourceKind === "mp4"` → только `attachProgressive`                                                           | OK     |
+| **Внешний URL видео (не `/api/media/uuid`)**          | `apiMediaId` не матчится → `patientPlaybackInitial` остаётся `null` → legacy progressive по полному URL                 | OK     |
 
 ### Оговорка
 
@@ -84,12 +84,12 @@
 
 ### Critical
 
-- **Нет.**  
+- **Нет.**
 - **Статус:** **CLOSED (N/A)** — 2026-05-03.
 
 ### Major
 
-- **Ручной smoke HLS в браузере** (приёмка на окружении с реальным плеером).  
+- **Ручной smoke HLS в браузере** (приёмка на окружении с реальным плеером).
 - **Статус:** **CLOSED (репозиторий)** — 2026-05-03: добавлен **`docs/archive/2026-05-initiatives/VIDEO_HLS_DELIVERY/BROWSER_SMOKE_PHASE05_CHECKLIST.md`**; исполнитель заполняет таблицу Pass/Fail без presigned URL. На окружении агента: целевые тесты phase-05 + **`pnpm run ci`**.
 
 ### Minor
@@ -107,11 +107,11 @@
 
 ## Закрытие аудита (матрица запроса)
 
-| Пункт | Статус |
-|-------|--------|
-| 1 HLS/Chrome/Safari + MP4-only | OK по коду + чеклист браузера |
-| 2 Fallback при ошибке HLS | OK (+ unit на выбор режима источника) |
-| 3 Нет утечки hls (destroy) | OK по коду |
-| 4 UI patient не регрессирует | OK; legacy loading — Minor delta (defer) |
+| Пункт                          | Статус                                   |
+| ------------------------------ | ---------------------------------------- |
+| 1 HLS/Chrome/Safari + MP4-only | OK по коду + чеклист браузера            |
+| 2 Fallback при ошибке HLS      | OK (+ unit на выбор режима источника)    |
+| 3 Нет утечки hls (destroy)     | OK по коду                               |
+| 4 UI patient не регрессирует   | OK; legacy loading — Minor delta (defer) |
 
 **Подпись:** FIX 2026-05-03; Major закрыт документом приёмки + CI; live Safari/Chrome — строки в `BROWSER_SMOKE_PHASE05_CHECKLIST.md`.

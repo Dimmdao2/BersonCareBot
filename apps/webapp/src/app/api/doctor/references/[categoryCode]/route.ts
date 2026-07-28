@@ -1,8 +1,8 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 
 const bodySchema = z.object({
   title: z.string().trim().min(1).max(200),
@@ -14,14 +14,14 @@ function makeDoctorItemCode(): string {
 
 export async function GET(
   _request: Request,
-  context: { params: Promise<{ categoryCode: string }> }
+  context: { params: Promise<{ categoryCode: string }> },
 ) {
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
 
   const { categoryCode } = await context.params;
   if (!categoryCode?.trim()) {
-    return NextResponse.json({ ok: false, error: "category_required" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'category_required' }, { status: 400 });
   }
 
   const code = categoryCode.trim();
@@ -33,7 +33,7 @@ export async function GET(
     return { cat, items };
   });
   if (!result) {
-    return NextResponse.json({ ok: false, error: "category_not_found" }, { status: 404 });
+    return NextResponse.json({ ok: false, error: 'category_not_found' }, { status: 404 });
   }
 
   return NextResponse.json({
@@ -50,50 +50,50 @@ export async function GET(
 /** Врач добавляет значение только в категорию с is_user_extensible (POST). */
 export async function POST(
   request: Request,
-  context: { params: Promise<{ categoryCode: string }> }
+  context: { params: Promise<{ categoryCode: string }> },
 ) {
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
 
   const { categoryCode } = await context.params;
   if (!categoryCode?.trim()) {
-    return NextResponse.json({ ok: false, error: "category_required" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'category_required' }, { status: 400 });
   }
 
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
 
   const deps = buildAppDeps();
   try {
     const result = await withDoctorWorkspacePrincipal(gate.ctx, async () => {
       const cat = await deps.references.findCategoryByCode(categoryCode.trim());
-      if (!cat) return { kind: "not_found" } as const;
-      if (!cat.isUserExtensible) return { kind: "not_extensible" } as const;
+      if (!cat) return { kind: 'not_found' } as const;
+      if (!cat.isUserExtensible) return { kind: 'not_extensible' } as const;
       const item = await deps.references.insertItem({
         categoryCode: cat.code,
         code: makeDoctorItemCode(),
         title: parsed.data.title,
       });
-      return { kind: "inserted", item } as const;
+      return { kind: 'inserted', item } as const;
     });
-    if (result.kind === "not_found") {
-      return NextResponse.json({ ok: false, error: "category_not_found" }, { status: 404 });
+    if (result.kind === 'not_found') {
+      return NextResponse.json({ ok: false, error: 'category_not_found' }, { status: 404 });
     }
-    if (result.kind === "not_extensible") {
-      return NextResponse.json({ ok: false, error: "category_not_extensible" }, { status: 403 });
+    if (result.kind === 'not_extensible') {
+      return NextResponse.json({ ok: false, error: 'category_not_extensible' }, { status: 403 });
     }
     return NextResponse.json({
       ok: true,
       item: { id: result.item.id, code: result.item.code, title: result.item.title },
     });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "insert_failed";
-    if (msg === "category_not_extensible") {
-      return NextResponse.json({ ok: false, error: "category_not_extensible" }, { status: 403 });
+    const msg = e instanceof Error ? e.message : 'insert_failed';
+    if (msg === 'category_not_extensible') {
+      return NextResponse.json({ ok: false, error: 'category_not_extensible' }, { status: 403 });
     }
-    return NextResponse.json({ ok: false, error: "insert_failed" }, { status: 500 });
+    return NextResponse.json({ ok: false, error: 'insert_failed' }, { status: 500 });
   }
 }

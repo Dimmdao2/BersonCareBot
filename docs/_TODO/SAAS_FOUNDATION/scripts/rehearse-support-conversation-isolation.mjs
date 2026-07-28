@@ -1,46 +1,46 @@
 #!/usr/bin/env node
 /** Disposable PostgreSQL 16 + FORCE-RLS proof; never opens dev/test/prod. */
-import { spawnSync } from "node:child_process";
-import { randomBytes } from "node:crypto";
-import { readFileSync, rmSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { spawnSync } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
+import { readFileSync, rmSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(here, "..", "..", "..", "..");
-const pgBin = "/usr/lib/postgresql/16/bin";
-const stamp = `${process.pid}_${randomBytes(4).toString("hex")}`;
+const repoRoot = path.resolve(here, '..', '..', '..', '..');
+const pgBin = '/usr/lib/postgresql/16/bin';
+const stamp = `${process.pid}_${randomBytes(4).toString('hex')}`;
 const root = `/tmp/bcb_support_conversation_scratch_${stamp}`;
-const data = path.join(root, "data");
-const socket = path.join(root, "socket");
+const data = path.join(root, 'data');
+const socket = path.join(root, 'socket');
 const port = String(56432 + (process.pid % 700));
 let started = false;
 
 function run(command, args, input) {
   const result = spawnSync(command, args, {
     cwd: repoRoot,
-    encoding: "utf8",
-    env: { ...process.env, PGHOST: socket, PGPORT: port, PGUSER: "postgres" },
+    encoding: 'utf8',
+    env: { ...process.env, PGHOST: socket, PGPORT: port, PGUSER: 'postgres' },
     input,
-    stdio: input === undefined ? "inherit" : ["pipe", "pipe", "pipe"],
+    stdio: input === undefined ? 'inherit' : ['pipe', 'pipe', 'pipe'],
   });
   if (result.status !== 0) {
     if (result.stdout) process.stdout.write(result.stdout);
     if (result.stderr) process.stderr.write(result.stderr);
-    throw new Error(`${command} failed with status ${result.status ?? "unknown"}`);
+    throw new Error(`${command} failed with status ${result.status ?? 'unknown'}`);
   }
   if (result.stdout) process.stdout.write(result.stdout);
 }
 
 function assertRepositoryContract() {
   const source = readFileSync(
-    path.join(repoRoot, "apps/webapp/src/infra/repos/pgSupportCommunication.ts"),
-    "utf8",
+    path.join(repoRoot, 'apps/webapp/src/infra/repos/pgSupportCommunication.ts'),
+    'utf8',
   );
   for (const fragment of [
-    "webappOrganizationConversationId(principalOrganizationId, platformUserId)",
-    "WHERE organization_id = $1::uuid",
-    "if (getCurrentDbPrincipalOrganizationId())",
+    'webappOrganizationConversationId(principalOrganizationId, platformUserId)',
+    'WHERE organization_id = $1::uuid',
+    'if (getCurrentDbPrincipalOrganizationId())',
   ]) {
     if (!source.includes(fragment)) throw new Error(`repository contract missing: ${fragment}`);
   }
@@ -149,14 +149,23 @@ SELECT 'PASS: FORCE-RLS shared-patient support isolation' AS result;
 
 try {
   assertRepositoryContract();
-  run("mkdir", ["-p", root, socket]);
-  run(path.join(pgBin, "initdb"), ["-D", data, "-A", "trust", "-U", "postgres", "--no-locale"]);
-  run(path.join(pgBin, "pg_ctl"), ["-D", data, "-o", `-k ${socket} -p ${port} -h ''`, "-w", "start"]);
+  run('mkdir', ['-p', root, socket]);
+  run(path.join(pgBin, 'initdb'), ['-D', data, '-A', 'trust', '-U', 'postgres', '--no-locale']);
+  run(path.join(pgBin, 'pg_ctl'), [
+    '-D',
+    data,
+    '-o',
+    `-k ${socket} -p ${port} -h ''`,
+    '-w',
+    'start',
+  ]);
   started = true;
-  run(path.join(pgBin, "psql"), ["-d", "postgres", "-X"], sql);
+  run(path.join(pgBin, 'psql'), ['-d', 'postgres', '-X'], sql);
 } finally {
   if (started) {
-    spawnSync(path.join(pgBin, "pg_ctl"), ["-D", data, "-m", "immediate", "-w", "stop"], { stdio: "inherit" });
+    spawnSync(path.join(pgBin, 'pg_ctl'), ['-D', data, '-m', 'immediate', '-w', 'stop'], {
+      stdio: 'inherit',
+    });
   }
   rmSync(root, { recursive: true, force: true });
 }

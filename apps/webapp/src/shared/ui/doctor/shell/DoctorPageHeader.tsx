@@ -1,13 +1,13 @@
-"use client";
+'use client';
 
-import { useRef, type ReactNode } from "react";
-import { cn } from "@/lib/utils";
-import { doctorPageTitleClass } from "@/shared/ui/doctor/doctorVisual";
+import { useRef, type ReactNode } from 'react';
+import { cn } from '@/lib/utils';
+import { doctorPageTitleClass } from '@/shared/ui/doctor/doctorVisual';
 import {
   DOCTOR_PAGE_HEADER_HEIGHT_VAR,
   DOCTOR_PAGE_HEADER_STICKY_TOP_CLASS,
-} from "@/shared/ui/doctor/doctorWorkspaceLayout";
-import { useReportShellChromeHeight } from "@/shared/hooks/useReportShellChromeHeight";
+} from '@/shared/ui/doctor/doctorWorkspaceLayout';
+import { useReportShellChromeHeight } from '@/shared/hooks/useReportShellChromeHeight';
 
 export type DoctorPageHeaderProps = {
   /** Заголовок страницы (слева). Строка приводится к роли page-title (`text-base`). */
@@ -64,18 +64,14 @@ export function DoctorPageHeader({
       id={id}
       data-doctor-page-header=""
       className={cn(
-        "sticky z-30 -mx-3 -mt-3 flex flex-col bg-[var(--doctor-page-header-background,#fff)]",
+        'sticky z-30 -mx-3 -mt-3 flex flex-col bg-[var(--doctor-page-header-background,#fff)]',
         DOCTOR_PAGE_HEADER_STICKY_TOP_CLASS,
         className,
       )}
     >
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b border-border/70 px-[var(--doctor-block-padding,18px)] py-2">
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          {typeof title === "string" ? (
-            <h1 className={doctorPageTitleClass}>{title}</h1>
-          ) : (
-            title
-          )}
+          {typeof title === 'string' ? <h1 className={doctorPageTitleClass}>{title}</h1> : title}
           {subtitle ? <p className="text-xs text-muted-foreground">{subtitle}</p> : null}
         </div>
         {info || tabs ? (
@@ -84,7 +80,7 @@ export function DoctorPageHeader({
             {tabs ? (
               <div
                 data-doctor-page-header-tabs=""
-                className={cn("flex min-w-0 items-center", tabsClassName)}
+                className={cn('flex min-w-0 items-center', tabsClassName)}
               >
                 {tabs}
               </div>

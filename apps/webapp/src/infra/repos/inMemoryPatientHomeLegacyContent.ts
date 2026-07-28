@@ -1,10 +1,10 @@
-import { quoteDayKeyUtc, quoteIndexForDaySeed } from "@/modules/patient-home/patientHomeQuoteUtils";
+import { quoteDayKeyUtc, quoteIndexForDaySeed } from '@/modules/patient-home/patientHomeQuoteUtils';
 import type {
   HomeQuote,
   PatientHomeBanner,
   PatientHomeLegacyContentPort,
   PatientHomeMailingRow,
-} from "@/modules/patient-home/patientHomeLegacyContentPort";
+} from '@/modules/patient-home/patientHomeLegacyContentPort';
 
 export type InMemoryPatientHomeLegacyQuote = {
   id: string;

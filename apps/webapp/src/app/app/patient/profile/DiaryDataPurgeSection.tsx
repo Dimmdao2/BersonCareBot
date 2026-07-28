@@ -1,14 +1,14 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import toast from "react-hot-toast";
-import { useRouter } from "next/navigation";
-import { Button } from "@/shared/ui/patient/primitives/button";
-import { Switch } from "@/shared/ui/patient/primitives/switch";
-import { Label } from "@/shared/ui/patient/primitives/label";
-import { SmsCodeForm } from "@/shared/ui/patient/auth/SmsCodeForm";
-import { cn } from "@/lib/utils";
-import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
+import { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
+import { useRouter } from 'next/navigation';
+import { Button } from '@/shared/ui/patient/primitives/button';
+import { Switch } from '@/shared/ui/patient/primitives/switch';
+import { Label } from '@/shared/ui/patient/primitives/label';
+import { SmsCodeForm } from '@/shared/ui/patient/auth/SmsCodeForm';
+import { cn } from '@/lib/utils';
+import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 
 type Props = {
   phoneMasked: string | null;
@@ -19,20 +19,20 @@ type Props = {
  */
 export function DiaryDataPurgeSection({ phoneMasked }: Props) {
   const router = useRouter();
-  const [step, setStep] = useState<"intro" | "otp">("intro");
+  const [step, setStep] = useState<'intro' | 'otp'>('intro');
   const [accepted, setAccepted] = useState(false);
   const [challengeId, setChallengeId] = useState<string | null>(null);
   const [retryAfterSeconds, setRetryAfterSeconds] = useState(60);
   const [otpLoading, setOtpLoading] = useState(false);
 
   useEffect(() => {
-    if (step !== "otp" || challengeId || otpLoading) return;
+    if (step !== 'otp' || challengeId || otpLoading) return;
     setOtpLoading(true);
     void (async () => {
       try {
-        const res = await fetch("/api/patient/diary/purge-otp/start", {
-          method: "POST",
-          credentials: "include",
+        const res = await fetch('/api/patient/diary/purge-otp/start', {
+          method: 'POST',
+          credentials: 'include',
         });
         const data = (await res.json().catch(() => ({}))) as {
           ok?: boolean;
@@ -45,12 +45,12 @@ export function DiaryDataPurgeSection({ phoneMasked }: Props) {
           setChallengeId(data.challengeId);
           setRetryAfterSeconds(data.retryAfterSeconds ?? 60);
         } else {
-          toast.error(data.message ?? "Не удалось отправить код");
-          setStep("intro");
+          toast.error(data.message ?? 'Не удалось отправить код');
+          setStep('intro');
         }
       } catch {
-        toast.error("Сеть недоступна");
-        setStep("intro");
+        toast.error('Сеть недоступна');
+        setStep('intro');
       } finally {
         setOtpLoading(false);
       }
@@ -59,7 +59,7 @@ export function DiaryDataPurgeSection({ phoneMasked }: Props) {
 
   if (!phoneMasked) {
     return (
-      <div className={cn(patientMutedTextClass, "flex flex-col gap-2")}>
+      <div className={cn(patientMutedTextClass, 'flex flex-col gap-2')}>
         <p>Чтобы подтвердить удаление по телефону, привяжите номер в профиле.</p>
       </div>
     );
@@ -67,10 +67,11 @@ export function DiaryDataPurgeSection({ phoneMasked }: Props) {
 
   return (
     <div className="flex flex-col gap-4">
-      {step === "intro" ? (
+      {step === 'intro' ? (
         <>
           <p className={patientMutedTextClass}>
-            Будут удалены все отслеживания симптомов, записи и данные ЛФК. Профиль и карта клиента у врача сохранятся.
+            Будут удалены все отслеживания симптомов, записи и данные ЛФК. Профиль и карта клиента у
+            врача сохранятся.
           </p>
           <div className="flex items-start gap-3 text-sm">
             <Switch
@@ -79,7 +80,10 @@ export function DiaryDataPurgeSection({ phoneMasked }: Props) {
               onCheckedChange={setAccepted}
               aria-label="Согласие: операцию удаления данных дневников нельзя отменить"
             />
-            <Label htmlFor="diary-purge-consent" className="cursor-pointer leading-snug font-normal">
+            <Label
+              htmlFor="diary-purge-consent"
+              className="cursor-pointer leading-snug font-normal"
+            >
               Я понимаю, что эту операцию нельзя отменить.
             </Label>
           </div>
@@ -88,14 +92,14 @@ export function DiaryDataPurgeSection({ phoneMasked }: Props) {
             variant="destructive"
             className="w-full"
             disabled={!accepted}
-            onClick={() => setStep("otp")}
+            onClick={() => setStep('otp')}
           >
             Удалить данные дневников
           </Button>
         </>
       ) : null}
 
-      {step === "otp" ? (
+      {step === 'otp' ? (
         <div className="flex flex-col gap-3">
           <p className={patientMutedTextClass}>
             Код отправлен на номер {phoneMasked}. Введите его для финального подтверждения.
@@ -109,31 +113,35 @@ export function DiaryDataPurgeSection({ phoneMasked }: Props) {
               description="Введите код из SMS."
               submitLabel="Удалить данные"
               onConfirm={async (code) => {
-                const res = await fetch("/api/patient/diary/purge", {
-                  method: "POST",
-                  headers: { "content-type": "application/json" },
-                  credentials: "include",
+                const res = await fetch('/api/patient/diary/purge', {
+                  method: 'POST',
+                  headers: { 'content-type': 'application/json' },
+                  credentials: 'include',
                   body: JSON.stringify({ challengeId, code }),
                 });
-                const data = (await res.json().catch(() => ({}))) as { ok?: boolean; message?: string; error?: string };
+                const data = (await res.json().catch(() => ({}))) as {
+                  ok?: boolean;
+                  message?: string;
+                  error?: string;
+                };
                 if (!res.ok) {
                   return {
                     ok: false as const,
-                    message: data.message ?? "Не удалось подтвердить",
+                    message: data.message ?? 'Не удалось подтвердить',
                     code: data.error,
                   };
                 }
-                toast.success("Данные дневников удалены");
+                toast.success('Данные дневников удалены');
                 router.refresh();
-                setStep("intro");
+                setStep('intro');
                 setAccepted(false);
                 setChallengeId(null);
                 return { ok: true as const };
               }}
               onResend={async () => {
-                const res = await fetch("/api/patient/diary/purge-otp/start", {
-                  method: "POST",
-                  credentials: "include",
+                const res = await fetch('/api/patient/diary/purge-otp/start', {
+                  method: 'POST',
+                  credentials: 'include',
                 });
                 const data = (await res.json().catch(() => ({}))) as {
                   ok?: boolean;
@@ -143,18 +151,18 @@ export function DiaryDataPurgeSection({ phoneMasked }: Props) {
                 if (res.ok && data.ok && data.challengeId) {
                   setChallengeId(data.challengeId);
                   setRetryAfterSeconds(data.retryAfterSeconds ?? 60);
-                  return { kind: "ok" as const };
+                  return { kind: 'ok' as const };
                 }
                 if (res.status === 429) {
                   return {
-                    kind: "rate_limited" as const,
+                    kind: 'rate_limited' as const,
                     retryAfterSeconds: data.retryAfterSeconds ?? 60,
                   };
                 }
-                return { kind: "error" as const, message: "Не удалось отправить код" };
+                return { kind: 'error' as const, message: 'Не удалось отправить код' };
               }}
               onBack={() => {
-                setStep("intro");
+                setStep('intro');
                 setChallengeId(null);
               }}
             />

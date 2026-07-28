@@ -15,37 +15,37 @@
 
 ## 1b. Post-FIX / backlog (кратко)
 
-| ID | Уровень | Статус после FIX | Комментарий |
-|---|---|---|---|
-| **A5-TODAY-INSTANCE-01** | Info | **Defer (product)** | Today по-прежнему считает бейдж только для **одной** активной программы (max `updatedAt`); отдельный UX для нескольких активных — вне scope POST-FIX. |
-| **A5-PLAN-OPENED-SILENT-01** | Major → | **Fixed** | `patientRecordPlanOpened`: предварительный **`getInstanceForPatient`** — при отсутствии экземпляра **`throw`** → API **404**; для **`status !== "active"`** — **`{ ok: true, recorded: false }`** без записи в БД; клиент не вызывает **`POST plan-opened`** для неактивной программы. **`revalidatePath`** только при **`recorded: true`**. |
-| **A5-TS-EQUALITY-01** | Info | **Defer (documented)** | Семантика «строго после» baseline без изменений; осознанное продуктовое поведение. |
-| **A5-PG-MAX-TYPE-01** | Major → | **Fixed** | `coerceMaxPlanMutationCreatedAtToIso` — поддержка **`Date`** и trim строки; unit-тест `pgTreatmentProgramEvents.coerce.test.ts`. |
+| ID                           | Уровень | Статус после FIX       | Комментарий                                                                                                                                                                                                                                                                                                                                  |
+| ---------------------------- | ------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A5-TODAY-INSTANCE-01**     | Info    | **Defer (product)**    | Today по-прежнему считает бейдж только для **одной** активной программы (max `updatedAt`); отдельный UX для нескольких активных — вне scope POST-FIX.                                                                                                                                                                                        |
+| **A5-PLAN-OPENED-SILENT-01** | Major → | **Fixed**              | `patientRecordPlanOpened`: предварительный **`getInstanceForPatient`** — при отсутствии экземпляра **`throw`** → API **404**; для **`status !== "active"`** — **`{ ok: true, recorded: false }`** без записи в БД; клиент не вызывает **`POST plan-opened`** для неактивной программы. **`revalidatePath`** только при **`recorded: true`**. |
+| **A5-TS-EQUALITY-01**        | Info    | **Defer (documented)** | Семантика «строго после» baseline без изменений; осознанное продуктовое поведение.                                                                                                                                                                                                                                                           |
+| **A5-PG-MAX-TYPE-01**        | Major → | **Fixed**              | `coerceMaxPlanMutationCreatedAtToIso` — поддержка **`Date`** и trim строки; unit-тест `pgTreatmentProgramEvents.coerce.test.ts`.                                                                                                                                                                                                             |
 
 ---
 
 ## 2. Backfill и отсутствие ложного «Новое» у старых items
 
-| Критерий | Статус | Доказательство |
-|---|---|---|
-| SQL backfill `last_viewed_at = created_at` | **PASS** | `apps/webapp/db/drizzle-migrations/0031_treatment_program_a5_last_viewed.sql` — `UPDATE ... SET last_viewed_at = created_at WHERE last_viewed_at IS NULL` после появления колонки. |
-| Появление `created_at` у старых строк | **PASS** | Тот же файл — backfill `created_at` из `treatment_program_instances.created_at`, затем `NOT NULL` + default `now()`. |
-| Начальное копирование дерева (не «все новые») | **PASS** | `pgTreatmentProgramInstance.ts` `createInstanceTree` — для каждого пункта из шаблона `createdAt` и **`lastViewedAt`** = `treeItemTs` (одна метка времени). |
-| Врач добавил пункт после назначения | **PASS** | `addInstanceStageItem` — `lastViewedAt: null` (ожидаемо «Новое» до просмотра). |
-| Замена пункта | **PASS** | `replaceInstanceStageItem` — `lastViewedAt: null`, новый `createdAt`. |
+| Критерий                                      | Статус   | Доказательство                                                                                                                                                                     |
+| --------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SQL backfill `last_viewed_at = created_at`    | **PASS** | `apps/webapp/db/drizzle-migrations/0031_treatment_program_a5_last_viewed.sql` — `UPDATE ... SET last_viewed_at = created_at WHERE last_viewed_at IS NULL` после появления колонки. |
+| Появление `created_at` у старых строк         | **PASS** | Тот же файл — backfill `created_at` из `treatment_program_instances.created_at`, затем `NOT NULL` + default `now()`.                                                               |
+| Начальное копирование дерева (не «все новые») | **PASS** | `pgTreatmentProgramInstance.ts` `createInstanceTree` — для каждого пункта из шаблона `createdAt` и **`lastViewedAt`** = `treeItemTs` (одна метка времени).                         |
+| Врач добавил пункт после назначения           | **PASS** | `addInstanceStageItem` — `lastViewedAt: null` (ожидаемо «Новое» до просмотра).                                                                                                     |
+| Замена пункта                                 | **PASS** | `replaceInstanceStageItem` — `lastViewedAt: null`, новый `createdAt`.                                                                                                              |
 
 ---
 
 ## 3. Mark-viewed: идемпотентность и доступ
 
-| Критерий | Статус | Доказательство |
-|---|---|---|
-| Идемпотентность (повторные POST) | **PASS** | `pgTreatmentProgramInstance.ts` `markStageItemViewedIfNever` — ранний выход при `lastViewedAt != null`; `UPDATE ... WHERE id = ? AND last_viewed_at IS NULL` + `returning`; in-memory зеркало (`inMemoryTreatmentProgramInstance.ts`). |
-| Владелец экземпляра | **PASS** | Тот же метод — `instRow` с `eq(instTable.patientUserId, patientUserId)`; связь `stage` → `instanceId`. |
-| Элемент принадлежит экземпляру | **PASS** | Проверка `stRow.instanceId === instanceId`. |
-| Слой сервиса: нет «левого» id | **PASS** | `instance-service.ts` `patientMarkStageItemViewedIfNever` — `getInstanceForPatient`; поиск `stageItemId` в `d.stages.flatMap(...items)`; иначе **`throw`** «Элемент не найден» / «Программа не найдена» → route **400/404**. |
-| Не-`active` пункт (в т.ч. `disabled`) | **PASS** | Перед PG: `if (hit.status !== "active") return { updated: false }` — без изменения БД. |
-| API patient | **PASS** | `mark-viewed/route.ts` — `requirePatientApiBusinessAccess`, UUID Zod, `gate.session.user.userId`. |
+| Критерий                              | Статус   | Доказательство                                                                                                                                                                                                                         |
+| ------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Идемпотентность (повторные POST)      | **PASS** | `pgTreatmentProgramInstance.ts` `markStageItemViewedIfNever` — ранний выход при `lastViewedAt != null`; `UPDATE ... WHERE id = ? AND last_viewed_at IS NULL` + `returning`; in-memory зеркало (`inMemoryTreatmentProgramInstance.ts`). |
+| Владелец экземпляра                   | **PASS** | Тот же метод — `instRow` с `eq(instTable.patientUserId, patientUserId)`; связь `stage` → `instanceId`.                                                                                                                                 |
+| Элемент принадлежит экземпляру        | **PASS** | Проверка `stRow.instanceId === instanceId`.                                                                                                                                                                                            |
+| Слой сервиса: нет «левого» id         | **PASS** | `instance-service.ts` `patientMarkStageItemViewedIfNever` — `getInstanceForPatient`; поиск `stageItemId` в `d.stages.flatMap(...items)`; иначе **`throw`** «Элемент не найден» / «Программа не найдена» → route **400/404**.           |
+| Не-`active` пункт (в т.ч. `disabled`) | **PASS** | Перед PG: `if (hit.status !== "active") return { updated: false }` — без изменения БД.                                                                                                                                                 |
+| API patient                           | **PASS** | `mark-viewed/route.ts` — `requirePatientApiBusinessAccess`, UUID Zod, `gate.session.user.userId`.                                                                                                                                      |
 
 **Info:** `getInstanceForPatient` в PG **возвращает** и `disabled` строки; для mark-viewed это не дыра в доступе благодаря проверке **`status === "active"`** в сервисе. Пациентский UI по-прежнему получает дерево после **`omitDisabledInstanceStageItemsForPatientApi`** (`[instanceId]/page.tsx`).
 
@@ -53,14 +53,14 @@
 
 ## 4. «План обновлён»: показ и сброс
 
-| Критерий | Статус | Доказательство |
-|---|---|---|
-| Источник «последнего изменения» | **PASS** | `TREATMENT_PROGRAM_PLAN_MUTATION_EVENT_TYPES` в `types.ts`; `pgTreatmentProgramEvents.ts` `getMaxPlanMutationEventCreatedAt` — `max(created_at)` с фильтром по этим типам. |
-| Baseline без открытия плана | **PASS** | `instance-service.ts` `patientPlanUpdatedBadgeForInstance` — `baseline = inst.patientPlanLastOpenedAt ?? inst.createdAt`. |
-| Условие показа | **PASS** | `if (maxAt <= baseline) return { show: false }` — бейдж только если событие **строго позже** baseline. |
-| Только активный экземпляр в логике бейджа | **PASS** | `sums.find((s) => s.id === input.instanceId && s.status === "active")` — для завершённой программы бейдж не считается. |
-| Сброс при открытии плана | **PASS** | `touchPatientPlanLastOpenedAt` обновляет `patient_plan_last_opened_at`; клиент **`PatientTreatmentProgramDetailClient`** — `useEffect` с `POST .../plan-opened` при `detail.id`; `plan-opened/route.ts` вызывает сервис + `revalidatePatientTreatmentProgramUi`. |
-| Отображение Today | **PASS** | `PatientHomeToday.tsx` — `patientPlanUpdatedBadgeForInstance`, строка **`План обновлён`** + дата через `formatBookingDateLongRu`; проп в `PatientHomePlanCard` (`planUpdatedLabel`). |
+| Критерий                                  | Статус   | Доказательство                                                                                                                                                                                                                                                   |
+| ----------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Источник «последнего изменения»           | **PASS** | `TREATMENT_PROGRAM_PLAN_MUTATION_EVENT_TYPES` в `types.ts`; `pgTreatmentProgramEvents.ts` `getMaxPlanMutationEventCreatedAt` — `max(created_at)` с фильтром по этим типам.                                                                                       |
+| Baseline без открытия плана               | **PASS** | `instance-service.ts` `patientPlanUpdatedBadgeForInstance` — `baseline = inst.patientPlanLastOpenedAt ?? inst.createdAt`.                                                                                                                                        |
+| Условие показа                            | **PASS** | `if (maxAt <= baseline) return { show: false }` — бейдж только если событие **строго позже** baseline.                                                                                                                                                           |
+| Только активный экземпляр в логике бейджа | **PASS** | `sums.find((s) => s.id === input.instanceId && s.status === "active")` — для завершённой программы бейдж не считается.                                                                                                                                           |
+| Сброс при открытии плана                  | **PASS** | `touchPatientPlanLastOpenedAt` обновляет `patient_plan_last_opened_at`; клиент **`PatientTreatmentProgramDetailClient`** — `useEffect` с `POST .../plan-opened` при `detail.id`; `plan-opened/route.ts` вызывает сервис + `revalidatePatientTreatmentProgramUi`. |
+| Отображение Today                         | **PASS** | `PatientHomeToday.tsx` — `patientPlanUpdatedBadgeForInstance`, строка **`План обновлён`** + дата через `formatBookingDateLongRu`; проп в `PatientHomePlanCard` (`planUpdatedLabel`).                                                                             |
 
 **Info:** см. §1b **A5-TODAY-INSTANCE-01**, **A5-TS-EQUALITY-01**, **A5-PG-MAX-TYPE-01**.
 
@@ -68,24 +68,24 @@
 
 ## 5. Disabled: бейдж «Новое»
 
-| Критерий | Статус | Доказательство |
-|---|---|---|
-| Семантика | **PASS** | `stage-semantics.ts` `patientStageItemShowsNewBadge` — `!isInstanceStageItemActiveForPatient(item)` → `false` при `status === "disabled"`. |
-| Тест | **PASS** | `stage-semantics.test.ts` — «hides for disabled». |
+| Критерий                      | Статус   | Доказательство                                                                                                                                                        |
+| ----------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Семантика                     | **PASS** | `stage-semantics.ts` `patientStageItemShowsNewBadge` — `!isInstanceStageItemActiveForPatient(item)` → `false` при `status === "disabled"`.                            |
+| Тест                          | **PASS** | `stage-semantics.test.ts` — «hides for disabled».                                                                                                                     |
 | Read model страницы программы | **PASS** | `[instanceId]/page.tsx` — `omitDisabledInstanceStageItemsForPatientApi(rawDetail)` перед клиентом; disabled **не попадают** в список для бейджа/IntersectionObserver. |
-| Mark-viewed для disabled UUID | **PASS** | Сервис возвращает `{ updated: false }` при `status !== "active"` (см. §3). |
+| Mark-viewed для disabled UUID | **PASS** | Сервис возвращает `{ updated: false }` при `status !== "active"` (см. §3).                                                                                            |
 
 ---
 
 ## 6. Регрессия patient Today / страницы программ
 
-| Критерий | Статус | Доказательство |
-|---|---|---|
-| Today: данные блоков | **PASS** | Дополнительные поля в `Promise.all` только при `personalTierOk && session`; остальная сборка home без изменения контрактов блоков. |
-| Карточка плана | **PASS** | `PatientHomePlanCard` — опциональная подстрока `planUpdatedLabel`; без неё визуал прежний. |
-| Список программ | **PASS** | `treatment-programs/page.tsx` — без изменений контракта списка (только revalidate того же пути при мутациях). |
-| Деталь программы | **PASS** | `PatientTreatmentProgramDetailClient` — добавлены эффекты plan-opened / mark-viewed и бейдж; существующие секции A4 и прогресс не удалены. |
-| Тесты контракта UI | **PASS** | `PatientTreatmentProgramDetailClient.test.tsx` мокает `plan-opened` / `mark-viewed`; прогон вместе с `treatment-program-a5-badges.test.ts` (см. `LOG.md` A5). |
+| Критерий             | Статус   | Доказательство                                                                                                                                                |
+| -------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Today: данные блоков | **PASS** | Дополнительные поля в `Promise.all` только при `personalTierOk && session`; остальная сборка home без изменения контрактов блоков.                            |
+| Карточка плана       | **PASS** | `PatientHomePlanCard` — опциональная подстрока `planUpdatedLabel`; без неё визуал прежний.                                                                    |
+| Список программ      | **PASS** | `treatment-programs/page.tsx` — без изменений контракта списка (только revalidate того же пути при мутациях).                                                 |
+| Деталь программы     | **PASS** | `PatientTreatmentProgramDetailClient` — добавлены эффекты plan-opened / mark-viewed и бейдж; существующие секции A4 и прогресс не удалены.                    |
+| Тесты контракта UI   | **PASS** | `PatientTreatmentProgramDetailClient.test.tsx` мокает `plan-opened` / `mark-viewed`; прогон вместе с `treatment-program-a5-badges.test.ts` (см. `LOG.md` A5). |
 
 **POST-AUDIT:** `POST plan-opened` вызывается только при **`detail.status === "active"`** (`PatientTreatmentProgramDetailClient`); для завершённой программы запрос не уходит, метка в БД не обновляется.
 

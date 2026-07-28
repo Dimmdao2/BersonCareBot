@@ -8,7 +8,7 @@ import type {
   InsertAcquiringPendingInput,
   PatientPayment,
   PatientPaymentsPort,
-} from "./ports";
+} from './ports';
 
 export type PatientPaymentsServiceDeps = {
   patientPaymentsPort: PatientPaymentsPort;
@@ -28,9 +28,7 @@ export type AcquiringWebhookEvent = {
   providerPaymentId: string;
 };
 
-export function createPatientPaymentsService({
-  patientPaymentsPort,
-}: PatientPaymentsServiceDeps) {
+export function createPatientPaymentsService({ patientPaymentsPort }: PatientPaymentsServiceDeps) {
   return {
     async listPayments(patientUserId: string): Promise<PatientPayment[]> {
       return patientPaymentsPort.listPayments(patientUserId);
@@ -45,16 +43,16 @@ export function createPatientPaymentsService({
     ): Promise<{ payments: PatientPayment[]; totalPaidMinor: number }> {
       const payments = await patientPaymentsPort.listPayments(patientUserId);
       const totalPaidMinor = payments
-        .filter((p) => p.status === "paid")
+        .filter((p) => p.status === 'paid')
         .reduce((sum, p) => sum + p.amountMinor, 0);
       return { payments, totalPaidMinor };
     },
 
     async addCashPayment(input: AddCashPaymentInput): Promise<PatientPayment> {
       if (!Number.isInteger(input.amountMinor) || input.amountMinor <= 0) {
-        throw new Error("payment_amount_must_be_positive_integer");
+        throw new Error('payment_amount_must_be_positive_integer');
       }
-      const currency = input.currency?.trim() || "RUB";
+      const currency = input.currency?.trim() || 'RUB';
       return patientPaymentsPort.addCashPayment({ ...input, currency });
     },
 
@@ -70,33 +68,43 @@ export function createPatientPaymentsService({
     ): Promise<{ ok: true; alreadyProcessed?: boolean } | { ok: false; reason: string }> {
       const payment = await patientPaymentsPort.findByProviderPaymentId(event.providerPaymentId);
       if (!payment) {
-        return { ok: false, reason: "payment_not_found" };
+        return { ok: false, reason: 'payment_not_found' };
       }
 
       // Skip if already in terminal state (idempotency)
-      if (payment.status === "paid" || payment.status === "failed" || payment.status === "refunded") {
+      if (
+        payment.status === 'paid' ||
+        payment.status === 'failed' ||
+        payment.status === 'refunded'
+      ) {
         return { ok: true, alreadyProcessed: true };
       }
 
-      let newStatus: "paid" | "failed";
-      if (event.eventType === "payment.succeeded") {
-        newStatus = "paid";
-      } else if (event.eventType === "payment.canceled" || event.eventType === "payment.failed") {
-        newStatus = "failed";
+      let newStatus: 'paid' | 'failed';
+      if (event.eventType === 'payment.succeeded') {
+        newStatus = 'paid';
+      } else if (event.eventType === 'payment.canceled' || event.eventType === 'payment.failed') {
+        newStatus = 'failed';
       } else {
         // Unrecognised event type — ack with ok but no state change
         return { ok: true, alreadyProcessed: true };
       }
 
       if (!payment.organizationId) {
-        return { ok: false, reason: "payment_org_missing" };
+        return { ok: false, reason: 'payment_org_missing' };
       }
 
-      await patientPaymentsPort.updatePatientPaymentStatus(payment.id, newStatus, payment.organizationId);
+      await patientPaymentsPort.updatePatientPaymentStatus(
+        payment.id,
+        newStatus,
+        payment.organizationId,
+      );
       return { ok: true };
     },
 
-    async resolveOrganizationIdByProviderPaymentId(providerPaymentId: string): Promise<string | null> {
+    async resolveOrganizationIdByProviderPaymentId(
+      providerPaymentId: string,
+    ): Promise<string | null> {
       const payment = await patientPaymentsPort.findByProviderPaymentId(providerPaymentId);
       return payment?.organizationId ?? null;
     },
@@ -105,11 +113,9 @@ export function createPatientPaymentsService({
      * Record a newly created acquiring payment (kind='acquiring', status='pending').
      * Called by the charge-initiation route after the gateway confirms the intent.
      */
-    async recordAcquiringCharge(
-      input: InsertAcquiringPendingInput,
-    ): Promise<PatientPayment> {
+    async recordAcquiringCharge(input: InsertAcquiringPendingInput): Promise<PatientPayment> {
       if (!Number.isInteger(input.amountMinor) || input.amountMinor <= 0) {
-        throw new Error("payment_amount_must_be_positive_integer");
+        throw new Error('payment_amount_must_be_positive_integer');
       }
       return patientPaymentsPort.insertAcquiringPending(input);
     },

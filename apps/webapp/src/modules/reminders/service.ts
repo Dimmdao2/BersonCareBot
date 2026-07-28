@@ -1,30 +1,30 @@
-import type { ReminderDoneDayStats, ReminderJournalPort } from "./reminderJournalPort";
-import type { ReminderRulesPort } from "./ports";
-import type { WebPushSubscriptionsPort } from "@/modules/web-push/ports";
+import type { ReminderDoneDayStats, ReminderJournalPort } from './reminderJournalPort';
+import type { ReminderRulesPort } from './ports';
+import type { WebPushSubscriptionsPort } from '@/modules/web-push/ports';
 import type {
   ReminderCategory,
   ReminderLinkedObjectType,
   ReminderRule,
   ReminderUpdateSchedule,
-} from "./types";
+} from './types';
 import {
   resolveReminderIntentForLinkedObject,
   type ReminderIntentSectionLookup,
-} from "./resolveReminderIntentForLinkedObject";
-import type { SlotsV1ScheduleData } from "./scheduleSlots";
+} from './resolveReminderIntentForLinkedObject';
+import type { SlotsV1ScheduleData } from './scheduleSlots';
 import {
   DEFAULT_REHAB_DAILY_SLOTS,
   SLOTS_V1_DB_PLACEHOLDER,
   normalizeSlotsV1ScheduleData,
-} from "./scheduleSlots";
-import { validateQuietHoursPair } from "./quietHours";
+} from './scheduleSlots';
+import { validateQuietHoursPair } from './quietHours';
 import {
   REMINDER_INTERVAL_WINDOW_MAX_MINUTES,
   REMINDER_INTERVAL_WINDOW_MIN_MINUTES,
-} from "./reminderIntervalBounds";
-import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
+} from './reminderIntervalBounds';
+import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 
-export type { ReminderCategory, ReminderRule } from "./types";
+export type { ReminderCategory, ReminderRule } from './types';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Legacy dispatch validator (used by integrator webhook route)
@@ -40,15 +40,15 @@ export type ReminderDispatchRequest = {
 };
 
 export function validateReminderDispatchPayload(value: unknown): value is ReminderDispatchRequest {
-  if (typeof value !== "object" || value === null) return false;
+  if (typeof value !== 'object' || value === null) return false;
   const payload = value as Record<string, unknown>;
   const message = payload.message as Record<string, unknown> | undefined;
 
   return (
-    typeof payload.idempotencyKey === "string" &&
-    typeof payload.userId === "string" &&
-    typeof message?.title === "string" &&
-    typeof message?.body === "string"
+    typeof payload.idempotencyKey === 'string' &&
+    typeof payload.userId === 'string' &&
+    typeof message?.title === 'string' &&
+    typeof message?.body === 'string'
   );
 }
 
@@ -62,7 +62,7 @@ export type UpdateRuleData = Partial<ReminderUpdateSchedule> & {
   customText?: string | null;
   /** Full schedule + quiet replacement (preferred). */
   schedule?: {
-    scheduleType: "interval_window" | "slots_v1";
+    scheduleType: 'interval_window' | 'slots_v1';
     intervalMinutes: number;
     windowStartMinute: number;
     windowEndMinute: number;
@@ -75,11 +75,9 @@ export type UpdateRuleData = Partial<ReminderUpdateSchedule> & {
 
 /** Показываем пользователю, если БД обновлена, а relay к integrator не удался (D.3). */
 export const REMINDER_INTEGRATOR_SYNC_WARNING =
-  "Настройки сохранены локально, но синхронизация с ботом не удалась.";
+  'Настройки сохранены локально, но синхронизация с ботом не удалась.';
 
-type ServiceResult<T> =
-  | { ok: true; data: T; syncWarning?: string }
-  | { ok: false; error: string };
+type ServiceResult<T> = { ok: true; data: T; syncWarning?: string } | { ok: false; error: string };
 
 export type RemindersServiceDeps = {
   notifyIntegrator?: (rule: ReminderRule) => Promise<void>;
@@ -89,16 +87,17 @@ export type RemindersServiceDeps = {
 };
 
 function validateSchedule(s: ReminderUpdateSchedule): string | null {
-  if (s.windowStartMinute < 0 || s.windowStartMinute > 1439) return "validation_error: windowStartMinute";
-  if (s.windowEndMinute < 1 || s.windowEndMinute > 1440) return "validation_error: windowEndMinute";
-  if (s.windowStartMinute >= s.windowEndMinute) return "invalid_window";
+  if (s.windowStartMinute < 0 || s.windowStartMinute > 1439)
+    return 'validation_error: windowStartMinute';
+  if (s.windowEndMinute < 1 || s.windowEndMinute > 1440) return 'validation_error: windowEndMinute';
+  if (s.windowStartMinute >= s.windowEndMinute) return 'invalid_window';
   if (
     s.intervalMinutes < REMINDER_INTERVAL_WINDOW_MIN_MINUTES ||
     s.intervalMinutes > REMINDER_INTERVAL_WINDOW_MAX_MINUTES
   ) {
-    return "invalid_interval";
+    return 'invalid_interval';
   }
-  if (!/^[01]{7}$/.test(s.daysMask)) return "validation_error: daysMask";
+  if (!/^[01]{7}$/.test(s.daysMask)) return 'validation_error: daysMask';
   return null;
 }
 
@@ -108,22 +107,22 @@ function validateLinkedFields(
   customTitle: string | null,
   customText: string | null,
 ): string | null {
-  if (linkedObjectType === "custom") {
-    if (!customTitle?.trim()) return "validation_error: customTitle required for custom";
-    if (linkedObjectId != null && linkedObjectId.trim() !== "")
-      return "validation_error: linkedObjectId must be null for custom";
+  if (linkedObjectType === 'custom') {
+    if (!customTitle?.trim()) return 'validation_error: customTitle required for custom';
+    if (linkedObjectId != null && linkedObjectId.trim() !== '')
+      return 'validation_error: linkedObjectId must be null for custom';
     return null;
   }
-  if (!linkedObjectId?.trim()) return "validation_error: linkedObjectId required";
+  if (!linkedObjectId?.trim()) return 'validation_error: linkedObjectId required';
   if (customTitle != null || customText != null)
-    return "validation_error: customTitle/customText only for custom type";
+    return 'validation_error: customTitle/customText only for custom type';
   return null;
 }
 
 function validateSnoozeMinutes(minutes: number): string | null {
   const m = Math.trunc(minutes);
-  if (!Number.isFinite(minutes) || m !== minutes) return "validation_error: minutes";
-  if (m < 1 || m > 720) return "validation_error: minutes range";
+  if (!Number.isFinite(minutes) || m !== minutes) return 'validation_error: minutes';
+  if (m < 1 || m > 720) return 'validation_error: minutes range';
   return null;
 }
 
@@ -150,7 +149,7 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
       await deps.notifyIntegrator(rule);
       return true;
     } catch (err) {
-      console.warn("[reminders] integrator notify failed:", err);
+      console.warn('[reminders] integrator notify failed:', err);
       return false;
     }
   }
@@ -166,7 +165,7 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
       enabled: boolean,
     ): Promise<ServiceResult<ReminderRule>> {
       const rule = await port.getByPlatformUserAndCategory(platformUserId, category);
-      if (!rule) return { ok: false, error: "not_found" };
+      if (!rule) return { ok: false, error: 'not_found' };
       await port.updateEnabled(rule.id, enabled);
       const updated: ReminderRule = { ...rule, enabled };
       const syncOk = await tryNotifyIntegrator(updated);
@@ -184,23 +183,19 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
     ): Promise<ServiceResult<ReminderRule>> {
       const rules = await port.listByPlatformUserWithObjects(platformUserId);
       const target = rules.find((r) => r.id === ruleId);
-      if (!target) return { ok: false, error: "not_found" };
+      if (!target) return { ok: false, error: 'not_found' };
 
       if (data.customTitle !== undefined || data.customText !== undefined) {
         // Legacy API: PATCH customTitle/customText для существующих `linkedObjectType=custom` (UI edit снят).
-        if (target.linkedObjectType !== "custom") {
-          return { ok: false, error: "validation_error: custom fields only for custom reminders" };
+        if (target.linkedObjectType !== 'custom') {
+          return { ok: false, error: 'validation_error: custom fields only for custom reminders' };
         }
         const title = data.customTitle !== undefined ? data.customTitle : target.customTitle;
         const text = data.customText !== undefined ? data.customText : target.customText;
         if (title !== null && title !== undefined && !String(title).trim()) {
-          return { ok: false, error: "validation_error: customTitle cannot be empty" };
+          return { ok: false, error: 'validation_error: customTitle cannot be empty' };
         }
-        await port.updateCustomTexts(
-          ruleId,
-          title ?? null,
-          text ?? null,
-        );
+        await port.updateCustomTexts(ruleId, title ?? null, text ?? null);
       }
 
       if (data.enabled !== undefined) {
@@ -223,13 +218,13 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
         );
         if (qErr) return { ok: false, error: qErr };
 
-        if (data.schedule.scheduleType === "slots_v1") {
+        if (data.schedule.scheduleType === 'slots_v1') {
           const raw = data.schedule.scheduleData;
-          if (!raw) return { ok: false, error: "validation_error: scheduleData" };
+          if (!raw) return { ok: false, error: 'validation_error: scheduleData' };
           const norm = normalizeSlotsV1ScheduleData(raw);
           if (!norm.ok) return { ok: false, error: norm.error };
           await port.updateScheduleAndType(ruleId, {
-            scheduleType: "slots_v1",
+            scheduleType: 'slots_v1',
             intervalMinutes: SLOTS_V1_DB_PLACEHOLDER.intervalMinutes,
             windowStartMinute: SLOTS_V1_DB_PLACEHOLDER.windowStartMinute,
             windowEndMinute: SLOTS_V1_DB_PLACEHOLDER.windowEndMinute,
@@ -248,7 +243,7 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
           const err = validateSchedule(sched);
           if (err) return { ok: false, error: err };
           await port.updateScheduleAndType(ruleId, {
-            scheduleType: "interval_window",
+            scheduleType: 'interval_window',
             intervalMinutes: sched.intervalMinutes,
             windowStartMinute: sched.windowStartMinute,
             windowEndMinute: sched.windowEndMinute,
@@ -260,14 +255,15 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
         }
       } else if (hasPartialScheduleChange) {
         scheduleChanged = true;
-        if (target.scheduleType === "slots_v1") {
+        if (target.scheduleType === 'slots_v1') {
           const daysMask = data.daysMask ?? target.daysMask;
-          if (!/^[01]{7}$/.test(daysMask)) return { ok: false, error: "validation_error: daysMask" };
+          if (!/^[01]{7}$/.test(daysMask))
+            return { ok: false, error: 'validation_error: daysMask' };
           const baseData = target.scheduleData ?? DEFAULT_REHAB_DAILY_SLOTS;
           const norm = normalizeSlotsV1ScheduleData(baseData);
           if (!norm.ok) return { ok: false, error: norm.error };
           await port.updateScheduleAndType(ruleId, {
-            scheduleType: "slots_v1",
+            scheduleType: 'slots_v1',
             intervalMinutes: SLOTS_V1_DB_PLACEHOLDER.intervalMinutes,
             windowStartMinute: SLOTS_V1_DB_PLACEHOLDER.windowStartMinute,
             windowEndMinute: SLOTS_V1_DB_PLACEHOLDER.windowEndMinute,
@@ -286,7 +282,7 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
           const err = validateSchedule(merged);
           if (err) return { ok: false, error: err };
           await port.updateScheduleAndType(ruleId, {
-            scheduleType: "interval_window",
+            scheduleType: 'interval_window',
             intervalMinutes: merged.intervalMinutes,
             windowStartMinute: merged.windowStartMinute,
             windowEndMinute: merged.windowEndMinute,
@@ -303,7 +299,7 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
       }
 
       const refreshed = await reloadRule(port, platformUserId, ruleId);
-      if (!refreshed) return { ok: false, error: "not_found" };
+      if (!refreshed) return { ok: false, error: 'not_found' };
 
       const syncOk = await tryNotifyIntegrator(refreshed);
       return {
@@ -316,32 +312,27 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
     async createObjectReminder(
       platformUserId: string,
       params: {
-        linkedObjectType: Exclude<ReminderLinkedObjectType, "custom">;
+        linkedObjectType: Exclude<ReminderLinkedObjectType, 'custom'>;
         linkedObjectId: string;
         schedule: ReminderUpdateSchedule;
         enabled?: boolean;
-        scheduleType?: "interval_window" | "slots_v1";
+        scheduleType?: 'interval_window' | 'slots_v1';
         scheduleData?: SlotsV1ScheduleData | null;
         quietHoursStartMinute?: number | null;
         quietHoursEndMinute?: number | null;
       },
     ): Promise<ServiceResult<ReminderRule>> {
-      const err = validateLinkedFields(
-        params.linkedObjectType,
-        params.linkedObjectId,
-        null,
-        null,
-      );
+      const err = validateLinkedFields(params.linkedObjectType, params.linkedObjectId, null, null);
       if (err) return { ok: false, error: err };
 
-      const scheduleType = params.scheduleType ?? "interval_window";
+      const scheduleType = params.scheduleType ?? 'interval_window';
       const qErr = validateQuietHoursPair(params.quietHoursStartMinute, params.quietHoursEndMinute);
       if (qErr) return { ok: false, error: qErr };
 
       const integratorUserId = await port.resolveIntegratorUserId(platformUserId);
       const hasWebPush = await hasNotificationChannel(platformUserId);
       // Allow creation if has bot linking OR has web push subscription
-      if (!integratorUserId && !hasWebPush) return { ok: false, error: "not_found" };
+      if (!integratorUserId && !hasWebPush) return { ok: false, error: 'not_found' };
 
       const reminderIntent = await resolveReminderIntentForLinkedObject(
         params.linkedObjectType,
@@ -349,12 +340,12 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
         deps?.contentSections,
       );
 
-      if (scheduleType === "slots_v1") {
+      if (scheduleType === 'slots_v1') {
         let sdInput: SlotsV1ScheduleData | null | undefined = params.scheduleData ?? null;
-        if (!sdInput && params.linkedObjectType === "rehab_program") {
+        if (!sdInput && params.linkedObjectType === 'rehab_program') {
           sdInput = DEFAULT_REHAB_DAILY_SLOTS;
         }
-        if (!sdInput) return { ok: false, error: "validation_error: scheduleData" };
+        if (!sdInput) return { ok: false, error: 'validation_error: scheduleData' };
         const norm = normalizeSlotsV1ScheduleData(sdInput);
         if (!norm.ok) return { ok: false, error: norm.error };
 
@@ -372,7 +363,7 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
             windowEndMinute: SLOTS_V1_DB_PLACEHOLDER.windowEndMinute,
             daysMask: params.schedule.daysMask,
           },
-          scheduleType: "slots_v1",
+          scheduleType: 'slots_v1',
           scheduleData: norm.data,
           reminderIntent,
           quietHoursStartMinute: params.quietHoursStartMinute ?? null,
@@ -398,7 +389,7 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
         customText: null,
         enabled: params.enabled ?? true,
         schedule: params.schedule,
-        scheduleType: "interval_window",
+        scheduleType: 'interval_window',
         scheduleData: null,
         reminderIntent,
         quietHoursStartMinute: params.quietHoursStartMinute ?? null,
@@ -425,12 +416,19 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
       oldInstanceId: string,
       newInstanceId: string,
     ): Promise<number> {
-      return port.retargetRehabProgramInstanceLinkedId(platformUserId, oldInstanceId, newInstanceId);
+      return port.retargetRehabProgramInstanceLinkedId(
+        platformUserId,
+        oldInstanceId,
+        newInstanceId,
+      );
     },
 
-    async deleteReminder(platformUserId: string, ruleId: string): Promise<ServiceResult<{ deletedId: string }>> {
+    async deleteReminder(
+      platformUserId: string,
+      ruleId: string,
+    ): Promise<ServiceResult<{ deletedId: string }>> {
       const deleted = await port.delete(ruleId, platformUserId);
-      if (!deleted) return { ok: false, error: "not_found" };
+      if (!deleted) return { ok: false, error: 'not_found' };
       return { ok: true, data: { deletedId: ruleId } };
     },
 
@@ -441,10 +439,10 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
     ): Promise<ServiceResult<{ occurrenceId: string; snoozedUntil: string }>> {
       const v = validateSnoozeMinutes(minutes);
       if (v) return { ok: false, error: v };
-      if (!deps?.journal) return { ok: false, error: "not_available" };
+      if (!deps?.journal) return { ok: false, error: 'not_available' };
       const m = Math.trunc(minutes);
       const res = await deps.journal.recordSnooze(platformUserId, integratorOccurrenceId, m);
-      if (!res.ok) return { ok: false, error: "not_found" };
+      if (!res.ok) return { ok: false, error: 'not_found' };
       return { ok: true, data: { occurrenceId: res.occurrenceId, snoozedUntil: res.snoozedUntil } };
     },
 
@@ -452,17 +450,13 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
       platformUserId: string,
       integratorOccurrenceId: string,
       displayTimeZone?: string,
-    ): Promise<
-      ServiceResult<
-        { occurrenceId: string; doneAt: string } & ReminderDoneDayStats
-      >
-    > {
-      if (!deps?.journal) return { ok: false, error: "not_available" };
+    ): Promise<ServiceResult<{ occurrenceId: string; doneAt: string } & ReminderDoneDayStats>> {
+      if (!deps?.journal) return { ok: false, error: 'not_available' };
       const tz = displayTimeZone ?? (await getAppDisplayTimeZone());
       const res = await deps.journal.recordDone(platformUserId, integratorOccurrenceId, tz);
       if (!res.ok) {
-        if (res.error === "conflict") return { ok: false, error: "conflict" };
-        return { ok: false, error: "not_found" };
+        if (res.error === 'conflict') return { ok: false, error: 'conflict' };
+        return { ok: false, error: 'not_found' };
       }
       return {
         ok: true,
@@ -482,19 +476,26 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
       integratorOccurrenceId: string,
       reason: string | null,
     ): Promise<ServiceResult<{ occurrenceId: string; skippedAt: string }>> {
-      if (!deps?.journal) return { ok: false, error: "not_available" };
+      if (!deps?.journal) return { ok: false, error: 'not_available' };
       const normalizedReason =
         reason === null || reason === undefined
           ? null
-          : typeof reason === "string" && reason.trim() === ""
+          : typeof reason === 'string' && reason.trim() === ''
             ? null
             : reason;
-      const res = await deps.journal.recordSkip(platformUserId, integratorOccurrenceId, normalizedReason);
-      if (!res.ok) return { ok: false, error: "not_found" };
+      const res = await deps.journal.recordSkip(
+        platformUserId,
+        integratorOccurrenceId,
+        normalizedReason,
+      );
+      if (!res.ok) return { ok: false, error: 'not_found' };
       return { ok: true, data: { occurrenceId: res.occurrenceId, skippedAt: res.skippedAt } };
     },
 
-    async setReminderMutedUntil(platformUserId: string, mutedUntilIso: string | null): Promise<void> {
+    async setReminderMutedUntil(
+      platformUserId: string,
+      mutedUntilIso: string | null,
+    ): Promise<void> {
       await port.setReminderMutedUntil(platformUserId, mutedUntilIso);
     },
 

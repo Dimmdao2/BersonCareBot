@@ -1,42 +1,42 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { DateTime } from "luxon";
-import FullCalendar from "@fullcalendar/react";
-import timeGridPlugin from "@fullcalendar/timegrid";
-import interactionPlugin from "@fullcalendar/interaction";
-import luxonPlugin from "@fullcalendar/luxon3";
-import ruLocale from "@fullcalendar/core/locales/ru";
-import { DoctorSection, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
-import { buttonVariants } from "@/shared/ui/doctor/primitives/button";
-import type { TodayAppointmentItem } from "./loadDoctorTodayDashboard";
-import type { CalendarAppointmentEvent } from "@/modules/booking-calendar/types";
-import { isCancelledAppointmentStatus } from "@/modules/booking-calendar/appointmentStatusLabels";
-import { formatPatientPackageShortLabel } from "@/modules/memberships/display";
+import Link from 'next/link';
+import { DateTime } from 'luxon';
+import FullCalendar from '@fullcalendar/react';
+import timeGridPlugin from '@fullcalendar/timegrid';
+import interactionPlugin from '@fullcalendar/interaction';
+import luxonPlugin from '@fullcalendar/luxon3';
+import ruLocale from '@fullcalendar/core/locales/ru';
+import { DoctorSection, DoctorSectionTitle } from '@/shared/ui/doctor/DoctorSection';
+import { buttonVariants } from '@/shared/ui/doctor/primitives/button';
+import type { TodayAppointmentItem } from './loadDoctorTodayDashboard';
+import type { CalendarAppointmentEvent } from '@/modules/booking-calendar/types';
+import { isCancelledAppointmentStatus } from '@/modules/booking-calendar/appointmentStatusLabels';
+import { formatPatientPackageShortLabel } from '@/modules/memberships/display';
 import {
   DEFAULT_CALENDAR_WINDOW_MAX,
   DEFAULT_CALENDAR_WINDOW_MIN,
   deriveCalendarVisibleTimeWindow,
   type CalendarVisibleWindowEvent,
-} from "@/modules/booking-calendar/visibleTimeWindow";
+} from '@/modules/booking-calendar/visibleTimeWindow';
 
 /** Конвертирует минуты от полуночи в строку "HH:MM:SS" для slotMinTime/slotMaxTime. */
 function minuteToHHMM(minute: number): string {
   const h = Math.floor(minute / 60);
   const m = minute % 60;
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
 }
 
 /** Maps a canonical CalendarAppointmentEvent to a display class matching the schedule calendar. */
 function canonicalEventClass(appt: CalendarAppointmentEvent): string {
   if (isCancelledAppointmentStatus(appt.status))
-    return "!bg-destructive/15 text-destructive/80 !border-destructive/20 line-through";
-  if (appt.status === "awaiting_payment" || appt.prepaymentPending)
-    return "!bg-amber-500/15 text-amber-900 !border-amber-500/40";
+    return '!bg-destructive/15 text-destructive/80 !border-destructive/20 line-through';
+  if (appt.status === 'awaiting_payment' || appt.prepaymentPending)
+    return '!bg-amber-500/15 text-amber-900 !border-amber-500/40';
   if (appt.packageUsageRef || appt.packageTitle)
-    return "!bg-violet-500/15 text-violet-900 !border-violet-500/40";
-  if (appt.branchColor) return "text-foreground";
-  return "!bg-primary/15 text-foreground !border-primary/35";
+    return '!bg-violet-500/15 text-violet-900 !border-violet-500/40';
+  if (appt.branchColor) return 'text-foreground';
+  return '!bg-primary/15 text-foreground !border-primary/35';
 }
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
@@ -61,7 +61,7 @@ function canonicalBranchColors(appt: CalendarAppointmentEvent): {
   if (
     !appt.branchColor ||
     isCancelledAppointmentStatus(appt.status) ||
-    appt.status === "awaiting_payment" ||
+    appt.status === 'awaiting_payment' ||
     appt.prepaymentPending ||
     appt.packageUsageRef ||
     appt.packageTitle
@@ -78,8 +78,8 @@ function canonicalEventTitle(appt: CalendarAppointmentEvent): string {
   const prefix =
     appt.packageUsageRef || appt.packageTitle
       ? `${formatPatientPackageShortLabel(appt.packageDisplayNumber)} `
-      : "";
-  return `${prefix}${appt.patientName ?? "Запись"}`;
+      : '';
+  return `${prefix}${appt.patientName ?? 'Запись'}`;
 }
 
 type Props = {
@@ -129,8 +129,7 @@ export function DoctorTodayMiniCalendar({
 }: Props) {
   // Сегодня в бизнес-таймзоне
   const todayIso =
-    DateTime.now().setZone(displayIana).toISODate() ??
-    new Date().toISOString().slice(0, 10);
+    DateTime.now().setZone(displayIana).toISODate() ?? new Date().toISOString().slice(0, 10);
 
   // #538/#231: слот мин/макс = дефолт 09:00–19:00, который только расширяется
   // наружу по рабочим границам и записям. Не сжимаем «Сегодня» до 14–17.
@@ -141,11 +140,12 @@ export function DoctorTodayMiniCalendar({
         : appointments.map((appt) => {
             const startAt = appt.recordAtIso ?? `${todayIso}T${appt.time.slice(0, 5)}:00`;
             return {
-              kind: "appointment",
+              kind: 'appointment',
               startAt,
-              endAt: DateTime.fromISO(startAt, { zone: appt.recordAtIso ? "utc" : displayIana })
-                .plus({ minutes: 60 })
-                .toISO() ?? startAt,
+              endAt:
+                DateTime.fromISO(startAt, { zone: appt.recordAtIso ? 'utc' : displayIana })
+                  .plus({ minutes: 60 })
+                  .toISO() ?? startAt,
             };
           });
     // `workingBounds` are the exact wall-clock bounds from deriveWorkingBounds.
@@ -174,15 +174,18 @@ export function DoctorTodayMiniCalendar({
   // #6: if today has NO schedule (workingBounds === null, explicitly closed/no data),
   // paint the whole visible column grey. When workingBounds is undefined (not yet known)
   // we leave the calendar white — same as before.
-  const bgFillEvent = workingBounds === null
-    ? [{
-        id: "nonwork:today:all",
-        start: `${todayIso}T${minuteToHHMM(slotLoMinute)}`,
-        end: `${todayIso}T${minuteToHHMM(slotHiMinute)}`,
-        display: "background" as const,
-        classNames: ["!bg-[#eeeeee]", "!opacity-60"],
-      }]
-    : [];
+  const bgFillEvent =
+    workingBounds === null
+      ? [
+          {
+            id: 'nonwork:today:all',
+            start: `${todayIso}T${minuteToHHMM(slotLoMinute)}`,
+            end: `${todayIso}T${minuteToHHMM(slotHiMinute)}`,
+            display: 'background' as const,
+            classNames: ['!bg-[#eeeeee]', '!opacity-60'],
+          },
+        ]
+      : [];
 
   // Build FullCalendar events.
   // Priority: canonical events (calendarEvents prop) > legacy TodayAppointmentItem list.
@@ -204,19 +207,21 @@ export function DoctorTodayMiniCalendar({
     return appointments.map((appt) => {
       let startDt: DateTime;
       if (appt.recordAtIso) {
-        startDt = DateTime.fromISO(appt.recordAtIso, { zone: "utc" });
+        startDt = DateTime.fromISO(appt.recordAtIso, { zone: 'utc' });
       } else {
         const timeOnly = appt.time.slice(0, 5);
         startDt = DateTime.fromISO(`${todayIso}T${timeOnly}`, { zone: displayIana });
       }
       const start = startDt.isValid ? startDt.toISO() : undefined;
-      const end = startDt.isValid ? startDt.plus({ minutes: 60 }).toISO() ?? undefined : undefined;
+      const end = startDt.isValid
+        ? (startDt.plus({ minutes: 60 }).toISO() ?? undefined)
+        : undefined;
       return {
         id: appt.id,
         title: appt.clientLabel,
         start: start ?? undefined,
         end: end ?? undefined,
-        classNames: ["!bg-primary/15 text-foreground !border-primary/35"],
+        classNames: ['!bg-primary/15 text-foreground !border-primary/35'],
         extendedProps: { href: appt.href, appt },
       };
     });
@@ -228,10 +233,7 @@ export function DoctorTodayMiniCalendar({
     <DoctorSection id="doctor-today-mini-calendar">
       <div className="flex items-center justify-between gap-2">
         <DoctorSectionTitle>{todayDateLabel}</DoctorSectionTitle>
-        <Link
-          href="/app/doctor/schedule?tab=calendar"
-          className={buttonVariants({ size: "sm" })}
-        >
+        <Link href="/app/doctor/schedule?tab=calendar" className={buttonVariants({ size: 'sm' })}>
           Открыть расписание
         </Link>
       </div>

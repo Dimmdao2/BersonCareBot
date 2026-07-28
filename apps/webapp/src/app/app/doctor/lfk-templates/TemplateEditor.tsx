@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   useActionState,
   useCallback,
@@ -10,7 +10,7 @@ import {
   useRef,
   useState,
   useTransition,
-} from "react";
+} from 'react';
 import {
   DndContext,
   KeyboardSensor,
@@ -19,31 +19,34 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
-} from "@dnd-kit/core";
+} from '@dnd-kit/core';
 import {
   SortableContext,
   arrayMove,
   sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { GripVertical } from "lucide-react";
-import toast from "react-hot-toast";
-import { LFK_EXERCISE_SIDE_SELECT_OPTIONS, parseLfkExerciseSide } from "@/modules/lfk-templates/lfkExerciseSide";
-import type { Template } from "@/modules/lfk-templates/types";
-import type { ExerciseMedia } from "@/modules/lfk-exercises/types";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Label } from "@/shared/ui/doctor/primitives/label";
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { GripVertical } from 'lucide-react';
+import toast from 'react-hot-toast';
+import {
+  LFK_EXERCISE_SIDE_SELECT_OPTIONS,
+  parseLfkExerciseSide,
+} from '@/modules/lfk-templates/lfkExerciseSide';
+import type { Template } from '@/modules/lfk-templates/types';
+import type { ExerciseMedia } from '@/modules/lfk-exercises/types';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/ui/doctor/primitives/select";
-import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
+} from '@/shared/ui/doctor/primitives/select';
+import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import {
   Dialog,
   DialogContent,
@@ -51,8 +54,8 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/shared/ui/doctor/primitives/dialog";
-import type { LfkTemplateUsageSnapshot } from "@/modules/lfk-templates/types";
+} from '@/shared/ui/doctor/primitives/dialog';
+import type { LfkTemplateUsageSnapshot } from '@/modules/lfk-templates/types';
 import {
   archiveDoctorLfkTemplate,
   createLfkTemplateDraftFromEditor,
@@ -62,21 +65,21 @@ import {
   unarchiveDoctorLfkTemplate,
   type ArchiveDoctorLfkTemplateState,
   type UnarchiveDoctorLfkTemplateState,
-} from "./actions";
-import { doctorLfkTemplateUsageHref } from "./lfkTemplatesUsageDocLinks";
+} from './actions';
+import { doctorLfkTemplateUsageHref } from './lfkTemplatesUsageDocLinks';
 import {
   lfkTemplateUsageHasAnyReference,
   lfkTemplateUsageSections,
   type LfkTemplateUsageSection,
-} from "./lfkTemplatesUsageSummaryText";
-import { editorLinesToTemplateExerciseInputs } from "./templateExercisePayload";
-import { normalizeRuSearchString } from "@/shared/lib/ruSearchNormalize";
-import { DoctorCatalogPersistPublishBar } from "@/shared/ui/doctor/DoctorCatalogPersistPublishBar";
-import { ExerciseListCatalogThumb } from "@/shared/ui/doctor/media/ExerciseListCatalogThumb";
-import { MediaThumb } from "@/shared/ui/doctor/media/MediaThumb";
-import { exerciseMediaToPreviewUi } from "@/shared/ui/doctor/media/mediaPreviewUiModel";
-import { PickerSearchField } from "@/shared/ui/doctor/PickerSearchField";
-import { LfkTemplateStatusBadge } from "./LfkTemplateStatusBadge";
+} from './lfkTemplatesUsageSummaryText';
+import { editorLinesToTemplateExerciseInputs } from './templateExercisePayload';
+import { normalizeRuSearchString } from '@/shared/lib/ruSearchNormalize';
+import { DoctorCatalogPersistPublishBar } from '@/shared/ui/doctor/DoctorCatalogPersistPublishBar';
+import { ExerciseListCatalogThumb } from '@/shared/ui/doctor/media/ExerciseListCatalogThumb';
+import { MediaThumb } from '@/shared/ui/doctor/media/MediaThumb';
+import { exerciseMediaToPreviewUi } from '@/shared/ui/doctor/media/mediaPreviewUiModel';
+import { PickerSearchField } from '@/shared/ui/doctor/PickerSearchField';
+import { LfkTemplateStatusBadge } from './LfkTemplateStatusBadge';
 
 type ExerciseOption = { id: string; title: string; firstMedia: ExerciseMedia | null };
 
@@ -93,10 +96,10 @@ type EditorLine = {
 
 /** Шкала в UI шаблона ЛФК; в БД поле до 10 — значения 9/10 показываем только если уже есть в строке. */
 const LFK_TEMPLATE_MAX_PAIN_OPTIONS = [0, 1, 2, 3, 4, 5, 6, 7, 8] as const;
-const LFK_TEMPLATE_MAX_PAIN_DEFAULT = "2";
+const LFK_TEMPLATE_MAX_PAIN_DEFAULT = '2';
 
 function editorMaxPainValue(raw: string): string {
-  if (raw === "9" || raw === "10") return raw;
+  if (raw === '9' || raw === '10') return raw;
   const n = Number.parseInt(raw, 10);
   if (!Number.isNaN(n) && n >= 0 && n <= 8) return String(n);
   return LFK_TEMPLATE_MAX_PAIN_DEFAULT;
@@ -107,11 +110,11 @@ function templateToLines(t: Template): EditorLine[] {
     sortId: e.id,
     exerciseId: e.exerciseId,
     title: e.exerciseTitle ?? e.exerciseId,
-    reps: e.reps != null ? String(e.reps) : "",
-    sets: e.sets != null ? String(e.sets) : "",
-    side: e.side ?? "",
-    maxPain: editorMaxPainValue(e.maxPain0_10 != null ? String(e.maxPain0_10) : ""),
-    comment: e.comment ?? "",
+    reps: e.reps != null ? String(e.reps) : '',
+    sets: e.sets != null ? String(e.sets) : '',
+    side: e.side ?? '',
+    maxPain: editorMaxPainValue(e.maxPain0_10 != null ? String(e.maxPain0_10) : ''),
+    comment: e.comment ?? '',
   }));
 }
 
@@ -130,7 +133,7 @@ function linesToPayload(lines: EditorLine[]) {
       side: parseLfkExerciseSide(l.side),
       maxPain0_10: optInt(editorMaxPainValue(l.maxPain)),
       comment: l.comment.trim() || null,
-    }))
+    })),
   );
 }
 
@@ -236,10 +239,15 @@ function SortableRow({
             <Label className="text-xs">Сторона</Label>
             <Select
               value={line.side}
-              onValueChange={(v) => onChange(line.sortId, { side: v ?? "" })}
+              onValueChange={(v) => onChange(line.sortId, { side: v ?? '' })}
             >
               <SelectTrigger size="sm" className="w-full min-w-0">
-                <SelectValue placeholder="—">{line.side ? (LFK_EXERCISE_SIDE_SELECT_OPTIONS.find((o) => o.value === line.side)?.label ?? line.side) : "—"}</SelectValue>
+                <SelectValue placeholder="—">
+                  {line.side
+                    ? (LFK_EXERCISE_SIDE_SELECT_OPTIONS.find((o) => o.value === line.side)?.label ??
+                      line.side)
+                    : '—'}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="">—</SelectItem>
@@ -275,10 +283,18 @@ function SortableRow({
             </Label>
             <Select
               value={editorMaxPainValue(line.maxPain)}
-              onValueChange={(v) => onChange(line.sortId, { maxPain: v ?? LFK_TEMPLATE_MAX_PAIN_DEFAULT })}
+              onValueChange={(v) =>
+                onChange(line.sortId, { maxPain: v ?? LFK_TEMPLATE_MAX_PAIN_DEFAULT })
+              }
             >
-              <SelectTrigger id={`tpl-line-maxpain-${line.sortId}`} size="sm" className="w-14 min-w-[3.25rem]">
-                <SelectValue placeholder={LFK_TEMPLATE_MAX_PAIN_DEFAULT}>{editorMaxPainValue(line.maxPain)}</SelectValue>
+              <SelectTrigger
+                id={`tpl-line-maxpain-${line.sortId}`}
+                size="sm"
+                className="w-14 min-w-[3.25rem]"
+              >
+                <SelectValue placeholder={LFK_TEMPLATE_MAX_PAIN_DEFAULT}>
+                  {editorMaxPainValue(line.maxPain)}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {LFK_TEMPLATE_MAX_PAIN_OPTIONS.map((n) => (
@@ -286,7 +302,7 @@ function SortableRow({
                     {n}
                   </SelectItem>
                 ))}
-                {line.maxPain === "9" || line.maxPain === "10" ? (
+                {line.maxPain === '9' || line.maxPain === '10' ? (
                   <SelectItem value={line.maxPain}>{line.maxPain}</SelectItem>
                 ) : null}
               </SelectContent>
@@ -326,16 +342,18 @@ export function TemplateEditor({
   template,
   exerciseCatalog,
   externalUsageSnapshot,
-  listPreserveQuery = "",
+  listPreserveQuery = '',
   onCreated,
 }: TemplateEditorProps) {
   const router = useRouter();
-  const recordKey = template?.id ?? "__new__";
-  const [title, setTitle] = useState(template?.title ?? "Новый комплекс");
-  const [description, setDescription] = useState(template?.description ?? "");
-  const [lines, setLines] = useState<EditorLine[]>(() => (template ? templateToLines(template) : []));
+  const recordKey = template?.id ?? '__new__';
+  const [title, setTitle] = useState(template?.title ?? 'Новый комплекс');
+  const [description, setDescription] = useState(template?.description ?? '');
+  const [lines, setLines] = useState<EditorLine[]>(() =>
+    template ? templateToLines(template) : [],
+  );
   const [addOpen, setAddOpen] = useState(false);
-  const [pickQuery, setPickQuery] = useState("");
+  const [pickQuery, setPickQuery] = useState('');
   const [pending, startTransition] = useTransition();
   const [usage, setUsage] = useState<LfkTemplateUsageSnapshot | null>(null);
   const [usageLoadError, setUsageLoadError] = useState<string | null>(null);
@@ -346,8 +364,8 @@ export function TemplateEditor({
   const templateId = template?.id ?? null;
 
   useEffect(() => {
-    setTitle(template?.title ?? "Новый комплекс");
-    setDescription(template?.description ?? "");
+    setTitle(template?.title ?? 'Новый комплекс');
+    setDescription(template?.description ?? '');
     setLines(template ? templateToLines(template) : []);
     setUsageLoadError(null);
     setWarnOpen(false);
@@ -376,7 +394,7 @@ export function TemplateEditor({
       .catch(() => {
         if (!cancelled) {
           setUsage(null);
-          setUsageLoadError("Не удалось загрузить сводку использования");
+          setUsageLoadError('Не удалось загрузить сводку использования');
         }
       })
       .finally(() => {
@@ -400,8 +418,8 @@ export function TemplateEditor({
   useEffect(() => {
     if (
       archiveState?.ok === false &&
-      "code" in archiveState &&
-      archiveState.code === "USAGE_CONFIRMATION_REQUIRED"
+      'code' in archiveState &&
+      archiveState.code === 'USAGE_CONFIRMATION_REQUIRED'
     ) {
       setWarnOpen(true);
     }
@@ -415,8 +433,8 @@ export function TemplateEditor({
   const warnSections = useMemo(() => {
     if (
       archiveState?.ok === false &&
-      "code" in archiveState &&
-      archiveState.code === "USAGE_CONFIRMATION_REQUIRED"
+      'code' in archiveState &&
+      archiveState.code === 'USAGE_CONFIRMATION_REQUIRED'
     ) {
       const u = archiveState.usage;
       if (!lfkTemplateUsageHasAnyReference(u)) return [];
@@ -426,14 +444,14 @@ export function TemplateEditor({
   }, [archiveState]);
 
   const archiveError =
-    archiveState?.ok === false && "error" in archiveState ? archiveState.error : null;
+    archiveState?.ok === false && 'error' in archiveState ? archiveState.error : null;
 
   const unarchiveError =
-    unarchiveState?.ok === false && "error" in unarchiveState ? unarchiveState.error : null;
+    unarchiveState?.ok === false && 'error' in unarchiveState ? unarchiveState.error : null;
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
   const sortIds = useMemo(() => lines.map((l) => l.sortId), [lines]);
@@ -468,7 +486,7 @@ export function TemplateEditor({
   const persist = useCallback(() => {
     const t = title.trim();
     if (!t) {
-      toast.error("Укажите название шаблона");
+      toast.error('Укажите название шаблона');
       return;
     }
     startTransition(async () => {
@@ -480,7 +498,7 @@ export function TemplateEditor({
         });
         if (!res.ok) toast.error(res.error);
         else {
-          toast.success("Черновик сохранён");
+          toast.success('Черновик сохранён');
           onCreated?.(res.id);
           router.refresh();
         }
@@ -494,7 +512,9 @@ export function TemplateEditor({
       });
       if (!res.ok) toast.error(res.error);
       else {
-        toast.success(template.status === "published" ? "Изменения сохранены" : "Черновик сохранён");
+        toast.success(
+          template.status === 'published' ? 'Изменения сохранены' : 'Черновик сохранён',
+        );
         router.refresh();
       }
     });
@@ -516,7 +536,7 @@ export function TemplateEditor({
       const res = await publishLfkTemplateAction(template.id);
       if (!res.ok) toast.error(res.error);
       else {
-        toast.success("Шаблон опубликован");
+        toast.success('Шаблон опубликован');
         router.refresh();
       }
     });
@@ -537,26 +557,26 @@ export function TemplateEditor({
         sortId: crypto.randomUUID(),
         exerciseId: opt.id,
         title: opt.title,
-        reps: "",
-        sets: "",
-        side: "",
+        reps: '',
+        sets: '',
+        side: '',
         maxPain: LFK_TEMPLATE_MAX_PAIN_DEFAULT,
-        comment: "",
+        comment: '',
       },
     ]);
     setAddOpen(false);
-    setPickQuery("");
+    setPickQuery('');
   }, []);
 
-  const archived = template?.status === "archived";
-  const published = template?.status === "published";
+  const archived = template?.status === 'archived';
+  const published = template?.status === 'published';
 
   return (
     <div className="flex w-full min-w-0 flex-col gap-4">
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
           <Label htmlFor="tpl-title">Название</Label>
-          <LfkTemplateStatusBadge status={template?.status ?? "draft"} className="shrink-0" />
+          <LfkTemplateStatusBadge status={template?.status ?? 'draft'} className="shrink-0" />
         </div>
         <Input
           id="tpl-title"
@@ -642,7 +662,7 @@ export function TemplateEditor({
         pending={pending}
         isPublished={published}
         catalogRecordExists={Boolean(template)}
-        persistLabel={published ? "Сохранить изменения" : "Сохранить черновик"}
+        persistLabel={published ? 'Сохранить изменения' : 'Сохранить черновик'}
         onPersist={persist}
         onPublish={publish}
       />
@@ -673,7 +693,7 @@ export function TemplateEditor({
             <form action={unarchiveFormAction} className="flex flex-col gap-2">
               <input type="hidden" name="id" value={template.id} />
               <Button type="submit" variant="secondary" disabled={unarchivePending}>
-                {unarchivePending ? "Восстановление…" : "Вернуть из архива"}
+                {unarchivePending ? 'Восстановление…' : 'Вернуть из архива'}
               </Button>
             </form>
           </div>
@@ -688,7 +708,12 @@ export function TemplateEditor({
             <form ref={archiveFormRef} action={archiveFormAction} className="flex flex-col gap-2">
               <input type="hidden" name="id" value={template.id} />
               <input type="hidden" name="listPreserveQuery" value={listPreserveQuery} />
-              <input type="hidden" name="acknowledgeUsageWarning" value={archiveUsageAck ? "1" : ""} readOnly />
+              <input
+                type="hidden"
+                name="acknowledgeUsageWarning"
+                value={archiveUsageAck ? '1' : ''}
+                readOnly
+              />
               <Button
                 type="submit"
                 variant="destructive"
@@ -697,7 +722,7 @@ export function TemplateEditor({
                   setArchiveUsageAck(false);
                 }}
               >
-                {archivePending ? "Архивация…" : "Архивировать"}
+                {archivePending ? 'Архивация…' : 'Архивировать'}
               </Button>
             </form>
 
@@ -707,13 +732,13 @@ export function TemplateEditor({
                   <DialogTitle>Комплекс уже используется</DialogTitle>
                   <div className="space-y-2 text-sm text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground">
                     <span className="block">
-                      Архивация уберёт комплекс из каталога для новых назначений. Уже выданные назначения и история не
-                      удаляются.
+                      Архивация уберёт комплекс из каталога для новых назначений. Уже выданные
+                      назначения и история не удаляются.
                     </span>
                     {!warnSections.length &&
                     archiveState?.ok === false &&
-                    "code" in archiveState &&
-                    archiveState.code === "USAGE_CONFIRMATION_REQUIRED" &&
+                    'code' in archiveState &&
+                    archiveState.code === 'USAGE_CONFIRMATION_REQUIRED' &&
                     !lfkTemplateUsageHasAnyReference(archiveState.usage) ? (
                       <span className="block text-sm">
                         Сервер запросил подтверждение — проверьте связи перед архивацией.
@@ -751,10 +776,10 @@ export function TemplateEditor({
 
       <p className="text-xs text-muted-foreground">
         {!template
-          ? "Сохраните черновик, чтобы архивировать комплекс и увидеть связи «где используется». Перед публикацией добавьте хотя бы одно упражнение."
+          ? 'Сохраните черновик, чтобы архивировать комплекс и увидеть связи «где используется». Перед публикацией добавьте хотя бы одно упражнение.'
           : published
-            ? "Правки вступают в силу после «Сохранить изменения». Кнопка «Опубликовать» доступна только для черновиков."
-            : "Перед публикацией черновик сохраняется автоматически. Если в шаблоне нет упражнений, публикация будет отклонена."}
+            ? 'Правки вступают в силу после «Сохранить изменения». Кнопка «Опубликовать» доступна только для черновиков.'
+            : 'Перед публикацией черновик сохраняется автоматически. Если в шаблоне нет упражнений, публикация будет отклонена.'}
       </p>
     </div>
   );

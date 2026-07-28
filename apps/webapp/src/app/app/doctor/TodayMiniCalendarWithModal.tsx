@@ -1,19 +1,19 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { DateTime } from "luxon";
-import { Dialog, DialogContent } from "@/shared/ui/doctor/primitives/dialog";
-import { DoctorCalendarEventPanel } from "./calendar/DoctorCalendarEventPanel";
-import { DoctorTodayMiniCalendar } from "./DoctorTodayMiniCalendar";
-import type { TodayAppointmentItem } from "./loadDoctorTodayDashboard";
+import { useState, useEffect } from 'react';
+import { DateTime } from 'luxon';
+import { Dialog, DialogContent } from '@/shared/ui/doctor/primitives/dialog';
+import { DoctorCalendarEventPanel } from './calendar/DoctorCalendarEventPanel';
+import { DoctorTodayMiniCalendar } from './DoctorTodayMiniCalendar';
+import type { TodayAppointmentItem } from './loadDoctorTodayDashboard';
 import type {
   CalendarAppointmentEvent,
   CalendarFilterMeta,
   CalendarEvent,
-} from "@/modules/booking-calendar/types";
-import type { CalendarCreateActiveFilters } from "@/modules/booking-calendar/calendarCreateFieldMode";
+} from '@/modules/booking-calendar/types';
+import type { CalendarCreateActiveFilters } from '@/modules/booking-calendar/calendarCreateFieldMode';
 
-const API_BASE = "/api/doctor/booking-engine";
+const API_BASE = '/api/doctor/booking-engine';
 
 const EMPTY_FILTER_META: CalendarFilterMeta = {
   specialists: [],
@@ -64,46 +64,50 @@ export function TodayMiniCalendarWithModal({
   const [selected, setSelected] = useState<CalendarAppointmentEvent | null>(null);
 
   const todayIso =
-    DateTime.now().setZone(displayIana).toISODate() ??
-    new Date().toISOString().slice(0, 10);
+    DateTime.now().setZone(displayIana).toISODate() ?? new Date().toISOString().slice(0, 10);
 
   /** Fetch canonical appointment events for today from the booking-engine calendar API. */
   function fetchTodayEvents(onDone?: () => void) {
-    const qs = new URLSearchParams({ view: "day", from: todayIso, to: todayIso }).toString();
+    const qs = new URLSearchParams({ view: 'day', from: todayIso, to: todayIso }).toString();
     fetch(`${API_BASE}/calendar?${qs}`)
       .then((r) => r.json())
       .then((data: CalendarApiResponse) => {
         if (data.ok && Array.isArray(data.events)) {
           const appts = data.events.filter(
-            (e): e is CalendarAppointmentEvent => e.kind === "appointment",
+            (e): e is CalendarAppointmentEvent => e.kind === 'appointment',
           );
           setCalendarEvents(appts);
         }
         if (data.filters) setFilterMeta(data.filters);
         onDone?.();
       })
-      .catch(() => {/* silently ignore — fallback to server list for sr-only */});
+      .catch(() => {
+        /* silently ignore — fallback to server list for sr-only */
+      });
   }
 
   // Fetch canonical calendar events on mount so FC uses canonical IDs.
   useEffect(() => {
     let cancelled = false;
-    const qs = new URLSearchParams({ view: "day", from: todayIso, to: todayIso }).toString();
+    const qs = new URLSearchParams({ view: 'day', from: todayIso, to: todayIso }).toString();
     fetch(`${API_BASE}/calendar?${qs}`)
       .then((r) => r.json())
       .then((data: CalendarApiResponse) => {
         if (cancelled) return;
         if (data.ok && Array.isArray(data.events)) {
           const appts = data.events.filter(
-            (e): e is CalendarAppointmentEvent => e.kind === "appointment",
+            (e): e is CalendarAppointmentEvent => e.kind === 'appointment',
           );
           setCalendarEvents(appts);
         }
         if (data.filters) setFilterMeta(data.filters);
       })
-      .catch(() => {/* silently ignore */});
-    return () => { cancelled = true; };
-   
+      .catch(() => {
+        /* silently ignore */
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [todayIso]);
 
   function handleChanged() {
@@ -124,7 +128,12 @@ export function TodayMiniCalendarWithModal({
         onCanonicalEventClick={(appt) => setSelected(appt)}
       />
 
-      <Dialog open={selected !== null} onOpenChange={(open) => { if (!open) setSelected(null); }}>
+      <Dialog
+        open={selected !== null}
+        onOpenChange={(open) => {
+          if (!open) setSelected(null);
+        }}
+      >
         <DialogContent className="max-w-sm overflow-hidden p-0 [&>[data-slot=dialog-close]]:size-10 [&>[data-slot=dialog-close]>svg]:size-5">
           <div className="overflow-y-auto max-h-[90dvh]">
             {selected ? (

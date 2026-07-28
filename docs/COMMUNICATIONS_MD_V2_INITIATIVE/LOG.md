@@ -19,12 +19,12 @@
 
 ### Сквозной аудит
 
-| Проверка | Результат |
-|----------|-----------|
-| `npx tsc --noEmit` | **0 ошибок** |
-| `npx eslint` (все изменённые файлы) | **0** |
-| `npx vitest run` (все затронутые файлы, ~317+ тестов) | **GREEN** |
-| `webappPhase15F.verify.test.ts` | **5/5 GREEN** |
+| Проверка                                              | Результат     |
+| ----------------------------------------------------- | ------------- |
+| `npx tsc --noEmit`                                    | **0 ошибок**  |
+| `npx eslint` (все изменённые файлы)                   | **0**         |
+| `npx vitest run` (все затронутые файлы, ~317+ тестов) | **GREEN**     |
+| `webappPhase15F.verify.test.ts`                       | **5/5 GREEN** |
 
 Весь новый SQL — только через Drizzle `db.execute(sql\`...\`)`. `pool.query`/`client.query` не добавлялись.
 
@@ -121,6 +121,7 @@
 #### 5. Тесты
 
 `BroadcastAuditLog.test.tsx` полностью обновлён: добавлены тесты на:
+
 - Single-open: открытие одной строки закрывает другую; повторный клик закрывает.
 - Полный текст: строка из 300 символов отображается без усечения.
 - Сводка: `audienceFilter` и `channels` видны в свёрнутой строке.
@@ -149,8 +150,6 @@
 
 3. **«Создать на основе»** — требует prefill формы колбэком или URL-параметром + передача `messageTitle`, `messageBody`, `channels`, `audienceFilter` обратно в `BroadcastForm`. Не тривиально: нужен либо подъём состояния выше `BroadcastsMainView`, либо новый проп в `BroadcastForm`. Выходит за рамки «тривиально через колбэк» — зафиксировано как отложенное.
 
-
-
 ## Этап 6 — микро-график статистики упражнения
 
 **Дата:** 2026-06-13
@@ -160,6 +159,7 @@
 #### 1. Тип `ExerciseMetricPoint` (modules/treatment-program/types.ts)
 
 Новый тип `ExerciseMetricPoint` — одна точка данных для микро-графика:
+
 - `at: string` — ISO-строка `created_at`
 - `reps: number | null`
 - `weightKg: number | null`
@@ -171,11 +171,13 @@
 #### 2. Порт `listDoneForStageItemInWindow` (ports.ts + pg + inMemory — аддитивно)
 
 Новый аддитивный метод в `ProgramActionLogPort`:
+
 ```
 listDoneForStageItemInWindow(params: {
   instanceId, instanceStageItemId, windowStartUtcIso, windowEndUtcExclusiveIso
 }): Promise<ProgramActionLogListRow[]>
 ```
+
 - `pgProgramActionLog.ts` — Drizzle-запрос: `WHERE instanceId AND instanceStageItemId AND actionType='done' AND createdAt IN [start, end)`, ORDER BY `createdAt DESC`, LIMIT 50.
 - `inMemoryProgramActionLog.ts` — полный паритет: фильтрует по тем же полям, сортирует, обрезает до 50.
 
@@ -184,12 +186,14 @@ listDoneForStageItemInWindow(params: {
 ```
 listExerciseMetricsForWeek(params: { instanceId, instanceStageItemId }): Promise<ExerciseMetricPoint[]>
 ```
+
 - Окно: последние 7 дней (UTC-now − 7d … now+1min). Буфер +1 мин на верхней границе обеспечивает включение строк, вставленных в текущую секунду (нужно для тестов, безопасно для продакшена).
 - Маппинг payload: `reps`, `weightKg`, `sets` (всегда null пока Фаза C), `perceivedDifficulty` → `difficulty`.
 
 #### 4. API-роут `GET /api/doctor/comments/exercise-metrics` (новый файл)
 
 Тонкий роут в `app/api/doctor/comments/exercise-metrics/route.ts`:
+
 - Auth: `getCurrentSession` + `canAccessDoctor`.
 - Zod-валидация: `instanceId: z.string().uuid()`, `stageItemId: z.string().uuid()`.
 - Вызывает `deps.treatmentProgramProgress.listExerciseMetricsForWeek`.
@@ -200,6 +204,7 @@ listExerciseMetricsForWeek(params: { instanceId, instanceStageItemId }): Promise
 #### 5. Компонент `ExerciseMicroChart` (shared/ui/doctor/ExerciseMicroChart.tsx — новый)
 
 Переиспользуемый компонент (пригодится для страницы пациента, Фаза C):
+
 - Принимает `points: ExerciseMetricPoint[]`.
 - Показывает только те метрики, по которым есть хотя бы одна ненулевая точка.
 - `reps`, `weightKg`, `sets` — вертикальные столбики (div-bars) пропорционально max, высота 4–28px.
@@ -221,10 +226,12 @@ listExerciseMetricsForWeek(params: { instanceId, instanceStageItemId }): Promise
 #### 7. Тесты
 
 **Расширен** `inMemoryProgramActionLog.listDoneItems.test.ts` (6 новых тестов):
+
 - `listDoneForStageItemInWindow`: фильтрация по stageItemId, пустой результат вне окна.
 - `listExerciseMetricsForWeek`: агрегация reps/weightKg/difficulty, частичные метрики, нет данных.
 
 **Новый** `ExerciseMicroChart.test.tsx` (10 тестов):
+
 - Пустые состояния (нет точек, нулевые метрики).
 - Рендер каждой метрики: reps, weightKg, difficulty, sets (Фаза C path).
 - Множественные метрики одновременно.
@@ -232,6 +239,7 @@ listExerciseMetricsForWeek(params: { instanceId, instanceStageItemId }): Promise
 - Порядок старые→новые.
 
 **Обновлён** `DoctorCommentsTab.test.tsx`:
+
 - Моки `fetch` в `renderStateC` переведены с `callCount` на URL-routing (устойчивее с добавлением metrics-фетча).
 - Добавлены 3 теста блока «микро-график метрик (B.3)»: вызов metrics-эндпоинта с правильными params, пустой массив → «нет данных», массив с reps → метка «повт.».
 
@@ -248,6 +256,7 @@ listExerciseMetricsForWeek(params: { instanceId, instanceStageItemId }): Promise
 ### Затронутые файлы
 
 **Изменённые:**
+
 - `apps/webapp/src/modules/treatment-program/types.ts` — добавлен тип `ExerciseMetricPoint`
 - `apps/webapp/src/modules/treatment-program/ports.ts` — добавлен `listDoneForStageItemInWindow` в `ProgramActionLogPort`
 - `apps/webapp/src/modules/treatment-program/progress-service.ts` — добавлен метод `listExerciseMetricsForWeek`
@@ -258,6 +267,7 @@ listExerciseMetricsForWeek(params: { instanceId, instanceStageItemId }): Promise
 - `apps/webapp/src/app/app/doctor/comments/DoctorCommentsTab.test.tsx` — обновлён (URL-routing моки + 3 новых теста)
 
 **Новые файлы:**
+
 - `apps/webapp/src/app/api/doctor/comments/exercise-metrics/route.ts` — API-роут метрик
 - `apps/webapp/src/shared/ui/doctor/ExerciseMicroChart.tsx` — компонент микро-графика
 - `apps/webapp/src/shared/ui/doctor/ExerciseMicroChart.test.tsx` — тесты компонента
@@ -286,18 +296,21 @@ listExerciseMetricsForWeek(params: { instanceId, instanceStageItemId }): Promise
 Компонент `DoctorCommentsTab` переписан с нуля: плоская раскладка заменена split-layout с 3 состояниями правого пейна.
 
 **Левый пейн** — список пациентов (`CommentPatientRow[]`):
+
 - Поиск (`Input h-8`) — многополевой по `displayName`, `phone`, `telegramId`, `maxId`. Строка поиска — отдельной строкой на всю ширину (адаптивная раскладка: поиск сверху, фильтры под ним).
 - Тоггл-фильтр «★ На сопровождении · N» — поведение A3: клик вкл/выкл, `aria-pressed` отражает состояние. Пустой = показывать всех.
 - Строка пациента: `displayName` + `★` + бейдж `unreadCount` (красный кружок).
 - Поиск/фильтры фильтруют оба пейна (левый список и ленту state A).
 
 **State A — лента всех комментариев** (пациент не выбран, дефолт):
+
 - Плоский список `filteredFeed` из `TodayExerciseCommentAttentionItem[]`.
 - Кнопка «Загрузить ещё» — пагинация `/api/doctor/exercise-comments`.
 - Клик по строке ленты переходит в state B (находит пациента по `patientUserId`).
 - Переиспользует `useDoctorExerciseCommentsSearch` для серверного добора.
 
 **State B — упражнения пациента** (пациент выбран):
+
 - `fetch GET /api/doctor/comments/patients/{patientUserId}/exercises?includePastPrograms=true`.
 - Шапка: ссылка на имя пациента (`doctorClientProfileHref` → дашборд) + «★ на сопровождении» + счётчик `totalExercisesWithComments` / `totalUnreadComments` + кнопка `×` (сброс пациента, B→A).
 - Группировка по этапам: активные (`isActive=true`) — развёрнуты сверху; закрытые — свёрнуты снизу (`useState(collapsed=true)` по умолчанию для неактивных).
@@ -307,6 +320,7 @@ listExerciseMetricsForWeek(params: { instanceId, instanceStageItemId }): Promise
 - Примечание: `ExerciseListCatalogThumb` не используется в state B, т.к. `ExerciseCommentItem.thumb` содержит только `mediaFileId: null` (загрузчик 5a не заполняет mediaFileId из snapshot). Используется простой плейсхолдер `bg-muted` (зафиксировано как развилка — см. ниже).
 
 **State C — чат по упражнению** (упражнение выбрано):
+
 - `fetch GET /api/doctor/treatment-program-instances/{instanceId}/items/{stageItemId}/discussion?limit=50&direction=backward`.
 - Шапка: хлебная крошка «ссылка-пациент → упражнение» + счётчик + кнопка текстом **«Закрыть»** (C→B). Кнопка `×` в шапке B не мешает: разные уровни иерархии.
 - Тред: сообщения sorted ascending по `createdAt`; patient/admin роль отображается.
@@ -317,10 +331,12 @@ listExerciseMetricsForWeek(params: { instanceId, instanceStageItemId }): Promise
 - Тред версионирован через `threadVersionRef` — гонок при быстром переключении упражнений нет.
 
 **Navigation:**
+
 - Пациент → B; упражнение → C; «Закрыть» C→B; «×» B→A.
 - Состояние drill-down локальное (НЕ в URL) — `deepLinkKeys: []` не затронут.
 
 **Split layout:**
+
 - `CatalogSplitLayout` + `DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE`.
 - `mobileView`: `"list"` когда пациент не выбран, `"detail"` когда пациент выбран.
 - Пропорции `lg:grid-cols-[1fr_1.4fr]`.
@@ -359,6 +375,7 @@ listExerciseMetricsForWeek(params: { instanceId, instanceStageItemId }): Promise
 ### Затронутые файлы
 
 **Изменённые:**
+
 - `apps/webapp/src/app/app/doctor/comments/DoctorCommentsTab.tsx` — полная замена компонента
 - `apps/webapp/src/app/app/doctor/comments/DoctorCommentsTab.test.tsx` — полная перепись тестов
 - `apps/webapp/src/app/app/doctor/communications/tabs/CommentsTab.tsx` — обновлён маппинг initialData (v2)
@@ -433,6 +450,7 @@ listExerciseMetricsForWeek(params: { instanceId, instanceStageItemId }): Promise
 #### 7. Тред (state C) — существующие роуты достаточны
 
 Для треда упражнения (state C) новых роутов не создавалось — всё уже есть:
+
 - **Чтение треда:** `GET /api/doctor/treatment-program-instances/[instanceId]/items/[stageItemId]/discussion` → `listDiscussionPageMerged` (с legacy-merge). Возвращает `messages`, `pageInfo`, `totalCount`, `peerLastReadAt`.
 - **Ответ:** `POST /api/doctor/treatment-program-instances/[instanceId]/items/[stageItemId]/program-note-reply` → `sendProgramNoteReply`.
 - **Mark read:** `POST /api/doctor/treatment-program-instances/[instanceId]/items/[stageItemId]/discussion/read` → `markReadForViewer(viewerUserId, stageItemId)`.
@@ -446,7 +464,7 @@ listExerciseMetricsForWeek(params: { instanceId, instanceStageItemId }): Promise
 
 ### Проверки
 
-- `npx tsc --noEmit` — **0 ошибок** в наших файлах (pre-existing в schedule/booking-** — параллельная инициатива).
+- `npx tsc --noEmit` — **0 ошибок** в наших файлах (pre-existing в schedule/booking-\*\* — параллельная инициатива).
 - `npx vitest run` по 9 файлам — **71 passed (9 files)**, все GREEN.
 - `webappPhase15F.verify.test.ts` — **5/5 GREEN**. Все новые SQL через Drizzle, pool.query не добавлялись.
 - `npx eslint` по всем изменённым/новым файлам — **0 ошибок**.
@@ -454,6 +472,7 @@ listExerciseMetricsForWeek(params: { instanceId, instanceStageItemId }): Promise
 ### Затронутые файлы
 
 **Новые:**
+
 - `apps/webapp/src/app/app/doctor/comments/loadDoctorCommentPatients.ts`
 - `apps/webapp/src/app/app/doctor/comments/loadDoctorCommentPatients.test.ts`
 - `apps/webapp/src/app/app/doctor/comments/loadDoctorPatientExercisesWithComments.ts`
@@ -461,6 +480,7 @@ listExerciseMetricsForWeek(params: { instanceId, instanceStageItemId }): Promise
 - `apps/webapp/src/app/api/doctor/comments/patients/[patientUserId]/exercises/route.ts`
 
 **Изменённые (аддитивно):**
+
 - `apps/webapp/src/modules/program-item-discussion/types.ts` — новый тип `StageItemViewerUnreadCount`
 - `apps/webapp/src/modules/program-item-discussion/ports.ts` — новый метод порта
 - `apps/webapp/src/modules/program-item-discussion/service.ts` — сервисная обёртка

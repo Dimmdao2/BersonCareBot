@@ -1,7 +1,7 @@
-import { randomUUID } from "node:crypto";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import type { WebPushClientPayload } from "@/modules/web-push/sendWebPushToSubscriptions";
-import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
+import { randomUUID } from 'node:crypto';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import type { WebPushClientPayload } from '@/modules/web-push/sendWebPushToSubscriptions';
+import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
 
 export type CreateTrackedWebPushInput = {
   userId: string;
@@ -48,7 +48,7 @@ export async function createTrackedWebPushPayload(
       occurrenceId,
       pushKind: input.pushKind ?? null,
       warmupSloganKey: input.warmupSloganKey ?? null,
-      warmupSloganText: input.pushKind === "warmup" ? input.body : null,
+      warmupSloganText: input.pushKind === 'warmup' ? input.body : null,
       openUrl: input.url,
       title: input.title,
     });

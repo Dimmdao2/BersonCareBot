@@ -56,7 +56,9 @@ describe('telegram deliveryAdapter', () => {
       },
     });
 
-    const call = sendMessageMock.mock.calls[0]?.[0] as { reply_markup?: { inline_keyboard?: unknown[] } };
+    const call = sendMessageMock.mock.calls[0]?.[0] as {
+      reply_markup?: { inline_keyboard?: unknown[] };
+    };
     expect(call.reply_markup?.inline_keyboard).toEqual([
       [{ text: 'OK', callback_data: 'menu.ok' }],
       [{ text: 'Link', url: 'https://example.com' }],
@@ -102,7 +104,9 @@ describe('telegram deliveryAdapter', () => {
       },
     });
 
-    const call = editMessageReplyMarkupMock.mock.calls[0]?.[0] as { reply_markup?: { inline_keyboard?: unknown[] } };
+    const call = editMessageReplyMarkupMock.mock.calls[0]?.[0] as {
+      reply_markup?: { inline_keyboard?: unknown[] };
+    };
     expect(call.reply_markup?.inline_keyboard).toEqual([
       [{ text: 'Back', callback_data: 'menu.back' }],
     ]);

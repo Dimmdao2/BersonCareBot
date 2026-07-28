@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
-import { createPatientOrganizationService } from "./service";
-import type { PatientOrganizationEnrollment, PatientOrganizationPort } from "./ports";
+import { describe, expect, it, vi } from 'vitest';
+import { createPatientOrganizationService } from './service';
+import type { PatientOrganizationEnrollment, PatientOrganizationPort } from './ports';
 
 function enrollment(
   organizationId: string,
@@ -11,9 +11,9 @@ function enrollment(
     organizationId,
     organizationTitle: title,
     organizationIsActive,
-    platformUserId: "patient-1",
-    status: "active",
-    createdAt: "2026-07-20T00:00:00.000Z",
+    platformUserId: 'patient-1',
+    status: 'active',
+    createdAt: '2026-07-20T00:00:00.000Z',
   };
 }
 
@@ -22,125 +22,138 @@ function service(rows: PatientOrganizationEnrollment[]) {
     listActiveEnrollmentsByPlatformUser: vi.fn().mockResolvedValue(rows),
     hasActiveEnrollment: vi.fn().mockResolvedValue(false),
     hasSchedulableClientRelationship: vi.fn().mockResolvedValue(false),
-    createManualOrganizationClient: vi.fn().mockResolvedValue({ ok: false, error: "create_failed" }),
+    createManualOrganizationClient: vi
+      .fn()
+      .mockResolvedValue({ ok: false, error: 'create_failed' }),
     findTreatmentProgramOrganizationForPatient: vi.fn().mockResolvedValue(null),
   };
   return createPatientOrganizationService({ port });
 }
 
-describe("patient organization resolver", () => {
-  it("returns neutral recovery for zero usable organizations", async () => {
-    await expect(service([]).resolveActiveOrganizationForPatient("patient-1")).resolves.toEqual({
+describe('patient organization resolver', () => {
+  it('returns neutral recovery for zero usable organizations', async () => {
+    await expect(service([]).resolveActiveOrganizationForPatient('patient-1')).resolves.toEqual({
       ok: false,
-      reason: "no_active_enrollment",
+      reason: 'no_active_enrollment',
     });
   });
 
-  it("does not accept enrollment rows resolved for another signed patient identity", async () => {
+  it('does not accept enrollment rows resolved for another signed patient identity', async () => {
     await expect(
-      service([enrollment("org-a", "Клиника А")]).resolveActiveOrganizationForPatient("patient-2"),
-    ).resolves.toEqual({ ok: false, reason: "no_active_enrollment" });
+      service([enrollment('org-a', 'Клиника А')]).resolveActiveOrganizationForPatient('patient-2'),
+    ).resolves.toEqual({ ok: false, reason: 'no_active_enrollment' });
   });
 
-  it("uses the exact-org enrollment port for trusted organization/M2M checks", async () => {
+  it('uses the exact-org enrollment port for trusted organization/M2M checks', async () => {
     const hasActiveEnrollment = vi.fn().mockResolvedValue(true);
     const port: PatientOrganizationPort = {
       listActiveEnrollmentsByPlatformUser: vi.fn().mockResolvedValue([]),
       hasActiveEnrollment,
       hasSchedulableClientRelationship: vi.fn().mockResolvedValue(false),
-      createManualOrganizationClient: vi.fn().mockResolvedValue({ ok: false, error: "create_failed" }),
+      createManualOrganizationClient: vi
+        .fn()
+        .mockResolvedValue({ ok: false, error: 'create_failed' }),
       findTreatmentProgramOrganizationForPatient: vi.fn().mockResolvedValue(null),
     };
     await expect(
-      createPatientOrganizationService({ port }).hasActiveEnrollment("patient-1", "org-a"),
+      createPatientOrganizationService({ port }).hasActiveEnrollment('patient-1', 'org-a'),
     ).resolves.toBe(true);
-    expect(hasActiveEnrollment).toHaveBeenCalledWith("patient-1", "org-a");
+    expect(hasActiveEnrollment).toHaveBeenCalledWith('patient-1', 'org-a');
     expect(port.listActiveEnrollmentsByPlatformUser).not.toHaveBeenCalled();
   });
 
-  it("selects the only active organization deterministically when there is no stale preference", async () => {
+  it('selects the only active organization deterministically when there is no stale preference', async () => {
     const result = await service([
-      enrollment("org-disabled", "Недоступная", false),
-      enrollment("org-a", "Клиника А"),
-    ]).resolveActiveOrganizationForPatient("patient-1");
+      enrollment('org-disabled', 'Недоступная', false),
+      enrollment('org-a', 'Клиника А'),
+    ]).resolveActiveOrganizationForPatient('patient-1');
     expect(result).toMatchObject({
       ok: true,
-      organizationId: "org-a",
-      selectedBy: "only_active",
+      organizationId: 'org-a',
+      selectedBy: 'only_active',
     });
   });
 
-  it("requires confirmation instead of silently substituting the sole org for a stale preference", async () => {
+  it('requires confirmation instead of silently substituting the sole org for a stale preference', async () => {
     const result = await service([
-      enrollment("org-disabled", "Недоступная", false),
-      enrollment("org-a", "Клиника А"),
-    ]).resolveActiveOrganizationForPatient("patient-1", {
-      rememberedOrganizationId: "org-disabled",
+      enrollment('org-disabled', 'Недоступная', false),
+      enrollment('org-a', 'Клиника А'),
+    ]).resolveActiveOrganizationForPatient('patient-1', {
+      rememberedOrganizationId: 'org-disabled',
     });
     expect(result).toMatchObject({
       ok: false,
-      reason: "organization_selection_required",
-      organizationIds: ["org-a"],
+      reason: 'organization_selection_required',
+      organizationIds: ['org-a'],
       invalidRememberedOrganization: true,
     });
   });
 
-  it("requires an explicit choice for multiple organizations without a valid hint", async () => {
+  it('requires an explicit choice for multiple organizations without a valid hint', async () => {
     const result = await service([
-      enrollment("org-a", "Клиника А"),
-      enrollment("org-b", "Клиника Б"),
-    ]).resolveActiveOrganizationForPatient("patient-1", {
-      rememberedOrganizationId: "org-revoked",
+      enrollment('org-a', 'Клиника А'),
+      enrollment('org-b', 'Клиника Б'),
+    ]).resolveActiveOrganizationForPatient('patient-1', {
+      rememberedOrganizationId: 'org-revoked',
     });
     expect(result).toMatchObject({
       ok: false,
-      reason: "organization_selection_required",
-      organizationIds: ["org-a", "org-b"],
+      reason: 'organization_selection_required',
+      organizationIds: ['org-a', 'org-b'],
       invalidRememberedOrganization: true,
     });
   });
 
-  it("uses a remembered organization only after current enrollment proof", async () => {
+  it('uses a remembered organization only after current enrollment proof', async () => {
     const result = await service([
-      enrollment("org-a", "Клиника А"),
-      enrollment("org-b", "Клиника Б"),
-    ]).resolveActiveOrganizationForPatient("patient-1", {
-      rememberedOrganizationId: "org-b",
+      enrollment('org-a', 'Клиника А'),
+      enrollment('org-b', 'Клиника Б'),
+    ]).resolveActiveOrganizationForPatient('patient-1', {
+      rememberedOrganizationId: 'org-b',
     });
-    expect(result).toMatchObject({ ok: true, organizationId: "org-b", selectedBy: "remembered" });
+    expect(result).toMatchObject({ ok: true, organizationId: 'org-b', selectedBy: 'remembered' });
   });
 
-  it("accepts an exact target only when it is currently authorized", async () => {
+  it('accepts an exact target only when it is currently authorized', async () => {
     const patientOrganization = service([
-      enrollment("org-a", "Клиника А"),
-      enrollment("org-b", "Клиника Б"),
+      enrollment('org-a', 'Клиника А'),
+      enrollment('org-b', 'Клиника Б'),
     ]);
     await expect(
-      patientOrganization.resolveActiveOrganizationForPatient("patient-1", {
-        verifiedTargetOrganizationId: "org-b",
+      patientOrganization.resolveActiveOrganizationForPatient('patient-1', {
+        verifiedTargetOrganizationId: 'org-b',
       }),
-    ).resolves.toMatchObject({ ok: true, organizationId: "org-b", selectedBy: "verified_target" });
+    ).resolves.toMatchObject({ ok: true, organizationId: 'org-b', selectedBy: 'verified_target' });
     await expect(
-      patientOrganization.resolveActiveOrganizationForPatient("patient-1", {
-        verifiedTargetOrganizationId: "org-foreign",
+      patientOrganization.resolveActiveOrganizationForPatient('patient-1', {
+        verifiedTargetOrganizationId: 'org-foreign',
       }),
-    ).resolves.toEqual({ ok: false, reason: "organization_target_not_authorized" });
+    ).resolves.toEqual({ ok: false, reason: 'organization_target_not_authorized' });
   });
 
-  it("maps a treatment-program object to its organization before authorizing the context", async () => {
+  it('maps a treatment-program object to its organization before authorizing the context', async () => {
     const port: PatientOrganizationPort = {
-      listActiveEnrollmentsByPlatformUser: vi.fn().mockResolvedValue([
-        enrollment("org-a", "Клиника А"),
-        enrollment("org-b", "Клиника Б"),
-      ]),
+      listActiveEnrollmentsByPlatformUser: vi
+        .fn()
+        .mockResolvedValue([enrollment('org-a', 'Клиника А'), enrollment('org-b', 'Клиника Б')]),
       hasActiveEnrollment: vi.fn().mockResolvedValue(false),
       hasSchedulableClientRelationship: vi.fn().mockResolvedValue(false),
-      createManualOrganizationClient: vi.fn().mockResolvedValue({ ok: false, error: "create_failed" }),
-      findTreatmentProgramOrganizationForPatient: vi.fn().mockResolvedValue("org-b"),
+      createManualOrganizationClient: vi
+        .fn()
+        .mockResolvedValue({ ok: false, error: 'create_failed' }),
+      findTreatmentProgramOrganizationForPatient: vi.fn().mockResolvedValue('org-b'),
     };
-    const result = await createPatientOrganizationService({ port })
-      .resolveTreatmentProgramOrganizationForPatient("patient-1", "instance-b");
-    expect(result).toMatchObject({ ok: true, organizationId: "org-b", selectedBy: "verified_target" });
-    expect(port.findTreatmentProgramOrganizationForPatient).toHaveBeenCalledWith("patient-1", "instance-b");
+    const result = await createPatientOrganizationService({
+      port,
+    }).resolveTreatmentProgramOrganizationForPatient('patient-1', 'instance-b');
+    expect(result).toMatchObject({
+      ok: true,
+      organizationId: 'org-b',
+      selectedBy: 'verified_target',
+    });
+    expect(port.findTreatmentProgramOrganizationForPatient).toHaveBeenCalledWith(
+      'patient-1',
+      'instance-b',
+    );
   });
 });

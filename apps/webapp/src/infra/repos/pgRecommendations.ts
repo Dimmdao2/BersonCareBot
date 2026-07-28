@@ -1,14 +1,14 @@
-import { and, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { getPool } from "@/infra/db/client";
-import { runDrizzleMutationTransaction } from "@/infra/db/drizzleMutationTx";
-import { runPgPoolPgText } from "@/infra/db/runWebappSql";
+import { and, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { getPool } from '@/infra/db/client';
+import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
+import { runPgPoolPgText } from '@/infra/db/runWebappSql';
 import {
   recommendationRegions,
   recommendations as recommendationsTable,
-} from "../../../db/schema/recommendations";
-import type { RecommendationsPort } from "@/modules/recommendations/ports";
+} from '../../../db/schema/recommendations';
+import type { RecommendationsPort } from '@/modules/recommendations/ports';
 import type {
   Recommendation,
   RecommendationFilter,
@@ -17,34 +17,37 @@ import type {
   RecommendationMediaItem,
   RecommendationUsageRef,
   RecommendationUsageSnapshot,
-} from "@/modules/recommendations/types";
+} from '@/modules/recommendations/types';
 import {
   EMPTY_RECOMMENDATION_USAGE_SNAPSHOT,
   RECOMMENDATION_USAGE_DETAIL_LIMIT,
-} from "@/modules/recommendations/types";
-import { mergeCatalogBodyRegionIds } from "@/shared/lib/mergeCatalogBodyRegionIds";
+} from '@/modules/recommendations/types';
+import { mergeCatalogBodyRegionIds } from '@/shared/lib/mergeCatalogBodyRegionIds';
 
 function normalizeMedia(raw: unknown): RecommendationMediaItem[] {
   if (!Array.isArray(raw)) return [];
   const out: RecommendationMediaItem[] = [];
   for (const m of raw) {
-    if (!m || typeof m !== "object") continue;
+    if (!m || typeof m !== 'object') continue;
     const mediaUrl = (m as { mediaUrl?: unknown }).mediaUrl;
     const mediaType = (m as { mediaType?: unknown }).mediaType;
     const sortOrder = (m as { sortOrder?: unknown }).sortOrder;
-    if (typeof mediaUrl !== "string" || !mediaUrl.trim()) continue;
-    if (mediaType !== "image" && mediaType !== "video" && mediaType !== "gif") continue;
+    if (typeof mediaUrl !== 'string' || !mediaUrl.trim()) continue;
+    if (mediaType !== 'image' && mediaType !== 'video' && mediaType !== 'gif') continue;
     out.push({
       mediaUrl: mediaUrl.trim(),
       mediaType,
-      sortOrder: typeof sortOrder === "number" ? sortOrder : out.length,
+      sortOrder: typeof sortOrder === 'number' ? sortOrder : out.length,
     });
   }
   return out;
 }
 
-function mapRow(row: typeof recommendationsTable.$inferSelect, m2mBodyRegionIds: readonly string[] = []): Recommendation {
-  const domainRaw = row.domain?.trim() ?? "";
+function mapRow(
+  row: typeof recommendationsTable.$inferSelect,
+  m2mBodyRegionIds: readonly string[] = [],
+): Recommendation {
+  const domainRaw = row.domain?.trim() ?? '';
   const domain = domainRaw ? domainRaw : null;
   const merged = mergeCatalogBodyRegionIds(row.bodyRegionId, m2mBodyRegionIds);
   return {
@@ -69,7 +72,7 @@ function mapRow(row: typeof recommendationsTable.$inferSelect, m2mBodyRegionIds:
 function currentPrincipalOrganizationId(): string {
   const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
   if (!principalOrganizationId) {
-    throw new Error("organization_principal_required");
+    throw new Error('organization_principal_required');
   }
   return principalOrganizationId;
 }
@@ -79,8 +82,11 @@ function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[])
   const fallbackOrganizationIds = fallbacks.filter((x): x is string => Boolean(x));
   const fallbackOrganizationId = fallbackOrganizationIds[0] ?? null;
   const hasFallbackMismatch = fallbackOrganizationIds.some((id) => id !== fallbackOrganizationId);
-  if (hasFallbackMismatch || (fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)) {
-    throw new Error("organization_principal_mismatch");
+  if (
+    hasFallbackMismatch ||
+    (fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)
+  ) {
+    throw new Error('organization_principal_mismatch');
   }
   return principalOrganizationId;
 }
@@ -89,7 +95,7 @@ function parseRecommendationUsageRefs(raw: unknown): RecommendationUsageRef[] {
   if (raw == null) return [];
   let arr: unknown[];
   if (Array.isArray(raw)) arr = raw;
-  else if (typeof raw === "string") {
+  else if (typeof raw === 'string') {
     try {
       const p = JSON.parse(raw) as unknown;
       arr = Array.isArray(p) ? p : [];
@@ -100,19 +106,20 @@ function parseRecommendationUsageRefs(raw: unknown): RecommendationUsageRef[] {
 
   const out: RecommendationUsageRef[] = [];
   for (const x of arr) {
-    if (!x || typeof x !== "object") continue;
+    if (!x || typeof x !== 'object') continue;
     const o = x as Record<string, unknown>;
     const kind = o.kind;
     const id = o.id;
     const title = o.title;
     const patientUserId = o.patientUserId;
-    if (kind === "treatment_program_template") {
-      if (typeof id !== "string" || typeof title !== "string") continue;
+    if (kind === 'treatment_program_template') {
+      if (typeof id !== 'string' || typeof title !== 'string') continue;
       out.push({ kind, id, title });
       continue;
     }
-    if (kind === "treatment_program_instance") {
-      if (typeof id !== "string" || typeof title !== "string" || typeof patientUserId !== "string") continue;
+    if (kind === 'treatment_program_instance') {
+      if (typeof id !== 'string' || typeof title !== 'string' || typeof patientUserId !== 'string')
+        continue;
       out.push({ kind, id, title, patientUserId });
     }
   }
@@ -249,7 +256,7 @@ async function loadRecommendationUsageSummary(
   if (!row) return { ...EMPTY_RECOMMENDATION_USAGE_SNAPSHOT };
   const n = (v: string | number | null | undefined) => {
     if (v == null) return 0;
-    if (typeof v === "number") return v;
+    if (typeof v === 'number') return v;
     const parsed = Number.parseInt(String(v), 10);
     return Number.isFinite(parsed) ? parsed : 0;
   };
@@ -259,11 +266,17 @@ async function loadRecommendationUsageSummary(
     archivedTreatmentProgramTemplateCount: n(row.archived_tp_templates),
     activeTreatmentProgramInstanceCount: n(row.active_tp_instances),
     completedTreatmentProgramInstanceCount: n(row.completed_tp_instances),
-    publishedTreatmentProgramTemplateRefs: parseRecommendationUsageRefs(row.published_tp_template_refs),
+    publishedTreatmentProgramTemplateRefs: parseRecommendationUsageRefs(
+      row.published_tp_template_refs,
+    ),
     draftTreatmentProgramTemplateRefs: parseRecommendationUsageRefs(row.draft_tp_template_refs),
-    archivedTreatmentProgramTemplateRefs: parseRecommendationUsageRefs(row.archived_tp_template_refs),
+    archivedTreatmentProgramTemplateRefs: parseRecommendationUsageRefs(
+      row.archived_tp_template_refs,
+    ),
     activeTreatmentProgramInstanceRefs: parseRecommendationUsageRefs(row.active_tp_instance_refs),
-    completedTreatmentProgramInstanceRefs: parseRecommendationUsageRefs(row.completed_tp_instance_refs),
+    completedTreatmentProgramInstanceRefs: parseRecommendationUsageRefs(
+      row.completed_tp_instance_refs,
+    ),
   };
 }
 
@@ -273,17 +286,18 @@ export function createPgRecommendationsPort(): RecommendationsPort {
       const db = getDrizzle();
       const organizationId = currentPrincipalOrganizationId();
       const conds = [eq(recommendationsTable.organizationId, organizationId)];
-      const scope =
-        filter.archiveScope ?? (filter.includeArchived ? "all" : "active");
-      if (scope === "active") {
+      const scope = filter.archiveScope ?? (filter.includeArchived ? 'all' : 'active');
+      if (scope === 'active') {
         conds.push(eq(recommendationsTable.isArchived, false));
-      } else if (scope === "archived") {
+      } else if (scope === 'archived') {
         conds.push(eq(recommendationsTable.isArchived, true));
       }
       const q = filter.search?.trim();
       if (q) {
         const p = `%${q}%`;
-        conds.push(or(ilike(recommendationsTable.title, p), ilike(recommendationsTable.bodyMd, p))!);
+        conds.push(
+          or(ilike(recommendationsTable.title, p), ilike(recommendationsTable.bodyMd, p))!,
+        );
       }
       const domainFilter = filter.domain;
       if (domainFilter) {
@@ -308,7 +322,12 @@ export function createPgRecommendationsPort(): RecommendationsPort {
       const rrRows = await db
         .select()
         .from(recommendationRegions)
-        .where(and(inArray(recommendationRegions.recommendationId, ids), eq(recommendationRegions.organizationId, organizationId)));
+        .where(
+          and(
+            inArray(recommendationRegions.recommendationId, ids),
+            eq(recommendationRegions.organizationId, organizationId),
+          ),
+        );
       const byRec = new Map<string, string[]>();
       for (const rr of rrRows) {
         const cur = byRec.get(rr.recommendationId) ?? [];
@@ -321,20 +340,37 @@ export function createPgRecommendationsPort(): RecommendationsPort {
     async getById(id: string): Promise<Recommendation | null> {
       const db = getDrizzle();
       const organizationId = currentPrincipalOrganizationId();
-      const rows = await db.select().from(recommendationsTable).where(and(eq(recommendationsTable.id, id), eq(recommendationsTable.organizationId, organizationId))).limit(1);
+      const rows = await db
+        .select()
+        .from(recommendationsTable)
+        .where(
+          and(
+            eq(recommendationsTable.id, id),
+            eq(recommendationsTable.organizationId, organizationId),
+          ),
+        )
+        .limit(1);
       const r0 = rows[0];
       if (!r0) return null;
       const rrRows = await db
         .select()
         .from(recommendationRegions)
-        .where(and(eq(recommendationRegions.recommendationId, id), eq(recommendationRegions.organizationId, organizationId)));
+        .where(
+          and(
+            eq(recommendationRegions.recommendationId, id),
+            eq(recommendationRegions.organizationId, organizationId),
+          ),
+        );
       return mapRow(
         r0,
         rrRows.map((x) => x.bodyRegionId),
       );
     },
 
-    async create(input: CreateRecommendationInput, createdBy: string | null): Promise<Recommendation> {
+    async create(
+      input: CreateRecommendationInput,
+      createdBy: string | null,
+    ): Promise<Recommendation> {
       const merged = mergeCatalogBodyRegionIds(input.bodyRegionId, input.bodyRegionIds ?? null);
       const organizationId = currentWriteOrganizationId();
       return await runDrizzleMutationTransaction(async (tx) => {
@@ -356,9 +392,15 @@ export function createPgRecommendationsPort(): RecommendationsPort {
           .returning();
         const id = rows[0].id;
         if (merged.length > 0) {
-          await tx.insert(recommendationRegions).values(
-            merged.map((bodyRegionId) => ({ organizationId, recommendationId: id, bodyRegionId })),
-          );
+          await tx
+            .insert(recommendationRegions)
+            .values(
+              merged.map((bodyRegionId) => ({
+                organizationId,
+                recommendationId: id,
+                bodyRegionId,
+              })),
+            );
         }
         return mapRow(rows[0], merged);
       });
@@ -393,28 +435,56 @@ export function createPgRecommendationsPort(): RecommendationsPort {
         const existing = await tx
           .select({ organizationId: recommendationsTable.organizationId })
           .from(recommendationsTable)
-          .where(and(eq(recommendationsTable.id, id), eq(recommendationsTable.organizationId, currentPrincipalOrganizationId())))
+          .where(
+            and(
+              eq(recommendationsTable.id, id),
+              eq(recommendationsTable.organizationId, currentPrincipalOrganizationId()),
+            ),
+          )
           .limit(1);
         if (!existing[0]) return null;
         const organizationId = currentWriteOrganizationId(existing[0].organizationId);
         const rows = await tx
           .update(recommendationsTable)
           .set({ ...patch, organizationId })
-          .where(and(eq(recommendationsTable.id, id), eq(recommendationsTable.organizationId, organizationId)))
+          .where(
+            and(
+              eq(recommendationsTable.id, id),
+              eq(recommendationsTable.organizationId, organizationId),
+            ),
+          )
           .returning();
         if (!rows[0]) return null;
         if (regionMerged !== null) {
-          await tx.delete(recommendationRegions).where(and(eq(recommendationRegions.recommendationId, id), eq(recommendationRegions.organizationId, organizationId)));
-          if (regionMerged.length > 0) {
-            await tx.insert(recommendationRegions).values(
-              regionMerged.map((bodyRegionId) => ({ organizationId, recommendationId: id, bodyRegionId })),
+          await tx
+            .delete(recommendationRegions)
+            .where(
+              and(
+                eq(recommendationRegions.recommendationId, id),
+                eq(recommendationRegions.organizationId, organizationId),
+              ),
             );
+          if (regionMerged.length > 0) {
+            await tx
+              .insert(recommendationRegions)
+              .values(
+                regionMerged.map((bodyRegionId) => ({
+                  organizationId,
+                  recommendationId: id,
+                  bodyRegionId,
+                })),
+              );
           }
         }
         const rrRows = await tx
           .select()
           .from(recommendationRegions)
-          .where(and(eq(recommendationRegions.recommendationId, id), eq(recommendationRegions.organizationId, organizationId)));
+          .where(
+            and(
+              eq(recommendationRegions.recommendationId, id),
+              eq(recommendationRegions.organizationId, organizationId),
+            ),
+          );
         return mapRow(
           rows[0],
           rrRows.map((x) => x.bodyRegionId),
@@ -428,14 +498,26 @@ export function createPgRecommendationsPort(): RecommendationsPort {
         const existing = await tx
           .select({ organizationId: recommendationsTable.organizationId })
           .from(recommendationsTable)
-          .where(and(eq(recommendationsTable.id, id), eq(recommendationsTable.organizationId, currentPrincipalOrganizationId()), eq(recommendationsTable.isArchived, false)))
+          .where(
+            and(
+              eq(recommendationsTable.id, id),
+              eq(recommendationsTable.organizationId, currentPrincipalOrganizationId()),
+              eq(recommendationsTable.isArchived, false),
+            ),
+          )
           .limit(1);
         if (!existing[0]) return false;
         const organizationId = currentWriteOrganizationId(existing[0].organizationId);
         const rows = await tx
           .update(recommendationsTable)
           .set({ organizationId, isArchived: true, updatedAt: new Date().toISOString() })
-          .where(and(eq(recommendationsTable.id, id), eq(recommendationsTable.organizationId, organizationId), eq(recommendationsTable.isArchived, false)))
+          .where(
+            and(
+              eq(recommendationsTable.id, id),
+              eq(recommendationsTable.organizationId, organizationId),
+              eq(recommendationsTable.isArchived, false),
+            ),
+          )
           .returning({ id: recommendationsTable.id });
         return rows.length > 0;
       });
@@ -447,14 +529,26 @@ export function createPgRecommendationsPort(): RecommendationsPort {
         const existing = await tx
           .select({ organizationId: recommendationsTable.organizationId })
           .from(recommendationsTable)
-          .where(and(eq(recommendationsTable.id, id), eq(recommendationsTable.organizationId, currentPrincipalOrganizationId()), eq(recommendationsTable.isArchived, true)))
+          .where(
+            and(
+              eq(recommendationsTable.id, id),
+              eq(recommendationsTable.organizationId, currentPrincipalOrganizationId()),
+              eq(recommendationsTable.isArchived, true),
+            ),
+          )
           .limit(1);
         if (!existing[0]) return false;
         const organizationId = currentWriteOrganizationId(existing[0].organizationId);
         const rows = await tx
           .update(recommendationsTable)
           .set({ organizationId, isArchived: false, updatedAt: new Date().toISOString() })
-          .where(and(eq(recommendationsTable.id, id), eq(recommendationsTable.organizationId, organizationId), eq(recommendationsTable.isArchived, true)))
+          .where(
+            and(
+              eq(recommendationsTable.id, id),
+              eq(recommendationsTable.organizationId, organizationId),
+              eq(recommendationsTable.isArchived, true),
+            ),
+          )
           .returning({ id: recommendationsTable.id });
         return rows.length > 0;
       });
@@ -466,7 +560,12 @@ export function createPgRecommendationsPort(): RecommendationsPort {
       const [root] = await db
         .select({ id: recommendationsTable.id })
         .from(recommendationsTable)
-        .where(and(eq(recommendationsTable.id, id), eq(recommendationsTable.organizationId, organizationId)))
+        .where(
+          and(
+            eq(recommendationsTable.id, id),
+            eq(recommendationsTable.organizationId, organizationId),
+          ),
+        )
         .limit(1);
       if (!root) return { ...EMPTY_RECOMMENDATION_USAGE_SNAPSHOT };
       const pool = getPool();

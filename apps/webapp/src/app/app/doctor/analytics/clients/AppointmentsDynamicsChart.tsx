@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useState } from "react";
+import { useState } from 'react';
 import {
   CartesianGrid,
   Legend,
@@ -9,29 +9,32 @@ import {
   ResponsiveContainer,
   XAxis,
   YAxis,
-} from "recharts";
+} from 'recharts';
 
-import type { StatsPeriod } from "@/modules/diaries/stats/periodWindow";
-import { diaryChartFormatTickLabel, diaryChartShowTick } from "@/modules/diaries/stats/formatDiaryChartTick";
-import type { AppointmentDayPoint } from "@/modules/doctor-appointments/ports";
-import { DoctorRechartsTooltip } from "@/shared/ui/doctor/DoctorRechartsTooltip";
+import type { StatsPeriod } from '@/modules/diaries/stats/periodWindow';
+import {
+  diaryChartFormatTickLabel,
+  diaryChartShowTick,
+} from '@/modules/diaries/stats/formatDiaryChartTick';
+import type { AppointmentDayPoint } from '@/modules/doctor-appointments/ports';
+import { DoctorRechartsTooltip } from '@/shared/ui/doctor/DoctorRechartsTooltip';
 
-const STROKE_VISITS = "hsl(215 65% 38%)";
-const STROKE_BOOKINGS = "hsl(142 55% 36%)";
-const STROKE_CANCELS = "hsl(22 82% 46%)";
+const STROKE_VISITS = 'hsl(215 65% 38%)';
+const STROKE_BOOKINGS = 'hsl(142 55% 36%)';
+const STROKE_CANCELS = 'hsl(22 82% 46%)';
 
-type LineKey = "pastVisits" | "bookingsCreated" | "cancellationActions";
+type LineKey = 'pastVisits' | 'bookingsCreated' | 'cancellationActions';
 
 function chartPeriodForPointCount(n: number): StatsPeriod {
-  if (n <= 7) return "week";
-  if (n <= 31) return "month";
-  return "all";
+  if (n <= 7) return 'week';
+  if (n <= 31) return 'month';
+  return 'all';
 }
 
 const LINE_LABELS: Record<LineKey, string> = {
-  pastVisits: "Визиты",
-  bookingsCreated: "Записались",
-  cancellationActions: "Отмены",
+  pastVisits: 'Визиты',
+  bookingsCreated: 'Записались',
+  cancellationActions: 'Отмены',
 };
 
 export function AppointmentsDynamicsChart({ series }: { series: AppointmentDayPoint[] }) {
@@ -67,12 +70,12 @@ export function AppointmentsDynamicsChart({ series }: { series: AppointmentDayPo
           <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
           <XAxis
             dataKey="full"
-            tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+            tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
             tickLine={false}
             interval={0}
             tickFormatter={(full: string, index: number) => {
-              const prev = index > 0 ? data[index - 1]?.full ?? null : null;
-              if (!diaryChartShowTick(period, index, data.length, full, prev)) return "";
+              const prev = index > 0 ? (data[index - 1]?.full ?? null) : null;
+              if (!diaryChartShowTick(period, index, data.length, full, prev)) return '';
               return diaryChartFormatTickLabel(full, period);
             }}
           />
@@ -80,23 +83,23 @@ export function AppointmentsDynamicsChart({ series }: { series: AppointmentDayPo
             domain={[0, yMax]}
             width={36}
             allowDecimals={false}
-            tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+            tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
             tickLine={false}
           />
           <DoctorRechartsTooltip
             formatter={(value, name) => {
-              const v = typeof value === "number" ? value : Number(value);
+              const v = typeof value === 'number' ? value : Number(value);
               const label = LINE_LABELS[name as LineKey] ?? String(name);
-              return [`${Number.isFinite(v) ? v : "—"}`, label];
+              return [`${Number.isFinite(v) ? v : '—'}`, label];
             }}
             labelFormatter={(_, payload) => {
               const p = payload?.[0]?.payload as { full?: string } | undefined;
-              return p?.full ?? "";
+              return p?.full ?? '';
             }}
           />
           <Legend
             verticalAlign="bottom"
-            wrapperStyle={{ paddingTop: 8, cursor: "pointer" }}
+            wrapperStyle={{ paddingTop: 8, cursor: 'pointer' }}
             formatter={(value) => {
               const key = value as LineKey;
               return (

@@ -1,10 +1,10 @@
-import type { ReminderRule } from "@/modules/reminders/types";
-import type { SlotsV1ScheduleData } from "@/modules/reminders/scheduleSlots";
+import type { ReminderRule } from '@/modules/reminders/types';
+import type { SlotsV1ScheduleData } from '@/modules/reminders/scheduleSlots';
 
 /** JSON shape returned by patient reminder APIs (create/PATCH responses). */
 export type PatientReminderRuleJson = {
   id: string;
-  category: ReminderRule["category"];
+  category: ReminderRule['category'];
   enabled: boolean;
   intervalMinutes: number | null;
   windowStartMinute: number;
@@ -15,7 +15,7 @@ export type PatientReminderRuleJson = {
   timezone: string;
   quietHoursStartMinute: number | null;
   quietHoursEndMinute: number | null;
-  linkedObjectType: ReminderRule["linkedObjectType"];
+  linkedObjectType: ReminderRule['linkedObjectType'];
   linkedObjectId: string | null;
   customTitle: string | null;
   customText: string | null;
@@ -31,9 +31,9 @@ export function reminderRuleToPatientJson(r: ReminderRule): PatientReminderRuleJ
     windowStartMinute: r.windowStartMinute,
     windowEndMinute: r.windowEndMinute,
     daysMask: r.daysMask,
-    scheduleType: r.scheduleType ?? "interval_window",
+    scheduleType: r.scheduleType ?? 'interval_window',
     scheduleData: r.scheduleData,
-    timezone: r.timezone?.trim() || "Europe/Moscow",
+    timezone: r.timezone?.trim() || 'Europe/Moscow',
     quietHoursStartMinute: r.quietHoursStartMinute ?? null,
     quietHoursEndMinute: r.quietHoursEndMinute ?? null,
     linkedObjectType: r.linkedObjectType,

@@ -123,7 +123,8 @@ function QuotaEditor({
   onChange: (quota: TariffQuota | null) => void;
 }) {
   const units = MECHANIC_REGISTRY[mechanic].quotaUnits;
-  const snapshotEnforced = MECHANIC_REGISTRY[mechanic].quotaEnforcement !== 'declared_no_enforcement';
+  const snapshotEnforced =
+    MECHANIC_REGISTRY[mechanic].quotaEnforcement !== 'declared_no_enforcement';
   if (units.length === 0) return null;
 
   function changeKind(kind: 'none' | TariffQuota['kind']) {
@@ -173,60 +174,62 @@ function QuotaEditor({
           }
         />
       ) : null}
-      {quota ? snapshotEnforced ? (
-        <p className="self-center text-xs text-muted-foreground">
-          Единица: {QUOTA_UNIT_LABELS.items} · текущее значение
-        </p>
-      ) : (
-        <>
-          <Select
-            value={quota.unit}
-            onValueChange={(value) => {
-              if (value) onChange({ ...quota, unit: value });
-            }}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {units.map((unit) => (
-                <SelectItem key={unit} value={unit}>
-                  {QUOTA_UNIT_LABELS[unit]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={quota.period}
-            onValueChange={(value) => {
-              if (value) onChange({ ...quota, period: value });
-            }}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="snapshot">Текущее значение</SelectItem>
-              <SelectItem value="day">За день</SelectItem>
-              <SelectItem value="month">За месяц</SelectItem>
-              <SelectItem value="year">За год</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select
-            value={quota.usagePolicy}
-            onValueChange={(value) => {
-              if (value) onChange({ ...quota, usagePolicy: value });
-            }}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="snapshot">Снимок</SelectItem>
-              <SelectItem value="consumption">Расход за период</SelectItem>
-            </SelectContent>
-          </Select>
-        </>
+      {quota ? (
+        snapshotEnforced ? (
+          <p className="self-center text-xs text-muted-foreground">
+            Единица: {QUOTA_UNIT_LABELS.items} · текущее значение
+          </p>
+        ) : (
+          <>
+            <Select
+              value={quota.unit}
+              onValueChange={(value) => {
+                if (value) onChange({ ...quota, unit: value });
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {units.map((unit) => (
+                  <SelectItem key={unit} value={unit}>
+                    {QUOTA_UNIT_LABELS[unit]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={quota.period}
+              onValueChange={(value) => {
+                if (value) onChange({ ...quota, period: value });
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="snapshot">Текущее значение</SelectItem>
+                <SelectItem value="day">За день</SelectItem>
+                <SelectItem value="month">За месяц</SelectItem>
+                <SelectItem value="year">За год</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
+              value={quota.usagePolicy}
+              onValueChange={(value) => {
+                if (value) onChange({ ...quota, usagePolicy: value });
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="snapshot">Снимок</SelectItem>
+                <SelectItem value="consumption">Расход за период</SelectItem>
+              </SelectContent>
+            </Select>
+          </>
+        )
       ) : null}
     </div>
   );
@@ -316,9 +319,9 @@ export function CommercialConstructorClient() {
   );
   const canExtendTrial = Boolean(
     selectedOrganization?.trial?.status === 'active' &&
-      Date.parse(selectedOrganization.trial.endsAt) > Date.now() &&
-      Number.isSafeInteger(Number(extensionDays)) &&
-      Number(extensionDays) > 0,
+    Date.parse(selectedOrganization.trial.endsAt) > Date.now() &&
+    Number.isSafeInteger(Number(extensionDays)) &&
+    Number(extensionDays) > 0,
   );
 
   useEffect(() => {
@@ -397,7 +400,9 @@ export function CommercialConstructorClient() {
             setLoadError(null);
             void loadState()
               .catch((error: unknown) =>
-                setLoadError(error instanceof Error ? error.message : 'Не удалось загрузить данные'),
+                setLoadError(
+                  error instanceof Error ? error.message : 'Не удалось загрузить данные',
+                ),
               )
               .finally(() => setLoading(false));
           }}
@@ -629,7 +634,7 @@ export function CommercialConstructorClient() {
                 displayLabel={
                   assignedTariffId === 'none'
                     ? 'Без ручного тарифа'
-                    : state.tariffs.find((item) => item.id === assignedTariffId)?.name ?? ''
+                    : (state.tariffs.find((item) => item.id === assignedTariffId)?.name ?? '')
                 }
               >
                 <SelectValue />
@@ -649,7 +654,8 @@ export function CommercialConstructorClient() {
           {selectedOrganization ? (
             <div className="space-y-1 text-sm text-muted-foreground">
               <p>
-                Доступ: {COMMERCIAL_LIFECYCLE_LABELS[selectedOrganization.effectiveAccess.lifecycle]}
+                Доступ:{' '}
+                {COMMERCIAL_LIFECYCLE_LABELS[selectedOrganization.effectiveAccess.lifecycle]}
               </p>
               <p>
                 Тариф доступа:{' '}
@@ -666,8 +672,8 @@ export function CommercialConstructorClient() {
                       ?.name ?? 'не найден'}
                   </p>
                   <p>
-                    До {new Date(selectedOrganization.trial.endsAt).toLocaleString('ru-RU')}, grace до{' '}
-                    {new Date(selectedOrganization.trial.graceEndsAt).toLocaleString('ru-RU')}
+                    До {new Date(selectedOrganization.trial.endsAt).toLocaleString('ru-RU')}, grace
+                    до {new Date(selectedOrganization.trial.graceEndsAt).toLocaleString('ru-RU')}
                   </p>
                 </>
               ) : (
@@ -750,8 +756,9 @@ export function CommercialConstructorClient() {
               ) : (
                 selectedOrganization.overrides.map((override) => (
                   <p key={override.id}>
-                    {MECHANIC_REGISTRY[override.mechanic as OrgMechanic]?.label ?? override.mechanic}:{' '}
-                    {override.enabled ? 'разрешено' : 'запрещено'}; действует до{' '}
+                    {MECHANIC_REGISTRY[override.mechanic as OrgMechanic]?.label ??
+                      override.mechanic}
+                    : {override.enabled ? 'разрешено' : 'запрещено'}; действует до{' '}
                     {override.expiresAt
                       ? new Date(override.expiresAt).toLocaleString('ru-RU')
                       : 'без срока'}

@@ -1,9 +1,9 @@
-import type { SQL } from "drizzle-orm";
-import { sql } from "drizzle-orm";
-import { PgDialect } from "drizzle-orm/pg-core";
-import type { Pool, PoolClient, QueryResultRow } from "pg";
-import { getDrizzle, type DrizzleDb } from "@/app-layer/db/drizzle";
-import { drizzleOnPgClient } from "@/infra/db/pgAdvisoryLock";
+import type { SQL } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
+import { PgDialect } from 'drizzle-orm/pg-core';
+import type { Pool, PoolClient, QueryResultRow } from 'pg';
+import { getDrizzle, type DrizzleDb } from '@/app-layer/db/drizzle';
+import { drizzleOnPgClient } from '@/infra/db/pgAdvisoryLock';
 
 const pgDialect = new PgDialect();
 
@@ -12,7 +12,7 @@ export type WebappQueryResult<T> = {
   rowCount?: number;
 };
 
-type DrizzleTransactionClient = Parameters<Parameters<DrizzleDb["transaction"]>[0]>[0];
+type DrizzleTransactionClient = Parameters<Parameters<DrizzleDb['transaction']>[0]>[0];
 
 /** Active transaction client (`rollback()` on drizzle-orm pg-core ≥0.45). */
 export type WebappSqlTransactionExecutor = DrizzleTransactionClient & {
@@ -28,7 +28,7 @@ function normalizeExecute<T>(raw: unknown): WebappQueryResult<T> {
   }
   const r = raw as { rows?: T[]; rowCount?: number };
   const out: WebappQueryResult<T> = { rows: r.rows ?? [] };
-  if (typeof r.rowCount === "number") {
+  if (typeof r.rowCount === 'number') {
     out.rowCount = r.rowCount;
   }
   return out;
@@ -82,7 +82,7 @@ export function webappSqlFromPgText(queryText: string, values: readonly unknown[
   if (segments.length === 1) {
     return segments[0]!;
   }
-  return sql.join(segments, sql.raw(""));
+  return sql.join(segments, sql.raw(''));
 }
 
 /**
@@ -105,14 +105,14 @@ export async function runWebappPgText<T = unknown>(
 
 /** Class B transport: compile `sql` fragment → `pool.query` (integrator purge pool, legacy pool args). */
 export async function runPgPoolPgText<T extends QueryResultRow = QueryResultRow>(
-  pool: Pick<Pool, "query">,
+  pool: Pick<Pool, 'query'>,
   queryText: string,
   values: readonly unknown[] = [],
 ): Promise<WebappQueryResult<T>> {
   const { sql: text, params } = pgDialect.sqlToQuery(webappSqlFromPgText(queryText, values));
   const r = await pool.query<T>(text, params);
   const out: WebappQueryResult<T> = { rows: r.rows ?? [] };
-  if (typeof r.rowCount === "number") {
+  if (typeof r.rowCount === 'number') {
     out.rowCount = r.rowCount;
   }
   return out;

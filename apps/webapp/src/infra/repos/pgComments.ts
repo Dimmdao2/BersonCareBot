@@ -1,16 +1,16 @@
-import { and, asc, eq } from "drizzle-orm";
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { runDrizzleMutationTransaction } from "@/infra/db/drizzleMutationTx";
-import { entityComments as commentsTable } from "../../../db/schema/entityComments";
-import type { CommentsPort } from "@/modules/comments/ports";
+import { and, asc, eq } from 'drizzle-orm';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
+import { entityComments as commentsTable } from '../../../db/schema/entityComments';
+import type { CommentsPort } from '@/modules/comments/ports';
 import type {
   CreateEntityCommentInput,
   EntityComment,
   CommentTargetType,
   CommentType,
   UpdateEntityCommentInput,
-} from "@/modules/comments/types";
+} from '@/modules/comments/types';
 
 function mapRow(row: typeof commentsTable.$inferSelect): EntityComment {
   return {
@@ -33,9 +33,11 @@ function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[])
   const hasFallbackMismatch = fallbackOrganizationIds.some((id) => id !== fallbackOrganizationId);
   if (
     hasFallbackMismatch ||
-    (principalOrganizationId && fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)
+    (principalOrganizationId &&
+      fallbackOrganizationId &&
+      principalOrganizationId !== fallbackOrganizationId)
   ) {
-    throw new Error("organization_principal_mismatch");
+    throw new Error('organization_principal_mismatch');
   }
   return principalOrganizationId ?? fallbackOrganizationId;
 }
@@ -52,7 +54,9 @@ export function createPgCommentsPort(): CommentsPort {
           and(
             eq(commentsTable.targetType, targetType),
             eq(commentsTable.targetId, targetId),
-            principalOrganizationId ? eq(commentsTable.organizationId, principalOrganizationId) : undefined,
+            principalOrganizationId
+              ? eq(commentsTable.organizationId, principalOrganizationId)
+              : undefined,
           ),
         )
         .orderBy(asc(commentsTable.createdAt), asc(commentsTable.id));
@@ -78,7 +82,7 @@ export function createPgCommentsPort(): CommentsPort {
             body: input.body,
           })
           .returning();
-        if (!row) throw new Error("insert comment failed");
+        if (!row) throw new Error('insert comment failed');
         return mapRow(row);
       });
     },
@@ -93,7 +97,11 @@ export function createPgCommentsPort(): CommentsPort {
       if (input.body !== undefined) patch.body = input.body;
       if (input.commentType !== undefined) patch.commentType = input.commentType;
       return runDrizzleMutationTransaction(async (tx) => {
-        const [row] = await tx.update(commentsTable).set(patch).where(eq(commentsTable.id, id)).returning();
+        const [row] = await tx
+          .update(commentsTable)
+          .set(patch)
+          .where(eq(commentsTable.id, id))
+          .returning();
         return row ? mapRow(row) : null;
       });
     },
@@ -103,7 +111,10 @@ export function createPgCommentsPort(): CommentsPort {
       if (!existing) return false;
       currentWriteOrganizationId(existing.organizationId);
       return runDrizzleMutationTransaction(async (tx) => {
-        const res = await tx.delete(commentsTable).where(eq(commentsTable.id, id)).returning({ id: commentsTable.id });
+        const res = await tx
+          .delete(commentsTable)
+          .where(eq(commentsTable.id, id))
+          .returning({ id: commentsTable.id });
         return res.length > 0;
       });
     },

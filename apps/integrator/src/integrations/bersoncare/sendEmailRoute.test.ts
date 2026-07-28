@@ -103,12 +103,17 @@ describe('POST /api/bersoncare/send-email', () => {
       payload: { delivery: { channels: string[] } };
     };
     expect(intent.payload.delivery.channels[0]).toBe('email');
-    expect(intent.meta).toMatchObject({ outboundMessageClass: 'auth_code', outboundCapability: 'auth_code' });
+    expect(intent.meta).toMatchObject({
+      outboundMessageClass: 'auth_code',
+      outboundCapability: 'auth_code',
+    });
   });
 
   it('denies generic email text or template input without an approved auth code', async () => {
     vi.spyOn(smtpOutbound, resolveSmtpOutboundCfg).mockResolvedValue(MOCK_RESOLVED_CONFIGURED);
-    const dispatchOutgoing = vi.fn().mockRejectedValue(new OutboundMessagePolicyError('missing_or_invalid_marker'));
+    const dispatchOutgoing = vi
+      .fn()
+      .mockRejectedValue(new OutboundMessagePolicyError('missing_or_invalid_marker'));
     const recordProviderFailure = vi.fn().mockResolvedValue(undefined);
     const { app, dp } = await buildTestApp(
       TEST_SECRET,
@@ -198,7 +203,10 @@ describe('POST /api/bersoncare/send-email', () => {
     expect(intent.meta.eventId).toMatch(/^otp:email:/);
 
     // The intent type and channel must be correct.
-    const intentTyped = intent as unknown as { type: string; payload: { delivery: { channels: string[] } } };
+    const intentTyped = intent as unknown as {
+      type: string;
+      payload: { delivery: { channels: string[] } };
+    };
     expect(intentTyped.type).toBe('message.send');
     expect(intentTyped.payload.delivery.channels[0]).toBe('email');
   });
@@ -255,7 +263,9 @@ describe('POST /api/bersoncare/send-email', () => {
 
   it('records a low-cardinality incident and keeps a provider failure response sanitized', async () => {
     vi.spyOn(smtpOutbound, resolveSmtpOutboundCfg).mockResolvedValue(MOCK_RESOLVED_CONFIGURED);
-    const dispatchOutgoing = vi.fn().mockRejectedValue(new Error('535 EAUTH user@example.com provider-response-body'));
+    const dispatchOutgoing = vi
+      .fn()
+      .mockRejectedValue(new Error('535 EAUTH user@example.com provider-response-body'));
     const recordProviderFailure = vi.fn().mockResolvedValue(undefined);
     const { app } = await buildTestApp(
       TEST_SECRET,
@@ -308,7 +318,9 @@ describe('POST /api/bersoncare/send-email', () => {
 
   it('classifies SendGrid-style credit exhaustion arriving as HTTP 401', async () => {
     vi.spyOn(smtpOutbound, resolveSmtpOutboundCfg).mockResolvedValue(MOCK_RESOLVED_CONFIGURED);
-    const dispatchOutgoing = vi.fn().mockRejectedValue(new Error('HTTP 401 Maximum credits exceeded'));
+    const dispatchOutgoing = vi
+      .fn()
+      .mockRejectedValue(new Error('HTTP 401 Maximum credits exceeded'));
     const recordProviderFailure = vi.fn().mockResolvedValue(undefined);
     const { app } = await buildTestApp(
       TEST_SECRET,
@@ -353,7 +365,9 @@ describe('POST /api/bersoncare/send-email', () => {
 
   it('keeps the legacy transactional shape parse-compatible until central policy denies it', async () => {
     vi.spyOn(smtpOutbound, resolveSmtpOutboundCfg).mockResolvedValue(MOCK_RESOLVED_CONFIGURED);
-    const dispatchOutgoing = vi.fn().mockRejectedValue(new OutboundMessagePolicyError('missing_or_invalid_marker'));
+    const dispatchOutgoing = vi
+      .fn()
+      .mockRejectedValue(new OutboundMessagePolicyError('missing_or_invalid_marker'));
     const { app, dp } = await buildTestApp(TEST_SECRET, { dispatchOutgoing });
     const body = JSON.stringify({
       to: 'user@example.com',
@@ -397,5 +411,4 @@ describe('POST /api/bersoncare/send-email', () => {
     expect(JSON.parse(res.body)).toMatchObject({ ok: false, error: 'invalid_payload' });
     expect(dp.dispatchOutgoing).not.toHaveBeenCalled();
   });
-
 });

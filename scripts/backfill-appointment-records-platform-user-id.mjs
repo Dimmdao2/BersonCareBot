@@ -3,12 +3,12 @@
  * Ops backfill: заполняет appointment_records.platform_user_id по телефону строки и истории номеров.
  * Usage: DATABASE_URL="postgresql://..." node scripts/backfill-appointment-records-platform-user-id.mjs [--dry-run]
  */
-import pg from "pg";
+import pg from 'pg';
 
-const dryRun = process.argv.includes("--dry-run");
+const dryRun = process.argv.includes('--dry-run');
 const databaseUrl = process.env.DATABASE_URL?.trim();
 if (!databaseUrl) {
-  console.error("DATABASE_URL is required");
+  console.error('DATABASE_URL is required');
   process.exit(1);
 }
 
@@ -51,10 +51,10 @@ try {
       continue;
     }
     if (!dryRun) {
-      await poolClient.query(`UPDATE appointment_records SET platform_user_id = $2::uuid WHERE id = $1::uuid`, [
-        row.id,
-        ids[0],
-      ]);
+      await poolClient.query(
+        `UPDATE appointment_records SET platform_user_id = $2::uuid WHERE id = $1::uuid`,
+        [row.id, ids[0]],
+      );
     }
     updated += 1;
   }

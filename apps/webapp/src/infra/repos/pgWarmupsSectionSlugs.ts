@@ -1,6 +1,6 @@
-import type { Pool } from "pg";
-import { getPool } from "@/infra/db/client";
-import { runPgPoolPgText } from "@/infra/db/runWebappSql";
+import type { Pool } from 'pg';
+import { getPool } from '@/infra/db/client';
+import { runPgPoolPgText } from '@/infra/db/runWebappSql';
 
 /** Slugs CMS-разделов кластера warmups (`system_parent_code = warmups`). */
 export async function loadWarmupsSectionSlugs(pool: Pool = getPool()): Promise<Set<string>> {

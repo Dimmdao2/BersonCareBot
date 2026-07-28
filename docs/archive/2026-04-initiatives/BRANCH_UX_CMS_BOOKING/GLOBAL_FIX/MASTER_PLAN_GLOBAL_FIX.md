@@ -58,15 +58,15 @@ Booking/Online Intake/Doctor Inbox, затем провести формальн
 
 ## 4) Gate-матрица (Definition of Pass)
 
-| Этап | Finding | Обязательный gate |
-|---|---|---|
-| Stage 1 | F-01 | Нет новых `dead` в outbox по причине `platform_user_id null`; ingest не падает на временных сбоях |
-| Stage 2 | F-04 | Compat-строки не деградируют; branch_service lookup реален; provenance сохраняется |
-| Stage 3 | F-03 | `attachmentFileIds` -> `media_files.id` -> `s3_key`; mixed URL+file проходит e2e |
-| Stage 4 | F-02 | Doctor API возвращает `patientName/patientPhone` строго по контракту без fallback-заглушек |
-| Stage 5 | F-06 | Клик из TG/MAX ведет на конкретную заявку (`requestId`) |
-| Stage 6 | F-05 | README/checklist/execution log синхронизированы; 2 открытых checklist-пункта закрыты |
-| Stage 7 | Final | `pnpm run ci` green + SQL-метрики + ручной smoke подтверждены в финальном отчете |
+| Этап    | Finding | Обязательный gate                                                                                 |
+| ------- | ------- | ------------------------------------------------------------------------------------------------- |
+| Stage 1 | F-01    | Нет новых `dead` в outbox по причине `platform_user_id null`; ingest не падает на временных сбоях |
+| Stage 2 | F-04    | Compat-строки не деградируют; branch_service lookup реален; provenance сохраняется                |
+| Stage 3 | F-03    | `attachmentFileIds` -> `media_files.id` -> `s3_key`; mixed URL+file проходит e2e                  |
+| Stage 4 | F-02    | Doctor API возвращает `patientName/patientPhone` строго по контракту без fallback-заглушек        |
+| Stage 5 | F-06    | Клик из TG/MAX ведет на конкретную заявку (`requestId`)                                           |
+| Stage 6 | F-05    | README/checklist/execution log синхронизированы; 2 открытых checklist-пункта закрыты              |
+| Stage 7 | Final   | `pnpm run ci` green + SQL-метрики + ручной smoke подтверждены в финальном отчете                  |
 
 ---
 

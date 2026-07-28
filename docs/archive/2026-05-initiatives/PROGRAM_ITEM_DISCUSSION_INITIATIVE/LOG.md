@@ -382,16 +382,16 @@
 
 ### Gate-вердикты по фазам (Definition of Done)
 
-| Фаза | Вердикт | Ключевые проверки |
-|------|---------|-------------------|
-| 0 | **PASS** | P1–P24 и API-контракты в LOG/README |
-| 1 | **PASS** | Schema, `sendProgramNoteReply`, doctor journal click-to-reply, feature flags |
-| 2 | **PASS** | Patient discussion GET/POST/read, dual-write observation, summary batch |
-| 3 | **PASS** | Tile UI: комментарии/badge/dot, camera, dialog; rollout gate |
-| 4 | **PASS** | Item page layout, complete modal, instruction label, preview block |
-| 5 | **PASS** | Per-item unread, chat count badge, mark-read sync (modal + support chat) |
-| 6 | **PASS** | Upload presign/confirm, 480p worker, media bubbles, ACL, doctor preview |
-| 7 | **PASS** (docs) / **CI отложен** | Architecture docs sync; см. §Закрытие независимого аудита |
+| Фаза | Вердикт                          | Ключевые проверки                                                            |
+| ---- | -------------------------------- | ---------------------------------------------------------------------------- |
+| 0    | **PASS**                         | P1–P24 и API-контракты в LOG/README                                          |
+| 1    | **PASS**                         | Schema, `sendProgramNoteReply`, doctor journal click-to-reply, feature flags |
+| 2    | **PASS**                         | Patient discussion GET/POST/read, dual-write observation, summary batch      |
+| 3    | **PASS**                         | Tile UI: комментарии/badge/dot, camera, dialog; rollout gate                 |
+| 4    | **PASS**                         | Item page layout, complete modal, instruction label, preview block           |
+| 5    | **PASS**                         | Per-item unread, chat count badge, mark-read sync (modal + support chat)     |
+| 6    | **PASS**                         | Upload presign/confirm, 480p worker, media bubbles, ACL, doctor preview      |
+| 7    | **PASS** (docs) / **CI отложен** | Architecture docs sync; см. §Закрытие независимого аудита                    |
 
 ### Definition of Done (весь план)
 
@@ -417,22 +417,27 @@
 ## 2026-05-30 — Доведение до идеала (post-audit hardening)
 
 ### Media submission (P14)
+
 - Лимит upload: **250 MiB**; confirm сверяет S3 HEAD (size/MIME).
 - Video attach только при `video_processing_status=ready`; enqueue fail → `failed` + блок attach.
 - Status API: `{ ready, state, error? }`.
 
 ### P24 / playback
+
 - Discussion bubble: static thumb без Play-overlay; playback в модалке.
 - Poster presign для mp4-only submission; playback events skip для `program_item_submission`.
 
 ### P19 / P20
+
 - Doctor webapp reply: стабильный `webapp-program-note:{hash}`; notify только при `created: true`.
 - Discussion GET/summary: DB cursor paging + bounded legacy merge; ambiguous title → legacy не мержится.
 
 ### UX (P3/P13)
+
 - Tile aria «Инструкция от специалиста»; «В прошлый раз» — reps и/или weight.
 
 ### Тесты
+
 - presign 413/415, confirm 413, status, program-note-reply idempotency, upload limits, worker layout, discussion route.
 
 ---
@@ -454,12 +459,12 @@
 
 ### Gate-вердикты (актуализировано)
 
-| Фаза | Вердикт | Примечание |
-|------|---------|------------|
-| 0–2 | **PASS** | без изменений |
-| 3–4 | **PASS** | после fix props camera/discussion UI |
-| 5–6 | **PASS** | backend + UI media flow после fix |
-| 7 | **PASS** (docs) / **CI отложен** | full `pnpm run ci` — барьер push при стабильном дереве |
+| Фаза | Вердикт                          | Примечание                                             |
+| ---- | -------------------------------- | ------------------------------------------------------ |
+| 0–2  | **PASS**                         | без изменений                                          |
+| 3–4  | **PASS**                         | после fix props camera/discussion UI                   |
+| 5–6  | **PASS**                         | backend + UI media flow после fix                      |
+| 7    | **PASS** (docs) / **CI отложен** | full `pnpm run ci` — барьер push при стабильном дереве |
 
 ### Definition of Done (весь план)
 
@@ -539,4 +544,3 @@
 - `pnpm --dir apps/webapp exec vitest --run PatientTopNav PatientTreatmentProgramDetailClient PatientProgramStageItemPageClient programItemExecutionDisplay PatientTreatmentProgramStagePageProgramSection DoctorProgramItemDiscussionDialog`
 - `pnpm --dir apps/webapp exec vitest --run discussion/route.test` (doctor discussion GET)
 - `pnpm --dir apps/webapp typecheck`
-

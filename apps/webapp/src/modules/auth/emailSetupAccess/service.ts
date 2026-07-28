@@ -1,9 +1,9 @@
-import { normalizeEmail } from "@/modules/auth/emailAuth";
+import { normalizeEmail } from '@/modules/auth/emailAuth';
 import type {
   EmailSetupAccessPort,
   RequestContactEmailSetupParams,
   RequestContactEmailSetupResult,
-} from "./ports";
+} from './ports';
 
 export function createEmailSetupAccessService(port: EmailSetupAccessPort) {
   return {
@@ -12,7 +12,7 @@ export function createEmailSetupAccessService(port: EmailSetupAccessPort) {
     ): Promise<RequestContactEmailSetupResult> {
       const emailNormalized = normalizeEmail(params.emailNormalized);
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailNormalized) || emailNormalized.length > 320) {
-        return { ok: false, reason: "invalid_email" };
+        return { ok: false, reason: 'invalid_email' };
       }
       return port.requestContactEmailSetup({
         ...params,

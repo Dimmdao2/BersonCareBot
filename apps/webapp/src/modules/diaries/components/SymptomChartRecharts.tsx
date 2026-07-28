@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import {
   CartesianGrid,
@@ -8,10 +8,13 @@ import {
   ResponsiveContainer,
   XAxis,
   YAxis,
-} from "recharts";
-import type { StatsPeriod } from "@/modules/diaries/stats/periodWindow";
-import { diaryChartFormatTickLabel, diaryChartShowTick } from "@/modules/diaries/stats/formatDiaryChartTick";
-import { AppRechartsTooltip } from "@/shared/ui/charts/AppRechartsTooltip";
+} from 'recharts';
+import type { StatsPeriod } from '@/modules/diaries/stats/periodWindow';
+import {
+  diaryChartFormatTickLabel,
+  diaryChartShowTick,
+} from '@/modules/diaries/stats/formatDiaryChartTick';
+import { AppRechartsTooltip } from '@/shared/ui/charts/AppRechartsTooltip';
 
 export type SymptomChartPoint = {
   date: string;
@@ -19,8 +22,8 @@ export type SymptomChartPoint = {
   daily: number | null;
 };
 
-const STROKE_INSTANT = "hsl(215 65% 38%)";
-const STROKE_DAILY = "hsl(28 78% 42%)";
+const STROKE_INSTANT = 'hsl(215 65% 38%)';
+const STROKE_DAILY = 'hsl(28 78% 42%)';
 
 export default function SymptomChartRecharts({
   points,
@@ -42,12 +45,12 @@ export default function SymptomChartRecharts({
           <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
           <XAxis
             dataKey="full"
-            tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+            tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
             tickLine={false}
             interval={0}
             tickFormatter={(full: string, index: number) => {
-              const prev = index > 0 ? data[index - 1]?.full ?? null : null;
-              if (!diaryChartShowTick(period, index, data.length, full, prev)) return "";
+              const prev = index > 0 ? (data[index - 1]?.full ?? null) : null;
+              if (!diaryChartShowTick(period, index, data.length, full, prev)) return '';
               return diaryChartFormatTickLabel(full, period);
             }}
           />
@@ -55,26 +58,26 @@ export default function SymptomChartRecharts({
             domain={[0, 10]}
             width={32}
             ticks={[0, 5, 10]}
-            tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+            tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
             tickLine={false}
-            label={{ value: "0–10", angle: -90, position: "insideLeft", fontSize: 10, dx: -4 }}
+            label={{ value: '0–10', angle: -90, position: 'insideLeft', fontSize: 10, dx: -4 }}
           />
           <AppRechartsTooltip
             formatter={(value, name) => {
-              if (value == null || value === "") return [null, null];
-              const v = typeof value === "number" ? value : Number(value);
-              const label = name === "instant" ? "В моменте" : "За день";
-              return [`${Number.isFinite(v) ? v : "—"}/10`, label];
+              if (value == null || value === '') return [null, null];
+              const v = typeof value === 'number' ? value : Number(value);
+              const label = name === 'instant' ? 'В моменте' : 'За день';
+              return [`${Number.isFinite(v) ? v : '—'}/10`, label];
             }}
             labelFormatter={(_, payload) => {
               const p = payload?.[0]?.payload as { full?: string } | undefined;
-              return p?.full ?? "";
+              return p?.full ?? '';
             }}
           />
           <Legend
             verticalAlign="bottom"
             wrapperStyle={{ paddingTop: 8 }}
-            formatter={(value) => (value === "instant" ? "В моменте" : "За день")}
+            formatter={(value) => (value === 'instant' ? 'В моменте' : 'За день')}
           />
           <Line
             type="monotone"

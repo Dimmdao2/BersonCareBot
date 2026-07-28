@@ -1,4 +1,4 @@
-import { sql } from "drizzle-orm";
+import { sql } from 'drizzle-orm';
 import {
   pgTable,
   uuid,
@@ -8,54 +8,59 @@ import {
   index,
   foreignKey,
   check,
-} from "drizzle-orm/pg-core";
-import { platformUsers } from "./schema";
-import { treatmentProgramInstances } from "./treatmentProgramInstances";
-import { beOrganizations } from "./bookingEngine";
+} from 'drizzle-orm/pg-core';
+import { platformUsers } from './schema';
+import { treatmentProgramInstances } from './treatmentProgramInstances';
+import { beOrganizations } from './bookingEngine';
 
 export const treatmentProgramEvents = pgTable(
-  "treatment_program_events",
+  'treatment_program_events',
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
-    organizationId: uuid("organization_id"),
-    instanceId: uuid("instance_id").notNull(),
+    organizationId: uuid('organization_id'),
+    instanceId: uuid('instance_id').notNull(),
     /** Пациент / врач; NULL — автоматические переходы (напр. завершение этапа по всем элементам). */
-    actorId: uuid("actor_id"),
-    eventType: text("event_type").notNull(),
-    targetType: text("target_type").notNull(),
-    targetId: uuid("target_id").notNull(),
-    payload: jsonb("payload").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+    actorId: uuid('actor_id'),
+    eventType: text('event_type').notNull(),
+    targetType: text('target_type').notNull(),
+    targetId: uuid('target_id').notNull(),
+    payload: jsonb('payload')
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
     /** §8: обязателен в событиях `stage_skipped`, `item_removed` (валидация в сервисе). */
-    reason: text("reason"),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    reason: text('reason'),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
   },
   (table) => [
-    index("idx_treatment_program_events_organization_id").using(
-      "btree",
-      table.organizationId.asc().nullsLast().op("uuid_ops"),
+    index('idx_treatment_program_events_organization_id').using(
+      'btree',
+      table.organizationId.asc().nullsLast().op('uuid_ops'),
     ),
-    index("idx_treatment_program_events_instance_created").using(
-      "btree",
-      table.instanceId.asc().nullsLast().op("uuid_ops"),
-      table.createdAt.desc().nullsFirst().op("timestamptz_ops"),
+    index('idx_treatment_program_events_instance_created').using(
+      'btree',
+      table.instanceId.asc().nullsLast().op('uuid_ops'),
+      table.createdAt.desc().nullsFirst().op('timestamptz_ops'),
     ),
     foreignKey({
       columns: [table.organizationId],
       foreignColumns: [beOrganizations.id],
-      name: "treatment_program_events_organization_id_fkey",
-    }).onDelete("cascade"),
+      name: 'treatment_program_events_organization_id_fkey',
+    }).onDelete('cascade'),
     foreignKey({
       columns: [table.instanceId],
       foreignColumns: [treatmentProgramInstances.id],
-      name: "treatment_program_events_instance_id_fkey",
-    }).onDelete("cascade"),
+      name: 'treatment_program_events_instance_id_fkey',
+    }).onDelete('cascade'),
     foreignKey({
       columns: [table.actorId],
       foreignColumns: [platformUsers.id],
-      name: "treatment_program_events_actor_id_fkey",
-    }).onDelete("set null"),
+      name: 'treatment_program_events_actor_id_fkey',
+    }).onDelete('set null'),
     check(
-      "treatment_program_events_event_type_check",
+      'treatment_program_events_event_type_check',
       sql`event_type = ANY (ARRAY[
         'item_added'::text,
         'item_removed'::text,
@@ -73,7 +78,7 @@ export const treatmentProgramEvents = pgTable(
       ])`,
     ),
     check(
-      "treatment_program_events_target_type_check",
+      'treatment_program_events_target_type_check',
       sql`target_type = ANY (ARRAY['stage'::text, 'stage_item'::text, 'program'::text])`,
     ),
   ],

@@ -22,7 +22,7 @@ export type CalendarEventParams = {
 
 /** Форматирует Date в ICS-строку UTC: `YYYYMMDDTHHmmssZ`. */
 export function toIcsDateTime(d: Date): string {
-  const pad = (n: number, len = 2) => String(n).padStart(len, "0");
+  const pad = (n: number, len = 2) => String(n).padStart(len, '0');
   return (
     `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}` +
     `T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z`
@@ -35,11 +35,11 @@ export function toIcsDateTime(d: Date): string {
  */
 export function escapeIcsText(s: string): string {
   return s
-    .replace(/\\/g, "\\\\")
-    .replace(/;/g, "\\;")
-    .replace(/,/g, "\\,")
-    .replace(/\n/g, "\\n")
-    .replace(/\r/g, "");
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '');
 }
 
 /**
@@ -56,12 +56,12 @@ export function buildIcsContent(params: CalendarEventParams, appBaseUrl: string)
   const now = toIcsDateTime(new Date());
 
   const lines: string[] = [
-    "BEGIN:VCALENDAR",
-    "VERSION:2.0",
-    "PRODID:-//BersonCare//Patient Booking//RU",
-    "CALSCALE:GREGORIAN",
-    "METHOD:PUBLISH",
-    "BEGIN:VEVENT",
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//BersonCare//Patient Booking//RU',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    'BEGIN:VEVENT',
     `UID:${uid}`,
     `DTSTAMP:${now}`,
     `DTSTART:${start}`,
@@ -76,10 +76,10 @@ export function buildIcsContent(params: CalendarEventParams, appBaseUrl: string)
     lines.push(`DESCRIPTION:${escapeIcsText(params.description.trim())}`);
   }
 
-  lines.push("END:VEVENT", "END:VCALENDAR");
+  lines.push('END:VEVENT', 'END:VCALENDAR');
 
   // RFC 5545 требует CRLF (\r\n) в качестве разделителя строк.
-  return lines.join("\r\n") + "\r\n";
+  return lines.join('\r\n') + '\r\n';
 }
 
 /**
@@ -90,16 +90,16 @@ export function buildGoogleCalendarUrl(params: CalendarEventParams): string {
   const fmt = (iso: string) =>
     new Date(iso)
       .toISOString()
-      .replace(/[-:]/g, "")
-      .replace(/\.\d{3}Z$/, "Z");
+      .replace(/[-:]/g, '')
+      .replace(/\.\d{3}Z$/, 'Z');
 
   const q = new URLSearchParams({
-    action: "TEMPLATE",
+    action: 'TEMPLATE',
     dates: `${fmt(params.startAt)}/${fmt(params.endAt)}`,
     text: params.summary,
   });
-  if (params.location?.trim()) q.set("location", params.location.trim());
-  if (params.description?.trim()) q.set("details", params.description.trim());
+  if (params.location?.trim()) q.set('location', params.location.trim());
+  if (params.description?.trim()) q.set('details', params.description.trim());
 
   return `https://calendar.google.com/calendar/render?${q.toString()}`;
 }
@@ -118,8 +118,8 @@ export function buildYandexCalendarUrl(params: CalendarEventParams): string {
     from: String(fromSec),
     to: String(toSec),
   });
-  if (params.description?.trim()) q.set("description", params.description.trim());
-  if (params.location?.trim()) q.set("location", params.location.trim());
+  if (params.description?.trim()) q.set('description', params.description.trim());
+  if (params.location?.trim()) q.set('location', params.location.trim());
 
   return `https://calendar.yandex.ru/event/create?${q.toString()}`;
 }

@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { DoctorDatePicker } from "@/shared/ui/doctor/DoctorDatePicker";
-import type { AdminStatsTimePreset } from "@/modules/admin-platform-stats/types";
-import type { AnalyticsPeriodValue } from "./analyticsPeriodUi";
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { DoctorDatePicker } from '@/shared/ui/doctor/DoctorDatePicker';
+import type { AdminStatsTimePreset } from '@/modules/admin-platform-stats/types';
+import type { AnalyticsPeriodValue } from './analyticsPeriodUi';
 
 type Props = {
   period: AnalyticsPeriodValue;
@@ -33,46 +33,54 @@ export function AnalyticsPeriodToolbar({
         <Button
           type="button"
           size="sm"
-          variant={period.preset === "day" ? "default" : "outline"}
-          onClick={() => onPresetChange("day")}
+          variant={period.preset === 'day' ? 'default' : 'outline'}
+          onClick={() => onPresetChange('day')}
         >
           Сутки
         </Button>
         <Button
           type="button"
           size="sm"
-          variant={period.preset === "week" ? "default" : "outline"}
-          onClick={() => onPresetChange("week")}
+          variant={period.preset === 'week' ? 'default' : 'outline'}
+          onClick={() => onPresetChange('week')}
         >
           7 дней
         </Button>
         <Button
           type="button"
           size="sm"
-          variant={period.preset === "month" ? "default" : "outline"}
-          onClick={() => onPresetChange("month")}
+          variant={period.preset === 'month' ? 'default' : 'outline'}
+          onClick={() => onPresetChange('month')}
         >
           30 дней
         </Button>
         <Button
           type="button"
           size="sm"
-          variant={period.preset === "custom" ? "default" : "outline"}
-          onClick={() => onPresetChange("custom")}
+          variant={period.preset === 'custom' ? 'default' : 'outline'}
+          onClick={() => onPresetChange('custom')}
         >
           Период
         </Button>
       </div>
 
-      {period.preset === "custom" ? (
+      {period.preset === 'custom' ? (
         <div className="flex flex-wrap items-end gap-2">
           <div className="flex flex-col gap-1 text-sm">
             <span className="text-muted-foreground">С</span>
-            <DoctorDatePicker value={period.customFrom} onChange={onCustomFromChange} testId="custom-from" />
+            <DoctorDatePicker
+              value={period.customFrom}
+              onChange={onCustomFromChange}
+              testId="custom-from"
+            />
           </div>
           <div className="flex flex-col gap-1 text-sm">
             <span className="text-muted-foreground">По</span>
-            <DoctorDatePicker value={period.customTo} onChange={onCustomToChange} testId="custom-to" />
+            <DoctorDatePicker
+              value={period.customTo}
+              onChange={onCustomToChange}
+              testId="custom-to"
+            />
           </div>
           <Button type="button" size="sm" onClick={onApplyCustom}>
             Показать

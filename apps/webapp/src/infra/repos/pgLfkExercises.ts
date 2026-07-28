@@ -2,14 +2,14 @@ import {
   runWebappPgText,
   runWebappTransaction,
   type WebappSqlTransactionExecutor,
-} from "@/infra/db/runWebappSql";
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
-import type { MediaExerciseUsageEntry, MediaPreviewStatus } from "@/modules/media/types";
-import { mediaPreviewUrlById } from "@/shared/lib/mediaPreviewUrls";
-import { pgRuSubstringSearchPattern } from "@/shared/lib/ruSearchNormalize";
-import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
-import type { RecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
-import type { LfkExercisesPort } from "@/modules/lfk-exercises/ports";
+} from '@/infra/db/runWebappSql';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import type { MediaExerciseUsageEntry, MediaPreviewStatus } from '@/modules/media/types';
+import { mediaPreviewUrlById } from '@/shared/lib/mediaPreviewUrls';
+import { pgRuSubstringSearchPattern } from '@/shared/lib/ruSearchNormalize';
+import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
+import type { RecommendationListFilterScope } from '@/shared/lib/doctorCatalogListStatus';
+import type { LfkExercisesPort } from '@/modules/lfk-exercises/ports';
 import type {
   CreateExerciseInput,
   Exercise,
@@ -21,8 +21,12 @@ import type {
   ExerciseUsageRef,
   ExerciseUsageSnapshot,
   UpdateExerciseInput,
-} from "@/modules/lfk-exercises/types";
-import { EMPTY_EXERCISE_USAGE_SNAPSHOT, EXERCISE_USAGE_DETAIL_LIMIT, mergeExerciseRegionRefIds } from "@/modules/lfk-exercises/types";
+} from '@/modules/lfk-exercises/types';
+import {
+  EMPTY_EXERCISE_USAGE_SNAPSHOT,
+  EXERCISE_USAGE_DETAIL_LIMIT,
+  mergeExerciseRegionRefIds,
+} from '@/modules/lfk-exercises/types';
 
 type MediaDbRow = {
   id: string;
@@ -40,7 +44,7 @@ type MediaDbRow = {
 
 function requireOrganizationPrincipal(): void {
   if (!getCurrentDbPrincipalOrganizationId()) {
-    throw new Error("Organization principal is required for the exercise library");
+    throw new Error('Organization principal is required for the exercise library');
   }
 }
 
@@ -77,9 +81,9 @@ type ExerciseDbRow = {
 
 function mapMediaRow(row: MediaDbRow): ExerciseMedia {
   const mid = row.media_file_id ? String(row.media_file_id) : null;
-  const previewSmUrl = mid && row.preview_sm_key?.trim() ? mediaPreviewUrlById(mid, "sm") : null;
-  const previewMdUrl = mid && row.preview_md_key?.trim() ? mediaPreviewUrlById(mid, "md") : null;
-  const previewStatus = (row.preview_status ?? "pending") as MediaPreviewStatus;
+  const previewSmUrl = mid && row.preview_sm_key?.trim() ? mediaPreviewUrlById(mid, 'sm') : null;
+  const previewMdUrl = mid && row.preview_md_key?.trim() ? mediaPreviewUrlById(mid, 'md') : null;
+  const previewStatus = (row.preview_status ?? 'pending') as MediaPreviewStatus;
   return {
     id: String(row.id),
     exerciseId: String(row.exercise_id),
@@ -105,8 +109,7 @@ export async function pgListExerciseUsageForMediaIds(
 ): Promise<Record<string, MediaExerciseUsageEntry[]>> {
   requireOrganizationPrincipal();
   const out: Record<string, MediaExerciseUsageEntry[]> = {};
-  const UUID_RE =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   const unique = [...new Set(mediaIds.map((id) => id.trim()).filter((id) => UUID_RE.test(id)))];
   if (unique.length === 0) return out;
 
@@ -145,8 +148,8 @@ function mapExerciseRow(row: ExerciseDbRow, media: ExerciseMedia[]): Exercise {
   const regionRefId = regionRefIds[0] ?? null;
   return {
     id: String(row.id),
-    ownerKind: row.owner_kind === "platform" ? "platform" : "organization",
-    catalogScope: row.catalog_scope === "personal" ? "personal" : "catalog",
+    ownerKind: row.owner_kind === 'platform' ? 'platform' : 'organization',
+    catalogScope: row.catalog_scope === 'personal' ? 'personal' : 'catalog',
     title: row.title,
     description: row.description,
     regionRefId,
@@ -226,7 +229,7 @@ function parseExerciseUsageRefs(raw: unknown): ExerciseUsageRef[] {
   if (raw == null) return [];
   let arr: unknown[];
   if (Array.isArray(raw)) arr = raw;
-  else if (typeof raw === "string") {
+  else if (typeof raw === 'string') {
     try {
       const p = JSON.parse(raw) as unknown;
       arr = Array.isArray(p) ? p : [];
@@ -237,19 +240,20 @@ function parseExerciseUsageRefs(raw: unknown): ExerciseUsageRef[] {
 
   const out: ExerciseUsageRef[] = [];
   for (const x of arr) {
-    if (!x || typeof x !== "object") continue;
+    if (!x || typeof x !== 'object') continue;
     const o = x as Record<string, unknown>;
     const kind = o.kind;
     const id = o.id;
     const title = o.title;
     const patientUserId = o.patientUserId;
-    if (kind === "lfk_complex_template" || kind === "treatment_program_template") {
-      if (typeof id !== "string" || typeof title !== "string") continue;
+    if (kind === 'lfk_complex_template' || kind === 'treatment_program_template') {
+      if (typeof id !== 'string' || typeof title !== 'string') continue;
       out.push({ kind, id, title });
       continue;
     }
-    if (kind === "treatment_program_instance" || kind === "patient_lfk_assignment_client") {
-      if (typeof id !== "string" || typeof title !== "string" || typeof patientUserId !== "string") continue;
+    if (kind === 'treatment_program_instance' || kind === 'patient_lfk_assignment_client') {
+      if (typeof id !== 'string' || typeof title !== 'string' || typeof patientUserId !== 'string')
+        continue;
       out.push({ kind, id, title, patientUserId });
     }
   }
@@ -491,7 +495,7 @@ async function loadExerciseUsageSummary(exerciseId: string): Promise<ExerciseUsa
   if (!row) return { ...EMPTY_EXERCISE_USAGE_SNAPSHOT };
   const n = (v: string | number | null | undefined) => {
     if (v == null) return 0;
-    if (typeof v === "number") return v;
+    if (typeof v === 'number') return v;
     const parsed = Number.parseInt(String(v), 10);
     return Number.isFinite(parsed) ? parsed : 0;
   };
@@ -515,8 +519,8 @@ async function loadExerciseUsageSummary(exerciseId: string): Promise<ExerciseUsa
 
 function exerciseListArchiveScope(filter: ExerciseFilter): RecommendationListFilterScope {
   if (filter.archiveListScope) return filter.archiveListScope;
-  if (filter.includeArchived === true) return "all";
-  return "active";
+  if (filter.includeArchived === true) return 'all';
+  return 'active';
 }
 
 type ExerciseListRow = ExerciseDbRow & {
@@ -545,10 +549,10 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
       let i = 1;
 
       const scope = exerciseListArchiveScope(filter);
-      if (scope === "active") {
-        conds.push("e.is_archived = false");
-      } else if (scope === "archived") {
-        conds.push("e.is_archived = true");
+      if (scope === 'active') {
+        conds.push('e.is_archived = false');
+      } else if (scope === 'archived') {
+        conds.push('e.is_archived = true');
       }
       if (filter.regionRefId) {
         conds.push(
@@ -620,7 +624,7 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
           ORDER BY em.sort_order ASC, em.created_at ASC
           LIMIT 1
         ) pm ON true
-        WHERE ${conds.join(" AND ")}
+        WHERE ${conds.join(' AND ')}
         ORDER BY e.updated_at DESC`;
 
       const result = await runWebappPgText<ExerciseListRow>(sql, params);
@@ -763,7 +767,7 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
         );
         if (!cur.rows[0]) return false;
 
-        const sets: string[] = ["updated_at = now()"];
+        const sets: string[] = ['updated_at = now()'];
         const vals: unknown[] = [];
         let n = 1;
         const add = (col: string, v: unknown) => {
@@ -771,8 +775,8 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
           vals.push(v);
         };
 
-        if (input.title !== undefined) add("title", input.title);
-        if (input.description !== undefined) add("description", input.description);
+        if (input.title !== undefined) add('title', input.title);
+        if (input.description !== undefined) add('description', input.description);
         const regionPatch =
           input.regionRefIds !== undefined || input.regionRefId !== undefined
             ? input.regionRefIds !== undefined
@@ -780,17 +784,18 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
               : mergeExerciseRegionRefIds(input.regionRefId, [])
             : null;
         if (regionPatch !== null) {
-          add("region_ref_id", regionPatch[0] ?? null);
+          add('region_ref_id', regionPatch[0] ?? null);
         }
-        if (input.loadType !== undefined) add("load_type", input.loadType);
-        if (input.difficulty1_10 !== undefined) add("difficulty_1_10", input.difficulty1_10);
-        if (input.contraindications !== undefined) add("contraindications", input.contraindications);
-        if (input.tags !== undefined) add("tags", input.tags);
+        if (input.loadType !== undefined) add('load_type', input.loadType);
+        if (input.difficulty1_10 !== undefined) add('difficulty_1_10', input.difficulty1_10);
+        if (input.contraindications !== undefined)
+          add('contraindications', input.contraindications);
+        if (input.tags !== undefined) add('tags', input.tags);
 
         vals.push(id);
         await txPgText(
           tx,
-          `UPDATE lfk_exercises SET ${sets.join(", ")}
+          `UPDATE lfk_exercises SET ${sets.join(', ')}
             WHERE id = $${n}
               AND catalog_scope = 'catalog'
               AND organization_id = ${ORG_ID_EXPR}`,

@@ -1,27 +1,39 @@
-import Link from "next/link";
-import { ArrowRight, CalendarDays, Check, ClipboardList, MessageCircle } from "lucide-react";
+import Link from 'next/link';
+import { ArrowRight, CalendarDays, Check, ClipboardList, MessageCircle } from 'lucide-react';
 import {
   landingContainer,
   landingCtaPrimary,
   landingCtaSecondary,
   landingH1,
   landingLead,
-} from "@/components/landing/landingTypography";
-import { cn } from "@/lib/utils";
+} from '@/components/landing/landingTypography';
+import { cn } from '@/lib/utils';
 
-const proofPoints = ["Записи и расписание", "Карточки клиентов", "Сопровождение между приёмами"] as const;
+const proofPoints = [
+  'Записи и расписание',
+  'Карточки клиентов',
+  'Сопровождение между приёмами',
+] as const;
 
 export function HeroSection() {
   return (
     <section className="overflow-hidden bg-white py-12 sm:py-16 lg:py-24">
-      <div className={cn(landingContainer, "grid items-center gap-10 lg:grid-cols-[1.04fr_0.96fr] lg:gap-16")}>
+      <div
+        className={cn(
+          landingContainer,
+          'grid items-center gap-10 lg:grid-cols-[1.04fr_0.96fr] lg:gap-16',
+        )}
+      >
         <div>
           <p className="inline-flex rounded-full bg-[#EAF1F8] px-4 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-[#406CA7] sm:text-sm">
             Платформа для частной практики
           </p>
-          <h1 className={cn(landingH1, "mt-5 max-w-3xl")}>Кабинет специалиста для сопровождения пациентов</h1>
-          <p className={cn(landingLead, "mt-5 max-w-2xl")}>
-            Расписание, карточки клиентов, программы реабилитации и связь — в одном рабочем пространстве.
+          <h1 className={cn(landingH1, 'mt-5 max-w-3xl')}>
+            Кабинет специалиста для сопровождения пациентов
+          </h1>
+          <p className={cn(landingLead, 'mt-5 max-w-2xl')}>
+            Расписание, карточки клиентов, программы реабилитации и связь — в одном рабочем
+            пространстве.
           </p>
 
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
@@ -33,7 +45,10 @@ export function HeroSection() {
               Войти
             </Link>
           </div>
-          <Link href="/app" className="mt-4 inline-flex text-sm font-medium text-[#526276] underline decoration-[#AFC0D4] underline-offset-4 transition hover:text-[#406CA7]">
+          <Link
+            href="/app"
+            className="mt-4 inline-flex text-sm font-medium text-[#526276] underline decoration-[#AFC0D4] underline-offset-4 transition hover:text-[#406CA7]"
+          >
             У меня есть приглашение
           </Link>
 
@@ -57,7 +72,9 @@ export function HeroSection() {
                 <p className="text-xs font-medium text-[#758399]">Сегодня</p>
                 <p className="mt-0.5 font-semibold text-[#17264A]">Рабочий день</p>
               </div>
-              <span className="rounded-full bg-[#EAF1F8] px-3 py-1.5 text-xs font-semibold text-[#406CA7]">3 приёма</span>
+              <span className="rounded-full bg-[#EAF1F8] px-3 py-1.5 text-xs font-semibold text-[#406CA7]">
+                3 приёма
+              </span>
             </div>
 
             <div className="mt-3 grid gap-3 sm:grid-cols-[1.15fr_0.85fr]">
@@ -67,8 +84,11 @@ export function HeroSection() {
                   Ближайшие записи
                 </div>
                 <div className="mt-4 space-y-3">
-                  {["Анна С.", "Игорь М.", "Мария К."].map((name, index) => (
-                    <div key={name} className="flex items-center justify-between border-b border-[#E8EDF3] pb-3 last:border-0 last:pb-0">
+                  {['Анна С.', 'Игорь М.', 'Мария К.'].map((name, index) => (
+                    <div
+                      key={name}
+                      className="flex items-center justify-between border-b border-[#E8EDF3] pb-3 last:border-0 last:pb-0"
+                    >
                       <span className="text-sm font-medium text-[#334155]">{name}</span>
                       <span className="text-xs text-[#758399]">{10 + index * 2}:00</span>
                     </div>

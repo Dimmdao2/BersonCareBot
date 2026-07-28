@@ -1,43 +1,43 @@
 export const INTEGRATOR_HMAC_CSRF_EXEMPT_PATHS = [
-  "/api/integrator/channel-link/complete",
-  "/api/integrator/events",
-  "/api/integrator/messenger-phone/bind",
-  "/api/integrator/patient-notifications/web-push",
-  "/api/integrator/patient-reminders/notify-channels",
-  "/api/integrator/phone-messenger-bind/complete",
-  "/api/integrator/program-note/reply-begin",
-  "/api/integrator/reminders/dispatch",
-  "/api/integrator/reminders/messenger-topic/disable",
-  "/api/integrator/reminders/mute",
-  "/api/integrator/reminders/notification-settings",
-  "/api/integrator/reminders/notification-settings/toggle",
-  "/api/integrator/reminders/occurrences/done",
-  "/api/integrator/reminders/occurrences/skip",
-  "/api/integrator/reminders/occurrences/snooze",
-  "/api/integrator/support/admin-reply",
-  "/api/integrator/support/sync-user-message",
-  "/api/integrator/web-push/subscriptions/delete",
+  '/api/integrator/channel-link/complete',
+  '/api/integrator/events',
+  '/api/integrator/messenger-phone/bind',
+  '/api/integrator/patient-notifications/web-push',
+  '/api/integrator/patient-reminders/notify-channels',
+  '/api/integrator/phone-messenger-bind/complete',
+  '/api/integrator/program-note/reply-begin',
+  '/api/integrator/reminders/dispatch',
+  '/api/integrator/reminders/messenger-topic/disable',
+  '/api/integrator/reminders/mute',
+  '/api/integrator/reminders/notification-settings',
+  '/api/integrator/reminders/notification-settings/toggle',
+  '/api/integrator/reminders/occurrences/done',
+  '/api/integrator/reminders/occurrences/skip',
+  '/api/integrator/reminders/occurrences/snooze',
+  '/api/integrator/support/admin-reply',
+  '/api/integrator/support/sync-user-message',
+  '/api/integrator/web-push/subscriptions/delete',
 ] as const;
 
 export const INTERNAL_BEARER_CSRF_EXEMPT_PATHS = [
-  "/api/internal/media-hls-proxy-errors/retention",
-  "/api/internal/media-multipart/cleanup",
-  "/api/internal/media-pending-delete/purge",
-  "/api/internal/media-playback-stats/retention",
-  "/api/internal/media-preview/process",
-  "/api/internal/media-transcode/enqueue",
-  "/api/internal/media-transcode/reconcile",
+  '/api/internal/media-hls-proxy-errors/retention',
+  '/api/internal/media-multipart/cleanup',
+  '/api/internal/media-pending-delete/purge',
+  '/api/internal/media-playback-stats/retention',
+  '/api/internal/media-preview/process',
+  '/api/internal/media-transcode/enqueue',
+  '/api/internal/media-transcode/reconcile',
   // Приёмник dead man's switch (design D-d). Имена — закрытый набор из
   // `modules/operator-health/heartbeat.ts`, поэтому перечислены явно, а не паттерном:
   // список должен оставаться читаемым при аудите.
-  "/api/internal/heartbeat/pipeline_delivery",
-  "/api/internal/heartbeat/digest",
-  "/api/internal/operator-health-critical/tick",
-  "/api/internal/operator-health-digest/tick",
-  "/api/internal/product-analytics/retention",
-  "/api/internal/reminders/web-push-only/tick",
-  "/api/internal/specialist-task-reminders/tick",
-  "/api/internal/system-health-guard/tick",
+  '/api/internal/heartbeat/pipeline_delivery',
+  '/api/internal/heartbeat/digest',
+  '/api/internal/operator-health-critical/tick',
+  '/api/internal/operator-health-digest/tick',
+  '/api/internal/product-analytics/retention',
+  '/api/internal/reminders/web-push-only/tick',
+  '/api/internal/specialist-task-reminders/tick',
+  '/api/internal/system-health-guard/tick',
 ] as const;
 
 export const PAYMENT_WEBHOOK_CSRF_EXEMPT_PATTERNS = [
@@ -45,41 +45,41 @@ export const PAYMENT_WEBHOOK_CSRF_EXEMPT_PATTERNS = [
   /^\/api\/payments\/patient-acquiring-webhook\/[^/]+$/,
 ] as const;
 
-export const APPLE_FORM_POST_CSRF_EXEMPT_PATH = "/api/auth/oauth/callback/apple";
+export const APPLE_FORM_POST_CSRF_EXEMPT_PATH = '/api/auth/oauth/callback/apple';
 
 const integratorHmacPaths: ReadonlySet<string> = new Set(INTEGRATOR_HMAC_CSRF_EXEMPT_PATHS);
 const internalBearerPaths: ReadonlySet<string> = new Set(INTERNAL_BEARER_CSRF_EXEMPT_PATHS);
-const unsafeMethods: ReadonlySet<string> = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+const unsafeMethods: ReadonlySet<string> = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 export type CsrfMutationClass =
-  | "browser"
-  | "integrator_hmac"
-  | "internal_bearer"
-  | "payment_webhook"
-  | "apple_form_post";
+  | 'browser'
+  | 'integrator_hmac'
+  | 'internal_bearer'
+  | 'payment_webhook'
+  | 'apple_form_post';
 
 export type CsrfOriginAllowProof =
-  | "safe_method"
-  | "out_of_scope"
-  | "integrator_hmac"
-  | "internal_bearer"
-  | "payment_webhook"
-  | "apple_form_post"
-  | "same_origin_origin"
-  | "same_origin_referer";
+  | 'safe_method'
+  | 'out_of_scope'
+  | 'integrator_hmac'
+  | 'internal_bearer'
+  | 'payment_webhook'
+  | 'apple_form_post'
+  | 'same_origin_origin'
+  | 'same_origin_referer';
 
 export type CsrfOriginRejectProof =
-  | "fetch_site_forbidden"
-  | "request_origin_invalid"
-  | "origin_invalid"
-  | "origin_mismatch"
-  | "referer_invalid"
-  | "referer_mismatch"
-  | "source_headers_missing";
+  | 'fetch_site_forbidden'
+  | 'request_origin_invalid'
+  | 'origin_invalid'
+  | 'origin_mismatch'
+  | 'referer_invalid'
+  | 'referer_mismatch'
+  | 'source_headers_missing';
 
 export type CsrfOriginDecision =
-  | { action: "allow"; proof: CsrfOriginAllowProof; mutationClass: CsrfMutationClass | null }
-  | { action: "reject"; proof: CsrfOriginRejectProof; mutationClass: "browser" };
+  | { action: 'allow'; proof: CsrfOriginAllowProof; mutationClass: CsrfMutationClass | null }
+  | { action: 'reject'; proof: CsrfOriginRejectProof; mutationClass: 'browser' };
 
 export type CsrfOriginInput = Readonly<{
   method: string;
@@ -94,34 +94,45 @@ export type CsrfOriginInput = Readonly<{
 
 export function classifyCsrfMutation(method: string, pathname: string): CsrfMutationClass | null {
   if (!unsafeMethods.has(method.toUpperCase())) return null;
-  if (method.toUpperCase() === "POST") {
-    if (integratorHmacPaths.has(pathname)) return "integrator_hmac";
-    if (internalBearerPaths.has(pathname)) return "internal_bearer";
+  if (method.toUpperCase() === 'POST') {
+    if (integratorHmacPaths.has(pathname)) return 'integrator_hmac';
+    if (internalBearerPaths.has(pathname)) return 'internal_bearer';
     if (PAYMENT_WEBHOOK_CSRF_EXEMPT_PATTERNS.some((pattern) => pattern.test(pathname))) {
-      return "payment_webhook";
+      return 'payment_webhook';
     }
-    if (pathname === APPLE_FORM_POST_CSRF_EXEMPT_PATH) return "apple_form_post";
+    if (pathname === APPLE_FORM_POST_CSRF_EXEMPT_PATH) return 'apple_form_post';
   }
-  if (pathname === "/app" || pathname.startsWith("/app/") || pathname.startsWith("/api/")) {
-    return "browser";
+  if (pathname === '/app' || pathname.startsWith('/app/') || pathname.startsWith('/api/')) {
+    return 'browser';
   }
   return null;
 }
 
-function resolveProtocol(forwardedProto: string | null, requestUrlProtocol: string): "http" | "https" | null {
-  const candidate = forwardedProto === null
-    ? requestUrlProtocol.replace(/:$/, "").trim().toLowerCase()
-    : (forwardedProto.split(",", 1)[0] ?? "").trim().toLowerCase();
-  return candidate === "http" || candidate === "https" ? candidate : null;
+function resolveProtocol(
+  forwardedProto: string | null,
+  requestUrlProtocol: string,
+): 'http' | 'https' | null {
+  const candidate =
+    forwardedProto === null
+      ? requestUrlProtocol.replace(/:$/, '').trim().toLowerCase()
+      : (forwardedProto.split(',', 1)[0] ?? '').trim().toLowerCase();
+  return candidate === 'http' || candidate === 'https' ? candidate : null;
 }
 
 function canonicalRequestOrigin(input: CsrfOriginInput): string | null {
   const protocol = resolveProtocol(input.forwardedProto, input.requestUrlProtocol);
-  const host = input.host?.trim() ?? "";
+  const host = input.host?.trim() ?? '';
   if (!protocol || !host || /[,\s/@\\?#]/.test(host)) return null;
   try {
     const parsed = new URL(`${protocol}://${host}/`);
-    if (parsed.username || parsed.password || parsed.pathname !== "/" || parsed.search || parsed.hash) return null;
+    if (
+      parsed.username ||
+      parsed.password ||
+      parsed.pathname !== '/' ||
+      parsed.search ||
+      parsed.hash
+    )
+      return null;
     return parsed.origin;
   } catch {
     return null;
@@ -130,14 +141,14 @@ function canonicalRequestOrigin(input: CsrfOriginInput): string | null {
 
 function parseCanonicalOrigin(raw: string): string | null {
   const value = raw.trim();
-  if (!value || value === "null" || value.includes(",")) return null;
+  if (!value || value === 'null' || value.includes(',')) return null;
   try {
     const parsed = new URL(value);
     if (
-      (parsed.protocol !== "http:" && parsed.protocol !== "https:") ||
+      (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') ||
       parsed.username ||
       parsed.password ||
-      parsed.pathname !== "/" ||
+      parsed.pathname !== '/' ||
       parsed.search ||
       parsed.hash ||
       parsed.origin !== value
@@ -156,7 +167,7 @@ function parseRefererOrigin(raw: string): string | null {
   try {
     const parsed = new URL(value);
     if (
-      (parsed.protocol !== "http:" && parsed.protocol !== "https:") ||
+      (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') ||
       parsed.username ||
       parsed.password
     ) {
@@ -172,39 +183,39 @@ export function decideCsrfOrigin(input: CsrfOriginInput): CsrfOriginDecision {
   const mutationClass = classifyCsrfMutation(input.method, input.pathname);
   if (mutationClass === null) {
     return {
-      action: "allow",
-      proof: unsafeMethods.has(input.method.toUpperCase()) ? "out_of_scope" : "safe_method",
+      action: 'allow',
+      proof: unsafeMethods.has(input.method.toUpperCase()) ? 'out_of_scope' : 'safe_method',
       mutationClass: null,
     };
   }
-  if (mutationClass !== "browser") {
-    return { action: "allow", proof: mutationClass, mutationClass };
+  if (mutationClass !== 'browser') {
+    return { action: 'allow', proof: mutationClass, mutationClass };
   }
 
-  if (input.secFetchSite !== null && input.secFetchSite.trim().toLowerCase() !== "same-origin") {
-    return { action: "reject", proof: "fetch_site_forbidden", mutationClass };
+  if (input.secFetchSite !== null && input.secFetchSite.trim().toLowerCase() !== 'same-origin') {
+    return { action: 'reject', proof: 'fetch_site_forbidden', mutationClass };
   }
 
   const expectedOrigin = canonicalRequestOrigin(input);
   if (!expectedOrigin) {
-    return { action: "reject", proof: "request_origin_invalid", mutationClass };
+    return { action: 'reject', proof: 'request_origin_invalid', mutationClass };
   }
 
   if (input.origin !== null) {
     const observedOrigin = parseCanonicalOrigin(input.origin);
-    if (!observedOrigin) return { action: "reject", proof: "origin_invalid", mutationClass };
+    if (!observedOrigin) return { action: 'reject', proof: 'origin_invalid', mutationClass };
     return observedOrigin === expectedOrigin
-      ? { action: "allow", proof: "same_origin_origin", mutationClass }
-      : { action: "reject", proof: "origin_mismatch", mutationClass };
+      ? { action: 'allow', proof: 'same_origin_origin', mutationClass }
+      : { action: 'reject', proof: 'origin_mismatch', mutationClass };
   }
 
   if (input.referer !== null) {
     const observedOrigin = parseRefererOrigin(input.referer);
-    if (!observedOrigin) return { action: "reject", proof: "referer_invalid", mutationClass };
+    if (!observedOrigin) return { action: 'reject', proof: 'referer_invalid', mutationClass };
     return observedOrigin === expectedOrigin
-      ? { action: "allow", proof: "same_origin_referer", mutationClass }
-      : { action: "reject", proof: "referer_mismatch", mutationClass };
+      ? { action: 'allow', proof: 'same_origin_referer', mutationClass }
+      : { action: 'reject', proof: 'referer_mismatch', mutationClass };
   }
 
-  return { action: "reject", proof: "source_headers_missing", mutationClass };
+  return { action: 'reject', proof: 'source_headers_missing', mutationClass };
 }

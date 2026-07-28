@@ -1,21 +1,21 @@
-import Link from "next/link";
-import { notFound } from "next/navigation";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
-import { logServerRuntimeError } from "@/infra/logging/serverRuntimeLog";
-import { cn } from "@/lib/utils";
-import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
-import { requireEntitlementForReadAction } from "@/app-layer/guards/requireEntitlement";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
-import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
-import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
-import { DoctorSection } from "@/shared/ui/doctor/DoctorSection";
-import { DataLoadFailureNotice } from "@/shared/ui/doctor/DataLoadFailureNotice";
-import { ContentSectionsListClient } from "./ContentSectionsListClient";
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { buttonVariants } from '@/shared/ui/doctor/primitives/button-variants';
+import { logServerRuntimeError } from '@/infra/logging/serverRuntimeLog';
+import { cn } from '@/lib/utils';
+import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
+import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
+import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
+import { DoctorSection } from '@/shared/ui/doctor/DoctorSection';
+import { DataLoadFailureNotice } from '@/shared/ui/doctor/DataLoadFailureNotice';
+import { ContentSectionsListClient } from './ContentSectionsListClient';
 
 export default async function DoctorContentSectionsPage() {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForReadAction(workspace, "cms_pages");
+  const entitlement = await requireEntitlementForReadAction(workspace, 'cms_pages');
   if (!entitlement.ok) notFound();
   const session = workspace.session;
   const deps = buildAppDeps();
@@ -24,14 +24,16 @@ export default async function DoctorContentSectionsPage() {
   let pages: Awaited<ReturnType<typeof deps.contentPages.listAll>> = [];
   let loadError: ReturnType<typeof logServerRuntimeError> | null = null;
   try {
-    [sections, pages] = await withDoctorWorkspacePrincipal(workspace, "doctor.content.sections.read", () =>
-      Promise.all([deps.contentSections.listAll(), deps.contentPages.listAll()]),
+    [sections, pages] = await withDoctorWorkspacePrincipal(
+      workspace,
+      'doctor.content.sections.read',
+      () => Promise.all([deps.contentSections.listAll(), deps.contentPages.listAll()]),
     );
   } catch (err) {
-    loadError = logServerRuntimeError("app/doctor/content/sections", err);
+    loadError = logServerRuntimeError('app/doctor/content/sections', err);
   }
 
-  const isDev = process.env.NODE_ENV === "development";
+  const isDev = process.env.NODE_ENV === 'development';
 
   const pageCountBySection = new Map<string, number>();
   for (const p of pages) {
@@ -39,7 +41,7 @@ export default async function DoctorContentSectionsPage() {
   }
 
   /** Только каталог статей: разделы, перенесённые в системную папку CMS (`kind=system`), не показываем — они в дереве «Контент». */
-  const catalogSections = sections.filter((s) => s.kind === "article");
+  const catalogSections = sections.filter((s) => s.kind === 'article');
 
   const initialSections = catalogSections.map((s) => ({
     id: s.id,
@@ -60,7 +62,10 @@ export default async function DoctorContentSectionsPage() {
       <DoctorPageHeader
         title="Разделы контента"
         info={
-          <Link href="/app/doctor/content/sections/new" className={cn(buttonVariants({ size: "sm" }))}>
+          <Link
+            href="/app/doctor/content/sections/new"
+            className={cn(buttonVariants({ size: 'sm' }))}
+          >
             Создать раздел
           </Link>
         }

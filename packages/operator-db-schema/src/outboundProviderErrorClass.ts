@@ -17,15 +17,15 @@
  */
 
 export const OUTBOUND_PROVIDER_ERROR_CLASSES = [
-  "provider_not_configured",
+  'provider_not_configured',
   /** Квота/лимит скорости провайдера исчерпаны (SES `454`, `452 4.5.3`, `4.7.x` throttling). */
-  "provider_quota_exhausted",
+  'provider_quota_exhausted',
   /** Кончились оплаченные кредиты/тариф (SendGrid `401 Maximum credits exceeded`). */
-  "provider_credit_exhausted",
+  'provider_credit_exhausted',
   /** Провайдер отверг учётные данные (SMTP `535`/`530`, `EAUTH`, HTTP `401`/`403`). */
-  "provider_auth_rejected",
+  'provider_auth_rejected',
   /** Всё остальное: сеть, таймаут, 5xx. */
-  "provider_send_failed",
+  'provider_send_failed',
 ] as const;
 
 export type OutboundProviderErrorClass = (typeof OUTBOUND_PROVIDER_ERROR_CLASSES)[number];
@@ -38,10 +38,10 @@ export type OutboundProviderErrorClass = (typeof OUTBOUND_PROVIDER_ERROR_CLASSES
  * означают «доставка мертва прямо сейчас».
  */
 export const PAGE_ON_FIRST_OCCURRENCE_ERROR_CLASSES: readonly OutboundProviderErrorClass[] = [
-  "provider_quota_exhausted",
-  "provider_credit_exhausted",
-  "provider_auth_rejected",
-  "provider_not_configured",
+  'provider_quota_exhausted',
+  'provider_credit_exhausted',
+  'provider_auth_rejected',
+  'provider_not_configured',
 ];
 
 export function isPageOnFirstOccurrenceProviderErrorClass(
@@ -52,55 +52,61 @@ export function isPageOnFirstOccurrenceProviderErrorClass(
 }
 
 /** Классы, означающие «провайдер не примет ничего, пока человек не вмешается». */
-export function isOutboundProviderDeliveryDeadClass(errorClass: string | null | undefined): boolean {
+export function isOutboundProviderDeliveryDeadClass(
+  errorClass: string | null | undefined,
+): boolean {
   return isPageOnFirstOccurrenceProviderErrorClass(errorClass);
 }
 
 const QUOTA_PHRASES = [
-  "daily message quota exceeded",
-  "daily sending quota",
-  "sending quota",
-  "message quota",
-  "quota exceeded",
-  "exceeded your messaging",
-  "maximum sending rate",
-  "throttling failure",
-  "too many messages",
-  "rate limit exceeded",
-  "daily limit",
-  "limit exceeded",
+  'daily message quota exceeded',
+  'daily sending quota',
+  'sending quota',
+  'message quota',
+  'quota exceeded',
+  'exceeded your messaging',
+  'maximum sending rate',
+  'throttling failure',
+  'too many messages',
+  'rate limit exceeded',
+  'daily limit',
+  'limit exceeded',
 ];
 
 const CREDIT_PHRASES = [
-  "maximum credits exceeded",
-  "credits exceeded",
-  "credit limit",
-  "out of credits",
-  "insufficient credit",
-  "insufficient funds",
-  "insufficient balance",
-  "no credits",
-  "not enough money",
-  "недостаточно средств",
-  "закончились средства",
-  "нулевой баланс",
-  "тариф исчерпан",
+  'maximum credits exceeded',
+  'credits exceeded',
+  'credit limit',
+  'out of credits',
+  'insufficient credit',
+  'insufficient funds',
+  'insufficient balance',
+  'no credits',
+  'not enough money',
+  'недостаточно средств',
+  'закончились средства',
+  'нулевой баланс',
+  'тариф исчерпан',
 ];
 
 const AUTH_PHRASES = [
-  "authentication failed",
-  "authentication required",
-  "authentication credentials invalid",
-  "invalid login",
-  "invalid credentials",
-  "bad credentials",
-  "username and password not accepted",
-  "auth command failed",
-  "unauthorized",
-  "eauth",
+  'authentication failed',
+  'authentication required',
+  'authentication credentials invalid',
+  'invalid login',
+  'invalid credentials',
+  'bad credentials',
+  'username and password not accepted',
+  'auth command failed',
+  'unauthorized',
+  'eauth',
 ];
 
-const NOT_CONFIGURED_PHRASES = ["email_not_configured", "provider_not_configured", "smtp_not_configured"];
+const NOT_CONFIGURED_PHRASES = [
+  'email_not_configured',
+  'provider_not_configured',
+  'smtp_not_configured',
+];
 
 /** SMTP-коды, однозначно означающие исчерпание квоты/лимита скорости. */
 const QUOTA_SMTP_CODES = [/\b454\b/, /\b452\b/, /\b421\b/, /\b4\.7\.\d+\b/, /\b4\.5\.3\b/];
@@ -129,42 +135,42 @@ function hasHttpStatus(raw: string, status: number): boolean {
 export function classifyOutboundProviderErrorClass(
   errorMessage: string | null | undefined,
 ): OutboundProviderErrorClass {
-  const raw = (errorMessage ?? "").trim();
-  if (!raw) return "provider_send_failed";
+  const raw = (errorMessage ?? '').trim();
+  if (!raw) return 'provider_send_failed';
   const lower = raw.toLowerCase();
 
-  if (containsAny(lower, NOT_CONFIGURED_PHRASES)) return "provider_not_configured";
+  if (containsAny(lower, NOT_CONFIGURED_PHRASES)) return 'provider_not_configured';
 
-  if (containsAny(lower, CREDIT_PHRASES)) return "provider_credit_exhausted";
-  if (containsAny(lower, QUOTA_PHRASES)) return "provider_quota_exhausted";
+  if (containsAny(lower, CREDIT_PHRASES)) return 'provider_credit_exhausted';
+  if (containsAny(lower, QUOTA_PHRASES)) return 'provider_quota_exhausted';
 
   // SES-подобный `454 …` — 4xx, который иначе ретраится молча.
-  if (matchesAny(lower, QUOTA_SMTP_CODES)) return "provider_quota_exhausted";
+  if (matchesAny(lower, QUOTA_SMTP_CODES)) return 'provider_quota_exhausted';
 
-  if (matchesAny(lower, AUTH_SMTP_CODES)) return "provider_auth_rejected";
-  if (containsAny(lower, AUTH_PHRASES)) return "provider_auth_rejected";
+  if (matchesAny(lower, AUTH_SMTP_CODES)) return 'provider_auth_rejected';
+  if (containsAny(lower, AUTH_PHRASES)) return 'provider_auth_rejected';
 
   // SendGrid-подобный credit-exhaustion приходит именно так; трактуем как отказ учётки,
   // который тоже пейджится с первого раза, а не как «залогируем и забудем».
-  if (hasHttpStatus(lower, 401) || hasHttpStatus(lower, 403)) return "provider_auth_rejected";
+  if (hasHttpStatus(lower, 401) || hasHttpStatus(lower, 403)) return 'provider_auth_rejected';
 
-  return "provider_send_failed";
+  return 'provider_send_failed';
 }
 
 /** Человекочитаемая строка для алерта/сводки (без PII и без текста письма). */
 export function describeOutboundProviderErrorClass(errorClass: string | null | undefined): string {
   switch (errorClass) {
-    case "provider_quota_exhausted":
-      return "квота провайдера исчерпана";
-    case "provider_credit_exhausted":
-      return "кончились кредиты/оплата у провайдера";
-    case "provider_auth_rejected":
-      return "провайдер отверг учётные данные (или кончились кредиты)";
-    case "provider_not_configured":
-      return "провайдер не настроен";
-    case "provider_send_failed":
-      return "сбой отправки";
+    case 'provider_quota_exhausted':
+      return 'квота провайдера исчерпана';
+    case 'provider_credit_exhausted':
+      return 'кончились кредиты/оплата у провайдера';
+    case 'provider_auth_rejected':
+      return 'провайдер отверг учётные данные (или кончились кредиты)';
+    case 'provider_not_configured':
+      return 'провайдер не настроен';
+    case 'provider_send_failed':
+      return 'сбой отправки';
     default:
-      return String(errorClass ?? "неизвестный класс");
+      return String(errorClass ?? 'неизвестный класс');
   }
 }

@@ -1,52 +1,55 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 const recordAuthRegistrationSuccessMock = vi.fn(async (_params: unknown) => undefined);
 const recordAuthRegistrationFailureMock = vi.fn(async (_params: unknown) => undefined);
 const confirmEmailChallengeMock = vi.fn();
 const setSessionFromUserMock = vi.fn();
 
-vi.mock("@/app-layer/product-analytics/recordAuthRegistration", () => ({
+vi.mock('@/app-layer/product-analytics/recordAuthRegistration', () => ({
   recordAuthRegistrationSuccess: (params: unknown) => recordAuthRegistrationSuccessMock(params),
   recordAuthRegistrationFailure: (params: unknown) => recordAuthRegistrationFailureMock(params),
 }));
 
-vi.mock("@/modules/auth/emailAuth", () => ({
+vi.mock('@/modules/auth/emailAuth', () => ({
   confirmEmailChallenge: (...args: unknown[]) => confirmEmailChallengeMock(...args),
 }));
 
-vi.mock("@/modules/auth/service", () => ({
+vi.mock('@/modules/auth/service', () => ({
   setSessionFromUser: (...args: unknown[]) => setSessionFromUserMock(...args),
 }));
 
-vi.mock("@/modules/auth/envRole", () => ({
-  resolveRoleFromEnv: () => "client",
+vi.mock('@/modules/auth/envRole', () => ({
+  resolveRoleFromEnv: () => 'client',
   reconcileDbRoleWithEnvRole: (currentRole: string) => currentRole,
 }));
 
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
     userPasswordCredentials: {
-      findUserIdByEmailChallengeId: vi.fn(async () => "11111111-1111-4111-8111-111111111111"),
+      findUserIdByEmailChallengeId: vi.fn(async () => '11111111-1111-4111-8111-111111111111'),
     },
     userProjection: {
-      getProfileEmailFields: vi.fn(async () => ({ email: "user@example.com", emailVerifiedAt: null })),
+      getProfileEmailFields: vi.fn(async () => ({
+        email: 'user@example.com',
+        emailVerifiedAt: null,
+      })),
       updateRole: vi.fn(async () => undefined),
     },
     userByPhone: {
       findByUserId: vi.fn(async () => ({
-        userId: "11111111-1111-1111-1111-111111111111",
-        role: "client",
-        displayName: "User",
+        userId: '11111111-1111-1111-1111-111111111111',
+        role: 'client',
+        displayName: 'User',
         bindings: {},
       })),
     },
   }),
 }));
 
-import { POST } from "./route";
-import * as authChannelPolicy from "@/modules/auth/authChannelPolicy";
+import { POST } from './route';
+import * as authChannelPolicy from '@/modules/auth/authChannelPolicy';
 
-describe("POST /api/auth/email-password/register/confirm", () => {
+describe('POST /api/auth/email-password/register/confirm', () => {
   beforeEach(() => {
     recordAuthRegistrationSuccessMock.mockReset();
     recordAuthRegistrationFailureMock.mockReset();
@@ -54,22 +57,22 @@ describe("POST /api/auth/email-password/register/confirm", () => {
     setSessionFromUserMock.mockReset();
   });
 
-  it("rejects a disabled email channel before challenge lookup or consumption", async () => {
-    const policy = vi.spyOn(authChannelPolicy, "isAuthChannelEnabled").mockResolvedValue(false);
+  it('rejects a disabled email channel before challenge lookup or consumption', async () => {
+    const policy = vi.spyOn(authChannelPolicy, 'isAuthChannelEnabled').mockResolvedValue(false);
     try {
       const res = await POST(
-        new Request("http://localhost/api/auth/email-password/register/confirm", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
+        new Request('http://localhost/api/auth/email-password/register/confirm', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
-            challengeId: "22222222-2222-4222-8222-222222222222",
-            code: "123456",
+            challengeId: '22222222-2222-4222-8222-222222222222',
+            code: '123456',
           }),
         }),
       );
 
       expect(res.status).toBe(503);
-      await expect(res.json()).resolves.toEqual({ ok: false, error: "auth_channel_disabled" });
+      await expect(res.json()).resolves.toEqual({ ok: false, error: 'auth_channel_disabled' });
       expect(confirmEmailChallengeMock).not.toHaveBeenCalled();
       expect(recordAuthRegistrationFailureMock).not.toHaveBeenCalled();
       expect(setSessionFromUserMock).not.toHaveBeenCalled();
@@ -78,18 +81,18 @@ describe("POST /api/auth/email-password/register/confirm", () => {
     }
   });
 
-  it("records registration success after session is set", async () => {
+  it('records registration success after session is set', async () => {
     confirmEmailChallengeMock.mockResolvedValueOnce({ ok: true });
     setSessionFromUserMock.mockResolvedValueOnce(undefined);
 
     const res = await POST(
-      new Request("http://localhost/api/auth/email-password/register/confirm", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
+      new Request('http://localhost/api/auth/email-password/register/confirm', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          challengeId: "22222222-2222-4222-8222-222222222222",
-          code: "123456",
-          attemptId: "33333333-3333-4333-8333-333333333333",
+          challengeId: '22222222-2222-4222-8222-222222222222',
+          code: '123456',
+          attemptId: '33333333-3333-4333-8333-333333333333',
         }),
       }),
     );
@@ -97,30 +100,30 @@ describe("POST /api/auth/email-password/register/confirm", () => {
     expect(res.status).toBe(200);
     expect(recordAuthRegistrationSuccessMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        stage: "confirm",
-        attemptId: "33333333-3333-4333-8333-333333333333",
+        stage: 'confirm',
+        attemptId: '33333333-3333-4333-8333-333333333333',
         isNewAccount: true,
       }),
     );
   });
 
-  it("records registration failure on invalid code", async () => {
-    confirmEmailChallengeMock.mockResolvedValueOnce({ ok: false, code: "invalid_code" });
+  it('records registration failure on invalid code', async () => {
+    confirmEmailChallengeMock.mockResolvedValueOnce({ ok: false, code: 'invalid_code' });
 
     const res = await POST(
-      new Request("http://localhost/api/auth/email-password/register/confirm", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
+      new Request('http://localhost/api/auth/email-password/register/confirm', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          challengeId: "22222222-2222-4222-8222-222222222222",
-          code: "000000",
+          challengeId: '22222222-2222-4222-8222-222222222222',
+          code: '000000',
         }),
       }),
     );
 
     expect(res.status).toBe(400);
     expect(recordAuthRegistrationFailureMock).toHaveBeenCalledWith(
-      expect.objectContaining({ errorCode: "invalid_code", stage: "confirm" }),
+      expect.objectContaining({ errorCode: 'invalid_code', stage: 'confirm' }),
     );
   });
 });

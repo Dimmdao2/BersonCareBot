@@ -15,8 +15,8 @@
  * to that component was needed for the flat shape itself.
  */
 
-import type { DoctorMenuAccess, DoctorMenuLinkItem } from "@/shared/ui/doctor/doctorNavLinks";
-import { isDoctorMenuLinkVisible } from "@/shared/ui/doctor/doctorNavLinks";
+import type { DoctorMenuAccess, DoctorMenuLinkItem } from '@/shared/ui/doctor/doctorNavLinks';
+import { isDoctorMenuLinkVisible } from '@/shared/ui/doctor/doctorNavLinks';
 
 /**
  * Slice 1 (PLAT-01…09) moved `system-health` to its own platform shell. Slice 2 moved
@@ -32,47 +32,72 @@ import { isDoctorMenuLinkVisible } from "@/shared/ui/doctor/doctorNavLinks";
  */
 const RAW_PLATFORM_MENU_ITEMS: DoctorMenuLinkItem[] = [
   {
-    id: "account-security",
-    label: "Безопасность аккаунта",
-    href: "/app/account?tab=security",
-    accessTier: "global_admin",
+    id: 'account-security',
+    label: 'Безопасность аккаунта',
+    href: '/app/account?tab=security',
+    accessTier: 'global_admin',
   },
-  { id: "analytics", label: "Аналитика", href: "/app/doctor/analytics", accessTier: "global_admin" },
+  {
+    id: 'analytics',
+    label: 'Аналитика',
+    href: '/app/doctor/analytics',
+    accessTier: 'global_admin',
+  },
   // Owner punchlist §9.3 / #1068: the platform's clinic customers now have a first-class list.
-  { id: "clinics", label: "Клиники", href: "/app/admin/clinics", accessTier: "global_admin" },
+  { id: 'clinics', label: 'Клиники', href: '/app/admin/clinics', accessTier: 'global_admin' },
   // Moved in slice 3.
-  { id: "commercial", label: "Тарифы и триал", href: "/app/admin/commercial", accessTier: "global_admin" },
+  {
+    id: 'commercial',
+    label: 'Тарифы и триал',
+    href: '/app/admin/commercial',
+    accessTier: 'global_admin',
+  },
   // Moved in slice 4.
   {
-    id: "admin-app-settings",
-    label: "Настройки приложения",
-    href: "/app/admin/app-settings",
-    accessTier: "global_admin",
+    id: 'admin-app-settings',
+    label: 'Настройки приложения',
+    href: '/app/admin/app-settings',
+    accessTier: 'global_admin',
   },
-  { id: "admin-auth", label: "Авторизация", href: "/app/admin/auth", accessTier: "global_admin" },
-  { id: "admin-booking", label: "Запись клиентов", href: "/app/admin/booking", accessTier: "global_admin" },
+  { id: 'admin-auth', label: 'Авторизация', href: '/app/admin/auth', accessTier: 'global_admin' },
   {
-    id: "admin-integrations",
-    label: "Интеграции",
-    href: "/app/admin/integrations",
-    accessTier: "global_admin",
+    id: 'admin-booking',
+    label: 'Запись клиентов',
+    href: '/app/admin/booking',
+    accessTier: 'global_admin',
   },
   {
-    id: "admin-technical",
-    label: "Технические режимы",
-    href: "/app/admin/technical",
-    accessTier: "global_admin",
+    id: 'admin-integrations',
+    label: 'Интеграции',
+    href: '/app/admin/integrations',
+    accessTier: 'global_admin',
+  },
+  {
+    id: 'admin-technical',
+    label: 'Технические режимы',
+    href: '/app/admin/technical',
+    accessTier: 'global_admin',
   },
   // Moved in slice 1.
-  { id: "system-health", label: "Здоровье системы", href: "/app/admin/system-health", accessTier: "global_admin" },
-  // Moved in this slice.
-  { id: "health-archive", label: "Архив сбоев", href: "/app/admin/health-archive", accessTier: "global_admin" },
   {
-    id: "audit-log",
-    label: "Журнал операций",
-    href: "/app/admin/audit-log",
-    badgeKey: "registrationSystemFailures",
-    accessTier: "global_admin",
+    id: 'system-health',
+    label: 'Здоровье системы',
+    href: '/app/admin/system-health',
+    accessTier: 'global_admin',
+  },
+  // Moved in this slice.
+  {
+    id: 'health-archive',
+    label: 'Архив сбоев',
+    href: '/app/admin/health-archive',
+    accessTier: 'global_admin',
+  },
+  {
+    id: 'audit-log',
+    label: 'Журнал операций',
+    href: '/app/admin/audit-log',
+    badgeKey: 'registrationSystemFailures',
+    accessTier: 'global_admin',
   },
 ];
 

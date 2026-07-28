@@ -1,17 +1,17 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import {
   RECOMMENDATION_TYPE_CATEGORY_CODE,
   parseRecommendationDomain,
-} from "@/modules/recommendations/recommendationDomain";
-import { isRecommendationInvalidDomainError } from "@/modules/recommendations/errors";
+} from '@/modules/recommendations/recommendationDomain';
+import { isRecommendationInvalidDomainError } from '@/modules/recommendations/errors';
 
 const mediaItemSchema = z.object({
   mediaUrl: z.string().min(1),
-  mediaType: z.enum(["image", "video", "gif"]),
+  mediaType: z.enum(['image', 'video', 'gif']),
   sortOrder: z.number().int().optional(),
 });
 
@@ -31,14 +31,15 @@ const listQuerySchema = z.object({
   q: z.string().optional(),
   includeArchived: z
     .preprocess((value) => {
-      if (value === "true" || value === "1" || value === "on" || value === true) return true;
+      if (value === 'true' || value === '1' || value === 'on' || value === true) return true;
       if (
         value === undefined ||
-        value === "false" ||
-        value === "0" ||
-        value === "off" ||
+        value === 'false' ||
+        value === '0' ||
+        value === 'off' ||
         value === false
-      ) return false;
+      )
+        return false;
       return value;
     }, z.boolean())
     .optional(),
@@ -54,21 +55,29 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const parsed = listQuerySchema.safeParse(Object.fromEntries(searchParams));
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_query" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_query' }, { status: 400 });
   }
 
-  const rawRegion = parsed.data.region?.trim() ?? "";
+  const rawRegion = parsed.data.region?.trim() ?? '';
   if (rawRegion && !z.string().uuid().safeParse(rawRegion).success) {
-    return NextResponse.json({ ok: false, error: "invalid_query", field: "region" }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, error: 'invalid_query', field: 'region' },
+      { status: 400 },
+    );
   }
   const regionRefId = rawRegion || null;
 
   const deps = buildAppDeps();
-  const domainRefItems = await deps.references.listActiveItemsByCategoryCode(RECOMMENDATION_TYPE_CATEGORY_CODE);
-  const rawDomain = parsed.data.domain?.trim() ?? "";
+  const domainRefItems = await deps.references.listActiveItemsByCategoryCode(
+    RECOMMENDATION_TYPE_CATEGORY_CODE,
+  );
+  const rawDomain = parsed.data.domain?.trim() ?? '';
   const domainParsed = rawDomain ? parseRecommendationDomain(rawDomain, domainRefItems) : undefined;
   if (rawDomain && domainParsed === undefined) {
-    return NextResponse.json({ ok: false, error: "invalid_query", field: "domain" }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, error: 'invalid_query', field: 'domain' },
+      { status: 400 },
+    );
   }
   const domain = domainParsed ?? null;
 
@@ -89,12 +98,12 @@ export async function POST(request: Request) {
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = postBodySchema.safeParse(raw);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
 
   const rawDomain = parsed.data.domain;
   const domain =
-    rawDomain === undefined || rawDomain === null || rawDomain === ""
+    rawDomain === undefined || rawDomain === null || rawDomain === ''
       ? null
       : String(rawDomain).trim();
 
@@ -118,15 +127,15 @@ export async function POST(request: Request) {
       workspace.session.user.userId,
       {
         runRecommendationWrite: (fn) =>
-          withDoctorWorkspacePrincipal(workspace, "doctor.recommendations.create", fn),
+          withDoctorWorkspacePrincipal(workspace, 'doctor.recommendations.create', fn),
       },
     );
     return NextResponse.json({ ok: true, item: row });
   } catch (e) {
     if (isRecommendationInvalidDomainError(e)) {
-      return NextResponse.json({ ok: false, error: e.message, field: "domain" }, { status: 400 });
+      return NextResponse.json({ ok: false, error: e.message, field: 'domain' }, { status: 400 });
     }
-    const msg = e instanceof Error ? e.message : "error";
+    const msg = e instanceof Error ? e.message : 'error';
     return NextResponse.json({ ok: false, error: msg }, { status: 400 });
   }
 }

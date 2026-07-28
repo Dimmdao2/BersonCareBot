@@ -5,31 +5,31 @@ status: completed
 isProject: false
 todos:
   - id: w3-p08-inventory
-    content: "Построчная инвентаризация integrator tables/repos: keep technical state vs duplicate of public."
+    content: 'Построчная инвентаризация integrator tables/repos: keep technical state vs duplicate of public.'
     status: completed
   - id: w3-p08-settings
-    content: "Удалить концепцию зеркала integrator.system_settings из runtime: integrator читает public.system_settings напрямую."
+    content: 'Удалить концепцию зеркала integrator.system_settings из runtime: integrator читает public.system_settings напрямую.'
     status: completed
   - id: w3-p08-booking-catalog
-    content: "Rubitime booking profile tables сверить с public.booking_* и перевести reads/writes на public, если покрыто."
+    content: 'Rubitime booking profile tables сверить с public.booking_* и перевести reads/writes на public, если покрыто.'
     status: completed
   - id: w3-p08-appointments
-    content: "rubitime_records/appointment_records/patient_bookings: оставить integrator только raw webhook/event audit, канон записи в public."
+    content: 'rubitime_records/appointment_records/patient_bookings: оставить integrator только raw webhook/event audit, канон записи в public.'
     status: completed
   - id: w3-p08-reminders
-    content: "integrator.user_reminder_* mirror: решить dispatch from public vs минимальное technical queue state."
+    content: 'integrator.user_reminder_* mirror: решить dispatch from public vs минимальное technical queue state.'
     status: completed
   - id: w3-p08-identities
-    content: "integrator.users/identities/contacts: оставить только channel identity state, убрать дубли профиля пациента."
+    content: 'integrator.users/identities/contacts: оставить только channel identity state, убрать дубли профиля пациента.'
     status: completed
   - id: w3-p08-plan-update
-    content: "Обновить фазу 09: исключить файлы/таблицы, которые удаляются или переводятся на public."
+    content: 'Обновить фазу 09: исключить файлы/таблицы, которые удаляются или переводятся на public.'
     status: completed
   - id: w3-p08-senior-owner-approval
-    content: "Не выполнялось destructive delete/drop; senior-agent review + owner approval остаются обязательным gate перед любым будущим drop/deprecate в prod."
+    content: 'Не выполнялось destructive delete/drop; senior-agent review + owner approval остаются обязательным gate перед любым будущим drop/deprecate в prod.'
     status: cancelled
   - id: w3-p08-verify
-    content: "LOG/RAW_SQL: таблица keep/delete/move; targeted tests для изменённых dispatch/settings/booking paths."
+    content: 'LOG/RAW_SQL: таблица keep/delete/move; targeted tests для изменённых dispatch/settings/booking paths.'
     status: completed
 ---
 
@@ -59,17 +59,17 @@ todos:
 
 ## Preliminary classification
 
-| Группа | Предварительный статус | Причина |
-|--------|------------------------|---------|
-| `integrator.system_settings`, `settingsSyncRoute`, `syncSettingToIntegrator` | **delete/deprecate** | В одной БД можно читать `public.system_settings`; зеркало создаёт двойную запись и риск рассинхрона |
-| `rubitime_branches`, `rubitime_services`, `rubitime_cooperators`, `rubitime_booking_profiles` | **move-to-public candidate** | Webapp уже имеет booking catalog (`public.booking_*`); integrator справочники выглядят legacy v1 mapping |
-| `rubitime_records` | **raw-event-only or delete/deprecate candidate** | Канон записи должен быть `public.appointment_records` / `public.patient_bookings`; отдельная история в `integrator` нужна только если это непокрытый technical external event log |
-| `rubitime_events` | **keep technical audit** | События внешней интеграции, полезно для replay/debug |
-| `booking_calendar_map` | **move-to-public candidate** | Связь с `public.patient_bookings.gcal_event_id`; возможно заменить колонкой/каноном public |
-| `user_reminder_rules`, `user_reminder_occurrences`, `user_reminder_delivery_logs` | **move-to-public candidate** | Правила/история напоминаний уже каноничны в webapp; integrator может dispatch читать из `public` |
-| `users`, `identities`, `contacts` | **keep only channel identity state** | Нужно для Telegram/Max identities; не дублировать профиль пациента и бизнес-канон |
-| `conversations`, `conversation_messages`, `message_drafts` | **review with support canon** | Если PWA support canon в `public`, integrator хранит только channel transport/log |
-| `projection_outbox`, `rubitime_create_retry_jobs`, throttle row, delivery logs | **keep technical state** | Очереди, retry, идемпотентность и внешние интеграции |
+| Группа                                                                                        | Предварительный статус                           | Причина                                                                                                                                                                           |
+| --------------------------------------------------------------------------------------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `integrator.system_settings`, `settingsSyncRoute`, `syncSettingToIntegrator`                  | **delete/deprecate**                             | В одной БД можно читать `public.system_settings`; зеркало создаёт двойную запись и риск рассинхрона                                                                               |
+| `rubitime_branches`, `rubitime_services`, `rubitime_cooperators`, `rubitime_booking_profiles` | **move-to-public candidate**                     | Webapp уже имеет booking catalog (`public.booking_*`); integrator справочники выглядят legacy v1 mapping                                                                          |
+| `rubitime_records`                                                                            | **raw-event-only or delete/deprecate candidate** | Канон записи должен быть `public.appointment_records` / `public.patient_bookings`; отдельная история в `integrator` нужна только если это непокрытый technical external event log |
+| `rubitime_events`                                                                             | **keep technical audit**                         | События внешней интеграции, полезно для replay/debug                                                                                                                              |
+| `booking_calendar_map`                                                                        | **move-to-public candidate**                     | Связь с `public.patient_bookings.gcal_event_id`; возможно заменить колонкой/каноном public                                                                                        |
+| `user_reminder_rules`, `user_reminder_occurrences`, `user_reminder_delivery_logs`             | **move-to-public candidate**                     | Правила/история напоминаний уже каноничны в webapp; integrator может dispatch читать из `public`                                                                                  |
+| `users`, `identities`, `contacts`                                                             | **keep only channel identity state**             | Нужно для Telegram/Max identities; не дублировать профиль пациента и бизнес-канон                                                                                                 |
+| `conversations`, `conversation_messages`, `message_drafts`                                    | **review with support canon**                    | Если PWA support canon в `public`, integrator хранит только channel transport/log                                                                                                 |
+| `projection_outbox`, `rubitime_create_retry_jobs`, throttle row, delivery logs                | **keep technical state**                         | Очереди, retry, идемпотентность и внешние интеграции                                                                                                                              |
 
 ## Scope
 
@@ -102,18 +102,18 @@ pnpm --dir apps/webapp run typecheck
 
 ### Итоговая матрица решений
 
-| Группа | Статус | Решение phase08 |
-|--------|--------|-----------------|
-| `integrator.system_settings` + `settingsSyncRoute` | **delete/deprecate candidate; runtime source removed** | Runtime reads идут из `public.system_settings`; signed sync route оставлен совместимостью/cache invalidation, без статуса source of truth. Future removal требует owner approval и cleanup webapp `system_settings_sync` outbox. |
-| `syncSettingToIntegrator` / `system_settings_sync` outbox | **deprecate candidate** | Не удалялось из-за действующего webapp sync-контракта; не является runtime requirement для integrator settings reads. |
-| `rubitime_branches`, `rubitime_services`, `rubitime_cooperators`, `rubitime_booking_profiles`, `bookingProfilesRepo` | **move-to-public / deprecate candidate** | Не мигрировать “ради Drizzle” в фазе 09; текущий runtime остаётся legacy v1 mapping до отдельного booking catalog cutover на `public.booking_*` / `booking-rubitime-sync`. |
-| `rubitime_records` | **raw-audit-only / deprecate candidate** | Канон записи — `public.appointment_records` + `public.patient_bookings`; integrator row допустим только как legacy raw Rubitime audit/replay surface. Ops scripts остаются Class C. |
-| `rubitime_events` | **keep technical audit** | Внешний webhook/event log для replay/debug, техническая state integrator. |
-| `booking_calendar_map` | **move-to-public candidate** | Сейчас это thin map + sync в `public.patient_bookings.gcal_event_id`; не расширять. Future target — public canonical calendar fields/mapping. |
-| `user_reminder_rules`, `user_reminder_occurrences`, `user_reminder_delivery_logs` | **move-to-public candidate; dispatch state review** | Не расширять зеркало; перед удалением нужен отдельный dispatch-from-public design. Пока integrator dispatch paths остаются как technical queue/history state. |
-| `users`, `identities`, `contacts`, `telegram_state` | **keep channel identity state** | Сохранять только messenger/channel identity и связывание с public users; не использовать как дубль профиля пациента. |
-| `conversations`, `conversation_messages`, `message_drafts`, `user_questions`, `question_messages` | **review / transport-log only** | Если PWA support canon покрывает бизнес-историю в `public`, integrator оставляет только channel transport/log. Без удаления в phase08. |
-| `projection_outbox`, `rubitime_create_retry_jobs`, `outgoing_delivery_queue` usage, throttle/advisory, `delivery_attempt_logs`, idempotency/locks | **keep technical state** | Очереди, claims, retries, throttle, delivery/audit logs и идемпотентность остаются integrator technical state. |
+| Группа                                                                                                                                            | Статус                                                 | Решение phase08                                                                                                                                                                                                                  |
+| ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `integrator.system_settings` + `settingsSyncRoute`                                                                                                | **delete/deprecate candidate; runtime source removed** | Runtime reads идут из `public.system_settings`; signed sync route оставлен совместимостью/cache invalidation, без статуса source of truth. Future removal требует owner approval и cleanup webapp `system_settings_sync` outbox. |
+| `syncSettingToIntegrator` / `system_settings_sync` outbox                                                                                         | **deprecate candidate**                                | Не удалялось из-за действующего webapp sync-контракта; не является runtime requirement для integrator settings reads.                                                                                                            |
+| `rubitime_branches`, `rubitime_services`, `rubitime_cooperators`, `rubitime_booking_profiles`, `bookingProfilesRepo`                              | **move-to-public / deprecate candidate**               | Не мигрировать “ради Drizzle” в фазе 09; текущий runtime остаётся legacy v1 mapping до отдельного booking catalog cutover на `public.booking_*` / `booking-rubitime-sync`.                                                       |
+| `rubitime_records`                                                                                                                                | **raw-audit-only / deprecate candidate**               | Канон записи — `public.appointment_records` + `public.patient_bookings`; integrator row допустим только как legacy raw Rubitime audit/replay surface. Ops scripts остаются Class C.                                              |
+| `rubitime_events`                                                                                                                                 | **keep technical audit**                               | Внешний webhook/event log для replay/debug, техническая state integrator.                                                                                                                                                        |
+| `booking_calendar_map`                                                                                                                            | **move-to-public candidate**                           | Сейчас это thin map + sync в `public.patient_bookings.gcal_event_id`; не расширять. Future target — public canonical calendar fields/mapping.                                                                                    |
+| `user_reminder_rules`, `user_reminder_occurrences`, `user_reminder_delivery_logs`                                                                 | **move-to-public candidate; dispatch state review**    | Не расширять зеркало; перед удалением нужен отдельный dispatch-from-public design. Пока integrator dispatch paths остаются как technical queue/history state.                                                                    |
+| `users`, `identities`, `contacts`, `telegram_state`                                                                                               | **keep channel identity state**                        | Сохранять только messenger/channel identity и связывание с public users; не использовать как дубль профиля пациента.                                                                                                             |
+| `conversations`, `conversation_messages`, `message_drafts`, `user_questions`, `question_messages`                                                 | **review / transport-log only**                        | Если PWA support canon покрывает бизнес-историю в `public`, integrator оставляет только channel transport/log. Без удаления в phase08.                                                                                           |
+| `projection_outbox`, `rubitime_create_retry_jobs`, `outgoing_delivery_queue` usage, throttle/advisory, `delivery_attempt_logs`, idempotency/locks | **keep technical state**                               | Очереди, claims, retries, throttle, delivery/audit logs и идемпотентность остаются integrator technical state.                                                                                                                   |
 
 ### Проверки
 

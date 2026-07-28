@@ -1,7 +1,7 @@
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { logger } from "@/app-layer/logging/logger";
-import { pingOperatorHeartbeatBestEffort } from "@/app-layer/operator-health/pingOperatorHeartbeat";
-import { getConfigValue } from "@/modules/system-settings/configAdapter";
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { logger } from '@/app-layer/logging/logger';
+import { pingOperatorHeartbeatBestEffort } from '@/app-layer/operator-health/pingOperatorHeartbeat';
+import { getConfigValue } from '@/modules/system-settings/configAdapter';
 import {
   OPERATOR_HEARTBEATS,
   OPERATOR_HEARTBEAT_CONFIG_KEY,
@@ -11,14 +11,14 @@ import {
   parseOperatorHeartbeatStaleOverrides,
   resolveHeartbeatStaleAfterSec,
   type OperatorHeartbeatVerdict,
-} from "@/modules/operator-health/heartbeat";
+} from '@/modules/operator-health/heartbeat';
 import {
   EMPTY_AUDIENCE_JOB_FAMILY,
   EMPTY_AUDIENCE_JOB_KEY,
   classifyEmptyAudienceSignal,
   parseEmptyAudienceCounter,
   type EmptyAudienceSignal,
-} from "@/modules/operator-alerts/emptyAudience";
+} from '@/modules/operator-alerts/emptyAudience';
 
 /**
  * Наблюдатель dead man's switch и счётчика пустой аудитории (design D-d, D-b).
@@ -29,13 +29,13 @@ import {
  * работу планировщика, а не работу доставки, и в июле светился бы зелёным.
  */
 
-const HEARTBEAT_META_LAST_SENT_KEY = "observedLastSentAt";
+const HEARTBEAT_META_LAST_SENT_KEY = 'observedLastSentAt';
 
 export async function readOperatorHeartbeatVerdicts(
   nowMs: number = Date.now(),
 ): Promise<OperatorHeartbeatVerdict[]> {
   const read = buildAppDeps().operatorHealthRead;
-  const overridesRaw = await getConfigValue(OPERATOR_HEARTBEAT_CONFIG_KEY, "").catch(() => "");
+  const overridesRaw = await getConfigValue(OPERATOR_HEARTBEAT_CONFIG_KEY, '').catch(() => '');
   const overrides = parseOperatorHeartbeatStaleOverrides(overridesRaw);
   const rows = await Promise.all(
     OPERATOR_HEARTBEATS.map((definition) =>
@@ -78,7 +78,7 @@ export function hasConfirmedDeliveryAdvanced(
   if (!currentLastSentAt) return false;
   const current = Date.parse(currentLastSentAt);
   if (!Number.isFinite(current)) return false;
-  if (typeof previousObservedIso !== "string" || !previousObservedIso.trim()) return true;
+  if (typeof previousObservedIso !== 'string' || !previousObservedIso.trim()) return true;
   const previous = Date.parse(previousObservedIso);
   if (!Number.isFinite(previous)) return true;
   return current > previous;
@@ -90,22 +90,22 @@ export function hasConfirmedDeliveryAdvanced(
  */
 export async function pingPipelineHeartbeatOnConfirmedDelivery(
   currentLastSentAt: string | null,
-): Promise<"pinged" | "no_new_delivery" | "error"> {
-  const definition = findOperatorHeartbeat("pipeline_delivery");
-  if (!definition) return "error";
+): Promise<'pinged' | 'no_new_delivery' | 'error'> {
+  const definition = findOperatorHeartbeat('pipeline_delivery');
+  if (!definition) return 'error';
   try {
     const row = await buildAppDeps().operatorHealthRead.getOperatorJobStatus(
       OPERATOR_HEARTBEAT_JOB_FAMILY,
       definition.jobKey,
     );
     const previous = (row?.metaJson ?? {})[HEARTBEAT_META_LAST_SENT_KEY];
-    if (!hasConfirmedDeliveryAdvanced(previous, currentLastSentAt)) return "no_new_delivery";
-    await pingOperatorHeartbeatBestEffort("pipeline_delivery", "confirmed_delivery", {
+    if (!hasConfirmedDeliveryAdvanced(previous, currentLastSentAt)) return 'no_new_delivery';
+    await pingOperatorHeartbeatBestEffort('pipeline_delivery', 'confirmed_delivery', {
       [HEARTBEAT_META_LAST_SENT_KEY]: currentLastSentAt,
     });
-    return "pinged";
+    return 'pinged';
   } catch (err) {
-    logger.warn({ err }, "pipeline heartbeat observation failed");
-    return "error";
+    logger.warn({ err }, 'pipeline heartbeat observation failed');
+    return 'error';
   }
 }

@@ -1,19 +1,22 @@
-import { NextResponse } from "next/server";
-import { getCurrentSession } from "@/modules/auth/service";
-import { assertMediaPlaybackAccess } from "@/modules/media/assertMediaPlaybackAccess";
-import type { PlaybackDeliveryStrategy } from "@/modules/media/playbackResolveDelivery";
-import { resolveMediaPlaybackPayload } from "@/app-layer/media/resolveMediaPlaybackPayload";
-import { getMediaAccessRow } from "@/app-layer/media/s3MediaStorage";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
-import { requireDoctorWorkspaceApiContext, requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
-import { canAccessDoctor } from "@/modules/roles/service";
-import type { AppSession } from "@/shared/types/session";
-import { resolvePlatformLfkMediaAccess } from "@/app-layer/media/resolvePlatformLfkMediaAccess";
+import { NextResponse } from 'next/server';
+import { getCurrentSession } from '@/modules/auth/service';
+import { assertMediaPlaybackAccess } from '@/modules/media/assertMediaPlaybackAccess';
+import type { PlaybackDeliveryStrategy } from '@/modules/media/playbackResolveDelivery';
+import { resolveMediaPlaybackPayload } from '@/app-layer/media/resolveMediaPlaybackPayload';
+import { getMediaAccessRow } from '@/app-layer/media/s3MediaStorage';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import {
+  requireDoctorWorkspaceApiContext,
+  requirePatientApiBusinessAccess,
+} from '@/app-layer/guards/requireRole';
+import { canAccessDoctor } from '@/modules/roles/service';
+import type { AppSession } from '@/shared/types/session';
+import { resolvePlatformLfkMediaAccess } from '@/app-layer/media/resolvePlatformLfkMediaAccess';
 
 function parsePreferParam(raw: string | null): PlaybackDeliveryStrategy | null {
   if (!raw) return null;
   const p = raw.trim().toLowerCase();
-  if (p === "mp4" || p === "hls" || p === "auto") return p;
+  if (p === 'mp4' || p === 'hls' || p === 'auto') return p;
   return null;
 }
 
@@ -24,11 +27,11 @@ function parsePreferParam(raw: string | null): PlaybackDeliveryStrategy | null {
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!id) {
-    return NextResponse.json({ error: "missing id" }, { status: 400 });
+    return NextResponse.json({ error: 'missing id' }, { status: 400 });
   }
 
   const initialSession = await getCurrentSession();
-  if (!initialSession) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!initialSession) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   const serve = async (session: AppSession): Promise<Response> => {
     let allowPlatformBase = false;
     let accessRow = await getMediaAccessRow(id);
@@ -36,18 +39,25 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       allowPlatformBase = await resolvePlatformLfkMediaAccess(id);
       if (allowPlatformBase) accessRow = await getMediaAccessRow(id, { allowPlatformBase: true });
     }
-    if (!accessRow) return NextResponse.json({ error: "not found" }, { status: 404 });
-    if (!assertMediaPlaybackAccess(session, { usagePurpose: accessRow.usage_purpose, uploadedBy: accessRow.uploaded_by })) {
-      return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    if (!accessRow) return NextResponse.json({ error: 'not found' }, { status: 404 });
+    if (
+      !assertMediaPlaybackAccess(session, {
+        usagePurpose: accessRow.usage_purpose,
+        uploadedBy: accessRow.uploaded_by,
+      })
+    ) {
+      return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
     }
-    const prefer = parsePreferParam(new URL(request.url).searchParams.get("prefer"));
+    const prefer = parsePreferParam(new URL(request.url).searchParams.get('prefer'));
     const result = await resolveMediaPlaybackPayload({
       id,
       session,
-      adminPrefer: session.user.role === "admin" ? prefer : null,
+      adminPrefer: session.user.role === 'admin' ? prefer : null,
       allowPlatformBase,
     });
-    return result.ok ? NextResponse.json(result.data) : NextResponse.json({ error: result.error }, { status: result.status });
+    return result.ok
+      ? NextResponse.json(result.data)
+      : NextResponse.json({ error: result.error }, { status: result.status });
   };
   if (canAccessDoctor(initialSession.user.role)) {
     const gate = await requireDoctorWorkspaceApiContext();

@@ -1,28 +1,28 @@
 ---
 name: Web Push VAPID в админке
-overview: "Хранение пары VAPID (public/private) в system_settings (admin), PATCH + UI; merge private; валидация и аудит. Остальной контур Web Push перечислен в §1.1; подписки/SW/отправка — отдельные этапы после этой фазы."
+overview: 'Хранение пары VAPID (public/private) в system_settings (admin), PATCH + UI; merge private; валидация и аудит. Остальной контур Web Push перечислен в §1.1; подписки/SW/отправка — отдельные этапы после этой фазы.'
 status: completed
 todos:
   - id: allowlist-key
-    content: "types.ts: web_push_vapid в ALLOWED_KEYS + JSDoc (не env; зеркало integrator через updateSetting)"
+    content: 'types.ts: web_push_vapid в ALLOWED_KEYS + JSDoc (не env; зеркало integrator через updateSetting)'
     status: completed
   - id: patch-parse-merge
-    content: "webPushVapidPatch.ts (parse+validate) + mergeWebPushVapidPrivateRetain в service.ts + ADMIN_SCOPE_KEYS и ветка PATCH + audit redact в route.ts"
+    content: 'webPushVapidPatch.ts (parse+validate) + mergeWebPushVapidPrivateRetain в service.ts + ADMIN_SCOPE_KEYS и ветка PATCH + audit redact в route.ts'
     status: completed
   - id: admin-ui
-    content: "WebPushVapidSection.tsx + page.tsx (appParams); краткая подсказка про web-push generate-vapid-keys"
+    content: 'WebPushVapidSection.tsx + page.tsx (appParams); краткая подсказка про web-push generate-vapid-keys'
     status: completed
   - id: tests
-    content: "route.test.ts: успех, invalid_value, первый save без private → 400, PATCH с пустым private при существующем → retain (через моки deps)"
+    content: 'route.test.ts: успех, invalid_value, первый save без private → 400, PATCH с пустым private при существующем → retain (через моки deps)'
     status: completed
   - id: reader-stub
-    content: "getWebPushVapidKeyPair() (getSetting, не getConfigValue) в modules/system-settings — для следующего этапа sender"
+    content: 'getWebPushVapidKeyPair() (getSetting, не getConfigValue) в modules/system-settings — для следующего этапа sender'
     status: completed
   - id: pwa-docs-index
-    content: "При merge реализации: LOG.md (дата, ключ, ссылка на план). ROADMAP/README/BACKLOG уже согласованы при переносе плана"
+    content: 'При merge реализации: LOG.md (дата, ключ, ссылка на план). ROADMAP/README/BACKLOG уже согласованы при переносе плана'
     status: completed
   - id: operator-handoff
-    content: "Генерация пары и ввод в admin UI на стенде/проде — действие оператора вне агента (см. §1.1); секреты не в git/чат"
+    content: 'Генерация пары и ввод в admin UI на стенде/проде — действие оператора вне агента (см. §1.1); секреты не в git/чат'
     status: cancelled
 isProject: false
 ---
@@ -57,17 +57,17 @@ isProject: false
 
 Ниже — **дорожная карта целиком** (чтобы ничего не забыть). **Тело этого файла (§0–9)** реализует только **шаг 1** (хранение VAPID в админке). Остальное — отдельные постановки/PR после закрытия текущих `todos`.
 
-| № | Этап | Можно сделать в репозитории без вас (код, тесты, доки) | Нужны вы / оператор |
-|---|------|--------------------------------------------------------|---------------------|
-| 1 | VAPID в `system_settings` + админ UI + PATCH + `getWebPushVapidKeyPair()` | Да (этот план) | **Прод:** один раз сгенерировать пару и ввести в админку на стенде (см. ниже про CLI). |
-| 2 | Таблица(ы) хранения `PushSubscription` (endpoint, ключи, user, device, timestamps), Drizzle + миграция | Да | Выбор политики хранения нескольких устройств на пользователя — продукт; миграция на prod по вашему процессу. |
-| 3 | API пациента: сохранить / удалить подписку (после сессии), валидация тела | Да | — |
-| 4 | Расширение [`public/sw.js`](../../apps/webapp/public/sw.js): `push`, при необходимости `notificationclick`; не ломать Mini App (без регистрации SW там) | Да | Ручной smoke Telegram/MAX WebView по [`PHASE_02`](PHASE_02_INSTALL_FLOW.md). |
-| 5 | Клиент пациента: запрос разрешения, `pushManager.subscribe` с `applicationServerKey` из `getWebPushVapidKeyPair` (публичная часть на клиент — отдельный безопасный endpoint или вшито в конфиг страницы), отправка JSON на API п.3 | Да | UX-тексты и момент показа диалога — согласование с продуктом. |
-| 6 | Зависимость `web-push` на сервере процесса, который шлёт пуши; использование пары из `getWebPushVapidKeyPair()` | Да | Привязка к очереди/cron и доменным событиям (напоминания, сообщения) — ваша постановка приоритетов. |
-| 7 | Обработка 410/404 от push-сервиса, удаление мёртвой подписки | Да | — |
-| 8 | Каналы доставки в профиле пациента (push vs прочее) — если ещё не покрыто существующей моделью | Частично | Продуктовые правила приоритета каналов. |
-| 9 | Верификация на реальных устройствах (Chrome PWA, iOS standalone по версии Safari, ограничения) | Документировать чеклист | **Вы:** ручной прогон на стенде/проде. |
+| №   | Этап                                                                                                                                                                                                                               | Можно сделать в репозитории без вас (код, тесты, доки) | Нужны вы / оператор                                                                                          |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| 1   | VAPID в `system_settings` + админ UI + PATCH + `getWebPushVapidKeyPair()`                                                                                                                                                          | Да (этот план)                                         | **Прод:** один раз сгенерировать пару и ввести в админку на стенде (см. ниже про CLI).                       |
+| 2   | Таблица(ы) хранения `PushSubscription` (endpoint, ключи, user, device, timestamps), Drizzle + миграция                                                                                                                             | Да                                                     | Выбор политики хранения нескольких устройств на пользователя — продукт; миграция на prod по вашему процессу. |
+| 3   | API пациента: сохранить / удалить подписку (после сессии), валидация тела                                                                                                                                                          | Да                                                     | —                                                                                                            |
+| 4   | Расширение [`public/sw.js`](../../apps/webapp/public/sw.js): `push`, при необходимости `notificationclick`; не ломать Mini App (без регистрации SW там)                                                                            | Да                                                     | Ручной smoke Telegram/MAX WebView по [`PHASE_02`](PHASE_02_INSTALL_FLOW.md).                                 |
+| 5   | Клиент пациента: запрос разрешения, `pushManager.subscribe` с `applicationServerKey` из `getWebPushVapidKeyPair` (публичная часть на клиент — отдельный безопасный endpoint или вшито в конфиг страницы), отправка JSON на API п.3 | Да                                                     | UX-тексты и момент показа диалога — согласование с продуктом.                                                |
+| 6   | Зависимость `web-push` на сервере процесса, который шлёт пуши; использование пары из `getWebPushVapidKeyPair()`                                                                                                                    | Да                                                     | Привязка к очереди/cron и доменным событиям (напоминания, сообщения) — ваша постановка приоритетов.          |
+| 7   | Обработка 410/404 от push-сервиса, удаление мёртвой подписки                                                                                                                                                                       | Да                                                     | —                                                                                                            |
+| 8   | Каналы доставки в профиле пациента (push vs прочее) — если ещё не покрыто существующей моделью                                                                                                                                     | Частично                                               | Продуктовые правила приоритета каналов.                                                                      |
+| 9   | Верификация на реальных устройствах (Chrome PWA, iOS standalone по версии Safari, ограничения)                                                                                                                                     | Документировать чеклист                                | **Вы:** ручной прогон на стенде/проде.                                                                       |
 
 ### Генерация VAPID: CLI и ответственность
 
@@ -139,24 +139,24 @@ isProject: false
 
 ## 8.1 Риски и контрмеры
 
-| Риск | Контрмера в этой фазе |
-|------|------------------------|
-| Утечка приватного ключа в логах PATCH | `redactWebPushVapidForAudit`; негативный тест на отсутствие сырого `privateKey` в audit-представлении |
-| Случайное обнуление `privateKey` при правке только public | Merge в `service.ts` при пустом private + тест «retain existing private» |
-| Невалидные строки (пробелы/не base64url) в БД | Строгий parse+validate в `webPushVapidPatch.ts` с `invalid_value` |
-| Хрупкий runtime-read через `configAdapter` | Явный `getWebPushVapidKeyPair()` через `getSetting`, без `getConfigValue` |
-| Попытка вести ключи через env | Прямой запрет в этом плане + ссылка на правило DB config |
+| Риск                                                      | Контрмера в этой фазе                                                                                 |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Утечка приватного ключа в логах PATCH                     | `redactWebPushVapidForAudit`; негативный тест на отсутствие сырого `privateKey` в audit-представлении |
+| Случайное обнуление `privateKey` при правке только public | Merge в `service.ts` при пустом private + тест «retain existing private»                              |
+| Невалидные строки (пробелы/не base64url) в БД             | Строгий parse+validate в `webPushVapidPatch.ts` с `invalid_value`                                     |
+| Хрупкий runtime-read через `configAdapter`                | Явный `getWebPushVapidKeyPair()` через `getSetting`, без `getConfigValue`                             |
+| Попытка вести ключи через env                             | Прямой запрет в этом плане + ссылка на правило DB config                                              |
 
 ## Чеклисты по шагам (локальные проверки)
 
-| Шаг | Проверка |
-|-----|----------|
-| allowlist-key | `rg "web_push_vapid" apps/webapp/src/modules/system-settings/types.ts` — одно вхождение в массиве + JSDoc |
-| patch-parse-merge | PATCH с заведомо неверным алфавитом → 400; `auditValueForLog` для старого/нового значения без сырого `privateKey` |
-| admin-ui | Только под сессией admin виден блок; сохранение не ломает остальные секции `appParams` |
-| tests | `vitest` по `route.test.ts` зелёный |
-| reader-stub | Вызов из теста или временный `expect` типов: возвращаемый объект либо `null`, либо оба ключа непустые после настроенной БД |
-| pwa-docs-index | Запись в LOG.md с датой и ссылкой на этот план |
+| Шаг               | Проверка                                                                                                                   |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| allowlist-key     | `rg "web_push_vapid" apps/webapp/src/modules/system-settings/types.ts` — одно вхождение в массиве + JSDoc                  |
+| patch-parse-merge | PATCH с заведомо неверным алфавитом → 400; `auditValueForLog` для старого/нового значения без сырого `privateKey`          |
+| admin-ui          | Только под сессией admin виден блок; сохранение не ломает остальные секции `appParams`                                     |
+| tests             | `vitest` по `route.test.ts` зелёный                                                                                        |
+| reader-stub       | Вызов из теста или временный `expect` типов: возвращаемый объект либо `null`, либо оба ключа непустые после настроенной БД |
+| pwa-docs-index    | Запись в LOG.md с датой и ссылкой на этот план                                                                             |
 
 ## 9. Документация инициативы
 

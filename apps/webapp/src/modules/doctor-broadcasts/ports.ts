@@ -1,27 +1,27 @@
-import type { ClientListItem } from "@/modules/doctor-clients/ports";
-import type { BroadcastChannel } from "./broadcastChannels";
+import type { ClientListItem } from '@/modules/doctor-clients/ports';
+import type { BroadcastChannel } from './broadcastChannels';
 
 /** Категория рассылки (обязательный выбор). */
 export type BroadcastCategory =
-  | "service"
-  | "organizational"
-  | "marketing"
-  | "important_notice"
-  | "schedule_change"
-  | "reminder"
-  | "education"
-  | "survey";
+  | 'service'
+  | 'organizational'
+  | 'marketing'
+  | 'important_notice'
+  | 'schedule_change'
+  | 'reminder'
+  | 'education'
+  | 'survey';
 
 /** Фильтр аудитории для рассылки. */
 export type BroadcastAudienceFilter =
-  | "all"
-  | "active_clients"
-  | "with_upcoming_appointment"
-  | "without_appointment"
-  | "with_telegram"
-  | "with_max"
-  | "sms_only"
-  | "inactive";
+  | 'all'
+  | 'active_clients'
+  | 'with_upcoming_appointment'
+  | 'without_appointment'
+  | 'with_telegram'
+  | 'with_max'
+  | 'sms_only'
+  | 'inactive';
 
 export type BroadcastCommand = {
   category: BroadcastCategory;
@@ -57,17 +57,17 @@ export type BroadcastRecipientsPreview = {
 
 /** Классификация политики доставки (превью / подпись перед отправкой). */
 export type BroadcastDeliveryPolicyKind =
-  | "respect_prefs_bot"
-  | "telegram_isolate_bot"
-  | "max_isolate_bot"
-  | "respect_prefs_sms"
-  | "sms_isolate"
-  | "respect_prefs_bot_sms"
-  | "telegram_isolate_bot_respect_prefs_sms"
-  | "telegram_isolate_bot_sms_isolate"
-  | "max_isolate_bot_respect_prefs_sms"
-  | "max_isolate_bot_sms_isolate"
-  | "none";
+  | 'respect_prefs_bot'
+  | 'telegram_isolate_bot'
+  | 'max_isolate_bot'
+  | 'respect_prefs_sms'
+  | 'sms_isolate'
+  | 'respect_prefs_bot_sms'
+  | 'telegram_isolate_bot_respect_prefs_sms'
+  | 'telegram_isolate_bot_sms_isolate'
+  | 'max_isolate_bot_respect_prefs_sms'
+  | 'max_isolate_bot_sms_isolate'
+  | 'none';
 
 /** Результат preview (dry-run): сколько пользователей попало, без отправки. */
 export type BroadcastPreviewResult = {
@@ -116,7 +116,7 @@ export type BroadcastAuditEntry = {
 };
 
 export type BroadcastAuditPort = {
-  append(entry: Omit<BroadcastAuditEntry, "id" | "executedAt">): Promise<BroadcastAuditEntry>;
+  append(entry: Omit<BroadcastAuditEntry, 'id' | 'executedAt'>): Promise<BroadcastAuditEntry>;
   list(limit?: number): Promise<BroadcastAuditEntry[]>;
 };
 
@@ -134,7 +134,7 @@ export type DoctorBroadcastDeliveryCommitPort = {
   commitAuditAndDeliveryQueue(input: {
     /** Заранее сгенерированный id аудита (стабильные `event_id` в очереди). */
     auditId: string;
-    audit: Omit<BroadcastAuditEntry, "id" | "executedAt">;
+    audit: Omit<BroadcastAuditEntry, 'id' | 'executedAt'>;
     jobs: readonly DoctorBroadcastQueueJob[];
     /** Получатели рассылки (включая push-only) для patient read page. */
     recipientUserIds: readonly string[];
@@ -169,4 +169,4 @@ export type BroadcastAudienceResolveResult = {
   emailEligibleUserIds?: ReadonlySet<string>;
 };
 
-export type { BroadcastChannel } from "./broadcastChannels";
+export type { BroadcastChannel } from './broadcastChannels';

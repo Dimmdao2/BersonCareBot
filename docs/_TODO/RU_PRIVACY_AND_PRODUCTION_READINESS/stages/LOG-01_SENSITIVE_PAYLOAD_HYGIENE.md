@@ -1,4 +1,4 @@
-> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
+> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/\_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
 
 > ## 🔴 ПРАВКА 2026-07-27 — компаунд-бокс расщеплён по прямому указанию владельца
 >
@@ -43,7 +43,6 @@ delivery attempts, retries, dead-letter и очередей. Это отдель
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 - [ ] Инвентаризировать logger/console error paths, DB/provider/request errors, audit/metrics, queues, retries,
       dead-letter, crash reports и support exports во всех runtime processes.
 - [ ] Для каждого store указать payload fields, access, retention/cleanup, canonical source и необходимость копии.
@@ -58,7 +57,6 @@ delivery attempts, retries, dead-letter и очередей. Это отдель
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 - [x] Удалить raw SQL params и query text из integrator error output/`console.error` (taskdb `#914`,
       `apps/integrator/src/infra/db/client.ts`: все `query`/`tx` error paths и duplicate `console.error` calls). (✓ verified client.ts:54-85,121-135,170-205 — logs only queryFingerprint/pgCode/pgClass/dbPrincipalSource, no sql/params)
@@ -75,7 +73,7 @@ delivery attempts, retries, dead-letter и очередей. Это отдель
       `apps/webapp/src/infra/logging/logger.ts`, `apps/media-worker/src/logger.ts`); `sanitizeErrorCause`/
       `redactUnknownErrorShape` удалены. (✓ verified: no `cause` in serializeError across integrator/observability/logger.ts:42-59, webapp/infra/logging/logger.ts:37-53, media-worker/src/logger.ts:36-52)
 - [x] `serializeError` safe-by-construction, закрытая value-free форма: `SerializedError` = `{ type: string;
-      code?: string; class?: string }`. Top-level `Error.message`/`stack`/`JSON.stringify(err)` и любые поля
+    code?: string; class?: string }`. Top-level `Error.message`/`stack`/`JSON.stringify(err)` и любые поля
       `cause` (значения, массивы, enumerable-свойства) никогда не проходят verbatim ни при каком входе.
       Единственное сохранённое явное диагностическое поле сверх `type` — валидированный PostgreSQL SQLSTATE
       `code`/`class`. (✓ verified SerializedError = {type; code?; class?} at observability/logger.ts:16-20,42-59)
@@ -105,7 +103,6 @@ terminal security audit `bcb-log01-l1-914-codex-terminal-reaudit-20260719` — P
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 - [ ] Когда canonical object существует, queue хранит ID/type/routing metadata и fetches content just-in-time; не
       копирует clinical text.
@@ -153,7 +150,6 @@ terminal security audit `bcb-log01-l1-914-codex-terminal-reaudit-20260719` — P
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 > **Расщеплено 2026-07-27** — тот же дефект компаунда: одна половина (DB/provider → Pino/stdout/stderr) закрыта
 > `L1` ещё 2026-07-19, вторая (queue/retry → delivery attempts/audit/metrics/terminal queue rows) не начата и
 > заблокирована на `L2`. Проверено: `grep -rn SENSITIVE_TEST_MARKER` находит маркер только в
@@ -191,7 +187,6 @@ terminal security audit `bcb-log01-l1-914-codex-terminal-reaudit-20260719` — P
 > **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
-
 
 > **Расщеплено 2026-07-27** — раньше один пункт смешивал SQL params (закрыто `L1`) с message/clinical
 > fields/secrets (не закрыто: `dispatchPort.ts` до сих пор логирует полный non-OTP `intent.payload` в

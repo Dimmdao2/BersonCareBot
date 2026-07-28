@@ -65,7 +65,11 @@ async function fetchSignedGet<T>(input: {
   };
   try {
     const res = await fetch(url, { method: 'GET', headers });
-    const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; [k: string]: unknown };
+    const data = (await res.json().catch(() => ({}))) as {
+      ok?: boolean;
+      error?: string;
+      [k: string]: unknown;
+    };
     const parsed = input.parseResponse(data);
     if (!res.ok) {
       return { ...parsed, ok: false, error: data.error ?? res.statusText };
@@ -77,7 +81,9 @@ async function fetchSignedGet<T>(input: {
   }
 }
 
-export function createWebappEventsPort(deps: { getAppBaseUrl: () => Promise<string> }): WebappEventsPort {
+export function createWebappEventsPort(deps: {
+  getAppBaseUrl: () => Promise<string>;
+}): WebappEventsPort {
   const secret = integratorWebhookSecret();
 
   async function postSignedJson(input: {
@@ -114,7 +120,9 @@ export function createWebappEventsPort(deps: { getAppBaseUrl: () => Promise<stri
       return {
         ok,
         status: res.status,
-        ...(ok ? {} : { error: typeof parsed.error === 'string' ? parsed.error : text || res.statusText }),
+        ...(ok
+          ? {}
+          : { error: typeof parsed.error === 'string' ? parsed.error : text || res.statusText }),
       };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -168,9 +176,7 @@ export function createWebappEventsPort(deps: { getAppBaseUrl: () => Promise<stri
             );
           }
         }
-        const ok =
-          (res.status === 200 || res.status === 202) &&
-          parsed.ok === true;
+        const ok = (res.status === 200 || res.status === 202) && parsed.ok === true;
         if (!ok && (res.status === 200 || res.status === 202)) {
           if (jsonParsed) {
             logger.warn(
@@ -196,7 +202,9 @@ export function createWebappEventsPort(deps: { getAppBaseUrl: () => Promise<stri
         return {
           ok,
           status: res.status,
-          ...(ok ? {} : { error: typeof parsed.error === 'string' ? parsed.error : text || res.statusText }),
+          ...(ok
+            ? {}
+            : { error: typeof parsed.error === 'string' ? parsed.error : text || res.statusText }),
         };
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -219,7 +227,9 @@ export function createWebappEventsPort(deps: { getAppBaseUrl: () => Promise<stri
         query: { userId },
         secret,
         parseResponse: (data) => ({
-          trackings: Array.isArray(data.trackings) ? (data.trackings as WebappSymptomTracking[]) : [],
+          trackings: Array.isArray(data.trackings)
+            ? (data.trackings as WebappSymptomTracking[])
+            : [],
         }),
       });
       return result.ok
@@ -272,10 +282,7 @@ export function createWebappEventsPort(deps: { getAppBaseUrl: () => Promise<stri
       });
     },
 
-    async beginProgramNoteReply(input: {
-      stageItemId: string;
-      idempotencyKey: string;
-    }): Promise<{
+    async beginProgramNoteReply(input: { stageItemId: string; idempotencyKey: string }): Promise<{
       ok: boolean;
       status: number;
       error?: string;
@@ -314,7 +321,9 @@ export function createWebappEventsPort(deps: { getAppBaseUrl: () => Promise<stri
           ...(ok && typeof parsed.programNoteReplyState === 'string'
             ? { programNoteReplyState: parsed.programNoteReplyState }
             : {}),
-          ...(ok ? {} : { error: typeof parsed.error === 'string' ? parsed.error : text || res.statusText }),
+          ...(ok
+            ? {}
+            : { error: typeof parsed.error === 'string' ? parsed.error : text || res.statusText }),
         };
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -357,26 +366,30 @@ export function createWebappEventsPort(deps: { getAppBaseUrl: () => Promise<stri
         }
         const ok = (res.status === 200 || res.status === 202) && parsed.ok === true;
         const skippedChannels = Array.isArray(parsed.skippedChannels)
-          ? parsed.skippedChannels
-              .filter(
-                (row): row is { channel: string; reason: string } =>
-                  row !== null &&
-                  typeof row === 'object' &&
-                  typeof (row as { channel?: unknown }).channel === 'string' &&
-                  typeof (row as { reason?: unknown }).reason === 'string',
-              )
+          ? parsed.skippedChannels.filter(
+              (row): row is { channel: string; reason: string } =>
+                row !== null &&
+                typeof row === 'object' &&
+                typeof (row as { channel?: unknown }).channel === 'string' &&
+                typeof (row as { reason?: unknown }).reason === 'string',
+            )
           : undefined;
         return {
           ok,
           status: res.status,
           ...(ok
             ? {
-                webPushDelivered: typeof parsed.webPushDelivered === 'number' ? parsed.webPushDelivered : undefined,
-                webPushErrors: typeof parsed.webPushErrors === 'number' ? parsed.webPushErrors : undefined,
+                webPushDelivered:
+                  typeof parsed.webPushDelivered === 'number' ? parsed.webPushDelivered : undefined,
+                webPushErrors:
+                  typeof parsed.webPushErrors === 'number' ? parsed.webPushErrors : undefined,
                 webPushDeactivated:
-                  typeof parsed.webPushDeactivated === 'number' ? parsed.webPushDeactivated : undefined,
+                  typeof parsed.webPushDeactivated === 'number'
+                    ? parsed.webPushDeactivated
+                    : undefined,
                 emailOk: typeof parsed.emailOk === 'boolean' ? parsed.emailOk : undefined,
-                emailSkipped: typeof parsed.emailSkipped === 'string' ? parsed.emailSkipped : undefined,
+                emailSkipped:
+                  typeof parsed.emailSkipped === 'string' ? parsed.emailSkipped : undefined,
                 skipped: typeof parsed.skipped === 'string' ? parsed.skipped : undefined,
                 selectedChannels: Array.isArray(parsed.selectedChannels)
                   ? parsed.selectedChannels.filter((c): c is string => typeof c === 'string')
@@ -394,7 +407,13 @@ export function createWebappEventsPort(deps: { getAppBaseUrl: () => Promise<stri
     async notifyPatientWebPush(input: {
       body: string;
       idempotencyKey: string;
-    }): Promise<{ ok: boolean; status: number; error?: string; skipped?: string; webPushDelivered?: number }> {
+    }): Promise<{
+      ok: boolean;
+      status: number;
+      error?: string;
+      skipped?: string;
+      webPushDelivered?: number;
+    }> {
       const baseUrl = await deps.getAppBaseUrl();
       if (!baseUrl || !secret) {
         return { ok: false, status: 0, error: 'DB-backed app_base_url or webhook secret not set' };
@@ -492,7 +511,9 @@ export function createWebappEventsPort(deps: { getAppBaseUrl: () => Promise<stri
               ? data.mergeReason.trim()
               : undefined;
           const err =
-            typeof data.error === 'string' && data.error.trim().length > 0 ? data.error.trim() : undefined;
+            typeof data.error === 'string' && data.error.trim().length > 0
+              ? data.error.trim()
+              : undefined;
           /* Prefer server mergeReason on 409 so executor can map channel-link codes to user-facing templates. */
           return { ok: false, error: mergeReason ?? err ?? res.statusText };
         }
@@ -503,7 +524,11 @@ export function createWebappEventsPort(deps: { getAppBaseUrl: () => Promise<stri
           typeof data.phoneNormalized === 'string' && data.phoneNormalized.trim().length > 0
             ? data.phoneNormalized.trim()
             : undefined;
-        return { ok: true, needsPhone: data.needsPhone === true, ...(phoneNorm ? { phoneNormalized: phoneNorm } : {}) };
+        return {
+          ok: true,
+          needsPhone: data.needsPhone === true,
+          ...(phoneNorm ? { phoneNormalized: phoneNorm } : {}),
+        };
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         return { ok: false, error: message };
@@ -561,7 +586,9 @@ export function createWebappEventsPort(deps: { getAppBaseUrl: () => Promise<stri
         };
         if (!res.ok) {
           const err =
-            typeof data.error === 'string' && data.error.trim().length > 0 ? data.error.trim() : res.statusText;
+            typeof data.error === 'string' && data.error.trim().length > 0
+              ? data.error.trim()
+              : res.statusText;
           return {
             ok: false,
             error: typeof data.mergeReason === 'string' ? data.mergeReason : err,
@@ -572,7 +599,9 @@ export function createWebappEventsPort(deps: { getAppBaseUrl: () => Promise<stri
         }
         return {
           ok: true,
-          ...(data.purpose === 'login' || data.purpose === 'profile_bind' ? { purpose: data.purpose } : {}),
+          ...(data.purpose === 'login' || data.purpose === 'profile_bind'
+            ? { purpose: data.purpose }
+            : {}),
           ...(typeof data.otpCode === 'string' ? { otpCode: data.otpCode } : {}),
           ...(data.accountCreated === true ? { accountCreated: true } : {}),
           ...(typeof data.challengeId === 'string' ? { challengeId: data.challengeId } : {}),

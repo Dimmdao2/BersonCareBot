@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useLayoutEffect, type RefObject } from "react";
+import { useLayoutEffect, type RefObject } from 'react';
 
 /** Пишет высоту chrome-элемента в CSS-переменную на `<html>` (для spacer / iframe calc). */
 export function useReportShellChromeHeight(
@@ -14,7 +14,7 @@ export function useReportShellChromeHeight(
       document.documentElement.style.setProperty(cssVarName, `${el.offsetHeight}px`);
     };
     setVar();
-    if (typeof ResizeObserver === "undefined") {
+    if (typeof ResizeObserver === 'undefined') {
       return () => {
         document.documentElement.style.removeProperty(cssVarName);
       };

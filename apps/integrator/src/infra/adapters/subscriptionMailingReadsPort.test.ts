@@ -35,9 +35,7 @@ describe('subscriptionMailingReadsPort', () => {
       status: 200,
       json: async () => ({
         ok: true,
-        topics: [
-          { id: '1', code: 'news', title: 'News', key: 'news', isActive: true },
-        ],
+        topics: [{ id: '1', code: 'news', title: 'News', key: 'news', isActive: true }],
       }),
     });
     const port = createSubscriptionMailingReadsPort({ db: mockDb });
@@ -92,9 +90,7 @@ describe('subscriptionMailingReadsPort', () => {
       status: 200,
       json: async () => ({
         ok: true,
-        subscriptions: [
-          { topicId: '1', topicCode: 'news', isActive: true },
-        ],
+        subscriptions: [{ topicId: '1', topicCode: 'news', isActive: true }],
       }),
     });
     const port = createSubscriptionMailingReadsPort({ db: mockDb });

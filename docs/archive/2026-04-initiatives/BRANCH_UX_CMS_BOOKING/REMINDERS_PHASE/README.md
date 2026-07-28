@@ -20,27 +20,27 @@
 
 ## Файлы фазы
 
-| Файл | Назначение |
-|------|------------|
-| `README.md` | Этот файл — контекст и цели |
-| `PLAN.md` | Мастер-план со стадиями, задачами, оценками |
+| Файл                        | Назначение                                    |
+| --------------------------- | --------------------------------------------- |
+| `README.md`                 | Этот файл — контекст и цели                   |
+| `PLAN.md`                   | Мастер-план со стадиями, задачами, оценками   |
 | `PROMPTS_EXEC_AUDIT_FIX.md` | Готовые промпты для каждого шага (copy-paste) |
-| `EXECUTION_LOG.md` | Лог выполнения (заполняется агентами) |
+| `EXECUTION_LOG.md`          | Лог выполнения (заполняется агентами)         |
 
 ---
 
 ## Исходные документы
 
-| Документ | Путь |
-|----------|------|
-| Текущие напоминания (модуль) | `apps/webapp/src/modules/reminders/` |
-| Текущие напоминания (интегратор) | `apps/integrator/src/kernel/domain/executor/handlers/reminders.ts` |
-| Scheduler (интегратор) | `apps/integrator/src/infra/runtime/scheduler/main.ts` |
-| Миграции напоминаний | `apps/webapp/migrations/010_reminders_content_access.sql`, `032_reminder_seen_status.sql` |
-| ЛФК-модули | `apps/webapp/src/modules/lfk-exercises/`, `lfk-templates/`, `lfk-assignments/` |
-| Контент-секции | `apps/webapp/src/modules/content-catalog/`, `apps/webapp/src/infra/repos/pgContentSections.ts` |
-| Декомпозиционная модель | `docs/BRANCH_UX_CMS_BOOKING/DECOMPOSITION_MODEL.md` |
-| Архитектура | `docs/ARCHITECTURE/SERVER CONVENTIONS.md` |
+| Документ                         | Путь                                                                                           |
+| -------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Текущие напоминания (модуль)     | `apps/webapp/src/modules/reminders/`                                                           |
+| Текущие напоминания (интегратор) | `apps/integrator/src/kernel/domain/executor/handlers/reminders.ts`                             |
+| Scheduler (интегратор)           | `apps/integrator/src/infra/runtime/scheduler/main.ts`                                          |
+| Миграции напоминаний             | `apps/webapp/migrations/010_reminders_content_access.sql`, `032_reminder_seen_status.sql`      |
+| ЛФК-модули                       | `apps/webapp/src/modules/lfk-exercises/`, `lfk-templates/`, `lfk-assignments/`                 |
+| Контент-секции                   | `apps/webapp/src/modules/content-catalog/`, `apps/webapp/src/infra/repos/pgContentSections.ts` |
+| Декомпозиционная модель          | `docs/BRANCH_UX_CMS_BOOKING/DECOMPOSITION_MODEL.md`                                            |
+| Архитектура                      | `docs/ARCHITECTURE/SERVER CONVENTIONS.md`                                                      |
 
 ---
 

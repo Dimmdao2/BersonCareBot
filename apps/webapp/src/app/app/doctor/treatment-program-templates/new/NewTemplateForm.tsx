@@ -1,25 +1,25 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
-import { Button, buttonVariants } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Label } from "@/shared/ui/doctor/primitives/label";
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useState, type FormEvent } from 'react';
+import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/ui/doctor/primitives/select";
-import { cn } from "@/lib/utils";
-import { TREATMENT_PROGRAM_TEMPLATES_PATH } from "../paths";
+} from '@/shared/ui/doctor/primitives/select';
+import { cn } from '@/lib/utils';
+import { TREATMENT_PROGRAM_TEMPLATES_PATH } from '../paths';
 
-const TEMPLATE_STATUS_LABEL: Record<"draft" | "published" | "archived", string> = {
-  draft: "Черновик",
-  published: "Опубликован",
-  archived: "Архив",
+const TEMPLATE_STATUS_LABEL: Record<'draft' | 'published' | 'archived', string> = {
+  draft: 'Черновик',
+  published: 'Опубликован',
+  archived: 'Архив',
 };
 
 export type NewTemplateFormProps = {
@@ -39,13 +39,13 @@ export type NewTemplateFormProps = {
 export function NewTemplateForm({
   showCancelLink = true,
   className,
-  titleInputId = "tpl-title",
+  titleInputId = 'tpl-title',
   showStatusField: showStatusFieldProp,
 }: NewTemplateFormProps) {
   const router = useRouter();
   const showStatusField = showStatusFieldProp ?? false;
-  const [title, setTitle] = useState("");
-  const [status, setStatus] = useState<"draft" | "published" | "archived">("draft");
+  const [title, setTitle] = useState('');
+  const [status, setStatus] = useState<'draft' | 'published' | 'archived'>('draft');
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -54,19 +54,19 @@ export function NewTemplateForm({
     setError(null);
     const t = title.trim();
     if (!t) {
-      setError("Укажите название");
+      setError('Укажите название');
       return;
     }
     setPending(true);
     try {
-      const res = await fetch("/api/doctor/treatment-program-templates", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch('/api/doctor/treatment-program-templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: t, ...(showStatusField ? { status } : {}) }),
       });
       const json = (await res.json()) as { ok?: boolean; item?: { id: string }; error?: string };
       if (!res.ok || !json.ok || !json.item) {
-        setError(json.error ?? "Не удалось создать");
+        setError(json.error ?? 'Не удалось создать');
         return;
       }
       router.push(`${TREATMENT_PROGRAM_TEMPLATES_PATH}/${json.item.id}`);
@@ -77,7 +77,7 @@ export function NewTemplateForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className={cn("flex max-w-xl flex-col gap-4", className)}>
+    <form onSubmit={onSubmit} className={cn('flex max-w-xl flex-col gap-4', className)}>
       {error ? (
         <p role="alert" className="text-sm text-destructive">
           {error}
@@ -124,10 +124,13 @@ export function NewTemplateForm({
       ) : null}
       <div className="flex flex-wrap gap-2">
         <Button type="submit" disabled={pending}>
-          {pending ? "Создание…" : "Создать"}
+          {pending ? 'Создание…' : 'Создать'}
         </Button>
         {showCancelLink ? (
-          <Link href={TREATMENT_PROGRAM_TEMPLATES_PATH} className={cn(buttonVariants({ variant: "outline" }))}>
+          <Link
+            href={TREATMENT_PROGRAM_TEMPLATES_PATH}
+            className={cn(buttonVariants({ variant: 'outline' }))}
+          >
             Отмена
           </Link>
         ) : null}

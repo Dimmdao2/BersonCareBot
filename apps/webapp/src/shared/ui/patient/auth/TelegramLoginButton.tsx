@@ -1,33 +1,39 @@
-"use client";
+'use client';
 
-import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { getPostAuthRedirectTarget } from "@/modules/auth/redirectPolicy";
-import { AUTH_LOGIN_ACCENT_TEXT_CLASS, AUTH_LOGIN_PRIMARY_BUTTON_CLASS, LOGIN_CTA_HEIGHT_CLASS, LOGIN_CTA_WIDTH_CLASS } from "@/shared/ui/patient/auth/loginChrome";
-import { cn } from "@/lib/utils";
-import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
+import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { getPostAuthRedirectTarget } from '@/modules/auth/redirectPolicy';
+import {
+  AUTH_LOGIN_ACCENT_TEXT_CLASS,
+  AUTH_LOGIN_PRIMARY_BUTTON_CLASS,
+  LOGIN_CTA_HEIGHT_CLASS,
+  LOGIN_CTA_WIDTH_CLASS,
+} from '@/shared/ui/patient/auth/loginChrome';
+import { cn } from '@/lib/utils';
+import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 
 /** Пока виджет Telegram не вставил iframe / не пришёл `load` (CDN заблокирован, нет сети и т.д.) — тот же тёмно-синий текст, слегка приглушённый. */
 const TELEGRAM_WIDGET_PENDING_CHROME = cn(
   LOGIN_CTA_HEIGHT_CLASS,
   LOGIN_CTA_WIDTH_CLASS,
-  "inline-flex shrink-0 items-center justify-center rounded-md border border-[var(--patient-color-primary,#284da0)] bg-white px-4 text-sm font-normal shadow-none",
+  'inline-flex shrink-0 items-center justify-center rounded-md border border-[var(--patient-color-primary,#284da0)] bg-white px-4 text-sm font-normal shadow-none',
   AUTH_LOGIN_ACCENT_TEXT_CLASS,
-  "opacity-70",
+  'opacity-70',
 );
 
 /** `load` на iframe срабатывает и при пустом/ошибочном документе — не считаем виджет готовым без ожидаемого src и геометрии. */
 function verifyTelegramEmbedLooksReady(iframe: HTMLIFrameElement): boolean {
   if (!iframe.isConnected) return false;
-  const src = (iframe.getAttribute("src") ?? "").trim();
-  if (!src || src === "about:blank" || src.startsWith("javascript:")) return false;
-  let host = "";
+  const src = (iframe.getAttribute('src') ?? '').trim();
+  if (!src || src === 'about:blank' || src.startsWith('javascript:')) return false;
+  let host = '';
   try {
-    host = new URL(src, "https://telegram.org/").hostname.toLowerCase();
+    host = new URL(src, 'https://telegram.org/').hostname.toLowerCase();
   } catch {
     return false;
   }
-  if (!host.endsWith("telegram.org") && !host.endsWith("telegram.me") && !host.endsWith("t.me")) return false;
+  if (!host.endsWith('telegram.org') && !host.endsWith('telegram.me') && !host.endsWith('t.me'))
+    return false;
   const { height, width } = iframe.getBoundingClientRect();
   return height >= 22 && width >= 100;
 }
@@ -75,7 +81,7 @@ export function TelegramLoginButton({
     if (!botUsername.trim() || disabled || widgetRequested) return;
     const el = outerRef.current;
     if (!el) return;
-    if (typeof IntersectionObserver === "undefined") {
+    if (typeof IntersectionObserver === 'undefined') {
       setWidgetRequested(true);
       return;
     }
@@ -85,7 +91,7 @@ export function TelegramLoginButton({
           setWidgetRequested(true);
         }
       },
-      { rootMargin: "120px", threshold: 0.01 },
+      { rootMargin: '120px', threshold: 0.01 },
     );
     io.observe(el);
     return () => io.disconnect();
@@ -102,28 +108,27 @@ export function TelegramLoginButton({
       setError(null);
       try {
         const entryT =
-          typeof window !== "undefined"
-            ? new URLSearchParams(window.location.search).get("t")?.trim() ?? ""
-            : "";
-        const body =
-          entryT.length > 0 ? { ...user, webappEntryToken: entryT } : user;
-        const res = await fetch("/api/auth/telegram-login", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
+          typeof window !== 'undefined'
+            ? (new URLSearchParams(window.location.search).get('t')?.trim() ?? '')
+            : '';
+        const body = entryT.length > 0 ? { ...user, webappEntryToken: entryT } : user;
+        const res = await fetch('/api/auth/telegram-login', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
           body: JSON.stringify(body),
         });
         const data = (await res.json().catch(() => ({}))) as {
           ok?: boolean;
           redirectTo?: string;
-          role?: "client" | "doctor" | "admin";
+          role?: 'client' | 'doctor' | 'admin';
           message?: string;
           error?: string;
         };
         if (!res.ok || !data.ok || !data.redirectTo) {
-          setError(data.message ?? "Не удалось войти через Telegram");
+          setError(data.message ?? 'Не удалось войти через Telegram');
           return;
         }
-        const role = data.role ?? "client";
+        const role = data.role ?? 'client';
         const target = getPostAuthRedirectTarget(role, nextParam, data.redirectTo);
         router.replace(target);
       } finally {
@@ -133,29 +138,29 @@ export function TelegramLoginButton({
 
     window.onTelegramAuth = handler;
 
-    const script = document.createElement("script");
+    const script = document.createElement('script');
     script.async = true;
-    script.src = "https://telegram.org/js/telegram-widget.js?22";
-    script.setAttribute("data-telegram-login", botUsername.replace(/^@/, ""));
-    script.setAttribute("data-size", "large");
-    script.setAttribute("data-radius", "6");
-    script.setAttribute("data-userpic", "false");
-    script.setAttribute("data-onauth", "onTelegramAuth(user)");
-    script.setAttribute("data-request-access", "write");
+    script.src = 'https://telegram.org/js/telegram-widget.js?22';
+    script.setAttribute('data-telegram-login', botUsername.replace(/^@/, ''));
+    script.setAttribute('data-size', 'large');
+    script.setAttribute('data-radius', '6');
+    script.setAttribute('data-userpic', 'false');
+    script.setAttribute('data-onauth', 'onTelegramAuth(user)');
+    script.setAttribute('data-request-access', 'write');
     const onScriptError = () => {
       setWidgetScriptBroken(true);
       setIframeReady(false);
     };
-    script.addEventListener("error", onScriptError, { once: true });
+    script.addEventListener('error', onScriptError, { once: true });
     container.appendChild(script);
 
     return () => {
-      script.removeEventListener("error", onScriptError);
+      script.removeEventListener('error', onScriptError);
       if (window.onTelegramAuth === handler) {
         delete window.onTelegramAuth;
       }
       script.remove();
-      container.innerHTML = "";
+      container.innerHTML = '';
       setIframeReady(false);
       setWidgetScriptBroken(false);
     };
@@ -210,11 +215,11 @@ export function TelegramLoginButton({
           });
         });
       };
-      iframe.addEventListener("load", onLoad, { once: true });
+      iframe.addEventListener('load', onLoad, { once: true });
     };
 
     const tryAttach = () => {
-      const iframe = container.querySelector("iframe");
+      const iframe = container.querySelector('iframe');
       if (!iframe || cancelled) return;
       attachToIframe(iframe);
     };
@@ -236,28 +241,32 @@ export function TelegramLoginButton({
   }
 
   return (
-    <div className={cn("mx-auto flex w-[242px] max-w-full flex-col items-center gap-2", className)}>
+    <div className={cn('mx-auto flex w-[242px] max-w-full flex-col items-center gap-2', className)}>
       <div
         ref={outerRef}
         tabIndex={disabled || widgetScriptBroken ? -1 : 0}
         role="button"
         aria-label="Войти через Telegram"
         aria-disabled={disabled || widgetScriptBroken}
-        aria-busy={busy || Boolean(widgetRequested && !iframeReady && !disabled && !widgetScriptBroken)}
+        aria-busy={
+          busy || Boolean(widgetRequested && !iframeReady && !disabled && !widgetScriptBroken)
+        }
         className={cn(
-          "relative shrink-0 select-none caret-transparent outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+          'relative shrink-0 select-none caret-transparent outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
           LOGIN_CTA_WIDTH_CLASS,
           LOGIN_CTA_HEIGHT_CLASS,
-          "max-w-full overflow-hidden rounded-md",
-          interactive ? "cursor-pointer" : "cursor-default",
+          'max-w-full overflow-hidden rounded-md',
+          interactive ? 'cursor-pointer' : 'cursor-default',
         )}
         onFocus={() => setWidgetRequested(true)}
       >
         <div
           aria-hidden
           className={cn(
-            "pointer-events-none absolute inset-0 flex items-center justify-center !w-auto select-none transition-colors duration-150",
-            chromeMuted ? TELEGRAM_WIDGET_PENDING_CHROME : cn(AUTH_LOGIN_PRIMARY_BUTTON_CLASS, "opacity-100"),
+            'pointer-events-none absolute inset-0 flex items-center justify-center !w-auto select-none transition-colors duration-150',
+            chromeMuted
+              ? TELEGRAM_WIDGET_PENDING_CHROME
+              : cn(AUTH_LOGIN_PRIMARY_BUTTON_CLASS, 'opacity-100'),
           )}
         >
           Войти через Telegram
@@ -265,12 +274,12 @@ export function TelegramLoginButton({
         <div
           ref={containerRef}
           className={cn(
-            "relative min-h-10 w-full",
-            "[&_.tgme_widget_login_button]:!block [&_.tgme_widget_login_button]:!min-h-10 [&_.tgme_widget_login_button]:!w-full",
-            "[&_iframe]:!absolute [&_iframe]:!inset-0 [&_iframe]:!h-full [&_iframe]:!min-h-10 [&_iframe]:!w-full [&_iframe]:!max-w-none [&_iframe]:!opacity-0",
-            interactive ? "[&_iframe]:!cursor-pointer" : "[&_iframe]:!cursor-default",
-            interactive ? "" : "pointer-events-none",
-            busy || disabled ? "pointer-events-none opacity-60" : "",
+            'relative min-h-10 w-full',
+            '[&_.tgme_widget_login_button]:!block [&_.tgme_widget_login_button]:!min-h-10 [&_.tgme_widget_login_button]:!w-full',
+            '[&_iframe]:!absolute [&_iframe]:!inset-0 [&_iframe]:!h-full [&_iframe]:!min-h-10 [&_iframe]:!w-full [&_iframe]:!max-w-none [&_iframe]:!opacity-0',
+            interactive ? '[&_iframe]:!cursor-pointer' : '[&_iframe]:!cursor-default',
+            interactive ? '' : 'pointer-events-none',
+            busy || disabled ? 'pointer-events-none opacity-60' : '',
           )}
         />
       </div>

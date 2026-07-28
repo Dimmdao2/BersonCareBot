@@ -3,7 +3,7 @@ import type {
   ProductPurchaseRecord,
   ProductRecord,
   UpsertProductInput,
-} from "./types";
+} from './types';
 
 export type ProductsPort = {
   listProducts(organizationId: string, activeOnly?: boolean): Promise<ProductRecord[]>;
@@ -17,13 +17,15 @@ export type ProductsPort = {
     expiresAt?: string | null;
     maxUses?: number | null;
   }): Promise<ProductPayLinkRecord>;
-  getPayLinkByToken(token: string): Promise<(ProductPayLinkRecord & { product: ProductRecord }) | null>;
+  getPayLinkByToken(
+    token: string,
+  ): Promise<(ProductPayLinkRecord & { product: ProductRecord }) | null>;
   incrementPayLinkUse(payLinkId: string): Promise<void>;
 
   createPurchase(input: {
     organizationId: string;
     productId: string;
-    productType: ProductRecord["productType"];
+    productType: ProductRecord['productType'];
     platformUserId?: string | null;
     buyerPhoneNormalized?: string | null;
     giftRecipientPhoneNormalized?: string | null;
@@ -38,23 +40,33 @@ export type ProductsPort = {
 
   resolvePurchaseOrganizationId(id: string): Promise<string | null>;
   getPurchase(id: string, organizationId: string): Promise<ProductPurchaseRecord | null>;
-  listPurchasesForUser(platformUserId: string, organizationId: string): Promise<ProductPurchaseRecord[]>;
-  listPurchasesByPhone(phoneNormalized: string, organizationId: string): Promise<ProductPurchaseRecord[]>;
-  linkPurchasesByPhone(platformUserId: string, phoneNormalized: string, organizationId: string): Promise<number>;
+  listPurchasesForUser(
+    platformUserId: string,
+    organizationId: string,
+  ): Promise<ProductPurchaseRecord[]>;
+  listPurchasesByPhone(
+    phoneNormalized: string,
+    organizationId: string,
+  ): Promise<ProductPurchaseRecord[]>;
+  linkPurchasesByPhone(
+    platformUserId: string,
+    phoneNormalized: string,
+    organizationId: string,
+  ): Promise<number>;
   setPurchaseStatus(
     id: string,
     organizationId: string,
-    status: ProductPurchaseRecord["status"],
+    status: ProductPurchaseRecord['status'],
     patch?: Partial<
       Pick<
         ProductPurchaseRecord,
-        | "paymentIntentId"
-        | "paymentRef"
-        | "validFrom"
-        | "validUntil"
-        | "fulfillmentJson"
-        | "platformUserId"
-        | "buyerPhoneNormalized"
+        | 'paymentIntentId'
+        | 'paymentRef'
+        | 'validFrom'
+        | 'validUntil'
+        | 'fulfillmentJson'
+        | 'platformUserId'
+        | 'buyerPhoneNormalized'
       >
     >,
   ): Promise<ProductPurchaseRecord | null>;

@@ -1,13 +1,13 @@
-import type { OperatorIncidentDigestRow, OperatorJobFailureDigestRow } from "./digestPorts";
+import type { OperatorIncidentDigestRow, OperatorJobFailureDigestRow } from './digestPorts';
 import {
   buildDeliveryEvidenceLines,
   hasPositiveDeliveryEvidence,
   isOldestUnsentOverThreshold,
   type DeliveryEvidence,
-} from "./deliveryEvidence";
-import { formatHeartbeatAge, isHeartbeatFailing, type OperatorHeartbeatVerdict } from "./heartbeat";
+} from './deliveryEvidence';
+import { formatHeartbeatAge, isHeartbeatFailing, type OperatorHeartbeatVerdict } from './heartbeat';
 
-export const OPERATOR_HEALTH_DIGEST_LINK = "/app/admin/system-health";
+export const OPERATOR_HEALTH_DIGEST_LINK = '/app/admin/system-health';
 export const MAX_OPERATOR_HEALTH_DIGEST_LINES = 20;
 
 export type OperatorHealthDigestInput = {
@@ -33,12 +33,14 @@ export type OperatorHealthDigestInput = {
 export type OperatorHealthDigestResult = {
   lines: string[];
   hasIssues: boolean;
-  icon: "🛑" | "⚠️" | "✅";
+  icon: '🛑' | '⚠️' | '✅';
   /** true только когда есть ПОЗИТИВНОЕ доказательство доставки и живы оба пульса. */
   provenGreen: boolean;
 };
 
-export function buildOperatorHealthDigest(input: OperatorHealthDigestInput): OperatorHealthDigestResult {
+export function buildOperatorHealthDigest(
+  input: OperatorHealthDigestInput,
+): OperatorHealthDigestResult {
   const detailLines: string[] = [];
 
   const failingHeartbeats = (input.heartbeats ?? []).filter(isHeartbeatFailing);
@@ -46,7 +48,7 @@ export function buildOperatorHealthDigest(input: OperatorHealthDigestInput): Ope
     detailLines.push(`Пропал пульс — ${verdict.label}: ${formatHeartbeatAge(verdict)}`);
   }
   if (input.deliveryEvidence && isOldestUnsentOverThreshold(input.deliveryEvidence)) {
-    detailLines.push("Очередь доставки стоит: есть неотправленное старше порога");
+    detailLines.push('Очередь доставки стоит: есть неотправленное старше порога');
   }
 
   if (input.auditErrorCount > 0) {
@@ -63,7 +65,7 @@ export function buildOperatorHealthDigest(input: OperatorHealthDigestInput): Ope
   detailLines.push(...input.snapshotLines);
 
   if (!input.suppressRecovery && input.incidentsResolved.length > 0) {
-    detailLines.push("Восстановлено за окно:");
+    detailLines.push('Восстановлено за окно:');
     for (const inc of input.incidentsResolved.slice(0, 2)) {
       detailLines.push(`${inc.integration} / ${inc.errorClass}`);
     }
@@ -94,16 +96,16 @@ export function buildOperatorHealthDigest(input: OperatorHealthDigestInput): Ope
   const provenGreen = evidencePositive && heartbeatsAlive;
 
   const isRed = Boolean(input.hasStopIssue) || !heartbeatsAlive || !evidencePositive;
-  const icon = isRed ? "🛑" : hasIssues ? "⚠️" : "✅";
+  const icon = isRed ? '🛑' : hasIssues ? '⚠️' : '✅';
   const header = input.hasStopIssue
-    ? "🛑 ! Критический сбой исходящей доставки"
+    ? '🛑 ! Критический сбой исходящей доставки'
     : !heartbeatsAlive
-      ? "🛑 ! Пропал пульс доставки"
+      ? '🛑 ! Пропал пульс доставки'
       : !evidencePositive
-        ? "🛑 ! Нет подтверждений доставки"
+        ? '🛑 ! Нет подтверждений доставки'
         : hasIssues
-          ? "⚠️ Сводка здоровья системы"
-          : "✅ Всё в порядке";
+          ? '⚠️ Сводка здоровья системы'
+          : '✅ Всё в порядке';
 
   const lines = [header];
   if (hasIssues) {
@@ -114,7 +116,7 @@ export function buildOperatorHealthDigest(input: OperatorHealthDigestInput): Ope
   lines.push(
     ...(input.deliveryEvidence
       ? buildDeliveryEvidenceLines(input.deliveryEvidence)
-      : ["Доказательство доставки: НЕ СОБРАНО"]),
+      : ['Доказательство доставки: НЕ СОБРАНО']),
   );
   lines.push(OPERATOR_HEALTH_DIGEST_LINK);
 

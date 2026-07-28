@@ -120,7 +120,7 @@ describe('registerBersoncareUserMergeM2mRoutes', () => {
     await app.close();
   });
 
-  it('defect fix: runs the merge under the winner\'s resolved organization principal (per-user org)', async () => {
+  it("defect fix: runs the merge under the winner's resolved organization principal (per-user org)", async () => {
     const organizationId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
     let observedPrincipalDuringLock: string | undefined;
     const db = createAlreadyMergedDb(() => {

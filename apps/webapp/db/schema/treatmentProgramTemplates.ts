@@ -1,4 +1,4 @@
-import { sql } from "drizzle-orm";
+import { sql } from 'drizzle-orm';
 import {
   pgTable,
   uuid,
@@ -10,94 +10,101 @@ import {
   foreignKey,
   check,
   uniqueIndex,
-} from "drizzle-orm/pg-core";
-import { platformUsers } from "./schema";
-import { beOrganizations } from "./bookingEngine";
+} from 'drizzle-orm/pg-core';
+import { platformUsers } from './schema';
+import { beOrganizations } from './bookingEngine';
 
-export const TREATMENT_PROGRAM_TEMPLATE_STATUSES = ["draft", "published", "archived"] as const;
+export const TREATMENT_PROGRAM_TEMPLATE_STATUSES = ['draft', 'published', 'archived'] as const;
 
 export const TREATMENT_PROGRAM_ITEM_TYPES = [
-  "exercise",
-  "recommendation",
-  "lesson",
-  "clinical_test",
+  'exercise',
+  'recommendation',
+  'lesson',
+  'clinical_test',
 ] as const;
 
 export const treatmentProgramTemplates = pgTable(
-  "treatment_program_templates",
+  'treatment_program_templates',
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
-    organizationId: uuid("organization_id"),
+    organizationId: uuid('organization_id'),
     title: text().notNull(),
     description: text(),
-    status: text().default("draft").notNull(),
-    createdBy: uuid("created_by"),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    status: text().default('draft').notNull(),
+    createdBy: uuid('created_by'),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
   },
   (table) => [
-    index("idx_treatment_program_templates_organization_id").using(
-      "btree",
-      table.organizationId.asc().nullsLast().op("uuid_ops"),
+    index('idx_treatment_program_templates_organization_id').using(
+      'btree',
+      table.organizationId.asc().nullsLast().op('uuid_ops'),
     ),
-    index("idx_treatment_program_templates_status").using("btree", table.status.asc().nullsLast().op("text_ops")),
+    index('idx_treatment_program_templates_status').using(
+      'btree',
+      table.status.asc().nullsLast().op('text_ops'),
+    ),
     foreignKey({
       columns: [table.organizationId],
       foreignColumns: [beOrganizations.id],
-      name: "treatment_program_templates_organization_id_fkey",
-    }).onDelete("cascade"),
+      name: 'treatment_program_templates_organization_id_fkey',
+    }).onDelete('cascade'),
     foreignKey({
       columns: [table.createdBy],
       foreignColumns: [platformUsers.id],
-      name: "treatment_program_templates_created_by_fkey",
-    }).onDelete("set null"),
+      name: 'treatment_program_templates_created_by_fkey',
+    }).onDelete('set null'),
     check(
-      "treatment_program_templates_status_check",
+      'treatment_program_templates_status_check',
       sql`status = ANY (ARRAY['draft'::text, 'published'::text, 'archived'::text])`,
     ),
   ],
 );
 
 export const treatmentProgramTemplateStages = pgTable(
-  "treatment_program_template_stages",
+  'treatment_program_template_stages',
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
-    organizationId: uuid("organization_id"),
-    templateId: uuid("template_id").notNull(),
+    organizationId: uuid('organization_id'),
+    templateId: uuid('template_id').notNull(),
     title: text().notNull(),
     description: text(),
-    sortOrder: integer("sort_order").default(0).notNull(),
+    sortOrder: integer('sort_order').default(0).notNull(),
     /** Клиническая цель этапа (markdown). */
-    goals: text("goals"),
+    goals: text('goals'),
     /**
      * Измеримые задачи этапа (markdown).
      * O1 (PROGRAM_PATIENT_SHAPE): только TEXT, без JSONB-чеклиста на этапе A1.
      */
-    objectives: text("objectives"),
-    expectedDurationDays: integer("expected_duration_days"),
-    expectedDurationText: text("expected_duration_text"),
+    objectives: text('objectives'),
+    expectedDurationDays: integer('expected_duration_days'),
+    expectedDurationText: text('expected_duration_text'),
   },
   (table) => [
-    index("idx_treatment_program_template_stages_organization_id").using(
-      "btree",
-      table.organizationId.asc().nullsLast().op("uuid_ops"),
+    index('idx_treatment_program_template_stages_organization_id').using(
+      'btree',
+      table.organizationId.asc().nullsLast().op('uuid_ops'),
     ),
-    index("idx_treatment_program_template_stages_template_order").using(
-      "btree",
-      table.templateId.asc().nullsLast().op("uuid_ops"),
-      table.sortOrder.asc().nullsLast().op("int4_ops"),
+    index('idx_treatment_program_template_stages_template_order').using(
+      'btree',
+      table.templateId.asc().nullsLast().op('uuid_ops'),
+      table.sortOrder.asc().nullsLast().op('int4_ops'),
     ),
     foreignKey({
       columns: [table.organizationId],
       foreignColumns: [beOrganizations.id],
-      name: "treatment_program_template_stages_organization_id_fkey",
-    }).onDelete("cascade"),
+      name: 'treatment_program_template_stages_organization_id_fkey',
+    }).onDelete('cascade'),
     foreignKey({
       columns: [table.templateId],
       foreignColumns: [treatmentProgramTemplates.id],
-      name: "treatment_program_template_stages_template_id_fkey",
-    }).onDelete("cascade"),
-    uniqueIndex("treatment_program_template_stages_tpl_id_sort_order_uidx").on(
+      name: 'treatment_program_template_stages_template_id_fkey',
+    }).onDelete('cascade'),
+    uniqueIndex('treatment_program_template_stages_tpl_id_sort_order_uidx').on(
       table.templateId,
       table.sortOrder,
     ),
@@ -106,92 +113,92 @@ export const treatmentProgramTemplateStages = pgTable(
 
 /** A3 PROGRAM_PATIENT_SHAPE: смысловые группы внутри этапа шаблона. */
 export const treatmentProgramTemplateStageGroups = pgTable(
-  "treatment_program_template_stage_groups",
+  'treatment_program_template_stage_groups',
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
-    organizationId: uuid("organization_id"),
-    stageId: uuid("stage_id").notNull(),
+    organizationId: uuid('organization_id'),
+    stageId: uuid('stage_id').notNull(),
     title: text().notNull(),
     description: text(),
-    scheduleText: text("schedule_text"),
-    sortOrder: integer("sort_order").default(0).notNull(),
+    scheduleText: text('schedule_text'),
+    sortOrder: integer('sort_order').default(0).notNull(),
     /** Системные блоки «Рекомендации» / «Тестирование»; `NULL` — пользовательская группа. */
-    systemKind: text("system_kind"),
+    systemKind: text('system_kind'),
   },
   (table) => [
-    index("idx_treatment_program_template_stage_groups_organization_id").using(
-      "btree",
-      table.organizationId.asc().nullsLast().op("uuid_ops"),
+    index('idx_treatment_program_template_stage_groups_organization_id').using(
+      'btree',
+      table.organizationId.asc().nullsLast().op('uuid_ops'),
     ),
-    index("idx_treatment_program_tpl_stage_groups_stage_order").using(
-      "btree",
-      table.stageId.asc().nullsLast().op("uuid_ops"),
-      table.sortOrder.asc().nullsLast().op("int4_ops"),
+    index('idx_treatment_program_tpl_stage_groups_stage_order').using(
+      'btree',
+      table.stageId.asc().nullsLast().op('uuid_ops'),
+      table.sortOrder.asc().nullsLast().op('int4_ops'),
     ),
     foreignKey({
       columns: [table.organizationId],
       foreignColumns: [beOrganizations.id],
-      name: "treatment_program_template_stage_groups_organization_id_fkey",
-    }).onDelete("cascade"),
+      name: 'treatment_program_template_stage_groups_organization_id_fkey',
+    }).onDelete('cascade'),
     foreignKey({
       columns: [table.stageId],
       foreignColumns: [treatmentProgramTemplateStages.id],
-      name: "treatment_program_template_stage_groups_stage_id_fkey",
-    }).onDelete("cascade"),
+      name: 'treatment_program_template_stage_groups_stage_id_fkey',
+    }).onDelete('cascade'),
     check(
-      "treatment_program_template_stage_groups_system_kind_check",
+      'treatment_program_template_stage_groups_system_kind_check',
       sql`system_kind IS NULL OR system_kind = ANY (ARRAY['recommendations'::text, 'tests'::text])`,
     ),
-    uniqueIndex("treatment_program_template_stage_groups_one_rec_per_stage")
+    uniqueIndex('treatment_program_template_stage_groups_one_rec_per_stage')
       .on(table.stageId)
       .where(sql`system_kind = 'recommendations'`),
-    uniqueIndex("treatment_program_template_stage_groups_one_tests_per_stage")
+    uniqueIndex('treatment_program_template_stage_groups_one_tests_per_stage')
       .on(table.stageId)
       .where(sql`system_kind = 'tests'`),
   ],
 );
 
 export const treatmentProgramTemplateStageItems = pgTable(
-  "treatment_program_template_stage_items",
+  'treatment_program_template_stage_items',
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
-    organizationId: uuid("organization_id"),
-    stageId: uuid("stage_id").notNull(),
-    itemType: text("item_type").notNull(),
-    itemRefId: uuid("item_ref_id").notNull(),
-    sortOrder: integer("sort_order").default(0).notNull(),
+    organizationId: uuid('organization_id'),
+    stageId: uuid('stage_id').notNull(),
+    itemType: text('item_type').notNull(),
+    itemRefId: uuid('item_ref_id').notNull(),
+    sortOrder: integer('sort_order').default(0).notNull(),
     comment: text(),
-    settings: jsonb("settings").$type<Record<string, unknown>>(),
+    settings: jsonb('settings').$type<Record<string, unknown>>(),
     /** A3: ссылка на группу внутри этапа; NULL — вне группы. */
-    groupId: uuid("group_id"),
+    groupId: uuid('group_id'),
   },
   (table) => [
-    index("idx_treatment_program_template_stage_items_organization_id").using(
-      "btree",
-      table.organizationId.asc().nullsLast().op("uuid_ops"),
+    index('idx_treatment_program_template_stage_items_organization_id').using(
+      'btree',
+      table.organizationId.asc().nullsLast().op('uuid_ops'),
     ),
-    index("idx_treatment_program_stage_items_stage_order").using(
-      "btree",
-      table.stageId.asc().nullsLast().op("uuid_ops"),
-      table.sortOrder.asc().nullsLast().op("int4_ops"),
+    index('idx_treatment_program_stage_items_stage_order').using(
+      'btree',
+      table.stageId.asc().nullsLast().op('uuid_ops'),
+      table.sortOrder.asc().nullsLast().op('int4_ops'),
     ),
     foreignKey({
       columns: [table.organizationId],
       foreignColumns: [beOrganizations.id],
-      name: "treatment_program_template_stage_items_organization_id_fkey",
-    }).onDelete("cascade"),
+      name: 'treatment_program_template_stage_items_organization_id_fkey',
+    }).onDelete('cascade'),
     foreignKey({
       columns: [table.stageId],
       foreignColumns: [treatmentProgramTemplateStages.id],
-      name: "treatment_program_template_stage_items_stage_id_fkey",
-    }).onDelete("cascade"),
+      name: 'treatment_program_template_stage_items_stage_id_fkey',
+    }).onDelete('cascade'),
     foreignKey({
       columns: [table.groupId],
       foreignColumns: [treatmentProgramTemplateStageGroups.id],
-      name: "treatment_program_template_stage_items_group_id_fkey",
-    }).onDelete("set null"),
+      name: 'treatment_program_template_stage_items_group_id_fkey',
+    }).onDelete('set null'),
     check(
-      "treatment_program_template_stage_items_item_type_check",
+      'treatment_program_template_stage_items_item_type_check',
       sql`item_type = ANY (ARRAY['exercise'::text, 'recommendation'::text, 'lesson'::text, 'clinical_test'::text])`,
     ),
   ],

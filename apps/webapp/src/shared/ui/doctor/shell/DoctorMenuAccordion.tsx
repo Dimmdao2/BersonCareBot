@@ -1,109 +1,152 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { ArrowLeft, ChevronRight, LayoutDashboard, Users, Calendar, MessageCircle, BookOpen, FileText, BarChart3, Settings, Server, FolderOpen, BriefcaseBusiness, UserRound, CreditCard, KeyRound, Plug, Wrench, Activity, Archive, ScrollText } from "lucide-react";
-import type { ElementType } from "react";
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { Button, buttonVariants } from "@/shared/ui/doctor/primitives/button";
-import { cn } from "@/lib/utils";
-import { useDoctorRegistrationSystemFailureCount } from "@/modules/auth/hooks/useDoctorRegistrationSystemFailureCount";
-import { useDoctorOnlineIntakeNewCount } from "@/modules/online-intake/hooks/useDoctorOnlineIntakeNewCount";
-import { useDoctorPendingProgramTestsCount } from "@/modules/treatment-program/hooks/useDoctorPendingProgramTestsCount";
-import { useDoctorProactiveInsightsCount } from "@/modules/doctor-proactive-insights/hooks/useDoctorProactiveInsightsCount";
-import { useDoctorSupportUnreadCount } from "@/shared/hooks/useSupportUnreadPolling";
+import Link from 'next/link';
+import {
+  ArrowLeft,
+  ChevronRight,
+  LayoutDashboard,
+  Users,
+  Calendar,
+  MessageCircle,
+  BookOpen,
+  FileText,
+  BarChart3,
+  Settings,
+  Server,
+  FolderOpen,
+  BriefcaseBusiness,
+  UserRound,
+  CreditCard,
+  KeyRound,
+  Plug,
+  Wrench,
+  Activity,
+  Archive,
+  ScrollText,
+} from 'lucide-react';
+import type { ElementType } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
+import { cn } from '@/lib/utils';
+import { useDoctorRegistrationSystemFailureCount } from '@/modules/auth/hooks/useDoctorRegistrationSystemFailureCount';
+import { useDoctorOnlineIntakeNewCount } from '@/modules/online-intake/hooks/useDoctorOnlineIntakeNewCount';
+import { useDoctorPendingProgramTestsCount } from '@/modules/treatment-program/hooks/useDoctorPendingProgramTestsCount';
+import { useDoctorProactiveInsightsCount } from '@/modules/doctor-proactive-insights/hooks/useDoctorProactiveInsightsCount';
+import { useDoctorSupportUnreadCount } from '@/shared/hooks/useSupportUnreadPolling';
 import {
   getDoctorMenuItems,
   isDoctorNavItemActive,
   type DoctorMenuAccess,
   type DoctorMenuBadgeKey,
   type DoctorMenuLinkItem,
-} from "@/shared/ui/doctor/doctorNavLinks";
-import { getPlatformMenuItems } from "@/shared/ui/doctor/platformNavLinks";
-import { hasLaunchCapability } from "@/app-layer/guards/workspaceCapabilities";
-import {
-  DOCTOR_MENU_ITEM_RADIUS_CLASS,
-  NAV_STRIP_ICON_STROKE,
-} from "@/shared/ui/doctor/navChrome";
+} from '@/shared/ui/doctor/doctorNavLinks';
+import { getPlatformMenuItems } from '@/shared/ui/doctor/platformNavLinks';
+import { hasLaunchCapability } from '@/app-layer/guards/workspaceCapabilities';
+import { DOCTOR_MENU_ITEM_RADIUS_CLASS, NAV_STRIP_ICON_STROKE } from '@/shared/ui/doctor/navChrome';
 
 /** Отображаемый текст бейджа; `null` — не показывать. */
 export function formatNavBadgeCount(n: number): string | null {
   if (!Number.isFinite(n) || n <= 0) return null;
-  if (n >= 100) return "99+";
+  if (n >= 100) return '99+';
   return String(Math.floor(n));
 }
 
 function badgeSpanAriaLabel(badgeKey: DoctorMenuBadgeKey, formatted: string): string {
-  if (badgeKey === "onlineIntakeNew") return `Новых заявок: ${formatted}`;
-  if (badgeKey === "registrationSystemFailures") return `Сбоев регистрации: ${formatted}`;
-  if (badgeKey === "pendingProgramTests") return `К проверке: ${formatted}`;
-  if (badgeKey === "todayAttention") return `Требует внимания: ${formatted}`;
-  if (badgeKey === "communicationsTotal") return `Непрочитанных: ${formatted}`;
+  if (badgeKey === 'onlineIntakeNew') return `Новых заявок: ${formatted}`;
+  if (badgeKey === 'registrationSystemFailures') return `Сбоев регистрации: ${formatted}`;
+  if (badgeKey === 'pendingProgramTests') return `К проверке: ${formatted}`;
+  if (badgeKey === 'todayAttention') return `Требует внимания: ${formatted}`;
+  if (badgeKey === 'communicationsTotal') return `Непрочитанных: ${formatted}`;
   return `Непрочитанных сообщений: ${formatted}`;
 }
 
 function linkAriaLabelWhenBadged(item: DoctorMenuLinkItem, formatted: string): string | undefined {
   if (!item.badgeKey || !formatted) return undefined;
-  if (item.badgeKey === "onlineIntakeNew") return `${item.label}. Новых заявок: ${formatted}.`;
-  if (item.badgeKey === "registrationSystemFailures") return `${item.label}. Сбоев регистрации: ${formatted}.`;
-  if (item.badgeKey === "pendingProgramTests") return `${item.label}. К проверке: ${formatted}.`;
-  if (item.badgeKey === "todayAttention") return `${item.label}. Требует внимания: ${formatted}.`;
-  if (item.badgeKey === "communicationsTotal") return `${item.label}. Непрочитанных: ${formatted}.`;
+  if (item.badgeKey === 'onlineIntakeNew') return `${item.label}. Новых заявок: ${formatted}.`;
+  if (item.badgeKey === 'registrationSystemFailures')
+    return `${item.label}. Сбоев регистрации: ${formatted}.`;
+  if (item.badgeKey === 'pendingProgramTests') return `${item.label}. К проверке: ${formatted}.`;
+  if (item.badgeKey === 'todayAttention') return `${item.label}. Требует внимания: ${formatted}.`;
+  if (item.badgeKey === 'communicationsTotal') return `${item.label}. Непрочитанных: ${formatted}.`;
   return `${item.label}. Непрочитанных сообщений: ${formatted}.`;
 }
 
 function navBadgeClassName(badgeKey: DoctorMenuBadgeKey): string {
-  if (badgeKey === "registrationSystemFailures") {
-    return "inline-flex min-h-[1.25rem] min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-medium tabular-nums leading-none text-destructive-foreground";
+  if (badgeKey === 'registrationSystemFailures') {
+    return 'inline-flex min-h-[1.25rem] min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-medium tabular-nums leading-none text-destructive-foreground';
   }
-  return "inline-flex min-h-[1.25rem] min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-muted px-1.5 text-[10px] font-medium tabular-nums leading-none text-muted-foreground";
+  return 'inline-flex min-h-[1.25rem] min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-muted px-1.5 text-[10px] font-medium tabular-nums leading-none text-muted-foreground';
 }
 
 function getIconForMenuId(id: string): ElementType | null {
   switch (id) {
-    case "today": return LayoutDashboard;
-    case "patients": return Users;
-    case "clients": return Users;
-    case "schedule": return Calendar;
-    case "communications": return MessageCircle;
-    case "library": return BookOpen;
-    case "content": return FileText;
-    case "files-and-media": return FolderOpen;
-    case "analytics": return BarChart3;
-    case "management": return BriefcaseBusiness;
-    case "account": return UserRound;
-    case "settings": return Settings;
-    case "system": return Server;
+    case 'today':
+      return LayoutDashboard;
+    case 'patients':
+      return Users;
+    case 'clients':
+      return Users;
+    case 'schedule':
+      return Calendar;
+    case 'communications':
+      return MessageCircle;
+    case 'library':
+      return BookOpen;
+    case 'content':
+      return FileText;
+    case 'files-and-media':
+      return FolderOpen;
+    case 'analytics':
+      return BarChart3;
+    case 'management':
+      return BriefcaseBusiness;
+    case 'account':
+      return UserRound;
+    case 'settings':
+      return Settings;
+    case 'system':
+      return Server;
     // Platform (global admin) flat menu — former "system" cluster sub-items, now top-level.
-    case "commercial": return CreditCard;
-    case "admin-app-settings": return Settings;
-    case "admin-auth": return KeyRound;
-    case "admin-booking": return Calendar;
-    case "admin-integrations": return Plug;
-    case "admin-technical": return Wrench;
-    case "system-health": return Activity;
-    case "health-archive": return Archive;
-    case "audit-log": return ScrollText;
-    default: return null;
+    case 'commercial':
+      return CreditCard;
+    case 'admin-app-settings':
+      return Settings;
+    case 'admin-auth':
+      return KeyRound;
+    case 'admin-booking':
+      return Calendar;
+    case 'admin-integrations':
+      return Plug;
+    case 'admin-technical':
+      return Wrench;
+    case 'system-health':
+      return Activity;
+    case 'health-archive':
+      return Archive;
+    case 'audit-log':
+      return ScrollText;
+    default:
+      return null;
   }
 }
 
 const SIDEBAR_LINK_CLASS = cn(
-  buttonVariants({ variant: "ghost" }),
+  buttonVariants({ variant: 'ghost' }),
   DOCTOR_MENU_ITEM_RADIUS_CLASS,
-  "h-auto w-full justify-start px-3 py-2 text-sm font-normal",
+  'h-auto w-full justify-start px-3 py-2 text-sm font-normal',
 );
 
 const SHEET_LINK_CLASS = cn(
-  buttonVariants({ variant: "ghost" }),
+  buttonVariants({ variant: 'ghost' }),
   DOCTOR_MENU_ITEM_RADIUS_CLASS,
-  "h-auto w-full justify-start px-3 py-2 font-normal",
+  'h-auto w-full justify-start px-3 py-2 font-normal',
 );
 
 const FLYOUT_LINK_CLASS = cn(
-  buttonVariants({ variant: "ghost" }),
+  buttonVariants({ variant: 'ghost' }),
   DOCTOR_MENU_ITEM_RADIUS_CLASS,
-  "h-auto w-full justify-start px-3 py-2 text-sm font-normal",
+  'h-auto w-full justify-start px-3 py-2 text-sm font-normal',
 );
 
 /**
@@ -116,7 +159,7 @@ function renderMenuIcon(Icon: ElementType | null, size: number) {
 }
 
 export type DoctorMenuAccordionProps = {
-  variant: "sidebar" | "sheet";
+  variant: 'sidebar' | 'sheet';
   pathname: string;
   menuAccess: DoctorMenuAccess;
   /** Если `"клиент"`, пункт «Пациенты» отображается как «Клиенты». */
@@ -131,7 +174,7 @@ export type DoctorMenuAccordionProps = {
    * (`platformNavLinks.ts`) — it never carries nested `.items`, so it renders as plain links in
    * both variants without any accordion/group behavior.
    */
-  menuKind?: "doctor" | "platform";
+  menuKind?: 'doctor' | 'platform';
 };
 
 /**
@@ -224,8 +267,8 @@ function SidebarGroupFlyout({
         }}
         className={cn(
           DOCTOR_MENU_ITEM_RADIUS_CLASS,
-          "flex h-auto w-full items-center justify-start gap-2 px-3 py-2 text-left text-sm font-normal",
-          anySubActive && "font-medium text-primary hover:bg-muted focus-visible:bg-muted",
+          'flex h-auto w-full items-center justify-start gap-2 px-3 py-2 text-left text-sm font-normal',
+          anySubActive && 'font-medium text-primary hover:bg-muted focus-visible:bg-muted',
         )}
       >
         <span className="flex min-w-0 flex-1 items-center gap-2">
@@ -245,7 +288,9 @@ function SidebarGroupFlyout({
           the element visually overlaps. Mounting into document.body (root stacking context)
           guarantees pointer-events reach the flyout. `position: fixed` coordinates are
           viewport-relative from getBoundingClientRect(), so they are unaffected by the portal. */}
-      {open && flyoutPos && typeof document !== "undefined" &&
+      {open &&
+        flyoutPos &&
+        typeof document !== 'undefined' &&
         createPortal(
           <div
             id={`doctor-sidebar-flyout-${item.id}`}
@@ -255,10 +300,10 @@ function SidebarGroupFlyout({
             onMouseLeave={scheduleClose}
             style={{ top: flyoutPos.top, left: flyoutPos.left }}
             className={cn(
-              "fixed z-[10000] pointer-events-auto",
-              "min-w-[12rem] w-52 rounded-lg bg-popover p-1.5 text-sm text-popover-foreground",
-              "shadow-md ring-1 ring-foreground/10",
-              "flex flex-col gap-0.5",
+              'fixed z-[10000] pointer-events-auto',
+              'min-w-[12rem] w-52 rounded-lg bg-popover p-1.5 text-sm text-popover-foreground',
+              'shadow-md ring-1 ring-foreground/10',
+              'flex flex-col gap-0.5',
             )}
           >
             {item.items?.map((sub) => {
@@ -278,7 +323,7 @@ function SidebarGroupFlyout({
                   className={cn(
                     FLYOUT_LINK_CLASS,
                     isDoctorNavItemActive(sub.href, pathname) &&
-                      "bg-primary/15 font-medium text-primary hover:bg-primary/15 focus-visible:bg-primary/15",
+                      'bg-primary/15 font-medium text-primary hover:bg-primary/15 focus-visible:bg-primary/15',
                   )}
                 >
                   <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
@@ -297,8 +342,7 @@ function SidebarGroupFlyout({
             })}
           </div>,
           document.body,
-        )
-      }
+        )}
     </div>
   );
 }
@@ -339,7 +383,7 @@ function SheetTwoLevelMenu({
         className={cn(
           SHEET_LINK_CLASS,
           isDoctorNavItemActive(item.href, pathname) &&
-            "bg-primary/15 font-medium text-primary hover:bg-primary/15 focus-visible:bg-primary/15",
+            'bg-primary/15 font-medium text-primary hover:bg-primary/15 focus-visible:bg-primary/15',
         )}
       >
         <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
@@ -376,10 +420,15 @@ function SheetTwoLevelMenu({
           onClick={() => setActiveGroup(null)}
           className={cn(
             DOCTOR_MENU_ITEM_RADIUS_CLASS,
-            "mb-1 h-auto w-full items-center justify-start gap-2 px-3 py-2 font-normal text-muted-foreground",
+            'mb-1 h-auto w-full items-center justify-start gap-2 px-3 py-2 font-normal text-muted-foreground',
           )}
         >
-          <ArrowLeft size={16} strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden className="shrink-0" />
+          <ArrowLeft
+            size={16}
+            strokeWidth={NAV_STRIP_ICON_STROKE}
+            aria-hidden
+            className="shrink-0"
+          />
           <span className="text-sm font-semibold text-foreground">{activeGroup.label}</span>
         </Button>
         <div className="flex flex-col gap-0.5">
@@ -399,7 +448,9 @@ function SheetTwoLevelMenu({
 
         // Group trigger — tap opens second level
         const Icon = getIconForMenuId(item.id);
-        const anySubActive = item.items.some((sub) => sub.href && isDoctorNavItemActive(sub.href, pathname));
+        const anySubActive = item.items.some(
+          (sub) => sub.href && isDoctorNavItemActive(sub.href, pathname),
+        );
 
         return (
           <Button
@@ -411,8 +462,8 @@ function SheetTwoLevelMenu({
             onClick={() => setActiveGroup(item)}
             className={cn(
               DOCTOR_MENU_ITEM_RADIUS_CLASS,
-              "flex h-auto w-full items-center justify-start gap-2 px-3 py-2 text-left font-normal",
-              anySubActive && "font-medium text-primary hover:bg-muted",
+              'flex h-auto w-full items-center justify-start gap-2 px-3 py-2 text-left font-normal',
+              anySubActive && 'font-medium text-primary hover:bg-muted',
             )}
           >
             <span className="flex min-w-0 flex-1 items-center gap-2">
@@ -445,10 +496,13 @@ export function DoctorMenuAccordion({
   patientLabel,
   onNavigate,
   enableBadgePolling = true,
-  menuKind = "doctor",
+  menuKind = 'doctor',
 }: DoctorMenuAccordionProps) {
   const items = useMemo(
-    () => (menuKind === "platform" ? getPlatformMenuItems(menuAccess) : getDoctorMenuItems(menuAccess, patientLabel)),
+    () =>
+      menuKind === 'platform'
+        ? getPlatformMenuItems(menuAccess)
+        : getDoctorMenuItems(menuAccess, patientLabel),
     [menuKind, menuAccess, patientLabel],
   );
 
@@ -457,7 +511,7 @@ export function DoctorMenuAccordion({
   const pendingProgramTests = useDoctorPendingProgramTestsCount(enableBadgePolling);
   const proactiveInsights = useDoctorProactiveInsightsCount(enableBadgePolling);
   const registrationSystemFailures = useDoctorRegistrationSystemFailureCount(
-    enableBadgePolling && hasLaunchCapability(menuAccess.capabilities, "platform.operations"),
+    enableBadgePolling && hasLaunchCapability(menuAccess.capabilities, 'platform.operations'),
   );
 
   const badgeCounts = useMemo(
@@ -470,10 +524,16 @@ export function DoctorMenuAccordion({
         todayAttention: pendingProgramTests + proactiveInsights,
         communicationsTotal: onlineIntakeNew + messagesUnread,
       }) satisfies Record<DoctorMenuBadgeKey, number>,
-    [onlineIntakeNew, messagesUnread, registrationSystemFailures, pendingProgramTests, proactiveInsights],
+    [
+      onlineIntakeNew,
+      messagesUnread,
+      registrationSystemFailures,
+      pendingProgramTests,
+      proactiveInsights,
+    ],
   );
 
-  if (variant === "sheet") {
+  if (variant === 'sheet') {
     return (
       <SheetTwoLevelMenu
         items={items}
@@ -506,7 +566,7 @@ export function DoctorMenuAccordion({
               className={cn(
                 SIDEBAR_LINK_CLASS,
                 isDoctorNavItemActive(item.href, pathname) &&
-                  "bg-primary/15 font-medium text-primary hover:bg-primary/15 focus-visible:bg-primary/15",
+                  'bg-primary/15 font-medium text-primary hover:bg-primary/15 focus-visible:bg-primary/15',
               )}
             >
               <span className="flex min-w-0 flex-1 items-center justify-between gap-2">

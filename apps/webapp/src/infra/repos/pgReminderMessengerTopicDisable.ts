@@ -1,7 +1,7 @@
-import type { Pool } from "pg";
-import { runPgPoolPgText } from "@/infra/db/runWebappSql";
-import type { ReminderRuleForTopicCode } from "@/modules/reminders/reminderOccurrenceTopicCode";
-import type { ChannelBindings } from "@/shared/types/session";
+import type { Pool } from 'pg';
+import { runPgPoolPgText } from '@/infra/db/runWebappSql';
+import type { ReminderRuleForTopicCode } from '@/modules/reminders/reminderOccurrenceTopicCode';
+import type { ChannelBindings } from '@/shared/types/session';
 
 export async function loadReminderRuleForMessengerTopicDisable(
   pool: Pool,
@@ -55,8 +55,8 @@ export async function loadReminderMessengerChannelBindings(
     const channelCode = row.channel_code.trim();
     const externalId = row.external_id.trim();
     if (!externalId) continue;
-    if (channelCode === "telegram") bindings.telegramId = externalId;
-    if (channelCode === "max") bindings.maxId = externalId;
+    if (channelCode === 'telegram') bindings.telegramId = externalId;
+    if (channelCode === 'max') bindings.maxId = externalId;
   }
   return bindings;
 }

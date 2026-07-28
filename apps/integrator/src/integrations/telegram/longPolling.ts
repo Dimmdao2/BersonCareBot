@@ -102,7 +102,11 @@ async function runLoop(deps: TelegramWebhookDeps): Promise<void> {
             );
             return;
           }
-          await processTelegramUpdate(parsed.data, deps, { correlationId, eventId, logger: reqLogger });
+          await processTelegramUpdate(parsed.data, deps, {
+            correlationId,
+            eventId,
+            logger: reqLogger,
+          });
         });
       } catch (err) {
         reqLogger.error({ err }, 'Telegram long-polling: update processing failed (skipped)');

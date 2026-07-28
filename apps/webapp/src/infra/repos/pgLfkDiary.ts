@@ -5,14 +5,14 @@
 import {
   getCurrentDbPrincipal,
   getCurrentDbPrincipalOrganizationId,
-} from "@bersoncare/db-principal";
-import { runWebappPgText } from "@/infra/db/runWebappSql";
-import { nullableToIsoStringSafe, toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
-import type { MediaPreviewStatus } from "@/modules/media/types";
-import type { LfkDiaryPort } from "@/modules/diaries/ports";
-import type { LfkComplex, LfkComplexExerciseLine, LfkSession } from "@/modules/diaries/types";
-import { effectiveLfkComplexExerciseComment } from "@/modules/diaries/lfkComplexExerciseComment";
-import { mediaPreviewUrlById } from "@/shared/lib/mediaPreviewUrls";
+} from '@bersoncare/db-principal';
+import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { nullableToIsoStringSafe, toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
+import type { MediaPreviewStatus } from '@/modules/media/types';
+import type { LfkDiaryPort } from '@/modules/diaries/ports';
+import type { LfkComplex, LfkComplexExerciseLine, LfkSession } from '@/modules/diaries/types';
+import { effectiveLfkComplexExerciseComment } from '@/modules/diaries/lfkComplexExerciseComment';
+import { mediaPreviewUrlById } from '@/shared/lib/mediaPreviewUrls';
 
 function rowToComplex(row: {
   id: string;
@@ -36,18 +36,20 @@ function rowToComplex(row: {
   diagnosis_ref_id?: string | null;
 }): LfkComplex {
   const uid =
-    row.platform_user_id != null && String(row.platform_user_id).trim() !== ""
+    row.platform_user_id != null && String(row.platform_user_id).trim() !== ''
       ? String(row.platform_user_id)
       : row.user_id;
   const mid = row.cover_media_id ? String(row.cover_media_id) : null;
-  const coverPreviewSmUrl = mid && row.preview_sm_key?.trim() ? mediaPreviewUrlById(mid, "sm") : null;
-  const coverPreviewMdUrl = mid && row.preview_md_key?.trim() ? mediaPreviewUrlById(mid, "md") : null;
+  const coverPreviewSmUrl =
+    mid && row.preview_sm_key?.trim() ? mediaPreviewUrlById(mid, 'sm') : null;
+  const coverPreviewMdUrl =
+    mid && row.preview_md_key?.trim() ? mediaPreviewUrlById(mid, 'md') : null;
   const coverPreviewStatus = (row.preview_status ?? undefined) as MediaPreviewStatus | undefined;
   const coverKind =
-    mid && row.cover_media_type === "video"
-      ? ("video" as const)
+    mid && row.cover_media_type === 'video'
+      ? ('video' as const)
       : mid
-        ? ("image" as const)
+        ? ('image' as const)
         : undefined;
   return {
     id: String(row.id),
@@ -58,13 +60,13 @@ function rowToComplex(row: {
     coverPreviewMdUrl,
     coverPreviewStatus,
     coverKind,
-    origin: row.origin as "manual" | "assigned_by_specialist",
+    origin: row.origin as 'manual' | 'assigned_by_specialist',
     isActive: row.is_active,
     createdAt: toIsoStringSafe(row.created_at),
     updatedAt: toIsoStringSafe(row.updated_at),
     symptomTrackingId: row.symptom_tracking_id ? String(row.symptom_tracking_id) : null,
     regionRefId: row.region_ref_id ? String(row.region_ref_id) : null,
-    side: (row.side as LfkComplex["side"]) ?? null,
+    side: (row.side as LfkComplex['side']) ?? null,
     diagnosisText: row.diagnosis_text ?? null,
     diagnosisRefId: row.diagnosis_ref_id ? String(row.diagnosis_ref_id) : null,
   };
@@ -89,7 +91,7 @@ function rowToSession(row: {
     userId: row.user_id,
     complexId: row.complex_id,
     completedAt: toIsoStringSafe(row.completed_at),
-    source: row.source as "bot" | "webapp",
+    source: row.source as 'bot' | 'webapp',
     createdAt: toIsoStringSafe(row.created_at),
     recordedAt: nullableToIsoStringSafe(row.recorded_at),
     durationMinutes: row.duration_minutes ?? null,
@@ -103,7 +105,7 @@ function rowToSession(row: {
 type LfkSessionDbRow = Parameters<typeof rowToSession>[0];
 type LfkComplexDbRow = Parameters<typeof rowToComplex>[0];
 
-type LfkSessionInsertDbRow = Omit<LfkSessionDbRow, "complex_title">;
+type LfkSessionInsertDbRow = Omit<LfkSessionDbRow, 'complex_title'>;
 
 const COMPLEX_SELECT = `c.id, c.user_id, c.title,
   c.platform_user_id,
@@ -125,7 +127,7 @@ const SESSION_SELECT = `s.id, s.user_id, s.complex_id, s.completed_at, s.source,
   s.recorded_at, s.duration_minutes, s.difficulty_0_10, s.pain_0_10, s.comment`;
 
 const PATIENT_COMPLEX_COVER_JOIN =
-  "LEFT JOIN LATERAL app.read_patient_lfk_complex_cover(c.id) AS cover ON TRUE";
+  'LEFT JOIN LATERAL app.read_patient_lfk_complex_cover(c.id) AS cover ON TRUE';
 
 const STAFF_COMPLEX_COVER_JOIN = `LEFT JOIN LATERAL (
   SELECT em.media_url AS cover_image_url,
@@ -144,7 +146,7 @@ const STAFF_COMPLEX_COVER_JOIN = `LEFT JOIN LATERAL (
 ) cover ON TRUE`;
 
 function complexCoverJoinForCurrentPrincipal(): string {
-  return getCurrentDbPrincipal()?.kind === "patient"
+  return getCurrentDbPrincipal()?.kind === 'patient'
     ? PATIENT_COMPLEX_COVER_JOIN
     : STAFF_COMPLEX_COVER_JOIN;
 }
@@ -166,14 +168,14 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
       [
         params.userId,
         params.title,
-        params.origin ?? "manual",
+        params.origin ?? 'manual',
         now,
         params.symptomTrackingId ?? null,
         params.regionRefId ?? null,
         params.side ?? null,
         params.diagnosisText ?? null,
         params.diagnosisRefId ?? null,
-      ]
+      ],
     );
     return rowToComplex(result.rows[0]!);
   },
@@ -183,9 +185,9 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
       `SELECT ${COMPLEX_SELECT}
        FROM lfk_complexes c
        ${complexCoverJoinForCurrentPrincipal()}
-       WHERE ${userMatchSql("c", 1)} ${activeOnly ? "AND c.is_active = true" : ""}
+       WHERE ${userMatchSql('c', 1)} ${activeOnly ? 'AND c.is_active = true' : ''}
        ORDER BY c.updated_at DESC`,
-      [userId]
+      [userId],
     );
     return result.rows.map(rowToComplex);
   },
@@ -211,12 +213,12 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
         params.difficulty0_10 ?? null,
         params.pain0_10 ?? null,
         params.comment ?? null,
-      ]
+      ],
     );
     const row = result.rows[0]!;
     const complex = await runWebappPgText<{ title: string }>(
       `SELECT title FROM lfk_complexes WHERE id = $1`,
-      [params.complexId]
+      [params.complexId],
     );
     return rowToSession({
       ...row,
@@ -232,7 +234,7 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
        WHERE s.user_id = $1
        ORDER BY s.completed_at DESC
        LIMIT $2`,
-      [userId, limit]
+      [userId, limit],
     );
     return result.rows.map(rowToSession);
   },
@@ -242,15 +244,15 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
       `SELECT ${COMPLEX_SELECT}
        FROM lfk_complexes c
        ${complexCoverJoinForCurrentPrincipal()}
-       WHERE c.id = $1 AND ${userMatchSql("c", 2)}`,
-      [params.complexId, params.userId]
+       WHERE c.id = $1 AND ${userMatchSql('c', 2)}`,
+      [params.complexId, params.userId],
     );
     return result.rows[0] ? rowToComplex(result.rows[0]) : null;
   },
 
   async listSessionsInRange(params) {
     const lim = Math.min(params.limit ?? 2000, 5000);
-    const orgCondition = params.organizationId ? "AND s.organization_id = $5::uuid" : "";
+    const orgCondition = params.organizationId ? 'AND s.organization_id = $5::uuid' : '';
     if (params.complexId) {
       const result = await runWebappPgText<LfkSessionDbRow>(
         `SELECT ${SESSION_SELECT}
@@ -260,7 +262,7 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
            AND s.completed_at >= $3::timestamptz AND s.completed_at < $4::timestamptz
            ${orgCondition}
          ORDER BY s.completed_at DESC
-         LIMIT ${params.organizationId ? "$6" : "$5"}`,
+         LIMIT ${params.organizationId ? '$6' : '$5'}`,
         [
           params.userId,
           params.complexId,
@@ -268,7 +270,7 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
           params.toCompletedAtExclusive,
           ...(params.organizationId ? [params.organizationId] : []),
           lim,
-        ]
+        ],
       );
       return result.rows.map(rowToSession);
     }
@@ -278,24 +280,25 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
        JOIN lfk_complexes c ON c.id = s.complex_id
        WHERE s.user_id = $1
          AND s.completed_at >= $2::timestamptz AND s.completed_at < $3::timestamptz
-         ${params.organizationId ? "AND s.organization_id = $4::uuid" : ""}
+         ${params.organizationId ? 'AND s.organization_id = $4::uuid' : ''}
        ORDER BY s.completed_at DESC
-       LIMIT ${params.organizationId ? "$5" : "$4"}`,
+       LIMIT ${params.organizationId ? '$5' : '$4'}`,
       [
         params.userId,
         params.fromCompletedAt,
         params.toCompletedAtExclusive,
         ...(params.organizationId ? [params.organizationId] : []),
         lim,
-      ]
+      ],
     );
     return result.rows.map(rowToSession);
   },
 
   async minCompletedAtForUser(userId) {
-    const result = await runWebappPgText<{ m: Date | string | null }>(`SELECT MIN(completed_at) AS m FROM lfk_sessions WHERE user_id = $1`, [
-      userId,
-    ]);
+    const result = await runWebappPgText<{ m: Date | string | null }>(
+      `SELECT MIN(completed_at) AS m FROM lfk_sessions WHERE user_id = $1`,
+      [userId],
+    );
     const m = result.rows[0]?.m as Date | string | null | undefined;
     return nullableToIsoStringSafe(m);
   },
@@ -306,7 +309,7 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
        FROM lfk_sessions s
        JOIN lfk_complexes c ON c.id = s.complex_id
        WHERE s.id = $1 AND s.user_id = $2`,
-      [params.sessionId, params.userId]
+      [params.sessionId, params.userId],
     );
     return result.rows[0] ? rowToSession(result.rows[0]) : null;
   },
@@ -330,7 +333,7 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
         params.difficulty0_10 ?? null,
         params.pain0_10 ?? null,
         comment,
-      ]
+      ],
     );
   },
 
@@ -346,7 +349,7 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
     complexIds: string[];
   }): Promise<Record<string, LfkComplexExerciseLine[]>> {
     if (params.complexIds.length === 0) return {};
-    const isPatientPrincipal = getCurrentDbPrincipal()?.kind === "patient";
+    const isPatientPrincipal = getCurrentDbPrincipal()?.kind === 'patient';
     const result = await runWebappPgText<{
       complex_id: string;
       id: string;
@@ -365,9 +368,9 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
            INNER JOIN lfk_exercises e ON e.id = ce.exercise_id
            INNER JOIN lfk_complexes c ON c.id = ce.complex_id
            WHERE ce.complex_id = ANY($1::uuid[])
-             AND ${userMatchSql("c", 2)}
+             AND ${userMatchSql('c', 2)}
            ORDER BY ce.complex_id, ce.sort_order ASC, ce.id ASC`,
-      isPatientPrincipal ? [params.complexIds] : [params.complexIds, params.userId]
+      isPatientPrincipal ? [params.complexIds] : [params.complexIds, params.userId],
     );
     const byComplex: Record<string, LfkComplexExerciseLine[]> = {};
     for (const row of result.rows) {
@@ -401,12 +404,12 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
        FROM lfk_complexes c
        WHERE ce.id = $1::uuid
          AND ce.complex_id = c.id
-         AND ${userMatchSql("c", 2)}
+         AND ${userMatchSql('c', 2)}
          AND ($4::uuid IS NULL OR c.organization_id = $4::uuid)`,
-      [params.rowId, params.userId, params.localComment, principalOrganizationId]
+      [params.rowId, params.userId, params.localComment, principalOrganizationId],
     );
     if (r.rowCount === 0) {
-      throw new Error("Строка упражнения не найдена или нет доступа");
+      throw new Error('Строка упражнения не найдена или нет доступа');
     }
   },
 };

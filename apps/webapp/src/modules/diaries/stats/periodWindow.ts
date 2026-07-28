@@ -3,7 +3,7 @@
  * End boundary is exclusive (next midnight UTC after the last included day).
  */
 
-export type StatsPeriod = "week" | "month" | "all";
+export type StatsPeriod = 'week' | 'month' | 'all';
 
 /** Tomorrow 00:00:00.000Z from the given instant's calendar UTC date. */
 export function utcNextMidnight(d: Date): Date {
@@ -24,12 +24,12 @@ export type StatsPeriodWindowOpts = {
 export function statsPeriodWindowUtc(
   period: StatsPeriod,
   offset: number,
-  opts?: StatsPeriodWindowOpts
+  opts?: StatsPeriodWindowOpts,
 ): { fromIso: string; toExclusiveIso: string } {
   const now = new Date();
   const todayEndExclusive = utcNextMidnight(now);
 
-  if (period === "all") {
+  if (period === 'all') {
     if (opts?.earliestIso) {
       const d = new Date(opts.earliestIso);
       if (!Number.isNaN(d.getTime())) {
@@ -45,7 +45,7 @@ export function statsPeriodWindowUtc(
     return { fromIso: start.toISOString(), toExclusiveIso: todayEndExclusive.toISOString() };
   }
 
-  const days = period === "week" ? 7 : 30;
+  const days = period === 'week' ? 7 : 30;
   const shift = days * offset;
   const endExclusive = new Date(todayEndExclusive);
   endExclusive.setUTCDate(endExclusive.getUTCDate() - shift);

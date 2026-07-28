@@ -1,8 +1,5 @@
 import { sql } from 'drizzle-orm';
-import {
-  parseCorrelationId,
-  runWithObservabilityContext,
-} from '@bersoncare/db-principal';
+import { parseCorrelationId, runWithObservabilityContext } from '@bersoncare/db-principal';
 import {
   type DbPort,
   type DbWritePort,
@@ -97,8 +94,15 @@ function queueMarkSent(db: DbPort, id: string): Promise<void> {
   return runWithDeliveryQueueCapability(() => markOutgoingDeliverySent(db, id));
 }
 
-function queueReschedule(db: DbPort, id: string, delaySeconds: number, error: string): Promise<void> {
-  return runWithDeliveryQueueCapability(() => rescheduleOutgoingDeliveryRetry(db, id, delaySeconds, error));
+function queueReschedule(
+  db: DbPort,
+  id: string,
+  delaySeconds: number,
+  error: string,
+): Promise<void> {
+  return runWithDeliveryQueueCapability(() =>
+    rescheduleOutgoingDeliveryRetry(db, id, delaySeconds, error),
+  );
 }
 
 async function finalizeClaimedRowFailure(
@@ -112,12 +116,7 @@ async function finalizeClaimedRowFailure(
     await queueMarkDead(db, row.id, safeError);
     return;
   }
-  await queueReschedule(
-    db,
-    row.id,
-    retryDelaySecondsAfterFailure(row.attemptCount),
-    safeError,
-  );
+  await queueReschedule(db, row.id, retryDelaySecondsAfterFailure(row.attemptCount), safeError);
 }
 
 function asChatIdFromRecipient(recipient: unknown): number | null {
@@ -139,7 +138,11 @@ function parseIntentFromPayload(payload: Record<string, unknown>): OutgoingInten
   const metaRaw = o.meta;
   if (!metaRaw || typeof metaRaw !== 'object') return null;
   const meta = metaRaw as Record<string, unknown>;
-  if (typeof meta.eventId !== 'string' || typeof meta.occurredAt !== 'string' || typeof meta.source !== 'string') {
+  if (
+    typeof meta.eventId !== 'string' ||
+    typeof meta.occurredAt !== 'string' ||
+    typeof meta.source !== 'string'
+  ) {
     return null;
   }
   const pl = o.payload;
@@ -160,11 +163,9 @@ function parseIntentFromPayload(payload: Record<string, unknown>): OutgoingInten
 function isMissingReminderOccurrenceFk(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false;
   const e = err as { code?: unknown; cause?: { code?: unknown; constraint?: unknown } };
-  const code = typeof e.code === 'string' ? e.code : typeof e.cause?.code === 'string' ? e.cause.code : '';
-  const constraint =
-    typeof e.cause?.constraint === 'string'
-      ? e.cause.constraint
-      : '';
+  const code =
+    typeof e.code === 'string' ? e.code : typeof e.cause?.code === 'string' ? e.cause.code : '';
+  const constraint = typeof e.cause?.constraint === 'string' ? e.cause.constraint : '';
   return code === '23503' && constraint === 'user_reminder_delivery_logs_occurrence_id_fkey';
 }
 
@@ -195,12 +196,11 @@ async function incrementBroadcastAuditErrorIfDoctorBroadcast(
   row: OutgoingDeliveryQueueRow,
 ): Promise<void> {
   if (row.kind !== DOCTOR_BROADCAST_INTENT_QUEUE_KIND) return;
-  const auditId = typeof row.payloadJson.broadcastAuditId === 'string' ? row.payloadJson.broadcastAuditId : null;
+  const auditId =
+    typeof row.payloadJson.broadcastAuditId === 'string' ? row.payloadJson.broadcastAuditId : null;
   if (!auditId) return;
-  await runWithBroadcastAuditOrganization(
-    db,
-    auditId,
-    (targetDb) => runIntegratorSql(
+  await runWithBroadcastAuditOrganization(db, auditId, (targetDb) =>
+    runIntegratorSql(
       targetDb,
       sql`UPDATE public.broadcast_audit SET error_count = error_count + 1 WHERE id = ${auditId}::uuid`,
     ),
@@ -212,12 +212,11 @@ async function incrementBroadcastAuditBlockedIfDoctorBroadcast(
   row: OutgoingDeliveryQueueRow,
 ): Promise<void> {
   if (row.kind !== DOCTOR_BROADCAST_INTENT_QUEUE_KIND) return;
-  const auditId = typeof row.payloadJson.broadcastAuditId === 'string' ? row.payloadJson.broadcastAuditId : null;
+  const auditId =
+    typeof row.payloadJson.broadcastAuditId === 'string' ? row.payloadJson.broadcastAuditId : null;
   if (!auditId) return;
-  await runWithBroadcastAuditOrganization(
-    db,
-    auditId,
-    (targetDb) => runIntegratorSql(
+  await runWithBroadcastAuditOrganization(db, auditId, (targetDb) =>
+    runIntegratorSql(
       targetDb,
       sql`UPDATE public.broadcast_audit SET blocked_recipient_count = blocked_recipient_count + 1 WHERE id = ${auditId}::uuid`,
     ),
@@ -254,7 +253,10 @@ async function maybeClearMessengerBotBlockedMarker(
   });
 }
 
-async function readReminderOccurrenceStatus(db: DbPort, occurrenceId: string): Promise<string | null> {
+async function readReminderOccurrenceStatus(
+  db: DbPort,
+  occurrenceId: string,
+): Promise<string | null> {
   const res = await runIntegratorSql<{ status: string }>(
     db,
     sql`SELECT status::text AS status FROM user_reminder_occurrences WHERE id = ${occurrenceId} LIMIT 1`,
@@ -292,7 +294,8 @@ async function finalizeOutgoingDeliveryDead(
   await queueMarkDead(db, row.id, safeError);
   await incrementBroadcastAuditErrorIfDoctorBroadcast(db, row);
   if (row.kind === DOCTOR_BROADCAST_INTENT_QUEUE_KIND) {
-    const auditId = typeof row.payloadJson.broadcastAuditId === 'string' ? row.payloadJson.broadcastAuditId : '';
+    const auditId =
+      typeof row.payloadJson.broadcastAuditId === 'string' ? row.payloadJson.broadcastAuditId : '';
     logger.warn(
       {
         broadcastAuditId: auditId || undefined,
@@ -371,14 +374,17 @@ async function recordMessengerQueueDeliveryAttempt(
   const integratorUserId = typeof intent.meta.userId === 'string' ? intent.meta.userId : undefined;
   const topicCode = typeof p.topicCode === 'string' ? p.topicCode : undefined;
   const broadcastAuditId =
-    typeof row.payloadJson.broadcastAuditId === 'string' && row.payloadJson.broadcastAuditId.trim().length > 0
+    typeof row.payloadJson.broadcastAuditId === 'string' &&
+    row.payloadJson.broadcastAuditId.trim().length > 0
       ? row.payloadJson.broadcastAuditId.trim()
       : null;
   const organizationId =
     row.kind === 'reminder_dispatch' && occurrenceId
       ? await resolveReminderOccurrenceOrganizationId(db, occurrenceId)
       : row.kind === DOCTOR_BROADCAST_INTENT_QUEUE_KIND
-        ? broadcastAuditId ? await resolveBroadcastAuditOrganizationId(db, broadcastAuditId) : null
+        ? broadcastAuditId
+          ? await resolveBroadcastAuditOrganizationId(db, broadcastAuditId)
+          : null
         : null;
   await recordNotificationDeliveryAttemptBestEffort(db, {
     ...(integratorUserId !== undefined ? { integratorUserId } : {}),
@@ -387,7 +393,9 @@ async function recordMessengerQueueDeliveryAttempt(
     channel: row.channel,
     status: params.status,
     ...(params.reason !== undefined ? { reason: params.reason } : {}),
-    ...(params.providerStatusCode !== undefined ? { providerStatusCode: params.providerStatusCode } : {}),
+    ...(params.providerStatusCode !== undefined
+      ? { providerStatusCode: params.providerStatusCode }
+      : {}),
     eventId: row.eventId,
     ...(occurrenceId !== undefined ? { occurrenceId } : {}),
     ...(externalId ? { recipientRef: `${row.channel}:${externalId.slice(-4)}` } : {}),
@@ -420,7 +428,8 @@ async function finalizeRecipientBlockedBotDelivery(
   await incrementBroadcastAuditBlockedIfDoctorBroadcast(db, row);
 
   if (row.kind === DOCTOR_BROADCAST_INTENT_QUEUE_KIND) {
-    const auditId = typeof row.payloadJson.broadcastAuditId === 'string' ? row.payloadJson.broadcastAuditId : '';
+    const auditId =
+      typeof row.payloadJson.broadcastAuditId === 'string' ? row.payloadJson.broadcastAuditId : '';
     logger.info(
       {
         broadcastAuditId: auditId || undefined,
@@ -490,7 +499,11 @@ async function handleDispatchFailure(
   writePort: DbWritePort,
   intent?: OutgoingIntent,
 ): Promise<void> {
-  if (row.kind !== 'operator_alert' && intent && (row.channel === 'telegram' || row.channel === 'max')) {
+  if (
+    row.kind !== 'operator_alert' &&
+    intent &&
+    (row.channel === 'telegram' || row.channel === 'max')
+  ) {
     const blocked = classifyRecipientBlockedBotError(err, row.channel);
     if (blocked) {
       await finalizeRecipientBlockedBotDelivery(
@@ -508,7 +521,11 @@ async function handleDispatchFailure(
   const attempts = row.attemptCount;
   const retryable = isOutgoingDeliveryDispatchErrorRetryable(safe);
   if (!retryable || attempts >= row.maxAttempts) {
-    if (row.kind !== 'operator_alert' && intent && (row.channel === 'telegram' || row.channel === 'max')) {
+    if (
+      row.kind !== 'operator_alert' &&
+      intent &&
+      (row.channel === 'telegram' || row.channel === 'max')
+    ) {
       await recordMessengerQueueDeliveryAttempt(db, row, intent, {
         status: 'failed',
         reason: retryable ? 'delivery_dead' : 'provider_error',
@@ -549,7 +566,8 @@ export async function processOutgoingDeliveryRow(
   }
 
   if (row.kind === 'operator_alert') {
-    const incidentId = typeof row.payloadJson.incidentId === 'string' ? row.payloadJson.incidentId : null;
+    const incidentId =
+      typeof row.payloadJson.incidentId === 'string' ? row.payloadJson.incidentId : null;
     if (!incidentId) {
       await queueMarkDead(db, row.id, 'MISSING_INCIDENT_ID');
       return;
@@ -564,7 +582,10 @@ export async function processOutgoingDeliveryRow(
       try {
         await markOperatorIncidentAlertSent(db, incidentId);
       } catch (error) {
-        logger.error({ error, incidentId, rowId: row.id }, 'operator_alert_mark_sent_failed_after_delivery');
+        logger.error(
+          { error, incidentId, rowId: row.id },
+          'operator_alert_mark_sent_failed_after_delivery',
+        );
       }
     } catch (err) {
       if (isOutboundMessagePolicyDenied(err)) {
@@ -645,7 +666,10 @@ export async function processOutgoingDeliveryRow(
               },
             });
           } catch (err) {
-            logger.warn({ err, staleMessageId: staleStr, occurrenceId }, 'max_reminder_stale_message_delete_failed');
+            logger.warn(
+              { err, staleMessageId: staleStr, occurrenceId },
+              'max_reminder_stale_message_delete_failed',
+            );
           }
         }
       }
@@ -656,7 +680,9 @@ export async function processOutgoingDeliveryRow(
           ? sendResult.telegramMessageId
           : undefined;
       const maxMessageId =
-        channel === 'max' && typeof sendResult?.maxMessageId === 'string' && sendResult.maxMessageId.trim().length > 0
+        channel === 'max' &&
+        typeof sendResult?.maxMessageId === 'string' &&
+        sendResult.maxMessageId.trim().length > 0
           ? sendResult.maxMessageId.trim()
           : undefined;
       await runWithReminderOccurrenceOrganization(db, occurrenceId, async () => {
@@ -697,7 +723,9 @@ export async function processOutgoingDeliveryRow(
 
   if (row.kind === DOCTOR_BROADCAST_INTENT_QUEUE_KIND) {
     const broadcastAuditId =
-      typeof row.payloadJson.broadcastAuditId === 'string' ? row.payloadJson.broadcastAuditId : null;
+      typeof row.payloadJson.broadcastAuditId === 'string'
+        ? row.payloadJson.broadcastAuditId
+        : null;
     if (!broadcastAuditId) {
       await queueMarkDead(db, row.id, 'MISSING_BROADCAST_AUDIT_ID');
       return;
@@ -718,10 +746,8 @@ export async function processOutgoingDeliveryRow(
       await recordMessengerQueueDeliveryAttempt(db, row, toSend, { status: 'success' });
       await maybeClearMessengerBotBlockedMarker(db, row, toSend);
       await queueMarkSent(db, row.id);
-      await runWithBroadcastAuditOrganization(
-        db,
-        broadcastAuditId,
-        (targetDb) => runIntegratorSql(
+      await runWithBroadcastAuditOrganization(db, broadcastAuditId, (targetDb) =>
+        runIntegratorSql(
           targetDb,
           sql`UPDATE public.broadcast_audit SET sent_count = sent_count + 1 WHERE id = ${broadcastAuditId}::uuid`,
         ),
@@ -771,7 +797,9 @@ export async function processClaimedOutgoingDeliveryRow(
   row: OutgoingDeliveryQueueRow,
   deps: OutgoingDeliveryWorkerDeps,
 ): Promise<void> {
-  return runWithOutgoingDeliveryCorrelation(row, () => processClaimedOutgoingDeliveryRowInner(row, deps));
+  return runWithOutgoingDeliveryCorrelation(row, () =>
+    processClaimedOutgoingDeliveryRowInner(row, deps),
+  );
 }
 
 async function processClaimedOutgoingDeliveryRowInner(
@@ -782,21 +810,29 @@ async function processClaimedOutgoingDeliveryRowInner(
   if (scope.queueKind !== row.kind) {
     await queueMarkDead(deps.db, row.id, 'TENANT_SCOPE_QUEUE_KIND_MISMATCH');
     // eslint-disable-next-line no-secrets/no-secrets -- stable event name, not a credential
-    logger.error({ rowId: row.id, eventId: row.eventId, claimedKind: row.kind, resolvedKind: scope.queueKind }, 'outgoing_delivery_scope_quarantined');
+    logger.error(
+      { rowId: row.id, eventId: row.eventId, claimedKind: row.kind, resolvedKind: scope.queueKind },
+      'outgoing_delivery_scope_quarantined',
+    );
     return;
   }
   if (scope.kind === 'invalid') {
     const reason = truncateDeliveryErrorMessage(`TENANT_SCOPE_${scope.reason.toUpperCase()}`);
     await queueMarkDead(deps.db, row.id, reason);
     // eslint-disable-next-line no-secrets/no-secrets -- stable event name, not a credential
-    logger.error({ rowId: row.id, eventId: row.eventId, queueKind: row.kind, reason: scope.reason }, 'outgoing_delivery_scope_quarantined');
+    logger.error(
+      { rowId: row.id, eventId: row.eventId, queueKind: row.kind, reason: scope.reason },
+      'outgoing_delivery_scope_quarantined',
+    );
     return;
   }
   if (scope.kind === 'operator') {
     await processOutgoingDeliveryRow(row, deps);
     return;
   }
-  await runWithOrganizationPrincipal(scope.organizationId, () => processOutgoingDeliveryRow(row, deps));
+  await runWithOrganizationPrincipal(scope.organizationId, () =>
+    processOutgoingDeliveryRow(row, deps),
+  );
 }
 
 export async function runOutgoingDeliveryWorkerTick(input: {
@@ -809,7 +845,9 @@ export async function runOutgoingDeliveryWorkerTick(input: {
   // The claim/reset step below is tenant-agnostic dispatch (rows were already org-filtered at
   // enqueue time); wrap the whole tick in infra when DB_PRINCIPAL_CONTEXT_MODE is locked, so it doesn't reject
   // the connection before per-row processing gets a chance to install its own org principal.
-  return runWithInfraPrincipal({ source: 'worker:outgoing-delivery-tick' }, () => runOutgoingDeliveryWorkerTickInner(input));
+  return runWithInfraPrincipal({ source: 'worker:outgoing-delivery-tick' }, () =>
+    runOutgoingDeliveryWorkerTickInner(input),
+  );
 }
 
 async function runOutgoingDeliveryWorkerTickInner(input: {
@@ -837,7 +875,10 @@ async function runOutgoingDeliveryWorkerTickInner(input: {
         processed += 1;
       } catch (err) {
         errors += 1;
-        logger.error({ err, rowId: row.id, eventId: row.eventId }, 'outgoing_delivery_worker_row_failed');
+        logger.error(
+          { err, rowId: row.id, eventId: row.eventId },
+          'outgoing_delivery_worker_row_failed',
+        );
         try {
           await finalizeClaimedRowFailure(input.db, row, err);
         } catch (finalizeError) {

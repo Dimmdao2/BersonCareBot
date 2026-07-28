@@ -4,7 +4,7 @@ import type {
   CreateRecommendationInput,
   UpdateRecommendationInput,
   RecommendationUsageSnapshot,
-} from "./types";
+} from './types';
 
 export type RecommendationsPort = {
   list(filter: RecommendationFilter): Promise<Recommendation[]>;

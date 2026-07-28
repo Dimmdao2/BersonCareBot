@@ -1,21 +1,21 @@
-import { routePaths } from "@/app-layer/routes/paths";
-import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
-import { logger } from "@/infra/logging/logger";
-import { smtpInnerFromValueJson } from "@/modules/system-settings/smtpOutboundPatch";
-import { NOTIFICATION_TOPIC_SPECIALIST_MESSAGES } from "@/modules/patient-notifications/notificationTopicCodes";
+import { routePaths } from '@/app-layer/routes/paths';
+import type { ChannelPreferencesPort } from '@/modules/channel-preferences/ports';
+import { logger } from '@/infra/logging/logger';
+import { smtpInnerFromValueJson } from '@/modules/system-settings/smtpOutboundPatch';
+import { NOTIFICATION_TOPIC_SPECIALIST_MESSAGES } from '@/modules/patient-notifications/notificationTopicCodes';
 import {
   resolvePatientNotificationChannels,
   type PatientNotificationChannelAvailability,
-} from "@/modules/patient-notifications/resolveNotificationChannels";
-import type { TopicChannelPrefsPort } from "@/modules/patient-notifications/topicChannelPrefsPort";
-import type { SystemSettingsService } from "@/modules/system-settings/service";
-import { getAppBaseUrlSync } from "@/modules/system-settings/integrationRuntime";
-import type { WebPushSubscriptionsPort } from "@/modules/web-push/ports";
-import { buildMessagePushCopy } from "@/modules/web-push/pushNotificationCopy";
-import { isOperationalVerboseLogEnabled } from "@/modules/observability/operationalVerboseLog";
-import { relayOutbound, type RelayOutboundDeps } from "./relayOutbound";
+} from '@/modules/patient-notifications/resolveNotificationChannels';
+import type { TopicChannelPrefsPort } from '@/modules/patient-notifications/topicChannelPrefsPort';
+import type { SystemSettingsService } from '@/modules/system-settings/service';
+import { getAppBaseUrlSync } from '@/modules/system-settings/integrationRuntime';
+import type { WebPushSubscriptionsPort } from '@/modules/web-push/ports';
+import { buildMessagePushCopy } from '@/modules/web-push/pushNotificationCopy';
+import { isOperationalVerboseLogEnabled } from '@/modules/observability/operationalVerboseLog';
+import { relayOutbound, type RelayOutboundDeps } from './relayOutbound';
 
-const EMAIL_SUBJECT = "Новое сообщение в чате";
+const EMAIL_SUBJECT = 'Новое сообщение в чате';
 
 export type NotifyPatientDoctorReplyParams = {
   organizationId: string;
@@ -32,16 +32,21 @@ export type NotifyPatientDoctorReplyDeps = RelayOutboundDeps & {
   channelPreferences: ChannelPreferencesPort;
   topicChannelPrefs: TopicChannelPrefsPort;
   webPushSubscriptions: WebPushSubscriptionsPort;
-  systemSettings: Pick<SystemSettingsService, "getSetting">;
-  readReminderNotifyGate: (platformUserId: string, topicCode: string) => Promise<{ muted: boolean }>;
+  systemSettings: Pick<SystemSettingsService, 'getSetting'>;
+  readReminderNotifyGate: (
+    platformUserId: string,
+    topicCode: string,
+  ) => Promise<{ muted: boolean }>;
   getProfileEmailFields: (
     platformUserId: string,
   ) => Promise<{ email: string | null; emailVerifiedAt: string | null }>;
-  getChannelBindings: (platformUserId: string) => Promise<{ telegramId?: string | null; maxId?: string | null }>;
+  getChannelBindings: (
+    platformUserId: string,
+  ) => Promise<{ telegramId?: string | null; maxId?: string | null }>;
 };
 
 export function buildPatientMessagesOpenUrl(): string {
-  const base = getAppBaseUrlSync().replace(/\/$/, "");
+  const base = getAppBaseUrlSync().replace(/\/$/, '');
   const path = routePaths.patientMessages;
   if (!base.trim()) return path;
   return `${base}${path}`;
@@ -49,15 +54,11 @@ export function buildPatientMessagesOpenUrl(): string {
 
 export function buildPersonalChatNotificationText(
   senderDisplayName: string | null | undefined,
-  senderRole: "specialist" | "patient",
+  senderRole: 'specialist' | 'patient',
 ): string {
-  const candidate = senderDisplayName?.replace(/\s+/g, " ").trim() ?? "";
+  const candidate = senderDisplayName?.replace(/\s+/g, ' ').trim() ?? '';
   const isName = /^[\p{L}\p{M}](?:[\p{L}\p{M}'’ -]*[\p{L}\p{M}])?$/u.test(candidate);
-  const displayName = isName
-    ? candidate
-    : senderRole === "patient"
-      ? "пациента"
-      : "специалиста";
+  const displayName = isName ? candidate : senderRole === 'patient' ? 'пациента' : 'специалиста';
   return `новое сообщение от ${displayName}`;
 }
 
@@ -83,7 +84,7 @@ async function buildAvailability(
   const [emailFields, bindings, smtp, subs] = await Promise.all([
     deps.getProfileEmailFields(platformUserId),
     deps.getChannelBindings(platformUserId),
-    deps.systemSettings.getSetting("smtp_outbound", "admin"),
+    deps.systemSettings.getSetting('smtp_outbound', 'admin'),
     deps.webPushSubscriptions.listActiveByUserId(platformUserId),
   ]);
   const smtpParsed = smtp?.valueJson ? smtpInnerFromValueJson(smtp.valueJson) : null;
@@ -113,12 +114,17 @@ async function buildAvailability(
  * `buildAvailability` — VAPID is read by the integrator adapter at send time.
  */
 export function createNotifyPatientDoctorReply(deps: NotifyPatientDoctorReplyDeps) {
-  return async function notifyPatientDoctorReply(params: NotifyPatientDoctorReplyParams): Promise<void> {
+  return async function notifyPatientDoctorReply(
+    params: NotifyPatientDoctorReplyParams,
+  ): Promise<void> {
     const { platformUserId, messageId, text } = params;
     const openUrl = buildPatientMessagesOpenUrl();
     const trimmed = text.trim();
     if (!trimmed) return;
-    const notificationText = buildPersonalChatNotificationText(params.senderDisplayName, "specialist");
+    const notificationText = buildPersonalChatNotificationText(
+      params.senderDisplayName,
+      'specialist',
+    );
 
     const topicCode = params.topicCode?.trim() || NOTIFICATION_TOPIC_SPECIALIST_MESSAGES;
     const organizationId = params.organizationId;
@@ -140,19 +146,19 @@ export function createNotifyPatientDoctorReply(deps: NotifyPatientDoctorReplyDep
     if (verbose) {
       logger.info(
         {
-          event: "patient_doctor_reply.notify",
+          event: 'patient_doctor_reply.notify',
           platformUserId,
           messageId,
           selectedChannels,
         },
-        "patient doctor reply notify channels",
+        'patient doctor reply notify channels',
       );
     }
 
     const bindings = await deps.getChannelBindings(platformUserId);
     const relaySent = new Set<string>();
 
-    const relayTo = async (channel: "telegram" | "max", recipient: string) => {
+    const relayTo = async (channel: 'telegram' | 'max', recipient: string) => {
       const dedupKey = `${channel}:${recipient}`;
       if (relaySent.has(dedupKey)) return;
       relaySent.add(dedupKey);
@@ -170,22 +176,25 @@ export function createNotifyPatientDoctorReply(deps: NotifyPatientDoctorReplyDep
 
     const tasks: Promise<unknown>[] = [];
 
-    if (selectedChannels.includes("telegram") && bindings.telegramId?.trim()) {
+    if (selectedChannels.includes('telegram') && bindings.telegramId?.trim()) {
       tasks.push(
-        relayTo("telegram", bindings.telegramId.trim()).catch((err: unknown) => {
-          logger.error({ err, platformUserId, channel: "telegram" }, "doctor reply relay telegram failed");
+        relayTo('telegram', bindings.telegramId.trim()).catch((err: unknown) => {
+          logger.error(
+            { err, platformUserId, channel: 'telegram' },
+            'doctor reply relay telegram failed',
+          );
         }),
       );
     }
-    if (selectedChannels.includes("max") && bindings.maxId?.trim()) {
+    if (selectedChannels.includes('max') && bindings.maxId?.trim()) {
       tasks.push(
-        relayTo("max", bindings.maxId.trim()).catch((err: unknown) => {
-          logger.error({ err, platformUserId, channel: "max" }, "doctor reply relay max failed");
+        relayTo('max', bindings.maxId.trim()).catch((err: unknown) => {
+          logger.error({ err, platformUserId, channel: 'max' }, 'doctor reply relay max failed');
         }),
       );
     }
 
-    if (selectedChannels.includes("web_push")) {
+    if (selectedChannels.includes('web_push')) {
       const hasSubs = await deps.webPushSubscriptions.hasAnyForUserId(platformUserId);
       if (hasSubs) {
         // P16 (PLAN S14 web-push leg): emit a web_push intent to the integrator via relay-outbound.
@@ -199,7 +208,7 @@ export function createNotifyPatientDoctorReply(deps: NotifyPatientDoctorReplyDep
             {
               messageId: `${messageId}:web_push`,
               organizationId,
-              channel: "web_push",
+              channel: 'web_push',
               recipient: platformUserId,
               text: pushCopy.body,
               metadata: {
@@ -209,33 +218,38 @@ export function createNotifyPatientDoctorReply(deps: NotifyPatientDoctorReplyDep
               },
             },
             deps,
-          ).then((res) => {
-            if (!res.ok) {
-              logger.error({ platformUserId, reason: res.reason }, "doctor reply web push relay failed");
-            }
-          }).catch((err: unknown) => {
-            logger.error({ err, platformUserId }, "doctor reply web push relay error");
-          }),
+          )
+            .then((res) => {
+              if (!res.ok) {
+                logger.error(
+                  { platformUserId, reason: res.reason },
+                  'doctor reply web push relay failed',
+                );
+              }
+            })
+            .catch((err: unknown) => {
+              logger.error({ err, platformUserId }, 'doctor reply web push relay error');
+            }),
         );
       }
     }
 
-    if (selectedChannels.includes("email")) {
+    if (selectedChannels.includes('email')) {
       const emailFields = await deps.getProfileEmailFields(platformUserId);
       const to = emailFields.email?.trim();
       if (to && emailFields.emailVerifiedAt) {
-        const smtp = await deps.systemSettings.getSetting("smtp_outbound", "admin");
+        const smtp = await deps.systemSettings.getSetting('smtp_outbound', 'admin');
         const smtpParsed = smtp?.valueJson ? smtpInnerFromValueJson(smtp.valueJson) : null;
         const listUnsubscribe =
-          smtpParsed?.success === true && smtpParsed.data.from.includes("@") ?
-            `<mailto:${smtpParsed.data.from.trim()}?subject=unsubscribe>`
-          : null;
+          smtpParsed?.success === true && smtpParsed.data.from.includes('@')
+            ? `<mailto:${smtpParsed.data.from.trim()}?subject=unsubscribe>`
+            : null;
         // S10: relay email through integrator dispatchPort (redirect-covered) instead of direct SMTP.
         tasks.push(
           relayOutbound(
             {
               messageId: `${messageId}:email`,
-              channel: "email",
+              channel: 'email',
               recipient: to,
               text: `${notificationText}\n\n${openUrl}`,
               metadata: {
@@ -246,7 +260,7 @@ export function createNotifyPatientDoctorReply(deps: NotifyPatientDoctorReplyDep
             deps,
           ).then((res) => {
             if (!res.ok) {
-              logger.warn({ platformUserId, error: res.reason }, "doctor reply email failed");
+              logger.warn({ platformUserId, error: res.reason }, 'doctor reply email failed');
             }
           }),
         );

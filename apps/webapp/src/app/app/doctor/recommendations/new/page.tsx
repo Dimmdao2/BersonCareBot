@@ -1,9 +1,9 @@
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
-import { RECOMMENDATION_TYPE_CATEGORY_CODE } from "@/modules/recommendations/recommendationDomain";
-import { RecommendationForm } from "../RecommendationForm";
-import { RECOMMENDATIONS_PATH } from "../paths";
+import { requireDoctorAccess } from '@/app-layer/guards/requireRole';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
+import { RECOMMENDATION_TYPE_CATEGORY_CODE } from '@/modules/recommendations/recommendationDomain';
+import { RecommendationForm } from '../RecommendationForm';
+import { RECOMMENDATIONS_PATH } from '../paths';
 
 export default async function NewRecommendationPage() {
   const session = await requireDoctorAccess();

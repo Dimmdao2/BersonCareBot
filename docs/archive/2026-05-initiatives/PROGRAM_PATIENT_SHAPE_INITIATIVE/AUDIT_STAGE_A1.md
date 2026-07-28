@@ -17,44 +17,44 @@
 
 ### 2.1 Миграции additive и backward-compatible
 
-| Критерий | Статус | Доказательство |
-|---|---|---|
-| Только `ADD COLUMN`, без `NOT NULL` без DEFAULT | **PASS** | `apps/webapp/db/drizzle-migrations/0025_treatment_program_stage_goals_objectives_duration.sql` — восемь `ALTER TABLE ... ADD COLUMN`; типы `text` / `integer` без `NOT NULL` → существующие строки получают `NULL`. |
-| Нет удаления/переименования таблиц и критичных CHECK | **PASS** | В файле миграции только добавление колонок. |
-| Откат по коду | Совместимо со `STAGE_A1_PLAN.md` §8 | Старый код после деплоя БД с новыми колонками продолжит работать; обратный порядок (откат кода при живых колонках) — колонки остаются неиспользуемыми до отдельного DROP. |
+| Критерий                                             | Статус                              | Доказательство                                                                                                                                                                                                      |
+| ---------------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Только `ADD COLUMN`, без `NOT NULL` без DEFAULT      | **PASS**                            | `apps/webapp/db/drizzle-migrations/0025_treatment_program_stage_goals_objectives_duration.sql` — восемь `ALTER TABLE ... ADD COLUMN`; типы `text` / `integer` без `NOT NULL` → существующие строки получают `NULL`. |
+| Нет удаления/переименования таблиц и критичных CHECK | **PASS**                            | В файле миграции только добавление колонок.                                                                                                                                                                         |
+| Откат по коду                                        | Совместимо со `STAGE_A1_PLAN.md` §8 | Старый код после деплоя БД с новыми колонками продолжит работать; обратный порядок (откат кода при живых колонках) — колонки остаются неиспользуемыми до отдельного DROP.                                           |
 
 ### 2.2 Поля на template и instance stage
 
-| Критерий | Статус | Доказательство |
-|---|---|---|
+| Критерий       | Статус   | Доказательство                                                                                                                                                  |
+| -------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Template stage | **PASS** | `apps/webapp/db/schema/treatmentProgramTemplates.ts` — `treatmentProgramTemplateStages`: `goals`, `objectives`, `expectedDurationDays`, `expectedDurationText`. |
-| Instance stage | **PASS** | `apps/webapp/db/schema/treatmentProgramInstances.ts` — `treatmentProgramInstanceStages`: те же четыре поля. |
-| Типы модуля | **PASS** | `apps/webapp/src/modules/treatment-program/types.ts` — `TreatmentProgramStage`, `TreatmentProgramInstanceStageRow`, входы create/update/copy. |
+| Instance stage | **PASS** | `apps/webapp/db/schema/treatmentProgramInstances.ts` — `treatmentProgramInstanceStages`: те же четыре поля.                                                     |
+| Типы модуля    | **PASS** | `apps/webapp/src/modules/treatment-program/types.ts` — `TreatmentProgramStage`, `TreatmentProgramInstanceStageRow`, входы create/update/copy.                   |
 
 ### 2.3 Template → instance copy
 
-| Критерий | Статус | Доказательство |
-|---|---|---|
+| Критерий                                 | Статус   | Доказательство                                                                                                                                       |
+| ---------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Сервис копирует значения с этапа шаблона | **PASS** | `instance-service.ts`: в `stageInputs.push` передаются `goals`, `objectives`, `expectedDurationDays`, `expectedDurationText` из `st` (строки 93–96). |
-| Репозиторий сохраняет в БД-дерево | **PASS** | `pgTreatmentProgramInstance.ts` `createInstanceTree`: `.values({ ... goals: st.goals, objectives: st.objectives, ... })` (строки 146–149). |
-| In-memory порт согласован | **PASS** | `inMemoryTreatmentProgramInstance.ts` — те же поля при создании stage из `input.stages`. |
-| Регрессионный тест | **PASS** | `instance-service.test.ts` — кейс «deep copy: goals, objectives, expected duration…» проверяет непустые и `null` на втором этапе. |
+| Репозиторий сохраняет в БД-дерево        | **PASS** | `pgTreatmentProgramInstance.ts` `createInstanceTree`: `.values({ ... goals: st.goals, objectives: st.objectives, ... })` (строки 146–149).           |
+| In-memory порт согласован                | **PASS** | `inMemoryTreatmentProgramInstance.ts` — те же поля при создании stage из `input.stages`.                                                             |
+| Регрессионный тест                       | **PASS** | `instance-service.test.ts` — кейс «deep copy: goals, objectives, expected duration…» проверяет непустые и `null` на втором этапе.                    |
 
 ### 2.4 UI врача / пациента
 
-| Критерий | Статус | Доказательство |
-|---|---|---|
-| Врач: шаблон, редактирование + сохранение | **PASS** | `TreatmentProgramConstructorClient.tsx` — черновики, `PATCH` на `/api/doctor/treatment-program-templates/stages/:id`, поля по `STAGE_A1_PLAN.md` §5 (Label, Textarea, Input, Button, обёртка border/muted). |
-| Врач: инстанс | **PASS** | `TreatmentProgramInstanceDetailClient.tsx` — `InstanceStageMetadataForm`, `PATCH` на `.../treatment-program-instances/.../stages/:stageId` только с метаданными. |
-| Пациент: только непустые | **PASS** | `PatientTreatmentProgramDetailClient.tsx` — `patientStageHasHeaderFields` возвращает `false` если все поля пусты/пробелы; заголовки «Цель» / «Задачи» / «Ожидаемый срок» только при наличии содержимого; `PatientStageHeaderFields` при полном отсутствии данных — `null`. |
-| Тест пациентского UI | **PASS** | `PatientTreatmentProgramDetailClient.test.tsx` — наличие текста при заполненных полях и отсутствие заголовков при всех `null`. |
+| Критерий                                  | Статус   | Доказательство                                                                                                                                                                                                                                                             |
+| ----------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Врач: шаблон, редактирование + сохранение | **PASS** | `TreatmentProgramConstructorClient.tsx` — черновики, `PATCH` на `/api/doctor/treatment-program-templates/stages/:id`, поля по `STAGE_A1_PLAN.md` §5 (Label, Textarea, Input, Button, обёртка border/muted).                                                                |
+| Врач: инстанс                             | **PASS** | `TreatmentProgramInstanceDetailClient.tsx` — `InstanceStageMetadataForm`, `PATCH` на `.../treatment-program-instances/.../stages/:stageId` только с метаданными.                                                                                                           |
+| Пациент: только непустые                  | **PASS** | `PatientTreatmentProgramDetailClient.tsx` — `patientStageHasHeaderFields` возвращает `false` если все поля пусты/пробелы; заголовки «Цель» / «Задачи» / «Ожидаемый срок» только при наличии содержимого; `PatientStageHeaderFields` при полном отсутствии данных — `null`. |
+| Тест пациентского UI                      | **PASS** | `PatientTreatmentProgramDetailClient.test.tsx` — наличие текста при заполненных полях и отсутствие заголовков при всех `null`.                                                                                                                                             |
 
 ### 2.5 Контур treatment-program (не выход за scope)
 
-| Критерий | Статус | Доказательство |
-|---|---|---|
+| Критерий                                     | Статус               | Доказательство                                                                                                                                                                                                                                                                                                                                                                   |
+| -------------------------------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Код `.ts`/`.tsx`/`.sql` с символами полей A1 | **PASS (выборочно)** | Поиск по репозиторию: вхождения `goals` / `objectives` / `expectedDurationDays` / `expected_duration` ограничены `apps/webapp` (модули `treatment-program`, repos `*TreatmentProgram*`, API `doctor/treatment-program-*`, UI `doctor/.../treatment-program-*`, `patient/treatment-programs/*`), схемой Drizzle и миграцией `0025_*.sql`. Код курсов под эти символы не затронут. |
-| Документация | Ожидаемо | Изменения в `docs/archive/2026-05-initiatives/PROGRAM_PATIENT_SHAPE_INITIATIVE/*` и строка §3.3 в `PROGRAM_PATIENT_SHAPE_PLAN.md` — в рамках инициативы. |
+| Документация                                 | Ожидаемо             | Изменения в `docs/archive/2026-05-initiatives/PROGRAM_PATIENT_SHAPE_INITIATIVE/*` и строка §3.3 в `PROGRAM_PATIENT_SHAPE_PLAN.md` — в рамках инициативы.                                                                                                                                                                                                                         |
 
 ---
 
@@ -69,10 +69,10 @@
 
 ## 4. Регрессии / замечания (не блокируют PASS)
 
-| ID | Серьёзность | Статус после FIX (2026-05-03) |
-|---|---|---|
-| A1-DOC-01 | Low | **Закрыто.** В `apps/webapp/src/app/api/api.md` задокументированы: A1-поля на `POST/PATCH` шаблонных этапов; `PATCH .../treatment-program-instances/.../stages/[stageId]` — опциональные `status` и/или мета (`goals`, `objectives`, `expectedDurationDays`, `expectedDurationText`), правило «нужен хотя бы один блок», `skipped` + `reason`, разделение вызовов сервиса; `GET` инстанса — A1-поля в объектах `stages`; `POST` создания инстанса — явное упоминание deep copy A1 с шаблона. |
-| A1-DOC-02 | Low | **Закрыто.** В `STAGE_A1_PLAN.md` §6 все атомарные пункты отмечены `[x]` в соответствии с фактом реализации A1. |
+| ID        | Серьёзность | Статус после FIX (2026-05-03)                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| --------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A1-DOC-01 | Low         | **Закрыто.** В `apps/webapp/src/app/api/api.md` задокументированы: A1-поля на `POST/PATCH` шаблонных этапов; `PATCH .../treatment-program-instances/.../stages/[stageId]` — опциональные `status` и/или мета (`goals`, `objectives`, `expectedDurationDays`, `expectedDurationText`), правило «нужен хотя бы один блок», `skipped` + `reason`, разделение вызовов сервиса; `GET` инстанса — A1-поля в объектах `stages`; `POST` создания инстанса — явное упоминание deep copy A1 с шаблона. |
+| A1-DOC-02 | Low         | **Закрыто.** В `STAGE_A1_PLAN.md` §6 все атомарные пункты отмечены `[x]` в соответствии с фактом реализации A1.                                                                                                                                                                                                                                                                                                                                                                              |
 
 **Post-FIX:** критических и major-замечаний по аудиту не было; minor (документация) устранены правками `api.md` + `STAGE_A1_PLAN.md` §6; повторные целевые проверки A1 — см. §5 и запись в [`LOG.md`](LOG.md).
 

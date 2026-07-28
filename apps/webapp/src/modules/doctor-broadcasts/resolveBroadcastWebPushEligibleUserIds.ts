@@ -1,23 +1,26 @@
-import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
-import type { ClientListItem } from "@/modules/doctor-clients/ports";
-import { broadcastNotificationTopicCode } from "@/modules/patient-notifications/notificationTopicCodes";
+import type { ChannelPreferencesPort } from '@/modules/channel-preferences/ports';
+import type { ClientListItem } from '@/modules/doctor-clients/ports';
+import { broadcastNotificationTopicCode } from '@/modules/patient-notifications/notificationTopicCodes';
 import {
   resolvePatientNotificationChannels,
   type NotificationTopicGate,
-} from "@/modules/patient-notifications/resolveNotificationChannels";
-import type { TopicChannelPrefsPort } from "@/modules/patient-notifications/topicChannelPrefsPort";
-import type { SystemSettingsService } from "@/modules/system-settings/service";
-import { getWebPushVapidKeyPair } from "@/modules/system-settings/webPushVapidRuntime";
-import type { WebPushSubscriptionsPort } from "@/modules/web-push/ports";
-import type { BroadcastCategory } from "./ports";
-import { reportEmptyAudienceBestEffort } from "@/modules/operator-alerts/emptyAudienceRuntime";
+} from '@/modules/patient-notifications/resolveNotificationChannels';
+import type { TopicChannelPrefsPort } from '@/modules/patient-notifications/topicChannelPrefsPort';
+import type { SystemSettingsService } from '@/modules/system-settings/service';
+import { getWebPushVapidKeyPair } from '@/modules/system-settings/webPushVapidRuntime';
+import type { WebPushSubscriptionsPort } from '@/modules/web-push/ports';
+import type { BroadcastCategory } from './ports';
+import { reportEmptyAudienceBestEffort } from '@/modules/operator-alerts/emptyAudienceRuntime';
 
 export type ResolveBroadcastWebPushEligibleUserIdsDeps = {
   webPushSubscriptions: WebPushSubscriptionsPort;
   channelPreferences: ChannelPreferencesPort;
   topicChannelPrefs: TopicChannelPrefsPort;
-  systemSettings: Pick<SystemSettingsService, "getSetting">;
-  readReminderNotifyGate: (platformUserId: string, topicCode: string) => Promise<NotificationTopicGate>;
+  systemSettings: Pick<SystemSettingsService, 'getSetting'>;
+  readReminderNotifyGate: (
+    platformUserId: string,
+    topicCode: string,
+  ) => Promise<NotificationTopicGate>;
 };
 
 export async function resolveBroadcastWebPushEligibleUserIds(
@@ -33,9 +36,9 @@ export async function resolveBroadcastWebPushEligibleUserIds(
     // skipped: 0` — полный тихий no-op. Аудитория пользовательская, поэтому в оператора
     // она не переадресуется, но считается и видна наравне с остальными.
     reportEmptyAudienceBestEffort({
-      topic: "broadcast_web_push_no_vapid",
-      severity: "user_facing",
-      channels: ["web_push"],
+      topic: 'broadcast_web_push_no_vapid',
+      severity: 'user_facing',
+      channels: ['web_push'],
     });
     return eligible;
   }
@@ -69,7 +72,7 @@ export async function resolveBroadcastWebPushEligibleUserIds(
       gate,
     });
 
-    if (resolved.selectedChannels.includes("web_push")) {
+    if (resolved.selectedChannels.includes('web_push')) {
       eligible.add(uid);
     }
   }

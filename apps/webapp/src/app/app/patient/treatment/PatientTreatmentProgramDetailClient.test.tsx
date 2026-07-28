@@ -1,59 +1,59 @@
 /** @vitest-environment jsdom */
 
-import { beforeAll, beforeEach, afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen, act, fireEvent, within } from "@testing-library/react";
-import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
-import { PatientTreatmentProgramDetailClient } from "./PatientTreatmentProgramDetailClient";
+import { beforeAll, beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
+import { render, screen, act, fireEvent, within } from '@testing-library/react';
+import type { TreatmentProgramInstanceDetail } from '@/modules/treatment-program/types';
+import { PatientTreatmentProgramDetailClient } from './PatientTreatmentProgramDetailClient';
 
-vi.mock("next/navigation", () => ({
+vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: vi.fn(), push: vi.fn(), prefetch: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
 }));
 
-const now = "2026-01-01T00:00:00.000Z";
+const now = '2026-01-01T00:00:00.000Z';
 let passageStatsShowCollectingCopy = false;
 
 beforeAll(async () => {
   await Promise.all([
-    import("@/app/app/patient/treatment/PatientTreatmentTabProgram"),
-    import("@/app/app/patient/treatment/PatientTreatmentTabRecommendations"),
+    import('@/app/app/patient/treatment/PatientTreatmentTabProgram'),
+    import('@/app/app/patient/treatment/PatientTreatmentTabRecommendations'),
   ]);
 });
 
 const detailShellProps = {
-  appDisplayTimeZone: "Europe/Moscow",
-  patientCalendarDayIana: "Europe/Moscow",
+  appDisplayTimeZone: 'Europe/Moscow',
+  patientCalendarDayIana: 'Europe/Moscow',
   planItemDoneRepeatCooldownMinutes: 60,
   programCommentsInteraction: { visible: true, enabled: true },
   programMediaInteraction: { visible: false, enabled: false },
 };
 
-function clickPatientTreatmentTab(which: "program" | "recommendations" | "progress") {
-  const tablist = screen.getByRole("tablist", { name: "Разделы программы" });
-  const idx = which === "program" ? 0 : which === "recommendations" ? 1 : 2;
-  fireEvent.click(within(tablist).getAllByRole("tab")[idx]!);
+function clickPatientTreatmentTab(which: 'program' | 'recommendations' | 'progress') {
+  const tablist = screen.getByRole('tablist', { name: 'Разделы программы' });
+  const idx = which === 'program' ? 0 : which === 'recommendations' ? 1 : 2;
+  fireEvent.click(within(tablist).getAllByRole('tab')[idx]!);
 }
 
 beforeEach(() => {
   passageStatsShowCollectingCopy = false;
-  Object.defineProperty(window.HTMLElement.prototype, "scrollIntoView", {
+  Object.defineProperty(window.HTMLElement.prototype, 'scrollIntoView', {
     configurable: true,
     value: vi.fn(),
   });
   global.fetch = vi.fn(async (input: RequestInfo | URL) => {
-    const url = typeof input === "string" ? input : input.toString();
-    if (url.includes("/discussion/summary")) {
+    const url = typeof input === 'string' ? input : input.toString();
+    if (url.includes('/discussion/summary')) {
       return new Response(JSON.stringify({ ok: true, summaryByItemId: {} }), { status: 200 });
     }
-    if (url.includes("/discussion/read")) {
+    if (url.includes('/discussion/read')) {
       return new Response(JSON.stringify({ ok: true }), { status: 200 });
     }
-    if (url.includes("/discussion")) {
+    if (url.includes('/discussion')) {
       return new Response(
         JSON.stringify({
           ok: true,
           messages: [],
-          pageInfo: { direction: "backward", limit: 50, nextCursor: null, hasMore: false },
+          pageInfo: { direction: 'backward', limit: 50, nextCursor: null, hasMore: false },
           totalCount: 0,
           unreadCount: 0,
           lastMessage: null,
@@ -63,7 +63,7 @@ beforeEach(() => {
         { status: 200 },
       );
     }
-    if (url.includes("/passage-stats")) {
+    if (url.includes('/passage-stats')) {
       return new Response(
         JSON.stringify({
           ok: true,
@@ -79,7 +79,7 @@ beforeEach(() => {
         { status: 200 },
       );
     }
-    if (url.includes("/checklist-today")) {
+    if (url.includes('/checklist-today')) {
       return new Response(
         JSON.stringify({
           ok: true,
@@ -92,10 +92,10 @@ beforeEach(() => {
         { status: 200 },
       );
     }
-    if (url.includes("/plan-opened")) {
+    if (url.includes('/plan-opened')) {
       return new Response(JSON.stringify({ ok: true }), { status: 200 });
     }
-    if (url.includes("/mark-viewed")) {
+    if (url.includes('/mark-viewed')) {
       return new Response(JSON.stringify({ ok: true, updated: true }), { status: 200 });
     }
     return new Response(JSON.stringify({ ok: false }), { status: 404 });
@@ -106,34 +106,36 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function makeInstance(over: Partial<TreatmentProgramInstanceDetail> = {}): TreatmentProgramInstanceDetail {
+function makeInstance(
+  over: Partial<TreatmentProgramInstanceDetail> = {},
+): TreatmentProgramInstanceDetail {
   return {
-    id: "11111111-1111-4111-8111-111111111111",
-    patientUserId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    id: '11111111-1111-4111-8111-111111111111',
+    patientUserId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
     templateId: null,
     assignedBy: null,
-    assignmentSource: "doctor",
-    title: "Программа",
-    status: "active",
+    assignmentSource: 'doctor',
+    title: 'Программа',
+    status: 'active',
     createdAt: now,
     updatedAt: now,
     patientPlanLastOpenedAt: null,
     stages: [
       {
-        id: "22222222-2222-4222-8222-222222222222",
-        instanceId: "11111111-1111-4111-8111-111111111111",
+        id: '22222222-2222-4222-8222-222222222222',
+        instanceId: '11111111-1111-4111-8111-111111111111',
         sourceStageId: null,
-        title: "Этап 1",
+        title: 'Этап 1',
         description: null,
         sortOrder: 0,
         localComment: null,
         skipReason: null,
-        status: "available",
+        status: 'available',
         startedAt: null,
-        goals: "Снять отёк",
-        objectives: "- 3 раза в неделю",
+        goals: 'Снять отёк',
+        objectives: '- 3 раза в неделю',
         expectedDurationDays: 7,
-        expectedDurationText: "неделя",
+        expectedDurationText: 'неделя',
         groups: [],
         items: [],
       },
@@ -142,19 +144,19 @@ function makeInstance(over: Partial<TreatmentProgramInstanceDetail> = {}): Treat
   };
 }
 
-describe("PatientTreatmentProgramDetailClient", () => {
-  it("completed program shows summary without tabs", () => {
+describe('PatientTreatmentProgramDetailClient', () => {
+  it('completed program shows summary without tabs', () => {
     const pipelineCompleted = {
-      id: "33333333-3333-4333-8333-333333333333",
-      instanceId: "11111111-1111-4111-8111-111111111111",
+      id: '33333333-3333-4333-8333-333333333333',
+      instanceId: '11111111-1111-4111-8111-111111111111',
       sourceStageId: null,
-      title: "Пайплайн 1",
+      title: 'Пайплайн 1',
       description: null,
       sortOrder: 1,
       localComment: null,
       skipReason: null,
-      status: "completed" as const,
-      startedAt: "2026-01-10T00:00:00.000Z",
+      status: 'completed' as const,
+      startedAt: '2026-01-10T00:00:00.000Z',
       goals: null,
       objectives: null,
       expectedDurationDays: 7,
@@ -165,23 +167,23 @@ describe("PatientTreatmentProgramDetailClient", () => {
     render(
       <PatientTreatmentProgramDetailClient
         initial={makeInstance({
-          status: "completed",
-          updatedAt: "2026-06-01T15:00:00.000Z",
+          status: 'completed',
+          updatedAt: '2026-06-01T15:00:00.000Z',
           stages: [makeInstance().stages[0]!, pipelineCompleted],
         })}
         initialTestResults={[]}
         {...detailShellProps}
       />,
     );
-    expect(screen.queryByRole("tablist", { name: "Разделы программы" })).not.toBeInTheDocument();
-    expect(screen.getByText("Программа реабилитации завершена")).toBeInTheDocument();
+    expect(screen.queryByRole('tablist', { name: 'Разделы программы' })).not.toBeInTheDocument();
+    expect(screen.getByText('Программа реабилитации завершена')).toBeInTheDocument();
     expect(screen.getByText(/Дата завершения:/)).toBeInTheDocument();
     expect(screen.getByText(/Пройдено 1 этап/)).toBeInTheDocument();
   });
 
-  it("progress tab subtitle shows program elapsed day count", () => {
+  it('progress tab subtitle shows program elapsed day count', () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-01-10T12:00:00.000Z"));
+    vi.setSystemTime(new Date('2026-01-10T12:00:00.000Z'));
     try {
       render(
         <PatientTreatmentProgramDetailClient
@@ -189,16 +191,16 @@ describe("PatientTreatmentProgramDetailClient", () => {
             stages: [
               makeInstance().stages[0]!,
               {
-                id: "44444444-4444-4444-8444-444444444444",
-                instanceId: "11111111-1111-4111-8111-111111111111",
+                id: '44444444-4444-4444-8444-444444444444',
+                instanceId: '11111111-1111-4111-8111-111111111111',
                 sourceStageId: null,
-                title: "Этап pipeline",
+                title: 'Этап pipeline',
                 description: null,
                 sortOrder: 1,
                 localComment: null,
                 skipReason: null,
-                status: "in_progress",
-                startedAt: "2026-01-01T00:00:00.000Z",
+                status: 'in_progress',
+                startedAt: '2026-01-01T00:00:00.000Z',
                 goals: null,
                 objectives: null,
                 expectedDurationDays: 14,
@@ -212,36 +214,36 @@ describe("PatientTreatmentProgramDetailClient", () => {
           {...detailShellProps}
         />,
       );
-      const tablist = screen.getByRole("tablist", { name: "Разделы программы" });
-      const progressTab = within(tablist).getAllByRole("tab")[2]!;
+      const tablist = screen.getByRole('tablist', { name: 'Разделы программы' });
+      const progressTab = within(tablist).getAllByRole('tab')[2]!;
       expect(progressTab.textContent).toMatch(/\d+ (день|дня|дней)/);
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it("progress tab keeps the collecting copy when the API confirms it within the first three calendar days", async () => {
+  it('progress tab keeps the collecting copy when the API confirms it within the first three calendar days', async () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-01-03T12:00:00.000Z"));
+    vi.setSystemTime(new Date('2026-01-03T12:00:00.000Z'));
     passageStatsShowCollectingCopy = true;
     try {
       render(
         <PatientTreatmentProgramDetailClient
           initial={makeInstance({
-            createdAt: "2026-01-01T08:00:00.000Z",
+            createdAt: '2026-01-01T08:00:00.000Z',
             stages: [
               makeInstance().stages[0]!,
               {
-                id: "44444444-4444-4444-8444-444444444444",
-                instanceId: "11111111-1111-4111-8111-111111111111",
+                id: '44444444-4444-4444-8444-444444444444',
+                instanceId: '11111111-1111-4111-8111-111111111111',
                 sourceStageId: null,
-                title: "Этап pipeline",
+                title: 'Этап pipeline',
                 description: null,
                 sortOrder: 1,
                 localComment: null,
                 skipReason: null,
-                status: "in_progress",
-                startedAt: "2026-01-01T00:00:00.000Z",
+                status: 'in_progress',
+                startedAt: '2026-01-01T00:00:00.000Z',
                 goals: null,
                 objectives: null,
                 expectedDurationDays: 14,
@@ -255,39 +257,39 @@ describe("PatientTreatmentProgramDetailClient", () => {
           {...detailShellProps}
         />,
       );
-      clickPatientTreatmentTab("progress");
-      expect(screen.getByText("Статистика пока собирается.")).toBeInTheDocument();
+      clickPatientTreatmentTab('progress');
+      expect(screen.getByText('Статистика пока собирается.')).toBeInTheDocument();
       expect(screen.getByText(/Регулярность в занятиях/)).toBeInTheDocument();
       await act(async () => undefined);
       expect(vi.mocked(global.fetch)).toHaveBeenCalledWith(
-        expect.stringContaining("/passage-stats"),
+        expect.stringContaining('/passage-stats'),
       );
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it("progress tab lets the API replace the first-three-days fallback when prior activity exists", async () => {
+  it('progress tab lets the API replace the first-three-days fallback when prior activity exists', async () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-01-03T12:00:00.000Z"));
+    vi.setSystemTime(new Date('2026-01-03T12:00:00.000Z'));
     try {
       render(
         <PatientTreatmentProgramDetailClient
           initial={makeInstance({
-            createdAt: "2026-01-01T08:00:00.000Z",
+            createdAt: '2026-01-01T08:00:00.000Z',
             stages: [
               makeInstance().stages[0]!,
               {
-                id: "44444444-4444-4444-8444-444444444444",
-                instanceId: "11111111-1111-4111-8111-111111111111",
+                id: '44444444-4444-4444-8444-444444444444',
+                instanceId: '11111111-1111-4111-8111-111111111111',
                 sourceStageId: null,
-                title: "Этап pipeline",
+                title: 'Этап pipeline',
                 description: null,
                 sortOrder: 1,
                 localComment: null,
                 skipReason: null,
-                status: "in_progress",
-                startedAt: "2026-01-01T00:00:00.000Z",
+                status: 'in_progress',
+                startedAt: '2026-01-01T00:00:00.000Z',
                 goals: null,
                 objectives: null,
                 expectedDurationDays: 14,
@@ -301,22 +303,22 @@ describe("PatientTreatmentProgramDetailClient", () => {
           {...detailShellProps}
         />,
       );
-      clickPatientTreatmentTab("progress");
+      clickPatientTreatmentTab('progress');
 
       await act(async () => {
         await vi.advanceTimersByTimeAsync(1);
       });
-      expect(screen.getByText("Дней с занятиями: 2")).toBeInTheDocument();
-      expect(screen.queryByText("Статистика пока собирается.")).not.toBeInTheDocument();
+      expect(screen.getByText('Дней с занятиями: 2')).toBeInTheDocument();
+      expect(screen.queryByText('Статистика пока собирается.')).not.toBeInTheDocument();
       expect(vi.mocked(global.fetch)).toHaveBeenCalledWith(
-        expect.stringContaining("/passage-stats"),
+        expect.stringContaining('/passage-stats'),
       );
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it("renders stage goals/objectives when set (A1); program tab omits expected duration block", async () => {
+  it('renders stage goals/objectives when set (A1); program tab omits expected duration block', async () => {
     render(
       <PatientTreatmentProgramDetailClient
         initial={makeInstance()}
@@ -324,30 +326,30 @@ describe("PatientTreatmentProgramDetailClient", () => {
         {...detailShellProps}
       />,
     );
-    const programPanel = await screen.findByRole("tabpanel", { name: "Программа" });
-    await within(programPanel).findByText("Цели и задачи");
-    expect(within(programPanel).queryByText("Ожидаемый срок")).not.toBeInTheDocument();
+    const programPanel = await screen.findByRole('tabpanel', { name: 'Программа' });
+    await within(programPanel).findByText('Цели и задачи');
+    expect(within(programPanel).queryByText('Ожидаемый срок')).not.toBeInTheDocument();
     expect(within(programPanel).queryByText(/7 дн\./)).not.toBeInTheDocument();
-    fireEvent.click(within(programPanel).getByText("Цели и задачи"));
-    expect(screen.getByText("Снять отёк")).toBeInTheDocument();
-    expect(screen.getByText("- 3 раза в неделю")).toBeInTheDocument();
+    fireEvent.click(within(programPanel).getByText('Цели и задачи'));
+    expect(screen.getByText('Снять отёк')).toBeInTheDocument();
+    expect(screen.getByText('- 3 раза в неделю')).toBeInTheDocument();
   });
 
-  it("does not render empty A1 stage header block", () => {
+  it('does not render empty A1 stage header block', () => {
     render(
       <PatientTreatmentProgramDetailClient
         initial={makeInstance({
           stages: [
             {
-              id: "22222222-2222-4222-8222-222222222222",
-              instanceId: "11111111-1111-4111-8111-111111111111",
+              id: '22222222-2222-4222-8222-222222222222',
+              instanceId: '11111111-1111-4111-8111-111111111111',
               sourceStageId: null,
-              title: "Пустой этап",
+              title: 'Пустой этап',
               description: null,
               sortOrder: 0,
               localComment: null,
               skipReason: null,
-              status: "available",
+              status: 'available',
               startedAt: null,
               goals: null,
               objectives: null,
@@ -362,16 +364,16 @@ describe("PatientTreatmentProgramDetailClient", () => {
         {...detailShellProps}
       />,
     );
-    expect(screen.queryByText("Цель")).not.toBeInTheDocument();
-    expect(screen.queryByText("Задачи")).not.toBeInTheDocument();
-    expect(screen.queryByText("Ожидаемый срок")).not.toBeInTheDocument();
+    expect(screen.queryByText('Цель')).not.toBeInTheDocument();
+    expect(screen.queryByText('Задачи')).not.toBeInTheDocument();
+    expect(screen.queryByText('Ожидаемый срок')).not.toBeInTheDocument();
   });
 
-  it("does not POST plan-opened when program is not active (A5 POST-AUDIT)", async () => {
+  it('does not POST plan-opened when program is not active (A5 POST-AUDIT)', async () => {
     const fetchMock = vi.mocked(global.fetch);
     render(
       <PatientTreatmentProgramDetailClient
-        initial={makeInstance({ status: "completed" })}
+        initial={makeInstance({ status: 'completed' })}
         initialTestResults={[]}
         {...detailShellProps}
       />,
@@ -379,46 +381,54 @@ describe("PatientTreatmentProgramDetailClient", () => {
     await act(async () => {
       await Promise.resolve();
     });
-    const planOpenedCalls = fetchMock.mock.calls.filter((call) => String(call[0]).includes("/plan-opened"));
+    const planOpenedCalls = fetchMock.mock.calls.filter((call) =>
+      String(call[0]).includes('/plan-opened'),
+    );
     expect(planOpenedCalls).toHaveLength(0);
   });
 
-  it("does not list clinical_test under Программа tab; recommendations tab lists persistent recs (rec-read)", async () => {
+  it('does not list clinical_test under Программа tab; recommendations tab lists persistent recs (rec-read)', async () => {
     const testSetItem = {
-      id: "33333333-3333-4333-8333-333333333333",
-      stageId: "22222222-2222-4222-8222-222222222222",
-      itemType: "clinical_test" as const,
-      itemRefId: "99999999-9999-4999-8999-999999999999",
+      id: '33333333-3333-4333-8333-333333333333',
+      stageId: '22222222-2222-4222-8222-222222222222',
+      itemType: 'clinical_test' as const,
+      itemRefId: '99999999-9999-4999-8999-999999999999',
       sortOrder: 0,
       comment: null,
       localComment: null,
       settings: null,
       snapshot: {
-        itemType: "clinical_test",
-        title: "Набор А",
-        tests: [{ testId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", title: "Тест один", comment: "Пейте воду" }],
+        itemType: 'clinical_test',
+        title: 'Набор А',
+        tests: [
+          {
+            testId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+            title: 'Тест один',
+            comment: 'Пейте воду',
+          },
+        ],
       },
       completedAt: null,
       isActionable: true,
-      status: "active" as const,
+      status: 'active' as const,
       groupId: null,
       createdAt: now,
       lastViewedAt: now,
       effectiveComment: null,
     };
     const recommendationItem = {
-      id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
-      stageId: "22222222-2222-4222-8222-222222222222",
-      itemType: "recommendation" as const,
-      itemRefId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      stageId: '22222222-2222-4222-8222-222222222222',
+      itemType: 'recommendation' as const,
+      itemRefId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
       sortOrder: 1,
       comment: null,
       localComment: null,
       settings: null,
-      snapshot: { title: "Постоянная рекомендация в списке", bodyMd: "" },
+      snapshot: { title: 'Постоянная рекомендация в списке', bodyMd: '' },
       completedAt: null,
       isActionable: false,
-      status: "active" as const,
+      status: 'active' as const,
       groupId: null,
       createdAt: now,
       lastViewedAt: now,
@@ -429,15 +439,15 @@ describe("PatientTreatmentProgramDetailClient", () => {
         initial={makeInstance({
           stages: [
             {
-              id: "22222222-2222-4222-8222-222222222222",
-              instanceId: "11111111-1111-4111-8111-111111111111",
+              id: '22222222-2222-4222-8222-222222222222',
+              instanceId: '11111111-1111-4111-8111-111111111111',
               sourceStageId: null,
-              title: "Этап 1",
+              title: 'Этап 1',
               description: null,
               sortOrder: 0,
               localComment: null,
               skipReason: null,
-              status: "available",
+              status: 'available',
               startedAt: null,
               goals: null,
               objectives: null,
@@ -452,32 +462,32 @@ describe("PatientTreatmentProgramDetailClient", () => {
         {...detailShellProps}
       />,
     );
-    clickPatientTreatmentTab("recommendations");
-    const recPanel = screen.getByRole("tabpanel", { name: "Рекомендации" });
+    clickPatientTreatmentTab('recommendations');
+    const recPanel = screen.getByRole('tabpanel', { name: 'Рекомендации' });
     expect(
-      await within(recPanel).findByRole("link", { name: "Постоянная рекомендация в списке" }),
+      await within(recPanel).findByRole('link', { name: 'Постоянная рекомендация в списке' }),
     ).toBeInTheDocument();
-    const programPanel = screen.getByRole("tabpanel", { name: "Программа" });
-    expect(programPanel.textContent).not.toContain("Набор А");
+    const programPanel = screen.getByRole('tabpanel', { name: 'Программа' });
+    expect(programPanel.textContent).not.toContain('Набор А');
   });
 
-  it("program tab interleaves groups by min item sortOrder (group before later ungrouped item)", async () => {
-    const groupId = "gggggggg-gggg-4ggg-8ggg-gggggggggggg";
-    const stageId = "33333333-3333-4333-8333-333333333333";
+  it('program tab interleaves groups by min item sortOrder (group before later ungrouped item)', async () => {
+    const groupId = 'gggggggg-gggg-4ggg-8ggg-gggggggggggg';
+    const stageId = '33333333-3333-4333-8333-333333333333';
     render(
       <PatientTreatmentProgramDetailClient
         initial={makeInstance({
           stages: [
             {
-              id: "22222222-2222-4222-8222-222222222222",
-              instanceId: "11111111-1111-4111-8111-111111111111",
+              id: '22222222-2222-4222-8222-222222222222',
+              instanceId: '11111111-1111-4111-8111-111111111111',
               sourceStageId: null,
-              title: "Этап 0",
+              title: 'Этап 0',
               description: null,
               sortOrder: 0,
               localComment: null,
               skipReason: null,
-              status: "available",
+              status: 'available',
               startedAt: null,
               goals: null,
               objectives: null,
@@ -488,14 +498,14 @@ describe("PatientTreatmentProgramDetailClient", () => {
             },
             {
               id: stageId,
-              instanceId: "11111111-1111-4111-8111-111111111111",
+              instanceId: '11111111-1111-4111-8111-111111111111',
               sourceStageId: null,
-              title: "Острая фаза",
+              title: 'Острая фаза',
               description: null,
               sortOrder: 1,
               localComment: null,
               skipReason: null,
-              status: "in_progress",
+              status: 'in_progress',
               startedAt: now,
               goals: null,
               objectives: null,
@@ -506,7 +516,7 @@ describe("PatientTreatmentProgramDetailClient", () => {
                   id: groupId,
                   stageId,
                   sourceGroupId: null,
-                  title: "Группа А",
+                  title: 'Группа А',
                   description: null,
                   scheduleText: null,
                   sortOrder: 0,
@@ -515,36 +525,36 @@ describe("PatientTreatmentProgramDetailClient", () => {
               ],
               items: [
                 {
-                  id: "aaaaaaaa-1111-4111-8111-111111111111",
+                  id: 'aaaaaaaa-1111-4111-8111-111111111111',
                   stageId,
-                  itemType: "recommendation" as const,
-                  itemRefId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+                  itemType: 'recommendation' as const,
+                  itemRefId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
                   sortOrder: 0,
                   comment: null,
                   localComment: null,
                   settings: null,
-                  snapshot: { title: "В группе", bodyMd: "" },
+                  snapshot: { title: 'В группе', bodyMd: '' },
                   completedAt: null,
                   isActionable: true,
-                  status: "active" as const,
+                  status: 'active' as const,
                   groupId,
                   createdAt: now,
                   lastViewedAt: now,
                   effectiveComment: null,
                 },
                 {
-                  id: "aaaaaaaa-2222-4222-8222-222222222222",
+                  id: 'aaaaaaaa-2222-4222-8222-222222222222',
                   stageId,
-                  itemType: "recommendation" as const,
-                  itemRefId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+                  itemType: 'recommendation' as const,
+                  itemRefId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
                   sortOrder: 10,
                   comment: null,
                   localComment: null,
                   settings: null,
-                  snapshot: { title: "Соло после группы", bodyMd: "" },
+                  snapshot: { title: 'Соло после группы', bodyMd: '' },
                   completedAt: null,
                   isActionable: true,
-                  status: "active" as const,
+                  status: 'active' as const,
                   groupId: null,
                   createdAt: now,
                   lastViewedAt: now,
@@ -558,33 +568,40 @@ describe("PatientTreatmentProgramDetailClient", () => {
         {...detailShellProps}
       />,
     );
-    const programPanel = await screen.findByRole("tabpanel", { name: "Программа" });
-    const groupHeading = await within(programPanel).findByText("Группа А");
-    const soloTitle = await within(programPanel).findByText("Соло после группы");
-    expect(groupHeading.compareDocumentPosition(soloTitle) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    const programPanel = await screen.findByRole('tabpanel', { name: 'Программа' });
+    const groupHeading = await within(programPanel).findByText('Группа А');
+    const soloTitle = await within(programPanel).findByText('Соло после группы');
+    expect(
+      groupHeading.compareDocumentPosition(soloTitle) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).not.toBe(0);
   });
 
-  it("renders recommendation row with left image preview from snapshot media", async () => {
+  it('renders recommendation row with left image preview from snapshot media', async () => {
     const recommendationItem = {
-      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      stageId: "22222222-2222-4222-8222-222222222222",
-      itemType: "recommendation" as const,
-      itemRefId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      stageId: '22222222-2222-4222-8222-222222222222',
+      itemType: 'recommendation' as const,
+      itemRefId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
       sortOrder: 0,
       comment: null,
       localComment: null,
       settings: null,
       snapshot: {
-        itemType: "recommendation",
-        title: "Пить воду",
-        bodyMd: "Пейте **не меньше** двух литров в день. Дополнительный длинный текст для проверки обрезки превью под заголовком рекомендации.",
+        itemType: 'recommendation',
+        title: 'Пить воду',
+        bodyMd:
+          'Пейте **не меньше** двух литров в день. Дополнительный длинный текст для проверки обрезки превью под заголовком рекомендации.',
         media: [
-          { mediaUrl: "https://example.com/preview.jpg", mediaType: "image" as const, sortOrder: 0 },
+          {
+            mediaUrl: 'https://example.com/preview.jpg',
+            mediaType: 'image' as const,
+            sortOrder: 0,
+          },
         ],
       },
       completedAt: null,
       isActionable: false,
-      status: "active" as const,
+      status: 'active' as const,
       groupId: null,
       createdAt: now,
       lastViewedAt: now,
@@ -595,15 +612,15 @@ describe("PatientTreatmentProgramDetailClient", () => {
         initial={makeInstance({
           stages: [
             {
-              id: "22222222-2222-4222-8222-222222222222",
-              instanceId: "11111111-1111-4111-8111-111111111111",
+              id: '22222222-2222-4222-8222-222222222222',
+              instanceId: '11111111-1111-4111-8111-111111111111',
               sourceStageId: null,
-              title: "Этап 0",
+              title: 'Этап 0',
               description: null,
               sortOrder: 0,
               localComment: null,
               skipReason: null,
-              status: "available",
+              status: 'available',
               startedAt: null,
               goals: null,
               objectives: null,
@@ -618,18 +635,18 @@ describe("PatientTreatmentProgramDetailClient", () => {
         {...detailShellProps}
       />,
     );
-    clickPatientTreatmentTab("recommendations");
-    const recPanel = screen.getByRole("tabpanel", { name: "Рекомендации" });
-    const rowBtn = await within(recPanel).findByRole("link", { name: /Пить воду/ });
+    clickPatientTreatmentTab('recommendations');
+    const recPanel = screen.getByRole('tabpanel', { name: 'Рекомендации' });
+    const rowBtn = await within(recPanel).findByRole('link', { name: /Пить воду/ });
     expect(rowBtn).toBeInTheDocument();
-    const row = rowBtn.closest("li");
+    const row = rowBtn.closest('li');
     expect(row).toBeTruthy();
-    const img = (row as HTMLElement).querySelector("img");
+    const img = (row as HTMLElement).querySelector('img');
     expect(img).toBeTruthy();
-    expect(img).toHaveAttribute("src", "https://example.com/preview.jpg");
+    expect(img).toHaveAttribute('src', 'https://example.com/preview.jpg');
   });
 
-  it("does not show removed checklist section (1.1a)", () => {
+  it('does not show removed checklist section (1.1a)', () => {
     render(
       <PatientTreatmentProgramDetailClient
         initial={makeInstance()}
@@ -637,27 +654,27 @@ describe("PatientTreatmentProgramDetailClient", () => {
         {...detailShellProps}
       />,
     );
-    expect(screen.queryByText("Чек-лист на сегодня")).not.toBeInTheDocument();
+    expect(screen.queryByText('Чек-лист на сегодня')).not.toBeInTheDocument();
   });
 
-  it("hero does not show engagement days line (1.1a)", () => {
+  it('hero does not show engagement days line (1.1a)', () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-01-10T12:00:00.000Z"));
+    vi.setSystemTime(new Date('2026-01-10T12:00:00.000Z'));
     try {
       render(
         <PatientTreatmentProgramDetailClient
           initial={makeInstance({
             stages: [
               {
-                id: "22222222-2222-4222-8222-222222222222",
-                instanceId: "11111111-1111-4111-8111-111111111111",
+                id: '22222222-2222-4222-8222-222222222222',
+                instanceId: '11111111-1111-4111-8111-111111111111',
                 sourceStageId: null,
-                title: "Рекомендации",
+                title: 'Рекомендации',
                 description: null,
                 sortOrder: 0,
                 localComment: null,
                 skipReason: null,
-                status: "available",
+                status: 'available',
                 startedAt: null,
                 goals: null,
                 objectives: null,
@@ -667,16 +684,16 @@ describe("PatientTreatmentProgramDetailClient", () => {
                 items: [],
               },
               {
-                id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-                instanceId: "11111111-1111-4111-8111-111111111111",
+                id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+                instanceId: '11111111-1111-4111-8111-111111111111',
                 sourceStageId: null,
-                title: "Этап 1",
+                title: 'Этап 1',
                 description: null,
                 sortOrder: 1,
                 localComment: null,
                 skipReason: null,
-                status: "in_progress",
-                startedAt: "2026-01-06T00:00:00.000Z",
+                status: 'in_progress',
+                startedAt: '2026-01-06T00:00:00.000Z',
                 goals: null,
                 objectives: null,
                 expectedDurationDays: null,
@@ -697,21 +714,21 @@ describe("PatientTreatmentProgramDetailClient", () => {
     }
   });
 
-  it("shows next control region with booking when stage is in progress but control date cannot be computed", () => {
+  it('shows next control region with booking when stage is in progress but control date cannot be computed', () => {
     render(
       <PatientTreatmentProgramDetailClient
         initial={makeInstance({
           stages: [
             {
-              id: "22222222-2222-4222-8222-222222222222",
-              instanceId: "11111111-1111-4111-8111-111111111111",
+              id: '22222222-2222-4222-8222-222222222222',
+              instanceId: '11111111-1111-4111-8111-111111111111',
               sourceStageId: null,
-              title: "Рекомендации",
+              title: 'Рекомендации',
               description: null,
               sortOrder: 0,
               localComment: null,
               skipReason: null,
-              status: "available",
+              status: 'available',
               startedAt: null,
               goals: null,
               objectives: null,
@@ -721,15 +738,15 @@ describe("PatientTreatmentProgramDetailClient", () => {
               items: [],
             },
             {
-              id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-              instanceId: "11111111-1111-4111-8111-111111111111",
+              id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+              instanceId: '11111111-1111-4111-8111-111111111111',
               sourceStageId: null,
-              title: "Этап 1",
+              title: 'Этап 1',
               description: null,
               sortOrder: 1,
               localComment: null,
               skipReason: null,
-              status: "in_progress",
+              status: 'in_progress',
               startedAt: now,
               goals: null,
               objectives: null,
@@ -744,27 +761,31 @@ describe("PatientTreatmentProgramDetailClient", () => {
         {...detailShellProps}
       />,
     );
-    clickPatientTreatmentTab("progress");
-    const controlRegion = screen.getByRole("region", { name: "Следующий контроль" });
-    expect(within(controlRegion).getByText("Срок консультации уточняется у врача.")).toBeInTheDocument();
-    expect(within(controlRegion).getByRole("link", { name: /Запись на приём/i })).toBeInTheDocument();
+    clickPatientTreatmentTab('progress');
+    const controlRegion = screen.getByRole('region', { name: 'Следующий контроль' });
+    expect(
+      within(controlRegion).getByText('Срок консультации уточняется у врача.'),
+    ).toBeInTheDocument();
+    expect(
+      within(controlRegion).getByRole('link', { name: /Запись на приём/i }),
+    ).toBeInTheDocument();
   });
 
-  it("next control region uses expectedDurationText when control date cannot be computed", () => {
+  it('next control region uses expectedDurationText when control date cannot be computed', () => {
     render(
       <PatientTreatmentProgramDetailClient
         initial={makeInstance({
           stages: [
             {
-              id: "22222222-2222-4222-8222-222222222222",
-              instanceId: "11111111-1111-4111-8111-111111111111",
+              id: '22222222-2222-4222-8222-222222222222',
+              instanceId: '11111111-1111-4111-8111-111111111111',
               sourceStageId: null,
-              title: "Рекомендации",
+              title: 'Рекомендации',
               description: null,
               sortOrder: 0,
               localComment: null,
               skipReason: null,
-              status: "available",
+              status: 'available',
               startedAt: null,
               goals: null,
               objectives: null,
@@ -774,20 +795,20 @@ describe("PatientTreatmentProgramDetailClient", () => {
               items: [],
             },
             {
-              id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-              instanceId: "11111111-1111-4111-8111-111111111111",
+              id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+              instanceId: '11111111-1111-4111-8111-111111111111',
               sourceStageId: null,
-              title: "Этап 1",
+              title: 'Этап 1',
               description: null,
               sortOrder: 1,
               localComment: null,
               skipReason: null,
-              status: "in_progress",
+              status: 'in_progress',
               startedAt: now,
               goals: null,
               objectives: null,
               expectedDurationDays: null,
-              expectedDurationText: "  по согласованию с врачом  ",
+              expectedDurationText: '  по согласованию с врачом  ',
               groups: [],
               items: [],
             },
@@ -797,12 +818,12 @@ describe("PatientTreatmentProgramDetailClient", () => {
         {...detailShellProps}
       />,
     );
-    clickPatientTreatmentTab("progress");
-    const controlRegion = screen.getByRole("region", { name: "Следующий контроль" });
-    expect(within(controlRegion).getByText("по согласованию с врачом")).toBeInTheDocument();
+    clickPatientTreatmentTab('progress');
+    const controlRegion = screen.getByRole('region', { name: 'Следующий контроль' });
+    expect(within(controlRegion).getByText('по согласованию с врачом')).toBeInTheDocument();
   });
 
-  it("renders template programDescription under title when provided", () => {
+  it('renders template programDescription under title when provided', () => {
     render(
       <PatientTreatmentProgramDetailClient
         initial={makeInstance()}
@@ -811,24 +832,24 @@ describe("PatientTreatmentProgramDetailClient", () => {
         programDescription="Описание из шаблона для пациента."
       />,
     );
-    expect(screen.getByText("Описание из шаблона для пациента.")).toBeInTheDocument();
+    expect(screen.getByText('Описание из шаблона для пациента.')).toBeInTheDocument();
   });
 
-  it("renders Этапы программы timeline with active row label", () => {
+  it('renders Этапы программы timeline with active row label', () => {
     render(
       <PatientTreatmentProgramDetailClient
         initial={makeInstance({
           stages: [
             {
-              id: "22222222-2222-4222-8222-222222222222",
-              instanceId: "11111111-1111-4111-8111-111111111111",
+              id: '22222222-2222-4222-8222-222222222222',
+              instanceId: '11111111-1111-4111-8111-111111111111',
               sourceStageId: null,
-              title: "Рекомендации",
+              title: 'Рекомендации',
               description: null,
               sortOrder: 0,
               localComment: null,
               skipReason: null,
-              status: "available",
+              status: 'available',
               startedAt: null,
               goals: null,
               objectives: null,
@@ -838,15 +859,15 @@ describe("PatientTreatmentProgramDetailClient", () => {
               items: [],
             },
             {
-              id: "33333333-3333-4333-8333-333333333333",
-              instanceId: "11111111-1111-4111-8111-111111111111",
+              id: '33333333-3333-4333-8333-333333333333',
+              instanceId: '11111111-1111-4111-8111-111111111111',
               sourceStageId: null,
-              title: "Острая фаза",
+              title: 'Острая фаза',
               description: null,
               sortOrder: 1,
               localComment: null,
               skipReason: null,
-              status: "in_progress",
+              status: 'in_progress',
               startedAt: now,
               goals: null,
               objectives: null,
@@ -856,15 +877,15 @@ describe("PatientTreatmentProgramDetailClient", () => {
               items: [],
             },
             {
-              id: "44444444-4444-4444-8444-444444444444",
-              instanceId: "11111111-1111-4111-8111-111111111111",
+              id: '44444444-4444-4444-8444-444444444444',
+              instanceId: '11111111-1111-4111-8111-111111111111',
               sourceStageId: null,
-              title: "Восстановление",
+              title: 'Восстановление',
               description: null,
               sortOrder: 2,
               localComment: null,
               skipReason: null,
-              status: "locked",
+              status: 'locked',
               startedAt: null,
               goals: null,
               objectives: null,
@@ -879,34 +900,34 @@ describe("PatientTreatmentProgramDetailClient", () => {
         {...detailShellProps}
       />,
     );
-    clickPatientTreatmentTab("progress");
-    expect(screen.getByRole("heading", { name: "Этапы программы" })).toBeInTheDocument();
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(screen.getByText("Острая фаза")).toBeInTheDocument();
-    expect(screen.getByText("Активный этап")).toBeInTheDocument();
-    const stagesSection = document.getElementById("patient-program-current-stage");
+    clickPatientTreatmentTab('progress');
+    expect(screen.getByRole('heading', { name: 'Этапы программы' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByText('Острая фаза')).toBeInTheDocument();
+    expect(screen.getByText('Активный этап')).toBeInTheDocument();
+    const stagesSection = document.getElementById('patient-program-current-stage');
     expect(stagesSection).toBeTruthy();
-    expect(within(stagesSection as HTMLElement).getByText("Острая фаза")).toBeInTheDocument();
-    expect(within(stagesSection as HTMLElement).getByText("Восстановление")).toBeInTheDocument();
+    expect(within(stagesSection as HTMLElement).getByText('Острая фаза')).toBeInTheDocument();
+    expect(within(stagesSection as HTMLElement).getByText('Восстановление')).toBeInTheDocument();
   });
 
-  it("program tab: composition groups, schedule, LFK preview thumb, no itemType in parentheses", async () => {
-    const groupId = "gggggggg-gggg-4ggg-8ggg-gggggggggggg";
-    const stageId = "33333333-3333-4333-8333-333333333333";
+  it('program tab: composition groups, schedule, LFK preview thumb, no itemType in parentheses', async () => {
+    const groupId = 'gggggggg-gggg-4ggg-8ggg-gggggggggggg';
+    const stageId = '33333333-3333-4333-8333-333333333333';
     render(
       <PatientTreatmentProgramDetailClient
         initial={makeInstance({
           stages: [
             {
-              id: "22222222-2222-4222-8222-222222222222",
-              instanceId: "11111111-1111-4111-8111-111111111111",
+              id: '22222222-2222-4222-8222-222222222222',
+              instanceId: '11111111-1111-4111-8111-111111111111',
               sourceStageId: null,
-              title: "Рекомендации",
+              title: 'Рекомендации',
               description: null,
               sortOrder: 0,
               localComment: null,
               skipReason: null,
-              status: "available",
+              status: 'available',
               startedAt: null,
               goals: null,
               objectives: null,
@@ -917,14 +938,14 @@ describe("PatientTreatmentProgramDetailClient", () => {
             },
             {
               id: stageId,
-              instanceId: "11111111-1111-4111-8111-111111111111",
+              instanceId: '11111111-1111-4111-8111-111111111111',
               sourceStageId: null,
-              title: "Острая фаза",
+              title: 'Острая фаза',
               description: null,
               sortOrder: 1,
               localComment: null,
               skipReason: null,
-              status: "in_progress",
+              status: 'in_progress',
               startedAt: now,
               goals: null,
               objectives: null,
@@ -935,68 +956,72 @@ describe("PatientTreatmentProgramDetailClient", () => {
                   id: groupId,
                   stageId,
                   sourceGroupId: null,
-                  title: "Блок утро",
+                  title: 'Блок утро',
                   description: null,
-                  scheduleText: "  2 раза в день  ",
+                  scheduleText: '  2 раза в день  ',
                   sortOrder: 0,
                   systemKind: null,
                 },
               ],
               items: [
                 {
-                  id: "aaaaaaaa-1111-4111-8111-111111111111",
+                  id: 'aaaaaaaa-1111-4111-8111-111111111111',
                   stageId,
-                  itemType: "exercise",
-                  itemRefId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+                  itemType: 'exercise',
+                  itemRefId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
                   sortOrder: 0,
                   comment: null,
                   localComment: null,
                   settings: null,
                   snapshot: {
-                    title: "Шаблон комплекса",
+                    title: 'Шаблон комплекса',
                     media: [
-                      { url: "https://example.com/lfk-exercise-preview.jpg", type: "image", sortOrder: 0 },
+                      {
+                        url: 'https://example.com/lfk-exercise-preview.jpg',
+                        type: 'image',
+                        sortOrder: 0,
+                      },
                     ],
                   },
                   completedAt: null,
                   isActionable: true,
-                  status: "active",
+                  status: 'active',
                   groupId,
                   createdAt: now,
                   lastViewedAt: null,
                   effectiveComment: null,
                 },
                 {
-                  id: "aaaaaaaa-2222-4222-8222-222222222222",
+                  id: 'aaaaaaaa-2222-4222-8222-222222222222',
                   stageId,
-                  itemType: "recommendation",
-                  itemRefId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+                  itemType: 'recommendation',
+                  itemRefId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
                   sortOrder: 1,
                   comment: null,
                   localComment: null,
                   settings: null,
-                  snapshot: { title: "Рекомендация в блоке", bodyMd: "" },
+                  snapshot: { title: 'Рекомендация в блоке', bodyMd: '' },
                   completedAt: null,
                   isActionable: true,
-                  status: "active",
+                  status: 'active',
                   groupId,
                   createdAt: now,
                   lastViewedAt: null,
                   effectiveComment: null,
                 },
                 {
-                  id: "aaaaaaaa-3333-4333-8333-333333333333",
+                  id: 'aaaaaaaa-3333-4333-8333-333333333333',
                   stageId,
-                  itemType: "recommendation",
-                  itemRefId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+                  itemType: 'recommendation',
+                  itemRefId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
                   sortOrder: 0,
                   comment: null,
                   localComment: null,
                   settings: null,
-                  snapshot: { title: "Вне группы пункт", bodyMd: "" },
+                  snapshot: { title: 'Вне группы пункт', bodyMd: '' },
                   completedAt: null,
                   isActionable: true,
-                  status: "active",
+                  status: 'active',
                   groupId: null,
                   createdAt: now,
                   lastViewedAt: null,
@@ -1010,46 +1035,58 @@ describe("PatientTreatmentProgramDetailClient", () => {
         {...detailShellProps}
       />,
     );
-    clickPatientTreatmentTab("program");
-    const programPanel = await screen.findByRole("tabpanel", { name: "Программа" });
+    clickPatientTreatmentTab('program');
+    const programPanel = await screen.findByRole('tabpanel', { name: 'Программа' });
 
-    expect(within(programPanel).queryByRole("button", { name: /Начать занятие/i })).not.toBeInTheDocument();
+    expect(
+      within(programPanel).queryByRole('button', { name: /Начать занятие/i }),
+    ).not.toBeInTheDocument();
     expect(within(programPanel).getAllByText(/Выполнялось:/)).toHaveLength(3);
-    expect(within(programPanel).queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(within(programPanel).queryByRole('checkbox')).not.toBeInTheDocument();
 
-    expect(within(programPanel).getByRole("heading", { name: "Программа этапа" })).toBeInTheDocument();
-    expect(within(programPanel).getByText("Блок утро")).toBeInTheDocument();
-    expect(within(programPanel).getByText("2 раза в день")).toBeInTheDocument();
-    expect(within(programPanel).getByText("Шаблон комплекса")).toBeInTheDocument();
-    expect(within(programPanel).getByText("Рекомендация в блоке")).toBeInTheDocument();
-    expect(within(programPanel).getByText("Вне группы пункт")).toBeInTheDocument();
-    expect(within(programPanel).queryByText("Без группы")).not.toBeInTheDocument();
+    expect(
+      within(programPanel).getByRole('heading', { name: 'Программа этапа' }),
+    ).toBeInTheDocument();
+    expect(within(programPanel).getByText('Блок утро')).toBeInTheDocument();
+    expect(within(programPanel).getByText('2 раза в день')).toBeInTheDocument();
+    expect(within(programPanel).getByText('Шаблон комплекса')).toBeInTheDocument();
+    expect(within(programPanel).getByText('Рекомендация в блоке')).toBeInTheDocument();
+    expect(within(programPanel).getByText('Вне группы пункт')).toBeInTheDocument();
+    expect(within(programPanel).queryByText('Без группы')).not.toBeInTheDocument();
 
-    const ungroupedTitle = within(programPanel).getByText("Вне группы пункт");
-    const groupTitle = within(programPanel).getByText("Блок утро");
+    const ungroupedTitle = within(programPanel).getByText('Вне группы пункт');
+    const groupTitle = within(programPanel).getByText('Блок утро');
     /* buildProgramCompositionSegments: группы, затем без группы */
-    expect(groupTitle.compareDocumentPosition(ungroupedTitle) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    expect(
+      groupTitle.compareDocumentPosition(ungroupedTitle) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).not.toBe(0);
 
-    expect(within(programPanel).queryByText("(lfk_complex)", { exact: false })).not.toBeInTheDocument();
-    expect(within(programPanel).queryByText("(recommendation)", { exact: false })).not.toBeInTheDocument();
+    expect(
+      within(programPanel).queryByText('(lfk_complex)', { exact: false }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(programPanel).queryByText('(recommendation)', { exact: false }),
+    ).not.toBeInTheDocument();
 
-    const lfkOpen = within(programPanel).getAllByRole("link", { name: /Открыть: Шаблон комплекса/ })[0]!;
-    const lfkTile = lfkOpen.closest("li");
-    expect(lfkTile?.querySelector("img")).toBeTruthy();
-    expect(lfkTile?.querySelector("img")?.getAttribute("src")).toContain("lfk-exercise-preview");
+    const lfkOpen = within(programPanel).getAllByRole('link', {
+      name: /Открыть: Шаблон комплекса/,
+    })[0]!;
+    const lfkTile = lfkOpen.closest('li');
+    expect(lfkTile?.querySelector('img')).toBeTruthy();
+    expect(lfkTile?.querySelector('img')?.getAttribute('src')).toContain('lfk-exercise-preview');
 
-    const recInBlockRow = within(programPanel).getByText("Рекомендация в блоке").closest("li");
-    expect(recInBlockRow?.querySelector("img")).toBeFalsy();
-    expect(recInBlockRow?.querySelector("svg")).toBeTruthy();
+    const recInBlockRow = within(programPanel).getByText('Рекомендация в блоке').closest('li');
+    expect(recInBlockRow?.querySelector('img')).toBeFalsy();
+    expect(recInBlockRow?.querySelector('svg')).toBeTruthy();
   });
 
-  it("program tile shows comments badge/unread dot, opens completion panel, and opens discussion dialog", async () => {
-    const itemId = "aaaaaaaa-1111-4111-8111-111111111111";
+  it('program tile shows comments badge/unread dot, opens completion panel, and opens discussion dialog', async () => {
+    const itemId = 'aaaaaaaa-1111-4111-8111-111111111111';
     const fetchMock = vi.mocked(global.fetch);
     const baseImpl = fetchMock.getMockImplementation();
     fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = typeof input === "string" ? input : input.toString();
-      if (url.includes("/discussion/summary")) {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url.includes('/discussion/summary')) {
         return new Response(
           JSON.stringify({
             ok: true,
@@ -1060,10 +1097,10 @@ describe("PatientTreatmentProgramDetailClient", () => {
           { status: 200 },
         );
       }
-      if (url.includes("/progress/complete/metrics")) {
+      if (url.includes('/progress/complete/metrics')) {
         return new Response(JSON.stringify({ ok: true, metrics: null }), { status: 200 });
       }
-      if (url.includes("/progress/complete") && init?.method === "POST") {
+      if (url.includes('/progress/complete') && init?.method === 'POST') {
         return new Response(JSON.stringify({ ok: true }), { status: 200 });
       }
       if (baseImpl) return baseImpl(input, init);
@@ -1075,15 +1112,15 @@ describe("PatientTreatmentProgramDetailClient", () => {
         initial={makeInstance({
           stages: [
             {
-              id: "22222222-2222-4222-8222-222222222222",
-              instanceId: "11111111-1111-4111-8111-111111111111",
+              id: '22222222-2222-4222-8222-222222222222',
+              instanceId: '11111111-1111-4111-8111-111111111111',
               sourceStageId: null,
-              title: "Рекомендации",
+              title: 'Рекомендации',
               description: null,
               sortOrder: 0,
               localComment: null,
               skipReason: null,
-              status: "available",
+              status: 'available',
               startedAt: null,
               goals: null,
               objectives: null,
@@ -1093,15 +1130,15 @@ describe("PatientTreatmentProgramDetailClient", () => {
               items: [],
             },
             {
-              id: "33333333-3333-4333-8333-333333333333",
-              instanceId: "11111111-1111-4111-8111-111111111111",
+              id: '33333333-3333-4333-8333-333333333333',
+              instanceId: '11111111-1111-4111-8111-111111111111',
               sourceStageId: null,
-              title: "Этап 1",
+              title: 'Этап 1',
               description: null,
               sortOrder: 1,
               localComment: null,
               skipReason: null,
-              status: "in_progress",
+              status: 'in_progress',
               startedAt: now,
               goals: null,
               objectives: null,
@@ -1111,17 +1148,17 @@ describe("PatientTreatmentProgramDetailClient", () => {
               items: [
                 {
                   id: itemId,
-                  stageId: "33333333-3333-4333-8333-333333333333",
-                  itemType: "exercise",
-                  itemRefId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+                  stageId: '33333333-3333-4333-8333-333333333333',
+                  itemType: 'exercise',
+                  itemRefId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
                   sortOrder: 0,
                   comment: null,
                   localComment: null,
                   settings: null,
-                  snapshot: { title: "Упражнение", media: [] },
+                  snapshot: { title: 'Упражнение', media: [] },
                   completedAt: null,
                   isActionable: true,
-                  status: "active",
+                  status: 'active',
                   groupId: null,
                   createdAt: now,
                   lastViewedAt: now,
@@ -1136,33 +1173,45 @@ describe("PatientTreatmentProgramDetailClient", () => {
       />,
     );
 
-    clickPatientTreatmentTab("program");
-    const programPanel = await screen.findByRole("tabpanel", { name: "Программа" });
-    expect(within(programPanel).queryByRole("button", { name: /Добавить комментарий/i })).not.toBeInTheDocument();
+    clickPatientTreatmentTab('program');
+    const programPanel = await screen.findByRole('tabpanel', { name: 'Программа' });
+    expect(
+      within(programPanel).queryByRole('button', { name: /Добавить комментарий/i }),
+    ).not.toBeInTheDocument();
 
-    const commentsButton = await within(programPanel).findByRole("button", { name: /Комментарии/i });
-    expect(within(commentsButton).getByText("3")).toBeInTheDocument();
-    expect(within(commentsButton).getByLabelText("Есть непрочитанные комментарии")).toBeInTheDocument();
-    expect(within(programPanel).queryByRole("button", { name: "Камера" })).not.toBeInTheDocument();
+    const commentsButton = await within(programPanel).findByRole('button', {
+      name: /Комментарии/i,
+    });
+    expect(within(commentsButton).getByText('3')).toBeInTheDocument();
+    expect(
+      within(commentsButton).getByLabelText('Есть непрочитанные комментарии'),
+    ).toBeInTheDocument();
+    expect(within(programPanel).queryByRole('button', { name: 'Камера' })).not.toBeInTheDocument();
 
-    const completeButton = within(programPanel).getByRole("button", { name: /Отметить выполнение/i });
+    const completeButton = within(programPanel).getByRole('button', {
+      name: /Отметить выполнение/i,
+    });
     fireEvent.click(completeButton);
-    const saveMetricsButton = await within(programPanel).findByRole("button", { name: "Записать" });
+    const saveMetricsButton = await within(programPanel).findByRole('button', { name: 'Записать' });
     fireEvent.click(saveMetricsButton);
     await vi.waitFor(() => {
-      expect(fetchMock.mock.calls.some((call) => String(call[0]).includes("/progress/complete"))).toBe(true);
+      expect(
+        fetchMock.mock.calls.some((call) => String(call[0]).includes('/progress/complete')),
+      ).toBe(true);
     });
     await vi.waitFor(() => {
-      expect(within(programPanel).queryByRole("button", { name: "Записать" })).not.toBeInTheDocument();
+      expect(
+        within(programPanel).queryByRole('button', { name: 'Записать' }),
+      ).not.toBeInTheDocument();
     });
 
     fireEvent.click(commentsButton);
-    const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByRole("heading", { name: "Комментарии" })).toBeInTheDocument();
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('heading', { name: 'Комментарии' })).toBeInTheDocument();
   });
 
-  it("hides discussion controls on program tile when discussion UI feature is disabled", async () => {
-    const itemId = "aaaaaaaa-1111-4111-8111-111111111111";
+  it('hides discussion controls on program tile when discussion UI feature is disabled', async () => {
+    const itemId = 'aaaaaaaa-1111-4111-8111-111111111111';
     const fetchMock = vi.mocked(global.fetch);
 
     render(
@@ -1170,15 +1219,15 @@ describe("PatientTreatmentProgramDetailClient", () => {
         initial={makeInstance({
           stages: [
             {
-              id: "22222222-2222-4222-8222-222222222222",
-              instanceId: "11111111-1111-4111-8111-111111111111",
+              id: '22222222-2222-4222-8222-222222222222',
+              instanceId: '11111111-1111-4111-8111-111111111111',
               sourceStageId: null,
-              title: "Рекомендации",
+              title: 'Рекомендации',
               description: null,
               sortOrder: 0,
               localComment: null,
               skipReason: null,
-              status: "available",
+              status: 'available',
               startedAt: null,
               goals: null,
               objectives: null,
@@ -1188,15 +1237,15 @@ describe("PatientTreatmentProgramDetailClient", () => {
               items: [],
             },
             {
-              id: "33333333-3333-4333-8333-333333333333",
-              instanceId: "11111111-1111-4111-8111-111111111111",
+              id: '33333333-3333-4333-8333-333333333333',
+              instanceId: '11111111-1111-4111-8111-111111111111',
               sourceStageId: null,
-              title: "Этап 1",
+              title: 'Этап 1',
               description: null,
               sortOrder: 1,
               localComment: null,
               skipReason: null,
-              status: "in_progress",
+              status: 'in_progress',
               startedAt: now,
               goals: null,
               objectives: null,
@@ -1206,17 +1255,17 @@ describe("PatientTreatmentProgramDetailClient", () => {
               items: [
                 {
                   id: itemId,
-                  stageId: "33333333-3333-4333-8333-333333333333",
-                  itemType: "exercise",
-                  itemRefId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+                  stageId: '33333333-3333-4333-8333-333333333333',
+                  itemType: 'exercise',
+                  itemRefId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
                   sortOrder: 0,
                   comment: null,
                   localComment: null,
                   settings: null,
-                  snapshot: { title: "Упражнение", media: [] },
+                  snapshot: { title: 'Упражнение', media: [] },
                   completedAt: null,
                   isActionable: true,
-                  status: "active",
+                  status: 'active',
                   groupId: null,
                   createdAt: now,
                   lastViewedAt: now,
@@ -1233,17 +1282,21 @@ describe("PatientTreatmentProgramDetailClient", () => {
       />,
     );
 
-    clickPatientTreatmentTab("program");
-    const programPanel = await screen.findByRole("tabpanel", { name: "Программа" });
-    expect(within(programPanel).queryByRole("button", { name: /Комментарии/i })).not.toBeInTheDocument();
-    expect(within(programPanel).queryByRole("button", { name: "Камера" })).not.toBeInTheDocument();
-    expect(fetchMock.mock.calls.some((call) => String(call[0]).includes("/discussion/summary"))).toBe(false);
+    clickPatientTreatmentTab('program');
+    const programPanel = await screen.findByRole('tabpanel', { name: 'Программа' });
+    expect(
+      within(programPanel).queryByRole('button', { name: /Комментарии/i }),
+    ).not.toBeInTheDocument();
+    expect(within(programPanel).queryByRole('button', { name: 'Камера' })).not.toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some((call) => String(call[0]).includes('/discussion/summary')),
+    ).toBe(false);
   });
 
-  it.each(["promo", "course"] as const)(
-    "hides discussion controls on program tile for %s assignment when UI flag is on (P1)",
+  it.each(['promo', 'course'] as const)(
+    'hides discussion controls on program tile for %s assignment when UI flag is on (P1)',
     async (assignmentSource) => {
-      const itemId = "aaaaaaaa-1111-4111-8111-111111111111";
+      const itemId = 'aaaaaaaa-1111-4111-8111-111111111111';
       const fetchMock = vi.mocked(global.fetch);
 
       render(
@@ -1252,15 +1305,15 @@ describe("PatientTreatmentProgramDetailClient", () => {
             assignmentSource,
             stages: [
               {
-                id: "22222222-2222-4222-8222-222222222222",
-                instanceId: "11111111-1111-4111-8111-111111111111",
+                id: '22222222-2222-4222-8222-222222222222',
+                instanceId: '11111111-1111-4111-8111-111111111111',
                 sourceStageId: null,
-                title: "Рекомендации",
+                title: 'Рекомендации',
                 description: null,
                 sortOrder: 0,
                 localComment: null,
                 skipReason: null,
-                status: "available",
+                status: 'available',
                 startedAt: null,
                 goals: null,
                 objectives: null,
@@ -1270,15 +1323,15 @@ describe("PatientTreatmentProgramDetailClient", () => {
                 items: [],
               },
               {
-                id: "33333333-3333-4333-8333-333333333333",
-                instanceId: "11111111-1111-4111-8111-111111111111",
+                id: '33333333-3333-4333-8333-333333333333',
+                instanceId: '11111111-1111-4111-8111-111111111111',
                 sourceStageId: null,
-                title: "Этап 1",
+                title: 'Этап 1',
                 description: null,
                 sortOrder: 1,
                 localComment: null,
                 skipReason: null,
-                status: "in_progress",
+                status: 'in_progress',
                 startedAt: now,
                 goals: null,
                 objectives: null,
@@ -1288,17 +1341,17 @@ describe("PatientTreatmentProgramDetailClient", () => {
                 items: [
                   {
                     id: itemId,
-                    stageId: "33333333-3333-4333-8333-333333333333",
-                    itemType: "exercise",
-                    itemRefId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+                    stageId: '33333333-3333-4333-8333-333333333333',
+                    itemType: 'exercise',
+                    itemRefId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
                     sortOrder: 0,
                     comment: null,
                     localComment: null,
                     settings: null,
-                    snapshot: { title: "Упражнение", media: [] },
+                    snapshot: { title: 'Упражнение', media: [] },
                     completedAt: null,
                     isActionable: true,
-                    status: "active",
+                    status: 'active',
                     groupId: null,
                     createdAt: now,
                     lastViewedAt: now,
@@ -1315,11 +1368,17 @@ describe("PatientTreatmentProgramDetailClient", () => {
         />,
       );
 
-      clickPatientTreatmentTab("program");
-      const programPanel = await screen.findByRole("tabpanel", { name: "Программа" });
-      expect(within(programPanel).queryByRole("button", { name: /Комментарии/i })).not.toBeInTheDocument();
-      expect(within(programPanel).queryByRole("button", { name: "Камера" })).not.toBeInTheDocument();
-      expect(fetchMock.mock.calls.some((call) => String(call[0]).includes("/discussion/summary"))).toBe(false);
+      clickPatientTreatmentTab('program');
+      const programPanel = await screen.findByRole('tabpanel', { name: 'Программа' });
+      expect(
+        within(programPanel).queryByRole('button', { name: /Комментарии/i }),
+      ).not.toBeInTheDocument();
+      expect(
+        within(programPanel).queryByRole('button', { name: 'Камера' }),
+      ).not.toBeInTheDocument();
+      expect(
+        fetchMock.mock.calls.some((call) => String(call[0]).includes('/discussion/summary')),
+      ).toBe(false);
     },
   );
 });

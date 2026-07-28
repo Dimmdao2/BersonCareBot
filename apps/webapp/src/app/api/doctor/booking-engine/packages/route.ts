@@ -1,8 +1,8 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
-import { requireDoctorBookingEngine } from "../_requireDoctorBookingEngine";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import { requireDoctorBookingEngine } from '../_requireDoctorBookingEngine';
 
 const itemSchema = z.object({
   serviceId: z.string().uuid(),
@@ -17,7 +17,7 @@ const upsertSchema = z.object({
   priceMinor: z.number().int().min(0),
   currency: z.string().length(3).optional(),
   validityDays: z.number().int().min(1).nullable().optional(),
-  deductionMode: z.enum(["auto_on_visit_confirmed", "manual"]).optional(),
+  deductionMode: z.enum(['auto_on_visit_confirmed', 'manual']).optional(),
   isActive: z.boolean().optional(),
   items: z.array(itemSchema).min(1),
 });
@@ -27,7 +27,7 @@ export async function GET() {
   if (!gate.ok) return gate.response;
   const deps = buildAppDeps();
   if (!deps.memberships) {
-    return NextResponse.json({ ok: false, error: "memberships_unavailable" }, { status: 503 });
+    return NextResponse.json({ ok: false, error: 'memberships_unavailable' }, { status: 503 });
   }
   const packages = await deps.memberships.listCatalogPackages(gate.ctx.organizationId, false);
   return NextResponse.json({ ok: true, packages });
@@ -38,18 +38,21 @@ export async function POST(request: Request) {
   if (!gate.ok) return gate.response;
   const parsed = upsertSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
   const deps = buildAppDeps();
   if (!deps.memberships) {
-    return NextResponse.json({ ok: false, error: "memberships_unavailable" }, { status: 503 });
+    return NextResponse.json({ ok: false, error: 'memberships_unavailable' }, { status: 503 });
   }
   const memberships = deps.memberships;
-  const pkg = await withDoctorWorkspacePrincipal(gate.ctx, "doctor.booking-engine.packages.upsert", () =>
-    memberships.upsertCatalogPackage({
-      organizationId: gate.ctx.organizationId,
-      ...parsed.data,
-    }),
+  const pkg = await withDoctorWorkspacePrincipal(
+    gate.ctx,
+    'doctor.booking-engine.packages.upsert',
+    () =>
+      memberships.upsertCatalogPackage({
+        organizationId: gate.ctx.organizationId,
+        ...parsed.data,
+      }),
   );
   return NextResponse.json({ ok: true, package: pkg });
 }

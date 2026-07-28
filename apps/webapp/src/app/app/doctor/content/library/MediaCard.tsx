@@ -1,17 +1,17 @@
-"use client";
+'use client';
 
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { MediaCardActionsMenu } from "./MediaCardActionsMenu";
-import { canRenderInlineImage } from "./mediaPreview";
-import type { MediaPreviewStatus } from "@/modules/media/types";
-import { MediaThumb } from "@/shared/ui/doctor/media/MediaThumb";
-import { libraryMediaRowToPreviewUi } from "@/shared/ui/doctor/media/mediaPreviewUiModel";
-import { doctorInteractiveSurfaceButtonClass } from "@/shared/ui/doctor/doctorVisual";
-import { cn } from "@/lib/utils";
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { MediaCardActionsMenu } from './MediaCardActionsMenu';
+import { canRenderInlineImage } from './mediaPreview';
+import type { MediaPreviewStatus } from '@/modules/media/types';
+import { MediaThumb } from '@/shared/ui/doctor/media/MediaThumb';
+import { libraryMediaRowToPreviewUi } from '@/shared/ui/doctor/media/mediaPreviewUiModel';
+import { doctorInteractiveSurfaceButtonClass } from '@/shared/ui/doctor/doctorVisual';
+import { cn } from '@/lib/utils';
 
 type MediaItem = {
   id: string;
-  kind: "image" | "video" | "audio" | "file";
+  kind: 'image' | 'video' | 'audio' | 'file';
   mimeType: string;
   filename: string;
   displayName?: string | null;
@@ -43,7 +43,7 @@ function mediaTitle(item: MediaItem): string {
   return item.displayName?.trim() || item.filename;
 }
 
-const thumbLabels = { skipped: "Превью не создаётся", failed: "Превью недоступно" };
+const thumbLabels = { skipped: 'Превью не создаётся', failed: 'Превью недоступно' };
 
 export function MediaCard({
   item,
@@ -58,7 +58,7 @@ export function MediaCard({
   formatSize,
   formatDate,
 }: Props) {
-  const renderInlineImage = item.kind === "image" && canRenderInlineImage(item.mimeType);
+  const renderInlineImage = item.kind === 'image' && canRenderInlineImage(item.mimeType);
   const thumbMedia = libraryMediaRowToPreviewUi(item);
 
   return (
@@ -68,7 +68,7 @@ export function MediaCard({
           <Button
             type="button"
             variant="ghost"
-            className={cn(doctorInteractiveSurfaceButtonClass, "block w-full text-left")}
+            className={cn(doctorInteractiveSurfaceButtonClass, 'block w-full text-left')}
             onClick={onOpenPreview}
           >
             <MediaThumb
@@ -79,11 +79,11 @@ export function MediaCard({
               sizes="160px"
             />
           </Button>
-        ) : item.kind === "video" ? (
+        ) : item.kind === 'video' ? (
           <Button
             type="button"
             variant="ghost"
-            className={cn(doctorInteractiveSurfaceButtonClass, "block w-full text-left")}
+            className={cn(doctorInteractiveSurfaceButtonClass, 'block w-full text-left')}
             aria-label="Предпросмотр видео"
             onClick={onOpenPreview}
           >
@@ -95,7 +95,7 @@ export function MediaCard({
               sizes="160px"
             />
           </Button>
-        ) : item.kind === "audio" ? (
+        ) : item.kind === 'audio' ? (
           <div className="p-3">
             <audio controls preload="metadata" className="w-full">
               <source src={item.url} />
@@ -121,7 +121,7 @@ export function MediaCard({
           onRename={onRename}
           onMoveFolder={onMoveFolder}
           onDelete={onDelete}
-          onOpenPreview={item.kind === "file" || item.kind === "video" ? onOpenPreview : undefined}
+          onOpenPreview={item.kind === 'file' || item.kind === 'video' ? onOpenPreview : undefined}
           formatSize={formatSize}
           formatDate={formatDate}
         />

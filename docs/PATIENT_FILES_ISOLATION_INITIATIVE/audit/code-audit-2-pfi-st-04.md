@@ -13,23 +13,23 @@ main webapp is on a different branch (`auto/pfi-st-06`) and does not carry these
 
 ## Finding summary
 
-| # | Clause | Result | How verified |
-|---|---|---|---|
-| C1 | Migration SQL correctness (ALTER TABLE, FK, partial index, idempotent) | PASS | Read `0131_*.sql`; matches schema; `IF NOT EXISTS` on column+index |
-| C2 | Migration method vs DoD ("drizzle-kit generated, no raw SQL") | ADVISORY | `drizzle-kit generate` aborts on missing `DATABASE_URL`; project already uses handwritten migrations (snapshots frozen at 0035) |
-| C3 | Schema `mediaFileId` nullable FK → `mediaFiles.id`, onDelete set null | PASS | `patientFiles.ts:35,63-67` |
-| C4 | Schema partial index on `mediaFileId WHERE NOT NULL` | PASS | `patientFiles.ts:45-47` |
-| C5 | `PatientFileRecord.mediaFileId: string \| null` added | PASS | `ports.ts:33` |
-| C6 | `CreatePatientFileParams.folderId?: string \| null` added | PASS | `ports.ts:48` |
-| C7 | `pgPatientFiles.createFile` dual-insert (media_files first, then patient_files) | PASS | `pgPatientFiles.ts:62-93` |
-| C8 | Backward compat — no folderId → mediaFileId null, single insert | PASS | `pgPatientFiles.ts:64-65,91`; G3 test "backwards-compat" |
-| C9 | `inMemoryPatientFiles` sets mediaFileId correctly | PASS | `inMemoryPatientFiles.ts:42-43` |
-| C10 | Route POST calls `pgEnsureClientPatientFolder(userId)` before createFile | PASS | `route.ts:120-123` |
-| C11 | Route passes `folderId: patientFolder.id` | PASS | `route.ts:133` |
-| C12 | All 11 tests pass | PASS | live vitest run, 11/11 |
-| C13 | G3 tests cover dual-insert sequence, backward compat, onDelete set null | PASS | `pgPatientFiles.g3.test.ts` G3a/G3b |
-| C14 | Drizzle-only DML (no raw SQL inserts/updates) in repo | PASS | `pgPatientFiles.ts` — all `db.insert/.update` |
-| C15 | TypeScript clean | PASS | `tsc --noEmit` from worktree: only baseline luxon/integrator error |
+| #   | Clause                                                                          | Result   | How verified                                                                                                                    |
+| --- | ------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| C1  | Migration SQL correctness (ALTER TABLE, FK, partial index, idempotent)          | PASS     | Read `0131_*.sql`; matches schema; `IF NOT EXISTS` on column+index                                                              |
+| C2  | Migration method vs DoD ("drizzle-kit generated, no raw SQL")                   | ADVISORY | `drizzle-kit generate` aborts on missing `DATABASE_URL`; project already uses handwritten migrations (snapshots frozen at 0035) |
+| C3  | Schema `mediaFileId` nullable FK → `mediaFiles.id`, onDelete set null           | PASS     | `patientFiles.ts:35,63-67`                                                                                                      |
+| C4  | Schema partial index on `mediaFileId WHERE NOT NULL`                            | PASS     | `patientFiles.ts:45-47`                                                                                                         |
+| C5  | `PatientFileRecord.mediaFileId: string \| null` added                           | PASS     | `ports.ts:33`                                                                                                                   |
+| C6  | `CreatePatientFileParams.folderId?: string \| null` added                       | PASS     | `ports.ts:48`                                                                                                                   |
+| C7  | `pgPatientFiles.createFile` dual-insert (media_files first, then patient_files) | PASS     | `pgPatientFiles.ts:62-93`                                                                                                       |
+| C8  | Backward compat — no folderId → mediaFileId null, single insert                 | PASS     | `pgPatientFiles.ts:64-65,91`; G3 test "backwards-compat"                                                                        |
+| C9  | `inMemoryPatientFiles` sets mediaFileId correctly                               | PASS     | `inMemoryPatientFiles.ts:42-43`                                                                                                 |
+| C10 | Route POST calls `pgEnsureClientPatientFolder(userId)` before createFile        | PASS     | `route.ts:120-123`                                                                                                              |
+| C11 | Route passes `folderId: patientFolder.id`                                       | PASS     | `route.ts:133`                                                                                                                  |
+| C12 | All 11 tests pass                                                               | PASS     | live vitest run, 11/11                                                                                                          |
+| C13 | G3 tests cover dual-insert sequence, backward compat, onDelete set null         | PASS     | `pgPatientFiles.g3.test.ts` G3a/G3b                                                                                             |
+| C14 | Drizzle-only DML (no raw SQL inserts/updates) in repo                           | PASS     | `pgPatientFiles.ts` — all `db.insert/.update`                                                                                   |
+| C15 | TypeScript clean                                                                | PASS     | `tsc --noEmit` from worktree: only baseline luxon/integrator error                                                              |
 
 ## Detail
 
@@ -75,7 +75,7 @@ in practice. Not a defect against the DoD.
 ### C2 — Migration method vs DoD — ADVISORY (not FAIL)
 
 The DoD line reads "migration generated by drizzle-kit (no hand raw SQL)". The migration
-here is handwritten. I evaluated whether drizzle-kit *could* produce this:
+here is handwritten. I evaluated whether drizzle-kit _could_ produce this:
 
 - `pnpm drizzle-kit generate` from the worktree aborts with:
   `DATABASE_URL is required for drizzle-kit (set in apps/webapp/.env.dev or .env)`.
@@ -86,7 +86,7 @@ here is handwritten. I evaluated whether drizzle-kit *could* produce this:
   This is conclusive evidence the project switched to handwritten migrations long ago;
   PFI-ST-04 follows the established, repo-wide convention rather than introducing a
   divergence.
-- The handwritten SQL is byte-for-byte faithful to what drizzle-kit *would* emit for
+- The handwritten SQL is byte-for-byte faithful to what drizzle-kit _would_ emit for
   this schema delta (column, FK with matching name + onDelete, partial index with
   matching name + predicate). There is no incompatible difference.
 
@@ -111,11 +111,13 @@ References `mediaFiles.id` with `onDelete("set null")`. ✓
 ### C4 — Partial index — PASS
 
 `patientFiles.ts:45-47`:
+
 ```ts
 index("idx_patient_files_media_file_id")
   .on(table.mediaFileId)
   .where(sql`media_file_id IS NOT NULL`),
 ```
+
 Mirrors the visit_id partial-index pattern already in the table. ✓
 
 ### C5 / C6 — Ports types — PASS
@@ -162,15 +164,18 @@ satisfying the "auto-created, ФИО name" DoD. ✓
 ### C12 — Tests — PASS
 
 Live run (under the orch test-lock mutex), from the worktree:
+
 ```
 Test Files  2 passed (2)
      Tests  11 passed (11)
 ```
+
 6 inMemory contract tests + 5 mocked-drizzle G3 tests. ✓
 
 ### C13 — G3 coverage — PASS
 
 `pgPatientFiles.g3.test.ts`:
+
 - G3a asserts the dual-insert sequence: two `insert` calls, result `mediaFileId` equals
   the id returned by the media_files insert, and the media_files insert receives
   `folderId`/`status: "ready"` while the patient_files insert receives the captured
@@ -201,11 +206,11 @@ No errors in any PFI-ST-04 file. ✓
 
 ## DoD reconciliation
 
-| DoD item | Status |
-|---|---|
-| Upload lands in patient «Пациенты» subfolder (auto-created, ФИО) | MET — route calls `pgEnsureClientPatientFolder` and routes the co-created media_files row into that folder via `folderId` |
-| `patient_files.media_file_id` set | MET — dual-insert links it |
-| Migration generated by drizzle-kit (no hand raw SQL) | DIVERGENT (ADVISORY) — handwritten, but equivalent; drizzle-kit can't run without a DB and the repo abandoned snapshots at 0035 |
+| DoD item                                                                                       | Status                                                                                                                                             |
+| ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Upload lands in patient «Пациенты» subfolder (auto-created, ФИО)                               | MET — route calls `pgEnsureClientPatientFolder` and routes the co-created media_files row into that folder via `folderId`                          |
+| `patient_files.media_file_id` set                                                              | MET — dual-insert links it                                                                                                                         |
+| Migration generated by drizzle-kit (no hand raw SQL)                                           | DIVERGENT (ADVISORY) — handwritten, but equivalent; drizzle-kit can't run without a DB and the repo abandoned snapshots at 0035                    |
 | G3 consistency: join-verifiable link; delete patient_files row → mediaFileId null, not cascade | MET — onDelete set null on the patient_files→media_files FK guarantees media_files survives patient_files deletion; partial index enables the join |
 
 ## Verdict
@@ -218,9 +223,10 @@ No errors in any PFI-ST-04 file. ✓
   guarded by tests.
 
 Advisory (non-blocking) for a future tightening pass:
+
 1. The migration's `ADD CONSTRAINT` has no existence guard (PG<16). Consistent with repo
    convention and protected by the drizzle migration ledger, but a `DO $$ ... $$` guard
    would make the file fully re-runnable.
-2. The set-null *behaviour* is asserted only at the schema-declaration level (mocked
+2. The set-null _behaviour_ is asserted only at the schema-declaration level (mocked
    drizzle), not against a live Postgres. Acceptable for this layer; a DB-integration
    test could exercise the real cascade on a future pass.

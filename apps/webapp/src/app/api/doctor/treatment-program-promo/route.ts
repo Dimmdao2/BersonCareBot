@@ -3,16 +3,16 @@
  * PATCH /api/doctor/treatment-program-promo — задать промо-шаблон (admin scope)
  * Guard: role doctor | admin
  */
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
-import { systemSettingsOrgContextErrorResponse } from "@/app-layer/guards/systemSettingsOrgContextResponse";
-import { invalidateConfigKey } from "@/modules/system-settings/configAdapter";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { systemSettingsOrgContextErrorResponse } from '@/app-layer/guards/systemSettingsOrgContextResponse';
+import { invalidateConfigKey } from '@/modules/system-settings/configAdapter';
 import {
   normalizePatientDefaultPromoTreatmentProgramTemplatePatch,
   PATIENT_DEFAULT_PROMO_TREATMENT_PROGRAM_TEMPLATE_ID_KEY,
-} from "@/modules/system-settings/patientDefaultPromoTreatmentProgramTemplate";
+} from '@/modules/system-settings/patientDefaultPromoTreatmentProgramTemplate';
 
 const patchBodySchema = z.object({
   templateId: z.string(),
@@ -29,18 +29,18 @@ export async function GET() {
       organizationId: gate.ctx.organizationId,
     }),
     deps.treatmentProgramInstance.countInstancesForAssignmentSource({
-      assignmentSource: "promo",
-      status: "active",
+      assignmentSource: 'promo',
+      status: 'active',
     }),
     deps.treatmentProgramInstance.countInstancesForAssignmentSource({
-      assignmentSource: "promo",
-      status: "completed",
+      assignmentSource: 'promo',
+      status: 'completed',
     }),
   ]);
 
   return NextResponse.json({
     ok: true,
-    templateId: templateId ?? "",
+    templateId: templateId ?? '',
     stats: { activePromo, completedPromo },
   });
 }
@@ -52,7 +52,7 @@ export async function PATCH(request: Request) {
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = patchBodySchema.safeParse(raw);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
 
   const deps = buildAppDeps();
@@ -67,7 +67,7 @@ export async function PATCH(request: Request) {
   try {
     await deps.systemSettings.updateSetting(
       PATIENT_DEFAULT_PROMO_TREATMENT_PROGRAM_TEMPLATE_ID_KEY,
-      "admin",
+      'admin',
       normalized.valueJson,
       gate.ctx.session.user.userId,
       { organizationId: gate.ctx.organizationId },

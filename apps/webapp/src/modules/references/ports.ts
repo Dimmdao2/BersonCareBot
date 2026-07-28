@@ -1,4 +1,4 @@
-import type { ReferenceCategory, ReferenceItem } from "./types";
+import type { ReferenceCategory, ReferenceItem } from './types';
 
 export type ReferencesPort = {
   /** Current global baseline for anonymous/public UI; never reads an organization's mutable copy. */
@@ -22,14 +22,20 @@ export type ReferencesPort = {
   }): Promise<ReferenceItem>;
   updateItem(
     itemId: string,
-    input: { title?: string; sortOrder?: number; isActive?: boolean }
+    input: { title?: string; sortOrder?: number; isActive?: boolean },
   ): Promise<ReferenceItem>;
   saveCatalog(
     categoryCode: string,
     input: {
-      updates: Array<{ id: string; code: string; title: string; sortOrder: number; isActive: boolean }>;
+      updates: Array<{
+        id: string;
+        code: string;
+        title: string;
+        sortOrder: number;
+        isActive: boolean;
+      }>;
       additions: Array<{ code: string; title: string; sortOrder: number }>;
-    }
+    },
   ): Promise<void>;
   archiveItem(itemId: string): Promise<void>;
   /** Sets deleted_at (soft delete); distinct from archive (is_active). */

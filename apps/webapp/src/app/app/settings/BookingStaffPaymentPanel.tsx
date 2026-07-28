@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import { useState, useTransition } from "react";
-import { apiJson } from "@/shared/lib/apiJson";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Label } from "@/shared/ui/doctor/primitives/label";
-import { paymentStatusLabel, timelineEventTitle } from "@/modules/client-history/labels";
+import { useState, useTransition } from 'react';
+import { apiJson } from '@/shared/lib/apiJson';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Label } from '@/shared/ui/doctor/primitives/label';
+import { paymentStatusLabel, timelineEventTitle } from '@/modules/client-history/labels';
 
 type PaymentSummary = {
   appointmentStatus: string;
@@ -20,7 +20,7 @@ type Props = {
 };
 
 function formatMinor(amountMinor: number, currency: string): string {
-  return (amountMinor / 100).toLocaleString("ru-RU", { style: "currency", currency });
+  return (amountMinor / 100).toLocaleString('ru-RU', { style: 'currency', currency });
 }
 
 export function BookingStaffPaymentPanel({ apiBase, appointmentId }: Props) {
@@ -38,13 +38,13 @@ export function BookingStaffPaymentPanel({ apiBase, appointmentId }: Props) {
         );
         if (!json.summary) {
           setSummary(null);
-          setError("not_found");
+          setError('not_found');
           return;
         }
         setSummary(json.summary);
       } catch (e) {
         setSummary(null);
-        setError(e instanceof Error ? e.message : "not_found");
+        setError(e instanceof Error ? e.message : 'not_found');
       }
     });
   }
@@ -53,7 +53,13 @@ export function BookingStaffPaymentPanel({ apiBase, appointmentId }: Props) {
     <div className="space-y-2 rounded-md border p-3">
       <div className="flex flex-wrap items-center gap-2">
         <Label className="text-sm">Оплата записи</Label>
-        <Button type="button" variant="outline" size="sm" disabled={pending || !appointmentId.trim()} onClick={load}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={pending || !appointmentId.trim()}
+          onClick={load}
+        >
           Показать
         </Button>
       </div>
@@ -63,17 +69,20 @@ export function BookingStaffPaymentPanel({ apiBase, appointmentId }: Props) {
           <p>Статус записи: {summary.appointmentStatus}</p>
           {summary.prepaymentQuote?.required ? (
             <p>
-              Предоплата: {formatMinor(summary.prepaymentQuote.amountMinor, summary.prepaymentQuote.currency)}
+              Предоплата:{' '}
+              {formatMinor(summary.prepaymentQuote.amountMinor, summary.prepaymentQuote.currency)}
             </p>
           ) : null}
           {summary.intent ? (
             <p>
-              Интент: {paymentStatusLabel(summary.intent.status)}, {formatMinor(summary.intent.amountMinor, "RUB")}
+              Интент: {paymentStatusLabel(summary.intent.status)},{' '}
+              {formatMinor(summary.intent.amountMinor, 'RUB')}
             </p>
           ) : null}
           {summary.payment ? (
             <p>
-              Платёж: {paymentStatusLabel(summary.payment.status)}, {formatMinor(summary.payment.amountMinor, "RUB")}
+              Платёж: {paymentStatusLabel(summary.payment.status)},{' '}
+              {formatMinor(summary.payment.amountMinor, 'RUB')}
             </p>
           ) : null}
           {summary.history.length > 0 ? (
@@ -81,7 +90,7 @@ export function BookingStaffPaymentPanel({ apiBase, appointmentId }: Props) {
               {summary.history.slice(0, 8).map((h, index) => (
                 <li key={`${h.eventType}-${h.occurredAt}-${index}`}>
                   {timelineEventTitle(h.eventType)}
-                  {h.amountMinor != null ? ` · ${formatMinor(h.amountMinor, "RUB")}` : ""}
+                  {h.amountMinor != null ? ` · ${formatMinor(h.amountMinor, 'RUB')}` : ''}
                 </li>
               ))}
             </ul>

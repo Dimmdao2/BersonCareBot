@@ -11,12 +11,12 @@
 > 2026-07-23» под FLIP-BLOCKERS всё ещё говорит «шаги 1-3 остаются [ ]» — это фактически устарело (шаги 1-3
 > подтверждённо сделаны), помечено `SUPERSEDED` на месте, а не удалено.
 
-> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
+> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/\_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
 >
 > **⚠️ STALE-CORRECTION (verified live on TEST 2026-07-24):** the §Checklist step-3 boxes and the 07-23 note
 > "step 3 (RLS DSL split) not done / bootstrap_hybrid_org_gated never added" are **WRONG — that work IS done and
 > DEPLOYED on TEST.** Reality: `rls-descriptor-model.mjs:205` gives both PII tables `scopingKind:
-> "bootstrap_hybrid_org_gated"`; `renderBootstrapHybridOrgGatedPredicate` (rls-sql-renderer.mjs:504);
+"bootstrap_hybrid_org_gated"`; `renderBootstrapHybridOrgGatedPredicate` (rls-sql-renderer.mjs:504);
 > `p0-8-6-policy-targets.mjs` asserts per-table shapes; live TEST policy `saas_bootstrap_hybrid_p0_8_6` = the
 > exact strict gated predicate under FORCE (relforcerowsecurity=t) → **the NULL-org staff-read leak is CLOSED on
 > TEST.** New canon for current status: `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/SERVER_FINISH_EXECUTION_LEDGER_2026-07-24.md` §item 5.
@@ -30,18 +30,22 @@
 > Branch `auto/code-pg-delta`. NOT pushed to main/test. Validation ONLY on disposable `bcb_saas_*_rehearsal_*`.
 
 ## Problem (the hole)
+
 `public.platform_user_contacts` and `public.user_phone_history` are `scopingKind: bootstrap_hybrid`
 (`rls-descriptor-model.mjs:34-40`). Their RLS predicate
 (`renderBootstrapHybridPredicate`, `rls-sql-renderer.mjs:491-495`) is:
+
 ```
 ("organization_id" IS NULL OR (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()))
 ```
+
 The leading unqualified `"organization_id" IS NULL` makes every NULL-org row readable by ANY session
 (incl. any clinic's staff). That is the leak to close at enforce. The other 3 hybrid tables
 (`system_settings`, `system_settings_audit`, `integrator.system_settings`) legitimately keep global-NULL
 (platform defaults) — DO NOT change them.
 
 ## Target predicate (strict) — BOTH PII tables, surgical single change
+
 ```
 (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())
 OR
@@ -51,12 +55,14 @@ OR
    AND app.current_integrator_user_id() IS NULL
    AND NOT app.is_staff())
 ```
+
 - Closes hole: staff of clinic A (current_org_id=A) never matches the NULL branch → no global NULL read.
 - Keeps integrator write of phone_history (org-match branch has NO `is_staff()` gate; patient never carries org, so no exploit).
 - Keeps bootstrap read/write of genuine NULL rows (OTP/messenger/public-booking run under context-less bootstrap principal → matches the 2nd branch).
 - DORMANT wrap = `((dormantCompatibilityPredicate) OR strict)` (the SCOPED path, NOT the bootstrap_hybrid short-circuit) so legacy `legacy-guc` clinic #1 still sees ALL rows → **not blocked**.
 
 ## Three traps the implementation MUST respect
+
 1. **Dormant trap:** these 2 tables must flow through the general dormant path
    (`renderPhase4DormantCompatPredicate` line ~90 → `((dormantCompat) OR strict)`), NOT the
    `scopingKind === "bootstrap_hybrid"` short-circuit at `phase4-locked-policy-artifact.mjs:86-88`.
@@ -76,8 +82,8 @@ OR
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 ### 1. Drizzle schema + migration
+
 - [x] **Add `organizationId: uuid("organization_id")` (nullable) + `idx_*_organization_id` + idempotent FK to
       `be_organizations(id) ON DELETE CASCADE` to `platform_user_contacts` (`apps/webapp/db/schema/platformUserContacts.ts`).** —
       `apps/webapp/db/schema/platformUserContacts.ts:14` (column), `:30` (`idx_platform_user_contacts_organization_id`),
@@ -99,9 +105,10 @@ OR
       EXCEPTION) reporting residual NULL count per table.** — migration `0178_pii_bootstrap_org_scope.sql`'s
       `user_org` CTE is exactly this UNION+`HAVING count(DISTINCT organization_id)=1` shape for both tables, no
       COALESCE-to-default, and ends with a `DO $$ ... RAISE NOTICE 'P0.8.6 PII bootstrap org scope residual NULL
-      ...'` block (not an exception) reporting both residual counts.
+    ...'` block (not an exception) reporting both residual counts.
 
 ### 2. Repos stamp organization_id
+
 - [x] **`pgPlatformUserContacts.upsertContact`: stamp `organization_id` from `getCurrentDbPrincipalOrganizationId()`
       (`@bersoncare/db-principal`) — set for doctor/admin; `undefined` (→ NULL) for booking/bootstrap.** —
       `apps/webapp/src/infra/repos/pgPlatformUserContacts.ts:1,54,59`.
@@ -115,6 +122,7 @@ OR
       callers (OTP/messenger/booking) naturally get `NULL` with no code change needed at the call sites.
 
 ### 3. Enforce policy (RLS DSL) — split the 2 PII tables off bootstrap_hybrid
+
 - [x] **`rls-descriptor-model.mjs`: give `platform_user_contacts` + `user_phone_history` a new scopingKind
       (e.g. `bootstrap_hybrid_org_gated`) + new predicateTemplate; keep the 3 system_settings on `bootstrap_hybrid`.** —
       `docs/_TODO/SAAS_FOUNDATION/scripts/rls-descriptor-model.mjs:40-43` (`bootstrapHybridOrgGatedTables` Set
@@ -148,6 +156,7 @@ OR
       descriptors, missing/unknown deny, ...".
 
 ### 4. Verify (orchestrator runs 4b/4c on disposable copy)
+
 - [x] **4a. `node scripts/check-saas-db-regression.mjs` green (static suite).** — re-run 2026-07-27:
       `check-saas-db-regression: OK` (full suite, incl. `check-phase4-force-cutover-sql: OK (168 targets)`,
       `check-phase4-locked-policy-artifact: OK (168 policies...)`).
@@ -171,6 +180,7 @@ OR
       входит и `pgUserByPhone.createOrBind.test.ts`, ранее не посчитанный).
 
 ### 5. Independent audit + acceptance
+
 - [x] **Independent adversarial audit by a DIFFERENT model (reality-check: predicate correctness, dormant trap,
       integrator/bootstrap write paths, no clinic #1 lockout, checker coverage).** — ✅ **PASS. Свежий
       адверсарный аудит 2026-07-27 против ЖИВОГО кода** (не против отчёта и не по цитате прошлого аудита).
@@ -196,6 +206,7 @@ OR
       taskdb #708 `commit_ref` found in this pass; left open.
 
 ## Status (2026-07-12)
+
 Steps 1–3 implemented (Codex 5.5) + independently re-verified by lead against reality: all 6 RLS/journal checks,
 `check-saas-db-regression`, webapp `tsc`, 33 scoped repo tests GREEN. R2 real-policy smoke GREEN on a real temp
 cluster, extended with PERMANENT PII NULL-gating assertions proving on strict+FORCE: staff sees only its org rows
@@ -203,7 +214,9 @@ cluster, extended with PERMANENT PII NULL-gating assertions proving on strict+FO
 blocked. Independent adversarial audit: **SHIP-WITH-FIXES** — core correct, hole closed exactly, dormant-safe.
 
 ## FB#1/FB#2 progress (2026-07-12, deep multi-layer — enforce-only, dormant-safe, NOT needed for TEST-dormant)
+
 Implemented + rehearsal-verified in layers (each caught by the LIVE prod-copy rehearsal, not by mocked tests):
+
 - **FB#2 DONE**: pre-FORCE flip-gate asserts the bootstrap base role is NOBYPASSRLS + not a staff member + can
   EXECUTE the close function; and the owner role is BYPASSRLS + has UPDATE on user_phone_history. Green.
 - **FB#1 function + grants + own-data guard**: `app.close_active_user_phone_history` (SECURITY DEFINER, owner
@@ -232,68 +245,69 @@ Implemented + rehearsal-verified in layers (each caught by the LIVE prod-copy re
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
 - [ ] **FB#1-bootstrap [HIGH] prove the bootstrap/OTP phone-write path under enforce** (topology-fidelity above).
-  **Confirmed still open 2026-07-27** — no rehearsal-topology fix or fresh proof found in this pass; leave open.
+      **Confirmed still open 2026-07-27** — no rehearsal-topology fix or fresh proof found in this pass; leave open.
 - [ ] **FB#1 [HIGH] user_phone_history close-prior UPDATE vs partial unique index.** Under strict RLS an org-context
-  session (admin/integrator) cannot SEE a prior NULL-org active row (OTP/messenger/booking bootstrap origin), so
-  `applyPlatformUserPhoneHistoryTransition`'s `UPDATE ... WHERE valid_to IS NULL` won't close it; the new-active
-  INSERT then violates `uq_user_phone_history_user_active` (unique indexes ignore RLS) → phone-update tx rollback.
-  Latent (dormant app role is BYPASSRLS → no break; bites only at locked+FORCE). Fix options (owner triage):
-  (a) close prior via SECURITY DEFINER helper closing ALL the user's active rows regardless of org; (b) re-stamp
-  org on transition; (c) pre-flip invariant: no NULL-org active row survives for an org-known user.
-  **🟢 РЕШЕНО ВЛАДЕЛЬЦЕМ 2026-07-27: вариант (b) + (c). Дословно: «вариант (b)+(c) - ок».**
-  Вариант **(a) ОТКЛОНЁН** — не заводить новую SECURITY DEFINER функцию ради этого. Причина, изложенная
-  владельцу при рекомендации: в системе уже 45 definer-функций, и именно на них держится запрет снимать
-  FORCE-RLS; 46-я расширяет поверхность обхода стен ради одного частного случая.
-  **Что делать конкретно:**
+      session (admin/integrator) cannot SEE a prior NULL-org active row (OTP/messenger/booking bootstrap origin), so
+      `applyPlatformUserPhoneHistoryTransition`'s `UPDATE ... WHERE valid_to IS NULL` won't close it; the new-active
+      INSERT then violates `uq_user_phone_history_user_active` (unique indexes ignore RLS) → phone-update tx rollback.
+      Latent (dormant app role is BYPASSRLS → no break; bites only at locked+FORCE). Fix options (owner triage):
+      (a) close prior via SECURITY DEFINER helper closing ALL the user's active rows regardless of org; (b) re-stamp
+      org on transition; (c) pre-flip invariant: no NULL-org active row survives for an org-known user.
+      **🟢 РЕШЕНО ВЛАДЕЛЬЦЕМ 2026-07-27: вариант (b) + (c). Дословно: «вариант (b)+(c) - ок».**
+      Вариант **(a) ОТКЛОНЁН** — не заводить новую SECURITY DEFINER функцию ради этого. Причина, изложенная
+      владельцу при рекомендации: в системе уже 45 definer-функций, и именно на них держится запрет снимать
+      FORCE-RLS; 46-я расширяет поверхность обхода стен ради одного частного случая.
+      **Что делать конкретно:**
   - **(b) постоянное правило:** при переходе телефона проставлять `organization_id` на строку истории, как
     только клиника известна. Тогда org-контекстная сессия ВИДИТ прошлую активную строку, обычный
     `UPDATE ... WHERE valid_to IS NULL` её закрывает, и уникальный индекс не срабатывает. Никаких обходов
     стен не требуется. Точка правки — `applyPlatformUserPhoneHistoryTransition` (`pgPhoneHistory.ts`).
   - **(c) разовая чистка ПЕРЕД включением стен:** ни у одного человека с известной клиникой не должно
     остаться активной строки без организации. Прогоняется один раз, до флипа, с отчётом об остатке.
-  **Целевой инвариант, который это даёт:** если клиника у человека известна — его активная строка телефона
-  несёт эту клинику. Строки без организации остаются легальными только для тех, у кого клиники ещё нет
-  (вход по СМС-коду, привязка мессенджера, публичная запись до определения клиники) — а такие сессии и так
-  проходят через NULL-ветку предиката.
-  **Обоснование самой таблицы истории** (владелец спросил «кто так вообще делает»): паттерн стандартный —
-  SCD-2 / effective-dating, в медицинском стандарте HL7 FHIR это поле `ContactPoint.period`. Ключевая
-  причина здесь — переиспользование номеров операторами: телефон является и фактором входа (СМС-код), и
-  каналом медицинских напоминаний, поэтому без интервалов действия напоминание пациента может уйти
-  постороннему, получившему его старый номер. Исследование с источниками — в ответе владельцу 27.07.
+    **Целевой инвариант, который это даёт:** если клиника у человека известна — его активная строка телефона
+    несёт эту клинику. Строки без организации остаются легальными только для тех, у кого клиники ещё нет
+    (вход по СМС-коду, привязка мессенджера, публичная запись до определения клиники) — а такие сессии и так
+    проходят через NULL-ветку предиката.
+    **Обоснование самой таблицы истории** (владелец спросил «кто так вообще делает»): паттерн стандартный —
+    SCD-2 / effective-dating, в медицинском стандарте HL7 FHIR это поле `ContactPoint.period`. Ключевая
+    причина здесь — переиспользование номеров операторами: телефон является и фактором входа (СМС-код), и
+    каналом медицинских напоминаний, поэтому без интервалов действия напоминание пациента может уйти
+    постороннему, получившему его старый номер. Исследование с источниками — в ответе владельцу 27.07.
 - [ ] **FB#2 [MEDIUM] locked-mode bootstrap base DB role must be NOBYPASSRLS AND not a member of app_staff.**
-  Bootstrap/infra principals `RESET ROLE` to the base `DATABASE_URL` role (db-principal `applySignedDbPrincipal`
-  early-returns for bootstrap). If that role ∈ app_staff → `NOT app.is_staff()` false → bootstrap NULL reads/writes
-  fail closed; if BYPASSRLS → bootstrap sees every clinic. R2 smoke proves the DESIRED role shape works; add a
-  flip-gate assertion on the real locked base role.
-  **Checked 2026-07-27:** found `check-saas-d3-4-bootstrap-base-login-grants.mjs` with `NOBYPASSRLS` +
-  `NOT pg_has_role(..., 'app_staff', 'MEMBER')` assertions, but for a `d3_4_media_worker_runtime_role`, not
-  clearly the general locked-mode bootstrap base role this item describes — not confident enough to tick. Left
-  open; needs a closer read of that script (or its sibling `check-saas-d3-4-bootstrap-base-login-read-grants.sql`,
-  currently modified/in-flight per git status) to confirm scope before ticking.
+      Bootstrap/infra principals `RESET ROLE` to the base `DATABASE_URL` role (db-principal `applySignedDbPrincipal`
+      early-returns for bootstrap). If that role ∈ app_staff → `NOT app.is_staff()` false → bootstrap NULL reads/writes
+      fail closed; if BYPASSRLS → bootstrap sees every clinic. R2 smoke proves the DESIRED role shape works; add a
+      flip-gate assertion on the real locked base role.
+      **Checked 2026-07-27:** found `check-saas-d3-4-bootstrap-base-login-grants.mjs` with `NOBYPASSRLS` +
+      `NOT pg_has_role(..., 'app_staff', 'MEMBER')` assertions, but for a `d3_4_media_worker_runtime_role`, not
+      clearly the general locked-mode bootstrap base role this item describes — not confident enough to tick. Left
+      open; needs a closer read of that script (or its sibling `check-saas-d3-4-bootstrap-base-login-read-grants.sql`,
+      currently modified/in-flight per git status) to confirm scope before ticking.
 - [ ] Full prod-copy rehearsal DONE (dump 20260712_201501, 251 users): deploy-667 GREEN, migration applied,
-  contacts_null_org=0 on real data, dormant clinic#1 not blocked, strict+FORCE who-sees-what matrix ALL CONFIRMED,
-  disposable copy dropped, prod untouched. → landed change PROVEN end-to-end on real data.
-  (REOPENED 2026-07-23: migration 0178 + schema/repo org-stamping code do exist and match this description, but the
-  "ALL CONFIRMED" rehearsal claim itself has no corroborating artifact — no LOG.md row, no taskdb ref, no evidence
-  file anywhere in the repo references this dump/run, unlike every other prod-copy rehearsal in this initiative
-  (e.g. DEPLOY_667_SEQUENCE.md, LOG.md #708). It also directly conflicts with this same file's own next section:
-  "FB#1 BOOTSTRAP-session enforce path — NOT YET PROVEN... fails at the bootstrap session's own INSERT" — the
-  bootstrap write path this line claims was "ALL CONFIRMED" is documented two paragraphs later as unproven and
-  failing. ~~Steps 1-3 of the numbered checklist above remain correctly `[ ]` (RLS-policy split /
-  bootstrap_hybrid_org_gated scopingKind was never added to rls-descriptor-model.mjs/rls-sql-renderer.mjs), so the
-  enforcement side of Task A is genuinely not done;~~ **SUPERSEDED 2026-07-24/27:** this specific claim is now
-  wrong — steps 1-3 ARE done (per the ⚠️ STALE-CORRECTION note at the top of this file, re-verified independently
-  2026-07-27 against `rls-descriptor-model.mjs:40-43,201-209`, `rls-sql-renderer.mjs:520,646`,
-  `phase4-locked-policy-artifact.mjs:93-95,121-126`, and 5 green checker runs — see §3 checklist above, all
-  ticked). **What is STILL VALID from this REOPENED note and NOT superseded:** the core critique that the "ALL
-  CONFIRMED" prod-copy rehearsal claim itself has no corroborating artifact — that remains true; no such artifact
-  was found in this 2026-07-27 pass either. **this self-reported rehearsal line overstates verification and
-  is downgraded pending an actual reproducible artifact.)**
+      contacts_null_org=0 on real data, dormant clinic#1 not blocked, strict+FORCE who-sees-what matrix ALL CONFIRMED,
+      disposable copy dropped, prod untouched. → landed change PROVEN end-to-end on real data.
+      (REOPENED 2026-07-23: migration 0178 + schema/repo org-stamping code do exist and match this description, but the
+      "ALL CONFIRMED" rehearsal claim itself has no corroborating artifact — no LOG.md row, no taskdb ref, no evidence
+      file anywhere in the repo references this dump/run, unlike every other prod-copy rehearsal in this initiative
+      (e.g. DEPLOY_667_SEQUENCE.md, LOG.md #708). It also directly conflicts with this same file's own next section:
+      "FB#1 BOOTSTRAP-session enforce path — NOT YET PROVEN... fails at the bootstrap session's own INSERT" — the
+      bootstrap write path this line claims was "ALL CONFIRMED" is documented two paragraphs later as unproven and
+      failing. ~~Steps 1-3 of the numbered checklist above remain correctly `[ ]` (RLS-policy split /
+      bootstrap_hybrid_org_gated scopingKind was never added to rls-descriptor-model.mjs/rls-sql-renderer.mjs), so the
+      enforcement side of Task A is genuinely not done;~~ **SUPERSEDED 2026-07-24/27:** this specific claim is now
+      wrong — steps 1-3 ARE done (per the ⚠️ STALE-CORRECTION note at the top of this file, re-verified independently
+      2026-07-27 against `rls-descriptor-model.mjs:40-43,201-209`, `rls-sql-renderer.mjs:520,646`,
+      `phase4-locked-policy-artifact.mjs:93-95,121-126`, and 5 green checker runs — see §3 checklist above, all
+      ticked). **What is STILL VALID from this REOPENED note and NOT superseded:** the core critique that the "ALL
+      CONFIRMED" prod-copy rehearsal claim itself has no corroborating artifact — that remains true; no such artifact
+      was found in this 2026-07-27 pass either. **this self-reported rehearsal line overstates verification and
+      is downgraded pending an actual reproducible artifact.)**
 - [ ] Owner live acceptance folds into TASK B TEST-dormant deploy walkthrough (register new specialist → empty
-  patient base; existing clinic keeps working). — no evidence of this walkthrough having happened found in this
-  pass; left open.
+      patient base; existing clinic keeps working). — no evidence of this walkthrough having happened found in this
+      pass; left open.
 
 ## Audit notes (LOW / no action)
+
 - 0178 does NOT re-create the drizzle 0163 policy (deploy artifact is canonical; dormant no-op under BYPASSRLS) — by design.
 - contacts onConflict `COALESCE(existing, EXCLUDED)` keeps first-writer org (unique key excludes org) — acceptable, contacts ≠ identity.
 - `pgTreatmentTail15C.repo.test.ts` stamps org on a source=otp INSERT (mocked principal) — parity test only, fine.

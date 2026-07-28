@@ -1,19 +1,27 @@
-import { NextResponse } from "next/server";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { upsertOpenConflictLog, writeAuditLog, computeConflictKeyFromCandidateIds } from "@/app-layer/admin/auditLog";
-import { integratorAutoMergeAnomalyDedupKey } from "@/modules/admin-incidents/integratorAutoMergeAnomalyDedup";
-import { sendAdminIncidentRelayAlert } from "@/modules/admin-incidents/sendAdminIncidentAlerts";
-import { getPool } from "@/app-layer/db/client";
+import { NextResponse } from 'next/server';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import {
+  upsertOpenConflictLog,
+  writeAuditLog,
+  computeConflictKeyFromCandidateIds,
+} from '@/app-layer/admin/auditLog';
+import { integratorAutoMergeAnomalyDedupKey } from '@/modules/admin-incidents/integratorAutoMergeAnomalyDedup';
+import { sendAdminIncidentRelayAlert } from '@/modules/admin-incidents/sendAdminIncidentAlerts';
+import { getPool } from '@/app-layer/db/client';
 import {
   computeIntegratorEventsRequestHash,
   listIgnoredReminderRuleUpsertPayloadKeys,
-} from "@/app-layer/idempotency/integratorEventSemanticHash";
-import { logger } from "@/infra/logging/logger";
-import { handleIntegratorEvent } from "@/modules/integrator/events";
-import { resolveCanonicalUserId } from "@/app-layer/platform-user/canonicalPlatformUser";
-import { getCachedResponse, isKeyValid, setCachedResponse } from "@/app-layer/idempotency/idempotencyStore";
-import { verifyIntegratorSignature } from "@/app-layer/integrator/verifyIntegratorSignature";
-import { enterVerifiedIntegratorOrganizationPrincipal } from "@/app-layer/principal/integratorOrganizationPrincipal";
+} from '@/app-layer/idempotency/integratorEventSemanticHash';
+import { logger } from '@/infra/logging/logger';
+import { handleIntegratorEvent } from '@/modules/integrator/events';
+import { resolveCanonicalUserId } from '@/app-layer/platform-user/canonicalPlatformUser';
+import {
+  getCachedResponse,
+  isKeyValid,
+  setCachedResponse,
+} from '@/app-layer/idempotency/idempotencyStore';
+import { verifyIntegratorSignature } from '@/app-layer/integrator/verifyIntegratorSignature';
+import { enterVerifiedIntegratorOrganizationPrincipal } from '@/app-layer/principal/integratorOrganizationPrincipal';
 
 function eventBodyFromParsed(parsed: Record<string, unknown>): {
   eventType: string;
@@ -22,59 +30,71 @@ function eventBodyFromParsed(parsed: Record<string, unknown>): {
   idempotencyKey?: string;
   payload?: Record<string, unknown>;
 } | null {
-  if (typeof parsed.eventType !== "string" || parsed.eventType.trim() === "") return null;
+  if (typeof parsed.eventType !== 'string' || parsed.eventType.trim() === '') return null;
   return {
     eventType: parsed.eventType,
-    eventId: typeof parsed.eventId === "string" ? parsed.eventId : undefined,
-    occurredAt: typeof parsed.occurredAt === "string" ? parsed.occurredAt : undefined,
-    idempotencyKey: typeof parsed.idempotencyKey === "string" ? parsed.idempotencyKey : undefined,
-    payload: typeof parsed.payload === "object" && parsed.payload !== null ? (parsed.payload as Record<string, unknown>) : undefined,
+    eventId: typeof parsed.eventId === 'string' ? parsed.eventId : undefined,
+    occurredAt: typeof parsed.occurredAt === 'string' ? parsed.occurredAt : undefined,
+    idempotencyKey: typeof parsed.idempotencyKey === 'string' ? parsed.idempotencyKey : undefined,
+    payload:
+      typeof parsed.payload === 'object' && parsed.payload !== null
+        ? (parsed.payload as Record<string, unknown>)
+        : undefined,
   };
 }
 
 export async function POST(request: Request) {
-  const timestamp = request.headers.get("x-bersoncare-timestamp");
-  const signature = request.headers.get("x-bersoncare-signature");
-  const idempotencyKey = request.headers.get("x-bersoncare-idempotency-key");
+  const timestamp = request.headers.get('x-bersoncare-timestamp');
+  const signature = request.headers.get('x-bersoncare-signature');
+  const idempotencyKey = request.headers.get('x-bersoncare-idempotency-key');
   const rawBody = await request.text();
 
   if (!timestamp || !signature || !idempotencyKey) {
-    return NextResponse.json({ ok: false, error: "missing webhook headers" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'missing webhook headers' }, { status: 400 });
   }
   if (!isKeyValid(idempotencyKey)) {
-    return NextResponse.json({ ok: false, error: "invalid idempotency key" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid idempotency key' }, { status: 400 });
   }
 
   if (!verifyIntegratorSignature(timestamp, rawBody, signature, request)) {
-    return NextResponse.json({ ok: false, error: "invalid signature" }, { status: 401 });
+    return NextResponse.json({ ok: false, error: 'invalid signature' }, { status: 401 });
   }
 
   let parsed: Record<string, unknown>;
   try {
     parsed = JSON.parse(rawBody) as Record<string, unknown>;
   } catch {
-    return NextResponse.json({ ok: false, error: "invalid body: eventType required" }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, error: 'invalid body: eventType required' },
+      { status: 400 },
+    );
   }
 
   const eventBody = eventBodyFromParsed(parsed);
   if (!eventBody) {
-    return NextResponse.json({ ok: false, error: "invalid body: eventType required" }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, error: 'invalid body: eventType required' },
+      { status: 400 },
+    );
   }
   if (eventBody.idempotencyKey && eventBody.idempotencyKey !== idempotencyKey) {
-    return NextResponse.json({ ok: false, error: "idempotency key mismatch between header and body" }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, error: 'idempotency key mismatch between header and body' },
+      { status: 400 },
+    );
   }
 
-  if (eventBody.eventType === "support.delivery.attempt.logged") {
+  if (eventBody.eventType === 'support.delivery.attempt.logged') {
     const organizationId = eventBody.payload?.organizationId;
     if (
-      typeof organizationId !== "string"
-      || !enterVerifiedIntegratorOrganizationPrincipal(
+      typeof organizationId !== 'string' ||
+      !enterVerifiedIntegratorOrganizationPrincipal(
         organizationId,
-        "integrator-support-delivery-attempt-event",
+        'integrator-support-delivery-attempt-event',
       )
     ) {
       return NextResponse.json(
-        { ok: false, error: "valid payload.organizationId required" },
+        { ok: false, error: 'valid payload.organizationId required' },
         { status: 400 },
       );
     }
@@ -82,9 +102,9 @@ export async function POST(request: Request) {
 
   const requestHash = computeIntegratorEventsRequestHash(parsed);
   const cached = await getCachedResponse(idempotencyKey, requestHash);
-  if (cached.hit && "mismatch" in cached && cached.mismatch) {
+  if (cached.hit && 'mismatch' in cached && cached.mismatch) {
     const payload =
-      typeof eventBody.payload === "object" && eventBody.payload !== null
+      typeof eventBody.payload === 'object' && eventBody.payload !== null
         ? eventBody.payload
         : undefined;
     logger.warn(
@@ -93,15 +113,18 @@ export async function POST(request: Request) {
         idempotencyKey,
         incomingRequestHash: requestHash,
         storedRequestHash: cached.storedRequestHash,
-        ...(eventBody.eventType === "reminder.rule.upserted" && payload
+        ...(eventBody.eventType === 'reminder.rule.upserted' && payload
           ? { ignoredPayloadKeys: listIgnoredReminderRuleUpsertPayloadKeys(payload) }
           : {}),
       },
-      "integrator_events_idempotency_mismatch",
+      'integrator_events_idempotency_mismatch',
     );
-    return NextResponse.json({ ok: false, error: "idempotency key reused with different payload" }, { status: 409 });
+    return NextResponse.json(
+      { ok: false, error: 'idempotency key reused with different payload' },
+      { status: 409 },
+    );
   }
-  if (cached.hit && "status" in cached) {
+  if (cached.hit && 'status' in cached) {
     return NextResponse.json(cached.body, { status: cached.status });
   }
 
@@ -113,7 +136,7 @@ export async function POST(request: Request) {
         if (input.candidateIds.length === 0) {
           await writeAuditLog(pool, {
             actorId: null,
-            action: "auto_merge_conflict_anomaly",
+            action: 'auto_merge_conflict_anomaly',
             details: {
               eventType: input.eventType,
               reason: input.reason,
@@ -121,10 +144,10 @@ export async function POST(request: Request) {
               payloadPreview: input.payloadPreview,
               conflictClass: input.conflictClass,
             },
-            status: "error",
+            status: 'error',
           });
           void sendAdminIncidentRelayAlert({
-            topic: "auto_merge_conflict_anomaly",
+            topic: 'auto_merge_conflict_anomaly',
             dedupKey: integratorAutoMergeAnomalyDedupKey({
               eventType: input.eventType,
               reason: input.reason,
@@ -132,7 +155,7 @@ export async function POST(request: Request) {
               integratorUserIds: input.integratorUserIds,
             }),
             lines: [
-              "auto_merge_conflict_anomaly",
+              'auto_merge_conflict_anomaly',
               `eventType=${input.eventType}`,
               `reason=${String(input.reason)}`,
               `conflictClass=${String(input.conflictClass)}`,
@@ -151,18 +174,18 @@ export async function POST(request: Request) {
             payloadPreview: input.payloadPreview,
             conflictClass: input.conflictClass,
           },
-          status: "error",
+          status: 'error',
         });
-        if (up.kind === "conflict" && up.insertedFirst) {
+        if (up.kind === 'conflict' && up.insertedFirst) {
           try {
             const conflictKey = computeConflictKeyFromCandidateIds(input.candidateIds);
             void sendAdminIncidentRelayAlert({
-              topic: "auto_merge_conflict",
+              topic: 'auto_merge_conflict',
               dedupKey: conflictKey,
               lines: [
-                "auto_merge_conflict (integrator projection)",
+                'auto_merge_conflict (integrator projection)',
                 `eventType=${input.eventType}`,
-                `candidateIds=${input.candidateIds.join(",")}`,
+                `candidateIds=${input.candidateIds.join(',')}`,
                 `reason=${String(input.reason)}`,
               ],
             }).catch(() => {});
@@ -199,7 +222,7 @@ export async function POST(request: Request) {
     const stored = await setCachedResponse(idempotencyKey, requestHash, status, body);
     if (!stored) {
       const again = await getCachedResponse(idempotencyKey, requestHash);
-      if (again.hit && "mismatch" in again && again.mismatch) {
+      if (again.hit && 'mismatch' in again && again.mismatch) {
         logger.warn(
           {
             eventType: eventBody.eventType,
@@ -207,11 +230,14 @@ export async function POST(request: Request) {
             incomingRequestHash: requestHash,
             storedRequestHash: again.storedRequestHash,
           },
-          "integrator_events_idempotency_mismatch",
+          'integrator_events_idempotency_mismatch',
         );
-        return NextResponse.json({ ok: false, error: "idempotency key reused with different payload" }, { status: 409 });
+        return NextResponse.json(
+          { ok: false, error: 'idempotency key reused with different payload' },
+          { status: 409 },
+        );
       }
-      if (again.hit && "status" in again) {
+      if (again.hit && 'status' in again) {
         return NextResponse.json(again.body, { status: again.status });
       }
     }

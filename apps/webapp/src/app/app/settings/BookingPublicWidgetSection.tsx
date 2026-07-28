@@ -1,26 +1,26 @@
-"use client";
+'use client';
 
-import { useEffect, useMemo, useState, useTransition } from "react";
-import Link from "next/link";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Button, buttonVariants } from "@/shared/ui/doctor/primitives/button";
-import { cn } from "@/lib/utils";
-import { Label } from "@/shared/ui/doctor/primitives/label";
-import { apiJson } from "@/shared/lib/apiJson";
+import { useEffect, useMemo, useState, useTransition } from 'react';
+import Link from 'next/link';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
+import { cn } from '@/lib/utils';
+import { Label } from '@/shared/ui/doctor/primitives/label';
+import { apiJson } from '@/shared/lib/apiJson';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/ui/doctor/primitives/select";
-import { buildPublicBookingWidgetOutputs } from "@/shared/publicBook/adminWidgetUrls";
-import { BOOKING_FORM_MAX_WIDTH_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
+} from '@/shared/ui/doctor/primitives/select';
+import { buildPublicBookingWidgetOutputs } from '@/shared/publicBook/adminWidgetUrls';
+import { BOOKING_FORM_MAX_WIDTH_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 
-const OVERVIEW = "/api/admin/booking-engine/overview";
+const OVERVIEW = '/api/admin/booking-engine/overview';
 
 function originFromWindow(): string {
-  if (typeof window === "undefined") return "";
+  if (typeof window === 'undefined') return '';
   return window.location.origin;
 }
 
@@ -41,11 +41,11 @@ type PublicWidgetOverview = {
 
 export function BookingPublicWidgetSection() {
   const origin = originFromWindow();
-  const [utmSource, setUtmSource] = useState("");
-  const [utmMedium, setUtmMedium] = useState("");
-  const [utmCampaign, setUtmCampaign] = useState("");
-  const [branchId, setBranchId] = useState("");
-  const [serviceId, setServiceId] = useState("");
+  const [utmSource, setUtmSource] = useState('');
+  const [utmMedium, setUtmMedium] = useState('');
+  const [utmCampaign, setUtmCampaign] = useState('');
+  const [branchId, setBranchId] = useState('');
+  const [serviceId, setServiceId] = useState('');
   const [branches, setBranches] = useState<BranchRow[]>([]);
   const [services, setServices] = useState<ServiceRow[]>([]);
   const [publicWidget, setPublicWidget] = useState<PublicWidgetOverview | null>(null);
@@ -81,15 +81,15 @@ export function BookingPublicWidgetSection() {
   const publicAvailability = publicWidget?.specialistAvailability ?? [];
   const isBookableSelection = Boolean(
     publicSlug &&
-      publicAvailability.some(
-        (availability) =>
-          availability.isActive &&
-          availability.branchId === branchId &&
-          availability.serviceId === serviceId &&
-          publicSpecialists.some(
-            (specialist) => specialist.isActive && specialist.id === availability.specialistId,
-          ),
-      ),
+    publicAvailability.some(
+      (availability) =>
+        availability.isActive &&
+        availability.branchId === branchId &&
+        availability.serviceId === serviceId &&
+        publicSpecialists.some(
+          (specialist) => specialist.isActive && specialist.id === availability.specialistId,
+        ),
+    ),
   );
   const outputs = useMemo(
     () =>
@@ -103,7 +103,16 @@ export function BookingPublicWidgetSection() {
             utmCampaign,
           })
         : null,
-    [origin, publicSlug, isBookableSelection, branchId, serviceId, utmSource, utmMedium, utmCampaign],
+    [
+      origin,
+      publicSlug,
+      isBookableSelection,
+      branchId,
+      serviceId,
+      utmSource,
+      utmMedium,
+      utmCampaign,
+    ],
   );
 
   async function copyText(text: string) {
@@ -120,7 +129,10 @@ export function BookingPublicWidgetSection() {
       <div className={`mt-3 grid gap-2 sm:grid-cols-2 ${BOOKING_FORM_MAX_WIDTH_CLASS}`}>
         <div className="space-y-2">
           <Label>Локация</Label>
-          <Select value={branchId || "__none__"} onValueChange={(v) => setBranchId(!v || v === "__none__" ? "" : v)}>
+          <Select
+            value={branchId || '__none__'}
+            onValueChange={(v) => setBranchId(!v || v === '__none__' ? '' : v)}
+          >
             <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>
@@ -139,8 +151,8 @@ export function BookingPublicWidgetSection() {
         <div className="space-y-2">
           <Label>Услуга</Label>
           <Select
-            value={serviceId || "__none__"}
-            onValueChange={(v) => setServiceId(!v || v === "__none__" ? "" : v)}
+            value={serviceId || '__none__'}
+            onValueChange={(v) => setServiceId(!v || v === '__none__' ? '' : v)}
           >
             <SelectTrigger className="w-full">
               <SelectValue />
@@ -157,8 +169,16 @@ export function BookingPublicWidgetSection() {
             </SelectContent>
           </Select>
         </div>
-        <Input placeholder="utm_source" value={utmSource} onChange={(e) => setUtmSource(e.target.value)} />
-        <Input placeholder="utm_medium" value={utmMedium} onChange={(e) => setUtmMedium(e.target.value)} />
+        <Input
+          placeholder="utm_source"
+          value={utmSource}
+          onChange={(e) => setUtmSource(e.target.value)}
+        />
+        <Input
+          placeholder="utm_medium"
+          value={utmMedium}
+          onChange={(e) => setUtmMedium(e.target.value)}
+        />
         <Input
           placeholder="utm_campaign"
           value={utmCampaign}
@@ -173,12 +193,18 @@ export function BookingPublicWidgetSection() {
             href={outputs.pageUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+            className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}
           >
             Открыть страницу
           </Link>
-          <Button type="button" variant="outline" size="sm" disabled={pending} onClick={() => setShowPreview((v) => !v)}>
-            {showPreview ? "Скрыть предпросмотр" : "Предпросмотр"}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={pending}
+            onClick={() => setShowPreview((v) => !v)}
+          >
+            {showPreview ? 'Скрыть предпросмотр' : 'Предпросмотр'}
           </Button>
         </div>
       ) : null}
@@ -195,15 +221,20 @@ export function BookingPublicWidgetSection() {
       {outputs ? (
         <div className="mt-4 space-y-4 text-sm">
           {[
-            { label: "Ссылка", text: outputs.pageUrl },
-            { label: "iframe", text: outputs.iframeSnippet },
-            { label: "JS (iframe)", text: outputs.scriptSnippet },
-            { label: "JS (popup)", text: outputs.popupSnippet },
+            { label: 'Ссылка', text: outputs.pageUrl },
+            { label: 'iframe', text: outputs.iframeSnippet },
+            { label: 'JS (iframe)', text: outputs.scriptSnippet },
+            { label: 'JS (popup)', text: outputs.popupSnippet },
           ].map((block) => (
             <div key={block.label} className="sm:col-span-2">
               <div className="mb-1 flex items-center justify-between gap-2">
                 <p className="font-medium">{block.label}</p>
-                <Button type="button" variant="outline" size="sm" onClick={() => void copyText(block.text)}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void copyText(block.text)}
+                >
                   Копировать
                 </Button>
               </div>

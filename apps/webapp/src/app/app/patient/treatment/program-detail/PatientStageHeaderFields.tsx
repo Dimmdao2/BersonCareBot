@@ -1,13 +1,13 @@
-"use client";
+'use client';
 
-import { cn } from "@/lib/utils";
+import { cn } from '@/lib/utils';
 import {
   patientBodyTextClass,
   patientCardNestedListSurfaceClass,
   patientMutedTextClass,
   patientSectionSurfaceClass,
   patientSectionTitleClass,
-} from "@/shared/ui/patient/patientVisual";
+} from '@/shared/ui/patient/patientVisual';
 
 export function patientStageHasHeaderFields(stage: {
   description?: string | null;
@@ -18,10 +18,10 @@ export function patientStageHasHeaderFields(stage: {
 }): boolean {
   return Boolean(
     stage.description?.trim() ||
-      stage.goals?.trim() ||
-      stage.objectives?.trim() ||
-      stage.expectedDurationDays != null ||
-      Boolean(stage.expectedDurationText?.trim()),
+    stage.goals?.trim() ||
+    stage.objectives?.trim() ||
+    stage.expectedDurationDays != null ||
+    Boolean(stage.expectedDurationText?.trim()),
   );
 }
 
@@ -46,7 +46,7 @@ export function PatientStageHeaderFields(props: {
     stage.expectedDurationText?.trim() || null,
   ]
     .filter(Boolean)
-    .join(" · ");
+    .join(' · ');
 
   const showDescription = !hideDescription && Boolean(stage.description?.trim());
   const hasRenderableFields =
@@ -61,32 +61,38 @@ export function PatientStageHeaderFields(props: {
     <div
       className={cn(
         compactSpacing ? patientCardNestedListSurfaceClass : patientSectionSurfaceClass,
-        "shadow-none",
-        compactSpacing ? "mb-3" : "mb-4",
+        'shadow-none',
+        compactSpacing ? 'mb-3' : 'mb-4',
       )}
     >
       {showDescription ? (
         <div>
           <h3 className={patientSectionTitleClass}>Описание этапа</h3>
-          <p className={cn(patientBodyTextClass, "mt-1 whitespace-pre-wrap")}>{(stage.description ?? "").trim()}</p>
+          <p className={cn(patientBodyTextClass, 'mt-1 whitespace-pre-wrap')}>
+            {(stage.description ?? '').trim()}
+          </p>
         </div>
       ) : null}
       {stage.goals?.trim() ? (
         <div>
           <h3 className={patientSectionTitleClass}>Цель</h3>
-          <p className={cn(patientBodyTextClass, "mt-1 whitespace-pre-wrap")}>{stage.goals.trim()}</p>
+          <p className={cn(patientBodyTextClass, 'mt-1 whitespace-pre-wrap')}>
+            {stage.goals.trim()}
+          </p>
         </div>
       ) : null}
       {stage.objectives?.trim() ? (
         <div>
           <h3 className={patientSectionTitleClass}>Задачи</h3>
-          <p className={cn(patientBodyTextClass, "mt-1 whitespace-pre-wrap")}>{stage.objectives.trim()}</p>
+          <p className={cn(patientBodyTextClass, 'mt-1 whitespace-pre-wrap')}>
+            {stage.objectives.trim()}
+          </p>
         </div>
       ) : null}
       {!planPreview && durationLine ? (
         <div>
           <h3 className={patientSectionTitleClass}>Ожидаемый срок</h3>
-          <p className={cn(patientMutedTextClass, "mt-1 text-sm")}>{durationLine}</p>
+          <p className={cn(patientMutedTextClass, 'mt-1 text-sm')}>{durationLine}</p>
         </div>
       ) : null}
     </div>

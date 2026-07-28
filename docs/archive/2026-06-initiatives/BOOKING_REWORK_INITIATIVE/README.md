@@ -6,13 +6,13 @@
 
 ## Закрытые планы (архив `.cursor/plans/archive/`)
 
-| План | Суть |
-|------|------|
-| [`booking_gaps_closeout_e5b725fb`](../../../../.cursor/plans/archive/booking_gaps_closeout_e5b725fb.plan.md) | rubitime-first overlap, G4/G6, partial UI · `closeoutCommit: eb9eba63` · CI green |
-| [`booking_sync_desync_fix_4709fb07`](../../../../.cursor/plans/archive/booking_sync_desync_fix_4709fb07.plan.md) | prod rebook/manage/FK/410 · matrix 7/7 · CI green |
-| [`booking_scenarios_audit_e9c4ce97`](../../../../.cursor/plans/archive/booking_scenarios_audit_e9c4ce97.plan.md) | аудит write-сценариев (prod-инцидент) |
-| [`booking_mirror_integrity_hardening_8f043ac3`](../../../../.cursor/plans/archive/booking_mirror_integrity_hardening_8f043ac3.plan.md) | partial flags, lifecycle, inbound dedup |
-| [`bidirectional_appointment_sync_14c1fa2c`](../../../../.cursor/plans/archive/bidirectional_appointment_sync_14c1fa2c.plan.md) | `AppointmentMirrorSync` live path |
-| [`staff_cancelled_delete_5c59a30e`](../../../../.cursor/plans/archive/staff_cancelled_delete_5c59a30e.plan.md) | staff delete отменённых (doctor/admin); smoke #10; SD-1..SD-6 post-deploy |
+| План                                                                                                                                   | Суть                                                                              |
+| -------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| [`booking_gaps_closeout_e5b725fb`](../../../../.cursor/plans/archive/booking_gaps_closeout_e5b725fb.plan.md)                           | rubitime-first overlap, G4/G6, partial UI · `closeoutCommit: eb9eba63` · CI green |
+| [`booking_sync_desync_fix_4709fb07`](../../../../.cursor/plans/archive/booking_sync_desync_fix_4709fb07.plan.md)                       | prod rebook/manage/FK/410 · matrix 7/7 · CI green                                 |
+| [`booking_scenarios_audit_e9c4ce97`](../../../../.cursor/plans/archive/booking_scenarios_audit_e9c4ce97.plan.md)                       | аудит write-сценариев (prod-инцидент)                                             |
+| [`booking_mirror_integrity_hardening_8f043ac3`](../../../../.cursor/plans/archive/booking_mirror_integrity_hardening_8f043ac3.plan.md) | partial flags, lifecycle, inbound dedup                                           |
+| [`bidirectional_appointment_sync_14c1fa2c`](../../../../.cursor/plans/archive/bidirectional_appointment_sync_14c1fa2c.plan.md)         | `AppointmentMirrorSync` live path                                                 |
+| [`staff_cancelled_delete_5c59a30e`](../../../../.cursor/plans/archive/staff_cancelled_delete_5c59a30e.plan.md)                         | staff delete отменённых (doctor/admin); smoke #10; SD-1..SD-6 post-deploy         |
 
 Post-deploy ops (не блокирует закрытие кода): [`ACCEPTANCE_MIRROR_SYNC.md`](../../BOOKING_REWORK_INITIATIVE/ACCEPTANCE_MIRROR_SYNC.md) § post-deploy + § staff delete.

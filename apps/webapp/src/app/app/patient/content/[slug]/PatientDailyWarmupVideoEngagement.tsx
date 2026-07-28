@@ -1,26 +1,26 @@
-"use client";
+'use client';
 
-import { useCallback, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   PatientContentAdaptiveVideo,
   type PatientContentAdaptiveVideoProps,
-} from "./PatientContentAdaptiveVideo";
-import type { MediaPlaybackPayload } from "@/modules/media/playbackPayloadTypes";
+} from './PatientContentAdaptiveVideo';
+import type { MediaPlaybackPayload } from '@/modules/media/playbackPayloadTypes';
 
 type CatalogPlayerProps = Pick<
   PatientContentAdaptiveVideoProps,
-  "mediaId" | "mp4Url" | "title" | "initialPlayback"
+  'mediaId' | 'mp4Url' | 'title' | 'initialPlayback'
 >;
 
 type Props =
   | {
-      mode: "catalog";
+      mode: 'catalog';
       contentPageId: string;
       player: CatalogPlayerProps;
     }
   | {
-      mode: "hosted";
+      mode: 'hosted';
       contentPageId: string;
       iframeSrc: string;
       title: string;
@@ -28,10 +28,10 @@ type Props =
 
 async function postDailyWarmupVideoViewed(contentPageId: string): Promise<boolean> {
   try {
-    const res = await fetch("/api/patient/daily-warmup/video-viewed", {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
+    const res = await fetch('/api/patient/daily-warmup/video-viewed', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contentPageId }),
       keepalive: true,
     });
@@ -53,7 +53,7 @@ export function PatientDailyWarmupVideoEngagement(props: Props) {
     });
   }, [props.contentPageId, router]);
 
-  if (props.mode === "hosted") {
+  if (props.mode === 'hosted') {
     return (
       <div className="relative aspect-video" onPointerDown={reportOnce}>
         <iframe
@@ -67,12 +67,7 @@ export function PatientDailyWarmupVideoEngagement(props: Props) {
     );
   }
 
-  return (
-    <PatientContentAdaptiveVideo
-      {...props.player}
-      onFirstPlaying={reportOnce}
-    />
-  );
+  return <PatientContentAdaptiveVideo {...props.player} onFirstPlaying={reportOnce} />;
 }
 
 export type { MediaPlaybackPayload };

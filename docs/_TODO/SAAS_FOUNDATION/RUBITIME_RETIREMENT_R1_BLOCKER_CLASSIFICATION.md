@@ -17,13 +17,13 @@ Plain-language result: the `legacy-only=290` count is **not 290 dirty visible ap
 `public.appointment_records` has historical rows that are absent from `integrator.rubitime_records`. After
 the fresh replay:
 
-| Legacy-only split | Count | Meaning |
-| --- | ---: | --- |
-| live + mapped to existing canonical | 195 | already represented in canonical history |
-| deleted + mapped to deleted canonical | 57 | already soft-deleted cleanup residue |
-| deleted + mapped to existing canonical | 8 | deleted legacy row points to a surviving canonical row |
-| deleted + unmapped | 30 | already soft-deleted legacy-only residue |
-| **total** | **290** | source-archive gap, not a cleanup bucket |
+| Legacy-only split                      |   Count | Meaning                                                |
+| -------------------------------------- | ------: | ------------------------------------------------------ |
+| live + mapped to existing canonical    |     195 | already represented in canonical history               |
+| deleted + mapped to deleted canonical  |      57 | already soft-deleted cleanup residue                   |
+| deleted + mapped to existing canonical |       8 | deleted legacy row points to a surviving canonical row |
+| deleted + unmapped                     |      30 | already soft-deleted legacy-only residue               |
+| **total**                              | **290** | source-archive gap, not a cleanup bucket               |
 
 Owner decision recorded 2026-07-14: **Rubitime export is the canon**. Anything present in the fresh
 Rubitime CSV is needed; anything absent from that CSV is not needed. `integrator.rubitime_records` is
@@ -39,23 +39,23 @@ Operational scope recorded by owner:
 
 Residual acceptance items after this split:
 
-| Item | Current count | Classification |
-| --- | ---: | --- |
-| stale-vs-owner-CSV rows | 0 | closed |
-| unmapped real active rows | 0 | closed |
-| duplicate clusters | 0 | closed |
-| status mismatches | 4 | accepted as raw-vs-legacy divergence; Rubitime CSV / canonical projection wins |
-| `record_at` mismatches | 2 | accepted as raw-vs-legacy divergence; Rubitime CSV / canonical projection wins |
-| live mapping to non-`rubitime_projection` canonical | 2 | accepted if present in Rubitime CSV; not a cleanup target |
+| Item                                                | Current count | Classification                                                                 |
+| --------------------------------------------------- | ------------: | ------------------------------------------------------------------------------ |
+| stale-vs-owner-CSV rows                             |             0 | closed                                                                         |
+| unmapped real active rows                           |             0 | closed                                                                         |
+| duplicate clusters                                  |             0 | closed                                                                         |
+| status mismatches                                   |             4 | accepted as raw-vs-legacy divergence; Rubitime CSV / canonical projection wins |
+| `record_at` mismatches                              |             2 | accepted as raw-vs-legacy divergence; Rubitime CSV / canonical projection wins |
+| live mapping to non-`rubitime_projection` canonical |             2 | accepted if present in Rubitime CSV; not a cleanup target                      |
 
 Mapping anomaly clarification:
 
-| Reported anomaly bucket | Count | Live impact |
-| --- | ---: | --- |
-| mapped to deleted canonical | 74 | all 74 are already deleted legacy rows |
-| unmapped legacy rows | 30 | all 30 are already deleted legacy rows |
-| missing expected mapping metadata | 6 | 4 deleted/native, 2 live/native |
-| unexpected canonical source | 2 | the only live mapping-policy residue |
+| Reported anomaly bucket           | Count | Live impact                            |
+| --------------------------------- | ----: | -------------------------------------- |
+| mapped to deleted canonical       |    74 | all 74 are already deleted legacy rows |
+| unmapped legacy rows              |    30 | all 30 are already deleted legacy rows |
+| missing expected mapping metadata |     6 | 4 deleted/native, 2 live/native        |
+| unexpected canonical source       |     2 | the only live mapping-policy residue   |
 
 R1 decision: accept `appointment_records` + the owner CSV as the historical proof source. All live
 legacy-only rows are already mapped to canonical appointments; all unmapped legacy-only rows are already
@@ -70,20 +70,20 @@ After the owner-confirmed historical specialist fallback import and the strict l
 
 Current remaining blockers:
 
-| Blocker | Current count |
-| --- | ---: |
-| stale-vs-owner-CSV rows | 0 |
-| stale rows with status `canceled` | 0 |
-| stale active non-test rows | 0 |
-| stale rows mapped to existing canonical | 0 |
-| stale rows also inside duplicate clusters | 0 |
-| unmapped real active rows | 0 |
-| unmapped real active rows present in owner CSV | 0 |
-| duplicate clusters | 0 |
-| rows inside duplicate clusters | 0 |
-| status mismatches | 4 |
-| `record_at` mismatches | 2 |
-| legacy-only rows | 312 |
+| Blocker                                        | Current count |
+| ---------------------------------------------- | ------------: |
+| stale-vs-owner-CSV rows                        |             0 |
+| stale rows with status `canceled`              |             0 |
+| stale active non-test rows                     |             0 |
+| stale rows mapped to existing canonical        |             0 |
+| stale rows also inside duplicate clusters      |             0 |
+| unmapped real active rows                      |             0 |
+| unmapped real active rows present in owner CSV |             0 |
+| duplicate clusters                             |             0 |
+| rows inside duplicate clusters                 |             0 |
+| status mismatches                              |             4 |
+| `record_at` mismatches                         |             2 |
+| legacy-only rows                               |           312 |
 
 Interpretation after fallback import and owner-approved stale cleanup:
 
@@ -106,21 +106,21 @@ node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-classify-blockers.mjs \
 
 Current remaining blockers:
 
-| Blocker | Current count |
-| --- | ---: |
-| stale-vs-owner-CSV rows | 28 |
-| stale rows with status `canceled` | 18 |
-| stale active non-test rows | 10 |
-| stale rows mapped to existing canonical | 27 |
-| stale rows also inside duplicate clusters | 9 |
-| unmapped real active rows | 99 |
-| unmapped real active rows present in owner CSV | 98 |
-| unmapped real active rows absent from integrator raw | 99 |
-| duplicate clusters | 3 |
-| rows inside duplicate clusters | 11 |
-| status mismatches | 4 |
-| `record_at` mismatches | 2 |
-| legacy-only rows | 312 |
+| Blocker                                              | Current count |
+| ---------------------------------------------------- | ------------: |
+| stale-vs-owner-CSV rows                              |            28 |
+| stale rows with status `canceled`                    |            18 |
+| stale active non-test rows                           |            10 |
+| stale rows mapped to existing canonical              |            27 |
+| stale rows also inside duplicate clusters            |             9 |
+| unmapped real active rows                            |            99 |
+| unmapped real active rows present in owner CSV       |            98 |
+| unmapped real active rows absent from integrator raw |            99 |
+| duplicate clusters                                   |             3 |
+| rows inside duplicate clusters                       |            11 |
+| status mismatches                                    |             4 |
+| `record_at` mismatches                               |             2 |
+| legacy-only rows                                     |           312 |
 
 Interpretation after cleanup:
 
@@ -131,14 +131,14 @@ Interpretation after cleanup:
 
 ## Environment
 
-| Field | Value |
-| --- | --- |
-| Worktree | `/home/dev/dev-projects/BersonCareBot` |
-| Branch | `feat/doctor-ui-rebuild` |
-| Input HEAD | `03e2f941c85ca1573a57504e8b3adecebcf6207f` |
-| Database | `bcb_webapp_dev` on `127.0.0.1:5432` |
-| Env source | `.env` + `apps/webapp/.env.dev` |
-| Script | `docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-classify-blockers.mjs` |
+| Field      | Value                                                                  |
+| ---------- | ---------------------------------------------------------------------- |
+| Worktree   | `/home/dev/dev-projects/BersonCareBot`                                 |
+| Branch     | `feat/doctor-ui-rebuild`                                               |
+| Input HEAD | `03e2f941c85ca1573a57504e8b3adecebcf6207f`                             |
+| Database   | `bcb_webapp_dev` on `127.0.0.1:5432`                                   |
+| Env source | `.env` + `apps/webapp/.env.dev`                                        |
+| Script     | `docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-classify-blockers.mjs` |
 
 ## Historical original commands
 
@@ -151,42 +151,42 @@ Result: PASS, read-only aggregate JSON. This was the original classification bef
 
 ## CSV shape
 
-| Field | Value |
-| --- | ---: |
-| Basename | `records-2.csv` |
-| Physical lines | 394 |
-| Header fields | 22 |
-| Parsed Rubitime ids | 392 |
-| Date span | `2026-01-16...2026-08-29` |
+| Field               |                     Value |
+| ------------------- | ------------------------: |
+| Basename            |           `records-2.csv` |
+| Physical lines      |                       394 |
+| Header fields       |                        22 |
+| Parsed Rubitime ids |                       392 |
+| Date span           | `2026-01-16...2026-08-29` |
 
 ## Historical original: 29 stale-vs-owner-CSV rows
 
 These are live legacy rows inside the CSV date span and absent from the owner CSV.
 
-| Bucket | Count |
-| --- | ---: |
-| Total | 29 |
-| Status `canceled` | 19 |
-| Status `created` | 10 |
-| Active non-test | 10 |
-| Test-like | 0 |
-| Mapped to existing canonical | 28 |
-| Unmapped | 1 |
-| Present in integrator raw | 1 |
-| Absent from integrator raw | 28 |
-| Rows also inside duplicate clusters | 9 |
+| Bucket                              | Count |
+| ----------------------------------- | ----: |
+| Total                               |    29 |
+| Status `canceled`                   |    19 |
+| Status `created`                    |    10 |
+| Active non-test                     |    10 |
+| Test-like                           |     0 |
+| Mapped to existing canonical        |    28 |
+| Unmapped                            |     1 |
+| Present in integrator raw           |     1 |
+| Absent from integrator raw          |    28 |
+| Rows also inside duplicate clusters |     9 |
 
 Month buckets:
 
-| Month | Count |
-| --- | ---: |
-| 2026-01 | 6 |
-| 2026-02 | 1 |
-| 2026-03 | 6 |
-| 2026-04 | 2 |
-| 2026-05 | 2 |
-| 2026-06 | 11 |
-| 2026-07 | 1 |
+| Month   | Count |
+| ------- | ----: |
+| 2026-01 |     6 |
+| 2026-02 |     1 |
+| 2026-03 |     6 |
+| 2026-04 |     2 |
+| 2026-05 |     2 |
+| 2026-06 |    11 |
+| 2026-07 |     1 |
 
 Classification: this is not safe for automatic cleanup without owner approval. The stale set is not just canceled leftovers: `10` rows are active non-test, `28` already map to canonical rows, and `9` are part of still-open duplicate clusters.
 
@@ -194,59 +194,59 @@ Classification: this is not safe for automatic cleanup without owner approval. T
 
 These rows are live, non-canceled, non-test-like, and have no canonical appointment mapping.
 
-| Bucket | Count |
-| --- | ---: |
-| Total | 99 |
-| Status `created` | 99 |
-| Present in owner CSV | 98 |
-| Absent within CSV range | 1 |
-| Present in integrator raw | 0 |
-| Absent from integrator raw | 99 |
-| Duplicate overlap | 0 |
-| Slot conflict detected | 0 |
-| Recoverable existing canonical rows | 0 |
-| Missing specialist mapping or fallback | 99 |
+| Bucket                                 | Count |
+| -------------------------------------- | ----: |
+| Total                                  |    99 |
+| Status `created`                       |    99 |
+| Present in owner CSV                   |    98 |
+| Absent within CSV range                |     1 |
+| Present in integrator raw              |     0 |
+| Absent from integrator raw             |    99 |
+| Duplicate overlap                      |     0 |
+| Slot conflict detected                 |     0 |
+| Recoverable existing canonical rows    |     0 |
+| Missing specialist mapping or fallback |    99 |
 
 Month buckets:
 
-| Month | Count |
-| --- | ---: |
-| 2026-01 | 29 |
-| 2026-02 | 48 |
-| 2026-03 | 19 |
-| 2026-04 | 1 |
-| 2026-05 | 1 |
-| 2026-07 | 1 |
+| Month   | Count |
+| ------- | ----: |
+| 2026-01 |    29 |
+| 2026-02 |    48 |
+| 2026-03 |    19 |
+| 2026-04 |     1 |
+| 2026-05 |     1 |
+| 2026-07 |     1 |
 
 Current-script importability classification:
 
-| Bucket | Count |
-| --- | ---: |
-| `script_may_insert_but_missing_specialist_mapping` | 98 |
-| `blocked_stale_vs_owner_csv` | 1 |
+| Bucket                                             | Count |
+| -------------------------------------------------- | ----: |
+| `script_may_insert_but_missing_specialist_mapping` |    98 |
+| `blocked_stale_vs_owner_csv`                       |     1 |
 
 Classification: the `98` CSV-present rows are likely real history, but they are not cleanly importable as accepted proof because every row lacks a resolved canonical specialist mapping/fallback. The current script may insert them, but that would risk canonical rows without specialist ownership. This needs a mapping/import fix or explicit owner exception before R1 can pass.
 
 ## 3 duplicate clusters
 
-| Bucket | Count |
-| --- | ---: |
-| Clusters | 3 |
-| Rows inside clusters | 11 |
-| Shape `all_non_cancelled` | 3 |
-| Mapped rows | 11 |
-| Unmapped rows | 0 |
-| Clusters with any stale row | 3 |
-| Stale rows inside duplicate clusters | 9 |
+| Bucket                               | Count |
+| ------------------------------------ | ----: |
+| Clusters                             |     3 |
+| Rows inside clusters                 |    11 |
+| Shape `all_non_cancelled`            |     3 |
+| Mapped rows                          |    11 |
+| Unmapped rows                        |     0 |
+| Clusters with any stale row          |     3 |
+| Stale rows inside duplicate clusters |     9 |
 
 Why broad collapse is unsafe:
 
-| Reason | Count |
-| --- | ---: |
-| Clusters with non-canceled rows | 3 |
-| Clusters with stale overlap | 3 |
-| Clusters with mixed statuses | 0 |
-| Clusters with unmapped rows | 0 |
+| Reason                          | Count |
+| ------------------------------- | ----: |
+| Clusters with non-canceled rows |     3 |
+| Clusters with stale overlap     |     3 |
+| Clusters with mixed statuses    |     0 |
+| Clusters with unmapped rows     |     0 |
 
 Classification: these are not the previously approved canceled-loser cleanup case. All remaining clusters are non-canceled, fully mapped, and overlap stale-vs-CSV rows. Collapsing them would choose between live canonical history rows and stale cleanup policy at the same time, so it needs owner/reviewer decision.
 
@@ -255,23 +255,23 @@ Classification: these are not the previously approved canceled-loser cleanup cas
 Status mismatches:
 
 | Raw status | Legacy status | Count |
-| --- | --- | ---: |
-| `created` | `canceled` | 2 |
-| `created` | `updated` | 2 |
+| ---------- | ------------- | ----: |
+| `created`  | `canceled`    |     2 |
+| `created`  | `updated`     |     2 |
 
 `record_at` mismatches over 5 minutes:
 
-| Direction | Count |
-| --- | ---: |
-| Legacy later than raw | 1 |
-| Raw later than legacy | 1 |
+| Direction             | Count |
+| --------------------- | ----: |
+| Legacy later than raw |     1 |
+| Raw later than legacy |     1 |
 
 Shared-row freshness:
 
-| Direction | Count |
-| --- | ---: |
-| Legacy `updated_at` newer than raw by more than 5 minutes | 91 |
-| Raw `updated_at` newer than legacy by more than 5 minutes | 0 |
+| Direction                                                 | Count |
+| --------------------------------------------------------- | ----: |
+| Legacy `updated_at` newer than raw by more than 5 minutes |    91 |
+| Raw `updated_at` newer than legacy by more than 5 minutes |     0 |
 
 Classification: for shared raw/public rows, public legacy projection is fresher overall, but four status disagreements and two appointment-time disagreements still need owner-approved source-of-truth policy or repair before R1 acceptance.
 
@@ -279,45 +279,45 @@ Classification: for shared raw/public rows, public legacy projection is fresher 
 
 Legacy-only means present in `public.appointment_records` and absent from `integrator.rubitime_records`.
 
-| Bucket | Count |
-| --- | ---: |
-| Legacy-only total | 312 |
-| Status `created` | 221 |
-| Status `updated` | 19 |
-| Status `canceled` | 72 |
-| Mapped to existing canonical | 166 |
-| Mapped to deleted canonical | 17 |
-| Unmapped | 129 |
+| Bucket                       | Count |
+| ---------------------------- | ----: |
+| Legacy-only total            |   312 |
+| Status `created`             |   221 |
+| Status `updated`             |    19 |
+| Status `canceled`            |    72 |
+| Mapped to existing canonical |   166 |
+| Mapped to deleted canonical  |    17 |
+| Unmapped                     |   129 |
 
 Month buckets:
 
-| Month | Count |
-| --- | ---: |
-| 2026-01 | 37 |
-| 2026-02 | 59 |
-| 2026-03 | 29 |
-| 2026-04 | 33 |
-| 2026-05 | 63 |
-| 2026-06 | 69 |
-| 2026-07 | 15 |
-| 2026-08 | 7 |
+| Month   | Count |
+| ------- | ----: |
+| 2026-01 |    37 |
+| 2026-02 |    59 |
+| 2026-03 |    29 |
+| 2026-04 |    33 |
+| 2026-05 |    63 |
+| 2026-06 |    69 |
+| 2026-07 |    15 |
+| 2026-08 |     7 |
 
 Overlap with other blockers:
 
-| Overlap | Count |
-| --- | ---: |
-| Legacy-only and stale-vs-CSV | 28 |
-| Legacy-only and unmapped real active | 99 |
-| Legacy-only and duplicate rows | 9 |
+| Overlap                              | Count |
+| ------------------------------------ | ----: |
+| Legacy-only and stale-vs-CSV         |    28 |
+| Legacy-only and unmapped real active |    99 |
+| Legacy-only and duplicate rows       |     9 |
 
 Mapping anomaly buckets:
 
-| Bucket | Count |
-| --- | ---: |
-| Unmapped legacy rows | 129 |
-| Mapped to deleted canonical | 21 |
-| Unexpected canonical source | 2 |
-| Missing expected mapping metadata | 6 |
+| Bucket                            | Count |
+| --------------------------------- | ----: |
+| Unmapped legacy rows              |   129 |
+| Mapped to deleted canonical       |    21 |
+| Unexpected canonical source       |     2 |
+| Missing expected mapping metadata |     6 |
 
 Historical classification before the fresh replay and owner source-of-truth decision: `legacy-only=312` was
 a raw-vs-public source discrepancy, not a raw-only import blocker. This is superseded by the fresh replay:

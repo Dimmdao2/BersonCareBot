@@ -1,12 +1,12 @@
-"use client";
+'use client';
 
-import type { MessageLogEntry } from "@/modules/doctor-messaging/ports";
-import { DoctorClientEmbeddedChat } from "./DoctorClientEmbeddedChat";
+import type { MessageLogEntry } from '@/modules/doctor-messaging/ports';
+import { DoctorClientEmbeddedChat } from './DoctorClientEmbeddedChat';
 import {
   doctorClientSectionTitleClass,
   doctorClientStackedCardClass,
   doctorClientTabSectionClass,
-} from "./doctorClientCardChrome";
+} from './doctorClientCardChrome';
 
 type Props = {
   patientUserId: string;
@@ -30,7 +30,10 @@ export function DoctorClientCommunicationsTab({
             <summary className="cursor-pointer list-none text-sm font-medium [&::-webkit-details-marker]:hidden">
               Старый журнал отправок ({messageHistory.length})
             </summary>
-            <ul id="doctor-client-message-history-list" className="m-0 mt-3 list-none space-y-2 p-0">
+            <ul
+              id="doctor-client-message-history-list"
+              className="m-0 mt-3 list-none space-y-2 p-0"
+            >
               {messageHistory.map((entry) => (
                 <li
                   key={entry.id}
@@ -38,11 +41,16 @@ export function DoctorClientCommunicationsTab({
                   className={doctorClientStackedCardClass}
                 >
                   <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    {new Date(entry.sentAt).toLocaleString("ru-RU", { timeZone: "Europe/Moscow", dateStyle: "short", timeStyle: "short" })} · {entry.category}
+                    {new Date(entry.sentAt).toLocaleString('ru-RU', {
+                      timeZone: 'Europe/Moscow',
+                      dateStyle: 'short',
+                      timeStyle: 'short',
+                    })}{' '}
+                    · {entry.category}
                   </span>
                   <p className="mt-1 text-sm leading-snug">
                     {entry.text.slice(0, 80)}
-                    {entry.text.length > 80 ? "…" : ""}
+                    {entry.text.length > 80 ? '…' : ''}
                   </p>
                 </li>
               ))}

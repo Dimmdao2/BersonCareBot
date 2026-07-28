@@ -20,20 +20,20 @@
 
 ## Checklist vs plan (кратко)
 
-| # | Тема | Статус |
-|---|------|--------|
-| 1 | URL: `region=<code>`, не UUID в генерируемых фильтрах; нет `regionRefId` в query | **PASS** |
-| 2 | Нет `catalogView` / `loadType=` в generated URLs под doctor catalog | **PASS** (`load` / `view`, grep по `apps/webapp/.../doctor` без `catalogView`) |
-| 3 | SSR / parse: `?region=` — только валидный code-token (UUID и мусор → без фильтра, без отдельного error-state) | **PASS** (`parseDoctorCatalogRegionQueryParam`, `recommendationCatalogSsrQuery`) |
-| 4 | Server pages: не передают `q`, `region`, `load` в `list*` | **PASS** (после FIX: recommendations / clinical-tests отдают полный список по archive scope + клиентский tertiary по `domain` / `assessment`) |
-| 5 | `status` / `arch` / `pub` — scope на сервере | **PASS** |
-| 6 | Client: `q`, `region`, `load`, `titleSort` локально | **PASS** (TP — только `q` + `titleSort` в панели; см. Minor m1) |
-| 7 | Filter changes без list refetch / без RSC navigation | **PASS** (`history.replaceState` + merge из `window.location`, см. FIX M1) |
-| 8 | Данные для клиента: map refId→code, load, title | **PASS** |
-| 9 | Catalog `ReferenceSelect` region by code; create/edit UUID не сломаны | **PASS** |
-| 10 | Preserve: `region` code; без UUID в redirect | **PASS** (`appendRegionParamFromListPreserve`, см. FIX M2) |
-| 11 | UI: нет «Применить», нет summary под фильтрами, dropdown-only | **PASS** (по коду `DoctorCatalogFiltersForm` + тест) |
-| 12 | Тесты + eslint/vitest/tsc | **PASS** (целевые прогоны в FIX-сессии; полный корневой CI — см. residual) |
+| #   | Тема                                                                                                          | Статус                                                                                                                                        |
+| --- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | URL: `region=<code>`, не UUID в генерируемых фильтрах; нет `regionRefId` в query                              | **PASS**                                                                                                                                      |
+| 2   | Нет `catalogView` / `loadType=` в generated URLs под doctor catalog                                           | **PASS** (`load` / `view`, grep по `apps/webapp/.../doctor` без `catalogView`)                                                                |
+| 3   | SSR / parse: `?region=` — только валидный code-token (UUID и мусор → без фильтра, без отдельного error-state) | **PASS** (`parseDoctorCatalogRegionQueryParam`, `recommendationCatalogSsrQuery`)                                                              |
+| 4   | Server pages: не передают `q`, `region`, `load` в `list*`                                                     | **PASS** (после FIX: recommendations / clinical-tests отдают полный список по archive scope + клиентский tertiary по `domain` / `assessment`) |
+| 5   | `status` / `arch` / `pub` — scope на сервере                                                                  | **PASS**                                                                                                                                      |
+| 6   | Client: `q`, `region`, `load`, `titleSort` локально                                                           | **PASS** (TP — только `q` + `titleSort` в панели; см. Minor m1)                                                                               |
+| 7   | Filter changes без list refetch / без RSC navigation                                                          | **PASS** (`history.replaceState` + merge из `window.location`, см. FIX M1)                                                                    |
+| 8   | Данные для клиента: map refId→code, load, title                                                               | **PASS**                                                                                                                                      |
+| 9   | Catalog `ReferenceSelect` region by code; create/edit UUID не сломаны                                         | **PASS**                                                                                                                                      |
+| 10  | Preserve: `region` code; без UUID в redirect                                                                  | **PASS** (`appendRegionParamFromListPreserve`, см. FIX M2)                                                                                    |
+| 11  | UI: нет «Применить», нет summary под фильтрами, dropdown-only                                                 | **PASS** (по коду `DoctorCatalogFiltersForm` + тест)                                                                                          |
+| 12  | Тесты + eslint/vitest/tsc                                                                                     | **PASS** (целевые прогоны в FIX-сессии; полный корневой CI — см. residual)                                                                    |
 
 ---
 
@@ -131,36 +131,36 @@ pnpm --dir apps/webapp exec tsc --noEmit   # exit 0
 
 ## Residual risks & skipped checks
 
-| Риск / пропуск | Комментарий |
-|-----------------|-------------|
-| Каталог шаблонов программ без `region`/`load` в UI | Minor m1 — **вне объёма по решению владельца** (2026-05-04); не менять в рамках FILTER URL. |
-| Рефакторинг имён `regionRefId` в портах/API | **Не делается** по решению владельца; в query-layer достаточно параметра **`region`** (код). |
-| Публичные JSON API (`GET /api/doctor/...`) | Контракт **страниц** каталога; API может отличаться по `region` — вне scope FILTER fix. |
-| Полный CI | Не подтверждён в FIX-pass и в tails-pass (III). Перед push в remote — по правилам репозитория обязателен **`pnpm install --frozen-lockfile && pnpm run ci`**. |
-| Стадийные AUDIT (B4/D3) | **2026-05-04:** текст синхронизирован с каноном [`AUDIT_FILTER_URL_CONTRACT_FIX.md`](AUDIT_FILTER_URL_CONTRACT_FIX.md) (невалидный `region` на HTML-каталоге без отдельного баннера). |
-| Backlog (низкий приоритет) | ~~Опционально: unit preserve для rec/clinical~~ — **сделано:** `recommendationsListPreserveParams.test.ts`, `clinicalTestsListPreserveParams.test.ts` (2026-05-04). |
+| Риск / пропуск                                     | Комментарий                                                                                                                                                                           |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Каталог шаблонов программ без `region`/`load` в UI | Minor m1 — **вне объёма по решению владельца** (2026-05-04); не менять в рамках FILTER URL.                                                                                           |
+| Рефакторинг имён `regionRefId` в портах/API        | **Не делается** по решению владельца; в query-layer достаточно параметра **`region`** (код).                                                                                          |
+| Публичные JSON API (`GET /api/doctor/...`)         | Контракт **страниц** каталога; API может отличаться по `region` — вне scope FILTER fix.                                                                                               |
+| Полный CI                                          | Не подтверждён в FIX-pass и в tails-pass (III). Перед push в remote — по правилам репозитория обязателен **`pnpm install --frozen-lockfile && pnpm run ci`**.                         |
+| Стадийные AUDIT (B4/D3)                            | **2026-05-04:** текст синхронизирован с каноном [`AUDIT_FILTER_URL_CONTRACT_FIX.md`](AUDIT_FILTER_URL_CONTRACT_FIX.md) (невалидный `region` на HTML-каталоге без отдельного баннера). |
+| Backlog (низкий приоритет)                         | ~~Опционально: unit preserve для rec/clinical~~ — **сделано:** `recommendationsListPreserveParams.test.ts`, `clinicalTestsListPreserveParams.test.ts` (2026-05-04).                   |
 
 ---
 
 ## Закрытие чеклиста плана (mapping)
 
-- **§3 URL contract:** `DoctorCatalogFiltersForm` пишет `region` / `load` как коды; preserve UUID отсекается.  
-- **§4 Server parsing / loading:** без клиентских фильтров в `list*`; recommendations & clinical-tests загружают полный набор по archive + tertiary на клиенте.  
-- **§5 Client filtering:** `useDoctorCatalogDisplayList` + tertiary для domain / assessmentKind.  
-- **§6 ReferenceSelect:** регион каталога — `valueMatch="code"`; формы create/edit без изменений контракта.  
+- **§3 URL contract:** `DoctorCatalogFiltersForm` пишет `region` / `load` как коды; preserve UUID отсекается.
+- **§4 Server parsing / loading:** без клиентских фильтров в `list*`; recommendations & clinical-tests загружают полный набор по archive + tertiary на клиенте.
+- **§5 Client filtering:** `useDoctorCatalogDisplayList` + tertiary для domain / assessmentKind.
+- **§6 ReferenceSelect:** регион каталога — `valueMatch="code"`; формы create/edit без изменений контракта.
 - **§7 Preserve:** inline actions через **`appendRegionParamFromListPreserve`** + pure helpers **`appendRecommendationsListPreserveToSearchParams`**, **`appendClinicalTestsListPreserveToSearchParams`**, **`appendTestSetsListPreserveToSearchParams`** (unit-тесты).
-- **§8 UI regression:** без «Применить», без строки summary под фильтрами.  
+- **§8 UI regression:** без «Применить», без строки summary под фильтрами.
 - **§9 Tests:** см. Evidence (FIX) и **Tails fix verification** (III).
 
 ---
 
 ## FIX verification (детали)
 
-| ID | Критерий закрытия | Подтверждение |
-|----|-------------------|---------------|
-| Tails | Нет отдельного UX/флага для UUID в `region`; мусор в URL → без фильтра региона; `test-sets` без `load` в preserve/redirect | Удалён `invalidRegionQuery` из shared + страниц; **`appendTestSetsListPreserveToSearchParams`**; тесты в § Tails fix verification. |
-| M1 | Нет `router.replace` для синка фильтров; список не зависит от RSC при смене q/region/load/titleSort в URL | `DoctorCatalogFiltersForm`: только `history.replaceState` + `dispatchDoctorCatalogUrlSync`; клиенты с `useDoctorCatalogClientFilterMerge`. |
-| M2 | Redirect после inline save/archive не пишет `region=<uuid>` | `appendRegionParamFromListPreserve` в трёх `actionsInline.ts`. |
+| ID                             | Критерий закрытия                                                                                                                                                                                                                        | Подтверждение                                                                                                                              |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Tails                          | Нет отдельного UX/флага для UUID в `region`; мусор в URL → без фильтра региона; `test-sets` без `load` в preserve/redirect                                                                                                               | Удалён `invalidRegionQuery` из shared + страниц; **`appendTestSetsListPreserveToSearchParams`**; тесты в § Tails fix verification.         |
+| M1                             | Нет `router.replace` для синка фильтров; список не зависит от RSC при смене q/region/load/titleSort в URL                                                                                                                                | `DoctorCatalogFiltersForm`: только `history.replaceState` + `dispatchDoctorCatalogUrlSync`; клиенты с `useDoctorCatalogClientFilterMerge`. |
+| M2                             | Redirect после inline save/archive не пишет `region=<uuid>`                                                                                                                                                                              | `appendRegionParamFromListPreserve` в трёх `actionsInline.ts`.                                                                             |
 | Консистентность списка без RSC | Recommendations: `listRecommendations` без `domain`; Clinical: `listClinicalTests` без `assessmentKind`; клиент режет по `domain` / `assessmentKind` через опции `useDoctorCatalogDisplayList` (`tertiaryCode` / `getItemTertiaryCode`). |
 
 ---

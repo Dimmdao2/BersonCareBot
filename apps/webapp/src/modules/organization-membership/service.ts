@@ -3,7 +3,7 @@ import type {
   OrganizationMembership,
   OrganizationMembershipPort,
   OrganizationMembershipRole,
-} from "./ports";
+} from './ports';
 
 export type ResolveOrganizationForUserInput = {
   platformUserId: string;
@@ -22,14 +22,17 @@ export type OrganizationMembershipContext = {
 
 export type OrganizationResolution =
   | { ok: true; context: OrganizationMembershipContext }
-  | { ok: false; reason: "no_active_membership" };
+  | { ok: false; reason: 'no_active_membership' };
 
 function canManageOrganization(role: OrganizationMembershipRole): boolean {
-  return role === "owner" || role === "admin";
+  return role === 'owner' || role === 'admin';
 }
 
 function canAccessClinicalWorkspace(membership: OrganizationMembership): boolean {
-  return (membership.role === "owner" || membership.role === "doctor") && membership.specialistId !== null;
+  return (
+    (membership.role === 'owner' || membership.role === 'doctor') &&
+    membership.specialistId !== null
+  );
 }
 
 function toMembershipContext(membership: OrganizationMembership): OrganizationMembershipContext {
@@ -50,24 +53,28 @@ export function createOrganizationMembershipService(deps: {
   membershipPort: OrganizationMembershipPort;
 }) {
   return {
-    async resolveOrganizationForUser(input: ResolveOrganizationForUserInput): Promise<OrganizationResolution> {
+    async resolveOrganizationForUser(
+      input: ResolveOrganizationForUserInput,
+    ): Promise<OrganizationResolution> {
       const memberships = await deps.membershipPort.listActiveByPlatformUser(input.platformUserId);
       if (memberships.length === 0) {
-        return { ok: false, reason: "no_active_membership" };
+        return { ok: false, reason: 'no_active_membership' };
       }
 
       if (memberships.length > 1) {
-        throw new Error("multiple_active_staff_memberships");
+        throw new Error('multiple_active_staff_memberships');
       }
 
       return { ok: true, context: toMembershipContext(memberships[0]) };
     },
 
-    async listOrganizationMembers(organizationId: string): Promise<OrganizationMemberDirectoryRecord[]> {
+    async listOrganizationMembers(
+      organizationId: string,
+    ): Promise<OrganizationMemberDirectoryRecord[]> {
       const members = await deps.membershipPort.listByOrganization(organizationId);
       // The team surface is a projection of current organization people; disabled
       // historical rows do not belong alongside pending invites.
-      return members.filter((member) => member.status === "active");
+      return members.filter((member) => member.status === 'active');
     },
 
     async listPlatformOrganizationMembers(

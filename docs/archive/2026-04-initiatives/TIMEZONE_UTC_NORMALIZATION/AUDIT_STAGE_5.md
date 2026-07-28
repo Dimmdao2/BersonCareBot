@@ -16,40 +16,40 @@
 
 ### 1) Нет активных хардкодов `+03:00` / `+03` в slot runtime code
 
-| Область | Статус | Комментарий |
-|--------|--------|-------------|
-| Integrator Rubitime slot normalization | **OK** | `scheduleNormalizer.ts` использует только `normalizeToUtcInstant(naiveWall, branchTimezone)` — без фиксированного смещения. |
-| Integrator M2M slots / create-record v2 | **OK** | `recordM2mRoute.ts`: `normalizeRubitimeSchedule(..., branchTimezone)` и `formatIsoInstantAsRubitimeRecordLocal(..., branchTimezone)` после `getBranchTzWithIncident`. |
-| Webapp `bookingM2mApi.ts` (v2 `times[]`) | **OK** | `rubitimeWallSlotToUtcIso` через Luxon `DateTime.fromISO(..., { zone: branchTimezone })`. |
-| Webapp `patient-booking/service.ts` | **OK** | В `fetchSlots` для in-person передаётся `branchTimezone: resolved.branch.timezone`. |
-| Прочий продуктовый TS (вне тестов) | **FAIL (Gate)** | См. finding **S5-A** ниже. |
+| Область                                  | Статус          | Комментарий                                                                                                                                                           |
+| ---------------------------------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Integrator Rubitime slot normalization   | **OK**          | `scheduleNormalizer.ts` использует только `normalizeToUtcInstant(naiveWall, branchTimezone)` — без фиксированного смещения.                                           |
+| Integrator M2M slots / create-record v2  | **OK**          | `recordM2mRoute.ts`: `normalizeRubitimeSchedule(..., branchTimezone)` и `formatIsoInstantAsRubitimeRecordLocal(..., branchTimezone)` после `getBranchTzWithIncident`. |
+| Webapp `bookingM2mApi.ts` (v2 `times[]`) | **OK**          | `rubitimeWallSlotToUtcIso` через Luxon `DateTime.fromISO(..., { zone: branchTimezone })`.                                                                             |
+| Webapp `patient-booking/service.ts`      | **OK**          | В `fetchSlots` для in-person передаётся `branchTimezone: resolved.branch.timezone`.                                                                                   |
+| Прочий продуктовый TS (вне тестов)       | **FAIL (Gate)** | См. finding **S5-A** ниже.                                                                                                                                            |
 
 Поиск по `apps/integrator/src/**/*.ts` и слот-связанным путям webapp: литералов `+03:00` / `+03` в рабочей логике Rubitime-слотов нет; в тестах и фикстурах — допустимо по Gate.
 
 ### 2) Везде используется timezone филиала
 
-| Место | Поведение |
-|-------|-----------|
+| Место                                     | Поведение                                                                                                                                                  |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `recordM2mRoute.ts` (v2 slots, v2 create) | TZ из БД по `integrator_branch_id` через `createGetBranchTimezoneWithDataQuality` → `normalizeRubitimeSchedule` / `formatIsoInstantAsRubitimeRecordLocal`. |
-| `bookingM2mApi.ts` (v2) | Основной путь: валидный `query.branchTimezone` → интерпретация `times[]`. |
-| Legacy v1 (integrator + webapp) | TZ из маппинга профиля (`scheduleParams.branchId` / resolve), не из «магического +03» в normalizer. |
+| `bookingM2mApi.ts` (v2)                   | Основной путь: валидный `query.branchTimezone` → интерпретация `times[]`.                                                                                  |
+| Legacy v1 (integrator + webapp)           | TZ из маппинга профиля (`scheduleParams.branchId` / resolve), не из «магического +03» в normalizer.                                                        |
 
 ### 3) Fallback-поведение безопасно
 
-| Компонент | Поведение | Оценка |
-|-----------|-----------|--------|
-| `apps/integrator/src/infra/db/branchTimezone.ts` | При отсутствии/невалидной TZ → `Europe/Moscow`, логирование, кэш TTL; в M2M — **инцидент data quality + Telegram** через `createGetBranchTimezoneWithDataQuality`. | **Безопасно**, наблюдаемо. |
-| `bookingM2mApi.ts` | Если `branchTimezone` пустой/невалидный → `getAppDisplayTimeZone()` (system_settings). | **Функционально безопасно** как резерв отображения; **без** симметричного инцидента integrator-уровня (см. finding **S5-B**). |
-| Каталог `pgBookingCatalog.ts` | Пустой timezone при insert → `"Europe/Moscow"` (IANA), не числовой оффсет. | Согласовано с дефолтом филиала. |
+| Компонент                                        | Поведение                                                                                                                                                          | Оценка                                                                                                                        |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `apps/integrator/src/infra/db/branchTimezone.ts` | При отсутствии/невалидной TZ → `Europe/Moscow`, логирование, кэш TTL; в M2M — **инцидент data quality + Telegram** через `createGetBranchTimezoneWithDataQuality`. | **Безопасно**, наблюдаемо.                                                                                                    |
+| `bookingM2mApi.ts`                               | Если `branchTimezone` пустой/невалидный → `getAppDisplayTimeZone()` (system_settings).                                                                             | **Функционально безопасно** как резерв отображения; **без** симметричного инцидента integrator-уровня (см. finding **S5-B**). |
+| Каталог `pgBookingCatalog.ts`                    | Пустой timezone при insert → `"Europe/Moscow"` (IANA), не числовой оффсет.                                                                                         | Согласовано с дефолтом филиала.                                                                                               |
 
 ### 4) Тесты покрывают разные timezone
 
-| Файл | Что проверяется |
-|------|-----------------|
+| Файл                                                                   | Что проверяется                                                                                              |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | `apps/integrator/src/integrations/rubitime/scheduleNormalizer.test.ts` | `Europe/Samara` vs `Europe/Moscow` для стены `2026-04-07 11:00` → `07:00Z` / `08:00Z`; регрессии MSK-кейсов. |
-| `apps/webapp/src/modules/integrator/bookingM2mApi.test.ts` | Тот же сценарий для v2 `times[]` через mock integrator response. |
-| `apps/integrator/src/infra/db/branchTimezone.test.ts` | Чтение TZ из БД, fallback при пустой/невалидной строке. |
-| `apps/integrator/src/shared/normalizeToUtcInstant.test.ts` | Явные `+03:00` как **входные** строки для нормализации — тестовые фикстуры, OK. |
+| `apps/webapp/src/modules/integrator/bookingM2mApi.test.ts`             | Тот же сценарий для v2 `times[]` через mock integrator response.                                             |
+| `apps/integrator/src/infra/db/branchTimezone.test.ts`                  | Чтение TZ из БД, fallback при пустой/невалидной строке.                                                      |
+| `apps/integrator/src/shared/normalizeToUtcInstant.test.ts`             | Явные `+03:00` как **входные** строки для нормализации — тестовые фикстуры, OK.                              |
 
 **Замечание (низкая важность):** в `apps/webapp/src/modules/patient-booking/service.test.ts` нет отдельного кейса Samara/Moscow на уровне сервиса; покрытие разницы TZ для слотов сосредоточено в `bookingM2mApi.test.ts` и integrator.
 

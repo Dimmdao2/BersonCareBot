@@ -1,16 +1,16 @@
 ---
 name: Health UI operator actions
-overview: "Закрыто: кнопки в «Здоровье системы» — resolve-all operator_incidents и archive dead projection_outbox / reminder_dispatch. Журнал: docs/OPERATOR_HEALTH_ALERTING_INITIATIVE/LOG.md § 2026-06-07."
+overview: 'Закрыто: кнопки в «Здоровье системы» — resolve-all operator_incidents и archive dead projection_outbox / reminder_dispatch. Журнал: docs/OPERATOR_HEALTH_ALERTING_INITIATIVE/LOG.md § 2026-06-07.'
 status: completed
 todos:
   - id: write-port-incidents
     content: OperatorHealthWritePort + pgOperatorHealthWrite + resolve-all API + audit
     status: completed
   - id: archive-probes
-    content: "Расширить healthFailureArchive: projection_outbox + outgoing_reminder_dispatch (constants, port, repo, service, clear GET API)"
+    content: 'Расширить healthFailureArchive: projection_outbox + outgoing_reminder_dispatch (constants, port, repo, service, clear GET API)'
     status: completed
   - id: ui-buttons
-    content: "SystemHealthSection: 3 кнопки + обобщённый Dialog + RTL тесты"
+    content: 'SystemHealthSection: 3 кнопки + обобщённый Dialog + RTL тесты'
     status: completed
   - id: archive-audit-ui
     content: HealthFailureArchiveSection probe options + AdminAuditLog filter + LOG.md
@@ -109,19 +109,19 @@ flowchart LR
 **Константы** — [`healthFailureArchiveConstants.ts`](apps/webapp/src/modules/operator-health/healthFailureArchiveConstants.ts):
 
 ```ts
-HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE = "projection_outbox"
-HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE = "outgoing_reminder_dispatch"
-PROJECTION_ARCHIVE_SOURCE_KIND = "projection_outbox_row"
+HEALTH_FAILURE_ARCHIVE_PROJECTION_PROBE = 'projection_outbox';
+HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE = 'outgoing_reminder_dispatch';
+PROJECTION_ARCHIVE_SOURCE_KIND = 'projection_outbox_row';
 ```
 
 Расширить union `HealthFailureArchiveProbe` (4 значения).
 
 **Port + repo** — [`healthFailureArchivePort.ts`](apps/webapp/src/modules/operator-health/healthFailureArchivePort.ts), [`pgHealthFailureArchive.ts`](apps/webapp/src/infra/repos/pgHealthFailureArchive.ts):
 
-| Метод | Источник | WHERE | summary_json |
-|-------|----------|-------|--------------|
-| `archiveProjectionDeadBatch` | `projection_outbox` | `status = 'dead'` | `event_type`, `idempotency_key`, `attempts_done` |
-| `archiveOutgoingReminderDeadBatch` | `outgoing_delivery_queue` | `status = 'dead'` + `kind = reminder_dispatch` + не `recipient_blocked_bot` | как outgoing, без broadcast enrichment |
+| Метод                              | Источник                  | WHERE                                                                       | summary_json                                     |
+| ---------------------------------- | ------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------ |
+| `archiveProjectionDeadBatch`       | `projection_outbox`       | `status = 'dead'`                                                           | `event_type`, `idempotency_key`, `attempts_done` |
+| `archiveOutgoingReminderDeadBatch` | `outgoing_delivery_queue` | `status = 'dead'` + `kind = reminder_dispatch` + не `recipient_blocked_bot` | как outgoing, без broadcast enrichment           |
 
 Паттерн транзакции — копия существующего `archiveOutgoingDeadBatch` / `archiveIntegratorPushOutboxDeadBatch`: insert в `operator_health_failure_archive` → delete исходных строк.
 
@@ -147,17 +147,17 @@ PROJECTION_ARCHIVE_SOURCE_KIND = "projection_outbox_row"
 
 ```ts
 type HealthClearAction =
-  | { kind: "archive"; probe: HealthFailureArchiveProbe }
-  | { kind: "resolve_incidents" };
+  | { kind: 'archive'; probe: HealthFailureArchiveProbe }
+  | { kind: 'resolve_incidents' };
 ```
 
 **Кнопки (destructive `Button size="sm"`, как сейчас):**
 
-| Секция | Условие показа | Действие |
-|--------|----------------|----------|
-| «Открытые инциденты» | `openOperatorIncidents.length > 0` | «Закрыть все открытые» → `resolve-all` |
-| «Синхронизация событий» | `queueDead > 0` | «Заархивировать и сбросить dead» → probe `projection_outbox` |
-| «Напоминания» | `outgoingReminderDispatch.dead > 0` | «Заархивировать и сбросить dead» → probe `outgoing_reminder_dispatch` |
+| Секция                  | Условие показа                      | Действие                                                              |
+| ----------------------- | ----------------------------------- | --------------------------------------------------------------------- |
+| «Открытые инциденты»    | `openOperatorIncidents.length > 0`  | «Закрыть все открытые» → `resolve-all`                                |
+| «Синхронизация событий» | `queueDead > 0`                     | «Заархивировать и сбросить dead» → probe `projection_outbox`          |
+| «Напоминания»           | `outgoingReminderDispatch.dead > 0` | «Заархивировать и сбросить dead» → probe `outgoing_reminder_dispatch` |
 
 **Dialog:**
 

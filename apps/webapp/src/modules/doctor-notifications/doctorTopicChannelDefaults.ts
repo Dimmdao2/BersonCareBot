@@ -1,14 +1,17 @@
-import type { TopicChannelPrefRow } from "@/modules/patient-notifications/topicChannelPrefsPort";
-import type { SpecialistTaskReminderChannelCode } from "@/modules/specialist-tasks/types";
-import type { DoctorNotificationTopicCode } from "./doctorNotificationTopics";
-import { allowedDoctorChannelsForTopic, type DoctorTopicChannelCode } from "./doctorTopicChannelRules";
+import type { TopicChannelPrefRow } from '@/modules/patient-notifications/topicChannelPrefsPort';
+import type { SpecialistTaskReminderChannelCode } from '@/modules/specialist-tasks/types';
+import type { DoctorNotificationTopicCode } from './doctorNotificationTopics';
+import {
+  allowedDoctorChannelsForTopic,
+  type DoctorTopicChannelCode,
+} from './doctorTopicChannelRules';
 
 /** Default enabled channels per topic when user has no explicit pref row for that channel. */
 export function defaultDoctorTopicFallbackChannels(
   topicCode: DoctorNotificationTopicCode,
 ): readonly SpecialistTaskReminderChannelCode[] {
-  if (topicCode === "doctor_patient_messages" || topicCode === "doctor_patient_program_notes") {
-    return ["web_push", "telegram", "max"];
+  if (topicCode === 'doctor_patient_messages' || topicCode === 'doctor_patient_program_notes') {
+    return ['web_push', 'telegram', 'max'];
   }
   return [];
 }

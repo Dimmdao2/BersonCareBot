@@ -1,11 +1,11 @@
-import type { CommentsPort } from "@/modules/comments/ports";
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
+import type { CommentsPort } from '@/modules/comments/ports';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import type {
   CreateEntityCommentInput,
   EntityComment,
   CommentTargetType,
   UpdateEntityCommentInput,
-} from "@/modules/comments/types";
+} from '@/modules/comments/types';
 
 function isoNow(): string {
   return new Date().toISOString();
@@ -18,9 +18,11 @@ function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[])
   const hasFallbackMismatch = fallbackOrganizationIds.some((id) => id !== fallbackOrganizationId);
   if (
     hasFallbackMismatch ||
-    (principalOrganizationId && fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)
+    (principalOrganizationId &&
+      fallbackOrganizationId &&
+      principalOrganizationId !== fallbackOrganizationId)
   ) {
-    throw new Error("organization_principal_mismatch");
+    throw new Error('organization_principal_mismatch');
   }
   return principalOrganizationId ?? fallbackOrganizationId;
 }
@@ -38,7 +40,9 @@ export function createInMemoryCommentsPort(): CommentsPort {
             r.targetId === targetId &&
             (!principalOrganizationId || r.organizationId === principalOrganizationId),
         )
-        .sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : a.id.localeCompare(b.id)));
+        .sort((a, b) =>
+          a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : a.id.localeCompare(b.id),
+        );
     },
 
     async getById(id: string): Promise<EntityComment | null> {

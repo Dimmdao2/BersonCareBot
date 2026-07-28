@@ -1,36 +1,22 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useRef, useState } from "react";
-import {
-  ArrowLeft,
-  Home,
-  Menu,
-  MessageCircle,
-  Users,
-} from "lucide-react";
-import { Button, buttonVariants } from "@/shared/ui/doctor/primitives/button";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/shared/ui/doctor/primitives/sheet";
-import { cn } from "@/lib/utils";
-import { DoctorMenuAccordion } from "@/shared/ui/doctor/shell/DoctorMenuAccordion";
-import {
-  DOCTOR_MENU_ITEM_RADIUS_CLASS,
-  NAV_STRIP_ICON_STROKE,
-} from "@/shared/ui/doctor/navChrome";
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
+import { useCallback, useRef, useState } from 'react';
+import { ArrowLeft, Home, Menu, MessageCircle, Users } from 'lucide-react';
+import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/shared/ui/doctor/primitives/sheet';
+import { cn } from '@/lib/utils';
+import { DoctorMenuAccordion } from '@/shared/ui/doctor/shell/DoctorMenuAccordion';
+import { DOCTOR_MENU_ITEM_RADIUS_CLASS, NAV_STRIP_ICON_STROKE } from '@/shared/ui/doctor/navChrome';
 import {
   DOCTOR_HEADER_INNER_CLASS,
   DOCTOR_MOBILE_HEADER_HEIGHT_VAR,
-} from "@/shared/ui/doctor/doctorWorkspaceLayout";
-import { routePaths } from "@/app-layer/routes/paths";
-import { getDoctorScreenTitle } from "@/shared/ui/doctorScreenTitles";
-import type { DoctorMenuAccess } from "@/shared/ui/doctor/doctorNavLinks";
-import { useReportShellChromeHeight } from "@/shared/hooks/useReportShellChromeHeight";
+} from '@/shared/ui/doctor/doctorWorkspaceLayout';
+import { routePaths } from '@/app-layer/routes/paths';
+import { getDoctorScreenTitle } from '@/shared/ui/doctorScreenTitles';
+import type { DoctorMenuAccess } from '@/shared/ui/doctor/doctorNavLinks';
+import { useReportShellChromeHeight } from '@/shared/hooks/useReportShellChromeHeight';
 
 type DoctorHeaderProps = {
   userDisplayName?: string;
@@ -44,11 +30,14 @@ type DoctorHeaderProps = {
   homeHref?: string;
   showClinicalShortcuts?: boolean;
   /** Which item source `DoctorMenuAccordion` renders. See `DoctorMenuAccordionProps.menuKind`. */
-  menuKind?: "doctor" | "platform";
+  menuKind?: 'doctor' | 'platform';
 };
 
 /** Touch target ≥ 44px; базовый `icon` = 32px — переопределение. */
-const HEADER_ICON_CLASS = cn(buttonVariants({ variant: "ghost", size: "icon" }), "size-10 shrink-0");
+const HEADER_ICON_CLASS = cn(
+  buttonVariants({ variant: 'ghost', size: 'icon' }),
+  'size-10 shrink-0',
+);
 
 export function DoctorHeader({
   userDisplayName,
@@ -59,10 +48,10 @@ export function DoctorHeader({
   enableBadgePolling,
   homeHref = routePaths.doctor,
   showClinicalShortcuts = true,
-  menuKind = "doctor",
+  menuKind = 'doctor',
 }: DoctorHeaderProps) {
   const router = useRouter();
-  const pathname = usePathname() ?? "/app/doctor";
+  const pathname = usePathname() ?? '/app/doctor';
   const title = getDoctorScreenTitle(pathname);
   const [menuOpen, setMenuOpen] = useState(false);
   const headerRef = useRef<HTMLElement>(null);
@@ -85,8 +74,8 @@ export function DoctorHeader({
         className={cn(
           // Глобальная шапка — только мобильный (<md). На desktop кабинет = сайдбар + контент
           // с per-page шапкой (`DoctorPageHeader`), глобальной шапки нет.
-          "fixed top-0 right-0 left-0 z-50 border-b border-border/70 shadow-sm backdrop-blur-sm supports-backdrop-filter:bg-background/80 md:hidden",
-          adminMode ? "bg-destructive/10" : "bg-background/95",
+          'fixed top-0 right-0 left-0 z-50 border-b border-border/70 shadow-sm backdrop-blur-sm supports-backdrop-filter:bg-background/80 md:hidden',
+          adminMode ? 'bg-destructive/10' : 'bg-background/95',
         )}
       >
         <div className={DOCTOR_HEADER_INNER_CLASS}>
@@ -100,7 +89,11 @@ export function DoctorHeader({
                 aria-label="Назад"
                 onClick={goBack}
               >
-                <ArrowLeft className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
+                <ArrowLeft
+                  className="size-[22px]"
+                  strokeWidth={NAV_STRIP_ICON_STROKE}
+                  aria-hidden
+                />
               </Button>
             ) : (
               <span className="inline-flex w-10 shrink-0" aria-hidden />
@@ -135,7 +128,7 @@ export function DoctorHeader({
                 <Link
                   href={routePaths.doctorPatients}
                   prefetch={false}
-                  aria-label={patientLabel ?? "Пациенты"}
+                  aria-label={patientLabel ?? 'Пациенты'}
                   className={HEADER_ICON_CLASS}
                 >
                   <Users className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
@@ -146,7 +139,11 @@ export function DoctorHeader({
                   aria-label="Коммуникации"
                   className={HEADER_ICON_CLASS}
                 >
-                  <MessageCircle className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
+                  <MessageCircle
+                    className="size-[22px]"
+                    strokeWidth={NAV_STRIP_ICON_STROKE}
+                    aria-hidden
+                  />
                 </Link>
               </>
             ) : null}
@@ -155,7 +152,7 @@ export function DoctorHeader({
               id="doctor-menu-toggle"
               variant="ghost"
               size="icon"
-              className={cn(HEADER_ICON_CLASS, hideMenuOnDesktop && "md:hidden")}
+              className={cn(HEADER_ICON_CLASS, hideMenuOnDesktop && 'md:hidden')}
               aria-label="Меню"
               aria-expanded={menuOpen}
               onClick={() => setMenuOpen(true)}
@@ -164,9 +161,7 @@ export function DoctorHeader({
             </Button>
           </div>
         </div>
-        {userDisplayName ? (
-          <p className="sr-only">Пользователь: {userDisplayName}</p>
-        ) : null}
+        {userDisplayName ? <p className="sr-only">Пользователь: {userDisplayName}</p> : null}
       </header>
 
       <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
@@ -198,7 +193,7 @@ export function DoctorHeader({
                   id="doctor-menu-logout"
                   className={cn(
                     DOCTOR_MENU_ITEM_RADIUS_CLASS,
-                    "h-auto w-full justify-start px-3 py-2 font-normal text-destructive hover:bg-destructive/10 hover:text-destructive",
+                    'h-auto w-full justify-start px-3 py-2 font-normal text-destructive hover:bg-destructive/10 hover:text-destructive',
                   )}
                   onClick={closeMenu}
                 >

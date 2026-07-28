@@ -30,9 +30,12 @@ describe('projectionHealth', () => {
     await getProjectionHealth(db);
 
     expect(principals).toHaveLength(5);
-    expect(principals).toEqual(Array.from({ length: 5 }, () => ({
-      kind: 'infra', source: 'integrator-projection-health',
-    })));
+    expect(principals).toEqual(
+      Array.from({ length: 5 }, () => ({
+        kind: 'infra',
+        source: 'integrator-projection-health',
+      })),
+    );
   });
 
   it('returns snapshot with pending, dead, oldestPendingAt, retryDistribution, lastSuccessAt, retriesOverThreshold', async () => {
@@ -75,10 +78,16 @@ describe('projectionHealth', () => {
       retriesOverThreshold: 1,
     });
     expect(query).toHaveBeenCalledTimes(5);
-    expect(query.mock.calls.every((call) => String(call[0]).includes('FROM integrator.projection_outbox'))).toBe(true);
-    expect(query.mock.calls[0]![0]).toContain("status IN ('pending', 'processing', 'dead', 'cancelled')");
+    expect(
+      query.mock.calls.every((call) =>
+        String(call[0]).includes('FROM integrator.projection_outbox'),
+      ),
+    ).toBe(true);
+    expect(query.mock.calls[0]![0]).toContain(
+      "status IN ('pending', 'processing', 'dead', 'cancelled')",
+    );
     expect(query.mock.calls[1]![0]).toContain("status = 'pending'");
-    expect(query.mock.calls[2]![0]).toContain("attempts_done");
+    expect(query.mock.calls[2]![0]).toContain('attempts_done');
     expect(query.mock.calls[3]![0]).toContain("status = 'done'");
     expect(query.mock.calls[4]![0]).toContain('attempts_done >= $1');
   });

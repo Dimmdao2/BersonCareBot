@@ -1,25 +1,25 @@
 /** @vitest-environment jsdom */
 
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, act, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { renderHook, act, waitFor } from '@testing-library/react';
 import {
   notifyPatientSupportUnreadCountChanged,
   usePatientSupportUnreadCount,
   useDoctorSupportUnreadCountPolling,
-} from "./useSupportUnreadPolling";
+} from './useSupportUnreadPolling';
 
-describe("usePatientSupportUnreadCount", () => {
+describe('usePatientSupportUnreadCount', () => {
   beforeEach(() => {
     vi.stubGlobal(
-      "fetch",
+      'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
         json: async () => ({ ok: true, unreadCount: 3 }),
       }),
     );
-    Object.defineProperty(document, "visibilityState", {
+    Object.defineProperty(document, 'visibilityState', {
       configurable: true,
-      get: () => "visible",
+      get: () => 'visible',
     });
   });
 
@@ -27,7 +27,7 @@ describe("usePatientSupportUnreadCount", () => {
     vi.unstubAllGlobals();
   });
 
-  it("refetches unread count when notifyPatientSupportUnreadCountChanged fires", async () => {
+  it('refetches unread count when notifyPatientSupportUnreadCountChanged fires', async () => {
     const fetchMock = vi.mocked(fetch);
     fetchMock.mockResolvedValueOnce({
       ok: true,
@@ -50,7 +50,7 @@ describe("usePatientSupportUnreadCount", () => {
     expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(2);
   });
 
-  it("does not poll the patient API when the surrounding shell is public", async () => {
+  it('does not poll the patient API when the surrounding shell is public', async () => {
     const fetchMock = vi.mocked(fetch);
 
     const { result } = renderHook(() => usePatientSupportUnreadCount(false));
@@ -59,7 +59,7 @@ describe("usePatientSupportUnreadCount", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("does not poll the doctor API when tenant runtime is disabled", () => {
+  it('does not poll the doctor API when tenant runtime is disabled', () => {
     const fetchMock = vi.mocked(fetch);
 
     const { result } = renderHook(() => useDoctorSupportUnreadCountPolling(false));

@@ -138,9 +138,7 @@ export async function getBookingDisplayTimezone(
   db: DbPort,
   dispatchPort?: DispatchPort,
 ): Promise<string> {
-  return dispatchPort
-    ? getAppDisplayTimezone({ db, dispatchPort })
-    : getAppDisplayTimezone({ db });
+  return dispatchPort ? getAppDisplayTimezone({ db, dispatchPort }) : getAppDisplayTimezone({ db });
 }
 
 /** @deprecated Используйте {@link resetAppDisplayTimezoneCacheForTests}. */
@@ -194,9 +192,14 @@ export function utcOffsetMinutesFromLongOffset(timeZone: string, instant: Date):
  * В рантайме сервиса используйте {@link getAppDisplayTimezone}.
  */
 export function getAppDisplayTimezoneSync(): string {
-  const rawApp = typeof process.env.APP_DISPLAY_TIMEZONE === 'string' ? process.env.APP_DISPLAY_TIMEZONE.trim() : '';
+  const rawApp =
+    typeof process.env.APP_DISPLAY_TIMEZONE === 'string'
+      ? process.env.APP_DISPLAY_TIMEZONE.trim()
+      : '';
   const rawBooking =
-    typeof process.env.BOOKING_DISPLAY_TIMEZONE === 'string' ? process.env.BOOKING_DISPLAY_TIMEZONE.trim() : '';
+    typeof process.env.BOOKING_DISPLAY_TIMEZONE === 'string'
+      ? process.env.BOOKING_DISPLAY_TIMEZONE.trim()
+      : '';
   if (rawApp.length > 0 || rawBooking.length > 0) {
     if (!warnedLegacyEnvAppDisplayTimezone) {
       warnedLegacyEnvAppDisplayTimezone = true;

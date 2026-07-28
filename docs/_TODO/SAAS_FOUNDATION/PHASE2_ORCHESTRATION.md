@@ -4,6 +4,7 @@ Status: closed for static/scratch Phase 2 proof package on 2026-07-12. Phase 4 d
 rehearsal remains the next external gate.
 
 Rules:
+
 - No prod/test/dev database validation.
 - Scratch DB and disposable prod-dump copy only.
 - No push.
@@ -20,6 +21,7 @@ Rules:
 ### P2-A — Helper-based RLS renderer
 
 Goal:
+
 - Future generated RLS predicates read trusted identity from protected helper functions:
   `app.current_org_id()`, `app.current_patient_user_id()`, `app.current_integrator_user_id()`.
 - `app.is_staff()` stays role-derived.
@@ -29,6 +31,7 @@ Goal:
 Owner: orchestrator integration + worker Franklin for checks/guards.
 
 Current evidence:
+
 - Jason audit confirmed raw `current_setting('app.*')` was still the renderer source.
 - `rls-sql-renderer.mjs` now renders helper calls and split `patientMode`.
 - 2026-07-12 04:44 MSK validation passed:
@@ -53,6 +56,7 @@ Current evidence:
 ### P2-B — Protected context reusable SQL
 
 Goal:
+
 - Move Phase 1 proof DDL for protected context helpers from scratch-only smoke into reusable migration/ops
   artifact.
 - Keep signing secret out of repo docs and migrations; artifact must define storage shape and functions,
@@ -62,6 +66,7 @@ Goal:
 Owner: pending worker assignment after P2-A checks stabilize.
 
 Current artifact slice:
+
 - `deploy/postgres/p2-b-protected-principal-context.sql`: reusable ops SQL with protected context
   tables, signed setter, helper functions, role-derived `app.is_staff()`, revokes/grants, and down
   mode. Real signing secret is supplied by psql variable, not committed.
@@ -71,6 +76,7 @@ Current artifact slice:
 - `scripts/check-saas-db-regression.mjs`: static guard wired into the standard SaaS regression gate.
 
 Validation:
+
 - `node --check docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-b-protected-context-sql.mjs`
 - `node docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-b-protected-context-sql.mjs`
 - `node --check docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-b-protected-context.mjs`
@@ -81,6 +87,7 @@ Validation:
 - `pnpm run check:saas-db-regression`
 
 Audit:
+
 - Sol/Codex read-only audit found a blocking `NULL` signature bypass in the setter and a pgcrypto
   schema assumption. Fixed by explicit signature format/null validation, `IS DISTINCT FROM`, smoke
   coverage for NULL signatures, and an early `pgcrypto_must_be_installed_in_app_ext` guard.
@@ -89,6 +96,7 @@ Audit:
 ### B4-fanout L1 — locked principal runtime wiring
 
 Goal:
+
 - Add opt-in runtime wiring so webapp, integrator, scheduler, and media-worker DB chokepoints can apply
   the P2-B protected principal context when operators set `DB_PRINCIPAL_CONTEXT_MODE=locked` and provide
   `DB_PRINCIPAL_SIGNING_SECRET`.
@@ -96,6 +104,7 @@ Goal:
   is deployed and ops explicitly sets the env.
 
 Status:
+
 - Taskdb `#688` worker slice implemented bounded L1 wiring: shared `DbPrincipalApplyOptions` builder,
   checkout and promise-form `pool.query` wrappers pass options into
   `applyCurrentDbPrincipalToConnection`, `applyCurrentDbPrincipalToTransaction`, and
@@ -106,6 +115,7 @@ Status:
   `scripts/check-saas-db-regression.mjs`.
 
 Residual:
+
 - This does NOT switch DB roles and does NOT prove real process-family runtime under `app_staff` /
   `app_patient`.
 - Process-family smoke under real app roles, cluster-global role naming, and env-boundary decisions remain
@@ -114,10 +124,12 @@ Residual:
 ### B4-fanout L2 — locked runtime live scratch proof
 
 Goal:
+
 - Prove the L1 Node runtime locked principal path against the reusable P2-B SQL artifact on disposable
   scratch DB/roles, without touching prod/test/dev/app databases.
 
 Status:
+
 - Worker added `docs/_TODO/SAAS_FOUNDATION/scripts/smoke-b4-locked-runtime-principal.mjs`.
 - The smoke creates a disposable `bcb_saas_*_scratch_*` database and owner/staff/patient roles, applies
   `deploy/postgres/p2-b-protected-principal-context.sql` with a random signing secret, then imports the
@@ -127,10 +139,12 @@ Status:
   `clearDbPrincipalFromConnection`.
 
 Validation command:
+
 - `node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-b4-locked-runtime-principal.mjs`
   (the script builds `packages/db-principal` before importing its generated runtime).
 
 Residual:
+
 - This proves direct Node `pg` connections under disposable staff/patient app roles on local scratch DB.
   It still does not prove full webapp/integrator/scheduler/media-worker process-family behavior or the
   eventual production role naming/deployment flip.
@@ -138,12 +152,14 @@ Residual:
 ### P2-C — #664 value-level residuals
 
 Goal:
+
 - Close or explicitly defer with blocking status every pre-flip value-level residual from `P0_5B_GRANTS.md`.
 - Preferred fixes: repo split or DB trigger/WITH CHECK where column grants cannot express value constraints.
 
 Owner: explorer Locke for map; implementation workers after map review.
 
 Targets:
+
 - booking lifecycle `be_appointment_*`
 - `program_item_discussion_messages`
 - `support_conversation_messages`
@@ -157,6 +173,7 @@ Targets:
 ### P2-D — Validation and audit
 
 Required before completion:
+
 - Repeatable proof package runner:
   - Default static-only package, DB-free:
     `node docs/_TODO/SAAS_FOUNDATION/scripts/run-p2-d-proof-package.mjs`
@@ -185,6 +202,7 @@ Required before completion:
     validation output. Runner success is evidence for the audit, not a substitute for it.
 
 Status:
+
 - P2-D proof package runner added by worker Newton for taskdb `#685`.
 - Lead validation passed on 2026-07-12:
   - PASS `node --check docs/_TODO/SAAS_FOUNDATION/scripts/run-p2-d-proof-package.mjs`
@@ -200,6 +218,7 @@ Status:
   PASS WITH RISKS, no P0/P1 blockers, safe to commit.
 
 Residuals:
+
 - The static P2-B/C1/C2/C3 guards run directly and again through `check-saas-db-regression`; this is
   intentionally redundant proof, not a behavior blocker.
 - Mixed CLI flags are last-write-wins (`--with-scratch-smokes --mode=static` resolves to static). This errs
@@ -210,12 +229,14 @@ Residuals:
 ### P2 closeout composed proof — protected context + RLS + grants + value guards
 
 Status:
+
 - Closeout smoke added: `docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-composed-rls-grants-value-guards.mjs`.
 - The P2-D scratch package now includes this smoke and `node --check` covers it.
 - Claude Opus verifier via `agent-port` (`20260712-080701-verifier`) verdict: PASS WITH RISKS; no
   blocking findings, only low/informational residuals.
 
 Coverage:
+
 - One disposable `bcb_saas_p2_composed_scratch_*` DB and disposable `bcb_saas_*_scratch_*` roles apply
   P2-B, P2-C1/C2/C3, representative P0.5b grants from generator metadata, and generated P0.9 enforce RLS
   policies for representative Phase 2 SCOPED surfaces.
@@ -228,6 +249,7 @@ Coverage:
 - Staff access is proven through role-derived `app.is_staff()` using the disposable staff role, not a GUC.
 
 Residual:
+
 - This is still a representative synthetic-schema composition proof, not a full production schema replay,
   production-sized data rehearsal, or process-family runtime smoke under the eventual cluster-global
   `app_staff` / `app_patient` role names.
@@ -252,6 +274,7 @@ Residual:
 ## #664 implementation batches
 
 Batch P2-C1 — messaging/discussion/event actor pins:
+
 - `program_item_discussion_messages`: patient insert must pin `sender_role='patient'`,
   `origin='patient_observation'`, `support_message_id IS NULL`.
 - `support_conversation_messages`: patient insert must pin `sender_role='user'` and own conversation.
@@ -259,6 +282,7 @@ Batch P2-C1 — messaging/discussion/event actor pins:
   event shapes.
 
 Status:
+
 - Implemented by CLI worker `codex-worker-p2-c1-patient-value-guards-2026-07-12T02-09-50-992Z`.
 - `deploy/postgres/p2-c1-patient-value-guards.sql` adds invoker-mode insert triggers using protected
   context helpers. Invoker-mode is intentional: `app.is_staff()` remains role-derived from the caller,
@@ -268,6 +292,7 @@ Status:
 - Static guard is wired into `scripts/check-saas-db-regression.mjs`.
 
 Validation:
+
 - PASS `node --check docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-c1-patient-value-guards-sql.mjs`
 - PASS `node docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-c1-patient-value-guards-sql.mjs`
 - PASS `node --check docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-c1-patient-value-guards.mjs`
@@ -280,6 +305,7 @@ Validation:
   scratch DB `bcb_saas_p2_c1_value_guard_scratch_*`; no prod/test/dev DB touched.
 
 Audit:
+
 - Codex read-only audit `codex-auditor-p2-c1-patient-value-guards-audit-2026-07-12T02-16-38-157Z`:
   PASS WITH RISKS, no blocking findings.
 - Residual validation risk: the smoke uses a synthetic schema and broad table grants, so it proves
@@ -289,12 +315,14 @@ Audit:
   Phase 2 residual list if event targets become semantically trusted.
 
 Batch P2-C2 — online intake / channel preference / reminder pins:
+
 - `online_intake_status_history`: patient initial history only `NULL -> 'new'`, no `changed_by`/note.
 - `user_channel_preferences.is_preferred_for_auth`: re-add narrow valid own-channel write with one preferred
   auth channel invariant.
 - `reminder_rules.notification_topic_code`: verify/compute expected topic for patient-created reminders.
 
 Status:
+
 - Implemented by worker agent on `auto/code-pg-delta` (2026-07-12); no commit/push/branch switch.
 - `deploy/postgres/p2-c2-patient-value-guards.sql` adds invoker-mode triggers using protected context
   helpers. Invoker-mode is intentional: `app.is_staff()` stays role-derived from the caller.
@@ -327,6 +355,7 @@ Status:
   `platform_user_id` matches the patient.
 
 Validation evidence:
+
 - Static guard: `docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-c2-patient-value-guards-sql.mjs` wired
   into `scripts/check-saas-db-regression.mjs`.
 - Scratch-only smoke: `docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-c2-patient-value-guards.mjs`
@@ -340,16 +369,18 @@ Validation evidence:
   `node scripts/check-saas-db-regression.mjs`.
 
 Batch P2-C3 — booking lifecycle and LFK org stamp:
+
 - `be_appointment_*` and `be_appointments`: patient lifecycle value pins and appointment transition guard.
 - `lfk_sessions.organization_id`: stamp/verify org from current context or parent, deny NULL/mismatch.
 
 Status:
+
 - Implemented by Codex worker on `auto/code-pg-delta` (2026-07-12); no commit/push/branch switch.
 - `deploy/postgres/p2-c3-patient-booking-lfk-guards.sql` adds invoker-mode patient-context triggers
   using P2-B helpers. Invoker-mode is intentional: `app.is_staff()` remains role-derived and staff
   sessions with a patient context bypass the patient guards.
 - `be_appointments` patient INSERT is pinned to current org/patient, `source IN ('native',
-  'public_widget')`, `status IN ('confirmed', 'awaiting_payment')`, `original_start_at=start_at`,
+'public_widget')`, `status IN ('confirmed', 'awaiting_payment')`, `original_start_at=start_at`,
   `reschedule_count=0`, and no payment/package/soft-delete fields.
 - `be_appointments` patient UPDATE allows only the current patient lifecycle shapes: cancel to
   `cancelled_by_patient|late_cancellation`, the first reschedule step to `rescheduled`, and the second
@@ -380,6 +411,7 @@ Status:
   It confirmed the execute-grant risk is closed and no new blockers were introduced.
 
 Validation:
+
 - PASS `node --check docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-c3-patient-booking-lfk-guards-sql.mjs`
 - PASS `node docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-c3-patient-booking-lfk-guards-sql.mjs`
 - PASS `node --check docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p2-c3-patient-booking-lfk-guards.mjs`
@@ -395,6 +427,7 @@ Validation:
 - PASS `node scripts/check-saas-db-regression.mjs`
 
 Residuals:
+
 - Cancellation/reschedule policy-derived booleans and policy snapshots are not recomputed in the DB
   trigger; the guard verifies patient ownership and actor/staff/manual pins, while trusting the
   existing service policy calculation.
@@ -404,6 +437,7 @@ Residuals:
 ### P2 execute ACL symmetry hardening
 
 Status:
+
 - Worker hardening slice on `auto/code-pg-delta` (2026-07-12); no commit/push and no prod/test/dev DB
   touched.
 - P2-B now revokes PUBLIC EXECUTE on the signed setter and helper functions after creation, while
@@ -420,6 +454,7 @@ Status:
   PASS WITH RISKS, no blockers. The audit confirmed execute-ACL symmetry is closed across P2-B/C1/C2.
 
 Validation:
+
 - PASS `node --check docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-b-protected-context-sql.mjs`
 - PASS `node docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-b-protected-context-sql.mjs`
 - PASS `node --check docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-c1-patient-value-guards-sql.mjs`
@@ -440,6 +475,7 @@ Validation:
 - PASS `git diff --check`
 
 Residuals:
+
 - Deploy gate: before applying these artifacts to a real database, confirm the locked-mode connection
   role is `app_staff` / `app_patient` or a member of one of those roles; otherwise
   `app.install_signed_context(...)` will fail after PUBLIC EXECUTE is revoked.

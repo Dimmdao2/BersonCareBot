@@ -2,7 +2,7 @@ export type PatientOrganizationEnrollment = {
   organizationId: string;
   organizationTitle: string;
   platformUserId: string;
-  status: "active" | "invited" | "discharged" | "archived";
+  status: 'active' | 'invited' | 'discharged' | 'archived';
   organizationIsActive: boolean;
   createdAt: string;
 };
@@ -33,15 +33,17 @@ export type CreateManualOrganizationClientResult =
   | {
       ok: false;
       error:
-        | "email_conflict"
-        | "identity_conflict"
-        | "inactive_enrollment"
-        | "idempotency_conflict"
-        | "create_failed";
+        | 'email_conflict'
+        | 'identity_conflict'
+        | 'inactive_enrollment'
+        | 'idempotency_conflict'
+        | 'create_failed';
     };
 
 export type PatientOrganizationPort = {
-  listActiveEnrollmentsByPlatformUser(platformUserId: string): Promise<PatientOrganizationEnrollment[]>;
+  listActiveEnrollmentsByPlatformUser(
+    platformUserId: string,
+  ): Promise<PatientOrganizationEnrollment[]>;
   hasActiveEnrollment(platformUserId: string, organizationId: string): Promise<boolean>;
   /** Staff scheduling may use an invited card; patient portal access still requires active. */
   hasSchedulableClientRelationship(

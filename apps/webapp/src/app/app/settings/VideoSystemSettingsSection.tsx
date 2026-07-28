@@ -1,26 +1,26 @@
-"use client";
+'use client';
 
-import { useCallback, useState, useTransition } from "react";
-import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
+import { useCallback, useState, useTransition } from 'react';
+import Link from 'next/link';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/shared/ui/doctor/primitives/select";
-import { LabeledSwitch } from "@/shared/ui/doctor/primitives/labeled-switch";
+} from '@/shared/ui/doctor/primitives/select';
+import { LabeledSwitch } from '@/shared/ui/doctor/primitives/labeled-switch';
 import {
   VIDEO_PRESIGN_TTL_MAX_SEC,
   VIDEO_PRESIGN_TTL_MIN_SEC,
-} from "@/modules/media/videoPresignTtlConstants";
-import { videoDeliveryStrategySelectItems } from "@/shared/ui/doctor/selectOpaqueValueLabels";
-import { patchAdminSetting } from "./patchAdminSetting";
+} from '@/modules/media/videoPresignTtlConstants';
+import { videoDeliveryStrategySelectItems } from '@/shared/ui/doctor/selectOpaqueValueLabels';
+import { patchAdminSetting } from './patchAdminSetting';
 
-export type VideoDefaultDeliveryUi = "mp4" | "hls" | "auto";
+export type VideoDefaultDeliveryUi = 'mp4' | 'hls' | 'auto';
 
 export type VideoSystemSettingsSectionProps = {
   initialPlaybackApiEnabled: boolean;
@@ -42,7 +42,8 @@ export function VideoSystemSettingsSection({
   initialPresignTtlSeconds,
 }: VideoSystemSettingsSectionProps) {
   const [playbackApi, setPlaybackApi] = useState(initialPlaybackApiEnabled);
-  const [defaultDelivery, setDefaultDelivery] = useState<VideoDefaultDeliveryUi>(initialDefaultDelivery);
+  const [defaultDelivery, setDefaultDelivery] =
+    useState<VideoDefaultDeliveryUi>(initialDefaultDelivery);
   const [pipeline, setPipeline] = useState(initialHlsPipelineEnabled);
   const [autoTranscode, setAutoTranscode] = useState(initialNewUploadsAutoTranscode);
   const [reconcile, setReconcile] = useState(initialHlsReconcileEnabled);
@@ -61,7 +62,7 @@ export function VideoSystemSettingsSection({
     const ok = await patchAdminSetting(key, value);
     setBusyKey(null);
     if (!ok) {
-      setPatchError("Не удалось сохранить");
+      setPatchError('Не удалось сохранить');
       return;
     }
     apply();
@@ -73,17 +74,19 @@ export function VideoSystemSettingsSection({
     startTtlTransition(async () => {
       const raw = ttl.trim();
       if (!/^\d+$/.test(raw)) {
-        setTtlError("Укажите целое число секунд");
+        setTtlError('Укажите целое число секунд');
         return;
       }
       const n = Number.parseInt(raw, 10);
       if (n < VIDEO_PRESIGN_TTL_MIN_SEC || n > VIDEO_PRESIGN_TTL_MAX_SEC) {
-        setTtlError(`Допустимый диапазон: ${VIDEO_PRESIGN_TTL_MIN_SEC}…${VIDEO_PRESIGN_TTL_MAX_SEC} с`);
+        setTtlError(
+          `Допустимый диапазон: ${VIDEO_PRESIGN_TTL_MIN_SEC}…${VIDEO_PRESIGN_TTL_MAX_SEC} с`,
+        );
         return;
       }
-      const ok = await patchAdminSetting("video_presign_ttl_seconds", n);
+      const ok = await patchAdminSetting('video_presign_ttl_seconds', n);
       if (!ok) {
-        setTtlError("Не удалось сохранить");
+        setTtlError('Не удалось сохранить');
         return;
       }
       setTtlSaved(true);
@@ -96,7 +99,7 @@ export function VideoSystemSettingsSection({
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Воспроизведение видео</CardTitle>
           <p className="text-xs text-muted-foreground">
-            JSON для пациентского плеера; без включённого API экраны, которые запрашивают только{" "}
+            JSON для пациентского плеера; без включённого API экраны, которые запрашивают только{' '}
             <code className="rounded bg-muted px-1">/playback</code>, не получат параметры.
           </p>
         </CardHeader>
@@ -106,9 +109,9 @@ export function VideoSystemSettingsSection({
             hint="GET /api/media/…/playback и presigned HLS/MP4 в одном ответе."
             checked={playbackApi}
             onCheckedChange={(next) =>
-              void runPatch("video_playback_api_enabled", next, () => setPlaybackApi(next))
+              void runPatch('video_playback_api_enabled', next, () => setPlaybackApi(next))
             }
-            disabled={busyKey === "video_playback_api_enabled"}
+            disabled={busyKey === 'video_playback_api_enabled'}
           />
           <div className="flex flex-col gap-1.5">
             <label htmlFor="video-default-delivery" className="text-xs font-medium">
@@ -117,15 +120,12 @@ export function VideoSystemSettingsSection({
             <Select
               value={defaultDelivery}
               onValueChange={(v) => {
-                if (v !== "mp4" && v !== "hls" && v !== "auto") return;
-                void runPatch("video_default_delivery", v, () => setDefaultDelivery(v));
+                if (v !== 'mp4' && v !== 'hls' && v !== 'auto') return;
+                void runPatch('video_default_delivery', v, () => setDefaultDelivery(v));
               }}
-              disabled={busyKey === "video_default_delivery"}
+              disabled={busyKey === 'video_default_delivery'}
             >
-              <SelectTrigger
-                id="video-default-delivery"
-                className="max-w-md"
-              >
+              <SelectTrigger id="video-default-delivery" className="max-w-md">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -146,14 +146,14 @@ export function VideoSystemSettingsSection({
           <CardTitle className="text-base">Транскод HLS</CardTitle>
           {!pipeline ? (
             <p className="text-xs text-muted-foreground">
-              Пока пайплайн выключен, очередь транскода не обрабатывается; новые HLS не появятся без включения и
-              работающего media-worker на сервере.
+              Пока пайплайн выключен, очередь транскода не обрабатывается; новые HLS не появятся без
+              включения и работающего media-worker на сервере.
             </p>
           ) : (
             <p className="text-xs text-muted-foreground">
-              Очередь <code className="rounded bg-muted px-1">media_transcode_jobs</code> обрабатывается{" "}
-              <code className="rounded bg-muted px-1">apps/media-worker</code> на хосте (отдельный systemd unit — см.
-              документацию деплоя).
+              Очередь <code className="rounded bg-muted px-1">media_transcode_jobs</code>{' '}
+              обрабатывается <code className="rounded bg-muted px-1">apps/media-worker</code> на
+              хосте (отдельный systemd unit — см. документацию деплоя).
             </p>
           )}
         </CardHeader>
@@ -163,30 +163,32 @@ export function VideoSystemSettingsSection({
             hint="Мастер-выключатель очереди и обработки воркером."
             checked={pipeline}
             onCheckedChange={(next) =>
-              void runPatch("video_hls_pipeline_enabled", next, () => setPipeline(next))
+              void runPatch('video_hls_pipeline_enabled', next, () => setPipeline(next))
             }
-            disabled={busyKey === "video_hls_pipeline_enabled"}
+            disabled={busyKey === 'video_hls_pipeline_enabled'}
           />
           <LabeledSwitch
             label="Автотранскод новых загрузок"
             hint="После успешной загрузки video/* ставить задачу в очередь (нужны включённый пайплайн и воркер)."
             checked={autoTranscode}
             onCheckedChange={(next) =>
-              void runPatch("video_hls_new_uploads_auto_transcode", next, () => setAutoTranscode(next))
+              void runPatch('video_hls_new_uploads_auto_transcode', next, () =>
+                setAutoTranscode(next),
+              )
             }
-            disabled={busyKey === "video_hls_new_uploads_auto_transcode"}
+            disabled={busyKey === 'video_hls_new_uploads_auto_transcode'}
           />
           <LabeledSwitch
             label="Reconcile legacy (cron)"
             hint="Разрешает POST /api/internal/media-transcode/reconcile ставить задачи для старых video без HLS."
             checked={reconcile}
             onCheckedChange={(next) =>
-              void runPatch("video_hls_reconcile_enabled", next, () => setReconcile(next))
+              void runPatch('video_hls_reconcile_enabled', next, () => setReconcile(next))
             }
-            disabled={busyKey === "video_hls_reconcile_enabled"}
+            disabled={busyKey === 'video_hls_reconcile_enabled'}
           />
           <p className="text-xs text-muted-foreground">
-            Очередь и метрики: вкладка{" "}
+            Очередь и метрики: вкладка{' '}
             <Link href="/app/admin/system-health" className="underline underline-offset-2">
               Здоровье системы
             </Link>
@@ -199,12 +201,12 @@ export function VideoSystemSettingsSection({
               hint="Burn-in UUID в кадре; дольше ffmpeg. Уже готовые HLS не меняются."
               checked={watermark}
               onCheckedChange={(next) =>
-                void runPatch("video_watermark_enabled", next, () => setWatermark(next))
+                void runPatch('video_watermark_enabled', next, () => setWatermark(next))
               }
-              disabled={busyKey === "video_watermark_enabled"}
+              disabled={busyKey === 'video_watermark_enabled'}
             />
             <p className="mt-1 text-xs text-muted-foreground">
-              На воркере нужен TTF (например DejaVu) или env{" "}
+              На воркере нужен TTF (например DejaVu) или env{' '}
               <code className="rounded bg-muted px-1">MEDIA_WORKER_WATERMARK_FONT</code>.
             </p>
           </div>
@@ -237,7 +239,7 @@ export function VideoSystemSettingsSection({
           </label>
           <div className="flex items-center gap-3">
             <Button variant="outline" onClick={handleTtlSave} disabled={ttlPending}>
-              {ttlPending ? "Сохранение…" : "Сохранить TTL"}
+              {ttlPending ? 'Сохранение…' : 'Сохранить TTL'}
             </Button>
             {ttlSaved ? <span className="text-sm text-green-600">Сохранено</span> : null}
             {ttlError ? <span className="text-sm text-destructive">{ttlError}</span> : null}

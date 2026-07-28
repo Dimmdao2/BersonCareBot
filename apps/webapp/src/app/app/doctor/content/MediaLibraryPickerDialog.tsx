@@ -1,46 +1,49 @@
-"use client";
+'use client';
 
-import { ChevronDown } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { buttonVariants } from "@/shared/ui/doctor/primitives/button";
+import { ChevronDown } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/shared/ui/doctor/primitives/dropdown-menu";
-import { cn } from "@/lib/utils";
-import type { MediaListItem } from "@/shared/ui/doctor/media/MediaPickerList";
-import { parseMediaFileIdFromAppUrl } from "@/shared/lib/mediaPreviewUrls";
-import { MediaThumb } from "@/shared/ui/doctor/media/MediaThumb";
-import { fetchAdminMediaListItem } from "@/shared/ui/doctor/media/fetchAdminMediaListItem";
-import { mediaLibraryPickerSelectionToPreviewUi } from "@/shared/ui/doctor/media/mediaPreviewUiModel";
-import { MediaPickerPanel } from "@/shared/ui/doctor/media/MediaPickerPanel";
-import { MediaPickerShell } from "@/shared/ui/doctor/media/MediaPickerShell";
+} from '@/shared/ui/doctor/primitives/dropdown-menu';
+import { cn } from '@/lib/utils';
+import type { MediaListItem } from '@/shared/ui/doctor/media/MediaPickerList';
+import { parseMediaFileIdFromAppUrl } from '@/shared/lib/mediaPreviewUrls';
+import { MediaThumb } from '@/shared/ui/doctor/media/MediaThumb';
+import { fetchAdminMediaListItem } from '@/shared/ui/doctor/media/fetchAdminMediaListItem';
+import { mediaLibraryPickerSelectionToPreviewUi } from '@/shared/ui/doctor/media/mediaPreviewUiModel';
+import { MediaPickerPanel } from '@/shared/ui/doctor/media/MediaPickerPanel';
+import { MediaPickerShell } from '@/shared/ui/doctor/media/MediaPickerShell';
 
-export type MediaLibraryPickerKind = "image" | "video" | "image_or_video";
+export type MediaLibraryPickerKind = 'image' | 'video' | 'image_or_video';
 
-export type MediaLibraryPickMeta = Pick<MediaListItem, "kind" | "mimeType" | "filename" | "displayName">;
+export type MediaLibraryPickMeta = Pick<
+  MediaListItem,
+  'kind' | 'mimeType' | 'filename' | 'displayName'
+>;
 
 /** When `kind` is `image_or_video`, hints preview for bare `/api/media/:id` URLs after reload. */
-export type MediaLibrarySelectedPreviewKind = "image" | "video" | "gif";
+export type MediaLibrarySelectedPreviewKind = 'image' | 'video' | 'gif';
 
 type LastPick = {
   url: string;
-  rowKind: MediaListItem["kind"];
+  rowKind: MediaListItem['kind'];
   mimeType: string;
   previewSmUrl?: string | null;
   previewMdUrl?: string | null;
-  previewStatus?: MediaListItem["previewStatus"];
+  previewStatus?: MediaListItem['previewStatus'];
 };
 
-function inferPreviewFromUrl(url: string): "image" | "gif" | "video" | null {
+function inferPreviewFromUrl(url: string): 'image' | 'gif' | 'video' | null {
   const u = url.trim().toLowerCase();
   if (!u) return null;
-  if (u.includes(".gif") || /[./]gif(\?|$)/i.test(u)) return "gif";
-  if (/\.(mp4|webm|mov|m4v|ogv|ogg)(\?|#|$)/i.test(u)) return "video";
-  if (u.startsWith("/api/media/")) return "image";
-  if (/^https?:\/\//i.test(u)) return "image";
+  if (u.includes('.gif') || /[./]gif(\?|$)/i.test(u)) return 'gif';
+  if (/\.(mp4|webm|mov|m4v|ogv|ogg)(\?|#|$)/i.test(u)) return 'video';
+  if (u.startsWith('/api/media/')) return 'image';
+  if (/^https?:\/\//i.test(u)) return 'image';
   return null;
 }
 
@@ -49,26 +52,27 @@ function resolveSelectedPreview(args: {
   kind: MediaLibraryPickerKind;
   previewKind?: MediaLibrarySelectedPreviewKind;
   lastPick: LastPick | null;
-}): "image" | "gif" | "video" | null {
+}): 'image' | 'gif' | 'video' | null {
   const { value, kind, previewKind, lastPick } = args;
   const trimmed = value.trim();
   if (!trimmed) return null;
 
   if (lastPick && lastPick.url === trimmed) {
-    if (lastPick.rowKind === "video") return "video";
-    if (lastPick.rowKind === "image") {
+    if (lastPick.rowKind === 'video') return 'video';
+    if (lastPick.rowKind === 'image') {
       const mime = lastPick.mimeType.toLowerCase();
-      if (mime === "image/gif" || /\.gif$/i.test(trimmed)) return "gif";
-      return "image";
+      if (mime === 'image/gif' || /\.gif$/i.test(trimmed)) return 'gif';
+      return 'image';
     }
     return null;
   }
 
-  if (kind === "image") return "image";
-  if (kind === "video") return "video";
-  if (kind === "image_or_video") {
-    if (previewKind === "video") return "video";
-    if (previewKind === "gif" || previewKind === "image") return previewKind === "gif" ? "gif" : "image";
+  if (kind === 'image') return 'image';
+  if (kind === 'video') return 'video';
+  if (kind === 'image_or_video') {
+    if (previewKind === 'video') return 'video';
+    if (previewKind === 'gif' || previewKind === 'image')
+      return previewKind === 'gif' ? 'gif' : 'image';
     return inferPreviewFromUrl(trimmed);
   }
   return null;
@@ -95,8 +99,8 @@ export function MediaLibraryPickerDialog({
   value,
   onChange,
   folderId,
-  pickerTitle = "Библиотека файлов",
-  selectButtonLabel = "Выбрать из библиотеки",
+  pickerTitle = 'Библиотека файлов',
+  selectButtonLabel = 'Выбрать из библиотеки',
   selectedPreviewKind,
   showPreview = true,
 }: Props) {
@@ -105,14 +109,14 @@ export function MediaLibraryPickerDialog({
   const [hydratedPick, setHydratedPick] = useState<LastPick | null>(null);
   const hydrateRequestRef = useRef(0);
 
-  const exercisePicker = kind === "image_or_video";
+  const exercisePicker = kind === 'image_or_video';
   const [pickerFolderId, setPickerFolderId] = useState<string | null | undefined>(folderId);
 
   useEffect(() => {
     if (open) queueMicrotask(() => setPickerFolderId(folderId));
   }, [open, folderId]);
 
-  const apiKind = kind === "image_or_video" ? "all" : kind;
+  const apiKind = kind === 'image_or_video' ? 'all' : kind;
 
   const effectiveFolderId = pickerFolderId;
 
@@ -197,8 +201,7 @@ export function MediaLibraryPickerDialog({
     [onChange],
   );
 
-  const isApiMedia =
-    value.startsWith("/api/media/") || /^https?:\/\//i.test(value.trim());
+  const isApiMedia = value.startsWith('/api/media/') || /^https?:\/\//i.test(value.trim());
 
   /** Не показываем превью для legacy путей вне `/api/media/…` и без `https://`. */
   const previewMode = isApiMedia
@@ -210,8 +213,12 @@ export function MediaLibraryPickerDialog({
       })
     : null;
 
-  const thumbKind: "image" | "video" =
-    previewMode === "video" ? "video" : previewMode === "image" || previewMode === "gif" ? "image" : "image";
+  const thumbKind: 'image' | 'video' =
+    previewMode === 'video'
+      ? 'video'
+      : previewMode === 'image' || previewMode === 'gif'
+        ? 'image'
+        : 'image';
   const selectedPreviewMedia = mediaLibraryPickerSelectionToPreviewUi({
     value,
     thumbKind,
@@ -221,7 +228,7 @@ export function MediaLibraryPickerDialog({
   const openLibrary = useCallback(() => setOpen(true), []);
   const clearMedia = useCallback(() => {
     setLastPick(null);
-    onChange("");
+    onChange('');
   }, [onChange]);
 
   return (
@@ -232,7 +239,7 @@ export function MediaLibraryPickerDialog({
             <div className="space-y-2 text-sm">
               {value ? (
                 <>
-                  {previewMode === "video" || previewMode === "image" || previewMode === "gif" ? (
+                  {previewMode === 'video' || previewMode === 'image' || previewMode === 'gif' ? (
                     <div
                       className="overflow-hidden rounded-md border border-border/60 bg-muted/30"
                       data-testid="selected-media-preview"
@@ -241,7 +248,7 @@ export function MediaLibraryPickerDialog({
                         media={selectedPreviewMedia}
                         className="h-40 w-full"
                         imgClassName="h-40 w-full object-contain bg-muted/30"
-                        labels={{ skipped: "Превью не создаётся", failed: "Превью недоступно" }}
+                        labels={{ skipped: 'Превью не создаётся', failed: 'Превью недоступно' }}
                         sizes="160px"
                       />
                     </div>
@@ -264,8 +271,8 @@ export function MediaLibraryPickerDialog({
             <DropdownMenuTrigger
               type="button"
               className={cn(
-                buttonVariants({ variant: "outline", size: "sm" }),
-                "box-border h-[32px] gap-1 px-3",
+                buttonVariants({ variant: 'outline', size: 'sm' }),
+                'box-border h-[32px] gap-1 px-3',
               )}
             >
               Изменить
@@ -293,7 +300,7 @@ export function MediaLibraryPickerDialog({
 
       <MediaPickerShell open={open} onOpenChange={handleOpenChange} title={pickerTitle}>
         <MediaPickerPanel
-          key={open ? "media-picker-open" : "media-picker-closed"}
+          key={open ? 'media-picker-open' : 'media-picker-closed'}
           open={open}
           apiKind={apiKind}
           folderId={effectiveFolderId}

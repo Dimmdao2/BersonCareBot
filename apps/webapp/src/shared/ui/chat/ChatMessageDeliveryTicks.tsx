@@ -1,6 +1,6 @@
-import { Check, CheckCheck } from "lucide-react";
-import { cn } from "@/lib/utils";
-import type { ChatMessageDeliveryStatus } from "@/modules/messaging/chatMessageDeliveryStatus";
+import { Check, CheckCheck } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import type { ChatMessageDeliveryStatus } from '@/modules/messaging/chatMessageDeliveryStatus';
 
 type Props = {
   status: ChatMessageDeliveryStatus;
@@ -9,10 +9,10 @@ type Props = {
 
 /** Telegram-style delivery ticks: one = sent, two = read by peer. */
 export function ChatMessageDeliveryTicks({ status, className }: Props) {
-  const Icon = status === "read" ? CheckCheck : Check;
+  const Icon = status === 'read' ? CheckCheck : Check;
   return (
     <Icon
-      className={cn("size-[14px] shrink-0 stroke-[2.25]", className)}
+      className={cn('size-[14px] shrink-0 stroke-[2.25]', className)}
       aria-hidden
       data-delivery-status={status}
     />

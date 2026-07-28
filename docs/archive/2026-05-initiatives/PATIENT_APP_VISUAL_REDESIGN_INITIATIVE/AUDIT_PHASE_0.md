@@ -38,15 +38,15 @@ Phase 0 выполнен по смыслу: есть `PLAN_INVENTORY.md` с пр
 
 ## 4. Readiness for Phase 1
 
-| Критерий | Оценка |
-|----------|--------|
-| Inventory опирается на реальные файлы | **Да** — перечислены `AppShell.tsx`, `PatientHeader.tsx`, `navigation.ts`, `globals.css`, отсутствие `PatientBottomNav`, легаси `page.tsx`, тесты `PatientHeader` / `navigation`, отсутствие `AppShell.test.tsx` и home `*.test`. |
-| App-код в Phase 0 не менялся | **Да** — по заявлению и смыслу Phase 0 / inventory. |
-| Scope Phase 1 достаточно узок для Composer 2 | **Да** — `globals.css` (токены в patient-scope), фон patient `AppShell` без max-width, опционально `button-variants` / patient-helper, **создание** `patientHomeCardStyles.ts` (или `patientHomeVisual.ts`), **создание** smoke `AppShell.test.tsx`; явный запрет трогать header/nav/navigation и max-width. |
-| Тесты / проверки не чрезмерны | **Да** — не требуется full CI после шага; целевые targeted тесты и typecheck/lint по политике README / MASTER_PLAN. |
-| Нет призыва гонять full CI после каждого шага | **Да** — README §«Проверки», MASTER_PLAN §10 / Phase 5. |
-| Нет плана хардкода slug из CONTENT_PLAN | **Да** — MASTER_PLAN §3; VISUAL_SYSTEM_SPEC §1.2, §10.4; inventory не предлагает slug-based визуал. |
-| Нет утечки scope на doctor/admin redesign | **Да** — Phase 1 исключает doctor variant и чужие layout; риск только через общие `button-variants` / `:root` — отмечен как blast radius, не как расширение scope. |
+| Критерий                                      | Оценка                                                                                                                                                                                                                                                                                                       |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Inventory опирается на реальные файлы         | **Да** — перечислены `AppShell.tsx`, `PatientHeader.tsx`, `navigation.ts`, `globals.css`, отсутствие `PatientBottomNav`, легаси `page.tsx`, тесты `PatientHeader` / `navigation`, отсутствие `AppShell.test.tsx` и home `*.test`.                                                                            |
+| App-код в Phase 0 не менялся                  | **Да** — по заявлению и смыслу Phase 0 / inventory.                                                                                                                                                                                                                                                          |
+| Scope Phase 1 достаточно узок для Composer 2  | **Да** — `globals.css` (токены в patient-scope), фон patient `AppShell` без max-width, опционально `button-variants` / patient-helper, **создание** `patientHomeCardStyles.ts` (или `patientHomeVisual.ts`), **создание** smoke `AppShell.test.tsx`; явный запрет трогать header/nav/navigation и max-width. |
+| Тесты / проверки не чрезмерны                 | **Да** — не требуется full CI после шага; целевые targeted тесты и typecheck/lint по политике README / MASTER_PLAN.                                                                                                                                                                                          |
+| Нет призыва гонять full CI после каждого шага | **Да** — README §«Проверки», MASTER_PLAN §10 / Phase 5.                                                                                                                                                                                                                                                      |
+| Нет плана хардкода slug из CONTENT_PLAN       | **Да** — MASTER_PLAN §3; VISUAL_SYSTEM_SPEC §1.2, §10.4; inventory не предлагает slug-based визуал.                                                                                                                                                                                                          |
+| Нет утечки scope на doctor/admin redesign     | **Да** — Phase 1 исключает doctor variant и чужие layout; риск только через общие `button-variants` / `:root` — отмечен как blast radius, не как расширение scope.                                                                                                                                           |
 
 **Итог:** Phase 1 **готов к EXEC** при соблюдении условий из `PLAN_INVENTORY.md` §11 и чеклиста `01_FOUNDATION_PLAN.md`.
 
@@ -62,4 +62,4 @@ Phase 0 выполнен по смыслу: есть `PLAN_INVENTORY.md` с пр
 
 ---
 
-*Архивные PROMPT'ы `PATIENT_HOME_REDESIGN_INITIATIVE` и `.cursor/plans/archive/phase_3_patient_home_*` / `phase_4.5_patient_home_*` не исполнялись.*
+_Архивные PROMPT'ы `PATIENT_HOME_REDESIGN_INITIATIVE` и `.cursor/plans/archive/phase*3_patient_home*_`/`phase*4.5_patient_home*_` не исполнялись._

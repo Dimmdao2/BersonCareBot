@@ -1,9 +1,9 @@
 /** @vitest-environment jsdom */
 
-import { describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { SYSTEM_HEALTH_TECH_DIAGNOSTICS_TESTID, SystemHealthSection } from "./SystemHealthSection";
+import { describe, expect, it, vi } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { SYSTEM_HEALTH_TECH_DIAGNOSTICS_TESTID, SystemHealthSection } from './SystemHealthSection';
 
 /** Text outside `Техническая диагностика` blocks — plan §7 / audit. */
 function collectPrimaryLayerText(root: HTMLElement): string {
@@ -11,9 +11,9 @@ function collectPrimaryLayerText(root: HTMLElement): string {
   const walk = (node: Node): void => {
     if (node.nodeType === Node.ELEMENT_NODE) {
       const el = node as Element;
-      if (el.getAttribute("data-testid") === SYSTEM_HEALTH_TECH_DIAGNOSTICS_TESTID) return;
+      if (el.getAttribute('data-testid') === SYSTEM_HEALTH_TECH_DIAGNOSTICS_TESTID) return;
       const tag = el.tagName;
-      if (tag === "SCRIPT" || tag === "STYLE") return;
+      if (tag === 'SCRIPT' || tag === 'STYLE') return;
     }
     if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()) {
       chunks.push(node.textContent.trim());
@@ -21,7 +21,7 @@ function collectPrimaryLayerText(root: HTMLElement): string {
     for (const c of Array.from(node.childNodes)) walk(c);
   };
   walk(root);
-  return chunks.join("\n");
+  return chunks.join('\n');
 }
 
 /** Все accordion-триггеры блока карточек (кроме «Обновить» в первой карточке). */
@@ -47,38 +47,38 @@ async function expandAllServiceAccordions(): Promise<void> {
     /Очередь синка в integrator/,
   ];
   for (const name of patterns) {
-    await userEvent.click(screen.getByRole("button", { name }));
+    await userEvent.click(screen.getByRole('button', { name }));
   }
 }
 
 const mediaPreviewShell = {
-  status: "ok" as const,
+  status: 'ok' as const,
   stalePendingCount: 2,
   byMimeAndStatus: {
-    "video/quicktime": { pending: 3, ready: 1, failed: 0, skipped: 0 },
-    "image/heic": { pending: 0, ready: 0, failed: 0, skipped: 0 },
-    "image/heif": { pending: 0, ready: 0, failed: 0, skipped: 0 },
+    'video/quicktime': { pending: 3, ready: 1, failed: 0, skipped: 0 },
+    'image/heic': { pending: 0, ready: 0, failed: 0, skipped: 0 },
+    'image/heif': { pending: 0, ready: 0, failed: 0, skipped: 0 },
   },
 };
 
 const probeShell = {
-  webappDb: { status: "ok", durationMs: 11 },
-  integratorApi: { status: "ok", durationMs: 12 },
-  projection: { status: "ok", durationMs: 13 },
-  mediaPreview: { status: "ok", durationMs: 14 },
-  videoPlayback: { status: "ok", durationMs: 15 },
-  videoPlaybackClient: { status: "ok", durationMs: 16 },
-  videoTranscode: { status: "ok", durationMs: 17 },
-  videoHlsProxy: { status: "ok", durationMs: 17 },
-  operatorIncidents: { status: "degraded", durationMs: 18 },
-  operatorBackupJobs: { status: "ok", durationMs: 19 },
-  outgoingDelivery: { status: "ok", durationMs: 20 },
-  integratorPushOutbox: { status: "ok", durationMs: 21 },
-  saasIsolation: { status: "okay", durationMs: 3 },
+  webappDb: { status: 'ok', durationMs: 11 },
+  integratorApi: { status: 'ok', durationMs: 12 },
+  projection: { status: 'ok', durationMs: 13 },
+  mediaPreview: { status: 'ok', durationMs: 14 },
+  videoPlayback: { status: 'ok', durationMs: 15 },
+  videoPlaybackClient: { status: 'ok', durationMs: 16 },
+  videoTranscode: { status: 'ok', durationMs: 17 },
+  videoHlsProxy: { status: 'ok', durationMs: 17 },
+  operatorIncidents: { status: 'degraded', durationMs: 18 },
+  operatorBackupJobs: { status: 'ok', durationMs: 19 },
+  outgoingDelivery: { status: 'ok', durationMs: 20 },
+  integratorPushOutbox: { status: 'ok', durationMs: 21 },
+  saasIsolation: { status: 'okay', durationMs: 3 },
 };
 
 const videoPlaybackShell = {
-  status: "ok" as const,
+  status: 'ok' as const,
   windowHours: 24,
   windowHoursShort: 1,
   playbackApiEnabled: true,
@@ -92,7 +92,7 @@ const videoPlaybackShell = {
 };
 
 const videoTranscodeShell = {
-  status: "ok" as const,
+  status: 'ok' as const,
   pipelineEnabled: true,
   reconcileEnabled: true,
   pendingCount: 2,
@@ -108,11 +108,11 @@ const videoTranscodeShell = {
   legacyReconcileCandidateCountWithinSizeCap: 7,
   readableVideoReadyWithHlsCount: 120,
   lastReconcileTick: {
-    jobKey: "media_transcode.reconcile",
-    jobFamily: "media",
-    lastStatus: "success",
-    lastFinishedAt: "2026-04-16T10:05:00.000Z",
-    lastSuccessAt: "2026-04-16T10:05:00.000Z",
+    jobKey: 'media_transcode.reconcile',
+    jobFamily: 'media',
+    lastStatus: 'success',
+    lastFinishedAt: '2026-04-16T10:05:00.000Z',
+    lastSuccessAt: '2026-04-16T10:05:00.000Z',
     lastFailureAt: null,
     lastDurationMs: 900,
     lastError: null,
@@ -122,23 +122,23 @@ const videoTranscodeShell = {
 
 function fetchHealthJson(): Record<string, unknown> {
   return {
-    webappDb: "up",
-    integratorApi: { status: "ok", db: "up" },
+    webappDb: 'up',
+    integratorApi: { status: 'ok', db: 'up' },
     projection: {
-      status: "ok",
+      status: 'ok',
       snapshot: {
         pendingCount: 2,
         processingCount: 1,
-        lastSuccessAt: "2026-04-16T10:00:00.000Z",
+        lastSuccessAt: '2026-04-16T10:00:00.000Z',
         deadCount: 0,
         cancelledCount: 0,
       },
     },
-    mediaCronWorkers: { status: "configured" },
+    mediaCronWorkers: { status: 'configured' },
     mediaPreview: mediaPreviewShell,
     videoPlayback: videoPlaybackShell,
     videoPlaybackClient: {
-      status: "ok",
+      status: 'ok',
       windowHours: 24,
       totalErrors: 0,
       totalErrorsLast1h: 0,
@@ -163,7 +163,7 @@ function fetchHealthJson(): Record<string, unknown> {
       recent: [],
     },
     videoHlsProxy: {
-      status: "ok",
+      status: 'ok',
       windowHours: 24,
       errorsTotal24h: 0,
       errorsTotal1h: 0,
@@ -175,30 +175,30 @@ function fetchHealthJson(): Record<string, unknown> {
     videoTranscode: videoTranscodeShell,
     saasIsolation: {
       schemaVersion: 3,
-      status: "okay",
+      status: 'okay',
       statusReasons: [],
       active: { unexplained: 0, explained: 0, occurrences: 0 },
       resolved: { unexplained: 1, explained: 2, occurrences: 5 },
       byClass: { rls_denial: 3 },
       events: [
         {
-          eventClass: "rls_denial",
-          sourceService: "webapp",
-          sourceOperation: "webapp_db_request",
-          explanationStatus: "explained",
-          lifecycleStatus: "resolved",
+          eventClass: 'rls_denial',
+          sourceService: 'webapp',
+          sourceOperation: 'webapp_db_request',
+          explanationStatus: 'explained',
+          lifecycleStatus: 'resolved',
           occurrenceCount: 3,
-          firstSeenAt: "2026-04-16T09:00:00.000Z",
-          lastSeenAt: "2026-04-16T09:30:00.000Z",
+          firstSeenAt: '2026-04-16T09:00:00.000Z',
+          lastSeenAt: '2026-04-16T09:30:00.000Z',
         },
       ],
-      lastEventAt: "2026-04-16T09:30:00.000Z",
+      lastEventAt: '2026-04-16T09:30:00.000Z',
       lastCoverage: {
-        id: "11111111-1111-4111-8111-111111111111",
-        status: "complete",
-        startedAt: "2026-04-16T09:00:00.000Z",
-        finishedAt: "2026-04-16T10:00:00.000Z",
-        servicesChecked: ["webapp", "integrator", "worker", "scheduler", "media_worker", "cron"],
+        id: '11111111-1111-4111-8111-111111111111',
+        status: 'complete',
+        startedAt: '2026-04-16T09:00:00.000Z',
+        finishedAt: '2026-04-16T10:00:00.000Z',
+        servicesChecked: ['webapp', 'integrator', 'worker', 'scheduler', 'media_worker', 'cron'],
         checksCount: 14,
         unexpectedErrorsCount: 0,
       },
@@ -206,29 +206,32 @@ function fetchHealthJson(): Record<string, unknown> {
       coverageComplete: true,
       missingServices: [],
       trend: {
-        asOf: "2026-04-16T10:06:00.000Z",
+        asOf: '2026-04-16T10:06:00.000Z',
         current24Hours: 4,
         previous24Hours: 2,
         delta: 2,
         daily7Days: [
-          { date: "2026-04-10", count: 0 }, { date: "2026-04-11", count: 1 },
-          { date: "2026-04-12", count: 0 }, { date: "2026-04-13", count: 2 },
-          { date: "2026-04-14", count: 0 }, { date: "2026-04-15", count: 2 },
-          { date: "2026-04-16", count: 4 },
+          { date: '2026-04-10', count: 0 },
+          { date: '2026-04-11', count: 1 },
+          { date: '2026-04-12', count: 0 },
+          { date: '2026-04-13', count: 2 },
+          { date: '2026-04-14', count: 0 },
+          { date: '2026-04-15', count: 2 },
+          { date: '2026-04-16', count: 4 },
         ],
       },
     },
     operatorIncidents: {
       openCount: 1,
       occurrenceCount: 2,
-      lastSeenAt: "2026-04-16T09:30:00.000Z",
+      lastSeenAt: '2026-04-16T09:30:00.000Z',
     },
     backupJobs: {
       nightly_dump: {
-        lastStatus: "success",
-        lastStartedAt: "2026-04-15T03:00:00.000Z",
-        lastFinishedAt: "2026-04-15T03:10:00.000Z",
-        lastSuccessAt: "2026-04-15T03:10:00.000Z",
+        lastStatus: 'success',
+        lastStartedAt: '2026-04-15T03:00:00.000Z',
+        lastFinishedAt: '2026-04-15T03:10:00.000Z',
+        lastSuccessAt: '2026-04-15T03:10:00.000Z',
         lastFailureAt: null,
         lastDurationMs: 120,
         lastError: null,
@@ -242,8 +245,8 @@ function fetchHealthJson(): Record<string, unknown> {
       deadByKind: {},
       dueByChannel: { telegram_bot: 2 },
       processingCount: 0,
-      lastSentAt: "2026-04-16T09:59:00.000Z",
-      lastQueueActivityAt: "2026-04-16T10:00:00.000Z",
+      lastSentAt: '2026-04-16T09:59:00.000Z',
+      lastQueueActivityAt: '2026-04-16T10:00:00.000Z',
     },
     integratorPushOutbox: {
       dueBacklog: 0,
@@ -253,11 +256,11 @@ function fetchHealthJson(): Record<string, unknown> {
       deadByKind: {},
       processingCount: 0,
       oldestProcessingAgeSeconds: null,
-      lastQueueActivityAt: "2026-04-16T10:00:00.000Z",
+      lastQueueActivityAt: '2026-04-16T10:00:00.000Z',
     },
     webPush: {
       windowHours: 24,
-      status: "ok",
+      status: 'ok',
       vapidConfigured: true,
       activeSubscriptionsCount: 3,
       usersWithSubscriptionCount: 2,
@@ -265,13 +268,13 @@ function fetchHealthJson(): Record<string, unknown> {
       deliveryMetricsInDb: true,
     },
     webPushOnlyReminderTick: {
-      status: "ok",
+      status: 'ok',
       lastTick: {
-        jobKey: "reminders.web_push_only.tick",
-        jobFamily: "reminders",
-        lastStatus: "success",
-        lastFinishedAt: "2026-04-16T10:05:00.000Z",
-        lastSuccessAt: "2026-04-16T10:05:00.000Z",
+        jobKey: 'reminders.web_push_only.tick',
+        jobFamily: 'reminders',
+        lastStatus: 'success',
+        lastFinishedAt: '2026-04-16T10:05:00.000Z',
+        lastSuccessAt: '2026-04-16T10:05:00.000Z',
         lastFailureAt: null,
         lastDurationMs: 80,
         lastError: null,
@@ -279,44 +282,44 @@ function fetchHealthJson(): Record<string, unknown> {
       },
     },
     cronJobs: {
-      status: "ok",
+      status: 'ok',
       jobs: [
         {
-          id: "outbound_integration_probes",
-          jobFamily: "health",
-          jobKey: "health.outbound_probe.run",
-          label: "Исходящие пробы интеграций",
-          scheduleHint: "ежечасно",
-          kind: "internal_http",
-          internalPath: "/internal/operator-health-probe",
-          status: "ok",
+          id: 'outbound_integration_probes',
+          jobFamily: 'health',
+          jobKey: 'health.outbound_probe.run',
+          label: 'Исходящие пробы интеграций',
+          scheduleHint: 'ежечасно',
+          kind: 'internal_http',
+          internalPath: '/internal/operator-health-probe',
+          status: 'ok',
           lastTick: {
-            jobKey: "health.outbound_probe.run",
-            jobFamily: "health",
-            lastStatus: "success",
-            lastFinishedAt: "2026-04-16T10:05:00.000Z",
-            lastSuccessAt: "2026-04-16T10:05:00.000Z",
+            jobKey: 'health.outbound_probe.run',
+            jobFamily: 'health',
+            lastStatus: 'success',
+            lastFinishedAt: '2026-04-16T10:05:00.000Z',
+            lastSuccessAt: '2026-04-16T10:05:00.000Z',
             lastFailureAt: null,
             lastDurationMs: 250,
             lastError: null,
-            metaJson: { telegram: "ok" },
+            metaJson: { telegram: 'ok' },
           },
         },
         {
-          id: "playback_retention",
-          jobFamily: "media",
-          jobKey: "media.playback_stats.retention",
-          label: "Retention playback stats",
-          scheduleHint: "еженедельно",
-          kind: "internal_http",
-          internalPath: "/api/internal/media-playback-stats/retention",
-          status: "ok",
+          id: 'playback_retention',
+          jobFamily: 'media',
+          jobKey: 'media.playback_stats.retention',
+          label: 'Retention playback stats',
+          scheduleHint: 'еженедельно',
+          kind: 'internal_http',
+          internalPath: '/api/internal/media-playback-stats/retention',
+          status: 'ok',
           lastTick: {
-            jobKey: "media.playback_stats.retention",
-            jobFamily: "media",
-            lastStatus: "success",
-            lastFinishedAt: "2026-04-16T04:15:00.000Z",
-            lastSuccessAt: "2026-04-16T04:15:00.000Z",
+            jobKey: 'media.playback_stats.retention',
+            jobFamily: 'media',
+            lastStatus: 'success',
+            lastFinishedAt: '2026-04-16T04:15:00.000Z',
+            lastSuccessAt: '2026-04-16T04:15:00.000Z',
             lastFailureAt: null,
             lastDurationMs: 120,
             lastError: null,
@@ -328,20 +331,20 @@ function fetchHealthJson(): Record<string, unknown> {
     meta: {
       probes: {
         ...probeShell,
-        webPushOnlyReminderTick: { status: "ok", durationMs: 4 },
-        cronJobs: { status: "ok", durationMs: 2 },
+        webPushOnlyReminderTick: { status: 'ok', durationMs: 4 },
+        cronJobs: { status: 'ok', durationMs: 2 },
       },
     },
-    fetchedAt: "2026-04-16T10:06:00.000Z",
+    fetchedAt: '2026-04-16T10:06:00.000Z',
   };
 }
 
-describe("SystemHealthSection primary-layer invariants", () => {
-  it("после раскрытия всех карточек: операторский слой без сыра кода ошибок reconcile / инцидентов и без англоязычных DDL-подписей", async () => {
+describe('SystemHealthSection primary-layer invariants', () => {
+  it('после раскрытия всех карточек: операторский слой без сыра кода ошибок reconcile / инцидентов и без англоязычных DDL-подписей', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
     vi.stubGlobal(
-      "fetch",
+      'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
         text: async () => JSON.stringify(fetchHealthJson()),
@@ -350,30 +353,37 @@ describe("SystemHealthSection primary-layer invariants", () => {
     render(<SystemHealthSection />);
 
     await waitFor(() => {
-      expect(screen.getByText("Сервисы и системные карточки")).toBeInTheDocument();
+      expect(screen.getByText('Сервисы и системные карточки')).toBeInTheDocument();
     });
 
-    expect(screen.getByText("активен")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Изоляция клиник/ })).toBeInTheDocument();
+    expect(screen.getByText('активен')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Изоляция клиник/ })).toBeInTheDocument();
     expect(screen.queryByText(/\bactive\b/i)).not.toBeInTheDocument();
 
     await expandAllServiceAccordions();
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /^Открытые инциденты/, expanded: true })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /^Открытые инциденты/, expanded: true }),
+      ).toBeInTheDocument();
     });
 
     const primary = collectPrimaryLayerText(document.body);
 
     for (const label of [
-      "Запрос без удостоверения", "Удостоверение не установлено", "Неверная роль подключения",
-      "Отказ стены базы", "Не очищено подключение", "Фоновая операция без владельца",
-    ]) expect(screen.getAllByText(label).length).toBeGreaterThan(0);
-    expect(screen.getByLabelText("Фильтры диагностики изоляции")).toBeInTheDocument();
-    expect(screen.getByLabelText("Сигналы изоляции за 7 дней").children).toHaveLength(7);
-    expect(screen.getByText("Сигналы: последние 24 ч / предыдущие 24 ч")).toBeInTheDocument();
-    expect(screen.getByText("Изменение за 24 ч")).toBeInTheDocument();
-    await userEvent.click(screen.getAllByRole("button", { name: "Скопировать" })[0]!);
+      'Запрос без удостоверения',
+      'Удостоверение не установлено',
+      'Неверная роль подключения',
+      'Отказ стены базы',
+      'Не очищено подключение',
+      'Фоновая операция без владельца',
+    ])
+      expect(screen.getAllByText(label).length).toBeGreaterThan(0);
+    expect(screen.getByLabelText('Фильтры диагностики изоляции')).toBeInTheDocument();
+    expect(screen.getByLabelText('Сигналы изоляции за 7 дней').children).toHaveLength(7);
+    expect(screen.getByText('Сигналы: последние 24 ч / предыдущие 24 ч')).toBeInTheDocument();
+    expect(screen.getByText('Изменение за 24 ч')).toBeInTheDocument();
+    await userEvent.click(screen.getAllByRole('button', { name: 'Скопировать' })[0]!);
     await waitFor(() => expect(writeText).toHaveBeenCalled());
     const copied = String(writeText.mock.calls[0]?.[0]);
     expect(copied).not.toMatch(/organization_id|patient_id|user_id|signature|rawSql|payload/i);
@@ -387,10 +397,12 @@ describe("SystemHealthSection primary-layer invariants", () => {
     expect(primary).not.toMatch(/\bdedup_key\b/i);
     expect(primary).not.toMatch(/max\s+sent_at/i);
     expect(primary).not.toMatch(/PostgreSQL/i);
-    expect(primary).not.toMatch(/\bactive\b|\bunknown\b|\bno_activity\b|\bno_signal\b|\bplayback_disabled\b/);
-
-    expect(document.querySelectorAll(`[data-testid="${SYSTEM_HEALTH_TECH_DIAGNOSTICS_TESTID}"]`).length).toBeGreaterThan(
-      3,
+    expect(primary).not.toMatch(
+      /\bactive\b|\bunknown\b|\bno_activity\b|\bno_signal\b|\bplayback_disabled\b/,
     );
+
+    expect(
+      document.querySelectorAll(`[data-testid="${SYSTEM_HEALTH_TECH_DIAGNOSTICS_TESTID}"]`).length,
+    ).toBeGreaterThan(3);
   });
 });

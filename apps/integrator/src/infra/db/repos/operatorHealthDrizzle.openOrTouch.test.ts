@@ -26,7 +26,9 @@ describe('openOrTouchOperatorIncident', () => {
   });
 
   it('returns occurrenceCount from Drizzle returning row', async () => {
-    mockReturning.mockResolvedValueOnce([{ id: '11111111-1111-4111-8111-111111111111', occurrenceCount: 1 }]);
+    mockReturning.mockResolvedValueOnce([
+      { id: '11111111-1111-4111-8111-111111111111', occurrenceCount: 1 },
+    ]);
     const r = await openOrTouchOperatorIncident(baseInput);
     expect(r).toEqual({ id: '11111111-1111-4111-8111-111111111111', occurrenceCount: 1 });
     expect(mockInsert).toHaveBeenCalledTimes(1);

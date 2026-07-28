@@ -1,5 +1,5 @@
-import { z } from "zod";
-import type { MessageLogListFilters, MessageLogListParams } from "./ports";
+import { z } from 'zod';
+import type { MessageLogListFilters, MessageLogListParams } from './ports';
 
 export const messageLogListFiltersSchema = z.object({
   userId: z.string().uuid().optional(),
@@ -10,7 +10,7 @@ export const messageLogListFiltersSchema = z.object({
 
 /** Normalize list params at service boundary (clamp + Zod filters). */
 export function normalizeMessageLogListParams(params?: MessageLogListParams): Required<
-  Pick<MessageLogListParams, "page" | "pageSize">
+  Pick<MessageLogListParams, 'page' | 'pageSize'>
 > & {
   filters: MessageLogListFilters;
 } {

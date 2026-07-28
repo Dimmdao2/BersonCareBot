@@ -38,13 +38,15 @@ export const BookingLifecycleEventSchema = z.object({
 export type BookingLifecycleEventValidated = z.infer<typeof BookingLifecycleEventSchema>;
 export type BookingLifecyclePayloadValidated = z.infer<typeof BookingLifecyclePayloadSchema>;
 
-export function parseBookingLifecycleEvent(raw: unknown): {
-  success: true;
-  data: BookingLifecycleEventValidated;
-} | {
-  success: false;
-  error: z.ZodError;
-} {
+export function parseBookingLifecycleEvent(raw: unknown):
+  | {
+      success: true;
+      data: BookingLifecycleEventValidated;
+    }
+  | {
+      success: false;
+      error: z.ZodError;
+    } {
   const result = BookingLifecycleEventSchema.safeParse(raw);
   if (result.success) return { success: true, data: result.data };
   return { success: false, error: result.error };

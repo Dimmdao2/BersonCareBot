@@ -9,7 +9,12 @@ import type {
 } from '../../kernel/contracts/index.js';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { createDbPort } from './client.js';
-import { setUserPhone, setUserState, updateNotificationSettings, upsertUser } from './repos/channelUsers.js';
+import {
+  setUserPhone,
+  setUserState,
+  updateNotificationSettings,
+  upsertUser,
+} from './repos/channelUsers.js';
 import { appendMessageLog, insertDeliveryAttemptLog } from './repos/messageLogs.js';
 import {
   applyMessengerPhonePublicBind,
@@ -54,7 +59,11 @@ import {
 } from '../../kernel/contracts/index.js';
 import type { ProjectionFanoutInput } from './repos/projectionFanout.js';
 import { tryEmitWebappProjectionThenEnqueue } from './repos/projectionFanout.js';
-import { projectionIdempotencyKey, hashPayload, hashPayloadExcludingKeys } from './repos/projectionKeys.js';
+import {
+  projectionIdempotencyKey,
+  hashPayload,
+  hashPayloadExcludingKeys,
+} from './repos/projectionKeys.js';
 import {
   resolveCanonicalIntegratorUserId,
   resolveCanonicalUserIdFromIdentityId,
@@ -224,20 +233,23 @@ function pgSqlStateFromUnknown(err: unknown): string | undefined {
  * Creates the default DbWritePort implementation used by eventGateway.
  * It maps canonical write mutations to existing infra repositories.
  */
-export function createDbWritePort(input: {
-  db?: DbPort;
-  /** When set, projection events are POSTed to webapp immediately after commit; outbox only on failure. */
-  webappEventsPort?: WebappEventsPort;
-  /** Filled after `buildDeps` constructs `dispatchPort` (avoid circular init). */
-  getDispatchPort?: () => DispatchPort | undefined;
-  /** Injectable for deterministic tests; production reads canonical public.system_settings. */
-  authChannelPolicy?: (channel: 'telegram' | 'max') => Promise<boolean>;
-} = {}): DbWritePort {
+export function createDbWritePort(
+  input: {
+    db?: DbPort;
+    /** When set, projection events are POSTed to webapp immediately after commit; outbox only on failure. */
+    webappEventsPort?: WebappEventsPort;
+    /** Filled after `buildDeps` constructs `dispatchPort` (avoid circular init). */
+    getDispatchPort?: () => DispatchPort | undefined;
+    /** Injectable for deterministic tests; production reads canonical public.system_settings. */
+    authChannelPolicy?: (channel: 'telegram' | 'max') => Promise<boolean>;
+  } = {},
+): DbWritePort {
   const db = input.db ?? createDbPort();
   const webappEventsPort = input.webappEventsPort;
   const getDispatchPort = input.getDispatchPort;
   const authChannelPolicy =
-    input.authChannelPolicy ?? ((channel: 'telegram' | 'max') => readAuthChannelPolicy(db, channel));
+    input.authChannelPolicy ??
+    ((channel: 'telegram' | 'max') => readAuthChannelPolicy(db, channel));
   const plainMutationsRequiringPrincipalTx: ReadonlySet<DbWriteMutationType> = new Set([
     'event.log',
     'user.state.set',
@@ -270,9 +282,9 @@ export function createDbWritePort(input: {
   return {
     async writeDb(mutation: DbWriteMutation): Promise<void | DbWriteDbResult> {
       if (
-        getCurrentDbPrincipalOrganizationId() !== undefined
-        && db.integratorDrizzle === undefined
-        && plainMutationsRequiringPrincipalTx.has(mutation.type)
+        getCurrentDbPrincipalOrganizationId() !== undefined &&
+        db.integratorDrizzle === undefined &&
+        plainMutationsRequiringPrincipalTx.has(mutation.type)
       ) {
         return db.tx((txDb) => createTxBoundWritePort(txDb).writeDb(mutation));
       }
@@ -286,9 +298,9 @@ export function createDbWritePort(input: {
           const resource = readResource(mutation.params);
           if (resource !== 'telegram' && resource !== 'max') return;
           const externalId = asNonEmptyString(
-            mutation.params.externalId
-            ?? mutation.params.channelUserId
-            ?? mutation.params.channelId,
+            mutation.params.externalId ??
+              mutation.params.channelUserId ??
+              mutation.params.channelId,
           );
           const username = asNullableString(mutation.params.username);
           const firstName = asNullableString(mutation.params.firstName);
@@ -314,7 +326,13 @@ export function createDbWritePort(input: {
                 displayName: [lastName, firstName].filter(Boolean).join(' ') || null,
               },
               {
-                writeChannelAnchor: buildChannelAnchorWriter(resource, externalId, username, firstName, lastName),
+                writeChannelAnchor: buildChannelAnchorWriter(
+                  resource,
+                  externalId,
+                  username,
+                  firstName,
+                  lastName,
+                ),
                 mergeCandidateIds: mergeCandidateIdsViaPlatformMerge,
               },
             );
@@ -377,7 +395,10 @@ export function createDbWritePort(input: {
             let platformUserIdForLog: string | undefined;
             await db.tx(async (txDb) => {
               if (resource === 'max') {
-                await ensureIdentityForMessenger(txDb, { resource: 'max', externalId: channelUserId });
+                await ensureIdentityForMessenger(txDb, {
+                  resource: 'max',
+                  externalId: channelUserId,
+                });
               }
               const idPeek = await txDb.query<{ user_id: string }>(
                 `SELECT i.user_id::text AS user_id
@@ -388,7 +409,10 @@ export function createDbWritePort(input: {
               );
               const rawUid = idPeek.rows[0]?.user_id ?? null;
               if (!rawUid) {
-                phoneLinkEarly = { userPhoneLinkApplied: false, phoneLinkReason: 'no_integrator_identity' };
+                phoneLinkEarly = {
+                  userPhoneLinkApplied: false,
+                  phoneLinkReason: 'no_integrator_identity',
+                };
                 return;
               }
               const canonicalUid = await resolveCanonicalIntegratorUserId(txDb, rawUid);
@@ -467,7 +491,11 @@ export function createDbWritePort(input: {
                 }).catch(() => {});
               }
               if (err.code === 'db_transient_failure') {
-                return { userPhoneLinkApplied: false, phoneLinkIndeterminate: true, phoneLinkReason: err.code };
+                return {
+                  userPhoneLinkApplied: false,
+                  phoneLinkIndeterminate: true,
+                  phoneLinkReason: err.code,
+                };
               }
               return { userPhoneLinkApplied: false, phoneLinkReason: err.code };
             }
@@ -477,15 +505,25 @@ export function createDbWritePort(input: {
               'user.phone.link: unexpected error',
             );
             logger.warn(
-              { ...bindLogBase, reason: 'db_transient_failure', ...(sqlState ? { sqlState } : {}), phoneSuffix },
+              {
+                ...bindLogBase,
+                reason: 'db_transient_failure',
+                ...(sqlState ? { sqlState } : {}),
+                phoneSuffix,
+              },
               'bind_tx_fail',
             );
-            return { userPhoneLinkApplied: false, phoneLinkIndeterminate: true, phoneLinkReason: 'db_transient_failure' };
+            return {
+              userPhoneLinkApplied: false,
+              phoneLinkIndeterminate: true,
+              phoneLinkReason: 'db_transient_failure',
+            };
           }
         }
         case 'draft.upsert': {
           const resource = readResource(mutation.params);
-          const externalId = readChannelUserId(mutation.params) ?? asNonEmptyString(mutation.params.externalId);
+          const externalId =
+            readChannelUserId(mutation.params) ?? asNonEmptyString(mutation.params.externalId);
           const source = asNonEmptyString(mutation.params.source) ?? resource;
           const id = asNonEmptyString(mutation.params.id);
           const draftTextCurrent = asNonEmptyString(mutation.params.draftTextCurrent);
@@ -496,8 +534,12 @@ export function createDbWritePort(input: {
             resource,
             externalId,
             source,
-            ...(asNullableString(mutation.params.externalChatId) !== null ? { externalChatId: asNullableString(mutation.params.externalChatId) } : {}),
-            ...(asNullableString(mutation.params.externalMessageId) !== null ? { externalMessageId: asNullableString(mutation.params.externalMessageId) } : {}),
+            ...(asNullableString(mutation.params.externalChatId) !== null
+              ? { externalChatId: asNullableString(mutation.params.externalChatId) }
+              : {}),
+            ...(asNullableString(mutation.params.externalMessageId) !== null
+              ? { externalMessageId: asNullableString(mutation.params.externalMessageId) }
+              : {}),
             draftTextCurrent,
             ...(state ? { state } : {}),
           });
@@ -505,7 +547,8 @@ export function createDbWritePort(input: {
         }
         case 'draft.cancel': {
           const resource = readResource(mutation.params);
-          const externalId = readChannelUserId(mutation.params) ?? asNonEmptyString(mutation.params.externalId);
+          const externalId =
+            readChannelUserId(mutation.params) ?? asNonEmptyString(mutation.params.externalId);
           const source = asNonEmptyString(mutation.params.source);
           if (!resource || !externalId) return;
           await cancelDraftByIdentity(db, { resource, externalId, ...(source ? { source } : {}) });
@@ -522,11 +565,11 @@ export function createDbWritePort(input: {
           const platformConversationId = asNonEmptyString(mutation.params.platformConversationId);
           const legacyConversationId = asNonEmptyString(mutation.params.legacyConversationId);
           const resource = readResource(mutation.params);
-          const externalId = readChannelUserId(mutation.params) ?? asNonEmptyString(mutation.params.externalId);
+          const externalId =
+            readChannelUserId(mutation.params) ?? asNonEmptyString(mutation.params.externalId);
           if (!platformConversationId || !legacyConversationId || !resource || !externalId) return;
-          const { mergeIntegratorConversationToPlatformThread } = await import(
-            './repos/mergeIntegratorConversationToPlatform.js'
-          );
+          const { mergeIntegratorConversationToPlatformThread } =
+            await import('./repos/mergeIntegratorConversationToPlatform.js');
           await mergeIntegratorConversationToPlatformThread(db, {
             platformConversationId,
             legacyConversationId,
@@ -537,7 +580,8 @@ export function createDbWritePort(input: {
         }
         case 'conversation.open': {
           const resource = readResource(mutation.params);
-          const externalId = readChannelUserId(mutation.params) ?? asNonEmptyString(mutation.params.externalId);
+          const externalId =
+            readChannelUserId(mutation.params) ?? asNonEmptyString(mutation.params.externalId);
           const source = asNonEmptyString(mutation.params.source) ?? resource;
           const id = asNonEmptyString(mutation.params.id);
           const adminScope = asNonEmptyString(mutation.params.adminScope) ?? 'default';
@@ -584,7 +628,10 @@ export function createDbWritePort(input: {
             channelCode: resource,
             channelExternalId: externalId,
           };
-          const enqueueConversationOpenFallback = async (reason: string, err?: unknown): Promise<void> => {
+          const enqueueConversationOpenFallback = async (
+            reason: string,
+            err?: unknown,
+          ): Promise<void> => {
             await enqueueProjectionEvent(db, {
               eventType: 'support.conversation.opened',
               idempotencyKey: projectionIdempotencyKey(
@@ -619,21 +666,23 @@ export function createDbWritePort(input: {
           } else {
             const resolvedIntegratorUserIdForWrite = resolvedIntegratorUserId;
             try {
-              await runDirectPublicWriteWithOrgPrincipal(() => openSupportConversationDirect(
-                db,
-                {
-                  integratorUserId: resolvedIntegratorUserIdForWrite,
-                  channelCode: resource,
-                  externalId,
-                  integratorConversationId: id,
-                  source,
-                  adminScope,
-                  status,
-                  openedAt,
-                  lastMessageAt,
-                },
-                { mergeCandidateIds: mergeCandidateIdsViaPlatformMerge },
-              ));
+              await runDirectPublicWriteWithOrgPrincipal(() =>
+                openSupportConversationDirect(
+                  db,
+                  {
+                    integratorUserId: resolvedIntegratorUserIdForWrite,
+                    channelCode: resource,
+                    externalId,
+                    integratorConversationId: id,
+                    source,
+                    adminScope,
+                    status,
+                    openedAt,
+                    lastMessageAt,
+                  },
+                  { mergeCandidateIds: mergeCandidateIdsViaPlatformMerge },
+                ),
+              );
             } catch (err) {
               if (isDiaryLfkFailClosedError(err) || isIdentityMergeAmbiguityError(err)) {
                 logger.warn(
@@ -679,17 +728,19 @@ export function createDbWritePort(input: {
           // mutation never resolves an actor itself (it reuses the already-resolved parent conversation),
           // so that bucket cannot occur here.
           try {
-            await runDirectPublicWriteWithOrgPrincipal(() => appendSupportConversationMessageDirect(db, {
-              integratorConversationId: conversationId,
-              integratorMessageId: id,
-              senderRole,
-              messageType,
-              text,
-              source,
-              externalChatId,
-              externalMessageId,
-              createdAt,
-            }));
+            await runDirectPublicWriteWithOrgPrincipal(() =>
+              appendSupportConversationMessageDirect(db, {
+                integratorConversationId: conversationId,
+                integratorMessageId: id,
+                senderRole,
+                messageType,
+                text,
+                source,
+                externalChatId,
+                externalMessageId,
+                createdAt,
+              }),
+            );
           } catch (err) {
             const fallbackPayload: Record<string, unknown> = {
               integratorMessageId: id,
@@ -704,11 +755,18 @@ export function createDbWritePort(input: {
             };
             await enqueueProjectionEvent(db, {
               eventType: 'support.conversation.message.appended',
-              idempotencyKey: projectionIdempotencyKey('support.conversation.message.appended', id, hashPayload(fallbackPayload)),
+              idempotencyKey: projectionIdempotencyKey(
+                'support.conversation.message.appended',
+                id,
+                hashPayload(fallbackPayload),
+              ),
               occurredAt: createdAt,
               payload: fallbackPayload,
             });
-            const reason = err instanceof SupportConversationsDirectWriteError ? err.code : 'direct_write_unexpected_error';
+            const reason =
+              err instanceof SupportConversationsDirectWriteError
+                ? err.code
+                : 'direct_write_unexpected_error';
             logger.warn(
               { err, mutationType: mutation.type, id, conversationId, reason },
               'conversation.message.add: direct public write failed, fell back to durable outbox',
@@ -750,13 +808,15 @@ export function createDbWritePort(input: {
           // unexpected error both fall back to the durable outbox — the status change (e.g. closing a
           // conversation) must not be silently and permanently lost.
           try {
-            await runDirectPublicWriteWithOrgPrincipal(() => setSupportConversationStatusDirect(db, {
-              integratorConversationId: id,
-              status,
-              lastMessageAt,
-              closedAt,
-              closeReason,
-            }));
+            await runDirectPublicWriteWithOrgPrincipal(() =>
+              setSupportConversationStatusDirect(db, {
+                integratorConversationId: id,
+                status,
+                lastMessageAt,
+                closedAt,
+                closeReason,
+              }),
+            );
           } catch (err) {
             const fallbackPayload: Record<string, unknown> = {
               integratorConversationId: id,
@@ -767,11 +827,18 @@ export function createDbWritePort(input: {
             };
             await enqueueProjectionEvent(db, {
               eventType: 'support.conversation.status.changed',
-              idempotencyKey: projectionIdempotencyKey('support.conversation.status.changed', id, hashPayload(fallbackPayload)),
+              idempotencyKey: projectionIdempotencyKey(
+                'support.conversation.status.changed',
+                id,
+                hashPayload(fallbackPayload),
+              ),
               occurredAt: new Date().toISOString(),
               payload: fallbackPayload,
             });
-            const reason = err instanceof SupportConversationsDirectWriteError ? err.code : 'direct_write_unexpected_error';
+            const reason =
+              err instanceof SupportConversationsDirectWriteError
+                ? err.code
+                : 'direct_write_unexpected_error';
             logger.warn(
               { err, mutationType: mutation.type, id, reason },
               'conversation.state.set: direct public write failed, fell back to durable outbox',
@@ -807,7 +874,10 @@ export function createDbWritePort(input: {
               text,
               createdAt,
             });
-            resolvedIntegratorUserId = await resolveCanonicalUserIdFromIdentityId(txDb, userIdentityId);
+            resolvedIntegratorUserId = await resolveCanonicalUserIdFromIdentityId(
+              txDb,
+              userIdentityId,
+            );
           });
           // D4: replaces the `support.question.created` HTTP projection fanout. Own transaction after
           // the integrator-local `insertUserQuestion` write above; see writeSupportQuestionsDirect.ts
@@ -824,14 +894,19 @@ export function createDbWritePort(input: {
             createdAt,
           };
           try {
-            await runDirectPublicWriteWithOrgPrincipal(() => createSupportQuestionDirect(db, {
-              integratorQuestionId: id,
-              integratorConversationId: conversationId,
-              status: 'open',
-              createdAt,
-            }));
+            await runDirectPublicWriteWithOrgPrincipal(() =>
+              createSupportQuestionDirect(db, {
+                integratorQuestionId: id,
+                integratorConversationId: conversationId,
+                status: 'open',
+                createdAt,
+              }),
+            );
           } catch (err) {
-            if (err instanceof SupportQuestionsDirectWriteError && err.code === 'conversation_id_required') {
+            if (
+              err instanceof SupportQuestionsDirectWriteError &&
+              err.code === 'conversation_id_required'
+            ) {
               logger.warn(
                 { err, mutationType: mutation.type, id },
                 'question.create: direct public write fail-closed (no conversation id) — no write, no fallback',
@@ -847,7 +922,10 @@ export function createDbWritePort(input: {
                 occurredAt: createdAt,
                 payload: questionCreateFallbackPayload,
               });
-              const reason = err instanceof SupportQuestionsDirectWriteError ? err.code : 'direct_write_unexpected_error';
+              const reason =
+                err instanceof SupportQuestionsDirectWriteError
+                  ? err.code
+                  : 'direct_write_unexpected_error';
               logger.warn(
                 { err, mutationType: mutation.type, id, reason },
                 'question.create: direct public write failed, fell back to durable outbox',
@@ -873,7 +951,14 @@ export function createDbWritePort(input: {
           const senderType = asNonEmptyString(mutation.params.senderType);
           const messageText = asNonEmptyString(mutation.params.messageText);
           const createdAt = asNonEmptyString(mutation.params.createdAt);
-          if (!id || !questionId || (senderType !== 'user' && senderType !== 'admin') || !messageText || !createdAt) return;
+          if (
+            !id ||
+            !questionId ||
+            (senderType !== 'user' && senderType !== 'admin') ||
+            !messageText ||
+            !createdAt
+          )
+            return;
           await db.tx(async (txDb) => {
             await insertQuestionMessage(txDb, {
               id,
@@ -889,13 +974,15 @@ export function createDbWritePort(input: {
           // legitimately-fail-closed condition here: the message text itself must not be lost, so it —
           // like any other unexpected error — falls back to the durable outbox.
           try {
-            await runDirectPublicWriteWithOrgPrincipal(() => appendSupportQuestionMessageDirect(db, {
-              integratorQuestionMessageId: id,
-              integratorQuestionId: questionId,
-              senderRole: senderType,
-              text: messageText,
-              createdAt,
-            }));
+            await runDirectPublicWriteWithOrgPrincipal(() =>
+              appendSupportQuestionMessageDirect(db, {
+                integratorQuestionMessageId: id,
+                integratorQuestionId: questionId,
+                senderRole: senderType,
+                text: messageText,
+                createdAt,
+              }),
+            );
           } catch (err) {
             const fallbackPayload: Record<string, unknown> = {
               integratorQuestionMessageId: id,
@@ -906,11 +993,18 @@ export function createDbWritePort(input: {
             };
             await enqueueProjectionEvent(db, {
               eventType: 'support.question.message.appended',
-              idempotencyKey: projectionIdempotencyKey('support.question.message.appended', id, hashPayload(fallbackPayload)),
+              idempotencyKey: projectionIdempotencyKey(
+                'support.question.message.appended',
+                id,
+                hashPayload(fallbackPayload),
+              ),
               occurredAt: createdAt,
               payload: fallbackPayload,
             });
-            const reason = err instanceof SupportQuestionsDirectWriteError ? err.code : 'direct_write_unexpected_error';
+            const reason =
+              err instanceof SupportQuestionsDirectWriteError
+                ? err.code
+                : 'direct_write_unexpected_error';
             logger.warn(
               { err, mutationType: mutation.type, id, questionId, reason },
               'question.message.add: direct public write failed, fell back to durable outbox',
@@ -942,7 +1036,12 @@ export function createDbWritePort(input: {
           // `question_not_found` and any other unexpected error both fall back to the durable outbox —
           // an admin's answer must not be silently and permanently lost.
           try {
-            await runDirectPublicWriteWithOrgPrincipal(() => markSupportQuestionAnsweredDirect(db, { integratorQuestionId: questionId, answeredAt }));
+            await runDirectPublicWriteWithOrgPrincipal(() =>
+              markSupportQuestionAnsweredDirect(db, {
+                integratorQuestionId: questionId,
+                answeredAt,
+              }),
+            );
           } catch (err) {
             const fallbackPayload: Record<string, unknown> = {
               integratorQuestionId: questionId,
@@ -950,11 +1049,18 @@ export function createDbWritePort(input: {
             };
             await enqueueProjectionEvent(db, {
               eventType: 'support.question.answered',
-              idempotencyKey: projectionIdempotencyKey('support.question.answered', questionId, hashPayload(fallbackPayload)),
+              idempotencyKey: projectionIdempotencyKey(
+                'support.question.answered',
+                questionId,
+                hashPayload(fallbackPayload),
+              ),
               occurredAt: answeredAt,
               payload: fallbackPayload,
             });
-            const reason = err instanceof SupportQuestionsDirectWriteError ? err.code : 'direct_write_unexpected_error';
+            const reason =
+              err instanceof SupportQuestionsDirectWriteError
+                ? err.code
+                : 'direct_write_unexpected_error';
             logger.warn(
               { err, mutationType: mutation.type, questionId, reason },
               'question.markAnswered: direct public write failed, fell back to durable outbox',
@@ -977,13 +1083,19 @@ export function createDbWritePort(input: {
         case 'notifications.update': {
           const resource = readResource(mutation.params);
           if (resource !== 'telegram') return;
-          const channelUserId = asFiniteNumber(mutation.params.channelUserId ?? mutation.params.channelId);
+          const channelUserId = asFiniteNumber(
+            mutation.params.channelUserId ?? mutation.params.channelId,
+          );
           if (channelUserId === null) return;
           const settings: Record<string, boolean> = {};
-          if (typeof mutation.params.notify_spb === 'boolean') settings.notify_spb = mutation.params.notify_spb;
-          if (typeof mutation.params.notify_msk === 'boolean') settings.notify_msk = mutation.params.notify_msk;
-          if (typeof mutation.params.notify_online === 'boolean') settings.notify_online = mutation.params.notify_online;
-          if (typeof mutation.params.notify_bookings === 'boolean') settings.notify_bookings = mutation.params.notify_bookings;
+          if (typeof mutation.params.notify_spb === 'boolean')
+            settings.notify_spb = mutation.params.notify_spb;
+          if (typeof mutation.params.notify_msk === 'boolean')
+            settings.notify_msk = mutation.params.notify_msk;
+          if (typeof mutation.params.notify_online === 'boolean')
+            settings.notify_online = mutation.params.notify_online;
+          if (typeof mutation.params.notify_bookings === 'boolean')
+            settings.notify_bookings = mutation.params.notify_bookings;
           if (Object.keys(settings).length === 0) return;
           // Integrator-only telegram_state.notify_* flags (bot menu state) — retained as-is, always
           // committed regardless of what happens below (matches the old resilience shape: this write
@@ -991,8 +1103,10 @@ export function createDbWritePort(input: {
           await updateNotificationSettings(db, channelUserId, settings);
 
           const topicMap: Record<string, string> = {
-            notify_spb: 'booking_spb', notify_msk: 'booking_msk',
-            notify_online: 'booking_online', notify_bookings: 'bookings',
+            notify_spb: 'booking_spb',
+            notify_msk: 'booking_msk',
+            notify_online: 'booking_online',
+            notify_bookings: 'bookings',
           };
           const topics = Object.entries(settings)
             .filter(([k]) => k in topicMap)
@@ -1039,17 +1153,19 @@ export function createDbWritePort(input: {
           const symptomTitle = asNonEmptyString(mutation.params.symptomTitle);
           if (!resource || !externalId || !integratorUserId || !symptomTitle) return;
           try {
-            await runDirectPublicWriteWithOrgPrincipal(() => createSymptomTrackingDirect(
-              db,
-              {
-                integratorUserId,
-                channelCode: resource,
-                externalId,
-                symptomKey: asNullableString(mutation.params.symptomKey),
-                symptomTitle,
-              },
-              { mergeCandidateIds: mergeCandidateIdsViaPlatformMerge },
-            ));
+            await runDirectPublicWriteWithOrgPrincipal(() =>
+              createSymptomTrackingDirect(
+                db,
+                {
+                  integratorUserId,
+                  channelCode: resource,
+                  externalId,
+                  symptomKey: asNullableString(mutation.params.symptomKey),
+                  symptomTitle,
+                },
+                { mergeCandidateIds: mergeCandidateIdsViaPlatformMerge },
+              ),
+            );
           } catch (err) {
             if (isIdentityMergeAmbiguityError(err) || isDiaryLfkFailClosedError(err)) {
               logger.warn(
@@ -1069,30 +1185,40 @@ export function createDbWritePort(input: {
           const integratorUserId = asNonEmptyString(mutation.params.integratorUserId);
           const trackingId = asNonEmptyString(mutation.params.trackingId);
           const entryTypeRaw = asNonEmptyString(mutation.params.entryType);
-          const entryType = entryTypeRaw === 'daily' ? 'daily' : entryTypeRaw === 'instant' ? 'instant' : null;
+          const entryType =
+            entryTypeRaw === 'daily' ? 'daily' : entryTypeRaw === 'instant' ? 'instant' : null;
           const value0_10 = asFiniteNumber(mutation.params.value0_10);
           const recordedAt = asNonEmptyString(mutation.params.recordedAt);
           if (
-            !resource || !externalId || !integratorUserId || !trackingId || !entryType
-            || value0_10 === null || value0_10 < 0 || value0_10 > 10 || !recordedAt
+            !resource ||
+            !externalId ||
+            !integratorUserId ||
+            !trackingId ||
+            !entryType ||
+            value0_10 === null ||
+            value0_10 < 0 ||
+            value0_10 > 10 ||
+            !recordedAt
           ) {
             return;
           }
           try {
-            await runDirectPublicWriteWithOrgPrincipal(() => addSymptomEntryDirect(
-              db,
-              {
-                integratorUserId,
-                channelCode: resource,
-                externalId,
-                trackingId,
-                value0_10,
-                entryType,
-                recordedAt,
-                notes: asNullableString(mutation.params.notes),
-              },
-              { mergeCandidateIds: mergeCandidateIdsViaPlatformMerge },
-            ));
+            await runDirectPublicWriteWithOrgPrincipal(() =>
+              addSymptomEntryDirect(
+                db,
+                {
+                  integratorUserId,
+                  channelCode: resource,
+                  externalId,
+                  trackingId,
+                  value0_10,
+                  entryType,
+                  recordedAt,
+                  notes: asNullableString(mutation.params.notes),
+                },
+                { mergeCandidateIds: mergeCandidateIdsViaPlatformMerge },
+              ),
+            );
           } catch (err) {
             if (isIdentityMergeAmbiguityError(err) || isDiaryLfkFailClosedError(err)) {
               logger.warn(
@@ -1113,17 +1239,22 @@ export function createDbWritePort(input: {
           const title = asNonEmptyString(mutation.params.title);
           if (!resource || !externalId || !integratorUserId || !title) return;
           try {
-            await runDirectPublicWriteWithOrgPrincipal(() => createLfkComplexDirect(
-              db,
-              {
-                integratorUserId,
-                channelCode: resource,
-                externalId,
-                title,
-                origin: mutation.params.origin === 'assigned_by_specialist' ? 'assigned_by_specialist' : 'manual',
-              },
-              { mergeCandidateIds: mergeCandidateIdsViaPlatformMerge },
-            ));
+            await runDirectPublicWriteWithOrgPrincipal(() =>
+              createLfkComplexDirect(
+                db,
+                {
+                  integratorUserId,
+                  channelCode: resource,
+                  externalId,
+                  title,
+                  origin:
+                    mutation.params.origin === 'assigned_by_specialist'
+                      ? 'assigned_by_specialist'
+                      : 'manual',
+                },
+                { mergeCandidateIds: mergeCandidateIdsViaPlatformMerge },
+              ),
+            );
           } catch (err) {
             if (isIdentityMergeAmbiguityError(err) || isDiaryLfkFailClosedError(err)) {
               logger.warn(
@@ -1145,11 +1276,13 @@ export function createDbWritePort(input: {
           const completedAt = asNonEmptyString(mutation.params.completedAt);
           if (!resource || !externalId || !integratorUserId || !complexId || !completedAt) return;
           try {
-            await runDirectPublicWriteWithOrgPrincipal(() => addLfkSessionDirect(
-              db,
-              { integratorUserId, channelCode: resource, externalId, complexId, completedAt },
-              { mergeCandidateIds: mergeCandidateIdsViaPlatformMerge },
-            ));
+            await runDirectPublicWriteWithOrgPrincipal(() =>
+              addLfkSessionDirect(
+                db,
+                { integratorUserId, channelCode: resource, externalId, complexId, completedAt },
+                { mergeCandidateIds: mergeCandidateIdsViaPlatformMerge },
+              ),
+            );
           } catch (err) {
             if (isIdentityMergeAmbiguityError(err) || isDiaryLfkFailClosedError(err)) {
               logger.warn(
@@ -1174,9 +1307,16 @@ export function createDbWritePort(input: {
           const daysMask = asNonEmptyString(mutation.params.daysMask);
           const contentMode = asNonEmptyString(mutation.params.contentMode);
           if (
-            !userId || !category || !id || !timezone || !scheduleType
-            || intervalMinutes === null || windowStartMinute === null || windowEndMinute === null
-            || !daysMask || !contentMode
+            !userId ||
+            !category ||
+            !id ||
+            !timezone ||
+            !scheduleType ||
+            intervalMinutes === null ||
+            windowStartMinute === null ||
+            windowEndMinute === null ||
+            !daysMask ||
+            !contentMode
           ) {
             return;
           }
@@ -1186,7 +1326,9 @@ export function createDbWritePort(input: {
           const customTitle = asNullableString(mutation.params.customTitle);
           const customText = asNullableString(mutation.params.customText);
           const reminderIntent = asNullableString(mutation.params.reminderIntent);
-          const quietHoursStartMinute = asNullableIntegerMinute(mutation.params.quietHoursStartMinute);
+          const quietHoursStartMinute = asNullableIntegerMinute(
+            mutation.params.quietHoursStartMinute,
+          );
           const quietHoursEndMinute = asNullableIntegerMinute(mutation.params.quietHoursEndMinute);
           const notificationTopicCodeProvided = Object.prototype.hasOwnProperty.call(
             mutation.params,
@@ -1250,28 +1392,30 @@ export function createDbWritePort(input: {
             contentMode,
           });
           try {
-            await runDirectPublicWriteWithOrgPrincipal(() => upsertReminderRuleDirect(db, {
-              integratorUserId: canonicalUserId,
-              integratorRuleId: id,
-              category,
-              isEnabled,
-              scheduleType,
-              timezone,
-              intervalMinutes,
-              windowStartMinute,
-              windowEndMinute,
-              daysMask,
-              contentMode,
-              linkedObjectType,
-              linkedObjectId,
-              customTitle,
-              customText,
-              scheduleData: mutation.params.scheduleData,
-              reminderIntent,
-              quietHoursStartMinute,
-              quietHoursEndMinute,
-              notificationTopicCode: notificationTopicCodeRaw,
-            }));
+            await runDirectPublicWriteWithOrgPrincipal(() =>
+              upsertReminderRuleDirect(db, {
+                integratorUserId: canonicalUserId,
+                integratorRuleId: id,
+                category,
+                isEnabled,
+                scheduleType,
+                timezone,
+                intervalMinutes,
+                windowStartMinute,
+                windowEndMinute,
+                daysMask,
+                contentMode,
+                linkedObjectType,
+                linkedObjectId,
+                customTitle,
+                customText,
+                scheduleData: mutation.params.scheduleData,
+                reminderIntent,
+                quietHoursStartMinute,
+                quietHoursEndMinute,
+                notificationTopicCode: notificationTopicCodeRaw,
+              }),
+            );
           } catch (err) {
             const fallbackUpdatedAt = new Date().toISOString();
             await enqueueProjectionEvent(db, {
@@ -1414,10 +1558,12 @@ export function createDbWritePort(input: {
           const occurrenceId = asNonEmptyString(mutation.params.occurrenceId);
           const channel = asNonEmptyString(mutation.params.channel);
           const status = asNonEmptyString(mutation.params.status);
-          if (!id || !occurrenceId || !channel || (status !== 'success' && status !== 'failed')) return;
-          const payloadJson = typeof mutation.params.payloadJson === 'object' && mutation.params.payloadJson !== null
-            ? mutation.params.payloadJson as Record<string, unknown>
-            : {};
+          if (!id || !occurrenceId || !channel || (status !== 'success' && status !== 'failed'))
+            return;
+          const payloadJson =
+            typeof mutation.params.payloadJson === 'object' && mutation.params.payloadJson !== null
+              ? (mutation.params.payloadJson as Record<string, unknown>)
+              : {};
           const pendingDelLog: ProjectionFanoutInput[] = [];
           await db.tx(async (txDb) => {
             const createdAt = await insertReminderDeliveryLog(txDb, {
@@ -1444,7 +1590,11 @@ export function createDbWritePort(input: {
               };
               pendingDelLog.push({
                 eventType: REMINDER_DELIVERY_LOGGED,
-                idempotencyKey: projectionIdempotencyKey(REMINDER_DELIVERY_LOGGED, id, hashPayload(payload)),
+                idempotencyKey: projectionIdempotencyKey(
+                  REMINDER_DELIVERY_LOGGED,
+                  id,
+                  hashPayload(payload),
+                ),
                 occurredAt: createdAt,
                 payload,
               });
@@ -1460,9 +1610,10 @@ export function createDbWritePort(input: {
           const purpose = asNonEmptyString(mutation.params.purpose);
           const expiresAt = asNonEmptyString(mutation.params.expiresAt);
           if (!id || !userId || !contentId || !purpose || !expiresAt) return;
-          const metaJson = typeof mutation.params.metaJson === 'object' && mutation.params.metaJson !== null
-            ? mutation.params.metaJson as Record<string, unknown>
-            : {};
+          const metaJson =
+            typeof mutation.params.metaJson === 'object' && mutation.params.metaJson !== null
+              ? (mutation.params.metaJson as Record<string, unknown>)
+              : {};
           const pendingContent: ProjectionFanoutInput[] = [];
           await db.tx(async (txDb) => {
             const canonicalUserId = await resolveCanonicalIntegratorUserId(txDb, userId);
@@ -1488,7 +1639,11 @@ export function createDbWritePort(input: {
             };
             pendingContent.push({
               eventType: CONTENT_ACCESS_GRANTED,
-              idempotencyKey: projectionIdempotencyKey(CONTENT_ACCESS_GRANTED, id, hashPayload(payload)),
+              idempotencyKey: projectionIdempotencyKey(
+                CONTENT_ACCESS_GRANTED,
+                id,
+                hashPayload(payload),
+              ),
               occurredAt: createdAt,
               payload,
             });
@@ -1530,12 +1685,16 @@ export function createDbWritePort(input: {
           const correlationId = asNullableString(dalParams.correlationId);
           const channel = asNonEmptyString(dalParams.channel);
           const status = asNonEmptyString(dalParams.status);
-          const attemptRaw = typeof dalParams.attempt === 'number' && Number.isFinite(dalParams.attempt)
-            ? Math.trunc(dalParams.attempt) : null;
+          const attemptRaw =
+            typeof dalParams.attempt === 'number' && Number.isFinite(dalParams.attempt)
+              ? Math.trunc(dalParams.attempt)
+              : null;
           const reason = asNullableString(dalParams.reason);
           const organizationId = asNullableString(dalParams.organizationId);
-          const payloadJson = typeof dalParams.payload === 'object' && dalParams.payload !== null
-            ? (dalParams.payload as Record<string, unknown>) : {};
+          const payloadJson =
+            typeof dalParams.payload === 'object' && dalParams.payload !== null
+              ? (dalParams.payload as Record<string, unknown>)
+              : {};
           const occurredAt = asNonEmptyString(dalParams.occurredAt) ?? new Date().toISOString();
           await db.tx(async (txDb) => {
             await insertDeliveryAttemptLog(txDb, dalParams);
@@ -1569,20 +1728,23 @@ export function createDbWritePort(input: {
             // organizationId is already a known, validated value here (guarded above) — wrap with it
             // directly rather than relying on the ambient principal (this mutation can also be reached
             // from delivery/retry paths without an ambient organization principal at all).
-            await runWithOrganizationPrincipal(organizationId, () => appendSupportDeliveryEventDirect(db, {
-              organizationId,
-              conversationMessageId: null,
-              integratorIntentEventId: intentEventId,
-              correlationId,
-              channelCode: channel ?? 'unknown',
-              status: status ?? 'failed',
-              attempt: attemptRaw !== null && attemptRaw > 0 ? attemptRaw : 1,
-              reason,
-              payloadJson,
-              occurredAt,
-            }));
+            await runWithOrganizationPrincipal(organizationId, () =>
+              appendSupportDeliveryEventDirect(db, {
+                organizationId,
+                conversationMessageId: null,
+                integratorIntentEventId: intentEventId,
+                correlationId,
+                channelCode: channel ?? 'unknown',
+                status: status ?? 'failed',
+                attempt: attemptRaw !== null && attemptRaw > 0 ? attemptRaw : 1,
+                reason,
+                payloadJson,
+                occurredAt,
+              }),
+            );
           } catch (err) {
-            const key = intentEventId ?? correlationId ?? `del-${hashPayload(deliveryFallbackPayload)}`;
+            const key =
+              intentEventId ?? correlationId ?? `del-${hashPayload(deliveryFallbackPayload)}`;
             await enqueueProjectionEvent(db, {
               eventType: 'support.delivery.attempt.logged',
               idempotencyKey: projectionIdempotencyKey(
@@ -1612,13 +1774,18 @@ export function createDbWritePort(input: {
           return;
         }
         case 'mailing.topic.upsert': {
-          const topicId = asFiniteNumber(mutation.params.integratorTopicId) ?? asFiniteNumber(mutation.params.id);
+          const topicId =
+            asFiniteNumber(mutation.params.integratorTopicId) ?? asFiniteNumber(mutation.params.id);
           const code = asNonEmptyString(mutation.params.code);
           const title = asNonEmptyString(mutation.params.title);
           const key = asNonEmptyString(mutation.params.key);
-          const isActive = typeof mutation.params.isActive === 'boolean' ? mutation.params.isActive : true;
+          const isActive =
+            typeof mutation.params.isActive === 'boolean' ? mutation.params.isActive : true;
           if (topicId === null || !code || !title || !key) {
-            logger.warn({ mutationType: mutation.type }, 'skip mailing.topic.upsert: missing required fields');
+            logger.warn(
+              { mutationType: mutation.type },
+              'skip mailing.topic.upsert: missing required fields',
+            );
             return;
           }
           const updatedAt = new Date().toISOString();
@@ -1633,7 +1800,11 @@ export function createDbWritePort(input: {
           await fanoutProjectionsAfterTx([
             {
               eventType: MAILING_TOPIC_UPSERTED,
-              idempotencyKey: projectionIdempotencyKey(MAILING_TOPIC_UPSERTED, String(topicId), hashPayload(payload)),
+              idempotencyKey: projectionIdempotencyKey(
+                MAILING_TOPIC_UPSERTED,
+                String(topicId),
+                hashPayload(payload),
+              ),
               occurredAt: updatedAt,
               payload,
             },
@@ -1643,9 +1814,13 @@ export function createDbWritePort(input: {
         case 'user.subscription.upsert': {
           const userId = asFiniteNumber(mutation.params.integratorUserId);
           const topicId = asFiniteNumber(mutation.params.integratorTopicId);
-          const isActive = typeof mutation.params.isActive === 'boolean' ? mutation.params.isActive : true;
+          const isActive =
+            typeof mutation.params.isActive === 'boolean' ? mutation.params.isActive : true;
           if (userId === null || topicId === null) {
-            logger.warn({ mutationType: mutation.type }, 'skip user.subscription.upsert: missing userId or topicId');
+            logger.warn(
+              { mutationType: mutation.type },
+              'skip user.subscription.upsert: missing userId or topicId',
+            );
             return;
           }
           const updatedAt = new Date().toISOString();
@@ -1677,7 +1852,10 @@ export function createDbWritePort(input: {
           const sentAt = asNonEmptyString(mutation.params.sentAt) ?? new Date().toISOString();
           const error = asNullableString(mutation.params.errorText ?? mutation.params.error);
           if (userId === null || mailingId === null || !status) {
-            logger.warn({ mutationType: mutation.type }, 'skip mailing.log.append: missing required fields');
+            logger.warn(
+              { mutationType: mutation.type },
+              'skip mailing.log.append: missing required fields',
+            );
             return;
           }
           const pendingMailLog: ProjectionFanoutInput[] = [];
@@ -1723,17 +1901,22 @@ export function createDbWritePort(input: {
           const phoneNormalized = asNonEmptyString(mutation.params.phoneNormalized);
           const messageText = asNonEmptyString(mutation.params.messageText);
           if (!phoneNormalized || !messageText) {
-            logger.warn({ mutationType: mutation.type }, 'skip retry enqueue: missing phone/message');
+            logger.warn(
+              { mutationType: mutation.type },
+              'skip retry enqueue: missing phone/message',
+            );
             return;
           }
           const firstTryDelaySecondsRaw = mutation.params.firstTryDelaySeconds;
           const maxAttemptsRaw = mutation.params.maxAttempts;
-          const firstTryDelaySeconds = typeof firstTryDelaySecondsRaw === 'number' && Number.isFinite(firstTryDelaySecondsRaw)
-            ? Math.max(0, Math.trunc(firstTryDelaySecondsRaw))
-            : 60;
-          const maxAttempts = typeof maxAttemptsRaw === 'number' && Number.isFinite(maxAttemptsRaw)
-            ? Math.max(1, Math.trunc(maxAttemptsRaw))
-            : 2;
+          const firstTryDelaySeconds =
+            typeof firstTryDelaySecondsRaw === 'number' && Number.isFinite(firstTryDelaySecondsRaw)
+              ? Math.max(0, Math.trunc(firstTryDelaySecondsRaw))
+              : 60;
+          const maxAttempts =
+            typeof maxAttemptsRaw === 'number' && Number.isFinite(maxAttemptsRaw)
+              ? Math.max(1, Math.trunc(maxAttemptsRaw))
+              : 2;
 
           await enqueueMessageRetryJob(db, {
             phoneNormalized,

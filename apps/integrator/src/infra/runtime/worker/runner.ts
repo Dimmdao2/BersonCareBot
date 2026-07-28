@@ -7,10 +7,13 @@ export type WorkerRunnerDeps = {
   completeJob: (jobId: string) => Promise<void>;
   failJob: (jobId: string, errorCode: string) => Promise<void>;
   rescheduleJob: (jobId: string, runAt: string, attempts: number) => Promise<void>;
-  logAttempt: (jobId: string, input: { ok: boolean; errorCode?: string; nextRunAt?: string; final?: boolean }) => Promise<void>;
-  dispatchOutgoing: (intent: import('../../../kernel/contracts/index.js').OutgoingIntent) => Promise<
-    import('../../../kernel/contracts/index.js').DeliverySendResult
-  >;
+  logAttempt: (
+    jobId: string,
+    input: { ok: boolean; errorCode?: string; nextRunAt?: string; final?: boolean },
+  ) => Promise<void>;
+  dispatchOutgoing: (
+    intent: import('../../../kernel/contracts/index.js').OutgoingIntent,
+  ) => Promise<import('../../../kernel/contracts/index.js').DeliverySendResult>;
   dispatchWebappPush?: (input: {
     organizationId: string;
     phoneNormalized: string;

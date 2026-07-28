@@ -1,4 +1,4 @@
-import { Buffer } from "node:buffer";
+import { Buffer } from 'node:buffer';
 
 /** Max length per key string (base64url) after trim — guard against oversized JSONB payloads. */
 export const WEB_PUSH_VAPID_KEY_MAX_LEN = 256;
@@ -18,8 +18,8 @@ export function decodeWebPushVapidBase64Url(s: string): Buffer | null {
   if (!t || !isBase64UrlSegment(t)) return null;
   try {
     const pad = (4 - (t.length % 4)) % 4;
-    const normalized = t.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat(pad);
-    const buf = Buffer.from(normalized, "base64");
+    const normalized = t.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat(pad);
+    const buf = Buffer.from(normalized, 'base64');
     if (buf.length === 0) return null;
     return buf;
   } catch {
@@ -43,13 +43,17 @@ export function isValidVapidP256PrivateKeyMaterial(buf: Buffer): boolean {
 
 /** True if stored `value_json` already has a non-empty `privateKey` (merge target for empty PATCH). */
 export function hasStoredWebPushVapidPrivate(valueJson: unknown): boolean {
-  if (valueJson === null || typeof valueJson !== "object" || !("value" in (valueJson as Record<string, unknown>))) {
+  if (
+    valueJson === null ||
+    typeof valueJson !== 'object' ||
+    !('value' in (valueJson as Record<string, unknown>))
+  ) {
     return false;
   }
   const inner = (valueJson as Record<string, unknown>).value;
-  if (inner === null || typeof inner !== "object" || Array.isArray(inner)) return false;
+  if (inner === null || typeof inner !== 'object' || Array.isArray(inner)) return false;
   const pk = (inner as Record<string, unknown>).privateKey;
-  return typeof pk === "string" && pk.trim().length > 0;
+  return typeof pk === 'string' && pk.trim().length > 0;
 }
 
 /**
@@ -62,20 +66,20 @@ export function parseWebPushVapidPatchValue(
   ctx: { hasExistingPrivate: boolean },
 ): { ok: true; value: { publicKey: string; privateKey: string } } | { ok: false } {
   const inner = normalizedEnvelope.value;
-  if (inner === null || typeof inner !== "object" || Array.isArray(inner)) return { ok: false };
+  if (inner === null || typeof inner !== 'object' || Array.isArray(inner)) return { ok: false };
 
   const o = inner as Record<string, unknown>;
-  const publicKey = typeof o.publicKey === "string" ? o.publicKey.trim() : "";
-  const privateKey = typeof o.privateKey === "string" ? o.privateKey.trim() : "";
+  const publicKey = typeof o.publicKey === 'string' ? o.publicKey.trim() : '';
+  const privateKey = typeof o.privateKey === 'string' ? o.privateKey.trim() : '';
 
-  if (publicKey === "") return { ok: false };
+  if (publicKey === '') return { ok: false };
   if (!isBase64UrlSegment(publicKey)) return { ok: false };
   const pubBuf = decodeWebPushVapidBase64Url(publicKey);
   if (!pubBuf || !isValidVapidP256PublicKeyMaterial(pubBuf)) return { ok: false };
 
-  if (privateKey === "") {
+  if (privateKey === '') {
     if (!ctx.hasExistingPrivate) return { ok: false };
-    return { ok: true, value: { publicKey, privateKey: "" } };
+    return { ok: true, value: { publicKey, privateKey: '' } };
   }
   if (!isBase64UrlSegment(privateKey)) return { ok: false };
   const privBuf = decodeWebPushVapidBase64Url(privateKey);

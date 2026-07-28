@@ -1,7 +1,7 @@
 import type {
   NotificationDeliveryHealthSnapshot,
   RecordNotificationDeliveryAttemptInput,
-} from "./types";
+} from './types';
 
 export type NotificationDeliveryAttemptsPort = {
   recordAttempt(input: RecordNotificationDeliveryAttemptInput): Promise<void>;

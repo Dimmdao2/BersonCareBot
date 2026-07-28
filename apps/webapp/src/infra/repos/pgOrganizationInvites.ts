@@ -1,5 +1,5 @@
-import { runWebappPgText, runWebappTransaction } from "@/infra/db/runWebappSql";
-import { CLINIC_SEAT_USAGE_SQL } from "@/infra/repos/seatUsageSql";
+import { runWebappPgText, runWebappTransaction } from '@/infra/db/runWebappSql';
+import { CLINIC_SEAT_USAGE_SQL } from '@/infra/repos/seatUsageSql';
 import type {
   AcceptOrganizationInviteResult,
   CreateOrganizationInviteResult,
@@ -7,12 +7,12 @@ import type {
   OrganizationInviteRole,
   OrganizationInviteStatus,
   OrganizationInvitesPort,
-} from "@/modules/organization-invites/ports";
+} from '@/modules/organization-invites/ports';
 import {
   ORGANIZATION_INVITE_ROLES,
   ORGANIZATION_INVITE_STATUSES,
-} from "@/modules/organization-invites/ports";
-import { CLINIC_TEAM_FAIL_CLOSED_SEAT_BASELINE } from "@/modules/org-entitlements/types";
+} from '@/modules/organization-invites/ports';
+import { CLINIC_TEAM_FAIL_CLOSED_SEAT_BASELINE } from '@/modules/org-entitlements/types';
 
 type InviteRow = {
   id: string;
@@ -53,17 +53,19 @@ function parseInviteStatus(value: string): OrganizationInviteStatus {
   throw new Error(`Unexpected organization_member_invites.status: ${value}`);
 }
 
-function mapAcceptFailureCode(value: string | null): Exclude<AcceptOrganizationInviteResult, { ok: true }>["code"] {
+function mapAcceptFailureCode(
+  value: string | null,
+): Exclude<AcceptOrganizationInviteResult, { ok: true }>['code'] {
   switch (value) {
-    case "invalid_token":
-    case "expired_token":
-    case "reused_token":
-    case "email_mismatch":
-    case "entitlement_disabled":
-    case "seat_limit_reached":
+    case 'invalid_token':
+    case 'expired_token':
+    case 'reused_token':
+    case 'email_mismatch':
+    case 'entitlement_disabled':
+    case 'seat_limit_reached':
       return value;
     default:
-      throw new Error(`Unexpected app.accept_org_invite failure code: ${value ?? "<null>"}`);
+      throw new Error(`Unexpected app.accept_org_invite failure code: ${value ?? '<null>'}`);
   }
 }
 
@@ -130,10 +132,10 @@ export function createPgOrganizationInvitesPort(): OrganizationInvitesPort {
           tx,
         );
         if (activeMember.rows[0]) {
-          return { ok: false, code: "already_member" };
+          return { ok: false, code: 'already_member' };
         }
 
-        if (input.invitedRole === "doctor") {
+        if (input.invitedRole === 'doctor') {
           // Atomic, race-safe seat capacity check — the authoritative enforcement (the JS-level
           // clinicSeats.assertSeatAvailableForInvite pre-check is best-effort UX only). Mirrors
           // resolveClinicSeatLimit's override > tariff > fail-closed-baseline precedence and
@@ -178,7 +180,7 @@ export function createPgOrganizationInvitesPort(): OrganizationInvitesPort {
           const limitValue = row?.limit_value ?? 0;
           const usedValue = row?.used_value ?? 0;
           if (usedValue >= limitValue) {
-            return { ok: false, code: "seat_limit_reached" };
+            return { ok: false, code: 'seat_limit_reached' };
           }
         }
 
@@ -247,7 +249,7 @@ export function createPgOrganizationInvitesPort(): OrganizationInvitesPort {
           tx,
         );
         const invite = inserted.rows[0];
-        if (!invite) throw new Error("organization_invite_insert_failed");
+        if (!invite) throw new Error('organization_invite_insert_failed');
         return { ok: true, invite: mapInvite(invite) };
       });
     },
@@ -355,12 +357,12 @@ export function createPgOrganizationInvitesPort(): OrganizationInvitesPort {
         [tokenHash, platformUserId, expectedEmail],
       );
       const row = accepted.rows[0];
-      if (!row) throw new Error("app.accept_org_invite_returned_no_rows");
+      if (!row) throw new Error('app.accept_org_invite_returned_no_rows');
       if (!row.ok) {
         return { ok: false, code: mapAcceptFailureCode(row.code) };
       }
       if (!row.organization_id || !row.membership_id || !row.platform_user_id || !row.role) {
-        throw new Error("app.accept_org_invite_returned_incomplete_success");
+        throw new Error('app.accept_org_invite_returned_incomplete_success');
       }
       return {
         ok: true,

@@ -1,4 +1,4 @@
-import { runWebappPgText } from "@/infra/db/runWebappSql";
+import { runWebappPgText } from '@/infra/db/runWebappSql';
 
 export type AdminNotificationTargets = {
   telegram: string[];
@@ -45,8 +45,8 @@ export async function loadAdminNotificationTargetsFromDb(): Promise<AdminNotific
   for (const row of result.rows) {
     const externalId = row.external_id?.trim();
     if (externalId) {
-      if (row.channel_code === "telegram") telegram.add(externalId);
-      if (row.channel_code === "max") max.add(externalId);
+      if (row.channel_code === 'telegram') telegram.add(externalId);
+      if (row.channel_code === 'max') max.add(externalId);
     }
     const phone = row.phone_normalized?.trim();
     if (phone) sms.add(phone);

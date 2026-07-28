@@ -1,17 +1,20 @@
-import { randomUUID } from "node:crypto";
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { env, isS3MediaEnabled } from "@/config/env";
-import { logger } from "@/app-layer/logging/logger";
-import { pgFolderExists } from "@/app-layer/media/mediaFoldersRepo";
-import { pgValidateUserAssignableMediaFolder } from "@/app-layer/media/clientMediaFolders";
-import { deletePendingMediaFileById, insertPendingMediaFileTx } from "@/app-layer/media/s3MediaStorage";
-import { getPool } from "@/app-layer/db/client";
-import { withUserLifecycleLock } from "@/app-layer/locks/userLifecycleLock";
-import { presignPutUrl, s3ObjectKey } from "@/app-layer/media/s3Client";
-import { ALLOWED_MEDIA_MIME, MAX_MEDIA_BYTES } from "@/modules/media/uploadAllowedMime";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { randomUUID } from 'node:crypto';
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { env, isS3MediaEnabled } from '@/config/env';
+import { logger } from '@/app-layer/logging/logger';
+import { pgFolderExists } from '@/app-layer/media/mediaFoldersRepo';
+import { pgValidateUserAssignableMediaFolder } from '@/app-layer/media/clientMediaFolders';
+import {
+  deletePendingMediaFileById,
+  insertPendingMediaFileTx,
+} from '@/app-layer/media/s3MediaStorage';
+import { getPool } from '@/app-layer/db/client';
+import { withUserLifecycleLock } from '@/app-layer/locks/userLifecycleLock';
+import { presignPutUrl, s3ObjectKey } from '@/app-layer/media/s3Client';
+import { ALLOWED_MEDIA_MIME, MAX_MEDIA_BYTES } from '@/modules/media/uploadAllowedMime';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 
 const bodySchema = z.object({
   filename: z.string().min(1).max(255),
@@ -22,7 +25,7 @@ const bodySchema = z.object({
 
 export async function POST(request: Request) {
   if (!isS3MediaEnabled(env)) {
-    return NextResponse.json({ ok: false, error: "s3_not_configured" }, { status: 501 });
+    return NextResponse.json({ ok: false, error: 's3_not_configured' }, { status: 501 });
   }
 
   const gate = await requireDoctorWorkspaceApiContext();
@@ -33,32 +36,35 @@ export async function POST(request: Request) {
   try {
     json = await request.json();
   } catch {
-    return NextResponse.json({ ok: false, error: "invalid_json" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 });
   }
 
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
 
   const mime = parsed.data.mimeType.toLowerCase();
   if (!ALLOWED_MEDIA_MIME.has(mime)) {
-    return NextResponse.json({ ok: false, error: "mime_not_allowed", mime }, { status: 415 });
+    return NextResponse.json({ ok: false, error: 'mime_not_allowed', mime }, { status: 415 });
   }
   if (parsed.data.size > MAX_MEDIA_BYTES) {
-    return NextResponse.json({ ok: false, error: "file_too_large", maxBytes: MAX_MEDIA_BYTES }, { status: 413 });
+    return NextResponse.json(
+      { ok: false, error: 'file_too_large', maxBytes: MAX_MEDIA_BYTES },
+      { status: 413 },
+    );
   }
 
   let folderId: string | null = null;
   if (parsed.data.folderId !== undefined && parsed.data.folderId !== null) {
     const assignable = await pgValidateUserAssignableMediaFolder(parsed.data.folderId);
     if (!assignable.ok) {
-      const status = assignable.error === "folder_not_found" ? 404 : 400;
+      const status = assignable.error === 'folder_not_found' ? 404 : 400;
       return NextResponse.json({ ok: false, error: assignable.error }, { status });
     }
     const exists = await pgFolderExists(parsed.data.folderId);
     if (!exists) {
-      return NextResponse.json({ ok: false, error: "folder_not_found" }, { status: 404 });
+      return NextResponse.json({ ok: false, error: 'folder_not_found' }, { status: 404 });
     }
     folderId = parsed.data.folderId;
   }
@@ -69,7 +75,7 @@ export async function POST(request: Request) {
 
   try {
     await withDoctorWorkspacePrincipal(gate.ctx, () =>
-      withUserLifecycleLock(getPool(), session.user.userId, "shared", async (client) => {
+      withUserLifecycleLock(getPool(), session.user.userId, 'shared', async (client) => {
         await insertPendingMediaFileTx(client, {
           id: mediaId,
           filename: parsed.data.filename,
@@ -94,7 +100,7 @@ export async function POST(request: Request) {
         /* best-effort rollback */
       },
     );
-    logger.error({ err: e }, "[media/presign] presign_failed");
-    return NextResponse.json({ ok: false, error: "presign_failed" }, { status: 500 });
+    logger.error({ err: e }, '[media/presign] presign_failed');
+    return NextResponse.json({ ok: false, error: 'presign_failed' }, { status: 500 });
   }
 }

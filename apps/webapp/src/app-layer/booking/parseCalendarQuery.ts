@@ -1,5 +1,5 @@
-import type { CalendarViewMode } from "@/modules/booking-calendar/types";
-import { DateTime } from "luxon";
+import type { CalendarViewMode } from '@/modules/booking-calendar/types';
+import { DateTime } from 'luxon';
 
 export type ParsedCalendarQuery = {
   rangeStart: string;
@@ -33,27 +33,24 @@ export function parseCalendarQuery(
   searchParams: URLSearchParams,
   timeZone: string,
 ): ParsedCalendarQuery | { error: string } {
-  const viewParam = searchParams.get("view") ?? "week";
+  const viewParam = searchParams.get('view') ?? 'week';
   const view: CalendarViewMode =
-    viewParam === "day" ||
-    viewParam === "month" ||
-    viewParam === "3days" ||
-    viewParam === "feed"
+    viewParam === 'day' || viewParam === 'month' || viewParam === '3days' || viewParam === 'feed'
       ? (viewParam as CalendarViewMode)
-      : "week";
+      : 'week';
 
-  const anchorDate = searchParams.get("date") ?? DateTime.now().setZone(timeZone).toISODate() ?? "";
+  const anchorDate = searchParams.get('date') ?? DateTime.now().setZone(timeZone).toISODate() ?? '';
   if (!ISO_DATE_RE.test(anchorDate)) {
-    return { error: "invalid_date" };
+    return { error: 'invalid_date' };
   }
   const anchor = DateTime.fromISO(anchorDate, { zone: timeZone });
   if (!anchor.isValid) {
-    return { error: "invalid_date" };
+    return { error: 'invalid_date' };
   }
 
   // C1: явные from/to перекрывают расчёт по view
-  const fromParam = searchParams.get("from")?.trim();
-  const toParam = searchParams.get("to")?.trim();
+  const fromParam = searchParams.get('from')?.trim();
+  const toParam = searchParams.get('to')?.trim();
 
   let rangeStart: string;
   let rangeEnd: string;
@@ -61,13 +58,13 @@ export function parseCalendarQuery(
   if (fromParam && toParam) {
     // Принимаем YYYY-MM-DD или ISO datetime
     const fromDt = ISO_DATE_RE.test(fromParam)
-      ? DateTime.fromISO(fromParam, { zone: timeZone }).startOf("day").toUTC()
+      ? DateTime.fromISO(fromParam, { zone: timeZone }).startOf('day').toUTC()
       : DateTime.fromISO(fromParam).toUTC();
     const toDt = ISO_DATE_RE.test(toParam)
-      ? DateTime.fromISO(toParam, { zone: timeZone }).endOf("day").toUTC()
+      ? DateTime.fromISO(toParam, { zone: timeZone }).endOf('day').toUTC()
       : DateTime.fromISO(toParam).toUTC();
     if (!fromDt.isValid || !toDt.isValid) {
-      return { error: "invalid_from_to" };
+      return { error: 'invalid_from_to' };
     }
     rangeStart = fromDt.toISO()!;
     rangeEnd = toDt.toISO()!;
@@ -75,34 +72,34 @@ export function parseCalendarQuery(
     // Backward-compat: view → диапазон
     let startDt: DateTime;
     let endDt: DateTime;
-    if (view === "day") {
-      startDt = anchor.startOf("day");
-      endDt = anchor.endOf("day");
-    } else if (view === "month") {
+    if (view === 'day') {
+      startDt = anchor.startOf('day');
+      endDt = anchor.endOf('day');
+    } else if (view === 'month') {
       // Строго по ТЗ §3.2: 1-е..последний день месяца (без overflow-дней FullCalendar)
-      startDt = anchor.startOf("month");
-      endDt = anchor.endOf("month");
-    } else if (view === "3days") {
-      startDt = anchor.startOf("day");
-      endDt = anchor.plus({ days: 2 }).endOf("day");
-    } else if (view === "feed") {
+      startDt = anchor.startOf('month');
+      endDt = anchor.endOf('month');
+    } else if (view === '3days') {
+      startDt = anchor.startOf('day');
+      endDt = anchor.plus({ days: 2 }).endOf('day');
+    } else if (view === 'feed') {
       // feed без явных from/to: ±30 дней от якоря (§13.6 ТЗ)
-      startDt = anchor.minus({ days: 30 }).startOf("day");
-      endDt = anchor.plus({ days: 30 }).endOf("day");
+      startDt = anchor.minus({ days: 30 }).startOf('day');
+      endDt = anchor.plus({ days: 30 }).endOf('day');
     } else {
       // week → пн–вс якорной недели
-      startDt = anchor.startOf("week");
-      endDt = anchor.endOf("week");
+      startDt = anchor.startOf('week');
+      endDt = anchor.endOf('week');
     }
     rangeStart = startDt.toUTC().toISO()!;
     rangeEnd = endDt.toUTC().toISO()!;
   }
 
-  const specialistId = searchParams.get("specialistId")?.trim() || null;
-  const branchId = searchParams.get("branchId")?.trim() || null;
-  const roomId = searchParams.get("roomId")?.trim() || null;
-  const serviceId = searchParams.get("serviceId")?.trim() || null;
-  const includeFreeSlots = searchParams.get("includeFreeSlots") === "1";
+  const specialistId = searchParams.get('specialistId')?.trim() || null;
+  const branchId = searchParams.get('branchId')?.trim() || null;
+  const roomId = searchParams.get('roomId')?.trim() || null;
+  const serviceId = searchParams.get('serviceId')?.trim() || null;
+  const includeFreeSlots = searchParams.get('includeFreeSlots') === '1';
 
   return {
     rangeStart,

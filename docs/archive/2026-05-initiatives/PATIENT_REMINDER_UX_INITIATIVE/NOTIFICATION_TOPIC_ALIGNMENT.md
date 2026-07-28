@@ -10,9 +10,9 @@
 
 ## Миграции
 
-| БД | Файл |
-|----|------|
-| Webapp `public.reminder_rules` | `apps/webapp/db/drizzle-migrations/0054_reminder_rules_notification_topic_code.sql` |
+| БД                               | Файл                                                                                                         |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Webapp `public.reminder_rules`   | `apps/webapp/db/drizzle-migrations/0054_reminder_rules_notification_topic_code.sql`                          |
 | Integrator `user_reminder_rules` | `apps/integrator/src/infra/db/migrations/core/20260510_0001_user_reminder_rules_notification_topic_code.sql` |
 
 ## Ключевые модули

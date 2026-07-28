@@ -1,6 +1,8 @@
 import { z } from 'zod';
 
-const idTokenSchema = z.union([z.string(), z.number(), z.boolean()]).transform((v) => String(v).trim());
+const idTokenSchema = z
+  .union([z.string(), z.number(), z.boolean()])
+  .transform((v) => String(v).trim());
 
 const idTokensFromArraySchema = z.array(z.unknown()).transform((items) => {
   const out: string[] = [];
@@ -54,6 +56,9 @@ export function parseMessengerIdTokens(input: unknown): string[] {
     if (fromJson !== undefined) return fromJson;
   }
 
-  const parts = raw.split(/[\s,;]+/).map((s) => s.trim()).filter(Boolean);
+  const parts = raw
+    .split(/[\s,;]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
   return [...new Set(parts)];
 }

@@ -1,23 +1,23 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Building2, Dna, Dumbbell } from "lucide-react";
-import { Button } from "@/shared/ui/patient/primitives/button";
-import { routePaths } from "@/app-layer/routes/paths";
-import type { BookingCity } from "@/modules/booking-catalog/types";
-import type { OnlineBookingLocationOption } from "@/modules/patient-booking/inPersonServicesCatalog";
-import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
-import { cn } from "@/lib/utils";
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { Building2, Dna, Dumbbell } from 'lucide-react';
+import { Button } from '@/shared/ui/patient/primitives/button';
+import { routePaths } from '@/app-layer/routes/paths';
+import type { BookingCity } from '@/modules/booking-catalog/types';
+import type { OnlineBookingLocationOption } from '@/modules/patient-booking/inPersonServicesCatalog';
+import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import { cn } from '@/lib/utils';
 import {
   bookingChoiceRowClass,
   bookingChoiceRowIconClass,
   bookingChoiceSectionClass,
-} from "./bookingChoiceStyles";
+} from './bookingChoiceStyles';
 
 function sortCitiesForDisplay(cities: BookingCity[]): BookingCity[] {
   return [...cities].sort(
-    (a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, "ru"),
+    (a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, 'ru'),
   );
 }
 
@@ -35,7 +35,9 @@ export function FormatStepClient({ cities, onlineLocation, catalogError }: Forma
   return (
     <div className={bookingChoiceSectionClass}>
       <div className="flex flex-col gap-2">
-        <p className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Очный приём</p>
+        <p className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}>
+          Очный приём
+        </p>
         {catalogError ? (
           <div className="flex flex-col gap-2">
             <p className="text-sm text-destructive">{catalogError}</p>
@@ -62,7 +64,9 @@ export function FormatStepClient({ cities, onlineLocation, catalogError }: Forma
       </div>
 
       <div className="flex flex-col gap-2">
-        <p className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Онлайн</p>
+        <p className={cn(patientMutedTextClass, 'text-xs font-medium uppercase tracking-wide')}>
+          Онлайн
+        </p>
         {onlineLocation ? (
           <Link
             href={`${routePaths.bookingNewService}?cityCode=${encodeURIComponent(onlineLocation.cityCode)}&cityTitle=${encodeURIComponent(onlineLocation.title)}`}
@@ -73,14 +77,18 @@ export function FormatStepClient({ cities, onlineLocation, catalogError }: Forma
             Онлайн-приём
           </Link>
         ) : null}
-        <Link href={routePaths.intakeLfk} prefetch={false} className={cn(bookingChoiceRowClass, "text-left")}>
+        <Link
+          href={routePaths.intakeLfk}
+          prefetch={false}
+          className={cn(bookingChoiceRowClass, 'text-left')}
+        >
           <Dumbbell className={bookingChoiceRowIconClass} aria-hidden />
           Реабилитация онлайн
         </Link>
         <Link
           href={routePaths.intakeNutrition}
           prefetch={false}
-          className={cn(bookingChoiceRowClass, "text-left")}
+          className={cn(bookingChoiceRowClass, 'text-left')}
         >
           <Dna className={bookingChoiceRowIconClass} aria-hidden />
           Нутрициология онлайн

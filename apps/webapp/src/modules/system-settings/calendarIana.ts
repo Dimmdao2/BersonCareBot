@@ -1,7 +1,7 @@
 /** Pure IANA helpers — без DB/env; безопасно для импорта из client components. */
 
 /** Дефолт совпадает с integrator `DEFAULT_APP_DISPLAY_TIMEZONE`. */
-export const DEFAULT_APP_DISPLAY_TIMEZONE = "Europe/Moscow";
+export const DEFAULT_APP_DISPLAY_TIMEZONE = 'Europe/Moscow';
 
 const IANA_LIKE = /^[A-Za-z_]+(\/[A-Za-z_]+)*$/;
 
@@ -28,7 +28,7 @@ export function resolveCalendarDayIanaForPatient(
   personalRaw: string | null | undefined,
   appDefaultRaw: string,
 ): string {
-  const p = personalRaw?.trim() ?? "";
+  const p = personalRaw?.trim() ?? '';
   if (p.length > 0 && IANA_LIKE.test(p) && isValidIanaTimeZone(p)) return p;
   return normalizeAppDisplayTimeZone(appDefaultRaw);
 }

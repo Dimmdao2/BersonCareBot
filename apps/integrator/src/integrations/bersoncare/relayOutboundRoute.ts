@@ -18,29 +18,44 @@ const DEDUP_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 type ReqWithRawBody = FastifyRequest & { rawBody?: string };
 
-const relayPayloadSchema = z.object({
-  messageId: z.string().min(1),
-  organizationId: z.string().uuid().optional(),
-  channel: z.enum(['telegram', 'max', 'email', 'sms', 'web_push'] as const),
-  recipient: z.string().min(1),
-  text: z.string().min(1),
-  /** Опц. HTML-тело письма (email-канал) — мапится в payload.html для email-адаптера. */
-  html: z.string().optional(),
-  idempotencyKey: z.string().min(1),
-  metadata: z.record(z.string(), z.unknown()).optional(),
-  purpose: z.never().optional(),
-}).superRefine((value, ctx) => {
-  if (value.channel === 'web_push' && !value.organizationId) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['organizationId'], message: 'organizationId required' });
-  }
-  if (value.channel === 'web_push' && !z.string().uuid().safeParse(value.recipient).success) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['recipient'], message: 'web_push recipient must be UUID' });
-  }
-});
+const relayPayloadSchema = z
+  .object({
+    messageId: z.string().min(1),
+    organizationId: z.string().uuid().optional(),
+    channel: z.enum(['telegram', 'max', 'email', 'sms', 'web_push'] as const),
+    recipient: z.string().min(1),
+    text: z.string().min(1),
+    /** Опц. HTML-тело письма (email-канал) — мапится в payload.html для email-адаптера. */
+    html: z.string().optional(),
+    idempotencyKey: z.string().min(1),
+    metadata: z.record(z.string(), z.unknown()).optional(),
+    purpose: z.never().optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.channel === 'web_push' && !value.organizationId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['organizationId'],
+        message: 'organizationId required',
+      });
+    }
+    if (value.channel === 'web_push' && !z.string().uuid().safeParse(value.recipient).success) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['recipient'],
+        message: 'web_push recipient must be UUID',
+      });
+    }
+  });
 
 type RelayPayload = z.infer<typeof relayPayloadSchema>;
 
-function verifySignature(timestamp: string, rawBody: string, signature: string, secret: string): boolean {
+function verifySignature(
+  timestamp: string,
+  rawBody: string,
+  signature: string,
+  secret: string,
+): boolean {
   const ts = Number(timestamp);
   if (!Number.isFinite(ts)) return false;
   const now = Math.floor(Date.now() / 1000);
@@ -69,9 +84,7 @@ function buildIntent(parsed: RelayPayload): OutgoingIntent | null {
         ? (rawMarkup as { inline_keyboard: unknown[] })
         : undefined;
     const recipient =
-      parsed.channel === 'max'
-        ? { userId: parsed.recipient }
-        : { chatId: parsed.recipient };
+      parsed.channel === 'max' ? { userId: parsed.recipient } : { chatId: parsed.recipient };
     return {
       type: 'message.send' as const,
       meta,
@@ -102,9 +115,9 @@ function buildIntent(parsed: RelayPayload): OutgoingIntent | null {
     // payload shape matches EmailDeliveryAdapter expectations (S8):
     //   payload.recipient.email, payload.subject, payload.message.text, payload.delivery.channels.
     const subject =
-      typeof parsed.metadata?.subject === 'string' && parsed.metadata.subject.trim() ?
-        parsed.metadata.subject.trim()
-      : 'BersonCare';
+      typeof parsed.metadata?.subject === 'string' && parsed.metadata.subject.trim()
+        ? parsed.metadata.subject.trim()
+        : 'BersonCare';
     return {
       type: 'message.send' as const,
       meta,
@@ -177,7 +190,7 @@ export async function registerBersoncareRelayOutboundRoute(
   const inFlight = new Set<string>();
 
   function scopedKey(payload: RelayPayload): string {
-    return `${payload.organizationId ?? "global"}:${payload.idempotencyKey}`;
+    return `${payload.organizationId ?? 'global'}:${payload.idempotencyKey}`;
   }
 
   function isDuplicate(key: string): boolean {
@@ -216,7 +229,9 @@ export async function registerBersoncareRelayOutboundRoute(
 
     const parseResult = relayPayloadSchema.safeParse(request.body);
     if (!parseResult.success) {
-      return reply.code(400).send({ ok: false, error: 'invalid_payload', details: parseResult.error.flatten() });
+      return reply
+        .code(400)
+        .send({ ok: false, error: 'invalid_payload', details: parseResult.error.flatten() });
     }
 
     const parsed = parseResult.data;
@@ -231,7 +246,10 @@ export async function registerBersoncareRelayOutboundRoute(
 
     const dedupKey = scopedKey(parsed);
     if (isDuplicate(dedupKey)) {
-      logger.info({ idempotencyKey: parsed.idempotencyKey }, 'relay-outbound: duplicate request, skipping');
+      logger.info(
+        { idempotencyKey: parsed.idempotencyKey },
+        'relay-outbound: duplicate request, skipping',
+      );
       return reply.code(200).send({ ok: true, status: 'duplicate' });
     }
     if (inFlight.has(dedupKey)) {
@@ -241,23 +259,27 @@ export async function registerBersoncareRelayOutboundRoute(
     inFlight.add(dedupKey);
     const intent = buildIntent(parsed);
     if (!intent) {
-      logger.warn({ channel: parsed.channel }, 'relay-outbound: unsupported channel, skipping dispatch');
+      logger.warn(
+        { channel: parsed.channel },
+        'relay-outbound: unsupported channel, skipping dispatch',
+      );
       registerKey(dedupKey);
       inFlight.delete(dedupKey);
       return reply.code(200).send({ ok: true, status: 'accepted' });
     }
 
     try {
-      const dispatchResult = await runWithOptionalOrganizationPrincipal(
-        parsed.organizationId,
-        () => dispatchPort.dispatchOutgoing(intent),
+      const dispatchResult = await runWithOptionalOrganizationPrincipal(parsed.organizationId, () =>
+        dispatchPort.dispatchOutgoing(intent),
       );
       registerKey(dedupKey);
       inFlight.delete(dedupKey);
       if (db && parsed.channel === 'web_push') {
-        const topicCode = typeof parsed.metadata?.pushExtras === 'object' && parsed.metadata.pushExtras !== null
-          ? String((parsed.metadata.pushExtras as Record<string, unknown>).topicCode ?? '') || undefined
-          : undefined;
+        const topicCode =
+          typeof parsed.metadata?.pushExtras === 'object' && parsed.metadata.pushExtras !== null
+            ? String((parsed.metadata.pushExtras as Record<string, unknown>).topicCode ?? '') ||
+              undefined
+            : undefined;
         await recordNotificationDeliveryAttemptBestEffort(db, {
           ...(parsed.organizationId ? { organizationId: parsed.organizationId } : {}),
           userId: parsed.recipient,
@@ -282,14 +304,21 @@ export async function registerBersoncareRelayOutboundRoute(
         });
       }
       logger.info(
-        { channel: parsed.channel, messageId: parsed.messageId, recipient: parsed.recipient.slice(0, 6) + '…' },
+        {
+          channel: parsed.channel,
+          messageId: parsed.messageId,
+          recipient: parsed.recipient.slice(0, 6) + '…',
+        },
         'relay-outbound: dispatched',
       );
       return reply.code(200).send({ ok: true, status: 'accepted' });
     } catch (err) {
       inFlight.delete(dedupKey);
       if (isOutboundMessagePolicyDenied(err)) {
-        logger.warn({ channel: parsed.channel, messageId: parsed.messageId }, 'relay-outbound: egress policy denied');
+        logger.warn(
+          { channel: parsed.channel, messageId: parsed.messageId },
+          'relay-outbound: egress policy denied',
+        );
         return reply.code(403).send({ ok: false, error: 'egress_policy_denied' });
       }
       if (db && parsed.channel === 'web_push') {
@@ -307,7 +336,10 @@ export async function registerBersoncareRelayOutboundRoute(
       }
       const code = (err as { code?: number }).code ?? 0;
       const isClientError = code >= 400 && code < 500;
-      logger.error({ err, channel: parsed.channel, messageId: parsed.messageId }, 'relay-outbound: dispatch failed');
+      logger.error(
+        { err, channel: parsed.channel, messageId: parsed.messageId },
+        'relay-outbound: dispatch failed',
+      );
       if (isClientError) {
         return reply.code(400).send({ ok: false, error: 'dispatch_client_error' });
       }

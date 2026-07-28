@@ -1,6 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from 'next/server';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
 const APP_STARTED_AT = Date.now();
 
@@ -22,7 +22,7 @@ export async function GET() {
     },
     {
       headers: {
-        "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
       },
     },
   );

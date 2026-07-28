@@ -1,14 +1,14 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { NextResponse } from "next/server";
+import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { NextResponse } from 'next/server';
 
 const mockRequirePatientApiBusinessAccess = vi.hoisted(() => vi.fn());
-vi.mock("@/app-layer/guards/requireRole", () => ({
+vi.mock('@/app-layer/guards/requireRole', () => ({
   requirePatientApiBusinessAccess: mockRequirePatientApiBusinessAccess,
 }));
 
 const mockMarkSeen = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const mockMarkAllSeen = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
     reminderProjection: {
       markSeen: mockMarkSeen,
@@ -17,19 +17,21 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   }),
 }));
 
-import { POST } from "./route";
+import { POST } from './route';
 
-const SESSION = { user: { userId: "platform-user-1", role: "client" as const, phone: "+79990001122" } };
+const SESSION = {
+  user: { userId: 'platform-user-1', role: 'client' as const, phone: '+79990001122' },
+};
 
 function makeRequest(body: unknown) {
-  return new Request("http://localhost/api/patient/reminders/mark-seen", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+  return new Request('http://localhost/api/patient/reminders/mark-seen', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
 }
 
-describe("POST /api/patient/reminders/mark-seen", () => {
+describe('POST /api/patient/reminders/mark-seen', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockRequirePatientApiBusinessAccess.mockResolvedValue({ ok: true, session: SESSION });
@@ -37,57 +39,57 @@ describe("POST /api/patient/reminders/mark-seen", () => {
     mockMarkAllSeen.mockResolvedValue(undefined);
   });
 
-  it("returns 401 when not authenticated", async () => {
+  it('returns 401 when not authenticated', async () => {
     mockRequirePatientApiBusinessAccess.mockResolvedValue({
       ok: false,
-      response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }),
+      response: NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 }),
     });
-    const res = await POST(makeRequest({ occurrenceIds: ["id-1"] }));
+    const res = await POST(makeRequest({ occurrenceIds: ['id-1'] }));
     expect(res.status).toBe(401);
     const json = await res.json();
     expect(json.ok).toBe(false);
   });
 
-  it("returns 400 for invalid JSON body", async () => {
-    const req = new Request("http://localhost/api/patient/reminders/mark-seen", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: "not-json",
+  it('returns 400 for invalid JSON body', async () => {
+    const req = new Request('http://localhost/api/patient/reminders/mark-seen', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: 'not-json',
     });
     const res = await POST(req);
     expect(res.status).toBe(400);
     const json = await res.json();
-    expect(json.error).toContain("invalid json");
+    expect(json.error).toContain('invalid json');
   });
 
-  it("marks specific occurrences as seen", async () => {
-    const res = await POST(makeRequest({ occurrenceIds: ["occ-1", "occ-2"] }));
+  it('marks specific occurrences as seen', async () => {
+    const res = await POST(makeRequest({ occurrenceIds: ['occ-1', 'occ-2'] }));
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.ok).toBe(true);
-    expect(mockMarkSeen).toHaveBeenCalledWith("platform-user-1", ["occ-1", "occ-2"]);
+    expect(mockMarkSeen).toHaveBeenCalledWith('platform-user-1', ['occ-1', 'occ-2']);
   });
 
-  it("marks all occurrences seen when all: true", async () => {
+  it('marks all occurrences seen when all: true', async () => {
     const res = await POST(makeRequest({ all: true }));
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.ok).toBe(true);
-    expect(mockMarkAllSeen).toHaveBeenCalledWith("platform-user-1");
+    expect(mockMarkAllSeen).toHaveBeenCalledWith('platform-user-1');
     expect(mockMarkSeen).not.toHaveBeenCalled();
   });
 
-  it("returns 400 when occurrenceIds is empty array", async () => {
+  it('returns 400 when occurrenceIds is empty array', async () => {
     const res = await POST(makeRequest({ occurrenceIds: [] }));
     expect(res.status).toBe(400);
   });
 
-  it("returns 400 when occurrenceIds contains non-strings", async () => {
+  it('returns 400 when occurrenceIds contains non-strings', async () => {
     const res = await POST(makeRequest({ occurrenceIds: [1, 2, 3] }));
     expect(res.status).toBe(400);
   });
 
-  it("returns 400 when body is missing both all and occurrenceIds", async () => {
+  it('returns 400 when body is missing both all and occurrenceIds', async () => {
     const res = await POST(makeRequest({}));
     expect(res.status).toBe(400);
   });

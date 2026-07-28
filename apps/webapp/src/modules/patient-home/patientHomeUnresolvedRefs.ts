@@ -1,4 +1,4 @@
-import type { PatientHomeBlock, PatientHomeBlockItem } from "./ports";
+import type { PatientHomeBlock, PatientHomeBlockItem } from './ports';
 
 export type KnownPatientHomeRefs = {
   contentPages: string[];
@@ -6,10 +6,14 @@ export type KnownPatientHomeRefs = {
   courses: string[];
 };
 
-export function isPatientHomeItemResolved(item: PatientHomeBlockItem, knownRefs: KnownPatientHomeRefs): boolean {
-  if (item.targetType === "static_action") return true;
-  if (item.targetType === "content_page") return knownRefs.contentPages.includes(item.targetRef);
-  if (item.targetType === "content_section") return knownRefs.contentSections.includes(item.targetRef);
+export function isPatientHomeItemResolved(
+  item: PatientHomeBlockItem,
+  knownRefs: KnownPatientHomeRefs,
+): boolean {
+  if (item.targetType === 'static_action') return true;
+  if (item.targetType === 'content_page') return knownRefs.contentPages.includes(item.targetRef);
+  if (item.targetType === 'content_section')
+    return knownRefs.contentSections.includes(item.targetRef);
   return knownRefs.courses.includes(item.targetRef);
 }
 

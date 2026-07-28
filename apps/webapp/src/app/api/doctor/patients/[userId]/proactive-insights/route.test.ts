@@ -1,38 +1,38 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const buildAppDepsMock = vi.hoisted(() => vi.fn());
 const requireDoctorWorkspaceApiContextMock = vi.hoisted(() => vi.fn());
 const getAppDisplayTimeZoneMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/app-layer/guards/requireRole", () => ({
+vi.mock('@/app-layer/guards/requireRole', () => ({
   requireDoctorWorkspaceApiContext: () => requireDoctorWorkspaceApiContextMock(),
 }));
 
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: buildAppDepsMock,
 }));
 
-vi.mock("@/modules/system-settings/appDisplayTimezone", () => ({
+vi.mock('@/modules/system-settings/appDisplayTimezone', () => ({
   getAppDisplayTimeZone: () => getAppDisplayTimeZoneMock(),
 }));
 
-import { GET } from "./route";
+import { GET } from './route';
 
-const ORG_ID = "10000000-0000-4000-8000-000000000001";
-const PATIENT_ID = "00000000-0000-4000-8000-000000000001";
-const CANONICAL_PATIENT_ID = "00000000-0000-4000-8000-000000000002";
+const ORG_ID = '10000000-0000-4000-8000-000000000001';
+const PATIENT_ID = '00000000-0000-4000-8000-000000000001';
+const CANONICAL_PATIENT_ID = '00000000-0000-4000-8000-000000000002';
 
-describe("doctor patient proactive insights route", () => {
+describe('doctor patient proactive insights route', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     requireDoctorWorkspaceApiContextMock.mockResolvedValue({
       ok: true,
-      ctx: { organizationId: ORG_ID, session: { user: { userId: "doctor-1", role: "doctor" } } },
+      ctx: { organizationId: ORG_ID, session: { user: { userId: 'doctor-1', role: 'doctor' } } },
     });
-    getAppDisplayTimeZoneMock.mockResolvedValue("Europe/Moscow");
+    getAppDisplayTimeZoneMock.mockResolvedValue('Europe/Moscow');
   });
 
-  it("rejects reads outside selected workspace", async () => {
+  it('rejects reads outside selected workspace', async () => {
     const getClientIdentityForOrganization = vi.fn().mockResolvedValue(null);
     const listForPatient = vi.fn();
     buildAppDepsMock.mockReturnValue({
@@ -40,7 +40,7 @@ describe("doctor patient proactive insights route", () => {
       doctorProactiveInsights: { listForPatient },
     });
 
-    const res = await GET(new Request("http://localhost"), {
+    const res = await GET(new Request('http://localhost'), {
       params: Promise.resolve({ userId: PATIENT_ID }),
     });
 
@@ -49,15 +49,17 @@ describe("doctor patient proactive insights route", () => {
     expect(listForPatient).not.toHaveBeenCalled();
   });
 
-  it("loads insights for canonical patient", async () => {
-    const getClientIdentityForOrganization = vi.fn().mockResolvedValue({ userId: CANONICAL_PATIENT_ID });
-    const listForPatient = vi.fn().mockResolvedValue([{ id: "signal-1" }]);
+  it('loads insights for canonical patient', async () => {
+    const getClientIdentityForOrganization = vi
+      .fn()
+      .mockResolvedValue({ userId: CANONICAL_PATIENT_ID });
+    const listForPatient = vi.fn().mockResolvedValue([{ id: 'signal-1' }]);
     buildAppDepsMock.mockReturnValue({
       doctorClientsPort: { getClientIdentityForOrganization },
       doctorProactiveInsights: { listForPatient },
     });
 
-    const res = await GET(new Request("http://localhost"), {
+    const res = await GET(new Request('http://localhost'), {
       params: Promise.resolve({ userId: PATIENT_ID }),
     });
 
@@ -65,7 +67,7 @@ describe("doctor patient proactive insights route", () => {
     expect(listForPatient).toHaveBeenCalledWith({
       patientUserId: CANONICAL_PATIENT_ID,
       organizationId: ORG_ID,
-      displayIana: "Europe/Moscow",
+      displayIana: 'Europe/Moscow',
     });
   });
 });

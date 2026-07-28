@@ -1,40 +1,40 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { createTreatmentProgramService } from "./service";
+import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { createTreatmentProgramService } from './service';
 import {
   createTreatmentProgramInstanceService,
   SECOND_ACTIVE_TREATMENT_PROGRAM_MESSAGE,
-} from "./instance-service";
-import { createInMemoryTreatmentProgramPort } from "@/app-layer/testing/treatmentProgramInMemory";
+} from './instance-service';
+import { createInMemoryTreatmentProgramPort } from '@/app-layer/testing/treatmentProgramInMemory';
 import {
   createInMemoryTreatmentProgramInstancePort,
   createInMemoryTreatmentProgramPersistence,
   createInMemoryTreatmentProgramItemSnapshotPort,
-} from "@/app-layer/testing/treatmentProgramInstanceInMemory";
-import type { TreatmentProgramItemRefValidationPort } from "./ports";
-import { createInMemoryProgramActionLogPort } from "@/infra/repos/inMemoryProgramActionLog";
+} from '@/app-layer/testing/treatmentProgramInstanceInMemory';
+import type { TreatmentProgramItemRefValidationPort } from './ports';
+import { createInMemoryProgramActionLogPort } from '@/infra/repos/inMemoryProgramActionLog';
 import {
   createInMemoryPatientDiarySnapshotsPort,
   resetInMemoryPatientDiarySnapshotsForTests,
-} from "@/infra/repos/inMemoryPatientDiarySnapshots";
-import { snapshotPromoDaysBeforeRefresh } from "@/app-layer/treatment-program/snapshotPromoDaysBeforeRefresh";
+} from '@/infra/repos/inMemoryPatientDiarySnapshots';
+import { snapshotPromoDaysBeforeRefresh } from '@/app-layer/treatment-program/snapshotPromoDaysBeforeRefresh';
 import {
   BLANK_INDIVIDUAL_PLAN_DEFAULT_TITLE,
   effectiveInstanceStageItemComment,
   TREATMENT_PROGRAM_TEMPLATE_STAGE_ZERO_TITLE,
   type TreatmentProgramInstanceDetail,
-} from "./types";
+} from './types';
 
-const refA = "11111111-1111-4111-8111-111111111111";
-const refB = "22222222-2222-4222-8222-222222222222";
-const ORG_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const refA = '11111111-1111-4111-8111-111111111111';
+const refB = '22222222-2222-4222-8222-222222222222';
+const ORG_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
 function instStageForTpl(inst: TreatmentProgramInstanceDetail, templateStageId: string) {
   const s = inst.stages.find((x) => x.sourceStageId === templateStageId);
-  if (!s) throw new Error("instance stage not found for template stage");
+  if (!s) throw new Error('instance stage not found for template stage');
   return s;
 }
 
-describe("treatment-program instance service", () => {
+describe('treatment-program instance service', () => {
   let tplPort: ReturnType<typeof createInMemoryTreatmentProgramPort>;
   let instPort: ReturnType<typeof createInMemoryTreatmentProgramInstancePort>;
   let itemRefs: TreatmentProgramItemRefValidationPort;
@@ -54,24 +54,24 @@ describe("treatment-program instance service", () => {
     });
   });
 
-  it("deep copy: stages order, first available rest locked, comment and snapshot, local_comment null", async () => {
-    const tpl = await tplSvc.createTemplate({ title: "План", status: "published" }, null);
-    const s1 = await tplSvc.createStage(tpl.id, { title: "Этап 1" });
-    const s2 = await tplSvc.createStage(tpl.id, { title: "Этап 2" });
+  it('deep copy: stages order, first available rest locked, comment and snapshot, local_comment null', async () => {
+    const tpl = await tplSvc.createTemplate({ title: 'План', status: 'published' }, null);
+    const s1 = await tplSvc.createStage(tpl.id, { title: 'Этап 1' });
+    const s2 = await tplSvc.createStage(tpl.id, { title: 'Этап 2' });
     await tplSvc.addStageItem(s1.id, {
-      itemType: "recommendation",
+      itemType: 'recommendation',
       itemRefId: refA,
-      comment: "Из шаблона",
+      comment: 'Из шаблона',
     });
-    const g2 = await tplSvc.createTemplateStageGroup(s2.id, { title: "Г" });
+    const g2 = await tplSvc.createTemplateStageGroup(s2.id, { title: 'Г' });
     await tplSvc.addStageItem(s2.id, {
-      itemType: "exercise",
+      itemType: 'exercise',
       itemRefId: refB,
       comment: null,
       groupId: g2.id,
     });
 
-    const patient = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const patient = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
     const inst = await instSvc.assignTemplateToPatient({
       templateId: tpl.id,
       patientUserId: patient,
@@ -81,55 +81,55 @@ describe("treatment-program instance service", () => {
     expect(inst.stages).toHaveLength(3);
     const stS1 = instStageForTpl(inst, s1.id);
     const stS2 = instStageForTpl(inst, s2.id);
-    expect(stS1.status).toBe("available");
-    expect(stS2.status).toBe("locked");
+    expect(stS1.status).toBe('available');
+    expect(stS2.status).toBe('locked');
     expect(stS1.sourceStageId).toBe(s1.id);
     expect(stS1.items).toHaveLength(1);
     const it0 = stS1.items[0]!;
-    expect(it0.comment).toBe("Из шаблона");
+    expect(it0.comment).toBe('Из шаблона');
     expect(it0.localComment).toBeNull();
-    expect(it0.snapshot).toMatchObject({ itemType: "recommendation", id: refA, stub: true });
-    expect(it0.effectiveComment).toBe("Из шаблона");
+    expect(it0.snapshot).toMatchObject({ itemType: 'recommendation', id: refA, stub: true });
+    expect(it0.effectiveComment).toBe('Из шаблона');
     expect(it0.isActionable).toBe(false);
-    expect(it0.status).toBe("active");
+    expect(it0.status).toBe('active');
   });
 
-  it("assign creates system groups and maps ungrouped recommendation and clinical_test", async () => {
-    const tpl = await tplSvc.createTemplate({ title: "План", status: "published" }, null);
-    const s1 = await tplSvc.createStage(tpl.id, { title: "Этап 1" });
-    const grp = await tplSvc.createTemplateStageGroup(s1.id, { title: "Упр" });
-    await tplSvc.addStageItem(s1.id, { itemType: "recommendation", itemRefId: refA });
-    await tplSvc.addStageItem(s1.id, { itemType: "clinical_test", itemRefId: refB });
-    await tplSvc.addStageItem(s1.id, { itemType: "exercise", itemRefId: refB, groupId: grp.id });
+  it('assign creates system groups and maps ungrouped recommendation and clinical_test', async () => {
+    const tpl = await tplSvc.createTemplate({ title: 'План', status: 'published' }, null);
+    const s1 = await tplSvc.createStage(tpl.id, { title: 'Этап 1' });
+    const grp = await tplSvc.createTemplateStageGroup(s1.id, { title: 'Упр' });
+    await tplSvc.addStageItem(s1.id, { itemType: 'recommendation', itemRefId: refA });
+    await tplSvc.addStageItem(s1.id, { itemType: 'clinical_test', itemRefId: refB });
+    await tplSvc.addStageItem(s1.id, { itemType: 'exercise', itemRefId: refB, groupId: grp.id });
 
     const inst = await instSvc.assignTemplateToPatient({
       templateId: tpl.id,
-      patientUserId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      patientUserId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
       assignedBy: null,
     });
     const stage = instStageForTpl(inst, s1.id);
-    const sysRec = stage.groups.find((x) => x.systemKind === "recommendations");
-    const sysTests = stage.groups.find((x) => x.systemKind === "tests");
+    const sysRec = stage.groups.find((x) => x.systemKind === 'recommendations');
+    const sysTests = stage.groups.find((x) => x.systemKind === 'tests');
     expect(sysRec).toBeDefined();
     expect(sysTests).toBeDefined();
     expect(stage.groups.filter((x) => !x.systemKind)).toHaveLength(1);
 
-    const recItem = stage.items.find((i) => i.itemType === "recommendation");
-    const testItem = stage.items.find((i) => i.itemType === "clinical_test");
-    const exItem = stage.items.find((i) => i.itemType === "exercise");
+    const recItem = stage.items.find((i) => i.itemType === 'recommendation');
+    const testItem = stage.items.find((i) => i.itemType === 'clinical_test');
+    const exItem = stage.items.find((i) => i.itemType === 'exercise');
     expect(recItem?.groupId).toBe(sysRec?.id);
     expect(testItem?.groupId).toBe(sysTests?.id);
-    expect(exItem?.groupId).toBe(stage.groups.find((gr) => gr.title === "Упр")?.id);
+    expect(exItem?.groupId).toBe(stage.groups.find((gr) => gr.title === 'Упр')?.id);
   });
 
-  it("doctorAddStageItem on instance stage zero stores recommendation without group", async () => {
-    const tpl = await tplSvc.createTemplate({ title: "П", status: "published" }, null);
+  it('doctorAddStageItem on instance stage zero stores recommendation without group', async () => {
+    const tpl = await tplSvc.createTemplate({ title: 'П', status: 'published' }, null);
     const d = await tplSvc.getTemplate(tpl.id);
     const s0Tpl = d.stages.find((s) => s.sortOrder === 0)!;
-    await tplSvc.addStageItem(s0Tpl.id, { itemType: "recommendation", itemRefId: refA });
+    await tplSvc.addStageItem(s0Tpl.id, { itemType: 'recommendation', itemRefId: refA });
     const inst = await instSvc.assignTemplateToPatient({
       templateId: tpl.id,
-      patientUserId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      patientUserId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
       assignedBy: null,
     });
     const s0Inst = inst.stages.find((s) => s.sortOrder === 0)!;
@@ -137,17 +137,17 @@ describe("treatment-program instance service", () => {
       instanceId: inst.id,
       stageId: s0Inst.id,
       actorId: null,
-      itemType: "recommendation",
+      itemType: 'recommendation',
       itemRefId: refB,
     });
     expect(added.groupId).toBeNull();
   });
 
-  it("doctorAddStageItem rejects clinical_test on instance stage zero", async () => {
-    const tpl = await tplSvc.createTemplate({ title: "П", status: "published" }, null);
+  it('doctorAddStageItem rejects clinical_test on instance stage zero', async () => {
+    const tpl = await tplSvc.createTemplate({ title: 'П', status: 'published' }, null);
     const inst = await instSvc.assignTemplateToPatient({
       templateId: tpl.id,
-      patientUserId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      patientUserId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
       assignedBy: null,
     });
     const s0Inst = inst.stages.find((s) => s.sortOrder === 0)!;
@@ -156,42 +156,42 @@ describe("treatment-program instance service", () => {
         instanceId: inst.id,
         stageId: s0Inst.id,
         actorId: null,
-        itemType: "clinical_test",
+        itemType: 'clinical_test',
         itemRefId: refA,
       }),
     ).rejects.toThrow(/Общие рекомендации|только рекомендации/);
   });
 
-  it("deep copy: goals, objectives, expected duration from template stages (A1)", async () => {
-    const tpl = await tplSvc.createTemplate({ title: "План", status: "published" }, null);
+  it('deep copy: goals, objectives, expected duration from template stages (A1)', async () => {
+    const tpl = await tplSvc.createTemplate({ title: 'План', status: 'published' }, null);
     const s1 = await tplSvc.createStage(tpl.id, {
-      title: "Этап 1",
-      goals: "Снять боль",
-      objectives: "- 3 раза в неделю\n- без отёка",
+      title: 'Этап 1',
+      goals: 'Снять боль',
+      objectives: '- 3 раза в неделю\n- без отёка',
       expectedDurationDays: 14,
-      expectedDurationText: "2 недели",
+      expectedDurationText: '2 недели',
     });
-    await tplSvc.addStageItem(s1.id, { itemType: "recommendation", itemRefId: refA });
+    await tplSvc.addStageItem(s1.id, { itemType: 'recommendation', itemRefId: refA });
     const s2 = await tplSvc.createStage(tpl.id, {
-      title: "Этап 2",
+      title: 'Этап 2',
       goals: null,
       objectives: null,
       expectedDurationDays: null,
       expectedDurationText: null,
     });
-    const g2 = await tplSvc.createTemplateStageGroup(s2.id, { title: "Г2" });
-    await tplSvc.addStageItem(s2.id, { itemType: "exercise", itemRefId: refB, groupId: g2.id });
+    const g2 = await tplSvc.createTemplateStageGroup(s2.id, { title: 'Г2' });
+    await tplSvc.addStageItem(s2.id, { itemType: 'exercise', itemRefId: refB, groupId: g2.id });
 
     const inst = await instSvc.assignTemplateToPatient({
       templateId: tpl.id,
-      patientUserId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      patientUserId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
       assignedBy: null,
     });
 
-    expect(instStageForTpl(inst, s1.id).goals).toBe("Снять боль");
-    expect(instStageForTpl(inst, s1.id).objectives).toBe("- 3 раза в неделю\n- без отёка");
+    expect(instStageForTpl(inst, s1.id).goals).toBe('Снять боль');
+    expect(instStageForTpl(inst, s1.id).objectives).toBe('- 3 раза в неделю\n- без отёка');
     expect(instStageForTpl(inst, s1.id).expectedDurationDays).toBe(14);
-    expect(instStageForTpl(inst, s1.id).expectedDurationText).toBe("2 недели");
+    expect(instStageForTpl(inst, s1.id).expectedDurationText).toBe('2 недели');
 
     expect(instStageForTpl(inst, s2.id).goals).toBeNull();
     expect(instStageForTpl(inst, s2.id).objectives).toBeNull();
@@ -199,35 +199,35 @@ describe("treatment-program instance service", () => {
     expect(instStageForTpl(inst, s2.id).expectedDurationText).toBeNull();
   });
 
-  it("deep copy preserves settings from template stage item (§5)", async () => {
-    const tpl = await tplSvc.createTemplate({ title: "План", status: "published" }, null);
-    const s1 = await tplSvc.createStage(tpl.id, { title: "Этап 1" });
-    const settings = { nested: { k: "v" }, n: 42 };
+  it('deep copy preserves settings from template stage item (§5)', async () => {
+    const tpl = await tplSvc.createTemplate({ title: 'План', status: 'published' }, null);
+    const s1 = await tplSvc.createStage(tpl.id, { title: 'Этап 1' });
+    const settings = { nested: { k: 'v' }, n: 42 };
     await tplSvc.addStageItem(s1.id, {
-      itemType: "recommendation",
+      itemType: 'recommendation',
       itemRefId: refA,
-      comment: "c",
+      comment: 'c',
       settings,
     });
     const inst = await instSvc.assignTemplateToPatient({
       templateId: tpl.id,
-      patientUserId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+      patientUserId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
       assignedBy: null,
     });
     expect(instStageForTpl(inst, s1.id).items[0]!.settings).toEqual(settings);
   });
 
-  it("instance item comment and snapshot are independent of template edits after assign (§5)", async () => {
-    const tpl = await tplSvc.createTemplate({ title: "План", status: "published" }, null);
-    const s1 = await tplSvc.createStage(tpl.id, { title: "Этап 1" });
-    const grp = await tplSvc.createTemplateStageGroup(s1.id, { title: "G" });
+  it('instance item comment and snapshot are independent of template edits after assign (§5)', async () => {
+    const tpl = await tplSvc.createTemplate({ title: 'План', status: 'published' }, null);
+    const s1 = await tplSvc.createStage(tpl.id, { title: 'Этап 1' });
+    const grp = await tplSvc.createTemplateStageGroup(s1.id, { title: 'G' });
     const tItem = await tplSvc.addStageItem(s1.id, {
-      itemType: "lesson",
+      itemType: 'lesson',
       itemRefId: refA,
-      comment: "original",
+      comment: 'original',
       groupId: grp.id,
     });
-    const patient = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+    const patient = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
     const inst = await instSvc.assignTemplateToPatient({
       templateId: tpl.id,
       patientUserId: patient,
@@ -235,22 +235,22 @@ describe("treatment-program instance service", () => {
     });
     const snapBefore = { ...instStageForTpl(inst, s1.id).items[0]!.snapshot };
 
-    await tplSvc.updateStageItem(tItem.id, { comment: "mutated-in-template" });
+    await tplSvc.updateStageItem(tItem.id, { comment: 'mutated-in-template' });
 
     const after = await instSvc.getInstanceForPatient(patient, inst.id);
     const row = instStageForTpl(after, s1.id).items[0]!;
-    expect(row.comment).toBe("original");
+    expect(row.comment).toBe('original');
     expect(row.snapshot).toEqual(snapBefore);
   });
 
-  it("rejects second assign while another instance is active", async () => {
-    const tpl = await tplSvc.createTemplate({ title: "План", status: "published" }, null);
-    const s1 = await tplSvc.createStage(tpl.id, { title: "S" });
+  it('rejects second assign while another instance is active', async () => {
+    const tpl = await tplSvc.createTemplate({ title: 'План', status: 'published' }, null);
+    const s1 = await tplSvc.createStage(tpl.id, { title: 'S' });
     await tplSvc.addStageItem(s1.id, {
-      itemType: "recommendation",
+      itemType: 'recommendation',
       itemRefId: refA,
     });
-    const patient = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const patient = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
     await instSvc.assignTemplateToPatient({
       templateId: tpl.id,
       patientUserId: patient,
@@ -265,33 +265,33 @@ describe("treatment-program instance service", () => {
     ).rejects.toThrow(SECOND_ACTIVE_TREATMENT_PROGRAM_MESSAGE);
   });
 
-  it("allows assign after previous instance is completed", async () => {
-    const tpl = await tplSvc.createTemplate({ title: "План", status: "published" }, null);
-    const s1 = await tplSvc.createStage(tpl.id, { title: "S" });
-    await tplSvc.addStageItem(s1.id, { itemType: "recommendation", itemRefId: refA });
-    const patient = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+  it('allows assign after previous instance is completed', async () => {
+    const tpl = await tplSvc.createTemplate({ title: 'План', status: 'published' }, null);
+    const s1 = await tplSvc.createStage(tpl.id, { title: 'S' });
+    await tplSvc.addStageItem(s1.id, { itemType: 'recommendation', itemRefId: refA });
+    const patient = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
     const first = await instSvc.assignTemplateToPatient({
       templateId: tpl.id,
       patientUserId: patient,
       assignedBy: null,
     });
-    await instPort.updateInstanceMeta(first.id, { status: "completed" });
+    await instPort.updateInstanceMeta(first.id, { status: 'completed' });
     const second = await instSvc.assignTemplateToPatient({
       templateId: tpl.id,
       patientUserId: patient,
       assignedBy: null,
     });
     expect(second.id).not.toBe(first.id);
-    expect(second.status).toBe("active");
+    expect(second.status).toBe('active');
   });
 
-  it("updateInstance completed marks all non-skipped stages completed", async () => {
-    const tpl = await tplSvc.createTemplate({ title: "План", status: "published" }, null);
-    const s1 = await tplSvc.createStage(tpl.id, { title: "S1" });
-    const s2 = await tplSvc.createStage(tpl.id, { title: "S2" });
-    await tplSvc.addStageItem(s1.id, { itemType: "recommendation", itemRefId: refA });
-    await tplSvc.addStageItem(s2.id, { itemType: "recommendation", itemRefId: refB });
-    const patient = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+  it('updateInstance completed marks all non-skipped stages completed', async () => {
+    const tpl = await tplSvc.createTemplate({ title: 'План', status: 'published' }, null);
+    const s1 = await tplSvc.createStage(tpl.id, { title: 'S1' });
+    const s2 = await tplSvc.createStage(tpl.id, { title: 'S2' });
+    await tplSvc.addStageItem(s1.id, { itemType: 'recommendation', itemRefId: refA });
+    await tplSvc.addStageItem(s2.id, { itemType: 'recommendation', itemRefId: refB });
+    const patient = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
     const inst = await instSvc.assignTemplateToPatient({
       templateId: tpl.id,
       patientUserId: patient,
@@ -302,20 +302,20 @@ describe("treatment-program instance service", () => {
 
     await instSvc.updateInstance({
       instanceId: inst.id,
-      status: "completed",
+      status: 'completed',
       actorId: null,
     });
 
     const after = await instPort.getInstanceById(inst.id);
-    expect(after?.status).toBe("completed");
+    expect(after?.status).toBe('completed');
     for (const stage of after!.stages) {
-      if (stage.status === "skipped") continue;
-      expect(stage.status).toBe("completed");
+      if (stage.status === 'skipped') continue;
+      expect(stage.status).toBe('completed');
     }
   });
 
-  it("createBlankIndividualPlan sets templateId null and single stage zero", async () => {
-    const patient = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  it('createBlankIndividualPlan sets templateId null and single stage zero', async () => {
+    const patient = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
     const inst = await instSvc.createBlankIndividualPlan({
       patientUserId: patient,
       assignedBy: null,
@@ -329,41 +329,44 @@ describe("treatment-program instance service", () => {
     expect(inst.stages[0].sourceStageId).toBeNull();
   });
 
-  it("createBlankIndividualPlan rejects second active program", async () => {
-    const patient = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+  it('createBlankIndividualPlan rejects second active program', async () => {
+    const patient = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
     await instSvc.createBlankIndividualPlan({ patientUserId: patient, assignedBy: null });
     await expect(
       instSvc.createBlankIndividualPlan({ patientUserId: patient, assignedBy: null }),
     ).rejects.toThrow(SECOND_ACTIVE_TREATMENT_PROGRAM_MESSAGE);
   });
 
-  it("doctorAddFreeformRecommendationToStageZero adds item with snapshot", async () => {
-    const patient = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
-    const inst = await instSvc.createBlankIndividualPlan({ patientUserId: patient, assignedBy: null });
+  it('doctorAddFreeformRecommendationToStageZero adds item with snapshot', async () => {
+    const patient = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+    const inst = await instSvc.createBlankIndividualPlan({
+      patientUserId: patient,
+      assignedBy: null,
+    });
     const s0 = inst.stages.find((s) => s.sortOrder === 0)!;
-    const doctor = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+    const doctor = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
     const out = await instSvc.doctorAddFreeformRecommendationToStageZero({
       instanceId: inst.id,
       stageId: s0.id,
       actorId: doctor,
-      title: "После приёма",
-      bodyMd: "## Отдых\n\n1 день",
+      title: 'После приёма',
+      bodyMd: '## Отдых\n\n1 день',
     });
-    expect(out.item.itemType).toBe("recommendation");
+    expect(out.item.itemType).toBe('recommendation');
     expect(out.item.snapshot).toMatchObject({
-      title: "После приёма",
-      bodyMd: "## Отдых\n\n1 день",
+      title: 'После приёма',
+      bodyMd: '## Отдых\n\n1 день',
     });
     const again = await instPort.getInstanceById(inst.id);
     expect(again?.stages.find((s) => s.id === s0.id)?.items).toHaveLength(1);
   });
 
-  it("doctorAddFreeformRecommendationToStageZero rejects non-zero stage", async () => {
-    const tpl = await tplSvc.createTemplate({ title: "План", status: "published" }, null);
-    await tplSvc.createStage(tpl.id, { title: "Общие" });
-    const s1 = await tplSvc.createStage(tpl.id, { title: "Этап 1" });
-    await tplSvc.addStageItem(s1.id, { itemType: "recommendation", itemRefId: refA });
-    const patient = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  it('doctorAddFreeformRecommendationToStageZero rejects non-zero stage', async () => {
+    const tpl = await tplSvc.createTemplate({ title: 'План', status: 'published' }, null);
+    await tplSvc.createStage(tpl.id, { title: 'Общие' });
+    const s1 = await tplSvc.createStage(tpl.id, { title: 'Этап 1' });
+    await tplSvc.addStageItem(s1.id, { itemType: 'recommendation', itemRefId: refA });
+    const patient = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
     const inst = await instSvc.assignTemplateToPatient({
       templateId: tpl.id,
       patientUserId: patient,
@@ -376,35 +379,35 @@ describe("treatment-program instance service", () => {
         instanceId: inst.id,
         stageId: st1!.id,
         actorId: null,
-        title: "X",
-        bodyMd: "y",
+        title: 'X',
+        bodyMd: 'y',
       }),
     ).rejects.toThrow(/Общие рекомендации/);
   });
 
-  it("rejects draft template assignment", async () => {
-    const tpl = await tplSvc.createTemplate({ title: "Черновик", status: "draft" }, null);
-    await tplSvc.createStage(tpl.id, { title: "S" });
+  it('rejects draft template assignment', async () => {
+    const tpl = await tplSvc.createTemplate({ title: 'Черновик', status: 'draft' }, null);
+    await tplSvc.createStage(tpl.id, { title: 'S' });
     await expect(
       instSvc.assignTemplateToPatient({
         templateId: tpl.id,
-        patientUserId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        patientUserId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
         assignedBy: null,
       }),
     ).rejects.toThrow(/опубликован/);
   });
 
-  it("§6 effectiveComment: local overrides template copy", async () => {
-    const tpl = await tplSvc.createTemplate({ title: "План", status: "published" }, null);
-    const s1 = await tplSvc.createStage(tpl.id, { title: "Этап 1" });
-    const grp = await tplSvc.createTemplateStageGroup(s1.id, { title: "G" });
+  it('§6 effectiveComment: local overrides template copy', async () => {
+    const tpl = await tplSvc.createTemplate({ title: 'План', status: 'published' }, null);
+    const s1 = await tplSvc.createStage(tpl.id, { title: 'Этап 1' });
+    const grp = await tplSvc.createTemplateStageGroup(s1.id, { title: 'G' });
     await tplSvc.addStageItem(s1.id, {
-      itemType: "lesson",
+      itemType: 'lesson',
       itemRefId: refA,
-      comment: "Шаблонный текст",
+      comment: 'Шаблонный текст',
       groupId: grp.id,
     });
-    const patient = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const patient = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
     const inst = await instSvc.assignTemplateToPatient({
       templateId: tpl.id,
       patientUserId: patient,
@@ -412,31 +415,33 @@ describe("treatment-program instance service", () => {
     });
     const itemId = instStageForTpl(inst, s1.id).items[0]!.id;
 
-    expect(effectiveInstanceStageItemComment(instStageForTpl(inst, s1.id).items[0]!)).toBe("Шаблонный текст");
+    expect(effectiveInstanceStageItemComment(instStageForTpl(inst, s1.id).items[0]!)).toBe(
+      'Шаблонный текст',
+    );
 
     await instSvc.updateStageItemLocalComment({
       instanceId: inst.id,
       stageItemId: itemId,
-      localComment: "Для Иванова",
+      localComment: 'Для Иванова',
       actorId: null,
     });
     const after = await instSvc.getInstanceForPatient(patient, inst.id);
     const row = instStageForTpl(after, s1.id).items[0]!;
-    expect(row.localComment).toBe("Для Иванова");
-    expect(row.comment).toBe("Шаблонный текст");
-    expect(row.effectiveComment).toBe("Для Иванова");
-    expect(effectiveInstanceStageItemComment(row)).toBe("Для Иванова");
+    expect(row.localComment).toBe('Для Иванова');
+    expect(row.comment).toBe('Шаблонный текст');
+    expect(row.effectiveComment).toBe('Для Иванова');
+    expect(effectiveInstanceStageItemComment(row)).toBe('Для Иванова');
   });
 
-  it("§6 reset localComment shows template comment again", async () => {
-    const tpl = await tplSvc.createTemplate({ title: "План", status: "published" }, null);
-    const s1 = await tplSvc.createStage(tpl.id, { title: "Этап 1" });
+  it('§6 reset localComment shows template comment again', async () => {
+    const tpl = await tplSvc.createTemplate({ title: 'План', status: 'published' }, null);
+    const s1 = await tplSvc.createStage(tpl.id, { title: 'Этап 1' });
     await tplSvc.addStageItem(s1.id, {
-      itemType: "clinical_test",
+      itemType: 'clinical_test',
       itemRefId: refA,
-      comment: "Оригинал",
+      comment: 'Оригинал',
     });
-    const patient = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    const patient = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
     const inst = await instSvc.assignTemplateToPatient({
       templateId: tpl.id,
       patientUserId: patient,
@@ -446,7 +451,7 @@ describe("treatment-program instance service", () => {
     await instSvc.updateStageItemLocalComment({
       instanceId: inst.id,
       stageItemId: itemId,
-      localComment: "Временно",
+      localComment: 'Временно',
       actorId: null,
     });
     await instSvc.updateStageItemLocalComment({
@@ -458,30 +463,34 @@ describe("treatment-program instance service", () => {
     const after = await instSvc.getInstanceForPatient(patient, inst.id);
     const row = instStageForTpl(after, s1.id).items[0]!;
     expect(row.localComment).toBeNull();
-    expect(row.effectiveComment).toBe("Оригинал");
+    expect(row.effectiveComment).toBe('Оригинал');
   });
 
-  it("assign copies template stage groups and maps item groupId to instance group", async () => {
-    const tpl = await tplSvc.createTemplate({ title: "С группами", status: "published" }, null);
-    const s1 = await tplSvc.createStage(tpl.id, { title: "Этап 1" });
-    const g = await tplSvc.createTemplateStageGroup(s1.id, { title: "Неделя 1" });
-    await tplSvc.addStageItem(s1.id, { itemType: "recommendation", itemRefId: refA, groupId: g.id });
+  it('assign copies template stage groups and maps item groupId to instance group', async () => {
+    const tpl = await tplSvc.createTemplate({ title: 'С группами', status: 'published' }, null);
+    const s1 = await tplSvc.createStage(tpl.id, { title: 'Этап 1' });
+    const g = await tplSvc.createTemplateStageGroup(s1.id, { title: 'Неделя 1' });
+    await tplSvc.addStageItem(s1.id, {
+      itemType: 'recommendation',
+      itemRefId: refA,
+      groupId: g.id,
+    });
     const inst = await instSvc.assignTemplateToPatient({
       templateId: tpl.id,
-      patientUserId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      patientUserId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
       assignedBy: null,
     });
     const stage = instStageForTpl(inst, s1.id);
     expect(stage.groups).toHaveLength(3);
     const userGroup = stage.groups.find((gr) => gr.sourceGroupId === g.id);
-    expect(userGroup?.title).toBe("Неделя 1");
+    expect(userGroup?.title).toBe('Неделя 1');
     const it0 = stage.items[0]!;
     expect(it0.groupId).toBe(userGroup?.id);
   });
 
-  describe("promo assignment source", () => {
-    const patient = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
-    const doctorId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  describe('promo assignment source', () => {
+    const patient = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const doctorId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
     function makePromoSvc(getDefaultPromoTemplateId?: () => Promise<string | null>) {
       const tplPortLocal = createInMemoryTreatmentProgramPort();
@@ -498,64 +507,70 @@ describe("treatment-program instance service", () => {
       return { tplSvc: tplLocal, instSvc: instLocal, instancePort, eventsPort };
     }
 
-    it("doctor assign completes active promo and records supersededBy event", async () => {
+    it('doctor assign completes active promo and records supersededBy event', async () => {
       const { tplSvc: tps, instSvc: isvc, instancePort, eventsPort } = makePromoSvc();
-      const tplPromo = await tps.createTemplate({ title: "Промо", status: "published" }, null);
-      await tps.createStage(tplPromo.id, { title: "Этап 1" });
-      const tplDoc = await tps.createTemplate({ title: "Клиника", status: "published" }, null);
-      await tps.createStage(tplDoc.id, { title: "Этап 1" });
+      const tplPromo = await tps.createTemplate({ title: 'Промо', status: 'published' }, null);
+      await tps.createStage(tplPromo.id, { title: 'Этап 1' });
+      const tplDoc = await tps.createTemplate({ title: 'Клиника', status: 'published' }, null);
+      await tps.createStage(tplDoc.id, { title: 'Этап 1' });
 
       const promoInst = await isvc.assignTemplateToPatient({
         templateId: tplPromo.id,
         patientUserId: patient,
         assignedBy: null,
-        assignmentSource: "promo",
+        assignmentSource: 'promo',
       });
-      expect(promoInst.status).toBe("active");
-      expect(promoInst.assignmentSource).toBe("promo");
+      expect(promoInst.status).toBe('active');
+      expect(promoInst.assignmentSource).toBe('promo');
 
       await isvc.assignTemplateToPatient({
         templateId: tplDoc.id,
         patientUserId: patient,
         assignedBy: doctorId,
-        assignmentSource: "doctor",
+        assignmentSource: 'doctor',
       });
 
       const afterPromo = await instancePort.getInstanceById(promoInst.id);
-      expect(afterPromo?.status).toBe("completed");
+      expect(afterPromo?.status).toBe('completed');
 
       const evs = await eventsPort.listEventsForInstance(promoInst.id);
       const completeEv = evs.find(
         (e) =>
-          e.eventType === "status_changed" &&
-          (e.payload as { supersededBy?: string }).supersededBy === "doctor_assign",
+          e.eventType === 'status_changed' &&
+          (e.payload as { supersededBy?: string }).supersededBy === 'doctor_assign',
       );
       expect(completeEv).toBeDefined();
 
       const summaries = await instancePort.listInstancesForPatient(patient);
-      const active = summaries.filter((s) => s.status === "active");
+      const active = summaries.filter((s) => s.status === 'active');
       expect(active).toHaveLength(1);
-      expect(active[0]?.assignmentSource).toBe("doctor");
+      expect(active[0]?.assignmentSource).toBe('doctor');
     });
 
-    it("doctor assign snapshots week days on closing promo instance", async () => {
+    it('doctor assign snapshots week days on closing promo instance', async () => {
       vi.useFakeTimers();
-      vi.setSystemTime(new Date("2026-05-13T12:00:00.000Z"));
+      vi.setSystemTime(new Date('2026-05-13T12:00:00.000Z'));
       resetInMemoryPatientDiarySnapshotsForTests();
       try {
         const tplPortLocal = createInMemoryTreatmentProgramPort();
         const tplLocal = createTreatmentProgramService(tplPortLocal, itemRefs);
-        const tplPromo = await tplLocal.createTemplate({ title: "Промо", status: "published" }, null);
-        const s1 = await tplLocal.createStage(tplPromo.id, { title: "Этап 1" });
-        const g1 = await tplLocal.createTemplateStageGroup(s1.id, { title: "G" });
+        const tplPromo = await tplLocal.createTemplate(
+          { title: 'Промо', status: 'published' },
+          null,
+        );
+        const s1 = await tplLocal.createStage(tplPromo.id, { title: 'Этап 1' });
+        const g1 = await tplLocal.createTemplateStageGroup(s1.id, { title: 'G' });
         await tplLocal.addStageItem(s1.id, {
-          itemType: "lesson",
+          itemType: 'lesson',
           itemRefId: refA,
           comment: null,
           groupId: g1.id,
         });
-        const tplDoc = await tplLocal.createTemplate({ title: "Клиника", status: "published" }, null);
-        await tplLocal.createStage(tplDoc.id, { title: "Этап 1" });
+        const tplDoc = await tplLocal.createTemplate(
+          { title: 'Клиника', status: 'published' },
+          null,
+        );
+        await tplLocal.createStage(tplDoc.id, { title: 'Этап 1' });
 
         const { instancePort, eventsPort } = createInMemoryTreatmentProgramPersistence();
         const actionLog = createInMemoryProgramActionLogPort();
@@ -574,7 +589,7 @@ describe("treatment-program instance service", () => {
                 programActionLog: actionLog,
                 treatmentProgramInstance: instancePort,
                 diarySnapshots,
-                getAppDefaultTimezoneIana: async () => "UTC",
+                getAppDefaultTimezoneIana: async () => 'UTC',
                 getPatientCalendarTimezoneIana: async () => null,
               },
               input,
@@ -586,7 +601,7 @@ describe("treatment-program instance service", () => {
           templateId: tplPromo.id,
           patientUserId: patient,
           assignedBy: null,
-          assignmentSource: "promo",
+          assignmentSource: 'promo',
         });
         const stage = instStageForTpl(promoInst, s1.id);
         const itemDone = stage.items[0]!;
@@ -594,23 +609,27 @@ describe("treatment-program instance service", () => {
           instanceId: promoInst.id,
           instanceStageItemId: itemDone.id,
           patientUserId: patient,
-          actionType: "done",
+          actionType: 'done',
           sessionId: null,
-          payload: { source: "checklist_toggle" },
+          payload: { source: 'checklist_toggle' },
           note: null,
         });
 
-        vi.setSystemTime(new Date("2026-05-14T12:00:00.000Z"));
+        vi.setSystemTime(new Date('2026-05-14T12:00:00.000Z'));
         await instSvc.assignTemplateToPatient({
           organizationId: ORG_ID,
           templateId: tplDoc.id,
           patientUserId: patient,
           assignedBy: doctorId,
-          assignmentSource: "doctor",
+          assignmentSource: 'doctor',
         });
 
-        const snaps = await diarySnapshots.listForUserDateRange(patient, "2026-05-11", "2026-05-13");
-        const wed = snaps.find((s) => s.localDate === "2026-05-13");
+        const snaps = await diarySnapshots.listForUserDateRange(
+          patient,
+          '2026-05-11',
+          '2026-05-13',
+        );
+        const wed = snaps.find((s) => s.localDate === '2026-05-13');
         expect(wed?.planInstanceId).toBe(promoInst.id);
         expect(wed?.planDoneMask.some(Boolean)).toBe(true);
       } finally {
@@ -618,11 +637,11 @@ describe("treatment-program instance service", () => {
       }
     });
 
-    it("ensureDefaultPromoProgramForPatient is idempotent under parallel calls", async () => {
+    it('ensureDefaultPromoProgramForPatient is idempotent under parallel calls', async () => {
       const tplPortLocal = createInMemoryTreatmentProgramPort();
       const tplLocal = createTreatmentProgramService(tplPortLocal, itemRefs);
-      const tpl = await tplLocal.createTemplate({ title: "Промо", status: "published" }, null);
-      await tplLocal.createStage(tpl.id, { title: "Этап 1" });
+      const tpl = await tplLocal.createTemplate({ title: 'Промо', status: 'published' }, null);
+      await tplLocal.createStage(tpl.id, { title: 'Этап 1' });
       const { instancePort, eventsPort } = createInMemoryTreatmentProgramPersistence();
       const isvc = createTreatmentProgramInstanceService({
         instances: instancePort,
@@ -638,30 +657,32 @@ describe("treatment-program instance service", () => {
         isvc.ensureDefaultPromoProgramForPatient({ patientUserId: patient }),
       ]);
       expect(a.id).toBe(b.id);
-      const active = (await instancePort.listInstancesForPatient(patient)).filter((r) => r.status === "active");
+      const active = (await instancePort.listInstancesForPatient(patient)).filter(
+        (r) => r.status === 'active',
+      );
       expect(active).toHaveLength(1);
-      expect(active[0]?.assignmentSource).toBe("promo");
+      expect(active[0]?.assignmentSource).toBe('promo');
     });
 
-    it("ensureDefaultPromoProgramForPatient rejects when promo template is not configured", async () => {
+    it('ensureDefaultPromoProgramForPatient rejects when promo template is not configured', async () => {
       const { instSvc } = makePromoSvc(undefined);
-      await expect(instSvc.ensureDefaultPromoProgramForPatient({ patientUserId: patient })).rejects.toThrow(
-        "Промо-программа не настроена",
-      );
+      await expect(
+        instSvc.ensureDefaultPromoProgramForPatient({ patientUserId: patient }),
+      ).rejects.toThrow('Промо-программа не настроена');
     });
 
-    it("ensureDefaultPromoProgramForPatient rejects when settings return empty id", async () => {
+    it('ensureDefaultPromoProgramForPatient rejects when settings return empty id', async () => {
       const { instSvc } = makePromoSvc(async () => null);
-      await expect(instSvc.ensureDefaultPromoProgramForPatient({ patientUserId: patient })).rejects.toThrow(
-        "Промо-программа не настроена",
-      );
+      await expect(
+        instSvc.ensureDefaultPromoProgramForPatient({ patientUserId: patient }),
+      ).rejects.toThrow('Промо-программа не настроена');
     });
 
-    it("refreshActivePromoProgramsFromDefaultTemplate keeps the replacement in the selected organization", async () => {
+    it('refreshActivePromoProgramsFromDefaultTemplate keeps the replacement in the selected organization', async () => {
       const tplPortLocal = createInMemoryTreatmentProgramPort();
       const tplLocal = createTreatmentProgramService(tplPortLocal, itemRefs);
-      const tpl = await tplLocal.createTemplate({ title: "Промо v1", status: "published" }, null);
-      await tplLocal.createStage(tpl.id, { title: "Этап 1" });
+      const tpl = await tplLocal.createTemplate({ title: 'Промо v1', status: 'published' }, null);
+      await tplLocal.createStage(tpl.id, { title: 'Этап 1' });
       const { instancePort, eventsPort } = createInMemoryTreatmentProgramPersistence();
       const instSvc = createTreatmentProgramInstanceService({
         instances: instancePort,
@@ -677,10 +698,13 @@ describe("treatment-program instance service", () => {
         templateId: tpl.id,
         patientUserId: patient,
         assignedBy: null,
-        assignmentSource: "promo",
+        assignmentSource: 'promo',
       });
 
-      const result = await instSvc.refreshActivePromoProgramsFromDefaultTemplate({ actorUserId: doctorId, organizationId: ORG_ID });
+      const result = await instSvc.refreshActivePromoProgramsFromDefaultTemplate({
+        actorUserId: doctorId,
+        organizationId: ORG_ID,
+      });
       expect(result.refreshedCount).toBe(1);
       expect(result.pairs[0]).toMatchObject({
         patientUserId: patient,
@@ -688,33 +712,36 @@ describe("treatment-program instance service", () => {
       });
 
       const oldRow = await instancePort.getInstanceById(first.id);
-      expect(oldRow?.status).toBe("completed");
+      expect(oldRow?.status).toBe('completed');
 
       const evs = await eventsPort.listEventsForInstance(first.id);
       expect(
         evs.some(
           (e) =>
-            e.eventType === "status_changed" &&
-            (e.payload as { supersededBy?: string }).supersededBy === "promo_refresh",
+            e.eventType === 'status_changed' &&
+            (e.payload as { supersededBy?: string }).supersededBy === 'promo_refresh',
         ),
       ).toBe(true);
 
-      const active = (await instancePort.listInstancesForPatient(patient)).filter((r) => r.status === "active");
+      const active = (await instancePort.listInstancesForPatient(patient)).filter(
+        (r) => r.status === 'active',
+      );
       expect(active).toHaveLength(1);
-      expect(active[0]?.assignmentSource).toBe("promo");
+      expect(active[0]?.assignmentSource).toBe('promo');
       expect(active[0]?.id).not.toBe(first.id);
       expect(active[0]?.organizationId).toBe(ORG_ID);
     });
 
-    it("refresh reads the selected organization setting and cannot replace a foreign or NULL instance", async () => {
-      const orgB = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    it('refresh reads the selected organization setting and cannot replace a foreign or NULL instance', async () => {
+      const orgB = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
       const tplPortLocal = createInMemoryTreatmentProgramPort();
       const tplLocal = createTreatmentProgramService(tplPortLocal, itemRefs);
-      const tpl = await tplLocal.createTemplate({ title: "Промо v2", status: "published" }, null);
-      await tplLocal.createStage(tpl.id, { title: "Этап 1" });
+      const tpl = await tplLocal.createTemplate({ title: 'Промо v2', status: 'published' }, null);
+      await tplLocal.createStage(tpl.id, { title: 'Этап 1' });
       const { instancePort, eventsPort } = createInMemoryTreatmentProgramPersistence();
-      const getDefaultPromoTemplateId = vi.fn(async ({ organizationId }: { organizationId?: string } = {}) =>
-        organizationId === ORG_ID ? tpl.id : null,
+      const getDefaultPromoTemplateId = vi.fn(
+        async ({ organizationId }: { organizationId?: string } = {}) =>
+          organizationId === ORG_ID ? tpl.id : null,
       );
       const instSvc = createTreatmentProgramInstanceService({
         instances: instancePort,
@@ -729,43 +756,52 @@ describe("treatment-program instance service", () => {
         templateId: tpl.id,
         patientUserId: patient,
         assignedBy: null,
-        assignmentSource: "promo",
+        assignmentSource: 'promo',
       });
       const foreign = await instSvc.assignTemplateToPatient({
         organizationId: orgB,
         templateId: tpl.id,
-        patientUserId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        patientUserId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
         assignedBy: null,
-        assignmentSource: "promo",
+        assignmentSource: 'promo',
       });
       const legacyNull = await instSvc.assignTemplateToPatient({
         templateId: tpl.id,
-        patientUserId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        patientUserId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
         assignedBy: null,
-        assignmentSource: "promo",
+        assignmentSource: 'promo',
       });
 
       await expect(
-        instSvc.refreshActivePromoProgramsFromDefaultTemplate({ actorUserId: doctorId, organizationId: ORG_ID }),
+        instSvc.refreshActivePromoProgramsFromDefaultTemplate({
+          actorUserId: doctorId,
+          organizationId: ORG_ID,
+        }),
       ).resolves.toMatchObject({ refreshedCount: 1 });
       expect(getDefaultPromoTemplateId).toHaveBeenLastCalledWith({ organizationId: ORG_ID });
-      await expect(instancePort.getInstanceById(owned.id, ORG_ID)).resolves.toMatchObject({ status: "completed" });
-      await expect(instancePort.getInstanceById(foreign.id, orgB)).resolves.toMatchObject({ status: "active" });
-      await expect(instancePort.getInstanceById(legacyNull.id)).resolves.toMatchObject({ status: "active" });
+      await expect(instancePort.getInstanceById(owned.id, ORG_ID)).resolves.toMatchObject({
+        status: 'completed',
+      });
+      await expect(instancePort.getInstanceById(foreign.id, orgB)).resolves.toMatchObject({
+        status: 'active',
+      });
+      await expect(instancePort.getInstanceById(legacyNull.id)).resolves.toMatchObject({
+        status: 'active',
+      });
     });
 
-    it("refreshActivePromoProgramsFromDefaultTemplate snapshots week days on closing instance", async () => {
+    it('refreshActivePromoProgramsFromDefaultTemplate snapshots week days on closing instance', async () => {
       vi.useFakeTimers();
-      vi.setSystemTime(new Date("2026-05-13T12:00:00.000Z"));
+      vi.setSystemTime(new Date('2026-05-13T12:00:00.000Z'));
       resetInMemoryPatientDiarySnapshotsForTests();
       try {
         const tplPortLocal = createInMemoryTreatmentProgramPort();
         const tplLocal = createTreatmentProgramService(tplPortLocal, itemRefs);
-        const tpl = await tplLocal.createTemplate({ title: "Промо v1", status: "published" }, null);
-        const s1 = await tplLocal.createStage(tpl.id, { title: "Этап 1" });
-        const g1 = await tplLocal.createTemplateStageGroup(s1.id, { title: "G" });
+        const tpl = await tplLocal.createTemplate({ title: 'Промо v1', status: 'published' }, null);
+        const s1 = await tplLocal.createStage(tpl.id, { title: 'Этап 1' });
+        const g1 = await tplLocal.createTemplateStageGroup(s1.id, { title: 'G' });
         await tplLocal.addStageItem(s1.id, {
-          itemType: "lesson",
+          itemType: 'lesson',
           itemRefId: refA,
           comment: null,
           groupId: g1.id,
@@ -788,7 +824,7 @@ describe("treatment-program instance service", () => {
                 programActionLog: actionLog,
                 treatmentProgramInstance: instancePort,
                 diarySnapshots,
-                getAppDefaultTimezoneIana: async () => "UTC",
+                getAppDefaultTimezoneIana: async () => 'UTC',
                 getPatientCalendarTimezoneIana: async () => null,
               },
               input,
@@ -800,7 +836,7 @@ describe("treatment-program instance service", () => {
           templateId: tpl.id,
           patientUserId: patient,
           assignedBy: null,
-          assignmentSource: "promo",
+          assignmentSource: 'promo',
         });
         const stage = instStageForTpl(first, s1.id);
         const itemDone = stage.items[0]!;
@@ -808,17 +844,24 @@ describe("treatment-program instance service", () => {
           instanceId: first.id,
           instanceStageItemId: itemDone.id,
           patientUserId: patient,
-          actionType: "done",
+          actionType: 'done',
           sessionId: null,
-          payload: { source: "checklist_toggle" },
+          payload: { source: 'checklist_toggle' },
           note: null,
         });
 
-        vi.setSystemTime(new Date("2026-05-14T12:00:00.000Z"));
-        await instSvc.refreshActivePromoProgramsFromDefaultTemplate({ actorUserId: doctorId, organizationId: ORG_ID });
+        vi.setSystemTime(new Date('2026-05-14T12:00:00.000Z'));
+        await instSvc.refreshActivePromoProgramsFromDefaultTemplate({
+          actorUserId: doctorId,
+          organizationId: ORG_ID,
+        });
 
-        const snaps = await diarySnapshots.listForUserDateRange(patient, "2026-05-11", "2026-05-13");
-        const wed = snaps.find((s) => s.localDate === "2026-05-13");
+        const snaps = await diarySnapshots.listForUserDateRange(
+          patient,
+          '2026-05-11',
+          '2026-05-13',
+        );
+        const wed = snaps.find((s) => s.localDate === '2026-05-13');
         expect(wed?.planInstanceId).toBe(first.id);
         expect(wed?.planDoneMask.some(Boolean)).toBe(true);
       } finally {
@@ -826,27 +869,27 @@ describe("treatment-program instance service", () => {
       }
     });
 
-    it("listForPatientClinicalView excludes promo instances", async () => {
+    it('listForPatientClinicalView excludes promo instances', async () => {
       const { tplSvc: tps, instSvc: isvc } = makePromoSvc();
-      const tplPromo = await tps.createTemplate({ title: "Промо", status: "published" }, null);
-      await tps.createStage(tplPromo.id, { title: "Этап 1" });
-      const tplDoc = await tps.createTemplate({ title: "Клиника", status: "published" }, null);
-      await tps.createStage(tplDoc.id, { title: "Этап 1" });
+      const tplPromo = await tps.createTemplate({ title: 'Промо', status: 'published' }, null);
+      await tps.createStage(tplPromo.id, { title: 'Этап 1' });
+      const tplDoc = await tps.createTemplate({ title: 'Клиника', status: 'published' }, null);
+      await tps.createStage(tplDoc.id, { title: 'Этап 1' });
 
-      const promoOnlyPatient = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
-      const doctorPatient = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+      const promoOnlyPatient = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+      const doctorPatient = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 
       await isvc.assignTemplateToPatient({
         templateId: tplPromo.id,
         patientUserId: promoOnlyPatient,
         assignedBy: null,
-        assignmentSource: "promo",
+        assignmentSource: 'promo',
       });
       await isvc.assignTemplateToPatient({
         templateId: tplDoc.id,
         patientUserId: doctorPatient,
         assignedBy: doctorId,
-        assignmentSource: "doctor",
+        assignmentSource: 'doctor',
       });
 
       const promoClinical = await isvc.listForPatientClinicalView(promoOnlyPatient);
@@ -854,15 +897,15 @@ describe("treatment-program instance service", () => {
 
       const doctorClinical = await isvc.listForPatientClinicalView(doctorPatient);
       expect(doctorClinical).toHaveLength(1);
-      expect(doctorClinical[0]?.assignmentSource).toBe("doctor");
+      expect(doctorClinical[0]?.assignmentSource).toBe('doctor');
     });
   });
 
-  describe("doctorExpandTestSetIntoStage", () => {
-    const testSetId = "99999999-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
-    const t3 = "33333333-3333-4333-8333-333333333333";
+  describe('doctorExpandTestSetIntoStage', () => {
+    const testSetId = '99999999-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const t3 = '33333333-3333-4333-8333-333333333333';
 
-    it("expands set into instance: order, tests group, snapshots, item_added events", async () => {
+    it('expands set into instance: order, tests group, snapshots, item_added events', async () => {
       const tplPortLocal = createInMemoryTreatmentProgramPort({
         testSetExpandLines: { [testSetId]: [refA, refB, t3] },
       });
@@ -877,15 +920,15 @@ describe("treatment-program instance service", () => {
         itemRefs,
         events: eventsPort,
       });
-      const tpl = await tplSvcLocal.createTemplate({ title: "П", status: "published" }, null);
-      const s1 = await tplSvcLocal.createStage(tpl.id, { title: "E1" });
+      const tpl = await tplSvcLocal.createTemplate({ title: 'П', status: 'published' }, null);
+      const s1 = await tplSvcLocal.createStage(tpl.id, { title: 'E1' });
       const inst = await instSvcLocal.assignTemplateToPatient({
         templateId: tpl.id,
-        patientUserId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        patientUserId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
         assignedBy: null,
       });
       const st = instStageForTpl(inst, s1.id);
-      const testsG = st.groups.find((g) => g.systemKind === "tests")!;
+      const testsG = st.groups.find((g) => g.systemKind === 'tests')!;
       const out = await instSvcLocal.doctorExpandTestSetIntoStage({
         instanceId: inst.id,
         stageId: st.id,
@@ -894,29 +937,32 @@ describe("treatment-program instance service", () => {
       });
       expect(out.added).toBe(3);
       expect(out.skipped).toBe(0);
-      const after = await instSvcLocal.getInstanceForPatient("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", inst.id);
+      const after = await instSvcLocal.getInstanceForPatient(
+        'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        inst.id,
+      );
       expect(after).not.toBeNull();
       const st2 = instStageForTpl(after!, s1.id);
       const clinical = st2.items
-        .filter((i) => i.itemType === "clinical_test" && i.groupId === testsG.id)
+        .filter((i) => i.itemType === 'clinical_test' && i.groupId === testsG.id)
         .sort((a, b) => a.sortOrder - b.sortOrder);
       expect(clinical.map((i) => i.itemRefId)).toEqual([refA, refB, t3]);
       expect(
         clinical.every((i) => {
           const snap = i.snapshot as { itemType?: string } | null;
-          return snap?.itemType === "clinical_test";
+          return snap?.itemType === 'clinical_test';
         }),
       ).toBe(true);
       const evs = await eventsPort.listEventsForInstance(inst.id);
       const expandEvs = evs.filter(
         (e) =>
-          e.eventType === "item_added" &&
-          (e.payload as { source?: string }).source === "expand_test_set_into_clinical_tests",
+          e.eventType === 'item_added' &&
+          (e.payload as { source?: string }).source === 'expand_test_set_into_clinical_tests',
       );
       expect(expandEvs).toHaveLength(3);
     });
 
-    it("skips instance rows already present in tests group", async () => {
+    it('skips instance rows already present in tests group', async () => {
       const tplPortLocal = createInMemoryTreatmentProgramPort({
         testSetExpandLines: { [testSetId]: [refA, refB, t3] },
       });
@@ -931,12 +977,12 @@ describe("treatment-program instance service", () => {
         itemRefs,
         events: eventsPort,
       });
-      const tpl = await tplSvcLocal.createTemplate({ title: "П", status: "published" }, null);
-      const s1 = await tplSvcLocal.createStage(tpl.id, { title: "E1" });
-      await tplSvcLocal.addStageItem(s1.id, { itemType: "clinical_test", itemRefId: refA });
+      const tpl = await tplSvcLocal.createTemplate({ title: 'П', status: 'published' }, null);
+      const s1 = await tplSvcLocal.createStage(tpl.id, { title: 'E1' });
+      await tplSvcLocal.addStageItem(s1.id, { itemType: 'clinical_test', itemRefId: refA });
       const inst = await instSvcLocal.assignTemplateToPatient({
         templateId: tpl.id,
-        patientUserId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        patientUserId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
         assignedBy: null,
       });
       const st = instStageForTpl(inst, s1.id);
@@ -951,13 +997,13 @@ describe("treatment-program instance service", () => {
       const evs = await eventsPort.listEventsForInstance(inst.id);
       const expandEvs = evs.filter(
         (e) =>
-          e.eventType === "item_added" &&
-          (e.payload as { source?: string }).source === "expand_test_set_into_clinical_tests",
+          e.eventType === 'item_added' &&
+          (e.payload as { source?: string }).source === 'expand_test_set_into_clinical_tests',
       );
       expect(expandEvs).toHaveLength(2);
     });
 
-    it("rejects expand on instance stage zero", async () => {
+    it('rejects expand on instance stage zero', async () => {
       const tplPortLocal = createInMemoryTreatmentProgramPort({
         testSetExpandLines: { [testSetId]: [refA] },
       });
@@ -972,11 +1018,11 @@ describe("treatment-program instance service", () => {
         itemRefs,
         events: eventsPort,
       });
-      const tpl = await tplSvcLocal.createTemplate({ title: "П", status: "published" }, null);
-      await tplSvcLocal.createStage(tpl.id, { title: "E1" });
+      const tpl = await tplSvcLocal.createTemplate({ title: 'П', status: 'published' }, null);
+      await tplSvcLocal.createStage(tpl.id, { title: 'E1' });
       const inst = await instSvcLocal.assignTemplateToPatient({
         templateId: tpl.id,
-        patientUserId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        patientUserId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
         assignedBy: null,
       });
       const s0 = inst.stages.find((s) => s.sortOrder === 0)!;
@@ -990,7 +1036,7 @@ describe("treatment-program instance service", () => {
       ).rejects.toThrow(/Общие рекомендации/);
     });
 
-    it("rejects unknown test set id", async () => {
+    it('rejects unknown test set id', async () => {
       const tplPortLocal = createInMemoryTreatmentProgramPort({
         testSetExpandLines: { [testSetId]: [refA] },
       });
@@ -1005,11 +1051,11 @@ describe("treatment-program instance service", () => {
         itemRefs,
         events: eventsPort,
       });
-      const tpl = await tplSvcLocal.createTemplate({ title: "П", status: "published" }, null);
-      const s1 = await tplSvcLocal.createStage(tpl.id, { title: "E1" });
+      const tpl = await tplSvcLocal.createTemplate({ title: 'П', status: 'published' }, null);
+      const s1 = await tplSvcLocal.createStage(tpl.id, { title: 'E1' });
       const inst = await instSvcLocal.assignTemplateToPatient({
         templateId: tpl.id,
-        patientUserId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        patientUserId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
         assignedBy: null,
       });
       const st = instStageForTpl(inst, s1.id);
@@ -1017,19 +1063,19 @@ describe("treatment-program instance service", () => {
         instSvcLocal.doctorExpandTestSetIntoStage({
           instanceId: inst.id,
           stageId: st.id,
-          testSetId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          testSetId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
           actorId: null,
         }),
       ).rejects.toThrow(/Набор тестов не найден/);
     });
   });
 
-  describe("doctorExpandLfkComplexIntoStage", () => {
-    const complexId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
-    const ex1 = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
-    const ex2 = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+  describe('doctorExpandLfkComplexIntoStage', () => {
+    const complexId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const ex1 = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const ex2 = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 
-    it("expands complex into instance exercises in custom group", async () => {
+    it('expands complex into instance exercises in custom group', async () => {
       const tplPortLocal = createInMemoryTreatmentProgramPort({
         lfkComplexExpandPreview: {
           [complexId]: { exerciseIds: [ex1, ex2], complexDescription: null, complexTitle: null },
@@ -1048,16 +1094,17 @@ describe("treatment-program instance service", () => {
         itemRefs,
         events: eventsPort,
       });
-      const tpl = await tplSvcLocal.createTemplate({ title: "П", status: "published" }, null);
-      const s1 = await tplSvcLocal.createStage(tpl.id, { title: "E1" });
-      const g1 = await tplSvcLocal.createTemplateStageGroup(s1.id, { title: "ЛФК" });
+      const tpl = await tplSvcLocal.createTemplate({ title: 'П', status: 'published' }, null);
+      const s1 = await tplSvcLocal.createStage(tpl.id, { title: 'E1' });
+      const g1 = await tplSvcLocal.createTemplateStageGroup(s1.id, { title: 'ЛФК' });
       const inst = await instSvcLocal.assignTemplateToPatient({
         templateId: tpl.id,
-        patientUserId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        patientUserId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
         assignedBy: null,
       });
       const st = instStageForTpl(inst, s1.id);
-      const customG = st.groups.find((g) => g.title === "ЛФК") ?? st.groups.find((g) => !g.systemKind)!;
+      const customG =
+        st.groups.find((g) => g.title === 'ЛФК') ?? st.groups.find((g) => !g.systemKind)!;
       const out = await instSvcLocal.doctorExpandLfkComplexIntoStage({
         instanceId: inst.id,
         stageId: st.id,
@@ -1066,17 +1113,19 @@ describe("treatment-program instance service", () => {
         actorId: null,
       });
       expect(out.items).toHaveLength(2);
-      expect(out.items.every((i) => i.itemType === "exercise" && i.groupId === customG.id)).toBe(true);
+      expect(out.items.every((i) => i.itemType === 'exercise' && i.groupId === customG.id)).toBe(
+        true,
+      );
       const evs = await eventsPort.listEventsForInstance(inst.id);
       const expandEvs = evs.filter(
         (e) =>
-          e.eventType === "item_added" &&
-          (e.payload as { source?: string }).source === "expand_lfk_complex_into_exercises",
+          e.eventType === 'item_added' &&
+          (e.payload as { source?: string }).source === 'expand_lfk_complex_into_exercises',
       );
       expect(expandEvs).toHaveLength(2);
     });
 
-    it("rejects expand on instance stage zero", async () => {
+    it('rejects expand on instance stage zero', async () => {
       const tplPortLocal = createInMemoryTreatmentProgramPort({
         lfkComplexExpandPreview: {
           [complexId]: { exerciseIds: [ex1], complexDescription: null, complexTitle: null },
@@ -1095,15 +1144,15 @@ describe("treatment-program instance service", () => {
         itemRefs,
         events: eventsPort,
       });
-      const tpl = await tplSvcLocal.createTemplate({ title: "П", status: "published" }, null);
-      await tplSvcLocal.createStage(tpl.id, { title: "E1" });
+      const tpl = await tplSvcLocal.createTemplate({ title: 'П', status: 'published' }, null);
+      await tplSvcLocal.createStage(tpl.id, { title: 'E1' });
       const inst = await instSvcLocal.assignTemplateToPatient({
         templateId: tpl.id,
-        patientUserId: "99999999-9999-4999-8999-999999999999",
+        patientUserId: '99999999-9999-4999-8999-999999999999',
         assignedBy: null,
       });
       const s0 = inst.stages.find((s) => s.sortOrder === 0)!;
-      const anyGroup = s0.groups[0]?.id ?? "00000000-0000-4000-8000-000000000099";
+      const anyGroup = s0.groups[0]?.id ?? '00000000-0000-4000-8000-000000000099';
       await expect(
         instSvcLocal.doctorExpandLfkComplexIntoStage({
           instanceId: inst.id,
@@ -1115,7 +1164,7 @@ describe("treatment-program instance service", () => {
       ).rejects.toThrow(/Общие рекомендации/);
     });
 
-    it("rejects doctorAddStageItem with lfk_complex", async () => {
+    it('rejects doctorAddStageItem with lfk_complex', async () => {
       const tplPortLocal = createInMemoryTreatmentProgramPort();
       const tplSvcLocal = createTreatmentProgramService(tplPortLocal, itemRefs);
       const { instancePort } = createInMemoryTreatmentProgramPersistence();
@@ -1125,19 +1174,19 @@ describe("treatment-program instance service", () => {
         snapshots: createInMemoryTreatmentProgramItemSnapshotPort(),
         itemRefs,
       });
-      const tpl = await tplSvcLocal.createTemplate({ title: "П", status: "published" }, null);
-      const s1 = await tplSvcLocal.createStage(tpl.id, { title: "E1" });
-      const g1 = await tplSvcLocal.createTemplateStageGroup(s1.id, { title: "G" });
+      const tpl = await tplSvcLocal.createTemplate({ title: 'П', status: 'published' }, null);
+      const s1 = await tplSvcLocal.createStage(tpl.id, { title: 'E1' });
+      const g1 = await tplSvcLocal.createTemplateStageGroup(s1.id, { title: 'G' });
       const inst = await instSvcLocal.assignTemplateToPatient({
         templateId: tpl.id,
-        patientUserId: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        patientUserId: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
         assignedBy: null,
       });
       const st = instStageForTpl(inst, s1.id);
       const legacyLfkInsert = {
         instanceId: inst.id,
         stageId: st.id,
-        itemType: "lfk_complex",
+        itemType: 'lfk_complex',
         itemRefId: complexId,
         groupId: g1.id,
         actorId: null,

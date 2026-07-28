@@ -132,23 +132,23 @@
 
 ### Wave 2 — этап 3 (advisory locks) — выполнено
 
-- **Общий канон:** advisory lock/unlock через `drizzle-orm` `execute(sql\`…\`)` на **том же** `PoolClient`, что и окружающий SQL (`db.connect()` / `pool.connect()`). На dedicated client это `drizzle(client).execute(sql)` — эквивалент `getIntegratorDrizzleSession(port).execute(sql)` внутри TX, но без `DbPort`. Хелперы: `apps/integrator/src/infra/db/pgAdvisoryLock.ts`, `apps/webapp/src/infra/db/pgAdvisoryLock.ts`.
+- **Общий канон:** advisory lock/unlock через `drizzle-orm` `execute(sql\`…\`)`на **том же**`PoolClient`, что и окружающий SQL (`db.connect()`/`pool.connect()`). На dedicated client это `drizzle(client).execute(sql)`— эквивалент`getIntegratorDrizzleSession(port).execute(sql)`внутри TX, но без`DbPort`. Хелперы: `apps/integrator/src/infra/db/pgAdvisoryLock.ts`, `apps/webapp/src/infra/db/pgAdvisoryLock.ts`.
 - **Integrator:** `rubitimeApiThrottle.ts` — session `pg_advisory_lock` / `unlock` (int key `58220114`, тот же `connect()` + `finally`); `schedulerLocks.ts` — `pg_try_advisory_lock` / `pg_advisory_unlock` на dedicated client.
 - **Webapp:** `userLifecycleLock.ts`, `multipartSessionLock.ts`, `pgOnlineIntake.ts` (только shared xact lock), `strictPlatformUserPurge.ts`, `s3MediaStorage.ts` (только session lock/unlock в `deleteHard`); `pgDiaryPurge.ts` — purge обёрнут в `withUserLifecycleLock(..., "exclusive")` (раньше транзакция без advisory; ключ `hashtext(platform_user_id::text)` как у strict purge).
 - **Вне этапа 3 (осознанно):** `modules/auth/*RateLimit.ts`, `publicBookingRateLimit.ts` — этап 7 Wave 2; остальной SQL в `s3MediaStorage.ts` и медиа-repos — **выполнен Wave 2 P5** (2026-06-05).
 
 #### Семантика блокировок (session vs transaction)
 
-| Файл | Тип | Ключ | Release |
-|------|-----|------|---------|
-| `rubitimeApiThrottle.ts` | session `pg_advisory_lock` | int `58220114` | `pg_advisory_unlock` в inner `finally` до `client.release()` |
-| `schedulerLocks.ts` | session `pg_try_advisory_lock` | int (scheduler slot) | `release()` handle → unlock + `client.release()` |
-| `userLifecycleLock.ts` | xact exclusive/shared | `hashtext(userId::text)` | автоматически при `COMMIT`/`ROLLBACK` |
-| `multipartSessionLock.ts` | xact exclusive | `hashtext('multipart_session:' \|\| id)` | при завершении tx |
-| `pgOnlineIntake.ts` | xact shared | `hashtext(userId::text)` | при завершении tx |
-| `pgDiaryPurge.ts` | xact exclusive (via lifecycle lock) | `hashtext(userId::text)` | при завершении tx |
-| `strictPlatformUserPurge.ts` | xact exclusive | `hashtext(userId::text)` | при завершении tx |
-| `s3MediaStorage.deleteHard` | session | `hashtext(mediaId)` | `unlock` в `finally` на **том же** `PoolClient`, что lock и DML |
+| Файл                         | Тип                                 | Ключ                                     | Release                                                         |
+| ---------------------------- | ----------------------------------- | ---------------------------------------- | --------------------------------------------------------------- |
+| `rubitimeApiThrottle.ts`     | session `pg_advisory_lock`          | int `58220114`                           | `pg_advisory_unlock` в inner `finally` до `client.release()`    |
+| `schedulerLocks.ts`          | session `pg_try_advisory_lock`      | int (scheduler slot)                     | `release()` handle → unlock + `client.release()`                |
+| `userLifecycleLock.ts`       | xact exclusive/shared               | `hashtext(userId::text)`                 | автоматически при `COMMIT`/`ROLLBACK`                           |
+| `multipartSessionLock.ts`    | xact exclusive                      | `hashtext('multipart_session:' \|\| id)` | при завершении tx                                               |
+| `pgOnlineIntake.ts`          | xact shared                         | `hashtext(userId::text)`                 | при завершении tx                                               |
+| `pgDiaryPurge.ts`            | xact exclusive (via lifecycle lock) | `hashtext(userId::text)`                 | при завершении tx                                               |
+| `strictPlatformUserPurge.ts` | xact exclusive                      | `hashtext(userId::text)`                 | при завершении tx                                               |
+| `s3MediaStorage.deleteHard`  | session                             | `hashtext(mediaId)`                      | `unlock` в `finally` на **том же** `PoolClient`, что lock и DML |
 
 **Чеклист ревью для новых locks:** не менять ключ/hash без ADR; session-lock только на одном `PoolClient` (не смешивать `pool.query` между lock и unlock); xact-lock только внутри уже открытой транзакции; `pg_try_*` не заменять на blocking без причины; не дублировать int-ключи Rubitime/scheduler.
 
@@ -243,47 +243,47 @@
 
 #### D. Scripts — классификация (pg-only, одна строка на файл)
 
-| Script | Класс | Причина |
-|--------|-------|---------|
-| `run-migrations.mjs` | migration | SQL migration runner |
-| `run-webapp-drizzle-migrate.mjs` | migration | drizzle-kit migrate wrapper |
-| `seed-drizzle-migrations-meta.mjs` | ops | bootstrap `drizzle.__drizzle_migrations` |
-| `verify-drizzle-public-table-count.mjs` | report | row-count audit |
-| `fix-drizzle-introspect-defaults.mjs` | ops | one-off DDL meta fix |
-| `check-drizzle-journal-sync.sh` | ops | shell guard |
-| `check-legacy-migrations-frozen.sh` | ops | shell guard |
-| `check-catalog-shared-primitives.sh` | ops | shell guard |
-| `check-media-preview-invariants.sh` | ops | shell guard |
-| `reconcile-person-domain.mjs` | reconcile | batch ops SQL |
-| `reconcile-appointments-domain.mjs` | reconcile | batch ops SQL |
-| `reconcile-reminders-domain.mjs` | reconcile | batch ops SQL |
-| `reconcile-communication-domain.mjs` | reconcile | batch ops SQL |
-| `reconcile-subscription-mailing-domain.mjs` | reconcile | batch ops SQL |
-| `backfill-person-domain.mjs` | backfill | batch ops SQL |
-| `backfill-appointments-domain.mjs` | backfill | batch ops SQL |
-| `backfill-reminders-domain.mjs` | backfill | batch ops SQL |
-| `backfill-subscription-mailing-domain.mjs` | backfill | batch ops SQL |
-| `backfill-communication-history.mjs` | backfill | batch ops SQL |
-| `backfill-rubitime-history-to-patient-bookings.ts` | backfill | batch history → `patient_bookings` |
-| `backfill-rubitime-compat-snapshots.ts` | backfill | payload + `@bersoncare/booking-rubitime-sync` lookup |
-| `backfill-patient-bookings-v2.ts` | backfill | legacy v2 rows |
-| `video-hls-backfill-legacy.ts` | backfill | legacy HLS |
-| `requeue-projection-outbox-dead.ts` | ops | outbox admin |
-| `realign-webapp-integrator-user-projection.ts` | ops | projection realign |
-| `seed-content-pages.mjs` | seed | content seed tx |
-| `seed-booking-catalog-tochka-zdorovya.ts` | seed | catalog seed |
-| `user-phone-admin.ts` | ops CLI | admin merge/purge |
-| `integrator-push-outbox-tick.ts` | runtime tick | tick к app endpoint |
-| `media-preview-process-tick.ts` | runtime tick | preview worker tick |
-| `audit-platform-user-merge.sql` | report/ops | manual psql audit |
-| `audit-platform-user-preflight.sql` | report/ops | manual psql preflight |
-| `repair-client-8077942.sql` | ops | one-off repair |
-| `rubitime-appointment-mapping-audit.sql` | report | dry-run metrics |
-| `backfill-rubitime-appointment-mappings.sql` | ops | mapping backfill |
-| `stage13-gate.test.ts` | test | gate script tests |
-| `stage13-preflight.test.ts` | test | preflight script tests |
-| `backfill-person-domain.test.ts` | test | backfill script tests |
-| `apps/integrator/scripts/projection-health.mjs` | CLI wrapper | thin wrapper → `projectionHealthCore` (P2) |
+| Script                                             | Класс        | Причина                                              |
+| -------------------------------------------------- | ------------ | ---------------------------------------------------- |
+| `run-migrations.mjs`                               | migration    | SQL migration runner                                 |
+| `run-webapp-drizzle-migrate.mjs`                   | migration    | drizzle-kit migrate wrapper                          |
+| `seed-drizzle-migrations-meta.mjs`                 | ops          | bootstrap `drizzle.__drizzle_migrations`             |
+| `verify-drizzle-public-table-count.mjs`            | report       | row-count audit                                      |
+| `fix-drizzle-introspect-defaults.mjs`              | ops          | one-off DDL meta fix                                 |
+| `check-drizzle-journal-sync.sh`                    | ops          | shell guard                                          |
+| `check-legacy-migrations-frozen.sh`                | ops          | shell guard                                          |
+| `check-catalog-shared-primitives.sh`               | ops          | shell guard                                          |
+| `check-media-preview-invariants.sh`                | ops          | shell guard                                          |
+| `reconcile-person-domain.mjs`                      | reconcile    | batch ops SQL                                        |
+| `reconcile-appointments-domain.mjs`                | reconcile    | batch ops SQL                                        |
+| `reconcile-reminders-domain.mjs`                   | reconcile    | batch ops SQL                                        |
+| `reconcile-communication-domain.mjs`               | reconcile    | batch ops SQL                                        |
+| `reconcile-subscription-mailing-domain.mjs`        | reconcile    | batch ops SQL                                        |
+| `backfill-person-domain.mjs`                       | backfill     | batch ops SQL                                        |
+| `backfill-appointments-domain.mjs`                 | backfill     | batch ops SQL                                        |
+| `backfill-reminders-domain.mjs`                    | backfill     | batch ops SQL                                        |
+| `backfill-subscription-mailing-domain.mjs`         | backfill     | batch ops SQL                                        |
+| `backfill-communication-history.mjs`               | backfill     | batch ops SQL                                        |
+| `backfill-rubitime-history-to-patient-bookings.ts` | backfill     | batch history → `patient_bookings`                   |
+| `backfill-rubitime-compat-snapshots.ts`            | backfill     | payload + `@bersoncare/booking-rubitime-sync` lookup |
+| `backfill-patient-bookings-v2.ts`                  | backfill     | legacy v2 rows                                       |
+| `video-hls-backfill-legacy.ts`                     | backfill     | legacy HLS                                           |
+| `requeue-projection-outbox-dead.ts`                | ops          | outbox admin                                         |
+| `realign-webapp-integrator-user-projection.ts`     | ops          | projection realign                                   |
+| `seed-content-pages.mjs`                           | seed         | content seed tx                                      |
+| `seed-booking-catalog-tochka-zdorovya.ts`          | seed         | catalog seed                                         |
+| `user-phone-admin.ts`                              | ops CLI      | admin merge/purge                                    |
+| `integrator-push-outbox-tick.ts`                   | runtime tick | tick к app endpoint                                  |
+| `media-preview-process-tick.ts`                    | runtime tick | preview worker tick                                  |
+| `audit-platform-user-merge.sql`                    | report/ops   | manual psql audit                                    |
+| `audit-platform-user-preflight.sql`                | report/ops   | manual psql preflight                                |
+| `repair-client-8077942.sql`                        | ops          | one-off repair                                       |
+| `rubitime-appointment-mapping-audit.sql`           | report       | dry-run metrics                                      |
+| `backfill-rubitime-appointment-mappings.sql`       | ops          | mapping backfill                                     |
+| `stage13-gate.test.ts`                             | test         | gate script tests                                    |
+| `stage13-preflight.test.ts`                        | test         | preflight script tests                               |
+| `backfill-person-domain.test.ts`                   | test         | backfill script tests                                |
+| `apps/integrator/scripts/projection-health.mjs`    | CLI wrapper  | thin wrapper → `projectionHealthCore` (P2)           |
 
 #### Post-audit P8 (2026-06-05)
 
@@ -309,30 +309,30 @@
 
 #### Wave 3 baseline (`rg`, 2026-06-05)
 
-| Зона | Метрика | Сверка с ожиданием |
-|------|---------|-------------------|
-| Integrator `await db.query` (без `migrate.ts` / scripts) | **20** prod-файлов | ✓ (19 P1+ domain + `client.ts` Class C) |
-| Integrator `rubitimeApiThrottle` throttle row | **2** `client.query` | ✓ (фаза 09E, Class B) |
-| Webapp `pool.query` \| `client.query` (без тестов) | **78** prod-файлов | ✓ |
-| Webapp `integratorPushOutbox.ts` | **0** `db.query` (было 4; P15D done) | ✓ закрыто **15D** |
-| media-worker `claim.ts` | **8** `pool.query` | ✓ Class C |
-| media-worker `processTranscodeJob` + `processProgramSubmissionTranscode` | **17** (10 + 7) at baseline → **0** direct `pool.query` after phase **10** | ✓ target фаза 10 (**done** 2026-06-06) |
-| media-worker settings | **2** (1 + 1) at baseline → **0** direct `pool.query` after phase **10** | ✓ target фаза 10 (**done** 2026-06-06) |
-| `packages/platform-merge` | **85** `.query(` (79 + 2 + 4) | ~92 ожидание → факт **85** (уточнено в RAW_SQL) |
-| `packages/booking-rubitime-sync` | **4** `.query(` | ✓ Class C |
+| Зона                                                                     | Метрика                                                                    | Сверка с ожиданием                              |
+| ------------------------------------------------------------------------ | -------------------------------------------------------------------------- | ----------------------------------------------- |
+| Integrator `await db.query` (без `migrate.ts` / scripts)                 | **20** prod-файлов                                                         | ✓ (19 P1+ domain + `client.ts` Class C)         |
+| Integrator `rubitimeApiThrottle` throttle row                            | **2** `client.query`                                                       | ✓ (фаза 09E, Class B)                           |
+| Webapp `pool.query` \| `client.query` (без тестов)                       | **78** prod-файлов                                                         | ✓                                               |
+| Webapp `integratorPushOutbox.ts`                                         | **0** `db.query` (было 4; P15D done)                                       | ✓ закрыто **15D**                               |
+| media-worker `claim.ts`                                                  | **8** `pool.query`                                                         | ✓ Class C                                       |
+| media-worker `processTranscodeJob` + `processProgramSubmissionTranscode` | **17** (10 + 7) at baseline → **0** direct `pool.query` after phase **10** | ✓ target фаза 10 (**done** 2026-06-06)          |
+| media-worker settings                                                    | **2** (1 + 1) at baseline → **0** direct `pool.query` after phase **10**   | ✓ target фаза 10 (**done** 2026-06-06)          |
+| `packages/platform-merge`                                                | **85** `.query(` (79 + 2 + 4)                                              | ~92 ожидание → факт **85** (уточнено в RAW_SQL) |
+| `packages/booking-rubitime-sync`                                         | **4** `.query(`                                                            | ✓ Class C                                       |
 
 Полная таблица Class A/B/C: [RAW_SQL_INVENTORY.md](./RAW_SQL_INVENTORY.md) § «Wave 3 baseline».
 
 #### ADR — permanent zones (не переоткрывать в фазах 09–15)
 
-| Артефакт | Решение |
-|----------|---------|
-| **platform-merge** | Merge engine; Drizzle builder rewrite = **out of scope** (Class C). |
-| **booking-rubitime-sync** | `SqlExecutor` + pg text; canonical Rubitime fields **unchanged** (Class C). |
-| **claim** (integrator outbox/job/queue + media-worker `jobs/claim.ts`) | `FOR UPDATE SKIP LOCKED` на dedicated pg session (Class C). |
-| **projectionHealthCore** | Параметризованные агрегаты; CLI/HTTP parity **>** builder `groupBy` (Class B). |
-| **migrate.ts / one-off scripts** | pg ledger / batch ops transport (Class C). |
-| **DbPort / health `client.ts`** | TX transport + `SELECT 1` (Class C). |
+| Артефакт                                                               | Решение                                                                        |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| **platform-merge**                                                     | Merge engine; Drizzle builder rewrite = **out of scope** (Class C).            |
+| **booking-rubitime-sync**                                              | `SqlExecutor` + pg text; canonical Rubitime fields **unchanged** (Class C).    |
+| **claim** (integrator outbox/job/queue + media-worker `jobs/claim.ts`) | `FOR UPDATE SKIP LOCKED` на dedicated pg session (Class C).                    |
+| **projectionHealthCore**                                               | Параметризованные агрегаты; CLI/HTTP parity **>** builder `groupBy` (Class B). |
+| **migrate.ts / one-off scripts**                                       | pg ledger / batch ops transport (Class C).                                     |
+| **DbPort / health `client.ts`**                                        | TX transport + `SELECT 1` (Class C).                                           |
 
 #### Зафиксированные решения (вопросы 1–10, [wave3_DECISIONS.md](../archive/2026-06-initiatives/INTEGRATOR_DRIZZLE_MIGRATION/plans/wave3_DECISIONS.md))
 
@@ -371,17 +371,17 @@
 
 #### Матрица решений по integrator-схеме
 
-| Группа | Решение |
-|--------|---------|
-| `integrator.system_settings`, `settingsSyncRoute`, `syncSettingToIntegrator` | Runtime source removed; legacy mirror/sync = **deprecate candidate**, без удаления в phase08. |
-| `rubitime_branches`, `rubitime_services`, `rubitime_cooperators`, `rubitime_booking_profiles`, `bookingProfilesRepo` | **move-to-public / deprecate candidate**; не мигрировать в phase09 ради Drizzle, нужен отдельный cutover на `public.booking_*` / booking-sync. |
-| `rubitime_records` | **raw-audit-only / deprecate candidate**; business canon = `public.appointment_records` + `public.patient_bookings`; ops scripts остаются Class C. |
-| `rubitime_events` | **keep technical audit** для webhook replay/debug. |
-| `booking_calendar_map` | **move-to-public candidate**; сейчас thin map + sync `public.patient_bookings.gcal_event_id`, не расширять. |
-| `user_reminder_rules`, `user_reminder_occurrences`, `user_reminder_delivery_logs` | **move-to-public candidate; dispatch-state review**; не расширять зеркало до отдельного dispatch-from-public design. |
-| `users`, `identities`, `contacts`, `telegram_state` | **keep channel identity state**; не использовать как дубль public-профиля пациента. |
-| `conversations`, `conversation_messages`, `message_drafts`, `user_questions`, `question_messages` | **review / transport-log only**; если public support canon покрывает бизнес-историю, integrator остаётся channel transport/log. |
-| `projection_outbox`, `rubitime_create_retry_jobs`, delivery/audit logs, throttle/advisory/idempotency | **keep technical state**. |
+| Группа                                                                                                               | Решение                                                                                                                                            |
+| -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `integrator.system_settings`, `settingsSyncRoute`, `syncSettingToIntegrator`                                         | Runtime source removed; legacy mirror/sync = **deprecate candidate**, без удаления в phase08.                                                      |
+| `rubitime_branches`, `rubitime_services`, `rubitime_cooperators`, `rubitime_booking_profiles`, `bookingProfilesRepo` | **move-to-public / deprecate candidate**; не мигрировать в phase09 ради Drizzle, нужен отдельный cutover на `public.booking_*` / booking-sync.     |
+| `rubitime_records`                                                                                                   | **raw-audit-only / deprecate candidate**; business canon = `public.appointment_records` + `public.patient_bookings`; ops scripts остаются Class C. |
+| `rubitime_events`                                                                                                    | **keep technical audit** для webhook replay/debug.                                                                                                 |
+| `booking_calendar_map`                                                                                               | **move-to-public candidate**; сейчас thin map + sync `public.patient_bookings.gcal_event_id`, не расширять.                                        |
+| `user_reminder_rules`, `user_reminder_occurrences`, `user_reminder_delivery_logs`                                    | **move-to-public candidate; dispatch-state review**; не расширять зеркало до отдельного dispatch-from-public design.                               |
+| `users`, `identities`, `contacts`, `telegram_state`                                                                  | **keep channel identity state**; не использовать как дубль public-профиля пациента.                                                                |
+| `conversations`, `conversation_messages`, `message_drafts`, `user_questions`, `question_messages`                    | **review / transport-log only**; если public support canon покрывает бизнес-историю, integrator остаётся channel transport/log.                    |
+| `projection_outbox`, `rubitime_create_retry_jobs`, delivery/audit logs, throttle/advisory/idempotency                | **keep technical state**.                                                                                                                          |
 
 #### Проверки
 
@@ -447,13 +447,13 @@
 
 #### 10A — preflight (baseline + инварианты)
 
-| Файл | Роль | `pool.query` (до 10B) |
-|------|------|------------------------|
-| `jobs/claim.ts` | **Class C permanent** — без изменений | 8 |
-| `processTranscodeJob.ts` | target migration | 10 |
-| `processProgramSubmissionTranscode.ts` | target migration | 7 |
-| `watermarkEnabled.ts` | target migration + Zod | 1 |
-| `pipelineEnabled.ts` | target migration + Zod | 1 |
+| Файл                                   | Роль                                  | `pool.query` (до 10B) |
+| -------------------------------------- | ------------------------------------- | --------------------- |
+| `jobs/claim.ts`                        | **Class C permanent** — без изменений | 8                     |
+| `processTranscodeJob.ts`               | target migration                      | 10                    |
+| `processProgramSubmissionTranscode.ts` | target migration                      | 7                     |
+| `watermarkEnabled.ts`                  | target migration + Zod                | 1                     |
+| `pipelineEnabled.ts`                   | target migration + Zod                | 1                     |
 
 **Инварианты поведения (не менять при миграции):**
 
@@ -527,13 +527,13 @@ LIMIT 3;"
 
 **Pass criteria:**
 
-| Проверка | Pass |
-|----------|------|
-| Job terminal `status = 'done'` | ✓ |
-| `media_files.video_processing_status = 'ready'` | ✓ |
-| `hls_master_playlist_s3_key` задан (HLS path) или `video_delivery_override = 'mp4'` (program submission) | ✓ |
-| HEAD master/480p в S3 private bucket | ✓ |
-| Нет зависших `processing` > reclaim TTL без активного worker | ✓ |
+| Проверка                                                                                                 | Pass |
+| -------------------------------------------------------------------------------------------------------- | ---- |
+| Job terminal `status = 'done'`                                                                           | ✓    |
+| `media_files.video_processing_status = 'ready'`                                                          | ✓    |
+| `hls_master_playlist_s3_key` задан (HLS path) или `video_delivery_override = 'mp4'` (program submission) | ✓    |
+| HEAD master/480p в S3 private bucket                                                                     | ✓    |
+| Нет зависших `processing` > reclaim TTL без активного worker                                             | ✓    |
 
 **Fail criteria (фиксировать в LOG фазы 17):** job `failed` с `last_error`; media `failed`; worker idle при `pipeline_enabled` и pending jobs; duplicate active jobs на один `media_id`.
 
@@ -660,13 +660,13 @@ LIMIT 3;"
 
 ### Wave 3 phase 12 — итог (completed, 2026-06-06)
 
-| Подфаза | Scope | Проверка |
-|---------|-------|----------|
-| **12A** | `pgOnlineIntake.ts` → `runWebappPgText`; advisory + Class C TX | 5 advisory tests; opt-in devDb read-only |
-| **12B** | `pgUserByPhone`, `pgIdentityResolution`, `pgPhoneMessengerBind` + Zod | 42 tests |
-| **12C** | thin `integrator-merge` route → `integratorPlatformUserMerge.ts` | 28 tests |
-| **12D** | `platformUserFullPurge`, `platformUserMergePreview`, `strictPlatformUserPurge`, `platformUserPurgeSql` | 40 tests; opt-in devDb purge/preview |
-| **12E** | scope `rg pool.query` = 0 (11 файлов); `app-layer/platform-user/*` | **115 passed** CI bundle; typecheck green |
+| Подфаза | Scope                                                                                                  | Проверка                                  |
+| ------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------- |
+| **12A** | `pgOnlineIntake.ts` → `runWebappPgText`; advisory + Class C TX                                         | 5 advisory tests; opt-in devDb read-only  |
+| **12B** | `pgUserByPhone`, `pgIdentityResolution`, `pgPhoneMessengerBind` + Zod                                  | 42 tests                                  |
+| **12C** | thin `integrator-merge` route → `integratorPlatformUserMerge.ts`                                       | 28 tests                                  |
+| **12D** | `platformUserFullPurge`, `platformUserMergePreview`, `strictPlatformUserPurge`, `platformUserPurgeSql` | 40 tests; opt-in devDb purge/preview      |
+| **12E** | scope `rg pool.query` = 0 (11 файлов); `app-layer/platform-user/*`                                     | **115 passed** CI bundle; typecheck green |
 
 **Новые/ключевые файлы:** `integratorPlatformUserMerge.ts`, `integratorPlatformUserMergeSchemas.ts`, `platformUserPurgeSql.ts`, `identityPhoneRowSchemas.ts`, `identityPhoneSql.ts`.
 
@@ -730,13 +730,13 @@ LIMIT 3;"
 
 ### Wave 3 phase 13 — итог (completed, 2026-06-06)
 
-| Подфаза | Scope | Проверка |
-|---------|-------|----------|
-| **13A** | `pgBookingCatalog.ts` → `runWebappPgText` | 15 tests; opt-in devDb read-only |
-| **13B** | `pgPatientBookings`, `pgDoctorAppointments`, `pgAppointmentProjection`, `pgBookingCalendarLegacy` | 37 tests; P8 rubitime-sync; Class C projection soft-delete |
-| **13C** | `pgDoctorClients`, `pgDoctorAnalyticsMetricAccounts`, `createDoctorClient`, `pgDoctorNotes`, `pgBranches` | 52 tests; 26 metric-key parity |
-| **13D** | `motivation/actions` → thin actions; `pgDoctorMotivationQuotesEditor`, `pgDoctorBroadcastDelivery`, `pgDoctorProactiveInsights` | 12 tests post-audit; Class C broadcast queue |
-| **13E** | scope `rg pool.query` = 0 (14 файлов); P8 consumer | **123 passed** / 12 skipped; rubitime-sync **27 passed** |
+| Подфаза | Scope                                                                                                                           | Проверка                                                   |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| **13A** | `pgBookingCatalog.ts` → `runWebappPgText`                                                                                       | 15 tests; opt-in devDb read-only                           |
+| **13B** | `pgPatientBookings`, `pgDoctorAppointments`, `pgAppointmentProjection`, `pgBookingCalendarLegacy`                               | 37 tests; P8 rubitime-sync; Class C projection soft-delete |
+| **13C** | `pgDoctorClients`, `pgDoctorAnalyticsMetricAccounts`, `createDoctorClient`, `pgDoctorNotes`, `pgBranches`                       | 52 tests; 26 metric-key parity                             |
+| **13D** | `motivation/actions` → thin actions; `pgDoctorMotivationQuotesEditor`, `pgDoctorBroadcastDelivery`, `pgDoctorProactiveInsights` | 12 tests post-audit; Class C broadcast queue               |
+| **13E** | scope `rg pool.query` = 0 (14 файлов); P8 consumer                                                                              | **123 passed** / 12 skipped; rubitime-sync **27 passed**   |
 
 **Class C TX (остаются на PoolClient):** `pgAppointmentProjection.softDelete`, `createDoctorClient`, `pgDoctorBroadcastDelivery`, `pgDoctorMotivationQuotesEditor.reorderQuotes`; `getPool()` без domain SQL — `pgPatientBookings.upsertFromRubitime` (P8), `pgDoctorClients.resolveCanonicalUserId`, `createDoctorClient.findCanonicalUserIdByPhone`.
 
@@ -848,13 +848,13 @@ LIMIT 3;"
 
 ### Wave 3 phase 14 — итог (completed, 2026-06-06)
 
-| Подфаза | Scope | Проверка |
-|---------|-------|----------|
-| **14A** | `pgSupportCommunication`, merge helper SQL | repo + Zod support list; Class C merge TX |
-| **14B** | `pgUserProjection` | 4 Class C TX; repo + devDb |
-| **14C** | `adminAuditLog`, merge verify | dedupe TX; audit tests + devDb |
-| **14D** | 6 comms/subscription repos | Class C channel prefs + web-push save |
-| **14E** | gate + Zod boundaries | 10 files `pool.query` = 0; **119 passed** / 11 skipped |
+| Подфаза | Scope                                      | Проверка                                               |
+| ------- | ------------------------------------------ | ------------------------------------------------------ |
+| **14A** | `pgSupportCommunication`, merge helper SQL | repo + Zod support list; Class C merge TX              |
+| **14B** | `pgUserProjection`                         | 4 Class C TX; repo + devDb                             |
+| **14C** | `adminAuditLog`, merge verify              | dedupe TX; audit tests + devDb                         |
+| **14D** | 6 comms/subscription repos                 | Class C channel prefs + web-push save                  |
+| **14E** | gate + Zod boundaries                      | 10 files `pool.query` = 0; **119 passed** / 11 skipped |
 
 **Class C TX (phase 14):** support merge wrapper; user projection (4 entrypoints); audit dedupe; channel preferred-auth; web-push save.
 
@@ -944,14 +944,14 @@ LIMIT 3;"
 
 ### Wave 3 phase 15 — итог (completed, 2026-06-06)
 
-| Подфаза | Scope | Проверка |
-|---------|-------|----------|
-| **15A** | references/settings/diary | 3 repo → `runWebappPgText`; **33 passed** |
-| **15B** | 7 auth/email ports | **52 passed** |
-| **15C** | 5 treatment/minor repos | **26 passed** |
-| **15D** | `integratorPushOutbox` → Drizzle | **22 passed** |
-| **15E** | messenger bind + route tails | **26 passed** |
-| **15F** | Class B/C gate + inventory | verify **5 passed**; closure **93 passed**; tail **25** runtime files |
+| Подфаза | Scope                            | Проверка                                                              |
+| ------- | -------------------------------- | --------------------------------------------------------------------- |
+| **15A** | references/settings/diary        | 3 repo → `runWebappPgText`; **33 passed**                             |
+| **15B** | 7 auth/email ports               | **52 passed**                                                         |
+| **15C** | 5 treatment/minor repos          | **26 passed**                                                         |
+| **15D** | `integratorPushOutbox` → Drizzle | **22 passed**                                                         |
+| **15E** | messenger bind + route tails     | **26 passed**                                                         |
+| **15F** | Class B/C gate + inventory       | verify **5 passed**; closure **93 passed**; tail **25** runtime files |
 
 **Webapp prod tail:** baseline **78** → post-15 **25** (только Class B/C с пометкой в RAW_SQL).
 
@@ -1002,13 +1002,13 @@ LIMIT 3;"
 
 ### Wave 3 — итог инициативы (2026-06-06)
 
-| Область | Статус |
-|---------|--------|
-| Integrator P1–P4 + Wave 2 (1–8) | **completed** (до Wave 3) |
-| Wave 3 фазы 00, 08–16 | **completed** — Class A снят; legacy cutover guarded |
-| Wave 3 фаза 17 (repo closeout) | **completed** — docs/rg/CI/archive |
-| Staging smoke (LOG L182) | **completed** (2026-06-06, dev stand; prod journalctl — optional ops follow-up) |
-| Остаток raw SQL | Class **B/C** (webapp TX/advisory), Class **E** (merge, rubitime-sync, claim, scripts) — см. [RAW_SQL](./RAW_SQL_INVENTORY.md) |
+| Область                         | Статус                                                                                                                         |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Integrator P1–P4 + Wave 2 (1–8) | **completed** (до Wave 3)                                                                                                      |
+| Wave 3 фазы 00, 08–16           | **completed** — Class A снят; legacy cutover guarded                                                                           |
+| Wave 3 фаза 17 (repo closeout)  | **completed** — docs/rg/CI/archive                                                                                             |
+| Staging smoke (LOG L182)        | **completed** (2026-06-06, dev stand; prod journalctl — optional ops follow-up)                                                |
+| Остаток raw SQL                 | Class **B/C** (webapp TX/advisory), Class **E** (merge, rubitime-sync, claim, scripts) — см. [RAW_SQL](./RAW_SQL_INVENTORY.md) |
 
 **Канон дальше:** опционально — повторить §10C от `deploy` на prod (`:6200`, `journalctl` media-worker-prod) для полного prod audit trail.
 
@@ -1017,5 +1017,3 @@ LIMIT 3;"
 - **`git mv`** `docs/INTEGRATOR_DRIZZLE_MIGRATION/plans/` → `docs/archive/2026-06-initiatives/INTEGRATOR_DRIZZLE_MIGRATION/plans/` (22 файла: Wave 2 `wave2_phase_01`…`08`, Wave 3 `wave3_*`).
 - В корне `docs/INTEGRATOR_DRIZZLE_MIGRATION/` оставлены операционные якоря: `README.md`, `RAW_SQL_INVENTORY.md`, `DRIZZLE_TRANSITION_PLAN.md`, `LOG.md`, `TEST_BEHAVIOR_AUDIT.md`.
 - Ссылки обновлены: `docs/README.md`, `docs/archive/README.md`, `.cursor/plans/archive/README.md`, относительные пути в LOG / RAW_SQL / DRIZZLE_TRANSITION_PLAN.
-
-

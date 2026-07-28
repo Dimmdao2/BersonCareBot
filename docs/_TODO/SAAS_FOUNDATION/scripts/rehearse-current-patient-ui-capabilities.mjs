@@ -1,23 +1,24 @@
 #!/usr/bin/env node
-import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 
 const suffix = `${process.pid}_${Date.now()}`;
 const database = `bcb_saas_patient_ui_scratch_${suffix}`;
-if (!/^bcb_saas_patient_ui_scratch_[0-9_]+$/.test(database)) throw new Error("unsafe scratch database name");
+if (!/^bcb_saas_patient_ui_scratch_[0-9_]+$/.test(database))
+  throw new Error('unsafe scratch database name');
 
 function postgres(args, input = undefined) {
-  const result = spawnSync("sudo", ["-n", "-u", "postgres", ...args], { encoding: "utf8", input });
+  const result = spawnSync('sudo', ['-n', '-u', 'postgres', ...args], { encoding: 'utf8', input });
   if (result.status !== 0) {
-    process.stdout.write(result.stdout ?? "");
-    process.stderr.write(result.stderr ?? "");
+    process.stdout.write(result.stdout ?? '');
+    process.stderr.write(result.stderr ?? '');
     throw new Error(`postgres command failed: ${result.status}`);
   }
   return result;
 }
 
 try {
-  postgres(["createdb", database]);
+  postgres(['createdb', database]);
   const setup = String.raw`
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE SCHEMA app;
@@ -49,8 +50,14 @@ INSERT INTO public.system_settings(key,scope,organization_id,value_json) VALUES
  ('patient_home_mood_icons','admin','02020000-0000-4000-8000-00000000001b','{"value":"clinic-b"}'),
  ('smtp_outbound','admin',NULL,'{"value":{"password":"must-not-leak"}}');
 `;
-  postgres(["psql", "-X", "-v", "ON_ERROR_STOP=1", "-d", database], setup);
-  postgres(["psql", "-X", "-v", "ON_ERROR_STOP=1", "-d", database], readFileSync("apps/webapp/db/drizzle-migrations/0202_current_patient_ui_capabilities.sql", "utf8"));
+  postgres(['psql', '-X', '-v', 'ON_ERROR_STOP=1', '-d', database], setup);
+  postgres(
+    ['psql', '-X', '-v', 'ON_ERROR_STOP=1', '-d', database],
+    readFileSync(
+      'apps/webapp/db/drizzle-migrations/0202_current_patient_ui_capabilities.sql',
+      'utf8',
+    ),
+  );
 
   const proof = String.raw`
 GRANT SELECT ON public.system_settings, public.org_enrollments, public.platform_users TO app_owner;
@@ -86,8 +93,8 @@ RESET SESSION AUTHORIZATION;
 SELECT 1 / ((SELECT calendar_timezone FROM public.platform_users WHERE id='02020000-0000-4000-8000-00000000000a')='Europe/Moscow')::int;
 SELECT 1 / ((SELECT calendar_timezone FROM public.platform_users WHERE id='02020000-0000-4000-8000-00000000000b')='Europe/Berlin')::int;
 `;
-  postgres(["psql", "-X", "-v", "ON_ERROR_STOP=1", "-d", database], proof);
-  console.log("Current-patient UI capabilities disposable PostgreSQL rehearsal: PASS");
+  postgres(['psql', '-X', '-v', 'ON_ERROR_STOP=1', '-d', database], proof);
+  console.log('Current-patient UI capabilities disposable PostgreSQL rehearsal: PASS');
 } finally {
-  postgres(["dropdb", "--if-exists", database]);
+  postgres(['dropdb', '--if-exists', database]);
 }

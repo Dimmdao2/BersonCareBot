@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { isAppSupportPath } from "@/lib/url/isAppSupportPath";
-import { isSafeExternalHref } from "@/lib/url/isSafeExternalHref";
-import { SupportContactLink } from "@/shared/ui/patient/SupportContactLink";
+import { isAppSupportPath } from '@/lib/url/isAppSupportPath';
+import { isSafeExternalHref } from '@/lib/url/isSafeExternalHref';
+import { SupportContactLink } from '@/shared/ui/patient/SupportContactLink';
 
 type Props = { href: string };
 

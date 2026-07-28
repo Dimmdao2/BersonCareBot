@@ -25,13 +25,13 @@
 
 ## 2. Поток «архив → удаление»
 
-| Шаг | Описание |
-|-----|----------|
-| 1 | Врач/админ переводит клиента в архив: `PATCH .../archive` с `{ archived: true }`. |
-| 2 | Администратор включает **режим администратора** (Настройки → переключатель admin mode). |
-| 3 | На карточке заархивированного клиента доступна кнопка «Удалить безвозвратно» (только при admin + adminMode). |
-| 4 | UI: `confirm` → `prompt` с вводом полного UUID → `POST .../permanent-delete` с `{ confirmUserId }`. |
-| 5 | Сервер проверяет admin mode, UUID, роль client, `isArchived`, затем вызывает `runStrictPurgePlatformUser` (аудит `user_purge`, актор — admin). |
+| Шаг | Описание                                                                                                                                       |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Врач/админ переводит клиента в архив: `PATCH .../archive` с `{ archived: true }`.                                                              |
+| 2   | Администратор включает **режим администратора** (Настройки → переключатель admin mode).                                                        |
+| 3   | На карточке заархивированного клиента доступна кнопка «Удалить безвозвратно» (только при admin + adminMode).                                   |
+| 4   | UI: `confirm` → `prompt` с вводом полного UUID → `POST .../permanent-delete` с `{ confirmUserId }`.                                            |
+| 5   | Сервер проверяет admin mode, UUID, роль client, `isArchived`, затем вызывает `runStrictPurgePlatformUser` (аудит `user_purge`, актор — admin). |
 
 ---
 
@@ -39,49 +39,49 @@
 
 ### 3.1 API
 
-| Файл | Назначение |
-|------|------------|
-| `apps/webapp/src/modules/doctor-clients/clientArchiveChange.ts` | Общая логика архива: `applyClientArchiveChange`, схема тела `clientArchiveBodySchema`; внутри — `createPgDoctorClientsPort()` + `getPool` (без `buildAppDeps`). |
-| `apps/webapp/src/app/api/doctor/clients/[userId]/archive/route.ts` | `PATCH` — guard: сессия (иначе **401**) + `canAccessDoctor` (иначе **403**), затем `applyClientArchiveChange`. |
-| `apps/webapp/src/app/api/admin/users/[userId]/archive/route.ts` | `PATCH` — тот же `applyClientArchiveChange`, guard: `role === admin` (нет сессии или не admin → **403**). Цель не `client` → **404** `not_client`, как у doctor. |
+| Файл                                                                        | Назначение                                                                                                                                                                                                                   |
+| --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/webapp/src/modules/doctor-clients/clientArchiveChange.ts`             | Общая логика архива: `applyClientArchiveChange`, схема тела `clientArchiveBodySchema`; внутри — `createPgDoctorClientsPort()` + `getPool` (без `buildAppDeps`).                                                              |
+| `apps/webapp/src/app/api/doctor/clients/[userId]/archive/route.ts`          | `PATCH` — guard: сессия (иначе **401**) + `canAccessDoctor` (иначе **403**), затем `applyClientArchiveChange`.                                                                                                               |
+| `apps/webapp/src/app/api/admin/users/[userId]/archive/route.ts`             | `PATCH` — тот же `applyClientArchiveChange`, guard: `role === admin` (нет сессии или не admin → **403**). Цель не `client` → **404** `not_client`, как у doctor.                                                             |
 | `apps/webapp/src/app/api/doctor/clients/[userId]/permanent-delete/route.ts` | `POST` — безвозвратное удаление. Guard: **`requireAdminModeSession()`** (admin + adminMode), затем проверки тела, роли, архива, вызов **`runStrictPurgePlatformUser`**. Ответ включает `outcome`, `details` (S3/integrator). |
-| `apps/webapp/src/modules/auth/requireAdminMode.ts` | `requireAdminModeSession`: нет сессии → **401** `unauthorized`; не admin или `adminMode` выкл. → **403** `forbidden`. |
+| `apps/webapp/src/modules/auth/requireAdminMode.ts`                          | `requireAdminModeSession`: нет сессии → **401** `unauthorized`; не admin или `adminMode` выкл. → **403** `forbidden`.                                                                                                        |
 
 ### 3.2 Данные врача (порт)
 
-| Файл | Назначение |
-|------|------------|
+| Файл                                              | Назначение                                                                                                                              |
+| ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | `apps/webapp/src/modules/doctor-clients/ports.ts` | Контракт: `setUserArchived`, `getClientIdentity` (в т.ч. `isArchived`; комментарий к полю описывает архив и снятие через тот же PATCH). |
-| `apps/webapp/src/infra/repos/pgDoctorClients.ts` | Реализация PG: `UPDATE platform_users SET is_archived = ...`, списки с фильтром `archivedOnly`. |
+| `apps/webapp/src/infra/repos/pgDoctorClients.ts`  | Реализация PG: `UPDATE platform_users SET is_archived = ...`, списки с фильтром `archivedOnly`.                                         |
 
 ### 3.3 UI
 
-| Файл | Назначение |
-|------|------------|
-| `apps/webapp/src/app/app/doctor/clients/page.tsx` | Список клиентов: в URL **`scope=archived`** → на сервер уходит **`listClients({ archivedOnly: true })`** (раздел «Архив»). Режимы `scope=appointments` / `scope=all` задают другие фильтры списка. |
-| `apps/webapp/src/app/app/doctor/clients/DoctorClientsPanel.tsx` | Отображение списка и **дополнительные** клиентские фильтры (поиск `q`, telegram / max / appointment) поверх уже загруженных данных; это не второй фильтр архива. |
-| `apps/webapp/src/app/app/doctor/clients/[userId]/page.tsx` | Страница профиля; передаёт в карточку `canPermanentDelete={role === 'admin' && Boolean(adminMode)}`. |
-| `apps/webapp/src/app/app/doctor/clients/ClientProfileCard.tsx` | Пробрасывает `isAdmin`, `canPermanentDelete` в блок жизненного цикла. |
-| `apps/webapp/src/app/app/doctor/clients/DoctorClientLifecycleActions.tsx` | Кнопки «В архив» / «Вернуть из архива» / «Удалить безвозвратно»; последняя только при `canPermanentDelete`; подсказки для врача и для admin без admin mode. |
+| Файл                                                                      | Назначение                                                                                                                                                                                         |
+| ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/webapp/src/app/app/doctor/clients/page.tsx`                         | Список клиентов: в URL **`scope=archived`** → на сервер уходит **`listClients({ archivedOnly: true })`** (раздел «Архив»). Режимы `scope=appointments` / `scope=all` задают другие фильтры списка. |
+| `apps/webapp/src/app/app/doctor/clients/DoctorClientsPanel.tsx`           | Отображение списка и **дополнительные** клиентские фильтры (поиск `q`, telegram / max / appointment) поверх уже загруженных данных; это не второй фильтр архива.                                   |
+| `apps/webapp/src/app/app/doctor/clients/[userId]/page.tsx`                | Страница профиля; передаёт в карточку `canPermanentDelete={role === 'admin' && Boolean(adminMode)}`.                                                                                               |
+| `apps/webapp/src/app/app/doctor/clients/ClientProfileCard.tsx`            | Пробрасывает `isAdmin`, `canPermanentDelete` в блок жизненного цикла.                                                                                                                              |
+| `apps/webapp/src/app/app/doctor/clients/DoctorClientLifecycleActions.tsx` | Кнопки «В архив» / «Вернуть из архива» / «Удалить безвозвратно»; последняя только при `canPermanentDelete`; подсказки для врача и для admin без admin mode.                                        |
 
 ### 3.4 Ядро удаления (webapp + integrator)
 
-| Файл | Назначение |
-|------|------------|
-| `apps/webapp/src/infra/platformUserFullPurge.ts` | Ядро DELETE в webapp (`runWebappPurgeCoreInTransaction`), сбор ключей `collectPurgeArtifactKeys`, integrator helper’ы. `purgePlatformUserByPlatformId` → strict purge. |
+| Файл                                               | Назначение                                                                                                                                                                                |
+| -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/webapp/src/infra/platformUserFullPurge.ts`   | Ядро DELETE в webapp (`runWebappPurgeCoreInTransaction`), сбор ключей `collectPurgeArtifactKeys`, integrator helper’ы. `purgePlatformUserByPlatformId` → strict purge.                    |
 | `apps/webapp/src/infra/strictPlatformUserPurge.ts` | `runStrictPurgePlatformUser`: `pg_advisory_xact_lock(hashtext(userId))`, preflight ключей из `online_intake_attachments` + `media_files`, post-commit S3 + integrator параллельно, аудит. |
-| `apps/webapp/src/infra/userLifecycleLock.ts` | `withUserLifecycleLock` / `withTwoUserLifecycleLocksExclusive` — shared (presign, LFK и nutrition intake) и exclusive (purge, manual merge) на `hashtext(userId)`. |
-| `apps/webapp/scripts/user-phone-admin.ts` | CLI `purge-by-id <uuid>` — `runStrictPurgePlatformUser`; при `outcome !== completed` выводит JSON `details` и код выхода 1. |
+| `apps/webapp/src/infra/userLifecycleLock.ts`       | `withUserLifecycleLock` / `withTwoUserLifecycleLocksExclusive` — shared (presign, LFK и nutrition intake) и exclusive (purge, manual merge) на `hashtext(userId)`.                        |
+| `apps/webapp/scripts/user-phone-admin.ts`          | CLI `purge-by-id <uuid>` — `runStrictPurgePlatformUser`; при `outcome !== completed` выводит JSON `details` и код выхода 1.                                                               |
 
 ### 3.5 Тесты
 
-| Файл | Назначение |
-|------|------------|
-| `apps/webapp/src/app/api/doctor/clients/[userId]/archive/route.test.ts` | Тесты doctor archive API (мок `pgDoctorClients` / `getPool`). |
-| `apps/webapp/src/app/api/admin/users/[userId]/archive/route.test.ts` | Тесты admin archive (доступ только admin). |
+| Файл                                                                             | Назначение                                                                                      |
+| -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `apps/webapp/src/app/api/doctor/clients/[userId]/archive/route.test.ts`          | Тесты doctor archive API (мок `pgDoctorClients` / `getPool`).                                   |
+| `apps/webapp/src/app/api/admin/users/[userId]/archive/route.test.ts`             | Тесты admin archive (доступ только admin).                                                      |
 | `apps/webapp/src/app/api/doctor/clients/[userId]/permanent-delete/route.test.ts` | Тесты permanent-delete, в т.ч. отказ при отсутствии admin mode (мок `requireAdminModeSession`). |
-| `apps/webapp/src/infra/strictPlatformUserPurge.test.ts` | Порядок tx/lock/collect, post-commit S3+integrator, audit при rollback. |
-| `apps/webapp/src/infra/manualPlatformUserMerge.test.ts` | Dual lock + `user_merge` audit (ok / error после rollback). |
+| `apps/webapp/src/infra/strictPlatformUserPurge.test.ts`                          | Порядок tx/lock/collect, post-commit S3+integrator, audit при rollback.                         |
+| `apps/webapp/src/infra/manualPlatformUserMerge.test.ts`                          | Dual lock + `user_merge` audit (ok / error после rollback).                                     |
 
 ---
 
@@ -125,12 +125,12 @@
 
 Фича архива не задаёт отдельных переменных; работа идёт через общий доступ к PostgreSQL.
 
-| Механизм | Файл | Смысл |
-|----------|------|--------|
-| `webappReposAreInMemory()` | `apps/webapp/src/config/env.ts` | При пустом `DATABASE_URL`: Vitest → in-memory; `next dev` → **throw**; `next build` (часто `NODE_ENV=production` без БД в CI) → in-memory, чтобы сборка прошла. |
-| `register()` | `apps/webapp/src/instrumentation.ts` | Production, пустой `DATABASE_URL`, `npm_lifecycle_event === "start"` (`next start`) → **throw** до запросов. |
-| `getPool()` | `apps/webapp/src/infra/db/client.ts` | Любой вызов без URL → ошибка (в т.ч. standalone без npm lifecycle). |
-| Сборка DI | `apps/webapp/src/app-layer/di/buildAppDeps.ts` | Ветвление PG / in-memory через `inMemoryRepos = webappReposAreInMemory()` после всех импортов. |
+| Механизм                   | Файл                                           | Смысл                                                                                                                                                           |
+| -------------------------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `webappReposAreInMemory()` | `apps/webapp/src/config/env.ts`                | При пустом `DATABASE_URL`: Vitest → in-memory; `next dev` → **throw**; `next build` (часто `NODE_ENV=production` без БД в CI) → in-memory, чтобы сборка прошла. |
+| `register()`               | `apps/webapp/src/instrumentation.ts`           | Production, пустой `DATABASE_URL`, `npm_lifecycle_event === "start"` (`next start`) → **throw** до запросов.                                                    |
+| `getPool()`                | `apps/webapp/src/infra/db/client.ts`           | Любой вызов без URL → ошибка (в т.ч. standalone без npm lifecycle).                                                                                             |
+| Сборка DI                  | `apps/webapp/src/app-layer/di/buildAppDeps.ts` | Ветвление PG / in-memory через `inMemoryRepos = webappReposAreInMemory()` после всех импортов.                                                                  |
 
 Подробности и история правок: [DOCTOR_CLIENT_ARCHIVE_AND_PURGE_LOG.md](./DOCTOR_CLIENT_ARCHIVE_AND_PURGE_LOG.md).
 

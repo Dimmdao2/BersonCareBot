@@ -1,10 +1,10 @@
-import { z } from "zod";
-import { runPackageDetach } from "@/app/api/booking-engine/packageDetachShared";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
-import { requireAdminBookingEngine } from "../../../../_requireAdminBookingEngine";
+import { z } from 'zod';
+import { runPackageDetach } from '@/app/api/booking-engine/packageDetachShared';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import { requireAdminBookingEngine } from '../../../../_requireAdminBookingEngine';
 
 const bodySchema = z.object({
-  outcome: z.enum(["release_reserve", "charge_as_delivered", "refund_consumed"]).optional(),
+  outcome: z.enum(['release_reserve', 'charge_as_delivered', 'refund_consumed']).optional(),
   confirmPastTwice: z.boolean().optional(),
 });
 
@@ -16,7 +16,7 @@ export async function POST(request: Request, context: RouteContext) {
   const { id: appointmentId } = await context.params;
   const parsed = bodySchema.safeParse(await request.json().catch(() => ({})));
   if (!parsed.success) {
-    return Response.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return Response.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
   return runPackageDetach({
     organizationId: gate.ctx.organizationId,
@@ -25,6 +25,6 @@ export async function POST(request: Request, context: RouteContext) {
     outcome: parsed.data.outcome,
     confirmPastTwice: parsed.data.confirmPastTwice,
     runDetachMutation: (fn) =>
-      withDoctorWorkspacePrincipal(gate.ctx, "admin.booking-engine.package.detach", fn),
+      withDoctorWorkspacePrincipal(gate.ctx, 'admin.booking-engine.package.detach', fn),
   });
 }

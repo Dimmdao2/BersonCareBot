@@ -1,19 +1,19 @@
-"use client";
+'use client';
 
-import { cn } from "@/lib/utils";
-import type { MediaPlaybackPayload } from "@/modules/media/playbackPayloadTypes";
-import { toRutubeEmbedSrc, toYoutubeEmbedSrc } from "@/shared/lib/hostingEmbedUrls";
-import { parseApiMediaIdFromMarkdownHref } from "@/shared/lib/parseApiMediaIdFromPlayableUrl";
-import { PatientMediaPlaybackVideo } from "@/shared/ui/patient/media/PatientMediaPlaybackVideo";
-import { type AnchorHTMLAttributes, type ReactNode, useEffect, useState } from "react";
-import type { Components } from "react-markdown";
+import { cn } from '@/lib/utils';
+import type { MediaPlaybackPayload } from '@/modules/media/playbackPayloadTypes';
+import { toRutubeEmbedSrc, toYoutubeEmbedSrc } from '@/shared/lib/hostingEmbedUrls';
+import { parseApiMediaIdFromMarkdownHref } from '@/shared/lib/parseApiMediaIdFromPlayableUrl';
+import { PatientMediaPlaybackVideo } from '@/shared/ui/patient/media/PatientMediaPlaybackVideo';
+import { type AnchorHTMLAttributes, type ReactNode, useEffect, useState } from 'react';
+import type { Components } from 'react-markdown';
 
 function hostedIframeOriginAllowed(embedSrc: string): boolean {
   try {
     const u = new URL(embedSrc);
-    const host = u.hostname.replace(/^www\./, "");
-    if (host === "youtube.com" && u.pathname.startsWith("/embed")) return true;
-    if (host === "rutube.ru" && u.pathname.startsWith("/play/embed")) return true;
+    const host = u.hostname.replace(/^www\./, '');
+    if (host === 'youtube.com' && u.pathname.startsWith('/embed')) return true;
+    if (host === 'rutube.ru' && u.pathname.startsWith('/play/embed')) return true;
     return false;
   } catch {
     return false;
@@ -21,22 +21,22 @@ function hostedIframeOriginAllowed(embedSrc: string): boolean {
 }
 
 function anchorTitle(children: ReactNode): string {
-  if (typeof children === "string" && children.trim()) return children.trim();
-  return "Видео";
+  if (typeof children === 'string' && children.trim()) return children.trim();
+  return 'Видео';
 }
 
 function isPlaybackPayload(v: unknown): v is MediaPlaybackPayload {
-  if (!v || typeof v !== "object") return false;
+  if (!v || typeof v !== 'object') return false;
   const o = v as Record<string, unknown>;
   const mp4 = o.mp4;
-  if (!mp4 || typeof mp4 !== "object") return false;
+  if (!mp4 || typeof mp4 !== 'object') return false;
   const mp4o = mp4 as Record<string, unknown>;
   const delivery = o.delivery;
   return (
-    typeof o.mediaId === "string" &&
-    typeof o.mimeType === "string" &&
-    typeof mp4o.url === "string" &&
-    (delivery === "hls" || delivery === "mp4" || delivery === "file")
+    typeof o.mediaId === 'string' &&
+    typeof o.mimeType === 'string' &&
+    typeof mp4o.url === 'string' &&
+    (delivery === 'hls' || delivery === 'mp4' || delivery === 'file')
   );
 }
 
@@ -47,9 +47,11 @@ function isPlaybackPayload(v: unknown): v is MediaPlaybackPayload {
  */
 function markdownTrustedMediaOrigins(): string[] {
   const out: string[] = [];
-  if (typeof window !== "undefined") out.push(window.location.origin);
+  if (typeof window !== 'undefined') out.push(window.location.origin);
   const pub =
-    typeof process.env.NEXT_PUBLIC_APP_BASE_URL === "string" ? process.env.NEXT_PUBLIC_APP_BASE_URL.trim() : "";
+    typeof process.env.NEXT_PUBLIC_APP_BASE_URL === 'string'
+      ? process.env.NEXT_PUBLIC_APP_BASE_URL.trim()
+      : '';
   if (pub) {
     try {
       const o = new URL(pub).origin;
@@ -70,15 +72,15 @@ function MarkdownDeferredLibraryMedia({
   href: string;
   children: ReactNode;
   className?: string | undefined;
-  anchorProps: Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "href" | "children">;
+  anchorProps: Omit<AnchorHTMLAttributes<HTMLAnchorElement>, 'href' | 'children'>;
 }) {
   const { className: anchorClassName, ...anchorRest } = anchorProps;
 
   const [resolved, setResolved] = useState<
-    | { kind: "link" }
-    | { kind: "video"; mediaId: string; payload: MediaPlaybackPayload }
-    | { kind: "audio"; src: string }
-  >({ kind: "link" });
+    | { kind: 'link' }
+    | { kind: 'video'; mediaId: string; payload: MediaPlaybackPayload }
+    | { kind: 'audio'; src: string }
+  >({ kind: 'link' });
 
   useEffect(() => {
     let cancelled = false;
@@ -89,16 +91,16 @@ function MarkdownDeferredLibraryMedia({
     void (async () => {
       try {
         const res = await fetch(`/api/media/${encodeURIComponent(mediaId)}/playback`, {
-          credentials: "same-origin",
+          credentials: 'same-origin',
         });
         if (!res.ok) return;
         const json: unknown = await res.json();
         if (cancelled || !isPlaybackPayload(json)) return;
         const mime = json.mimeType.toLowerCase();
-        if (mime.startsWith("video/")) {
-          setResolved({ kind: "video", mediaId, payload: json });
-        } else if (mime.startsWith("audio/")) {
-          setResolved({ kind: "audio", src: json.mp4.url });
+        if (mime.startsWith('video/')) {
+          setResolved({ kind: 'video', mediaId, payload: json });
+        } else if (mime.startsWith('audio/')) {
+          setResolved({ kind: 'audio', src: json.mp4.url });
         }
       } catch {
         /* остаёмся ссылкой */
@@ -110,9 +112,11 @@ function MarkdownDeferredLibraryMedia({
     };
   }, [href]);
 
-  if (resolved.kind === "video") {
+  if (resolved.kind === 'video') {
     return (
-      <div className={cn("markdown-library-video my-3 w-full max-w-full", className, anchorClassName)}>
+      <div
+        className={cn('markdown-library-video my-3 w-full max-w-full', className, anchorClassName)}
+      >
         <PatientMediaPlaybackVideo
           mediaId={resolved.mediaId}
           mp4Url={`/api/media/${resolved.mediaId}`}
@@ -124,10 +128,17 @@ function MarkdownDeferredLibraryMedia({
     );
   }
 
-  if (resolved.kind === "audio") {
+  if (resolved.kind === 'audio') {
     return (
-      <div className={cn("markdown-library-audio my-3 w-full max-w-full", className, anchorClassName)}>
-        <audio controls preload="metadata" className="w-full max-w-full rounded-lg" src={resolved.src} />
+      <div
+        className={cn('markdown-library-audio my-3 w-full max-w-full', className, anchorClassName)}
+      >
+        <audio
+          controls
+          preload="metadata"
+          className="w-full max-w-full rounded-lg"
+          src={resolved.src}
+        />
       </div>
     );
   }
@@ -139,7 +150,7 @@ function MarkdownDeferredLibraryMedia({
   );
 }
 
-export const MarkdownEmbeddedLink: Components["a"] = ({
+export const MarkdownEmbeddedLink: Components['a'] = ({
   href,
   children,
   className,
@@ -157,7 +168,7 @@ export const MarkdownEmbeddedLink: Components["a"] = ({
   const hostedEmbedSrc = toYoutubeEmbedSrc(href) ?? toRutubeEmbedSrc(href);
   if (hostedEmbedSrc && hostedIframeOriginAllowed(hostedEmbedSrc)) {
     return (
-      <span className={cn("markdown-host-embed my-3 block w-full max-w-full", className)}>
+      <span className={cn('markdown-host-embed my-3 block w-full max-w-full', className)}>
         <div className="relative aspect-video w-full overflow-hidden rounded-lg">
           <iframe
             src={hostedEmbedSrc}

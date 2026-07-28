@@ -78,7 +78,12 @@ async function fetchRemindersGet<T>(
   };
   try {
     const res = await fetch(url, { method: 'GET', headers });
-    const data = (await res.json().catch(() => ({}))) as { ok?: boolean; rules?: WebappRuleRow[]; rule?: WebappRuleRow | null; history?: WebappHistoryRow[] };
+    const data = (await res.json().catch(() => ({}))) as {
+      ok?: boolean;
+      rules?: WebappRuleRow[];
+      rule?: WebappRuleRow | null;
+      history?: WebappHistoryRow[];
+    };
     return { ok: res.ok && data.ok === true, data: data as T, status: res.status };
   } catch {
     return { ok: false, status: 0 };
@@ -97,18 +102,24 @@ function mapRule(row: WebappRuleRow, fallbackTz: string): ReminderRuleListItem {
     windowStartMinute: typeof row.windowStartMinute === 'number' ? row.windowStartMinute : 0,
     windowEndMinute: typeof row.windowEndMinute === 'number' ? row.windowEndMinute : 1440,
     daysMask: typeof row.daysMask === 'string' ? row.daysMask : '1111111',
-    contentMode: (typeof row.contentMode === 'string' ? row.contentMode : 'none') as ReminderContentMode,
+    contentMode: (typeof row.contentMode === 'string'
+      ? row.contentMode
+      : 'none') as ReminderContentMode,
     ...(typeof row.createdAt === 'string' ? { createdAt: row.createdAt } : {}),
     ...(typeof row.updatedAt === 'string' ? { updatedAt: row.updatedAt } : {}),
     ...(row.linkedObjectType != null ? { linkedObjectType: row.linkedObjectType } : {}),
     ...(row.linkedObjectId != null ? { linkedObjectId: row.linkedObjectId } : {}),
     ...(row.customTitle != null ? { customTitle: row.customTitle } : {}),
     ...(row.customText != null ? { customText: row.customText } : {}),
-    ...(typeof row.deepLink === 'string' && row.deepLink.trim().length > 0 ? { deepLink: row.deepLink.trim() } : {}),
+    ...(typeof row.deepLink === 'string' && row.deepLink.trim().length > 0
+      ? { deepLink: row.deepLink.trim() }
+      : {}),
     ...(typeof row.scheduleData !== 'undefined' ? { scheduleData: row.scheduleData } : {}),
     ...(typeof row.reminderIntent !== 'undefined' ? { reminderIntent: row.reminderIntent } : {}),
     ...(typeof row.displayTitle !== 'undefined' ? { displayTitle: row.displayTitle } : {}),
-    ...(typeof row.displayDescription !== 'undefined' ? { displayDescription: row.displayDescription } : {}),
+    ...(typeof row.displayDescription !== 'undefined'
+      ? { displayDescription: row.displayDescription }
+      : {}),
     ...(typeof row.notificationTopicCode === 'string'
       ? { notificationTopicCode: row.notificationTopicCode.trim() || null }
       : row.notificationTopicCode === null
@@ -152,11 +163,11 @@ export function createRemindersReadsPort(deps?: {
       if (!result.ok) {
         throw new Error(
           result.status === 403
-            ? "reminders.rules.forUser tenant denied"
+            ? 'reminders.rules.forUser tenant denied'
             : `reminders.rules.forUser unavailable (${result.status})`,
         );
       }
-      if (!result.data?.rules) throw new Error("reminders.rules.forUser invalid response");
+      if (!result.data?.rules) throw new Error('reminders.rules.forUser invalid response');
       const rows = Array.isArray(result.data.rules) ? result.data.rules : [];
       const needsTz = rows.some((r) => typeof r.timezone !== 'string');
       const fallbackTz = needsTz

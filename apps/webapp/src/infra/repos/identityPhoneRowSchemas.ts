@@ -1,27 +1,27 @@
-import { z } from "zod";
-import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
-import type { PhoneMessengerBindSecretRow } from "@/modules/auth/phoneMessengerBind.ports";
-import type { MessengerIdentityResolutionHints } from "@/modules/auth/identityResolutionPort";
-import type { ChannelContext } from "@/modules/auth/channelContext";
-import type { ChannelBindings } from "@/shared/types/session";
-import type { UserRole } from "@/shared/types/session";
+import { z } from 'zod';
+import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
+import type { PhoneMessengerBindSecretRow } from '@/modules/auth/phoneMessengerBind.ports';
+import type { MessengerIdentityResolutionHints } from '@/modules/auth/identityResolutionPort';
+import type { ChannelContext } from '@/modules/auth/channelContext';
+import type { ChannelBindings } from '@/shared/types/session';
+import type { UserRole } from '@/shared/types/session';
 
-const userRoleSchema = z.enum(["client", "doctor", "admin"]);
+const userRoleSchema = z.enum(['client', 'doctor', 'admin']);
 
-export const identityChannelCodeSchema = z.enum(["telegram", "max", "vk"]);
+export const identityChannelCodeSchema = z.enum(['telegram', 'max', 'vk']);
 
-export const userByPhoneChannelKindSchema = z.enum(["telegram", "vk", "max", "web"]);
+export const userByPhoneChannelKindSchema = z.enum(['telegram', 'vk', 'max', 'web']);
 
-export const messengerBindChannelSchema = z.enum(["telegram", "max"]);
+export const messengerBindChannelSchema = z.enum(['telegram', 'max']);
 
-export const messengerBindPurposeSchema = z.enum(["login", "profile_bind"]);
+export const messengerBindPurposeSchema = z.enum(['login', 'profile_bind']);
 
 export const messengerBindStatusSchema = z.enum([
-  "pending_contact",
-  "otp_ready",
-  "failed",
-  "consumed",
-  "expired",
+  'pending_contact',
+  'otp_ready',
+  'failed',
+  'consumed',
+  'expired',
 ]);
 
 export const messengerIdentityResolutionHintsSchema = z.object({
@@ -48,7 +48,7 @@ export const channelContextSchema = z.object({
 });
 
 export const channelBindingRowSchema = z.object({
-  channel_code: identityChannelCodeSchema.or(z.literal("vk")),
+  channel_code: identityChannelCodeSchema.or(z.literal('vk')),
   external_id: z.string(),
 });
 
@@ -163,34 +163,43 @@ export function parseUserRole(role: string, context: string): UserRole {
   return parseIdentityRow(userRoleSchema, role, context);
 }
 
-export function parseChannelBindingLookupParams(
-  params: { channelCode: string; externalId: string },
-): z.infer<typeof channelBindingLookupParamsSchema> {
-  return parseIdentityRow(channelBindingLookupParamsSchema, params, "channel_binding_lookup");
+export function parseChannelBindingLookupParams(params: {
+  channelCode: string;
+  externalId: string;
+}): z.infer<typeof channelBindingLookupParamsSchema> {
+  return parseIdentityRow(channelBindingLookupParamsSchema, params, 'channel_binding_lookup');
 }
 
 export function parseFindOrCreateByChannelBindingParams(
   params: z.input<typeof findOrCreateByChannelBindingParamsSchema>,
 ): z.infer<typeof findOrCreateByChannelBindingParamsSchema> {
-  return parseIdentityRow(findOrCreateByChannelBindingParamsSchema, params, "find_or_create_by_channel_binding");
+  return parseIdentityRow(
+    findOrCreateByChannelBindingParamsSchema,
+    params,
+    'find_or_create_by_channel_binding',
+  );
 }
 
 export function parseChannelContext(context: ChannelContext): ChannelContext {
-  return parseIdentityRow(channelContextSchema, context, "channel_context");
+  return parseIdentityRow(channelContextSchema, context, 'channel_context');
 }
 
 export function parseMessengerIdentityResolutionHints(
   hints: MessengerIdentityResolutionHints | undefined,
 ): MessengerIdentityResolutionHints | undefined {
   if (hints == null) return undefined;
-  return parseIdentityRow(messengerIdentityResolutionHintsSchema, hints, "resolution_hints");
+  return parseIdentityRow(messengerIdentityResolutionHintsSchema, hints, 'resolution_hints');
 }
 
 export function bindingsFromRows(rows: unknown[]): ChannelBindings {
   const bindings: ChannelBindings = {};
-  for (const row of parseIdentityRows(channelBindingRowSchema, rows, "channel_binding")) {
+  for (const row of parseIdentityRows(channelBindingRowSchema, rows, 'channel_binding')) {
     const key =
-      row.channel_code === "telegram" ? "telegramId" : row.channel_code === "max" ? "maxId" : "vkId";
+      row.channel_code === 'telegram'
+        ? 'telegramId'
+        : row.channel_code === 'max'
+          ? 'maxId'
+          : 'vkId';
     bindings[key] = row.external_id;
   }
   return bindings;
@@ -201,7 +210,11 @@ function isoOrString(value: Date | string): string {
 }
 
 export function mapPhoneMessengerBindSecretRow(row: unknown): PhoneMessengerBindSecretRow {
-  const parsed = parseIdentityRow(phoneMessengerBindSecretRowSchema, row, "phone_messenger_bind_secret");
+  const parsed = parseIdentityRow(
+    phoneMessengerBindSecretRowSchema,
+    row,
+    'phone_messenger_bind_secret',
+  );
   return {
     id: parsed.id,
     phone_normalized: parsed.phone_normalized,

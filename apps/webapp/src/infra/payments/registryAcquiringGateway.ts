@@ -17,9 +17,9 @@
  *   });
  */
 
-import { getPaymentProviderAdapter } from "./paymentProviderRegistry";
-import type { AcquiringGatewayPort } from "@/modules/patient-payments/ports";
-import type { BookingPaymentSettings } from "@/modules/payments/types";
+import { getPaymentProviderAdapter } from './paymentProviderRegistry';
+import type { AcquiringGatewayPort } from '@/modules/patient-payments/ports';
+import type { BookingPaymentSettings } from '@/modules/payments/types';
 
 export type AcquiringGatewayConfig = {
   /**
@@ -41,7 +41,7 @@ export function createRegistryAcquiringGateway(
 ): AcquiringGatewayPort {
   async function resolveProvider(explicitProviderId?: string) {
     const settings = await config.getConfig();
-    if (!settings.enabled) throw new Error("payments_disabled");
+    if (!settings.enabled) throw new Error('payments_disabled');
     const id = (explicitProviderId ?? settings.defaultProviderId).trim();
     const providerCfg = settings.providers.find((p) => p.id === id && p.enabled);
     if (!providerCfg) throw new Error(`payment_provider_unavailable:${id}`);
@@ -52,7 +52,7 @@ export function createRegistryAcquiringGateway(
   return {
     async createCharge(input) {
       const explicitProvider =
-        typeof input.metadata?.providerId === "string" ? input.metadata.providerId : undefined;
+        typeof input.metadata?.providerId === 'string' ? input.metadata.providerId : undefined;
       let adapter;
       let providerCfg;
       try {
@@ -60,15 +60,13 @@ export function createRegistryAcquiringGateway(
       } catch (err) {
         return {
           ok: false,
-          reason: err instanceof Error ? err.message : "provider_error",
+          reason: err instanceof Error ? err.message : 'provider_error',
         };
       }
 
       try {
         const returnUrl =
-          typeof input.metadata?.returnUrl === "string"
-            ? input.metadata.returnUrl
-            : undefined;
+          typeof input.metadata?.returnUrl === 'string' ? input.metadata.returnUrl : undefined;
         const result = await adapter.createIntent({
           amountMinor: input.amountMinor,
           currency: input.currency,
@@ -89,7 +87,7 @@ export function createRegistryAcquiringGateway(
       } catch (err) {
         return {
           ok: false,
-          reason: err instanceof Error ? err.message : "provider_error",
+          reason: err instanceof Error ? err.message : 'provider_error',
         };
       }
     },
@@ -102,7 +100,7 @@ export function createRegistryAcquiringGateway(
       } catch (err) {
         return {
           ok: false,
-          reason: err instanceof Error ? err.message : "provider_error",
+          reason: err instanceof Error ? err.message : 'provider_error',
         };
       }
 
@@ -118,7 +116,7 @@ export function createRegistryAcquiringGateway(
       } catch (err) {
         return {
           ok: false,
-          reason: err instanceof Error ? err.message : "provider_error",
+          reason: err instanceof Error ? err.message : 'provider_error',
         };
       }
     },
@@ -130,7 +128,7 @@ export function createRegistryAcquiringGateway(
       // This method exists to satisfy the interface; patient-payments acquiring webhook
       // should route through /api/payments/webhook/[provider] (booking route) which
       // already handles verification via PaymentProviderPort.
-      throw new Error("use_booking_webhook_route_for_verification");
+      throw new Error('use_booking_webhook_route_for_verification');
     },
   };
 }

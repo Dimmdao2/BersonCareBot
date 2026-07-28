@@ -23,10 +23,7 @@ function hangingFetch(onRelease: () => void): typeof fetch {
   );
 }
 
-function fetchWithHangingBody(
-  bodyMethod: 'json' | 'text',
-  onRelease: () => void,
-): typeof fetch {
+function fetchWithHangingBody(bodyMethod: 'json' | 'text', onRelease: () => void): typeof fetch {
   return vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
     const waitForAbort = (): Promise<never> =>
       new Promise((_resolve, reject) => {

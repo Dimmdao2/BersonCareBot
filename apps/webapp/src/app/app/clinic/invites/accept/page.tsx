@@ -1,4 +1,4 @@
-import { InviteAcceptClient } from "./InviteAcceptClient";
+import { InviteAcceptClient } from './InviteAcceptClient';
 
 type PageProps = {
   searchParams: Promise<{ token?: string }>;
@@ -6,5 +6,5 @@ type PageProps = {
 
 export default async function ClinicInviteAcceptPage({ searchParams }: PageProps) {
   const { token } = await searchParams;
-  return <InviteAcceptClient token={typeof token === "string" ? token : ""} />;
+  return <InviteAcceptClient token={typeof token === 'string' ? token : ''} />;
 }

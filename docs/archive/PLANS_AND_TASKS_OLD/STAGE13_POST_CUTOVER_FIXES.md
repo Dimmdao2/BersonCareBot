@@ -4,6 +4,7 @@
 Контекст: Stage 13 cutover выполнен на production 2026-03-20 15:02. Данные сейчас корректны, но полный аудит кодовой базы выявил ряд проблем, которые необходимо устранить до следующего деплоя.
 
 Связанные документы:
+
 - [DB_ZONES_RESTRUCTURE.md](./DB_ZONES_RESTRUCTURE.md) — общий план миграции
 - [STAGES_1-13_AUDIT_REPORT.md](./STAGES_1-13_AUDIT_REPORT.md) — ревизия этапов 1–13
 - [STAGE13_OWNERSHIP_MAP.md](../ARCHITECTURE/STAGE13_OWNERSHIP_MAP.md) — финальная карта владения
@@ -13,18 +14,18 @@
 
 ## Статус прода (на момент аудита)
 
-| Показатель | Значение |
-|-----------|----------|
-| Users backfilled | 16 |
-| Conversations | 12 |
-| Messages | 78 |
-| Questions | 10 |
-| Question messages | 19 |
-| Delivery events | 816 (813 backfill + 3 projection) |
-| Appointments | 53 |
-| Reconcile drift | 0 missing по всем доменам |
-| Projection dead | 0 |
-| stage13-gate | OK |
+| Показатель        | Значение                          |
+| ----------------- | --------------------------------- |
+| Users backfilled  | 16                                |
+| Conversations     | 12                                |
+| Messages          | 78                                |
+| Questions         | 10                                |
+| Question messages | 19                                |
+| Delivery events   | 816 (813 backfill + 3 projection) |
+| Appointments      | 53                                |
+| Reconcile drift   | 0 missing по всем доменам         |
+| Projection dead   | 0                                 |
+| stage13-gate      | OK                                |
 
 Prod работает корректно. Исправления ниже предотвращают проблемы при повторном запуске, при дрифте данных и при будущих операциях.
 
@@ -35,7 +36,8 @@ Prod работает корректно. Исправления ниже пре
 ### A1. Delivery events: не идемпотентный backfill
 
 **Файлы:**
-- `apps/webapp/migrations/013_delivery_events_idempotency.sql` *(новый)*
+
+- `apps/webapp/migrations/013_delivery_events_idempotency.sql` _(новый)_
 - `apps/webapp/scripts/backfill-communication-history.mjs`
 
 **Проблема:**
@@ -44,6 +46,7 @@ Prod работает корректно. Исправления ниже пре
 **Шаги:**
 
 1. Создать миграцию `013_delivery_events_idempotency.sql`:
+
    ```sql
    -- Deduplicate existing delivery events before adding constraint.
    -- Keep the earliest row per integrator_intent_event_id.
@@ -59,6 +62,7 @@ Prod работает корректно. Исправления ниже пре
    ```
 
 2. В `backfill-communication-history.mjs`, функция `backfillDeliveryAttemptLogs()` — заменить INSERT на:
+
    ```sql
    INSERT INTO support_delivery_events (
      integrator_intent_event_id, correlation_id, channel_code, status, attempt,
@@ -78,10 +82,12 @@ Prod работает корректно. Исправления ниже пре
 ### A2. identity_id → user_id путаница в backfill conversations
 
 **Файлы:**
+
 - `apps/webapp/scripts/backfill-communication-history.mjs`
 
 **Проблема:**
 `conversations.user_identity_id` — это FK на `identities(id)`, а не `users(id)`. Скрипт передаёт его в `resolveWebappPlatformUserId()`, который ищет `platform_users WHERE integrator_user_id = $1` (там хранится `users.id`). Результат:
+
 - `platform_user_id` в `support_conversations` = NULL (если identity_id ≠ user_id)
 - `integrator_user_id` в `support_conversations` содержит identity_id, а не user_id
 
@@ -90,22 +96,25 @@ Prod работает корректно. Исправления ниже пре
 **Шаги:**
 
 1. В функции `backfillConversations()` — изменить SELECT, добавив JOIN на identities:
+
    ```javascript
    const { rows } = await src.query(
      `SELECT c.id, c.source, i.user_id, c.admin_scope, c.status,
              c.opened_at, c.last_message_at, c.closed_at, c.close_reason
       FROM conversations c
       LEFT JOIN identities i ON i.id = c.user_identity_id
-      ORDER BY c.opened_at ASC${limitClause}`
+      ORDER BY c.opened_at ASC${limitClause}`,
    );
    ```
 
 2. Обновить строку 63: `row.user_identity_id` → `row.user_id`:
+
    ```javascript
    const platformUserId = await resolveWebappPlatformUserId(row.user_id);
    ```
 
 3. Обновить строку 81: параметр `integrator_user_id`:
+
    ```javascript
    row.user_id ? String(row.user_id) : null,
    ```
@@ -121,6 +130,7 @@ Prod работает корректно. Исправления ниже пре
 ### A3. Reconcile person: fieldDrift и extraInWebapp игнорируются
 
 **Файлы:**
+
 - `apps/webapp/scripts/reconcile-person-domain.mjs`
 
 **Проблема:**
@@ -129,6 +139,7 @@ Exit code зависит только от `missingInWebappCount`. `fieldDriftCo
 **Шаги:**
 
 1. Заменить блок exit code (строки 218-224):
+
    ```javascript
    const totalLegacy = report.totalLegacyUsers || 0;
    const missing = report.missingInWebappCount || 0;
@@ -139,8 +150,12 @@ Exit code зависит только от `missingInWebappCount`. `fieldDriftCo
    const hasMissing = missing > 0;
    const hasDrift = drift > 0;
    const exitCode = overThreshold || hasMissing || hasDrift ? 1 : 0;
-   if (hasDrift) console.error(`[reconcile-person-domain] fieldDrift: ${drift} records with mismatched fields`);
-   if (extra > 0) console.warn(`[reconcile-person-domain] warning: ${extra} extra records in webapp not in integrator`);
+   if (hasDrift)
+     console.error(`[reconcile-person-domain] fieldDrift: ${drift} records with mismatched fields`);
+   if (extra > 0)
+     console.warn(
+       `[reconcile-person-domain] warning: ${extra} extra records in webapp not in integrator`,
+     );
    process.exit(exitCode);
    ```
 
@@ -155,6 +170,7 @@ Exit code зависит только от `missingInWebappCount`. `fieldDriftCo
 ### A4. Reconcile subscription-mailing: только COUNT без ID matching
 
 **Файлы:**
+
 - `apps/webapp/scripts/reconcile-subscription-mailing-domain.mjs`
 
 **Проблема:**
@@ -163,27 +179,28 @@ Exit code зависит только от `missingInWebappCount`. `fieldDriftCo
 **Шаги:**
 
 1. Заменить count-only проверку на ID-set matching:
+
    ```javascript
    const pairs = [
      {
-       name: "mailing_topics",
-       srcQuery: "SELECT id FROM mailing_topics",
-       srcKey: "id",
-       tgtQuery: "SELECT integrator_topic_id FROM mailing_topics_webapp",
-       tgtKey: "integrator_topic_id",
+       name: 'mailing_topics',
+       srcQuery: 'SELECT id FROM mailing_topics',
+       srcKey: 'id',
+       tgtQuery: 'SELECT integrator_topic_id FROM mailing_topics_webapp',
+       tgtKey: 'integrator_topic_id',
      },
      {
-       name: "user_subscriptions",
-       srcQuery: "SELECT user_id, topic_id FROM user_subscriptions",
+       name: 'user_subscriptions',
+       srcQuery: 'SELECT user_id, topic_id FROM user_subscriptions',
        srcKeyFn: (r) => `${r.user_id}:${r.topic_id}`,
-       tgtQuery: "SELECT integrator_user_id, integrator_topic_id FROM user_subscriptions_webapp",
+       tgtQuery: 'SELECT integrator_user_id, integrator_topic_id FROM user_subscriptions_webapp',
        tgtKeyFn: (r) => `${r.integrator_user_id}:${r.integrator_topic_id}`,
      },
      {
-       name: "mailing_logs",
-       srcQuery: "SELECT user_id, mailing_id FROM mailing_logs",
+       name: 'mailing_logs',
+       srcQuery: 'SELECT user_id, mailing_id FROM mailing_logs',
        srcKeyFn: (r) => `${r.user_id}:${r.mailing_id}`,
-       tgtQuery: "SELECT integrator_user_id, integrator_mailing_id FROM mailing_logs_webapp",
+       tgtQuery: 'SELECT integrator_user_id, integrator_mailing_id FROM mailing_logs_webapp',
        tgtKeyFn: (r) => `${r.integrator_user_id}:${r.integrator_mailing_id}`,
      },
    ];
@@ -191,15 +208,16 @@ Exit code зависит только от `missingInWebappCount`. `fieldDriftCo
    for (const p of pairs) {
      const srcRes = await integrator.query(p.srcQuery);
      const tgtRes = await webapp.query(p.tgtQuery);
-     const toKey = (rows, keyFn, keyCol) =>
-       new Set(rows.map(keyFn ?? ((r) => String(r[keyCol]))));
+     const toKey = (rows, keyFn, keyCol) => new Set(rows.map(keyFn ?? ((r) => String(r[keyCol]))));
      const srcSet = toKey(srcRes.rows, p.srcKeyFn, p.srcKey);
      const tgtSet = toKey(tgtRes.rows, p.tgtKeyFn, p.tgtKey);
      const missing = [...srcSet].filter((k) => !tgtSet.has(k));
      const diff = missing.length;
      const pct = srcSet.size > 0 ? (diff / srcSet.size) * 100 : 0;
      const ok = pct <= maxMismatchPercent;
-     console.log(`${p.name}: source=${srcSet.size} target=${tgtSet.size} missing=${diff} ${pct.toFixed(1)}% ${ok ? "ok" : "MISMATCH"}`);
+     console.log(
+       `${p.name}: source=${srcSet.size} target=${tgtSet.size} missing=${diff} ${pct.toFixed(1)}% ${ok ? 'ok' : 'MISMATCH'}`,
+     );
      if (!ok) exitCode = 1;
    }
    ```
@@ -215,6 +233,7 @@ Exit code зависит только от `missingInWebappCount`. `fieldDriftCo
 ### B1. Cutover: reconcile запускается в dry-run-only режиме
 
 **Файлы:**
+
 - `deploy/host/run-stage13-cutover.sh`
 
 **Проблема:**
@@ -223,6 +242,7 @@ Exit code зависит только от `missingInWebappCount`. `fieldDriftCo
 **Шаги:**
 
 1. Обернуть reconcile + gate в условие (заменить строки 91-98):
+
    ```bash
    if [ "${DRY_RUN_ONLY}" -eq 0 ]; then
      run_step "reconcile-person-domain" pnpm --dir apps/webapp run reconcile-person-domain
@@ -246,7 +266,8 @@ Exit code зависит только от `missingInWebappCount`. `fieldDriftCo
 ### B2. projection_outbox: нет UNIQUE на idempotency_key
 
 **Файлы:**
-- `apps/integrator/src/infra/db/migrations/core/20260320_0001_outbox_idempotency_key_unique.sql` *(новый)*
+
+- `apps/integrator/src/infra/db/migrations/core/20260320_0001_outbox_idempotency_key_unique.sql` _(новый)_
 
 **Проблема:**
 При retry бизнес-операции (webhook replay) в outbox вставляется дублирующая строка. Webapp idempotency cache отклоняет доставку, но мёртвый вес копится и искажает health метрики.
@@ -254,6 +275,7 @@ Exit code зависит только от `missingInWebappCount`. `fieldDriftCo
 **Шаги:**
 
 1. Создать миграцию:
+
    ```sql
    -- Deduplicate before adding constraint.
    DELETE FROM projection_outbox a
@@ -274,6 +296,7 @@ Exit code зависит только от `missingInWebappCount`. `fieldDriftCo
 ### B2a. Projection delivery: `user.upserted` уходит в dead с `idempotency key reused with different payload`
 
 **Файлы:**
+
 - `apps/integrator/src/infra/runtime/worker/projectionWorker.ts`
 - `apps/integrator/src/infra/db/writePort.ts`
 - `apps/webapp/src/app/api/integrator/events/route.ts`
@@ -330,6 +353,7 @@ idempotency key reused with different payload
 ### B3. backfill-person-domain: --user-id генерирует невалидный SQL
 
 **Файлы:**
+
 - `apps/webapp/scripts/backfill-person-domain.mjs`
 
 **Проблема:**
@@ -338,8 +362,9 @@ idempotency key reused with different payload
 **Шаги:**
 
 1. Строка 90 — заменить:
+
    ```javascript
-   const userFilter = filterUserId ? "WHERE u.id = $1" : "";
+   const userFilter = filterUserId ? 'WHERE u.id = $1' : '';
    ```
 
 2. `pnpm run ci`
@@ -349,6 +374,7 @@ idempotency key reused with different payload
 ### B4. backfill-appointments-domain: нет try/finally
 
 **Файлы:**
+
 - `apps/webapp/scripts/backfill-appointments-domain.mjs`
 
 **Проблема:**
@@ -357,6 +383,7 @@ idempotency key reused with different payload
 **Шаги:**
 
 1. Обернуть основной цикл в функции `main()` (строки 48-83):
+
    ```javascript
    async function main() {
      await src.connect();
@@ -367,7 +394,7 @@ idempotency key reused with different payload
        await src.end();
        await dst.end();
      }
-     console.log(dryRun ? "[DRY-RUN] Done." : "Done.");
+     console.log(dryRun ? '[DRY-RUN] Done.' : 'Done.');
    }
    ```
 
@@ -378,6 +405,7 @@ idempotency key reused with different payload
 ### B5. Reconcile communication: delivery_events — count-only
 
 **Файлы:**
+
 - `apps/webapp/scripts/reconcile-communication-domain.mjs`
 
 **Проблема:**
@@ -386,12 +414,11 @@ idempotency key reused with different payload
 **Шаги:**
 
 1. После применения миграции A1 (UNIQUE INDEX на `integrator_intent_event_id`), заменить count-only на ID matching:
+
    ```javascript
-   const delSrc = await integratorClient.query(
-     "SELECT id FROM delivery_attempt_logs"
-   );
+   const delSrc = await integratorClient.query('SELECT id FROM delivery_attempt_logs');
    const delTgt = await webappClient.query(
-     "SELECT integrator_intent_event_id FROM support_delivery_events WHERE integrator_intent_event_id IS NOT NULL"
+     'SELECT integrator_intent_event_id FROM support_delivery_events WHERE integrator_intent_event_id IS NOT NULL',
    );
    const srcDelIds = new Set(delSrc.rows.map((r) => r.id));
    const tgtDelIds = new Set(delTgt.rows.map((r) => r.integrator_intent_event_id));
@@ -413,6 +440,7 @@ idempotency key reused with different payload
 ### B6. dotenv/config отсутствует в 3 backfill-скриптах
 
 **Файлы:**
+
 - `apps/webapp/scripts/backfill-communication-history.mjs`
 - `apps/webapp/scripts/backfill-reminders-domain.mjs`
 - `apps/webapp/scripts/backfill-appointments-domain.mjs`
@@ -443,6 +471,7 @@ idempotency key reused with different payload
 **Проблема:** Второй `source "${WEBAPP_ENV_FILE}"` перезаписывает общие переменные из `api.prod` (`NODE_ENV`, `LOG_LEVEL`).
 
 **Действие:** После загрузки webapp env — явно re-export только нужные переменные:
+
 ```bash
 export DATABASE_URL="${WEBAPP_DB_URL}"
 export INTEGRATOR_DATABASE_URL="${API_DB_URL}"
@@ -496,6 +525,7 @@ export NODE_ENV=production
 **Проблема:** Триггеры на `mailing_topics` / `user_subscriptions` блокируют ВСЕ записи, включая ручные корректирующие операции.
 
 **Действие:** Добавить проверку session variable:
+
 ```sql
 IF current_setting('app.stage13_bypass', true) = 'true' THEN RETURN NEW; END IF;
 ```
@@ -524,12 +554,12 @@ IF current_setting('app.stage13_bypass', true) = 'true' THEN RETURN NEW; END IF;
 
 ## Критерии приёмки
 
-- [x] `pnpm run ci` зелёный *(выполнено 2026-03-20)*
-- [x] Повторный запуск `backfill-*` скриптов (--commit) не создаёт дубликатов *(подтверждено на проде 2026-03-20: ON CONFLICT DO NOTHING/UPDATE, reconcile 0 missing)*
-- [x] `reconcile-*` скрипты обнаруживают field drift, extra records, ID mismatches *(подтверждено: fieldDrift=0, extra=2 warning)*
-- [x] `--dry-run-only` режим cutover-скрипта завершается успешно *(reconcile/gate пропускаются в dry-run)*
-- [x] На проде: identity_id → user_id маппинг корректен в support_conversations *(backfill --commit выполнен, ON CONFLICT DO UPDATE обновил данные)*
-- [x] Projection health: 0 dead, 0 pending *(22 dead archived — дубли user.upserted для webapp-native users 364943522, 7924656602)*
+- [x] `pnpm run ci` зелёный _(выполнено 2026-03-20)_
+- [x] Повторный запуск `backfill-*` скриптов (--commit) не создаёт дубликатов _(подтверждено на проде 2026-03-20: ON CONFLICT DO NOTHING/UPDATE, reconcile 0 missing)_
+- [x] `reconcile-*` скрипты обнаруживают field drift, extra records, ID mismatches _(подтверждено: fieldDrift=0, extra=2 warning)_
+- [x] `--dry-run-only` режим cutover-скрипта завершается успешно _(reconcile/gate пропускаются в dry-run)_
+- [x] На проде: identity_id → user_id маппинг корректен в support_conversations _(backfill --commit выполнен, ON CONFLICT DO UPDATE обновил данные)_
+- [x] Projection health: 0 dead, 0 pending _(22 dead archived — дубли user.upserted для webapp-native users 364943522, 7924656602)_
 
 **Фаза 1 выполнена:** A1, A2, A3, A4, B1, B3, B4, B5, B6.
 **Фаза 2 выполнена:** деплой + миграция 013 + backfill --commit + reconcile + stage13-gate OK (2026-03-20 18:24).

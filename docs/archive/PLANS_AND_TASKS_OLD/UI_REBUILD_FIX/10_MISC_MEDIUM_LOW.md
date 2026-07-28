@@ -34,11 +34,13 @@ async function seed() {
 ### 10.2: Catch-блоки в сервисах — добавить console.error
 
 **Файлы:**
+
 - `apps/webapp/src/modules/lessons/service.ts`
 - `apps/webapp/src/modules/emergency/service.ts`
 - `apps/webapp/src/modules/content-catalog/service.ts`
 
 В каждом `catch` блоке добавить:
+
 ```ts
 } catch (err) {
   console.error("content DB fallback:", err);
@@ -62,14 +64,16 @@ if (cards.length === 0) {
 **Файл:** `apps/webapp/src/app/app/settings/page.tsx`
 
 **Заменить:**
+
 ```ts
-const target = session?.user.role === "client" ? "/app/patient/profile" : "/app/doctor";
+const target = session?.user.role === 'client' ? '/app/patient/profile' : '/app/doctor';
 ```
 
 **На:**
+
 ```ts
-if (!session) redirect("/app");
-const target = session.user.role === "client" ? "/app/patient/profile" : "/app/doctor";
+if (!session) redirect('/app');
+const target = session.user.role === 'client' ? '/app/patient/profile' : '/app/doctor';
 ```
 
 ### 10.5: dev:doctor — добавить кнопку
@@ -77,6 +81,7 @@ const target = session.user.role === "client" ? "/app/patient/profile" : "/app/d
 **Файл:** `apps/webapp/src/app/app/page.tsx`
 
 Рядом с кнопкой "Как врач / админ" добавить:
+
 ```tsx
 <Link id="app-entry-dev-login-doctor-role" href="/app?t=dev:doctor" className="button">
   Как специалист

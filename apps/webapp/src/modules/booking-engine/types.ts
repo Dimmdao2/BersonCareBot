@@ -1,17 +1,17 @@
 export const APPOINTMENT_STATUSES = [
-  "created",
-  "awaiting_payment",
-  "paid",
-  "confirmed",
-  "rescheduled",
-  "cancelled_by_patient",
-  "cancelled_by_specialist",
-  "late_cancellation",
-  "no_show",
-  "completed",
-  "visit_confirmed",
-  "charged_to_package",
-  "manual_review_required",
+  'created',
+  'awaiting_payment',
+  'paid',
+  'confirmed',
+  'rescheduled',
+  'cancelled_by_patient',
+  'cancelled_by_specialist',
+  'late_cancellation',
+  'no_show',
+  'completed',
+  'visit_confirmed',
+  'charged_to_package',
+  'manual_review_required',
 ] as const;
 
 export type AppointmentStatus = (typeof APPOINTMENT_STATUSES)[number];
@@ -107,7 +107,7 @@ export type BeAppointment = {
   durationMinutes: number;
   chainId?: string | null;
   chainPosition?: number | null;
-  source: "native" | "imported" | "admin_manual" | "public_widget";
+  source: 'native' | 'imported' | 'admin_manual' | 'public_widget';
   status: AppointmentStatus;
   originalStartAt: string | null;
   rescheduleCount: number;
@@ -132,7 +132,7 @@ export type CreateAppointmentInput = {
   chainId?: string | null;
   /** Zero-based row position inside `chainId`. */
   chainPosition?: number | null;
-  source: BeAppointment["source"];
+  source: BeAppointment['source'];
   status?: AppointmentStatus;
   phoneNormalized?: string | null;
   actorId?: string | null;
@@ -153,14 +153,14 @@ type CreateManualPatientIdentityInput = {
 export type CreateManualPatientVisitInput = CreateManualPatientIdentityInput &
   (
     | {
-        kind: "scheduled";
+        kind: 'scheduled';
         appointment: Omit<
           CreateAppointmentInput,
-          "organizationId" | "platformUserId" | "phoneNormalized"
+          'organizationId' | 'platformUserId' | 'phoneNormalized'
         >;
       }
     | {
-        kind: "walk_in";
+        kind: 'walk_in';
         walkIn: {
           specialistId: string;
           visitedAt: string;
@@ -172,7 +172,7 @@ export type CreateManualPatientVisitInput = CreateManualPatientIdentityInput &
 type CreateManualPatientResult = {
   replayed: boolean;
   /** Manual staff creation never proves patient control of a portal identity. */
-  portalStatus: "not_activated" | "linked";
+  portalStatus: 'not_activated' | 'linked';
   patient: {
     userId: string;
     displayName: string;
@@ -187,12 +187,12 @@ type CreateManualPatientResult = {
 export type CreateManualPatientVisitResult = CreateManualPatientResult &
   (
     | {
-        kind: "scheduled";
+        kind: 'scheduled';
         appointment: BeAppointment;
         clinicalVisitId: null;
       }
     | {
-        kind: "walk_in";
+        kind: 'walk_in';
         appointment: null;
         clinicalVisitId: string;
       }

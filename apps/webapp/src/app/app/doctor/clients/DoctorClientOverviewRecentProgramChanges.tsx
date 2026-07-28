@@ -1,9 +1,12 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { formatBookingDateTimeShortStyleRu } from "@/shared/lib/formatBusinessDateTime";
-import { doctorClientOverviewPrimaryCardClass, doctorClientSectionTitleClass } from "./doctorClientCardChrome";
-import type { DoctorClientRecentProgramChangeRow } from "@/modules/doctor-client-card/types";
+import Link from 'next/link';
+import { formatBookingDateTimeShortStyleRu } from '@/shared/lib/formatBusinessDateTime';
+import {
+  doctorClientOverviewPrimaryCardClass,
+  doctorClientSectionTitleClass,
+} from './doctorClientCardChrome';
+import type { DoctorClientRecentProgramChangeRow } from '@/modules/doctor-client-card/types';
 
 type Props = {
   patientUserId: string;
@@ -22,7 +25,7 @@ export function DoctorClientOverviewRecentProgramChanges({
 }: Props) {
   if (rows.length === 0) return null;
 
-  const scopeQ = profileListScope ? `?scope=${encodeURIComponent(profileListScope)}` : "";
+  const scopeQ = profileListScope ? `?scope=${encodeURIComponent(profileListScope)}` : '';
   const href = `/app/doctor/clients/${encodeURIComponent(patientUserId)}/treatment-programs/${encodeURIComponent(instanceId)}${scopeQ}`;
 
   return (

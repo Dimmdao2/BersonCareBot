@@ -135,7 +135,8 @@ export async function runPatientOrganizationLifecycle(
   ) {
     fail('lifecycle_postcondition_failed');
   }
-  if (command === 'discharge' && result.status !== 'discharged') fail('lifecycle_postcondition_failed');
+  if (command === 'discharge' && result.status !== 'discharged')
+    fail('lifecycle_postcondition_failed');
   if (command === 'restore' && result.status !== 'active') fail('lifecycle_postcondition_failed');
   return result;
 }

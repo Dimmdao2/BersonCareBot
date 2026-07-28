@@ -2,8 +2,8 @@
  * PostgreSQL-backed idempotency store for integrator webhooks.
  * Atomic get/set; safe for multiple instances and restarts.
  */
-import { z } from "zod";
-import { runWebappPgText } from "@/infra/db/runWebappSql";
+import { z } from 'zod';
+import { runWebappPgText } from '@/infra/db/runWebappSql';
 
 const TTL_SEC = 24 * 60 * 60; // 24 hours
 const MAX_KEY_LENGTH = 256;
@@ -16,7 +16,7 @@ function parseIdempotencyResponseBody(raw: unknown): Record<string, unknown> {
 }
 
 export function isKeyValid(key: string): boolean {
-  return typeof key === "string" && key.length > 0 && key.length <= MAX_KEY_LENGTH;
+  return typeof key === 'string' && key.length > 0 && key.length <= MAX_KEY_LENGTH;
 }
 
 export type CachedResponseHit =

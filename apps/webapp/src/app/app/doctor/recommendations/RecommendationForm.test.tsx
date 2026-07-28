@@ -1,21 +1,21 @@
 /** @vitest-environment jsdom */
 
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
-import type { ReactNode } from "react";
-import type { Recommendation } from "@/modules/recommendations/types";
-import { EMPTY_RECOMMENDATION_USAGE_SNAPSHOT } from "@/modules/recommendations/types";
-import type { ArchiveRecommendationState, SaveRecommendationState } from "./actionsShared";
-import { RecommendationForm } from "./RecommendationForm";
-import { inMemoryReferencesPort } from "@/infra/repos/inMemoryReferences";
-import { RECOMMENDATION_TYPE_CATEGORY_CODE } from "@/modules/recommendations/recommendationDomain";
-import type { ReferenceItem } from "@/modules/references/types";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import type { ReactNode } from 'react';
+import type { Recommendation } from '@/modules/recommendations/types';
+import { EMPTY_RECOMMENDATION_USAGE_SNAPSHOT } from '@/modules/recommendations/types';
+import type { ArchiveRecommendationState, SaveRecommendationState } from './actionsShared';
+import { RecommendationForm } from './RecommendationForm';
+import { inMemoryReferencesPort } from '@/infra/repos/inMemoryReferences';
+import { RECOMMENDATION_TYPE_CATEGORY_CODE } from '@/modules/recommendations/recommendationDomain';
+import type { ReferenceItem } from '@/modules/references/types';
 
-vi.mock("@/shared/ui/doctor/ReferenceMultiSelect", () => ({
+vi.mock('@/shared/ui/doctor/ReferenceMultiSelect', () => ({
   ReferenceMultiSelect: () => <div data-testid="region-multi" />,
 }));
 
-vi.mock("@/shared/ui/doctor/markdown/MarkdownEditor", () => ({
+vi.mock('@/shared/ui/doctor/markdown/MarkdownEditor', () => ({
   MarkdownEditor: (props: {
     name: string;
     label?: ReactNode;
@@ -26,7 +26,7 @@ vi.mock("@/shared/ui/doctor/markdown/MarkdownEditor", () => ({
     maxLength?: number;
   }) => (
     <label>
-      {props.label ?? "Содержимое"}
+      {props.label ?? 'Содержимое'}
       <textarea
         aria-label="Редактор"
         name={props.name}
@@ -48,23 +48,30 @@ beforeAll(async () => {
   );
 });
 
-vi.mock("./actions", async () => {
-  const actual = await vi.importActual<typeof import("./actions")>("./actions");
+vi.mock('./actions', async () => {
+  const actual = await vi.importActual<typeof import('./actions')>('./actions');
   return {
     ...actual,
-    fetchDoctorRecommendationUsageSnapshot: vi.fn(async () => ({ ...EMPTY_RECOMMENDATION_USAGE_SNAPSHOT })),
+    fetchDoctorRecommendationUsageSnapshot: vi.fn(async () => ({
+      ...EMPTY_RECOMMENDATION_USAGE_SNAPSHOT,
+    })),
   };
 });
 
 beforeEach(() => {
   vi.stubGlobal(
-    "fetch",
+    'fetch',
     vi.fn((input: RequestInfo | URL) => {
-      const u = typeof input === "string" ? input : input instanceof Request ? input.url : String(input);
-      if (u.includes("/api/doctor/references/body_region")) {
-        return Promise.resolve(new Response(JSON.stringify({ ok: true, items: [] }), { status: 200 }));
+      const u =
+        typeof input === 'string' ? input : input instanceof Request ? input.url : String(input);
+      if (u.includes('/api/doctor/references/body_region')) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ ok: true, items: [] }), { status: 200 }),
+        );
       }
-      return Promise.resolve(new Response(JSON.stringify({ ok: false, items: [] }), { status: 404 }));
+      return Promise.resolve(
+        new Response(JSON.stringify({ ok: false, items: [] }), { status: 404 }),
+      );
     }),
   );
 });
@@ -75,9 +82,9 @@ afterEach(() => {
 
 function makeRecommendation(over: Partial<Recommendation>): Recommendation {
   return {
-    id: "rec-1",
-    title: "T",
-    bodyMd: "b",
+    id: 'rec-1',
+    title: 'T',
+    bodyMd: 'b',
     media: [],
     tags: null,
     domain: null,
@@ -88,45 +95,55 @@ function makeRecommendation(over: Partial<Recommendation>): Recommendation {
     durationText: null,
     isArchived: false,
     createdBy: null,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z",
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
     ...over,
   };
 }
 
-describe("RecommendationForm", () => {
-  it("labels catalog type field as Тип", () => {
-    const saveAction = vi.fn(async (_prev: SaveRecommendationState | null): Promise<SaveRecommendationState> => ({
-      ok: true,
-    }));
+describe('RecommendationForm', () => {
+  it('labels catalog type field as Тип', () => {
+    const saveAction = vi.fn(
+      async (_prev: SaveRecommendationState | null): Promise<SaveRecommendationState> => ({
+        ok: true,
+      }),
+    );
     const archiveAction = vi.fn(
-      async (_prev: ArchiveRecommendationState | null, _fd: FormData): Promise<ArchiveRecommendationState> => ({
+      async (
+        _prev: ArchiveRecommendationState | null,
+        _fd: FormData,
+      ): Promise<ArchiveRecommendationState> => ({
         ok: true,
       }),
     );
     render(
       <RecommendationForm
         domainCatalogItems={recommendationTypeItems}
-        recommendation={makeRecommendation({ id: "x" })}
+        recommendation={makeRecommendation({ id: 'x' })}
         saveAction={saveAction}
         archiveAction={archiveAction}
       />,
     );
-    expect(screen.getByText("Тип")).toBeInTheDocument();
+    expect(screen.getByText('Тип')).toBeInTheDocument();
   });
 
-  it("resets title when recommendation id changes", () => {
-    const saveAction = vi.fn(async (_prev: SaveRecommendationState | null): Promise<SaveRecommendationState> => ({
-      ok: true,
-    }));
+  it('resets title when recommendation id changes', () => {
+    const saveAction = vi.fn(
+      async (_prev: SaveRecommendationState | null): Promise<SaveRecommendationState> => ({
+        ok: true,
+      }),
+    );
     const archiveAction = vi.fn(
-      async (_prev: ArchiveRecommendationState | null, _fd: FormData): Promise<ArchiveRecommendationState> => ({
+      async (
+        _prev: ArchiveRecommendationState | null,
+        _fd: FormData,
+      ): Promise<ArchiveRecommendationState> => ({
         ok: true,
       }),
     );
 
-    const a = makeRecommendation({ id: "a", title: "Alpha" });
-    const b = makeRecommendation({ id: "b", title: "Beta" });
+    const a = makeRecommendation({ id: 'a', title: 'Alpha' });
+    const b = makeRecommendation({ id: 'b', title: 'Beta' });
 
     const { rerender } = render(
       <RecommendationForm
@@ -136,7 +153,7 @@ describe("RecommendationForm", () => {
         archiveAction={archiveAction}
       />,
     );
-    expect(screen.getByLabelText(/^название$/i)).toHaveValue("Alpha");
+    expect(screen.getByLabelText(/^название$/i)).toHaveValue('Alpha');
 
     rerender(
       <RecommendationForm
@@ -146,6 +163,6 @@ describe("RecommendationForm", () => {
         archiveAction={archiveAction}
       />,
     );
-    expect(screen.getByLabelText(/^название$/i)).toHaveValue("Beta");
+    expect(screen.getByLabelText(/^название$/i)).toHaveValue('Beta');
   });
 });

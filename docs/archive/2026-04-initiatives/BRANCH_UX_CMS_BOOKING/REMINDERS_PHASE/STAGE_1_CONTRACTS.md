@@ -9,21 +9,26 @@
 **Цель:** добавить объектную привязку напоминаний и поля для произвольного напоминания без ломки существующих категорий.
 
 **Предусловия:**
+
 - Текущий `ReminderRule` в `apps/webapp/src/modules/reminders/types.ts` содержит только категорийную модель.
 - Таблица `reminder_rules` уже существует (`apps/webapp/migrations/010_reminders_content_access.sql`).
 
 **Файлы для изменения:**
+
 1. `apps/webapp/src/modules/reminders/types.ts` - расширение типа `ReminderRule`.
 2. `apps/webapp/src/modules/reminders/ports.ts` - расширение контрактов порта чтения/CRUD.
 3. `apps/webapp/src/modules/reminders/service.ts` - валидация матрицы полей объекта.
 
 **Файлы для создания:**
+
 1. `docs/BRANCH_UX_CMS_BOOKING/REMINDERS_PHASE/STAGE_1_CONTRACTS.md` - текущая спецификация.
 
 **Файлы для удаления:**
+
 - Не требуются.
 
 **Детальное описание:**
+
 1. Ввести новый enum доменной привязки:
    - `linkedObjectType`: `"lfk_complex" | "content_section" | "content_page" | "custom" | null`
 2. Добавить новые поля в `ReminderRule`:
@@ -44,16 +49,16 @@
 
 ```ts
 type ReminderLinkedObjectType =
-  | "lfk_complex"
-  | "content_section"
-  | "content_page"
-  | "custom"
+  | 'lfk_complex'
+  | 'content_section'
+  | 'content_page'
+  | 'custom'
   | null;
 
 type ReminderRule = {
   id: string;
   integratorUserId: string;
-  category: "appointment" | "lfk" | "chat" | "important" | "broadcast";
+  category: 'appointment' | 'lfk' | 'chat' | 'important' | 'broadcast';
   enabled: boolean;
   intervalMinutes: number | null;
   windowStartMinute: number;
@@ -67,15 +72,18 @@ type ReminderRule = {
   updatedAt: string;
 };
 ```
+
 6. Явное соответствие имен:
    - DB: `linked_object_type`, `linked_object_id`, `custom_title`, `custom_text`
    - API/TS: `linkedObjectType`, `linkedObjectId`, `customTitle`, `customText`
 
 **Тесты:**
+
 - [ ] Unit: валидация матрицы `linkedObjectType -> required fields`.
 - [ ] Unit: legacy-правило (`linkedObjectType = null`) не ломает существующий UI.
 
 **Критерии готовности:**
+
 - [ ] Тип `ReminderRule` содержит 4 новых поля.
 - [ ] Документирована матрица валидности полей.
 - [ ] Совместимость с текущими категориями сохранена.
@@ -87,19 +95,24 @@ type ReminderRule = {
 **Цель:** расширить схему webapp для объектных/пользовательских напоминаний и журнала действий пользователя.
 
 **Предусловия:**
+
 - Существует `reminder_rules` и `reminder_occurrence_history`.
 - `integrator_occurrence_id` в `reminder_occurrence_history` уникален.
 
 **Файлы для изменения:**
+
 1. `apps/webapp/migrations/` - добавить draft-миграцию расширения.
 
 **Файлы для создания:**
+
 1. `apps/webapp/migrations/050_reminder_rules_object_links_and_journal.sql` (draft SQL, не apply в рамках S1).
 
 **Файлы для удаления:**
+
 - Не требуются.
 
 **Детальное описание:**
+
 1. Расширить `reminder_rules` полями объектной привязки и custom-текста.
 2. Создать `reminder_journal` для фиксации пользовательских действий:
    - `done`, `skipped`, `snoozed`
@@ -254,11 +267,13 @@ CREATE INDEX IF NOT EXISTS idx_user_reminder_rules_enabled
 ```
 
 **Тесты:**
+
 - [ ] Прогон миграции на существующей базе без ошибок.
 - [ ] Проверка, что legacy-строки `reminder_rules` не падают на новых constraints.
 - [ ] Проверка `reminder_journal` insert для `done/skipped/snoozed`.
 
 **Критерии готовности:**
+
 - [ ] Поля `linked_object_*`, `custom_*` добавлены в схему.
 - [ ] Таблица `reminder_journal` создана с индексами и constraints.
 - [ ] SQL полностью готов как draft-миграция.
@@ -270,19 +285,24 @@ CREATE INDEX IF NOT EXISTS idx_user_reminder_rules_enabled
 **Цель:** хранить последнюю информацию о snooze/skip на уровне occurrence, при детальной истории в `reminder_journal`.
 
 **Предусловия:**
+
 - Существует `reminder_occurrence_history`.
 - Добавлен `seen_at` (`032_reminder_seen_status.sql`).
 
 **Файлы для изменения:**
+
 1. `apps/webapp/migrations/` - добавить draft ALTER-миграцию.
 
 **Файлы для создания:**
+
 1. `apps/webapp/migrations/051_reminder_occurrence_actions.sql` (draft SQL, не apply в рамках S1).
 
 **Файлы для удаления:**
+
 - Не требуются.
 
 **Детальное описание:**
+
 1. Добавить поля:
    - `snoozed_at`
    - `snoozed_until`
@@ -345,10 +365,12 @@ COMMIT;
 ```
 
 **Тесты:**
+
 - [ ] Прогон ALTER на базе с данными из `reminder_occurrence_history`.
 - [ ] Проверка insert/update snooze и skip полей.
 
 **Критерии готовности:**
+
 - [ ] Поля snooze/skip добавлены.
 - [ ] Есть индексы и ограничения консистентности.
 - [ ] Draft SQL готов для ревью.
@@ -360,19 +382,24 @@ COMMIT;
 **Цель:** зафиксировать request/response схемы для CRUD и действий по напоминаниям до реализации route handlers.
 
 **Предусловия:**
+
 - Вышеописанные изменения модели/схемы согласованы.
 - Доступ пациента проверяется через `requirePatientAccess`.
 
 **Файлы для изменения:**
+
 1. `docs/BRANCH_UX_CMS_BOOKING/REMINDERS_PHASE/STAGE_1_CONTRACTS.md` - спецификация API.
 
 **Файлы для создания:**
+
 - Не требуются (в рамках S1 достаточно контракта).
 
 **Файлы для удаления:**
+
 - Не требуются.
 
 **Детальное описание:**
+
 1. Новые endpoint-ы:
    - `POST /api/patient/reminders/create`
    - `PATCH /api/patient/reminders/:id`
@@ -399,6 +426,7 @@ COMMIT;
 ### 1) `POST /api/patient/reminders/create`
 
 Request:
+
 ```json
 {
   "type": "object",
@@ -429,6 +457,7 @@ Request:
 ```
 
 Response `201`:
+
 ```json
 {
   "type": "object",
@@ -475,6 +504,7 @@ Response `201`:
 ### 2) `PATCH /api/patient/reminders/:id`
 
 Request:
+
 ```json
 {
   "type": "object",
@@ -499,6 +529,7 @@ Request:
 ```
 
 Response `200`:
+
 ```json
 {
   "type": "object",
@@ -526,6 +557,7 @@ Response `200`:
 ### 3) `DELETE /api/patient/reminders/:id`
 
 Response `200`:
+
 ```json
 {
   "type": "object",
@@ -541,6 +573,7 @@ Response `200`:
 ### 4) `GET /api/patient/reminders/list`
 
 Response `200`:
+
 ```json
 {
   "type": "object",
@@ -597,6 +630,7 @@ Response `200`:
 ### 5) `POST /api/patient/reminders/:id/snooze`
 
 Request:
+
 ```json
 {
   "type": "object",
@@ -609,6 +643,7 @@ Request:
 ```
 
 Response `200`:
+
 ```json
 {
   "type": "object",
@@ -625,6 +660,7 @@ Response `200`:
 ### 6) `POST /api/patient/reminders/:id/skip`
 
 Request:
+
 ```json
 {
   "type": "object",
@@ -640,6 +676,7 @@ Request:
 Назначение: список действий (`done/skipped/snoozed`) для patient-истории.
 
 Response `200`:
+
 ```json
 {
   "type": "object",
@@ -672,6 +709,7 @@ Response `200`:
 Назначение: агрегаты для UI "выполнено/пропущено/отложено".
 
 Response `200`:
+
 ```json
 {
   "type": "object",
@@ -693,9 +731,11 @@ Response `200`:
 ```
 
 Контракт происхождения действия `done`:
+
 - `done` фиксируется не из текущей inline-клавиатуры напоминания (MVP S3), а из целевого action в webapp (например, отметка занятия ЛФК после перехода по deep link) через `reminder_journal(action='done')` с привязкой к `occurrenceId`, если он доступен.
 
 Response `200`:
+
 ```json
 {
   "type": "object",
@@ -710,10 +750,12 @@ Response `200`:
 ```
 
 **Тесты:**
+
 - [ ] Route tests на валидацию schema и коды ответов.
 - [ ] Service tests на create/update/delete/snooze/skip.
 
 **Критерии готовности:**
+
 - [ ] Все 6 endpoint-ов имеют зафиксированные schema.
 - [ ] В контрактах нет неоднозначности по `:id`.
 - [ ] Обработаны базовые коды ошибок.
@@ -725,21 +767,26 @@ Response `200`:
 **Цель:** зафиксировать единый UX кнопок напоминаний для Telegram/MAX и исключить неоднозначность callback payload.
 
 **Предусловия:**
+
 - Текущий `reminders.ts` отправляет текст без inline-кнопок.
 - MAX-адаптер уже умеет маппить Telegram `inline_keyboard` в MAX payload.
 
 **Файлы для изменения:**
+
 1. `apps/integrator/src/kernel/domain/executor/handlers/reminders.ts` - формирование `replyMarkup`.
 2. `apps/integrator/src/integrations/telegram/mapIn.ts` - парсинг новых callback action.
 3. `apps/integrator/src/integrations/max/deliveryAdapter.ts` - проверка совместимости callback payload.
 
 **Файлы для создания:**
+
 - Не требуются.
 
 **Файлы для удаления:**
+
 - Не требуются.
 
 **Детальное описание:**
+
 1. Основной layout уведомления:
 
 ```text
@@ -783,11 +830,13 @@ Response `200`:
    - после сохранения причины: обязательный ack (`"Причина сохранена"`) и перевод состояния в `idle` (terminal step, без циклов)
 
 **Тесты:**
+
 - [ ] Unit: callback parser (`mapIn`) для `rem_open/rem_snooze/rem_skip/rem_skip_r`.
 - [ ] Unit: проверка длины callback_data <= 64.
 - [ ] Integration: MAX payload эквивалентен Telegram inline layout.
 
 **Критерии готовности:**
+
 - [ ] Зафиксирован единый keyboard layout.
 - [ ] Зафиксирован callback-data контракт.
 - [ ] Описаны snooze/skip state transitions.
@@ -799,22 +848,27 @@ Response `200`:
 **Цель:** исключить автоматическую отправку текста админу без явного подтверждения пользователя.
 
 **Предусловия:**
+
 - В шаблонах есть `confirmQuestion`, `questionAccepted`, `questionCancelled`.
 - Текущий сценарий использует только кнопку "Отправить вопрос" (без "Нет").
 
 **Файлы для изменения:**
+
 1. `apps/integrator/src/content/telegram/user/templates.json` - текст подтверждения.
 2. `apps/integrator/src/content/telegram/user/scripts.json` - inline-кнопки `[Да] [Нет]`.
 3. `apps/integrator/src/kernel/domain/usecases/handleMessage.ts` - fallback-логика legacy flow.
 4. `apps/integrator/src/kernel/domain/usecases/handleUpdate.ts` - обработка callback для yes/no (если не только script path).
 
 **Файлы для создания:**
+
 - Не требуются.
 
 **Файлы для удаления:**
+
 - Не требуются.
 
 **Детальное описание:**
+
 1. Обновить prompt:
    - было: `Отправить этот вопрос Дмитрию?`
    - стало: `Отправить ваш вопрос Дмитрию?`
@@ -828,11 +882,13 @@ Response `200`:
    - пока пользователь в состоянии skip-reason (`waiting_skip_reason:*`) или question-confirm, входящий текст не уходит в `adminForward` без явного `yes`.
 
 **Тесты:**
+
 - [ ] Unit: `q_confirm:yes` пересылает вопрос.
 - [ ] Unit: `q_confirm:no` не пересылает вопрос.
 - [ ] Regression: обычный support relay не ломается.
 
 **Критерии готовности:**
+
 - [ ] Подтверждение вопроса всегда 2-кнопочное (да/нет).
 - [ ] При `no` нет отправки в админский чат.
 - [ ] Текст шаблона совпадает с UX-требованием.
@@ -844,21 +900,26 @@ Response `200`:
 **Цель:** унифицировать deeplink-URL из бот-напоминаний в webapp.
 
 **Предусловия:**
+
 - Пациентские маршруты webapp:
   - `/app/patient/diary?tab=lfk`
   - `/app/patient/sections/[slug]`
   - `/app/patient/content/[slug]`
 
 **Файлы для изменения:**
+
 1. `apps/integrator/src/kernel/domain/executor/handlers/reminders.ts` - URL builder по `linkedObjectType`.
 
 **Файлы для создания:**
+
 - Не требуются.
 
 **Файлы для удаления:**
+
 - Не требуются.
 
 **Детальное описание:**
+
 1. Источник base URL:
    - primary: `system_settings(scope='admin')` ключ публичного base URL webapp;
    - fallback (compat): `APP_BASE_URL`.
@@ -877,10 +938,12 @@ Response `200`:
    - при отсутствии `linkedObjectId` fallback на `/app/patient/reminders?from=reminder`.
 
 **Тесты:**
+
 - [ ] Unit: URL builder для `lfk_complex`, `content_section`, `content_page`.
 - [ ] Unit: fallback path при пустом `linkedObjectId`.
 
 **Критерии готовности:**
+
 - [ ] Формат deeplink покрывает ЛФК-комплексы и разминки.
 - [ ] Есть fallback и правила URL-encode.
 - [ ] Контракт готов для реализации в S3.T05.

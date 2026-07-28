@@ -19,7 +19,7 @@ export function parseFullName(raw: string | null | undefined): ParsedFullName {
     return {
       lastName: parts[0]!,
       firstName: parts[1]!,
-      patronymic: parts.slice(2).join(" "),
+      patronymic: parts.slice(2).join(' '),
     };
   }
   if (parts.length === 2) {
@@ -37,5 +37,5 @@ export function formatFioForDoctor(
   firstName: string | null | undefined,
   patronymic: string | null | undefined,
 ): string {
-  return [lastName, firstName, patronymic].filter(Boolean).join(" ") || "—";
+  return [lastName, firstName, patronymic].filter(Boolean).join(' ') || '—';
 }

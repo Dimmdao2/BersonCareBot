@@ -257,18 +257,23 @@ export function createMembershipsService(deps: {
       return activated ?? (await withBalance(pkg));
     },
 
-    async offerCatalogPackageToPatient(input: {
-      organizationId: string;
-      platformUserId: string;
-      subscriptionPackageId: string;
-      assignedByPlatformUserId?: string | null;
-      notes?: string | null;
-      soldAt?: string | null;
-      paidAmountMinor?: number | null;
-      paidCurrency?: string | null;
-      activateImmediately?: boolean;
-    }, options?: MembershipWriteOptions) {
-      const pkg = await runMembershipWrite(options, () => deps.port.offerCatalogPackageToPatient(input));
+    async offerCatalogPackageToPatient(
+      input: {
+        organizationId: string;
+        platformUserId: string;
+        subscriptionPackageId: string;
+        assignedByPlatformUserId?: string | null;
+        notes?: string | null;
+        soldAt?: string | null;
+        paidAmountMinor?: number | null;
+        paidCurrency?: string | null;
+        activateImmediately?: boolean;
+      },
+      options?: MembershipWriteOptions,
+    ) {
+      const pkg = await runMembershipWrite(options, () =>
+        deps.port.offerCatalogPackageToPatient(input),
+      );
       await runMembershipWrite(options, () =>
         deps.port.appendHistoryEvent({
           organizationId: input.organizationId,
@@ -394,16 +399,11 @@ export function createMembershipsService(deps: {
       if (!activated) return null;
       const now = input.soldAt ?? new Date().toISOString();
       const updated = await runMembershipWrite(options, () =>
-        deps.port.setPatientPackageStatus(
-          patientPackageId,
-          organizationId,
-          'active',
-          {
-            soldAt: now,
-            paidAmountMinor: input.paidAmountMinor ?? activated.priceMinor,
-            paidCurrency: input.paidCurrency ?? activated.currency,
-          },
-        ),
+        deps.port.setPatientPackageStatus(patientPackageId, organizationId, 'active', {
+          soldAt: now,
+          paidAmountMinor: input.paidAmountMinor ?? activated.priceMinor,
+          paidCurrency: input.paidCurrency ?? activated.currency,
+        }),
       );
       return updated ? withBalance(updated) : activated;
     },
@@ -420,16 +420,11 @@ export function createMembershipsService(deps: {
       const now = new Date().toISOString();
       const validUntil = addValidity(now, pkg.validityDays);
       const updated = await runMembershipWrite(options, () =>
-        deps.port.setPatientPackageStatus(
-          patientPackageId,
-          organizationId,
-          'active',
-          {
-            paymentRef: paymentRef ?? pkg.paymentRef,
-            validFrom: now,
-            validUntil,
-          },
-        ),
+        deps.port.setPatientPackageStatus(patientPackageId, organizationId, 'active', {
+          paymentRef: paymentRef ?? pkg.paymentRef,
+          validFrom: now,
+          validUntil,
+        }),
       );
       if (!updated) return null;
       await runMembershipWrite(options, () =>
@@ -904,13 +899,16 @@ export function createMembershipsService(deps: {
       return refund;
     },
 
-    async manualConsume(input: {
-      organizationId: string;
-      patientPackageId: string;
-      patientPackageItemId: string;
-      appointmentId?: string | null;
-      createdByPlatformUserId: string;
-    }, options?: MembershipWriteOptions) {
+    async manualConsume(
+      input: {
+        organizationId: string;
+        patientPackageId: string;
+        patientPackageItemId: string;
+        appointmentId?: string | null;
+        createdByPlatformUserId: string;
+      },
+      options?: MembershipWriteOptions,
+    ) {
       const pkg = await deps.port.getPatientPackage(input.patientPackageId, input.organizationId);
       if (!pkg) throw new Error('package_not_found');
       if (input.appointmentId) {
@@ -973,11 +971,7 @@ export function createMembershipsService(deps: {
       options?: MembershipWriteOptions,
     ) {
       const updated = await runMembershipWrite(options, () =>
-        deps.port.updatePatientPackageNotes(
-          patientPackageId,
-          organizationId,
-          notes,
-        ),
+        deps.port.updatePatientPackageNotes(patientPackageId, organizationId, notes),
       );
       if (!updated) throw new Error('package_not_found');
       return withBalance(updated);
@@ -1158,7 +1152,10 @@ export function createMembershipsService(deps: {
         input.patientPackageId,
         input.organizationId,
         async () => {
-          const raw = await deps.port.getPatientPackage(input.patientPackageId, input.organizationId);
+          const raw = await deps.port.getPatientPackage(
+            input.patientPackageId,
+            input.organizationId,
+          );
           if (!raw) throw new Error('package_not_found');
           const pkg = await refreshPatientPackageRecord(raw);
           const summary: RecalcPastSessionsSummary = {

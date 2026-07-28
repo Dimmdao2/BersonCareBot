@@ -5,7 +5,7 @@ export type PurchaseSectionState = {
 
 export function getPurchaseSectionState(): PurchaseSectionState {
   return {
-    title: "Мои покупки",
-    description: "Курсы, доступы к материалам и покупки по ссылке.",
+    title: 'Мои покупки',
+    description: 'Курсы, доступы к материалам и покупки по ссылке.',
   };
 }

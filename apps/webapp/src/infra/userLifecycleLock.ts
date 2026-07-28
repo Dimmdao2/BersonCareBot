@@ -1,9 +1,9 @@
-import type { Pool, PoolClient } from "pg";
-import { pgAdvisoryXactLock, pgAdvisoryXactLockShared } from "@/infra/db/pgAdvisoryLock";
-import { withPoolTransaction } from "@/infra/db/withClient";
+import type { Pool, PoolClient } from 'pg';
+import { pgAdvisoryXactLock, pgAdvisoryXactLockShared } from '@/infra/db/pgAdvisoryLock';
+import { withPoolTransaction } from '@/infra/db/withClient';
 
 /** Exclusive: purge / manual merge. Shared: user-owned media presign + intake attachment writes. */
-export type UserLifecycleLockMode = "exclusive" | "shared";
+export type UserLifecycleLockMode = 'exclusive' | 'shared';
 
 /**
  * Transaction-scoped advisory lock on `hashtext(platform_user_id::text)` (same family as strict purge).
@@ -33,7 +33,7 @@ export async function withUserLifecycleLock<T>(
   fn: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
   return withPoolTransaction(pool, async (client) => {
-    if (mode === "exclusive") {
+    if (mode === 'exclusive') {
       await pgAdvisoryXactLock(client, userId);
     } else {
       await pgAdvisoryXactLockShared(client, userId);

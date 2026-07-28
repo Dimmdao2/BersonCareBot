@@ -212,14 +212,14 @@ tables/state models, а не править только упомянутые с
 
 ### 5.1 Re-audit gates
 
-| Gate | Проверка | Результат |
-|---|---|---|
-| 1. Hostname readiness | `HostnameBase` отвечает только за ownership/TLS/routing/base lifecycle; шесть `HostnameSurfaceBinding` имеют независимые states, audit tuples, fallback и selective decommission | PASS |
-| 2. Core context vs paid brand | Для каждой surface определён minimum core payload; disabled `branding` оставляет trusted org name/context и заменяет только платные visuals/content | PASS |
-| 3. Stable platform alias | `PlatformAlias` имеет immutable organization target, deterministic normalization, reserved names, uniqueness, versioned rename redirect, lifecycle/quarantine и no silent reuse | PASS |
-| 4. Authenticated email identity | `active` требует From, envelope/Return-Path, DKIM/SPF/DMARC alignment, provider, Reply-To, bounce/complaint route и template eligibility; partial failures и per-attempt audit определены | PASS |
-| 5. Decision provenance | BD-1…BD-6 явно имеют `status=pending`, `owner ruling=none`, planner source/recommendation, safe default и downstream impact | PASS |
-| 6. Original invariants | Authorization precedes presentation; fallback remains one-way/loop-safe; platform manifests stable; legal/support reachable; multi-org patient identity/install model preserved | PASS |
+| Gate                            | Проверка                                                                                                                                                                                  | Результат |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| 1. Hostname readiness           | `HostnameBase` отвечает только за ownership/TLS/routing/base lifecycle; шесть `HostnameSurfaceBinding` имеют независимые states, audit tuples, fallback и selective decommission          | PASS      |
+| 2. Core context vs paid brand   | Для каждой surface определён minimum core payload; disabled `branding` оставляет trusted org name/context и заменяет только платные visuals/content                                       | PASS      |
+| 3. Stable platform alias        | `PlatformAlias` имеет immutable organization target, deterministic normalization, reserved names, uniqueness, versioned rename redirect, lifecycle/quarantine и no silent reuse           | PASS      |
+| 4. Authenticated email identity | `active` требует From, envelope/Return-Path, DKIM/SPF/DMARC alignment, provider, Reply-To, bounce/complaint route и template eligibility; partial failures и per-attempt audit определены | PASS      |
+| 5. Decision provenance          | BD-1…BD-6 явно имеют `status=pending`, `owner ruling=none`, planner source/recommendation, safe default и downstream impact                                                               | PASS      |
+| 6. Original invariants          | Authorization precedes presentation; fallback remains one-way/loop-safe; platform manifests stable; legal/support reachable; multi-org patient identity/install model preserved           | PASS      |
 
 ### 5.2 Whole-phase acceptance
 

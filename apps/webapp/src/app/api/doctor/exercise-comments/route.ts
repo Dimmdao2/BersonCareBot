@@ -14,15 +14,15 @@
  * Режим "unread": только упражнения с непрочитанными (on-support гейт сохранён для совместимости
  *   с SSR-загрузчиком вкладки; «лента неотвеченного»).
  */
-import { NextResponse } from "next/server";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
-import { loadDoctorAnalyticsAudience } from "@/app-layer/analytics/loadAnalyticsAudience";
-import type { DoctorExerciseCommentCursor } from "@/modules/program-item-discussion/types";
-import type { TodayExerciseCommentAttentionItem } from "@/app/app/doctor/loadDoctorExerciseCommentAttention";
-import { formatDateTimeRu } from "@/app/app/doctor/doctorTodayFormat";
-import { patientProgramInstanceHref } from "@/app/app/doctor/patients/patientProgramInstanceHref";
+import { NextResponse } from 'next/server';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { loadDoctorAnalyticsAudience } from '@/app-layer/analytics/loadAnalyticsAudience';
+import type { DoctorExerciseCommentCursor } from '@/modules/program-item-discussion/types';
+import type { TodayExerciseCommentAttentionItem } from '@/app/app/doctor/loadDoctorExerciseCommentAttention';
+import { formatDateTimeRu } from '@/app/app/doctor/doctorTodayFormat';
+import { patientProgramInstanceHref } from '@/app/app/doctor/patients/patientProgramInstanceHref';
 
 const PAGE_SIZE = 30;
 
@@ -31,11 +31,11 @@ export async function GET(request: Request) {
   if (!gate.ok) return gate.response;
 
   const { searchParams } = new URL(request.url);
-  const cursorParam = searchParams.get("cursor");
-  const q = searchParams.get("q")?.trim() ?? "";
+  const cursorParam = searchParams.get('cursor');
+  const q = searchParams.get('q')?.trim() ?? '';
   // "all" mode: full history (answered + unanswered) for ALL doctor's patients (no on-support gate).
   // "unread" mode: legacy path — only on-support patients with latest=patient unread filter.
-  const mode = searchParams.get("mode") === "unread" ? "unread" : "all";
+  const mode = searchParams.get('mode') === 'unread' ? 'unread' : 'all';
 
   let cursor: DoctorExerciseCommentCursor | null = null;
   if (cursorParam) {
@@ -43,16 +43,16 @@ export async function GET(request: Request) {
       const parsed = JSON.parse(cursorParam) as unknown;
       if (
         parsed !== null &&
-        typeof parsed === "object" &&
-        typeof (parsed as Record<string, unknown>).createdAt === "string" &&
-        typeof (parsed as Record<string, unknown>).id === "string"
+        typeof parsed === 'object' &&
+        typeof (parsed as Record<string, unknown>).createdAt === 'string' &&
+        typeof (parsed as Record<string, unknown>).id === 'string'
       ) {
         cursor = parsed as DoctorExerciseCommentCursor;
       } else {
-        return NextResponse.json({ ok: false, error: "invalid_cursor" }, { status: 400 });
+        return NextResponse.json({ ok: false, error: 'invalid_cursor' }, { status: 400 });
       }
     } catch {
-      return NextResponse.json({ ok: false, error: "invalid_cursor" }, { status: 400 });
+      return NextResponse.json({ ok: false, error: 'invalid_cursor' }, { status: 400 });
     }
   }
 
@@ -63,7 +63,7 @@ export async function GET(request: Request) {
   let rows: Awaited<ReturnType<typeof deps.programItemDiscussion.listAllExerciseCommentsForDoctor>>;
   let nameById: Map<string, string>;
 
-  if (mode === "all") {
+  if (mode === 'all') {
     // Doctor-wide: no patient-ID fanout, no on-support gate, shows answered threads.
     rows = await withDoctorWorkspacePrincipal(gate.ctx, () =>
       deps.programItemDiscussion.listAllExerciseCommentsForDoctor({
@@ -82,11 +82,14 @@ export async function GET(request: Request) {
         : undefined;
       const uniquePatientIds = [...new Set(rows.map((r) => r.patientUserId))];
       // listClients does NOT take explicit userId list, so we fetch all and filter.
-      const allClients = await deps.doctorClientsPort.listClients({ organizationId }, clientAudience);
+      const allClients = await deps.doctorClientsPort.listClients(
+        { organizationId },
+        clientAudience,
+      );
       const idSet = new Set(uniquePatientIds);
       for (const c of allClients) {
         if (idSet.has(c.userId.trim())) {
-          nameById.set(c.userId.trim(), c.displayName.trim() || "—");
+          nameById.set(c.userId.trim(), c.displayName.trim() || '—');
         }
       }
     }
@@ -97,13 +100,13 @@ export async function GET(request: Request) {
       ? { excludedUserIds: audience.excludedUserIds }
       : undefined;
     const onSupport = await deps.doctorClientsPort.listClients(
-      { supportStatus: "on", organizationId },
+      { supportStatus: 'on', organizationId },
       clientAudience,
     );
     if (onSupport.length === 0) {
       return NextResponse.json({ ok: true, items: [], hasMore: false, nextCursor: null });
     }
-    nameById = new Map(onSupport.map((c) => [c.userId.trim(), c.displayName.trim() || "—"]));
+    nameById = new Map(onSupport.map((c) => [c.userId.trim(), c.displayName.trim() || '—']));
     const patientUserIds = [...nameById.keys()];
     rows = await withDoctorWorkspacePrincipal(gate.ctx, () =>
       deps.programItemDiscussion.listExerciseCommentsForDoctor({
@@ -121,10 +124,10 @@ export async function GET(request: Request) {
 
   let items: TodayExerciseCommentAttentionItem[] = pageRows.map((row) => ({
     patientUserId: row.patientUserId,
-    patientDisplayName: nameById.get(row.patientUserId) ?? "—",
+    patientDisplayName: nameById.get(row.patientUserId) ?? '—',
     instanceId: row.instanceId,
     stageItemId: row.stageItemId,
-    stageItemTitle: row.stageItemTitle || "Упражнение",
+    stageItemTitle: row.stageItemTitle || 'Упражнение',
     latestMessage: row.latestMessage,
     latestMessageAtLabel: formatDateTimeRu(row.latestMessage.createdAt),
     href: patientProgramInstanceHref(row.patientUserId, row.instanceId, {
@@ -145,9 +148,7 @@ export async function GET(request: Request) {
   const lastRow = pageRows[pageRows.length - 1];
   const hasMore = hasMoreRaw && !q;
   const nextCursor: DoctorExerciseCommentCursor | null =
-    hasMore && lastRow
-      ? { createdAt: lastRow.createdAt, id: lastRow.latestMessage.id }
-      : null;
+    hasMore && lastRow ? { createdAt: lastRow.createdAt, id: lastRow.latestMessage.id } : null;
 
   return NextResponse.json({ ok: true, items, hasMore, nextCursor });
 }

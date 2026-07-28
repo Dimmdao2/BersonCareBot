@@ -2,30 +2,30 @@
  * GET /api/admin/google-calendar/calendars
  * Admin-only: returns the list of writable Google Calendars for the connected account.
  */
-import { NextResponse } from "next/server";
-import { requireClinicManagementApiContext } from "@/app-layer/guards/requireRole";
+import { NextResponse } from 'next/server';
+import { requireClinicManagementApiContext } from '@/app-layer/guards/requireRole';
 import {
   getGoogleClientId,
   getGoogleClientSecret,
   getGoogleRefreshToken,
   isGoogleCalendarPlatformAvailable,
-} from "@/modules/system-settings/integrationRuntime";
+} from '@/modules/system-settings/integrationRuntime';
 import {
   refreshGoogleAccessToken,
   fetchGoogleCalendarList,
-} from "@/modules/google-calendar/googleOAuthHelpers";
+} from '@/modules/google-calendar/googleOAuthHelpers';
 
 export async function GET() {
   const gate = await requireClinicManagementApiContext();
   if (!gate.ok) return gate.response;
   if (!(await isGoogleCalendarPlatformAvailable())) {
-    return NextResponse.json({ ok: false, error: "integration_disabled" }, { status: 403 });
+    return NextResponse.json({ ok: false, error: 'integration_disabled' }, { status: 403 });
   }
 
   const refreshToken = (await getGoogleRefreshToken(gate.ctx.organizationId)).trim();
   if (!refreshToken) {
     return NextResponse.json(
-      { ok: false, error: "not_connected", message: "Google Calendar не подключён" },
+      { ok: false, error: 'not_connected', message: 'Google Calendar не подключён' },
       { status: 412 },
     );
   }
@@ -34,7 +34,7 @@ export async function GET() {
   const clientSecret = (await getGoogleClientSecret()).trim();
   if (!clientId || !clientSecret) {
     return NextResponse.json(
-      { ok: false, error: "not_configured", message: "Google OAuth не настроен" },
+      { ok: false, error: 'not_configured', message: 'Google OAuth не настроен' },
       { status: 501 },
     );
   }
@@ -44,7 +44,11 @@ export async function GET() {
     accessToken = await refreshGoogleAccessToken({ clientId, clientSecret, refreshToken });
   } catch {
     return NextResponse.json(
-      { ok: false, error: "token_expired", message: "Не удалось обновить токен — переподключите Google" },
+      {
+        ok: false,
+        error: 'token_expired',
+        message: 'Не удалось обновить токен — переподключите Google',
+      },
       { status: 502 },
     );
   }
@@ -54,7 +58,11 @@ export async function GET() {
     return NextResponse.json({ ok: true, calendars });
   } catch {
     return NextResponse.json(
-      { ok: false, error: "calendar_list_failed", message: "Не удалось загрузить список календарей" },
+      {
+        ok: false,
+        error: 'calendar_list_failed',
+        message: 'Не удалось загрузить список календарей',
+      },
       { status: 502 },
     );
   }

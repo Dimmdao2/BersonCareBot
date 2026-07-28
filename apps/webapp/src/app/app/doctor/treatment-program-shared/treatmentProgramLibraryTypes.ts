@@ -1,4 +1,4 @@
-import type { InstanceEditorItemLoadSettingsPatch } from "./instanceEditorLoadSettings";
+import type { InstanceEditorItemLoadSettingsPatch } from './instanceEditorLoadSettings';
 
 /** Строки каталогов для модалки «Элемент из библиотеки» (шаблон и экземпляр программы). */
 export type TreatmentProgramLibraryExpandLine = {

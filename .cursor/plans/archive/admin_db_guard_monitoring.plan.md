@@ -52,14 +52,14 @@ flowchart LR
 
 Источник: [`apps/webapp/db/schema/schema.ts`](apps/webapp/db/schema/schema.ts) — `integratorPushOutbox` (~L1645+).
 
-| Поле (SQL) | Смысл для health |
-|------------|------------------|
-| `status` | Только: `pending` \| `processing` \| `done` \| `dead` (CHECK в DDL) |
-| `next_try_at` | Для **due-pending**: сравнение с `now()` (как `next_retry_at` у исходящей доставки) |
-| `updated_at` | Активность / «зависший» `processing` (паттерн `processingCount` + `max(updated_at)` как в outgoing) |
+| Поле (SQL)                       | Смысл для health                                                                                             |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `status`                         | Только: `pending` \| `processing` \| `done` \| `dead` (CHECK в DDL)                                          |
+| `next_try_at`                    | Для **due-pending**: сравнение с `now()` (как `next_retry_at` у исходящей доставки)                          |
+| `updated_at`                     | Активность / «зависший» `processing` (паттерн `processingCount` + `max(updated_at)` как в outgoing)          |
 | `attempts_done` / `max_attempts` | Опционально в снимке для UI «на исходе попыток» — **в MVP не обязательно**, не раздувать payload без запроса |
-| `kind` | Для `group by` как `dueByKind` — **только агрегаты**, не список id |
-| `payload` | **Не** отдавать в API/UI (только счётчики / возрасты) |
+| `kind`                           | Для `group by` как `dueByKind` — **только агрегаты**, не список id                                           |
+| `payload`                        | **Не** отдавать в API/UI (только счётчики / возрасты)                                                        |
 
 Индекс: `idx_integrator_push_outbox_due` на `(status, next_try_at)` WHERE `status = 'pending'` — запросы класса «due pending» должны быть индекс-дружелюбны (`status` + `next_try_at`).
 

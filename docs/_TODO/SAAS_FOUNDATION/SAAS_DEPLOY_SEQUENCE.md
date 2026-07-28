@@ -13,6 +13,7 @@
 > restored fresh prod copy → migrations reached drizzle count 179, org columns present, app healthy).
 
 ## Roles / facts
+
 - Test env is LOCAL on this box (no SSH). DB `bersoncarebot_test` (owner role `bersoncarebot_test`).
 - Newest prod dump: `/opt/backups/postgres/hourly/unified_bcb_webapp_prod_*.dump` (hourly). Use the newest.
 - Env files: `/opt/env/bersoncarebot/api.test`, `/opt/env/bersoncarebot/webapp.test`.
@@ -43,12 +44,14 @@ migration privilege window and invokes the same shared post-migration closure (r
 strict finalizer, fixture, restart/health/smoke). Manual restore/SQL chains are prohibited.
 
 ## PROD mapping (eventual)
+
 - Code: merge to `main` → CI auto-deploys `deploy/host/deploy-prod.sh` (build + `pnpm migrate` + schema guardrail).
   BUT the same #667 gap applies → prod must run the **`scripts/deploy-saas-667.sh`** chain (which already bundles
   data-fix + option-D temp-BYPASSRLS migrate + post-asserts) in a stopped-writers window, NOT the plain deploy.
 - Production remains a separate owner-approved cutover; this historical TEST note does not authorize it.
 
 ## Duplicate-specialist consolidation (RESOLVED 2026-07-13)
+
 Historical rubitime-per-branch specialists left TWO active "Дмитрий Берсон" rows in `be_specialists`
 (`c9515025` = full history, `518ea988` = per-branch dup). The solo-model resolver
 (`resolveDoctorOwnSpecialistId`) picks the first active specialist arbitrarily, so the doctor's schedule
@@ -77,6 +80,7 @@ STOPGAP; the real fix is replacing allowlist role-forcing with account+membershi
 SAAS_ENFORCE_ROADMAP "replace auth mechanism").
 
 ## Settings-override fix (RESOLVED 2026-07-12; override now repo-tracked 2026-07-13)
+
 The override moved from `/tmp/bcb-test-setup/test-settings-override.sql` into the repo at
 `deploy/postgres/test-settings-override.sql`; all upserts use the org-aware partial-index conflict target
 `ON CONFLICT (key, scope) WHERE organization_id IS NULL` directly (no more sed rewrite in the deploy script).

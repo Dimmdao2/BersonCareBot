@@ -1,13 +1,13 @@
-"use client";
+'use client';
 
-import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import type { PatientHomeRefDisplayTitles } from "@/modules/patient-home/patientHomeBlockItemDisplayTitle";
-import type { PatientHomeBlock } from "@/modules/patient-home/ports";
-import type { PatientHomeBlockRuntimeStatus } from "@/modules/patient-home/patientHomeRuntimeStatus";
-import { PatientHomeBlockSettingsCard } from "./PatientHomeBlockSettingsCard";
-import { PatientHomeReorderBlocksDialog } from "./PatientHomeReorderBlocksDialog";
+import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import type { PatientHomeRefDisplayTitles } from '@/modules/patient-home/patientHomeBlockItemDisplayTitle';
+import type { PatientHomeBlock } from '@/modules/patient-home/ports';
+import type { PatientHomeBlockRuntimeStatus } from '@/modules/patient-home/patientHomeRuntimeStatus';
+import { PatientHomeBlockSettingsCard } from './PatientHomeBlockSettingsCard';
+import { PatientHomeReorderBlocksDialog } from './PatientHomeReorderBlocksDialog';
 
 type KnownRefs = {
   contentPages: string[];
@@ -29,7 +29,10 @@ export function PatientHomeBlocksSettingsPageClient({
   const router = useRouter();
   const [reorderOpen, setReorderOpen] = useState(false);
   const blocks = useMemo(
-    () => [...initialBlocks].sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, "ru")),
+    () =>
+      [...initialBlocks].sort(
+        (a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, 'ru'),
+      ),
     [initialBlocks],
   );
 

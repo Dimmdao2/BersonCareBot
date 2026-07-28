@@ -1,44 +1,44 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   clearInMemoryCourseUsageSnapshots,
   clearInMemoryPatientAssignedTemplates,
   createInMemoryCoursesPort,
   seedInMemoryCourseUsageSnapshot,
   seedInMemoryPatientAssignedTemplate,
-} from "@/infra/repos/inMemoryCourses";
-import { CourseUsageConfirmationRequiredError } from "./errors";
-import type { CourseIntroPagesPort, CoursesPort } from "./ports";
-import { assertValidIntroLessonPage, createCoursesService } from "./service";
-import { EMPTY_COURSE_USAGE_SNAPSHOT, type CourseRecord, type CourseUsageSnapshot } from "./types";
+} from '@/infra/repos/inMemoryCourses';
+import { CourseUsageConfirmationRequiredError } from './errors';
+import type { CourseIntroPagesPort, CoursesPort } from './ports';
+import { assertValidIntroLessonPage, createCoursesService } from './service';
+import { EMPTY_COURSE_USAGE_SNAPSHOT, type CourseRecord, type CourseUsageSnapshot } from './types';
 
-const TPL = "11111111-1111-4111-8111-111111111111";
-const PAT = "22222222-2222-4222-8222-222222222222";
+const TPL = '11111111-1111-4111-8111-111111111111';
+const PAT = '22222222-2222-4222-8222-222222222222';
 
-describe("createCoursesService archive guard", () => {
+describe('createCoursesService archive guard', () => {
   const introPages: CourseIntroPagesPort = { getById: async () => null };
 
   beforeEach(() => {
     clearInMemoryCourseUsageSnapshots();
   });
 
-  it("updateCourse to archived requires acknowledgement when active instances exist on template", async () => {
+  it('updateCourse to archived requires acknowledgement when active instances exist on template', async () => {
     const courses = createInMemoryCoursesPort();
     const created = await courses.create({
-      title: "Курс",
+      title: 'Курс',
       programTemplateId: TPL,
-      status: "published",
+      status: 'published',
     });
     seedInMemoryCourseUsageSnapshot(created.id, {
       ...EMPTY_COURSE_USAGE_SNAPSHOT,
       programTemplateId: TPL,
-      programTemplateRef: { kind: "treatment_program_template", id: TPL, title: "Tpl" },
+      programTemplateRef: { kind: 'treatment_program_template', id: TPL, title: 'Tpl' },
       activeTreatmentProgramInstanceCount: 1,
       activeTreatmentProgramInstanceRefs: [
         {
-          kind: "treatment_program_instance",
-          id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-          title: "Программа",
-          patientUserId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          kind: 'treatment_program_instance',
+          id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          title: 'Программа',
+          patientUserId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
         },
       ],
     });
@@ -47,25 +47,25 @@ describe("createCoursesService archive guard", () => {
       introPages,
       assignTemplateToPatient: vi.fn(),
     });
-    await expect(svc.updateCourse(created.id, { status: "archived" })).rejects.toBeInstanceOf(
+    await expect(svc.updateCourse(created.id, { status: 'archived' })).rejects.toBeInstanceOf(
       CourseUsageConfirmationRequiredError,
     );
-    await svc.updateCourse(created.id, { status: "archived" }, { acknowledgeUsageWarning: true });
+    await svc.updateCourse(created.id, { status: 'archived' }, { acknowledgeUsageWarning: true });
     const row = await courses.getById(created.id);
-    expect(row?.status).toBe("archived");
+    expect(row?.status).toBe('archived');
   });
 
-  it("updateCourse to archived without acknowledgement when only draft CMS links", async () => {
+  it('updateCourse to archived without acknowledgement when only draft CMS links', async () => {
     const courses = createInMemoryCoursesPort();
     const created = await courses.create({
-      title: "Курс",
+      title: 'Курс',
       programTemplateId: TPL,
-      status: "published",
+      status: 'published',
     });
     seedInMemoryCourseUsageSnapshot(created.id, {
       ...EMPTY_COURSE_USAGE_SNAPSHOT,
       programTemplateId: TPL,
-      programTemplateRef: { kind: "treatment_program_template", id: TPL, title: "Tpl" },
+      programTemplateRef: { kind: 'treatment_program_template', id: TPL, title: 'Tpl' },
       draftLinkedContentPageCount: 2,
       draftLinkedContentPageRefs: [],
     });
@@ -74,25 +74,25 @@ describe("createCoursesService archive guard", () => {
       introPages,
       assignTemplateToPatient: vi.fn(),
     });
-    await svc.updateCourse(created.id, { status: "archived" });
+    await svc.updateCourse(created.id, { status: 'archived' });
     const row = await courses.getById(created.id);
-    expect(row?.status).toBe("archived");
+    expect(row?.status).toBe('archived');
   });
 
-  it("updateCourse to archived requires acknowledgement when published CMS page links to course", async () => {
+  it('updateCourse to archived requires acknowledgement when published CMS page links to course', async () => {
     const courses = createInMemoryCoursesPort();
     const created = await courses.create({
-      title: "Курс",
+      title: 'Курс',
       programTemplateId: TPL,
-      status: "published",
+      status: 'published',
     });
     seedInMemoryCourseUsageSnapshot(created.id, {
       ...EMPTY_COURSE_USAGE_SNAPSHOT,
       programTemplateId: TPL,
-      programTemplateRef: { kind: "treatment_program_template", id: TPL, title: "Tpl" },
+      programTemplateRef: { kind: 'treatment_program_template', id: TPL, title: 'Tpl' },
       publishedLinkedContentPageCount: 1,
       publishedLinkedContentPageRefs: [
-        { kind: "content_page", id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", title: "Промо" },
+        { kind: 'content_page', id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', title: 'Промо' },
       ],
     });
     const svc = createCoursesService({
@@ -100,21 +100,21 @@ describe("createCoursesService archive guard", () => {
       introPages,
       assignTemplateToPatient: vi.fn(),
     });
-    await expect(svc.updateCourse(created.id, { status: "archived" })).rejects.toBeInstanceOf(
+    await expect(svc.updateCourse(created.id, { status: 'archived' })).rejects.toBeInstanceOf(
       CourseUsageConfirmationRequiredError,
     );
   });
 });
 
-describe("createCoursesService", () => {
-  it("enrollPatient вызывает assignTemplateToPatient с шаблоном курса и assignedBy: null", async () => {
+describe('createCoursesService', () => {
+  it('enrollPatient вызывает assignTemplateToPatient с шаблоном курса и assignedBy: null', async () => {
     const courses = createInMemoryCoursesPort();
     const created = await courses.create({
-      title: "Курс А",
+      title: 'Курс А',
       programTemplateId: TPL,
-      status: "published",
+      status: 'published',
     });
-    const assign = vi.fn().mockResolvedValue({ id: "instance-uuid" });
+    const assign = vi.fn().mockResolvedValue({ id: 'instance-uuid' });
     const introPages: CourseIntroPagesPort = { getById: async () => null };
     const svc = createCoursesService({ courses, introPages, assignTemplateToPatient: assign });
     await svc.enrollPatient({ courseId: created.id, patientUserId: PAT });
@@ -122,16 +122,16 @@ describe("createCoursesService", () => {
       templateId: TPL,
       patientUserId: PAT,
       assignedBy: null,
-      assignmentSource: "course",
+      assignmentSource: 'course',
     });
   });
 
-  it("enrollPatient отклоняет не опубликованный курс", async () => {
+  it('enrollPatient отклоняет не опубликованный курс', async () => {
     const courses = createInMemoryCoursesPort();
     const created = await courses.create({
-      title: "Черновик",
+      title: 'Черновик',
       programTemplateId: TPL,
-      status: "draft",
+      status: 'draft',
     });
     const svc = createCoursesService({
       courses,
@@ -139,17 +139,17 @@ describe("createCoursesService", () => {
       assignTemplateToPatient: vi.fn(),
     });
     await expect(svc.enrollPatient({ courseId: created.id, patientUserId: PAT })).rejects.toThrow(
-      "опубликованный",
+      'опубликованный',
     );
   });
 
-  it("enrollPatient отклоняет курс с access_settings.enrollment = closed", async () => {
+  it('enrollPatient отклоняет курс с access_settings.enrollment = closed', async () => {
     const courses = createInMemoryCoursesPort();
     const created = await courses.create({
-      title: "Закрытый",
+      title: 'Закрытый',
       programTemplateId: TPL,
-      status: "published",
-      accessSettings: { enrollment: "closed" },
+      status: 'published',
+      accessSettings: { enrollment: 'closed' },
     });
     const svc = createCoursesService({
       courses,
@@ -157,20 +157,20 @@ describe("createCoursesService", () => {
       assignTemplateToPatient: vi.fn(),
     });
     await expect(svc.enrollPatient({ courseId: created.id, patientUserId: PAT })).rejects.toThrow(
-      "закрыта",
+      'закрыта',
     );
   });
 
-  it("createCourse проверяет вступительный урок: секция и requires_auth", async () => {
+  it('createCourse проверяет вступительный урок: секция и requires_auth', async () => {
     const courses = createInMemoryCoursesPort();
-    const pageId = "33333333-3333-4333-8333-333333333333";
+    const pageId = '33333333-3333-4333-8333-333333333333';
     const introPages: CourseIntroPagesPort = {
       getById: async (id) =>
         id === pageId
           ? {
               id: pageId,
-              section: "news",
-              slug: "x",
+              section: 'news',
+              slug: 'x',
               isPublished: true,
               requiresAuth: true,
               archivedAt: null,
@@ -185,58 +185,58 @@ describe("createCoursesService", () => {
     });
     await expect(
       svc.createCourse({
-        title: "K",
+        title: 'K',
         programTemplateId: TPL,
         introLessonPageId: pageId,
       }),
-    ).rejects.toThrow("lessons");
+    ).rejects.toThrow('lessons');
   });
 
-  it("updateCourse runs only the course update write through write options", async () => {
+  it('updateCourse runs only the course update write through write options', async () => {
     const calls: string[] = [];
     const courses: CoursesPort = {
       listPublished: vi.fn(),
       listAssignedToPatient: vi.fn(),
       listForDoctor: vi.fn(),
       getById: vi.fn(async () => {
-        calls.push("getById");
+        calls.push('getById');
         return {
-          id: "course-1",
-          title: "Course",
+          id: 'course-1',
+          title: 'Course',
           description: null,
           programTemplateId: TPL,
           introLessonPageId: null,
           accessSettings: {},
-          status: "published",
+          status: 'published',
           priceMinor: 0,
-          currency: "RUB",
-          createdAt: "",
-          updatedAt: "",
+          currency: 'RUB',
+          createdAt: '',
+          updatedAt: '',
         } satisfies CourseRecord;
       }),
       create: vi.fn(),
       update: vi.fn(async () => {
-        calls.push("update");
+        calls.push('update');
         return {
-          id: "course-1",
-          title: "Course",
+          id: 'course-1',
+          title: 'Course',
           description: null,
           programTemplateId: TPL,
           introLessonPageId: null,
           accessSettings: {},
-          status: "archived",
+          status: 'archived',
           priceMinor: 0,
-          currency: "RUB",
-          createdAt: "",
-          updatedAt: "",
+          currency: 'RUB',
+          createdAt: '',
+          updatedAt: '',
         } satisfies CourseRecord;
       }),
       getCourseUsageSummary: vi.fn(async () => {
-        calls.push("usage");
+        calls.push('usage');
         return {
           ...EMPTY_COURSE_USAGE_SNAPSHOT,
           programTemplateId: TPL,
-          programTemplateRef: { kind: "treatment_program_template", id: TPL, title: "Tpl" },
+          programTemplateRef: { kind: 'treatment_program_template', id: TPL, title: 'Tpl' },
         } satisfies CourseUsageSnapshot;
       }),
     };
@@ -247,40 +247,40 @@ describe("createCoursesService", () => {
     });
 
     await svc.updateCourse(
-      "11111111-1111-4111-8111-111111111111",
-      { status: "archived" },
+      '11111111-1111-4111-8111-111111111111',
+      { status: 'archived' },
       undefined,
       {
         runCourseWrite: async (fn) => {
-          calls.push("runner:start");
+          calls.push('runner:start');
           const result = await fn();
-          calls.push("runner:end");
+          calls.push('runner:end');
           return result;
         },
       },
     );
 
-    expect(calls).toEqual(["getById", "usage", "runner:start", "update", "runner:end"]);
+    expect(calls).toEqual(['getById', 'usage', 'runner:start', 'update', 'runner:end']);
   });
 });
 
-describe("createCoursesService listAssignedForPatient", () => {
+describe('createCoursesService listAssignedForPatient', () => {
   beforeEach(() => {
     clearInMemoryPatientAssignedTemplates();
   });
 
   it("returns only courses assigned via the patient's own program, not the full catalog", async () => {
-    const OTHER_TPL = "44444444-4444-4444-8444-444444444444";
+    const OTHER_TPL = '44444444-4444-4444-8444-444444444444';
     const courses = createInMemoryCoursesPort();
     const assigned = await courses.create({
-      title: "Мой курс",
+      title: 'Мой курс',
       programTemplateId: TPL,
-      status: "published",
+      status: 'published',
     });
     await courses.create({
-      title: "Чужой курс",
+      title: 'Чужой курс',
       programTemplateId: OTHER_TPL,
-      status: "published",
+      status: 'published',
     });
     seedInMemoryPatientAssignedTemplate(PAT, TPL);
 
@@ -292,22 +292,22 @@ describe("createCoursesService listAssignedForPatient", () => {
     expect(items[0]?.id).toBe(assigned.id);
   });
 
-  it("returns an empty list when the patient has no assigned program", async () => {
+  it('returns an empty list when the patient has no assigned program', async () => {
     const courses = createInMemoryCoursesPort();
-    await courses.create({ title: "Курс", programTemplateId: TPL, status: "published" });
+    await courses.create({ title: 'Курс', programTemplateId: TPL, status: 'published' });
     const introPages: CourseIntroPagesPort = { getById: async () => null };
     const svc = createCoursesService({ courses, introPages, assignTemplateToPatient: vi.fn() });
     expect(await svc.listAssignedForPatient(PAT)).toEqual([]);
   });
 });
 
-describe("assertValidIntroLessonPage", () => {
-  it("принимает course_lessons с requires_auth", () => {
+describe('assertValidIntroLessonPage', () => {
+  it('принимает course_lessons с requires_auth', () => {
     expect(() =>
       assertValidIntroLessonPage({
-        id: "33333333-3333-4333-8333-333333333333",
-        section: "course_lessons",
-        slug: "intro",
+        id: '33333333-3333-4333-8333-333333333333',
+        section: 'course_lessons',
+        slug: 'intro',
         isPublished: true,
         requiresAuth: true,
         archivedAt: null,
@@ -316,17 +316,17 @@ describe("assertValidIntroLessonPage", () => {
     ).not.toThrow();
   });
 
-  it("отклоняет requires_auth = false", () => {
+  it('отклоняет requires_auth = false', () => {
     expect(() =>
       assertValidIntroLessonPage({
-        id: "33333333-3333-4333-8333-333333333333",
-        section: "lessons",
-        slug: "intro",
+        id: '33333333-3333-4333-8333-333333333333',
+        section: 'lessons',
+        slug: 'intro',
         isPublished: true,
         requiresAuth: false,
         archivedAt: null,
         deletedAt: null,
       }),
-    ).toThrow("requires_auth");
+    ).toThrow('requires_auth');
   });
 });

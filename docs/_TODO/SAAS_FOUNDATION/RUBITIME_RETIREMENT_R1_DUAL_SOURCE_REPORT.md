@@ -28,32 +28,32 @@ node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-dual-source-audit.mjs --thre
 
 Sanitized result summary:
 
-| Check | Result |
-| --- | ---: |
-| connected DB | `bcb_webapp_dev` on `127.0.0.1:5432` |
-| raw rows with external id (`integrator.rubitime_records`) | 91 |
-| legacy rows with external id (`appointment_records`) | 403 |
-| shared external ids | 91 |
-| raw-only ids | 0 |
-| legacy-only ids | 312 |
-| status mismatches | 4 |
-| `record_at` mismatches over 5 minutes | 2 |
-| raw newer than legacy by threshold | 0 |
-| legacy newer than raw by threshold | 91 |
-| raw mapping coverage | 91 / 91 mapped |
-| legacy mapping coverage | 274 / 403 mapped; 129 unmapped |
-| mapping/canonical org mismatches | 0 |
-| mapping orphans without canonical appointment | 0 |
-| unexpected canonical source in mappings | 6 |
-| missing expected mapping metadata | 6 |
+| Check                                                     |                               Result |
+| --------------------------------------------------------- | -----------------------------------: |
+| connected DB                                              | `bcb_webapp_dev` on `127.0.0.1:5432` |
+| raw rows with external id (`integrator.rubitime_records`) |                                   91 |
+| legacy rows with external id (`appointment_records`)      |                                  403 |
+| shared external ids                                       |                                   91 |
+| raw-only ids                                              |                                    0 |
+| legacy-only ids                                           |                                  312 |
+| status mismatches                                         |                                    4 |
+| `record_at` mismatches over 5 minutes                     |                                    2 |
+| raw newer than legacy by threshold                        |                                    0 |
+| legacy newer than raw by threshold                        |                                   91 |
+| raw mapping coverage                                      |                       91 / 91 mapped |
+| legacy mapping coverage                                   |       274 / 403 mapped; 129 unmapped |
+| mapping/canonical org mismatches                          |                                    0 |
+| mapping orphans without canonical appointment             |                                    0 |
+| unexpected canonical source in mappings                   |                                    6 |
+| missing expected mapping metadata                         |                                    6 |
 
 Freshness:
 
-| Source | max `record_at` | max `updated_at` |
-| --- | --- | --- |
-| `appointment_records` | `2026-08-29T18:00:00+02:00` | `2026-07-06T00:19:45.183+02:00` |
-| `integrator.rubitime_records` | `2026-04-21T15:00:00+02:00` | `2026-04-13T20:45:52.113479+02:00` |
-| canonical `rubitime_projection` | max start `2026-08-29T18:00:00+02:00` | n/a |
+| Source                          | max `record_at`                       | max `updated_at`                   |
+| ------------------------------- | ------------------------------------- | ---------------------------------- |
+| `appointment_records`           | `2026-08-29T18:00:00+02:00`           | `2026-07-06T00:19:45.183+02:00`    |
+| `integrator.rubitime_records`   | `2026-04-21T15:00:00+02:00`           | `2026-04-13T20:45:52.113479+02:00` |
+| canonical `rubitime_projection` | max start `2026-08-29T18:00:00+02:00` | n/a                                |
 
 Interpretation: the direct raw source has no records missing from legacy (`raw_only_count=0`), so no raw-only import is needed before owner review. R1 is still not passable: legacy has 312 ids absent from raw, 129 legacy rows are unmapped to canonical, and there are status/freshness differences that need owner/reviewer classification.
 
@@ -76,21 +76,21 @@ No real credential was used, and no delivery path was invoked.
 
 Sanitized dry-run summary:
 
-| Check | Result |
-| --- | ---: |
-| mode | `DRY-RUN (read-only)` |
-| Rubitime bridge enabled | `false` |
-| CSV stale detection | skipped; CSV not present at default path |
-| legacy live rows | 400 |
-| canonical `rubitime_projection` live rows | 258 |
-| unmapped legacy total | 126 |
-| unmapped test/block | 13 |
-| unmapped cancelled | 20 |
-| unmapped real active | 99 |
-| unmapped future | 0 |
-| duplicate clusters | 7 |
-| duplicate clusters with multiple canonical rows | 0 |
-| stale vs CSV | not evaluated |
+| Check                                           |                                   Result |
+| ----------------------------------------------- | ---------------------------------------: |
+| mode                                            |                    `DRY-RUN (read-only)` |
+| Rubitime bridge enabled                         |                                  `false` |
+| CSV stale detection                             | skipped; CSV not present at default path |
+| legacy live rows                                |                                      400 |
+| canonical `rubitime_projection` live rows       |                                      258 |
+| unmapped legacy total                           |                                      126 |
+| unmapped test/block                             |                                       13 |
+| unmapped cancelled                              |                                       20 |
+| unmapped real active                            |                                       99 |
+| unmapped future                                 |                                        0 |
+| duplicate clusters                              |                                        7 |
+| duplicate clusters with multiple canonical rows |                                        0 |
+| stale vs CSV                                    |                            not evaluated |
 
 Later R1 cleanup note: owner approved a narrow cleanup for test/block rows and canceled duplicate losers. The cleanup used `--commit --cleanup-only --delete-test --collapse-canceled-dups --summary-only`; it did not use `--collapse-dups`, `--drop-stale-from-csv`, or `--drop-legacy`. Post-cleanup summary: unmapped legacy `112`, test/block `0`, canceled `13`, real active `99`, duplicate clusters `3`.
 
@@ -98,15 +98,15 @@ Stale CSV proof note: `R1-STALE-CSV-PROOF-codex-2026-07-14` used owner-provided 
 
 ## Commands run
 
-| Command | Result |
-| --- | --- |
-| `pwd && git status --short --branch && git rev-parse HEAD` | PASS. Worktree `/home/dev/dev-projects/bcb-walls`, branch `auto/code-pg-delta`, starting HEAD `5c348afd47253984806238cb27bee0d18cf3e006`. |
-| Required docs/rules reads (`AGENTS.md`, `docs/ORCHESTRATION_BINDINGS.md`, plan R1/RR-PROOF-01, required `.cursor/rules/*`, core onboarding docs) | PASS. |
-| `node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-dual-source-audit.mjs --help` | PASS. |
-| dual-source audit with safe dev env and `--sample-size=0` | PASS; JSON artifact saved. |
-| first backfill dry-run with safe dev env and `--summary-only` | BLOCKED before SQL by required non-empty `TELEGRAM_BOT_TOKEN`. |
-| backfill dry-run with safe dev env, process-local non-secret `TELEGRAM_BOT_TOKEN`, and `--summary-only` | PASS; summary artifact saved. |
-| `node --check docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-dual-source-audit.mjs` | PASS. |
+| Command                                                                                                                                          | Result                                                                                                                                    |
+| ------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `pwd && git status --short --branch && git rev-parse HEAD`                                                                                       | PASS. Worktree `/home/dev/dev-projects/bcb-walls`, branch `auto/code-pg-delta`, starting HEAD `5c348afd47253984806238cb27bee0d18cf3e006`. |
+| Required docs/rules reads (`AGENTS.md`, `docs/ORCHESTRATION_BINDINGS.md`, plan R1/RR-PROOF-01, required `.cursor/rules/*`, core onboarding docs) | PASS.                                                                                                                                     |
+| `node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-dual-source-audit.mjs --help`                                                               | PASS.                                                                                                                                     |
+| dual-source audit with safe dev env and `--sample-size=0`                                                                                        | PASS; JSON artifact saved.                                                                                                                |
+| first backfill dry-run with safe dev env and `--summary-only`                                                                                    | BLOCKED before SQL by required non-empty `TELEGRAM_BOT_TOKEN`.                                                                            |
+| backfill dry-run with safe dev env, process-local non-secret `TELEGRAM_BOT_TOKEN`, and `--summary-only`                                          | PASS; summary artifact saved.                                                                                                             |
+| `node --check docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-dual-source-audit.mjs`                                                              | PASS.                                                                                                                                     |
 
 ## R1 checklist status
 

@@ -1,22 +1,25 @@
-import Link from "next/link";
-import { redirect } from "next/navigation";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { routePaths } from "@/app-layer/routes/paths";
-import { PATIENT_DIARY_UI_LABEL } from "@/app-layer/routes/navigation";
-import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
-import { DiarySectionGuestAccess } from "@/shared/ui/patient/guestAccess";
-import { buttonVariants } from "@/shared/ui/patient/primitives/button-variants";
-import { cn } from "@/lib/utils";
-import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
-import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
+import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { routePaths } from '@/app-layer/routes/paths';
+import { PATIENT_DIARY_UI_LABEL } from '@/app-layer/routes/navigation';
+import {
+  getOptionalPatientSession,
+  patientRscPersonalDataGate,
+} from '@/app-layer/guards/requireRole';
+import { DiarySectionGuestAccess } from '@/shared/ui/patient/guestAccess';
+import { buttonVariants } from '@/shared/ui/patient/primitives/button-variants';
+import { cn } from '@/lib/utils';
+import { PatientAppShell } from '@/shared/ui/patient/PatientAppShell';
+import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 import {
   parseOffset,
   parseStatsPeriod,
   resolveJournalMonthYm,
   utcMonthRangeIso,
-} from "@/modules/diaries/journal/resolveJournalMonthYm";
-import { SymptomsJournalClient } from "./SymptomsJournalClient";
-import { isGeneralWellbeingTracking } from "@/modules/patient-mood/wellbeingConstants";
+} from '@/modules/diaries/journal/resolveJournalMonthYm';
+import { SymptomsJournalClient } from './SymptomsJournalClient';
+import { isGeneralWellbeingTracking } from '@/modules/patient-mood/wellbeingConstants';
 
 export default async function SymptomsJournalPage({
   searchParams,
@@ -26,14 +29,13 @@ export default async function SymptomsJournalPage({
   const sp = await searchParams;
   const session = await getOptionalPatientSession();
   const dataGate = await patientRscPersonalDataGate(session, routePaths.diarySymptomsJournal);
-  if (dataGate === "guest") {
+  if (dataGate === 'guest') {
     return (
       <PatientAppShell
         title="Журнал симптомов"
         user={session?.user ?? null}
         backHref={routePaths.diary}
         backLabel={PATIENT_DIARY_UI_LABEL}
-       
       >
         <DiarySectionGuestAccess
           session={session}
@@ -45,10 +47,10 @@ export default async function SymptomsJournalPage({
   }
 
   const s = session!;
-  const monthRaw = typeof sp.month === "string" ? sp.month : undefined;
-  const trackingIdRaw = typeof sp.trackingId === "string" ? sp.trackingId.trim() : "";
-  const period = parseStatsPeriod(typeof sp.period === "string" ? sp.period : undefined);
-  const offset = parseOffset(typeof sp.offset === "string" ? sp.offset : undefined);
+  const monthRaw = typeof sp.month === 'string' ? sp.month : undefined;
+  const trackingIdRaw = typeof sp.trackingId === 'string' ? sp.trackingId.trim() : '';
+  const period = parseStatsPeriod(typeof sp.period === 'string' ? sp.period : undefined);
+  const offset = parseOffset(typeof sp.offset === 'string' ? sp.offset : undefined);
 
   const deps = buildAppDeps();
   const userId = s.user.userId;
@@ -57,17 +59,24 @@ export default async function SymptomsJournalPage({
     (t) => !isGeneralWellbeingTracking(t.symptomKey),
   );
   const tid =
-    trackingIdRaw && trackings.some((t) => t.id === trackingIdRaw) ? trackingIdRaw : trackings[0]?.id ?? "";
+    trackingIdRaw && trackings.some((t) => t.id === trackingIdRaw)
+      ? trackingIdRaw
+      : (trackings[0]?.id ?? '');
 
   if (trackingIdRaw && trackings.length > 0 && !trackings.some((t) => t.id === trackingIdRaw)) {
     const fallback = trackings[0]!.id;
     const earliestBad =
-      period === "all"
+      period === 'all'
         ? await deps.diaries.minRecordedAtForSymptomTracking({ userId, trackingId: fallback })
         : null;
-    const ym = resolveJournalMonthYm({ monthParam: monthRaw, period, offset, earliestIso: earliestBad });
+    const ym = resolveJournalMonthYm({
+      monthParam: monthRaw,
+      period,
+      offset,
+      earliestIso: earliestBad,
+    });
     redirect(
-      `${routePaths.diarySymptomsJournal}?trackingId=${encodeURIComponent(fallback)}&month=${encodeURIComponent(ym)}&period=${period}&offset=${offset}`
+      `${routePaths.diarySymptomsJournal}?trackingId=${encodeURIComponent(fallback)}&month=${encodeURIComponent(ym)}&period=${period}&offset=${offset}`,
     );
   }
 
@@ -78,12 +87,11 @@ export default async function SymptomsJournalPage({
         user={s.user}
         backHref={routePaths.diary}
         backLabel={PATIENT_DIARY_UI_LABEL}
-       
       >
         <p className={patientMutedTextClass}>Отслеживания симптомов для журнала назначает врач.</p>
         <Link
           href={`${routePaths.diary}?tab=symptoms`}
-          className={cn(buttonVariants({ variant: "outline", size: "sm" }), "mt-4 inline-flex")}
+          className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'mt-4 inline-flex')}
         >
           К статистике
         </Link>
@@ -92,11 +100,16 @@ export default async function SymptomsJournalPage({
   }
 
   const earliest =
-    period === "all"
+    period === 'all'
       ? await deps.diaries.minRecordedAtForSymptomTracking({ userId, trackingId: tid })
       : null;
 
-  const monthYm = resolveJournalMonthYm({ monthParam: monthRaw, period, offset, earliestIso: earliest });
+  const monthYm = resolveJournalMonthYm({
+    monthParam: monthRaw,
+    period,
+    offset,
+    earliestIso: earliest,
+  });
   const { fromIso, toExclusiveIso } = utcMonthRangeIso(monthYm);
 
   const entries = await deps.diaries.listSymptomEntriesForUserInRange({
@@ -113,11 +126,10 @@ export default async function SymptomsJournalPage({
       user={s.user}
       backHref={`${routePaths.diary}?tab=symptoms`}
       backLabel={PATIENT_DIARY_UI_LABEL}
-     
     >
       <SymptomsJournalClient
         entries={entries}
-        trackings={trackings.map((t) => ({ id: t.id, symptomTitle: t.symptomTitle ?? "—" }))}
+        trackings={trackings.map((t) => ({ id: t.id, symptomTitle: t.symptomTitle ?? '—' }))}
         activeTrackingId={tid}
         monthYm={monthYm}
         period={period}

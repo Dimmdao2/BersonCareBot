@@ -44,11 +44,10 @@ None.
   `pnpm --dir apps/webapp exec vitest run src/infra/repos/pgContentPages.test.ts src/modules/patient-home/todayConfig.test.ts src/app/app/doctor/content/actions.test.ts src/app/app/doctor/content/ContentForm.test.tsx src/app/api/admin/settings/route.test.ts`
 
 - Result:
-
   - `Test Files 5 passed (5)`
   - `Tests 48 passed (48)`
 
-*(Full `pnpm test:webapp` was reported green in `LOG.md` at Phase 2 completion; this audit re-ran the Phase 2–focused subset only.)*
+_(Full `pnpm test:webapp` was reported green in `LOG.md` at Phase 2 completion; this audit re-ran the Phase 2–focused subset only.)_
 
 ## 5. Explicit confirmation — no `CONTENT_PLAN.md` slug hardcode
 

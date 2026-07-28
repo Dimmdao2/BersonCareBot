@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState, useTransition } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/doctor/primitives/card";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Label } from "@/shared/ui/doctor/primitives/label";
-import { Switch } from "@/shared/ui/doctor/primitives/switch";
+import { useCallback, useEffect, useState, useTransition } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
+import { Switch } from '@/shared/ui/doctor/primitives/switch';
 import {
   SOLO_BOOKING_UNAVAILABLE_MESSAGE,
   apiJson,
@@ -14,11 +14,11 @@ import {
   parseRublesInput,
   rublesToMinor,
   type SoloOverview,
-} from "@/app/app/settings/bookingSoloAdminApi";
+} from '@/app/app/settings/bookingSoloAdminApi';
 
-const BASE = "/api/admin/booking-engine";
+const BASE = '/api/admin/booking-engine';
 
-type ServiceRow = SoloOverview["services"][0];
+type ServiceRow = SoloOverview['services'][0];
 
 export function BookingSoloServicesSection() {
   const [services, setServices] = useState<ServiceRow[]>([]);
@@ -26,21 +26,21 @@ export function BookingSoloServicesSection() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [unavailable, setUnavailable] = useState(false);
   const [pending, startTransition] = useTransition();
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [duration, setDuration] = useState("60");
-  const [bufferAfter, setBufferAfter] = useState("0");
-  const [priceRub, setPriceRub] = useState("5000");
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [duration, setDuration] = useState('60');
+  const [bufferAfter, setBufferAfter] = useState('0');
+  const [priceRub, setPriceRub] = useState('5000');
   const [patientVisible, setPatientVisible] = useState(true);
   const [usableInPackages, setUsableInPackages] = useState(true);
   const [prepaymentApplicable, setPrepaymentApplicable] = useState(false);
   const [onlinePaymentApplicable, setOnlinePaymentApplicable] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
-  const [editTitle, setEditTitle] = useState("");
-  const [editDescription, setEditDescription] = useState("");
-  const [editDuration, setEditDuration] = useState("");
-  const [editBufferAfter, setEditBufferAfter] = useState("");
-  const [editPriceRub, setEditPriceRub] = useState("");
+  const [editTitle, setEditTitle] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editDuration, setEditDuration] = useState('');
+  const [editBufferAfter, setEditBufferAfter] = useState('');
+  const [editPriceRub, setEditPriceRub] = useState('');
   const [editUsableInPackages, setEditUsableInPackages] = useState(true);
   const [editPrepaymentApplicable, setEditPrepaymentApplicable] = useState(false);
   const [editOnlinePaymentApplicable, setEditOnlinePaymentApplicable] = useState(false);
@@ -56,7 +56,7 @@ export function BookingSoloServicesSection() {
       }
       setServices(data.services);
     } catch (e) {
-      setLoadError(e instanceof Error ? e.message : "load_failed");
+      setLoadError(e instanceof Error ? e.message : 'load_failed');
     }
   }, []);
 
@@ -73,15 +73,13 @@ export function BookingSoloServicesSection() {
         await fn();
         await load();
       } catch (e) {
-        setActionError(e instanceof Error ? e.message : "action_failed");
+        setActionError(e instanceof Error ? e.message : 'action_failed');
       }
     });
   }
 
   if (unavailable) {
-    return (
-      <p className="text-sm text-muted-foreground">{SOLO_BOOKING_UNAVAILABLE_MESSAGE}</p>
-    );
+    return <p className="text-sm text-muted-foreground">{SOLO_BOOKING_UNAVAILABLE_MESSAGE}</p>;
   }
 
   return (
@@ -148,7 +146,10 @@ export function BookingSoloServicesSection() {
               Предоплата
             </label>
             <label className="flex items-center gap-2 text-sm">
-              <Switch checked={onlinePaymentApplicable} onCheckedChange={setOnlinePaymentApplicable} />
+              <Switch
+                checked={onlinePaymentApplicable}
+                onCheckedChange={setOnlinePaymentApplicable}
+              />
               Онлайн-оплата
             </label>
             <Button
@@ -159,8 +160,8 @@ export function BookingSoloServicesSection() {
                 run(async () => {
                   const rub = parseRublesInput(priceRub);
                   await apiJson(`${BASE}/services`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                       title: title.trim(),
                       description: description.trim() || null,
@@ -174,9 +175,9 @@ export function BookingSoloServicesSection() {
                       onlinePaymentApplicable,
                     }),
                   });
-                  setTitle("");
-                  setDescription("");
-                  setBufferAfter("0");
+                  setTitle('');
+                  setDescription('');
+                  setBufferAfter('0');
                 })
               }
             >
@@ -208,7 +209,11 @@ export function BookingSoloServicesSection() {
                     <td className="px-3 py-2">
                       {editId === s.id ? (
                         <div className="space-y-1">
-                          <Input className="h-8" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
+                          <Input
+                            className="h-8"
+                            value={editTitle}
+                            onChange={(e) => setEditTitle(e.target.value)}
+                          />
                           <Input
                             className="h-8"
                             placeholder="Описание"
@@ -217,7 +222,9 @@ export function BookingSoloServicesSection() {
                           />
                         </div>
                       ) : (
-                        <span className={!s.isActive ? "text-muted-foreground line-through" : undefined}>
+                        <span
+                          className={!s.isActive ? 'text-muted-foreground line-through' : undefined}
+                        >
                           {s.title}
                         </span>
                       )}
@@ -258,7 +265,7 @@ export function BookingSoloServicesSection() {
                           onChange={(e) => setEditPriceRub(e.target.value)}
                         />
                       ) : (
-                        `${(s.priceMinor / 100).toLocaleString("ru-RU")} ₽`
+                        `${(s.priceMinor / 100).toLocaleString('ru-RU')} ₽`
                       )}
                     </td>
                     <td className="px-3 py-2">
@@ -269,8 +276,8 @@ export function BookingSoloServicesSection() {
                           onCheckedChange={(checked) =>
                             run(async () => {
                               await apiJson(`${BASE}/services/${s.id}`, {
-                                method: "PATCH",
-                                headers: { "Content-Type": "application/json" },
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
                                   publicWidgetVisible: checked,
                                   adminManualOnly: !checked,
@@ -283,7 +290,10 @@ export function BookingSoloServicesSection() {
                     </td>
                     <td className="px-3 py-2">
                       {editId === s.id ? (
-                        <Switch checked={editUsableInPackages} onCheckedChange={setEditUsableInPackages} />
+                        <Switch
+                          checked={editUsableInPackages}
+                          onCheckedChange={setEditUsableInPackages}
+                        />
                       ) : (
                         <Switch
                           checked={s.usableInPackages}
@@ -291,8 +301,8 @@ export function BookingSoloServicesSection() {
                           onCheckedChange={(checked) =>
                             run(async () => {
                               await apiJson(`${BASE}/services/${s.id}`, {
-                                method: "PATCH",
-                                headers: { "Content-Type": "application/json" },
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ usableInPackages: checked }),
                               });
                             })
@@ -313,8 +323,8 @@ export function BookingSoloServicesSection() {
                           onCheckedChange={(checked) =>
                             run(async () => {
                               await apiJson(`${BASE}/services/${s.id}`, {
-                                method: "PATCH",
-                                headers: { "Content-Type": "application/json" },
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ prepaymentApplicable: checked }),
                               });
                             })
@@ -335,8 +345,8 @@ export function BookingSoloServicesSection() {
                           onCheckedChange={(checked) =>
                             run(async () => {
                               await apiJson(`${BASE}/services/${s.id}`, {
-                                method: "PATCH",
-                                headers: { "Content-Type": "application/json" },
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ onlinePaymentApplicable: checked }),
                               });
                             })
@@ -356,8 +366,8 @@ export function BookingSoloServicesSection() {
                               run(async () => {
                                 const rub = parseRublesInput(editPriceRub);
                                 await apiJson(`${BASE}/services/${s.id}`, {
-                                  method: "PATCH",
-                                  headers: { "Content-Type": "application/json" },
+                                  method: 'PATCH',
+                                  headers: { 'Content-Type': 'application/json' },
                                   body: JSON.stringify({
                                     title: editTitle,
                                     description: editDescription.trim() || null,
@@ -397,7 +407,7 @@ export function BookingSoloServicesSection() {
                             onClick={() => {
                               setEditId(s.id);
                               setEditTitle(s.title);
-                              setEditDescription(s.description ?? "");
+                              setEditDescription(s.description ?? '');
                               setEditDuration(String(s.durationMinutes));
                               setEditBufferAfter(String(s.bufferAfterMinutes));
                               setEditPriceRub(minorToRublesInput(s.priceMinor));
@@ -417,18 +427,18 @@ export function BookingSoloServicesSection() {
                             onClick={() =>
                               run(async () => {
                                 if (s.isActive) {
-                                  await apiJson(`${BASE}/services/${s.id}`, { method: "DELETE" });
+                                  await apiJson(`${BASE}/services/${s.id}`, { method: 'DELETE' });
                                 } else {
                                   await apiJson(`${BASE}/services/${s.id}`, {
-                                    method: "PATCH",
-                                    headers: { "Content-Type": "application/json" },
+                                    method: 'PATCH',
+                                    headers: { 'Content-Type': 'application/json' },
                                     body: JSON.stringify({ isActive: true }),
                                   });
                                 }
                               })
                             }
                           >
-                            {s.isActive ? "Выкл." : "Вкл."}
+                            {s.isActive ? 'Выкл.' : 'Вкл.'}
                           </Button>
                         </>
                       )}

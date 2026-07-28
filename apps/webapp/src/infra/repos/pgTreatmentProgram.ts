@@ -1,19 +1,19 @@
 /** Wave 3 phase 15C — list preview / usage summary SQL via `runWebappPgText`. */
-import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { runDrizzleMutationTransaction } from "@/infra/db/drizzleMutationTx";
-import { runWebappPgText } from "@/infra/db/runWebappSql";
-import { lfkComplexTemplateExercises, lfkComplexTemplates } from "../../../db/schema/schema";
-import { testSetItems, testSets } from "../../../db/schema/clinicalTests";
+import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
+import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { lfkComplexTemplateExercises, lfkComplexTemplates } from '../../../db/schema/schema';
+import { testSetItems, testSets } from '../../../db/schema/clinicalTests';
 import {
   treatmentProgramTemplates as tplTable,
   treatmentProgramTemplateStages as stageTable,
   treatmentProgramTemplateStageItems as itemTable,
   treatmentProgramTemplateStageGroups as tplGroupTable,
-} from "../../../db/schema/treatmentProgramTemplates";
-import type { MediaPreviewStatus } from "@/modules/media/types";
-import { mediaPreviewUrlById, parseMediaFileIdFromAppUrl } from "@/shared/lib/mediaPreviewUrls";
+} from '../../../db/schema/treatmentProgramTemplates';
+import type { MediaPreviewStatus } from '@/modules/media/types';
+import { mediaPreviewUrlById, parseMediaFileIdFromAppUrl } from '@/shared/lib/mediaPreviewUrls';
 import type {
   CreateTreatmentProgramStageInput,
   CreateTreatmentProgramStageItemInput,
@@ -40,8 +40,11 @@ import type {
   ExpandTestSetIntoTemplateStageItemsPortInput,
   ExpandTestSetIntoTemplateStageItemsResult,
   TreatmentProgramInstanceStageSystemKind,
-} from "@/modules/treatment-program/types";
-import type { TreatmentProgramPort, TreatmentProgramTemplateStageValidationContext } from "@/modules/treatment-program/ports";
+} from '@/modules/treatment-program/types';
+import type {
+  TreatmentProgramPort,
+  TreatmentProgramTemplateStageValidationContext,
+} from '@/modules/treatment-program/ports';
 import {
   EMPTY_TREATMENT_PROGRAM_TEMPLATE_USAGE_SNAPSHOT,
   TREATMENT_PROGRAM_TEMPLATE_USAGE_DETAIL_LIMIT,
@@ -51,10 +54,13 @@ import {
   TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_TESTS,
   TREATMENT_PROGRAM_TEMPLATE_STAGE_ZERO_TITLE,
   treatmentProgramTemplateStageCountForList,
-} from "@/modules/treatment-program/types";
-import { TreatmentProgramTemplateAlreadyArchivedError, TreatmentProgramExpandNotFoundError } from "@/modules/treatment-program/errors";
-import { createPgOrgEntitlementsPort } from "@/infra/repos/pgOrgEntitlements";
-import { isMechanicEnabled } from "@/modules/org-entitlements/service";
+} from '@/modules/treatment-program/types';
+import {
+  TreatmentProgramTemplateAlreadyArchivedError,
+  TreatmentProgramExpandNotFoundError,
+} from '@/modules/treatment-program/errors';
+import { createPgOrgEntitlementsPort } from '@/infra/repos/pgOrgEntitlements';
+import { isMechanicEnabled } from '@/modules/org-entitlements/service';
 
 const lfkCatalogEntitlements = createPgOrgEntitlementsPort();
 
@@ -130,7 +136,13 @@ async function templateListCounts(
       c: sql<number>`count(*)::int`.mapWith(Number),
     })
     .from(stageTable)
-    .where(and(inArray(stageTable.templateId, templateIds), eq(stageTable.organizationId, organizationId), ne(stageTable.sortOrder, 0)))
+    .where(
+      and(
+        inArray(stageTable.templateId, templateIds),
+        eq(stageTable.organizationId, organizationId),
+        ne(stageTable.sortOrder, 0),
+      ),
+    )
     .groupBy(stageTable.templateId);
   for (const row of stageAgg) {
     const cur = out.get(row.templateId);
@@ -143,11 +155,13 @@ async function templateListCounts(
     })
     .from(itemTable)
     .innerJoin(stageTable, eq(itemTable.stageId, stageTable.id))
-    .where(and(
-      inArray(stageTable.templateId, templateIds),
-      eq(stageTable.organizationId, organizationId),
-      eq(itemTable.organizationId, organizationId),
-    ))
+    .where(
+      and(
+        inArray(stageTable.templateId, templateIds),
+        eq(stageTable.organizationId, organizationId),
+        eq(itemTable.organizationId, organizationId),
+      ),
+    )
     .groupBy(stageTable.templateId);
   for (const row of itemAgg) {
     const cur = out.get(row.templateId);
@@ -269,7 +283,7 @@ async function templateListFirstItemPreviewByTemplateId(
   for (const row of res.rows) {
     const url = row.preview_url?.trim();
     const mt = row.preview_type?.trim();
-    if (!url || (mt !== "image" && mt !== "video" && mt !== "gif")) {
+    if (!url || (mt !== 'image' && mt !== 'video' && mt !== 'gif')) {
       out.set(row.template_id, null);
     } else {
       out.set(row.template_id, { mediaUrl: url, mediaType: mt });
@@ -309,8 +323,7 @@ async function enrichTemplateListPreviewMedia(
     if (!mid) continue;
     const mf = byId.get(mid.toLowerCase());
     if (!mf) continue;
-    const previewSmUrl =
-      mf.preview_sm_key?.trim() ? mediaPreviewUrlById(mid, "sm") : null;
+    const previewSmUrl = mf.preview_sm_key?.trim() ? mediaPreviewUrlById(mid, 'sm') : null;
     out.set(templateId, {
       ...preview,
       previewSmUrl,
@@ -329,7 +342,9 @@ async function templateCountsForOne(
   return m.get(templateId) ?? { stageCount: 0, itemCount: 0 };
 }
 
-function mapTemplateGroup(row: typeof tplGroupTable.$inferSelect): TreatmentProgramTemplateStageGroup {
+function mapTemplateGroup(
+  row: typeof tplGroupTable.$inferSelect,
+): TreatmentProgramTemplateStageGroup {
   const sk = row.systemKind;
   return {
     id: row.id,
@@ -339,7 +354,9 @@ function mapTemplateGroup(row: typeof tplGroupTable.$inferSelect): TreatmentProg
     scheduleText: row.scheduleText ?? null,
     sortOrder: row.sortOrder,
     systemKind:
-      sk === "recommendations" || sk === "tests" ? (sk as TreatmentProgramInstanceStageSystemKind) : null,
+      sk === 'recommendations' || sk === 'tests'
+        ? (sk as TreatmentProgramInstanceStageSystemKind)
+        : null,
   };
 }
 
@@ -348,7 +365,7 @@ type DrizzleTx = ReturnType<typeof getDrizzle>;
 function currentPrincipalOrganizationId(): string {
   const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
   if (!principalOrganizationId) {
-    throw new Error("organization_principal_required");
+    throw new Error('organization_principal_required');
   }
   return principalOrganizationId;
 }
@@ -358,8 +375,11 @@ function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[])
   const fallbackOrganizationIds = fallbacks.filter((x): x is string => Boolean(x));
   const fallbackOrganizationId = fallbackOrganizationIds[0] ?? null;
   const hasFallbackMismatch = fallbackOrganizationIds.some((id) => id !== fallbackOrganizationId);
-  if (hasFallbackMismatch || (fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)) {
-    throw new Error("organization_principal_mismatch");
+  if (
+    hasFallbackMismatch ||
+    (fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)
+  ) {
+    throw new Error('organization_principal_mismatch');
   }
   return principalOrganizationId;
 }
@@ -374,11 +394,15 @@ async function ensureTemplateStageSystemGroupsInTx(
   const existing = await tx
     .select({ systemKind: tplGroupTable.systemKind })
     .from(tplGroupTable)
-    .where(and(eq(tplGroupTable.stageId, stageId), eq(tplGroupTable.organizationId, organizationId)));
+    .where(
+      and(eq(tplGroupTable.stageId, stageId), eq(tplGroupTable.organizationId, organizationId)),
+    );
   const kinds = new Set(
-    existing.map((r) => r.systemKind).filter((x): x is string => x === "recommendations" || x === "tests"),
+    existing
+      .map((r) => r.systemKind)
+      .filter((x): x is string => x === 'recommendations' || x === 'tests'),
   );
-  if (!kinds.has("recommendations")) {
+  if (!kinds.has('recommendations')) {
     await tx.insert(tplGroupTable).values({
       organizationId,
       stageId,
@@ -386,10 +410,10 @@ async function ensureTemplateStageSystemGroupsInTx(
       description: null,
       scheduleText: null,
       sortOrder: TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_SORT_RECOMMENDATIONS,
-      systemKind: "recommendations",
+      systemKind: 'recommendations',
     });
   }
-  if (!kinds.has("tests")) {
+  if (!kinds.has('tests')) {
     await tx.insert(tplGroupTable).values({
       organizationId,
       stageId,
@@ -397,7 +421,7 @@ async function ensureTemplateStageSystemGroupsInTx(
       description: null,
       scheduleText: null,
       sortOrder: TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_SORT_TESTS,
-      systemKind: "tests",
+      systemKind: 'tests',
     });
   }
 }
@@ -406,7 +430,7 @@ function parseTreatmentProgramTemplateUsageRefs(raw: unknown): TreatmentProgramT
   if (raw == null) return [];
   let arr: unknown[];
   if (Array.isArray(raw)) arr = raw;
-  else if (typeof raw === "string") {
+  else if (typeof raw === 'string') {
     try {
       const p = JSON.parse(raw) as unknown;
       arr = Array.isArray(p) ? p : [];
@@ -417,20 +441,21 @@ function parseTreatmentProgramTemplateUsageRefs(raw: unknown): TreatmentProgramT
 
   const out: TreatmentProgramTemplateUsageRef[] = [];
   for (const x of arr) {
-    if (!x || typeof x !== "object") continue;
+    if (!x || typeof x !== 'object') continue;
     const o = x as Record<string, unknown>;
     const kind = o.kind;
     const id = o.id;
     const title = o.title;
-    if (kind === "course") {
-      if (typeof id !== "string" || typeof title !== "string") continue;
-      out.push({ kind: "course", id, title });
+    if (kind === 'course') {
+      if (typeof id !== 'string' || typeof title !== 'string') continue;
+      out.push({ kind: 'course', id, title });
       continue;
     }
-    if (kind === "treatment_program_instance") {
+    if (kind === 'treatment_program_instance') {
       const patientUserId = o.patientUserId;
-      if (typeof id !== "string" || typeof title !== "string" || typeof patientUserId !== "string") continue;
-      out.push({ kind: "treatment_program_instance", id, title, patientUserId });
+      if (typeof id !== 'string' || typeof title !== 'string' || typeof patientUserId !== 'string')
+        continue;
+      out.push({ kind: 'treatment_program_instance', id, title, patientUserId });
     }
   }
   return out;
@@ -520,7 +545,7 @@ async function loadTreatmentProgramTemplateUsageSummary(
   if (!row) return { ...EMPTY_TREATMENT_PROGRAM_TEMPLATE_USAGE_SNAPSHOT };
   const n = (v: string | number | null | undefined) => {
     if (v == null) return 0;
-    if (typeof v === "number") return v;
+    if (typeof v === 'number') return v;
     const parsed = Number.parseInt(String(v), 10);
     return Number.isFinite(parsed) ? parsed : 0;
   };
@@ -530,8 +555,12 @@ async function loadTreatmentProgramTemplateUsageSummary(
     publishedCourseCount: n(row.pub_courses),
     draftCourseCount: n(row.draft_courses),
     archivedCourseCount: n(row.arch_courses),
-    activeTreatmentProgramInstanceRefs: parseTreatmentProgramTemplateUsageRefs(row.active_inst_refs),
-    completedTreatmentProgramInstanceRefs: parseTreatmentProgramTemplateUsageRefs(row.completed_inst_refs),
+    activeTreatmentProgramInstanceRefs: parseTreatmentProgramTemplateUsageRefs(
+      row.active_inst_refs,
+    ),
+    completedTreatmentProgramInstanceRefs: parseTreatmentProgramTemplateUsageRefs(
+      row.completed_inst_refs,
+    ),
     publishedCourseRefs: parseTreatmentProgramTemplateUsageRefs(row.pub_course_refs),
     draftCourseRefs: parseTreatmentProgramTemplateUsageRefs(row.draft_course_refs),
     archivedCourseRefs: parseTreatmentProgramTemplateUsageRefs(row.arch_course_refs),
@@ -557,11 +586,11 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
             organizationId,
             title: input.title,
             description: input.description ?? null,
-            status: input.status ?? "draft",
+            status: input.status ?? 'draft',
             createdBy,
           })
           .returning();
-        if (!row) throw new Error("insert failed");
+        if (!row) throw new Error('insert failed');
         const [stRow] = await tx
           .insert(stageTable)
           .values({
@@ -576,7 +605,7 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
             expectedDurationText: null,
           })
           .returning();
-        if (!stRow) throw new Error("insert stage zero failed");
+        if (!stRow) throw new Error('insert stage zero failed');
         return mapTemplate(row, { stageCount: 0, itemCount: 0 });
       });
     },
@@ -598,7 +627,11 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
           .limit(1);
         if (!existing[0]) return [];
         const organizationId = currentWriteOrganizationId(existing[0].organizationId);
-        return tx.update(tplTable).set({ ...patch, organizationId }).where(and(eq(tplTable.id, id), eq(tplTable.organizationId, organizationId))).returning();
+        return tx
+          .update(tplTable)
+          .set({ ...patch, organizationId })
+          .where(and(eq(tplTable.id, id), eq(tplTable.organizationId, organizationId)))
+          .returning();
       });
       if (!row) return null;
       const counts = await templateCountsForOne(db, id, principalOrganizationId);
@@ -624,7 +657,12 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
           : await db
               .select()
               .from(itemTable)
-              .where(and(inArray(itemTable.stageId, stageIds), eq(itemTable.organizationId, organizationId)))
+              .where(
+                and(
+                  inArray(itemTable.stageId, stageIds),
+                  eq(itemTable.organizationId, organizationId),
+                ),
+              )
               .orderBy(asc(itemTable.stageId), asc(itemTable.sortOrder), asc(itemTable.id));
       const itemsByStage = new Map<string, typeof itemsRows>();
       for (const it of itemsRows) {
@@ -638,8 +676,17 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
           : await db
               .select()
               .from(tplGroupTable)
-              .where(and(inArray(tplGroupTable.stageId, stageIds), eq(tplGroupTable.organizationId, organizationId)))
-              .orderBy(asc(tplGroupTable.stageId), asc(tplGroupTable.sortOrder), asc(tplGroupTable.id));
+              .where(
+                and(
+                  inArray(tplGroupTable.stageId, stageIds),
+                  eq(tplGroupTable.organizationId, organizationId),
+                ),
+              )
+              .orderBy(
+                asc(tplGroupTable.stageId),
+                asc(tplGroupTable.sortOrder),
+                asc(tplGroupTable.id),
+              );
       const groupsByStage = new Map<string, typeof groupsRows>();
       for (const g of groupsRows) {
         const list = groupsByStage.get(g.stageId) ?? [];
@@ -653,7 +700,10 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
       }));
       const itemCount = stages.reduce((n, st) => n + st.items.length, 0);
       return {
-        ...mapTemplate(tplRow, { stageCount: treatmentProgramTemplateStageCountForList(stages), itemCount }),
+        ...mapTemplate(tplRow, {
+          stageCount: treatmentProgramTemplateStageCountForList(stages),
+          itemCount,
+        }),
         stages,
       };
     },
@@ -672,24 +722,28 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
       const groupRows = await db
         .select({ id: tplGroupTable.id, systemKind: tplGroupTable.systemKind })
         .from(tplGroupTable)
-        .where(and(eq(tplGroupTable.stageId, stageId), eq(tplGroupTable.organizationId, organizationId)));
+        .where(
+          and(eq(tplGroupTable.stageId, stageId), eq(tplGroupTable.organizationId, organizationId)),
+        );
       return {
         templateId: st.templateId,
         sortOrder: st.sortOrder,
         groups: groupRows.map((r) => ({
           id: r.id,
           systemKind:
-            r.systemKind === "recommendations" || r.systemKind === "tests" ? r.systemKind : null,
+            r.systemKind === 'recommendations' || r.systemKind === 'tests' ? r.systemKind : null,
         })),
       };
     },
 
-    async listTemplates(filter: TreatmentProgramTemplateFilter): Promise<TreatmentProgramTemplate[]> {
+    async listTemplates(
+      filter: TreatmentProgramTemplateFilter,
+    ): Promise<TreatmentProgramTemplate[]> {
       const db = getDrizzle();
       const organizationId = currentPrincipalOrganizationId();
       const conds = [eq(tplTable.organizationId, organizationId)];
       if (!filter.includeArchived) {
-        conds.push(ne(tplTable.status, "archived"));
+        conds.push(ne(tplTable.status, 'archived'));
       }
       if (filter.status !== undefined) {
         conds.push(eq(tplTable.status, filter.status));
@@ -712,20 +766,34 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
         const existing = await tx
           .select({ organizationId: tplTable.organizationId })
           .from(tplTable)
-          .where(and(eq(tplTable.id, id), eq(tplTable.organizationId, principalOrganizationId), ne(tplTable.status, "archived")))
+          .where(
+            and(
+              eq(tplTable.id, id),
+              eq(tplTable.organizationId, principalOrganizationId),
+              ne(tplTable.status, 'archived'),
+            ),
+          )
           .limit(1);
         if (!existing[0]) return false;
         const organizationId = currentWriteOrganizationId(existing[0].organizationId);
         const rows = await tx
           .update(tplTable)
-          .set({ organizationId, status: "archived", updatedAt: new Date().toISOString() })
-          .where(and(eq(tplTable.id, id), eq(tplTable.organizationId, organizationId), ne(tplTable.status, "archived")))
+          .set({ organizationId, status: 'archived', updatedAt: new Date().toISOString() })
+          .where(
+            and(
+              eq(tplTable.id, id),
+              eq(tplTable.organizationId, organizationId),
+              ne(tplTable.status, 'archived'),
+            ),
+          )
           .returning({ id: tplTable.id });
         return rows.length > 0;
       });
     },
 
-    async getTreatmentProgramTemplateUsageSummary(templateId: string): Promise<TreatmentProgramTemplateUsageSnapshot> {
+    async getTreatmentProgramTemplateUsageSummary(
+      templateId: string,
+    ): Promise<TreatmentProgramTemplateUsageSnapshot> {
       const organizationId = currentPrincipalOrganizationId();
       const db = getDrizzle();
       const [root] = await db
@@ -743,14 +811,24 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
         const [tpl] = await tx
           .select({ organizationId: tplTable.organizationId })
           .from(tplTable)
-          .where(and(eq(tplTable.id, templateId), eq(tplTable.organizationId, currentPrincipalOrganizationId())))
+          .where(
+            and(
+              eq(tplTable.id, templateId),
+              eq(tplTable.organizationId, currentPrincipalOrganizationId()),
+            ),
+          )
           .limit(1);
-        if (!tpl) throw new Error("Шаблон программы не найден");
+        if (!tpl) throw new Error('Шаблон программы не найден');
         const organizationId = currentWriteOrganizationId(tpl.organizationId);
         const [{ max }] = await tx
           .select({ max: sql<number>`coalesce(max(${stageTable.sortOrder}), -1)` })
           .from(stageTable)
-          .where(and(eq(stageTable.templateId, templateId), eq(stageTable.organizationId, organizationId)));
+          .where(
+            and(
+              eq(stageTable.templateId, templateId),
+              eq(stageTable.organizationId, organizationId),
+            ),
+          );
         const sortOrder = max + 1;
         const [row] = await tx
           .insert(stageTable)
@@ -766,7 +844,7 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
             expectedDurationText: input.expectedDurationText ?? null,
           })
           .returning();
-        if (!row) throw new Error("insert failed");
+        if (!row) throw new Error('insert failed');
         await ensureTemplateStageSystemGroupsInTx(tx, row.id, row.sortOrder, organizationId);
         return mapStage(row);
       });
@@ -780,41 +858,69 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
       if (input.sortOrder !== undefined) patch.sortOrder = input.sortOrder;
       if (input.goals !== undefined) patch.goals = input.goals;
       if (input.objectives !== undefined) patch.objectives = input.objectives;
-      if (input.expectedDurationDays !== undefined) patch.expectedDurationDays = input.expectedDurationDays;
-      if (input.expectedDurationText !== undefined) patch.expectedDurationText = input.expectedDurationText;
+      if (input.expectedDurationDays !== undefined)
+        patch.expectedDurationDays = input.expectedDurationDays;
+      if (input.expectedDurationText !== undefined)
+        patch.expectedDurationText = input.expectedDurationText;
       currentPrincipalOrganizationId();
       const [row] = await runDrizzleMutationTransaction(async (tx) => {
         const [cur] = await tx
-          .select({ organizationId: stageTable.organizationId, templateId: stageTable.templateId, sortOrder: stageTable.sortOrder })
+          .select({
+            organizationId: stageTable.organizationId,
+            templateId: stageTable.templateId,
+            sortOrder: stageTable.sortOrder,
+          })
           .from(stageTable)
-          .where(and(eq(stageTable.id, stageId), eq(stageTable.organizationId, currentPrincipalOrganizationId())))
+          .where(
+            and(
+              eq(stageTable.id, stageId),
+              eq(stageTable.organizationId, currentPrincipalOrganizationId()),
+            ),
+          )
           .limit(1);
         if (!cur) return [];
         const [tpl] = await tx
           .select({ organizationId: tplTable.organizationId })
           .from(tplTable)
-          .where(and(eq(tplTable.id, cur.templateId), eq(tplTable.organizationId, currentPrincipalOrganizationId())))
+          .where(
+            and(
+              eq(tplTable.id, cur.templateId),
+              eq(tplTable.organizationId, currentPrincipalOrganizationId()),
+            ),
+          )
           .limit(1);
         const organizationId = currentWriteOrganizationId(cur.organizationId, tpl?.organizationId);
         if (input.sortOrder !== undefined) {
           if (cur.sortOrder === 0 && input.sortOrder !== 0) {
-            throw new Error("Этап «Общие рекомендации» (порядок 0) нельзя перевести на другой порядок");
+            throw new Error(
+              'Этап «Общие рекомендации» (порядок 0) нельзя перевести на другой порядок',
+            );
           }
           if (cur.sortOrder !== 0 && input.sortOrder === 0) {
-            throw new Error("Порядок 0 зарезервирован для этапа «Общие рекомендации»");
+            throw new Error('Порядок 0 зарезервирован для этапа «Общие рекомендации»');
           }
           if (input.sortOrder !== cur.sortOrder) {
             const clash = await tx
               .select({ id: stageTable.id })
               .from(stageTable)
-              .where(and(eq(stageTable.templateId, cur.templateId), eq(stageTable.organizationId, organizationId), eq(stageTable.sortOrder, input.sortOrder)))
+              .where(
+                and(
+                  eq(stageTable.templateId, cur.templateId),
+                  eq(stageTable.organizationId, organizationId),
+                  eq(stageTable.sortOrder, input.sortOrder),
+                ),
+              )
               .limit(1);
             if (clash[0] && clash[0].id !== stageId) {
-              throw new Error("Этап с таким порядком уже существует");
+              throw new Error('Этап с таким порядком уже существует');
             }
           }
         }
-        return tx.update(stageTable).set({ ...patch, organizationId }).where(and(eq(stageTable.id, stageId), eq(stageTable.organizationId, organizationId))).returning();
+        return tx
+          .update(stageTable)
+          .set({ ...patch, organizationId })
+          .where(and(eq(stageTable.id, stageId), eq(stageTable.organizationId, organizationId)))
+          .returning();
       });
       return row ? mapStage(row) : null;
     },
@@ -822,18 +928,40 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
     async deleteStage(stageId: string) {
       currentPrincipalOrganizationId();
       return runDrizzleMutationTransaction(async (tx) => {
-        const [cur] = await tx.select().from(stageTable).where(and(eq(stageTable.id, stageId), eq(stageTable.organizationId, currentPrincipalOrganizationId()))).limit(1);
+        const [cur] = await tx
+          .select()
+          .from(stageTable)
+          .where(
+            and(
+              eq(stageTable.id, stageId),
+              eq(stageTable.organizationId, currentPrincipalOrganizationId()),
+            ),
+          )
+          .limit(1);
         if (!cur) return false;
         const [tpl] = await tx
           .select({ organizationId: tplTable.organizationId })
           .from(tplTable)
-          .where(and(eq(tplTable.id, cur.templateId), eq(tplTable.organizationId, currentPrincipalOrganizationId())))
+          .where(
+            and(
+              eq(tplTable.id, cur.templateId),
+              eq(tplTable.organizationId, currentPrincipalOrganizationId()),
+            ),
+          )
           .limit(1);
         currentWriteOrganizationId(cur.organizationId, tpl?.organizationId);
         if (cur.sortOrder === 0) {
-          throw new Error("Нельзя удалить этап «Общие рекомендации»");
+          throw new Error('Нельзя удалить этап «Общие рекомендации»');
         }
-        const res = await tx.delete(stageTable).where(and(eq(stageTable.id, stageId), eq(stageTable.organizationId, currentPrincipalOrganizationId()))).returning({ id: stageTable.id });
+        const res = await tx
+          .delete(stageTable)
+          .where(
+            and(
+              eq(stageTable.id, stageId),
+              eq(stageTable.organizationId, currentPrincipalOrganizationId()),
+            ),
+          )
+          .returning({ id: stageTable.id });
         return res.length > 0;
       });
     },
@@ -841,26 +969,53 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
     async addStageItem(stageId: string, input: CreateTreatmentProgramStageItemInput) {
       currentPrincipalOrganizationId();
       return runDrizzleMutationTransaction(async (tx) => {
-        const [st] = await tx.select().from(stageTable).where(and(eq(stageTable.id, stageId), eq(stageTable.organizationId, currentPrincipalOrganizationId()))).limit(1);
-        if (!st) throw new Error("Этап не найден");
+        const [st] = await tx
+          .select()
+          .from(stageTable)
+          .where(
+            and(
+              eq(stageTable.id, stageId),
+              eq(stageTable.organizationId, currentPrincipalOrganizationId()),
+            ),
+          )
+          .limit(1);
+        if (!st) throw new Error('Этап не найден');
         const [tpl] = await tx
           .select({ organizationId: tplTable.organizationId })
           .from(tplTable)
-          .where(and(eq(tplTable.id, st.templateId), eq(tplTable.organizationId, currentPrincipalOrganizationId())))
+          .where(
+            and(
+              eq(tplTable.id, st.templateId),
+              eq(tplTable.organizationId, currentPrincipalOrganizationId()),
+            ),
+          )
           .limit(1);
         let groupOrganizationId: string | null | undefined;
         if (input.groupId) {
           const [group] = await tx
-            .select({ organizationId: tplGroupTable.organizationId, stageId: tplGroupTable.stageId })
+            .select({
+              organizationId: tplGroupTable.organizationId,
+              stageId: tplGroupTable.stageId,
+            })
             .from(tplGroupTable)
-            .where(and(eq(tplGroupTable.id, input.groupId), eq(tplGroupTable.organizationId, currentPrincipalOrganizationId())))
+            .where(
+              and(
+                eq(tplGroupTable.id, input.groupId),
+                eq(tplGroupTable.organizationId, currentPrincipalOrganizationId()),
+              ),
+            )
             .limit(1);
-          if (!group || group.stageId !== stageId) throw new Error("Группа не найдена или не принадлежит этапу");
+          if (!group || group.stageId !== stageId)
+            throw new Error('Группа не найдена или не принадлежит этапу');
           groupOrganizationId = group.organizationId;
         }
-        const organizationId = currentWriteOrganizationId(st.organizationId, tpl?.organizationId, groupOrganizationId);
-        if (st.sortOrder === 0 && input.itemType !== "recommendation") {
-          throw new Error("На этапе «Общие рекомендации» разрешены только рекомендации");
+        const organizationId = currentWriteOrganizationId(
+          st.organizationId,
+          tpl?.organizationId,
+          groupOrganizationId,
+        );
+        if (st.sortOrder === 0 && input.itemType !== 'recommendation') {
+          throw new Error('На этапе «Общие рекомендации» разрешены только рекомендации');
         }
         const [{ max }] = await tx
           .select({ max: sql<number>`coalesce(max(${itemTable.sortOrder}), -1)` })
@@ -880,7 +1035,7 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
             groupId: input.groupId ?? null,
           })
           .returning();
-        if (!row) throw new Error("insert failed");
+        if (!row) throw new Error('insert failed');
         return mapItem(row);
       });
     },
@@ -904,25 +1059,57 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
       if (input.groupId !== undefined) patch.groupId = input.groupId;
       currentPrincipalOrganizationId();
       const [row] = await runDrizzleMutationTransaction(async (tx) => {
-        const [cur] = await tx.select().from(itemTable).where(and(eq(itemTable.id, itemId), eq(itemTable.organizationId, currentPrincipalOrganizationId()))).limit(1);
+        const [cur] = await tx
+          .select()
+          .from(itemTable)
+          .where(
+            and(
+              eq(itemTable.id, itemId),
+              eq(itemTable.organizationId, currentPrincipalOrganizationId()),
+            ),
+          )
+          .limit(1);
         if (!cur) return [];
-        const [st] = await tx.select().from(stageTable).where(and(eq(stageTable.id, cur.stageId), eq(stageTable.organizationId, currentPrincipalOrganizationId()))).limit(1);
+        const [st] = await tx
+          .select()
+          .from(stageTable)
+          .where(
+            and(
+              eq(stageTable.id, cur.stageId),
+              eq(stageTable.organizationId, currentPrincipalOrganizationId()),
+            ),
+          )
+          .limit(1);
         const [tpl] = st
           ? await tx
               .select({ organizationId: tplTable.organizationId })
               .from(tplTable)
-              .where(and(eq(tplTable.id, st.templateId), eq(tplTable.organizationId, currentPrincipalOrganizationId())))
+              .where(
+                and(
+                  eq(tplTable.id, st.templateId),
+                  eq(tplTable.organizationId, currentPrincipalOrganizationId()),
+                ),
+              )
               .limit(1)
           : [];
         let groupOrganizationId: string | null | undefined;
         const targetGroupId = input.groupId === undefined ? cur.groupId : input.groupId;
         if (targetGroupId) {
           const [group] = await tx
-            .select({ organizationId: tplGroupTable.organizationId, stageId: tplGroupTable.stageId })
+            .select({
+              organizationId: tplGroupTable.organizationId,
+              stageId: tplGroupTable.stageId,
+            })
             .from(tplGroupTable)
-            .where(and(eq(tplGroupTable.id, targetGroupId), eq(tplGroupTable.organizationId, currentPrincipalOrganizationId())))
+            .where(
+              and(
+                eq(tplGroupTable.id, targetGroupId),
+                eq(tplGroupTable.organizationId, currentPrincipalOrganizationId()),
+              ),
+            )
             .limit(1);
-          if (!group || group.stageId !== cur.stageId) throw new Error("Группа не найдена или не принадлежит этапу");
+          if (!group || group.stageId !== cur.stageId)
+            throw new Error('Группа не найдена или не принадлежит этапу');
           groupOrganizationId = group.organizationId;
         }
         const organizationId = currentWriteOrganizationId(
@@ -931,7 +1118,11 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
           tpl?.organizationId,
           groupOrganizationId,
         );
-        return tx.update(itemTable).set({ ...patch, organizationId }).where(and(eq(itemTable.id, itemId), eq(itemTable.organizationId, organizationId))).returning();
+        return tx
+          .update(itemTable)
+          .set({ ...patch, organizationId })
+          .where(and(eq(itemTable.id, itemId), eq(itemTable.organizationId, organizationId)))
+          .returning();
       });
       return row ? mapItem(row) : null;
     },
@@ -939,43 +1130,96 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
     async deleteStageItem(itemId: string) {
       currentPrincipalOrganizationId();
       return runDrizzleMutationTransaction(async (tx) => {
-        const [cur] = await tx.select().from(itemTable).where(and(eq(itemTable.id, itemId), eq(itemTable.organizationId, currentPrincipalOrganizationId()))).limit(1);
+        const [cur] = await tx
+          .select()
+          .from(itemTable)
+          .where(
+            and(
+              eq(itemTable.id, itemId),
+              eq(itemTable.organizationId, currentPrincipalOrganizationId()),
+            ),
+          )
+          .limit(1);
         if (!cur) return false;
-        const [st] = await tx.select().from(stageTable).where(and(eq(stageTable.id, cur.stageId), eq(stageTable.organizationId, currentPrincipalOrganizationId()))).limit(1);
+        const [st] = await tx
+          .select()
+          .from(stageTable)
+          .where(
+            and(
+              eq(stageTable.id, cur.stageId),
+              eq(stageTable.organizationId, currentPrincipalOrganizationId()),
+            ),
+          )
+          .limit(1);
         const [tpl] = st
           ? await tx
               .select({ organizationId: tplTable.organizationId })
               .from(tplTable)
-              .where(and(eq(tplTable.id, st.templateId), eq(tplTable.organizationId, currentPrincipalOrganizationId())))
+              .where(
+                and(
+                  eq(tplTable.id, st.templateId),
+                  eq(tplTable.organizationId, currentPrincipalOrganizationId()),
+                ),
+              )
               .limit(1)
           : [];
         currentWriteOrganizationId(cur.organizationId, st?.organizationId, tpl?.organizationId);
-        const res = await tx.delete(itemTable).where(and(eq(itemTable.id, itemId), eq(itemTable.organizationId, currentPrincipalOrganizationId()))).returning({ id: itemTable.id });
+        const res = await tx
+          .delete(itemTable)
+          .where(
+            and(
+              eq(itemTable.id, itemId),
+              eq(itemTable.organizationId, currentPrincipalOrganizationId()),
+            ),
+          )
+          .returning({ id: itemTable.id });
         return res.length > 0;
       });
     },
 
-    async createTemplateStageGroup(stageId: string, input: CreateTreatmentProgramTemplateStageGroupInput) {
+    async createTemplateStageGroup(
+      stageId: string,
+      input: CreateTreatmentProgramTemplateStageGroupInput,
+    ) {
       currentPrincipalOrganizationId();
       return runDrizzleMutationTransaction(async (tx) => {
-        const [st] = await tx.select().from(stageTable).where(and(eq(stageTable.id, stageId), eq(stageTable.organizationId, currentPrincipalOrganizationId()))).limit(1);
-        if (!st) throw new Error("Этап не найден");
+        const [st] = await tx
+          .select()
+          .from(stageTable)
+          .where(
+            and(
+              eq(stageTable.id, stageId),
+              eq(stageTable.organizationId, currentPrincipalOrganizationId()),
+            ),
+          )
+          .limit(1);
+        if (!st) throw new Error('Этап не найден');
         const [tpl] = await tx
           .select({ organizationId: tplTable.organizationId })
           .from(tplTable)
-          .where(and(eq(tplTable.id, st.templateId), eq(tplTable.organizationId, currentPrincipalOrganizationId())))
+          .where(
+            and(
+              eq(tplTable.id, st.templateId),
+              eq(tplTable.organizationId, currentPrincipalOrganizationId()),
+            ),
+          )
           .limit(1);
         const organizationId = currentWriteOrganizationId(st.organizationId, tpl?.organizationId);
         if (st.sortOrder === 0) {
-          throw new Error("На этапе «Общие рекомендации» нельзя создавать группы");
+          throw new Error('На этапе «Общие рекомендации» нельзя создавать группы');
         }
         const [{ max }] = await tx
           .select({ max: sql<number>`coalesce(max(${tplGroupTable.sortOrder}), -1)` })
           .from(tplGroupTable)
-          .where(and(eq(tplGroupTable.stageId, stageId), eq(tplGroupTable.organizationId, organizationId)));
+          .where(
+            and(
+              eq(tplGroupTable.stageId, stageId),
+              eq(tplGroupTable.organizationId, organizationId),
+            ),
+          );
         const sortOrder = input.sortOrder ?? max + 1;
-        const title = input.title?.trim() ?? "";
-        if (!title) throw new Error("Название группы обязательно");
+        const title = input.title?.trim() ?? '';
+        if (!title) throw new Error('Название группы обязательно');
         const [row] = await tx
           .insert(tplGroupTable)
           .values({
@@ -988,16 +1232,19 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
             systemKind: null,
           })
           .returning();
-        if (!row) throw new Error("insert group failed");
+        if (!row) throw new Error('insert group failed');
         return mapTemplateGroup(row);
       });
     },
 
-    async updateTemplateStageGroup(groupId: string, input: UpdateTreatmentProgramTemplateStageGroupInput) {
+    async updateTemplateStageGroup(
+      groupId: string,
+      input: UpdateTreatmentProgramTemplateStageGroupInput,
+    ) {
       const patch: Partial<typeof tplGroupTable.$inferInsert> = {};
       if (input.title !== undefined) {
         const t = input.title.trim();
-        if (!t) throw new Error("Название группы обязательно");
+        if (!t) throw new Error('Название группы обязательно');
         patch.title = t;
       }
       if (input.description !== undefined) patch.description = input.description?.trim() ?? null;
@@ -1005,33 +1252,68 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
       if (input.sortOrder !== undefined) patch.sortOrder = input.sortOrder;
       currentPrincipalOrganizationId();
       const [row] = await runDrizzleMutationTransaction(async (tx) => {
-        const [cur] = await tx.select().from(tplGroupTable).where(and(eq(tplGroupTable.id, groupId), eq(tplGroupTable.organizationId, currentPrincipalOrganizationId()))).limit(1);
+        const [cur] = await tx
+          .select()
+          .from(tplGroupTable)
+          .where(
+            and(
+              eq(tplGroupTable.id, groupId),
+              eq(tplGroupTable.organizationId, currentPrincipalOrganizationId()),
+            ),
+          )
+          .limit(1);
         if (!cur) return [];
-        const [st] = await tx.select().from(stageTable).where(and(eq(stageTable.id, cur.stageId), eq(stageTable.organizationId, currentPrincipalOrganizationId()))).limit(1);
+        const [st] = await tx
+          .select()
+          .from(stageTable)
+          .where(
+            and(
+              eq(stageTable.id, cur.stageId),
+              eq(stageTable.organizationId, currentPrincipalOrganizationId()),
+            ),
+          )
+          .limit(1);
         const [tpl] = st
           ? await tx
               .select({ organizationId: tplTable.organizationId })
               .from(tplTable)
-              .where(and(eq(tplTable.id, st.templateId), eq(tplTable.organizationId, currentPrincipalOrganizationId())))
+              .where(
+                and(
+                  eq(tplTable.id, st.templateId),
+                  eq(tplTable.organizationId, currentPrincipalOrganizationId()),
+                ),
+              )
               .limit(1)
           : [];
-        const organizationId = currentWriteOrganizationId(cur.organizationId, st?.organizationId, tpl?.organizationId);
-        if (cur.systemKind === "recommendations" || cur.systemKind === "tests") {
+        const organizationId = currentWriteOrganizationId(
+          cur.organizationId,
+          st?.organizationId,
+          tpl?.organizationId,
+        );
+        if (cur.systemKind === 'recommendations' || cur.systemKind === 'tests') {
           if (
             input.title !== undefined ||
             input.sortOrder !== undefined ||
             input.description !== undefined ||
             input.scheduleText !== undefined
           ) {
-            throw new Error("Системную группу нельзя редактировать");
+            throw new Error('Системную группу нельзя редактировать');
           }
           await tx
             .update(tplGroupTable)
             .set({ organizationId })
-            .where(and(eq(tplGroupTable.id, groupId), eq(tplGroupTable.organizationId, organizationId)));
+            .where(
+              and(eq(tplGroupTable.id, groupId), eq(tplGroupTable.organizationId, organizationId)),
+            );
           return [cur];
         }
-        return tx.update(tplGroupTable).set({ ...patch, organizationId }).where(and(eq(tplGroupTable.id, groupId), eq(tplGroupTable.organizationId, organizationId))).returning();
+        return tx
+          .update(tplGroupTable)
+          .set({ ...patch, organizationId })
+          .where(
+            and(eq(tplGroupTable.id, groupId), eq(tplGroupTable.organizationId, organizationId)),
+          )
+          .returning();
       });
       return row ? mapTemplateGroup(row) : null;
     },
@@ -1039,22 +1321,57 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
     async deleteTemplateStageGroup(groupId: string) {
       currentPrincipalOrganizationId();
       return runDrizzleMutationTransaction(async (tx) => {
-        const [cur] = await tx.select().from(tplGroupTable).where(and(eq(tplGroupTable.id, groupId), eq(tplGroupTable.organizationId, currentPrincipalOrganizationId()))).limit(1);
+        const [cur] = await tx
+          .select()
+          .from(tplGroupTable)
+          .where(
+            and(
+              eq(tplGroupTable.id, groupId),
+              eq(tplGroupTable.organizationId, currentPrincipalOrganizationId()),
+            ),
+          )
+          .limit(1);
         if (!cur) return false;
-        const [st] = await tx.select().from(stageTable).where(and(eq(stageTable.id, cur.stageId), eq(stageTable.organizationId, currentPrincipalOrganizationId()))).limit(1);
+        const [st] = await tx
+          .select()
+          .from(stageTable)
+          .where(
+            and(
+              eq(stageTable.id, cur.stageId),
+              eq(stageTable.organizationId, currentPrincipalOrganizationId()),
+            ),
+          )
+          .limit(1);
         const [tpl] = st
           ? await tx
               .select({ organizationId: tplTable.organizationId })
               .from(tplTable)
-              .where(and(eq(tplTable.id, st.templateId), eq(tplTable.organizationId, currentPrincipalOrganizationId())))
+              .where(
+                and(
+                  eq(tplTable.id, st.templateId),
+                  eq(tplTable.organizationId, currentPrincipalOrganizationId()),
+                ),
+              )
               .limit(1)
           : [];
-        const organizationId = currentWriteOrganizationId(cur.organizationId, st?.organizationId, tpl?.organizationId);
-        if (cur.systemKind === "recommendations" || cur.systemKind === "tests") {
-          throw new Error("Системную группу нельзя удалить");
+        const organizationId = currentWriteOrganizationId(
+          cur.organizationId,
+          st?.organizationId,
+          tpl?.organizationId,
+        );
+        if (cur.systemKind === 'recommendations' || cur.systemKind === 'tests') {
+          throw new Error('Системную группу нельзя удалить');
         }
-        await tx.update(itemTable).set({ organizationId, groupId: null }).where(and(eq(itemTable.groupId, groupId), eq(itemTable.organizationId, organizationId)));
-        const res = await tx.delete(tplGroupTable).where(and(eq(tplGroupTable.id, groupId), eq(tplGroupTable.organizationId, organizationId))).returning({ id: tplGroupTable.id });
+        await tx
+          .update(itemTable)
+          .set({ organizationId, groupId: null })
+          .where(and(eq(itemTable.groupId, groupId), eq(itemTable.organizationId, organizationId)));
+        const res = await tx
+          .delete(tplGroupTable)
+          .where(
+            and(eq(tplGroupTable.id, groupId), eq(tplGroupTable.organizationId, organizationId)),
+          )
+          .returning({ id: tplGroupTable.id });
         return res.length > 0;
       });
     },
@@ -1066,14 +1383,28 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
         const [tpl] = await tx
           .select({ organizationId: tplTable.organizationId })
           .from(tplTable)
-          .where(and(eq(tplTable.id, templateId), eq(tplTable.organizationId, currentPrincipalOrganizationId())))
+          .where(
+            and(
+              eq(tplTable.id, templateId),
+              eq(tplTable.organizationId, currentPrincipalOrganizationId()),
+            ),
+          )
           .limit(1);
         if (!tpl) return false;
         const organizationId = currentWriteOrganizationId(tpl.organizationId);
         const stagesRows = await tx
-          .select({ id: stageTable.id, sortOrder: stageTable.sortOrder, organizationId: stageTable.organizationId })
+          .select({
+            id: stageTable.id,
+            sortOrder: stageTable.sortOrder,
+            organizationId: stageTable.organizationId,
+          })
           .from(stageTable)
-          .where(and(eq(stageTable.templateId, templateId), eq(stageTable.organizationId, organizationId)));
+          .where(
+            and(
+              eq(stageTable.templateId, templateId),
+              eq(stageTable.organizationId, organizationId),
+            ),
+          );
         for (const row of stagesRows) {
           currentWriteOrganizationId(row.organizationId, organizationId);
         }
@@ -1085,13 +1416,23 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
           await tx
             .update(stageTable)
             .set({ organizationId, sortOrder: TEMP_OFFSET + i })
-            .where(and(eq(stageTable.id, orderedStageIds[i]!), eq(stageTable.organizationId, organizationId)));
+            .where(
+              and(
+                eq(stageTable.id, orderedStageIds[i]!),
+                eq(stageTable.organizationId, organizationId),
+              ),
+            );
         }
         for (let i = 0; i < orderedStageIds.length; i++) {
           await tx
             .update(stageTable)
             .set({ organizationId, sortOrder: i })
-            .where(and(eq(stageTable.id, orderedStageIds[i]!), eq(stageTable.organizationId, organizationId)));
+            .where(
+              and(
+                eq(stageTable.id, orderedStageIds[i]!),
+                eq(stageTable.organizationId, organizationId),
+              ),
+            );
         }
         return true;
       });
@@ -1101,15 +1442,26 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
       currentPrincipalOrganizationId();
       return runDrizzleMutationTransaction(async (tx) => {
         const stRow = await tx.query.treatmentProgramTemplateStages.findFirst({
-          where: and(eq(stageTable.id, stageId), eq(stageTable.organizationId, currentPrincipalOrganizationId())),
+          where: and(
+            eq(stageTable.id, stageId),
+            eq(stageTable.organizationId, currentPrincipalOrganizationId()),
+          ),
         });
         if (!stRow) return false;
         const [tpl] = await tx
           .select({ organizationId: tplTable.organizationId })
           .from(tplTable)
-          .where(and(eq(tplTable.id, stRow.templateId), eq(tplTable.organizationId, currentPrincipalOrganizationId())))
+          .where(
+            and(
+              eq(tplTable.id, stRow.templateId),
+              eq(tplTable.organizationId, currentPrincipalOrganizationId()),
+            ),
+          )
           .limit(1);
-        const organizationId = currentWriteOrganizationId(stRow.organizationId, tpl?.organizationId);
+        const organizationId = currentWriteOrganizationId(
+          stRow.organizationId,
+          tpl?.organizationId,
+        );
         const itemRows = await tx
           .select({ id: itemTable.id, organizationId: itemTable.organizationId })
           .from(itemTable)
@@ -1123,7 +1475,12 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
           await tx
             .update(itemTable)
             .set({ organizationId, sortOrder: i })
-            .where(and(eq(itemTable.id, orderedItemIds[i]!), eq(itemTable.organizationId, organizationId)));
+            .where(
+              and(
+                eq(itemTable.id, orderedItemIds[i]!),
+                eq(itemTable.organizationId, organizationId),
+              ),
+            );
         }
         return true;
       });
@@ -1132,18 +1489,41 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
     async reorderTemplateStageGroups(stageId: string, orderedGroupIds: string[]) {
       currentPrincipalOrganizationId();
       return runDrizzleMutationTransaction(async (tx) => {
-        const [st] = await tx.select().from(stageTable).where(and(eq(stageTable.id, stageId), eq(stageTable.organizationId, currentPrincipalOrganizationId()))).limit(1);
+        const [st] = await tx
+          .select()
+          .from(stageTable)
+          .where(
+            and(
+              eq(stageTable.id, stageId),
+              eq(stageTable.organizationId, currentPrincipalOrganizationId()),
+            ),
+          )
+          .limit(1);
         if (!st) return false;
         const [tpl] = await tx
           .select({ organizationId: tplTable.organizationId })
           .from(tplTable)
-          .where(and(eq(tplTable.id, st.templateId), eq(tplTable.organizationId, currentPrincipalOrganizationId())))
+          .where(
+            and(
+              eq(tplTable.id, st.templateId),
+              eq(tplTable.organizationId, currentPrincipalOrganizationId()),
+            ),
+          )
           .limit(1);
         const organizationId = currentWriteOrganizationId(st.organizationId, tpl?.organizationId);
         const rows = await tx
-          .select({ id: tplGroupTable.id, systemKind: tplGroupTable.systemKind, organizationId: tplGroupTable.organizationId })
+          .select({
+            id: tplGroupTable.id,
+            systemKind: tplGroupTable.systemKind,
+            organizationId: tplGroupTable.organizationId,
+          })
           .from(tplGroupTable)
-          .where(and(eq(tplGroupTable.stageId, stageId), eq(tplGroupTable.organizationId, organizationId)));
+          .where(
+            and(
+              eq(tplGroupTable.stageId, stageId),
+              eq(tplGroupTable.organizationId, organizationId),
+            ),
+          );
         for (const row of rows) {
           currentWriteOrganizationId(row.organizationId, organizationId);
         }
@@ -1166,25 +1546,30 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
       });
     },
 
-    async getLfkComplexExpandPreview(complexTemplateId: string): Promise<LfkComplexExpandPreview | null> {
+    async getLfkComplexExpandPreview(
+      complexTemplateId: string,
+    ): Promise<LfkComplexExpandPreview | null> {
       const db = getDrizzle();
       const organizationId = currentPrincipalOrganizationId();
       const includePlatformBase = await isMechanicEnabled(
         lfkCatalogEntitlements,
         organizationId,
-        "exercise_catalog",
+        'exercise_catalog',
       );
       const row = await db.query.lfkComplexTemplates.findFirst({
         where: and(
           eq(lfkComplexTemplates.id, complexTemplateId),
-          ne(lfkComplexTemplates.status, "archived"),
+          ne(lfkComplexTemplates.status, 'archived'),
           or(
             and(
-              eq(lfkComplexTemplates.ownerKind, "organization"),
+              eq(lfkComplexTemplates.ownerKind, 'organization'),
               eq(lfkComplexTemplates.organizationId, organizationId),
             ),
             includePlatformBase
-              ? and(eq(lfkComplexTemplates.ownerKind, "platform"), isNull(lfkComplexTemplates.organizationId))
+              ? and(
+                  eq(lfkComplexTemplates.ownerKind, 'platform'),
+                  isNull(lfkComplexTemplates.organizationId),
+                )
               : undefined,
           ),
         ),
@@ -1193,16 +1578,18 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
       const exerciseRows = await db
         .select({ exerciseId: lfkComplexTemplateExercises.exerciseId })
         .from(lfkComplexTemplateExercises)
-        .where(and(
-          eq(lfkComplexTemplateExercises.templateId, complexTemplateId),
-          eq(lfkComplexTemplateExercises.ownerKind, row.ownerKind),
-          row.ownerKind === "platform"
-            ? isNull(lfkComplexTemplateExercises.organizationId)
-            : eq(lfkComplexTemplateExercises.organizationId, organizationId),
-        ))
+        .where(
+          and(
+            eq(lfkComplexTemplateExercises.templateId, complexTemplateId),
+            eq(lfkComplexTemplateExercises.ownerKind, row.ownerKind),
+            row.ownerKind === 'platform'
+              ? isNull(lfkComplexTemplateExercises.organizationId)
+              : eq(lfkComplexTemplateExercises.organizationId, organizationId),
+          ),
+        )
         .orderBy(asc(lfkComplexTemplateExercises.sortOrder), asc(lfkComplexTemplateExercises.id));
-      const d = row.description?.trim() ?? "";
-      const title = row.title?.trim() ?? "";
+      const d = row.description?.trim() ?? '';
+      const title = row.title?.trim() ?? '';
       return {
         exerciseIds: exerciseRows.map((r) => r.exerciseId),
         complexDescription: d ? d : null,
@@ -1217,43 +1604,56 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
       const includePlatformBase = await isMechanicEnabled(
         lfkCatalogEntitlements,
         requestedOrganizationId,
-        "exercise_catalog",
+        'exercise_catalog',
       );
       return runDrizzleMutationTransaction(async (tx) => {
         const stageRow = await tx.query.treatmentProgramTemplateStages.findFirst({
-          where: and(eq(stageTable.id, input.stageId), eq(stageTable.organizationId, currentPrincipalOrganizationId())),
+          where: and(
+            eq(stageTable.id, input.stageId),
+            eq(stageTable.organizationId, currentPrincipalOrganizationId()),
+          ),
         });
-        if (!stageRow) throw new TreatmentProgramExpandNotFoundError("Этап не найден");
+        if (!stageRow) throw new TreatmentProgramExpandNotFoundError('Этап не найден');
         if (stageRow.sortOrder === 0) {
-          throw new Error("На этапе «Общие рекомендации» нельзя разворачивать комплекс ЛФК");
+          throw new Error('На этапе «Общие рекомендации» нельзя разворачивать комплекс ЛФК');
         }
         if (stageRow.templateId !== input.templateId) {
-          throw new TreatmentProgramExpandNotFoundError("Этап не принадлежит шаблону");
+          throw new TreatmentProgramExpandNotFoundError('Этап не принадлежит шаблону');
         }
 
         const tplRow = await tx.query.treatmentProgramTemplates.findFirst({
-          where: and(eq(tplTable.id, input.templateId), eq(tplTable.organizationId, currentPrincipalOrganizationId())),
+          where: and(
+            eq(tplTable.id, input.templateId),
+            eq(tplTable.organizationId, currentPrincipalOrganizationId()),
+          ),
         });
-        if (!tplRow) throw new TreatmentProgramExpandNotFoundError("Шаблон программы не найден");
-        if (tplRow.status === "archived") throw new TreatmentProgramTemplateAlreadyArchivedError();
-        const organizationId = currentWriteOrganizationId(stageRow.organizationId, tplRow.organizationId);
+        if (!tplRow) throw new TreatmentProgramExpandNotFoundError('Шаблон программы не найден');
+        if (tplRow.status === 'archived') throw new TreatmentProgramTemplateAlreadyArchivedError();
+        const organizationId = currentWriteOrganizationId(
+          stageRow.organizationId,
+          tplRow.organizationId,
+        );
 
         const complexRow = await tx.query.lfkComplexTemplates.findFirst({
           where: and(
             eq(lfkComplexTemplates.id, input.complexTemplateId),
-            ne(lfkComplexTemplates.status, "archived"),
+            ne(lfkComplexTemplates.status, 'archived'),
             or(
               and(
-                eq(lfkComplexTemplates.ownerKind, "organization"),
+                eq(lfkComplexTemplates.ownerKind, 'organization'),
                 eq(lfkComplexTemplates.organizationId, organizationId),
               ),
               includePlatformBase
-                ? and(eq(lfkComplexTemplates.ownerKind, "platform"), isNull(lfkComplexTemplates.organizationId))
+                ? and(
+                    eq(lfkComplexTemplates.ownerKind, 'platform'),
+                    isNull(lfkComplexTemplates.organizationId),
+                  )
                 : undefined,
             ),
           ),
         });
-        if (!complexRow) throw new TreatmentProgramExpandNotFoundError("Комплекс ЛФК не найден или в архиве");
+        if (!complexRow)
+          throw new TreatmentProgramExpandNotFoundError('Комплекс ЛФК не найден или в архиве');
 
         const exerciseRows = await tx
           .select({
@@ -1262,40 +1662,44 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
             organizationId: lfkComplexTemplateExercises.organizationId,
           })
           .from(lfkComplexTemplateExercises)
-          .where(and(
-            eq(lfkComplexTemplateExercises.templateId, input.complexTemplateId),
-            eq(lfkComplexTemplateExercises.ownerKind, complexRow.ownerKind),
-            complexRow.ownerKind === "platform"
-              ? isNull(lfkComplexTemplateExercises.organizationId)
-              : eq(lfkComplexTemplateExercises.organizationId, organizationId),
-          ))
+          .where(
+            and(
+              eq(lfkComplexTemplateExercises.templateId, input.complexTemplateId),
+              eq(lfkComplexTemplateExercises.ownerKind, complexRow.ownerKind),
+              complexRow.ownerKind === 'platform'
+                ? isNull(lfkComplexTemplateExercises.organizationId)
+                : eq(lfkComplexTemplateExercises.organizationId, organizationId),
+            ),
+          )
           .orderBy(asc(lfkComplexTemplateExercises.sortOrder), asc(lfkComplexTemplateExercises.id));
         for (const exerciseRow of exerciseRows) {
-          if (complexRow.ownerKind === "organization") {
+          if (complexRow.ownerKind === 'organization') {
             currentWriteOrganizationId(exerciseRow.organizationId, organizationId);
           } else if (exerciseRow.organizationId !== null) {
-            throw new TreatmentProgramExpandNotFoundError("Комплекс ЛФК имеет некорректного владельца");
+            throw new TreatmentProgramExpandNotFoundError(
+              'Комплекс ЛФК имеет некорректного владельца',
+            );
           }
         }
 
-        if (exerciseRows.length === 0) throw new Error("В комплексе нет упражнений");
+        if (exerciseRows.length === 0) throw new Error('В комплексе нет упражнений');
 
         const idsFromDb = exerciseRows.map((r) => r.exerciseId);
         if (!sameUuidOrder(idsFromDb, input.expectedExerciseIds)) {
-          throw new Error("Комплекс ЛФК был изменён; обновите страницу и повторите попытку");
+          throw new Error('Комплекс ЛФК был изменён; обновите страницу и повторите попытку');
         }
 
-        const complexDescriptionRaw = complexRow.description?.trim() ?? "";
+        const complexDescriptionRaw = complexRow.description?.trim() ?? '';
         const complexDescription = complexDescriptionRaw ? complexDescriptionRaw : null;
 
         let targetGroupId: string | null = null;
         let createdGroup: TreatmentProgramTemplateStageGroup | undefined;
 
-        if (input.mode === "ungrouped") {
+        if (input.mode === 'ungrouped') {
           targetGroupId = null;
-        } else if (input.mode === "new_group") {
-          const title = input.newGroupTitle?.trim() ?? "";
-          if (!title) throw new Error("Название группы обязательно");
+        } else if (input.mode === 'new_group') {
+          const title = input.newGroupTitle?.trim() ?? '';
+          if (!title) throw new Error('Название группы обязательно');
           let groupDescription: string | null = null;
           if (input.copyComplexDescriptionToGroup && complexDescription) {
             groupDescription = complexDescription;
@@ -1303,7 +1707,12 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
           const [{ max }] = await tx
             .select({ max: sql<number>`coalesce(max(${tplGroupTable.sortOrder}), -1)` })
             .from(tplGroupTable)
-            .where(and(eq(tplGroupTable.stageId, input.stageId), eq(tplGroupTable.organizationId, organizationId)));
+            .where(
+              and(
+                eq(tplGroupTable.stageId, input.stageId),
+                eq(tplGroupTable.organizationId, organizationId),
+              ),
+            );
           const sortOrder = max + 1;
           const [gRow] = await tx
             .insert(tplGroupTable)
@@ -1317,35 +1726,49 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
               systemKind: null,
             })
             .returning();
-          if (!gRow) throw new Error("insert group failed");
+          if (!gRow) throw new Error('insert group failed');
           createdGroup = mapTemplateGroup(gRow);
           targetGroupId = gRow.id;
         } else {
           const [gRow] = await tx
             .select()
             .from(tplGroupTable)
-            .where(and(eq(tplGroupTable.id, input.existingGroupId!), eq(tplGroupTable.organizationId, organizationId)))
+            .where(
+              and(
+                eq(tplGroupTable.id, input.existingGroupId!),
+                eq(tplGroupTable.organizationId, organizationId),
+              ),
+            )
             .limit(1);
           if (!gRow || gRow.stageId !== input.stageId) {
-            throw new TreatmentProgramExpandNotFoundError("Группа не найдена или не принадлежит этапу");
+            throw new TreatmentProgramExpandNotFoundError(
+              'Группа не найдена или не принадлежит этапу',
+            );
           }
           currentWriteOrganizationId(gRow.organizationId, organizationId);
-          if (gRow.systemKind === "recommendations" || gRow.systemKind === "tests") {
-            throw new Error("Нельзя добавить упражнения в системную группу");
+          if (gRow.systemKind === 'recommendations' || gRow.systemKind === 'tests') {
+            throw new Error('Нельзя добавить упражнения в системную группу');
           }
           targetGroupId = gRow.id;
           if (input.copyComplexDescriptionToGroup && complexDescription) {
             await tx
               .update(tplGroupTable)
               .set({ organizationId, description: complexDescription })
-              .where(and(eq(tplGroupTable.id, gRow.id), eq(tplGroupTable.organizationId, organizationId)));
+              .where(
+                and(
+                  eq(tplGroupTable.id, gRow.id),
+                  eq(tplGroupTable.organizationId, organizationId),
+                ),
+              );
           }
         }
 
         const [{ max: itemMax }] = await tx
           .select({ max: sql<number>`coalesce(max(${itemTable.sortOrder}), -1)` })
           .from(itemTable)
-          .where(and(eq(itemTable.stageId, input.stageId), eq(itemTable.organizationId, organizationId)));
+          .where(
+            and(eq(itemTable.stageId, input.stageId), eq(itemTable.organizationId, organizationId)),
+          );
 
         const base = itemMax + 1;
         const insertedItems: TreatmentProgramStageItem[] = [];
@@ -1358,7 +1781,7 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
             .values({
               organizationId,
               stageId: input.stageId,
-              itemType: "exercise",
+              itemType: 'exercise',
               itemRefId: exerciseId,
               sortOrder: base + i,
               comment: line.comment ?? null,
@@ -1366,7 +1789,7 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
               groupId: targetGroupId,
             })
             .returning();
-          if (!row) throw new Error("insert failed");
+          if (!row) throw new Error('insert failed');
           insertedItems.push(mapItem(row));
         }
 
@@ -1380,43 +1803,68 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
       currentPrincipalOrganizationId();
       return runDrizzleMutationTransaction(async (tx) => {
         const stageRow = await tx.query.treatmentProgramTemplateStages.findFirst({
-          where: and(eq(stageTable.id, input.stageId), eq(stageTable.organizationId, currentPrincipalOrganizationId())),
+          where: and(
+            eq(stageTable.id, input.stageId),
+            eq(stageTable.organizationId, currentPrincipalOrganizationId()),
+          ),
         });
-        if (!stageRow) throw new TreatmentProgramExpandNotFoundError("Этап не найден");
+        if (!stageRow) throw new TreatmentProgramExpandNotFoundError('Этап не найден');
         if (stageRow.sortOrder === 0) {
-          throw new Error("На этапе «Общие рекомендации» нельзя разворачивать набор тестов");
+          throw new Error('На этапе «Общие рекомендации» нельзя разворачивать набор тестов');
         }
         if (stageRow.templateId !== input.templateId) {
-          throw new TreatmentProgramExpandNotFoundError("Этап не принадлежит шаблону");
+          throw new TreatmentProgramExpandNotFoundError('Этап не принадлежит шаблону');
         }
 
         const tplRow = await tx.query.treatmentProgramTemplates.findFirst({
-          where: and(eq(tplTable.id, input.templateId), eq(tplTable.organizationId, currentPrincipalOrganizationId())),
+          where: and(
+            eq(tplTable.id, input.templateId),
+            eq(tplTable.organizationId, currentPrincipalOrganizationId()),
+          ),
         });
-        if (!tplRow) throw new TreatmentProgramExpandNotFoundError("Шаблон программы не найден");
-        if (tplRow.status === "archived") throw new TreatmentProgramTemplateAlreadyArchivedError();
-        const organizationId = currentWriteOrganizationId(stageRow.organizationId, tplRow.organizationId);
+        if (!tplRow) throw new TreatmentProgramExpandNotFoundError('Шаблон программы не найден');
+        if (tplRow.status === 'archived') throw new TreatmentProgramTemplateAlreadyArchivedError();
+        const organizationId = currentWriteOrganizationId(
+          stageRow.organizationId,
+          tplRow.organizationId,
+        );
 
         const setRow = await tx.query.testSets.findFirst({
-          where: and(eq(testSets.id, input.testSetId), eq(testSets.organizationId, organizationId), eq(testSets.isArchived, false)),
+          where: and(
+            eq(testSets.id, input.testSetId),
+            eq(testSets.organizationId, organizationId),
+            eq(testSets.isArchived, false),
+          ),
         });
-        if (!setRow) throw new TreatmentProgramExpandNotFoundError("Набор тестов не найден или в архиве");
+        if (!setRow)
+          throw new TreatmentProgramExpandNotFoundError('Набор тестов не найден или в архиве');
         currentWriteOrganizationId(setRow.organizationId, organizationId);
 
         const [testsGroup] = await tx
           .select()
           .from(tplGroupTable)
-          .where(and(eq(tplGroupTable.stageId, input.stageId), eq(tplGroupTable.organizationId, organizationId), eq(tplGroupTable.systemKind, "tests")))
+          .where(
+            and(
+              eq(tplGroupTable.stageId, input.stageId),
+              eq(tplGroupTable.organizationId, organizationId),
+              eq(tplGroupTable.systemKind, 'tests'),
+            ),
+          )
           .limit(1);
         if (!testsGroup) {
-          throw new Error("Не найдена системная группа «Тестирование» для этапа");
+          throw new Error('Не найдена системная группа «Тестирование» для этапа');
         }
         currentWriteOrganizationId(testsGroup.organizationId, organizationId);
 
         const lines = await tx
           .select()
           .from(testSetItems)
-          .where(and(eq(testSetItems.testSetId, input.testSetId), eq(testSetItems.organizationId, organizationId)))
+          .where(
+            and(
+              eq(testSetItems.testSetId, input.testSetId),
+              eq(testSetItems.organizationId, organizationId),
+            ),
+          )
           .orderBy(asc(testSetItems.sortOrder), asc(testSetItems.id));
         for (const line of lines) {
           currentWriteOrganizationId(line.organizationId, organizationId);
@@ -1430,7 +1878,7 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
               eq(itemTable.stageId, input.stageId),
               eq(itemTable.organizationId, organizationId),
               eq(itemTable.groupId, testsGroup.id),
-              eq(itemTable.itemType, "clinical_test"),
+              eq(itemTable.itemType, 'clinical_test'),
             ),
           );
         const existing = new Set(existingRows.map((r) => r.refId));
@@ -1438,7 +1886,9 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
         const [{ max: itemMax }] = await tx
           .select({ max: sql<number>`coalesce(max(${itemTable.sortOrder}), -1)` })
           .from(itemTable)
-          .where(and(eq(itemTable.stageId, input.stageId), eq(itemTable.organizationId, organizationId)));
+          .where(
+            and(eq(itemTable.stageId, input.stageId), eq(itemTable.organizationId, organizationId)),
+          );
 
         let pos = itemMax + 1;
         let added = 0;
@@ -1455,14 +1905,14 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
             .values({
               organizationId,
               stageId: input.stageId,
-              itemType: "clinical_test",
+              itemType: 'clinical_test',
               itemRefId: line.testId,
               sortOrder: pos++,
               comment: line.comment ?? null,
               groupId: testsGroup.id,
             })
             .returning();
-          if (!row) throw new Error("insert failed");
+          if (!row) throw new Error('insert failed');
           inserted.push(mapItem(row));
           added += 1;
         }

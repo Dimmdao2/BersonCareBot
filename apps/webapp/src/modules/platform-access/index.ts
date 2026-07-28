@@ -1,13 +1,21 @@
-export type { ClientAccessTier, PlatformAccessContext, PlatformAccessResolution, PlatformDbRole } from "./types";
-export type { PatientPhoneCanonRow } from "./trustedPhonePolicy";
+export type {
+  ClientAccessTier,
+  PlatformAccessContext,
+  PlatformAccessResolution,
+  PlatformDbRole,
+} from './types';
+export type { PatientPhoneCanonRow } from './trustedPhonePolicy';
 export {
   isTrustedPatientPhoneActivation,
   PATIENT_PHONE_TRUST_COLUMN,
   TrustedPatientPhoneSource,
   trustedPatientPhoneWriteAnchor,
-} from "./trustedPhonePolicy";
-export { resolvePlatformAccessContext, type ResolvePlatformAccessContextInput } from "./resolvePlatformAccessContext";
-export { patientClientBusinessGate, type PatientBusinessGate } from "./patientClientBusinessGate";
+} from './trustedPhonePolicy';
+export {
+  resolvePlatformAccessContext,
+  type ResolvePlatformAccessContextInput,
+} from './resolvePlatformAccessContext';
+export { patientClientBusinessGate, type PatientBusinessGate } from './patientClientBusinessGate';
 export {
   type HeaderGetter,
   PATIENT_BUSINESS_API_PREFIXES,
@@ -19,11 +27,11 @@ export {
   patientServerActionPageAllowsOnboardingOnly,
   patientSessionSnapshotHasPhone,
   resolvePatientLayoutPathname,
-} from "./patientRouteApiPolicy";
-export { patientOnboardingServerActionSurfaceOk } from "./onboardingServerActionSurface";
-export { resolvePatientCanViewAuthOnlyContent } from "./resolvePatientCanViewAuthOnlyContent";
-export { resolvePatientCanViewContent } from "./resolvePatientCanViewContent";
+} from './patientRouteApiPolicy';
+export { patientOnboardingServerActionSurfaceOk } from './onboardingServerActionSurface';
+export { resolvePatientCanViewAuthOnlyContent } from './resolvePatientCanViewAuthOnlyContent';
+export { resolvePatientCanViewContent } from './resolvePatientCanViewContent';
 export {
   canViewPatientAuthOnlySection,
   filterPatientSectionPages,
-} from "./resolvePatientSectionContentAccess";
+} from './resolvePatientSectionContentAccess';

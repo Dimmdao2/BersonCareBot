@@ -1,9 +1,14 @@
-"use client";
+'use client';
 
-import { type ReactNode } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/shared/ui/doctor/primitives/dialog";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/shared/ui/doctor/primitives/sheet";
-import { useIsMobileViewport } from "@/shared/ui/doctor/primitives/useIsMobileViewport";
+import { type ReactNode } from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/shared/ui/doctor/primitives/dialog';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/shared/ui/doctor/primitives/sheet';
+import { useIsMobileViewport } from '@/shared/ui/doctor/primitives/useIsMobileViewport';
 
 export type MediaPickerShellProps = {
   title: string;
@@ -21,7 +26,10 @@ export function MediaPickerShell({ title, open, onOpenChange, children }: MediaP
   if (isMobileViewport) {
     return (
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent side="bottom" className="flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0">
+        <SheetContent
+          side="bottom"
+          className="flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0"
+        >
           <SheetHeader className="shrink-0 border-b border-border/60">
             <SheetTitle>{title}</SheetTitle>
           </SheetHeader>

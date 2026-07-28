@@ -1,4 +1,5 @@
 # Code Audit 2 — PFI-ST-05
+
 Auditor: Opus (2nd independent)
 Date: 2026-06-19 (UTC)
 Branch: auto/pfi-st-05 @ f9ebf36b vs feat @ aa4b9414
@@ -10,6 +11,7 @@ Diff scope (vs feat): 1 file, +27 / -5
 ---
 
 ## Clause A: mediaFileId flow (DB → ports → mapRow → route → client type → 3 UI surfaces)
+
 Verdict: **PASS**
 
 How verified — traced the full chain end to end:
@@ -44,6 +46,7 @@ How verified — traced the full chain end to end:
    - FilePreviewPanel footer — line 853 (emerald pill + explanatory text).
 
 Edge cases:
+
 - **null mediaFileId (legacy files)**: `{file.mediaFileId && ...}` — falsy short-circuit,
   badge omitted. Correct.
 - **truthiness**: `mediaFileId` is a UUID string when set; empty string is not a valid UUID
@@ -54,9 +57,11 @@ Edge cases:
 ---
 
 ## Clause B: Upload → lands in both tab + patient library folder
+
 Verdict: **PASS**
 
 How verified:
+
 - **Scope check**: ST-05 did NOT touch `route.ts` (confirmed `git diff feat..auto/pfi-st-05 -- route.ts` is empty). ST-04 wiring is intact on the baseline.
 - **POST route** (`route.ts:121,133`): `pgEnsureClientPatientFolder(userId)` →
   `createFile({ ..., folderId: patientFolder.id })`. Non-optional folderId is passed.
@@ -77,9 +82,11 @@ How verified:
 ---
 
 ## Clause C: Preview/download work (previewUrl path unchanged)
+
 Verdict: **PASS**
 
 How verified:
+
 - Diff touches `previewUrl` in exactly one place — a context line inside the
   FilePreviewPanel footer hunk; the `previewUrl` logic itself (presign attach at
   `route.ts:74-86`, and the FilePreviewPanel `href={file.previewUrl}` download/open at
@@ -94,21 +101,25 @@ How verified:
 ---
 
 ## Clause D: No new one-off components; reuses shared primitives
+
 Verdict: **PASS**
 
 How verified:
+
 - Imports unchanged by the diff: still uses `CatalogSplitLayout`, `CatalogLeftPane`,
   `CatalogRightPane` (lines 36-38) and `doctorSectionTitleClass` etc. (lines 30-35).
 - The three additions are inline `<span>`/`<p>` badges with Tailwind classes — no new
   React component, no new file. Badge styling mirrors the existing "из визита" pill pattern
-  (rounded bg-* px-1 py-px text-[10px]) with emerald palette, consistent with the codebase.
+  (rounded bg-\* px-1 py-px text-[10px]) with emerald palette, consistent with the codebase.
 
 ---
 
 ## Clause E: Scope + no raw SQL
+
 Verdict: **PASS**
 
 How verified:
+
 - `git diff --stat feat..auto/pfi-st-05 -- apps/` = 1 file only (PatientTabFiles.tsx),
   +27/-5. No route.ts / service / repo / schema changes in this commit (schema/repo/ports
   mediaFileId support is ST-04 baseline, not re-touched here).
@@ -118,6 +129,7 @@ How verified:
 ---
 
 ## Minor observations (non-blocking, no action required)
+
 1. **Empty wrapper div in FileCardTile** (line 598): the refactor wraps both badges in a
    permanent `<div className="flex flex-wrap gap-1">`. When neither `visitId` nor
    `mediaFileId` is set, this renders an empty zero-content flex div. Harmless (no

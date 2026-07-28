@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { DateTime } from "luxon";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Label } from "@/shared/ui/doctor/primitives/label";
-import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
+import { DateTime } from 'luxon';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Label } from '@/shared/ui/doctor/primitives/label';
+import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import {
   Dialog,
   DialogContent,
@@ -11,7 +11,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/shared/ui/doctor/primitives/dialog";
+} from '@/shared/ui/doctor/primitives/dialog';
 
 /**
  * R34: подтверждение переноса/ресайза ПЕРЕД применением.
@@ -49,9 +49,9 @@ function parseFlexible(iso: string): DateTime {
 function describe(startIso: string, endIso: string, timeZone: string): string {
   const start = parseFlexible(startIso).setZone(timeZone);
   const end = parseFlexible(endIso).setZone(timeZone);
-  if (!start.isValid) return "—";
-  const durMin = end.isValid ? Math.max(1, Math.round(end.diff(start, "minutes").minutes)) : null;
-  const base = start.toFormat("dd.MM.yyyy HH:mm");
+  if (!start.isValid) return '—';
+  const durMin = end.isValid ? Math.max(1, Math.round(end.diff(start, 'minutes').minutes)) : null;
+  const base = start.toFormat('dd.MM.yyyy HH:mm');
   return durMin != null ? `${base} · ${durMin} мин` : base;
 }
 
@@ -76,14 +76,18 @@ export function DoctorCalendarRescheduleDialog({
     >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Изменить запись{pending?.patientName ? ` · ${pending.patientName}` : ""}?</DialogTitle>
+          <DialogTitle>
+            Изменить запись{pending?.patientName ? ` · ${pending.patientName}` : ''}?
+          </DialogTitle>
           <DialogDescription>Подтвердите новое время приёма.</DialogDescription>
         </DialogHeader>
         {pending ? (
           <div className="space-y-3 text-sm">
             <div className="rounded-md border border-border p-3">
               <p className="text-xs text-muted-foreground">Было</p>
-              <p className="font-medium">{describe(pending.oldStartAt, pending.oldEndAt, timeZone)}</p>
+              <p className="font-medium">
+                {describe(pending.oldStartAt, pending.oldEndAt, timeZone)}
+              </p>
               <p className="mt-2 text-xs text-muted-foreground">Стало</p>
               <p className="font-medium text-primary">
                 {describe(pending.newStartAt, pending.newEndAt, timeZone)}
@@ -108,7 +112,7 @@ export function DoctorCalendarRescheduleDialog({
             Отмена
           </Button>
           <Button type="button" size="sm" disabled={busy} onClick={onConfirm}>
-            {busy ? "Сохранение…" : "Подтвердить"}
+            {busy ? 'Сохранение…' : 'Подтвердить'}
           </Button>
         </DialogFooter>
       </DialogContent>

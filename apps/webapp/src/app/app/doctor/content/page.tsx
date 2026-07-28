@@ -1,22 +1,22 @@
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { logServerRuntimeError } from "@/infra/logging/serverRuntimeLog";
-import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
-import { requireEntitlementForReadAction } from "@/app-layer/guards/requireEntitlement";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
-import { notFound } from "next/navigation";
-import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
-import type { ContentPageListRow } from "./ContentPagesSectionList";
-import { ContentHubShell, type ContentHubSection } from "./ContentHubShell";
-import type { ContentRatingSummary } from "./ContentRatingChip";
-import type { PublishedCourseOption } from "./ContentForm";
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { logServerRuntimeError } from '@/infra/logging/serverRuntimeLog';
+import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
+import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { notFound } from 'next/navigation';
+import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
+import type { ContentPageListRow } from './ContentPagesSectionList';
+import { ContentHubShell, type ContentHubSection } from './ContentHubShell';
+import type { ContentRatingSummary } from './ContentRatingChip';
+import type { PublishedCourseOption } from './ContentForm';
 
 export default async function DoctorContentPage() {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForReadAction(workspace, "cms_pages");
+  const entitlement = await requireEntitlementForReadAction(workspace, 'cms_pages');
   if (!entitlement.ok) notFound();
   const session = workspace.session;
   const deps = buildAppDeps();
-  const coursesEnabled = (await requireEntitlementForReadAction(workspace, "courses")).ok;
+  const coursesEnabled = (await requireEntitlementForReadAction(workspace, 'courses')).ok;
 
   let pages: Awaited<ReturnType<typeof deps.contentPages.listAll>> = [];
   let sections: Awaited<ReturnType<typeof deps.contentSections.listAll>> = [];
@@ -27,18 +27,18 @@ export default async function DoctorContentPage() {
   try {
     ({ pages, sections, ratingsById, publishedCourses } = await withDoctorWorkspacePrincipal(
       workspace,
-      "doctor.content.read",
+      'doctor.content.read',
       async () => {
         const scopedPages = await deps.contentPages.listAll();
         const [scopedSections, ratingMap, courses] = await Promise.all([
           deps.contentSections.listAll(),
           deps.materialRating.listDoctorAggregates({
             organizationId: workspace.organizationId,
-            targetKind: "content_page",
+            targetKind: 'content_page',
             targetIds: scopedPages.map((p) => p.id),
           }),
           coursesEnabled
-            ? deps.courses.listCoursesForDoctor({ status: "published", includeArchived: false })
+            ? deps.courses.listCoursesForDoctor({ status: 'published', includeArchived: false })
             : Promise.resolve([]),
         ]);
         return {
@@ -52,10 +52,10 @@ export default async function DoctorContentPage() {
       },
     ));
   } catch (err) {
-    loadError = logServerRuntimeError("app/doctor/content", err);
+    loadError = logServerRuntimeError('app/doctor/content', err);
   }
 
-  const isDev = process.env.NODE_ENV === "development";
+  const isDev = process.env.NODE_ENV === 'development';
 
   // Build hub sections (include help section, exclude it from article nav in ContentNav)
   const hubSections: ContentHubSection[] = sections.map((s) => ({

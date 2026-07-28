@@ -1,4 +1,4 @@
-import { NAIVE_WALL_CLOCK_REGEX } from "./normalizeToUtcInstant.js";
+import { NAIVE_WALL_CLOCK_REGEX } from './normalizeToUtcInstant.js';
 
 /**
  * True if the string is safe to pass to PostgreSQL `::timestamptz` without session-TZ

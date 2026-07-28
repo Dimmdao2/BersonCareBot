@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 
-import { readFileSync } from "node:fs";
-import { buildRlsDescriptors, readBatchRows } from "./rls-descriptor-model.mjs";
+import { readFileSync } from 'node:fs';
+import { buildRlsDescriptors, readBatchRows } from './rls-descriptor-model.mjs';
 
-const explicitExemptionTiers = new Set(["INFRA", "LEGACY", "TELEMETRY"]);
-const deniedUserRefTiers = new Set(["INFRA", "TELEMETRY"]);
-const allSignalsPath = "docs/_TODO/SAAS_FOUNDATION/scope-derivation/all-218-signals.tsv";
-const fkEdgesPath = "docs/_TODO/SAAS_FOUNDATION/scope-derivation/fk-edges.tsv";
-const methodColumnsPath = "docs/_TODO/SAAS_FOUNDATION/scope-derivation/method-columns.tsv";
+const explicitExemptionTiers = new Set(['INFRA', 'LEGACY', 'TELEMETRY']);
+const deniedUserRefTiers = new Set(['INFRA', 'TELEMETRY']);
+const allSignalsPath = 'docs/_TODO/SAAS_FOUNDATION/scope-derivation/all-218-signals.tsv';
+const fkEdgesPath = 'docs/_TODO/SAAS_FOUNDATION/scope-derivation/fk-edges.tsv';
+const methodColumnsPath = 'docs/_TODO/SAAS_FOUNDATION/scope-derivation/method-columns.tsv';
 const priorLeakClassTables = new Set([
-  "public.admin_audit_log",
-  "public.broadcast_audit",
-  "public.content_section_slug_history",
+  'public.admin_audit_log',
+  'public.broadcast_audit',
+  'public.content_section_slug_history',
 ]);
 
 function fail(message) {
@@ -19,15 +19,15 @@ function fail(message) {
 }
 
 function readLines(path) {
-  return readFileSync(path, "utf8").trimEnd().split("\n").filter(Boolean);
+  return readFileSync(path, 'utf8').trimEnd().split('\n').filter(Boolean);
 }
 
 function splitArtifactLine(line) {
-  if (line.includes("\\t")) {
-    return line.split("\\t");
+  if (line.includes('\\t')) {
+    return line.split('\\t');
   }
 
-  return line.split("\t");
+  return line.split('\t');
 }
 
 function addReason(reasonsByTable, table, reason) {
@@ -60,13 +60,13 @@ function readPlatformUserFkReasons(descriptors) {
   for (const line of readLines(fkEdgesPath)) {
     const [childTable, parentTable] = splitArtifactLine(line);
 
-    if (parentTable !== "platform_users") {
+    if (parentTable !== 'platform_users') {
       continue;
     }
 
     const table = qualifyTableName(childTable, descriptors);
     if (table) {
-      addReason(reasonsByTable, table, "fk_edges: FK to platform_users");
+      addReason(reasonsByTable, table, 'fk_edges: FK to platform_users');
     }
   }
 
@@ -77,7 +77,7 @@ function readSoftColumnReasons(descriptors) {
   const reasonsByTable = new Map();
 
   for (const line of readLines(methodColumnsPath)) {
-    const [rawTable, userColumns = ""] = splitArtifactLine(line);
+    const [rawTable, userColumns = ''] = splitArtifactLine(line);
 
     if (!userColumns) {
       continue;
@@ -90,7 +90,7 @@ function readSoftColumnReasons(descriptors) {
   }
 
   for (const line of readLines(allSignalsPath)) {
-    const [schema, rawTable, userColumns = ""] = splitArtifactLine(line);
+    const [schema, rawTable, userColumns = ''] = splitArtifactLine(line);
 
     if (!schema || !rawTable || !userColumns) {
       continue;
@@ -139,11 +139,11 @@ for (const descriptor of descriptors.values()) {
 
   exemptionDescriptors.push(descriptor);
 
-  if (descriptor.scopingKind !== "explicit_exemption") {
+  if (descriptor.scopingKind !== 'explicit_exemption') {
     fail(`${descriptor.table} tier ${descriptor.tier} must use scopingKind=explicit_exemption`);
   }
 
-  if (typeof descriptor.source !== "string" || descriptor.source.trim() === "") {
+  if (typeof descriptor.source !== 'string' || descriptor.source.trim() === '') {
     fail(`${descriptor.table} tier ${descriptor.tier} must declare a non-empty exemption source`);
   }
 }
@@ -175,8 +175,8 @@ const unsupportedUserRefs = Array.from(descriptors.values())
 
 if (unsupportedUserRefs.length > 0) {
   const details = unsupportedUserRefs
-    .map(({ table, tier, reasons }) => `${table} (${tier}) -> ${reasons.join("; ")}`)
-    .join("\n");
+    .map(({ table, tier, reasons }) => `${table} (${tier}) -> ${reasons.join('; ')}`)
+    .join('\n');
 
   fail(
     `Unsupported user reference found in INFRA/TELEMETRY descriptor(s). P0.8.7 must block and not auto-scope:\n${details}`,
@@ -190,7 +190,7 @@ for (const table of priorLeakClassTables) {
     fail(`Prior leak-class table ${table} is missing from descriptors`);
   }
 
-  if (descriptor.tier !== "SCOPED") {
+  if (descriptor.tier !== 'SCOPED') {
     fail(`Prior leak-class table ${table} must remain SCOPED, got ${descriptor.tier}`);
   }
 
@@ -200,13 +200,16 @@ for (const table of priorLeakClassTables) {
 }
 
 const counts = exemptionDescriptors.reduce(
-  (accumulator, descriptor) => accumulator.set(descriptor.tier, (accumulator.get(descriptor.tier) ?? 0) + 1),
+  (accumulator, descriptor) =>
+    accumulator.set(descriptor.tier, (accumulator.get(descriptor.tier) ?? 0) + 1),
   new Map(),
 );
 
 console.log(
-  `P0.8.7 explicit exemptions OK: INFRA=${counts.get("INFRA") ?? 0}, LEGACY=${
-    counts.get("LEGACY") ?? 0
-  }, TELEMETRY=${counts.get("TELEMETRY") ?? 0}.`,
+  `P0.8.7 explicit exemptions OK: INFRA=${counts.get('INFRA') ?? 0}, LEGACY=${
+    counts.get('LEGACY') ?? 0
+  }, TELEMETRY=${counts.get('TELEMETRY') ?? 0}.`,
 );
-console.log("P0.8.7 unsupported user-ref denial OK: no INFRA/TELEMETRY descriptor has a static user ref.");
+console.log(
+  'P0.8.7 unsupported user-ref denial OK: no INFRA/TELEMETRY descriptor has a static user ref.',
+);

@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
-import type { ReactNode } from "react";
-import { cn } from "@/lib/utils";
+import type { ReactNode } from 'react';
+import { cn } from '@/lib/utils';
 import {
   DOCTOR_CATALOG_LEFT_ASIDE_STICKY_LAYOUT_CLASS,
   DOCTOR_CATALOG_LEFT_ASIDE_STICKY_LAYOUT_DOUBLE_ROW_CLASS,
-} from "@/shared/ui/doctor/doctorWorkspaceLayout";
+} from '@/shared/ui/doctor/doctorWorkspaceLayout';
 
 export type CatalogLeftPaneProps = {
   /** Тулбар над списком (счётчик, сортировка, переключатель видов). */
@@ -39,7 +39,7 @@ export function CatalogLeftPane({
   return (
     <aside
       className={cn(
-        "flex min-h-0 flex-1 flex-col overflow-hidden rounded-[var(--doctor-page-block-radius,12px)] border border-border bg-card",
+        'flex min-h-0 flex-1 flex-col overflow-hidden rounded-[var(--doctor-page-block-radius,12px)] border border-border bg-card',
         stickySplit && stickyAsideClass,
         className,
       )}
@@ -51,8 +51,8 @@ export function CatalogLeftPane({
       ) : null}
       <div
         className={cn(
-          "min-h-0 flex flex-1 flex-col overflow-hidden",
-          headerSlot ? "px-2 pb-1.5 pt-1" : "overflow-y-auto p-1.5 pt-1.5",
+          'min-h-0 flex flex-1 flex-col overflow-hidden',
+          headerSlot ? 'px-2 pb-1.5 pt-1' : 'overflow-y-auto p-1.5 pt-1.5',
         )}
       >
         {children}

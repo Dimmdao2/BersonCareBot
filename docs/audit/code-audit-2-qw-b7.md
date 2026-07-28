@@ -1,4 +1,5 @@
 # Code Audit 2 — QW-B7
+
 agentId: audit2-qw-b7
 Commit: 062433a8
 Date: 2026-06-19
@@ -57,27 +58,32 @@ and drops `daysMask`/`everyNDays`/`anchorDate`, so even the doctor's view of the
 schedule is lossy and the panel can never round-trip a non-weekdays rule.
 
 ## Clause B2 — patchSchema dayFilter enum vs ReminderDayFilter — PASS
+
 `z.enum(["weekdays","weekly_mask","every_n_days"])` matches `ReminderDayFilter`
 exactly (scheduleSlots.ts). No drift. (Note: B1's bug is that the route ignores the
 dependent fields, not the enum itself.)
 
 ## Clause B3 — GET ReminderRule field availability — PASS (with B1 caveat)
+
 `ReminderRule.scheduleData` exists and is typed `SlotsV1ScheduleData | null`
 (types.ts:42). `warmupRule.scheduleData.dayFilter` is non-optional
 `ReminderDayFilter`, so the GET `?? "weekdays"` fallback is a dead/tautological
 branch (never null) — harmless, compiles. The lossy projection is covered under B1.
 
 ## Clause B4 — Default change regression — PASS
+
 ReminderCreateDialog default `interval_window` → `slots_v1` is isolated to the create
 dialog's initial state; not implicated in the warmup-schedule panel/route. No
 regression found in scope.
 
 ## Clause B5 — Panel React state — PASS
+
 `useCallback([userId])` dep array is complete; `load()` is re-run after save
 (`await load()`). A `load()` racing an in-flight save is not reachable from the UI
 (no concurrent trigger). Acceptable.
 
 ## Clause B6 — updateRule ownership — PASS
+
 `updateRule(platformUserId, ruleId, …)` calls
 `port.listByPlatformUserWithObjects(platformUserId)` then
 `rules.find(r => r.id === ruleId)`, returning `not_found` if the rule isn't owned by
@@ -85,6 +91,7 @@ that user (service.ts ~185). Plus the route independently re-derives `warmupRule
 from `listRulesByUser(userId)`. Ownership is enforced. PASS.
 
 ## Clause B7 — TS strictness — PASS (assumed)
+
 Per audit-1, `tsc --noEmit` exits 0; types in the route line up
 (`UpdateRuleData.schedule.scheduleData?: SlotsV1ScheduleData | null`). The B1 defect
 is a runtime/logic data-loss bug, NOT a type error, so it passes the compiler while

@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 
 const {
   revalidatePathMock,
@@ -19,18 +19,18 @@ const {
   requireDoctorWorkspaceContextMock: vi.fn(),
 }));
 
-const ORGANIZATION_ID = "22222222-2222-4222-8222-222222222222";
+const ORGANIZATION_ID = '22222222-2222-4222-8222-222222222222';
 
-vi.mock("next/cache", () => ({
+vi.mock('next/cache', () => ({
   revalidatePath: (...args: unknown[]) => revalidatePathMock(...args),
 }));
 
-vi.mock("@/app-layer/guards/requireRole", () => ({
+vi.mock('@/app-layer/guards/requireRole', () => ({
   requireDoctorAccess: requireDoctorAccessMock,
   requireDoctorWorkspaceContext: requireDoctorWorkspaceContextMock,
 }));
 
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
     references: {
       saveCatalog: saveCatalogMock,
@@ -47,21 +47,21 @@ import {
   saveReferenceItem,
   softDeleteReferenceItem,
   toggleReferenceItem,
-} from "./actions";
+} from './actions';
 
 function workspaceContext() {
   return {
-    session: { user: { userId: "11111111-1111-4111-8111-111111111111" } },
+    session: { user: { userId: '11111111-1111-4111-8111-111111111111' } },
     organizationId: ORGANIZATION_ID,
-    membershipId: "33333333-3333-4333-8333-333333333333",
-    membershipRole: "doctor",
-    specialistId: "44444444-4444-4444-8444-444444444444",
+    membershipId: '33333333-3333-4333-8333-333333333333',
+    membershipRole: 'doctor',
+    specialistId: '44444444-4444-4444-8444-444444444444',
     canManageOrganization: false,
     canManageAllSpecialists: false,
   };
 }
 
-describe("saveReferenceCatalog", () => {
+describe('saveReferenceCatalog', () => {
   beforeEach(() => {
     revalidatePathMock.mockReset();
     saveCatalogMock.mockReset();
@@ -77,32 +77,32 @@ describe("saveReferenceCatalog", () => {
     requireDoctorWorkspaceContextMock.mockResolvedValue(workspaceContext());
   });
 
-  it("runs batch save under the selected organization principal and revalidates after it clears", async () => {
+  it('runs batch save under the selected organization principal and revalidates after it clears', async () => {
     const events: string[] = [];
     saveCatalogMock.mockImplementation(async () => {
-      events.push("save");
+      events.push('save');
       expect(getCurrentDbPrincipalOrganizationId()).toBe(ORGANIZATION_ID);
     });
     revalidatePathMock.mockImplementation(() => {
-      events.push("revalidate");
+      events.push('revalidate');
       expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
     });
 
     const result = await saveReferenceCatalog({
-      categoryCode: " body_region ",
+      categoryCode: ' body_region ',
       updates: [
         {
-          id: " item-1 ",
-          code: " neck ",
-          title: " Шея ",
+          id: ' item-1 ',
+          code: ' neck ',
+          title: ' Шея ',
           sortOrder: 1,
           isActive: true,
         },
       ],
       additions: [
         {
-          code: " shoulder ",
-          title: " Плечо ",
+          code: ' shoulder ',
+          title: ' Плечо ',
           sortOrder: 2,
         },
       ],
@@ -111,51 +111,51 @@ describe("saveReferenceCatalog", () => {
     expect(result).toEqual({ ok: true });
     expect(requireDoctorAccessMock).not.toHaveBeenCalled();
     expect(requireDoctorWorkspaceContextMock).toHaveBeenCalledTimes(1);
-    expect(saveCatalogMock).toHaveBeenCalledWith("body_region", {
+    expect(saveCatalogMock).toHaveBeenCalledWith('body_region', {
       updates: [
         {
-          id: "item-1",
-          code: "neck",
-          title: "Шея",
+          id: 'item-1',
+          code: 'neck',
+          title: 'Шея',
           sortOrder: 1,
           isActive: true,
         },
       ],
       additions: [
         {
-          code: "shoulder",
-          title: "Плечо",
+          code: 'shoulder',
+          title: 'Плечо',
           sortOrder: 2,
         },
       ],
     });
-    expect(revalidatePathMock).toHaveBeenCalledWith("/app/doctor/references");
-    expect(revalidatePathMock).toHaveBeenCalledWith("/app/doctor/references/body_region");
-    expect(events).toEqual(["save", "revalidate", "revalidate"]);
+    expect(revalidatePathMock).toHaveBeenCalledWith('/app/doctor/references');
+    expect(revalidatePathMock).toHaveBeenCalledWith('/app/doctor/references/body_region');
+    expect(events).toEqual(['save', 'revalidate', 'revalidate']);
     expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
   });
 
-  it("returns invalid category before save and without entering principal context", async () => {
+  it('returns invalid category before save and without entering principal context', async () => {
     const result = await saveReferenceCatalog({
-      categoryCode: " ",
+      categoryCode: ' ',
       updates: [],
       additions: [],
     });
 
-    expect(result).toEqual({ ok: false, code: "category_required" });
+    expect(result).toEqual({ ok: false, code: 'category_required' });
     expect(saveCatalogMock).not.toHaveBeenCalled();
     expect(revalidatePathMock).not.toHaveBeenCalled();
     expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
   });
 
-  it("returns invalid update payload before save and without entering principal context", async () => {
+  it('returns invalid update payload before save and without entering principal context', async () => {
     const result = await saveReferenceCatalog({
-      categoryCode: "body_region",
+      categoryCode: 'body_region',
       updates: [
         {
-          id: "item-1",
-          code: "1bad",
-          title: "Шея",
+          id: 'item-1',
+          code: '1bad',
+          title: 'Шея',
           sortOrder: 1,
           isActive: true,
         },
@@ -163,33 +163,33 @@ describe("saveReferenceCatalog", () => {
       additions: [],
     });
 
-    expect(result).toEqual({ ok: false, code: "invalid_update_payload", invalidValue: "1bad" });
+    expect(result).toEqual({ ok: false, code: 'invalid_update_payload', invalidValue: '1bad' });
     expect(saveCatalogMock).not.toHaveBeenCalled();
     expect(revalidatePathMock).not.toHaveBeenCalled();
     expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
   });
 
-  it("returns invalid addition payload before save and without entering principal context", async () => {
+  it('returns invalid addition payload before save and without entering principal context', async () => {
     const result = await saveReferenceCatalog({
-      categoryCode: "body_region",
+      categoryCode: 'body_region',
       updates: [],
       additions: [
         {
-          code: "bad-code",
-          title: "Новое",
+          code: 'bad-code',
+          title: 'Новое',
           sortOrder: 2,
         },
       ],
     });
 
-    expect(result).toEqual({ ok: false, code: "invalid_add_payload", invalidValue: "bad-code" });
+    expect(result).toEqual({ ok: false, code: 'invalid_add_payload', invalidValue: 'bad-code' });
     expect(saveCatalogMock).not.toHaveBeenCalled();
     expect(revalidatePathMock).not.toHaveBeenCalled();
     expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
   });
 });
 
-describe("single reference item actions", () => {
+describe('single reference item actions', () => {
   beforeEach(() => {
     revalidatePathMock.mockReset();
     saveCatalogMock.mockReset();
@@ -205,87 +205,87 @@ describe("single reference item actions", () => {
     requireDoctorWorkspaceContextMock.mockResolvedValue(workspaceContext());
   });
 
-  it("adds an item under the selected organization principal and revalidates after it clears", async () => {
+  it('adds an item under the selected organization principal and revalidates after it clears', async () => {
     const events: string[] = [];
     insertItemStaffMock.mockImplementation(async () => {
-      events.push("insert");
+      events.push('insert');
       expect(getCurrentDbPrincipalOrganizationId()).toBe(ORGANIZATION_ID);
     });
     revalidatePathMock.mockImplementation(() => {
-      events.push("revalidate");
+      events.push('revalidate');
       expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
     });
     const formData = new FormData();
-    formData.set("categoryCode", " body_region ");
-    formData.set("code", " neck ");
-    formData.set("title", " Шея ");
-    formData.set("sortOrder", "7");
+    formData.set('categoryCode', ' body_region ');
+    formData.set('code', ' neck ');
+    formData.set('title', ' Шея ');
+    formData.set('sortOrder', '7');
 
     await addReferenceItem(formData);
 
     expect(requireDoctorAccessMock).not.toHaveBeenCalled();
     expect(requireDoctorWorkspaceContextMock).toHaveBeenCalledTimes(1);
     expect(insertItemStaffMock).toHaveBeenCalledWith({
-      categoryCode: "body_region",
-      code: "neck",
-      title: "Шея",
+      categoryCode: 'body_region',
+      code: 'neck',
+      title: 'Шея',
       sortOrder: 7,
     });
-    expect(events).toEqual(["insert", "revalidate", "revalidate"]);
+    expect(events).toEqual(['insert', 'revalidate', 'revalidate']);
     expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
   });
 
-  it("saves item fields under the selected organization principal", async () => {
+  it('saves item fields under the selected organization principal', async () => {
     updateItemMock.mockImplementation(async () => {
       expect(getCurrentDbPrincipalOrganizationId()).toBe(ORGANIZATION_ID);
     });
     const formData = new FormData();
-    formData.set("categoryCode", "body_region");
-    formData.set("itemId", "item-1");
-    formData.set("title", "Шея");
-    formData.set("sortOrder", "3");
+    formData.set('categoryCode', 'body_region');
+    formData.set('itemId', 'item-1');
+    formData.set('title', 'Шея');
+    formData.set('sortOrder', '3');
 
     await saveReferenceItem(formData);
 
     expect(requireDoctorAccessMock).not.toHaveBeenCalled();
-    expect(updateItemMock).toHaveBeenCalledWith("item-1", {
-      title: "Шея",
+    expect(updateItemMock).toHaveBeenCalledWith('item-1', {
+      title: 'Шея',
       sortOrder: 3,
     });
-    expect(revalidatePathMock).toHaveBeenCalledWith("/app/doctor/references/body_region");
+    expect(revalidatePathMock).toHaveBeenCalledWith('/app/doctor/references/body_region');
     expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
   });
 
-  it("toggles item activity under the selected organization principal", async () => {
+  it('toggles item activity under the selected organization principal', async () => {
     updateItemMock.mockImplementation(async () => {
       expect(getCurrentDbPrincipalOrganizationId()).toBe(ORGANIZATION_ID);
     });
     const formData = new FormData();
-    formData.set("categoryCode", "body_region");
-    formData.set("itemId", "item-1");
-    formData.set("nextActive", "false");
+    formData.set('categoryCode', 'body_region');
+    formData.set('itemId', 'item-1');
+    formData.set('nextActive', 'false');
 
     await toggleReferenceItem(formData);
 
     expect(requireDoctorAccessMock).not.toHaveBeenCalled();
-    expect(updateItemMock).toHaveBeenCalledWith("item-1", { isActive: false });
+    expect(updateItemMock).toHaveBeenCalledWith('item-1', { isActive: false });
     expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
   });
 
-  it("soft-deletes an item under the selected organization principal", async () => {
+  it('soft-deletes an item under the selected organization principal', async () => {
     softDeleteItemMock.mockImplementation(async () => {
       expect(getCurrentDbPrincipalOrganizationId()).toBe(ORGANIZATION_ID);
     });
     const formData = new FormData();
-    formData.set("categoryCode", "body_region");
-    formData.set("itemId", "item-1");
+    formData.set('categoryCode', 'body_region');
+    formData.set('itemId', 'item-1');
 
     const result = await softDeleteReferenceItem(formData);
 
     expect(result).toEqual({ ok: true });
     expect(requireDoctorAccessMock).not.toHaveBeenCalled();
-    expect(softDeleteItemMock).toHaveBeenCalledWith("item-1");
-    expect(revalidatePathMock).toHaveBeenCalledWith("/app/doctor/references/body_region");
+    expect(softDeleteItemMock).toHaveBeenCalledWith('item-1');
+    expect(revalidatePathMock).toHaveBeenCalledWith('/app/doctor/references/body_region');
     expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
   });
 });

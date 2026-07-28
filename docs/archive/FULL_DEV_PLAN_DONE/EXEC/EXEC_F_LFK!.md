@@ -11,6 +11,7 @@
 ## Обязательные правила
 
 ### Проверки
+
 - **После каждого шага** — только targeted-проверки затронутых файлов:
   ```bash
   pnpm --dir apps/webapp exec tsc --noEmit
@@ -21,11 +22,13 @@
 - При FAIL: починить → повторить (до 3 попыток). После 3 → СТОП.
 
 ### Миграция с globals.css на Tailwind + shadcn
+
 - При касании любого файла с UI (F.4, F.6, F.7): **заменить** legacy-классы из `globals.css` (`.button`, `.panel`, `.feature-card`, `.feature-grid`, `.auth-input` и т.д.) на Tailwind + shadcn (`Button`, `Card`, `Input`, `Slider`, `Badge`).
 - После замены: если класс больше нигде не используется — **удалить из `globals.css`**.
 - **Не добавлять** новые глобальные классы. Стили — только Tailwind + `cn()`.
 
 ### Прочее
+
 - Новые модули в `modules/<name>/` по проектной конвенции.
 - Все тексты UI на русском.
 - DnD: `@dnd-kit/core` + `@dnd-kit/sortable` (уже в зависимостях или добавить).
@@ -39,6 +42,7 @@
 **Файлы:** `apps/webapp/migrations/033_lfk_exercises.sql` (новый)
 
 **Действия:**
+
 1. Проверить `ls apps/webapp/migrations/` — подтвердить что 033 свободен.
 2. Таблица `lfk_exercises`:
    ```sql
@@ -81,6 +85,7 @@
 **Файлы:** `apps/webapp/migrations/034_lfk_templates.sql` (новый)
 
 **Действия:**
+
 1. Таблица `lfk_complex_templates`:
    ```sql
    CREATE TABLE IF NOT EXISTS lfk_complex_templates (
@@ -130,6 +135,7 @@
 ## Шаг F.3 — Backend: модуль `lfk-exercises`
 
 **Файлы:**
+
 - `apps/webapp/src/modules/lfk-exercises/types.ts` (новый)
 - `apps/webapp/src/modules/lfk-exercises/ports.ts` (новый)
 - `apps/webapp/src/modules/lfk-exercises/service.ts` (новый)
@@ -138,6 +144,7 @@
 - `apps/webapp/src/app-layer/di/buildAppDeps.ts`
 
 **Действия:**
+
 1. Типы: `Exercise`, `ExerciseMedia`, `ExerciseFilter`, `CreateExerciseInput`, `UpdateExerciseInput`.
 2. Порт: `list(filter)`, `getById(id)`, `create(input)`, `update(id, input)`, `archive(id)`.
 3. Сервис:
@@ -150,6 +157,7 @@
 5. Зарегистрировать `lfkExercises` в `buildAppDeps`.
 
 **Тесты:**
+
 - Unit: сервис — list с фильтрами, create валидация, archive.
 - Integration: `pgLfkExercises` — CRUD cycle.
 
@@ -160,6 +168,7 @@
 ## Шаг F.4 — Doctor UI: справочник упражнений
 
 **Файлы:**
+
 - `apps/webapp/src/app/app/doctor/exercises/page.tsx` (новый)
 - `apps/webapp/src/app/app/doctor/exercises/new/page.tsx` (новый)
 - `apps/webapp/src/app/app/doctor/exercises/[id]/page.tsx` (новый)
@@ -168,6 +177,7 @@
 - `apps/webapp/src/shared/ui/doctorScreenTitles.ts` (добавить)
 
 **Действия:**
+
 1. Список `/app/doctor/exercises`:
    - Server Component: загрузить упражнения через сервис.
    - Поиск по названию + фильтры (регион, тип нагрузки).
@@ -183,6 +193,7 @@
 5. shadcn: `Card`, `Input`, `Select`, `Slider`, `Button`, `Badge`.
 
 **Тесты:**
+
 - E2E: create exercise → appears in list → edit → archive → disappears from list.
 - Обновить `doctorScreenTitles.test.ts`.
 
@@ -193,6 +204,7 @@
 ## Шаг F.5 — Backend: модуль `lfk-templates`
 
 **Файлы:**
+
 - `apps/webapp/src/modules/lfk-templates/types.ts` (новый)
 - `apps/webapp/src/modules/lfk-templates/ports.ts` (новый)
 - `apps/webapp/src/modules/lfk-templates/service.ts` (новый)
@@ -201,6 +213,7 @@
 - `apps/webapp/src/app-layer/di/buildAppDeps.ts`
 
 **Действия:**
+
 1. Типы: `Template`, `TemplateExercise`, `TemplateStatus`, `CreateTemplateInput`.
 2. Порт: `list(filter)`, `getById(id)`, `create(input)`, `update(id, input)`, `updateExercises(templateId, exercises[])`, `publish(id)`, `archive(id)`.
 3. Сервис:
@@ -210,6 +223,7 @@
 5. Зарегистрировать в `buildAppDeps`.
 
 **Тесты:**
+
 - Unit: publish неполного шаблона → ошибка.
 - Unit: updateExercises → порядок сохраняется.
 - Integration: `pgLfkTemplates` — CRUD + publish.
@@ -221,6 +235,7 @@
 ## Шаг F.6 — Doctor UI: конструктор шаблонов
 
 **Файлы:**
+
 - `apps/webapp/src/app/app/doctor/lfk-templates/page.tsx` (новый)
 - `apps/webapp/src/app/app/doctor/lfk-templates/new/page.tsx` (новый)
 - `apps/webapp/src/app/app/doctor/lfk-templates/[id]/page.tsx` (новый)
@@ -228,6 +243,7 @@
 - `apps/webapp/package.json` (если нет `@dnd-kit/core`, `@dnd-kit/sortable` — добавить)
 
 **Действия:**
+
 1. Список `/app/doctor/lfk-templates`:
    - Фильтр по статусу (draft/published/archived).
    - Карточки с названием, количеством упражнений, статусом.
@@ -240,6 +256,7 @@
 3. В `DoctorHeader` добавить пункт "Шаблоны ЛФК" → `/app/doctor/lfk-templates`.
 
 **Тесты:**
+
 - Component: reorder сохраняет sort_order.
 - E2E: create template → add exercises → reorder → publish.
 
@@ -250,6 +267,7 @@
 ## Шаг F.7 — Назначение шаблона пациенту + проекция в дневник
 
 **Файлы:**
+
 - `apps/webapp/src/modules/lfk-assignments/types.ts` (новый)
 - `apps/webapp/src/modules/lfk-assignments/service.ts` (новый)
 - `apps/webapp/src/modules/lfk-assignments/service.test.ts` (новый)
@@ -258,6 +276,7 @@
 - `apps/webapp/src/app/app/doctor/clients/ClientProfileCard.tsx` (добавить кнопку)
 
 **Действия:**
+
 1. Сервис `lfk-assignments`:
    - `assignTemplateToPatient(templateId, patientUserId, assignedBy)`:
      - Транзакция: создать `patient_lfk_assignments` + создать `lfk_complexes` с `origin = 'assigned_by_specialist'`.
@@ -272,6 +291,7 @@
    - Назначенные комплексы показываются с меткой "Назначен врачом".
 
 **Тесты:**
+
 - Unit: `assignTemplateToPatient` — транзакция, идемпотентность.
 - Integration: assign → patient listComplexes includes assigned.
 - E2E: doctor assigns → patient diary shows complex → mark session.

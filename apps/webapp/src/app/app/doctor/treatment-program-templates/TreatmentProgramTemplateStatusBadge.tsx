@@ -1,19 +1,21 @@
-import { Badge } from "@/shared/ui/doctor/primitives/badge";
-import { cn } from "@/lib/utils";
-import type { TreatmentProgramTemplateStatus } from "@/modules/treatment-program/types";
+import { Badge } from '@/shared/ui/doctor/primitives/badge';
+import { cn } from '@/lib/utils';
+import type { TreatmentProgramTemplateStatus } from '@/modules/treatment-program/types';
 
-export function treatmentProgramTemplateStatusLabel(status: TreatmentProgramTemplateStatus): string {
-  if (status === "archived") return "В архиве";
-  if (status === "published") return "Опубликован";
-  return "Черновик";
+export function treatmentProgramTemplateStatusLabel(
+  status: TreatmentProgramTemplateStatus,
+): string {
+  if (status === 'archived') return 'В архиве';
+  if (status === 'published') return 'Опубликован';
+  return 'Черновик';
 }
 
-type BadgeVariant = "default" | "secondary" | "destructive" | "outline";
+type BadgeVariant = 'default' | 'secondary' | 'destructive' | 'outline';
 
 function statusVariant(status: TreatmentProgramTemplateStatus): BadgeVariant {
-  if (status === "archived") return "destructive";
-  if (status === "published") return "outline";
-  return "secondary";
+  if (status === 'archived') return 'destructive';
+  if (status === 'published') return 'outline';
+  return 'secondary';
 }
 
 export function TreatmentProgramTemplateStatusBadge({
@@ -29,9 +31,9 @@ export function TreatmentProgramTemplateStatusBadge({
     <Badge
       variant={variant}
       className={cn(
-        "max-w-full shrink-0 truncate font-medium",
-        status === "published" &&
-          "border-emerald-600/35 bg-emerald-600/12 text-emerald-900 dark:border-emerald-500/45 dark:bg-emerald-500/12 dark:text-emerald-50",
+        'max-w-full shrink-0 truncate font-medium',
+        status === 'published' &&
+          'border-emerald-600/35 bg-emerald-600/12 text-emerald-900 dark:border-emerald-500/45 dark:bg-emerald-500/12 dark:text-emerald-50',
         className,
       )}
       title={label}

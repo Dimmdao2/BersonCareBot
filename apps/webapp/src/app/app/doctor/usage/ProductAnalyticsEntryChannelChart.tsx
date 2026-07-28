@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import {
   CartesianGrid,
@@ -8,22 +8,22 @@ import {
   ResponsiveContainer,
   XAxis,
   YAxis,
-} from "recharts";
+} from 'recharts';
 
-import type { ProductAnalyticsEntryChannelHourlyRow } from "@/modules/product-analytics/types";
-import { formatDisplayZoneHourFromBucket } from "@/shared/datetime/displayTimeZoneFormat";
-import { DoctorRechartsTooltip } from "@/shared/ui/doctor/DoctorRechartsTooltip";
+import type { ProductAnalyticsEntryChannelHourlyRow } from '@/modules/product-analytics/types';
+import { formatDisplayZoneHourFromBucket } from '@/shared/datetime/displayTimeZoneFormat';
+import { DoctorRechartsTooltip } from '@/shared/ui/doctor/DoctorRechartsTooltip';
 
 const STROKE = {
-  pwa: "hsl(142 55% 36%)",
-  telegram: "hsl(210 70% 45%)",
-  max: "hsl(280 55% 48%)",
-  browser: "hsl(25 75% 45%)",
+  pwa: 'hsl(142 55% 36%)',
+  telegram: 'hsl(210 70% 45%)',
+  max: 'hsl(280 55% 48%)',
+  browser: 'hsl(25 75% 45%)',
 } as const;
 
 function formatBucketTick(bucket: string): string {
   const hour = formatDisplayZoneHourFromBucket(bucket);
-  const day = bucket.trim().slice(0, 10).replace(/-/g, ".").slice(5);
+  const day = bucket.trim().slice(0, 10).replace(/-/g, '.').slice(5);
   if (day.length >= 5) return `${day} ${hour}`;
   return hour;
 }
@@ -54,7 +54,7 @@ export function ProductAnalyticsEntryChannelChart({
           <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
           <XAxis
             dataKey="bucket"
-            tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+            tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
             tickLine={false}
             interval="preserveStartEnd"
             tickFormatter={formatBucketTick}
@@ -63,14 +63,19 @@ export function ProductAnalyticsEntryChannelChart({
             domain={[0, yMax]}
             width={36}
             allowDecimals={false}
-            tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+            tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
             tickLine={false}
           />
-          <DoctorRechartsTooltip
-            labelFormatter={(bucket) => formatBucketTick(String(bucket))}
-          />
+          <DoctorRechartsTooltip labelFormatter={(bucket) => formatBucketTick(String(bucket))} />
           <Legend wrapperStyle={{ fontSize: 12 }} />
-          <Line type="monotone" dataKey="pwa" name="PWA" stroke={STROKE.pwa} strokeWidth={2} dot={false} />
+          <Line
+            type="monotone"
+            dataKey="pwa"
+            name="PWA"
+            stroke={STROKE.pwa}
+            strokeWidth={2}
+            dot={false}
+          />
           <Line
             type="monotone"
             dataKey="telegram"
@@ -79,7 +84,14 @@ export function ProductAnalyticsEntryChannelChart({
             strokeWidth={2}
             dot={false}
           />
-          <Line type="monotone" dataKey="max" name="MAX" stroke={STROKE.max} strokeWidth={2} dot={false} />
+          <Line
+            type="monotone"
+            dataKey="max"
+            name="MAX"
+            stroke={STROKE.max}
+            strokeWidth={2}
+            dot={false}
+          />
           <Line
             type="monotone"
             dataKey="browser"

@@ -1,16 +1,16 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createPasswordChangeService } from "./passwordChange";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createPasswordChangeService } from './passwordChange';
 
-const USER_ID = "11111111-1111-4111-8111-111111111111";
+const USER_ID = '11111111-1111-4111-8111-111111111111';
 const currentUser = {
   userId: USER_ID,
-  role: "doctor" as const,
-  displayName: "Врач",
+  role: 'doctor' as const,
+  displayName: 'Врач',
   bindings: {},
   sessionEpoch: 4,
 };
 
-describe("password change service", () => {
+describe('password change service', () => {
   const getVerifiedEmailForUser = vi.fn();
   const tryVerifyLogin = vi.fn();
   const recordFailedPasswordAttempt = vi.fn();
@@ -40,12 +40,12 @@ describe("password change service", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    getVerifiedEmailForUser.mockResolvedValue("Doctor@Example.com");
-    hashPassword.mockResolvedValue("argon2:new-password");
+    getVerifiedEmailForUser.mockResolvedValue('Doctor@Example.com');
+    hashPassword.mockResolvedValue('argon2:new-password');
     getStatus.mockResolvedValue(null);
   });
 
-  it("rejects a wrong current password without changing credentials or sessions", async () => {
+  it('rejects a wrong current password without changing credentials or sessions', async () => {
     tryVerifyLogin.mockResolvedValue({
       ok: false,
       accountUserId: USER_ID,
@@ -58,22 +58,19 @@ describe("password change service", () => {
     await expect(
       service.changePassword({
         userId: USER_ID,
-        currentPassword: "wrong-password",
-        newPassword: "new-password",
+        currentPassword: 'wrong-password',
+        newPassword: 'new-password',
       }),
-    ).resolves.toEqual({ ok: false, error: "wrong_current_password" });
+    ).resolves.toEqual({ ok: false, error: 'wrong_current_password' });
 
     expect(hashPassword).not.toHaveBeenCalled();
-    expect(tryVerifyLogin).toHaveBeenCalledWith(
-      "doctor@example.com",
-      "wrong-password",
-    );
+    expect(tryVerifyLogin).toHaveBeenCalledWith('doctor@example.com', 'wrong-password');
     expect(invalidateSessionsForSelf).not.toHaveBeenCalled();
     expect(updatePasswordHash).not.toHaveBeenCalled();
     expect(recordFailedPasswordAttempt).toHaveBeenCalledWith(USER_ID);
   });
 
-  it("reports the temporary account lock with its next safe retry", async () => {
+  it('reports the temporary account lock with its next safe retry', async () => {
     tryVerifyLogin.mockResolvedValue({
       ok: false,
       accountUserId: USER_ID,
@@ -87,18 +84,18 @@ describe("password change service", () => {
     await expect(
       service.changePassword({
         userId: USER_ID,
-        currentPassword: "wrong-password",
-        newPassword: "new-password",
+        currentPassword: 'wrong-password',
+        newPassword: 'new-password',
       }),
     ).resolves.toEqual({
       ok: false,
-      error: "password_temporarily_locked",
+      error: 'password_temporarily_locked',
       retryAfterSeconds: 900,
     });
     expect(recordFailedPasswordAttempt).toHaveBeenCalledWith(USER_ID);
   });
 
-  it("does not extend an account lock that was already active before password verification", async () => {
+  it('does not extend an account lock that was already active before password verification', async () => {
     tryVerifyLogin.mockResolvedValue({
       ok: false,
       accountUserId: USER_ID,
@@ -112,18 +109,18 @@ describe("password change service", () => {
     await expect(
       service.changePassword({
         userId: USER_ID,
-        currentPassword: "correct-password",
-        newPassword: "new-password",
+        currentPassword: 'correct-password',
+        newPassword: 'new-password',
       }),
     ).resolves.toEqual({
       ok: false,
-      error: "password_temporarily_locked",
+      error: 'password_temporarily_locked',
       retryAfterSeconds: 61,
     });
     expect(recordFailedPasswordAttempt).not.toHaveBeenCalled();
   });
 
-  it("changes the hash, revokes old epochs, and returns the fresh epoch for the surviving current session", async () => {
+  it('changes the hash, revokes old epochs, and returns the fresh epoch for the surviving current session', async () => {
     const events: string[] = [];
     const freshUser = { ...currentUser, sessionEpoch: 6 };
     tryVerifyLogin.mockResolvedValue({
@@ -139,38 +136,30 @@ describe("password change service", () => {
       sessionVersion: 3,
     });
     revokeSessions.mockImplementation(async () => {
-      events.push("staff-revoke");
+      events.push('staff-revoke');
       return 4;
     });
     invalidateSessionsForSelf.mockImplementation(async () => {
-      events.push("epoch-revoke");
+      events.push('epoch-revoke');
     });
     updatePasswordHash.mockImplementation(async () => {
-      events.push("password-write");
+      events.push('password-write');
     });
     findByUserId.mockImplementation(async () => {
-      events.push("fresh-user-read");
+      events.push('fresh-user-read');
       return freshUser;
     });
 
     const result = await service.changePassword({
       userId: USER_ID,
-      currentPassword: "current-password",
-      newPassword: "new-password",
+      currentPassword: 'current-password',
+      newPassword: 'new-password',
     });
 
     expect(result).toEqual({ ok: true, user: freshUser });
-    expect(updatePasswordHash).toHaveBeenCalledWith(USER_ID, "argon2:new-password");
-    expect(resetFailedPasswordAttempts).toHaveBeenCalledWith(
-      USER_ID,
-      "doctor@example.com",
-    );
-    expect(events).toEqual([
-      "staff-revoke",
-      "epoch-revoke",
-      "password-write",
-      "fresh-user-read",
-    ]);
+    expect(updatePasswordHash).toHaveBeenCalledWith(USER_ID, 'argon2:new-password');
+    expect(resetFailedPasswordAttempts).toHaveBeenCalledWith(USER_ID, 'doctor@example.com');
+    expect(events).toEqual(['staff-revoke', 'epoch-revoke', 'password-write', 'fresh-user-read']);
     expect(currentUser.sessionEpoch).not.toBe(freshUser.sessionEpoch);
   });
 });

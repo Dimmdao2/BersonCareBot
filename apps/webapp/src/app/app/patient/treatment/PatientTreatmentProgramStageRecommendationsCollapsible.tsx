@@ -1,26 +1,30 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useMemo } from "react";
-import { ChevronDown, Shield } from "lucide-react";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/shared/ui/patient/primitives/collapsible";
-import { PatientCatalogMediaStaticThumb } from "@/shared/ui/patient/PatientCatalogMediaStaticThumb";
-import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
-import { isPersistentRecommendation } from "@/modules/treatment-program/stage-semantics";
-import { routePaths } from "@/app-layer/routes/paths";
+import Link from 'next/link';
+import { useMemo } from 'react';
+import { ChevronDown, Shield } from 'lucide-react';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/shared/ui/patient/primitives/collapsible';
+import { PatientCatalogMediaStaticThumb } from '@/shared/ui/patient/PatientCatalogMediaStaticThumb';
+import type { TreatmentProgramInstanceDetail } from '@/modules/treatment-program/types';
+import { isPersistentRecommendation } from '@/modules/treatment-program/stage-semantics';
+import { routePaths } from '@/app-layer/routes/paths';
 import {
   parseRecommendationMediaFromSnapshot,
   pickRecommendationRowPreviewMedia,
-} from "@/app/app/patient/treatment/stageItemSnapshot";
+} from '@/app/app/patient/treatment/stageItemSnapshot';
 import {
   patientCardListSectionClass,
   patientRecommendationCollapsiblePanelClass,
   patientRecommendationCollapsibleTriggerClass,
   patientSectionTitleClass,
-} from "@/shared/ui/patient/patientVisual";
-import { cn } from "@/lib/utils";
+} from '@/shared/ui/patient/patientVisual';
+import { cn } from '@/lib/utils';
 
-type Stage = TreatmentProgramInstanceDetail["stages"][number];
+type Stage = TreatmentProgramInstanceDetail['stages'][number];
 
 function sortByOrderThenId<T extends { sortOrder: number; id: string }>(rows: T[]): T[] {
   return [...rows].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
@@ -28,7 +32,7 @@ function sortByOrderThenId<T extends { sortOrder: number; id: string }>(rows: T[
 
 function rowTitle(snapshot: Record<string, unknown>, itemType: string): string {
   const t = snapshot.title;
-  if (typeof t === "string" && t.trim() !== "") return t;
+  if (typeof t === 'string' && t.trim() !== '') return t;
   return itemType;
 }
 
@@ -45,10 +49,10 @@ export function PatientTreatmentProgramStageRecommendationsCollapsible(props: {
   if (persistent.length === 0) return null;
 
   return (
-    <Collapsible className={cn(patientCardListSectionClass, "overflow-hidden p-0 lg:p-0")}>
+    <Collapsible className={cn(patientCardListSectionClass, 'overflow-hidden p-0 lg:p-0')}>
       <CollapsibleTrigger
         className={cn(
-          "flex w-full items-center px-3 py-4 text-left lg:px-4 lg:py-[18px]",
+          'flex w-full items-center px-3 py-4 text-left lg:px-4 lg:py-[18px]',
           patientRecommendationCollapsibleTriggerClass,
         )}
       >
@@ -64,12 +68,17 @@ export function PatientTreatmentProgramStageRecommendationsCollapsible(props: {
         </div>
       </CollapsibleTrigger>
       <CollapsibleContent
-        className={cn("border-t border-[var(--patient-border)]", patientRecommendationCollapsiblePanelClass)}
+        className={cn(
+          'border-t border-[var(--patient-border)]',
+          patientRecommendationCollapsiblePanelClass,
+        )}
       >
         <ul className="m-0 list-none divide-y divide-[var(--patient-border)]/40 p-0">
           {persistent.map((item) => {
-            const media = pickRecommendationRowPreviewMedia(parseRecommendationMediaFromSnapshot(item.snapshot));
-            const href = routePaths.patientTreatmentProgramItem(instanceId, item.id, "rec-persist");
+            const media = pickRecommendationRowPreviewMedia(
+              parseRecommendationMediaFromSnapshot(item.snapshot),
+            );
+            const href = routePaths.patientTreatmentProgramItem(instanceId, item.id, 'rec-persist');
             return (
               <li key={item.id}>
                 <Link

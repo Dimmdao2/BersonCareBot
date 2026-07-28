@@ -1,4 +1,4 @@
-import type { OrgEntitlementsPort } from "@/modules/org-entitlements/ports";
+import type { OrgEntitlementsPort } from '@/modules/org-entitlements/ports';
 
 export function createInMemoryOrgEntitlementsPort(): OrgEntitlementsPort {
   return {
@@ -6,7 +6,7 @@ export function createInMemoryOrgEntitlementsPort(): OrgEntitlementsPort {
       return {
         tariff: null,
         overrides: [],
-        access: { lifecycle: "active", tariffId: null, source: "compatibility" },
+        access: { lifecycle: 'active', tariffId: null, source: 'compatibility' },
       };
     },
     async getTariffForOrg() {
@@ -16,7 +16,7 @@ export function createInMemoryOrgEntitlementsPort(): OrgEntitlementsPort {
       return [];
     },
     async getEffectiveCommercialAccess() {
-      return { lifecycle: "active", tariffId: null, source: "compatibility" };
+      return { lifecycle: 'active', tariffId: null, source: 'compatibility' };
     },
     async getEnforcedQuotaUsage() {
       return {};

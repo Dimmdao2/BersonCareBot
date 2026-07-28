@@ -1,1 +1,1 @@
-export { resolveMergePreviewIntegratorUserPresence } from "@/infra/mergePreviewIntegratorUserPresence";
+export { resolveMergePreviewIntegratorUserPresence } from '@/infra/mergePreviewIntegratorUserPresence';

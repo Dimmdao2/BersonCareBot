@@ -1,16 +1,16 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import {
   CLINICAL_ASSESSMENT_KIND_CATEGORY_CODE,
   assessmentKindWriteAllowSet,
-} from "@/modules/tests/clinicalTestAssessmentKind";
+} from '@/modules/tests/clinicalTestAssessmentKind';
 
 const mediaItemSchema = z.object({
   mediaUrl: z.string().min(1),
-  mediaType: z.enum(["image", "video", "gif"]),
+  mediaType: z.enum(['image', 'video', 'gif']),
   sortOrder: z.number().int().optional(),
 });
 
@@ -41,21 +41,27 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const parsed = listQuerySchema.safeParse(Object.fromEntries(searchParams));
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_query" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_query' }, { status: 400 });
   }
 
   const deps = buildAppDeps();
-  const regionTrim = parsed.data.region?.trim() ?? "";
+  const regionTrim = parsed.data.region?.trim() ?? '';
   if (regionTrim && !z.string().uuid().safeParse(regionTrim).success) {
-    return NextResponse.json({ ok: false, error: "invalid_query", field: "region" }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, error: 'invalid_query', field: 'region' },
+      { status: 400 },
+    );
   }
-  const assessmentTrim = parsed.data.assessment?.trim() ?? "";
+  const assessmentTrim = parsed.data.assessment?.trim() ?? '';
   const assessmentRefItems = await deps.references.listActiveItemsByCategoryCode(
     CLINICAL_ASSESSMENT_KIND_CATEGORY_CODE,
   );
   const assessmentAllow = assessmentKindWriteAllowSet(assessmentRefItems);
   if (assessmentTrim && !assessmentAllow.has(assessmentTrim)) {
-    return NextResponse.json({ ok: false, error: "invalid_query", field: "assessment" }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, error: 'invalid_query', field: 'assessment' },
+      { status: 400 },
+    );
   }
 
   const items = await deps.clinicalTests.listClinicalTests({
@@ -76,7 +82,7 @@ export async function POST(request: Request) {
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = postBodySchema.safeParse(raw);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
 
   const deps = buildAppDeps();
@@ -96,12 +102,12 @@ export async function POST(request: Request) {
       workspace.session.user.userId,
       {
         runClinicalTestWrite: (fn) =>
-          withDoctorWorkspacePrincipal(workspace, "doctor.clinical-tests.create", fn),
+          withDoctorWorkspacePrincipal(workspace, 'doctor.clinical-tests.create', fn),
       },
     );
     return NextResponse.json({ ok: true, item: row });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "error";
+    const msg = e instanceof Error ? e.message : 'error';
     return NextResponse.json({ ok: false, error: msg }, { status: 400 });
   }
 }

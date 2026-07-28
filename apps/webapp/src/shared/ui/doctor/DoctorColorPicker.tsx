@@ -1,14 +1,10 @@
-"use client";
+'use client';
 
-import { useId } from "react";
-import { HexColorInput, HexColorPicker } from "react-colorful";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/shared/ui/doctor/primitives/popover";
-import { inputFieldSurfaceClassName } from "@/shared/ui/doctor/primitives/input";
-import { cn } from "@/lib/utils";
+import { useId } from 'react';
+import { HexColorInput, HexColorPicker } from 'react-colorful';
+import { Popover, PopoverContent, PopoverTrigger } from '@/shared/ui/doctor/primitives/popover';
+import { inputFieldSurfaceClassName } from '@/shared/ui/doctor/primitives/input';
+import { cn } from '@/lib/utils';
 
 const HEX_COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
 
@@ -41,7 +37,7 @@ export function DoctorColorPicker({
   const reactId = useId();
   const triggerId = id ?? reactId;
   const hexInputId = `${triggerId}-hex`;
-  const pickerColor = HEX_COLOR_RE.test(value) ? value : "#000000";
+  const pickerColor = HEX_COLOR_RE.test(value) ? value : '#000000';
 
   return (
     <Popover>
@@ -52,16 +48,19 @@ export function DoctorColorPicker({
         title={value}
         disabled={disabled}
         className={cn(
-          "h-8 w-12 shrink-0 cursor-pointer rounded-md border border-input transition-colors",
-          "focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-          "disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
+          'h-8 w-12 shrink-0 cursor-pointer rounded-md border border-input transition-colors',
+          'focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+          'disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50',
           className,
         )}
         style={{ backgroundColor: pickerColor }}
       />
       <PopoverContent className="w-auto gap-3 p-3" align="start">
         <HexColorPicker color={pickerColor} onChange={onChange} />
-        <label htmlFor={hexInputId} className="flex items-center gap-2 text-sm text-muted-foreground">
+        <label
+          htmlFor={hexInputId}
+          className="flex items-center gap-2 text-sm text-muted-foreground"
+        >
           <span>HEX</span>
           <HexColorInput
             id={hexInputId}
@@ -69,7 +68,7 @@ export function DoctorColorPicker({
             onChange={onChange}
             prefixed
             disabled={disabled}
-            className={cn(inputFieldSurfaceClassName, "h-8 font-mono")}
+            className={cn(inputFieldSurfaceClassName, 'h-8 font-mono')}
           />
         </label>
       </PopoverContent>

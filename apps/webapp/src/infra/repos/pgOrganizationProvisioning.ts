@@ -1,11 +1,11 @@
-import { and, eq, isNull } from "drizzle-orm";
-import { runWebappPgText, runWebappTransaction } from "@/infra/db/runWebappSql";
+import { and, eq, isNull } from 'drizzle-orm';
+import { runWebappPgText, runWebappTransaction } from '@/infra/db/runWebappSql';
 import type {
   OrganizationProvisioningPort,
   SpecialistSignupIntent,
-} from "@/modules/organization-provisioning/ports";
-import { beOrganizationMembers, beSpecialists } from "../../../db/schema/bookingEngine";
-import { adminAuditLog } from "../../../db/schema/schema";
+} from '@/modules/organization-provisioning/ports';
+import { beOrganizationMembers, beSpecialists } from '../../../db/schema/bookingEngine';
+import { adminAuditLog } from '../../../db/schema/schema';
 
 type SpecialistSignupIntentDbRow = {
   id: string;
@@ -22,17 +22,17 @@ type SpecialistSignupIntentDbRow = {
 };
 
 function isSlugUnavailableDbError(error: unknown): boolean {
-  if (typeof error !== "object" || error === null) return false;
+  if (typeof error !== 'object' || error === null) return false;
   const value = error as { code?: unknown; message?: unknown; cause?: unknown };
   return (
-    value.code === "23505" ||
-    (typeof value.message === "string" && value.message.includes("slug_unavailable")) ||
+    value.code === '23505' ||
+    (typeof value.message === 'string' && value.message.includes('slug_unavailable')) ||
     isSlugUnavailableDbError(value.cause)
   );
 }
 
 function mapIntentDbRow(row: SpecialistSignupIntentDbRow): SpecialistSignupIntent {
-  if (row.status !== "pending" && row.status !== "provisioned") {
+  if (row.status !== 'pending' && row.status !== 'provisioned') {
     throw new Error(`Unexpected specialist_signup_intents.status: ${row.status}`);
   }
   return {
@@ -68,7 +68,7 @@ export function createPgOrganizationProvisioningPort(): OrganizationProvisioning
           );
         });
       } catch (error) {
-        if (isSlugUnavailableDbError(error)) throw new Error("slug_unavailable");
+        if (isSlugUnavailableDbError(error)) throw new Error('slug_unavailable');
         throw error;
       }
     },
@@ -138,14 +138,14 @@ export function createPgOrganizationProvisioningPort(): OrganizationProvisioning
       try {
         return await runWebappTransaction(async (tx) => {
           const result = await runWebappPgText<{ replaced: boolean }>(
-            "SELECT app.replace_pending_specialist_signup_challenge($1::uuid, $2::text) AS replaced",
+            'SELECT app.replace_pending_specialist_signup_challenge($1::uuid, $2::text) AS replaced',
             [challengeId, organizationSlug],
             tx,
           );
           return result.rows[0]?.replaced === true;
         });
       } catch (error) {
-        if (isSlugUnavailableDbError(error)) throw new Error("slug_unavailable");
+        if (isSlugUnavailableDbError(error)) throw new Error('slug_unavailable');
         throw error;
       }
     },
@@ -159,16 +159,16 @@ export function createPgOrganizationProvisioningPort(): OrganizationProvisioning
             organization_id: string | null;
             specialist_id: string | null;
             membership_id: string | null;
-          }>("SELECT * FROM app.provision_specialist_owner($1::uuid)", [challengeId], tx);
+          }>('SELECT * FROM app.provision_specialist_owner($1::uuid)', [challengeId], tx);
           const row = result.rows[0];
           if (!row) {
-            throw new Error("specialist_signup_provision_insert_failed");
+            throw new Error('specialist_signup_provision_insert_failed');
           }
           if (!row.ok) {
-            throw new Error(row.code ?? "specialist_signup_provision_insert_failed");
+            throw new Error(row.code ?? 'specialist_signup_provision_insert_failed');
           }
           if (!row.organization_id || !row.specialist_id || !row.membership_id) {
-            throw new Error("specialist_signup_provision_insert_failed");
+            throw new Error('specialist_signup_provision_insert_failed');
           }
           return {
             organizationId: row.organization_id,
@@ -177,7 +177,7 @@ export function createPgOrganizationProvisioningPort(): OrganizationProvisioning
           };
         });
       } catch (error) {
-        if (isSlugUnavailableDbError(error)) throw new Error("slug_unavailable");
+        if (isSlugUnavailableDbError(error)) throw new Error('slug_unavailable');
         throw error;
       }
     },
@@ -196,20 +196,20 @@ export function createPgOrganizationProvisioningPort(): OrganizationProvisioning
             and(
               eq(beOrganizationMembers.id, membershipId),
               eq(beOrganizationMembers.organizationId, organizationId),
-              eq(beOrganizationMembers.status, "active"),
+              eq(beOrganizationMembers.status, 'active'),
             ),
           )
           .limit(1)
-          .for("update");
+          .for('update');
         const membership = membershipRows[0];
         if (!membership) {
-          throw new Error("organization_membership_not_found");
+          throw new Error('organization_membership_not_found');
         }
         if (membership.platformUserId !== platformUserId) {
-          throw new Error("organization_membership_actor_mismatch");
+          throw new Error('organization_membership_actor_mismatch');
         }
-        if (membership.role !== "owner") {
-          throw new Error("organization_membership_not_bookable");
+        if (membership.role !== 'owner') {
+          throw new Error('organization_membership_not_bookable');
         }
         if (membership.specialistId) {
           return { specialistId: membership.specialistId, created: false };
@@ -229,7 +229,7 @@ export function createPgOrganizationProvisioningPort(): OrganizationProvisioning
           .returning({ id: beSpecialists.id });
         const specialistId = specialists[0]?.id;
         if (!specialistId) {
-          throw new Error("specialist_provision_insert_failed");
+          throw new Error('specialist_provision_insert_failed');
         }
 
         const update = await tx
@@ -246,16 +246,16 @@ export function createPgOrganizationProvisioningPort(): OrganizationProvisioning
             ),
           );
         if ((update.rowCount ?? 0) < 1) {
-          throw new Error("specialist_membership_backfill_conflict");
+          throw new Error('specialist_membership_backfill_conflict');
         }
 
         await tx.insert(adminAuditLog).values({
           organizationId,
           actorId: platformUserId,
-          action: "specialist_self_binding_created",
+          action: 'specialist_self_binding_created',
           targetId: specialistId,
           details: { membershipId },
-          status: "ok",
+          status: 'ok',
         });
 
         return { specialistId, created: true };

@@ -1,65 +1,65 @@
 /** Wave 3 phase 15F — webapp prod raw SQL tail gate (Class B/C only). */
-import { readFileSync, readdirSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
-import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
 
-const WEBAPP_SRC = join(fileURLToPath(new URL(".", import.meta.url)), "../..");
+const WEBAPP_SRC = join(fileURLToPath(new URL('.', import.meta.url)), '../..');
 const RAW_SQL_INVENTORY = join(
   WEBAPP_SRC,
-  "../../../docs/INTEGRATOR_DRIZZLE_MIGRATION/RAW_SQL_INVENTORY.md",
+  '../../../docs/INTEGRATOR_DRIZZLE_MIGRATION/RAW_SQL_INVENTORY.md',
 );
 
 /** Class B: intentional raw `pool.query` transport / documented pg workaround. */
 const CLASS_B_POOL_QUERY_REL = [
-  "infra/db/runWebappSql.ts",
-  "infra/repos/pgAdminPlatformUserStats.ts",
+  'infra/db/runWebappSql.ts',
+  'infra/repos/pgAdminPlatformUserStats.ts',
   // Added wave3 phase 15G: pool.query for Drizzle ANY-array workaround (broadcast count by user subset)
-  "infra/repos/broadcastChannelCounts.ts",
+  'infra/repos/broadcastChannelCounts.ts',
   // SAAS principal-aware pool: wraps pool.query to stamp the DB principal per connection (transport chokepoint).
-  "infra/db/webappPoolProvider.ts",
+  'infra/db/webappPoolProvider.ts',
   // C-1 (2026-07-26) BOOT-time schema assertion: reads information_schema on its own short-lived
   // connection, before the app serves anything. It must NOT go through the principal-aware pool —
   // at boot there is no request, no principal and no pool yet, and a guard that exists to run
   // BEFORE the app is usable cannot depend on the machinery that only exists once it is. It opens
   // one connection with a 5s timeout, asks one read-only question, and closes it. Class B is
   // exactly this: intentional, isolated raw transport. Pinned here so it cannot grow.
-  "modules/auth/sessionRevocationSchema.ts",
+  'modules/auth/sessionRevocationSchema.ts',
 ] as const;
 
 /** Class B: healthcheck / principal-apply query on a checked-out client. */
 const CLASS_B_CLIENT_QUERY_REL = [
-  "infra/db/client.ts",
+  'infra/db/client.ts',
   // SAAS principal-aware pool: client.query to apply/clear the DB principal on the checked-out connection.
-  "infra/db/webappPoolProvider.ts",
+  'infra/db/webappPoolProvider.ts',
 ] as const;
 
 /** Class C: `client.query` only for TX control / advisory on dedicated PoolClient. */
-const CLASS_C_CLIENT_QUERY_REL = ["infra/db/withClient.ts"] as const;
+const CLASS_C_CLIENT_QUERY_REL = ['infra/db/withClient.ts'] as const;
 
 /** Migrated in 15A–15E: runtime domain `pool.query`/`client.query` must stay 0. */
 const PHASE_15_MIGRATED_REL = [
-  "infra/repos/pgReferences.ts",
-  "infra/repos/pgSystemSettings.ts",
-  "infra/repos/pgSymptomDiary.ts",
-  "infra/repos/pgEmailSetupFlowPort.ts",
-  "infra/repos/pgEmailPasswordLookup.ts",
-  "infra/repos/pgUserPasswordCredentials.ts",
-  "infra/repos/pgOAuthBindings.ts",
-  "infra/repos/pgLoginTokens.ts",
-  "infra/repos/pgPhoneChallengeStore.ts",
-  "infra/repos/pgEmailSetupTokens.ts",
-  "infra/repos/pgTreatmentProgram.ts",
-  "infra/repos/pgTreatmentProgramItemSnapshot.ts",
-  "infra/repos/pgMaterialRating.ts",
-  "infra/repos/pgUserPins.ts",
-  "infra/repos/pgPhoneHistory.ts",
-  "infra/integrator-push/integratorPushOutbox.ts",
-  "app-layer/integrator/messengerPhoneHttpBindExecute.ts",
-  "infra/repos/pgAdminClientProfileConflicts.ts",
-  "infra/repos/pgMediaFolderLookup.ts",
-  "app/api/media/upload/route.ts",
-  "app/api/admin/users/[userId]/profile/route.ts",
+  'infra/repos/pgReferences.ts',
+  'infra/repos/pgSystemSettings.ts',
+  'infra/repos/pgSymptomDiary.ts',
+  'infra/repos/pgEmailSetupFlowPort.ts',
+  'infra/repos/pgEmailPasswordLookup.ts',
+  'infra/repos/pgUserPasswordCredentials.ts',
+  'infra/repos/pgOAuthBindings.ts',
+  'infra/repos/pgLoginTokens.ts',
+  'infra/repos/pgPhoneChallengeStore.ts',
+  'infra/repos/pgEmailSetupTokens.ts',
+  'infra/repos/pgTreatmentProgram.ts',
+  'infra/repos/pgTreatmentProgramItemSnapshot.ts',
+  'infra/repos/pgMaterialRating.ts',
+  'infra/repos/pgUserPins.ts',
+  'infra/repos/pgPhoneHistory.ts',
+  'infra/integrator-push/integratorPushOutbox.ts',
+  'app-layer/integrator/messengerPhoneHttpBindExecute.ts',
+  'infra/repos/pgAdminClientProfileConflicts.ts',
+  'infra/repos/pgMediaFolderLookup.ts',
+  'app/api/media/upload/route.ts',
+  'app/api/admin/users/[userId]/profile/route.ts',
 ] as const;
 
 function listProdTsFiles(dir: string): string[] {
@@ -71,7 +71,7 @@ function listProdTsFiles(dir: string): string[] {
       out.push(...listProdTsFiles(path));
       continue;
     }
-    if (name.endsWith(".ts") && !name.endsWith(".test.ts") && !name.includes(".devDb.")) {
+    if (name.endsWith('.ts') && !name.endsWith('.test.ts') && !name.includes('.devDb.')) {
       out.push(path);
     }
   }
@@ -81,33 +81,31 @@ function listProdTsFiles(dir: string): string[] {
 function isCommentOrDocLine(line: string): boolean {
   const t = line.trim();
   return (
-    t.startsWith("//") ||
-    t.startsWith("*") ||
-    t.startsWith("/*") ||
-    t.includes("no direct `pool.query`") ||
-    t.includes("no direct pool.query")
+    t.startsWith('//') ||
+    t.startsWith('*') ||
+    t.startsWith('/*') ||
+    t.includes('no direct `pool.query`') ||
+    t.includes('no direct pool.query')
   );
 }
 
 function countRuntimeMatches(src: string, pattern: RegExp): number {
-  return src
-    .split("\n")
-    .filter((line) => !isCommentOrDocLine(line) && pattern.test(line)).length;
+  return src.split('\n').filter((line) => !isCommentOrDocLine(line) && pattern.test(line)).length;
 }
 
 function relFromWebappSrc(absPath: string): string {
-  return relative(WEBAPP_SRC, absPath).replace(/\\/g, "/");
+  return relative(WEBAPP_SRC, absPath).replace(/\\/g, '/');
 }
 
-describe("Wave3 phase 15F webapp prod tail (Class B/C gate)", () => {
-  const rawSqlDoc = readFileSync(RAW_SQL_INVENTORY, "utf8");
+describe('Wave3 phase 15F webapp prod tail (Class B/C gate)', () => {
+  const rawSqlDoc = readFileSync(RAW_SQL_INVENTORY, 'utf8');
   const prodFiles = listProdTsFiles(WEBAPP_SRC);
 
-  it("domain pool.query only in Class B allowlist (5 files)", () => {
+  it('domain pool.query only in Class B allowlist (5 files)', () => {
     const offenders: string[] = [];
     for (const abs of prodFiles) {
       const rel = relFromWebappSrc(abs);
-      const src = readFileSync(abs, "utf8");
+      const src = readFileSync(abs, 'utf8');
       const poolCount = countRuntimeMatches(src, /\bpool\.query\b/);
       if (poolCount === 0) continue;
       if (!(CLASS_B_POOL_QUERY_REL as readonly string[]).includes(rel)) {
@@ -118,12 +116,12 @@ describe("Wave3 phase 15F webapp prod tail (Class B/C gate)", () => {
     expect(CLASS_B_POOL_QUERY_REL).toHaveLength(5);
   });
 
-  it("client.query only in Class B health + Class C allowlist (3 files)", () => {
+  it('client.query only in Class B health + Class C allowlist (3 files)', () => {
     const allowed = new Set<string>([...CLASS_B_CLIENT_QUERY_REL, ...CLASS_C_CLIENT_QUERY_REL]);
     const offenders: string[] = [];
     for (const abs of prodFiles) {
       const rel = relFromWebappSrc(abs);
-      const src = readFileSync(abs, "utf8");
+      const src = readFileSync(abs, 'utf8');
       const clientCount = countRuntimeMatches(src, /\bclient\.query\b/);
       if (clientCount === 0) continue;
       if (!allowed.has(rel)) {
@@ -134,23 +132,23 @@ describe("Wave3 phase 15F webapp prod tail (Class B/C gate)", () => {
     expect(allowed.size).toBe(3);
   });
 
-  it("every Class B/C tail file is documented in RAW_SQL_INVENTORY.md", () => {
+  it('every Class B/C tail file is documented in RAW_SQL_INVENTORY.md', () => {
     const tail = [
       ...CLASS_B_POOL_QUERY_REL,
       ...CLASS_B_CLIENT_QUERY_REL,
       ...CLASS_C_CLIENT_QUERY_REL,
     ];
     const missing = tail.filter((rel) => {
-      const base = rel.split("/").pop()!;
+      const base = rel.split('/').pop()!;
       return !rawSqlDoc.includes(base);
     });
     expect(missing).toEqual([]);
   });
 
-  it("15A–15E migrated scope stays at 0 runtime pool.query/client.query", () => {
+  it('15A–15E migrated scope stays at 0 runtime pool.query/client.query', () => {
     const offenders: string[] = [];
     for (const rel of PHASE_15_MIGRATED_REL) {
-      const src = readFileSync(join(WEBAPP_SRC, rel), "utf8");
+      const src = readFileSync(join(WEBAPP_SRC, rel), 'utf8');
       const poolCount = countRuntimeMatches(src, /\bpool\.query\b/);
       const clientCount = countRuntimeMatches(src, /\bclient\.query\b/);
       if (poolCount + clientCount > 0) {
@@ -160,11 +158,11 @@ describe("Wave3 phase 15F webapp prod tail (Class B/C gate)", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("post-15 prod tail size is 7 runtime files", () => {
+  it('post-15 prod tail size is 7 runtime files', () => {
     const runtimeTail = new Set<string>();
     for (const abs of prodFiles) {
       const rel = relFromWebappSrc(abs);
-      const src = readFileSync(abs, "utf8");
+      const src = readFileSync(abs, 'utf8');
       if (
         countRuntimeMatches(src, /\bpool\.query\b/) +
           countRuntimeMatches(src, /\bclient\.query\b/) >

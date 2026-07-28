@@ -7,28 +7,28 @@
  * the real table/column names needed by the guards.
  */
 
-import { spawnSync } from "node:child_process";
-import { randomBytes } from "node:crypto";
-import { readFileSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { spawnSync } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(__dirname, "..", "..", "..", "..");
-const p2bSqlPath = path.join(repoRoot, "deploy/postgres/p2-b-protected-principal-context.sql");
-const p2c3SqlPath = path.join(repoRoot, "deploy/postgres/p2-c3-patient-booking-lfk-guards.sql");
+const repoRoot = path.resolve(__dirname, '..', '..', '..', '..');
+const p2bSqlPath = path.join(repoRoot, 'deploy/postgres/p2-b-protected-principal-context.sql');
+const p2c3SqlPath = path.join(repoRoot, 'deploy/postgres/p2-c3-patient-booking-lfk-guards.sql');
 
-const scratchSuffix = `${process.pid}_${Date.now()}`.replace(/[^a-zA-Z0-9_]/g, "_");
+const scratchSuffix = `${process.pid}_${Date.now()}`.replace(/[^a-zA-Z0-9_]/g, '_');
 const dbName = `bcb_saas_p2_c3_booking_lfk_scratch_${scratchSuffix}`;
 const ownerRole = `bcb_p2_c3_context_owner_${scratchSuffix}`;
 const staffRole = `bcb_p2_c3_app_staff_${scratchSuffix}`;
 const patientRole = `bcb_p2_c3_app_patient_${scratchSuffix}`;
 
-if (!dbName.startsWith("bcb_saas_") || !dbName.includes("scratch")) {
+if (!dbName.startsWith('bcb_saas_') || !dbName.includes('scratch')) {
   throw new Error(`refusing unsafe scratch DB name: ${dbName}`);
 }
 if (/bcb_webapp_(dev|prod|test)|bersoncarebot_test/.test(dbName)) {
-  throw new Error("refusing dev/prod/test-shaped scratch DB name");
+  throw new Error('refusing dev/prod/test-shaped scratch DB name');
 }
 
 function quoteIdent(identifier) {
@@ -42,19 +42,23 @@ function quoteLiteral(value) {
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
     cwd: repoRoot,
-    encoding: "utf8",
+    encoding: 'utf8',
     input: options.input,
-    stdio: options.input != null ? ["pipe", "pipe", "pipe"] : "inherit",
+    stdio: options.input != null ? ['pipe', 'pipe', 'pipe'] : 'inherit',
   });
 
   if (result.error) {
-    throw new Error(`${options.label ?? `${command} ${args.join(" ")}`} failed to start: ${result.error.message}`);
+    throw new Error(
+      `${options.label ?? `${command} ${args.join(' ')}`} failed to start: ${result.error.message}`,
+    );
   }
 
   if (result.status !== 0) {
     if (result.stdout) process.stdout.write(result.stdout);
     if (result.stderr) process.stderr.write(result.stderr);
-    throw new Error(`${options.label ?? `${command} ${args.join(" ")}`} failed with ${result.status ?? "unknown status"}`);
+    throw new Error(
+      `${options.label ?? `${command} ${args.join(' ')}`} failed with ${result.status ?? 'unknown status'}`,
+    );
   }
 
   if (result.stdout) process.stdout.write(result.stdout);
@@ -63,49 +67,58 @@ function run(command, args, options = {}) {
 }
 
 function psql(sql, { database = dbName } = {}) {
-  run("sudo", ["-n", "-u", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-d", database], { input: sql });
+  run('sudo', ['-n', '-u', 'postgres', 'psql', '-v', 'ON_ERROR_STOP=1', '-d', database], {
+    input: sql,
+  });
 }
 
 function psqlFile(filePath, variables, { database = dbName } = {}) {
-  const sql = readFileSync(filePath, "utf8");
-  const variableArgs = Object.entries(variables).flatMap(([key, value]) => ["-v", `${key}=${value}`]);
-  run("sudo", ["-n", "-u", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-d", database, ...variableArgs], {
-    input: sql,
-    label: `sudo -n -u postgres psql -v ON_ERROR_STOP=1 -d ${database} < ${path.relative(repoRoot, filePath)} (psql variables redacted)`,
-  });
+  const sql = readFileSync(filePath, 'utf8');
+  const variableArgs = Object.entries(variables).flatMap(([key, value]) => [
+    '-v',
+    `${key}=${value}`,
+  ]);
+  run(
+    'sudo',
+    ['-n', '-u', 'postgres', 'psql', '-v', 'ON_ERROR_STOP=1', '-d', database, ...variableArgs],
+    {
+      input: sql,
+      label: `sudo -n -u postgres psql -v ON_ERROR_STOP=1 -d ${database} < ${path.relative(repoRoot, filePath)} (psql variables redacted)`,
+    },
+  );
 }
 
 function fatal(assertionVar, message) {
   return [
     `\\if :${assertionVar}`,
-    "\\else",
+    '\\else',
     `\\echo 'FATAL: ${message}'`,
-    "SELECT 1/0; -- forces a real error under ON_ERROR_STOP",
-    "\\endif",
-  ].join("\n");
+    'SELECT 1/0; -- forces a real error under ON_ERROR_STOP',
+    '\\endif',
+  ].join('\n');
 }
 
 const ownerIdent = quoteIdent(ownerRole);
 const staffIdent = quoteIdent(staffRole);
 const patientIdent = quoteIdent(patientRole);
-const secret = randomBytes(32).toString("hex");
+const secret = randomBytes(32).toString('hex');
 
-const orgA = "c3000000-0000-4000-8000-0000000000a1";
-const orgB = "c3000000-0000-4000-8000-0000000000b1";
-const patientA = "c3000000-0000-4000-8000-00000000a101";
-const patientB = "c3000000-0000-4000-8000-00000000b101";
-const appointmentCreate = "c3000000-0000-4000-8000-00000000aa01";
-const appointmentCancel = "c3000000-0000-4000-8000-00000000aa02";
-const appointmentReschedule = "c3000000-0000-4000-8000-00000000aa03";
-const appointmentOther = "c3000000-0000-4000-8000-00000000bb01";
-const appointmentNegative = "c3000000-0000-4000-8000-00000000aa04";
-const rescheduleRow = "c3000000-0000-4000-8000-00000000cc01";
-const cancellationRow = "c3000000-0000-4000-8000-00000000dd01";
-const complexA = "c3000000-0000-4000-8000-00000000e101";
-const complexLegacyA = "c3000000-0000-4000-8000-00000000e102";
-const complexOther = "c3000000-0000-4000-8000-00000000e201";
-const complexOrgB = "c3000000-0000-4000-8000-00000000e301";
-const sessionA = "c3000000-0000-4000-8000-00000000f101";
+const orgA = 'c3000000-0000-4000-8000-0000000000a1';
+const orgB = 'c3000000-0000-4000-8000-0000000000b1';
+const patientA = 'c3000000-0000-4000-8000-00000000a101';
+const patientB = 'c3000000-0000-4000-8000-00000000b101';
+const appointmentCreate = 'c3000000-0000-4000-8000-00000000aa01';
+const appointmentCancel = 'c3000000-0000-4000-8000-00000000aa02';
+const appointmentReschedule = 'c3000000-0000-4000-8000-00000000aa03';
+const appointmentOther = 'c3000000-0000-4000-8000-00000000bb01';
+const appointmentNegative = 'c3000000-0000-4000-8000-00000000aa04';
+const rescheduleRow = 'c3000000-0000-4000-8000-00000000cc01';
+const cancellationRow = 'c3000000-0000-4000-8000-00000000dd01';
+const complexA = 'c3000000-0000-4000-8000-00000000e101';
+const complexLegacyA = 'c3000000-0000-4000-8000-00000000e102';
+const complexOther = 'c3000000-0000-4000-8000-00000000e201';
+const complexOrgB = 'c3000000-0000-4000-8000-00000000e301';
+const sessionA = 'c3000000-0000-4000-8000-00000000f101';
 const futureEpoch = Math.floor(Date.now() / 1000) + 120;
 const patientNonce = `patient_${scratchSuffix}`;
 const staffWithPatientContextNonce = `staff_patient_context_${scratchSuffix}`;
@@ -272,7 +285,7 @@ SELECT (
   )
 )::int AS p2_c3_public_execute_revoked
 FROM resolved_functions \gset
-${fatal("p2_c3_public_execute_revoked", "P2-C3 functions must revoke PUBLIC EXECUTE")}
+${fatal('p2_c3_public_execute_revoked', 'P2-C3 functions must revoke PUBLIC EXECUTE')}
 
 WITH expected_functions(signature) AS (
   VALUES
@@ -290,7 +303,7 @@ SELECT (
   AND bool_and(has_function_privilege(${quoteLiteral(staffRole)}, signature, 'EXECUTE'))
 )::int AS p2_c3_explicit_execute_granted
 FROM expected_functions \gset
-${fatal("p2_c3_explicit_execute_granted", "P2-C3 functions must grant EXECUTE to explicit app roles")}
+${fatal('p2_c3_explicit_execute_granted', 'P2-C3 functions must grant EXECUTE to explicit app roles')}
 
 SET SESSION AUTHORIZATION ${patientIdent};
 SELECT app.p2_c3_is_patient_context() AS p2_c3_patient_can_execute_helper;
@@ -514,7 +527,7 @@ INSERT INTO public.lfk_sessions (
 SELECT (organization_id = ${quoteLiteral(orgA)}::uuid)::int AS p2_c3_lfk_org_stamped
 FROM public.lfk_sessions
 WHERE id = ${quoteLiteral(sessionA)}::uuid \gset
-${fatal("p2_c3_lfk_org_stamped", "LFK session organization_id must be stamped from patient context")}
+${fatal('p2_c3_lfk_org_stamped', 'LFK session organization_id must be stamped from patient context')}
 
 INSERT INTO public.lfk_sessions (
   id, user_id, complex_id, completed_at, source
@@ -626,19 +639,19 @@ RESET SESSION AUTHORIZATION;
 `;
 
 try {
-  run("sudo", ["-n", "-u", "postgres", "createdb", dbName]);
+  run('sudo', ['-n', '-u', 'postgres', 'createdb', dbName]);
   dbCreated = true;
   psql(
     [
       `CREATE ROLE ${ownerIdent} NOLOGIN NOBYPASSRLS;`,
       `CREATE ROLE ${staffIdent} NOLOGIN NOBYPASSRLS;`,
       `CREATE ROLE ${patientIdent} NOLOGIN NOBYPASSRLS;`,
-      "",
-    ].join("\n"),
+      '',
+    ].join('\n'),
   );
   rolesCreated = true;
 
-  console.log("--- p2-c3: applying protected context artifact ---");
+  console.log('--- p2-c3: applying protected context artifact ---');
   psqlFile(p2bSqlPath, {
     p2_b_owner_role: ownerRole,
     p2_b_staff_role: staffRole,
@@ -646,42 +659,46 @@ try {
     p2_b_signing_secret: secret,
   });
 
-  console.log("--- p2-c3: creating synthetic schema ---");
+  console.log('--- p2-c3: creating synthetic schema ---');
   psql(schemaSql);
 
-  console.log("--- p2-c3: applying patient booking/LFK guard artifact ---");
+  console.log('--- p2-c3: applying patient booking/LFK guard artifact ---');
   psqlFile(p2c3SqlPath, {
     p2_c3_staff_role: staffRole,
     p2_c3_patient_role: patientRole,
   });
 
-  console.log("--- p2-c3: proving explicit C3 function grants under disposable app roles ---");
+  console.log('--- p2-c3: proving explicit C3 function grants under disposable app roles ---');
   psql(explicitGrantProofSql);
 
-  console.log("--- p2-c3: proving patient booking/LFK value guards under disposable app roles ---");
+  console.log('--- p2-c3: proving patient booking/LFK value guards under disposable app roles ---');
   psql(proofSql);
 
   console.log(`smoke-p2-c3-patient-booking-lfk-guards: OK (${dbName})`);
 } finally {
   if (dbCreated) {
     try {
-      run("sudo", ["-n", "-u", "postgres", "dropdb", "--if-exists", dbName]);
+      run('sudo', ['-n', '-u', 'postgres', 'dropdb', '--if-exists', dbName]);
     } catch (error) {
-      console.error(`smoke-p2-c3-patient-booking-lfk-guards: cleanup dropdb failed: ${error.message}`);
+      console.error(
+        `smoke-p2-c3-patient-booking-lfk-guards: cleanup dropdb failed: ${error.message}`,
+      );
     }
   }
   if (rolesCreated) {
     try {
-      run("sudo", ["-n", "-u", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-d", "postgres"], {
+      run('sudo', ['-n', '-u', 'postgres', 'psql', '-v', 'ON_ERROR_STOP=1', '-d', 'postgres'], {
         input: [
           `DROP ROLE IF EXISTS ${patientIdent};`,
           `DROP ROLE IF EXISTS ${staffIdent};`,
           `DROP ROLE IF EXISTS ${ownerIdent};`,
-          "",
-        ].join("\n"),
+          '',
+        ].join('\n'),
       });
     } catch (error) {
-      console.error(`smoke-p2-c3-patient-booking-lfk-guards: cleanup role drop failed: ${error.message}`);
+      console.error(
+        `smoke-p2-c3-patient-booking-lfk-guards: cleanup role drop failed: ${error.message}`,
+      );
     }
   }
 }

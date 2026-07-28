@@ -9,14 +9,14 @@
 
 ## Проверка readiness
 
-| Критерий | Статус | Комментарий |
-|----------|--------|-------------|
-| Scope соответствует только Deploy 2 | **PASS** | canonical resolve перед enqueue/write, без integrator merge и без снятия webapp blocker |
-| Миграции/код в правильном месте | **PASS** | integrator repos/write path, без новых webapp schema требований |
-| Rollback-путь описан | **PASS** | `CHECKLISTS.md` Deploy 2, `CUTOVER_RUNBOOK.md` Deploy 2 |
-| SQL / projection-health readiness есть | **PASS** | health и outbox контроль задокументированы, без Stage 3 merge SQL |
-| Нет нарушений server conventions | **PASS** | новые бизнес-флаги/env не вводились |
-| `pnpm run ci` зелёный | **PASS** | подтверждено в `AGENT_EXECUTION_LOG.md` и повторно в финальном fix-pass |
+| Критерий                               | Статус   | Комментарий                                                                             |
+| -------------------------------------- | -------- | --------------------------------------------------------------------------------------- |
+| Scope соответствует только Deploy 2    | **PASS** | canonical resolve перед enqueue/write, без integrator merge и без снятия webapp blocker |
+| Миграции/код в правильном месте        | **PASS** | integrator repos/write path, без новых webapp schema требований                         |
+| Rollback-путь описан                   | **PASS** | `CHECKLISTS.md` Deploy 2, `CUTOVER_RUNBOOK.md` Deploy 2                                 |
+| SQL / projection-health readiness есть | **PASS** | health и outbox контроль задокументированы, без Stage 3 merge SQL                       |
+| Нет нарушений server conventions       | **PASS** | новые бизнес-флаги/env не вводились                                                     |
+| `pnpm run ci` зелёный                  | **PASS** | подтверждено в `AGENT_EXECUTION_LOG.md` и повторно в финальном fix-pass                 |
 
 ## Особая оговорка
 

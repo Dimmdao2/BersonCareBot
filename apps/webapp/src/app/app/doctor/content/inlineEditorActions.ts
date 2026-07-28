@@ -1,9 +1,9 @@
-"use server";
+'use server';
 
-import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
-import { requireEntitlementForReadAction } from "@/app-layer/guards/requireEntitlement";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
+import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 
 /**
  * Load a single content page's full editable record for the inline master-detail editor.
@@ -27,10 +27,14 @@ export async function loadContentPageForInlineEdit(id: string): Promise<{
   linkedCourseId: string | null;
 } | null> {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForReadAction(workspace, "cms_pages");
+  const entitlement = await requireEntitlementForReadAction(workspace, 'cms_pages');
   if (!entitlement.ok) return null;
   const deps = buildAppDeps();
-  const page = await withDoctorWorkspacePrincipal(workspace, "doctor.content.inline-editor.read", () => deps.contentPages.getById(id));
+  const page = await withDoctorWorkspacePrincipal(
+    workspace,
+    'doctor.content.inline-editor.read',
+    () => deps.contentPages.getById(id),
+  );
   if (!page) return null;
   return {
     id: page.id,

@@ -1,11 +1,14 @@
-"use client";
+'use client';
 
-import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
-import { patientMutedTextClass, patientInnerPageStackClass } from "@/shared/ui/patient/patientVisual";
-import type { PatientPlanTab } from "@/app/app/patient/treatment/patientPlanTab";
-import { PatientTreatmentProgramStagePageClient } from "@/app/app/patient/treatment/PatientTreatmentProgramStagePageClient";
+import type { TreatmentProgramInstanceDetail } from '@/modules/treatment-program/types';
+import {
+  patientMutedTextClass,
+  patientInnerPageStackClass,
+} from '@/shared/ui/patient/patientVisual';
+import type { PatientPlanTab } from '@/app/app/patient/treatment/patientPlanTab';
+import { PatientTreatmentProgramStagePageClient } from '@/app/app/patient/treatment/PatientTreatmentProgramStagePageClient';
 
-type Stage = TreatmentProgramInstanceDetail["stages"][number];
+type Stage = TreatmentProgramInstanceDetail['stages'][number];
 
 export function PatientTreatmentTabProgram(props: {
   instanceId: string;
@@ -23,7 +26,7 @@ export function PatientTreatmentTabProgram(props: {
   /** `planTab` в ссылках на пункты (вкладка «Программа»). */
   itemLinksPlanTab?: PatientPlanTab | null;
   planItemDoneRepeatCooldownMinutes: number;
-  assignmentSource: TreatmentProgramInstanceDetail["assignmentSource"];
+  assignmentSource: TreatmentProgramInstanceDetail['assignmentSource'];
   programCommentsInteraction: { visible: boolean; enabled: boolean };
   programMediaInteraction: { visible: boolean; enabled: boolean };
 }) {
@@ -36,7 +39,7 @@ export function PatientTreatmentTabProgram(props: {
     patientCalendarDayIana,
     embeddedChecklist,
     onRefreshDetail,
-    itemLinksPlanTab = "program",
+    itemLinksPlanTab = 'program',
     planItemDoneRepeatCooldownMinutes,
     assignmentSource,
     programCommentsInteraction,

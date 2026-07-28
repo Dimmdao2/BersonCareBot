@@ -1,51 +1,52 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const buildAppDepsMock = vi.hoisted(() => vi.fn());
 const confirmPublicEmailOtpChallengeMock = vi.hoisted(() => vi.fn());
 const setSessionFromUserMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: buildAppDepsMock,
 }));
 
-vi.mock("@/modules/auth/emailOtpPublic", () => ({
-  confirmPublicEmailOtpChallenge: (...args: unknown[]) => confirmPublicEmailOtpChallengeMock(...args),
+vi.mock('@/modules/auth/emailOtpPublic', () => ({
+  confirmPublicEmailOtpChallenge: (...args: unknown[]) =>
+    confirmPublicEmailOtpChallengeMock(...args),
 }));
 
-vi.mock("@/modules/auth/service", () => ({
+vi.mock('@/modules/auth/service', () => ({
   setSessionFromUser: (...args: unknown[]) => setSessionFromUserMock(...args),
 }));
 
-import { POST } from "./route";
-import * as authChannelPolicy from "@/modules/auth/authChannelPolicy";
+import { POST } from './route';
+import * as authChannelPolicy from '@/modules/auth/authChannelPolicy';
 
 function makeRequest(body: unknown): Request {
-  return new Request("http://localhost/api/clinic/invites/accept/confirm", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
+  return new Request('http://localhost/api/clinic/invites/accept/confirm', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
   });
 }
 
-describe("clinic invite accept confirm route", () => {
+describe('clinic invite accept confirm route', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     const acceptInvite = vi.fn().mockResolvedValue({
       ok: true,
-      organizationId: "ed63b540-3fb6-499d-897c-f52227ea5dd8",
-      membershipId: "33333333-3333-4333-8333-333333333333",
-      platformUserId: "11111111-1111-4111-8111-111111111111",
+      organizationId: 'ed63b540-3fb6-499d-897c-f52227ea5dd8',
+      membershipId: '33333333-3333-4333-8333-333333333333',
+      platformUserId: '11111111-1111-4111-8111-111111111111',
       specialistId: null,
-      role: "admin",
+      role: 'admin',
     });
     buildAppDepsMock.mockReturnValue({
       organizationInvites: {
         lookupPendingByToken: vi.fn().mockResolvedValue({
           ok: true,
           invite: {
-            invitedEmail: "admin-r1@example.com",
-            invitedRole: "admin",
-            organizationTitle: "Clinic",
+            invitedEmail: 'admin-r1@example.com',
+            invitedRole: 'admin',
+            organizationTitle: 'Clinic',
           },
         }),
         acceptInvite,
@@ -53,26 +54,26 @@ describe("clinic invite accept confirm route", () => {
       emailOtpPublicDb: {},
       userByPhone: {
         findByUserId: vi.fn().mockResolvedValue({
-          userId: "11111111-1111-4111-8111-111111111111",
-          role: "doctor",
-          displayName: "Clinic Admin",
+          userId: '11111111-1111-4111-8111-111111111111',
+          role: 'doctor',
+          displayName: 'Clinic Admin',
           bindings: {},
         }),
       },
     });
     confirmPublicEmailOtpChallengeMock.mockResolvedValue({
       ok: true,
-      userId: "11111111-1111-4111-8111-111111111111",
+      userId: '11111111-1111-4111-8111-111111111111',
     });
   });
 
-  it("rejects a disabled email channel before invite lookup, OTP consumption, or acceptance", async () => {
-    const policy = vi.spyOn(authChannelPolicy, "isAuthChannelEnabled").mockResolvedValue(false);
+  it('rejects a disabled email channel before invite lookup, OTP consumption, or acceptance', async () => {
+    const policy = vi.spyOn(authChannelPolicy, 'isAuthChannelEnabled').mockResolvedValue(false);
     try {
-      const res = await POST(makeRequest({ token: "invite-token-with-length", code: "123456" }));
+      const res = await POST(makeRequest({ token: 'invite-token-with-length', code: '123456' }));
 
       expect(res.status).toBe(503);
-      await expect(res.json()).resolves.toEqual({ ok: false, error: "auth_channel_disabled" });
+      await expect(res.json()).resolves.toEqual({ ok: false, error: 'auth_channel_disabled' });
       expect(buildAppDepsMock).not.toHaveBeenCalled();
       expect(confirmPublicEmailOtpChallengeMock).not.toHaveBeenCalled();
       expect(setSessionFromUserMock).not.toHaveBeenCalled();
@@ -81,91 +82,91 @@ describe("clinic invite accept confirm route", () => {
     }
   });
 
-  it("verifies OTP for the invite email and preserves the post-accept staff session role", async () => {
+  it('verifies OTP for the invite email and preserves the post-accept staff session role', async () => {
     const res = await POST(
       makeRequest({
-        token: "invite-token-with-length",
-        code: "123456",
+        token: 'invite-token-with-length',
+        code: '123456',
       }),
     );
 
     expect(res.status).toBe(200);
     expect(confirmPublicEmailOtpChallengeMock).toHaveBeenCalledWith(
-      "admin-r1@example.com",
-      "123456",
+      'admin-r1@example.com',
+      '123456',
       {},
     );
     const deps = buildAppDepsMock.mock.results[0]?.value;
     expect(deps.organizationInvites.acceptInvite).toHaveBeenCalledWith({
-      token: "invite-token-with-length",
-      platformUserId: "11111111-1111-4111-8111-111111111111",
-      expectedEmail: "admin-r1@example.com",
+      token: 'invite-token-with-length',
+      platformUserId: '11111111-1111-4111-8111-111111111111',
+      expectedEmail: 'admin-r1@example.com',
     });
     expect(setSessionFromUserMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        userId: "11111111-1111-4111-8111-111111111111",
-        role: "doctor",
+        userId: '11111111-1111-4111-8111-111111111111',
+        role: 'doctor',
       }),
     );
     await expect(res.json()).resolves.toMatchObject({
       ok: true,
-      redirectTo: "/app/doctor",
-      invitedRole: "admin",
+      redirectTo: '/app/doctor',
+      invitedRole: 'admin',
       specialistId: null,
     });
   });
 
-  it("does not claim a specialist from doctor invite acceptance before the staff workspace entry", async () => {
+  it('does not claim a specialist from doctor invite acceptance before the staff workspace entry', async () => {
     buildAppDepsMock.mockReturnValue({
       organizationInvites: {
         lookupPendingByToken: vi.fn().mockResolvedValue({
           ok: true,
           invite: {
-            invitedEmail: "doctor-r1@example.com",
-            invitedRole: "doctor",
-            organizationTitle: "Clinic",
+            invitedEmail: 'doctor-r1@example.com',
+            invitedRole: 'doctor',
+            organizationTitle: 'Clinic',
           },
         }),
         acceptInvite: vi.fn().mockResolvedValue({
           ok: true,
-          organizationId: "ed63b540-3fb6-499d-897c-f52227ea5dd8",
-          membershipId: "33333333-3333-4333-8333-333333333333",
-          platformUserId: "11111111-1111-4111-8111-111111111111",
+          organizationId: 'ed63b540-3fb6-499d-897c-f52227ea5dd8',
+          membershipId: '33333333-3333-4333-8333-333333333333',
+          platformUserId: '11111111-1111-4111-8111-111111111111',
           specialistId: null,
-          role: "doctor",
+          role: 'doctor',
         }),
       },
       emailOtpPublicDb: {},
       userByPhone: {
         findByUserId: vi.fn().mockResolvedValue({
-          userId: "11111111-1111-4111-8111-111111111111",
-          role: "doctor",
-          displayName: "Clinic Doctor",
+          userId: '11111111-1111-4111-8111-111111111111',
+          role: 'doctor',
+          displayName: 'Clinic Doctor',
           bindings: {},
         }),
       },
     });
 
-    const res = await POST(makeRequest({ token: "invite-token-with-length", code: "123456" }));
+    const res = await POST(makeRequest({ token: 'invite-token-with-length', code: '123456' }));
 
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toMatchObject({
       ok: true,
-      invitedRole: "doctor",
+      invitedRole: 'doctor',
       specialistId: null,
     });
   });
 
-  it("denies with 409 seat_limit_reached without establishing a session when capacity/entitlement is denied atomically", async () => {
-    const acceptInvite = vi.fn().mockResolvedValue({ ok: false, code: "seat_limit_reached" });
+  it('denies with 409 seat_limit_reached without establishing a session when capacity/entitlement is denied atomically', async () => {
+    const acceptInvite = vi.fn().mockResolvedValue({ ok: false, code: 'seat_limit_reached' });
     buildAppDepsMock.mockReturnValue({
       organizationInvites: {
         lookupPendingByToken: vi.fn().mockResolvedValue({
           ok: true,
           invite: {
-            invitedEmail: "doctor-r1@example.com",
-            invitedRole: "doctor",
-            organizationTitle: "Clinic",
+            invitedEmail: 'doctor-r1@example.com',
+            invitedRole: 'doctor',
+            organizationTitle: 'Clinic',
           },
         }),
         acceptInvite,
@@ -174,26 +175,26 @@ describe("clinic invite accept confirm route", () => {
       userByPhone: { findByUserId: vi.fn() },
     });
 
-    const res = await POST(makeRequest({ token: "invite-token-with-length", code: "123456" }));
+    const res = await POST(makeRequest({ token: 'invite-token-with-length', code: '123456' }));
 
     expect(res.status).toBe(409);
-    await expect(res.json()).resolves.toEqual({ ok: false, error: "seat_limit_reached" });
+    await expect(res.json()).resolves.toEqual({ ok: false, error: 'seat_limit_reached' });
     expect(setSessionFromUserMock).not.toHaveBeenCalled();
   });
 
-  it("denies with 403 entitlement_disabled without establishing a session when an admin invite is accepted after clinic_team is turned OFF", async () => {
+  it('denies with 403 entitlement_disabled without establishing a session when an admin invite is accepted after clinic_team is turned OFF', async () => {
     // Regression for the C4A re-audit P1: an admin invite issued while clinic_team was ON must
     // not activate membership after downgrade/OFF, even though admin invites never consume a
     // numeric seat. The accept SQL re-checks current entitlement for every invited role.
-    const acceptInvite = vi.fn().mockResolvedValue({ ok: false, code: "entitlement_disabled" });
+    const acceptInvite = vi.fn().mockResolvedValue({ ok: false, code: 'entitlement_disabled' });
     buildAppDepsMock.mockReturnValue({
       organizationInvites: {
         lookupPendingByToken: vi.fn().mockResolvedValue({
           ok: true,
           invite: {
-            invitedEmail: "admin-r1@example.com",
-            invitedRole: "admin",
-            organizationTitle: "Clinic",
+            invitedEmail: 'admin-r1@example.com',
+            invitedRole: 'admin',
+            organizationTitle: 'Clinic',
           },
         }),
         acceptInvite,
@@ -202,24 +203,24 @@ describe("clinic invite accept confirm route", () => {
       userByPhone: { findByUserId: vi.fn() },
     });
 
-    const res = await POST(makeRequest({ token: "invite-token-with-length", code: "123456" }));
+    const res = await POST(makeRequest({ token: 'invite-token-with-length', code: '123456' }));
 
     expect(res.status).toBe(403);
-    await expect(res.json()).resolves.toEqual({ ok: false, error: "entitlement_disabled" });
+    await expect(res.json()).resolves.toEqual({ ok: false, error: 'entitlement_disabled' });
     expect(setSessionFromUserMock).not.toHaveBeenCalled();
   });
 
-  it("rejects email mismatch before OTP verification", async () => {
+  it('rejects email mismatch before OTP verification', async () => {
     const res = await POST(
       makeRequest({
-        token: "invite-token-with-length",
-        email: "other@example.com",
-        code: "123456",
+        token: 'invite-token-with-length',
+        email: 'other@example.com',
+        code: '123456',
       }),
     );
 
     expect(res.status).toBe(400);
-    await expect(res.json()).resolves.toEqual({ ok: false, error: "email_mismatch" });
+    await expect(res.json()).resolves.toEqual({ ok: false, error: 'email_mismatch' });
     expect(confirmPublicEmailOtpChallengeMock).not.toHaveBeenCalled();
     expect(setSessionFromUserMock).not.toHaveBeenCalled();
   });

@@ -1,7 +1,7 @@
 /** @vitest-environment node */
 
-import { describe, expect, it } from "vitest";
-import { bindHlsProxyStreamToClientAbort } from "@/app-layer/media/hlsProxyClientAbortStream";
+import { describe, expect, it } from 'vitest';
+import { bindHlsProxyStreamToClientAbort } from '@/app-layer/media/hlsProxyClientAbortStream';
 
 function controllableUpstream(): {
   stream: ReadableStream<Uint8Array>;
@@ -38,8 +38,8 @@ async function readAll(stream: ReadableStream<Uint8Array>): Promise<Uint8Array[]
   return out;
 }
 
-describe("bindHlsProxyStreamToClientAbort", () => {
-  it("forwards upstream bytes when client stays connected", async () => {
+describe('bindHlsProxyStreamToClientAbort', () => {
+  it('forwards upstream bytes when client stays connected', async () => {
     const upstream = controllableUpstream();
     const bound = bindHlsProxyStreamToClientAbort(upstream.stream);
     upstream.enqueue(new Uint8Array([1, 2]));
@@ -51,7 +51,7 @@ describe("bindHlsProxyStreamToClientAbort", () => {
     expect(upstream.cancelCount()).toBe(0);
   });
 
-  it("cancels upstream when client AbortSignal fires mid-read", async () => {
+  it('cancels upstream when client AbortSignal fires mid-read', async () => {
     const upstream = controllableUpstream();
     const ac = new AbortController();
     const bound = bindHlsProxyStreamToClientAbort(upstream.stream, ac.signal);
@@ -62,11 +62,11 @@ describe("bindHlsProxyStreamToClientAbort", () => {
     await reader.read();
     ac.abort();
 
-    await expect(reader.read()).rejects.toMatchObject({ name: "AbortError" });
+    await expect(reader.read()).rejects.toMatchObject({ name: 'AbortError' });
     expect(upstream.cancelCount()).toBeGreaterThanOrEqual(1);
   });
 
-  it("delivers bytes when upstream closes before client abort", async () => {
+  it('delivers bytes when upstream closes before client abort', async () => {
     const upstream = controllableUpstream();
     const ac = new AbortController();
     const bound = bindHlsProxyStreamToClientAbort(upstream.stream, ac.signal);
@@ -79,7 +79,7 @@ describe("bindHlsProxyStreamToClientAbort", () => {
     expect(upstream.cancelCount()).toBe(0);
   });
 
-  it("returns an immediately idle stream when signal is already aborted", async () => {
+  it('returns an immediately idle stream when signal is already aborted', async () => {
     const upstream = controllableUpstream();
     const ac = new AbortController();
     ac.abort();

@@ -12,23 +12,17 @@ vi.mock('../../../../infra/db/repos/reminders.js', () => ({
   expireOrphanedPendingReminderOccurrences: vi.fn(async () => undefined),
 }));
 
-const recordMessengerChannelSkipsBestEffortMock = vi.fn(async (
-  _db: unknown,
-  _input: Record<string, unknown>,
-) => undefined);
-const recordMessengerNotEnqueuedSkipsBestEffortMock = vi.fn(async (
-  _db: unknown,
-  _input: Record<string, unknown>,
-) => undefined);
+const recordMessengerChannelSkipsBestEffortMock = vi.fn(
+  async (_db: unknown, _input: Record<string, unknown>) => undefined,
+);
+const recordMessengerNotEnqueuedSkipsBestEffortMock = vi.fn(
+  async (_db: unknown, _input: Record<string, unknown>) => undefined,
+);
 vi.mock('../../../../infra/db/repos/notificationDeliveryAttempts.js', () => ({
-  recordMessengerChannelSkipsBestEffort: (
-    db: unknown,
-    input: Record<string, unknown>,
-  ) => recordMessengerChannelSkipsBestEffortMock(db, input),
-  recordMessengerNotEnqueuedSkipsBestEffort: (
-    db: unknown,
-    input: Record<string, unknown>,
-  ) => recordMessengerNotEnqueuedSkipsBestEffortMock(db, input),
+  recordMessengerChannelSkipsBestEffort: (db: unknown, input: Record<string, unknown>) =>
+    recordMessengerChannelSkipsBestEffortMock(db, input),
+  recordMessengerNotEnqueuedSkipsBestEffort: (db: unknown, input: Record<string, unknown>) =>
+    recordMessengerNotEnqueuedSkipsBestEffortMock(db, input),
 }));
 
 vi.mock('../../../../infra/db/repos/outgoingDeliveryQueue.js', () => ({

@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { arrayMove } from "@dnd-kit/sortable";
-import { useCallback, useMemo, useState } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
+import { arrayMove } from '@dnd-kit/sortable';
+import { useCallback, useMemo, useState } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
   Dialog,
   DialogContent,
@@ -10,14 +10,14 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/shared/ui/doctor/primitives/dialog";
-import type { TreatmentProgramInstanceStatus } from "@/modules/treatment-program/types";
-import { isProgramInstanceEditLocked } from "./programInstanceMutationGuard";
-import { useInstanceEditorDraft } from "./InstanceEditorDraftContext";
+} from '@/shared/ui/doctor/primitives/dialog';
+import type { TreatmentProgramInstanceStatus } from '@/modules/treatment-program/types';
+import { isProgramInstanceEditLocked } from './programInstanceMutationGuard';
+import { useInstanceEditorDraft } from './InstanceEditorDraftContext';
 import {
   TreatmentProgramPipelineStagesDnd,
   TreatmentProgramSortablePipelineStage,
-} from "./TreatmentProgramDndUi";
+} from './TreatmentProgramDndUi';
 
 function StageOrderDialogBody(props: {
   programStatus: TreatmentProgramInstanceStatus;
@@ -54,7 +54,11 @@ function StageOrderDialogBody(props: {
           Порядок сохранится в черновик; на сервер — после «Сохранить изменения» в шапке программы.
         </DialogDescription>
       </DialogHeader>
-      <TreatmentProgramPipelineStagesDnd stageIds={localIds} disabled={editLocked} onReorder={onReorder}>
+      <TreatmentProgramPipelineStagesDnd
+        stageIds={localIds}
+        disabled={editLocked}
+        onReorder={onReorder}
+      >
         <div className="flex flex-col gap-2" data-testid="instance-editor-stage-order-list">
           {localIds.map((id) => (
             <TreatmentProgramSortablePipelineStage
@@ -67,7 +71,7 @@ function StageOrderDialogBody(props: {
                 <>
                   {dragHandle}
                   <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
-                    {titleById.get(id) ?? "Этап"}
+                    {titleById.get(id) ?? 'Этап'}
                   </span>
                 </>
               )}
@@ -100,7 +104,7 @@ export function InstanceEditorStageOrderDialog(props: {
     () => new Map(pipelineStages.map((s) => [s.id, s.title] as const)),
     [pipelineStages],
   );
-  const listKey = pipelineIds.join("|");
+  const listKey = pipelineIds.join('|');
 
   const handleClose = useCallback(() => onOpenChange(false), [onOpenChange]);
 

@@ -55,6 +55,7 @@ privileged group and has no sudo, (b) re-owning `/opt/env/bersoncarebot/*` and t
 not in use and should be deleted rather than left dormant.
 
 **Options.**
+
 1. Split the identity: a runtime user with **no sudo at all and no `docker` group** for the app; a separate
    deploy user for releases. Service restarts move to a narrowly scoped mechanism (polkit rule for the specific
    units, or a fixed-command wrapper), never `sudo systemctl` unrestricted.
@@ -93,6 +94,7 @@ Good news, also VERIFIED: the files are **outside** `/opt/projects`, the deploy 
 secret.
 
 **Options.**
+
 1. Split by consumer: each service reads only the secrets it needs, separate files, separate owners.
 2. Inject at process start from a secret manager (Vault / cloud secret manager) so no durable file exists.
    Volume note for the audit trail: retrieval is per process start or lease renewal — roughly tens of events a
@@ -135,6 +137,7 @@ and behind it RLS does not apply. A flaw in any one function is not "leaks OTP r
 to the entire schema.
 
 **Options.**
+
 1. **Split the owner.** Several narrow definer owners, each owning only the functions and tables of its area
    (auth, public projection, provisioning). A flaw in the e-mail-code path then cannot reach clinical tables.
 2. **Remove bypass where a policy suffices.** For genuinely public data the correct primitive is a policy —
@@ -169,6 +172,7 @@ The database cannot distinguish "public catalogue" from "clinical record" in tha
 developer discipline, not a wall.
 
 **Options.**
+
 1. **A dedicated public read role** with SELECT only on genuinely public tables, plus policies that gate on the
    row's own publication state. Anonymous traffic then never touches a staff-shaped identity. (This is the
    owner's proposal, and it is the cleanest.)
@@ -192,7 +196,8 @@ exclusion. Same class: `appointment_records` and `patient_bookings` hold contact
 `organization_id` column at all**, so they cannot even be added to the list without a schema change.
 
 **Options.**
-1. Enable RLS with policies designed for the bootstrap path — identity is read *before* any principal exists
+
+1. Enable RLS with policies designed for the bootstrap path — identity is read _before_ any principal exists
    (login, signup, invite), so the policies must fail OPEN for those specific reads or those reads must move
    behind narrow definer accessors. This is the one change most likely to break login if done carelessly; the
    repo already has a scar from exactly that class (unprincipled reads going silently empty).
@@ -251,6 +256,7 @@ end its sessions.
 
 **Owner decisions already given:** staff 12 hours, patients 30 days, and a one-time forced sign-out at deploy is
 allowed. **Approved remedy (options for HOW):**
+
 1. A `sessions_valid_from` timestamp on `platform_users`, compared against the cookie's existing `issuedAt` at
    the single chokepoint every request already passes. Logout, password reset, archive, role change and
    membership removal all become one-line writers, and it covers patients, which the staff-only profile table

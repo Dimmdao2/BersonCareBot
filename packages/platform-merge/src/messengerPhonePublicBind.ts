@@ -2,33 +2,33 @@
  * Binding-first messenger phone: update webapp canon (`public.platform_users`) in the same DB/TX as integrator.
  * Uses qualified `public.*` names so behavior does not depend on connection `search_path`.
  */
-import { classifyMergeFailure } from "./mergeFailureClassification.js";
-import { mergeLogger as logger } from "./mergeLogger.js";
+import { classifyMergeFailure } from './mergeFailureClassification.js';
+import { mergeLogger as logger } from './mergeLogger.js';
 import {
   mergePlatformUsersInTransaction,
   pickMergeTargetId,
   enrichPickMergeCandidatesWithBookingCounts,
   type PickMergeTargetCandidate,
   type PlatformMergeDbClient,
-} from "./pgPlatformUserMerge.js";
+} from './pgPlatformUserMerge.js';
 
 /** Any client with `.query` compatible with `pg` / integrator `DbPort` inside a transaction. */
 export type MessengerPhoneBindDb = PlatformMergeDbClient;
 
 export type MessengerPhoneLinkFailureCode =
-  | "no_channel_binding"
-  | "phone_owned_by_other_user"
-  | "integrator_id_mismatch"
-  | "channel_already_bound_to_other_user"
-  | "merge_blocked_booking_overlap"
-  | "merge_blocked_distinct_real_users"
-  | "merge_blocked_lfk_conflict"
-  | "merge_blocked_treatment_program_conflict"
-  | "merge_blocked_open_test_attempt_conflict"
-  | "merge_blocked_ambiguous_candidates"
-  | "legacy_contacts_conflict"
-  | "merge_blocked_integrator_conflict"
-  | "db_transient_failure";
+  | 'no_channel_binding'
+  | 'phone_owned_by_other_user'
+  | 'integrator_id_mismatch'
+  | 'channel_already_bound_to_other_user'
+  | 'merge_blocked_booking_overlap'
+  | 'merge_blocked_distinct_real_users'
+  | 'merge_blocked_lfk_conflict'
+  | 'merge_blocked_treatment_program_conflict'
+  | 'merge_blocked_open_test_attempt_conflict'
+  | 'merge_blocked_ambiguous_candidates'
+  | 'legacy_contacts_conflict'
+  | 'merge_blocked_integrator_conflict'
+  | 'db_transient_failure';
 
 export class MessengerPhoneLinkError extends Error {
   readonly code: MessengerPhoneLinkFailureCode;
@@ -40,7 +40,7 @@ export class MessengerPhoneLinkError extends Error {
     options?: { cause?: unknown; candidateIds?: string[] },
   ) {
     super(code);
-    this.name = "MessengerPhoneLinkError";
+    this.name = 'MessengerPhoneLinkError';
     this.code = code;
     this.candidateIds = options?.candidateIds ?? [];
     if (options?.cause !== undefined) {
@@ -140,13 +140,13 @@ async function mergePairIfDistinct(
   const mergeClient = db as PlatformMergeDbClient;
   const [a, b] = await Promise.all([loadPickCandidate(db, idA), loadPickCandidate(db, idB)]);
   if (!a || !b) {
-    throw new MessengerPhoneLinkError("merge_blocked_ambiguous_candidates", {
+    throw new MessengerPhoneLinkError('merge_blocked_ambiguous_candidates', {
       candidateIds: [idA, idB],
     });
   }
   const [ea, eb] = await enrichPickMergeCandidatesWithBookingCounts(mergeClient, a, b);
   const { target, duplicate } = pickMergeTargetId(ea, eb);
-  await mergePlatformUsersInTransaction(mergeClient, target, duplicate, "phone_bind");
+  await mergePlatformUsersInTransaction(mergeClient, target, duplicate, 'phone_bind');
 }
 
 /**
@@ -168,7 +168,7 @@ export async function applyMessengerPhonePublicBind(
 
   let platformUserId = await resolveBoundPlatformUserId(db, channelCode, externalId);
   if (!platformUserId) {
-    throw new MessengerPhoneLinkError("no_channel_binding");
+    throw new MessengerPhoneLinkError('no_channel_binding');
   }
 
   const mergeRoundMax = 8;
@@ -189,10 +189,12 @@ export async function applyMessengerPhonePublicBind(
     );
     const rawIntUid: string | null | undefined = rowMeta.rows[0]?.existing_int_uid;
     const existingInt: string | null =
-      typeof rawIntUid === "string" && rawIntUid.trim() !== "" ? rawIntUid.trim() : null;
+      typeof rawIntUid === 'string' && rawIntUid.trim() !== '' ? rawIntUid.trim() : null;
 
-    if (existingInt && existingInt !== canonicalIntegratorUserId && existingInt !== "") {
-      const canonPu: { rows: Array<{ id: string }>; rowCount?: number } = await db.query<{ id: string }>(
+    if (existingInt && existingInt !== canonicalIntegratorUserId && existingInt !== '') {
+      const canonPu: { rows: Array<{ id: string }>; rowCount?: number } = await db.query<{
+        id: string;
+      }>(
         `SELECT id::text FROM public.platform_users
          WHERE integrator_user_id = $1::bigint AND merged_into_id IS NULL
          LIMIT 1`,
@@ -226,25 +228,29 @@ export async function applyMessengerPhonePublicBind(
         [canonicalIntegratorUserId, platformUserId, existingInt],
       );
       if ((realign.rowCount ?? 0) < 1) {
-        throw new MessengerPhoneLinkError("integrator_id_mismatch", {
+        throw new MessengerPhoneLinkError('integrator_id_mismatch', {
           candidateIds: [platformUserId],
         });
       }
       logger.info(
         {
-          event: "phone_bind_realign_integrator_user_id",
+          event: 'phone_bind_realign_integrator_user_id',
           targetId: platformUserId,
           old: existingInt,
           new: canonicalIntegratorUserId,
         },
-        "[messengerPhone] realigned platform_users.integrator_user_id",
+        '[messengerPhone] realigned platform_users.integrator_user_id',
       );
       continue;
     }
 
     let changed = false;
 
-    const otherPhone = await findOtherPlatformUserWithSamePhone(db, platformUserId, phoneNormalized);
+    const otherPhone = await findOtherPlatformUserWithSamePhone(
+      db,
+      platformUserId,
+      phoneNormalized,
+    );
     if (otherPhone) {
       try {
         await mergePairIfDistinct(db, platformUserId, otherPhone);
@@ -290,19 +296,19 @@ export async function applyMessengerPhonePublicBind(
       [platformUserId, phoneNormalized, canonicalIntegratorUserId],
     );
     if ((upd.rowCount ?? 0) < 1) {
-      throw new MessengerPhoneLinkError("db_transient_failure");
+      throw new MessengerPhoneLinkError('db_transient_failure');
     }
   } catch (err) {
     if (err instanceof MessengerPhoneLinkError) throw err;
     const pg = err as { code?: string };
-    if (pg.code === "23505") {
-      throw new MessengerPhoneLinkError("channel_already_bound_to_other_user", {
+    if (pg.code === '23505') {
+      throw new MessengerPhoneLinkError('channel_already_bound_to_other_user', {
         cause: err,
         candidateIds: [platformUserId],
       });
     }
-    logger.error({ err }, "[messengerPhone] public platform_users UPDATE failed");
-    throw new MessengerPhoneLinkError("db_transient_failure", { cause: err });
+    logger.error({ err }, '[messengerPhone] public platform_users UPDATE failed');
+    throw new MessengerPhoneLinkError('db_transient_failure', { cause: err });
   }
 
   return { platformUserId };

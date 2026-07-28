@@ -1,11 +1,11 @@
-import type { PatientProgramInteractionPolicy } from "./supportPolicy";
+import type { PatientProgramInteractionPolicy } from './supportPolicy';
 
 /** Patient UI/API: show discussion controls (still may be disabled). */
 export function patientProgramDiscussionControlsVisible(params: {
   assignmentSource: string;
   adminDiscussionUiEnabled: boolean;
 }): boolean {
-  return params.assignmentSource === "doctor" && params.adminDiscussionUiEnabled;
+  return params.assignmentSource === 'doctor' && params.adminDiscussionUiEnabled;
 }
 
 export function patientProgramCommentsInteractionEnabled(params: {
@@ -35,9 +35,6 @@ export function patientProgramMediaInteractionEnabled(params: {
   });
   return {
     visible: visible && params.adminMediaSubmissionEnabled,
-    enabled:
-      visible &&
-      params.adminMediaSubmissionEnabled &&
-      params.policy.mediaAllowed,
+    enabled: visible && params.adminMediaSubmissionEnabled && params.policy.mediaAllowed,
   };
 }

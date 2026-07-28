@@ -27,11 +27,11 @@ export function validateQuietHoursPair(
   const sNull = start === undefined || start === null;
   const eNull = end === undefined || end === null;
   if (sNull && eNull) return null;
-  if (sNull !== eNull) return "validation_error: quiet hours both or none";
+  if (sNull !== eNull) return 'validation_error: quiet hours both or none';
   const s = start as number;
   const e = end as number;
-  if (!Number.isInteger(s) || s < 0 || s > 1439) return "validation_error: quiet start";
-  if (!Number.isInteger(e) || e < 1 || e > 1440) return "validation_error: quiet end";
-  if (s === e) return "validation_error: quiet range empty";
+  if (!Number.isInteger(s) || s < 0 || s > 1439) return 'validation_error: quiet start';
+  if (!Number.isInteger(e) || e < 1 || e > 1440) return 'validation_error: quiet end';
+  if (s === e) return 'validation_error: quiet range empty';
   return null;
 }

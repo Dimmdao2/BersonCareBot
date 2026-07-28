@@ -1,4 +1,4 @@
-import type { AdminNotificationTargetsPort } from "./ports";
+import type { AdminNotificationTargetsPort } from './ports';
 
 /**
  * C-4 (2026-07-26): the domain layer (`dispatchOperatorAlert.ts`) must not import `infra/repos`

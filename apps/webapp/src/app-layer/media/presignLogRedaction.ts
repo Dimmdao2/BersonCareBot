@@ -3,7 +3,7 @@
  * SDK errors occasionally embed request URLs in messages — strip http(s) segments.
  */
 export function redactUrlLikeSubstrings(input: string): string {
-  return input.replace(/https?:\/\/[^\s"'<>]+/gi, "[url_redacted]");
+  return input.replace(/https?:\/\/[^\s"'<>]+/gi, '[url_redacted]');
 }
 
 export type PresignFailureLogFields = {
@@ -15,11 +15,11 @@ export function serializePresignFailureForLog(err: unknown): PresignFailureLogFi
   if (err instanceof Error) {
     return {
       name: err.name,
-      message: redactUrlLikeSubstrings(err.message ?? ""),
+      message: redactUrlLikeSubstrings(err.message ?? ''),
     };
   }
   return {
-    name: "unknown",
+    name: 'unknown',
     message: redactUrlLikeSubstrings(String(err)),
   };
 }

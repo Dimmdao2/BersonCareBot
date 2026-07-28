@@ -26,11 +26,11 @@
 
 ## 4. Разрешённые области правок
 
-| Разрешено | Пути |
-|-----------|------|
+| Разрешено           | Пути                                                                                            |
+| ------------------- | ----------------------------------------------------------------------------------------------- |
 | Integrator webhooks | `apps/integrator/src/integrations/rubitime/webhook.ts`, `telegram/webhook.ts`, `max/webhook.ts` |
-| DB | `apps/integrator/db` или webapp schema — в зависимости от выбранной схемы в фазе A |
-| Порты | новый порт `WebhookLastStatusPort` + impl |
+| DB                  | `apps/integrator/db` или webapp schema — в зависимости от выбранной схемы в фазе A              |
+| Порты               | новый порт `WebhookLastStatusPort` + impl                                                       |
 
 **Вне scope:** webapp routes для приёма Rubitime если сейчас только integrator.
 

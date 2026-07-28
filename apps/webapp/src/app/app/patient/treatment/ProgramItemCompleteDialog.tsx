@@ -1,16 +1,25 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { Button } from "@/shared/ui/patient/primitives/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/shared/ui/patient/primitives/dialog";
-import { Input } from "@/shared/ui/patient/primitives/input";
-import { Label } from "@/shared/ui/patient/primitives/label";
-import { RadioGroup, RadioGroupItem } from "@/shared/ui/patient/primitives/radio-group";
-import { cn } from "@/lib/utils";
-import { patientButtonPrimaryClass, patientFormSurfaceClass, patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
+import { useState } from 'react';
+import { Button } from '@/shared/ui/patient/primitives/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/shared/ui/patient/primitives/dialog';
+import { Input } from '@/shared/ui/patient/primitives/input';
+import { Label } from '@/shared/ui/patient/primitives/label';
+import { RadioGroup, RadioGroupItem } from '@/shared/ui/patient/primitives/radio-group';
+import { cn } from '@/lib/utils';
+import {
+  patientButtonPrimaryClass,
+  patientFormSurfaceClass,
+  patientMutedTextClass,
+} from '@/shared/ui/patient/patientVisual';
 
 export type ProgramItemCompleteDialogPayload = {
-  perceivedDifficulty: "easy" | "medium" | "hard";
+  perceivedDifficulty: 'easy' | 'medium' | 'hard';
   reps?: number;
   sets?: number;
   weightKg?: number;
@@ -28,7 +37,7 @@ function parseOptionalPositiveInt(raw: string): number | undefined {
 function parseOptionalNonNegativeNumber(raw: string): number | undefined {
   const trimmed = raw.trim();
   if (!trimmed) return undefined;
-  const normalized = trimmed.replace(",", ".");
+  const normalized = trimmed.replace(',', '.');
   const parsed = Number.parseFloat(normalized);
   if (!Number.isFinite(parsed) || parsed < 0) return undefined;
   return parsed;
@@ -41,9 +50,10 @@ export function ProgramItemCompleteDialog(props: {
   submitting: boolean;
 }) {
   const { open, onOpenChange, onSubmit, submitting } = props;
-  const [difficulty, setDifficulty] = useState<ProgramItemCompleteDialogPayload["perceivedDifficulty"]>("medium");
-  const [repsRaw, setRepsRaw] = useState("");
-  const [weightRaw, setWeightRaw] = useState("");
+  const [difficulty, setDifficulty] =
+    useState<ProgramItemCompleteDialogPayload['perceivedDifficulty']>('medium');
+  const [repsRaw, setRepsRaw] = useState('');
+  const [weightRaw, setWeightRaw] = useState('');
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -53,10 +63,12 @@ export function ProgramItemCompleteDialog(props: {
         </DialogHeader>
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-2">
-            <Label className={cn(patientMutedTextClass, "text-xs")}>Сложность</Label>
+            <Label className={cn(patientMutedTextClass, 'text-xs')}>Сложность</Label>
             <RadioGroup
               value={difficulty}
-              onValueChange={(next) => setDifficulty(next as ProgramItemCompleteDialogPayload["perceivedDifficulty"])}
+              onValueChange={(next) =>
+                setDifficulty(next as ProgramItemCompleteDialogPayload['perceivedDifficulty'])
+              }
               className="grid grid-cols-1 gap-2"
               aria-label="Оценка сложности"
             >
@@ -77,7 +89,10 @@ export function ProgramItemCompleteDialog(props: {
 
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="patient-item-complete-reps" className={cn(patientMutedTextClass, "text-xs")}>
+              <Label
+                htmlFor="patient-item-complete-reps"
+                className={cn(patientMutedTextClass, 'text-xs')}
+              >
                 Повторения
               </Label>
               <Input
@@ -86,13 +101,16 @@ export function ProgramItemCompleteDialog(props: {
                 autoComplete="off"
                 value={repsRaw}
                 onChange={(e) => setRepsRaw(e.target.value)}
-                className={cn(patientFormSurfaceClass, "h-9 text-sm")}
+                className={cn(patientFormSurfaceClass, 'h-9 text-sm')}
                 placeholder="Например, 12"
                 disabled={submitting}
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="patient-item-complete-weight" className={cn(patientMutedTextClass, "text-xs")}>
+              <Label
+                htmlFor="patient-item-complete-weight"
+                className={cn(patientMutedTextClass, 'text-xs')}
+              >
                 Вес, кг
               </Label>
               <Input
@@ -101,7 +119,7 @@ export function ProgramItemCompleteDialog(props: {
                 autoComplete="off"
                 value={weightRaw}
                 onChange={(e) => setWeightRaw(e.target.value)}
-                className={cn(patientFormSurfaceClass, "h-9 text-sm")}
+                className={cn(patientFormSurfaceClass, 'h-9 text-sm')}
                 placeholder="Например, 5"
                 disabled={submitting}
               />
@@ -110,7 +128,7 @@ export function ProgramItemCompleteDialog(props: {
 
           <Button
             type="button"
-            className={cn(patientButtonPrimaryClass, "w-full sm:w-auto")}
+            className={cn(patientButtonPrimaryClass, 'w-full sm:w-auto')}
             disabled={submitting}
             onClick={() =>
               void onSubmit({
@@ -120,7 +138,7 @@ export function ProgramItemCompleteDialog(props: {
               })
             }
           >
-            {submitting ? "Сохраняю..." : "Записать"}
+            {submitting ? 'Сохраняю...' : 'Записать'}
           </Button>
         </div>
       </DialogContent>

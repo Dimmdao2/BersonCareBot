@@ -12,10 +12,10 @@
 
 ## Поток данных на клиенте
 
-1. Для страницы контента с `video_type=api` и `mediaId`:  
-   - **Вариант A:** Server Component запрашивает resolver на сервере (internal call) и передаёт в клиент только URL (меньше утечки в клиентский JS).  
+1. Для страницы контента с `video_type=api` и `mediaId`:
+   - **Вариант A:** Server Component запрашивает resolver на сервере (internal call) и передаёт в клиент только URL (меньше утечки в клиентский JS).
    - **Вариант B:** Client fetch `GET /api/media/id/playback` после mount.  
-   Выбрать один стиль; A предпочтительнее для SSR и кэширования.
+     Выбрать один стиль; A предпочтительнее для SSR и кэширования.
 
 2. Если `delivery === 'hls'` и есть `masterUrl`:
    - Safari / iOS: `<video src={masterUrl}>` внутри `NoContextMenuVideo`.

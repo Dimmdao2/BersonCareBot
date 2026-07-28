@@ -1,12 +1,12 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
-import { loadDoctorAnalyticsAudience } from "@/app-layer/analytics/loadAnalyticsAudience";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { MaterialRatingAccessError } from "@/modules/material-rating/types";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { loadDoctorAnalyticsAudience } from '@/app-layer/analytics/loadAnalyticsAudience';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { MaterialRatingAccessError } from '@/modules/material-rating/types';
 
 const querySchema = z.object({
-  kind: z.enum(["content_page", "lfk_exercise", "lfk_complex"]),
+  kind: z.enum(['content_page', 'lfk_exercise', 'lfk_complex']),
   id: z.string().uuid(),
 });
 
@@ -17,7 +17,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const parsed = querySchema.safeParse(Object.fromEntries(searchParams));
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_query" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'invalid_query' }, { status: 400 });
   }
 
   const deps = buildAppDeps();
@@ -39,6 +39,6 @@ export async function GET(request: Request) {
     if (e instanceof MaterialRatingAccessError) {
       return NextResponse.json({ ok: false, error: e.accessCode }, { status: 404 });
     }
-    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
 }

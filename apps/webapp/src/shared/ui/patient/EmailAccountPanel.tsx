@@ -1,14 +1,14 @@
-"use client";
+'use client';
 
-import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { Button } from "@/shared/ui/patient/primitives/button";
-import { Input } from "@/shared/ui/patient/primitives/input";
-import { OtpCodeForm } from "@/shared/ui/patient/auth/OtpCodeForm";
-import { cn } from "@/lib/utils";
-import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+import { Button } from '@/shared/ui/patient/primitives/button';
+import { Input } from '@/shared/ui/patient/primitives/input';
+import { OtpCodeForm } from '@/shared/ui/patient/auth/OtpCodeForm';
+import { cn } from '@/lib/utils';
+import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 
-const PATIENT_EMAIL_INPUT_ID = "patient-email-panel-address";
+const PATIENT_EMAIL_INPUT_ID = 'patient-email-panel-address';
 
 type Props = {
   initialEmail: string | null;
@@ -20,7 +20,7 @@ type Props = {
    */
   embeddedInTitledSection?: boolean;
   /** Строка как телефон в объединённом hero профиля (градиентный блок). */
-  layout?: "default" | "profileHero";
+  layout?: 'default' | 'profileHero';
 };
 
 /**
@@ -31,11 +31,11 @@ export function EmailAccountPanel({
   emailVerified,
   supportContactHref,
   embeddedInTitledSection = false,
-  layout = "default",
+  layout = 'default',
 }: Props) {
   const router = useRouter();
-  const [emailStep, setEmailStep] = useState<"view" | "enter" | "code">("view");
-  const [emailDraft, setEmailDraft] = useState("");
+  const [emailStep, setEmailStep] = useState<'view' | 'enter' | 'code'>('view');
+  const [emailDraft, setEmailDraft] = useState('');
   const [emailChallengeId, setEmailChallengeId] = useState<string | null>(null);
   const [emailRetrySec, setEmailRetrySec] = useState(60);
   const [emailStartError, setEmailStartError] = useState<string | null>(null);
@@ -50,9 +50,9 @@ export function EmailAccountPanel({
     setEmailStartPending(true);
     const email = (emailOverride ?? emailDraft).trim();
     try {
-      const res = await fetch("/api/auth/email/start", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
+      const res = await fetch('/api/auth/email/start', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ email }),
       });
       const data = (await res.json().catch(() => ({}))) as {
@@ -65,9 +65,9 @@ export function EmailAccountPanel({
         setEmailDraft(email);
         setEmailChallengeId(data.challengeId);
         setEmailRetrySec(data.retryAfterSeconds ?? 60);
-        setEmailStep("code");
+        setEmailStep('code');
       } else {
-        setEmailStartError(data.message ?? "Не удалось отправить код");
+        setEmailStartError(data.message ?? 'Не удалось отправить код');
       }
     } finally {
       setEmailStartPending(false);
@@ -77,14 +77,18 @@ export function EmailAccountPanel({
   return (
     <div
       className={cn(
-        "flex flex-col gap-2",
-        layout === "default" && !embeddedInTitledSection && "border-t border-border pt-4",
+        'flex flex-col gap-2',
+        layout === 'default' && !embeddedInTitledSection && 'border-t border-border pt-4',
       )}
     >
-      {emailStep === "view" && layout === "profileHero" ? (
+      {emailStep === 'view' && layout === 'profileHero' ? (
         <div className="flex flex-col gap-1 border-t border-[var(--patient-border)] pt-4">
           <div className="flex flex-wrap items-start justify-between gap-2">
-            <span className={cn(patientMutedTextClass, "text-xs font-normal uppercase tracking-wide")}>Email</span>
+            <span
+              className={cn(patientMutedTextClass, 'text-xs font-normal uppercase tracking-wide')}
+            >
+              Email
+            </span>
             <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
               {initialEmail && !emailVerified ? (
                 <Button
@@ -105,35 +109,39 @@ export function EmailAccountPanel({
                 className="text-primary h-auto min-h-0 px-0 py-0 text-sm font-normal"
                 disabled={emailStartPending}
                 onClick={() => {
-                  setEmailStep("enter");
-                  setEmailDraft(initialEmail ?? "");
+                  setEmailStep('enter');
+                  setEmailDraft(initialEmail ?? '');
                   setEmailStartError(null);
                 }}
               >
-                {initialEmail ? "Изменить" : "Привязать"}
+                {initialEmail ? 'Изменить' : 'Привязать'}
               </Button>
             </div>
           </div>
           {initialEmail ? (
             <p className="text-sm text-[var(--patient-text-primary)]">
               {initialEmail}
-              {emailVerified ?
+              {emailVerified ? (
                 <span className="text-muted-foreground ml-2 text-xs">(подтверждён)</span>
-              : <span className="text-muted-foreground ml-2 text-xs">(подтверждение по коду)</span>}
+              ) : (
+                <span className="text-muted-foreground ml-2 text-xs">(подтверждение по коду)</span>
+              )}
             </p>
           ) : null}
         </div>
       ) : null}
 
-      {emailStep === "view" && layout !== "profileHero" ? (
+      {emailStep === 'view' && layout !== 'profileHero' ? (
         <div
           className={cn(
-            "flex flex-wrap items-start gap-2",
-            embeddedInTitledSection ? "justify-end" : "justify-between",
+            'flex flex-wrap items-start gap-2',
+            embeddedInTitledSection ? 'justify-end' : 'justify-between',
           )}
         >
           {!embeddedInTitledSection ? (
-            <span className="text-muted-foreground text-xs font-normal uppercase tracking-wide">Email</span>
+            <span className="text-muted-foreground text-xs font-normal uppercase tracking-wide">
+              Email
+            </span>
           ) : null}
           <Button
             type="button"
@@ -142,17 +150,17 @@ export function EmailAccountPanel({
             className="text-primary h-auto min-h-0 px-0 py-0 text-sm font-normal"
             disabled={emailStartPending}
             onClick={() => {
-              setEmailStep("enter");
-              setEmailDraft(initialEmail ?? "");
+              setEmailStep('enter');
+              setEmailDraft(initialEmail ?? '');
               setEmailStartError(null);
             }}
           >
-            {initialEmail ? "Изменить" : "Добавить"}
+            {initialEmail ? 'Изменить' : 'Добавить'}
           </Button>
         </div>
       ) : null}
 
-      {emailStep === "view" && layout !== "profileHero" && initialEmail ? (
+      {emailStep === 'view' && layout !== 'profileHero' && initialEmail ? (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <p className="text-sm">
             {initialEmail}
@@ -177,19 +185,21 @@ export function EmailAccountPanel({
         </div>
       ) : null}
 
-      {emailStep === "view" && layout !== "profileHero" && !initialEmail ? (
-        <p className="text-muted-foreground text-sm">не указано — добавьте email для уведомлений.</p>
+      {emailStep === 'view' && layout !== 'profileHero' && !initialEmail ? (
+        <p className="text-muted-foreground text-sm">
+          не указано — добавьте email для уведомлений.
+        </p>
       ) : null}
 
-      {emailStep === "view" && emailStartError ? (
+      {emailStep === 'view' && emailStartError ? (
         <p className="text-destructive text-sm">{emailStartError}</p>
       ) : null}
 
-      {emailStep === "enter" ? (
+      {emailStep === 'enter' ? (
         <div
           className={cn(
-            "flex max-w-md flex-col gap-2",
-            layout === "profileHero" && "border-t border-[var(--patient-border)] pt-4",
+            'flex max-w-md flex-col gap-2',
+            layout === 'profileHero' && 'border-t border-[var(--patient-border)] pt-4',
           )}
         >
           <label
@@ -209,13 +219,13 @@ export function EmailAccountPanel({
           {emailStartError ? <p className="text-destructive text-sm">{emailStartError}</p> : null}
           <div className="flex flex-wrap gap-2">
             <Button type="button" onClick={() => void startEmail()} disabled={emailStartPending}>
-              {emailStartPending ? "Отправка…" : "Получить код"}
+              {emailStartPending ? 'Отправка…' : 'Получить код'}
             </Button>
             <Button
               type="button"
               variant="ghost"
               onClick={() => {
-                setEmailStep("view");
+                setEmailStep('view');
                 setEmailChallengeId(null);
                 setEmailStartError(null);
               }}
@@ -226,8 +236,10 @@ export function EmailAccountPanel({
         </div>
       ) : null}
 
-      {emailStep === "code" && emailChallengeId ? (
-        <div className={layout === "profileHero" ? "border-t border-[var(--patient-border)] pt-4" : ""}>
+      {emailStep === 'code' && emailChallengeId ? (
+        <div
+          className={layout === 'profileHero' ? 'border-t border-[var(--patient-border)] pt-4' : ''}
+        >
           <OtpCodeForm
             challengeId={emailChallengeId}
             retryAfterSeconds={emailRetrySec}
@@ -235,9 +247,9 @@ export function EmailAccountPanel({
             description="Код отправлен (в dev смотрите лог сервера). Введите его ниже."
             submitLabel="Подтвердить email"
             onConfirm={async (code) => {
-              const res = await fetch("/api/auth/email/confirm", {
-                method: "POST",
-                headers: { "content-type": "application/json" },
+              const res = await fetch('/api/auth/email/confirm', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
                 body: JSON.stringify({ challengeId: emailChallengeId, code }),
               });
               const data = (await res.json().catch(() => ({}))) as {
@@ -247,22 +259,22 @@ export function EmailAccountPanel({
                 retryAfterSeconds?: number;
               };
               if (data.ok) {
-                setEmailStep("view");
+                setEmailStep('view');
                 setEmailChallengeId(null);
                 refresh();
                 return { ok: true as const };
               }
               return {
                 ok: false as const,
-                message: data.message ?? "Ошибка",
+                message: data.message ?? 'Ошибка',
                 code: data.error,
                 retryAfterSeconds: data.retryAfterSeconds,
               };
             }}
             onResend={async () => {
-              const res = await fetch("/api/auth/email/start", {
-                method: "POST",
-                headers: { "content-type": "application/json" },
+              const res = await fetch('/api/auth/email/start', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
                 body: JSON.stringify({ email: emailDraft.trim() }),
               });
               const data = (await res.json().catch(() => ({}))) as {
@@ -275,17 +287,20 @@ export function EmailAccountPanel({
               if (data.ok && data.challengeId) {
                 setEmailChallengeId(data.challengeId);
                 setEmailRetrySec(data.retryAfterSeconds ?? 60);
-                return { kind: "ok" as const };
+                return { kind: 'ok' as const };
               }
-              if (res.status === 429 || data.error === "rate_limited") {
+              if (res.status === 429 || data.error === 'rate_limited') {
                 const sec = Math.max(1, Math.ceil(data.retryAfterSeconds ?? 60));
                 setEmailRetrySec(sec);
-                return { kind: "rate_limited" as const, retryAfterSeconds: sec };
+                return { kind: 'rate_limited' as const, retryAfterSeconds: sec };
               }
-              return { kind: "error" as const, message: data.message ?? "Не удалось отправить код" };
+              return {
+                kind: 'error' as const,
+                message: data.message ?? 'Не удалось отправить код',
+              };
             }}
             onBack={() => {
-              setEmailStep("enter");
+              setEmailStep('enter');
               setEmailChallengeId(null);
             }}
           />

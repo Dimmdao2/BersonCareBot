@@ -74,4 +74,3 @@ No full root CI here.
 
 - Slug rename no longer requires manual DB surgery.
 - Existing links continue to work after rename.
-

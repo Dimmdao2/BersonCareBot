@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * Страховочный слой Mini App (Telegram / MAX): WebApp уже открыт, tier пациента ещё не `patient` —
@@ -8,32 +8,38 @@
  * `/app/patient/bind-phone` гейт не блокирует (там встроенная подсказка «через бота» для Mini App).
  */
 
-import { usePathname, useRouter } from "next/navigation";
-import { startTransition, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ensureMessengerMiniAppWebappSession } from "@/shared/lib/miniAppSessionRecovery";
+import { usePathname, useRouter } from 'next/navigation';
+import { startTransition, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { ensureMessengerMiniAppWebappSession } from '@/shared/lib/miniAppSessionRecovery';
 import {
   getPatientMessengerContactGateDetail,
   resolveBotHrefAfterMessengerSessionLoss,
   resolveMessengerContactGateBotHref,
-} from "@/shared/lib/patientMessengerContactGate";
+} from '@/shared/lib/patientMessengerContactGate';
 import {
   closeMessengerMiniApp,
   inferMessengerChannelForRequestContact,
   isMessengerMiniAppHost,
-} from "@/shared/lib/messengerMiniApp";
-import { postPatientMessengerRequestContact } from "@/shared/lib/patientMessengerContactClient";
-import toast from "react-hot-toast";
-import { usePatientPhonePromptChrome } from "@/shared/ui/patient/PatientPhonePromptChromeContext";
-import { PatientSharePhoneViaBotPanel } from "./PatientSharePhoneViaBotPanel";
+} from '@/shared/lib/messengerMiniApp';
+import { postPatientMessengerRequestContact } from '@/shared/lib/patientMessengerContactClient';
+import toast from 'react-hot-toast';
+import { usePatientPhonePromptChrome } from '@/shared/ui/patient/PatientPhonePromptChromeContext';
+import { PatientSharePhoneViaBotPanel } from './PatientSharePhoneViaBotPanel';
 import {
   FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY,
   type AuthChannelUiPolicy,
-} from "@/modules/auth/otpChannelUi";
+} from '@/modules/auth/otpChannelUi';
 
 const POLL_MS = 2000;
 const MAX_POLLS = 45;
 
-type GateMode = "inactive" | "loading" | "blocked" | "timed_out" | "session_lost" | "me_unavailable";
+type GateMode =
+  | 'inactive'
+  | 'loading'
+  | 'blocked'
+  | 'timed_out'
+  | 'session_lost'
+  | 'me_unavailable';
 
 export function MiniAppShareContactGate({
   children,
@@ -45,7 +51,7 @@ export function MiniAppShareContactGate({
   const pathname = usePathname();
   const router = useRouter();
   const phoneChrome = usePatientPhonePromptChrome();
-  const [mode, setMode] = useState<GateMode>("inactive");
+  const [mode, setMode] = useState<GateMode>('inactive');
   const [botHref, setBotHref] = useState<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollCountRef = useRef(0);
@@ -60,7 +66,7 @@ export function MiniAppShareContactGate({
 
   const releaseGate = useCallback(() => {
     clearPoll();
-    startTransition(() => setMode("inactive"));
+    startTransition(() => setMode('inactive'));
     router.refresh();
   }, [clearPoll, router]);
 
@@ -69,17 +75,17 @@ export function MiniAppShareContactGate({
     if (!channel || !channelPolicy[channel]) return;
     const r = await postPatientMessengerRequestContact(channel);
     if (!r.ok) {
-      if (r.error === "not_required") {
+      if (r.error === 'not_required') {
         closeMessengerMiniApp();
         releaseGate();
         return;
       }
       const msg =
-        r.error === "no_messenger_binding"
-          ? "Нет привязки к мессенджеру. Откройте приложение из бота."
-          : r.error === "rate_limited"
-            ? "Запрос уже недавно отправляли. Подождите минуту или откройте чат с ботом."
-            : "Не удалось запросить контакт. Попробуйте позже.";
+        r.error === 'no_messenger_binding'
+          ? 'Нет привязки к мессенджеру. Откройте приложение из бота.'
+          : r.error === 'rate_limited'
+            ? 'Запрос уже недавно отправляли. Подождите минуту или откройте чат с ботом.'
+            : 'Не удалось запросить контакт. Попробуйте позже.';
       toast.error(msg);
       return;
     }
@@ -89,14 +95,14 @@ export function MiniAppShareContactGate({
 
   useLayoutEffect(() => {
     if (!isMessengerMiniAppHost()) {
-      startTransition(() => setMode("inactive"));
+      startTransition(() => setMode('inactive'));
       return;
     }
-    if (window.location.pathname.includes("/bind-phone")) {
-      startTransition(() => setMode("inactive"));
+    if (window.location.pathname.includes('/bind-phone')) {
+      startTransition(() => setMode('inactive'));
       return;
     }
-    startTransition(() => setMode("loading"));
+    startTransition(() => setMode('loading'));
   }, []);
 
   useEffect(() => {
@@ -104,25 +110,29 @@ export function MiniAppShareContactGate({
       return;
     }
     /** На `/bind-phone` suppress выставляет `PatientBindPhoneClient`; не трогаем — иначе при `mode === "inactive"` перезапишем true → false (родительский эффект после дочернего). */
-    if (pathname?.includes("/bind-phone")) {
+    if (pathname?.includes('/bind-phone')) {
       return;
     }
-    const suppress = mode !== "inactive";
+    const suppress = mode !== 'inactive';
     phoneChrome.setSuppressPatientHeader(suppress);
     return () => phoneChrome.setSuppressPatientHeader(false);
   }, [mode, phoneChrome, pathname]);
 
   useEffect(() => {
-    if (pathname?.includes("/bind-phone")) {
-      startTransition(() => setMode("inactive"));
+    if (pathname?.includes('/bind-phone')) {
+      startTransition(() => setMode('inactive'));
     }
   }, [pathname]);
 
   useEffect(() => {
     const prev = prevPathnameRef.current;
     prevPathnameRef.current = pathname ?? null;
-    if (prev?.includes("/bind-phone") && !pathname?.includes("/bind-phone") && isMessengerMiniAppHost()) {
-      startTransition(() => setMode("loading"));
+    if (
+      prev?.includes('/bind-phone') &&
+      !pathname?.includes('/bind-phone') &&
+      isMessengerMiniAppHost()
+    ) {
+      startTransition(() => setMode('loading'));
     }
   }, [pathname]);
 
@@ -130,7 +140,7 @@ export function MiniAppShareContactGate({
     if (!isMessengerMiniAppHost()) {
       return;
     }
-    if (pathname?.includes("/bind-phone")) {
+    if (pathname?.includes('/bind-phone')) {
       return;
     }
 
@@ -141,44 +151,44 @@ export function MiniAppShareContactGate({
       if (cancelled) return;
       const detail = await getPatientMessengerContactGateDetail();
       if (cancelled) return;
-      if (detail.kind === "no_gate") {
+      if (detail.kind === 'no_gate') {
         releaseGate();
         return;
       }
-      if (detail.kind === "unauthenticated") {
+      if (detail.kind === 'unauthenticated') {
         clearPoll();
         const href = await resolveBotHrefAfterMessengerSessionLoss();
         if (!cancelled) {
           startTransition(() => {
             setBotHref(href);
-            setMode("session_lost");
+            setMode('session_lost');
           });
         }
         return;
       }
-      if (detail.kind === "me_unavailable") {
+      if (detail.kind === 'me_unavailable') {
         const href = await resolveMessengerContactGateBotHref(detail.hasTelegram, detail.hasMax);
         if (!cancelled) {
           startTransition(() => {
             setBotHref(href);
-            setMode("me_unavailable");
+            setMode('me_unavailable');
           });
         }
         return;
       }
-      if (detail.kind === "need_contact") {
+      if (detail.kind === 'need_contact') {
         const href = await resolveMessengerContactGateBotHref(detail.hasTelegram, detail.hasMax);
         if (!cancelled) {
           startTransition(() => {
             setBotHref(href);
-            setMode("blocked");
+            setMode('blocked');
           });
         }
         return;
       }
       if (pollCountRef.current >= MAX_POLLS) {
         clearPoll();
-        startTransition(() => setMode("timed_out"));
+        startTransition(() => setMode('timed_out'));
       }
     };
 
@@ -187,23 +197,23 @@ export function MiniAppShareContactGate({
       if (cancelled) return;
       const detail = await getPatientMessengerContactGateDetail();
       if (cancelled) return;
-      if (detail.kind === "unauthenticated") {
+      if (detail.kind === 'unauthenticated') {
         const href = await resolveBotHrefAfterMessengerSessionLoss();
         startTransition(() => {
           setBotHref(href);
-          setMode("session_lost");
+          setMode('session_lost');
         });
         return;
       }
-      if (detail.kind === "no_gate") {
-        startTransition(() => setMode("inactive"));
+      if (detail.kind === 'no_gate') {
+        startTransition(() => setMode('inactive'));
         return;
       }
-      if (detail.kind === "me_unavailable") {
+      if (detail.kind === 'me_unavailable') {
         const href = await resolveMessengerContactGateBotHref(detail.hasTelegram, detail.hasMax);
         startTransition(() => {
           setBotHref(href);
-          setMode("me_unavailable");
+          setMode('me_unavailable');
         });
         pollCountRef.current = 0;
         void pollOnce();
@@ -214,7 +224,7 @@ export function MiniAppShareContactGate({
       const href = await resolveMessengerContactGateBotHref(detail.hasTelegram, detail.hasMax);
       startTransition(() => {
         setBotHref(href);
-        setMode("blocked");
+        setMode('blocked');
       });
       pollCountRef.current = 0;
       void pollOnce();
@@ -229,63 +239,63 @@ export function MiniAppShareContactGate({
 
   const onRetry = useCallback(() => {
     void (async () => {
-      startTransition(() => setMode("loading"));
+      startTransition(() => setMode('loading'));
       await ensureMessengerMiniAppWebappSession(router);
       const detail = await getPatientMessengerContactGateDetail();
-      if (detail.kind === "no_gate") {
+      if (detail.kind === 'no_gate') {
         releaseGate();
         return;
       }
-      if (detail.kind === "unauthenticated") {
+      if (detail.kind === 'unauthenticated') {
         const href = await resolveBotHrefAfterMessengerSessionLoss();
         startTransition(() => {
           setBotHref(href);
-          setMode("session_lost");
+          setMode('session_lost');
         });
         return;
       }
-      if (detail.kind === "me_unavailable") {
+      if (detail.kind === 'me_unavailable') {
         const href = await resolveMessengerContactGateBotHref(detail.hasTelegram, detail.hasMax);
         startTransition(() => {
           setBotHref(href);
-          setMode("me_unavailable");
+          setMode('me_unavailable');
         });
         pollCountRef.current = 0;
         const pollOnceRetry = async (): Promise<void> => {
           pollCountRef.current += 1;
           const d = await getPatientMessengerContactGateDetail();
-          if (d.kind === "no_gate") {
+          if (d.kind === 'no_gate') {
             releaseGate();
             return;
           }
-          if (d.kind === "unauthenticated") {
+          if (d.kind === 'unauthenticated') {
             clearPoll();
             const h = await resolveBotHrefAfterMessengerSessionLoss();
             startTransition(() => {
               setBotHref(h);
-              setMode("session_lost");
+              setMode('session_lost');
             });
             return;
           }
-          if (d.kind === "me_unavailable") {
+          if (d.kind === 'me_unavailable') {
             const h = await resolveMessengerContactGateBotHref(d.hasTelegram, d.hasMax);
             startTransition(() => {
               setBotHref(h);
-              setMode("me_unavailable");
+              setMode('me_unavailable');
             });
             return;
           }
-          if (d.kind === "need_contact") {
+          if (d.kind === 'need_contact') {
             const h = await resolveMessengerContactGateBotHref(d.hasTelegram, d.hasMax);
             startTransition(() => {
               setBotHref(h);
-              setMode("blocked");
+              setMode('blocked');
             });
             return;
           }
           if (pollCountRef.current >= MAX_POLLS) {
             clearPoll();
-            startTransition(() => setMode("timed_out"));
+            startTransition(() => setMode('timed_out'));
             return;
           }
         };
@@ -297,44 +307,44 @@ export function MiniAppShareContactGate({
       const href = await resolveMessengerContactGateBotHref(detail.hasTelegram, detail.hasMax);
       startTransition(() => {
         setBotHref(href);
-        setMode("blocked");
+        setMode('blocked');
       });
       pollCountRef.current = 0;
       const pollOnce = async (): Promise<void> => {
         pollCountRef.current += 1;
         const d = await getPatientMessengerContactGateDetail();
-        if (d.kind === "no_gate") {
+        if (d.kind === 'no_gate') {
           releaseGate();
           return;
         }
-        if (d.kind === "unauthenticated") {
+        if (d.kind === 'unauthenticated') {
           clearPoll();
           const h = await resolveBotHrefAfterMessengerSessionLoss();
           startTransition(() => {
             setBotHref(h);
-            setMode("session_lost");
+            setMode('session_lost');
           });
           return;
         }
-        if (d.kind === "me_unavailable") {
+        if (d.kind === 'me_unavailable') {
           const h = await resolveMessengerContactGateBotHref(d.hasTelegram, d.hasMax);
           startTransition(() => {
             setBotHref(h);
-            setMode("me_unavailable");
+            setMode('me_unavailable');
           });
           return;
         }
-        if (d.kind === "need_contact") {
+        if (d.kind === 'need_contact') {
           const h = await resolveMessengerContactGateBotHref(d.hasTelegram, d.hasMax);
           startTransition(() => {
             setBotHref(h);
-            setMode("blocked");
+            setMode('blocked');
           });
           return;
         }
         if (pollCountRef.current >= MAX_POLLS) {
           clearPoll();
-          startTransition(() => setMode("timed_out"));
+          startTransition(() => setMode('timed_out'));
         }
       };
       clearPoll();
@@ -343,11 +353,11 @@ export function MiniAppShareContactGate({
     })();
   }, [clearPoll, releaseGate, router]);
 
-  if (mode === "inactive") {
+  if (mode === 'inactive') {
     return <>{children}</>;
   }
 
-  if (mode === "loading") {
+  if (mode === 'loading') {
     return (
       <div
         className="fixed inset-0 z-[100] flex items-center justify-center bg-background text-sm text-muted-foreground"
@@ -387,13 +397,13 @@ export function MiniAppShareContactGate({
   return (
     <PatientSharePhoneViaBotPanel
       mode={
-        mode === "blocked"
-          ? "blocked"
-          : mode === "timed_out"
-            ? "timed_out"
-            : mode === "me_unavailable"
-              ? "me_unavailable"
-              : "session_lost"
+        mode === 'blocked'
+          ? 'blocked'
+          : mode === 'timed_out'
+            ? 'timed_out'
+            : mode === 'me_unavailable'
+              ? 'me_unavailable'
+              : 'session_lost'
       }
       botHref={botHref}
       onRetry={onRetry}

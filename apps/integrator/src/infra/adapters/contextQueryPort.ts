@@ -1,4 +1,9 @@
-import type { ContextQuery, ContextQueryPort, DbReadPort, DeliveryTargetsPort } from '../../kernel/contracts/index.js';
+import type {
+  ContextQuery,
+  ContextQueryPort,
+  DbReadPort,
+  DeliveryTargetsPort,
+} from '../../kernel/contracts/index.js';
 
 function normalizePhoneForLookup(value: string): string {
   const digits = value.replace(/[^\d+]/g, '');
@@ -18,21 +23,27 @@ function bindingsToLookupItem(
   resource: string,
 ): { chatId?: number; channelId?: string; username?: string | null } | null {
   if (!bindings || typeof bindings !== 'object') return null;
-  const telegramId = typeof bindings.telegramId === 'string' && bindings.telegramId.trim().length > 0
-    ? bindings.telegramId.trim()
-    : null;
-  const maxId = typeof bindings.maxId === 'string' && bindings.maxId.trim().length > 0
-    ? bindings.maxId.trim()
-    : null;
+  const telegramId =
+    typeof bindings.telegramId === 'string' && bindings.telegramId.trim().length > 0
+      ? bindings.telegramId.trim()
+      : null;
+  const maxId =
+    typeof bindings.maxId === 'string' && bindings.maxId.trim().length > 0
+      ? bindings.maxId.trim()
+      : null;
   if (resource === 'telegram' && telegramId) {
     const chatId = Number(telegramId);
-    return Number.isFinite(chatId) ? { chatId, channelId: telegramId, username: null } : { channelId: telegramId, username: null };
+    return Number.isFinite(chatId)
+      ? { chatId, channelId: telegramId, username: null }
+      : { channelId: telegramId, username: null };
   }
   if (resource === 'max' && maxId) return { channelId: maxId, username: null };
   if (!resource || resource === 'channel') {
     if (telegramId) {
       const chatId = Number(telegramId);
-      return Number.isFinite(chatId) ? { chatId, channelId: telegramId, username: null } : { channelId: telegramId, username: null };
+      return Number.isFinite(chatId)
+        ? { chatId, channelId: telegramId, username: null }
+        : { channelId: telegramId, username: null };
     }
     if (maxId) return { channelId: maxId, username: null };
   }
@@ -57,9 +68,10 @@ export function createContextQueryPort(input: ContextQueryPortInput): ContextQue
         case 'channel.lookupByPhone': {
           const phoneNormalized = normalizePhoneForLookup(query.phoneNormalized);
           if (!phoneNormalized) return { type: 'channel.lookupByPhone', item: null };
-          const resource = typeof query.resource === 'string' && query.resource.trim().length > 0
-            ? query.resource
-            : 'telegram';
+          const resource =
+            typeof query.resource === 'string' && query.resource.trim().length > 0
+              ? query.resource
+              : 'telegram';
           if (deliveryTargetsPort) {
             const fetched = await deliveryTargetsPort.getTargetsByPhone(phoneNormalized);
             const item = bindingsToLookupItem(fetched?.channelBindings ?? null, resource);
@@ -70,20 +82,26 @@ export function createContextQueryPort(input: ContextQueryPortInput): ContextQue
         case 'bookings.forUser': {
           const userId = query.userId;
           if (!userId) return { type: 'bookings.forUser', items: [] };
-          const rawItems = await input.readPort.readDb<Array<{ recordAt?: unknown; status?: unknown; link?: unknown }>>({
+          const rawItems = await input.readPort.readDb<
+            Array<{ recordAt?: unknown; status?: unknown; link?: unknown }>
+          >({
             type: 'booking.activeByUser',
             params: { userId },
           });
           let cabinetFallbackLink: string | null = null;
           if (getWebappBaseUrl) {
             const w = await getWebappBaseUrl();
-            const base = typeof w === 'string' && w.trim().length > 0 ? w.trim().replace(/\/$/, '') : null;
+            const base =
+              typeof w === 'string' && w.trim().length > 0 ? w.trim().replace(/\/$/, '') : null;
             cabinetFallbackLink = base ? `${base}/app/patient/cabinet` : null;
           }
           const items = Array.isArray(rawItems)
             ? rawItems.map((item) => ({
                 ...item,
-                link: (typeof item.link === 'string' && item.link.trim().length > 0 ? item.link : null) ?? cabinetFallbackLink,
+                link:
+                  (typeof item.link === 'string' && item.link.trim().length > 0
+                    ? item.link
+                    : null) ?? cabinetFallbackLink,
               }))
             : [];
           return { type: 'bookings.forUser', items };
@@ -108,7 +126,13 @@ export function createContextQueryPort(input: ContextQueryPortInput): ContextQue
             if (!phoneForTargets) return { type: 'subscriptions.forUser', items: [] };
             const fetched = await deliveryTargetsPort.getTargetsByPhone(phoneForTargets);
             const bindings = fetched?.channelBindings;
-            const items: Array<{ kind: string; chatId: number; channelId: string; username: string | null; notificationsEnabled: boolean }> = [];
+            const items: Array<{
+              kind: string;
+              chatId: number;
+              channelId: string;
+              username: string | null;
+              notificationsEnabled: boolean;
+            }> = [];
             if (bindings?.telegramId) {
               const tid = bindings.telegramId.trim();
               const chatId = Number(tid);

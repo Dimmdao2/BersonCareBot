@@ -1,13 +1,13 @@
-import type { RecommendationUsageSnapshot } from "./types";
+import type { RecommendationUsageSnapshot } from './types';
 
-export const USAGE_CONFIRMATION_REQUIRED = "USAGE_CONFIRMATION_REQUIRED" as const;
+export const USAGE_CONFIRMATION_REQUIRED = 'USAGE_CONFIRMATION_REQUIRED' as const;
 
 export class RecommendationUsageConfirmationRequiredError extends Error {
   readonly code = USAGE_CONFIRMATION_REQUIRED;
 
   constructor(readonly usage: RecommendationUsageSnapshot) {
     super(USAGE_CONFIRMATION_REQUIRED);
-    this.name = "RecommendationUsageConfirmationRequiredError";
+    this.name = 'RecommendationUsageConfirmationRequiredError';
   }
 }
 
@@ -18,20 +18,22 @@ export function isRecommendationUsageConfirmationRequiredError(
 }
 
 export class RecommendationArchiveNotFoundError extends Error {
-  constructor(message = "Рекомендация не найдена") {
+  constructor(message = 'Рекомендация не найдена') {
     super(message);
-    this.name = "RecommendationArchiveNotFoundError";
+    this.name = 'RecommendationArchiveNotFoundError';
   }
 }
 
-export function isRecommendationArchiveNotFoundError(e: unknown): e is RecommendationArchiveNotFoundError {
+export function isRecommendationArchiveNotFoundError(
+  e: unknown,
+): e is RecommendationArchiveNotFoundError {
   return e instanceof RecommendationArchiveNotFoundError;
 }
 
 export class RecommendationArchiveAlreadyArchivedError extends Error {
   constructor() {
-    super("Рекомендация уже в архиве");
-    this.name = "RecommendationArchiveAlreadyArchivedError";
+    super('Рекомендация уже в архиве');
+    this.name = 'RecommendationArchiveAlreadyArchivedError';
   }
 }
 
@@ -43,8 +45,8 @@ export function isRecommendationArchiveAlreadyArchivedError(
 
 export class RecommendationUnarchiveNotArchivedError extends Error {
   constructor() {
-    super("Рекомендация не в архиве");
-    this.name = "RecommendationUnarchiveNotArchivedError";
+    super('Рекомендация не в архиве');
+    this.name = 'RecommendationUnarchiveNotArchivedError';
   }
 }
 
@@ -56,11 +58,13 @@ export function isRecommendationUnarchiveNotArchivedError(
 
 export class RecommendationInvalidDomainError extends Error {
   constructor() {
-    super("Некорректный тип рекомендации");
-    this.name = "RecommendationInvalidDomainError";
+    super('Некорректный тип рекомендации');
+    this.name = 'RecommendationInvalidDomainError';
   }
 }
 
-export function isRecommendationInvalidDomainError(e: unknown): e is RecommendationInvalidDomainError {
+export function isRecommendationInvalidDomainError(
+  e: unknown,
+): e is RecommendationInvalidDomainError {
   return e instanceof RecommendationInvalidDomainError;
 }

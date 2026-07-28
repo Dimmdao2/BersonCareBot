@@ -1,16 +1,16 @@
-"use client";
+'use client';
 
-import { lazy, Suspense, useMemo, useState } from "react";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import type { WellbeingWeekChartModel } from "@/modules/diaries/buildWellbeingWeekChartData";
+import { lazy, Suspense, useMemo, useState } from 'react';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import type { WellbeingWeekChartModel } from '@/modules/diaries/buildWellbeingWeekChartData';
 import {
   doctorClientOverviewSecondaryCardClass,
   doctorClientSectionTitleClass,
-} from "./doctorClientCardChrome";
-import { cn } from "@/lib/utils";
+} from './doctorClientCardChrome';
+import { cn } from '@/lib/utils';
 
 const PatientWellbeingWeekComposedChart = lazy(
-  () => import("@/modules/diaries/components/PatientWellbeingWeekComposedChart"),
+  () => import('@/modules/diaries/components/PatientWellbeingWeekComposedChart'),
 );
 
 function Sparkline({ model }: { model: WellbeingWeekChartModel }) {
@@ -43,8 +43,8 @@ function Sparkline({ model }: { model: WellbeingWeekChartModel }) {
             const y = yForV(p.v);
             return `${x},${y}`;
           })
-          .join(" ")
-      : "";
+          .join(' ')
+      : '';
 
   const last = values.length > 0 ? values[values.length - 1] : null;
 
@@ -57,7 +57,13 @@ function Sparkline({ model }: { model: WellbeingWeekChartModel }) {
         aria-hidden
       >
         {coords ? (
-          <polyline fill="none" stroke="currentColor" strokeWidth="2" vectorEffect="non-scaling-stroke" points={coords} />
+          <polyline
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            vectorEffect="non-scaling-stroke"
+            points={coords}
+          />
         ) : null}
         {model.warmupScatter.map((p) => (
           <circle
@@ -77,7 +83,8 @@ function Sparkline({ model }: { model: WellbeingWeekChartModel }) {
         )}
         {model.warmupScatter.length > 0 ? (
           <span className="text-[10px] text-muted-foreground">
-            <span className="inline-block size-1.5 rounded-full bg-amber-500 align-middle" /> разминка
+            <span className="inline-block size-1.5 rounded-full bg-amber-500 align-middle" />{' '}
+            разминка
           </span>
         ) : null}
       </div>
@@ -101,19 +108,22 @@ export function DoctorClientOverviewWellbeing({ chartModel, displayTimeZone }: P
   );
 
   return (
-    <section id="doctor-client-section-wellbeing" className={doctorClientOverviewSecondaryCardClass}>
+    <section
+      id="doctor-client-section-wellbeing"
+      className={doctorClientOverviewSecondaryCardClass}
+    >
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h3 className={doctorClientSectionTitleClass}>Самочувствие</h3>
         {hasData ? (
           <Button type="button" variant="ghost" size="sm" onClick={() => setExpanded((v) => !v)}>
-            {expanded ? "Свернуть" : "Подробный график"}
+            {expanded ? 'Свернуть' : 'Подробный график'}
           </Button>
         ) : null}
       </div>
       {!expanded ? <Sparkline model={chartModel} /> : null}
       {expanded ? (
         <Suspense
-          fallback={<p className={cn("text-sm text-muted-foreground")}>Загрузка графика…</p>}
+          fallback={<p className={cn('text-sm text-muted-foreground')}>Загрузка графика…</p>}
         >
           <div className="mt-1 h-[220px] w-full min-w-0">
             <PatientWellbeingWeekComposedChart model={chartModel} iana={displayTimeZone} />

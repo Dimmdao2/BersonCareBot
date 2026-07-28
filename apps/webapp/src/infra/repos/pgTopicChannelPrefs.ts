@@ -1,10 +1,15 @@
-import { eq, sql } from "drizzle-orm";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import type { TopicChannelPrefRow, TopicChannelPrefsPort } from "@/modules/patient-notifications/topicChannelPrefsPort";
-import { isPatientTopicChannelCode } from "@/modules/patient-notifications/topicChannelRules";
-import { userNotificationTopicChannels } from "../../../db/schema/schema";
+import { eq, sql } from 'drizzle-orm';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import type {
+  TopicChannelPrefRow,
+  TopicChannelPrefsPort,
+} from '@/modules/patient-notifications/topicChannelPrefsPort';
+import { isPatientTopicChannelCode } from '@/modules/patient-notifications/topicChannelRules';
+import { userNotificationTopicChannels } from '../../../db/schema/schema';
 
-function mapRow(row: typeof userNotificationTopicChannels.$inferSelect): TopicChannelPrefRow | null {
+function mapRow(
+  row: typeof userNotificationTopicChannels.$inferSelect,
+): TopicChannelPrefRow | null {
   const channelCode = row.channelCode.trim();
   if (!isPatientTopicChannelCode(channelCode)) return null;
   return {

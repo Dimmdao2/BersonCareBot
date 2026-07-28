@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID } from 'node:crypto';
 import type {
   BroadcastAudienceFilter,
   BroadcastAudienceResolveResult,
@@ -8,28 +8,32 @@ import type {
   BroadcastCommand,
   BroadcastPreviewResult,
   DoctorBroadcastDeliveryCommitPort,
-} from "./ports";
-import { normalizeBroadcastChannels, type BroadcastChannel } from "./broadcastChannels";
-import { buildBroadcastMessageText, buildDoctorBroadcastDeliveryJobs, stripMarkdownToPlain } from "./deliveryJobs";
-import { BROADCAST_DELIVERY_CAP_EXCEEDED_CODE } from "./deliveryQueueKind";
+} from './ports';
+import { normalizeBroadcastChannels, type BroadcastChannel } from './broadcastChannels';
+import {
+  buildBroadcastMessageText,
+  buildDoctorBroadcastDeliveryJobs,
+  stripMarkdownToPlain,
+} from './deliveryJobs';
+import { BROADCAST_DELIVERY_CAP_EXCEEDED_CODE } from './deliveryQueueKind';
 import {
   fanOutBroadcastWebPush,
   type FanOutBroadcastWebPushResult,
-} from "./fanOutBroadcastWebPush";
+} from './fanOutBroadcastWebPush';
 import {
   fanOutBroadcastEmail,
   type FanOutBroadcastEmailDeps,
   type FanOutBroadcastEmailResult,
-} from "./fanOutBroadcastEmail";
+} from './fanOutBroadcastEmail';
 import {
   appendPatientInboundAdminMessage,
   broadcastChatIntegratorMessageId,
-} from "@/modules/messaging/appendPatientInboundAdminMessage";
-import type { PatientInboundChatPort } from "@/modules/messaging/ports";
-import type { PatientWebPushNotifyDeps } from "@/modules/patient-notifications/patientWebPushNotify";
-import { logger } from "@/infra/logging/logger";
-import { routePaths } from "@/app-layer/routes/paths";
-import { getAppBaseUrlSync } from "@/modules/system-settings/integrationRuntime";
+} from '@/modules/messaging/appendPatientInboundAdminMessage';
+import type { PatientInboundChatPort } from '@/modules/messaging/ports';
+import type { PatientWebPushNotifyDeps } from '@/modules/patient-notifications/patientWebPushNotify';
+import { logger } from '@/infra/logging/logger';
+import { routePaths } from '@/app-layer/routes/paths';
+import { getAppBaseUrlSync } from '@/modules/system-settings/integrationRuntime';
 
 export type DoctorBroadcastsServiceDeps = {
   resolveBroadcastAudience(
@@ -59,14 +63,14 @@ export type DoctorBroadcastExecutionOptions = {
 };
 
 const CATEGORIES: BroadcastCategory[] = [
-  "service",
-  "organizational",
-  "marketing",
-  "important_notice",
-  "schedule_change",
-  "reminder",
-  "education",
-  "survey",
+  'service',
+  'organizational',
+  'marketing',
+  'important_notice',
+  'schedule_change',
+  'reminder',
+  'education',
+  'survey',
 ];
 
 function resolvedChannels(command: BroadcastCommand) {
@@ -74,7 +78,7 @@ function resolvedChannels(command: BroadcastCommand) {
 }
 
 export function buildPatientNotificationsOpenUrl(): string {
-  const base = getAppBaseUrlSync().replace(/\/$/, "");
+  const base = getAppBaseUrlSync().replace(/\/$/, '');
   const path = `${routePaths.patient}?notifications=1`;
   if (!base.trim()) return path;
   return `${base}${path}`;
@@ -88,8 +92,18 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
 
     async preview(command: BroadcastCommand): Promise<BroadcastPreviewResult> {
       const channels = resolvedChannels(command);
-      const resolved = await deps.resolveBroadcastAudience(command.audienceFilter, channels, command.category);
-      const { audienceSize, segmentSize, recipientsPreview, deliveryPolicyKind, deliveryPolicyDescriptionRu } = resolved;
+      const resolved = await deps.resolveBroadcastAudience(
+        command.audienceFilter,
+        channels,
+        command.category,
+      );
+      const {
+        audienceSize,
+        segmentSize,
+        recipientsPreview,
+        deliveryPolicyKind,
+        deliveryPolicyDescriptionRu,
+      } = resolved;
       return {
         audienceSize,
         recipientsPreview,
@@ -107,7 +121,11 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
       options?: DoctorBroadcastExecutionOptions,
     ): Promise<{ auditEntry: BroadcastAuditEntry }> {
       const channels = resolvedChannels(command);
-      const resolved = await deps.resolveBroadcastAudience(command.audienceFilter, channels, command.category);
+      const resolved = await deps.resolveBroadcastAudience(
+        command.audienceFilter,
+        channels,
+        command.category,
+      );
       const {
         audienceSize,
         eligibleClients,
@@ -164,7 +182,7 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
               platformUserId: client.userId,
               text: messageBodyPlainText,
               integratorMessageId: broadcastChatIntegratorMessageId(auditId, client.userId),
-              source: "doctor_broadcast",
+              source: 'doctor_broadcast',
               mediaUrl: command.message.mediaUrl ?? null,
               mediaType: command.message.mediaType ?? null,
             });
@@ -172,22 +190,22 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
             logger.warn(
               {
                 err,
-                event: "doctor_broadcast.chat_append_failed",
+                event: 'doctor_broadcast.chat_append_failed',
                 auditId,
                 platformUserId: client.userId,
               },
-              "doctor broadcast chat append failed",
+              'doctor broadcast chat append failed',
             );
           }
         }
       }
 
       if (
-        channels.includes("push") &&
+        channels.includes('push') &&
         deps.fanOutBroadcastWebPush &&
         deps.patientWebPushNotifyDeps
       ) {
-        if (!options?.organizationId) throw new Error("doctor_broadcast_organization_required");
+        if (!options?.organizationId) throw new Error('doctor_broadcast_organization_required');
         await deps.fanOutBroadcastWebPush(
           {
             organizationId: options.organizationId,
@@ -203,7 +221,7 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
         );
       }
 
-      if (channels.includes("email") && deps.fanOutBroadcastEmailDeps) {
+      if (channels.includes('email') && deps.fanOutBroadcastEmailDeps) {
         const emailClients = emailEligibleUserIds
           ? eligibleClients.filter((c) => emailEligibleUserIds.has(c.userId))
           : eligibleClients;

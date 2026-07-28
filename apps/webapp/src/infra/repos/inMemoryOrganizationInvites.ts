@@ -1,10 +1,10 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID } from 'node:crypto';
 import type {
   AcceptOrganizationInviteResult,
   CreateOrganizationInviteResult,
   OrganizationInviteRecord,
   OrganizationInvitesPort,
-} from "@/modules/organization-invites/ports";
+} from '@/modules/organization-invites/ports';
 
 const invites: Array<OrganizationInviteRecord & { tokenHash: string }> = [];
 
@@ -19,19 +19,19 @@ export function createInMemoryOrganizationInvitesPort(): OrganizationInvitesPort
         (invite) =>
           invite.organizationId === input.organizationId &&
           invite.invitedEmail === input.invitedEmail &&
-          invite.status === "accepted",
+          invite.status === 'accepted',
       );
       if (existingActive) {
-        return { ok: false, code: "already_member" };
+        return { ok: false, code: 'already_member' };
       }
 
       for (const invite of invites) {
         if (
           invite.organizationId === input.organizationId &&
           invite.invitedEmail === input.invitedEmail &&
-          invite.status === "pending"
+          invite.status === 'pending'
         ) {
-          invite.status = "revoked";
+          invite.status = 'revoked';
         }
       }
 
@@ -41,7 +41,7 @@ export function createInMemoryOrganizationInvitesPort(): OrganizationInvitesPort
         organizationId: input.organizationId,
         invitedEmail: input.invitedEmail,
         invitedRole: input.invitedRole,
-        status: "pending",
+        status: 'pending',
         expiresAt: input.expiresAt,
         createdByPlatformUserId: input.createdByPlatformUserId,
         acceptedByPlatformUserId: null,
@@ -60,7 +60,7 @@ export function createInMemoryOrganizationInvitesPort(): OrganizationInvitesPort
       return invites.filter(
         (invite) =>
           invite.organizationId === organizationId &&
-          invite.status === "pending" &&
+          invite.status === 'pending' &&
           new Date(invite.expiresAt).getTime() > now,
       );
     },
@@ -70,9 +70,9 @@ export function createInMemoryOrganizationInvitesPort(): OrganizationInvitesPort
       return invites.filter(
         (invite) =>
           invite.organizationId === organizationId &&
-          invite.invitedRole === "doctor" &&
-          ((invite.status === "pending" && new Date(invite.expiresAt).getTime() > now) ||
-            invite.status === "accepted"),
+          invite.invitedRole === 'doctor' &&
+          ((invite.status === 'pending' && new Date(invite.expiresAt).getTime() > now) ||
+            invite.status === 'accepted'),
       ).length;
     },
 
@@ -82,7 +82,7 @@ export function createInMemoryOrganizationInvitesPort(): OrganizationInvitesPort
 
     async expireInvite(inviteId) {
       const invite = invites.find((candidate) => candidate.id === inviteId);
-      if (invite?.status === "pending") invite.status = "expired";
+      if (invite?.status === 'pending') invite.status = 'expired';
     },
 
     async revokePendingByOrganization({ organizationId, inviteId }) {
@@ -90,29 +90,33 @@ export function createInMemoryOrganizationInvitesPort(): OrganizationInvitesPort
         (candidate) =>
           candidate.id === inviteId &&
           candidate.organizationId === organizationId &&
-          candidate.status === "pending",
+          candidate.status === 'pending',
       );
       if (!invite) return false;
-      invite.status = "revoked";
+      invite.status = 'revoked';
       return true;
     },
 
-    async acceptPendingByTokenHash({ tokenHash, platformUserId, expectedEmail }): Promise<AcceptOrganizationInviteResult> {
+    async acceptPendingByTokenHash({
+      tokenHash,
+      platformUserId,
+      expectedEmail,
+    }): Promise<AcceptOrganizationInviteResult> {
       const invite = invites.find((candidate) => candidate.tokenHash === tokenHash);
-      if (!invite) return { ok: false, code: "invalid_token" };
-      if (invite.status !== "pending") return { ok: false, code: "reused_token" };
+      if (!invite) return { ok: false, code: 'invalid_token' };
+      if (invite.status !== 'pending') return { ok: false, code: 'reused_token' };
       if (new Date(invite.expiresAt).getTime() <= Date.now()) {
-        invite.status = "expired";
-        return { ok: false, code: "expired_token" };
+        invite.status = 'expired';
+        return { ok: false, code: 'expired_token' };
       }
       if (invite.invitedEmail !== expectedEmail) {
-        return { ok: false, code: "email_mismatch" };
+        return { ok: false, code: 'email_mismatch' };
       }
       const membershipId = randomUUID();
       // Invite acceptance is deliberately pre-session. The doctor specialist is
       // provisioned idempotently by the first valid staff workspace entrypoint.
       const specialistId = null;
-      invite.status = "accepted";
+      invite.status = 'accepted';
       invite.acceptedByPlatformUserId = platformUserId;
       invite.acceptedMembershipId = membershipId;
       invite.acceptedAt = new Date().toISOString();

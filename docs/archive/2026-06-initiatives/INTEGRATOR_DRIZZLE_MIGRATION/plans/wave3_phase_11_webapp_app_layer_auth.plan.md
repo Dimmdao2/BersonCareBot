@@ -1,20 +1,20 @@
 ---
 name: Wave3 Phase11 Webapp app layer auth
-overview: "Wave 3 фаза 11 закрыта (2026-06-06): app-layer health/media metrics, auth Class C TX, мелкие infra ≤6 query, Zod на config/idempotency, post-audit RAW_SQL + unit-тесты."
+overview: 'Wave 3 фаза 11 закрыта (2026-06-06): app-layer health/media metrics, auth Class C TX, мелкие infra ≤6 query, Zod на config/idempotency, post-audit RAW_SQL + unit-тесты.'
 status: completed
 isProject: false
 todos:
   - id: w3-p11-app-layer
-    content: "collectAdminSystemHealthData, adminTranscodeHealthMetrics, videoHlsLegacyBackfill → runWebappSql/Drizzle."
+    content: 'collectAdminSystemHealthData, adminTranscodeHealthMetrics, videoHlsLegacyBackfill → runWebappSql/Drizzle.'
     status: completed
   - id: w3-p11-auth-transport
-    content: "channelLink.ts — документировать Class C BEGIN/COMMIT; shrink eslint allowlist если порты закрыты."
+    content: 'channelLink.ts — документировать Class C BEGIN/COMMIT; shrink eslint allowlist если порты закрыты.'
     status: completed
   - id: w3-p11-small-infra
-    content: "Файлы ≤6 query: pgDiaryPurge, pgAdminPlatformUserStats, strictPlatformUserPurge, locks (verify P3), idempotency pgStore, loadPlatformUserChannelBindings, …"
+    content: 'Файлы ≤6 query: pgDiaryPurge, pgAdminPlatformUserStats, strictPlatformUserPurge, locks (verify P3), idempotency pgStore, loadPlatformUserChannelBindings, …'
     status: completed
   - id: w3-p11-verify
-    content: "rg + vitest fast по health/media/auth."
+    content: 'rg + vitest fast по health/media/auth.'
     status: completed
 ---
 
@@ -47,23 +47,23 @@ todos:
 
 ## Мигрированные файлы (итог)
 
-| Область | Файл | Transport |
-|---------|------|-----------|
-| app-layer | `collectAdminSystemHealthData.ts` | `runWebappPgText` (preview probe) |
-| app-layer | `adminTranscodeHealthMetrics.ts` | `runWebappPgText` (legacy media counts) |
-| app-layer | `videoHlsLegacyBackfill.ts` | `runPgPoolPgText` |
-| infra | `runWebappSql.ts` | + `runPgPoolPgText` (Class B) |
-| infra | `pgDiaryPurge.ts` | `runWebappPgText` на `PoolClient` |
-| infra | `pgAdminPlatformUserStats.ts` | `runPgPoolPgText` (6×) |
-| infra | `strictPlatformUserPurge.ts` | domain → `runPgPoolPgText`; TX → Class C |
-| infra | `pgRubitimeMapping.ts` | legacy load → `runPgPoolPgText` |
-| infra | `pgPatientBroadcasts.ts` | `runPgPoolPgText` |
-| infra | usage summaries ×4 | `runPgPoolPgText` |
-| infra | `loadPlatformUserChannelBindings.ts` | `runWebappPgText` |
-| infra | merge/purge helpers ×4 | `runPgPoolPgText` |
-| reminders | `loadWarmupsSectionSlugs.ts`, `disableReminderMessengerTopic.ts` | `runPgPoolPgText` |
-| settings | `configAdapter.ts` | `runWebappPgText` + Zod |
-| idempotency | `pgStore.ts` | `runWebappPgText` + Zod |
+| Область     | Файл                                                             | Transport                                |
+| ----------- | ---------------------------------------------------------------- | ---------------------------------------- |
+| app-layer   | `collectAdminSystemHealthData.ts`                                | `runWebappPgText` (preview probe)        |
+| app-layer   | `adminTranscodeHealthMetrics.ts`                                 | `runWebappPgText` (legacy media counts)  |
+| app-layer   | `videoHlsLegacyBackfill.ts`                                      | `runPgPoolPgText`                        |
+| infra       | `runWebappSql.ts`                                                | + `runPgPoolPgText` (Class B)            |
+| infra       | `pgDiaryPurge.ts`                                                | `runWebappPgText` на `PoolClient`        |
+| infra       | `pgAdminPlatformUserStats.ts`                                    | `runPgPoolPgText` (6×)                   |
+| infra       | `strictPlatformUserPurge.ts`                                     | domain → `runPgPoolPgText`; TX → Class C |
+| infra       | `pgRubitimeMapping.ts`                                           | legacy load → `runPgPoolPgText`          |
+| infra       | `pgPatientBroadcasts.ts`                                         | `runPgPoolPgText`                        |
+| infra       | usage summaries ×4                                               | `runPgPoolPgText`                        |
+| infra       | `loadPlatformUserChannelBindings.ts`                             | `runWebappPgText`                        |
+| infra       | merge/purge helpers ×4                                           | `runPgPoolPgText`                        |
+| reminders   | `loadWarmupsSectionSlugs.ts`, `disableReminderMessengerTopic.ts` | `runPgPoolPgText`                        |
+| settings    | `configAdapter.ts`                                               | `runWebappPgText` + Zod                  |
+| idempotency | `pgStore.ts`                                                     | `runWebappPgText` + Zod                  |
 
 **Class C (без изменений семантики):** `channelLink.ts` (6× TX), `strictPlatformUserPurge.ts` (3× TX + advisory).
 
@@ -89,13 +89,13 @@ pnpm --dir apps/webapp exec vitest run --project fast \
 
 Проверка `rg '@/infra/repos|@/infra/db' apps/webapp/src/modules/auth/` — снятие с allowlist **не выполнялось**:
 
-| Файл | Причина |
-|------|---------|
-| `channelLink.ts` | `@/infra/db/client`, `@/infra/repos/pgChannelLinkClaim`, … |
-| `oauthWebSession.ts` | `@/infra/repos/pgUserByPhone` |
+| Файл                            | Причина                                                         |
+| ------------------------------- | --------------------------------------------------------------- |
+| `channelLink.ts`                | `@/infra/db/client`, `@/infra/repos/pgChannelLinkClaim`, …      |
+| `oauthWebSession.ts`            | `@/infra/repos/pgUserByPhone`                                   |
 | `yandexOAuthCallbackHandler.ts` | `pgUserByPhone`, `pgOAuthBindings`, `pgPatientCalendarTimezone` |
-| `service.ts` | dynamic `pgUserByPhone`, `pgUserProjection` |
-| `configAdapter.ts` | `@/infra/db/runWebappSql` (module-layer adapter) |
+| `service.ts`                    | dynamic `pgUserByPhone`, `pgUserProjection`                     |
+| `configAdapter.ts`              | `@/infra/db/runWebappSql` (module-layer adapter)                |
 
 ## Закрытие (2026-06-06)
 

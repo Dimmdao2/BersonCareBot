@@ -1,20 +1,20 @@
-import type { PaymentProviderConfig } from "@/modules/payments/types";
-import type { PaymentProviderPort } from "@/modules/payments/providerPort";
-import {
-  fetchWithTimeout,
-  PAYMENT_PROVIDER_FETCH_TIMEOUT_MS,
-} from "@/shared/lib/externalFetch";
-import { createHmac, timingSafeEqual } from "node:crypto";
+import type { PaymentProviderConfig } from '@/modules/payments/types';
+import type { PaymentProviderPort } from '@/modules/payments/providerPort';
+import { fetchWithTimeout, PAYMENT_PROVIDER_FETCH_TIMEOUT_MS } from '@/shared/lib/externalFetch';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 
-function requireYookassaCredentials(config?: PaymentProviderConfig): { shopId: string; secretKey: string } {
-  const shopId = config?.shopId?.trim() ?? "";
-  const secretKey = config?.apiKey?.trim() ?? "";
-  if (!shopId || !secretKey) throw new Error("yookassa_credentials_missing");
+function requireYookassaCredentials(config?: PaymentProviderConfig): {
+  shopId: string;
+  secretKey: string;
+} {
+  const shopId = config?.shopId?.trim() ?? '';
+  const secretKey = config?.apiKey?.trim() ?? '';
+  if (!shopId || !secretKey) throw new Error('yookassa_credentials_missing');
   return { shopId, secretKey };
 }
 
 function basicAuth(shopId: string, secretKey: string): string {
-  return `Basic ${Buffer.from(`${shopId}:${secretKey}`).toString("base64")}`;
+  return `Basic ${Buffer.from(`${shopId}:${secretKey}`).toString('base64')}`;
 }
 
 function safeEqualText(a: string, b: string): boolean {
@@ -33,17 +33,17 @@ function inspectYookassaWebhook(bodyText: string) {
       metadata?: Record<string, unknown>;
     };
   };
-  const event = String(payload.event ?? "");
+  const event = String(payload.event ?? '');
   const object = payload.object;
-  if (!object?.id) throw new Error("invalid_webhook_payload");
+  if (!object?.id) throw new Error('invalid_webhook_payload');
   const metaKey =
-    typeof object.metadata?.idempotencyKey === "string"
+    typeof object.metadata?.idempotencyKey === 'string'
       ? object.metadata.idempotencyKey
       : object.id;
   const eventType =
-    event === "payment.succeeded" || object.status === "succeeded"
-      ? "payment.succeeded"
-      : event || "payment.unknown";
+    event === 'payment.succeeded' || object.status === 'succeeded'
+      ? 'payment.succeeded'
+      : event || 'payment.unknown';
   const amountMinor =
     object.amount?.value != null
       ? Math.round(Number.parseFloat(String(object.amount.value)) * 100)
@@ -63,23 +63,23 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
       const { shopId, secretKey } = requireYookassaCredentials(providerConfig);
       const value = (amountMinor / 100).toFixed(2);
       const returnUrl =
-        typeof metadata.returnUrl === "string" && metadata.returnUrl.trim()
+        typeof metadata.returnUrl === 'string' && metadata.returnUrl.trim()
           ? metadata.returnUrl.trim()
-          : "https://yookassa.ru";
+          : 'https://yookassa.ru';
 
       const body = await fetchWithTimeout(
-        "https://api.yookassa.ru/v3/payments",
+        'https://api.yookassa.ru/v3/payments',
         {
-          method: "POST",
+          method: 'POST',
           headers: {
-            "Content-Type": "application/json",
+            'Content-Type': 'application/json',
             Authorization: basicAuth(shopId, secretKey),
-            "Idempotence-Key": idempotencyKey,
+            'Idempotence-Key': idempotencyKey,
           },
           body: JSON.stringify({
             amount: { value, currency },
             capture: true,
-            confirmation: { type: "redirect", return_url: returnUrl },
+            confirmation: { type: 'redirect', return_url: returnUrl },
             metadata: {
               idempotencyKey,
               ...metadata,
@@ -89,7 +89,7 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
         { timeoutMs: PAYMENT_PROVIDER_FETCH_TIMEOUT_MS },
         async (res) => {
           if (!res.ok) {
-            const text = await res.text().catch(() => "");
+            const text = await res.text().catch(() => '');
             throw new Error(`yookassa_create_failed:${res.status}:${text.slice(0, 200)}`);
           }
           return (await res.json()) as {
@@ -98,8 +98,8 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
           };
         },
       );
-      const providerIntentRef = String(body.id ?? "");
-      if (!providerIntentRef) throw new Error("yookassa_missing_payment_id");
+      const providerIntentRef = String(body.id ?? '');
+      if (!providerIntentRef) throw new Error('yookassa_missing_payment_id');
       return {
         providerIntentRef,
         checkoutUrl: body.confirmation?.confirmation_url,
@@ -110,13 +110,13 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
       const { shopId, secretKey } = requireYookassaCredentials(providerConfig);
       const value = (amountMinor / 100).toFixed(2);
       const body = await fetchWithTimeout(
-        "https://api.yookassa.ru/v3/refunds",
+        'https://api.yookassa.ru/v3/refunds',
         {
-          method: "POST",
+          method: 'POST',
           headers: {
-            "Content-Type": "application/json",
+            'Content-Type': 'application/json',
             Authorization: basicAuth(shopId, secretKey),
-            "Idempotence-Key": idempotencyKey,
+            'Idempotence-Key': idempotencyKey,
           },
           body: JSON.stringify({
             payment_id: providerIntentRef,
@@ -126,7 +126,7 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
         { timeoutMs: PAYMENT_PROVIDER_FETCH_TIMEOUT_MS },
         async (res) => {
           if (!res.ok) {
-            const text = await res.text().catch(() => "");
+            const text = await res.text().catch(() => '');
             throw new Error(`yookassa_refund_failed:${res.status}:${text.slice(0, 200)}`);
           }
           return (await res.json()) as { id?: string };
@@ -141,8 +141,8 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
 
     verifyWebhook({ headers, bodyText, webhookSecret, providerConfig }) {
       const webhookSecretTrimmed = webhookSecret.trim();
-      const authHeader = headers.get("authorization")?.trim() ?? "";
-      const signatureHeader = headers.get("x-yookassa-signature")?.trim() ?? "";
+      const authHeader = headers.get('authorization')?.trim() ?? '';
+      const signatureHeader = headers.get('x-yookassa-signature')?.trim() ?? '';
 
       let verified = false;
       if (providerConfig?.shopId?.trim() && providerConfig?.apiKey?.trim() && authHeader) {
@@ -150,10 +150,12 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
         verified = safeEqualText(authHeader, expectedAuth);
       }
       if (!verified && signatureHeader && webhookSecretTrimmed) {
-        const expectedSignature = createHmac("sha256", webhookSecretTrimmed).update(bodyText).digest("hex");
+        const expectedSignature = createHmac('sha256', webhookSecretTrimmed)
+          .update(bodyText)
+          .digest('hex');
         verified = safeEqualText(signatureHeader, expectedSignature);
       }
-      if (!verified) throw new Error("invalid_webhook_signature");
+      if (!verified) throw new Error('invalid_webhook_signature');
 
       return inspectYookassaWebhook(bodyText);
     },

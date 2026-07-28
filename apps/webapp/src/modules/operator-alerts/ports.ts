@@ -1,4 +1,4 @@
-import type { OperatorAlertBlock } from "./operatorHealthAlertConfig";
+import type { OperatorAlertBlock } from './operatorHealthAlertConfig';
 
 export type OperatorAlertDedupPort = {
   wasSentWithinHours(dedupKey: string, hours: number): Promise<boolean>;

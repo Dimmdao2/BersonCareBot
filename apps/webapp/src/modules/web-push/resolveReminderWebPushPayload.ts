@@ -2,7 +2,7 @@ import {
   buildReminderWebPushCopy,
   type ReminderPushKind,
   type WarmupPushDynamicContext,
-} from "./pushNotificationCopy";
+} from './pushNotificationCopy';
 
 export type ReminderWebPushCopyInput = {
   stableKey: string;
@@ -20,7 +20,7 @@ export type ReminderWebPushPayload = {
   title: string;
   body: string;
   tag: string;
-  pushKind: ReminderPushKind | "news";
+  pushKind: ReminderPushKind | 'news';
   warmupSloganKey: string | null;
 };
 

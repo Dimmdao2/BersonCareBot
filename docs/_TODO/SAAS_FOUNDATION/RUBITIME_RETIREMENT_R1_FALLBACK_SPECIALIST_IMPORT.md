@@ -10,15 +10,15 @@ Owner confirmed that the remaining old-period active rows belong to one webapp d
 
 Read-only preflight found:
 
-| Check | Count |
-| --- | ---: |
-| matched platform users by phone tail | 1 |
-| matched organizations | 1 |
-| active specialists in organization | 2 |
-| dominant specialist live `rubitime_projection` rows | 171 |
-| other specialist live `rubitime_projection` rows | 36 |
-| legacy branch groups among target rows | 2 |
-| legacy branch groups with city/branch mapping | 2 |
+| Check                                               | Count |
+| --------------------------------------------------- | ----: |
+| matched platform users by phone tail                |     1 |
+| matched organizations                               |     1 |
+| active specialists in organization                  |     2 |
+| dominant specialist live `rubitime_projection` rows |   171 |
+| other specialist live `rubitime_projection` rows    |    36 |
+| legacy branch groups among target rows              |     2 |
+| legacy branch groups with city/branch mapping       |     2 |
 
 Interpretation: the old legacy rows did not carry full Rubitime specialist refs because they predate the webapp/canonical setup. The import therefore used the owner-confirmed organization and the dominant existing Rubitime-history specialist, while branch/city was restored through the existing Rubitime branch to webapp city/branch mapping.
 
@@ -67,24 +67,24 @@ pnpm --dir apps/webapp backfill-canonical-from-legacy-appointments -- \
 
 ## Before and after
 
-| Check | Before import | After import | After canceled cleanup |
-| --- | ---: | ---: | ---: |
-| Legacy live rows | 317 | 317 | 299 |
-| Canonical `rubitime_projection` live rows | 207 | 305 | 287 |
-| Unmapped legacy total | 99 | 1 | 1 |
-| Unmapped real active | 99 | 1 | 1 |
-| Historical fallback import candidates | 98 | 0 | 0 |
-| Non-confirmed cleanup candidates | 18 | 18 | 0 |
-| Stale vs owner CSV | 28 | 28 | 10 |
-| Duplicate clusters | 3 | 3 | 3 |
+| Check                                     | Before import | After import | After canceled cleanup |
+| ----------------------------------------- | ------------: | -----------: | ---------------------: |
+| Legacy live rows                          |           317 |          317 |                    299 |
+| Canonical `rubitime_projection` live rows |           207 |          305 |                    287 |
+| Unmapped legacy total                     |            99 |            1 |                      1 |
+| Unmapped real active                      |            99 |            1 |                      1 |
+| Historical fallback import candidates     |            98 |            0 |                      0 |
+| Non-confirmed cleanup candidates          |            18 |           18 |                      0 |
+| Stale vs owner CSV                        |            28 |           28 |                     10 |
+| Duplicate clusters                        |             3 |            3 |                      3 |
 
 Commit effects:
 
-| Action | Count |
-| --- | ---: |
-| Canonical `rubitime_projection` rows inserted | 98 |
-| Legacy canceled rows soft-deleted after strict cleanup | 18 |
-| Mapped canonical `rubitime_projection` rows soft-deleted after strict cleanup | 18 |
+| Action                                                                        | Count |
+| ----------------------------------------------------------------------------- | ----: |
+| Canonical `rubitime_projection` rows inserted                                 |    98 |
+| Legacy canceled rows soft-deleted after strict cleanup                        |    18 |
+| Mapped canonical `rubitime_projection` rows soft-deleted after strict cleanup |    18 |
 
 ## Current remaining blockers
 

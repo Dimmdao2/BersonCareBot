@@ -8,7 +8,7 @@ import {
   getP084PublicPathDescriptors,
   p084PolicyName,
   renderP084PolicyStatements,
-} from "./p0-8-4-policy-targets.mjs";
+} from './p0-8-4-policy-targets.mjs';
 
 function fail(message) {
   throw new Error(message);
@@ -16,7 +16,7 @@ function fail(message) {
 
 const descriptors = getP084PublicPathDescriptors();
 const statements = renderP084PolicyStatements({ descriptors });
-const sql = statements.join("\n");
+const sql = statements.join('\n');
 
 if (descriptors.length !== 38) {
   fail(`Expected 38 P0.8.4 descriptors, got ${descriptors.length}`);
@@ -36,30 +36,30 @@ if (expectedP084PublicDenormTargets.length !== 35) {
 // The blocked-set mechanism stays available (and must stay EMPTY) for any future, not-yet-resolved
 // polymorphic SCOPED target.
 if (expectedP084BlockedPolymorphicTargets.length !== 0) {
-  fail("P0.8.4 blocked-polymorphic set must be empty now that public.comments is resolved");
+  fail('P0.8.4 blocked-polymorphic set must be empty now that public.comments is resolved');
 }
 
-if (expectedP084PublicPolymorphicTargets.join(",") !== "public.comments") {
-  fail("P0.8.4 must resolve exactly public.comments as its polymorphic target");
+if (expectedP084PublicPolymorphicTargets.join(',') !== 'public.comments') {
+  fail('P0.8.4 must resolve exactly public.comments as its polymorphic target');
 }
 
 if (statements.length !== descriptors.length * 3) {
   fail(`Expected ${descriptors.length * 3} dormant policy statements, got ${statements.length}`);
 }
 
-if (sql.includes("FORCE ROW LEVEL SECURITY")) {
-  fail("P0.8.4 dormant generated SQL must not include FORCE ROW LEVEL SECURITY");
+if (sql.includes('FORCE ROW LEVEL SECURITY')) {
+  fail('P0.8.4 dormant generated SQL must not include FORCE ROW LEVEL SECURITY');
 }
 
 for (const descriptor of descriptors) {
-  if (!["fk_path", "denorm_org_column", "polymorphic_resolver"].includes(descriptor.scopingKind)) {
+  if (!['fk_path', 'denorm_org_column', 'polymorphic_resolver'].includes(descriptor.scopingKind)) {
     fail(`Unexpected P0.8.4 scoping kind for ${descriptor.table}: ${descriptor.scopingKind}`);
   }
 
   const quotedTarget = descriptor.table
-    .split(".")
+    .split('.')
     .map((part) => `"${part}"`)
-    .join(".");
+    .join('.');
 
   if (!sql.includes(`ALTER TABLE ${quotedTarget} ENABLE ROW LEVEL SECURITY;`)) {
     fail(`Missing ENABLE RLS statement for ${descriptor.table}`);
@@ -75,7 +75,7 @@ for (const descriptor of descriptors) {
 }
 
 if (!sql.includes('"public"."comments"')) {
-  fail("P0.8.4 generated SQL must target public.comments now that P0.12.1 is resolved");
+  fail('P0.8.4 generated SQL must target public.comments now that P0.12.1 is resolved');
 }
 
 for (const table of expectedP084PublicFkPathTargets) {
@@ -87,9 +87,9 @@ for (const table of expectedP084PublicFkPathTargets) {
 
   for (const token of [descriptor.fkPath.parentTable, descriptor.fkPath.crossCheckTable]) {
     const quotedQualified = token
-      .split(".")
+      .split('.')
       .map((part) => `"${part}"`)
-      .join(".");
+      .join('.');
 
     if (!sql.includes(quotedQualified)) {
       fail(`FK-path target ${table} generated SQL is missing quoted table ${quotedQualified}`);
@@ -126,7 +126,9 @@ const expectedPatientOwnedTargets = 10;
 const patientOwnedDescriptors = descriptors.filter((descriptor) => descriptor.patientColumn);
 
 if (patientOwnedDescriptors.length !== expectedPatientOwnedTargets) {
-  fail(`Expected ${expectedPatientOwnedTargets} P0.8.4 patient-owned targets, got ${patientOwnedDescriptors.length}`);
+  fail(
+    `Expected ${expectedPatientOwnedTargets} P0.8.4 patient-owned targets, got ${patientOwnedDescriptors.length}`,
+  );
 }
 
 // Helper alignment (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md B4-fanout, taskdb #656):
@@ -134,30 +136,38 @@ if (patientOwnedDescriptors.length !== expectedPatientOwnedTargets) {
 // reminder_occurrence_history.integrator_user_id) must read the DEDICATED integrator helper,
 // not the patient UUID helper.
 function patientHelperFor(descriptor) {
-  return descriptor.patientColumnCastType === "bigint"
-    ? "app.current_integrator_user_id()"
-    : "app.current_patient_user_id()";
+  return descriptor.patientColumnCastType === 'bigint'
+    ? 'app.current_integrator_user_id()'
+    : 'app.current_patient_user_id()';
 }
 
 for (const descriptor of patientOwnedDescriptors) {
   const quotedTarget = descriptor.table
-    .split(".")
+    .split('.')
     .map((part) => `"${part}"`)
-    .join(".");
-  const createStatement = statements.find(
-    (statement) => statement.startsWith(`CREATE POLICY "${p084PolicyName}" ON ${quotedTarget}`),
+    .join('.');
+  const createStatement = statements.find((statement) =>
+    statement.startsWith(`CREATE POLICY "${p084PolicyName}" ON ${quotedTarget}`),
   );
 
-  if (!createStatement?.includes("app.is_staff()")) {
-    fail(`${descriptor.table} patient-owned policy must include the fail-closed staff-or-patient branch`);
+  if (!createStatement?.includes('app.is_staff()')) {
+    fail(
+      `${descriptor.table} patient-owned policy must include the fail-closed staff-or-patient branch`,
+    );
   }
 
-  if (descriptor.scopingKind === "fk_path") {
+  if (descriptor.scopingKind === 'fk_path') {
     if (!createStatement.includes(`"p0_8_4_patient_parent"."${descriptor.patientColumn}"`)) {
-      fail(`${descriptor.table} fk_path patient predicate must EXISTS-join the parent's patient column`);
+      fail(
+        `${descriptor.table} fk_path patient predicate must EXISTS-join the parent's patient column`,
+      );
     }
-  } else if (!createStatement.includes(`"${descriptor.patientColumn}" = ${patientHelperFor(descriptor)}`)) {
-    fail(`${descriptor.table} denorm patient predicate must compare its own ${descriptor.patientColumn} column against ${patientHelperFor(descriptor)}`);
+  } else if (
+    !createStatement.includes(`"${descriptor.patientColumn}" = ${patientHelperFor(descriptor)}`)
+  ) {
+    fail(
+      `${descriptor.table} denorm patient predicate must compare its own ${descriptor.patientColumn} column against ${patientHelperFor(descriptor)}`,
+    );
   }
 }
 
@@ -179,53 +189,66 @@ const expectedPatientChainOwnedTargets = 16;
 const patientChainOwnedDescriptors = descriptors.filter((descriptor) => descriptor.patientChain);
 
 if (patientChainOwnedDescriptors.length !== expectedPatientChainOwnedTargets) {
-  fail(`Expected ${expectedPatientChainOwnedTargets} P0.8.4 patient-chain-owned targets, got ${patientChainOwnedDescriptors.length}`);
+  fail(
+    `Expected ${expectedPatientChainOwnedTargets} P0.8.4 patient-chain-owned targets, got ${patientChainOwnedDescriptors.length}`,
+  );
 }
 
 const expectedChainTables = [
-  "public.support_conversation_messages",
-  "public.support_delivery_events",
-  "public.support_question_messages",
-  "public.online_intake_answers",
-  "public.online_intake_attachments",
-  "public.online_intake_status_history",
-  "public.clinical_complaint_update",
-  "public.clinical_diagnosis_update",
-  "public.clinical_diagnosis_status_history",
-  "public.test_results",
-  "public.treatment_program_instance_stages",
-  "public.lfk_complex_exercises",
-  "public.treatment_program_events",
-  "public.treatment_program_instance_stage_items",
-  "public.treatment_program_instance_stage_groups",
-  "public.reminder_occurrence_history",
+  'public.support_conversation_messages',
+  'public.support_delivery_events',
+  'public.support_question_messages',
+  'public.online_intake_answers',
+  'public.online_intake_attachments',
+  'public.online_intake_status_history',
+  'public.clinical_complaint_update',
+  'public.clinical_diagnosis_update',
+  'public.clinical_diagnosis_status_history',
+  'public.test_results',
+  'public.treatment_program_instance_stages',
+  'public.lfk_complex_exercises',
+  'public.treatment_program_events',
+  'public.treatment_program_instance_stage_items',
+  'public.treatment_program_instance_stage_groups',
+  'public.reminder_occurrence_history',
 ].sort();
 
-if (JSON.stringify(patientChainOwnedDescriptors.map((d) => d.table).sort()) !== JSON.stringify(expectedChainTables)) {
-  fail(`P0.8.4 patient-chain-owned target set must stay stable: ${patientChainOwnedDescriptors.map((d) => d.table).join(", ")}`);
+if (
+  JSON.stringify(patientChainOwnedDescriptors.map((d) => d.table).sort()) !==
+  JSON.stringify(expectedChainTables)
+) {
+  fail(
+    `P0.8.4 patient-chain-owned target set must stay stable: ${patientChainOwnedDescriptors.map((d) => d.table).join(', ')}`,
+  );
 }
 
 for (const descriptor of patientChainOwnedDescriptors) {
   const quotedTarget = descriptor.table
-    .split(".")
+    .split('.')
     .map((part) => `"${part}"`)
-    .join(".");
-  const createStatement = statements.find(
-    (statement) => statement.startsWith(`CREATE POLICY "${p084PolicyName}" ON ${quotedTarget}`),
+    .join('.');
+  const createStatement = statements.find((statement) =>
+    statement.startsWith(`CREATE POLICY "${p084PolicyName}" ON ${quotedTarget}`),
   );
 
-  if (!createStatement?.includes("app.is_staff()")) {
-    fail(`${descriptor.table} chain-owned policy must include the fail-closed staff-or-patient branch`);
+  if (!createStatement?.includes('app.is_staff()')) {
+    fail(
+      `${descriptor.table} chain-owned policy must include the fail-closed staff-or-patient branch`,
+    );
   }
 
-  if (!createStatement.includes("EXISTS (")) {
-    fail(`${descriptor.table} chain-owned policy must include an EXISTS chain to its identity-bearing parent`);
+  if (!createStatement.includes('EXISTS (')) {
+    fail(
+      `${descriptor.table} chain-owned policy must include an EXISTS chain to its identity-bearing parent`,
+    );
   }
 
   const terminalColumn = descriptor.patientChain.terminalColumn;
 
   if (!createStatement.includes(`"${terminalColumn}" = app.current_patient_user_id()`)) {
-    fail(`${descriptor.table} chain-owned policy must terminate on its identity-bearing parent's ${terminalColumn}`);
+    fail(
+      `${descriptor.table} chain-owned policy must terminate on its identity-bearing parent's ${terminalColumn}`,
+    );
   }
 }
 
@@ -234,41 +257,53 @@ for (const descriptor of patientChainOwnedDescriptors) {
 // EXISTS to its media_id parent (public.media_files), same conditional (shared-or-own-submission)
 // shape media_files itself gets under P0.8.3 (see check-p0-8-3-policy-generator.mjs).
 const expectedPatientConditionalChainOwnedTargets = 1;
-const patientConditionalChainOwnedDescriptors = descriptors.filter((descriptor) => descriptor.patientConditionalChain);
+const patientConditionalChainOwnedDescriptors = descriptors.filter(
+  (descriptor) => descriptor.patientConditionalChain,
+);
 
-if (patientConditionalChainOwnedDescriptors.length !== expectedPatientConditionalChainOwnedTargets) {
+if (
+  patientConditionalChainOwnedDescriptors.length !== expectedPatientConditionalChainOwnedTargets
+) {
   fail(
     `Expected ${expectedPatientConditionalChainOwnedTargets} P0.8.4 patient-conditional-chain-owned targets, got ${patientConditionalChainOwnedDescriptors.length}`,
   );
 }
 
-if (patientConditionalChainOwnedDescriptors[0]?.table !== "public.media_transcode_jobs") {
-  fail("P0.8.4 patient-conditional-chain-owned target must be public.media_transcode_jobs");
+if (patientConditionalChainOwnedDescriptors[0]?.table !== 'public.media_transcode_jobs') {
+  fail('P0.8.4 patient-conditional-chain-owned target must be public.media_transcode_jobs');
 }
 
 for (const descriptor of patientConditionalChainOwnedDescriptors) {
   const quotedTarget = descriptor.table
-    .split(".")
+    .split('.')
     .map((part) => `"${part}"`)
-    .join(".");
-  const createStatement = statements.find(
-    (statement) => statement.startsWith(`CREATE POLICY "${p084PolicyName}" ON ${quotedTarget}`),
+    .join('.');
+  const createStatement = statements.find((statement) =>
+    statement.startsWith(`CREATE POLICY "${p084PolicyName}" ON ${quotedTarget}`),
   );
 
-  if (!createStatement?.includes("app.is_staff()")) {
-    fail(`${descriptor.table} conditional-chain-owned policy must include the fail-closed staff-or-patient branch`);
+  if (!createStatement?.includes('app.is_staff()')) {
+    fail(
+      `${descriptor.table} conditional-chain-owned policy must include the fail-closed staff-or-patient branch`,
+    );
   }
 
   if (!createStatement.includes(`EXISTS ( SELECT 1 FROM "public"."media_files"`)) {
-    fail(`${descriptor.table} conditional-chain-owned policy must EXISTS-join its media_files parent`);
+    fail(
+      `${descriptor.table} conditional-chain-owned policy must EXISTS-join its media_files parent`,
+    );
   }
 
   if (!createStatement.includes(`"usage_purpose" IS DISTINCT FROM 'program_item_submission'`)) {
-    fail(`${descriptor.table} conditional-chain-owned policy must permit the shared/library branch of its parent`);
+    fail(
+      `${descriptor.table} conditional-chain-owned policy must permit the shared/library branch of its parent`,
+    );
   }
 
   if (!createStatement.includes(`"uploaded_by" = app.current_patient_user_id()`)) {
-    fail(`${descriptor.table} conditional-chain-owned policy must permit the patient's own-submission branch of its parent`);
+    fail(
+      `${descriptor.table} conditional-chain-owned policy must permit the patient's own-submission branch of its parent`,
+    );
   }
 }
 
@@ -276,7 +311,9 @@ for (const descriptor of patientConditionalChainOwnedDescriptors) {
 // check), 4 patient-instance target_type values additionally resolve to their owning patient via a
 // chain predicate (same renderPatientChainPredicate shape proven for the direct chain family above).
 const expectedPatientPolymorphicOwnedTargets = 1;
-const patientPolymorphicOwnedDescriptors = descriptors.filter((descriptor) => descriptor.patientPolymorphic);
+const patientPolymorphicOwnedDescriptors = descriptors.filter(
+  (descriptor) => descriptor.patientPolymorphic,
+);
 
 if (patientPolymorphicOwnedDescriptors.length !== expectedPatientPolymorphicOwnedTargets) {
   fail(
@@ -284,30 +321,36 @@ if (patientPolymorphicOwnedDescriptors.length !== expectedPatientPolymorphicOwne
   );
 }
 
-if (patientPolymorphicOwnedDescriptors[0]?.table !== "public.comments") {
-  fail("P0.8.4 patient-polymorphic-owned target must be public.comments");
+if (patientPolymorphicOwnedDescriptors[0]?.table !== 'public.comments') {
+  fail('P0.8.4 patient-polymorphic-owned target must be public.comments');
 }
 
 for (const descriptor of patientPolymorphicOwnedDescriptors) {
   const quotedTarget = descriptor.table
-    .split(".")
+    .split('.')
     .map((part) => `"${part}"`)
-    .join(".");
-  const createStatement = statements.find(
-    (statement) => statement.startsWith(`CREATE POLICY "${p084PolicyName}" ON ${quotedTarget}`),
+    .join('.');
+  const createStatement = statements.find((statement) =>
+    statement.startsWith(`CREATE POLICY "${p084PolicyName}" ON ${quotedTarget}`),
   );
 
-  if (!createStatement?.includes("app.is_staff()")) {
-    fail(`${descriptor.table} polymorphic-owned policy must include the fail-closed staff-or-patient branch`);
+  if (!createStatement?.includes('app.is_staff()')) {
+    fail(
+      `${descriptor.table} polymorphic-owned policy must include the fail-closed staff-or-patient branch`,
+    );
   }
 
   if (!createStatement.includes(`"target_type" = ANY (ARRAY[`)) {
-    fail(`${descriptor.table} polymorphic-owned policy must keep the shared/catalog target_type branch`);
+    fail(
+      `${descriptor.table} polymorphic-owned policy must keep the shared/catalog target_type branch`,
+    );
   }
 
   for (const variant of descriptor.patientPolymorphic.variants) {
     if (!createStatement.includes(`"target_type" = '${variant.typeValue}'`)) {
-      fail(`${descriptor.table} polymorphic-owned policy must gate the ${variant.typeValue} variant on its target_type`);
+      fail(
+        `${descriptor.table} polymorphic-owned policy must gate the ${variant.typeValue} variant on its target_type`,
+      );
     }
   }
 }

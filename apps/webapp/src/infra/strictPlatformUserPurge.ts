@@ -1,11 +1,11 @@
-import type { Pool } from "pg";
-import { env } from "@/config/env";
-import { isS3MediaEnabled } from "@/config/env";
-import { writeAuditLog } from "@/infra/adminAuditLog";
-import { getPool } from "@/infra/db/client";
-import { startPoolTransaction } from "@/infra/db/withClient";
-import { runPgPoolPgText } from "@/infra/db/runWebappSql";
-import { pgAdvisoryXactLock } from "@/infra/db/pgAdvisoryLock";
+import type { Pool } from 'pg';
+import { env } from '@/config/env';
+import { isS3MediaEnabled } from '@/config/env';
+import { writeAuditLog } from '@/infra/adminAuditLog';
+import { getPool } from '@/infra/db/client';
+import { startPoolTransaction } from '@/infra/db/withClient';
+import { runPgPoolPgText } from '@/infra/db/runWebappSql';
+import { pgAdvisoryXactLock } from '@/infra/db/pgAdvisoryLock';
 import {
   collectPurgeArtifactKeys,
   deleteIntegratorPhoneDataWithResult,
@@ -18,15 +18,15 @@ import {
   type MessengerBindingForIntegratorCleanup,
   type PurgeArtifactKeys,
   type PurgePlatformUserRow,
-} from "@/infra/platformUserFullPurge";
-import { deleteS3ObjectsWithPerKeyResults, type S3PerKeyDeleteResult } from "@/infra/s3/client";
+} from '@/infra/platformUserFullPurge';
+import { deleteS3ObjectsWithPerKeyResults, type S3PerKeyDeleteResult } from '@/infra/s3/client';
 
 /**
  * - `completed` — webapp commit + S3 + integrator cleanup successful (or integrator work not required).
  * - `partial_failed` — webapp committed; S3/media cleanup had failures.
  * - `needs_retry` — webapp committed; integrator cleanup was **required** but had no DB pool, failed, or S3 clean while integrator missed.
  */
-export type StrictPurgeOutcome = "completed" | "partial_failed" | "needs_retry";
+export type StrictPurgeOutcome = 'completed' | 'partial_failed' | 'needs_retry';
 
 export type StrictPurgeSuccess = {
   ok: true;
@@ -48,7 +48,7 @@ export type StrictPurgeSuccess = {
 
 export type StrictPurgeFailure = {
   ok: false;
-  error: "invalid_uuid" | "not_found" | "not_client" | "transaction_failed";
+  error: 'invalid_uuid' | 'not_found' | 'not_client' | 'transaction_failed';
   transactionError?: string;
 };
 
@@ -70,7 +70,7 @@ async function loadUserRow(pool: Pool, id: string): Promise<PurgePlatformUserRow
   return userRes.rows[0] ?? null;
 }
 
-type PostCommitDetails = StrictPurgeSuccess["details"];
+type PostCommitDetails = StrictPurgeSuccess['details'];
 
 function buildExternalCleanupAuditDetails(args: {
   outcome: StrictPurgeOutcome;
@@ -105,8 +105,10 @@ function buildExternalCleanupAuditDetails(args: {
 }
 
 /** Same rule as `resolveIntegratorUserIds`: numeric integrator.users id from webapp projection. */
-function hasNumericWebappIntegratorUserId(webappIntegratorUserId: string | null | undefined): boolean {
-  const t = webappIntegratorUserId?.trim() ?? "";
+function hasNumericWebappIntegratorUserId(
+  webappIntegratorUserId: string | null | undefined,
+): boolean {
+  const t = webappIntegratorUserId?.trim() ?? '';
   return t.length > 0 && /^\d+$/.test(t);
 }
 
@@ -146,7 +148,11 @@ async function runPostCommitArtifactCleanup(
 
   const runS3AndMedia = async (): Promise<void> => {
     const intakeKeys = [...new Set(artifact.intakeS3Keys)];
-    const mediaKeys = [...new Set(artifact.mediaFiles.map((m) => m.s3Key).filter((key): key is string => Boolean(key)))];
+    const mediaKeys = [
+      ...new Set(
+        artifact.mediaFiles.map((m) => m.s3Key).filter((key): key is string => Boolean(key)),
+      ),
+    ];
     const allKeys = [...new Set([...intakeKeys, ...mediaKeys])];
     details.s3KeysAttempted = allKeys.length;
 
@@ -155,7 +161,9 @@ async function runPostCommitArtifactCleanup(
         artifact.intakeS3Keys.length > 0 || artifact.mediaFiles.some((m) => Boolean(m.s3Key));
       for (const m of artifact.mediaFiles) {
         try {
-          const r = await runPgPoolPgText(pool, `DELETE FROM media_files WHERE id = $1::uuid`, [m.id]);
+          const r = await runPgPoolPgText(pool, `DELETE FROM media_files WHERE id = $1::uuid`, [
+            m.id,
+          ]);
           if ((r.rowCount ?? 0) > 0) details.mediaRowsDeleted += 1;
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
@@ -179,7 +187,9 @@ async function runPostCommitArtifactCleanup(
     for (const m of artifact.mediaFiles) {
       if (!m.s3Key || keyOk.get(m.s3Key) === true) {
         try {
-          const r = await runPgPoolPgText(pool, `DELETE FROM media_files WHERE id = $1::uuid`, [m.id]);
+          const r = await runPgPoolPgText(pool, `DELETE FROM media_files WHERE id = $1::uuid`, [
+            m.id,
+          ]);
           if ((r.rowCount ?? 0) > 0) details.mediaRowsDeleted += 1;
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
@@ -224,12 +234,12 @@ function deriveOutcome(
   const integratorMissed = cleanupNeeded && !integratorPool;
 
   if (integratorMissed && !s3Problems) {
-    return "needs_retry";
+    return 'needs_retry';
   }
-  if (!s3Problems && !intProblem) return "completed";
-  if (s3Problems) return "partial_failed";
-  if (intProblem) return "needs_retry";
-  return "completed";
+  if (!s3Problems && !intProblem) return 'completed';
+  if (s3Problems) return 'partial_failed';
+  if (intProblem) return 'needs_retry';
+  return 'completed';
 }
 
 /**
@@ -245,13 +255,13 @@ export async function runStrictPurgePlatformUser(opts: RunOpts): Promise<StrictP
     if (auditEnabled) {
       await writeAuditLog(pool, {
         actorId: opts.actorId,
-        action: "user_purge",
+        action: 'user_purge',
         targetId: rawId,
-        status: "error",
-        details: { reason: "invalid_uuid" },
+        status: 'error',
+        details: { reason: 'invalid_uuid' },
       });
     }
-    return { ok: false, error: "invalid_uuid" };
+    return { ok: false, error: 'invalid_uuid' };
   }
 
   const userBefore = await loadUserRow(pool, rawId);
@@ -259,25 +269,25 @@ export async function runStrictPurgePlatformUser(opts: RunOpts): Promise<StrictP
     if (auditEnabled) {
       await writeAuditLog(pool, {
         actorId: opts.actorId,
-        action: "user_purge",
+        action: 'user_purge',
         targetId: rawId,
-        status: "error",
-        details: { reason: "not_found" },
+        status: 'error',
+        details: { reason: 'not_found' },
       });
     }
-    return { ok: false, error: "not_found" };
+    return { ok: false, error: 'not_found' };
   }
-  if (userBefore.role !== "client") {
+  if (userBefore.role !== 'client') {
     if (auditEnabled) {
       await writeAuditLog(pool, {
         actorId: opts.actorId,
-        action: "user_purge",
+        action: 'user_purge',
         targetId: rawId,
-        status: "error",
-        details: { reason: "not_client" },
+        status: 'error',
+        details: { reason: 'not_client' },
       });
     }
-    return { ok: false, error: "not_client" };
+    return { ok: false, error: 'not_client' };
   }
 
   const userSnapshot: PurgePlatformUserRow = { ...userBefore };
@@ -302,18 +312,20 @@ export async function runStrictPurgePlatformUser(opts: RunOpts): Promise<StrictP
     if (auditEnabled) {
       await writeAuditLog(pool, {
         actorId: opts.actorId,
-        action: "user_purge",
+        action: 'user_purge',
         targetId: rawId,
-        status: "error",
-        details: { error: message, phase: "webapp_transaction" },
+        status: 'error',
+        details: { error: message, phase: 'webapp_transaction' },
       });
     }
-    return { ok: false, error: "transaction_failed", transactionError: message };
+    return { ok: false, error: 'transaction_failed', transactionError: message };
   } finally {
     await tx.release();
   }
 
-  const digs = userSnapshot.phone_normalized?.trim() ? phoneDigits(userSnapshot.phone_normalized) : "";
+  const digs = userSnapshot.phone_normalized?.trim()
+    ? phoneDigits(userSnapshot.phone_normalized)
+    : '';
   const integratorPool = getIntegratorPoolForPurge();
   const intIds = await resolveIntegratorUserIds(
     integratorPool,
@@ -322,7 +334,14 @@ export async function runStrictPurgePlatformUser(opts: RunOpts): Promise<StrictP
     messengerBindings,
   );
 
-  const details = await runPostCommitArtifactCleanup(pool, artifact, digs, intIds, integratorPool, messengerBindings);
+  const details = await runPostCommitArtifactCleanup(
+    pool,
+    artifact,
+    digs,
+    intIds,
+    integratorPool,
+    messengerBindings,
+  );
 
   const integratorSkipped = !integratorPool;
   const cleanupNeeded = integratorCleanupNeeded({
@@ -334,10 +353,10 @@ export async function runStrictPurgePlatformUser(opts: RunOpts): Promise<StrictP
   const outcome = deriveOutcome(details, integratorPool, cleanupNeeded);
 
   if (auditEnabled) {
-    const auditStatus = outcome === "completed" ? "ok" : "partial_failure";
+    const auditStatus = outcome === 'completed' ? 'ok' : 'partial_failure';
     await writeAuditLog(pool, {
       actorId: opts.actorId,
-      action: "user_purge",
+      action: 'user_purge',
       targetId: rawId,
       status: auditStatus,
       details: buildExternalCleanupAuditDetails({
@@ -377,11 +396,22 @@ export async function retryStrictPurgeExternalCleanup(params: {
 }): Promise<StrictPurgeSuccess> {
   const auditEnabled = params.audit?.enabled !== false;
   const pool = getPool();
-  const digs = params.phoneNormalized?.trim() ? phoneDigits(params.phoneNormalized) : "";
+  const digs = params.phoneNormalized?.trim() ? phoneDigits(params.phoneNormalized) : '';
   const integratorPool = getIntegratorPoolForPurge();
-  const intIds = await resolveIntegratorUserIds(integratorPool, digs, params.webappIntegratorUserId);
+  const intIds = await resolveIntegratorUserIds(
+    integratorPool,
+    digs,
+    params.webappIntegratorUserId,
+  );
 
-  const details = await runPostCommitArtifactCleanup(pool, params.artifact, digs, intIds, integratorPool, []);
+  const details = await runPostCommitArtifactCleanup(
+    pool,
+    params.artifact,
+    digs,
+    intIds,
+    integratorPool,
+    [],
+  );
   const integratorSkipped = !integratorPool;
   const cleanupNeeded = integratorCleanupNeeded({
     messengerBindings: [],
@@ -394,9 +424,9 @@ export async function retryStrictPurgeExternalCleanup(params: {
   if (auditEnabled) {
     await writeAuditLog(pool, {
       actorId: params.actorId,
-      action: "user_purge_external_retry",
+      action: 'user_purge_external_retry',
       targetId: params.auditTargetId ?? null,
-      status: outcome === "completed" ? "ok" : "partial_failure",
+      status: outcome === 'completed' ? 'ok' : 'partial_failure',
       details: buildExternalCleanupAuditDetails({
         outcome,
         integratorSkipped,

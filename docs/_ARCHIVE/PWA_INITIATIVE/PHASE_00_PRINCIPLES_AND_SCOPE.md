@@ -50,13 +50,13 @@
 
 ## Якоря в репозитории
 
-| Что | Где |
-|-----|-----|
-| Лендинг корня `/` | `apps/webapp/src/app/page.tsx`, `src/shared/ui/marketing/*` |
-| Manifest | `apps/webapp/src/app/manifest.ts` |
-| Вход в приложение | `apps/webapp/src/app/app/page.tsx`, `AppEntryRsc` |
-| Платформа / Mini App | `apps/webapp/src/shared/lib/platform.md`, `messengerMiniApp.ts` |
-| SW (passthrough) | `apps/webapp/public/sw.js`, регистрация в `PwaInstallSection.tsx` |
+| Что                  | Где                                                               |
+| -------------------- | ----------------------------------------------------------------- |
+| Лендинг корня `/`    | `apps/webapp/src/app/page.tsx`, `src/shared/ui/marketing/*`       |
+| Manifest             | `apps/webapp/src/app/manifest.ts`                                 |
+| Вход в приложение    | `apps/webapp/src/app/app/page.tsx`, `AppEntryRsc`                 |
+| Платформа / Mini App | `apps/webapp/src/shared/lib/platform.md`, `messengerMiniApp.ts`   |
+| SW (passthrough)     | `apps/webapp/public/sw.js`, регистрация в `PwaInstallSection.tsx` |
 
 ## Верификация на стенде (оператор, после деплоя)
 

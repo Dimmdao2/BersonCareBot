@@ -1,10 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'vitest';
 import {
   ADMIN_TRANSCODE_FAILED_LAST_HOUR_ERROR,
   classifyVideoTranscodeSystemHealthStatus,
-} from "./adminHealthThresholds";
+} from './adminHealthThresholds';
 
-describe("classifyVideoTranscodeSystemHealthStatus", () => {
+describe('classifyVideoTranscodeSystemHealthStatus', () => {
   const base = {
     pipelineEnabled: true,
     reconcileEnabled: false,
@@ -15,7 +15,7 @@ describe("classifyVideoTranscodeSystemHealthStatus", () => {
     reconcileLastStatus: null as string | null,
   };
 
-  it("returns ok when pipeline off regardless of counters", () => {
+  it('returns ok when pipeline off regardless of counters', () => {
     expect(
       classifyVideoTranscodeSystemHealthStatus({
         ...base,
@@ -25,28 +25,28 @@ describe("classifyVideoTranscodeSystemHealthStatus", () => {
         failedLastHour: ADMIN_TRANSCODE_FAILED_LAST_HOUR_ERROR,
         failedLast24h: 100,
       }),
-    ).toBe("ok");
+    ).toBe('ok');
   });
 
-  it("degrades on oldest pending ≥ 15 min with backlog", () => {
+  it('degrades on oldest pending ≥ 15 min with backlog', () => {
     expect(
       classifyVideoTranscodeSystemHealthStatus({
         ...base,
         oldestPendingAgeSeconds: 15 * 60,
       }),
-    ).toBe("degraded");
+    ).toBe('degraded');
   });
 
-  it("errors on oldest pending ≥ 60 min with backlog", () => {
+  it('errors on oldest pending ≥ 60 min with backlog', () => {
     expect(
       classifyVideoTranscodeSystemHealthStatus({
         ...base,
         oldestPendingAgeSeconds: 60 * 60,
       }),
-    ).toBe("error");
+    ).toBe('error');
   });
 
-  it("ignores age when queue empty", () => {
+  it('ignores age when queue empty', () => {
     expect(
       classifyVideoTranscodeSystemHealthStatus({
         ...base,
@@ -55,48 +55,48 @@ describe("classifyVideoTranscodeSystemHealthStatus", () => {
         failedLastHour: 0,
         failedLast24h: 0,
       }),
-    ).toBe("ok");
+    ).toBe('ok');
   });
 
-  it("degrades on failed last hour ≥ 3", () => {
+  it('degrades on failed last hour ≥ 3', () => {
     expect(
       classifyVideoTranscodeSystemHealthStatus({
         ...base,
         pendingCount: 0,
         failedLastHour: 3,
       }),
-    ).toBe("degraded");
+    ).toBe('degraded');
   });
 
-  it("errors on failed last hour ≥ 10", () => {
+  it('errors on failed last hour ≥ 10', () => {
     expect(
       classifyVideoTranscodeSystemHealthStatus({
         ...base,
         pendingCount: 0,
         failedLastHour: 10,
       }),
-    ).toBe("error");
+    ).toBe('error');
   });
 
-  it("degrades on ≥5 failures in 24h", () => {
+  it('degrades on ≥5 failures in 24h', () => {
     expect(
       classifyVideoTranscodeSystemHealthStatus({
         ...base,
         pendingCount: 0,
         failedLast24h: 5,
       }),
-    ).toBe("degraded");
+    ).toBe('degraded');
   });
 
-  it("degrades when reconcile tick lastStatus is failure", () => {
+  it('degrades when reconcile tick lastStatus is failure', () => {
     expect(
       classifyVideoTranscodeSystemHealthStatus({
         ...base,
         pipelineEnabled: false,
         reconcileEnabled: true,
         pendingCount: 0,
-        reconcileLastStatus: "failure",
+        reconcileLastStatus: 'failure',
       }),
-    ).toBe("degraded");
+    ).toBe('degraded');
   });
 });

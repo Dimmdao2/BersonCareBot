@@ -389,4 +389,3 @@ I.11 — Бейдж 29 непрочитанных: если мусорные д�
 
 Верни: полный отчёт, verdict: ready for production / not ready. Если нашёл проблемы — исправь. Обнови @docs/FULL_DEV_PLAN/FIX_PLAN_EXECUTION_REPORT.md @docs/FULL_DEV_PLAN/finsl_fix_report.md
 ```
-

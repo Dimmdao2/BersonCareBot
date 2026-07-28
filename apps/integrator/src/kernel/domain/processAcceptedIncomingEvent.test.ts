@@ -25,28 +25,28 @@ describe('processAcceptedIncomingEvent', () => {
       ]),
     };
 
-    const executeAction = vi.fn<
-      (action: { id: string }, context: unknown) => Promise<ActionResult>
-    >().mockImplementation(async (action) => {
-      if (action.id === 's2') {
-        return {
-          actionId: 's2',
-          status: 'success',
-          intents: [
-            {
-              type: 'message.send',
-              meta: {
-                eventId: 'out-1',
-                occurredAt: '2026-03-05T12:00:00.000Z',
-                source: 'source-a',
+    const executeAction = vi
+      .fn<(action: { id: string }, context: unknown) => Promise<ActionResult>>()
+      .mockImplementation(async (action) => {
+        if (action.id === 's2') {
+          return {
+            actionId: 's2',
+            status: 'success',
+            intents: [
+              {
+                type: 'message.send',
+                meta: {
+                  eventId: 'out-1',
+                  occurredAt: '2026-03-05T12:00:00.000Z',
+                  source: 'source-a',
+                },
+                payload: { message: { text: 'hi' } },
               },
-              payload: { message: { text: 'hi' } },
-            },
-          ],
-        };
-      }
-      return { actionId: action.id, status: 'success' };
-    });
+            ],
+          };
+        }
+        return { actionId: action.id, status: 'success' };
+      });
 
     const dispatchIntent = vi.fn().mockResolvedValue(undefined);
     const readPort = {
@@ -89,9 +89,11 @@ describe('processAcceptedIncomingEvent', () => {
     };
 
     const orchestrator: Orchestrator = {
-      buildPlan: vi.fn().mockResolvedValue([
-        { id: 's-chain', kind: 'event.log', mode: 'sync', payload: { eventId: 'evt-chain' } },
-      ]),
+      buildPlan: vi
+        .fn()
+        .mockResolvedValue([
+          { id: 's-chain', kind: 'event.log', mode: 'sync', payload: { eventId: 'evt-chain' } },
+        ]),
     };
 
     const executeAction = vi.fn().mockResolvedValue({
@@ -111,7 +113,8 @@ describe('processAcceptedIncomingEvent', () => {
       ],
     });
 
-    const dispatchIntent = vi.fn()
+    const dispatchIntent = vi
+      .fn()
       .mockRejectedValueOnce(new Error('TELEGRAM_EDIT_FAILED'))
       .mockResolvedValueOnce(undefined);
 
@@ -132,7 +135,9 @@ describe('processAcceptedIncomingEvent', () => {
 
     expect(dispatchIntent).toHaveBeenCalledTimes(2);
     expect(warnSpy.mock.calls.length).toBeGreaterThanOrEqual(2);
-    expect(warnSpy.mock.calls.some((c) => typeof c[1] === 'string' && c[1].includes('finished with'))).toBe(true);
+    expect(
+      warnSpy.mock.calls.some((c) => typeof c[1] === 'string' && c[1].includes('finished with')),
+    ).toBe(true);
     warnSpy.mockRestore();
   });
 });

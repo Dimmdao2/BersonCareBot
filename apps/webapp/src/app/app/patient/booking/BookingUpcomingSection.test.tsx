@@ -1,34 +1,34 @@
 /** @vitest-environment jsdom */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
-import { BookingUpcomingSection } from "./BookingUpcomingSection";
-import type { PatientBookingRecord } from "@/modules/patient-booking/types";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { BookingUpcomingSection } from './BookingUpcomingSection';
+import type { PatientBookingRecord } from '@/modules/patient-booking/types';
 
-vi.mock("@/app/app/patient/cabinet/CabinetBookingActions", () => ({
+vi.mock('@/app/app/patient/cabinet/CabinetBookingActions', () => ({
   CabinetBookingActions: () => <div data-testid="native-booking-actions">native-actions</div>,
 }));
 
 function makeBooking(over: Partial<PatientBookingRecord> = {}): PatientBookingRecord {
   return {
-    id: "b1111111-1111-4111-8111-111111111111",
-    userId: "u1111111-1111-4111-8111-111111111111",
-    bookingType: "online",
+    id: 'b1111111-1111-4111-8111-111111111111',
+    userId: 'u1111111-1111-4111-8111-111111111111',
+    bookingType: 'online',
     city: null,
-    category: "general",
-    slotStart: "2026-05-01T10:00:00.000Z",
-    slotEnd: "2026-05-01T11:00:00.000Z",
-    status: "confirmed",
+    category: 'general',
+    slotStart: '2026-05-01T10:00:00.000Z',
+    slotEnd: '2026-05-01T11:00:00.000Z',
+    status: 'confirmed',
     cancelledAt: null,
     cancelReason: null,
     gcalEventId: null,
-    contactPhone: "+79990001122",
+    contactPhone: '+79990001122',
     contactEmail: null,
-    contactName: "Иван",
+    contactName: 'Иван',
     reminder24hSent: false,
     reminder2hSent: false,
-    createdAt: "2026-05-01T09:00:00.000Z",
-    updatedAt: "2026-05-01T09:00:00.000Z",
+    createdAt: '2026-05-01T09:00:00.000Z',
+    updatedAt: '2026-05-01T09:00:00.000Z',
     branchServiceId: null,
     branchId: null,
     serviceId: null,
@@ -44,45 +44,45 @@ function makeBooking(over: Partial<PatientBookingRecord> = {}): PatientBookingRe
   };
 }
 
-describe("BookingUpcomingSection", () => {
+describe('BookingUpcomingSection', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("shows canonical actions for a canonical booking", () => {
+  it('shows canonical actions for a canonical booking', () => {
     render(
       <BookingUpcomingSection
-        bookings={[makeBooking({ canonicalAppointmentId: "appt-1" })]}
+        bookings={[makeBooking({ canonicalAppointmentId: 'appt-1' })]}
         appDisplayTimeZone="Europe/Moscow"
       />,
     );
-    expect(screen.getByTestId("native-booking-actions")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Управлять" })).not.toBeInTheDocument();
+    expect(screen.getByTestId('native-booking-actions')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Управлять' })).not.toBeInTheDocument();
   });
 
-  it("hides actions for cancel_failed without canonical appointment", () => {
+  it('hides actions for cancel_failed without canonical appointment', () => {
     render(
       <BookingUpcomingSection
         bookings={[
           makeBooking({
-            status: "cancel_failed",
+            status: 'cancel_failed',
             canonicalAppointmentId: null,
           }),
         ]}
         appDisplayTimeZone="Europe/Moscow"
       />,
     );
-    expect(screen.queryByRole("button", { name: "Управлять" })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Управлять' })).not.toBeInTheDocument();
   });
 
-  it("does not expose actions without a canonical appointment", () => {
+  it('does not expose actions without a canonical appointment', () => {
     render(
       <BookingUpcomingSection
         bookings={[makeBooking({ canonicalAppointmentId: null })]}
         appDisplayTimeZone="Europe/Moscow"
       />,
     );
-    expect(screen.queryByTestId("native-booking-actions")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Управлять" })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('native-booking-actions')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Управлять' })).not.toBeInTheDocument();
   });
 });

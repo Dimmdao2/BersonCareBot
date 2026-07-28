@@ -1,8 +1,8 @@
-import type { ClinicalTestScoring } from "./clinicalTestScoring";
+import type { ClinicalTestScoring } from './clinicalTestScoring';
 
 export type ClinicalTestMediaItem = {
   mediaUrl: string;
-  mediaType: "image" | "video" | "gif";
+  mediaType: 'image' | 'video' | 'gif';
   sortOrder: number;
 };
 
@@ -68,7 +68,7 @@ export type UpdateClinicalTestInput = {
 };
 
 /** Публикация набора в каталоге (независимо от архива). */
-export type TestSetPublicationStatus = "draft" | "published";
+export type TestSetPublicationStatus = 'draft' | 'published';
 
 export type TestSet = {
   id: string;
@@ -88,17 +88,20 @@ export type TestSetItemWithTest = {
   testId: string;
   sortOrder: number;
   comment: string | null;
-  test: Pick<ClinicalTest, "id" | "title" | "testType" | "isArchived" | "bodyRegionId" | "bodyRegionIds"> & {
+  test: Pick<
+    ClinicalTest,
+    'id' | 'title' | 'testType' | 'isArchived' | 'bodyRegionId' | 'bodyRegionIds'
+  > & {
     /** Первое медиа по `sort_order` для превью в редакторе набора. */
     previewMedia: ClinicalTestMediaItem | null;
   };
 };
 
 /** Фильтр по архиву в списке наборов: активные (по умолчанию), все, только архив. */
-export type TestSetArchiveScope = "active" | "all" | "archived";
+export type TestSetArchiveScope = 'active' | 'all' | 'archived';
 
 /** Ось публикации в списке наборов тестов. */
-export type TestSetPublicationScope = "all" | "draft" | "published";
+export type TestSetPublicationScope = 'all' | 'draft' | 'published';
 
 export type TestSetFilter = {
   /** @deprecated Используйте {@link archiveScope}: `includeArchived: true` эквивалентно `archiveScope: "all"`. */
@@ -131,9 +134,9 @@ export const CLINICAL_TEST_USAGE_DETAIL_LIMIT = 12;
 
 /** Одна ссылка «где используется» для клинического теста. */
 export type ClinicalTestUsageRef =
-  | { kind: "test_set"; id: string; title: string }
-  | { kind: "treatment_program_template"; id: string; title: string }
-  | { kind: "treatment_program_instance"; id: string; title: string; patientUserId: string };
+  | { kind: 'test_set'; id: string; title: string }
+  | { kind: 'treatment_program_template'; id: string; title: string }
+  | { kind: 'treatment_program_instance'; id: string; title: string; patientUserId: string };
 
 /** Read-only сводка для блока «где используется» и guard архивации. */
 export type ClinicalTestUsageSnapshot = {
@@ -193,8 +196,8 @@ export type ArchiveClinicalTestOptions = {
 export const TEST_SET_USAGE_DETAIL_LIMIT = 12;
 
 export type TestSetUsageRef =
-  | { kind: "treatment_program_template"; id: string; title: string }
-  | { kind: "treatment_program_instance"; id: string; title: string; patientUserId: string };
+  | { kind: 'treatment_program_template'; id: string; title: string }
+  | { kind: 'treatment_program_instance'; id: string; title: string; patientUserId: string };
 
 export type TestSetUsageSnapshot = {
   publishedTreatmentProgramTemplateCount: number;
@@ -233,4 +236,3 @@ export function testSetArchiveRequiresAcknowledgement(u: TestSetUsageSnapshot): 
 export type ArchiveTestSetOptions = {
   acknowledgeUsageWarning?: boolean;
 };
-

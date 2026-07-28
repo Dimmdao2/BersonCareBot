@@ -1,14 +1,14 @@
-"use client";
+'use client';
 
-import DOMPurify from "isomorphic-dompurify";
-import { useRouter } from "next/navigation";
-import { Button } from "@/shared/ui/patient/primitives/button";
-import { cn } from "@/lib/utils";
-import { routePaths } from "@/app-layer/routes/paths";
-import type { InPersonServiceListItem } from "@/modules/patient-booking/inPersonServicesCatalog";
-import { MarkdownContent } from "@/shared/ui/patient/markdown/MarkdownContent";
-import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
-import { bookingChoiceRowClass, bookingChoiceSectionClass } from "../bookingChoiceStyles";
+import DOMPurify from 'isomorphic-dompurify';
+import { useRouter } from 'next/navigation';
+import { Button } from '@/shared/ui/patient/primitives/button';
+import { cn } from '@/lib/utils';
+import { routePaths } from '@/app-layer/routes/paths';
+import type { InPersonServiceListItem } from '@/modules/patient-booking/inPersonServicesCatalog';
+import { MarkdownContent } from '@/shared/ui/patient/markdown/MarkdownContent';
+import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import { bookingChoiceRowClass, bookingChoiceSectionClass } from '../bookingChoiceStyles';
 
 function looksLikeHtmlMarkup(s: string): boolean {
   return /<[a-z][\s\S]*>/i.test(s.trim());
@@ -20,22 +20,22 @@ function BookingServiceDescription({ text }: { text: string }) {
   if (!trimmed) return null;
 
   const inheritedDescWrap = cn(
-    "mt-1 w-full min-w-0 font-normal text-sm leading-snug text-[var(--patient-text-secondary,#475569)] transition-colors",
-    "group-hover:text-[#eee] group-active:text-[#eee] group-focus-visible:text-[#eee]",
-    "group-hover:[&_.markdown-preview]:!text-[#eee] group-focus-visible:[&_.markdown-preview]:!text-[#eee] group-active:[&_.markdown-preview]:!text-[#eee]",
-    "group-hover:[&_*]:!text-[#eee] group-focus-visible:[&_*]:!text-[#eee] group-active:[&_*]:!text-[#eee]",
-    "[&_a]:underline",
+    'mt-1 w-full min-w-0 font-normal text-sm leading-snug text-[var(--patient-text-secondary,#475569)] transition-colors',
+    'group-hover:text-[#eee] group-active:text-[#eee] group-focus-visible:text-[#eee]',
+    'group-hover:[&_.markdown-preview]:!text-[#eee] group-focus-visible:[&_.markdown-preview]:!text-[#eee] group-active:[&_.markdown-preview]:!text-[#eee]',
+    'group-hover:[&_*]:!text-[#eee] group-focus-visible:[&_*]:!text-[#eee] group-active:[&_*]:!text-[#eee]',
+    '[&_a]:underline',
   );
 
   const richContentClass = cn(
-    "[&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1 [&_li]:my-0.5 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5",
+    '[&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1 [&_li]:my-0.5 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5',
   );
 
   if (looksLikeHtmlMarkup(trimmed)) {
     const safe = DOMPurify.sanitize(trimmed, { USE_PROFILES: { html: true } });
     return (
       <div
-        className={cn(inheritedDescWrap, richContentClass, "[&_*]:text-current")}
+        className={cn(inheritedDescWrap, richContentClass, '[&_*]:text-current')}
         dangerouslySetInnerHTML={{ __html: safe }}
       />
     );
@@ -47,7 +47,7 @@ function BookingServiceDescription({ text }: { text: string }) {
         text={trimmed}
         bodyFormat="markdown"
         className={cn(
-          "markdown-preview !m-0 border-0 bg-transparent !p-0 !text-current shadow-none [&_*]:!text-current",
+          'markdown-preview !m-0 border-0 bg-transparent !p-0 !text-current shadow-none [&_*]:!text-current',
           richContentClass,
         )}
       />
@@ -103,7 +103,7 @@ export function ServiceStepClient({
                 variant="ghost"
                 className={cn(
                   bookingChoiceRowClass,
-                  "min-h-0 flex-col items-stretch justify-start gap-1 py-3 text-left font-normal",
+                  'min-h-0 flex-col items-stretch justify-start gap-1 py-3 text-left font-normal',
                 )}
                 onClick={() =>
                   router.push(
@@ -113,9 +113,9 @@ export function ServiceStepClient({
                       `&branchId=${encodeURIComponent(branchId)}` +
                       `&serviceId=${encodeURIComponent(s.id)}` +
                       `&serviceTitle=${encodeURIComponent(title)}` +
-                      (dur != null ? `&durationMinutes=${encodeURIComponent(String(dur))}` : "") +
+                      (dur != null ? `&durationMinutes=${encodeURIComponent(String(dur))}` : '') +
                       `&priceMinor=${encodeURIComponent(String(s.priceMinor))}` +
-                      (orgSlug ? `&orgSlug=${encodeURIComponent(orgSlug)}` : ""),
+                      (orgSlug ? `&orgSlug=${encodeURIComponent(orgSlug)}` : ''),
                   )
                 }
               >

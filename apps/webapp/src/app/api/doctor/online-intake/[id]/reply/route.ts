@@ -4,15 +4,15 @@
  * Sends a free-text reply to the patient's support chat conversation.
  * If the intake is still "new", auto-transitions to "in_review".
  */
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { getOnlineIntakeService } from "@/app-layer/di/onlineIntakeDeps";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
-import { logger, serializeError } from "@/infra/logging/logger";
-import { formatDoctorFio } from "@/shared/lib/fio";
-import { selectPersonalChatSenderDisplayName } from "@/modules/messaging/notifyPatientDoctorReply";
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { getOnlineIntakeService } from '@/app-layer/di/onlineIntakeDeps';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { logger, serializeError } from '@/infra/logging/logger';
+import { formatDoctorFio } from '@/shared/lib/fio';
+import { selectPersonalChatSenderDisplayName } from '@/modules/messaging/notifyPatientDoctorReply';
 
 const bodySchema = z.object({
   text: z.string().min(1).max(4000),
@@ -25,14 +25,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const raw = await request.json().catch(() => null);
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "validation_error" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: 'validation_error' }, { status: 400 });
   }
 
   const { id } = await params;
   const intakeService = getOnlineIntakeService();
-  const intake = await withDoctorWorkspacePrincipal(gate.ctx, () => intakeService.getRequestForDoctor(id));
+  const intake = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    intakeService.getRequestForDoctor(id),
+  );
   if (!intake || intake.organizationId !== gate.ctx.organizationId) {
-    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
 
   const deps = buildAppDeps();
@@ -41,7 +43,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     gate.ctx.organizationId,
   );
   if (!identity) {
-    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
 
   const { conversationId } = await withDoctorWorkspacePrincipal(gate.ctx, () =>
@@ -70,18 +72,21 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // Auto-advance "new" → "in_review" on first reply.
   // Best-effort: если переход упадёт — сообщение уже ушло пациенту, поэтому
   // логируем ошибку и возвращаем ok:true. Врач может поменять статус вручную.
-  if (intake.status === "new") {
+  if (intake.status === 'new') {
     try {
       await withDoctorWorkspacePrincipal(gate.ctx, () =>
         intakeService.changeStatus({
           requestId: id,
           changedBy: gate.ctx.session.user.userId,
-          toStatus: "in_review",
-          note: "Автоматически при первом ответе",
+          toStatus: 'in_review',
+          note: 'Автоматически при первом ответе',
         }),
       );
     } catch (err) {
-      logger.error({ err: serializeError(err) }, "[reply-route] auto-transition new→in_review failed");
+      logger.error(
+        { err: serializeError(err) },
+        '[reply-route] auto-transition new→in_review failed',
+      );
     }
   }
 

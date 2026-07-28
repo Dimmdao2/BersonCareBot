@@ -1,45 +1,45 @@
 /** @vitest-environment jsdom */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { SlotStepClient } from "./SlotStepClient";
-import { routePaths } from "@/app-layer/routes/paths";
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { SlotStepClient } from './SlotStepClient';
+import { routePaths } from '@/app-layer/routes/paths';
 
 const push = vi.fn();
 
-vi.mock("next/navigation", () => ({
+vi.mock('next/navigation', () => ({
   useRouter: () => ({ push, replace: vi.fn(), refresh: vi.fn(), prefetch: vi.fn() }),
 }));
 
-const slotA = { startAt: "2026-04-10T10:00:00.000Z", endAt: "2026-04-10T11:00:00.000Z" };
-const slotB = { startAt: "2026-05-05T10:00:00.000Z", endAt: "2026-05-05T11:00:00.000Z" };
+const slotA = { startAt: '2026-04-10T10:00:00.000Z', endAt: '2026-04-10T11:00:00.000Z' };
+const slotB = { startAt: '2026-05-05T10:00:00.000Z', endAt: '2026-05-05T11:00:00.000Z' };
 
-let availableDatesMock: string[] = ["2026-04-10"];
-let slotsByDateMock: Record<string, typeof slotA[]> = { "2026-04-10": [slotA] };
+let availableDatesMock: string[] = ['2026-04-10'];
+let slotsByDateMock: Record<string, (typeof slotA)[]> = { '2026-04-10': [slotA] };
 let selectionSeenBySlotsHook: unknown;
 
-vi.mock("../../cabinet/useBookingSlots", () => ({
+vi.mock('../../cabinet/useBookingSlots', () => ({
   useBookingSlots: (selection: unknown) => {
     selectionSeenBySlotsHook = selection;
-    return ({
-    loading: false,
-    error: null,
-    data: [],
-    availableDates: availableDatesMock,
-    slotsForDate: (d: string | null) => (d ? (slotsByDateMock[d] ?? []) : []),
-    reload: vi.fn(),
-    });
+    return {
+      loading: false,
+      error: null,
+      data: [],
+      availableDates: availableDatesMock,
+      slotsForDate: (d: string | null) => (d ? (slotsByDateMock[d] ?? []) : []),
+      reload: vi.fn(),
+    };
   },
 }));
 
-describe("SlotStepClient", () => {
+describe('SlotStepClient', () => {
   beforeEach(() => {
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(new Date("2026-04-01T09:00:00.000Z"));
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-04-01T09:00:00.000Z'));
     push.mockClear();
-    availableDatesMock = ["2026-04-10"];
-    slotsByDateMock = { "2026-04-10": [slotA] };
+    availableDatesMock = ['2026-04-10'];
+    slotsByDateMock = { '2026-04-10': [slotA] };
     selectionSeenBySlotsHook = undefined;
   });
 
@@ -47,7 +47,7 @@ describe("SlotStepClient", () => {
     vi.useRealTimers();
   });
 
-  it("keeps «Продолжить» disabled until a slot is selected", async () => {
+  it('keeps «Продолжить» disabled until a slot is selected', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     render(
       <SlotStepClient
@@ -62,14 +62,14 @@ describe("SlotStepClient", () => {
       />,
     );
 
-    const go = screen.getByRole("button", { name: "Продолжить" });
+    const go = screen.getByRole('button', { name: 'Продолжить' });
     expect(go).toBeDisabled();
 
-    await user.click(screen.getByRole("button", { name: /\d{2}:\d{2}\s*-\s*\d{2}:\d{2}/ }));
+    await user.click(screen.getByRole('button', { name: /\d{2}:\d{2}\s*-\s*\d{2}:\d{2}/ }));
     expect(go).not.toBeDisabled();
   });
 
-  it("navigates to confirm with date, slot and slotEnd in the query", async () => {
+  it('navigates to confirm with date, slot and slotEnd in the query', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     render(
       <SlotStepClient
@@ -84,22 +84,22 @@ describe("SlotStepClient", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /\d{2}:\d{2}\s*-\s*\d{2}:\d{2}/ }));
-    await user.click(screen.getByRole("button", { name: "Продолжить" }));
+    await user.click(screen.getByRole('button', { name: /\d{2}:\d{2}\s*-\s*\d{2}:\d{2}/ }));
+    await user.click(screen.getByRole('button', { name: 'Продолжить' }));
 
     expect(push).toHaveBeenCalledTimes(1);
     const url = String(push.mock.calls[0][0]);
     expect(url.startsWith(`${routePaths.bookingNewConfirm}?`)).toBe(true);
-    expect(url).toContain("date=2026-04-10");
+    expect(url).toContain('date=2026-04-10');
     expect(url).toContain(`slot=${encodeURIComponent(slotA.startAt)}`);
     expect(url).toContain(`slotEnd=${encodeURIComponent(slotA.endAt)}`);
-    expect(url).toContain("type=in_person");
-    expect(url).toContain("cityCode=msk");
-    expect(url).toContain("branchId=");
-    expect(url).toContain("serviceId=");
+    expect(url).toContain('type=in_person');
+    expect(url).toContain('cityCode=msk');
+    expect(url).toContain('branchId=');
+    expect(url).toContain('serviceId=');
   });
 
-  it("keeps the public organization slug in slots and confirmation continuity", async () => {
+  it('keeps the public organization slug in slots and confirmation continuity', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     render(
       <SlotStepClient
@@ -115,20 +115,20 @@ describe("SlotStepClient", () => {
       />,
     );
 
-    expect(selectionSeenBySlotsHook).toMatchObject({ orgSlug: "clinic-a" });
-    await user.click(screen.getByRole("button", { name: /\d{2}:\d{2}\s*-\s*\d{2}:\d{2}/ }));
-    await user.click(screen.getByRole("button", { name: "Продолжить" }));
-    expect(String(push.mock.calls[0]?.[0])).toContain("orgSlug=clinic-a");
+    expect(selectionSeenBySlotsHook).toMatchObject({ orgSlug: 'clinic-a' });
+    await user.click(screen.getByRole('button', { name: /\d{2}:\d{2}\s*-\s*\d{2}:\d{2}/ }));
+    await user.click(screen.getByRole('button', { name: 'Продолжить' }));
+    expect(String(push.mock.calls[0]?.[0])).toContain('orgSlug=clinic-a');
   });
 
-  it("renders a monthly day grid with today marker, disabled past dates and next-month navigation by slots", async () => {
+  it('renders a monthly day grid with today marker, disabled past dates and next-month navigation by slots', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    vi.setSystemTime(new Date("2026-04-10T09:00:00.000Z"));
-    availableDatesMock = ["2026-04-09", "2026-04-10", "2026-05-05"];
+    vi.setSystemTime(new Date('2026-04-10T09:00:00.000Z'));
+    availableDatesMock = ['2026-04-09', '2026-04-10', '2026-05-05'];
     slotsByDateMock = {
-      "2026-04-09": [{ startAt: "2026-04-09T10:00:00.000Z", endAt: "2026-04-09T11:00:00.000Z" }],
-      "2026-04-10": [slotA],
-      "2026-05-05": [slotB],
+      '2026-04-09': [{ startAt: '2026-04-09T10:00:00.000Z', endAt: '2026-04-09T11:00:00.000Z' }],
+      '2026-04-10': [slotA],
+      '2026-05-05': [slotB],
     };
 
     render(
@@ -144,22 +144,23 @@ describe("SlotStepClient", () => {
       />,
     );
 
-    expect(screen.getByText("Сегодня")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /чт, 09\.04, нет доступных слотов/i })).toBeDisabled();
-    expect(screen.getByRole("button", { name: /пт, 10\.04, сегодня, есть слоты/i })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    expect(screen.getByText('Сегодня')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /чт, 09\.04, нет доступных слотов/i }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: /пт, 10\.04, сегодня, есть слоты/i }),
+    ).toHaveAttribute('aria-pressed', 'true');
 
-    await user.click(screen.getByRole("button", { name: "Следующий месяц" }));
-    expect(screen.getByRole("button", { name: /вт, 05\.05, есть слоты/i })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Следующий месяц" })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: 'Следующий месяц' }));
+    expect(screen.getByRole('button', { name: /вт, 05\.05, есть слоты/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Следующий месяц' })).toBeDisabled();
   });
 
-  it("extends only an adjacent slot and forwards the chain count to confirmation", async () => {
+  it('extends only an adjacent slot and forwards the chain count to confirmation', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    const adjacent = { startAt: "2026-04-10T11:00:00.000Z", endAt: "2026-04-10T12:00:00.000Z" };
-    slotsByDateMock = { "2026-04-10": [slotA, adjacent] };
+    const adjacent = { startAt: '2026-04-10T11:00:00.000Z', endAt: '2026-04-10T12:00:00.000Z' };
+    slotsByDateMock = { '2026-04-10': [slotA, adjacent] };
     render(
       <SlotStepClient
         type="in_person"
@@ -173,19 +174,19 @@ describe("SlotStepClient", () => {
         maxConsecutiveSlotHours={2}
       />,
     );
-    await user.click(screen.getByRole("button", { name: /13:00\s*-\s*14:00/ }));
-    await user.click(screen.getByRole("button", { name: /14:00\s*-\s*15:00/ }));
-    await user.click(screen.getByRole("button", { name: "Продолжить" }));
+    await user.click(screen.getByRole('button', { name: /13:00\s*-\s*14:00/ }));
+    await user.click(screen.getByRole('button', { name: /14:00\s*-\s*15:00/ }));
+    await user.click(screen.getByRole('button', { name: 'Продолжить' }));
 
     const url = String(push.mock.calls[0]?.[0]);
-    expect(url).toContain("slotCount=2");
+    expect(url).toContain('slotCount=2');
     expect(url).toContain(`slotEnd=${encodeURIComponent(adjacent.endAt)}`);
   });
 
-  it("does not offer an adjacent extension beyond the org duration cap", async () => {
+  it('does not offer an adjacent extension beyond the org duration cap', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    const adjacent = { startAt: "2026-04-10T11:00:00.000Z", endAt: "2026-04-10T12:00:00.000Z" };
-    slotsByDateMock = { "2026-04-10": [slotA, adjacent] };
+    const adjacent = { startAt: '2026-04-10T11:00:00.000Z', endAt: '2026-04-10T12:00:00.000Z' };
+    slotsByDateMock = { '2026-04-10': [slotA, adjacent] };
     render(
       <SlotStepClient
         type="in_person"
@@ -199,7 +200,7 @@ describe("SlotStepClient", () => {
         maxConsecutiveSlotHours={1}
       />,
     );
-    await user.click(screen.getByRole("button", { name: /13:00\s*-\s*14:00/ }));
-    expect(screen.getByRole("button", { name: /14:00\s*-\s*15:00/ })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: /13:00\s*-\s*14:00/ }));
+    expect(screen.getByRole('button', { name: /14:00\s*-\s*15:00/ })).toBeDisabled();
   });
 });

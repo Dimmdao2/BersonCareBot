@@ -1,23 +1,23 @@
-import type { TopicChannelPrefRow } from "@/modules/patient-notifications/topicChannelPrefsPort";
+import type { TopicChannelPrefRow } from '@/modules/patient-notifications/topicChannelPrefsPort';
 import {
   DOCTOR_NOTIFICATION_TOPIC_CODES,
   DOCTOR_NOTIFICATION_TOPIC_LABELS,
   type DoctorNotificationTopicCode,
-} from "./doctorNotificationTopics";
+} from './doctorNotificationTopics';
 import {
   allowedDoctorChannelsForTopic,
   type DoctorTopicChannelCode,
-} from "./doctorTopicChannelRules";
+} from './doctorTopicChannelRules';
 import {
   defaultDoctorTopicFallbackChannels,
   isDoctorTopicChannelEnabled,
-} from "./doctorTopicChannelDefaults";
+} from './doctorTopicChannelDefaults';
 
 const CHANNEL_LABEL: Record<DoctorTopicChannelCode, string> = {
-  telegram: "Telegram",
-  max: "MAX",
-  email: "Email",
-  web_push: "Push",
+  telegram: 'Telegram',
+  max: 'MAX',
+  email: 'Email',
+  web_push: 'Push',
 };
 
 export type DoctorNotificationChannelModel = {
@@ -45,7 +45,7 @@ function globalFallbackForTopic(
   topicId: DoctorNotificationTopicCode,
   globalTaskReminderChannels: readonly string[],
 ): readonly string[] {
-  if (topicId === "doctor_specialist_task_reminders") {
+  if (topicId === 'doctor_specialist_task_reminders') {
     return globalTaskReminderChannels;
   }
   return defaultDoctorTopicFallbackChannels(topicId);
@@ -66,10 +66,10 @@ export function buildDoctorNotificationTopicModels(
     const channels: DoctorNotificationChannelModel[] = [];
 
     for (const code of allowed) {
-      if (code === "telegram" && !availability.hasTelegram) continue;
-      if (code === "max" && !availability.hasMax) continue;
-      if (code === "email" && !availability.emailVerified) continue;
-      if (code === "web_push") {
+      if (code === 'telegram' && !availability.hasTelegram) continue;
+      if (code === 'max' && !availability.hasMax) continue;
+      if (code === 'email' && !availability.emailVerified) continue;
+      if (code === 'web_push') {
         channels.push({
           code,
           label: CHANNEL_LABEL[code],

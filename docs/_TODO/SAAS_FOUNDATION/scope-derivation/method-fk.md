@@ -9,17 +9,17 @@
 1. Pulled all 185 base tables + all 312 FK constraints (deduped to **285 child→parent edges**).
 2. **Roots:** `be_organizations` (tenant root) and `platform_users` (person/patient root).
 3. **Closure rule:** a table is **SCOPE** if it transitively FK-references a SCOPE table (child of a scoped parent ⇒ scoped — e.g. `clinical_diagnosis_update → clinical_diagnosis → platform_users`). Propagation runs parent→child along FK edges until fixpoint.
-4. **Cut-set problem:** `platform_users` is a *dual* root — the patient/clinical anchor **and** the auth/identity anchor. Naïve reachability drags the whole credential/channel cluster into SCOPE. So the auth/credential/channel/notification-pref children of `platform_users` are placed in a **GLOBAL cut-set**: closure does **not** flow through them. `platform_users` itself is bucketed GLOBAL (one identity row per human), while `be_organizations` stays in SCOPE as the tenant anchor.
+4. **Cut-set problem:** `platform_users` is a _dual_ root — the patient/clinical anchor **and** the auth/identity anchor. Naïve reachability drags the whole credential/channel cluster into SCOPE. So the auth/credential/channel/notification-pref children of `platform_users` are placed in a **GLOBAL cut-set**: closure does **not** flow through them. `platform_users` itself is bucketed GLOBAL (one identity row per human), while `be_organizations` stays in SCOPE as the tenant anchor.
 5. Tables unreached by FK (no edge to a root) classified by column/name semantics; a 2nd closure pass then pushed SCOPE through semantically-scoped parents (`reference_categories`, `patient_home_blocks`, …) to their FK children.
 
 ## Counts / completeness reconciliation
 
-| Bucket | Count |
-|---|---|
-| SCOPE | **128** |
-| GLOBAL | **32** |
-| TELEMETRY | **17** |
-| LEGACY | **8** |
+| Bucket    | Count                                          |
+| --------- | ---------------------------------------------- |
+| SCOPE     | **128**                                        |
+| GLOBAL    | **32**                                         |
+| TELEMETRY | **17**                                         |
+| LEGACY    | **8**                                          |
 | **TOTAL** | **185** ✅ (= 185 base tables; 0 unclassified) |
 
 `128 + 32 + 17 + 8 = 185`. Every table assigned exactly one bucket.
@@ -31,6 +31,7 @@
 Reason = shortest FK path to a root (`→ be_organizations` = tenant; `→ platform_users` = patient/person). Tables without an explicit FK path are marked `[col]` (scoped by an enforced-elsewhere column) or `[BORDERLINE]`.
 
 ### `be_*` booking engine — tenant-scoped (all FK → `be_organizations`)
+
 - `be_organizations` — tenant root (anchor; every scoped `be_*` row keys to it)
 - `be_appointments` → be_organizations
 - `be_appointment_cancellations` → be_organizations
@@ -78,6 +79,7 @@ Reason = shortest FK path to a root (`→ be_organizations` = tenant; `→ platf
 - `patient_merge_candidates` → be_organizations (also → platform_users; merge dedup within a tenant)
 
 ### Clinical record — per-patient (FK → `platform_users`)
+
 - `clinical_visit` → platform_users
 - `clinical_complaint` → platform_users
 - `clinical_complaint_update` → clinical_complaint → platform_users
@@ -94,6 +96,7 @@ Reason = shortest FK path to a root (`→ be_organizations` = tenant; `→ platf
 - `clinical_test_regions` → tests → platform_users (body-region tags on a clinical test)
 
 ### LFK / exercise complexes — authored-by/assigned-to a person (FK → `platform_users`)
+
 - `lfk_exercises` → platform_users (`created_by`/owner)
 - `lfk_exercise_media` → lfk_exercises → platform_users
 - `lfk_exercise_regions` → lfk_exercises → platform_users
@@ -105,6 +108,7 @@ Reason = shortest FK path to a root (`→ be_organizations` = tenant; `→ platf
 - `patient_lfk_assignments` → platform_users
 
 ### Treatment programs — per-patient instances + authored templates (FK → `platform_users`)
+
 - `treatment_program_instances` → platform_users
 - `treatment_program_instance_stages` → treatment_program_instances → platform_users
 - `treatment_program_instance_stage_groups` → … → treatment_program_instances → platform_users
@@ -119,6 +123,7 @@ Reason = shortest FK path to a root (`→ be_organizations` = tenant; `→ platf
 - `program_item_discussion_reads` → platform_users
 
 ### Content / courses library — staff-authored (FK → `platform_users` via template/`created_by`)
+
 - `courses` → treatment_program_templates → platform_users — **[BORDERLINE]** content library: per-tenant vs shared
 - `content_pages` → courses → treatment_program_templates → platform_users — **[BORDERLINE]** content library
 - `patient_practice_completions` → content_pages → … → platform_users (per-patient completion)
@@ -132,6 +137,7 @@ Reason = shortest FK path to a root (`→ be_organizations` = tenant; `→ platf
 - `patient_home_block_items` → patient_home_blocks (2nd-pass) — **[BORDERLINE]** inherits home blocks
 
 ### Tests / assessments — staff-authored + per-patient results (FK → `platform_users`)
+
 - `tests` → platform_users (`created_by`) — **[BORDERLINE]** content library
 - `test_sets` → platform_users (`created_by`) — **[BORDERLINE]** content library
 - `test_set_items` → test_sets → platform_users
@@ -139,12 +145,14 @@ Reason = shortest FK path to a root (`→ be_organizations` = tenant; `→ platf
 - `test_results` → platform_users (per-patient result)
 
 ### Online intake — per-patient (FK → `platform_users`)
+
 - `online_intake_requests` → platform_users
 - `online_intake_answers` → online_intake_requests → platform_users
 - `online_intake_attachments` → online_intake_requests → platform_users
 - `online_intake_status_history` → platform_users
 
 ### Support / messaging — per-patient threads (FK → `platform_users`)
+
 - `support_conversations` → platform_users
 - `support_conversation_messages` → support_conversations → platform_users
 - `support_delivery_events` → support_conversation_messages → … → platform_users — **[BORDERLINE]** delivery-log facet of a scoped message
@@ -157,6 +165,7 @@ Reason = shortest FK path to a root (`→ be_organizations` = tenant; `→ platf
 - `message_log` → platform_users (`user_id`/`platform_user_id`; per-patient message audit) — **[BORDERLINE]** delivery/channel facet
 
 ### Media — registry + per-patient/tenant assets (FK → `platform_users`)
+
 - `media_files` → platform_users (`uploaded_by`); patient files & content media hang off it
 - `media_folders` → platform_users (`created_by`/`patient_user_id`)
 - `media_transcode_jobs` → media_files → platform_users
@@ -164,11 +173,13 @@ Reason = shortest FK path to a root (`→ be_organizations` = tenant; `→ platf
 - `patient_files` → platform_users
 
 ### Reminders — per-patient rules/occurrences (FK → `platform_users`)
+
 - `reminder_rules` → platform_users (`platform_user_id`)
 - `reminder_journal` → reminder_rules → platform_users
 - `webapp_reminder_occurrences` → platform_users (`platform_user_id`)
 
 ### Patient-misc & cross-cutting scoped
+
 - `patient_payment` → platform_users
 - `patient_content_rating_feedback` → platform_users (per-patient rating) — **[BORDERLINE]** could be TELEMETRY
 - `material_ratings` → platform_users (per-patient rating) — **[BORDERLINE]** could be TELEMETRY
@@ -187,9 +198,11 @@ Reason = shortest FK path to a root (`→ be_organizations` = tenant; `→ platf
 These are direct/indirect children of `platform_users` but represent the **identity/auth/channel** facet, not per-patient clinical data. Marked the cut so SCOPE does not flow through them.
 
 ### Identity root
+
 - `platform_users` — the person identity root (one row per human; clinical data references it but it is not itself patient-scoped data)
 
 ### Passwords / pins / oauth / login tokens
+
 - `user_password_credentials` → platform_users — password creds (one per human)
 - `user_pins` → platform_users — PIN creds
 - `user_oauth_bindings` → platform_users — OAuth identity links
@@ -200,12 +213,14 @@ These are direct/indirect children of `platform_users` but represent the **ident
 - `auth_rate_limit_events` — `[col]` (`scope`,`key`) auth rate-limit log; cross-cutting auth
 
 ### Phone / OTP identity
+
 - `user_phone_history` → platform_users — phone-number history (identity)
 - `phone_challenges` — `[col]` phone OTP challenges (no FK; keyed by phone)
 - `phone_otp_locks` — `[col]` phone OTP lockout (keyed by phone)
 - `phone_messenger_bind_secrets` → platform_users — messenger-bind secrets
 
 ### Channel bindings / preferences / push
+
 - `user_channel_bindings` → platform_users — messenger channel bindings
 - `user_channel_preferences` → platform_users — per-person channel prefs
 - `user_web_push_subscriptions` → platform_users — web-push endpoints
@@ -215,6 +230,7 @@ These are direct/indirect children of `platform_users` but represent the **ident
 - `platform_user_contacts` → platform_users — contact values (phone/email per person, identity)
 
 ### Delivery / notification plumbing (channel facet, keyed by user/integrator ids)
+
 - `notification_delivery_attempts` — `[col]` per-attempt delivery log (`user_id`/`integrator_user_id`/`channel`)
 - `outgoing_delivery_queue` — `[col]` outbound delivery queue (`event_id`/`channel`)
 - `integrator_push_outbox` — `[col]` push outbox (idempotency_key/payload)
@@ -225,6 +241,7 @@ These are direct/indirect children of `platform_users` but represent the **ident
 - `user_subscriptions_webapp` — `[col]` per-user mailing-topic subscription (channel pref)
 
 ### Infra / platform-global (no tenant/patient meaning)
+
 - `schema_migrations` — `[col]` migration ledger
 - `webapp_schema_migrations` — `[col]` migration ledger
 - `idempotency_keys` — `[col]` request idempotency (cross-cutting)
@@ -237,6 +254,7 @@ These are direct/indirect children of `platform_users` but represent the **ident
 Several are keyed by `user_id` and would be **per-patient under strict FK-reachability**, but match the TELEMETRY bucket definition (analytics/event/playback). All per-patient ones are flagged borderline below.
 
 ### Product / usage analytics (per-user) — **[BORDERLINE: per-patient]**
+
 - `product_analytics_events_recent` — `[col]` raw analytics events (`user_id`)
 - `product_analytics_user_hourly` — `[col]` per-user hourly rollup (`user_id`)
 - `product_analytics_hourly` — `[col]` global hourly rollup (no user)
@@ -245,6 +263,7 @@ Several are keyed by `user_id` and would be **per-patient under strict FK-reacha
 - `patient_daily_warmup_video_views` → platform_users/content_pages — warmup video views (`user_id`) — **[BORDERLINE: per-patient]**
 
 ### Media playback telemetry
+
 - `media_playback_client_events` → media_files/platform_users — client playback events (`user_id`) — **[BORDERLINE: per-patient]**
 - `media_playback_resolution_events` → … — resolution events
 - `media_playback_user_video_first_resolve` → … — first-resolve marker (`user_id`) — **[BORDERLINE: per-patient]**
@@ -252,6 +271,7 @@ Several are keyed by `user_id` and would be **per-patient under strict FK-reacha
 - `media_hls_proxy_error_events` → … — HLS proxy error log
 
 ### Ops / integration health (non-clinical infra telemetry)
+
 - `operator_incidents` — `[col]` ops incident log
 - `operator_health_alert_sent` — `[col]` ops alert dedup log
 - `operator_health_failure_archive` — `[col]` archived ops failures
@@ -282,22 +302,22 @@ Literal per method (`patient_bookings`, `appointment_records` + children) **plus
 
 Tables where FK-reachability and the bucket definitions disagree, or where global-vs-tenant is a product decision:
 
-| Table | Assigned | Tension |
-|---|---|---|
-| `content_sections`, `content_pages`, `courses`, `recommendations`, `tests`, `test_sets` | SCOPE | Content **library** authored by staff (`created_by`): per-tenant content vs one shared global catalog. If shared → GLOBAL. |
-| `content_section_slug_history`, `patient_home_blocks`, `patient_home_block_items`, `motivational_quotes` | SCOPE | Content/config; same global-vs-tenant question as above. |
-| `clinical_diagnosis_catalog` | SCOPE | Reusable diagnosis-label catalog (`created_by`): shared clinical reference vs per-tenant authored. |
-| `clinical_test_measure_kinds` | GLOBAL | Reference catalog (code/label); placed GLOBAL as platform lookup, but could be per-tenant extensible. |
-| `reference_categories`, `reference_items` | SCOPE | Has `owner_id`+`tenant_id`; scoped — but `is_user_extensible` rows may seed a global base set. |
-| `system_settings` | SCOPE | Has a `scope` column → some keys platform-global, some per-tenant. Needs row-level split, not table-level. |
-| `admin_audit_log` | SCOPE | `actor_id` only; per-tenant admin actions vs platform-global operator log. |
-| `broadcast_audit`, `broadcast_audit_recipients` | SCOPE | Broadcast execution + recipients; per-tenant action over that tenant's patients (confirm broadcasts are tenant-scoped). |
-| `material_ratings`, `patient_content_rating_feedback` | SCOPE | Per-patient ratings — clinical-adjacent SCOPE vs engagement TELEMETRY. |
-| `message_log`, `support_delivery_events` | SCOPE | Per-patient message/delivery audit — content (SCOPE) vs channel-delivery (GLOBAL) facet. |
+| Table                                                                                                                                                                                                                                                 | Assigned  | Tension                                                                                                                                                                                                                                 |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `content_sections`, `content_pages`, `courses`, `recommendations`, `tests`, `test_sets`                                                                                                                                                               | SCOPE     | Content **library** authored by staff (`created_by`): per-tenant content vs one shared global catalog. If shared → GLOBAL.                                                                                                              |
+| `content_section_slug_history`, `patient_home_blocks`, `patient_home_block_items`, `motivational_quotes`                                                                                                                                              | SCOPE     | Content/config; same global-vs-tenant question as above.                                                                                                                                                                                |
+| `clinical_diagnosis_catalog`                                                                                                                                                                                                                          | SCOPE     | Reusable diagnosis-label catalog (`created_by`): shared clinical reference vs per-tenant authored.                                                                                                                                      |
+| `clinical_test_measure_kinds`                                                                                                                                                                                                                         | GLOBAL    | Reference catalog (code/label); placed GLOBAL as platform lookup, but could be per-tenant extensible.                                                                                                                                   |
+| `reference_categories`, `reference_items`                                                                                                                                                                                                             | SCOPE     | Has `owner_id`+`tenant_id`; scoped — but `is_user_extensible` rows may seed a global base set.                                                                                                                                          |
+| `system_settings`                                                                                                                                                                                                                                     | SCOPE     | Has a `scope` column → some keys platform-global, some per-tenant. Needs row-level split, not table-level.                                                                                                                              |
+| `admin_audit_log`                                                                                                                                                                                                                                     | SCOPE     | `actor_id` only; per-tenant admin actions vs platform-global operator log.                                                                                                                                                              |
+| `broadcast_audit`, `broadcast_audit_recipients`                                                                                                                                                                                                       | SCOPE     | Broadcast execution + recipients; per-tenant action over that tenant's patients (confirm broadcasts are tenant-scoped).                                                                                                                 |
+| `material_ratings`, `patient_content_rating_feedback`                                                                                                                                                                                                 | SCOPE     | Per-patient ratings — clinical-adjacent SCOPE vs engagement TELEMETRY.                                                                                                                                                                  |
+| `message_log`, `support_delivery_events`                                                                                                                                                                                                              | SCOPE     | Per-patient message/delivery audit — content (SCOPE) vs channel-delivery (GLOBAL) facet.                                                                                                                                                |
 | `product_push_notifications`, `patient_daily_warmup_presentations`, `patient_daily_warmup_video_views`, `media_playback_client_events`, `media_playback_user_video_first_resolve`, `product_analytics_events_recent`, `product_analytics_user_hourly` | TELEMETRY | All keyed by `user_id` → **per-patient**; would be SCOPE under strict FK-reachability. TELEMETRY by bucket-definition, but **leak cross-patient/cross-tenant if unscoped** — strong candidates to ALSO carry tenant/patient scope keys. |
-| `reminder_delivery_events`, `reminder_occurrence_history`, `mailing_logs_webapp`, `notification_delivery_attempts` | GLOBAL | Delivery logs keyed by `integrator_user_id`; placed with the channel/delivery cut-set, but the underlying rules (`reminder_rules`) are SCOPE. |
-| `branches`, `booking_cities`, `booking_services`, `booking_branches`, `booking_specialists`, `booking_branch_services` | LEGACY | Rubitime catalog; LEGACY by spirit, not literal `patient_bookings`/`appointment_records` children. |
-| `patient_merge_candidates` | SCOPE | FK → both `be_organizations` and `platform_users`; tenant-scoped dedup over patients (confirm tenant key is authoritative). |
+| `reminder_delivery_events`, `reminder_occurrence_history`, `mailing_logs_webapp`, `notification_delivery_attempts`                                                                                                                                    | GLOBAL    | Delivery logs keyed by `integrator_user_id`; placed with the channel/delivery cut-set, but the underlying rules (`reminder_rules`) are SCOPE.                                                                                           |
+| `branches`, `booking_cities`, `booking_services`, `booking_branches`, `booking_specialists`, `booking_branch_services`                                                                                                                                | LEGACY    | Rubitime catalog; LEGACY by spirit, not literal `patient_bookings`/`appointment_records` children.                                                                                                                                      |
+| `patient_merge_candidates`                                                                                                                                                                                                                            | SCOPE     | FK → both `be_organizations` and `platform_users`; tenant-scoped dedup over patients (confirm tenant key is authoritative).                                                                                                             |
 
 ---
 

@@ -56,8 +56,8 @@
    * JS пишет --patient-header-bar-height на :root; до гидрации — CSS-fallback.
    */
   --patient-header-total-offset: calc(
-    var(--patient-header-bar-height, var(--patient-header-bar-chrome-fallback))
-    + var(--patient-header-fade-height, 0.5rem)
+    var(--patient-header-bar-height, var(--patient-header-bar-chrome-fallback)) +
+      var(--patient-header-fade-height, 0.5rem)
   );
   /** Комфортный воздушный зазор между хромом (шапка/нав) и контентом страницы. */
   --patient-content-edge-gap: 1rem;
@@ -66,16 +66,16 @@
    * высота шапки + комфортный зазор (чтобы карточки не лезли вплотную под шапку).
    */
   --patient-content-top-pad: calc(
-    var(--patient-header-bar-height, var(--patient-header-bar-chrome-fallback))
-    + var(--patient-content-edge-gap)
+    var(--patient-header-bar-height, var(--patient-header-bar-chrome-fallback)) +
+      var(--patient-content-edge-gap)
   );
   /**
    * Нижний отступ контента: высота bottom nav + комфортный зазор над ним.
    * JS пишет --patient-bottom-nav-height на :root; до гидрации — CSS-fallback.
    */
   --patient-content-bottom-pad: calc(
-    var(--patient-bottom-nav-height, var(--patient-bottom-nav-chrome-fallback))
-    + var(--patient-bottom-nav-content-gap)
+    var(--patient-bottom-nav-height, var(--patient-bottom-nav-chrome-fallback)) +
+      var(--patient-bottom-nav-content-gap)
   );
   /**
    * Горизонтальный отступ заголовка в top chrome = ширина кнопки профиля/назад + зазор.
@@ -86,15 +86,16 @@
    * JS обновляет оба слагаемых через ResizeObserver.
    */
   --patient-shell-inner-dvh: calc(
-    100dvh
-    - var(--patient-header-total-offset)
-    - var(--patient-bottom-nav-height, var(--patient-bottom-nav-chrome-fallback))
+    100dvh - var(--patient-header-total-offset) -
+      var(--patient-bottom-nav-height, var(--patient-bottom-nav-chrome-fallback))
   );
   /**
    * То же, но ещё минус content-gap под навбаром: для чатов и списков, которым
    * нужен точный обрез без лишнего пространства.
    */
-  --patient-content-dvh: calc(var(--patient-shell-inner-dvh) - var(--patient-bottom-nav-content-gap));
+  --patient-content-dvh: calc(
+    var(--patient-shell-inner-dvh) - var(--patient-bottom-nav-content-gap)
+  );
   --patient-page-bg: #ffffff;
   --patient-card-bg: #ffffff;
   --patient-border: #e5e7eb;
@@ -192,8 +193,11 @@
  * Covers inputs/textareas inside [data-slot="dialog-content"] on mobile.
  */
 @media (max-width: 767px) {
-  [data-slot="dialog-content"] :where(
-      input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="file"]):not([type="image"]),
+  [data-slot='dialog-content']
+    :where(
+      input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='hidden']):not(
+          [type='submit']
+        ):not([type='button']):not([type='reset']):not([type='file']):not([type='image']),
       textarea,
       select
     ) {
@@ -275,7 +279,13 @@
 
 @layer base {
   :where(#app-shell-patient) :where(h1, h2, h3) {
-    font-family: var(--font-roboto-heading), var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-family:
+      var(--font-roboto-heading),
+      var(--font-sans),
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      sans-serif;
     font-weight: var(--patient-shell-heading-font-weight);
   }
 }
@@ -396,7 +406,8 @@
   height: 6px;
   border-radius: 9999px;
   background:
-    linear-gradient(to right, #22c55e, #eab308 50%, #ef4444) 0 0 / var(--lfk-progress, 0%) 100% no-repeat,
+    linear-gradient(to right, #22c55e, #eab308 50%, #ef4444) 0 0 / var(--lfk-progress, 0%) 100%
+      no-repeat,
     #e5e7eb;
 }
 .lfk-diary-range:focus-visible {
@@ -459,15 +470,23 @@
   }
 
   .safe-bleed-x {
-    margin-left: calc(-1 * max(var(--patient-shell-inline-pad, 1rem), env(safe-area-inset-left, 0px)));
-    margin-right: calc(-1 * max(var(--patient-shell-inline-pad, 1rem), env(safe-area-inset-right, 0px)));
+    margin-left: calc(
+      -1 * max(var(--patient-shell-inline-pad, 1rem), env(safe-area-inset-left, 0px))
+    );
+    margin-right: calc(
+      -1 * max(var(--patient-shell-inline-pad, 1rem), env(safe-area-inset-right, 0px))
+    );
     padding-left: max(var(--patient-shell-inline-pad, 1rem), env(safe-area-inset-left, 0px));
     padding-right: max(var(--patient-shell-inline-pad, 1rem), env(safe-area-inset-right, 0px));
   }
 
   .patient-iframe-bleed {
-    margin-left: calc(-1 * max(var(--patient-shell-inline-pad, 1rem), env(safe-area-inset-left, 0px)));
-    margin-right: calc(-1 * max(var(--patient-shell-inline-pad, 1rem), env(safe-area-inset-right, 0px)));
+    margin-left: calc(
+      -1 * max(var(--patient-shell-inline-pad, 1rem), env(safe-area-inset-left, 0px))
+    );
+    margin-right: calc(
+      -1 * max(var(--patient-shell-inline-pad, 1rem), env(safe-area-inset-right, 0px))
+    );
     width: calc(
       100% + max(var(--patient-shell-inline-pad, 1rem), env(safe-area-inset-left, 0px)) +
         max(var(--patient-shell-inline-pad, 1rem), env(safe-area-inset-right, 0px))
@@ -482,7 +501,11 @@
   }
 
   .patient-shell-top-chrome-surface {
-    background: color-mix(in srgb, var(--patient-page-bg) var(--patient-header-chrome-opacity), transparent);
+    background: color-mix(
+      in srgb,
+      var(--patient-page-bg) var(--patient-header-chrome-opacity),
+      transparent
+    );
     -webkit-backdrop-filter: blur(14px);
     backdrop-filter: blur(14px);
   }
@@ -497,7 +520,8 @@
     height: var(--patient-header-fade-height);
     background: linear-gradient(
       to bottom,
-      color-mix(in srgb, var(--patient-page-bg) var(--patient-header-chrome-opacity), transparent) 0%,
+      color-mix(in srgb, var(--patient-page-bg) var(--patient-header-chrome-opacity), transparent)
+        0%,
       transparent 100%
     );
   }
@@ -506,13 +530,13 @@
    * Patient zone portals (Dialog/Sheet render at body): scope via :has on patient shells.
    */
   @media (max-width: 767px) {
-    html:has(#app-shell-patient) [data-slot="dialog-content"],
-    html:has(#public-book-shell) [data-slot="dialog-content"] {
+    html:has(#app-shell-patient) [data-slot='dialog-content'],
+    html:has(#public-book-shell) [data-slot='dialog-content'] {
       max-width: min(calc(100% - 2rem), 430px);
     }
 
-    html:has(#app-shell-patient) [data-slot="sheet-content"][data-side="bottom"],
-    html:has(#public-book-shell) [data-slot="sheet-content"][data-side="bottom"] {
+    html:has(#app-shell-patient) [data-slot='sheet-content'][data-side='bottom'],
+    html:has(#public-book-shell) [data-slot='sheet-content'][data-side='bottom'] {
       left: 0;
       right: 0;
       margin-left: auto;
@@ -521,10 +545,10 @@
       max-width: min(100%, 430px);
     }
 
-    html:has(#app-shell-patient) [data-slot="sheet-content"][data-side="left"],
-    html:has(#app-shell-patient) [data-slot="sheet-content"][data-side="right"],
-    html:has(#public-book-shell) [data-slot="sheet-content"][data-side="left"],
-    html:has(#public-book-shell) [data-slot="sheet-content"][data-side="right"] {
+    html:has(#app-shell-patient) [data-slot='sheet-content'][data-side='left'],
+    html:has(#app-shell-patient) [data-slot='sheet-content'][data-side='right'],
+    html:has(#public-book-shell) [data-slot='sheet-content'][data-side='left'],
+    html:has(#public-book-shell) [data-slot='sheet-content'][data-side='right'] {
       width: 100%;
       max-width: min(75%, 17rem);
     }
@@ -564,20 +588,27 @@
 }
 
 @media (max-width: 767px) {
-  #app-shell-patient :where(
-      input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="file"]):not([type="image"]),
+  #app-shell-patient
+    :where(
+      input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='hidden']):not(
+          [type='submit']
+        ):not([type='button']):not([type='reset']):not([type='file']):not([type='image']),
       textarea,
       select
     ),
-  #public-book-shell :where(
-      input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="file"]):not([type="image"]),
+  #public-book-shell
+    :where(
+      input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='hidden']):not(
+          [type='submit']
+        ):not([type='button']):not([type='reset']):not([type='file']):not([type='image']),
       textarea,
       select
     ) {
     font-size: max(16px, 1em);
   }
 
-  #app-shell-patient :where(input, textarea, select):is(
+  #app-shell-patient
+    :where(input, textarea, select):is(
       .text-xs,
       .text-sm,
       .text-\[10px\],
@@ -587,7 +618,8 @@
       .text-\[14px\],
       .text-\[15px\]
     ),
-  #public-book-shell :where(input, textarea, select):is(
+  #public-book-shell
+    :where(input, textarea, select):is(
       .text-xs,
       .text-sm,
       .text-\[10px\],

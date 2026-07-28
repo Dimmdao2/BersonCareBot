@@ -3,10 +3,10 @@
  *
  * Returns aggregated intake statistics for the given rolling window.
  */
-import { NextResponse } from "next/server";
-import { getOnlineIntakeService } from "@/app-layer/di/onlineIntakeDeps";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
-import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { NextResponse } from 'next/server';
+import { getOnlineIntakeService } from '@/app-layer/di/onlineIntakeDeps';
+import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 
 const VALID_DAYS = [7, 30, 90, 365] as const;
 type ValidDays = (typeof VALID_DAYS)[number];
@@ -21,7 +21,7 @@ export async function GET(request: Request) {
   if (!gate.ok) return gate.response;
 
   const url = new URL(request.url);
-  const days = parseDays(url.searchParams.get("days"));
+  const days = parseDays(url.searchParams.get('days'));
   const service = getOnlineIntakeService();
   const stats = await withDoctorWorkspacePrincipal(gate.ctx, () => service.getDoctorStats(days));
 

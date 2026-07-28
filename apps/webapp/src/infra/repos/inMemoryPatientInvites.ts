@@ -377,10 +377,7 @@ export function createInMemoryPatientInvitesPort(): PatientInvitesPort {
       if (invite.recipientBinding !== 'unbound_email_claim') {
         return { ok: false, code: 'invalid_invite' };
       }
-      if (
-        !invite.proofVerifiedAt ||
-        invite.proofEmailNormalized !== emailNormalized
-      ) {
+      if (!invite.proofVerifiedAt || invite.proofEmailNormalized !== emailNormalized) {
         return { ok: false, code: 'unproved_identity' };
       }
       const owner = emailOwners.get(emailNormalized);

@@ -6,10 +6,10 @@ todos:
     content: Убрать compact ServiceEditor из branch-service; якорь + кнопка «К услуге» с scroll/expand
     status: completed
   - id: collapsible-editor
-    content: "ServiceEditor: свёрнут по умолчанию, «Изменить»/«Отмена», expandedServiceId из родителя"
+    content: 'ServiceEditor: свёрнут по умолчанию, «Изменить»/«Отмена», expandedServiceId из родителя'
     status: completed
   - id: create-only-form
-    content: "ServiceForm: «Создать услугу», очистка полей, RU-ошибка при дубликате"
+    content: 'ServiceForm: «Создать услугу», очистка полей, RU-ошибка при дубликате'
     status: completed
   - id: error-mapping
     content: mapBookingCatalogApiError + использование в ServiceEditor/ServiceForm
@@ -53,11 +53,13 @@ flowchart LR
 ## Scope
 
 **Разрешено:**
+
 - [`apps/webapp/src/app/app/settings/RubitimeSection.tsx`](apps/webapp/src/app/app/settings/RubitimeSection.tsx)
 - [`apps/webapp/src/app/app/settings/RubitimeSection.test.tsx`](apps/webapp/src/app/app/settings/RubitimeSection.test.tsx)
 - [`apps/webapp/src/app/app/settings/rubitimeCatalogErrors.ts`](apps/webapp/src/app/app/settings/rubitimeCatalogErrors.ts)
 
 **Вне scope:**
+
 - миграции, изменение `uq_booking_services_title_duration`, POST upsert-логики в [`pgBookingCatalog.ts`](apps/webapp/src/infra/repos/pgBookingCatalog.ts)
 - канонический `be_*` / `BookingEngineSection`
 - новые API-эндпойнты
@@ -97,6 +99,7 @@ flowchart LR
 ## Шаг 6 — Тесты
 
 **Проверки:**
+
 ```bash
 pnpm --dir apps/webapp exec vitest run \
   src/app/app/settings/RubitimeSection.test.tsx \
@@ -130,6 +133,7 @@ pnpm --dir apps/webapp exec eslint \
 ## Исполнение (2026-06-02)
 
 **Сделано:**
+
 - `RubitimeSection`: один `ServiceEditor`, якорь `rubitime-catalog-service-{id}`, «К услуге» + scroll + автофокус; `expandedServiceId` / `focusServiceId`.
 - `ServiceForm`: «Создать услугу», очистка полей, `fetch` + `mapBookingCatalogApiError(..., "create")`.
 - `rubitimeCatalogErrors.ts` + unit-тесты.

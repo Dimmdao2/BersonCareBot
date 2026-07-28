@@ -40,11 +40,11 @@ Because owner/migrator roles use `BYPASSRLS`, the SQL must be run by a superuser
 
 ## Target role classes
 
-| Role class | Login | Owns schemas/tables | RLS bypass | Used by |
-|---|---:|---:|---:|---|
-| Owner role | No | Yes | `BYPASSRLS` allowed; not a runtime login | Table/schema ownership and grant target. |
-| Migrator role | Yes, deploy-only | Member of owner where needed | `BYPASSRLS`; not used by runtime | Migrations, DDL, strict backfills, policy changes. |
-| App runtime role | Yes | No | **Must be `NOBYPASSRLS`** | webapp, integrator API, worker, scheduler, media-worker after cutover. |
+| Role class       |            Login |          Owns schemas/tables |                               RLS bypass | Used by                                                                |
+| ---------------- | ---------------: | ---------------------------: | ---------------------------------------: | ---------------------------------------------------------------------- |
+| Owner role       |               No |                          Yes | `BYPASSRLS` allowed; not a runtime login | Table/schema ownership and grant target.                               |
+| Migrator role    | Yes, deploy-only | Member of owner where needed |         `BYPASSRLS`; not used by runtime | Migrations, DDL, strict backfills, policy changes.                     |
+| App runtime role |              Yes |                           No |                **Must be `NOBYPASSRLS`** | webapp, integrator API, worker, scheduler, media-worker after cutover. |
 
 ## Invariants
 

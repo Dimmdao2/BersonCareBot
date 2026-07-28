@@ -1,1 +1,1 @@
-export { isChannelLinkStartRateLimited } from "@/modules/auth/authRateLimits";
+export { isChannelLinkStartRateLimited } from '@/modules/auth/authRateLimits';

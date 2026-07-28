@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { isStandalonePwa } from "@/shared/lib/webPush/pwaDisplay";
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { isStandalonePwa } from '@/shared/lib/webPush/pwaDisplay';
 
 export function StandaloneRootRedirect(): null {
   const router = useRouter();
@@ -12,13 +12,12 @@ export function StandaloneRootRedirect(): null {
       return;
     }
 
-    if (window.location.pathname !== "/") {
+    if (window.location.pathname !== '/') {
       return;
     }
 
-    router.replace("/app/patient");
+    router.replace('/app/patient');
   }, [router]);
 
   return null;
 }
-

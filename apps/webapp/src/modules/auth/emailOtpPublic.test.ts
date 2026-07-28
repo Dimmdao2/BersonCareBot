@@ -1,10 +1,14 @@
-import { randomUUID } from "node:crypto";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { bindEmailSendPort } from "./emailSendPort";
-import { hashEmailChallengeCode, resetEmailAuthMemStateForTests } from "./emailAuth";
-import { startPublicEmailOtpChallenge, startPublicEmailOtpRegistration, confirmPublicEmailOtpChallenge } from "./emailOtpPublic";
-import type { EmailOtpPublicDbPort } from "./emailOtpPublicPort";
-import { OTP_RESEND_COOLDOWN_SEC } from "./otpConstants";
+import { randomUUID } from 'node:crypto';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { bindEmailSendPort } from './emailSendPort';
+import { hashEmailChallengeCode, resetEmailAuthMemStateForTests } from './emailAuth';
+import {
+  startPublicEmailOtpChallenge,
+  startPublicEmailOtpRegistration,
+  confirmPublicEmailOtpChallenge,
+} from './emailOtpPublic';
+import type { EmailOtpPublicDbPort } from './emailOtpPublicPort';
+import { OTP_RESEND_COOLDOWN_SEC } from './otpConstants';
 
 const sendEmailCodeMock = vi.fn();
 
@@ -33,7 +37,7 @@ function makeInMemDb(overrides?: Partial<EmailOtpPublicDbPort>): EmailOtpPublicD
       return { ok: true as const, userId, wasCreated: true };
     },
     async consumeLatestEmailChallenge() {
-      return { ok: false as const, code: "expired_code" as const };
+      return { ok: false as const, code: 'expired_code' as const };
     },
     async findEmailSendCooldownByEmail(emailNorm) {
       return cooldowns.get(emailNorm) ?? null;
@@ -42,7 +46,7 @@ function makeInMemDb(overrides?: Partial<EmailOtpPublicDbPort>): EmailOtpPublicD
   };
 }
 
-describe("startPublicEmailOtpChallenge", () => {
+describe('startPublicEmailOtpChallenge', () => {
   beforeEach(() => {
     sendEmailCodeMock.mockReset();
     sendEmailCodeMock.mockResolvedValue({ ok: true });
@@ -50,66 +54,66 @@ describe("startPublicEmailOtpChallenge", () => {
     resetEmailAuthMemStateForTests();
   });
 
-  it("rejects invalid email format", async () => {
+  it('rejects invalid email format', async () => {
     const db = makeInMemDb();
-    const r = await startPublicEmailOtpChallenge("not-an-email", db);
+    const r = await startPublicEmailOtpChallenge('not-an-email', db);
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.code).toBe("invalid_email");
+    if (!r.ok) expect(r.code).toBe('invalid_email');
     expect(sendEmailCodeMock).not.toHaveBeenCalled();
   });
 
-  it("returns a generic success for an unknown login email without creating an identity or sending", async () => {
+  it('returns a generic success for an unknown login email without creating an identity or sending', async () => {
     const db = makeInMemDb();
-    const r = await startPublicEmailOtpChallenge("test@example.com", db);
+    const r = await startPublicEmailOtpChallenge('test@example.com', db);
     expect(r.ok).toBe(true);
     expect(sendEmailCodeMock).not.toHaveBeenCalled();
   });
 
-  it("rejects when email is rate-limited (within cooldown window)", async () => {
+  it('rejects when email is rate-limited (within cooldown window)', async () => {
     const now = new Date();
     const db = makeInMemDb({
       async findEmailSendCooldownByEmail() {
         return now; // just sent — within cooldown window
       },
     });
-    const r = await startPublicEmailOtpChallenge("test@example.com", db);
+    const r = await startPublicEmailOtpChallenge('test@example.com', db);
     expect(r.ok).toBe(false);
     if (!r.ok) {
-      expect(r.code).toBe("rate_limited");
+      expect(r.code).toBe('rate_limited');
       expect(r.retryAfterSeconds).toBeGreaterThan(0);
     }
     expect(sendEmailCodeMock).not.toHaveBeenCalled();
   });
 
-  it("sends a code only for a known login email", async () => {
+  it('sends a code only for a known login email', async () => {
     const existingUserId = randomUUID();
     const findMock = vi.fn(async (_emailNorm: string) => ({ userId: existingUserId }));
     const db = makeInMemDb({ findPublicEmailUser: findMock });
 
-    const r = await startPublicEmailOtpChallenge("existing@example.com", db);
+    const r = await startPublicEmailOtpChallenge('existing@example.com', db);
     expect(r.ok).toBe(true);
     expect(findMock).toHaveBeenCalledTimes(1);
     expect(sendEmailCodeMock).toHaveBeenCalledTimes(1);
   });
 
-  it("normalizes email before processing", async () => {
+  it('normalizes email before processing', async () => {
     const db = makeInMemDb({ findPublicEmailUser: async () => ({ userId: randomUUID() }) });
-    const r = await startPublicEmailOtpChallenge("  User@EXAMPLE.COM  ", db);
+    const r = await startPublicEmailOtpChallenge('  User@EXAMPLE.COM  ', db);
     expect(r.ok).toBe(true);
     // sendEmailAuthCode receives normalized email
-    expect(sendEmailCodeMock).toHaveBeenCalledWith("user@example.com", expect.any(String));
+    expect(sendEmailCodeMock).toHaveBeenCalledWith('user@example.com', expect.any(String));
   });
 
-  it("returns email_send_failed when email send fails", async () => {
-    sendEmailCodeMock.mockResolvedValueOnce({ ok: false, error: "smtp_error" });
+  it('returns email_send_failed when email send fails', async () => {
+    sendEmailCodeMock.mockResolvedValueOnce({ ok: false, error: 'smtp_error' });
     const db = makeInMemDb({ findPublicEmailUser: async () => ({ userId: randomUUID() }) });
-    const r = await startPublicEmailOtpChallenge("test@example.com", db);
+    const r = await startPublicEmailOtpChallenge('test@example.com', db);
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.code).toBe("email_send_failed");
+    if (!r.ok) expect(r.code).toBe('email_send_failed');
   });
 });
 
-describe("confirmPublicEmailOtpChallenge", () => {
+describe('confirmPublicEmailOtpChallenge', () => {
   beforeEach(() => {
     sendEmailCodeMock.mockReset();
     sendEmailCodeMock.mockResolvedValue({ ok: true });
@@ -117,28 +121,28 @@ describe("confirmPublicEmailOtpChallenge", () => {
     resetEmailAuthMemStateForTests();
   });
 
-  it("returns expired_code when no challenge exists for email", async () => {
+  it('returns expired_code when no challenge exists for email', async () => {
     const db = makeInMemDb();
-    const r = await confirmPublicEmailOtpChallenge("test@example.com", "123456", db);
+    const r = await confirmPublicEmailOtpChallenge('test@example.com', '123456', db);
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.code).toBe("expired_code");
+    if (!r.ok) expect(r.code).toBe('expired_code');
   });
 
-  it("returns invalid_code for empty code", async () => {
+  it('returns invalid_code for empty code', async () => {
     const db = makeInMemDb();
-    const r = await confirmPublicEmailOtpChallenge("test@example.com", "", db);
+    const r = await confirmPublicEmailOtpChallenge('test@example.com', '', db);
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.code).toBe("invalid_code");
+    if (!r.ok) expect(r.code).toBe('invalid_code');
   });
 
-  it("passes only the shared code hash to the atomic consume port and preserves one-shot results", async () => {
+  it('passes only the shared code hash to the atomic consume port and preserves one-shot results', async () => {
     const userId = randomUUID();
     const consumeLatestEmailChallenge = vi.fn(async (_email: string, codeHash: string) => {
-      if (codeHash !== hashEmailChallengeCode("123456")) {
-        return { ok: false as const, code: "invalid_code" as const };
+      if (codeHash !== hashEmailChallengeCode('123456')) {
+        return { ok: false as const, code: 'invalid_code' as const };
       }
       if (consumeLatestEmailChallenge.mock.calls.length > 1) {
-        return { ok: false as const, code: "expired_code" as const };
+        return { ok: false as const, code: 'expired_code' as const };
       }
       return { ok: true as const, userId };
     });
@@ -146,18 +150,21 @@ describe("confirmPublicEmailOtpChallenge", () => {
       consumeLatestEmailChallenge,
     });
 
-    const first = await confirmPublicEmailOtpChallenge(" Replay@Example.com ", " 123456 ", db);
+    const first = await confirmPublicEmailOtpChallenge(' Replay@Example.com ', ' 123456 ', db);
     expect(first.ok).toBe(true);
     if (first.ok) expect(first.userId).toBe(userId);
-    expect(consumeLatestEmailChallenge).toHaveBeenCalledWith("replay@example.com", hashEmailChallengeCode("123456"));
+    expect(consumeLatestEmailChallenge).toHaveBeenCalledWith(
+      'replay@example.com',
+      hashEmailChallengeCode('123456'),
+    );
 
-    const replay = await confirmPublicEmailOtpChallenge("replay@example.com", "123456", db);
+    const replay = await confirmPublicEmailOtpChallenge('replay@example.com', '123456', db);
     expect(replay.ok).toBe(false);
-    if (!replay.ok) expect(replay.code).toBe("expired_code");
+    if (!replay.ok) expect(replay.code).toBe('expired_code');
   });
 });
 
-describe("startPublicEmailOtpRegistration", () => {
+describe('startPublicEmailOtpRegistration', () => {
   beforeEach(() => {
     sendEmailCodeMock.mockReset();
     sendEmailCodeMock.mockResolvedValue({ ok: true });
@@ -165,32 +172,40 @@ describe("startPublicEmailOtpRegistration", () => {
     resetEmailAuthMemStateForTests();
   });
 
-  it("normalizes FIO, derives registration delivery, and keeps optional patronymic null", async () => {
+  it('normalizes FIO, derives registration delivery, and keeps optional patronymic null', async () => {
     const registerPublicEmailPatient = vi.fn(async (input: { patronymic: string | null }) => {
-      expect(input).toMatchObject({ emailNormalized: "patient@example.com", lastName: "Иванов", firstName: "Иван", patronymic: null });
+      expect(input).toMatchObject({
+        emailNormalized: 'patient@example.com',
+        lastName: 'Иванов',
+        firstName: 'Иван',
+        patronymic: null,
+      });
       return { ok: true as const, userId: randomUUID(), wasCreated: true };
     });
     const db = makeInMemDb({ registerPublicEmailPatient });
-    const result = await startPublicEmailOtpRegistration({ email: " Patient@Example.com ", lastName: " иванов ", firstName: "иван", patronymic: " " }, db);
+    const result = await startPublicEmailOtpRegistration(
+      { email: ' Patient@Example.com ', lastName: ' иванов ', firstName: 'иван', patronymic: ' ' },
+      db,
+    );
     expect(result.ok).toBe(true);
     expect(sendEmailCodeMock).toHaveBeenCalledTimes(1);
   });
 
-  it("retries after a delivery failure without requiring FIO again", async () => {
+  it('retries after a delivery failure without requiring FIO again', async () => {
     sendEmailCodeMock
-      .mockResolvedValueOnce({ ok: false, error: "smtp" })
+      .mockResolvedValueOnce({ ok: false, error: 'smtp' })
       .mockResolvedValueOnce({ ok: true });
     const db = makeInMemDb();
 
     const first = await startPublicEmailOtpRegistration(
-      { email: "patient@example.com", lastName: "Иванов", firstName: "Иван" },
+      { email: 'patient@example.com', lastName: 'Иванов', firstName: 'Иван' },
       db,
     );
-    expect(first).toMatchObject({ ok: false, code: "email_send_failed" });
+    expect(first).toMatchObject({ ok: false, code: 'email_send_failed' });
 
     // A normal email-only retry can now find the pending identity created above. The person is not
     // asked for FIO a second time, and the second delivery attempt reaches the mail port.
-    const retry = await startPublicEmailOtpChallenge("patient@example.com", db);
+    const retry = await startPublicEmailOtpChallenge('patient@example.com', db);
     expect(retry.ok).toBe(true);
     expect(sendEmailCodeMock).toHaveBeenCalledTimes(2);
   });

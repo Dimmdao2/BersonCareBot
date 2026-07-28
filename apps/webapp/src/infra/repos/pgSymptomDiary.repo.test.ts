@@ -1,56 +1,56 @@
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { runWebappPgTextMock } = vi.hoisted(() => ({
   runWebappPgTextMock: vi.fn(),
 }));
 const getCurrentDbPrincipalOrganizationIdMock = vi.hoisted(() => vi.fn<() => string | undefined>());
 
-vi.mock("@/infra/db/runWebappSql", () => ({
+vi.mock('@/infra/db/runWebappSql', () => ({
   runWebappPgText: (...args: unknown[]) => runWebappPgTextMock(...args),
 }));
 
-vi.mock("@bersoncare/db-principal", () => ({
+vi.mock('@bersoncare/db-principal', () => ({
   getCurrentDbPrincipalOrganizationId: getCurrentDbPrincipalOrganizationIdMock,
 }));
 
-import { pgSymptomDiaryPort } from "./pgSymptomDiary";
+import { pgSymptomDiaryPort } from './pgSymptomDiary';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const uid = "550e8400-e29b-41d4-a716-446655440000";
+const uid = '550e8400-e29b-41d4-a716-446655440000';
 
-describe("pgSymptomDiary (runtime constraints)", () => {
-  it("uses runWebappPgText only — no getPool / pool.query / client.query", () => {
-    const src = readFileSync(join(__dirname, "pgSymptomDiary.ts"), "utf8");
+describe('pgSymptomDiary (runtime constraints)', () => {
+  it('uses runWebappPgText only — no getPool / pool.query / client.query', () => {
+    const src = readFileSync(join(__dirname, 'pgSymptomDiary.ts'), 'utf8');
     expect(src).not.toMatch(/\bgetPool\b/);
     expect(src).not.toMatch(/\bpool\.query\b/);
     expect(src).not.toMatch(/\bclient\.query\b/);
-    expect(src).toContain("runWebappPgText");
+    expect(src).toContain('runWebappPgText');
   });
 });
 
-describe("pgSymptomDiaryPort (repo SQL parity)", () => {
+describe('pgSymptomDiaryPort (repo SQL parity)', () => {
   beforeEach(() => {
     runWebappPgTextMock.mockReset();
     getCurrentDbPrincipalOrganizationIdMock.mockReset();
   });
 
-  it("createTracking stamps current organization principal", async () => {
-    getCurrentDbPrincipalOrganizationIdMock.mockReturnValue("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+  it('createTracking stamps current organization principal', async () => {
+    getCurrentDbPrincipalOrganizationIdMock.mockReturnValue('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
     runWebappPgTextMock.mockResolvedValueOnce({
       rows: [
         {
-          id: "tr-1",
+          id: 'tr-1',
           user_id: uid,
           platform_user_id: uid,
-          organization_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          organization_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
           symptom_key: null,
-          symptom_title: "Боль",
+          symptom_title: 'Боль',
           is_active: true,
-          created_at: "2026-06-06T00:00:00.000Z",
-          updated_at: "2026-06-06T00:00:00.000Z",
+          created_at: '2026-06-06T00:00:00.000Z',
+          updated_at: '2026-06-06T00:00:00.000Z',
           symptom_type_ref_id: null,
           region_ref_id: null,
           side: null,
@@ -62,15 +62,15 @@ describe("pgSymptomDiaryPort (repo SQL parity)", () => {
       ],
     });
 
-    await pgSymptomDiaryPort.createTracking({ userId: uid, symptomTitle: "Боль" });
+    await pgSymptomDiaryPort.createTracking({ userId: uid, symptomTitle: 'Боль' });
 
-    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
-    expect(sql).toContain("organization_id");
+    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? '');
+    expect(sql).toContain('organization_id');
     expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual([
       uid,
-      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
       null,
-      "Боль",
+      'Боль',
       expect.any(Date),
       null,
       null,
@@ -81,27 +81,27 @@ describe("pgSymptomDiaryPort (repo SQL parity)", () => {
     ]);
   });
 
-  it("listTrackings uses canonical user match", async () => {
+  it('listTrackings uses canonical user match', async () => {
     runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
     await pgSymptomDiaryPort.listTrackings(uid);
-    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
-    expect(sql).toContain("platform_user_id = $1::uuid");
-    expect(sql).toContain("platform_user_id IS NULL AND t.user_id = $1::text");
-    expect(sql).toContain("deleted_at IS NULL");
+    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? '');
+    expect(sql).toContain('platform_user_id = $1::uuid');
+    expect(sql).toContain('platform_user_id IS NULL AND t.user_id = $1::text');
+    expect(sql).toContain('deleted_at IS NULL');
   });
 
-  it("ensureGeneralWellbeingTracking uses partial unique ON CONFLICT", async () => {
+  it('ensureGeneralWellbeingTracking uses partial unique ON CONFLICT', async () => {
     runWebappPgTextMock.mockResolvedValueOnce({
       rows: [
         {
-          id: "tr-1",
+          id: 'tr-1',
           user_id: uid,
           platform_user_id: uid,
-          symptom_key: "general_wellbeing",
-          symptom_title: "Общее самочувствие",
+          symptom_key: 'general_wellbeing',
+          symptom_title: 'Общее самочувствие',
           is_active: true,
-          created_at: "2026-06-06T00:00:00.000Z",
-          updated_at: "2026-06-06T00:00:00.000Z",
+          created_at: '2026-06-06T00:00:00.000Z',
+          updated_at: '2026-06-06T00:00:00.000Z',
           symptom_type_ref_id: null,
           region_ref_id: null,
           side: null,
@@ -114,12 +114,12 @@ describe("pgSymptomDiaryPort (repo SQL parity)", () => {
     });
     const tracking = await pgSymptomDiaryPort.ensureGeneralWellbeingTracking({
       userId: uid,
-      symptomTitle: "Общее самочувствие",
-      symptomTypeRefId: "ref-1",
+      symptomTitle: 'Общее самочувствие',
+      symptomTypeRefId: 'ref-1',
     });
-    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? '');
     expect(sql).toContain("symptom_key = 'general_wellbeing'");
-    expect(sql).toContain("ON CONFLICT (platform_user_id) WHERE");
-    expect(tracking.symptomKey).toBe("general_wellbeing");
+    expect(sql).toContain('ON CONFLICT (platform_user_id) WHERE');
+    expect(tracking.symptomKey).toBe('general_wellbeing');
   });
 });

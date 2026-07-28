@@ -18,15 +18,15 @@ pnpm run ci
 
 При падении полного `ci` после локального фикса **не** обязательно каждый раз гонять весь пайплайн: сначала упавший шаг (или узкий тест), затем хвост из корневого [`package.json`](../../package.json):
 
-| Сценарий | Команда возобновления |
-|----------|------------------------|
-| Упал после `lint` | `pnpm run ci:resume:after-lint` |
-| Упал после `typecheck` | `pnpm run ci:resume:after-typecheck` |
-| Упал после `pnpm test` (integrator) | `pnpm run ci:resume:after-test` |
-| Упал после `pnpm test:webapp` | `pnpm run ci:resume:after-test-webapp` |
+| Сценарий                            | Команда возобновления                        |
+| ----------------------------------- | -------------------------------------------- |
+| Упал после `lint`                   | `pnpm run ci:resume:after-lint`              |
+| Упал после `typecheck`              | `pnpm run ci:resume:after-typecheck`         |
+| Упал после `pnpm test` (integrator) | `pnpm run ci:resume:after-test`              |
+| Упал после `pnpm test:webapp`       | `pnpm run ci:resume:after-test-webapp`       |
 | Упал после `pnpm test:media-worker` | `pnpm run ci:resume:after-test-media-worker` |
-| Упал после `pnpm build` | `pnpm run ci:resume:after-build` |
-| Упал после `pnpm build:webapp` | `pnpm run ci:resume:after-build-webapp` |
+| Упал после `pnpm build`             | `pnpm run ci:resume:after-build`             |
+| Упал после `pnpm build:webapp`      | `pnpm run ci:resume:after-build-webapp`      |
 
 **Перед фактическим push** полный барьер из §1 остаётся обязательным (один зелёный полный `pnpm run ci` на актуальном коммите).
 

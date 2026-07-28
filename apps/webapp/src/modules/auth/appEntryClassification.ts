@@ -1,26 +1,26 @@
-import type { MessengerSurfaceHint, PlatformEntry } from "@/shared/lib/platform";
+import type { MessengerSurfaceHint, PlatformEntry } from '@/shared/lib/platform';
 
 export type AppEntryClassification =
-  | "session_ok"
-  | "token_exchange"
-  | "telegram_miniapp"
-  | "max_miniapp"
-  | "browser_interactive";
+  | 'session_ok'
+  | 'token_exchange'
+  | 'telegram_miniapp'
+  | 'max_miniapp'
+  | 'browser_interactive';
 
-export type UnauthenticatedAppEntryClassification = Exclude<AppEntryClassification, "session_ok">;
+export type UnauthenticatedAppEntryClassification = Exclude<AppEntryClassification, 'session_ok'>;
 
 export function isDevBypassToken(token: string | null | undefined): boolean {
-  return (token ?? "").trim().startsWith("dev:");
+  return (token ?? '').trim().startsWith('dev:');
 }
 
 export function shouldAllowStandaloneTokenExchange(input: {
   token: string | null;
   switchParam?: string | null;
 }): boolean {
-  const token = input.token?.trim() || "";
+  const token = input.token?.trim() || '';
   if (!token) return false;
   if (!isDevBypassToken(token)) return true;
-  return (input.switchParam ?? "").trim() === "1";
+  return (input.switchParam ?? '').trim() === '1';
 }
 
 /**
@@ -37,17 +37,21 @@ export function classifyUnauthenticatedAppEntry(input: {
   /** Приоритет над `platformEntry` / cookie: канон miniapp-entry. */
   routeBoundMessengerSurface?: MessengerSurfaceHint | null;
 }): UnauthenticatedAppEntryClassification {
-  if (input.routeBoundMessengerSurface === "max") {
-    return "max_miniapp";
+  if (input.routeBoundMessengerSurface === 'max') {
+    return 'max_miniapp';
   }
-  if (input.routeBoundMessengerSurface === "telegram") {
-    return "telegram_miniapp";
+  if (input.routeBoundMessengerSurface === 'telegram') {
+    return 'telegram_miniapp';
   }
-  if (input.platformEntry === "bot") {
-    return input.messengerSurface === "max" ? "max_miniapp" : "telegram_miniapp";
+  if (input.platformEntry === 'bot') {
+    return input.messengerSurface === 'max' ? 'max_miniapp' : 'telegram_miniapp';
   }
-  if (input.allowStandaloneTokenExchange !== false && input.token && input.token.trim().length > 0) {
-    return "token_exchange";
+  if (
+    input.allowStandaloneTokenExchange !== false &&
+    input.token &&
+    input.token.trim().length > 0
+  ) {
+    return 'token_exchange';
   }
-  return "browser_interactive";
+  return 'browser_interactive';
 }

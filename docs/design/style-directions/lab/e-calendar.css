@@ -39,72 +39,77 @@
   font-weight: 500 !important;
   padding: 5px 11px !important;
   border-radius: 6px !important;
-  transition: background 0.12s ease, color 0.12s ease !important;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease !important;
   color: #5a6675 !important;
   background: transparent !important;
 }
 
 /* Active tab — the app applies bg-primary text-primary-foreground */
-#doctor-schedule-tabs button[aria-current="page"] {
+#doctor-schedule-tabs button[aria-current='page'] {
   background: #42608a !important;
   color: #fff !important;
   font-weight: 600 !important;
 }
 
-#doctor-schedule-tabs button:not([aria-current="page"]):hover {
+#doctor-schedule-tabs button:not([aria-current='page']):hover {
   background: #eef2f7 !important;
   color: #16202e !important;
 }
 
 /* ─── 4. TOOLBAR (view toggles + period nav + render toggle) ─ */
-[data-testid="cal-toolbar"] {
+[data-testid='cal-toolbar'] {
   gap: 8px !important;
   padding: 6px 0 4px !important;
 }
 
 /* ── 4a. View-mode group (3 дня / Неделя / Месяц) ── */
-[data-testid="view-btn-3days"],
-[data-testid="view-btn-weekgrid"],
-[data-testid="view-btn-month"] {
+[data-testid='view-btn-3days'],
+[data-testid='view-btn-weekgrid'],
+[data-testid='view-btn-month'] {
   height: 30px !important;
   padding: 0 12px !important;
   font-size: 0.75rem !important;
   font-weight: 500 !important;
   border-radius: 6px !important;
   border: 1px solid !important;
-  transition: background 0.12s, color 0.12s, border-color 0.12s !important;
+  transition:
+    background 0.12s,
+    color 0.12s,
+    border-color 0.12s !important;
 }
 
 /* Inactive view button */
-[data-testid="view-btn-weekgrid"],
-[data-testid="view-btn-month"] {
+[data-testid='view-btn-weekgrid'],
+[data-testid='view-btn-month'] {
   background: #fff !important;
   color: #5a6675 !important;
   border-color: #e7e3db !important;
 }
 
-[data-testid="view-btn-weekgrid"]:hover,
-[data-testid="view-btn-month"]:hover {
+[data-testid='view-btn-weekgrid']:hover,
+[data-testid='view-btn-month']:hover {
   background: #eef2f7 !important;
   color: #42608a !important;
   border-color: #c8d4e5 !important;
 }
 
 /* Active view button (3 дня — bg-primary class from app) */
-[data-testid="view-btn-3days"] {
+[data-testid='view-btn-3days'] {
   background: #42608a !important;
   color: #fff !important;
   border-color: #34507a !important;
 }
 
-[data-testid="view-btn-3days"]:hover {
+[data-testid='view-btn-3days']:hover {
   background: #34507a !important;
 }
 
 /* ── 4b. Period nav (Сегодня / ◀ / label / ▶) ── */
-[data-testid="period-today"],
-[data-testid="period-prev"],
-[data-testid="period-next"] {
+[data-testid='period-today'],
+[data-testid='period-prev'],
+[data-testid='period-next'] {
   height: 30px !important;
   border-radius: 6px !important;
   border: 1px solid #e7e3db !important;
@@ -112,19 +117,21 @@
   color: #16202e !important;
   font-size: 0.75rem !important;
   font-weight: 500 !important;
-  transition: background 0.12s, border-color 0.12s !important;
+  transition:
+    background 0.12s,
+    border-color 0.12s !important;
 }
 
-[data-testid="period-today"]:hover,
-[data-testid="period-prev"]:hover,
-[data-testid="period-next"]:hover {
+[data-testid='period-today']:hover,
+[data-testid='period-prev']:hover,
+[data-testid='period-next']:hover {
   background: #eef2f7 !important;
   border-color: #c8d4e5 !important;
   color: #42608a !important;
 }
 
 /* Period label text */
-[data-testid="period-label"] {
+[data-testid='period-label'] {
   font-size: 0.8125rem !important;
   font-weight: 600 !important;
   color: #16202e !important;
@@ -132,57 +139,62 @@
 }
 
 /* ── 4c. Render mode toggle (calendar icon / list icon) ── */
-[data-testid="render-btn-calendar"],
-[data-testid="render-btn-list"] {
+[data-testid='render-btn-calendar'],
+[data-testid='render-btn-list'] {
   border-radius: 6px !important;
   border: 1px solid !important;
   width: 30px !important;
   height: 30px !important;
-  transition: background 0.12s, color 0.12s, border-color 0.12s !important;
+  transition:
+    background 0.12s,
+    color 0.12s,
+    border-color 0.12s !important;
 }
 
 /* Active render button */
-[data-testid="render-btn-calendar"] {
+[data-testid='render-btn-calendar'] {
   background: #42608a !important;
   color: #fff !important;
   border-color: #34507a !important;
 }
 
 /* Inactive render button */
-[data-testid="render-btn-list"] {
+[data-testid='render-btn-list'] {
   background: #fff !important;
   color: #5a6675 !important;
   border-color: #e7e3db !important;
 }
 
-[data-testid="render-btn-list"]:hover {
+[data-testid='render-btn-list']:hover {
   background: #eef2f7 !important;
   color: #42608a !important;
   border-color: #c8d4e5 !important;
 }
 
 /* ─── 5. KPI STAT ROW ─────────────────────────────────────── */
-[data-testid="cal-kpi-row"] {
+[data-testid='cal-kpi-row'] {
   gap: 8px !important;
   margin-bottom: 2px !important;
 }
 
-[data-testid^="kpi-"] {
+[data-testid^='kpi-'] {
   background: #fff !important;
   border: 1px solid #e7e3db !important;
   border-radius: 8px !important;
   padding: 8px 10px !important;
-  transition: border-color 0.12s, box-shadow 0.12s !important;
+  transition:
+    border-color 0.12s,
+    box-shadow 0.12s !important;
   cursor: pointer !important;
 }
 
-[data-testid^="kpi-"]:hover {
+[data-testid^='kpi-']:hover {
   border-color: #c8d4e5 !important;
   box-shadow: 0 1px 4px rgba(66, 96, 138, 0.08) !important;
 }
 
 /* KPI label */
-[data-testid^="kpi-"] p:first-child {
+[data-testid^='kpi-'] p:first-child {
   font-size: 9.5px !important;
   font-weight: 500 !important;
   text-transform: uppercase !important;
@@ -193,7 +205,7 @@
 }
 
 /* KPI number */
-[data-testid^="kpi-"] p:last-child {
+[data-testid^='kpi-'] p:last-child {
   font-size: 1.125rem !important;
   font-weight: 700 !important;
   color: #16202e !important;
@@ -325,7 +337,9 @@
   box-shadow: 0 1px 3px rgba(22, 32, 46, 0.07) !important;
   cursor: pointer !important;
   margin: 1px !important;
-  transition: box-shadow 0.12s, opacity 0.12s !important;
+  transition:
+    box-shadow 0.12s,
+    opacity 0.12s !important;
   /* Left accent bar — override the 1px right/top/bottom with green tint,
      and set a stronger 3px solid left bar. The !border-primary/35 Tailwind
      class will use var(--primary)=#2f8a62 making it a green border. */
@@ -348,25 +362,25 @@
 /* CSS hooks: status coloring via data-status attribute or class.
    Pending/gold: */
 #app-shell-content .fc-timegrid-event.fc-event.status-pending,
-#app-shell-content .fc-timegrid-event[data-status="pending"] {
+#app-shell-content .fc-timegrid-event[data-status='pending'] {
   background-color: #fbf2df !important;
   border-left-color: #c2812e !important;
 }
 #app-shell-content .fc-timegrid-event.fc-event.status-pending .fc-event-main,
-#app-shell-content .fc-timegrid-event[data-status="pending"] .fc-event-main {
+#app-shell-content .fc-timegrid-event[data-status='pending'] .fc-event-main {
   color: #7a4f12 !important;
   --fc-event-text-color: #7a4f12 !important;
 }
 
 /* Cancelled / danger: */
 #app-shell-content .fc-timegrid-event.fc-event.status-cancelled,
-#app-shell-content .fc-timegrid-event[data-status="cancelled"] {
+#app-shell-content .fc-timegrid-event[data-status='cancelled'] {
   background-color: #fdf0ee !important;
   border-left-color: #c2402f !important;
   opacity: 0.85 !important;
 }
 #app-shell-content .fc-timegrid-event.fc-event.status-cancelled .fc-event-main,
-#app-shell-content .fc-timegrid-event[data-status="cancelled"] .fc-event-main {
+#app-shell-content .fc-timegrid-event[data-status='cancelled'] .fc-event-main {
   color: #7a1f15 !important;
   --fc-event-text-color: #7a1f15 !important;
 }
@@ -417,7 +431,7 @@
 .fc-event-resizer-end {
   bottom: 0 !important;
   height: 6px !important;
-  border-top: 1.5px solid rgba(255,255,255,0.5) !important;
+  border-top: 1.5px solid rgba(255, 255, 255, 0.5) !important;
   border-radius: 0 0 5px 5px !important;
   cursor: s-resize !important;
 }
@@ -427,7 +441,7 @@ aside.w-full.shrink-0 {
   min-width: 280px !important;
 }
 
-[data-testid="right-panel-empty"] {
+[data-testid='right-panel-empty'] {
   background: #fff !important;
   border: 1px solid #e7e3db !important;
   border-radius: 10px !important;
@@ -441,7 +455,7 @@ aside.w-full.shrink-0 {
 }
 
 /* The emoji icon */
-[data-testid="right-panel-empty"] > div:first-child {
+[data-testid='right-panel-empty'] > div:first-child {
   width: 44px !important;
   height: 44px !important;
   border-radius: 10px !important;
@@ -455,7 +469,7 @@ aside.w-full.shrink-0 {
 }
 
 /* "Запись не выбрана" heading */
-[data-testid="right-panel-empty"] p:nth-child(2) {
+[data-testid='right-panel-empty'] p:nth-child(2) {
   font-size: 0.8125rem !important;
   font-weight: 600 !important;
   color: #16202e !important;
@@ -463,8 +477,8 @@ aside.w-full.shrink-0 {
 }
 
 /* Subtitle / hint texts */
-[data-testid="right-panel-empty"] p:nth-child(3),
-[data-testid="right-panel-empty"] p:nth-child(4) {
+[data-testid='right-panel-empty'] p:nth-child(3),
+[data-testid='right-panel-empty'] p:nth-child(4) {
   font-size: 0.75rem !important;
   color: #8b95a3 !important;
   line-height: 1.45 !important;
@@ -472,7 +486,7 @@ aside.w-full.shrink-0 {
 }
 
 /* "Nearest window" hint — subtle accent treatment */
-[data-testid="nearest-window-hint"] {
+[data-testid='nearest-window-hint'] {
   color: #42608a !important;
   background: #eef2f7 !important;
   padding: 4px 10px !important;
@@ -483,7 +497,7 @@ aside.w-full.shrink-0 {
 }
 
 /* ─── 14. CREATE APPOINTMENT BUTTON ─────────────────────────── */
-[data-testid="create-appointment-btn"] {
+[data-testid='create-appointment-btn'] {
   background: #42608a !important;
   color: #fff !important;
   border-color: #34507a !important;
@@ -493,14 +507,14 @@ aside.w-full.shrink-0 {
   transition: background 0.12s !important;
 }
 
-[data-testid="create-appointment-btn"]:hover {
+[data-testid='create-appointment-btn']:hover {
   background: #34507a !important;
 }
 
 /* ─── 15. CALENDAR WRAPPER CARD ─────────────────────────────── */
 /* The container div wrapping the FC + the right aside */
 #tab-panel-cal > div,
-#app-shell-content [data-testid="tab-panel-cal"] > div {
+#app-shell-content [data-testid='tab-panel-cal'] > div {
   gap: 12px !important;
 }
 

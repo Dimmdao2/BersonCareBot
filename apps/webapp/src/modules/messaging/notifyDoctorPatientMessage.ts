@@ -1,19 +1,19 @@
-import { getAppBaseUrlSync } from "@/modules/system-settings/integrationRuntime";
+import { getAppBaseUrlSync } from '@/modules/system-settings/integrationRuntime';
 import {
   loadDoctorNotifyTargets,
   relayTextToDoctorTargets,
-} from "@/modules/messaging/doctorNotifyTargets";
-import { buildPersonalChatNotificationText } from "@/modules/messaging/notifyPatientDoctorReply";
+} from '@/modules/messaging/doctorNotifyTargets';
+import { buildPersonalChatNotificationText } from '@/modules/messaging/notifyPatientDoctorReply';
 import {
   notifyDoctorPatientMessageToStaff,
   type NotifyDoctorPatientMessageToStaffDeps,
-} from "@/modules/doctor-notifications/notifyDoctorPatientMessageToStaff";
+} from '@/modules/doctor-notifications/notifyDoctorPatientMessageToStaff';
 import {
   isWebappPlatformConversationId,
   webappPlatformConversationId,
-} from "@/modules/messaging/supportConversationIds";
-import { logger, serializeError } from "@/infra/logging/logger";
-import { reportEmptyAudience } from "@/modules/operator-alerts/emptyAudienceRuntime";
+} from '@/modules/messaging/supportConversationIds';
+import { logger, serializeError } from '@/infra/logging/logger';
+import { reportEmptyAudience } from '@/modules/operator-alerts/emptyAudienceRuntime';
 
 export function buildDoctorMessagesOpenPath(platformUserId: string): string {
   const convKey = encodeURIComponent(webappPlatformConversationId(platformUserId));
@@ -21,7 +21,7 @@ export function buildDoctorMessagesOpenPath(platformUserId: string): string {
 }
 
 export function buildDoctorMessagesDeepLink(platformUserId: string): string {
-  const base = getAppBaseUrlSync().replace(/\/$/, "");
+  const base = getAppBaseUrlSync().replace(/\/$/, '');
   const path = buildDoctorMessagesOpenPath(platformUserId);
   if (!base) return path;
   return `${base}${path}`;
@@ -31,7 +31,7 @@ export function buildDoctorPatientMessageNotifyText(input: {
   patientLabel: string;
   deepLink: string;
 }): string {
-  const notificationText = buildPersonalChatNotificationText(input.patientLabel, "patient");
+  const notificationText = buildPersonalChatNotificationText(input.patientLabel, 'patient');
   return input.deepLink ? `${notificationText}\n\n${input.deepLink}` : notificationText;
 }
 
@@ -46,7 +46,7 @@ export type NotifyDoctorPatientMessageInput = {
   messageId: string;
   messageText: string;
   patientLabel: string;
-  source: "webapp" | "telegram" | "max";
+  source: 'webapp' | 'telegram' | 'max';
 };
 
 export async function notifyDoctorPatientMessage(
@@ -62,14 +62,14 @@ export async function notifyDoctorPatientMessage(
     deepLink,
   });
   const replyMarkup = {
-    inline_keyboard: [[{ text: "Ответить", callback_data: `admin_reply:${replyConversationId}` }]],
+    inline_keyboard: [[{ text: 'Ответить', callback_data: `admin_reply:${replyConversationId}` }]],
   };
 
   if (opts?.staffDeps) {
     void notifyDoctorPatientMessageToStaff(
       {
         organizationId: input.organizationId,
-        topicCode: "doctor_patient_messages",
+        topicCode: 'doctor_patient_messages',
         messageId: `patient-msg-notify:${input.messageId}`,
         senderDisplayName: input.patientLabel,
         notificationUrl: deepLink,
@@ -77,7 +77,7 @@ export async function notifyDoctorPatientMessage(
       },
       opts.staffDeps,
     ).catch((err: unknown) => {
-      logger.error({ err: serializeError(err) }, "[notifyDoctorPatientMessage] staff notify error");
+      logger.error({ err: serializeError(err) }, '[notifyDoctorPatientMessage] staff notify error');
     });
     return;
   }
@@ -87,9 +87,9 @@ export async function notifyDoctorPatientMessage(
     // D-b: та же форма, только вывернутая — блок под `if` без `else`. Молчание при
     // пустых `admin_*_ids`/`doctor_*_ids` выглядело как успешная доставка.
     await reportEmptyAudience({
-      topic: "notify_doctor_patient_message",
-      severity: "operational",
-      channels: ["telegram", "max"],
+      topic: 'notify_doctor_patient_message',
+      severity: 'operational',
+      channels: ['telegram', 'max'],
     });
     return;
   }
@@ -98,7 +98,7 @@ export async function notifyDoctorPatientMessage(
     `patient-msg-notify:${input.messageId}`,
     targets,
     text,
-    "patient-msg-notify",
+    'patient-msg-notify',
     replyMarkup,
   );
 }

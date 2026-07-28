@@ -24,7 +24,10 @@ import {
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import { DirectPublicWriteError } from './writeIdentityAndPreferencesDirect.js';
 
-async function loadCandidateForMerge(txDb: DbPort, id: string): Promise<PickMergeTargetCandidate | null> {
+async function loadCandidateForMerge(
+  txDb: DbPort,
+  id: string,
+): Promise<PickMergeTargetCandidate | null> {
   const r = await txDb.query<{
     id: string;
     phone_normalized: string | null;
@@ -47,8 +50,13 @@ async function loadCandidateForMerge(txDb: DbPort, id: string): Promise<PickMerg
 }
 
 /** Real merge-candidate collapse for D1 direct writes — pass as `deps.mergeCandidateIds`. */
-export async function mergeCandidateIdsViaPlatformMerge(txDb: DbPort, candidateIds: string[]): Promise<string> {
-  const uniq = [...new Set(candidateIds.filter((id): id is string => typeof id === 'string' && id.length > 0))];
+export async function mergeCandidateIdsViaPlatformMerge(
+  txDb: DbPort,
+  candidateIds: string[],
+): Promise<string> {
+  const uniq = [
+    ...new Set(candidateIds.filter((id): id is string => typeof id === 'string' && id.length > 0)),
+  ];
   if (uniq.length === 0) throw new DirectPublicWriteError('no_platform_user_candidate');
 
   let ids = [...uniq].sort();
@@ -60,9 +68,18 @@ export async function mergeCandidateIdsViaPlatformMerge(txDb: DbPort, candidateI
     if (!a || !b) {
       throw new DirectPublicWriteError('ambiguous_platform_user_candidates', { candidateIds: ids });
     }
-    const [ea, eb] = await enrichPickMergeCandidatesWithBookingCounts(txDb as PlatformMergeDbClient, a, b);
+    const [ea, eb] = await enrichPickMergeCandidatesWithBookingCounts(
+      txDb as PlatformMergeDbClient,
+      a,
+      b,
+    );
     const { target, duplicate } = pickMergeTargetId(ea, eb);
-    await mergePlatformUsersInTransaction(txDb as PlatformMergeDbClient, target, duplicate, 'projection');
+    await mergePlatformUsersInTransaction(
+      txDb as PlatformMergeDbClient,
+      target,
+      duplicate,
+      'projection',
+    );
     ids = ids.filter((x) => x !== duplicate);
   }
   return ids[0]!;
@@ -78,7 +95,9 @@ export async function mergeCandidateIdsViaPlatformMerge(txDb: DbPort, candidateI
 export function isIdentityMergeAmbiguityError(err: unknown): boolean {
   if (err instanceof MergeConflictError || err instanceof MergeDependentConflictError) return true;
   if (err instanceof DirectPublicWriteError) {
-    return err.code === 'ambiguous_platform_user_candidates' || err.code === 'no_platform_user_candidate';
+    return (
+      err.code === 'ambiguous_platform_user_candidates' || err.code === 'no_platform_user_candidate'
+    );
   }
   return false;
 }

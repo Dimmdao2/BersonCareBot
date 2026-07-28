@@ -1,25 +1,25 @@
 /** @vitest-environment jsdom */
 
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { MaterialRatingBlock } from "./MaterialRatingBlock";
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { MaterialRatingBlock } from './MaterialRatingBlock';
 
-const TARGET_ID = "550e8400-e29b-41d4-a716-446655440099";
+const TARGET_ID = '550e8400-e29b-41d4-a716-446655440099';
 
-describe("MaterialRatingBlock onLowRatingSaved", () => {
+describe('MaterialRatingBlock onLowRatingSaved', () => {
   beforeEach(() => {
     vi.stubGlobal(
-      "fetch",
+      'fetch',
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input);
-        if (url.includes("/api/patient/material-ratings") && (!init || init.method === "GET")) {
+        if (url.includes('/api/patient/material-ratings') && (!init || init.method === 'GET')) {
           return {
             ok: true,
             json: async () => ({ ok: true, avg: 3, count: 1, myStars: null }),
           } as Response;
         }
-        if (init?.method === "PUT") {
+        if (init?.method === 'PUT') {
           const body = JSON.parse(String(init.body)) as { stars: number };
           return {
             ok: true,
@@ -35,7 +35,7 @@ describe("MaterialRatingBlock onLowRatingSaved", () => {
     vi.unstubAllGlobals();
   });
 
-  it("calls onLowRatingSaved for stars 1-3", async () => {
+  it('calls onLowRatingSaved for stars 1-3', async () => {
     const onLowRatingSaved = vi.fn();
     render(
       <MaterialRatingBlock
@@ -48,7 +48,7 @@ describe("MaterialRatingBlock onLowRatingSaved", () => {
       expect(fetch).toHaveBeenCalled();
     });
     const user = userEvent.setup();
-    const buttons = screen.getAllByRole("radio");
+    const buttons = screen.getAllByRole('radio');
     await user.click(buttons[1]!);
     await waitFor(
       () => {
@@ -58,7 +58,7 @@ describe("MaterialRatingBlock onLowRatingSaved", () => {
     );
   });
 
-  it("does not call onLowRatingSaved for 4-5 stars", async () => {
+  it('does not call onLowRatingSaved for 4-5 stars', async () => {
     const onLowRatingSaved = vi.fn();
     render(
       <MaterialRatingBlock
@@ -71,7 +71,7 @@ describe("MaterialRatingBlock onLowRatingSaved", () => {
       expect(fetch).toHaveBeenCalled();
     });
     const user = userEvent.setup();
-    const buttons = screen.getAllByRole("radio");
+    const buttons = screen.getAllByRole('radio');
     await user.click(buttons[3]!);
     await waitFor(
       () => {

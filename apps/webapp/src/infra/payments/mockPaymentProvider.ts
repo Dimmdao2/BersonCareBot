@@ -1,23 +1,23 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
-import type { PaymentProviderPort } from "@/modules/payments/providerPort";
+import { createHmac, timingSafeEqual } from 'node:crypto';
+import type { PaymentProviderPort } from '@/modules/payments/providerPort';
 
-export { getPaymentProviderAdapter } from "./paymentProviderRegistry";
+export { getPaymentProviderAdapter } from './paymentProviderRegistry';
 
 function signMockPayload(secret: string, body: string): string {
-  return createHmac("sha256", secret).update(body).digest("hex");
+  return createHmac('sha256', secret).update(body).digest('hex');
 }
 
 function inspectMockWebhook(bodyText: string) {
   const payload = JSON.parse(bodyText) as Record<string, unknown>;
-  const idempotencyKey = String(payload.idempotencyKey ?? "");
-  const eventType = String(payload.eventType ?? "");
-  if (!idempotencyKey || !eventType) throw new Error("invalid_webhook_payload");
+  const idempotencyKey = String(payload.idempotencyKey ?? '');
+  const eventType = String(payload.eventType ?? '');
+  if (!idempotencyKey || !eventType) throw new Error('invalid_webhook_payload');
   return {
     idempotencyKey,
     eventType,
     payload,
-    intentRef: typeof payload.intentRef === "string" ? payload.intentRef : undefined,
-    amountMinor: typeof payload.amountMinor === "number" ? payload.amountMinor : undefined,
+    intentRef: typeof payload.intentRef === 'string' ? payload.intentRef : undefined,
+    amountMinor: typeof payload.amountMinor === 'number' ? payload.amountMinor : undefined,
   };
 }
 
@@ -40,12 +40,12 @@ export function createMockPaymentProvider(): PaymentProviderPort {
     },
 
     verifyWebhook({ headers, bodyText, webhookSecret }) {
-      const signature = headers.get("x-mock-signature") ?? "";
+      const signature = headers.get('x-mock-signature') ?? '';
       const expected = signMockPayload(webhookSecret, bodyText);
       const a = Buffer.from(signature);
       const b = Buffer.from(expected);
       if (a.length !== b.length || !timingSafeEqual(a, b)) {
-        throw new Error("invalid_webhook_signature");
+        throw new Error('invalid_webhook_signature');
       }
       return inspectMockWebhook(bodyText);
     },

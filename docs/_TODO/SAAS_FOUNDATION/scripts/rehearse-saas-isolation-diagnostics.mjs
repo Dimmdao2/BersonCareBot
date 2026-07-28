@@ -1,86 +1,159 @@
 #!/usr/bin/env node
-import { readFile } from "node:fs/promises";
-import { spawn, spawnSync } from "node:child_process";
-import { createSaasIsolationBackgroundReporter } from "../../../../packages/db-principal/dist/index.js";
+import { readFile } from 'node:fs/promises';
+import { spawn, spawnSync } from 'node:child_process';
+import { createSaasIsolationBackgroundReporter } from '../../../../packages/db-principal/dist/index.js';
 
-const args = new Map(process.argv.slice(2).map((arg) => {
-  const [key, ...rest] = arg.split("=");
-  return [key, rest.join("=")];
-}));
-const execute = process.argv.includes("--execute");
-const db = args.get("--db") ?? "";
+const args = new Map(
+  process.argv.slice(2).map((arg) => {
+    const [key, ...rest] = arg.split('=');
+    return [key, rest.join('=')];
+  }),
+);
+const execute = process.argv.includes('--execute');
+const db = args.get('--db') ?? '';
 if (!execute || !/^bcb_e1_scratch_[a-z0-9_]+$/.test(db)) {
-  throw new Error("usage: --execute --db=bcb_e1_scratch_<suffix>");
+  throw new Error('usage: --execute --db=bcb_e1_scratch_<suffix>');
 }
 const operatorRole = `${db}_operator`;
 const staleOperatorRole = `${db}_stale`;
 const fixedRole = /^[a-z_][a-z0-9_]{0,62}$/;
 if (!fixedRole.test(operatorRole) || !fixedRole.test(staleOperatorRole)) {
-  throw new Error("scratch operator role is too long/invalid");
+  throw new Error('scratch operator role is too long/invalid');
 }
 
 function postgres(args, input = undefined, allowFailure = false) {
-  const result = spawnSync("sudo", ["-u", "postgres", ...args], { encoding: "utf8", input });
-  if (!allowFailure && result.status !== 0) throw new Error(result.stderr || result.stdout || `command failed: ${args.join(" ")}`);
+  const result = spawnSync('sudo', ['-u', 'postgres', ...args], { encoding: 'utf8', input });
+  if (!allowFailure && result.status !== 0)
+    throw new Error(result.stderr || result.stdout || `command failed: ${args.join(' ')}`);
   return result;
 }
 function psql(sql, roleDb = db) {
-  return postgres(["psql", "-d", roleDb, "-X", "-v", "ON_ERROR_STOP=1", "-Atq"], sql).stdout.trim();
+  return postgres(['psql', '-d', roleDb, '-X', '-v', 'ON_ERROR_STOP=1', '-Atq'], sql).stdout.trim();
 }
 function roleExists(role) {
-  return postgres(["psql", "-X", "-Atq", "-c", `SELECT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='${role}')`]).stdout.trim() === "t";
+  return (
+    postgres([
+      'psql',
+      '-X',
+      '-Atq',
+      '-c',
+      `SELECT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='${role}')`,
+    ]).stdout.trim() === 't'
+  );
 }
 function quoteIdentifier(value) {
   return `"${value.replaceAll('"', '""')}"`;
 }
 function concurrentWriter() {
   return new Promise((resolve, reject) => {
-    const child = spawn("sudo", ["-u", "postgres", "psql", "-d", db, "-X", "-v", "ON_ERROR_STOP=1", "-Atq"], { stdio: ["pipe", "pipe", "pipe"] });
-    let stderr = "";
-    child.stderr.setEncoding("utf8");
-    child.stderr.on("data", (chunk) => { stderr += chunk; });
-    child.on("error", reject);
-    child.on("exit", (code) => code === 0 ? resolve() : reject(new Error(stderr || `concurrent writer exit ${code}`)));
-    child.stdin.end("SET ROLE app_staff; SELECT app.report_saas_isolation_event('rls_denial','webapp','webapp_db_request','unexplained');\n");
+    const child = spawn(
+      'sudo',
+      ['-u', 'postgres', 'psql', '-d', db, '-X', '-v', 'ON_ERROR_STOP=1', '-Atq'],
+      { stdio: ['pipe', 'pipe', 'pipe'] },
+    );
+    let stderr = '';
+    child.stderr.setEncoding('utf8');
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk;
+    });
+    child.on('error', reject);
+    child.on('exit', (code) =>
+      code === 0 ? resolve() : reject(new Error(stderr || `concurrent writer exit ${code}`)),
+    );
+    child.stdin.end(
+      "SET ROLE app_staff; SELECT app.report_saas_isolation_event('rls_denial','webapp','webapp_db_request','unexplained');\n",
+    );
   });
 }
 
-const ownerExisted = roleExists("saas_telemetry_owner");
-const operatorGroupExisted = roleExists("saas_telemetry_operator");
+const ownerExisted = roleExists('saas_telemetry_owner');
+const operatorGroupExisted = roleExists('saas_telemetry_operator');
 const originalOperatorMembers = operatorGroupExisted
-  ? postgres(["psql", "-X", "-Atq", "-c", `
+  ? postgres([
+      'psql',
+      '-X',
+      '-Atq',
+      '-c',
+      `
       SELECT member_role.rolname
       FROM pg_auth_members membership
       JOIN pg_roles granted_role ON granted_role.oid = membership.roleid
       JOIN pg_roles member_role ON member_role.oid = membership.member
       WHERE granted_role.rolname = 'saas_telemetry_operator'
       ORDER BY member_role.rolname
-    `]).stdout.trim().split("\n").filter(Boolean)
+    `,
+    ])
+      .stdout.trim()
+      .split('\n')
+      .filter(Boolean)
   : [];
 let databaseCreated = false;
 let scratchRoleCreated = false;
 let staleRoleCreated = false;
 try {
-  if (postgres(["psql", "-X", "-Atq", "-c", `SELECT 1 FROM pg_database WHERE datname='${db}'`]).stdout.trim()) {
+  if (
+    postgres([
+      'psql',
+      '-X',
+      '-Atq',
+      '-c',
+      `SELECT 1 FROM pg_database WHERE datname='${db}'`,
+    ]).stdout.trim()
+  ) {
     throw new Error(`scratch database already exists: ${db}`);
   }
-  postgres(["createdb", db]);
+  postgres(['createdb', db]);
   databaseCreated = true;
   if (!operatorGroupExisted) {
-    postgres(["psql", "-X", "-v", "ON_ERROR_STOP=1", "-c", "CREATE ROLE saas_telemetry_operator NOLOGIN NOSUPERUSER NOBYPASSRLS"]);
+    postgres([
+      'psql',
+      '-X',
+      '-v',
+      'ON_ERROR_STOP=1',
+      '-c',
+      'CREATE ROLE saas_telemetry_operator NOLOGIN NOSUPERUSER NOBYPASSRLS',
+    ]);
   }
-  postgres(["psql", "-X", "-v", "ON_ERROR_STOP=1", "-c", `CREATE ROLE ${operatorRole} LOGIN INHERIT NOSUPERUSER NOBYPASSRLS`]);
+  postgres([
+    'psql',
+    '-X',
+    '-v',
+    'ON_ERROR_STOP=1',
+    '-c',
+    `CREATE ROLE ${operatorRole} LOGIN INHERIT NOSUPERUSER NOBYPASSRLS`,
+  ]);
   scratchRoleCreated = true;
-  postgres(["psql", "-X", "-v", "ON_ERROR_STOP=1", "-c", `CREATE ROLE ${staleOperatorRole} LOGIN INHERIT NOSUPERUSER NOBYPASSRLS`]);
+  postgres([
+    'psql',
+    '-X',
+    '-v',
+    'ON_ERROR_STOP=1',
+    '-c',
+    `CREATE ROLE ${staleOperatorRole} LOGIN INHERIT NOSUPERUSER NOBYPASSRLS`,
+  ]);
   staleRoleCreated = true;
-  postgres(["psql", "-X", "-v", "ON_ERROR_STOP=1", "-c", `GRANT saas_telemetry_operator TO ${staleOperatorRole}`]);
-  psql("CREATE SCHEMA app;");
-  psql(await readFile("apps/webapp/db/drizzle-migrations/0185_saas_isolation_diagnostics.sql", "utf8"));
-  psql(await readFile("apps/webapp/db/drizzle-migrations/0194_e1_patient_identity_exception.sql", "utf8"));
+  postgres([
+    'psql',
+    '-X',
+    '-v',
+    'ON_ERROR_STOP=1',
+    '-c',
+    `GRANT saas_telemetry_operator TO ${staleOperatorRole}`,
+  ]);
+  psql('CREATE SCHEMA app;');
+  psql(
+    await readFile('apps/webapp/db/drizzle-migrations/0185_saas_isolation_diagnostics.sql', 'utf8'),
+  );
+  psql(
+    await readFile(
+      'apps/webapp/db/drizzle-migrations/0194_e1_patient_identity_exception.sql',
+      'utf8',
+    ),
+  );
   psql(`\\set telemetry_webapp_runtime_role app_staff
 \\set telemetry_api_runtime_role app_worker
 \\set telemetry_operator_runtime_role ${operatorRole}
-${await readFile("deploy/postgres/saas-isolation-telemetry.sql", "utf8")}`);
+${await readFile('deploy/postgres/saas-isolation-telemetry.sql', 'utf8')}`);
 
   psql(`
 DO $proof$ BEGIN
@@ -170,15 +243,23 @@ END $scenario_guard$;
 RESET ROLE;
 `);
 
-  await Promise.all([concurrentWriter(), concurrentWriter(), concurrentWriter(), concurrentWriter()]);
+  await Promise.all([
+    concurrentWriter(),
+    concurrentWriter(),
+    concurrentWriter(),
+    concurrentWriter(),
+  ]);
   let falsePositiveWrites = 0;
   const rejectBusinessFailure = createSaasIsolationBackgroundReporter({
-    source: { service: "worker", operation: "worker_queue_drain" },
-    query: async () => { falsePositiveWrites += 1; },
+    source: { service: 'worker', operation: 'worker_queue_drain' },
+    query: async () => {
+      falsePositiveWrites += 1;
+    },
   });
-  rejectBusinessFailure(new Error("external delivery provider timeout"));
+  rejectBusinessFailure(new Error('external delivery provider timeout'));
   await new Promise((resolve) => setImmediate(resolve));
-  if (falsePositiveWrites !== 0) throw new Error("non-isolation business failure reached telemetry writer");
+  if (falsePositiveWrites !== 0)
+    throw new Error('non-isolation business failure reached telemetry writer');
   psql(`
 SET ROLE ${operatorRole};
 SELECT 1 / ((SELECT sum(occurrence_count) FROM app.read_saas_isolation_events() WHERE event_class='rls_denial') = 5)::int;
@@ -226,18 +307,49 @@ SELECT 1 / (NOT has_function_privilege('app_owner','app.read_saas_isolation_even
 SELECT 1 / (NOT has_function_privilege('${staleOperatorRole}','app.read_saas_isolation_events()','EXECUTE'))::int;
 SELECT 1 / has_function_privilege('${operatorRole}','app.read_saas_isolation_events()','EXECUTE')::int;
 `);
-  process.stdout.write("SaaS isolation diagnostics PostgreSQL rehearsal: PASS\n");
+  process.stdout.write('SaaS isolation diagnostics PostgreSQL rehearsal: PASS\n');
 } finally {
-  if (databaseCreated) postgres(["dropdb", "--if-exists", db], undefined, true);
-  if (scratchRoleCreated) postgres(["psql", "-X", "-v", "ON_ERROR_STOP=1", "-c", `DROP ROLE IF EXISTS ${operatorRole}`], undefined, true);
-  if (staleRoleCreated) postgres(["psql", "-X", "-v", "ON_ERROR_STOP=1", "-c", `DROP ROLE IF EXISTS ${staleOperatorRole}`], undefined, true);
+  if (databaseCreated) postgres(['dropdb', '--if-exists', db], undefined, true);
+  if (scratchRoleCreated)
+    postgres(
+      ['psql', '-X', '-v', 'ON_ERROR_STOP=1', '-c', `DROP ROLE IF EXISTS ${operatorRole}`],
+      undefined,
+      true,
+    );
+  if (staleRoleCreated)
+    postgres(
+      ['psql', '-X', '-v', 'ON_ERROR_STOP=1', '-c', `DROP ROLE IF EXISTS ${staleOperatorRole}`],
+      undefined,
+      true,
+    );
   if (operatorGroupExisted) {
     for (const member of originalOperatorMembers) {
       if (roleExists(member)) {
-        postgres(["psql", "-X", "-v", "ON_ERROR_STOP=1", "-c", `GRANT saas_telemetry_operator TO ${quoteIdentifier(member)}`], undefined, true);
+        postgres(
+          [
+            'psql',
+            '-X',
+            '-v',
+            'ON_ERROR_STOP=1',
+            '-c',
+            `GRANT saas_telemetry_operator TO ${quoteIdentifier(member)}`,
+          ],
+          undefined,
+          true,
+        );
       }
     }
   }
-  if (!operatorGroupExisted) postgres(["psql", "-X", "-v", "ON_ERROR_STOP=1", "-c", "DROP ROLE IF EXISTS saas_telemetry_operator"], undefined, true);
-  if (!ownerExisted) postgres(["psql", "-X", "-v", "ON_ERROR_STOP=1", "-c", "DROP ROLE IF EXISTS saas_telemetry_owner"], undefined, true);
+  if (!operatorGroupExisted)
+    postgres(
+      ['psql', '-X', '-v', 'ON_ERROR_STOP=1', '-c', 'DROP ROLE IF EXISTS saas_telemetry_operator'],
+      undefined,
+      true,
+    );
+  if (!ownerExisted)
+    postgres(
+      ['psql', '-X', '-v', 'ON_ERROR_STOP=1', '-c', 'DROP ROLE IF EXISTS saas_telemetry_owner'],
+      undefined,
+      true,
+    );
 }

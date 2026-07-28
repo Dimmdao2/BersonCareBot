@@ -1,5 +1,5 @@
-import { bindPlatformAccessPort } from "@/modules/platform-access/ports";
-import { pgPlatformAccessPort } from "@/infra/repos/pgPlatformAccess";
+import { bindPlatformAccessPort } from '@/modules/platform-access/ports';
+import { pgPlatformAccessPort } from '@/infra/repos/pgPlatformAccess';
 
 let bound = false;
 

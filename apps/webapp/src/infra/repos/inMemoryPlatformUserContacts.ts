@@ -1,8 +1,8 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID } from 'node:crypto';
 import type {
   PlatformUserContactRecord,
   PlatformUserContactsPort,
-} from "@/modules/platform-user-contacts/ports";
+} from '@/modules/platform-user-contacts/ports';
 
 const rows: PlatformUserContactRecord[] = [];
 
@@ -23,7 +23,9 @@ export function createInMemoryPlatformUserContactsPort(): PlatformUserContactsPo
     },
 
     async getById(input) {
-      return rows.find((r) => r.id === input.id && r.platformUserId === input.platformUserId) ?? null;
+      return (
+        rows.find((r) => r.id === input.id && r.platformUserId === input.platformUserId) ?? null
+      );
     },
 
     async upsertContact(input) {
@@ -60,7 +62,9 @@ export function createInMemoryPlatformUserContactsPort(): PlatformUserContactsPo
     },
 
     async deleteById(input) {
-      const idx = rows.findIndex((r) => r.id === input.id && r.platformUserId === input.platformUserId);
+      const idx = rows.findIndex(
+        (r) => r.id === input.id && r.platformUserId === input.platformUserId,
+      );
       if (idx < 0) return false;
       rows.splice(idx, 1);
       return true;

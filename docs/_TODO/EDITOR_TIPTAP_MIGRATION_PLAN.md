@@ -1,4 +1,4 @@
-> STATUS (verified 2026-07-23, code-reconciled): see docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/CHECKPOINT_2026-07-23_STATE_AND_BACKEND_WORK_ORDER.md
+> STATUS (verified 2026-07-23, code-reconciled): see docs/\_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/CHECKPOINT_2026-07-23_STATE_AND_BACKEND_WORK_ORDER.md
 
 # План: замена markdown-редакторов на Tiptap WYSIWYG (вариант 1)
 
@@ -78,14 +78,14 @@ Sweep выполнен по двум прежним компонентам ре�
 markdown-семантикой и точечному просмотру textarea-потребителей. Простые заметки, комментарии, описания без
 markdown-семантики и N1B-шаблоны уведомлений не включались.
 
-| Живая поверхность | Write-path | Хранение/контракт | Реализация #931 |
-|---|---|---|---|
-| `/app/doctor/content` | `ContentForm` | `body_md`, Markdown/GFM | единый `MarkdownEditor` |
-| `/app/doctor/recommendations` | `RecommendationForm` | `bodyMd`, Markdown/GFM | единый `MarkdownEditor` |
-| `/app/doctor/broadcasts` | `BroadcastForm` | `message.body`, Markdown | единый `MarkdownEditor` |
-| `/app/doctor/treatment-program-templates/[id]` | создание/редактирование целей и задач этапа | `goals`/`objectives`, TEXT с markdown-семантикой | единый `MarkdownEditor` |
-| `/app/doctor/clients/[userId]/treatment-programs/[instanceId]` | цели и задачи этапа назначенной программы | `goals`/`objectives`, TEXT с markdown-семантикой | единый `MarkdownEditor` |
-| тот же экран назначенной программы, диалог добавления | собственная рекомендация | `bodyMd`, Markdown/GFM | единый `MarkdownEditor` |
+| Живая поверхность                                              | Write-path                                  | Хранение/контракт                                | Реализация #931         |
+| -------------------------------------------------------------- | ------------------------------------------- | ------------------------------------------------ | ----------------------- |
+| `/app/doctor/content`                                          | `ContentForm`                               | `body_md`, Markdown/GFM                          | единый `MarkdownEditor` |
+| `/app/doctor/recommendations`                                  | `RecommendationForm`                        | `bodyMd`, Markdown/GFM                           | единый `MarkdownEditor` |
+| `/app/doctor/broadcasts`                                       | `BroadcastForm`                             | `message.body`, Markdown                         | единый `MarkdownEditor` |
+| `/app/doctor/treatment-program-templates/[id]`                 | создание/редактирование целей и задач этапа | `goals`/`objectives`, TEXT с markdown-семантикой | единый `MarkdownEditor` |
+| `/app/doctor/clients/[userId]/treatment-programs/[instanceId]` | цели и задачи этапа назначенной программы   | `goals`/`objectives`, TEXT с markdown-семантикой | единый `MarkdownEditor` |
+| тот же экран назначенной программы, диалог добавления          | собственная рекомендация                    | `bodyMd`, Markdown/GFM                           | единый `MarkdownEditor` |
 
 Результат контрольного поиска: активных импортов `MarkdownEditorToastUi` и зависимостей `@toast-ui/*` не осталось;
 других doctor-facing write-полей, документированных в schema/domain как Markdown, не найдено. Пациентские
@@ -100,8 +100,8 @@ markdown-семантики и N1B-шаблоны уведомлений не в
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-
 ### Этап 1 — компонент
+
 - [x] До реализации сохранить discovery-manifest всех markdown write-surfaces и их общих компонентов; список не
       ограничивается тремя уже известными экранами.
 - [x] Добавить Tiptap deps (см. выше), зафиксировать в `apps/webapp/package.json` + lockfile.
@@ -112,12 +112,14 @@ markdown-семантики и N1B-шаблоны уведомлений не в
 - [x] `maxLength` по markdown соблюдается; скрытый `input[name]` содержит актуальный markdown при сабмите.
 
 ### Этап 2 — перевод форм и вывод Toast UI
+
 - [x] `content`, `recommendations`, `broadcasts` и каждый дополнительный пункт discovery-manifest импортируют новый
       компонент; поведение форм не изменилось.
 - [x] Удалить `MarkdownEditorToastUi`, `MarkdownEditorToastUiInner` и зависимости `@toast-ui/*` из package.json.
 - [x] Старые тесты редактора обновлены/заменены; тесты рендера и `MediaLibraryInsertDialog` остаются зелёными.
 
 ### Этап 3 — проверки
+
 - [x] Точечные тесты: roundtrip, сабмит формы, maxLength, вставка медиа. Затем **один раз** full CI (lint+typecheck+tests).
 - [x] **Регрессия рендера:** сохранённый ранее markdown по-прежнему корректно рендерится у пациента (формат не менялся).
 - [x] Независимый аудит compatibility/data-risk (ОДИН проход): проверить отсутствие потери контента при
@@ -134,5 +136,6 @@ render — `66/66`. Один независимый audit pass нашёл две
 tests, оба builds и все audits. Live-check остаётся отдельной последней галочкой.
 
 ## Готово =
+
 Все галочки выше + зелёный milestone CI + owner acceptance по живой проверке всех пунктов discovery-manifest.
 «Аудит зелёный» сам по себе — гейт, не «готово».

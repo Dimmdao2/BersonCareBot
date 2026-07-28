@@ -1,14 +1,14 @@
-"use client";
+'use client';
 
-import { useRouter } from "next/navigation";
-import { Button } from "@/shared/ui/patient/primitives/button";
-import { routePaths } from "@/app-layer/routes/paths";
-import { EmailAccountPanel } from "@/shared/ui/patient/EmailAccountPanel";
+import { useRouter } from 'next/navigation';
+import { Button } from '@/shared/ui/patient/primitives/button';
+import { routePaths } from '@/app-layer/routes/paths';
+import { EmailAccountPanel } from '@/shared/ui/patient/EmailAccountPanel';
 import {
   patientHeroBookingSectionClass,
   patientMutedTextClass,
-} from "@/shared/ui/patient/patientVisual";
-import { cn } from "@/lib/utils";
+} from '@/shared/ui/patient/patientVisual';
+import { cn } from '@/lib/utils';
 
 type Props = {
   displayName: string;
@@ -37,13 +37,21 @@ export function PatientProfileHero({
     <section className={patientHeroBookingSectionClass}>
       <div className="flex flex-col gap-4">
         <div className="space-y-1.5">
-          <p className={cn(patientMutedTextClass, "text-xs font-normal uppercase tracking-wide")}>Имя</p>
-          <p className="text-sm text-[var(--patient-text-primary)]">{displayName || fallbackDisplayName}</p>
+          <p className={cn(patientMutedTextClass, 'text-xs font-normal uppercase tracking-wide')}>
+            Имя
+          </p>
+          <p className="text-sm text-[var(--patient-text-primary)]">
+            {displayName || fallbackDisplayName}
+          </p>
         </div>
 
         <div className="flex flex-col gap-1 border-t border-[var(--patient-border)] pt-4">
           <div className="flex flex-wrap items-start justify-between gap-2">
-            <span className={cn(patientMutedTextClass, "text-xs font-normal uppercase tracking-wide")}>Телефон</span>
+            <span
+              className={cn(patientMutedTextClass, 'text-xs font-normal uppercase tracking-wide')}
+            >
+              Телефон
+            </span>
             <Button
               type="button"
               variant="link"
@@ -51,7 +59,7 @@ export function PatientProfileHero({
               className="text-primary h-auto min-h-0 px-0 py-0 text-sm font-normal"
               onClick={goToBindPhone}
             >
-              {phone ? "Изменить" : "Привязать"}
+              {phone ? 'Изменить' : 'Привязать'}
             </Button>
           </div>
           {phone ? <p className="text-sm text-[var(--patient-text-primary)]">{phone}</p> : null}

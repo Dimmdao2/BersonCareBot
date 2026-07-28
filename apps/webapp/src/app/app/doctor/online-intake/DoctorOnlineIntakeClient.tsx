@@ -1,31 +1,31 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useCallback, useRef, type KeyboardEvent } from "react";
-import Link from "next/link";
-import { cn } from "@/lib/utils";
-import { formatFioForDoctor } from "@/lib/parseFullName";
-import { Button } from "@/shared/ui/doctor/primitives/button";
-import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
-import { Badge } from "@/shared/ui/doctor/primitives/badge";
+import { useState, useEffect, useCallback, useRef, type KeyboardEvent } from 'react';
+import Link from 'next/link';
+import { cn } from '@/lib/utils';
+import { formatFioForDoctor } from '@/lib/parseFullName';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
+import { Badge } from '@/shared/ui/doctor/primitives/badge';
 import {
   doctorInlineLinkClass,
   doctorMetricValueClass,
   doctorMetricLabelClass,
-} from "@/shared/ui/doctor/doctorVisual";
-import { patientCardHref } from "../patients/patientCardHref";
-import { DoctorOpenChatButton } from "@/shared/ui/doctor/DoctorOpenChatButton";
-import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
-import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
-import { DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE } from "@/shared/ui/doctor/doctorWorkspaceLayout";
+} from '@/shared/ui/doctor/doctorVisual';
+import { patientCardHref } from '../patients/patientCardHref';
+import { DoctorOpenChatButton } from '@/shared/ui/doctor/DoctorOpenChatButton';
+import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
+import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
+import { DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
-type IntakeStatus = "new" | "in_review" | "contacted" | "booked" | "rejected" | "closed";
+type IntakeStatus = 'new' | 'in_review' | 'contacted' | 'booked' | 'rejected' | 'closed';
 
 type IntakeItem = {
   id: string;
   patientUserId: string;
-  type: "lfk" | "nutrition";
+  type: 'lfk' | 'nutrition';
   status: IntakeStatus;
   summary: string | null;
   patientName: string;
@@ -39,7 +39,7 @@ type IntakeItem = {
 type IntakeDetail = {
   id: string;
   patientUserId: string;
-  type: "lfk" | "nutrition";
+  type: 'lfk' | 'nutrition';
   status: IntakeStatus;
   patientName: string;
   patientPhone: string;
@@ -76,31 +76,31 @@ type IntakeStats = {
 // ── Labels ──────────────────────────────────────────────────────────────────
 
 const STATUS_LABELS: Record<IntakeStatus, string> = {
-  new: "Новая",
-  in_review: "В работе",
-  contacted: "Связались",
-  booked: "Записан",
-  rejected: "Отказ",
-  closed: "Закрыта",
+  new: 'Новая',
+  in_review: 'В работе',
+  contacted: 'Связались',
+  booked: 'Записан',
+  rejected: 'Отказ',
+  closed: 'Закрыта',
 };
 
 const STATUS_BADGE_CLASS: Record<IntakeStatus, string> = {
-  new: "bg-destructive/10 text-destructive border-destructive/40",
-  in_review: "bg-muted text-muted-foreground border-border",
-  contacted: "bg-muted text-muted-foreground border-border",
-  booked: "bg-primary/10 text-primary border-primary/30",
-  rejected: "bg-muted text-muted-foreground border-border",
-  closed: "bg-muted/50 text-muted-foreground/70 border-border/50",
+  new: 'bg-destructive/10 text-destructive border-destructive/40',
+  in_review: 'bg-muted text-muted-foreground border-border',
+  contacted: 'bg-muted text-muted-foreground border-border',
+  booked: 'bg-primary/10 text-primary border-primary/30',
+  rejected: 'bg-muted text-muted-foreground border-border',
+  closed: 'bg-muted/50 text-muted-foreground/70 border-border/50',
 };
 
-const TYPE_LABELS: Record<string, string> = { lfk: "ЛФК", nutrition: "Нутрициология" };
+const TYPE_LABELS: Record<string, string> = { lfk: 'ЛФК', nutrition: 'Нутрициология' };
 
 /** Статусы clearable single-select: пустой выбор означает весь список. */
 const FILTER_CHIPS: { status: IntakeStatus; label: string }[] = [
-  { status: "new", label: "Новые" },
-  { status: "in_review", label: "В работе" },
-  { status: "booked", label: "Записанные" },
-  { status: "rejected", label: "Отказанные" },
+  { status: 'new', label: 'Новые' },
+  { status: 'in_review', label: 'В работе' },
+  { status: 'booked', label: 'Записанные' },
+  { status: 'rejected', label: 'Отказанные' },
 ];
 
 const FILTER_STATUSES: IntakeStatus[] = FILTER_CHIPS.map((c) => c.status);
@@ -109,24 +109,24 @@ const STATS_DAYS_OPTIONS = [7, 30, 90, 365] as const;
 type StatsDays = (typeof STATS_DAYS_OPTIONS)[number];
 
 const STATS_DAYS_LABELS: Record<StatsDays, string> = {
-  7: "7 дн",
-  30: "30 дн",
-  90: "90 дн",
-  365: "Год",
+  7: '7 дн',
+  30: '30 дн',
+  90: '90 дн',
+  365: 'Год',
 };
 
-function formatIntakeDate(iso: string, tz = "Europe/Moscow"): string {
+function formatIntakeDate(iso: string, tz = 'Europe/Moscow'): string {
   const d = new Date(iso);
-  if (isNaN(d.getTime())) return "";
+  if (isNaN(d.getTime())) return '';
   const now = new Date();
   const isToday =
     d.getDate() === now.getDate() &&
     d.getMonth() === now.getMonth() &&
     d.getFullYear() === now.getFullYear();
   if (isToday) {
-    return `сегодня · ${d.toLocaleString("ru-RU", { timeZone: tz, hour: "2-digit", minute: "2-digit" })}`;
+    return `сегодня · ${d.toLocaleString('ru-RU', { timeZone: tz, hour: '2-digit', minute: '2-digit' })}`;
   }
-  return d.toLocaleDateString("ru-RU", { timeZone: tz, day: "2-digit", month: "2-digit" });
+  return d.toLocaleDateString('ru-RU', { timeZone: tz, day: '2-digit', month: '2-digit' });
 }
 
 // ── Detail body ─────────────────────────────────────────────────────────────
@@ -134,13 +134,13 @@ function formatIntakeDate(iso: string, tz = "Europe/Moscow"): string {
 function IntakeDetailBody({ detail }: { detail: IntakeDetail }) {
   return (
     <>
-      {detail.type === "lfk" && detail.description && (
+      {detail.type === 'lfk' && detail.description && (
         <div className="rounded-md border border-border bg-muted/20 px-3 py-2 text-sm whitespace-pre-wrap">
           {detail.description}
         </div>
       )}
-      {detail.type === "lfk" &&
-        (detail.attachmentUrls?.length || detail.attachmentFiles?.length) ? (
+      {detail.type === 'lfk' &&
+      (detail.attachmentUrls?.length || detail.attachmentFiles?.length) ? (
         <div className="space-y-1">
           <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
             Вложения
@@ -148,7 +148,12 @@ function IntakeDetailBody({ detail }: { detail: IntakeDetail }) {
           <ul className="list-disc pl-4 space-y-1 text-xs">
             {(detail.attachmentUrls ?? []).map((u) => (
               <li key={u}>
-                <a href={u} target="_blank" rel="noopener noreferrer" className={doctorInlineLinkClass}>
+                <a
+                  href={u}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={doctorInlineLinkClass}
+                >
                   {u}
                 </a>
                 <span className="text-muted-foreground ml-1">(ссылка)</span>
@@ -156,7 +161,12 @@ function IntakeDetailBody({ detail }: { detail: IntakeDetail }) {
             ))}
             {(detail.attachmentFiles ?? []).map((f) => (
               <li key={f.id}>
-                <a href={f.url} target="_blank" rel="noopener noreferrer" className={doctorInlineLinkClass}>
+                <a
+                  href={f.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={doctorInlineLinkClass}
+                >
                   {f.originalName}
                 </a>
                 <span className="text-muted-foreground ml-1">
@@ -167,7 +177,7 @@ function IntakeDetailBody({ detail }: { detail: IntakeDetail }) {
           </ul>
         </div>
       ) : null}
-      {detail.type === "nutrition" &&
+      {detail.type === 'nutrition' &&
         detail.answers?.map((a) => (
           <div key={a.questionId}>
             <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground mb-0.5">
@@ -208,7 +218,7 @@ function IntakeStatsCard({
           onClick={onToggle}
           className="h-auto p-0 text-left text-xs font-semibold hover:bg-transparent"
         >
-          Статистика заявок {collapsed ? "▸" : "▾"}
+          Статистика заявок {collapsed ? '▸' : '▾'}
         </Button>
         {!collapsed && (
           <span className="flex gap-1">
@@ -216,14 +226,14 @@ function IntakeStatsCard({
               <Button
                 key={d}
                 type="button"
-                variant={days === d ? "ghost" : "outline"}
+                variant={days === d ? 'ghost' : 'outline'}
                 size="sm"
                 onClick={() => onDaysChange(d)}
                 className={cn(
-                  "h-auto rounded px-2 py-0.5 text-[10px]",
+                  'h-auto rounded px-2 py-0.5 text-[10px]',
                   days === d
-                    ? "bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary"
-                    : "text-muted-foreground",
+                    ? 'bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary'
+                    : 'text-muted-foreground',
                 )}
               >
                 {STATS_DAYS_LABELS[d]}
@@ -240,39 +250,59 @@ function IntakeStatsCard({
               <div className="grid grid-cols-5 divide-x divide-border">
                 {(
                   [
-                    { key: "total" as const, label: "Всего", value: stats.total, muted: false },
-                    { key: "new" as const, label: "Новые", value: stats.byStatus["new"] ?? 0, danger: true },
-                    { key: "in_review" as const, label: "В работе", value: stats.byStatus["in_review"] ?? 0, muted: false },
-                    { key: "booked" as const, label: "Записаны", value: stats.byStatus["booked"] ?? 0, muted: false },
-                    { key: "rejected" as const, label: "Отказ", value: stats.byStatus["rejected"] ?? 0, muted: true },
+                    { key: 'total' as const, label: 'Всего', value: stats.total, muted: false },
+                    {
+                      key: 'new' as const,
+                      label: 'Новые',
+                      value: stats.byStatus['new'] ?? 0,
+                      danger: true,
+                    },
+                    {
+                      key: 'in_review' as const,
+                      label: 'В работе',
+                      value: stats.byStatus['in_review'] ?? 0,
+                      muted: false,
+                    },
+                    {
+                      key: 'booked' as const,
+                      label: 'Записаны',
+                      value: stats.byStatus['booked'] ?? 0,
+                      muted: false,
+                    },
+                    {
+                      key: 'rejected' as const,
+                      label: 'Отказ',
+                      value: stats.byStatus['rejected'] ?? 0,
+                      muted: true,
+                    },
                   ] as const
                 ).map((tile) => (
                   <div
                     key={tile.key}
                     className={cn(
-                      "px-2 py-2.5",
-                      tile.key === "new" && tile.value > 0 && "bg-destructive/5",
+                      'px-2 py-2.5',
+                      tile.key === 'new' && tile.value > 0 && 'bg-destructive/5',
                     )}
                   >
                     <div className={doctorMetricLabelClass}>{tile.label}</div>
                     <div
                       className={cn(
                         doctorMetricValueClass,
-                        tile.key === "new" && tile.value > 0 && "text-destructive",
-                        tile.key === "rejected" && "text-muted-foreground",
+                        tile.key === 'new' && tile.value > 0 && 'text-destructive',
+                        tile.key === 'rejected' && 'text-muted-foreground',
                       )}
                     >
-                      {tile.key === "total" ? stats.total : (stats.byStatus[tile.key] ?? 0)}
+                      {tile.key === 'total' ? stats.total : (stats.byStatus[tile.key] ?? 0)}
                     </div>
                   </div>
                 ))}
               </div>
               <div className="border-t border-border bg-muted/10 px-3 py-1.5 text-xs text-muted-foreground">
-                Конверсия в запись:{" "}
+                Конверсия в запись:{' '}
                 <strong className="text-foreground">
                   {stats.conversionRate !== null
                     ? `${Math.round(stats.conversionRate * 100)}%`
-                    : "—"}
+                    : '—'}
                 </strong>
               </div>
             </>
@@ -296,7 +326,7 @@ export type DoctorOnlineIntakeClientProps = {
 export function DoctorOnlineIntakeClient({
   initialOpenRequestId = null,
   onDetailChange,
-  displayIana = "Europe/Moscow",
+  displayIana = 'Europe/Moscow',
 }: DoctorOnlineIntakeClientProps) {
   const [allItems, setAllItems] = useState<IntakeItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -316,13 +346,13 @@ export function DoctorOnlineIntakeClient({
   const [statsLoading, setStatsLoading] = useState(false);
 
   // Reply
-  const [replyText, setReplyText] = useState("");
+  const [replyText, setReplyText] = useState('');
   const [replySending, setReplySending] = useState(false);
   const [replyError, setReplyError] = useState<string | null>(null);
   const [replySuccessId, setReplySuccessId] = useState<string | null>(null);
 
   // Note for status change
-  const [statusNote, setStatusNote] = useState("");
+  const [statusNote, setStatusNote] = useState('');
 
   // Актуальный selectedId для эффектов/гонок без перезапуска эффектов на каждое изменение.
   const selectedIdRef = useRef<string | null>(null);
@@ -354,7 +384,7 @@ export function DoctorOnlineIntakeClient({
   }, []);
 
   const fetchList = useCallback(async () => {
-    const res = await fetch("/api/doctor/online-intake");
+    const res = await fetch('/api/doctor/online-intake');
     if (!res.ok) return null;
     const data = (await res.json()) as { items: IntakeItem[]; total: number };
     return data.items;
@@ -411,7 +441,7 @@ export function DoctorOnlineIntakeClient({
       setSelectedId(null);
       setDetail(null);
       setDetailLoading(false);
-      setReplyText("");
+      setReplyText('');
       setReplyError(null);
       setReplySuccessId(null);
       onDetailChange?.(null);
@@ -419,7 +449,7 @@ export function DoctorOnlineIntakeClient({
     }
     setSelectedId(id);
     setDetail(null);
-    setReplyText("");
+    setReplyText('');
     setReplyError(null);
     setReplySuccessId(null);
     onDetailChange?.(id);
@@ -430,12 +460,12 @@ export function DoctorOnlineIntakeClient({
     setUpdatingId(id);
     try {
       const res = await fetch(`/api/doctor/online-intake/${encodeURIComponent(id)}/status`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status, ...(note?.trim() ? { note: note.trim() } : {}) }),
       });
       if (res.ok) {
-        setStatusNote("");
+        setStatusNote('');
         await loadList();
         if (selectedIdRef.current === id) await loadDetail(id);
         void loadStats(statsDays);
@@ -451,24 +481,24 @@ export function DoctorOnlineIntakeClient({
     setReplyError(null);
     try {
       const res = await fetch(`/api/doctor/online-intake/${encodeURIComponent(detail.id)}/reply`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: replyText.trim() }),
       });
       const data = (await res.json()) as { ok: boolean; error?: string };
       if (data.ok) {
         setReplySuccessId(detail.id);
-        setReplyText("");
+        setReplyText('');
         await loadList();
         // Refresh detail to show updated status (через токен-гард)
         await loadDetail(detail.id);
         void loadStats(statsDays);
         setTimeout(() => setReplySuccessId(null), 3000);
       } else {
-        setReplyError(data.error ?? "Ошибка отправки");
+        setReplyError(data.error ?? 'Ошибка отправки');
       }
     } catch {
-      setReplyError("Ошибка сети");
+      setReplyError('Ошибка сети');
     } finally {
       setReplySending(false);
     }
@@ -481,8 +511,8 @@ export function DoctorOnlineIntakeClient({
     ? newestFirstItems.filter((item) => item.status === selectedStatus)
     : newestFirstItems;
 
-  const newCount = allItems.filter((i) => i.status === "new").length;
-  const inReviewCount = allItems.filter((i) => i.status === "in_review").length;
+  const newCount = allItems.filter((i) => i.status === 'new').length;
+  const inReviewCount = allItems.filter((i) => i.status === 'in_review').length;
 
   /** Клик/Enter/Space выбирает статус; повторное нажатие снимает фильтр. */
   function selectStatus(status: IntakeStatus, index: number) {
@@ -493,13 +523,13 @@ export function DoctorOnlineIntakeClient({
   /** Roving-tabindex keyboard contract для tablist: стрелки перемещают фокус и выбор. */
   function handleFilterKeyDown(e: KeyboardEvent<HTMLButtonElement>, index: number) {
     let nextIndex: number | null = null;
-    if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
       nextIndex = (index + 1) % FILTER_STATUSES.length;
-    } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
       nextIndex = (index - 1 + FILTER_STATUSES.length) % FILTER_STATUSES.length;
-    } else if (e.key === "Home") {
+    } else if (e.key === 'Home') {
       nextIndex = 0;
-    } else if (e.key === "End") {
+    } else if (e.key === 'End') {
       nextIndex = FILTER_STATUSES.length - 1;
     }
     if (nextIndex === null) return;
@@ -511,7 +541,7 @@ export function DoctorOnlineIntakeClient({
   }
 
   // Мобильный режим: если открыта деталь — показываем правую панель
-  const mobileView = selectedId ? "detail" : "list";
+  const mobileView = selectedId ? 'detail' : 'list';
 
   const leftPane = (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
@@ -523,7 +553,7 @@ export function DoctorOnlineIntakeClient({
       >
         {FILTER_CHIPS.map(({ status, label }, index) => {
           const count =
-            status === "new" ? newCount : status === "in_review" ? inReviewCount : undefined;
+            status === 'new' ? newCount : status === 'in_review' ? inReviewCount : undefined;
           const isActive = selectedStatus === status;
           return (
             <Button
@@ -533,19 +563,19 @@ export function DoctorOnlineIntakeClient({
               }}
               type="button"
               role="tab"
-              variant={isActive ? "ghost" : "outline"}
+              variant={isActive ? 'ghost' : 'outline'}
               size="sm"
               onClick={() => selectStatus(status, index)}
               onKeyDown={(e) => handleFilterKeyDown(e, index)}
               className={cn(
-                "h-auto rounded-md px-2 py-1 text-xs",
-                isActive && "bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary",
+                'h-auto rounded-md px-2 py-1 text-xs',
+                isActive && 'bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary',
               )}
               aria-selected={isActive}
               tabIndex={filterFocusIndex === index ? 0 : -1}
             >
               {label}
-              {count !== undefined && count > 0 ? ` · ${count}` : ""}
+              {count !== undefined && count > 0 ? ` · ${count}` : ''}
             </Button>
           );
         })}
@@ -559,7 +589,9 @@ export function DoctorOnlineIntakeClient({
           </DoctorEmptyState>
         ) : filteredItems.length === 0 ? (
           <DoctorEmptyState className="flex-1 items-center justify-center py-8">
-            {selectedStatus ? `Нет заявок в статусе «${STATUS_LABELS[selectedStatus]}»` : "Заявок пока нет"}
+            {selectedStatus
+              ? `Нет заявок в статусе «${STATUS_LABELS[selectedStatus]}»`
+              : 'Заявок пока нет'}
           </DoctorEmptyState>
         ) : (
           filteredItems.map((item) => (
@@ -569,49 +601,60 @@ export function DoctorOnlineIntakeClient({
               variant="ghost"
               onClick={() => void openDetail(item.id)}
               className={cn(
-                "flex h-auto min-w-0 w-full flex-col items-stretch justify-start gap-0.5 overflow-hidden rounded-none border-b border-border px-3 py-2.5 text-left transition-colors",
-                selectedId === item.id ? "bg-primary/15 hover:bg-primary/20" : "hover:bg-muted/40",
-                item.status === "new" && "font-semibold",
+                'flex h-auto min-w-0 w-full flex-col items-stretch justify-start gap-0.5 overflow-hidden rounded-none border-b border-border px-3 py-2.5 text-left transition-colors',
+                selectedId === item.id ? 'bg-primary/15 hover:bg-primary/20' : 'hover:bg-muted/40',
+                item.status === 'new' && 'font-semibold',
               )}
             >
               <div className="flex w-full min-w-0 items-baseline justify-between gap-2">
                 <div className="min-w-0 flex flex-col">
                   <span
                     className={cn(
-                      "min-w-0 truncate text-sm",
-                      item.status === "new" ? "font-semibold" : "font-medium",
+                      'min-w-0 truncate text-sm',
+                      item.status === 'new' ? 'font-semibold' : 'font-medium',
                     )}
                   >
-                    {(item.lastName || item.firstName)
+                    {item.lastName || item.firstName
                       ? formatFioForDoctor(item.lastName, item.firstName, undefined)
-                      : (item.patientName || "—")}
+                      : item.patientName || '—'}
                   </span>
-                  {(item.lastName || item.firstName) && item.patientName && item.patientName !== formatFioForDoctor(item.lastName, item.firstName, undefined) && (
-                    <span className="min-w-0 truncate text-xs text-muted-foreground">{item.patientName}</span>
-                  )}
+                  {(item.lastName || item.firstName) &&
+                    item.patientName &&
+                    item.patientName !==
+                      formatFioForDoctor(item.lastName, item.firstName, undefined) && (
+                      <span className="min-w-0 truncate text-xs text-muted-foreground">
+                        {item.patientName}
+                      </span>
+                    )}
                 </div>
                 <span
                   className={cn(
-                    "shrink-0 text-xs",
-                    item.status === "new"
-                      ? "font-semibold text-destructive"
-                      : "font-normal text-muted-foreground",
+                    'shrink-0 text-xs',
+                    item.status === 'new'
+                      ? 'font-semibold text-destructive'
+                      : 'font-normal text-muted-foreground',
                   )}
                 >
-                  {item.status === "new" ? "Новая" : formatIntakeDate(item.createdAt, displayIana)}
+                  {item.status === 'new' ? 'Новая' : formatIntakeDate(item.createdAt, displayIana)}
                 </span>
               </div>
-              <div className={cn(
-                "min-w-0 truncate text-xs",
-                item.status === "new" ? "text-foreground/80" : "text-muted-foreground",
-              )}>
+              <div
+                className={cn(
+                  'min-w-0 truncate text-xs',
+                  item.status === 'new' ? 'text-foreground/80' : 'text-muted-foreground',
+                )}
+              >
                 {item.patientPhone} · {STATUS_LABELS[item.status]}
               </div>
               {item.summary && (
-                <div className={cn(
-                  "min-w-0 truncate text-xs",
-                  item.status === "new" ? "font-semibold text-foreground" : "text-foreground/80",
-                )}>{item.summary}</div>
+                <div
+                  className={cn(
+                    'min-w-0 truncate text-xs',
+                    item.status === 'new' ? 'font-semibold text-foreground' : 'text-foreground/80',
+                  )}
+                >
+                  {item.summary}
+                </div>
               )}
             </Button>
           ))
@@ -659,20 +702,23 @@ export function DoctorOnlineIntakeClient({
                     href={patientCardHref(detail.patientUserId)}
                     className="text-sm font-bold hover:underline"
                   >
-                    {(detail.lastName || detail.firstName)
+                    {detail.lastName || detail.firstName
                       ? formatFioForDoctor(detail.lastName, detail.firstName, undefined)
-                      : (detail.patientName || "—")}
+                      : detail.patientName || '—'}
                   </Link>
-                  {(detail.lastName || detail.firstName) && detail.patientName && detail.patientName !== formatFioForDoctor(detail.lastName, detail.firstName, undefined) && (
-                    <div className="text-xs text-muted-foreground">{detail.patientName}</div>
-                  )}
+                  {(detail.lastName || detail.firstName) &&
+                    detail.patientName &&
+                    detail.patientName !==
+                      formatFioForDoctor(detail.lastName, detail.firstName, undefined) && (
+                      <div className="text-xs text-muted-foreground">{detail.patientName}</div>
+                    )}
                   <div className="mt-0.5 text-xs text-muted-foreground">
                     Заявка · {formatIntakeDate(detail.createdAt, displayIana)}
                   </div>
                 </div>
                 <span
                   className={cn(
-                    "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold",
+                    'shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold',
                     STATUS_BADGE_CLASS[detail.status],
                   )}
                 >
@@ -687,7 +733,7 @@ export function DoctorOnlineIntakeClient({
               <div className="border-b border-border px-4 py-2.5">
                 <div className="flex items-center gap-2 text-xs">
                   <span className="w-14 shrink-0 text-muted-foreground">Телефон</span>
-                  <span className="font-mono">{detail.patientPhone || "—"}</span>
+                  <span className="font-mono">{detail.patientPhone || '—'}</span>
                 </div>
                 <div className="mt-1 flex items-center gap-2 text-xs">
                   <span className="w-14 shrink-0 text-muted-foreground">Тип</span>
@@ -723,9 +769,7 @@ export function DoctorOnlineIntakeClient({
                         <span className="font-medium">
                           {STATUS_LABELS[h.toStatus as IntakeStatus] ?? h.toStatus}
                         </span>
-                        {h.note && (
-                          <span className="text-muted-foreground">· {h.note}</span>
-                        )}
+                        {h.note && <span className="text-muted-foreground">· {h.note}</span>}
                       </li>
                     ))}
                   </ul>
@@ -733,7 +777,7 @@ export function DoctorOnlineIntakeClient({
               )}
 
               {/* Reply form */}
-              {detail.status !== "closed" && (
+              {detail.status !== 'closed' && (
                 <div className="border-t border-border bg-muted/10 px-4 py-3">
                   <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                     Ответ → уходит в чат
@@ -753,14 +797,12 @@ export function DoctorOnlineIntakeClient({
                         className="resize-none text-sm"
                         aria-label="Текст ответа"
                       />
-                      {detail.status === "new" && (
+                      {detail.status === 'new' && (
                         <p className="mt-1 text-[10px] text-muted-foreground">
                           При первом ответе заявка автоматически переходит в статус «в работе»
                         </p>
                       )}
-                      {replyError && (
-                        <p className="mt-1 text-xs text-destructive">{replyError}</p>
-                      )}
+                      {replyError && <p className="mt-1 text-xs text-destructive">{replyError}</p>}
                     </>
                   )}
                 </div>
@@ -769,9 +811,9 @@ export function DoctorOnlineIntakeClient({
 
             {/* Action bar */}
             <div className="flex shrink-0 flex-col gap-2 border-t border-border px-4 py-2.5">
-              {(detail.status === "new" ||
-                detail.status === "in_review" ||
-                detail.status === "contacted") && (
+              {(detail.status === 'new' ||
+                detail.status === 'in_review' ||
+                detail.status === 'contacted') && (
                 <Textarea
                   placeholder="Заметка к смене статуса (необязательно)"
                   value={statusNote}
@@ -783,35 +825,35 @@ export function DoctorOnlineIntakeClient({
                 />
               )}
               <div className="flex flex-wrap items-center gap-2">
-                {detail.status !== "closed" && replySuccessId !== detail.id && (
+                {detail.status !== 'closed' && replySuccessId !== detail.id && (
                   <Button
                     size="sm"
                     disabled={replySending || !replyText.trim()}
                     onClick={() => void handleReply()}
                   >
-                    {replySending ? "Отправка…" : "Ответить"}
+                    {replySending ? 'Отправка…' : 'Ответить'}
                   </Button>
                 )}
-                {(detail.status === "new" ||
-                  detail.status === "in_review" ||
-                  detail.status === "contacted") && (
+                {(detail.status === 'new' ||
+                  detail.status === 'in_review' ||
+                  detail.status === 'contacted') && (
                   <Button
                     size="sm"
                     variant="outline"
                     disabled={!!updatingId}
-                    onClick={() => void changeStatus(detail.id, "booked", statusNote)}
+                    onClick={() => void changeStatus(detail.id, 'booked', statusNote)}
                   >
                     Записать →
                   </Button>
                 )}
-                {(detail.status === "new" ||
-                  detail.status === "in_review" ||
-                  detail.status === "contacted") && (
+                {(detail.status === 'new' ||
+                  detail.status === 'in_review' ||
+                  detail.status === 'contacted') && (
                   <Button
                     size="sm"
                     variant="outline"
                     disabled={!!updatingId}
-                    onClick={() => void changeStatus(detail.id, "rejected", statusNote)}
+                    onClick={() => void changeStatus(detail.id, 'rejected', statusNote)}
                   >
                     В отказ
                   </Button>

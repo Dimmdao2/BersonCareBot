@@ -9,7 +9,9 @@ export async function listSchedulerReminderOrganizationIds(db: DbPort): Promise<
   return result.rows.map((row) => {
     const organizationId = row.organization_id?.trim().toLowerCase();
     if (!organizationId || !UUID_RE.test(organizationId)) {
-      throw new Error('Scheduler reminder organization discovery returned an invalid organization id');
+      throw new Error(
+        'Scheduler reminder organization discovery returned an invalid organization id',
+      );
     }
     return organizationId;
   });

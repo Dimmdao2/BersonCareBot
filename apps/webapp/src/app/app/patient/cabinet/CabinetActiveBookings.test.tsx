@@ -1,40 +1,40 @@
 /** @vitest-environment jsdom */
 
-import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
-import { CabinetActiveBookings } from "./CabinetActiveBookings";
-import type { PatientBookingRecord } from "@/modules/patient-booking/types";
+import { describe, expect, it, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { CabinetActiveBookings } from './CabinetActiveBookings';
+import type { PatientBookingRecord } from '@/modules/patient-booking/types';
 
-vi.mock("next/navigation", () => ({
+vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
 }));
 
 function makeBooking(over: Partial<PatientBookingRecord> = {}): PatientBookingRecord {
   return {
-    id: "b1111111-1111-4111-8111-111111111111",
-    userId: "u1111111-1111-4111-8111-111111111111",
-    bookingType: "in_person",
-    city: "moscow",
-    category: "general",
-    slotStart: "2026-05-01T10:00:00.000Z",
-    slotEnd: "2026-05-01T11:00:00.000Z",
-    status: "confirmed",
+    id: 'b1111111-1111-4111-8111-111111111111',
+    userId: 'u1111111-1111-4111-8111-111111111111',
+    bookingType: 'in_person',
+    city: 'moscow',
+    category: 'general',
+    slotStart: '2026-05-01T10:00:00.000Z',
+    slotEnd: '2026-05-01T11:00:00.000Z',
+    status: 'confirmed',
     cancelledAt: null,
     cancelReason: null,
     gcalEventId: null,
-    contactPhone: "+79990001122",
+    contactPhone: '+79990001122',
     contactEmail: null,
-    contactName: "Иван",
+    contactName: 'Иван',
     reminder24hSent: false,
     reminder2hSent: false,
-    createdAt: "2026-05-01T09:00:00.000Z",
-    updatedAt: "2026-05-01T09:00:00.000Z",
+    createdAt: '2026-05-01T09:00:00.000Z',
+    updatedAt: '2026-05-01T09:00:00.000Z',
     branchServiceId: null,
     branchId: null,
     serviceId: null,
-    cityCodeSnapshot: "moscow",
-    branchTitleSnapshot: "Филиал",
-    serviceTitleSnapshot: "Услуга",
+    cityCodeSnapshot: 'moscow',
+    branchTitleSnapshot: 'Филиал',
+    serviceTitleSnapshot: 'Услуга',
     durationMinutesSnapshot: 60,
     priceMinorSnapshot: 0,
     canonicalAppointmentId: null,
@@ -45,23 +45,23 @@ function makeBooking(over: Partial<PatientBookingRecord> = {}): PatientBookingRe
   };
 }
 
-describe("CabinetActiveBookings", () => {
-  it("renders canonical in-person action, label and calendar data from linked context only", () => {
-    const canonicalBranchId = "00000000-0000-4000-8000-0000000000b1";
-    const canonicalServiceId = "00000000-0000-4000-8000-0000000000c1";
+describe('CabinetActiveBookings', () => {
+  it('renders canonical in-person action, label and calendar data from linked context only', () => {
+    const canonicalBranchId = '00000000-0000-4000-8000-0000000000b1';
+    const canonicalServiceId = '00000000-0000-4000-8000-0000000000c1';
     render(
       <CabinetActiveBookings
         bookings={[
           makeBooking({
-            canonicalAppointmentId: "00000000-0000-4000-8000-0000000000a1",
-            branchId: "00000000-0000-4000-8000-0000000000d1",
-            serviceId: "00000000-0000-4000-8000-0000000000e1",
+            canonicalAppointmentId: '00000000-0000-4000-8000-0000000000a1',
+            branchId: '00000000-0000-4000-8000-0000000000d1',
+            serviceId: '00000000-0000-4000-8000-0000000000e1',
             canonicalInPersonContext: {
               branchId: canonicalBranchId,
               serviceId: canonicalServiceId,
-              cityCode: "spb",
-              branchTitle: "Клиника на Невском",
-              serviceTitle: "Каноническая услуга",
+              cityCode: 'spb',
+              branchTitle: 'Клиника на Невском',
+              serviceTitle: 'Каноническая услуга',
               durationMinutes: 45,
               priceMinor: 250000,
             },
@@ -70,35 +70,37 @@ describe("CabinetActiveBookings", () => {
         appDisplayTimeZone="Europe/Moscow"
       />,
     );
-    expect(screen.getByText("Очный приём — СПб · Каноническая услуга")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Перенести" })).toHaveAttribute(
-      "href",
+    expect(screen.getByText('Очный приём — СПб · Каноническая услуга')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Перенести' })).toHaveAttribute(
+      'href',
       expect.stringContaining(`branchId=${canonicalBranchId}`),
     );
-    expect(screen.getByRole("link", { name: "Перенести" })).toHaveAttribute(
-      "href",
+    expect(screen.getByRole('link', { name: 'Перенести' })).toHaveAttribute(
+      'href',
       expect.stringContaining(`serviceId=${canonicalServiceId}`),
     );
-    expect(screen.getByRole("link", { name: "Google Календарь" })).toHaveAttribute(
-      "href",
-      expect.stringContaining("text=%D0%9A%D0%B0%D0%BD%D0%BE%D0%BD%D0%B8%D1%87%D0%B5%D1%81%D0%BA%D0%B0%D1%8F+%D1%83%D1%81%D0%BB%D1%83%D0%B3%D0%B0"),
+    expect(screen.getByRole('link', { name: 'Google Календарь' })).toHaveAttribute(
+      'href',
+      expect.stringContaining(
+        'text=%D0%9A%D0%B0%D0%BD%D0%BE%D0%BD%D0%B8%D1%87%D0%B5%D1%81%D0%BA%D0%B0%D1%8F+%D1%83%D1%81%D0%BB%D1%83%D0%B3%D0%B0',
+      ),
     );
-    expect(screen.queryByRole("button", { name: "Изменить" })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Изменить' })).not.toBeInTheDocument();
   });
 
-  it("renders canonical-linked historical rows through canonical navigation", () => {
+  it('renders canonical-linked historical rows through canonical navigation', () => {
     render(
       <CabinetActiveBookings
         bookings={[
           makeBooking({
-            id: "00000000-0000-4000-8000-0000000000f1",
-            canonicalAppointmentId: "00000000-0000-4000-8000-0000000000a2",
+            id: '00000000-0000-4000-8000-0000000000f1',
+            canonicalAppointmentId: '00000000-0000-4000-8000-0000000000a2',
             canonicalInPersonContext: {
-              branchId: "00000000-0000-4000-8000-0000000000b2",
-              serviceId: "00000000-0000-4000-8000-0000000000c2",
-              cityCode: "moscow",
-              branchTitle: "Клиника",
-              serviceTitle: "Исторический приём",
+              branchId: '00000000-0000-4000-8000-0000000000b2',
+              serviceId: '00000000-0000-4000-8000-0000000000c2',
+              cityCode: 'moscow',
+              branchTitle: 'Клиника',
+              serviceTitle: 'Исторический приём',
               durationMinutes: 60,
               priceMinor: 0,
             },
@@ -107,48 +109,48 @@ describe("CabinetActiveBookings", () => {
         appDisplayTimeZone="Europe/Moscow"
       />,
     );
-    expect(screen.getByRole("link", { name: "Перенести" })).toHaveAttribute(
-      "href",
-      expect.stringContaining("branchId=00000000-0000-4000-8000-0000000000b2"),
+    expect(screen.getByRole('link', { name: 'Перенести' })).toHaveAttribute(
+      'href',
+      expect.stringContaining('branchId=00000000-0000-4000-8000-0000000000b2'),
     );
-    expect(screen.queryByRole("button", { name: "Изменить" })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Изменить' })).not.toBeInTheDocument();
   });
 
-  it("fails closed for legacy-only and incomplete canonical rows", () => {
+  it('fails closed for legacy-only and incomplete canonical rows', () => {
     render(
       <CabinetActiveBookings
         bookings={[
           makeBooking(),
           makeBooking({
-            id: "00000000-0000-4000-8000-0000000000f2",
-            canonicalAppointmentId: "00000000-0000-4000-8000-0000000000a3",
+            id: '00000000-0000-4000-8000-0000000000f2',
+            canonicalAppointmentId: '00000000-0000-4000-8000-0000000000a3',
             canonicalInPersonContext: null,
           }),
         ]}
         appDisplayTimeZone="Europe/Moscow"
       />,
     );
-    expect(screen.getAllByText("Очный приём")).toHaveLength(2);
-    expect(screen.queryByRole("link", { name: "Перенести" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Изменить" })).not.toBeInTheDocument();
+    expect(screen.getAllByText('Очный приём')).toHaveLength(2);
+    expect(screen.queryByRole('link', { name: 'Перенести' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Изменить' })).not.toBeInTheDocument();
   });
 
-  it("keeps canonical online navigation", () => {
+  it('keeps canonical online navigation', () => {
     render(
       <CabinetActiveBookings
         bookings={[
           makeBooking({
-            bookingType: "online",
-            canonicalAppointmentId: "00000000-0000-4000-8000-0000000000a4",
+            bookingType: 'online',
+            canonicalAppointmentId: '00000000-0000-4000-8000-0000000000a4',
           }),
         ]}
         appDisplayTimeZone="Europe/Moscow"
       />,
     );
-    expect(screen.getByRole("link", { name: "Перенести" })).toHaveAttribute(
-      "href",
-      expect.stringContaining("type=online"),
+    expect(screen.getByRole('link', { name: 'Перенести' })).toHaveAttribute(
+      'href',
+      expect.stringContaining('type=online'),
     );
-    expect(screen.queryByRole("button", { name: "Изменить" })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Изменить' })).not.toBeInTheDocument();
   });
 });

@@ -116,11 +116,11 @@ Add a slug history table for content sections.
 Suggested schema:
 
 ```ts
-export const contentSectionSlugHistory = pgTable("content_section_slug_history", {
-  oldSlug: text("old_slug").primaryKey().notNull(),
-  newSlug: text("new_slug").notNull(),
-  changedAt: timestamp("changed_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-  changedByUserId: uuid("changed_by_user_id"),
+export const contentSectionSlugHistory = pgTable('content_section_slug_history', {
+  oldSlug: text('old_slug').primaryKey().notNull(),
+  newSlug: text('new_slug').notNull(),
+  changedAt: timestamp('changed_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  changedByUserId: uuid('changed_by_user_id'),
 });
 ```
 
@@ -225,7 +225,6 @@ Make current settings page understandable without changing the underlying workfl
 1. Add block metadata helper in `modules/patient-home`.
 
    Suggested file:
-
    - `apps/webapp/src/modules/patient-home/blockEditorMetadata.ts`
 
    It should export:
@@ -239,11 +238,12 @@ Make current settings page understandable without changing the underlying workfl
      allowedTargetTypeLabels: Record<PatientHomeBlockItemTargetType, string>;
    };
 
-   export function getPatientHomeBlockEditorMetadata(code: PatientHomeBlockCode): PatientHomeBlockEditorMetadata;
+   export function getPatientHomeBlockEditorMetadata(
+     code: PatientHomeBlockCode,
+   ): PatientHomeBlockEditorMetadata;
    ```
 
 2. Replace generic UI labels:
-
    - `Добавить материал` -> metadata-based label;
    - `Выберите элемент для блока` -> context-specific copy;
    - item row type labels -> Russian labels (`раздел`, `материал`, `курс`).
@@ -251,11 +251,9 @@ Make current settings page understandable without changing the underlying workfl
 3. Improve admin preview empty state.
 
    Current:
-
    - "Нет видимых элементов."
 
    Target:
-
    - if block has no visible items and block is visible:
      - "Блок включен, но на главной пациента не появится, пока нет видимых элементов."
    - if block is hidden:
@@ -266,14 +264,12 @@ Make current settings page understandable without changing the underlying workfl
 4. Show unresolved/hidden/auth-only/unpublished reasons more clearly.
 
    Minimum:
-
    - missing target;
    - hidden item;
    - block hidden;
    - course not published.
 
    Stretch:
-
    - section requires auth and anonymous guest will not see it;
    - CMS section `is_visible=false`.
 
@@ -419,7 +415,6 @@ From a block that needs `content_section`, create a missing section without leav
    ```
 
 2. Validation:
-
    - doctor access;
    - block must allow `content_section`;
    - title required;
@@ -432,7 +427,6 @@ From a block that needs `content_section`, create a missing section without leav
      - `description=""`.
 
 3. Implementation:
-
    - create/upsert section through `deps.contentSections`;
    - add item through `deps.patientHomeBlocks.addItem`;
    - revalidate:
@@ -443,7 +437,6 @@ From a block that needs `content_section`, create a missing section without leav
      - `/app/patient/sections`.
 
 4. UI:
-
    - in editor for `situations`, empty candidate list shows:
      - "Нет подходящих разделов";
      - "Создать раздел";
@@ -460,7 +453,6 @@ From a block that needs `content_section`, create a missing section without leav
      - success status shown.
 
 5. Existing repair flow:
-
    - if a missing item has `targetRef='office-work'`, repair CTA should offer:
      - create section with this slug;
      - choose existing section;
@@ -500,7 +492,6 @@ Allow changing a CMS section slug safely.
 ### Scope
 
 1. Schema:
-
    - Add `content_section_slug_history`.
    - Add migration and rollback SQL.
    - Export schema in `apps/webapp/db/schema/index.ts`.
@@ -519,14 +510,12 @@ Allow changing a CMS section slug safely.
    ```
 
    Preferred placement:
-
    - port type in a module or infra-facing type already used by content section service;
    - implementation in `pgContentSections.ts` via Drizzle transaction.
 
 3. Rename transaction:
 
    In one transaction:
-
    - verify old section exists;
    - verify new slug valid and not already used;
    - update `content_sections.slug`;
@@ -538,7 +527,6 @@ Allow changing a CMS section slug safely.
 4. Patient redirect:
 
    In `/app/patient/sections/[slug]/page.tsx`:
-
    - if direct `getBySlug(slug)` fails;
    - check history;
    - redirect to current slug if found;
@@ -549,7 +537,6 @@ Allow changing a CMS section slug safely.
 5. Admin UI:
 
    In `SectionForm` edit mode:
-
    - keep current slug displayed;
    - add button "Изменить slug";
    - show modal with:
@@ -562,7 +549,6 @@ Allow changing a CMS section slug safely.
      - confirm action.
 
 6. Revalidation:
-
    - old and new section routes;
    - patient home;
    - doctor content sections;
@@ -612,7 +598,6 @@ Make non-section targets practical from block settings too.
 1. `daily_warmup` / `sos` / `subscription_carousel` material creation:
 
    Minimum acceptable implementation:
-
    - "Создать материал в CMS" button;
    - route to CMS new content form with query:
      - `returnTo=/app/doctor/patient-home`;
@@ -621,7 +606,6 @@ Make non-section targets practical from block settings too.
    - after saving content, show CTA "Добавить в блок главной" if query exists.
 
    Better final implementation:
-
    - quick draft material creation with title, slug, section, image, summary;
    - created as unpublished draft;
    - auto-add item to block;
@@ -630,14 +614,12 @@ Make non-section targets practical from block settings too.
 2. `courses` flow:
 
    Minimum:
-
    - "Создать курс" opens existing course creation route with returnTo;
    - after publish, course appears in candidate picker.
 
    Do not create incomplete published courses inline.
 
 3. `subscription_carousel` mixed flow:
-
    - tabs/groups:
      - "Разделы";
      - "Материалы";
@@ -645,7 +627,6 @@ Make non-section targets practical from block settings too.
    - each group has its own "Создать ..." CTA.
 
 4. Candidate picker quality:
-
    - show published/visible status;
    - hide archived courses by default;
    - search by title and slug/id.
@@ -753,4 +734,3 @@ Composer should:
 - use Drizzle for new DB work;
 - make labels and empty states precise;
 - keep patient runtime behavior unchanged unless phase explicitly says otherwise.
-

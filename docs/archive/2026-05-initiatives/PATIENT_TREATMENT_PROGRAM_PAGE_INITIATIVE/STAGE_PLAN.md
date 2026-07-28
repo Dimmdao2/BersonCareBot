@@ -4,12 +4,12 @@
 
 ## Порядок этапов
 
-| Код | ROADMAP | Детальный файл |
-|-----|---------|----------------|
-| **A** | §1.0 | [`STAGE_A.md`](STAGE_A.md) |
-| **B** | §1.1a | [`STAGE_B.md`](STAGE_B.md) |
-| **C** | §1.1b | [`STAGE_C.md`](STAGE_C.md) |
-| **D** | §1.1 | [`STAGE_D.md`](STAGE_D.md) |
+| Код   | ROADMAP | Детальный файл             |
+| ----- | ------- | -------------------------- |
+| **A** | §1.0    | [`STAGE_A.md`](STAGE_A.md) |
+| **B** | §1.1a   | [`STAGE_B.md`](STAGE_B.md) |
+| **C** | §1.1b   | [`STAGE_C.md`](STAGE_C.md) |
+| **D** | §1.1    | [`STAGE_D.md`](STAGE_D.md) |
 
 ## Обязательный pipeline
 

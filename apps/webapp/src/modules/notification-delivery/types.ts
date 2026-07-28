@@ -1,8 +1,8 @@
-export const NOTIFICATION_DELIVERY_CHANNELS = ["telegram", "max", "web_push", "email"] as const;
+export const NOTIFICATION_DELIVERY_CHANNELS = ['telegram', 'max', 'web_push', 'email'] as const;
 
 export type NotificationDeliveryChannel = (typeof NOTIFICATION_DELIVERY_CHANNELS)[number];
 
-export const NOTIFICATION_DELIVERY_STATUSES = ["success", "failed", "skipped"] as const;
+export const NOTIFICATION_DELIVERY_STATUSES = ['success', 'failed', 'skipped'] as const;
 
 export type NotificationDeliveryStatus = (typeof NOTIFICATION_DELIVERY_STATUSES)[number];
 
@@ -54,8 +54,8 @@ export type NotificationDeliveryHealthSnapshot = {
 };
 
 export type NotificationDeliverySystemHealthStatus =
-  | "ok"
-  | "degraded"
-  | "no_data"
-  | "not_configured"
-  | "error";
+  | 'ok'
+  | 'degraded'
+  | 'no_data'
+  | 'not_configured'
+  | 'error';
