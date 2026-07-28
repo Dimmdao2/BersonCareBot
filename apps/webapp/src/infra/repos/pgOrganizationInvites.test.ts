@@ -2,9 +2,11 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { CLINIC_SEAT_USAGE_SQL } from "@/modules/clinic-seats/seatUsageSql";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoSource = readFileSync(join(__dirname, "pgOrganizationInvites.ts"), "utf8");
+const orgEntitlementsSource = readFileSync(join(__dirname, "pgOrgEntitlements.ts"), "utf8");
 const overlaySource = readFileSync(
   join(__dirname, "../../../../../deploy/postgres/organization-member-invites-rls.sql"),
   "utf8",
@@ -56,13 +58,22 @@ describe("organization invite PostgreSQL contract", () => {
     expect(createSource).toContain('if (input.invitedRole === "doctor")');
     expect(createSource).toContain("saas_org_entitlement_overrides");
     expect(createSource).toContain("saas_tariffs");
-    expect(createSource).toContain("m.specialist_id IS NOT NULL");
-    expect(createSource).toContain("i.invited_role = 'doctor' AND i.invited_email <> $2");
-    expect(createSource).toContain("i.status = 'accepted' AND i.invited_role = 'doctor'");
-    expect(createSource).toContain("m.status = 'active' AND m.specialist_id IS NULL");
+    expect(createSource).toContain("CLINIC_SEAT_USAGE_SQL");
+    expect(CLINIC_SEAT_USAGE_SQL).toContain("m.specialist_id IS NOT NULL");
+    expect(CLINIC_SEAT_USAGE_SQL).toContain("i.invited_role = 'doctor' AND ($2::text IS NULL OR i.invited_email <> $2)");
+    expect(CLINIC_SEAT_USAGE_SQL).toContain("i.status = 'accepted' AND i.invited_role = 'doctor'");
+    expect(CLINIC_SEAT_USAGE_SQL).toContain("m.status = 'active' AND m.specialist_id IS NULL");
     expect(createSource).toContain('code: "seat_limit_reached"');
     // The capacity check must run before the revoke+insert, not after.
     expect(createSource.indexOf("usedValue >= limitValue")).toBeLessThan(createSource.indexOf("status = 'revoked'"));
+  });
+
+  it("uses the exact same authoritative seat expression for enforcement and the quota storefront", () => {
+    expect(repoSource).toContain('import { CLINIC_SEAT_USAGE_SQL } from "@/modules/clinic-seats/seatUsageSql"');
+    expect(orgEntitlementsSource).toContain('import { CLINIC_SEAT_USAGE_SQL } from "@/modules/clinic-seats/seatUsageSql"');
+    expect(orgEntitlementsSource).toContain("`SELECT ${CLINIC_SEAT_USAGE_SQL} AS used_value`");
+    // A null exclusion includes every current reservation; invite replacement alone excludes its own pending email.
+    expect(orgEntitlementsSource).toContain("[organizationId, null]");
   });
 
   it("keeps accept single-use and creates only the membership in its pre-session transaction", () => {

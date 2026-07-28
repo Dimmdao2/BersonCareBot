@@ -131,7 +131,19 @@ export async function resolveOrgQuotaProjections(
   );
   return MECHANICS.flatMap((mechanic) => {
     if (MECHANIC_REGISTRY[mechanic].quotaEnforcement === "declared_no_enforcement") return [];
-    const quota = activeOverrides.get(mechanic)?.quota ?? snapshot.tariff?.quotas[mechanic];
+    if (mechanic === "clinic_team" && !entitlementsFromSnapshot(snapshot).clinic_team) return [];
+    // Specialist seats are configured by includedSeats/seatLimitOverride rather than the generic
+    // tariff quota map, but are enforced with the same snapshot semantics.
+    const clinicTeamOverride = activeOverrides.get("clinic_team");
+    const quota: TariffQuota | undefined = mechanic === "clinic_team"
+      ? {
+          kind: "numeric" as const,
+          limit: clinicTeamOverride?.seatLimitOverride ?? snapshot.tariff?.includedSeats ?? CLINIC_TEAM_FAIL_CLOSED_SEAT_BASELINE,
+          unit: "seats",
+          period: "snapshot" as const,
+          usagePolicy: "snapshot" as const,
+        }
+      : activeOverrides.get(mechanic)?.quota ?? snapshot.tariff?.quotas[mechanic];
     const currentUsage = usage[mechanic];
     if (!quota || quota.kind !== "numeric" || quota.limit === null || currentUsage === undefined) return [];
     return [{

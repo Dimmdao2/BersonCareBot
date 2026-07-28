@@ -1,4 +1,5 @@
 import { runWebappPgText, runWebappTransaction } from "@/infra/db/runWebappSql";
+import { CLINIC_SEAT_USAGE_SQL } from "@/modules/clinic-seats/seatUsageSql";
 import type {
   AcceptOrganizationInviteResult,
   CreateOrganizationInviteResult,
@@ -169,19 +170,7 @@ export function createPgOrganizationInvitesPort(): OrganizationInvitesPort {
              )
              SELECT
                (SELECT value FROM seat_limit)::int AS limit_value,
-               (
-                 (SELECT COUNT(*) FROM be_organization_members m
-                  WHERE m.organization_id = $1 AND m.status = 'active' AND m.specialist_id IS NOT NULL)
-                 +
-                 (SELECT COUNT(*) FROM organization_member_invites i
-                  WHERE i.organization_id = $1 AND i.status = 'pending' AND i.expires_at > now()
-                    AND i.invited_role = 'doctor' AND i.invited_email <> $2)
-                 +
-                 (SELECT COUNT(*) FROM organization_member_invites i
-                  JOIN be_organization_members m ON m.id = i.accepted_membership_id
-                  WHERE i.organization_id = $1 AND i.status = 'accepted' AND i.invited_role = 'doctor'
-                    AND m.status = 'active' AND m.specialist_id IS NULL)
-               )::int AS used_value`,
+               ${CLINIC_SEAT_USAGE_SQL} AS used_value`,
             [input.organizationId, input.invitedEmail, CLINIC_TEAM_FAIL_CLOSED_SEAT_BASELINE],
             tx,
           );

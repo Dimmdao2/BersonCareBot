@@ -120,20 +120,21 @@ describe("resolveOrgEntitlements", () => {
 });
 
 describe("resolveOrgQuotaProjections", () => {
-  it("exposes the courses 80% threshold as typed state and omits unenforced keys", async () => {
+  it("exposes enforced snapshot quotas, including specialist seats configured outside the generic quota map", async () => {
     const port = portFor({ mechanics: { courses: true } }, []);
     port.getSnapshot = vi.fn(async () => ({
       tariff: {
-        mechanics: { courses: true },
+        mechanics: { courses: true, clinic_team: true },
         quotas: { courses: { kind: "numeric" as const, limit: 5, unit: "items", period: "snapshot" as const, usagePolicy: "snapshot" as const } },
-        includedSeats: null,
+        includedSeats: 5,
       },
       overrides: [],
       access: { lifecycle: "active" as const, tariffId: "tariff-a", source: "assignment" as const },
     }));
-    port.getEnforcedQuotaUsage = vi.fn(async () => ({ courses: 4 }));
+    port.getEnforcedQuotaUsage = vi.fn(async () => ({ courses: 4, clinic_team: 5 }));
     await expect(resolveOrgQuotaProjections(port, "org-a")).resolves.toEqual([
       expect.objectContaining({ mechanic: "courses", usage: 4, threshold: "warning", enforcement: "atomic_snapshot" }),
+      expect.objectContaining({ mechanic: "clinic_team", usage: 5, threshold: "reached", enforcement: "application_transaction_snapshot" }),
     ]);
   });
 });
@@ -272,8 +273,11 @@ describe("platform tariff constructor validation", () => {
     }, { actorId: null, reason: "test" })).toThrow("tariff_quota_enforcement_shape_invalid");
   });
 
-  it("declares only courses as enforced and keeps the SQL path tied to the successful insert", () => {
+  it("declares courses as DB-trigger enforcement and specialist seats as application-transaction enforcement", () => {
     expect(MECHANIC_REGISTRY.courses.quotaEnforcement).toBe("atomic_snapshot");
+    // #1069: seats were incorrectly declared unenforced. The distinct tag tells debugging to
+    // inspect pgOrganizationInvites' advisory-lock transaction, rather than the courses trigger.
+    expect(MECHANIC_REGISTRY.clinic_team.quotaEnforcement).toBe("application_transaction_snapshot");
     expect(MECHANIC_REGISTRY.booking.quotaEnforcement).toBe("declared_no_enforcement");
     const migration = readFileSync(
       resolve(process.cwd(), "db/drizzle-migrations/0225_saas_tariff_quotas_trial.sql"),
