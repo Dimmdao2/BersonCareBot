@@ -25,10 +25,12 @@ set -euo pipefail
 MAIN=/home/dev/dev-projects/BersonCareBot
 FEAT=feat/doctor-ui-rebuild
 QUEUE="$MAIN/docs/_TODO/NIGHT_WAVE_AUDIT_QUEUE_2026-07-28.md"
-# Потолки разные по роли. Воркеры пишут в дерево и жгут CPU — их 3 (AGENTS.md §24).
+# Потолки разные по роли. Воркеров 4 — владелец 28.07: «воркеров можно в 4 ручья гнать (только тесты
+# чтобы гнали по очереди)»; это поверх ориентира AGENTS.md §24 в 3. Сериализация тестов — не здесь,
+# а мьютексом run-tests.sh, и требованием в брифе.
 # Аудиторы только читают, конфликтовать им нечем — их 5. Владелец 28.07: «почему аудит идёт
 # в ОДИН ПОТОК? уж тут то можно хоть в пять».
-MAX_WORKERS=${ORCH_MAX_WORKERS:-3}
+MAX_WORKERS=${ORCH_MAX_WORKERS:-4}
 MAX_AUDITORS=${ORCH_MAX_AUDITORS:-5}
 PORT=/home/dev/brain/host-orch/agent-run.mjs
 
