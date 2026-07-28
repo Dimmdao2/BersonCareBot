@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const repoDir = process.cwd();
 const migration = readFileSync(
-  join(repoDir, "db/drizzle-migrations/0269_integrator_global_delivery_attempt_audit.sql"),
+  join(repoDir, "db/drizzle-migrations/0268_integrator_global_delivery_attempt_audit.sql"),
   "utf8",
 );
 const journal = readFileSync(
@@ -41,6 +41,6 @@ describe("integrator global delivery-attempt audit migration", () => {
 
   it("registers the reserved 0269 migration in the ordered journal", () => {
     expect(journal).toContain('"idx": 267');
-    expect(journal).toContain('"tag": "0269_integrator_global_delivery_attempt_audit"');
+    expect(journal).toContain('"tag": "0268_integrator_global_delivery_attempt_audit"');
   });
 });

@@ -18,7 +18,7 @@ const signupReservationMigrationPath = join(
 );
 const signupReservationRemovalMigrationPath = join(
   repoDir,
-  '../../../db/drizzle-migrations/0270_remove_specialist_signup_slug_reservation.sql',
+  '../../../db/drizzle-migrations/0269_remove_specialist_signup_slug_reservation.sql',
 );
 const schemaPath = join(repoDir, '../../../db/schema/clinicDirectory.ts');
 const journalPath = join(repoDir, '../../../db/drizzle-migrations/meta/_journal.json');
@@ -238,6 +238,6 @@ describe('0218 organization slug foundation', () => {
     expect(journal).toContain('"idx": 257');
     expect(journal).toContain('"tag": "0257_specialist_signup_slug_reservation"');
     expect(journal).toContain('"idx": 270');
-    expect(journal).toContain('"tag": "0270_remove_specialist_signup_slug_reservation"');
+    expect(journal).toContain('"tag": "0269_remove_specialist_signup_slug_reservation"');
   });
 });

@@ -121,14 +121,14 @@ describe("0260 outgoing delivery scope text identifier fix", () => {
         idx: 268,
         version: "7",
         when: 1793539200065,
-        tag: "0268_platform_organization_members_directory",
+        tag: "0267_platform_organization_members_directory",
         breakpoints: true,
       },
       {
         idx: 270,
         version: "7",
         when: 1793539200067,
-        tag: "0270_remove_specialist_signup_slug_reservation",
+        tag: "0269_remove_specialist_signup_slug_reservation",
         breakpoints: true,
       },
     ]);

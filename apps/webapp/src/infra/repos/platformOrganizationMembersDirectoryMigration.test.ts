@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 const migration = readFileSync(
   new URL(
-    '../../../db/drizzle-migrations/0268_platform_organization_members_directory.sql',
+    '../../../db/drizzle-migrations/0267_platform_organization_members_directory.sql',
     import.meta.url,
   ),
   'utf8',
@@ -71,7 +71,7 @@ describe('platform organization-members directory boundary', () => {
       idx: 268,
       version: '7',
       when: 1793539200065,
-      tag: '0268_platform_organization_members_directory',
+      tag: '0267_platform_organization_members_directory',
       breakpoints: true,
     });
   });

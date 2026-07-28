@@ -1872,24 +1872,24 @@
       "breakpoints": true
     },
     {
-      "idx": 268,
+      "idx": 267,
       "version": "7",
       "when": 1793539200065,
-      "tag": "0268_platform_organization_members_directory",
+      "tag": "0267_platform_organization_members_directory",
+      "breakpoints": true
+    },
+    {
+      "idx": 268,
+      "version": "7",
+      "when": 1793539200066,
+      "tag": "0268_integrator_global_delivery_attempt_audit",
       "breakpoints": true
     },
     {
       "idx": 269,
       "version": "7",
-      "when": 1793539200066,
-      "tag": "0269_integrator_global_delivery_attempt_audit",
-      "breakpoints": true
-    },
-    {
-      "idx": 270,
-      "version": "7",
       "when": 1793539200067,
-      "tag": "0270_remove_specialist_signup_slug_reservation",
+      "tag": "0269_remove_specialist_signup_slug_reservation",
       "breakpoints": true
     }
   ]
