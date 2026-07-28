@@ -177,7 +177,7 @@ describe("0252 patient action accessors", () => {
     const deploy = readFileSync(deployPath, "utf8");
     // 106 -> 107: 0267 adds the staff-name directory accessor, 0268 adds the delivery-audit
     // writer, and 0269 removes the superseded signup-slug reservation function.
-    expect(deploy).toContain("local expected_secdef_count=109");
+    expect(deploy).toContain("local expected_secdef_count=110");
     for (const row of [
       "('public.lfk_complexes', 'SELECT')",
       "('public.lfk_complex_exercises', 'SELECT')",

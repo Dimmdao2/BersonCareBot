@@ -154,19 +154,15 @@ describe("pgOrgEntitlements current-patient capability", () => {
     expect(runWebappPgTextMock).not.toHaveBeenCalled();
   });
 
-  it("publishes CMS-page usage from the shared authoritative infra recount", async () => {
-    const coursesWhere = vi.fn().mockResolvedValue([{ count: 2 }]);
-    const coursesFrom = vi.fn(() => ({ where: coursesWhere }));
-    getDrizzleMock.mockReturnValue({
-      select: vi.fn(() => ({ from: coursesFrom })),
-    });
+  it("publishes enforced usage only through count-only DB capabilities", async () => {
     runWebappPgTextMock.mockImplementation(async (query: string, params: unknown[]) => {
       if (query.includes(CMS_PAGES_USAGE_SQL)) {
         expect(params).toEqual([ORGANIZATION_ID]);
         return { rows: [{ used_value: 4 }] };
       }
-      expect(params).toEqual([ORGANIZATION_ID, null]);
-      return { rows: [{ used_value: 3 }] };
+      expect(query).toContain("FROM app.read_org_enforced_quota_usage($1::uuid)");
+      expect(params).toEqual([ORGANIZATION_ID]);
+      return { rows: [{ courses_used: 2, clinic_team_used: 3 }] };
     });
 
     await expect(
@@ -179,5 +175,6 @@ describe("pgOrgEntitlements current-patient capability", () => {
     expect(CMS_PAGES_USAGE_SQL).toBe(
       "app.cms_pages_snapshot_usage($1::uuid)::int",
     );
+    expect(getDrizzleMock).not.toHaveBeenCalled();
   });
 });

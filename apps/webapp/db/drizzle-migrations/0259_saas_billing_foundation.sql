@@ -265,8 +265,9 @@ ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE SET
   updated_at = EXCLUDED.updated_at,
   updated_by = EXCLUDED.updated_by;
 
--- Every new table is FORCE RLS. Clinic staff have exact-org reads only; platform operations
--- own global billing mutations. No patient role receives any privilege.
+-- Every new table is FORCE RLS. Platform operations own global billing mutations. Clinic billing
+-- reads are installed by the re-applied C5A runtime overlay after it creates the dedicated
+-- app_clinic_billing role; ambient app_staff receives no billing table privilege.
 ALTER TABLE public.saas_billing_accounts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.saas_billing_accounts FORCE ROW LEVEL SECURITY;
 ALTER TABLE public.saas_billing_subscriptions ENABLE ROW LEVEL SECURITY;
@@ -275,13 +276,6 @@ ALTER TABLE public.saas_billing_invoices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.saas_billing_invoices FORCE ROW LEVEL SECURITY;
 ALTER TABLE public.saas_billing_provider_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.saas_billing_provider_events FORCE ROW LEVEL SECURITY;
-
-GRANT SELECT ON TABLE
-  public.saas_billing_accounts,
-  public.saas_billing_subscriptions,
-  public.saas_billing_invoices,
-  public.saas_billing_provider_events
-TO app_staff;
 
 GRANT SELECT, INSERT, UPDATE ON TABLE
   public.saas_billing_accounts,
@@ -297,14 +291,6 @@ REVOKE ALL PRIVILEGES ON TABLE
   public.saas_billing_provider_events
 FROM app_patient;
 
-CREATE POLICY saas_billing_accounts_staff_select
-  ON public.saas_billing_accounts
-  FOR SELECT TO app_staff
-  USING (
-    app.is_staff()
-    AND app.current_org_id() IS NOT NULL
-    AND organization_id = app.current_org_id()
-  );
 CREATE POLICY saas_billing_accounts_platform_select
   ON public.saas_billing_accounts FOR SELECT TO app_platform_settings USING (true);
 CREATE POLICY saas_billing_accounts_platform_insert
@@ -313,14 +299,6 @@ CREATE POLICY saas_billing_accounts_platform_update
   ON public.saas_billing_accounts
   FOR UPDATE TO app_platform_settings USING (true) WITH CHECK (true);
 
-CREATE POLICY saas_billing_subscriptions_staff_select
-  ON public.saas_billing_subscriptions
-  FOR SELECT TO app_staff
-  USING (
-    app.is_staff()
-    AND app.current_org_id() IS NOT NULL
-    AND organization_id = app.current_org_id()
-  );
 CREATE POLICY saas_billing_subscriptions_platform_select
   ON public.saas_billing_subscriptions FOR SELECT TO app_platform_settings USING (true);
 CREATE POLICY saas_billing_subscriptions_platform_insert
@@ -329,14 +307,6 @@ CREATE POLICY saas_billing_subscriptions_platform_update
   ON public.saas_billing_subscriptions
   FOR UPDATE TO app_platform_settings USING (true) WITH CHECK (true);
 
-CREATE POLICY saas_billing_invoices_staff_select
-  ON public.saas_billing_invoices
-  FOR SELECT TO app_staff
-  USING (
-    app.is_staff()
-    AND app.current_org_id() IS NOT NULL
-    AND organization_id = app.current_org_id()
-  );
 CREATE POLICY saas_billing_invoices_platform_select
   ON public.saas_billing_invoices FOR SELECT TO app_platform_settings USING (true);
 CREATE POLICY saas_billing_invoices_platform_insert
@@ -345,14 +315,6 @@ CREATE POLICY saas_billing_invoices_platform_update
   ON public.saas_billing_invoices
   FOR UPDATE TO app_platform_settings USING (true) WITH CHECK (true);
 
-CREATE POLICY saas_billing_provider_events_staff_select
-  ON public.saas_billing_provider_events
-  FOR SELECT TO app_staff
-  USING (
-    app.is_staff()
-    AND app.current_org_id() IS NOT NULL
-    AND organization_id = app.current_org_id()
-  );
 CREATE POLICY saas_billing_provider_events_platform_select
   ON public.saas_billing_provider_events FOR SELECT TO app_platform_settings USING (true);
 CREATE POLICY saas_billing_provider_events_platform_insert

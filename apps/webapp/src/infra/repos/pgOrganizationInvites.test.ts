@@ -11,6 +11,10 @@ const overlaySource = readFileSync(
   join(__dirname, "../../../../../deploy/postgres/organization-member-invites-rls.sql"),
   "utf8",
 );
+const platformRuntimeSource = readFileSync(
+  join(__dirname, "../../../../../deploy/postgres/c5a-platform-operations-runtime.sql"),
+  "utf8",
+);
 const seatNonnegativeMigrationSource = readFileSync(
   join(__dirname, "../../../db/drizzle-migrations/0213_clinic_team_seat_nonnegative.sql"),
   "utf8",
@@ -68,12 +72,19 @@ describe("organization invite PostgreSQL contract", () => {
     expect(createSource.indexOf("usedValue >= limitValue")).toBeLessThan(createSource.indexOf("status = 'revoked'"));
   });
 
-  it("uses the exact same authoritative seat expression for enforcement and the quota storefront", () => {
+  it("keeps storefront seat usage aligned behind a count-only DB capability", () => {
     expect(repoSource).toContain('import { CLINIC_SEAT_USAGE_SQL } from "@/infra/repos/seatUsageSql"');
-    expect(orgEntitlementsSource).toContain('import { CLINIC_SEAT_USAGE_SQL } from "@/infra/repos/seatUsageSql"');
-    expect(orgEntitlementsSource).toContain("`SELECT ${CLINIC_SEAT_USAGE_SQL} AS used_value`");
-    // A null exclusion includes every current reservation; invite replacement alone excludes its own pending email.
-    expect(orgEntitlementsSource).toContain("[organizationId, null]");
+    expect(orgEntitlementsSource).toContain("app.read_org_enforced_quota_usage($1::uuid)");
+    expect(orgEntitlementsSource).not.toContain("organization_member_invites");
+    expect(platformRuntimeSource).toContain("membership.specialist_id IS NOT NULL");
+    expect(platformRuntimeSource).toContain("invite.status = 'pending'");
+    expect(platformRuntimeSource).toContain("invite.expires_at > now()");
+    expect(platformRuntimeSource).toContain("invite.invited_role = 'doctor'");
+    expect(platformRuntimeSource).toContain("invite.status = 'accepted'");
+    expect(platformRuntimeSource).toContain("membership.specialist_id IS NULL");
+    expect(platformRuntimeSource).toContain(
+      "REVOKE ALL PRIVILEGES ON TABLE\n    public.courses,\n    public.organization_member_invites",
+    );
   });
 
   it("keeps accept single-use and creates only the membership in its pre-session transaction", () => {

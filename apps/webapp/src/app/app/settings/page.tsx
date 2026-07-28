@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { runWithDbClinicBillingPrincipal } from "@bersoncare/db-principal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireEntitlementForReadAction } from "@/app-layer/guards/requireEntitlement";
 import { requireOrganizationWorkspaceContext } from "@/app-layer/guards/requireRole";
@@ -73,7 +74,11 @@ export default async function SettingsPage({
     { organizationId: workspace.organizationId },
     "clinic_team",
   );
-  const canAccessBilling = workspace.membershipRole === "owner" || isGlobalAdmin;
+  // §29 владельца: биллинг клиники видит владелец И администратор клиники («админ клиники или соло-специалист
+  // — равноценно»), а обычный персонал не видит. Условие потеряно лидом при разрешении конфликта слияния
+  // 28.07 и возвращено: тест «shows billing to owner and clinic admin» падал на редиректе админа.
+  const canAccessBilling =
+    workspace.membershipRole === "owner" || workspace.membershipRole === "admin" || isGlobalAdmin;
   const visibleTabs: SettingsTabId[] = [
     "organization",
     ...(teamEntitlement.ok ? (["team"] as const) : []),
@@ -247,10 +252,19 @@ export default async function SettingsPage({
   if (!canAccessBilling) redirect(routePaths.account);
 
   const deps = buildAppDeps();
-  const [snapshot, billing] = await Promise.all([
-    deps.orgEntitlements.getSnapshot(workspace.organizationId),
-    deps.saasBilling.getOrganizationBillingOverview(workspace.organizationId),
-  ]);
+  // Страж рабочего пространства ставит обычный принципал сотрудника. Снимок тарифа читаем этим путём,
+  // а запрос к таблицам биллинга сужаем до отдельной роли админа клиники (§29). Последовательно, а не
+  // Promise.all: принципал биллинга подменяет роль подключения, и параллельный запрос в том же соединении
+  // прочитал бы снимок уже под ней.
+  const snapshot = await deps.orgEntitlements.getSnapshot(workspace.organizationId);
+  const billing = await runWithDbClinicBillingPrincipal(
+    {
+      organizationId: workspace.organizationId,
+      platformUserId: workspace.session.user.userId,
+      source: "clinic-billing-settings-read",
+    },
+    () => deps.saasBilling.getOrganizationBillingOverview(workspace.organizationId),
+  );
   const entitlements = entitlementsFromSnapshot(snapshot);
   const mechanicRows: BillingMechanicRow[] = MECHANICS.map((mechanic) => ({
     mechanic,

@@ -1,34 +1,29 @@
-import { and, desc, eq } from "drizzle-orm";
-import { getDrizzle } from "@/app-layer/db/drizzle";
+import { and, desc, eq } from 'drizzle-orm';
+import { getDrizzle } from '@/app-layer/db/drizzle';
 import type {
   SaasBillingInvoice,
   SaasBillingInvoiceReadRow,
   SaasBillingRepositoryPort,
   SaasBillingSubscriptionReadRow,
-} from "@/modules/saas-billing/ports";
-import { sanitizeSaasBillingProviderEventEnvelope } from "@/modules/saas-billing/providerEventEnvelope";
-import { beOrganizations } from "../../../db/schema/bookingEngine";
+} from '@/modules/saas-billing/ports';
+import { sanitizeSaasBillingProviderEventEnvelope } from '@/modules/saas-billing/providerEventEnvelope';
+import { beOrganizations } from '../../../db/schema/bookingEngine';
 import {
   saasBillingAccounts,
   saasBillingInvoices,
   saasBillingProviderEvents,
   saasBillingSubscriptions,
-} from "../../../db/schema/saasBilling";
-import {
-  saasOrganizationTrials,
-  saasTariffs,
-} from "../../../db/schema/saasEntitlements";
-import { adminAuditLog } from "../../../db/schema/schema";
+} from '../../../db/schema/saasBilling';
+import { saasOrganizationTrials, saasTariffs } from '../../../db/schema/saasEntitlements';
+import { adminAuditLog } from '../../../db/schema/schema';
 
 type Db = ReturnType<typeof getDrizzle>;
-type Transaction = Parameters<Parameters<Db["transaction"]>[0]>[0];
+type Transaction = Parameters<Parameters<Db['transaction']>[0]>[0];
 
-function toSaasBillingInvoice(
-  row: typeof saasBillingInvoices.$inferSelect,
-): SaasBillingInvoice {
+function toSaasBillingInvoice(row: typeof saasBillingInvoices.$inferSelect): SaasBillingInvoice {
   return {
     ...row,
-    tariffBillingPeriod: row.tariffBillingPeriod as SaasBillingInvoice["tariffBillingPeriod"],
+    tariffBillingPeriod: row.tariffBillingPeriod as SaasBillingInvoice['tariffBillingPeriod'],
   };
 }
 
@@ -44,7 +39,7 @@ async function upsertSaasBillingAccount(
       set: { updatedAt: new Date().toISOString() },
     })
     .returning();
-  if (!row) throw new Error("saas_billing_account_upsert_failed");
+  if (!row) throw new Error('saas_billing_account_upsert_failed');
   return row;
 }
 
@@ -106,14 +101,14 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
               .from(beOrganizations)
               .where(eq(beOrganizations.id, organizationId))
               .limit(1);
-            if (!organization) throw new Error("organization_not_found");
+            if (!organization) throw new Error('organization_not_found');
             const [activeTrial] = await tx
               .select()
               .from(saasOrganizationTrials)
               .where(
                 and(
                   eq(saasOrganizationTrials.organizationId, organizationId),
-                  eq(saasOrganizationTrials.status, "active"),
+                  eq(saasOrganizationTrials.status, 'active'),
                 ),
               )
               .limit(1);
@@ -127,7 +122,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
               .where(
                 and(
                   eq(saasBillingSubscriptions.organizationId, organizationId),
-                  eq(saasBillingSubscriptions.source, "manual"),
+                  eq(saasBillingSubscriptions.source, 'manual'),
                 ),
               )
               .limit(1);
@@ -143,21 +138,21 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
               .from(saasTariffs)
               .where(and(eq(saasTariffs.id, tariffId), eq(saasTariffs.isActive, true)))
               .limit(1);
-            if (!tariff) throw new Error("active_tariff_not_found");
+            if (!tariff) throw new Error('active_tariff_not_found');
           },
           async setManualSaasBillingSubscription({ organizationId, tariffId }) {
             if (tariffId === null) {
               await tx
                 .update(saasBillingSubscriptions)
                 .set({
-                  status: "cancelled",
+                  status: 'cancelled',
                   cancelledAt: new Date().toISOString(),
                   updatedAt: new Date().toISOString(),
                 })
                 .where(
                   and(
                     eq(saasBillingSubscriptions.organizationId, organizationId),
-                    eq(saasBillingSubscriptions.source, "manual"),
+                    eq(saasBillingSubscriptions.source, 'manual'),
                   ),
                 );
               return;
@@ -169,53 +164,50 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
                 organizationId,
                 saasBillingAccountId: account.id,
                 tariffId,
-                source: "manual",
-                status: "active",
-                lifecycleState: "active",
+                source: 'manual',
+                status: 'active',
+                lifecycleState: 'active',
               })
               .onConflictDoUpdate({
-                target: [
-                  saasBillingSubscriptions.organizationId,
-                  saasBillingSubscriptions.source,
-                ],
+                target: [saasBillingSubscriptions.organizationId, saasBillingSubscriptions.source],
                 set: {
                   tariffId,
-                  status: "active",
-                  lifecycleState: "active",
+                  status: 'active',
+                  lifecycleState: 'active',
                   cancelledAt: null,
                   updatedAt: new Date().toISOString(),
                 },
               })
               .returning({ id: saasBillingSubscriptions.id });
-            if (!row) throw new Error("saas_billing_manual_assignment_failed");
+            if (!row) throw new Error('saas_billing_manual_assignment_failed');
           },
           async updateCompatibilityProjection({ organizationId, tariffId }) {
             const [organization] = await tx
               .update(beOrganizations)
               .set({
                 tariffId,
-                commercialAccessState: tariffId ? "active" : "no_trial",
+                commercialAccessState: tariffId ? 'active' : 'no_trial',
               })
               .where(eq(beOrganizations.id, organizationId))
               .returning({
                 tariffId: beOrganizations.tariffId,
                 commercialAccessState: beOrganizations.commercialAccessState,
               });
-            if (!organization) throw new Error("organization_not_found");
+            if (!organization) throw new Error('organization_not_found');
             return organization;
           },
           async endActiveTrial(trialId) {
             const [trial] = await tx
               .update(saasOrganizationTrials)
-              .set({ status: "ended", updatedAt: new Date().toISOString() })
+              .set({ status: 'ended', updatedAt: new Date().toISOString() })
               .where(
                 and(
                   eq(saasOrganizationTrials.id, trialId),
-                  eq(saasOrganizationTrials.status, "active"),
+                  eq(saasOrganizationTrials.status, 'active'),
                 ),
               )
               .returning();
-            if (!trial) throw new Error("trial_conversion_conflict");
+            if (!trial) throw new Error('trial_conversion_conflict');
             return trial;
           },
           async appendManualAssignmentAudit(input) {
@@ -229,7 +221,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
                 before: input.before,
                 after: input.after,
               },
-              status: "ok",
+              status: 'ok',
             });
           },
         });
@@ -249,10 +241,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
             tariffBillingPeriod: saasTariffs.billingPeriod,
           })
           .from(saasBillingSubscriptions)
-          .innerJoin(
-            saasTariffs,
-            eq(saasTariffs.id, saasBillingSubscriptions.tariffId),
-          )
+          .innerJoin(saasTariffs, eq(saasTariffs.id, saasBillingSubscriptions.tariffId))
           .where(
             and(
               eq(saasBillingSubscriptions.id, input.saasBillingSubscriptionId),
@@ -260,9 +249,9 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
             ),
           )
           .limit(1);
-        if (!authority) throw new Error("saas_billing_subscription_not_found");
+        if (!authority) throw new Error('saas_billing_subscription_not_found');
         if (authority.amountMinor === null || authority.currency === null) {
-          throw new Error("saas_billing_tariff_not_billable");
+          throw new Error('saas_billing_tariff_not_billable');
         }
 
         const [row] = await tx
@@ -278,12 +267,12 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
             tariffBillingPeriod: authority.tariffBillingPeriod,
             servicePeriodStartsAt: input.servicePeriodStartsAt,
             servicePeriodEndsAt: input.servicePeriodEndsAt,
-            status: "draft",
+            status: 'draft',
             providerId: input.providerId,
             providerIdempotencyKey: input.providerIdempotencyKey,
           })
           .returning();
-        if (!row) throw new Error("saas_billing_invoice_create_failed");
+        if (!row) throw new Error('saas_billing_invoice_create_failed');
         return toSaasBillingInvoice(row);
       });
     },
@@ -294,12 +283,12 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
         .set({
           providerInvoiceRef: input.providerInvoiceRef,
           providerCheckoutUrl: input.providerCheckoutUrl,
-          status: "pending",
+          status: 'pending',
           updatedAt: new Date().toISOString(),
         })
         .where(eq(saasBillingInvoices.id, input.saasBillingInvoiceId))
         .returning();
-      if (!row) throw new Error("saas_billing_invoice_not_found");
+      if (!row) throw new Error('saas_billing_invoice_not_found');
       return toSaasBillingInvoice(row);
     },
 
@@ -316,10 +305,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           rawPayload: event,
         })
         .onConflictDoNothing({
-          target: [
-            saasBillingProviderEvents.providerId,
-            saasBillingProviderEvents.providerEventId,
-          ],
+          target: [saasBillingProviderEvents.providerId, saasBillingProviderEvents.providerEventId],
         })
         .returning({ id: saasBillingProviderEvents.id });
       return { created: Boolean(row) };

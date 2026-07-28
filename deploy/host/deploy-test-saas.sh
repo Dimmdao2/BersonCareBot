@@ -1188,7 +1188,7 @@ assert_app_owner_secdef_table_grants_complete(){
   # disposable PostgreSQL cluster and runs a burst of CPU/IO-heavy script activity) -- consistent with a
   # genuine settle/visibility gap wider than 5x2s=10s at that specific closure position, not a code bug.
   # Widened the retry budget rather than the grant: same idiom, longer window.
-  local missing="" operator_incidents_ok="" _secdef_grants_attempt
+  local missing="" operator_incidents_ok="" cms_pages_serialization_token_ok="" _secdef_grants_attempt
   for _secdef_grants_attempt in 1 2 3 4 5 6 7 8 9 10; do
     missing="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 WITH required(tbl, priv) AS (
@@ -1216,6 +1216,11 @@ WITH required(tbl, priv) AS (
     ('public.reference_catalog_snapshot_receipts', 'INSERT'),
     ('public.reference_catalog_snapshot_receipts', 'SELECT'),
     ('public.courses', 'SELECT'),
+    -- C5A count-only quota storefront accessor: app_owner reads reservations, while the platform
+    -- role receives only EXECUTE and no course/invite row ACL.
+    ('public.organization_member_invites', 'SELECT'),
+    -- 0270 CMS snapshot quota: both the storefront recount and the trigger execute as app_owner.
+    ('public.content_pages', 'SELECT'),
     -- 0238 organization brand publication: app.current_patient_has_active_org_enrollment(uuid) and
     -- app.read_org_brand_core_context(uuid) read these two as app_owner (be_organizations SELECT is
     -- already required above for the invite/slug definers; org_enrollments SELECT comes canonically
@@ -1292,10 +1297,16 @@ WHERE NOT has_table_privilege('app_owner', tbl, priv);
     operator_incidents_ok="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT has_column_privilege('app_owner', 'public.operator_incidents', 'alert_sent_at', 'UPDATE')::text;
 ")"
+    cms_pages_serialization_token_ok="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
+SELECT has_column_privilege('app_owner', 'public.be_organizations', 'updated_at', 'UPDATE')::text;
+")"
     # ::text cast above renders as the word true/false, not psql's native t/f -- this was the root
     # cause of the 2026-07-26 FATAL storm investigated at length in the comment above this loop: the
     # grant was always present, but "$operator_incidents_ok" = "t" could never be satisfied.
-    [ -z "$missing" ] && [ "$operator_incidents_ok" = "true" ] && break
+    [ -z "$missing" ] \
+      && [ "$operator_incidents_ok" = "true" ] \
+      && [ "$cms_pages_serialization_token_ok" = "true" ] \
+      && break
     sleep 3
   done
   [ -z "$missing" ] || {
@@ -1305,6 +1316,10 @@ SELECT has_column_privilege('app_owner', 'public.operator_incidents', 'alert_sen
   }
   [ "$operator_incidents_ok" = "true" ] || {
     echo "FATAL: app_owner is missing UPDATE (alert_sent_at) on public.operator_incidents" >&2
+    exit 1
+  }
+  [ "$cms_pages_serialization_token_ok" = "true" ] || {
+    echo "FATAL: app_owner is missing UPDATE (updated_at) on public.be_organizations" >&2
     exit 1
   }
 
@@ -1482,7 +1497,11 @@ SELECT has_column_privilege('app_owner', 'public.operator_incidents', 'alert_sen
   # `ALTER FUNCTION ... OWNER TO app_owner` (0270:22 и 0270:106), поэтому попадают под этот гейт.
   # Воркер квот этот счётчик не обновил — поймано лидом до выката; без правки деплой упал бы FATAL
   # посреди закрытия, как 24.07.
-  local expected_secdef_count=109
+  # 109 -> 110 (2026-07-28, #1069 correction): C5A adds
+  # app.read_org_enforced_quota_usage(uuid), a count-only seam over courses, memberships and
+  # organization_member_invites. The reviewed app_owner SELECT grants are pinned above; the
+  # platform role receives EXECUTE only and cannot read course content, invite email or token_hash.
+  local expected_secdef_count=110
   local actual_secdef_count
   actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;
@@ -1495,7 +1514,7 @@ SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' A
     exit 1
   }
 
-  echo "   app_owner SECURITY DEFINER table-grant completeness: OK (47 required table grants + 1 column grant present, $actual_secdef_count/$expected_secdef_count secdef functions pinned)"
+  echo "   app_owner SECURITY DEFINER table-grant completeness: OK (65 required table grants + 2 column grants present, $actual_secdef_count/$expected_secdef_count secdef functions pinned)"
 }
 
 assert_c5a_clinical_test_measure_kinds_closure(){
@@ -1607,6 +1626,73 @@ SELECT (
   echo "   platform organization-members directory exact ACL: OK (SELECT-only table + narrow name projection)"
 }
 
+assert_c5a_enforced_quota_usage_closure(){
+  local ok
+  ok="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
+WITH expected(relation_name) AS (
+  VALUES ('courses'), ('organization_member_invites')
+), relations AS (
+  SELECT
+    expected.relation_name,
+    relation.oid,
+    relation.relowner,
+    relation.relacl,
+    relation.relrowsecurity,
+    relation.relforcerowsecurity
+  FROM expected
+  JOIN pg_class AS relation
+    ON relation.relname = expected.relation_name
+   AND relation.relnamespace = 'public'::regnamespace
+), actual_acl AS (
+  SELECT relations.relation_name, privilege.privilege_type, privilege.is_grantable
+  FROM relations
+  CROSS JOIN LATERAL aclexplode(
+    COALESCE(relations.relacl, acldefault('r', relations.relowner))
+  ) AS privilege
+  WHERE privilege.grantee = 'app_platform_settings'::regrole
+), actual_policy AS (
+  SELECT
+    relations.relation_name,
+    policy.polname,
+    policy.polcmd,
+    policy.polpermissive,
+    policy.polroles,
+    pg_get_expr(policy.polqual, policy.polrelid) AS using_expression,
+    policy.polwithcheck
+  FROM relations
+  JOIN pg_policy AS policy ON policy.polrelid = relations.oid
+  WHERE 'app_platform_settings'::regrole = ANY(policy.polroles)
+)
+SELECT (
+  (SELECT count(*) FROM relations) = 2
+  AND (SELECT bool_and(relrowsecurity AND relforcerowsecurity) FROM relations)
+  AND NOT EXISTS (SELECT 1 FROM actual_acl)
+  AND NOT EXISTS (SELECT 1 FROM actual_policy)
+  AND has_table_privilege('app_owner', 'public.courses', 'SELECT')
+  AND has_table_privilege('app_owner', 'public.be_organization_members', 'SELECT')
+  AND has_table_privilege('app_owner', 'public.organization_member_invites', 'SELECT')
+  AND has_table_privilege('app_owner', 'public.content_pages', 'SELECT')
+  AND has_function_privilege(
+    'app_platform_settings',
+    'app.cms_pages_snapshot_usage(uuid)',
+    'EXECUTE'
+  )
+  AND has_function_privilege(
+    'app_platform_settings',
+    'app.read_org_enforced_quota_usage(uuid)',
+    'EXECUTE'
+  )
+)::text;
+")"
+  [ "$ok" = "true" ] || {
+    echo "FATAL: enforced quota usage exact ACL/policy closure did not take effect." >&2
+    echo "       Expected count-only EXECUTE, no platform course/invite row ACL or policy," >&2
+    echo "       and reviewed app_owner base-table grants." >&2
+    exit 1
+  }
+  echo "   enforced quota usage exact ACL/policy closure: OK"
+}
+
 assert_c5a_saas_billing_foundation_closure(){
   local ok
   ok="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
@@ -1632,7 +1718,7 @@ WITH expected(relation_name) AS (
   JOIN pg_roles AS owner ON owner.oid = relation.relowner
 ), role_oids AS (
   SELECT
-    (SELECT oid FROM pg_roles WHERE rolname = 'app_staff') AS staff_oid,
+    (SELECT oid FROM pg_roles WHERE rolname = 'app_clinic_billing') AS clinic_billing_oid,
     (SELECT oid FROM pg_roles WHERE rolname = 'app_platform_settings') AS platform_oid
 ), expected_table_acl(relation_name, grantee, privilege_type, is_grantable) AS (
   SELECT relation_name, owner_name, privilege_type, false
@@ -1641,7 +1727,7 @@ WITH expected(relation_name) AS (
     'SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'
   ]::text[]) AS privilege_type
   UNION
-  SELECT relation_name, 'app_staff', 'SELECT', false FROM relations
+  SELECT relation_name, 'app_clinic_billing', 'SELECT', false FROM relations
   UNION
   SELECT relation_name, 'app_platform_settings', privilege_type, false
   FROM relations
@@ -1691,10 +1777,10 @@ WITH expected(relation_name) AS (
   CROSS JOIN LATERAL (
     VALUES
       (
-        '_staff_select',
+        '_clinic_billing_select',
         'r'::\"char\",
-        ARRAY[role_oids.staff_oid]::oid[],
-        '(app.is_staff() AND (app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))'::text,
+        ARRAY[role_oids.clinic_billing_oid]::oid[],
+        '((app.current_org_id() IS NOT NULL) AND (organization_id = app.current_org_id()))'::text,
         NULL::text
       ),
       ('_platform_select', 'r'::\"char\", ARRAY[role_oids.platform_oid]::oid[], 'true'::text, NULL::text),
@@ -1716,6 +1802,34 @@ WITH expected(relation_name) AS (
 SELECT (
   (SELECT count(*) FROM relations) = 4
   AND (SELECT bool_and(relrowsecurity AND relforcerowsecurity) FROM relations)
+  AND EXISTS (
+    SELECT 1
+    FROM pg_roles
+    WHERE rolname = 'app_clinic_billing'
+      AND NOT rolcanlogin
+      AND NOT rolsuper
+      AND NOT rolcreaterole
+      AND NOT rolcreatedb
+      AND NOT rolinherit
+      AND NOT rolreplication
+      AND NOT rolbypassrls
+  )
+  AND 1 = (
+    SELECT count(*)
+    FROM pg_auth_members AS membership
+    WHERE membership.roleid = 'app_clinic_billing'::regrole
+      AND membership.member = 'app_staff'::regrole
+      AND NOT membership.admin_option
+      AND NOT membership.inherit_option
+      AND membership.set_option
+  )
+  AND has_function_privilege(
+    'app_clinic_billing',
+    'app.install_signed_context(text,integer,bigint,uuid,uuid,bigint,text)',
+    'EXECUTE'
+  )
+  AND has_function_privilege('app_clinic_billing', 'app.current_org_id()', 'EXECUTE')
+  AND has_function_privilege('app_clinic_billing', 'app.release_principal_context()', 'EXECUTE')
   AND NOT EXISTS (
     (SELECT * FROM actual_table_acl EXCEPT SELECT * FROM expected_table_acl)
     UNION ALL
@@ -1731,8 +1845,10 @@ SELECT (
 ")"
   [ "$ok" = "true" ] || {
     echo "FATAL: SaaS billing foundation exact grants/RLS inventory did not take effect." >&2
-    echo "       Expected the complete table/column ACL, exact four-policy definitions per table," >&2
-    echo "       no additional policies, and ENABLE+FORCE RLS on all four tables." >&2
+    echo "       Expected dedicated app_clinic_billing SELECT, no app_staff table ACL," >&2
+    echo "       platform SELECT/INSERT/UPDATE, exact policies," >&2
+    echo "       signed-context install/current-org/release helpers, no additional policies," >&2
+    echo "       and ENABLE+FORCE RLS on all four tables." >&2
     exit 1
   }
   echo "   SaaS billing foundation exact grants/RLS inventory: OK"
@@ -2244,6 +2360,8 @@ run_strict_post_migration_closure(){
   run_closure_gate "clinical_test_measure_kinds write-lock closure" assert_c5a_clinical_test_measure_kinds_closure
   log "platform organization-members directory exact ACL (#1068 / owner D-5)"
   run_closure_gate "platform organization-members directory exact ACL" assert_c5a_platform_organization_members_closure
+  log "enforced quota usage exact ACL/policy (#1069 / §10.1-10.2)"
+  run_closure_gate "enforced quota usage exact ACL/policy" assert_c5a_enforced_quota_usage_closure
   log "SaaS billing foundation exact grants/RLS inventory"
   run_closure_gate "SaaS billing foundation exact grants/RLS inventory" assert_c5a_saas_billing_foundation_closure
   log "DB-owner + telemetry-owner SECURITY DEFINER anon-reachable surface (A-1 stage 1, whole-class gate)"

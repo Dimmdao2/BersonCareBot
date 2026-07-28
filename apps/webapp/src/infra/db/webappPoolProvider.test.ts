@@ -5,6 +5,7 @@ import {
   enterWithDbStaffPrincipal,
   getCurrentDbPrincipal,
   runWithDbBootstrapPrincipal,
+  runWithDbClinicBillingPrincipal,
   runWithDbInfraPrincipal,
   runWithDbPatientPrincipal,
   runWithDbPlatformPrincipal,
@@ -265,6 +266,47 @@ describe("webapp pool provider", () => {
       "SELECT platform_settings_marker",
       "RESET ROLE",
     ]));
+    expect(getWebappPoolRoutingMetrics(pool)).toMatchObject({ staffSelections: 1, nonstaffSelections: 0 });
+  });
+
+  it("routes clinic billing through the staff pool and SET ROLEs in locked mode", async () => {
+    process.env.DB_PRINCIPAL_CONTEXT_MODE = "locked";
+    process.env.DB_PRINCIPAL_SIGNING_SECRET = "test-db-principal-signing-secret";
+    const { factory, pools } = createFakePoolFactory(async (sql: string) =>
+      sql === "SELECT pg_backend_pid() AS backend_pid"
+        ? { rows: [{ backend_pid: 7373 }], rowCount: 1 }
+        : { rows: [], rowCount: 0 },
+    );
+    const pool = createWebappPoolProvider({
+      staffConnectionString: "postgres://staff/db",
+      nonstaffConnectionString: "postgres://nonstaff/db",
+      poolFactory: factory,
+    });
+
+    await runWithDbClinicBillingPrincipal(
+      {
+        organizationId: ORG_ID,
+        platformUserId: STAFF_USER_ID,
+        source: "clinic-billing-pool-test",
+      },
+      () => pool.query("SELECT clinic_billing_marker"),
+    );
+
+    expect(pools[0]?.connect).toHaveBeenCalledOnce();
+    expect(pools[1]?.connect).not.toHaveBeenCalled();
+    expect(pools[0]?.clients[0]?.query.mock.calls.map(([statement]) => statement)).toEqual(
+      expect.arrayContaining([
+        "SET ROLE app_clinic_billing",
+        "SELECT clinic_billing_marker",
+        "SELECT app.release_principal_context()",
+        "RESET ROLE",
+      ]),
+    );
+    expect(
+      pools[0]?.clients[0]?.query.mock.calls.some(([statement]) =>
+        String(statement).includes("app.install_signed_context"),
+      ),
+    ).toBe(true);
     expect(getWebappPoolRoutingMetrics(pool)).toMatchObject({ staffSelections: 1, nonstaffSelections: 0 });
   });
 

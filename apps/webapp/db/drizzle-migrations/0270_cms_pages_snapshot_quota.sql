@@ -20,6 +20,8 @@ AS $function$
 $function$;
 --> statement-breakpoint
 ALTER FUNCTION app.cms_pages_snapshot_usage(uuid) OWNER TO app_owner;
+GRANT SELECT ON TABLE public.content_pages TO app_owner;
+GRANT UPDATE (updated_at) ON TABLE public.be_organizations TO app_owner;
 REVOKE ALL ON FUNCTION app.cms_pages_snapshot_usage(uuid)
   FROM PUBLIC, app_staff, app_patient, app_platform_settings;
 GRANT EXECUTE ON FUNCTION app.cms_pages_snapshot_usage(uuid)
@@ -40,10 +42,29 @@ BEGIN
   IF NEW.organization_id IS NULL THEN
     RAISE EXCEPTION 'cms_page_organization_required';
   END IF;
-
   PERFORM pg_catalog.pg_advisory_xact_lock(
     pg_catalog.hashtextextended('saas_quota:cms_pages:' || NEW.organization_id::text, 0)
   );
+
+  -- INSERT ... ON CONFLICT DO UPDATE fires BEFORE INSERT before PostgreSQL resolves the conflict.
+  -- An existing same-tenant page is an update, not a newly consumed slot.
+  IF EXISTS (
+    SELECT 1
+    FROM public.content_pages AS existing_page
+    WHERE existing_page.organization_id = NEW.organization_id
+      AND existing_page.section = NEW.section
+      AND existing_page.slug = NEW.slug
+  ) THEN
+    RETURN NEW;
+  END IF;
+
+  -- This no-op UPDATE is a per-organization MVCC serialization token. READ COMMITTED contenders
+  -- refresh their snapshot after the advisory wait; a REPEATABLE READ/SERIALIZABLE transaction
+  -- whose snapshot predates another page INSERT receives PostgreSQL's normal 40001 serialization
+  -- failure here. Stronger isolation remains usable without recounting from a stale snapshot.
+  UPDATE public.be_organizations
+  SET updated_at = updated_at
+  WHERE id = NEW.organization_id;
 
   WITH active_trial AS (
     SELECT trial.*

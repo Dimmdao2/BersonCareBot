@@ -1,6 +1,6 @@
-import { sql, type SQL } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/node-postgres";
-import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import { sql, type SQL } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
   applyDbPrincipalToTransaction,
   buildDbPrincipalApplyOptionsFromEnv,
@@ -9,34 +9,36 @@ import {
   runWithDbPrincipalSnapshot,
   type DbPrincipal,
   type DbPrincipalApplyOptions,
-} from "@bersoncare/db-principal";
-import * as schema from "../../../db/schema";
-import { getPool } from "./client";
+} from '@bersoncare/db-principal';
+import * as schema from '../../../db/schema';
+import { getPool } from './client';
 import {
   reportDbCleanupFailure,
   reportDbQueryFailure,
   reportPrincipalSetupFailure,
-} from "@/infra/db/saasIsolationDbFailureReporting";
+} from '@/infra/db/saasIsolationDbFailureReporting';
 
 export type DrizzleDb = NodePgDatabase<typeof schema>;
-type DrizzleTransaction = Parameters<Parameters<DrizzleDb["transaction"]>[0]>[0];
+type DrizzleTransaction = Parameters<Parameters<DrizzleDb['transaction']>[0]>[0];
 type DrizzlePrincipalResult = { rows?: readonly Record<string, unknown>[] };
 
 let db: DrizzleDb | null = null;
 
 function drizzlePrincipalSql(queryText: string, values: readonly unknown[] = []): SQL {
   switch (queryText) {
-    case "SELECT pg_backend_pid() AS backend_pid":
+    case 'SELECT pg_backend_pid() AS backend_pid':
       return sql`SELECT pg_backend_pid() AS backend_pid`;
-    case "RESET ROLE":
-      return sql.raw("RESET ROLE");
-    case "SET ROLE app_staff":
-      return sql.raw("SET ROLE app_staff");
-    case "SET ROLE app_patient":
-      return sql.raw("SET ROLE app_patient");
-    case "SET ROLE app_platform_settings":
-      return sql.raw("SET ROLE app_platform_settings");
-    case "SELECT app.release_principal_context()":
+    case 'RESET ROLE':
+      return sql.raw('RESET ROLE');
+    case 'SET ROLE app_staff':
+      return sql.raw('SET ROLE app_staff');
+    case 'SET ROLE app_patient':
+      return sql.raw('SET ROLE app_patient');
+    case 'SET ROLE app_platform_settings':
+      return sql.raw('SET ROLE app_platform_settings');
+    case 'SET ROLE app_clinic_billing':
+      return sql.raw('SET ROLE app_clinic_billing');
+    case 'SELECT app.release_principal_context()':
       return sql`SELECT app.release_principal_context()`;
     case "SELECT set_config('app.org', $1, true)":
       return sql`SELECT set_config('app.org', ${values[0]}, true)`;
@@ -54,7 +56,7 @@ function drizzlePrincipalSql(queryText: string, values: readonly unknown[] = [])
       break;
   }
 
-  if (queryText.includes("app.install_signed_context") && values.length === 7) {
+  if (queryText.includes('app.install_signed_context') && values.length === 7) {
     return sql`
       SELECT app.install_signed_context(
         ${values[0]}::text,
@@ -82,12 +84,15 @@ function normalizeDrizzlePrincipalResult(result: unknown): DrizzlePrincipalResul
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
+  return typeof value === 'object' && value !== null;
 }
 
 function drizzlePrincipalQueryable(tx: DrizzleTransaction) {
   return {
-    query: async (queryText: string, values?: readonly unknown[]): Promise<DrizzlePrincipalResult> => {
+    query: async (
+      queryText: string,
+      values?: readonly unknown[],
+    ): Promise<DrizzlePrincipalResult> => {
       const result = await tx.execute(drizzlePrincipalSql(queryText, values));
       return normalizeDrizzlePrincipalResult(result);
     },
@@ -96,7 +101,7 @@ function drizzlePrincipalQueryable(tx: DrizzleTransaction) {
 
 function withPrincipalAwareTransactions(rawDb: DrizzleDb): DrizzleDb {
   const rawTransaction = rawDb.transaction.bind(rawDb);
-  const wrappedTransaction: DrizzleDb["transaction"] = ((callback, config) => {
+  const wrappedTransaction: DrizzleDb['transaction'] = ((callback, config) => {
     // Drizzle may await pool checkout before entering this callback; preserve the caller identity.
     const principalSnapshot = getCurrentDbPrincipal();
     const principalApplyOptions = buildDbPrincipalApplyOptionsFromEnv(process.env);
@@ -105,14 +110,22 @@ function withPrincipalAwareTransactions(rawDb: DrizzleDb): DrizzleDb {
       let applied = false;
       try {
         applied =
-          principalSnapshot?.kind === "infra"
+          principalSnapshot?.kind === 'infra'
             ? false
-            : await applyDbPrincipalToTransaction(queryable, principalSnapshot, principalApplyOptions);
+            : await applyDbPrincipalToTransaction(
+                queryable,
+                principalSnapshot,
+                principalApplyOptions,
+              );
       } catch (error) {
         await reportPrincipalSetupFailure(error);
-        if (principalSnapshot?.kind === "platform") {
+        if (principalSnapshot?.kind === 'platform') {
           try {
-            await clearCurrentDbPrincipalFromDrizzleTransaction(queryable, principalApplyOptions, principalSnapshot);
+            await clearCurrentDbPrincipalFromDrizzleTransaction(
+              queryable,
+              principalApplyOptions,
+              principalSnapshot,
+            );
           } catch {
             await reportDbCleanupFailure();
           }
@@ -131,7 +144,11 @@ function withPrincipalAwareTransactions(rawDb: DrizzleDb): DrizzleDb {
       } finally {
         if (applied) {
           try {
-            await clearCurrentDbPrincipalFromDrizzleTransaction(queryable, principalApplyOptions, principalSnapshot);
+            await clearCurrentDbPrincipalFromDrizzleTransaction(
+              queryable,
+              principalApplyOptions,
+              principalSnapshot,
+            );
           } catch (error) {
             await reportDbCleanupFailure();
             // A PostgreSQL statement error aborts the transaction, so cleanup inside this callback
@@ -145,7 +162,7 @@ function withPrincipalAwareTransactions(rawDb: DrizzleDb): DrizzleDb {
         }
       }
     }, config);
-  }) as DrizzleDb["transaction"];
+  }) as DrizzleDb['transaction'];
 
   rawDb.transaction = wrappedTransaction;
   return rawDb;
@@ -230,14 +247,19 @@ function wrapTerminalReadWithIssueTimePrincipal<T extends DrizzleThenable>(
 type DrizzleSelectBuilderLike = { from: (...args: never[]) => DrizzleThenable };
 
 /** Wraps a `db.select`/`db.selectDistinct`/`db.selectDistinctOn`-shaped entry point. */
-function wrapSelectEntryPoint<F extends (...args: never[]) => DrizzleSelectBuilderLike>(originalEntry: F): F {
+function wrapSelectEntryPoint<F extends (...args: never[]) => DrizzleSelectBuilderLike>(
+  originalEntry: F,
+): F {
   return ((...args: Parameters<F>) => {
     // Synchronous, issue-time snapshot — `db.select()` itself never awaits anything.
     const principalSnapshot = getCurrentDbPrincipal();
     const builder = originalEntry(...args);
     const originalFrom = builder.from.bind(builder);
-    builder.from = ((...fromArgs: Parameters<DrizzleSelectBuilderLike["from"]>) =>
-      wrapTerminalReadWithIssueTimePrincipal(originalFrom(...fromArgs), principalSnapshot)) as DrizzleSelectBuilderLike["from"];
+    builder.from = ((...fromArgs: Parameters<DrizzleSelectBuilderLike['from']>) =>
+      wrapTerminalReadWithIssueTimePrincipal(
+        originalFrom(...fromArgs),
+        principalSnapshot,
+      )) as DrizzleSelectBuilderLike['from'];
     return builder;
   }) as F;
 }
@@ -254,8 +276,8 @@ function withIssueTimePrincipalRelationalReads(rawDb: DrizzleDb): void {
   const query = rawDb.query as unknown as Record<string, DrizzleRelationalTableQuery> | undefined;
   if (!query) return;
   for (const tableQuery of Object.values(query)) {
-    for (const method of ["findMany", "findFirst"] as const) {
-      if (typeof tableQuery[method] !== "function") continue;
+    for (const method of ['findMany', 'findFirst'] as const) {
+      if (typeof tableQuery[method] !== 'function') continue;
       const original = tableQuery[method].bind(tableQuery);
       tableQuery[method] = ((...args: Parameters<DrizzleRelationalTableQuery[typeof method]>) => {
         const principalSnapshot = getCurrentDbPrincipal();
@@ -270,26 +292,28 @@ function withIssueTimePrincipalRelationalReads(rawDb: DrizzleDb): void {
  * key turns the target type into an unhelpful intersection of all three overload sets). Defensive
  * against a partial/mocked `db` (e.g. drizzle.test.ts's `.transaction()`-only mock) — production
  * `getDrizzle()` always builds a real, complete drizzle instance with all three methods present. */
-function wrapSelectEntryPointInPlace<K extends "select" | "selectDistinct" | "selectDistinctOn">(
+function wrapSelectEntryPointInPlace<K extends 'select' | 'selectDistinct' | 'selectDistinctOn'>(
   rawDb: DrizzleDb,
   key: K,
 ): void {
-  if (typeof rawDb[key] !== "function") return;
-  const original = rawDb[key].bind(rawDb) as unknown as (...args: never[]) => DrizzleSelectBuilderLike;
+  if (typeof rawDb[key] !== 'function') return;
+  const original = rawDb[key].bind(rawDb) as unknown as (
+    ...args: never[]
+  ) => DrizzleSelectBuilderLike;
   rawDb[key] = wrapSelectEntryPoint(original) as unknown as DrizzleDb[K];
 }
 
 function withIssueTimePrincipalReads(rawDb: DrizzleDb): DrizzleDb {
-  wrapSelectEntryPointInPlace(rawDb, "select");
-  wrapSelectEntryPointInPlace(rawDb, "selectDistinct");
-  wrapSelectEntryPointInPlace(rawDb, "selectDistinctOn");
+  wrapSelectEntryPointInPlace(rawDb, 'select');
+  wrapSelectEntryPointInPlace(rawDb, 'selectDistinct');
+  wrapSelectEntryPointInPlace(rawDb, 'selectDistinctOn');
 
-  if (typeof rawDb.execute === "function") {
+  if (typeof rawDb.execute === 'function') {
     const originalExecute = rawDb.execute.bind(rawDb) as (...args: never[]) => DrizzleThenable;
     rawDb.execute = ((...args: Parameters<typeof originalExecute>) => {
       const principalSnapshot = getCurrentDbPrincipal();
       return wrapTerminalReadWithIssueTimePrincipal(originalExecute(...args), principalSnapshot);
-    }) as DrizzleDb["execute"];
+    }) as DrizzleDb['execute'];
   }
 
   withIssueTimePrincipalRelationalReads(rawDb);
@@ -299,6 +323,8 @@ function withIssueTimePrincipalReads(rawDb: DrizzleDb): DrizzleDb {
 
 /** Drizzle instance sharing the same `pg.Pool` as legacy `getPool()`. */
 export function getDrizzle(): DrizzleDb {
-  db ??= withIssueTimePrincipalReads(withPrincipalAwareTransactions(drizzle(getPool(), { schema })));
+  db ??= withIssueTimePrincipalReads(
+    withPrincipalAwareTransactions(drizzle(getPool(), { schema })),
+  );
   return db;
 }

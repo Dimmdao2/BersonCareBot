@@ -39,6 +39,7 @@ describe('platform integration availability migration', () => {
     // 107 -> 109 after §10.2: migration 0270 adds two app_owner SECURITY DEFINER functions (the CMS-page
     // usage recount and its BEFORE INSERT quota trigger). Earlier: 106 -> 107, 0267 adds the staff-name accessor, 0268
     // adds the delivery-audit writer, and 0269 removes the signup-slug reservation function.
-    expect(deployGate).toContain('local expected_secdef_count=109');
+    // 109 -> 110: C5A adds the count-only enforced-quota usage accessor.
+    expect(deployGate).toContain('local expected_secdef_count=110');
   });
 });

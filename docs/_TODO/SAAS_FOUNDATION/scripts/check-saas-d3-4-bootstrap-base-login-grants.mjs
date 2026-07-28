@@ -556,7 +556,7 @@ function runChecks(overrides = {}) {
     'run_closure_gate "platform organization-members directory exact ACL" assert_c5a_platform_organization_members_closure',
     // 106 -> 107: 0267 adds the directory accessor, 0268 adds the delivery-audit writer, and 0269
     // removes the obsolete signup-slug reservation function.
-    "local expected_secdef_count=109",
+    "local expected_secdef_count=110",
   ]);
   requireFragments(files.patientCourseWallSql, loaded.patientCourseWallSql, [
     "patient-course-assignment-wall UP complete",
