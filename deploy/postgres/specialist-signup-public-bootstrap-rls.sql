@@ -59,10 +59,6 @@ SELECT (to_regprocedure('app.require_staff_security_self_user_id()') IS NOT NULL
 \if :specialist_signup_has_self_helper
 REVOKE EXECUTE ON FUNCTION app.require_staff_security_self_user_id() FROM :specialist_signup_intents_owner_ident;
 \endif
-SELECT (to_regprocedure('app.reserve_specialist_signup_slug(uuid,text)') IS NOT NULL)::int AS specialist_signup_has_slug_reserve \gset
-\if :specialist_signup_has_slug_reserve
-REVOKE EXECUTE ON FUNCTION app.reserve_specialist_signup_slug(uuid, text) FROM :specialist_signup_intents_owner_ident;
-\endif
 DROP FUNCTION IF EXISTS app.get_specialist_signup_intent_by_challenge(uuid);
 DROP FUNCTION IF EXISTS app.get_pending_specialist_signup_intent(uuid, uuid);
 DROP FUNCTION IF EXISTS app.create_specialist_signup_intent(uuid, text, text, text, text);
@@ -103,7 +99,6 @@ SELECT (
   AND to_regclass('public.user_oauth_bindings') IS NOT NULL
   AND to_regclass('public.email_challenges') IS NOT NULL
   AND to_regclass('public.specialist_signup_intents') IS NOT NULL
-  AND to_regclass('public.organization_slug_claims') IS NOT NULL
   AND to_regclass('public.staff_security_profiles') IS NOT NULL
   AND (
     to_regprocedure('app.replace_pending_specialist_signup_challenge(uuid)') IS NOT NULL
@@ -111,7 +106,6 @@ SELECT (
   )
   AND to_regprocedure('app.get_latest_specialist_signup_intent_for_user()') IS NOT NULL
   AND to_regprocedure('app.require_staff_security_self_user_id()') IS NOT NULL
-  AND to_regprocedure('app.reserve_specialist_signup_slug(uuid,text)') IS NOT NULL
   AND to_regprocedure('app.ensure_staff_security_profile()') IS NOT NULL
   AND to_regprocedure('app.get_staff_security_profile()') IS NOT NULL
   AND to_regprocedure('app.get_staff_security_session_state()') IS NOT NULL
@@ -544,13 +538,12 @@ BEGIN
   )
   RETURNING id INTO v_intent_id;
 
-  PERFORM app.reserve_specialist_signup_slug(v_intent_id, p_organization_slug);
   RETURN v_intent_id;
 END
 $$;
 
 COMMENT ON FUNCTION app.create_specialist_signup_intent(uuid, text, text, text, text) IS
-  'Identity-self specialist signup START: creates the intent and reserves its mandatory public slug in one transaction.';
+  'Identity-self specialist signup START: creates the intent and carries its mandatory public slug to provisioning without reserving it.';
 
 ALTER FUNCTION app.create_specialist_signup_intent(uuid, text, text, text, text) OWNER TO :specialist_signup_intents_owner_ident;
 
@@ -670,10 +663,9 @@ BEGIN
     RETURN false;
   END IF;
 
-  PERFORM app.reserve_specialist_signup_slug(v_intent_id, p_organization_slug);
-
   UPDATE public.specialist_signup_intents AS intent
-  SET challenge_id = p_challenge_id
+  SET challenge_id = p_challenge_id,
+      organization_slug = p_organization_slug
   WHERE intent.id = v_intent_id;
   RETURN FOUND;
 END
@@ -788,7 +780,6 @@ GRANT EXECUTE ON FUNCTION app.get_pending_specialist_signup_intent(uuid, uuid) T
 GRANT EXECUTE ON FUNCTION app.get_specialist_signup_intent_by_challenge(uuid) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.replace_pending_specialist_signup_challenge(uuid, text) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.get_latest_specialist_signup_intent_for_user() TO app_patient;
-GRANT EXECUTE ON FUNCTION app.reserve_specialist_signup_slug(uuid, text) TO :specialist_signup_intents_owner_ident;
 GRANT EXECUTE ON FUNCTION app.ensure_staff_security_profile() TO app_patient;
 GRANT EXECUTE ON FUNCTION app.get_staff_security_profile() TO app_patient;
 GRANT EXECUTE ON FUNCTION app.get_staff_security_session_state() TO app_patient;

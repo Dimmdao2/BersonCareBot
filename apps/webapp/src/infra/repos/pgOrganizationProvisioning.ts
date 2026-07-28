@@ -23,8 +23,9 @@ type SpecialistSignupIntentDbRow = {
 
 function isSlugUnavailableDbError(error: unknown): boolean {
   if (typeof error !== "object" || error === null) return false;
-  const value = error as { message?: unknown; cause?: unknown };
+  const value = error as { code?: unknown; message?: unknown; cause?: unknown };
   return (
+    value.code === "23505" ||
     (typeof value.message === "string" && value.message.includes("slug_unavailable")) ||
     isSlugUnavailableDbError(value.cause)
   );
@@ -150,30 +151,35 @@ export function createPgOrganizationProvisioningPort(): OrganizationProvisioning
     },
 
     async provisionSpecialistOwner({ challengeId }) {
-      return runWebappTransaction(async (tx) => {
-        const result = await runWebappPgText<{
-          ok: boolean;
-          code: string | null;
-          organization_id: string | null;
-          specialist_id: string | null;
-          membership_id: string | null;
-        }>("SELECT * FROM app.provision_specialist_owner($1::uuid)", [challengeId], tx);
-        const row = result.rows[0];
-        if (!row) {
-          throw new Error("specialist_signup_provision_insert_failed");
-        }
-        if (!row.ok) {
-          throw new Error(row.code ?? "specialist_signup_provision_insert_failed");
-        }
-        if (!row.organization_id || !row.specialist_id || !row.membership_id) {
-          throw new Error("specialist_signup_provision_insert_failed");
-        }
-        return {
-          organizationId: row.organization_id,
-          specialistId: row.specialist_id,
-          membershipId: row.membership_id,
-        };
-      });
+      try {
+        return await runWebappTransaction(async (tx) => {
+          const result = await runWebappPgText<{
+            ok: boolean;
+            code: string | null;
+            organization_id: string | null;
+            specialist_id: string | null;
+            membership_id: string | null;
+          }>("SELECT * FROM app.provision_specialist_owner($1::uuid)", [challengeId], tx);
+          const row = result.rows[0];
+          if (!row) {
+            throw new Error("specialist_signup_provision_insert_failed");
+          }
+          if (!row.ok) {
+            throw new Error(row.code ?? "specialist_signup_provision_insert_failed");
+          }
+          if (!row.organization_id || !row.specialist_id || !row.membership_id) {
+            throw new Error("specialist_signup_provision_insert_failed");
+          }
+          return {
+            organizationId: row.organization_id,
+            specialistId: row.specialist_id,
+            membershipId: row.membership_id,
+          };
+        });
+      } catch (error) {
+        if (isSlugUnavailableDbError(error)) throw new Error("slug_unavailable");
+        throw error;
+      }
     },
 
     async ensureOwnBookableSpecialist({ organizationId, membershipId, platformUserId, fullName }) {

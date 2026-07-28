@@ -552,7 +552,7 @@ function runChecks(overrides = {}) {
   requireFragments(files.testDeploySaas, loaded.testDeploySaas, [
     "assert_c5a_platform_organization_members_closure",
     'run_closure_gate "platform organization-members directory exact ACL" assert_c5a_platform_organization_members_closure',
-    "local expected_secdef_count=107",
+    "local expected_secdef_count=106",
   ]);
   requireFragments(files.patientCourseWallSql, loaded.patientCourseWallSql, [
     "patient-course-assignment-wall UP complete",
@@ -618,12 +618,15 @@ function runChecks(overrides = {}) {
     "has_schema_privilege(\n  :'specialist_signup_staff_security_owner',\n  'app',\n  'USAGE'",
     "specialist_signup_staff_security_owner_schema_usage_ok",
     "REVOKE USAGE ON SCHEMA app FROM :specialist_signup_staff_security_owner_ident;",
+    "organization_slug,\n    specialist_full_name",
+    "SET challenge_id = p_challenge_id,\n      organization_slug = p_organization_slug",
   ]);
   forbidFragments(files.publicBootstrapSql, loaded.publicBootstrapSql, [
     "SET search_path = public, pg_catalog",
     "SET search_path = public, app, pg_catalog",
     "GRANT USAGE ON SCHEMA app TO app_patient",
     "GRANT USAGE ON SCHEMA app TO app_staff",
+    "reserve_specialist_signup_slug",
   ]);
   forbidFragments(files.organizationMemberInvitesSql, loaded.organizationMemberInvitesSql, [
     "SET search_path = public, pg_catalog",

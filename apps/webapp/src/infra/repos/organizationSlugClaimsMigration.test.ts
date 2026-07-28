@@ -16,6 +16,10 @@ const signupReservationMigrationPath = join(
   repoDir,
   '../../../db/drizzle-migrations/0257_specialist_signup_slug_reservation.sql',
 );
+const signupReservationRemovalMigrationPath = join(
+  repoDir,
+  '../../../db/drizzle-migrations/0270_remove_specialist_signup_slug_reservation.sql',
+);
 const schemaPath = join(repoDir, '../../../db/schema/clinicDirectory.ts');
 const journalPath = join(repoDir, '../../../db/drizzle-migrations/meta/_journal.json');
 const resolverPath = join(
@@ -27,6 +31,10 @@ describe('0218 organization slug foundation', () => {
   const migration = readFileSync(migrationPath, 'utf8');
   const reclaimMigration = readFileSync(reclaimMigrationPath, 'utf8');
   const signupReservationMigration = readFileSync(signupReservationMigrationPath, 'utf8');
+  const signupReservationRemovalMigration = readFileSync(
+    signupReservationRemovalMigrationPath,
+    'utf8',
+  );
   const schema = readFileSync(schemaPath, 'utf8');
   const resolver = readFileSync(resolverPath, 'utf8');
 
@@ -48,53 +56,51 @@ describe('0218 organization slug foundation', () => {
       'organization_slug_claims_slug_reserved_check',
       'uq_organization_slug_claims_slug',
       'uq_organization_slug_claims_current_org',
-      'uq_organization_slug_claims_reservation_org',
     ]) {
       expect(migration).toContain(fragment);
       expect(schema).toContain(fragment);
     }
+    expect(signupReservationRemovalMigration).toContain(
+      'DROP INDEX IF EXISTS public.uq_organization_slug_claims_reservation_org',
+    );
+    expect(schema).not.toContain('uq_organization_slug_claims_reservation_org');
     expect(migration).toContain("slug NOT LIKE '%--%'");
     expect(migration).toContain("'api', 'app', 'auth', 'book', 'booking'");
   });
 
-  it('keeps durable claims organization-bound and permits only disposable signup reservations', () => {
+  it('removes signup-owned claims and restores every surviving claim to organization ownership', () => {
     expect(migration).toContain('organization_id uuid NOT NULL');
     expect(migration).not.toContain('signup_intent_id');
     expect(migration).not.toContain('expires_at');
-    expect(signupReservationMigration).toContain('ALTER COLUMN organization_id DROP NOT NULL');
-    expect(signupReservationMigration).toContain('organization_slug_claims_owner_shape_check');
-    expect(signupReservationMigration).toContain(
-      "kind IN ('current', 'alias')\n        AND organization_id IS NOT NULL\n        AND signup_intent_id IS NULL",
+    expect(signupReservationRemovalMigration).toContain(
+      "DELETE FROM public.organization_slug_claims\nWHERE kind = 'reservation'\n  AND organization_id IS NULL",
     );
-    expect(signupReservationMigration).toContain(
-      'uq_organization_slug_claims_reservation_signup_intent',
+    expect(signupReservationRemovalMigration).toContain(
+      'DROP CONSTRAINT IF EXISTS organization_slug_claims_owner_shape_check',
     );
-    expect(signupReservationMigration).toContain(
-      'REFERENCES public.specialist_signup_intents(id)\n    ON DELETE CASCADE',
+    expect(signupReservationRemovalMigration).toContain('DROP COLUMN signup_intent_id');
+    expect(signupReservationRemovalMigration).toContain(
+      'ALTER COLUMN organization_id SET NOT NULL',
     );
-    expect(schema).toContain('signupIntentId');
+    expect(schema).not.toContain('signupIntentId');
+    expect(schema).not.toContain('organization_slug_claims_owner_shape_check');
     expect(schema).not.toContain('expiresAt');
     expect(migration).toContain('idx_organization_slug_claims_org_kind');
     expect(migration).toContain('idx_organization_slug_rename_events_org_created');
   });
 
-  it('reserves by signed signup intent and preserves global namespace ownership', () => {
-    expect(signupReservationMigration).toContain(
-      'CREATE OR REPLACE FUNCTION app.reserve_specialist_signup_slug',
+  it('retires signup reservation while preserving the global unique ownership arbiter', () => {
+    expect(signupReservationRemovalMigration).toContain(
+      'DROP FUNCTION IF EXISTS app.reserve_specialist_signup_slug(uuid, text)',
     );
-    expect(signupReservationMigration).toContain(
-      'v_user_id := app.require_staff_security_self_user_id()',
+    expect(signupReservationRemovalMigration).toContain(
+      'DROP INDEX IF EXISTS public.uq_organization_slug_claims_reservation_signup_intent',
     );
-    expect(signupReservationMigration).toContain("intent.status = 'pending'");
-    expect(signupReservationMigration).toContain(
-      "VALUES (p_slug, 'reservation', NULL, p_signup_intent_id, v_user_id)",
-    );
-    expect(signupReservationMigration).not.toMatch(
-      /DELETE FROM public\.organization_slug_claims/,
-    );
-    expect(signupReservationMigration).not.toMatch(
+    expect(signupReservationRemovalMigration).not.toMatch(
       /DROP INDEX\s+uq_organization_slug_claims_slug/,
     );
+    expect(schema).toContain("['reservation', 'current', 'alias']");
+    expect(schema).toContain('organizationId');
   });
 
   it('keeps anonymous availability on the reviewed bootstrap function surface', () => {
@@ -115,6 +121,12 @@ describe('0218 organization slug foundation', () => {
     );
     expect(inviteOwnership).not.toContain('is_organization_slug_available');
     expect(inviteOwnership).not.toContain('reserve_specialist_signup_slug');
+    expect(signupReservationMigration).toContain(
+      'CREATE OR REPLACE FUNCTION app.is_organization_slug_available',
+    );
+    expect(signupReservationRemovalMigration).not.toContain(
+      'DROP FUNCTION IF EXISTS app.is_organization_slug_available',
+    );
   });
 
   it('makes aliases and rename audit immutable and structurally prevents redirect chains', () => {
@@ -225,5 +237,7 @@ describe('0218 organization slug foundation', () => {
     expect(journal).toContain('"tag": "0255_organization_slug_same_org_reclaim"');
     expect(journal).toContain('"idx": 257');
     expect(journal).toContain('"tag": "0257_specialist_signup_slug_reservation"');
+    expect(journal).toContain('"idx": 270');
+    expect(journal).toContain('"tag": "0270_remove_specialist_signup_slug_reservation"');
   });
 });

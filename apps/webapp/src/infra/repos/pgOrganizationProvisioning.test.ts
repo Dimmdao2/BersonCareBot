@@ -100,33 +100,49 @@ describe("createPgOrganizationProvisioningPort", () => {
     );
   });
 
-  it("promotes the exact reserved slug inside the organization provisioning transaction", () => {
+  it("claims the intent slug as current under the global unique index during provisioning", () => {
     const provisioning = readFileSync(
       join(__dirname, "../../../../../deploy/postgres/specialist-owner-provisioning-rls.sql"),
       "utf8",
     );
-    const reservationLock = provisioning.indexOf(
-      "SELECT claim.id\n    INTO v_slug_reservation_id",
-    );
     const organizationInsert = provisioning.indexOf(
       "INSERT INTO public.be_organizations",
     );
-    const promotion = provisioning.indexOf(
-      "UPDATE public.organization_slug_claims AS claim",
+    const currentClaimInsert = provisioning.indexOf(
+      "INSERT INTO public.organization_slug_claims",
     );
     const publication = provisioning.indexOf(
       "INSERT INTO public.clinic_public_directory_entries",
     );
 
-    expect(reservationLock).toBeGreaterThan(0);
-    expect(reservationLock).toBeLessThan(organizationInsert);
-    expect(promotion).toBeGreaterThan(organizationInsert);
-    expect(publication).toBeGreaterThan(promotion);
-    expect(provisioning).toContain("claim.signup_intent_id = v_intent.id");
-    expect(provisioning).toContain("claim.slug = v_intent.organization_slug");
-    expect(provisioning).toContain("signup_intent_id = NULL");
+    expect(organizationInsert).toBeGreaterThan(0);
+    expect(currentClaimInsert).toBeGreaterThan(organizationInsert);
+    expect(publication).toBeGreaterThan(currentClaimInsert);
+    expect(provisioning).toContain("v_intent.organization_slug,\n        'current'");
+    expect(provisioning).toContain("WHEN unique_violation THEN");
+    expect(provisioning).toContain(
+      "v_unique_constraint_name = 'uq_organization_slug_claims_slug'",
+    );
+    expect(provisioning).toContain("'slug_unavailable'::text");
     expect(provisioning).toContain("specialist_signup_slug_reservation_not_found");
-    expect(provisioning).not.toMatch(/DELETE FROM public\.organization_slug_claims/);
+    expect(provisioning).not.toContain("signup_intent_id");
+    expect(provisioning).not.toContain("kind = 'reservation'");
+  });
+
+  it("stores signup slugs on intents without calling the retired reservation function", () => {
+    const publicBootstrap = readFileSync(
+      join(__dirname, "../../../../../deploy/postgres/specialist-signup-public-bootstrap-rls.sql"),
+      "utf8",
+    );
+    const src = readFileSync(join(__dirname, "pgOrganizationProvisioning.ts"), "utf8");
+
+    expect(publicBootstrap).not.toContain("reserve_specialist_signup_slug");
+    expect(publicBootstrap).toContain("organization_slug,\n    specialist_full_name");
+    expect(publicBootstrap).toContain(
+      "SET challenge_id = p_challenge_id,\n      organization_slug = p_organization_slug",
+    );
+    expect(src).toContain('value.code === "23505"');
+    expect(src).toContain('if (isSlugUnavailableDbError(error)) throw new Error("slug_unavailable")');
   });
 
   it("keeps staff-context specialist backfill guarded on the current membership", () => {

@@ -103,7 +103,7 @@ describe("0259 SaaS billing foundation migration", () => {
     expect(host).toContain("expected_policy_inventory");
     expect(host).toContain("relforcerowsecurity");
     // 106 -> 107: migration 0268 adds the reviewed platform staff-directory projector.
-    expect(host).toContain("local expected_secdef_count=107");
+    expect(host).toContain("local expected_secdef_count=106");
     expect(sql).not.toMatch(/SECURITY\s+DEFINER/i);
   });
 });
