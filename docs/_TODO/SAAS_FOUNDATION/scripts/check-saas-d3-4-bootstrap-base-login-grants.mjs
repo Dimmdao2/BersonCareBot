@@ -10,6 +10,8 @@ const files = {
   organizationMemberInvitesSql: "deploy/postgres/organization-member-invites-rls.sql",
   storeEntitlementsSql: "deploy/postgres/store-p0-entitlements-rls.sql",
   c5aMigrationSql: "apps/webapp/db/drizzle-migrations/0225_saas_tariff_quotas_trial.sql",
+  platformOrganizationMembersMigration:
+    "apps/webapp/db/drizzle-migrations/0268_platform_organization_members_directory.sql",
   c5aRuntimeSql: "deploy/postgres/c5a-platform-operations-runtime.sql",
   patientCourseWallSql: "deploy/postgres/patient-course-assignment-wall.sql",
   publicBootstrapSql: "deploy/postgres/specialist-signup-public-bootstrap-rls.sql",
@@ -78,7 +80,6 @@ const requiredFunctions = [
   "app.email_auth_delete_email_challenge_by_id(uuid)",
   "app.email_auth_upsert_email_send_cooldown(uuid, text)",
   "app.email_auth_find_email_challenge_for_confirm(uuid, uuid)",
-  "app.email_auth_update_email_challenge_attempts(uuid, integer)",
   "app.email_auth_find_email_owner_conflict(uuid, text)",
   "app.email_auth_verify_user_email(uuid, text)",
   "app.email_auth_find_email_challenge_for_consume(uuid, uuid)",
@@ -382,7 +383,9 @@ function runChecks(overrides = {}) {
   ]);
   requireFragments(files.c4OperationalSql, loaded.c4OperationalSql, [
     "CREATE OR REPLACE FUNCTION app.read_media_worker_runtime_setting(p_key text)",
-    "p_key IN ('video_hls_pipeline_enabled', 'video_watermark_enabled')",
+    "WHERE p_key IN (",
+    "'video_hls_pipeline_enabled', 'video_watermark_enabled',",
+    "'error_tracking_enabled', 'error_tracking_dsn'",
     "setting.audience = 'server'",
     "setting.organization_id IS NULL",
     "GRANT EXECUTE ON FUNCTION app.read_media_worker_runtime_setting(text) TO app_operational_media_worker",
@@ -405,6 +408,11 @@ function runChecks(overrides = {}) {
       `REVOKE EXECUTE ON FUNCTION ${signature} FROM :"d3_4_bootstrap_base_role";`,
     ]);
   }
+  requireFragments(files.grantSql, loaded.grantSql, [
+    "'GRANT EXECUTE ON FUNCTION app.email_auth_increment_email_challenge_attempts(uuid) TO %I'",
+    "'REVOKE EXECUTE ON FUNCTION app.email_auth_increment_email_challenge_attempts(uuid) FROM %I'",
+    "WHERE to_regprocedure('app.email_auth_increment_email_challenge_attempts(uuid)') IS NOT NULL",
+  ]);
   requireFragments(files.grantSql, loaded.grantSql, [
     "GRANT SELECT, INSERT, UPDATE ON TABLE public.user_phone_history TO :\"d3_4_bootstrap_base_role\";",
     "GRANT SELECT, INSERT, UPDATE ON TABLE public.platform_user_contacts TO :\"d3_4_bootstrap_base_role\";",
@@ -438,8 +446,8 @@ function runChecks(overrides = {}) {
     fail(`${files.p05bGrantSql} is not in sync with p0-5b-grants-sql.mjs`);
   }
   const appStaffGrantTables = getAppStaffGrantTables();
-  if (appStaffGrantTables.length !== 220) {
-    fail(`P0.5b app_staff grant surface must remain the reviewed 220-table snapshot, got ${appStaffGrantTables.length}`);
+  if (appStaffGrantTables.length !== 213) {
+    fail(`P0.5b app_staff grant surface must remain the reviewed 213-table snapshot, got ${appStaffGrantTables.length}`);
   }
   for (const qualifiedName of overlayManagedAppStaffTables) {
     if (appStaffGrantTables.some((table) => table.qualifiedName === qualifiedName)) {
@@ -497,6 +505,12 @@ function runChecks(overrides = {}) {
     "REVOKE INSERT, UPDATE, DELETE ON TABLE public.saas_org_entitlement_overrides FROM app_staff;",
     "GRANT SELECT, INSERT, UPDATE ON TABLE public.saas_tariffs TO app_platform_settings;",
     "GRANT SELECT, INSERT, UPDATE ON TABLE public.saas_trial_policy TO app_platform_settings;",
+    "GRANT SELECT ON TABLE public.be_organization_members TO app_platform_settings;",
+    "GRANT EXECUTE ON FUNCTION app.list_platform_organization_members(uuid)",
+    "c5a_platform_organization_members_directory_exact_wall",
+    "NOT has_table_privilege('app_platform_settings', 'public.be_organization_members', 'INSERT')",
+    "NOT has_table_privilege('app_platform_settings', 'public.be_organization_members', 'UPDATE')",
+    "NOT has_table_privilege('app_platform_settings', 'public.be_organization_members', 'DELETE')",
     "ALTER FUNCTION app.start_provisioned_organization_trial() OWNER TO app_platform_settings;",
     "NOT has_table_privilege('app_staff', 'public.saas_tariffs', 'UPDATE')",
     "NOT has_table_privilege('app_staff', 'public.saas_trial_policy', 'UPDATE')",
@@ -516,6 +530,29 @@ function runChecks(overrides = {}) {
     "actual.polroles = ARRAY[(SELECT oid FROM pg_roles WHERE rolname = 'app_staff')]",
     "position(actual.org_predicate IN actual.predicate) > 0",
     ...c5aStaffCurrentOrgReadPolicies,
+  ]);
+  requireFragments(
+    files.platformOrganizationMembersMigration,
+    loaded.platformOrganizationMembersMigration,
+    [
+      "CREATE OR REPLACE FUNCTION app.list_platform_organization_members(",
+      "FROM public.be_organization_members AS membership",
+      "INNER JOIN public.platform_users AS platform_user",
+      "WHERE membership.organization_id = p_organization_id",
+      "ALTER FUNCTION app.list_platform_organization_members(uuid) OWNER TO app_owner;",
+      "REVOKE ALL ON FUNCTION app.list_platform_organization_members(uuid)",
+      "FROM PUBLIC, app_staff, app_patient, app_platform_settings;",
+    ],
+  );
+  forbidFragments(
+    files.platformOrganizationMembersMigration,
+    loaded.platformOrganizationMembersMigration,
+    ["phone_normalized", "email_normalized", "user_channel_bindings", "org_enrollments"],
+  );
+  requireFragments(files.testDeploySaas, loaded.testDeploySaas, [
+    "assert_c5a_platform_organization_members_closure",
+    'run_closure_gate "platform organization-members directory exact ACL" assert_c5a_platform_organization_members_closure',
+    "local expected_secdef_count=107",
   ]);
   requireFragments(files.patientCourseWallSql, loaded.patientCourseWallSql, [
     "patient-course-assignment-wall UP complete",
@@ -838,6 +875,12 @@ if (process.argv.includes("--self-test")) {
   const cases = [
     {
       c5aRuntimeSql: read(files.c5aRuntimeSql).replace(
+        "GRANT SELECT ON TABLE public.be_organization_members TO app_platform_settings;",
+        "-- removed platform organization-members SELECT by self-test",
+      ),
+    },
+    {
+      c5aRuntimeSql: read(files.c5aRuntimeSql).replace(
         c5aStaffCurrentOrgReadPolicies[0],
         "CREATE POLICY saas_organization_trials_staff_current_org_read ON public.saas_organization_trials FOR SELECT TO app_staff USING (true);",
       ),
@@ -873,7 +916,7 @@ if (process.argv.includes("--self-test")) {
       ),
     },
     {
-      mediaRuntimeReader: read(files.mediaRuntimeReader).replace(
+      mediaRuntimeReader: read(files.mediaRuntimeReader).replaceAll(
         "app.read_media_worker_runtime_setting($1)",
         "app.read_unrestricted_runtime_setting($1)",
       ),
@@ -1147,9 +1190,11 @@ if (process.argv.includes("--self-test")) {
     },
   ];
   let detected = 0;
-  for (const testCase of cases) {
+  const undetected = [];
+  for (const [index, testCase] of cases.entries()) {
     try {
       runChecks(testCase);
+      undetected.push(index + 1);
     } catch {
       detected += 1;
     }
@@ -1158,7 +1203,7 @@ if (process.argv.includes("--self-test")) {
     console.log("check-saas-d3-4-bootstrap-base-login-grants self-test: OK");
     process.exit(0);
   }
-  fail("self-test did not detect all D3.4 contract regressions");
+  fail(`self-test did not detect all D3.4 contract regressions (cases: ${undetected.join(", ")})`);
 }
 
 try {

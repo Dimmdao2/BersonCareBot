@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import type {
   OrganizationMembership,
@@ -58,6 +58,18 @@ type OrganizationMemberDirectoryRow = {
   createdAt: string;
   updatedAt: string;
   displayName: string | null;
+};
+
+type PlatformOrganizationMemberDirectoryRow = {
+  id: string;
+  organization_id: string;
+  platform_user_id: string;
+  role: string;
+  specialist_id: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  display_name: string | null;
 };
 
 function mapOrganizationMemberDirectoryRow(
@@ -135,6 +147,35 @@ export function createPgOrganizationMembershipPort(): OrganizationMembershipPort
         .where(eq(beOrganizationMembers.organizationId, organizationId))
         .orderBy(asc(beOrganizationMembers.createdAt), asc(beOrganizationMembers.platformUserId));
       return rows.map(mapOrganizationMemberDirectoryRow);
+    },
+
+    async listPlatformDirectoryByOrganization(organizationId) {
+      const result = await getDrizzle().execute(sql`
+        SELECT
+          membership_id::text AS id,
+          organization_id::text AS organization_id,
+          platform_user_id::text AS platform_user_id,
+          membership_role AS role,
+          specialist_id::text AS specialist_id,
+          membership_status AS status,
+          created_at::text AS created_at,
+          updated_at::text AS updated_at,
+          display_name
+        FROM app.list_platform_organization_members(${organizationId}::uuid)
+      `);
+      return (result.rows as PlatformOrganizationMemberDirectoryRow[]).map((row) =>
+        mapOrganizationMemberDirectoryRow({
+          id: row.id,
+          organizationId: row.organization_id,
+          platformUserId: row.platform_user_id,
+          role: row.role,
+          specialistId: row.specialist_id,
+          status: row.status,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+          displayName: row.display_name,
+        }),
+      );
     },
 
     async getMemberByOrganization({ organizationId, membershipId }) {

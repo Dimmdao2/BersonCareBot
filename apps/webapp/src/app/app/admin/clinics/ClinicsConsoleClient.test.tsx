@@ -3,7 +3,11 @@ import { render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PlatformOrganizationSummary } from '@/modules/org-entitlements/ports';
 import type { Tariff } from '@/modules/org-entitlements/types';
-import { ClinicsConsoleClient, type PlatformClinicsData } from './ClinicsConsoleClient';
+import {
+  ClinicsConsoleClient,
+  type PlatformClinicMember,
+  type PlatformClinicsData,
+} from './ClinicsConsoleClient';
 
 const TARIFF_ID = '22222222-2222-4222-8222-222222222222';
 const ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
@@ -106,8 +110,32 @@ describe('ClinicsConsoleClient', () => {
       // stay invisible because that mechanic still has no enforcement.
       enforcedQuotaUsage: { [ORGANIZATION_ID]: { courses: 7, clinic_team: 2, files: 0 } },
     };
+    const members: PlatformClinicMember[] = [
+      {
+        id: 'membership-owner',
+        displayName: 'Анна Владелец',
+        role: 'owner',
+        status: 'active',
+        createdAt: '2026-07-10T00:00:00.000Z',
+        specialistLinked: false,
+      },
+      {
+        id: 'membership-doctor',
+        displayName: 'Борис Врач',
+        role: 'doctor',
+        status: 'disabled',
+        createdAt: '2026-07-11T00:00:00.000Z',
+        specialistLinked: true,
+      },
+    ];
 
-    render(<ClinicsConsoleClient initialData={data} organizationId={ORGANIZATION_ID} />);
+    render(
+      <ClinicsConsoleClient
+        initialData={data}
+        initialMembers={members}
+        organizationId={ORGANIZATION_ID}
+      />,
+    );
 
     expect(screen.getByRole('heading', { name: 'Клиника Альфа' })).toBeInTheDocument();
     expect(
@@ -118,6 +146,15 @@ describe('ClinicsConsoleClient', () => {
     expect(screen.getByText('Без триала')).toBeInTheDocument();
     expect(screen.getByText('Пробный период не запускался.')).toBeInTheDocument();
     expect(screen.getByText('лимит 10 штуки')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Аккаунты клиники' })).toBeInTheDocument();
+    expect(screen.getByText('Анна Владелец')).toBeInTheDocument();
+    expect(screen.getByText('Борис Врач')).toBeInTheDocument();
+    expect(screen.getByText('Владелец')).toBeInTheDocument();
+    expect(screen.getByText('Врач')).toBeInTheDocument();
+    expect(screen.getByText('Отключён')).toBeInTheDocument();
+    expect(screen.getByText('Есть')).toBeInTheDocument();
+    expect(screen.getByText('Нет')).toBeInTheDocument();
+    expect(screen.getByText(/10 июл/)).toBeInTheDocument();
 
     const usageSection = screen
       .getByRole('heading', { name: 'Расход' })
@@ -137,7 +174,8 @@ describe('ClinicsConsoleClient', () => {
     // application_transaction_snapshot seat counter; all other declared mechanics stay explicit.
     expect(screen.getAllByText('не отслеживается')).toHaveLength(13);
     expect(screen.queryByText(/^0$/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/аккаунт/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/телефон/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/почт/i)).not.toBeInTheDocument();
   });
 
   it('explains an access denial and the next step', async () => {

@@ -52,6 +52,7 @@ function makeService(params: {
     listByPlatformUser: async () => [],
     listActiveByPlatformUser: async () => [],
     listByOrganization: async () => members,
+    listPlatformDirectoryByOrganization: async () => members,
     getMemberByOrganization: async () => null,
     listSpecialistsByOrganization: async () => [],
     getSpecialistByOrganization: async () => null,

@@ -74,6 +74,7 @@ function createPort(): OrganizationMembershipPort {
     listByPlatformUser: vi.fn(async () => []),
     listActiveByPlatformUser: vi.fn(async () => []),
     listByOrganization: vi.fn(async () => members),
+    listPlatformDirectoryByOrganization: vi.fn(async () => members),
     getMemberByOrganization: vi.fn(async ({ organizationId, membershipId }) => {
       return (
         members.find((member) => member.organizationId === organizationId && member.id === membershipId) ?? null

@@ -117,6 +117,6 @@ describe("staff security database boundary", () => {
     );
     expect(deploy).toContain("NOT has_table_privilege(");
     expect(deploy).toContain("NOT has_any_column_privilege(");
-    expect(deploy).toContain("local expected_secdef_count=106");
+    expect(deploy).toContain("local expected_secdef_count=107");
   });
 });

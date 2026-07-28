@@ -254,10 +254,16 @@ describe("frozen webapp mutation census", () => {
     // 503 -> 504: the platform clinic console added `api/admin/organizations/route.ts`. It is GET
     // only and guarded by `requirePlatformOperationsApiContext`, so the exact route hash changes
     // while all unsafe-file, unsafe-handler and mutation-class censuses below remain unchanged.
+    // 504 -> 506: the platform support console added the GET-only conversation list and detail
+    // routes. Both use the platform guard, so only the route-file inventory/hash changes.
+    // 506 -> 507: the read-only clinic-account panel added
+    // `api/admin/organizations/[organizationId]/members/route.ts`. It has the same platform guard,
+    // exports GET only, and therefore changes only the route-file inventory/hash.
     expect(routeInventory).toContain("admin/appointment-records/[integratorRecordId]/soft-delete/route.ts");
     expect(routeInventory).toContain("admin/organizations/route.ts");
-    expect(routeFiles).toHaveLength(504);
-    expect(sha256Lines(routeInventory)).toBe("99dc3996a75501c837c020a2ee62cb823f9d71b9512fd6fdfadaa8ec6750ba18");
+    expect(routeInventory).toContain("admin/organizations/[organizationId]/members/route.ts");
+    expect(routeFiles).toHaveLength(507);
+    expect(sha256Lines(routeInventory)).toBe("44f50a82b2202180509c11768199bae196322c5ac1adacc7fcbd575d047ae0f4");
     expect(unsafeInventory).toHaveLength(339);
     expect(unsafeInventory.reduce((count, entry) => count + entry.methods.length, 0)).toBe(373);
     expect(sha256Lines(unsafeInventoryLines)).toBe("0285e65270f53a3222ad681c1d2a94a8bbb5d1fe2659dfcf4f823dc62a8a598f");
