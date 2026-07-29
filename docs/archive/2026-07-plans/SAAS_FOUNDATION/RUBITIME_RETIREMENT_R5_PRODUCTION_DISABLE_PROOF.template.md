@@ -3,7 +3,7 @@
 # Rubitime retirement R5 — TEST proof template
 
 > **SUPERSEDED 2026-07-15.** The former template was for an external operation and must not be executed.
-> Authority: [`OWNER_RULINGS_2026-07-15.md:87-104`](OWNER_RULINGS_2026-07-15.md).
+> Authority: [`OWNER_RULINGS_2026-07-15.md:87-104`](../../../_TODO/SAAS_FOUNDATION/OWNER_RULINGS_2026-07-15.md).
 
 ## Required TEST evidence
 

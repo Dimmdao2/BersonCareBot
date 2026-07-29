@@ -84,7 +84,7 @@
 | `RU_PRIVACY_AND_PRODUCTION_READINESS/stages/SEC-04_GOVERNANCE_AND_INCIDENTS.md` | 13 | 0 | 0 | ЖИВОЙ | Открытые [ ] остаются: без прямого архивного основания файл не закрывается. | оставить на месте |
 | `SAAS_FOUNDATION/00_DECISIONS_AND_SCHEMA.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
 | `SAAS_FOUNDATION/01_MASTER_PLAN.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
-| `SAAS_FOUNDATION/02_PHASED_BRIEF.md` | 0 | 0 | 0 | ВЫТЕСНЕН | «НЕ АКТУАЛЬНО (2026-06-17, SKELETON)»; F0.x «заменён P0.x micro-stage spine», актуальны `01_MASTER_PLAN.md` и `SAAS_ENFORCE_ROADMAP.md` (`SAAS_FOUNDATION/02_PHASED_BRIEF.md:3-8`). | архив |
+| `SAAS_FOUNDATION/02_PHASED_BRIEF.md` | 0 | 0 | 0 | ЗАКРЫТ | Историческая запись: тот же Phase 0 объём уже выполнен и закрыт. Исправлено 29.07 по аудиту `audit-e2b-0729`. | архив |
 | `SAAS_FOUNDATION/ADMIN_BASELINE_AND_SUPPORT_CHAT_DESIGN.md` | 22 | 0 | 0 | ЖИВОЙ | Открытые [ ] остаются: без прямого архивного основания файл не закрывается. | оставить на месте |
 | `SAAS_FOUNDATION/AUTONOMOUS_NIGHTLY_RUNBOOK.md` | 0 | 0 | 51 | ВЫТЕСНЕН | «P0.7.6 … is not done»; работа разнесена по восьми названным трекерам с итогами 17/17, 9/9, 15/15, 20/20, 12/12, 17/17 (`SAAS_FOUNDATION/AUTONOMOUS_NIGHTLY_RUNBOOK.md:14-22`); живой P0.7.6 действительно `[ ]` (`SAAS_FOUNDATION/P0_7_WRITER_CENSUS_CHECKLIST.md:79`). | архив |
 | `SAAS_FOUNDATION/C1_WALLS_TEST_CHECKLIST.md` | 1 | 13 | 0 | ЖИВОЙ | Открытые [ ] остаются: без прямого архивного основания файл не закрывается. | оставить на месте |
@@ -149,7 +149,7 @@
 | `SAAS_FOUNDATION/R1_TABLE_TAXONOMY.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
 | `SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md` | 0 | 3 | 8 | ВЫТЕСНЕН | «НЕ АКТУАЛЬНО»; все 8 строк «ВЫТЕСНЕНО» в `SAAS_ENFORCE_ROADMAP.md`/`R2_MVP_MASTER_CHECKLIST.md`, «часть — уже закрыта там, часть — всё ещё открыта» (`SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md:3-15`). | архив |
 | `SAAS_FOUNDATION/R2_MVP_MASTER_CHECKLIST.md` | 13 | 12 | 0 | ЖИВОЙ | Открытые [ ] остаются: без прямого архивного основания файл не закрывается. | оставить на месте |
-| `SAAS_FOUNDATION/R2_READINESS_CLOSURE.md` | 0 | 0 | 0 | ВЫТЕСНЕН | «НЕ АКТУАЛЬНО»; актуальны `SAAS_ENFORCE_ROADMAP.md`, `R2_MVP_MASTER_CHECKLIST.md`, `T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md` (`SAAS_FOUNDATION/R2_READINESS_CLOSURE.md:3-6`). | архив |
+| `SAAS_FOUNDATION/R2_READINESS_CLOSURE.md` | 0 | 0 | 0 | ЗАКРЫТ | Историческая запись завершённого readiness/closure; текущая R2 enforcement-работа её не продолжает. Исправлено 29.07 по аудиту `audit-e2b-0729`. | архив |
 | `SAAS_FOUNDATION/RAW_SQL_AUDIT.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
 | `SAAS_FOUNDATION/README.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
 | `SAAS_FOUNDATION/REQUIREMENTS.md` | 0 | 0 | 0 | ВЫТЕСНЕН | «НЕ АКТУАЛЬНО»; актуальны `01_MASTER_PLAN.md`, `SEQUENCE.md`, `OWNER_RULINGS_2026-07-15.md`, `SAAS_ENFORCE_ROADMAP.md` (`SAAS_FOUNDATION/REQUIREMENTS.md:3-7`). | архив |

@@ -63,7 +63,7 @@ Each application substage must use scratch/non-prod policy smoke before merge:
 
 ### P0.8.3 Public Direct-Org Policy Application
 
-Do not execute P0.8.3 from this checklist alone. Use [`P0_8_3_PREFLIGHT.md`](P0_8_3_PREFLIGHT.md)
+Do not execute P0.8.3 from this checklist alone. Use [`P0_8_3_PREFLIGHT.md`](../../../_TODO/SAAS_FOUNDATION/P0_8_3_PREFLIGHT.md)
 as the execution brief.
 
 Minimum implementation facts:

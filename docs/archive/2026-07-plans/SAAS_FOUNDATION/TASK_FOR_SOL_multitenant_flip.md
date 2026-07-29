@@ -5,8 +5,8 @@
 > ⚠️ **НЕ АКТУАЛЬНО (2026-07-12).** «Фаза 4 — Выкат» и «Prod cutover» в этом файле построены на пути,
 > отменённом owner-пивотом 2026-07-15: «The old `bersoncare` production is LEGACY and frozen. There will be
 > NO prod cutover — ever» (`SAAS_R1_FINISH_LINE_AND_DOC_HYGIENE.md`). Актуально:
-> [`OWNER_RULINGS_2026-07-15.md`](OWNER_RULINGS_2026-07-15.md), [`SEQUENCE.md`](SEQUENCE.md),
-> [`SAAS_ENFORCE_ROADMAP.md`](SAAS_ENFORCE_ROADMAP.md) (TEST-only enforcement, no prod flip).
+> [`OWNER_RULINGS_2026-07-15.md`](../../../_TODO/SAAS_FOUNDATION/OWNER_RULINGS_2026-07-15.md), [`SEQUENCE.md`](../../../_TODO/SAAS_FOUNDATION/SEQUENCE.md),
+> [`SAAS_ENFORCE_ROADMAP.md`](../../../_TODO/SAAS_FOUNDATION/SAAS_ENFORCE_ROADMAP.md) (TEST-only enforcement, no prod flip).
 
 Репозиторий `/home/dev/dev-projects/BersonCareBot`, ветка `auto/code-pg-delta`. ИСПОЛНИТЕЛЬСКАЯ задача:
 код + валидация на **одноразовой копии прод-базы**, НЕ трогать prod/test, не пушить, не коммитить в main.

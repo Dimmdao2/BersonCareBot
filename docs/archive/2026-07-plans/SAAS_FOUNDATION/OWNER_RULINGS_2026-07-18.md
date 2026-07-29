@@ -5,7 +5,7 @@
 Все решения владельца из этой сессии, включая тарифы, trial, оплату платформы, библиотеку/магазин упражнений,
 аналитику и последовательный review интерфейса TEST, консолидированы без конкурирующей копии в:
 
-[`../SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md`](../SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md)
+[`docs/_TODO/SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md`](../../../_TODO/SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md)
 
 **Статус:** исторический redirect для старых ссылок; не является самостоятельным источником требований.
 При расхождении или последующих изменениях действует единый owner-review.
