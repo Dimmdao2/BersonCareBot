@@ -16,7 +16,7 @@ import {
   doctorStatCardInteractiveClass,
 } from '@/shared/ui/doctor/doctorVisual';
 import { cn } from '@/lib/utils';
-import { DEFAULT_APP_DISPLAY_TIMEZONE } from '@/modules/system-settings/appDisplayTimezone';
+import { DEFAULT_APP_DISPLAY_TIMEZONE } from '@/modules/system-settings/calendarIana';
 import { DoctorCalendarEventPanel } from '../../calendar/DoctorCalendarEventPanel';
 import {
   DoctorCalendarRescheduleDialog,

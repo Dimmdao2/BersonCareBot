@@ -1,5 +1,5 @@
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { DEFAULT_APP_DISPLAY_TIMEZONE } from '@/modules/system-settings/appDisplayTimezone';
+import { DEFAULT_APP_DISPLAY_TIMEZONE } from '@/modules/system-settings/calendarIana';
 import { DEFAULT_SUPPORT_CONTACT_URL } from '@/modules/system-settings/supportContactConstants';
 import { DEFAULT_PATIENT_MAINTENANCE_MESSAGE } from '@/modules/system-settings/patientMaintenance';
 import { normalizeTestAccountIdentifiersValue } from '@/modules/system-settings/testAccounts';

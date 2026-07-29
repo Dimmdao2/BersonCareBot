@@ -21,4 +21,4 @@ export function formatDateTimeRu(iso: string, timeZone = DEFAULT_APP_DISPLAY_TIM
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short', timeZone });
 }
-import { DEFAULT_APP_DISPLAY_TIMEZONE } from '@/modules/system-settings/appDisplayTimezone';
+import { DEFAULT_APP_DISPLAY_TIMEZONE } from '@/modules/system-settings/calendarIana';
