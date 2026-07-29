@@ -513,6 +513,30 @@ done
 
 --- — **ЗАКРЫТО 29.07:** выполнен и не один: `audit-e2a`, `audit-e2b`, `audit-e3-saas`, `reaudit-e3-saas`, `audit-e3-rest`, `audit-e4a`, `audit-e4b`, `verify-leadfix`, `audit-e5b`. Финальный вердикт — CRITICAL нет, все числа отчёта воспроизведены независимо.
 
+## Э6. Предложение лиду: свернуть только полностью покрытые группы 20, 22 и 23
+
+- [x] **6.1** Полные тела `#994`, `#996`, `#1042`, `#857`, `#858`, `#1072`, `#1073` прочитаны из
+      `/home/dev/dev-projects/.lead/taskdb-cleanup/all-cards.txt` и построчно сверены с исправленной картой
+      `/home/dev/dev-projects/.lead/taskdb-cleanup/plans-map-fixed.md`. Недостающее содержание перенесено только
+      в существующие планы этой же работы; taskdb не вызывался и не изменялся. — доказательство:
+      `SAAS_FOUNDATION/SAAS_PROD_DEPLOY_PROCESS.md` §2.0, §9;
+      `docs/OPERATIONS/OWNER_IDENTITY_CONSOLIDATION.md` §«Непотерянный scope карточек #1072 и #1073»
+
+Карточка-workstream для предложения — **`#1042`**: её граница шире остальных и дословно охватывает переезд
+на новый production-сервер, тогда как `#996` ведёт единый runbook переезда, `#994` — его DB-grant closure,
+`#857/#858` — FIO-шаг и post-cutover audit, `#1072/#1073` — первый identity-шаг. Лид применяет свёртку;
+этот проход только доказывает безопасную трассировку.
+
+| карточка | предложение | где сохранено содержание |
+| --- | --- | --- |
+| `#1042` | оставить workstream | `SAAS_FOUNDATION/SAAS_PROD_DEPLOY_PROCESS.md` §9 (`#1042`) + `PROD_VS_TEST_DIVERGENCE_2026-07-26.md` §0–§8 |
+| `#994` | свернуть в `#1042` | `SAAS_FOUNDATION/SAAS_PROD_DEPLOY_PROCESS.md` §3, §8 B-9, §9 (`#994`) + `ROLE_GRANTS_PROVENANCE_AND_PROD_MIGRATION_PLAN.md` §3 |
+| `#996` | свернуть в `#1042` | `SAAS_FOUNDATION/SAAS_PROD_DEPLOY_PROCESS.md` §MASTER ORDERED CHECKLIST, §8, §9 (`#996`) |
+| `#857` | свернуть в `#1042` | `.cursor/plans/fio_identity_cleanup.plan.md` Phase 9 + `FIO_IDENTITY_CLEANUP_INITIATIVE/README.md` Phase 9 + `SAAS_FOUNDATION/SAAS_PROD_DEPLOY_PROCESS.md` step 8/§9 |
+| `#858` | свернуть в `#1042` | `.cursor/plans/fio_identity_cleanup.plan.md` Phases 10–11 + `FIO_IDENTITY_CLEANUP_INITIATIVE/README.md` Phases 10–11 + `SAAS_FOUNDATION/SAAS_PROD_DEPLOY_PROCESS.md` §9 |
+| `#1072` | свернуть в `#1042` | `docs/OPERATIONS/OWNER_IDENTITY_CONSOLIDATION.md` §«Непотерянный scope карточек #1072 и #1073» + `SAAS_FOUNDATION/SAAS_PROD_DEPLOY_PROCESS.md` §2.0/§9 |
+| `#1073` | свернуть в `#1042` | `PRE_PRODUCTION_TODO.md` §0 + `docs/OPERATIONS/OWNER_IDENTITY_CONSOLIDATION.md` §«Непотерянный scope карточек #1072 и #1073» + `SAAS_FOUNDATION/SAAS_PROD_DEPLOY_PROCESS.md` §2.0/§9 |
+
 ## Definition of Done
 
 1. В `docs/_TODO/` не осталось файлов с нулём открытых боксов — они в `docs/archive/2026-07-plans/`.

@@ -18,6 +18,7 @@
 > - DB migration mechanics (fresh dump → hard migration): `HARD_MIGRATION_PROTOCOL.md` + wrapper `deploy/host/deploy-test-full-reset.sh` (internal engine `deploy/host/deploy-test-saas.sh`)
 > - DB deploy sequence + PROD mapping notes: `SAAS_DEPLOY_SEQUENCE.md`
 > - **Role grants (this doc's §3 is authoritative):** `../ROLE_GRANTS_PROVENANCE_AND_PROD_MIGRATION_PLAN.md`
+> - Measured PROD/TEST divergence and new-host scope: `../PROD_VS_TEST_DIVERGENCE_2026-07-26.md`
 > - Legal/privacy GO-gates: `../RU_PRIVACY_AND_PRODUCTION_READINESS/MASTER_PLAN.md` (PR-00..PR-04, SEC-02/03/04, DR-01/02, CRYPTO-01)
 > - Deploy topology / host facts: `deploy/HOST_DEPLOY_README.md`
 >
@@ -28,11 +29,12 @@
 
 > This is THE instruction. Each step links to its detail section below. Status legend:
 > ✅SCRIPT (one command, proven) · ✍️MANUAL (exact commands here) · ⛔BLOCKED (needs a build first — see §8 Blockers).
-> **Hard ordering (not preference):** identity-fix #2 → migrations #3 → test-cleanup #4 → CSV backfill #5 →
+> **Hard ordering (not preference):** owner-account consolidation first → identity-fix #2 → migrations #3 → test-cleanup #4 → CSV backfill #5 →
 > legacy-drop #6; roles/grants #8 → walls #9; ФИО #7 after history-normalization.
 >
 > - [ ] **1. GO-gates** (owner/legal, must be green) — §1. ✍️MANUAL
 > - [ ] **2. Fresh prod dump → disposable copy** (rehearse first; then new prod host in the window) — §2. ✅SCRIPT (`deploy/host/deploy-test-full-reset.sh`, engine `deploy-test-saas.sh`)
+> - [ ] **2a. Consolidate the owner's staff identity — FIRST DATA MUTATION** — §2.0. ✅SCRIPT (`apps/webapp/scripts/consolidate-owner-identity.sql`); PROD not yet executed
 > - [ ] **3. Identity data-fix** (doctor=yandex canonical; tezka email stripped; **gmail=HARD `role='admin'`**) — runs automatically as the DATAFIX step BEFORE migrations. §7 #1/#2. ✅SCRIPT (`p0-data-fix-doctor-admin-split.sql`)
 > - [ ] **4. SaaS schema migrations** (incl. `0233_global_admin_hard_role`, membership seed 0143) — part of §2 engine. ✅SCRIPT
 > - [ ] **5. Test-record cleanup + dedup** (remove test bookings, merge clone clients) — §2.5 + §8. ⛔BLOCKED (safety module refuses prod-named DB; needs reviewed guard-unlock like §3.5's flag)
@@ -100,6 +102,25 @@ Rehearse on a disposable prod-copy first (INFRA-01 §I2), then run on the new pr
   real prod DB — see SAAS_DEPLOY_SEQUENCE.md for why: data-fix-before-membership-seed + temp-BYPASSRLS migrator).
 - The wrapper runs migrations → data cleanup → roles/grants → reviewed overlays → strict-RLS finalizer (base policies
   → safe overlays → FORCE with catalog/semantic assertions).
+
+### 2.0 Owner staff identity consolidation — first data mutation
+
+- [ ] On the fresh cutover copy, before the other identity fixes and migrations, run
+  `apps/webapp/scripts/consolidate-owner-identity.sql` by the table owner; compare the dry-run counts with TEST,
+  stop on material drift, then apply it transactionally. PROD has not been changed. The executable authority is
+  [`docs/OPERATIONS/OWNER_IDENTITY_CONSOLIDATION.md`](../../OPERATIONS/OWNER_IDENTITY_CONSOLIDATION.md), and its
+  place in the sequence is fixed by [`PRE_PRODUCTION_TODO.md` §0](../PRE_PRODUCTION_TODO.md). This step is blocked
+  until the runbook's open `9475c2a9` contradiction is resolved by the owner.
+
+Owner, 2026-07-28: «Смержим до конца и оставим одну каноническую запись. причем сделаем скриптом и теперь уже
+не потеряем его. Впишем в последовательность миграции в самом начале - первым шагом» + «и чисти пустышки».
+The survivor remains `role=doctor` and clinic owner, never global admin: «помни что ты сливаешь аккаунты которые
+должны стать одним АДМИНОМ КЛИНИКИ, а не глобальным-админом».
+
+The separate no-repeat invariant and the unresolved historical TypeScript-script requirement from taskdb `#1072`
+and `#1073` remain open in the executable runbook. The owner's later ruling replaced the proposed catalog-driven
+128-FK machinery with the flat one-shot SQL; that replacement and the original `f9365e51b` provenance are preserved
+there rather than silently discarded.
 
 ## 2.1 From-zero rehearsal findings — HARD prerequisites and fixes (2026-07-25)
 
@@ -540,6 +561,38 @@ independent audit. Until they land, a clean run covers only steps 2→3→4→9�
   Optional to script, but until then step 9 is hand-run.
 
 Tracking: taskdb #996 (this program), #995 (locate SMTP keys in the dump — needed by step 9/§3), #994 (`deploy-prod-saas.sh`).
+
+## 9. Taskdb-card provenance retained before consolidation
+
+This section preserves the evidence and owner constraints from the seven source cards. It does not change taskdb;
+the lead applies the consolidation proposal from `DOCS_PLAN_HYGIENE_2026-07-29.md`.
+
+- **`#994` — PROD DB-grant closure.** `deploy/host/deploy-prod.sh` has zero `GRANT`/`REVOKE` and calls none of
+  the DB-provisioning overlays. The required order, mandatory automation of the four `app.*` `EXECUTE` grants plus
+  `schema_migrations SELECT`, read-only role-topology prerequisite, and prohibition on carrying the ad-hoc
+  ALL-TABLES/FUNCTIONS pollution into PROD are in §3, B-9 and
+  `ROLE_GRANTS_PROVENANCE_AND_PROD_MIGRATION_PLAN.md` §3.
+- **`#996` — the consolidated cutover program.** Owner 2026-07-25: «делай все это». The card requires the
+  single ordered runbook, closure of steps 5–8, and a fresh-prod-dump full-reset rehearsal with clean boot, assert
+  gates and product smoke; these are the master checklist and §8. The already committed identity fix evidence is
+  retained verbatim: `fde909270`, `0a0c6cff5`.
+- **`#1042` — move to the new production server.** The owner's question was «когда пора загружать платформу
+  на новый сервер». The measured inventory is retained in
+  `PROD_VS_TEST_DIVERGENCE_2026-07-26.md`: `origin/main`/`d09ea70c8`, **1,831 commits / 3,729 files /
+  +540,730 −51,399 lines**, only 136 migrations on `main` versus 251 on the feature branch, no organization/RLS
+  foundation on the old PROD path, root-run services, the hardcoded identity anchors, and the conclusion that a
+  clean new-host build is smaller than in-place migration. PROD was not touched. The new-host frame is also the
+  first blockquote of this document; owner resource O-07 and stable release/GO remain open in §1.
+- **`#857` / `#858` — FIO closeout.** Step 8 points to
+  `.cursor/plans/fio_identity_cleanup.plan.md` Phases 9–11 and
+  `docs/FIO_IDENTITY_CLEANUP_INITIATIVE/README.md` Phases 9–11. TEST evidence is `#849` only; PROD mutation
+  still requires the exact current-copy preview/manifest and explicit owner command. Runtime parser retirement
+  remains after production reconciliation; the one-off dictionary parser is not runtime, and notification
+  templates are separate.
+- **`#1072` / `#1073` — owner staff identity.** Step 2a and
+  `docs/OPERATIONS/OWNER_IDENTITY_CONSOLIDATION.md` retain the survivor/tombstone scope, the clinic-admin-not-global
+  owner constraint, protected records, cleanup set, TEST evidence, later flat-SQL ruling, no-dangling-reference
+  gate, and the still-open DB no-repeat invariant and `f9365e51b` script-restoration requirement.
 
 ---
 
