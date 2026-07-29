@@ -87,7 +87,6 @@ export default [
       'src/modules/platform-access/resolvePlatformAccessContext.ts',
       'src/modules/reminders/notifyIntegrator.ts',
       'src/modules/system-settings/configAdapter.ts',
-      'src/modules/system-settings/syncToIntegrator.ts',
     ],
     rules: {
       'no-restricted-imports': 'off',

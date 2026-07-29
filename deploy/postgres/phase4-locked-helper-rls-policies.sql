@@ -98,15 +98,6 @@ CREATE POLICY "saas_org_dormant_p0_8_5" ON "integrator"."question_messages" FOR 
 CREATE POLICY "saas_org_dormant_p0_8_5" ON "integrator"."question_messages" FOR ALL USING (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_integrator_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM "integrator"."user_questions" AS "b4f_question" JOIN "integrator"."identities" AS "b4f_ident" ON "b4f_ident"."id" = "b4f_question"."user_identity_id" WHERE "b4f_question"."id" = "question_id" AND "b4f_ident"."user_id" = app.current_integrator_user_id() ))))) WITH CHECK (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_integrator_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM "integrator"."user_questions" AS "b4f_question" JOIN "integrator"."identities" AS "b4f_ident" ON "b4f_ident"."id" = "b4f_question"."user_identity_id" WHERE "b4f_question"."id" = "question_id" AND "b4f_ident"."user_id" = app.current_integrator_user_id() )))));
 \endif
 
--- integrator.system_settings (saas_bootstrap_hybrid_p0_8_6)
-ALTER TABLE "integrator"."system_settings" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "saas_bootstrap_hybrid_p0_8_6" ON "integrator"."system_settings";
-\if :phase4_enforce_locked_context
-CREATE POLICY "saas_bootstrap_hybrid_p0_8_6" ON "integrator"."system_settings" FOR ALL USING (("organization_id" IS NULL OR (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()))) WITH CHECK (("organization_id" IS NULL OR (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())));
-\else
-CREATE POLICY "saas_bootstrap_hybrid_p0_8_6" ON "integrator"."system_settings" FOR ALL USING (("organization_id" IS NULL OR (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()))) WITH CHECK (("organization_id" IS NULL OR (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())));
-\endif
-
 -- integrator.user_questions (saas_org_dormant_p0_8_5)
 ALTER TABLE "integrator"."user_questions" ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "saas_org_dormant_p0_8_5" ON "integrator"."user_questions";

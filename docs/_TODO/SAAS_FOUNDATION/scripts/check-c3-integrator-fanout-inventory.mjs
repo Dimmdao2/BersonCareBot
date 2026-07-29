@@ -27,8 +27,6 @@ const registrarFiles = {
   registerBersoncareSendOtpRoute: 'apps/integrator/src/integrations/bersoncare/sendOtpRoute.ts',
   registerBersoncareReminderRulesRoute:
     'apps/integrator/src/integrations/bersoncare/reminderRulesRoute.ts',
-  registerBersoncareSettingsSyncRoute:
-    'apps/integrator/src/integrations/bersoncare/settingsSyncRoute.ts',
   registerBersoncareUserMergeM2mRoutes:
     'apps/integrator/src/integrations/bersoncare/userMergeM2mRoute.ts',
   registerOperatorHealthProbeRoute:
@@ -91,12 +89,6 @@ const expectedInventoryEntries = [
     method: 'POST',
     path: '/api/integrator/reminders/rules',
     source: registrarFiles.registerBersoncareReminderRulesRoute,
-  },
-  {
-    id: 'settings-sync',
-    method: 'POST',
-    path: '/api/integrator/settings/sync',
-    source: registrarFiles.registerBersoncareSettingsSyncRoute,
   },
   {
     id: 'users-canonical-pair',

@@ -156,8 +156,8 @@ Closed in S2:
 
 Writes/mirror:
 
-- Webapp writes must remain through `createSystemSettingsService().updateSetting` and `syncSettingToIntegrator`.
-- Integrator signed sync still writes `integrator.system_settings` in `apps/integrator/src/integrations/bersoncare/settingsSyncRoute.ts`.
+- Webapp writes must remain through `createSystemSettingsService().updateSetting`.
+- Integrator reads the canonical `public.system_settings` rows directly; no signed settings push or duplicate table exists.
 - `apps/webapp/src/infra/platformUserFullPurge.ts` and `apps/webapp/scripts/user-phone-admin.ts` update `system_settings.updated_by` only as purge/admin cleanup; classify before adding CI grep.
 
 S2 guard: `apps/webapp/scripts/check-system-settings-accessors.mjs`, wired into `pnpm --dir apps/webapp run lint`, allows only the accessors above and fails new direct `SELECT ... FROM system_settings` / Drizzle `.from(systemSettings)` in production `.ts`.

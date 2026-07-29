@@ -9,7 +9,6 @@ import {
 export const p086PolicyName = 'saas_bootstrap_hybrid_p0_8_6';
 
 export const expectedP086BootstrapHybridTargets = Object.freeze([
-  'integrator.system_settings',
   'public.platform_user_contacts',
   'public.system_settings',
   'public.system_settings_audit',
@@ -19,7 +18,6 @@ export const expectedP086BootstrapHybridTargets = Object.freeze([
 const expectedTargetSet = new Set(expectedP086BootstrapHybridTargets);
 
 const expectedBootstrapHybridTables = new Set([
-  'integrator.system_settings',
   'public.system_settings',
   'public.system_settings_audit',
 ]);
@@ -57,8 +55,8 @@ export function assertP086BootstrapHybridTargets(targets) {
   const actualTables = targets.map((descriptor) => descriptor.table);
   const actualSet = new Set(actualTables);
 
-  if (actualTables.length !== 5) {
-    throw new Error(`Expected 5 P0.8.6 BOOTSTRAP hybrid targets, got ${actualTables.length}`);
+  if (actualTables.length !== 4) {
+    throw new Error(`Expected 4 P0.8.6 BOOTSTRAP hybrid targets, got ${actualTables.length}`);
   }
 
   if (actualSet.size !== actualTables.length) {

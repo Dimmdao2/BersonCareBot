@@ -35,9 +35,8 @@ describe('Google Calendar clinic connection migration', () => {
     }
   });
 
-  it('copies the old connection only for a single clinic and mirrors the exact org identity', () => {
+  it('copies the old connection only for a single clinic with the exact org identity', () => {
     expect(migration).toContain('HAVING count(*) = 1');
-    expect(migration).toContain('INSERT INTO integrator.system_settings');
     expect(migration).toContain(
       'ON CONFLICT (key, scope, organization_id) WHERE organization_id IS NOT NULL',
     );

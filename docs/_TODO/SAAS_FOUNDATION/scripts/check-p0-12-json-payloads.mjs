@@ -8,7 +8,6 @@ const tiersPath = 'docs/_TODO/SAAS_FOUNDATION/scope-derivation/tiers-218.tsv';
 
 const expectedRows = new Map([
   ['public.system_settings', 'value_json'],
-  ['integrator.system_settings', 'value_json'],
   ['public.patient_merge_candidates', 'payload'],
   ['public.admin_audit_log', 'details'],
   ['public.message_log', 'text,channel_bindings_used,error_message'],

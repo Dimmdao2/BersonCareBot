@@ -60,8 +60,8 @@ tenant и первого контакта уже определена и не т
 - регистрация специалиста и lookup приглашения сохраняются как узкие `SECURITY DEFINER` entrypoint'ы с отдельными
   `NOLOGIN`-ролями владельцев функций; общих bootstrap-грантов на таблицу не появляется;
 - routing key и одноразовые clinic-link tokens хранятся только в виде hash; dedicated bot secrets остаются
-  org-scoped, shared bot secrets — явно platform-global значениями `system_settings`; обе формы синхронизируются в
-  `integrator.system_settings` существующим сервисом;
+  org-scoped, shared bot secrets — явно platform-global значениями `public.system_settings`; integrator читает
+  обе формы напрямую с org-first/global-fallback semantics;
 - при неоднозначной или отсутствующей привязке входящий webhook подтверждается транспортно, но бизнес-событие не
   исполняется и tenant не угадывается.
 

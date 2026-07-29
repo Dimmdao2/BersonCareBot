@@ -123,7 +123,7 @@ export async function getAppDisplayTimezone(input: {
   return r.timezone;
 }
 
-/** Clears TTL cache for display timezone (after DB update or settings sync). */
+/** Clears the 60-second display-timezone cache for tests/manual callers. */
 export function invalidateAppDisplayTimezoneCache(): void {
   displayTzCache = null;
 }

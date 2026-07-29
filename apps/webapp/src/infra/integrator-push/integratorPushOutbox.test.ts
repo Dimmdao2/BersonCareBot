@@ -20,7 +20,6 @@ import {
   claimDueIntegratorPushJobs,
   completeIntegratorPushJob,
   enqueueIntegratorPush,
-  enqueuePlatformSystemSettingsPush,
   failIntegratorPushJobDead,
   isRecoverableIntegratorPushFailure,
   rescheduleIntegratorPushJob,
@@ -54,9 +53,9 @@ describe('Wave3 phase 15D integratorPushOutbox (runtime constraints)', () => {
 
 describe('isRecoverableIntegratorPushFailure', () => {
   it('treats 5xx and network-style messages as recoverable', () => {
-    expect(isRecoverableIntegratorPushFailure(new Error('integrator settings/sync 503: x'))).toBe(
-      true,
-    );
+    expect(
+      isRecoverableIntegratorPushFailure(new Error('integrator reminders/rules 503: x')),
+    ).toBe(true);
     expect(isRecoverableIntegratorPushFailure(new Error('integrator_m2m_unconfigured'))).toBe(true);
     expect(isRecoverableIntegratorPushFailure(new Error('fetch failed'))).toBe(true);
   });
@@ -99,16 +98,16 @@ describe('integratorPushOutbox Drizzle producer/consumer contract', () => {
     const pool = { connect: vi.fn() } as unknown as import('pg').Pool;
 
     await enqueueIntegratorPush(pool, {
-      kind: 'system_settings_sync',
-      idempotencyKey: 'settings:admin:dev_mode',
-      payload: { key: 'dev_mode', scope: 'admin' },
+      kind: 'reminder_rule_upsert',
+      idempotencyKey: 'reminder_rule:abc',
+      payload: { id: 'abc' },
     });
 
     expect(getWebappSqlDbMock).toHaveBeenCalled();
     expect(values).toHaveBeenCalledWith(
       expect.objectContaining({
-        kind: 'system_settings_sync',
-        idempotencyKey: 'settings:admin:dev_mode',
+        kind: 'reminder_rule_upsert',
+        idempotencyKey: 'reminder_rule:abc',
         status: 'pending',
       }),
     );
@@ -120,20 +119,6 @@ describe('integratorPushOutbox Drizzle producer/consumer contract', () => {
           lastError: null,
         }),
       }),
-    );
-  });
-
-  it('platform settings enqueue uses only the closed DB function', async () => {
-    runWebappSqlMock.mockResolvedValueOnce({ rows: [] });
-
-    await enqueuePlatformSystemSettingsPush({
-      key: 'specialist_signup_enabled',
-    });
-
-    expect(drizzleDb.insert).not.toHaveBeenCalled();
-    expect(runWebappSqlMock).toHaveBeenCalledOnce();
-    expect(drizzleSqlNodeToText(runWebappSqlMock.mock.calls[0]?.[1])).toContain(
-      'app.enqueue_platform_system_settings_sync',
     );
   });
 
@@ -180,7 +165,7 @@ describe('integratorPushOutbox Drizzle producer/consumer contract', () => {
       rows: [
         {
           id: '44',
-          kind: 'system_settings_sync',
+          kind: 'reminder_rule_upsert',
           payload: ['not', 'a', 'record'],
           attempts_done: 0,
           max_attempts: 8,
@@ -250,8 +235,8 @@ describe('integratorPushOutbox Drizzle producer/consumer contract', () => {
     const client = { query: vi.fn() } as unknown as import('pg').PoolClient;
 
     await enqueueIntegratorPush(client, {
-      kind: 'system_settings_sync',
-      idempotencyKey: 'settings:admin:x',
+      kind: 'reminder_rule_upsert',
+      idempotencyKey: 'reminder_rule:x',
       payload: {},
     });
     expect(getWebappSqlFromPgClientMock).toHaveBeenCalledWith(client);

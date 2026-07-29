@@ -58,7 +58,7 @@ export type BersoncareUserMergeM2mDeps = {
 };
 
 /**
- * HMAC-signed M2M routes (same headers as settings sync / reminders): canonical pair check and integrator user merge.
+ * HMAC-signed M2M routes (same headers as other signed integrator routes): canonical pair check and integrator user merge.
  */
 export async function registerBersoncareUserMergeM2mRoutes(
   app: FastifyInstance,

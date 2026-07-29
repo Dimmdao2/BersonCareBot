@@ -26,7 +26,7 @@ vi.mock('./integratorPushOutbox', () => ({
   rescheduleIntegratorPushJob: (...args: unknown[]) => rescheduleIntegratorPushJobMock(...args),
   isRecoverableIntegratorPushFailure: (err: unknown) => {
     const msg = err instanceof Error ? err.message : String(err);
-    return !msg.includes('integrator settings/sync 400:');
+    return !msg.includes('integrator reminders/rules 400:');
   },
 }));
 
@@ -38,9 +38,9 @@ import { runIntegratorPushWorkerTick } from './runIntegratorPushWorkerTick';
 
 const sampleRow = {
   id: '101',
-  kind: 'system_settings_sync' as const,
-  idempotencyKey: 'settings:admin:dev_mode',
-  payload: { key: 'dev_mode', scope: 'admin' },
+  kind: 'reminder_rule_upsert' as const,
+  idempotencyKey: 'reminder_rule:abc',
+  payload: { id: 'abc' },
   attemptsDone: 0,
   maxAttempts: 8,
 };
@@ -77,7 +77,7 @@ describe('runIntegratorPushWorkerTick', () => {
   it('marks non-recoverable delivery failures as dead', async () => {
     claimDueIntegratorPushJobsMock.mockResolvedValueOnce([sampleRow]);
     deliverIntegratorPushPayloadMock.mockRejectedValueOnce(
-      new Error('integrator settings/sync 400: bad'),
+      new Error('integrator reminders/rules 400: bad'),
     );
 
     const done = await runIntegratorPushWorkerTick(5);
@@ -86,7 +86,7 @@ describe('runIntegratorPushWorkerTick', () => {
     expect(failIntegratorPushJobDeadMock).toHaveBeenCalledWith(
       expect.anything(),
       '101',
-      'integrator settings/sync 400: bad',
+      'integrator reminders/rules 400: bad',
     );
     expect(rescheduleIntegratorPushJobMock).not.toHaveBeenCalled();
   });
@@ -96,7 +96,7 @@ describe('runIntegratorPushWorkerTick', () => {
       { ...sampleRow, attemptsDone: 1, maxAttempts: 8 },
     ]);
     deliverIntegratorPushPayloadMock.mockRejectedValueOnce(
-      new Error('integrator settings/sync 503: down'),
+      new Error('integrator reminders/rules 503: down'),
     );
 
     const done = await runIntegratorPushWorkerTick(5);
@@ -107,7 +107,7 @@ describe('runIntegratorPushWorkerTick', () => {
       '101',
       2,
       60,
-      'integrator settings/sync 503: down',
+      'integrator reminders/rules 503: down',
     );
     expect(failIntegratorPushJobDeadMock).not.toHaveBeenCalled();
   });
@@ -117,7 +117,7 @@ describe('runIntegratorPushWorkerTick', () => {
       { ...sampleRow, attemptsDone: 7, maxAttempts: 8 },
     ]);
     deliverIntegratorPushPayloadMock.mockRejectedValueOnce(
-      new Error('integrator settings/sync 503: down'),
+      new Error('integrator reminders/rules 503: down'),
     );
 
     const done = await runIntegratorPushWorkerTick(5);
@@ -126,7 +126,7 @@ describe('runIntegratorPushWorkerTick', () => {
     expect(failIntegratorPushJobDeadMock).toHaveBeenCalledWith(
       expect.anything(),
       '101',
-      'integrator settings/sync 503: down',
+      'integrator reminders/rules 503: down',
     );
     expect(rescheduleIntegratorPushJobMock).not.toHaveBeenCalled();
   });

@@ -97,7 +97,7 @@ export function createMessengerStaffIdsResolver(db: DbPort): ResolveMessengerSta
   };
 }
 
-/** Clears in-memory cache (tests and settings sync). */
+/** Clears the 60-second in-memory cache for tests/manual callers. */
 export function clearMessengerStaffIdsCache(): void {
   listsCache.clear();
 }

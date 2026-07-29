@@ -27,10 +27,6 @@ import {
 import { normalizeValueJson } from './adminSettingsPatchNormalize';
 import { invalidateConfigKey } from './configAdapter';
 import {
-  normalizeStoredValueJsonForIntegratorSync,
-  syncSettingToIntegrator,
-} from './syncToIntegrator';
-import {
   normalizeTestAccountIdentifiersValue,
   relayRecipientAllowedInDevMode,
   type TestAccountIdentifiers,
@@ -443,13 +439,6 @@ export function createSystemSettingsService(
         { key, scope, valueJson: valueToStore, updatedBy, organizationId },
       ]);
       if (!result) throw new Error('system_settings_write_failed');
-      await syncSettingToIntegrator({
-        key,
-        scope,
-        organizationId: result.organizationId ?? null,
-        valueJson: normalizeStoredValueJsonForIntegratorSync(result.valueJson),
-        updatedBy: result.updatedBy,
-      });
       invalidateConfigKey(key);
       return result;
     },
@@ -471,13 +460,6 @@ export function createSystemSettingsService(
         expectedUpdatedAt,
       );
       if (!result) return null;
-      await syncSettingToIntegrator({
-        key,
-        scope,
-        organizationId: result.organizationId ?? null,
-        valueJson: normalizeStoredValueJsonForIntegratorSync(result.valueJson),
-        updatedBy: result.updatedBy,
-      });
       invalidateConfigKey(key);
       return result;
     },
@@ -495,9 +477,7 @@ export function createSystemSettingsService(
       return deleted;
     },
 
-    /**
-     * Persists a pre-normalized «Режимы» batch (one DB transaction), then syncs each key to integrator and invalidates config cache.
-     */
+    /** Persists a pre-normalized «Режимы» batch (one DB transaction), then invalidates config cache. */
     async persistAdminModesBatch(
       rows: Array<{ key: ModesFormKey; valueJson: { value: unknown } }>,
       updatedBy: string | null,
@@ -517,19 +497,12 @@ export function createSystemSettingsService(
       }));
       const saved = await writeRows(upsertRows);
       for (const s of saved) {
-        await syncSettingToIntegrator({
-          key: s.key,
-          scope: s.scope,
-          organizationId: s.organizationId ?? null,
-          valueJson: normalizeStoredValueJsonForIntegratorSync(s.valueJson),
-          updatedBy: s.updatedBy,
-        });
         invalidateConfigKey(s.key);
       }
       return saved;
     },
 
-    /** Atomically commits the error-tracking opt-in and DSN projections before mirror sync. */
+    /** Atomically commits the error-tracking opt-in and DSN projections. */
     async persistErrorTrackingConfig(
       input: Readonly<{ enabled: boolean; dsn: string }>,
       updatedBy: string | null,
@@ -547,13 +520,6 @@ export function createSystemSettingsService(
         })),
       );
       for (const setting of saved) {
-        await syncSettingToIntegrator({
-          key: setting.key,
-          scope: setting.scope,
-          organizationId: null,
-          valueJson: normalizeStoredValueJsonForIntegratorSync(setting.valueJson),
-          updatedBy: setting.updatedBy,
-        });
         invalidateConfigKey(setting.key);
       }
       return saved;

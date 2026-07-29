@@ -1,6 +1,5 @@
 table	columns	tier	payload_family	user_bearing	classification	decision	evidence
 public.system_settings	value_json	BOOTSTRAP	org_aware_config	yes	BOOTSTRAP	org-aware global/override config from P0.11; mirror lockstep; no payload samples	ALLOWED_KEYS may include whitelists/admin ids
-integrator.system_settings	value_json	BOOTSTRAP	org_aware_config	yes	BOOTSTRAP	mirror of public.system_settings with same organization_id semantics; no payload samples	P0.11 mirror sync
 public.patient_merge_candidates	payload	SCOPED	merge_candidate_context	yes	SCOPED	direct organization_id NOT NULL; keep scoped; no samples	anchor/candidate FKs carry patient identity
 public.admin_audit_log	details	SCOPED	audit_details	yes	SCOPED	organization_id materialized in P0.4.P8; keep scoped; no samples	audit actor/target/conflict context
 public.message_log	text,channel_bindings_used,error_message	SCOPED	delivery_log	yes	SCOPED	organization_id materialized from recipient/user; keep scoped; no samples	message body/channel binding log

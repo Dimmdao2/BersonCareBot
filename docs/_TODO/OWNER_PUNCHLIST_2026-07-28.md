@@ -670,7 +670,8 @@ community-лицензия).
       `apps/webapp/db/drizzle-migrations/0271_google_calendar_clinic_connection.sql:7`;
       `pnpm --dir apps/webapp exec vitest run src/modules/system-settings/googleCalendarClinicConnectionMigration.test.ts src/app/api/admin/google-calendar/start/route.test.ts src/app/api/admin/google-calendar/callback/route.test.ts src/app/api/admin/google-calendar/calendars/route.test.ts` and `pnpm --dir apps/integrator exec vitest run src/integrations/google-calendar/runtimeConfig.test.ts src/integrations/google-calendar/sync.test.ts` — PASS.
       ОСТАЛОСЬ: `.agent-facts.md` подтверждает ledger миграций до id 272, но не содержит строкового
-      сравнения `public.system_settings` ↔ `integrator.system_settings`; live TEST parity SELECT нужен до `[x]`.
+      сравнения двух settings-таблиц. Решением владельца 2026-07-29 дублирующая таблица удалена; live TEST
+      проверка для этого пункта теперь должна подтверждать канонические строки только в `public.system_settings`.
 - [x] **12.4** Поля VK ID (секрет через тот же конверт, что ключи Яндекса и Google).
       Доказательство после коррекции: update и delete используют общий redactor; delete-path
       `apps/webapp/src/infra/repos/pgSystemSettings.ts:400`;

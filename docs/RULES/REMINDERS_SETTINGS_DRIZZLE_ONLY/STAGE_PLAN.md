@@ -20,7 +20,7 @@
 
 Полный перечень объектов **`public`** в зоне напоминаний / проекций / настроек — в [`README.md`](./README.md) §«Политика DDL в `public`» (в т.ч. `reminder_rules`, projection-таблицы вроде `user_reminder_rules`, `system_settings`).
 
-В **`integrator`** для этой зоны типичны **`integrator.user_reminder_rules`** (не путать с одноимённой projection в `public`) и **`integrator.system_settings`** (зеркало ключей, см. §4).
+В **`integrator`** для этой зоны остаётся **`integrator.user_reminder_rules`** (не путать с одноимённой projection в `public`). Настройки хранятся только в `public.system_settings` и читаются integrator напрямую.
 
 Перед merge полезно прогнать по **новым** файлам миграций:
 

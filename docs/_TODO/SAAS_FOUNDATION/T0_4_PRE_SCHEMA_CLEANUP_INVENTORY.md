@@ -13,21 +13,18 @@ No domain in this inventory is safe for blind destructive drop. Every major dupl
 Classification:
 
 - `public.system_settings`: canonical runtime/business config.
-- `integrator.system_settings`: legacy compatibility mirror and cache-invalidation write target, not runtime source of truth.
-- `public.integrator_push_outbox` rows with `kind=system_settings_sync`: technical retry state for webapp to integrator compatibility sync.
+- Former duplicate settings table and its outbox kind: removed by owner ruling 2026-07-29/taskdb `#1076`.
 
 Evidence:
 
-- Webapp writes through `createSystemSettingsService.updateSetting` and `persistAdminModesBatch`, then calls `syncSettingToIntegrator`.
-- Integrator runtime reads use `apps/integrator/src/infra/db/publicSystemSettings.ts`, not the mirror.
-- `settingsSyncRoute.ts` is still mounted and writes `integrator.system_settings`; its comment marks it legacy compatibility.
+- Webapp writes through `createSystemSettingsService.updateSetting` and `persistAdminModesBatch`.
+- Integrator runtime reads use `apps/integrator/src/infra/db/publicSystemSettings.ts`.
 - `check-system-settings-accessors.mjs` blocks direct `system_settings` reads outside canonical accessors and documented global-only media-worker readers.
 
 Decision:
 
-- Keep mirror for this batch.
-- Do not add new mirror readers.
-- Hard drop requires replacing cache invalidation/retry semantics and owner approval.
+- Keep `public.system_settings` as the single settings store.
+- Do not add a new settings copy or replacement push machinery.
 
 Cleanup performed in this batch:
 

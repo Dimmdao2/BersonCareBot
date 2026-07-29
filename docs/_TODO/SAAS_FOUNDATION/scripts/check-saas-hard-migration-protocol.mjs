@@ -805,10 +805,7 @@ function runChecks(overrides = {}) {
     'SELECT 1 / 0 AS invalid_test_settings_overlay_mode;',
     '-- A fresh/reset path always scrubs the DB-backed credential.',
     "VALUES ('smtp_outbound', 'admin', '{\"value\":null}'::jsonb, NOW(), NULL)\nON CONFLICT (key, scope) WHERE organization_id IS NULL DO NOTHING;",
-    "SELECT 'smtp_outbound', 'admin', source.value_json, NOW(), NULL\nFROM public.system_settings AS source",
-    "WHERE source.key = 'smtp_outbound'\n  AND source.scope = 'admin'\n  AND source.organization_id IS NULL\nON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE",
     "locked_keys TEXT[] := ARRAY['patient_app_maintenance_enabled','dev_mode','test_account_identifiers','specialist_signup_enabled','patient_program_discussion_ui_enabled'];",
-    "locked_keys TEXT[] := ARRAY['app_base_url','test_account_identifiers','specialist_signup_enabled','patient_program_discussion_ui_enabled'];",
   ]);
   const transactionBegins = [...loaded.testSettingsOverride.matchAll(/^BEGIN;$/gmu)];
   const transactionCommits = [...loaded.testSettingsOverride.matchAll(/^COMMIT;$/gmu)];
@@ -821,12 +818,9 @@ function runChecks(overrides = {}) {
     [
       'BEGIN;',
       'DROP TRIGGER IF EXISTS system_settings_test_lock ON public.system_settings;',
-      'DROP TRIGGER IF EXISTS system_settings_test_lock ON integrator.system_settings;',
       "INSERT INTO public.system_settings (key, scope, value_json, updated_at, updated_by)\nVALUES ('app_base_url'",
       'CREATE OR REPLACE FUNCTION system_settings_test_lock_guard()',
       'CREATE TRIGGER system_settings_test_lock BEFORE UPDATE ON public.system_settings',
-      'CREATE OR REPLACE FUNCTION integrator.system_settings_test_lock_guard()',
-      'CREATE TRIGGER system_settings_test_lock BEFORE UPDATE ON integrator.system_settings',
       'COMMIT;',
       "SELECT tgname, tgrelid::regclass, tgenabled FROM pg_trigger WHERE tgname = 'system_settings_test_lock';",
     ],
@@ -847,8 +841,8 @@ function runChecks(overrides = {}) {
       /\\if :test_settings_overlay_reset\n([\s\S]*?)\\else\n([\s\S]*?)\\endif/gu,
     ),
   ];
-  if (smtpModeBlocks.length !== 2) {
-    fail(`${files.testSettingsOverride} must have exactly two SMTP reset/code-only branches`);
+  if (smtpModeBlocks.length !== 1) {
+    fail(`${files.testSettingsOverride} must have exactly one SMTP reset/code-only branch`);
   }
   for (const [index, block] of smtpModeBlocks.entries()) {
     requireFragments(`${files.testSettingsOverride} reset SMTP block ${index + 1}`, block[1], [
@@ -864,34 +858,13 @@ function runChecks(overrides = {}) {
       'ON CONFLICT (key, scope) WHERE organization_id IS NULL DO NOTHING;',
     ],
   );
-  requireFragments(
-    `${files.testSettingsOverride} code-only mirror SMTP block`,
-    smtpModeBlocks[1][2],
-    [
-      "SELECT 'smtp_outbound', 'admin', source.value_json, NOW(), NULL",
-      'FROM public.system_settings AS source',
-      "WHERE source.key = 'smtp_outbound'\n  AND source.scope = 'admin'\n  AND source.organization_id IS NULL",
-      'ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE',
-    ],
-  );
-  const publicLockBody = sourceTextSliceBetween(
+  const publicLockBody = sourceTextSliceFrom(
     loaded.testSettingsOverride,
     'CREATE OR REPLACE FUNCTION system_settings_test_lock_guard()',
-    'CREATE OR REPLACE FUNCTION integrator.system_settings_test_lock_guard()',
     files.testSettingsOverride,
   );
   if (publicLockBody === null) fail(`${files.testSettingsOverride} missing public lock body`);
-  const integratorLockBody = sourceTextSliceFrom(
-    loaded.testSettingsOverride,
-    'CREATE OR REPLACE FUNCTION integrator.system_settings_test_lock_guard()',
-    files.testSettingsOverride,
-  );
-  if (integratorLockBody === null)
-    fail(`${files.testSettingsOverride} missing integrator lock body`);
   forbidFragments(`${files.testSettingsOverride} public lock`, publicLockBody, ["'smtp_outbound'"]);
-  forbidFragments(`${files.testSettingsOverride} integrator lock`, integratorLockBody, [
-    "'smtp_outbound'",
-  ]);
   const deployOverlayModes = [
     ...loaded.deployTestSaas.matchAll(
       /^[ \t]*sudo -u postgres psql[^\n]*\\\n[ \t]+-v test_settings_overlay_mode=(code-only|reset) \\\n[ \t]+-f "\$DEPLOY_REPO\/\$OVERRIDE"$/gmu,
@@ -908,7 +881,6 @@ function runChecks(overrides = {}) {
   }
   requireFragments(files.devPostRefreshUnlock, loaded.devPostRefreshUnlock, [
     "locked_keys TEXT[] := ARRAY['patient_app_maintenance_enabled','dev_mode','test_account_identifiers','specialist_signup_enabled','patient_program_discussion_ui_enabled'];",
-    "locked_keys TEXT[] := ARRAY['app_base_url','test_account_identifiers','specialist_signup_enabled','patient_program_discussion_ui_enabled'];",
   ]);
   forbidFragments(files.devPostRefreshUnlock, loaded.devPostRefreshUnlock, ["'smtp_outbound'"]);
 

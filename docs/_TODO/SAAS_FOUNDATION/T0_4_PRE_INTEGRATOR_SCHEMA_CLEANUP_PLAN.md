@@ -4,6 +4,10 @@ Status: active execution plan for taskdb `#635`.
 
 This plan replaces the missing prompt-referenced artifact in the current checkout. It is scoped to cleanup readiness before T0.4 tenant-context cutover. It does not start T0.4 runtime cutover work.
 
+Owner ruling 2026-07-29 supersedes the settings-mirror hold recorded below: the duplicate settings table,
+its webapp→integrator push route/outbox kind, tests and U9A enqueue capability are removed by taskdb `#1076`.
+Integrator now reads `public.system_settings` directly and accepts the existing cache TTL of at most 60 seconds.
+
 ## Goal
 
 Make every integrator/public duplicate or legacy table in the T0.4 runtime perimeter explicitly classified:
@@ -45,7 +49,7 @@ Use code index first, then targeted reads. No prod access and no PII output.
 
 Domains:
 
-- `system_settings` mirror;
+- retired settings mirror (historical inventory only);
 - reminder rules/occurrences/delivery state;
 - Rubitime legacy/projection tables;
 - channel identity and `integrator.contacts`;
@@ -85,7 +89,7 @@ Escalate to full CI only if code changes cross app/package boundaries or before 
 
 ## Current decision summary
 
-- `public.system_settings` is canonical. `integrator.system_settings` is legacy compatibility/cache invalidation mirror, not runtime source.
+- `public.system_settings` is canonical and the former duplicate table/push path are removed by owner ruling 2026-07-29.
 - Reminder business rules are canonical in `public.reminder_rules`; bot-linked dispatch still runs from `integrator.user_reminder_*`.
 - Rubitime is still live adapter/runtime, not removable. Canonical appointment cutover must happen first.
 - `integrator.contacts` remains transitional fallback while `integrator_linked_phone_source=public_then_contacts` is the default.
@@ -96,8 +100,6 @@ Escalate to full CI only if code changes cross app/package boundaries or before 
 
 These actions require owner approval or a separate cutover proof:
 
-- drop `integrator.system_settings`;
-- remove `syncSettingToIntegrator` / `system_settings_sync`;
 - drop `integrator.user_reminder_*`;
 - flip reminder scheduling to public-only;
 - drop or archive `integrator.rubitime_records/events`;

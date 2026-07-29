@@ -21,11 +21,11 @@
 
 ## Что остаётся HTTP
 
-- **Webapp → integrator API** (`INTEGRATOR_API_URL`): исходящие действия бота, настройки sync, merge и т.д. — это **вызовы сервиса**, не дублирование «второй копии» канона в другой БД.
-- **`system_settings` mirror sync:** до отдельного refactor webapp пишет canonical row в `public.system_settings` и отправляет signed sync в integrator. Mirror identity includes `(key, scope, organization_id)`: `organization_id IS NULL` is the global default row, non-null organization is an org override with global fallback on reads.
+- **Webapp → integrator API** (`INTEGRATOR_API_URL`): исходящие действия бота, merge и т.д. — это **вызовы сервиса**, не дублирование «второй копии» канона в другой БД.
+- **`system_settings`:** webapp пишет canonical row в `public.system_settings`; integrator читает ту же таблицу напрямую. Его settings-cache истекает не позднее чем через 60 секунд, отдельного push/invalidation API нет.
 - **S5 runtime store:** `public.app_runtime_settings` and its `public.app_runtime_settings_audit` are webapp/public
-  schema tables only; they have no `integrator` mirror. `system_settings` / `integrator.system_settings` remain
-  compatibility copies until S5-3 moves the write chokepoint. S5-2 separately owns runtime/audit grants and RLS.
+  schema tables only. `public.system_settings` remains the settings authoring store until S5-3 moves the write
+  chokepoint. S5-2 separately owns runtime/audit grants and RLS.
 - **Integrator → webapp HTTP** — только там, где контракт ещё не переведён на общий SQL; такие вызовы **снимать по одному**, не расширять для новых сценариев записи канона.
 
 ## Webapp → integrator SQL cleanup (purge / merge-preview)
@@ -43,5 +43,5 @@
 
 ## Связанные документы
 
-- `CONFIGURATION_ENV_VS_DATABASE.md` — env, `system_settings`, зеркало настроек.
+- `CONFIGURATION_ENV_VS_DATABASE.md` — env и каноническая `public.system_settings`.
 - План привязки телефона / TX-first: `docs/archive/2026-04-initiatives/WEBAPP_FIRST_PHONE_BIND/MASTER_PLAN.md` · снимок reason/UX: `docs/archive/2026-04-initiatives/WEBAPP_FIRST_PHONE_BIND/PRODUCT_REASONS_AND_UX_TABLE.md` (полный Cursor-план — опционально в `~/.cursor/plans/webapp-first_phone_bind_5069b809.plan.md`).

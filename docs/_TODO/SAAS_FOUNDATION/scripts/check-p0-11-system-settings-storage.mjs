@@ -11,7 +11,6 @@ const files = {
   drizzleSchema: 'apps/webapp/db/schema/schema.ts',
   webappRepo: 'apps/webapp/src/infra/repos/pgSystemSettings.ts',
   integratorPublicReader: 'apps/integrator/src/infra/db/publicSystemSettings.ts',
-  integratorMirrorSync: 'apps/integrator/src/integrations/bersoncare/settingsSyncRoute.ts',
   integratorTemplatePort: 'apps/integrator/src/infra/db/repos/notifTemplatePort.ts',
 };
 
@@ -45,7 +44,6 @@ function runChecks(overrides = {}) {
   const webappRepo = overrides.webappRepo ?? read(files.webappRepo);
   const integratorPublicReader =
     overrides.integratorPublicReader ?? read(files.integratorPublicReader);
-  const integratorMirrorSync = overrides.integratorMirrorSync ?? read(files.integratorMirrorSync);
   const integratorTemplatePort =
     overrides.integratorTemplatePort ?? read(files.integratorTemplatePort);
 
@@ -55,24 +53,13 @@ function runChecks(overrides = {}) {
     'ALTER TABLE "public"."system_settings" ADD COLUMN IF NOT EXISTS "organization_id" uuid;',
     'CREATE POLICY "saas_bootstrap_hybrid_p0_8_6" ON "public"."system_settings"',
   );
-  assertBefore(
-    files.migration,
-    migration,
-    'ALTER TABLE "integrator"."system_settings" ADD COLUMN IF NOT EXISTS "organization_id" uuid;',
-    'CREATE POLICY "saas_bootstrap_hybrid_p0_8_6" ON "integrator"."system_settings"',
-  );
-
   for (const needle of [
     'CREATE UNIQUE INDEX IF NOT EXISTS "system_settings_global_key_scope_uidx"',
     'WHERE "organization_id" IS NULL',
     'CREATE UNIQUE INDEX IF NOT EXISTS "system_settings_org_key_scope_uidx"',
     'WHERE "organization_id" IS NOT NULL',
-    'CREATE UNIQUE INDEX IF NOT EXISTS "integrator_system_settings_global_key_scope_uidx"',
-    'CREATE UNIQUE INDEX IF NOT EXISTS "integrator_system_settings_org_key_scope_uidx"',
     'ALTER TABLE "public"."system_settings" DROP CONSTRAINT IF EXISTS "system_settings_pkey";',
-    'ALTER TABLE "integrator"."system_settings" DROP CONSTRAINT IF EXISTS "system_settings_pkey";',
     'ADD CONSTRAINT "system_settings_organization_id_fkey"',
-    'ADD CONSTRAINT "integrator_system_settings_organization_id_fkey"',
     'REFERENCES "public"."be_organizations"("id")',
   ]) {
     assertContains(files.migration, migration, needle);
@@ -107,12 +94,11 @@ function runChecks(overrides = {}) {
     'AND organization_id IS NULL',
   );
 
-  for (const [name, text] of [
-    [files.webappRepo, webappRepo],
-    [files.integratorMirrorSync, integratorMirrorSync],
-  ]) {
-    assertContains(name, text, 'ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE');
-  }
+  assertContains(
+    files.webappRepo,
+    webappRepo,
+    'ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE',
+  );
 
   for (const forbidden of [
     'export async function setNotifTemplate',

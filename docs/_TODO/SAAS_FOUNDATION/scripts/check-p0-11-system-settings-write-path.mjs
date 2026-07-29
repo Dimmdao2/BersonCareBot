@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
-import { sourceTextCount, sourceTextIncludes } from './source-text-guard.mjs';
+import { sourceTextIncludes } from './source-text-guard.mjs';
 
 const repoRoot = process.cwd();
 
@@ -10,9 +10,6 @@ const files = {
   ports: 'apps/webapp/src/modules/system-settings/ports.ts',
   service: 'apps/webapp/src/modules/system-settings/service.ts',
   webappRepo: 'apps/webapp/src/infra/repos/pgSystemSettings.ts',
-  syncToIntegrator: 'apps/webapp/src/modules/system-settings/syncToIntegrator.ts',
-  m2mPosts: 'apps/webapp/src/infra/integrator-push/integratorM2mPosts.ts',
-  integratorSyncRoute: 'apps/integrator/src/integrations/bersoncare/settingsSyncRoute.ts',
   migration: 'apps/webapp/db/drizzle-migrations/0164_p0_11_3_system_settings_audit_org.sql',
   journal: 'apps/webapp/db/drizzle-migrations/meta/_journal.json',
 };
@@ -27,64 +24,23 @@ function assertContains(name, text, needle) {
   }
 }
 
-function listTsFiles(dir) {
-  const out = [];
-  for (const name of readdirSync(dir)) {
-    const path = join(dir, name);
-    const stat = statSync(path);
-    if (stat.isDirectory()) {
-      out.push(...listTsFiles(path));
-    } else if (name.endsWith('.ts') || name.endsWith('.tsx')) {
-      out.push(path);
-    }
-  }
-  return out;
-}
-
-function assertNoRouteLevelSyncCall() {
-  const offenders = [];
-  for (const abs of listTsFiles(join(repoRoot, 'apps/webapp/src/app'))) {
-    if (abs.endsWith('.test.ts') || abs.endsWith('.test.tsx')) {
-      continue;
-    }
-    const src = readFileSync(abs, 'utf8');
-    const relativePath = relative(repoRoot, abs).replace(/\\/g, '/');
-    if (sourceTextIncludes(src, 'syncSettingToIntegrator', relativePath)) {
-      offenders.push(relativePath);
-    }
-  }
-  if (offenders.length > 0) {
-    throw new Error(`route-level syncSettingToIntegrator calls found: ${offenders.join(', ')}`);
-  }
-}
-
 function runChecks(overrides = {}) {
   const ports = overrides.ports ?? read(files.ports);
   const service = overrides.service ?? read(files.service);
   const webappRepo = overrides.webappRepo ?? read(files.webappRepo);
-  const syncToIntegrator = overrides.syncToIntegrator ?? read(files.syncToIntegrator);
-  const m2mPosts = overrides.m2mPosts ?? read(files.m2mPosts);
-  const integratorSyncRoute = overrides.integratorSyncRoute ?? read(files.integratorSyncRoute);
   const migration = overrides.migration ?? read(files.migration);
   const journal = overrides.journal ?? read(files.journal);
 
   assertContains(files.ports, ports, 'export type SystemSettingsWriteOptions');
   assertContains(files.ports, ports, 'organizationId?: string | null');
   assertContains(files.ports, ports, 'options?: SystemSettingsWriteOptions');
-  assertContains(files.service, service, 'options: SystemSettingsWriteOptions = {}');
+  assertContains(files.service, service, 'function resolveWriteOrganizationId(');
   assertContains(
     files.service,
     service,
     'const organizationId = options.organizationId?.trim() || null',
   );
-  if (
-    sourceTextCount(service, 'organizationId: result.organizationId ?? null', files.service) !== 2
-  ) {
-    throw new Error(
-      `${files.service} must sync result.organizationId on both settings write paths`,
-    );
-  }
-  assertContains(files.service, service, 'organizationId: s.organizationId ?? null');
+  assertContains(files.service, service, 'organizationId: resolveWriteOrganizationId(r.key, options)');
 
   for (const needle of [
     'ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE',
@@ -94,34 +50,6 @@ function runChecks(overrides = {}) {
   ]) {
     assertContains(files.webappRepo, webappRepo, needle);
   }
-
-  assertContains(
-    files.syncToIntegrator,
-    syncToIntegrator,
-    'idempotencyKey: `settings:${organizationKey}:${input.scope}:${input.key}`',
-  );
-  assertContains(
-    files.syncToIntegrator,
-    syncToIntegrator,
-    'organizationId: input.organizationId ?? null',
-  );
-  assertContains(files.m2mPosts, m2mPosts, 'organizationId?: string | null');
-  assertContains(files.m2mPosts, m2mPosts, 'organizationId: input.organizationId ?? null');
-  assertContains(
-    files.integratorSyncRoute,
-    integratorSyncRoute,
-    'organizationId: z.string().uuid().nullable().optional()',
-  );
-  assertContains(
-    files.integratorSyncRoute,
-    integratorSyncRoute,
-    'ON CONFLICT (key, scope, organization_id) WHERE organization_id IS NOT NULL DO UPDATE',
-  );
-  assertContains(
-    files.integratorSyncRoute,
-    integratorSyncRoute,
-    'ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE',
-  );
 
   assertContains(
     files.migration,
@@ -139,12 +67,11 @@ function runChecks(overrides = {}) {
     'CREATE INDEX IF NOT EXISTS "idx_system_settings_audit_org_key_at"',
   );
   assertContains(files.journal, journal, '"tag": "0164_p0_11_3_system_settings_audit_org"');
-  assertNoRouteLevelSyncCall();
 }
 
 if (process.argv.includes('--self-test')) {
   const service = read(files.service).replace(
-    'organizationId: result.organizationId ?? null',
+    'organizationId: resolveWriteOrganizationId(r.key, options)',
     'organizationId: null',
   );
   try {
@@ -153,7 +80,7 @@ if (process.argv.includes('--self-test')) {
     console.log('check-p0-11-system-settings-write-path self-test: OK');
     process.exit(0);
   }
-  throw new Error('self-test did not detect missing sync result organizationId');
+  throw new Error('self-test did not detect missing write organizationId');
 }
 
 try {

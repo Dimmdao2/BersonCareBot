@@ -50,10 +50,6 @@ const {
 
 vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: buildAppDepsMock }));
 vi.mock('@/modules/auth/service', () => ({ getCurrentSession: getSessionMock }));
-vi.mock('@/modules/system-settings/syncToIntegrator', () => ({
-  normalizeStoredValueJsonForIntegratorSync: (value: unknown) => value,
-  syncSettingToIntegrator: vi.fn(),
-}));
 
 import { DELETE, GET, PATCH } from './route';
 import { ALLOWED_KEYS, type SystemSetting } from '@/modules/system-settings/types';

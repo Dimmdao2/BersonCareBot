@@ -723,19 +723,18 @@ bash deploy/host/deploy-test.sh <ветка>    # или явная ветка
 `deploy-test.sh` — **code-only/no-fresh-restore** путь (build + controlled migrate текущей TEST-БД) и не является
 поддерживаемым способом fresh restore.
 Его общая settings-closure передаёт overlay явный режим `code-only`: уже настроенный глобальный DB-backed
-`smtp_outbound` в `public.system_settings` сохраняется и выравнивается с той же logical identity в
-`integrator.system_settings`; JSON `null` вставляется только если строки ещё нет. Fresh-reset wrapper передаёт
-явный режим `reset` и всегда обнуляет `smtp_outbound` в обеих схемах. Отсутствующий или неизвестный режим
+`smtp_outbound` в `public.system_settings` сохраняется; JSON `null` вставляется только если строки ещё нет.
+Fresh-reset wrapper передаёт явный режим `reset` и всегда обнуляет `smtp_outbound` в канонической public-таблице. Отсутствующий или неизвестный режим
 останавливает SQL до снятия TEST lock triggers. `smtp_outbound` не входит в TEST lock arrays, поэтому штатная
 Settings-запись через `updateSetting` может менять его; остальные safety-critical ключи остаются залочены.
 Снятие lock triggers, settings overlay и пересоздание locks выполняются одной транзакцией: любая ошибка
 `ON_ERROR_STOP` откатывает весь блок и сохраняет ранее установленные locks.
 
 Разовая настройка SMTP для TEST не является частью deploy-overlay: штатный путь — существующий Settings /
-`updateSetting`, который сохраняет public+integrator mirror. По owner ruling допустимо позднее скопировать уже
+`updateSetting`, который сохраняет `public.system_settings`. По owner ruling допустимо позднее скопировать уже
 существующую DB-backed platform setting в TEST clinic/global context тем же путём, без чтения PROD/env и без вывода
-секрета. Если этот путь недоступен, one-off TEST write требует отдельного owner authorization, backup/rollback и
-синхронного mirror; обычный deploy не должен изобретать такой bootstrap.
+секрета. Если этот путь недоступен, one-off TEST write требует отдельного owner authorization и backup/rollback;
+обычный deploy не должен изобретать такой bootstrap.
 Перед миграцией он останавливает все TEST writers, выдаёт owner/BYPASS только на migration window, обязательно
 снимает временные права и передаёт post-migration этап в ту же общую strict closure, что fresh wrapper. Closure
 ставит roles/helpers/grants и E1 telemetry overlay (ambient event-writer + отдельный

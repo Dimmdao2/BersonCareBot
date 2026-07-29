@@ -84,8 +84,8 @@ SAAS_ENFORCE_ROADMAP "replace auth mechanism").
 The override moved from `/tmp/bcb-test-setup/test-settings-override.sql` into the repo at
 `deploy/postgres/test-settings-override.sql`; all upserts use the org-aware partial-index conflict target
 `ON CONFLICT (key, scope) WHERE organization_id IS NULL` directly (no more sed rewrite in the deploy script).
-system_settings now has PARTIAL unique indexes: global `UNIQUE (key, scope) WHERE organization_id IS NULL` and
-org `UNIQUE (key, scope, organization_id) WHERE organization_id IS NOT NULL` (same for integrator.system_settings).
+`public.system_settings` has PARTIAL unique indexes: global `UNIQUE (key, scope) WHERE organization_id IS NULL`
+and org `UNIQUE (key, scope, organization_id) WHERE organization_id IS NOT NULL`.
 The override inserts GLOBAL rows, so change every `ON CONFLICT (key, scope) DO UPDATE` →
 `ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE` (matches the global partial index). Applied
 cleanly on test. Fold this into `/tmp/bcb-test-setup/test-settings-override.sql` permanently.

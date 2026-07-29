@@ -372,7 +372,7 @@ send one real code to the owner's address before declaring login healthy. The ru
 EXECUTE grant).
 
 **Restoring it on TEST after a reset** (what was done 2026-07-25): copy the value from a scratch restore of the
-dump straight into `public.system_settings` **and** the `integrator.system_settings` mirror using `dblink`, so
+dump straight into the canonical `public.system_settings` row using `dblink`, so
 the credential never passes through a shell argument, a file, or a log. TEST send-safety stays in force
 (`DEV_REDIRECT_EMAIL` plus the passthrough allowlist), which is what makes this safe to do at all.
 

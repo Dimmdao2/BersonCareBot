@@ -2068,18 +2068,11 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
             AND pu.role = 'client'
             AND pu.email_normalized = ${SAAS_TEST_FIXTURE_OPERATOR_REFS.credentials.sharedPatient.email}
             AND pu.is_blocked = false) AS shared_patient_login_count,
-        (
-          (SELECT count(*) FROM public.system_settings
-            WHERE key = 'specialist_signup_enabled'
-              AND scope = 'admin'
-              AND organization_id IS NULL
-              AND value_json = '{"value":true}'::jsonb)
-          + (SELECT count(*) FROM integrator.system_settings
-            WHERE key = 'specialist_signup_enabled'
-              AND scope = 'admin'
-              AND organization_id IS NULL
-              AND value_json = '{"value":true}'::jsonb)
-        )::int AS registration_setting_count,
+        (SELECT count(*)::int FROM public.system_settings
+          WHERE key = 'specialist_signup_enabled'
+            AND scope = 'admin'
+            AND organization_id IS NULL
+            AND value_json = '{"value":true}'::jsonb) AS registration_setting_count,
         (SELECT count(*)::int FROM media_files
           WHERE id IN (${sql.join(
             ids.mediaFiles.map((id) => sql`${id}::uuid`),

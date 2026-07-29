@@ -18,12 +18,6 @@ type Candidate = {
 
 const CANDIDATES: Candidate[] = [
   {
-    table: 'integrator.system_settings',
-    decision: 'blocked',
-    owner: 'system-settings mirror',
-    patterns: ['integrator.system_settings', 'system_settings_sync', 'settings/sync'],
-  },
-  {
     table: 'integrator.user_reminder_rules',
     decision: 'blocked',
     owner: 'reminder bot dispatch',

@@ -19,12 +19,6 @@ type DropCandidate = {
 
 const DROP_CANDIDATES: DropCandidate[] = [
   {
-    table: 'integrator.system_settings',
-    safe: false,
-    reason: 'legacy sync route and system_settings_sync retry still write mirror',
-    patterns: ['integrator.system_settings', 'system_settings_sync', 'settings/sync'],
-  },
-  {
     table: 'integrator.user_reminder_rules',
     safe: false,
     reason: 'scheduler reads bot-linked rules',

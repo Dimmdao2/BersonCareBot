@@ -183,12 +183,6 @@ test('missing-capable handoff targets map exactly to later overlay creation and 
     detectedSetRoleReplacements,
     protectedReplacements.map((replacement) => replacement.relativePath),
   );
-  const u9aPlatformSettings = readFileSync(u9aPlatformSettingsPath, 'utf8');
-  assert.match(
-    u9aPlatformSettings,
-    /ALTER FUNCTION app\.enqueue_platform_system_settings_sync\(text\) OWNER TO app_owner;/u,
-  );
-
   const handoffIndex = canonicalOrder.indexOf(
     'deploy/postgres/runtime-overlay-app-owner-handoff.sql',
   );

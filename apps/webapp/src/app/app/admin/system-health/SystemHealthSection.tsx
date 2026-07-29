@@ -757,7 +757,6 @@ function formatOutgoingByKind(counts: Record<string, number>): string {
 
 function integratorPushOutboxKindHuman(kind: string): string {
   const k = kind.trim();
-  if (k === 'system_settings_sync') return 'Настройки → integrator';
   if (k === 'reminder_rule_upsert') return 'Правила напоминаний';
   return k || 'Прочее';
 }

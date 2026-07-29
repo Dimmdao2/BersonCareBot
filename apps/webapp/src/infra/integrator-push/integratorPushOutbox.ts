@@ -10,7 +10,7 @@ import {
 } from '@/infra/db/runWebappSql';
 import { integratorPushOutbox } from '../../../db/schema/schema';
 
-export const INTEGRATOR_PUSH_KINDS = ['system_settings_sync', 'reminder_rule_upsert'] as const;
+export const INTEGRATOR_PUSH_KINDS = ['reminder_rule_upsert'] as const;
 export type IntegratorPushKind = (typeof INTEGRATOR_PUSH_KINDS)[number];
 
 export type IntegratorPushOutboxRow = {
@@ -77,18 +77,6 @@ export async function enqueueIntegratorPushDefault(input: {
   payload: Record<string, unknown>;
 }): Promise<void> {
   await enqueueIntegratorPushWithExecutor(getWebappSqlDb(), input);
-}
-
-/**
- * Platform-global settings use a closed SECURITY DEFINER enqueue function. The
- * platform role never receives DML on the shared outbox and therefore cannot
- * enqueue reminder-rule or other operational work.
- */
-export async function enqueuePlatformSystemSettingsPush(input: { key: string }): Promise<void> {
-  await runWebappSql(
-    getWebappSqlDb(),
-    sql`SELECT app.enqueue_platform_system_settings_sync(${input.key})`,
-  );
 }
 
 async function enqueueIntegratorPushWithExecutor(

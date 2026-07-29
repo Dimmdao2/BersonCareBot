@@ -16,7 +16,6 @@ type QueryResult<T> = { rows: T[] };
 
 const TABLES: Array<{ schema: string; table: string }> = [
   { schema: 'public', table: 'system_settings' },
-  { schema: 'integrator', table: 'system_settings' },
   { schema: 'public', table: 'integrator_push_outbox' },
   { schema: 'public', table: 'reminder_rules' },
   { schema: 'public', table: 'reminder_occurrence_history' },
@@ -129,17 +128,6 @@ async function main(): Promise<void> {
     }
 
     const probes = await Promise.all([
-      optionalScalar(
-        client,
-        'settings_mirror_missing_in_integrator',
-        `SELECT count(*)::text AS count
-         FROM public.system_settings p
-         LEFT JOIN integrator.system_settings i
-           ON i.key = p.key
-          AND i.scope = p.scope
-          AND i.organization_id IS NOT DISTINCT FROM p.organization_id
-         WHERE i.key IS NULL`,
-      ),
       optionalScalar(
         client,
         'contacts_public_missing_legacy_present',

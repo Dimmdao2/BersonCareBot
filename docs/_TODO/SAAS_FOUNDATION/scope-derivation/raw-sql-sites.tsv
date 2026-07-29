@@ -134,7 +134,6 @@ apps/integrator/src/infra/db/repos/resolvePlatformUserIdForRubitimeBooking.ts	in
 apps/integrator/src/infra/db/repos/userChannelBotBlocked.ts	integrator	infra/db/repos	db.query	READ	CENTRAL	—
 apps/integrator/src/infra/runtime/worker/doctorBroadcastIntentMenu.ts	integrator	infra/runtime	runIntegratorSql	WRITE	CENTRAL	public.broadcast_audit
 apps/integrator/src/infra/runtime/worker/outgoingDeliveryWorker.ts	integrator	infra/runtime	runIntegratorSql	MIXED	CENTRAL	—
-apps/integrator/src/integrations/bersoncare/settingsSyncRoute.ts	integrator	integrations	runIntegratorSql	WRITE	CENTRAL	integrator.system_settings(not in scope)
 apps/integrator/src/integrations/google-calendar/calendarDescription.ts	integrator	integrations	runIntegratorSql	READ	CENTRAL	—
 apps/integrator/src/integrations/google-calendar/resolvePackageCalendarContext.ts	integrator	integrations	runIntegratorSql	READ	CENTRAL	—
 apps/integrator/src/integrations/rubitime/db/bookingProfilesRepo.ts	integrator	integrations	runIntegratorSql	MIXED	CENTRAL	—(rubitime_branches/services)
