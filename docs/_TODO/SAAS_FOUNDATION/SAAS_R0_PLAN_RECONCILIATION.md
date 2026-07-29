@@ -9,7 +9,7 @@
 > documents, an unticked checklist in both, a red gate reported as PASS, and uncommitted work.
 
 > **2026-07-27 checkbox pass (owner canon `BACKLOG_CONSOLIDATION_2026-07-26.md` §6.3).** Was: 5 open boxes
-> (R0.3/R0.4/R0.6/R0.7/R0.9) counted as live backlog by raw grep. Now: all 5 marked `- [-]` 🧊 frozen — these
+> (R0.3/R0.4/R0.6/R0.7/R0.9) counted as live backlog by raw grep. Now: all 5 marked `- [-]`  historical audit FAIL verdicts retained open — these
 > are the independent audit's permanent FAIL verdicts on a historical stage, not unstarted work, and this
 > record's own line 13 forbids reticking them. Why: raw checkbox counts were reading a signed inspection
 > report as if it were a to-do list.
@@ -85,29 +85,29 @@ property, and do not replace the independent verdict with a later worker claim.
       that the currently built and live-proven topology is `app_staff`/`app_patient` + app-layer capability at a
       single chokepoint, and that the owner's 2026-07-13 decision covers the **app-layer** authorization model
       only — it does **not** settle DB role granularity. **Do not write "the owner decided O1" anywhere.**
-- [-] ~~**R0.3 — AUDIT FAIL.** The scope register was incomplete. The first audit found O9/H6 missing; convergence
+- [ ] **R0.3 — AUDIT FAIL.** The scope register was incomplete. The first audit found O9/H6 missing; convergence
   review also found three narrower losses: H6's exact-one public-booking source omitted `profile`, H0's
   method-level Store mechanic matrix was absent, and the draft §5/§6.1 split between global and org-scoped
-  `system_settings` writes was not retained. R2 repairs the canonical register, but this R0 result remains FAIL.~~ — 🧊 ЗАМОРОЖЕНО 2026-07-27: permanent audit-FAIL verdict on a frozen historical stage; line 19 of this file — "repair the underlying canonical documents and link the repair, but must not retick this historical stage record." Forward continuation (context only, not "moved work"): `SAAS_ENFORCE_ROADMAP.md`, `SEQUENCE.md`, `OWNER_RULINGS_2026-07-15.md`.
-- [-] ~~**R0.4 — AUDIT FAIL.** Real per-phase status table for all 19 roadmap phases (A1, A2, B1, B2, C0, C1, C2, C3, C4, D1, D2,
+  `system_settings` writes was not retained. R2 repairs the canonical register, but this R0 result remains FAIL. — historical audit context, 2026-07-27; line 19 of this file — "repair the underlying canonical documents and link the repair, but must not retick this historical stage record." Forward continuation (context only, not "moved work"): `SAAS_ENFORCE_ROADMAP.md`, `SEQUENCE.md`, `OWNER_RULINGS_2026-07-15.md`.
+- [ ] **R0.4 — AUDIT FAIL.** Real per-phase status table for all 19 roadmap phases (A1, A2, B1, B2, C0, C1, C2, C3, C4, D1, D2,
   D3, D4, E1, E2, F1, F2, G1, G2). One row per phase: state ∈ {not-started, repo-artifact-only, live-proven,
   blocked}, evidence (`file:line` / run artifact / commit), and what is still missing for that phase's exit
   criterion. **Derive every status from reality — git, checker exit codes, evidence files — NOT from the
   prose in `TENANT_HARD_MODE_LOG.md`.** The log has at least one stale PASS (see R0.6); treat it as a claim
-  to verify, never as a source. The audit found D3 derived from claim prose rather than admissible artifacts.~~ — 🧊 ЗАМОРОЖЕНО 2026-07-27: permanent audit-FAIL verdict on a frozen historical stage; line 19 of this file — "repair the underlying canonical documents and link the repair, but must not retick this historical stage record." Forward continuation (context only): `SAAS_ENFORCE_ROADMAP.md`, `SEQUENCE.md`, `OWNER_RULINGS_2026-07-15.md`.
+  to verify, never as a source. The audit found D3 derived from claim prose rather than admissible artifacts. — historical audit context, 2026-07-27; line 19 of this file — "repair the underlying canonical documents and link the repair, but must not retick this historical stage record." Forward continuation (context only): `SAAS_ENFORCE_ROADMAP.md`, `SEQUENCE.md`, `OWNER_RULINGS_2026-07-15.md`.
 - [x] **R0.5 — AUDIT PASS.** `docs/_TODO/SAAS_FOUNDATION/README.md` index points at the canonical plan. It is currently stale:
       its "LIVE (read these)" section points at `CORRECTED_PLAN.md` and lists neither the roadmap nor the draft.
-- [-] ~~**R0.6 — AUDIT FAIL / OPEN OWNER TRIAGE.** The checker exits 0 on genuinely broken code. Confirmed bypass:
+- [ ] **R0.6 — AUDIT FAIL / OPEN OWNER TRIAGE.** The checker exits 0 on genuinely broken code. Confirmed bypass:
   `runWithOptionalMediaWorkerOrganizationPrincipal(job.organizationId, () => undefined, ...)` may wrap a
   no-op, followed by `return processTranscodeJobInner(ctx, job)` after the infra principal is restored. The
   real DB/S3 work then runs under infra while the checker still passes. Exit 0 is not C4 evidence. Repairing
-  the checker is deliberately outside R2 and awaits an owner decision; do not claim runtime behavior is intact.~~ — 🧊 ЗАМОРОЖЕНО 2026-07-27: permanent audit-FAIL verdict on a frozen historical stage; line 19 of this file — "repair the underlying canonical documents and link the repair, but must not retick this historical stage record." Forward continuation (context only): `SAAS_ENFORCE_ROADMAP.md`, `SEQUENCE.md`, `OWNER_RULINGS_2026-07-15.md`.
-- [-] ~~**R0.7 — AUDIT FAIL / OPEN OWNER TRIAGE.** **161 and 163 are different inventories, not a stale-number typo.**
+  the checker is deliberately outside R2 and awaits an owner decision; do not claim runtime behavior is intact. — historical audit context, 2026-07-27; line 19 of this file — "repair the underlying canonical documents and link the repair, but must not retick this historical stage record." Forward continuation (context only): `SAAS_ENFORCE_ROADMAP.md`, `SEQUENCE.md`, `OWNER_RULINGS_2026-07-15.md`.
+- [ ] **R0.7 — AUDIT FAIL / OPEN OWNER TRIAGE.** **161 and 163 are different inventories, not a stale-number typo.**
   The strict renderer asserts 163 targets (`scripts/phase4-locked-policy-artifact.mjs:47`). The prod-copy
   DB-state checker derives 161 targets from migrations 0160–0176
   (`scripts/check-phase4-prod-copy-db-state.mjs:17,211`). Its missing two are
   `public.organization_member_invites` and `public.saas_org_entitlement_overrides`; their ENABLE/FORCE state
-  can be wrong without that gate noticing. Documentation must preserve both counts and the open coverage gap.~~ — 🧊 ЗАМОРОЖЕНО 2026-07-27: permanent audit-FAIL verdict on a frozen historical stage; line 19 of this file — "repair the underlying canonical documents and link the repair, but must not retick this historical stage record." Forward continuation (context only): `SAAS_ENFORCE_ROADMAP.md`, `SEQUENCE.md`, `OWNER_RULINGS_2026-07-15.md`.
+  can be wrong without that gate noticing. Documentation must preserve both counts and the open coverage gap. — historical audit context, 2026-07-27; line 19 of this file — "repair the underlying canonical documents and link the repair, but must not retick this historical stage record." Forward continuation (context only): `SAAS_ENFORCE_ROADMAP.md`, `SEQUENCE.md`, `OWNER_RULINGS_2026-07-15.md`.
 - [x] **R0.8 — AUDIT PASS.** **Inventory the uncommitted working tree — do NOT blanket-commit it.**
       _(Rewritten 2026-07-15 by the orchestrator after discovering the tree is not a single clean batch.)_
       The ~28 uncommitted files are at least two different things mixed together:
@@ -129,8 +129,8 @@ property, and do not replace the independent verdict with a later worker claim.
       **Commit ONLY the files this R0 stage itself creates or changes** (the R0 stage doc, the R0.6 C4 checker
       fix, the R0.1/R0.2/R0.3/R0.5/R0.7 doc edits, the R0.9 log row). Everything else stays in the tree
       untouched. **Do not push. Do not touch `main` or `test`.**
-- [-] ~~**R0.9 — AUDIT FAIL.** The original R0 log row repeated the false C4 proof. R1 later withdrew that claim and
-  recorded the bypass honestly, but the independent verdict for the R0 deliverable remains FAIL.~~ — 🧊 ЗАМОРОЖЕНО 2026-07-27: permanent audit-FAIL verdict on a frozen historical stage; line 19 of this file — "repair the underlying canonical documents and link the repair, but must not retick this historical stage record." Forward continuation (context only): `SAAS_ENFORCE_ROADMAP.md`, `SEQUENCE.md`, `OWNER_RULINGS_2026-07-15.md`.
+- [ ] **R0.9 — AUDIT FAIL.** The original R0 log row repeated the false C4 proof. R1 later withdrew that claim and
+  recorded the bypass honestly, but the independent verdict for the R0 deliverable remains FAIL. — historical audit context, 2026-07-27; line 19 of this file — "repair the underlying canonical documents and link the repair, but must not retick this historical stage record." Forward continuation (context only): `SAAS_ENFORCE_ROADMAP.md`, `SEQUENCE.md`, `OWNER_RULINGS_2026-07-15.md`.
 
 ## R0.8 working-tree inventory (2026-07-15)
 

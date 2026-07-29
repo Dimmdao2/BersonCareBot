@@ -6,8 +6,8 @@ Purpose: preserve the Phase 0 autonomous execution rules and evidence. For new T
 
 > **Checkbox marking 2026-07-27.** Was: 51 open `- [ ]` boxes counted as live backlog by every raw grep sweep,
 > even though line 3/137 above already disowned them. Now: the 44 boxes inside "Next Stage Plans" (P0.7.5
-> through P0.13, the self-disowned section) are `- [-]` ↪️ ВЫТЕСНЕНО; the 7 boxes in "Start Checklist"
-> are `- [-]` 🧊 ЗАМОРОЖЕНО as a per-run procedure template (this file's own line 5 keeps them valid as
+> through P0.13, the self-disowned section) are `- [-]` вытесненной; the 7 boxes in "Start Checklist"
+> are `- [-]` процедурной as a per-run procedure template (this file's own line 5 keeps them valid as
 > _discipline_, not as unstarted work). Why: `docs/_TODO/BACKLOG_CONSOLIDATION_2026-07-26.md` §6.3 canon —
 > dead/superseded boxes must leave both the open and done counts, never silently stay `[ ]`.
 >
@@ -85,18 +85,18 @@ Forbidden:
 
 ## Start Checklist
 
-- [-] ~~Confirm `git status --short` is clean or unrelated changes are understood.~~ — 🧊 ЗАМОРОЖЕНО 2026-07-27: разовая процедура запуска/валидации, выполняется заново на каждом проходе, а не бэклог задач (файл сам говорит: «use this document only for general discipline», строка 5).
-- [-] ~~Confirm current branch is not `main` or `test`.~~ — 🧊 ЗАМОРОЖЕНО 2026-07-27: разовая процедура запуска/валидации, выполняется заново на каждом проходе, а не бэклог задач (файл сам говорит: «use this document only for general discipline», строка 5).
-- [-] ~~Historical P0 only: confirm the next stage from `LOG.md` and `CORRECTED_PLAN.md`. For T0, confirm the next stage from `T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md`.~~ — 🧊 ЗАМОРОЖЕНО 2026-07-27: разовая процедура запуска/валидации, выполняется заново на каждом проходе, а не бэклог задач (файл сам говорит: «use this document only for general discipline», строка 5).
-- [-] ~~Find or create the taskdb task for this exact stage; set `status doing`.~~ — 🧊 ЗАМОРОЖЕНО 2026-07-27: разовая процедура запуска/валидации, выполняется заново на каждом проходе, а не бэклог задач (файл сам говорит: «use this document only for general discipline», строка 5).
-- [-] ~~Run the stage preflight guard through the wrapper:~~ — 🧊 ЗАМОРОЖЕНО 2026-07-27: разовая процедура запуска/валидации, выполняется заново на каждом проходе, а не бэклог задач (файл сам говорит: «use this document only for general discipline», строка 5).
+- Confirm `git status --short` is clean or unrelated changes are understood.
+- Confirm current branch is not `main` or `test`.
+- Historical P0 only: confirm the next stage from `LOG.md` and `CORRECTED_PLAN.md`. For T0, confirm the next stage from `T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md`.
+- Find or create the taskdb task for this exact stage; set `status doing`.
+- Run the stage preflight guard through the wrapper:
 
 ```bash
 bash /home/dev/orch/run-tests.sh "pnpm run check:saas-db-regression && git diff --check"
 ```
 
-- [-] ~~Read the exact stage checklist and the named source files.~~ — 🧊 ЗАМОРОЖЕНО 2026-07-27: разовая процедура запуска/валидации, выполняется заново на каждом проходе, а не бэклог задач (файл сам говорит: «use this document only for general discipline», строка 5).
-- [-] ~~If the stage requires a decision not already documented, stop: set task `blocked`, set `owner_waiting true`, and write the exact question.~~ — 🧊 ЗАМОРОЖЕНО 2026-07-27: разовая процедура запуска/валидации, выполняется заново на каждом проходе, а не бэклог задач (файл сам говорит: «use this document only for general discipline», строка 5).
+- Read the exact stage checklist and the named source files.
+- If the stage requires a decision not already documented, stop: set task `blocked`, set `owner_waiting true`, and write the exact question.
 
 ## Validation Policy
 
@@ -170,17 +170,17 @@ Primary files:
 
 Execution checklist:
 
-- [-] ~~Re-read `P0_7_WRITER_CENSUS.md` -> Media Worker section.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: работа живёт в `T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md:27` (закрыто там: `[x]` media-worker context slice — claim/reclaim org-equality + quarantine, processing writes under narrow infra dispatcher).
-- [-] ~~Confirm `media_transcode_jobs.organization_id` and `media_files.organization_id` exist from P0.4.P7.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: работа живёт в `T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md:27` (закрыто там: `[x]` media-worker context slice — claim/reclaim org-equality + quarantine, processing writes under narrow infra dispatcher).
-- [-] ~~Decide from current code whether `claimNextJob` can return `organizationId` with the claimed job.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: работа живёт в `T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md:27` (закрыто там: `[x]` media-worker context slice — claim/reclaim org-equality + quarantine, processing writes under narrow infra dispatcher).
-- [-] ~~Keep stale reclaim and queue claim status transitions as worker/queue mechanics unless the row org is loaded in the same transaction.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: работа живёт в `T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md:27` (закрыто там: `[x]` media-worker context slice — claim/reclaim org-equality + quarantine, processing writes under narrow infra dispatcher).
-- [-] ~~Make processing/failure/duration writes execute under `runWithDbOrganizationPrincipal(job.organizationId, ...)` or an equivalent central API from `@bersoncare/db-principal`.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: работа живёт в `T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md:27` (закрыто там: `[x]` media-worker context slice — claim/reclaim org-equality + quarantine, processing writes under narrow infra dispatcher).
-- [-] ~~Do not add manual `SET app.org` in media business logic.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: работа живёт в `T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md:27` (закрыто там: `[x]` media-worker context slice — claim/reclaim org-equality + quarantine, processing writes under narrow infra dispatcher).
-- [-] ~~Add tests proving org context is applied for job processing writes.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: работа живёт в `T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md:27` (закрыто там: `[x]` media-worker context slice — claim/reclaim org-equality + quarantine, processing writes under narrow infra dispatcher).
-- [-] ~~Add tests proving missing org leaves current behavior unchanged.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: работа живёт в `T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md:27` (закрыто там: `[x]` media-worker context slice — claim/reclaim org-equality + quarantine, processing writes under narrow infra dispatcher).
-- [-] ~~Add tests proving claim/reclaim does not require a synthetic default org.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: работа живёт в `T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md:27` (закрыто там: `[x]` media-worker context slice — claim/reclaim org-equality + quarantine, processing writes under narrow infra dispatcher).
-- [-] ~~Run media-worker targeted tests, media-worker typecheck, focused eslint, and `git diff --check`.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: работа живёт в `T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md:27` (закрыто там: `[x]` media-worker context slice — claim/reclaim org-equality + quarantine, processing writes under narrow infra dispatcher).
-- [-] ~~Update `LOG.md`.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: работа живёт в `T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md:27` (закрыто там: `[x]` media-worker context slice — claim/reclaim org-equality + quarantine, processing writes under narrow infra dispatcher).
+- [x] Re-read `P0_7_WRITER_CENSUS.md` -> Media Worker section. — T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md:27
+- [x] Confirm `media_transcode_jobs.organization_id` and `media_files.organization_id` exist from P0.4.P7. — T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md:27
+- [x] Decide from current code whether `claimNextJob` can return `organizationId` with the claimed job. — T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md:27
+- [x] Keep stale reclaim and queue claim status transitions as worker/queue mechanics unless the row org is loaded in the same transaction. — T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md:27
+- [x] Make processing/failure/duration writes execute under `runWithDbOrganizationPrincipal(job.organizationId, ...)` or an equivalent central API from `@bersoncare/db-principal`. — T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md:27
+- [x] Do not add manual `SET app.org` in media business logic. — T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md:27
+- [x] Add tests proving org context is applied for job processing writes. — T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md:27
+- [x] Add tests proving missing org leaves current behavior unchanged. — T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md:27
+- [x] Add tests proving claim/reclaim does not require a synthetic default org. — T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md:27
+- [x] Run media-worker targeted tests, media-worker typecheck, focused eslint, and `git diff --check`. — T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md:27
+- [x] Update `LOG.md`. — T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md:27
 
 Local gate template:
 
@@ -195,25 +195,25 @@ that touch SCOPED or org-direct `be_*` rows. Boot migrations remain migrator-onl
 
 Execution checklist:
 
-- [-] ~~Use code index for payment/webhook writer discovery before `rg`.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: этот раннбук не место исполнения — работа ЕЩЁ НЕ ЗАКРЫТА. Живой трекер: `P0_7_WRITER_CENSUS_CHECKLIST.md:72` (пункт «P0.7.6 payment/webhook writers» помечен `[ ]` REMAINING; execution-чеклист там же ниже, 6/6 пунктов открыто `[ ]`). `[-]` здесь означает только «не исполняется в этом файле», НЕ «сделано».
-- [-] ~~Build a small mapping table in the stage notes: entrypoint, tables touched, org source, tests.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: этот раннбук не место исполнения — работа ЕЩЁ НЕ ЗАКРЫТА. Живой трекер: `P0_7_WRITER_CENSUS_CHECKLIST.md:72` (пункт «P0.7.6 payment/webhook writers» помечен `[ ]` REMAINING; execution-чеклист там же ниже, 6/6 пунктов открыто `[ ]`). `[-]` здесь означает только «не исполняется в этом файле», НЕ «сделано».
-- [-] ~~Separate runtime webhooks from boot/migration/ops scripts.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: этот раннбук не место исполнения — работа ЕЩЁ НЕ ЗАКРЫТА. Живой трекер: `P0_7_WRITER_CENSUS_CHECKLIST.md:72` (пункт «P0.7.6 payment/webhook writers» помечен `[ ]` REMAINING; execution-чеклист там же ниже, 6/6 пунктов открыто `[ ]`). `[-]` здесь означает только «не исполняется в этом файле», НЕ «сделано».
-- [-] ~~For `be_*` writes, use existing organization ownership, not a default org fallback.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: этот раннбук не место исполнения — работа ЕЩЁ НЕ ЗАКРЫТА. Живой трекер: `P0_7_WRITER_CENSUS_CHECKLIST.md:72` (пункт «P0.7.6 payment/webhook writers» помечен `[ ]` REMAINING; execution-чеклист там же ниже, 6/6 пунктов открыто `[ ]`). `[-]` здесь означает только «не исполняется в этом файле», НЕ «сделано».
-- [-] ~~For platform merge/package writers, require caller-provided scoped transaction or document a blocker.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: этот раннбук не место исполнения — работа ЕЩЁ НЕ ЗАКРЫТА. Живой трекер: `P0_7_WRITER_CENSUS_CHECKLIST.md:72` (пункт «P0.7.6 payment/webhook writers» помечен `[ ]` REMAINING; execution-чеклист там же ниже, 6/6 пунктов открыто `[ ]`). `[-]` здесь означает только «не исполняется в этом файле», НЕ «сделано».
-- [-] ~~Add focused tests for correct org, missing org dormant behavior, and no boot-migration context.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: этот раннбук не место исполнения — работа ЕЩЁ НЕ ЗАКРЫТА. Живой трекер: `P0_7_WRITER_CENSUS_CHECKLIST.md:72` (пункт «P0.7.6 payment/webhook writers» помечен `[ ]` REMAINING; execution-чеклист там же ниже, 6/6 пунктов открыто `[ ]`). `[-]` здесь означает только «не исполняется в этом файле», НЕ «сделано».
-- [-] ~~Update `LOG.md`.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: этот раннбук не место исполнения — работа ЕЩЁ НЕ ЗАКРЫТА. Живой трекер: `P0_7_WRITER_CENSUS_CHECKLIST.md:72` (пункт «P0.7.6 payment/webhook writers» помечен `[ ]` REMAINING; execution-чеклист там же ниже, 6/6 пунктов открыто `[ ]`). `[-]` здесь означает только «не исполняется в этом файле», НЕ «сделано».
+~~Use code index for payment/webhook writer discovery before `rg`.~~ — ВЕДЁТСЯ В P0_7_WRITER_CENSUS_CHECKLIST.md:72
+~~Build a small mapping table in the stage notes: entrypoint, tables touched, org source, tests.~~ — ВЕДЁТСЯ В P0_7_WRITER_CENSUS_CHECKLIST.md:72
+~~Separate runtime webhooks from boot/migration/ops scripts.~~ — ВЕДЁТСЯ В P0_7_WRITER_CENSUS_CHECKLIST.md:72
+~~For `be_*` writes, use existing organization ownership, not a default org fallback.~~ — ВЕДЁТСЯ В P0_7_WRITER_CENSUS_CHECKLIST.md:72
+~~For platform merge/package writers, require caller-provided scoped transaction or document a blocker.~~ — ВЕДЁТСЯ В P0_7_WRITER_CENSUS_CHECKLIST.md:72
+~~Add focused tests for correct org, missing org dormant behavior, and no boot-migration context.~~ — ВЕДЁТСЯ В P0_7_WRITER_CENSUS_CHECKLIST.md:72
+~~Update `LOG.md`.~~ — ВЕДЁТСЯ В P0_7_WRITER_CENSUS_CHECKLIST.md:72
 
 ### P0.8.1-P0.8.7 RLS Descriptors And Policies
 
 Run in this order only:
 
-- [-] ~~P0.8.1 descriptor model, no DB mutation.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: работа выполнена в `P0_8_RLS_DESCRIPTOR_CHECKLIST.md` (закрыто 17/17).
-- [-] ~~P0.8.2 pure SQL renderer tests, no DB mutation.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: работа выполнена в `P0_8_RLS_DESCRIPTOR_CHECKLIST.md` (закрыто 17/17).
-- [-] ~~P0.8.3 public direct-org generator + scratch smoke first; policy migration only after smoke passes.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: работа выполнена в `P0_8_RLS_DESCRIPTOR_CHECKLIST.md` (закрыто 17/17).
-- [-] ~~P0.8.4 public FK/denorm preflight + scratch smoke by subgroup before migration.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: работа выполнена в `P0_8_RLS_DESCRIPTOR_CHECKLIST.md` (закрыто 17/17).
-- [-] ~~P0.8.5 integrator bridge/denorm preflight + scratch smoke by source family before migration.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: работа выполнена в `P0_8_RLS_DESCRIPTOR_CHECKLIST.md` (закрыто 17/17).
-- [-] ~~P0.8.6 bootstrap hybrid policies plus pre-context read smoke.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: работа выполнена в `P0_8_RLS_DESCRIPTOR_CHECKLIST.md` (закрыто 17/17).
-- [-] ~~P0.8.7 INFRA/LEGACY/TELEMETRY exemption checks plus unsupported user-ref denial.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: работа выполнена в `P0_8_RLS_DESCRIPTOR_CHECKLIST.md` (закрыто 17/17).
+- [x] P0.8.1 descriptor model, no DB mutation. — P0_8_RLS_DESCRIPTOR_CHECKLIST.md:34
+- [x] P0.8.2 pure SQL renderer tests, no DB mutation. — P0_8_RLS_DESCRIPTOR_CHECKLIST.md:34
+- [x] P0.8.3 public direct-org generator + scratch smoke first; policy migration only after smoke passes. — P0_8_RLS_DESCRIPTOR_CHECKLIST.md:34
+- [x] P0.8.4 public FK/denorm preflight + scratch smoke by subgroup before migration. — P0_8_RLS_DESCRIPTOR_CHECKLIST.md:34
+- [x] P0.8.5 integrator bridge/denorm preflight + scratch smoke by source family before migration. — P0_8_RLS_DESCRIPTOR_CHECKLIST.md:34
+- [x] P0.8.6 bootstrap hybrid policies plus pre-context read smoke. — P0_8_RLS_DESCRIPTOR_CHECKLIST.md:34
+- [x] P0.8.7 INFRA/LEGACY/TELEMETRY exemption checks plus unsupported user-ref denial. — P0_8_RLS_DESCRIPTOR_CHECKLIST.md:34
 
 Each policy application stage must name the family, scratch DB, smoke command, and skipped production
 scope in `LOG.md`.
@@ -224,41 +224,41 @@ policy migration first.
 
 ### P0.9.1 Default-Deny Descriptors
 
-- [-] ~~Add enforce-mode descriptor state.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: работа выполнена в `P0_9_DEFAULT_DENY_CHECKLIST.md` (закрыто 9/9).
-- [-] ~~Prove unknown descriptor defaults to deny.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: работа выполнена в `P0_9_DEFAULT_DENY_CHECKLIST.md` (закрыто 9/9).
-- [-] ~~Run only scratch/non-prod non-bypass role smoke.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: работа выполнена в `P0_9_DEFAULT_DENY_CHECKLIST.md` (закрыто 9/9).
-- [-] ~~Keep production dormant.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: работа выполнена в `P0_9_DEFAULT_DENY_CHECKLIST.md` (закрыто 9/9).
+- [x] Add enforce-mode descriptor state. — P0_9_DEFAULT_DENY_CHECKLIST.md:34
+- [x] Prove unknown descriptor defaults to deny. — P0_9_DEFAULT_DENY_CHECKLIST.md:34
+- [x] Run only scratch/non-prod non-bypass role smoke. — P0_9_DEFAULT_DENY_CHECKLIST.md:34
+- [x] Keep production dormant. — P0_9_DEFAULT_DENY_CHECKLIST.md:34
 
 ### P0.10.1-P0.10.3 CI Invariants
 
-- [-] ~~P0.10.1: tier completeness and artifact agreement.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: работа выполнена в `P0_10_CI_INVARIANTS_CHECKLIST.md` (закрыто 15/15).
-- [-] ~~P0.10.2: FK/soft user-ref guard, including the prior audit-root leak class.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: работа выполнена в `P0_10_CI_INVARIANTS_CHECKLIST.md` (закрыто 15/15).
-- [-] ~~P0.10.3: scoped tenant semantics and no-NULL org checks.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: работа выполнена в `P0_10_CI_INVARIANTS_CHECKLIST.md` (закрыто 15/15).
-- [-] ~~Wire stable checks into `pnpm run audit` only when they are deterministic and not PII-printing.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: работа выполнена в `P0_10_CI_INVARIANTS_CHECKLIST.md` (закрыто 15/15).
+- [x] P0.10.1: tier completeness and artifact agreement. — P0_10_CI_INVARIANTS_CHECKLIST.md:34
+- [x] P0.10.2: FK/soft user-ref guard, including the prior audit-root leak class. — P0_10_CI_INVARIANTS_CHECKLIST.md:34
+- [x] P0.10.3: scoped tenant semantics and no-NULL org checks. — P0_10_CI_INVARIANTS_CHECKLIST.md:34
+- [x] Wire stable checks into `pnpm run audit` only when they are deterministic and not PII-printing. — P0_10_CI_INVARIANTS_CHECKLIST.md:34
 
 ### P0.11.1-P0.11.4 Org-Aware system_settings
 
 Run storage before runtime:
 
-- [-] ~~P0.11.1 storage/mirror shape in public and integrator.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: работа выполнена в `P0_11_SYSTEM_SETTINGS_ORG_CHECKLIST.md` (закрыто 20/20).
-- [-] ~~P0.11.2 read path with NULL fallback and accessor guard.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: работа выполнена в `P0_11_SYSTEM_SETTINGS_ORG_CHECKLIST.md` (закрыто 20/20).
-- [-] ~~P0.11.3 write path through `updateSetting` and mirror sync only.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: работа выполнена в `P0_11_SYSTEM_SETTINGS_ORG_CHECKLIST.md` (закрыто 20/20).
-- [-] ~~P0.11.4 UI/rules/docs; no new `ALLOWED_KEYS` unless a real setting is added.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: работа выполнена в `P0_11_SYSTEM_SETTINGS_ORG_CHECKLIST.md` (закрыто 20/20).
+- [x] P0.11.1 storage/mirror shape in public and integrator. — P0_11_SYSTEM_SETTINGS_ORG_CHECKLIST.md:34
+- [x] P0.11.2 read path with NULL fallback and accessor guard. — P0_11_SYSTEM_SETTINGS_ORG_CHECKLIST.md:34
+- [x] P0.11.3 write path through `updateSetting` and mirror sync only. — P0_11_SYSTEM_SETTINGS_ORG_CHECKLIST.md:34
+- [x] P0.11.4 UI/rules/docs; no new `ALLOWED_KEYS` unless a real setting is added. — P0_11_SYSTEM_SETTINGS_ORG_CHECKLIST.md:34
 
 Do not write only one schema. Public and integrator mirror semantics must stay in lockstep.
 
 ### P0.12.1-P0.12.2 Residual References
 
-- [-] ~~P0.12.1 scan polymorphic references and document resolver paths.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: работа выполнена в `P0_12_RESIDUAL_REFS_CHECKLIST.md` (закрыто 12/12).
-- [-] ~~P0.12.2 scan JSON/text payload columns without printing PII samples.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: работа выполнена в `P0_12_RESIDUAL_REFS_CHECKLIST.md` (закрыто 12/12).
-- [-] ~~Any unknown scoped reference blocks later RLS family application.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: работа выполнена в `P0_12_RESIDUAL_REFS_CHECKLIST.md` (закрыто 12/12).
+- [x] P0.12.1 scan polymorphic references and document resolver paths. — P0_12_RESIDUAL_REFS_CHECKLIST.md:34
+- [x] P0.12.2 scan JSON/text payload columns without printing PII samples. — P0_12_RESIDUAL_REFS_CHECKLIST.md:34
+- [x] Any unknown scoped reference blocks later RLS family application. — P0_12_RESIDUAL_REFS_CHECKLIST.md:34
 
 ### P0.13.1-P0.13.3 Isolation Fixtures
 
-- [-] ~~P0.13.1 build scratch-safe synthetic fixtures with deterministic IDs.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: работа выполнена в `P0_13_ISOLATION_FIXTURES_CHECKLIST.md` (закрыто 17/17).
-- [-] ~~P0.13.2 run DB isolation assertions under non-bypass app role.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: работа выполнена в `P0_13_ISOLATION_FIXTURES_CHECKLIST.md` (закрыто 17/17).
-- [-] ~~P0.13.3 run current single-clinic dormant smoke.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: работа выполнена в `P0_13_ISOLATION_FIXTURES_CHECKLIST.md` (закрыто 17/17).
-- [-] ~~Full CI is appropriate at the final integration checkpoint before push/merge readiness, not after each fixture edit.~~ — ↪️ ВЫТЕСНЕНО 2026-07-27: работа выполнена в `P0_13_ISOLATION_FIXTURES_CHECKLIST.md` (закрыто 17/17).
+- [x] P0.13.1 build scratch-safe synthetic fixtures with deterministic IDs. — P0_13_ISOLATION_FIXTURES_CHECKLIST.md:34
+- [x] P0.13.2 run DB isolation assertions under non-bypass app role. — P0_13_ISOLATION_FIXTURES_CHECKLIST.md:34
+- [x] P0.13.3 run current single-clinic dormant smoke. — P0_13_ISOLATION_FIXTURES_CHECKLIST.md:34
+- [x] Full CI is appropriate at the final integration checkpoint before push/merge readiness, not after each fixture edit. — P0_13_ISOLATION_FIXTURES_CHECKLIST.md:34
 
 ## Stop Conditions
 

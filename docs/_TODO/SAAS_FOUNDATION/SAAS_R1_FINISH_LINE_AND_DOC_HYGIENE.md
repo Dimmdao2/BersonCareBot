@@ -11,7 +11,7 @@
 > owner is not taking.**
 
 > **2026-07-27 checkbox pass (owner canon `BACKLOG_CONSOLIDATION_2026-07-26.md` §6.3).** Was: 4 open boxes
-> (R1.1/R1.4/R1.5/R1.6) counted as live backlog by raw grep. Now: all 4 marked `- [-]` 🧊 frozen — permanent
+> (R1.1/R1.4/R1.5/R1.6) counted as live backlog by raw grep. Now: all 4 marked `- [-]`  historical audit FAIL verdicts retained open — permanent
 > audit-FAIL verdicts on a historical stage record, not unstarted work; this record's own line 17 forbids
 > reticking them. Why: same class of miscount as R0. **Note on the "no prod cutover" quote below (line 33):**
 > the owner clarified 2026-07-27 that this means the _current_ legacy host is never upgraded in place — a _new_
@@ -56,7 +56,7 @@
 The independent result is `closed 2/6`. Do not tick from worker self-report or from a checker exit that does not
 prove the asserted property.
 
-- [-] ~~**R1.1 — AUDIT FAIL.** `SAAS_ENFORCE_ROADMAP.md` section 0 ("FINAL RESULT / fixed definition of done") is rewritten to the
+- [ ] **R1.1 — AUDIT FAIL.** `SAAS_ENFORCE_ROADMAP.md` section 0 ("FINAL RESULT / fixed definition of done") is rewritten to the
   owner's actual path above. Specifically: R1/R2 (product parity + isolation on test, multi-org) **stay** and
   remain the real bar; **R3 and R4 are struck as requirements** with a short explicit note saying why (no prod
   cutover exists on this path; OFF on a live multi-tenant SaaS leaks clinic A to clinic B); R5
@@ -65,7 +65,7 @@ prove the asserted property.
   `flip-saas.sh --target test on|off`) with commands that match the real path. **Do not delete the old text
   silently — move it to a clearly marked historical note** so the reasoning is not lost. The audit found that
   the rewritten result omitted payments, the exercise-package store, and the tariff grid, while live G12,
-  signing-key, and review prose still required the superseded flip/OFF path.~~ — 🧊 ЗАМОРОЖЕНО 2026-07-27: permanent audit-FAIL verdict on a frozen historical stage; line 24 of this file — "A later convergence stage may repair the underlying documents and link the repair, but must not retick this historical stage record." Forward continuation (context only, not "moved work"): `SAAS_ENFORCE_ROADMAP.md`, `SEQUENCE.md`, `OWNER_RULINGS_2026-07-15.md`.
+  signing-key, and review prose still required the superseded flip/OFF path. — historical audit context, 2026-07-27; line 24 of this file — "A later convergence stage may repair the underlying documents and link the repair, but must not retick this historical stage record." Forward continuation (context only, not "moved work"): `SAAS_ENFORCE_ROADMAP.md`, `SEQUENCE.md`, `OWNER_RULINGS_2026-07-15.md`.
 - [x] **R1.2 — AUDIT PASS.** Phases F1, F2 and G2 in section 2 get an explicit status marker: **NOT REQUIRED on the current
       path (owner, 2026-07-15)**, with the one-line reason. Do not delete the phases. G1 (owner-facing TEST
       acceptance) **stays and becomes more important**, not less.
@@ -77,11 +77,11 @@ prove the asserted property.
       unique scope lives in the R0 register (link it). Keep the body intact as a record of the reasoning. Fix
       every inbound reference to the old path so nothing dangles (`RUBITIME_RETIREMENT_EXECUTION_PLAN.md:46,667,771`,
       `RUBITIME_RETIREMENT_SECTION10_DOCS_MANIFEST.md:21`, `SAAS_PRODUCT_SMOKE_A1.md:12`, and any others — search).
-- [-] ~~**R1.4 — AUDIT FAIL.** _(fixes R0.3, which the audit failed)_ The R0 scope register in `SAAS_ENFORCE_ROADMAP.md` is
+- [ ] **R1.4 — AUDIT FAIL.** _(fixes R0.3, which the audit failed)_ The R0 scope register in `SAAS_ENFORCE_ROADMAP.md` is
   missing the public-booking/webhook tenant-source scope (draft O9 / H6). Add it. Then re-verify the whole
   register against the draft's §5, §6.1, §7, H0–H8 and O1–O13 and add anything else missing. The audit still
-  found H6 `profile`, H0's method-level Store matrix, and the global/org `system_settings` write split absent.~~ — 🧊 ЗАМОРОЖЕНО 2026-07-27: permanent audit-FAIL verdict on a frozen historical stage; line 24 of this file — "A later convergence stage may repair the underlying documents and link the repair, but must not retick this historical stage record." Forward continuation (context only): `SAAS_ENFORCE_ROADMAP.md`, `SEQUENCE.md`, `OWNER_RULINGS_2026-07-15.md`.
-- [-] ~~**R1.5 — AUDIT FAIL.** _(fixes R0.4 and R0.9, which the audit failed)_ Two defects:
+  found H6 `profile`, H0's method-level Store matrix, and the global/org `system_settings` write split absent. — historical audit context, 2026-07-27; line 24 of this file — "A later convergence stage may repair the underlying documents and link the repair, but must not retick this historical stage record." Forward continuation (context only): `SAAS_ENFORCE_ROADMAP.md`, `SEQUENCE.md`, `OWNER_RULINGS_2026-07-15.md`.
+- [ ] **R1.5 — AUDIT FAIL.** _(fixes R0.4 and R0.9, which the audit failed)_ Two defects:
   **(a)** the 19-phase status table derived D3's status from `TENANT_HARD_MODE_LOG.md` prose, which the stage
   explicitly forbade as a source. Re-derive it from artifacts only.
   **(b)** the R0 row in `TENANT_HARD_MODE_LOG.md` records a PASS claiming the C4 checker "asserts the real
@@ -90,8 +90,8 @@ prove the asserted property.
   The stage that existed to purge stale PASSes must not leave a fresh one.
   Also record in the table that live proof of the enforced walls DOES exist but sits in taskdb, not in repo
   artifacts — facts supplied below so you do **not** need DB access. The log row was corrected, but the roadmap
-  still cited the bypassable C4 checker "after the R0 checker repair" as evidence and R0 retained the false claim.~~ — 🧊 ЗАМОРОЖЕНО 2026-07-27: permanent audit-FAIL verdict on a frozen historical stage; line 24 of this file — "A later convergence stage may repair the underlying documents and link the repair, but must not retick this historical stage record." Forward continuation (context only): `SAAS_ENFORCE_ROADMAP.md`, `SEQUENCE.md`, `OWNER_RULINGS_2026-07-15.md`.
-- [-] ~~**R1.6 — AUDIT FAIL.** _(fixes R0.7, which the audit failed — and it was the orchestrator's bad instruction)_ R0 was told
+  still cited the bypassable C4 checker "after the R0 checker repair" as evidence and R0 retained the false claim. — historical audit context, 2026-07-27; line 24 of this file — "A later convergence stage may repair the underlying documents and link the repair, but must not retick this historical stage record." Forward continuation (context only): `SAAS_ENFORCE_ROADMAP.md`, `SEQUENCE.md`, `OWNER_RULINGS_2026-07-15.md`.
+- [ ] **R1.6 — AUDIT FAIL.** _(fixes R0.7, which the audit failed — and it was the orchestrator's bad instruction)_ R0 was told
   "docs say 161, the renderer asserts 163, change docs to 163". That was **wrong**: these are two genuinely
   different sets, not a typo. The strict renderer asserts **163**
   (`scripts/phase4-locked-policy-artifact.mjs:47`); the prod-copy DB-state checker builds its inventory from
@@ -104,7 +104,7 @@ prove the asserted property.
   Also reconcile the remaining stale "161" prose at `TENANT_WALLS_AND_ACCESS_MODEL.md:117`
   (`HANDOFF_2026-07-12.md:12` is historical — leave it, or mark it historical). The two target documents were
   corrected, but R0 itself continued to call 161 stale and to describe the change as 161 → 163, so the false
-  framing remained an active evidence contract.~~ — 🧊 ЗАМОРОЖЕНО 2026-07-27: permanent audit-FAIL verdict on a frozen historical stage; line 24 of this file — "A later convergence stage may repair the underlying documents and link the repair, but must not retick this historical stage record." Forward continuation (context only): `SAAS_ENFORCE_ROADMAP.md`, `SEQUENCE.md`, `OWNER_RULINGS_2026-07-15.md`.
+  framing remained an active evidence contract. — historical audit context, 2026-07-27; line 24 of this file — "A later convergence stage may repair the underlying documents and link the repair, but must not retick this historical stage record." Forward continuation (context only): `SAAS_ENFORCE_ROADMAP.md`, `SEQUENCE.md`, `OWNER_RULINGS_2026-07-15.md`.
 
 ## Commit-boundary judgment (R2 convergence)
 

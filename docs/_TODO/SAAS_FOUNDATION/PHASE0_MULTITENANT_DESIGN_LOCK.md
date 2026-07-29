@@ -7,7 +7,7 @@ code until the owner confirms the Phase 1 direction recorded at the end of this 
 
 > **Checkbox marking 2026-07-27.** Was: 3 open `- [ ]` boxes in the Exit Checklist counted as unstarted
 > design-lock work, even though the design-lock itself was delivered 2026-07-12. Now: all 3 are `- [-]`
-> ↪️ ВЫТЕСНЕНО — the follow-on work moved into `SAAS_ENFORCE_ROADMAP.md` (verified against code, see each
+>  ВЫТЕСНЕНО — the follow-on work moved into `SAAS_ENFORCE_ROADMAP.md` (verified against code, see each
 > box below). Why: `docs/_TODO/BACKLOG_CONSOLIDATION_2026-07-26.md` §6.3 canon.
 
 Branch baseline:
@@ -324,13 +324,13 @@ not be diluted by UI work.
 - [x] Locked-label direction chosen: protected backend-context table + signed SECURITY DEFINER setter +
       helper functions; raw custom GUCs rejected as trusted identity.
 - [x] Initial spoofing proofs run for custom GUC ACL and signed backend-context setter.
-- [-] ~~Hardened locked-label implementation designed with TTL/backend binding/release cleanup.~~
-  — ↪️ ВЫТЕСНЕНО 2026-07-27: implemented and live. TTL default confirmed in
+- [x] Hardened locked-label implementation designed with TTL/backend binding/release cleanup. — packages/db-principal/src/index.ts:951
+  —  ВЫТЕСНЕНО 2026-07-27: implemented and live. TTL default confirmed in
   `packages/db-principal/src/index.ts:951` (`signer.ttlMs ?? 30_000`); release cleanup confirmed DONE
   in `SAAS_ENFORCE_ROADMAP.md` Phase C1, "[x] On release, always release protected context and
   `RESET ROLE`; poison/destroy the client if cleanup fails."
-- [-] ~~Remaining spoofing proofs defined and assigned.~~
-  — ↪️ ВЫТЕСНЕНО 2026-07-27: tracking moved to `SAAS_ENFORCE_ROADMAP.md`'s open-gaps list, G6 —
+- [ ] Remaining spoofing proofs defined and assigned.
+  —  ВЫТЕСНЕНО 2026-07-27: tracking moved to `SAAS_ENFORCE_ROADMAP.md`'s open-gaps list, G6 —
   "#664 value enforcement... Presence of a policy is not proof that inserted org/patient values cannot
   be spoofed." Verified NOT fully resolved there either (G6 is still listed under OPEN GAPS, not a
   closed `[x]` phase item) — this box is superseded in the sense that it now lives in the current plan,
@@ -341,8 +341,8 @@ not be diluted by UI work.
 - [x] #664 value-level residuals and extra-review tails mapped to concrete enforcement/triage mechanism.
 - [x] First doctor/admin split reflected in seed/provisioning plan.
 - [x] Process-family smoke under real app roles planned.
-- [-] ~~Cluster-global role naming/env-boundary decision recorded.~~
-  — ↪️ ВЫТЕСНЕНО 2026-07-27: decided and verified in code. `SAAS_ENFORCE_ROADMAP.md` §"Phase C0 —
+- [x] Cluster-global role naming/env-boundary decision recorded. — SAAS_C0_LOCKED_TOPOLOGY_ADR.md:10
+  —  ВЫТЕСНЕНО 2026-07-27: decided and verified in code. `SAAS_ENFORCE_ROADMAP.md` §"Phase C0 —
   locked topology ADR and executable role proof" names the two runtime login roles
   `app_runtime_staff_login` / `app_runtime_nonstaff_login`; confirmed live in
   `docs/_TODO/SAAS_FOUNDATION/SAAS_C0_LOCKED_TOPOLOGY_ADR.md:10-11` and referenced by
