@@ -1230,6 +1230,7 @@ const sendProgramNoteReply = createSendProgramNoteReply({
 const notifyDoctorOfPatientMessageImpl = async (input: {
   organizationId: string;
   platformUserId: string;
+  conversationId: string;
   messageId: string;
   messageText: string;
   patientLabel: string;

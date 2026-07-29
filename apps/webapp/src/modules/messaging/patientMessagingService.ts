@@ -33,6 +33,7 @@ export type PatientMessagingServiceOptions = {
   notifyDoctorOfPatientMessage?: (input: {
     organizationId: string;
     platformUserId: string;
+    conversationId: string;
     messageId: string;
     messageText: string;
     patientLabel: string;
@@ -144,6 +145,7 @@ export function createPatientMessagingService(
           await options.notifyDoctorOfPatientMessage!({
             organizationId,
             platformUserId,
+            conversationId: targetConversationId,
             messageId: integratorMessageId,
             messageText: trimmed,
             patientLabel,

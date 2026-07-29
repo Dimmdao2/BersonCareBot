@@ -31,6 +31,7 @@ export function createIntegratorSupportBridge(deps: {
   notifyDoctorOfPatientMessage?: (input: {
     organizationId: string;
     platformUserId: string;
+    conversationId: string;
     messageId: string;
     messageText: string;
     patientLabel: string;
@@ -77,6 +78,7 @@ export function createIntegratorSupportBridge(deps: {
           .notifyDoctorOfPatientMessage({
             organizationId,
             platformUserId,
+            conversationId,
             messageId: input.integratorMessageId,
             messageText: trimmed,
             patientLabel: patientLabel.trim(),

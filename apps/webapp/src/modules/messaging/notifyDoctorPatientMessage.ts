@@ -12,17 +12,17 @@ import {
   isWebappPlatformConversationId,
   webappPlatformConversationId,
 } from '@/modules/messaging/supportConversationIds';
+import { communicationsChatHref } from '@/app/app/doctor/communications/doctorCommunicationsTabs';
 import { logger, serializeError } from '@/infra/logging/logger';
 import { reportEmptyAudience } from '@/modules/operator-alerts/emptyAudienceRuntime';
 
-export function buildDoctorMessagesOpenPath(platformUserId: string): string {
-  const convKey = encodeURIComponent(webappPlatformConversationId(platformUserId));
-  return `/app/doctor/messages?integratorConversationId=${convKey}`;
+export function buildDoctorMessagesOpenPath(conversationId: string): string {
+  return communicationsChatHref(conversationId);
 }
 
-export function buildDoctorMessagesDeepLink(platformUserId: string, appBaseUrl: string): string {
+export function buildDoctorMessagesDeepLink(conversationId: string, appBaseUrl: string): string {
   const base = appBaseUrl.replace(/\/$/, '');
-  const path = buildDoctorMessagesOpenPath(platformUserId);
+  const path = buildDoctorMessagesOpenPath(conversationId);
   if (!base) return path;
   return `${base}${path}`;
 }
@@ -43,6 +43,7 @@ export function doctorReplyCallbackConversationId(platformUserId: string): strin
 export type NotifyDoctorPatientMessageInput = {
   organizationId: string;
   platformUserId: string;
+  conversationId: string;
   messageId: string;
   messageText: string;
   patientLabel: string;
@@ -55,7 +56,7 @@ export async function notifyDoctorPatientMessage(
     staffDeps?: NotifyDoctorPatientMessageToStaffDeps;
   },
 ): Promise<void> {
-  const deepLink = buildDoctorMessagesDeepLink(input.platformUserId, env.APP_BASE_URL);
+  const deepLink = buildDoctorMessagesDeepLink(input.conversationId, env.APP_BASE_URL);
   const replyConversationId = doctorReplyCallbackConversationId(input.platformUserId);
   const text = buildDoctorPatientMessageNotifyText({
     patientLabel: input.patientLabel,
