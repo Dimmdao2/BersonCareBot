@@ -153,7 +153,8 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
       Proven: `og:url` was `http://127.0.0.1:5200`, is now `https://test.bersoncare.ru`. Also settled: `/` is
       dynamic, not statically rendered, so the wrong origin was never frozen beyond the 60 s cache.
 
-- [-] ~~**A-5 first pass, SUPERSEDED — its gate was false assurance.**~~ — ↪️ **ВЫТЕСНЕНО** 27.07:
+- [ ] **A-5 first pass, SUPERSEDED — its gate was false assurance.**
+  ПРЕЕМНИК 27.07:
   live A-5 is the AST gate in `0f4035e7b` above.
   The independent auditor kept all four assertions green with a live instance of the bug present, and the
   headline assertion stayed green when the fix it protects was reverted. Two causes: the establisher regex
@@ -176,7 +177,8 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
   setting name — poisoning it for ~60 s for authenticated consumers too: clinic invite links, booking
   confirmation e-mails, OAuth redirect base. Being fixed with the gate.
 
-- [-] ~~**A-5 first pass (superseded above)** (`bf7e951f7`).~~ — ↪️ **ВЫТЕСНЕНО** 27.07:
+- [ ] **A-5 first pass (superseded above)** (`bf7e951f7`).
+  ПРЕЕМНИК 27.07:
   live A-5 is the AST gate in `0f4035e7b` above.
   **The class was far smaller than the denial count implied, and the count was misleading.** Census: 173
   page/layout entries, 88 read the DB in their own scope, **87 already stamped a principal, exactly 1 did
@@ -447,8 +449,7 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-- [-] ~~**E-1 — CANCELLED 2026-07-26 by the owner. Nothing is cut; both stay, switchable.**~~ — ⛔
-  **ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 26.07:** «тг мы не вырезаем тогда, оставляем просто отключаемым в настройках».
+- [-] ~~**E-1 — CANCELLED 2026-07-26 by the owner. Nothing is cut; both stay, switchable.**~~ — ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 26.07: «тг мы не вырезаем тогда, оставляем просто отключаемым в настройках».
   Owner, verbatim: «тг мы не вырезаем тогда, оставляем просто отключаемым в настройках» — and earlier,
   that MAX may come back as a login method. So the original instruction («MAX тоже нахер пока») is
   **superseded**: no kill-switch to build, no code to delete, no `telegram_state` retirement, no data
@@ -750,8 +751,8 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
 - [x] Global-admin settings page — grant moved into the closure where it survives deploys, `80cc09abe`.
 - [x] Two 500s were a missing PRINCIPAL, not a missing grant — `19f52fed2` (my diagnosis was wrong; the
       worker refuted it with PostgreSQL's own logs).
-- [-] ~~Session-revocation code restored and finished — `12e263e63` (unproven against a DB).~~ — ↪️
-  **ВЫТЕСНЕНО** 27.07: C-1's live mechanism is `988f0decd`, proven against a DB; see C-1 above.
+- [ ] Session-revocation code restored and finished — `12e263e63` (unproven against a DB).
+  ПРЕЕМНИК 27.07: C-1's live mechanism is `988f0decd`, proven against a DB; see C-1 above.
 - [x] Unmerged branches reconciled — no side branch explains any broken page.
 - [x] Pre-production list opened — `docs/_TODO/PRE_PRODUCTION_TODO.md`.
 
@@ -777,9 +778,9 @@ cancelled or superseded work and is excluded from both totals. Detail and eviden
       `modules/booking-scheduling/` (checked directly). Added 3 tests at the service level pinning all
       three branches of the rule, including the no-schedule-at-all → zero-slots case. 10/10 tests re-run
       clean during this reconciliation.
-- [-] ~~**H-2 (#913) Что видно в уведомлении.** Запись и напоминания о занятиях — **открыто, как было**;
-  личный чат — только «новое сообщение от <имя>»; рассылка — тема открыто, содержание при переходе.~~
-  — ↪️ **ВЫТЕСНЕНО** 27.07 для рассылки: `fcd956395` восстановил полное тело в
+- [ ] **H-2 (#913) Что видно в уведомлении.** Запись и напоминания о занятиях — **открыто, как было**;
+  личный чат — только «новое сообщение от <имя>»; рассылка — тема открыто, содержание при переходе.
+  ИЗМЕНЕНО 27.07 для рассылки: `fcd956395` восстановил полное тело в
   `fanOutBroadcastEmail.ts` и `deliveryJobs.ts`; действующее правило владельца —
   `OWNER_PRODUCT_RULES.md` §15: «текст открыто, как есть».
   **Проверено 26.07: только решение, кода нет.** Строка «новое сообщение от» нигде не встречается в

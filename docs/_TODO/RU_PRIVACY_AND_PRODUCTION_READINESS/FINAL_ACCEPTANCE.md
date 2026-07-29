@@ -1,6 +1,6 @@
 # Final acceptance — production readiness gate
 
-> **SUPERSEDED AS TARGET — 2026-07-27.** Release conditions о push-only и запрете product Telegram/MAX/email/SMS ниже не могут блокировать release: они заменены строкой **«Уведомления»** в [`CURRENT_AUTHORITY_MAP.md`](../../CURRENT_AUTHORITY_MAP.md) (`OWNER_PRODUCT_RULES.md` §2, §15, §21–§25).
+> **ВЫТЕСНЕНО ТОЛЬКО: push-only топология каналов. Остальное действует.** Release conditions о push-only и запрете product Telegram/MAX/email/SMS ниже не могут блокировать release: они заменены строкой **«Уведомления»** в [`CURRENT_AUTHORITY_MAP.md`](../../CURRENT_AUTHORITY_MAP.md) (`OWNER_PRODUCT_RULES.md` §2, §15, §21–§25).
 
 Файл закрывается только фактами и ссылками на `EVIDENCE/`. Audit PASS без owner/legal acceptance не означает
 production readiness.
