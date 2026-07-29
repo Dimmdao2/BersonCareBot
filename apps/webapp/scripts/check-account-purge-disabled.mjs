@@ -43,6 +43,10 @@ function forbidPattern(key, source, pattern, rule) {
   if (pattern.test(source)) failures.push(`${key}:${rule}`);
 }
 
+function requirePattern(key, source, pattern, rule) {
+  if (!pattern.test(source)) failures.push(`${key}:${rule}`);
+}
+
 function runtimeSources(relativeRoot) {
   const absoluteRoot = path.join(webappRoot, relativeRoot);
   if (!fs.existsSync(absoluteRoot)) return [];
@@ -83,10 +87,12 @@ for (const command of [
   'integrator-clear-phone',
   'integrator-purge-user-id',
 ]) {
-  requireText(
+  // Кавычки не предмет этой проверки: гейт про то, что команда закрыта отказом, а не про стиль записи.
+  // Жёсткие двойные кавычки ломали его от одного прогона форматтера (29.07, ревизия тестов).
+  requirePattern(
     'operations',
     operations,
-    `rejectAccountPurge("${command}")`,
+    new RegExp(`rejectAccountPurge\\(\\s*['"]${command}['"]\\s*\\)`),
     `missing_fail_closed_command:${command}`,
   );
 }
