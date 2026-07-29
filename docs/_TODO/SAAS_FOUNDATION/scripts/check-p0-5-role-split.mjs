@@ -14,10 +14,10 @@ const docPath = 'docs/_TODO/SAAS_FOUNDATION/P0_5_DB_ROLE_SPLIT.md';
 const proofPath = 'docs/_TODO/SAAS_FOUNDATION/P0_5_DB_ROLE_SPLIT_PROOF.sql';
 const opsSqlPath = 'deploy/postgres/p0-5-role-split.sql';
 
-const expectedCounts = Object.freeze({
-  SCOPED: 162,
-  BOOTSTRAP: 27,
-});
+// Зашитые числа убраны 29.07 (решение владельца: «сноси машинерию, оставляй пользу»).
+// Полезное осталось: права выдаются ТОЛЬКО таблицам известных классов, а сгенерированный SQL
+// обязан совпадать со своим генератором.
+const allowedGrantTiers = Object.freeze(['SCOPED', 'BOOTSTRAP']);
 
 function fail(message) {
   throw new Error(message);
@@ -114,16 +114,8 @@ function assertGrantSetMatchesTiers() {
 
   const counts = countByTier(grantTables);
 
-  for (const [tier, expectedCount] of Object.entries(expectedCounts)) {
-    const actual = counts.get(tier) ?? 0;
-
-    if (actual !== expectedCount) {
-      fail(`Expected ${expectedCount} P0.5 ${tier} grant tables, got ${actual}`);
-    }
-  }
-
   for (const tier of counts.keys()) {
-    if (expectedCounts[tier] == null) {
+    if (!allowedGrantTiers.includes(tier)) {
       fail(`Unexpected P0.5 app grant tier: ${tier}`);
     }
   }
@@ -172,7 +164,6 @@ function runChecks({
     'GRANT USAGE, SELECT ON SEQUENCE %I.%I TO %I',
     '\\if :{?p0_5_down}',
     'DROP ROLE %I',
-    'P0.5 role split UP complete: 162 SCOPED tables and 27 BOOTSTRAP tables granted to the app role.',
   ]);
 
   forbidFragments('P0.5 proof', proof, [

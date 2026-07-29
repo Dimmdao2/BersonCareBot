@@ -107,16 +107,10 @@ function runChecks(overrides = {}) {
     assertContains(files.devBypassClassification, devBypassClassification, token);
   }
 
-  for (const token of [
-    'writes phone + patient_phone_trust_at for dev:client',
-    'writes phone only for dev:admin',
-    'forces preset role for dev:admin',
-    'provisions an owner workspace for dev:clinic-admin',
-    'getTelegramBotToken: async () => ""',
-    'getMaxBotApiKey: async () => ""',
-  ]) {
-    assertContains(files.devBypassExchange, devBypassExchange, token);
-  }
+  // Сверка ТЕКСТА тестов (названия случаев и строки заглушек) убрана 29.07 — решение владельца
+  // «сноси машинерию, оставляй пользу». Она ловила стиль кавычек: прогон prettier поменял "" на '',
+  // и гейт отрапортовал отсутствие заглушки, которая на месте. Польза этого гейта — ниже,
+  // runAppSmoke(): он ЗАПУСКАЕТ дымовые тесты, а не ищет в них подстроки.
 }
 
 function runAppSmoke() {

@@ -86,13 +86,12 @@ export function getPhase4LockedPolicyTargets() {
   const uniqueKeys = new Set(keys);
   const uniqueTables = new Set(targets.map(({ descriptor }) => descriptor.table));
 
-  if (
-    targets.length !== 168 ||
-    uniqueKeys.size !== targets.length ||
-    uniqueTables.size !== targets.length
-  ) {
+  // Зашитое число целей убрано 29.07 (решение владельца: «сноси машинерию, оставляй пользу»).
+  // Полезное осталось: цели обязаны быть уникальны — дубль политики на таблицу это ошибка,
+  // а не изменение объёма схемы.
+  if (uniqueKeys.size !== targets.length || uniqueTables.size !== targets.length) {
     throw new Error(
-      `Expected 168 unique phase4 locked policy targets, got targets=${targets.length}, uniquePolicyPairs=${uniqueKeys.size}, uniqueTables=${uniqueTables.size}`,
+      `Duplicate phase4 locked policy targets: targets=${targets.length}, uniquePolicyPairs=${uniqueKeys.size}, uniqueTables=${uniqueTables.size}`,
     );
   }
 

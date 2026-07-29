@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 import {
-  expectedP09EnforceActionCounts,
   getP09EnforceDescriptorByTable,
   getP09EnforceDescriptors,
   p09PolicyName,
@@ -50,14 +49,6 @@ const counts = new Map();
 for (const descriptor of descriptors) {
   const action = descriptor.enforceMode.action;
   counts.set(action, (counts.get(action) ?? 0) + 1);
-}
-
-for (const [action, expectedCount] of Object.entries(expectedP09EnforceActionCounts)) {
-  const actualCount = counts.get(action) ?? 0;
-
-  if (actualCount !== expectedCount) {
-    fail(`Expected ${expectedCount} ${action} enforce descriptors, got ${actualCount}`);
-  }
 }
 
 const missingDescriptor = getP09EnforceDescriptorByTable('public.p0_9_missing_descriptor_probe');
@@ -354,7 +345,6 @@ assertNoRawContextSettingsInGeneratedPolicySql(
 console.log(
   [
     'P0.9 enforce descriptors OK:',
-    '233 descriptors,',
     'missing/unknown deny,',
     'SCOPED enforce app.org,',
     'BOOTSTRAP explicit pre-context behavior,',

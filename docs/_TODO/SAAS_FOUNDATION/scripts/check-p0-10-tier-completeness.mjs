@@ -16,14 +16,6 @@ const paths = {
   batches: `${root}/p0-4-batches.tsv`,
 };
 
-const expectedTierCounts = Object.freeze({
-  BOOTSTRAP: 30,
-  INFRA: 27,
-  LEGACY: 9,
-  SCOPED: 162,
-  TELEMETRY: 5,
-});
-
 function fail(message) {
   throw new Error(message);
 }
@@ -215,34 +207,17 @@ function runP0101Invariant({
   );
   assertGroundedInActualSchema({ tierTableSet, actualTableSet: historicalActualTableSet });
 
-  for (const [tier, expectedCount] of Object.entries(expectedTierCounts)) {
-    const actualCount = tierCounts.get(tier) ?? 0;
-
-    if (actualCount !== expectedCount) {
-      fail(`Expected ${tier}=${expectedCount}, got ${actualCount}`);
-    }
-  }
-
+  // Зашитые числа по классам убраны 29.07 (решение владельца: «сноси машинерию, оставляй пользу»).
+  // Они требовали ручной правки в пяти файлах при каждом изменении схемы и обучали править ожидание,
+  // чтобы стало зелено. Полезное — ниже: класс обязан быть известным, а состав классов обязан
+  // совпадать с ФАКТИЧЕСКОЙ схемой (assertGroundedInActualSchema выше).
+  const knownTiers = new Set(['BOOTSTRAP', 'INFRA', 'LEGACY', 'SCOPED', 'TELEMETRY']);
   const unexpectedTiers = Array.from(tierCounts.keys())
-    .filter((tier) => expectedTierCounts[tier] == null)
+    .filter((tier) => !knownTiers.has(tier))
     .sort();
 
   if (unexpectedTiers.length > 0) {
     fail(`Unexpected tier(s): ${unexpectedTiers.join(', ')}`);
-  }
-
-  if (scopedTables.length !== 162) {
-    fail(`Expected 162 SCOPED tables, got ${scopedTables.length}`);
-  }
-
-  if (scopedBeTables.length !== 44) {
-    fail(`Expected 44 already-org-scoped public.be_* tables, got ${scopedBeTables.length}`);
-  }
-
-  if (scopedNeedingOrgMaterialization.length !== 115) {
-    fail(
-      `Expected 115 SCOPED non-be tables needing organization_id materialization, got ${scopedNeedingOrgMaterialization.length}`,
-    );
   }
 
   assertSameSet({

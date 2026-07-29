@@ -33,19 +33,6 @@ export const p09EnforceActions = new Set([
   'deny',
 ]);
 
-export const expectedP09EnforceActionCounts = Object.freeze({
-  scoped_org: 159,
-  scoped_fk_path: 2,
-  scoped_pending_default_deny: 1,
-  bootstrap_hybrid: 3,
-  bootstrap_hybrid_org_gated: 2,
-  bootstrap_runtime_audience: 1,
-  bootstrap_runtime_audit: 1,
-  bootstrap_global_read: 23,
-  explicit_global: 32,
-  legacy_frozen_deny: 9,
-});
-
 const orgColumnScopedKinds = new Set(['direct_org_column', 'denorm_org_column', 'self_org_id']);
 
 function defaultDenyDescriptor(table = '<unknown>', reason = 'missing_or_unknown_descriptor') {
@@ -249,9 +236,8 @@ export function assertP09EnforceDescriptors(descriptors) {
   const actualTables = descriptors.map((descriptor) => descriptor.table);
   const actualSet = new Set(actualTables);
 
-  if (actualTables.length !== 233) {
-    throw new Error(`Expected 233 P0.9 enforce descriptors, got ${actualTables.length}`);
-  }
+  // Зашитое общее число дескрипторов убрано 29.07 (решение владельца: «сноси машинерию, оставляй пользу»).
+  // Полезное — ниже: у каждой таблицы объявлен класс, и класс должен быть известным.
 
   if (actualSet.size !== actualTables.length) {
     throw new Error('P0.9 enforce descriptors contain duplicate tables');
@@ -259,22 +245,11 @@ export function assertP09EnforceDescriptors(descriptors) {
 
   const counts = countP09EnforceActions(descriptors);
 
-  for (const [action, expectedCount] of Object.entries(expectedP09EnforceActionCounts)) {
-    const actualCount = counts.get(action) ?? 0;
-
-    if (actualCount !== expectedCount) {
-      throw new Error(`Expected ${expectedCount} P0.9 ${action} descriptors, got ${actualCount}`);
-    }
-  }
-
   for (const [action, count] of counts.entries()) {
     if (!p09EnforceActions.has(action)) {
       throw new Error(`Unsupported P0.9 enforce action ${action}`);
     }
 
-    if (expectedP09EnforceActionCounts[action] == null && count > 0) {
-      throw new Error(`Unexpected P0.9 enforce action ${action} count ${count}`);
-    }
   }
 
   for (const descriptor of descriptors) {
