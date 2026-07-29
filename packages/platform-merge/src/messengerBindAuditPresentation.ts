@@ -14,7 +14,7 @@ export type MessengerBindAuditInitiatorSummary = {
   channelCode: string;
   externalId: string;
   platformUserId: string | null;
-  /** Telegram: @username/ФИО из telegram_users; MAX: телефон канонического platform_users по привязке. */
+  /** Telegram: @username/ФИО from canonical identity state; MAX: phone of the bound canonical platform user. */
   messengerDisplayHint?: string | null;
 };
 

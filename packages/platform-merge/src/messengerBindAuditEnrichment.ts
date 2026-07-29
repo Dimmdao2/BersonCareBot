@@ -17,13 +17,14 @@ async function resolveTelegramMessengerDisplayHint(
   if (!/^\d+$/.test(trimmed)) return null;
   try {
     const r = await db.query<{ username: string | null; fullName: string | null }>(
-      `SELECT NULLIF(TRIM(username), '') AS username,
+      `SELECT NULLIF(TRIM(ts.username), '') AS username,
               NULLIF(
-                TRIM(BOTH FROM concat_ws(' ', NULLIF(TRIM(first_name), ''), NULLIF(TRIM(last_name), ''))),
+                TRIM(BOTH FROM concat_ws(' ', NULLIF(TRIM(ts.first_name), ''), NULLIF(TRIM(ts.last_name), ''))),
                 ''
               ) AS "fullName"
-       FROM public.telegram_users
-       WHERE telegram_id = $1::bigint
+       FROM integrator.identities i
+       LEFT JOIN integrator.telegram_state ts ON ts.identity_id = i.id
+       WHERE i.resource = 'telegram' AND i.external_id = $1::text
        LIMIT 1`,
       [trimmed],
     );
