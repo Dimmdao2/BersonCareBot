@@ -16,6 +16,7 @@ DEV_RUNTIME_OVERLAY_REHYDRATE="$REPO_ROOT/deploy/host/dev-runtime-overlay-rehydr
 SAFE_MIGRATION_ENV="$REPO_ROOT/deploy/env/empty.local-migration.env"
 C4D_MEDIA_OWNER_ONLINE_INDEX="$REPO_ROOT/deploy/postgres/c4d-platform-lfk-media-owner-online-index.sql"
 DRIZZLE_JOURNAL="$REPO_ROOT/apps/webapp/db/drizzle-migrations/meta/_journal.json"
+DRIZZLE_0247_MIGRATION="$REPO_ROOT/apps/webapp/db/drizzle-migrations/0247_email_challenge_atomic_attempts.sql"
 POSTGRES=(sudo -n -u postgres env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin)
 
 DBROLE_APP_OWNER_MEMBERSHIP_ADDED=0
@@ -112,6 +113,10 @@ assert_canonical_file \
   "$DRIZZLE_JOURNAL" \
   "$REPO_ROOT/apps/webapp/db/drizzle-migrations/meta/_journal.json" \
   "Drizzle journal"
+assert_canonical_file \
+  "$DRIZZLE_0247_MIGRATION" \
+  "$REPO_ROOT/apps/webapp/db/drizzle-migrations/0247_email_challenge_atomic_attempts.sql" \
+  "Drizzle 0247 migration"
 
 if grep -Eqv '^[[:space:]]*(#.*)?$' "$SAFE_MIGRATION_ENV"; then
   fatal "safe migration env must contain comments/blank lines only"
@@ -143,6 +148,90 @@ SANITIZED_PATH="$TOOLCHAIN_BIN:/usr/local/bin:/usr/bin:/bin"
 DEV_DATABASE_URL="$(node "$DEV_ENV_PARSER" "$DEV_ENV")" ||
   fatal "DEV DATABASE_URL data parser rejected the env file"
 
+read -r DRIZZLE_0247_HASH DRIZZLE_0247_WHEN < <(
+  node -e '
+    const crypto = require("node:crypto");
+    const fs = require("node:fs");
+    const [journalPath, migrationPath] = process.argv.slice(1);
+    const journal = JSON.parse(fs.readFileSync(journalPath, "utf8"));
+    const entry = journal.entries?.find(({ tag }) => tag === "0247_email_challenge_atomic_attempts");
+    if (!entry || !Number.isSafeInteger(entry.when)) process.exit(1);
+    const hash = crypto.createHash("sha256").update(fs.readFileSync(migrationPath)).digest("hex");
+    process.stdout.write(`${hash} ${entry.when}\n`);
+  ' "$DRIZZLE_JOURNAL" "$DRIZZLE_0247_MIGRATION"
+) || fatal "failed to derive canonical Drizzle 0247 ledger identity"
+[[ "$DRIZZLE_0247_HASH" =~ ^[0-9a-f]{64}$ && "$DRIZZLE_0247_WHEN" =~ ^[0-9]+$ ]] ||
+  fatal "invalid canonical Drizzle 0247 ledger identity"
+
+reconcile_0247_ledger_drift() {
+  local state
+
+  state="$(psql "$DEV_DATABASE_URL" -X -v ON_ERROR_STOP=1 -v drizzle_0247_hash="$DRIZZLE_0247_HASH" -Atqc "
+    SELECT CASE
+      WHEN to_regclass('drizzle.__drizzle_migrations') IS NULL THEN 'ledger_missing'
+      WHEN EXISTS (
+        SELECT 1
+        FROM drizzle.__drizzle_migrations
+        WHERE hash = :'drizzle_0247_hash'
+      ) AND EXISTS (
+        SELECT 1
+        FROM pg_proc p
+        WHERE p.oid = 'app.email_auth_increment_email_challenge_attempts(uuid)'::regprocedure
+          AND p.prosecdef
+          AND p.provolatile = 'v'
+          AND p.prosrc LIKE '%FOR UPDATE%'
+          AND p.prosrc LIKE '%SET attempts = attempts + 1%'
+      ) AND to_regprocedure('app.email_auth_update_email_challenge_attempts(uuid,integer)') IS NULL THEN 'aligned'
+      WHEN NOT EXISTS (
+        SELECT 1
+        FROM drizzle.__drizzle_migrations
+        WHERE hash = :'drizzle_0247_hash'
+      ) AND EXISTS (
+        SELECT 1
+        FROM pg_proc p
+        WHERE p.oid = 'app.email_auth_increment_email_challenge_attempts(uuid)'::regprocedure
+          AND p.prosecdef
+          AND p.provolatile = 'v'
+          AND p.prosrc LIKE '%FOR UPDATE%'
+          AND p.prosrc LIKE '%SET attempts = attempts + 1%'
+      ) AND to_regprocedure('app.email_auth_update_email_challenge_attempts(uuid,integer)') IS NULL THEN 'reconcile_ledger'
+      WHEN NOT EXISTS (
+        SELECT 1
+        FROM drizzle.__drizzle_migrations
+        WHERE hash = :'drizzle_0247_hash'
+      ) AND to_regprocedure('app.email_auth_increment_email_challenge_attempts(uuid)') IS NULL THEN 'unapplied'
+      ELSE 'object_drift'
+    END;
+  ")" || fatal "DEV 0247 ledger/object drift probe failed"
+
+  case "$state" in
+    aligned|unapplied)
+      return
+      ;;
+    reconcile_ledger)
+      if [[ "$MODE" == "--preflight" ]]; then
+        echo "migrate-dev preflight: 0247 object exists without its Drizzle hash; --execute will reconcile the ledger"
+        return
+      fi
+      psql "$DEV_DATABASE_URL" -X -v ON_ERROR_STOP=1 \
+        -v drizzle_0247_hash="$DRIZZLE_0247_HASH" \
+        -v drizzle_0247_when="$DRIZZLE_0247_WHEN" \
+        -c "INSERT INTO drizzle.__drizzle_migrations (hash, created_at)
+            SELECT :'drizzle_0247_hash', :'drizzle_0247_when'::bigint
+            WHERE NOT EXISTS (
+              SELECT 1 FROM drizzle.__drizzle_migrations WHERE hash = :'drizzle_0247_hash'
+            );" >/dev/null || fatal "failed to reconcile the canonical Drizzle 0247 ledger row"
+      echo "migrate-dev: reconciled Drizzle ledger for already-applied 0247 object"
+      ;;
+    ledger_missing|object_drift)
+      fatal "DEV Drizzle 0247 ledger/object drift detected; run bash deploy/host/dev-runtime-overlay-rehydrate.sh --execute, then rerun migrate-dev.sh (do not run pnpm migrate directly)"
+      ;;
+    *)
+      fatal "DEV 0247 ledger/object drift probe returned an invalid state"
+      ;;
+  esac
+}
+
 identity="$(psql "$DEV_DATABASE_URL" -X -v ON_ERROR_STOP=1 -Atqc \
   "SELECT current_user || '|' || current_database();")" || fatal "DEV identity probe failed"
 [[ "$identity" == "$TARGET_ROLE|$TARGET_DB" ]] || fatal "DEV identity must be exact owner and database"
@@ -169,6 +258,10 @@ preexisting_app_owner_membership="$(postgres_scalar \
 
 # Reuse the existing exact DEV role/topology preflight before any privilege or schema write.
 bash "$DEV_RUNTIME_OVERLAY_REHYDRATE" --preflight
+
+# The DEV runtime overlay can already have re-created 0247's replacement function while the
+# Drizzle hash is absent. Reconcile only that proven applied-object/hash pair before migration.
+reconcile_0247_ledger_drift
 
 if [[ "$MODE" == "--preflight" ]]; then
   echo "migrate-dev preflight: PASS (exact local DEV; no changes made)"
