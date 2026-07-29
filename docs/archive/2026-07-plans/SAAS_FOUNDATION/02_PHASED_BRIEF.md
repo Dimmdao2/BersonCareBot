@@ -2,12 +2,8 @@
 
 # Phased brief — SAAS_FOUNDATION
 
-> ⚠️ **НЕ АКТУАЛЬНО (2026-06-17, SKELETON).** Список F0.x-стадий (ниже) заменён P0.x micro-stage spine в
-> `CORRECTED_PLAN.md` тем же днём (см. `LOG.md`: «00/01/02 marked history»); тот же Phase 0 объём под P0.x
-> уже выполнен и закрыт (см. `T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md`). Актуально:
-> [`01_MASTER_PLAN.md`](../../../_TODO/SAAS_FOUNDATION/01_MASTER_PLAN.md), [`SAAS_ENFORCE_ROADMAP.md`](../../../_TODO/SAAS_FOUNDATION/SAAS_ENFORCE_ROADMAP.md). Общий
-> «Brief template» формат (раздел ниже) остаётся справочным примером структуры брифа, но конкретный список
-> F0.x-стадий по содержанию не актуален.
+> Исторический контекст: список F0.x-стадий был заменён P0.x micro-stage spine; тот же Phase 0 объём
+> выполнен и закрыт. «Brief template» ниже остаётся примером структуры брифа.
 
 SKELETON (2026-06-17). **Brief template** (used verbatim per stage) + **fine stage list with per-stage
 rules-check**. Full prose briefs are expanded **on approval**, one stage at a time, just before handing

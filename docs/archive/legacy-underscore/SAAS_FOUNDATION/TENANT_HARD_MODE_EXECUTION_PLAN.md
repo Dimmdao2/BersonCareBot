@@ -3,7 +3,7 @@
 > **НЕ ЗАПУСКАТЬ ПО НЕМУ АГЕНТОВ / DO NOT EXECUTE.** This was never approved as an execution plan; none of its 143
 > items were executed, and its goal was reached by a different route. It is archived outside `_TODO` because a
 > document there reads as pending work. Keep the body intact only as a record of the reasoning. Its unique scope is
-> preserved in the [R0 reconciliation register](../../_TODO/SAAS_FOUNDATION/SAAS_ENFORCE_ROADMAP.md#r0-plan-reconciliation-register-2026-07-15).
+> preserved in the [R0 reconciliation register](../../../_TODO/SAAS_FOUNDATION/SAAS_ENFORCE_ROADMAP.md#r0-plan-reconciliation-register-2026-07-15).
 
 > **Historical R0 marker (2026-07-15).** O1 (DB role granularity) remained an open owner-facing question. The
 > owner's 2026-07-13 decision covered app-layer clinic-membership capability, not the DB-role topology.
