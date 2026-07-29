@@ -23,8 +23,8 @@ When adding or moving configuration:
 
 ## Integrator
 
-- Integrator has `integrator.system_settings` (mirror of `public.system_settings`) with matching `(key, scope, organization_id)` semantics; rows are **pushed** from webapp after each `updateSetting` via `syncSettingToIntegrator` until refactored to direct SQL (see `service.ts` / `syncToIntegrator.ts`). Production uses **one** PostgreSQL with schemas `integrator` and `public` — see `docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`.
+- Интегратор читает настройки **напрямую** из `public.system_settings` (`apps/integrator/src/infra/db/publicSystemSettings.ts`). Зеркала `integrator.system_settings` и проталкивания из webapp **больше нет** — таблица удалена 29.07.2026 (задача #1076). Прод и тест — **одна** PostgreSQL со схемами `integrator` и `public`, см. `docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`.
 - Do not add new env vars for values that belong in `system_settings`.
-- When adding or changing keys: follow `.cursor/rules/system-settings-integrator-mirror.mdc` so both schemas stay aligned.
+- При добавлении и изменении ключей — `.cursor/rules/system-settings-single-source.mdc`: хранилище одно, второго заводить нельзя.
 
 See `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`.

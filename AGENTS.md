@@ -41,7 +41,7 @@
    1b. [Безопасность dev-среды: изоляция от прод](#1b-безопасность-dev-среды-изоляция-от-прод-и-реальных-каналов)
 2. [CRITICAL: конфигурация интеграций только в БД](#2-critical-конфигурация-интеграций-только-в-бд)
 3. [Runtime config: env vs database](#3-runtime-config-env-vs-database)
-4. [system_settings: зеркало public + integrator](#4-system_settings-зеркало-public--integrator)
+4. [system_settings: одна таблица public, зеркала нет](#4-system_settings-одна-таблица-public-зеркала-нет)
    4a. [SaaS Foundation-aware development](#4a-saas-foundation-aware-development)
 5. [Clean Architecture: изоляция модулей](#5-clean-architecture-изоляция-модулей)
 6. [Host: PostgreSQL и DATABASE_URL](#6-host-postgresql-и-database_url)
@@ -288,7 +288,7 @@ _Источник: `.cursor/rules/000-critical-integration-config-in-db.mdc` (al
 - Integrator and webapp must read integration keys/URIs from DB-backed config accessors.
 - Env can remain only for process bootstrap/infra (`DATABASE_URL`, `NODE_ENV`, `HOST`, `PORT`, `LOG_LEVEL`) and temporary backward-compat fallback during migration.
 - Any new integration feature that proposes env vars for keys/URIs is considered invalid and must be redesigned to DB config.
-- `public.system_settings` and `integrator.system_settings` must stay aligned for the full logical identity `(key, scope, organization_id)`: webapp writes go through `updateSetting` (which syncs to integrator until refactored). Production typically uses **one** PostgreSQL (schemas `public` + `integrator`) — see `docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`, раздел [system_settings mirror](#4-system_settings-зеркало-public--integrator), `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`.
+- Настройки живут в ОДНОЙ таблице `public.system_settings`; интегратор читает её напрямую. Зеркала `integrator.system_settings` больше нет (удалено 29.07.2026, задача #1076) — см. раздел [system_settings](#4-system_settings-одна-таблица-public-зеркала-нет), `docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`.
 
 ---
 
@@ -314,33 +314,29 @@ When adding or moving configuration:
 
 ### Integrator
 
-- Integrator has `integrator.system_settings` (mirror of `public.system_settings`) with matching `(key, scope, organization_id)` semantics; rows are **pushed** from webapp after each `updateSetting` via `syncSettingToIntegrator` until refactored to direct SQL (see `service.ts` / `syncToIntegrator.ts`). Production uses **one** PostgreSQL with schemas `integrator` and `public` — see `docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`.
+- Интегратор читает настройки **напрямую** из `public.system_settings` (`apps/integrator/src/infra/db/publicSystemSettings.ts`). Зеркала и проталкивания из webapp больше нет — удалено 29.07.2026 (задача #1076). Прод и тест — **одна** PostgreSQL со схемами `integrator` и `public`.
 - Do not add new env vars for values that belong in `system_settings`.
-- When adding or changing keys: follow раздел [system_settings mirror](#4-system_settings-зеркало-public--integrator) so both schemas stay aligned.
+- При добавлении и изменении ключей — раздел [system_settings](#4-system_settings-одна-таблица-public-зеркала-нет): хранилище одно, второго заводить нельзя.
 
 See `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`.
 
 ---
 
-## 4. system_settings: зеркало public + integrator
+## 4. system_settings: одна таблица public, зеркала нет
 
-_Источник: `.cursor/rules/system-settings-integrator-mirror.mdc` (alwaysApply)_
+_Источник: `.cursor/rules/system-settings-single-source.mdc` (alwaysApply)_
 
-Production uses **one PostgreSQL database** with schemas **`public`** (webapp tables including `system_settings`) and **`integrator`**. Integrator holds a mirror table `system_settings` with the same logical keys `(key, scope, organization_id)` and JSON `value_json`. `organization_id IS NULL` is the global default row; non-null `organization_id` rows are organization overrides and must fall back to the global row on reads when absent. Until refactored, push from webapp may still use signed HTTP `syncSettingToIntegrator`; do not bypass `updateSetting` for writes from webapp.
+**Отменяет прежний раздел про зеркало (29.07.2026, решение владельца).** Прод и тест — одна PostgreSQL со схемами `public` и `integrator`. Настройки живут ТОЛЬКО в `public.system_settings`; интегратор читает их напрямую (`apps/integrator/src/infra/db/publicSystemSettings.ts`). Таблица `integrator.system_settings` удалена миграцией `20260729_0001_drop_integrator_system_settings_mirror.sql`, синхронизации между схемами больше нет.
 
-### Mandatory rules for agents
+Обязательные правила:
 
-1. **Never** insert/update `system_settings` only in one DB in application code. **Always** go through webapp `createSystemSettingsService().updateSetting` (or the same path used by admin/doctor Settings API), which runs `syncSettingToIntegrator` after upsert. Pass `organizationId` only when the write is intentionally org-scoped; otherwise writes stay global (`organization_id IS NULL`).
-2. **New setting keys:** add to `ALLOWED_KEYS` in `apps/webapp/src/modules/system-settings/types.ts` first. Use the **same string** for `key`, the same `scope` (`admin` | `doctor` | `global`), and the same `organization_id` semantics in both `public.system_settings` and `integrator.system_settings`. Do not invent divergent key names per app.
-3. **Migrations / SQL scripts / seeds** that write `system_settings` in `public` must either:
-   - duplicate the same `(key, scope, organization_id)` row into `integrator.system_settings` in a migration, **or**
-   - document a follow-up admin "save" in Settings UI to push via HTTP sync, **or**
-   - call the same sync mechanism from a one-off ops script (signed POST to integrator).
-4. **Do not** add a second sync call in Next.js route handlers; sync lives in `service.ts` only.
+1. **Не заводить второе хранилище настроек** — ни таблицу, ни файл, ни кэш «на всякий случай». Читатель обращается к `public.system_settings` там, где значение нужно.
+2. **Запись из webapp — только через** `createSystemSettingsService().updateSetting` (или тот же путь API настроек): единая точка валидации ключа, нормализации значения и прав.
+3. **Новые ключи** — сначала в `ALLOWED_KEYS` (`apps/webapp/src/modules/system-settings/types.ts`), один и тот же `key` и `scope` для всех потребителей.
+4. `organization_id IS NULL` — глобальное значение; строка с непустым `organization_id` — переопределение клиники, чтение обязано откатываться на глобальную строку.
+5. **Миграции и сиды** пишут настройку в `public.system_settings` и всё — дублировать больше некуда.
 
-Canonical docs: `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`, `docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`.
-
----
+Почему убрали (чтобы не отстроили заново): зеркало **писалось на каждое изменение и не читалось ниоткуда** — на dev перед сносом 71 вставка, 0 обновлений, 0 чтений по индексу. Ради него жили SECURITY DEFINER функция `app.enqueue_platform_system_settings_sync` с белым списком из 21 ключа, её генератор SQL, два проверяющих скрипта и вид задания `system_settings_sync` в очереди; список ключей был переписан руками в трёх местах и сверялся регуляркой по тексту — из-за чего полный CI 29.07 упал от одной смены кавычек. Разбор: задача `#1076`.
 
 ## 4a. SaaS Foundation-aware development
 
