@@ -13,7 +13,18 @@ const parsed = z
     LOG_LEVEL: z.string().default('info'),
 
     DATABASE_URL: z.string().min(1),
-    APP_BASE_URL: z.string().url(),
+    APP_BASE_URL: z
+      .string()
+      .url()
+      .refine((value) => {
+        try {
+          const protocol = new URL(value).protocol;
+          return protocol === 'http:' || protocol === 'https:';
+        } catch {
+          return false;
+        }
+      }, 'APP_BASE_URL must use the http or https protocol')
+      .transform((value) => value.replace(/\/$/, '')),
     DATABASE_URL_DIAGNOSTIC: z.string().optional().default(''),
     DATABASE_URL_DELIVERY_WORKER: z.string().optional().default(''),
     DATABASE_URL_SCHEDULER: z.string().optional().default(''),
