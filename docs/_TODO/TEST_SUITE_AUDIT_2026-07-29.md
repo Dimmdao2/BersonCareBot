@@ -967,9 +967,10 @@ HOW-A тратил 8–15 дней, мутируя 200 файлов, чтобы 
   отсутствующий entitlement include, пустой `inprocess` project/job/alias и `test:with-db` с удалёнными путями;
   временный `fast` оставлен только для существующего legacy cutover.
 - Проверка этапа 30.07: `/home/dev/brain/host-orch/run-tests.sh "pnpm run ci"` прошла lint, typecheck, integrator/
-  webapp/media-worker tests и обе сборки; финальный `check-saas-db-regression` остановился на двух новых таблицах
-  #1065 без записи в `tiers-218.tsv`. Blocker передан владельцу #1065; тестовая инфраструктура его не маскирует и
-  повторный full CI не запускает.
+  webapp/media-worker tests и обе сборки; первый audit-blocker #1065 (две таблицы без tier) закрыт коммитом
+  `e3dc221dd`. Resume-команда `pnpm run audit` на `e3dc221dd` прошла P0.4 и остановилась на существовавшем до этого
+  P0.5 generated-role-split mismatch. Тестовая инфраструктура этот посторонний blocker не маскирует и повторный
+  full CI не запускает.
 - [ ] Составить внутри этого плана карту `инвариант → действующий CI workflow:line`. Сиротский script, выключенный
   workflow или package alias без вызывающего CI не разрешает пометить инвариант «уже защищён».
 - [ ] Повторно пропустить keep-set через фильтр формы: аудит указал SQL-text assertion
