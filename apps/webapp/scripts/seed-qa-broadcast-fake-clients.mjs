@@ -2,6 +2,7 @@
  * DEV-ONLY seed: Q-A hidden broadcast test clients.
  *
  * Seeds 2 fake platform_users (+79000000000, +79999999999) into the dev DB.
+ * Also prepares the canonical dev:client bypass identity and its Telegram binding.
  * These are the «Q-A test audience» for the hidden broadcast category:
  *   - Real numbers that will never be assigned to real people (out-of-service ranges)
  *   - No channel bindings → the integrator redirect SUPPRESSES all actual sends (D7 safe)
@@ -78,6 +79,15 @@ const FAKE_CLIENTS = [
   },
 ];
 
+// Must stay in lockstep with parseDevBypassToken() in modules/auth/service.ts.
+// Locked DEV bypass is read-only and resolves this exact binding from the database.
+const DEV_BYPASS_CLIENT = {
+  id: '00000000-0000-0000-0000-000000000001',
+  phone_normalized: '+79990000001',
+  display_name: 'Demo Client',
+  telegram_id: '111111111',
+};
+
 const pool = new pg.Pool({ connectionString: DATABASE_URL });
 
 async function seed() {
@@ -111,8 +121,62 @@ async function seed() {
       }
     }
 
+    const existingDevBypassUser = await client.query(
+      `SELECT id
+       FROM platform_users
+       WHERE id = $1
+       FOR UPDATE`,
+      [DEV_BYPASS_CLIENT.id],
+    );
+    if (existingDevBypassUser.rows.length === 0) {
+      await client.query(
+        `INSERT INTO platform_users (id, phone_normalized, display_name, role)
+         VALUES ($1, $2, $3, 'client')`,
+        [
+          DEV_BYPASS_CLIENT.id,
+          DEV_BYPASS_CLIENT.phone_normalized,
+          DEV_BYPASS_CLIENT.display_name,
+        ],
+      );
+      console.log(`  ✓  dev:client (${DEV_BYPASS_CLIENT.phone_normalized}) → created`);
+    } else {
+      await client.query(
+        `UPDATE platform_users
+         SET phone_normalized = $2, display_name = $3, role = 'client', updated_at = now()
+         WHERE id = $1`,
+        [
+          DEV_BYPASS_CLIENT.id,
+          DEV_BYPASS_CLIENT.phone_normalized,
+          DEV_BYPASS_CLIENT.display_name,
+        ],
+      );
+      console.log(`  ↺  dev:client (${DEV_BYPASS_CLIENT.phone_normalized}) → updated`);
+    }
+
+    const existingDevBypassBinding = await client.query(
+      `SELECT user_id
+       FROM user_channel_bindings
+       WHERE channel_code = 'telegram' AND external_id = $1
+       FOR UPDATE`,
+      [DEV_BYPASS_CLIENT.telegram_id],
+    );
+    if (existingDevBypassBinding.rows.length === 0) {
+      await client.query(
+        `INSERT INTO user_channel_bindings (user_id, channel_code, external_id)
+         VALUES ($1, 'telegram', $2)`,
+        [DEV_BYPASS_CLIENT.id, DEV_BYPASS_CLIENT.telegram_id],
+      );
+      console.log(`  ✓  dev:client Telegram binding ${DEV_BYPASS_CLIENT.telegram_id} → created`);
+    } else if (existingDevBypassBinding.rows[0].user_id !== DEV_BYPASS_CLIENT.id) {
+      throw new Error(
+        `dev:client Telegram binding ${DEV_BYPASS_CLIENT.telegram_id} belongs to another platform user`,
+      );
+    } else {
+      console.log(`  ↺  dev:client Telegram binding ${DEV_BYPASS_CLIENT.telegram_id} → unchanged`);
+    }
+
     await client.query('COMMIT');
-    console.log('Seed complete — 2 Q-A fake broadcast clients upserted.');
+    console.log('Seed complete — 2 Q-A fake broadcast clients and dev:client bypass identity upserted.');
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('❌  Seed failed, rolled back:', err);
