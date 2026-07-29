@@ -367,3 +367,56 @@ exposes every clinic at once. That is a key-custody property of a single trusted
 door. **Corrected severity: LOW/INFO.** These routes are live infrastructure, not dead code — the integrator app
 calls all four (`deliveryTargetsPort.ts`, `reminderRulesRoute.ts`, `webPushAccessPort.ts`), so cutting them is
 not an option.
+
+---
+
+## Находка 29.07 — право выполнения функций с повышенными правами не отобрано у PUBLIC
+
+**Как нашлось.** Не в рамках шести срезов: всплыло при разборе SQL-пиннингов в ревизии тестов (#1074), когда
+аудитор заметил, что удалённые текстовые тесты стерегли точные права обработчиков, а деплой проверяет не всё.
+Проверка «а как оно на самом деле» заняла один запрос.
+
+**Суть.** В Postgres право выполнения функции выдаётся ВСЕМ по умолчанию, если его явно не отобрать. В базе
+**122** функции с повышенными правами (`SECURITY DEFINER`); у **25** из них право не отобрано ни разу.
+
+**Доказано на dev, а не предположено:**
+
+- `app.read_integrator_smtp_outbound_setting()` возвращает значение настройки `smtp_outbound` целиком,
+  а в этом значении есть поле пароля;
+- вызвать её может **любая из десяти учётных записей**, включая `bcb_dev_runtime_nonstaff_login` — роль
+  **пациентского входа**, с наименьшими правами в системе;
+- то есть пароль от почтового сервера читается в обход всех стен на таблице настроек.
+
+**Из 25 девять ПИШУТ в базу с правами владельца:** `enforce_courses_snapshot_quota` (организации, курсы,
+пробные периоды), `record_operator_delivery_attempt` (очередь исходящих отправок), `set_saas_isolation_test_scenario`
+и ещё две по телеметрии изоляции, `mark_operator_incident_alert_sent`, две по статистике воспроизведения,
+`list_web_push_reminder_organization_ids` (вопреки имени пишет в правила напоминаний).
+Из читающих опасна ещё `read_curated_system_health_pre_0196` — читает 15 таблиц разом, включая настройки
+и очередь отправок.
+
+**Отдельно:** роль пациентского входа имеет **прямой `SELECT`** на `public.platform_users` — имена, телефоны,
+почта. Перекликается с известной находкой 25.07 о том, что эта таблица — единственная стена на персональных
+данных.
+
+**Мировая практика (исследована 29.07): резать ВСЕ, а не выборочно.** Разделять по «опасности» значит снова
+вести список руками. Три шага:
+
+1. `REVOKE ALL ON FUNCTION … FROM PUBLIC` для каждой definer-функции, затем выдать выполнение поимённо тем
+   ролям, которым оно нужно;
+2. `ALTER DEFAULT PRIVILEGES REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC` — чтобы новые функции появлялись уже
+   закрытыми. Это правило, а не снимок: сопровождать нечего, дыра не может вернуться;
+3. `SET search_path` на каждой такой функции — здесь уже сделано.
+
+Источники: [Cybertec — Abusing SECURITY DEFINER functions](https://www.cybertec-postgresql.com/en/abusing-security-definer-functions/),
+[Cybertec — 12 rules for database hardening](https://www.cybertec-postgresql.com/en/postgresql-security-things-to-avoid-in-real-life/),
+[PostgreSQL — function privileges](https://runebook.dev/en/docs/postgresql/perm-functions).
+
+**Контур.** Правка пишется в файл деплоя; на dev применяет лид для проверки; на ТЕСТ и ПРОД попадает вместе
+с деплоем, **который запускает владелец**. Прод лид не трогает.
+
+**Проверено только на dev.** На проде набор ролей может отличаться — проверить отдельно перед выкатом.
+
+- [ ] Отобрать право выполнения у PUBLIC для всех 122 definer-функций, выдать поимённо
+- [ ] Поставить `ALTER DEFAULT PRIVILEGES` так, чтобы новые функции появлялись закрытыми
+- [ ] Разобрать прямой `SELECT` роли пациентского входа на `public.platform_users`
+- [ ] Проверить те же права на ТЕСТЕ и на ПРОДЕ (прод — владелец)
