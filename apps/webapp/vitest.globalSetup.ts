@@ -11,6 +11,11 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default async function globalSetup() {
+  if (process.env.USE_REAL_DATABASE !== '1') {
+    process.env.DATABASE_URL = '';
+    return;
+  }
+
   config({ path: path.join(__dirname, '.env'), quiet: true });
   if (!process.env.DATABASE_URL) {
     config({ path: path.join(__dirname, '.env.dev'), quiet: true });

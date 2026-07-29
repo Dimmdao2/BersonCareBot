@@ -52,7 +52,9 @@ Wrapper/throttling остаётся допустимым по ситуации: 
 
 - Все тесты integrator: `pnpm test` (корень) или `pnpm --dir apps/integrator test` без аргументов после Vitest
 - Все тесты webapp: `pnpm test:webapp` или `pnpm --dir apps/webapp test` без аргументов
-- Узкий webapp: `pnpm test:webapp:fast` (проект Vitest `fast`) или `pnpm test:webapp:inprocess` (проект `inprocess`; в GitHub Actions только на `push` в `main`)
+- Новые DB-free категории webapp: `pnpm test:webapp:unit`, `pnpm test:webapp:route`,
+  `pnpm test:webapp:ui`; все три с отдельным zero-file fail — `pnpm test:webapp:behavior`.
+- `pnpm test:webapp:fast` — только временный legacy-project до завершения cutover; новые тесты туда не добавляются.
 
 ### Webapp Vitest / e2e: не раздувать
 

@@ -60,15 +60,9 @@ jobs:
           VITEST_SHARD: ${{ matrix.shard }}/3
       - uses: ./.github/actions/cancel-on-failure
 
-  test-webapp-inprocess:
-    name: Test (webapp in-process ${{ matrix.shard }}/3)
-    # Heavy suite: gates the manual production deploy button on main.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+  test-webapp-behavior:
+    name: Test (webapp unit / route / UI)
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/setup-pnpm
@@ -77,12 +71,10 @@ jobs:
           path: |
             apps/webapp/node_modules/.vite
             apps/webapp/node_modules/.experimental-vitest-cache
-          key: vitest-webapp-${{ runner.os }}-s${{ matrix.shard }}-${{ hashFiles('pnpm-lock.yaml', 'apps/webapp/vitest.config.ts', 'apps/webapp/vitest.setup.ts', 'apps/webapp/vitest.globalSetup.ts') }}
+          key: vitest-webapp-behavior-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'apps/webapp/vitest.config.ts', 'apps/webapp/vitest.setup.ts', 'apps/webapp/vitest.ui.setup.ts', 'apps/webapp/vitest.globalSetup.ts') }}
           restore-keys: |
             vitest-webapp-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
-      - run: pnpm test:webapp:inprocess
-        env:
-          VITEST_SHARD: ${{ matrix.shard }}/3
+      - run: pnpm test:webapp:behavior
       - uses: ./.github/actions/cancel-on-failure
 
   build-integrator:

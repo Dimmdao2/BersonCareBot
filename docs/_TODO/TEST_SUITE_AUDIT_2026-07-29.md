@@ -835,11 +835,10 @@ HOW-A тратил 8–15 дней, мутируя 200 файлов, чтобы 
     `670a650104b59014da07d88551db4b17806bf982230bd6b21870050d0b23a861` — ровно SHA-256 текущего committed
     `0175_p0_8_b4_roles_1_is_staff_wall_rls.sql`. Следовательно, TEST соответствует текущей 0175, а устарел
     A0 manifest; PROD не открывался.
-  - **Разблокировка DEV 30.07:** по решению владельца из preflight удалён дублирующий ручной product-role
-    allowlist; exact DEV owner/runtime, опасные атрибуты, доступ к `app_owner`, ownership и execute RLS/ACL
-    closure сохранены. `bash deploy/host/dev-runtime-overlay-rehydrate.sh --preflight` → `PASS`;
-    `bash deploy/host/migrate-dev.sh --preflight` → `PASS`, без изменений БД. Следующий шаг G0 — штатно
-    мигрировать DEV, обновить его из TEST, пересобрать A0 и прогнать static+disposable proof.
+  - **Решение владельца 30.07, заменяет прежнюю «разблокировку DEV»:** TEST→DEV refresh,
+    `dev-runtime-overlay-rehydrate` и пересоздание `bcb_webapp_dev` не нужны этой работе и удаляются. Общие миграции
+    применяются к существующей DEV обычным `migrate-dev`; G0 сверяет TEST/A0 и строит disposable-PostgreSQL proof,
+    не копируя TEST в DEV и не восстанавливая роли отдельным overlay-скриптом.
 - **G1 — калибровка** (после первого рабочего примера + первой инъекции A1): утвердить конфиг Stryker, РЕАЛЬНУЮ
   стоимость на тяжёлом Next-графе (пилоты были leaf-модули — оценка ×2–3 на `infra/repos`/`app-layer`), цели
   score. Ни один тир не стартует до G1.
@@ -951,16 +950,26 @@ HOW-A тратил 8–15 дней, мутируя 200 файлов, чтобы 
 
 **Runner/CI — предусловие авторинга, а не последующая уборка:**
 
-- [ ] Для каждого утверждённого suffix доказать реальный маршрут `файл → Vitest project → environment → CI job`:
-  `*.unit.test.ts`, `*.route.test.ts`, `*.ui.test.tsx`, `*.postgres.integration.test.ts`.
-- [ ] `*.ui.test.tsx` запускать в DOM-среде; node-only проект не считается поддержкой UI-категории.
-- [ ] `*.postgres.integration.test.ts` не должен попадать в DB-free fast-shard; категория открывается автору только
-  после disposable-PostgreSQL job за G0/T1.
-- [ ] Висячий `include` и проект/job, совпавший с нулём файлов, должны давать красный механический гейт. Зелёный
-  «прогон нуля тестов» запрещён.
-- [ ] Удалить или исправить stale test-runner paths/aliases только после точной сверки: аудит указал
-  `apps/webapp/vitest.config.ts:31-34,45-47` и `apps/webapp/package.json:22`; пустоту/висячесть перепроверить
-  текущей командой перед правкой.
+- [x] Для активных DB-free suffix доказан маршрут `файл → Vitest project → environment → CI job`:
+  `*.unit.test.ts → unit/node`, `*.route.test.ts → route/node`, `*.ui.test.tsx → ui/jsdom`;
+  `.github/workflows/ci.yml` вызывает `pnpm test:webapp:behavior`, а команда
+  `pnpm test:webapp:behavior` 30.07 прошла как 2 unit-файла/7 тестов, 1 route-файл/3 теста,
+  1 UI-файл/2 теста.
+- [ ] Построить маршрут `*.postgres.integration.test.ts → disposable PostgreSQL project/job` после G0/T1.
+- [x] `*.ui.test.tsx` запускается в DOM-среде: project `ui` использует `jsdom` и отдельный
+  `vitest.ui.setup.ts`; пилот `PatientHomeBlockRuntimeStatusBadge.ui.test.tsx` прошёл 2 теста.
+- [x] `*.postgres.integration.test.ts` исключён из DB-free `fast`; категория не включена ни в один активный
+  project и остаётся закрыта до disposable-PostgreSQL job за G0/T1.
+- [x] Каждая активная категория вызывается отдельной Vitest-командой, поэтому ноль файлов красный:
+  `pnpm --dir apps/webapp exec vitest --run --project=route __zero_file_gate_probe__` завершился кодом 1 с
+  `No test files found`; CI вызывает последовательный `test:behavior`.
+- [x] Удалены stale test-runner paths/aliases после точной сверки указанных Opus мест:
+  отсутствующий entitlement include, пустой `inprocess` project/job/alias и `test:with-db` с удалёнными путями;
+  временный `fast` оставлен только для существующего legacy cutover.
+- Проверка этапа 30.07: `/home/dev/brain/host-orch/run-tests.sh "pnpm run ci"` прошла lint, typecheck, integrator/
+  webapp/media-worker tests и обе сборки; финальный `check-saas-db-regression` остановился на двух новых таблицах
+  #1065 без записи в `tiers-218.tsv`. Blocker передан владельцу #1065; тестовая инфраструктура его не маскирует и
+  повторный full CI не запускает.
 - [ ] Составить внутри этого плана карту `инвариант → действующий CI workflow:line`. Сиротский script, выключенный
   workflow или package alias без вызывающего CI не разрешает пометить инвариант «уже защищён».
 - [ ] Повторно пропустить keep-set через фильтр формы: аудит указал SQL-text assertion

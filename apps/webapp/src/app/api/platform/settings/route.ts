@@ -21,7 +21,7 @@ import { normalizePlatformIntegrationAvailability } from '@/modules/system-setti
  * Each key is an explicit platform-global operator action; N1A now includes
  * its four boolean auth-channel policy keys.
  */
-export const PLATFORM_GLOBAL_SETTINGS_API_KEYS = [
+const PLATFORM_GLOBAL_SETTINGS_API_KEYS = [
   'debug_forward_to_admin',
   'specialist_signup_enabled',
   'patient_unsupported_client_fallback_enabled',
