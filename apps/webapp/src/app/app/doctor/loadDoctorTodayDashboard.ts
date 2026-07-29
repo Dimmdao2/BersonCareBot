@@ -22,6 +22,7 @@ import type { IntakeRequestWithPatientIdentity, IntakeType } from '@/modules/onl
 import type { DoctorProactiveInsightsPort } from '@/modules/doctor-proactive-insights/ports';
 import type { ProactiveInsightKind } from '@/modules/doctor-proactive-insights/types';
 import { DOCTOR_TODAY_PROACTIVE_INSIGHTS_PREVIEW_LIMIT } from '@/modules/doctor-proactive-insights/constants';
+import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import {
   DEFAULT_DOCTOR_TODAY_PREFERENCES,
   type DoctorTodayPeopleListMode,
@@ -234,7 +235,10 @@ export function mapAppointmentToTodayItem(row: AppointmentRow): TodayAppointment
   };
 }
 
-export function mapIntakeToTodayItem(row: IntakeRequestWithPatientIdentity): TodayIntakeItem {
+export function mapIntakeToTodayItem(
+  row: IntakeRequestWithPatientIdentity,
+  timeZone?: string,
+): TodayIntakeItem {
   const label = INTAKE_TYPE_LABELS[row.type] ?? row.type;
   const summaryPreview = truncateText(row.summary);
   return {
@@ -244,7 +248,7 @@ export function mapIntakeToTodayItem(row: IntakeRequestWithPatientIdentity): Tod
     typeLabel: label,
     summary: row.summary,
     summaryPreview,
-    createdAtLabel: formatDateTimeRu(row.createdAt),
+    createdAtLabel: formatDateTimeRu(row.createdAt, timeZone),
     href: `/app/doctor/online-intake/${encodeURIComponent(row.id)}`,
   };
 }
@@ -267,12 +271,13 @@ export function mapClientToTodayItem(row: ClientListItem): TodayPeopleItem {
 
 export function mapConversationToTodayItem(
   row: TodayConversationSourceRow,
+  timeZone?: string,
 ): TodayUnreadConversationItem {
   return {
     conversationId: row.conversationId,
     displayName: row.displayName.trim() || '—',
     phoneNormalized: row.phoneNormalized,
-    lastMessageAtLabel: formatDateTimeRu(row.lastMessageAt),
+    lastMessageAtLabel: formatDateTimeRu(row.lastMessageAt, timeZone),
     lastMessageText: row.lastMessageText,
     lastMessagePreview: truncateText(row.lastMessageText),
     unreadFromUserCount: row.unreadFromUserCount,
@@ -529,7 +534,8 @@ export async function loadDoctorTodayDashboard(
   });
 
   const [pendingProgramTestsTotal, pendingRows] = pendingTestsResult;
-  const pendingProgramTests = mapPendingProgramTestsForToday(pendingRows);
+  const appDisplayTimeZone = await getAppDisplayTimeZone();
+  const pendingProgramTests = mapPendingProgramTestsForToday(pendingRows, appDisplayTimeZone);
   const pendingProgramTestsTruncated =
     pendingProgramTestsTotal > DOCTOR_TODAY_PENDING_TESTS_PREVIEW_LIMIT;
   const proactiveInsights = mapProactiveInsightsForToday(proactiveResult.items);
@@ -541,8 +547,10 @@ export async function loadDoctorTodayDashboard(
     todayAppointments: todayRaw.map(mapAppointmentToTodayItem),
     weekAppointments: weekRaw.map(mapAppointmentToTodayItem),
     monthAppointments: monthRaw.map(mapAppointmentToTodayItem),
-    newIntakeRequests: newIntake.items.map(mapIntakeToTodayItem),
-    unreadConversations: unreadConversations.map(mapConversationToTodayItem),
+    newIntakeRequests: newIntake.items.map((row) => mapIntakeToTodayItem(row, appDisplayTimeZone)),
+    unreadConversations: unreadConversations.map((row) =>
+      mapConversationToTodayItem(row, appDisplayTimeZone),
+    ),
     unreadTotal,
     upcomingAppointments: getUpcomingAppointments(todayRaw, weekRaw, 5),
     peopleListMode: preferences.peopleListMode,

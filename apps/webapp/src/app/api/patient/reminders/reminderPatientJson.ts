@@ -1,5 +1,6 @@
 import type { ReminderRule } from '@/modules/reminders/types';
 import type { SlotsV1ScheduleData } from '@/modules/reminders/scheduleSlots';
+import { DEFAULT_APP_DISPLAY_TIMEZONE } from '@/modules/system-settings/appDisplayTimezone';
 
 /** JSON shape returned by patient reminder APIs (create/PATCH responses). */
 export type PatientReminderRuleJson = {
@@ -22,7 +23,10 @@ export type PatientReminderRuleJson = {
   updatedAt: string;
 };
 
-export function reminderRuleToPatientJson(r: ReminderRule): PatientReminderRuleJson {
+export function reminderRuleToPatientJson(
+  r: ReminderRule,
+  appDisplayTimeZone = DEFAULT_APP_DISPLAY_TIMEZONE,
+): PatientReminderRuleJson {
   return {
     id: r.id,
     category: r.category,
@@ -33,7 +37,7 @@ export function reminderRuleToPatientJson(r: ReminderRule): PatientReminderRuleJ
     daysMask: r.daysMask,
     scheduleType: r.scheduleType ?? 'interval_window',
     scheduleData: r.scheduleData,
-    timezone: r.timezone?.trim() || 'Europe/Moscow',
+    timezone: r.timezone?.trim() || appDisplayTimeZone,
     quietHoursStartMinute: r.quietHoursStartMinute ?? null,
     quietHoursEndMinute: r.quietHoursEndMinute ?? null,
     linkedObjectType: r.linkedObjectType,

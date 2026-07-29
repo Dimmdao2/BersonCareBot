@@ -21,6 +21,7 @@ import type {
   ListDoctorExerciseCommentsInput,
 } from '@/modules/program-item-discussion/types';
 import type { TodayExerciseCommentAttentionItem } from '../loadDoctorExerciseCommentAttention';
+import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import { formatDateTimeRu } from '../doctorTodayFormat';
 import { patientProgramInstanceHref } from '../patients/patientProgramInstanceHref';
 
@@ -50,6 +51,7 @@ export async function loadDoctorExerciseCommentsForTab(
   hasMore: boolean;
 }> {
   const limit = options?.limit ?? DOCTOR_EXERCISE_COMMENTS_TAB_PAGE_SIZE;
+  const appDisplayTimeZone = await getAppDisplayTimeZone();
   const audience = context.excludedUserIds?.length
     ? { excludedUserIds: context.excludedUserIds }
     : undefined;
@@ -85,7 +87,7 @@ export async function loadDoctorExerciseCommentsForTab(
     stageItemId: row.stageItemId,
     stageItemTitle: row.stageItemTitle || 'Упражнение',
     latestMessage: row.latestMessage,
-    latestMessageAtLabel: formatDateTimeRu(row.latestMessage.createdAt),
+    latestMessageAtLabel: formatDateTimeRu(row.latestMessage.createdAt, appDisplayTimeZone),
     href: patientProgramInstanceHref(row.patientUserId, row.instanceId, {
       discussionItemId: row.stageItemId,
     }),

@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import { parseCalendarQuery } from '@/app-layer/booking/parseCalendarQuery';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { resolveDoctorCalendarIana } from '@/app-layer/booking/resolveDoctorCalendarIana';
+import {
+  DEFAULT_APP_DISPLAY_TIMEZONE,
+  getAppDisplayTimeZone,
+} from '@/modules/system-settings/appDisplayTimezone';
 import { requireDoctorBookingEngine } from '../_requireDoctorBookingEngine';
 
 export async function GET(request: Request) {
@@ -13,8 +17,11 @@ export async function GET(request: Request) {
   }
 
   // Resolve effective doctor timezone: personal TZ ?? app_display_timezone
+  const appDisplayTimeZone = await getAppDisplayTimeZone().catch(
+    () => DEFAULT_APP_DISPLAY_TIMEZONE,
+  );
   const timeZone = await resolveDoctorCalendarIana(gate.ctx.session.user.userId).catch(
-    () => 'Europe/Moscow',
+    () => appDisplayTimeZone,
   );
   const parsed = parseCalendarQuery(new URL(request.url).searchParams, timeZone);
   if ('error' in parsed) {

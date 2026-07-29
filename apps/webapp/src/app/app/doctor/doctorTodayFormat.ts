@@ -16,8 +16,9 @@ export function truncateText(
   return `${t.slice(0, max - 1)}…`;
 }
 
-export function formatDateTimeRu(iso: string, timeZone = 'Europe/Moscow'): string {
+export function formatDateTimeRu(iso: string, timeZone = DEFAULT_APP_DISPLAY_TIMEZONE): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short', timeZone });
 }
+import { DEFAULT_APP_DISPLAY_TIMEZONE } from '@/modules/system-settings/appDisplayTimezone';

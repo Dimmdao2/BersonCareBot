@@ -7,6 +7,10 @@ import type { UpdateRuleData } from '@/modules/reminders/service';
 import type { SlotsV1ScheduleData } from '@/modules/reminders/scheduleSlots';
 import { SLOTS_V1_DB_PLACEHOLDER } from '@/modules/reminders/scheduleSlots';
 import { reminderRuleToPatientJson } from '../reminderPatientJson';
+import {
+  DEFAULT_APP_DISPLAY_TIMEZONE,
+  getAppDisplayTimeZone,
+} from '@/modules/system-settings/appDisplayTimezone';
 
 function parseQuietFromSchedule(
   schedule: Record<string, unknown>,
@@ -154,7 +158,10 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
   revalidatePath(routePaths.patient);
   return NextResponse.json({
     ok: true,
-    reminder: reminderRuleToPatientJson(res.data),
+    reminder: reminderRuleToPatientJson(
+      res.data,
+      await getAppDisplayTimeZone().catch(() => DEFAULT_APP_DISPLAY_TIMEZONE),
+    ),
     ...(res.syncWarning ? { syncWarning: res.syncWarning } : {}),
   });
 }

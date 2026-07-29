@@ -19,6 +19,7 @@ export type TodayPendingProgramTestItem = {
 
 export function mapPendingProgramTestsForToday(
   rows: readonly PendingProgramTestEvaluationGlobalRow[],
+  timeZone?: string,
 ): TodayPendingProgramTestItem[] {
   const attemptOrder: string[] = [];
   for (const row of rows) {
@@ -43,7 +44,7 @@ export function mapPendingProgramTestsForToday(
       instanceTitle: g.instanceTitle,
       stageTitle: g.stageTitle,
       pendingCount: g.results.length,
-      submittedAtLabel: formatDateTimeRu(g.attemptSubmittedAt),
+      submittedAtLabel: formatDateTimeRu(g.attemptSubmittedAt, timeZone),
       href: patientCardHref(patientUserId),
     };
   });

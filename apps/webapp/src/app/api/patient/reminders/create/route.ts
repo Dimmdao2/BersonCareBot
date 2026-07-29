@@ -7,6 +7,10 @@ import type { ReminderLinkedObjectType } from '@/modules/reminders/types';
 import type { SlotsV1ScheduleData } from '@/modules/reminders/scheduleSlots';
 import { SLOTS_V1_DB_PLACEHOLDER } from '@/modules/reminders/scheduleSlots';
 import { reminderRuleToPatientJson } from '../reminderPatientJson';
+import {
+  DEFAULT_APP_DISPLAY_TIMEZONE,
+  getAppDisplayTimeZone,
+} from '@/modules/system-settings/appDisplayTimezone';
 import { PATIENT_REHAB_PROGRAM_LINKED_PLACEHOLDER } from '@/modules/reminders/rehabProgramLinkedObject';
 
 const LINKED_TYPES = new Set<ReminderLinkedObjectType>([
@@ -175,7 +179,10 @@ export async function POST(req: Request) {
   return NextResponse.json(
     {
       ok: true,
-      reminder: reminderRuleToPatientJson(res.data),
+      reminder: reminderRuleToPatientJson(
+        res.data,
+        await getAppDisplayTimeZone().catch(() => DEFAULT_APP_DISPLAY_TIMEZONE),
+      ),
       ...(res.syncWarning ? { syncWarning: res.syncWarning } : {}),
     },
     { status: 201 },

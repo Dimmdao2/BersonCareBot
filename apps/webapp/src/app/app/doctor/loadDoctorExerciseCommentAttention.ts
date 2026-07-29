@@ -15,6 +15,7 @@ import type {
   TreatmentProgramInstanceSummary,
 } from '@/modules/treatment-program/types';
 import { pickActivePlanInstance } from '@/modules/treatment-program/pickActivePlanInstance';
+import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import { formatDateTimeRu } from './doctorTodayFormat';
 import { patientProgramInstanceHref } from './patients/patientProgramInstanceHref';
 import {
@@ -107,6 +108,7 @@ export async function loadDoctorExerciseCommentAttention(
   total: number;
   truncated: boolean;
 }> {
+  const appDisplayTimeZone = await getAppDisplayTimeZone();
   if (
     !deps.programItemDiscussion ||
     !deps.treatmentProgramInstance ||
@@ -178,7 +180,7 @@ export async function loadDoctorExerciseCommentAttention(
               stageItemTitle: stageItemSnapshotTitle(item.snapshot),
               thumb: firstSnapshotMedia(item.snapshot),
               latestMessage: latest,
-              latestMessageAtLabel: formatDateTimeRu(latest.createdAt),
+              latestMessageAtLabel: formatDateTimeRu(latest.createdAt, appDisplayTimeZone),
               href: patientProgramInstanceHref(patientUserId, active.id, {
                 discussionItemId: stageItemId,
               }),

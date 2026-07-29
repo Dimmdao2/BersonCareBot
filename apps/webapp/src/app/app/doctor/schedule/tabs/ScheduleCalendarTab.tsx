@@ -16,6 +16,7 @@ import {
   doctorStatCardInteractiveClass,
 } from '@/shared/ui/doctor/doctorVisual';
 import { cn } from '@/lib/utils';
+import { DEFAULT_APP_DISPLAY_TIMEZONE } from '@/modules/system-settings/appDisplayTimezone';
 import { DoctorCalendarEventPanel } from '../../calendar/DoctorCalendarEventPanel';
 import {
   DoctorCalendarRescheduleDialog,
@@ -838,7 +839,7 @@ export function ScheduleCalendarTab({
   initialTimeZone,
 }: ScheduleTabProps) {
   // ─── State ─────────────────────────────────────────────────────────────────
-  const [timeZone] = useState(initialTimeZone ?? 'Europe/Moscow');
+  const [timeZone] = useState(initialTimeZone ?? DEFAULT_APP_DISPLAY_TIMEZONE);
   const [view, setViewState] = useState<CalV26View>(() => resolveView(deepLinkParams.view));
   const [anchorDate, setAnchorDateState] = useState<string>(() =>
     resolveAnchorDate(deepLinkParams.date, timeZone),

@@ -10,6 +10,7 @@ import {
   type WorkingHoursRow,
 } from '@/modules/booking-scheduling/computeSlots';
 import type { WorkingDayRecord } from '@/modules/booking-scheduling/ports';
+import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import { DateTime } from 'luxon';
 import type { BookingCalendarPort, BookingCalendarService } from './ports';
 import type {
@@ -133,7 +134,7 @@ async function listWorkingAndBreakEvents(
   filters: CalendarFilters,
   schedulingPort: BookingSchedulingPort,
 ): Promise<{ working: CalendarWorkingEvent[]; breaks: CalendarBreakEvent[] }> {
-  const timeZone = filters.timeZone ?? 'Europe/Moscow';
+  const timeZone = filters.timeZone ?? (await getAppDisplayTimeZone());
   const dateKeys = enumerateDateKeys(filters.rangeStart, filters.rangeEnd, timeZone);
 
   const [rows, perDayRows] = await Promise.all([
@@ -215,11 +216,13 @@ async function listWorkingAndBreakEvents(
 export function createBookingCalendarService(deps: Deps): BookingCalendarService {
   return {
     async getCalendar(filters: CalendarFilters): Promise<CalendarAggregate> {
+      const timeZone = filters.timeZone ?? (await getAppDisplayTimeZone());
+      const effectiveFilters = { ...filters, timeZone };
       const showWorkingHours = deps.resolveShowWorkingHours
         ? await deps.resolveShowWorkingHours()
         : true;
       const [appointmentEvents, blocks, filterMeta, workingAndBreak] = await Promise.all([
-        deps.calendarPort.listAppointmentsInRange(filters),
+        deps.calendarPort.listAppointmentsInRange(effectiveFilters),
         deps.listScheduleBlocks({
           organizationId: filters.organizationId,
           rangeStart: filters.rangeStart,
@@ -227,7 +230,7 @@ export function createBookingCalendarService(deps: Deps): BookingCalendarService
         }),
         deps.calendarPort.listFilterMeta(filters.organizationId),
         deps.schedulingPort && showWorkingHours
-          ? listWorkingAndBreakEvents(filters, deps.schedulingPort)
+          ? listWorkingAndBreakEvents(effectiveFilters, deps.schedulingPort)
           : Promise.resolve({ working: [], breaks: [] }),
       ]);
 
@@ -240,7 +243,6 @@ export function createBookingCalendarService(deps: Deps): BookingCalendarService
         )
         .map(mapBlock);
 
-      const timeZone = filters.timeZone ?? 'Europe/Moscow';
       const workingBounds = showWorkingHours
         ? deriveWorkingBounds(workingAndBreak.working, timeZone)
         : null;

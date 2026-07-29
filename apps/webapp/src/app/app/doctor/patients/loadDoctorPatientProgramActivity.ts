@@ -12,6 +12,7 @@
  * интересует именно последнее по упражнению (что и возвращают эти запросы).
  */
 import type { ProgramItemDiscussionPort } from '@/modules/program-item-discussion/ports';
+import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import { formatDateTimeRu } from '../doctorTodayFormat';
 
 export type DoctorPatientProgramActivity = {
@@ -40,6 +41,7 @@ export async function loadDoctorPatientProgramActivity(
   deps: DoctorPatientProgramActivityDeps,
   params: { patientUserId: string; viewerUserId: string; organizationId?: string },
 ): Promise<DoctorPatientProgramActivity> {
+  const appDisplayTimeZone = await getAppDisplayTimeZone();
   const patientUserIds = [params.patientUserId];
 
   const [unreadRows, latestRows] = await Promise.all([
@@ -61,7 +63,7 @@ export async function loadDoctorPatientProgramActivity(
   const lastMark = latest
     ? {
         atIso: latest.latestMessage.createdAt,
-        atLabel: formatDateTimeRu(latest.latestMessage.createdAt),
+        atLabel: formatDateTimeRu(latest.latestMessage.createdAt, appDisplayTimeZone),
         stageItemTitle: latest.stageItemTitle || 'Упражнение',
         body: latest.latestMessage.body,
       }
