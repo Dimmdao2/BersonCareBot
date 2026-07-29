@@ -604,6 +604,20 @@ workstream-карточку `#1057`. Он не заменяет этапы S4 в
 - [ ] Дать global admin настройку included invited-specialist count и/или per-seat surcharge.
 - [ ] Зафиксировать и реализовать contracts для over-limit, add-seat, downgrade, existing overage и связь с
       billing; C4A уже готов, C5C доплаты за места остаётся после billing.
+- [ ] Active specialist binding и pending invite потребляют/резервируют seat, non-clinical admin — нет; included
+      count и per-seat price/purchase moment остаются tariff data; downgrade/over-limit сохраняют memberships и
+      блокируют новый growth.
+- [ ] Переиспользовать C4A server-side seat usage/limit contract и C5B billing
+      account/order/subscription primitives.
+- [ ] Построить payer-authorized add-on checkout/order → idempotent confirmed payment → subscription seat
+      allocation; client payload не задаёт org, цену, количество или payment success.
+- [ ] Обрабатывать replay, failed/past_due/refund/cancel/downgrade строго по утверждённой policy; existing
+      memberships не удаляются молча, а новые invites блокируются/разрешаются сервером по effective paid limit.
+- [ ] Скрыть billing mutation от ordinary specialist и проверить direct API denial.
+- [ ] Закрыть org A/B isolation, immutable before/after audit, reconciliation, mock/recorded-provider TEST и
+      organization «Тариф и биллинг» acceptance. Product gates C4C5-01…07 resolved by the 2026-07-19 addendum;
+      real PSP activation remains blocked until YooKassa merchant/legal/receipt/retry/proration operations are
+      specified and proven. C4C5-08 store commerce remains deferred.
 
 Authority карточки: `SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md` §§P1,15; roadmap C4A/C5C.
 `auto_ok=false`.

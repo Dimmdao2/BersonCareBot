@@ -700,6 +700,77 @@ execution plan, а owner запретил сворачивать карточк�
 | **H-7** | Адрес в указателе: я задал `ВЕДЁТСЯ В <файл>:<строка>`, аудит через час нашёл 13 из 26 указателей битыми — номера строк сдвигаются от любой правки выше. Поменял форму на `<файл> §<раздел> — «первые слова требования»`. Это отступление от вашей формулировки | аудит `audit-e3-saas-0729` | Оставить якорь по разделу. Номер строки врёт молча и выглядит рабочим — это худший вид ошибки в учёте |
 | **H-8** | Две связи потеряны при разборе тарифов: (а) «применить выбранную trial-policy при СОЗДАНИИ организации» — в `SAAS_S4` есть только «добавить global trial-policy», то есть настройка, а не применение; (б) «checkout URL + return/status page с server-derived проверкой invoice/org» — в S4 есть только вкладка «Тариф и биллинг». Работа существует, а места ей нет | повторный аудит `reaudit-e3-saas-0729` | Требования возвращены в `- [ ]` в `TARIFFS_PAYMENTS_ADMIN_PLAN.md` и ждут вас: завести им пункт в `SAAS_S4` или признать отменёнными. Исполнителю решать это запрещено |
 
+## Дополнение 29.07 — чек-листы и статусы `IMPLEMENTATION_ROADMAP` (`#1075`)
+
+Решение владельца, дословно:
+
+> «в роадмапе мы удаляем чек-листы и оставляем порядок и зависимости»
+>
+> «переносим и удаляем — согласен»
+
+- [x] Инвентаризированы все стандартные боксы вне fenced code по команде владельца: **13**, все в
+      `SAAS_PRODUCT_UX_INITIATIVE/IMPLEMENTATION_ROADMAP.md` §12. — доказательство: повтор команды даёт `13`.
+- [x] Убраны протухающие inline status/completion markers и historical status snapshots: **157 → 13**
+      вхождений `\[[ x-]\]`; порядок, dependency edges и owner gates сохранены. — доказательство:
+      `rg -o '\[[ x-]\]' .../IMPLEMENTATION_ROADMAP.md | wc -l` → `13`.
+- [x] Единственный уникальный inline execution checklist C5C — policy lead-in и пять шагов — перенесён в настоящий
+      план своей работы. —
+      доказательство: `SAAS_FOUNDATION/SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §16
+      «`#843` — clinic/team entitlement и места».
+- [x] Протухшие blocker/status snapshots сверены без вызова taskdb по read-only снимку
+      `/home/dev/dev-projects/.lead/taskdb-cleanup/all-cards.txt` от `2026-07-29 15:04 +03:00` и удалены из
+      роадмапа; живые dependency gates оставлены. — доказательство: UI cluster явно сохраняет
+      `#971 → #796`, owner gates `#964`/`#848` и public proof `#926`; остальные owner/operational gates остаются
+      в своих stage-зависимостях.
+
+### Инвентаризация 13 боксов
+
+Все 13 строк относятся к одной работе: **U10 / cross-stage final implementation acceptance**. Отдельного
+execution checklist этой работы среди linked plans нет; `IMPLEMENTATION_ROADMAP` по `TASKDB_RULES.md` §3a
+каноническим планом быть не может. Поэтому по железному правилу владельца ни одна из этих строк не удалена и новый
+план не создан.
+
+| Бокс роадмапа | Работа | Куда перенесён | Удалён |
+| --- | --- | --- | --- |
+| каждый включённый stage имеет worker evidence, полный независимый audit и закрытый re-audit/follow-up | U10 final acceptance | плана нет; остаётся `IMPLEMENTATION_ROADMAP` §12 | нет |
+| все dated owner outcomes traced; launch реализован, future/deferred/rejected ветви отсутствуют | U10 final acceptance | плана нет; остаётся `IMPLEMENTATION_ROADMAP` §12 | нет |
+| foundation/enforcement handoff без изменения `SEQUENCE.md` и дублирования principal/settings/membership paths | U10 final acceptance | плана нет; остаётся `IMPLEMENTATION_ROADMAP` §12 | нет |
+| `57/57` canonical screen IDs и актуальный denominator current pages согласованы | U10 final acceptance | плана нет; остаётся `IMPLEMENTATION_ROADMAP` §12 | нет |
+| J1/J3–J7, отсутствие J2, manual patient/card/appointment/walk-in, linking/recovery/install/public booking/multi-org/card-history acceptance | U10 final acceptance | плана нет; остаётся `IMPLEMENTATION_ROADMAP` §12 | нет |
+| role/capability/tenant/patient/direct-object/parity matrices зелёные | U10 final acceptance | плана нет; остаётся `IMPLEMENTATION_ROADMAP` §12 | нет |
+| migrations/backfills имеют ownership, forward/rollback/idempotency/compatibility evidence | U10 final acceptance | плана нет; остаётся `IMPLEMENTATION_ROADMAP` §12 | нет |
+| platform-domain fallback, core org context, custom-sender truthfulness и optional degradation доказаны | U10 final acceptance | плана нет; остаётся `IMPLEMENTATION_ROADMAP` §12 | нет |
+| нет duplicate solo/clinic/assistant/card/booking/account/branded-app families | U10 final acceptance | плана нет; остаётся `IMPLEMENTATION_ROADMAP` §12 | нет |
+| targeted checks, typecheck, lint, builds, DB/runtime smoke и final full CI зелёные | U10 final acceptance | плана нет; остаётся `IMPLEMENTATION_ROADMAP` §12 | нет |
+| final desktop/mobile/PWA screenshots source-bound и два visual/usability seals | U10 final acceptance | плана нет; остаётся `IMPLEMENTATION_ROADMAP` §12 | нет |
+| `ROADMAP.md`, `LOG.md`, route map и runbooks синхронизированы, устаревший текст помечен | U10 final acceptance | плана нет; остаётся `IMPLEMENTATION_ROADMAP` §12 | нет |
+| commit/push/merge/deploy только в разрешённые ветки/среды, TEST/prod — с owner approval | U10 final acceptance | плана нет; остаётся `IMPLEMENTATION_ROADMAP` §12 | нет |
+
+### Сверка протухших блокировок
+
+Статусы ниже — только из указанного read-only снимка карточек; в роадмап они не копируются.
+
+| Зависимость/блокировка, бывшая в роадмапе | Статус блокирующей карточки | Решение в роадмапе |
+| --- | --- | --- |
+| C5A остановлен на owner decision (`#751`) | `done`, owner acceptance pending | протухший status-block удалён |
+| S4 residual после C5A (`#939`) | `done`, owner acceptance pending | протухший blocker paragraph удалён |
+| UI-6b owner-blocked (`#963`) | `done`, owner acceptance pending | протухшая блокировка удалена |
+| UI-P2b owner-blocked (`#977`) | `done`, owner acceptance pending | протухшая блокировка удалена |
+| SEC-02 contract correction (`#900`) | `done`, owner acceptance pending | status snapshot удалён; host/PROD owner gate сохранён |
+| NTF exact field matrix (`#913`) | `done`, owner acceptance pending | status snapshot удалён; самостоятельный `#816` остаётся `blocked` |
+| LOG-01 contract correction (`#914`) | `done`, owner acceptance pending | status snapshot удалён; L2 dependency на G-03/NTF census сохранена |
+| D1 TTL/admin/SLA ruling (`#970`) | `done`, owner acceptance pending | протухший status snapshot удалён |
+| E3 parent (`#980`) → E3-A1 (`#982`) | `#980 done`; `#982 blocked` | parent-status удалён, child dependency не объявлена снятой |
+| UI-5b (`#971`) → U5A (`#796`) | `#971 todo`; `#796 doing` | живая зависимость оставлена |
+| UI-7 placement ruling (`#964`) | `todo` | живой owner gate оставлен |
+| U6B public Online proof (`#926`) | `todo` | живая зависимость оставлена |
+| SCH-G5 / triage (`#848`) | `blocked` | не объявлена разблокированной |
+| editor live TEST verification (`#931`) | `todo` | не объявлена разблокированной |
+
+После чистки роадмап хранит stage order, direct dependencies, owner/operational gates и ссылки на execution plans.
+Статусные снимки и completion summaries удалены. Единственное исключение — 13 боксов §12: они остаются ровно по
+правилу «нет плана — не удалять» и вынесены владельцу этим отчётом.
+
 
 ## Состояние плана на утро 29.07 — что закрыто и что осталось
 

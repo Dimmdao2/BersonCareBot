@@ -1,11 +1,8 @@
 # UX-09 — implementation roadmap
 
-> RE-VERIFIED 2026-07-23 (all [x] audited vs code): see docs/\_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md
-
-**Статус:** active execution on `feat/doctor-ui-rebuild`. C0-C3, C2F writer/display scope and the shared S4/S5
-foundation are integrated; C4 is in progress. Exact completion and owner-acceptance remain recorded per stage in
-this document and taskdb, and must be rechecked before launch. [`OWNER_REVIEW_2026-07-18.md`](./OWNER_REVIEW_2026-07-18.md)
-остаётся единственным источником требований, этот roadmap задаёт только порядок, зависимости и gates.
+**Жанр:** роадмап порядка и зависимостей. Статус каждой работы берётся только из её карточки, требования и
+доказательства — только из связанного execution checklist. [`OWNER_REVIEW_2026-07-18.md`](./OWNER_REVIEW_2026-07-18.md)
+остаётся единственным источником требований; этот файл не является планом исполнения.
 **Authority:** `OWNER_REVIEW_2026-07-18.md` побеждает более ранние product/UX contracts при конфликте;
 `OWNER_RULINGS_2026-07-16.md` действует в неизменённой им области. Foundation canon остаётся выше только в
 foundation/tenant/enforcement scope.
@@ -269,7 +266,7 @@ prove a feature entitlement wall.
 
 | §6 gap                 | Current fact / ownership                                                                          | Missing contract → stage/task gate                                                                                                                                                                            | Safe default                                                                            |
 | ---------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| Signup/auth            | Global identity; staff org comes from membership; specialist binding is separate.                 | Binding, first-run, 2FA/recovery → **U3S**. `#855` is unblocked by the 2026-07-19 FIO ruling: separate structured registration creates a new patient; passwordless «Войти по коду» is existing-account login. | Do not ask FIO before every OTP login; implementation remains pending.                  |
+| Signup/auth            | Global identity; staff org comes from membership; specialist binding is separate.                 | Binding, first-run, 2FA/recovery → **U3S**. The 2026-07-19 FIO ruling separates new-patient registration from passwordless existing-account login. | Do not ask FIO before every OTP login.                  |
 | Future staff invite    | Current member/invite mechanics are reuse; assistant has no launch workspace.                     | Clinic grants/seats → future **U3A/C4A** after S4-0/S4-1.                                                                                                                                                     | Unentitled team route/API absent or denied.                                             |
 | Manual patient/linking | Global patient; org-scoped relationship/enrollment; exact-org booking resolver exists.            | Card + scheduled/walk-in + verified link → **U3B**, consuming **U5A**.                                                                                                                                        | Delivery/auth creates neither enrollment nor merge.                                     |
 | SMS                    | Notification infrastructure is transport, not identity authority.                                 | Attempt/consent/suppression lifecycle → **U3B SMS-01…03**; custom sender → future **U8C**.                                                                                                                    | Email-bound route; no SMS elevation or real send.                                       |
@@ -291,10 +288,10 @@ atomic booking enrollment, patient invite/SMS lifecycle, switcher, safe booking 
 publication version, branded origin/PWA, custom sender, or commercial quota lifecycle: those belong to the named
 stages, not to a guessed schema.
 
-**No overlap and decisions.** #888/S4 is integrated and verified; C2/C3 are verified, not reimplemented. All dated
-UX08 outcomes remain classified. Resolved-future/absent nodes (`U3A`, `U5C`, `U5D`, `U8A`, `U8B`, `U8C`) remain
-absent from launch. C4C5-01…07 and #855 are resolved product-policy branches under the 2026-07-19 addendum; their
-remaining stage-specific implementation is tracked below. C4C5-08 is explicitly deferred.
+**No overlap and decisions.** S4, C2 and C3 are separate workstreams and are not reimplemented by this handoff.
+All dated UX08 outcomes remain classified. Resolved-future/absent nodes (`U3A`, `U5C`, `U5D`, `U8A`, `U8B`,
+`U8C`) remain absent from launch. C4C5-01…07 and the FIO ruling are resolved product-policy branches under the
+2026-07-19 addendum. C4C5-08 is explicitly deferred.
 
 ### 6.3 Journey ownership registry
 
@@ -302,7 +299,7 @@ remaining stage-specific implementation is tracked below. C4C5-08 is explicitly 
 | ------------------------------------------- | ------------------------------------- | --------------------------------------------------------------------- |
 | J1 specialist self-signup                   | U3S (`ACQ-01…05`)                     | U4 shared auth/session/privacy review; U6A truthful acquisition entry |
 | J2 clinic staff invite                      | Future U3A (`STF-01…08`)              | Deferred; not part of launch U4 acceptance                            |
-| J3 patient email invite                     | U3B (`PIN-01…09`)                     | Requires completed U5A; U4 convergence                                |
+| J3 patient email invite                     | U3B (`PIN-01…09`)                     | Requires U5A runtime gate; U4 convergence                              |
 | J4 patient SMS fallback                     | U3B (`SMS-01…03`)                     | Same invite/enrollment as J3; U4 verifies no auth elevation           |
 | J5 public booking continuation              | U3B (`PBK-01…08`)                     | U4 identity/enrollment convergence; U6B public projection             |
 | J6 returning multi-org patient              | U5A (`MOR-01…05`)                     | U3B consumes resolver; U4 verifies invite/install continuation        |
@@ -449,18 +446,9 @@ card; запрещено строить временный resolver, второ�
      собственной высотой строки. Уже принятую ссылку «Открыть карточку» не переделывать.
 - **Dependencies:** slices могут идти параллельно после code/taskdb dedup, если файловые scope не пересекаются;
   Rubitime UI removal координируется с C0. Existing BCB2 triage не может закрыть эти новые acceptance по совпадению
-  названия страницы. Исторический live-acceptance blocker клиентских appointment-фильтров был неполной canonical
-  историей (`be_appointments`) в прежней code-only TEST DB. Он закрыт owner-authorized full-chain rehearsal
-  2026-07-19: Rubitime/history и reviewed FIO применены до strict closure, owner organization снова имеет `228`
-  активных client rows, из них `98` с canonical appointment и `19` с будущей записью. Legacy
-  `appointment_records` fallback не возвращался. Эта подготовленная TEST-БД теперь сохраняется между обычными
-  code-only deploy; новый full reset требует отдельного решения владельца.
+  названия страницы. Новый full reset требует отдельного решения владельца.
 - **Gate:** targeted tests + typecheck/lint affected files + desktop/mobile source-bound screenshots каждого
   состояния из owner-review; независимый UI audit.
-- **Status (2026-07-20):** [x] `#850`, [x] `#851`, [x] `#852` закрыты на code-only TEST SHA `27c19a275` без
-  reset/dump. Locked smoke прошёл `22/22`; desktop/mobile evidence подтвердил одну строку ФИО, поднятый календарь
-  и скрытый deferred KPI на «Сегодня», клиентские sorting/KPI/tooltips, default week и отсутствие Rubitime, а также
-  45/55 Communications и не перекрывающийся broadcast journal. Owner acceptance остаётся отдельным слоем taskdb.
 
 #### UI-0…UI-9 — Doctor UI Rework execution cluster (owner addendum 2026-07-20)
 
@@ -482,7 +470,7 @@ card; запрещено строить временный resolver, второ�
   slices UI-4a/UI-6a не перезапускаются; выдаётся только новый owner delta/residual после current code/live census.
   Каждый presentation scope: worker + один audit; live DEV evidence на единственном `:5200` сериализуется. UI-3
   делится на cosmetics, broadcast IA и composer/backend; UI-4 presentation не смешивается с backend metrics.
-- **UI-1c appointment detail owner delta (2026-07-21, `#951`):** отдельный sibling закрытого C1 `#851`, а не
+- **UI-1c appointment detail owner delta (2026-07-21, `#951`):** отдельный sibling C1 `#851`, а не
   перезапуск всего C1. Existing calendar/Today detail получает один close-control, semantic status badge рядом с
   выделенными актуальными датой/временем, labelled branch/service/specialist с solo-aware specialist row, без
   Rubitime service data и дублирующих status/patient links; исходное время показывается только после реального
@@ -515,44 +503,28 @@ card; запрещено строить временный resolver, второ�
   exact existing protected view/guards/data и не меняет composition/visibility/schema. Полный UI-5b стартует после
   U5A + record-class policy и исполняет без сокращения exact composition из Doctor UI plan. Затем идут остальные
   dependency-ready UI stages. UI-8 строится только на уже принятом S4 engine `#888` внутри C4D/C5 и не создаёт
-  parallel registry/polarity/seed/keys; только organization/clinic axis. UI-9 `#564` после закрытого C4D exact-org
+  parallel registry/polarity/seed/keys; только organization/clinic axis. UI-9 `#564` после C4D exact-org
   isolation интегрирован в `feat/doctor-ui-rebuild`: personal exercise остаётся instance-scoped по умолчанию,
   org-catalog save только явный, patient video использует существующий exact-org media path. UI-2 — bounded built-in
   toggleable «Онлайн» location на существующей модели, гейтящая
   существующие service checkboxes; новую schema/booking engine не вводить. UI-9 media scope и любые
   identity/schema/tenant/data изменения проходят полный risk-sized цикл.
-- **Owner decisions G1–G6 closed:** G1 `#564` — да; G2 voice/STT — post-production `#922`, сейчас не трогать; G3
+- **Owner decisions G1–G6:** G1 `#564` — да; G2 voice/STT — post-production `#922`, сейчас не трогать; G3
   toggles — organization/clinic only; G4 communications — 45/55 с fallback 50/50; G5 online уже существует,
   требуется только встроенная toggleable location; G6 — UI-P shared doctor chrome из предыдущего пункта.
-  Независимый SCH-G5 остаётся owner-waiting `#848`.
+  Независимый SCH-G5 требует своего owner gate `#848`.
   `#191`: default новых разминок `12:00`/`15:00` в рабочие дни, существующих клиентов не менять.
-- **Task mapping:** C1 `#850/#851/#852`; новый UI-1c detail delta — `#951`; exact residuals после сверки
-  полного owner scope: schedule picker `#960`, communications gradient/broadcast IA `#961`, shared composer
-  `#962`, configurable Today `#963`, scheduled messages `#964`. `#958`, `#960`–`#963`, `#966/#967` закрыты и
-  находятся на TEST SHA `eb64a495644`; bounded reminder-default `#191` закрыт после milestone. UI-7 `#964`
-  остановлен после двух correction-pass на одном owner placement ruling и не интегрирован. Независимые исполнимые
-  UI-residuals: три Online repository-evidence item закрыты `#972`; published-slug live proof остаётся U6B `#926`.
-  Полный UI-5b `#971` имеет закрытый contract `#928`, но остаётся
-  заблокирован двумя U5A live-seal из `#796`; запуск presentation-only composition до этого запрещён.
-  UI-4 normal-mode preview и UI-5a full-workspace
-  reuse объединены в `#958`, полный composition/visibility — U5B с contract `#928` + implementation `#971`; Patient Today mood residual —
-  `#924`; latest Today/shared presentation deltas — `#966/#967`, а полный latest visual-contract reconciliation
-  отслеживается отдельной картой `#977` и не закрывается прежней blanket-печатью; bounded built-in Online location переиспользует `#197`, а expanded online
-  booking остаётся blocked в `#215`; UI-P `#925`; manual patient/walk-in `#801`; mechanics/reminders C4D/C5 +
-  `#191`; individual exercises `#564` + design `#565`; voice post-production `#922`; S4 engine `#888`; superseded
-  Doctor DNA `#885`. Новые duplicate cards не
-  создавать; subscopes фиксировать в note/meta существующей карты при фактическом запуске.
+- **Task mapping:** C1 `#850/#851/#852`; UI-1c `#951`; schedule picker `#960`; communications gradient/broadcast
+  IA `#961`; shared composer `#962`; configurable Today `#963`; scheduled messages `#964`; UI-4/UI-5a `#958`;
+  full UI-5b `#971` with contract `#928`; Patient Today mood `#924`; Today/shared presentation `#966/#967/#977`;
+  Online location `#197`, expanded online booking `#215`, published Online proof `#926`; UI-P `#925`; manual
+  patient/walk-in `#801`; mechanics/reminders `#191`; individual exercises `#564` + design `#565`; voice
+  post-production `#922`; S4 engine `#888`. Новые duplicate cards не создавать; subscopes фиксировать в note/meta
+  существующей карты при фактическом запуске.
+- **Dependency gates:** UI-5b `#971` ждёт U5A `#796`; UI-7 `#964` ждёт owner placement ruling; U6B public Online
+  proof ведётся в `#926`; expanded online booking `#215` и Voice/STT `#922` не входят в текущий launch scope.
 - **Gate:** TEST deploy не подразумевается и требует отдельного прямого разрешения владельца; при разрешении — только
   code-only. Full CI запускается на milestone, а не повторяется для каждого presentation slice.
-- **Status (2026-07-22):** current exact TEST SHA `ea4b35e5f3727a7b256a1228eef7a27b65e1782c`, code-only без
-  dump/restore/full reset. Milestone full CI прошёл на ancestor `49a0d0501`; последующие изменения ограничены
-  focused-green smoke harness, docs-only orchestration canon и shared KPI class/test. Locked product smoke `22/22`
-  и отдельный global-admin clinical deny-smoke `1/1` прошли; все пять TEST units active, public health green.
-  Owner live interaction acceptance записан в `#821` и не блокирует следующий repository-safe этап. UI-P2b `#977`
-  остаётся открытым по `P2B-01/02/09/10/14`: один presentation audit не подтвердил mobile runtime и нашёл старые
-  fallback/radius/padding exceptions; автоматический correction/re-audit не запускается. UI-2 repository residual `#972`
-  закрыт; UI-5b `#971` ждёт U5A `#796`, UI-7 `#964` ждёт одного placement ruling, а public Online live proof —
-  U6B `#926`. Voice/STT `#922` остаётся post-production.
 
 #### C2 — identity команды и фактический invite journey
 
@@ -565,9 +537,6 @@ card; запрещено строить временный resolver, второ�
   clinic entitlement, но не открывает team UI не entitled организации.
 - **Gate:** owner-review §14; unique `(organization_id, platform_user_id)` path, concurrency/idempotency, direct API
   negatives и TEST e2e без реальной prod-доставки.
-- **Status (2026-07-19):** [x] C2 identity/invite gate закрыт на TEST SHA `4a889093d`: milestone CI, scratch
-  new/existing-email proof, independent final audit, code-only deploy, locked role/API smoke и live UI states прошли.
-  Одновременная patient+staff persona остаётся отдельным owner question и не была молча добавлена в C2.
 
 #### C2F — structured FIO residual и migration closeout
 
@@ -581,17 +550,8 @@ card; запрещено строить временный resolver, второ�
   4. current-copy production preview, exact artifact owner gate, transactional apply/rollback/reconciliation;
   5. legacy fallback audit;
   6. runtime parser retirement only after every preceding gate.
-- **Existing evidence:** core structured model/source priority and booking form are already integrated; taskdb `#849`
-  proves TEST apply only (165 updated, 3 unchanged, 1 missing, 1 changed-after-review skipped). Historical accepted
-  `#24` cannot close this residual scope. PII artifacts stay outside git and owner-reviewed decisions are never
-  recalculated by parser.
 - **Task mapping:** `#855` structured registrations; `#856` remaining writers + display; `#857` owner-gated
   production closeout; `#858` fallback audit + parser retirement. All start `auto_ok=false`.
-- **Status (2026-07-19):** [x] `#855` structured registration and [x] `#856` remaining writers/display are
-  integrated through `c8492fec5`; focused tests, scoped lint/typecheck and independent C2F audit passed. The audit
-  left only recorded P2 compatibility-label/helper debt and one Phase 10 owner question about a possible same-row
-  provider-conflict indicator. `#857` remains part of the final full production cutover, not a standalone change;
-  `#858` follows its reconciliation.
 - **Dependencies:** `#855` owner gate is resolved by the 2026-07-19 addendum: a separate new-patient registration
   collects required `lastName` + `firstName` and optional `patronymic`, derives `display_name`, while «Войти по коду»
   remains existing-account login without repeated FIO. Registration/writer work can proceed after U0/U1 identity
@@ -616,9 +576,6 @@ card; запрещено строить временный resolver, второ�
   должны создавать второй settings tree.
 - **Gate:** role × nav × direct route/API matrix; one-write-path tests; desktop/mobile; отсутствие regressions у
   сохранённых notification/event settings.
-- **Status (2026-07-19):** [x] C3 settings-shell/write-path scope закрыт на TEST SHA `4a889093d`: owner/doctor
-  role matrix и live tabs проверены, Team fail-closed до C4, billing остаётся owner-only shell до C5. Активная
-  team projection и коммерческое содержимое не приписываются C3 и остаются в своих downstream stages.
 
 #### C4 — независимые capability/ownership substages
 
@@ -632,33 +589,6 @@ card; запрещено строить временный resolver, второ�
   обязательного template — отдельный deferred pass.
 - **C4D — library ownership (`#724`):** own-only и новая platform base library; owner-clinic exercises никогда не
   становятся global. Future store surface/commerce не блокирует C4D.
-- **Status (2026-07-20):** C4A clinic boundary, seat enforcement, downgrade preservation and executable concurrency
-  proof are integrated through `e7adc50f5`; terminal critical audit passed. C4B code, tenant/security audit and
-  milestone CI are integrated through `d1fad7c65`. C4C is semantically rebased in isolated worktree
-  `codex/c4c-courses-26` on integrated U1/U2 base `9874ddd98`: explicit `courses` entitlement, trusted doctor/patient
-  organization principals, strict no-NULL course reads and related-object checks. The final convergence pass closed
-  the independent audit P1s: server-derived OFF/ON navigation visibility; patient-home/content/section course
-  projections through enrollment-org → `courses` entitlement → patient principal; CMS and patient-home optional
-  pickers hidden/empty on OFF and course-reference writes denied; exact-org UPDATE predicate without ownership
-  reassignment; and `0214` provenance corrected to canonical-owner migration `0086`. The payment-capture fulfillment
-  bridge establishes its trusted organization principal before an indirect course enrollment. The convergence pass
-  additionally fail-closes course products across staff authoring/listing, pay-link resolution, authenticated/public
-  purchase and fulfillment: organization comes from active enrollment or the stored link, exact course ownership and
-  current entitlement are rechecked, and an active patient enrollment is required without creating an identity on a
-  denied public attempt. The expanded focused matrix is green (`20` files / `192` tests), as are S4 coverage,
-  checker self-test, Drizzle journal sync, webapp typecheck, scoped lint and diff checks. The single independent
-  high-risk audit at `0e14c0a32` passed with no P0/P1/P2 findings. C4C landed through `6988f05ac` with a bounded
-  test-fixture correction at `6bfb4050d`; migration `0214` applied only to explicitly verified `bcb_webapp_dev`.
-  Drizzle-port and live authenticated proof show owner org A `courses=true`, visible navigation and direct-route
-  `200`, while independent DEV org B resolves `courses=false`, hides navigation and returns direct-route `404`.
-  The resumed milestone gate passed lint/typecheck, integrator `1271/1271`, webapp `8181` tests, media-worker `60/60`,
-  root/webapp builds and full audit. **C4C is terminally complete;** no TEST/PROD/deploy/reset/dump was performed.
-  C4D is integrated through `cd92fbc2c`: organization/platform ownership is explicit, clinic content never becomes
-  global automatically, platform base-library reads are exact and gated, assignment/media/template ownership is
-  checked through the trusted organization, and platform writes remain fail-closed until the sanctioned U9 platform
-  governance path. Its terminal high-risk audit, targeted checks and milestone gate passed; taskdb `#724` is
-  technically complete. Future store commerce remains deferred. C5C seat commerce is not part of the completed C4A
-  scope.
 - **Dependencies:** U0/U1/U2, S4-0/S4-1 registry/chokepoint и C2 identity. Store commerce не блокирует первые два
   library modes. C4A-C4D исполняются/аудируются независимо; blocked seat pricing, course redesign или store не
   останавливает готовую tenant isolation.
@@ -692,89 +622,9 @@ card; запрещено строить временный resolver, второ�
 - **Gate:** owner-review §§P1-P3; global operator vs organization payer vs ordinary specialist; webhook replay/
   amount/org negatives; audit, reconciliation, TEST provider-safe acceptance.
 
-**Historical C5A status (2026-07-21, superseded): terminal hard stop / not integrated.** The rebased candidate `e4b71cc34` passed 249
-targeted tests, the operational-role matrix, scoped lint and all journal/frozen/RLS/Phase4/finalizer/D3.4 static
-gates, but its final independent audit failed `0 P0 / 2 P1 / 2 P2`. First, explicit `no_trial` still resolves to
-`active` with no tariff and therefore enables 12/15 mechanics through compatibility defaults, violating the
-fail-closed no-invented-default gate for a new organization. Second, lifecycle denial is optional on the caller:
-several real CMS and patient-home mutations omit the mutation intent and can write through post-trial `read_only` or
-`blocked`. The quota path also lacks an executable two-connection last-slot proof/consumable 80% projection, and
-commercial UI buttons disagree with trial/override lifecycle. The candidate remains isolated and unpushed; C5B,
-C5C, C6 and configured-pricing U6A residual do not consume it. The earlier formal hard stop is superseded by the
-owner's process clarification: stop only a genuinely non-converging correction/audit loop, not a coherent pass over
-clear owner-mapped findings. Candidate `b8d00a6ca` then closed fail-closed `no_trial`, the private two-connection quota
-proof and typed warning projection, but its critical re-audit still found three P1s: one omitted CMS mutation plus a
-patient-home read incorrectly using the mutation wall; trial/manual-assignment and time-effective status ambiguity;
-and six stale candidate-owned test mocks. The final convergence commit `469341c2c` closed the three named findings
-and its complete changed-test census passed `426/426`, but the terminal full-stage audit still failed
-`0 P0 / 2 P1 / 0 P2`. The pass itself incorrectly converted mutating `PUT /api/admin/booking-engine/online-location`
-to the read entitlement boundary, permitting that write in `read_only`/`blocked`. The mandatory S4 checker also
-remains non-closed: its production command exits on twelve pre-base direct-resolver findings, while the newly expanded
-action census does not detect async `export const` actions. The twelve direct-resolver findings are pre-C5A S4 debt,
-not a regression attributed to this candidate; only the incomplete new census is part of the C5A repair question.
-Per the declared terminal boundary, no fourth correction, milestone CI, integration or push starts silently. Task
-`#751` is `blocked`, `owner_waiting=true`, on one exact process decision: authorize a bounded repair of the two
-C5A-introduced regressions (Online mutation boundary + async-export census) while tracking the pre-base S4 debt
-separately, or freeze the isolated candidate.
-
-**S4 residual after C5A (`#939`, owner 2026-07-21):** the twelve pre-C5A direct-resolver findings are not part of
-the bounded C5A repair, but they are not deferred indefinitely. Immediately after C5A is integrated, one coherent
-high-risk stage moves all eleven doctor/LFK page-action callsites and `resolvePlatformLfkMediaAccess` behind the
-canonical entitlement boundary while preserving the current read/composition, visibility and mutation semantics.
-The stage must distinguish read projection from mutation denial, preserve exact-organization ownership, make
-`check:s4-entitlement-coverage` green without suppressing future findings, and prove the affected role/org/action
-matrix with targeted tests, typecheck/scoped lint and one independent audit. It may run in parallel with Hardening
-A1 after C5A; it closes before C5B/C7 and joins the next accumulated milestone CI rather than starting its own full
-CI loop.
-
-**Historical C5A terminal status (`e08ec320c`, superseded): blocked / not integrated.** The bounded Online
-mutation and async-`export const` census repair, 0225 migration ordering, quota proof and all changed tests passed,
-but the terminal full-stage audit returned `0 P0 / 2 P1 / 0 P2`. The restore/rehydration chain invokes C5A before
-installing/reapplying canonical `app_platform_settings` role/ACL/policies, and two declared exemptions still allow
-protected mutations during commercial `read_only`/`blocked`: broadcast draft save and schedule-block delete. The
-unchanged twelve pre-base direct-resolver findings remain separate `#939` debt. Per the declared terminal boundary,
-no further correction, integration or milestone CI starts automatically. `#751` is owner-waiting on one process
-choice: authorize one final convergence pass for these two exact P1 classes, or freeze the isolated candidate.
-
-**Historical C5A terminal status (`8afec6853`, superseded by the integrated closure below): blocked / not integrated.**
-The final pass closed both previously authorized P1 classes, preserved read-versus-mutation notification-template
-behavior, and passed the focused lifecycle, rehydrate, quota, U9A/D3.4 and changed-test gates. Its terminal audit
-returned `0 P0 / 1 P1 / 0 P2`: the canonical disposable specialist signup/provisioning smoke still installs the
-pre-C5A fixture set, while `specialist-owner-provisioning-rls.sql` now requires migration `0225` tables and the C5A
-platform trial capability. The smoke therefore stops at missing prerequisites before it can prove that a newly
-provisioned organization atomically receives the selected trial tariff and duration. This is an integration-proof
-regression against the existing owner checklist, not a new product requirement. No further correction, integration,
-milestone CI, DB apply or deploy starts without a new explicit owner authorization. The unchanged twelve pre-base
-direct-resolver findings remain separate downstream task `#939`.
-
-**C5A closure (`#751`, 2026-07-21): [x] integrated through `a678d043d`.** The owner clarified that the remaining
-provisioning-smoke delta was a clear owner-mapped integration proof, not an ambiguous requirement or audit-driven
-scope expansion. The bounded closure installed the canonical `0180/0212/0213/0225` order, the signed platform
-principal accessor and exact runtime grants, then passed the disposable PostgreSQL specialist-provisioning proof:
-one organization receives the configured tariff, trial duration and grace atomically; replay/concurrency are
-idempotent and rollback leaves no partial commercial state. The accumulated milestone gate is green at
-`c6a8930c2` (lint, typecheck, all workspaces' tests, builds, SaaS/migration/static and registry audits). No working
-DEV database, TEST/PROD database, deploy or provider action was used by this implementation/verification stage.
-
-**S4 residual closure (`#939`, 2026-07-21): [x] integrated as `84bf193ac`.** All twelve pre-C5A direct resolver
-bypasses now use the canonical read/mutation entitlement boundary with exact organization ownership; the mandatory
-coverage checker reports `54` protected actions and `0` bypasses. Focused tests passed `34/34`, typecheck/scoped
-lint and the independent high-risk audit passed with no findings; the same green milestone gate covers integration.
-
-**C5C implementation checklist (owner policy resolved):** active specialist binding и pending invite потребляют/
-резервируют seat, non-clinical admin — нет; included count и per-seat price/purchase moment остаются tariff data;
-downgrade/over-limit сохраняют memberships и блокируют новый growth. Исполнитель:
-
-1. переиспользует C4A server-side seat usage/limit contract и C5B billing account/order/subscription primitives;
-2. строит payer-authorized add-on checkout/order → idempotent confirmed payment → subscription seat allocation; client
-   payload не задаёт org, цену, количество или payment success;
-3. обрабатывает replay, failed/past_due/refund/cancel/downgrade строго по утверждённой policy; existing memberships не
-   удаляются молча, а новые invites блокируются/разрешаются сервером по effective paid limit;
-4. скрывает billing mutation от ordinary specialist и проверяет direct API denial;
-5. закрывает org A/B isolation, immutable before/after audit, reconciliation, mock/recorded-provider TEST и
-   organization «Тариф и биллинг» acceptance. Product gates C4C5-01…07 are resolved by the 2026-07-19 addendum;
-   real PSP activation remains blocked until YooKassa merchant/legal/receipt/retry/proration operations are specified
-   and proven. C4C5-08 store commerce remains deferred.
+Checklist C5C ведётся в
+[`SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md`](../SAAS_FOUNDATION/SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md)
+§16 `#843 — clinic/team entitlement и места`.
 
 #### 2026-07-19 owner addendum — C4/C5 and shared-foundation execution boundary
 
@@ -786,9 +636,6 @@ downgrade/over-limit сохраняют memberships и блокируют нов
 - **Still deferred/non-blocking:** exact one-time phone-verification channel; patient confirmation may also use
   Telegram/MAX bot. It does not block email-based staff/specialist or patient registration. C4C5-08 store commerce
   remains deferred.
-- **`#888`:** the S4 registry/chokepoint is integrated and verified. Disabled `patient_card` or `files` blocks every
-  mutation/write in that section; read/export/recovery/safe offboarding stay available and existing data is never
-  deleted. Product-specific C4/C5 capability and commercial stages remain pending where listed above.
 
 #### C6 — platform analytics и capacity threshold
 
@@ -826,133 +673,40 @@ downgrade/over-limit сохраняют memberships и блокируют нов
 - [`OUTBOUND_DELIVERY_ALERTING_PLAN.md`](../OUTBOUND_DELIVERY_ALERTING_PLAN.md) — subordinate incident-response
   stage `#950`: отказ email/SMS/provider становится красным open incident с независимым multi-channel alerting.
 
-#### Linked detailed-plan registry — current truth 2026-07-22
+#### Linked execution plans
 
-Roadmap выбирает следующий dependency-ready stage, но **не является worker checklist**. Если stage ссылается на
-детальный plan/checklist, оркестратор до `doing` читает его целиком и переносит в self-contained brief все in-scope
-atomic checkboxes. Audit сравнивает результат с детальным checklist, а не с кратким абзацем roadmap. Parent stage
-нельзя закрыть по успешному partial slice; если plan не имеет атомарных checkboxes, сначала исправляется plan.
-Status детального plan, taskdb и этот registry обновляются в одном integration/docs pass.
+Roadmap выбирает dependency-ready workstream, но **не является worker checklist**. Перед запуском оркестратор
+открывает связанный execution plan и берёт статус из карточки.
 
-Текущий denominator: **22 leaf execution plans**. Ни один ещё не закрыт целиком со всеми своими gates: 3 имеют
-только завершённый partial slice, 2 сохраняют repository-level open scope, 17 dependency/owner/legal/production-gated.
-Оба `open` leaf сейчас не исполнимы автоматически: E3 child `#982` имел полный worker manifest, но terminal audit
-остановил candidate на невоспроизводимом 4 KiB performance gate и перевёл `#980/#982` в owner-blocked; CRYPTO-01
-до worker обязан заморозить exact residual/file/test manifest. Краткий class поэтому не является разрешением запуска.
-Umbrella/index, Foundation helper-checklists и Rubitime production runbooks не прибавляются к этому denominator как
-равноправные stages: они проверяются вместе с owning leaf plan и не превращаются в отдельную очередь.
-
-| Leaf plan                                                                                                                                | Current class | Current truth / task mapping                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| ---------------------------------------------------------------------------------------------------------------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [`SAAS_FOUNDATION/RUBITIME_RETIREMENT_EXECUTION_PLAN.md`](../SAAS_FOUNDATION/RUBITIME_RETIREMENT_EXECUTION_PLAN.md)                      | gated         | R0–R4 имеют code/proof; R5–R7 требуют operational/owner gates. Полный checklist provenance дополнительно сверяется перед следующим Rubitime action.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| [`DOCTOR_UI_REWORK_2026-07-20/PLAN.md`](../DOCTOR_UI_REWORK_2026-07-20/PLAN.md)                                                          | gated         | Atomic tracker является authority; закрытые UI-6 A/B/D slices сохранены, но `#963` исправлен из false `done` в owner-blocked до exact contract/defer для «Самые активные»/new counters/hiding. `#977`, `#971→#796`, `#964` и `#848` owner-blocked; public Online live proof — U6B `#926`, Voice `#922` post-production.                                                                                                                                                                                                                                                                                                                                                                                                        |
-| [`EDITOR_TIPTAP_MIGRATION_PLAN.md`](../EDITOR_TIPTAP_MIGRATION_PLAN.md)                                                                  | partial slice | Repository migration, compatibility audit и milestone CI закрыты; `#931` исправлен из false `done` в owner-blocked, потому что mandatory live TEST verification каждого discovery-manifest screen остаётся `[ ]`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| [`.cursor/plans/fio_identity_cleanup.plan.md`](../../../.cursor/plans/fio_identity_cleanup.plan.md)                                      | gated         | Phases 0–8 закрыты; `#857` production backfill и `#858` parser audit/retirement остаются gated.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| [`STABILITY_SECURITY_HARDENING_PLAN_2026-07-21.md`](../STABILITY_SECURITY_HARDENING_PLAN_2026-07-21.md)                                  | open          | C1 `#969` repository dark launch закрыт through `ad398fe36`, terminal audit PASS; host activation осталась `SEC-02/PR-04` gate. D1 `#970` ждёт TTL/admin/SLA ruling; D2 `#973/#974` закрыт through `2d3c98acc`. E2 `#975/#976` repository-complete through `63de21030`, independent re-audit `0/0/0` и accumulated full CI зелёные. E3 source contract `#980` terminal-audited `0/0/0` through `08418ecbc`; cumulative code candidate `55d1e9359` прошёл E3-01…10, но fresh terminal audit `0/1/0` повторно получил два 4 KiB p95 run выше frozen `1.05`, поэтому E3-11/12, `#980/#982` и overall E3 blocked до owner-разрешения третьей optimization attempt. A4/A2/E1/post-launch residual идут только по собственным gates. |
-| [`SAAS_FOUNDATION/ADMIN_BASELINE_AND_SUPPORT_CHAT_DESIGN.md`](../SAAS_FOUNDATION/ADMIN_BASELINE_AND_SUPPORT_CHAT_DESIGN.md)              | gated         | Leaf plan был потерян из registry. Единственный contract audit остановил `#808` с `0/2/2`: четыре source-contract замечания требуют прямого разрешения владельца на один bounded correction и fresh audit. Schema/code не начинались; Phase 3–5, TEST и owner wording/notification decisions также gated.                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| [`UNSUPPORTED_CLIENT_FALLBACK_PLAN.md`](../UNSUPPORTED_CLIENT_FALLBACK_PLAN.md)                                                          | partial slice | Закрыт только Ф0 repository slice `#936`; Ф1/Ф2/guard не объявляются завершёнными.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| [`OUTBOUND_DELIVERY_ALERTING_PLAN.md`](../OUTBOUND_DELIVERY_ALERTING_PLAN.md)                                                            | gated         | P1 и repository P2/P3/P4 закрыты through `1fd6bf66e`; P0/P-guard и owner TEST fault-injection acceptance остаются в `#950`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| [`SECURITY_CI_STACK_PLAN.md`](../SECURITY_CI_STACK_PLAN.md)                                                                              | gated         | `#881` owner-waiting; dependency refresh не закрывает Security CI checklist.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| [`PR-00_SCOPE_LOCK.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-00_SCOPE_LOCK.md)                                               | gated         | Частичный registry готов; owner/legal inputs остаются в `#899`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| [`PR-01_PROCESSING_REGISTER.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-01_PROCESSING_REGISTER.md)                             | gated         | Factual register готов; ответственные/юрист/Selectel/РКН остаются owner/legal inputs `#899`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| [`SEC-02_HOST_AND_SECRETS.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/SEC-02_HOST_AND_SECRETS.md)                                 | gated         | `#900` contract audit остановил R1 с `0/2/0`: неполная owner-row traceability и unsafe raw `systemctl cat`; task owner-blocked на разрешение одного bounded correction-pass. Host/TEST/PROD mutations отдельно gated.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| [`DR-01_BACKUP_AND_RECOVERY.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/DR-01_BACKUP_AND_RECOVERY.md)                             | partial slice | `#901` закрыл repository backup-safety; реальные keys/offsite/PITR/restore/RPO/RTO не закрыты.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| [`CRYPTO-01_DATA_AND_KEY_ENCRYPTION.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/CRYPTO-01_DATA_AND_KEY_ENCRYPTION.md)             | open          | ADR/ports/tests разрешены; application/migration ждут stable dependency/legal/owner gates.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| [`INFRA-01_ENCRYPTED_PROD_MIGRATION.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/INFRA-01_ENCRYPTED_PROD_MIGRATION.md)             | gated         | Planning/dark-target/cutover под umbrella `#898/#900/#901`; production только owner window.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| [`NTF-01_APP_PUSH_AND_MESSENGER_AUTH_ONLY.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/NTF-01_APP_PUSH_AND_MESSENGER_AUTH_ONLY.md) | gated         | N0/N1/N1A/N1B0 закрыты; `#913` owner-blocked на exact field matrix, а native-push ждёт MOB gates. Старый staff deep-link `#816` остаётся blocked внутри N3/N4 до фактического push-only replacement; только дубль `#822` поглощён N4 без отдельной реализации.                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| [`LOG-01_SENSITIVE_PAYLOAD_HYGIENE.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/LOG-01_SENSITIVE_PAYLOAD_HYGIENE.md)               | gated         | L1 serializer guard закрыт через `1cbac7e16`, но единственный L0 contract audit остановил `#914` с `0/3/1`: пропущенные logging/error paths, persistent families и exact test manifest требуют прямого разрешения владельца на один bounded correction и fresh audit. L2 schema/retention ждёт G-03 + NTF census.                                                                                                                                                                                                                                                                                                                                                                                                              |
-| [`PR-02_HEALTH_CONSENT.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-02_HEALTH_CONSENT.md)                                       | gated         | `#907` ждёт D4/S5-7/legal text.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| [`PR-03_DATA_RIGHTS_AND_RETENTION.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-03_DATA_RIGHTS_AND_RETENTION.md)                 | gated         | Закрыт только PR-03A0; broad `#905` ждёт PR-02, payment slice — billing freeze.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| [`SEC-03_CLINICAL_ACCESS_AUDIT.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/SEC-03_CLINICAL_ACCESS_AUDIT.md)                       | gated         | `#908` ждёт D4.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| [`SEC-04_GOVERNANCE_AND_INCIDENTS.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/SEC-04_GOVERNANCE_AND_INCIDENTS.md)                 | gated         | `#906` ждёт SEC-03 и DR/log/break-glass gates.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| [`PR-04_ISPDN_RELEASE_GATE.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-04_ISPDN_RELEASE_GATE.md)                               | gated         | `#909`, финальный owner/external release gate.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-
-Исторически доказанный completion/checklist shortcut: частичные Doctor UI slices были представлены как blanket
-baseline полного parent scope; это исправлено atomic tracker в `1987d0b9a`. Для Rubitime execution plan и DB cleanup sequence существуют code/proof artifacts, но LOG/taskdb не
-доказывают прохождение всего linked detailed checklist; перед следующим действием нужен provenance reconciliation,
-а не автоматический повтор кода. Для Hardening, FIO, privacy stages, unsupported-client и outbound taskdb/LOG прямо
-ссылаются на exact subordinate plan/stage; summary-only execution там не доказано.
+| Workstream | Execution plan | Позиция в порядке / внешний gate |
+| --- | --- | --- |
+| Rubitime retirement | [`RUBITIME_RETIREMENT_EXECUTION_PLAN.md`](../SAAS_FOUNDATION/RUBITIME_RETIREMENT_EXECUTION_PLAN.md) | Operational и owner gates R5–R7; не подменяет C0 runtime removal. |
+| Doctor UI | [`DOCTOR_UI_REWORK_2026-07-20/PLAN.md`](../DOCTOR_UI_REWORK_2026-07-20/PLAN.md) | UI cluster; UI-5b после U5A, public Online proof в U6B. |
+| Editor migration | [`EDITOR_TIPTAP_MIGRATION_PLAN.md`](../EDITOR_TIPTAP_MIGRATION_PLAN.md) | Собственный TEST/live gate; не закрывает соседние UI stages. |
+| Structured FIO | [`.cursor/plans/fio_identity_cleanup.plan.md`](../../../.cursor/plans/fio_identity_cleanup.plan.md) | Production closeout перед parser retirement. |
+| Stability/security | [`STABILITY_SECURITY_HARDENING_PLAN_2026-07-21.md`](../STABILITY_SECURITY_HARDENING_PLAN_2026-07-21.md) | Phase 0 → Phase 1 → Phase 2 → exact launch residual → C7. |
+| Global admin/support | [`ADMIN_BASELINE_AND_SUPPORT_CHAT_DESIGN.md`](../SAAS_FOUNDATION/ADMIN_BASELINE_AND_SUPPORT_CHAT_DESIGN.md) | U9; schema/code после contract и owner gates самого плана. |
+| Unsupported client | [`UNSUPPORTED_CLIENT_FALLBACK_PLAN.md`](../UNSUPPORTED_CLIENT_FALLBACK_PLAN.md) | После hardening Phase 0; launch slice до C7. |
+| Delivery alerting | [`OUTBOUND_DELIVERY_ALERTING_PLAN.md`](../OUTBOUND_DELIVERY_ALERTING_PLAN.md) | После A3 и notification foundation; TEST fault injection — отдельный owner gate. |
+| Security CI | [`SECURITY_CI_STACK_PLAN.md`](../SECURITY_CI_STACK_PLAN.md) | Параллельный release gate. |
+| Privacy scope/register | [`PR-00_SCOPE_LOCK.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-00_SCOPE_LOCK.md), [`PR-01_PROCESSING_REGISTER.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-01_PROCESSING_REGISTER.md) | Owner/legal inputs precede dependent privacy stages. |
+| Host/secrets | [`SEC-02_HOST_AND_SECRETS.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/SEC-02_HOST_AND_SECRETS.md) | Host/TEST/PROD mutations only through their owner gates. |
+| Backup/recovery | [`DR-01_BACKUP_AND_RECOVERY.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/DR-01_BACKUP_AND_RECOVERY.md) | Real keys/offsite/PITR/restore require named gates. |
+| Encryption/cutover | [`CRYPTO-01_DATA_AND_KEY_ENCRYPTION.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/CRYPTO-01_DATA_AND_KEY_ENCRYPTION.md), [`INFRA-01_ENCRYPTED_PROD_MIGRATION.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/INFRA-01_ENCRYPTED_PROD_MIGRATION.md) | Stable dependency/legal gates, then owner production window. |
+| Notifications | [`NTF-01_APP_PUSH_AND_MESSENGER_AUTH_ONLY.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/NTF-01_APP_PUSH_AND_MESSENGER_AUTH_ONLY.md) | Native push after MOB gates; staff deep-link remains inside N3/N4. |
+| Log hygiene | [`LOG-01_SENSITIVE_PAYLOAD_HYGIENE.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/LOG-01_SENSITIVE_PAYLOAD_HYGIENE.md) | L2 after G-03 and NTF census. |
+| Consent/rights | [`PR-02_HEALTH_CONSENT.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-02_HEALTH_CONSENT.md), [`PR-03_DATA_RIGHTS_AND_RETENTION.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-03_DATA_RIGHTS_AND_RETENTION.md) | PR-02 after D4/S5-7/legal text; PR-03 after PR-02, payment slice after billing freeze. |
+| Clinical/governance/release | [`SEC-03_CLINICAL_ACCESS_AUDIT.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/SEC-03_CLINICAL_ACCESS_AUDIT.md), [`SEC-04_GOVERNANCE_AND_INCIDENTS.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/SEC-04_GOVERNANCE_AND_INCIDENTS.md), [`PR-04_ISPDN_RELEASE_GATE.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-04_ISPDN_RELEASE_GATE.md) | D4 → SEC-03 → SEC-04; PR-04 is final owner/external release gate. |
 
 Порядок включения:
 
-1. **Reconciliation сейчас, без нового кода:** каждый finding hardening-плана сверяется с текущим кодом/taskdb и
-   уже закрытыми `#770` (locked/FORCE), `#797` (tenant diagnostics), `#933` (milestone harness) и `#934`
-   (dependency advisories). Security CI остаётся в `#881`. Новая карта создаётся только для доказанного residual,
-   поэтому уже сделанная Foundation-работа не запускается заново.
-2. **Текущий milestone не прерывается:** закрываются активные UI-P/Tiptap/NTF slices `#925/#931/#930`. Их
-   непересекающиеся файлы не блокируют reconciliation. После освобождения file scope hardening Phase 0 может идти
-   отдельным потоком; heavy CI и единственный `:5200` сериализуются.
-3. **Hardening Phase 0 — keystone:** сначала закрыть A0/#938 — PII-free versioned baseline + ledger/seed verifier,
-   потому что disposable scratch доказал, что исторические migration chains не bootstrap-ят empty PostgreSQL;
-   затем доказать реальный residual A1/#937 и актуальность CI/runtime conformance;
-   затем закрыть только оставшиеся C2/F1/D3 gaps. До этого B1/B3/A4 не стартуют. Full CI выполняется один раз на
-   phase milestone, targeted checks — на цельных stages.
-   **A0 status (2026-07-21):** [x] `#938` интегрирован как `dd4241f65` + `b6222cd40`, полный независимый re-audit
-   PASS. A1/#937 разблокирован; его locked/FORCE proof обязан использовать canonical non-owner runtime principals,
-   а не baseline owner-role.
-   **A1 status (2026-07-21):** [x] `#937` интегрирован как `296ec6e33` + `14c9b7ca7`; отдельный CI-gate на
-   приватном ephemeral PostgreSQL доказывает обе organization boundaries и буквальный missing-principal denial
-   под canonical non-owner runtime roles. Полный независимый re-audit и итоговый verifier — PASS.
-   **D3 status (2026-07-21):** [x] `#941` интегрирован как `a70b7ce4a`; production+dev-bypass теперь является
-   startup/config error, неоднозначные значения флага отклоняются, а production clinic invite не раскрывает token
-   и не превращает delivery failure в успешный preview. Один независимый security-аудит — PASS `0/0/0`.
-   **F1 status (2026-07-21):** [x] `#942` интегрирован как `03c1dfac1`; один ограниченный GitHub Dependabot updater
-   обслуживает root pnpm workspace без auto-merge/deploy, а `shadcn` исключён из production dependency graph и
-   остаётся доступным на build-time как devDependency. Один независимый аудит — PASS `0/0/0`.
-   **C2 status (2026-07-21):** [x] `#940` интегрирован как `693c10d98` + `7055287ba`; bounded UUID correlation и
-   trusted organization context проходят через существующий principal ALS/pino от webapp ingress к integrator и
-   очередям/workers. Один coherent correction закрыл два audit P1; terminal re-audit — PASS `0/0/0`. Milestone
-   integration compatibility зафиксирована `564e26b9f` + `40904546a`.
-   **Hardening Phase 0 milestone (2026-07-21): [x] green.** Полный command-equivalent CI gate завершён через resume
-   с точек падения: lint, typecheck, HLS sync, integrator/webapp/media tests, оба builds, SaaS/migration/static audits
-   и registry audit PASS. U9A generator drift исправлен `e08481969`; новый platform principal marker признан
-   статическим audit census в `56be482e1`. DB/deploy/TEST/PROD не затрагивались.
-4. **Unsupported-client Ф0/Ф1 — параллельно после Phase 0 contract check:** repository/DEV watchdog, bounded
-   ingress, SSR fallback и synthetic old-client/zero-JS proof. Persisted analytics зависит от C6 + `LOG-01`;
-   TEST activation и сбор реальной telemetry требуют отдельного owner разрешения. Ф2 admin card создаётся только
-   если Ф0 докажет пользу; уведомления остаются исключены решением владельца.
-   **Ф0 status (2026-07-21):** [x] `#936` repository slice интегрирован как `542b63815` + `82779e279` +
-   `dcf397370`; terminal re-audit `0/0/0`, targeted integration tests/typecheck PASS. Flag остаётся default-false;
-   migration apply, TEST/real telemetry и Ф1 owner live acceptance не выполнялись.
-5. **Hardening Phase 1 до C5B/C7:** A3 residual, payment atomicity B1, external-call timeouts B2, booking TOCTOU B3
-   и self-hosted error-tracking code path. Production detection/host installation не включаются молча: repo/DEV
-   implementation передаётся в `SEC-02`/`PR-04` для owner-gated activation.
-   **B2 status (2026-07-21):** [x] `#947` интегрирован как `ff11d416a` + `3f484ea60`; 12 launch-scoped
-   payment/OAuth вызовов имеют единый finite deadline до полного body-consumption. Один matching-plan P1 первого
-   аудита закрыт одним correction-pass; terminal re-audit `0/0`, targeted tests/typecheck/lint — PASS. Integrator
-   Google Calendar delivery timeout остаётся P2 owner recommendation вне B2, без audit-driven task growth.
-   **A3 status (2026-07-21):** [x] `#946` интегрирован как `3f684d135` + `7bc938e03`; existing isolation counters,
-   persisted diagnostics и bounded went-dark canary замкнуты на существующий 5-минутный critical tick без новых
-   request-path DB reads, scheduler или high-cardinality payload. Один correction-pass закрыл два matching P1
-   первого аудита; terminal re-audit `0/0/0`, targeted tests/typecheck/lint — PASS. Host/production activation
-   остаётся отдельным owner gate.
-   **B3 status (2026-07-21):** [x] `#948` интегрирован как `fdbea3b0e` + `d640d93b9`; online/null-capacity booking
-   recheck и chain insert атомарны под ordered full-range advisory locks в одной Drizzle-транзакции. Один
-   matching-plan distinct-start P1 первого аудита закрыт одним correction-pass; terminal re-audit `0/0/0`, private
-   PostgreSQL concurrency matrix, `31/31` targeted tests, typecheck/lint — PASS. Schedule-block semantics не
-   расширялись из audit recommendation.
-   **B1 status (2026-07-21):** [x] `#949` integrated through `ba6a9242b`. The owner confirmed that the remaining
-   direction was clear rather than an ambiguous product gate. A dedicated least-privilege webhook authority
-   resolver now returns only `organization_id` for a unique provider authority key; it grants no bootstrap read of
-   payment rows, payload, amount or PII, fixes its database search path and fails closed on unknown or ambiguous
-   authority. Exact organization context and signature verification still precede the atomic/replay-safe capture
-   path. Private PostgreSQL lifecycle/UoW/rollback/concurrency proofs, focused tests, typecheck/lint, D3.4/static
-   gates and the terminal independent audit passed with no findings. The accumulated milestone gate is green at
-   `c6a8930c2`; no working database, provider call, TEST/PROD or deploy was used by the stage.
-   **Outbound delivery alerting `#950`:** запускается после A3 и существующей notification foundation отдельным
-   observability stage, не смешиваясь с owner TEST-приёмкой или dependency refresh. Сначала repository/DEV-safe
-   signal/state/UI и synthetic tests; реальный broken-provider прогон на TEST — отдельный явный gate с разрешёнными
-   TEST-получателями. Repository P2/P3/P4 integrated through `1fd6bf66e`; P0/P-guard остаются. PROD
-   activation/verification не входит в этот этап.
-6. **Hardening Phase 2 до C7:** launch-relevant session revocation/TTL, CSRF/origin и integrator↔webapp contract
-   SSOT. Общий HTTP response builder внедряется инкрементально и не превращается в обязательный mass-refactor перед
-   release, если risk-relevant routes уже закрыты.
-7. **Phase 3 только по доказанному Foundation residual:** A4/A2 не являются разрешением слепо переписать десятки
-   уже закрытых RLS paths. После reconciliation остаётся exact table/route matrix; только она идёт risk-sized
-   slices с real-role two-org proof. Launch-critical residual закрывается до U10/C7; остальное получает явный
-   post-launch status, а не притворную галочку.
-8. **Phase 4 по ёмкости/post-launch:** high-cardinality-safe metrics и structural god-component/module cleanup не
-   блокируют C7, кроме точных low-cardinality capacity/health signals, уже требуемых C6 или release gate.
+1. Hardening reconciliation определяет exact residual и не перезапускает уже покрытые Foundation paths.
+2. Hardening Phase 0 предшествует Phase 1; Phase 1 предшествует Phase 2.
+3. Unsupported-client Ф0/Ф1 может идти после Phase 0; persisted analytics ждёт C6 + `LOG-01`, TEST telemetry —
+   отдельного owner-разрешения.
+4. Outbound delivery alerting идёт после A3 и notification foundation; broken-provider TEST — отдельный owner gate.
+5. Phase 2 и exact launch residual закрываются до C7; Phase 3 берёт только доказанный Foundation residual.
+6. Phase 4 — post-launch, кроме capacity/health signals, которые прямо требует C6 или release gate.
 
 Privacy/readiness остаётся отдельным каноническим треком
 [`RU_PRIVACY_AND_PRODUCTION_READINESS/MASTER_PLAN.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/MASTER_PLAN.md):
@@ -997,10 +751,6 @@ Taskdb хранит status/owner/acceptance links, а не копию требо
 **Outcome:** implementation team знает, какие существующие ports/objects переиспользует, какие contracts отсутствуют
 и какой foundation gate обязан прийти раньше; UI work больше не вынуждает изобретать schema по ходу.
 
-**Current completion (2026-07-19):** worker run `U0-889-20260719-BE30065F`; independent cross-model audit
-`bcb-u0-contract-readiness-audit-20260719` — **PASS**. §6.2a records the current-source Foundation/accessor basis,
-every §6 gap, safe default and downstream owner. The stage remained docs-only.
-
 - **Screens/flows:** все `PUB/ORG-PUB/PLAT/MGMT/CLIN/OPS/PAT/ACC`; J1…J7; особый trace `ACQ/STF/PIN/SMS/PBK/MOR/ERR`.
 - **Reuse/gaps:** baseline §6; exact route denominator `152`, registry `57`, current APIs/migrations verified against
   current branch rather than copied from UX audit date.
@@ -1024,22 +774,9 @@ every §6 gap, safe default and downstream owner. The stage remained docs-only.
   markdown links; `git diff --check`. No app/DB tests because stage changes documentation only.
 - **Rollback/degradation:** not applicable to runtime; unresolved ownership becomes `waiting dependency`, never global
   fallback.
-- **Completion:** [x] 57/57 IDs mapped; [x] 152/152 files mapped; [x] J1…J7 traced; [x] every gap has owner/path/gate;
-  [x] no invented schema; [x] foundation no-overlap reviewed; [x] full audit PASS.
 - **Merge dependency:** prerequisite to every later stage; planning artifact merges separately from foundation code.
 
 ### U1 — role/capability guard spine
-
-**Implementation status (completed 2026-07-20, taskdb #916):** the guard spine, direct/API parity and finite launch
-registries are implemented and independently audited. Clinical entry now requires the trusted organization workspace
-and specialist binding; owner-only actions additionally require owner membership; platform operations cannot inherit
-clinical access through `adminMode`. The audited two-organization repository paths carry exact organization predicates,
-unsupported global patient repair/manual-create paths fail closed pending U3B, and future C6 platform analytics is a
-PII-free neutral surface. Exact platform/media/Server Action manifests fail when a surface is added or removed; the
-Server Action detector covers harmless whitespace, comments and both quote styles. No schema, provisioning,
-patient-resolver or entitlement behavior changed. Focused role/object/action suites, two-org negatives, webapp
-typecheck, scoped lint and independent high-risk audit evidence are green. Accumulated full CI remains the U2/P1
-milestone gate per §7.3 rather than a repeated U1 correction gate.
 
 **Outcome:** every actor reaches only the workspace, object class and action allowed by server capabilities; direct
 URLs/APIs cannot use navigation hiding, filters, entitlement or `adminMode` as permission.
@@ -1067,25 +804,9 @@ URLs/APIs cannot use navigation hiding, filters, entitlement or `adminMode` as p
   audit-event checks. Accumulated P1 full CI belongs after U2, not after each guard edit.
 - **Rollback/degradation:** capability enforcement can keep old UI route with fail-closed server denial; no fallback to
   legacy broad access. Rollback must not remove stronger foundation wall.
-- **Completion:** [x] actor/workspace matrix green; [x] parity paths green; [x] no binding→clinical shortcut;
-  [x] assistant/support safe defaults; [x] entitlement order proven; [x] full audit evidence closed.
 - **Merge dependency:** U0 + relevant foundation gate.
 
 ### U2 — organization management and shared account shell
-
-**Implementation status (completed 2026-07-20, taskdb #918; owner wording corrected 2026-07-20):** one guarded
-`/app/settings` surface owns cabinet/organization settings, while one shared `/app/account` owns personal profile,
-notification and install screens through the existing writers/components. The previously implemented `/app/manage`
-overview is superseded and remains only as a compatibility redirect to `/app/settings?tab=organization`.
-Management-only owners never enter the clinical shell; bound owners navigate between **«Настройки»** and the clinical
-workspace; specialists have clinical+account access without organization settings; explicit platform mode remains in
-the platform shell. Organization/reminder settings, entitled Team and the owner billing placeholder remain single
-guarded destinations inside Settings; booking setup was not moved or copied. Legacy settings/install/clinic entries
-are loop-free and `/app/ops` remains absent. One independent audit found
-only orphaned Team/billing links; that exact delta was corrected without another audit loop. The accumulated P1 gate is
-green: focused role/route suites, full webapp/media tests, builds, audit and desktop/mobile DEV role evidence. Global
-platform configuration/catalog writes remain fail-closed until U9 supplies the sanctioned platform API/DB-principal
-contract; U2 does not borrow an organization or bootstrap principal.
 
 **Outcome:** owner/admin manages one organization without entering global-admin chrome; specialist works in a
 solo-first clinical shell; personal account screens are shared once. Future assistant OPS surfaces remain absent.
@@ -1117,8 +838,6 @@ solo-first clinical shell; personal account screens are shared once. Future assi
   full CI at P1 exit.
 - **Rollback/degradation:** old guarded route may remain entry; new shell failure returns to safe account/management
   destination, never doctor or platform fallback.
-- **Completion:** [x] one MGMT shell; [x] one ACC area; [x] OPS implementation absent; [x] no duplicate solo/clinic tree;
-  [x] legacy entries equivalent; [x] responsive/accessibility evidence; [x] full audit evidence closed.
 - **Merge dependency:** U1; assistant/clinic-only areas are explicitly excluded from launch acceptance.
 
 ### U5A — patient organization resolver and global account context
@@ -1147,11 +866,7 @@ push and installed launches cannot leak or silently substitute another organizat
   concurrent switch, back/forward/deep link, DB-role negatives, typecheck/lint/build; desktop/mobile/PWA screenshots.
 - **Rollback/degradation:** resolver failure shows neutral chooser/recovery and clears stale care data; never falls
   through to previous or arbitrary organization.
-- **Completion:** [ ] all MOR states; [x] no stale cache; [x] Today canonical principal fixed; [ ] switch/deep link
-  proof; [x] UX08-05 resolved behavior explicit; [x] full audit PASS. The two unchecked live seals require the
-  canonical TEST two-organization fixture or U3B's sanctioned invite→active enrollment transition; they must not be
-  manufactured through a privileged DEV-only enrollment writer.
-- **Live-readiness status (2026-07-21, `#796`):** the A↔B switch seal is executable only on an owner-authorized TEST
+- **Dependency gate (`#796`):** the A↔B switch seal is executable only on an owner-authorized TEST
   walkthrough with the canonical shared-patient fixture; current DEV/dev-bypass has no sanctioned second enrollment
   and the TEST seeder intentionally refuses the DEV database. The revoked-remembered-organization recovery seal is
   additionally blocked because no product/API port can reversibly move one active organization enrollment to
@@ -1200,9 +915,6 @@ required security/recovery setup and reaches a truthful first workspace.
 - **Rollback/degradation:** signup-disabled keeps neutral demo/contact; partial provisioning resumes only from trusted
   receipt/session; missing binding stays management-only with explicit recovery; security failure never falls through
   to a clinical session or high-risk owner action.
-- **Completion:** [x] ACQ-01…05 complete; [x] secure retry/session; [x] organization+owner exactly once;
-  [x] authorized specialist binding; [x] clinical actor truthful; [x] first-run/password/2FA recovery complete;
-  [x] no duplicate tenant/persona overwrite; [x] full audit PASS.
 - **Merge dependency:** U0/U1/U2 plus stable provisioning/auth foundation.
 
 ### U3A — clinic staff invitation under paid entitlement (post-solo capability)
@@ -1228,8 +940,6 @@ or public launch, but its product direction is no longer an unanswered future pl
 - **Validation:** owner-review §§P1, 14-15; new/existing email, replay/revoke/expiry, one membership row, entitlement
   OFF/ON, seat exhaustion/downgrade and direct API negatives.
 - **Rollback/degradation:** not applicable while absent.
-- **Completion:** [x] C2 identity/invite PASS; [ ] C4 entitlement/seats PASS; [ ] C3 team settings projection PASS;
-  [ ] independently audited. These boxes are not solo launch completion criteria.
 - **Merge dependency:** none for initial release; excluded from U3B, U4 and U10 launch dependencies.
 
 ### U3B — patient invite, delivery, activation, install and public-booking continuation
@@ -1253,7 +963,7 @@ care state. Public self-booking remains another entry and can continue safely in
   object remain org-scoped; channel transport and topic preference are independent.
 - **Owner rulings:** staff-created relationship/card/visit precedes portal activation; delivery is not proof/access.
   Platform neutral returning start follows U5A last-active/switcher behavior; trusted invite/booking opens exact org.
-- **Dependencies:** U1 and completed U5A resolver; shared exchange/proof primitives come from U3S/common identity
+- **Dependencies:** U1 and U5A resolver/live gate `#796`; shared exchange/proof primitives come from U3S/common identity
   contract, never from deferred U3A; booking ownership and patient-role foundation proof.
 - **Workstreams:** data — lifecycle/enrollment/booking transaction contracts; API — invite/delivery/OTP/accept/
   booking continuation/install/push; UI — specialist status, join, first value and PAT-11; ops — send-safe telemetry.
@@ -1265,37 +975,6 @@ care state. Public self-booking remains another entry and can continue safely in
   separately authorized fixture/runbook.
 - **Rollback/degradation:** email delivery recovery without consuming invite; SMS unavailable leaves email path;
   install/push unavailable leaves browser app usable; booking success remains accessible without portal session.
-- **Status (2026-07-21, `#801`):** manual structured patient creation + scheduled appointment and standalone walk-in
-  are integrated through `7c6537236`. Walk-in creates an exact-org `clinical_visit` without a fabricated booking;
-  scheduled/walk-in commands are idempotent within one command namespace, future walk-ins fail closed, and replay
-  does not duplicate email/booking side effects. Independent terminal audit passed `0/0/0`; authenticated DEV
-  desktop/mobile/API acceptance passed, including one real visit on exact replay and a non-mutating redirect proof.
-  The disposable PostgreSQL two-connection race remains a named U3B milestone check. Invite/activation/PBK/PWA
-  work remains open and is not implied by this slice.
-- **Status (2026-07-21, `#806` invite slice):** exact-organization email-first portal invitation is integrated
-  through `fd0ac2166`. A hashed bearer is exchanged once into a short-lived continuation; purpose-scoped OTP proof
-  exposes no internal patient/email/challenge identity; redeem derives the signed canonical patient principal and
-  atomically activates only the invited enrollment. Legacy `active` relationships are not guessed as portal-linked;
-  reissue, revoke, supersede, expiry, wrong-recipient, already-linked and disabled-organization recovery are truthful.
-  Trusted-IP/artifact limits, FORCE RLS/ACL and ordinary migration-overlay closure are present. The terminal security
-  re-audit closed all P0/P1 findings; its single recovery-copy P2 was corrected locally with targeted tests and a
-  repeat disposable PostgreSQL proof. The remaining no-phone/no-email patient-creation path is a separately manifested
-  `#806` substage; SMS/PBK/PWA/install/push remain outside this invite slice.
-- **Status (2026-07-21, `#806` no-contact closure):** the separately manifested no-phone/no-email path is integrated
-  through `dc21e1905`. Standalone card, scheduled appointment and walk-in creation accept structured FIO with null
-  contacts, create one exact-organization enrollment and never use FIO, fake contacts or contact trust as identity.
-  One durable command ledger makes all three creation paths retry/concurrency safe. An explicitly unbound invite lets
-  a newly verified email claim that exact placeholder identity; an email already owned by another canonical user
-  fails closed and records only an exact-organization merge candidate, without automatic merge or rebind. Migration
-  `0222`, rollback, FORCE RLS/ACL, two-connection races and legacy bound-email compatibility passed the disposable
-  PostgreSQL proof. The final independent high-risk audit passed `0 P0 / 0 P1 / 0 P2`; worker evidence was `83/83`
-  targeted tests plus scoped lint and structural migration/finalizer checks. No working database, DEV/TEST/PROD,
-  deploy, external delivery or full CI was used. Task `#806` is technically complete; the broader U3B SMS/PBK/PWA/
-  install/push work remains open under this roadmap and is not implied by the task closure.
-- **Completion:** [x] manual card + appointment + walk-in complete; [x] not-activated/invited/linked states truthful;
-  [x] identity-to-existing-card link exactly-once; [ ] PIN/SMS/PBK complete; [x] no internal-id authority; [ ] first value
-  before install; [ ] installed re-auth/context; [ ] delivery privacy; [x] `#806` invite/no-contact audit PASS;
-  [ ] full U3B audit PASS.
 - **Merge dependency:** U1 + U5A; deferred clinic-staff stage U3A is not a dependency.
 
 ### U4 — acquisition and relationship integration checkpoint
@@ -1316,7 +995,7 @@ exchange/delivery vocabulary and reach guarded U2/U5A destinations without paral
   not choose persona/org beyond the trusted record; every destination repeats its normal guard.
 - **Owner rulings:** assistant landing is absent from initial release; patient neutral launch uses last active +
   visible switcher with chooser on invalid preference. Exact trusted invite/booking organization still wins.
-- **Dependencies:** U2, U3S, U3B and U5A full audits. The checkpoint consumes these completed outputs and has no dependency
+- **Dependencies:** U2, U3S, U3B and U5A full audits. The checkpoint consumes these outputs and has no dependency
   that points back from them.
 - **Workstreams:** data/API — contract convergence and idempotency; UI — recovery/copy consistency; delivery —
   immutable attempt trace; route — compatibility and raw-token scrub; observability — privacy-safe funnel facts.
@@ -1327,9 +1006,6 @@ exchange/delivery vocabulary and reach guarded U2/U5A destinations without paral
   desktop/mobile journey screenshots. No TEST send without separate authorization.
 - **Rollback/degradation:** each channel/entry can degrade independently to its approved recovery; disabling one
   journey cannot break login, canonical booking result or existing relationship access.
-- **Completion:** [ ] launch J1/J3-J5 use owned outputs; [ ] J2 explicitly absent/deferred; [ ] one shared exchange contract;
-  [ ] no future-staff/patient policy collapse; [ ] all launch scenario traces;
-  [ ] combined migration order/rollback; [ ] privacy telemetry; [ ] full audit PASS.
 - **Merge dependency:** U2 + U3S + U3B + U5A; U3A is excluded.
 
 ### U5B — organization patient card and history policy
@@ -1360,7 +1036,7 @@ Doctor UI execution artifact.
 - **Owner ruling:** one card and visit-based relationship are resolved. Shared/all/specialist controls appear only
   after record-class authorization. Patient hierarchy and alternate per-specialist cards are absent.
 - **Dependencies:** U1 and U5A; accepted entry/section policy contract. Patient-facing cross-links use the already
-  completed resolver rather than making it conditional.
+  U5A resolver rather than making it conditional.
 - **Workstreams:** data — visibility/provenance contract before migration; API — roster/card/history parity; UI — card
   tabs/filters/denials; route — reuse current dynamic tabs and program details.
 - **Migration/compat:** do not relabel current rows as shared/private without deterministic evidence; produce ambiguity
@@ -1370,14 +1046,8 @@ Doctor UI execution artifact.
   desktop/mobile card screenshots with allowed and withheld controls.
 - **Rollback/degradation:** missing visibility classification fails closed to own/assigned/allowed subset; card can
   show section denial without exposing counts or metadata.
-- **U5B-0 contract checkpoint (`#928`):** the candidate record/section registry, current standalone-card/API census,
-  actor outcomes, operation parity, immutable provenance, explicit communication-participant rule and
-  deterministic-versus-ambiguous legacy policy are recorded in `OPERATING_MODEL.md` §6 and
-  `ROLE_CAPABILITY_MATRIX.md` §§2.3–2.5. The terminal full re-audit passed `0 P0 / 0 P1 / 0 P2`; the reviewed policy
-  prerequisite is complete. No U5B schema/API/record-visibility UI work starts until the remaining U5A runtime seals
-  close; the exact-view layout predecessor `UI-5a/#958` above is the only explicit exception.
-- **Completion:** [ ] owner ruling linked; [ ] visit-relation roster proven; [ ] parity green; [ ] authorship immutable; [ ] no duplicate
-  card tree; [ ] private leakage zero; [ ] full audit PASS.
+- **Execution checklist:** `DOCTOR_UI_REWORK_2026-07-20/PLAN.md` §UI-5b; implementation waits for U5A runtime gate
+  `#796`. Exact-view layout predecessor `UI-5a/#958` is the only explicit exception.
 - **Merge dependency:** U1/U5A plus reviewed record-class policy; UX08-01 itself is resolved and is not a blocker.
 
 ### U5C — deferred future multi-specialist visit coordination
@@ -1401,8 +1071,6 @@ clinic UI, permissions or workflow now.
 - **Validation:** initial acceptance proves `CLIN-05` is absent and no transfer lifecycle exists. Future validation is
   defined only with the future clinic contract.
 - **Rollback/degradation:** not applicable while absent.
-- **Completion:** [ ] explicitly activated by a future owner decision; [ ] full future-stage audit PASS. These boxes
-  are not launch completion criteria.
 - **Merge dependency:** none for initial release; excluded from U10 launch dependencies.
 
 ### U5D — deferred future clinic communication topology
@@ -1425,8 +1093,6 @@ solo-specialist chat unchanged and has no U5D implementation or acceptance depen
 - **Validation:** initial acceptance proves no clinic/OPS communication surface or routing change was introduced.
   Future validation waits for the future contract.
 - **Rollback/degradation:** not applicable while absent; existing solo chat remains the baseline.
-- **Completion:** [ ] future clinic scope activated; [ ] future implementation independently audited. These boxes are not
-  launch completion criteria.
 - **Merge dependency:** none for initial release; excluded from U10 launch dependencies.
 
 ### U6A — specialist-oriented platform landing and acquisition
@@ -1445,7 +1111,7 @@ but secondary; public legal/support recovery stays reachable on desktop/mobile.
   configured platform contract when available.
 - **Owner ruling:** initial public product includes landing/profile/booking/join; `PUB-06` directory is deferred.
   Rollout still requires its normal release gate.
-- **Dependencies:** U3S completed signup/security target for truthful CTA; U1 persona guards.
+- **Dependencies:** U3S signup/security target for truthful CTA; U1 persona guards.
 - **Workstreams:** data — published pricing/capability projection contract; API — public read/analytics; UI — landing
   and responsive states; content — plain-language proof/trust.
 - **Migration/compat:** `/` and existing auth entries converge through compatibility states; no data migration unless
@@ -1454,14 +1120,6 @@ but secondary; public legal/support recovery stays reachable on desktop/mobile.
   seals; console/network/overflow; typecheck/lint/build; no application delivery/DB mutation in visual acceptance.
 - **Rollback/degradation:** signup disabled/demo fallback; pricing unavailable has honest contact path; legal/support
   remains reachable.
-- **Status (2026-07-21, U6A-A `#807`):** specialist-first PUB-01 and visible ACQ/browser-entry surface are integrated
-  through `d34a2a611`. The one independent presentation/behavior audit found only the disabled-signup recovery gap;
-  the bounded correction now shows neutral unavailable copy, demo/support and secondary existing-account login.
-  Targeted tests, typecheck, scoped lint, build and serialized DEV desktop/mobile/public/patient-browser smoke pass.
-  Configured pricing, acquisition analytics and public status remain explicit later U6A work; no U6B surface moved
-  into this checkpoint.
-- **Completion:** [x] specialist-first composition; [x] patient secondary entry; [ ] ACQ trace; [x] no PUB-06 leak;
-  [x] responsive/accessibility/visual seals; [ ] full U6A audit PASS.
 - **Merge dependency:** U1/U3S; rollout remains separately owner/deploy gated.
 
 ### U6B — published organization profile, booking and trusted join
@@ -1491,7 +1149,7 @@ context while canonical platform URLs and recovery always work.
   platform path works independently of brand/domain.
 - **Owner ruling:** profile/booking/join are in initial public scope; directory remains separate/deferred. Publication
   rollout still requires its normal release gate.
-- **Dependencies:** U2 and U4 completed acquisition convergence. The convergence output already contains underlying
+- **Dependencies:** U2 and U4 acquisition convergence. The convergence output contains underlying
   journey/context/guard evidence; this stage does not add a reverse journey edge.
 - **Workstreams:** data — publication/projection/version requirements; API — preview/publish/public resolve; UI —
   MGMT-04 and ORG-PUB surfaces; route — platform alias and guarded compatibility booking paths.
@@ -1502,17 +1160,7 @@ context while canonical platform URLs and recovery always work.
   screenshots and no-auth network inspection; migration/backfill/rollback proof if applicable; accumulated P4 full CI.
 - **Rollback/degradation:** unpublish removes projection but preserves canonical management data; booking/join shows
   safe recovery; platform legal/support remains.
-- **Completion:** [ ] projection privacy; [ ] booking/join trusted context; [ ] no duplicate wizard; [ ] publication
-  audit/version; [ ] directory absent; [ ] full audit PASS.
 - **Merge dependency:** U2/U4; public rollout separately gated.
-- **Readiness status (2026-07-22, `#926`):** full U6B implementation is dependency-blocked, not started. U2 is
-  complete, but U4 remains fully open behind the unfinished U3B PIN/SMS/PBK/PWA/booking-continuation scope. Source
-  already contains migration `0218` slug claims, typed service/repository/DI, published-slug bootstrap resolvers and
-  the ACL/check/smoke delta formerly tracked by `#817`; those mechanisms must be reused, not rebuilt. Missing runtime
-  surfaces include first-setup slug confirmation, publication snapshot/version/readiness, public asset/contact
-  projection, canonical root/booking/widget routes, typed iframe protocol and atomic booking→enrollment/join
-  continuation. Before launch, the atomic worker checklist must freeze the public-contact allowlist and embed-origin/
-  CSP policy. TEST proof `#805`, rollout, DNS/TLS and deploy remain separate gates.
 
 ### U7 — core organization identity and shared-layout brand presentation
 
@@ -1545,8 +1193,6 @@ presentation can change without affecting access, routing or recovery.
   migration/backfill/rollback if any.
 - **Rollback/degradation:** disable paid visuals while preserving org name/context, canonical navigation and recovery;
   no blank or misleading brand.
-- **Completion:** [ ] core/presentation payload consistent; [ ] entitlement cannot grant access; [ ] fallbacks;
-  [ ] shared layout/no per-clinic design fork; [ ] visual/accessibility seal; [ ] full audit PASS.
 - **Merge dependency:** U2/U6B; full custom-origin brand remains absent until U8 readiness/activation.
 
 ### U9 — global administration and bounded support
@@ -1558,27 +1204,12 @@ dedicated API guard, least-privilege global-settings DB principal/role and a whi
 system-settings service/mirror/audit. This does not complete the U9 shell, organization operations, billing,
 diagnostics or support chat, and it cannot borrow organization membership or widen clinical access.
 
-**U9A closure (2026-07-21).** Integrated as `7c9d94bea` + `f48c4b8af`. The dedicated platform principal,
-guarded global-settings API, canonical service/audit/mirror path and closed mirror-outbox fallback passed the
-terminal independent audit (`0 P0 / 0 P1 / 0 P2`), targeted tests, typecheck/lint/static gates and a disposable
-PostgreSQL real-role matrix. The role artifact was not applied to DEV/TEST/PROD; the four auth-channel flags and
-their discovery/execution enforcement remain the following N1A work under `#929`.
-
 **Later bounded platform default (`#932`, owner 2026-07-21).** Platform admin configures an ordered default palette
 for new clinic locations (initially at least five values, extensible) and a separate default for the built-in
 `Online` location. Creation consumes the relevant default; clinic owner/admin may then override the stored branch
 color. When physical locations outnumber palette entries, assignment cycles (`N mod palette length`); `Online` is
 separate and does not consume a palette slot. Existing location colors are never rewritten. This replaces the current hardcoded creation defaults only
 after a DB-backed global setting and migration-safe fallback exist; it is not part of N1A `#929`.
-
-**U9 palette implementation (`#932`, 2026-07-21): [x] repository stage integrated as `93114ed62` +
-`363e232a3`.** The global structured setting has an extensible physical palette plus a separate Online default;
-new physical locations cycle deterministically under an organization-scoped transaction lock, existing colors are
-unchanged, and clinic owner/admin can override the Online color afterward. The native accessible picker reuses the
-sanctioned U9A platform-settings path and introduces no second store or heavy UI package. Targeted tests, private
-role/static checks, typecheck/lint and the one presentation audit plus bounded matching correction passed; the
-accumulated milestone gate is green at `c6a8930c2`. Migration/role application and live platform/clinic acceptance
-remain the authorized TEST checkpoint, not evidence claimed by repository tests.
 
 **Outcome:** platform operator manages organizations, commercial state, platform configuration/reliability and
 system identity diagnostics from a dedicated shell without patient browsing or patient-record repair.
@@ -1612,9 +1243,6 @@ system identity diagnostics from a dedicated shell without patient browsing or p
   full CI at P5 checkpoint.
 - **Rollback/degradation:** old privileged entry may remain guarded; degraded data sources show stale/unavailable,
   never fall back to clinical query. No support session exists under safe default.
-- **Completion:** [ ] PLAT ownership split; [ ] dedicated guards; [ ] settings mirror path; [ ] C5 global billing
-  operations baseline; [ ] aggregate system diagnostics purpose/audit; [ ] one optional-adapter extension path;
-  [ ] no patient workflow/repair; [ ] full audit PASS.
 - **Merge dependency:** U1/U7 and ownership classification. UX08-10 is rejected and creates no pending branch.
 
 ### Deferred commercial capability family U8 — custom domain, sender and generated organization PWA
@@ -1653,8 +1281,6 @@ release omits all U8 branches and proceeds from U9 to U10.
   TEST setup; screenshots; accumulated P6 full CI if U8A is the last included optional stage.
 - **Rollback/degradation:** disable one binding and return canonical platform URL; base or another surface need not be
   removed.
-- **Completion:** [ ] future implementation activation approved; [ ] base≠binding; [ ] one-way fallback; [ ] selective decommission;
-  [ ] canonical URL always works; [ ] full audit PASS.
 - **Merge dependency:** U6B/U7/U9 plus approved infrastructure handoff; merge cannot imply DNS/TLS rollout.
 
 #### U8B — deferred organization-specific auth and generated PWA
@@ -1684,8 +1310,6 @@ release omits all U8 branches and proceeds from U9 to U10.
   accumulated P6 full CI if U8B is the last included optional stage.
 - **Rollback/degradation:** disable origin binding; platform PWA and platform re-auth recovery remain available;
   subscription failure does not remove browser access.
-- **Completion:** [ ] future activation; [ ] platform PWA intact; [ ] generated manifest/name/icons; [ ] no cross-origin authority; [ ] origin matrix;
-  [ ] recovery/support; [ ] full security + visual audits PASS.
 - **Merge dependency:** U3B/U5A/U7/U8A/U9 and explicit future commercial/implementation activation; no
   independent per-origin rollout.
 
@@ -1724,8 +1348,6 @@ release omits all U8 branches and proceeds from U9 to U10.
 - **Rollback/degradation:** hold within `expires_at`, retry only the configured custom provider, expire without
   sending, and alert account owner in-app + platform service email without patient content;
   existing accepted relationship is not undone by delivery degradation.
-- **Completion:** [ ] UX08-09 linked; [ ] readiness complete; [ ] class policy exact; [ ] effective identity audited;
-  [ ] no spoof/secret leak; [ ] full audit PASS.
 - **Merge dependency:** U3B/U7/U9 and explicit future custom-provider activation; merge does not authorize real provider rollout.
 
 ### U10 — route convergence, visual consolidation and final acceptance
@@ -1762,9 +1384,6 @@ responsive, accessibility and visual acceptance.
   manifests and two independent visual seals.
 - **Rollback/degradation:** compatibility map allows reverting links/shell without weakening new server guards;
   unavailable optional mechanics degrade to explicit recovery; no owner-gated feature is silently enabled.
-- **Completion:** [ ] 57/57 accounted with deferred IDs absent; [ ] 152/152 reconciled to current denominator; [ ] no duplicate route/component
-  family; [ ] all journey/recovery states; [ ] role/context matrix green; [ ] final CI; [ ] two visual seals;
-  [ ] owner decisions traced/absent safely; [ ] full independent implementation audit PASS.
 - **Merge dependency:** final integration only after launch-included stages and foundation handoff gates. Deferred
   U5C/U5D/U8 branches are not included. Deploy and
   `main`/`test` actions remain owner-authorized operations outside this roadmap.
