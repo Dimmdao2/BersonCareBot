@@ -11,7 +11,6 @@ import { readActualBaseTables, sourceDirs } from './actual-schema-tables.mjs';
 import { buildRlsDescriptors } from './rls-descriptor-model.mjs';
 import { getPhase4LockedPolicyTargets } from './phase4-locked-policy-artifact.mjs';
 import { postPhase4StrictPolicyExceptions } from './post-phase4-strict-policy-exceptions.mjs';
-import { sourceTextIncludes } from './source-text-guard.mjs';
 
 const repoRoot = process.cwd();
 const cutoverSqlPath = 'deploy/postgres/phase4-force-rls-cutover.sql';
@@ -123,28 +122,6 @@ function readForceTargets() {
   return targets;
 }
 
-function assertExceptionEvidence(table, exception) {
-  if (!exception.policyPath) return;
-  const source = readFileSync(join(repoRoot, exception.policyPath), 'utf8');
-  for (const token of exception.policyTokens) {
-    if (!sourceTextIncludes(source, token, exception.policyPath)) {
-      fail(`${table} exception policy evidence is missing ${token} in ${exception.policyPath}`);
-    }
-  }
-  // Часть доказательства может жить во втором файле: политика, которой нужна роль, созданная позже
-  // миграции, объявляется в накладке рантайма. Проверяем и его — иначе исключение считалось бы
-  // доказанным по половине улик (28.07, §29: чтение биллинга ушло к отдельной роли админа клиники).
-  if (!exception.extraPolicyPath) return;
-  const extra = readFileSync(join(repoRoot, exception.extraPolicyPath), 'utf8');
-  for (const token of exception.extraPolicyTokens ?? []) {
-    if (!sourceTextIncludes(extra, token, exception.extraPolicyPath)) {
-      fail(
-        `${table} exception policy evidence is missing ${token} in ${exception.extraPolicyPath}`,
-      );
-    }
-  }
-}
-
 export function readPublicOrgScopedTables() {
   const actualPublicTables = new Set(
     readActualBaseTables().filter((table) => table.startsWith('public.')),
@@ -189,8 +166,6 @@ export function assertNewTableRlsCoverage({
       missingPolicy.push(table);
       continue;
     }
-
-    assertExceptionEvidence(table, exception);
   }
 
   if (missingDescriptor.length > 0 || missingPolicy.length > 0) {

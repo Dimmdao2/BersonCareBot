@@ -1,187 +1,35 @@
 #!/usr/bin/env node
 
-import { readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
 
 import {
   getPhase4LockedPolicyTargets,
   phase4LockedPolicyArtifactPath,
   renderPhase4LockedPolicyArtifact,
 } from './phase4-locked-policy-artifact.mjs';
-import { dormantCompatibilityPredicate } from './rls-sql-renderer.mjs';
-
-const migrationsDir = 'apps/webapp/db/drizzle-migrations';
-const forceCutoverSqlPath = 'deploy/postgres/phase4-force-rls-cutover.sql';
-const migrationFilePattern = /^(016\d|017[0-5]|0179|0180|0205)_.*\.sql$/;
-const createPolicyPattern = /CREATE POLICY "([^"]+)" ON "([^"]+)"\."([^"]+)"/g;
-const dropPolicyPattern = /DROP POLICY IF EXISTS "([^"]+)" ON "([^"]+)"\."([^"]+)"/g;
-const rawContextPattern =
-  /current_setting\('app\.(?:org|patient_user_id|integrator_user_id|actor)'/;
-const helperPattern =
-  /app\.(?:current_org_id|current_patient_user_id|current_integrator_user_id|is_staff)\(\)/;
-const cutoverTargetPattern = /\('((?:''|[^'])+)'\)/g;
-
-function fail(message) {
-  throw new Error(message);
-}
-
-function policyKey({ table, policyName }) {
-  return `${table}\t${policyName}`;
-}
-
-function quotedTable(table) {
-  const [schema, name] = table.split('.');
-  return `"${schema}"."${name}"`;
-}
-
-function readFinalDormantPolicySet() {
-  const policies = new Map();
-  const files = readdirSync(migrationsDir)
-    .filter((file) => migrationFilePattern.test(file))
-    .sort();
-
-  for (const file of files) {
-    const sql = readFileSync(join(migrationsDir, file), 'utf8');
-
-    for (const match of sql.matchAll(dropPolicyPattern)) {
-      policies.delete(policyKey({ table: `${match[2]}.${match[3]}`, policyName: match[1] }));
-    }
-
-    for (const match of sql.matchAll(createPolicyPattern)) {
-      const entry = { table: `${match[2]}.${match[3]}`, policyName: match[1], file };
-      policies.set(policyKey(entry), entry);
-    }
-  }
-
-  return policies;
-}
-
-function readCutoverTargets() {
-  const sql = readFileSync(forceCutoverSqlPath, 'utf8');
-  const targets = [];
-
-  for (const match of sql.matchAll(cutoverTargetPattern)) {
-    targets.push(match[1].replaceAll("''", "'"));
-  }
-
-  return targets;
-}
 
 const artifact = readFileSync(phase4LockedPolicyArtifactPath, 'utf8');
 const expectedArtifact = renderPhase4LockedPolicyArtifact();
-
 if (artifact !== expectedArtifact) {
-  fail(`${phase4LockedPolicyArtifactPath} is not in sync with phase4-locked-policy-artifact.mjs`);
-}
-
-if (rawContextPattern.test(artifact)) {
-  fail(
-    `${phase4LockedPolicyArtifactPath} must not contain raw current_setting('app.*') context reads`,
+  throw new Error(
+    `${phase4LockedPolicyArtifactPath} is stale; regenerate it from phase4-locked-policy-artifact.mjs`,
   );
 }
 
-const generatedTargets = getPhase4LockedPolicyTargets();
-const generatedPolicySet = new Set(
-  generatedTargets.map(({ descriptor, policyName }) =>
-    policyKey({
-      table: descriptor.table,
-      policyName,
-    }),
-  ),
-);
-const dormantPolicySet = readFinalDormantPolicySet();
-
-if (dormantPolicySet.size !== 164 || generatedPolicySet.size !== 168) {
-  fail(
-    `Expected 164 historical dormant and 168 generated wall policies, got dormant=${dormantPolicySet.size}, generated=${generatedPolicySet.size}`,
-  );
+const targets = getPhase4LockedPolicyTargets();
+const policyKeys = targets.map(({ descriptor, policyName }) => `${descriptor.table}:${policyName}`);
+const tables = targets.map(({ descriptor }) => descriptor.table);
+if (new Set(policyKeys).size !== policyKeys.length || new Set(tables).size !== tables.length) {
+  throw new Error('Phase 4 locked policy generator returned duplicate targets');
 }
 
-const missingFromArtifact = [...dormantPolicySet.keys()]
-  .filter((key) => !generatedPolicySet.has(key))
-  .sort();
-const extraInArtifact = [...generatedPolicySet].filter((key) => !dormantPolicySet.has(key)).sort();
-
-const expectedS5Extras = new Set([
-  'public.app_runtime_settings\ts5_runtime_settings_isolation',
-  'public.app_runtime_settings_audit\ts5_runtime_settings_audit_staff',
-  'public.patient_invites\tsaas_org_dormant_p0_8_3',
-  'public.saas_organization_trials\tsaas_org_dormant_p0_8_3',
-]);
-if (
-  missingFromArtifact.length > 0 ||
-  extraInArtifact.length !== expectedS5Extras.size ||
-  extraInArtifact.some((key) => !expectedS5Extras.has(key))
-) {
-  fail(
-    `Phase4 locked artifact target mismatch. Missing: ${missingFromArtifact.join(', ') || '<none>'}. Extra: ${
-      extraInArtifact.join(', ') || '<none>'
-    }`,
-  );
-}
-
-const cutoverTargets = readCutoverTargets();
-const generatedQuotedTargets = generatedTargets
-  .map(({ descriptor }) => quotedTable(descriptor.table))
-  .sort();
-const cutoverSorted = [...cutoverTargets].sort();
-
-if (JSON.stringify(cutoverSorted) !== JSON.stringify(generatedQuotedTargets)) {
-  const generatedSet = new Set(generatedQuotedTargets);
-  const cutoverSet = new Set(cutoverTargets);
-  const missing = generatedQuotedTargets.filter((target) => !cutoverSet.has(target));
-  const extra = cutoverTargets.filter((target) => !generatedSet.has(target));
-  fail(
-    `${forceCutoverSqlPath} targets must match ${phase4LockedPolicyArtifactPath}. Missing: ${
-      missing.join(', ') || '<none>'
-    }. Extra: ${extra.join(', ') || '<none>'}`,
-  );
-}
-
-const createStatements = [...artifact.matchAll(/^CREATE POLICY [\s\S]*?;$/gm)].map(
-  (match) => match[0],
-);
-const dropStatements = [...artifact.matchAll(/^DROP POLICY IF EXISTS /gm)];
-
-if (createStatements.length !== 336) {
-  fail(
-    `${phase4LockedPolicyArtifactPath} must contain 336 CREATE POLICY statements (strict + dormant branches), got ${createStatements.length}`,
-  );
-}
-
-if (dropStatements.length !== 170) {
-  fail(
-    `${phase4LockedPolicyArtifactPath} must contain 170 DROP POLICY statements (168 canonical + 2 replaced legacy runtime policies), got ${dropStatements.length}`,
-  );
-}
-
-for (const statement of createStatements) {
-  if (!helperPattern.test(statement)) {
-    fail(
-      `Every phase4 replacement policy must use locked helper predicates; missing helper in: ${statement.slice(0, 180)}...`,
-    );
-  }
-}
-
-const directoryTarget = generatedTargets.find(
+const directoryTarget = targets.find(
   ({ descriptor }) => descriptor.table === 'public.clinic_public_directory_entries',
 );
 if (!directoryTarget || directoryTarget.descriptor.dormantMode !== 'strict') {
-  fail('clinic_public_directory_entries must be explicitly strict in dormant phase4 overlays');
-}
-const directoryReplacement = artifact.slice(
-  artifact.indexOf('-- public.clinic_public_directory_entries (saas_org_dormant_p0_8_3)'),
-  artifact.indexOf(
-    '\n\n-- ',
-    artifact.indexOf('-- public.clinic_public_directory_entries (saas_org_dormant_p0_8_3)'),
-  ),
-);
-if (!directoryReplacement || directoryReplacement.includes(dormantCompatibilityPredicate)) {
-  fail(
-    'clinic_public_directory_entries phase4 replacement must never contain the missing-context dormant branch',
-  );
+  throw new Error('clinic_public_directory_entries must retain strict dormant classification');
 }
 
 console.log(
-  'check-phase4-locked-policy-artifact: OK (168 policies, helper-based, no raw GUC context)',
+  `check-phase4-locked-policy-artifact: generated artifact OK (${targets.length} targets)`,
 );

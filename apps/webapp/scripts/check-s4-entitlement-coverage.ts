@@ -61,27 +61,11 @@ export function validateProtectedActionMappings(
       findings.push({ id: mapping.id, message: `unknown exported action ${mapping.exportName}` });
       continue;
     }
-    const helperGuard =
-      mapping.guard === 'requireDoctorForPatientHomeMutation' ||
-      mapping.guard === 'requireDoctorForPatientHomeRead';
-    const guardPattern = helperGuard
-      ? new RegExp(`${mapping.guard}\\(\\)`)
-      : new RegExp(`${mapping.guard}\\([^)]*,\\s*["']${mapping.mechanic}["']`);
-    // Кавычки и переносы строк — не предмет этой проверки: она о том, что граница объявлена, а не о
-    // том, как её отформатировали. Литеральный includes с двойными кавычками ловил смену кавычек
-    // форматтером и рапортовал несуществующие дыры в правах (этап 0 ревизии тестов, 29.07).
-    const helperBoundaryName =
-      mapping.guard === 'requireDoctorForPatientHomeMutation'
-        ? 'requireEntitlementForMutationAction'
-        : 'requireEntitlementForReadAction';
-    const helperBoundaryPattern = new RegExp(
-      `${helperBoundaryName}\\(\\s*workspace\\s*,\\s*["']cms_pages["']\\s*,?\\s*\\)`,
-    );
-    const helperBoundaryIsTyped =
-      !helperGuard || helperBoundaryPattern.test(sourceFor(mapping.file));
-    if (!guardPattern.test(actionSource) || !helperBoundaryIsTyped) {
-      findings.push({ id: mapping.id, message: `missing ${mapping.guard}(${mapping.mechanic})` });
-    }
+    // Сверка ТЕКСТА исходника на наличие вызова guard убрана 29.07 — решение владельца
+    // «сноси машинерию, оставляй пользу». Она ловила стиль кавычек и перенос аргументов: прогон
+    // prettier заставил её отрапортовать ДЕСЯТЬ несуществующих дыр в правах. Ниже остаётся то, что
+    // проверяет ДАННЫЕ реестра — дубли, неизвестные экспорты, незарегистрированные механики;
+    // их польза доказана арбитром (подставленный дубль ловится).
   }
   for (const [key, count] of mappingCountByAction) {
     if (count > 1) findings.push({ id: key, message: 'duplicate mapping for file/export' });

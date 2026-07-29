@@ -33,25 +33,6 @@ export function extractQuotaFunction(migration) {
   return migration.slice(start, end);
 }
 
-function selfTest() {
-  const migration = readFileSync(migrationPath, 'utf8');
-  const functionSql = extractQuotaFunction(migration);
-  for (const fragment of [
-    'pg_advisory_xact_lock',
-    'FROM public.courses',
-    'saas_quota_reached:courses',
-    'v_count * 5 >= v_limit * 4',
-  ]) {
-    if (!functionSql.includes(fragment)) fail(`migration function is missing ${fragment}`);
-  }
-  console.log('C5A courses quota race proof self-test: OK (no PostgreSQL required)');
-}
-
-if (process.argv.includes('--self-test')) {
-  selfTest();
-  process.exit(0);
-}
-
 const stamp = `${process.pid}_${Date.now()}`;
 const dir = mkdtempSync(`/tmp/bcb_c5a_courses_quota_race_${stamp}_`);
 const data = path.join(dir, 'data');

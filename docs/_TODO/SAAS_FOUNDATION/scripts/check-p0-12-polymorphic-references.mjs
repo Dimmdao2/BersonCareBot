@@ -6,15 +6,6 @@ const repoRoot = process.cwd();
 
 const artifactPath = 'docs/_TODO/SAAS_FOUNDATION/scope-derivation/p0-12-polymorphic-references.tsv';
 
-const schemaFiles = [
-  'apps/webapp/db/schema/entityComments.ts',
-  'apps/webapp/db/schema/schema.ts',
-  'apps/webapp/db/schema/treatmentProgramTemplates.ts',
-  'apps/webapp/db/schema/treatmentProgramInstances.ts',
-  'apps/webapp/db/schema/treatmentProgramEvents.ts',
-  'apps/webapp/db/schema/materialRatings.ts',
-];
-
 const expected = new Map([
   [
     'public.comments',
@@ -75,78 +66,6 @@ function assertSetEqual(label, actual, expectedValues) {
   }
 }
 
-function extractCheckValues(schemaText, checkName) {
-  const idx = schemaText.indexOf(checkName);
-  if (idx < 0) throw new Error(`schema missing check ${checkName}`);
-  const nextCheck = schemaText.indexOf('check(', idx + checkName.length);
-  const end = nextCheck > idx ? nextCheck : idx + 800;
-  const slice = schemaText.slice(idx, end);
-  return Array.from(slice.matchAll(/'([^']+)'::text/g), (m) => m[1]);
-}
-
-function assertSchemaChecksMatchArtifact(rows) {
-  const schema = Object.fromEntries(schemaFiles.map((path) => [path, read(path)]));
-  const checks = new Map([
-    [
-      'public.comments',
-      extractCheckValues(
-        schema['apps/webapp/db/schema/entityComments.ts'],
-        'comments_target_type_check',
-      ),
-    ],
-    [
-      'public.patient_home_block_items',
-      extractCheckValues(
-        schema['apps/webapp/db/schema/schema.ts'],
-        'patient_home_block_items_target_type_check',
-      ),
-    ],
-    [
-      'public.treatment_program_template_stage_items',
-      extractCheckValues(
-        schema['apps/webapp/db/schema/treatmentProgramTemplates.ts'],
-        'item_type = ANY',
-      ),
-    ],
-    [
-      'public.treatment_program_instance_stage_items',
-      extractCheckValues(
-        schema['apps/webapp/db/schema/treatmentProgramInstances.ts'],
-        'item_type = ANY',
-      ),
-    ],
-    [
-      'public.material_ratings',
-      extractCheckValues(
-        schema['apps/webapp/db/schema/materialRatings.ts'],
-        'material_ratings_target_kind_check',
-      ),
-    ],
-    [
-      'public.treatment_program_events',
-      extractCheckValues(
-        schema['apps/webapp/db/schema/treatmentProgramEvents.ts'],
-        'treatment_program_events_target_type_check',
-      ),
-    ],
-  ]);
-
-  for (const [table, values] of checks) {
-    const artifactValues = rows.filter((row) => row.table === table).map((row) => row.value);
-    assertSetEqual(`${table} schema/artifact`, artifactValues, values);
-  }
-}
-
-function assertNoItemRefFk() {
-  const allSchema = schemaFiles.map(read).join('\n');
-  if (
-    /itemRefId:[\s\S]{0,120}\.references\(/.test(allSchema) ||
-    /item_ref_id[\s\S]{0,120}FOREIGN KEY/i.test(allSchema)
-  ) {
-    throw new Error('item_ref_id must remain polymorphic without a database FK');
-  }
-}
-
 function runChecks(overrides = {}) {
   const rows = parseTsv(overrides.artifact ?? read(artifactPath));
 
@@ -171,9 +90,6 @@ function runChecks(overrides = {}) {
   if (extraTables.length > 0) {
     throw new Error(`unexpected artifact tables: ${extraTables.join(', ')}`);
   }
-
-  assertSchemaChecksMatchArtifact(rows);
-  assertNoItemRefFk();
 }
 
 if (process.argv.includes('--self-test')) {

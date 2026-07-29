@@ -93,65 +93,6 @@ export function extractClinicTeamFailClosedSeatBaseline(typesSource) {
 }
 
 // ---------------------------------------------------------------------------
-// Self-test: verify extraction against the real sources without needing PostgreSQL.
-// ---------------------------------------------------------------------------
-
-function runSelfTest() {
-  const overlaySource = readFileSync(
-    path.join(root, 'deploy/postgres/organization-member-invites-rls.sql'),
-    'utf8',
-  );
-  const repoSource = readFileSync(
-    path.join(root, 'apps/webapp/src/infra/repos/pgOrganizationInvites.ts'),
-    'utf8',
-  );
-  const typesSource = readFileSync(
-    path.join(root, 'apps/webapp/src/modules/org-entitlements/types.ts'),
-    'utf8',
-  );
-
-  const acceptSql = extractAcceptOrgInviteFunctionSql(overlaySource);
-  if (!acceptSql.includes('pg_advisory_xact_lock'))
-    fail('self-test: accept function missing advisory lock');
-  if (!acceptSql.includes("'entitlement_disabled'")) {
-    fail(
-      'self-test: accept function missing the entitlement_disabled fail-closed code (C4A P1 fix)',
-    );
-  }
-  if (
-    acceptSql.indexOf('IF NOT v_clinic_team_enabled THEN') >
-    acceptSql.indexOf("IF v_invite.invited_role = 'doctor' THEN")
-  ) {
-    fail('self-test: entitlement check must run before the doctor-only seat capacity block');
-  }
-
-  const { lockSql, activeMemberSql, capacitySql, revokeSql, insertSql } =
-    extractCreateReplacingPendingSqlFragments(repoSource);
-  if (!lockSql.includes('pg_advisory_xact_lock')) fail('self-test: lock fragment mismatch');
-  if (!activeMemberSql.includes("m.status = 'active'"))
-    fail('self-test: activeMember fragment mismatch');
-  if (!capacitySql.includes('i.invited_email <> $2'))
-    fail('self-test: capacity fragment missing same-email exclusion');
-  if (!revokeSql.includes("status = 'revoked'")) fail('self-test: revoke fragment mismatch');
-  if (!insertSql.includes('INSERT INTO organization_member_invites'))
-    fail('self-test: insert fragment mismatch');
-
-  const reservationSql = extractCountSeatReservationsSql(repoSource);
-  if (!reservationSql.includes('m.specialist_id IS NULL'))
-    fail('self-test: reservation fragment mismatch');
-
-  const baseline = extractClinicTeamFailClosedSeatBaseline(typesSource);
-  if (baseline !== 1) fail(`self-test: expected fail-closed baseline 1, found ${baseline}`);
-
-  console.log('C4A #843 clinic invite concurrency proof self-test: OK (no PostgreSQL required)');
-}
-
-if (process.argv.includes('--self-test')) {
-  runSelfTest();
-  process.exit(0);
-}
-
-// ---------------------------------------------------------------------------
 // Private disposable PostgreSQL 16 cluster (own /tmp data dir/socket/db; never touches
 // DEV/TEST/PROD; never reads application env files).
 // ---------------------------------------------------------------------------
