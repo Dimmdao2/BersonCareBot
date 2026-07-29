@@ -86,7 +86,7 @@
 | `SAAS_FOUNDATION/01_MASTER_PLAN.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
 | `SAAS_FOUNDATION/02_PHASED_BRIEF.md` | 0 | 0 | 0 | ЗАКРЫТ | Историческая запись: тот же Phase 0 объём уже выполнен и закрыт. Исправлено 29.07 по аудиту `audit-e2b-0729`. | архив |
 | `SAAS_FOUNDATION/ADMIN_BASELINE_AND_SUPPORT_CHAT_DESIGN.md` | 22 | 0 | 0 | ЖИВОЙ | Открытые [ ] остаются: без прямого архивного основания файл не закрывается. | оставить на месте |
-| `SAAS_FOUNDATION/AUTONOMOUS_NIGHTLY_RUNBOOK.md` | 0 | 0 | 51 | ВЫТЕСНЕН | «P0.7.6 … is not done»; работа разнесена по восьми названным трекерам с итогами 17/17, 9/9, 15/15, 20/20, 12/12, 17/17 (`SAAS_FOUNDATION/AUTONOMOUS_NIGHTLY_RUNBOOK.md:14-22`); живой P0.7.6 действительно `[ ]` (`SAAS_FOUNDATION/P0_7_WRITER_CENSUS_CHECKLIST.md:79`). | архив |
+| `SAAS_FOUNDATION/AUTONOMOUS_NIGHTLY_RUNBOOK.md` | 2 | 34 | 0 | ЖИВОЙ | «P0.7.6 … is not done»; работа разнесена по восьми названным трекерам с итогами 17/17, 9/9, 15/15, 20/20, 12/12, 17/17 (`SAAS_FOUNDATION/AUTONOMOUS_NIGHTLY_RUNBOOK.md:14-22`); живой P0.7.6 действительно `[ ]` (`SAAS_FOUNDATION/P0_7_WRITER_CENSUS_CHECKLIST.md:79`). | гейт 29.07: держит живую работу, в архив не идёт |
 | `SAAS_FOUNDATION/C1_WALLS_TEST_CHECKLIST.md` | 1 | 13 | 0 | ЖИВОЙ | Открытые [ ] остаются: без прямого архивного основания файл не закрывается. | оставить на месте |
 | `SAAS_FOUNDATION/CLOUD_CASH_REGISTER_RESEARCH_2026-07-27.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
 | `SAAS_FOUNDATION/CORRECTED_PLAN.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
@@ -138,7 +138,7 @@
 | `SAAS_FOUNDATION/P0_9_DEFAULT_DENY_CHECKLIST.md` | 0 | 9 | 0 | ЗАКРЫТ | «RE-VERIFIED 2026-07-23 (all [x] audited vs code)». | архив |
 | `SAAS_FOUNDATION/P0_UNPRINCIPLED_READ_INVENTORY.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
 | `SAAS_FOUNDATION/PATIENT_INVITE_AND_MANUAL_CREATION_DESIGN.md` | 18 | 0 | 0 | ЖИВОЙ | Открытые [ ] остаются: без прямого архивного основания файл не закрывается. | оставить на месте |
-| `SAAS_FOUNDATION/PHASE0_MULTITENANT_DESIGN_LOCK.md` | 0 | 12 | 3 | ЗАКРЫТ | «Phase 0 design-lock delivered»; 3 follow-on пункта «ВЫТЕСНЕНО — the follow-on work moved into `SAAS_ENFORCE_ROADMAP.md`» (`SAAS_FOUNDATION/PHASE0_MULTITENANT_DESIGN_LOCK.md:5-11`). | архив |
+| `SAAS_FOUNDATION/PHASE0_MULTITENANT_DESIGN_LOCK.md` | 1 | 14 | 0 | ЖИВОЙ | «Phase 0 design-lock delivered»; 3 follow-on пункта «ВЫТЕСНЕНО — the follow-on work moved into `SAAS_ENFORCE_ROADMAP.md`» (`SAAS_FOUNDATION/PHASE0_MULTITENANT_DESIGN_LOCK.md:5-11`). | гейт 29.07: держит живую работу, в архив не идёт |
 | `SAAS_FOUNDATION/PHASE1_LOCKED_LABEL_PROOF.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
 | `SAAS_FOUNDATION/PHASE2_ORCHESTRATION.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
 | `SAAS_FOUNDATION/PHASE3_ORCHESTRATION.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
@@ -147,7 +147,7 @@
 | `SAAS_FOUNDATION/QUOTAS_WHAT_TO_LIMIT_2026-07-28.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
 | `SAAS_FOUNDATION/QUOTAS_WORLD_PRACTICE_2026-07-28.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
 | `SAAS_FOUNDATION/R1_TABLE_TAXONOMY.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
-| `SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md` | 0 | 3 | 8 | ВЫТЕСНЕН | «НЕ АКТУАЛЬНО»; все 8 строк «ВЫТЕСНЕНО» в `SAAS_ENFORCE_ROADMAP.md`/`R2_MVP_MASTER_CHECKLIST.md`, «часть — уже закрыта там, часть — всё ещё открыта» (`SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md:3-15`). | архив |
+| `SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md` | 8 | 3 | 0 | ЖИВОЙ | «НЕ АКТУАЛЬНО»; все 8 строк «ВЫТЕСНЕНО» в `SAAS_ENFORCE_ROADMAP.md`/`R2_MVP_MASTER_CHECKLIST.md`, «часть — уже закрыта там, часть — всё ещё открыта» (`SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md:3-15`). | гейт 29.07: держит живую работу, в архив не идёт |
 | `SAAS_FOUNDATION/R2_MVP_MASTER_CHECKLIST.md` | 13 | 12 | 0 | ЖИВОЙ | Открытые [ ] остаются: без прямого архивного основания файл не закрывается. | оставить на месте |
 | `SAAS_FOUNDATION/R2_READINESS_CLOSURE.md` | 0 | 0 | 0 | ЗАКРЫТ | Историческая запись завершённого readiness/closure; текущая R2 enforcement-работа её не продолжает. Исправлено 29.07 по аудиту `audit-e2b-0729`. | архив |
 | `SAAS_FOUNDATION/RAW_SQL_AUDIT.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
@@ -212,8 +212,8 @@
 | `SAAS_FOUNDATION/SAAS_PRODUCT_SMOKE_A1.md` | 0 | 9 | 0 | ЗАКРЫТ | Основание: собственная шапка/строки фиксируют закрытый smoke A1; нет открытых пунктов. | архив |
 | `SAAS_FOUNDATION/SAAS_PRODUCT_SMOKE_FIXTURE_OPERATOR_PACKET.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
 | `SAAS_FOUNDATION/SAAS_PROD_DEPLOY_PROCESS.md` | 3 | 1 | 0 | ЖИВОЙ | Открытые [ ] остаются: без прямого архивного основания файл не закрывается. | оставить на месте |
-| `SAAS_FOUNDATION/SAAS_R0_PLAN_RECONCILIATION.md` | 0 | 4 | 5 | ВЫТЕСНЕН | «ИСТОРИЧЕСКАЯ ЗАПИСЬ (frozen)… не текущий план»; продолжение в `SAAS_ENFORCE_ROADMAP.md`, `SEQUENCE.md`, `OWNER_RULINGS_2026-07-15.md` (`SAAS_FOUNDATION/SAAS_R0_PLAN_RECONCILIATION.md:3-6`). | архив |
-| `SAAS_FOUNDATION/SAAS_R1_FINISH_LINE_AND_DOC_HYGIENE.md` | 0 | 2 | 4 | ВЫТЕСНЕН | «ИСТОРИЧЕСКАЯ ЗАПИСЬ (frozen)… не текущий план»; продолжение в `SEQUENCE.md`, `OWNER_RULINGS_2026-07-15.md`, `SAAS_ENFORCE_ROADMAP.md` (`SAAS_FOUNDATION/SAAS_R1_FINISH_LINE_AND_DOC_HYGIENE.md:3-6`). | архив |
+| `SAAS_FOUNDATION/SAAS_R0_PLAN_RECONCILIATION.md` | 5 | 4 | 0 | ЖИВОЙ | «ИСТОРИЧЕСКАЯ ЗАПИСЬ (frozen)… не текущий план»; продолжение в `SAAS_ENFORCE_ROADMAP.md`, `SEQUENCE.md`, `OWNER_RULINGS_2026-07-15.md` (`SAAS_FOUNDATION/SAAS_R0_PLAN_RECONCILIATION.md:3-6`). | гейт 29.07: держит живую работу, в архив не идёт |
+| `SAAS_FOUNDATION/SAAS_R1_FINISH_LINE_AND_DOC_HYGIENE.md` | 4 | 2 | 0 | ЖИВОЙ | «ИСТОРИЧЕСКАЯ ЗАПИСЬ (frozen)… не текущий план»; продолжение в `SEQUENCE.md`, `OWNER_RULINGS_2026-07-15.md`, `SAAS_ENFORCE_ROADMAP.md` (`SAAS_FOUNDATION/SAAS_R1_FINISH_LINE_AND_DOC_HYGIENE.md:3-6`). | гейт 29.07: держит живую работу, в архив не идёт |
 | `SAAS_FOUNDATION/SAAS_R3_CUT_INVENTED_SCOPE.md` | 14 | 82 | 0 | ЖИВОЙ | Открытые [ ] остаются: без прямого архивного основания файл не закрывается. | оставить на месте |
 | `SAAS_FOUNDATION/SAAS_S3_TEST_WALKTHROUGH.md` | 31 | 0 | 0 | ЖИВОЙ | Открытые [ ] остаются: без прямого архивного основания файл не закрывается. | оставить на месте |
 | `SAAS_FOUNDATION/SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` | 59 | 31 | 0 | ЖИВОЙ | Открытые [ ] остаются: без прямого архивного основания файл не закрывается. | оставить на месте |
@@ -222,8 +222,8 @@
 | `SAAS_FOUNDATION/SAAS_S5_SETTINGS_ROOT_SPLIT_LOG.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
 | `SAAS_FOUNDATION/SAAS_S6_CLINIC_DIRECTORY_AND_ORG_BOUNDARY.md` | 36 | 0 | 0 | ЖИВОЙ | Открытые [ ] остаются: без прямого архивного основания файл не закрывается. | оставить на месте |
 | `SAAS_FOUNDATION/SEQUENCE.md` | 17 | 0 | 0 | ЖИВОЙ | Открытые [ ] остаются: без прямого архивного основания файл не закрывается. | оставить на месте |
-| `SAAS_FOUNDATION/STORE_EXECUTION_PLAN.md` | 0 | 5 | 19 | ВЫТЕСНЕН | «УСТАРЕЛ / SUPERSEDED»; актуальная декомпозиция: `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md`. | архив |
-| `SAAS_FOUNDATION/STORE_P0_ENTITLEMENTS_PLAN.md` | 0 | 0 | 14 | ВЫТЕСНЕН | «historical P0 checklist, не текущий product plan»; заменён `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md`. | архив |
+| `SAAS_FOUNDATION/STORE_EXECUTION_PLAN.md` | 1 | 18 | 0 | ЖИВОЙ | «УСТАРЕЛ / SUPERSEDED»; актуальная декомпозиция: `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md`. | гейт 29.07: держит живую работу, в архив не идёт |
+| `SAAS_FOUNDATION/STORE_P0_ENTITLEMENTS_PLAN.md` | 1 | 13 | 0 | ЖИВОЙ | «historical P0 checklist, не текущий product plan»; заменён `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md`. | гейт 29.07: держит живую работу, в архив не идёт |
 | `SAAS_FOUNDATION/T0_2_REQUEST_PRINCIPAL_CONTEXT_PLAN.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
 | `SAAS_FOUNDATION/T0_4_ENTRYPOINT_ORG_CONTEXT_MAP.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
 | `SAAS_FOUNDATION/T0_4_PRE_INTEGRATOR_SCHEMA_CLEANUP_PLAN.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
