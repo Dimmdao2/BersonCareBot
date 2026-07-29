@@ -13,21 +13,15 @@ import {
   AUTH_CONFIRM_RATE_LIMIT_SEC,
   checkAuthConfirmRateLimit,
 } from '@/modules/auth/authConfirmRateLimit';
-import {
-  PASSWORD_LOCK_SECONDS,
-  passwordFailurePrincipalId,
-  waitForPasswordFailureDelay,
-} from '@/modules/auth/passwordLoginProtection';
 
 const bodySchema = z.object({
-  email: z.string().email(),
+  email: z.string().email().max(320),
   password: z.string().min(1).max(128),
+  altcha: z.string().max(32_768).optional(),
 });
 
 const INVALID_CREDENTIALS_MESSAGE =
   'Email или пароль неверны. Проверьте данные или восстановите пароль.';
-const PASSWORD_LOCKED_MESSAGE =
-  'Слишком много неудачных попыток. Подождите 15 минут или восстановите пароль.';
 
 export async function POST(request: Request) {
   stampBootstrapPrincipal('api/auth/email-password/login:POST', request);
@@ -66,48 +60,34 @@ export async function POST(request: Request) {
 
   const emailNorm = normalizeEmail(parsed.data.email);
   const deps = buildAppDeps();
+  const altchaProof = await deps.passwordAltcha.verify(emailNorm, parsed.data.altcha);
 
   const pwd = await deps.userPasswordCredentials.verifyEmailPasswordForLogin(
     emailNorm,
     parsed.data.password,
+    altchaProof,
+    parsed.data.altcha !== undefined,
   );
   if (!pwd.ok) {
-    const failurePrincipalId = pwd.accountUserId ?? passwordFailurePrincipalId(emailNorm);
-    enterStaffSecuritySelfPrincipal(
-      failurePrincipalId,
-      'api/auth/email-password/login:primary-failed',
-    );
-    if (pwd.passwordChecked) {
-      await deps.userPasswordCredentials.recordFailedPasswordAttempt(failurePrincipalId);
-    }
-    await waitForPasswordFailureDelay(pwd.delaySeconds);
-    if (pwd.locked) {
-      const retryAfterSeconds = pwd.retryAfterSeconds ?? PASSWORD_LOCK_SECONDS;
-      return NextResponse.json(
-        {
-          ok: false,
-          error: 'invalid_credentials',
-          message: PASSWORD_LOCKED_MESSAGE,
-          retryAfterSeconds,
-        },
-        {
-          status: 429,
-          headers: { 'Retry-After': String(retryAfterSeconds) },
-        },
-      );
-    }
     return NextResponse.json(
       {
         ok: false,
         error: 'invalid_credentials',
         message: INVALID_CREDENTIALS_MESSAGE,
+        retryAfterSeconds: pwd.retryAfterSeconds,
+        captchaRequired: pwd.captchaRequired,
+        captchaRefreshRequired: pwd.captchaRefreshRequired,
       },
-      { status: 401 },
+      {
+        status: 401,
+        ...(pwd.retryAfterSeconds > 0
+          ? { headers: { 'Retry-After': String(pwd.retryAfterSeconds) } }
+          : {}),
+      },
     );
   }
 
   enterStaffSecuritySelfPrincipal(pwd.userId, 'api/auth/email-password/login:primary-verified');
-  await deps.userPasswordCredentials.resetFailedPasswordAttempts(pwd.userId, emailNorm);
   if (!pwd.emailVerified) {
     return NextResponse.json(
       {

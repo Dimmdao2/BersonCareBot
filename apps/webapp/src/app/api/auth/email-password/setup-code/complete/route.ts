@@ -99,15 +99,15 @@ export async function POST(request: Request) {
     );
   }
 
-  const passwordHash = await hashPin(parsed.data.password);
-  await deps.userPasswordCredentials.upsertPasswordHash(state.userId, passwordHash);
-
-  if (isPlatformUserUuid(state.userId)) {
-    enterStaffSecuritySelfPrincipal(
-      state.userId,
-      'api/auth/email-password/setup-code/complete:email-verified-self',
-    );
+  if (!isPlatformUserUuid(state.userId)) {
+    return NextResponse.json({ ok: false, error: 'server_error' }, { status: 500 });
   }
+  enterStaffSecuritySelfPrincipal(
+    state.userId,
+    'api/auth/email-password/setup-code/complete:email-verified-self',
+  );
+  const passwordHash = await hashPin(parsed.data.password);
+  await deps.userPasswordCredentials.upsertPasswordHash(state.userId, emailNorm, passwordHash);
   let sessionUser = await deps.userByPhone.findByUserId(state.userId);
   if (!sessionUser) {
     return NextResponse.json({ ok: false, error: 'server_error' }, { status: 500 });

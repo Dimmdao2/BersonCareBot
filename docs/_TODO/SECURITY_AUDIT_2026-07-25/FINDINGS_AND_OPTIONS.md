@@ -390,6 +390,23 @@ hand.
   awaited outbound send).
 - **Logger redact list** omits `code` and `email`; latent, no current call site logs them.
 
+## D8. Password proof admission was raceable and held HTTP requests for minutes — #1065, corrective implementation pending gate
+
+The first #1065 implementation added the right thresholds but not an atomic protocol: a read-only lock check
+ran before Argon2, identifier failure and account failure were separate writes, and 30/60/120/240/480-second
+backoff was implemented by sleeping inside the request. Concurrent requests could all pass admission before
+any failure write; a success could race an arriving lock; occupied HTTP workers made the throttle itself an
+availability risk.
+
+Owner-approved corrective model (30.07): one DB transaction serializes account+identifier (unknown email:
+identifier only) and issues an exact 30-second lease before Argon2; Argon2 runs outside the transaction; only
+completion of that current lease may authenticate. Attempts 5–9 set the *next admissible time* and return
+immediately; attempt 10 locks for 15 minutes; no permanent lock. A visible self-hosted ALTCHA proof is required
+from attempt 5, signed over purpose+identifier+challengeId+expiry and atomically consumed once. Recovery and
+successful password replacement reset password state but never the shared per-IP `auth.confirm` budget.
+Implementation lives in migration `0274_password_login_atomic_admission_altcha.sql` plus
+`pgPasswordLoginProtection.ts`; do not mark FIXED until the #1065 gate is sealed.
+
 ---
 
 # E. Authorization

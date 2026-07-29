@@ -432,6 +432,13 @@ export const SYSTEM_SETTING_REGISTRY = {
   ),
   vk_id_application_id: restricted('admin', 'global', 'secret_envelope'),
   vk_id_client_secret: restricted('admin', 'global', 'secret_envelope', 'absent', 'redacted'),
+  auth_altcha_hmac_secret: restricted(
+    'admin',
+    'global',
+    'secret_envelope',
+    'absent',
+    'redacted',
+  ),
   vk_id_redirect_uri: restricted('admin', 'global', 'url'),
   google_client_id: restricted('admin', 'global', 'secret_envelope'),
   google_client_secret: restricted('admin', 'global', 'secret_envelope'),

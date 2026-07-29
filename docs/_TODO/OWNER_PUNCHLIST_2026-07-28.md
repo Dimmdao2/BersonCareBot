@@ -229,14 +229,20 @@ locked_until` + `app.record_failed_staff_factor_attempt()` (5 попыток →
       Дополнительно за ALTCHA: MIT против Apache-2.0 (обе годятся), самосохранение по умолчанию — Cap в быстром
       старте грузит скрипт с чужого CDN, self-host там опция, а не дефолт.
       **Честные минусы, принятые осознанно:** активный мейнтейнер один; в июле раскрыта уязвимость
-      GHSA-6gvq-jcmp-8959 (подмена и повтор задачи, средняя тяжесть,影響 только на анти-абуз) — **исправлена в
-      v2.0.3**, реакция была быстрой. Отвод mCaptcha: отдельный демон с собственными Postgres и Redis, нет
+      GHSA-6gvq-jcmp-8959 (подмена и повтор задачи, средняя тяжесть,影響 только на анти-абуз) — advisory
+      указывает affected `<1.4.1`, fixed **1.4.1**; для внедрения закреплён `altcha-lib@2.3.1`. Отвод mCaptcha:
+      отдельный демон с собственными Postgres и Redis, нет
       Node/TS-пакета, проект де-факто заморожен 9.5 месяцев.
       **Переворот решения:** если Cap опубликует заявку о WCAG — его меньший вес (15 КБ против 34.7) вернёт его
       в игру.
 
-- [ ] **3.2 РАЗВИЛКА ВЛАДЕЛЬЦА (D-2): порог и форма блокировки на аккаунт** — рекомендация: 5 неудач → 15 мин,
+- [x] **3.2 РАЗВИЛКА ВЛАДЕЛЬЦА (D-2): порог и форма блокировки на аккаунт** — рекомендация: 5 неудач → 15 мин,
       как у второго фактора; растущая задержка вместо жёсткой блокировки при сомнении.
+      **РЕШЕНИЕ ВЛАДЕЛЬЦА 30.07.2026:** «если то что ты предлагаешь логично и соответствует NIST - то я
+      согласен»; затем: «1065 - если это взрослая модель - то применяй». Применяемая модель: общий per-IP
+      бюджет не ослаблять; 5–9-я неудачи дают следующий допуск через 30/60/120/240/480 с без sleep в HTTP;
+      10-я — только временный lock 15 минут; permanent lock нет; recovery остаётся доступным.
+      Доказательство решения: две дословные цитаты владельца выше, получены 30.07.2026.
 - [x] **3.3** Счётчик неудач на аккаунт + временная блокировка в `pgUserPasswordCredentials.ts`, применённый к ✅ 46214b7df — задержки 30/60/120/240/480 с 5-й, замок 15 мин на 10-й, снимается сам; ~~неразличимость существующего и несуществующего адреса включая время ответа~~ (аудит 28.07: runtime timing не измерялся)
       ОБОИМ путям (вход и смена пароля). Доказательство: тест «блокировка после N неудач», «снимается по
       истечении окна», «верный пароль во время блокировки тоже отклоняется».
@@ -247,7 +253,32 @@ locked_until` + `app.record_failed_staff_factor_attempt()` (5 попыток →
       `pgUserPasswordCredentialsBruteforce.test.ts`, `login/route.test.ts`, `passwordChange.test.ts`,
       `passwordLoginProtection.test.ts`; targeted Vitest 28.07 — PASS. Полная timing-неразличимость по-прежнему
       не заявляется без runtime-замера.
-- [ ] **3.4** Внести находку в `FINDINGS_AND_OPTIONS.md` под #1001 (D2 рядом, но это другая находка).
+      **КОРРЕКЦИЯ 30.07.2026:** реализация `46214b7df` оказалась read-only gate + раздельными writes и
+      удерживала HTTP-запросы на 30–480 секунд; это доказательство не считать финальной защитой #1065.
+- [x] **3.3a Взрослая corrective-модель:** один атомарный DB admission lease до Argon2, Argon2 вне транзакции,
+      exact-token completion; account+identifier для известного email и identifier-only для неизвестного;
+      correct password во время lock отклоняется; success/recovery атомарно сбрасывает оба state, не общий
+      IP-бюджет. Код: `apps/webapp/db/drizzle-migrations/0274_password_login_atomic_admission_altcha.sql`,
+      `apps/webapp/src/infra/repos/pgPasswordLoginProtection.ts`,
+      `apps/webapp/src/infra/repos/pgUserPasswordCredentials.ts`,
+      `apps/webapp/src/modules/auth/passwordLoginProtectionPort.ts`; bounded opportunistic retention не даёт
+      публичным identifier/challenge таблицам расти без лимита. Финальный статический gate 30.07:
+      `pnpm --dir apps/webapp run typecheck` PASS; targeted ESLint изменённых `apps/webapp/src/**/*.{ts,tsx}`
+      PASS; `check-drizzle-journal-sync.sh` PASS; `git diff --check` PASS. Независимый read-only audit
+      `/root/review_1065_design` — PASS, новых MUST нет, все прежние MUST закрыты.
+- [x] **3.4a ALTCHA внедрение:** self-hosted NPM (`altcha@3.2.1`, `altcha-lib@2.3.1`), видимый русский checkbox,
+      signed binding `purpose=password_login` + identifier + challengeId + expiry, single-use consume в той же
+      транзакции, без CDN/Sentinel/tracking. HMAC root создаётся CSPRNG в `system_settings`, зарегистрирован как
+      restricted/redacted и не принимается от браузера. Версии:
+      `pnpm --dir apps/webapp why altcha altcha-lib` → только `altcha@3.2.1`, `altcha-lib@2.3.1`.
+      Код: `apps/webapp/src/modules/auth/passwordAltcha.ts`,
+      `apps/webapp/src/shared/ui/auth/PasswordAltchaChallenge.tsx`,
+      `apps/webapp/src/app/api/auth/email-password/login/challenge/route.ts`,
+      `apps/webapp/src/app/api/account/security/password/change/challenge/route.ts`; одноразовость обеспечена
+      атомарным consume challenge в `0274_password_login_atomic_admission_altcha.sql`. Независимый audit
+      `/root/review_1065_design` — PASS.
+- [x] **3.4** Внести находку в `FINDINGS_AND_OPTIONS.md` под #1001 (D2 рядом, но это другая находка).
+      Доказательство: `docs/_TODO/SECURITY_AUDIT_2026-07-25/FINDINGS_AND_OPTIONS.md`, раздел D8.
 
 **Риск:** identity/auth → полный многораундовый адверсарный цикл, потолок 2 correction-раунда.
 **Запрещено:** ослаблять существующий общий бюджет `auth.confirm` 30/10мин; вводить бессрочную блокировку.

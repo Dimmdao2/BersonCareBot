@@ -15,6 +15,7 @@ import {
   staffSecurityErrorText,
   staffSecurityNetworkErrorText,
 } from '@/shared/ui/auth/staffSecurityErrorText';
+import { PasswordAltchaChallenge } from '@/shared/ui/auth/PasswordAltchaChallenge';
 
 type SecurityStatus = {
   enrolled: boolean;
@@ -54,6 +55,9 @@ export function StaffSecuritySection(props: Props) {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [passwordBusy, setPasswordBusy] = useState(false);
+  const [passwordAltchaRequired, setPasswordAltchaRequired] = useState(false);
+  const [passwordAltchaPayload, setPasswordAltchaPayload] = useState<string | null>(null);
+  const [passwordAltchaGeneration, setPasswordAltchaGeneration] = useState(0);
 
   const securityReady = status.enrolled && status.recoveryConfirmed && !status.replacementRequired;
 
@@ -164,17 +168,32 @@ export function StaffSecuritySection(props: Props) {
         ok: boolean;
         error?: string;
         passwordChanged?: boolean;
-      }>('/api/account/security/password/change', { currentPassword, newPassword });
+        captchaRequired?: boolean;
+        captchaRefreshRequired?: boolean;
+      }>('/api/account/security/password/change', {
+        currentPassword,
+        newPassword,
+        ...(passwordAltchaPayload ? { altcha: passwordAltchaPayload } : {}),
+      });
       if (!result.ok) {
         if (result.passwordChanged) {
           setCurrentPassword('');
           setNewPassword('');
+        }
+        if (result.captchaRefreshRequired) {
+          setPasswordAltchaRequired(true);
+          setPasswordAltchaPayload(null);
+          setPasswordAltchaGeneration((current) => current + 1);
+        } else if (result.captchaRequired) {
+          setPasswordAltchaRequired(true);
         }
         toast.error(staffSecurityErrorText(result.error, 'change_password'));
         return;
       }
       setCurrentPassword('');
       setNewPassword('');
+      setPasswordAltchaRequired(false);
+      setPasswordAltchaPayload(null);
       toast.success('Пароль изменён');
     } catch {
       toast.error(staffSecurityNetworkErrorText('change_password'));
@@ -259,7 +278,19 @@ export function StaffSecuritySection(props: Props) {
               onChange={(event) => setNewPassword(event.target.value)}
             />
           </div>
-          <Button className="w-fit" size="sm" type="submit" disabled={passwordBusy}>
+          {passwordAltchaRequired ? (
+            <PasswordAltchaChallenge
+              key={passwordAltchaGeneration}
+              endpoint="/api/account/security/password/change/challenge"
+              onVerified={setPasswordAltchaPayload}
+            />
+          ) : null}
+          <Button
+            className="w-fit"
+            size="sm"
+            type="submit"
+            disabled={passwordBusy || (passwordAltchaRequired && !passwordAltchaPayload)}
+          >
             Сменить пароль
           </Button>
         </form>

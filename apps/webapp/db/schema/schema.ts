@@ -193,7 +193,13 @@ export const userPasswordCredentials = pgTable(
     passwordHash: text('password_hash').notNull(),
     algo: text().default('argon2id').notNull(),
     failedAttempts: integer('failed_attempts').default(0).notNull(),
+    nextAllowedAt: timestamp('next_allowed_at', { withTimezone: true, mode: 'string' }),
     lockedUntil: timestamp('locked_until', { withTimezone: true, mode: 'string' }),
+    verificationLeaseToken: uuid('verification_lease_token'),
+    verificationLeaseUntil: timestamp('verification_lease_until', {
+      withTimezone: true,
+      mode: 'string',
+    }),
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
       .notNull(),
@@ -205,6 +211,93 @@ export const userPasswordCredentials = pgTable(
       name: 'user_password_credentials_user_id_fkey',
     }).onDelete('cascade'),
     check('user_password_credentials_failed_attempts_check', sql`failed_attempts >= 0`),
+    uniqueIndex('uq_user_password_credentials_verification_lease_token')
+      .using('btree', table.verificationLeaseToken.asc().nullsLast().op('uuid_ops'))
+      .where(sql`verification_lease_token IS NOT NULL`),
+    index('idx_user_password_credentials_verification_lease_until')
+      .using('btree', table.verificationLeaseUntil.asc().nullsLast().op('timestamptz_ops'))
+      .where(sql`verification_lease_until IS NOT NULL`),
+  ],
+);
+
+/** Global pseudonymous state for serialized password proofs, including nonexistent identifiers. */
+export const passwordLoginIdentifierProtection = pgTable(
+  'password_login_identifier_protection',
+  {
+    identifierKey: text('identifier_key').primaryKey().notNull(),
+    failedAttempts: integer('failed_attempts').default(0).notNull(),
+    nextAllowedAt: timestamp('next_allowed_at', { withTimezone: true, mode: 'string' }),
+    lockedUntil: timestamp('locked_until', { withTimezone: true, mode: 'string' }),
+    verificationLeaseToken: uuid('verification_lease_token'),
+    verificationLeaseUntil: timestamp('verification_lease_until', {
+      withTimezone: true,
+      mode: 'string',
+    }),
+    leasedUserId: uuid('leased_user_id'),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    check(
+      'password_login_identifier_key_check',
+      sql`identifier_key ~ '^password-email:v1:[0-9a-f]{64}$'`,
+    ),
+    check('password_login_identifier_failed_attempts_check', sql`failed_attempts >= 0`),
+    check(
+      'password_login_identifier_lease_shape_check',
+      sql`(verification_lease_token IS NULL AND verification_lease_until IS NULL AND leased_user_id IS NULL)
+        OR (verification_lease_token IS NOT NULL AND verification_lease_until IS NOT NULL)`,
+    ),
+    uniqueIndex('uq_password_login_identifier_verification_lease_token')
+      .using('btree', table.verificationLeaseToken.asc().nullsLast().op('uuid_ops'))
+      .where(sql`verification_lease_token IS NOT NULL`),
+    index('idx_password_login_identifier_verification_lease_until')
+      .using('btree', table.verificationLeaseUntil.asc().nullsLast().op('timestamptz_ops'))
+      .where(sql`verification_lease_until IS NOT NULL`),
+    index('idx_password_login_identifier_locked_until')
+      .using('btree', table.lockedUntil.asc().nullsLast().op('timestamptz_ops'))
+      .where(sql`locked_until IS NOT NULL`),
+    index('idx_password_login_identifier_updated_at').using(
+      'btree',
+      table.updatedAt.asc().nullsLast().op('timestamptz_ops'),
+    ),
+  ],
+);
+
+/** Server-issued, cryptographically verified and atomically consumed ALTCHA challenges. */
+export const passwordAltchaChallenges = pgTable(
+  'password_altcha_challenges',
+  {
+    challengeId: uuid('challenge_id').primaryKey().notNull(),
+    identifierKey: text('identifier_key').notNull(),
+    purpose: text().notNull(),
+    challengeDigest: text('challenge_digest').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'string' }).notNull(),
+    consumedAt: timestamp('consumed_at', { withTimezone: true, mode: 'string' }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    check(
+      'password_altcha_challenge_identifier_key_check',
+      sql`identifier_key ~ '^password-email:v1:[0-9a-f]{64}$'`,
+    ),
+    check('password_altcha_challenge_purpose_check', sql`purpose = 'password_login'`),
+    check(
+      'password_altcha_challenge_digest_check',
+      sql`challenge_digest ~ '^[0-9a-f]{64}$'`,
+    ),
+    index('idx_password_altcha_challenges_identifier_expiry').using(
+      'btree',
+      table.identifierKey.asc().nullsLast().op('text_ops'),
+      table.expiresAt.desc().nullsFirst().op('timestamptz_ops'),
+    ),
+    index('idx_password_altcha_challenges_expiry').using(
+      'btree',
+      table.expiresAt.asc().nullsLast().op('timestamptz_ops'),
+    ),
   ],
 );
 

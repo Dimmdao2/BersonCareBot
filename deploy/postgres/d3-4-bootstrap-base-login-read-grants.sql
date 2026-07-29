@@ -210,6 +210,20 @@ REVOKE EXECUTE ON FUNCTION app.email_password_register_pending(text, text, text,
 REVOKE EXECUTE ON FUNCTION app.email_password_delete_unverified_registration(uuid) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_password_find_user_id_by_email_challenge(uuid) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_password_find_login_candidate(text) FROM :"d3_4_bootstrap_base_role";
+SELECT format('REVOKE EXECUTE ON FUNCTION app.password_login_read_altcha_secret() FROM %I', :'d3_4_bootstrap_base_role')
+WHERE to_regprocedure('app.password_login_read_altcha_secret()') IS NOT NULL \gexec
+SELECT format('REVOKE EXECUTE ON FUNCTION app.password_login_issue_altcha_challenge(text,uuid,text,timestamptz) FROM %I', :'d3_4_bootstrap_base_role')
+WHERE to_regprocedure('app.password_login_issue_altcha_challenge(text,uuid,text,timestamptz)') IS NOT NULL \gexec
+SELECT format('REVOKE EXECUTE ON FUNCTION app.password_login_acquire(text,text,uuid,text) FROM %I', :'d3_4_bootstrap_base_role')
+WHERE to_regprocedure('app.password_login_acquire(text,text,uuid,text)') IS NOT NULL \gexec
+SELECT format('REVOKE EXECUTE ON FUNCTION app.password_login_complete(uuid,boolean) FROM %I', :'d3_4_bootstrap_base_role')
+WHERE to_regprocedure('app.password_login_complete(uuid,boolean)') IS NOT NULL \gexec
+SELECT format('REVOKE EXECUTE ON FUNCTION app.password_credentials_replace_self(text,text) FROM %I', :'d3_4_bootstrap_base_role')
+WHERE to_regprocedure('app.password_credentials_replace_self(text,text)') IS NOT NULL \gexec
+SELECT format('REVOKE EXECUTE ON FUNCTION app.password_credentials_upsert_self(text,text) FROM %I', :'d3_4_bootstrap_base_role')
+WHERE to_regprocedure('app.password_credentials_upsert_self(text,text)') IS NOT NULL \gexec
+SELECT format('REVOKE EXECUTE ON FUNCTION app.set_staff_security_self_password_hash(text) FROM %I', :'d3_4_bootstrap_base_role')
+WHERE to_regprocedure('app.set_staff_security_self_password_hash(text)') IS NOT NULL \gexec
 REVOKE EXECUTE ON FUNCTION app.is_organization_slug_available(text) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.create_specialist_signup_intent(uuid, text, text, text, text) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.get_pending_specialist_signup_intent(uuid, uuid) FROM :"d3_4_bootstrap_base_role";
@@ -586,6 +600,21 @@ GRANT EXECUTE ON FUNCTION app.email_password_register_pending(text, text, text, 
 GRANT EXECUTE ON FUNCTION app.email_password_delete_unverified_registration(uuid) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_password_find_user_id_by_email_challenge(uuid) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_password_find_login_candidate(text) TO :"d3_4_bootstrap_base_role";
+SELECT format('GRANT EXECUTE ON FUNCTION app.password_login_read_altcha_secret() TO %I', :'d3_4_bootstrap_base_role')
+WHERE to_regprocedure('app.password_login_read_altcha_secret()') IS NOT NULL \gexec
+SELECT format('GRANT EXECUTE ON FUNCTION app.password_login_issue_altcha_challenge(text,uuid,text,timestamptz) TO %I', :'d3_4_bootstrap_base_role')
+WHERE to_regprocedure('app.password_login_issue_altcha_challenge(text,uuid,text,timestamptz)') IS NOT NULL \gexec
+SELECT format('GRANT EXECUTE ON FUNCTION app.password_login_acquire(text,text,uuid,text) TO %I', :'d3_4_bootstrap_base_role')
+WHERE to_regprocedure('app.password_login_acquire(text,text,uuid,text)') IS NOT NULL \gexec
+SELECT format('GRANT EXECUTE ON FUNCTION app.password_login_complete(uuid,boolean) TO %I', :'d3_4_bootstrap_base_role')
+WHERE to_regprocedure('app.password_login_complete(uuid,boolean)') IS NOT NULL \gexec
+SELECT format('GRANT EXECUTE ON FUNCTION app.password_credentials_replace_self(text,text) TO %I', :'d3_4_bootstrap_base_role')
+WHERE to_regprocedure('app.password_credentials_replace_self(text,text)') IS NOT NULL \gexec
+SELECT format('GRANT EXECUTE ON FUNCTION app.password_credentials_upsert_self(text,text) TO %I', :'d3_4_bootstrap_base_role')
+WHERE to_regprocedure('app.password_credentials_upsert_self(text,text)') IS NOT NULL \gexec
+-- 0274 retires the legacy reset function: it bypasses the atomic account+identifier state.
+SELECT format('REVOKE EXECUTE ON FUNCTION app.set_staff_security_self_password_hash(text) FROM %I', :'d3_4_bootstrap_base_role')
+WHERE to_regprocedure('app.set_staff_security_self_password_hash(text)') IS NOT NULL \gexec
 GRANT EXECUTE ON FUNCTION app.is_organization_slug_available(text) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.create_specialist_signup_intent(uuid, text, text, text, text) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.get_pending_specialist_signup_intent(uuid, uuid) TO :"d3_4_bootstrap_base_role";

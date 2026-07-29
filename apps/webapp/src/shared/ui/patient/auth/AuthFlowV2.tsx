@@ -57,6 +57,7 @@ import {
 } from '@/modules/clinic-directory/organizationSlug';
 import type { OrganizationSlugMutationErrorCode } from '@/modules/clinic-directory/ports';
 import { staffSecurityErrorText } from '@/shared/ui/auth/staffSecurityErrorText';
+import { PasswordAltchaChallenge } from '@/shared/ui/auth/PasswordAltchaChallenge';
 
 const WEB_CHAT_ID_KEY = 'bersoncare_web_chat_id';
 
@@ -264,6 +265,9 @@ export function AuthFlowV2({
   );
   const [emailLoginEmail, setEmailLoginEmail] = useState('');
   const [emailLoginPassword, setEmailLoginPassword] = useState('');
+  const [passwordAltchaRequired, setPasswordAltchaRequired] = useState(false);
+  const [passwordAltchaPayload, setPasswordAltchaPayload] = useState<string | null>(null);
+  const [passwordAltchaGeneration, setPasswordAltchaGeneration] = useState(0);
   const [staffFactorCode, setStaffFactorCode] = useState('');
   const [staffFactorUseRecovery, setStaffFactorUseRecovery] = useState(false);
   const [emailRegPassword, setEmailRegPassword] = useState('');
@@ -696,6 +700,8 @@ export function AuthFlowV2({
     clearAuthFlowPending();
     setEmailAuthMode('password_login');
     setEmailLoginPassword('');
+    setPasswordAltchaRequired(false);
+    setPasswordAltchaPayload(null);
   };
 
   /**
@@ -772,10 +778,16 @@ export function AuthFlowV2({
         factorRequired?: boolean;
         error?: string;
         message?: string;
+        captchaRequired?: boolean;
+        captchaRefreshRequired?: boolean;
       }>('/api/auth/email-password/login', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({
+          email,
+          password,
+          ...(passwordAltchaPayload ? { altcha: passwordAltchaPayload } : {}),
+        }),
       });
       if (!loginResult.ok) {
         toast.error(AUTH_NETWORK_ERROR_MESSAGE);
@@ -796,6 +808,13 @@ export function AuthFlowV2({
         return;
       }
       if (data.error === 'invalid_credentials') {
+        if (data.captchaRefreshRequired) {
+          setPasswordAltchaRequired(true);
+          setPasswordAltchaPayload(null);
+          setPasswordAltchaGeneration((current) => current + 1);
+        } else if (data.captchaRequired) {
+          setPasswordAltchaRequired(true);
+        }
         toast.error(
           data.message ?? 'Email или пароль неверны. Проверьте данные или восстановите пароль.',
         );
@@ -1507,7 +1526,11 @@ export function AuthFlowV2({
                     autoComplete="email"
                     inputMode="email"
                     value={emailLoginEmail}
-                    onChange={(e) => setEmailLoginEmail(e.target.value)}
+                    onChange={(e) => {
+                      setEmailLoginEmail(e.target.value);
+                      setPasswordAltchaRequired(false);
+                      setPasswordAltchaPayload(null);
+                    }}
                     disabled={loading}
                     className={authEmailInputClass}
                   />
@@ -1527,11 +1550,19 @@ export function AuthFlowV2({
                     className={authEmailInputClass}
                   />
                 </div>
+                {passwordAltchaRequired ? (
+                  <PasswordAltchaChallenge
+                    key={passwordAltchaGeneration}
+                    endpoint="/api/auth/email-password/login/challenge"
+                    email={emailLoginEmail.trim()}
+                    onVerified={setPasswordAltchaPayload}
+                  />
+                ) : null}
                 <Button
                   type="submit"
                   variant="outline"
                   className={AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS}
-                  disabled={loading}
+                  disabled={loading || (passwordAltchaRequired && !passwordAltchaPayload)}
                 >
                   Войти
                 </Button>
@@ -1553,6 +1584,8 @@ export function AuthFlowV2({
                     onClick={() => {
                       setEmailAuthMode('login');
                       setEmailLoginPassword('');
+                      setPasswordAltchaRequired(false);
+                      setPasswordAltchaPayload(null);
                     }}
                   >
                     Войти по коду

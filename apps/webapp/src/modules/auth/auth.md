@@ -40,17 +40,25 @@
 - **`POST /api/auth/email-password/lookup`** — `{ ok: true, state }` для ветвления UI (`free` | `pending_registration` | `verified_with_password` | `needs_email_setup` | `email_conflict`). При нескольких canonical-строках с одним email lookup сначала пробует auto-merge через общий merge-engine, но **не** сливает две строки, если у обеих уже есть `user_password_credentials`; hard blocker пишет `email_auth_conflict` в `admin_audit_log` с `candidateIds`.
 - **`POST /api/auth/email-password/setup-access`** — повторная отправка setup-кода для `needs_email_setup`, возвращает `challengeId`.
 - **`POST /api/auth/email-password/login`** — при верном пароле и **`email_verified_at`** возвращает сессию и `redirectTo`. Если пароль верный, но email ещё не подтверждён — **409** `email_not_verified` (UI запускает повторную регистрацию/код).
-  Вход использует общий per-IP чокпоинт `auth.confirm` (30 запросов / 10 минут) и отдельный счётчик
-  последовательных неудач в `user_password_credentials`: с 5-й неудачи задержка
-  30/60/120/240/480 секунд, на 10-й — временная блокировка 15 минут. Успешная проверка пароля сбрасывает
-  счётчик; запросы во время уже активной блокировки не записываются как новые ошибки и не сдвигают её срок.
-  Для неизвестного email выполняется Argon2 dummy-verification и тот же псевдонимный identifier backoff,
-  поэтому тело, статус и заданная приложением задержка неверного пароля совпадают. Статистическая
-  неразличимость полного времени выполнения отдельно не заявляется без runtime-замера.
+  Вход использует общий per-IP чокпоинт `auth.confirm` (30 запросов / 10 минут) и атомарный протокол
+  `password_login_acquire` → одна Argon2-проверка вне транзакции → `password_login_complete`. До Argon2
+  сериализуются account + псевдонимный identifier (для неизвестного email — только identifier), выдаётся
+  30-секундный UUID lease; завершение с устаревшим/перехваченным lease не может открыть сессию. С 5-й неудачи
+  следующий допуск откладывается на 30/60/120/240/480 секунд без удержания HTTP-запроса, на 10-й действует
+  временная блокировка 15 минут. Верный пароль во время lock также отклоняется.
+  Начиная с 5-й неудачи требуется видимая self-hosted ALTCHA (`altcha@3.2.1`,
+  `altcha-lib@2.3.1`): `POST /api/auth/email-password/login/challenge` выдаёт подписанный challenge, связанный
+  с `purpose=password_login`, identifier и expiry; криптографически проверенный proof потребляется атомарно
+  вместе с admission и только один раз. CDN/Sentinel/внешней телеметрии нет. Реальный и неизвестный email
+  проходят один и тот же внешний failure contract и real/dummy Argon2 после допуска.
 - **`POST /api/auth/email-password/forgot`** — сброс: код на почту для **verified + password**; для **contact-only** (`needs_email_setup`) — setup-код и `challengeId` для текущей формы (после lookup UI уже знает, что это setup flow). Если вкладка потеряла `challengeId`, `setup-code/complete` принимает код через latest active challenge пользователя.
 - **`POST /api/auth/email-password/setup-code/complete`** — contact-only setup по коду: подтверждает email, создаёт/обновляет пароль и ставит сессию.
 - **`POST /api/auth/email-password/reset`** — проверка кода через `consumeEmailChallengeCode` (если передан `challengeId`) или `consumeLatestEmailChallengeCodeForUser`, обновление хэша пароля; ошибки верификации кода (включая случай отсутствия пользователя) нормализуются в нейтральный `invalid_code`.
-- **`POST /api/account/security/password/change`** — смена пароля из авторизованного staff-аккаунта с проверкой текущего пароля; старые сессии отзываются через `session_epoch`, текущая перевыпускается с новым epoch.
+- **`POST /api/account/security/password/change`** — смена пароля из авторизованного staff-аккаунта с той же
+  атомарной защитой текущего пароля и ALTCHA после 5-й неудачи
+  (`POST /api/account/security/password/change/challenge`); старые сессии отзываются через `session_epoch`,
+  текущая перевыпускается с новым epoch. Успешная смена и восстановление атомарно сбрасывают account +
+  identifier state, но не общий per-IP бюджет.
 - **Подтверждение email из авторизованного профиля** (`/api/auth/email/confirm`, `/api/patient/email-change/confirm`) после верного OTP выполняет транзакционный claim. Если адрес принадлежит другому безопасно сливаемому client-аккаунту, он merge-ится в текущего пациента под server-resolved organization principal; два password-login аккаунта и остальные hard blockers по-прежнему дают `409 email_conflict`.
 
 ## Мессенджеры и обмен токенами

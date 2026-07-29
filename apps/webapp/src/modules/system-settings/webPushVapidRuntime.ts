@@ -105,6 +105,18 @@ export function redactAdminSettingsForClient(settings: SystemSetting[]): SystemS
         },
       };
     }
+    if (s.key === 'auth_altcha_hmac_secret') {
+      const value =
+        s.valueJson !== null && typeof s.valueJson === 'object'
+          ? (s.valueJson as Record<string, unknown>).value
+          : null;
+      return {
+        ...s,
+        valueJson: {
+          value: { hasStoredSecret: typeof value === 'string' && value.trim().length > 0 },
+        },
+      };
+    }
     if (s.key === 'operator_health_imap') {
       const value =
         s.valueJson && typeof s.valueJson === 'object' && 'value' in s.valueJson
