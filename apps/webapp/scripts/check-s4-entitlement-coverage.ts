@@ -67,13 +67,18 @@ export function validateProtectedActionMappings(
     const guardPattern = helperGuard
       ? new RegExp(`${mapping.guard}\\(\\)`)
       : new RegExp(`${mapping.guard}\\([^)]*,\\s*["']${mapping.mechanic}["']`);
+    // Кавычки и переносы строк — не предмет этой проверки: она о том, что граница объявлена, а не о
+    // том, как её отформатировали. Литеральный includes с двойными кавычками ловил смену кавычек
+    // форматтером и рапортовал несуществующие дыры в правах (этап 0 ревизии тестов, 29.07).
+    const helperBoundaryName =
+      mapping.guard === 'requireDoctorForPatientHomeMutation'
+        ? 'requireEntitlementForMutationAction'
+        : 'requireEntitlementForReadAction';
+    const helperBoundaryPattern = new RegExp(
+      `${helperBoundaryName}\\(\\s*workspace\\s*,\\s*["']cms_pages["']\\s*,?\\s*\\)`,
+    );
     const helperBoundaryIsTyped =
-      !helperGuard ||
-      sourceFor(mapping.file).includes(
-        mapping.guard === 'requireDoctorForPatientHomeMutation'
-          ? 'requireEntitlementForMutationAction(workspace, "cms_pages")'
-          : 'requireEntitlementForReadAction(workspace, "cms_pages")',
-      );
+      !helperGuard || helperBoundaryPattern.test(sourceFor(mapping.file));
     if (!guardPattern.test(actionSource) || !helperBoundaryIsTyped) {
       findings.push({ id: mapping.id, message: `missing ${mapping.guard}(${mapping.mechanic})` });
     }
