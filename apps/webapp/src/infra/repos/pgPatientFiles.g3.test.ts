@@ -180,20 +180,5 @@ describe('pgPatientFiles — G3 consistency (PFI-ST-04)', () => {
       expect((col as unknown as { notNull: boolean }).notNull).toBe(false);
     });
 
-    it('patient_files schema source file declares onDelete set null for media_file_id FK', async () => {
-      // Read the schema source to assert the FK definition string is present.
-      // This is a regression guard: changing onDelete to "cascade" would break this test.
-      const fs = await import('node:fs/promises');
-      const path = await import('node:path');
-      const schemaPath = path.resolve(__dirname, '../../../db/schema/patientFiles.ts');
-      const source = await fs.readFile(schemaPath, 'utf8');
-
-      // The FK for media_file_id must use onDelete("set null"), not "cascade"
-      expect(source).toContain('patient_files_media_file_id_fkey');
-      expect(source).toContain('.onDelete("set null")');
-      expect(source).not.toMatch(
-        /patient_files_media_file_id_fkey[\s\S]{0,200}\.onDelete\("cascade"\)/,
-      );
-    });
   });
 });

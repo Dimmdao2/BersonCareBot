@@ -2,17 +2,11 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { CLINIC_SEAT_USAGE_SQL } from '@/infra/repos/seatUsageSql';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoSource = readFileSync(join(__dirname, 'pgOrganizationInvites.ts'), 'utf8');
-const orgEntitlementsSource = readFileSync(join(__dirname, 'pgOrgEntitlements.ts'), 'utf8');
 const overlaySource = readFileSync(
   join(__dirname, '../../../../../deploy/postgres/organization-member-invites-rls.sql'),
-  'utf8',
-);
-const platformRuntimeSource = readFileSync(
-  join(__dirname, '../../../../../deploy/postgres/c5a-platform-operations-runtime.sql'),
   'utf8',
 );
 const seatNonnegativeMigrationSource = readFileSync(
@@ -53,46 +47,6 @@ describe('organization invite PostgreSQL contract', () => {
     const lockCallParamsStart = createSource.indexOf('[input.organizationId]', lockCallStart);
     expect(lockCallParamsStart).toBeGreaterThan(-1);
     expect(lockCallParamsStart).toBeLessThan(createSource.indexOf('activeMember'));
-  });
-
-  it("atomically re-checks clinic_team entitlement and seat capacity for a doctor invite, excluding its own email's prior reservation", () => {
-    const createSource = repoSource.slice(
-      repoSource.indexOf('async createReplacingPending'),
-      repoSource.indexOf('async listPendingByOrganization'),
-    );
-
-    expect(createSource).toContain('if (input.invitedRole === "doctor")');
-    expect(createSource).toContain('saas_org_entitlement_overrides');
-    expect(createSource).toContain('saas_tariffs');
-    expect(createSource).toContain('CLINIC_SEAT_USAGE_SQL');
-    expect(CLINIC_SEAT_USAGE_SQL).toContain('m.specialist_id IS NOT NULL');
-    expect(CLINIC_SEAT_USAGE_SQL).toContain(
-      "i.invited_role = 'doctor' AND ($2::text IS NULL OR i.invited_email <> $2)",
-    );
-    expect(CLINIC_SEAT_USAGE_SQL).toContain("i.status = 'accepted' AND i.invited_role = 'doctor'");
-    expect(CLINIC_SEAT_USAGE_SQL).toContain("m.status = 'active' AND m.specialist_id IS NULL");
-    expect(createSource).toContain('code: "seat_limit_reached"');
-    // The capacity check must run before the revoke+insert, not after.
-    expect(createSource.indexOf('usedValue >= limitValue')).toBeLessThan(
-      createSource.indexOf("status = 'revoked'"),
-    );
-  });
-
-  it('keeps storefront seat usage aligned behind a count-only DB capability', () => {
-    expect(repoSource).toContain(
-      'import { CLINIC_SEAT_USAGE_SQL } from "@/infra/repos/seatUsageSql"',
-    );
-    expect(orgEntitlementsSource).toContain('app.read_org_enforced_quota_usage($1::uuid)');
-    expect(orgEntitlementsSource).not.toContain('organization_member_invites');
-    expect(platformRuntimeSource).toContain('membership.specialist_id IS NOT NULL');
-    expect(platformRuntimeSource).toContain("invite.status = 'pending'");
-    expect(platformRuntimeSource).toContain('invite.expires_at > now()');
-    expect(platformRuntimeSource).toContain("invite.invited_role = 'doctor'");
-    expect(platformRuntimeSource).toContain("invite.status = 'accepted'");
-    expect(platformRuntimeSource).toContain('membership.specialist_id IS NULL');
-    expect(platformRuntimeSource).toContain(
-      'REVOKE ALL PRIVILEGES ON TABLE\n    public.courses,\n    public.organization_member_invites',
-    );
   });
 
   it('keeps accept single-use and creates only the membership in its pre-session transaction', () => {

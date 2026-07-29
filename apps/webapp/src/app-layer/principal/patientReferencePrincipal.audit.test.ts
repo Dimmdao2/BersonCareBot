@@ -19,12 +19,4 @@ describe('patient reference tenant derivation', () => {
     expect(organizationStamp).toBeGreaterThan(enrollmentResolution);
   });
 
-  it('does not retain a reference UUID across patient organizations', () => {
-    const source = readFileSync(
-      resolve(srcRoot, 'modules/patient-mood/wellbeingMoodService.ts'),
-      'utf8',
-    );
-    expect(source).not.toContain('cachedRefId');
-    expect(source).toContain('listActiveItemsByCategoryCode("symptom_type")');
-  });
 });

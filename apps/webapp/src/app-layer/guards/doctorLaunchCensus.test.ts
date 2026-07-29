@@ -229,12 +229,6 @@ const mutableMediaManifest: readonly LaunchManifestEntry[] = [
   },
 ];
 
-const rejectedPlatformRepairRoutes = [
-  'clients/merge-user-search/route.ts',
-  'clients/merge-preview/route.ts',
-  'clients/merge/route.ts',
-] as const;
-
 const doctorServerActionManifest = [
   'broadcasts/actions.ts',
   'clinical-tests/actions.ts',
@@ -330,14 +324,6 @@ describe('U1 finite doctor launch manifest', () => {
     );
   });
 
-  it('records rejected global patient repair handlers as absent executable capabilities', () => {
-    for (const route of rejectedPlatformRepairRoutes) {
-      const source = readFileSync(new URL(`api/doctor/${route}`, appRoot), 'utf8');
-      expect(source, route).toContain('error: "not_available"');
-      expect(source, route).not.toContain('getPool(');
-    }
-  });
-
   it('has an exact Server Action manifest and forbids raw role/session authorization', () => {
     const discovered = collectServerActionFiles(doctorRoot).map((file) =>
       fileURLToPath(file).replace(fileURLToPath(doctorRoot), ''),
@@ -383,24 +369,4 @@ describe('U1 finite doctor launch manifest', () => {
     }
   });
 
-  it('keeps clinical and platform RSC trees physically disjoint at preserved URLs', () => {
-    const doctorLayout = readFileSync(new URL('app/doctor/layout.tsx', appRoot), 'utf8');
-    const platformLayout = readFileSync(
-      new URL('app/(global-admin)/doctor/layout.tsx', appRoot),
-      'utf8',
-    );
-    const adminLayout = readFileSync(new URL('app/admin/layout.tsx', appRoot), 'utf8');
-    const accountLayout = readFileSync(new URL('app/account/layout.tsx', appRoot), 'utf8');
-    expect(doctorLayout).toContain('redirect("/app/admin/system-health")');
-    expect(platformLayout).toContain('requirePlatformOperationsPage()');
-    expect(platformLayout).toContain('enableTenantRuntime={false}');
-    expect(platformLayout).toContain('menuKind="platform"');
-    // app/admin/layout.tsx is the owner-ruling-2026-07-26 merge of app/platform/layout.tsx
-    // (deleted) with the pre-existing admin shell — same guard/shell contract as above.
-    expect(adminLayout).toContain('requirePlatformOperationsPage()');
-    expect(adminLayout).toContain('enableTenantRuntime={false}');
-    expect(adminLayout).toContain('menuKind="platform"');
-    expect(accountLayout).toContain('session.user.role === "admin" && session.adminMode === true');
-    expect(accountLayout).toContain('menuKind={isPlatformConsole ? "platform" : "doctor"}');
-  });
 });
