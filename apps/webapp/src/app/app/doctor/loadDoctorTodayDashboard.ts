@@ -212,10 +212,11 @@ const INTAKE_TYPE_LABELS: Record<IntakeType, string> = {
   nutrition: 'Нутрициология',
 };
 
-export const ON_SUPPORT_LIST_HREF = '/app/doctor/patients?segment=on_support';
-export const RECENT_VISITS_LIST_HREF = '/app/doctor/patients';
-
-export const PROGRAM_WITHOUT_SUPPORT_LIST_HREF = '/app/doctor/patients?segment=with_program';
+export {
+  ON_SUPPORT_LIST_HREF,
+  PROGRAM_WITHOUT_SUPPORT_LIST_HREF,
+  RECENT_VISITS_LIST_HREF,
+} from './doctorTodayLinks';
 
 export function mapAppointmentToTodayItem(row: AppointmentRow): TodayAppointmentItem {
   const uid = row.clientUserId?.trim() ?? '';
