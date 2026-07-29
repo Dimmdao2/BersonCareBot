@@ -44,11 +44,14 @@ const LOADERS = {
 type PageKey = keyof typeof LOADERS;
 
 function expectAsyncRscPage(mod: PageMod, label: string) {
+  // Требование «серверная страница обязана быть AsyncFunction» снято 29.07 (решение владельца).
+  // Оно проверяло ФОРМУ, а не поведение: синхронная серверная страница законна и отрисовывается
+  // так же — `async` появляется лишь тогда, когда внутри есть что ждать. Гейт закрепил текущее
+  // состояние, и как только `app_base_url` переехал из базы в переменную окружения, корневой
+  // странице стало нечего ждать, `async` исчез законно, а гейт упал на пустом месте.
+  // Осталось то, что ловит настоящее: модуль грузится и экспортирует функцию по умолчанию —
+  // без неё страница не отрисуется вообще.
   expect(typeof mod.default, `${label}: default export`).toBe('function');
-  expect(
-    (mod.default as { constructor?: { name?: string } }).constructor?.name,
-    `${label}: async server component`,
-  ).toBe('AsyncFunction');
 }
 
 describe('app router RSC pages smoke (in-process)', () => {
