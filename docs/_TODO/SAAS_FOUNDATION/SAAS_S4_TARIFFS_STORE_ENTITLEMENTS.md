@@ -590,3 +590,110 @@ global_admin visual acceptance после финального metric decision.
 - provider contract и credential-independent evidence;
 - owner rulings отдельно от инженерных решений;
 - residual risks и только два owner-decision пункта из §13.
+
+## 16. Консолидированный workstream SaaS billing / team / quotas (`#1057`)
+
+Этот раздел сохраняет непотерянный scope карточек группы 12 перед их предложенной свёрткой в одну
+workstream-карточку `#1057`. Он не заменяет этапы S4 выше, а связывает каждую прежнюю карточку с атомарными
+требованиями единственного execution plan.
+
+### `#843` — clinic/team entitlement и места
+
+- [ ] Включать clinic/team mode только купленным tariff entitlement; team settings/tab доступны только при
+      entitlement, а UI и API одинаково fail closed.
+- [ ] Дать global admin настройку included invited-specialist count и/или per-seat surcharge.
+- [ ] Зафиксировать и реализовать contracts для over-limit, add-seat, downgrade, existing overage и связь с
+      billing; C4A уже готов, C5C доплаты за места остаётся после billing.
+
+Authority карточки: `SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md` §§P1,15; roadmap C4A/C5C.
+`auto_ok=false`.
+
+### `#844` — global-admin billing operations
+
+- [ ] Достроить standard SaaS billing operations baseline для global admin: subscriptions/payers,
+      `paid|unpaid|trial|grace|past_due`, payment attempts, refunds, cancellations, filters/stats,
+      invoice/receipt details и provider events.
+- [ ] Реализовать только PSP-supported safe retry/reissue/cancel/refund/grace operations, reconciliation и
+      immutable audit; ручной success без подтверждённого money event запрещён.
+- [ ] Сначала зафиксировать design/spec с учётом выбранного PSP и legal/cash-register model.
+
+Authority карточки: `SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md` §P3; S4 §9. `auto_ok=false`.
+
+### `#845` — organization payer surface
+
+- [ ] Достроить owner/payment-admin settings surface «Тариф и биллинг»: current tariff/capabilities/usage/seats,
+      subscription status, next payment, upgrade/downgrade, add-ons/seats, payment history, receipts/invoices,
+      B2B bank-transfer invoice/status и failed-payment recovery.
+- [ ] Доказать, что billing принадлежит organization, а ordinary invited specialists не видят tab и не имеют
+      API access.
+
+Authority карточки: `SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md` §§P3,15; S4 §9.
+`auto_ok=false`, depends on billing lifecycle/spec.
+
+### `#1057` — широкая работа SaaS-оплаты клиниками
+
+Владелец 27.07, дословно: «Когда закончишь делай saas оплату клиниками».
+
+- [ ] Достроить существующий payment layer для оплаты клиниками подписки на платформу; не писать платёжку заново
+      и не смешивать её с оплатой услуг пациентами или ранее убранными store phases.
+- [ ] Сохранить модель `тариф → механики → клиника`; prices — admin-managed data, не code constants.
+- [ ] Проверить текущее состояние patient online payment: doctor memberships работают end-to-end, patient online
+      payment ранее был mock.
+- [ ] Сохранить аналитику по клиникам без PII пациентов и не вернуть пять mock payment confirmations в production:
+      они отключены вне development commit `15ad7ba6f`, gate fail closed.
+- [ ] Перед исполнением перечитать `OWNER_RULINGS_2026-07-15.md` и сверить существующие
+      `saas_tariffs`, `saas_org_entitlement_overrides`, `saas_organization_trials`; неизвестные развилки сначала
+      исследовать по мировой практике, не угадывать.
+
+Порядок владельца: работа идёт после F-6 slug/public link, C-5 password change и self-login smoke; слово
+«когда закончишь» не отменяет эти predecessors.
+
+Открытые owner gates из карточки, без выбора за владельца:
+
+1. Что происходит при прекращении оплаты: в коде `active/read_only/blocked`, в каноне также `grace`; срок grace
+   и отключаемые возможности не зафиксированы.
+2. Юрлицо/PSP: отдельный SaaS merchant/shop или тот же, что у клиник для patient payments; получатель и 54-ФЗ
+   для B2B subscription.
+3. B2B bank transfer для ИП/юрлиц — первый slice или сначала card only.
+4. Extra seat «+500р в месяц»: mid-period purchase и proration при нынешнем hard cap.
+5. Строить экран до получения PSP keys или после.
+
+Главный вопрос карточки остаётся открытым дословно:
+
+> «СТРОИТЬ SAAS-ОПЛАТУ СЕЙЧАС, НО ЗАПУСКАТЬСЯ БЕЗ НЕЁ — ИЛИ ОНА ВОЗВРАЩАЕТСЯ В СКОУП ЗАПУСКА?»
+
+Позднее указание 27.07 не позволяет агенту самому переопределить ruling 24.07 `paid billing = OUT of first launch`.
+Факт для решения: «Тест Клиника» находится в `no_trial`, без тарифа, все mechanics выключены; если fixture нужен,
+тариф назначается через `/app/admin/commercial`.
+Разрешённый владельцем 27.07 канал связи для этой работы:
+`bash /home/dev/brain/host-orch/notify-owner.sh`; ответы сохраняются в task record лидом.
+
+### `#1069` — quotas/mechanics enforcement
+
+Владелец 27–28.07, дословно: «разные параметры - разные квоты и разные настройки. это делать не тяп ляп» и
+«запустить двух конструкторов-исследователей». Сведённый design:
+`QUOTAS_AND_MECHANICS_DESIGN_2026-07-28.md`.
+
+- [ ] Исполнить модель четырёх классов: наличие; запас с прямым пересчётом; расход за период через event ledger;
+      объём как сумма байт.
+- [ ] Для каждой write-path проверки ставить quota enforcement внутри пишущей repository transaction под
+      advisory lock, а не в pre-transaction `requireEntitlement`; эталон гонки —
+      `scripts/check-c5a-courses-quota-race.mjs` с настоящим PostgreSQL.
+- [ ] Включать по одной механике: сначала показать usage без запрета → найти over-limit → выдать override →
+      включить enforcement. Первый slice: `exercise_packages` или `cms_pages`; выбор остаётся в design gate.
+- [ ] Сначала создать event facts для рассылок и оплат, потому что сейчас отсутствует даже строка события,
+      которую можно посчитать; только затем вводить расходную quota.
+- [ ] Получить решения владельца из §1 quota design: какая «Сегодня», period anchor, tariff change mid-period и
+      payments at limit.
+
+Проверенные design facts, которые нельзя потерять:
+
+- работающих механизмов **2**, не 1: courses trigger `app.enforce_courses_snapshot_quota`
+  (`0225_saas_tariff_quotas_trial.sql:302-387`) и seats с advisory lock в
+  `clinic_invite_seats`/`pgOrganizationInvites.ts:106-192`; registry ошибочно помечает seats
+  `declared_no_enforcement`;
+- `TariffQuota.period` нигде не читается, кроме assertion, что courses period = `snapshot`
+  (`org-entitlements/service.ts:28`);
+- `resolveOrgQuotaProjections` отбрасывает `declared_no_enforcement` (`service.ts:133`);
+- из **15** mechanics только **1** считалась реально проверяемой в исходной карточке; для **14** нет полного
+  enforcement/usage path.

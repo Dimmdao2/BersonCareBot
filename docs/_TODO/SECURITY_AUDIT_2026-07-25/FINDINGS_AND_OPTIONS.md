@@ -547,3 +547,179 @@ What that must mean in practice, based on what went wrong this time:
 - Slices still not audited at all: **S4 API-layer tenant isolation, S5 OAuth (Google/Yandex duplicate-e-mail
   bug, taskdb #54), S6 media presign/playback**. Plus the whole host/secrets layer in sections A and B, which
   was never part of the original slicing and turned out to contain the most severe finding.
+
+---
+
+# K. Консолидированный workstream безопасности и доступов (`#1001`)
+
+Этот раздел сохраняет непотерянный scope карточек группы 17 перед их предложенной свёрткой в одну
+workstream-карточку `#1001`. Он не превращает options выше в решения и не объявляет remediation выполненной.
+
+## K1. `#1001` — полный глубокий реаудит
+
+- [ ] Провести полный глубокий security re-audit по mandate §J; для каждой находки указать класс доказательности,
+      независимый adversarial verdict, severity через дополнительную возможность атакующего, named standard с
+      trade-offs и численное покрытие.
+- [ ] Включить неаудированные срезы S4 API tenant isolation, S5 OAuth, S6 media presign/playback и весь host/secrets
+      layer A/B. Известный duplicate-email defect `#54` остаётся отдельной карточкой без плана и не сворачивается.
+- [ ] Не потерять уже принятый, но не построенный session ruling: staff **12 часов**, patients **30 дней**,
+      one-time forced logout at deploy разрешён.
+
+Исходный verified baseline широкой карточки:
+
+- A1: webapp runtime user имел три sudo-пути, эквивалентных root; A1 addendum добавил четвёртый путь через
+  active Docker group;
+- B1: пять secrets в одном group-readable файле;
+- C1: один BYPASSRLS owner и **46** anonymously executable definer functions, из них **2** с dynamic SQL;
+- C2: dedicated public role отсутствует;
+- C3: `platform_users` без RLS, verified read **281/281** identity rows;
+- D1: logout не отзывает session, server session identity отсутствует, sliding renewal не имеет абсолютного ceiling;
+- D2: шесть auth routes без verification throttling;
+- D5: dormant patient → global-admin escalation через `admin_emails`;
+- прежний аудит вообще не покрывал S4/S5/S6 и A/B.
+
+## K2. `#881` — Security CI stack
+
+- [ ] Реализовать в GitHub Actions: Gitleaks, Semgrep и fast Trivy на каждый PR; ZAP и full Trivy еженедельно и
+      перед release. Garak оставить на этап после AI agents; Zeropath не включать.
+- [ ] Направлять ZAP active scan только на ephemeral/TEST instance, никогда на PROD; для VPN-locked TEST нужен
+      self-hosted runner либо локально поднятый webapp.
+- [ ] Все findings отправлять на owner triage без auto-fix; allowlist допускается только как осознанное,
+      датированное исключение.
+- [ ] Получить подтверждение владельца, что найденные только в git history старые Rubitime и
+      Telegram/webhook credentials отозваны/ротированы; после ответа решить history rewrite или датированное
+      исключение, не выбирать самостоятельно.
+
+Канон leaf-части: `../SECURITY_CI_STACK_PLAN.md`; решение состава:
+`../../ARCHITECTURE/TOOLING_AND_PACKAGES_DECISIONS.md`. CI surface —
+`.github/workflows/ci.yml` с существующими `setup-pnpm` и cancel-on-failure composite actions. Мотив карточки:
+медданные и прошлый инцидент prod credentials в dev `.env`. Приоритет: очень высокий для
+Gitleaks/Semgrep/Trivy, высокий для ZAP.
+
+## K3. `#935` — pre-production hardening umbrella
+
+- [ ] Сверить current code/task state с `#770/#797/#933/#934/#881`, не создавая дубли implementation work.
+- [ ] Исполнять residual repository/DEV scope по
+      `../STABILITY_SECURITY_HARDENING_PLAN_2026-07-21.md` и canonical order product roadmap.
+- [ ] TEST/PROD/host/telemetry/deploy запускать только после отдельного owner gate; full CI — на phase milestone,
+      не на каждый slice.
+
+## K4. `#982` — E3-A1 high-risk candidate
+
+- [ ] В рамках только существующих E3-02/04/05/09/11/12 исправить: validated snapshot vs post-validation
+      mutation/getters; `__proto__` passthrough без prototype mutation; реальную isolation base-vs-candidate
+      benchmark; recursive JSON-safe producer typing; adversarial/logger-silence/projection-fallback tests.
+- [ ] Не менять frozen schema/sample matrix и performance budget; после кандидата провести один свежий независимый
+      audit. Owner numeric budget остаётся gate родителя `#980`.
+
+Границы карточки: не integrate/push; DB/TEST/PROD/deploy запрещены.
+
+## K5. `#1014` — внешне заблокированный dependency audit
+
+- [ ] Дождаться совместимого `eslint-config-next` / `eslint-plugin-react`, затем поднять ESLint до 10 и
+      `typescript-eslint` до `>=8.65`, прогнать `pnpm run ci` и закрыть
+      `GHSA-mh99-v99m-4gvg` (`brace-expansion@1.1.16`).
+
+`brace-expansion@1.1.16` — последний release линии 1.x; единственный consumer — `eslint@9.39.4` через прямую
+зависимость `minimatch@3`. Поэтому текущий blocker внешний, а не локальный незакрытый override.
+
+Не повторять три уже проверенных тупика:
+
+1. `brace-expansion` 5.x в slot `minimatch@3` ломает lint: `TypeError: expand is not a function`;
+2. overrides `@eslint/config-array` / `@eslint/eslintrc` на `minimatch@10` оставляют vulnerable package в tree;
+3. ESLint 10 упирается в latest published `eslint-plugin-react@7.37.5` через `eslint-config-next`:
+   `context.getFilename()` удалён. Upstream: `https://github.com/vercel/next.js/issues/89764`.
+
+Решение владельца 26.07: TEST deploy с этой красной строкой разрешён; shim `@eslint/compat` не ставить. Риск
+ограничен DoS в dev glob expander и не касается runtime request. Канон: `../NIGHT_PLAN_2026-07-26.md` G-5;
+commits `6a793fb8c` и `28003858d`.
+
+## K6. `#1015` — не потерять удалённый TEST signal
+
+Содержимое удалённой с разрешения владельца строки `saas_isolation_events`, дословно:
+
+```text
+id: 09fc6733-163f-4235-8c1f-f744f928697e
+fingerprint: v2:role_pool_mismatch:webapp:auth_role_config
+event_class: role_pool_mismatch
+source_service: webapp
+source_operation: auth_role_config
+explanation_status: unexplained
+lifecycle_status: active
+occurrence_count: 5
+first_seen_at: 2026-07-26 03:23:06 +03
+last_seen_at: 2026-07-26 03:24:25 +03
+```
+
+- [ ] Воспроизвести, какой путь `auth_role_config` выбирает неверный pool, и проверить после deploy 26.07;
+      возможный fix через `publicAuthSnapshot/isOAuthProviderEnabled` не считать доказанным без прогона.
+- [ ] При повторении на TEST разбирать по горячим следам и не удалять signal.
+
+Связанный, но отдельный defect: deploy closure переигрывал migration `0193` поверх `0201/0202` и падал на
+законной строке.
+
+## K7. `#1026` — DEV credentials в agent log
+
+Инцидент: worker `#1003` вывел `DATABASE_URL`, `DATABASE_URL_STAFF`, `DATABASE_URL_NONSTAFF` вместе с паролями,
+сам сразу остановился и доложил. Scope — только local DEV (`bcb_webapp_dev` и runtime roles), не TEST и не PROD;
+лог локальный на этом же box.
+
+- [ ] Когда dev server `:5200` свободен, отдельно оценить полезность ротации DEV passwords; карточка считает её
+      необязательной hygiene и запрещает ломать параллельную работу ради немедленной ротации.
+- [ ] В каждый worker brief добавить конкретный запрет: не выводить `DATABASE_URL` и производные ни в каком виде;
+      подключаться через `source` env внутри команды без `echo`.
+
+Канон запрета: `../HANDOFF_2026-07-26.md` №5. Этот инцидент того же класса, что leaked SMSC key `#1010`, но
+`#1010` не имеет execution plan и не сворачивается.
+
+## K8. `#1062` — направленный privilege/pool census
+
+Метод и объём, которые должны остаться доказательством: live matrix
+`210 public tables × 9 roles`, `33 integrator tables × 7 roles`, **218** RLS policies, **346** functions;
+principal → pool → role пересечён с census **120** raw-SQL tables. Каждый hit проверен через
+`BEGIN; SET ROLE; ...; ROLLBACK`. Лид лично подтвердил:
+`SET ROLE bcb_test_nonstaff_login; SELECT count(*) FROM user_pins` → `permission denied`.
+
+Десять подтверждённых hits:
+
+1. PIN login мёртв для anonymous (`pgUserPins.ts:22,37,57,80`; `/api/auth/pin/{verify,login,set}` и
+   `/api/auth/check-phone`), а `attempts_failed/locked_until/updated_at` не обновляются: есть только
+   column grant `UPDATE(pin_hash)`.
+2. `channel_link_secrets`: bootstrap role без прав, **13** rows.
+3. `user_email_setup_tokens`: bootstrap role без прав, **29** rows, anonymous-reachable.
+4. `user_oauth_bindings`: bootstrap role без прав, **14** rows; Google/Yandex/Apple login.
+5. `login_tokens`: прав нет ни у bootstrap, ни у `app_patient`.
+6. Doctor stats: `app_staff` имеет INSERT/UPDATE/DELETE, но не SELECT на
+   `media_playback_resolution_events`, `media_playback_stats_hourly`,
+   `media_playback_user_video_first_resolve`.
+7. Silent empty: patient видит 0 из **1735** `reminder_delivery_events`; тот же класс у
+   `user_subscriptions_webapp`, `mailing_logs_webapp`, `be_patient_package_items`, потому что
+   `saas_org_dormant_p0_8_3/8_4` не имеет patient branch.
+8. `webappPoolProvider.ts:232-236` сравнивает выражение с собой; detector role/pool mismatch никогда не работал.
+9. Policy `s5_runtime_settings_isolation` ссылается на отсутствующую роль
+   `app_runtime_nonstaff_login` (**0** rows в `pg_roles`).
+10. Policies `app_worker` на `media_files/media_transcode_jobs` недостижимы из-за отсутствующих grants.
+
+Telemetry подтверждала активный класс:
+
+```text
+role_pool_mismatch | webapp     | 818 | last 27.07 14:30 | unexplained
+role_pool_mismatch | integrator | 104 | 26.07
+role_pool_mismatch | worker     |  94 | 26.07
+role_pool_mismatch | scheduler  |  73 | 26.07
+```
+
+Это почти **1100** накопленных отказов; fingerprint намеренно не содержит table name, поэтому сам по себе не
+локализует источник.
+
+- [ ] Для hits 1–5 использовать узкие `SECURITY DEFINER` accessors под bootstrap role по образцу
+      `app.phone_challenge_store_*`; table grants bootstrap role запрещены.
+- [ ] Для hit 7 либо добавить patient policy branch, либо получить явное решение, что patient read не нужен,
+      и тогда revoke SELECT, чтобы failure стал громким.
+- [ ] Для hit 6 выдать узкий SELECT staff, поскольку три write privileges уже существуют.
+- [ ] Для hits 8–10 убрать/исправить dead detector/configuration/policies после отдельной проверки их runtime
+      назначения.
+- [ ] Собрать mechanical gate `route → principal → pool → role → has_table_privilege` из существующих
+      `check-db-chokepoint.mjs` и перечислимых principal entry points. Gate должен ловить hits 1–6; RLS row
+      visibility, dynamic table names, mid-request principal swap и swallowed denial остаются вне его покрытия.
+      Оценка исходной карточки — около одного дня.
