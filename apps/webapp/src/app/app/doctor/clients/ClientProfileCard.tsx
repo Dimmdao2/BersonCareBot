@@ -273,11 +273,7 @@ function ClientProfileCardInner({
           </TabsContent>
 
           <TabsContent value="records" className="mt-0 outline-none">
-            <DoctorClientRecordsTab
-              userId={userId}
-              profile={profile}
-              displayTimeZone={displayTimeZone}
-            />
+            <DoctorClientRecordsTab userId={userId} profile={profile} />
           </TabsContent>
 
           <TabsContent value="account" className="mt-0 outline-none">
