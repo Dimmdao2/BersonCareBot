@@ -43,7 +43,6 @@ function runChecks(overrides = {}) {
   const devBypassPolicy = overrides.devBypassPolicy ?? read(files.devBypassPolicy);
   const devBypassClassification =
     overrides.devBypassClassification ?? read(files.devBypassClassification);
-  const devBypassExchange = overrides.devBypassExchange ?? read(files.devBypassExchange);
 
   for (const token of [
     '- [x] Current single-clinic doctor smoke unchanged.',
