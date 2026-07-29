@@ -1,6 +1,6 @@
 # Booking actor vs attendee — design note (#563 / #543.3)
 
-> ⛔ **ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 27.07.2026 — К РЕАЛИЗАЦИИ НЕ БРАТЬ.**
+> **ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 27.07.2026 — К РЕАЛИЗАЦИИ НЕ БРАТЬ.**
 > Обновление решения владельца: «Если кого то другого надо записать, напишут в комментарии».
 > Отдельный механизм actor/attendee не строим — потребность закрывается комментарием к записи.
 > Документ остаётся как запись проработки на случай возврата к теме. Актуальный статус — пункт **PBK-4**
@@ -240,36 +240,15 @@ accidentally starts sending notifications to "the attendee" as if the attendee h
 
 ## 5. Phased implementation checklist (for the follow-up ticket, not this design pass)
 
-- [-] ~~Confirm attendee-storage shape: Option A (documented `attribution_json` shape) vs Option B (first-class
-  nullable columns + `is_self_booking`) — recommend B (§3.b).~~ — ⛔ ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 27.07.2026: «Если
-  кого то другого надо записать, напишут в комментарии».
-- [-] ~~Add `is_self_booking` (or equivalent) to the create input contract
-  (`CreatePatientBookingInput`/`PublicCreateBookingInput`, `types.ts:97-131`).~~ — ⛔ ОТМЕНЕНО ВЛАДЕЛЬЦЕМ
-  27.07.2026: «Если кого то другого надо записать, напишут в комментарии».
-- [-] ~~Fix `persistBookingFormContacts`/`upsertBookingFormContactsBestEffort` call site to skip the
-  supplementary-contact upsert when the booking is for someone else (§3.c,
-  `canonicalCreate.ts:41-52,349,518`).~~ — ⛔ ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 27.07.2026: «Если кого то другого надо
-  записать, напишут в комментарии».
-- [-] ~~Add the "Себя" / "Другого человека" toggle to `ConfirmStepClient.tsx` (§3.d), with attendee fields
-  independent from `defaultFio`/`defaultPhone`/`defaultEmail` when toggled.~~ — ⛔ ОТМЕНЕНО ВЛАДЕЛЬЦЕМ
-  27.07.2026: «Если кого то другого надо записать, напишут в комментарии».
-- [-] ~~Extend doctor projection payload (`projectCanonicalAppointment.ts:17-40`) and the doctor-facing
-  appointment card component with a distinct actor field, clickable for contact (§3.e).~~ — ⛔ ОТМЕНЕНО
-  ВЛАДЕЛЬЦЕМ 27.07.2026: «Если кого то другого надо записать, напишут в комментарии».
-- [-] ~~If Option B: Drizzle migration adding attendee columns (+ `is_self_booking`) to `be_appointments` and
-  (mirrored subset) `patient_bookings`.~~ — ⛔ ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 27.07.2026: «Если кого то другого надо
-  записать, напишут в комментарии».
-- [-] ~~Tests: `canonicalCreate.test.ts` (attendee snapshot persisted, actor unaffected, contact-upsert skipped
-  for non-self bookings), `bookingContactUpsert.test.ts` (guard extended), `ConfirmStepClient.test.tsx`
-  (toggle behavior), doctor appointment-card test (both identities render, actor clickable).~~ — ⛔
-  ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 27.07.2026: «Если кого то другого надо записать, напишут в комментарии».
-- [-] ~~Validation commands for the implementation pass: `pnpm --dir apps/webapp test -- patient-booking`,
-  `pnpm --dir apps/webapp test -- platform-user-contacts`, `pnpm --dir apps/webapp typecheck`
-  (step-level); full CI at the merge/integration checkpoint per `AGENTS.md` §9.~~ — ⛔ ОТМЕНЕНО
-  ВЛАДЕЛЬЦЕМ 27.07.2026: «Если кого то другого надо записать, напишут в комментарии».
-- [-] ~~Explicitly **not** in this ticket: attendee → patient conversion flow (owner decision states this is a
-  separate follow-up outside #543 MVP).~~ — ⛔ ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 27.07.2026: «Если кого то другого надо
-  записать, напишут в комментарии».
+- [-] ~~Confirm attendee-storage shape: Option A (documented `attribution_json` shape) vs Option B (first-class nullable columns + `is_self_booking`) — recommend B (§3.b).~~ — ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 27.07.2026: «Если кого то другого надо записать, напишут в комментарии».
+- [-] ~~Add `is_self_booking` (or equivalent) to the create input contract (`CreatePatientBookingInput`/`PublicCreateBookingInput`, `types.ts:97-131`).~~ — ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 27.07.2026: «Если кого то другого надо записать, напишут в комментарии».
+- [-] ~~Fix `persistBookingFormContacts`/`upsertBookingFormContactsBestEffort` call site to skip the supplementary-contact upsert when the booking is for someone else (§3.c, `canonicalCreate.ts:41-52,349,518`).~~ — ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 27.07.2026: «Если кого то другого надо записать, напишут в комментарии».
+- [-] ~~Add the "Себя" / "Другого человека" toggle to `ConfirmStepClient.tsx` (§3.d), with attendee fields independent from `defaultFio`/`defaultPhone`/`defaultEmail` when toggled.~~ — ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 27.07.2026: «Если кого то другого надо записать, напишут в комментарии».
+- [-] ~~Extend doctor projection payload (`projectCanonicalAppointment.ts:17-40`) and the doctor-facing appointment card component with a distinct actor field, clickable for contact (§3.e).~~ — ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 27.07.2026: «Если кого то другого надо записать, напишут в комментарии».
+- [-] ~~If Option B: Drizzle migration adding attendee columns (+ `is_self_booking`) to `be_appointments` and (mirrored subset) `patient_bookings`.~~ — ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 27.07.2026: «Если кого то другого надо записать, напишут в комментарии».
+- [-] ~~Tests: `canonicalCreate.test.ts` (attendee snapshot persisted, actor unaffected, contact-upsert skipped for non-self bookings), `bookingContactUpsert.test.ts` (guard extended), `ConfirmStepClient.test.tsx` (toggle behavior), doctor appointment-card test (both identities render, actor clickable).~~ — ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 27.07.2026: «Если кого то другого надо записать, напишут в комментарии».
+- [-] ~~Validation commands for the implementation pass: `pnpm --dir apps/webapp test -- patient-booking`, `pnpm --dir apps/webapp test -- platform-user-contacts`, `pnpm --dir apps/webapp typecheck` (step-level); full CI at the merge/integration checkpoint per `AGENTS.md` §9.~~ — ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 27.07.2026: «Если кого то другого надо записать, напишут в комментарии».
+- [-] ~~Explicitly **not** in this ticket: attendee → patient conversion flow (owner decision states this is a separate follow-up outside #543 MVP).~~ — ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 27.07.2026: «Если кого то другого надо записать, напишут в комментарии».
 
 ---
 

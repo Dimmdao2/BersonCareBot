@@ -33,7 +33,7 @@
 
 Консолидирует пункты braindump (`OWNER_VISION_BRAINDUMP_2026-06-17.md`): #8 дизайн приложения клиента + сайт,
 #9 десктоп клиента, #10 моб-вид специалиста, #14 дизайн «как в Telegram». Расширяет архивный `PWA_INITIATIVE`
-(`docs/_ARCHIVE/PWA_INITIATIVE`) и пересекается с веткой design-system.
+[архивный `PWA_INITIATIVE`](archive/legacy-underscore/PWA_INITIATIVE/) и пересекается с веткой design-system.
 
 ## Масштаб / гейт
 
