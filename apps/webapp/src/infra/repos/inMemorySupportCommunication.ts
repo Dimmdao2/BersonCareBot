@@ -580,10 +580,10 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
     return n;
   },
 
-  async listUnreadInboundAdminMessagesForUser(platformUserId) {
+  async listUnreadInboundAdminMessagesForUser(platformUserId, conversationId) {
     const convIds = new Set(
       Array.from(conversations.values())
-        .filter((c) => c.platformUserId === platformUserId)
+        .filter((c) => c.platformUserId === platformUserId && c.id === conversationId)
         .map((c) => c.id),
     );
     return [...messages.values()]

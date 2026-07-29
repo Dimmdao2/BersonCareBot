@@ -257,6 +257,7 @@ export type SupportCommunicationPort = {
   countUnreadNotificationsForUser(platformUserId: string): Promise<number>;
   listUnreadInboundAdminMessagesForUser(
     platformUserId: string,
+    conversationId: string,
   ): Promise<Array<{ id: string; text: string }>>;
   listNotificationMessagesForUser(
     platformUserId: string,
@@ -1395,17 +1396,18 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
       return parseInt(r.rows[0]?.c ?? '0', 10);
     },
 
-    async listUnreadInboundAdminMessagesForUser(platformUserId) {
+    async listUnreadInboundAdminMessagesForUser(platformUserId, conversationId) {
       const r = await runWebappPgText<{ id: string; text: string }>(
         `SELECT m.id::text AS id, m.text
          FROM support_conversation_messages m
          JOIN support_conversations c ON c.id = m.conversation_id
          WHERE c.platform_user_id = $1::uuid
+           AND c.id = $2::uuid
            AND m.sender_role <> 'user'
            AND NOT ${SUPPORT_NOTIFICATION_SQL}
            AND m.read_at IS NULL
          ORDER BY m.created_at ASC, m.id ASC`,
-        [platformUserId],
+        [platformUserId, conversationId],
       );
       return r.rows.map((row) => ({ id: row.id, text: row.text }));
     },

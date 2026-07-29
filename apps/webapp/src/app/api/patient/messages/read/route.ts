@@ -44,7 +44,10 @@ export async function POST(request: Request) {
           organizationId,
         })
       : Promise.resolve(false),
-    deps.supportCommunication.listUnreadInboundAdminMessagesForUser(userId),
+    deps.supportCommunication.listUnreadInboundAdminMessagesForUser(
+      userId,
+      parsed.data.conversationId,
+    ),
   ]);
   if (discussionUiEnabled && unreadInbound.length > 0) {
     await deps.programItemDiscussion.syncDiscussionReadFromSupportInboundMessages({
