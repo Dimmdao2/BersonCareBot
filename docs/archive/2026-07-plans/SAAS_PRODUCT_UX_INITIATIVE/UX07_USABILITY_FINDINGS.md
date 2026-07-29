@@ -1,8 +1,10 @@
+> ВЕДЁТСЯ В [docs/_TODO/SAAS_PRODUCT_UX_INITIATIVE/OWNER_RULINGS_2026-07-16.md](../../../_TODO/SAAS_PRODUCT_UX_INITIATIVE/OWNER_RULINGS_2026-07-16.md) §Общая граница запуска — «Первый выпуск ориентирован на solo specialist и не должен задерживаться из-за clinic-only функций».
+
 # UX-07 — Executor usability findings
 
 **Статус:** historical pre-ruling executor findings; superseded for current normative acceptance by
-[`OWNER_RULINGS_2026-07-16.md`](./OWNER_RULINGS_2026-07-16.md).
-**Artifact:** [`ux07-prototype/index.html`](./ux07-prototype/index.html).  
+[`OWNER_RULINGS_2026-07-16.md`](../../../_TODO/SAAS_PRODUCT_UX_INITIATIVE/OWNER_RULINGS_2026-07-16.md).
+**Artifact:** [`ux07-prototype/index.html`](../../../_TODO/SAAS_PRODUCT_UX_INITIATIVE/ux07-prototype/index.html).
 **Boundary:** this is the correction owner's observation log, not an audit verdict or visual seal.
 
 ## 1. What remains structurally valid

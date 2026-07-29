@@ -1,7 +1,9 @@
+> ВЕДЁТСЯ В [docs/_TODO/SAAS_PRODUCT_UX_INITIATIVE/OWNER_RULINGS_2026-07-16.md](../../../_TODO/SAAS_PRODUCT_UX_INITIATIVE/OWNER_RULINGS_2026-07-16.md) §Общая граница запуска — «Первый выпуск ориентирован на solo specialist и не должен задерживаться из-за clinic-only функций».
+
 # UX-04 — Independent identity/security/product audit
 
 **Historical pre-ruling notice (2026-07-16):** этот PASS предшествует
-[`OWNER_RULINGS_2026-07-16.md`](./OWNER_RULINGS_2026-07-16.md). Он сохраняется без переписывания как evidence для
+[`OWNER_RULINGS_2026-07-16.md`](../../../_TODO/SAAS_PRODUCT_UX_INITIATIVE/OWNER_RULINGS_2026-07-16.md). Он сохраняется без переписывания как evidence для
 неизменившейся части прежнего scope, но **superseded for current normative acceptance** и не подтверждает
 интеграцию новых owner outcomes. Текущий канон ожидает полный re-audit.
 

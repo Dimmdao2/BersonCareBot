@@ -2,7 +2,7 @@
 
 **Статус:** owner rulings 2026-07-16 integrated; awaiting independent audit. The earlier full UX-06 re-audit
 **PASS** is historical evidence for the pre-ruling map, not an audit of the current owner decisions. Its allocation
-result remains: [`UX06_INDEPENDENT_AUDIT.md`](./UX06_INDEPENDENT_AUDIT.md) §7
+result remains: [`UX06_INDEPENDENT_AUDIT.md`](../../archive/2026-07-plans/SAAS_PRODUCT_UX_INITIATIVE/UX06_INDEPENDENT_AUDIT.md) §7
 (`150 actual = 150 references = 150 unique`; missing/stale/duplicate `0`). **U0 factual correction
 (2026-07-19):** current base `be30065f24810a49a46a2aa3b5ef5095f3a27309` had three page files omitted from this
 allocation; the current

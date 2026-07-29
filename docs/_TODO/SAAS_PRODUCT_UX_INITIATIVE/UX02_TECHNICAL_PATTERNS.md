@@ -10,7 +10,7 @@
 
 Канонические входы для этого исследования:
 
-- [`REQUIREMENTS.md`](REQUIREMENTS.md) и [`ROADMAP.md`](ROADMAP.md);
+- [`REQUIREMENTS.md`](REQUIREMENTS.md) и [`ROADMAP.md`](../../archive/2026-07-plans/SAAS_PRODUCT_UX_INITIATIVE/ROADMAP.md);
 - [`PLATFORM_IDENTITY_SPECIFICATION.md`](../../ARCHITECTURE/PLATFORM_IDENTITY_SPECIFICATION.md) и [`PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP.md`](../../ARCHITECTURE/PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP.md);
 - [`NOTIFICATION_CHANNELS.md`](../../ARCHITECTURE/NOTIFICATION_CHANNELS.md);
 - **SUPERSEDED AS AUTHORITY — 2026-07-27:** archived ADR below is historical, not authority; актуальная точка входа для notification policy — строка **«Уведомления»** в [`CURRENT_AUTHORITY_MAP.md`](../../CURRENT_AUTHORITY_MAP.md).

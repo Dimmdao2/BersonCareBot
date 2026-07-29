@@ -1,3 +1,5 @@
+> ВЕДЁТСЯ В [docs/_TODO/RU_PRIVACY_AND_PRODUCTION_READINESS/stages/CRYPTO-01_DATA_AND_KEY_ENCRYPTION.md](../../_TODO/RU_PRIVACY_AND_PRODUCTION_READINESS/stages/CRYPTO-01_DATA_AND_KEY_ENCRYPTION.md) §C2 — «видео, которое врач загружает при создании упражнения прямо в программе пациента, должно лежать в отдельной подпапке».
+
 # Individual (non-catalog) program item + media — design note (#565 / #193.1)
 
 > **2026-07-27 — было → стало → почему.** Было: файл читался как «дизайн без реализации» (8 открытых боксов в

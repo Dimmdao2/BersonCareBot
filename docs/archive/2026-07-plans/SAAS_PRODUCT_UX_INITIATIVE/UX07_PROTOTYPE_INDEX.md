@@ -1,10 +1,12 @@
+> ВЕДЁТСЯ В [docs/_TODO/SAAS_PRODUCT_UX_INITIATIVE/OWNER_RULINGS_2026-07-16.md](../../../_TODO/SAAS_PRODUCT_UX_INITIATIVE/OWNER_RULINGS_2026-07-16.md) §Общая граница запуска — «Первый выпуск ориентирован на solo specialist и не должен задерживаться из-за clinic-only функций».
+
 # UX-07 — Scenario prototype index
 
 **Статус:** historical pre-ruling prototype. The earlier two-reviewer PASS/seals remain source-bound evidence for
 `929a6613929251ff5a86ddb82e4a57969d9bc1a2240ae446cabc5abf0de13657`, but are superseded for current normative
-acceptance by [`OWNER_RULINGS_2026-07-16.md`](./OWNER_RULINGS_2026-07-16.md). Current contract awaits re-audit;
+acceptance by [`OWNER_RULINGS_2026-07-16.md`](../../../_TODO/SAAS_PRODUCT_UX_INITIATIVE/OWNER_RULINGS_2026-07-16.md). Current contract awaits re-audit;
 the prototype must not be read as launch scope for clinic/assistant/transfer/deep-brand branches.
-**Прототип:** [`ux07-prototype/index.html`](./ux07-prototype/index.html).  
+**Прототип:** [`ux07-prototype/index.html`](../../../_TODO/SAAS_PRODUCT_UX_INITIATIVE/ux07-prototype/index.html).
 **Scope:** self-contained low-fidelity task/recovery prototype; application routes, API, DB and delivery are not
 changed.
 
@@ -105,7 +107,7 @@ keyboard path without claiming production screen-reader or final contrast accept
 
 Current representative batch:
 
-- [`2026-07-15T21-03-18Z/run-manifest.md`](../../../.claude/screenshots/SAAS-UX07-PROTOTYPE/2026-07-15T21-03-18Z/run-manifest.md)
+- `2026-07-15T21-03-18Z/run-manifest.md` (historical screenshot artifact is not present in this clone)
 - source SHA-256: `929a6613929251ff5a86ddb82e4a57969d9bc1a2240ae446cabc5abf0de13657`
 
 The batches `2026-07-15T19-36-23Z` and `2026-07-15T20-16-39Z` are historical/superseded evidence and must not be
