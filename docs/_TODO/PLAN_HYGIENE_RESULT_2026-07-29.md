@@ -160,3 +160,9 @@ count_open docs/_TODO/NATIVE_MOBILE_APP_INITIATIVE
 count_open docs/_TODO/RU_PRIVACY_AND_PRODUCTION_READINESS/FINAL_ACCEPTANCE.md
 count_open docs/_TODO/RU_PRIVACY_AND_PRODUCTION_READINESS/OWNER_ACTIONS.md
 ```
+
+## Расхождения, требующие решения владельца
+
+Нет. Проход 3.4 не нашёл файлов, у которых живая шапка соседствует только с `- [-]`; сверка реестра не
+нашла строки, чей вердикт противоречит содержимому. Семь файлов, удержанных gate-ом с живыми боксами,
+уже имеют вердикт `ЖИВОЙ` и явно объясняют открытые строки в своих шапках; это не расхождения.
