@@ -76,11 +76,12 @@ type Tab = 'timeline' | 'payments' | 'visits';
 
 type Props = {
   userId: string;
+  displayTimeZone: string;
   /** Внутри tab section — без внешней карточки. */
   embedded?: boolean;
 };
 
-export function ClientBookingHistoryPanel({ userId, embedded = false }: Props) {
+export function ClientBookingHistoryPanel({ userId, displayTimeZone, embedded = false }: Props) {
   const [tab, setTab] = useState<Tab>('timeline');
   const [timeline, setTimeline] = useState<TimelineItem[]>([]);
   const [payments, setPayments] = useState<PaymentRow[]>([]);
@@ -157,7 +158,7 @@ export function ClientBookingHistoryPanel({ userId, embedded = false }: Props) {
   function paymentMeta(p: PaymentRow): string {
     const parts: string[] = [
       new Date(p.occurredAt).toLocaleString('ru-RU', {
-        timeZone: 'Europe/Moscow',
+        timeZone: displayTimeZone,
         dateStyle: 'short',
         timeStyle: 'short',
       }),
@@ -252,7 +253,7 @@ export function ClientBookingHistoryPanel({ userId, embedded = false }: Props) {
                   <span className="font-medium">{item.title}</span>
                   <span className="text-xs text-muted-foreground">
                     {new Date(item.occurredAt).toLocaleString('ru-RU', {
-                      timeZone: 'Europe/Moscow',
+                      timeZone: displayTimeZone,
                       dateStyle: 'short',
                       timeStyle: 'short',
                     })}
@@ -298,12 +299,12 @@ export function ClientBookingHistoryPanel({ userId, embedded = false }: Props) {
                   <span className="font-medium">{v.serviceTitle ?? 'Запись'}</span>
                   <span className="text-xs text-muted-foreground">
                     {new Date(v.startAt).toLocaleString('ru-RU', {
-                      timeZone: 'Europe/Moscow',
+                      timeZone: displayTimeZone,
                       dateStyle: 'short',
                       timeStyle: 'short',
                     })}
                     {v.endAt
-                      ? ` — ${new Date(v.endAt).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow', hour: '2-digit', minute: '2-digit' })}`
+                      ? ` — ${new Date(v.endAt).toLocaleString('ru-RU', { timeZone: displayTimeZone, hour: '2-digit', minute: '2-digit' })}`
                       : ''}
                   </span>
                 </div>

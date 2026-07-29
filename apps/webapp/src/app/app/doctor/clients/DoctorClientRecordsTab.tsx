@@ -11,6 +11,7 @@ import {
 
 type Props = {
   userId: string;
+  displayTimeZone: string;
   profile: Pick<
     ClientProfile,
     | 'upcomingAppointments'
@@ -21,7 +22,7 @@ type Props = {
   >;
 };
 
-export function DoctorClientRecordsTab({ userId, profile }: Props) {
+export function DoctorClientRecordsTab({ userId, displayTimeZone, profile }: Props) {
   const {
     upcomingAppointments,
     appointmentHistory,
@@ -109,7 +110,7 @@ export function DoctorClientRecordsTab({ userId, profile }: Props) {
       </section>
 
       <div className={doctorClientTabSectionClass}>
-        <ClientBookingHistoryPanel userId={userId} embedded />
+        <ClientBookingHistoryPanel userId={userId} displayTimeZone={displayTimeZone} embedded />
       </div>
 
       <section id="doctor-client-section-symptoms" className={doctorClientTabSectionClass}>
