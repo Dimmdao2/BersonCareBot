@@ -56,7 +56,6 @@ requireFragments(files.grants, grants, [
   'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.app_runtime_settings TO app_staff;',
   'GRANT SELECT, INSERT ON TABLE public.app_runtime_settings_audit TO app_staff;',
   'public.system_settings_audit,',
-  'integrator.system_settings,',
   'FROM PUBLIC, app_patient;',
   'FROM app_runtime_nonstaff_login;',
 ]);
@@ -74,8 +73,7 @@ requireFragments(files.configReader, configReader, [
   'app.current_org_id() IS NOT NULL AND organization_id = app.current_org_id()',
   "NOT pg_has_role(:'s5_config_reader_login_role', 'app_staff', 'MEMBER')",
   "NOT pg_has_role(:'s5_config_reader_login_role', 'app_patient', 'MEMBER')",
-  'public.app_runtime_settings_audit,',
-  'integrator.system_settings',
+  'public.app_runtime_settings_audit',
 ]);
 forbidFragments(files.configReader, configReader, ['BYPASSRLS;\nGRANT', "current_setting('app."]);
 

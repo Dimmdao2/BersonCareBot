@@ -1,11 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SystemSettingsPort } from './ports';
 
-vi.mock('./syncToIntegrator', () => ({
-  normalizeStoredValueJsonForIntegratorSync: (v: unknown) => v,
-  syncSettingToIntegrator: vi.fn(),
-}));
-
 vi.mock('./configAdapter', () => ({
   invalidateConfigKey: vi.fn(),
 }));

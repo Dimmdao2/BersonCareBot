@@ -86,7 +86,7 @@ sudo -u postgres psql -d <база> -v ON_ERROR_STOP=1 -f apps/webapp/scripts/co
 
 | колонка                                                      | тип                  | строк |
 | ------------------------------------------------------------ | -------------------- | ----- |
-| `integrator.system_settings.updated_by`                      | `text`, другая схема | 25    |
+| legacy settings mirror `updated_by` (таблица удалена 29.07) | `text`, другая схема | 25    |
 | `public.broadcast_audit.actor_id`                            | `text`               | 3     |
 | `public.operator_health_failure_archive.archived_by_user_id` | `uuid`, без FK       | 9     |
 | `public.operator_health_failure_archive.doctor_user_id`      | `uuid`, без FK       | 11    |

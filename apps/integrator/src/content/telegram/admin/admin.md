@@ -10,7 +10,7 @@
 > устаревшая схема. Канон: [ADMIN_ACCESS_MODEL.md](../../../../../../docs/ARCHITECTURE/ADMIN_ACCESS_MODEL.md).
 
 - **`isAdmin`** в facts webhook = env-admin (`TELEGRAM_ADMIN_ID` / MAX admin) **∪** id из `admin_telegram_ids` / `doctor_telegram_ids` (Telegram) или `admin_max_ids` / `doctor_max_ids` (MAX) в `system_settings` (scope `admin`).
-- Резолвер: `apps/integrator/src/infra/db/messengerStaffIds.ts` (TTL-кеш списков 60 с; сброс при `POST /api/integrator/settings/sync` для этих ключей).
+- Резолвер: `apps/integrator/src/infra/db/messengerStaffIds.ts` (TTL-кеш списков 60 с).
 - Канон: [`docs/ARCHITECTURE/DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md`](../../../../../../docs/ARCHITECTURE/DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md) §«Админ-бот».
 
 ## Ответ на сообщение пациента (поддержка)

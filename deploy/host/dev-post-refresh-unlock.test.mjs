@@ -39,14 +39,11 @@ test('DEV unlock SQL guards the exact database before narrowly scoped DDL', () =
   assert.ok(source.indexOf("current_database() <> 'bcb_webapp_dev'") < firstDrop);
   assert.deepEqual(
     [...source.matchAll(/^DROP TRIGGER IF EXISTS (.+);$/gmu)].map((match) => match[1]),
-    [
-      'system_settings_test_lock ON public.system_settings',
-      'system_settings_test_lock ON integrator.system_settings',
-    ],
+    ['system_settings_test_lock ON public.system_settings'],
   );
   assert.deepEqual(
     [...source.matchAll(/^DROP FUNCTION IF EXISTS (.+);$/gmu)].map((match) => match[1]),
-    ['public.system_settings_test_lock_guard()', 'integrator.system_settings_test_lock_guard()'],
+    ['public.system_settings_test_lock_guard()'],
   );
   assert.doesNotMatch(
     source,
@@ -55,36 +52,16 @@ test('DEV unlock SQL guards the exact database before narrowly scoped DDL', () =
   assert.doesNotMatch(source, /bcb_webapp_prod|bersoncarebot_test|\/opt\/env/iu);
   const canonicalOverride = readFileSync(testOverridePath, 'utf8');
   const publicBody = extractCanonicalLockBody(canonicalOverride, 'system_settings_test_lock_guard');
-  const integratorBody = extractCanonicalLockBody(
-    canonicalOverride,
-    'integrator.system_settings_test_lock_guard',
-  );
   const expectedPublicBody = extractExpectedLockBody(
     source,
     'expected_public_body',
     'expected_public_body',
   );
-  const expectedIntegratorBody = extractExpectedLockBody(
-    source,
-    'expected_integrator_body',
-    'expected_integrator_body',
-  );
   assert.equal(expectedPublicBody, publicBody);
-  assert.equal(expectedIntegratorBody, integratorBody);
   assert.notEqual(publicBody.replace('RETURN NEW;', 'RETURN OLD;'), expectedPublicBody);
-  assert.notEqual(
-    integratorBody.replace(
-      'RETURN NEW;',
-      '-- TEST ENV LOCK (integrator): retained marker\\n  RETURN OLD;',
-    ),
-    expectedIntegratorBody,
-  );
   assert.match(source, /function_row\.prosrc = expected_public_body/u);
-  assert.match(source, /function_row\.prosrc = expected_integrator_body/u);
   assert.match(source, /refused unexpected public lock function/u);
-  assert.match(source, /refused unexpected integrator lock function/u);
   assert.match(source, /trigger_row\.tgfoid IS DISTINCT FROM public_guard_oid/u);
-  assert.match(source, /trigger_row\.tgfoid IS DISTINCT FROM integrator_guard_oid/u);
   assert.match(source, /trigger_row\.tgisinternal/u);
   assert.match(source, /trigger_row\.tgtype <> 19/u);
   assert.match(source, /trigger_row\.tgenabled <> 'O'/u);

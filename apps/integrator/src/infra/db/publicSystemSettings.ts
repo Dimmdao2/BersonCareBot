@@ -1,6 +1,5 @@
 /**
  * Runtime reads from canonical `public.system_settings` (unified DB).
- * Integrator mirror (`integrator.system_settings`) is not a runtime source of truth.
  */
 import { sql } from 'drizzle-orm';
 import { z } from 'zod';

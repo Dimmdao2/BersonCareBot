@@ -32,7 +32,6 @@ const denormResolutions = new Set([
 const polymorphicResolutions = new Set(['polymorphic_resolver']);
 
 const bootstrapHybridTables = new Set([
-  'integrator.system_settings',
   'public.system_settings',
   'public.system_settings_audit',
 ]);
@@ -267,7 +266,7 @@ function exemptionDescriptor(tier) {
 //     FK, so it is walled directly below in patientOwnedColumns, same shape as media_playback_*);
 //   - public.patient_merge_candidates (staff/system dedup queue, not a patient's own record);
 //   - P0.8.6 BOOTSTRAP-hybrid tables (system_settings, platform_user_contacts, user_phone_history,
-//     integrator.system_settings) — explicitly out of scope per owner instruction, pre-org-context
+//     legacy bootstrap config surfaces) — explicitly out of scope per owner instruction, pre-org-context
 //     identity/bootstrap semantics must not change.
 const patientOwnedColumns = new Map([
   // public.* direct_org_column (P0.8.3), patient identity = platform_users.id (uuid)

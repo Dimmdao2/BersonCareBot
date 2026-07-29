@@ -115,30 +115,6 @@ describe('SaaS TEST fixture packet', () => {
 });
 
 describe('SaaS TEST walkthrough reconciliation', () => {
-  it('enables and locks the mirrored TEST-only walkthrough flags', () => {
-    const source = readFileSync(
-      new URL('../../../../../deploy/postgres/test-settings-override.sql', import.meta.url),
-      'utf8',
-    );
-    expect(
-      source.match(/VALUES \('specialist_signup_enabled', 'admin', '\{"value":true\}'::jsonb/g),
-    ).toHaveLength(2);
-    expect(
-      source.match(
-        /VALUES \('patient_program_discussion_ui_enabled', 'admin', '\{"value":true\}'::jsonb/g,
-      ),
-    ).toHaveLength(2);
-    expect(source.match(/VALUES \('test_account_identifiers', 'admin'/g)).toHaveLength(2);
-    expect(source.match(/"\+12025550101","\+12025550102"/g)).toHaveLength(2);
-    expect(source).not.toContain('+12025550103');
-    expect(source).toContain(
-      "ARRAY['patient_app_maintenance_enabled','dev_mode','test_account_identifiers','specialist_signup_enabled','patient_program_discussion_ui_enabled']",
-    );
-    expect(source).toContain(
-      "ARRAY['app_base_url','test_account_identifiers','specialist_signup_enabled','patient_program_discussion_ui_enabled']",
-    );
-  });
-
   it('uses an explicit schema for the integrator outbox send-safety proof', () => {
     const source = readFileSync(
       new URL('../../../scripts/seed-saas-test-walkthrough-fixtures.ts', import.meta.url),

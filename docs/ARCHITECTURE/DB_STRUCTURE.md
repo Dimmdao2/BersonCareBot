@@ -230,7 +230,7 @@
 
 - `system_settings` — restricted/compatibility authoring store webapp (`scope` `admin` | `doctor` | `global`),
   включая integration credentials и другие secret-bearing envelopes. До S5-3 существующий write path продолжает
-  писать его и синхронизировать legacy mirror `integrator.system_settings` через `updateSetting`.
+  писать каноническую таблицу `public.system_settings` через `updateSetting`; integrator читает её напрямую.
 - `app_runtime_settings` — отдельный `public` runtime store только для registry-approved safe values и derived
   allowlisted projections. Identity rows — `(key, scope)` для global и `(key, scope, organization_id)` для org
   override; restricted keys и credential envelopes сюда не попадают. Это не создаёт runtime mirror в `integrator`.

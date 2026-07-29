@@ -76,7 +76,6 @@ function runChecks(overrides = {}) {
   }
 
   for (const needle of [
-    '- [x] System settings mirror removal is not assumed; runtime reads already use public canonical settings.',
     '- [x] Reminder bot dispatch is not assumed public-only; integrator dispatch state remains live.',
     '- [x] Rubitime legacy paths are not assumed removed; canonical booking cutover is a separate gate.',
     '- [x] `integrator.contacts` fallback is not assumed removed; `public_only` cutover needs a clean exception audit.',
@@ -87,7 +86,6 @@ function runChecks(overrides = {}) {
 
   for (const needle of [
     'This review does not execute T0.5-T0.8 runtime changes',
-    'Do not remove `integrator.system_settings` mirror paths',
     'integrator reminder dispatch state remains live',
     'Legacy Rubitime/appointment projections remain live compatibility state.',
   ]) {

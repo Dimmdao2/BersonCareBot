@@ -258,7 +258,6 @@ export function renderS5RuntimeSettingsGrantStatements() {
 REVOKE ALL PRIVILEGES ON TABLE
   public.system_settings,
   public.system_settings_audit,
-  integrator.system_settings,
   public.app_runtime_settings_audit
   FROM PUBLIC, app_patient;
 GRANT SELECT ON TABLE public.app_runtime_settings TO app_patient;
@@ -274,7 +273,6 @@ BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_runtime_nonstaff_login') THEN
     REVOKE ALL PRIVILEGES ON TABLE public.system_settings FROM app_runtime_nonstaff_login;
     REVOKE ALL PRIVILEGES ON TABLE public.system_settings_audit FROM app_runtime_nonstaff_login;
-    REVOKE ALL PRIVILEGES ON TABLE integrator.system_settings FROM app_runtime_nonstaff_login;
     REVOKE ALL PRIVILEGES ON TABLE public.app_runtime_settings_audit FROM app_runtime_nonstaff_login;
   END IF;
 END

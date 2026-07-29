@@ -81,7 +81,7 @@ function parseSmtpOutboundValueJson(valueJson: unknown): ResolvedSmtpOutboundCon
   return parseSystemSettingInnerWithSchema(valueJson, smtpOutboundInnerReadSchema);
 }
 
-/** Async resolve with TTL cache; invalid after settings sync (`invalidateSmtpOutboundCache`). */
+/** Async resolve with a 60-second TTL; explicit invalidation remains available for tests/manual callers. */
 export async function resolveSmtpOutboundConfig(db: DbPort): Promise<ResolvedSmtpOutboundConfig> {
   const now = Date.now();
   if (cache && cache.expiresAt > now) return cache.cfg;

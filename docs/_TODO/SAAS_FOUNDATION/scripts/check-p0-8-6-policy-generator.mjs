@@ -19,19 +19,18 @@ const dormantCompatibilityPredicate =
   'app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()';
 
 const legacyGlobalTables = new Set([
-  'integrator.system_settings',
   'public.system_settings',
   'public.system_settings_audit',
 ]);
 
 const piiOrgGatedTables = new Set(['public.platform_user_contacts', 'public.user_phone_history']);
 
-if (descriptors.length !== 5) {
-  fail(`Expected 5 P0.8.6 descriptors, got ${descriptors.length}`);
+if (descriptors.length !== 4) {
+  fail(`Expected 4 P0.8.6 descriptors, got ${descriptors.length}`);
 }
 
-if (expectedP086BootstrapHybridTargets.length !== 5) {
-  fail(`Expected 5 explicit P0.8.6 targets, got ${expectedP086BootstrapHybridTargets.length}`);
+if (expectedP086BootstrapHybridTargets.length !== 4) {
+  fail(`Expected 4 explicit P0.8.6 targets, got ${expectedP086BootstrapHybridTargets.length}`);
 }
 
 if (statements.length !== descriptors.length * 3) {

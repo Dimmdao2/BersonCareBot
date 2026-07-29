@@ -4,19 +4,19 @@ Status: accepted for T0.4-pre execution unless superseded by owner decision.
 
 ## ADR-001: System settings source of truth
 
-Decision: `public.system_settings` is the canonical runtime/business configuration store. `integrator.system_settings` is retained only as legacy compatibility/cache invalidation mirror for this batch.
+Decision (superseded 2026-07-29 by owner ruling/taskdb `#1076`): `public.system_settings` is the only
+runtime/business configuration store. The former duplicate table and push/cache-invalidation path are removed;
+integrator reads public directly with cache TTL at most 60 seconds.
 
 Rationale:
 
 - Integrator runtime readers already use `public.system_settings`.
-- Webapp Settings writes still send signed sync and retry through `public.integrator_push_outbox`.
-- Removing the mirror now would also remove immediate cache invalidation and retry semantics.
+- The owner explicitly accepted bounded TTL propagation instead of immediate invalidation/retry.
 
 Consequences:
 
-- No new runtime reads from `integrator.system_settings`.
-- No new seeds or features should rely on the mirror.
-- Drop requires owner approval and a separate migration/runbook after replacing sync/cache invalidation.
+- No new settings copy, push route or replacement machinery may be introduced.
+- Existing invalidator helpers remain, but normal propagation relies on TTL.
 
 ## ADR-002: Reminder scheduling owner
 

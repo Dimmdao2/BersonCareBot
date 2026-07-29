@@ -9,7 +9,7 @@ import {
 } from './rls-descriptor-model.mjs';
 
 const expectedTierCounts = new Map([
-  ['BOOTSTRAP', 30],
+  ['BOOTSTRAP', 29],
   ['INFRA', 27],
   ['LEGACY', 9],
   ['SCOPED', 162],
@@ -17,7 +17,6 @@ const expectedTierCounts = new Map([
 ]);
 
 const expectedBootstrapHybridTables = new Set([
-  'integrator.system_settings',
   'public.system_settings',
   'public.system_settings_audit',
 ]);
@@ -86,8 +85,8 @@ if (duplicates.size > 0) {
   fail(`Duplicate tier rows: ${Array.from(duplicates).sort().join(', ')}`);
 }
 
-if (tierRows.length !== 233) {
-  fail(`Expected 233 tier rows, got ${tierRows.length}`);
+if (tierRows.length !== 232) {
+  fail(`Expected 232 tier rows, got ${tierRows.length}`);
 }
 
 if (descriptors.size !== tierRows.length) {
@@ -277,7 +276,7 @@ if (publicDirectOrgPolicyTargetCount !== expectedPublicDirectOrgPolicyTargets) {
   );
 }
 
-console.log('P0.8.1 RLS descriptor model OK: 233 descriptors cover tiers-218.tsv exactly once.');
+console.log('P0.8.1 RLS descriptor model OK: 232 descriptors cover tiers-218.tsv exactly once.');
 console.log(
   Array.from(actualTierCounts.entries())
     .sort(([left], [right]) => left.localeCompare(right))

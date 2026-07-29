@@ -94,7 +94,7 @@ UI: `PatientHomeDailyWarmupRotationPanel` на `/app/doctor/patient-home` (то�
 
 ## Паузы повтора (разминка дня и простые пункты плана)
 
-Ключи `system_settings` (`scope=admin`); запись только через **`updateSetting`** (например server action `savePatientHomeRepeatCooldownsAction` — зеркало в `integrator.system_settings` без обходных путей). Редактирование в UI — **только роль admin**, панель на `/app/doctor/patient-home`.
+Ключи `system_settings` (`scope=admin`); запись только через **`updateSetting`** (например server action `savePatientHomeRepeatCooldownsAction`). Редактирование в UI — **только роль admin**, панель на `/app/doctor/patient-home`.
 
 - `patient_home_daily_warmup_repeat_cooldown_minutes` — пауза (минуты, 5–180, default 60) перед повторной отметкой **той же** разминки на главной; hero «Разминка выполнена» **только** если в блоке `daily_warmup` ровно одна страница (`dailyWarmupCount === 1`). При двух и более разминках pick не использует cooldown.
 - `patient_home_warmup_skip_to_next_available_enabled` — legacy-ключ (default `true`); pick **игнорирует**; UI на `/app/doctor/patient-home` не показывается и **не перезаписывается** при сохранении пауз (значение в DB остаётся as-is).

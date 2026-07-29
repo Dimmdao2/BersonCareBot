@@ -33,7 +33,7 @@ export async function getOperationalVerboseLogEnabled(db: DbPort): Promise<boole
   }
 }
 
-/** Drops cache so the next read reflects a freshly synced flag value (called from settings/sync). */
+/** Drops the 60-second cache for tests/manual callers. */
 export function invalidateOperationalVerboseLogCache(): void {
   cache = null;
 }

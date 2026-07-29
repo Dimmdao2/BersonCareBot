@@ -1,7 +1,6 @@
 domain	schema	table	tier	current_owner	canonical_status	cleanup_decision	blocker	next_action
 settings	public	system_settings	BOOTSTRAP	webapp	canonical_runtime_config	keep	none	use org-aware public accessor
-settings	integrator	system_settings	BOOTSTRAP	integrator	legacy_compat_mirror	retain_timeboxed	cache invalidation and sync retry still mounted	replace sync/cache invalidation before drop
-settings	public	integrator_push_outbox	INFRA	webapp	technical_retry_state	keep	used for system_settings_sync and reminder_rule_upsert	add terminal retention
+settings	public	integrator_push_outbox	INFRA	webapp	technical_retry_state	keep	used for reminder_rule_upsert	add terminal retention
 reminders	public	reminder_rules	SCOPED	webapp	canonical_business_data	keep	none	continue public business writes
 reminders	public	reminder_journal	SCOPED	webapp	canonical_business_history	keep	none	continue patient/bot action history
 reminders	public	reminder_occurrence_history	SCOPED	webapp	public_read_model	keep	admin stats/history use it	avoid using as dispatch owner

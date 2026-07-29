@@ -67,7 +67,6 @@ DELETE FROM email_send_cooldowns     WHERE user_id          = 'a754c977-d1cc-46b
 -- была собрана по внешним ключам на public.platform_users, а эти четыре колонки внешнего ключа не
 -- имеют (две из них вообще text, одна — в схеме интегратора). Поэтому удаление прошло молча и
 -- оставило 48 висячих ссылок. Все 48 вели на админское надгробие, перенос однозначен.
-UPDATE integrator.system_settings SET updated_by = 'b0021a38-fb86-45e9-9aec-d85014e932d4' WHERE updated_by::text = 'a754c977-d1cc-46bb-b870-ca499be81884';
 UPDATE public.broadcast_audit SET actor_id = 'b0021a38-fb86-45e9-9aec-d85014e932d4' WHERE actor_id::text = 'a754c977-d1cc-46bb-b870-ca499be81884';
 UPDATE public.operator_health_failure_archive SET archived_by_user_id = 'b0021a38-fb86-45e9-9aec-d85014e932d4' WHERE archived_by_user_id::text = 'a754c977-d1cc-46bb-b870-ca499be81884';
 UPDATE public.operator_health_failure_archive SET doctor_user_id = 'b0021a38-fb86-45e9-9aec-d85014e932d4' WHERE doctor_user_id::text = 'a754c977-d1cc-46bb-b870-ca499be81884';

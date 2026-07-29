@@ -8,7 +8,7 @@
 -- table got SELECT-only vs a write grant, and which BOOTSTRAP tables were deliberately excluded).
 --
 -- Purpose:
---   - app_staff: the reviewed P0.5b runtime DML surface -- 213 tables (SCOPED +
+--   - app_staff: the reviewed P0.5b runtime DML surface -- 212 tables (SCOPED +
 --     BOOTSTRAP + INFRA + LEGACY + TELEMETRY, excluding migration bookkeeping and post-P0.5b tables
 --     whose dedicated overlays own their grants).
 --   - app_patient: ONLY the patient-facing surface -- 109 tables (the patient-owned
@@ -70,7 +70,6 @@ VALUES
   ('integrator', 'message_retry_jobs'),
   ('integrator', 'projection_outbox'),
   ('integrator', 'question_messages'),
-  ('integrator', 'system_settings'),
   ('integrator', 'telegram_state'),
   ('integrator', 'telegram_users'),
   ('integrator', 'user_questions'),
@@ -530,7 +529,6 @@ WHERE attrelid = 'public.user_oauth_bindings'::regclass
 REVOKE ALL PRIVILEGES ON TABLE
   public.system_settings,
   public.system_settings_audit,
-  integrator.system_settings,
   public.app_runtime_settings_audit
   FROM PUBLIC, app_patient;
 GRANT SELECT ON TABLE public.app_runtime_settings TO app_patient;
@@ -546,7 +544,6 @@ BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_runtime_nonstaff_login') THEN
     REVOKE ALL PRIVILEGES ON TABLE public.system_settings FROM app_runtime_nonstaff_login;
     REVOKE ALL PRIVILEGES ON TABLE public.system_settings_audit FROM app_runtime_nonstaff_login;
-    REVOKE ALL PRIVILEGES ON TABLE integrator.system_settings FROM app_runtime_nonstaff_login;
     REVOKE ALL PRIVILEGES ON TABLE public.app_runtime_settings_audit FROM app_runtime_nonstaff_login;
   END IF;
 END
@@ -585,5 +582,5 @@ SELECT (NOT pg_has_role('app_patient', 'app_staff', 'MEMBER'))::int AS p0_5b_gra
 SELECT 1 / 0 AS p0_5b_grants_abort;
 \endif
 
-\echo 'P0.5b grants UP complete: app_staff 213 tables, app_patient 109 tables.'
+\echo 'P0.5b grants UP complete: app_staff 212 tables, app_patient 109 tables.'
 \endif

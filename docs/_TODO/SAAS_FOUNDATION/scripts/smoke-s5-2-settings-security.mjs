@@ -132,7 +132,6 @@ function installFixture() {
       key text NOT NULL, scope text NOT NULL, organization_id uuid, value_json jsonb NOT NULL
     );
     CREATE TABLE public.system_settings_audit(id uuid PRIMARY KEY, organization_id uuid);
-    CREATE TABLE integrator.system_settings(key text NOT NULL, organization_id uuid, value_json jsonb NOT NULL);
     CREATE TABLE public.patient_files(id uuid PRIMARY KEY, organization_id uuid);
 
     INSERT INTO public.app_runtime_settings VALUES

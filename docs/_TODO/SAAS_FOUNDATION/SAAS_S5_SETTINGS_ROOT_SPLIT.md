@@ -57,10 +57,9 @@
 | Runtime       | новая `public.app_runtime_settings`                              | только значения, безопасные для application runtime; global default и org override; ни одного секрета                   | staff, patient server runtime; browser/public получает только разрешённую проекцию |
 | Runtime audit | **планируемая** `public.app_runtime_settings_audit`              | old/new value, actor, source, org, timestamp                                                                            | staff/platform audit; пациент не читает                                            |
 
-`system_settings` остаётся DB-backed источником интеграционных секретов. Новые env-переменные для ключей,
-webhook URI или флагов не вводятся. `integrator.system_settings` остаётся compatibility mirror только restricted
-контура. Runtime config хранится один раз в `public.app_runtime_settings`; integrator читает его напрямую из схемы
-`public`, без второго runtime mirror.
+`public.system_settings` остаётся DB-backed источником интеграционных секретов. Новые env-переменные для ключей,
+webhook URI или флагов не вводятся. Runtime config хранится один раз в `public.app_runtime_settings`; integrator
+читает settings/runtime rows напрямую из схемы `public`, без второго mirror.
 
 ### 1.2. Один типизированный registry
 
@@ -217,8 +216,8 @@ typed evaluation отдельно, server enforcement отдельно от UI.
 > (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
 > только если готового нет — и написать в коммите, почему готовое не подошло.
 
-1. `app_patient` и browser/public principals имеют **zero privileges** на `public.system_settings`,
-   `public.system_settings_audit` и `integrator.system_settings`.
+1. `app_patient` и browser/public principals имеют **zero privileges** на `public.system_settings` и
+   `public.system_settings_audit`.
 2. `app_runtime_settings` физически не содержит secret, password, private key, API key, refresh token,
    webhook secret, allowlist или test identifier.
 3. Новый key default-deny: без registry entry код не собирается; invalid value не записывается.
@@ -552,8 +551,8 @@ contract. UI redesign вне scope.
 5. прогнать A/B runtime/security matrix и discussion-summary;
 6. перевести все readers на новые ports;
 7. повторить reconciliation и полный declared workload;
-8. удалить runtime copies из `public.system_settings` и `integrator.system_settings` только после двух green
-   reconciliation checkpoints; restricted rows не удалять;
+8. удалить runtime copies из `public.system_settings` только после двух green reconciliation checkpoints;
+   restricted rows не удалять;
 9. прекратить compatibility dual-write и повторить acceptance.
 
 - [ ] До шага 8 проверить counts по каждому migrated key/global/org identity, zero mismatches и zero restricted rows
@@ -582,8 +581,8 @@ contract. UI redesign вне scope.
 
 1. стены не отключать;
 2. остановиться на последнем green S5 checkpoint;
-3. если cleanup уже выполнен, idempotent rollback artifact восстанавливает runtime copies одновременно в
-   `public.system_settings` и `integrator.system_settings` из `app_runtime_settings`;
+3. если cleanup уже выполнен, idempotent rollback artifact восстанавливает runtime copies в
+   `public.system_settings` из `app_runtime_settings`;
 4. вернуть dual-read/dual-write build;
 5. revoke новых patient/bootstrap/config-reader grants, которые не нужны этому checkpoint; новые tables не drop;
 6. повторить reconciliation, restricted-denial matrix и discussion-summary.

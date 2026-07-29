@@ -799,23 +799,18 @@ function runFixtureProof(plan) {
       },
     );
 
-    const mirrorProof = superuserPsqlScalar(
+    const settingProof = superuserPsqlScalar(
       plan,
       plan.dbName,
-      `SELECT CASE WHEN public_setting.value_json = integrator_setting.value_json
-        AND public_setting.value_json = '{"value":{"phones":["+79643805480","+79189000782","+12025550101","+12025550102"],"telegramIds":["364943522","7924656602"],"maxIds":["207278131"]}}'::jsonb
+      `SELECT CASE WHEN public_setting.value_json = '{"value":{"phones":["+79643805480","+79189000782","+12025550101","+12025550102"],"telegramIds":["364943522","7924656602"],"maxIds":["207278131"]}}'::jsonb
         THEN 'ok' ELSE 'failed' END
        FROM public.system_settings AS public_setting
-       JOIN integrator.system_settings AS integrator_setting
-         ON integrator_setting.key = public_setting.key
-        AND integrator_setting.scope = public_setting.scope
-        AND integrator_setting.organization_id IS NOT DISTINCT FROM public_setting.organization_id
        WHERE public_setting.key = 'test_account_identifiers'
          AND public_setting.scope = 'admin'
          AND public_setting.organization_id IS NULL;`,
-      'prove public/integrator test-account mirror',
+      'prove canonical test-account setting',
     );
-    if (mirrorProof !== 'ok') throw new Error('fixture mirror proof failed');
+    if (settingProof !== 'ok') throw new Error('fixture setting proof failed');
 
     const capabilityProof = superuserPsqlScalar(
       plan,

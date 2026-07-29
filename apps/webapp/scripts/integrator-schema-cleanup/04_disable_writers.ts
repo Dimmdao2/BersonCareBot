@@ -9,15 +9,6 @@ No writes are performed by this script.`;
 
 const ACTIONS = [
   {
-    domain: 'system_settings',
-    status: 'blocked',
-    requiredBeforeDrop: [
-      'replace syncSettingToIntegrator/system_settings_sync with cache invalidation that does not write integrator.system_settings',
-      "drain or retire public.integrator_push_outbox rows where kind='system_settings_sync'",
-      'remove settingsSyncRoute mount after a release window',
-    ],
-  },
-  {
     domain: 'reminders',
     status: 'blocked',
     requiredBeforeDrop: [

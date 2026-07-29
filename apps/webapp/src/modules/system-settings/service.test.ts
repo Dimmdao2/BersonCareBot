@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { createBoundedRuntimeReadTelemetry, createSystemSettingsService } from './service';
 import type {
   RuntimeReadTelemetry,
@@ -10,16 +10,6 @@ import type {
 } from './ports';
 import type { SystemSetting } from './types';
 import { SystemSettingsOrgContextRequiredError } from './orgScopedKeys';
-
-const syncSettingToIntegratorMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
-
-vi.mock('./syncToIntegrator', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('./syncToIntegrator')>();
-  return {
-    ...actual,
-    syncSettingToIntegrator: syncSettingToIntegratorMock,
-  };
-});
 
 function makePort(overrides: Partial<SystemSettingsPort> = {}): SystemSettingsPort {
   return {
@@ -53,10 +43,6 @@ function makePort(overrides: Partial<SystemSettingsPort> = {}): SystemSettingsPo
 }
 
 describe('SystemSettingsService', () => {
-  beforeEach(() => {
-    syncSettingToIntegratorMock.mockClear();
-  });
-
   it('updateSetting — unknown key → ошибка', async () => {
     const service = createSystemSettingsService(makePort());
     await expect(service.updateSetting('unknown_key', 'admin', true, null)).rejects.toThrow(
@@ -74,19 +60,6 @@ describe('SystemSettingsService', () => {
     });
   });
 
-  it('updateSetting — вызывает syncSettingToIntegrator после upsert', async () => {
-    const port = makePort();
-    const service = createSystemSettingsService(port);
-    await service.updateSetting('dev_mode', 'admin', { value: true }, 'user-uuid');
-    expect(syncSettingToIntegratorMock).toHaveBeenCalledTimes(1);
-    expect(syncSettingToIntegratorMock).toHaveBeenCalledWith({
-      key: 'dev_mode',
-      scope: 'admin',
-      organizationId: null,
-      valueJson: { value: true },
-      updatedBy: 'user-uuid',
-    });
-  });
   it('clearSetting removes the override', async () => {
     const port = makePort();
     await expect(
@@ -95,7 +68,7 @@ describe('SystemSettingsService', () => {
     expect(port.delete).toHaveBeenCalled();
   });
 
-  it('writes the global booking location palette through runtime UoW and mirror sync', async () => {
+  it('writes the global booking location palette through runtime UoW', async () => {
     const writeUnitOfWork: SettingsWriteUnitOfWork = {
       write: vi.fn(async (input): Promise<SystemSetting[]> => {
         expect(input.authoritativeRuntimeRows).toEqual([
@@ -137,16 +110,9 @@ describe('SystemSettingsService', () => {
       'platform-user',
       { organizationId: null },
     );
-    expect(syncSettingToIntegratorMock).toHaveBeenCalledWith({
-      key: 'booking_location_default_palette',
-      scope: 'admin',
-      organizationId: null,
-      valueJson,
-      updatedBy: 'platform-user',
-    });
   });
 
-  it('commits error tracking enabled and DSN in one runtime UoW before both mirror syncs', async () => {
+  it('commits error tracking enabled and DSN in one runtime UoW', async () => {
     const events: string[] = [];
     const writeUnitOfWork: SettingsWriteUnitOfWork = {
       write: vi.fn(async (input): Promise<SystemSetting[]> => {
@@ -176,18 +142,15 @@ describe('SystemSettingsService', () => {
         }));
       }),
     };
-    syncSettingToIntegratorMock.mockImplementation(async () => {
-      events.push('sync');
-    });
     const service = createSystemSettingsService(makePort(), { writeUnitOfWork });
     await service.persistErrorTrackingConfig(
       { enabled: true, dsn: 'https://public@example.test/1' },
       'platform-user',
     );
-    expect(events).toEqual(['commit', 'sync', 'sync']);
+    expect(events).toEqual(['commit']);
   });
 
-  it('routes a runtime setting through the committed write UoW before compatibility sync', async () => {
+  it('routes a runtime setting through the committed write UoW', async () => {
     const events: string[] = [];
     const writeUnitOfWork: SettingsWriteUnitOfWork = {
       write: vi.fn(async (input): Promise<SystemSetting[]> => {
@@ -214,9 +177,6 @@ describe('SystemSettingsService', () => {
         ];
       }),
     };
-    syncSettingToIntegratorMock.mockImplementation(async () => {
-      events.push('sync');
-    });
     const service = createSystemSettingsService(makePort(), { writeUnitOfWork });
     await service.updateSetting(
       'patient_program_discussion_ui_enabled',
@@ -224,10 +184,10 @@ describe('SystemSettingsService', () => {
       { value: true },
       'u1',
     );
-    expect(events).toEqual(['commit', 'sync']);
+    expect(events).toEqual(['commit']);
   });
 
-  it('uses the dual-write compare-and-swap boundary and syncs only a committed result', async () => {
+  it('uses the dual-write compare-and-swap boundary and returns only a committed result', async () => {
     const compareAndSwap = vi.fn(
       async (input: {
         legacyRow: SystemSettingsUpsertRow;
@@ -267,10 +227,7 @@ describe('SystemSettingsService', () => {
         ],
       }),
     );
-    expect(syncSettingToIntegratorMock).toHaveBeenCalledTimes(1);
-
     compareAndSwap.mockResolvedValueOnce(null);
-    syncSettingToIntegratorMock.mockClear();
     await expect(
       service.updateSettingIfUnchanged(
         'notif_template:created:patient',
@@ -281,7 +238,6 @@ describe('SystemSettingsService', () => {
         { organizationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' },
       ),
     ).resolves.toBeNull();
-    expect(syncSettingToIntegratorMock).not.toHaveBeenCalled();
   });
 
   it('keeps mixed payment credentials legacy-authoritative for the trigger-owned projection', async () => {
@@ -384,7 +340,7 @@ describe('SystemSettingsService', () => {
     });
   });
 
-  it('updateSetting operator_health_alert_config — mirror в integrator после upsert', async () => {
+  it('updateSetting operator_health_alert_config — persists through the port', async () => {
     const port = makePort();
     const service = createSystemSettingsService(port);
     const value = {
@@ -404,16 +360,9 @@ describe('SystemSettingsService', () => {
       'admin-uuid',
       { organizationId: null },
     );
-    expect(syncSettingToIntegratorMock).toHaveBeenCalledWith({
-      key: 'operator_health_alert_config',
-      scope: 'admin',
-      organizationId: null,
-      valueJson: { value },
-      updatedBy: 'admin-uuid',
-    });
   });
 
-  it('updateSetting passes organization context to port and mirror sync (PER-ORG key)', async () => {
+  it('updateSetting passes organization context to port (PER-ORG key)', async () => {
     // P0.11.3: this test's original intent is the org-PRESERVING path — the port must actually receive
     // the caller's organizationId. `support_contact_url` was reclassified GLOBAL (see `orgScopedKeys.ts`),
     // so it's forced to null now; `patient_label` (PER-ORG) is the key that still exercises this path.
@@ -430,16 +379,9 @@ describe('SystemSettingsService', () => {
       'user-uuid',
       { organizationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' },
     );
-    expect(syncSettingToIntegratorMock).toHaveBeenCalledWith({
-      key: 'patient_label',
-      scope: 'doctor',
-      organizationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-      valueJson: { value: 'Клиенты' },
-      updatedBy: 'user-uuid',
-    });
   });
 
-  it('persistAdminModesBatch — upsertManyInTransaction и sync по каждому ключу', async () => {
+  it('persistAdminModesBatch — upsertManyInTransaction для всех ключей', async () => {
     const upsertManyInTransaction = vi.fn().mockResolvedValue([
       {
         key: 'dev_mode',
@@ -483,7 +425,6 @@ describe('SystemSettingsService', () => {
         updatedBy: 'u1',
       },
     ]);
-    expect(syncSettingToIntegratorMock).toHaveBeenCalledTimes(2);
   });
 
   describe('P0.11.3 org-aware write chokepoint (resolveWriteOrganizationId)', () => {
