@@ -409,18 +409,15 @@ card; запрещено строить временный resolver, второ�
 - **Gate:** `0 unclassified` решений; open decisions перечислены в owner-review/S4 и блокируют только зависимые
   substages. Code/runtime implementation в C-1 не входит.
 
-#### C0 — аварийно убрать Rubitime из canonical booking runtime
+#### C0 — Rubitime runtime removal: завершённый исторический этап
 
-- **Outcome:** create/reschedule/cancel работает при отсутствующей Rubitime-конфигурации; внешний sync не блокирует
-  и не откатывает canonical appointment.
-- **Scope:** taskdb `#839`; расследование partial patient write, `staffRubitimeManualBooking`, migrated settings и
-  duplicate profiles; UI-вкладка Rubitime исчезает. Исторические данные и physical retirement выполняются только по
-  `RUBITIME_RETIREMENT_EXECUTION_PLAN.md` и R1/R4-R7 gates.
-- **Dependency:** немедленный самостоятельный incident stage; он не ждёт UI polish, S4 или U0. При этом destructive
-  cleanup не начинается до operational proof.
-- **Acceptance:** owner-review §10 целиком; отдельный TEST scenario «новый пациент + запись без Rubitime»;
-  regression lifecycle; доказательство отсутствия runtime call. Будущий CSV/import остаётся provider-neutral и не
-  входит в ежедневный lifecycle.
+- **Status:** Rubitime выведено 2026-07-27; решение владельца 2026-07-29 запрещает возобновлять архивные CSV,
+  execution plan и R1–R7 gates как текущую работу.
+- **Historical scope:** taskdb `#839` устранял зависимость canonical create/reschedule/cancel от Rubitime,
+  `staffRubitimeManualBooking`, migrated settings и duplicate profiles; UI-вкладка Rubitime была удалена.
+- **Current boundary:** provider-neutral booking lifecycle и его отдельные дефекты остаются в своих текущих
+  планах. Архив retirement не доказывает и не разрешает новую чистку provider-neutral данных.
+- **Evidence archive:** `docs/archive/2026-07-rubitime-retirement/`; материалы внутри не исполняются.
 
 #### C1 — текущие исправления интерфейса TEST
 
@@ -680,7 +677,7 @@ Roadmap выбирает dependency-ready workstream, но **не являетс
 
 | Workstream | Execution plan | Позиция в порядке / внешний gate |
 | --- | --- | --- |
-| Rubitime retirement | [`RUBITIME_RETIREMENT_EXECUTION_PLAN.md`](../SAAS_FOUNDATION/RUBITIME_RETIREMENT_EXECUTION_PLAN.md) | Operational и owner gates R5–R7; не подменяет C0 runtime removal. |
+| Rubitime retirement (завершён 2026-07-27) | [`retirement archive`](../../archive/2026-07-rubitime-retirement/README.md) | Историческое evidence; CSV/R1–R7 не возобновлять и не использовать как worker checklist. |
 | Doctor UI | [`DOCTOR_UI_REWORK_2026-07-20/PLAN.md`](../DOCTOR_UI_REWORK_2026-07-20/PLAN.md) | UI cluster; UI-5b после U5A, public Online proof в U6B. |
 | Editor migration | [`EDITOR_TIPTAP_MIGRATION_PLAN.md`](../EDITOR_TIPTAP_MIGRATION_PLAN.md) | Собственный TEST/live gate; не закрывает соседние UI stages. |
 | Structured FIO | [`.cursor/plans/fio_identity_cleanup.plan.md`](../../../.cursor/plans/fio_identity_cleanup.plan.md) | Production closeout перед parser retirement. |

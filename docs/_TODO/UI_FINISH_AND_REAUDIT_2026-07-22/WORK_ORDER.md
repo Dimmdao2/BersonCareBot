@@ -4,13 +4,14 @@
 **Authority for "done":** the linked _detailed_ plan file of each stage — NEVER the roadmap one-line summary.
 
 > **RE-VERIFIED 2026-07-23:** all production `[x]` across the roadmap and detailed plans (~676) were audited against
-> code. Verified state + remaining-volume: [`PRODUCTION_READINESS_LEDGER_2026-07-23.md`](PRODUCTION_READINESS_LEDGER_2026-07-23.md)
+> code. Historical snapshot: [`PRODUCTION_READINESS_LEDGER_2026-07-23.md`](PRODUCTION_READINESS_LEDGER_2026-07-23.md)
 > and [`CHECKPOINT_2026-07-23_STATE_AND_BACKEND_WORK_ORDER.md`](CHECKPOINT_2026-07-23_STATE_AND_BACKEND_WORK_ORDER.md).
-> 659/676 confirmed; **3 functional fake-done reopened** → `[ ]`: Rubitime _patient/public "create works without
-> Rubitime"_ (Track C — falsified by incident #839 + D0 census; Rubitime create-path coupling still live) and
+> The following is the dated 2026-07-23 snapshot, not current runtime truth: 659/676 confirmed; **3 functional
+> fake-done reopened** → `[ ]`: Rubitime _patient/public "create works without Rubitime"_ (then falsified by
+> incident #839 + D0 census) and
 > `TASK_A` _"Full prod-copy PII rehearsal DONE"_ (no artifact, contradicts its own "NOT YET PROVEN"). 11 live-only
-> items reclassified `[~]`. Reality of the tracks below is unchanged: **Track C NOT done** (`branchServiceId` live,
-> R3C-11 past deadline, R7 not started, no drop migration); **Track D only D0 done**, D1-D10 open.
+> items reclassified `[~]`. **Superseded for Track C:** Rubitime was retired 2026-07-27 and archived by owner
+> ruling 2026-07-29; no R1–R7 work remains executable.
 
 ---
 
@@ -80,13 +81,9 @@ their own UI instead of following detailed plans.
 - Set up **PWA + web-push** for the global-admin account on TEST.
 - Deliverable: exact login steps sent to the owner.
 
-### Track C — Rubitime retirement on TEST (finish the existing plan)
+### Track C — Rubitime retirement: завершён и архивирован
 
-- Master plan: `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_EXECUTION_PLAN.md` + rounds R1–R5 + DB_CLEANUP_SEQUENCE.
-- Current state: NOT done — Rubitime code/tables still present on TEST (patient cabinet, booking, DoctorToday KPI,
-  `(global-admin)/doctor/admin/booking/integrations`). Finish R1–R5 **on TEST**: stop the exchange, remove
-  `branchServiceId` legacy links, archive, drop rubitime tables on TEST, observe breakage, fix it.
-- Note: this changes booking-related screens — coordinate with Track A.
+Rubitime выведено из эксплуатации 2026-07-27. Владелец 2026-07-29: «Rubitime у нас больше нет — убирать в архив явно». История прохода и доказательств: `docs/archive/2026-07-rubitime-retirement/README.md`. Старые R1–R7 runbook не возобновлять.
 
 ### Track D — direct integrator → `public` writes and legacy projection retirement
 
@@ -98,16 +95,17 @@ data remains. Historical migrations are immutable; PROD is out of scope.
 
 **Точная taskdb-привязка после сверки 29.07:** весь Track D D0–D10 — самостоятельная workstream-карточка `#987`.
 Её результат: исправить неверно закрытый `#635/#621`, перевести canonical domains на прямые transactional writes,
-после parity удалить POST `/api/integrator/events`, projection fanout/outbox, legacy transport и дублирующие
-Rubitime-only tables/settings/queues/projections, сохранив provider-neutral booking/support/reminder/business data.
+после parity удалить POST `/api/integrator/events`, projection fanout/outbox, legacy transport и остаточные
+provider-specific tables/settings/queues/projections, сохранив provider-neutral booking/support/reminder/business data.
 Сначала source/runtime inventory и умеренные независимые блоки; затем direct writers, HTTP/worker shutdown,
 destructive TEST/disposable migration+restore proof и docs/guards/tests. TEST разрешён; PROD и push в
 `main`/`test` запрещены без отдельной команды. Конкурировавший DB `SECURITY DEFINER` вариант D1 не
 канонизировать: выбор approach A зафиксирован в
-`SAAS_FOUNDATION/TRACK_D1_APPROACH_DECISION_2026-07-24.md`. `#981` остаётся отдельным Rubitime R5–R7
-provenance/cutoff workstream. `#959` — только parent reconciliation, `#984` — master coordination; эти ссылки
+`SAAS_FOUNDATION/TRACK_D1_APPROACH_DECISION_2026-07-24.md`. Бывший Rubitime workstream `#981` закрыт
+retirement 2026-07-27 и не является текущей очередью. `#959` — только parent reconciliation, `#984` — master coordination; эти ссылки
 не поглощают самостоятельный scope `#987`. Связанные authority inputs:
-`DATABASE_UNIFIED_POSTGRES.md`, T0.4-pre artifacts как inventory, не completion, и Rubitime retirement runbooks.
+`DATABASE_UNIFIED_POSTGRES.md` и T0.4-pre artifacts как inventory, не completion. Архивные Rubitime runbook
+не являются authority для исполнения.
 
 The HTTP-envelope/performance part of Stability E3 (`#980`) is **SUPERSEDED — 2026-07-23 by Track D / taskdb
 `#987`**. Reusable domain schemas may be retained, but no worker may optimize or expand the transport scheduled for
@@ -205,10 +203,11 @@ writeReminderRulesDirect.ts`, D1-D4 candidate/org-resolution pattern reused), fu
 - [ ] **D8 — mailing/subscriptions.** Run an exact producer/consumer callgraph first. If the currently empty source
       and projection tables have no live producer, remove the dead event types/adapters/tables; do not build a new writer
       for a dead domain.
-- [ ] **D9 — Rubitime/appointment retirement, coordinated with Track C.** Remove Rubitime booking branches,
-      appointment projection events/handlers, bridge paths, provider tables/settings and `appointment_records` only
-      after canonical preservation proof. First migrate the still-active retry storage and calendar mapping to
-      provider-neutral structures.
+- [x] **D9a — Rubitime runtime retirement.** Rubitime выведено 2026-07-27; исторические планы и proofs перенесены в
+      `docs/archive/2026-07-rubitime-retirement/` по решению владельца 2026-07-29.
+- [ ] **D9b — provider-neutral appointment projection cleanup.** Отдельно проверить оставшиеся
+      `appointment_records`, projection events/handlers, retry storage и calendar mapping; не считать архив Rubitime
+      доказательством удаления provider-neutral данных.
 - [ ] **D10 — projection transport teardown, last.** Only after an exact zero-producer census, remove fanout/outbox,
       worker/wiring, generic emit client surface, `/api/integrator/events`, event contract/CSRF exception, projection
       health/proxy/digest tooling and the outbox table through a migration. Do not delete generic idempotency, delivery
@@ -248,6 +247,6 @@ Report ends with: `closed X/N against <owner plan path>` + a mandatory `NOT DONE
   **push + email to the sender**; technical requests, ticket model, show "do not share patient data" notice.
 - **Message & broadcast history:** NOT deleted (permanent product history). Only technical copies in logs/queues are purged.
 - **Settings-log secrets:** delete old plaintext values; encrypt new ones.
-- **Rubitime:** cut now on TEST (Track C).
+- **Rubitime:** retired 2026-07-27; Track C/R1–R7 не возобновлять. Provider-neutral booking cleanup ведётся отдельно.
 - **Legacy integrator↔webapp HTTP event ports:** retire (direct SQL via the single DB port); table-cleanup
   (Phase 3) deferred until UI works. This is queued AFTER this UI push, not inside it.

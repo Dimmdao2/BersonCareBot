@@ -2,6 +2,11 @@
 
 Этот файл описывает только текущие env-файлы `BersonCareBot`.
 
+> **HOST IDENTITY GATE:** `*.prod` ниже существуют только на PROD `135.106.162.170` (`adelaide`). Текущий
+> `151.241.228.122` — DEV/RELAY/TEST: на нём нельзя читать/source-ить `*.prod`, устанавливать или перезапускать
+> `bersoncarebot-*-prod.service`. Все production-команды требуют прямой команды владельца и подтверждения обоих
+> признаков хоста: hostname `adelaide` и локальный IPv4 `135.106.162.170`.
+
 ---
 
 ## Production
@@ -58,6 +63,9 @@
 Проверка:
 
 ```bash
+test "$(hostname -s)" = "adelaide" &&
+  hostname -I | tr ' ' '\n' | grep -Fxq '135.106.162.170' ||
+  { echo "STOP: not canonical PROD 135/adelaide" >&2; exit 1; }
 systemctl show bersoncarebot-api-prod.service -p EnvironmentFiles
 systemctl show bersoncarebot-worker-prod.service -p EnvironmentFiles
 systemctl show bersoncarebot-scheduler-prod.service -p EnvironmentFiles

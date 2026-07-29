@@ -20,14 +20,28 @@ SCHEDULER_SERVICE=bersoncarebot-scheduler-prod.service
 WEBAPP_SERVICE=bersoncarebot-webapp-prod.service
 MEDIA_WORKER_SERVICE=bersoncarebot-media-worker-prod.service
 
-# Branch to deploy. Defaults to main (production). The thin wrapper deploy-test.sh
-# sets DEPLOY_BRANCH=test so the SAME script serves the test host without duplication.
-# Exported so the value survives the self re-exec below.
+# Branch to deploy. Defaults to main (production). Exported so the value
+# survives the self re-exec below.
 export DEPLOY_BRANCH="${DEPLOY_BRANCH:-main}"
 
 fail() {
   echo "deploy-prod: $*" >&2
   exit 1
+}
+
+assert_canonical_prod_host() {
+  local current_hostname address found_ip=0
+  current_hostname="$(hostname -s 2>/dev/null || true)"
+  [ "$current_hostname" = "adelaide" ] ||
+    fail "refusing PROD deploy on host '${current_hostname:-unknown}'; expected adelaide"
+  for address in $(hostname -I 2>/dev/null || true); do
+    if [ "$address" = "135.106.162.170" ]; then
+      found_ip=1
+      break
+    fi
+  done
+  [ "$found_ip" -eq 1 ] ||
+    fail "refusing PROD deploy without local IPv4 135.106.162.170"
 }
 
 require_file() {
@@ -40,9 +54,29 @@ require_file() {
 
 require_unit_file() {
   local unit="$1"
-  if [ ! -e "/etc/systemd/system/${unit}" ]; then
-    fail "Missing systemd unit ${unit}. Run deploy/host/bootstrap-systemd-prod.sh on the host before CI deploys."
-  fi
+  local installed="/etc/systemd/system/${unit}"
+  local source="${PROJECT_ROOT}/deploy/systemd/${unit}"
+  local fragment_path drop_in_paths need_reload
+  [ -f "${source}" ] && [ ! -L "${source}" ] ||
+    fail "Reviewed systemd template is missing or is a symlink: ${source}"
+  [ -f "${installed}" ] && [ ! -L "${installed}" ] ||
+    fail "Missing or non-regular systemd unit ${unit}. Root must run deploy/host/bootstrap-systemd-prod.sh before deploy."
+  [ "$(stat -c '%U:%G:%a' "${installed}")" = "root:root:644" ] ||
+    fail "Unsafe ownership/mode for ${installed}; expected root:root:644. Root must re-run bootstrap-systemd-prod.sh."
+  cmp -s "${source}" "${installed}" ||
+    fail "Installed ${unit} differs from the reviewed repo template. Root must re-run bootstrap-systemd-prod.sh."
+  fragment_path="$(/bin/systemctl show --property=FragmentPath --value "${unit}")" ||
+    fail "Cannot inspect loaded fragment for ${unit}."
+  [ "${fragment_path}" = "${installed}" ] ||
+    fail "Systemd loaded ${unit} from unexpected fragment ${fragment_path:-<none>}."
+  drop_in_paths="$(/bin/systemctl show --property=DropInPaths --value "${unit}")" ||
+    fail "Cannot inspect drop-ins for ${unit}."
+  [ -z "${drop_in_paths}" ] ||
+    fail "Unexpected drop-ins can override the reviewed host gate for ${unit}: ${drop_in_paths}"
+  need_reload="$(/bin/systemctl show --property=NeedDaemonReload --value "${unit}")" ||
+    fail "Cannot inspect daemon-reload state for ${unit}."
+  [ "${need_reload}" = "no" ] ||
+    fail "Systemd has not loaded the reviewed ${unit}; root must run bootstrap-systemd-prod.sh."
 }
 
 require_sudo_rule() {
@@ -54,6 +88,8 @@ require_sudo_rule() {
   fi
 }
 
+assert_canonical_prod_host
+
 cd "${PROJECT_ROOT}"
 # Discard local changes to auto-generated file so pull never conflicts (Next.js overwrites it on build).
 git checkout -- apps/webapp/next-env.d.ts 2>/dev/null || true
@@ -64,20 +100,6 @@ if [ -z "${DEPLOY_PROD_RERUN:-}" ]; then
   export DEPLOY_PROD_RERUN=1
   exec bash deploy/host/deploy-prod.sh
 fi
-
-# Reinstall systemd units from repo so WorkingDirectory/ExecStart match current layout (apps/integrator).
-# Requires deploy user to have NOPASSWD for install and systemctl daemon-reload (see HOST_DEPLOY_README).
-require_sudo_rule "systemd unit install API (bootstrap)" /usr/bin/install -m 0644 "${PROJECT_ROOT}/deploy/systemd/bersoncarebot-api-prod.service" /etc/systemd/system/bersoncarebot-api-prod.service
-require_sudo_rule "systemd unit install worker (bootstrap)" /usr/bin/install -m 0644 "${PROJECT_ROOT}/deploy/systemd/bersoncarebot-worker-prod.service" /etc/systemd/system/bersoncarebot-worker-prod.service
-require_sudo_rule "systemd unit install scheduler (bootstrap)" /usr/bin/install -m 0644 "${PROJECT_ROOT}/deploy/systemd/bersoncarebot-scheduler-prod.service" /etc/systemd/system/bersoncarebot-scheduler-prod.service
-if [ -f "${PROJECT_ROOT}/deploy/systemd/bersoncarebot-webapp-prod.service" ]; then
-  require_sudo_rule "systemd unit install webapp (bootstrap)" /usr/bin/install -m 0644 "${PROJECT_ROOT}/deploy/systemd/bersoncarebot-webapp-prod.service" /etc/systemd/system/bersoncarebot-webapp-prod.service
-fi
-if [ -f "${PROJECT_ROOT}/deploy/systemd/${MEDIA_WORKER_SERVICE}" ]; then
-  require_sudo_rule "systemd unit install media-worker (bootstrap)" /usr/bin/install -m 0644 "${PROJECT_ROOT}/deploy/systemd/${MEDIA_WORKER_SERVICE}" "/etc/systemd/system/${MEDIA_WORKER_SERVICE}"
-fi
-require_sudo_rule "systemd daemon-reload (bootstrap)" /bin/systemctl daemon-reload
-bash deploy/host/bootstrap-systemd-prod.sh
 
 require_file "${ENV_FILE}" "Production environment file"
 require_file "${WEBAPP_ENV_FILE}" "Production webapp environment file"
@@ -94,6 +116,7 @@ require_unit_file "${API_SERVICE}"
 require_unit_file "${WORKER_SERVICE}"
 require_unit_file "${SCHEDULER_SERVICE}"
 require_unit_file "${WEBAPP_SERVICE}"
+require_unit_file "${MEDIA_WORKER_SERVICE}"
 
 require_sudo_rule "backup script" "${BACKUP_SCRIPT}" pre-migrations
 require_sudo_rule "API restart" /bin/systemctl restart "${API_SERVICE}"
@@ -182,13 +205,11 @@ if [ "${chunk_ok}" != "1" ]; then
   fail "Chunk is not served after webapp restart: /_next/static/chunks/${sample_chunk} (last HTTP ${chunk_http_code:-<none>})"
 fi
 
-if [ -e "/etc/systemd/system/${MEDIA_WORKER_SERVICE}" ]; then
-  sudo -n /bin/systemctl restart "${MEDIA_WORKER_SERVICE}"
-  if ! sudo -n /bin/systemctl is-active --quiet "${MEDIA_WORKER_SERVICE}"; then
-    echo "deploy-prod: ${MEDIA_WORKER_SERVICE} is not active. Last journal lines:" >&2
-    sudo -n journalctl -u "${MEDIA_WORKER_SERVICE}" -n 40 --no-pager 2>/dev/null || true
-    fail "${MEDIA_WORKER_SERVICE} failed to start (ensure media-worker.prod has DATABASE_URL, S3_*, FFMPEG_PATH; apps/media-worker built)."
-  fi
+sudo -n /bin/systemctl restart "${MEDIA_WORKER_SERVICE}"
+if ! sudo -n /bin/systemctl is-active --quiet "${MEDIA_WORKER_SERVICE}"; then
+  echo "deploy-prod: ${MEDIA_WORKER_SERVICE} is not active. Last journal lines:" >&2
+  sudo -n journalctl -u "${MEDIA_WORKER_SERVICE}" -n 40 --no-pager 2>/dev/null || true
+  fail "${MEDIA_WORKER_SERVICE} failed to start (ensure media-worker.prod has DATABASE_URL, S3_*, FFMPEG_PATH; apps/media-worker built)."
 fi
 
 sleep 3

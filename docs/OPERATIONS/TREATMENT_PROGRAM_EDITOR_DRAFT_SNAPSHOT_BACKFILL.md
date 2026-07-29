@@ -52,7 +52,12 @@ SQL-префильтр для backfill: `EDITOR_DRAFT_SNAPSHOT_SQL_PREDICATE` (P
 
 ### Production (copy-paste)
 
+Только на `135.106.162.170` (`adelaide`) и после прямой команды владельца:
+
 ```bash
+test "$(hostname -s)" = "adelaide" &&
+  hostname -I | tr ' ' '\n' | grep -Fxq '135.106.162.170' ||
+  { echo "STOP: not canonical PROD 135/adelaide" >&2; exit 1; }
 set -a && source /opt/env/bersoncarebot/webapp.prod && set +a
 cd /opt/projects/bersoncarebot
 
@@ -79,6 +84,9 @@ pnpm --dir apps/webapp run backfill-treatment-program-editor-draft-snapshots -- 
 ### Проверка до / после (SQL)
 
 ```bash
+test "$(hostname -s)" = "adelaide" &&
+  hostname -I | tr ' ' '\n' | grep -Fxq '135.106.162.170' ||
+  { echo "STOP: not canonical PROD 135/adelaide" >&2; exit 1; }
 set -a && source /opt/env/bersoncarebot/webapp.prod && set +a
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "
 SELECT ti.id, ti.item_type, snap->>'title' AS title, snap->'media' AS media

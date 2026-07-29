@@ -44,7 +44,8 @@
 
 - [`../OWN_BOOKING_ENGINE_INITIATIVE/README.md`](../OWN_BOOKING_ENGINE_INITIATIVE/README.md) — исходная инициатива собственного движка записи.
 - [`../OWN_BOOKING_ENGINE_INITIATIVE/DATA_MODEL_REFERENCE.md`](../OWN_BOOKING_ENGINE_INITIATIVE/DATA_MODEL_REFERENCE.md) — текущая каноническая модель.
-- [`../ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md`](../ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md) — Rubitime pipeline + § mirror sync.
+- [Архивный Rubitime pipeline](../archive/2026-07-rubitime-retirement/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md) —
+  историческая схема до retirement 2026-07-27, не текущее руководство.
 - [`ACCEPTANCE_MIRROR_SYNC.md`](ACCEPTANCE_MIRROR_SYNC.md) — приёмка двустороннего зеркалирования.
 - [`../../apps/webapp/src/modules/booking-appointment-sync/README.md`](../../apps/webapp/src/modules/booking-appointment-sync/README.md) — модуль mirror (код).
 - [`../ARCHITECTURE/DOCTOR_CABINET_NAVIGATION.md`](../ARCHITECTURE/DOCTOR_CABINET_NAVIGATION.md) — навигация кабинета врача/админа.

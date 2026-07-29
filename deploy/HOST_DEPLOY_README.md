@@ -1,6 +1,12 @@
 # Host Deployment for BersonCareBot
 
-Этот файл описывает только актуальную operational-модель `BersonCareBot` на хосте.
+> **HOST IDENTITY GATE:** PROD-команды этого файла выполняются только на `135.106.162.170` (`adelaide`).
+> Текущий рабочий хост `151.241.228.122` — DEV/RELAY/TEST; локальные `bersoncarebot-*-prod.service`,
+> `/opt/projects/bersoncarebot` и `*.prod` там являются остатками старой топологии, замаскированы и не должны
+> запускаться. Разделы TEST относятся к `151.x`. Канон host identity:
+> [`docs/ARCHITECTURE/SERVER CONVENTIONS.md`](../docs/ARCHITECTURE/SERVER%20CONVENTIONS.md).
+
+Этот файл описывает operational-модель `BersonCareBot` на двух явно разделённых хостах.
 
 В scope входят:
 
@@ -24,6 +30,7 @@
 | Параметр              | Значение                                                                                                                                                                                                                                                        |
 | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Deploy user           | `deploy`                                                                                                                                                                                                                                                        |
+| Prod host              | `135.106.162.170` (`adelaide`)                                                                                                                                                                                                                                  |
 | Prod project dir      | `/opt/projects/bersoncarebot`                                                                                                                                                                                                                                   |
 | Prod env dir          | `/opt/env/bersoncarebot`                                                                                                                                                                                                                                        |
 | PostgreSQL            | `127.0.0.1:5432`                                                                                                                                                                                                                                                |
@@ -35,11 +42,13 @@
 
 ### GitHub Actions (репозиторий)
 
-В `.github/workflows/ci.yml` — набор параллельных job на `push` и `pull_request` (`pnpm install --frozen-lockfile`, затем отдельно lint, typecheck, тесты integrator, **webapp core** по шардам `pnpm test:webapp:fast`, **webapp in-process** по шардам только на `push` в `main`, сборки integrator/webapp, audit). На **pull request** in-process job пропускается (skipped). **Deploy** — после успеха всех нужных job, только при `push` в `main`: по SSH `bash <DEPLOY_PATH>/deploy/host/deploy-prod.sh` (секреты: `DEPLOY_SSH_KEY`, `DEPLOY_USER`, `DEPLOY_HOST`, `DEPLOY_PATH`).
+В `.github/workflows/ci.yml` — набор параллельных job на `push` и `pull_request` (`pnpm install --frozen-lockfile`, затем отдельно lint, typecheck, тесты integrator, **webapp core** по шардам `pnpm test:webapp:fast`, **webapp in-process** по шардам только на `push` в `main`, сборки integrator/webapp, audit). На **pull request** in-process job пропускается (skipped). Автодеплоя из `ci.yml` нет.
+
+Production deployment выполняется только отдельным ручным `.github/workflows/deploy-prod.yml`: `workflow_dispatch` → environment approval → exact guard `DEPLOY_HOST=135.106.162.170` → SSH `bash <DEPLOY_PATH>/deploy/host/deploy-prod.sh` (секреты: `DEPLOY_SSH_KEY`, `DEPLOY_USER`, `DEPLOY_HOST`, `DEPLOY_PATH`).
 
 Журнал смены версий GitHub Actions и связанных правок репозитория (в т.ч. Next `proxy`): [`docs/archive/2026-05-initiatives/DEPENDENCY_CI_UPDATE_2026-05-14/LOG.md`](../docs/archive/2026-05-initiatives/DEPENDENCY_CI_UPDATE_2026-05-14/LOG.md).
 
-Отдельный workflow `deploy-host.yml` в репозитории **нет** (ранее мог существовать; актуальный путь деплоя — job **Deploy** внутри `ci.yml`).
+Отдельного `deploy-host.yml` нет; актуальный production workflow — ручной `deploy-prod.yml`.
 
 ---
 
@@ -47,7 +56,8 @@
 
 ### Production services
 
-Подтверждены и активны (шаблоны в `deploy/systemd/`; на prod после `deploy-prod`):
+Подтверждены и активны (шаблоны в `deploy/systemd/`; root устанавливает/включает их через bootstrap,
+обычный `deploy-prod.sh` только проверяет и перезапускает):
 
 - `bersoncarebot-api-prod.service`
 - `bersoncarebot-worker-prod.service`
@@ -86,6 +96,12 @@ systemctl reset-failed
 | Cutover env                    | `/opt/env/bersoncarebot/cutover.prod`           |
 
 ### systemd units
+
+Каждый PROD template имеет два независимых fail-closed gate: `ConditionHost=adelaide` и `ExecCondition`,
+требующий локальный IPv4 `135.106.162.170`. Проверка IP упорядочена после `network-online.target`. Обычный deploy
+принимает unit только если это regular `root:root 0644` файл из `/etc/systemd/system`, byte-for-byte равный
+reviewed template; активный `FragmentPath` обязан указывать на этот файл, drop-ins запрещены, а
+`NeedDaemonReload` обязан быть `no`.
 
 #### API
 
@@ -135,7 +151,7 @@ systemctl reset-failed
 
 Файл юнита (шаблон в репозитории):
 
-- [`deploy/systemd/bersoncarebot-media-worker-prod.service`](../systemd/bersoncarebot-media-worker-prod.service) → на хосте: `/etc/systemd/system/bersoncarebot-media-worker-prod.service`
+- [`deploy/systemd/bersoncarebot-media-worker-prod.service`](systemd/bersoncarebot-media-worker-prod.service) → на хосте: `/etc/systemd/system/bersoncarebot-media-worker-prod.service`
 
 Эффективная конфигурация:
 
@@ -144,10 +160,11 @@ systemctl reset-failed
 - `ExecStart=/usr/bin/node dist/main.js`
 - Публичного порта нет (только исходящие к БД / S3 / `ffmpeg`).
 
-`deploy-prod.sh` устанавливает unit, собирает `apps/media-worker`, перезапускает сервис при наличии отдельного
-`media-worker.prod` и проверяет `systemctl is-active`. Этот env использует только media operational login; повторное
-использование webapp/integrator credential запрещено. Пользователю **`deploy`** нужен `NOPASSWD` на `install` этого
-unit-файла, `enable`/`restart`/`is-active`/`journalctl` — см. [`deploy/sudoers-deploy.example`](../sudoers-deploy.example).
+Root/operator отдельно устанавливает host-gated unit. `deploy-prod.sh` сверяет установленный root-owned unit с
+reviewed template, собирает `apps/media-worker`, перезапускает сервис при наличии отдельного `media-worker.prod` и
+проверяет `systemctl is-active`. Этот env использует только media operational login; повторное использование
+webapp/integrator credential запрещено. Пользователю **`deploy`** нужны только узкие права
+`restart`/`is-active`/`journalctl` — см. [`deploy/sudoers-deploy.example`](sudoers-deploy.example).
 
 **Не путать** с `bersoncarebot-worker-prod` (integrator projection): это разные процессы.
 
@@ -212,7 +229,7 @@ PTY/non-TTY, повторная ротация и отсутствие утеч�
 
 - `/etc/systemd/system/bersoncarebot-webapp-prod.service`
 
-Эффективная конфигурация (канон — **Next.js standalone**, как в [`deploy/systemd/bersoncarebot-webapp-prod.service`](../systemd/bersoncarebot-webapp-prod.service) и [`docs/ARCHITECTURE/SERVER CONVENTIONS.md`](../docs/ARCHITECTURE/SERVER%20CONVENTIONS.md); не `pnpm start`):
+Эффективная конфигурация (канон — **Next.js standalone**, как в [`deploy/systemd/bersoncarebot-webapp-prod.service`](systemd/bersoncarebot-webapp-prod.service) и [`docs/ARCHITECTURE/SERVER CONVENTIONS.md`](../docs/ARCHITECTURE/SERVER%20CONVENTIONS.md); не `pnpm start`):
 
 - `User=deploy`, `Group=deploy`
 - `WorkingDirectory=/opt/projects/bersoncarebot/apps/webapp/.next/standalone/apps/webapp`
@@ -703,16 +720,18 @@ bash deploy/host/deploy-prod.sh
 - `pnpm install --frozen-lockfile`
 - `pnpm build`
 - `pnpm --dir apps/webapp build`
-- bootstrap/reinstall systemd units
+- fail-closed проверка ранее установленных root-owned systemd units (без install, `daemon-reload` и `enable`)
 - pre-migrations DB backup
 - `pnpm migrate` (integrator + webapp Drizzle через `scripts/migrate-all.sh`)
 - **post-migrate schema guardrail:** `bash deploy/host/webapp-post-migrate-schema-check.sh` (набор колонок в `public`; см. файл — при ошибке деплой **останавливается до** рестарта сервисов)
-- restart API / worker / webapp (и media-worker при наличии unit)
+- restart API / worker / scheduler / webapp / media-worker
 - health check API
 
 ### Тест-деплой на `151.x` (feat → test)
 
-**Важно — модель отличается от прода:** ветки `test` и авто-деплоя **НЕТ**. CI (`ci.yml`) деплоит только `main`→прод (`on: push: branches: [main]`). Тест-сервер (`151.x`) держит **зеркало** текущей dev-ветки и обновляется **вручную одной командой**.
+**Важно — модель отличается от прода:** ветки `test` и авто-деплоя **НЕТ**. `ci.yml` выполняет проверки и
+ничего не деплоит; production запускается только ручным `deploy-prod.yml`. Тест-сервер (`151.x`) держит
+**зеркало** текущей dev-ветки и обновляется **вручную одной командой**.
 
 ```bash
 # от пользователя dev (скрипт сам делает sudo для deploy/systemctl):
@@ -910,15 +929,23 @@ RUN_STAGE13_CUTOVER=1 RUN_STAGE13_CUTOVER_DRY_RUN_ONLY=1 bash deploy/host/deploy
 
 ```bash
 cd /opt/projects/bersoncarebot
-bash deploy/host/bootstrap-systemd-prod.sh
+sudo bash deploy/host/bootstrap-systemd-prod.sh
 ```
 
 Скрипт:
 
-- копирует unit templates в `/etc/systemd/system/`
+- выполняется только root на подтверждённом `135.106.162.170` (`adelaide`);
+- требует все пять regular non-symlink templates и проверяет их через `systemd-analyze verify`;
+- не заменяет mask/symlink или другой non-regular target: root сначала отдельно разбирает причину mask;
+- копирует все пять unit templates в `/etc/systemd/system/`;
 - делает `systemctl daemon-reload`
-- включает сервисы
-- стартует их, если env и build artifacts уже есть
+- отвергает неожиданный `FragmentPath`, любые drop-ins и незагруженную конфигурацию;
+- включает сервисы;
+- стартует их, если соответствующие env и build artifacts уже есть.
+
+Обычный `deploy-prod.sh` unit-файлы не заменяет. Он fail-closed проверяет, что установленные файлы — regular
+`root:root 0644` и byte-for-byte совпадают с reviewed templates. При изменении template root повторяет bootstrap
+до обычного deploy.
 
 ---
 
@@ -927,13 +954,12 @@ bash deploy/host/bootstrap-systemd-prod.sh
 Для production deploy нужны passwordless sudo rules минимум на:
 
 - `/opt/backups/scripts/postgres-backup.sh pre-migrations`
-- install unit files в `/etc/systemd/system/`
-- `systemctl daemon-reload`
-- `systemctl enable`
-- `systemctl enable --now`
 - `systemctl restart`
 - `systemctl is-active --quiet`
 - `journalctl -u ... --no-pager`
+
+`install`, `daemon-reload`, `enable` и `enable --now` пользователю `deploy` не выдаются. Provisioning/замена
+unit-файлов выполняются только root через host-gated bootstrap.
 
 Актуальный пример:
 
@@ -975,7 +1001,7 @@ cp deploy/env/.env.webapp.prod.example /opt/env/bersoncarebot/webapp.prod
 
 ```bash
 cd /opt/projects/bersoncarebot
-bash deploy/host/bootstrap-systemd-prod.sh
+sudo bash deploy/host/bootstrap-systemd-prod.sh
 ```
 
 ### 4. Первый deploy

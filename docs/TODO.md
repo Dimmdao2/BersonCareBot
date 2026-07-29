@@ -59,17 +59,9 @@
 - **Цель:** вынести общий SQL и хелперы в workspace-пакет `packages/*` (новый каталог в монорепо), подключить из `apps/integrator` и `apps/webapp`; минимальный интерфейс `query()` / TX; один набор регрессионных тестов на пакет + существующие тесты маршрута и `writePort`.
 - **Ссылки:** `docs/archive/2026-04-initiatives/WEBAPP_FIRST_PHONE_BIND/AGENT_AND_AUDIT_LOG.md` (аудит 2026-04-13, п.1); хвосты для других агентов: `docs/archive/2026-04-initiatives/WEBAPP_FIRST_PHONE_BIND/NEXT_AGENT_TASKS.md`.
 
-## Rubitime API2 — фаза 2 (очередь, async UX, мультислоты)
+## Rubitime — закрыто и архивировано
 
-- **Контекст:** фаза 1 (глобальный pacing 5.5s для api2) закрыта; фаза 2 — отдельная инициатива: очередь воркера, async создание записи с поллингом («выполняется запись»), мультивыбор слотов и последовательные create в воркере с тем же pacing.
-- **Бэклог и спецификация (репозиторий):** [`docs/REPORTS/RUBITIME_API2_PACING_AND_PHASE2_BACKLOG.md`](REPORTS/RUBITIME_API2_PACING_AND_PHASE2_BACKLOG.md) (§ «Фаза 2 — backlog»).
-- **План Cursor (архив IDE):** `~/.cursor/plans/archive/2026-05-01-closed/rubitime_queue_+_multi-slot_ae5a569b.plan.md` — полный текст и mermaid; фаза 1 в плане помечена выполненной, фаза 2 описана в теле файла.
-
-## Integrator — один каталог записи (убрать дубль `integrator.rubitime_*`)
-
-- **Проблема:** в unified PostgreSQL интегратор всё ещё держит **параллельный справочник** `rubitime_branches`, `rubitime_services`, `rubitime_cooperators`, `rubitime_booking_profiles` (surrogate `id`, v1-профили) и **signed M2M** `POST/GET /api/bersoncare/rubitime/admin/*` (`adminM2mRoute.ts` + `bookingProfilesRepo.ts`), дублируя **канон** в webapp: `public.booking_*`, `public.branches` и админку `/api/admin/booking-catalog/*`.
-- **Уже сделано (2026-05):** разрешение IANA для слотов/ингеста — **`public.booking_branches` / `public.branches`**, не `integrator.rubitime_branches.timezone` (`apps/integrator/src/infra/db/branchTimezone.ts`).
-- **TODO (крупный рефакторинг):** перевести чтение **v1** (`resolveBookingProfile`, `pickAnyActiveRubitimeScheduleTriple`, operator health) на **каталог webapp** или зафиксировать **отказ от v1** в пользу только M2M v2; переподключить или удалить **integrator admin M2M** к записям в `public` (без второй копии данных); миграция/бэкфилл профилей; затем DDL — дроп или опустошение `integrator.rubitime_*` после cutover. Связка с Drizzle-репозиториями: `docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`, планы `.cursor/plans/archive/integrator_drizzle_phase_*.plan.md`.
+Rubitime выведено из эксплуатации 2026-07-27. Старые API2 phase-2 и integrator-каталог backlog больше не являются задачами. История решений, retirement-проходов и one-shot инструментов: [`docs/archive/2026-07-rubitime-retirement/README.md`](archive/2026-07-rubitime-retirement/README.md).
 
 ## Doctor catalogs — черновики отдельно от архива
 
@@ -102,7 +94,7 @@
 
 ## Web Push / PWA
 
-- **Web Push при переносе записи (`booking.updated` / `rescheduled`):** copy для push уже в `apps/webapp/src/modules/web-push/pushNotificationCopy.ts` (`variant: rescheduled`); нужно lifecycle-событие в Rubitime/integrator и вызов `sendBookingWebPush` из `apps/integrator/src/integrations/rubitime/recordM2mRoute.ts` (сейчас только `booking.created` / `booking.cancelled`). См. также `apps/webapp/INTEGRATOR_CONTRACT.md` §«patient Web Push».
+- **Web Push при переносе записи (`booking.updated` / `rescheduled`):** copy для push уже в `apps/webapp/src/modules/web-push/pushNotificationCopy.ts` (`variant: rescheduled`); нужно provider-neutral lifecycle-событие в integrator и вызов `sendBookingWebPush` из `apps/integrator/src/integrations/bersoncare/bookingLifecycleRoute.ts` (сейчас только `booking.created` / `booking.cancelled`). См. также `apps/webapp/INTEGRATOR_CONTRACT.md` §«patient Web Push».
 - **Рассылки врача — отдельный preview «сколько получат push»:** сейчас в confirm показывается только общий `audienceSize` (хотя бы один выбранный канал). Число получателей именно Web Push (`eligibleClients` ∩ `webPushEligibleUserIds` при канале `push`) в UI не выводится; batch-резолв уже есть в `resolveBroadcastWebPushEligibleUserIds` / `BroadcastAudienceResolveResult.webPushEligibleUserIds`. Follow-up: поле в `BroadcastPreviewResult`, строка в `BroadcastConfirmStep`, при необходимости отдельный счётчик без пересчёта TG/SMS. См. `apps/webapp/src/modules/doctor-broadcasts/README.md`.
 
 ## Security / Auth

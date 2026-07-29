@@ -96,11 +96,12 @@ only the two files in `CURRENT_AUTHORITY_MAP.md` that could be evidenced were ac
 
 **Currently live/authoritative** (cross-checked, no contradicting evidence found): `SEQUENCE.md`,
 `SAAS_ENFORCE_ROADMAP.md`, `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md`, `SAAS_S5_SETTINGS_ROOT_SPLIT.md`,
-`SAAS_S6_CLINIC_DIRECTORY_AND_ORG_BOUNDARY.md`, `SAAS_S3_TEST_WALKTHROUGH.md`, `RUBITIME_RETIREMENT_EXECUTION_PLAN.md`,
+`SAAS_S6_CLINIC_DIRECTORY_AND_ORG_BOUNDARY.md`, `SAAS_S3_TEST_WALKTHROUGH.md`,
 `R2_MVP_MASTER_CHECKLIST.md`, `SAAS_R3_CUT_INVENTED_SCOPE.md`, `DOCTOR_UI_REWORK_2026-07-20/PLAN.md`,
 `SAAS_PRODUCT_UX_INITIATIVE/IMPLEMENTATION_ROADMAP.md`, `STABILITY_SECURITY_HARDENING_PLAN_2026-07-21.md`,
 `BCB2_OWNER_PUNCHLIST_2026-07-18.md`, `RU_PRIVACY_AND_PRODUCTION_READINESS/MASTER_PLAN.md` (with the caveat in
-§3 about how much of it is owner-authorized vs. agent-expanded).
+§3 about how much of it is owner-authorized vs. agent-expanded). Rubitime retirement исключён из текущей
+authority: он завершён 2026-07-27 и хранится только в `docs/archive/2026-07-rubitime-retirement/`.
 
 ---
 
@@ -146,11 +147,11 @@ cannot proceed without him, so they belong on a decision list, not a work list.
   "Active work" section** — real owner scope that is currently invisible in the one document meant to say
   "what's next." Needs a sequencing decision, not a scope decision.
 
-### Rubitime retirement (a hard, dated owner ruling)
+### Rubitime retirement (завершённая историческая работа)
 
-- `SAAS_FOUNDATION/RUBITIME_RETIREMENT_EXECUTION_PLAN.md` (63 open, 115 already closed — the most-worked file in
-  the whole backlog). Directly quotes the owner: "Убираем... кластер Rubitime... запись из Rubitime это канон."
-  No owner decision blocking further work; TEST-only, already in motion.
+- Rubitime выведено 2026-07-27; владелец 2026-07-29 распорядился явно убрать материалы в архив. Открытые строки
+  старого `RUBITIME_RETIREMENT_EXECUTION_PLAN.md` сохраняют историческое состояние и не являются backlog или
+  разрешением продолжить R1–R7. Архив: `docs/archive/2026-07-rubitime-retirement/`.
 
 ### Doctor UI (the owner's own dictated punch-list)
 

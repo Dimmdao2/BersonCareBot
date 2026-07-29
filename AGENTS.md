@@ -40,7 +40,7 @@
 - `docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md` — **dev-серверы, dev-bypass вход в кабинеты, живое UI-тестирование**
 - `deploy/HOST_DEPLOY_README.md`
 - `docs/AGENT_AUTORUN_SCHEME.md` — общий метод автопрохода; `docs/ORCHESTRATION_BINDINGS.md` — **обязательный практический канон BersonCare**, который побеждает generic/host материалы в repo-specific вопросах. Читать оба для любой оркестрованной/автономной работы.
-- `docs/OPERATIONS/RUBITIME_R1_FRESH_PROD_DUMP_AGENT_README.md` — **исторический one-shot runbook: Rubitime выведено 2026-07-27**. Читать только для воспроизведения/аудита завершённого retirement и старых fresh-copy прогонов; это не руководство по текущему runtime.
+- `docs/archive/2026-07-rubitime-retirement/README.md` — **архив выведенного 2026-07-27 Rubitime-контура**. Это исторические доказательства и one-shot материалы, не руководство по текущему runtime.
 
 ---
 
@@ -96,7 +96,13 @@ _Источник: `.cursor/rules/server-conventions-and-doc-onboarding.mdc` (al
 - For any server, deploy, prod, systemd, nginx, env, path, port, DB, backup, migration, backfill, reconcile, or cutover question:
   - Treat `docs/ARCHITECTURE/SERVER CONVENTIONS.md` as the primary source of truth for confirmed runtime facts.
   - Use exact names and paths from that file. Never invent or guess paths, service names, env file names, DB names, ports, URLs, or users.
-- **PostgreSQL on host:** Never instruct `psql "$DATABASE_URL"` without the full `set -a && source /opt/env/bersoncarebot/<api.prod|webapp.prod> && set +a` preamble — see раздел [Host: PostgreSQL](#6-host-postgresql-и-database_url). Commands must be copy-paste complete.
+- **Host identity — blocking gate:** current `151.241.228.122` is DEV/RELAY/TEST only; PROD is only
+  `135.106.162.170`. Local `/opt/projects/bersoncarebot`, `*.prod` and `bersoncarebot-*-prod.service` are stale,
+  masked remnants, not runtime PROD. Before any PROD action prove target-host = `135.106.162.170` and obtain
+  explicit owner permission.
+- **PostgreSQL on host:** Never instruct bare `psql "$DATABASE_URL"`. Load the env for the explicitly named
+  DEV/TEST/PROD target; PROD `*.prod` is allowed only on `135.x`. See раздел
+  [Host: PostgreSQL](#6-host-postgresql-и-database_url). Commands must be copy-paste complete.
 - If a required runtime fact is missing or not explicitly confirmed in docs:
   - Say clearly that the value is missing/unconfirmed.
   - Give exact commands to discover it on the host.
@@ -105,7 +111,9 @@ _Источник: `.cursor/rules/server-conventions-and-doc-onboarding.mdc` (al
   - Store only non-secret operational facts in docs (paths, unit names, port numbers, DB names, env key names, URLs, users, ownership).
   - Never write secrets, passwords, tokens, or full credential-bearing connection strings into repo docs.
 
-**Production-хост:** пользователь `deploy` **не имеет** произвольного `sudo` в SSH — только whitelist (systemctl bersoncarebot-\*, backup). Не давать агенту `sudo rm/chown/cp` от `deploy`; root-операции — явно «от root». Подробно: `docs/ARCHITECTURE/SERVER CONVENTIONS.md` §«КРИТИЧНО: deploy».
+**Production-хост `135.106.162.170`:** sudoers нельзя считать безопасной границей; агент не выполняет там
+`sudo` и вообще не касается PROD без отдельного явного owner-разрешения. Подробно:
+`docs/ARCHITECTURE/SERVER CONVENTIONS.md` §«КРИТИЧНО: deploy».
 
 ### Задачи — только через taskdb-порт, не сырой SQL
 
@@ -141,7 +149,9 @@ _Источник: `.cursor/rules/server-conventions-and-doc-onboarding.mdc` (al
 ### Прогон тестов и сборок — напрямую разрешено
 
 - **🔴 РЕШЕНИЕ ВЛАДЕЛЬЦА 29.07.2026: полный CI в моменте — ТОЛЬКО ОДИН.** `pnpm run ci` и любой полный прогон тестов запускать ИСКЛЮЧИТЕЛЬНО через общий замок: `/home/dev/brain/host-orch/run-tests.sh "pnpm run ci"`. Остальные ждут в очереди автоматически (flock), писать протоколы вручную не нужно.
-- **Почему:** на боксе рядом живёт ПРОД — 8 ядер, 31 ГиБ, БЕЗ подкачки. Параллельные прогоны не только толкаются за процессор, но и грозят нехваткой памяти. Цена уже заплачена 29.07: три одновременных прогона столкнулись за общий замок сборки Next (`Another next build process is already running`), прогон CI потерян впустую.
+- **Почему:** `151.x` — общий DEV/TEST-хост; параллельные прогоны толкаются за CPU/RAM и общий замок сборки
+  Next. Цена уже заплачена 29.07: три одновременных прогона получили
+  `Another next build process is already running`, прогон CI потерян впустую. PROD на этом хосте нет.
 - ⛔ **Решение владельца от 2026-07-09 «требование обязательного запуска через `run-tests.sh` временно снято» — SUPERSEDED 29.07.2026.** Не ссылаться на него: именно оно привело к тому, что агенты честно читали канон и шли мимо замка.
 - Точечные проверки (`vitest` по одному файлу, `typecheck`, `lint`) по-прежнему можно запускать напрямую — они короткие и общий ресурс не держат.
 - Уровень проверки выбирается по `.cursor/rules/test-execution-policy.md` и `.cursor/rules/pre-push-ci.mdc`: step/phase/full CI по масштабу риска, без лишних повторов. Команды и результаты проверок указывать честно.
@@ -161,7 +171,7 @@ _Источник: `.cursor/rules/server-conventions-and-doc-onboarding.mdc` (al
 - **`feat/doctor-ui-rebuild`** (dev): коммить и пушить свободно (авто-push ок).
 - **`main` / `test`: НИКОГДА не пушить/мёрджить без прямой команды владельца.**
 - **Два репо:** `origin` = `Dimmdao2/BersonCareBot` (dev/backup; прод-деплой выключен `if:false`). `dimmdao` = `dimmdao/BersonCareBot` — **производственный**.
-- **Прод-деплой — ручной:** в `dimmdao` → Actions → workflow **«Deploy (production)»** (`workflow_dispatch`, ввод `confirm=deploy`) → аппрув окружения `production`. Гейты: зелёный CI на коммите + human-approval. Затем SSH под юзером `deploy` запускает `deploy/host/deploy-prod.sh` (хост: `git pull main` → install → build → `pnpm migrate` → рестарт systemd). Хост `135.106.162.170`, путь `/opt/projects/bersoncarebot`, секреты `DEPLOY_SSH_KEY/USER/HOST/PATH` + read-only deploy-key для pull. Детали: `deploy/HOST_DEPLOY_README.md`.
+- **Прод-деплой — ручной:** в `dimmdao` → Actions → workflow **«Deploy (production)»** (`workflow_dispatch`, ввод `confirm=deploy`) → аппрув окружения `production`. Гейты: зелёный CI на коммите + human-approval. Затем SSH под юзером `deploy` запускает `deploy/host/deploy-prod.sh` (хост: `git pull main` → проверка заранее установленных root-owned units → build → `pnpm migrate` → restart). Установка/замена units — отдельный root-only bootstrap, не право deploy. Хост `135.106.162.170`, путь `/opt/projects/bersoncarebot`, секреты `DEPLOY_SSH_KEY/USER/HOST/PATH` + read-only deploy-key для pull. Детали: `deploy/HOST_DEPLOY_README.md`.
 
 ### 🔴 Индекс/векторы по коду — ГОТОВ, используй ПЕРЕД сканом кода (экономит токены всем)
 
@@ -274,12 +284,23 @@ http://127.0.0.1:5200/api/auth/dev-bypass?token=dev%3Aadmin
 
 _Источник: `.cursor/rules/dev-prod-isolation-no-real-creds.mdc` (alwaysApply)_
 
-Прод и dev — на одной машине. Прод: из `/opt/projects/bersoncarebot` (+ `/opt/env/bersoncarebot/*`, systemd `bersoncarebot-*-prod.service`, БД `bcb_webapp_prod`). Dev: из репо (`pnpm dev` → webapp `:5200` + integrator `:4200`, env `/.env` + `apps/webapp/.env.dev`, БД `bcb_webapp_dev`). Канонические пути — только из `docs/ARCHITECTURE/SERVER CONVENTIONS.md`.
+Среды разнесены: текущий `151.241.228.122` — DEV/RELAY/TEST; PROD — только `135.106.162.170`.
+DEV идёт из репо (`pnpm dev` → webapp `:5200` + integrator `:4200`, env `/.env` +
+`apps/webapp/.env.dev`, БД `bcb_webapp_dev`). TEST — `/opt/projects/bersoncarebot-test`, env `*.test`,
+юниты `bersoncarebot-*-test.service`, БД `bersoncarebot_test`. Старые local `/opt/projects/bersoncarebot`,
+`*.prod` и `bersoncarebot-*-prod.service` на `151.x` — запрещённые замаскированные остатки.
+Канонические пути — только из `docs/ARCHITECTURE/SERVER CONVENTIONS.md`.
 
-1. **Реальные креды — только на проде.** Dev-env НЕ содержит реальных prod-секретов внешних каналов (Telegram / MAX / SMSC / S3) — они только в `/opt/env/bersoncarebot/*`. В dev: `NODE_ENV=development`, send-креды пустые, `MAX_ENABLED=false` / `SMSC_ENABLED=false`. Нашёл реальные креды в dev-env — очистить и сообщить владельцу.
+1. **Реальные PROD-креды — только на `135.x`.** DEV/TEST на `151.x` не содержат реальных prod-секретов
+   внешних каналов; `*.test` содержат только TEST-креды и обязательные send-safety ограничения.
+   В dev: `NODE_ENV=development`, send-креды пустые, `MAX_ENABLED=false` / `SMSC_ENABLED=false`.
+   Нашёл PROD-креды на `151.x` — инцидент: сообщить владельцу, не использовать и не печатать.
 2. **Dev не шлёт реально.** В `development` доставка = no-op/мок. Не делать действий, способных отправить реальное сообщение/SMS в Telegram / SMSC / MAX или записать в реальный S3 из dev (тестовые записи, рассылки, ретраи). `INTEGRATOR_API_URL` в dev — только локальный `127.0.0.1:4200`.
 3. **Dev-БД = изменяемая песочница.** `bcb_webapp_dev` разрешено пересоздавать, сидировать и менять для разработки/UX. TEST→DEV разрешён через `bash deploy/host/refresh-dev-from-test.sh --execute` (ровно `bersoncarebot_test` → `bcb_webapp_dev`, PROD не открывается). Не коммитить dumps/cookie jars/runtime exports; запрет реальной доставки из dev сохраняется.
-4. **Прод не трогать из dev.** Не подключаться к `bcb_webapp_prod`, не читать `/opt/env/*`, не дёргать прод-сервисы — только по явному запросу владельца и канону SERVER CONVENTIONS (+ раздел [Host: PostgreSQL](#6-host-postgresql-и-database_url)).
+4. **Прод не трогать из dev.** Не подключаться к `135.x`, PROD-БД, PROD-сервисам/вебхукам и не использовать
+   локальные остатки `*.prod`. PROD-операция требует отдельного явного owner-запроса с указанием PROD и проверки
+   target-host = `135.106.162.170` по SERVER CONVENTIONS (+ раздел
+   [Host: PostgreSQL](#6-host-postgresql-и-database_url)).
 5. **Секреты не печатать.** Значения `.env`/секретов — маскировать; не вставлять креды в чат / логи / коммиты / доки.
 6. **Не удалять `.next`/кэш работающих серверов вслепую** — сперва `pgrep -af next`.
 
@@ -505,12 +526,18 @@ _Источник: `.cursor/rules/host-psql-database-url.mdc` (alwaysApply)_
 ### Жёсткое требование для агентов
 
 1. **Никогда** не выдавать пользователю «голый» `psql "$DATABASE_URL"` / `psql "$INTEGRATOR_DATABASE_URL"` без блока, который **сначала** подгружает нужный env-файл на хосте.
-2. Любая инструкция для **production-хоста** с SQL должна быть **цельной для copy-paste**: `set -a` → `source <файл из SERVER CONVENTIONS>` → `set +a` → затем `psql` или `-f`.
+2. Любая инструкция с SQL должна быть **цельной для copy-paste** и называть среду: `set -a` →
+   `source <файл из SERVER CONVENTIONS>` → `set +a` → затем `psql` или `-f`. Текущий `151.241.228.122`
+   допускает только DEV/TEST env. PROD env используется только в отдельно разрешённой PROD-сессии на
+   `135.106.162.170`.
 3. Явно писать, **какой контекст** нужен: после **unification** (см. `SERVER CONVENTIONS.md`, `DATABASE_UNIFIED_POSTGRES.md`) `DATABASE_URL` в `api.prod` и `webapp.prod` обычно **одинаковый**; различайте схемы **`public`** vs **`integrator`** (`SET search_path`, префиксы таблиц). Для **legacy** cutover/dev с двумя кластерами — `INTEGRATOR_DATABASE_URL` из `cutover.prod` или второй env-файл.
 
-Канонические пути к env на production — только из `docs/ARCHITECTURE/SERVER CONVENTIONS.md` (не придумывать).
+Канонические host identity и пути к env — только из `docs/ARCHITECTURE/SERVER CONVENTIONS.md` (не придумывать).
 
-### Шаблоны production (готовые блоки)
+### Шаблоны production — только удалённый `135.106.162.170`
+
+**Никогда не выполнять эти блоки на текущем `151.241.228.122`.** Локальные `*.prod` — остатки старой
+топологии, а `bersoncarebot-*-prod.service` замаскированы.
 
 **Через `api.prod`** (integrator-процесс; та же БД, что webapp, если unified):
 
@@ -539,11 +566,12 @@ Cutover / два URL — см. `SERVER CONVENTIONS.md` (`cutover.prod`, `INTEGRA
 
 Пути к локальным `.env` — только из `docs/ARCHITECTURE/SERVER CONVENTIONS.md` (например webapp dev: `apps/webapp/.env.dev`). Тот же принцип: **сначала** загрузить файл, в котором задан `DATABASE_URL`, **потом** `psql`.
 
-**Prod и dev — в одной PostgreSQL** (`bcb_webapp_prod` + `bcb_webapp_dev` на `127.0.0.1:5432`). Прод трогать нельзя; dev-роль не видит схемы прода — это норма, а не пустая база.
+На `151.x` в локальном PostgreSQL живут DEV (`bcb_webapp_dev`) и TEST (`bersoncarebot_test`).
+Настоящая PROD-БД находится на `135.x`, не является локальной базой этого хоста и из DEV не открывается.
 
 ### Пересоздание / обновление dev-базы из prod-дампа
 
-Канон с командами и граблями — [`docs/ARCHITECTURE/DB_DUMPS/README.md`](docs/ARCHITECTURE/DB_DUMPS/README.md) (раздел «Пересоздание dev-базы из prod-дампа»). Чего **не** делать (ломали вживую): `pg_restore --clean` поверх живой схемы; `--single-transaction` (откат из-за `COMMENT ON EXTENSION`); `REASSIGN OWNED BY bcb_webapp_prod` (задевает боевую базу — владельца задавать через `--no-owner --role=bcb_webapp_dev_user`). Пересоздание базы — только суперюзер `postgres` (роли `bcb_*` без `CREATEDB`): дать команды пользователю, не запускать самому. Миграциями «с нуля» схему не собирать — базу+леджер даёт дамп, `pnpm migrate` накатывает дельту.
+Канон с командами и граблями — [`docs/ARCHITECTURE/DB_DUMPS/README.md`](docs/ARCHITECTURE/DB_DUMPS/README.md) (раздел «Пересоздание dev-базы из prod-дампа»). Чего **не** делать (ломали вживую): `pg_restore --clean` поверх живой схемы; `--single-transaction` (откат из-за `COMMENT ON EXTENSION`); `REASSIGN OWNED BY bcb_webapp_prod` (может задеть shared/legacy local objects — владельца задавать через `--no-owner --role=bcb_webapp_dev_user`; настоящий PROD на `135.x` из этого flow не открывается). Пересоздание базы — только суперюзер `postgres` (роли `bcb_*` без `CREATEDB`): дать команды пользователю, не запускать самому. Миграциями «с нуля» схему не собирать — базу+леджер даёт дамп, `pnpm migrate` накатывает дельту.
 
 ### Скрипты в репозитории
 

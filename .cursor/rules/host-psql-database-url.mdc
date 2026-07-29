@@ -12,12 +12,18 @@ alwaysApply: true
 ## Жёсткое требование для агентов
 
 1. **Никогда** не выдавать пользователю «голый» `psql "$DATABASE_URL"` / `psql "$INTEGRATOR_DATABASE_URL"` без блока, который **сначала** подгружает нужный env-файл на хосте.
-2. Любая инструкция для **production-хоста** с SQL должна быть **цельной для copy-paste**: `set -a` → `source <файл из SERVER CONVENTIONS>` → `set +a` → затем `psql` или `-f`.
+2. Любая инструкция с SQL должна быть **цельной для copy-paste** и называть среду: `set -a` →
+   `source <файл из SERVER CONVENTIONS>` → `set +a` → затем `psql` или `-f`.
+   Текущий `151.241.228.122` допускает только DEV/TEST env. PROD env используется только в отдельно
+   разрешённой PROD-сессии на `135.106.162.170`.
 3. Явно писать, **какой контекст** нужен: после **unification** (см. `SERVER CONVENTIONS.md`, `DATABASE_UNIFIED_POSTGRES.md`) `DATABASE_URL` в `api.prod` и `webapp.prod` обычно **одинаковый**; различайте схемы **`public`** vs **`integrator`** (`SET search_path`, префиксы таблиц). Для **legacy** cutover/dev с двумя кластерами — `INTEGRATOR_DATABASE_URL` из `cutover.prod` или второй env-файл.
 
-Канонические пути к env на production — только из `docs/ARCHITECTURE/SERVER CONVENTIONS.md` (не придумывать).
+Канонические host identity и пути к env — только из `docs/ARCHITECTURE/SERVER CONVENTIONS.md` (не придумывать).
 
-## Шаблоны production (готовые блоки)
+## Шаблоны production — только удалённый `135.106.162.170`
+
+**Никогда не выполнять эти блоки на текущем `151.241.228.122`.** Локальные `*.prod` — остатки старой
+топологии, а `bersoncarebot-*-prod.service` замаскированы.
 
 **Через `api.prod`** (integrator-процесс; та же БД, что webapp, если unified):
 
@@ -46,7 +52,8 @@ Cutover / два URL — см. `SERVER CONVENTIONS.md` (`cutover.prod`, `INTEGRA
 
 Пути к локальным `.env` — только из `docs/ARCHITECTURE/SERVER CONVENTIONS.md` (например webapp dev: `apps/webapp/.env.dev`). Тот же принцип: **сначала** загрузить файл, в котором задан `DATABASE_URL`, **потом** `psql`.
 
-**Prod и dev — в одной PostgreSQL** (`bcb_webapp_prod` + `bcb_webapp_dev` на `127.0.0.1:5432`). Прод трогать нельзя; dev-роль не видит схемы прода (это норма, а не пустая база).
+На `151.x` в локальном PostgreSQL живут DEV (`bcb_webapp_dev`) и TEST (`bersoncarebot_test`).
+Настоящая PROD-БД находится на `135.x`, не является локальной базой этого хоста и из DEV не открывается.
 
 ## Пересоздание / обновление dev-базы из prod-дампа
 
@@ -54,7 +61,9 @@ Cutover / два URL — см. `SERVER CONVENTIONS.md` (`cutover.prod`, `INTEGRA
 
 - **НЕ** `pg_restore --clean` поверх живой dev-схемы ветки (FK новых таблиц блокируют drop) — только чистая заливка в пустую базу.
 - **НЕ** `--single-transaction` — откатывает весь restore из-за косметической `COMMENT ON EXTENSION` (ожидаема, игнор).
-- **НЕ** `REASSIGN OWNED BY bcb_webapp_prod` — задевает shared objects → переназначит владельца **боевой** базы. Владельца задавать через `pg_restore --no-owner --role=bcb_webapp_dev_user`.
+- **НЕ** `REASSIGN OWNED BY bcb_webapp_prod` — на `151.x` может задеть shared/legacy local objects.
+  Владельца задавать через `pg_restore --no-owner --role=bcb_webapp_dev_user`; настоящий PROD на `135.x`
+  из этого DEV flow не открывается.
 - Пересоздать базу может только суперюзер `postgres` (роли `bcb_*` без `CREATEDB`) → дать команды пользователю, не запускать самому.
 - Не собирать схему миграциями «с нуля» (кросс-скоуп порядок ломается) — базу+леджер даёт дамп, `pnpm migrate` накатывает дельту.
 

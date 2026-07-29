@@ -322,7 +322,7 @@ Runtime fail-closed: canonical pair → adapter → Rubitime; inbound webhook �
 - [`ACCEPTANCE_STAGE2.md`](ACCEPTANCE_STAGE2.md)
 - [`ROADMAP.md`](ROADMAP.md) §8 — **`done`**
 - [`INVENTORY_AND_IA.md`](INVENTORY_AND_IA.md) §5.2–5.3 — обновлено 2026-06-04
-- [`../ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md`](../ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md)
+- [Архивный Rubitime pipeline](../archive/2026-07-rubitime-retirement/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md)
 - [`apps/webapp/src/app/api/api.md`](../../apps/webapp/src/app/api/api.md) — booking dual-input
 - [`LOG.md`](LOG.md)
 - [`.cursor/plans/archive/booking_rework_stage2_rubitime_adapter.plan.md`](../../.cursor/plans/archive/booking_rework_stage2_rubitime_adapter.plan.md)

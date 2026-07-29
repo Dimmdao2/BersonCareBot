@@ -39,9 +39,10 @@
 - `telegram_state`
 - `telegram_users`
 
-### 1.3 Booking / RubiTime
+### 1.3 Booking / RubiTime (историческая схема)
 
-- `rubitime_records` — канон записей ingress; см. [`RUBITIME_BOOKING_PIPELINE.md`](./RUBITIME_BOOKING_PIPELINE.md)
+- `rubitime_records` — прежний ingress до retirement 2026-07-27; историческое описание:
+  [`RUBITIME_BOOKING_PIPELINE.md`](../archive/2026-07-rubitime-retirement/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md)
 - `rubitime_branches`, `rubitime_cooperators`, `rubitime_services`, `rubitime_events`
 - `rubitime_booking_profiles`, `message_retry_jobs`, `rubitime_api_throttle`
 - `booking_calendar_map`

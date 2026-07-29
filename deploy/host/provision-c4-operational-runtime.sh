@@ -84,6 +84,29 @@ if [ "${1:-}" = "--self-test" ]; then
   exit
 fi
 
+assert_canonical_prod_host(){
+  local current_hostname address found_ip=0
+  current_hostname="$(hostname -s 2>/dev/null || true)"
+  [ "$current_hostname" = "adelaide" ] || {
+    echo "FATAL: refusing PROD C4 provisioning on host '${current_hostname:-unknown}'; expected adelaide" >&2
+    return 1
+  }
+  for address in $(hostname -I 2>/dev/null || true); do
+    if [ "$address" = "135.106.162.170" ]; then
+      found_ip=1
+      break
+    fi
+  done
+  [ "$found_ip" -eq 1 ] || {
+    echo "FATAL: refusing PROD C4 provisioning without local IPv4 135.106.162.170" >&2
+    return 1
+  }
+}
+
+if [ "${1:-}" != "--bootstrap-test-env" ]; then
+  assert_canonical_prod_host
+fi
+
 [ "${EUID}" -eq 0 ] || { echo "FATAL: run as root/DB administrator" >&2; exit 1; }
 
 if [ "${1:-}" = "--bootstrap-test-env" ]; then

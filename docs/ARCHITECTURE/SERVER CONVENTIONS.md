@@ -2,6 +2,29 @@
 
 ---
 
+## ⛔ HOST IDENTITY GATE — ПРОВЕРИТЬ ДО ЛЮБОЙ SERVER-КОМАНДЫ
+
+**Этот рабочий сервер `151.241.228.122` (`localhost`, workspace `/home/dev/dev-projects/BersonCareBot`) —
+только `DEV / RELAY / TEST`. Настоящий PROD находится только на `135.106.162.170` (`adelaide`).**
+
+- На `151.x` **запрещено** запускать, enable/restart/deploy или диагностировать как живой PROD любые
+  `bersoncarebot-*-prod.service`, `/opt/projects/bersoncarebot` и `/opt/env/bersoncarebot/*.prod`.
+  Это остатки старой топологии, а не runtime PROD.
+- Локальные имена `bersoncarebot-*-prod.service` на `151.x` с `2026-07-29` замаскированы в systemd (`/dev/null`);
+  снятые unit-файлы сохранены только для восстановления в root-only архиве
+  `/var/backups/bersoncarebot-disabled-prod-units-20260729/`.
+- На `151.x` штатно работают DEV из `/home/dev/dev-projects/BersonCareBot` и TEST из
+  `/opt/projects/bersoncarebot-test` с env `*.test` и юнитами `bersoncarebot-*-test.service`.
+- Любая команда для PROD допустима только после явной проверки target-host = `135.106.162.170` и отдельного
+  owner-разрешения на PROD. Команда пользователя про «сервер» без слова PROD относится к текущему `151.x`
+  DEV/TEST-хосту и **не** разрешает действие на `135.x`.
+
+Нижние разделы `Production` — справочник удалённого `135.x`, а не инструкция для выполнения на текущем `151.x`.
+Таблица «Топология серверов» ниже — канонический источник host identity; старые противоречащие формулировки
+в других документах недействительны и должны ссылаться сюда.
+
+---
+
 ## ⛔ КРИТИЧНО: `deploy` НЕ СЧИТАТЬ БЕЗОПАСНО ОГРАНИЧЕННЫМ `sudo`
 
 **Никогда не давать агенту команды с `sudo` для выполнения от имени `deploy` в SSH-терминале.**
@@ -42,7 +65,7 @@ whitelist». До закрытия `SEC-02` нельзя опираться на
 | Роль                         | IP / host                                                   | Что на нём                                                                                                                                                                                                                                                                                              | Домены                                                                                                                   |
 | ---------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | **PROD** (текущий боевой)    | `135.106.162.170` (host `adelaide`, Selectel, Ubuntu 24.04) | Прод-приложение (api/worker/scheduler/webapp/media-worker), прод-БД `bersoncarebot` на PG16 `127.0.0.1:5432`, nginx, крон-слой, бэкапы                                                                                                                                                                  | `bersoncare.ru`, `www.bersoncare.ru`, `tgcarebot.bersonservices.ru` → все `135.106.162.170`                              |
-| **OLD / DEV / RELAY / TEST** | `151.241.228.122` (исходный хост = dev-box)                 | (1) **AmneziaWG egress-релей** Telegram для прод-бота — `awg-quick@awg0`, UDP `51822`, **НЕ ТРОГАТЬ** (прод-бот зависит); (2) dev-окружение (Next `:5200`); (3) старый прод **остановлен** (юниты `disabled`, cron.d в `/root/bcb-cron-disabled-*`); (4) **боевой ТЕСТ** `test.bersoncare.ru` (2026-06) | `test.bersoncare.ru` → `151.241.228.122`; почта (`mail/smtp/pop/ftp`) — на reg.ru (`31.31.197.72`), не на наших серверах |
+| **OLD / DEV / RELAY / TEST** | `151.241.228.122` (исходный хост = dev-box)                 | (1) **AmneziaWG egress-релей** Telegram для прод-бота — `awg-quick@awg0`, UDP `51822`, **НЕ ТРОГАТЬ** (прод-бот зависит); (2) dev-окружение (Next `:5200`); (3) старый прод **остановлен и замаскирован** (`bersoncarebot-*-prod.service` → `/dev/null`, снятые unit-файлы в root-only архиве `/var/backups/bersoncarebot-disabled-prod-units-20260729/`, cron.d в `/root/bcb-cron-disabled-*`); (4) **боевой ТЕСТ** `test.bersoncare.ru` (2026-06) | `test.bersoncare.ru` → `151.241.228.122`; почта (`mail/smtp/pop/ftp`) — на reg.ru (`31.31.197.72`), не на наших серверах |
 | ~~`161.104.34.216`~~         | **DECOMMISSIONED**                                          | Первый целевой прод-VDS — оказался **заблокирован из РФ** (РКН/ТСПУ, мёртв весь IP), удалён. Прод пересобран клоном на `135.x`. **Урок: новый IP всегда проверять `nc -vz <ip> 443` с РФ-бытового интернета ДО переезда.**                                                                              | —                                                                                                                        |
 
 ### Telegram-туннель (прод ↔ релей `151.x`)
@@ -77,7 +100,9 @@ Telegram заблокирован из РФ на гос-уровне; прод-�
 
 Появился новый способ захода (другой VPN/девайс) — смотреть **реальный** source-IP в `/var/log/nginx/access.log` (поле 1) и добавлять его подсеть, **не гадать**.
 
-**Пользователи ОС:** `deploy` запускает сервисы и **не имеет общего `sudo`** (см. блок в начале файла); рабочий пользователь — `dev`, его `$HOME` под `0700` → `postgres`/`deploy` файлы из `/home/dev/` **не читают** (для обмена — `/tmp`, world-readable).
+**Пользователи ОС:** `deploy` запускает сервисы; его sudo-boundary нельзя считать ограниченным или безопасным
+(см. root-equivalent findings в начале файла). Рабочий пользователь — `dev`, его `$HOME` под `0700` →
+`postgres`/`deploy` файлы из `/home/dev/` **не читают** (для обмена — `/tmp`, world-readable).
 
 ### S3 (разделение прод/тест)
 
@@ -97,11 +122,14 @@ Telegram заблокирован из РФ на гос-уровне; прод-�
 - **🔴 Изоляция отправок (данные настоящие!):** Layer-1 = integrator `applyPreForkDevRedirect` (`DEV_DELIVERY_REDIRECT=1`) переписывает **ВСЕ** исходящие на тест-юзера, по каналам (Telegram/MAX/SMS/email/web-push). **NEW (2026-06-25, commit `17729059`, пока UNPUSHED): passthrough-allowlist** — env `DEV_REDIRECT_PASSTHROUGH_{TELEGRAM,PHONES,MAX,EMAILS,WEB_PUSH}` в `api.test`: получатели-**тест-аккаунты** (админ tg`364943522`/`+79643805480`, юзер tg`7924656602`/`+79189000782`) доставляются на **свои** адреса (чтобы тестить переписку админ↔юзер вживую), все прочие — режутся/редиректятся. Пусто по умолчанию = безопасно (opt-in). Плюс webapp-guard (`dev_mode` + `test_account_identifiers`), **maintenance forced ON**, ключевые настройки залочены DB-триггером.
 - **Входящие Telegram на тесте НЕ настроены:** приём только вебхуком `POST /webhook/telegram` (long-polling в коде нет), а вебхук не задан + IP-allowlist режет IP Telegram → `/start`/меню/кнопки не работают. **Только исходящие** (OTP/уведомления/чат) — этого достаточно для проверки send-safety. Web-push на тест-домен требует **свежей** PWA-подписки (восстановленная из дампа привязана к prod-origin/VAPID).
 - Тест-БД `bersoncarebot_test` на том же PG16 (`:5432`); порты **`:3300`** (integrator) / **`:6300`** (webapp, чтобы не пересечься с dev `:5200` и прод-портами); **ТЕСТ-токен** бота (не прод); доступ к `test.bersoncare.ru` залочен по IP (см. «Доступы / VPN»).
-- **Деплой (факт):** деплой-репо `/opt/projects/bersoncarebot-test` (ветка `feat/doctor-ui-rebuild`, владелец `deploy`), env `/opt/env/bersoncarebot/{api,webapp}.test`, юниты `bersoncarebot-{api,worker,scheduler,webapp,media-worker}-test`. **Ветки `test` и автодеплоя НЕТ** (CI деплоит только `main`→прод). `bash deploy/host/deploy-test.sh` — только code-only/no-fresh-restore обновление существующей TEST-БД: git-bundle → force-align → build → pending migrations → restart; он никогда не скачивает dump и не пересоздаёт БД. Любой fresh prod-dump restore поддерживается **только** через отдельный owner-gated `bash deploy/host/deploy-test-full-reset.sh --confirm-full-reset ...`, который владеет restore, hard migration chain, overlays/settings, C4 bootstrap/provision всех пяти local-only DB-контуров (включая `DATABASE_URL_WEB_PUSH_REMINDER`), repo-managed S3 A/B fixture и cleanup/health gates. Внутренний `deploy-test-saas.sh` не является публичной destructive-командой: прямой full-reset через него заблокирован; code-only deploy использует из него только безопасные closure submodes. Fresh reset не устанавливает cron и не вызывает live tick: cronport Web Push включается отдельным post-fresh шагом. Ручная цепочка `restore-test-db.sh` + SQL + `deploy-test.sh` запрещена. Fixture packet: только обычный файл `/opt/env/bersoncarebot/saas-test-fixture.env`, exact `root:deploy 0640`, строгие data-only JSON-quoted values; symlink/unknown/duplicate/malformed/shell lines запрещены, файл никогда не shell-source-ится. Полная инструкция: `deploy/HOST_DEPLOY_README.md` → «Тест-деплой на 151.x».
+- **Деплой (факт):** деплой-репо `/opt/projects/bersoncarebot-test` (ветка `feat/doctor-ui-rebuild`, владелец `deploy`), env `/opt/env/bersoncarebot/{api,webapp}.test`, юниты `bersoncarebot-{api,worker,scheduler,webapp,media-worker}-test`. **Ветки `test` и автодеплоя TEST нет.** Production также не деплоится из `ci.yml`: только отдельный ручной `deploy-prod.yml` с approval и exact target `135.106.162.170`. `bash deploy/host/deploy-test.sh` — только code-only/no-fresh-restore обновление существующей TEST-БД: git-bundle → force-align → build → pending migrations → restart; он никогда не скачивает dump и не пересоздаёт БД. Любой fresh prod-dump restore поддерживается **только** через отдельный owner-gated `bash deploy/host/deploy-test-full-reset.sh --confirm-full-reset ...`, который владеет restore, hard migration chain, overlays/settings, C4 bootstrap/provision всех пяти local-only DB-контуров (включая `DATABASE_URL_WEB_PUSH_REMINDER`), repo-managed S3 A/B fixture и cleanup/health gates. Внутренний `deploy-test-saas.sh` не является публичной destructive-командой: прямой full-reset через него заблокирован; code-only deploy использует из него только безопасные closure submodes. Fresh reset не устанавливает cron и не вызывает live tick: cronport Web Push включается отдельным post-fresh шагом. Ручная цепочка `restore-test-db.sh` + SQL + `deploy-test.sh` запрещена. Fixture packet: только обычный файл `/opt/env/bersoncarebot/saas-test-fixture.env`, exact `root:deploy 0640`, строгие data-only JSON-quoted values; symlink/unknown/duplicate/malformed/shell lines запрещены, файл никогда не shell-source-ится. Полная инструкция: `deploy/HOST_DEPLOY_README.md` → «Тест-деплой на 151.x».
 
 ### Источник истины по топологии
 
-Эта секция — краткая карта. Полная история переезда и текущее состояние — в orchestration-памяти агента (`prod-server-migration-2026-06-18`). Разделы **Production / Development** ниже описывают структуру приложения (юниты, порты, env), общую для прод и теста.
+**Эта секция и `HOST IDENTITY GATE` в начале файла — самодостаточный канон текущей топологии.**
+Orchestration-память, старые чаты и нижние исторические описания не могут переопределить host identity.
+Раздел **Production** ниже относится только к удалённому `135.106.162.170`; разделы DEV/TEST — к текущему
+`151.241.228.122`.
 
 ---
 
@@ -113,11 +141,11 @@ Telegram заблокирован из РФ на гос-уровне; прод-�
 
 ---
 
-## Текущее состояние хоста
+## Удалённый PROD host reference (`135.106.162.170` only)
 
 | Параметр      | Значение                                                                                                                                  |
 | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Хост          | `localhost`                                                                                                                               |
+| Хост          | `135.106.162.170` (`adelaide`)                                                                                                            |
 | ОС            | `Ubuntu 24.04.4 LTS`                                                                                                                      |
 | Runtime model | Node.js напрямую на хосте через `systemd`                                                                                                 |
 | Reverse proxy | `nginx`                                                                                                                                   |
@@ -127,7 +155,10 @@ Telegram заблокирован из РФ на гос-уровне; прод-�
 
 ---
 
-## Production
+## Production — только удалённый `135.106.162.170`
+
+> **STOP:** этот раздел нельзя применять на текущем `151.241.228.122`. На `151.x` PROD-юниты замаскированы;
+> штатные окружения здесь — DEV и TEST.
 
 ### Пути
 
@@ -141,7 +172,8 @@ Telegram заблокирован из РФ на гос-уровне; прод-�
 
 ### systemd units
 
-На хосте установлены и активны (канонические имена юнитов; шаблоны — `deploy/systemd/`):
+На удалённом PROD-хосте `135.106.162.170` установлены и активны (канонические имена юнитов; шаблоны —
+`deploy/systemd/`):
 
 - `bersoncarebot-api-prod.service`
 - `bersoncarebot-worker-prod.service`
@@ -199,7 +231,9 @@ Telegram заблокирован из РФ на гос-уровне; прод-�
   Шаблоны юнита: `deploy/systemd/bersoncarebot-media-worker-prod.service` и
   `deploy/systemd/bersoncarebot-media-worker-test.service`; media-worker использует отдельный NOINHERIT/NOBYPASSRLS
   operational login, не webapp credential. TEST env: `/opt/env/bersoncarebot/media-worker.test`.
-  Установка и restart — `deploy/host/deploy-prod.sh`. Подробнее: [`deploy/HOST_DEPLOY_README.md`](../../deploy/HOST_DEPLOY_README.md).
+  Установка/замена unit — только root через `deploy/host/bootstrap-systemd-prod.sh`; ordinary
+  `deploy/host/deploy-prod.sh` проверяет reviewed root-owned unit и выполняет restart. Подробнее:
+  [`deploy/HOST_DEPLOY_README.md`](../../deploy/HOST_DEPLOY_README.md).
 
 ### Ports
 
@@ -254,7 +288,15 @@ sudo nginx -T 2>/dev/null | grep -n "configuration file.*bersoncarebot-webapp"
 
 **Projection health (`projection_outbox`, integrator DB):** канонически **`GET /health/projection`** на хосте integrator (публичный пример: `https://tgcarebot.bersonservices.ru/health/projection`). На webapp добавлены прокси с тем же JSON: **`GET /api/health/projection`**, **`GET /health/projection`**, **`GET /app/health/projection`** — серверный fetch на `{INTEGRATOR_API_URL}/health/projection`; при пустом `INTEGRATOR_API_URL` ответ **503** `integrator_url_not_configured`.
 
-**Operator health probes (MVP, synthetic MAX + Rubitime):** integrator принимает **`POST /internal/operator-health-probe`** только с подписью **`x-bersoncare-timestamp`** + **`x-bersoncare-signature`** (HMAC-SHA256 от `timestamp + '.' + rawBody`, secret — **`INTEGRATOR_WEBHOOK_SECRET`** или **`INTEGRATOR_SHARED_SECRET`** из `api.prod`, длина ≥ 16). Публичного неподписанного доступа нет. Канонический вызов с хоста: скрипт репозитория [`deploy/host/operator-health-probe.sh`](../../deploy/host/operator-health-probe.sh) (по умолчанию `http://127.0.0.1:3200`, переопределение `INTEGRATOR_API_URL`). Периодический запуск — **cron** или **systemd timer** от пользователя с правом `curl` к loopback и чтением `api.prod` (частота: раз в час или реже; см. `deploy/HOST_DEPLOY_README.md`).
+**Operator health probes (MAX + Telegram + Google Calendar):** integrator принимает
+**`POST /internal/operator-health-probe`** только с подписью **`x-bersoncare-timestamp`** +
+**`x-bersoncare-signature`** (HMAC-SHA256 от `timestamp + '.' + rawBody`, secret —
+**`INTEGRATOR_WEBHOOK_SECRET`** или **`INTEGRATOR_SHARED_SECRET`** из `api.prod`, длина ≥ 16). Публичного
+неподписанного доступа нет. Канонический вызов с хоста: скрипт репозитория
+[`deploy/host/operator-health-probe.sh`](../../deploy/host/operator-health-probe.sh) (по умолчанию
+`http://127.0.0.1:3200`, переопределение `INTEGRATOR_API_URL`). Периодический запуск — **cron** или **systemd
+timer** от пользователя с правом `curl` к loopback и чтением `api.prod` (частота: раз в час или реже; см.
+`deploy/HOST_DEPLOY_README.md`). Rubitime probe удалён вместе с provider runtime 2026-07-27.
 
 Дополнительно в `tgcarebot` vhost есть legacy-path:
 
@@ -296,11 +338,13 @@ sudo nginx -T 2>/dev/null | grep -n "configuration file.*bersoncarebot-webapp"
 - `MAX_ADMIN_CHAT_ID=156854402`
 - `MAX_API_KEY=...`
 - `MAX_WEBHOOK_SECRET=...`
-- `RUBITIME_WEBHOOK_TOKEN=...`
-- `RUBITIME_API_KEY=...`
 - `SMSC_ENABLED=true`
 - `SMSC_API_KEY=...`
 - `SMSC_BASE_URL=https://smsc.ru/sys/send.php`
+
+Retired 2026-07-27: `RUBITIME_WEBHOOK_TOKEN` и `RUBITIME_API_KEY` не являются действующими ключами runtime.
+Их нельзя восстанавливать из старых env/архивных инструкций; наличие stale значений требует отдельной безопасной
+ротации/очистки владельцем на PROD, а не чтения или печати агентом.
 
 #### `/opt/env/bersoncarebot/webapp.prod`
 
@@ -354,7 +398,7 @@ sudo nginx -T 2>/dev/null | grep -n "configuration file.*bersoncarebot-webapp"
 
 ---
 
-## Development
+## Development — текущий `151.241.228.122`
 
 ### Пути
 
@@ -369,7 +413,12 @@ sudo nginx -T 2>/dev/null | grep -n "configuration file.*bersoncarebot-webapp"
 
 ### systemd / processes (dev)
 
-Канон для **production** — только юниты `bersoncarebot-*-prod` (см. раздел Production). Шаблонов **`bersoncarebot-*-dev.service`** в репозитории **нет**; локальная разработка и dev на сервере — **процессы вручную** (`pnpm webapp:dev` и т.д.), не через установленные dev-юниты systemd. Если на хосте остались старые файлы `*-dev.service` в `/etc/systemd/system/`, их нужно **disable**, удалить и `daemon-reload` (см. [`deploy/HOST_DEPLOY_README.md`](../../deploy/HOST_DEPLOY_README.md)).
+На `151.x` разрешены только ручные DEV-процессы и юниты `bersoncarebot-*-test.service`.
+Локальные имена `bersoncarebot-*-prod.service` обязаны оставаться `masked`; их нельзя `unmask`, устанавливать
+из `deploy/systemd/*-prod.service` или запускать. Шаблонов **`bersoncarebot-*-dev.service`** в репозитории нет:
+локальная разработка — процессы вручную (`pnpm webapp:dev` и т.д.), не systemd. Если на хосте остались старые
+файлы `*-dev.service` в `/etc/systemd/system/`, их нужно **disable**, удалить и `daemon-reload`
+(см. [`deploy/HOST_DEPLOY_README.md`](../../deploy/HOST_DEPLOY_README.md)).
 
 ### Dev ports (ручной запуск, не prod systemd)
 
@@ -483,7 +532,7 @@ TEST webapp (`/opt/env/bersoncarebot/webapp.test`) запускается с `NO
 ### Миграции: webapp Drizzle (`public`) vs integrator
 
 - **Симптом:** в логах webapp `column "…" does not exist` (например `publication_status` в `test_sets`) при открытии каталогов врача — **не накатили Drizzle-миграции webapp** на ту БД, что в `webapp.prod` (`DATABASE_URL`, схема **`public`**). Новый билд webapp без миграций оставляет схему старой.
-- **`pnpm migrate` в корне репозитория** — по очереди: **integrator** (`pnpm --dir apps/integrator run migrate`), затем **webapp Drizzle** (`pnpm --dir apps/webapp run migrate`, каталог `apps/webapp/db/drizzle-migrations`). На production-host скрипт `scripts/migrate-all.sh` автоматически подгружает **`/opt/env/bersoncarebot/api.prod`** и **`/opt/env/bersoncarebot/webapp.prod`** (или пути из `API_ENV_FILE` / `WEBAPP_ENV_FILE`), поэтому достаточно одной команды `pnpm migrate`. Только webapp без integrator: **`pnpm migrate:webapp`**.
+- **`pnpm migrate` в корне репозитория** — по очереди: **integrator** (`pnpm --dir apps/integrator run migrate`), затем **webapp Drizzle** (`pnpm --dir apps/webapp run migrate`, каталог `apps/webapp/db/drizzle-migrations`). На production-host скрипт `scripts/migrate-all.sh` подгружает только точные канонические **`/opt/env/bersoncarebot/api.prod`** и **`/opt/env/bersoncarebot/webapp.prod`**, поэтому достаточно одной команды `pnpm migrate`; переименованный или произвольный env-файл не принимается. Только webapp без integrator: **`pnpm migrate:webapp`**.
 - **Пример на production-хосте** (из каталога проекта, пользователь **`deploy`**; затем при необходимости перезапуск webapp):
 
 ```bash

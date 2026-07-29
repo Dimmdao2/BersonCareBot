@@ -77,8 +77,9 @@
       runbook, backup/restore, abort criteria и назначенных GO/rollback owners.
 - [ ] **FIO `#857`:** hash-bound fresh preview и отдельное production apply window внутри общего финального cutover;
       `#858` стартует только после reconciliation.
-- [ ] **Rubitime R5/R6/R7:** disable → cutoff/drain → archive/drop проходят раздельные owner gates; destructive
-      action без final manifest запрещён.
+- [-] ~~**Rubitime R5/R6/R7:** disable → cutoff/drain → archive/drop проходят раздельные owner gates~~ —
+      ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 2026-07-29: «Rubitime у нас больше нет». Retirement завершён 2026-07-27;
+      архивные команды не исполнять, provider-neutral cleanup вести отдельным workstream.
 - [ ] **INFRA/CRYPTO/SEC/DR production activation/decommission:** только после соответствующих packets, TEST proof
       и отдельного `G-11` production window. Покупка target VPS/offsite resources выполняется раньше как `AFTER PACKET`
       (`O-05/O-07`), а не считается production window.
@@ -90,7 +91,7 @@
   проверять прежний SHA сейчас не требуется.
 - Broadcast bundle `#90` и общий error/toast backlog `#206` не являются текущими owner questions; их следующий
   scope формирует оркестратор из уже принятых решений.
-- FIO/Rubitime production, native push, PR-04 и final cutover не запрашиваются до готовности их packets/gates.
+- FIO production, native push, PR-04 и final cutover не запрашиваются до готовности их packets/gates.
 
 ## Как агент отвечает владельцу
 

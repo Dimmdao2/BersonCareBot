@@ -5,6 +5,70 @@ API_ENV_FILE="${API_ENV_FILE:-/opt/env/bersoncarebot/api.prod}"
 WEBAPP_ENV_FILE="${WEBAPP_ENV_FILE:-/opt/env/bersoncarebot/webapp.prod}"
 MEDIA_WORKER_ENV_FILE="${MEDIA_WORKER_ENV_FILE:-/opt/env/bersoncarebot/media-worker.prod}"
 fail(){ echo "C4 operational readiness: $*" >&2; exit 1; }
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+DATABASE_URL_GUARD="$REPO_ROOT/scripts/validate-migration-database-url.mjs"
+readonly DATABASE_URL_GUARD
+[[ -f "$DATABASE_URL_GUARD" && ! -L "$DATABASE_URL_GUARD" ]] ||
+  fail "shared database URL guard is missing or not a regular repository file"
+
+PROD_API_ENV=/opt/env/bersoncarebot/api.prod
+PROD_WEBAPP_ENV=/opt/env/bersoncarebot/webapp.prod
+PROD_MEDIA_ENV=/opt/env/bersoncarebot/media-worker.prod
+TEST_API_ENV=/opt/env/bersoncarebot/api.test
+TEST_WEBAPP_ENV=/opt/env/bersoncarebot/webapp.test
+TEST_MEDIA_ENV=/opt/env/bersoncarebot/media-worker.test
+
+has_local_ipv4(){
+  local expected="$1" address
+  for address in $(hostname -I 2>/dev/null || true); do
+    [ "$address" = "$expected" ] && return 0
+  done
+  return 1
+}
+
+assert_canonical_prod_host(){
+  local current_hostname
+  current_hostname="$(hostname -s 2>/dev/null || true)"
+  [ "$current_hostname" = "adelaide" ] ||
+    fail "refusing PROD readiness probe on host '${current_hostname:-unknown}'; expected adelaide"
+  has_local_ipv4 135.106.162.170 ||
+    fail "refusing PROD readiness probe without local IPv4 135.106.162.170"
+}
+
+assert_canonical_test_host(){
+  has_local_ipv4 151.241.228.122 ||
+    fail "refusing TEST readiness probe without local IPv4 151.241.228.122"
+}
+
+assert_regular_env_file(){
+  local candidate="$1"
+  [ -f "$candidate" ] && [ ! -L "$candidate" ] ||
+    fail "env contract requires a regular non-symlink file at $candidate"
+}
+
+assert_local_database_url(){
+  local url="$1" expected_database="$2"
+  printf '%s' "$url" | node "$DATABASE_URL_GUARD" canonical "$expected_database" ||
+    fail "database URL rejected by shared target guard"
+}
+
+case "${API_ENV_FILE}|${WEBAPP_ENV_FILE}|${MEDIA_WORKER_ENV_FILE}" in
+  "${PROD_API_ENV}|${PROD_WEBAPP_ENV}|${PROD_MEDIA_ENV}")
+    expected_database=bersoncarebot
+    assert_canonical_prod_host
+    ;;
+  "${TEST_API_ENV}|${TEST_WEBAPP_ENV}|${TEST_MEDIA_ENV}")
+    expected_database=bersoncarebot_test
+    assert_canonical_test_host
+    ;;
+  *)
+    fail "env paths must be the exact canonical PROD or TEST triplet"
+    ;;
+esac
+
+assert_regular_env_file "$API_ENV_FILE"
+assert_regular_env_file "$WEBAPP_ENV_FILE"
+assert_regular_env_file "$MEDIA_WORKER_ENV_FILE"
 
 set -a
 # shellcheck disable=SC1090
@@ -32,6 +96,12 @@ set -a
 set +a
 : "${DATABASE_URL:?missing media-worker DATABASE_URL}"
 media_url="$DATABASE_URL"
+
+assert_local_database_url "$diagnostic_url" "$expected_database"
+assert_local_database_url "$delivery_url" "$expected_database"
+assert_local_database_url "$scheduler_url" "$expected_database"
+assert_local_database_url "$web_push_reminder_url" "$expected_database"
+assert_local_database_url "$media_url" "$expected_database"
 
 probe(){ psql "$1" -X -v ON_ERROR_STOP=1 -qAtc "$2"; }
 expect_denied(){

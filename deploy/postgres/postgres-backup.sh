@@ -64,6 +64,28 @@ set -euo pipefail
 # provider: neither DATABASE_URL nor provider environment may reach xtrace.
 set +x
 
+die() {
+  echo "postgres-backup: $*" >&2
+  exit 1
+}
+
+assert_canonical_prod_host() {
+  local current_hostname address found_ip=0
+  current_hostname="$(hostname -s 2>/dev/null || true)"
+  [ "$current_hostname" = "adelaide" ] ||
+    die "refusing PROD backup on host '${current_hostname:-unknown}'; expected adelaide"
+  for address in $(hostname -I 2>/dev/null || true); do
+    if [ "$address" = "135.106.162.170" ]; then
+      found_ip=1
+      break
+    fi
+  done
+  [ "$found_ip" -eq 1 ] ||
+    die "refusing PROD backup without local IPv4 135.106.162.170"
+}
+
+assert_canonical_prod_host
+
 API_ENV_FILE="${BERSONCAREBOT_API_ENV_FILE:-/opt/env/bersoncarebot/api.prod}"
 WEBAPP_ENV_FILE="${BERSONCAREBOT_WEBAPP_ENV_FILE:-/opt/env/bersoncarebot/webapp.prod}"
 BACKUPS_ROOT="${BERSONCAREBOT_BACKUPS_ROOT:-/opt/backups/postgres}"
@@ -92,11 +114,6 @@ PENDING_MANIFEST_PARTIAL=""
 PENDING_ARTIFACT=""
 PENDING_ARTIFACT_PARTIAL=""
 LAST_PUBLISHED_ARTIFACT=""
-
-die() {
-  echo "postgres-backup: $*" >&2
-  exit 1
-}
 
 # Best-effort durability for a just-written file; never fatal.
 fsync_path() {

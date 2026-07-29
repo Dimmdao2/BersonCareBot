@@ -1,6 +1,7 @@
 # SaaS hard migration protocol - fresh dump to TEST rehearsal
 
-Status: canonical hard protocol for the next fresh-dump rehearsal before any future production migration.
+Status: partially blocked protocol. Ordinary incremental TEST deploy remains canonical; the destructive fresh-dump
+wrapper still carries retired Rubitime input flags and must be modernized before any next rehearsal.
 
 This document is a machine-checkable contract. It does not authorize an agent to run deploy, DB, env, SSH,
 service, or production operations unless the owner explicitly asks for that operation. It states the only
@@ -11,7 +12,7 @@ allowed sequence once a fresh production dump is obtained.
 - `deploy/host/deploy-test-full-reset.sh` - единственный публичный owner-gated TEST from-zero entrypoint.
 - `deploy/host/deploy-test-saas.sh` - внутренний shared closure/full-reset engine; прямой destructive-вызов запрещён.
 - `deploy/host/deploy-test.sh` - ordinary code-only TEST deploy; it never restores or recreates the database.
-- `docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-db-cleanup-one-pass.mjs` - ordered Rubitime/history normalization.
+- `docs/archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/scripts/rubitime-db-cleanup-one-pass.mjs` - archive-only normalization of legacy Rubitime history; applicable only to an explicitly identified old dump, never to current runtime.
 - `apps/webapp/scripts/fio-backfill/README.md` - reviewed-manifest FIO apply/rollback contract.
 - `apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts` - idempotent TEST-only A/B walkthrough fixture.
 - `deploy/host/saas-test-mode.sh` - TEST-only redacted mode check / dormant rollback helper.
@@ -19,7 +20,7 @@ allowed sequence once a fresh production dump is obtained.
 - `deploy/postgres/c4d-platform-lfk-media-owner-online-index.sql` - one-time transaction-free C4D hot-index step.
 - `docs/_TODO/SAAS_FOUNDATION/DEPLOY_667_SEQUENCE.md` - production-window sequence and rollback model.
 - `docs/_TODO/SAAS_FOUNDATION/PHASE4_ROLLOUT_RUNBOOK.md` - strict/FORCE future cutover gates.
-- `docs/OPERATIONS/RUBITIME_R1_FRESH_PROD_DUMP_AGENT_README.md` - fresh dump, Rubitime R1, and no-ad-hoc-SQL entrypoint.
+- `docs/archive/2026-07-rubitime-retirement/RUBITIME_R1_FRESH_PROD_DUMP_AGENT_README.md` - historical provenance only; not a current entrypoint.
 - `docs/ARCHITECTURE/SERVER CONVENTIONS.md` and `deploy/HOST_DEPLOY_README.md` - host facts.
 
 If these sources conflict, the current wrapper scripts win for executable behavior; this protocol must then
@@ -30,9 +31,9 @@ be updated in the same change.
 1. Production is read-only for dump acquisition only. The allowed production touch is a documented
    `pg_dump -Fc --no-owner --no-acl` path. No production writes, no production migrations, no production
    env edits, no service restarts, and no manual production SQL.
-2. TEST is the rehearsal target. Use the documented TEST wrapper, not hand-written restore/migrate steps. The
-   from-zero wrapper is never an ordinary deploy: it requires `--confirm-full-reset` and hash-bound Rubitime/FIO
-   inputs. Routine code changes use `deploy/host/deploy-test.sh`, which never restores or recreates TEST.
+2. TEST is the rehearsal target. Routine code changes use `deploy/host/deploy-test.sh`, which never restores or
+   recreates TEST. The from-zero wrapper is currently blocked: it still requires retired Rubitime inputs and must
+   not be invoked until that contract is removed in an owner-reviewed change.
 3. A plain `pnpm migrate`, or `restore + pnpm migrate`, is not valid proof for this migration.
 4. No manual DB surgery. If a step fails, fix the repository script/protocol/checker and rerun from a fresh
    restore. Do not patch rows by hand to get past a gate.
@@ -78,22 +79,9 @@ be updated in the same change.
 
 ## Allowed TEST sequence
 
-Run the destructive sequence as one wrapper only after the owner has explicitly authorized a full reset and the
-exact protected inputs have been prepared:
-
-```bash
-bash deploy/host/deploy-test-full-reset.sh \
-  --confirm-full-reset \
-  --rubitime-csv=/secure/owner-rubitime.csv \
-  --rubitime-csv-sha256=<approved-sha256> \
-  --fio-manifest=/secure/fio-owner-manifest.json \
-  --fio-manifest-file-sha256=<approved-file-sha256> \
-  --fio-manifest-sha256=<approved-sha256> \
-  --fio-review-source-sha256=<approved-review-sha256> \
-  feat/doctor-ui-rebuild
-```
-
-The wrapper owns the full sequence below.
+Do not run the destructive sequence in the current revision. `deploy-test-full-reset.sh` still exposes obsolete
+`--rubitime-*` inputs even though Rubitime was retired on 2026-07-27. Modernizing that wrapper, preserving its
+FIO/security gates, and independently auditing it are prerequisites to any future owner-authorized full reset.
 
 For an ordinary code deployment, including UI fixes, use only:
 
@@ -104,12 +92,8 @@ bash deploy/host/deploy-test.sh feat/doctor-ui-rebuild
 That command builds code and applies only pending incremental migrations to the existing TEST database. It does not
 download a dump and does not call the restore script.
 
-For the destructive path, the wrapper first verifies the owner Rubitime CSV, copies it to a root-owned
-`root:deploy 0440` run snapshot, and rechecks the approved SHA-256 immediately before the one-pass reader. The
-deploy user cannot alter that snapshot while the chain reads it. The wrapper also builds the exact branch and runs
-the no-DB FIO manifest verifier from that version-matched checkout. Hash/schema/exception failure therefore occurs
-before writers stop and before TEST is restored. Only after this preflight may the stopped-writers restore/data
-chain begin; the staged CSV is removed by the wrapper exit trap.
+For a future destructive path, retain the branch-bound FIO manifest verifier and all fail-closed security gates.
+Remove the retired Rubitime CSV staging/one-pass contract instead of fabricating a replacement input.
 
 ### 1. Assert TEST runtime mode
 
@@ -165,7 +149,12 @@ TEST restore must go through `/tmp/bcb-test-setup/restore-test-db.sh`. The resto
 Disposable prod-copy rehearsals use `scripts/deploy-saas-667.sh` through the repo-tracked disposable wrapper,
 not by hand. The wrapper passes either explicit `DATABASE_URL` + `SUPERUSER_URL` URLs or explicit
 `DATABASE_URL` + `SUPERUSER_SUDO_POSTGRES=1` for local peer/sudo superuser psql calls. Disposable DB names
-must clearly be scratch/rehearsal/copy targets, not prod/test/dev runtime databases.
+must match exact `^bcb_saas_[a-z0-9_]+_(scratch|rehearsal)_[a-z0-9_]+$` and must not contain delimited
+prod/production/prd/live/main/bersoncare/test/dev environment aliases. `SAAS_DISPOSABLE_ALLOWED_HOSTS` is the only
+remote-host allowlist accepted by `scripts/migrate-all.sh`: a comma-separated list of exact hostnames/IPs,
+normalized case-insensitively with a trailing dot removed; wildcards are not supported. It is operational
+configuration, not a secret. Loopback is allowed without the list. Production aliases and IPs under
+`bersoncare.ru` / `bersonservices.ru` are always rejected even if listed.
 
 ### 4. Assert owner state before data-fix
 
@@ -394,27 +383,15 @@ Settings/`updateSetting` path can configure it; the rest of the TEST safety lock
 Trigger removal, all settings mutations, and trigger recreation are one transaction, so any `ON_ERROR_STOP`
 failure rolls the entire overlay back and preserves the previously installed locks.
 
-### 9. Canonical identity, Rubitime history, and FIO normalization
+### 9. Canonical identity and FIO normalization
 
-After the schema and TEST settings are current, but while all writers are still stopped, run the existing Rubitime
-one-pass wrapper with `--execute --commit-cleanup --allow-test-target`. This wrapper owns the proven order:
-
-1. aggregate clean-dump preflight;
-2. placeholder booking dry-run and commit in PII-safe summary mode;
-3. specialist consolidation dry-run and commit using the one current canonical specialist;
-4. test/cancelled-duplicate cleanup;
-5. non-confirmed cleanup;
-6. owner-CSV historical import/projection;
-7. the mandatory second non-confirmed cleanup after import;
-8. stale-vs-owner-CSV cleanup;
-9. classifier, dual-source audit, and retirement gates.
-
-The owner Rubitime CSV is the preservation canon. Integrator raw history remains diagnostic evidence and cannot add
-rows absent from the CSV. The wrapper must not start services between restore and this normalization.
+The former Rubitime one-pass/CSV sequence is retired and archived. It must not run on a new TEST restore. Any
+remaining placeholder booking or provider-neutral identity cleanup needs a new reviewed plan over the current
+canonical schema; it must not resurrect the retired wrapper.
 
 Specialist consolidation is a write-path over owner-owned booking tables and must not run as the raw runtime
-`DATABASE_URL` role. The TEST wrapper runs the entire one-pass command under the same controlled temporary
-owner-role context as owner-only migration work:
+`DATABASE_URL` role. A future reviewed TEST wrapper must run the consolidation step under the same controlled
+temporary owner-role context as owner-only migration work:
 
 - discover or reuse the webapp migrator role from `webapp.test` `DATABASE_URL`;
 - grant runtime-owner membership to that login only when the login is not already the runtime owner;
@@ -426,15 +403,15 @@ owner-role context as owner-only migration work:
 Specialist consolidation does not require `BYPASSRLS`; if it is ever added for this step, that must be
 documented and checked as a separate protocol change.
 
-After Rubitime/history normalization, apply the immutable owner-reviewed FIO manifest. This is not a parser rerun:
+After provider-neutral identity normalization, apply the immutable owner-reviewed FIO manifest. This is not a parser rerun:
 the exact decisions are bound by SHA-256 and every row carries expected-before and desired-after state. The apply
 must verify the exact loopback TEST database, reject unknown drift, create a durable rollback artifact with mode
 `0600` before commit, update conditionally in one transaction, and print aggregate PII-free output. Rollback is
 conditional and may restore a row only while its current state still equals the recorded post-apply state.
 
-If the Rubitime CSV, FIO manifest, either approved hash, safe FIO apply entrypoint, or rollback artifact cannot be
-validated, the full-reset wrapper must stop with writers stopped and must not print a data-ready `DONE`. Manual SQL,
-parser recomputation, or silently skipping FIO is forbidden.
+If the FIO manifest, either approved hash, safe FIO apply entrypoint, or rollback artifact cannot be validated, a
+future full-reset wrapper must stop with writers stopped and must not print a data-ready `DONE`. Manual SQL, parser
+recomputation, or silently skipping FIO is forbidden.
 
 The end-state assertions must include:
 
@@ -443,7 +420,7 @@ The end-state assertions must include:
 - the owner doctor keeps role `doctor`;
 - TEST `admin_phones` is `[]`;
 - appointment counts on the canonical specialist are reported as aggregate counts only;
-- Rubitime/history gates passed after the second post-import cleanup;
+- provider-neutral identity/data-cleanup gates passed;
 - FIO reviewed-manifest reconciliation passed with aggregate-only output.
 
 ### 10. B1, A2, and product smoke gates

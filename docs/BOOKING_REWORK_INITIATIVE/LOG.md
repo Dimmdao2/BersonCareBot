@@ -243,7 +243,7 @@ pnpm install --frozen-lockfile && pnpm run ci  # post-audit — passed (~5 min)
 - Inbound: любой mapped `source`; recovery → immediate update; `events.ts`: mirror first → единый snapshot в `appointment_records`.
 - Outbound: doctor + **admin** manual routes, **patient** cancel/reschedule (`patientMirrorOutbound.ts`); integrator `normalizeUpdateRecordPatch.ts`.
 - Shared: `staffRubitimeMirrorOutbound.ts`.
-- Документация синхронизирована: [`ACCEPTANCE_MIRROR_SYNC.md`](ACCEPTANCE_MIRROR_SYNC.md), [`RUBITIME_BOOKING_PIPELINE.md`](../ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md), [`patient-booking.md`](../../apps/webapp/src/modules/patient-booking/patient-booking.md), [`booking-calendar.md`](../../apps/webapp/src/modules/booking-calendar/booking-calendar.md).
+- Документация синхронизирована: [`ACCEPTANCE_MIRROR_SYNC.md`](ACCEPTANCE_MIRROR_SYNC.md), [архивный `RUBITIME_BOOKING_PIPELINE.md`](../archive/2026-07-rubitime-retirement/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md), [`patient-booking.md`](../../apps/webapp/src/modules/patient-booking/patient-booking.md), [`booking-calendar.md`](../../apps/webapp/src/modules/booking-calendar/booking-calendar.md).
 
 **Проверки:** см. ACCEPTANCE_MIRROR_SYNC (vitest matrix); `tsc` webapp — OK.
 

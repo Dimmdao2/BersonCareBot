@@ -4,7 +4,7 @@
 
 | Файл                                                                                       | Назначение                                                                     |
 | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
-| [`RUBITIME_API2_PACING_AND_PHASE2_BACKLOG.md`](RUBITIME_API2_PACING_AND_PHASE2_BACKLOG.md) | Фаза 2 API2: очередь, async UX, мультислоты (backlog).                         |
+| [Rubitime retirement archive](../archive/2026-07-rubitime-retirement/README.md)            | Выведено 2026-07-27; старый API2 backlog отменён и не является текущей задачей. |
 | [`S3_PRIVATE_MEDIA_EXECUTION_LOG.md`](S3_PRIVATE_MEDIA_EXECUTION_LOG.md)                   | Приватное S3-медиа, purge, модель угроз (ссылки из `api.md`).                  |
 | [`STRICT_PURGE_MANUAL_MERGE_EXECUTION_LOG.md`](STRICT_PURGE_MANUAL_MERGE_EXECUTION_LOG.md) | Strict purge, manual merge, audit log (операционный контекст).                 |
 | [`DOCTOR_CLIENT_ARCHIVE_AND_PURGE.md`](DOCTOR_CLIENT_ARCHIVE_AND_PURGE.md)                 | Спека архива/очистки клиента врача (`userLifecycleLock` и связанные сценарии). |

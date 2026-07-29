@@ -262,7 +262,7 @@
 
 ### 7.2. Строка записи
 
-Время, клиент, тип, статус, контактный статус, канал напоминаний, число прошлых отмен, быстрые действия. Для записей из проекции Rubitime: если имя в `payload_json.name` отличается от подписи профиля (`platform_users`), под основной строкой клиента показывается краткая подсказка «В Rubitime: …» (см. [`DOCTOR_DASHBOARD_METRICS.md`](DOCTOR_DASHBOARD_METRICS.md), [`RUBITIME_BOOKING_PIPELINE.md`](RUBITIME_BOOKING_PIPELINE.md)).
+Время, клиент, тип, статус, контактный статус, канал напоминаний, число прошлых отмен, быстрые действия. Исторически для записей из проекции Rubitime: если имя в `payload_json.name` отличалось от подписи профиля (`platform_users`), под основной строкой клиента показывалась краткая подсказка «В Rubitime: …» (см. [`DOCTOR_DASHBOARD_METRICS.md`](DOCTOR_DASHBOARD_METRICS.md), [архивный `RUBITIME_BOOKING_PIPELINE.md`](../archive/2026-07-rubitime-retirement/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md)).
 
 ### 7.3. Быстрые действия
 

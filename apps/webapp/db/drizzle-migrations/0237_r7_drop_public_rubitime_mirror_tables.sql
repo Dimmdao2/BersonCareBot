@@ -1,9 +1,10 @@
 -- 0237_r7_drop_public_rubitime_mirror_tables: R7 archive-then-drop, DROP half.
 --
--- Authority: docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R7_ARCHIVE_DROP_RUNBOOK.md §4 "Migration
+-- Authority: docs/archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R7_ARCHIVE_DROP_RUNBOOK.md §4 "Migration
 -- Rules" -- "Generate a normal repo migration; do not run ad hoc DROP TABLE". This is that migration.
--- It is reached by deploy/host/archive-rubitime-retirement-tables.sh only AFTER that script has
--- pg_dump'ed, SHA256'ed and VERIFIED the archive (runbook §3 + DB_CLEANUP_SEQUENCE.md §Step 2).
+-- The completed retirement used the archive/verify procedure recorded under
+-- docs/archive/2026-07-rubitime-retirement/. Its old one-shot is now inert archive evidence, not an
+-- operator entrypoint (runbook §3 + DB_CLEANUP_SEQUENCE.md §Step 2).
 --
 -- SCOPE: exactly the two legacy public rubitime-mirror (public shadow) tables, and nothing else.
 --   public.rubitime_records  -- DB_CLEANUP_SEQUENCE.md:178,209 (`archive_if_present`, listed under

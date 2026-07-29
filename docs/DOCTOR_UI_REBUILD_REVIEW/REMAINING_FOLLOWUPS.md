@@ -3,23 +3,28 @@
 > См. также новее по разделу «UI-ребилд кабинета врача» ниже: [`docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md`](../_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md)
 > и [`docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md`](../_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md)
 > — `REVIEW_2026-06-13.md`/`ROADMAP.md`, на которые ссылается этот раздел, частично устарели (см. пометки в них).
-> Booking-sync секция ниже (F3 и далее) этим не затронута — актуальна как есть.
+> Booking-sync секция ниже — завершённая история, не текущая очередь: Rubitime выведено 2026-07-27, а
+> владелец 2026-07-29 распорядился перенести её материалы в архив.
 
-Сведено 2026-06-14 при закрытии чата по треку данных/синхронизации записей. Каждый пункт детализирован в своём доке (ссылка). Booking-sync фиксы F1/F1b/F2/F4/F5 — **сделаны и закоммичены** в `feat/doctor-ui-rebuild` (это список того, что ОСТАЛОСЬ).
+Сведено 2026-06-14 при закрытии чата по треку данных/синхронизации записей. Каждый пункт детализирован в своём
+доке (ссылка). Booking-sync фиксы F1/F1b/F2/F4/F5 были **сделаны и закоммичены** в
+`feat/doctor-ui-rebuild`; оставшиеся на тот момент пункты ниже теперь сохраняются только как история.
 
-## Booking-sync / данные записей
+## Booking-sync / данные записей — исторический снимок
 
-> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
-> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
-> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
-> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
-> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
-> только если готового нет — и написать в коммите, почему готовое не подошло.
+> Старый pre-start orchestration preamble удалён: этот раздел не является этапом для запуска агентов.
 
-- [ ] **F3 — прод-катовер на canonical** (главное). Деплой+миграция `0119` → diagnose → ручной разбор конфликтов → `backfill … --commit --delete-test --collapse-dups --drop-stale-from-csv [--drop-legacy=…]` → флип `booking_doctor_appointments_read_source` → `canonical`. **Зона: владелец/прод-доступ.** Полная инструкция: [`../OPERATIONS/BOOKING_CANONICAL_CUTOVER.md`](../OPERATIONS/BOOKING_CANONICAL_CUTOVER.md).
-- [ ] **Ручной разбор конфликтов на проде** — двойные брони и ошибочные `admin_manual` записи (инстансы overlap-бага) решаются руками по Rubitime CSV (какая запись реальна; ошибочную ручную — удалить через кабинет). Часть F3. Детали + dev-пример: [`../OPERATIONS/BOOKING_CANONICAL_CUTOVER.md` §Ручная обработка](../OPERATIONS/BOOKING_CANONICAL_CUTOVER.md).
-- [ ] **GCal + напоминания → читать из canonical** (до отключения Rubitime). Сейчас синхронизируются из сырого Rubitime-вебхука в интеграторе, не из canonical. **Зона: интегратор / `BOOKING_REWORK`.** Детали: [`APPOINTMENTS_PARITY_S0.md`](APPOINTMENTS_PARITY_S0.md) (G4/G5), [`../OPERATIONS/BOOKING_CANONICAL_CUTOVER.md` §После cutover](../OPERATIONS/BOOKING_CANONICAL_CUTOVER.md).
-- [ ] **Фильтр `deleted_at IS NULL`** в `pgClientHistory` (история пациента у врача) + `pgDoctorAnalyticsMetricAccounts` (аналитика) — оставлены без фильтра при F1b, soft-deleted может всплыть там. **Низкий приоритет** (не влияет на календарь/слоты/KPI). Детали: [`SYNC_BEHAVIOR_ANALYSIS.md`](SYNC_BEHAVIOR_ANALYSIS.md).
+Ниже сохранены прежние формулировки только для provenance. Они не разрешают PROD-катовер, CSV-разбор,
+Rubitime sync или запуск архивных команд:
+
+- **F3 — canonical cutover:** исторический runbook
+  [`BOOKING_CANONICAL_CUTOVER.md`](../archive/2026-07-rubitime-retirement/BOOKING_CANONICAL_CUTOVER.md).
+- **Ручной разбор конфликтов:** исторический Rubitime CSV-процесс из того же архивного runbook; не выполнять.
+- **GCal + напоминания:** прежний Rubitime-dependent пункт; evidence сохранён в
+  [`APPOINTMENTS_PARITY_S0.md`](../archive/2026-07-rubitime-retirement/APPOINTMENTS_PARITY_S0.md).
+- **Фильтр `deleted_at IS NULL`:** прежняя follow-up запись; контекст сохранён в
+  [`SYNC_BEHAVIOR_ANALYSIS.md`](../archive/2026-07-rubitime-retirement/SYNC_BEHAVIOR_ANALYSIS.md), но этот
+  исторический список не определяет её текущий статус.
 
 ## UI-ребилд кабинета врача (идёт в параллельном чате)
 
