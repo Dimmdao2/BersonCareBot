@@ -23,6 +23,7 @@ type Props = {
   userId: string;
   listBasePath: string;
   isAdmin: boolean;
+  displayTimeZone: string;
 };
 
 function aggregateChannelCounts(history: MessageLogEntry[]): Record<string, number> {
@@ -42,6 +43,7 @@ export function SubscriberProfileCard({
   userId,
   listBasePath,
   isAdmin,
+  displayTimeZone,
 }: Props) {
   const { identity, channelCards } = profile;
   const counts = aggregateChannelCounts(messageHistory);
@@ -126,7 +128,7 @@ export function SubscriberProfileCard({
       </section>
 
       <DoctorNotesPanel userId={userId} />
-      <ClientBookingHistoryPanel userId={userId} />
+      <ClientBookingHistoryPanel userId={userId} displayTimeZone={displayTimeZone} />
       <SubscriberBlockPanel
         userId={userId}
         initiallyBlocked={identity.isBlocked}
