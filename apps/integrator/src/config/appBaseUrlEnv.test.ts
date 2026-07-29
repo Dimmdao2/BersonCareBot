@@ -30,4 +30,22 @@ describe('integrator APP_BASE_URL env contract', () => {
 
     await expect(import('./env.js')).rejects.toThrow();
   });
+
+  it('fails fast when APP_BASE_URL uses a non-HTTP protocol', async () => {
+    setRequiredEnv('ftp://example.com');
+    vi.resetModules();
+
+    await expect(import('./env.js')).rejects.toThrow(
+      'APP_BASE_URL must use the http or https protocol',
+    );
+  });
+
+  it('removes the trailing slash from APP_BASE_URL', async () => {
+    setRequiredEnv('https://x.ru/');
+    vi.resetModules();
+
+    const { env } = await import('./env.js');
+
+    expect(env.APP_BASE_URL).toBe('https://x.ru');
+  });
 });
