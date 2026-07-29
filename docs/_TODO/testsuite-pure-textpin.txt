@@ -1,11 +1,11 @@
-apps/integrator/src/integrations/max/client.nock.test.ts
+apps/integrator/src/integrations/max/client.nock.test.ts  # ⛔ KEEP-2026-07-29: НАСТОЯЩИЙ тест (поведенческий/UI/живой-БД), ошибочно в списке — НЕ удалять
 apps/integrator/src/infra/db/stage13_freeze_migration.test.ts
 apps/webapp/src/app/styles/doctorDnaTheme.contract.test.ts
 apps/webapp/src/app/app/patient/booking/booking-page.test.ts
 apps/webapp/src/app/app/patient/booking/service/service-page.test.ts
 apps/webapp/src/app/app/patient/help/help-booking-about-link.test.ts
-apps/webapp/src/app/app/doctor/clients/PatientPackageSessionsList.test.tsx
-apps/webapp/src/app/app/doctor/treatment-program-templates/[id]/TreatmentProgramConstructorClient.reorder.test.tsx
+apps/webapp/src/app/app/doctor/clients/PatientPackageSessionsList.test.tsx  # ⛔ KEEP-2026-07-29: НАСТОЯЩИЙ тест (поведенческий/UI/живой-БД), ошибочно в списке — НЕ удалять
+apps/webapp/src/app/app/doctor/treatment-program-templates/[id]/TreatmentProgramConstructorClient.reorder.test.tsx  # ⛔ KEEP-2026-07-29: НАСТОЯЩИЙ тест (поведенческий/UI/живой-БД), ошибочно в списке — НЕ удалять
 apps/webapp/src/app/app/doctor/patients/[userId]/page.serverBoundary.test.ts
 apps/webapp/src/app/app/doctor/content/cmsContentPrincipal.audit.test.ts
 apps/webapp/src/app/api/admin/booking-engine/adminBookingEnginePrincipalResiduals.test.ts
@@ -20,10 +20,10 @@ apps/webapp/src/app/api/doctor/courses/doctorCoursesReferencesPrincipal.audit.te
 apps/webapp/src/app/api/doctor/treatment-program-instances/doctorWorkspacePrincipal.audit.test.ts
 apps/webapp/src/app/api/payments/webhook/paymentWebhookNoDefaultOrg.audit.test.ts
 apps/webapp/src/app-layer/patient-organization/patientOrganizationContext.audit.test.ts
-apps/webapp/src/app-layer/db/drizzle.smoke.test.ts
+apps/webapp/src/app-layer/db/drizzle.smoke.test.ts  # ⛔ KEEP-2026-07-29: НАСТОЯЩИЙ тест (поведенческий/UI/живой-БД), ошибочно в списке — НЕ удалять
 apps/webapp/src/app-layer/guards/staffSecurityRecoveryIsolation.test.ts
-apps/webapp/src/modules/booking-appointment-lifecycle/service.test.ts
-apps/webapp/src/modules/patient-diary/loadPatientDiaryWeekActivity.test.ts
+apps/webapp/src/modules/booking-appointment-lifecycle/service.test.ts  # ⛔ KEEP-2026-07-29: НАСТОЯЩИЙ тест (поведенческий/UI/живой-БД), ошибочно в списке — НЕ удалять
+apps/webapp/src/modules/patient-diary/loadPatientDiaryWeekActivity.test.ts  # ⛔ KEEP-2026-07-29: НАСТОЯЩИЙ тест (поведенческий/UI/живой-БД), ошибочно в списке — НЕ удалять
 apps/webapp/src/modules/auth/unsupportedClientFallback.contract.test.ts
 apps/webapp/src/modules/auth/globalAdminHardRole.contract.test.ts
 apps/webapp/src/modules/system-settings/locationPaletteMigration.test.ts
