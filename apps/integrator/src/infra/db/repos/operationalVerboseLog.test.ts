@@ -1,10 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { DbPort, DbQueryResult } from '../../../kernel/contracts/index.js';
-import {
-  getOperationalVerboseLogEnabled,
-  invalidateOperationalVerboseLogCache,
-  resetOperationalVerboseLogCacheForTests,
-} from './operationalVerboseLog.js';
+import { getOperationalVerboseLogEnabled } from './operationalVerboseLog.js';
 
 function createDbMock() {
   const queryMock = vi.fn();
@@ -22,10 +18,6 @@ function mockFlagRow(query: ReturnType<typeof createDbMock>['query'], valueJson:
 }
 
 describe('getOperationalVerboseLogEnabled', () => {
-  beforeEach(() => {
-    resetOperationalVerboseLogCacheForTests();
-  });
-
   it('defaults to false when no row', async () => {
     const { db, query } = createDbMock();
     query.mockResolvedValueOnce({ rows: [], rowCount: 0 } as DbQueryResult);
@@ -38,7 +30,6 @@ describe('getOperationalVerboseLogEnabled', () => {
       mockFlagRow(query, { value: true });
       expect(await getOperationalVerboseLogEnabled(db)).toBe(true);
     }
-    resetOperationalVerboseLogCacheForTests();
     {
       const { db, query } = createDbMock();
       mockFlagRow(query, { value: 'true' });
@@ -52,20 +43,11 @@ describe('getOperationalVerboseLogEnabled', () => {
     expect(await getOperationalVerboseLogEnabled(db)).toBe(false);
   });
 
-  it('caches within TTL (second call does not re-query)', async () => {
+  it('re-queries on every call and returns the current value', async () => {
     const { db, query } = createDbMock();
     mockFlagRow(query, { value: true });
-    expect(await getOperationalVerboseLogEnabled(db)).toBe(true);
-    expect(await getOperationalVerboseLogEnabled(db)).toBe(true);
-    expect(query).toHaveBeenCalledTimes(1);
-  });
-
-  it('re-queries after cache invalidation', async () => {
-    const { db, query } = createDbMock();
-    mockFlagRow(query, { value: true });
-    expect(await getOperationalVerboseLogEnabled(db)).toBe(true);
-    invalidateOperationalVerboseLogCache();
     mockFlagRow(query, { value: false });
+    expect(await getOperationalVerboseLogEnabled(db)).toBe(true);
     expect(await getOperationalVerboseLogEnabled(db)).toBe(false);
     expect(query).toHaveBeenCalledTimes(2);
   });

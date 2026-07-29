@@ -1,8 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
-
-vi.mock('@/modules/system-settings/integrationRuntime', () => ({
-  getAppBaseUrlSync: () => 'https://app.example',
-}));
+import { describe, expect, it } from 'vitest';
 
 import { buildReminderDeepLink } from './buildReminderDeepLink';
 
@@ -13,6 +9,7 @@ describe('buildReminderDeepLink', () => {
         linkedObjectType: 'content_section',
         linkedObjectId: 'warmups',
         reminderIntent: 'warmup',
+        appBaseUrl: 'https://app.example',
       }),
     ).toBe('https://app.example/app/patient/go/daily-warmup?from=reminder');
   });
@@ -24,6 +21,7 @@ describe('buildReminderDeepLink', () => {
         linkedObjectId: 'program-a',
         reminderIntent: 'exercises',
         organizationId: '11111111-1111-4111-8111-111111111111',
+        appBaseUrl: 'https://app.example',
       }),
     ).toBe(
       'https://app.example/app/patient/go/plan-start-lesson?from=reminder&organizationId=11111111-1111-4111-8111-111111111111',
@@ -36,6 +34,7 @@ describe('buildReminderDeepLink', () => {
         linkedObjectType: 'content_section',
         linkedObjectId: 'warmups',
         reminderIntent: 'generic',
+        appBaseUrl: 'https://app.example',
       }),
     ).toBe('https://app.example/app/patient/go/daily-warmup?from=reminder');
   });
@@ -47,6 +46,7 @@ describe('buildReminderDeepLink', () => {
           linkedObjectType: 'content_section',
           linkedObjectId: 'razminki',
           reminderIntent: 'generic',
+          appBaseUrl: 'https://app.example',
         },
         { warmupsSectionSlugs: new Set(['razminki']) },
       ),
@@ -59,6 +59,7 @@ describe('buildReminderDeepLink', () => {
         linkedObjectType: 'content_section',
         linkedObjectId: 'lessons',
         reminderIntent: 'generic',
+        appBaseUrl: 'https://app.example',
       }),
     ).toBe('https://app.example/app/patient/sections/lessons?from=reminder');
   });

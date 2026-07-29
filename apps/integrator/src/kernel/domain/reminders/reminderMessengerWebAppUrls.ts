@@ -1,8 +1,7 @@
 /**
  * Wraps patient reminder targets in signed webapp entry URLs for Telegram / MAX mini-apps.
  */
-import type { DbPort } from '../../contracts/index.js';
-import { getAppBaseUrl } from '../../../config/appBaseUrl.js';
+import { env } from '../../../config/env.js';
 import {
   buildWebappEntryUrl,
   buildWebappEntryUrlForMax,
@@ -22,7 +21,6 @@ export function patientPathFromReminderTargetUrl(targetUrl: string): string {
 }
 
 export async function buildExerciseReminderWebAppUrls(params: {
-  db: DbPort;
   channel: 'telegram' | 'max';
   chatId: number;
   externalId: string;
@@ -36,7 +34,7 @@ export async function buildExerciseReminderWebAppUrls(params: {
   /** Profile → notification topic channels UI. */
   profileChannelsWebAppUrl: string;
 } | null> {
-  const base = await getAppBaseUrl(params.db);
+  const base = env.APP_BASE_URL;
   const pathPrimary = patientPathFromReminderTargetUrl(params.reminderTargetUrl);
   const pathSchedule = '/app/patient/reminders?from=reminder';
   const pathPatientHome = '/app/patient';

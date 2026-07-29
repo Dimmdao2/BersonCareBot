@@ -21,7 +21,6 @@ describe('AppParametersSection', () => {
     const user = userEvent.setup();
     render(
       <AppParametersSection
-        appBaseUrl="https://app.example.com"
         supportContactUrl="/app/patient/support"
         appDisplayTimezone="Europe/Moscow"
       />,
@@ -29,17 +28,14 @@ describe('AppParametersSection', () => {
     await user.click(screen.getByRole('button', { name: /Сохранить/i }));
     await waitFor(() => expect(patchMock).toHaveBeenCalled());
     const keys = patchMock.mock.calls.map((c) => c[0] as string);
-    expect(keys).toEqual(
-      expect.arrayContaining(['app_base_url', 'support_contact_url', 'app_display_timezone']),
-    );
-    expect(keys).toHaveLength(3);
+    expect(keys).toEqual(expect.arrayContaining(['support_contact_url', 'app_display_timezone']));
+    expect(keys).toHaveLength(2);
     expect(keys).not.toContain('patient_app_maintenance_enabled');
   });
 
   it('uses the shared timezone picker with the UTC display and search enabled', () => {
     render(
       <AppParametersSection
-        appBaseUrl="https://app.example.com"
         supportContactUrl="/app/patient/support"
         appDisplayTimezone="Europe/Moscow"
       />,

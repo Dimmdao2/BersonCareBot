@@ -54,7 +54,6 @@ vi.mock('@/infra/repos/pgUserByPhone', () => ({
 }));
 
 vi.mock('@/modules/system-settings/integrationRuntime', () => ({
-  getAppBaseUrl: vi.fn().mockResolvedValue('http://localhost'),
   getYandexOauthClientId: vi.fn().mockResolvedValue('test-client-id'),
   getYandexOauthClientSecret: vi.fn().mockResolvedValue('test-client-secret'),
   getYandexOauthRedirectUri: vi

@@ -1,13 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { DbPort } from '../kernel/contracts/index.js';
 import { formatBookingRuDateTime } from '../integrations/bersoncare/bookingNotificationFormat.js';
-import { logger } from '../infra/observability/logger.js';
-import {
-  getAppDisplayTimezone,
-  getAppDisplayTimezoneSync,
-  resetAppDisplayTimezoneCacheForTests,
-  resetAppDisplayTimezoneSyncWarnForTests,
-} from './appTimezone.js';
+import { getAppDisplayTimezone } from './appTimezone.js';
 
 const recordIncidentMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 
@@ -27,23 +21,25 @@ function mockDb(query: DbPort['query']): DbPort {
 
 describe('getAppDisplayTimezone (DB source)', () => {
   afterEach(() => {
-    resetAppDisplayTimezoneCacheForTests();
     recordIncidentMock.mockClear();
-    vi.useRealTimers();
   });
 
-  it('returns Europe/Samara from system_settings and caches for TTL', async () => {
-    vi.useFakeTimers({ now: 0 });
-    const query = vi.fn().mockResolvedValue({
-      rows: [{ value_json: { value: 'Europe/Samara' } }],
-    });
+  it('returns the current system_settings value on every call', async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({
+        rows: [{ value_json: { value: 'Europe/Samara' } }],
+      })
+      .mockResolvedValueOnce({
+        rows: [{ value_json: { value: 'Europe/Moscow' } }],
+      });
     const db = mockDb(query);
 
     const a = await getAppDisplayTimezone({ db });
     const b = await getAppDisplayTimezone({ db });
     expect(a).toBe('Europe/Samara');
-    expect(b).toBe('Europe/Samara');
-    expect(query).toHaveBeenCalledTimes(1);
+    expect(b).toBe('Europe/Moscow');
+    expect(query).toHaveBeenCalledTimes(2);
     expect(query.mock.calls[0]![0]).toContain('system_settings');
     expect(query.mock.calls[0]![1]).toEqual(['app_display_timezone', 'admin']);
     expect(recordIncidentMock).not.toHaveBeenCalled();
@@ -59,7 +55,6 @@ describe('getAppDisplayTimezone (DB source)', () => {
   });
 
   it('falls back to Europe/Moscow and records incident when setting is missing', async () => {
-    vi.useFakeTimers({ now: 0 });
     const query = vi.fn().mockResolvedValue({ rows: [] });
     const db = mockDb(query);
 
@@ -77,7 +72,6 @@ describe('getAppDisplayTimezone (DB source)', () => {
   });
 
   it('records incident with invalid_iana when value fails ICU', async () => {
-    vi.useFakeTimers({ now: 0 });
     const query = vi.fn().mockResolvedValue({
       rows: [{ value_json: { value: 'Foo/Bar' } }],
     });
@@ -95,7 +89,6 @@ describe('getAppDisplayTimezone (DB source)', () => {
   });
 
   it('records incident with query_failed when DB throws', async () => {
-    vi.useFakeTimers({ now: 0 });
     const query = vi.fn().mockRejectedValue(new Error('db unavailable'));
     const db = mockDb(query);
     const tz = await getAppDisplayTimezone({ db });
@@ -107,22 +100,5 @@ describe('getAppDisplayTimezone (DB source)', () => {
         }),
       }),
     );
-  });
-});
-
-describe('legacy env display timezone helper', () => {
-  afterEach(() => {
-    vi.unstubAllEnvs();
-    resetAppDisplayTimezoneSyncWarnForTests();
-  });
-
-  it('logs warn when legacy env vars are set', () => {
-    vi.stubEnv('APP_DISPLAY_TIMEZONE', 'Europe/Samara');
-    const spy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
-    expect(getAppDisplayTimezoneSync()).toBe('Europe/Samara');
-    expect(spy).toHaveBeenCalled();
-    const msg = String(spy.mock.calls[0]?.[1] ?? '');
-    expect(msg).toContain('system_settings');
-    spy.mockRestore();
   });
 });

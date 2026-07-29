@@ -34,7 +34,7 @@ import {
 } from '@/infra/repos/pgMessengerPhoneHttpBind';
 import { notifyMessengerPhoneBindBlockedFromWebapp } from '@/modules/admin-incidents/sendAdminIncidentAlerts';
 import { logger } from '@/infra/logging/logger';
-import { getAppBaseUrl } from '@/modules/system-settings/integrationRuntime';
+import { env } from '@/config/env';
 import { getPool } from '@/app-layer/db/client';
 
 const bindInputSchema = z.object({
@@ -213,7 +213,7 @@ export async function executeMessengerPhoneHttpBind(
             };
             let relayLines: string[];
             try {
-              const appBaseUrl = await getAppBaseUrl();
+              const appBaseUrl = env.APP_BASE_URL;
               relayLines = buildMessengerBindBlockedRelayLines({
                 variantLabel: 'HTTP bind (webapp)',
                 machineReason: err.code,

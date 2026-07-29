@@ -33,11 +33,6 @@ vi.mock('../../../../config/appTimezone.js', () => ({
   getAppDisplayTimezone: vi.fn(async () => 'Europe/Moscow'),
 }));
 
-vi.mock('../../../../config/appBaseUrl.js', () => ({
-  getAppBaseUrl: vi.fn(async () => 'https://app.example'),
-  getAppBaseUrlSync: vi.fn(() => 'https://app.example'),
-}));
-
 function makeCtx(): DomainContext {
   return {
     nowIso: '2026-03-05T10:00:00.000Z',

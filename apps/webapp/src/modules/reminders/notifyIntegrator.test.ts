@@ -7,8 +7,8 @@ const runtimeConfig = vi.hoisted(() => ({
 vi.mock('@/modules/system-settings/integrationRuntime', () => ({
   getIntegratorApiUrl: async () => runtimeConfig.baseUrl,
   getIntegratorWebhookSecret: async () => runtimeConfig.secret,
-  getAppBaseUrlSync: () => 'https://app.example.com',
 }));
+vi.mock('@/config/env', () => ({ env: { APP_BASE_URL: 'https://app.example.com' } }));
 
 // Mock fetch
 const mockFetch = vi.hoisted(() => vi.fn());

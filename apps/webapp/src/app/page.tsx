@@ -5,15 +5,15 @@ import './styles/landing.css';
 import { LandingAcquisition } from '@/components/landing/LandingAcquisition';
 import { LandingPwaClientBootstrap } from '@/components/landing/LandingPwaClientBootstrap';
 import { StandaloneRootRedirect } from '@/components/landing/StandaloneRootRedirect';
-import { getAppBaseUrl } from '@/modules/system-settings/integrationRuntime';
+import { env } from '@/config/env';
 
 const ogTitle = 'BersonCare — кабинет специалиста';
 const ogDescription =
   'Расписание, карточки клиентов, программы реабилитации и связь с пациентами в одном рабочем кабинете.';
 const shareImage = '/pwa-icon-512.png';
 
-export async function generateMetadata(): Promise<Metadata> {
-  const appBaseUrl = await getAppBaseUrl();
+export function generateMetadata(): Metadata {
+  const appBaseUrl = env.APP_BASE_URL;
   return {
     metadataBase: new URL(appBaseUrl),
     title: ogTitle,
@@ -42,8 +42,8 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default async function HomePage() {
-  const appBaseUrl = await getAppBaseUrl();
+export default function HomePage() {
+  const appBaseUrl = env.APP_BASE_URL;
   return (
     <div data-landing-public className="min-h-screen bg-white text-[#17264A]">
       <StandaloneRootRedirect />

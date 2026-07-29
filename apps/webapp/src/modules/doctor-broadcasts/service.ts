@@ -33,7 +33,7 @@ import type { PatientInboundChatPort } from '@/modules/messaging/ports';
 import type { PatientWebPushNotifyDeps } from '@/modules/patient-notifications/patientWebPushNotify';
 import { logger } from '@/infra/logging/logger';
 import { routePaths } from '@/app-layer/routes/paths';
-import { getAppBaseUrlSync } from '@/modules/system-settings/integrationRuntime';
+import { env } from '@/config/env';
 
 export type DoctorBroadcastsServiceDeps = {
   resolveBroadcastAudience(
@@ -77,8 +77,8 @@ function resolvedChannels(command: BroadcastCommand) {
   return normalizeBroadcastChannels(command.channels?.map(String));
 }
 
-export function buildPatientNotificationsOpenUrl(): string {
-  const base = getAppBaseUrlSync().replace(/\/$/, '');
+export function buildPatientNotificationsOpenUrl(appBaseUrl: string): string {
+  const base = appBaseUrl.replace(/\/$/, '');
   const path = `${routePaths.patient}?notifications=1`;
   if (!base.trim()) return path;
   return `${base}${path}`;
@@ -135,7 +135,7 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
       } = resolved;
       await options?.reserveAudienceGrowth?.(audienceSize);
       const messageBody = buildBroadcastMessageText(command.message.title, command.message.body);
-      const notificationOpenUrl = buildPatientNotificationsOpenUrl();
+      const notificationOpenUrl = buildPatientNotificationsOpenUrl(env.APP_BASE_URL);
       // In-app chat has no markup → patient sees clean text, not raw **/-/_ markers.
       const messageBodyPlainText = stripMarkdownToPlain(messageBody);
       const auditId = randomUUID();

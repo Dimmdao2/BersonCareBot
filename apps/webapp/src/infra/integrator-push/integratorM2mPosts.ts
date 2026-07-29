@@ -9,6 +9,7 @@ import {
   getIntegratorWebhookSecret,
 } from '@/modules/system-settings/integrationRuntime';
 import { buildReminderDeepLink } from '@/modules/reminders/buildReminderDeepLink';
+import { env } from '@/config/env';
 import type { ReminderRule } from '@/modules/reminders/types';
 
 function signPayload(timestamp: string, rawBody: string, secret: string): string {
@@ -66,6 +67,7 @@ export async function postReminderRuleUpsertToIntegrator(rule: ReminderRule): Pr
         linkedObjectType: rule.linkedObjectType,
         linkedObjectId: rule.linkedObjectId,
         reminderIntent: rule.reminderIntent ?? null,
+        appBaseUrl: env.APP_BASE_URL,
       }),
       scheduleData: rule.scheduleData,
       reminderIntent: rule.reminderIntent ?? 'generic',

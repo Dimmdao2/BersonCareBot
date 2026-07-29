@@ -18,6 +18,7 @@
  */
 import { z } from 'zod';
 import { routePaths } from '@/app-layer/routes/paths';
+import { env } from '@/config/env';
 import { logger } from '@/infra/logging/logger';
 import type { ChannelPreferencesPort } from '@/modules/channel-preferences/ports';
 import type { PatientInboundChatPort } from '@/modules/messaging/ports';
@@ -25,7 +26,6 @@ import {
   appendPatientInboundAdminMessage,
   bookingLifecycleChatIntegratorMessageId,
 } from '@/modules/messaging/appendPatientInboundAdminMessage';
-import { getAppBaseUrlSync } from '@/modules/system-settings/integrationRuntime';
 import type { RecordNotificationDeliveryAttemptInput } from '@/modules/notification-delivery/types';
 import {
   resolvePatientNotificationChannels,
@@ -93,8 +93,8 @@ export type PatientWebPushNotifyDeps = {
   patientInboundChatPort?: PatientInboundChatPort;
 };
 
-function buildPatientNotificationsOpenUrl(): string {
-  const base = getAppBaseUrlSync().replace(/\/$/, '');
+function buildPatientNotificationsOpenUrl(appBaseUrl: string): string {
+  const base = appBaseUrl.replace(/\/$/, '');
   return `${base}${routePaths.patient}?notifications=1`;
 }
 
@@ -234,7 +234,9 @@ export async function runPatientWebPushNotify(
   }
 
   const pushOpenUrl =
-    body.intentType === 'appointment_lifecycle' ? buildPatientNotificationsOpenUrl() : body.openUrl;
+    body.intentType === 'appointment_lifecycle'
+      ? buildPatientNotificationsOpenUrl(env.APP_BASE_URL)
+      : body.openUrl;
 
   const pushKind =
     body.intentType === 'news'

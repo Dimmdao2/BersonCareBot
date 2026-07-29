@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { logger } from '../../infra/observability/logger.js';
-import { getAppBaseUrl } from '../../config/appBaseUrl.js';
+import { env } from '../../config/env.js';
 import { createDbPort } from '../../infra/db/client.js';
 import {
   cancelPendingBookingReminderJobsByBookingId,
@@ -208,7 +208,7 @@ async function sendLinkedChannelMessage(input: {
 }): Promise<void> {
   if (!input.phoneNormalized) return;
   const deliveryTargets = createDeliveryTargetsPort({
-    getAppBaseUrl: () => getAppBaseUrl(createDbPort()),
+    getAppBaseUrl: async () => env.APP_BASE_URL,
   });
   const fetched = await deliveryTargets.getTargetsByPhone(input.phoneNormalized);
   const bindings = fetched?.channelBindings;
@@ -314,7 +314,7 @@ async function scheduleBookingReminders(input: {
   webappEventsPort?: WebappEventsPort;
 }): Promise<void> {
   const deliveryTargets = createDeliveryTargetsPort({
-    getAppBaseUrl: () => getAppBaseUrl(createDbPort()),
+    getAppBaseUrl: async () => env.APP_BASE_URL,
   });
   const fetched = input.phoneNormalized
     ? await deliveryTargets.getTargetsByPhone(input.phoneNormalized, {
@@ -430,8 +430,7 @@ async function sendBookingWebPush(input: {
     !input.organizationId
   )
     return;
-  const dbPort = createDbPort();
-  const base = (await getAppBaseUrl(dbPort)).replace(/\/$/, '');
+  const base = env.APP_BASE_URL.replace(/\/$/, '');
   const openUrl =
     input.intentType === 'appointment_lifecycle'
       ? `${base}/app/patient/messages`

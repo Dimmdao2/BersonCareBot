@@ -161,12 +161,19 @@ describe('intakeNotificationRelay', () => {
   });
 
   it('buildIntakeDeepLink includes request id in path', () => {
-    expect(buildIntakeDeepLink('550e8400-e29b-41d4-a716-446655440000')).toContain(
+    expect(
+      buildIntakeDeepLink(
+        '550e8400-e29b-41d4-a716-446655440000',
+        'https://app.example',
+      ),
+    ).toContain(
       '/app/doctor/online-intake/550e8400-e29b-41d4-a716-446655440000',
     );
   });
 
   it('buildIntakeDeepLink falls back to list path when request id empty', () => {
-    expect(buildIntakeDeepLink('  ')).toMatch(/\/app\/doctor\/online-intake$/);
+    expect(buildIntakeDeepLink('  ', 'https://app.example')).toMatch(
+      /\/app\/doctor\/online-intake$/,
+    );
   });
 });

@@ -11,7 +11,6 @@ import { readSmtpOutboundSettingValueJson } from '../infra/db/publicRestrictedSe
 import { runWithBootstrapPrincipal } from '../infra/principal/organizationPrincipal.js';
 
 const KEY = 'smtp_outbound';
-const TTL_MS = 60_000;
 
 export type ResolvedSmtpOutboundConfig = {
   configured: boolean;
@@ -22,9 +21,6 @@ export type ResolvedSmtpOutboundConfig = {
   smtpPass: string;
   fromAddress: string;
 };
-
-type CacheEntry = { cfg: ResolvedSmtpOutboundConfig; expiresAt: number };
-let cache: CacheEntry | null = null;
 
 const smtpPortInnerSchema = z.preprocess((v) => {
   if (typeof v === 'number' && Number.isFinite(v)) return Math.round(v);
@@ -61,10 +57,6 @@ const smtpOutboundInnerReadSchema = z
     };
   });
 
-export function invalidateSmtpOutboundCache(): void {
-  cache = null;
-}
-
 function emptyResolved(): ResolvedSmtpOutboundConfig {
   return {
     configured: false,
@@ -81,27 +73,20 @@ function parseSmtpOutboundValueJson(valueJson: unknown): ResolvedSmtpOutboundCon
   return parseSystemSettingInnerWithSchema(valueJson, smtpOutboundInnerReadSchema);
 }
 
-/** Async resolve with a 60-second TTL; explicit invalidation remains available for tests/manual callers. */
+/** Resolves the current restricted DB setting on every call. */
 export async function resolveSmtpOutboundConfig(db: DbPort): Promise<ResolvedSmtpOutboundConfig> {
-  const now = Date.now();
-  if (cache && cache.expiresAt > now) return cache.cfg;
-
-  let resolved: ResolvedSmtpOutboundConfig;
   try {
     const valueJson = await runWithBootstrapPrincipal(
       { source: 'integrator-server-runtime-config' },
       () => readSmtpOutboundSettingValueJson(db),
     );
     const fromDb = valueJson !== null ? parseSmtpOutboundValueJson(valueJson) : null;
-    resolved = fromDb ?? emptyResolved();
+    return fromDb ?? emptyResolved();
   } catch {
     logger.warn(
       { key: KEY, reason: 'restricted_setting_read_failed' },
       '[smtpOutbound] restricted DB setting unavailable',
     );
-    resolved = emptyResolved();
+    return emptyResolved();
   }
-
-  cache = { cfg: resolved, expiresAt: now + TTL_MS };
-  return resolved;
 }

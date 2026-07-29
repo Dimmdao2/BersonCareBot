@@ -5,10 +5,10 @@ const buildAppDepsMock = vi.hoisted(() => vi.fn());
 const requireClinicManagementApiContextMock = vi.hoisted(() => vi.fn());
 const requireEntitlementMock = vi.hoisted(() => vi.fn());
 const sendEmailSetupLinkViaIntegratorMock = vi.hoisted(() => vi.fn());
-const getAppBaseUrlMock = vi.hoisted(() => vi.fn());
 const runtimeEnv = vi.hoisted(() => ({
   NODE_ENV: 'development' as 'development' | 'test' | 'production',
   ALLOW_DEV_AUTH_BYPASS: true,
+  APP_BASE_URL: 'http://127.0.0.1:6300',
 }));
 
 vi.mock('@/app-layer/guards/requireRole', () => ({
@@ -27,10 +27,6 @@ vi.mock('@/app-layer/di/buildAppDeps', () => ({
 vi.mock('@/infra/integrations/email/integratorEmailAdapter', () => ({
   sendEmailSetupLinkViaIntegrator: (...args: unknown[]) =>
     sendEmailSetupLinkViaIntegratorMock(...args),
-}));
-
-vi.mock('@/modules/system-settings/integrationRuntime', () => ({
-  getAppBaseUrl: () => getAppBaseUrlMock(),
 }));
 
 vi.mock('@/config/env', () => ({ env: runtimeEnv }));
@@ -59,7 +55,6 @@ describe('clinic invites route', () => {
         session: { user: { userId: CREATOR_ID, role: 'doctor' } },
       },
     });
-    getAppBaseUrlMock.mockResolvedValue('http://127.0.0.1:6300');
     sendEmailSetupLinkViaIntegratorMock.mockResolvedValue({ ok: true });
     requireEntitlementMock.mockResolvedValue({ ok: true });
     runtimeEnv.NODE_ENV = 'development';

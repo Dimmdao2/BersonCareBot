@@ -1,4 +1,4 @@
-import { getAppBaseUrlSync } from '@/modules/system-settings/integrationRuntime';
+import { env } from '@/config/env';
 import { relayOutbound } from '@/modules/messaging/relayOutbound';
 import { getConfigValue } from '@/modules/system-settings/configAdapter';
 import { parseIdTokens } from '@/shared/parsers/parseIdTokens';
@@ -44,10 +44,10 @@ export function buildIntakeNotifyText(input: {
 
 /**
  * Deep-link на карточку заявки (online intake request id = UUID).
- * База: admin `app_base_url` или env `APP_BASE_URL`. При пустом `requestId` — только список (без регресса).
+ * База передаётся явно из deployment env. При пустом `requestId` — только список (без регресса).
  */
-export function buildIntakeDeepLink(requestId: string): string {
-  const base = getAppBaseUrlSync().replace(/\/$/, '');
+export function buildIntakeDeepLink(requestId: string, appBaseUrl: string): string {
+  const base = appBaseUrl.replace(/\/$/, '');
   if (!base) {
     return '';
   }
@@ -98,7 +98,7 @@ export function createIntakeNotificationRelay(): IntakeNotificationPort {
   return {
     async notifyNewIntakeRequest(input) {
       const targets = await loadNotifyTargets();
-      const deepLink = buildIntakeDeepLink(input.requestId);
+      const deepLink = buildIntakeDeepLink(input.requestId, env.APP_BASE_URL);
       const text = buildIntakeNotifyText({
         type: input.type,
         patientName: input.patientName,

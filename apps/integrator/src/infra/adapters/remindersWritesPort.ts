@@ -4,8 +4,7 @@
 import { createHmac } from 'node:crypto';
 import type { DbPort } from '../../kernel/contracts/index.js';
 import type { RemindersWebappWritesPort } from '../../kernel/contracts/index.js';
-import { getAppBaseUrl } from '../../config/appBaseUrl.js';
-import { integratorWebhookSecret } from '../../config/env.js';
+import { env, integratorWebhookSecret } from '../../config/env.js';
 
 function sign(timestamp: string, body: string, secret: string): string {
   return createHmac('sha256', secret).update(`${timestamp}.${body}`).digest('base64url');
@@ -13,12 +12,13 @@ function sign(timestamp: string, body: string, secret: string): string {
 
 export function createRemindersWritesPort(deps: { db: DbPort }): RemindersWebappWritesPort {
   const { db } = deps;
+  void db;
   return {
     async postOccurrenceSnooze(input) {
-      const baseUrl = await getAppBaseUrl(db);
+      const baseUrl = env.APP_BASE_URL;
       const secret = integratorWebhookSecret();
       if (!baseUrl || !secret) {
-        return { ok: false, error: 'DB-backed app_base_url or webhook secret not set' };
+        return { ok: false, error: 'APP_BASE_URL or webhook secret not set' };
       }
       const body = JSON.stringify({
         integratorUserId: input.integratorUserId,
@@ -54,10 +54,10 @@ export function createRemindersWritesPort(deps: { db: DbPort }): RemindersWebapp
     },
 
     async postOccurrenceSkip(input) {
-      const baseUrl = await getAppBaseUrl(db);
+      const baseUrl = env.APP_BASE_URL;
       const secret = integratorWebhookSecret();
       if (!baseUrl || !secret) {
-        return { ok: false, error: 'DB-backed app_base_url or webhook secret not set' };
+        return { ok: false, error: 'APP_BASE_URL or webhook secret not set' };
       }
       const body = JSON.stringify({
         integratorUserId: input.integratorUserId,
@@ -93,10 +93,10 @@ export function createRemindersWritesPort(deps: { db: DbPort }): RemindersWebapp
     },
 
     async postOccurrenceDone(input) {
-      const baseUrl = await getAppBaseUrl(db);
+      const baseUrl = env.APP_BASE_URL;
       const secret = integratorWebhookSecret();
       if (!baseUrl || !secret) {
-        return { ok: false, error: 'DB-backed app_base_url or webhook secret not set' };
+        return { ok: false, error: 'APP_BASE_URL or webhook secret not set' };
       }
       const body = JSON.stringify({
         integratorUserId: input.integratorUserId,
@@ -148,10 +148,10 @@ export function createRemindersWritesPort(deps: { db: DbPort }): RemindersWebapp
     },
 
     async postReminderMuteUntil(input) {
-      const baseUrl = await getAppBaseUrl(db);
+      const baseUrl = env.APP_BASE_URL;
       const secret = integratorWebhookSecret();
       if (!baseUrl || !secret) {
-        return { ok: false, error: 'DB-backed app_base_url or webhook secret not set' };
+        return { ok: false, error: 'APP_BASE_URL or webhook secret not set' };
       }
       const body = JSON.stringify({
         integratorUserId: input.integratorUserId,
@@ -185,10 +185,10 @@ export function createRemindersWritesPort(deps: { db: DbPort }): RemindersWebapp
     },
 
     async postMessengerTopicDisable(input) {
-      const baseUrl = await getAppBaseUrl(db);
+      const baseUrl = env.APP_BASE_URL;
       const secret = integratorWebhookSecret();
       if (!baseUrl || !secret) {
-        return { ok: false, error: 'DB-backed app_base_url or webhook secret not set' };
+        return { ok: false, error: 'APP_BASE_URL or webhook secret not set' };
       }
       const body = JSON.stringify({
         integratorUserId: input.integratorUserId,
@@ -228,10 +228,10 @@ export function createRemindersWritesPort(deps: { db: DbPort }): RemindersWebapp
     },
 
     async getNotificationSettings(input) {
-      const baseUrl = await getAppBaseUrl(db);
+      const baseUrl = env.APP_BASE_URL;
       const secret = integratorWebhookSecret();
       if (!baseUrl || !secret) {
-        return { ok: false, error: 'DB-backed app_base_url or webhook secret not set' };
+        return { ok: false, error: 'APP_BASE_URL or webhook secret not set' };
       }
       const body = JSON.stringify({
         integratorUserId: input.integratorUserId,
@@ -278,10 +278,10 @@ export function createRemindersWritesPort(deps: { db: DbPort }): RemindersWebapp
     },
 
     async toggleNotificationTopic(input) {
-      const baseUrl = await getAppBaseUrl(db);
+      const baseUrl = env.APP_BASE_URL;
       const secret = integratorWebhookSecret();
       if (!baseUrl || !secret) {
-        return { ok: false, error: 'DB-backed app_base_url or webhook secret not set' };
+        return { ok: false, error: 'APP_BASE_URL or webhook secret not set' };
       }
       const body = JSON.stringify({
         integratorUserId: input.integratorUserId,

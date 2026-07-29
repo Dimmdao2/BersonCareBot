@@ -6,7 +6,10 @@ This plan replaces the missing prompt-referenced artifact in the current checkou
 
 Owner ruling 2026-07-29 supersedes the settings-mirror hold recorded below: the duplicate settings table,
 its webapp→integrator push route/outbox kind, tests and U9A enqueue capability are removed by taskdb `#1076`.
-Integrator now reads `public.system_settings` directly and accepts the existing cache TTL of at most 60 seconds.
+The same owner ruling removes the seven named 60-second settings caches: their async readers query
+`public.system_settings` on demand. Deployment identity `app_base_url` is no longer a setting:
+webapp and integrator use validated `APP_BASE_URL`, and migration `0273_remove_app_base_url_setting`
+deletes only the obsolete global/org-scoped rows.
 
 ## Goal
 

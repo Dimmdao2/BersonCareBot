@@ -4,8 +4,5 @@
 export {
   DEFAULT_APP_DISPLAY_TIMEZONE as DEFAULT_BOOKING_DISPLAY_TIMEZONE,
   getAppDisplayTimezone,
-  getAppDisplayTimezoneSync,
   getBookingDisplayTimezone,
-  invalidateAppDisplayTimezoneCache,
-  resetAppDisplayTimezoneCacheForTests as resetBookingDisplayTimezoneCache,
 } from '../../../config/appTimezone.js';

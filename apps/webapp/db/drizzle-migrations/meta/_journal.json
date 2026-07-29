@@ -1912,6 +1912,13 @@
       "when": 1793539200070,
       "tag": "0272_google_calendar_clinic_connection",
       "breakpoints": true
+    },
+    {
+      "idx": 273,
+      "version": "7",
+      "when": 1793539200071,
+      "tag": "0273_remove_app_base_url_setting",
+      "breakpoints": true
     }
   ]
 }

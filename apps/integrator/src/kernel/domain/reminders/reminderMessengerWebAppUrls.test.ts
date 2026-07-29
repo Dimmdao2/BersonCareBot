@@ -1,12 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { DbPort } from '../../contracts/index.js';
 import {
   buildExerciseReminderWebAppUrls,
   patientPathFromReminderTargetUrl,
 } from './reminderMessengerWebAppUrls.js';
 
-vi.mock('../../../config/appBaseUrl.js', () => ({
-  getAppBaseUrl: vi.fn(async () => 'https://app.example'),
+vi.mock('../../../config/env.js', () => ({
+  env: { APP_BASE_URL: 'https://app.example' },
 }));
 
 const buildTelegramStub = vi.hoisted(() => vi.fn(() => 'https://app.example/app/tg?t=tgst'));
@@ -16,8 +15,6 @@ vi.mock('../../../integrations/webappEntryToken.js', () => ({
   buildWebappEntryUrl: buildTelegramStub,
   buildWebappEntryUrlForMax: buildMaxStub,
 }));
-
-const dbStub = {} as DbPort;
 
 describe('patientPathFromReminderTargetUrl', () => {
   afterEach(() => {
@@ -54,7 +51,6 @@ describe('buildExerciseReminderWebAppUrls', () => {
 
   it('builds Telegram /app/tg URLs with t and next', async () => {
     const res = await buildExerciseReminderWebAppUrls({
-      db: dbStub,
       channel: 'telegram',
       chatId: 42,
       externalId: '42',
@@ -81,7 +77,6 @@ describe('buildExerciseReminderWebAppUrls', () => {
 
   it('builds MAX /app/max URLs with t and next', async () => {
     const res = await buildExerciseReminderWebAppUrls({
-      db: dbStub,
       channel: 'max',
       chatId: 0,
       externalId: 'max-user-77',
@@ -103,7 +98,6 @@ describe('buildExerciseReminderWebAppUrls', () => {
 
   it('uses fallback patient path for invalid reminderTargetUrl in built URLs', async () => {
     const res = await buildExerciseReminderWebAppUrls({
-      db: dbStub,
       channel: 'telegram',
       chatId: 1,
       externalId: '1',
@@ -120,7 +114,6 @@ describe('buildExerciseReminderWebAppUrls', () => {
     // Runtime `null` satisfies `if (!entry)` in SUT; Vitest infers mock return as `string`.
     buildTelegramStub.mockImplementationOnce(() => null as unknown as string);
     const res = await buildExerciseReminderWebAppUrls({
-      db: dbStub,
       channel: 'telegram',
       chatId: 42,
       externalId: '42',

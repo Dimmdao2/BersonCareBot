@@ -10,6 +10,7 @@ process.env.LOG_LEVEL = process.env.LOG_LEVEL ?? 'silent';
 dotenv.config({ quiet: true });
 
 Object.assign(process.env, {
+  APP_BASE_URL: process.env.APP_BASE_URL ?? 'https://app.example',
   BOOKING_URL: process.env.BOOKING_URL ?? 'https://example.com',
   DATABASE_URL: process.env.DATABASE_URL ?? 'postgres://localhost:5432/test',
   TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN ?? 'test-bot-token',

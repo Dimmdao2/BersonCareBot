@@ -1,4 +1,5 @@
 import { routePaths } from '@/app-layer/routes/paths';
+import { env } from '@/config/env';
 import type { ChannelPreferencesPort } from '@/modules/channel-preferences/ports';
 import { logger } from '@/infra/logging/logger';
 import { smtpInnerFromValueJson } from '@/modules/system-settings/smtpOutboundPatch';
@@ -9,7 +10,6 @@ import {
 } from '@/modules/patient-notifications/resolveNotificationChannels';
 import type { TopicChannelPrefsPort } from '@/modules/patient-notifications/topicChannelPrefsPort';
 import type { SystemSettingsService } from '@/modules/system-settings/service';
-import { getAppBaseUrlSync } from '@/modules/system-settings/integrationRuntime';
 import type { WebPushSubscriptionsPort } from '@/modules/web-push/ports';
 import { buildMessagePushCopy } from '@/modules/web-push/pushNotificationCopy';
 import { isOperationalVerboseLogEnabled } from '@/modules/observability/operationalVerboseLog';
@@ -45,8 +45,8 @@ export type NotifyPatientDoctorReplyDeps = RelayOutboundDeps & {
   ) => Promise<{ telegramId?: string | null; maxId?: string | null }>;
 };
 
-export function buildPatientMessagesOpenUrl(): string {
-  const base = getAppBaseUrlSync().replace(/\/$/, '');
+export function buildPatientMessagesOpenUrl(appBaseUrl: string): string {
+  const base = appBaseUrl.replace(/\/$/, '');
   const path = routePaths.patientMessages;
   if (!base.trim()) return path;
   return `${base}${path}`;
@@ -118,7 +118,7 @@ export function createNotifyPatientDoctorReply(deps: NotifyPatientDoctorReplyDep
     params: NotifyPatientDoctorReplyParams,
   ): Promise<void> {
     const { platformUserId, messageId, text } = params;
-    const openUrl = buildPatientMessagesOpenUrl();
+    const openUrl = buildPatientMessagesOpenUrl(env.APP_BASE_URL);
     const trimmed = text.trim();
     if (!trimmed) return;
     const notificationText = buildPersonalChatNotificationText(

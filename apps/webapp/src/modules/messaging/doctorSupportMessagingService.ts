@@ -8,6 +8,7 @@ import type {
 } from '@/infra/repos/pgSupportCommunication';
 import { isSupportChatMessage } from '@/shared/lib/supportMessageKinds';
 import { logger, serializeError } from '@/infra/logging/logger';
+import { env } from '@/config/env';
 import { relayOutbound, type RelayOutboundDeps } from './relayOutbound';
 import {
   buildPatientMessagesOpenUrl,
@@ -117,7 +118,7 @@ export function createDoctorSupportMessagingService(
             text: `${buildPersonalChatNotificationText(
               senderDisplayName,
               'specialist',
-            )}\n\n${buildPatientMessagesOpenUrl()}`,
+            )}\n\n${buildPatientMessagesOpenUrl(env.APP_BASE_URL)}`,
           },
           opts,
         ).catch((err: unknown) => {

@@ -3,10 +3,8 @@ import {
   appendPatientInboundAdminMessage,
   broadcastChatIntegratorMessageId,
 } from '@/modules/messaging/appendPatientInboundAdminMessage';
-const getAppBaseUrlSyncMock = vi.hoisted(() => vi.fn(() => 'https://app.example'));
-
-vi.mock('@/modules/system-settings/integrationRuntime', () => ({
-  getAppBaseUrlSync: getAppBaseUrlSyncMock,
+vi.mock('@/config/env', () => ({
+  env: { APP_BASE_URL: 'https://app.example' },
 }));
 
 import { buildPatientNotificationsOpenUrl, createDoctorBroadcastsService } from './service';
@@ -31,10 +29,6 @@ import { buildRecipientsPreviewFromClients } from './broadcastAudienceMetrics';
 import { deriveBroadcastDeliveryPolicy, filterEligibleBroadcastClients } from './broadcastEligible';
 
 describe('doctor-broadcasts service', () => {
-  beforeEach(() => {
-    getAppBaseUrlSyncMock.mockReturnValue('https://app.example');
-  });
-
   const auditEntries: BroadcastAuditEntry[] = [];
   const committed: Array<{
     auditId: string;
@@ -152,8 +146,7 @@ describe('doctor-broadcasts service', () => {
   });
 
   it('returns the patient notification path when app base URL is blank', () => {
-    getAppBaseUrlSyncMock.mockReturnValue('   ');
-    expect(buildPatientNotificationsOpenUrl()).toBe('/app/patient?notifications=1');
+    expect(buildPatientNotificationsOpenUrl('   ')).toBe('/app/patient?notifications=1');
   });
 
   it('preview returns audience size without writing audit', async () => {

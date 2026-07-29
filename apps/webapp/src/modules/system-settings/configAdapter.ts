@@ -165,18 +165,6 @@ async function fetchIsSmtpOutboundConfiguredFromDb(): Promise<boolean | null> {
 }
 
 /**
- * Synchronous read: cache hit → env fallback (no DB). Use after async warm-up or accept first-hit env.
- */
-export function getConfigValueSync(key: string, envFallback: string): string {
-  const now = Date.now();
-  const cached = cache.get(key);
-  if (cached && now - cached.fetchedAt < TTL_MS) {
-    return cached.value;
-  }
-  return envFallback;
-}
-
-/**
  * Get a runtime config value.
  * Order: in-memory cache → system_settings DB → envFallback.
  *
@@ -241,37 +229,6 @@ export async function getExactOrganizationConfigValue(
   if (!outcome.read) return envFallback;
   const resolved = outcome.value ?? envFallback;
   cache.set(cacheKey, { value: resolved, fetchedAt: now });
-  return resolved;
-}
-
-/**
- * Public/pre-session STRING read through the whitelisted `app.read_public_runtime_setting`
- * SECURITY DEFINER accessor (`infra/repos/pgAppRuntimeSettings.ts`, wrapped in
- * `runWithDbBootstrapPrincipal`) — the same sanctioned path {@link getPublicConfigBool} uses for
- * booleans, and the one `app_display_timezone` and the provider-enabled flags already take.
- *
- * Reachable by every DB role the anonymous surfaces run as, including the bootstrap pool that has
- * no SELECT on `system_settings`. Shares the TTL cache with {@link getConfigValue} so
- * {@link getConfigValueSync} (and therefore `getAppBaseUrlSync`) still sees the configured value,
- * and — like `getPublicConfigBool` — writes to that cache ONLY after a read that actually happened.
- */
-export async function getPublicConfigValue(
-  key: PublicRuntimeStringKey,
-  envFallback: string,
-): Promise<string> {
-  const now = Date.now();
-  const cached = cache.get(key);
-  if (cached && now - cached.fetchedAt < TTL_MS) {
-    return cached.value;
-  }
-  let dbValue: string | null;
-  try {
-    dbValue = await safeRuntimeConfig.getPublicStringOrNull(key);
-  } catch {
-    return envFallback;
-  }
-  const resolved = dbValue?.trim() ? dbValue : envFallback;
-  cache.set(key, { value: resolved, fetchedAt: now });
   return resolved;
 }
 

@@ -1,4 +1,5 @@
 import { logger } from '@/infra/logging/logger';
+import { env } from '@/config/env';
 import { runWithDbInfraPrincipal } from '@bersoncare/db-principal';
 import { classifyReminderPushKind } from '@/modules/web-push/pushNotificationCopy';
 import type { WarmupPushDynamicContext } from '@/modules/web-push/pushNotificationCopy';
@@ -216,6 +217,7 @@ export async function runWebPushOnlyReminderTick(
             sectionLookup: deps.sectionLookup,
             deepLinkOpts: deps.deepLinkOpts,
             targetOrganizationId: occ.organizationId,
+            appBaseUrl: env.APP_BASE_URL,
           },
         );
 

@@ -1,5 +1,6 @@
 import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
 import { NextResponse } from 'next/server';
+import { env } from '@/config/env';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
   logOAuthWebCallbackFailure,
@@ -11,7 +12,6 @@ import {
   getGoogleClientId,
   getGoogleClientSecret,
   getGoogleOauthLoginRedirectUri,
-  getAppBaseUrl,
 } from '@/modules/system-settings/integrationRuntime';
 import {
   exchangeGoogleCode,
@@ -29,7 +29,7 @@ import { isOAuthProviderEnabled } from '@/modules/auth/authChannelPolicy';
  */
 export async function GET(request: Request) {
   stampBootstrapPrincipal('api/auth/oauth/callback/google:GET', request);
-  const appBase = await getAppBaseUrl();
+  const appBase = env.APP_BASE_URL;
   const url = new URL(request.url);
   const stateFromQuery = url.searchParams.get('state') ?? '';
   const verifiedState = parseVerifiedSignedOAuthState(stateFromQuery, 'google_login');

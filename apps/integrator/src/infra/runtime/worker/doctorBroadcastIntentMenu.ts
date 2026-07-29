@@ -11,7 +11,6 @@ import type {
   TemplatePort,
 } from '../../../kernel/contracts/index.js';
 import { env } from '../../../config/env.js';
-import { getAppBaseUrl } from '../../../config/appBaseUrl.js';
 import {
   buildWebappEntryUrl,
   buildWebappEntryUrlForMax,
@@ -125,7 +124,7 @@ async function buildWebappLinkFactsForRecipient(input: {
   recipient: Record<string, unknown>;
   integratorUserId: string | null;
 }): Promise<Record<string, string>> {
-  const appBase = await getAppBaseUrl(input.db);
+  const appBase = env.APP_BASE_URL;
   const links: Record<string, string> = {};
   const intId = input.integratorUserId ?? undefined;
 

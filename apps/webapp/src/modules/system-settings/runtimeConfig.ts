@@ -109,14 +109,6 @@ export const PUBLIC_RUNTIME_STRING_DEFAULTS = {
   vk_web_login_url: '',
   support_contact_url: '',
   app_display_timezone: 'Europe/Moscow',
-  /**
-   * The product's own public origin. Registered in the public projection by migration 0244 so the
-   * anonymous landing can read the CONFIGURED value through `app.read_public_runtime_setting`
-   * instead of being denied on `system_settings` and silently served the env fallback. Default is
-   * empty on purpose: "no configured value" must stay distinguishable, and the env value is the
-   * caller's fallback, not a default that could be mistaken for an answer.
-   */
-  app_base_url: '',
 } as const;
 
 export const AUTHENTICATED_RUNTIME_BOOLEAN_DEFAULTS = {

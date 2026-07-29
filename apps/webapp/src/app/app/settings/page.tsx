@@ -28,8 +28,8 @@ import { SettingsForm } from './SettingsForm';
 import { SettingsTabsNav } from './SettingsTabsNav';
 import type { SettingsTabId } from './settingsTabs';
 import { TeamSection } from './TeamSection';
+import { env } from '@/config/env';
 import { parseDoctorTodayPreferences } from '@/modules/system-settings/doctorTodayPreferences';
-import { getAppBaseUrl } from '@/modules/system-settings/integrationRuntime';
 import { parsePlatformIntegrationAvailabilityEnvelope } from '@/modules/system-settings/platformIntegrationAvailability';
 
 type LegacySettingsTab = 'specialist' | 'organization' | 'team' | 'billing' | 'install';
@@ -113,7 +113,6 @@ export default async function SettingsPage({
       platformSettings,
       brandingState,
       slugState,
-      appBaseUrl,
     ] = await Promise.all([
       deps.systemSettings.listSettingsByScope('doctor', {
         organizationId: workspace.organizationId,
@@ -126,7 +125,6 @@ export default async function SettingsPage({
       workspace.canManageOrganization && deps.clinicDirectory
         ? deps.clinicDirectory.getSlugManagementState(workspace.organizationId)
         : Promise.resolve(null),
-      getAppBaseUrl(),
     ]);
     const publishedBrand = brandingState.published;
     const publishedLogoUrl =
@@ -210,7 +208,9 @@ export default async function SettingsPage({
           publishedLogoMediaId={publishedBrand?.logoMediaId ?? null}
           publishedLogoUrl={publishedLogoUrl}
         />
-        {slugState ? <ClinicSlugSection initialState={slugState} appBaseUrl={appBaseUrl} /> : null}
+        {slugState ? (
+          <ClinicSlugSection initialState={slugState} appBaseUrl={env.APP_BASE_URL} />
+        ) : null}
         <SettingsForm
           patientLabel={String(patientLabel)}
           smsFallbackEnabled={false}

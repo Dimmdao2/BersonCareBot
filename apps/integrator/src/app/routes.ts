@@ -17,8 +17,7 @@ import {
   resolveActiveOrganizationIdForMessengerIdentity,
   resolveDeploymentSingleActiveOrganizationId,
 } from '../infra/db/repos/channelUsers.js';
-import { getAppBaseUrl } from '../config/appBaseUrl.js';
-import { integratorWebhookSecret } from '../config/env.js';
+import { env, integratorWebhookSecret } from '../config/env.js';
 import { telegramConfig } from '../integrations/telegram/config.js';
 import { startTelegramLongPolling } from '../integrations/telegram/longPolling.js';
 import type { AppDeps, ProjectionHealthSnapshot } from './di.js';
@@ -228,9 +227,8 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
     webappEventsPort: deps.webappEventsPort,
   });
 
-  const webhookRouteDb = createDbPort();
-  const resolveMessengerStaffAdmin = createMessengerStaffIdsResolver(webhookRouteDb);
-  const getAppBaseUrlForWebhooks = (): Promise<string> => getAppBaseUrl(webhookRouteDb);
+  const resolveMessengerStaffAdmin = createMessengerStaffIdsResolver(createDbPort());
+  const getAppBaseUrlForWebhooks = async (): Promise<string> => env.APP_BASE_URL;
 
   const telegramWebhookDeps = {
     eventGateway: deps.eventGateway,

@@ -1,8 +1,7 @@
 /**
  * Patient deep links for integrator reminder sends (STAGE_1 S1.T07).
- * Mirrors webapp `buildReminderDeepLink` paths; base URL comes from DB-backed runtime `app_base_url`.
+ * Mirrors webapp `buildReminderDeepLink` paths. The composition point passes the deployment URL.
  */
-import { getAppBaseUrlSync } from '../../../config/appBaseUrl.js';
 
 const GO_DAILY_WARMUP = '/app/patient/go/daily-warmup';
 const GO_PLAN_START_LESSON = '/app/patient/go/plan-start-lesson';
@@ -51,6 +50,7 @@ function isWarmupsSectionDeepLink(
 
 export function buildPatientReminderDeepLink(
   params: {
+    appBaseUrl: string;
     linkedObjectType: string | null | undefined;
     linkedObjectId: string | null | undefined;
     reminderIntent?: string | null | undefined;
@@ -58,7 +58,7 @@ export function buildPatientReminderDeepLink(
   },
   opts?: BuildPatientReminderDeepLinkOptions,
 ): string {
-  const base = getAppBaseUrlSync().replace(/\/$/, '');
+  const base = params.appBaseUrl.trim().replace(/\/$/, '');
   const dailyWarmupPath = reminderGoPath(GO_DAILY_WARMUP, params.organizationId);
   const planStartLessonPath = reminderGoPath(GO_PLAN_START_LESSON, params.organizationId);
   const intentRaw = typeof params.reminderIntent === 'string' ? params.reminderIntent.trim() : '';

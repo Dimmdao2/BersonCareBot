@@ -88,7 +88,6 @@ const ADMIN_SCOPE_KEYS = [
   'important_fallback_delay_minutes',
   'integration_test_ids',
   'test_account_identifiers',
-  'app_base_url',
   'support_contact_url',
   'telegram_login_bot_username',
   'max_login_bot_nickname',

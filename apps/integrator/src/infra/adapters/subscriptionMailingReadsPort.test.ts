@@ -5,10 +5,6 @@ vi.mock('../../config/env.js', () => ({
   integratorWebhookSecret: () => 'test-secret-16chars!!',
 }));
 
-vi.mock('../../config/appBaseUrl.js', () => ({
-  getAppBaseUrl: async () => 'https://webapp.test',
-}));
-
 import type { DbPort } from '../../kernel/contracts/index.js';
 import { createSubscriptionMailingReadsPort } from './subscriptionMailingReadsPort.js';
 

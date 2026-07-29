@@ -17,7 +17,6 @@ const {
   getSaasBillingOverviewMock,
   getOrgBrandingManagementStateMock,
   getSlugManagementStateMock,
-  getAppBaseUrlMock,
   runWithDbClinicBillingPrincipalMock,
   settingsFormMock,
   appointmentReminderMock,
@@ -42,7 +41,6 @@ const {
   getSaasBillingOverviewMock: vi.fn(),
   getOrgBrandingManagementStateMock: vi.fn(),
   getSlugManagementStateMock: vi.fn(),
-  getAppBaseUrlMock: vi.fn(),
   runWithDbClinicBillingPrincipalMock: vi.fn((_principal: unknown, fn: () => unknown) => fn()),
   settingsFormMock: vi.fn(() => <section data-testid="organization-settings" />),
   appointmentReminderMock: vi.fn(() => <section data-testid="appointment-reminders" />),
@@ -92,9 +90,7 @@ vi.mock('@/app-layer/di/buildAppDeps', () => ({
     clinicDirectory: { getSlugManagementState: getSlugManagementStateMock },
   }),
 }));
-vi.mock('@/modules/system-settings/integrationRuntime', () => ({
-  getAppBaseUrl: getAppBaseUrlMock,
-}));
+vi.mock('@/config/env', () => ({ env: { APP_BASE_URL: 'https://app.example' } }));
 vi.mock('@/modules/org-branding/service', () => ({
   orgBrandLogoUrl: (mediaId: string) => `/api/media/${mediaId}`,
 }));
@@ -170,7 +166,6 @@ describe('legacy settings compatibility', () => {
     getSlugManagementStateMock.mockResolvedValue({
       currentSlug: 'tochka-zdorovya',
     });
-    getAppBaseUrlMock.mockResolvedValue('https://app.example');
   });
 
   it('routes the explicit old personal and install entries to the one account area', async () => {

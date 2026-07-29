@@ -36,7 +36,7 @@ export type BookingDoneParams = {
   backToHubHref: string;
   /** IANA-таймзона для отображения. */
   appDisplayTimeZone: string;
-  /** Server-resolved public origin from admin `app_base_url`. */
+  /** Server-resolved public origin from deployment `APP_BASE_URL`. */
   appBaseUrl: string;
 };
 

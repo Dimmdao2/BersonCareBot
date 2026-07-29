@@ -4,6 +4,7 @@ import type {
   ReminderOccurrenceHistoryItem,
 } from './pgReminderProjection';
 import { buildReminderDeepLink } from '@/modules/reminders/buildReminderDeepLink';
+import { env } from '@/config/env';
 
 const rulesByIntegratorRuleId = new Map<string, ReminderRuleListItem>();
 const occurrenceHistory: Array<{
@@ -50,7 +51,11 @@ export const inMemoryReminderProjectionPort: ReminderProjectionPort = {
       linkedObjectId: null,
       customTitle: null,
       customText: null,
-      deepLink: buildReminderDeepLink({ linkedObjectType: null, linkedObjectId: null }),
+      deepLink: buildReminderDeepLink({
+        linkedObjectType: null,
+        linkedObjectId: null,
+        appBaseUrl: env.APP_BASE_URL,
+      }),
       scheduleData: null,
       reminderIntent: null,
       displayTitle: null,

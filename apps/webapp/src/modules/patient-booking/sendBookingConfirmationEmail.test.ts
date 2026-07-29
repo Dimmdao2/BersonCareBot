@@ -14,8 +14,8 @@ vi.mock('@/modules/messaging/relayOutbound', () => ({
   relayOutbound: relayOutboundMock,
 }));
 
-vi.mock('@/modules/system-settings/integrationRuntime', () => ({
-  getAppBaseUrl: vi.fn().mockResolvedValue('https://test.bersoncare.example'),
+vi.mock('@/config/env', () => ({
+  env: { APP_BASE_URL: 'https://test.bersoncare.example' },
 }));
 
 // Logger не должен мешать тестам

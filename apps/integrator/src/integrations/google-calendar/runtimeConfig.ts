@@ -1,6 +1,6 @@
 /**
  * Google Calendar runtime config: DB-backed (`public.system_settings`, admin scope)
- * with env fallback for backward compatibility during rollout.
+ * with env fallback for backward compatibility during rollout. Reads on demand.
  */
 import { createDbPort } from '../../infra/db/client.js';
 import { googleCalendarConfig, type GoogleCalendarConfig } from './config.js';
@@ -11,15 +11,6 @@ import {
   readPublicSystemSettingString,
 } from '../../infra/db/publicSystemSettings.js';
 import { isPlatformIntegrationAvailable } from '../../infra/db/platformIntegrationAvailability.js';
-
-const TTL_MS = 60_000;
-type CacheEntry = { config: GoogleCalendarConfig; expiresAt: number };
-const configCache = new Map<string, CacheEntry>();
-
-export function invalidateGoogleCalendarConfigCache(organizationId?: string): void {
-  if (organizationId?.trim()) configCache.delete(organizationId.trim());
-  else configCache.clear();
-}
 
 async function readDbSetting(
   key: string,
@@ -103,12 +94,5 @@ export async function getGoogleCalendarConfig(
   if (!normalizedOrganizationId) {
     return { ...envFallback, enabled: false, calendarId: '', refreshToken: '' };
   }
-  const now = Date.now();
-  const cached = configCache.get(normalizedOrganizationId);
-  if (cached && cached.expiresAt > now) {
-    return cached.config;
-  }
-  const resolved = await mergeConfigFromDbWithEnv(envFallback, normalizedOrganizationId);
-  configCache.set(normalizedOrganizationId, { config: resolved, expiresAt: now + TTL_MS });
-  return resolved;
+  return mergeConfigFromDbWithEnv(envFallback, normalizedOrganizationId);
 }

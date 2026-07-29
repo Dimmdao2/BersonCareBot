@@ -34,14 +34,6 @@ const DEFAULT_PLATFORM_INTEGRATION_AVAILABILITY: PlatformIntegrationAvailability
   },
 };
 
-const TTL_MS = 60_000;
-let cached:
-  | {
-      value: PlatformIntegrationAvailability;
-      expiresAt: number;
-    }
-  | undefined;
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
@@ -71,16 +63,9 @@ export function parsePlatformIntegrationAvailability(
   return { version: 1, integrations };
 }
 
-export function invalidatePlatformIntegrationAvailabilityCache(): void {
-  cached = undefined;
-}
-
 async function readPlatformIntegrationAvailability(
   db: DbPort,
 ): Promise<PlatformIntegrationAvailability> {
-  const now = Date.now();
-  if (cached && cached.expiresAt > now) return cached.value;
-
   let value = DEFAULT_PLATFORM_INTEGRATION_AVAILABILITY;
   try {
     const valueJson = await fetchPublicSystemSettingValueJson(
@@ -93,7 +78,6 @@ async function readPlatformIntegrationAvailability(
     // Compatibility is fail-open for already wired adapters. A missing/unreadable additive
     // registry must not silently stop delivery; explicit persisted false values still gate it.
   }
-  cached = { value, expiresAt: now + TTL_MS };
   return value;
 }
 

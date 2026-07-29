@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { getAppBaseUrlSync } from '@/modules/system-settings/integrationRuntime';
+import { env } from '@/config/env';
 import {
   loadDoctorNotifyTargets,
   relayTextToDoctorTargets,
@@ -22,8 +22,9 @@ export function buildDoctorPatientProgramOpenPath(input: {
 export function buildDoctorPatientProgramDeepLink(input: {
   patientUserId: string;
   instanceId: string;
+  appBaseUrl: string;
 }): string {
-  const base = getAppBaseUrlSync().replace(/\/$/, '');
+  const base = input.appBaseUrl.replace(/\/$/, '');
   const path = buildDoctorPatientProgramOpenPath(input);
   if (!base) return path;
   return `${base}${path}`;
@@ -56,6 +57,7 @@ export async function notifyDoctorPatientProgramNote(
   const deepLink = buildDoctorPatientProgramDeepLink({
     patientUserId: input.patientUserId,
     instanceId: input.instanceId,
+    appBaseUrl: env.APP_BASE_URL,
   });
   const text = buildDoctorPatientProgramNoteNotifyText({
     patientLabel: input.patientLabel,

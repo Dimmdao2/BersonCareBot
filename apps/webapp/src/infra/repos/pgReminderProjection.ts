@@ -8,6 +8,7 @@ import { sql } from 'drizzle-orm';
 import { getPool } from '@/infra/db/client';
 import { getWebappSqlDb, runWebappSql } from '@/infra/db/runWebappSql';
 import { buildReminderDeepLink } from '@/modules/reminders/buildReminderDeepLink';
+import { env } from '@/config/env';
 import { loadWarmupsSectionSlugs } from '@/infra/repos/pgWarmupsSectionSlugs';
 import { findCanonicalUserIdByIntegratorId } from '@/infra/repos/pgCanonicalPlatformUser';
 
@@ -308,6 +309,7 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
               linkedObjectType: row.linked_object_type,
               linkedObjectId: row.linked_object_id,
               reminderIntent: row.reminder_intent,
+              appBaseUrl: env.APP_BASE_URL,
             },
             deepLinkOpts,
           ),
@@ -387,6 +389,7 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
             linkedObjectType: row.linked_object_type,
             linkedObjectId: row.linked_object_id,
             reminderIntent: row.reminder_intent,
+            appBaseUrl: env.APP_BASE_URL,
           },
           { warmupsSectionSlugs },
         ),

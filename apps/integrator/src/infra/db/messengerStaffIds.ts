@@ -15,27 +15,10 @@ import {
 
 export type { MessengerStaffChannel, ResolveMessengerStaffAdmin };
 
-const CACHE_TTL_MS = 60_000;
-
 type StaffIdLists = {
   adminIds: string[];
   doctorIds: string[];
 };
-
-type CacheEntry = {
-  loadedAt: number;
-  lists: StaffIdLists;
-};
-
-const listsCache = new Map<MessengerStaffChannel, CacheEntry>();
-
-/** Keys that affect `createMessengerStaffIdsResolver` (admin + doctor messenger id lists). */
-export const MESSENGER_STAFF_SETTINGS_KEYS = new Set([
-  'admin_telegram_ids',
-  'doctor_telegram_ids',
-  'admin_max_ids',
-  'doctor_max_ids',
-]);
 
 /** @deprecated Use {@link parseMessengerIdTokens} — re-export for existing tests. */
 export function parseIdTokens(input: unknown): string[] {
@@ -50,12 +33,6 @@ async function loadSettingInner(db: DbPort, key: string): Promise<unknown> {
 }
 
 async function loadStaffLists(db: DbPort, channel: MessengerStaffChannel): Promise<StaffIdLists> {
-  const now = Date.now();
-  const cached = listsCache.get(channel);
-  if (cached && now - cached.loadedAt < CACHE_TTL_MS) {
-    return cached.lists;
-  }
-
   const adminKey = channel === 'telegram' ? 'admin_telegram_ids' : 'admin_max_ids';
   const doctorKey = channel === 'telegram' ? 'doctor_telegram_ids' : 'doctor_max_ids';
 
@@ -64,7 +41,7 @@ async function loadStaffLists(db: DbPort, channel: MessengerStaffChannel): Promi
     loadSettingInner(db, doctorKey),
   ]);
 
-  const lists: StaffIdLists = {
+  return {
     adminIds: [
       ...new Set(
         parseMessengerIdTokens(adminInner)
@@ -80,8 +57,6 @@ async function loadStaffLists(db: DbPort, channel: MessengerStaffChannel): Promi
       ),
     ],
   };
-  listsCache.set(channel, { loadedAt: now, lists });
-  return lists;
 }
 
 function isActorInLists(actorId: string, lists: StaffIdLists): boolean {
@@ -95,15 +70,4 @@ export function createMessengerStaffIdsResolver(db: DbPort): ResolveMessengerSta
     const lists = await loadStaffLists(db, channel);
     return isActorInLists(actorId, lists);
   };
-}
-
-/** Clears the 60-second in-memory cache for tests/manual callers. */
-export function clearMessengerStaffIdsCache(): void {
-  listsCache.clear();
-}
-
-export function invalidateMessengerStaffIdsCacheForSettingKey(key: string): void {
-  if (MESSENGER_STAFF_SETTINGS_KEYS.has(key)) {
-    clearMessengerStaffIdsCache();
-  }
 }

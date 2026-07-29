@@ -18,10 +18,11 @@ import {
 
 // ── module mocks ──────────────────────────────────────────────────────────────
 
-const getAppBaseUrlSyncMock = vi.hoisted(() => vi.fn(() => 'https://app.example'));
+vi.mock('@/config/env', () => ({
+  env: { APP_BASE_URL: 'https://app.example' },
+}));
 
 vi.mock('@/modules/system-settings/integrationRuntime', () => ({
-  getAppBaseUrlSync: getAppBaseUrlSyncMock,
   getIntegratorApiUrl: vi.fn(async () => 'http://integrator.test'),
   getIntegratorWebhookSecret: vi.fn(async () => 'test-secret'),
 }));
@@ -146,13 +147,11 @@ describe('notifyPatientDoctorReply — P16 web_push leg migration', () => {
   beforeEach(() => {
     // Clear call history between tests to avoid cross-test accumulation.
     vi.clearAllMocks();
-    getAppBaseUrlSyncMock.mockReturnValue('https://app.example');
     vi.mocked(relayOutbound).mockResolvedValue({ ok: true, status: 'accepted' });
   });
 
   it('returns the patient messages path when app base URL is blank', () => {
-    getAppBaseUrlSyncMock.mockReturnValue('   ');
-    expect(buildPatientMessagesOpenUrl()).toBe('/app/patient/messages');
+    expect(buildPatientMessagesOpenUrl('   ')).toBe('/app/patient/messages');
   });
 
   it('emits web_push intent via relayOutbound when user has subscriptions', async () => {

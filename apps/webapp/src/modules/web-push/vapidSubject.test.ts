@@ -1,7 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { SystemSettingsService } from '@/modules/system-settings/service';
 import { deriveVapidSubject, vapidSubjectFromSmtpParsed } from './vapidSubject';
 import { smtpInnerFromValueJson } from '@/modules/system-settings/smtpOutboundPatch';
+
+vi.mock('@/config/env', () => ({ env: { APP_BASE_URL: 'https://test.bersoncare.ru/path' } }));
 
 function settings(rows: Record<string, { valueJson: unknown } | null>) {
   return {
@@ -10,11 +12,10 @@ function settings(rows: Record<string, { valueJson: unknown } | null>) {
 }
 
 describe('VAPID subject', () => {
-  it('uses DB-backed HTTPS app_base_url when TEST intentionally disables SMTP', async () => {
+  it('uses deployment HTTPS APP_BASE_URL when TEST intentionally disables SMTP', async () => {
     const result = await deriveVapidSubject(
       settings({
         smtp_outbound: { valueJson: { value: null } },
-        app_base_url: { valueJson: { value: 'https://test.bersoncare.ru/path' } },
       }),
     );
 

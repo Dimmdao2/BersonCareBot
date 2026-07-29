@@ -1,4 +1,4 @@
-import { getAppBaseUrlSync } from '@/modules/system-settings/integrationRuntime';
+import { env } from '@/config/env';
 import {
   loadDoctorNotifyTargets,
   relayTextToDoctorTargets,
@@ -20,8 +20,8 @@ export function buildDoctorMessagesOpenPath(platformUserId: string): string {
   return `/app/doctor/messages?integratorConversationId=${convKey}`;
 }
 
-export function buildDoctorMessagesDeepLink(platformUserId: string): string {
-  const base = getAppBaseUrlSync().replace(/\/$/, '');
+export function buildDoctorMessagesDeepLink(platformUserId: string, appBaseUrl: string): string {
+  const base = appBaseUrl.replace(/\/$/, '');
   const path = buildDoctorMessagesOpenPath(platformUserId);
   if (!base) return path;
   return `${base}${path}`;
@@ -55,7 +55,7 @@ export async function notifyDoctorPatientMessage(
     staffDeps?: NotifyDoctorPatientMessageToStaffDeps;
   },
 ): Promise<void> {
-  const deepLink = buildDoctorMessagesDeepLink(input.platformUserId);
+  const deepLink = buildDoctorMessagesDeepLink(input.platformUserId, env.APP_BASE_URL);
   const replyConversationId = doctorReplyCallbackConversationId(input.platformUserId);
   const text = buildDoctorPatientMessageNotifyText({
     patientLabel: input.patientLabel,

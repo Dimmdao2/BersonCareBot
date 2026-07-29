@@ -84,10 +84,8 @@ function runRuntimePathProbe() {
     runtimeProbePath,
     `
 const { createDbPort, closeDb } = await import(${JSON.stringify(dbClientUrl)});
-const { invalidateSmtpOutboundCache, resolveSmtpOutboundConfig } =
-  await import(${JSON.stringify(smtpResolverUrl)});
+const { resolveSmtpOutboundConfig } = await import(${JSON.stringify(smtpResolverUrl)});
 try {
-  invalidateSmtpOutboundCache();
   const resolved = await resolveSmtpOutboundConfig(createDbPort());
   if (!resolved.configured) {
     throw new Error("deployed_locked_smtp_runtime_path_not_configured");
