@@ -5,7 +5,7 @@ import { join } from 'node:path';
 
 const repoRoot = process.cwd();
 const smokePath = 'docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-13-db-isolation.mjs';
-const checklistPath = 'docs/_TODO/SAAS_FOUNDATION/P0_13_ISOLATION_FIXTURES_CHECKLIST.md';
+const checklistPath = 'docs/archive/2026-07-plans/SAAS_FOUNDATION/P0_13_ISOLATION_FIXTURES_CHECKLIST.md';
 
 function read(path) {
   return readFileSync(join(repoRoot, path), 'utf8');

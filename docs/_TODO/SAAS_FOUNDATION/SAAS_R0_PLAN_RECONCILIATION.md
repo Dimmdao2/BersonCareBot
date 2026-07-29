@@ -43,7 +43,7 @@ The reasoning below stands on its own merits; read it as an argued position, not
 1. **`SAAS_ENFORCE_ROADMAP.md` remains the canonical plan, but its old cutover finish line is superseded by R1.**
    Current work is TEST-first enforced product readiness followed by a fresh new-domain product copy; frozen legacy
    `bersoncare` production is never cut over.
-2. **[`docs/_ARCHIVE/SAAS_FOUNDATION/TENANT_HARD_MODE_EXECUTION_PLAN.md`](../../_ARCHIVE/SAAS_FOUNDATION/TENANT_HARD_MODE_EXECUTION_PLAN.md)
+2. **[`docs/archive/legacy-underscore/SAAS_FOUNDATION/TENANT_HARD_MODE_EXECUTION_PLAN.md`](../../archive/legacy-underscore/SAAS_FOUNDATION/TENANT_HARD_MODE_EXECUTION_PLAN.md)
    is an archived, non-executable reasoning record.** It was never approved or executed; its O1–O13 do **not** gate
    current work, and its unique scope is retained in the roadmap register.
 3. **O1 (DB role granularity) is OPEN — do not record it as decided.**
@@ -79,7 +79,7 @@ property, and do not replace the independent verdict with a later worker claim.
 - [x] **R0.1 — AUDIT PASS.** Historical: the roadmap was marked canonical for the former flip path. R1 supersedes that finish line
       with TEST-first enforced readiness and a fresh-product launch.
 - [x] **R0.2 — AUDIT PASS.** Historical draft moved to
-      `docs/_ARCHIVE/SAAS_FOUNDATION/TENANT_HARD_MODE_EXECUTION_PLAN.md`; its body remains intact as reasoning, but
+      `docs/archive/legacy-underscore/SAAS_FOUNDATION/TENANT_HARD_MODE_EXECUTION_PLAN.md`; its body remains intact as reasoning, but
       its header now says **DO NOT EXECUTE** and links the roadmap register.
       **O1 wording (corrected):** state that O1 is an **open question under owner discussion as of 2026-07-15**,
       that the currently built and live-proven topology is `app_staff`/`app_patient` + app-layer capability at a
@@ -158,10 +158,10 @@ This table is intentionally not a review or acceptance of the non-R0 changes.
 | `docs/_TODO/SAAS_FOUNDATION/README.md`                                                                      | orchestrator R0 artifact        | R0.5 edit points LIVE index at `SAAS_ENFORCE_ROADMAP.md` and demoted draft.                                                                                   |
 | `docs/_TODO/SAAS_FOUNDATION/SAAS_D2_FB1_BOOTSTRAP_PHONE_WRITE.md`                                           | D3.3-D3.5 per log               | mtime `02:00`; diff adds D3.4 composition note.                                                                                                               |
 | `docs/_TODO/SAAS_FOUNDATION/SAAS_ENFORCE_ROADMAP.md`                                                        | orchestrator R0 artifact        | R0.1/R0.3/R0.4/R0.7 edits in this stage; independent audit failed R0.3, R0.4, and R0.7.                                                                       |
-| `docs/_TODO/SAAS_FOUNDATION/SAAS_PRODUCT_SMOKE_A1.md`                                                       | D3.3-D3.5 per log               | mtime `02:08`; diff adds meaningful JSON evidence requirements.                                                                                               |
+| `docs/archive/2026-07-plans/SAAS_FOUNDATION/SAAS_PRODUCT_SMOKE_A1.md`                                      | D3.3-D3.5 per log               | mtime `02:08`; diff adds meaningful JSON evidence requirements.                                                                                               |
 | `docs/_TODO/SAAS_FOUNDATION/SAAS_PRODUCT_SMOKE_FIXTURE_OPERATOR_PACKET.md`                                  | D3.3-D3.5 per log               | mtime `02:00`; diff hardens auth-header/fixture evidence wording.                                                                                             |
 | `docs/_TODO/SAAS_FOUNDATION/SAAS_R0_PLAN_RECONCILIATION.md`                                                 | orchestrator R0 artifact        | untracked stage contract/inventory file for this stage.                                                                                                       |
-| `docs/_ARCHIVE/SAAS_FOUNDATION/TENANT_HARD_MODE_EXECUTION_PLAN.md`                                          | archived by R1                  | Original draft body preserved as non-executable historical reasoning.                                                                                         |
+| `docs/archive/legacy-underscore/SAAS_FOUNDATION/TENANT_HARD_MODE_EXECUTION_PLAN.md`                         | archived by R1                  | Original draft body preserved as non-executable historical reasoning.                                                                                         |
 | `docs/_TODO/SAAS_FOUNDATION/TENANT_HARD_MODE_LOG.md`                                                        | orchestrator R0 artifact        | pre-existing D3 rows plus R0.9 row appended by this stage.                                                                                                    |
 | `docs/_TODO/SAAS_FOUNDATION/PHASE4_ROLLOUT_RUNBOOK.md`                                                      | orchestrator R0 artifact        | R0.7 incorrectly collapsed two inventories into 163; R1 restored 161 for the DB-state checker, retained 163 for the renderer, and recorded the two-table gap. |
 | `docs/_TODO/SAAS_FOUNDATION/saas-product-smoke-contract.json`                                               | D3.3-D3.5 per log               | mtime `01:58`; D3.3/D3.5 product-smoke contract calibration.                                                                                                  |

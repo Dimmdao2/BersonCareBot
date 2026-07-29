@@ -5,18 +5,18 @@ import { join } from 'node:path';
 const repoRoot = process.cwd();
 
 const files = {
-  closure: 'docs/_TODO/SAAS_FOUNDATION/R2_READINESS_CLOSURE.md',
+  closure: 'docs/archive/2026-07-plans/SAAS_FOUNDATION/R2_READINESS_CLOSURE.md',
   roadmap: 'docs/_TODO/SAAS_FOUNDATION/ROADMAP_TO_SAAS.md',
-  checklist: 'docs/_TODO/SAAS_FOUNDATION/T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md',
+  checklist: 'docs/archive/2026-07-plans/SAAS_FOUNDATION/T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md',
   t0Readiness: 'docs/_TODO/SAAS_FOUNDATION/T0_5_T0_8_READINESS_REVIEW.md',
   entrypointMap: 'docs/_TODO/SAAS_FOUNDATION/T0_4_ENTRYPOINT_ORG_CONTEXT_MAP.md',
   roleSplit: 'docs/_TODO/SAAS_FOUNDATION/P0_5_DB_ROLE_SPLIT.md',
-  contextChecklist: 'docs/_TODO/SAAS_FOUNDATION/P0_6_DORMANT_CONTEXT_CHECKLIST.md',
+  contextChecklist: 'docs/archive/2026-07-plans/SAAS_FOUNDATION/P0_6_DORMANT_CONTEXT_CHECKLIST.md',
   writerCensus: 'docs/_TODO/SAAS_FOUNDATION/P0_7_WRITER_CENSUS.md',
   writerCensusChecklist: 'docs/_TODO/SAAS_FOUNDATION/P0_7_WRITER_CENSUS_CHECKLIST.md',
   p08Facts: 'docs/_TODO/SAAS_FOUNDATION/P0_8_CODE_FACTS.md',
-  p09Checklist: 'docs/_TODO/SAAS_FOUNDATION/P0_9_DEFAULT_DENY_CHECKLIST.md',
-  p13Checklist: 'docs/_TODO/SAAS_FOUNDATION/P0_13_ISOLATION_FIXTURES_CHECKLIST.md',
+  p09Checklist: 'docs/archive/2026-07-plans/SAAS_FOUNDATION/P0_9_DEFAULT_DENY_CHECKLIST.md',
+  p13Checklist: 'docs/archive/2026-07-plans/SAAS_FOUNDATION/P0_13_ISOLATION_FIXTURES_CHECKLIST.md',
   regression: 'scripts/check-saas-db-regression.mjs',
   log: 'docs/_TODO/SAAS_FOUNDATION/LOG.md',
 };

@@ -6,12 +6,12 @@ const repoRoot = process.cwd();
 
 const files = {
   review: 'docs/_TODO/SAAS_FOUNDATION/T0_5_T0_8_READINESS_REVIEW.md',
-  checklist: 'docs/_TODO/SAAS_FOUNDATION/T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md',
+  checklist: 'docs/archive/2026-07-plans/SAAS_FOUNDATION/T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md',
   log: 'docs/_TODO/SAAS_FOUNDATION/LOG.md',
   accessSurface: 'docs/_TODO/SAAS_FOUNDATION/T0_DB_ACCESS_SURFACE.md',
   entrypointMap: 'docs/_TODO/SAAS_FOUNDATION/T0_4_ENTRYPOINT_ORG_CONTEXT_MAP.md',
   rubitimeAudit: 'docs/_TODO/SAAS_FOUNDATION/T0_4_RUBITIME_APPOINTMENT_ORG_AUDIT.md',
-  systemSettingsChecklist: 'docs/_TODO/SAAS_FOUNDATION/P0_11_SYSTEM_SETTINGS_ORG_CHECKLIST.md',
+  systemSettingsChecklist: 'docs/archive/2026-07-plans/SAAS_FOUNDATION/P0_11_SYSTEM_SETTINGS_ORG_CHECKLIST.md',
   p08CodeFacts: 'docs/_TODO/SAAS_FOUNDATION/P0_8_CODE_FACTS.md',
 };
 

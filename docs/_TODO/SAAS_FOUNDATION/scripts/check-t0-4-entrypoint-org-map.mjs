@@ -6,7 +6,7 @@ const repoRoot = process.cwd();
 
 const files = {
   map: 'docs/_TODO/SAAS_FOUNDATION/T0_4_ENTRYPOINT_ORG_CONTEXT_MAP.md',
-  checklist: 'docs/_TODO/SAAS_FOUNDATION/T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md',
+  checklist: 'docs/archive/2026-07-plans/SAAS_FOUNDATION/T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md',
   routes: 'apps/integrator/src/app/routes.ts',
   telegramWebhook: 'apps/integrator/src/integrations/telegram/webhook.ts',
   telegramLongPolling: 'apps/integrator/src/integrations/telegram/longPolling.ts',

@@ -7,7 +7,7 @@ import { spawnSync } from 'node:child_process';
 const repoRoot = process.cwd();
 
 const files = {
-  checklist: 'docs/_TODO/SAAS_FOUNDATION/P0_13_ISOLATION_FIXTURES_CHECKLIST.md',
+  checklist: 'docs/archive/2026-07-plans/SAAS_FOUNDATION/P0_13_ISOLATION_FIXTURES_CHECKLIST.md',
   appRouterSmoke: 'apps/webapp/e2e/smoke-app-router-rsc-pages-inprocess.test.ts',
   doctorSmoke: 'apps/webapp/e2e/doctor-pages-inprocess.test.ts',
   patientSmoke: 'apps/webapp/e2e/patient-playback-inprocess.test.ts',

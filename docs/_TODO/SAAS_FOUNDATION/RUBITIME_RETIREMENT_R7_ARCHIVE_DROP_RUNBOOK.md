@@ -95,7 +95,7 @@ node /home/dev/brain/tools/code-search.mjs "rubitime_records rubitime_events rub
 rg -n "rubitime_records|rubitime_events|rubitime_api_throttle|rubitime_booking_profiles|rubitime_branches|rubitime_services|rubitime_cooperators|appointment_records|booking_calendar_map" \
   apps packages docs \
   --glob '!docs/archive/**' \
-  --glob '!docs/_ARCHIVE/**'
+  --glob '!docs/archive/legacy-underscore/**'
 pnpm --dir apps/webapp exec tsx scripts/integrator-schema-cleanup/05_drop_deprecated.ts --repo-root ../..
 ```
 

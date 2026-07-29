@@ -13,7 +13,7 @@ const repoRoot = process.cwd();
 const files = {
   doc: 'docs/_TODO/SAAS_FOUNDATION/SAAS_C4_SCHEDULER_MEDIA_CRON_FANOUT.md',
   roadmap: 'docs/_TODO/SAAS_FOUNDATION/SAAS_ENFORCE_ROADMAP.md',
-  t0Checklist: 'docs/_TODO/SAAS_FOUNDATION/T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md',
+  t0Checklist: 'docs/archive/2026-07-plans/SAAS_FOUNDATION/T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md',
   scheduler: 'apps/integrator/src/infra/runtime/scheduler/main.ts',
   integratorPoolProvider: 'apps/integrator/src/infra/db/integratorPoolProvider.ts',
   integratorWithClient: 'apps/integrator/src/infra/db/withClient.ts',

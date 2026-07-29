@@ -17,7 +17,7 @@ const manifest = 'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_FINAL_GATE_MANI
 const executionPlan = 'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_EXECUTION_PLAN.md';
 const ownerGatePacket = 'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_OWNER_GATE_PACKET.md';
 const agentReadme = 'docs/OPERATIONS/RUBITIME_R1_FRESH_PROD_DUMP_AGENT_README.md';
-const r5Runbook = 'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_RUNBOOK.md';
+const r5Runbook = 'docs/archive/2026-07-plans/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_RUNBOOK.md';
 
 const expectedProofs = [
   'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_PROOF.md',
@@ -29,7 +29,7 @@ const proofContracts = [
   {
     proof: expectedProofs[0],
     template:
-      'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_PROOF.template.md',
+      'docs/archive/2026-07-plans/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_PROOF.template.md',
     requiredFragments: [
       'TEST integrated SHA and declared monitoring-window start/end',
       'aggregate v1 `/api/bersoncare/rubitime/slots` request count',
