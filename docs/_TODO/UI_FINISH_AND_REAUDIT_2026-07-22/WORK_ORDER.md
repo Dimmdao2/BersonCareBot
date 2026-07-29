@@ -61,11 +61,11 @@ their own UI instead of following detailed plans.
 - **A1. DNA background regression.** Doctor page background is `#faf9f4` (near-white) via
   `--doctor-page-gap-background` in `apps/webapp/src/app/styles/bersoncare-tweakcn-theme.css:91,95`; DNA canvas is
   `#f6f4ef` (greige, `--bc-canvas:15`). Verify the correct page background against the DNA spec
-  (`docs/_TODO/DOCTOR_DNA_MIGRATION/PLAN.md` + Design DNA v1) and restore it. Do not guess a color.
+  (`docs/archive/2026-07-plans/DOCTOR_DNA_MIGRATION/PLAN.md` + Design DNA v1) and restore it. Do not guess a color.
 - **A2. Clients screen.** Remove the reintroduced "client card in the right pane" pattern. Follow the detailed
   Clients-screen plan, not the orchestrator's invention.
 - **A3. Re-verify every UI stage marked done/accepted** against its linked detailed plan:
-  `docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md`, `docs/_TODO/DOCTOR_DNA_MIGRATION/PLAN.md`,
+  `docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md`, `docs/archive/2026-07-plans/DOCTOR_DNA_MIGRATION/PLAN.md`,
   `docs/_TODO/SAAS_PRODUCT_UX_INITIATIVE/IMPLEMENTATION_ROADMAP.md` (19 contracts). Produce the true state matrix
   (§3), then finish everything that is not really done.
 - **Acceptance:** PNG of the LIVE page (port-shot on :5200 / TEST), batched per page — after a page's edits are

@@ -156,7 +156,7 @@ If local PostgreSQL peer auth only allows the OS `postgres` role to connect to s
 - new scripts under `docs/_TODO/SAAS_FOUNDATION/scripts/`
 - `scripts/check-saas-db-regression.mjs`
 - `docs/_TODO/SAAS_FOUNDATION/P0_8_3_PREFLIGHT.md`
-- `docs/_TODO/SAAS_FOUNDATION/P0_8_RLS_DESCRIPTOR_CHECKLIST.md`
+- `docs/archive/2026-07-plans/SAAS_FOUNDATION/P0_8_RLS_DESCRIPTOR_CHECKLIST.md`
 - `docs/_TODO/SAAS_FOUNDATION/P0_8_CODE_FACTS.md`
 - `docs/_TODO/SAAS_FOUNDATION/LOG.md`
 - if and only if scratch smoke passes: one webapp Drizzle migration under `apps/webapp/db/drizzle-migrations/` plus matching `meta/_journal.json`

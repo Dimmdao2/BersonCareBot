@@ -759,7 +759,7 @@ After R7:
 
 Update these docs as retirement proceeds:
 
-- `docs/_ARCHIVE/SAAS_FOUNDATION/TENANT_HARD_MODE_EXECUTION_PLAN.md` — historical reasoning only; do not reopen it as
+- `docs/archive/legacy-underscore/SAAS_FOUNDATION/TENANT_HARD_MODE_EXECUTION_PLAN.md` — historical reasoning only; do not reopen it as
   an execution plan. Its Rubitime quarantine note remains a record, while current work follows the roadmap.
 - `docs/_TODO/SAAS_FOUNDATION/T0_4_PRE_SCHEMA_CLEANUP_INVENTORY.md` — update Rubitime classification after R6/R7.
 - `docs/_TODO/SAAS_FOUNDATION/scope-derivation/t0-4-pre-table-matrix.tsv` — move Rubitime rows from retain/quarantine to retired/drop.

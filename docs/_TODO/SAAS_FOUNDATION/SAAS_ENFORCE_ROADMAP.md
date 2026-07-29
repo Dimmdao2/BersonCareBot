@@ -30,7 +30,7 @@
 > **Canonical owner path (2026-07-15).** This document is the canonical plan for product parity and enforced tenant
 > isolation on TEST. This roadmap ends with an accepted fully working TEST system; it does not prescribe any
 > subsequent launch, rename, domain, or external-environment action. The archived
-> [`Tenant Hard Mode draft`](../../_ARCHIVE/SAAS_FOUNDATION/TENANT_HARD_MODE_EXECUTION_PLAN.md) is not executable;
+> [`Tenant Hard Mode draft`](../../archive/legacy-underscore/SAAS_FOUNDATION/TENANT_HARD_MODE_EXECUTION_PLAN.md) is not executable;
 > its unique scope remains in the reconciliation register near the end of this file.
 
 ---
@@ -868,7 +868,7 @@ an external rollout; any later action is outside this plan.
 
 ## R0 plan reconciliation register (2026-07-15)
 
-The archived `docs/_ARCHIVE/SAAS_FOUNDATION/TENANT_HARD_MODE_EXECUTION_PLAN.md` is not discarded. This is an
+The archived `docs/archive/legacy-underscore/SAAS_FOUNDATION/TENANT_HARD_MODE_EXECUTION_PLAN.md` is not discarded. This is an
 exhaustive crosswalk for its load-bearing §5, §6.1, §7, H0–H8 and O1–O13 scope. A row may say “covered” rather than
 “draft-only”; keeping it here is intentional evidence that the scope was checked instead of silently omitted.
 

@@ -6,7 +6,7 @@ import { resolve } from 'node:path';
 const templatePath = 'deploy/nginx/bersoncarebot-webapp.vhost.template.conf';
 const testApplyScriptPath = 'deploy/host/apply-test-nginx-webapp.sh';
 const roadmapPath = 'docs/_TODO/SAAS_FOUNDATION/SAAS_ENFORCE_ROADMAP.md';
-const smokeDocPath = 'docs/_TODO/SAAS_FOUNDATION/SAAS_PRODUCT_SMOKE_A1.md';
+const smokeDocPath = 'docs/archive/2026-07-plans/SAAS_FOUNDATION/SAAS_PRODUCT_SMOKE_A1.md';
 const smokeContractPath = 'docs/_TODO/SAAS_FOUNDATION/saas-product-smoke-contract.json';
 
 function usage() {

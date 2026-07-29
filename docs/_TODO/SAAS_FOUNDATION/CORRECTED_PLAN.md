@@ -4,7 +4,7 @@
 > и закрыт (см. `LOG.md`; `T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md`: «Current branch already completed Phase 0
 > artifacts and T0.3 doctor/admin principal closure»). Текущая исполняемая работа — TEST-enforcement/T0, не
 > этот P0-spine. Актуально: [`01_MASTER_PLAN.md`](01_MASTER_PLAN.md), [`SAAS_ENFORCE_ROADMAP.md`](SAAS_ENFORCE_ROADMAP.md),
-> [`T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md`](T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md). Держат силу: разделы
+> [`T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md`](../../archive/2026-07-plans/SAAS_FOUNDATION/T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md). Держат силу: разделы
 > «Locked architecture (stable)» и «Reconciliation» (219-table tiering) — до сих пор активно цитируются как
 > evidence в `R1_TABLE_TAXONOMY.md`, `P0_2_MEMBERSHIP_RESOLVER_CHECKLIST.md`, `P0_4_BATCHES.md`.
 
@@ -27,7 +27,7 @@ VERIFIED_SCOPE.md, REVIEW_2026-06-17_FRESH.md, FOUNDATION_PLAN.md, spike/.
 
 ## Hard prerequisite before Phase 0 code
 
-`docs/_TODO/DB_ACCESS_CHOKEPOINT_INITIATIVE/MASTER_PLAN.md` is a blocking prerequisite. It is the owner-marked "before SAAS" initiative and must finish before any SAAS migration/code stage starts.
+`docs/archive/2026-07-plans/DB_ACCESS_CHOKEPOINT_INITIATIVE/MASTER_PLAN.md` is a blocking prerequisite. It is the owner-marked "before SAAS" initiative and must finish before any SAAS migration/code stage starts.
 
 What it removes from SAAS startup:
 
@@ -168,7 +168,7 @@ Use them before executing the corresponding spine rows; they do not supersede th
 
 ## T0 — enforcement cutover (NOT Phase 0)
 
-T0 starts after Phase 0 completion and is executed from [`T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md`](T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md), with the T0.0 surface snapshot in [`T0_DB_ACCESS_SURFACE.md`](T0_DB_ACCESS_SURFACE.md). The current surface is no longer a raw DB-access cleanup problem: R0/chokepoint guards are in place, but runtime principal coverage is incomplete. Known gaps include plain pool/Drizzle queries outside transaction-bound `SET LOCAL app.org`, webapp route families that resolve org but are not centrally wrapped, integrator `DbPort.query`/pool Drizzle paths, scheduler/queue org derivation, media claim/reclaim before job org is known, and the unresolved runtime patient-wall GUC question. Gate: P0.10/P0.13 stay green, non-bypass role is validated in scratch/staging/prod-parity, shadow-run has no unresolved scoped principal gaps, and production enforcement requires explicit owner approval.
+T0 starts after Phase 0 completion and is executed from [`T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md`](../../archive/2026-07-plans/SAAS_FOUNDATION/T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md), with the T0.0 surface snapshot in [`T0_DB_ACCESS_SURFACE.md`](T0_DB_ACCESS_SURFACE.md). The current surface is no longer a raw DB-access cleanup problem: R0/chokepoint guards are in place, but runtime principal coverage is incomplete. Known gaps include plain pool/Drizzle queries outside transaction-bound `SET LOCAL app.org`, webapp route families that resolve org but are not centrally wrapped, integrator `DbPort.query`/pool Drizzle paths, scheduler/queue org derivation, media claim/reclaim before job org is known, and the unresolved runtime patient-wall GUC question. Gate: P0.10/P0.13 stay green, non-bypass role is validated in scratch/staging/prod-parity, shadow-run has no unresolved scoped principal gaps, and production enforcement requires explicit owner approval.
 
 ## Sizing (111 scoped incl integrator + child denorm + bridge)
 

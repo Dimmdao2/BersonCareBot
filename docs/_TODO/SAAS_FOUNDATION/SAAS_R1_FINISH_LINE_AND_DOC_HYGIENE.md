@@ -71,7 +71,7 @@ prove the asserted property.
       acceptance) **stays and becomes more important**, not less.
 - [x] **R1.3 — AUDIT PASS.** `TENANT_HARD_MODE_EXECUTION_PLAN.md` is **moved out of `docs/_TODO/`** into an archive location
       (use `git mv`; pick the location by the repo's existing convention — if none exists, create
-      `docs/_ARCHIVE/` and say so). Reason: a file living under `_TODO` reads to any agent as "to do". Its header
+      `docs/archive/legacy-underscore/` and say so). Reason: a file living under `_TODO` reads to any agent as "to do". Its header
       becomes unambiguous: **"НЕ ЗАПУСКАТЬ ПО НЕМУ АГЕНТОВ / DO NOT EXECUTE."** — it is not an execution plan, it
       was never approved, its 143 items were never executed, the goal was reached by another route, and its
       unique scope lives in the R0 register (link it). Keep the body intact as a record of the reasoning. Fix

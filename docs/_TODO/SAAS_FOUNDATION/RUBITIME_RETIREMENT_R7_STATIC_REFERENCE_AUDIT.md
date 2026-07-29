@@ -68,7 +68,7 @@ Command:
 rg -n "rubitime_records|rubitime_events|rubitime_api_throttle|rubitime_create_retry_jobs|rubitime_booking_profiles|rubitime_branches|rubitime_services|rubitime_cooperators|appointment_records|booking_calendar_map" \
   apps packages docs \
   --glob '!docs/archive/**' \
-  --glob '!docs/_ARCHIVE/**'
+  --glob '!docs/archive/legacy-underscore/**'
 ```
 
 Result: `3022` lines. Classification:

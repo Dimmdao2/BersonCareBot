@@ -65,7 +65,7 @@ For new work before full SaaS execution:
 
 | Document                                                               | Status                                  | Relation to SaaS                                                                                                           |
 | ---------------------------------------------------------------------- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `docs/_TODO/DB_ACCESS_CHOKEPOINT_INITIATIVE/MASTER_PLAN.md`            | TODO, blocking                          | Must run first. Creates the interceptable DB access trunk needed for request/process tenant principal and later RLS.       |
+| `docs/archive/2026-07-plans/DB_ACCESS_CHOKEPOINT_INITIATIVE/MASTER_PLAN.md` | TODO, blocking                          | Must run first. Creates the interceptable DB access trunk needed for request/process tenant principal and later RLS.       |
 | `docs/_TODO/SAAS_FOUNDATION/CORRECTED_PLAN.md`                         | hardened v9                             | Technical tenant foundation: organizations, enrollments, scoped rows, RLS, org-aware settings, isolation fixtures.         |
 | `docs/ARCHITECTURE/PLATFORM_IDENTITY_SPECIFICATION.md`                 | canonical                               | Defines global person/access-tier. Do not mix access-tier with product/tenant lifecycle.                                   |
 | `docs/OPERATIONS/SPECIALIST_IDENTITY_CONSOLIDATION.md`                 | operational prerequisite for clean seed | Supports deterministic solo-specialist seed (`518e…`) and prevents duplicate specialist drift.                             |

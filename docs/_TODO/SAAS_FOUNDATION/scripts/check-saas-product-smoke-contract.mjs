@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 
 const files = {
-  a1Doc: 'docs/_TODO/SAAS_FOUNDATION/SAAS_PRODUCT_SMOKE_A1.md',
+  a1Doc: 'docs/archive/2026-07-plans/SAAS_FOUNDATION/SAAS_PRODUCT_SMOKE_A1.md',
   fixtureOperatorPacket: 'docs/_TODO/SAAS_FOUNDATION/SAAS_PRODUCT_SMOKE_FIXTURE_OPERATOR_PACKET.md',
   roadmap: 'docs/_TODO/SAAS_FOUNDATION/SAAS_ENFORCE_ROADMAP.md',
   hardProtocol: 'docs/_TODO/SAAS_FOUNDATION/HARD_MIGRATION_PROTOCOL.md',
