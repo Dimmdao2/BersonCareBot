@@ -1,4 +1,6 @@
-> ВЕДЁТСЯ В [docs/_TODO/SAAS_PRODUCT_UX_INITIATIVE/OWNER_RULINGS_2026-07-16.md](../../../_TODO/SAAS_PRODUCT_UX_INITIATIVE/OWNER_RULINGS_2026-07-16.md) §Общая граница запуска — «Первый выпуск ориентирован на solo specialist и не должен задерживаться из-за clinic-only функций».
+> ЗАКРЫТ 29.07. Архивная запись — исторический вердикт аудита, работой не является. Перезакрывать запрещено.
+>
+> Актуальная приёмка сейчас ведётся в [`LOG.md`](../../../_TODO/SAAS_PRODUCT_UX_INITIATIVE/LOG.md) §Cross-contract and mechanical evidence.
 
 # UX-09 — independent implementation-roadmap audit
 

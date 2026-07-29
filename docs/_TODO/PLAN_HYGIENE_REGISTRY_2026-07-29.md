@@ -276,16 +276,16 @@
 | `SAAS_PRODUCT_UX_INITIATIVE/UX02_RESEARCH_AUDIT.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
 | `SAAS_PRODUCT_UX_INITIATIVE/UX02_TECHNICAL_PATTERNS.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
 | `SAAS_PRODUCT_UX_INITIATIVE/UX03_CAPABILITY_ARCH_REVIEW.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
-| `SAAS_PRODUCT_UX_INITIATIVE/UX03_INDEPENDENT_AUDIT.md` | 0 | 0 | 0 | ВЫТЕСНЕН | «Historical pre-ruling notice»; PASS «superseded for current normative acceptance» by `OWNER_RULINGS_2026-07-16.md` (`SAAS_PRODUCT_UX_INITIATIVE/UX03_INDEPENDENT_AUDIT.md:3-6`). | архив |
+| `SAAS_PRODUCT_UX_INITIATIVE/UX03_INDEPENDENT_AUDIT.md` | 0 | 0 | 0 | ЗАКРЫТ | исправлено 29.07 по аудиту `audit-e2a-0729`: завершённый аудит — закрытая история, не вытеснение. | архив |
 | `SAAS_PRODUCT_UX_INITIATIVE/UX03_OPERATING_MODEL_DRAFT.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
-| `SAAS_PRODUCT_UX_INITIATIVE/UX04_INDEPENDENT_AUDIT.md` | 0 | 0 | 0 | ВЫТЕСНЕН | «Historical pre-ruling notice»; PASS «superseded for current normative acceptance» by `OWNER_RULINGS_2026-07-16.md` (`SAAS_PRODUCT_UX_INITIATIVE/UX04_INDEPENDENT_AUDIT.md:3-6`). | архив |
+| `SAAS_PRODUCT_UX_INITIATIVE/UX04_INDEPENDENT_AUDIT.md` | 0 | 0 | 0 | ЗАКРЫТ | исправлено 29.07 по аудиту `audit-e2a-0729`: завершённый аудит — закрытая история, не вытеснение. | архив |
 | `SAAS_PRODUCT_UX_INITIATIVE/UX04_SCREEN_STATE_LIST.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
-| `SAAS_PRODUCT_UX_INITIATIVE/UX05_INDEPENDENT_AUDIT.md` | 0 | 0 | 0 | ВЫТЕСНЕН | «Historical pre-ruling notice»; PASS «superseded for current normative acceptance» by `OWNER_RULINGS_2026-07-16.md` (`SAAS_PRODUCT_UX_INITIATIVE/UX05_INDEPENDENT_AUDIT.md:3-6`). | архив |
-| `SAAS_PRODUCT_UX_INITIATIVE/UX06_INDEPENDENT_AUDIT.md` | 0 | 0 | 0 | ВЫТЕСНЕН | «Historical pre-ruling notice»; PASS «superseded for current normative acceptance» by `OWNER_RULINGS_2026-07-16.md` (`SAAS_PRODUCT_UX_INITIATIVE/UX06_INDEPENDENT_AUDIT.md:3-6`). | архив |
-| `SAAS_PRODUCT_UX_INITIATIVE/UX07_INDEPENDENT_AUDIT.md` | 0 | 0 | 0 | ВЫТЕСНЕН | «Historical pre-ruling notice»; seals «superseded for current normative acceptance», current canon expects full re-audit (`SAAS_PRODUCT_UX_INITIATIVE/UX07_INDEPENDENT_AUDIT.md:3-6`). | архив |
-| `SAAS_PRODUCT_UX_INITIATIVE/UX07_PROTOTYPE_INDEX.md` | 0 | 0 | 0 | ВЫТЕСНЕН | «historical pre-ruling prototype»; seals «superseded for current normative acceptance» by `OWNER_RULINGS_2026-07-16.md` (`SAAS_PRODUCT_UX_INITIATIVE/UX07_PROTOTYPE_INDEX.md:3-6`). | архив |
-| `SAAS_PRODUCT_UX_INITIATIVE/UX07_USABILITY_FINDINGS.md` | 0 | 0 | 0 | ВЫТЕСНЕН | «historical pre-ruling executor findings; superseded for current normative acceptance by OWNER_RULINGS_2026-07-16.md» (`SAAS_PRODUCT_UX_INITIATIVE/UX07_USABILITY_FINDINGS.md:3-6`). | архив |
-| `SAAS_PRODUCT_UX_INITIATIVE/UX09_INDEPENDENT_AUDIT.md` | 0 | 0 | 0 | ВЫТЕСНЕН | «Historical pre-ruling notice»; PASS «superseded for current normative acceptance», current roadmap expects full re-audit (`SAAS_PRODUCT_UX_INITIATIVE/UX09_INDEPENDENT_AUDIT.md:3-6`). | архив |
+| `SAAS_PRODUCT_UX_INITIATIVE/UX05_INDEPENDENT_AUDIT.md` | 0 | 0 | 0 | ЗАКРЫТ | исправлено 29.07 по аудиту `audit-e2a-0729`: завершённый аудит — закрытая история, не вытеснение. | архив |
+| `SAAS_PRODUCT_UX_INITIATIVE/UX06_INDEPENDENT_AUDIT.md` | 0 | 0 | 0 | ЗАКРЫТ | исправлено 29.07 по аудиту `audit-e2a-0729`: завершённый аудит — закрытая история, не вытеснение. | архив |
+| `SAAS_PRODUCT_UX_INITIATIVE/UX07_INDEPENDENT_AUDIT.md` | 0 | 0 | 0 | ЗАКРЫТ | исправлено 29.07 по аудиту `audit-e2a-0729`: завершённый аудит — закрытая история, не вытеснение. | архив |
+| `SAAS_PRODUCT_UX_INITIATIVE/UX07_PROTOTYPE_INDEX.md` | 0 | 0 | 0 | ЗАКРЫТ | исправлено 29.07 по аудиту `audit-e2a-0729`: завершённый аудит — закрытая история, не вытеснение. | архив |
+| `SAAS_PRODUCT_UX_INITIATIVE/UX07_USABILITY_FINDINGS.md` | 0 | 0 | 0 | ЗАКРЫТ | исправлено 29.07 по аудиту `audit-e2a-0729`: завершённый аудит — закрытая история, не вытеснение. | архив |
+| `SAAS_PRODUCT_UX_INITIATIVE/UX09_INDEPENDENT_AUDIT.md` | 0 | 0 | 0 | ЗАКРЫТ | исправлено 29.07 по аудиту `audit-e2a-0729`: завершённый аудит — закрытая история, не вытеснение. | архив |
 | `SECURITY_AUDIT_2026-07-25/FINDINGS.md` | 0 | 0 | 0 | ЖИВОЙ | «S4/S5/S6 not started. NOTHING here has been fixed yet» (`SECURITY_AUDIT_2026-07-25/FINDINGS.md:16-18`). | оставить на месте |
 | `SECURITY_AUDIT_2026-07-25/FINDINGS_AND_OPTIONS.md` | 0 | 0 | 0 | ЖИВОЙ | «Some findings are already fixed …; the rest are open»; следующий этап — «a full deep security re-audit» (`SECURITY_AUDIT_2026-07-25/FINDINGS_AND_OPTIONS.md:3-6`). | оставить на месте |
 | `SECURITY_CI_STACK_PLAN.md` | 4 | 16 | 0 | ЖИВОЙ | Открытые [ ] остаются: без прямого архивного основания файл не закрывается. | оставить на месте |
@@ -562,16 +562,16 @@
 | `SAAS_PRODUCT_UX_INITIATIVE/UX02_RESEARCH_AUDIT.md` | не относится к волне с архивным вердиктом | оставить на месте |
 | `SAAS_PRODUCT_UX_INITIATIVE/UX02_TECHNICAL_PATTERNS.md` | не относится к волне с архивным вердиктом | оставить на месте |
 | `SAAS_PRODUCT_UX_INITIATIVE/UX03_CAPABILITY_ARCH_REVIEW.md` | не относится к волне с архивным вердиктом | оставить на месте |
-| `SAAS_PRODUCT_UX_INITIATIVE/UX03_INDEPENDENT_AUDIT.md` | индивидуальный кандидат `ВЫТЕСНЕН`; current acceptance в owner rulings | архив |
+| `SAAS_PRODUCT_UX_INITIATIVE/UX03_INDEPENDENT_AUDIT.md` | индивидуальный кандидат `ЗАКРЫТ`; исправлено 29.07 по аудиту `audit-e2a-0729`: завершённый аудит — закрытая история, не вытеснение | архив |
 | `SAAS_PRODUCT_UX_INITIATIVE/UX03_OPERATING_MODEL_DRAFT.md` | не относится к волне с архивным вердиктом | оставить на месте |
-| `SAAS_PRODUCT_UX_INITIATIVE/UX04_INDEPENDENT_AUDIT.md` | индивидуальный кандидат `ВЫТЕСНЕН`; current acceptance в owner rulings | архив |
+| `SAAS_PRODUCT_UX_INITIATIVE/UX04_INDEPENDENT_AUDIT.md` | индивидуальный кандидат `ЗАКРЫТ`; исправлено 29.07 по аудиту `audit-e2a-0729`: завершённый аудит — закрытая история, не вытеснение | архив |
 | `SAAS_PRODUCT_UX_INITIATIVE/UX04_SCREEN_STATE_LIST.md` | не относится к волне с архивным вердиктом | оставить на месте |
-| `SAAS_PRODUCT_UX_INITIATIVE/UX05_INDEPENDENT_AUDIT.md` | индивидуальный кандидат `ВЫТЕСНЕН`; current acceptance в owner rulings | архив |
-| `SAAS_PRODUCT_UX_INITIATIVE/UX06_INDEPENDENT_AUDIT.md` | индивидуальный кандидат `ВЫТЕСНЕН`; current acceptance в owner rulings | архив |
-| `SAAS_PRODUCT_UX_INITIATIVE/UX07_INDEPENDENT_AUDIT.md` | индивидуальный кандидат `ВЫТЕСНЕН`; current acceptance в owner rulings | архив |
-| `SAAS_PRODUCT_UX_INITIATIVE/UX07_PROTOTYPE_INDEX.md` | индивидуальный кандидат `ВЫТЕСНЕН`; current acceptance в owner rulings | архив |
-| `SAAS_PRODUCT_UX_INITIATIVE/UX07_USABILITY_FINDINGS.md` | индивидуальный кандидат `ВЫТЕСНЕН`; current acceptance в owner rulings | архив |
-| `SAAS_PRODUCT_UX_INITIATIVE/UX09_INDEPENDENT_AUDIT.md` | индивидуальный кандидат `ВЫТЕСНЕН`; current acceptance в owner rulings | архив |
+| `SAAS_PRODUCT_UX_INITIATIVE/UX05_INDEPENDENT_AUDIT.md` | индивидуальный кандидат `ЗАКРЫТ`; исправлено 29.07 по аудиту `audit-e2a-0729`: завершённый аудит — закрытая история, не вытеснение | архив |
+| `SAAS_PRODUCT_UX_INITIATIVE/UX06_INDEPENDENT_AUDIT.md` | индивидуальный кандидат `ЗАКРЫТ`; исправлено 29.07 по аудиту `audit-e2a-0729`: завершённый аудит — закрытая история, не вытеснение | архив |
+| `SAAS_PRODUCT_UX_INITIATIVE/UX07_INDEPENDENT_AUDIT.md` | индивидуальный кандидат `ЗАКРЫТ`; исправлено 29.07 по аудиту `audit-e2a-0729`: завершённый аудит — закрытая история, не вытеснение | архив |
+| `SAAS_PRODUCT_UX_INITIATIVE/UX07_PROTOTYPE_INDEX.md` | индивидуальный кандидат `ЗАКРЫТ`; исправлено 29.07 по аудиту `audit-e2a-0729`: завершённый аудит — закрытая история, не вытеснение | архив |
+| `SAAS_PRODUCT_UX_INITIATIVE/UX07_USABILITY_FINDINGS.md` | индивидуальный кандидат `ЗАКРЫТ`; исправлено 29.07 по аудиту `audit-e2a-0729`: завершённый аудит — закрытая история, не вытеснение | архив |
+| `SAAS_PRODUCT_UX_INITIATIVE/UX09_INDEPENDENT_AUDIT.md` | индивидуальный кандидат `ЗАКРЫТ`; исправлено 29.07 по аудиту `audit-e2a-0729`: завершённый аудит — закрытая история, не вытеснение | архив |
 | `SECURITY_AUDIT_2026-07-25/FINDINGS.md` | относится к живой папке-волне `SECURITY_AUDIT_2026-07-25/` | оставить на месте |
 | `SECURITY_AUDIT_2026-07-25/FINDINGS_AND_OPTIONS.md` | относится к живой папке-волне `SECURITY_AUDIT_2026-07-25/` | оставить на месте |
 | `SLUG_RENAME_POLICY_RESEARCH_2026-07-27.md` | индивидуальный кандидат `ВЫТЕСНЕН`; policy в `OWNER_PRODUCT_RULES.md` §12 | архив |
