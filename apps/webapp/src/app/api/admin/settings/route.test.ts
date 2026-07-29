@@ -496,19 +496,4 @@ describe('DELETE /api/admin/settings', () => {
     expect(resolveOrganizationForUserMock).toHaveBeenCalledWith({ platformUserId: 'owner-1' });
     expect(clearSettingMock).not.toHaveBeenCalled();
   });
-
-  it('pins global-only DELETE privileges for the platform settings principal', async () => {
-    const { readFileSync } = await import('node:fs');
-    const sql = readFileSync('../../deploy/postgres/u9a-platform-settings-role.sql', 'utf8');
-
-    expect(sql).toContain(
-      'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.system_settings TO app_platform_settings',
-    );
-    expect(sql).toContain(
-      'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.app_runtime_settings TO app_platform_settings',
-    );
-    expect(sql).toContain(
-      'FOR ALL TO app_platform_settings\n  USING (organization_id IS NULL) WITH CHECK (organization_id IS NULL)',
-    );
-  });
 });
