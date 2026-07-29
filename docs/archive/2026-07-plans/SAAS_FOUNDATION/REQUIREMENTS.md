@@ -1,3 +1,5 @@
+> ВЕДЁТСЯ В [`docs/_TODO/SAAS_FOUNDATION/SAAS_ENFORCE_ROADMAP.md`](../../../_TODO/SAAS_FOUNDATION/SAAS_ENFORCE_ROADMAP.md) §0. FINAL RESULT — «R1 — TEST product parity and multi-org readiness». Архивная запись, работой не является.
+
 # SAAS_FOUNDATION — мультитенантный SaaS (shared-DB + Postgres RLS)
 
 > ⚠️ **НЕ АКТУАЛЬНО (2026-07-02, исходная постановка задачи).** Описывает старт "2-я в очереди после

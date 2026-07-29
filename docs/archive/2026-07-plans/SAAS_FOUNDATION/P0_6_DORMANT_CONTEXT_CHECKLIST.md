@@ -1,3 +1,5 @@
+> ЗАКРЫТ 2026-07-23. Архивная запись, работой не является.
+
 > STATUS (verified 2026-07-23, code-reconciled): see docs/\_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/CHECKPOINT_2026-07-23_STATE_AND_BACKEND_WORK_ORDER.md
 
 # P0.6 Dormant Context Checklist

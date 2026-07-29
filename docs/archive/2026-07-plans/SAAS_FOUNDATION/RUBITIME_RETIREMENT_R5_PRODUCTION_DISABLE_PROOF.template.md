@@ -1,3 +1,5 @@
+> ВЕДЁТСЯ В [`docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_C_R5_R7_EVIDENCE_MATRIX.md`](../../../_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_C_R5_R7_EVIDENCE_MATRIX.md) §R5 — «No webapp path sends Rubitime v1 slots requests». Архивная запись, работой не является.
+
 # Rubitime retirement R5 — TEST proof template
 
 > **SUPERSEDED 2026-07-15.** The former template was for an external operation and must not be executed.

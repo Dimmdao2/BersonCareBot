@@ -1,3 +1,5 @@
+> ВЕДЁТСЯ В [`docs/_TODO/SAAS_FOUNDATION/01_MASTER_PLAN.md`](../../../_TODO/SAAS_FOUNDATION/01_MASTER_PLAN.md) §Phase 0 — stage spine — «F0.1 Drizzle schema + migration `be_organization_members`». Архивная запись, работой не является.
+
 # Phased brief — SAAS_FOUNDATION
 
 > ⚠️ **НЕ АКТУАЛЬНО (2026-06-17, SKELETON).** Список F0.x-стадий (ниже) заменён P0.x micro-stage spine в

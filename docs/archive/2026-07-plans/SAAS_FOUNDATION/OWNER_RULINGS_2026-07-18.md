@@ -1,3 +1,5 @@
+> ВЕДЁТСЯ В [`docs/_TODO/SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md`](../../../_TODO/SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md) §Часть I — «Глобальные продуктовые решения». Архивная запись, работой не является.
+
 # УСТАРЕЛ / SUPERSEDED — Owner rulings 2026-07-18
 
 Все решения владельца из этой сессии, включая тарифы, trial, оплату платформы, библиотеку/магазин упражнений,

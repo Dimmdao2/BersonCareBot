@@ -1,3 +1,5 @@
+> ВЕДЁТСЯ В [`docs/_TODO/SAAS_FOUNDATION/SAAS_ENFORCE_ROADMAP.md`](../../../_TODO/SAAS_FOUNDATION/SAAS_ENFORCE_ROADMAP.md) §0. FINAL RESULT — «R2 — TEST enforced product parity plus isolation». Архивная запись, работой не является.
+
 # ЗАДАЧА для Sol (Codex) — многотенантность: ОБЕ стены (клиника + пациент), запертые метки
 
 > ⚠️ **НЕ АКТУАЛЬНО (2026-07-12).** «Фаза 4 — Выкат» и «Prod cutover» в этом файле построены на пути,

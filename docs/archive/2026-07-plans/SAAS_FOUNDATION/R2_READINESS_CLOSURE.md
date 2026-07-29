@@ -1,3 +1,5 @@
+> ВЕДЁТСЯ В [`docs/_TODO/SAAS_FOUNDATION/SAAS_ENFORCE_ROADMAP.md`](../../../_TODO/SAAS_FOUNDATION/SAAS_ENFORCE_ROADMAP.md) §0. FINAL RESULT — «R2 — TEST enforced product parity plus isolation». Архивная запись, работой не является.
+
 # R2 readiness closure
 
 > ⚠️ **НЕ АКТУАЛЬНО (2026-07-10).** Снимок готовности к pre-pivot "R2 tenant-context cutover" (до owner-пивота
