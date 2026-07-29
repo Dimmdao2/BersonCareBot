@@ -710,7 +710,6 @@ export type SubscriptionMailingReadsPort = {
 
 // --- PLAN S13: web_push subscription + VAPID access (Model β) ---
 
-// eslint-disable-next-line no-secrets/no-secrets -- type name in JSDoc, not a secret
 /**
  * A single active web-push subscription as returned by the webapp.
  * Mirrors `WebPushSubscriptionPayloadV1` from `apps/webapp/src/modules/web-push/ports.ts`.
@@ -736,7 +735,6 @@ export type VapidCredentials = {
   subject: string;
 };
 
-// eslint-disable-next-line no-secrets/no-secrets -- class name in JSDoc, not a secret
 /**
  * Port for the integrator to read active web-push subscriptions and VAPID credentials
  * for a user at send time (PLAN S13 Model β — integrator M2M-reads webapp).
@@ -760,7 +758,6 @@ export type WebPushAccessPort = {
    */
   getVapidCredentials(organizationId: string): Promise<VapidCredentials | null>;
 
-  // eslint-disable-next-line no-secrets/no-secrets -- method path in JSDoc, not a secret
   /**
    * Remove a dead subscription by endpoint after a 410/404 from the push provider.
    * Mirrors webapp's `WebPushSubscriptionsPort.deleteByEndpointIfExists`.

@@ -14,7 +14,6 @@ export function buildDrawtextWatermarkSuffix(params: WatermarkDrawtextParams): s
   const tf = posixSlash(params.textFilePosix);
   const ff = posixSlash(params.fontfilePosix);
   // ffmpeg drawtext filter grammar — high symbol entropy triggers false positive in secret scanners
-  /* eslint-disable-next-line no-secrets/no-secrets -- ffmpeg filter syntax */
   return `,drawtext=fontfile=${ff}:textfile=${tf}:fontsize=16:fontcolor=white@0.5:box=1:boxcolor=black@0.45:boxborderw=4:x=w-tw-12:y=h-th-12`;
 }
 

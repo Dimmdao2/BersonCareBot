@@ -10,7 +10,6 @@ import { getCurrentOrganizationPrincipalId } from '../../principal/organizationP
 
 const BIGINT_STRING = /^\d+$/;
 
-// eslint-disable-next-line no-secrets/no-secrets -- JSDoc identifier, not a secret
 /**
  * T0.4: re-parenting a SCOPED row to `integratorUserId` (the merge winner) must re-derive
  * `organization_id` from the NEW owner — never leave the loser's stale org on the moved row

@@ -156,7 +156,6 @@ export type TelegramWebhookDeps = {
     externalId: string,
     resource: 'telegram' | 'max',
   ) => Promise<string | null>;
-  // eslint-disable-next-line no-secrets/no-secrets -- JSDoc identifier, not a secret
   /**
    * T0.4 channel-binding fallback: resolves the deployment's single organization when the
    * messenger identity has no per-user org context yet (first-contact, not yet enrolled). The

@@ -1,4 +1,3 @@
-// eslint-disable-next-line no-secrets/no-secrets -- method names in JSDoc, not secrets
 /**
  * Web-Push DeliveryAdapter — wires the integrator web-push sink into the dispatchPort
  * pipeline (PLAN S14).
@@ -77,7 +76,6 @@ export function createWebPushDeliveryAdapter(deps: {
       }
       const organizationId = getCurrentOrganizationPrincipalId();
       if (!organizationId) {
-        // eslint-disable-next-line no-secrets/no-secrets -- stable runtime error code, not a credential
         throw new Error('WEB_PUSH_ORGANIZATION_PRINCIPAL_REQUIRED');
       }
 

@@ -8,7 +8,6 @@ import {
 describe('executeJob', () => {
   it('converts a non-ok webapp M2M response into a retryable executor error', () => {
     expect(() => assertWebappPushNotifyAccepted({ ok: false, status: 500 }))
-      // eslint-disable-next-line no-secrets/no-secrets -- closed internal error code, not credential material
       .toThrow('WEBAPP_PUSH_NOTIFY_FAILED:500');
     expect(() => assertWebappPushNotifyAccepted({ ok: true, status: 200 })).not.toThrow();
   });

@@ -84,7 +84,6 @@ describe('runWorkerTick', () => {
       rescheduleJob,
       logAttempt: vi.fn().mockResolvedValue(undefined),
       dispatchOutgoing: vi.fn().mockResolvedValue({}),
-      // eslint-disable-next-line no-secrets/no-secrets -- closed internal error code, not credential material
       dispatchWebappPush: vi.fn().mockRejectedValue(new Error('WEBAPP_PUSH_NOTIFY_FAILED:500')),
       nowIso: () => '2026-03-05T12:00:00.000Z',
       retryDelaySeconds: 60,

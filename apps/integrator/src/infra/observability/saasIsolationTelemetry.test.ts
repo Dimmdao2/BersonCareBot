@@ -87,7 +87,6 @@ describe('SaaS isolation telemetry transport', () => {
       [
         'SELECT app.report_saas_isolation_event($1, $2, $3, $4)',
         [
-          // eslint-disable-next-line no-secrets/no-secrets -- closed telemetry enum, not credential material
           'unclassified_background_operation',
           'worker',
           'worker_queue_drain',

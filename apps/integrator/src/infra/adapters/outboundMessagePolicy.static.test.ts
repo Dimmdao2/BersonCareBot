@@ -73,7 +73,6 @@ describe('outbound egress source boundary', () => {
         'integrations/bersoncare/new-product-send.ts',
         "import { sendMail } from '../email/mailer.js';\nsendMail({});",
       ),
-    // eslint-disable-next-line no-secrets/no-secrets -- closed static-checker error token, not a credential
     ).toThrow('DIRECT_PROVIDER_BYPASS:integrations/bersoncare/new-product-send.ts');
   });
 

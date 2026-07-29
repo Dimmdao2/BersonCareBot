@@ -102,7 +102,6 @@ export const deliveryAttemptLogs = pgTable(
       .notNull(),
   },
   (table) => [
-    /* eslint-disable no-secrets/no-secrets -- canonical index names from webapp schema */
     index('idx_delivery_attempt_logs_channel_occurred').using(
       'btree',
       table.channel.asc().nullsLast().op('text_ops'),
@@ -121,6 +120,5 @@ export const deliveryAttemptLogs = pgTable(
       'delivery_attempt_logs_status_check',
       sql`status = ANY (ARRAY['success'::text, 'failed'::text])`,
     ),
-    /* eslint-enable no-secrets/no-secrets */
   ],
 );

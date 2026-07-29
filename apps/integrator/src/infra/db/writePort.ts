@@ -774,7 +774,6 @@ export function createDbWritePort(
             await recordOperatorFailureIncident({
               direction: 'db_write',
               integration: 'support_conversations',
-              // eslint-disable-next-line no-secrets/no-secrets -- low-cardinality errorClass identifier, not a secret
               errorClass: 'conversation_message_add_direct_write_fallback',
               errorDetail: reason,
             }).catch((incidentErr: unknown) => {
@@ -1012,7 +1011,6 @@ export function createDbWritePort(
             await recordOperatorFailureIncident({
               direction: 'db_write',
               integration: 'support_questions',
-              // eslint-disable-next-line no-secrets/no-secrets -- low-cardinality errorClass identifier, not a secret
               errorClass: 'question_message_add_direct_write_fallback',
               errorDetail: reason,
             }).catch((incidentErr: unknown) => {
@@ -1068,7 +1066,6 @@ export function createDbWritePort(
             await recordOperatorFailureIncident({
               direction: 'db_write',
               integration: 'support_questions',
-              // eslint-disable-next-line no-secrets/no-secrets -- low-cardinality errorClass identifier, not a secret
               errorClass: 'question_mark_answered_direct_write_fallback',
               errorDetail: reason,
             }).catch((incidentErr: unknown) => {

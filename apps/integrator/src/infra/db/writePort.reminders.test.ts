@@ -1,4 +1,3 @@
-/* eslint-disable no-secrets/no-secrets -- function-name identifier in a code comment, not a secret */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DbPort } from '../../kernel/contracts/index.js';
 import {

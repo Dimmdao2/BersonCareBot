@@ -66,7 +66,6 @@ export async function probeVideoDurationSeconds(
         '-show_entries',
         'format=duration',
         '-of',
-        /* eslint-disable-next-line no-secrets/no-secrets -- ffprobe output format flag */
         'default=noprint_wrappers=1:nokey=1',
         inputPath,
       ],

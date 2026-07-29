@@ -345,7 +345,6 @@ async function finalizeOutgoingDeliveryDead(
         if (isMissingReminderOccurrenceFk(err)) {
           logger.warn(
             { occurrenceId, rowId: row.id, eventId: row.eventId },
-            // eslint-disable-next-line no-secrets/no-secrets -- structured log event name, not a credential
             'finalize_delivery_dead_skip_missing_occurrence_fk',
           );
           return;
@@ -454,7 +453,6 @@ async function finalizeRecipientBlockedBotDelivery(
       if (!occStatus) {
         logger.warn(
           { occurrenceId, rowId: row.id, eventId: row.eventId },
-          // eslint-disable-next-line no-secrets/no-secrets -- structured log event name, not a credential
           'finalize_delivery_blocked_skip_missing_occurrence',
         );
         return;
@@ -481,7 +479,6 @@ async function finalizeRecipientBlockedBotDelivery(
         if (isMissingReminderOccurrenceFk(err)) {
           logger.warn(
             { occurrenceId, rowId: row.id, eventId: row.eventId },
-            // eslint-disable-next-line no-secrets/no-secrets -- structured log event name, not a credential
             'finalize_delivery_blocked_skip_missing_occurrence_fk',
           );
           return;
@@ -811,7 +808,6 @@ async function processClaimedOutgoingDeliveryRowInner(
     await queueMarkDead(deps.db, row.id, 'TENANT_SCOPE_QUEUE_KIND_MISMATCH');
     logger.error(
       { rowId: row.id, eventId: row.eventId, claimedKind: row.kind, resolvedKind: scope.queueKind },
-      // eslint-disable-next-line no-secrets/no-secrets -- stable event name, not a credential
       'outgoing_delivery_scope_quarantined',
     );
     return;
@@ -821,7 +817,6 @@ async function processClaimedOutgoingDeliveryRowInner(
     await queueMarkDead(deps.db, row.id, reason);
     logger.error(
       { rowId: row.id, eventId: row.eventId, queueKind: row.kind, reason: scope.reason },
-      // eslint-disable-next-line no-secrets/no-secrets -- stable event name, not a credential
       'outgoing_delivery_scope_quarantined',
     );
     return;

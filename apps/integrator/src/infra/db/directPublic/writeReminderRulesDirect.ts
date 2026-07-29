@@ -1,4 +1,3 @@
-/* eslint-disable no-secrets/no-secrets -- table tags, failure-code identifiers, not secrets */
 /**
  * Track D — D5: reminder rules direct-public write (identity/org-resolution precedent: D1's
  * `writeIdentityAndPreferencesDirect.ts` candidate resolver, D2's `writeDiaryLfkDirect.ts` exact-org

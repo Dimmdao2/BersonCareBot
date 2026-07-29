@@ -1,4 +1,3 @@
-/* eslint-disable no-secrets/no-secrets -- test suite and accessor identifiers are not credentials */
 import { describe, expect, it, vi } from 'vitest';
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import { listSchedulerReminderOrganizationIds } from './schedulerReminderOrganizations.js';

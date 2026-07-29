@@ -1,4 +1,3 @@
-/* eslint-disable no-secrets/no-secrets -- test suite identifiers are not credentials */
 import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import { describe, expect, it, vi } from 'vitest';
 import type { EventGateway, IncomingEvent } from '../../../kernel/contracts/index.js';

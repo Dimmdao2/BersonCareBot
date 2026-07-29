@@ -1,4 +1,3 @@
-/* eslint-disable no-secrets/no-secrets -- SQL fragments and error-code identifiers, not secrets */
 /**
  * Opt-in REAL-Postgres RLS proof for the D5 direct write, added after an independent audit found (and
  * this fix addresses) a live defect: `upsertReminderRuleDirect` was RLS-DENIED under the real

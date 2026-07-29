@@ -109,7 +109,6 @@ describe('POST /api/integrator/settings/sync', () => {
   });
 
   it('invalidates app display timezone cache when key is app_display_timezone', async () => {
-    // eslint-disable-next-line no-secrets/no-secrets -- method name for vi.spyOn
     const invalidateSpy = vi.spyOn(appTimezone, 'invalidateAppDisplayTimezoneCache');
     const query = vi.fn().mockResolvedValue({ rows: [] });
     const app = Fastify();
@@ -139,7 +138,6 @@ describe('POST /api/integrator/settings/sync', () => {
   it('invalidates messenger staff ids cache when doctor_telegram_ids syncs', async () => {
     const invalidateSpy = vi.spyOn(
       messengerStaffIds,
-      // eslint-disable-next-line no-secrets/no-secrets -- method name for vi.spyOn
       'invalidateMessengerStaffIdsCacheForSettingKey',
     );
     const query = vi.fn().mockResolvedValue({ rows: [] });

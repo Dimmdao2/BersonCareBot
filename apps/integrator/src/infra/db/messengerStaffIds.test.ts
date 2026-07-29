@@ -1,4 +1,3 @@
-/* eslint-disable no-secrets/no-secrets -- test titles reference exported symbol names */
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import {
   clearMessengerStaffIdsCache,

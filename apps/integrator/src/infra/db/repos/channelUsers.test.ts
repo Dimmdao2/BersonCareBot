@@ -442,7 +442,6 @@ describe('channelUsers repo (identity/contact/state split)', () => {
     const row = await getLinkDataByIdentity(db, 'telegram', '555');
     expect(row?.phoneNormalized).toBe('+79991112233');
     const sqlText = flatExec(execute, 0);
-    // eslint-disable-next-line no-secrets/no-secrets -- asserts SQL shape, not a secret
     expect(sqlText).toContain('NULLIF(TRIM(pub.phone_normalized');
     expect(sqlText).toContain('legacy_contact_phone');
   });

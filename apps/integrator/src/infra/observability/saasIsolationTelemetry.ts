@@ -33,7 +33,6 @@ export async function probeSaasIsolationTelemetryWriter(
       try {
         await client.query('BEGIN');
         await client.query('SELECT app.report_saas_isolation_event($1, $2, $3, $4)', [
-          // eslint-disable-next-line no-secrets/no-secrets -- closed telemetry enum, not credential material
           'unclassified_background_operation',
           source.service,
           source.operation,

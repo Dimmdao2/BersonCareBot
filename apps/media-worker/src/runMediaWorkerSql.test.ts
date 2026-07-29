@@ -5,7 +5,6 @@ import { mediaWorkerSqlFromPgText, runMediaWorkerPgText } from './runMediaWorker
 
 const pgDialect = new PgDialect();
 
-// eslint-disable-next-line no-secrets/no-secrets -- test title, not credential material
 describe('mediaWorkerSqlFromPgText', () => {
   it('keeps array as single parameter for PG array casts', () => {
     const fragment = mediaWorkerSqlFromPgText('SELECT 1 WHERE status = ANY($1::text[])', [

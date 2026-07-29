@@ -133,7 +133,6 @@ export async function resolveDeploymentSingleActiveOrganizationId(
     );
     return singleOrganizationId(res.rows);
   } catch (err) {
-    // eslint-disable-next-line no-secrets/no-secrets -- log-message identifier, not a secret
     logger.error({ err }, 'resolveDeploymentSingleActiveOrganizationId error');
     return null;
   }

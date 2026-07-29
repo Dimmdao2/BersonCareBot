@@ -1,4 +1,3 @@
-/* eslint-disable no-secrets/no-secrets -- imports reference long exported symbol names, not secrets */
 import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import { describe, expect, it, vi } from 'vitest';
 import {

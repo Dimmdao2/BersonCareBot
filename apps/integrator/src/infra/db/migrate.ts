@@ -308,7 +308,6 @@ export function applyBeforeDateBound(
   return { eligible, deferred };
 }
 
-// eslint-disable-next-line no-secrets/no-secrets
 // 'telegram:20260306_0004_add_notification_settings.sql' — версия миграции, не секрет
 
 async function applyMigration(

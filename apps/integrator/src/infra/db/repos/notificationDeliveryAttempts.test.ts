@@ -1,4 +1,3 @@
-/* eslint-disable no-secrets/no-secrets -- test titles reference exported symbol names */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { drizzleSqlFragmentToApproximateSql } from '../drizzleSqlDebugText.js';
 import { runIntegratorSql } from '../runIntegratorSql.js';

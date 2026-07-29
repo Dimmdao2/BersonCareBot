@@ -49,7 +49,6 @@ export type BersoncareUserMergeM2mDeps = {
   sharedSecret: string;
   /** Per-user org context for the merge winner (same lookup as other M2M/webhook entrypoints). */
   resolveOrganizationIdForIntegratorUserId?: (integratorUserId: string) => Promise<string | null>;
-  // eslint-disable-next-line no-secrets/no-secrets -- JSDoc identifier, not a secret
   /**
    * T0.4 channel-binding fallback: the deployment's single organization, used when the winner has
    * no per-user org context yet (e.g. 0 or >1 active orgs). Same fallback as webhooks/request-contact

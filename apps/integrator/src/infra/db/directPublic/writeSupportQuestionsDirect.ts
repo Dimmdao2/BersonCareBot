@@ -1,4 +1,3 @@
-/* eslint-disable no-secrets/no-secrets -- table tags, failure-code identifiers, not secrets */
 /**
  * Track D — D4: support questions + delivery-attempt audit direct-public writes (precedent: D3's
  * `writeSupportConversationsDirect.ts`, itself building on D1/D2's candidate/org resolution).

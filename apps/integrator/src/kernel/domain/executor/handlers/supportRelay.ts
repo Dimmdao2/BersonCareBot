@@ -388,7 +388,6 @@ export async function handleConversationAdminReply(
       return {
         actionId: action.id,
         status: 'skipped',
-        // eslint-disable-next-line no-secrets/no-secrets -- stable executor error code, not a credential
         error: 'CONVERSATION_ADMIN_REPLY_WEBAPP_TEXT_ONLY',
       };
     }

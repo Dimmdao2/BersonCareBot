@@ -90,7 +90,6 @@ export type MessengerWebappEntryIdentityDeps = {
     externalId: string,
     resource: 'telegram' | 'max',
   ) => Promise<string | null>;
-  // eslint-disable-next-line no-secrets/no-secrets -- JSDoc identifier, not a secret
   /**
    * T0.4 channel-binding fallback: deployment's single organization, used when the messenger
    * identity has no per-user org context yet (first contact / not yet enrolled). See
@@ -150,7 +149,6 @@ export type AppDeps = {
   registerTelegramWebhookRoutes?: TelegramRoutesRegistrar;
   registerMaxWebhookRoutes?: MaxRoutesRegistrar;
   webappEventsPort: WebappEventsPort;
-  // eslint-disable-next-line no-secrets/no-secrets -- JSDoc identifier, not a secret
   /**
    * Read port for web-push subscriptions + VAPID (PLAN S13 Model β).
    * Used by `WebPushDeliveryAdapter` (S14a) to fetch subscriptions + VAPID at send time

@@ -1,4 +1,3 @@
-/* eslint-disable no-secrets/no-secrets -- table tags, failure-code identifiers, not secrets */
 /**
  * Track D — D3: support conversations + messages direct-public writes (identity/preferences precedent:
  * D1's `writeIdentityAndPreferencesDirect.ts`; diary/LFK precedent: D2's `writeDiaryLfkDirect.ts`).

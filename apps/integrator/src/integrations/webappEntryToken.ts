@@ -34,7 +34,6 @@ function sign(value: string, secret: string): string {
   return createHmac('sha256', secret).update(value).digest('base64url');
 }
 
-// eslint-disable-next-line no-secrets/no-secrets -- file/function names in JSDoc, not secrets
 /**
  * C-4 (docs/ARCHITECTURE/ADMIN_ACCESS_MODEL.md): this token's `role` is the only input to
  * `INSERT INTO platform_users(..., role)` for a channel binding that does not resolve to an

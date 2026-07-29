@@ -9,7 +9,6 @@ describe('deliveryContract', () => {
   it('dispatch retry policy: configuration errors are permanent', () => {
     expect(isOutgoingDeliveryDispatchErrorRetryable('CHANNEL_NOT_SPECIFIED')).toBe(false);
     expect(isOutgoingDeliveryDispatchErrorRetryable('CHANNEL_NOT_SUPPORTED:max')).toBe(false);
-    // eslint-disable-next-line no-secrets/no-secrets -- deterministic error contract, not a credential
     expect(isOutgoingDeliveryDispatchErrorRetryable('PLATFORM_INTEGRATION_DISABLED:max')).toBe(
       false,
     );

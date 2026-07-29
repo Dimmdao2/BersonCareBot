@@ -1,4 +1,3 @@
-/* eslint-disable no-secrets/no-secrets -- table tags, failure-code identifiers and JSDoc symbol names, not secrets */
 /**
  * Track D — D1 SCAFFOLD (NOT wired into the live write path yet).
  *

@@ -1,4 +1,3 @@
-/* eslint-disable no-secrets/no-secrets -- error class names / SQL identifiers, not secrets */
 /**
  * A3 — real `mergeCandidateIds` hook for the D1 direct-public writers, wired to
  * `mergePlatformUsersInTransaction` from `@bersoncare/platform-merge` (the SAME package the integrator

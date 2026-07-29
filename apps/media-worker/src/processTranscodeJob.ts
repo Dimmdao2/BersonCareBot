@@ -308,7 +308,6 @@ async function processTranscodeJobInner(ctx: TranscodeContext, job: ClaimedJob):
         ctx,
         job.id,
         job.mediaId,
-        // eslint-disable-next-line no-secrets/no-secrets -- ops error token, not a secret
         'watermark_enabled_but_no_truetype_font_install_dejavu_or_set_MEDIA_WORKER_WATERMARK_FONT',
       );
       return;

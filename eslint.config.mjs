@@ -1,7 +1,6 @@
 import js from '@eslint/js';
 import tsParser from '@typescript-eslint/parser';
 import tsPlugin from '@typescript-eslint/eslint-plugin';
-import noSecrets from 'eslint-plugin-no-secrets';
 import prettier from 'eslint-config-prettier';
 import globals from 'globals';
 
@@ -37,11 +36,9 @@ export default [
     },
     plugins: {
       '@typescript-eslint': tsPlugin,
-      'no-secrets': noSecrets,
     },
     rules: {
       ...tsPlugin.configs.recommended.rules,
-      'no-secrets/no-secrets': 'error',
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     },

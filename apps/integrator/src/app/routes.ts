@@ -91,7 +91,6 @@ function createResolveOrganizationIdForIntegratorUserId(): (
   };
 }
 
-// eslint-disable-next-line no-secrets/no-secrets -- JSDoc identifier, not a secret
 /**
  * T0.4 channel-binding fallback: the deployment's single organization, used when a messenger
  * identity has no per-user org context yet (first contact, not yet enrolled). See

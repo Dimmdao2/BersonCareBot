@@ -372,7 +372,6 @@ describe('writePort communication projection events', () => {
     expect(openOrTouchOperatorIncidentMock.mock.calls[0]![0]).toMatchObject({
       direction: 'db_write',
       integration: 'support_conversations',
-      // eslint-disable-next-line no-secrets/no-secrets -- low-cardinality errorClass identifier, not a secret
       errorClass: 'conversation_message_add_direct_write_fallback',
       errorDetail: 'conversation_not_found',
     });
@@ -674,7 +673,6 @@ describe('writePort communication projection events', () => {
     expect(openOrTouchOperatorIncidentMock.mock.calls[0]![0]).toMatchObject({
       direction: 'db_write',
       integration: 'support_questions',
-      // eslint-disable-next-line no-secrets/no-secrets -- low-cardinality errorClass identifier, not a secret
       errorClass: 'question_message_add_direct_write_fallback',
       errorDetail: 'question_not_found',
     });
@@ -706,7 +704,6 @@ describe('writePort communication projection events', () => {
     expect(openOrTouchOperatorIncidentMock.mock.calls[0]![0]).toMatchObject({
       direction: 'db_write',
       integration: 'support_questions',
-      // eslint-disable-next-line no-secrets/no-secrets -- low-cardinality errorClass identifier, not a secret
       errorClass: 'question_mark_answered_direct_write_fallback',
       errorDetail: 'question_not_found',
     });

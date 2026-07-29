@@ -28,7 +28,6 @@ function decodeTokenPayload(token: string): Record<string, unknown> {
   return JSON.parse(json) as Record<string, unknown>;
 }
 
-// eslint-disable-next-line no-secrets/no-secrets -- function name in a describe label, not a secret
 describe('buildWebappEntryTokenFromSource — role never comes from an admin id pin (C-4)', () => {
   it('telegram chat id equal to TELEGRAM_ADMIN_ID no longer stamps role admin', () => {
     const token = buildWebappEntryTokenFromSource(

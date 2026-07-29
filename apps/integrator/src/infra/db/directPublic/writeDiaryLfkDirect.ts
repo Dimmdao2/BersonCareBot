@@ -1,4 +1,3 @@
-/* eslint-disable no-secrets/no-secrets -- table tags, failure-code identifiers, not secrets */
 /**
  * Track D — D2: symptom diary + LFK direct-public writes (identity/preferences precedent: D1's
  * `writeIdentityAndPreferencesDirect.ts`, decision doc

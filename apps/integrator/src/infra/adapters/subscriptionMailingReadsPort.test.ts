@@ -1,4 +1,3 @@
-/* eslint-disable no-secrets/no-secrets -- test names reference port method names */
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('../../config/env.js', () => ({

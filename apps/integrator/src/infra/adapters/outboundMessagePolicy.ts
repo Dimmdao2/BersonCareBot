@@ -17,7 +17,6 @@ export class OutboundMessagePolicyError extends Error {
 
   constructor(readonly reason: OutboundPolicyDenialReason) {
     super(OUTBOUND_MESSAGE_POLICY_DENIED);
-    // eslint-disable-next-line no-secrets/no-secrets -- error class name, not a credential
     this.name = 'OutboundMessagePolicyError';
   }
 }

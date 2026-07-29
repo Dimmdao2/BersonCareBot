@@ -17,7 +17,6 @@ describe('extractMigrationDate', () => {
   it('parses the leading YYYYMMDD date from the filename', () => {
     expect(
       extractMigrationDate(
-        // eslint-disable-next-line no-secrets/no-secrets -- migration filename, not a secret
         migration('core', '20260708_0001_p0_4_i1_integrator_direct_user_org.sql'),
       ),
     ).toBe(20260708);
@@ -29,11 +28,8 @@ describe('extractMigrationDate', () => {
 });
 
 describe('applyBeforeDateBound', () => {
-  // eslint-disable-next-line no-secrets/no-secrets -- migration filename, not a secret
   const base = migration('core', '20260515_0001_admin_incident_alert_config.sql');
-  // eslint-disable-next-line no-secrets/no-secrets -- migration filename, not a secret
   const saas1 = migration('core', '20260708_0001_p0_4_i1_integrator_direct_user_org.sql');
-  // eslint-disable-next-line no-secrets/no-secrets -- migration filename, not a secret
   const saas2 = migration('core', '20260710_0001_r2_integrator_scoped_org_not_null.sql');
   const all = [base, saas1, saas2];
 
@@ -56,7 +52,6 @@ describe('applyBeforeDateBound', () => {
   });
 
   it('the 20260707 I0 org-column pre-declare sorts into phase 1 (< 20260708 bound)', () => {
-    // eslint-disable-next-line no-secrets/no-secrets -- migration filename, not a secret
     const i0 = migration('core', '20260707_0001_p0_4_i0_integrator_org_columns_predeclare.sql');
     expect(extractMigrationDate(i0)).toBe(20260707);
     const { eligible, deferred } = applyBeforeDateBound([i0, saas1], '20260708');

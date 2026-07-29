@@ -1,4 +1,3 @@
-/* eslint-disable no-secrets/no-secrets -- test titles and mock keys reference exported symbols, not secrets */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resolveOpenOperatorIncidentsByDedupKeyPrefix } from './operatorHealthDrizzle.js';
 
