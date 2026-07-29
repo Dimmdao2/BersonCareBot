@@ -19,7 +19,7 @@ const sessionFactory = Factory.define<AppSession>(({ sequence }) => ({
   user: {
     userId: `00000000-0000-4000-8000-${String(sequence).padStart(12, '0')}`,
     role: 'client',
-    displayName: `Contract user ${sequence}`,
+    displayName: `Unit test user ${sequence}`,
     bindings: {},
     sessionEpoch: 1,
   },
@@ -47,7 +47,7 @@ const activeSessionArbitrary = fc
     }),
   );
 
-describe('session cookie contract', () => {
+describe('session cookie unit behavior', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(clock.now());

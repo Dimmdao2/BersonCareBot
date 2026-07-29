@@ -51,7 +51,7 @@ describe('app-layer testing foundation', () => {
     expect(() => fc.sample(nonEmptyString, 1)).toThrow(IncompatibleArbitraryError);
   });
 
-  it('keeps a deterministic clock local to the contract', () => {
+  it('keeps a deterministic clock local to the unit test', () => {
     const clock = fixedClock(Date.UTC(2026, 6, 30, 12));
 
     expect(clock.now().toISOString()).toBe('2026-07-30T12:00:00.000Z');
