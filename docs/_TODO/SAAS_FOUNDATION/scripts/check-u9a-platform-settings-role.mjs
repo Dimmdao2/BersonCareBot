@@ -59,7 +59,10 @@ const whitelistedKeys = [...(whitelistMatch?.[1] ?? '').matchAll(/'([a-z0-9_:]+)
 const apiWhitelistMatch = /PLATFORM_GLOBAL_SETTINGS_API_KEYS\s*=\s*\[([\s\S]*?)\]\s*as const/.exec(
   platformSettingsRoute,
 );
-const platformApiKeys = [...(apiWhitelistMatch?.[1] ?? '').matchAll(/"([a-z0-9_]+)"/g)].map(
+// Кавычки не предмет этой проверки: гейт про СОСТАВ списка ключей, а не про стиль записи.
+// Жёсткие двойные кавычки ломали его от одного прогона форматтера — список получался пустым,
+// и гейт сообщал о расхождении там, где ничего не расходилось (29.07, ревизия тестов).
+const platformApiKeys = [...(apiWhitelistMatch?.[1] ?? '').matchAll(/['"]([a-z0-9_]+)['"]/g)].map(
   (match) => match[1],
 );
 const expectedKeys = [
