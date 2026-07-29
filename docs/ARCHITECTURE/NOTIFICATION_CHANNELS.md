@@ -67,7 +67,7 @@ notifications должны перейти на app push, а Telegram/MAX — о�
 ## Связанные документы
 
 - **SUPERSEDED AS AUTHORITY — 2026-07-27:** archived ADR below is historical, not authority; актуальную точку входа см. в [`CURRENT_AUTHORITY_MAP.md`](../CURRENT_AUTHORITY_MAP.md).
-- Staff PWA и install: [`DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE/STAFF_PWA_ADR.md`](../_ARCHIVE/DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE/STAFF_PWA_ADR.md)
+- Staff PWA и install: [`DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE/STAFF_PWA_ADR.md`](../archive/legacy-underscore/DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE/STAFF_PWA_ADR.md)
 - Program note → врачу: [`DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md`](DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md)
 - Support chat M2M: [`INTEGRATOR_CONTRACT.md`](../../apps/webapp/INTEGRATOR_CONTRACT.md) §Support chat
 - API: [`apps/webapp/src/app/api/api.md`](../../apps/webapp/src/app/api/api.md) — `doctor/web-push/*`, `patient/web-push/*`
