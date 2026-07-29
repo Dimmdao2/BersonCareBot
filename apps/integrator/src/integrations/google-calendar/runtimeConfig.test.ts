@@ -22,10 +22,8 @@ vi.mock('../../infra/observability/logger.js', () => ({
 
 import {
   getGoogleCalendarConfig,
-  invalidateGoogleCalendarConfigCache,
   listGoogleCalendarProbeOrganizationIds,
 } from './runtimeConfig.js';
-import { invalidatePlatformIntegrationAvailabilityCache } from '../../infra/db/platformIntegrationAvailability.js';
 
 const ORGANIZATION_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
@@ -39,8 +37,6 @@ function emptyResult() {
 
 describe('getGoogleCalendarConfig', () => {
   beforeEach(() => {
-    invalidateGoogleCalendarConfigCache();
-    invalidatePlatformIntegrationAvailabilityCache();
     queryMock.mockReset();
   });
 
@@ -184,19 +180,10 @@ describe('getGoogleCalendarConfig', () => {
     ]);
   });
 
-  it('caches result and reuses without DB query', async () => {
+  it('re-reads clinic config on every call', async () => {
     queryMock.mockResolvedValue(emptyResult());
     await getGoogleCalendarConfig(ORGANIZATION_ID);
     const callCount = queryMock.mock.calls.length;
-    await getGoogleCalendarConfig(ORGANIZATION_ID);
-    expect(queryMock.mock.calls.length).toBe(callCount);
-  });
-
-  it('invalidateGoogleCalendarConfigCache forces re-read', async () => {
-    queryMock.mockResolvedValue(emptyResult());
-    await getGoogleCalendarConfig(ORGANIZATION_ID);
-    const callCount = queryMock.mock.calls.length;
-    invalidateGoogleCalendarConfigCache();
     await getGoogleCalendarConfig(ORGANIZATION_ID);
     expect(queryMock.mock.calls.length).toBeGreaterThan(callCount);
   });

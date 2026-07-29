@@ -7,38 +7,27 @@
  *   platformUserReminderWebPushNotify.ts
  *
  * Single source of truth: derive the VAPID contact subject from the system SMTP `from` address.
- * Falls back to the DB-backed HTTPS `app_base_url` when SMTP is not configured.
+ * Falls back to the deployment HTTPS `APP_BASE_URL` when SMTP is not configured.
  *
  * MUST be imported from here; do NOT re-derive inline (owner rule: single chokepoint, no dup).
  */
 
 import type { SystemSettingsService } from '@/modules/system-settings/service';
 import { smtpInnerFromValueJson } from '@/modules/system-settings/smtpOutboundPatch';
+import { env } from '@/config/env';
 
 /**
  * Derives the VAPID subject string from `smtp_outbound.from` system setting.
  * Returns `"mailto:<from>"` when SMTP is configured with a valid email address,
- * otherwise the origin of the DB-backed HTTPS `app_base_url`. Missing/invalid
+ * otherwise the origin of deployment `APP_BASE_URL`. Missing/invalid
  * contact configuration fails closed instead of sending a provider-rejected JWT.
  */
 export async function deriveVapidSubject(
   systemSettings: Pick<SystemSettingsService, 'getSetting'>,
 ): Promise<string | null> {
-  const [smtp, appBaseUrl] = await Promise.all([
-    systemSettings.getSetting('smtp_outbound', 'admin'),
-    systemSettings.getSetting('app_base_url', 'admin'),
-  ]);
+  const smtp = await systemSettings.getSetting('smtp_outbound', 'admin');
   const smtpParsed = smtp?.valueJson ? smtpInnerFromValueJson(smtp.valueJson) : null;
-  const appBaseUrlValue =
-    appBaseUrl?.valueJson &&
-    typeof appBaseUrl.valueJson === 'object' &&
-    'value' in appBaseUrl.valueJson
-      ? (appBaseUrl.valueJson as { value: unknown }).value
-      : null;
-  return vapidSubjectFromSmtpParsed(
-    smtpParsed,
-    typeof appBaseUrlValue === 'string' ? appBaseUrlValue : null,
-  );
+  return vapidSubjectFromSmtpParsed(smtpParsed, env.APP_BASE_URL);
 }
 
 /**

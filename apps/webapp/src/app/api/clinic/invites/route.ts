@@ -7,7 +7,6 @@ import {
 } from '@/app-layer/guards/requireEntitlement';
 import { requireClinicManagementApiContext } from '@/app-layer/guards/requireRole';
 import { sendEmailSetupLinkViaIntegrator } from '@/infra/integrations/email/integratorEmailAdapter';
-import { getAppBaseUrl } from '@/modules/system-settings/integrationRuntime';
 import { jsonError, jsonOk } from '@/shared/http/apiResponse';
 
 const bodySchema = z.object({
@@ -71,7 +70,7 @@ export async function POST(request: Request) {
   // production process: production must require successful delivery and must not return the token.
   const mayExposeInviteUrl = env.NODE_ENV !== 'production';
 
-  const baseUrl = await getAppBaseUrl();
+  const baseUrl = env.APP_BASE_URL;
   const inviteUrl = buildInviteUrl(baseUrl, token);
   const emailResult = await sendEmailSetupLinkViaIntegrator(
     result.invite.invitedEmail,

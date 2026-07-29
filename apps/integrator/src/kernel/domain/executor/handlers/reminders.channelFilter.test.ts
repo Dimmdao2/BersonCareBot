@@ -38,11 +38,6 @@ vi.mock('../../../../config/appTimezone.js', () => ({
   getAppDisplayTimezone: vi.fn(async () => 'Europe/Moscow'),
 }));
 
-vi.mock('../../../../config/appBaseUrl.js', () => ({
-  getAppBaseUrl: vi.fn(async () => 'https://app.example'),
-  getAppBaseUrlSync: vi.fn(() => 'https://app.example'),
-}));
-
 vi.mock('../../../../integrations/max/maxRecipient.js', () => ({
   maxBindingRecipient: vi.fn((externalId: string, chatId: number) => ({ externalId, chatId })),
 }));

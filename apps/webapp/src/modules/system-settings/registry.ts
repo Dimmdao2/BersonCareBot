@@ -136,7 +136,6 @@ export const SYSTEM_SETTING_REGISTRY = {
   important_fallback_delay_minutes: runtime('admin', 'global', 'server', 'integer', 'absent'),
   integration_test_ids: restricted('admin', 'global', 'string_list', '[]'),
   test_account_identifiers: restricted('admin', 'global', 'structured', 'absent'),
-  app_base_url: runtime('admin', 'global', 'server', 'url', 'env fallback'),
   support_contact_url: runtime('admin', 'global', 'public', 'url', ''),
   telegram_login_bot_username: runtime('admin', 'global', 'public', 'string', ''),
   max_login_bot_nickname: runtime('admin', 'global', 'public', 'string', ''),

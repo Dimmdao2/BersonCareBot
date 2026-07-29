@@ -13,6 +13,7 @@ const parsed = z
     LOG_LEVEL: z.string().default('info'),
 
     DATABASE_URL: z.string().min(1),
+    APP_BASE_URL: z.string().url(),
     DATABASE_URL_DIAGNOSTIC: z.string().optional().default(''),
     DATABASE_URL_DELIVERY_WORKER: z.string().optional().default(''),
     DATABASE_URL_SCHEDULER: z.string().optional().default(''),

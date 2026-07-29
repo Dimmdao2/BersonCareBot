@@ -1,7 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { DbPort, DbQueryResult } from '../../kernel/contracts/index.js';
 import {
-  invalidatePlatformIntegrationAvailabilityCache,
   isPlatformIntegrationAvailable,
   parsePlatformIntegrationAvailability,
 } from './platformIntegrationAvailability.js';
@@ -26,17 +25,13 @@ const persistedValue = {
 };
 
 describe('platformIntegrationAvailability runtime reader', () => {
-  beforeEach(() => {
-    invalidatePlatformIntegrationAvailabilityCache();
-  });
-
   it('parses the object envelope persisted by migration 0264', () => {
     expect(parsePlatformIntegrationAvailability(persistedValue)?.integrations).toEqual(
       persistedValue.value.integrations,
     );
   });
 
-  it('reads explicit channel switches and caches the global registry', async () => {
+  it('reads the global registry on every availability check', async () => {
     const query = vi.fn().mockResolvedValue({
       rows: [{ value_json: persistedValue }],
       rowCount: 1,
@@ -45,7 +40,7 @@ describe('platformIntegrationAvailability runtime reader', () => {
 
     await expect(isPlatformIntegrationAvailable(db, 'telegram')).resolves.toBe(false);
     await expect(isPlatformIntegrationAvailable(db, 'max')).resolves.toBe(true);
-    expect(query).toHaveBeenCalledTimes(1);
+    expect(query).toHaveBeenCalledTimes(2);
   });
 
   it('preserves wired adapters and keeps declared Yandex off when the row is absent', async () => {

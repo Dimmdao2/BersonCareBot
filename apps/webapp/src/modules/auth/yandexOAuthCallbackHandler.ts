@@ -16,7 +16,6 @@ import { pgOAuthBindingsPort } from '@/infra/repos/pgOAuthBindings';
 import { inMemoryOAuthBindingsPort } from '@/infra/repos/inMemoryOAuthBindings';
 import { trySetInitialCalendarTimezoneIfEmpty } from '@/infra/repos/pgPatientCalendarTimezone';
 import {
-  getAppBaseUrl,
   getYandexOauthClientId,
   getYandexOauthClientSecret,
   getYandexOauthRedirectUri,
@@ -53,7 +52,7 @@ async function logOAuthFailure(
  * Used by {@link GET} on `/api/auth/oauth/callback/yandex` and legacy `/api/auth/oauth/callback`.
  */
 export async function handleYandexOAuthCallbackGet(request: Request): Promise<NextResponse> {
-  const appBase = await getAppBaseUrl();
+  const appBase = env.APP_BASE_URL;
   const redirectToAppQuery = (reason: string): URL =>
     new URL(`/app?oauth=error&reason=${encodeURIComponent(reason)}`, appBase);
 

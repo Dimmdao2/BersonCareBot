@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/modules/system-settings/integrationRuntime', () => ({
-  getAppBaseUrl: vi.fn().mockResolvedValue('http://localhost'),
   getAppleOauthClientId: vi.fn().mockResolvedValue(''),
   getAppleOauthRedirectUri: vi.fn().mockResolvedValue(''),
   getAppleOauthTeamId: vi.fn().mockResolvedValue(''),

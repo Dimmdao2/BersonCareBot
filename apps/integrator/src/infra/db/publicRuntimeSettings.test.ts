@@ -13,12 +13,12 @@ describe('publicRuntimeSettings', () => {
       rowCount: 1,
     } as DbQueryResult<{ value_json: unknown }>);
 
-    await expect(readGlobalServerRuntimeString(makeDb(query), ' app_base_url ')).resolves.toBe(
+    await expect(readGlobalServerRuntimeString(makeDb(query), ' support_phone ')).resolves.toBe(
       'https://example.test/',
     );
     expect(query).toHaveBeenCalledWith(
       'SELECT app.read_global_server_runtime_setting($1) AS value_json',
-      ['app_base_url'],
+      ['support_phone'],
     );
   });
 

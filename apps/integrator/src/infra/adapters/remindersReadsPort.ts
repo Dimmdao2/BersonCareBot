@@ -6,8 +6,7 @@
 import { createHmac } from 'node:crypto';
 import { createDbPort } from '../db/client.js';
 import { DEFAULT_APP_DISPLAY_TIMEZONE, getAppDisplayTimezone } from '../../config/appTimezone.js';
-import { getAppBaseUrl } from '../../config/appBaseUrl.js';
-import { integratorWebhookSecret } from '../../config/env.js';
+import { env, integratorWebhookSecret } from '../../config/env.js';
 import type {
   DbPort,
   DispatchPort,
@@ -63,7 +62,8 @@ async function fetchRemindersGet<T>(
   pathname: string,
   search: string,
 ): Promise<{ ok: boolean; data?: T; status: number }> {
-  const baseUrl = await getAppBaseUrl(db);
+  void db;
+  const baseUrl = env.APP_BASE_URL;
   const secret = integratorWebhookSecret();
   if (!baseUrl || !secret) {
     return { ok: false, status: 0 };

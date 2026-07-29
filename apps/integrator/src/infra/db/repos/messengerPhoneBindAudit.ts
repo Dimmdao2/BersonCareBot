@@ -11,7 +11,7 @@ import {
   messengerPhoneBindReasonHumanRu,
 } from '@bersoncare/platform-merge';
 import type { DbPort, DispatchPort } from '../../../kernel/contracts/index.js';
-import { getAppBaseUrl } from '../../../config/appBaseUrl.js';
+import { env } from '../../../config/env.js';
 import { logger } from '../../observability/logger.js';
 import {
   messengerPhoneBindDedupKey,
@@ -164,14 +164,13 @@ export async function recordMessengerPhoneBindBlocked(input: {
     : 'messenger_phone_bind_anomaly';
   let relayLines: string[];
   try {
-    const appBaseUrl = await getAppBaseUrl(input.db);
     relayLines = buildMessengerBindBlockedRelayLines({
       variantLabel: conflictKey
         ? 'integrator · user.phone.link'
         : 'integrator · user.phone.link (аномалия)',
       machineReason: input.reason,
       reasonHumanRu: enrichedFields.reasonHumanRu,
-      appBaseUrl,
+      appBaseUrl: env.APP_BASE_URL,
       candidates: enrichedFields.candidates,
       initiator: enrichedFields.initiator,
       ...(typeof input.details.channelCode === 'string'

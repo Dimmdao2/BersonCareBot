@@ -4,8 +4,7 @@
  */
 import { createHmac } from 'node:crypto';
 import type { DbPort } from '../../kernel/contracts/index.js';
-import { getAppBaseUrl } from '../../config/appBaseUrl.js';
-import { integratorWebhookSecret } from '../../config/env.js';
+import { env, integratorWebhookSecret } from '../../config/env.js';
 import type {
   CommunicationReadsPort,
   CommunicationConversationListItem,
@@ -128,7 +127,8 @@ async function fetchCommunicationGet<T>(
   pathname: string,
   search: string,
 ): Promise<{ ok: boolean; data?: T; status: number }> {
-  const baseUrl = await getAppBaseUrl(db);
+  void db;
+  const baseUrl = env.APP_BASE_URL;
   const secret = integratorWebhookSecret();
   if (!baseUrl || !secret) {
     return { ok: false, status: 0 };

@@ -1,10 +1,5 @@
-import { describe, expect, it, beforeEach, vi } from 'vitest';
-import {
-  clearMessengerStaffIdsCache,
-  createMessengerStaffIdsResolver,
-  invalidateMessengerStaffIdsCacheForSettingKey,
-  parseIdTokens,
-} from './messengerStaffIds.js';
+import { describe, expect, it, vi } from 'vitest';
+import { createMessengerStaffIdsResolver, parseIdTokens } from './messengerStaffIds.js';
 import type { DbPort } from '../../kernel/contracts/index.js';
 
 describe('parseIdTokens', () => {
@@ -21,30 +16,14 @@ describe('parseIdTokens', () => {
   });
 });
 
-describe('invalidateMessengerStaffIdsCacheForSettingKey', () => {
-  beforeEach(() => {
-    clearMessengerStaffIdsCache();
-  });
-
-  it('clears resolver cache so the next lookup re-reads settings', async () => {
+describe('createMessengerStaffIdsResolver', () => {
+  it('re-reads both staff settings for every lookup', async () => {
     const query = vi.fn().mockResolvedValue({ rows: [{ value_json: { value: [] } }] });
     const db = { query } as unknown as DbPort;
     const resolve = createMessengerStaffIdsResolver(db);
     await resolve('telegram', '1');
     await resolve('telegram', '2');
-    expect(query).toHaveBeenCalledTimes(2);
-    invalidateMessengerStaffIdsCacheForSettingKey('doctor_telegram_ids');
-    await resolve('telegram', '3');
     expect(query).toHaveBeenCalledTimes(4);
-    invalidateMessengerStaffIdsCacheForSettingKey('unrelated_key');
-    await resolve('telegram', '4');
-    expect(query).toHaveBeenCalledTimes(4);
-  });
-});
-
-describe('createMessengerStaffIdsResolver', () => {
-  beforeEach(() => {
-    clearMessengerStaffIdsCache();
   });
 
   it('returns true for doctor id in doctor_telegram_ids', async () => {

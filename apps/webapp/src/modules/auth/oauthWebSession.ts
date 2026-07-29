@@ -1,5 +1,5 @@
 import { recordAuthLogin } from '@/app-layer/product-analytics/recordAuthLogin';
-import { getAppBaseUrl } from '@/modules/system-settings/integrationRuntime';
+import { env } from '@/config/env';
 import { setSessionFromUser } from '@/modules/auth/service';
 import { getRedirectPathForRole } from '@/modules/auth/redirectPolicy';
 import { reconcileDbRoleWithEnvRole, resolveRoleAsync } from '@/modules/auth/envRole';
@@ -19,7 +19,7 @@ export async function completeOAuthWebLoginRedirectUrls(opts: {
   displayNameHint: string;
   authMethod?: string;
 }): Promise<{ ok: true; redirectUrl: string } | { ok: false; reason: string }> {
-  const appBase = await getAppBaseUrl();
+  const appBase = env.APP_BASE_URL;
   let sessionUser;
   try {
     if (isPlatformUserUuid(opts.userId)) {

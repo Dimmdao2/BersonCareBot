@@ -1,7 +1,7 @@
 import '../../../config/loadEnv.js';
 import { appSettings } from '../../../config/appSettings.js';
+import { env } from '../../../config/env.js';
 import { createPostgresJobQueue } from '../../adapters/jobQueuePort.js';
-import { getAppBaseUrl } from '../../../config/appBaseUrl.js';
 import { createWebappEventsPort } from '../../adapters/webappEventsClient.js';
 import { createDbPort } from '../../db/client.js';
 import { logger } from '../../observability/logger.js';
@@ -37,7 +37,6 @@ async function startWorker(): Promise<void> {
   await assertWorkerIsolationTelemetryWriterReady();
   await assertDeliveryWorkerPoolReady();
   const projectionDb = createDbPort();
-  await getAppBaseUrl(projectionDb);
   const deliveryDb = createDbPort();
   const deliveryWritePort = createDbWritePort({ db: deliveryDb });
   const { buildDeps } = await import('../../../app/di.js');
@@ -48,7 +47,7 @@ async function startWorker(): Promise<void> {
     }),
   });
   const webappEvents = createWebappEventsPort({
-    getAppBaseUrl: () => getAppBaseUrl(projectionDb),
+    getAppBaseUrl: async () => env.APP_BASE_URL,
   });
   const queue = createPostgresJobQueue({
     db: createDbPort(),
@@ -89,7 +88,7 @@ async function startWorker(): Promise<void> {
                 if (webappEvents.notifyPatientWebPush) {
                   const notify = webappEvents.notifyPatientWebPush.bind(webappEvents);
                   tickDeps.dispatchWebappPush = async (pushNotify) => {
-                    const base = (await getAppBaseUrl(projectionDb)).replace(/\/$/, '');
+                    const base = env.APP_BASE_URL.replace(/\/$/, '');
                     const body = JSON.stringify({
                       organizationId: pushNotify.organizationId,
                       phoneNormalized: pushNotify.phoneNormalized,

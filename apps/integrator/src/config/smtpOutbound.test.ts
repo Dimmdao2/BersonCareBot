@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import type { DbPort } from '../kernel/contracts/index.js';
 
@@ -7,7 +7,7 @@ vi.mock('../infra/observability/logger.js', () => ({
   logger: { warn: loggerWarn },
 }));
 
-import { invalidateSmtpOutboundCache, resolveSmtpOutboundConfig } from './smtpOutbound.js';
+import { resolveSmtpOutboundConfig } from './smtpOutbound.js';
 import { createDbPort } from '../infra/db/client.js';
 
 function restoreEnvValue(name: string, value: string | undefined): void {
@@ -33,15 +33,7 @@ describe('smtp outbound restricted DB config', () => {
   const originalDbPrincipalSigningSecret = process.env.DB_PRINCIPAL_SIGNING_SECRET;
 
   beforeEach(() => {
-    invalidateSmtpOutboundCache();
     loggerWarn.mockReset();
-    restoreEnvValue('DB_PRINCIPAL_CONTEXT_MODE', originalDbPrincipalContextMode);
-    restoreEnvValue('DB_PRINCIPAL_SIGNING_SECRET', originalDbPrincipalSigningSecret);
-  });
-
-  afterEach(() => {
-    invalidateSmtpOutboundCache();
-    vi.useRealTimers();
     restoreEnvValue('DB_PRINCIPAL_CONTEXT_MODE', originalDbPrincipalContextMode);
     restoreEnvValue('DB_PRINCIPAL_SIGNING_SECRET', originalDbPrincipalSigningSecret);
   });
@@ -184,33 +176,48 @@ describe('smtp outbound restricted DB config', () => {
     expect(r.smtpSecure).toBe(true);
   });
 
-  it('caches result for TTL and skips repeat DB hits', async () => {
-    vi.useFakeTimers({ now: 10_000 });
-    const query = vi.fn().mockResolvedValue({
-      rows: [
-        {
-          value_json: {
-            value: {
-              host: 'c.example.com',
-              port: 587,
-              user: 'u',
-              password: 'p',
-              from: 'f@example.com',
+  it('re-reads smtp_outbound on every call', async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            value_json: {
+              value: {
+                host: 'first.example.com',
+                port: 587,
+                user: 'u',
+                password: 'p',
+                from: 'f@example.com',
+              },
             },
           },
-        },
-      ],
-    });
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            value_json: {
+              value: {
+                host: 'second.example.com',
+                port: 587,
+                user: 'u',
+                password: 'p',
+                from: 'f@example.com',
+              },
+            },
+          },
+        ],
+      });
 
     const db = mockDb(query);
 
-    await resolveSmtpOutboundConfig(db);
-    await resolveSmtpOutboundConfig(db);
-    expect(query).toHaveBeenCalledTimes(1);
-
-    vi.advanceTimersByTime(60_000);
-
-    await resolveSmtpOutboundConfig(db);
+    await expect(resolveSmtpOutboundConfig(db)).resolves.toMatchObject({
+      smtpHost: 'first.example.com',
+    });
+    await expect(resolveSmtpOutboundConfig(db)).resolves.toMatchObject({
+      smtpHost: 'second.example.com',
+    });
     expect(query).toHaveBeenCalledTimes(2);
   });
 });

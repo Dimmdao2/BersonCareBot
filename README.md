@@ -61,7 +61,7 @@ pnpm run build && pnpm run build:webapp
 
 **Env** — bootstrap и инфраструктура процесса (`DATABASE_URL`, `HOST`, `PORT`, `NODE_ENV`, `LOG_LEVEL`, секреты сессии и обмена webapp↔integrator). Полный список имён: [`.env.example`](.env.example), [`apps/webapp/.env.example`](apps/webapp/.env.example). Integrator подхватывает цепочку файлов через [`apps/integrator/src/config/loadEnv.ts`](apps/integrator/src/config/loadEnv.ts): корневой `.env` → `apps/integrator/.env` → `apps/webapp/.env.dev` → `apps/webapp/.env`.
 
-**`system_settings`** (webapp, scope `admin`) — источник истины для ключей интеграций, публичных URL, OAuth, VAPID, флагов и прочей операционной конфигурации, редактируемой без redeploy. Канон: [`docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`](docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md). Запись — через admin Settings (`/app/settings`) и `updateSetting` (зеркало в `integrator.system_settings`).
+**`system_settings`** (webapp, scope `admin`) — источник истины для ключей интеграций, OAuth, VAPID, флагов и прочей операционной конфигурации, редактируемой без redeploy. Deployment origin `APP_BASE_URL` живёт только в env обоих сервисов. Канон: [`docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`](docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md). Запись настроек — через admin Settings (`/app/settings`) и `updateSetting`; integrator читает одну каноническую таблицу `public.system_settings` по требованию.
 
 Обязательный минимум для старта:
 

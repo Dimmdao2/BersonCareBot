@@ -61,7 +61,7 @@ import type {
 } from '../../reminders/reminderInlineKeyboard.js';
 import { buildExerciseReminderWebAppUrls } from '../../reminders/reminderMessengerWebAppUrls.js';
 import { maxBindingRecipient } from '../../../../integrations/max/maxRecipient.js';
-import { getAppBaseUrl } from '../../../../config/appBaseUrl.js';
+import { env } from '../../../../config/env.js';
 import { REMINDER_BY_CATEGORY } from '../templateKeys.js';
 import { runWithOptionalOrganizationPrincipal } from '../../../../infra/principal/organizationPrincipal.js';
 
@@ -583,6 +583,7 @@ export async function handleReminders(
       const reminderBodyRaw = rule?.customText?.trim() ?? '';
       const reminderBody = reminderBodyRaw ? escapeReminderHtml(reminderBodyRaw) : '';
       const computedOpen = buildPatientReminderDeepLink({
+        appBaseUrl: env.APP_BASE_URL,
         linkedObjectType: rule?.linkedObjectType ?? null,
         linkedObjectId: rule?.linkedObjectId ?? null,
         reminderIntent: rule?.reminderIntent ?? null,
@@ -597,6 +598,7 @@ export async function handleReminders(
               ? rule.deepLink.trim()
               : computedOpen) ||
             buildPatientReminderDeepLink({
+              appBaseUrl: env.APP_BASE_URL,
               linkedObjectType: null,
               linkedObjectId: null,
               reminderIntent: null,
@@ -873,7 +875,6 @@ export async function handleReminders(
           reminderTitle = 'Напоминание';
         }
         const webUrls = await buildExerciseReminderWebAppUrls({
-          db: reminderAuxDb,
           channel,
           chatId,
           externalId,
@@ -1619,7 +1620,6 @@ export async function handleReminders(
     const callbackQueryId =
       asString(action.params.callbackQueryId) ?? asString(readIncoming(ctx).callbackQueryId);
 
-    const reminderAuxDb = createDbPort();
     const identities = await deps.readPort.readDb<Array<{ resource: string; externalId: string }>>({
       type: 'identities.allByUserId',
       params: { userId },
@@ -1634,7 +1634,6 @@ export async function handleReminders(
     }
 
     const webUrls = await buildExerciseReminderWebAppUrls({
-      db: reminderAuxDb,
       channel: messengerChannel,
       chatId,
       externalId: messengerChannel === 'max' ? maxExternal : String(chatId),
@@ -1648,7 +1647,7 @@ export async function handleReminders(
       profileSpec = { kind: 'web_app', url: webUrls.profileChannelsWebAppUrl };
       mobileSpec = { kind: 'web_app', url: webUrls.mobileAppWebAppUrl };
     } else {
-      const baseHttpRaw = trimTrailingSlash(await getAppBaseUrl(reminderAuxDb));
+      const baseHttpRaw = trimTrailingSlash(env.APP_BASE_URL);
       if (baseHttpRaw.startsWith('http://') || baseHttpRaw.startsWith('https://')) {
         profileSpec = {
           kind: 'url',

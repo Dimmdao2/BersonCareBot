@@ -5,8 +5,8 @@ import {
   notifyDoctorPatientProgramNote,
 } from './notifyDoctorPatientProgramNote';
 
-vi.mock('@/modules/system-settings/integrationRuntime', () => ({
-  getAppBaseUrlSync: vi.fn(() => 'https://app.example'),
+vi.mock('@/config/env', () => ({
+  env: { APP_BASE_URL: 'https://app.example' },
 }));
 
 vi.mock('@/modules/messaging/doctorNotifyTargets', () => ({
@@ -18,7 +18,6 @@ vi.mock('@/modules/doctor-notifications/notifyDoctorPatientMessageToStaff', () =
   notifyDoctorPatientMessageToStaff: vi.fn(),
 }));
 
-import { getAppBaseUrlSync } from '@/modules/system-settings/integrationRuntime';
 import {
   loadDoctorNotifyTargets,
   relayTextToDoctorTargets,
@@ -64,16 +63,18 @@ describe('notifyDoctorPatientProgramNote', () => {
   });
 
   it('buildDoctorPatientProgramDeepLink uses app base when configured', () => {
-    vi.mocked(getAppBaseUrlSync).mockReturnValue('https://app.example/');
-    const link = buildDoctorPatientProgramDeepLink({ patientUserId, instanceId });
+    const link = buildDoctorPatientProgramDeepLink({
+      patientUserId,
+      instanceId,
+      appBaseUrl: 'https://app.example/',
+    });
     expect(link).toBe(
       `https://app.example/app/doctor/clients/${patientUserId}/treatment-programs/${instanceId}`,
     );
   });
 
   it('buildDoctorPatientProgramDeepLink falls back to relative path without base', () => {
-    vi.mocked(getAppBaseUrlSync).mockReturnValue('');
-    const link = buildDoctorPatientProgramDeepLink({ patientUserId, instanceId });
+    const link = buildDoctorPatientProgramDeepLink({ patientUserId, instanceId, appBaseUrl: '' });
     expect(link).toBe(`/app/doctor/clients/${patientUserId}/treatment-programs/${instanceId}`);
   });
 

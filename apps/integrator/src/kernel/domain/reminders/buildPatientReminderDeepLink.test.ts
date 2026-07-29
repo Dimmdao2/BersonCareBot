@@ -1,14 +1,11 @@
-import { describe, expect, it, vi } from 'vitest';
-
-vi.mock('../../../config/appBaseUrl.js', () => ({
-  getAppBaseUrlSync: () => 'https://app.example',
-}));
+import { describe, expect, it } from 'vitest';
 
 import { buildPatientReminderDeepLink } from './buildPatientReminderDeepLink.js';
 
 describe('buildPatientReminderDeepLink', () => {
   it('builds treatment_program_item URL with nav=exec', () => {
     const url = buildPatientReminderDeepLink({
+      appBaseUrl: 'https://app.example',
       linkedObjectType: 'treatment_program_item',
       linkedObjectId: 'inst-1:item-2',
     });
@@ -19,6 +16,7 @@ describe('buildPatientReminderDeepLink', () => {
 
   it('falls back to reminders when treatment_program_item id is malformed', () => {
     const url = buildPatientReminderDeepLink({
+      appBaseUrl: 'https://app.example',
       linkedObjectType: 'treatment_program_item',
       linkedObjectId: 'nocolon',
     });
@@ -27,6 +25,7 @@ describe('buildPatientReminderDeepLink', () => {
 
   it('maps rehab_program to treatment route', () => {
     const url = buildPatientReminderDeepLink({
+      appBaseUrl: 'https://app.example',
       linkedObjectType: 'rehab_program',
       linkedObjectId: 'prog-9',
     });
@@ -35,6 +34,7 @@ describe('buildPatientReminderDeepLink', () => {
 
   it('warmup intent uses go daily-warmup URL (overrides linked object)', () => {
     const url = buildPatientReminderDeepLink({
+      appBaseUrl: 'https://app.example',
       linkedObjectType: 'treatment_program_item',
       linkedObjectId: 'inst-1:item-2',
       reminderIntent: 'warmup',
@@ -44,6 +44,7 @@ describe('buildPatientReminderDeepLink', () => {
 
   it('carries the occurrence organization into intent go URLs', () => {
     const url = buildPatientReminderDeepLink({
+      appBaseUrl: 'https://app.example',
       linkedObjectType: 'rehab_program',
       linkedObjectId: 'prog-9',
       reminderIntent: 'exercises',
@@ -56,6 +57,7 @@ describe('buildPatientReminderDeepLink', () => {
 
   it('exercises intent uses go plan-start-lesson URL', () => {
     const url = buildPatientReminderDeepLink({
+      appBaseUrl: 'https://app.example',
       linkedObjectType: 'rehab_program',
       linkedObjectId: 'prog-9',
       reminderIntent: 'exercises',
@@ -65,6 +67,7 @@ describe('buildPatientReminderDeepLink', () => {
 
   it('stretch intent uses go plan-start-lesson URL', () => {
     const url = buildPatientReminderDeepLink({
+      appBaseUrl: 'https://app.example',
       linkedObjectType: 'content_section',
       linkedObjectId: 'warmups',
       reminderIntent: 'stretch',
@@ -74,6 +77,7 @@ describe('buildPatientReminderDeepLink', () => {
 
   it('generic intent + warmups section slug uses go daily-warmup URL (legacy rules)', () => {
     const url = buildPatientReminderDeepLink({
+      appBaseUrl: 'https://app.example',
       linkedObjectType: 'content_section',
       linkedObjectId: 'warmups',
       reminderIntent: 'generic',
@@ -84,6 +88,7 @@ describe('buildPatientReminderDeepLink', () => {
   it('generic intent + renamed warmups slug via warmupsSectionSlugs uses go URL', () => {
     const url = buildPatientReminderDeepLink(
       {
+        appBaseUrl: 'https://app.example',
         linkedObjectType: 'content_section',
         linkedObjectId: 'razminki',
         reminderIntent: 'generic',

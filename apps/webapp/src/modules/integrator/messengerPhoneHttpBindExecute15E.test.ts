@@ -27,9 +27,7 @@ vi.mock('@/modules/admin-incidents/sendAdminIncidentAlerts', () => ({
   notifyMessengerPhoneBindBlockedFromWebapp: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('@/modules/system-settings/integrationRuntime', () => ({
-  getAppBaseUrl: vi.fn().mockResolvedValue('https://app.example'),
-}));
+vi.mock('@/config/env', () => ({ env: { APP_BASE_URL: 'https://app.example' } }));
 
 vi.mock('@/infra/logging/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },

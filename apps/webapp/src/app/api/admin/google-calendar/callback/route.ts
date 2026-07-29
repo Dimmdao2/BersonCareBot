@@ -4,9 +4,9 @@
  * and connected email to system_settings(admin), redirects to Settings.
  */
 import { NextResponse } from 'next/server';
+import { env } from '@/config/env';
 import { requireClinicManagementApiContext } from '@/app-layer/guards/requireRole';
 import {
-  getAppBaseUrl,
   getGoogleClientId,
   getGoogleClientSecret,
   getGoogleRedirectUri,
@@ -21,7 +21,7 @@ import {
 import { parseVerifiedSignedOAuthState } from '@/modules/auth/oauthSignedState';
 
 async function settingsRedirect(params: Record<string, string>): Promise<NextResponse> {
-  const appBase = await getAppBaseUrl();
+  const appBase = env.APP_BASE_URL;
   const url = new URL('/app/settings', appBase);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
   return NextResponse.redirect(url);

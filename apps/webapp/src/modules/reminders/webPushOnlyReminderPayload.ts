@@ -22,10 +22,11 @@ export function resolveWebPushOnlyReminderTopicCode(
 export async function buildWebPushOnlyReminderNotifyContent(
   rule: WebPushOnlyReminderRuleRow,
   resolveLinkedTitle: (linkedObjectType: string, linkedObjectId: string) => Promise<string | null>,
-  opts?: {
+  opts: {
     sectionLookup?: ReminderIntentSectionLookup;
     deepLinkOpts?: BuildReminderDeepLinkOptions;
     targetOrganizationId?: string;
+    appBaseUrl: string;
   },
 ): Promise<{ title: string; bodyText: string; openUrl: string; topicCode: string | null }> {
   let title = rule.customTitle?.trim() || rule.displayTitle?.trim() || null;
@@ -41,10 +42,11 @@ export async function buildWebPushOnlyReminderNotifyContent(
       linkedObjectType: rule.linkedObjectType,
       linkedObjectId: rule.linkedObjectId,
       reminderIntent: rule.reminderIntent,
-      organizationId: opts?.targetOrganizationId,
+      organizationId: opts.targetOrganizationId,
+      appBaseUrl: opts.appBaseUrl,
     },
-    opts?.sectionLookup,
-    opts?.deepLinkOpts,
+    opts.sectionLookup,
+    opts.deepLinkOpts,
   );
   const topicCode = resolveWebPushOnlyReminderTopicCode(rule);
 

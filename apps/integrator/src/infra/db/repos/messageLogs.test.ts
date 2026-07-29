@@ -9,7 +9,6 @@ vi.mock('../../observability/logger.js', () => ({
 }));
 
 import { appendMessageLog, insertDeliveryAttemptLog } from './messageLogs.js';
-import { resetOperationalVerboseLogCacheForTests } from './operationalVerboseLog.js';
 
 function dbReturningFlag(value: boolean): DbPort {
   return {
@@ -30,7 +29,6 @@ describe('appendMessageLog verbose gating', () => {
   beforeEach(() => {
     infoMock.mockReset();
     errorMock.mockReset();
-    resetOperationalVerboseLogCacheForTests();
   });
 
   it('does not log non-delivery audit when verbose flag is off', async () => {

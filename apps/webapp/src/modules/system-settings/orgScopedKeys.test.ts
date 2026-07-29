@@ -25,7 +25,6 @@ describe('orgScopedKeys — P0.11.3 org-aware write classification', () => {
       'dev_mode',
       'admin_phones',
       'smtp_outbound',
-      'app_base_url',
       'booking_rubitime_bridge_enabled',
     ];
     for (const key of globalSample) {

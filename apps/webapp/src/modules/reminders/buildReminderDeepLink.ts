@@ -1,5 +1,4 @@
 import { routePaths } from '@/app-layer/routes/paths';
-import { getAppBaseUrlSync } from '@/modules/system-settings/integrationRuntime';
 import {
   isWarmupsContentSectionLinkedId,
   type ReminderIntentSectionLookup,
@@ -43,7 +42,7 @@ function isWarmupsSectionDeepLink(
 
 /**
  * Patient deep links for integrator reminder payloads (STAGE_1_CONTRACTS S1.T07).
- * Base URL: admin `app_base_url` or env `APP_BASE_URL`.
+ * The deployment base URL is resolved by the composition layer and passed explicitly.
  */
 export function buildReminderDeepLink(
   params: {
@@ -51,10 +50,11 @@ export function buildReminderDeepLink(
     linkedObjectId: string | null;
     reminderIntent?: string | null;
     organizationId?: string | null;
+    appBaseUrl: string;
   },
   opts?: BuildReminderDeepLinkOptions,
 ): string {
-  const base = getAppBaseUrlSync().replace(/\/$/, '');
+  const base = params.appBaseUrl.replace(/\/$/, '');
   const intentRaw = typeof params.reminderIntent === 'string' ? params.reminderIntent.trim() : '';
   if (intentRaw === 'warmup') {
     return `${base}${buildReminderGoPath(routePaths.patientGoDailyWarmup, params.organizationId)}`;
@@ -105,6 +105,7 @@ export async function buildReminderDeepLinkAsync(
     linkedObjectId: string | null;
     reminderIntent?: string | null;
     organizationId?: string | null;
+    appBaseUrl: string;
   },
   lookup?: ReminderIntentSectionLookup,
   opts?: BuildReminderDeepLinkOptions,
@@ -121,7 +122,7 @@ export async function buildReminderDeepLinkAsync(
     if (!isWarmupsSectionDeepLink(linkedObjectId, opts)) {
       const sec = await lookup.getBySlug(linkedObjectId);
       if (sec?.systemParentCode === 'warmups') {
-        const base = getAppBaseUrlSync().replace(/\/$/, '');
+        const base = params.appBaseUrl.replace(/\/$/, '');
         return `${base}${buildReminderGoPath(routePaths.patientGoDailyWarmup, params.organizationId)}`;
       }
     }

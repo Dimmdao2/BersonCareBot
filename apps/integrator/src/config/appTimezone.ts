@@ -17,10 +17,6 @@ export const DEFAULT_APP_DISPLAY_TIMEZONE = 'Europe/Moscow';
 export const DEFAULT_BOOKING_DISPLAY_TIMEZONE = DEFAULT_APP_DISPLAY_TIMEZONE;
 
 const APP_DISPLAY_TZ_KEY = 'app_display_timezone';
-const TTL_MS = 60_000;
-
-type CacheEntry = { tz: string; expiresAt: number };
-let displayTzCache: CacheEntry | null = null;
 
 function isValidIanaTimeZone(tz: string): boolean {
   const t = tz.trim();
@@ -43,17 +39,11 @@ type DisplayTzResolve =
     };
 
 async function resolveAppDisplayTimezone(db: DbPort): Promise<DisplayTzResolve> {
-  const now = Date.now();
-  if (displayTzCache && displayTzCache.expiresAt > now) {
-    return { kind: 'ok', timezone: displayTzCache.tz };
-  }
-
   let valueJson: unknown | null;
   try {
     valueJson = await fetchPublicSystemSettingValueJson(db, APP_DISPLAY_TZ_KEY);
   } catch (err) {
     logger.warn({ err, reason: 'query_failed' }, '[appDisplayTimezone] fallback');
-    displayTzCache = { tz: DEFAULT_APP_DISPLAY_TIMEZONE, expiresAt: now + TTL_MS };
     return {
       kind: 'fallback',
       timezone: DEFAULT_APP_DISPLAY_TIMEZONE,
@@ -65,7 +55,6 @@ async function resolveAppDisplayTimezone(db: DbPort): Promise<DisplayTzResolve> 
   const rawParsed = valueJson !== null ? parseSystemSettingStringValue(valueJson) : null;
   if (rawParsed == null || rawParsed === '') {
     logger.warn({ reason: 'missing_or_empty' }, '[appDisplayTimezone] fallback');
-    displayTzCache = { tz: DEFAULT_APP_DISPLAY_TIMEZONE, expiresAt: now + TTL_MS };
     return {
       kind: 'fallback',
       timezone: DEFAULT_APP_DISPLAY_TIMEZONE,
@@ -75,7 +64,6 @@ async function resolveAppDisplayTimezone(db: DbPort): Promise<DisplayTzResolve> 
   }
   if (!isValidIanaTimeZone(rawParsed)) {
     logger.warn({ reason: 'invalid_iana', raw: rawParsed }, '[appDisplayTimezone] fallback');
-    displayTzCache = { tz: DEFAULT_APP_DISPLAY_TIMEZONE, expiresAt: now + TTL_MS };
     return {
       kind: 'fallback',
       timezone: DEFAULT_APP_DISPLAY_TIMEZONE,
@@ -84,12 +72,11 @@ async function resolveAppDisplayTimezone(db: DbPort): Promise<DisplayTzResolve> 
     };
   }
 
-  displayTzCache = { tz: rawParsed, expiresAt: now + TTL_MS };
   return { kind: 'ok', timezone: rawParsed };
 }
 
 /**
- * IANA display timezone from webapp `system_settings` (TTL 60s).
+ * IANA display timezone from webapp `system_settings`, read on demand.
  * Missing/invalid → `Europe/Moscow`, data-quality incident + optional Telegram (deduped).
  */
 export async function getAppDisplayTimezone(input: {
@@ -123,36 +110,12 @@ export async function getAppDisplayTimezone(input: {
   return r.timezone;
 }
 
-/** Clears the 60-second display-timezone cache for tests/manual callers. */
-export function invalidateAppDisplayTimezoneCache(): void {
-  displayTzCache = null;
-}
-
-/** @deprecated Используйте {@link invalidateAppDisplayTimezoneCache}. */
-export function resetAppDisplayTimezoneCacheForTests(): void {
-  invalidateAppDisplayTimezoneCache();
-}
-
 /** @deprecated Используйте {@link getAppDisplayTimezone}. */
 export async function getBookingDisplayTimezone(
   db: DbPort,
   dispatchPort?: DispatchPort,
 ): Promise<string> {
   return dispatchPort ? getAppDisplayTimezone({ db, dispatchPort }) : getAppDisplayTimezone({ db });
-}
-
-/** @deprecated Используйте {@link resetAppDisplayTimezoneCacheForTests}. */
-export function resetBookingDisplayTimezoneCache(): void {
-  resetAppDisplayTimezoneCacheForTests();
-}
-
-const IANA_LIKE = /^[A-Za-z_]+(\/[A-Za-z_]+)*$/;
-
-let warnedLegacyEnvAppDisplayTimezone = false;
-
-/** Test hook: allow repeated assertions on legacy-env warning. */
-export function resetAppDisplayTimezoneSyncWarnForTests(): void {
-  warnedLegacyEnvAppDisplayTimezone = false;
 }
 
 function parseLongOffsetToMinutes(value: string): number | null {
@@ -184,35 +147,4 @@ export function utcOffsetMinutesFromLongOffset(timeZone: string, instant: Date):
     // invalid timeZone
   }
   return 180;
-}
-
-/**
- * @deprecated Только для обратной совместимости тестов/одноразовых скриптов без БД:
- * читает необработанные process.env для устаревших имён display-TZ (вне zod-схемы); иначе дефолт.
- * В рантайме сервиса используйте {@link getAppDisplayTimezone}.
- */
-export function getAppDisplayTimezoneSync(): string {
-  const rawApp =
-    typeof process.env.APP_DISPLAY_TIMEZONE === 'string'
-      ? process.env.APP_DISPLAY_TIMEZONE.trim()
-      : '';
-  const rawBooking =
-    typeof process.env.BOOKING_DISPLAY_TIMEZONE === 'string'
-      ? process.env.BOOKING_DISPLAY_TIMEZONE.trim()
-      : '';
-  if (rawApp.length > 0 || rawBooking.length > 0) {
-    if (!warnedLegacyEnvAppDisplayTimezone) {
-      warnedLegacyEnvAppDisplayTimezone = true;
-      logger.warn(
-        {
-          hasAppDisplayTimezoneEnv: rawApp.length > 0,
-          hasBookingDisplayTimezoneEnv: rawBooking.length > 0,
-        },
-        '[appDisplayTimezone] APP_DISPLAY_TIMEZONE / BOOKING_DISPLAY_TIMEZONE are unsupported; use system_settings key app_display_timezone (admin scope)',
-      );
-    }
-  }
-  if (rawApp.length > 0 && IANA_LIKE.test(rawApp)) return rawApp;
-  if (rawBooking.length > 0 && IANA_LIKE.test(rawBooking)) return rawBooking;
-  return DEFAULT_APP_DISPLAY_TIMEZONE;
 }

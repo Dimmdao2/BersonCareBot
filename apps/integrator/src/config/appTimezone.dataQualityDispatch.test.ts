@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const upsertMock = vi.hoisted(() => vi.fn());
 
@@ -11,7 +11,7 @@ vi.mock('../integrations/telegram/config.js', () => ({
 }));
 
 import type { DbPort } from '../kernel/contracts/index.js';
-import { getAppDisplayTimezone, resetAppDisplayTimezoneCacheForTests } from './appTimezone.js';
+import { getAppDisplayTimezone } from './appTimezone.js';
 
 function mockDb(query: DbPort['query']): DbPort {
   const db: DbPort = {
@@ -25,17 +25,11 @@ function mockDb(query: DbPort['query']): DbPort {
 
 describe('getAppDisplayTimezone → Telegram dispatch on fallback', () => {
   beforeEach(() => {
-    resetAppDisplayTimezoneCacheForTests();
     upsertMock.mockReset();
     upsertMock.mockResolvedValue({ occurrences: 1 });
   });
 
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
   it('calls dispatchOutgoing when dispatchPort is provided (first dedup)', async () => {
-    vi.useFakeTimers({ now: 0 });
     const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
     const query = vi.fn().mockResolvedValue({ rows: [] });
     const db = mockDb(query);

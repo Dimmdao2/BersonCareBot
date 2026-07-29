@@ -17,7 +17,7 @@ describe('publicSystemSettings', () => {
       rowCount: 1,
     } as DbQueryResult<{ value_json: unknown }>);
 
-    await expect(readPublicSystemSettingString(makeDb(query), 'app_base_url')).resolves.toBe(
+    await expect(readPublicSystemSettingString(makeDb(query), 'app_display_timezone')).resolves.toBe(
       'https://example.test',
     );
 
@@ -25,7 +25,7 @@ describe('publicSystemSettings', () => {
     const params = query.mock.calls[0]?.[1] as unknown[] | undefined;
     expect(sqlText).toContain('organization_id IS NULL');
     expect(sqlText).not.toContain('ORDER BY organization_id IS NULL ASC');
-    expect(params).toEqual(['app_base_url', 'admin']);
+    expect(params).toEqual(['app_display_timezone', 'admin']);
   });
 
   it('reads org row before global fallback when organizationId is provided', async () => {
@@ -35,7 +35,7 @@ describe('publicSystemSettings', () => {
     } as DbQueryResult<{ value_json: unknown }>);
 
     await expect(
-      fetchPublicSystemSettingValueJson(makeDb(query), 'app_base_url', 'admin', {
+      fetchPublicSystemSettingValueJson(makeDb(query), 'app_display_timezone', 'admin', {
         organizationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
       }),
     ).resolves.toEqual({ value: 'org-value' });
@@ -44,7 +44,11 @@ describe('publicSystemSettings', () => {
     const params = query.mock.calls[0]?.[1] as unknown[] | undefined;
     expect(sqlText).toContain('organization_id = $3::uuid OR organization_id IS NULL');
     expect(sqlText).toContain('ORDER BY organization_id IS NULL ASC');
-    expect(params).toEqual(['app_base_url', 'admin', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa']);
+    expect(params).toEqual([
+      'app_display_timezone',
+      'admin',
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    ]);
   });
 
   it('lists exact organization rows enabled for a clinic-owned integration', async () => {

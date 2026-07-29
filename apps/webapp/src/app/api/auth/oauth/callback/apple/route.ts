@@ -1,5 +1,6 @@
 import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
 import { NextResponse } from 'next/server';
+import { env } from '@/config/env';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
   logOAuthWebCallbackFailure,
@@ -13,7 +14,6 @@ import {
   getAppleOauthTeamId,
   getAppleOauthKeyId,
   getAppleOauthPrivateKey,
-  getAppBaseUrl,
 } from '@/modules/system-settings/integrationRuntime';
 import {
   buildAppleClientSecretJwt,
@@ -32,7 +32,7 @@ import {
  */
 export async function POST(request: Request) {
   stampBootstrapPrincipal('api/auth/oauth/callback/apple:POST', request);
-  const appBase = await getAppBaseUrl();
+  const appBase = env.APP_BASE_URL;
   const ct = request.headers.get('content-type') ?? '';
   if (!ct.includes('application/x-www-form-urlencoded')) {
     return NextResponse.redirect(

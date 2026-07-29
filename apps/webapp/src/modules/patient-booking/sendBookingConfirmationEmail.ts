@@ -12,7 +12,7 @@
 
 import { relayOutbound } from '@/modules/messaging/relayOutbound';
 import type { RelayOutboundDeps } from '@/modules/messaging/relayOutbound';
-import { getAppBaseUrl } from '@/modules/system-settings/integrationRuntime';
+import { env } from '@/config/env';
 import { buildIcsContent } from '@/shared/lib/buildCalendarLinks';
 import { logger } from '@/infra/logging/logger';
 
@@ -51,7 +51,7 @@ export async function sendBookingConfirmationEmail(
   }
 
   try {
-    const appBaseUrl = await getAppBaseUrl();
+    const appBaseUrl = env.APP_BASE_URL;
     const icsText = buildIcsContent(
       {
         startAt: input.slotStart,

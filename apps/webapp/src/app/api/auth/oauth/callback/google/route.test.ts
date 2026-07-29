@@ -36,7 +36,6 @@ vi.mock('@/app-layer/di/buildAppDeps', () => ({
 }));
 
 vi.mock('@/modules/system-settings/integrationRuntime', () => ({
-  getAppBaseUrl: vi.fn().mockResolvedValue('http://localhost'),
   getGoogleClientId: vi.fn().mockResolvedValue('cid'),
   getGoogleClientSecret: vi.fn().mockResolvedValue('sec'),
   getGoogleOauthLoginRedirectUri: vi.fn().mockResolvedValue('http://localhost/cb/google'),

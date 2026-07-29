@@ -81,7 +81,7 @@ function normalizeBase(s: string): string {
 /**
  * Source-agnostic: builds signed webapp-entry token for telegram or max.
  * Returns null if the DB-backed base URL override or entry secret is not set.
- * @param appBaseUrlOverride — из `getAppBaseUrl(db)` / runtime `app_base_url`.
+ * @param appBaseUrlOverride — validated deployment `APP_BASE_URL`.
  */
 export function buildWebappEntryTokenFromSource(
   params: WebappEntrySource,
