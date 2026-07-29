@@ -1,9 +1,10 @@
 # Security findings and solution OPTIONS — full record (2026-07-25 → 26)
 
-**Status: nothing here is a decision.** Every remedy below is an OPTION for discussion and analysis. Some
-findings are already fixed (marked FIXED with the commit); the rest are open. The owner's instruction for the
-next stage is explicit: a full deep security re-audit, and for each problem a solution grounded in recognised
-world security standards — not crutches, not improvisation.
+**Status: remedies below are not decisions except sections explicitly marked OWNER DECISION (currently §J1).**
+Every other remedy below is an OPTION for discussion and analysis. Some findings are already fixed (marked FIXED
+with the commit); the rest are open. The owner's instruction for the next stage is explicit: a full deep security
+re-audit, and for each problem a solution grounded in recognised world security standards — not crutches, not
+improvisation.
 
 **How to read the evidence column.** `VERIFIED` = I ran it against the live database or the live host and saw
 the result. `CODE` = read from source, not executed. `CLAIMED` = a worker or auditor asserted it and it has not
@@ -547,6 +548,67 @@ What that must mean in practice, based on what went wrong this time:
 - Slices still not audited at all: **S4 API-layer tenant isolation, S5 OAuth (Google/Yandex duplicate-e-mail
   bug, taskdb #54), S6 media presign/playback**. Plus the whole host/secrets layer in sections A and B, which
   was never part of the original slicing and turned out to contain the most severe finding.
+
+## J1. OWNER DECISION — единая карта ролей и стен после стабилизации (2026-07-30)
+
+Решение владельца, дословно:
+
+> «Хорошо, значит, если я правильно понимаю, то эту конструкцию нужно будет разрабатывать корректно в процессе
+> аудита безопасности, который у нас запланирован, когда мы будем перепроверять все роли, все стены, составлять
+> карту того, как должно работать, когда мы уже систему доработаем, проведем все тесты, сделаем ее стабильной. И
+> на основании этого, для того, чтобы в будущем не возникло опасных изменений, нужно будет сделать, если я
+> правильно понимаю, такую карту и такую проверку.»
+>
+> «Хорошо, тогда сейчас, если я правильно понял, имеет смысл просто удалить этот вредный гейт-скрипт и записать
+> найденные тобой правильные решения с указанием источников в план по аудиту, который у нас уже есть. Новых задач
+> под это создавать не надо.»
+>
+> После уточнения, что сейчас удаляется хрупкий product-role allowlist, а не нужная runtime-защита целиком:
+> «Хорошо. Значит, сделай так. Сделай так, чтобы продолжить дальнейшую работу без тупых блокировок там, где это не
+> нужно. Оставь только самые необходимые сейчас действия в скрипте, продолжай работать по плану дальше.»
+
+Это уточнение входит в существующий workstream `#1001` / §K1; отдельная taskdb-карточка и отдельный plan-файл
+не создаются.
+
+После стабилизации системы глубокий аудит формирует одну утверждённую декларативную карту:
+
+```text
+principal
+→ business role
+→ PostgreSQL login role
+→ membership path (SET / INHERIT / ADMIN)
+→ effective DB role
+→ resource + action
+→ tenant scope
+→ ACL + RLS + FORCE RLS
+→ explicit owner / SUPERUSER / BYPASSRLS / SECURITY DEFINER exceptions
+```
+
+Карта становится единственным source of truth / policy-as-code. Static и runtime drift checks должны
+генерироваться из неё или читать тот же артефакт; второй ручной allowlist рядом запрещён. Static-проверка
+сопоставляет модель с `pg_roles`, `pg_auth_members`, ACL, `pg_policy`, `relrowsecurity` / `relforcerowsecurity`,
+owners и `SECURITY DEFINER` surfaces. Runtime-проверка поднимает disposable PostgreSQL и прогоняет положительную
+и отрицательную матрицу: своя организация разрешена; чужая, отсутствие principal и неожиданная роль запрещены;
+direct/inherited/`SET ROLE` пути проверены отдельно; owner/`BYPASSRLS` исключения явно перечислены и доказаны.
+
+До завершения этого аудита проверки применяются только к security-impacting изменениям ролей, memberships,
+ACL/RLS, ownership и definer surfaces, а полная матрица — на security milestone/release. Обычные изменения кода
+и подготовка DEV-базы не блокируются глобальным хрупким product-role allowlist. Новая роль в период активной
+разработки всё равно получает локальный контракт и targeted positive/negative proof; это не заменяет будущую
+полную карту.
+
+Источники для проектирования и приёмки:
+
+- PostgreSQL 16: [Role Membership](https://www.postgresql.org/docs/16/role-membership.html),
+  [`pg_auth_members`](https://www.postgresql.org/docs/16/catalog-pg-auth-members.html),
+  [Row Security Policies](https://www.postgresql.org/docs/16/ddl-rowsecurity.html).
+- [NIST SP 800-218, Secure Software Development Framework](https://csrc.nist.gov/pubs/sp/800/218/final) —
+  security requirements and verification throughout the SDLC.
+- [OWASP ASVS 5.0, V8 Authorization](https://github.com/OWASP/ASVS/blob/v5.0.0_release/5.0/en/0x17-V8-Authorization.md)
+  — единый проверяемый authorization design и deny-by-default controls.
+- Open Policy Agent: [policy-as-code model](https://www.openpolicyagent.org/docs) и
+  [policy testing](https://www.openpolicyagent.org/docs/policy-testing). OPA здесь — reference pattern, а не
+  заранее выбранная зависимость; конкретный формат утверждается по результатам инвентаризации.
 
 ---
 
