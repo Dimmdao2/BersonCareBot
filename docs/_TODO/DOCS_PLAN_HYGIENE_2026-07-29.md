@@ -537,6 +537,137 @@ done
 | `#1072` | свернуть в `#1042` | `docs/OPERATIONS/OWNER_IDENTITY_CONSOLIDATION.md` §«Непотерянный scope карточек #1072 и #1073» + `SAAS_FOUNDATION/SAAS_PROD_DEPLOY_PROCESS.md` §2.0/§9 |
 | `#1073` | свернуть в `#1042` | `PRE_PRODUCTION_TODO.md` §0 + `docs/OPERATIONS/OWNER_IDENTITY_CONSOLIDATION.md` §«Непотерянный scope карточек #1072 и #1073» + `SAAS_FOUNDATION/SAAS_PROD_DEPLOY_PROCESS.md` §2.0/§9 |
 
+## Э7. Предложение лиду: группы 10, 12, 17 и раздельная привязка группы 19
+
+- [x] **7.1** Полные тела всех карточек групп 10, 12, 17 и 19 прочитаны из
+      `/home/dev/dev-projects/.lead/taskdb-cleanup/all-cards.txt`; выбор перепроверен по исправленной
+      `/home/dev/dev-projects/.lead/taskdb-cleanup/plans-map-fixed.md`. `taskdb` не вызывался. Scope каждой
+      сворачиваемой карточки перенесён в существующий план этой же работы до предложения свёртки. — доказательство:
+      `GLOBAL_ADMIN_CHANNEL_AUTH_TOGGLES_SPEC.md` §«Консолидированный workstream Auth / аккаунт / онбординг»;
+      `SAAS_FOUNDATION/SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §16;
+      `SECURITY_AUDIT_2026-07-25/FINDINGS_AND_OPTIONS.md` §K;
+      Rubitime/Track D binding paragraphs в планах группы 19.
+
+### Группа 10 — Auth / аккаунт / онбординг
+
+**Канонический план:** `docs/_TODO/GLOBAL_ADMIN_CHANNEL_AUTH_TOGGLES_SPEC.md`.
+
+**Механическое обоснование выбора:** самая широкая карточка `#993` охватывает platform-wide auth/channel control
+plane и прямо называет этот spec — **1 из 1** прямых plan-ссылок; число живых боксов на момент выбора было
+**0**, поэтому tie-break не понадобился (у leaf-планов: punchlist **26**, night plan **17**, product roadmap
+**13**, Track B work order **8**).
+
+**Карточка-workstream:** `#993`. Остальные карточки — delivery, grants, role-door, legal, TEST-acceptance и
+first-run slices одного auth/account/onboarding workstream.
+
+| карточка | предложение лиду | где сохранено содержание |
+| --- | --- | --- |
+| `#993` | оставить workstream | `GLOBAL_ADMIN_CHANNEL_AUTH_TOGGLES_SPEC.md` R1–R3 + §«`#993` — канал/auth control plane» |
+| `#985` | свернуть в `#993` | тот же файл §«`#985` — owner TEST login, PWA и Web Push» |
+| `#1005` | свернуть в `#993` | тот же файл §«`#1005` — fallback доставки кода и обязательная подтверждённая почта» |
+| `#1011` | свернуть в `#993` | тот же файл §«`#1011` — phone auth должен пережить включение SMS» |
+| `#1031` | свернуть в `#993` | тот же файл §«`#1031` — разные двери входа для ролей» |
+| `#1035` | свернуть в `#993` | тот же файл §«`#1035` — юридический gate способов авторизации» |
+| `#1044` | свернуть в `#993` | тот же файл §«`#1044` — два различимых TEST-аккаунта одной клиники» |
+| `#1049` | свернуть в `#993` | тот же файл §«`#1049` — TOTP definer grants» |
+| `#1063` | свернуть в `#993` | тот же файл §«`#1063` — непрерывный first-run клиники» |
+| `#1065` | свернуть в `#993` | тот же файл §«`#1065` — rate limit на password login/change» |
+| `#1066` | свернуть в `#993` | тот же файл §«`#1066` — разные ошибки и надёжное feedback» |
+
+**Что дописано:** дословные owner rulings; все требования как открытые боксы; ограничения no-PROD/no-push,
+anti-enumeration и factor-separation; commits `58c577ef0`, `53b93c41e`, `684f49fdd`, `5737c8b7e`,
+`c170071ee`; TEST-счётчики 22 аккаунта и 114 routes; открытые юридические и product decisions.
+
+**Что не перенесено:** ничего из перечисленных 11 карточек. `#54` не тронут: plan binding не доказан и владелец
+прямо запретил сворачивать карточки без плана.
+
+### Группа 12 — SaaS billing / team / quotas
+
+**Канонический план:** `docs/_TODO/SAAS_FOUNDATION/SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md`.
+
+**Механическое обоснование выбора:** самая широкая `#1057` задаёт цельный SaaS clinic-payment workstream, но
+ссылается на owner rulings, а не на отдельный execution plan; среди доказанных plan-пакетов S4 имеет **59**
+живых боксов против punchlist **26**, product roadmap **13**, quota design **0**.
+
+**Карточка-workstream:** `#1057`.
+
+| карточка | предложение лиду | где сохранено содержание |
+| --- | --- | --- |
+| `#1057` | оставить workstream | `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §16 «`#1057` — широкая работа SaaS-оплаты клиниками» + §9 |
+| `#843` | свернуть в `#1057` | тот же файл §16 «`#843` — clinic/team entitlement и места» + §§0, 9, 13 |
+| `#844` | свернуть в `#1057` | тот же файл §16 «`#844` — global-admin billing operations» + §9 |
+| `#845` | свернуть в `#1057` | тот же файл §16 «`#845` — organization payer surface» + §9 |
+| `#1069` | свернуть в `#1057` | тот же файл §16 «`#1069` — quotas/mechanics enforcement» + §§5, 13 |
+
+**Что дописано:** независимые требования team entitlement/operator billing/org payer UI; дословная очередь
+«Когда закончишь делай saas оплату клиниками»; пять billing owner gates и главный launch-scope вопрос; commit
+`15ad7ba6f`; quota census **2** работающих mechanisms, **14 из 15** без полного enforcement, exact paths и
+race-checker.
+
+**Что не перенесено:** ничего из пяти карточек.
+
+### Группа 17 — безопасность и доступы
+
+**Канонический план:** `docs/_TODO/SECURITY_AUDIT_2026-07-25/FINDINGS_AND_OPTIONS.md`.
+
+**Механическое обоснование выбора:** самая широкая карточка `#1001` требует полный deep re-audit и прямо называет
+этот файл входной точкой — **1 из 1** прямых plan-ссылок; число живых боксов на момент выбора было **0**, поэтому
+leaf counts hardening **29**, privacy master **12**, Security CI **4** не участвовали в tie-break.
+
+**Карточка-workstream:** `#1001`.
+
+| карточка | предложение лиду | где сохранено содержание |
+| --- | --- | --- |
+| `#1001` | оставить workstream | `SECURITY_AUDIT_2026-07-25/FINDINGS_AND_OPTIONS.md` §J + §K1 |
+| `#881` | свернуть в `#1001` | тот же файл §K2 «Security CI stack» |
+| `#935` | свернуть в `#1001` | тот же файл §K3 «pre-production hardening umbrella» |
+| `#982` | свернуть в `#1001` | тот же файл §K4 «E3-A1 high-risk candidate» |
+| `#1014` | свернуть в `#1001` | тот же файл §K5 «внешне заблокированный dependency audit» |
+| `#1015` | свернуть в `#1001` | тот же файл §K6 «не потерять удалённый TEST signal» |
+| `#1026` | свернуть в `#1001` | тот же файл §K7 «DEV credentials в agent log» |
+| `#1062` | свернуть в `#1001` | тот же файл §K8 «направленный privilege/pool census» |
+
+**Что дописано:** Security CI и hardening boundaries; E3 candidate scope; GHSA/upstream blocker и три
+неработающих обхода; commits `6a793fb8c`/`28003858d`; UUID
+`09fc6733-163f-4235-8c1f-f744f928697e` со всеми timestamps/counters; DEV secret incident; полная матрица
+`210×9`, `33×7`, 218 policies, 346 functions, 120 raw-SQL tables; все 10 hits и telemetry
+818/104/94/73; owner session ruling 12h/30d.
+
+**Что не перенесено:** ничего из восьми карточек. `#1010` не тронут: handoff/hard prohibition не является
+execution plan, а owner запретил сворачивать карточки без плана.
+
+### Группа 19 — две самостоятельные работы, свёртки нет
+
+**Канонические планы и механическое обоснование:**
+
+- `#981` → `SAAS_FOUNDATION/RUBITIME_RETIREMENT_EXECUTION_PLAN.md`: прямая leaf-ссылка карточки, **63** живых
+  бокса.
+- `#987` → `UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` §Track D: исправленная карта даёт две связанные
+  plan-привязки; master Work Order имел **8** живых D3–D10 против **7** живых A-checks в subordinate
+  `TRACK_D1_APPROACH_DECISION_2026-07-24.md`, поэтому сработал второй механический критерий.
+
+**Карточки-workstream:** обе — `#981` и `#987`; ни одна не является зонтиком другой.
+
+| карточка | предложение лиду | где уточнена привязка |
+| --- | --- | --- |
+| `#981` | оставить отдельной | `RUBITIME_RETIREMENT_EXECUTION_PLAN.md` intro «Точная taskdb-привязка после сверки 29.07» |
+| `#987` | оставить отдельной | `WORK_ORDER.md` §Track D «Точная taskdb-привязка после сверки 29.07» + `TRACK_D1_APPROACH_DECISION_2026-07-24.md` intro |
+
+**Что дописано:** для `#981` — точная R3-CATALOG/R5-R7 provenance boundary и запрет действий; для `#987` —
+граница D0–D10, TEST-only/destructive-proof порядок, выбор approach A и явное «не хвост Rubitime».
+
+**Что не перенесено:** карточки не сворачиваются, поэтому их scope не переносился в общий plan; только
+уточнены существующие самостоятельные привязки.
+
+### Остаются как есть по прямому запрету
+
+Без нового плана и без свёртки: `#1024`, `#190`, `#809`, `#54`, `#1010`, `#23`, `#1029`, `#1013`,
+`#1054`. Отдельно остаётся `#959`: execution-log/status существует, но plan authority не доказан.
+
+Лид применяет workaround `docs/TASKDB_RULES.md` §6 только после проверки этого отчёта: для каждой лишней
+карточки `status done`, а note начинается
+`СВЁРНУТА в #NNN — работа НЕ сделана, ведётся в <план §этап>`. `del` не применять; `accepted` не менять.
+
 ## Definition of Done
 
 1. В `docs/_TODO/` не осталось файлов с нулём открытых боксов — они в `docs/archive/2026-07-plans/`.

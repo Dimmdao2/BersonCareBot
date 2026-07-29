@@ -99,3 +99,180 @@ login/registration UI must reflect those toggles **dynamically**.
 **All owner decisions on this feature are now resolved.** Ready to plan/build when prioritized (build gaps:
 OAuth per-provider toggles, 2FA global gate for admin+staff, admin checkbox UI, per-method configured-check for
 client visibility, mini-app removal).
+
+## Консолидированный workstream Auth / аккаунт / онбординг (`#993`)
+
+Этот раздел сохраняет непотерянный scope карточек группы 10 перед их предложенной свёрткой в одну
+workstream-карточку `#993`. Он не объявляет требования выполненными и не выбирает решения за владельца.
+Существующие архитектурные каноны продолжают действовать; здесь собрана единая очередь исполнения.
+
+### `#993` — канал/auth control plane и mini-app removal
+
+- [ ] Выполнить R1–R3 и grounded plan этого файла целиком: независимые global-admin toggles для Telegram, MAX,
+      SMS, 2FA, Google/Gmail OAuth и Yandex OAuth; client visibility = `enabled AND fully-configured`; admin warning
+      для включённого, но не настроенного метода; удалить Telegram/MAX mini-app entry points, сохранив ботов для
+      кодов аутентификации и уведомлений.
+
+Ограничения карточки: toggles глобальные, не per-clinic; Apple не включён; 2FA относится к global admin и staff;
+выключенный метод исчезает из login/registration независимо от наличия ключей.
+
+### `#985` — owner TEST login, PWA и Web Push
+
+- [ ] Привязать подтверждённый email `dimmdao@gmail.com` к DB-backed global-admin resolution, включить email OTP
+      на TEST, настроить/установить staff PWA и Web Push для global-admin аккаунта, доказать auth/security и
+      живой TEST, затем записать точные шаги входа для владельца.
+
+Authority карточки: `UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` §Track B. Границы: без PROD и без push в
+`main`/`test`. Существующее evidence: `UI_FINISH_AND_REAUDIT_2026-07-22/SERVER_FINISH_EXECUTION_LEDGER_2026-07-24.md`
+фиксирует, что ветка `codex/task-985-smtp-otp` была byte-identical к feat, а feat дополнительно содержит
+`58c577ef0` locked-principal binding; `TEST_DEPLOY_EVIDENCE_2026-07-22.md` оставляет owner OTP/PWA acceptance
+открытой.
+
+### `#1005` — fallback доставки кода и обязательная подтверждённая почта
+
+Решения владельца, дословно:
+
+> «если смс путь не включен и пуша у человека нет - то даже при вводе телефона отправляется на имейл».
+>
+> «Мы подготовим для всех потом обязательный запрос на регистрацию почты - пусть вводят и подтверждают чтобы
+> работать могли дальше и логиниться.»
+
+- [ ] Отвязать канал доставки одноразового кода от введённого идентификатора: при вводе телефона выбирать живой
+      канал в порядке SMS, если включён → Web Push, если есть подписка → привязанный email.
+- [ ] Провести обязательную кампанию сбора и подтверждения email для аккаунтов, у которых мессенджер был
+      единственным входом; на TEST-копии зафиксированы **22** аккаунта без email, телефона и пароля.
+- [ ] Доказать одинаковые ответ и timing независимо от наличия канала, не раскрывать наличие привязанного email;
+      допустима только одинаково ведущая себя маскированная подсказка вида `d***@g***.ru`.
+- [ ] Развести «канал доставки» и «подтверждённый фактор»: код, доставленный по email после ввода телефона,
+      подтверждает email и не выставляет trusted-phone признак.
+
+Нормативные ссылки карточки: NIST SP 800-63B — SMS/PSTN как restricted authenticator с альтернативой; OWASP
+ASVS 5.0 6.3.8, CWE-204 и OWASP Forgot Password Cheat Sheet — защита от enumeration. Связь: `#1004` уже
+зафиксировал недоказанный `patient_phone_trust_at`; fallback не должен повторить этот класс. Перед реализацией
+перепроверить точные формулировки в auth research package D2/D3/D4 и сослаться на них.
+
+### `#1011` — phone auth должен пережить включение SMS
+
+- [ ] Перевести `/api/auth/phone/start` и `/confirm` с прямого доступа `pgPhoneChallengeStore` /
+      `pgPhoneOtpLimits` к `public.phone_challenges` и `public.phone_otp_locks` на узкие
+      `SECURITY DEFINER` accessors по существующему образцу `app.phone_otp_public_booking_*` /
+      `app.email_otp_public_*`; не выдавать таблицы роли целиком.
+- [ ] Выдать `EXECUTE` непосредственно bootstrap login-роли, потому что NOINHERIT login не делает `SET ROLE`;
+      одного grant роли `app_patient` недостаточно.
+
+Проверенный факт: `bcb_test_nonstaff_login` имеет `has_table_privilege = f` для обеих таблиц; дефект скрыт
+`system_settings.auth_sms_enabled = false` и проявится после включения SMS. Готовый образец — миграция `0246`,
+commit `53b93c41e`; точный grant-путь — `d3-4-bootstrap-base-login-read-grants.sql`.
+
+### `#1031` — разные двери входа для ролей
+
+Решения владельца 26.07:
+
+- маршруты `/app/doctor/login`, `/app/patient/login`, `/app/admin/login` имеют своё оформление;
+- на doctor/patient экранах всегда есть статичная перекрёстная ссылка; она не зависит от введённых данных и
+  поэтому не раскрывает роль конкретного аккаунта;
+- врачебный вход обслуживает специалиста, администратора клиники и сотрудника; роли внутри клиники — права,
+  не отдельные двери;
+- landing ведёт отдельно специалиста и пациента; пациент также входит со страницы записи, public clinic page
+  и из своего кабинета.
+
+- [ ] Реализовать role-specific login surfaces и перенаправлять неавторизованного с `/app/doctor/*`,
+      `/app/patient/*`, `/app/admin/*` на соответствующую дверь, исключив сами login routes из redirect rule.
+- [ ] Сохранить `next=` и все public pages под этими префиксами; public surface нельзя отправлять на login.
+- [ ] Авторизованного с чужой ролью вести в его собственный кабинет с отказом `app_access_denied=1`, а не на
+      экран входа.
+- [ ] Исследовать и зафиксировать текст для верных credentials на чужом portal. Предложение владельца —
+      тот же текст, что для неверного пароля; не выдавать это за решение до завершения сравнения Epic, Doctolib,
+      Zocdoc, Shopify, Atlassian и Salesforce.
+
+Строить текст ошибки и redirect rules одним проходом: они живут в одних файлах. Канон модели дверей:
+`docs/ARCHITECTURE/ADMIN_ACCESS_MODEL.md` §«Разные двери для разных ролей».
+
+### `#1035` — юридический gate способов авторизации
+
+Факты исследования карточки: 406-ФЗ от 31.07.2023 добавил ч.10 ст.8 149-ФЗ с действием с 01.12.2023; штрафы
+введены 199-ФЗ от 26.06.2026 и действуют с 07.07.2026; для юрлица указаны 500–700 тыс. рублей, повторно до
+1,4 млн по ст.13.55 КоАП. Перечислены российский абонентский номер, ЕСИА, ЕБС или иная информационная система
+российского лица; порог по размеру в тексте не найден. Практические источники противоречат друг другу по вопросу,
+считается ли собственная база логинов «иной информационной системой»; судебная практика и разъяснения РКН не
+найдены. ЕСИА — единственный названный в законе безусловный вариант.
+
+- [ ] Получить заключение юриста: достаточно ли собственного email/password аккаунта или обязателен
+      номер/ЕСИА; считается ли иностранный номер; удовлетворяет ли MAX ч.10 ст.8 149-ФЗ.
+- [ ] После юридического ответа решить судьбу Google OAuth в российском контуре. `auth_oauth_google_enabled`
+      сейчас выключен; Yandex российский и включён. Не удалять возможность своим решением.
+
+Связи: `#1034` — ЕСИА; `#1031` юридическим вопросом не блокируется.
+
+### `#1044` — два различимых TEST-аккаунта одной клиники
+
+Владелец, дословно: «для отличия администратора клиники и врача мне нужны тестовые аккаунты для админа клиники
+и ее врача».
+
+- [ ] Подготовить в одной TEST-клинике два разных аккаунта — clinic admin и ordinary doctor — чтобы владелец
+      увидел фактическую разницу или её отсутствие; не трогать аккаунты чужих реальных людей.
+- [ ] Оставить границы ролей владельцу: проход 27.07 по **114** маршрутам дал byte-identical доступ и нулевой diff,
+      а владелец ранее сказал: «у админа клиники нужен будет расписание клиники - отдельный режим или отдельный
+      экран видимо» (`#1028`).
+
+### `#1049` — TOTP definer grants
+
+- [ ] Починить кнопку «подключить аутентификатор»: определить фактический principal
+      `enterStaffSecuritySelfPrincipal` и выдать ему узкий `EXECUTE` на
+      `save_pending_staff_totp`, `complete_staff_totp_enrollment`, `get_staff_security_profile`,
+      `ensure_staff_security_profile`; не выдавать таблицы и не расширять права сверх соседних образцов.
+- [ ] Добавить механический gate, который ловит `SECURITY DEFINER` функцию без grant фактической вызывающей роли.
+
+Проверено: для всех четырёх функций `login=false` и `staff=false`; routes `totp/start`, `totp/verify`,
+`recovery/confirm`, `status`, `sessions/revoke` уже существуют. Это третий одинаковый случай после password reset
+(`684f49fdd`, `5737c8b7e`, `c170071ee`) и phone login `#1033`. Связь: `#999` починил мёртвый
+`auth_2fa_enabled`, но без этих grants 2FA всё равно нельзя подключить.
+
+### `#1063` — непрерывный first-run клиники
+
+- [ ] Выбрать с владельцем и реализовать один понятный путь для нового owner без `specialist_id`: подсказка со
+      ссылкой на first-run на organization settings, redirect gate на `/app/account` либо автоматическое создание
+      специалиста при регистрации. До решения не выбирать вариант за владельца.
+- [ ] Доказать, что новый владелец понимает обязательные шаги 2FA/recovery codes/«Подключить рабочий кабинет» и
+      получает `clinical.workspace`, не упираясь в немую стену.
+
+Проверенная цепочка: `app.provision_specialist_owner` создаёт membership owner с `specialist_id = NULL`;
+`ensureOwnBookableSpecialist` вызывается только из
+`api/account/first-run/bind-specialist/route.ts:6-39`; `workspaceCapabilities.ts:64-66` требует
+`owner|doctor AND specialist_id != null`; `requireRole.ts:429-437` уводит на
+`/app/settings?tab=organization`, где подсказки нет. Живой TEST-пример «Тест Клиника» создан 25.07:
+`specialist_id NULL`, `factor_type NULL`, `recovery_codes_confirmed_at NULL`; «Точка Здоровья» имеет
+привязанного специалиста. Этот разрыв также помешал decisive ветке `#998`.
+
+### `#1065` — rate limit на password login/change
+
+- [ ] Добавить per-IP и per-account throttling для `email-password/login`; сейчас route проверяет пароль без
+      любого limiter.
+- [ ] Добавить per-account failed-attempt counter к смене пароля, сохранив общий `auth.confirm` budget
+      **30/10 мин** и не копируя race-prone email-OTP counter.
+- [ ] Зафиксировать временную, не бессрочную блокировку и получить решение владельца по D-2; рекомендация карточки —
+      **5 попыток / 15 минут**, throttling/растущая задержка предпочтительнее жёсткой блокировки.
+
+Готовые образцы: `staff_security_profiles.failed_attempts/locked_until`,
+`app.record_failed_staff_factor_attempt` (5 → 15 минут, `0215_staff_security_profiles.sql:261-285`) и
+`user_pins.attempts_failed/locked_until`. Нормативы: OWASP Authentication Cheat Sheet и NIST SP 800-63B 5.2.2.
+Связи: `#1047` per-IP confirm routes done; находка должна остаться в `#1001` рядом с D2.
+Точные исходные места: `email-password/login/route.ts:26` проверяет пароль без limiter;
+`api/account/security/password/change/route.ts:28` имеет только общий per-IP budget, а
+`passwordChange.ts:37-43` возвращает `wrong_current_password` без инкремента.
+
+### `#1066` — разные ошибки и надёжное feedback на security screen
+
+- [ ] Добавить `try/catch`, busy state и отдельные тексты по коду ответа для `startEnrollment`,
+      `verifyEnrollment`, `confirmRecovery`, `bindSpecialist`, `retryProvisioning`, `revokeSessions`.
+- [ ] Вынести общий client error-code → text mapper и переиспользовать в `StaffSecuritySection` и
+      `AuthFlowV2`; серверный `apiResponse.ts` из `#976` не является таким client mapper.
+- [ ] Провести один независимый presentation-аудит без серийных correction rounds.
+
+Проверено по `StaffSecuritySection.tsx`: только `changePassword` (`142-170`) использует
+`passwordChangeErrorText` (`37-52`); `startEnrollment` (`74-92`) схлопывает
+`security_session_required`, `verified_email_required`, `factor_already_enrolled`,
+`totp_enrollment_start_failed`; `verifyEnrollment` (`94-113`) различает только `factor_locked` и не имеет
+`try/catch`; четыре оставшихся действия (`115-140`) могут молча завершиться. Это нарушает
+`OWNER_PRODUCT_RULES.md` §20: «разные причины обязаны выглядеть по-разному; один текст на все отказы —
+сообщение о том, что кто-то не стал разбираться».

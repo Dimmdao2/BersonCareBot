@@ -96,6 +96,19 @@ repositories. The `/api/integrator/events` fanout/outbox/worker path and duplica
 after domain parity and data reconciliation are proven. Provider-neutral canonical booking/support/reminder/business
 data remains. Historical migrations are immutable; PROD is out of scope.
 
+**Точная taskdb-привязка после сверки 29.07:** весь Track D D0–D10 — самостоятельная workstream-карточка `#987`.
+Её результат: исправить неверно закрытый `#635/#621`, перевести canonical domains на прямые transactional writes,
+после parity удалить POST `/api/integrator/events`, projection fanout/outbox, legacy transport и дублирующие
+Rubitime-only tables/settings/queues/projections, сохранив provider-neutral booking/support/reminder/business data.
+Сначала source/runtime inventory и умеренные независимые блоки; затем direct writers, HTTP/worker shutdown,
+destructive TEST/disposable migration+restore proof и docs/guards/tests. TEST разрешён; PROD и push в
+`main`/`test` запрещены без отдельной команды. Конкурировавший DB `SECURITY DEFINER` вариант D1 не
+канонизировать: выбор approach A зафиксирован в
+`SAAS_FOUNDATION/TRACK_D1_APPROACH_DECISION_2026-07-24.md`. `#981` остаётся отдельным Rubitime R5–R7
+provenance/cutoff workstream. `#959` — только parent reconciliation, `#984` — master coordination; эти ссылки
+не поглощают самостоятельный scope `#987`. Связанные authority inputs:
+`DATABASE_UNIFIED_POSTGRES.md`, T0.4-pre artifacts как inventory, не completion, и Rubitime retirement runbooks.
+
 The HTTP-envelope/performance part of Stability E3 (`#980`) is **SUPERSEDED — 2026-07-23 by Track D / taskdb
 `#987`**. Reusable domain schemas may be retained, but no worker may optimize or expand the transport scheduled for
 deletion.
