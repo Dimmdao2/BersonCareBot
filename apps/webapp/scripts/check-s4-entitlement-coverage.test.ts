@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   exportedActionNames,
+  runS4ProtectedActionCoverageCheck,
   runSelfTest,
   staticBypassFindings,
   validateMechanicBearingExports,
@@ -12,6 +13,10 @@ import {
 } from '../src/app-layer/entitlements/protectedActionRegistry';
 
 describe('S4 entitlement coverage checker', () => {
+  it('maps every known protected action exactly once without a bypass', () => {
+    expect(runS4ProtectedActionCoverageCheck()).toEqual([]);
+  });
+
   it('rejects unknown exports and duplicate file/export mappings', () => {
     const source =
       "export async function POST() { await requireEntitlementForRead(ctx, 'courses'); }";
