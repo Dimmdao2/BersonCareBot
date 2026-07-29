@@ -527,32 +527,43 @@ export function createMembershipsService(deps: {
       appointmentId: string;
       platformUserId: string;
     }) {
-      const raw = await deps.port.getPatientPackage(input.patientPackageId, input.organizationId);
-      if (!raw || raw.platformUserId !== input.platformUserId) throw new Error('package_not_found');
-      const pkg = await refreshPatientPackageRecord(raw);
-      if (!isPatientPackageWithinValidity(pkg)) throw new Error('package_expired');
-      if (pkg.status !== 'active') throw new Error('package_not_active');
-      const usages = await deps.port.listUsagesForPackage(pkg.id, pkg.organizationId);
-      const balances = computeItemBalances(pkg.items, usages);
-      const found = findItemForService(pkg.items, balances, input.serviceId);
-      if (!found) throw new Error('package_no_balance');
+      return deps.port.runWithPackageLock(
+        input.patientPackageId,
+        input.organizationId,
+        async () => {
+          const raw = await deps.port.getPatientPackage(
+            input.patientPackageId,
+            input.organizationId,
+          );
+          if (!raw || raw.platformUserId !== input.platformUserId) {
+            throw new Error('package_not_found');
+          }
+          const pkg = await refreshPatientPackageRecord(raw);
+          if (!isPatientPackageWithinValidity(pkg)) throw new Error('package_expired');
+          if (pkg.status !== 'active') throw new Error('package_not_active');
+          const usages = await deps.port.listUsagesForPackage(pkg.id, pkg.organizationId);
+          const balances = computeItemBalances(pkg.items, usages);
+          const found = findItemForService(pkg.items, balances, input.serviceId);
+          if (!found) throw new Error('package_no_balance');
 
-      const usage = await deps.port.appendUsage({
-        organizationId: input.organizationId,
-        patientPackageId: pkg.id,
-        patientPackageItemId: found.item.id,
-        appointmentId: input.appointmentId,
-        usageKind: 'reserve',
-        quantity: 1,
-      });
-      await deps.port.setAppointmentPackageUsageRef(input.appointmentId, usage.id);
-      await deps.port.appendHistoryEvent({
-        organizationId: input.organizationId,
-        patientPackageId: pkg.id,
-        eventType: 'reserved_for_appointment',
-        payloadJson: { appointmentId: input.appointmentId, usageId: usage.id },
-      });
-      return usage;
+          const usage = await deps.port.appendUsage({
+            organizationId: input.organizationId,
+            patientPackageId: pkg.id,
+            patientPackageItemId: found.item.id,
+            appointmentId: input.appointmentId,
+            usageKind: 'reserve',
+            quantity: 1,
+          });
+          await deps.port.setAppointmentPackageUsageRef(input.appointmentId, usage.id);
+          await deps.port.appendHistoryEvent({
+            organizationId: input.organizationId,
+            patientPackageId: pkg.id,
+            eventType: 'reserved_for_appointment',
+            payloadJson: { appointmentId: input.appointmentId, usageId: usage.id },
+          });
+          return usage;
+        },
+      );
     },
 
     async consumeForAppointment(input: {
@@ -710,61 +721,71 @@ export function createMembershipsService(deps: {
       if (!deps.bookingEngine) throw new Error('package_penalty_unavailable');
       const appt = await deps.bookingEngine.getAppointment(input.appointmentId);
       if (!appt?.serviceId || !appt.platformUserId) throw new Error('package_no_balance');
+      const serviceId = appt.serviceId;
 
       const linkedPackageId =
         usages.find((u) => u.usageKind === 'reserve')?.patientPackageId ??
         usages[0]?.patientPackageId;
-      let pkg: PatientPackageRecord | null = null;
-      if (linkedPackageId) {
-        const raw = await deps.port.getPatientPackage(linkedPackageId, input.organizationId);
-        if (raw) pkg = await refreshPatientPackageRecord(raw);
-      }
-      if (!pkg) {
+      let patientPackageId = linkedPackageId;
+      if (!patientPackageId) {
         const eligible = await this.listActivePackagesForBooking(
           appt.platformUserId,
           input.organizationId,
-          appt.serviceId,
+          serviceId,
         );
         if (eligible.length === 0) throw new Error('package_no_balance');
-        const raw = await deps.port.getPatientPackage(eligible[0]!.id, input.organizationId);
-        if (!raw) throw new Error('package_no_balance');
-        pkg = await refreshPatientPackageRecord(raw);
+        patientPackageId = eligible[0]!.id;
       }
-      const pkgUsages = await deps.port.listUsagesForPackage(pkg.id, pkg.organizationId);
-      const balances = computeItemBalances(pkg.items, pkgUsages);
-      const found = findItemForService(pkg.items, balances, appt.serviceId);
-      if (!found) throw new Error('package_no_balance');
 
-      let usage: PackageUsageRecord;
-      try {
-        usage = await deps.port.appendUsage({
-          organizationId: input.organizationId,
-          patientPackageId: pkg.id,
-          patientPackageItemId: found.item.id,
-          appointmentId: input.appointmentId,
-          usageKind: 'penalty',
-          quantity: 1,
-          createdByPlatformUserId: input.createdByPlatformUserId ?? null,
-        });
-      } catch (err) {
-        if ((err as { code?: string })?.code === '23505') {
-          const freshUsages = await deps.port.listUsagesForAppointment(
-            input.appointmentId,
-            input.organizationId,
-          );
-          const freshDebit = findAppointmentDebit(freshUsages);
-          if (freshDebit) return freshDebit;
-        }
-        throw err;
+      let appended = false;
+      const usage = await deps.port.runWithPackageLock(
+        patientPackageId,
+        input.organizationId,
+        async () => {
+          const raw = await deps.port.getPatientPackage(patientPackageId, input.organizationId);
+          if (!raw) throw new Error('package_no_balance');
+          const pkg = await refreshPatientPackageRecord(raw);
+          const pkgUsages = await deps.port.listUsagesForPackage(pkg.id, pkg.organizationId);
+          const balances = computeItemBalances(pkg.items, pkgUsages);
+          const found = findItemForService(pkg.items, balances, serviceId);
+          if (!found) throw new Error('package_no_balance');
+
+          let penaltyUsage: PackageUsageRecord;
+          try {
+            penaltyUsage = await deps.port.appendUsage({
+              organizationId: input.organizationId,
+              patientPackageId: pkg.id,
+              patientPackageItemId: found.item.id,
+              appointmentId: input.appointmentId,
+              usageKind: 'penalty',
+              quantity: 1,
+              createdByPlatformUserId: input.createdByPlatformUserId ?? null,
+            });
+          } catch (err) {
+            if ((err as { code?: string })?.code === '23505') {
+              const freshUsages = await deps.port.listUsagesForAppointment(
+                input.appointmentId,
+                input.organizationId,
+              );
+              const freshDebit = findAppointmentDebit(freshUsages);
+              if (freshDebit) return freshDebit;
+            }
+            throw err;
+          }
+          await deps.port.setAppointmentPackageUsageRef(input.appointmentId, penaltyUsage.id);
+          await deps.port.appendHistoryEvent({
+            organizationId: input.organizationId,
+            patientPackageId: pkg.id,
+            eventType: 'penalty_without_reserve',
+            payloadJson: { appointmentId: input.appointmentId, usageId: penaltyUsage.id },
+          });
+          appended = true;
+          return penaltyUsage;
+        },
+      );
+      if (appended) {
+        await refreshPackageCalendarForAppointment(input.appointmentId);
       }
-      await deps.port.setAppointmentPackageUsageRef(input.appointmentId, usage.id);
-      await deps.port.appendHistoryEvent({
-        organizationId: input.organizationId,
-        patientPackageId: pkg.id,
-        eventType: 'penalty_without_reserve',
-        payloadJson: { appointmentId: input.appointmentId, usageId: usage.id },
-      });
-      await refreshPackageCalendarForAppointment(input.appointmentId);
       return usage;
     },
 
