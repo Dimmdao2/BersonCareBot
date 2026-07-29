@@ -809,9 +809,9 @@ async function processClaimedOutgoingDeliveryRowInner(
   const scope = await resolveOutgoingDeliveryScope(deps.db, row.id);
   if (scope.queueKind !== row.kind) {
     await queueMarkDead(deps.db, row.id, 'TENANT_SCOPE_QUEUE_KIND_MISMATCH');
-    // eslint-disable-next-line no-secrets/no-secrets -- stable event name, not a credential
     logger.error(
       { rowId: row.id, eventId: row.eventId, claimedKind: row.kind, resolvedKind: scope.queueKind },
+      // eslint-disable-next-line no-secrets/no-secrets -- stable event name, not a credential
       'outgoing_delivery_scope_quarantined',
     );
     return;
@@ -819,9 +819,9 @@ async function processClaimedOutgoingDeliveryRowInner(
   if (scope.kind === 'invalid') {
     const reason = truncateDeliveryErrorMessage(`TENANT_SCOPE_${scope.reason.toUpperCase()}`);
     await queueMarkDead(deps.db, row.id, reason);
-    // eslint-disable-next-line no-secrets/no-secrets -- stable event name, not a credential
     logger.error(
       { rowId: row.id, eventId: row.eventId, queueKind: row.kind, reason: scope.reason },
+      // eslint-disable-next-line no-secrets/no-secrets -- stable event name, not a credential
       'outgoing_delivery_scope_quarantined',
     );
     return;

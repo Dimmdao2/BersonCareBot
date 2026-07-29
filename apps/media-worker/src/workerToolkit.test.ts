@@ -29,8 +29,8 @@ describe('buildHlsSingleVariantArgs', () => {
   });
 
   it('passes full -vf including drawtext (watermark) unchanged', () => {
-    // eslint-disable-next-line no-secrets/no-secrets -- snapshot of ffmpeg -vf chain
     const vf =
+      // eslint-disable-next-line no-secrets/no-secrets -- snapshot of ffmpeg -vf chain
       'scale=1280:-2,format=yuv420p,drawtext=fontfile=/f.ttf:textfile=/w.txt:fontsize=16:fontcolor=white@0.5:box=1:boxcolor=black@0.45:boxborderw=4:x=w-tw-12:y=h-th-12';
     const a = buildHlsSingleVariantArgs({
       inputFile: '/tmp/in.mp4',

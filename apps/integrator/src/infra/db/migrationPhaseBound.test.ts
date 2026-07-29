@@ -16,8 +16,8 @@ function migration(scope: string, fileName: string): MigrationFile {
 describe('extractMigrationDate', () => {
   it('parses the leading YYYYMMDD date from the filename', () => {
     expect(
-      // eslint-disable-next-line no-secrets/no-secrets -- migration filename, not a secret
       extractMigrationDate(
+        // eslint-disable-next-line no-secrets/no-secrets -- migration filename, not a secret
         migration('core', '20260708_0001_p0_4_i1_integrator_direct_user_org.sql'),
       ),
     ).toBe(20260708);

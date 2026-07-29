@@ -394,8 +394,8 @@ describe('max mapIn', () => {
   }
 
   const VCF_SIMPLE = 'BEGIN:VCARD\r\nVERSION:3.0\r\nTEL:+79001112233\r\nEND:VCARD';
-  // eslint-disable-next-line no-secrets/no-secrets
   const VCF_TYPE =
+    // eslint-disable-next-line no-secrets/no-secrets
     'BEGIN:VCARD\r\nVERSION:3.0\r\nTEL;TYPE=cell:+79004445566\r\nFN:Ivan\r\nEND:VCARD';
   // eslint-disable-next-line no-secrets/no-secrets
   const VCF_LF = 'BEGIN:VCARD\nVERSION:3.0\nTEL;TYPE=CELL,HOME:+79007778899\nEND:VCARD';
