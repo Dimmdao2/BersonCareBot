@@ -3,7 +3,7 @@
 
 # Master plan
 
-> **SUPERSEDED AS TARGET — 2026-07-27.** Все нижеописанные push-only/auth-only channel-topology results и DoD заменены строкой **«Уведомления»** в [`CURRENT_AUTHORITY_MAP.md`](../../CURRENT_AUTHORITY_MAP.md) (`OWNER_PRODUCT_RULES.md` §2, §15, §21–§25); исторический план сохраняется.
+> **ВЫТЕСНЕНО ТОЛЬКО: push-only топология каналов. Остальное действует.** Все нижеописанные push-only/auth-only channel-topology results и DoD заменены строкой **«Уведомления»** в [`CURRENT_AUTHORITY_MAP.md`](../../CURRENT_AUTHORITY_MAP.md) (`OWNER_PRODUCT_RULES.md` §2, §15, §21–§25); исторический план сохраняется.
 
 Статус: `owner_activated_dev_execution` с 2026-07-19. План не меняет порядок текущих SaaS/Product UX работ.
 
