@@ -5,6 +5,12 @@
 > `DATABASE_UNIFIED_POSTGRES.md`. Back-links: reconcile analysis `scratchpad/reconcile-987-d1.md`;
 > superseded evidence doc `TRACK_D1_IDENTITY_PREFERENCES_EVIDENCE.md` (branch B).
 
+**Привязка после сверки 29.07:** `#987` — самостоятельный Track D workstream, не хвост и не дочерняя карточка
+Rubitime `#981`. Единственный master checklist находится в
+[`../UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md`](../UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md)
+§Track D (8 живых D3–D10); этот файл — subordinate approach decision для D1 (7 живых A-checks) и не второй
+workstream plan.
+
 ## Target result (what D1 must achieve) — from WORK_ORDER §Track D
 
 > **D1 — identity and notification preferences.** ONE integrator transaction writes channel anchors

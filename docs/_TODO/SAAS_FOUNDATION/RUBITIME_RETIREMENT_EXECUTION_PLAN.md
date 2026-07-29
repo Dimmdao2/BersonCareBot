@@ -18,6 +18,19 @@ mandatory cutoff/drain prerequisites; its rows below are now open with `PROVENAN
 `RR-PROOF-09` exists. This correction does not restore routes, authorize deployment/cutoff, or erase implementation
 history. Full row-level mapping: `RUBITIME_RETIREMENT_R5_R7_PROVENANCE_RECONCILIATION.md`.
 
+**Точная taskdb-привязка после сверки 29.07:** этот файл — канонический execution plan самостоятельной
+workstream-карточки `#981` «Rubitime R5-R7: provenance/cutoff integrity reconciliation». Перед следующим
+Rubitime action требуется read-only reconciliation просроченного R3-CATALOG removal deadline и живой
+`branchServiceId` compatibility; R6 route/connector/code removal остаётся provenance-only, пока cutoff/drain/
+rollback rows открыты и нет `RR-PROOF-09`; R5-R7 taskdb mapping/provenance должен быть восстановлен через exact
+atomic `row → code/test/runtime/owner-gate` matrix с классификацией restoration/defer/correction/owner decision.
+Границы карточки: без code/routes/DB/data/host/TEST/PROD/deploy/cutoff/archive/drop.
+
+`#987` сюда **не сворачивается**. Это отдельный Track D workstream прямых integrator → `public` writes и удаления
+legacy HTTP projection transport; его канон —
+[`../UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md`](../UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md)
+§Track D, а approach decision — [`TRACK_D1_APPROACH_DECISION_2026-07-24.md`](./TRACK_D1_APPROACH_DECISION_2026-07-24.md).
+
 **Старт для агентов:** сначала читать `docs/OPERATIONS/RUBITIME_R1_FRESH_PROD_DUMP_AGENT_README.md`. Там
 сведены правила старта, server conventions, orchestration, порядок свежего дампа, owner doctor/admin data-fix,
 placeholder bookings Дмитрия Берсона, specialist consolidation, R1 aggregate audits и порядок R2-R7 gates. Этот
