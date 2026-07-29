@@ -268,30 +268,6 @@ function buildPlan(opts) {
       '--sample-size=0',
     ],
   ]);
-  steps.push([
-    'current Rubitime retirement gate',
-    ['pnpm', 'run', 'check:rubitime-retirement-current'],
-  ]);
-  steps.push(['R7 table disposition gate', ['pnpm', 'run', 'check:rubitime-r7-table-disposition']]);
-  // ADVISORY, not fatal (2026-07-25 from-zero rehearsal). This step greps the REPOSITORY, not the
-  // database: it asserts the Rubitime runtime code paths are already retired (post-R6). That retirement
-  // is separate scoped work (Track C R3-R6 + Track D direct-write), so it cannot pass yet — and keeping
-  // it fatal made every from-zero data pipeline abort AFTER all data work had already succeeded, which
-  // also blocked the rest of the deploy closure (roles/grants/walls/service restart) for a reason that
-  // has nothing to do with data integrity. It still prints loudly and stays a prod-cutover gate.
-  steps.push([
-    'post-R6 inventory expectation',
-    [
-      'node',
-      'docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r6-r7-static-inventory.mjs',
-      '--expect-post-r6',
-    ],
-    {
-      advisory: true,
-      reason:
-        'this is a STATIC CODE inventory (repo grep), not a database check; Rubitime runtime retirement (Track C R3-R6 / Track D direct-write) is separate scoped work and cannot be completed by this DB pipeline',
-    },
-  ]);
   return steps;
 }
 

@@ -66,7 +66,7 @@
  * degraded-but-safe outcome for the rare fallback case, not a gap in this module.
  *
  * CHOKEPOINT: injected `DbPort`; writes run on the tx-bound connection inside `db.tx(...)`. Raw SQL is
- * allowed here (src/infra/db repo, see scripts/check-db-chokepoint.mjs).
+ * allowed here (src/infra/db repo).
  */
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import type { DiaryLfkActorInput, DiaryLfkResolveDeps } from './writeDiaryLfkDirect.js';

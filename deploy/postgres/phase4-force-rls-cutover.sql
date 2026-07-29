@@ -251,7 +251,6 @@ VALUES
   ('"integrator"."user_reminder_occurrences"'),
   ('"integrator"."user_reminder_rules"'),
   ('"integrator"."user_subscriptions"'),
-  ('"integrator"."system_settings"'),
   ('"public"."platform_user_contacts"'),
   ('"public"."system_settings"'),
   ('"public"."user_phone_history"'),

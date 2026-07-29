@@ -187,9 +187,7 @@ function runP0101Invariant({
   beFkPathTables,
   beFkPathSet,
   tierCounts,
-  scopedTables,
   scopedTableSet,
-  scopedBeTables,
   scopedNeedingOrgMaterialization,
 }) {
   assertUnique(tierTables, 'tiers-218.tsv');

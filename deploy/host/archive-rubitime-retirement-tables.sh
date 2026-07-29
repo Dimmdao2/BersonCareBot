@@ -41,10 +41,6 @@ set -Eeuo pipefail
 #     RUBITIME_RETIREMENT_DB_CLEANUP_SEQUENCE.md:179 + :209 (`archive_if_present`)
 #     RUBITIME_RETIREMENT_R7_ARCHIVE_DROP_RUNBOOK.md:47
 #
-# This is byte-for-byte the same five-table set the static gate already encodes as `archiveBeforeDrop`
-# in docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-r7-table-disposition.mjs, and that gate now
-# parses THIS file and fails if the two lists ever diverge.
-#
 # NOT archived (deliberate, doc-derived): the five R7 drop candidates
 # (`integrator.rubitime_api_throttle`, `rubitime_booking_profiles`, `rubitime_branches`,
 # `rubitime_services`, `rubitime_cooperators`). They are provider config/catalog mirrors, listed under

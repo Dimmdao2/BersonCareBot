@@ -46,7 +46,7 @@
  * called with `channelCode: ''`, `externalId: ''`; the channel-binding branch is a no-op on empty args).
  *
  * CHOKEPOINT: injected `DbPort`; writes run on the tx-bound connection inside `db.tx(...)`. Raw SQL is
- * allowed here (src/infra/db repo, see scripts/check-db-chokepoint.mjs).
+ * allowed here (src/infra/db repo).
  */
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import { resolveCanonicalIntegratorUserId } from '../repos/canonicalUserId.js';

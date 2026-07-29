@@ -39,7 +39,7 @@
  * the resolved canonical platform user before writing; a mismatch or missing row fails closed.
  *
  * CHOKEPOINT: injected `DbPort`; writes run on the tx-bound connection inside `db.tx(...)`. Raw SQL is
- * allowed here (src/infra/db repo, see scripts/check-db-chokepoint.mjs).
+ * allowed here (src/infra/db repo).
  *
  * FAIL-CLOSED PHILOSOPHY: all failure branches (platform-user unresolved/ambiguous, org
  * unresolved/ambiguous, ownership mismatch) throw `DiaryLfkDirectWriteError` (or the D1

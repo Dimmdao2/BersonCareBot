@@ -15,7 +15,7 @@
  * CHOKEPOINT: this repo accepts an injected `DbPort`; it never constructs a Pool, never checks out
  * a client, and never uses callback-form `.query`. All `public.*` writes run on the tx-bound `DbPort`
  * passed into `db.tx(...)`. Raw SQL is allowed here because this file is a `src/infra/db` repo (not a
- * guarded webapp app-layer file — see scripts/check-db-chokepoint.mjs).
+ * guarded webapp app-layer file).
  *
  * SERVER-AGENT TODOs are marked inline where exact schema columns / org resolution / merge wiring
  * must be confirmed against the live DB before this module is put on the live write path.

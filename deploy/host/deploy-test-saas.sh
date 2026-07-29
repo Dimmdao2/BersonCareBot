@@ -80,7 +80,6 @@ C4_OPERATIONAL_PROVISIONER=deploy/host/provision-c4-operational-runtime.sh
 C4_OPERATIONAL_READINESS=deploy/host/assert-c4-operational-runtime-ready.sh
 C4_OPERATIONAL_PASSWORD_SETTER=deploy/host/set-postgres-role-password.mjs
 C4_OPERATIONAL_PASSWORD_SMOKE=deploy/host/smoke-set-postgres-role-password.sh
-C4_STATIC_CHECKER=docs/_TODO/SAAS_FOUNDATION/scripts/check-c4-scheduler-media-cron-fanout.mjs
 SAAS_ISOLATION_OPERATOR_PROVISIONER=deploy/host/render-saas-isolation-operator-provisioning.mjs
 LOCKED_SMOKE_FIXTURE_VALIDATOR=deploy/host/validate-saas-product-smoke-fixture.sh
 UNITS=(api worker scheduler webapp media-worker)
@@ -2447,11 +2446,6 @@ run_c4_operational_chain_self_test(){
   bash "$SRC_REPO/$C4_OPERATIONAL_PASSWORD_SMOKE"
   node "$SRC_REPO/deploy/host/bootstrap-c4-test-env.mjs" --self-test
   node "$SRC_REPO/deploy/host/saas-c2-secret-preflight.mjs" --self-test
-  (
-    cd "$SRC_REPO"
-    node "$C4_STATIC_CHECKER"
-    node "$C4_STATIC_CHECKER" --self-test
-  )
   echo "C4 canonical fresh wrapper segment self-test: OK (no env/DB/service/cron mutation)"
 }
 

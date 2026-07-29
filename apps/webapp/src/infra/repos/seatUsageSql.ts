@@ -1,6 +1,6 @@
 /**
  * Lives in infra, not in modules: the DB chokepoint rule forbids raw SQL in the guarded domain layer,
- * and CI enforces it (`scripts/check-db-chokepoint.mjs`). Shared here so the invite capacity check and the
+ * Shared here so the invite capacity check and the
  * usage dashboard read ONE expression — a second copy is how the two numbers start disagreeing.
  */
 export const CLINIC_SEAT_USAGE_SQL = `

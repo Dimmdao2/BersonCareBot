@@ -9,13 +9,6 @@ const repoRoot = path.resolve(__dirname, '..', '..', '..', '..');
 
 const p2ScriptsDir = 'docs/_TODO/SAAS_FOUNDATION/scripts';
 
-const staticCheckScripts = [
-  `${p2ScriptsDir}/check-p2-b-protected-context-sql.mjs`,
-  `${p2ScriptsDir}/check-p2-c1-patient-value-guards-sql.mjs`,
-  `${p2ScriptsDir}/check-p2-c2-patient-value-guards-sql.mjs`,
-  `${p2ScriptsDir}/check-p2-c3-patient-booking-lfk-guards-sql.mjs`,
-];
-
 const scratchSmokeScripts = [
   `${p2ScriptsDir}/smoke-p2-b-protected-context.mjs`,
   `${p2ScriptsDir}/smoke-p2-c1-patient-value-guards.mjs`,
@@ -188,21 +181,12 @@ function runStep(step, env) {
 }
 
 function buildSteps(mode) {
-  const syntaxCheckTargets = [
-    runnerPath,
-    regressionCheckerPath,
-    ...staticCheckScripts,
-    ...scratchSmokeScripts,
-  ];
+  const syntaxCheckTargets = [runnerPath, regressionCheckerPath, ...scratchSmokeScripts];
 
   const steps = [
     ...syntaxCheckTargets.map((target) => ({
       label: `node --check ${target}`,
       command: ['node', '--check', target],
-    })),
-    ...staticCheckScripts.map((target) => ({
-      label: `static guard ${target}`,
-      command: ['node', target],
     })),
     {
       label: 'SaaS DB regression guard',

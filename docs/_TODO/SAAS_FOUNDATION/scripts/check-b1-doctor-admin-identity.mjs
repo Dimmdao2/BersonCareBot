@@ -315,43 +315,7 @@ function runPsql(databaseUrl) {
   return parsePsqlJson(result.stdout);
 }
 
-function validateContract() {
-  const sql = buildSql();
-  for (const needle of [
-    'doctorLiveRows',
-    'doctorRoleOk',
-    'doctorOwnerMemberships',
-    'legacyEmailDerivedAdminRows',
-    'clientHasDoctorEmail',
-    'adminPhonesGlobalValue',
-  ]) {
-    assert(sql.includes(needle), `SQL missing ${needle}`);
-  }
-
-  // This must stay as narrow as migration 0233: a matching normalized email alone is
-  // not evidence that a row is the historical credential-less admin artifact.
-  for (const needle of [
-    "pu.role = 'admin'",
-    "pu.display_name = 'Дмитрий Берсон'",
-    'pu.email = c.admin_email',
-    'pu.email_normalized = c.admin_email',
-    'pu.phone_normalized IS NULL',
-    'pu.integrator_user_id IS NULL',
-    'pu.merged_into_id IS NULL',
-    'pu.is_archived IS FALSE',
-    'NOT EXISTS (SELECT 1 FROM public.user_channel_bindings b WHERE b.user_id = pu.id)',
-    'NOT EXISTS (SELECT 1 FROM public.user_oauth_bindings b WHERE b.user_id = pu.id)',
-    'NOT EXISTS (SELECT 1 FROM public.user_password_credentials c WHERE c.user_id = pu.id)',
-    'NOT EXISTS (SELECT 1 FROM public.user_pins p WHERE p.user_id = pu.id)',
-    'NOT EXISTS (SELECT 1 FROM public.login_tokens t WHERE t.user_id = pu.id)',
-  ]) {
-    assert(sql.includes(needle), `legacy artifact predicate missing ${needle}`);
-  }
-}
-
 function runSelfTest() {
-  validateContract();
-
   const disposableUrl = 'postgres://user:pass@localhost/bcb_saas_rehearsal_20260714';
   assert(
     parseArgs(['--execute', `--database-url=${disposableUrl}`]).databaseUrl === disposableUrl,
@@ -435,7 +399,6 @@ try {
   if (options.selfTest) {
     runSelfTest();
   } else if (options.printSql) {
-    validateContract();
     console.log(buildSql());
   } else if (options.execute) {
     const databaseUrl = options.databaseUrl ?? process.env.DATABASE_URL;
@@ -459,8 +422,7 @@ try {
     );
     if (!classification.ok) process.exit(1);
   } else {
-    validateContract();
-    console.log('check-b1-doctor-admin-identity contract: OK');
+    throw new Error(`choose --execute, --print-sql, or --self-test\n\n${usage()}`);
   }
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);

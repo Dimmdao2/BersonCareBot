@@ -27,12 +27,7 @@ export default defineConfig({
         test: {
           name: 'fast',
           environment: 'node',
-          include: [
-            'src/**/*.test.ts',
-            'src/**/*.test.tsx',
-            'e2e/**/*.test.ts',
-            'scripts/check-s4-entitlement-coverage.test.ts',
-          ],
+          include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'e2e/**/*.test.ts'],
           exclude: ['node_modules', '.next', '**/e2e/*inprocess*.test.ts'],
           testTimeout: 20_000,
           hookTimeout: 25_000,

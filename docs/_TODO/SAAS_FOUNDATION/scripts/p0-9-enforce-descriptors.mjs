@@ -245,7 +245,7 @@ export function assertP09EnforceDescriptors(descriptors) {
 
   const counts = countP09EnforceActions(descriptors);
 
-  for (const [action, count] of counts.entries()) {
+  for (const action of counts.keys()) {
     if (!p09EnforceActions.has(action)) {
       throw new Error(`Unsupported P0.9 enforce action ${action}`);
     }

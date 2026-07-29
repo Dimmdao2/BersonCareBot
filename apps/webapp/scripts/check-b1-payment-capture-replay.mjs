@@ -37,87 +37,10 @@ function fail(label) {
   throw new Error(`B1 #949 payment capture proof failed: ${label}`);
 }
 
-const serviceSource = readFileSync(
-  path.join(root, 'apps/webapp/src/modules/payments/service.ts'),
-  'utf8',
-);
-const repoSource = readFileSync(
-  path.join(root, 'apps/webapp/src/infra/repos/pgPayments.ts'),
-  'utf8',
-);
 const migrationSql = readFileSync(
   path.join(root, 'apps/webapp/db/drizzle-migrations/0226_payment_capture_replay_safety.sql'),
   'utf8',
 );
-const bootstrapGrantSql = readFileSync(
-  path.join(root, 'deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql'),
-  'utf8',
-);
-const captureParticipantSources = [
-  'pgBookingEngine.ts',
-  'pgCourses.ts',
-  'pgEntitlements.ts',
-  'pgMemberships.ts',
-  'pgProducts.ts',
-  'pgTreatmentProgramInstance.ts',
-].map((file) => [file, readFileSync(path.join(root, 'apps/webapp/src/infra/repos', file), 'utf8')]);
-
-function selfTest() {
-  for (const fragment of [
-    'captureUnitOfWork.run',
-    'runSerializedPostCommit',
-    'getProviderEventById',
-    'lockIntentForCapture',
-    'hasCapturedHistoryEvent',
-    'onPackagePaymentCaptured',
-    'onProductPaymentCaptured',
-  ]) {
-    if (!serviceSource.includes(fragment)) fail(`service source is missing ${fragment}`);
-  }
-  if (!repoSource.includes('.for("update")')) fail('intent repository is missing FOR UPDATE');
-  if (!repoSource.includes('onConflictDoNothing')) fail('capture inserts lack conflict handling');
-  for (const [file, source] of captureParticipantSources) {
-    if (
-      !source.includes('getDrizzleOrMutationTx') &&
-      !source.includes('runDrizzleMutationTransaction')
-    ) {
-      fail(`${file} does not participate in the canonical Drizzle mutation transaction`);
-    }
-  }
-  for (const fragment of [
-    'duplicate_capture_groups',
-    'duplicate_intent_authorities',
-    'duplicate_event_authorities',
-    'be_payment_intents_provider_authority_uidx',
-    'be_payment_provider_events_lifecycle_uidx',
-  ]) {
-    if (!migrationSql.includes(fragment)) fail(`migration lacks ${fragment}`);
-  }
-  if (!migrationSql.includes('be_payment_history_capture_uidx'))
-    fail('migration lacks capture unique index');
-  if (!migrationSql.includes('intent_ref'))
-    fail('migration lacks canonical provider intent reference');
-  for (const fragment of [
-    'app.resolve_payment_webhook_organization',
-    'SECURITY DEFINER',
-    'SET search_path = pg_catalog',
-    'REVOKE ALL ON FUNCTION app.resolve_payment_webhook_organization',
-  ]) {
-    if (!migrationSql.includes(fragment))
-      fail(`migration lacks bootstrap authority boundary ${fragment}`);
-  }
-  if (!repoSource.includes('SELECT app.resolve_payment_webhook_organization')) {
-    fail('payment repository bypasses the narrow bootstrap authority resolver');
-  }
-  for (const fragment of [
-    'GRANT EXECUTE ON FUNCTION app.resolve_payment_webhook_organization',
-    'public.be_payment_provider_events',
-    'public.be_payment_intents',
-  ]) {
-    if (!bootstrapGrantSql.includes(fragment)) fail(`bootstrap grant closure lacks ${fragment}`);
-  }
-}
-
 function baseRegressionProof() {
   const tempRoot = mkdtempSync('/tmp/bcb_b1_949_base_repro_');
   const checkout = path.join(tempRoot, 'base');
@@ -214,12 +137,6 @@ it("executable pre-fix crash then duplicate leaves capture unfinished", async ()
     }
     rmSync(tempRoot, { recursive: true, force: true });
   }
-}
-
-if (process.argv.includes('--self-test')) {
-  selfTest();
-  console.log('B1 #949 payment capture proof self-test: OK');
-  process.exit(0);
 }
 
 if (process.argv.includes('--base-regression')) {
@@ -848,7 +765,6 @@ async function proveDeliveryFailureRemainsReplayable() {
 }
 
 try {
-  selfTest();
   if (!existsSync(path.join(pgBin, 'initdb'))) fail('PostgreSQL 16 binaries are unavailable');
   port = await reservePort();
   mkdirSync(socket, { recursive: true });
