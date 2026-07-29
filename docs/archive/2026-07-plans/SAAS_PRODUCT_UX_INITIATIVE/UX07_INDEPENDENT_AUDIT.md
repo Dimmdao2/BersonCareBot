@@ -1,7 +1,9 @@
+> ВЕДЁТСЯ В [docs/_TODO/SAAS_PRODUCT_UX_INITIATIVE/OWNER_RULINGS_2026-07-16.md](../../../_TODO/SAAS_PRODUCT_UX_INITIATIVE/OWNER_RULINGS_2026-07-16.md) §Общая граница запуска — «Первый выпуск ориентирован на solo specialist и не должен задерживаться из-за clinic-only функций».
+
 # UX-07 — Independent visual/usability audit
 
 **Historical pre-ruling notice (2026-07-16):** этот PASS и visual seals предшествуют
-[`OWNER_RULINGS_2026-07-16.md`](./OWNER_RULINGS_2026-07-16.md). Они сохраняются без переписывания как evidence для
+[`OWNER_RULINGS_2026-07-16.md`](../../../_TODO/SAAS_PRODUCT_UX_INITIATIVE/OWNER_RULINGS_2026-07-16.md). Они сохраняются без переписывания как evidence для
 прежнего source-bound prototype, но **superseded for current normative acceptance** и не подтверждают интеграцию
 новых owner outcomes. Текущий канон ожидает полный re-audit.
 

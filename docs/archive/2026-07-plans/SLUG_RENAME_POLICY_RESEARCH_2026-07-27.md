@@ -1,6 +1,8 @@
+> ВЕДЁТСЯ В [docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md](../../ARCHITECTURE/OWNER_PRODUCT_RULES.md) §12 — «Слаг, once занятый организацией, никогда не достаётся ДРУГОЙ организации».
+
 # Можно ли менять slug клиники после регистрации — что делают взрослые платформы
 
-> **SUPERSEDED — 2026-07-27.** Финальная one-way policy below is replaced by [`OWNER_PRODUCT_RULES.md` §12](../ARCHITECTURE/OWNER_PRODUCT_RULES.md): a former slug never goes to another organization, but the same organization may reclaim its own former name. Implemented by `d4d9a2771`.
+> **SUPERSEDED — 2026-07-27.** Финальная one-way policy below is replaced by [`OWNER_PRODUCT_RULES.md` §12](../../ARCHITECTURE/OWNER_PRODUCT_RULES.md): a former slug never goes to another organization, but the same organization may reclaim its own former name. Implemented by `d4d9a2771`.
 
 > ✅ **РЕШЕНИЕ ВЛАДЕЛЬЦА 27.07 — ПОЛИТИКА ЗАКРЫТА, исследование ниже читать как обоснование.**
 > Дословно: «старое имя не освобождается никогда - ок. Но менять имя можно один раз самостоятельно -

@@ -291,7 +291,7 @@ TEST-deploy непосредственно перед login идемпотент
 `uq_organization_slug_claims_slug` накрывал все виды записей сразу (`reservation`/`current`/`alias`) без
 разделения, а триггер `app.guard_organization_slug_claim_mutation` запрещал менять строки `current`/`alias`
 — поэтому прежний слаг был заблокирован и для самого владельца. Исследование
-[`SLUG_RENAME_POLICY_RESEARCH_2026-07-27.md`](../_TODO/SLUG_RENAME_POLICY_RESEARCH_2026-07-27.md) само
+[`SLUG_RENAME_POLICY_RESEARCH_2026-07-27.md`](../archive/2026-07-plans/SLUG_RENAME_POLICY_RESEARCH_2026-07-27.md) само
 пометило это как требующее подтверждения владельца; подтверждение получено — ослабляем.
 
 **Чем это подкреплено в отрасли (не выдумано):** постоянный невозвратный alias делают Shopify (переименование
