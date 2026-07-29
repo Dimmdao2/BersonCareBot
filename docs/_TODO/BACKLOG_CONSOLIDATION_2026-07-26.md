@@ -1,5 +1,15 @@
 # Backlog consolidation — the honest number, 2026-07-26
 
+> ⛔ **ЗАМЕР УСТАРЕЛ — не цитировать цифры из этого файла (29.07).** Владелец просил: «старые замеры —
+> пометить неактуальными». Все числа в §1, §6, §6.1 и §6.2 (1291/1107/973/965 и производные) относятся к
+> 26–27.07 и с тех пор изменились дважды: уборкой планов 29.07 и переразметкой чекбоксов под канон §6.4.
+> **Актуальный замер на 29.07:** открытых , сделанных 936, отменённых 8, файлов в `docs/_TODO` — 282.
+> Живой счёт и способ его перепроверить — в `PLAN_HYGIENE_RESULT_2026-07-29.md`; классификация каждого
+> файла — в `PLAN_HYGIENE_REGISTRY_2026-07-29.md`.
+>
+> **Файл остаётся здесь, а не уезжает в архив, по одной причине:** в нём лежит §6.4 — действующий канон
+> разметки чекбоксов для всего репозитория. Архивировать замер вместе с каноном нельзя.
+
 > **Why this file exists.** The owner asked how much work is really left. The answer given was "about 25" —
 > that came from reading one plan file. This document is the correction: every `docs/_TODO/` plan file with at
 > least one open checkbox, read and classified against the repo's own rule that **only the owner defines scope**
