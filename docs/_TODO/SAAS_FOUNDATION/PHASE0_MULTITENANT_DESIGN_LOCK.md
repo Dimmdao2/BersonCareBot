@@ -5,10 +5,9 @@
 Status: Phase 0 design-lock delivered 2026-07-12 after branch sync. Scope: design-lock only; no Phase 1+
 code until the owner confirms the Phase 1 direction recorded at the end of this file.
 
-> **Checkbox marking 2026-07-27.** Was: 3 open `- [ ]` boxes in the Exit Checklist counted as unstarted
-> design-lock work, even though the design-lock itself was delivered 2026-07-12. Now: all 3 are `- [-]`
->  ВЫТЕСНЕНО — the follow-on work moved into `SAAS_ENFORCE_ROADMAP.md` (verified against code, see each
-> box below). Why: `docs/_TODO/BACKLOG_CONSOLIDATION_2026-07-26.md` §6.3 canon.
+> **Checkbox marking 2026-07-27, corrected 2026-07-29.** Was: 3 open `- [ ]` boxes in the Exit Checklist
+> counted as unstarted design-lock work. None had an owner cancellation: two completed design-lock facts are
+> `[x]` with anchored evidence below; the unresolved spoofing-proof item remains `[ ]`.
 
 Branch baseline:
 
@@ -324,29 +323,15 @@ not be diluted by UI work.
 - [x] Locked-label direction chosen: protected backend-context table + signed SECURITY DEFINER setter +
       helper functions; raw custom GUCs rejected as trusted identity.
 - [x] Initial spoofing proofs run for custom GUC ACL and signed backend-context setter.
-- [x] Hardened locked-label implementation designed with TTL/backend binding/release cleanup. — packages/db-principal/src/index.ts:951
-  —  ВЫТЕСНЕНО 2026-07-27: implemented and live. TTL default confirmed in
-  `packages/db-principal/src/index.ts:951` (`signer.ttlMs ?? 30_000`); release cleanup confirmed DONE
-  in `SAAS_ENFORCE_ROADMAP.md` Phase C1, "[x] On release, always release protected context and
-  `RESET ROLE`; poison/destroy the client if cleanup fails."
+- [x] Hardened locked-label implementation designed with TTL/backend binding/release cleanup. — `packages/db-principal/src/index.ts` §`installSignedDbPrincipalContext` / `releaseSignedDbPrincipal` — «const backendPid = await readBackendPid(client);», «signer.ttlMs ?? 30_000», «SELECT app.release_principal_context()»; `SAAS_ENFORCE_ROADMAP.md` §Phase C1 — «On release, always release protected context and `RESET ROLE`; poison/destroy the client if cleanup fails.»
 - [ ] Remaining spoofing proofs defined and assigned.
-  —  ВЫТЕСНЕНО 2026-07-27: tracking moved to `SAAS_ENFORCE_ROADMAP.md`'s open-gaps list, G6 —
-  "#664 value enforcement... Presence of a policy is not proof that inserted org/patient values cannot
-  be spoofed." Verified NOT fully resolved there either (G6 is still listed under OPEN GAPS, not a
-  closed `[x]` phase item) — this box is superseded in the sense that it now lives in the current plan,
-  not in the sense that the proofs are complete.
 - [x] DB access surface refreshed from current branch.
 - [x] Non-centralizable entrypoints listed with principal source.
 - [x] ORG/PATIENT wall migration risks listed.
 - [x] #664 value-level residuals and extra-review tails mapped to concrete enforcement/triage mechanism.
 - [x] First doctor/admin split reflected in seed/provisioning plan.
 - [x] Process-family smoke under real app roles planned.
-- [x] Cluster-global role naming/env-boundary decision recorded. — SAAS_C0_LOCKED_TOPOLOGY_ADR.md:10
-  —  ВЫТЕСНЕНО 2026-07-27: decided and verified in code. `SAAS_ENFORCE_ROADMAP.md` §"Phase C0 —
-  locked topology ADR and executable role proof" names the two runtime login roles
-  `app_runtime_staff_login` / `app_runtime_nonstaff_login`; confirmed live in
-  `docs/_TODO/SAAS_FOUNDATION/SAAS_C0_LOCKED_TOPOLOGY_ADR.md:10-11` and referenced by
-  `docs/_TODO/SAAS_FOUNDATION/scripts/smoke-c0-locked-topology.mjs:241-290`.
+- [x] Cluster-global role naming/env-boundary decision recorded. — `SAAS_C0_LOCKED_TOPOLOGY_ADR.md` §Decision — «Use two runtime login roles and two pools:»; «`app_runtime_staff_login LOGIN NOINHERIT NOBYPASSRLS`»; «`app_runtime_nonstaff_login LOGIN NOINHERIT NOBYPASSRLS`».
 - [x] Phase 1-4 file list and effort estimate written.
 - [x] Independent read-only audits completed on the Phase 0 inputs.
 - [x] Independent audit completed on the Phase 0 conclusion.

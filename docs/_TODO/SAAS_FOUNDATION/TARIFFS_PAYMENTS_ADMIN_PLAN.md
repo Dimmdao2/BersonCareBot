@@ -306,7 +306,7 @@ Compatibility-projection `be_organizations.tariff_id` остаётся исто�
       `requireDoctorWorkspaceApiContext()` один раз (строка ~27) и `requireEntitlementForRead` один раз (строка ~29);
       `POST` — `requireDoctorWorkspaceApiContext()` один раз и `requireEntitlementForMutation` один раз после валидации
       тела. Двойного auth нет.
-ВЕДЁТСЯ В SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md:258
+ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §6 / S4-1 — «Добавить static guard: прямые `isMechanicEnabled` и чтения tariff/override из feature routes/services вне единственного boundary дают non-zero.»
 - Добавить статический чекер (скрипт в `apps/webapp/scripts/` или тест-guard), не дающий прямого импорта
       `isMechanicEnabled`/tariff-чтения из `app/api/**` или `app/app/**/actions.ts` мимо `requireEntitlement*`.
       — ЧАСТИЧНО: `apps/webapp/scripts/check-s4-entitlement-coverage.ts` (230 строк) + `check-s4-entitlement-coverage.test.ts`
@@ -355,8 +355,7 @@ Compatibility-projection `be_organizations.tariff_id` остаётся исто�
     default-on, 403 при `enabled=false`, и что composed-гейт вызывается **до** entitlement
     (`invocationCallOrder` assertion в `services/route.entitlement.test.ts`). Живой curl-round-trip с реальным override
     create/delete на тестовом сервере в рамках этой сверки не выполнялся — если нужен именно он, это отдельный шаг.
-ВЕДЁТСЯ В SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md:261
-- 🔴 Полный regression sweep по demo-clinic-a: каждая гейтнутая write-поверхность всё ещё 200 по умолчанию
+- [ ] 🔴 Полный regression sweep по demo-clinic-a: каждая гейтнутая write-поверхность всё ещё 200 по умолчанию
       (ни одна не сломалась случайно), auth всегда предшествует entitlement (порядок не инвертирован), кросс-тенантная
       проверка (override A не течёт на B).
       — НЕ СДЕЛАНО: `grep -rn "demo-clinic-a" apps/webapp` не находит ничего в коде (только в план-документах);
@@ -407,13 +406,13 @@ trialPolicy }` одним payload'ом (`route.ts:99-104`), тем же гейт
 - [x] **`POST /api/admin/organizations/:id/tariff` ... `POST/DELETE /api/admin/organizations/:id/entitlement-overrides`...**
       — ДУБЛЬ-СЛИТ: `assign_tariff`/`upsert_override`/`delete_override` — actions внутри того же
       `POST /api/admin/commercial` (`route.ts:56-74`), identity `(organizationId, mechanic)` соблюдена.
-ВЕДЁТСЯ В SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md:289
+ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §7 / S4-2 — «Добавить global trial-policy: ссылка на существующий active tariff, duration и start event.»
 - Org-creation: применить выбранную global-admin trial policy через typed service в атомарной provisioning
       boundary; не выбирать тариф по имени/`is_default` и не скрывать неполную policy под all-on fallback — см. §3.2.
       — НЕ СДЕЛАНО: `grep` по `modules/organization-provisioning/{service,ports}.ts` не находит ни `trial`, ни `tariff`.
       `startTrial` вызывается только вручную из admin UI action (`route.ts` `start_trial`), не из
       `specialist-signup/confirm|retry` или provisioning flow. Новая организация trial policy автоматически не получает.
-ВЕДЁТСЯ В SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md:212
+ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §5 / S4-0 — «Зафиксировать инженерный compatibility path для клиники без тарифа».
 - Для существующих org с `tariff_id IS NULL` сначала выполнить read-only inventory/dry-run. Apply разрешён только
       по owner-approved mapping; до него сохранить compatibility behavior, не назначать придуманный all-true тариф.
       — НЕ СДЕЛАНО: никакого dry-run/inventory скрипта или роута для `tariff_id IS NULL` в репозитории не найдено.
@@ -495,13 +494,13 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
 Урезанная версия S4-4: **только** оплата клиникой тарифа (SaaS-подписка, `saas_billing_subscription` — НЕ mechanic
 `subscriptions`, см. риск §8.7), БЕЗ store package orders (S4-3 вне scope).
 
-ВЕДЁТСЯ В SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md:385
+ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §9 / S4-4 — «Создать отдельный `modules/saas-billing` domain с ports/service/typed state machine».
 - Новый домен `modules/saas-billing` (ports/service), DI через `buildAppDeps`, переиспользует существующий
       `PaymentProviderPort`/`paymentProviderRegistry` — не форкает и не переписывает адаптеры (владелец §1).
       — НЕ СДЕЛАНО: подтверждено дважды независимо (`find apps/webapp/src/modules -iname "*saas-billing*"` — пусто;
       `ls apps/webapp/src/modules | grep -i bill` — пусто). Тот же открытый пункт, что S4-4 в
       `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §9 (строки 313-370, всё ещё `[ ]`, без commit-ссылок).
-ВЕДЁТСЯ В SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md:387
+ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §9 / S4-4 — «Добавить минимальные org-owned records: billing account, source-aware tariff subscription, invoice/order и normalized provider event.»
 - Минимальные org-owned таблицы: billing account, **`saas_billing_subscriptions`**
       (`pending_payment → active → expired/cancelled`), invoice (снимок tariff/amount/currency/period), provider event
       (idempotent, без patient data). **Именование обязательно дизъюнктно с mechanic `subscriptions`:** в `MECHANICS`
@@ -513,11 +512,11 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       и коде. Найден только dormant-плейсхолдер `DormantSaasMerchantIdentity` в
       `apps/webapp/src/modules/payments/merchantIdentityContracts.ts:8-20` с явным комментарием «S4-0 declares this
       only; S4-4 owns its DB setting and activation» — заготовка есть, реализации нет.
-ВЕДЁТСЯ В SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md:390
+ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §9 / S4-4 — «Перенести существующие manual `tariff_id` assignments в subscription/access rows с source=`manual`».
 - Перенести существующие manual `tariff_id` assignments (из Phase 3) в `saas_billing_subscriptions` rows с
       `source="manual"`; compatibility-projection `be_organizations.tariff_id` остаётся согласованной, не второй истиной.
       — НЕ СДЕЛАНО: зависит от предыдущего пункта (таблицы `saas_billing_subscriptions` не существует).
-ВЕДЁТСЯ В SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md:396
+ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §9 / S4-4 — «Добавить global DB setting `saas_billing_payment_provider` в `ALLOWED_KEYS`».
 - Новый global setting-ключ `saas_billing_payment_provider` в `ALLOWED_KEYS`
       ([`system-settings/types.ts`](../../../apps/webapp/src/modules/system-settings/types.ts)) — **отдельная** identity
       от `booking_payment_providers` (владелец не путает platform merchant с per-clinic booking merchant — см. S4 §3).
@@ -539,12 +538,11 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       — НЕ СДЕЛАНО: `apps/webapp/src/modules/system-settings/registry.ts` не содержит ключа
       `saas_billing_payment_provider` (только `booking_payment_providers`). Только dormant-заготовка из предыдущего
       пункта (`merchantIdentityContracts.ts`, `activation: "dormant_until_s4_4"`), сам ключ не зарегистрирован.
-ВЕДЁТСЯ В SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md:399
-- Дефолтный provider id = `"mock"` (уже существующий адаптер, [`paymentProviderRegistry.ts:25-26`](../../../apps/webapp/src/infra/payments/paymentProviderRegistry.ts))
+- [ ] Дефолтный provider id = `"mock"` (уже существующий адаптер, [`paymentProviderRegistry.ts:25-26`](../../../apps/webapp/src/infra/payments/paymentProviderRegistry.ts))
       до тех пор, пока владелец не передаст реальные ключи. Схема/сервис/UI/webhook реализуются и проверяются
       **полностью** на mock-адаптере — отсутствие реальных ключей не блокирует ни один из этих пунктов.
       — НЕ СДЕЛАНО: нечему быть дефолтным — модуля/сервиса, который бы читал этот provider id, не существует.
-ВЕДЁТСЯ В SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md:401
+ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §9 / S4-4 — «Добавить SaaS webhook route под bootstrap principal: load global provider config → verify signature/status».
 - `POST /api/payments/saas-webhook/[provider]` (новый, отдельный от booking-webhook) под bootstrap principal:
       load global config → verify signature/status через существующий `verifyWebhook` → resolve invoice /
       `saas_billing_subscription` → org-scoped capture. Неизвестный ref — safe-acknowledge; forged
@@ -552,7 +550,7 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       — НЕ СДЕЛАНО: `find apps/webapp/src -iname "*saas-webhook*"` — пусто. Существующие роуты —
       `api/payments/webhook/[provider]` (booking) и `api/payments/patient-acquiring-webhook/[provider]` — оба
       pre-existing, разные поверхности, не тронуты и не дублированы (это ок — не в scope).
-ВЕДЁТСЯ В SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md:415
+ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §9 / S4-4 — «Organization settings tab «Тариф и биллинг» показывает current tariff/capabilities/usage/seats».
 - Checkout UI — **другая зона от Phase 3.** Clinic-facing план/usage/инвойсы/оплата = **`MGMT-08` Plan, usage
       and billing** («Current plan, limits, invoices, recovery | Owner; delegated view/pay if explicitly allowed», см.
       §0a) — внутри обычного tenant-дерева `/app/doctor/**` (не в `(global-admin)` route group из Phase 3). Новая
@@ -566,11 +564,11 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       administrator» (commit `60b43d757`). Живой скриншот этой страницы — `runs/screenshots/billing-real.png`
       (25.07, видны все 15 механик со статусом «Включено»). Это НЕ закрывает пункт плана (нет ни одного элемента
       checkout), но следующая реализация Phase 4 должна расширить/заменить этот компонент, а не дублировать новый.
-ВЕДЁТСЯ В SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md:406
+ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §9 / S4-4 — «Tariff capture активирует/продлевает source=`paid_subscription`; expiry/cancel/refund завершает только этот source.»
 - Успешный capture продлевает `source="paid_subscription"`; expiry/cancel/refund завершает только этот source;
       manual global-admin assignment не перетирается истёкшей подпиской молча.
       — НЕ СДЕЛАНО: зависит от несуществующего billing-модуля.
-ВЕДЁТСЯ В SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md:392
+ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §9 / S4-4 — «До кода зафиксировать subscription state machine минимум для».
 - Деградация при `expired`/`past_due` — сверить с каноном 4-состояний entitlement denial (`upgrade/grace/
 read-only/blocked`, [`ROLE_CAPABILITY_MATRIX.md:17`](../SAAS_PRODUCT_UX_INITIATIVE/ROLE_CAPABILITY_MATRIX.md),
       см. §0a) при проектировании state machine: истечение подписки не обязано мгновенно бить `blocked` на все
@@ -581,8 +579,7 @@ read-only/blocked`, [`ROLE_CAPABILITY_MATRIX.md:17`](../SAAS_PRODUCT_UX_INITIATI
       reads in blocked lifecycle»). Но САМА подписка/её state machine, которая переводила бы lifecycle по `expired`/
       `past_due`, не существует — фундамент для потребления есть, источника события (billing) нет.
 
-ВЕДЁТСЯ В SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md:418
-- **Фискализация: объект `receipt` в платеже и возврате.** Заведено ПРЯМЫМ распоряжением владельца 27.07:
+- [ ] **Фискализация: объект `receipt` в платеже и возврате.** Заведено ПРЯМЫМ распоряжением владельца 27.07:
       «И облачную кассу будем подключать» → на уточнение «поле `receipt` в платеже» — **«делай конечно как надо.
       чеки и касса будут»**. Разведка с источниками:
       [`CLOUD_CASH_REGISTER_RESEARCH_2026-07-27.md`](./CLOUD_CASH_REGISTER_RESEARCH_2026-07-27.md).
@@ -612,33 +609,32 @@ capture/refund integration тест на mock-адаптере; secret redaction
 
 ### Phase 5 — интеграционная приёмка на тестовом сервере
 
-ВЕДЁТСЯ В SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md:508
+ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §12 / S4-6 — «Подготовить непересекающиеся synthetic fixtures только для включённых substages: global_admin».
 - Fixture-манифест: global_admin; demo-clinic-a/b с разными тарифами и override; новая org через signup flow
       (проверяет §3.2 — использует выбранный trial tariff/duration, без hardcoded/default/all-true).
       — НЕ СДЕЛАНО: `grep -rln "demo-clinic-a\|demo-clinic-b" apps/webapp --include="*.ts" --include="*.tsx" --include="*.sql"`
       — 0 совпадений в коде (только в план-документах). Зависит и от открытого Phase 3 п.7 (trial при provisioning).
-ВЕДЁТСЯ В SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md:512
+ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §12 / S4-6 — «Global_admin создаёт/меняет tariff, цену/период/full mechanic map, назначает A, меняет override, видит billing state».
 - Global admin создаёт/меняет тариф, полный mechanic grid, назначает A, меняет override, видит billing state.
       — ЧАСТИЧНО заложено: API/UI-механика (create/update/archive tariff, assign, override, полный mechanic-грид)
       реально существует и протестирована (46 зелёных тестов между `pgPlatformEntitlements.*.test.ts`,
       `api/admin/commercial/route.test.ts`, `CommercialConstructorClient.test.tsx`, `org-entitlements/service.test.ts`
       — перепрогнаны в рамках этой сверки). «Видит billing state» — нет, поскольку billing (Phase 4) не существует.
       Живой click-through с demo-организациями в рамках этой сверки не проводился.
-ВЕДЁТСЯ В SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md:514
+ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §12 / S4-6 — «Clinic A проходит checkout mock/recorded-provider flow, получает tariff access».
 - Clinic A проходит mock checkout, получает активную подписку на тариф; clinic B её не видит/не затронута.
       — НЕ СДЕЛАНО: checkout не существует (Phase 4).
-ВЕДЁТСЯ В SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md:518
+ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §12 / S4-6 — «Payment negatives: duplicate checkout/webhook, forged signature/org ID, wrong amount/currency, unknown provider ref»; «Entitlement negatives обязательны.»
 - Negatives: unauthenticated, doctor вместо global_admin на `/api/admin/tariffs` (403), forged org id, forged
       webhook signature, amount mismatch, replay, mechanic OFF при активной подписке (доступ всё равно закрыт по
       entitlement, подписка не значит automatic mechanic override).
       — ЧАСТИЧНО: unauthenticated/wrong-role 403 покрыт тестом (`api/admin/commercial/route.test.ts:49-54`,
       mocked-guard unit test, не живой E2E). Forged webhook/amount-mismatch/replay/mechanic-OFF-during-subscription —
       не применимы, пока saas-webhook и подписка не существуют.
-ВЕДЁТСЯ В SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md:508
-- Полный regression sweep: existing org сохраняют compatibility access до owner-approved mapping; после
+- [ ] Полный regression sweep: existing org сохраняют compatibility access до owner-approved mapping; после
       отдельного mapping apply ни одна организация не теряет доступ вопреки preview.
       — НЕ СДЕЛАНО: mapping/dry-run инструмент из Phase 3 п.8 не существует, sweep нечего проверять.
-ВЕДЁТСЯ В SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md:526
+ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §12 / S4-6 — «После всех фаз выполнить один финальный `pnpm install --frozen-lockfile && pnpm run ci`».
 - Один финальный `pnpm install --frozen-lockfile && pnpm run ci` после всех фаз — не гонять full CI после
       каждого шага.
       — НЕ СДЕЛАНО в рамках этой сверки (запускались только точечные `vitest run` на затронутые файлы, по правилу
@@ -662,7 +658,7 @@ capture/refund integration тест на mock-адаптере; secret redaction
       — ДОКАЗАНО: `checkEntitlement()` в `requireEntitlement.ts` — единственный внутренний резолвер за 6 адаптерами
       (Read/Mutation route + ReadAction/MutationAction + Page); `courses/route.ts` и
       `broadcasts/actions.ts`/`sections/actions.ts` реально его используют.
-ВЕДЁТСЯ В SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md:258
+ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §6 / S4-1 — «Добавить static guard: прямые `isMechanicEnabled` и чтения tariff/override из feature routes/services вне единственного boundary дают non-zero.»
 - **Статический guard подтверждает отсутствие обходов.** (вторая половина исходного составного пункта DoD)
       — **Разделено независимым аудитом 27.07: составной пункт не может нести одну галочку, когда одна его половина
       документированно не работает.** Чекер `check-s4-entitlement-coverage.ts` логически проверен своими тестами
@@ -677,7 +673,7 @@ capture/refund integration тест на mock-адаптере; secret redaction
       декларирует `exercise_catalog`/`exercise_packages`/`patient_app`/`patient_app_paid_subscription`/`branding`/
       `custom_domain` в `DECLARED_NO_SURFACE` (строки 130-137). Coverage-тест (6/6) подтверждает: ни одна механика не
       осталась без mapping или exemption.
-ВЕДЁТСЯ В SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md:289
+ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §7 / S4-2 — «Добавить global trial-policy: ссылка на существующий active tariff, duration и start event.»
 - Новая организация применяет выбранную global-admin trial policy; если зависимая policy не утверждена/неполна,
       автоматическое trial provisioning fail-closed без подстановки придуманного тарифа. Existing NULL-org проходят
       отдельный owner-approved migration mapping до удаления compatibility behavior.
@@ -687,21 +683,20 @@ capture/refund integration тест на mock-адаптере; secret redaction
       — ГОТОВО: `CommercialConstructorClient.tsx` + `POST /api/admin/commercial` (create/update/archive/assign/
       upsert-override/delete-override actions) под `requirePlatformOperationsApiContext`; 403-тест на неавторизованный
       вызов зелёный (`route.test.ts:49-54`, перепрогнан).
-ВЕДЁТСЯ В SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md:385
+ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §9 / S4-4 — «Создать отдельный `modules/saas-billing` domain с ports/service/typed state machine».
 - SaaS billing проходит полный цикл (checkout → capture → активная `saas_billing_subscription` → expiry/refund)
       на mock-адаптере; реальные ключи подключаются сменой настройки, без нового кода.
       — НЕ СДЕЛАНО: весь Phase 4 открыт (см. выше), цикла не существует.
-ВЕДЁТСЯ В SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md:508
+ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §12 / S4-6 — «Clinic B не видит tariff override, invoice или analytics A»; «Payment negatives: duplicate checkout/webhook, forged signature/org ID»; «После всех фаз выполнить один финальный `pnpm install --frozen-lockfile && pnpm run ci`».
 - A/B изоляция и security negatives (Phase 5) закрыты на тестовом сервере; один финальный CI gate зелёный.
       — НЕ СДЕЛАНО: Phase 5 открыт (см. выше), финальный `pnpm run ci` в рамках этой сверки не запускался.
-ВЕДЁТСЯ В SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md:550
+ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §14 / Definition of Done — «Каждая owner attribution ссылается на `OWNER_RULINGS_2026-07-15.md`».
 - Ни один пункт этого документа не был подписан именем владельца там, где решение инженерное (провенанс §0).
       — Не проверяется кодом/тестом — это самопроверка текста документа, не код-артефакт. §0 и §8 существующего текста
       уже явно разделяют owner ruling vs инженерный выбор («Порядок фаз... не решение владельца», «риск §8.1/8.2...»)
       — на вид соблюдается, но формального пруфа (commit/тест) для этого пункта не существует по своей природе, оставлено
       открытым до отдельной ревизии документа целиком.
-ВЕДЁТСЯ В SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md:415
-- UI-фазы (Phase 3/4) размещены в верных zone-ID (`PLAT-02`/`PLAT-03`/`PLAT-05`/`MGMT-08`, §0a), не в старом
+- [ ] UI-фазы (Phase 3/4) размещены в верных zone-ID (`PLAT-02`/`PLAT-03`/`PLAT-05`/`MGMT-08`, §0a), не в старом
       doctorNavLinks-кластере «Настройки», и не дублируют/не блокируют будущий U9 platform shell.
       — ЧАСТИЧНО: Phase 3-половина ГОТОВА и превышает требование — `/app/admin/commercial` живёт в отдельном
       platform-shell (`platformNavLinks.ts`), не в `doctorNavLinks.ts` «Настройки», и фактически уже реализует часть

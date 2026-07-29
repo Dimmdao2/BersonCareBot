@@ -6,13 +6,9 @@
 > и `IMPLEMENTATION_ROADMAP.md` stage C4/C5. Manual-tariff/no-billing first cut и конечный boolean mechanic list
 > больше не являются product contract; store — future capability, own/base library должны работать независимо.
 
-> **2026-07-27 checkbox pass (owner canon `BACKLOG_CONSOLIDATION_2026-07-26.md` §6.3).** Was: 19 open boxes
-> counted as live backlog by raw grep, despite this file's own header declaring it superseded. Now: all 19
-> marked `- [-]` — most (P1.b mechanic gating, P2 tariff CRUD) verified  already shipped under `SAAS_S4`
-> (`requireEntitlement*`/`protectedActionRegistry.ts`, `/api/admin/commercial`), the rest (P3 exercise-package
-> store, P4 cross-tenant analytics, P5 billing/branding/domain) confirmed genuinely not built and tracked in S4.
-> superseded-and-tracked-in-S4. Why: dead/duplicate boxes were inflating the repo-wide open-checkbox count in
-> both directions (looked like backlog, actually done or already tracked elsewhere).
+> **2026-07-27 checkbox pass, corrected 2026-07-29.** The shipped P1.b/P2 requirements are `[x]` with
+> anchored symbol/heading evidence. P3/P4/P5 requirements with a real successor are prose pointers under §6.4.
+> `branding`/`custom_domain` remains `[ ]`: no matching successor requirement or owner cancellation was found.
 
 Owner model (2026-07-13): **tariff → entitlements (per-mechanic toggles) → clinic**. Prices + inclusions are
 ADMIN-CONFIGURED DATA (never hardcoded). Decisions: no real billing in the first cut (admin manually assigns a tariff);
@@ -57,17 +53,17 @@ until a tariff excludes it.
 For EACH mechanic below, add `requireEntitlement("<mechanic>")` AFTER the existing auth guard on the mechanic's
 WRITE/primary routes ONLY (do not gate pure reads unless noted). Ground the exact route file before editing.
 
-- [x] `mailings` → `apps/webapp/src/app/api/doctor/broadcasts/*` (create/send route). —, зафиксировано в `apps/webapp/src/app-layer/entitlements/protectedActionRegistry.ts:45-46` (`mailings.execute`, `mailings.draft.save` gated via `requireEntitlementForMutationAction`; guard in `apps/webapp/src/app-layer/guards/requireEntitlement.ts`).
-- [x] `booking` → the clinic booking-engine write routes `apps/webapp/src/app/api/admin/booking-engine/*` (branch/service/slot create) — NOT patient booking reads. —: `protectedActionRegistry.ts:83-86` (branch/service/schedule-block create+delete gated via `requireEntitlementForMutation`); GET routes explicitly exempted as reads at lines 124-126 — reads were never double-gated, per the box's own instruction.
-- [x] `cms_pages` → `apps/webapp/src/app/api/doctor/content/*` (page/section create). —: `protectedActionRegistry.ts:47-69` (content pages/sections + patient-home block actions, 20 mapped entries under the `cms_pages` mechanic).
-- [x] `files` → `apps/webapp/src/modules/media` upload entry route(s) under doctor. —: `protectedActionRegistry.ts:81-82` (`files.patient-file.create`/`update` gated via `requireEntitlementForMutation`; GET/download exempted as reads at lines 119, 123).
-- [x] `patient_card` → gate the doctor patient-card WRITE route(s) (notes/edits), not the list. —: `protectedActionRegistry.ts:71-80` (visits/anamnesis/complaints/diagnoses/physical/comorbidities write routes gated; list/GET routes exempted).
-- [x] `subscriptions` (абонементы) → `modules/memberships` doctor-facing package assign/create routes. —: `protectedActionRegistry.ts:70` (`subscriptions.patient-package.create` gated via `requireEntitlementForMutation`).
-- [x] `payments` → the booking payment enable/config write path (coordinate with the existing `booking_payment_enabled` per-org flag — do NOT double-gate reads). —: `protectedActionRegistry.ts:87` (`payments.booking-settings.patch` gated; GET exempted as read at line 127 — not double-gated).
-- [x] `patient_app` → the toggle/entry that turns the patient app on for a clinic (identify; if none, note deferred). —: the box's own fallback ("if none, note deferred") is exactly what's recorded — `protectedActionRegistry.ts:133` (`DECLARED_NO_SURFACE.patient_app`: "code-search: no patient_app_enabled/toggle action").
+- [x] `mailings` → `apps/webapp/src/app/api/doctor/broadcasts/*` (create/send route). — `apps/webapp/src/app-layer/entitlements/protectedActionRegistry.ts` §`PROTECTED_ACTION_MAPPINGS` — «id: 'mailings.execute'»; «id: 'mailings.draft.save'».
+- [x] `booking` → the clinic booking-engine write routes `apps/webapp/src/app/api/admin/booking-engine/*` (branch/service/slot create) — NOT patient booking reads. — `apps/webapp/src/app-layer/entitlements/protectedActionRegistry.ts` §`PROTECTED_ACTION_MAPPINGS` — «id: 'booking.branch.create'»; «id: 'booking.service.create'»; «id: 'booking.schedule-block.delete'».
+- [x] `cms_pages` → `apps/webapp/src/app/api/doctor/content/*` (page/section create). — `apps/webapp/src/app-layer/entitlements/protectedActionRegistry.ts` §`PROTECTED_ACTION_MAPPINGS` — «mechanic: 'cms_pages'».
+- [x] `files` → `apps/webapp/src/modules/media` upload entry route(s) under doctor. — `apps/webapp/src/app-layer/entitlements/protectedActionRegistry.ts` §`PROTECTED_ACTION_MAPPINGS` — «id: 'files.patient-file.create'»; «id: 'files.patient-file.update'».
+- [x] `patient_card` → gate the doctor patient-card WRITE route(s) (notes/edits), not the list. — `apps/webapp/src/app-layer/entitlements/protectedActionRegistry.ts` §`PROTECTED_ACTION_MAPPINGS` — «mechanic: 'patient_card'».
+- [x] `subscriptions` (абонементы) → `modules/memberships` doctor-facing package assign/create routes. — `apps/webapp/src/app-layer/entitlements/protectedActionRegistry.ts` §`PROTECTED_ACTION_MAPPINGS` — «id: 'subscriptions.patient-package.create'».
+- [x] `payments` → the booking payment enable/config write path (coordinate with the existing `booking_payment_enabled` per-org flag — do NOT double-gate reads). — `apps/webapp/src/app-layer/entitlements/protectedActionRegistry.ts` §`PROTECTED_ACTION_MAPPINGS` — «id: 'payments.booking-settings.patch'».
+- [x] `patient_app` → the toggle/entry that turns the patient app on for a clinic (identify; if none, note deferred). — `apps/webapp/src/app-layer/entitlements/protectedActionRegistry.ts` §`DECLARED_NO_SURFACE` — «patient_app: 'code-search: no patient_app_enabled/toggle action'».
 - [x] `exercise_catalog`, `exercise_packages`, `patient_app_paid_subscription`, `branding`, `custom_domain` → these
   mechanics have NO clinic-writable surface yet (exercises are global/admin; branding/domain don't exist). Do NOT
-  invent routes — leave them resolver-only (they gate future P3/P5 surfaces). Note each as "no surface yet".~~ —  СДЕЛАНО ДО ВЫТЕСНЕНИЯ: exactly this determination is recorded per-mechanic in `protectedActionRegistry.ts:130-137` (`DECLARED_NO_SURFACE`), confirmed still true by direct grep (no `saas_exercise_packages`/branding/custom_domain schema or routes) as of 2026-07-27.
+  invent routes — leave them resolver-only (they gate future P3/P5 surfaces). Note each as "no surface yet". — `apps/webapp/src/app-layer/entitlements/protectedActionRegistry.ts` §`DECLARED_NO_SURFACE` — «exercise_catalog: 'S4-3/C5D deferred; no protected write surface in this stage'»; «exercise_packages: 'S4-3/C5D deferred; no protected write surface in this stage'»; «patient_app_paid_subscription: 'code-search: no subscription-toggle action'»; «branding: 'code-search: no branding write action'»; «custom_domain: 'code-search: no custom-domain write action'».
 - Each gating = 1 small commit. Default-on: no tariff/override ⇒ enabled ⇒ zero behavior change.
 - Verify per mechanic (curl): default create works; with an override `enabled=false` for org A that mechanic's route
   → 403; org B unaffected; remove override → works. Reuse the P1.a smoke shape.
@@ -79,13 +75,13 @@ WRITE/primary routes ONLY (do not gate pure reads unless noted). Ground the exac
 
 - [x] `GET/POST/PATCH /api/admin/tariffs` (+ delete/deactivate), guarded by `requireAdminWorkspaceApiContext` (global
   admin ONLY — NOT clinic_admin). CRUD on `saas_tariffs`: name, description, price_minor, currency, and the full
-  per-mechanic toggle map (`mechanics` jsonb keyed by the MECHANICS list). Validate mechanic keys against MECHANICS.~~ —  СДЕЛАНО ДО ВЫТЕСНЕНИЯ, evolved shape: unified `apps/webapp/src/app/api/admin/commercial/route.ts` (`GET` + `POST` discriminated-union `create_tariff`/`update_tariff`/`archive_tariff`, zod-validated), guarded by `requirePlatformOperationsApiContext` (`apps/webapp/src/app-layer/guards/requireRole.ts:231`, doc comment: "Platform-only API boundary. It intentionally has no organization resolution path." — stricter than the plan's named guard, same effect: clinic_admin gets 403).
+  per-mechanic toggle map (`mechanics` jsonb keyed by the MECHANICS list). Validate mechanic keys against MECHANICS. — `apps/webapp/src/app/api/admin/commercial/route.ts` §`operationSchema` / `POST` — «action: z.literal('create_tariff')»; «action: z.literal('update_tariff')»; «action: z.literal('archive_tariff')».
 - [x] `POST /api/admin/organizations/:id/tariff` — assign/unassign a tariff to a clinic (writes `be_organizations.tariff_id`);
-  global-admin only. (Optional: per-clinic override editor writing `saas_org_entitlement_overrides` — global-admin only.)~~ —  СДЕЛАНО ДО ВЫТЕСНЕНИЯ: `assign_tariff`/`upsert_override`/`delete_override` actions in the same `commercial/route.ts` (lines 135-156), implemented in `apps/webapp/src/infra/repos/pgPlatformEntitlements.ts` (`assignTariff`, `upsertOverride`, `deleteOverride`, line ~317+).
+  global-admin only. (Optional: per-clinic override editor writing `saas_org_entitlement_overrides` — global-admin only.) — `apps/webapp/src/app/api/admin/commercial/route.ts` §`operationSchema` / `POST` — «action: z.literal('assign_tariff')»; «action: z.literal('upsert_override')»; «action: z.literal('delete_override')».
 - [x] UI: a global_admin-tier page (accessTier "global_admin") "Тарифы" — list tariffs, a constructor form
-  (name/price + a checkbox grid of ALL mechanics), and a clinic→tariff assignment control. Reuse shared+shadcn only.~~ —  СДЕЛАНО ДО ВЫТЕСНЕНИЯ: `apps/webapp/src/app/app/admin/commercial/page.tsx` + `CommercialConstructorClient.tsx`, gated behind `requirePlatformOperationsPage` (global-admin tier).
+  (name/price + a checkbox grid of ALL mechanics), and a clinic→tariff assignment control. Reuse shared+shadcn only. — `apps/webapp/src/app/app/admin/commercial/page.tsx` §`CommercialPage` — «await requirePlatformOperationsPage();»; `CommercialConstructorClient.tsx` §`CommercialConstructorClient` — «export function CommercialConstructorClient()».
 - [x] RLS/grants: `saas_tariffs` writes run under app_staff (already granted); the app-layer global-admin gate is the
-  real restriction. If a pre-session/definer read is ever needed, follow the house SECURITY DEFINER pattern; likely none.~~ —  СДЕЛАНО ДО ВЫТЕСНЕНИЯ, evolved stronger than planned: a dedicated `app_platform_settings` principal (not plain app_staff) owns commercial writes — `deploy/postgres/c5a-platform-operations-runtime.sql`, `deploy/postgres/store-p0-entitlements-rls.sql`.
+  real restriction. If a pre-session/definer read is ever needed, follow the house SECURITY DEFINER pattern; likely none. — `deploy/postgres/c5a-platform-operations-runtime.sql` §`saas_tariffs_platform_operations` / `saas_org_entitlement_overrides_platform_operations` — «FOR ALL TO app_platform_settings USING (true) WITH CHECK (true)»; `deploy/postgres/store-p0-entitlements-rls.sql` §commercial grants — «commercial writes belong exclusively to the dedicated app_platform_settings principal.»
 - Verify (curl): global admin creates a tariff with `payments=false`, assigns it to org A → org A `payments` route 403,
   org B (no tariff) 200. A clinic_admin (demo-clinic-a) CANNOT reach `/api/admin/tariffs` (403) nor the Тарифы page.
 - 🔴 OPUS CHECK: the tariff/assign endpoints are global-admin-only (a clinic_admin gets 403), writes land correctly,
@@ -94,31 +90,27 @@ WRITE/primary routes ONLY (do not gate pure reads unless noted). Ground the exac
 ## P3 — admin-curated exercise store (packages)
 
 ~~Global admin assembles platform exercises (currently GLOBAL, `modules/lfk-exercises`) into sellable PACKAGES
- — ВЕДЁТСЯ В SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md:343
-  (extend `modules/lfk-templates` ordered-set primitive; or a new `saas_exercise_packages`). Admin-curated ONLY.~~ —  ВЫТЕСНЕНО 2026-07-27: не построено — проверено `grep -rn "saas_exercise_packages"` (0 совпадений); текущий статус зафиксирован как "S4-3/C5D deferred" в `apps/webapp/src/app-layer/entitlements/protectedActionRegistry.ts:132` (`DECLARED_NO_SURFACE.exercise_packages`). Работа живёт в `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md`.
+  (extend `modules/lfk-templates` ordered-set primitive; or a new `saas_exercise_packages`). Admin-curated ONLY.~~ — ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §8B / S4-3 — «После активации C5D добавить platform package entity с commercial metadata, price/currency/access duration».
 ~~Grant-based access: a clinic whose tariff includes `exercise_packages` (+ specific packages) gets READ access to
- — ВЕДЁТСЯ В SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md:347
   those packages/exercises via grants — **files are NEVER copied** (reference/grant, per owner). Reuse the content
-  `entitlements`/grant pattern.~~ —  ВЫТЕСНЕНО 2026-07-27: та же зависимость на deferred S4-3/C5D (см. выше); работа живёт в `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md`.
-~~Media pipeline unchanged (global). Gate the clinic-facing package browse behind `exercise_packages` entitlement.~~ — ВЕДЁТСЯ В SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md:356
+  `entitlements`/grant pattern.~~ — ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §8B / S4-3 — «Эволюционировать `content_access_grants_webapp` и `modules/entitlements` для org target».
+~~Media pipeline unchanged (global). Gate the clinic-facing package browse behind `exercise_packages` entitlement.~~ — ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §8B / S4-3 — «Добавить no-copy invariant: package grant/order не создаёт `lfk_exercises`, `lfk_exercise_media`, `media_files`»; «`exercise_packages` mechanic и specific package grant проверяются раздельно».
 - Verify: admin creates a package; a clinic with the entitlement sees it (read), a clinic without does not; no file copy.
 - 🔴 OPUS CHECK: cross-tenant — a clinic without the grant cannot read package/exercise media (no leak); grant is read-only.
 
 ## P4 — per-clinic analytics for the global admin
 
 ~~Cross-tenant aggregate dashboard for global admin built on the org-tagged `modules/product-analytics` base
- — ВЕДЁТСЯ В SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md:470
-  (per-clinic metrics: registrations, activity, retention). Global-admin-only page + API. NOT per-user only.~~ —  ВЫТЕСНЕНО 2026-07-27: не построено — проверено, `apps/webapp/src/modules/product-analytics/` содержит только per-page/topic aggregation (`buildAdminDashboard.ts`, `service.ts` etc.), нет per-clinic/cross-tenant файла или route. Если решится делаться — трекать в `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md`, не здесь.
+  (per-clinic metrics: registrations, activity, retention). Global-admin-only page + API. NOT per-user only.~~ — ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §11 / S4-5 — «Ввести отдельную typed platform aggregate projection/port.»
 - Verify: global admin sees per-clinic breakdown; a clinic_admin cannot access the cross-tenant view.
 - 🔴 OPUS CHECK: cross-tenant read is global-admin-only; no clinic can see another clinic's aggregates.
 
 ## P5 — tenant billing + branding/custom-domain (LATER — biggest, real money)
 
 ~~Tenant billing domain, SEPARATE from patient `payments`/`memberships` (per FOUNDATION_PLAN.md:458): org billing
- — ВЕДЁТСЯ В SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md:385
-  account, invoices, subscription lifecycle (trial/active/past_due/suspended/cancelled), a REAL PSP (today only mock).~~ —  ВЫТЕСНЕНО 2026-07-27: не построено — крупная денежная фаза, объём не проверялся дальше факта отсутствия billing-схемы; если делается, живёт в `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md`, не здесь.
+  account, invoices, subscription lifecycle (trial/active/past_due/suspended/cancelled), a REAL PSP (today only mock).~~ — ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §9 / S4-4 — «Создать отдельный `modules/saas-billing` domain с ports/service/typed state machine».
 - [ ] `branding` + `custom_domain` as paid capabilities (greenfield: add columns/side-tables to be_organizations;
-  domain routing in proxy.ts per [[no-middleware-use-proxy]]).~~ —  ВЫТЕСНЕНО 2026-07-27: не построено — проверено `grep -n "custom_domain\|branding" apps/webapp/db/schema/schema.ts` (0 совпадений) и подтверждено `DECLARED_NO_SURFACE` в `protectedActionRegistry.ts:135-136`. Живёт в `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md`.
+  domain routing in proxy.ts per [[no-middleware-use-proxy]]).
 - 🔴 OPUS CHECK (mandatory, money + prod-facing): real-PSP integration, charge/refund correctness, subscription
   state machine, and that a suspended clinic is correctly gated. Do NOT ship without Opus acceptance + owner sign-off.
 

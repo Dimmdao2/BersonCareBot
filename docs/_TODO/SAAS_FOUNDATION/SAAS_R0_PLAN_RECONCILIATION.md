@@ -8,8 +8,8 @@
 > Stage owner: orchestrator (Claude/Opus). Created 2026-07-15 after an owner-facing audit found two rival plan
 > documents, an unticked checklist in both, a red gate reported as PASS, and uncommitted work.
 
-> **2026-07-27 checkbox pass (owner canon `BACKLOG_CONSOLIDATION_2026-07-26.md` §6.3).** Was: 5 open boxes
-> (R0.3/R0.4/R0.6/R0.7/R0.9) counted as live backlog by raw grep. Now: all 5 marked `- [-]`  historical audit FAIL verdicts retained open — these
+> **2026-07-27 checkbox pass, corrected 2026-07-29.** The 5 boxes
+> (R0.3/R0.4/R0.6/R0.7/R0.9) remain `- [ ]`: no owner cancellation exists. These
 > are the independent audit's permanent FAIL verdicts on a historical stage, not unstarted work, and this
 > record's own line 13 forbids reticking them. Why: raw checkbox counts were reading a signed inspection
 > report as if it were a to-do list.

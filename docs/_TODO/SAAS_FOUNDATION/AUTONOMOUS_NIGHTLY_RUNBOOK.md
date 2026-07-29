@@ -4,12 +4,12 @@ Status: historical Phase 0 execution base. Phase 0 is complete as of 2026-07-08.
 
 Purpose: preserve the Phase 0 autonomous execution rules and evidence. For new T0 work, use this document only for general discipline (taskdb, logs, targeted validation, no prod touch) and use the T0 checklist for scope.
 
-> **Checkbox marking 2026-07-27.** Was: 51 open `- [ ]` boxes counted as live backlog by every raw grep sweep,
-> even though line 3/137 above already disowned them. Now: the 44 boxes inside "Next Stage Plans" (P0.7.5
-> through P0.13, the self-disowned section) are `- [-]` вытесненной; the 7 boxes in "Start Checklist"
-> are `- [-]` процедурной as a per-run procedure template (this file's own line 5 keeps them valid as
-> _discipline_, not as unstarted work). Why: `docs/_TODO/BACKLOG_CONSOLIDATION_2026-07-26.md` §6.3 canon —
-> dead/superseded boxes must leave both the open and done counts, never silently stay `[ ]`.
+> **Checkbox marking 2026-07-27, corrected 2026-07-29.** Was: 51 open `- [ ]` boxes counted as live backlog by
+> every raw grep sweep, even though the header had already disowned the historical execution section. None had an
+> owner cancellation. Under §6.4, the 44 entries inside "Next Stage Plans" were re-derived individually below:
+> completed facts use `[x]` with anchored evidence, transferred work uses prose pointers, the contradictory P0.10.1
+> state and the unrerunnable media gate remain `[ ]`, and the P0.13 full-CI policy is ordinary prose. The 7
+> "Start Checklist" entries are ordinary per-run procedure bullets, not checkboxes.
 >
 > **Correction 2026-07-27 (post-audit).** The first pass wrote one generic pointer
 > (`T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md` / `R2_MVP_MASTER_CHECKLIST.md`) on all 44 boxes. An independent
@@ -170,17 +170,17 @@ Primary files:
 
 Execution checklist:
 
-- [x] Re-read `P0_7_WRITER_CENSUS.md` -> Media Worker section. — T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md:27
-- [x] Confirm `media_transcode_jobs.organization_id` and `media_files.organization_id` exist from P0.4.P7. — T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md:27
-- [x] Decide from current code whether `claimNextJob` can return `organizationId` with the claimed job. — T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md:27
-- [x] Keep stale reclaim and queue claim status transitions as worker/queue mechanics unless the row org is loaded in the same transaction. — T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md:27
-- [x] Make processing/failure/duration writes execute under `runWithDbOrganizationPrincipal(job.organizationId, ...)` or an equivalent central API from `@bersoncare/db-principal`. — T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md:27
-- [x] Do not add manual `SET app.org` in media business logic. — T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md:27
-- [x] Add tests proving org context is applied for job processing writes. — T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md:27
-- [x] Add tests proving missing org leaves current behavior unchanged. — T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md:27
-- [x] Add tests proving claim/reclaim does not require a synthetic default org. — T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md:27
-- [x] Run media-worker targeted tests, media-worker typecheck, focused eslint, and `git diff --check`. — T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md:27
-- [x] Update `LOG.md`. — T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md:27
+- [x] Re-read `P0_7_WRITER_CENSUS.md` -> Media Worker section. — `P0_7_WRITER_CENSUS_CHECKLIST.md` §P0.7.5 Media-Worker Execution Checklist — «Re-read `P0_7_WRITER_CENSUS.md` Media Worker section.»
+- [x] Confirm `media_transcode_jobs.organization_id` and `media_files.organization_id` exist from P0.4.P7. — `P0_7_WRITER_CENSUS_CHECKLIST.md` §P0.7.5 Media-Worker Execution Checklist — «Confirm the current schema/source of `organization_id` for `media_transcode_jobs` and `media_files`.»
+- [x] Decide from current code whether `claimNextJob` can return `organizationId` with the claimed job. — `P0_7_WRITER_CENSUS_CHECKLIST.md` §P0.7.5 Media-Worker Execution Checklist — «Decide and document whether `claimNextJob` returns `organizationId` directly or the processor loads it before SCOPED writes.»
+- [x] Keep stale reclaim and queue claim status transitions as worker/queue mechanics unless the row org is loaded in the same transaction. — `P0_7_WRITER_CENSUS_CHECKLIST.md` §P0.7.5 Media-Worker Execution Checklist / Allowed — «Keep queue claim/reclaim mechanics explicit: either scoped from the loaded row or intentionally worker/queue-only.»
+- [x] Make processing/failure/duration writes execute under `runWithDbOrganizationPrincipal(job.organizationId, ...)` or an equivalent central API from `@bersoncare/db-principal`. — `P0_7_WRITER_CENSUS_CHECKLIST.md` §P0.7.5 Media-Worker Execution Checklist — «Ensure successful transcode updates, retry/permanent failure updates, program submission updates, and duration persistence run under the resolved org context.»
+- [x] Do not add manual `SET app.org` in media business logic. — `P0_7_WRITER_CENSUS_CHECKLIST.md` §P0.7.5 Media-Worker Execution Checklist / Forbidden — «No manual `SET app.org` in transcode business functions.»
+- [x] Add tests proving org context is applied for job processing writes. — `P0_7_WRITER_CENSUS_CHECKLIST.md` §P0.7.5 Media-Worker Execution Checklist — «Add focused tests for org-applied writer path, missing-org dormant path, and claim/reclaim behavior.»
+- [x] Add tests proving missing org leaves current behavior unchanged. — `P0_7_WRITER_CENSUS_CHECKLIST.md` §P0.7.5 Media-Worker Execution Checklist — «Ensure missing org leaves current dormant behavior unchanged and is logged/handled without a fallback.»
+- [x] Add tests proving claim/reclaim does not require a synthetic default org. — `P0_7_WRITER_CENSUS_CHECKLIST.md` §P0.7.5 Media-Worker Execution Checklist / Forbidden — «No synthetic default organization for jobs with missing org.»
+- [ ] Run media-worker targeted tests, media-worker typecheck, focused eslint, and `git diff --check`.
+- [x] Update `LOG.md`. — `P0_7_WRITER_CENSUS_CHECKLIST.md` §P0.7.5 Media-Worker Execution Checklist — «Update `LOG.md`.»
 
 Local gate template:
 
@@ -195,25 +195,25 @@ that touch SCOPED or org-direct `be_*` rows. Boot migrations remain migrator-onl
 
 Execution checklist:
 
-~~Use code index for payment/webhook writer discovery before `rg`.~~ — ВЕДЁТСЯ В P0_7_WRITER_CENSUS_CHECKLIST.md:72
-~~Build a small mapping table in the stage notes: entrypoint, tables touched, org source, tests.~~ — ВЕДЁТСЯ В P0_7_WRITER_CENSUS_CHECKLIST.md:72
-~~Separate runtime webhooks from boot/migration/ops scripts.~~ — ВЕДЁТСЯ В P0_7_WRITER_CENSUS_CHECKLIST.md:72
-~~For `be_*` writes, use existing organization ownership, not a default org fallback.~~ — ВЕДЁТСЯ В P0_7_WRITER_CENSUS_CHECKLIST.md:72
-~~For platform merge/package writers, require caller-provided scoped transaction or document a blocker.~~ — ВЕДЁТСЯ В P0_7_WRITER_CENSUS_CHECKLIST.md:72
-~~Add focused tests for correct org, missing org dormant behavior, and no boot-migration context.~~ — ВЕДЁТСЯ В P0_7_WRITER_CENSUS_CHECKLIST.md:72
-~~Update `LOG.md`.~~ — ВЕДЁТСЯ В P0_7_WRITER_CENSUS_CHECKLIST.md:72
+~~Use code index for payment/webhook writer discovery before `rg`.~~ — ВЕДЁТСЯ В `P0_7_WRITER_CENSUS_CHECKLIST.md` §P0.7.6 Payment/Webhook Execution Checklist — «Use code index for payment/webhook writer discovery, then targeted `rg`.»
+~~Build a small mapping table in the stage notes: entrypoint, tables touched, org source, tests.~~ — ВЕДЁТСЯ В `P0_7_WRITER_CENSUS_CHECKLIST.md` §P0.7.6 Payment/Webhook Execution Checklist / Allowed — «Build a small mapping before code changes: entrypoint, tables touched, org source, test file.»
+~~Separate runtime webhooks from boot/migration/ops scripts.~~ — ВЕДЁТСЯ В `P0_7_WRITER_CENSUS_CHECKLIST.md` §P0.7.6 Payment/Webhook Execution Checklist / Allowed — «Apply context only to runtime payment/webhook writers.»; «Keep boot migrations, migration ledgers, and one-off ops scripts under migrator-only semantics.»
+~~For `be_*` writes, use existing organization ownership, not a default org fallback.~~ — ВЕДЁТСЯ В `P0_7_WRITER_CENSUS_CHECKLIST.md` §P0.7.6 Payment/Webhook Execution Checklist — «For each runtime SCOPED path, identify the organization source before writing code.»
+~~For platform merge/package writers, require caller-provided scoped transaction or document a blocker.~~ — ВЕДЁТСЯ В `P0_7_WRITER_CENSUS_CHECKLIST.md` §P0.7.6 Payment/Webhook Execution Checklist — «For package/caller-transport writers, require an already-scoped transaction or block with a documented decision.»
+~~Add focused tests for correct org, missing org dormant behavior, and no boot-migration context.~~ — ВЕДЁТСЯ В `P0_7_WRITER_CENSUS_CHECKLIST.md` §P0.7.6 Payment/Webhook Execution Checklist — «Add focused tests for correct-org context, missing-org dormant behavior, and migrator-only exclusion.»
+~~Update `LOG.md`.~~ — ВЕДЁТСЯ В `P0_7_WRITER_CENSUS_CHECKLIST.md` §P0.7.6 Payment/Webhook Execution Checklist — «Update `LOG.md`.»
 
 ### P0.8.1-P0.8.7 RLS Descriptors And Policies
 
 Run in this order only:
 
-- [x] P0.8.1 descriptor model, no DB mutation. — P0_8_RLS_DESCRIPTOR_CHECKLIST.md:34
-- [x] P0.8.2 pure SQL renderer tests, no DB mutation. — P0_8_RLS_DESCRIPTOR_CHECKLIST.md:34
-- [x] P0.8.3 public direct-org generator + scratch smoke first; policy migration only after smoke passes. — P0_8_RLS_DESCRIPTOR_CHECKLIST.md:34
-- [x] P0.8.4 public FK/denorm preflight + scratch smoke by subgroup before migration. — P0_8_RLS_DESCRIPTOR_CHECKLIST.md:34
-- [x] P0.8.5 integrator bridge/denorm preflight + scratch smoke by source family before migration. — P0_8_RLS_DESCRIPTOR_CHECKLIST.md:34
-- [x] P0.8.6 bootstrap hybrid policies plus pre-context read smoke. — P0_8_RLS_DESCRIPTOR_CHECKLIST.md:34
-- [x] P0.8.7 INFRA/LEGACY/TELEMETRY exemption checks plus unsupported user-ref denial. — P0_8_RLS_DESCRIPTOR_CHECKLIST.md:34
+- [x] P0.8.1 descriptor model, no DB mutation. — `P0_8_RLS_DESCRIPTOR_CHECKLIST.md` §P0.8.1 Descriptor Model — «Descriptor represents exactly one tier for every artifact in `tiers-218.tsv`.»
+- [x] P0.8.2 pure SQL renderer tests, no DB mutation. — `P0_8_RLS_DESCRIPTOR_CHECKLIST.md` §P0.8.2 SQL Renderer Tests — «Direct `organization_id = app.org` predicate.»
+- [x] P0.8.3 public direct-org generator + scratch smoke first; policy migration only after smoke passes. — `P0_8_RLS_DESCRIPTOR_CHECKLIST.md` §P0.8.3-P0.8.7 Policy Application — «P0.8.3 public direct-org SCOPED families.»
+- [x] P0.8.4 public FK/denorm preflight + scratch smoke by subgroup before migration. — `P0_8_RLS_DESCRIPTOR_CHECKLIST.md` §P0.8.3-P0.8.7 Policy Application — «P0.8.4 public FK/denorm-path SCOPED families.»
+- [x] P0.8.5 integrator bridge/denorm preflight + scratch smoke by source family before migration. — `P0_8_RLS_DESCRIPTOR_CHECKLIST.md` §P0.8.3-P0.8.7 Policy Application — «P0.8.5 integrator bridge/denorm SCOPED families.»
+- [x] P0.8.6 bootstrap hybrid policies plus pre-context read smoke. — `P0_8_RLS_DESCRIPTOR_CHECKLIST.md` §P0.8.3-P0.8.7 Policy Application — «P0.8.6 BOOTSTRAP hybrid policies.»
+- [x] P0.8.7 INFRA/LEGACY/TELEMETRY exemption checks plus unsupported user-ref denial. — `P0_8_RLS_DESCRIPTOR_CHECKLIST.md` §P0.8.3-P0.8.7 Policy Application — «P0.8.7 INFRA/LEGACY/TELEMETRY descriptors and unsupported user-ref denial.»
 
 Each policy application stage must name the family, scratch DB, smoke command, and skipped production
 scope in `LOG.md`.
@@ -224,41 +224,41 @@ policy migration first.
 
 ### P0.9.1 Default-Deny Descriptors
 
-- [x] Add enforce-mode descriptor state. — P0_9_DEFAULT_DENY_CHECKLIST.md:34
-- [x] Prove unknown descriptor defaults to deny. — P0_9_DEFAULT_DENY_CHECKLIST.md:34
-- [x] Run only scratch/non-prod non-bypass role smoke. — P0_9_DEFAULT_DENY_CHECKLIST.md:34
-- [x] Keep production dormant. — P0_9_DEFAULT_DENY_CHECKLIST.md:34
+- [x] Add enforce-mode descriptor state. — `P0_9_DEFAULT_DENY_CHECKLIST.md` §Checklist — «Define enforce-mode descriptor state for SCOPED, BOOTSTRAP, INFRA, LEGACY, and TELEMETRY.»
+- [x] Prove unknown descriptor defaults to deny. — `P0_9_DEFAULT_DENY_CHECKLIST.md` §Checklist — «Default for unknown/missing descriptor is deny, not permit.»
+- [x] Run only scratch/non-prod non-bypass role smoke. — `P0_9_DEFAULT_DENY_CHECKLIST.md` §Scope / Allowed — «Add scratch/non-prod tests proving fail-closed behavior.»
+- [x] Keep production dormant. — `P0_9_DEFAULT_DENY_CHECKLIST.md` §Definition Of Done — «Production remains dormant.»
 
 ### P0.10.1-P0.10.3 CI Invariants
 
-- [x] P0.10.1: tier completeness and artifact agreement. — P0_10_CI_INVARIANTS_CHECKLIST.md:34
-- [x] P0.10.2: FK/soft user-ref guard, including the prior audit-root leak class. — P0_10_CI_INVARIANTS_CHECKLIST.md:34
-- [x] P0.10.3: scoped tenant semantics and no-NULL org checks. — P0_10_CI_INVARIANTS_CHECKLIST.md:34
-- [x] Wire stable checks into `pnpm run audit` only when they are deterministic and not PII-printing. — P0_10_CI_INVARIANTS_CHECKLIST.md:34
+- [ ] P0.10.1: tier completeness and artifact agreement.
+- [x] P0.10.2: FK/soft user-ref guard, including the prior audit-root leak class. — `P0_10_CI_INVARIANTS_CHECKLIST.md` §P0.10.2 User-Reference Tier Guard — «Introspect FK references to `public.platform_users`.»
+- [x] P0.10.3: scoped tenant semantics and no-NULL org checks. — `P0_10_CI_INVARIANTS_CHECKLIST.md` §P0.10.3 Scoped Tenant Semantics And Null Checks — «Every SCOPED descriptor has direct org, declared FK path, or declared denorm path.»
+- [x] Wire stable checks into `pnpm run audit` only when they are deterministic and not PII-printing. — `P0_10_CI_INVARIANTS_CHECKLIST.md` §Wiring / Allowed — «Wire stable invariants into `pnpm run audit` or an explicit root check script.»
 
 ### P0.11.1-P0.11.4 Org-Aware system_settings
 
 Run storage before runtime:
 
-- [x] P0.11.1 storage/mirror shape in public and integrator. — P0_11_SYSTEM_SETTINGS_ORG_CHECKLIST.md:34
-- [x] P0.11.2 read path with NULL fallback and accessor guard. — P0_11_SYSTEM_SETTINGS_ORG_CHECKLIST.md:34
-- [x] P0.11.3 write path through `updateSetting` and mirror sync only. — P0_11_SYSTEM_SETTINGS_ORG_CHECKLIST.md:34
-- [x] P0.11.4 UI/rules/docs; no new `ALLOWED_KEYS` unless a real setting is added. — P0_11_SYSTEM_SETTINGS_ORG_CHECKLIST.md:34
+- [x] P0.11.1 storage/mirror shape in public and integrator. — `P0_11_SYSTEM_SETTINGS_ORG_CHECKLIST.md` §P0.11.1 Storage Shape — «Add nullable `organization_id` to `public.system_settings`.»
+- [x] P0.11.2 read path with NULL fallback and accessor guard. — `P0_11_SYSTEM_SETTINGS_ORG_CHECKLIST.md` §P0.11.2 Read Path — «Port reads accept optional organization context.»
+- [x] P0.11.3 write path through `updateSetting` and mirror sync only. — `P0_11_SYSTEM_SETTINGS_ORG_CHECKLIST.md` §P0.11.3 Write Path And Mirror Sync — «`updateSetting` writes org-aware rows through the service path.»
+- [x] P0.11.4 UI/rules/docs; no new `ALLOWED_KEYS` unless a real setting is added. — `P0_11_SYSTEM_SETTINGS_ORG_CHECKLIST.md` §P0.11.4 UI / Rules / Docs — «Admin UI remains global unless a setting is explicitly org-scoped.»
 
 Do not write only one schema. Public and integrator mirror semantics must stay in lockstep.
 
 ### P0.12.1-P0.12.2 Residual References
 
-- [x] P0.12.1 scan polymorphic references and document resolver paths. — P0_12_RESIDUAL_REFS_CHECKLIST.md:34
-- [x] P0.12.2 scan JSON/text payload columns without printing PII samples. — P0_12_RESIDUAL_REFS_CHECKLIST.md:34
-- [x] Any unknown scoped reference blocks later RLS family application. — P0_12_RESIDUAL_REFS_CHECKLIST.md:34
+- [x] P0.12.1 scan polymorphic references and document resolver paths. — `P0_12_RESIDUAL_REFS_CHECKLIST.md` §P0.12.1 Polymorphic References — «Scan schema/code for polymorphic reference columns.»
+- [x] P0.12.2 scan JSON/text payload columns without printing PII samples. — `P0_12_RESIDUAL_REFS_CHECKLIST.md` §P0.12.2 JSON Payload / Queue PII — «Scan JSONB/text payload columns in SCOPED/BOOTSTRAP/INFRA/TELEMETRY tables.»
+- [x] Any unknown scoped reference blocks later RLS family application. — `P0_12_RESIDUAL_REFS_CHECKLIST.md` §P0.12.1 Polymorphic References — «For unresolved target types, block RLS family application until owner decision.»
 
 ### P0.13.1-P0.13.3 Isolation Fixtures
 
-- [x] P0.13.1 build scratch-safe synthetic fixtures with deterministic IDs. — P0_13_ISOLATION_FIXTURES_CHECKLIST.md:34
-- [x] P0.13.2 run DB isolation assertions under non-bypass app role. — P0_13_ISOLATION_FIXTURES_CHECKLIST.md:34
-- [x] P0.13.3 run current single-clinic dormant smoke. — P0_13_ISOLATION_FIXTURES_CHECKLIST.md:34
-- [x] Full CI is appropriate at the final integration checkpoint before push/merge readiness, not after each fixture edit. — P0_13_ISOLATION_FIXTURES_CHECKLIST.md:34
+- [x] P0.13.1 build scratch-safe synthetic fixtures with deterministic IDs. — `P0_13_ISOLATION_FIXTURES_CHECKLIST.md` §P0.13.1 Synthetic Fixture Factory — «Create synthetic second organization fixture.»
+- [x] P0.13.2 run DB isolation assertions under non-bypass app role. — `P0_13_ISOLATION_FIXTURES_CHECKLIST.md` §P0.13.2 DB-Level Isolation Assertions — «Run under non-bypass app role in scratch/non-prod.»
+- [x] P0.13.3 run current single-clinic dormant smoke. — `P0_13_ISOLATION_FIXTURES_CHECKLIST.md` §P0.13.3 App-Level Dormant Smoke — «Current single-clinic doctor smoke unchanged.»
+Full CI is appropriate at the final integration checkpoint before push/merge readiness, not after each fixture edit.
 
 ## Stop Conditions
 

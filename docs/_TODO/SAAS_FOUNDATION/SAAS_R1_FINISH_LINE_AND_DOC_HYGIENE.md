@@ -10,8 +10,8 @@
 > from that audit AND corrects a much bigger problem: **the roadmap's definition of done describes a path the
 > owner is not taking.**
 
-> **2026-07-27 checkbox pass (owner canon `BACKLOG_CONSOLIDATION_2026-07-26.md` §6.3).** Was: 4 open boxes
-> (R1.1/R1.4/R1.5/R1.6) counted as live backlog by raw grep. Now: all 4 marked `- [-]`  historical audit FAIL verdicts retained open — permanent
+> **2026-07-27 checkbox pass, corrected 2026-07-29.** The 4 boxes
+> (R1.1/R1.4/R1.5/R1.6) remain `- [ ]`: no owner cancellation exists. These are permanent
 > audit-FAIL verdicts on a historical stage record, not unstarted work; this record's own line 17 forbids
 > reticking them. Why: same class of miscount as R0. **Note on the "no prod cutover" quote below (line 33):**
 > the owner clarified 2026-07-27 that this means the _current_ legacy host is never upgraded in place — a _new_
