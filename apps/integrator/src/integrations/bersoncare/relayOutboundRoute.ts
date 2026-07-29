@@ -12,6 +12,8 @@ import { logger } from '../../infra/observability/logger.js';
 import { runWithOptionalOrganizationPrincipal } from '../../infra/principal/organizationPrincipal.js';
 import { recordNotificationDeliveryAttemptBestEffort } from '../../infra/db/repos/notificationDeliveryAttempts.js';
 import { isOutboundMessagePolicyDenied } from '../../infra/adapters/outboundMessagePolicy.js';
+import { recordOperatorFailureIncident } from '../../infra/operatorIncident/reportOperatorFailure.js';
+import { classifyOutboundProviderErrorClass } from '@bersoncare/operator-db-schema';
 
 const WINDOW_SECONDS = 300;
 const DEDUP_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -169,6 +171,30 @@ function buildIntent(parsed: RelayPayload): OutgoingIntent | null {
   return null;
 }
 
+async function recordRelayProviderFailureSafely(
+  channel: Extract<RelayPayload['channel'], 'email' | 'sms'>,
+  error: unknown,
+): Promise<void> {
+  const errorClass =
+    channel === 'email'
+      ? classifyOutboundProviderErrorClass(error instanceof Error ? error.message : String(error))
+      : 'provider_send_failed';
+
+  try {
+    await recordOperatorFailureIncident({
+      direction: 'outbound_delivery_provider',
+      integration: channel === 'email' ? 'email' : 'smsc',
+      errorClass,
+      errorDetail: null,
+    });
+  } catch {
+    logger.warn(
+      { channel, errorClass: 'operator_incident_record_failed' },
+      'relay-outbound: operator incident record failed',
+    );
+  }
+}
+
 export type BersoncareRelayOutboundDeps = {
   db?: DbPort;
   dispatchPort: DispatchPort;
@@ -319,6 +345,9 @@ export async function registerBersoncareRelayOutboundRoute(
           'relay-outbound: egress policy denied',
         );
         return reply.code(403).send({ ok: false, error: 'egress_policy_denied' });
+      }
+      if (parsed.channel === 'email' || parsed.channel === 'sms') {
+        await recordRelayProviderFailureSafely(parsed.channel, err);
       }
       if (db && parsed.channel === 'web_push') {
         await recordNotificationDeliveryAttemptBestEffort(db, {
