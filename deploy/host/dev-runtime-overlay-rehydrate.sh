@@ -262,29 +262,6 @@ SELECT 1 / (
   pg_get_userbyid((SELECT datdba FROM pg_database WHERE datname = current_database())) = :'expected_owner_role'
 )::int AS dev_database_owner_exact;
 
-WITH expected_wall_auxiliary_membership(
-  granted_role,
-  member_role,
-  admin_option,
-  inherit_option,
-  set_option
-) AS (
-  VALUES
-    ('app_platform_settings', 'app_staff', false, false, true)
-), actual_wall_auxiliary_membership AS (
-  SELECT
-    granted_role.rolname AS granted_role,
-    member_role.rolname AS member_role,
-    membership.admin_option,
-    membership.inherit_option,
-    membership.set_option
-  FROM pg_auth_members membership
-  JOIN pg_roles granted_role ON granted_role.oid = membership.roleid
-  JOIN pg_roles member_role ON member_role.oid = membership.member
-  WHERE member_role.rolname IN ('app_owner', 'app_staff', 'app_patient')
-     OR granted_role.rolname = 'app_platform_settings'
-     OR member_role.rolname = 'app_platform_settings'
-)
 SELECT 1 / (
   EXISTS (
     SELECT 1 FROM pg_roles
@@ -324,29 +301,6 @@ SELECT 1 / (
       AND NOT rolreplication
       AND rolconnlimit = -1
       AND rolconfig IS NULL
-  )
-  AND EXISTS (
-    SELECT 1 FROM pg_roles
-    WHERE rolname = 'app_platform_settings'
-      AND NOT rolcanlogin
-      AND NOT rolinherit
-      AND NOT rolbypassrls
-      AND NOT rolsuper
-      AND NOT rolcreatedb
-      AND NOT rolcreaterole
-      AND NOT rolreplication
-      AND rolconnlimit = -1
-      AND rolconfig IS NULL
-  )
-  AND (SELECT count(*) FROM actual_wall_auxiliary_membership) = 1
-  AND NOT EXISTS (
-    (SELECT * FROM actual_wall_auxiliary_membership
-     EXCEPT
-     SELECT * FROM expected_wall_auxiliary_membership)
-    UNION ALL
-    (SELECT * FROM expected_wall_auxiliary_membership
-     EXCEPT
-     SELECT * FROM actual_wall_auxiliary_membership)
   )
   AND NOT pg_has_role('app_staff', 'app_patient', 'MEMBER')
   AND NOT pg_has_role('app_patient', 'app_staff', 'MEMBER')

@@ -827,6 +827,18 @@ HOW-A тратил 8–15 дней, мутируя 200 файлов, чтобы 
   эталон `a0-greenfield` и одноразовая БД (на которой строится живая-БД матрица) соответствуют ТЕСТУ, на этом
   боксе. **Прод в это НЕ входит: не читаем, не сравниваем — забота владельца/ops.** Всё живое-БД ждёт этой
   сверки — кривой эталон сделал бы каждый живой-БД тест ложью того же класса, что мы убираем.
+  - **Улика TEST 30.07:** read-only запрос
+    `sudo -n -u postgres psql -d bersoncarebot_test -X -v ON_ERROR_STOP=1 -Atqc
+    "SELECT hash || E'\t' || created_at::text FROM drizzle.__drizzle_migrations ORDER BY created_at, id" |
+    awk -F $'\t' '$2 == "1790947200000" { print $1 }'` вернул
+    `670a650104b59014da07d88551db4b17806bf982230bd6b21870050d0b23a861` — ровно SHA-256 текущего committed
+    `0175_p0_8_b4_roles_1_is_staff_wall_rls.sql`. Следовательно, TEST соответствует текущей 0175, а устарел
+    A0 manifest; PROD не открывался.
+  - **Разблокировка DEV 30.07:** по решению владельца из preflight удалён дублирующий ручной product-role
+    allowlist; exact DEV owner/runtime, опасные атрибуты, доступ к `app_owner`, ownership и execute RLS/ACL
+    closure сохранены. `bash deploy/host/dev-runtime-overlay-rehydrate.sh --preflight` → `PASS`;
+    `bash deploy/host/migrate-dev.sh --preflight` → `PASS`, без изменений БД. Следующий шаг G0 — штатно
+    мигрировать DEV, обновить его из TEST, пересобрать A0 и прогнать static+disposable proof.
 - **G1 — калибровка** (после первого рабочего примера + первой инъекции A1): утвердить конфиг Stryker, РЕАЛЬНУЮ
   стоимость на тяжёлом Next-графе (пилоты были leaf-модули — оценка ×2–3 на `infra/repos`/`app-layer`), цели
   score. Ни один тир не стартует до G1.

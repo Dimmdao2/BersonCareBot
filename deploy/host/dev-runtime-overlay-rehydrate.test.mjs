@@ -327,9 +327,16 @@ test('shared topology guard rejects owner equals runtime and accepts separate C0
   assert.equal(accepted.status, 0, accepted.stderr);
 });
 
-test('DEV preflight allows only the canonical U9A SET-only edge from app_staff', () => {
+test('U9A owns its product-role edge while DEV preflight keeps only structural role guards', () => {
   const source = readFileSync(wrapperPath, 'utf8');
   const u9aPlatformSettings = readFileSync(u9aPlatformSettingsPath, 'utf8');
+  const preflightStart = source.indexOf('# Read-only preflight.');
+  const preflightEnd = source.indexOf(
+    '\nif [[ "$MODE" == "--preflight" ]]',
+    preflightStart,
+  );
+  assert.ok(preflightStart >= 0 && preflightEnd > preflightStart);
+  const preflight = source.slice(preflightStart, preflightEnd);
 
   assert.match(
     u9aPlatformSettings,
@@ -339,26 +346,27 @@ test('DEV preflight allows only the canonical U9A SET-only edge from app_staff',
     u9aPlatformSettings,
     /GRANT app_platform_settings TO app_staff WITH ADMIN FALSE, INHERIT FALSE, SET TRUE;/u,
   );
-  assert.match(source, /WITH expected_wall_auxiliary_membership\(/u);
-  assert.match(source, /\('app_platform_settings', 'app_staff', false, false, true\)/u);
-  assert.match(source, /actual_wall_auxiliary_membership AS/u);
+  assert.doesNotMatch(preflight, /expected_wall_auxiliary_membership/u);
+  assert.doesNotMatch(preflight, /actual_wall_auxiliary_membership/u);
+  assert.doesNotMatch(preflight, /app_platform_settings/u);
+  assert.doesNotMatch(preflight, /auxiliary_membership/u);
   assert.match(
-    source,
-    /member_role\.rolname IN \('app_owner', 'app_staff', 'app_patient'\)[\s\S]*OR granted_role\.rolname = 'app_platform_settings'[\s\S]*OR member_role\.rolname = 'app_platform_settings'/u,
-  );
-  assert.match(source, /\(SELECT count\(\*\) FROM actual_wall_auxiliary_membership\) = 1/u);
-  assert.match(
-    source,
-    /SELECT \* FROM actual_wall_auxiliary_membership[\s\S]*EXCEPT[\s\S]*SELECT \* FROM expected_wall_auxiliary_membership/u,
+    preflight,
+    /WHERE rolname = 'app_owner'[\s\S]*AND NOT rolcanlogin[\s\S]*AND rolinherit[\s\S]*AND rolbypassrls[\s\S]*AND NOT rolsuper[\s\S]*AND NOT rolcreatedb[\s\S]*AND NOT rolcreaterole[\s\S]*AND NOT rolreplication/u,
   );
   assert.match(
-    source,
-    /SELECT \* FROM expected_wall_auxiliary_membership[\s\S]*EXCEPT[\s\S]*SELECT \* FROM actual_wall_auxiliary_membership/u,
+    preflight,
+    /WHERE rolname = 'app_staff'[\s\S]*AND rolcanlogin[\s\S]*AND rolinherit[\s\S]*AND NOT rolbypassrls[\s\S]*AND NOT rolsuper[\s\S]*AND NOT rolcreatedb[\s\S]*AND NOT rolcreaterole[\s\S]*AND NOT rolreplication/u,
   );
   assert.match(
-    source,
-    /WHERE rolname = 'app_platform_settings'[\s\S]*AND NOT rolcanlogin[\s\S]*AND NOT rolinherit[\s\S]*AND NOT rolbypassrls[\s\S]*AND NOT rolsuper[\s\S]*AND NOT rolcreatedb[\s\S]*AND NOT rolcreaterole[\s\S]*AND NOT rolreplication[\s\S]*AND rolconnlimit = -1[\s\S]*AND rolconfig IS NULL/u,
+    preflight,
+    /WHERE rolname = 'app_patient'[\s\S]*AND rolcanlogin[\s\S]*AND rolinherit[\s\S]*AND NOT rolbypassrls[\s\S]*AND NOT rolsuper[\s\S]*AND NOT rolcreatedb[\s\S]*AND NOT rolcreaterole[\s\S]*AND NOT rolreplication/u,
   );
+  assert.match(preflight, /NOT pg_has_role\('app_staff', 'app_patient', 'MEMBER'\)/u);
+  assert.match(preflight, /NOT pg_has_role\('app_patient', 'app_staff', 'MEMBER'\)/u);
+  assert.match(preflight, /actual\.granted_role = 'app_owner'/u);
+  assert.match(preflight, /NOT pg_has_role\(:'expected_runtime_role', 'app_owner', 'MEMBER'\)/u);
+  assert.match(preflight, /namespace\.nspname IN \('public', 'integrator', 'app'\)/u);
 });
 
 test('DEV wrapper separates owner and runtime before any overlay and proves live capabilities', () => {
@@ -405,7 +413,10 @@ test('DEV wrapper separates owner and runtime before any overlay and proves live
   assert.match(source, /dev_database_owner_exact/u);
   assert.match(source, /dev_runtime_roles_safe/u);
   assert.match(source, /rolconnlimit = -1/u);
-  assert.match(source, /member_role\.rolname IN \('app_owner', 'app_staff', 'app_patient'\)/u);
+  assert.match(
+    source,
+    /WHERE granted_role\.rolname IN \('app_owner', 'app_staff', 'app_patient'\)/u,
+  );
   assert.match(source, /dev_runtime_incoming_memberships_exact/u);
   assert.match(source, /actual\.granted_role = 'app_owner'/u);
   assert.match(source, /pg_has_role\(candidate_role\.oid, owner_role\.oid, 'MEMBER'\)/u);
@@ -629,8 +640,8 @@ test('DEV env parser validates protected-context mode and keeps signing values a
   assert.match(selfTest.stdout, /self-test: OK/u);
 
   const source = readFileSync(envParserPath, 'utf8');
-  assert.match(source, /value !== "shadow" && value !== "locked"/u);
-  assert.match(source, /Buffer\.byteLength\(value, "utf8"\) < 32/u);
+  assert.match(source, /value !== ['"]shadow['"] && value !== ['"]locked['"]/u);
+  assert.match(source, /Buffer\.byteLength\(value, ['"]utf8['"]\) < 32/u);
   assert.match(source, /\^\[A-Za-z0-9\._~\+\/=-\]\+\$/u);
 });
 

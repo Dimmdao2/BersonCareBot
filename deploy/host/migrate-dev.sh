@@ -166,7 +166,9 @@ read -r DRIZZLE_0247_HASH DRIZZLE_0247_WHEN < <(
 reconcile_0247_ledger_drift() {
   local state
 
-  state="$(psql "$DEV_DATABASE_URL" -X -v ON_ERROR_STOP=1 -v drizzle_0247_hash="$DRIZZLE_0247_HASH" -Atqc "
+  state="$(
+    psql "$DEV_DATABASE_URL" -X -v ON_ERROR_STOP=1 \
+      -v drizzle_0247_hash="$DRIZZLE_0247_HASH" -Atq -f - <<'SQL'
     SELECT CASE
       WHEN to_regclass('drizzle.__drizzle_migrations') IS NULL THEN 'ledger_missing'
       WHEN EXISTS (
@@ -202,7 +204,8 @@ reconcile_0247_ledger_drift() {
       ) AND to_regprocedure('app.email_auth_increment_email_challenge_attempts(uuid)') IS NULL THEN 'unapplied'
       ELSE 'object_drift'
     END;
-  ")" || fatal "DEV 0247 ledger/object drift probe failed"
+SQL
+  )" || fatal "DEV 0247 ledger/object drift probe failed"
 
   case "$state" in
     aligned|unapplied)
@@ -216,11 +219,13 @@ reconcile_0247_ledger_drift() {
       psql "$DEV_DATABASE_URL" -X -v ON_ERROR_STOP=1 \
         -v drizzle_0247_hash="$DRIZZLE_0247_HASH" \
         -v drizzle_0247_when="$DRIZZLE_0247_WHEN" \
-        -c "INSERT INTO drizzle.__drizzle_migrations (hash, created_at)
-            SELECT :'drizzle_0247_hash', :'drizzle_0247_when'::bigint
-            WHERE NOT EXISTS (
-              SELECT 1 FROM drizzle.__drizzle_migrations WHERE hash = :'drizzle_0247_hash'
-            );" >/dev/null || fatal "failed to reconcile the canonical Drizzle 0247 ledger row"
+        -f - <<'SQL' >/dev/null || fatal "failed to reconcile the canonical Drizzle 0247 ledger row"
+INSERT INTO drizzle.__drizzle_migrations (hash, created_at)
+SELECT :'drizzle_0247_hash', :'drizzle_0247_when'::bigint
+WHERE NOT EXISTS (
+  SELECT 1 FROM drizzle.__drizzle_migrations WHERE hash = :'drizzle_0247_hash'
+);
+SQL
       echo "migrate-dev: reconciled Drizzle ledger for already-applied 0247 object"
       ;;
     ledger_missing|object_drift)
