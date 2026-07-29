@@ -392,72 +392,13 @@ describe('platform tariff constructor validation', () => {
     // inspect pgOrganizationInvites' advisory-lock transaction, rather than the courses trigger.
     expect(MECHANIC_REGISTRY.clinic_team.quotaEnforcement).toBe('application_transaction_snapshot');
     expect(MECHANIC_REGISTRY.booking.quotaEnforcement).toBe('declared_no_enforcement');
-    const migration = readFileSync(
-      resolve(process.cwd(), 'db/drizzle-migrations/0225_saas_tariff_quotas_trial.sql'),
-      'utf8',
-    );
-    expect(migration).toContain('CREATE TRIGGER courses_snapshot_quota_guard');
-    expect(migration).toContain('AFTER INSERT ON public.courses');
-    expect(migration).toContain('pg_advisory_xact_lock');
-    expect(migration).toContain('SELECT count(*) INTO v_count');
-    expect(migration).toContain('v_count * 5 >= v_limit * 4');
-    expect(migration).toContain('saas_quota_reached:courses');
-    expect(migration).not.toContain('saas_organization_quota_usage');
-    const migrationDir = resolve(process.cwd(), 'db/drizzle-migrations');
-    const cmsPagesMigrationName = readdirSync(migrationDir).find((name) =>
-      name.endsWith('_cms_pages_snapshot_quota.sql'),
-    );
-    expect(cmsPagesMigrationName).toBeTruthy();
-    const cmsPagesMigration = readFileSync(resolve(migrationDir, cmsPagesMigrationName!), 'utf8');
-    expect(cmsPagesMigration).toContain('CREATE TRIGGER content_pages_snapshot_quota_guard');
-    expect(cmsPagesMigration).toContain('BEFORE INSERT ON public.content_pages');
-    expect(cmsPagesMigration).toContain('CREATE OR REPLACE FUNCTION app.cms_pages_snapshot_usage(');
-    expect(cmsPagesMigration).toContain(
-      'CREATE OR REPLACE FUNCTION app.enforce_cms_pages_snapshot_quota()',
-    );
-    expect(cmsPagesMigration).toContain(
-      'DROP TRIGGER IF EXISTS content_pages_snapshot_quota_guard',
-    );
-    expect(cmsPagesMigration).toContain('saas_quota:cms_pages:');
-    expect(cmsPagesMigration).toContain('FROM public.content_pages');
-    expect(cmsPagesMigration).toContain('WHERE organization_id = p_organization_id');
-    expect(cmsPagesMigration).toContain('app.cms_pages_snapshot_usage(NEW.organization_id)');
-    expect(cmsPagesMigration).toContain('SET updated_at = updated_at');
-    expect(cmsPagesMigration).toContain(
-      'GRANT UPDATE (updated_at) ON TABLE public.be_organizations TO app_owner',
-    );
-    expect(cmsPagesMigration).not.toContain('cms_pages_quota_requires_read_committed');
-    expect(cmsPagesMigration).toContain('existing_page.section = NEW.section');
-    expect(cmsPagesMigration).toContain('existing_page.slug = NEW.slug');
-    expect(cmsPagesMigration).toContain('IF v_count >= v_limit THEN');
-    expect(cmsPagesMigration).toContain('saas_quota_reached:cms_pages');
-    expect(cmsPagesMigration).toContain("'saas_quota:cms_pages:' || NEW.organization_id::text");
-    expect(cmsPagesMigration).toContain('GRANT SELECT ON TABLE public.content_pages TO app_owner');
-    expect(cmsPagesMigration).not.toContain('saas_organization_quota_usage');
-    const platformRuntime = readFileSync(
-      resolve(process.cwd(), '../../deploy/postgres/c5a-platform-operations-runtime.sql'),
-      'utf8',
-    );
-    expect(platformRuntime).toContain(
-      "IF to_regprocedure('app.cms_pages_snapshot_usage(uuid)') IS NULL THEN",
-    );
-    expect(platformRuntime).toContain(
-      'REVOKE ALL ON FUNCTION app.cms_pages_snapshot_usage(uuid)\n      FROM PUBLIC, app_staff, app_patient, app_platform_settings',
-    );
-    expect(platformRuntime).toContain(
-      'GRANT EXECUTE ON FUNCTION app.cms_pages_snapshot_usage(uuid)\n      TO app_platform_settings',
-    );
-    expect(platformRuntime).toContain(
-      'CREATE OR REPLACE FUNCTION app.read_org_enforced_quota_usage(',
-    );
-    expect(platformRuntime).toContain(
-      'GRANT EXECUTE ON FUNCTION app.read_org_enforced_quota_usage(uuid)',
-    );
-    expect(platformRuntime).toContain(
-      'REVOKE ALL PRIVILEGES ON TABLE\n    public.courses,\n    public.organization_member_invites\n  FROM app_platform_settings',
-    );
-    expect(platformRuntime).not.toContain('CREATE POLICY courses_platform_quota_usage_select');
-    expect(platformRuntime).toContain('c5a_platform_enforced_quota_usage_exact_wall');
+    // Сверка ТЕКСТА файлов миграций убрана 29.07 — решение владельца «умолчание: удалить».
+    // Она читала .sql с диска и искала подстроки (CREATE TRIGGER, pg_advisory_xact_lock,
+    // 'v_count * 5 >= v_limit * 4'): ломается от переноса строки и НЕ доказывает, что триггер
+    // применён к живой базе — только что он написан в файле. Деплой проверяет применённое.
+    // Именно эта сверка блокировала мутационный анализ модуля прав: путь строился от текущего
+    // каталога и не сходился в песочнице Stryker.
+    // Выше остались проверки ДАННЫХ реестра механик — какой способ учёта квоты объявлен.
   });
 });
 
