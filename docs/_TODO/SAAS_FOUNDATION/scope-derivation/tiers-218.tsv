@@ -9,6 +9,8 @@ BOOTSTRAP|public.channel_link_secrets
 BOOTSTRAP|public.email_challenges
 BOOTSTRAP|public.email_send_cooldowns
 BOOTSTRAP|public.login_tokens
+BOOTSTRAP|public.password_altcha_challenges
+BOOTSTRAP|public.password_login_identifier_protection
 BOOTSTRAP|public.phone_challenges
 BOOTSTRAP|public.phone_messenger_bind_secrets
 BOOTSTRAP|public.platform_user_contacts
