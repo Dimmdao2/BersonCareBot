@@ -406,8 +406,7 @@ trialPolicy }` одним payload'ом (`route.ts:99-104`), тем же гейт
 - [x] **`POST /api/admin/organizations/:id/tariff` ... `POST/DELETE /api/admin/organizations/:id/entitlement-overrides`...**
       — ДУБЛЬ-СЛИТ: `assign_tariff`/`upsert_override`/`delete_override` — actions внутри того же
       `POST /api/admin/commercial` (`route.ts:56-74`), identity `(organizationId, mechanic)` соблюдена.
-ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §7 / S4-2 — «Добавить global trial-policy: ссылка на существующий active tariff, duration и start event.»
-- Org-creation: применить выбранную global-admin trial policy через typed service в атомарной provisioning
+- [ ] Org-creation: применить выбранную global-admin trial policy через typed service в атомарной provisioning
       boundary; не выбирать тариф по имени/`is_default` и не скрывать неполную policy под all-on fallback — см. §3.2.
       — НЕ СДЕЛАНО: `grep` по `modules/organization-provisioning/{service,ports}.ts` не находит ни `trial`, ни `tariff`.
       `startTrial` вызывается только вручную из admin UI action (`route.ts` `start_trial`), не из
@@ -550,8 +549,7 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       — НЕ СДЕЛАНО: `find apps/webapp/src -iname "*saas-webhook*"` — пусто. Существующие роуты —
       `api/payments/webhook/[provider]` (booking) и `api/payments/patient-acquiring-webhook/[provider]` — оба
       pre-existing, разные поверхности, не тронуты и не дублированы (это ок — не в scope).
-ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §9 / S4-4 — «Organization settings tab «Тариф и биллинг» показывает current tariff/capabilities/usage/seats».
-- Checkout UI — **другая зона от Phase 3.** Clinic-facing план/usage/инвойсы/оплата = **`MGMT-08` Plan, usage
+- [ ] Checkout UI — **другая зона от Phase 3.** Clinic-facing план/usage/инвойсы/оплата = **`MGMT-08` Plan, usage
       and billing** («Current plan, limits, invoices, recovery | Owner; delegated view/pay if explicitly allowed», см.
       §0a) — внутри обычного tenant-дерева `/app/doctor/**` (не в `(global-admin)` route group из Phase 3). Новая
       страница/секция под clinic settings/organization area; возвращает provider checkout URL; return page сверяет
@@ -673,8 +671,7 @@ capture/refund integration тест на mock-адаптере; secret redaction
       декларирует `exercise_catalog`/`exercise_packages`/`patient_app`/`patient_app_paid_subscription`/`branding`/
       `custom_domain` в `DECLARED_NO_SURFACE` (строки 130-137). Coverage-тест (6/6) подтверждает: ни одна механика не
       осталась без mapping или exemption.
-ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §7 / S4-2 — «Добавить global trial-policy: ссылка на существующий active tariff, duration и start event.»
-- Новая организация применяет выбранную global-admin trial policy; если зависимая policy не утверждена/неполна,
+- [ ] Новая организация применяет выбранную global-admin trial policy; если зависимая policy не утверждена/неполна,
       автоматическое trial provisioning fail-closed без подстановки придуманного тарифа. Existing NULL-org проходят
       отдельный owner-approved migration mapping до удаления compatibility behavior.
       — НЕ СДЕЛАНО: см. Phase 3 пп.7-8 выше — ни provisioning-интеграция, ни dry-run/mapping инструмент не существуют.
