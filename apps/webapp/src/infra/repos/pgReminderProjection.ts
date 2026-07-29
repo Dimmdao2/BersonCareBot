@@ -482,7 +482,7 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
         sql`
         UPDATE reminder_occurrence_history
          SET seen_at = now()
-         WHERE integrator_occurrence_id = ANY(${occurrenceIds})
+         WHERE integrator_occurrence_id = ANY(${sql.param(occurrenceIds)}::text[])
            AND integrator_rule_id IN (
              SELECT integrator_rule_id
              FROM reminder_rules
