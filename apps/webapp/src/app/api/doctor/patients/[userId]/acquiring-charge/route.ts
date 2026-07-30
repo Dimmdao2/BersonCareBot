@@ -19,6 +19,7 @@
  * FIN-04
  */
 
+import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
@@ -68,11 +69,22 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
   const entitlement = await requireEntitlementForMutation(gate.ctx, 'payments');
   if (!entitlement.ok) return entitlement.response;
 
+  const idempotencyHeader = request.headers.get('idempotency-key');
+  const idempotencyKey =
+    idempotencyHeader === null ? randomUUID() : idempotencyHeader.trim();
+  if (!idempotencyKey || idempotencyKey.length > 64) {
+    return NextResponse.json(
+      { ok: false, error: 'invalid_idempotency_key' },
+      { status: 400 },
+    );
+  }
+
   // Initiate the charge via the acquiring gateway.
   const chargeResult = await deps.acquiringGateway.createCharge({
     patientUserId: identity.userId,
     amountMinor,
     currency,
+    idempotencyKey,
     description,
     metadata: {
       // Provide a generic return URL; front-end can pass a specific one via metadata if needed.
