@@ -7,6 +7,11 @@ import {
   getGoogleClientId,
   getGoogleClientSecret,
   getGoogleOauthLoginRedirectUri,
+  getAppleOauthClientId,
+  getAppleOauthKeyId,
+  getAppleOauthPrivateKey,
+  getAppleOauthRedirectUri,
+  getAppleOauthTeamId,
   getMaxBotApiKey,
   getTelegramBotToken,
   getYandexOauthClientId,
@@ -146,20 +151,22 @@ export async function getAuthChannelPolicyDetail(): Promise<AuthChannelPolicyDet
 }
 
 /**
- * OAuth login providers (Google / Yandex only — no Apple toggle, owner ruling 2026-07-24).
+ * OAuth login providers. Each provider has an independent admin toggle, and the provider is
+ * effective only when its complete credential set exists.
  * The independent admin toggle (`auth_oauth_*_enabled`) is decoupled from credential presence.
  * "Configured" is read straight from the same credential getters `oauth/start` already uses
  * (`integrationRuntime.ts`) — the pre-existing `oauth_google_enabled` / `oauth_yandex_enabled`
  * public projection (DB trigger, migrations 0193/0209/0210) is left untouched for compatibility
  * but is no longer the source of truth for this gate, so it never goes stale relative to it.
  */
-export type OAuthProvider = 'google' | 'yandex';
+export type OAuthProvider = 'google' | 'yandex' | 'apple';
 export type OAuthProviderDetail = Readonly<{ enabled: boolean; configured: boolean }>;
 export type OAuthProviderPolicyDetail = Readonly<Record<OAuthProvider, OAuthProviderDetail>>;
 
 const OAUTH_TOGGLE_SETTING_BY_PROVIDER = {
   google: 'auth_oauth_google_enabled',
   yandex: 'auth_oauth_yandex_enabled',
+  apple: 'auth_oauth_apple_enabled',
 } as const;
 
 async function isOAuthProviderConfigured(provider: OAuthProvider): Promise<boolean> {
@@ -173,6 +180,18 @@ async function isOAuthProviderConfigured(provider: OAuthProvider): Promise<boole
       getGoogleOauthLoginRedirectUri(),
     ]);
     return Boolean(id.trim() && secret.trim() && redirect.trim());
+  }
+  if (provider === 'apple') {
+    const [id, redirect, team, keyId, privateKey] = await Promise.all([
+      getAppleOauthClientId(),
+      getAppleOauthRedirectUri(),
+      getAppleOauthTeamId(),
+      getAppleOauthKeyId(),
+      getAppleOauthPrivateKey(),
+    ]);
+    return Boolean(
+      id.trim() && redirect.trim() && team.trim() && keyId.trim() && privateKey.trim(),
+    );
   }
   const [id, secret, redirect] = await Promise.all([
     getYandexOauthClientId(),
@@ -193,7 +212,7 @@ export async function isOAuthProviderEnabled(provider: OAuthProvider): Promise<b
 
 /** Admin-only detail view for the OAuth toggles (raw toggle + configuration status). */
 export async function getOAuthProviderPolicyDetail(): Promise<OAuthProviderPolicyDetail> {
-  const providers: readonly OAuthProvider[] = ['google', 'yandex'];
+  const providers: readonly OAuthProvider[] = ['google', 'yandex', 'apple'];
   const entries = await Promise.all(
     providers.map(async (provider) => {
       const [enabled, configured] = await Promise.all([
@@ -204,4 +223,18 @@ export async function getOAuthProviderPolicyDetail(): Promise<OAuthProviderPolic
     }),
   );
   return Object.fromEntries(entries) as OAuthProviderPolicyDetail;
+}
+
+export type IndependentAuthMethod = 'passkey' | 'pin';
+
+const AUTH_METHOD_TOGGLE_SETTING = {
+  passkey: 'auth_passkey_enabled',
+  pin: 'auth_pin_enabled',
+} as const;
+
+/** Server-side gate for independent login methods; false is the safe default for both. */
+export async function isIndependentAuthMethodEnabled(
+  method: IndependentAuthMethod,
+): Promise<boolean> {
+  return getPublicRuntimeBool(AUTH_METHOD_TOGGLE_SETTING[method], 'public_auth_config');
 }

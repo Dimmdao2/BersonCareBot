@@ -199,6 +199,9 @@ export const SYSTEM_SETTING_REGISTRY = {
    */
   auth_oauth_google_enabled: runtime('admin', 'global', 'public', 'boolean', 'true'),
   auth_oauth_yandex_enabled: runtime('admin', 'global', 'public', 'boolean', 'true'),
+  auth_oauth_apple_enabled: runtime('admin', 'global', 'public', 'boolean', 'false'),
+  auth_passkey_enabled: runtime('admin', 'global', 'public', 'boolean', 'false'),
+  auth_pin_enabled: runtime('admin', 'global', 'public', 'boolean', 'false'),
   /**
    * Platform-wide availability of clinic-facing integrations. This is deliberately one
    * structured setting: the platform decides whether an integration exists, while any

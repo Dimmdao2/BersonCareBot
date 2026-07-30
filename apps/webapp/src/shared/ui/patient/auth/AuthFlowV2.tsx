@@ -58,6 +58,10 @@ import {
 import type { OrganizationSlugMutationErrorCode } from '@/modules/clinic-directory/ports';
 import { staffSecurityErrorText } from '@/shared/ui/auth/staffSecurityErrorText';
 import { PasswordAltchaChallenge } from '@/shared/ui/auth/PasswordAltchaChallenge';
+import {
+  startAuthentication,
+  type PublicKeyCredentialRequestOptionsJSON,
+} from '@simplewebauthn/browser';
 
 const WEB_CHAT_ID_KEY = 'bersoncare_web_chat_id';
 
@@ -213,6 +217,7 @@ type OauthProviderFlags = { yandex: boolean; google: boolean; apple: boolean };
 
 export type PrefetchedPublicAuthConfig = {
   oauthProviders: OauthProviderFlags;
+  passkeyEnabled?: boolean;
   telegramBotUsername: string | null;
   maxBotOpenUrl: string | null;
   specialistSignupEnabled: boolean;
@@ -320,6 +325,7 @@ export function AuthFlowV2({
   const messengerPhoneEnabled = authChannelPolicy.telegram || authChannelPolicy.max;
   const phoneLoginEnabled =
     messengerPhoneEnabled || authChannelPolicy.sms || authChannelPolicy.email;
+  const passkeyEnabled = prefetchedAuthConfig?.passkeyEnabled === true;
 
   useEffect(() => {
     if (smsStartCooldownSec <= 0) return;
@@ -345,10 +351,10 @@ export function AuthFlowV2({
       apple: false,
     };
     setOauthProviders(oauth);
-    const oauthOn = oauth.yandex || oauth.google || oauth.apple;
+    const oauthOn = oauth.yandex || oauth.google || oauth.apple || passkeyEnabled;
     if (!emailOtpEnabled) setEmailAuthMode('password_login');
     setStep(oauthOn ? 'oauth_first' : 'email_password');
-  }, [prefetchedAuthConfig, emailOtpEnabled, messengerPhoneEnabled]);
+  }, [prefetchedAuthConfig, emailOtpEnabled, messengerPhoneEnabled, passkeyEnabled]);
 
   useEffect(() => {
     onStepChange?.(step);
@@ -486,7 +492,7 @@ export function AuthFlowV2({
   /** Apple в основном ряду только если нет Яндекса и Google — иначе основной набор провайдеров без Apple (продуктовое правило). */
   const showAppleFallback =
     oauthProviders.apple && !oauthProviders.yandex && !oauthProviders.google;
-  const hasWebOauthAlternatives = showOauthRow || showAppleFallback;
+  const hasWebOauthAlternatives = showOauthRow || showAppleFallback || passkeyEnabled;
 
   const resetEmailAuthFields = () => {
     setEmailAuthMode('login');
@@ -761,6 +767,72 @@ export function AuthFlowV2({
     setStaffFactorCode('');
     setStaffFactorUseRecovery(false);
     setEmailAuthMode('staff_factor');
+  };
+
+  const startPasskeyLogin = async (): Promise<void> => {
+    engageInteractive();
+    setLoading(true);
+    try {
+      const optionsResult = await fetchJsonSafe<{
+        ok?: boolean;
+        challengeId?: string;
+        options?: PublicKeyCredentialRequestOptionsJSON;
+        error?: string;
+        message?: string;
+      }>('/api/auth/passkey/login/options', { method: 'POST' });
+      if (
+        !optionsResult.ok ||
+        !optionsResult.response.ok ||
+        !optionsResult.data.ok ||
+        !optionsResult.data.challengeId ||
+        !optionsResult.data.options
+      ) {
+        if (optionsResult.ok && optionsResult.data.error === 'auth_method_disabled') {
+          toast.error('Вход по ключу доступа отключён');
+        } else {
+          toast.error(
+            optionsResult.ok
+              ? (optionsResult.data.message ?? AUTH_NETWORK_ERROR_MESSAGE)
+              : AUTH_NETWORK_ERROR_MESSAGE,
+          );
+        }
+        return;
+      }
+
+      const assertion = await startAuthentication({ optionsJSON: optionsResult.data.options });
+      const verifyResult = await fetchJsonSafe<{
+        ok?: boolean;
+        redirectTo?: string;
+        factorRequired?: boolean;
+        message?: string;
+      }>('/api/auth/passkey/login/verify', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          challengeId: optionsResult.data.challengeId,
+          response: assertion,
+        }),
+      });
+      if (!verifyResult.ok) {
+        toast.error(AUTH_NETWORK_ERROR_MESSAGE);
+        return;
+      }
+      if (verifyResult.data.ok && verifyResult.data.factorRequired) {
+        openStaffFactorMode();
+        setStep('email_password');
+        return;
+      }
+      if (verifyResult.data.ok && verifyResult.data.redirectTo) {
+        redirectOk(verifyResult.data.redirectTo);
+        return;
+      }
+      toast.error(verifyResult.data.message ?? 'Не удалось подтвердить ключ доступа');
+    } catch (error) {
+      if (error instanceof Error && error.name === 'NotAllowedError') return;
+      toast.error('Не удалось использовать ключ доступа');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const submitEmailPasswordLogin = async (e: FormEvent) => {
@@ -2398,6 +2470,17 @@ export function AuthFlowV2({
         className={cn(authFlowShellClass, 'items-center text-center')}
       >
         <div className="flex w-full flex-col items-center gap-3">
+          {passkeyEnabled ? (
+            <Button
+              type="button"
+              variant="outline"
+              className={AUTH_LOGIN_PRIMARY_BUTTON_CLASS}
+              disabled={loading}
+              onClick={() => void startPasskeyLogin()}
+            >
+              Войти по ключу доступа
+            </Button>
+          ) : null}
           {oauthProviders.yandex ? (
             <Button
               type="button"

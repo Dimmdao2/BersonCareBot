@@ -3,6 +3,7 @@ import type { ConfirmPhoneAuthResult } from '@/modules/auth/phoneAuth';
 import type { PhoneChallengePayload } from '@/modules/auth/phoneChallengeStore';
 import type { SessionUser } from '@/shared/types/session';
 import type { DeferredPhoneOtpDelivery, PhoneOtpDelivery } from '@/modules/auth/smsPort';
+import type { AuthChannelPolicy } from '@/modules/auth/authChannelPolicy';
 
 type StartPhoneAuth = (
   phone: string,
@@ -16,12 +17,14 @@ type StartPhoneAuth = (
 const fakes = vi.hoisted(() => ({
   findByPhone: vi.fn<(phone: string) => Promise<SessionUser | null>>(),
   getVerifiedEmail: vi.fn<(userId: string) => Promise<string | null>>(),
+  isPhoneTrusted: vi.fn<(userId: string) => Promise<boolean>>(),
   startPhoneAuth: vi.fn<StartPhoneAuth>(),
   after: vi.fn<(task: () => Promise<void>) => void>(),
   recordRegistrationAttempt: vi.fn(),
   recordRegistrationFailure: vi.fn(),
   recordRegistrationSuccess: vi.fn(),
   isChannelEnabled: vi.fn<(channel: string) => Promise<boolean>>(),
+  getClientVisiblePolicy: vi.fn<() => Promise<AuthChannelPolicy>>(),
   getPhoneChallenge: vi.fn<(challengeId: string) => Promise<PhoneChallengePayload | null>>(),
   confirmPhoneAuth: vi.fn<(challengeId: string, code: string) => Promise<ConfirmPhoneAuthResult>>(),
   checkConfirmRateLimit:
@@ -63,12 +66,14 @@ vi.mock('@/shared/platform-user/isPlatformUserUuid', () => ({
 }));
 vi.mock('@/modules/auth/authChannelPolicy', () => ({
   isAuthChannelEnabled: fakes.isChannelEnabled,
+  getClientVisibleAuthChannelPolicy: fakes.getClientVisiblePolicy,
 }));
 vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
     userByPhone: {
       findByPhone: fakes.findByPhone,
       getVerifiedEmailForUser: fakes.getVerifiedEmail,
+      isPhoneTrustedForUser: fakes.isPhoneTrusted,
     },
     auth: {
       startPhoneAuth: fakes.startPhoneAuth,
@@ -116,8 +121,15 @@ beforeEach(() => {
     retryAfterSeconds: 60,
   });
   fakes.isChannelEnabled.mockResolvedValue(true);
+  fakes.getClientVisiblePolicy.mockResolvedValue({
+    email: true,
+    sms: true,
+    telegram: true,
+    max: true,
+  });
   fakes.findByPhone.mockResolvedValue(user);
   fakes.getVerifiedEmail.mockResolvedValue('verified@example.test');
+  fakes.isPhoneTrusted.mockResolvedValue(true);
   fakes.getPhoneChallenge.mockResolvedValue(null);
   fakes.confirmPhoneAuth.mockResolvedValue({ ok: false, code: 'expired_code' });
   fakes.checkConfirmRateLimit.mockResolvedValue({ limited: false });
@@ -192,7 +204,12 @@ describe('phone login automatic delivery fallback', () => {
   });
 
   it('falls back to a verified email without exposing whether the phone has an account', async () => {
-    fakes.isChannelEnabled.mockImplementation(async (channel) => channel === 'email');
+    fakes.getClientVisiblePolicy.mockResolvedValue({
+      email: true,
+      sms: false,
+      telegram: false,
+      max: false,
+    });
     const delivered = await finishResponse(
       startPhone(
         request({
@@ -259,6 +276,65 @@ describe('phone login automatic delivery fallback', () => {
       expect.objectContaining({ errorCode: 'delivery_failed' }),
     );
     expect(fakes.recordRegistrationSuccess).not.toHaveBeenCalled();
+  });
+
+  it('skips enabled but unconfigured SMS and uses the next effective channel', async () => {
+    fakes.isChannelEnabled.mockResolvedValue(true);
+    fakes.getClientVisiblePolicy.mockResolvedValue({
+      email: true,
+      sms: false,
+      telegram: false,
+      max: false,
+    });
+
+    await finishResponse(
+      startPhone(
+        request({
+          phone: '+79991234567',
+          channel: 'web',
+          chatId: 'browser-1005',
+          purpose: 'login',
+        }),
+      ),
+    );
+
+    expect(fakes.startPhoneAuth).toHaveBeenCalledWith(
+      '+79991234567',
+      { channel: 'web', chatId: 'browser-1005', displayName: undefined },
+      expect.objectContaining({ delivery: { channel: 'email', email: 'verified@example.test' } }),
+    );
+  });
+
+  it('does not send an email login code for an untrusted entered phone', async () => {
+    fakes.getClientVisiblePolicy.mockResolvedValue({
+      email: true,
+      sms: false,
+      telegram: false,
+      max: false,
+    });
+    fakes.isPhoneTrusted.mockResolvedValue(false);
+
+    await finishResponse(
+      startPhone(
+        request({
+          phone: '+79991234567',
+          channel: 'web',
+          chatId: 'browser-1005',
+          purpose: 'login',
+        }),
+      ),
+    );
+
+    expect(fakes.startPhoneAuth).toHaveBeenCalledWith(
+      '+79991234567',
+      { channel: 'web', chatId: 'browser-1005', displayName: undefined },
+      expect.objectContaining({
+        deferredDelivery: expect.objectContaining({
+          suppressDelivery: true,
+          challengeDeliveryChannel: 'email',
+        }),
+      }),
+    );
   });
 
   it('does not resolve before the public response floor', async () => {

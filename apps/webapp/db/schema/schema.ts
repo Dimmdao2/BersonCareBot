@@ -956,6 +956,85 @@ export const userPins = pgTable(
   ],
 );
 
+/** WebAuthn account handle; opaque and stable across multiple credentials for one account. */
+export const userPasskeyAccounts = pgTable(
+  'user_passkey_accounts',
+  {
+    userId: uuid('user_id').primaryKey().notNull(),
+    userHandle: text('user_handle').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique('user_passkey_accounts_user_handle_key').on(table.userHandle),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [platformUsers.id],
+      name: 'user_passkey_accounts_user_id_fkey',
+    }).onDelete('cascade'),
+  ],
+);
+
+/** Public WebAuthn credentials only; authenticators keep private keys and all biometric material. */
+export const userPasskeyCredentials = pgTable(
+  'user_passkey_credentials',
+  {
+    credentialId: text('credential_id').primaryKey().notNull(),
+    userId: uuid('user_id').notNull(),
+    publicKey: text('public_key').notNull(),
+    counter: bigint({ mode: 'number' }).default(0).notNull(),
+    transports: jsonb().default([]).notNull(),
+    deviceType: text('device_type').notNull(),
+    backedUp: boolean('backed_up').default(false).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true, mode: 'string' }),
+  },
+  (table) => [
+    index('idx_user_passkey_credentials_user_id').using(
+      'btree',
+      table.userId.asc().nullsLast().op('uuid_ops'),
+      table.createdAt.asc().nullsLast().op('timestamptz_ops'),
+    ),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [platformUsers.id],
+      name: 'user_passkey_credentials_user_id_fkey',
+    }).onDelete('cascade'),
+  ],
+);
+
+/** Bounded one-time WebAuthn ceremonies; successful completion atomically consumes the row. */
+export const userPasskeyChallenges = pgTable(
+  'user_passkey_challenges',
+  {
+    id: uuid().primaryKey().notNull(),
+    purpose: text().notNull(),
+    userId: uuid('user_id'),
+    challenge: text().notNull(),
+    expectedOrigin: text('expected_origin').notNull(),
+    rpId: text('rp_id').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'string' }).notNull(),
+    consumedAt: timestamp('consumed_at', { withTimezone: true, mode: 'string' }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index('idx_user_passkey_challenges_expires_at').using(
+      'btree',
+      table.expiresAt.asc().nullsLast().op('timestamptz_ops'),
+    ),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [platformUsers.id],
+      name: 'user_passkey_challenges_user_id_fkey',
+    }).onDelete('cascade'),
+  ],
+);
+
 export const channelLinkSecrets = pgTable(
   'channel_link_secrets',
   {
