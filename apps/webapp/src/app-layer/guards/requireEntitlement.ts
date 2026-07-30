@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { notFound } from 'next/navigation';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
   isMechanicEnabled,
@@ -21,13 +20,14 @@ async function checkEntitlement(
   mechanic: OrgMechanic,
   access: EntitlementAccess,
 ): Promise<EntitlementSuccess | { ok: false; reason: EntitlementDenialReason }> {
+  // A tariff mechanic controls writes only. Existing clinic/patient data remains readable and
+  // exportable after a mechanic is switched off; resolving it here would turn a read into a hide.
+  if (access === 'read') return { ok: true };
   const port = buildAppDeps().orgEntitlements;
   const snapshot = await resolveOrgEntitlementSnapshot(port, ctx.organizationId);
   if (!snapshot.entitlements[mechanic]) {
     return { ok: false, reason: 'entitlement_required' };
   }
-  if (access === 'read') return { ok: true };
-
   if (snapshot.access.lifecycle === 'read_only') {
     return { ok: false, reason: 'commercial_read_only' };
   }
@@ -109,7 +109,6 @@ export async function requireEntitlementForPage(
   ctx: EntitlementContext,
   mechanic: OrgMechanic,
 ): Promise<void> {
-  if (!(await assertMechanicEnabled(ctx.organizationId, mechanic))) {
-    notFound();
-  }
+  void ctx;
+  void mechanic;
 }

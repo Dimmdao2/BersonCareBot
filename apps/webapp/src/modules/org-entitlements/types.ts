@@ -8,111 +8,84 @@
  * product candidates: S4-0 protects the fourteen keys that already exist in
  * the compatibility resolver.
  */
+export type MechanicClass = 'возможность' | 'места' | 'запас' | 'объём' | 'никогда';
+type QuotaEnforcement =
+  | 'declared_no_enforcement'
+  | 'atomic_snapshot'
+  | 'application_transaction_snapshot';
+
+type AbilityMechanic = Readonly<{
+  class: 'возможность';
+  label: string;
+  quotaEnforcement: QuotaEnforcement;
+}>;
+type SeatsMechanic = Readonly<{
+  class: 'места';
+  label: string;
+  quotaEnforcement: 'application_transaction_snapshot';
+}>;
+type StorageMechanic = Readonly<{
+  class: 'объём';
+  label: string;
+  quotaEnforcement: QuotaEnforcement;
+  quotaUnit: 'bytes';
+}>;
+type NeverMechanic = Readonly<{
+  class: 'никогда';
+  label: string;
+  quotaEnforcement: 'declared_no_enforcement';
+}>;
+type MechanicDefinition = AbilityMechanic | SeatsMechanic | StorageMechanic | NeverMechanic;
+
+/**
+ * The mechanic class is the primary contract. A possibility or an always-available surface has
+ * no quota fields at all, so attaching a numeric limit is a TypeScript error rather than a value
+ * silently ignored at runtime.
+ */
 export const MECHANIC_REGISTRY = {
-  booking: {
-    label: 'Онлайн-запись',
-    quotaUnits: ['appointments'],
-    quotaEnforcement: 'declared_no_enforcement',
-  },
-  exercise_catalog: {
-    label: 'Каталог упражнений',
-    quotaUnits: ['items'],
-    quotaEnforcement: 'declared_no_enforcement',
-  },
-  exercise_packages: {
-    label: 'Пакеты упражнений',
-    quotaUnits: ['items'],
-    quotaEnforcement: 'declared_no_enforcement',
-  },
-  courses: { label: 'Курсы', quotaUnits: ['items'], quotaEnforcement: 'atomic_snapshot' },
-  cms_pages: { label: 'Страницы CMS', quotaUnits: ['items'], quotaEnforcement: 'atomic_snapshot' },
-  files: {
-    label: 'Файлы пациентов',
-    quotaUnits: ['bytes', 'items'],
-    quotaEnforcement: 'declared_no_enforcement',
-  },
-  patient_card: {
-    label: 'Карточка пациента',
-    quotaUnits: ['clients'],
-    quotaEnforcement: 'declared_no_enforcement',
-  },
-  subscriptions: {
-    label: 'Абонементы пациентов',
-    quotaUnits: ['items'],
-    quotaEnforcement: 'declared_no_enforcement',
-  },
-  payments: {
-    label: 'Оплата записи',
-    quotaUnits: ['transactions'],
-    quotaEnforcement: 'declared_no_enforcement',
-  },
-  mailings: {
-    label: 'Рассылки',
-    quotaUnits: ['messages'],
-    quotaEnforcement: 'declared_no_enforcement',
-  },
-  patient_app: {
-    label: 'Приложение пациента',
-    quotaUnits: ['clients'],
-    quotaEnforcement: 'declared_no_enforcement',
-  },
-  patient_app_paid_subscription: {
-    label: 'Платная подписка пациента',
-    quotaUnits: ['clients'],
-    quotaEnforcement: 'declared_no_enforcement',
-  },
-  branding: { label: 'Брендирование', quotaUnits: [], quotaEnforcement: 'declared_no_enforcement' },
-  custom_domain: {
-    label: 'Собственный домен',
-    quotaUnits: [],
-    quotaEnforcement: 'declared_no_enforcement',
-  },
+  booking: { class: 'возможность', label: 'Онлайн-запись', quotaEnforcement: 'declared_no_enforcement' },
+  exercise_catalog: { class: 'возможность', label: 'Каталог упражнений', quotaEnforcement: 'declared_no_enforcement' },
+  exercise_packages: { class: 'возможность', label: 'Пакеты упражнений', quotaEnforcement: 'declared_no_enforcement' },
+  courses: { class: 'возможность', label: 'Курсы', quotaEnforcement: 'declared_no_enforcement' },
+  cms_pages: { class: 'возможность', label: 'Страницы CMS', quotaEnforcement: 'declared_no_enforcement' },
+  files: { class: 'объём', label: 'Файлы пациентов', quotaEnforcement: 'declared_no_enforcement', quotaUnit: 'bytes' },
+  patient_card: { class: 'никогда', label: 'Карточка пациента', quotaEnforcement: 'declared_no_enforcement' },
+  subscriptions: { class: 'возможность', label: 'Абонементы пациентов', quotaEnforcement: 'declared_no_enforcement' },
+  payments: { class: 'возможность', label: 'Оплата записи', quotaEnforcement: 'declared_no_enforcement' },
+  mailings: { class: 'возможность', label: 'Рассылки', quotaEnforcement: 'declared_no_enforcement' },
+  patient_app: { class: 'никогда', label: 'Приложение пациента', quotaEnforcement: 'declared_no_enforcement' },
+  patient_app_paid_subscription: { class: 'возможность', label: 'Платная подписка пациента', quotaEnforcement: 'declared_no_enforcement' },
+  branding: { class: 'возможность', label: 'Брендирование', quotaEnforcement: 'declared_no_enforcement' },
+  custom_domain: { class: 'возможность', label: 'Собственный домен', quotaEnforcement: 'declared_no_enforcement' },
   // Checked in pgOrganizationInvites under an org advisory lock, not by a database trigger.
-  clinic_team: {
-    label: 'Режим клиники',
-    quotaUnits: ['seats'],
-    quotaEnforcement: 'application_transaction_snapshot',
-  },
-} as const;
+  clinic_team: { class: 'места', label: 'Режим клиники', quotaEnforcement: 'application_transaction_snapshot' },
+} as const satisfies Record<string, MechanicDefinition>;
 
 export type OrgMechanic = keyof typeof MECHANIC_REGISTRY;
 
 /** Compatibility iterator for resolver and data contracts; keys come only from the registry above. */
 export const MECHANICS = Object.keys(MECHANIC_REGISTRY) as OrgMechanic[];
 
-export type TariffQuotaUnit = (typeof MECHANIC_REGISTRY)[OrgMechanic]['quotaUnits'][number];
+export type TariffQuotaUnit = 'bytes';
 
 /**
  * Owner 2026-07-26 (#1003): the tariff constructor's quota-unit picker showed the raw
- * `quotaUnits` machine key ("appointments", "bytes", …) as both the option text and the selected
- * value. Single canonical Russian label per unit key, same pattern as `MECHANIC_REGISTRY.label` —
- * every unit that appears in the registry above MUST have an entry here (`Record` makes a missing
- * key a type error, not a silent raw-key fallback at render time).
+ * storage-unit key as both the option text and the selected value. The remaining generic storage
+ * unit has one canonical Russian label rather than a raw-key fallback at render time.
  */
 export const QUOTA_UNIT_LABELS: Record<TariffQuotaUnit, string> = {
-  appointments: 'Записи',
-  items: 'Штуки',
   bytes: 'Байты',
-  clients: 'Клиенты',
-  transactions: 'Операции',
-  messages: 'Сообщения',
-  seats: 'Места',
 };
-
-export const QUOTA_PERIODS = ['snapshot', 'day', 'month', 'year'] as const;
-export type QuotaPeriod = (typeof QUOTA_PERIODS)[number];
-export const QUOTA_USAGE_POLICIES = ['snapshot', 'consumption'] as const;
-export type QuotaUsagePolicy = (typeof QUOTA_USAGE_POLICIES)[number];
 
 export type TariffQuota = {
   kind: 'numeric' | 'unlimited';
   limit: number | null;
-  unit: string;
-  period: QuotaPeriod;
-  usagePolicy: QuotaUsagePolicy;
+  /** The only stage-1/2 generic numeric quota: patient-file storage volume. */
+  unit: 'bytes';
 };
 
-export type TariffQuotaMap = Partial<Record<OrgMechanic, TariffQuota>>;
+/** `возможность` and `никогда` are intentionally absent: assigning them a number cannot compile. */
+export type TariffQuotaMap = Partial<Record<'files', TariffQuota>>;
 
 /**
  * C4A/C4C/C4D — scoped fail-closed exceptions to the compatibility default-true resolver (see
@@ -178,7 +151,7 @@ export type OrgEntitlements = Record<OrgMechanic, boolean>;
 /** A product-consumable view of an actually enforced quota. */
 export type OrgQuotaProjection = {
   mechanic: OrgMechanic;
-  quota: TariffQuota;
+  quota: { limit: number; unit: 'seats' | 'bytes' };
   usage: number;
   threshold: 'below_warning' | 'warning' | 'reached';
   enforcement: (typeof MECHANIC_REGISTRY)[OrgMechanic]['quotaEnforcement'];

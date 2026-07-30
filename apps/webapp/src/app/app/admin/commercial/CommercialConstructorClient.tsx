@@ -4,10 +4,10 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react
 import {
   MECHANIC_REGISTRY,
   MECHANICS,
-  QUOTA_UNIT_LABELS,
   type OrgMechanic,
   type Tariff,
   type TariffQuota,
+  type TariffQuotaMap,
   type TrialPolicy,
 } from '@/modules/org-entitlements/types';
 import type { PlatformOrganizationSummary } from '@/modules/org-entitlements/ports';
@@ -68,8 +68,15 @@ type TariffDraft = {
   includedSeats: string;
   isActive: boolean;
   mechanics: Record<OrgMechanic, boolean>;
-  quotas: Partial<Record<OrgMechanic, TariffQuota>>;
+  quotas: TariffQuotaMap;
 };
+
+const CONSTRUCTOR_MECHANICS = MECHANICS.filter(
+  (mechanic) => MECHANIC_REGISTRY[mechanic].class === 'возможность',
+);
+const OVERRIDABLE_MECHANICS = MECHANICS.filter(
+  (mechanic) => MECHANIC_REGISTRY[mechanic].class !== 'никогда',
+);
 
 const emptyMechanics = (): Record<OrgMechanic, boolean> =>
   Object.fromEntries(MECHANICS.map((mechanic) => [mechanic, false])) as Record<
@@ -113,20 +120,13 @@ function nullableNonnegativeInteger(value: string): number | null {
   return Number.isSafeInteger(number) && number >= 0 ? number : null;
 }
 
-function QuotaEditor({
-  mechanic,
+function FileVolumeEditor({
   quota,
   onChange,
 }: {
-  mechanic: OrgMechanic;
   quota: TariffQuota | null;
   onChange: (quota: TariffQuota | null) => void;
 }) {
-  const units = MECHANIC_REGISTRY[mechanic].quotaUnits;
-  const snapshotEnforced =
-    MECHANIC_REGISTRY[mechanic].quotaEnforcement !== 'declared_no_enforcement';
-  if (units.length === 0) return null;
-
   function changeKind(kind: 'none' | TariffQuota['kind']) {
     if (kind === 'none') {
       onChange(null);
@@ -135,19 +135,12 @@ function QuotaEditor({
     onChange({
       kind,
       limit: kind === 'numeric' ? (quota?.limit ?? 0) : null,
-      unit: quota?.unit && units.includes(quota.unit as never) ? quota.unit : (units[0] ?? 'items'),
-      period: snapshotEnforced ? 'snapshot' : (quota?.period ?? 'month'),
-      usagePolicy: snapshotEnforced ? 'snapshot' : (quota?.usagePolicy ?? 'consumption'),
+      unit: 'bytes',
     });
   }
 
   return (
     <div className="grid gap-2 sm:grid-cols-2">
-      <p className="text-xs text-muted-foreground sm:col-span-2">
-        {snapshotEnforced
-          ? 'Лимит применяется атомарно к текущему запасу; с 80% фиксируется предупреждение, сверх лимита новая запись не создаётся.'
-          : 'Квота сохраняется как конфигурация. Автоматический контроль этого лимита ещё не активирован.'}
-      </p>
       <Select
         value={quota?.kind ?? 'none'}
         onValueChange={(value) => {
@@ -167,70 +160,14 @@ function QuotaEditor({
         <Input
           type="number"
           min="0"
-          aria-label={`Лимит: ${MECHANIC_REGISTRY[mechanic].label}`}
+          aria-label="Лимит объёма файлов"
           value={quota.limit ?? 0}
           onChange={(event) =>
             onChange({ ...quota, limit: Math.max(0, Number(event.target.value) || 0) })
           }
         />
       ) : null}
-      {quota ? (
-        snapshotEnforced ? (
-          <p className="self-center text-xs text-muted-foreground">
-            Единица: {QUOTA_UNIT_LABELS.items} · текущее значение
-          </p>
-        ) : (
-          <>
-            <Select
-              value={quota.unit}
-              onValueChange={(value) => {
-                if (value) onChange({ ...quota, unit: value });
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {units.map((unit) => (
-                  <SelectItem key={unit} value={unit}>
-                    {QUOTA_UNIT_LABELS[unit]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select
-              value={quota.period}
-              onValueChange={(value) => {
-                if (value) onChange({ ...quota, period: value });
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="snapshot">Текущее значение</SelectItem>
-                <SelectItem value="day">За день</SelectItem>
-                <SelectItem value="month">За месяц</SelectItem>
-                <SelectItem value="year">За год</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select
-              value={quota.usagePolicy}
-              onValueChange={(value) => {
-                if (value) onChange({ ...quota, usagePolicy: value });
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="snapshot">Снимок</SelectItem>
-                <SelectItem value="consumption">Расход за период</SelectItem>
-              </SelectContent>
-            </Select>
-          </>
-        )
-      ) : null}
+      {quota ? <p className="self-center text-xs text-muted-foreground">Единица: байты</p> : null}
     </div>
   );
 }
@@ -523,8 +460,7 @@ export function CommercialConstructorClient() {
               />
             </div>
             <div className="grid gap-2 md:grid-cols-2">
-              {MECHANICS.map((mechanic) => {
-                const quota = tariff.quotas[mechanic];
+              {CONSTRUCTOR_MECHANICS.map((mechanic) => {
                 return (
                   <div key={mechanic} className="space-y-2 rounded-xl border border-border/70 p-3">
                     <Label className="flex items-center gap-2 text-sm">
@@ -539,21 +475,21 @@ export function CommercialConstructorClient() {
                       />
                       {MECHANIC_REGISTRY[mechanic].label}
                     </Label>
-                    <QuotaEditor
-                      mechanic={mechanic}
-                      quota={quota ?? null}
-                      onChange={(nextQuota) =>
-                        setTariff((current) => {
-                          const quotas = { ...current.quotas };
-                          if (nextQuota) quotas[mechanic] = nextQuota;
-                          else delete quotas[mechanic];
-                          return { ...current, quotas };
-                        })
-                      }
-                    />
                   </div>
                 );
               })}
+              <div className="space-y-2 rounded-xl border border-border/70 p-3">
+                <Label>Файлы пациентов</Label>
+                <FileVolumeEditor
+                  quota={tariff.quotas.files ?? null}
+                  onChange={(nextQuota) =>
+                    setTariff((current) => ({
+                      ...current,
+                      quotas: nextQuota ? { files: nextQuota } : {},
+                    }))
+                  }
+                />
+              </div>
             </div>
             <Label className="flex items-center gap-2">
               <Checkbox
@@ -725,7 +661,7 @@ export function CommercialConstructorClient() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {MECHANICS.map((mechanic) => (
+                {OVERRIDABLE_MECHANICS.map((mechanic) => (
                   <SelectItem key={mechanic} value={mechanic}>
                     {MECHANIC_REGISTRY[mechanic].label}
                   </SelectItem>
@@ -740,14 +676,12 @@ export function CommercialConstructorClient() {
             />
             Разрешено
           </Label>
-          <div className="space-y-1">
-            <Label>Квота для организации</Label>
-            <QuotaEditor
-              mechanic={overrideMechanic}
-              quota={overrideQuota}
-              onChange={setOverrideQuota}
-            />
-          </div>
+          {overrideMechanic === 'files' ? (
+            <div className="space-y-1">
+              <Label>Объём файлов для организации</Label>
+              <FileVolumeEditor quota={overrideQuota} onChange={setOverrideQuota} />
+            </div>
+          ) : null}
           {selectedOrganization ? (
             <div className="space-y-1 text-sm text-muted-foreground">
               <p>Текущие исключения:</p>

@@ -20,14 +20,8 @@ function assertMechanic(value: string): asserts value is OrgMechanic {
 }
 
 function assertQuota(mechanic: OrgMechanic, quota: TariffQuota): void {
-  if (!MECHANIC_REGISTRY[mechanic].quotaUnits.includes(quota.unit as never)) {
+  if (MECHANIC_REGISTRY[mechanic].class !== 'объём' || quota.unit !== 'bytes') {
     throw new Error('tariff_quota_unit_invalid');
-  }
-  if (
-    (mechanic === 'courses' || mechanic === 'cms_pages') &&
-    (quota.unit !== 'items' || quota.period !== 'snapshot' || quota.usagePolicy !== 'snapshot')
-  ) {
-    throw new Error('tariff_quota_enforcement_shape_invalid');
   }
   if (quota.kind === 'unlimited') {
     if (quota.limit !== null) throw new Error('tariff_quota_unlimited_limit_invalid');
@@ -41,10 +35,9 @@ function assertQuota(mechanic: OrgMechanic, quota: TariffQuota): void {
 function normalizeQuotaMap(quotas: TariffQuotaMap): TariffQuotaMap {
   const normalized: TariffQuotaMap = {};
   for (const [key, value] of Object.entries(quotas)) {
-    if (!MECHANICS.includes(key as OrgMechanic) || !value)
-      throw new Error('tariff_quota_mechanic_invalid');
-    assertQuota(key as OrgMechanic, value);
-    normalized[key as OrgMechanic] = value;
+    if (key !== 'files' || !value) throw new Error('tariff_quota_mechanic_invalid');
+    assertQuota('files', value);
+    normalized.files = value;
   }
   return normalized;
 }
@@ -143,31 +136,35 @@ export async function resolveOrgQuotaProjections(
       .map((override) => [override.mechanic, override]),
   );
   return MECHANICS.flatMap((mechanic) => {
-    if (MECHANIC_REGISTRY[mechanic].quotaEnforcement === 'declared_no_enforcement') return [];
+    const mechanicClass = MECHANIC_REGISTRY[mechanic].class;
+    if (mechanicClass !== 'места' && mechanicClass !== 'объём') return [];
     if (mechanic === 'clinic_team' && !entitlementsFromSnapshot(snapshot).clinic_team) return [];
     // Specialist seats are configured by includedSeats/seatLimitOverride rather than the generic
     // tariff quota map, but are enforced with the same snapshot semantics.
     const clinicTeamOverride = activeOverrides.get('clinic_team');
-    const quota: TariffQuota | undefined =
+    const quota: TariffQuota | { kind: 'numeric'; limit: number; unit: 'seats' } | undefined =
       mechanic === 'clinic_team'
         ? {
-            kind: 'numeric' as const,
-            limit:
+            kind: 'numeric',
+            limit: (
               clinicTeamOverride?.seatLimitOverride ??
               snapshot.tariff?.includedSeats ??
-              CLINIC_TEAM_FAIL_CLOSED_SEAT_BASELINE,
+              CLINIC_TEAM_FAIL_CLOSED_SEAT_BASELINE
+            ),
             unit: 'seats',
-            period: 'snapshot' as const,
-            usagePolicy: 'snapshot' as const,
           }
-        : (activeOverrides.get(mechanic)?.quota ?? snapshot.tariff?.quotas[mechanic]);
+        : mechanic === 'files'
+          ? ((activeOverrides.get(mechanic)?.quota ?? snapshot.tariff?.quotas.files) as
+              | TariffQuota
+              | undefined)
+          : undefined;
     const currentUsage = usage[mechanic];
     if (!quota || quota.kind !== 'numeric' || quota.limit === null || currentUsage === undefined)
       return [];
     return [
       {
         mechanic,
-        quota,
+        quota: { limit: quota.limit, unit: quota.unit },
         usage: currentUsage,
         threshold:
           currentUsage >= quota.limit

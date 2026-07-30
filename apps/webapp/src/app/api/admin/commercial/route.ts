@@ -12,9 +12,7 @@ import type {
 const quotaSchema = z.object({
   kind: z.enum(['numeric', 'unlimited']),
   limit: z.number().int().nonnegative().nullable(),
-  unit: z.string().trim().min(1),
-  period: z.enum(['snapshot', 'day', 'month', 'year']),
-  usagePolicy: z.enum(['snapshot', 'consumption']),
+  unit: z.literal('bytes'),
 });
 
 const tariffInputSchema = z.object({
@@ -24,7 +22,7 @@ const tariffInputSchema = z.object({
   currency: z.string().trim().min(1).nullable(),
   billingPeriod: z.enum(['day', 'month', 'year']),
   mechanics: z.record(z.string(), z.boolean()),
-  quotas: z.record(z.string(), quotaSchema),
+  quotas: z.object({ files: quotaSchema.optional() }).strict(),
   includedSeats: z.number().int().nonnegative().nullable(),
   isActive: z.boolean(),
 });
@@ -87,7 +85,11 @@ const operationSchema = z.discriminatedUnion('action', [
     days: z.number().int().positive().max(3650),
     reason: reasonSchema,
   }),
-]);
+]).superRefine((operation, ctx) => {
+  if (operation.action === 'upsert_override' && operation.quota && operation.mechanic !== 'files') {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'tariff_quota_mechanic_invalid' });
+  }
+});
 
 type TariffInput = Omit<Tariff, 'id' | 'createdAt' | 'updatedAt'>;
 
