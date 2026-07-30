@@ -3,18 +3,26 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import ts from 'typescript';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '../../../../');
 
-const forbiddenRuntimeFragments = [
-  'mailing.topic.upserted',
-  'user.subscription.upserted',
-  'mailing.log.sent',
-  'mailing.topic.upsert',
-  'user.subscription.upsert',
-  'mailing.log.append',
-  'SubscriptionMailingProjection',
-  'subscriptionMailingProjection',
+const retiredStringLiterals = [
+  { category: 'producer event', value: 'mailing.topic.upserted' },
+  { category: 'producer event', value: 'user.subscription.upserted' },
+  { category: 'producer event', value: 'mailing.log.sent' },
+  { category: 'producer mutation', value: 'mailing.topic.upsert' },
+  { category: 'producer mutation', value: 'user.subscription.upsert' },
+  { category: 'producer mutation', value: 'mailing.log.append' },
+  { category: 'read query type', value: 'mailing.topics.list' },
+  { category: 'read query type', value: 'subscriptions.byUser' },
+];
+
+const retiredIdentifiers = ['SubscriptionMailingProjection', 'subscriptionMailingProjection'];
+
+const retiredSourceTables = ['mailing_topics', 'user_subscriptions', 'mailings', 'mailing_logs'];
+
+const retiredProjectionTables = [
   'mailing_topics_webapp',
   'user_subscriptions_webapp',
   'mailing_logs_webapp',
@@ -29,6 +37,8 @@ const forbiddenRuntimePaths = [
   'apps/webapp/src/infra/repos/pgSubscriptionMailingProjection.ts',
   'apps/webapp/src/app/api/integrator/subscriptions/for-user/route.ts',
   'apps/webapp/src/app/api/integrator/subscriptions/topics/route.ts',
+  'apps/webapp/scripts/backfill-subscription-mailing-domain.mjs',
+  'apps/webapp/scripts/reconcile-subscription-mailing-domain.mjs',
 ];
 
 const retiredTables = [
@@ -60,16 +70,115 @@ function runtimeFilesUnder(root) {
   return files;
 }
 
+function scriptKind(path) {
+  if (path.endsWith('.tsx')) return ts.ScriptKind.TSX;
+  if (path.endsWith('.jsx')) return ts.ScriptKind.JSX;
+  if (path.endsWith('.ts') || path.endsWith('.mts') || path.endsWith('.cts')) {
+    return ts.ScriptKind.TS;
+  }
+  return ts.ScriptKind.JS;
+}
+
+function calleeName(expression) {
+  if (ts.isIdentifier(expression)) return expression.text;
+  if (ts.isPropertyAccessExpression(expression)) return expression.name.text;
+  return null;
+}
+
+function literalText(node) {
+  if (ts.isStringLiteralLike(node) || ts.isNoSubstitutionTemplateLiteral(node)) return node.text;
+  if (ts.isTemplateExpression(node)) {
+    return [
+      node.head.text,
+      ...node.templateSpans.flatMap((span) => ['${}', span.literal.text]),
+    ].join('');
+  }
+  return null;
+}
+
+function databaseLiteralTexts(sourceFile) {
+  const texts = [];
+  function visit(node) {
+    if (ts.isTaggedTemplateExpression(node) && calleeName(node.tag) === 'sql') {
+      const text = literalText(node.template);
+      if (text !== null) texts.push(text);
+    }
+    if (ts.isCallExpression(node)) {
+      const name = calleeName(node.expression);
+      if (name === 'pgTable') {
+        const text = node.arguments[0] ? literalText(node.arguments[0]) : null;
+        if (text !== null) texts.push(text);
+      }
+      if (name === 'query' || name === 'execute' || name === 'unsafe') {
+        for (const argument of node.arguments) {
+          const text = literalText(argument);
+          if (text !== null) texts.push(text);
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(sourceFile);
+  return texts;
+}
+
+function referencesTable(text, table) {
+  const escaped = table.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const qualified = String.raw`(?:(?:"?(?:public|integrator)"?)\s*\.\s*)?`;
+  const identifier = String.raw`"?${escaped}"?`;
+  const sqlReference = new RegExp(
+    String.raw`\b(?:from|join|into|update|using|references|table|truncate(?:\s+table)?)\s+${qualified}${identifier}\b`,
+    'i',
+  );
+  return text === table || sqlReference.test(text);
+}
+
 export function findD8RuntimeViolations(entries) {
   const violations = [];
   for (const entry of entries) {
-    for (const fragment of forbiddenRuntimeFragments) {
-      if (entry.content.includes(fragment)) {
-        violations.push(`${entry.path}: contains retired D8 fragment "${fragment}"`);
-      }
-    }
     if (forbiddenRuntimePaths.includes(entry.path)) {
       violations.push(`${entry.path}: retired D8 runtime path exists`);
+    }
+
+    const sourceFile = ts.createSourceFile(
+      entry.path,
+      entry.content,
+      ts.ScriptTarget.Latest,
+      true,
+      scriptKind(entry.path),
+    );
+    const stringLiterals = new Set();
+    const identifiers = new Set();
+    function collectSyntax(node) {
+      if (ts.isStringLiteralLike(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+        stringLiterals.add(node.text);
+      }
+      if (ts.isIdentifier(node)) identifiers.add(node.text);
+      ts.forEachChild(node, collectSyntax);
+    }
+    collectSyntax(sourceFile);
+
+    for (const signal of retiredStringLiterals) {
+      if (stringLiterals.has(signal.value)) {
+        violations.push(`${entry.path}: contains retired D8 ${signal.category} "${signal.value}"`);
+      }
+    }
+    for (const identifier of retiredIdentifiers) {
+      if (identifiers.has(identifier)) {
+        violations.push(`${entry.path}: contains retired D8 identifier "${identifier}"`);
+      }
+    }
+
+    const databaseTexts = databaseLiteralTexts(sourceFile);
+    for (const table of retiredSourceTables) {
+      if (databaseTexts.some((text) => referencesTable(text, table))) {
+        violations.push(`${entry.path}: references retired D8 source table "${table}"`);
+      }
+    }
+    for (const table of retiredProjectionTables) {
+      if (databaseTexts.some((text) => referencesTable(text, table))) {
+        violations.push(`${entry.path}: references retired D8 projection table "${table}"`);
+      }
     }
   }
   return violations;
@@ -103,38 +212,59 @@ function assertMigrationDropsRetiredTables() {
 }
 
 function runSelfTest() {
-  const faults = [
-    {
-      name: 'producer event',
-      entry: { path: 'apps/integrator/src/fault.ts', content: "'mailing.topic.upserted'" },
-    },
-    {
-      name: 'producer mutation',
-      entry: { path: 'apps/integrator/src/fault.ts', content: "'mailing.log.append'" },
-    },
-    {
-      name: 'consumer adapter',
+  const faults = [];
+
+  for (const signal of retiredStringLiterals) {
+    faults.push({
+      name: `${signal.category} ${signal.value}`,
+      entry: {
+        path: 'apps/integrator/src/fault.ts',
+        content: `const retiredContract = '${signal.value}';`,
+      },
+      expected: `retired D8 ${signal.category} "${signal.value}"`,
+    });
+  }
+  for (const identifier of retiredIdentifiers) {
+    faults.push({
+      name: `identifier ${identifier}`,
       entry: {
         path: 'apps/webapp/src/fault.ts',
-        content: 'const subscriptionMailingProjection = true;',
+        content: `const ${identifier} = true;`,
       },
-    },
-    {
-      name: 'projection table',
-      entry: { path: 'apps/webapp/src/fault.ts', content: "'mailing_logs_webapp'" },
-    },
-    {
-      name: 'retired path',
+      expected: `retired D8 identifier "${identifier}"`,
+    });
+  }
+  for (const table of retiredSourceTables) {
+    faults.push({
+      name: `source table ${table}`,
       entry: {
-        path: 'apps/integrator/src/infra/db/repos/topics.ts',
-        content: 'export {};',
+        path: 'apps/integrator/src/fault.ts',
+        content: `const rows = sql\`SELECT * FROM integrator.${table}\`;`,
       },
-    },
-  ];
+      expected: `retired D8 source table "${table}"`,
+    });
+  }
+  for (const table of retiredProjectionTables) {
+    faults.push({
+      name: `projection table ${table}`,
+      entry: {
+        path: 'apps/webapp/src/fault.ts',
+        content: `const rows = sql\`SELECT * FROM public.${table}\`;`,
+      },
+      expected: `retired D8 projection table "${table}"`,
+    });
+  }
+  for (const path of forbiddenRuntimePaths) {
+    faults.push({
+      name: `retired path ${path}`,
+      entry: { path, content: 'export {};' },
+      expected: 'retired D8 runtime path exists',
+    });
+  }
 
   for (const fault of faults) {
     const violations = findD8RuntimeViolations([fault.entry]);
-    if (violations.length === 0) {
+    if (!violations.some((violation) => violation.includes(fault.expected))) {
       throw new Error(`self-test failed to detect ${fault.name}`);
     }
   }
