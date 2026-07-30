@@ -361,7 +361,7 @@ describe('org entitlement mechanic classes', () => {
             graceDays: 0,
             readOnlyDays: 5,
             warningCount: 1,
-            terminalState: 'disabled',
+            terminalState: 'full_access',
           },
         },
         includedSeats: null,
@@ -388,6 +388,13 @@ describe('org entitlement mechanic classes', () => {
       policySource: 'system',
       warning: { until: '2026-07-04T00:00:00.000Z', count: 2 },
     });
+    const afterBothWindows = new Date('2026-07-10T00:00:00.000Z');
+    expect(resolveMechanicAccessFromSnapshot(snapshot, 'courses', afterBothWindows).state).toBe(
+      'full_access',
+    );
+    expect(resolveMechanicAccessFromSnapshot(snapshot, 'booking', afterBothWindows).state).toBe(
+      'disabled',
+    );
   });
 
   it('keeps a critical mechanic full-access even when tariff, exception and terminal are false', () => {
@@ -520,6 +527,44 @@ describe('org entitlement mechanic classes', () => {
       policySource: 'unconfigured',
       warning: null,
     });
+    expect(
+      resolveMechanicAccessFromSnapshot(
+        {
+          tariff: null,
+          overrides: [],
+          access: { lifecycle: 'active', tariffId: null, source: 'no_trial' },
+        },
+        'courses',
+      ),
+    ).toEqual({
+      mechanic: 'courses',
+      state: 'unconfigured',
+      policySource: 'unconfigured',
+      warning: null,
+    });
+  });
+
+  it('uses the owner warning percentage and emits no early warning when it is unset', async () => {
+    const port = snapshotPort();
+    const snapshot = await port.getSnapshot('org');
+    snapshot.tariff!.includedSeats = null;
+    snapshot.tariff!.quotas.files = {
+      kind: 'numeric',
+      limit: 10,
+      unit: 'bytes',
+      warningAtPercent: 40,
+    };
+    port.getSnapshot = async () => snapshot;
+    port.getEnforcedQuotaUsage = async () => ({ files: 5 });
+
+    await expect(resolveOrgQuotaProjections(port, 'org')).resolves.toEqual([
+      expect.objectContaining({ mechanic: 'files', threshold: 'warning' }),
+    ]);
+
+    snapshot.tariff!.quotas.files.warningAtPercent = null;
+    await expect(resolveOrgQuotaProjections(port, 'org')).resolves.toEqual([
+      expect.objectContaining({ mechanic: 'files', threshold: 'below_warning' }),
+    ]);
   });
 
   it('returns no clinic seat number when neither owner level configured one', async () => {

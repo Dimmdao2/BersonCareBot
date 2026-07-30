@@ -205,6 +205,9 @@ export function resolveMechanicAccessFromSnapshot(
   if (MECHANIC_REGISTRY[mechanic].class === 'никогда') {
     return { mechanic, state: 'full_access', policySource: 'critical', warning: null };
   }
+  if (snapshot.access.source === 'no_trial' && !snapshot.tariff) {
+    return { mechanic, state: 'unconfigured', policySource: 'unconfigured', warning: null };
+  }
   if (!isMechanicIncludedFromSnapshot(snapshot, mechanic)) {
     return { mechanic, state: 'disabled', policySource: 'unconfigured', warning: null };
   }

@@ -54,7 +54,15 @@ export function extractAcceptOrgInviteFunctionSql(overlaySource) {
   return overlaySource.slice(start, end);
 }
 
-export function extractCreateReplacingPendingSqlFragments(repoSource) {
+export function extractClinicSeatUsageSql(seatUsageSource) {
+  const match = seatUsageSource.match(
+    /export const CLINIC_SEAT_USAGE_SQL\s*=\s*`([\s\S]*?)`;/,
+  );
+  if (!match) fail('could not locate CLINIC_SEAT_USAGE_SQL in seatUsageSql.ts');
+  return match[1];
+}
+
+export function extractCreateReplacingPendingSqlFragments(repoSource, clinicSeatUsageSql) {
   const start = repoSource.indexOf('async createReplacingPending');
   const end = repoSource.indexOf('async listPendingByOrganization');
   if (start < 0 || end < 0)
@@ -66,7 +74,11 @@ export function extractCreateReplacingPendingSqlFragments(repoSource) {
       `expected exactly 5 extracted SQL fragments in createReplacingPending, found ${fragments.length}`,
     );
   }
-  const [lockSql, activeMemberSql, capacitySql, revokeSql, insertSql] = fragments;
+  const [lockSql, activeMemberSql, capacityTemplate, revokeSql, insertSql] = fragments;
+  const capacitySql = capacityTemplate.replace(
+    '${CLINIC_SEAT_USAGE_SQL}',
+    clinicSeatUsageSql,
+  );
   return { lockSql, activeMemberSql, capacitySql, revokeSql, insertSql };
 }
 
@@ -83,13 +95,6 @@ export function extractCountSeatReservationsSql(repoSource) {
     );
   }
   return fragments[0];
-}
-
-export function extractClinicTeamFailClosedSeatBaseline(typesSource) {
-  const match = typesSource.match(/CLINIC_TEAM_FAIL_CLOSED_SEAT_BASELINE\s*=\s*(\d+)/);
-  if (!match)
-    fail('could not locate CLINIC_TEAM_FAIL_CLOSED_SEAT_BASELINE in org-entitlements/types.ts');
-  return Number(match[1]);
 }
 
 // ---------------------------------------------------------------------------
@@ -258,7 +263,6 @@ async function insertPlatformUser(id, emailNormalized) {
 
 let CREATE_SQL;
 let RESERVATION_SQL;
-let SEAT_BASELINE;
 
 async function createReplacingPendingProof(client, input) {
   await client.query(CREATE_SQL.lockSql, [input.organizationId]);
@@ -272,7 +276,6 @@ async function createReplacingPendingProof(client, input) {
     const capacity = await client.query(CREATE_SQL.capacitySql, [
       input.organizationId,
       input.invitedEmail,
-      SEAT_BASELINE,
     ]);
     const row = capacity.rows[0];
     const limitValue = row?.limit_value ?? 0;
@@ -604,13 +607,15 @@ try {
     path.join(root, 'apps/webapp/src/infra/repos/pgOrganizationInvites.ts'),
     'utf8',
   );
-  const typesSource = readFileSync(
-    path.join(root, 'apps/webapp/src/modules/org-entitlements/types.ts'),
+  const seatUsageSource = readFileSync(
+    path.join(root, 'apps/webapp/src/infra/repos/seatUsageSql.ts'),
     'utf8',
   );
-  CREATE_SQL = extractCreateReplacingPendingSqlFragments(repoSource);
+  CREATE_SQL = extractCreateReplacingPendingSqlFragments(
+    repoSource,
+    extractClinicSeatUsageSql(seatUsageSource),
+  );
   RESERVATION_SQL = extractCountSeatReservationsSql(repoSource);
-  SEAT_BASELINE = extractClinicTeamFailClosedSeatBaseline(typesSource);
 
   await installMinimalSyntheticSchema();
   await scenarioTwoConcurrentDifferentEmailCreatesAtFinalSeat();
