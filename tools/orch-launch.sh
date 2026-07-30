@@ -127,7 +127,17 @@ echo "  клон содержит feat ${HEAD_MAIN:0:9}, своих коммит
 # аудит плана ДВУМЯ моделями, Sol и Opus, поэтому провайдер стал параметром: ORCH_PROVIDER=claude.
 # Мимо порта всё равно ничего не запускается — гейты выше не зависят от провайдера.
 PROVIDER=${ORCH_PROVIDER:-codex}
-nohup node "$PORT" --provider "$PROVIDER" --model "$MODEL" --effort "$EFFORT" \
+# ORCH_JOB="worker|worker-hard|reviewer|reviewer-critical|explorer|mechanic" — канонический выбор модели и effort
+# по карте `/home/dev/brain/docs/MODEL_TIERS.md`. Владелец 30.07: «у тебя же есть полный список решения когда и
+# какого агента выбрать» — знание о цене и способностях живёт в одном месте, а не дублируется в каждом вызове.
+# Если ORCH_JOB задан, модель и effort из аргументов ИГНОРИРУЮТСЯ (передавай в них job-имя дважды, для лога).
+if [ -n "${ORCH_JOB:-}" ]; then
+  MODEL_ARGS=(--job "$ORCH_JOB")
+  echo "  job-режим: модель и effort выбирает канон по job=$ORCH_JOB (аргументы модели/effort игнорируются)"
+else
+  MODEL_ARGS=(--model "$MODEL" --effort "$EFFORT")
+fi
+nohup node "$PORT" --provider "$PROVIDER" "${MODEL_ARGS[@]}" \
   --role "$ROLE_FOR_PORT" --sandbox "$SANDBOX" --cwd "$CLONE" --run-id "$RUN_ID" \
   < "$BRIEF" > "$LOG" 2>&1 &
 echo "  pid=$!"
