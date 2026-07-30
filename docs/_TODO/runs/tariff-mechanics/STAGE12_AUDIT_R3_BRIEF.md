@@ -6,7 +6,7 @@ project files, do not commit, do not push. Temporary test artefacts are fine.
 
 ## Authority
 
-- **Plan:** `docs/_TODO/SAAS_FOUNDATION/TARIFF_MECHANICS_PLAN_2026-07-30.md`, stages 1–2, scope §1, verification policy §2.
+- **Plan:** `docs/_TODO/SAAS_FOUNDATION/TARIFFS_PAYMENTS_ADMIN_PLAN.md §5a`, stages 1–2, scope §1, verification policy §2.
 - **Canon:** `docs/_TODO/SAAS_FOUNDATION/QUOTAS_AND_MECHANICS_DESIGN_2026-07-28.md` §3, §5, §9.
 - **Previous verdict (one MUST FIX):** `docs/_TODO/runs/tariff-mechanics/STAGE12_REAUDIT_RESULT.md`.
 - **Worker's claims (verify, do not trust):** `docs/_TODO/runs/tariff-mechanics/STAGE12_FIX2_REPORT.md`.

@@ -8,7 +8,7 @@ VERDICT: PASS
 
 4. Owner mechanics are default-off in `MECHANIC_DEFAULT_ENABLED` ([types.ts](/home/dev/dev-projects/bcb-wt-tariff/apps/webapp/src/modules/org-entitlements/types.ts:119)); existing override precedence enables all three ([service.ts](/home/dev/dev-projects/bcb-wt-tariff/apps/webapp/src/modules/org-entitlements/service.ts:169)). The test would catch a flipped default via its explicit `false` assertions ([service.test.ts](/home/dev/dev-projects/bcb-wt-tariff/apps/webapp/src/modules/org-entitlements/service.test.ts:234)). No table, screen, or migration changed.
 
-5. Registration only: the commit modifies only the protected-action inventory, registry, target test, and plan; no domain-route file, UI file, or migration is in the diff. The registry’s `guard` values are metadata only; no guard call was added. Step 4.0 specifically authorizes these shared declarations ([plan](/home/dev/dev-projects/bcb-wt-tariff/docs/_TODO/SAAS_FOUNDATION/TARIFF_MECHANICS_PLAN_2026-07-30.md:171)).
+5. Registration only: the commit modifies only the protected-action inventory, registry, target test, and plan; no domain-route file, UI file, or migration is in the diff. The registry’s `guard` values are metadata only; no guard call was added. Step 4.0 specifically authorizes these shared declarations ([plan](/home/dev/dev-projects/bcb-wt-tariff/docs/_TODO/SAAS_FOUNDATION/TARIFFS_PAYMENTS_ADMIN_PLAN.md §5a:171)).
 
 6. Honest unknowns confirmed: `patient_count` says creation/reactivation handler is unidentified; `external_calendar` says no provider write path exists ([protectedActionRegistry.ts](/home/dev/dev-projects/bcb-wt-tariff/apps/webapp/src/app-[redacted-token].ts:960)). Neither is silently mapped to an unrelated handler.
 

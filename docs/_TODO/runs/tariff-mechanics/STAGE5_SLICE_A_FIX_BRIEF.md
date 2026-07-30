@@ -5,7 +5,7 @@ This round is about **closing the write surface completely**, not about adding m
 
 ## Authority
 
-- **Plan:** `docs/_TODO/SAAS_FOUNDATION/TARIFF_MECHANICS_PLAN_2026-07-30.md` — items 5.1, 5.2, 5.9; scope §1; policy §2.
+- **Plan:** `docs/_TODO/SAAS_FOUNDATION/TARIFFS_PAYMENTS_ADMIN_PLAN.md §5a` — items 5.1, 5.2, 5.9; scope §1; policy §2.
 - **Verdict you are fixing:** `docs/_TODO/runs/tariff-mechanics/STAGE5_SLICE_A_AUDIT_RESULT.md` — MUST FIX 1–5 and the
   protected-action registry section.
 - **Canon:** `QUOTAS_AND_MECHANICS_DESIGN_2026-07-28.md` §1, §5.1 (block creating and changing, never reading), §5.6

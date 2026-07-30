@@ -2,7 +2,7 @@
 
 ## Authority
 
-- **Plan:** `docs/_TODO/SAAS_FOUNDATION/TARIFF_MECHANICS_PLAN_2026-07-30.md`, stages 1–2 (scope §1).
+- **Plan:** `docs/_TODO/SAAS_FOUNDATION/TARIFFS_PAYMENTS_ADMIN_PLAN.md §5a`, stages 1–2 (scope §1).
 - **Canon:** `docs/_TODO/SAAS_FOUNDATION/QUOTAS_AND_MECHANICS_DESIGN_2026-07-28.md` §3 (classes), §5 (behaviour at the
   limit), §9 (rollout order — one mechanic at a time).
 - **Verdict you are fixing:** `docs/_TODO/runs/tariff-mechanics/STAGE12_REAUDIT_RESULT.md` — the single MUST FIX.

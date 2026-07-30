@@ -6,7 +6,7 @@ the working specialist-seats counter. This commit claims to fix exactly that.
 
 ## Authority
 
-- **Plan:** `docs/_TODO/SAAS_FOUNDATION/TARIFF_MECHANICS_PLAN_2026-07-30.md`, item 2.3, scope §1, policy §2.
+- **Plan:** `docs/_TODO/SAAS_FOUNDATION/TARIFFS_PAYMENTS_ADMIN_PLAN.md §5a`, item 2.3, scope §1, policy §2.
 - **Verdict being fixed:** `docs/_TODO/runs/tariff-mechanics/STAGE12_AUDIT_R4_RESULT.md`, MUST FIX 1.
 - **Worker claims (verify, do not trust):** `docs/_TODO/runs/tariff-mechanics/STAGE12_FIX4_REPORT.md`.
 

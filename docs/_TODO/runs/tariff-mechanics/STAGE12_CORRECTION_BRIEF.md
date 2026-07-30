@@ -2,7 +2,7 @@
 
 ## Authority
 
-- **Plan:** `docs/_TODO/SAAS_FOUNDATION/TARIFF_MECHANICS_PLAN_2026-07-30.md`, stages 1 and 2 only. Scope boundaries in
+- **Plan:** `docs/_TODO/SAAS_FOUNDATION/TARIFFS_PAYMENTS_ADMIN_PLAN.md §5a`, stages 1 and 2 only. Scope boundaries in
   §1 were widened by the lead after audit finding 6 — the constructor API route, `system-settings/registry.ts` and the
   material-ratings / notification-templates routes are now inside the allowed scope.
 - **Canon:** `docs/_TODO/SAAS_FOUNDATION/QUOTAS_AND_MECHANICS_DESIGN_2026-07-28.md` §1, §3, §4, §5.

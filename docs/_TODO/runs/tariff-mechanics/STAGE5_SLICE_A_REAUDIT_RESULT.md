@@ -33,7 +33,7 @@ VERDICT: FAIL
 
    Impact: клиника продолжает включать и полностью переконфигурировать ежедневные разминки при выключенном `warmups`. Registry ложно относит эти actions только к `cms_pages + patient_home_today`: [protectedActionRegistry.ts](/home/dev/dev-projects/bcb-wt-tariff/apps/webapp/src/app-[redacted-token].ts:250).
 
-5. **Не выполнено обязательное скрытие входа для трёх механик.** План требует его для каждого пункта Stage 5: [TARIFF_MECHANICS_PLAN_2026-07-30.md](/home/dev/dev-projects/bcb-wt-tariff/docs/_TODO/SAAS_FOUNDATION/TARIFF_MECHANICS_PLAN_2026-07-30.md:210).
+5. **Не выполнено обязательное скрытие входа для трёх механик.** План требует его для каждого пункта Stage 5: [TARIFFS_PAYMENTS_ADMIN_PLAN.md §5a](/home/dev/dev-projects/bcb-wt-tariff/docs/_TODO/SAAS_FOUNDATION/TARIFFS_PAYMENTS_ADMIN_PLAN.md §5a:210).
 
    - External calendar показывается только по platform availability, без `external_calendar`: [settings/page.tsx](/home/dev/dev-projects/bcb-wt-[redacted-token].tsx:238).
    - «Разминки» безусловно включены в CMS nav: [ContentNav.tsx](/home/dev/dev-projects/bcb-wt-[redacted-token].tsx:213).
@@ -79,7 +79,7 @@ Canonical baseline для correction commit: `57b184254`, непосредств
 
 - `git diff --stat 57b184254 8ecb98f18` → **44 files, 1307 insertions, 117 deletions**.
 - `git diff --check 57b184254 8ecb98f18` → exit 0, ошибок whitespace нет.
-- `git diff --word-diff ... TARIFF_MECHANICS_PLAN...` → потерянных требований нет.
+- `git diff --word-diff ... TARIFFS_PAYMENTS_ADMIN_PLAN §5a...` → потерянных требований нет.
 - `code-search.mjs`, затем точечные `rg`/`nl` → прослежены entry points до diary, CMS, settings и materialization write ports.
 - Registry keys, migration `0275`, seat chokepoint, patient-file write port, billing и support не изменены. Patient-card/app как тарифные механики не затронуты; изменённые patient UI-файлы относятся к явно предписанным отказам и promo gating.
 - Тесты не запускал: по прямому указанию не повторял уже выполненный lead run **4 files / 27 tests passed**. Full CI не запускался.

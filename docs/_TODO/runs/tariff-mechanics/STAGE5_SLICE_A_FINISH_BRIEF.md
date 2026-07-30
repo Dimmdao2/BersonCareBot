@@ -6,7 +6,7 @@ guards actually hold.
 
 ## Authority
 
-- **Plan:** `docs/_TODO/SAAS_FOUNDATION/TARIFF_MECHANICS_PLAN_2026-07-30.md` — items 5.1, 5.2, 5.9; scope §1; policy §2.
+- **Plan:** `docs/_TODO/SAAS_FOUNDATION/TARIFFS_PAYMENTS_ADMIN_PLAN.md §5a` — items 5.1, 5.2, 5.9; scope §1; policy §2.
 - **What you are finishing:** `docs/_TODO/runs/tariff-mechanics/STAGE5_SLICE_A_FIX2_BRIEF.md` (the requirements) and the
   audit that drove it, `STAGE5_SLICE_A_REAUDIT_RESULT.md`.
 - **Canon:** `QUOTAS_AND_MECHANICS_DESIGN_2026-07-28.md` §5.1 (block creating and changing, never reading), §5.6, §7.

@@ -4,7 +4,7 @@ You audit a plan document, not code. Verdict must be PASS or FAIL with numbered 
 
 ## Authority — read these IN FULL before writing anything
 
-1. **The plan under audit:** `docs/_TODO/SAAS_FOUNDATION/TARIFF_MECHANICS_PLAN_2026-07-30.md`
+1. **The plan under audit:** `docs/_TODO/SAAS_FOUNDATION/TARIFFS_PAYMENTS_ADMIN_PLAN.md §5a`
 2. **Owner rulings and the canonical model:** `docs/_TODO/SAAS_FOUNDATION/QUOTAS_AND_MECHANICS_DESIGN_2026-07-28.md`
    — §1.1, §1.2, §1.3 (owner rulings 30.07, verbatim quotes), §9.1–9.11 (unified structure, per-line verdicts).
 3. **Owner-facing summary:** `docs/_TODO/OWNER_PUNCHLIST_2026-07-28.md` §10 (items 10.3–10.19).
