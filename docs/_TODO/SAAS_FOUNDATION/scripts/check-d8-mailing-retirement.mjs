@@ -55,6 +55,13 @@ const retiredTables = [
   'integrator.mailing_topics',
 ];
 
+const securityArtifactPaths = [
+  'deploy/postgres/p0-5-role-split.sql',
+  'deploy/postgres/p0-5b-grants.sql',
+  'deploy/postgres/phase4-force-rls-cutover.sql',
+  'deploy/postgres/phase4-locked-helper-rls-policies.sql',
+];
+
 function runtimeFilesUnder(root) {
   const files = [];
   for (const entry of readdirSync(root)) {
@@ -211,6 +218,22 @@ function assertMigrationDropsRetiredTables() {
   }
 }
 
+export function findD8SecurityArtifactViolations(entries) {
+  return entries.flatMap((entry) => {
+    const normalized = entry.content.replaceAll('"', '');
+    return retiredTables
+      .filter((table) => normalized.includes(table))
+      .map((table) => `${entry.path}: configures retired D8 table "${table}"`);
+  });
+}
+
+function currentSecurityArtifactEntries() {
+  return securityArtifactPaths.map((path) => ({
+    path,
+    content: readFileSync(join(repoRoot, path), 'utf8'),
+  }));
+}
+
 function runSelfTest() {
   const faults = [];
 
@@ -268,6 +291,16 @@ function runSelfTest() {
       throw new Error(`self-test failed to detect ${fault.name}`);
     }
   }
+
+  const securityViolations = findD8SecurityArtifactViolations([
+    {
+      path: 'deploy/postgres/fault.sql',
+      content: 'ALTER TABLE "integrator"."mailings" ENABLE ROW LEVEL SECURITY;',
+    },
+  ]);
+  if (!securityViolations.some((violation) => violation.includes('integrator.mailings'))) {
+    throw new Error('self-test failed to detect retired D8 security artifact target');
+  }
   console.log('check-d8-mailing-retirement: self-test OK');
 }
 
@@ -277,6 +310,11 @@ if (process.argv.includes('--self-test')) {
   const violations = findD8RuntimeViolations(currentRuntimeEntries());
   if (violations.length > 0) {
     console.error(violations.join('\n'));
+    process.exit(1);
+  }
+  const securityViolations = findD8SecurityArtifactViolations(currentSecurityArtifactEntries());
+  if (securityViolations.length > 0) {
+    console.error(securityViolations.join('\n'));
     process.exit(1);
   }
   assertMigrationDropsRetiredTables();

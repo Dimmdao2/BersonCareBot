@@ -224,9 +224,12 @@ writeReminderRulesDirect.ts`, D1-D4 candidate/org-resolution pattern reused), fu
       реальных дефектов домена (беседы без организации, полнота полей, идемпотентность) — но выполняется как ПЕРЕНОС
       владения доменом в вебапп, а не как ещё один прямой писатель в интеграторе. Replace snooze/skip/done/mute/messenger-topic/notification-settings signed
       POST adapters with the same validated direct-DB service contract.
-- [ ] **D8 — mailing/subscriptions.** Run an exact producer/consumer callgraph first. If the currently empty source
+- [x] **D8 — mailing/subscriptions.** Run an exact producer/consumer callgraph first. If the currently empty source
       and projection tables have no live producer, remove the dead event types/adapters/tables; do not build a new writer
-      for a dead domain.
+      for a dead domain. **DONE 2026-07-30:** dead runtime/projection surfaces and empty legacy tables are removed;
+      the migration refuses non-empty tables; active RLS/grant registries and deploy artifacts no longer target the
+      retired tables. Evidence: `check-d8-mailing-retirement.mjs` + self-test, targeted integrator contract/typecheck,
+      generated-policy checks and independent scoped deploy-closure audit PASS on `60caf998`.
 - [x] **D9a — Rubitime runtime retirement.** Rubitime выведено 2026-07-27; исторические планы и proofs перенесены в
       `docs/archive/2026-07-rubitime-retirement/` по решению владельца 2026-07-29.
 - [x] **D9b — provider-neutral appointment projection cleanup.** Отдельно проверить оставшиеся

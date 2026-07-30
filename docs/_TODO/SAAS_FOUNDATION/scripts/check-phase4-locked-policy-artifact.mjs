@@ -30,6 +30,4 @@ if (!directoryTarget || directoryTarget.descriptor.dormantMode !== 'strict') {
   throw new Error('clinic_public_directory_entries must retain strict dormant classification');
 }
 
-console.log(
-  `check-phase4-locked-policy-artifact: generated artifact OK (${targets.length} targets)`,
-);
+console.log('check-phase4-locked-policy-artifact: generated artifact OK');
