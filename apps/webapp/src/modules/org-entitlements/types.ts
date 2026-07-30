@@ -4,9 +4,11 @@
  * See docs/_TODO/SAAS_FOUNDATION/STORE_P0_ENTITLEMENTS_PLAN.md.
  */
 /**
- * The only canonical mechanic registry.  It deliberately contains no pending
- * product candidates: S4-0 protects the fourteen keys that already exist in
- * the compatibility resolver.
+ * The only canonical mechanic registry. It deliberately contains no pending
+ * product candidates: S4-0 protects the keys that already exist in the
+ * compatibility resolver. `patient_card` was removed 31.07 (#1069): the patient
+ * card is a critical mechanic the tariff must never be able to disable — see
+ * `docs/_TODO/SAAS_FOUNDATION/QUOTAS_AND_MECHANICS_DESIGN_2026-07-28.md` §4.
  */
 export const MECHANIC_REGISTRY = {
   booking: {
@@ -29,11 +31,6 @@ export const MECHANIC_REGISTRY = {
   files: {
     label: 'Файлы пациентов',
     quotaUnits: ['bytes', 'items'],
-    quotaEnforcement: 'declared_no_enforcement',
-  },
-  patient_card: {
-    label: 'Карточка пациента',
-    quotaUnits: ['clients'],
     quotaEnforcement: 'declared_no_enforcement',
   },
   subscriptions: {
