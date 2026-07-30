@@ -154,13 +154,14 @@ env/deploy/server scripts и другие UI-разделы запрещены.
 
 ### S4. Direct-ID read matrix
 
-- [ ] `GET appointments/[id]/lifecycle`: doctor-own; `clinic_admin` — appointment текущей клиники; чужая
-  организация получает neutral denial.
-- [ ] `GET appointments/[id]/comments`: doctor-own; `clinic_admin` — appointment текущей клиники; чужая
-  организация получает neutral denial.
-- [ ] `GET appointments/[id]/payment`: doctor-own; `clinic_admin` — appointment текущей клиники; чужая
-  организация получает neutral denial.
-- [ ] Event/detail fetch UI не обходит эту матрицу другим прямым ID endpoint.
+- [x] `GET appointments/[id]/lifecycle`: doctor-own; `clinic_admin` — appointment текущей клиники; чужая
+  организация получает neutral denial. Evidence: shared `_resolveDoctorAppointmentAccess`, route test PASS.
+- [x] `GET appointments/[id]/comments`: doctor-own; `clinic_admin` — appointment текущей клиники; чужая
+  организация получает neutral denial. Evidence: shared resolver before history read, route test PASS.
+- [x] `GET appointments/[id]/payment`: doctor-own; `clinic_admin` — appointment текущей клиники; чужая
+  организация получает neutral denial. Evidence: shared resolver before payment summary, route test PASS.
+- [x] Event/detail fetch UI не обходит эту матрицу другим прямым ID endpoint. Evidence:
+  `DoctorCalendarEventPanel` reads lifecycle/comments/payment; all three use the shared direct-ID resolver.
 
 ### S5. Direct-ID mutation matrix
 
@@ -193,8 +194,8 @@ env/deploy/server scripts и другие UI-разделы запрещены.
   соседней работой по прямому указанию владельца.~~ — ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 30.07.2026:
   «уже начинай добавлять тесты»; «с тестами — читай инструкцию и разбирайся впредь сам».
 - [x] Добавить минимальные unit/route проверки named schedule-scope failure с независимым oracle и fault
-  injection. Evidence: 5 files / 12 tests PASS; mutation доверия клиентскому specialist ID дала 2 expected FAIL,
-  mutation удаления scope из KPI-запроса и mutation скрытия schedule от clinic admin дали expected FAIL.
+  injection. Evidence: 7 files / 17 tests PASS; specialist scope, UI request parity, navigation and direct-ID
+  mutations all produced their expected failures before restoration.
 - [ ] Независимый аудит сверяет каждый пункт этого плана и server-side IDOR, после чего фиксируются commit SHA
   и фактически выполненные команды.
 
@@ -218,6 +219,9 @@ env/deploy/server scripts и другие UI-разделы запрещены.
 - 30.07.2026 → S3 scope UI → server bootstrap, staff-only schedule navigation, mine/clinic/specialist controls,
   common calendar/KPI/nearest query and documentation; combined unit/route/UI 12/12 PASS; missing-KPI-scope
   fault injection correctly failed and was restored → SHA фиксируется тем же коммитом.
+- 30.07.2026 → S4 direct reads → one organization/specialist resolver before lifecycle/comments/payment;
+  combined resolver+route 5/5 PASS; broadened-doctor fault injection failed unit+route and was restored →
+  SHA фиксируется тем же коммитом.
 
 ## Не входит
 

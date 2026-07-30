@@ -6,13 +6,15 @@ import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { requireDoctorBookingEngine } from '../../../_requireDoctorBookingEngine';
+import { resolveDoctorAppointmentAccess } from '../../../_resolveDoctorAppointmentAccess';
 
 const postBodySchema = z.object({
   body: z.string().min(1).max(8000),
 });
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
-  const gate = await requireDoctorWorkspaceApiContext();
+  const gate = await requireDoctorBookingEngine();
   if (!gate.ok) return gate.response;
 
   const { id: appointmentId } = await context.params;
@@ -21,8 +23,9 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   }
 
   const deps = buildAppDeps();
-  if (!deps.bookingEngine) {
-    return NextResponse.json({ ok: false, error: 'booking_unavailable' }, { status: 503 });
+  const appointment = await resolveDoctorAppointmentAccess(gate.ctx, appointmentId, 'clinic');
+  if (!appointment) {
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
 
   const orgId = gate.ctx.organizationId;
