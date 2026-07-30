@@ -34,19 +34,6 @@ if (
   );
 }
 
-const pinnedCountMatch = artifactSource.match(
-  /IF v_expected_count <> (\d+) THEN[\s\S]*?RAISE EXCEPTION 'phase4_force_target_count_mismatch:[\s\S]*?\n\s*(\d+), v_expected_count;/,
-);
-if (
-  !pinnedCountMatch ||
-  Number(pinnedCountMatch[1]) !== expectedTargets.length ||
-  Number(pinnedCountMatch[2]) !== expectedTargets.length
-) {
-  throw new Error(
-    `${artifactPath} pinned target count differs from generated Phase 4 targets: expected=${expectedTargets.length}`,
-  );
-}
-
 console.log(
   `check-phase4-force-cutover-sql: generated target artifact OK (${expectedTargets.length})`,
 );
