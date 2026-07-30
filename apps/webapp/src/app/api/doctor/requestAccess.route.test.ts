@@ -44,7 +44,6 @@ vi.mock('@/app-layer/guards/doctorWorkspacePrincipal', () => ({
 }));
 
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { getCurrentSession } from '@/modules/auth/service';
 import { getServerRuntimeBool } from '@/modules/system-settings/configAdapter';
 import { PATCH as patchTask } from '@/app/api/doctor/tasks/[taskId]/route';
@@ -111,12 +110,24 @@ function doctorMembership(platformUserId: string): OrganizationMembershipContext
   };
 }
 
-async function expectGuardError(status: number, error: string): Promise<void> {
-  const result = await requireDoctorWorkspaceApiContext();
-  expect(result.ok).toBe(false);
-  if (result.ok) throw new Error('expected_guard_failure');
-  expect(result.response.status).toBe(status);
-  await expect(result.response.json()).resolves.toEqual({ ok: false, error });
+function taskPatchRequest(): Request {
+  return new Request(`https://app.example.test/api/doctor/tasks/${TASK_ID}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: 'Changed' }),
+  });
+}
+
+function invokeTaskPatchRoute() {
+  return patchTask(taskPatchRequest(), {
+    params: Promise.resolve({ taskId: TASK_ID }),
+  });
+}
+
+async function expectRouteError(status: number, error: string): Promise<void> {
+  const response = await invokeTaskPatchRoute();
+  expect(response.status).toBe(status);
+  await expect(response.json()).resolves.toEqual({ ok: false, error });
 }
 
 beforeEach(() => {
@@ -138,7 +149,7 @@ describe('doctor request access boundary', () => {
   ])('keeps %s out of the doctor API', async (_case, candidate) => {
     getCurrentSessionMock.mockResolvedValue(candidate);
 
-    await expectGuardError(401, 'unauthorized');
+    await expectRouteError(401, 'unauthorized');
     expect(resolveOrganizationForUser).not.toHaveBeenCalled();
   });
 
@@ -147,14 +158,14 @@ describe('doctor request access boundary', () => {
       session('doctor', { securityFactorRequired: true }),
     );
 
-    await expectGuardError(403, 'forbidden');
+    await expectRouteError(403, 'forbidden');
     expect(resolveOrganizationForUser).not.toHaveBeenCalled();
   });
 
   it('rejects a doctor without an active organization membership', async () => {
     getCurrentSessionMock.mockResolvedValue(session('doctor'));
 
-    await expectGuardError(403, 'doctor_workspace_membership_required');
+    await expectRouteError(403, 'doctor_workspace_membership_required');
   });
 
   it('does not turn platform operations into a clinic workspace grant', async () => {
@@ -165,7 +176,7 @@ describe('doctor request access boundary', () => {
       context: doctorMembership(platformSession.user.userId),
     });
 
-    await expectGuardError(403, 'forbidden');
+    await expectRouteError(403, 'forbidden');
   });
 
   it('returns not found without mutating when a task belongs to another clinic', async () => {
@@ -193,14 +204,7 @@ describe('doctor request access boundary', () => {
     resolveOrganizationForUser.mockResolvedValue(resolution);
     getTaskByIdForOwner.mockResolvedValue(foreignTask);
 
-    const response = await patchTask(
-      new Request(`https://app.example.test/api/doctor/tasks/${TASK_ID}`, {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ title: 'Changed' }),
-      }),
-      { params: Promise.resolve({ taskId: TASK_ID }) },
-    );
+    const response = await invokeTaskPatchRoute();
 
     expect(response.status).toBe(404);
     await expect(response.json()).resolves.toEqual({ ok: false, error: 'not_found' });
