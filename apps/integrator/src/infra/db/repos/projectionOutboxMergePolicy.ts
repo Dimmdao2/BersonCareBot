@@ -1,5 +1,4 @@
 import {
-  APPOINTMENT_RECORD_UPSERTED,
   CONTENT_ACCESS_GRANTED,
   MAILING_LOG_SENT,
   REMINDER_DELIVERY_LOGGED,
@@ -116,11 +115,6 @@ export function recomputeProjectionIdempotencyKeyAfterMerge(
   const fallbackStable = `outbox-row:${rowId}`;
 
   switch (eventType) {
-    case APPOINTMENT_RECORD_UPSERTED: {
-      const rid = asNonEmptyString(payload.integratorRecordId);
-      if (!rid) return projectionIdempotencyKey(eventType, fallbackStable, hashPayload(payload));
-      return projectionIdempotencyKey(eventType, rid, hashPayload(payload));
-    }
     case 'user.upserted': {
       const uid = asNonEmptyString(payload.integratorUserId);
       if (!uid) return projectionIdempotencyKey(eventType, fallbackStable, hashPayload(payload));

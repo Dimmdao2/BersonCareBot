@@ -205,9 +205,13 @@ writeReminderRulesDirect.ts`, D1-D4 candidate/org-resolution pattern reused), fu
       for a dead domain.
 - [x] **D9a — Rubitime runtime retirement.** Rubitime выведено 2026-07-27; исторические планы и proofs перенесены в
       `docs/archive/2026-07-rubitime-retirement/` по решению владельца 2026-07-29.
-- [ ] **D9b — provider-neutral appointment projection cleanup.** Отдельно проверить оставшиеся
+- [x] **D9b — provider-neutral appointment projection cleanup.** Отдельно проверить оставшиеся
       `appointment_records`, projection events/handlers, retry storage и calendar mapping; не считать архив Rubitime
-      доказательством удаления provider-neutral данных.
+      доказательством удаления provider-neutral данных. **DONE 2026-07-30:** удалены только неиспользуемые
+      `publicAppointmentRecordSync` и `appointment.record.*` transport residues; canonical booking lifecycle,
+      `message_retry_jobs`, `booking_calendar_map` и Google sync сохранены. Доказательство:
+      `apps/integrator/src/kernel/contracts/legacyAppointmentProjectionTransport.contract.test.ts` +
+      целевая fault injection, integrator typecheck и независимый audit PASS.
 - [ ] **D10 — projection transport teardown, last.** Only after an exact zero-producer census, remove fanout/outbox,
       worker/wiring, generic emit client surface, `/api/integrator/events`, event contract/CSRF exception, projection
       health/proxy/digest tooling and the outbox table through a migration. Do not delete generic idempotency, delivery

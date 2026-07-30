@@ -7,7 +7,6 @@ import {
   userSubscriptions,
 } from './schema/integratorPublicProduct.js';
 import {
-  appointmentRecords,
   contentAccessGrants,
   userReminderDeliveryLogs,
   userReminderOccurrences,
@@ -29,5 +28,4 @@ export const integratorDrizzleSchema = {
   userReminderOccurrences,
   userReminderDeliveryLogs,
   contentAccessGrants,
-  appointmentRecords,
 } as const;
