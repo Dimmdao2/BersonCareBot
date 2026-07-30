@@ -104,7 +104,7 @@ runner, полезные тесты с независимым oracle, red-on-fau
    доказательства и независимая Opus-приёмка записаны ниже.
    Остальные чувствительные модули и инварианты получают тесты дальше как обычная risk-based разработка, а не
    обязательный массовый хвост #1074. **Квоты — ВНЕ этой задачи** (решение владельца 29.07).
-6. [ ] **Закрыть следующий разумный DB-free минимум** — решение владельца 30.07:
+6. [x] **Закрыть следующий разумный DB-free минимум** — решение владельца 30.07:
    «закрывай тогда сам пока следующий разумный DB-free минимум, а остальное будем закрывать по ходу».
    Это ровно четыре уже предложенных класса, без расширения скоупа:
    - [x] patient organization resolver: inactive/foreign enrollment и ambiguous multi-org — `35eb9159c`;
@@ -149,13 +149,14 @@ runner, полезные тесты с независимым oracle, red-on-fau
    Для каждого класса: самый дешёвый публичный DB-free слой, независимый oracle, fault injection с записью
    «что сломано → какое утверждение покраснело». Остальной inventory не блокирует #1074 и закрывается по ходу
    обычной разработки.
-   **Log/evidence 30.07:** реальные production-исправления — patient status guard и acquiring unsigned-webhook
-   rejection/idempotency forwarding; outbound и M2M production-код не менялся. Parent step 6 остаётся открытым до
-   final gate и Opus-приёмки.
-   **Opus audit 30.07:** raw run
-   `/home/dev/brain/runs/agent-port/bcb-1074-opus-critical-next-acceptance-20260730.json` → `FAIL`, единственный
-   finding `MF-1`: в плане отсутствовали per-injection mappings; код и тесты семантически `PASS`. Мэппинги
-   добавлены выше; parent step 6 не закрыт, ожидается узкий Opus re-audit.
+   **Audit closure 30.07:** исходный Opus run
+   `/home/dev/brain/runs/agent-port/bcb-1074-opus-critical-next-acceptance-20260730.json` нашёл единственный `MF-1`
+   о недостающих per-injection mappings; после их внесения независимый docs-only Sonnet re-audit
+   `patient_org_tests` на `e3f1d1403` → **PASS**: сверены все 20 mappings (patient 4, outbound 6, acquiring 6,
+   M2M 4), SHA, test paths и deferred scope; код и тесты повторно не запускались.
+   **Финальный результат #1074:** DB-free цель завершена. Открытые legacy/inventory/DB-боксы в остальных разделах
+   не блокируют её и остаются будущей risk-based работой по решению владельца «остальное будем закрывать по ходу»;
+   DB/RLS выполняется только после аудита ролей/стен, стабилизации БД и отдельного owner-go.
 
 ### Финальная приёмка DB-free пилота — 30.07
 
