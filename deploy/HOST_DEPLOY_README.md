@@ -759,8 +759,9 @@ families через отдельный diagnostic login. Активный unexpl
 останавливает deploy; synthetic cleanup после runtime-smoke не запускается и реальные события не удаляются.
 Состояние `awg-quick@awg0` не является TEST deploy-гейтом: это отдельный PROD-relay dependency на том же хосте,
 который TEST deploy не запускает, не останавливает и не использует как критерий готовности TEST.
-Для SaaS fresh-dump rehearsal канон — только отдельный разрушительный entrypoint. Он не является вариантом
-обычного деплоя и fail-closed без явного подтверждения и hash-bound owner inputs:
+Для SaaS fresh-dump rehearsal канон — только отдельный разрушительный entrypoint. Это единичная полная
+миграционная репетиция, запускаемая только по прямой команде владельца; она не является вариантом регулярного
+TEST-деплоя или проверки и fail-closed без явного подтверждения и hash-bound owner inputs:
 
 ```bash
 bash deploy/host/deploy-test-full-reset.sh \
@@ -835,7 +836,8 @@ membership/BYPASS через обязательный cleanup; application runti
   разрушительный entrypoint — `bash deploy/host/deploy-test-full-reset.sh --confirm-full-reset ...`; он владеет fresh dump, restore,
   migrations, overlays/settings, fixture reconciliation, cleanup, restart и health gates. Не запускать
   `/tmp/bcb-test-setup/restore-test-db.sh`, settings SQL или `deploy-test.sh` как отдельную fresh-restore цепочку.
-  `deploy-test-saas.sh` — внутренний shared closure engine; прямой destructive-вызов заблокирован.
+  `deploy-test-saas.sh` — внутренний shared closure engine; напрямую его не запускают, прямой destructive-вызов
+  заблокирован.
 
 ### Отдельный webapp deploy
 

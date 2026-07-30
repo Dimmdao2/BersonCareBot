@@ -32,8 +32,9 @@ be updated in the same change.
    `pg_dump -Fc --no-owner --no-acl` path. No production writes, no production migrations, no production
    env edits, no service restarts, and no manual production SQL.
 2. TEST is the rehearsal target. Routine code changes use `deploy/host/deploy-test.sh`, which never restores or
-   recreates TEST. The from-zero wrapper is currently blocked: it still requires retired Rubitime inputs and must
-   not be invoked until that contract is removed in an owner-reviewed change.
+   recreates TEST. A from-zero run is a one-off full migration rehearsal, never a routine deploy/check, and requires
+   a direct owner command for that exact run. The from-zero wrapper is currently blocked: it still requires retired
+   Rubitime inputs and must not be invoked until that contract is removed in an owner-reviewed change.
 3. A plain `pnpm migrate`, or `restore + pnpm migrate`, is not valid proof for this migration.
 4. No manual DB surgery. If a step fails, fix the repository script/protocol/checker and rerun from a fresh
    restore. Do not patch rows by hand to get past a gate.
