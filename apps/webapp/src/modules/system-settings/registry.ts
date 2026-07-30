@@ -284,6 +284,13 @@ export const SYSTEM_SETTING_REGISTRY = {
     'uuid',
     'absent',
   ),
+  booking_calendar_default_specialist_id: runtime(
+    'doctor',
+    'per_org',
+    'authenticated_client',
+    'uuid',
+    'absent',
+  ),
   booking_location_default_palette: runtime(
     'admin',
     'global',

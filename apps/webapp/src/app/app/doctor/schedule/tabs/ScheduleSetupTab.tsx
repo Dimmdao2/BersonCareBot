@@ -214,10 +214,12 @@ type CalendarSettingsState =
       phase: 'ready';
       branches: CalendarCatalogOption[];
       services: CalendarCatalogOption[];
+      specialists: CalendarCatalogOption[];
       defaultStart: string;
       defaultEnd: string;
       defaultBranchId: string | null;
       defaultServiceId: string | null;
+      defaultSpecialistId: string | null;
     };
 
 function getSettingValue(rows: CalendarSettingsRow[], key: string): unknown {
@@ -275,8 +277,9 @@ function ScheduleCalendarDefaultsSection() {
         filters: {
           branches: CalendarCatalogOption[];
           services: CalendarCatalogOption[];
+          specialists: CalendarCatalogOption[];
         };
-      }>('/api/doctor/booking-engine/calendar?view=day'),
+      }>('/api/doctor/booking-engine/calendar?view=day&scope=clinic'),
     ]);
     const windowValue = parseDefaultWindow(
       getSettingValue(settingsJson.settings, 'booking_calendar_default_window'),
@@ -285,6 +288,7 @@ function ScheduleCalendarDefaultsSection() {
       phase: 'ready',
       branches: calendarJson.filters.branches,
       services: calendarJson.filters.services,
+      specialists: calendarJson.filters.specialists,
       defaultStart: minuteToTimeInput(windowValue.startMinute),
       defaultEnd: minuteToTimeInput(windowValue.endMinute),
       defaultBranchId: stringOrNull(
@@ -292,6 +296,9 @@ function ScheduleCalendarDefaultsSection() {
       ),
       defaultServiceId: stringOrNull(
         getSettingValue(settingsJson.settings, 'booking_calendar_default_service_id'),
+      ),
+      defaultSpecialistId: stringOrNull(
+        getSettingValue(settingsJson.settings, 'booking_calendar_default_specialist_id'),
       ),
     };
   }, []);
@@ -351,6 +358,7 @@ function ScheduleCalendarDefaultsSection() {
           patchDoctorSetting('booking_calendar_default_window', { startMinute, endMinute }),
           patchDoctorSetting('booking_calendar_default_branch_id', state.defaultBranchId),
           patchDoctorSetting('booking_calendar_default_service_id', state.defaultServiceId),
+          patchDoctorSetting('booking_calendar_default_specialist_id', state.defaultSpecialistId),
         ]);
         setSaved(true);
       } catch {
@@ -450,6 +458,33 @@ function ScheduleCalendarDefaultsSection() {
                 <SelectItem key={service.id} value={service.id} label={service.label}>
                   {service.label}
                   {service.durationMinutes ? ` · ${service.durationMinutes} мин` : ''}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Специалист по умолчанию</Label>
+          <Select
+            value={state.defaultSpecialistId ?? '__none__'}
+            onValueChange={(v) => updateReady({ defaultSpecialistId: v === '__none__' ? null : v })}
+          >
+            <SelectTrigger
+              displayLabel={
+                state.specialists.find((s) => s.id === state.defaultSpecialistId)?.label ??
+                'Не выбран'
+              }
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__" label="Не выбран">
+                Не выбран
+              </SelectItem>
+              {state.specialists.map((specialist) => (
+                <SelectItem key={specialist.id} value={specialist.id} label={specialist.label}>
+                  {specialist.label}
                 </SelectItem>
               ))}
             </SelectContent>

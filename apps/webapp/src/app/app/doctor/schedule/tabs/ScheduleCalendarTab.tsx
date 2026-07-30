@@ -121,6 +121,7 @@ type CalendarDoctorSettings = {
   defaultWindowEndMinute: number;
   defaultBranchId: string | null;
   defaultServiceId: string | null;
+  defaultSpecialistId: string | null;
 };
 
 type CalendarDraftSlot = {
@@ -133,6 +134,7 @@ const DEFAULT_CALENDAR_SETTINGS: CalendarDoctorSettings = {
   defaultWindowEndMinute: DEFAULT_WINDOW_MAX,
   defaultBranchId: null,
   defaultServiceId: null,
+  defaultSpecialistId: null,
 };
 
 const EMPTY_SCHEDULE_SCOPE_BOOTSTRAP: DoctorScheduleScopeBootstrap = {
@@ -315,6 +317,7 @@ function parseCalendarDoctorSettings(
   }
   const defaultBranchRaw = getSettingValue(rows, 'booking_calendar_default_branch_id');
   const defaultServiceRaw = getSettingValue(rows, 'booking_calendar_default_service_id');
+  const defaultSpecialistRaw = getSettingValue(rows, 'booking_calendar_default_specialist_id');
   return {
     defaultWindowStartMinute,
     defaultWindowEndMinute,
@@ -322,6 +325,10 @@ function parseCalendarDoctorSettings(
       typeof defaultBranchRaw === 'string' && defaultBranchRaw.trim() ? defaultBranchRaw : null,
     defaultServiceId:
       typeof defaultServiceRaw === 'string' && defaultServiceRaw.trim() ? defaultServiceRaw : null,
+    defaultSpecialistId:
+      typeof defaultSpecialistRaw === 'string' && defaultSpecialistRaw.trim()
+        ? defaultSpecialistRaw
+        : null,
   };
 }
 
@@ -1159,6 +1166,11 @@ export function ScheduleCalendarTab({
   // ─── Calendar events ───────────────────────────────────────────────────────
 
   const filters = data?.filters ?? { specialists: [], branches: [], rooms: [], services: [] };
+  const defaultCreateSpecialistId =
+    calendarSettings.defaultSpecialistId &&
+    filters.specialists.some((specialist) => specialist.id === calendarSettings.defaultSpecialistId)
+      ? calendarSettings.defaultSpecialistId
+      : null;
 
   const activeFilters = useMemo(
     () => ({
@@ -2187,6 +2199,7 @@ export function ScheduleCalendarTab({
               createInitialEnd={createInitialEnd}
               createInitialBranchId={createInitialBranchId}
               createInitialServiceId={createInitialServiceId}
+              createInitialSpecialistId={defaultCreateSpecialistId}
               onCreateDirtyChange={setCreateFormDirty}
               onClose={() => {
                 clearDraftAndPanel();

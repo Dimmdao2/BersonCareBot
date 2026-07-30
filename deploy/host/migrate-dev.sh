@@ -55,7 +55,7 @@ if grep -Eqv '^[[:space:]]*(#.*)?$' "$SAFE_MIGRATION_ENV"; then
   fatal "safe migration env must contain comments/blank lines only"
 fi
 
-for command in flock getent node pnpm psql realpath; do
+for command in flock getent mktemp node pnpm psql realpath; do
   command -v "$command" >/dev/null 2>&1 || fatal "required command is unavailable: $command"
 done
 
@@ -69,13 +69,22 @@ NODE_BIN_DIR="$(dirname "$(command -v node)")"
 PNPM_BIN_DIR="$(dirname "$(command -v pnpm)")"
 SANITIZED_PATH="$NODE_BIN_DIR:$PNPM_BIN_DIR:/usr/local/bin:/usr/bin:/bin"
 
-DEV_DATABASE_URL="$(node "$DEV_ENV_PARSER" "$DEV_ENV")" ||
+CREDENTIAL_DIR="$(mktemp -d /tmp/bcb-dev-migrate-credentials.XXXXXX)" ||
+  fatal "cannot create private DEV credential directory"
+chmod 700 "$CREDENTIAL_DIR"
+trap 'rm -rf -- "$CREDENTIAL_DIR"' EXIT
+PGPASS_FILE="$CREDENTIAL_DIR/pgpass"
+node "$DEV_ENV_PARSER" --write-pgpass "$DEV_ENV" "$PGPASS_FILE" ||
   fatal "DEV DATABASE_URL data parser rejected the env file"
 
 identity="$(
   env -i \
     PATH="$SANITIZED_PATH" \
-    PGDATABASE="$DEV_DATABASE_URL" \
+    PGHOST=127.0.0.1 \
+    PGPORT=5432 \
+    PGUSER="$TARGET_ROLE" \
+    PGDATABASE="$TARGET_DB" \
+    PGPASSFILE="$PGPASS_FILE" \
     PGCONNECT_TIMEOUT=10 \
     psql -X -v ON_ERROR_STOP=1 -Atqc \
       "SELECT current_user || '|' || current_database() || '|' ||
@@ -91,6 +100,9 @@ if [[ "$MODE" == "--preflight" ]]; then
   exit 0
 fi
 
+DEV_DATABASE_URL="$(node "$DEV_ENV_PARSER" "$DEV_ENV")" ||
+  fatal "DEV DATABASE_URL data parser rejected the env file"
+
 (
   cd "$REPO_ROOT"
   env -i \
@@ -102,7 +114,6 @@ fi
     DATABASE_URL="$DEV_DATABASE_URL" \
     API_ENV_FILE="$SAFE_MIGRATION_ENV" \
     WEBAPP_ENV_FILE="$SAFE_MIGRATION_ENV" \
-    PGDATABASE="$DEV_DATABASE_URL" \
     PGCONNECT_TIMEOUT=10 \
     pnpm run migrate
 )

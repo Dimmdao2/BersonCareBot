@@ -93,6 +93,7 @@ type Props = {
   createInitialEnd?: string | null;
   createInitialBranchId?: string | null;
   createInitialServiceId?: string | null;
+  createInitialSpecialistId?: string | null;
   onCreateDirtyChange?: (dirty: boolean) => void;
   /** Dialog hosts keep their standard close; embedded schedule keeps this panel close. */
   showCloseControl?: boolean;
@@ -200,6 +201,7 @@ function DoctorCalendarEventPanelInner({
   createInitialEnd = null,
   createInitialBranchId = null,
   createInitialServiceId = null,
+  createInitialSpecialistId = null,
   onCreateDirtyChange,
   showCloseControl = true,
 }: Props) {
@@ -260,7 +262,11 @@ function DoctorCalendarEventPanelInner({
   useEffect(() => {
     if (!startInCreate) return;
     const nextSpecialistId =
-      resolveCalendarCreateFieldValue(filterMeta.specialists, activeFilters.specialistId, null) ??
+      resolveCalendarCreateFieldValue(
+        filterMeta.specialists,
+        activeFilters.specialistId,
+        createInitialSpecialistId,
+      ) ??
       filterMeta.specialists[0]?.id ??
       null;
     const nextBranchId =
@@ -282,7 +288,13 @@ function DoctorCalendarEventPanelInner({
     // R32: подставить выделенное время старта (если открыто через select по сетке)
     if (createInitialStart) setCreateStart(createInitialStart);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startInCreate, createInitialStart, createInitialBranchId, createInitialServiceId]);
+  }, [
+    startInCreate,
+    createInitialStart,
+    createInitialBranchId,
+    createInitialServiceId,
+    createInitialSpecialistId,
+  ]);
 
   useEffect(() => {
     if (mode !== 'create') onCreateDirtyChange?.(false);
