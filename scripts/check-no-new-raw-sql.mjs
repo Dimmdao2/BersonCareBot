@@ -75,9 +75,6 @@ const exemptFiles = new Set([
   'apps/webapp/src/infra/db/withClient.ts',
 ]);
 
-const sqlStatementStart =
-  /^(?:SELECT|INSERT|UPDATE|DELETE|WITH|ALTER|CREATE|DROP|SET|RESET|BEGIN|COMMIT|ROLLBACK)\b/i;
-
 function listSourceFiles(dir) {
   const files = [];
   for (const name of readdirSync(dir)) {
@@ -94,9 +91,8 @@ function sqlText(node) {
   return null;
 }
 
-function rawSqlQueryLines(abs) {
-  const source = readFileSync(abs, 'utf8');
-  const sourceFile = ts.createSourceFile(abs, source, ts.ScriptTarget.Latest, true);
+function rawSqlQueryLines(fileName, source) {
+  const sourceFile = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true);
   const lines = [];
   const visit = (node) => {
     if (
@@ -106,7 +102,7 @@ function rawSqlQueryLines(abs) {
       node.arguments.length > 0
     ) {
       const text = sqlText(node.arguments[0]);
-      if (text !== null && sqlStatementStart.test(text.trimStart())) {
+      if (text !== null) {
         lines.push(sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1);
       }
     }
@@ -116,27 +112,15 @@ function rawSqlQueryLines(abs) {
   return lines;
 }
 
-const offenders = [];
-const liveDebt = { integrator: new Set(), webapp: new Set() };
-for (const root of scanRoots) {
-  const app = root.includes('/integrator/') ? 'integrator' : 'webapp';
-  for (const abs of listSourceFiles(join(repoRoot, root))) {
-    const rel = relative(repoRoot, abs).replaceAll('\\', '/');
-    if (exemptFiles.has(rel)) continue;
-    const lines = rawSqlQueryLines(abs);
-    if (lines.length === 0) continue;
-    if (!rawSqlDebtFiles[app].has(rel)) offenders.push(`${rel}:${lines.join(',')}`);
-    else liveDebt[app].add(rel);
-  }
+function staleDebtEntries(manifest, liveDebt) {
+  return Object.entries(manifest).flatMap(([app, files]) =>
+    [...files]
+      .filter((file) => !liveDebt[app].has(file))
+      .map((file) => `${file} (remove its cleaned entry)`),
+  );
 }
 
-const staleDebt = Object.entries(rawSqlDebtFiles).flatMap(([app, files]) =>
-  [...files]
-    .filter((file) => !liveDebt[app].has(file))
-    .map((file) => `${file} (remove its cleaned entry)`),
-);
-
-if (offenders.length > 0 || staleDebt.length > 0) {
+function printViolation(offenders, staleDebt) {
   console.error('check-no-new-raw-sql: raw SQL debt manifest violation.');
   if (offenders.length > 0) {
     console.error('New raw .query(...) SQL outside the frozen D18c debt list:');
@@ -149,6 +133,60 @@ if (offenders.length > 0 || staleDebt.length > 0) {
     console.error('Debt-list entries without a live raw .query(...) SQL call:');
     for (const stale of staleDebt) console.error(`  - ${stale}`);
   }
+}
+
+function runSelfTest() {
+  const commentPrefixedSql = rawSqlQueryLines(
+    'apps/integrator/src/rawSqlD18aFixture.ts',
+    "pool.query('/* c */ SELECT 1');\n",
+  );
+  const drizzleExecute = rawSqlQueryLines(
+    'apps/integrator/src/drizzleD18aFixture.ts',
+    'db.execute(sql`SELECT 1`);\n',
+  );
+  const manifestFile = [...rawSqlDebtFiles.integrator].find((file) =>
+    rawSqlQueryLines(file, readFileSync(join(repoRoot, file), 'utf8')).length > 0,
+  );
+  const manifestWithoutLiveEntry = new Set(
+    [...rawSqlDebtFiles.integrator].filter((file) => file !== manifestFile),
+  );
+  const manifestDeletionOffenders = manifestWithoutLiveEntry.has(manifestFile) ? [] : [manifestFile];
+  if (
+    commentPrefixedSql.length !== 1 ||
+    drizzleExecute.length !== 0 ||
+    !manifestFile ||
+    manifestDeletionOffenders.length !== 1
+  ) {
+    throw new Error('check-no-new-raw-sql self-test failed');
+  }
+  console.error('check-no-new-raw-sql: self-test observed the expected rejection:');
+  printViolation(['apps/integrator/src/rawSqlD18aFixture.ts:1'], []);
+  console.log('check-no-new-raw-sql: self-test OK (comment-prefixed .query(...) is rejected; Drizzle execute passes; missing manifest entry fails).');
+}
+
+if (process.argv.includes('--self-test')) {
+  runSelfTest();
+  process.exit(0);
+}
+
+const offenders = [];
+const liveDebt = { integrator: new Set(), webapp: new Set() };
+for (const root of scanRoots) {
+  const app = root.includes('/integrator/') ? 'integrator' : 'webapp';
+  for (const abs of listSourceFiles(join(repoRoot, root))) {
+    const rel = relative(repoRoot, abs).replaceAll('\\', '/');
+    if (exemptFiles.has(rel)) continue;
+    const lines = rawSqlQueryLines(abs, readFileSync(abs, 'utf8'));
+    if (lines.length === 0) continue;
+    if (!rawSqlDebtFiles[app].has(rel)) offenders.push(`${rel}:${lines.join(',')}`);
+    else liveDebt[app].add(rel);
+  }
+}
+
+const staleDebt = staleDebtEntries(rawSqlDebtFiles, liveDebt);
+
+if (offenders.length > 0 || staleDebt.length > 0) {
+  printViolation(offenders, staleDebt);
   process.exit(1);
 }
 
