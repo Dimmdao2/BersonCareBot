@@ -15,6 +15,11 @@ export type PhoneChallengePayload = {
   verifyAttempts?: number;
   /** Куда ушёл OTP (для подсказок после входа). */
   deliveryChannel?: 'sms' | 'telegram' | 'max' | 'email';
+  /**
+   * Whether this delivery proves control of the phone number. Email and intentionally
+   * undelivered public challenges must never mark the phone as trusted.
+   */
+  phoneNumberProven?: boolean;
   /** Контекст канала, зафиксированный на start (только trusted). При отсутствии — web. */
   channelContext?: ChannelContext;
   /** Сквозной id попытки регистрации (product analytics). */

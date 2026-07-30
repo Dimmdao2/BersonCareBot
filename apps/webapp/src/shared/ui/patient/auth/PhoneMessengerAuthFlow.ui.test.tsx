@@ -1,7 +1,11 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { AuthFlowV2 } from './AuthFlowV2';
 import { PhoneMessengerAuthFlow } from './PhoneMessengerAuthFlow';
 
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
+}));
 vi.mock('@/shared/ui/patient/auth/InternationalPhoneInput', () => ({
   InternationalPhoneInput: ({
     onSubmit,
@@ -24,6 +28,29 @@ afterEach(() => {
 });
 
 describe('PhoneMessengerAuthFlow automatic delivery', () => {
+  it('is reachable when OAuth and messengers are disabled', async () => {
+    render(
+      <AuthFlowV2
+        nextParam={null}
+        prefetchedAuthConfig={{
+          oauthProviders: { yandex: false, google: false, apple: false },
+          telegramBotUsername: null,
+          maxBotOpenUrl: null,
+          specialistSignupEnabled: false,
+          authChannelPolicy: { sms: true, email: true, telegram: false, max: false },
+          fetchedAt: Date.now(),
+        }}
+      />,
+    );
+
+    const phoneEntry = await screen.findByRole('button', {
+      name: 'Войти по номеру телефона',
+    });
+    fireEvent.click(phoneEntry);
+
+    expect(await screen.findByRole('button', { name: 'Submit phone' })).toBeInTheDocument();
+  });
+
   it('lets a browser login use SMS/email policy without sending an account-specific channel', async () => {
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => {
       return {

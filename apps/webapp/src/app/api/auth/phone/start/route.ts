@@ -1,5 +1,5 @@
 import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
-import { NextResponse } from 'next/server';
+import { after, NextResponse } from 'next/server';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
@@ -11,7 +11,7 @@ import {
 } from '@/app-layer/product-analytics/recordAuthRegistration';
 import type { ChannelContext } from '@/modules/auth/channelContext';
 import { normalizePhone } from '@/modules/auth/phoneNormalize';
-import type { PhoneOtpDelivery } from '@/modules/auth/smsPort';
+import type { PhoneOtpDelivery, SendCodeResult } from '@/modules/auth/smsPort';
 import { isRuMobile, isValidPhoneE164 } from '@/modules/auth/phoneValidation';
 import {
   formatOtpRetryAfterMessage,
@@ -21,9 +21,9 @@ import { getCurrentSession } from '@/modules/auth/service';
 import { canAccessPatient } from '@/modules/roles/service';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { isAuthChannelEnabled } from '@/modules/auth/authChannelPolicy';
-import { assertPhoneCanStartChallenge, registerPhoneSend } from '@/modules/auth/phoneOtpLimits';
 
 const PUBLIC_LOGIN_START_MIN_RESPONSE_MS = 500;
+const PUBLIC_LOGIN_DECOY_USER_ID = '00000000-0000-4000-8000-000000000000';
 
 const bodySchema = z.object({
   phone: z.string().min(1),
@@ -35,8 +35,8 @@ const bodySchema = z.object({
 });
 
 /**
- * Start phone auth. Для telegram channel/chatId берутся из тела (как на bind-phone);
- * для web при отсутствии chatId подставляется серверный UUID.
+ * Start phone auth. Unauthenticated login always receives web context; a caller cannot make its
+ * body trusted by claiming `channel: telegram`. Authenticated profile-bind preserves its channel.
  * Для публичного web-login без deliveryChannel сервер сам выбирает SMS → verified email.
  * Явный deliveryChannel сохраняется для messenger/profile-bind контрактов; явный web SMS запрещён.
  */
@@ -55,13 +55,13 @@ export async function POST(request: Request) {
   const { phone, displayName } = parsed.data;
   const channel = parsed.data.channel ?? 'web';
   const purpose = parsed.data.purpose ?? 'login';
-  const publicWebLogin = channel === 'web' && purpose === 'login';
-  const automaticPublicLogin = publicWebLogin && parsed.data.deliveryChannel == null;
+  const publicLogin = purpose === 'login';
+  const automaticPublicLogin = publicLogin && parsed.data.deliveryChannel == null;
   let deliveryChannel = parsed.data.deliveryChannel ?? 'sms';
 
   let context: ChannelContext;
 
-  if (channel === 'telegram') {
+  if (!publicLogin && channel === 'telegram') {
     const chatId = parsed.data.chatId?.trim();
     if (!chatId) {
       return NextResponse.json(
@@ -95,7 +95,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: 'auth_channel_disabled' }, { status: 403 });
   }
 
-  if (!automaticPublicLogin && channel === 'web' && deliveryChannel === 'sms') {
+  if (!automaticPublicLogin && publicLogin && deliveryChannel === 'sms') {
     return NextResponse.json(
       {
         ok: false,
@@ -122,38 +122,18 @@ export async function POST(request: Request) {
 
   let delivery: PhoneOtpDelivery | undefined;
   if (automaticPublicLogin) {
-    const gate = await assertPhoneCanStartChallenge(normalized);
-    if (gate.ok !== true) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: gate.code,
-          retryAfterSeconds: gate.retryAfterSeconds,
-          message: errorMessage(gate.code, gate.retryAfterSeconds),
-        },
-        {
-          status: 429,
-          ...(gate.retryAfterSeconds != null && {
-            headers: { 'Retry-After': String(gate.retryAfterSeconds) },
-          }),
-        },
-      );
-    }
-
     if (isRuMobile(normalized) && (await isAuthChannelEnabled('sms'))) {
       deliveryChannel = 'sms';
       delivery = { channel: 'sms' };
-    } else if (user && (await isAuthChannelEnabled('email'))) {
-      const email = await deps.userByPhone.getVerifiedEmailForUser(user.userId);
-      if (email) {
+    } else if (await isAuthChannelEnabled('email')) {
+      deliveryChannel = 'email';
+      const email = await deps.userByPhone.getVerifiedEmailForUser(
+        user?.userId ?? PUBLIC_LOGIN_DECOY_USER_ID,
+      );
+      if (user && email) {
         deliveryChannel = 'email';
         delivery = { channel: 'email', email };
       }
-    }
-
-    if (!delivery) {
-      await registerPhoneSend(normalized);
-      return publicLoginAccepted(startedAt);
     }
   }
 
@@ -175,70 +155,139 @@ export async function POST(request: Request) {
   }
   const isRegistrationIntent = purpose === 'login' && !user;
   const registrationAttemptId = isRegistrationIntent ? newRegistrationAttemptId() : undefined;
-  const entryChannel = channel === 'telegram' ? ('telegram' as const) : ('browser' as const);
+  const entryChannel =
+    context.channel === 'telegram' ? ('telegram' as const) : ('browser' as const);
+  let deferredRegistrationAttempt: (() => Promise<void>) | undefined;
 
   if (isRegistrationIntent) {
-    await recordAuthRegistrationAttempt({
-      attemptId: registrationAttemptId!,
-      authMethod: 'phone_otp',
-      stage: 'start',
-      entryChannel,
-      contactType: 'phone',
-      contactValue: normalized,
-    });
+    const recordAttempt = () =>
+      recordAuthRegistrationAttempt({
+        attemptId: registrationAttemptId!,
+        authMethod: 'phone_otp',
+        stage: 'start',
+        entryChannel,
+        contactType: 'phone',
+        contactValue: normalized,
+      });
+    if (publicLogin) {
+      deferredRegistrationAttempt = recordAttempt;
+    } else {
+      await recordAttempt();
+    }
   }
+  const recordDeferredDeliveryResult =
+    publicLogin && isRegistrationIntent && registrationAttemptId
+      ? async (deliveryResult: SendCodeResult): Promise<void> => {
+          await deferredRegistrationAttempt?.();
+          if (deliveryResult.ok) {
+            await recordAuthRegistrationSuccess({
+              attemptId: registrationAttemptId,
+              authMethod: 'phone_otp',
+              stage: 'challenge_sent',
+              entryChannel,
+              contactType: 'phone',
+              contactValue: normalized,
+              challengeId: deliveryResult.challengeId,
+              isNewAccount: true,
+            });
+            return;
+          }
+          await recordAuthRegistrationFailure({
+            attemptId: registrationAttemptId,
+            authMethod: 'phone_otp',
+            stage: 'start',
+            entryChannel,
+            contactType: 'phone',
+            contactValue: normalized,
+            errorCode: deliveryResult.code,
+          });
+        }
+      : undefined;
 
-  if (deliveryChannel === 'sms') {
-    delivery = { channel: 'sms' };
-  } else if (deliveryChannel === 'telegram') {
-    const recipientId = user?.bindings?.telegramId;
-    if (!recipientId) {
-      if (publicWebLogin) {
-        return unavailablePublicLoginAccepted(startedAt, normalized, 'telegram');
+  if (!automaticPublicLogin) {
+    if (deliveryChannel === 'sms') {
+      delivery = { channel: 'sms' };
+    } else if (deliveryChannel === 'telegram') {
+      const recipientId = user?.bindings?.telegramId;
+      if (!recipientId) {
+        if (!publicLogin) {
+          return NextResponse.json(
+            {
+              ok: false,
+              error: 'channel_unavailable',
+              message: 'Telegram не привязан к этому номеру',
+            },
+            { status: 400 },
+          );
+        }
+      } else {
+        delivery = { channel: 'telegram', recipientId };
       }
-      return NextResponse.json(
-        { ok: false, error: 'channel_unavailable', message: 'Telegram не привязан к этому номеру' },
-        { status: 400 },
-      );
-    }
-    delivery = { channel: 'telegram', recipientId };
-  } else if (deliveryChannel === 'max') {
-    const recipientId = user?.bindings?.maxId;
-    if (!recipientId) {
-      if (publicWebLogin) {
-        return unavailablePublicLoginAccepted(startedAt, normalized, 'max');
+    } else if (deliveryChannel === 'max') {
+      const recipientId = user?.bindings?.maxId;
+      if (!recipientId) {
+        if (!publicLogin) {
+          return NextResponse.json(
+            {
+              ok: false,
+              error: 'channel_unavailable',
+              message: 'Max не привязан к этому номеру',
+            },
+            { status: 400 },
+          );
+        }
+      } else {
+        delivery = { channel: 'max', recipientId };
       }
-      return NextResponse.json(
-        { ok: false, error: 'channel_unavailable', message: 'Max не привязан к этому номеру' },
-        { status: 400 },
-      );
-    }
-    delivery = { channel: 'max', recipientId };
-  } else {
-    if (!user) {
-      if (publicWebLogin) {
-        return unavailablePublicLoginAccepted(startedAt, normalized, 'email');
+    } else {
+      const email =
+        user || publicLogin
+          ? await deps.userByPhone.getVerifiedEmailForUser(
+              user?.userId ?? PUBLIC_LOGIN_DECOY_USER_ID,
+            )
+          : null;
+      if (!user) {
+        if (!publicLogin) {
+          return NextResponse.json(
+            {
+              ok: false,
+              error: 'channel_unavailable',
+              message: 'Сначала подтвердите email в профиле',
+            },
+            { status: 400 },
+          );
+        }
+      } else if (!email) {
+        if (!publicLogin) {
+          return NextResponse.json(
+            {
+              ok: false,
+              error: 'channel_unavailable',
+              message: 'Подтверждённый email не найден',
+            },
+            { status: 400 },
+          );
+        }
+      } else {
+        delivery = { channel: 'email', email };
       }
-      return NextResponse.json(
-        { ok: false, error: 'channel_unavailable', message: 'Сначала подтвердите email в профиле' },
-        { status: 400 },
-      );
     }
-    const email = await deps.userByPhone.getVerifiedEmailForUser(user.userId);
-    if (!email) {
-      if (publicWebLogin) {
-        return unavailablePublicLoginAccepted(startedAt, normalized, 'email');
-      }
-      return NextResponse.json(
-        { ok: false, error: 'channel_unavailable', message: 'Подтверждённый email не найден' },
-        { status: 400 },
-      );
-    }
-    delivery = { channel: 'email', email };
   }
 
   const result = await deps.auth.startPhoneAuth(normalized, context, {
     delivery,
+    ...(publicLogin
+      ? {
+          deferredDelivery: {
+            schedule: after,
+            ...(delivery ? {} : { suppressDelivery: true }),
+            ...(delivery ? {} : { challengeDeliveryChannel: deliveryChannel }),
+            ...(recordDeferredDeliveryResult
+              ? { onDeliveryResult: recordDeferredDeliveryResult }
+              : {}),
+          },
+        }
+      : {}),
     ...(registrationAttemptId ? { registrationAttemptId, isRegistrationIntent: true } : {}),
     ...(profileBindUserId ? { profileBindUserId } : {}),
     ...(profileBindOrganizationId ? { profileBindOrganizationId } : {}),
@@ -246,23 +295,24 @@ export async function POST(request: Request) {
 
   if (!result.ok) {
     if (isRegistrationIntent && registrationAttemptId) {
-      await recordAuthRegistrationFailure({
-        attemptId: registrationAttemptId,
-        authMethod: 'phone_otp',
-        stage: 'start',
-        entryChannel,
-        contactType: 'phone',
-        contactValue: normalized,
-        errorCode: result.code,
-      });
-    }
-    if (publicWebLogin && result.code === 'delivery_failed') {
-      await registerPhoneSend(normalized);
-      return publicLoginAccepted(
-        startedAt,
-        undefined,
-        automaticPublicLogin ? 'automatic' : deliveryChannel,
-      );
+      const recordFailure = () =>
+        recordAuthRegistrationFailure({
+          attemptId: registrationAttemptId,
+          authMethod: 'phone_otp',
+          stage: 'start',
+          entryChannel,
+          contactType: 'phone',
+          contactValue: normalized,
+          errorCode: result.code,
+        });
+      if (publicLogin) {
+        after(async () => {
+          await deferredRegistrationAttempt?.();
+          await recordFailure();
+        });
+      } else {
+        await recordFailure();
+      }
     }
     const status =
       result.code === 'rate_limited' || result.code === 'too_many_attempts'
@@ -286,20 +336,22 @@ export async function POST(request: Request) {
     );
   }
 
-  if (isRegistrationIntent && registrationAttemptId) {
-    await recordAuthRegistrationSuccess({
-      attemptId: registrationAttemptId,
-      authMethod: 'phone_otp',
-      stage: 'challenge_sent',
-      entryChannel,
-      contactType: 'phone',
-      contactValue: normalized,
-      challengeId: result.challengeId,
-      isNewAccount: true,
-    });
+  if (!publicLogin && isRegistrationIntent && registrationAttemptId) {
+    const recordSuccess = () =>
+      recordAuthRegistrationSuccess({
+        attemptId: registrationAttemptId,
+        authMethod: 'phone_otp',
+        stage: 'challenge_sent',
+        entryChannel,
+        contactType: 'phone',
+        contactValue: normalized,
+        challengeId: result.challengeId,
+        isNewAccount: true,
+      });
+    await recordSuccess();
   }
 
-  if (publicWebLogin) {
+  if (publicLogin) {
     return publicLoginAccepted(
       startedAt,
       result.challengeId,
@@ -331,32 +383,6 @@ async function publicLoginAccepted(
     retryAfterSeconds: 60,
     deliveryChannel,
   });
-}
-
-async function unavailablePublicLoginAccepted(
-  startedAt: number,
-  phone: string,
-  deliveryChannel: 'telegram' | 'max' | 'email',
-): Promise<NextResponse> {
-  const gate = await assertPhoneCanStartChallenge(phone);
-  if (gate.ok !== true) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: gate.code,
-        retryAfterSeconds: gate.retryAfterSeconds,
-        message: errorMessage(gate.code, gate.retryAfterSeconds),
-      },
-      {
-        status: 429,
-        ...(gate.retryAfterSeconds != null && {
-          headers: { 'Retry-After': String(gate.retryAfterSeconds) },
-        }),
-      },
-    );
-  }
-  await registerPhoneSend(phone);
-  return publicLoginAccepted(startedAt, undefined, deliveryChannel);
 }
 
 function errorMessage(code: string, retryAfterSeconds?: number): string {
