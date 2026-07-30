@@ -1,14 +1,19 @@
+import { createHmac } from 'node:crypto';
+import { NextRequest, NextResponse } from 'next/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppSession, SessionUser } from '@/shared/types/session';
 import {
+  applySessionRenewalToResponse,
   decodeSessionCookie,
   encodeSessionCookie,
   renewSessionIfActive,
+  SESSION_COOKIE_NAME,
   sessionAbsoluteMaxAgeSecondsForRole,
   shouldRenewSession,
   sessionTtlSecondsForRole,
 } from '@/modules/auth/sessionCookie';
 import { Factory, fc, fixedClock } from '@/app-layer/testing';
+import { encodeBase64Url } from '@/shared/utils/base64url';
 
 const clock = fixedClock(Date.UTC(2026, 6, 30, 12));
 const nowSeconds = clock.nowSeconds();
@@ -46,6 +51,14 @@ const activeSessionArbitrary = fc
       expiresAt,
     }),
   );
+
+function signPayload(payload: unknown): string {
+  const secret = process.env.SESSION_COOKIE_SECRET;
+  if (!secret) throw new Error('SESSION_COOKIE_SECRET is required by the unit test');
+  const encoded = encodeBase64Url(JSON.stringify(payload));
+  const signature = createHmac('sha256', secret).update(encoded).digest('base64url');
+  return `${encoded}.${signature}`;
+}
 
 describe('session cookie unit behavior', () => {
   beforeEach(() => {
@@ -96,5 +109,85 @@ describe('session cookie unit behavior', () => {
 
     const signed = encodeSessionCookie(sessionFactory.build());
     expect(decodeSessionCookie(`${signed}tampered`)).toBeNull();
+  });
+
+  it('rejects representative malformed, incomplete, expired, and visual-exemption payloads', () => {
+    const valid = sessionFactory.build();
+    const { issuedAt: _issuedAt, ...incomplete } = valid;
+
+    const invalidCookies = [
+      'not-a-cookie',
+      signPayload(incomplete),
+      encodeSessionCookie({ ...valid, expiresAt: nowSeconds }),
+      signPayload({
+        ...valid,
+        operatorSession: {
+          purpose: 'not_the_visual_exemption',
+          expiresAt: valid.expiresAt,
+        },
+      }),
+    ];
+
+    for (const raw of invalidCookies) {
+      expect(decodeSessionCookie(raw)).toBeNull();
+    }
+    expect(
+      decodeSessionCookie(encodeSessionCookie({ ...valid, expiresAt: nowSeconds + 1 })),
+    ).toEqual({ ...valid, expiresAt: nowSeconds + 1 });
+  });
+
+  it.each(roles)('uses both renewal boundaries for %s sessions', (role) => {
+    const ttl = sessionTtlSecondsForRole(role);
+    const maxAge = sessionAbsoluteMaxAgeSecondsForRole(role);
+    const nearRenewalThreshold = sessionFactory.build({
+      user: { ...sessionFactory.build().user, role },
+      issuedAt: nowSeconds - 1,
+      expiresAt: nowSeconds + ttl / 2,
+    });
+    const justInsideAbsoluteAge = sessionFactory.build({
+      user: { ...sessionFactory.build().user, role },
+      issuedAt: nowSeconds - maxAge + 1,
+      expiresAt: nowSeconds + ttl,
+    });
+
+    expect(shouldRenewSession(nearRenewalThreshold, nowSeconds)).toBe(false);
+    expect(
+      shouldRenewSession(
+        { ...nearRenewalThreshold, expiresAt: nearRenewalThreshold.expiresAt - 1 },
+        nowSeconds,
+      ),
+    ).toBe(true);
+    expect(shouldRenewSession(justInsideAbsoluteAge, nowSeconds)).toBe(true);
+    expect(
+      shouldRenewSession({ ...justInsideAbsoluteAge, issuedAt: nowSeconds - maxAge }, nowSeconds),
+    ).toBe(false);
+  });
+
+  it('renews only an eligible cookie on the public response boundary', () => {
+    const renewable = sessionFactory.build({
+      issuedAt: nowSeconds - 1,
+      expiresAt: nowSeconds + sessionTtlSecondsForRole('client') / 2 - 1,
+    });
+    const renewableRequest = new NextRequest('https://app.example.test', {
+      headers: { cookie: `${SESSION_COOKIE_NAME}=${encodeSessionCookie(renewable)}` },
+    });
+    const renewedResponse = applySessionRenewalToResponse(renewableRequest, NextResponse.next());
+    const renewedRaw = renewedResponse.cookies.get(SESSION_COOKIE_NAME)?.value;
+
+    expect(renewedRaw).toBeDefined();
+    expect(decodeSessionCookie(renewedRaw ?? '')?.expiresAt).toBe(
+      nowSeconds + sessionTtlSecondsForRole('client'),
+    );
+
+    const atAbsoluteAge = {
+      ...renewable,
+      issuedAt: nowSeconds - sessionAbsoluteMaxAgeSecondsForRole('client'),
+    };
+    const expiredRequest = new NextRequest('https://app.example.test', {
+      headers: { cookie: `${SESSION_COOKIE_NAME}=${encodeSessionCookie(atAbsoluteAge)}` },
+    });
+    const unchangedResponse = applySessionRenewalToResponse(expiredRequest, NextResponse.next());
+
+    expect(unchangedResponse.cookies.get(SESSION_COOKIE_NAME)).toBeUndefined();
   });
 });
