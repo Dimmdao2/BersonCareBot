@@ -27,6 +27,10 @@ import {
 import { PatientContentSlugArticle } from './PatientContentSlugArticle';
 import { patientHelpArticlePathIfHelpSection } from '@/modules/help-content/patientHelpArticlePath';
 import { resolvePatientContentWarmupPageContext } from './patientContentWarmupPageContext';
+import {
+  resolvePatientOrganizationRequestContext,
+  stampPatientOrganizationRequestContext,
+} from '@/app-layer/patient-organization/requestContext';
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -39,6 +43,20 @@ export default async function ContentSlugPage({ params, searchParams }: Props) {
   const sp = await searchParams;
   const session = await getOptionalPatientSession();
   const deps = buildAppDeps();
+  const patientContext = session
+    ? await resolvePatientOrganizationRequestContext(
+        deps.patientOrganization,
+        session.user.userId,
+      )
+    : null;
+  if (session && !patientContext?.ok) return null;
+  if (session && patientContext?.ok) {
+    stampPatientOrganizationRequestContext({
+      organizationId: patientContext.organizationId,
+      platformUserId: session.user.userId,
+      source: 'app.patient.content.page',
+    });
+  }
   const dbRow = await deps.contentPages.getBySlug(slug);
   if (dbRow?.requiresAuth) {
     const canView = await resolvePatientCanViewContent(session, slug, deps.entitlements);
@@ -117,6 +135,7 @@ export default async function ContentSlugPage({ params, searchParams }: Props) {
         <PatientContentSlugArticle
           slug={slug}
           session={session}
+          organizationId={patientContext?.ok ? patientContext.organizationId : null}
           dbRow={dbRow}
           item={item}
           personalTierOk={personalTierOk}

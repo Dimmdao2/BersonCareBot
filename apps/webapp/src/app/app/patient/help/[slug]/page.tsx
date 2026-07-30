@@ -19,6 +19,10 @@ import {
 import { HELP_CANONICAL_ARTICLE_SLUG_BOOKING } from '@/modules/help-content/canonicalSlugs';
 import { PatientContentSlugArticle } from '@/app/app/patient/content/[slug]/PatientContentSlugArticle';
 import { HelpBookingAboutLink } from '../HelpBookingAboutLink';
+import {
+  resolvePatientOrganizationRequestContext,
+  stampPatientOrganizationRequestContext,
+} from '@/app-layer/patient-organization/requestContext';
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -31,6 +35,20 @@ export default async function PatientHelpArticlePage({ params }: Props) {
   const slug = slugRaw.trim();
   const session = await getOptionalPatientSession();
   const deps = buildAppDeps();
+  const patientContext = session
+    ? await resolvePatientOrganizationRequestContext(
+        deps.patientOrganization,
+        session.user.userId,
+      )
+    : null;
+  if (session && !patientContext?.ok) return null;
+  if (session && patientContext?.ok) {
+    stampPatientOrganizationRequestContext({
+      organizationId: patientContext.organizationId,
+      platformUserId: session.user.userId,
+      source: 'app.patient.help.article',
+    });
+  }
   const dbRow = await deps.contentPages.getBySlug(slug);
   if (!dbRow || !isHelpSectionSlug(dbRow.section)) notFound();
 
@@ -85,6 +103,7 @@ export default async function PatientHelpArticlePage({ params }: Props) {
         <PatientContentSlugArticle
           slug={slug}
           session={session}
+          organizationId={patientContext?.ok ? patientContext.organizationId : null}
           dbRow={dbRow}
           item={item}
           personalTierOk={personalTierOk}
