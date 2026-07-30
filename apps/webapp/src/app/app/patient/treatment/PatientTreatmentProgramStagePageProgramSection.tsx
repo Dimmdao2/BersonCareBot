@@ -541,21 +541,12 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
       setError(null);
       try {
         const previousDraft = await loadLatestMetrics(itemId);
-        const result = await postProgramItemComplete({
-          base,
-          itemId,
-        });
-        if (!result.ok) {
-          setError(result.error);
-          return;
-        }
         setMetricsDraft(previousDraft);
-        await refresh();
       } finally {
         setBusy(null);
       }
     },
-    [base, loadLatestMetrics, refresh, setBusy, setError],
+    [loadLatestMetrics, setBusy, setError],
   );
 
   const saveMetrics = useCallback(
@@ -564,17 +555,13 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
       setError(null);
       try {
         const payload = draftToPayload(metricsDraft);
-        const res = await fetch(`${base}/${encodeURIComponent(itemId)}/progress/complete/metrics`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
+        const result = await postProgramItemComplete({
+          base,
+          itemId,
+          payload,
         });
-        const data = (await res.json().catch(() => null)) as {
-          ok?: boolean;
-          error?: string;
-        } | null;
-        if (!res.ok || !data?.ok) {
-          setError(data?.error ?? 'Не удалось сохранить значения');
+        if (!result.ok) {
+          setError(result.error);
           return;
         }
         setActiveMetricsItemId(null);

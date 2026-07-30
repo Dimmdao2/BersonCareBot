@@ -75,39 +75,6 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
       });
     },
 
-    async updateLatestSimpleDonePayload(params) {
-      return runDrizzleMutationTransaction(async (tx) => {
-        const [row] = await tx
-          .update(logTable)
-          .set({
-            payload: sql<
-              Record<string, unknown>
-            >`coalesce(${logTable.payload}, '{}'::jsonb) || ${JSON.stringify(params.payloadPatch)}::jsonb`,
-          })
-          .where(
-            eq(
-              logTable.id,
-              sql`(
-              select id
-              from program_action_log
-              where instance_id = ${params.instanceId}
-                and patient_user_id = ${params.patientUserId}
-                and instance_stage_item_id = ${params.instanceStageItemId}
-                and action_type = 'done'
-                and (
-                  payload is null
-                  or coalesce(payload->>'source', '') not in ('test_submitted', 'lfk_exercise_done')
-                )
-              order by created_at desc
-              limit 1
-            )`,
-            ),
-          )
-          .returning({ id: logTable.id });
-        return Boolean(row);
-      });
-    },
-
     async getLatestSimpleDonePayload(params) {
       const db = getDrizzle();
       const [row] = await db
