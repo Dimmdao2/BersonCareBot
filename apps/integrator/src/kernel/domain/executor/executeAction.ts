@@ -12,16 +12,10 @@ import type {
   DbWriteDbResult,
   DbWriteMutation,
   DomainContext,
-  NotificationSettings,
   OutgoingIntent,
   PhoneLinkFailureReason,
 } from '../../contracts/index.js';
-import type { ReminderCategory, ReminderRuleRecord } from '../../contracts/reminders.js';
 import {
-  buildDefaultReminderRule,
-  cycleReminderPreset,
-  detectReminderPreset,
-  reminderPresetConfig,
 } from '../reminders/policy.js';
 import { handleBooking } from './handlers/booking.js';
 import { handleDelivery } from './handlers/delivery.js';
@@ -39,7 +33,6 @@ import {
   asMessageId,
   asNumber,
   asNumericString,
-  asStringArray,
   readIncoming,
   readIncomingText,
   readIncomingChatId,
@@ -51,15 +44,11 @@ import {
   formatActorLabel,
   nowIso,
   buildIntentMeta,
-  buildDeliveryJob,
-  buildMessageDeliverJob,
   renderText,
   buildReplyMarkup,
   persistWrites,
   contentAudience,
   expandContentMenuParam,
-  defaultNotificationSettings,
-  readNotificationSettings,
   sendAdminMessage,
 } from './helpers.js';
 import { ADMIN } from './templateKeys.js';
@@ -1096,23 +1085,6 @@ export async function executeAction(
       };
     }
 
-    case 'booking.event.insert': {
-      const writes: DbWriteMutation[] = [
-        {
-          type: 'event.log',
-          params: {
-            source: ctx.event.meta.source,
-            eventType: ctx.event.type,
-            eventId: ctx.event.meta.eventId,
-            occurredAt: ctx.event.meta.occurredAt,
-            body: action.params,
-          },
-        },
-      ];
-      await persistWrites(deps.writePort, writes);
-      return { actionId: action.id, status: 'success', writes };
-    }
-
     case 'message.compose': {
       const source =
         typeof action.params.source === 'string' ? action.params.source : ctx.event.meta.source;
@@ -1282,119 +1254,6 @@ export async function executeAction(
         },
       ];
       return { actionId: action.id, status: 'success', intents };
-    }
-
-    case 'callback.answer': {
-      const callbackQueryId = asString(action.params.callbackQueryId);
-      const intents: OutgoingIntent[] = callbackQueryId
-        ? [
-            {
-              type: 'callback.answer',
-              meta: buildIntentMeta(action, ctx),
-              payload: { callbackQueryId },
-            },
-          ]
-        : [];
-      return { actionId: action.id, status: 'success', ...(intents.length > 0 ? { intents } : {}) };
-    }
-
-    case 'message.deliver': {
-      const job = await buildMessageDeliverJob({
-        action,
-        ctx,
-        ...(deps.readPort ? { readPort: deps.readPort } : {}),
-        ...(deps.deliveryDefaultsPort !== undefined
-          ? { deliveryDefaultsPort: deps.deliveryDefaultsPort }
-          : {}),
-        ...(deps.deliveryTargetsPort !== undefined
-          ? { deliveryTargetsPort: deps.deliveryTargetsPort }
-          : {}),
-      });
-      if (deps.queuePort) {
-        await deps.queuePort.enqueue({ kind: job.kind, payload: job.payload });
-      }
-      const payloadIntent = asRecord(job.payload.intent);
-      const payloadDelivery = asRecord(asRecord(payloadIntent.payload).delivery);
-      const channels = asStringArray(payloadDelivery.channels);
-      return {
-        actionId: action.id,
-        status: 'queued',
-        jobs: [
-          {
-            ...job,
-            jobId: job.id,
-            createdAt: ctx.nowIso,
-            status: 'pending',
-            attemptsMade: 0,
-            plan: channels.map((channel, index) => ({
-              stageId: `stage:${index + 1}`,
-              channel,
-              maxAttempts: 1,
-            })),
-            targets: Array.isArray(job.payload.targets)
-              ? (job.payload.targets as Array<{
-                  resource: string;
-                  address: Record<string, unknown>;
-                }>)
-              : [],
-            retry: asRecord(job.payload.retry) as {
-              maxAttempts: number;
-              backoffSeconds: number[];
-              deadlineAt?: string;
-            },
-            onFail: asRecord(job.payload.onFail) as { adminNotifyIntent?: OutgoingIntent },
-          },
-        ],
-      };
-    }
-
-    case 'message.retry.enqueue': {
-      const mappedAction: Action = {
-        id: action.id,
-        type: 'message.deliver',
-        mode: action.mode,
-        params: {
-          recipient: {
-            phoneNormalized: action.params.phoneNormalized,
-          },
-          messageText: action.params.messageText,
-          delivery: action.params.delivery,
-          retry: {
-            maxAttempts: action.params.maxAttempts,
-            backoffSeconds: [action.params.firstTryDelaySeconds],
-          },
-        },
-      };
-      const mappedResult = await executeAction(mappedAction, ctx, deps);
-      const writes: DbWriteMutation[] = [
-        {
-          type: 'message.retry.enqueue',
-          params: action.params,
-        },
-      ];
-      await persistWrites(deps.writePort, writes);
-      const result: ActionResult = {
-        actionId: action.id,
-        status: mappedResult.status,
-        writes,
-        ...(mappedResult.jobs ? { jobs: mappedResult.jobs } : {}),
-        ...(mappedResult.intents ? { intents: mappedResult.intents } : {}),
-      };
-      return {
-        ...result,
-      };
-    }
-
-    case 'intent.enqueueDelivery': {
-      const job = buildDeliveryJob({
-        actionId: action.id,
-        params: action.params,
-        now: nowIso(ctx),
-      });
-      if (deps.queuePort) {
-        await deps.queuePort.enqueue({ kind: job.kind, payload: job.payload });
-      }
-      return { actionId: action.id, status: 'queued', jobs: [job] };
     }
 
     case 'user.findByPhone': {
@@ -2215,253 +2074,6 @@ export async function executeAction(
         },
       ];
       return { actionId: action.id, status: 'success', intents };
-    }
-
-    case 'notifications.get': {
-      const settings = deps.readPort
-        ? await deps.readPort.readDb<NotificationSettings | null>({
-            type: 'notifications.settings',
-            params: {
-              resource: ctx.event.meta.source,
-              channelUserId: action.params.channelUserId ?? action.params.channelId,
-            },
-          })
-        : null;
-      return {
-        actionId: action.id,
-        status: 'success',
-        values: { notifications: settings ?? defaultNotificationSettings() },
-      };
-    }
-
-    case 'notifications.toggle': {
-      const currentSettings =
-        readNotificationSettings(ctx) ??
-        (deps.readPort
-          ? ((await deps.readPort.readDb<NotificationSettings | null>({
-              type: 'notifications.settings',
-              params: {
-                resource: ctx.event.meta.source,
-                channelUserId: action.params.channelUserId ?? action.params.channelId,
-              },
-            })) ?? defaultNotificationSettings())
-          : defaultNotificationSettings());
-      const toggleKey = asString(action.params.toggleKey);
-      let nextSettings: NotificationSettings = { ...currentSettings };
-      if (toggleKey === 'notify_toggle_spb') nextSettings.notify_spb = !currentSettings.notify_spb;
-      if (toggleKey === 'notify_toggle_msk') nextSettings.notify_msk = !currentSettings.notify_msk;
-      if (toggleKey === 'notify_toggle_online')
-        nextSettings.notify_online = !currentSettings.notify_online;
-      if (toggleKey === 'notify_toggle_bookings')
-        nextSettings.notify_bookings = !currentSettings.notify_bookings;
-      if (toggleKey === 'notify_toggle_all' && action.params.supportsToggleAll === true) {
-        const allEnabled =
-          currentSettings.notify_spb &&
-          currentSettings.notify_msk &&
-          currentSettings.notify_online &&
-          currentSettings.notify_bookings;
-        nextSettings = {
-          notify_spb: !allEnabled,
-          notify_msk: !allEnabled,
-          notify_online: !allEnabled,
-          notify_bookings: !allEnabled,
-        };
-      }
-      const writes: DbWriteMutation[] = [
-        {
-          type: 'notifications.update',
-          params: {
-            resource: ctx.event.meta.source,
-            channelUserId: action.params.channelUserId ?? action.params.channelId,
-            notify_spb: nextSettings.notify_spb,
-            notify_msk: nextSettings.notify_msk,
-            notify_online: nextSettings.notify_online,
-            notify_bookings: nextSettings.notify_bookings,
-          },
-        },
-      ];
-      await persistWrites(deps.writePort, writes);
-      return {
-        actionId: action.id,
-        status: 'success',
-        writes,
-        values: { notifications: nextSettings },
-      };
-    }
-
-    case 'reminders.rules.get': {
-      if (!deps.readPort)
-        return {
-          actionId: action.id,
-          status: 'skipped',
-          error: 'reminders.rules.get: no readPort',
-        };
-      const channelUserId =
-        asNumericString(action.params.channelUserId) ?? readExternalActorId(ctx);
-      const resource = asString(action.params.resource) ?? ctx.event.meta.source ?? 'telegram';
-      if (!channelUserId)
-        return {
-          actionId: action.id,
-          status: 'failed',
-          error: 'reminders.rules.get: missing channelUserId',
-        };
-      const link = await deps.readPort.readDb<{ userId?: string } | null>({
-        type: 'user.byIdentity',
-        params: { resource, externalId: channelUserId },
-      });
-      const userId =
-        link && typeof link === 'object' && typeof link.userId === 'string' ? link.userId : null;
-      if (!userId) return { actionId: action.id, status: 'success', values: { reminderRules: [] } };
-      const rules = await deps.readPort.readDb<ReminderRuleRecord[]>({
-        type: 'reminders.rules.forUser',
-        params: { userId },
-      });
-      const list = Array.isArray(rules) ? rules : [];
-      return {
-        actionId: action.id,
-        status: 'success',
-        values: { reminderRules: list, reminderUserId: userId },
-      };
-    }
-
-    case 'reminders.rule.toggle': {
-      if (!deps.readPort || !deps.writePort)
-        return {
-          actionId: action.id,
-          status: 'skipped',
-          error: 'reminders.rule.toggle: missing port',
-        };
-      let userId = asString(action.params.userId);
-      if (!userId) {
-        const channelUserId =
-          asNumericString(action.params.channelUserId) ?? readExternalActorId(ctx);
-        const resource = asString(action.params.resource) ?? ctx.event.meta.source ?? 'telegram';
-        if (!channelUserId)
-          return {
-            actionId: action.id,
-            status: 'failed',
-            error: 'reminders.rule.toggle: missing userId or channelUserId',
-          };
-        const link = await deps.readPort.readDb<{ userId?: string } | null>({
-          type: 'user.byIdentity',
-          params: { resource, externalId: channelUserId },
-        });
-        userId =
-          link && typeof link === 'object' && typeof link.userId === 'string' ? link.userId : null;
-      }
-      const category = asString(action.params.category) as ReminderCategory | null;
-      if (!userId || !category)
-        return {
-          actionId: action.id,
-          status: 'failed',
-          error: 'reminders.rule.toggle: missing userId or category',
-        };
-      const existing = await deps.readPort.readDb<ReminderRuleRecord | null>({
-        type: 'reminders.rule.forUserAndCategory',
-        params: { userId, category },
-      });
-      const ruleId = existing?.id ?? `reminder:${userId}:${category}`;
-      const nextEnabled = existing ? !existing.isEnabled : true;
-      const record: ReminderRuleRecord =
-        existing ?? buildDefaultReminderRule({ id: ruleId, userId, category });
-      const writes: DbWriteMutation[] = [
-        {
-          type: 'reminders.rule.upsert',
-          params: {
-            id: ruleId,
-            userId,
-            category,
-            isEnabled: nextEnabled,
-            scheduleType: record.scheduleType,
-            timezone: record.timezone,
-            intervalMinutes: record.intervalMinutes,
-            windowStartMinute: record.windowStartMinute,
-            windowEndMinute: record.windowEndMinute,
-            daysMask: record.daysMask,
-            contentMode: record.contentMode,
-            quietHoursStartMinute: record.quietHoursStartMinute ?? null,
-            quietHoursEndMinute: record.quietHoursEndMinute ?? null,
-          },
-        },
-      ];
-      await persistWrites(deps.writePort, writes);
-      return {
-        actionId: action.id,
-        status: 'success',
-        writes,
-        values: { reminderRule: { ...record, isEnabled: nextEnabled } },
-      };
-    }
-
-    case 'reminders.rule.cyclePreset': {
-      if (!deps.readPort || !deps.writePort)
-        return {
-          actionId: action.id,
-          status: 'skipped',
-          error: 'reminders.rule.cyclePreset: missing port',
-        };
-      let userId = asString(action.params.userId);
-      if (!userId) {
-        const channelUserId =
-          asNumericString(action.params.channelUserId) ?? readExternalActorId(ctx);
-        const resource = asString(action.params.resource) ?? ctx.event.meta.source ?? 'telegram';
-        if (!channelUserId)
-          return {
-            actionId: action.id,
-            status: 'failed',
-            error: 'reminders.rule.cyclePreset: missing userId or channelUserId',
-          };
-        const link = await deps.readPort.readDb<{ userId?: string } | null>({
-          type: 'user.byIdentity',
-          params: { resource, externalId: channelUserId },
-        });
-        userId =
-          link && typeof link === 'object' && typeof link.userId === 'string' ? link.userId : null;
-      }
-      const category = asString(action.params.category) as ReminderCategory | null;
-      if (!userId || !category)
-        return {
-          actionId: action.id,
-          status: 'failed',
-          error: 'reminders.rule.cyclePreset: missing userId or category',
-        };
-      const existing = await deps.readPort.readDb<ReminderRuleRecord | null>({
-        type: 'reminders.rule.forUserAndCategory',
-        params: { userId, category },
-      });
-      const currentPreset = existing ? detectReminderPreset(existing) : null;
-      const nextPreset = cycleReminderPreset(currentPreset);
-      const config = reminderPresetConfig(nextPreset);
-      const ruleId = existing?.id ?? `reminder:${userId}:${category}`;
-      const record: ReminderRuleRecord =
-        existing ?? buildDefaultReminderRule({ id: ruleId, userId, category });
-      const writes: DbWriteMutation[] = [
-        {
-          type: 'reminders.rule.upsert',
-          params: {
-            id: ruleId,
-            userId,
-            category,
-            isEnabled: record.isEnabled,
-            scheduleType: record.scheduleType,
-            timezone: record.timezone,
-            intervalMinutes: config.intervalMinutes,
-            windowStartMinute: config.windowStartMinute,
-            windowEndMinute: config.windowEndMinute,
-            daysMask: record.daysMask,
-            contentMode: record.contentMode,
-            quietHoursStartMinute: record.quietHoursStartMinute ?? null,
-            quietHoursEndMinute: record.quietHoursEndMinute ?? null,
-          },
-        },
-      ];
-      await persistWrites(deps.writePort, writes);
-      return {
-        actionId: action.id,
-        status: 'success',
-        writes,
-        values: { reminderPreset: nextPreset },
-      };
     }
 
     case 'content.section.open': {
