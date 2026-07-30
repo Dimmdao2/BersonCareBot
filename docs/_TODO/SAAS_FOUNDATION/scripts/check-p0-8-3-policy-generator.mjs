@@ -40,7 +40,6 @@ const descriptors = getP083PublicDirectOrgDescriptors();
 const targets = descriptors.map((descriptor) => descriptor.table);
 const statements = renderP083PolicyStatements({ descriptors });
 const plainOrgPredicate = renderOrgPredicate(descriptors[0], { mode: 'dormant_permissive' });
-const patientOwnedDescriptors = descriptors.filter((descriptor) => descriptor.patientColumn);
 const patientChainOwnedDescriptors = descriptors.filter((descriptor) => descriptor.patientChain);
 
 function expectedPredicateFor(descriptor) {

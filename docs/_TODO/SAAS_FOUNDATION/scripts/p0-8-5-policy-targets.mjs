@@ -169,22 +169,13 @@ function printCli(format) {
     return;
   }
 
-  if (format === '--i4-targets') {
-    console.log(
-      getP085IntegratorMailingsRootDescriptors()
-        .map((descriptor) => descriptor.table)
-        .join('\n'),
-    );
-    return;
-  }
-
   if (format === '--targets' || format == null) {
     console.log(descriptors.map((descriptor) => descriptor.table).join('\n'));
     return;
   }
 
   throw new Error(
-    `Unsupported format ${format}. Use --targets, --i1-targets, --i2-targets, --i3-targets, --i4-targets, --json, or --sql.`,
+    `Unsupported format ${format}. Use --targets, --i1-targets, --i2-targets, --i3-targets, --json, or --sql.`,
   );
 }
 
