@@ -1,4 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+// @vitest-environment jsdom
+
+import { createElement } from 'react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextResponse } from 'next/server';
 
 vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: vi.fn() }));
@@ -38,6 +42,7 @@ import { PUT as saveNotificationTemplate } from '@/app/api/doctor/notification-t
 import { POST as submitRatingFeedback } from '@/app/api/patient/material-ratings/feedback/route';
 import { PUT as saveMaterialRating } from '@/app/api/patient/material-ratings/route';
 import { POST as createPatientFile } from '@/app/api/doctor/patients/[userId]/files/route';
+import { PatientTabFiles } from '@/app/app/doctor/patients/[userId]/tabs/PatientTabFiles';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
@@ -92,6 +97,11 @@ beforeEach(() => {
       submitPatientFeedback: vi.fn().mockResolvedValue({ ok: true, id: TARGET_ID }),
     },
   } as unknown as ReturnType<typeof buildAppDeps>);
+});
+
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
 });
 
 describe('tariff and platform mutation gates', () => {
@@ -183,5 +193,35 @@ describe('tariff and platform mutation gates', () => {
       error: 'file_storage_limit_not_configured',
     });
     expect(createFile).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      'file_storage_limit_not_configured',
+      'Невозможно загрузить файл: в тарифе клиники не настроен объём файлов. Настройте объём файлов в тарифе клиники, чтобы разрешить загрузку.',
+    ],
+    [
+      'file_storage_limit_reached',
+      'Невозможно загрузить файл: хранилище клиники заполнено. Увеличьте объём файлов в тарифе клиники, чтобы загружать новые файлы.',
+    ],
+  ])('keeps the upload refusal visible for %s', async (error, message) => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ ok: false, error }), {
+        status: 403,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    const { container } = render(
+      createElement(PatientTabFiles, { userId: TARGET_ID, initialFiles: [] }),
+    );
+
+    fireEvent.click(screen.getByTitle('Загрузить файл'));
+    const input = container.querySelector<HTMLInputElement>('#upload-file-input');
+    expect(input).not.toBeNull();
+    fireEvent.change(input!, {
+      target: { files: [new File(['result'], 'result.pdf', { type: 'application/pdf' })] },
+    });
+
+    await waitFor(() => expect(screen.getByText(message)).toBeTruthy());
   });
 });
