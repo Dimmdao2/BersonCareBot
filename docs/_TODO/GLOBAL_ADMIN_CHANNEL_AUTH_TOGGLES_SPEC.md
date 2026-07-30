@@ -116,7 +116,10 @@ MAX, SMS, 2FA, Google/Gmail OAuth и Yandex OAuth; client visibility = `enabled 
 - [x] Не предлагать Apple OAuth как способ входа даже при сохранённых legacy credentials: public providers API и
       SSR snapshot возвращают `apple: false`, прямой `POST /api/auth/oauth/start` отклоняет `provider=apple` —
       `apps/webapp/src/modules/auth/oauthAppleDisabled.route.test.ts`.
-- [ ] Удалить Telegram/MAX mini-app entry points, сохранив ботов для кодов аутентификации и уведомлений.
+- [x] Удалить Telegram/MAX mini-app launch из ошибки `user.phone.link → no_channel_binding`, сохранив сообщение и
+      остановку ошибочного сценария — `apps/integrator/src/kernel/domain/executor/executeActionMiniAppRemoval.unit.test.ts`.
+- [ ] Удалить остальные Telegram/MAX mini-app entry points из content/menu/reminder-путей, сохранив ботов для
+      кодов аутентификации и уведомлений.
 - [ ] Провести живую TEST-проверку: выключенный метод исчезает из login/registration и отклоняется сервером;
       Telegram/MAX mini-app launch buttons отсутствуют.
 

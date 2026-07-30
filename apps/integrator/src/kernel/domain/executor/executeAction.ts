@@ -375,26 +375,11 @@ async function buildPhoneMessengerBindMainMenuIntents(
   return [...(inlineResult.intents ?? []), ...loginUrlIntents];
 }
 
-/** Inline-кнопка открытия webapp при `no_channel_binding`, если в контексте есть URL (Telegram `web_app`; MAX → `open_app` в deliveryAdapter). */
 function readWebappHomeUrlFromFacts(ctx: DomainContext): string | null {
   const facts = asRecord(ctx.base?.facts ?? {});
   const links = asRecord(facts.links);
   const u = links?.webappHomeUrl;
   return typeof u === 'string' && u.trim().length > 0 ? u.trim() : null;
-}
-
-function phoneLinkFailureReplyMarkup(
-  ctx: DomainContext,
-  source: string,
-  reason: PhoneLinkFailureReason | undefined,
-): { inline_keyboard: Array<Array<{ text: string; web_app: { url: string } }>> } | undefined {
-  if (reason !== 'no_channel_binding') return undefined;
-  if (source !== 'telegram' && source !== 'max') return undefined;
-  const url = readWebappHomeUrlFromFacts(ctx);
-  if (!url) return undefined;
-  return {
-    inline_keyboard: [[{ text: 'Открыть мини-приложение', web_app: { url } }]],
-  };
 }
 
 export async function executeAction(
@@ -1604,7 +1589,6 @@ export async function executeAction(
           );
           text = phoneLinkSaveFailedUserMessage();
         }
-        const replyMarkup = phoneLinkFailureReplyMarkup(ctx, source, reason);
         const intents: OutgoingIntent[] = [
           {
             type: 'message.send',
@@ -1615,7 +1599,6 @@ export async function executeAction(
                   ? { chatId: chatIdParsed }
                   : { chatId: chatIdStr ?? undefined },
               message: { text },
-              ...(replyMarkup ? { replyMarkup } : {}),
               delivery: { channels: [source], maxAttempts: 1 },
             },
           },
