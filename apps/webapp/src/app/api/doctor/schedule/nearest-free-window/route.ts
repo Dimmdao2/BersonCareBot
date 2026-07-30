@@ -16,24 +16,26 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { logger, serializeError } from '@/infra/logging/logger';
 import { resolveDoctorCalendarIana } from '@/app-layer/booking/resolveDoctorCalendarIana';
+import { requireDoctorBookingEngine } from '../../booking-engine/_requireDoctorBookingEngine';
+import {
+  parseDoctorScheduleScopeQuery,
+  resolveDoctorScheduleScope,
+} from '../../booking-engine/_resolveDoctorScheduleScope';
 
 const QuerySchema = z.object({
-  specialistId: z.string().uuid().optional().nullable(),
   branchId: z.string().uuid().optional().nullable(),
   roomId: z.string().uuid().optional().nullable(),
   timeZone: z.string().min(1).optional(),
 });
 
 export async function GET(req: Request) {
-  const gate = await requireDoctorWorkspaceApiContext();
+  const gate = await requireDoctorBookingEngine();
   if (!gate.ok) return gate.response;
 
   const url = new URL(req.url);
   const raw = {
-    specialistId: url.searchParams.get('specialistId') ?? undefined,
     branchId: url.searchParams.get('branchId') ?? undefined,
     roomId: url.searchParams.get('roomId') ?? undefined,
     timeZone: url.searchParams.get('timeZone') ?? undefined,
@@ -46,14 +48,20 @@ export async function GET(req: Request) {
       { status: 400 },
     );
   }
+  const scopeInput = parseDoctorScheduleScopeQuery(url.searchParams);
+  if (!scopeInput.ok) {
+    return NextResponse.json({ ok: false, error: scopeInput.error }, { status: 400 });
+  }
+  const scheduleScope = await resolveDoctorScheduleScope(gate.ctx, scopeInput.value);
+  if (!scheduleScope.ok) {
+    const status = scheduleScope.error === 'schedule_specialist_not_available' ? 404 : 409;
+    return NextResponse.json({ ok: false, error: scheduleScope.error }, { status });
+  }
 
   const deps = buildAppDeps();
-  if (!deps.bookingEngine) {
-    return NextResponse.json({ ok: false, error: 'booking_engine_unavailable' }, { status: 503 });
-  }
   if (!deps.bookingScheduling) {
     // Деградация: сервис недоступен — возвращаем null окно (не блокировать UI)
-    return NextResponse.json({ ok: true, window: null });
+    return NextResponse.json({ ok: true, window: null, resolvedScope: scheduleScope.value });
   }
 
   // Таймзона: явный параметр (от клиента, уже разрешённый) → doctor TZ chain → дефолт
@@ -69,18 +77,18 @@ export async function GET(req: Request) {
   try {
     const window = await deps.bookingScheduling.nearestFreeWindow({
       organizationId: gate.ctx.organizationId,
-      specialistId: parsed.data.specialistId ?? null,
+      specialistId: scheduleScope.value.specialistId,
       branchId: parsed.data.branchId ?? null,
       roomId: parsed.data.roomId ?? null,
       timeZone,
     });
-    return NextResponse.json({ ok: true, window });
+    return NextResponse.json({ ok: true, window, resolvedScope: scheduleScope.value });
   } catch (e) {
     logger.error(
       { err: serializeError(e), organizationId: gate.ctx.organizationId },
       'nearest-free-window.failed',
     );
     // Деградация: ошибка → null окно (не блокировать UI)
-    return NextResponse.json({ ok: true, window: null });
+    return NextResponse.json({ ok: true, window: null, resolvedScope: scheduleScope.value });
   }
 }

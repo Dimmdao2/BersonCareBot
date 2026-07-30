@@ -1,4 +1,5 @@
 import type { ComponentType } from 'react';
+import type { DoctorScheduleScopeBootstrap } from '@/modules/doctor-schedule/scope';
 import type { ScheduleTabId } from './doctorScheduleTabs';
 
 /** Стандартные пропы, которые шелл передаёт каждому компоненту-табу расписания. */
@@ -13,6 +14,8 @@ export type ScheduleTabProps = {
   isActive?: boolean;
   /** IANA-таймзона из system_settings (от серверной страницы). */
   initialTimeZone?: string;
+  /** Server-resolved role/specialist capabilities shared by calendar/KPI/create. */
+  scheduleScopeBootstrap?: DoctorScheduleScopeBootstrap;
 };
 
 export type ScheduleTabRegistryEntry = {
@@ -32,7 +35,17 @@ export const SCHEDULE_TAB_REGISTRY: ScheduleTabRegistryEntry[] = [
     id: 'cal',
     loader: () =>
       import('./tabs/ScheduleCalendarTab').then((m) => ({ default: m.ScheduleCalendarTab })),
-    deepLinkKeys: ['view', 'date', 'location', 'service', 'appt', 'from', 'render'],
+    deepLinkKeys: [
+      'view',
+      'date',
+      'location',
+      'service',
+      'appt',
+      'from',
+      'render',
+      'scope',
+      'specialist',
+    ],
   },
   {
     id: 'work',

@@ -19,6 +19,6 @@ export async function resolveDoctorOwnSpecialistId(
   const specialists = await ctx.service.catalog.listSpecialists(ctx.organizationId);
   const own = ctx.specialistId
     ? specialists.find((specialist) => specialist.id === ctx.specialistId && specialist.isActive)
-    : (specialists.find((specialist) => specialist.isActive) ?? null);
+    : null;
   return own?.id ?? null;
 }

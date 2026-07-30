@@ -53,6 +53,7 @@ import {
 import { DoctorCalendarCreateFormField } from './DoctorCalendarCreateFormField';
 import { DoctorDateTimePicker } from '@/shared/ui/doctor/DoctorDateTimePicker';
 import { formatPatientPackageShortLabel } from '@/modules/memberships/display';
+import { canUseOwnSpecialistAppointmentActions } from '@/modules/doctor-schedule/scope';
 
 // R21: причины отмены, отправляемые как reason в API.
 const CANCEL_REASONS = [
@@ -81,6 +82,7 @@ type Props = {
   timeZone: string;
   filterMeta: CalendarFilterMeta;
   activeFilters: CalendarCreateActiveFilters;
+  ownSpecialistId: string | null;
   onClose: () => void;
   onChanged: () => void;
   /** §3.6: открыть панель сразу в режиме создания, минуя плейсхолдер */
@@ -190,6 +192,7 @@ function DoctorCalendarEventPanelInner({
   timeZone,
   filterMeta,
   activeFilters,
+  ownSpecialistId,
   onClose,
   onChanged,
   startInCreate = false,
@@ -463,7 +466,7 @@ function DoctorCalendarEventPanelInner({
                       startAt,
                       endAt,
                       durationMinutes: createDurationMinutes,
-                      ...(!isNewPatient ? { specialistId: createSpecialistId } : {}),
+                      specialistId: createSpecialistId,
                       branchId: createBranchId,
                       serviceId: createServiceId,
                     }),
@@ -774,7 +777,8 @@ function DoctorCalendarEventPanelInner({
                 ))}
               </SelectContent>
             </Select>
-            {isStaffDeletableCancelledStatus(selected.status) ? (
+            {canUseOwnSpecialistAppointmentActions(ownSpecialistId, selected.specialistId) &&
+            isStaffDeletableCancelledStatus(selected.status) ? (
               <Button
                 type="button"
                 size="sm"

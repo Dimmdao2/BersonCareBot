@@ -12,6 +12,7 @@ import {
 } from '@/app-layer/booking/staffBookingIntegratorEvent';
 import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
 import { requireDoctorBookingEngine } from '../../_requireDoctorBookingEngine';
+import { resolveDoctorCreateSpecialist } from '../../_resolveDoctorAppointmentAccess';
 
 const identitySchema = z.object({
   requestId: z.string().uuid(),
@@ -28,6 +29,7 @@ const bodySchema = z.discriminatedUnion('kind', [
       kind: z.literal('scheduled'),
       branchId: z.string().uuid().nullable().optional(),
       roomId: z.string().uuid().nullable().optional(),
+      specialistId: z.string().uuid().nullable().optional(),
       serviceId: z.string().uuid().nullable().optional(),
       startAt: z.string().min(1),
       endAt: z.string().min(1),
@@ -37,6 +39,7 @@ const bodySchema = z.discriminatedUnion('kind', [
   identitySchema
     .extend({
       kind: z.literal('walk_in'),
+      specialistId: z.string().uuid().nullable().optional(),
       visitedAt: z.string().datetime({ offset: true }),
     })
     .strict(),
@@ -60,10 +63,19 @@ export async function POST(request: Request) {
   }
 
   const { ctx } = gate;
-  if (!ctx.specialistId) {
-    return NextResponse.json({ ok: false, error: 'specialist_required' }, { status: 403 });
+  const specialistResolution = await resolveDoctorCreateSpecialist(
+    ctx,
+    parsed.data.specialistId,
+  );
+  if (!specialistResolution.ok) {
+    const status =
+      specialistResolution.error === 'schedule_specialist_not_available' ? 404 : 403;
+    return NextResponse.json(
+      { ok: false, error: specialistResolution.error },
+      { status },
+    );
   }
-  const specialistId = ctx.specialistId;
+  const specialistId = specialistResolution.specialistId;
   const deps = buildAppDeps();
   try {
     const result = await withDoctorWorkspacePrincipal(
