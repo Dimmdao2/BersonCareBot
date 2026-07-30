@@ -104,6 +104,17 @@ runner, полезные тесты с независимым oracle, red-on-fau
    доказательства и независимая Opus-приёмка записаны ниже.
    Остальные чувствительные модули и инварианты получают тесты дальше как обычная risk-based разработка, а не
    обязательный массовый хвост #1074. **Квоты — ВНЕ этой задачи** (решение владельца 29.07).
+6. [ ] **Закрыть следующий разумный DB-free минимум** — решение владельца 30.07:
+   «закрывай тогда сам пока следующий разумный DB-free минимум, а остальное будем закрывать по ходу».
+   Это ровно четыре уже предложенных класса, без расширения скоупа:
+   - [ ] patient organization resolver: inactive/foreign enrollment и ambiguous multi-org;
+   - [ ] подписанная внешняя доставка: HMAC/time-window, duplicate suppression и policy denial;
+   - [ ] acquiring provider/webhook boundary: provider disable, amount/currency/patient/idempotency и webhook auth;
+   - [ ] semantic M2M idempotency: stable hash, разрешённые volatile fields, mismatch→conflict и отсутствие
+     кеширования transient failure.
+   Для каждого класса: самый дешёвый публичный DB-free слой, независимый oracle, fault injection с записью
+   «что сломано → какое утверждение покраснело». Остальной inventory не блокирует #1074 и закрывается по ходу
+   обычной разработки.
 
 ### Финальная приёмка DB-free пилота — 30.07
 
