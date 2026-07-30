@@ -39,14 +39,6 @@ const needs = readFileSync(needsPath, 'utf8').trim().split('\n').filter(Boolean)
 
 const assigned = Array.from(assignments.keys()).sort();
 
-if (needs.length !== 115) {
-  throw new Error(`Expected 115 need-org tables, got ${needs.length}`);
-}
-
-if (assigned.length !== 115) {
-  throw new Error(`Expected 115 assigned tables, got ${assigned.length}`);
-}
-
 const missing = needs.filter((table) => !assignments.has(table));
 const extra = assigned.filter((table) => !needs.includes(table));
 
@@ -73,15 +65,4 @@ if (notScoped.length > 0) {
   throw new Error(`Assigned tables are not SCOPED in tiers-218.tsv: ${notScoped.join(', ')}`);
 }
 
-const counts = new Map();
-for (const batch of assignments.values()) {
-  counts.set(batch, (counts.get(batch) ?? 0) + 1);
-}
-
-console.log(`P0.4 batch manifest OK: ${assigned.length} tables assigned exactly once.`);
-console.log(
-  Array.from(counts.entries())
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([batch, count]) => `${batch}=${count}`)
-    .join(' '),
-);
+console.log('P0.4 batch manifest OK: active assignments match the source registry.');

@@ -2,15 +2,12 @@ integrator.contacts
 integrator.content_access_grants
 integrator.conversation_messages
 integrator.conversations
-integrator.mailing_logs
-integrator.mailings
 integrator.message_drafts
 integrator.question_messages
 integrator.user_questions
 integrator.user_reminder_delivery_logs
 integrator.user_reminder_occurrences
 integrator.user_reminder_rules
-integrator.user_subscriptions
 public.admin_audit_log
 public.broadcast_audit
 public.broadcast_audit_recipients
@@ -42,7 +39,6 @@ public.lfk_exercise_media
 public.lfk_exercise_regions
 public.lfk_exercises
 public.lfk_sessions
-public.mailing_logs_webapp
 public.material_ratings
 public.media_files
 public.media_folders
@@ -111,5 +107,4 @@ public.treatment_program_template_stage_groups
 public.treatment_program_template_stage_items
 public.treatment_program_template_stages
 public.treatment_program_templates
-public.user_subscriptions_webapp
 public.webapp_reminder_occurrences

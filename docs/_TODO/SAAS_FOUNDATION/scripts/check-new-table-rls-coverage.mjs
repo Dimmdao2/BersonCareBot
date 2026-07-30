@@ -216,10 +216,8 @@ try {
   if (process.argv.includes('--self-test')) {
     runSelfTest();
   } else {
-    const tableCount = assertNewTableRlsCoverage();
-    console.log(
-      `check-new-table-rls-coverage: OK (${tableCount} public organization_id tables covered)`,
-    );
+    assertNewTableRlsCoverage();
+    console.log('check-new-table-rls-coverage: active public organization tables are covered');
   }
 } catch (error) {
   console.error(

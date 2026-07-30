@@ -1,6 +1,6 @@
 /**
  * Темы рассылок для экрана пациента `/notifications` (`system_settings.notifications_topics`, scope admin).
- * Поле `id` совпадает с `mailing_topics_webapp.code`.
+ * Поле `id` — стабильный код темы уведомлений.
  */
 
 export const NOTIFICATIONS_TOPICS_MAX = 20;
@@ -91,7 +91,7 @@ export function parseNotificationsTopics(valueJson: unknown): NotificationTopicR
 }
 
 export type NormalizeNotificationsTopicsForAdminPatchOptions = {
-  /** Коды из `subscriptionMailingProjection.listTopics()` (`topic.code`). Пустое множество → только структурная проверка. */
+  /** Optional known topic codes. An empty set keeps validation structural. */
   knownTopicCodes: Set<string>;
 };
 

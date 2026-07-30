@@ -907,10 +907,10 @@ export function renderP05bGrantsSql({ descriptors = buildRlsDescriptors() } = {}
 -- table got SELECT-only vs a write grant, and which BOOTSTRAP tables were deliberately excluded).
 --
 -- Purpose:
---   - app_staff: the reviewed P0.5b runtime DML surface -- ${staffTables.length} tables (SCOPED +
+--   - app_staff: the reviewed P0.5b runtime DML surface (SCOPED +
 --     BOOTSTRAP + INFRA + LEGACY + TELEMETRY, excluding migration bookkeeping and post-P0.5b tables
 --     whose dedicated overlays own their grants).
---   - app_patient: ONLY the patient-facing surface -- ${patientTables.length} tables (the patient-owned
+--   - app_patient: ONLY the patient-facing surface (the patient-owned
 --     SCOPED set + a small confirmed BOOTSTRAP identity/settings subset). SELECT by default;
 --     INSERT/UPDATE/DELETE added only where a patient-authenticated route/repo confirms the write.
 --
@@ -1075,7 +1075,7 @@ SELECT (NOT pg_has_role('app_patient', 'app_staff', 'MEMBER'))::int AS p0_5b_gra
 SELECT 1 / 0 AS p0_5b_grants_abort;
 \\endif
 
-\\echo 'P0.5b grants UP complete: app_staff ${staffTables.length} tables, app_patient ${patientTables.length} tables.'
+\\echo 'P0.5b grants UP complete.'
 \\endif
 `;
 }
