@@ -238,9 +238,13 @@ WhatsApp подтверждает его только при таком же д�
       `apps/webapp/src/app/app/patient/profile/PasskeySection.tsx` +
       `apps/webapp/src/app/app/admin/auth/PlatformAuthChannelPolicySection.tsx`; narrow unit/route `8/8`,
       webapp typecheck, scoped ESLint, Drizzle journal sync и `check:saas-db-regression` — PASS.
-- [ ] **Этап 2 — два подтверждённых бага текущего fallback.** Phone→email разрешён только когда введённый телефон
+- [x] **Этап 2 — два подтверждённых бага текущего fallback.** Phone→email разрешён только когда введённый телефон
       уже trusted и email уже verified; email-код не меняет phone trust. Включённый, но ненастроенный SMS не
-      перехватывает вход: evaluator пропускает его и рассматривает следующий реально доступный канал.
+      перехватывает вход: evaluator пропускает его и рассматривает следующий реально доступный канал. —
+      `apps/webapp/src/app/api/auth/phone/start/route.ts` +
+      `apps/webapp/src/infra/repos/pgUserByPhone.ts` (typed Drizzle read) +
+      `apps/webapp/src/modules/auth/phoneStartFallback.route.test.ts`; 8/8 targeted, scoped ESLint и webapp
+      typecheck — PASS.
 - [ ] **Этап 3 — только совместно с владельцем.** После этапов 1–2 спроектировать настраиваемую
       последовательность auth/code-delivery путей. До зафиксированного решения владельца не добавлять порядок,
       drag-and-drop, скрытые приоритеты или новую универсальную policy-схему.

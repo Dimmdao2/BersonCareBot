@@ -10,6 +10,7 @@ import { platformUsers } from '../../../db/schema/schema';
  * Domain SQL — `runIdentityClientPgText` / `runIdentityPoolPgText`; row-shape — Zod in `identityPhoneRowSchemas`.
  */
 import { getPool } from '@/infra/db/client';
+import { getDrizzle } from '@/app-layer/db/drizzle';
 import { withPoolTransaction } from '@/infra/db/withClient';
 import type { SessionUser } from '@/shared/types/session';
 import type { ChannelContext } from '@/modules/auth/channelContext';
@@ -36,6 +37,7 @@ import {
   MergeDependentConflictError,
 } from '@/infra/repos/platformUserMergeErrors';
 import {
+  isTrustedPatientPhoneActivation,
   TrustedPatientPhoneSource,
   trustedPatientPhoneWriteAnchor,
 } from '@/modules/platform-access/trustedPhonePolicy';
@@ -147,6 +149,24 @@ export const pgUserByPhonePort: UserByPhonePort = {
       ? parseIdentityRow(emailVerifiedRowSchema, res.rows[0], 'verified_email').email
       : null;
     return typeof e === 'string' && e.trim() ? e.trim() : null;
+  },
+
+  async isPhoneTrustedForUser(userId: string): Promise<boolean> {
+    const rows = await getDrizzle()
+      .select({
+        phoneNormalized: platformUsers.phoneNormalized,
+        patientPhoneTrustAt: platformUsers.patientPhoneTrustAt,
+      })
+      .from(platformUsers)
+      .where(eq(platformUsers.id, userId))
+      .limit(1);
+    const row = rows[0];
+    return row
+      ? isTrustedPatientPhoneActivation({
+          phone_normalized: row.phoneNormalized,
+          patient_phone_trust_at: row.patientPhoneTrustAt,
+        })
+      : false;
   },
 
   async findByUserId(userId: string): Promise<SessionUser | null> {
