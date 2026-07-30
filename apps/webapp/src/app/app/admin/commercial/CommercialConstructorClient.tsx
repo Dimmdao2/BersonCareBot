@@ -281,6 +281,7 @@ function AccessPolicyEditor({
               type="number"
               min="0"
               required
+              aria-label={`${title}: Терпение: дней`}
               value={value.graceDays}
               onChange={(event) => onChange({ ...value, graceDays: event.target.value })}
             />
@@ -291,6 +292,7 @@ function AccessPolicyEditor({
               type="number"
               min="0"
               required
+              aria-label={`${title}: Предупреждений`}
               value={value.warningCount}
               onChange={(event) => onChange({ ...value, warningCount: event.target.value })}
             />
@@ -301,6 +303,7 @@ function AccessPolicyEditor({
               type="number"
               min="0"
               required
+              aria-label={`${title}: Только чтение: дней`}
               value={value.readOnlyDays}
               onChange={(event) => onChange({ ...value, readOnlyDays: event.target.value })}
             />
@@ -316,6 +319,7 @@ function AccessPolicyEditor({
               }}
             >
               <SelectTrigger
+                aria-label={`${title}: Затем`}
                 displayLabel={
                   value.terminalState === 'full_access'
                     ? 'Полный доступ'

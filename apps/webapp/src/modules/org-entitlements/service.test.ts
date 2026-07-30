@@ -137,7 +137,7 @@ describe('org entitlement mechanic classes', () => {
     >);
     const result = await requireEntitlementForMutation({ organizationId: 'org' }, 'patient_card');
 
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ ok: true, warning: null });
   });
 
   it('keeps numeric mechanics enabled and resolves their configured limits from a new tariff', async () => {
@@ -223,6 +223,7 @@ describe('org entitlement mechanic classes', () => {
       requireEntitlementForMutation({ organizationId: 'org' }, 'files'),
     ).resolves.toEqual({
       ok: true,
+      warning: null,
     });
     await expect(resolveClinicSeatLimit(assignedPort, 'org')).resolves.toBe(3);
     await expect(resolveOrgQuotaProjections(assignedPort, 'org')).resolves.toEqual(
@@ -386,7 +387,11 @@ describe('org entitlement mechanic classes', () => {
       mechanic: 'booking',
       state: 'grace',
       policySource: 'system',
-      warning: { until: '2026-07-04T00:00:00.000Z', count: 2 },
+      warning: {
+        until: '2026-07-04T00:00:00.000Z',
+        count: 2,
+        nextState: 'read_only',
+      },
     });
     const afterBothWindows = new Date('2026-07-10T00:00:00.000Z');
     expect(resolveMechanicAccessFromSnapshot(snapshot, 'courses', afterBothWindows).state).toBe(
@@ -459,6 +464,7 @@ describe('org entitlement mechanic classes', () => {
 
     await expect(requireEntitlementForRead({ organizationId: 'org' }, 'courses')).resolves.toEqual({
       ok: true,
+      warning: null,
     });
     await expect(
       requireEntitlementForPage({ organizationId: 'org' }, 'courses'),
@@ -494,6 +500,7 @@ describe('org entitlement mechanic classes', () => {
       specialistNavigation: false,
       patientNavigation: false,
       directUrl: false,
+      warning: null,
     });
     expect(
       resolveMechanicSurfaceVisibility({
@@ -506,6 +513,64 @@ describe('org entitlement mechanic classes', () => {
       specialistNavigation: true,
       patientNavigation: true,
       directUrl: true,
+      warning: null,
+    });
+  });
+
+  it('carries the grace date, count and next state through the guard and visibility adapter', async () => {
+    const port = snapshotPort();
+    port.getSnapshot = async () => ({
+      tariff: {
+        mechanics: { courses: true },
+        quotas: {},
+        systemAccessPolicy: {
+          graceDays: 3,
+          readOnlyDays: 2,
+          warningCount: 4,
+          terminalState: 'disabled',
+        },
+        mechanicAccessPolicies: {},
+        includedSeats: null,
+        includedSeatsWarningAtPercent: null,
+      },
+      overrides: [],
+      access: {
+        lifecycle: 'grace',
+        tariffId: 'tariff',
+        source: 'trial',
+        degradationStartedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+      },
+    });
+    vi.mocked(buildAppDeps).mockReturnValue({ orgEntitlements: port } as ReturnType<
+      typeof buildAppDeps
+    >);
+
+    const read = await requireEntitlementForRead({ organizationId: 'org' }, 'courses');
+    expect(read.ok).toBe(true);
+    if (read.ok) {
+      expect(read.warning).toMatchObject({ count: 4, nextState: 'read_only' });
+      expect(Date.parse(read.warning?.until ?? '')).toBeGreaterThan(Date.now());
+    }
+    expect(
+      resolveMechanicSurfaceVisibility({
+        mechanic: 'courses',
+        state: 'grace',
+        policySource: 'system',
+        warning: {
+          until: '2026-08-02T00:00:00.000Z',
+          count: 4,
+          nextState: 'read_only',
+        },
+      }),
+    ).toEqual({
+      specialistNavigation: true,
+      patientNavigation: true,
+      directUrl: true,
+      warning: {
+        until: '2026-08-02T00:00:00.000Z',
+        count: 4,
+        nextState: 'read_only',
+      },
     });
   });
 

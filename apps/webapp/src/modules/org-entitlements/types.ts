@@ -139,11 +139,17 @@ export type MechanicAccessState =
   | 'disabled'
   | 'unconfigured';
 
+export type MechanicAccessWarning = {
+  until: string;
+  count: number;
+  nextState: AccessTerminalState;
+};
+
 export type MechanicAccessResolution = {
   mechanic: OrgMechanic;
   state: MechanicAccessState;
   policySource: 'critical' | 'mechanic' | 'system' | 'unconfigured';
-  warning: { until: string; count: number } | null;
+  warning: MechanicAccessWarning | null;
 };
 
 export type Tariff = {

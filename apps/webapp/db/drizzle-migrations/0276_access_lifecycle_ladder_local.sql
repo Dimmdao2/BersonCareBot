@@ -34,16 +34,6 @@ WHERE key = 'saas_billing_payment_provider'
     '{"graceDays": 7, "chargeAttempts": 3, "readOnlyDays": 21}'::jsonb;
 --> statement-breakpoint
 
-UPDATE integrator.system_settings
-SET value_json = value_json #- '{value,lifecyclePolicy}',
-    updated_at = now()
-WHERE key = 'saas_billing_payment_provider'
-  AND scope = 'admin'
-  AND organization_id IS NULL
-  AND value_json #> '{value,lifecyclePolicy}' =
-    '{"graceDays": 7, "chargeAttempts": 3, "readOnlyDays": 21}'::jsonb;
---> statement-breakpoint
-
 -- Patient reads receive the same tariff policy and server-derived degradation anchor as staff.
 DROP FUNCTION IF EXISTS app.read_current_patient_organization_entitlements();
 --> statement-breakpoint

@@ -238,7 +238,11 @@ export function resolveMechanicAccessFromSnapshot(
         mechanic,
         state: 'grace',
         policySource,
-        warning: { until: new Date(graceEndsMs).toISOString(), count: policy.warningCount },
+        warning: {
+          until: new Date(graceEndsMs).toISOString(),
+          count: policy.warningCount,
+          nextState: policy.readOnlyDays > 0 ? 'read_only' : policy.terminalState,
+        },
       };
     }
     const readOnlyEndsMs = graceEndsMs + policy.readOnlyDays * DAY_MS;

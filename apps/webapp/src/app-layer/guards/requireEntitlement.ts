@@ -3,14 +3,16 @@ import { notFound } from 'next/navigation';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { resolveMechanicAccess } from '@/modules/org-entitlements/service';
 import type {
+  MechanicAccessWarning,
   MechanicAccessResolution,
   OrgMechanic,
 } from '@/modules/org-entitlements/types';
+import { MECHANIC_REGISTRY } from '@/modules/org-entitlements/types';
 
 /** A route/action may pass only an already-authorized, server-derived organization. */
 export type EntitlementContext = Readonly<{ organizationId: string }>;
 type EntitlementAccess = 'read' | 'mutation';
-export type EntitlementSuccess = { ok: true };
+export type EntitlementSuccess = { ok: true; warning?: MechanicAccessWarning | null };
 export type EntitlementDenialReason =
   | 'entitlement_required'
   | 'commercial_read_only'
@@ -60,7 +62,7 @@ async function checkEntitlement(
   if (resolution.state === 'read_only' && access === 'mutation') {
     return { ok: false, reason: 'commercial_read_only' };
   }
-  return { ok: true };
+  return { ok: true, warning: resolution.warning };
 }
 
 /**
@@ -81,6 +83,7 @@ export type MechanicSurfaceVisibility = {
   specialistNavigation: boolean;
   patientNavigation: boolean;
   directUrl: boolean;
+  warning: MechanicAccessWarning | null;
 };
 
 export function resolveMechanicSurfaceVisibility(
@@ -94,7 +97,27 @@ export function resolveMechanicSurfaceVisibility(
     specialistNavigation: visible,
     patientNavigation: visible,
     directUrl: visible,
+    warning: resolution.warning,
   };
+}
+
+const ACCESS_STATE_LABELS: Record<MechanicAccessWarning['nextState'], string> = {
+  full_access: 'полный доступ',
+  read_only: 'только чтение',
+  disabled: 'выключено',
+};
+
+function warningDateLabel(until: string): string {
+  const [year, month, day] = until.slice(0, 10).split('-');
+  return year && month && day ? `${day}.${month}.${year}` : until;
+}
+
+/** Canon §7: name the affected function, what happens next and the resolver-provided date/count. */
+export function entitlementGraceWarningMessage(
+  mechanic: OrgMechanic,
+  warning: MechanicAccessWarning,
+): string {
+  return `${MECHANIC_REGISTRY[mechanic].label}: полный доступ до ${warningDateLabel(warning.until)}. Затем — ${ACCESS_STATE_LABELS[warning.nextState]}. Предупреждений: ${warning.count}.`;
 }
 
 export async function getMechanicSurfaceVisibility(
