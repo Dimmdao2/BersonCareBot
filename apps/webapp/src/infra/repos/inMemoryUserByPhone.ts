@@ -30,6 +30,13 @@ export const inMemoryUserByPhonePort: UserByPhonePort = {
     return null;
   },
 
+  async isPhoneTrustedForUser(userId: string): Promise<boolean> {
+    for (const u of usersByPhone.values()) {
+      if (u.userId === userId) return Boolean(u.phone);
+    }
+    return false;
+  },
+
   async findByUserId(userId: string): Promise<SessionUser | null> {
     for (const u of usersByPhone.values()) {
       if (u.userId === userId) {

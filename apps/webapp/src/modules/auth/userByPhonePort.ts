@@ -37,6 +37,8 @@ export type UserByPhonePort = {
   getPhoneByUserId(userId: string): Promise<string | null>;
   /** Подтверждённый email для OTP (если есть). */
   getVerifiedEmailForUser(userId: string): Promise<string | null>;
+  /** Телефон канонического пользователя подтверждён доверенным phone-proving способом. */
+  isPhoneTrustedForUser(userId: string): Promise<boolean>;
   /** Создаёт пользователя с номером и привязкой канала или обновляет привязку у существующего. */
   createOrBind(
     phone: string,

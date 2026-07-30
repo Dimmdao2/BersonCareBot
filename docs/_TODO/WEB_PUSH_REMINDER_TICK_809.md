@@ -82,12 +82,32 @@ deploy, env/credentials, and PROD.
   `p0-5-role-split.sql` generated-artifact drift; the same narrow
   `node scripts/check-saas-db-regression.mjs` failure reproduces on current `feat` without #809. Do not repeat the
   green CI tail; resume only the audit after the separately owned generated artifact is synchronized.
-- [ ] **809-P5 — Live TEST completion.** After integration: use the canonical TEST deploy/readiness path, run the
+- [x] **809-P5 — Live TEST completion.** After integration: use the canonical TEST deploy/readiness path, run the
   named TEST tick and verify its exact operator-health success; only after that install/verify the named TEST
   cronport task and confirm the next scheduled success. No manual `psql`, no fresh reset inferred from missing
   evidence, no PROD.
+  First canonical code-only deploy on 2026-07-31 failed closed before restart: the reviewed
+  `patient-visible-catalog-rls.sql` overlay ran before `test-strict-rls-finalizer.sql`, whose generated base-policy
+  pass replaced it, so C4 readiness reproduced `permission denied for table org_enrollments`. The TEST closure-order
+  fix includes that existing reviewed overlay from the finalizer itself; it does not add a grant or change the
+  Web Push role. The next named live tick exposed a second least-privilege conflict: the occurrence claim joined
+  `platform_users` and used an unqualified `FOR UPDATE`, which asks PostgreSQL to lock both relations and therefore
+  required forbidden `platform_users` write privilege. The claim now uses `FOR UPDATE OF o SKIP LOCKED`, retaining
+  the mute read while locking only `webapp_reminder_occurrences`.
+  Final evidence: `bash deploy/host/deploy-test.sh codex/809-p5-test-closure-order` passed with C4 five-contour
+  readiness and all TEST units healthy; transcript
+  `/home/dev/.local/state/bersoncarebot/deploy-logs/deploy-test-20260730T213941Z-2604681.log`.
+  `sudo /opt/projects/bersoncarebot-test/deploy/host/web-push-only-reminder-cron.sh run-test` passed. A read through
+  the repository `OperatorHealthReadPort` returned exact key `reminders.web_push_only.tick` with `success`, no
+  failure/error and reset consecutive-failure state. Then
+  `node /home/dev/brain/tools/cronport.mjs set bersoncarebot-test-web-push-only-reminders '* * * * *'
+  '/usr/bin/sudo -n /opt/projects/bersoncarebot-test/deploy/host/web-push-only-reminder-cron.sh run-test'` installed
+  the named TEST job; `node /home/dev/brain/tools/cronport.mjs list | rg
+  'bersoncarebot-test-web-push-only-reminders'` confirmed it enabled, and the next scheduled run advanced the same
+  exact operator-health row while preserving `success` with no failure/error. No raw SQL, fresh reset or PROD action
+  was used.
 
 ## Definition of Done for this source package
 
-`809-P1` through `809-P4` are closed with evidence in this file. `809-P5` stays open because this package must not
-mutate TEST, install cron, deploy, or touch PROD.
+`809-P1` through `809-P5` are closed with code, behavioral and live TEST evidence in this file. PROD remains
+untouched.

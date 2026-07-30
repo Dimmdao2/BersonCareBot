@@ -1,13 +1,16 @@
 import type { Pool, PoolClient } from 'pg';
+import { eq, sql } from 'drizzle-orm';
 import {
   getCurrentDbPrincipalPlatformUserId,
   runWithDbOrganizationPrincipal,
 } from '@bersoncare/db-principal';
+import { platformUsers } from '../../../db/schema/schema';
 /**
  * Wave 3 phase 12B + R0/S3Q — create/bind transaction checkout goes through `withPoolTransaction`.
  * Domain SQL — `runIdentityClientPgText` / `runIdentityPoolPgText`; row-shape — Zod in `identityPhoneRowSchemas`.
  */
 import { getPool } from '@/infra/db/client';
+import { getDrizzle } from '@/app-layer/db/drizzle';
 import { withPoolTransaction } from '@/infra/db/withClient';
 import type { SessionUser } from '@/shared/types/session';
 import type { ChannelContext } from '@/modules/auth/channelContext';
@@ -34,6 +37,7 @@ import {
   MergeDependentConflictError,
 } from '@/infra/repos/platformUserMergeErrors';
 import {
+  isTrustedPatientPhoneActivation,
   TrustedPatientPhoneSource,
   trustedPatientPhoneWriteAnchor,
 } from '@/modules/platform-access/trustedPhonePolicy';
@@ -51,6 +55,18 @@ import {
   userIdRowSchema,
 } from '@/infra/repos/identityPhoneRowSchemas';
 import { runIdentityClientPgText, runIdentityPoolPgText } from '@/infra/repos/identityPhoneSql';
+import { getWebappSqlFromPgClient } from '@/infra/db/runWebappSql';
+
+async function markPatientPhoneTrusted(client: PoolClient, userId: string): Promise<void> {
+  const db = getWebappSqlFromPgClient(client);
+  await db
+    .update(platformUsers)
+    .set({
+      patientPhoneTrustAt: sql`now()`,
+      updatedAt: sql`now()`,
+    })
+    .where(eq(platformUsers.id, userId));
+}
 
 async function loadPuRowForMerge(client: PoolClient, id: string) {
   const r = await runIdentityClientPgText(
@@ -133,6 +149,24 @@ export const pgUserByPhonePort: UserByPhonePort = {
       ? parseIdentityRow(emailVerifiedRowSchema, res.rows[0], 'verified_email').email
       : null;
     return typeof e === 'string' && e.trim() ? e.trim() : null;
+  },
+
+  async isPhoneTrustedForUser(userId: string): Promise<boolean> {
+    const rows = await getDrizzle()
+      .select({
+        phoneNormalized: platformUsers.phoneNormalized,
+        patientPhoneTrustAt: platformUsers.patientPhoneTrustAt,
+      })
+      .from(platformUsers)
+      .where(eq(platformUsers.id, userId))
+      .limit(1);
+    const row = rows[0];
+    return row
+      ? isTrustedPatientPhoneActivation({
+          phone_normalized: row.phoneNormalized,
+          patient_phone_trust_at: row.patientPhoneTrustAt,
+        })
+      : false;
   },
 
   async findByUserId(userId: string): Promise<SessionUser | null> {
@@ -255,11 +289,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
           );
           if (options?.phoneNumberProven === true) {
             trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.OtpCreateOrBind);
-            await runIdentityClientPgText(
-              client,
-              'UPDATE platform_users SET patient_phone_trust_at = now(), updated_at = now() WHERE id = $1::uuid',
-              [userId],
-            );
+            await markPatientPhoneTrusted(client, userId);
           }
           return { userId, wasCreated: false };
         }
@@ -417,11 +447,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
 
         if (options?.phoneNumberProven === true) {
           trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.OtpCreateOrBind);
-          await runIdentityClientPgText(
-            client,
-            'UPDATE platform_users SET patient_phone_trust_at = now(), updated_at = now() WHERE id = $1::uuid',
-            [userId],
-          );
+          await markPatientPhoneTrusted(client, userId);
         }
         return { userId, wasCreated };
       });
