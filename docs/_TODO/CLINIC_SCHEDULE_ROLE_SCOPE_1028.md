@@ -1,6 +1,6 @@
 # #1028 — расписание врача и клиники: ролевой scope
 
-**Статус:** S1–S5 реализованы; audit-correction готова к повторной независимой проверке, DEV-smoke не выполнен.
+**Статус:** S1–S5 реализованы и независимо проверены PASS; DEV-smoke не выполнен.
 
 **Карточка:** `#1028`.
 
@@ -208,8 +208,9 @@ env/deploy/server scripts и другие UI-разделы запрещены.
 - [x] Добавить минимальные unit/route проверки named schedule-scope failure с независимым oracle и fault
   injection. Evidence: 8 files / 26 tests PASS; specialist scope, UI request parity, navigation and direct-ID
   mutations produced their expected failures before restoration.
-- [ ] Независимый аудит сверяет каждый пункт этого плана и server-side IDOR, после чего фиксируются commit SHA
-  и фактически выполненные команды.
+- [x] Независимый аудит сверяет каждый пункт этого плана и server-side IDOR. Evidence: initial audit
+  `ac7db7975..505a883d0` нашёл 2 behavior MUST FIX + 1 file-scope violation; corrective re-audit exact
+  `8a7adff4e70c56e7a0df48c8561615581b2807a8` PASS, новых authorization/IDOR ошибок нет.
 
 ## Definition of Done
 
@@ -223,8 +224,9 @@ env/deploy/server scripts и другие UI-разделы запрещены.
   + mutation route tests.
 - [ ] Все строки direct-ID read/mutation matrix S4/S5 имеют code evidence и DEV-smoke evidence либо
   трассируемую N/A-причину.
-- [ ] Production files проходят typecheck/targeted lint; protected test/Stryker paths остаются нетронутыми;
-  независимый security audit даёт PASS.
+- [x] Production files проходят typecheck/targeted lint; protected test/Stryker paths остаются нетронутыми;
+  независимый security audit даёт PASS. Evidence: webapp typecheck + scoped ESLint PASS; audit exact
+  `8a7adff4e70c56e7a0df48c8561615581b2807a8` PASS; protected path delta = 0.
 
 ## Execution log
 
@@ -247,6 +249,8 @@ env/deploy/server scripts и другие UI-разделы запрещены.
   Today panel hosts were necessary but missing from allowed paths. Corrective branch derives own ID from the
   active directory, requires a non-null own ID for own-only UI actions, adds both hosts to scope and adds two
   named unit oracles. Initial audit remains FAIL until independent re-audit of the correction.
+- 30.07.2026 → corrective re-audit exact `8a7adff4e70c56e7a0df48c8561615581b2807a8` PASS: all three MUST FIX
+  closed; S1–S5 remain PASS; new authorization/IDOR findings = 0; protected DB/RLS/testcut/Stryker paths = 0.
 
 ## Не входит
 
