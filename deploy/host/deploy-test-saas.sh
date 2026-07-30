@@ -81,7 +81,6 @@ C4_OPERATIONAL_READINESS=deploy/host/assert-c4-operational-runtime-ready.sh
 C4_OPERATIONAL_PASSWORD_SETTER=deploy/host/set-postgres-role-password.mjs
 C4_OPERATIONAL_PASSWORD_SMOKE=deploy/host/smoke-set-postgres-role-password.sh
 SAAS_ISOLATION_OPERATOR_PROVISIONER=deploy/host/render-saas-isolation-operator-provisioning.mjs
-LOCKED_SMOKE_FIXTURE_VALIDATOR=deploy/host/validate-saas-product-smoke-fixture.sh
 UNITS=(api worker scheduler webapp media-worker)
 MIGRATOR_ROLE=""
 MIGRATOR_OWNER_MEMBERSHIP_ADDED=0
@@ -93,14 +92,12 @@ P2_B_SIGNING_SECRET_VALUE=""
 P2_B_CONTEXT_INSTALLED=0
 WRITERS_STOPPED=0
 SERVICES_RELEASED=0
-PRODUCT_SMOKE_GATE_FAILED=0
 # Post-health gate failures collected instead of aborting. See run_closure_gate + CLOSURE_GATE_RED_EXIT.
 CLOSURE_GATE_FAILURES=()
 # Distinct exit code meaning "gates are red BUT the TEST units are up and healthy". The caller
 # (deploy-test.sh) must treat it as a red deploy that is NOT an outage, and must not stop the units.
 CLOSURE_GATE_RED_EXIT=3
 FIXTURE_VALIDATOR_ROOT="$SRC_REPO"
-LOCKED_PRODUCT_SMOKE_FIXTURE_CANONICAL=""
 E1_RUNTIME_COVERAGE_STARTED_AT=""
 
 # ── KNOWN ANCHORS (owner's real, stable prod identities — the whole sequence keys off these; same on prod) ──
@@ -265,55 +262,6 @@ assert_saas_test_fixture_packet_ready(){
   [ -r "$validator" ] || { echo "FATAL: missing TEST fixture packet validator" >&2; exit 1; }
   sudo -u deploy env SAAS_TEST_FIXTURE_PACKET_VALIDATE_ONLY=1 \
     node --input-type=module - "$SAAS_TEST_FIXTURE_ENV" < "$validator"
-}
-
-assert_locked_product_smoke_fixture_ready(){
-  local fixture_path="${SAAS_PRODUCT_SMOKE_FIXTURE:-/run/bersoncarebot/saas-smoke.fixture}"
-  local validator="$FIXTURE_VALIDATOR_ROOT/$LOCKED_SMOKE_FIXTURE_VALIDATOR"
-  [ -r "$validator" ] || { echo "FATAL: missing locked product-smoke fixture validator" >&2; exit 1; }
-  LOCKED_PRODUCT_SMOKE_FIXTURE_CANONICAL="$(
-    bash "$validator" --validate "$fixture_path" "$SRC_REPO" "$DEPLOY_REPO"
-  )"
-  sudo -u deploy test -r "$LOCKED_PRODUCT_SMOKE_FIXTURE_CANONICAL" || {
-    echo "FATAL: locked product-smoke fixture is not readable by deploy" >&2
-    exit 1
-  }
-  warn_if_smoke_fixture_sessions_expired "$LOCKED_PRODUCT_SMOKE_FIXTURE_CANONICAL"
-}
-
-# The fixture holds pre-minted SESSION COOKIES. A staff session dies after
-# SESSION_SLIDING_TTL_STAFF_SECONDS of idle, so a fixture older than that produces a wall of 307/401 on
-# every staff scenario while patient/public scenarios still pass — which reads exactly like product
-# breakage and has been misdiagnosed as such more than once. Proven 2026-07-27: fixture minted 15:16 on
-# 07-26, smoke ran 03:31 on 07-27 (12h15m later, staff TTL is 12h) -> all 13 staff scenarios failed, all
-# 8 patient/public scenarios passed. Say so out loud BEFORE the smoke runs, so nobody hunts a product bug.
-# The TTL is read from the source constant, never hardcoded here, so the two cannot drift apart.
-warn_if_smoke_fixture_sessions_expired(){
-  local fixture="$1"
-  local ttl_source="$DEPLOY_REPO/apps/webapp/src/modules/auth/sessionCookie.ts"
-  local ttl_expr staff_ttl fixture_mtime age
-  [ -r "$ttl_source" ] || {
-    echo "   note: cannot read $ttl_source — skipping fixture-age check (not inventing a TTL)." >&2
-    return 0
-  }
-  ttl_expr="$(sed -n 's/.*SESSION_SLIDING_TTL_STAFF_SECONDS *= *\([0-9 *]*\);.*/\1/p' "$ttl_source" | head -1)"
-  [ -n "$ttl_expr" ] || {
-    echo "   note: could not parse SESSION_SLIDING_TTL_STAFF_SECONDS — skipping fixture-age check." >&2
-    return 0
-  }
-  staff_ttl="$(( ttl_expr ))" 2>/dev/null || return 0
-  [ "$staff_ttl" -gt 0 ] 2>/dev/null || return 0
-  fixture_mtime="$(sudo stat -c %Y "$fixture" 2>/dev/null)" || return 0
-  age="$(( $(date +%s) - fixture_mtime ))"
-  [ "$age" -gt "$staff_ttl" ] || return 0
-  echo "   ⚠️  FIXTURE EXPIRED — the staff scenarios below WILL fail, and that is NOT a product regression." >&2
-  echo "       fixture age: $(( age / 3600 ))h$(( (age % 3600) / 60 ))m; staff session idle TTL: $(( staff_ttl / 3600 ))h." >&2
-  echo "       Expect every doctor/clinic_admin/global_admin scenario to return 307/401 while every" >&2
-  echo "       patient and public scenario passes. That exact split IS the signature of this, not of a bug." >&2
-  echo "       Do NOT triage product code from this run. Re-mint sessions first:" >&2
-  echo "         deploy/host/mint-smoke-session.mjs --base-url=<url> --out=$fixture" >&2
-  echo "       (see docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md section 10 for why this exists)" >&2
-  return 0
 }
 
 assert_test_writers_stopped(){
@@ -2418,8 +2366,6 @@ run_strict_post_migration_closure(){
   log "A2 nginx forwarded-host preflight"
   run_closure_gate "A2 nginx config apply" apply_test_nginx_webapp_config
   run_closure_gate "A2 nginx forwarded-host preflight" run_a2_nginx_preflight
-  log "A2 product smoke gate (mandatory locked)"
-  run_closure_gate "A2 product smoke" run_locked_product_smoke
   log "U3S specialist signup/provisioning smoke (private cluster, mandatory)"
   run_closure_gate "U3S specialist signup/provisioning smoke" run_specialist_signup_provisioning_smoke
   log "specialist-owner provisioning seam pin (app_owner + be_organizations FORCE RLS)"
@@ -2439,12 +2385,6 @@ run_strict_post_migration_closure(){
   log "E1 post-runtime coverage/read gate"
   run_closure_gate "E1 post-runtime coverage/read gate" run_e1_post_runtime_coverage_gate
   run_closure_gate "awg relay active" assert_awg_relay_active
-
-  # run_locked_product_smoke records its own per-scenario failures in a flag rather than exiting, so
-  # fold that flag in here; run_closure_gate above only catches a hard abort inside it.
-  if [ "$PRODUCT_SMOKE_GATE_FAILED" = "1" ] && [[ ! " ${CLOSURE_GATE_FAILURES[*]-} " == *" A2 product smoke "* ]]; then
-    CLOSURE_GATE_FAILURES+=("A2 product smoke (per-scenario)")
-  fi
 
   if [ "${#CLOSURE_GATE_FAILURES[@]}" -gt 0 ]; then
     echo "FATAL: ${#CLOSURE_GATE_FAILURES[@]} post-health closure gate(s) RED:" >&2
@@ -2485,7 +2425,6 @@ assert_strict_closure_deploy_checkout_ready(){
   fi
   assert_webapp_test_staff_security_keyring_available
   assert_test_runtime_mode_ready
-  assert_locked_product_smoke_fixture_ready
 }
 
 run_c4_operational_chain_self_test(){
@@ -2659,9 +2598,6 @@ if [ -e "$MEDIA_WORKER_ENV" ]; then
 fi
 log "TEST runtime mode preflight"
 assert_test_runtime_mode_ready
-log "locked product-smoke fixture preflight"
-assert_locked_product_smoke_fixture_ready
-
 # Deliver and build the exact branch before stopping writers or touching TEST data. This also makes the
 # version-matched no-DB manifest verifier available for the final protected-input preflight.
 log "bundle + checkout $BRANCH -> $DEPLOY_REPO"

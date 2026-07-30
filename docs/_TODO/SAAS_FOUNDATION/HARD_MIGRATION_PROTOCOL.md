@@ -524,23 +524,12 @@ It must then restart TEST units and run:
   and `proxy_set_header X-Forwarded-Proto $scheme` in the webapp `location /`, backup active TEST nginx config,
   run `nginx -t`, reload nginx only on success, and run the A2 checker against `nginx -T`;
 - A2 nginx forwarded-host preflight against active `nginx -T`;
-- mandatory locked A1/product smoke using `/run/bersoncarebot/saas-smoke.fixture` by default (an explicit
-  `SAAS_PRODUCT_SMOKE_FIXTURE` may select another protected external path);
 - `awg-quick@awg0` active check, because the production Telegram relay on the TEST host must remain untouched.
 
 Do not claim a TEST deploy passed unless the wrapper has actually run and these gates have passed.
-The smoke fixture is mandatory and must be an owner/operator-managed secret file outside both the source and deploy
-repositories. Its path must be absolute and canonical with no symlink file or symlink parent, and the file contract is
-exactly `root:deploy 0640`. Missing, unreadable, in-repo, non-canonical, symlinked, or incorrectly owned/mode-set
-`/run/bersoncarebot/saas-smoke.fixture` fails the wrapper. The same validator runs at preflight and again immediately
-before smoke consumption; fixture values are never printed, committed, documented, or inferred.
-
-Historical D3 evidence vocabulary is retained for older run logs: the wrapper used to run A1/product smoke when `SAAS_PRODUCT_SMOKE_FIXTURE` is supplied.
-If `SAAS_PRODUCT_SMOKE_FIXTURE` is unset, the wrapper's product smoke line is **SKIPPED/BLOCKED** for product parity
-and D3/R1/R2 product-smoke evidence remains open; the path was always an
-owner/operator-managed secret file path outside the repo. This paragraph describes pre-strict evidence semantics
-only. The current strict TEST wrapper above is fail-closed: it defaults to the protected `/run/...` path and a missing
-or invalid fixture aborts before migration/deploy work rather than producing a skipped successful deploy.
+Fixture-based A1/product smoke выведен из deploy решением владельца 30.07.2026. Временный
+`/run/bersoncarebot/saas-smoke.fixture` не является входом миграции или runtime closure. Продуктовые сценарии
+проверяются отдельными целевыми тестами без сохранённых deploy-cookie/refs.
 
 ### 11. Strict/FORCE TEST gate and D2/D3.4 checks
 
