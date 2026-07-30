@@ -21,12 +21,33 @@ describe('HTTP CSRF origin boundary', () => {
     const response = proxy(
       unsafeRequest('/api/account/security/password/change', {
         origin: 'https://attacker.example',
-        'sec-fetch-site': 'cross-site',
+        'sec-fetch-site': 'same-origin',
       }),
     );
 
     expect(response.status).toBe(403);
     expect(response.headers.get('cache-control')).toBe('no-store');
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: 'csrf_origin_forbidden',
+    });
+  });
+
+  it.each([
+    ['missing source headers', { 'sec-fetch-site': 'same-origin' }],
+    [
+      'an ambiguous Origin header',
+      {
+        origin: 'https://app.example.test, https://attacker.example',
+        'sec-fetch-site': 'same-origin',
+      },
+    ],
+  ])('rejects %s on a normal browser mutation', async (_case, headers) => {
+    const response = proxy(
+      unsafeRequest('/api/account/security/password/change', headers),
+    );
+
+    expect(response.status).toBe(403);
     await expect(response.json()).resolves.toEqual({
       ok: false,
       error: 'csrf_origin_forbidden',
