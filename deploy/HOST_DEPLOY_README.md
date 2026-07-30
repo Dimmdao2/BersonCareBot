@@ -752,9 +752,9 @@ Settings-запись через `updateSetting` может менять его;
 снимает временные права и передаёт post-migration этап в ту же общую strict closure, что fresh wrapper. Closure
 ставит roles/helpers/grants и E1 telemetry overlay (ambient event-writer + отдельный
 `SAAS_ISOLATION_OPERATOR_DATABASE_URL` для global-admin read/coverage), выполняет base → safe specialized overlays → FORCE/assert,
-запускает отдельный fixture window, затем fail-closed health и обязательный locked product smoke. Поэтому code-only
-миграция не может незаметно вернуть состояние migration 0177 NO FORCE или пропустить fixture/smoke. После рестарта,
-health/nginx и обоих product-smoke общая closure фиксирует и перечитывает реальное E1-покрытие всех шести process
+запускает отдельный fixture reconciliation window, затем fail-closed health и независимые runtime-гейты. Поэтому
+code-only миграция не может незаметно вернуть состояние migration 0177 NO FORCE. После рестарта health/nginx
+общая closure фиксирует и перечитывает реальное E1-покрытие всех шести process
 families через отдельный diagnostic login. Активный unexplained signal или отсутствие exact fresh complete coverage
 останавливает deploy до AWG/DONE; synthetic cleanup после runtime-smoke не запускается и реальные события не удаляются.
 Для SaaS fresh-dump rehearsal канон — только отдельный разрушительный entrypoint. Он не является вариантом
@@ -776,7 +776,7 @@ Hard wrapper останавливает writers, восстанавливает 
 затем общей closure применяет строгие helper policies + безопасные invite/course/app_worker overlays + FORCE с
 точной проверкой 163 таблиц и до рестарта идемпотентно восстанавливает две синтетические walkthrough-клиники:
 A с управляющим, двумя специалистами и пятью пациентами; B с solo owner/specialist и тремя пациентами. Он
-fail-closed до restore, если защищённый TEST-only credential packet или обязательный product-smoke fixture не готов.
+fail-closed до restore, если защищённый TEST-only data fixture packet не готов.
 После миграций, установки protected-principal helpers и базового FORCE finalizer общая closure сама вызывает канонический C4 TEST-bootstrap:
 после read-only source preflight атомарно заменяет каждый затронутый env-файл и добавляет/сохраняет пять отдельных
 local-only URL (`127.0.0.1:5432/bersoncarebot_test`), создаёт base/capability/
@@ -793,29 +793,9 @@ Readiness выполняет не только разрешённые опера
 Web Push surface, Web Push capability — на scheduler/delivery/media/business surfaces; base login не читает таблицы
 напрямую. Точный `operator_job_status` ключ `reminders.web_push_only.tick` проверяется write/read внутри rollback,
 чужие строки невидимы/не обновляются, другой ключ и DELETE обязаны завершиться отказом.
-Product-smoke fixture по умолчанию хранится в canonical external path
-`/run/bersoncarebot/saas-smoke.fixture`: строго `root:deploy 0640`, без symlink-файла или symlink-родителя и вне
-source/deploy repositories. Одна и та же проверка выполняется до restore и повторно непосредственно перед smoke.
-
-Служебные login credentials для smoke хранятся отдельно в
-`/opt/env/bersoncarebot/saas-smoke-login.env` (`root:deploy 0640`). Если пакет присутствует, strict TEST closure
-непосредственно перед mint сессий приводит password credentials только перечисленных в нём врача/clinic-owner,
-глобального администратора и пациента к значениям пакета. Target жёстко закреплён за локальной БД
-`bersoncarebot_test`; врачебная сессия намеренно используется и как `doctor`, и как `clinic_admin`, потому что эта
-учётка имеет `role=doctor` и ровно одну active membership: owner со specialist. Значения паролей не печатаются и
-не передаются через argv/SQL text. Если пакета нет, поведение остаётся fail-soft: mint пропускается с предупреждением,
-а smoke использует существующий fixture и сам оставляет gate красным при невалидной авторизации. Если пакет есть,
-ошибка convergence или свежего mint делает A2 красным: старая cookie-фикстура больше не может дать ложный зелёный
-результат вместо проверки текущего пакетного пароля.
-
-**Как переиздать fixture, если сессии протухли:** инструмент
-`docs/_TODO/SAAS_FOUNDATION/scripts/regenerate-saas-smoke-fixture.mjs` логинится как реальные аккаунты
-на целевом `--base-url` и записывает результат в этот fixture-файл. Он **перезаписывает пароли реальным
-людям** (TEST — прод-дамп), поэтому по решению владельца 2026-07-26 (taskdb `#1017`) **намеренно не
-закоммичен** (`.gitignore`) — лежит только на боксе по этому пути, с гардами (обязательный флаг
-`--i-understand-this-rewrites-real-passwords`, `allowlist` конкретных `user_id`, автобэкап 0600 перед
-записью, жёсткая проверка `--db` на точное совпадение с именем тестовой БД, без обхода). Подробности и
-проверки — `docs/_TODO/SAAS_FOUNDATION/LOG.md`, запись «Owner ruling on regenerate-saas-smoke-fixture.mjs».
+Legacy product-smoke fixture `/run/bersoncarebot/saas-smoke.fixture`, сохранённые сессии/refs и их credential
+convergence/mint выведены из deploy решением владельца 30.07.2026. Отсутствие временного файла в `/run` не блокирует
+сборку, миграции, security closure или запуск TEST. Продуктовые проверки выполняются отдельными целевыми тестами.
 
 Packet создаётся один раз уполномоченным оператором **из root-сессии** (не от `deploy`), без значений в shell
 history. Значения вводятся интерактивным редактором; в repo и docs остаются только имена ключей:
@@ -846,7 +826,7 @@ membership/BYPASS через обязательный cleanup; application runti
 
 - **Merge или force?** → **force.** `test` — одноразовое зеркало dev-ветки, хранить на нём нечего; checkout делается `git checkout -f -B <branch> FETCH_HEAD` (`reset --hard`-семантика). Никаких merge/rebase, расхождение веток не разрешаем — просто перетираем.
 - **Как переносится код (а не `git pull` как на проде):** деплой-репо `/opt/projects/bersoncarebot-test` под `deploy`, а `deploy` **не читает** `/home/dev` (0750) → remote `localrepo` под ним не работает; push в GitHub гейтован. Поэтому ветка переносится **git-bundle через `/tmp`** (world-readable) — полная история, без push, без проблем с правами.
-- **Что делает code-only скрипт:** bundle ветки из dev-репо → force-align тест-checkout → build → strict preflight → stop 5 writers → controlled owner/BYPASS `pnpm migrate` (включая временное membership runtime-owner в `app_owner` для DDL защищённой схемы) → общая roles/helpers/grants/telemetry/base+overlays/FORCE/seed closure → cleanup assertions с обязательным отзывом обоих временных membership и BYPASSRLS → restart locked units → health/nginx/product smoke. Он не получает dump и не выполняет fresh restore; не использовать его после ручного восстановления БД.
+- **Что делает code-only скрипт:** bundle ветки из dev-репо → force-align тест-checkout → build → strict preflight → stop 5 writers → controlled owner/BYPASS `pnpm migrate` (включая временное membership runtime-owner в `app_owner` для DDL защищённой схемы) → общая roles/helpers/grants/telemetry/base+overlays/FORCE/seed closure → cleanup assertions с обязательным отзывом обоих временных membership и BYPASSRLS → restart locked units → health/nginx/runtime gates. Он не получает dump и не выполняет fresh restore; не использовать его после ручного восстановления БД.
 - **🔴 Ограничение отправок — ЖЁСТКО в env, не в коде:** `/opt/env/bersoncarebot/api.test` содержит `DEV_DELIVERY_REDIRECT=1`, `MAX_ENABLED=false`, `SMSC_ENABLED=false` и `DEV_REDIRECT_PASSTHROUGH_{TELEGRAM,PHONES,MAX,EMAILS,WEB_PUSH}`. То есть **какой бы код/ветка ни задеплоилась** — integrator на чокпоинте `applyPreForkDevRedirect` режет/редиректит все отправки реальным клиентам (passthrough только для двух тест-аккаунтов). Деплой нового кода это **не ослабляет**. Подробности топологии/доступов — `docs/ARCHITECTURE/SERVER CONVENTIONS.md` → «Топология серверов» / «Доступы / VPN».
 - **Тест-юниты / порты / env:** `bersoncarebot-{api,worker,scheduler,webapp,media-worker}-test`; API `:3300`, webapp `:6300`; env `/opt/env/bersoncarebot/{api,webapp}.test`; деплой-репо `/opt/projects/bersoncarebot-test` (владелец `deploy`); источник — dev-репо `/home/dev/dev-projects/BersonCareBot`.
 - **Fresh restore TEST-БД:** ручной/plain restore **не поддерживается и запрещён**. Единственный публичный

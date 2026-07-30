@@ -145,7 +145,7 @@ sudo -u deploy bash -lc "cd '$DEPLOY_REPO' && export CI=true && \
   bash deploy/host/sync-webapp-standalone-assets.sh"
 
 # Fail before stopping writers or changing the database when the locked mode, protected fixture
-# packet, mandatory smoke fixture, or any shared closure artifact is unavailable.
+# packet or any shared closure artifact is unavailable. Legacy product-smoke fixtures are not deploy inputs.
 bash "$DEPLOY_REPO/$STRICT_CLOSURE" --strict-preflight
 
 # 4) Stop all TEST writers, migrate in a short audited owner+BYPASS window, clean it up, then
