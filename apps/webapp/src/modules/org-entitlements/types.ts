@@ -4,9 +4,8 @@
  * See docs/_TODO/SAAS_FOUNDATION/STORE_P0_ENTITLEMENTS_PLAN.md.
  */
 /**
- * The only canonical mechanic registry.  It deliberately contains no pending
- * product candidates: S4-0 protects the fourteen keys that already exist in
- * the compatibility resolver.
+ * The only canonical mechanic registry. New tariff mechanics are declared
+ * here before their domain write paths are guarded in their own stage.
  */
 export type MechanicClass = 'возможность' | 'места' | 'запас' | 'объём' | 'никогда';
 type QuotaEnforcement =
@@ -69,6 +68,19 @@ export const MECHANIC_REGISTRY = {
   custom_domain: { class: 'возможность', label: 'Собственный домен', quotaEnforcement: 'declared_no_enforcement' },
   // Checked in pgOrganizationInvites under an org advisory lock, not by a database trigger.
   clinic_team: { class: 'места', label: 'Режим клиники', quotaEnforcement: 'application_transaction_snapshot' },
+  patient_count: { class: 'запас', label: 'Пациенты', quotaEnforcement: 'application_transaction_snapshot' },
+  branches: { class: 'запас', label: 'Филиалы', quotaEnforcement: 'application_transaction_snapshot' },
+  external_calendar: { class: 'возможность', label: 'Внешний календарь', quotaEnforcement: 'declared_no_enforcement' },
+  patient_diaries: { class: 'возможность', label: 'Дневники пациента', quotaEnforcement: 'declared_no_enforcement' },
+  clinical_tests: { class: 'возможность', label: 'Клинические тесты и наборы', quotaEnforcement: 'declared_no_enforcement' },
+  online_intake: { class: 'возможность', label: 'Онлайн-анкета', quotaEnforcement: 'declared_no_enforcement' },
+  doctor_statistics: { class: 'возможность', label: 'Статистика кабинета', quotaEnforcement: 'declared_no_enforcement' },
+  proactive_insights: { class: 'возможность', label: 'Проактивные подсказки', quotaEnforcement: 'declared_no_enforcement' },
+  specialist_tasks: { class: 'возможность', label: 'Задачи специалиста', quotaEnforcement: 'declared_no_enforcement' },
+  booking_prepayment: { class: 'возможность', label: 'Предоплата при записи', quotaEnforcement: 'declared_no_enforcement' },
+  patient_home_today: { class: 'возможность', label: 'Сегодня', quotaEnforcement: 'declared_no_enforcement' },
+  warmups: { class: 'возможность', label: 'Разминки', quotaEnforcement: 'declared_no_enforcement' },
+  promo: { class: 'возможность', label: 'Промо', quotaEnforcement: 'declared_no_enforcement' },
 } as const satisfies Record<string, MechanicDefinition>;
 
 export type OrgMechanic = keyof typeof MECHANIC_REGISTRY;
@@ -107,7 +119,12 @@ export type TariffQuotaMap = Partial<Record<'files', TariffQuota>>;
 export const MECHANIC_DEFAULT_ENABLED: Record<OrgMechanic, boolean> = Object.fromEntries(
   MECHANICS.map((mechanic) => [
     mechanic,
-    mechanic !== 'clinic_team' && mechanic !== 'courses' && mechanic !== 'exercise_catalog',
+    mechanic !== 'clinic_team' &&
+      mechanic !== 'courses' &&
+      mechanic !== 'exercise_catalog' &&
+      mechanic !== 'patient_home_today' &&
+      mechanic !== 'warmups' &&
+      mechanic !== 'promo',
   ]),
 ) as Record<OrgMechanic, boolean>;
 

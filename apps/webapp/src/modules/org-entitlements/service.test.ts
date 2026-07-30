@@ -212,6 +212,48 @@ describe('org entitlement mechanic classes', () => {
     }
   });
 
+  it('refuses patient and branch growth for an assigned tariff without their configured limits', () => {
+    const snapshot = {
+      tariff: { mechanics: {}, quotas: {}, includedSeats: null },
+      overrides: [],
+      access: activeAccess,
+    };
+
+    const entitlements = entitlementsFromSnapshot(snapshot);
+
+    expect(entitlements.patient_count).toBe(false);
+    expect(entitlements.branches).toBe(false);
+  });
+
+  it('keeps owner-only mechanics disabled by default and enables each through an organization override', () => {
+    const base = {
+      tariff: null,
+      access: { lifecycle: 'active' as const, tariffId: null, source: 'compatibility' as const },
+    };
+
+    expect(entitlementsFromSnapshot({ ...base, overrides: [] })).toMatchObject({
+      patient_home_today: false,
+      warmups: false,
+      promo: false,
+    });
+    expect(
+      entitlementsFromSnapshot({
+        ...base,
+        overrides: ['patient_home_today', 'warmups', 'promo'].map((mechanic) => ({
+          mechanic,
+          enabled: true,
+          quota: null,
+          expiresAt: null,
+          seatLimitOverride: null,
+        })),
+      }),
+    ).toMatchObject({
+      patient_home_today: true,
+      warmups: true,
+      promo: true,
+    });
+  });
+
   it('keeps file growth unchanged on the no-tariff compatibility path', async () => {
     const snapshot = {
       tariff: null,
