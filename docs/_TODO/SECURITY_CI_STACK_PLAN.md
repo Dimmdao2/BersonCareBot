@@ -1,9 +1,10 @@
 > STATUS (verified 2026-07-23, code-reconciled): see docs/\_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/CHECKPOINT_2026-07-23_STATE_AND_BACKEND_WORK_ORDER.md
 >
-> UPDATE 2026-07-31 (`#881`): broken static lane repaired locally. Gitleaks v8.30.1 full-history scan
-> (4,801 commits) and runtime negative self-test PASS; Semgrep managed+local ERROR scan PASS after triage.
-> Trivy action is upgraded and immutable-pinned, but its first live GitHub run is still required. ZAP remains
-> disabled until a safe TEST runner/firewall contract exists; PROD scanning is not authorized.
+> UPDATE 2026-07-31 (`#881`): static lane repaired and verified live in GitHub run `30591353045`:
+> Gitleaks full-history + runtime negative self-test, Semgrep ERROR scan and Trivy filesystem scan all PASS.
+> The workflow is red only on the separately tracked dependency finding `#1014` (`brace-expansion` through
+> ESLint). ZAP remains disabled until a safe TEST runner/firewall contract exists; PROD scanning is not
+> authorized.
 
 # План: Security-стек в CI (Gitleaks · Semgrep · Trivy · OWASP ZAP)
 
@@ -65,11 +66,14 @@
 
 ### Этап 3 — Trivy
 
-- [ ] Job `trivy-fs` исправлен на безопасный post-incident `trivy-action` v0.36.0, pinned exact SHA,
-      `scan-type: fs`, `scanners: vuln,misconfig,secret`, `severity: HIGH,CRITICAL`; остаётся первый live run.
+- [x] Job `trivy-fs` исправлен на безопасный post-incident `trivy-action` v0.36.0, pinned exact SHA,
+      `scan-type: fs`, `scanners: vuln,misconfig,secret`, `severity: HIGH,CRITICAL`; live GitHub job
+      `91034176429` в run `30591353045` PASS 2026-07-31.
 - [x] `.trivyignore` для принятых/неустранимых сейчас CVE (с комментарием-обоснованием и датой ревью). (✓ .trivyignore (14 lines) wired via `trivyignores: .trivyignore` at .github/workflows/security.yml:103 | commit 2027f969)
 - [ ] Полный pre-release workflow исправлен на тот же immutable v0.36.0; all-severity report больше не
-      скрывает unfixed findings, CRITICAL pass остаётся fail-closed. Первый manual live run ещё не выполнен.
+      скрывает unfixed findings, CRITICAL pass остаётся fail-closed. Первый manual live run ещё не выполнен:
+      GitHub не регистрирует новый `workflow_dispatch`, пока workflow отсутствует в default branch; `feat`
+      в `main` этой задачей не публикуется.
 - [x] Согласовать с существующим `pnpm run audit` (Trivy шире — деп-CVE + misconfig + secret; не дублировать смысл, а дополнять; при желании оставить только Trivy). (✓ resolved via new dedicated job — `package.json:93` `audit:cve`: `pnpm audit --audit-level=high`, run by `dependency-audit` job at .github/workflows/security.yml:107-115; existing `ci.yml` `audit` job left as-is for saas-regression, no overlap | commit 2027f969)
 
 ### Этап 4 — OWASP ZAP (DAST)
