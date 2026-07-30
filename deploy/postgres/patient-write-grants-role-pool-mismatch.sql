@@ -12,7 +12,7 @@
 -- (packages/db-principal/src/index.ts classifySaasIsolationFailure) classifies exactly this shape as
 -- role_pool_mismatch.
 --
--- Confirmed op/column/reachability matrix (current code read 2026-07-24, all four repo methods are
+-- Confirmed op/column/reachability matrix (current code read 2026-07-24/30, all five repo methods are
 -- reached from a patient-authenticated route gated by requirePatientApiBusinessAccess, which sets
 -- principal.kind = "patient" -> nonstaff/app_patient pool):
 --
@@ -52,7 +52,15 @@
 --      Caller chain: same as #2, progress-service.ts:290. app_patient currently has only
 --      ('public','treatment_program_instance_stage_items','SELECT') (p0-5b-grants.sql:384).
 --
--- Why these four are RLS-safe to grant (same reasoning as patient-support-mark-read-grant.sql -- RLS
+--   5. patient_daily_warmup_presentations UPDATE
+--      (content_page_id, updated_at, last_rotation_at, skip_next_scheduled_rotation)
+--      pgPatientDailyWarmupPresentation.upsertPresentationState uses ON CONFLICT DO UPDATE.
+--      Caller chain: POST /api/patient/practice/completion with source=daily_warmup ->
+--      advanceDailyWarmupPresentationManually -> upsertPresentationState. TEST runtime proved the
+--      missing UPDATE grant as SQLSTATE 42501 on 2026-07-30. The baseline remains SELECT, INSERT;
+--      this overlay grants only the four presentation-state columns the upsert actually changes.
+--
+-- Why these five are RLS-safe to grant (same reasoning as patient-support-mark-read-grant.sql -- RLS
 -- restricts ROWS, a grant never widens rows, only which columns may appear in the SET/INSERT list):
 --   - reminder_journal: policy "saas_org_dormant_p0_8_3" (scratchpad/isolation-flagged-rls-policies.txt)
 --     WITH CHECK admits a patient-context row only when
@@ -63,6 +71,9 @@
 --     "saas_org_dormant_p0_8_4" WITH CHECK admits a patient-context row only when the instance's
 --     patient_user_id (directly, or via the stage/instance FK chain) equals current_patient_user_id().
 --     A patient can only update rows in their OWN treatment program instance.
+--   - patient_daily_warmup_presentations: policy "saas_org_dormant_p0_8_3" admits a patient-context
+--     row only when user_id = current_patient_user_id(). The column grant excludes user_id and
+--     organization_id, so the patient can only advance state on their own presentation row.
 --
 -- EXCLUDED from this overlay (do NOT grant here -- see analysis, owner/orchestrator decision needed
 -- or already resolved elsewhere):
@@ -136,7 +147,7 @@ SELECT 1 / 0 AS patient_write_grants_role_pool_mismatch_abort;
 \endif
 
 \if :{?patient_write_grants_role_pool_mismatch_down}
-\echo 'Patient write grants (role_pool_mismatch) DOWN: revoking the four INSERT/UPDATE column grants from app_patient.'
+\echo 'Patient write grants (role_pool_mismatch) DOWN: revoking the five INSERT/UPDATE column grants from app_patient.'
 
 REVOKE INSERT ("rule_id", "occurrence_id", "action", "snooze_until", "skip_reason")
   ON TABLE "public"."reminder_journal" FROM app_patient;
@@ -150,9 +161,12 @@ REVOKE UPDATE ("status", "skip_reason", "started_at")
 REVOKE UPDATE ("completed_at")
   ON TABLE "public"."treatment_program_instance_stage_items" FROM app_patient;
 
+REVOKE UPDATE ("content_page_id", "updated_at", "last_rotation_at", "skip_next_scheduled_rotation")
+  ON TABLE "public"."patient_daily_warmup_presentations" FROM app_patient;
+
 \echo 'Patient write grants (role_pool_mismatch) DOWN complete.'
 \else
-\echo 'Patient write grants (role_pool_mismatch) UP: granting reminder_journal INSERT + treatment_program_instance* UPDATE column grants to app_patient.'
+\echo 'Patient write grants (role_pool_mismatch) UP: granting reminder_journal INSERT + treatment_program_instance* and warmup presentation UPDATE column grants to app_patient.'
 
 GRANT INSERT ("rule_id", "occurrence_id", "action", "snooze_until", "skip_reason")
   ON TABLE "public"."reminder_journal" TO app_patient;
@@ -165,6 +179,9 @@ GRANT UPDATE ("status", "skip_reason", "started_at")
 
 GRANT UPDATE ("completed_at")
   ON TABLE "public"."treatment_program_instance_stage_items" TO app_patient;
+
+GRANT UPDATE ("content_page_id", "updated_at", "last_rotation_at", "skip_next_scheduled_rotation")
+  ON TABLE "public"."patient_daily_warmup_presentations" TO app_patient;
 
 \echo 'Patient write grants (role_pool_mismatch) UP complete.'
 \endif
