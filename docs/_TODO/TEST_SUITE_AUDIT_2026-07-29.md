@@ -110,23 +110,52 @@ runner, полезные тесты с независимым oracle, red-on-fau
    - [x] patient organization resolver: inactive/foreign enrollment и ambiguous multi-org — `35eb9159c`;
      `apps/webapp/src/modules/patient-organization/service.unit.test.ts`; четыре fault injection покрасили
      owning assertions, DB/RLS/repository enrollment proof отложен;
+     - снят status guard → `inactive-enrollment` assertion red;
+     - снят platform-user guard → `foreign-user` assertion red;
+     - unknown verified target временно принят → `target-not-authorized` assertion red;
+     - при ambiguity временно выбрана первая organization → `selection-required` assertion red;
    - [x] подписанная внешняя доставка: HMAC/time-window, duplicate suppression и policy denial — `7a7b24c08`;
      `apps/integrator/src/integrations/bersoncare/relayOutboundRoute.route.test.ts`; шесть fault injection
      покрасили owning assertions, DB/RLS/cross-process exactly-once и real-provider proof отложены;
+     - signature guard отключён → auth status `200` вместо ожидаемого `401`;
+     - in-flight guard отключён → duplicate status `200` вместо ожидаемого `503`;
+     - policy-denial branch отключён → status `502` вместо ожидаемого `403`;
+     - email classification принудительно заменена на `provider_send_failed` → incident `errorClass` red против
+       ожидаемого `provider_quota_exhausted`;
+     - SMS classification принудительно заменена на `provider_auth_rejected` → incident `errorClass` red против
+       ожидаемого `provider_send_failed`;
+     - web-push channel заменён на `email` → exact dispatch-contract assertion red;
    - [x] acquiring provider/webhook boundary: provider disable, amount/currency/patient/idempotency и webhook auth —
      `55cdfc48e`; `apps/webapp/src/infra/payments/registryAcquiringGateway.unit.test.ts` +
      `apps/webapp/src/app/api/payments/patientAcquiring.route.test.ts`; fault injection покрасили provider,
      identity/idempotency и webhook-auth assertions, DB/RLS/ledger/network и positive Alfa proof отложены;
+     - payments-disabled throw заменён на no-op → ожидался `{ ok: false, reason: 'payments_disabled' }`, получен
+       provider success;
+     - provider `idempotencyKey` заменён на `fault-injected-key` → exact `createIntent` assertion ожидал
+       `charge-1074-stable`, получил подменённый ключ;
+     - foreign-patient response status изменён `404`→`201` → status assertion ожидал `404`, получил `201`;
+     - resolved `idempotencyKey` заменён на пустую строку → caller-key и UUID-fallback assertions ожидали `201`,
+       получили `400`;
+     - provider-failure response status изменён `503`→`201` → status assertion ожидал `503`, получил `201`;
+     - missing-checksum branch временно вернул inspected webhook → route assertion ожидал `401`, получил `200`;
    - [x] semantic M2M idempotency: stable hash, разрешённые volatile fields, mismatch→conflict и отсутствие
      кеширования transient failure — `c223fcd15`; `apps/webapp/src/app-layer/idempotency/integratorEventSemanticHash.unit.test.ts`
      + `apps/webapp/src/app/api/integrator/events/route.route.test.ts`; четыре fault injection покрасили hash/conflict/retry
      assertions, PostgreSQL/concurrency/RLS/store-race proof отложен.
+     - object-key sorting отключён → stable-order assertion red;
+     - semantic payload стёрт → business-payload assertion red;
+     - cached-hash mismatch bypassed → ожидался `409`, получен `202`;
+     - transient `503` закеширован → retry ожидал `202`, получил `503`.
    Для каждого класса: самый дешёвый публичный DB-free слой, независимый oracle, fault injection с записью
    «что сломано → какое утверждение покраснело». Остальной inventory не блокирует #1074 и закрывается по ходу
    обычной разработки.
    **Log/evidence 30.07:** реальные production-исправления — patient status guard и acquiring unsigned-webhook
    rejection/idempotency forwarding; outbound и M2M production-код не менялся. Parent step 6 остаётся открытым до
    final gate и Opus-приёмки.
+   **Opus audit 30.07:** raw run
+   `/home/dev/brain/runs/agent-port/bcb-1074-opus-critical-next-acceptance-20260730.json` → `FAIL`, единственный
+   finding `MF-1`: в плане отсутствовали per-injection mappings; код и тесты семантически `PASS`. Мэппинги
+   добавлены выше; parent step 6 не закрыт, ожидается узкий Opus re-audit.
 
 ### Финальная приёмка DB-free пилота — 30.07
 
