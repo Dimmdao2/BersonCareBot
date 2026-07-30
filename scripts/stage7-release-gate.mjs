@@ -23,7 +23,7 @@ function run(cmd, args, cwd, name) {
     const child = spawn(cmd, args, {
       cwd: cwd || rootDir,
       stdio: 'inherit',
-      shell: true,
+      shell: false,
     });
     child.on('close', (code) => resolve(code !== 0 ? name : null));
   });

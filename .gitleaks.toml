@@ -15,27 +15,6 @@ useDefault = true
 [allowlist]
 description = "BersonCareBot baseline allowlist — narrowly scoped and documented per SEC-01."
 
-# --- Path allowlist -------------------------------------------------------------------------
-# Each entry is a regex matched against the file path. Keep this list tight; every entry is a
-# hole in the scanner, so it must have a stated reason.
-paths = [
-    # Historical incident (memory: dev-env-hardening-real-creds): real production credentials
-    # were once committed into dev `.env` files. Those paths are now gitignored (.gitignore:
-    # `.env`, `.env.*`), so they CANNOT be re-committed going forward. Allowlisting the .env
-    # file family keeps the full-history scan GREEN on that known past finding while any new
-    # secret landing in source/config (the realistic vector) still fails the build. This is the
-    # only known historical finding class; if a precise per-commit baseline is preferred later,
-    # capture the exact `commit:path:rule:line` fingerprints from the first live full-history
-    # gitleaks run and pin them here via the `commits` allowlist (see note in the RETURN/CI).
-    '''(^|/)\.env$''',
-    '''(^|/)\.env\.[^/]+$''',
-
-    # pnpm lockfile: contains registry integrity hashes and resolved URLs, not secrets. High
-    # false-positive source for entropy-based rules; dependency CVEs are covered by the
-    # `pnpm audit` (audit:cve) and Trivy jobs instead.
-    '''(^|/)pnpm-lock\.yaml$''',
-]
-
 # --- Value allowlist ------------------------------------------------------------------------
 # Regexes matched against the candidate secret value. Only obvious non-secret placeholders used
 # in committed example/fixture files (memory: demo-test-fixtures-on-test-db).

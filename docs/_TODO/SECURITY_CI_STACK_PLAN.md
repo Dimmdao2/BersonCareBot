@@ -1,4 +1,9 @@
 > STATUS (verified 2026-07-23, code-reconciled): see docs/\_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/CHECKPOINT_2026-07-23_STATE_AND_BACKEND_WORK_ORDER.md
+>
+> UPDATE 2026-07-31 (`#881`): broken static lane repaired locally. Gitleaks v8.30.1 full-history scan
+> (4,801 commits) and runtime negative self-test PASS; Semgrep managed+local ERROR scan PASS after triage.
+> Trivy action is upgraded and immutable-pinned, but its first live GitHub run is still required. ZAP remains
+> disabled until a safe TEST runner/firewall contract exists; PROD scanning is not authorized.
 
 # План: Security-стек в CI (Gitleaks · Semgrep · Trivy · OWASP ZAP)
 
@@ -13,7 +18,8 @@
   test-webapp-inprocess ×3 [только push в main], build-integrator, build-webapp, **audit** = `pnpm run audit`).
 - Есть composite-actions `./.github/actions/setup-pnpm` и `./.github/actions/cancel-on-failure`.
 - Триггеры: `push` в `main`/`development`, `pull_request`.
-- Сейчас security-тулинга (gitleaks/semgrep/trivy/zap) в репозитории **нет**.
+- Security workflows уже находятся в репозитории; статические jobs исправлены 2026-07-31, ZAP остаётся
+  выключенным scaffold до безопасного TEST-контура.
 - Прод-деплой — `deploy-prod.yml` (ручная кнопка на `main`).
 - Тестовый сервер `test.bersoncare.ru` **IP-locked на VPN** (память `bcb-test-env-and-redirect-passthrough`) — важно для ZAP (ниже).
 
@@ -39,10 +45,13 @@
 
 ### Этап 1 — Gitleaks (очень высокий приоритет)
 
-- [x] Новый job `secrets-scan` в `ci.yml` (PR + push): `gitleaks/gitleaks-action` или пинованный бинарь. (✓ .github/workflows/security.yml:24-49 job `gitleaks`, pinned binary v8.18.4, on: push[main]+pull_request | commit 2027f969)
+- [x] Новый job `secrets-scan` в `ci.yml`: Gitleaks v8.30.1, binary + обязательная SHA-256 проверка;
+      локальный full-history scan PASS 2026-07-31.
 - [x] Полноисторический скан хотя бы на push в `main` (не только diff) — прошлый инцидент был про содержимое `.env`. (✓ .github/workflows/security.yml:29-35 checkout `fetch-depth: 0` + `gitleaks git .` full-history | commit 2027f969)
-- [x] `.gitleaks.toml` для осознанных allowlist (тестовые фикстуры/демо-креды — см. память `demo-test-fixtures-on-test-db`), чтобы не было ложных фейлов. (✓ .gitleaks.toml (52 lines, path-based allowlist for gitignored `.env` family) | commit 2027f969)
-- [x] Проверить, что реальный секрет валит PR (негативный тест на заведомом фейковом токене в отдельной ветке). (✓ .github/workflows/security.yml job `gitleaks-selftest` plants a fake AWS-key-shaped dummy under `$RUNNER_TEMP` at runtime (never committed, outside the real checkout scan) and asserts `gitleaks detect` exits non-zero, failing the workflow if the guard doesn't fire | 2026-07-23)
+- [x] `.gitleaks.toml` + `.gitleaksignore`: blanket-исключения `.env*`/lockfile удалены; baseline содержит
+      только 28 exact historical fingerprints. Новое повторение получает другой commit fingerprint и валит CI.
+- [x] Runtime-only self-test создаёт никогда не выдававшееся GitHub-token-shaped значение из случайных байтов;
+      `gitleaks dir` обязан завершиться non-zero.
 - [x] fail-closed: находка high-confidence секрета = красный PR. (✓ .github/workflows/security.yml:39 `gitleaks git .` runs without `continue-on-error`, non-zero exit on finding = red build | commit 2027f969)
 
 ### Этап 2 — Semgrep
@@ -50,13 +59,17 @@
 - [x] Job `semgrep` (PR): `semgrep ci` с рулсетами `p/default`, `p/typescript`, `p/react`, `p/nodejs`, `p/secrets`. (✓ .github/workflows/security.yml:52-77 job `semgrep`, pinned image semgrep/semgrep:1.85.0, `--config .semgrep.yml --config p/default --config p/typescript --config p/react --config p/nodejs --config p/secrets` | commit 2027f969)
 - [x] `.semgrepignore` для генератов (`.next/`, `dist/`, `node_modules/`, снапшоты тестов). (✓ .semgrepignore (repo root) — node_modules/, .next/, dist/, build/, .turbo/, coverage/, \*.min.js, pnpm-lock.yaml, drizzle-migrations meta snapshots, test-fixtures dirs | 2026-07-23)
 - [x] Порог фейла: `ERROR`-severity валит PR; `WARNING` — аннотация, не блок (чтобы не заспамить на старте). (✓ .github/workflows/security.yml:71-72 `--severity ERROR --error` | commit 2027f969)
-- [ ] Прогнать разово по всему репо, разобрать первый шум, зафиксировать baseline-исключения осознанно (не глушить массово). (REMAINING: first live-CI run + noise triage not yet performed)
+- [x] Полный локальный scan Semgrep v1.164.0 по 6,124 tracked files: после удаления дублирующего noisy
+      hardcoded-secret правила и `shell:true` в четырёх constant-argv gates — 0 ERROR findings. Literal
+      secrets/credential URLs остаются ответственностью полного Gitleaks gate.
 
 ### Этап 3 — Trivy
 
-- [x] Job `trivy-fs` (PR, быстрый): `aquasecurity/trivy-action`, `scan-type: fs`, `scanners: vuln,misconfig,secret`, `severity: HIGH,CRITICAL`. (✓ .github/workflows/security.yml:80-105 job `trivy-fs`, `aquasecurity/trivy-action@0.28.0`, scan-type fs, scanners vuln,misconfig,secret, severity HIGH,CRITICAL, exit-code 1 | commit 2027f969)
+- [ ] Job `trivy-fs` исправлен на безопасный post-incident `trivy-action` v0.36.0, pinned exact SHA,
+      `scan-type: fs`, `scanners: vuln,misconfig,secret`, `severity: HIGH,CRITICAL`; остаётся первый live run.
 - [x] `.trivyignore` для принятых/неустранимых сейчас CVE (с комментарием-обоснованием и датой ревью). (✓ .trivyignore (14 lines) wired via `trivyignores: .trivyignore` at .github/workflows/security.yml:103 | commit 2027f969)
-- [x] Полный режим (`severity` без фильтра, + `--scanners` расширенный) — отдельный job/workflow перед релизом, не на каждый PR. (✓ .github/workflows/security-release.yml job `trivy-full`, triggers `workflow_dispatch` + `release: types: [published]` only (not push/PR), scanners vuln,misconfig,secret, no severity filter (all severities) report pass (exit-code 0, SARIF artifact) + separate CRITICAL-only fail-closed pass (exit-code 1), same pinned `aquasecurity/trivy-action@0.28.0` + `.trivyignore` | 2026-07-23)
+- [ ] Полный pre-release workflow исправлен на тот же immutable v0.36.0; all-severity report больше не
+      скрывает unfixed findings, CRITICAL pass остаётся fail-closed. Первый manual live run ещё не выполнен.
 - [x] Согласовать с существующим `pnpm run audit` (Trivy шире — деп-CVE + misconfig + secret; не дублировать смысл, а дополнять; при желании оставить только Trivy). (✓ resolved via new dedicated job — `package.json:93` `audit:cve`: `pnpm audit --audit-level=high`, run by `dependency-audit` job at .github/workflows/security.yml:107-115; existing `ci.yml` `audit` job left as-is for saas-regression, no overlap | commit 2027f969)
 
 ### Этап 4 — OWASP ZAP (DAST)
