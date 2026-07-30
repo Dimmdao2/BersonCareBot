@@ -34,6 +34,4 @@ if (
   );
 }
 
-console.log(
-  `check-phase4-force-cutover-sql: generated target artifact OK (${expectedTargets.length})`,
-);
+console.log('check-phase4-force-cutover-sql: generated target artifact OK');

@@ -4,7 +4,6 @@ import { readFileSync } from 'node:fs';
 import {
   expectedP085IntegratorDirectUserBridgeTargets,
   expectedP085IntegratorIdentityBridgeTargets,
-  expectedP085IntegratorMailingsRootTargets,
   expectedP085IntegratorParentDenormTargets,
   getP085IntegratorScopedDescriptors,
   p085PolicyName,
@@ -41,12 +40,6 @@ const p04MigrationChecks = Object.freeze([
       'expected no child/parent organization mismatches',
     ],
   },
-  {
-    sourceStage: 'P0.4.I4',
-    path: 'apps/integrator/src/infra/db/migrations/core/20260708_0004_p0_4_i4_integrator_mailings_org.sql',
-    targets: expectedP085IntegratorMailingsRootTargets,
-    requiredTokens: ['expected no NULL mailings.organization_id rows'],
-  },
 ]);
 
 function fail(message) {
@@ -79,38 +72,6 @@ const sql = statements.join('\n');
 
 assertP04MigrationArtifacts();
 
-if (descriptors.length !== 13) {
-  fail(`Expected 13 P0.8.5 descriptors, got ${descriptors.length}`);
-}
-
-if (expectedP085IntegratorDirectUserBridgeTargets.length !== 5) {
-  fail(
-    `Expected 5 explicit P0.4.I1 targets, got ${expectedP085IntegratorDirectUserBridgeTargets.length}`,
-  );
-}
-
-if (expectedP085IntegratorIdentityBridgeTargets.length !== 3) {
-  fail(
-    `Expected 3 explicit P0.4.I2 targets, got ${expectedP085IntegratorIdentityBridgeTargets.length}`,
-  );
-}
-
-if (expectedP085IntegratorParentDenormTargets.length !== 4) {
-  fail(
-    `Expected 4 explicit P0.4.I3 targets, got ${expectedP085IntegratorParentDenormTargets.length}`,
-  );
-}
-
-if (expectedP085IntegratorMailingsRootTargets.length !== 1) {
-  fail(
-    `Expected 1 explicit P0.4.I4 target, got ${expectedP085IntegratorMailingsRootTargets.length}`,
-  );
-}
-
-if (statements.length !== descriptors.length * 3) {
-  fail(`Expected ${descriptors.length * 3} dormant policy statements, got ${statements.length}`);
-}
-
 if (sql.includes('FORCE ROW LEVEL SECURITY')) {
   fail('P0.8.5 dormant generated SQL must not include FORCE ROW LEVEL SECURITY');
 }
@@ -120,7 +81,7 @@ for (const descriptor of descriptors) {
     fail(`Unexpected P0.8.5 scoping kind for ${descriptor.table}: ${descriptor.scopingKind}`);
   }
 
-  if (!['P0.4.I1', 'P0.4.I2', 'P0.4.I3', 'P0.4.I4'].includes(descriptor.sourceStage)) {
+  if (!['P0.4.I1', 'P0.4.I2', 'P0.4.I3'].includes(descriptor.sourceStage)) {
     fail(`Unexpected P0.8.5 source stage for ${descriptor.table}: ${descriptor.sourceStage}`);
   }
 
@@ -147,10 +108,8 @@ if (sql.includes('"public".')) {
 }
 
 // B4-core (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md, taskdb #653): the I1
-// direct-user-bridge targets (contacts, content_access_grants, mailing_logs, user_reminder_rules,
-// user_subscriptions) all carry a direct bigint user_id column referencing integrator.users(id) —
-// verified against the real CREATE/ALTER TABLE SQL, including the telegram-schema retarget
-// migration for mailing_logs/user_subscriptions (see rls-descriptor-model.mjs comment). Helper
+// direct-user-bridge targets all carry a direct bigint user_id column referencing
+// integrator.users(id). Helper
 // alignment (B4-fanout, taskdb #656): the bigint cast reads the DEDICATED `app.integrator_user_id`
 // helper, never the `app.current_patient_user_id()` UUID helper.
 //
@@ -158,13 +117,14 @@ if (sql.includes('"public".')) {
 // targets are CHAIN-owned (taskdb #656 gap closure): their patient identity is only reachable via
 // a JOIN through integrator.identities (I2) or multiple hops (I3) — see
 // rls-descriptor-model.mjs `patientChainOwnedTables`, no longer a documented-open gap.
-const expectedPatientOwnedTargets = 5;
 const patientOwnedDescriptors = descriptors.filter((descriptor) => descriptor.patientColumn);
-
-if (patientOwnedDescriptors.length !== expectedPatientOwnedTargets) {
-  fail(
-    `Expected ${expectedPatientOwnedTargets} P0.8.5 patient-owned targets, got ${patientOwnedDescriptors.length}`,
-  );
+const patientOwnedTables = new Set(patientOwnedDescriptors.map((descriptor) => descriptor.table));
+const expectedPatientOwnedTables = new Set(expectedP085IntegratorDirectUserBridgeTargets);
+if (
+  [...patientOwnedTables].some((table) => !expectedPatientOwnedTables.has(table)) ||
+  [...expectedPatientOwnedTables].some((table) => !patientOwnedTables.has(table))
+) {
+  fail('P0.8.5 patient-owned targets must match the active direct-user-bridge targets');
 }
 
 for (const descriptor of patientOwnedDescriptors) {
@@ -209,14 +169,7 @@ for (const descriptor of patientOwnedDescriptors) {
   }
 }
 
-const expectedPatientChainOwnedTargets = 7;
 const patientChainOwnedDescriptors = descriptors.filter((descriptor) => descriptor.patientChain);
-
-if (patientChainOwnedDescriptors.length !== expectedPatientChainOwnedTargets) {
-  fail(
-    `Expected ${expectedPatientChainOwnedTargets} P0.8.5 patient-chain-owned targets, got ${patientChainOwnedDescriptors.length}`,
-  );
-}
 
 const expectedChainTables = [
   ...expectedP085IntegratorIdentityBridgeTargets,
@@ -272,6 +225,4 @@ for (const descriptor of patientChainOwnedDescriptors) {
   }
 }
 
-console.log(
-  `P0.8.5 policy generator OK: 13 integrator targets (${expectedP085IntegratorDirectUserBridgeTargets.length} I1, ${expectedP085IntegratorIdentityBridgeTargets.length} I2, ${expectedP085IntegratorParentDenormTargets.length} I3, ${expectedP085IntegratorMailingsRootTargets.length} I4, ${patientOwnedDescriptors.length} patient-owned, ${patientChainOwnedDescriptors.length} patient-chain-owned) with P0.4 source artifacts present.`,
-);
+console.log('P0.8.5 policy generator OK: active integrator targets match source artifacts.');

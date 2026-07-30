@@ -62,24 +62,6 @@ CREATE POLICY "saas_org_dormant_p0_8_5" ON "integrator"."conversations" FOR ALL 
 CREATE POLICY "saas_org_dormant_p0_8_5" ON "integrator"."conversations" FOR ALL USING (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_integrator_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM "integrator"."identities" AS "b4f_conversations_identity" WHERE "b4f_conversations_identity"."id" = "user_identity_id" AND "b4f_conversations_identity"."user_id" = app.current_integrator_user_id() ))))) WITH CHECK (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_integrator_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM "integrator"."identities" AS "b4f_conversations_identity" WHERE "b4f_conversations_identity"."id" = "user_identity_id" AND "b4f_conversations_identity"."user_id" = app.current_integrator_user_id() )))));
 \endif
 
--- integrator.mailing_logs (saas_org_dormant_p0_8_5)
-ALTER TABLE "integrator"."mailing_logs" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "saas_org_dormant_p0_8_5" ON "integrator"."mailing_logs";
-\if :phase4_enforce_locked_context
-CREATE POLICY "saas_org_dormant_p0_8_5" ON "integrator"."mailing_logs" FOR ALL USING (((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_integrator_user_id() IS NOT NULL AND "user_id" = app.current_integrator_user_id()))) WITH CHECK (((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_integrator_user_id() IS NOT NULL AND "user_id" = app.current_integrator_user_id())));
-\else
-CREATE POLICY "saas_org_dormant_p0_8_5" ON "integrator"."mailing_logs" FOR ALL USING (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_integrator_user_id() IS NOT NULL AND "user_id" = app.current_integrator_user_id())))) WITH CHECK (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_integrator_user_id() IS NOT NULL AND "user_id" = app.current_integrator_user_id()))));
-\endif
-
--- integrator.mailings (saas_org_dormant_p0_8_5)
-ALTER TABLE "integrator"."mailings" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "saas_org_dormant_p0_8_5" ON "integrator"."mailings";
-\if :phase4_enforce_locked_context
-CREATE POLICY "saas_org_dormant_p0_8_5" ON "integrator"."mailings" FOR ALL USING ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()))) WITH CHECK ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())));
-\else
-CREATE POLICY "saas_org_dormant_p0_8_5" ON "integrator"."mailings" FOR ALL USING (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())))) WITH CHECK (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()))));
-\endif
-
 -- integrator.message_drafts (saas_org_dormant_p0_8_5)
 ALTER TABLE "integrator"."message_drafts" ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "saas_org_dormant_p0_8_5" ON "integrator"."message_drafts";
@@ -132,15 +114,6 @@ DROP POLICY IF EXISTS "saas_org_dormant_p0_8_5" ON "integrator"."user_reminder_r
 CREATE POLICY "saas_org_dormant_p0_8_5" ON "integrator"."user_reminder_rules" FOR ALL USING (((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_integrator_user_id() IS NOT NULL AND "user_id" = app.current_integrator_user_id()))) WITH CHECK (((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_integrator_user_id() IS NOT NULL AND "user_id" = app.current_integrator_user_id())));
 \else
 CREATE POLICY "saas_org_dormant_p0_8_5" ON "integrator"."user_reminder_rules" FOR ALL USING (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_integrator_user_id() IS NOT NULL AND "user_id" = app.current_integrator_user_id())))) WITH CHECK (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_integrator_user_id() IS NOT NULL AND "user_id" = app.current_integrator_user_id()))));
-\endif
-
--- integrator.user_subscriptions (saas_org_dormant_p0_8_5)
-ALTER TABLE "integrator"."user_subscriptions" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "saas_org_dormant_p0_8_5" ON "integrator"."user_subscriptions";
-\if :phase4_enforce_locked_context
-CREATE POLICY "saas_org_dormant_p0_8_5" ON "integrator"."user_subscriptions" FOR ALL USING (((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_integrator_user_id() IS NOT NULL AND "user_id" = app.current_integrator_user_id()))) WITH CHECK (((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_integrator_user_id() IS NOT NULL AND "user_id" = app.current_integrator_user_id())));
-\else
-CREATE POLICY "saas_org_dormant_p0_8_5" ON "integrator"."user_subscriptions" FOR ALL USING (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_integrator_user_id() IS NOT NULL AND "user_id" = app.current_integrator_user_id())))) WITH CHECK (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_integrator_user_id() IS NOT NULL AND "user_id" = app.current_integrator_user_id()))));
 \endif
 
 -- public.admin_audit_log (saas_org_dormant_p0_8_3)
@@ -838,15 +811,6 @@ CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."lfk_sessions" FOR ALL USING
 CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."lfk_sessions" FOR ALL USING (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND "user_id" = app.current_patient_user_id())))) WITH CHECK (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND "user_id" = app.current_patient_user_id()))));
 \endif
 
--- public.mailing_logs_webapp (saas_org_dormant_p0_8_3)
-ALTER TABLE "public"."mailing_logs_webapp" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "saas_org_dormant_p0_8_3" ON "public"."mailing_logs_webapp";
-\if :phase4_enforce_locked_context
-CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."mailing_logs_webapp" FOR ALL USING (((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_integrator_user_id() IS NOT NULL AND "integrator_user_id" = app.current_integrator_user_id()))) WITH CHECK (((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_integrator_user_id() IS NOT NULL AND "integrator_user_id" = app.current_integrator_user_id())));
-\else
-CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."mailing_logs_webapp" FOR ALL USING (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_integrator_user_id() IS NOT NULL AND "integrator_user_id" = app.current_integrator_user_id())))) WITH CHECK (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_integrator_user_id() IS NOT NULL AND "integrator_user_id" = app.current_integrator_user_id()))));
-\endif
-
 -- public.material_ratings (saas_org_dormant_p0_8_3)
 ALTER TABLE "public"."material_ratings" ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "saas_org_dormant_p0_8_3" ON "public"."material_ratings";
@@ -1511,15 +1475,6 @@ DROP POLICY IF EXISTS "saas_bootstrap_hybrid_p0_8_6" ON "public"."user_phone_his
 CREATE POLICY "saas_bootstrap_hybrid_p0_8_6" ON "public"."user_phone_history" FOR ALL USING (((app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()) OR ("organization_id" IS NULL AND app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()))) WITH CHECK (((app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()) OR ("organization_id" IS NULL AND app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff())));
 \else
 CREATE POLICY "saas_bootstrap_hybrid_p0_8_6" ON "public"."user_phone_history" FOR ALL USING (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()) OR ("organization_id" IS NULL AND app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff())))) WITH CHECK (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()) OR ("organization_id" IS NULL AND app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()))));
-\endif
-
--- public.user_subscriptions_webapp (saas_org_dormant_p0_8_3)
-ALTER TABLE "public"."user_subscriptions_webapp" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "saas_org_dormant_p0_8_3" ON "public"."user_subscriptions_webapp";
-\if :phase4_enforce_locked_context
-CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."user_subscriptions_webapp" FOR ALL USING (((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_integrator_user_id() IS NOT NULL AND "integrator_user_id" = app.current_integrator_user_id()))) WITH CHECK (((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_integrator_user_id() IS NOT NULL AND "integrator_user_id" = app.current_integrator_user_id())));
-\else
-CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."user_subscriptions_webapp" FOR ALL USING (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_integrator_user_id() IS NOT NULL AND "integrator_user_id" = app.current_integrator_user_id())))) WITH CHECK (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_integrator_user_id() IS NOT NULL AND "integrator_user_id" = app.current_integrator_user_id()))));
 \endif
 
 -- public.webapp_reminder_occurrences (saas_org_dormant_p0_8_4)

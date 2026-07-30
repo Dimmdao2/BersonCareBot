@@ -1,10 +1,5 @@
 import { quoteDayKeyUtc, quoteIndexForDaySeed } from '@/modules/patient-home/patientHomeQuoteUtils';
-import type {
-  HomeQuote,
-  PatientHomeBanner,
-  PatientHomeLegacyContentPort,
-  PatientHomeMailingRow,
-} from '@/modules/patient-home/patientHomeLegacyContentPort';
+import type { PatientHomeLegacyContentPort } from '@/modules/patient-home/patientHomeLegacyContentPort';
 
 export type InMemoryPatientHomeLegacyQuote = {
   id: string;
@@ -16,25 +11,15 @@ export type InMemoryPatientHomeLegacyQuote = {
 };
 
 export type InMemoryPatientHomeLegacyContentOpts = {
-  banner?: PatientHomeBanner | null;
-  mailings?: PatientHomeMailingRow[];
   quotes?: InMemoryPatientHomeLegacyQuote[];
 };
 
 export function createInMemoryPatientHomeLegacyContentPort(
   opts: InMemoryPatientHomeLegacyContentOpts = {},
 ): PatientHomeLegacyContentPort {
-  const banner = opts.banner ?? null;
-  const mailings = opts.mailings ?? [];
   const quotes = opts.quotes ?? [];
 
   return {
-    async getPatientHomeBannerTopic() {
-      return banner;
-    },
-    async listRecentMailingLogsForPlatformUser() {
-      return mailings;
-    },
     async getQuoteForDay(daySeed: string, referenceDate: Date = new Date()) {
       const active = quotes.filter((q) => q.isActive !== false && q.archivedAt == null);
       const sorted = [...active].sort((a, b) => {

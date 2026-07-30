@@ -60,8 +60,7 @@
 
 ### 1.6 Mailings / subscriptions
 
-- `mailing_topics`, `mailings`, `mailing_logs`
-- `user_subscriptions` — **frozen legacy** (триггер запрета записи; reconcile/read)
+Таблицы удалены migration-forward в Track D8: exact callgraph не нашёл live producer.
 
 ### 1.7 Configuration
 
@@ -86,7 +85,7 @@
 
 Те же **имена**, что в `integrator`, остаются в `public` для backfill, reconcile и исторического кода. **Не** считать их product owner для UI/API webapp:
 
-`users`, `identities`, `contacts`, `telegram_state`, `telegram_users`, `conversations`, `conversation_messages`, `user_questions`, `question_messages`, `message_drafts`, `user_reminder_rules`, `user_reminder_occurrences`, `user_reminder_delivery_logs`, `content_access_grants`, `mailing_topics`, `mailings`, `mailing_logs`, `user_subscriptions`, `rubitime_records`, `rubitime_branches`, `rubitime_cooperators`, `rubitime_services`, `rubitime_events`, `rubitime_booking_profiles`, `message_retry_jobs`, `rubitime_api_throttle`, `booking_calendar_map`, `delivery_attempt_logs`, `projection_outbox`, `idempotency_keys`, `integration_data_quality_incidents`, `schema_migrations`.
+`users`, `identities`, `contacts`, `telegram_state`, `telegram_users`, `conversations`, `conversation_messages`, `user_questions`, `question_messages`, `message_drafts`, `user_reminder_rules`, `user_reminder_occurrences`, `user_reminder_delivery_logs`, `content_access_grants`, `rubitime_records`, `rubitime_branches`, `rubitime_cooperators`, `rubitime_services`, `rubitime_events`, `rubitime_booking_profiles`, `message_retry_jobs`, `rubitime_api_throttle`, `booking_calendar_map`, `delivery_attempt_logs`, `projection_outbox`, `idempotency_keys`, `integration_data_quality_incidents`, `schema_migrations`.
 
 Канонические webapp-аналоги — § 2.1–2.7, `platform_users`, `support_*`, `reminder_*`, `appointment_records`, `be_*` и т.д.
 
@@ -172,7 +171,7 @@
 
 ### 2.7 Subscription / mailing (проекция)
 
-- `mailing_topics_webapp`, `user_subscriptions_webapp`, `mailing_logs_webapp`
+Проекционные таблицы удалены migration-forward в Track D8 вместе с dead event/adapter surface.
 
 ### 2.8 CMS: контент и медиа
 
@@ -292,7 +291,7 @@
 
 ## Приложение A. Полный реестр таблиц
 
-Сверено с `pg_tables` на `bcb_webapp_dev`, 2026-06-10.
+Исторический census, сверенный с `pg_tables` на `bcb_webapp_dev`, 2026-06-10. Он не отражает последующие migration-forward retirement этапы, включая D8.
 
 ### `integrator` (33)
 

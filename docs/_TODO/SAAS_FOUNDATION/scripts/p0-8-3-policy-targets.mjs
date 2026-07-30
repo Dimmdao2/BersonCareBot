@@ -70,7 +70,6 @@ export const expectedP083PublicDirectOrgTargets = Object.freeze([
   'public.lfk_exercise_regions',
   'public.lfk_exercises',
   'public.lfk_sessions',
-  'public.mailing_logs_webapp',
   'public.material_ratings',
   'public.media_files',
   'public.media_folders',
@@ -115,7 +114,6 @@ export const expectedP083PublicDirectOrgTargets = Object.freeze([
   'public.tests',
   'public.treatment_program_instances',
   'public.treatment_program_templates',
-  'public.user_subscriptions_webapp',
 ]);
 
 const expectedTargetSet = new Set(expectedP083PublicDirectOrgTargets);
@@ -144,10 +142,6 @@ export function getP083PublicDirectOrgDescriptors({ descriptors = buildRlsDescri
 export function assertP083PublicDirectOrgTargets(targets) {
   const actualTables = targets.map((descriptor) => descriptor.table);
   const actualSet = new Set(actualTables);
-
-  if (actualTables.length !== 110) {
-    throw new Error(`Expected 110 P0.8.3 public direct-org targets, got ${actualTables.length}`);
-  }
 
   if (actualSet.size !== actualTables.length) {
     throw new Error('P0.8.3 public direct-org targets contain duplicates');

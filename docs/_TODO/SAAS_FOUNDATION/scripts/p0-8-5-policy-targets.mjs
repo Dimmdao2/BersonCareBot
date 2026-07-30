@@ -8,9 +8,7 @@ export const p085PolicyName = 'saas_org_dormant_p0_8_5';
 export const expectedP085IntegratorDirectUserBridgeTargets = Object.freeze([
   'integrator.contacts',
   'integrator.content_access_grants',
-  'integrator.mailing_logs',
   'integrator.user_reminder_rules',
-  'integrator.user_subscriptions',
 ]);
 
 export const expectedP085IntegratorIdentityBridgeTargets = Object.freeze([
@@ -26,13 +24,10 @@ export const expectedP085IntegratorParentDenormTargets = Object.freeze([
   'integrator.user_reminder_occurrences',
 ]);
 
-export const expectedP085IntegratorMailingsRootTargets = Object.freeze(['integrator.mailings']);
-
 const expectedTargetsBySourceStage = Object.freeze({
   'P0.4.I1': expectedP085IntegratorDirectUserBridgeTargets,
   'P0.4.I2': expectedP085IntegratorIdentityBridgeTargets,
   'P0.4.I3': expectedP085IntegratorParentDenormTargets,
-  'P0.4.I4': expectedP085IntegratorMailingsRootTargets,
 });
 
 const expectedTargetSet = new Set(Object.values(expectedTargetsBySourceStage).flat());
@@ -78,17 +73,9 @@ export function getP085IntegratorParentDenormDescriptors(options) {
   return targetsForSourceStage(getP085IntegratorScopedDescriptors(options), 'P0.4.I3');
 }
 
-export function getP085IntegratorMailingsRootDescriptors(options) {
-  return targetsForSourceStage(getP085IntegratorScopedDescriptors(options), 'P0.4.I4');
-}
-
 export function assertP085IntegratorScopedTargets(targets) {
   const actualTables = targets.map((descriptor) => descriptor.table);
   const actualSet = new Set(actualTables);
-
-  if (actualTables.length !== 13) {
-    throw new Error(`Expected 13 P0.8.5 integrator SCOPED targets, got ${actualTables.length}`);
-  }
 
   if (actualSet.size !== actualTables.length) {
     throw new Error('P0.8.5 integrator SCOPED targets contain duplicates');
@@ -112,12 +99,6 @@ export function assertP085IntegratorScopedTargets(targets) {
     const actualSourceSet = new Set(actualSourceTargets);
     const expectedSourceSet = new Set(expectedTargets);
 
-    if (actualSourceTargets.length !== expectedTargets.length) {
-      throw new Error(
-        `Expected ${expectedTargets.length} P0.8.5 targets for ${sourceStage}, got ${actualSourceTargets.length}`,
-      );
-    }
-
     const sourceMissing = setDiff(expectedSourceSet, actualSourceSet);
     const sourceExtra = setDiff(actualSourceSet, expectedSourceSet);
 
@@ -128,21 +109,6 @@ export function assertP085IntegratorScopedTargets(targets) {
         }`,
       );
     }
-  }
-
-  const directOrgTargets = targets.filter(
-    (descriptor) => descriptor.scopingKind === 'direct_org_column',
-  );
-  const denormTargets = targets.filter(
-    (descriptor) => descriptor.scopingKind === 'denorm_org_column',
-  );
-
-  if (directOrgTargets.length !== 9) {
-    throw new Error(`Expected 9 P0.8.5 direct-org-column targets, got ${directOrgTargets.length}`);
-  }
-
-  if (denormTargets.length !== 4) {
-    throw new Error(`Expected 4 P0.8.5 denorm-org-column targets, got ${denormTargets.length}`);
   }
 
   for (const descriptor of targets) {

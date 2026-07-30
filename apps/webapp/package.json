@@ -30,8 +30,6 @@
     "reconcile-communication-domain": "node scripts/reconcile-communication-domain.mjs",
     "backfill-reminders-domain": "node scripts/backfill-reminders-domain.mjs",
     "reconcile-reminders-domain": "node scripts/reconcile-reminders-domain.mjs",
-    "backfill-subscription-mailing-domain": "node scripts/backfill-subscription-mailing-domain.mjs",
-    "reconcile-subscription-mailing-domain": "node scripts/reconcile-subscription-mailing-domain.mjs",
     "seed-content": "node scripts/seed-content-pages.mjs",
     "backfill-patient-bookings-v2": "tsx scripts/backfill-patient-bookings-v2.ts",
     "backfill-canonical-from-legacy-appointments": "tsx scripts/backfill-canonical-from-legacy-appointments.ts",

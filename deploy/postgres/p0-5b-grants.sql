@@ -8,10 +8,10 @@
 -- table got SELECT-only vs a write grant, and which BOOTSTRAP tables were deliberately excluded).
 --
 -- Purpose:
---   - app_staff: the reviewed P0.5b runtime DML surface -- 212 tables (SCOPED +
+--   - app_staff: the reviewed P0.5b runtime DML surface (SCOPED +
 --     BOOTSTRAP + INFRA + LEGACY + TELEMETRY, excluding migration bookkeeping and post-P0.5b tables
 --     whose dedicated overlays own their grants).
---   - app_patient: ONLY the patient-facing surface -- 109 tables (the patient-owned
+--   - app_patient: ONLY the patient-facing surface (the patient-owned
 --     SCOPED set + a small confirmed BOOTSTRAP identity/settings subset). SELECT by default;
 --     INSERT/UPDATE/DELETE added only where a patient-authenticated route/repo confirms the write.
 --
@@ -63,9 +63,6 @@ VALUES
   ('integrator', 'idempotency_keys'),
   ('integrator', 'identities'),
   ('integrator', 'integration_data_quality_incidents'),
-  ('integrator', 'mailing_logs'),
-  ('integrator', 'mailing_topics'),
-  ('integrator', 'mailings'),
   ('integrator', 'message_drafts'),
   ('integrator', 'message_retry_jobs'),
   ('integrator', 'projection_outbox'),
@@ -76,7 +73,6 @@ VALUES
   ('integrator', 'user_reminder_delivery_logs'),
   ('integrator', 'user_reminder_occurrences'),
   ('integrator', 'user_reminder_rules'),
-  ('integrator', 'user_subscriptions'),
   ('integrator', 'users'),
   ('public', 'admin_audit_log'),
   ('public', 'appointment_records'),
@@ -173,8 +169,6 @@ VALUES
   ('public', 'lfk_exercises'),
   ('public', 'lfk_sessions'),
   ('public', 'login_tokens'),
-  ('public', 'mailing_logs_webapp'),
-  ('public', 'mailing_topics_webapp'),
   ('public', 'material_ratings'),
   ('public', 'media_files'),
   ('public', 'media_folders'),
@@ -264,7 +258,6 @@ VALUES
   ('public', 'user_password_credentials'),
   ('public', 'user_phone_history'),
   ('public', 'user_pins'),
-  ('public', 'user_subscriptions_webapp'),
   ('public', 'user_web_push_subscriptions'),
   ('public', 'webapp_reminder_occurrences');
 
@@ -281,14 +274,12 @@ VALUES
   ('integrator', 'content_access_grants', 'SELECT'),
   ('integrator', 'conversation_messages', 'SELECT'),
   ('integrator', 'conversations', 'SELECT'),
-  ('integrator', 'mailing_logs', 'SELECT'),
   ('integrator', 'message_drafts', 'SELECT'),
   ('integrator', 'question_messages', 'SELECT'),
   ('integrator', 'user_questions', 'SELECT'),
   ('integrator', 'user_reminder_delivery_logs', 'SELECT'),
   ('integrator', 'user_reminder_occurrences', 'SELECT'),
   ('integrator', 'user_reminder_rules', 'SELECT'),
-  ('integrator', 'user_subscriptions', 'SELECT'),
   ('public', 'be_appointment_cancellations', 'SELECT, INSERT'),
   ('public', 'be_appointment_events', 'SELECT, INSERT'),
   ('public', 'be_appointment_history_events', 'SELECT, INSERT'),
@@ -326,7 +317,6 @@ VALUES
   ('public', 'lfk_complex_exercises', 'SELECT'),
   ('public', 'lfk_complexes', 'SELECT'),
   ('public', 'lfk_sessions', 'SELECT, INSERT, UPDATE'),
-  ('public', 'mailing_logs_webapp', 'SELECT'),
   ('public', 'material_ratings', 'SELECT, INSERT, UPDATE'),
   ('public', 'media_files', 'SELECT'),
   ('public', 'media_folders', 'SELECT'),
@@ -383,7 +373,6 @@ VALUES
   ('public', 'user_oauth_bindings', 'SELECT'),
   ('public', 'user_phone_history', 'SELECT'),
   ('public', 'user_pins', 'SELECT, INSERT'),
-  ('public', 'user_subscriptions_webapp', 'SELECT'),
   ('public', 'user_web_push_subscriptions', 'SELECT, INSERT, UPDATE, DELETE'),
   ('public', 'webapp_reminder_occurrences', 'SELECT');
 
@@ -582,5 +571,5 @@ SELECT (NOT pg_has_role('app_patient', 'app_staff', 'MEMBER'))::int AS p0_5b_gra
 SELECT 1 / 0 AS p0_5b_grants_abort;
 \endif
 
-\echo 'P0.5b grants UP complete: app_staff 212 tables, app_patient 109 tables.'
+\echo 'P0.5b grants UP complete.'
 \endif

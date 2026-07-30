@@ -319,9 +319,6 @@ const patientOwnedColumns = new Map([
   // column at all) — verified against apps/webapp/migrations/012_subscription_mailing.sql.
   // castType: "bigint" reads the DEDICATED integrator identity GUC `app.integrator_user_id`
   // (P0.13/T0.4 convention — see smoke-p0-13-db-isolation.mjs), never `app.patient_user_id`.
-  ['public.mailing_logs_webapp', { column: 'integrator_user_id', castType: 'bigint' }],
-  ['public.user_subscriptions_webapp', { column: 'integrator_user_id', castType: 'bigint' }],
-
   // public.* denorm_org_column (P0.8.4) with a direct patient column already on the child row
   ['public.broadcast_audit_recipients', { column: 'platform_user_id' }],
   ['public.notification_delivery_attempts', { column: 'user_id' }],
@@ -354,19 +351,16 @@ const patientOwnedColumns = new Map([
 
   // integrator.* direct_org_column (P0.8.5), patient identity = integrator.users.id (bigint),
   // read from the dedicated `app.integrator_user_id` GUC (castType: "bigint" — see the note above
-  // public.mailing_logs_webapp). contacts/content_access_grants/user_reminder_rules verified via
+  // integrator identity tables). contacts/content_access_grants/user_reminder_rules verified via
   // apps/integrator/src/infra/db/migrations/core/20260306_0014_create_contacts.sql and
   // 20260311_0002_create_user_reminders.sql (user_id bigint REFERENCES users(id)). mailing_logs
   // and user_subscriptions originally referenced the legacy telegram_users(id) space, but
   // apps/integrator/src/integrations/telegram/db/migrations/20260306_0010_detach_telegram_users_refs.sql
   // rewrites their user_id values through integrator.identities and re-points the FK to
-  // users(id) — same bigint identity space as the other three, confirmed by reading that
-  // migration's UPDATE/ADD CONSTRAINT statements (not just the original CREATE TABLE).
+  // users(id).
   ['integrator.contacts', { column: 'user_id', castType: 'bigint' }],
   ['integrator.content_access_grants', { column: 'user_id', castType: 'bigint' }],
-  ['integrator.mailing_logs', { column: 'user_id', castType: 'bigint' }],
   ['integrator.user_reminder_rules', { column: 'user_id', castType: 'bigint' }],
-  ['integrator.user_subscriptions', { column: 'user_id', castType: 'bigint' }],
 
   // B4-core-3 census follow-up (docs/_TODO/SAAS_FOUNDATION/LOG.md, taskdb #658): 4 more
   // public.* direct_org_column tables with a direct `user_id` column referencing

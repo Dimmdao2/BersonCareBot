@@ -55,6 +55,8 @@ const CREATE_TABLE_RE =
   /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:"?[a-zA-Z0-9_]+"?\.)?"?([a-zA-Z0-9_]+)"?/gi;
 const DROP_TABLE_RE =
   /DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:"?[a-zA-Z0-9_]+"?\.)?"?([a-zA-Z0-9_]+)"?/gi;
+const QUALIFIED_DROP_TABLE_RE =
+  /DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?"?([a-zA-Z0-9_]+)"?\."?([a-zA-Z0-9_]+)"?/gi;
 const RENAME_TABLE_RE =
   /ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:"?[a-zA-Z0-9_]+"?\.)?"?([a-zA-Z0-9_]+)"?\s+RENAME\s+TO\s+(?:"?[a-zA-Z0-9_]+"?\.)?"?([a-zA-Z0-9_]+)"?/gi;
 
@@ -205,6 +207,22 @@ function readMigrationCreatedTables(dirFiles) {
   return tables;
 }
 
+function readQualifiedDrops(files, schema) {
+  const tables = new Set();
+
+  for (const file of files) {
+    const content = stripSqlLineComments(readFileSync(file, 'utf8'));
+    const regex = new RegExp(QUALIFIED_DROP_TABLE_RE.source, QUALIFIED_DROP_TABLE_RE.flags);
+    let match;
+
+    while ((match = regex.exec(content)) !== null) {
+      if (match[1] === schema) tables.add(match[2]);
+    }
+  }
+
+  return tables;
+}
+
 /**
  * Returns the sorted, schema-qualified list of base tables that actually
  * exist per the repo's own schema declarations and migration history
@@ -224,6 +242,12 @@ export function readActualBaseTables({ repoRoot = process.cwd() } = {}) {
 
   const integratorMigrationFiles = discoverIntegratorMigrationFiles(repoRoot);
   const integratorTables = readMigrationCreatedTables(integratorMigrationFiles);
+  // A later webapp migration may retire an explicitly qualified integrator table.
+  // Account for that cross-runner DROP instead of resurrecting the table merely because
+  // its historical CREATE remains in the integrator migration ledger.
+  for (const table of readQualifiedDrops(webappMigrationFiles, 'integrator')) {
+    integratorTables.delete(table);
+  }
 
   // Migrations are authoritative for schema placement: a table created by an
   // integrator migration is `integrator.<table>` even though it is also
