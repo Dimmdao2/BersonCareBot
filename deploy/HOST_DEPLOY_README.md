@@ -756,7 +756,9 @@ Settings-запись через `updateSetting` может менять его;
 code-only миграция не может незаметно вернуть состояние migration 0177 NO FORCE. После рестарта health/nginx
 общая closure фиксирует и перечитывает реальное E1-покрытие всех шести process
 families через отдельный diagnostic login. Активный unexplained signal или отсутствие exact fresh complete coverage
-останавливает deploy до AWG/DONE; synthetic cleanup после runtime-smoke не запускается и реальные события не удаляются.
+останавливает deploy; synthetic cleanup после runtime-smoke не запускается и реальные события не удаляются.
+Состояние `awg-quick@awg0` не является TEST deploy-гейтом: это отдельный PROD-relay dependency на том же хосте,
+который TEST deploy не запускает, не останавливает и не использует как критерий готовности TEST.
 Для SaaS fresh-dump rehearsal канон — только отдельный разрушительный entrypoint. Он не является вариантом
 обычного деплоя и fail-closed без явного подтверждения и hash-bound owner inputs:
 

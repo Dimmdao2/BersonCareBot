@@ -1239,6 +1239,16 @@ WITH required(tbl, priv) AS (
     -- predicate and updates only that credentials row. Runtime callers retain no direct table grant.
     ('public.user_password_credentials', 'SELECT'),
     ('public.user_password_credentials', 'UPDATE'),
+    -- 0274 atomic password admission: app_owner-owned accessors serialize password proofs and
+    -- single-use ALTCHA challenges. Runtime roles retain no direct access to either state table.
+    ('public.password_login_identifier_protection', 'SELECT'),
+    ('public.password_login_identifier_protection', 'INSERT'),
+    ('public.password_login_identifier_protection', 'UPDATE'),
+    ('public.password_login_identifier_protection', 'DELETE'),
+    ('public.password_altcha_challenges', 'SELECT'),
+    ('public.password_altcha_challenges', 'INSERT'),
+    ('public.password_altcha_challenges', 'UPDATE'),
+    ('public.password_altcha_challenges', 'DELETE'),
     -- 0258 bootstrap auth table accessors: the NOINHERIT base login gets only EXECUTE on 22 exact
     -- operations. app_owner needs the following base privileges; no runtime role gets these table grants.
     ('public.user_pins', 'SELECT'),
@@ -1469,7 +1479,10 @@ SELECT has_column_privilege('app_owner', 'public.be_organizations', 'updated_at'
   # app.read_org_enforced_quota_usage(uuid), a count-only seam over courses, memberships and
   # organization_member_invites. The reviewed app_owner SELECT grants are pinned above; the
   # platform role receives EXECUTE only and cannot read course content, invite email or token_hash.
-  local expected_secdef_count=110
+  # 110 -> 115 (2026-07-30, #1065): migration 0274 adds the atomic password-login admission and
+  # ALTCHA accessors and moves the password self-service writers behind app_owner. Their exact
+  # protection-table DML grants are pinned above; app_patient/app_staff retain no direct table ACL.
+  local expected_secdef_count=115
   local actual_secdef_count
   actual_secdef_count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
 SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' AND p.prosecdef;
@@ -1482,7 +1495,7 @@ SELECT count(*) FROM pg_proc p WHERE pg_get_userbyid(p.proowner) = 'app_owner' A
     exit 1
   }
 
-  echo "   app_owner SECURITY DEFINER table-grant completeness: OK (65 required table grants + 2 column grants present, $actual_secdef_count/$expected_secdef_count secdef functions pinned)"
+  echo "   app_owner SECURITY DEFINER table-grant completeness: OK (73 required table grants + 2 column grants present, $actual_secdef_count/$expected_secdef_count secdef functions pinned)"
 }
 
 assert_c5a_clinical_test_measure_kinds_closure(){
@@ -2183,11 +2196,6 @@ assert_test_health_ok(){
   echo "   health: OK ($health_response)"
 }
 
-assert_awg_relay_active(){
-  systemctl is-active --quiet awg-quick@awg0 || { echo "FATAL: awg-quick@awg0 is not active" >&2; exit 1; }
-  echo "   awg-quick@awg0: OK (active)"
-}
-
 # Run a post-health closure gate WITHOUT letting it take TEST down.
 #
 # Why this exists (owner outage, 2026-07-26): the owner ran an ordinary code-only deploy, one of the
@@ -2334,8 +2342,6 @@ run_strict_post_migration_closure(){
   run_closure_gate "DB-owner + telemetry-owner SECURITY DEFINER anon-reachable surface" assert_db_owner_and_telemetry_owner_secdef_anon_surface_pinned
   log "E1 post-runtime coverage/read gate"
   run_closure_gate "E1 post-runtime coverage/read gate" run_e1_post_runtime_coverage_gate
-  run_closure_gate "awg relay active" assert_awg_relay_active
-
   if [ "${#CLOSURE_GATE_FAILURES[@]}" -gt 0 ]; then
     echo "FATAL: ${#CLOSURE_GATE_FAILURES[@]} post-health closure gate(s) RED:" >&2
     printf '  - %s\n' "${CLOSURE_GATE_FAILURES[@]}" >&2
