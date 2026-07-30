@@ -1,7 +1,5 @@
 /**
- * Track D — D5: reminder rules direct-public write (identity/org-resolution precedent: D1's
- * `writeIdentityAndPreferencesDirect.ts` candidate resolver, D2's `writeDiaryLfkDirect.ts` exact-org
- * resolver — both reused unchanged here).
+ * Track D — D5: reminder rules direct-public write.
  *
  * ONE bounded integrator transaction writes directly to `public.reminder_rules`, replacing the
  * `reminder.rule.upserted` HTTP projection fanout (`writePort.ts`'s `reminders.rule.upsert` case →
@@ -9,7 +7,7 @@
  * `reminderProjection.upsertRuleFromProjection`, `apps/webapp/src/infra/repos/pgReminderProjection.ts`).
  *
  * TWO gaps found and fixed while consolidating (same "found + fixed a latent bug in the retired path"
- * pattern as D1/D2/D3):
+ * pattern as the neighboring direct-public writers):
  *
  * 1. FIELD-COMPLETENESS GAP. The retired projection's payload (`buildReminderRuleUpsertKeyPayload`,
  *    `writePort.ts`) only ever carried the narrow fingerprint field set (id/user/category/enabled/
@@ -24,15 +22,14 @@
  *    projection-consumer-created row is permanently org-NULL, invisible to any `app.is_staff()` +
  *    `current_org_id()` org-scoped read (same class of bug D3 found for `support_conversations`: "none
  *    of the retired HTTP consumers ever wrote organization_id"). This direct write resolves the platform
- *    user's exactly-one active `org_enrollments` row (D2's `resolveExactActiveOrganizationId`, reused
- *    unchanged) and sets it.
+ *    user's exactly-one active `org_enrollments` row (`resolveExactActiveOrganizationId`) and sets it.
  *
- * DURABILITY / FAIL-CLOSED PHILOSOPHY — deliberately DIFFERENT from D2's diary/lfk and closer to D3's
+ * DURABILITY / FAIL-CLOSED PHILOSOPHY — aligned with D3's
  * `conversation.open`: `reminder_rules` has NEVER had an ownership/ambiguity fail-closed gate (the retired
  * consumer wrote the row unconditionally, even with a NULL-resolved platform user — `platform_user_id` is
  * nullable on this table and `resolvePlatformUserId` returning null there was tolerated, not fatal).
- * Introducing a NEW hard "no write" case here (unlike D2's diary/lfk, which legitimately requires an
- * already-onboarded person) would be a behavioural REGRESSION, not a hardening. So this module has NO
+ * Introducing a NEW hard "no write" case here would be a behavioural REGRESSION, not a hardening. So this
+ * module has NO
  * fail-closed-no-write branch of its own: platform-user-unresolved, ambiguous-platform-user, and
  * org-unresolved/ambiguous ALL throw and are treated by the caller (`writePort.ts`) as "fall back to the
  * durable outbox" (`enqueueProjectionEvent` with the SAME narrow-field `reminder.rule.upserted` payload
@@ -51,7 +48,7 @@
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import { resolveCanonicalIntegratorUserId } from '../repos/canonicalUserId.js';
 import { collectPlatformUserCandidates } from './writeIdentityAndPreferencesDirect.js';
-import { resolveExactActiveOrganizationId } from './writeDiaryLfkDirect.js';
+import { resolveExactActiveOrganizationId } from './resolveDirectPublicActor.js';
 
 export type UpsertReminderRuleDirectInput = {
   /** Raw integrator-space id (`identities.user_id`), NOT a `public.platform_users.id`. */
@@ -92,8 +89,8 @@ export type UpsertReminderRuleDirectResult = {
 export type ReminderRuleDirectWriteFailureCode = 'no_platform_user_candidate';
 
 /**
- * Thrown ONLY for the one case that is neither a resolvable write nor a D1/D2-style ambiguity (which
- * throw their own `DirectPublicWriteError` / `DiaryLfkDirectWriteError`): no platform user has ever been
+ * Thrown ONLY for the one case that is neither a resolvable write nor a shared-resolution ambiguity:
+ * no platform user has ever been
  * linked to this integrator user. Callers treat this identically to any other unexpected failure — fall
  * back to the durable outbox — it is exported/typed only so tests and callers can assert on it by name.
  */
@@ -142,8 +139,8 @@ export async function upsertReminderRuleDirect(
         integratorUserId: canonicalIntegratorUserId,
       });
     }
-    // Fail-closed via D2's exact-org resolver on 0/2+ active enrollments — propagates as
-    // DiaryLfkDirectWriteError, which the caller (writePort.ts) treats as a durable-outbox fallback
+    // Fail-closed via the exact-org resolver on 0/2+ active enrollments. The caller (writePort.ts)
+    // treats this as a durable-outbox fallback
     // (see file header: this module has no no-write-ever branch of its own).
     const organizationId = await resolveExactActiveOrganizationId(txDb, platformUserId);
     const notificationTopicCodeProvided = input.notificationTopicCode !== undefined;

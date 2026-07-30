@@ -521,91 +521,6 @@
     ]
   },
   {
-    "id": "max.nav.webapp.diary",
-    "source": "max",
-    "event": "message.received",
-    "priority": 28,
-    "match": {
-      "input": {
-        "action": "nav.webapp.diary"
-      },
-      "context": {
-        "linkedPhone": true
-      }
-    },
-    "steps": [
-      {
-        "action": "message.send",
-        "mode": "async",
-        "params": {
-          "recipient": {
-            "chatId": "{{actor.chatId}}"
-          },
-          "templateKey": "max:diary.webapp.prompt",
-          "delivery": {
-            "channels": ["max"],
-            "maxAttempts": 1
-          },
-          "inlineKeyboard": [
-            [
-              {
-                "textTemplateKey": "max:diary.webapp.openButton",
-                "webAppUrlFact": "links.webappDiaryUrl",
-                "callbackData": "diary.open"
-              }
-            ]
-          ]
-        }
-      }
-    ]
-  },
-  {
-    "id": "max.nav.webapp.diary.need_phone",
-    "source": "max",
-    "event": "message.received",
-    "priority": 30,
-    "match": {
-      "input": {
-        "action": "nav.webapp.diary"
-      },
-      "context": {
-        "linkedPhone": false
-      }
-    },
-    "steps": [
-      {
-        "action": "user.state.set",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "state": "await_contact:subscription"
-        }
-      },
-      {
-        "action": "message.send",
-        "mode": "async",
-        "params": {
-          "recipient": {
-            "chatId": "{{actor.chatId}}"
-          },
-          "templateKey": "max:confirmPhoneForBooking",
-          "delivery": {
-            "channels": ["max"],
-            "maxAttempts": 1
-          },
-          "inlineKeyboard": [
-            [
-              {
-                "textTemplateKey": "max:requestContact.button",
-                "requestPhone": true
-              }
-            ]
-          ]
-        }
-      }
-    ]
-  },
-  {
     "id": "max.nav.webapp.menu",
     "source": "max",
     "event": "message.received",
@@ -1445,52 +1360,6 @@
     ]
   },
   {
-    "id": "max.diary.open.need_phone",
-    "source": "max",
-    "event": "message.received",
-    "priority": 30,
-    "match": {
-      "input": {
-        "action": "diary.open"
-      },
-      "context": {
-        "linkedPhone": false
-      }
-    },
-    "steps": [
-      {
-        "action": "user.state.set",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "state": "await_contact:subscription"
-        }
-      },
-      {
-        "action": "message.send",
-        "mode": "async",
-        "params": {
-          "recipient": {
-            "chatId": "{{actor.chatId}}"
-          },
-          "templateKey": "max:confirmPhoneForBooking",
-          "delivery": {
-            "channels": ["max"],
-            "maxAttempts": 1
-          },
-          "inlineKeyboard": [
-            [
-              {
-                "textTemplateKey": "max:requestContact.button",
-                "requestPhone": true
-              }
-            ]
-          ]
-        }
-      }
-    ]
-  },
-  {
     "id": "max.more.menu",
     "source": "max",
     "event": "message.received",
@@ -1552,407 +1421,6 @@
     ]
   },
   {
-    "id": "max.diary.open",
-    "source": "max",
-    "event": "message.received",
-    "match": {
-      "input": {
-        "action": "diary.open"
-      },
-      "context": {
-        "linkedPhone": true
-      }
-    },
-    "steps": [
-      {
-        "action": "message.inlineKeyboard.show",
-        "mode": "async",
-        "params": {
-          "chatId": "{{actor.chatId}}",
-          "templateKey": "max:diary.choose",
-          "menu": "diary",
-          "delivery": {
-            "channels": ["max"],
-            "maxAttempts": 1
-          }
-        }
-      }
-    ]
-  },
-  {
-    "id": "max.diary.symptom.open",
-    "source": "max",
-    "event": "callback.received",
-    "match": {
-      "input": {
-        "action": "diary.symptom.open"
-      }
-    },
-    "steps": [
-      {
-        "action": "diary.symptom.list",
-        "mode": "async",
-        "params": {
-          "chatId": "{{input.chatId}}",
-          "messageId": "{{input.messageId}}",
-          "callbackQueryId": "{{input.callbackQueryId}}"
-        }
-      }
-    ]
-  },
-  {
-    "id": "max.diary.symptom.select",
-    "source": "max",
-    "event": "callback.received",
-    "match": {
-      "input": {
-        "action": "diary.symptom.select"
-      }
-    },
-    "steps": [
-      {
-        "action": "diary.symptom.select",
-        "mode": "async",
-        "params": {
-          "trackingId": "{{input.trackingId}}",
-          "chatId": "{{input.chatId}}",
-          "messageId": "{{input.messageId}}",
-          "callbackQueryId": "{{input.callbackQueryId}}"
-        }
-      }
-    ]
-  },
-  {
-    "id": "max.diary.symptom.value",
-    "source": "max",
-    "event": "callback.received",
-    "match": {
-      "input": {
-        "action": "diary.symptom.value"
-      }
-    },
-    "steps": [
-      {
-        "action": "diary.symptom.value",
-        "mode": "async",
-        "params": {
-          "trackingId": "{{input.trackingId}}",
-          "value": "{{input.value}}",
-          "chatId": "{{input.chatId}}",
-          "messageId": "{{input.messageId}}",
-          "callbackQueryId": "{{input.callbackQueryId}}"
-        }
-      }
-    ]
-  },
-  {
-    "id": "max.diary.symptom.entryType",
-    "source": "max",
-    "event": "callback.received",
-    "match": {
-      "input": {
-        "action": "diary.symptom.entryType"
-      }
-    },
-    "steps": [
-      {
-        "action": "diary.symptom.entryType",
-        "mode": "async",
-        "params": {
-          "trackingId": "{{input.trackingId}}",
-          "value": "{{input.value}}",
-          "entryType": "{{input.entryType}}",
-          "chatId": "{{input.chatId}}",
-          "messageId": "{{input.messageId}}",
-          "callbackQueryId": "{{input.callbackQueryId}}"
-        }
-      }
-    ]
-  },
-  {
-    "id": "max.diary.symptom.add",
-    "source": "max",
-    "event": "callback.received",
-    "match": {
-      "input": {
-        "action": "diary.symptom.add"
-      }
-    },
-    "steps": [
-      {
-        "action": "diary.symptom.add",
-        "mode": "async",
-        "params": {
-          "chatId": "{{input.chatId}}",
-          "messageId": "{{input.messageId}}",
-          "callbackQueryId": "{{input.callbackQueryId}}"
-        }
-      }
-    ]
-  },
-  {
-    "id": "max.diary.symptom.back",
-    "source": "max",
-    "event": "callback.received",
-    "match": {
-      "input": {
-        "action": "diary.symptom.back"
-      }
-    },
-    "steps": [
-      {
-        "action": "user.state.set",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "state": "idle"
-        }
-      },
-      {
-        "action": "diary.symptom.list",
-        "mode": "async",
-        "params": {
-          "chatId": "{{input.chatId}}",
-          "messageId": "{{input.messageId}}",
-          "callbackQueryId": "{{input.callbackQueryId}}"
-        }
-      }
-    ]
-  },
-  {
-    "id": "max.diary.symptom.awaiting_title",
-    "source": "max",
-    "event": "message.received",
-    "match": {
-      "actor": {
-        "userState": "diary.symptom.awaiting_title"
-      },
-      "input": {
-        "textPresent": true
-      }
-    },
-    "steps": [
-      {
-        "action": "webapp.event.emit",
-        "mode": "async",
-        "params": {
-          "eventType": "diary.symptom.tracking.created",
-          "payload": {
-            "symptomTitle": "{{input.text}}"
-          }
-        }
-      },
-      {
-        "action": "user.state.set",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "state": "idle"
-        }
-      },
-      {
-        "action": "message.send",
-        "mode": "async",
-        "params": {
-          "recipient": {
-            "chatId": "{{actor.chatId}}"
-          },
-          "templateKey": "max:diary.symptom.trackingCreated",
-          "delivery": {
-            "channels": ["max"],
-            "maxAttempts": 1
-          },
-          "inlineKeyboard": [
-            [
-              {
-                "text": "⬅️ К списку симптомов",
-                "callbackData": "diary.symptom.open"
-              }
-            ]
-          ]
-        }
-      }
-    ]
-  },
-  {
-    "id": "max.diary.lfk.open",
-    "source": "max",
-    "event": "callback.received",
-    "match": {
-      "input": {
-        "action": "diary.lfk.open"
-      }
-    },
-    "steps": [
-      {
-        "action": "diary.lfk.list",
-        "mode": "async",
-        "params": {
-          "chatId": "{{input.chatId}}",
-          "messageId": "{{input.messageId}}",
-          "callbackQueryId": "{{input.callbackQueryId}}"
-        }
-      }
-    ]
-  },
-  {
-    "id": "max.diary.lfk.select",
-    "source": "max",
-    "event": "callback.received",
-    "match": {
-      "input": {
-        "action": "diary.lfk.select"
-      }
-    },
-    "steps": [
-      {
-        "action": "diary.lfk.select",
-        "mode": "async",
-        "params": {
-          "complexId": "{{input.complexId}}",
-          "chatId": "{{input.chatId}}",
-          "messageId": "{{input.messageId}}",
-          "callbackQueryId": "{{input.callbackQueryId}}"
-        }
-      }
-    ]
-  },
-  {
-    "id": "max.diary.lfk.session",
-    "source": "max",
-    "event": "callback.received",
-    "match": {
-      "input": {
-        "action": "diary.lfk.session"
-      }
-    },
-    "steps": [
-      {
-        "action": "diary.lfk.session",
-        "mode": "async",
-        "params": {
-          "complexId": "{{input.complexId}}",
-          "chatId": "{{input.chatId}}",
-          "messageId": "{{input.messageId}}",
-          "callbackQueryId": "{{input.callbackQueryId}}"
-        }
-      }
-    ]
-  },
-  {
-    "id": "max.diary.lfk.add",
-    "source": "max",
-    "event": "callback.received",
-    "match": {
-      "input": {
-        "action": "diary.lfk.add"
-      }
-    },
-    "steps": [
-      {
-        "action": "diary.lfk.add",
-        "mode": "async",
-        "params": {
-          "chatId": "{{input.chatId}}",
-          "messageId": "{{input.messageId}}",
-          "callbackQueryId": "{{input.callbackQueryId}}"
-        }
-      }
-    ]
-  },
-  {
-    "id": "max.diary.lfk.awaiting_title",
-    "source": "max",
-    "event": "message.received",
-    "match": {
-      "actor": {
-        "userState": "diary.lfk.awaiting_title"
-      },
-      "input": {
-        "textPresent": true
-      }
-    },
-    "steps": [
-      {
-        "action": "webapp.event.emit",
-        "mode": "async",
-        "params": {
-          "eventType": "diary.lfk.complex.created",
-          "payload": {
-            "title": "{{input.text}}"
-          }
-        }
-      },
-      {
-        "action": "user.state.set",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "state": "idle"
-        }
-      },
-      {
-        "action": "message.send",
-        "mode": "async",
-        "params": {
-          "recipient": {
-            "chatId": "{{actor.chatId}}"
-          },
-          "templateKey": "max:diary.lfk.sessionSuccess",
-          "delivery": {
-            "channels": ["max"],
-            "maxAttempts": 1
-          },
-          "inlineKeyboard": [
-            [
-              {
-                "text": "⬅️ К списку ЛФК",
-                "callbackData": "diary.lfk.open"
-              }
-            ]
-          ]
-        }
-      }
-    ]
-  },
-  {
-    "id": "max.diary.lfk.back",
-    "source": "max",
-    "event": "callback.received",
-    "match": {
-      "input": {
-        "action": "diary.lfk.back"
-      }
-    },
-    "steps": [
-      {
-        "action": "user.state.set",
-        "mode": "sync",
-        "params": {
-          "channelUserId": "{{actor.channelUserId}}",
-          "state": "idle"
-        }
-      },
-      {
-        "action": "message.edit",
-        "mode": "async",
-        "params": {
-          "chatId": "{{input.chatId}}",
-          "messageId": "{{input.messageId}}",
-          "templateKey": "max:diary.choose",
-          "menu": "diary"
-        }
-      },
-      {
-        "action": "callback.answer",
-        "mode": "async",
-        "params": {
-          "callbackQueryId": "{{input.callbackQueryId}}"
-        }
-      }
-    ]
-  },
-  {
     "id": "max.menu.back",
     "source": "max",
     "event": "callback.received",
@@ -1996,18 +1464,16 @@
       "context": {
         "hasActiveDraft": true,
         "conversationState": {
-          "$notIn": ["diary.symptom.awaiting_title", "diary.lfk.awaiting_title"]
+          "$notIn": []
         }
       },
       "input": {
         "textPresent": true,
         "excludeActions": [
           "booking.open",
-          "nav.webapp.diary",
           "nav.webapp.menu",
           "menu.more",
           "cabinet.open",
-          "diary.open",
           "start.link",
           "start.noticeme",
           "start.setphone",
@@ -2015,7 +1481,7 @@
           "start.set",
           "phone.request.cancel"
         ],
-        "excludeTexts": ["/start", "/book", "/diary", "/menu", "Отмена", "Вернуться в меню"],
+        "excludeTexts": ["/start", "/book", "/menu", "Отмена", "Вернуться в меню"],
         "excludeTextPrefixes": ["/start"]
       }
     },
@@ -2325,18 +1791,16 @@
         "textPresent": true,
         "excludeActions": [
           "booking.open",
-          "nav.webapp.diary",
           "nav.webapp.menu",
           "menu.more",
           "cabinet.open",
-          "diary.open",
           "start.link",
           "start.noticeme",
           "start.setphone",
           "start.phoneauth",
           "start.set"
         ],
-        "excludeTexts": ["/start", "/book", "/diary", "/menu"],
+        "excludeTexts": ["/start", "/book", "/menu"],
         "excludeTextPrefixes": ["/start"]
       }
     },
@@ -2434,18 +1898,16 @@
       },
       "context": {
         "conversationState": {
-          "$notIn": ["diary.symptom.awaiting_title", "diary.lfk.awaiting_title"]
+          "$notIn": []
         }
       },
       "input": {
         "textPresent": true,
         "excludeActions": [
           "booking.open",
-          "nav.webapp.diary",
           "nav.webapp.menu",
           "menu.more",
           "cabinet.open",
-          "diary.open",
           "start.link",
           "start.noticeme",
           "start.setphone",
@@ -2453,7 +1915,7 @@
           "start.set",
           "phone.request.cancel"
         ],
-        "excludeTexts": ["/start", "/book", "/diary", "/menu", "Отмена", "Вернуться в меню"],
+        "excludeTexts": ["/start", "/book", "/menu", "Отмена", "Вернуться в меню"],
         "excludeTextPrefixes": ["/start"]
       }
     },

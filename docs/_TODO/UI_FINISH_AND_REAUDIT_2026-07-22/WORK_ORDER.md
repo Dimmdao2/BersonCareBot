@@ -151,6 +151,17 @@ lfk_sessions` via `directPublic/writeDiaryLfkDirect.ts` (reuses D1 candidate res
       `scratchpad/d2-diary-lfk-report.md`. Follow-up: same ID-space bug in GET reads `listSymptomTrackings`/
       `listLfkComplexes` (not among the 4 event types) left for a separate fix; multi-org patient diary attribution
       fails-closed (product edge — owner Q if multi-clinic diary needed).
+- [x] **D2-retirement — remove the complete in-bot diary/LFK domain.** Owner ruling 2026-07-30:
+      «вырезай. просто полностью удаляй». Delete all Telegram/MAX entry points, content, callbacks, executor/write
+      actions, webapp diary reads and the four direct writers; revoke the retired role grants. Keep the webapp
+      implementation, the lifecycle door and the neutral actor/organization resolver used by support/reminders.
+      <br>**DONE 2026-07-30.** Zero-hit searches for the four writer names, four write action names, `diary.*`
+      scenarios/callbacks, `nav.webapp.diary`, `webappDiaryUrl` and both diary-list reads. Evidence:
+      `pnpm --dir apps/integrator run typecheck`, `lint`; exact Vitest files
+      `organizationMechanicLifecycleDoor.test.ts`, `executeActionHomeMiniAppRemoval.unit.test.ts` and
+      `executeActionMiniAppRemoval.unit.test.ts` green. The opt-in real-TEST reminder RLS suite remains
+      environment-gated: the canonical `/opt/env/bersoncarebot/api.test` is not readable by the `dev` user, so an
+      enabled run could not reach its tests; normal invocation reports the file skipped.
 - [ ] **D3 — support conversations and messages.** Direct transactional open/message/status writes and qualified
       public reads; reconcile the two current organization-null conversation rows before tightening/removing legacy
       storage.

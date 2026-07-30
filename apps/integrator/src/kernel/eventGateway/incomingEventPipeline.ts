@@ -35,7 +35,7 @@ export type IncomingEventPipelineDeps = {
   contentPort?: ContentPort;
   /** Policy for support relay allowed message types. When unset, default from app config is used. */
   supportRelayPolicy?: SupportRelayPolicy | null;
-  /** Optional: emit signed events to webapp (e.g. diary.symptom.*). */
+  /** Optional: execute signed integrator-to-webapp operations. */
   webappEventsPort?: WebappEventsPort;
   /** Optional: resolve delivery targets for multi-channel booking fan-out. */
   deliveryTargetsPort?: DeliveryTargetsPort;

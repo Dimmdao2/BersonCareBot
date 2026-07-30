@@ -4,6 +4,7 @@ import {
   deliveryAttemptLogs,
   mailingLogs,
   mailingTopics,
+  orgEnrollments,
   userSubscriptions,
 } from './schema/integratorPublicProduct.js';
 import {
@@ -22,6 +23,7 @@ export const integratorDrizzleSchema = {
   bookingCalendarMap,
   mailingLogs,
   deliveryAttemptLogs,
+  orgEnrollments,
   projectionOutbox,
   messageRetryJobs,
   userReminderRules,

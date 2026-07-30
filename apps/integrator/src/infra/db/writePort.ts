@@ -83,14 +83,7 @@ import {
   mergeCandidateIdsViaPlatformMerge,
   isIdentityMergeAmbiguityError,
 } from './directPublic/mergeCandidatesDirect.js';
-import {
-  addLfkSessionDirect,
-  addSymptomEntryDirect,
-  createLfkComplexDirect,
-  createSymptomTrackingDirect,
-  DiaryLfkDirectWriteError,
-  isDiaryLfkFailClosedError,
-} from './directPublic/writeDiaryLfkDirect.js';
+import { isDirectPublicActorResolutionFailClosedError } from './directPublic/resolveDirectPublicActor.js';
 import {
   appendSupportConversationMessageDirect,
   openSupportConversationDirect,
@@ -111,7 +104,7 @@ import { runWithOrganizationPrincipal } from '../principal/organizationPrincipal
 
 /**
  * Re-verified 2026-07-25 by independent audit against the REAL "integrator" principal shape
- * (`runWithIntegratorPrincipal`, telegram/webhook.ts): every D2-D5 direct-public write below targets a
+ * (`runWithIntegratorPrincipal`, telegram/webhook.ts): every D3-D5 direct-public write below targets a
  * `public.*` table whose FORCE RLS policy is `(is_staff() AND organization_id = current_org_id()) OR
  * (current_patient_user_id() IS NOT NULL AND platform_user_id = current_patient_user_id())`
  * (`saas_org_dormant_p0_8_3`). The "integrator" principal locks the `app_patient` runtime role with
@@ -121,8 +114,7 @@ import { runWithOrganizationPrincipal } from '../principal/organizationPrincipal
  * message from an already-known user — the common case, since `runWithIntegratorPrincipal` wraps the
  * WHOLE event pipeline whenever webhook pre-routing already resolved both `organizationId` and
  * `integratorUserId`. This silently degraded every one of these writes to "always falls back to the
- * durable outbox + fires an operator incident" (D3/D4/D5) or, for D2 (which has no fallback branch —
- * see writeDiaryLfkDirect.ts), an uncaught throw.
+ * durable outbox + fires an operator incident" (D3/D4/D5).
  *
  * Fix (mirrors `persistWritesByOrganization` in handlers/reminders.ts, the ALREADY-correct pattern used
  * by `reminders.planDue`/`.dispatchDue`): re-install an EXPLICIT organization principal — `SET ROLE
@@ -137,16 +129,6 @@ import { runWithOrganizationPrincipal } from '../principal/organizationPrincipal
 function runDirectPublicWriteWithOrgPrincipal<T>(fn: () => Promise<T>): Promise<T> {
   const organizationId = getCurrentDbPrincipalOrganizationId();
   return organizationId ? runWithOrganizationPrincipal(organizationId, fn) : fn();
-}
-
-const PATIENT_DIARIES_ENTITLEMENT_REFUSAL =
-  'Невозможно добавить, изменить или удалить запись дневника: этот раздел не входит в ваш тариф. Чтобы выполнить действие, включите этот раздел в тарифе клиники.';
-
-function patientDiariesEntitlementRefusal(error: unknown): DbWriteDbResult | null {
-  return error instanceof DiaryLfkDirectWriteError &&
-    error.code === 'patient_diaries_entitlement_required'
-    ? { entitlementRefusalMessage: PATIENT_DIARIES_ENTITLEMENT_REFUSAL }
-    : null;
 }
 
 function asNonEmptyString(value: unknown): string | null {
@@ -695,7 +677,10 @@ export function createDbWritePort(
                 ),
               );
             } catch (err) {
-              if (isDiaryLfkFailClosedError(err) || isIdentityMergeAmbiguityError(err)) {
+              if (
+                isDirectPublicActorResolutionFailClosedError(err) ||
+                isIdentityMergeAmbiguityError(err)
+              ) {
                 logger.warn(
                   { err, mutationType: mutation.type, id, resource, externalId },
                   'conversation.open: direct public write fail-closed (org/platform-user unresolved or ambiguous) — no write, no fallback',
@@ -1144,166 +1129,6 @@ export function createDbWritePort(
               logger.warn(
                 { err, mutationType: mutation.type, resource, channelUserId },
                 'notifications.update: ambiguous identity merge deferred (no direct write)',
-              );
-              return;
-            }
-            throw err;
-          }
-          return;
-        }
-        case 'diary.symptom.tracking.create': {
-          // D2: replaces the `diary.symptom.tracking.created` HTTP projection fanout. See
-          // writeDiaryLfkDirect.ts header for the platform-user ID-space fix + exact-org-resolution
-          // (no default-org fallback) this direct write applies over the retired HTTP consumer.
-          const resource = readResource(mutation.params);
-          const externalId = asNonEmptyString(mutation.params.externalId);
-          const integratorUserId = asNonEmptyString(mutation.params.integratorUserId);
-          const symptomTitle = asNonEmptyString(mutation.params.symptomTitle);
-          if (!resource || !externalId || !integratorUserId || !symptomTitle) return;
-          try {
-            await runDirectPublicWriteWithOrgPrincipal(() =>
-              createSymptomTrackingDirect(
-                db,
-                {
-                  integratorUserId,
-                  channelCode: resource,
-                  externalId,
-                  symptomKey: asNullableString(mutation.params.symptomKey),
-                  symptomTitle,
-                },
-                { mergeCandidateIds: mergeCandidateIdsViaPlatformMerge },
-              ),
-            );
-          } catch (err) {
-            const refusal = patientDiariesEntitlementRefusal(err);
-            if (refusal) return refusal;
-            if (isIdentityMergeAmbiguityError(err) || isDiaryLfkFailClosedError(err)) {
-              logger.warn(
-                { err, mutationType: mutation.type, resource, externalId },
-                'diary.symptom.tracking.create: fail-closed (no direct write)',
-              );
-              return;
-            }
-            throw err;
-          }
-          return;
-        }
-        case 'diary.symptom.entry.create': {
-          // D2: replaces the `diary.symptom.entry.created` HTTP projection fanout.
-          const resource = readResource(mutation.params);
-          const externalId = asNonEmptyString(mutation.params.externalId);
-          const integratorUserId = asNonEmptyString(mutation.params.integratorUserId);
-          const trackingId = asNonEmptyString(mutation.params.trackingId);
-          const entryTypeRaw = asNonEmptyString(mutation.params.entryType);
-          const entryType =
-            entryTypeRaw === 'daily' ? 'daily' : entryTypeRaw === 'instant' ? 'instant' : null;
-          const value0_10 = asFiniteNumber(mutation.params.value0_10);
-          const recordedAt = asNonEmptyString(mutation.params.recordedAt);
-          if (
-            !resource ||
-            !externalId ||
-            !integratorUserId ||
-            !trackingId ||
-            !entryType ||
-            value0_10 === null ||
-            value0_10 < 0 ||
-            value0_10 > 10 ||
-            !recordedAt
-          ) {
-            return;
-          }
-          try {
-            await runDirectPublicWriteWithOrgPrincipal(() =>
-              addSymptomEntryDirect(
-                db,
-                {
-                  integratorUserId,
-                  channelCode: resource,
-                  externalId,
-                  trackingId,
-                  value0_10,
-                  entryType,
-                  recordedAt,
-                  notes: asNullableString(mutation.params.notes),
-                },
-                { mergeCandidateIds: mergeCandidateIdsViaPlatformMerge },
-              ),
-            );
-          } catch (err) {
-            const refusal = patientDiariesEntitlementRefusal(err);
-            if (refusal) return refusal;
-            if (isIdentityMergeAmbiguityError(err) || isDiaryLfkFailClosedError(err)) {
-              logger.warn(
-                { err, mutationType: mutation.type, resource, externalId, trackingId },
-                'diary.symptom.entry.create: fail-closed (no direct write)',
-              );
-              return;
-            }
-            throw err;
-          }
-          return;
-        }
-        case 'diary.lfk.complex.create': {
-          // D2: replaces the `diary.lfk.complex.created` HTTP projection fanout.
-          const resource = readResource(mutation.params);
-          const externalId = asNonEmptyString(mutation.params.externalId);
-          const integratorUserId = asNonEmptyString(mutation.params.integratorUserId);
-          const title = asNonEmptyString(mutation.params.title);
-          if (!resource || !externalId || !integratorUserId || !title) return;
-          try {
-            await runDirectPublicWriteWithOrgPrincipal(() =>
-              createLfkComplexDirect(
-                db,
-                {
-                  integratorUserId,
-                  channelCode: resource,
-                  externalId,
-                  title,
-                  origin:
-                    mutation.params.origin === 'assigned_by_specialist'
-                      ? 'assigned_by_specialist'
-                      : 'manual',
-                },
-                { mergeCandidateIds: mergeCandidateIdsViaPlatformMerge },
-              ),
-            );
-          } catch (err) {
-            const refusal = patientDiariesEntitlementRefusal(err);
-            if (refusal) return refusal;
-            if (isIdentityMergeAmbiguityError(err) || isDiaryLfkFailClosedError(err)) {
-              logger.warn(
-                { err, mutationType: mutation.type, resource, externalId },
-                'diary.lfk.complex.create: fail-closed (no direct write)',
-              );
-              return;
-            }
-            throw err;
-          }
-          return;
-        }
-        case 'diary.lfk.session.create': {
-          // D2: replaces the `diary.lfk.session.created` HTTP projection fanout.
-          const resource = readResource(mutation.params);
-          const externalId = asNonEmptyString(mutation.params.externalId);
-          const integratorUserId = asNonEmptyString(mutation.params.integratorUserId);
-          const complexId = asNonEmptyString(mutation.params.complexId);
-          const completedAt = asNonEmptyString(mutation.params.completedAt);
-          if (!resource || !externalId || !integratorUserId || !complexId || !completedAt) return;
-          try {
-            await runDirectPublicWriteWithOrgPrincipal(() =>
-              addLfkSessionDirect(
-                db,
-                { integratorUserId, channelCode: resource, externalId, complexId, completedAt },
-                { mergeCandidateIds: mergeCandidateIdsViaPlatformMerge },
-              ),
-            );
-          } catch (err) {
-            const refusal = patientDiariesEntitlementRefusal(err);
-            if (refusal) return refusal;
-            if (isIdentityMergeAmbiguityError(err) || isDiaryLfkFailClosedError(err)) {
-              logger.warn(
-                { err, mutationType: mutation.type, resource, externalId, complexId },
-                'diary.lfk.session.create: fail-closed (no direct write)',
               );
               return;
             }

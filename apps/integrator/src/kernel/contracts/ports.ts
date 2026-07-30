@@ -74,11 +74,7 @@ export type DbWriteMutationType =
   | 'event.log'
   | 'mailing.topic.upsert'
   | 'user.subscription.upsert'
-  | 'mailing.log.append'
-  | 'diary.symptom.tracking.create'
-  | 'diary.symptom.entry.create'
-  | 'diary.lfk.complex.create'
-  | 'diary.lfk.session.create';
+  | 'mailing.log.append';
 
 /** Универсальный read-запрос к БД. */
 export type DbReadQuery = {
@@ -139,8 +135,6 @@ export type DbWriteDbResult = {
   phoneLinkIndeterminate?: boolean;
   /** Уточнение при `userPhoneLinkApplied: false` (binding-first TX-путь). */
   phoneLinkReason?: PhoneLinkFailureReason;
-  /** Visible product refusal for a write blocked by a tariff mechanic. */
-  entitlementRefusalMessage?: string;
 };
 
 /** Исход `setUserPhone` в репозитории (integrator). */
@@ -402,37 +396,9 @@ export type WebappEventBody = {
   payload?: Record<string, unknown>;
 };
 
-/** One symptom tracking from webapp GET /api/integrator/diary/symptom-trackings. */
-export type WebappSymptomTracking = {
-  id: string;
-  userId: string;
-  symptomKey: string | null;
-  symptomTitle: string;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-};
-
-/** One LFK complex from webapp GET /api/integrator/diary/lfk-complexes. */
-export type WebappLfkComplex = {
-  id: string;
-  userId: string;
-  title: string;
-  origin: string;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-};
-
-/** Port for emitting signed events to webapp and reading diary lists (no local cache). */
+/** Port for signed integrator-to-webapp operations. */
 export type WebappEventsPort = {
   emit(event: WebappEventBody): Promise<{ ok: boolean; status: number; error?: string }>;
-  listSymptomTrackings(
-    userId: string,
-  ): Promise<{ ok: boolean; trackings?: WebappSymptomTracking[]; error?: string }>;
-  listLfkComplexes(
-    userId: string,
-  ): Promise<{ ok: boolean; complexes?: WebappLfkComplex[]; error?: string }>;
   /** Привязка мессенджера по одноразовому токену из deep-link (POST /api/integrator/channel-link/complete). */
   completeChannelLink?(params: {
     linkToken: string;

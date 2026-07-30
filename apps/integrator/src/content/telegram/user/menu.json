@@ -1,8 +1,10 @@
 {
-  "diary": [
-    [{ "textTemplateKey": "telegram:diary.symptom", "callbackData": "diary.symptom.open" }],
-    [{ "textTemplateKey": "telegram:diary.lfk", "callbackData": "diary.lfk.open" }],
-    [{ "text": "⬅️ Назад", "callbackData": "menu.back" }]
-  ],
-  "main": [[{ "textTemplateKey": "telegram:menu.book", "callbackData": "booking.open" }]]
+  "main": [
+    [
+      {
+        "textTemplateKey": "telegram:menu.book",
+        "callbackData": "booking.open"
+      }
+    ]
+  ]
 }
