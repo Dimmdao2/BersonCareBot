@@ -11,6 +11,7 @@ export default [
       'node_modules/**',
       'coverage/**',
       'runs/**', // временные каталоги прогонов (песочницы Stryker и пр.) — не наш код
+      'docs/archive/2026-07-rubitime-retirement/**',
       // Локальные агент-worktree/состояние Claude Code — полные копии репо,
       // не линтуем (иначе вложенный apps/webapp-копия даёт тысячи ложных ошибок).
       '.claude/**',
