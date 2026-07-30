@@ -53,4 +53,33 @@ describe('GET /api/patient/courses', () => {
     });
     expect(listAssignedForPatient).not.toHaveBeenCalled();
   });
+
+  it('keeps the assigned course list readable when the clinic is read-only', async () => {
+    const listAssignedForPatient = vi.fn().mockResolvedValue([{ id: 'course-1' }]);
+    fakes.requirePatientApiBusinessAccess.mockResolvedValue({
+      ok: true,
+      session: { user: { userId: patientUserId } },
+    });
+    fakes.resolvePatientEnrollmentOrganizationId.mockResolvedValue({ ok: true, organizationId });
+    fakes.withPatientOrganizationPrincipal.mockImplementation(
+      async (_context: unknown, callback: () => Promise<unknown>) => callback(),
+    );
+    fakes.buildAppDeps.mockReturnValue({
+      orgEntitlements: {
+        resolveMechanicAccess: async () => ({
+          mechanic: 'courses',
+          state: 'read_only',
+          policySource: 'system',
+          warning: null,
+        }),
+      },
+      courses: { listAssignedForPatient },
+    });
+
+    const response = await GET();
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true, items: [{ id: 'course-1' }] });
+    expect(listAssignedForPatient).toHaveBeenCalledWith(patientUserId);
+  });
 });

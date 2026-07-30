@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { resolveMechanicSurfaceVisibility } from '@/app-layer/guards/requireEntitlement';
 import { getDoctorMenuItems } from './doctorNavLinks';
 
 describe('doctor navigation schedule access', () => {
@@ -32,18 +33,30 @@ describe('doctor navigation schedule access', () => {
     expect(libraryItems(disabledItems)).toContain('treatment-program-templates');
   });
 
-  it('removes the courses section when the shared visibility adapter disables it', () => {
+  it('hides courses when disabled and keeps them visible when read-only', () => {
     const capabilities = ['account.self', 'clinical.workspace'] as const;
+    const disabledVisibility = resolveMechanicSurfaceVisibility({
+      mechanic: 'courses',
+      state: 'disabled',
+      policySource: 'system',
+      warning: null,
+    });
+    const readOnlyVisibility = resolveMechanicSurfaceVisibility({
+      mechanic: 'courses',
+      state: 'read_only',
+      policySource: 'system',
+      warning: null,
+    });
     const disabledIds = getDoctorMenuItems({
       capabilities,
-      coursesEnabled: false,
+      coursesEnabled: disabledVisibility.specialistNavigation,
     }).map((item) => item.id);
-    const enabledIds = getDoctorMenuItems({
+    const readOnlyIds = getDoctorMenuItems({
       capabilities,
-      coursesEnabled: true,
+      coursesEnabled: readOnlyVisibility.specialistNavigation,
     }).map((item) => item.id);
 
     expect(disabledIds).not.toContain('courses');
-    expect(enabledIds).toContain('courses');
+    expect(readOnlyIds).toContain('courses');
   });
 });
