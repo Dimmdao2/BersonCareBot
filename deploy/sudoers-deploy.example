@@ -3,30 +3,17 @@
 # Не переименовывать в .sudoers — это не сам sudoers, а пример для копирования.
 
 # =============================================================================
-# Общие: бэкап БД перед миграциями, daemon-reload после копирования юнитов
+# Общие: бэкап БД перед миграциями
 # =============================================================================
 deploy ALL=(root) NOPASSWD: /opt/backups/scripts/postgres-backup.sh pre-migrations
-deploy ALL=(root) NOPASSWD: /bin/systemctl daemon-reload
 
 # =============================================================================
-# BersonCareBot: копирование юнитов, enable, restart, is-active, journalctl
+# BersonCareBot: управление уже установленными host-gated units
+#
+# Установка/замена файлов в /etc/systemd/system — только root/operator. Не выдавать deploy право
+# /usr/bin/install из deploy-owned checkout: это позволило бы заменить host gate и обойти mask.
 # =============================================================================
 deploy ALL=(root) NOPASSWD: \
-    /usr/bin/install -m 0644 /opt/projects/bersoncarebot/deploy/systemd/bersoncarebot-api-prod.service /etc/systemd/system/bersoncarebot-api-prod.service, \
-    /usr/bin/install -m 0644 /opt/projects/bersoncarebot/deploy/systemd/bersoncarebot-worker-prod.service /etc/systemd/system/bersoncarebot-worker-prod.service, \
-    /usr/bin/install -m 0644 /opt/projects/bersoncarebot/deploy/systemd/bersoncarebot-scheduler-prod.service /etc/systemd/system/bersoncarebot-scheduler-prod.service, \
-    /usr/bin/install -m 0644 /opt/projects/bersoncarebot/deploy/systemd/bersoncarebot-webapp-prod.service /etc/systemd/system/bersoncarebot-webapp-prod.service, \
-    /usr/bin/install -m 0644 /opt/projects/bersoncarebot/deploy/systemd/bersoncarebot-media-worker-prod.service /etc/systemd/system/bersoncarebot-media-worker-prod.service, \
-    /bin/systemctl enable bersoncarebot-api-prod.service, \
-    /bin/systemctl enable bersoncarebot-worker-prod.service, \
-    /bin/systemctl enable bersoncarebot-scheduler-prod.service, \
-    /bin/systemctl enable bersoncarebot-webapp-prod.service, \
-    /bin/systemctl enable bersoncarebot-media-worker-prod.service, \
-    /bin/systemctl enable --now bersoncarebot-api-prod.service, \
-    /bin/systemctl enable --now bersoncarebot-worker-prod.service, \
-    /bin/systemctl enable --now bersoncarebot-scheduler-prod.service, \
-    /bin/systemctl enable --now bersoncarebot-webapp-prod.service, \
-    /bin/systemctl enable --now bersoncarebot-media-worker-prod.service, \
     /bin/systemctl restart bersoncarebot-api-prod.service, \
     /bin/systemctl restart bersoncarebot-worker-prod.service, \
     /bin/systemctl restart bersoncarebot-scheduler-prod.service, \

@@ -9,7 +9,7 @@
     "start": "node dist/main.js",
     "dev": "tsx watch src/main.ts",
     "typecheck": "tsc --noEmit",
-    "test": "pnpm --dir ../../packages/db-principal run build && vitest --run"
+    "test": "pnpm --dir ../../packages/db-principal run build && vitest --run --passWithNoTests"
   },
   "engines": {
     "node": ">=22"

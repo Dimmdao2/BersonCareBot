@@ -16,6 +16,7 @@ import { setSessionFromUser } from '@/modules/auth/service';
 const bodySchema = z.object({
   currentPassword: z.string().min(1).max(128),
   newPassword: newPasswordSchema,
+  altcha: z.string().max(32_768).optional(),
 });
 
 export async function POST(request: Request) {
@@ -59,10 +60,17 @@ export async function POST(request: Request) {
 
   let result: PasswordChangeResult;
   try {
-    result = await buildAppDeps().passwordChange.changePassword({
+    const deps = buildAppDeps();
+    const verifiedEmail = await deps.userByPhone.getVerifiedEmailForUser(gate.session.user.userId);
+    const altchaProof = verifiedEmail
+      ? await deps.passwordAltcha.verify(verifiedEmail.trim().toLowerCase(), parsed.data.altcha)
+      : undefined;
+    result = await deps.passwordChange.changePassword({
       userId: gate.session.user.userId,
       currentPassword: parsed.data.currentPassword,
       newPassword: parsed.data.newPassword,
+      ...(altchaProof ? { altchaProof } : {}),
+      altchaSubmitted: parsed.data.altcha !== undefined,
     });
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
@@ -89,6 +97,8 @@ export async function POST(request: Request) {
             ? 'Текущий пароль неверен. Проверьте его или восстановите пароль.'
             : 'Вход по паролю не настроен. Используйте другой способ входа.',
         ...(locked ? { retryAfterSeconds } : {}),
+        captchaRequired: result.captchaRequired === true,
+        captchaRefreshRequired: result.captchaRefreshRequired === true,
       },
       {
         status: locked ? 429 : result.error === 'wrong_current_password' ? 401 : 409,

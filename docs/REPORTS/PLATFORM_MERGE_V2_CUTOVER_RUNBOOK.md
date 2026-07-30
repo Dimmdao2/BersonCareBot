@@ -2,10 +2,14 @@
 
 Операционные шаги для production. **Источник фактов:** [`../ARCHITECTURE/SERVER CONVENTIONS.md`](../ARCHITECTURE/SERVER%20CONVENTIONS.md), [`../../deploy/HOST_DEPLOY_README.md`](../../deploy/HOST_DEPLOY_README.md).
 
+> **BLOCKING HOST GATE:** этот документ относится только к `135.106.162.170` (`adelaide`). На текущем
+> `151.241.228.122` (DEV/RELAY/TEST) не source-ить `*.prod`, не выполнять SQL и не трогать PROD units.
+> Любая PROD-операция требует отдельной прямой команды владельца.
+
 ## Перед любым деплоем v2
 
 1. Убедиться, что merge в `main` прошёл `pnpm run ci` в CI.
-2. Деплой на хост выполняется job **Deploy** в `.github/workflows/ci.yml` (SSH → `deploy/host/deploy-prod.sh`).
+2. Деплой выполняется только отдельным ручным `.github/workflows/deploy-prod.yml` (`workflow_dispatch` + production approval + exact `DEPLOY_HOST=135.106.162.170`).
 3. Скрипт сам вызывает `postgres-backup.sh pre-migrations` — в `/opt/backups/postgres/pre-migrations/` появляются до **двух** `.dump` (при unified — часто два идентичных файла одной БД; см. [`../ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`](../ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md)).
 
 ## Подключение к БД (обязательный префикс)

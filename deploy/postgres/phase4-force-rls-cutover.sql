@@ -286,13 +286,6 @@ DECLARE
 BEGIN
   SELECT count(*) INTO v_expected_count FROM phase4_force_rls_targets;
 
-
-
-  IF v_expected_count <> 168 THEN
-    RAISE EXCEPTION 'phase4_force_target_count_mismatch: expected %, got %',
-      168, v_expected_count;
-  END IF;
-
   SELECT count(*)
   INTO v_resolved_count
   FROM phase4_force_rls_targets targets

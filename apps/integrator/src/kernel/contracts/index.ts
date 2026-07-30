@@ -137,14 +137,12 @@ export {
   REMINDER_OCCURRENCE_FINALIZED,
   REMINDER_DELIVERY_LOGGED,
   CONTENT_ACCESS_GRANTED,
-  APPOINTMENT_RECORD_UPSERTED,
   MAILING_TOPIC_UPSERTED,
   USER_SUBSCRIPTION_UPSERTED,
   MAILING_LOG_SENT,
 } from './projectionEventTypes.js';
 export type {
   ReminderProjectionEventType,
-  AppointmentProjectionEventType,
   SubscriptionMailingProjectionEventType,
 } from './projectionEventTypes.js';
 

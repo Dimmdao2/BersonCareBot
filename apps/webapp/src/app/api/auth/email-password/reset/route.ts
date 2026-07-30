@@ -103,7 +103,7 @@ export async function POST(request: Request) {
     // attacker out" silently revoked nothing. This call has no such precondition: it increments
     // `platform_users.session_epoch` unconditionally, for staff and patients alike.
     await deps.userByPhone.invalidateSessionsForSelf();
-    await deps.userPasswordCredentials.updatePasswordHash(userId, passwordHash);
+    await deps.userPasswordCredentials.updatePasswordHash(userId, emailNorm, passwordHash);
   } catch {
     return NextResponse.json({ ok: false, error: 'reset_failed' }, { status: 500 });
   }

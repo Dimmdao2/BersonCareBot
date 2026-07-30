@@ -121,10 +121,6 @@
             [
               {
                 "textTemplateKey": "telegram:menu.book"
-              },
-              {
-                "textTemplateKey": "telegram:menu.app",
-                "webAppUrlFact": "links.webappHomeUrl"
               }
             ]
           ],
@@ -209,10 +205,6 @@
             [
               {
                 "textTemplateKey": "telegram:menu.book"
-              },
-              {
-                "textTemplateKey": "telegram:menu.app",
-                "webAppUrlFact": "links.webappHomeUrl"
               }
             ]
           ],
@@ -299,10 +291,6 @@
             [
               {
                 "textTemplateKey": "telegram:menu.book"
-              },
-              {
-                "textTemplateKey": "telegram:menu.app",
-                "webAppUrlFact": "links.webappHomeUrl"
               }
             ]
           ],
@@ -440,10 +428,6 @@
             [
               {
                 "textTemplateKey": "telegram:menu.book"
-              },
-              {
-                "textTemplateKey": "telegram:menu.app",
-                "webAppUrlFact": "links.webappHomeUrl"
               }
             ]
           ],
@@ -1511,10 +1495,6 @@
             [
               {
                 "textTemplateKey": "telegram:menu.book"
-              },
-              {
-                "textTemplateKey": "telegram:menu.app",
-                "webAppUrlFact": "links.webappHomeUrl"
               }
             ]
           ],
@@ -1856,10 +1836,6 @@
             [
               {
                 "textTemplateKey": "telegram:menu.book"
-              },
-              {
-                "textTemplateKey": "telegram:menu.app",
-                "webAppUrlFact": "links.webappHomeUrl"
               }
             ]
           ],
@@ -1891,10 +1867,6 @@
             [
               {
                 "textTemplateKey": "telegram:menu.book"
-              },
-              {
-                "textTemplateKey": "telegram:menu.app",
-                "webAppUrlFact": "links.webappHomeUrl"
               }
             ]
           ],

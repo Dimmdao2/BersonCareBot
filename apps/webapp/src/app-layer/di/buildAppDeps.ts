@@ -164,6 +164,11 @@ import {
   inMemoryUserPasswordCredentialsPort,
 } from '@/infra/repos/pgUserPasswordCredentials';
 import {
+  createPgPasswordLoginProtectionPort,
+  inMemoryPasswordLoginProtectionPort,
+} from '@/infra/repos/pgPasswordLoginProtection';
+import { createPasswordAltchaService } from '@/modules/auth/passwordAltcha';
+import {
   createPgEmailPasswordLookupPort,
   inMemoryEmailPasswordLookupPort,
 } from '@/infra/repos/pgEmailPasswordLookup';
@@ -479,9 +484,13 @@ const patientNotificationTopicsPort = !inMemoryRepos
   : inMemoryPatientNotificationTopicsPort;
 const userByPhonePort = !inMemoryRepos ? pgUserByPhonePort : inMemoryUserByPhonePort;
 const userPinsPort = !inMemoryRepos ? pgUserPinsPort : inMemoryUserPinsPort;
+const passwordLoginProtectionPort = !inMemoryRepos
+  ? createPgPasswordLoginProtectionPort()
+  : inMemoryPasswordLoginProtectionPort;
 const userPasswordCredentialsPort = !inMemoryRepos
-  ? createPgUserPasswordCredentialsPort()
+  ? createPgUserPasswordCredentialsPort(passwordLoginProtectionPort)
   : inMemoryUserPasswordCredentialsPort;
+const passwordAltchaService = createPasswordAltchaService(passwordLoginProtectionPort);
 const emailPasswordLookupPort = !inMemoryRepos
   ? createPgEmailPasswordLookupPort()
   : inMemoryEmailPasswordLookupPort;
@@ -1757,6 +1766,7 @@ function _buildAppDeps() {
     },
     userPins: userPinsPort,
     userPasswordCredentials: userPasswordCredentialsPort,
+    passwordAltcha: passwordAltchaService,
     passwordChange: passwordChangeService,
     emailPasswordLookup: emailPasswordLookupPort,
     emailOtpPublicDb: emailOtpPublicDbPort,

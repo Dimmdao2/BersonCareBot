@@ -144,8 +144,8 @@
 | `SAAS_FOUNDATION/PHASE3_ORCHESTRATION.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
 | `SAAS_FOUNDATION/PHASE4_ROLLOUT_RUNBOOK.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
 | `SAAS_FOUNDATION/QUOTAS_AND_MECHANICS_DESIGN_2026-07-28.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
-| `SAAS_FOUNDATION/QUOTAS_WHAT_TO_LIMIT_2026-07-28.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
-| `SAAS_FOUNDATION/QUOTAS_WORLD_PRACTICE_2026-07-28.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
+| `SAAS_FOUNDATION/QUOTAS_RESEARCH_2026-07-28.md (часть I)` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
+| `SAAS_FOUNDATION/QUOTAS_RESEARCH_2026-07-28.md (часть II)` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
 | `SAAS_FOUNDATION/R1_TABLE_TAXONOMY.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
 | `SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md` | 8 | 3 | 0 | ЖИВОЙ | «НЕ АКТУАЛЬНО»; все 8 строк «ВЫТЕСНЕНО» в `SAAS_ENFORCE_ROADMAP.md`/`R2_MVP_MASTER_CHECKLIST.md`, «часть — уже закрыта там, часть — всё ещё открыта» (`SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md:3-15`). | гейт 29.07: держит живую работу, в архив не идёт |
 | `SAAS_FOUNDATION/R2_MVP_MASTER_CHECKLIST.md` | 13 | 12 | 0 | ЖИВОЙ | Открытые [ ] остаются: без прямого архивного основания файл не закрывается. | оставить на месте |
@@ -156,46 +156,46 @@
 | `SAAS_FOUNDATION/REVIEW_2026-06-17_FRESH.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
 | `SAAS_FOUNDATION/RLS_UNPRINCIPLED_READ_FIX_PLAN.md` | 6 | 0 | 0 | ЖИВОЙ | Открытые [ ] остаются: без прямого архивного основания файл не закрывается. | оставить на месте |
 | `SAAS_FOUNDATION/ROADMAP_TO_SAAS.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_DB_CLEANUP_SEQUENCE.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_EXECUTION_PLAN.md` | 63 | 115 | 0 | ЖИВОЙ | Открытые [ ] остаются: без прямого архивного основания файл не закрывается. | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_FINAL_GATE_MANIFEST.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_ORCHESTRATION_AUDIT.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_OWNER_GATE_PACKET.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R0_FREEZE_REPORT.md` | 0 | 9 | 0 | ЗАКРЫТ | Основание: R0 freeze report — исторический отчёт заморозки, не живой исполнительный план. | архив |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_BLOCKER_CLASSIFICATION.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_CLEANUP_RUN.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_CLEAN_DUMP_REHEARSAL.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_DOCTOR_UI_SMOKE.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_DUAL_SOURCE_REPORT.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_FALLBACK_IMPORT_AUDIT.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_FALLBACK_SPECIALIST_IMPORT.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_NON_CONFIRMED_CLEANUP.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_OWNER_REVIEW_PACKET.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_SOL_AUDIT.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_STALE_CSV_AUDIT.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_STALE_CSV_PROOF.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_STATE_HISTORY_PROOF.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R2_DOCTOR_READ_SOURCE_PROOF.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R3_BRANCH_SERVICE_ID_REMOVAL_PREP.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R3_CATALOG_PROOF.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R3_SLOTS_CREATE_PROOF.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R3_TENANT_PROOF.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R4_LIFECYCLE_PROOF.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_LEGACY_PROFILE_RESOLVE_PROOF.md` | 0 | 0 | 0 | ВЫТЕСНЕН | «SUPERSEDED ACCEPTANCE»; текущая R5-приёмка — TEST negative/unmounted routes + canonical booking (`SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_LEGACY_PROFILE_RESOLVE_PROOF.md:8-13`). | архив |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_PROOF.template.md` | 0 | 0 | 0 | ВЫТЕСНЕН | «SUPERSEDED 2026-07-15. The former template was for an external operation and must not be executed» (`SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_PROOF.template.md:3-4`). | архив |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_RUNBOOK.md` | 0 | 0 | 0 | ВЫТЕСНЕН | «SUPERSEDED / HISTORICAL REFERENCE»; команды «none … is executable», текущая приёмка определена execution plan (`SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_RUNBOOK.md:8-12`). | архив |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_R7_PROVENANCE_RECONCILIATION.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_PROOF.template.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_RUNBOOK.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R6_LIFECYCLE_ROUTE_SPLIT_PROOF.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R6_R7_STATIC_INVENTORY.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R7_ARCHIVE_DROP_RUNBOOK.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R7_DROP_RESTORE_PROOF.template.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R7_STATIC_REFERENCE_AUDIT.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R7_TABLE_DISPOSITION.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_RR_PROOF_INDEX.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_SECTION10_DOCS_MANIFEST.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_TEST_R6_R7_PROGRESS_2026-07-24.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_DB_CLEANUP_SEQUENCE.md` | 0 | 0 | 0 | АРХИВ | Rubitime выведено 2026-07-27; архивировано по решению владельца 2026-07-29. | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_EXECUTION_PLAN.md` | 63 | 115 | 0 | АРХИВ | 63 открытых бокса — исторический снимок, не live queue: Rubitime выведено 2026-07-27, owner archive decision 2026-07-29. Архивный plan не исполнять. | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_FINAL_GATE_MANIFEST.md` | 0 | 0 | 0 | АРХИВ | Rubitime выведено 2026-07-27; архивировано по решению владельца 2026-07-29. | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_ORCHESTRATION_AUDIT.md` | 0 | 0 | 0 | АРХИВ | Rubitime выведено 2026-07-27; архивировано по решению владельца 2026-07-29. | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_OWNER_GATE_PACKET.md` | 0 | 0 | 0 | АРХИВ | Rubitime выведено 2026-07-27; архивировано по решению владельца 2026-07-29. | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R0_FREEZE_REPORT.md` | 0 | 9 | 0 | ЗАКРЫТ | Основание: R0 freeze report — исторический отчёт заморозки, не живой исполнительный план. | архив |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_BLOCKER_CLASSIFICATION.md` | 0 | 0 | 0 | АРХИВ | Rubitime выведено 2026-07-27; архивировано по решению владельца 2026-07-29. | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_CLEANUP_RUN.md` | 0 | 0 | 0 | АРХИВ | Rubitime выведено 2026-07-27; архивировано по решению владельца 2026-07-29. | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_CLEAN_DUMP_REHEARSAL.md` | 0 | 0 | 0 | АРХИВ | Rubitime выведено 2026-07-27; архивировано по решению владельца 2026-07-29. | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_DOCTOR_UI_SMOKE.md` | 0 | 0 | 0 | АРХИВ | Rubitime выведено 2026-07-27; архивировано по решению владельца 2026-07-29. | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_DUAL_SOURCE_REPORT.md` | 0 | 0 | 0 | АРХИВ | Rubitime выведено 2026-07-27; архивировано по решению владельца 2026-07-29. | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_FALLBACK_IMPORT_AUDIT.md` | 0 | 0 | 0 | АРХИВ | Rubitime выведено 2026-07-27; архивировано по решению владельца 2026-07-29. | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_FALLBACK_SPECIALIST_IMPORT.md` | 0 | 0 | 0 | АРХИВ | Rubitime выведено 2026-07-27; архивировано по решению владельца 2026-07-29. | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_NON_CONFIRMED_CLEANUP.md` | 0 | 0 | 0 | АРХИВ | Rubitime выведено 2026-07-27; архивировано по решению владельца 2026-07-29. | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_OWNER_REVIEW_PACKET.md` | 0 | 0 | 0 | АРХИВ | Rubitime выведено 2026-07-27; архивировано по решению владельца 2026-07-29. | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_SOL_AUDIT.md` | 0 | 0 | 0 | АРХИВ | Rubitime выведено 2026-07-27; архивировано по решению владельца 2026-07-29. | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_STALE_CSV_AUDIT.md` | 0 | 0 | 0 | АРХИВ | Rubitime выведено 2026-07-27; архивировано по решению владельца 2026-07-29. | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_STALE_CSV_PROOF.md` | 0 | 0 | 0 | АРХИВ | Rubitime выведено 2026-07-27; архивировано по решению владельца 2026-07-29. | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_STATE_HISTORY_PROOF.md` | 0 | 0 | 0 | АРХИВ | Rubitime выведено 2026-07-27; архивировано по решению владельца 2026-07-29. | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R2_DOCTOR_READ_SOURCE_PROOF.md` | 0 | 0 | 0 | АРХИВ | Rubitime выведено 2026-07-27; архивировано по решению владельца 2026-07-29. | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R3_BRANCH_SERVICE_ID_REMOVAL_PREP.md` | 0 | 0 | 0 | АРХИВ | Rubitime выведено 2026-07-27; архивировано по решению владельца 2026-07-29. | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R3_CATALOG_PROOF.md` | 0 | 0 | 0 | АРХИВ | Rubitime выведено 2026-07-27; архивировано по решению владельца 2026-07-29. | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R3_SLOTS_CREATE_PROOF.md` | 0 | 0 | 0 | АРХИВ | Rubitime выведено 2026-07-27; архивировано по решению владельца 2026-07-29. | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R3_TENANT_PROOF.md` | 0 | 0 | 0 | АРХИВ | Rubitime выведено 2026-07-27; архивировано по решению владельца 2026-07-29. | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R4_LIFECYCLE_PROOF.md` | 0 | 0 | 0 | АРХИВ | Rubitime выведено 2026-07-27; архивировано по решению владельца 2026-07-29. | перенесено в Rubitime archive |
+| `archive/2026-07-plans/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_LEGACY_PROFILE_RESOLVE_PROOF.md` | 0 | 0 | 0 | ВЫТЕСНЕН | «SUPERSEDED ACCEPTANCE»; файл сохраняет историческое source evidence (`archive/2026-07-plans/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_LEGACY_PROFILE_RESOLVE_PROOF.md:8-13`). | уже находился в archive/2026-07-plans; не копировался |
+| `archive/2026-07-plans/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_PROOF.template.md` | 0 | 0 | 0 | ВЫТЕСНЕН | «SUPERSEDED 2026-07-15. The former template was for an external operation and must not be executed» (`archive/2026-07-plans/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_PROOF.template.md:3-4`). | уже находился в archive/2026-07-plans; не копировался |
+| `archive/2026-07-plans/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_RUNBOOK.md` | 0 | 0 | 0 | ВЫТЕСНЕН | «SUPERSEDED / HISTORICAL REFERENCE»; команды «none … is executable» (`archive/2026-07-plans/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_RUNBOOK.md:8-12`). | уже находился в archive/2026-07-plans; не копировался |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_R7_PROVENANCE_RECONCILIATION.md` | 0 | 0 | 0 | АРХИВ | Rubitime выведено 2026-07-27; архивировано по решению владельца 2026-07-29. | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_PROOF.template.md` | 0 | 0 | 0 | АРХИВ | Rubitime выведено 2026-07-27; архивировано по решению владельца 2026-07-29. | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_RUNBOOK.md` | 0 | 0 | 0 | АРХИВ | Rubitime выведено 2026-07-27; архивировано по решению владельца 2026-07-29. | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R6_LIFECYCLE_ROUTE_SPLIT_PROOF.md` | 0 | 0 | 0 | АРХИВ | Rubitime выведено 2026-07-27; архивировано по решению владельца 2026-07-29. | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R6_R7_STATIC_INVENTORY.md` | 0 | 0 | 0 | АРХИВ | Rubitime выведено 2026-07-27; архивировано по решению владельца 2026-07-29. | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R7_ARCHIVE_DROP_RUNBOOK.md` | 0 | 0 | 0 | АРХИВ | Rubitime выведено 2026-07-27; архивировано по решению владельца 2026-07-29. | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R7_DROP_RESTORE_PROOF.template.md` | 0 | 0 | 0 | АРХИВ | Rubitime выведено 2026-07-27; архивировано по решению владельца 2026-07-29. | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R7_STATIC_REFERENCE_AUDIT.md` | 0 | 0 | 0 | АРХИВ | Rubitime выведено 2026-07-27; архивировано по решению владельца 2026-07-29. | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R7_TABLE_DISPOSITION.md` | 0 | 0 | 0 | АРХИВ | Rubitime выведено 2026-07-27; архивировано по решению владельца 2026-07-29. | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_RR_PROOF_INDEX.md` | 0 | 0 | 0 | АРХИВ | Rubitime выведено 2026-07-27; архивировано по решению владельца 2026-07-29. | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_SECTION10_DOCS_MANIFEST.md` | 0 | 0 | 0 | АРХИВ | Rubitime выведено 2026-07-27; архивировано по решению владельца 2026-07-29. | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_TEST_R6_R7_PROGRESS_2026-07-24.md` | 0 | 0 | 0 | АРХИВ | Rubitime выведено 2026-07-27; архивировано по решению владельца 2026-07-29. | перенесено в Rubitime archive |
 | `SAAS_FOUNDATION/S4_0_S4_1_CONTRACT_INVENTORY.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
 | `SAAS_FOUNDATION/SAAS_B1_DOCTOR_ADMIN_IDENTITY.md` | 0 | 10 | 0 | ЗАКРЫТ | «RE-VERIFIED 2026-07-23 (all [x] audited vs code)»; это закрытый доказательный чек-лист. | архив |
 | `SAAS_FOUNDATION/SAAS_BILLING_PRACTICE_RESEARCH_2026-07-27.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
@@ -229,7 +229,7 @@
 | `SAAS_FOUNDATION/T0_4_PRE_INTEGRATOR_SCHEMA_CLEANUP_PLAN.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
 | `SAAS_FOUNDATION/T0_4_PRE_SCHEMA_CLEANUP_ADR.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
 | `SAAS_FOUNDATION/T0_4_PRE_SCHEMA_CLEANUP_INVENTORY.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
-| `SAAS_FOUNDATION/T0_4_RUBITIME_APPOINTMENT_ORG_AUDIT.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
+| `SAAS_FOUNDATION/T0_4_RUBITIME_APPOINTMENT_ORG_AUDIT.md` | 0 | 0 | 0 | АРХИВ | Rubitime выведено 2026-07-27; архивировано по решению владельца 2026-07-29. | перенесено в Rubitime archive |
 | `SAAS_FOUNDATION/T0_5_T0_8_READINESS_REVIEW.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
 | `SAAS_FOUNDATION/T0_DB_ACCESS_SURFACE.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
 | `SAAS_FOUNDATION/T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md` | 0 | 29 | 0 | ЗАКРЫТ | Шапка: «RE-VERIFIED 2026-07-23 (all [x] audited vs code)»; все 29 строк [x]. | архив |
@@ -293,17 +293,17 @@
 | `STABILITY_SECURITY_HARDENING_PLAN_2026-07-21.md` | 29 | 45 | 0 | ЖИВОЙ | Открытые [ ] остаются: без прямого архивного основания файл не закрывается. | оставить на месте |
 | `STATE_2026-07-28_EVENING.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
 | `TEST_SUITE_AUDIT_2026-07-29.md` | 5 | 0 | 0 | ЖИВОЙ | Открытые [ ] остаются: без прямого архивного основания файл не закрывается. | оставить на месте |
-| `UI_FINISH_AND_REAUDIT_2026-07-22/CHECKPOINT_2026-07-23_STATE_AND_BACKEND_WORK_ORDER.md` | 0 | 0 | 0 | ЖИВОЙ | Папка содержит незавершённый authority: «Track C NOT done» и «Track D only D0 done, D1-D10 open» (`UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md:6-13`); файл остаётся в живой волне. | оставить на месте |
-| `UI_FINISH_AND_REAUDIT_2026-07-22/NIGHT_2026-07-23_AUTONOMOUS_WORK_REPORT.md` | 0 | 0 | 0 | ЖИВОЙ | Папка содержит незавершённый authority: «Track C NOT done» и «Track D only D0 done, D1-D10 open» (`UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md:6-13`); файл остаётся в живой волне. | оставить на месте |
-| `UI_FINISH_AND_REAUDIT_2026-07-22/ORCHESTRATOR_PROMPT.md` | 0 | 0 | 0 | ЖИВОЙ | Папка содержит незавершённый authority: «Track C NOT done» и «Track D only D0 done, D1-D10 open» (`UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md:6-13`); файл остаётся в живой волне. | оставить на месте |
+| `UI_FINISH_AND_REAUDIT_2026-07-22/CHECKPOINT_2026-07-23_STATE_AND_BACKEND_WORK_ORDER.md` | 0 | 0 | 0 | ЗАКРЫТ | Датированный snapshot сохранён на исходном пути; его прежнее «Track C NOT done» superseded текущим `WORK_ORDER.md`: Track C завершён 2026-07-27 и архивирован по решению владельца 2026-07-29. Не является authority. | оставить на месте как историю |
+| `UI_FINISH_AND_REAUDIT_2026-07-22/NIGHT_2026-07-23_AUTONOMOUS_WORK_REPORT.md` | 0 | 0 | 0 | ЗАКРЫТ | Датированный snapshot сохранён на исходном пути; его Rubitime/Track C состояние superseded текущим `WORK_ORDER.md`. Не является очередью действий. | оставить на месте как историю |
+| `UI_FINISH_AND_REAUDIT_2026-07-22/ORCHESTRATOR_PROMPT.md` | 0 | 0 | 0 | ЖИВОЙ | Track C явно закрыт; оставшиеся Track A/B и общая orchestration discipline сохраняют силу. | оставить на месте |
 | `UI_FINISH_AND_REAUDIT_2026-07-22/PROCESS_AUDIT_LOG.md` | 0 | 0 | 0 | ЖИВОЙ | Собственный вердикт: «WARN; operational completion is not done» (`UI_FINISH_AND_REAUDIT_2026-07-22/PROCESS_AUDIT_LOG.md:30`). | оставить на месте |
-| `UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md` | 0 | 0 | 0 | ЖИВОЙ | «REMAINING-BACKEND — реальную работу кодом ещё надо сделать» (`UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md:11-16`). | оставить на месте |
+| `UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md` | 0 | 0 | 0 | ЗАКРЫТ | Датированный snapshot сохранён для provenance; его старые `REMAINING-BACKEND`/Track C формулировки не определяют текущую очередь и superseded `WORK_ORDER.md`. | оставить на месте как историю |
 | `UI_FINISH_AND_REAUDIT_2026-07-22/SECURITY_REVIEW_2026-07-23.md` | 0 | 0 | 0 | ЖИВОЙ | «remaining open items are hardening»; отдельные пункты имеют статус `OWNER-TRIAGE` (`UI_FINISH_AND_REAUDIT_2026-07-22/SECURITY_REVIEW_2026-07-23.md:26,93-100`). | оставить на месте |
-| `UI_FINISH_AND_REAUDIT_2026-07-22/SERVER_FINISH_AND_TEST_DEPLOY_KICKOFF.md` | 0 | 0 | 0 | ЖИВОЙ | Папка содержит незавершённый authority: «Track C NOT done» и «Track D only D0 done, D1-D10 open» (`UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md:6-13`); файл остаётся в живой волне. | оставить на месте |
-| `UI_FINISH_AND_REAUDIT_2026-07-22/SERVER_FINISH_EXECUTION_LEDGER_2026-07-24.md` | 0 | 0 | 0 | ЖИВОЙ | Собственный ledger отмечает `REMAINING` для runtime proof и 2-org/2-patient evidence (`UI_FINISH_AND_REAUDIT_2026-07-22/SERVER_FINISH_EXECUTION_LEDGER_2026-07-24.md:28,34`). | оставить на месте |
-| `UI_FINISH_AND_REAUDIT_2026-07-22/START_HERE_ORCHESTRATOR_KICKOFF.md` | 0 | 0 | 0 | ЖИВОЙ | Папка содержит незавершённый authority: «Track C NOT done» и «Track D only D0 done, D1-D10 open» (`UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md:6-13`); файл остаётся в живой волне. | оставить на месте |
+| `UI_FINISH_AND_REAUDIT_2026-07-22/SERVER_FINISH_AND_TEST_DEPLOY_KICKOFF.md` | 0 | 0 | 0 | ВЫТЕСНЕН | Tombstone `SUPERSEDED 2026-07-29`; исполняемых Git/deploy/DB-команд нет. | архивный move-pass |
+| `UI_FINISH_AND_REAUDIT_2026-07-22/SERVER_FINISH_EXECUTION_LEDGER_2026-07-24.md` | 0 | 0 | 0 | ЗАКРЫТ | Датированный execution snapshot сохранён на исходном пути; его старые `REMAINING` и Track C evidence не являются текущим authority после retirement safety в `WORK_ORDER.md`. | оставить на месте как историю |
+| `UI_FINISH_AND_REAUDIT_2026-07-22/START_HERE_ORCHESTRATOR_KICKOFF.md` | 0 | 0 | 0 | ВЫТЕСНЕН | Tombstone `SUPERSEDED 2026-07-29`; текущий старт — taskdb + authority map. | архивный move-pass |
 | `UI_FINISH_AND_REAUDIT_2026-07-22/TEST_DEPLOY_EVIDENCE_2026-07-22.md` | 0 | 0 | 0 | ЖИВОЙ | Собственные разделы `NOT DONE`: «Owner visual/click acceptance remains open» (`UI_FINISH_AND_REAUDIT_2026-07-22/TEST_DEPLOY_EVIDENCE_2026-07-22.md:58-67,89-91`). | оставить на месте |
-| `UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_A_DNA_LIVE_EVIDENCE.md` | 0 | 0 | 0 | ЖИВОЙ | Папка содержит незавершённый authority: «Track C NOT done» и «Track D only D0 done, D1-D10 open» (`UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md:6-13`); файл остаётся в живой волне. | оставить на месте |
+| `UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_A_DNA_LIVE_EVIDENCE.md` | 0 | 0 | 0 | ЖИВОЙ | Track A evidence; Rubitime retirement не определяет его статус. | оставить на месте |
 | `UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_A_EVIDENCE_MATRIX.md` | 0 | 0 | 0 | ЖИВОЙ | Матрица прямо оставляет owner/dependency gates open (`UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_A_EVIDENCE_MATRIX.md:52,68-70`). | оставить на месте |
 | `UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_A_ROADMAP_DAG_REALITY_AUDIT.md` | 0 | 0 | 0 | ЖИВОЙ | «full U3B stage cannot close», U6B и U10 blocked/open (`UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_A_ROADMAP_DAG_REALITY_AUDIT.md:60,65-66,72`). | оставить на месте |
 | `UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_A_TODAY_CLIENTS_MESSAGES_REAUDIT.md` | 0 | 0 | 0 | ЖИВОЙ | `NOT DONE`: formal owner acceptance и отдельный дефект messages остаются открыты (`UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_A_TODAY_CLIENTS_MESSAGES_REAUDIT.md:217-220`). | оставить на месте |
@@ -318,9 +318,9 @@
 | `UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_A_UI8_UI9_CLIENT_REALITY_AUDIT.md` | 0 | 0 | 0 | ЖИВОЙ | Собственный раздел `NOT DONE` фиксирует незакрытый остаток (`UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_A_UI8_UI9_CLIENT_REALITY_AUDIT.md:83-87`). | оставить на месте |
 | `UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_A_UIP_REALITY_AUDIT.md` | 0 | 0 | 0 | ЖИВОЙ | `NOT DONE`: populated Messages live state remains (`UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_A_UIP_REALITY_AUDIT.md:122-125`). | оставить на месте |
 | `UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_B_B4_OWNER_HANDOFF.md` | 0 | 0 | 0 | ЖИВОЙ | «Status: UNVERIFIED»; «Track B remains open» (`UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_B_B4_OWNER_HANDOFF.md:3-4`). | оставить на месте |
-| `UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_C_R5_R7_EVIDENCE_MATRIX.md` | 0 | 0 | 0 | ЖИВОЙ | «WARN / operational completion NOT DONE» (`UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_C_R5_R7_EVIDENCE_MATRIX.md:6`). | оставить на месте |
+| `archive/2026-07-rubitime-retirement/TRACK_C_R5_R7_EVIDENCE_MATRIX.md` | 0 | 0 | 0 | АРХИВ | Rubitime выведено 2026-07-27; владелец 2026-07-29 потребовал явно архивировать исторические документы. | перенесено в Rubitime archive |
 | `UI_FINISH_AND_REAUDIT_2026-07-22/U6A_PUBLIC_ENTRY_RECONCILIATION_2026-07-23.md` | 0 | 0 | 0 | ЖИВОЙ | `NOT DONE`: manual TEST click и live `.ics`/settings proofs remain open (`UI_FINISH_AND_REAUDIT_2026-07-22/U6A_PUBLIC_ENTRY_RECONCILIATION_2026-07-23.md:18-19,42-46`). | оставить на месте |
-| `UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` | 8 | 3 | 0 | ЖИВОЙ | «Track C NOT done»; «Track D only D0 done, D1-D10 open» (`UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md:6-13`). | оставить на месте |
+| `UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` | 8 | 3 | 0 | ЖИВОЙ | Track C закрыт/архивирован; текущая provider-neutral Track D и другие открытые tracks остаются в этом authority. | оставить на месте |
 | `UI_WALKTHROUGH_2026-07-25.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
 | `UNSUPPORTED_CLIENT_FALLBACK_PLAN.md` | 3 | 2 | 0 | ЖИВОЙ | Открытые [ ] остаются: без прямого архивного основания файл не закрывается. | оставить на месте |
 
@@ -348,7 +348,7 @@
 | `SAAS_FOUNDATION/P0_9_DEFAULT_DENY_CHECKLIST.md` | 9 | 0 | закрыт по [x] | «RE-VERIFIED 2026-07-23 (all [x] audited vs code)». |
 | `SAAS_FOUNDATION/PHASE0_MULTITENANT_DESIGN_LOCK.md` | 12 | 3 | 12 сделано + 3 вытеснено | «Phase 0 design-lock delivered»; три follow-on строки moved into `SAAS_ENFORCE_ROADMAP.md`, включая G6, который «NOT fully resolved» (`SAAS_FOUNDATION/PHASE0_MULTITENANT_DESIGN_LOCK.md:5-11,327-349`). |
 | `SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md` | 3 | 8 | 3 сделано + 8 вытеснено | Все 8 moved в `SAAS_ENFORCE_ROADMAP.md`/`R2_MVP_MASTER_CHECKLIST.md`; «часть — уже закрыта там, часть — всё ещё открыта» (`SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md:11-15`). |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R0_FREEZE_REPORT.md` | 9 | 0 | закрыт по [x] | Основание: R0 freeze report — исторический отчёт заморозки, не живой исполнительный план. |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R0_FREEZE_REPORT.md` | 9 | 0 | закрыт по [x] | Основание: R0 freeze report — исторический отчёт заморозки, не живой исполнительный план. |
 | `SAAS_FOUNDATION/SAAS_B1_DOCTOR_ADMIN_IDENTITY.md` | 10 | 0 | закрыт по [x] | «RE-VERIFIED 2026-07-23 (all [x] audited vs code)»; это закрытый доказательный чек-лист. |
 | `SAAS_FOUNDATION/SAAS_PRODUCT_SMOKE_A1.md` | 9 | 0 | закрыт по [x] | Основание: собственная шапка/строки фиксируют закрытый smoke A1; нет открытых пунктов. |
 | `SAAS_FOUNDATION/SAAS_R0_PLAN_RECONCILIATION.md` | 4 | 5 | 4 PASS + 5 🧊 frozen FAIL; вытеснен текущими планами | «Independent audit verdict (frozen): 4/9. PASS: … FAIL: …»; «must not retick this historical stage record» (`SAAS_FOUNDATION/SAAS_R0_PLAN_RECONCILIATION.md:3-6,17-19`). |
@@ -363,7 +363,7 @@
 
 | folder | files | open | closed | [-] | verdict | grounds | destination |
 | --- | ---: | ---: | ---: | ---: | --- | --- | --- |
-| `UI_FINISH_AND_REAUDIT_2026-07-22/` | 28 | 8 | 3 | 0 | ЖИВОЙ | `WORK_ORDER.md`: «Track C NOT done»; «Track D only D0 done, D1-D10 open» (`UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md:6-13`). | оставить на месте |
+| `UI_FINISH_AND_REAUDIT_2026-07-22/` | 28 | 8 | 3 | 0 | ЖИВОЙ | Track C закрыт; папка остаётся живой из-за независимых открытых Track A/B/D. Четыре dated snapshots сохранены на исходных путях как неавторитетная история; отдельного UI archive move нет. | оставить на месте |
 | `SECURITY_AUDIT_2026-07-25/` | 2 | 0 | 0 | 0 | ЖИВОЙ | `FINDINGS.md`: «S4/S5/S6 not started. NOTHING here has been fixed yet» (`SECURITY_AUDIT_2026-07-25/FINDINGS.md:16-18`). | оставить на месте |
 | `OWNER_WALKTHROUGHS/` | 3 | 9 | 33 | 0 | ЖИВОЙ | `README.md`: «Теперь единственное место — здесь»; открытые маркеры `[ ]` и owner decisions остаются работой (`OWNER_WALKTHROUGHS/README.md:3-5,13-20`). | оставить на месте |
 | `DOCTOR_DNA_MIGRATION/` | 1 | 0 | 4 | 1 | ОТМЕНЁН | PLAN.md: «⛔ ОТМЕНЕНО ВЛАДЕЛЬЦЕМ — ТОЛЬКО ИСТОРИЧЕСКАЯ ЗАПИСЬ». | архив |
@@ -458,8 +458,8 @@
 | `SAAS_FOUNDATION/PHASE3_ORCHESTRATION.md` | не относится к волне с архивным вердиктом | оставить на месте |
 | `SAAS_FOUNDATION/PHASE4_ROLLOUT_RUNBOOK.md` | не относится к волне с архивным вердиктом | оставить на месте |
 | `SAAS_FOUNDATION/QUOTAS_AND_MECHANICS_DESIGN_2026-07-28.md` | не относится к волне с архивным вердиктом | оставить на месте |
-| `SAAS_FOUNDATION/QUOTAS_WHAT_TO_LIMIT_2026-07-28.md` | не относится к волне с архивным вердиктом | оставить на месте |
-| `SAAS_FOUNDATION/QUOTAS_WORLD_PRACTICE_2026-07-28.md` | не относится к волне с архивным вердиктом | оставить на месте |
+| `SAAS_FOUNDATION/QUOTAS_RESEARCH_2026-07-28.md (часть I)` | не относится к волне с архивным вердиктом | оставить на месте |
+| `SAAS_FOUNDATION/QUOTAS_RESEARCH_2026-07-28.md (часть II)` | не относится к волне с архивным вердиктом | оставить на месте |
 | `SAAS_FOUNDATION/R1_TABLE_TAXONOMY.md` | не относится к волне с архивным вердиктом | оставить на месте |
 | `SAAS_FOUNDATION/R2_READINESS_CLOSURE.md` | индивидуальный кандидат `ВЫТЕСНЕН`; преемники названы в шапке | архив |
 | `SAAS_FOUNDATION/RAW_SQL_AUDIT.md` | не относится к волне с архивным вердиктом | оставить на месте |
@@ -467,44 +467,44 @@
 | `SAAS_FOUNDATION/REQUIREMENTS.md` | индивидуальный кандидат `ВЫТЕСНЕН`; преемники названы в шапке | архив |
 | `SAAS_FOUNDATION/REVIEW_2026-06-17_FRESH.md` | не относится к волне с архивным вердиктом | оставить на месте |
 | `SAAS_FOUNDATION/ROADMAP_TO_SAAS.md` | не относится к волне с архивным вердиктом | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_DB_CLEANUP_SEQUENCE.md` | не относится к волне с архивным вердиктом | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_FINAL_GATE_MANIFEST.md` | не относится к волне с архивным вердиктом | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_ORCHESTRATION_AUDIT.md` | не относится к волне с архивным вердиктом | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_OWNER_GATE_PACKET.md` | не относится к волне с архивным вердиктом | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_BLOCKER_CLASSIFICATION.md` | не относится к волне с архивным вердиктом | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_CLEANUP_RUN.md` | не относится к волне с архивным вердиктом | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_CLEAN_DUMP_REHEARSAL.md` | не относится к волне с архивным вердиктом | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_DOCTOR_UI_SMOKE.md` | не относится к волне с архивным вердиктом | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_DUAL_SOURCE_REPORT.md` | не относится к волне с архивным вердиктом | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_FALLBACK_IMPORT_AUDIT.md` | не относится к волне с архивным вердиктом | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_FALLBACK_SPECIALIST_IMPORT.md` | не относится к волне с архивным вердиктом | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_NON_CONFIRMED_CLEANUP.md` | не относится к волне с архивным вердиктом | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_OWNER_REVIEW_PACKET.md` | не относится к волне с архивным вердиктом | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_SOL_AUDIT.md` | не относится к волне с архивным вердиктом | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_STALE_CSV_AUDIT.md` | не относится к волне с архивным вердиктом | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_STALE_CSV_PROOF.md` | не относится к волне с архивным вердиктом | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_STATE_HISTORY_PROOF.md` | не относится к волне с архивным вердиктом | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R2_DOCTOR_READ_SOURCE_PROOF.md` | не относится к волне с архивным вердиктом | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R3_BRANCH_SERVICE_ID_REMOVAL_PREP.md` | не относится к волне с архивным вердиктом | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R3_CATALOG_PROOF.md` | не относится к волне с архивным вердиктом | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R3_SLOTS_CREATE_PROOF.md` | не относится к волне с архивным вердиктом | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R3_TENANT_PROOF.md` | не относится к волне с архивным вердиктом | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R4_LIFECYCLE_PROOF.md` | не относится к волне с архивным вердиктом | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_LEGACY_PROFILE_RESOLVE_PROOF.md` | индивидуальный кандидат `ВЫТЕСНЕН`; current acceptance названа в шапке | архив |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_PROOF.template.md` | индивидуальный кандидат `ВЫТЕСНЕН`; former template must not be executed | архив |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_RUNBOOK.md` | индивидуальный кандидат `ВЫТЕСНЕН`; current acceptance названа в шапке | архив |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_R7_PROVENANCE_RECONCILIATION.md` | не относится к волне с архивным вердиктом | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_PROOF.template.md` | не относится к волне с архивным вердиктом | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_RUNBOOK.md` | не относится к волне с архивным вердиктом | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R6_LIFECYCLE_ROUTE_SPLIT_PROOF.md` | не относится к волне с архивным вердиктом | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R6_R7_STATIC_INVENTORY.md` | не относится к волне с архивным вердиктом | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R7_ARCHIVE_DROP_RUNBOOK.md` | не относится к волне с архивным вердиктом | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R7_DROP_RESTORE_PROOF.template.md` | не относится к волне с архивным вердиктом | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R7_STATIC_REFERENCE_AUDIT.md` | не относится к волне с архивным вердиктом | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R7_TABLE_DISPOSITION.md` | не относится к волне с архивным вердиктом | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_RR_PROOF_INDEX.md` | не относится к волне с архивным вердиктом | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_SECTION10_DOCS_MANIFEST.md` | не относится к волне с архивным вердиктом | оставить на месте |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_TEST_R6_R7_PROGRESS_2026-07-24.md` | не относится к волне с архивным вердиктом | оставить на месте |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_DB_CLEANUP_SEQUENCE.md` | не относится к волне с архивным вердиктом | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_FINAL_GATE_MANIFEST.md` | не относится к волне с архивным вердиктом | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_ORCHESTRATION_AUDIT.md` | не относится к волне с архивным вердиктом | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_OWNER_GATE_PACKET.md` | не относится к волне с архивным вердиктом | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_BLOCKER_CLASSIFICATION.md` | не относится к волне с архивным вердиктом | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_CLEANUP_RUN.md` | не относится к волне с архивным вердиктом | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_CLEAN_DUMP_REHEARSAL.md` | не относится к волне с архивным вердиктом | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_DOCTOR_UI_SMOKE.md` | не относится к волне с архивным вердиктом | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_DUAL_SOURCE_REPORT.md` | не относится к волне с архивным вердиктом | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_FALLBACK_IMPORT_AUDIT.md` | не относится к волне с архивным вердиктом | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_FALLBACK_SPECIALIST_IMPORT.md` | не относится к волне с архивным вердиктом | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_NON_CONFIRMED_CLEANUP.md` | не относится к волне с архивным вердиктом | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_OWNER_REVIEW_PACKET.md` | не относится к волне с архивным вердиктом | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_SOL_AUDIT.md` | не относится к волне с архивным вердиктом | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_STALE_CSV_AUDIT.md` | не относится к волне с архивным вердиктом | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_STALE_CSV_PROOF.md` | не относится к волне с архивным вердиктом | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_STATE_HISTORY_PROOF.md` | не относится к волне с архивным вердиктом | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R2_DOCTOR_READ_SOURCE_PROOF.md` | не относится к волне с архивным вердиктом | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R3_BRANCH_SERVICE_ID_REMOVAL_PREP.md` | не относится к волне с архивным вердиктом | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R3_CATALOG_PROOF.md` | не относится к волне с архивным вердиктом | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R3_SLOTS_CREATE_PROOF.md` | не относится к волне с архивным вердиктом | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R3_TENANT_PROOF.md` | не относится к волне с архивным вердиктом | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R4_LIFECYCLE_PROOF.md` | не относится к волне с архивным вердиктом | перенесено в Rubitime archive |
+| `archive/2026-07-plans/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_LEGACY_PROFILE_RESOLVE_PROOF.md` | индивидуальный кандидат `ВЫТЕСНЕН`; historical evidence, already archived | оставить на месте |
+| `archive/2026-07-plans/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_PROOF.template.md` | индивидуальный кандидат `ВЫТЕСНЕН`; former template must not be executed | оставить на месте |
+| `archive/2026-07-plans/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_RUNBOOK.md` | индивидуальный кандидат `ВЫТЕСНЕН`; non-executable historical runbook | оставить на месте |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_R7_PROVENANCE_RECONCILIATION.md` | не относится к волне с архивным вердиктом | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_PROOF.template.md` | не относится к волне с архивным вердиктом | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_RUNBOOK.md` | не относится к волне с архивным вердиктом | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R6_LIFECYCLE_ROUTE_SPLIT_PROOF.md` | не относится к волне с архивным вердиктом | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R6_R7_STATIC_INVENTORY.md` | не относится к волне с архивным вердиктом | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R7_ARCHIVE_DROP_RUNBOOK.md` | не относится к волне с архивным вердиктом | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R7_DROP_RESTORE_PROOF.template.md` | не относится к волне с архивным вердиктом | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R7_STATIC_REFERENCE_AUDIT.md` | не относится к волне с архивным вердиктом | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R7_TABLE_DISPOSITION.md` | не относится к волне с архивным вердиктом | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_RR_PROOF_INDEX.md` | не относится к волне с архивным вердиктом | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_SECTION10_DOCS_MANIFEST.md` | не относится к волне с архивным вердиктом | перенесено в Rubitime archive |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_TEST_R6_R7_PROGRESS_2026-07-24.md` | не относится к волне с архивным вердиктом | перенесено в Rubitime archive |
 | `SAAS_FOUNDATION/S4_0_S4_1_CONTRACT_INVENTORY.md` | не относится к волне с архивным вердиктом | оставить на месте |
 | `SAAS_FOUNDATION/SAAS_BILLING_PRACTICE_RESEARCH_2026-07-27.md` | не относится к волне с архивным вердиктом | оставить на месте |
 | `SAAS_FOUNDATION/SAAS_C0_LOCKED_TOPOLOGY_ADR.md` | не относится к волне с архивным вердиктом | оставить на месте |
@@ -522,7 +522,7 @@
 | `SAAS_FOUNDATION/T0_4_PRE_INTEGRATOR_SCHEMA_CLEANUP_PLAN.md` | не относится к волне с архивным вердиктом | оставить на месте |
 | `SAAS_FOUNDATION/T0_4_PRE_SCHEMA_CLEANUP_ADR.md` | не относится к волне с архивным вердиктом | оставить на месте |
 | `SAAS_FOUNDATION/T0_4_PRE_SCHEMA_CLEANUP_INVENTORY.md` | не относится к волне с архивным вердиктом | оставить на месте |
-| `SAAS_FOUNDATION/T0_4_RUBITIME_APPOINTMENT_ORG_AUDIT.md` | не относится к волне с архивным вердиктом | оставить на месте |
+| `SAAS_FOUNDATION/T0_4_RUBITIME_APPOINTMENT_ORG_AUDIT.md` | не относится к волне с архивным вердиктом | перенесено в Rubitime archive |
 | `SAAS_FOUNDATION/T0_5_T0_8_READINESS_REVIEW.md` | не относится к волне с архивным вердиктом | оставить на месте |
 | `SAAS_FOUNDATION/T0_DB_ACCESS_SURFACE.md` | не относится к волне с архивным вердиктом | оставить на месте |
 | `SAAS_FOUNDATION/TASK_FOR_SOL_multitenant_flip.md` | индивидуальный кандидат `ВЫТЕСНЕН`; преемники названы в шапке | архив |
@@ -576,14 +576,14 @@
 | `SECURITY_AUDIT_2026-07-25/FINDINGS_AND_OPTIONS.md` | относится к живой папке-волне `SECURITY_AUDIT_2026-07-25/` | оставить на месте |
 | `SLUG_RENAME_POLICY_RESEARCH_2026-07-27.md` | индивидуальный кандидат `ВЫТЕСНЕН`; policy в `OWNER_PRODUCT_RULES.md` §12 | архив |
 | `STATE_2026-07-28_EVENING.md` | не относится к волне с архивным вердиктом | оставить на месте |
-| `UI_FINISH_AND_REAUDIT_2026-07-22/CHECKPOINT_2026-07-23_STATE_AND_BACKEND_WORK_ORDER.md` | относится к живой папке-волне `UI_FINISH_AND_REAUDIT_2026-07-22/` | оставить на месте |
-| `UI_FINISH_AND_REAUDIT_2026-07-22/NIGHT_2026-07-23_AUTONOMOUS_WORK_REPORT.md` | относится к живой папке-волне `UI_FINISH_AND_REAUDIT_2026-07-22/` | оставить на месте |
+| `UI_FINISH_AND_REAUDIT_2026-07-22/CHECKPOINT_2026-07-23_STATE_AND_BACKEND_WORK_ORDER.md` | закрытый historical snapshot; текущий Track C authority — retirement safety в `WORK_ORDER.md` | оставить на месте |
+| `UI_FINISH_AND_REAUDIT_2026-07-22/NIGHT_2026-07-23_AUTONOMOUS_WORK_REPORT.md` | закрытый historical snapshot; не текущая очередь | оставить на месте |
 | `UI_FINISH_AND_REAUDIT_2026-07-22/ORCHESTRATOR_PROMPT.md` | относится к живой папке-волне `UI_FINISH_AND_REAUDIT_2026-07-22/` | оставить на месте |
 | `UI_FINISH_AND_REAUDIT_2026-07-22/PROCESS_AUDIT_LOG.md` | относится к живой папке-волне `UI_FINISH_AND_REAUDIT_2026-07-22/` | оставить на месте |
-| `UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md` | относится к живой папке-волне `UI_FINISH_AND_REAUDIT_2026-07-22/` | оставить на месте |
+| `UI_FINISH_AND_REAUDIT_2026-07-22/PRODUCTION_READINESS_LEDGER_2026-07-23.md` | закрытый historical snapshot; старые `REMAINING` не текущий authority | оставить на месте |
 | `UI_FINISH_AND_REAUDIT_2026-07-22/SECURITY_REVIEW_2026-07-23.md` | относится к живой папке-волне `UI_FINISH_AND_REAUDIT_2026-07-22/` | оставить на месте |
 | `UI_FINISH_AND_REAUDIT_2026-07-22/SERVER_FINISH_AND_TEST_DEPLOY_KICKOFF.md` | относится к живой папке-волне `UI_FINISH_AND_REAUDIT_2026-07-22/` | оставить на месте |
-| `UI_FINISH_AND_REAUDIT_2026-07-22/SERVER_FINISH_EXECUTION_LEDGER_2026-07-24.md` | относится к живой папке-волне `UI_FINISH_AND_REAUDIT_2026-07-22/` | оставить на месте |
+| `UI_FINISH_AND_REAUDIT_2026-07-22/SERVER_FINISH_EXECUTION_LEDGER_2026-07-24.md` | закрытый historical snapshot; старые `REMAINING` не текущий authority | оставить на месте |
 | `UI_FINISH_AND_REAUDIT_2026-07-22/START_HERE_ORCHESTRATOR_KICKOFF.md` | относится к живой папке-волне `UI_FINISH_AND_REAUDIT_2026-07-22/` | оставить на месте |
 | `UI_FINISH_AND_REAUDIT_2026-07-22/TEST_DEPLOY_EVIDENCE_2026-07-22.md` | относится к живой папке-волне `UI_FINISH_AND_REAUDIT_2026-07-22/` | оставить на месте |
 | `UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_A_DNA_LIVE_EVIDENCE.md` | относится к живой папке-волне `UI_FINISH_AND_REAUDIT_2026-07-22/` | оставить на месте |
@@ -601,7 +601,7 @@
 | `UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_A_UI8_UI9_CLIENT_REALITY_AUDIT.md` | относится к живой папке-волне `UI_FINISH_AND_REAUDIT_2026-07-22/` | оставить на месте |
 | `UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_A_UIP_REALITY_AUDIT.md` | относится к живой папке-волне `UI_FINISH_AND_REAUDIT_2026-07-22/` | оставить на месте |
 | `UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_B_B4_OWNER_HANDOFF.md` | относится к живой папке-волне `UI_FINISH_AND_REAUDIT_2026-07-22/` | оставить на месте |
-| `UI_FINISH_AND_REAUDIT_2026-07-22/TRACK_C_R5_R7_EVIDENCE_MATRIX.md` | относится к живой папке-волне `UI_FINISH_AND_REAUDIT_2026-07-22/` | оставить на месте |
+| `archive/2026-07-rubitime-retirement/TRACK_C_R5_R7_EVIDENCE_MATRIX.md` | Rubitime retirement завершён 2026-07-27 | архивировано по решению владельца 2026-07-29 |
 | `UI_FINISH_AND_REAUDIT_2026-07-22/U6A_PUBLIC_ENTRY_RECONCILIATION_2026-07-23.md` | относится к живой папке-волне `UI_FINISH_AND_REAUDIT_2026-07-22/` | оставить на месте |
 | `UI_WALKTHROUGH_2026-07-25.md` | не относится к волне с архивным вердиктом | оставить на месте |
 
@@ -633,10 +633,10 @@
 | `SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md` | не найдено |
 | `SAAS_FOUNDATION/R2_READINESS_CLOSURE.md` | не найдено |
 | `SAAS_FOUNDATION/REQUIREMENTS.md` | не найдено |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R0_FREEZE_REPORT.md` | не найдено |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_LEGACY_PROFILE_RESOLVE_PROOF.md` | не найдено |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_PROOF.template.md` | не найдено |
-| `SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_RUNBOOK.md` | не найдено |
+| `archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R0_FREEZE_REPORT.md` | не найдено |
+| `archive/2026-07-plans/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_LEGACY_PROFILE_RESOLVE_PROOF.md` | не найдено |
+| `archive/2026-07-plans/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_PROOF.template.md` | не найдено |
+| `archive/2026-07-plans/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_RUNBOOK.md` | не найдено |
 | `SAAS_FOUNDATION/SAAS_B1_DOCTOR_ADMIN_IDENTITY.md` | не найдено |
 | `SAAS_FOUNDATION/SAAS_PRODUCT_SMOKE_A1.md` | не найдено |
 | `SAAS_FOUNDATION/SAAS_R0_PLAN_RECONCILIATION.md` | не найдено |

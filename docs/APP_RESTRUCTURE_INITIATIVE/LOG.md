@@ -627,7 +627,8 @@
 - `apps/integrator/src/integrations/rubitime/connector.ts` — `mergeRubitimeWebhookSiblingCommentFields`: подмешивание полей комментариев с верхнего уровня `data` вебхука во вложенный `record`, если там пусто.
 - Тесты: `sync.test.ts` (описание + существующие кейсы маппинга), `connector.test.ts` (merge `comment` и `admin_comment` с родителя).
 
-**Документация:** [`docs/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md`](../ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md) — раздел «Google Calendar: поле description события», таблица журнала.
+**Историческая документация:** [`docs/archive/2026-07-rubitime-retirement/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md`](../archive/2026-07-rubitime-retirement/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md) —
+retired snapshot раздела «Google Calendar: поле description события»; не current authority.
 
 **Проверки:** `pnpm --dir apps/integrator exec vitest run src/integrations/google-calendar/sync.test.ts src/integrations/rubitime/connector.test.ts`
 

@@ -18,6 +18,21 @@ fail() {
   exit 1
 }
 
+assert_canonical_prod_host() {
+  local current_hostname address found_ip=0
+  current_hostname="$(hostname -s 2>/dev/null || true)"
+  [ "$current_hostname" = "adelaide" ] ||
+    fail "refusing PROD cutover on host '${current_hostname:-unknown}'; expected adelaide"
+  for address in $(hostname -I 2>/dev/null || true); do
+    if [ "$address" = "135.106.162.170" ]; then
+      found_ip=1
+      break
+    fi
+  done
+  [ "$found_ip" -eq 1 ] ||
+    fail "refusing PROD cutover without local IPv4 135.106.162.170"
+}
+
 require_file() {
   local path="$1"
   local description="$2"
@@ -25,6 +40,8 @@ require_file() {
     fail "${description} not found: ${path}"
   fi
 }
+
+assert_canonical_prod_host
 
 if mkdir -p /opt/backups/logs/bersoncarebot 2>/dev/null; then
   LOG_DIR=/opt/backups/logs/bersoncarebot

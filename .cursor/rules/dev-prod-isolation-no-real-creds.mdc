@@ -5,38 +5,46 @@ alwaysApply: true
 
 # Безопасность dev-среды: изоляция от прод и реальных каналов
 
-Контекст: dev и прод живут на **одной машине**. Прод бежит из `/opt/projects/bersoncarebot`
-(systemd `bersoncarebot-{webapp,api,worker}-prod.service`, env `/opt/env/bersoncarebot/*`, БД
-`bcb_webapp_prod`). Dev бежит из репо в `/home/.../BersonCareBot` (`pnpm dev`: webapp `127.0.0.1:5200`
-+ integrator `127.0.0.1:4200`, env `/.env` + `apps/webapp/.env.dev`, БД `bcb_webapp_dev`).
+Контекст: среды разнесены. Текущий хост `151.241.228.122` — только DEV/RELAY/TEST. PROD находится только на
+`135.106.162.170` и из dev-сессии не трогается. DEV бежит из `/home/dev/dev-projects/BersonCareBot`
+(`pnpm dev`: webapp `127.0.0.1:5200` + integrator `127.0.0.1:4200`, env `/.env` +
+`apps/webapp/.env.dev`, БД `bcb_webapp_dev`). TEST — `/opt/projects/bersoncarebot-test`, env `*.test`,
+юниты `bersoncarebot-*-test.service`, БД `bersoncarebot_test`. Старые local `*.prod`,
+`/opt/projects/bersoncarebot` и `bersoncarebot-*-prod.service` на `151.x` — запрещённые остатки старой
+топологии; PROD-юниты обязаны оставаться `masked`.
 Канонические пути/имена — только из `docs/ARCHITECTURE/SERVER CONVENTIONS.md`, не придумывать.
 
 ## 1. Реальные креды — только на проде, никогда в dev-env
-- Dev-env (`/.env`, `apps/webapp/.env.dev`) НЕ должен содержать реальных prod-секретов внешних каналов:
-  `TELEGRAM_BOT_TOKEN`, `RUBITIME_API_KEY` / `RUBITIME_WEBHOOK_TOKEN`, `MAX_API_KEY` / `MAX_WEBHOOK_SECRET`,
-  `SMSC_API_KEY`, реальные `S3_*`. Реальные секреты живут ТОЛЬКО в `/opt/env/bersoncarebot/*`.
+- DEV/TEST на `151.x` НЕ должны содержать реальных prod-секретов внешних каналов:
+  `TELEGRAM_BOT_TOKEN`, `MAX_API_KEY` / `MAX_WEBHOOK_SECRET`,
+  `SMSC_API_KEY`, реальные PROD `S3_*`. Реальные prod-секреты живут только на `135.x`; локальные `*.test`
+  содержат только TEST-креды и обязательные send-safety ограничения.
+- Retired Rubitime keys (`RUBITIME_API_KEY` / `RUBITIME_WEBHOOK_TOKEN`) не должны возвращаться ни в DEV/TEST,
+  ни в текущий runtime: архивные env/one-shot материалы не являются источником конфигурации.
 - В dev обязательно: `NODE_ENV=development`, send-креды пустые, `MAX_ENABLED=false` / `SMSC_ENABLED=false`,
   `INTEGRATOR_SHARED_SECRET` — dev-значение (совпадает в обоих dev-файлах).
 - Нашёл реальные креды в dev-env — это инцидент: очистить и сообщить владельцу (ротация — на его стороне).
 
 ## 2. Dev никогда не инициирует реальную доставку
 - В `development` доставка должна быть no-op/мок (логируем «отправили бы X», реально не шлём; без ошибок).
-- Агент НЕ выполняет действий, способных отправить реальное сообщение/SMS в Telegram/Rubitime/SMSC/MAX
+- Агент НЕ выполняет действий, способных отправить реальное сообщение/SMS в Telegram/SMSC/MAX
   или записать в реальный S3 из dev (тестовые записи, рассылки, ретраи доставки, ручные триггеры).
 - `INTEGRATOR_API_URL` в dev обязан указывать на локальный `127.0.0.1:4200`, не на прод.
 
 ## 3. Dev-БД — изменяемая рабочая песочница
-- `bcb_webapp_dev` разрешено пересоздавать, сидировать и произвольно менять для разработки, UX и скриншотов.
-- Текущую TEST-БД разрешено копировать в DEV только каноническим wrapper:
-  `bash deploy/host/refresh-dev-from-test.sh --execute`. Он обязан читать ровно `bersoncarebot_test`, писать
-  ровно `bcb_webapp_dev` и не открывать PROD.
+- `bcb_webapp_dev` разрешено сидировать и произвольно менять для разработки, UX и скриншотов.
+- Pending migrations применяются к существующей DEV-БД только через
+  `bash deploy/host/migrate-dev.sh --preflight`, затем `bash deploy/host/migrate-dev.sh --execute`.
+- TEST→DEV destructive refresh удалён решением владельца 2026-07-30. Обычная разработка не копирует TEST
+  и не пересоздаёт DEV.
 - Данные из DEV можно использовать внутри команды агентов для разработки и UX-аудита. Не коммитить DB dumps,
   cookie jars и runtime exports. Запрет реальной доставки из §2 сохраняется независимо от состава DEV-БД.
 
 ## 4. Прод изолирован — не трогать из dev
-- Агент, работающий в dev-репо, НИКОГДА не подключается к `bcb_webapp_prod`, не читает `/opt/env/*`,
-  не дёргает прод-сервисы/интегратор/вебхуки. Любые прод-операции — только по явному запросу владельца
-  и по канону `SERVER CONVENTIONS.md` (+ `host-psql-database-url.mdc`).
+- Агент на `151.x` НИКОГДА не подключается к `135.x`, PROD-БД, PROD-сервисам/интегратору/вебхукам и не
+  использует локальные остатки `*.prod` как доступ к PROD. Любая PROD-операция требует отдельного явного
+  owner-запроса с указанием PROD и проверки target-host = `135.106.162.170` по
+  `SERVER CONVENTIONS.md` (+ `host-psql-database-url.mdc`).
 
 ## 5. Секреты не читать и не печатать
 - Не раскрывать значения `.env`/секретов в выводе; если значение реально нужно — маскировать

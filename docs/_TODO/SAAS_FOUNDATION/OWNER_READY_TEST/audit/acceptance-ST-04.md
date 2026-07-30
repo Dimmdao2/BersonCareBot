@@ -36,5 +36,5 @@
 - [ ] Visual #1 прошёл каждый ST-02/ST-03 nuance и записал доказательства.
 - [ ] Chief #2 независимо перепроверил и исключил ложные отказы из-за URL/data scenario.
 - [ ] Screenshot manifest содержит commit, роли, URL templates, viewport/states; без secrets/opaque IDs/ПДн.
-- [ ] Завершённые subagent sessions/processes проверены и очищены; taskdb note содержит результат.
+- [ ] Завершённые subagent sessions/processes проверены и очищены; результат записан в канонический план/лог.
 - [ ] Owner handoff сообщает, куда войти и что увидеть по каждой роли.

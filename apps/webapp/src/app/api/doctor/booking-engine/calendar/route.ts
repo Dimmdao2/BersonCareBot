@@ -6,7 +6,31 @@ import {
   DEFAULT_APP_DISPLAY_TIMEZONE,
   getAppDisplayTimeZone,
 } from '@/modules/system-settings/appDisplayTimezone';
+import type { CalendarFilterMeta } from '@/modules/booking-calendar/types';
 import { requireDoctorBookingEngine } from '../_requireDoctorBookingEngine';
+import {
+  parseDoctorScheduleScopeQuery,
+  resolveDoctorScheduleScope,
+  type ResolvedDoctorScheduleScope,
+} from '../_resolveDoctorScheduleScope';
+
+function scopeCalendarFilterMeta(
+  filters: CalendarFilterMeta,
+  resolvedScope: ResolvedDoctorScheduleScope,
+): CalendarFilterMeta {
+  if (!resolvedScope.specialistId) return filters;
+  const specialistId = resolvedScope.specialistId;
+  return {
+    ...filters,
+    specialists: filters.specialists.filter((option) => option.id === specialistId),
+    services: filters.services.map((service) => ({
+      ...service,
+      availability: service.availability.filter(
+        (availability) => availability.specialistId === specialistId,
+      ),
+    })),
+  };
+}
 
 export async function GET(request: Request) {
   const gate = await requireDoctorBookingEngine();
@@ -23,26 +47,19 @@ export async function GET(request: Request) {
   const timeZone = await resolveDoctorCalendarIana(gate.ctx.session.user.userId).catch(
     () => appDisplayTimeZone,
   );
-  const parsed = parseCalendarQuery(new URL(request.url).searchParams, timeZone);
+  const searchParams = new URL(request.url).searchParams;
+  const parsed = parseCalendarQuery(searchParams, timeZone);
   if ('error' in parsed) {
     return NextResponse.json({ ok: false, error: parsed.error }, { status: 400 });
   }
-
-  // When the caller omits specialistId (e.g. ScheduleCalendarTab fetches without it),
-  // fall back to the single specialist for this org so that per-specialist working-hours
-  // rows (saved by the schedule editor) are included in the calendar feed.
-  // Multiple specialists → keep null (all specialists visible, global-only working rows).
-  let resolvedSpecialistId = parsed.specialistId;
-  if (resolvedSpecialistId === null && deps.bookingEngine) {
-    try {
-      const specialists = await deps.bookingEngine.catalog.listSpecialists(gate.ctx.organizationId);
-      const active = specialists.filter((s) => s.isActive);
-      if (active.length === 1) {
-        resolvedSpecialistId = active[0]!.id;
-      }
-    } catch {
-      // Non-critical: if lookup fails, keep null (global rows)
-    }
+  const scopeInput = parseDoctorScheduleScopeQuery(searchParams);
+  if (!scopeInput.ok) {
+    return NextResponse.json({ ok: false, error: scopeInput.error }, { status: 400 });
+  }
+  const scheduleScope = await resolveDoctorScheduleScope(gate.ctx, scopeInput.value);
+  if (!scheduleScope.ok) {
+    const status = scheduleScope.error === 'schedule_specialist_not_available' ? 404 : 409;
+    return NextResponse.json({ ok: false, error: scheduleScope.error }, { status });
   }
 
   try {
@@ -51,7 +68,7 @@ export async function GET(request: Request) {
       rangeStart: parsed.rangeStart,
       rangeEnd: parsed.rangeEnd,
       timeZone,
-      specialistId: resolvedSpecialistId,
+      specialistId: scheduleScope.value.specialistId,
       branchId: parsed.branchId,
       roomId: parsed.roomId,
       serviceId: parsed.serviceId,
@@ -64,6 +81,8 @@ export async function GET(request: Request) {
       rangeEnd: parsed.rangeEnd,
       timeZone,
       ...aggregate,
+      filters: scopeCalendarFilterMeta(aggregate.filters, scheduleScope.value),
+      resolvedScope: scheduleScope.value,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'calendar_load_failed';

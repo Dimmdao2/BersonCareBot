@@ -29,8 +29,9 @@
 
 > This is THE instruction. Each step links to its detail section below. Status legend:
 > ✅SCRIPT (one command, proven) · ✍️MANUAL (exact commands here) · ⛔BLOCKED (needs a build first — see §8 Blockers).
-> **Hard ordering (not preference):** owner-account consolidation first → identity-fix #2 → migrations #3 → test-cleanup #4 → CSV backfill #5 →
-> legacy-drop #6; roles/grants #8 → walls #9; ФИО #7 after history-normalization.
+> **Hard ordering (not preference):** owner-account consolidation first → identity-fix → reviewed migrations →
+> provider-neutral cleanup; roles/grants → walls; ФИО after identity normalization. Rubitime CSV/R1–R7 is retired
+> and is not an input to this sequence.
 >
 > - [ ] **1. GO-gates** (owner/legal, must be green) — §1. ✍️MANUAL
 > - [ ] **2. Fresh prod dump → disposable copy** (rehearse first; then new prod host in the window) — §2. ✅SCRIPT (`deploy/host/deploy-test-full-reset.sh`, engine `deploy-test-saas.sh`)
@@ -38,8 +39,8 @@
 > - [ ] **3. Identity data-fix** (doctor=yandex canonical; tezka email stripped; **gmail=HARD `role='admin'`**) — runs automatically as the DATAFIX step BEFORE migrations. §7 #1/#2. ✅SCRIPT (`p0-data-fix-doctor-admin-split.sql`)
 > - [ ] **4. SaaS schema migrations** (incl. `0233_global_admin_hard_role`, membership seed 0143) — part of §2 engine. ✅SCRIPT
 > - [ ] **5. Test-record cleanup + dedup** (remove test bookings, merge clone clients) — §2.5 + §8. ⛔BLOCKED (safety module refuses prod-named DB; needs reviewed guard-unlock like §3.5's flag)
-> - [ ] **6. Rubitime CSV → canonical `be_*` backfill** (history import, no dup integrator/rubitime tables) — §2.5 + §8. ✅SCRIPT (`backfill-canonical-from-legacy-appointments.ts`) but needs real CSV+hashes + the #5 guard
-> - [ ] **7. Legacy / Rubitime archive-then-drop** (R7 archive → drop; `booking_*` after R3-CATALOG) — §2.5 + §8. ✅SCRIPT for the archive+mirror-drop (`deploy/host/archive-rubitime-retirement-tables.sh` + migration `0237_r7_drop_public_rubitime_mirror_tables.sql`, proven on TEST 2026-07-25) · ⛔ still BLOCKED for the rest: `appointment_records` **drop** (live runtime refs), `booking_*` catalog (Track C R3-CATALOG), and the prod-side rehearsal + `R7_DROP_RESTORE_PROOF.md`
+> - [-] ~~**6. Rubitime CSV → canonical backfill**~~ — ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 2026-07-29: «Rubitime у нас больше нет». Архивные CSV one-shot не запускать.
+> - [x] **7. Retired provider mirror migration.** Rubitime выведено 2026-07-27; удаление старых mirror tables идёт только обычной migration chain (`0237`). Provider-neutral `appointment_records` cleanup — отдельный workstream.
 > - [ ] **8. Fix ФИО by reviewed table** (after history normalization) — §8. ✅SCRIPT (B-8 done 2026-07-25, `818f51570`): gated cutover apply — `--allow-authorized-prod-target` + exact `--authorized-prod-database` + environment-matching manifest
 > - [ ] **9. Runtime roles + grants** (create TEST-style split login roles; run overlays in order) — §3. ✍️MANUAL (overlays are scripts; no `deploy-prod-saas.sh` yet = taskdb #994)
 > - [ ] **10. Install walls** (strict RLS + FORCE, owner-gated flag) — §3.5. ✍️MANUAL (`test-strict-rls-finalizer.sql -v allow_authorized_prod_target=1`)
@@ -48,7 +49,8 @@
 > - [ ] **13. Post-cutover verification** (delivery/alerting live; decommission old only after owner GO) — §6. ✍️MANUAL
 >
 > **Runnable end-to-end on a fresh dump TODAY:** steps 2→3→4→9→10→11 (migrate + identity + roles + walls + boot).
-> **Still BLOCKED (must build before a full clean run):** steps 5, 7, 8 (and 6 needs the #5 guard + real CSV). See §8.
+> **Still BLOCKED (must build before a full clean run):** provider-neutral cleanup and FIO production apply. The
+> current TEST full-reset wrapper still exposes retired Rubitime input flags and must be modernized before reuse.
 
 ## 0. When this runs
 
@@ -242,46 +244,18 @@ sudo systemctl start bersoncarebot-webapp-test bersoncarebot-api-test bersoncare
 For the real cutover this matters more: budget for the fact that a red gate takes the environment down, and
 verify services are up as an explicit final step.
 
-## 2.5 Legacy / Rubitime table cleanup (SCRIPTED runbooks + owner-gated destructive step)
+## 2.5 Retired provider tables in an old dump
 
-The fresh-dump migration (§2) restores the OLD prod DB, so **Rubitime + legacy tables come along** and must be
-cleaned as an explicit, owner-gated, destructive step — NOT a blind `DROP`. **Authoritative runbooks (this process
-just sequences + links them — the runbooks are binding):**
+Rubitime runtime was retired on 2026-07-27. The former R1–R7 plans, CSV backfill and archive/drop scripts are
+historical only: `docs/archive/2026-07-rubitime-retirement/README.md`. They are not executable dependencies of this
+production process and must not be rerun.
 
-- Master: `RUBITIME_RETIREMENT_EXECUTION_PLAN.md`.
-- What to archive / drop / KEEP: `RUBITIME_RETIREMENT_R7_TABLE_DISPOSITION.md` (+ gate `pnpm run check:rubitime-r7-table-disposition`).
-- Binding executable R7 spec: `RUBITIME_RETIREMENT_R7_ARCHIVE_DROP_RUNBOOK.md`. Cleanup order: `RUBITIME_RETIREMENT_DB_CLEANUP_SEQUENCE.md`.
-
-**Sequence (must not skip):** R1–R6 first (history migrated to canonical `be_*`, runtime switched off Rubitime,
-R6 cutoff/drain proof `RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_RUNBOOK.md`) → **R7 archive** (`pg_dump --data-only` of
-`appointment_records`, `integrator.rubitime_records`, `integrator.rubitime_events` to a timestamped dir + SHA256SUMS)
-→ **R7 DROP** (owner-approved candidates: `integrator.rubitime_api_throttle`/`rubitime_create_retry_jobs`(**now renamed
-`message_retry_jobs` — KEEP, NOT a drop**, it's the generic delivery queue)/`rubitime_booking_profiles`/`rubitime_branches`/
-`rubitime_services`/`rubitime_cooperators`) via a NORMAL repo migration, never ad-hoc DROP.
-**KEEP-list (do NOT drop):** `public.patient_bookings`, `public.be_external_entity_mappings`, `integrator.booking_calendar_map`
-(while GCal sync active), `public.booking_*` catalog tables **until R3-CATALOG `branchServiceId` removal is separately
-done** (then legacy `booking_branches`/`booking_branch_services`/`branches` may be dropped).
-
-**Gates before any DROP:** static no-reference proof (`pnpm run check:rubitime-retirement-inventory --expect-post-r6`
-green; `rg` shows only docs/archives/migrations), archive done + SHA'd, R6 drain proof recorded, **explicit owner
-authorization of the exact destructive batch**. Then restore/migrate proof on a disposable copy first.
-
-**Archive+drop tooling (B-7(b), landed 2026-07-25):** the archive is a script, not prose —
-`deploy/host/archive-rubitime-retirement-tables.sh` (`--execute` + exact `--expected-database` + loopback-only
-
-- owner-gated `--allow-authorized-prod-target`; archive → SHA256SUMS → verify → drop hand-off through
-  `pnpm run migrate`, never an ad-hoc DROP). Its drop half is the repo migration
-  `apps/webapp/db/drizzle-migrations/0237_r7_drop_public_rubitime_mirror_tables.sql`, which drops ONLY
-  `public.rubitime_records`/`public.rubitime_events`. Exact invocation: runbook §3.
-
-**Current status (2026-07-25):** Track C R1–R2 done, R3–R6 code-only. R7 **archive is now scripted and proven
-on TEST** (`bersoncarebot_test`: `public.appointment_records` 458 rows, `integrator.rubitime_records` 91 rows,
-`integrator.rubitime_events` 418 rows archived+verified; both `public.rubitime_*` mirrors recorded missing),
-and the mirror-drop migration applied+re-applied on a disposable scratch DB. Owner authorized the destructive
-batch **on TEST only** (not prod), so on prod this whole §2.5 is still pending its own rehearsal+owner-GO, and
-`RUBITIME_RETIREMENT_R7_DROP_RESTORE_PROOF.md` is still unwritten. **`public.appointment_records` DROP stays
-unauthored** — live runtime readers/writers (R7_TABLE_DISPOSITION.md Track C). `message_retry_jobs` rename
-already landed (forward migration, applies in §2).
+An old source dump may still contain legacy provider tables. The supported path is the normal reviewed migration
+chain, including migration `0237_r7_drop_public_rubitime_mirror_tables.sql`, followed by a schema inventory. Do not
+run archive scripts or ad-hoc DROP from the retired packet. Any remaining table not covered by a current migration
+requires a new owner-reviewed provider-neutral migration. `public.appointment_records`, generic retry storage,
+calendar mappings and canonical booking data are separate provider-neutral concerns and are not dropped merely
+because Rubitime is retired.
 
 ## 3. Runtime role grants (SCRIPTED overlays + MANUAL invocation) — the piece prod is currently MISSING
 
@@ -462,23 +436,24 @@ Cross-cutting finding (READ FIRST): **almost every destructive DB-mutation scrip
 | 1   | Specialist/doctor merge + identity data-fix                    | `deploy/postgres/p0-data-fix-doctor-admin-split.sql` (identity roles; runs BEFORE migrations via `deploy-test-saas.sh` DATAFIX) + `apps/webapp/scripts/consolidate-specialist-identity.ts` (specialist-row dup merge, dry-run default, `--commit`)                                                                                                                                                                        | READY (identity data-fix) — anchors: DOCTOR = phone `+79643805480` + `dimmdao@yandex.ru` (role doctor), CLIENT tezka `+79189000782` = no email. **consolidate-specialist-identity** still PARTIAL (canonical UUID is a TEST constant; needs real-data re-derivation). Idempotent; STOPS loudly on un-merged dup.                                                         |
 | 2   | Global-admin account (**HARD role, owner 2026-07-25**)         | `deploy/postgres/p0-data-fix-doctor-admin-split.sql` (hard-sets `dimmdao@gmail.com` → `platform_users.role='admin'`) + migration `0233_global_admin_hard_role.sql` (asserts the same in the migration chain)                                                                                                                                                                                                              | READY — **CORRECTED**: the global admin is a real persisted `role='admin'` (a dedicated account, separate from the doctor), NOT the old session-only `admin_emails` elevation. `service.ts:102` maps `role='admin'`→adminMode. Membership seed 0143 is doctor-only, so a persisted admin is never seeded into an org. `admin_emails` stays as a harmless redundant belt. |
 | 3   | Delete old test records                                        | `purge-placeholder-bookings.ts` + `backfill-...--cleanup-only --delete-test ...` (`purge-placeholder-bookings-safety.ts`)                                                                                                                                                                                                                                                                                                 | PARTIAL/BLOCKED — safety module unconditionally refuses prod-named DB; needs reviewed override before cutover                                                                                                                                                                                                                                                            |
-| 4   | Rubitime CSV → canonical schema                                | `apps/webapp/scripts/backfill-canonical-from-legacy-appointments.ts` (idempotent). NB older `backfill-rubitime-records-and-clients.ts` targeted the OLD schema, ran on prod 2026-06-13 — superseded, different target                                                                                                                                                                                                     | COMPLETE (mechanism) — needs real CSV+hashes + invocation once #3 guard solved                                                                                                                                                                                                                                                                                           |
-| 5   | Drop integrator-duplicate + rubitime tables                    | rubitime drop migration `apps/integrator/.../20260724_0002_drop_r7_raw_tables.sql` (authored; **CORRECTED 2026-07-25: it WAS applied + ledger-tracked on TEST** — `integrator.schema_migrations` row `applied_at 2026-07-24 17:34:46+03`, see `RUBITIME_RETIREMENT_R7_TABLE_DISPOSITION.md` "reconciled TEST status". The old "unapplied even on TEST" line was stale prose); integrator-duplicate removal = Track D (#7) | PARTIAL/GAP — migration proven on TEST; prod rehearsal + `R7_DROP_RESTORE_PROOF.md` outstanding                                                                                                                                                                                                                                                                          |
-| 6   | Cut legacy tables                                              | same R7 drop migration; archive-then-drop is now **SCRIPTED**: `deploy/host/archive-rubitime-retirement-tables.sh` (archive+SHA+verify, gated) + migration `0237_r7_drop_public_rubitime_mirror_tables.sql` (drops `public.rubitime_records`/`public.rubitime_events` only); `booking_*` catalog **blocked** on Track C R3-CATALOG (`branchServiceId` removal, not done)                                                  | PARTIAL — archive script EXISTS + proven on TEST; `appointment_records` **drop** still blocked by live runtime refs (archive only); `booking_*` still blocked                                                                                                                                                                                                            |
+| 4   | Historical Rubitime CSV import                                 | Retired 2026-07-27; old CSV tools live only in `docs/archive/2026-07-rubitime-retirement/`.                                                                                                                                                                                                 | NOT A CURRENT STEP                                                                                                                                                                                                                                                                                         |
+| 5   | Retired provider mirror tables                                 | Removed only by reviewed normal migrations (`20260724_0002`, `0237`) during the ordinary migration chain.                                                                                                                                                                           | Verify schema inventory; do not run archived R7 scripts.                                                                                                                                                                                                                                                  |
+| 6   | Provider-neutral legacy cleanup                                | `appointment_records`, generic retries, calendar mappings and canonical booking data are separate from provider retirement.                                                                                                                                                          | Separate owner-reviewed workstream; no Rubitime runbook dependency.                                                                                                                                                                                                                                       |
 | 7   | Track D — integrator writes public directly, no HTTP transport | D0/D1/D2 merged (`directPublic/*`); D3–D10 unstarted; doc says "PROD out of scope" now                                                                                                                                                                                                                                                                                                                                    | PARTIAL (3/11); prod-cutover implication undocumented                                                                                                                                                                                                                                                                                                                    |
 | 8   | Roles + grants                                                 | overlays exist + proven on TEST (§3 above); **no `deploy-prod-saas.sh`** (deploy-prod.sh has ZERO grants)                                                                                                                                                                                                                                                                                                                 | PARTIAL — manual-by-choice; script = taskdb #994, not built                                                                                                                                                                                                                                                                                                              |
 | 9   | Install walls (strict RLS + FORCE)                             | policy `\ir` includes reusable (verified no hardcoded TEST DB name); finalizer `test-strict-rls-finalizer.sql` now supports an explicit-flag prod unlock (`-v allow_authorized_prod_target=1` + exact `test_expected_database` match) — see §3.5                                                                                                                                                                          | EXISTS — invocation documented in §3.5; no separate `prod-strict-rls-finalizer.sql` needed                                                                                                                                                                                                                                                                               |
 | 10  | Post-cutover verification                                      | `assert-c4-operational-runtime-ready.sh` + `assert_*` gates + `smoke-saas-product.mjs --mode=locked --base-url=…` (env-parameterized, no prod lockout)                                                                                                                                                                                                                                                                    | COMPLETE — genuinely prod-ready as-is                                                                                                                                                                                                                                                                                                                                    |
 | 11  | Fix ФИО by reviewed table                                      | `apps/webapp/scripts/fio-backfill/*` — hardcoded `targetDatabase="bersoncarebot_test"`, throws if env≠TEST                                                                                                                                                                                                                                                                                                                | GAP for prod — TEST-only by design; prod "Phase 9" (`.cursor/plans/fio_identity_cleanup.plan.md`, taskdb #857) unimplemented                                                                                                                                                                                                                                             |
 
-**Ready against prod today:** #1/#2 identity data-fix (doctor merge + **hard global admin**, corrected 2026-07-25),
-#6's archive+mirror-drop tooling (gated flag, same shape as §3.5 — B-7(b), 2026-07-25), #9 (walls finalizer, gated
-flag — §3.5), and #10 (fully). **Real authoring gaps:** #11 (prod ФИО apply), `appointment_records` **drop** +
-Track C R3-CATALOG unblock (both blocked on removing live runtime references, not on tooling), #7 (Track D D3–D10).
-**Guard-unlock needed:** #3 (and the shared wrapper #4 rides on it) — #9's and #6's own guard-unlocks are now done
-(§3.5 and B-7(b) respectively).
+**Ready for a future owner-approved PROD window:** #1/#2 identity data-fix (doctor merge + **hard global admin**,
+corrected 2026-07-25), #9 (walls finalizer, gated flag — §3.5), and #10. The retired Rubitime
+archive/mirror-drop tooling is not an entrypoint. **Real authoring gaps:** #11 (prod ФИО apply), a separately
+owner-reviewed provider-neutral appointment cleanup workstream, and #7 (Track D D3–D10).
+**Guard-unlock needed:** #3 (and the shared wrapper #4 rides on it); §3.5 remains the walls gate.
 
-**Confirmed hard ordering (not preference):** merge #1 → test-cleanup #3 → CSV backfill #4 → legacy-drop #5/#6; roles/grants #8 → walls #9; ФИО #11 after history-normalization; `booking_*` drop needs Track C R3-CATALOG first; a fully-clean #5 needs Track D #7 at D9/D10.
+**Confirmed current ordering:** merge identity fixes → provider-neutral cleanup → roles/grants → walls → FIO after
+identity normalization. Provider-neutral cleanup needs its own reviewed inventory and Track D D9/D10 evidence.
+No Rubitime CSV/backfill/archive command belongs to this order.
 
 ## 8. Blockers to build BEFORE a full clean run (steps 5, 7, 8)
 
@@ -496,59 +471,9 @@ independent audit. Until they land, a clean run covers only steps 2→3→4→9�
   `backfill-...--cleanup-only --delete-test` exist, but `purge-placeholder-bookings-safety.ts` unconditionally refuses
   any prod-named DB with no override. **Build:** add the same explicit-flag gate §3.5 uses for the walls finalizer
   (`allow_authorized_prod_target=1` + exact expected-DB match), not a blanket removal. Then rehearse on a disposable copy.
-- **B-6 (step 6) — Rubitime CSV canonical backfill invocation.** `backfill-canonical-from-legacy-appointments.ts` is
-  idempotent and ready as a mechanism; it just needs the **real prod CSV + SHA manifest** and rides on B-5's guard.
-  No new code — an operational input + a reviewed invocation.
-- **B-7 (step 7) — Legacy / Rubitime archive-then-drop.** Status 2026-07-25 — **(b) BUILT, (a) partly done, (c) still blocked.**
-  - **(b) DONE — the script exists.** `appointment_records` + rubitime-mirror archive-then-drop is no longer prose:
-    `deploy/host/archive-rubitime-retirement-tables.sh` does GATE → `pg_dump --data-only` → SHA256SUMS → VERIFY
-    (hash + non-empty + readable + archived-rows == live-rows) → and only then hands the drop to the **normal repo
-    migration chain**; it never issues `DROP TABLE` itself. Safety gate mirrors §3.5: refuses without `--execute`,
-    refuses unless `current_database()` == `--expected-database` exactly, always refuses a non-loopback DB host,
-    and refuses a prod/production/live-named DB unless `--allow-authorized-prod-target` +
-    a verbatim `--authorized-prod-database` are both supplied. Drop half =
-    `apps/webapp/db/drizzle-migrations/0237_r7_drop_public_rubitime_mirror_tables.sql` (journal idx 237), dropping
-    ONLY `public.rubitime_records`/`public.rubitime_events`, `IF EXISTS ... CASCADE`. Target list is machine-checked
-    against the runbook/disposition/cleanup-sequence docs by `pnpm run check:rubitime-r7-table-disposition`
-    (extended, not replaced), which also fails if the migration ever names a KEEP-list table or `appointment_records`.
-    Invocation: runbook §3.
-  - **(a) PARTLY DONE.** The archive ran on TEST under the owner's TEST-only authorization (3 tables archived +
-    verified, 2 recorded missing) and the mirror-drop migration was applied + re-applied on a disposable scratch DB.
-    The earlier "not executed even on TEST" line for the _integrator_ R7 drop migration was stale — that migration
-    is applied and ledger-tracked on TEST (see §7 row 5). **Still open:** the prod-side rehearsal on a fresh
-    disposable prod copy, and writing `RUBITIME_RETIREMENT_R7_DROP_RESTORE_PROOF.md` (the doc the
-    `--require-drop-ready` gate waits on).
-  - **STILL BLOCKED, NOT BUILT: `public.appointment_records` DROP.** Only its _archive_ is scripted. The table has
-    live bidirectional runtime traffic (`pgAppointmentProjection.ts`, `pgDoctorAppointments.ts`,
-    `publicAppointmentRecordSync.ts`, the admin soft-delete route), and both the runbook ("Do not drop
-    `public.appointment_records` until every runtime reference is gone") and the disposition doc ("KEEP for now,
-    ARCHIVE+DROP deferred") forbid authoring the drop. Removing those readers/writers is its own build task.
-  - **(c) STILL BLOCKED — and this doc's earlier premise was WRONG (corrected 2026-07-25).**
-    Track C R3-CATALOG landed its _dead-code_ half (see below) but **cannot** reach zero runtime references on its own.
-    - **DONE (verified):** the dead legacy-catalog reads are gone — `pgBookingCatalog.listServicesByCity`
-      / `listCitiesForPatient`, `modules/booking-catalog/service.ts`, and `apps/integrator/.../branchTimezone.ts`
-      (the last integrator read of `booking_branches` + `branches`). Independently re-checked: zero live callers,
-      `tsc --noEmit` exit 0 in webapp AND integrator. The patient/public flow uses the canonical engine
-      (`be_branches`/`be_clinic_services`/`be_service_location_availability`).
-    - **`branches` does NOT belong to this blocker.** The earlier wording implied R3-CATALOG would free
-      `public.branches`; it will not. `branches` is joined by the **live doctor-appointments feature**
-      (`pgDoctorAppointments.ts` ×8 joins, `pgBranches.ts`, `pgBookingCalendarLegacy.ts`) via `appointment_records`,
-      so it belongs to the `appointment_records` cluster (itself drop-blocked). Only
-      `booking_branches` / `booking_branch_services` are in R3-CATALOG's scope.
-    - **4 OWNER DECISIONS now block the rest** (product calls, not engineering — do NOT guess these):
-      1. **Legacy admin catalog `/api/admin/booking-catalog/*` — 10 live endpoints.** Evidence it is de-facto
-         retired: its only UI (`settings/RubitimeSection.tsx`) is **orphaned** (imported nowhere but its own test),
-         `api.md:53` labels the tree "Legacy каталог", and the canonical `/api/admin/booking-engine/*` is live and
-         UI-backed at `/app/doctor/admin/booking`. **Retire (delete) the 10 endpoints, or migrate them onto `be_*`?**
-      2. **`pgRubitimeMapping.ts` admin mapping view + link path** (writes `booking_branch_services`). Its UI
-         (`BookingRubitimeMappingSection.tsx`) is **also orphaned**; `schedule.md:129` records "Rubitime tab
-         отсутствует … C0 already retired", yet `/api/admin/booking-engine/rubitime-mapping` is still live. Same call.
-      3. **Integrator `booking.upsert` webhook path** (`lookupBranchServiceByRubitimeIds`) is genuinely reachable and
-         fills `patient_bookings` compat snapshots + derives `slot_end` from catalog duration. **Is Rubitime webhook
-         ingestion still expected to run at all?** If yes, dropping the catalog silently degrades every ingested
-         booking to the +60min `computeFallbackSlotEnd` — a behavior change that needs an explicit ruling.
-      4. Confirm `patient_bookings.branch_service_id` stays a **historical trace-only** column (its FK goes with the
-         drop's CASCADE), per the disposition doc.
+- **B-6 — retired.** Rubitime CSV backfill is archived and is not an input to the current production process.
+- **B-7 — retired.** The old archive/drop packet is historical. Legacy mirror removal travels only through reviewed
+  normal migrations; remaining provider-neutral appointment cleanup is a separate workstream.
 - **B-8 (step 8) — Prod ФИО apply. DONE 2026-07-25 (commit `818f51570`).** Was TEST-only by construction
   (`targetDatabase="bersoncarebot_test"` hardcoded). Now: manifest `environment` widened to `TEST | PROD` with a strict
   environment↔approval-decision pairing **inside the hashed payload**, and a new `assertFioApplyTarget()` gate mirroring

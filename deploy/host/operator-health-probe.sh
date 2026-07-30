@@ -5,6 +5,28 @@
 # Production: source /opt/env/bersoncarebot/api.prod (see docs/ARCHITECTURE/SERVER CONVENTIONS.md), then run from cron/systemd.
 set -euo pipefail
 
+fail() {
+  echo "operator-health-probe: $*" >&2
+  exit 1
+}
+
+assert_canonical_prod_host() {
+  local current_hostname address found_ip=0
+  current_hostname="$(hostname -s 2>/dev/null || true)"
+  [ "$current_hostname" = "adelaide" ] ||
+    fail "refusing PROD health probe on host '${current_hostname:-unknown}'; expected adelaide"
+  for address in $(hostname -I 2>/dev/null || true); do
+    if [ "$address" = "135.106.162.170" ]; then
+      found_ip=1
+      break
+    fi
+  done
+  [ "$found_ip" -eq 1 ] ||
+    fail "refusing PROD health probe without local IPv4 135.106.162.170"
+}
+
+assert_canonical_prod_host
+
 if [[ -f /opt/env/bersoncarebot/api.prod ]]; then
   set -a
   # shellcheck source=/dev/null

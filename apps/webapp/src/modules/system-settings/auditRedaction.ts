@@ -33,6 +33,7 @@ const SECRET_VALUE_KEYS = new Set<string>([
   'google_refresh_token',
   'apple_oauth_private_key',
   'smsc_api_key',
+  'auth_altcha_hmac_secret',
 ]);
 
 function redactEnvelopePassword(envelope: unknown): unknown {

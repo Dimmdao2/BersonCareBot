@@ -14,4 +14,5 @@
 ## Связанные материалы
 
 - Запись очная / BOOKING_REWORK: [`docs/BOOKING_REWORK_INITIATIVE/README.md`](../BOOKING_REWORK_INITIATIVE/README.md)
-- Rubitime-пайплайн: [`docs/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md`](../ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md)
+- Исторический Rubitime-пайплайн (retired; не исполнять):
+  [`docs/archive/2026-07-rubitime-retirement/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md`](../archive/2026-07-rubitime-retirement/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md)

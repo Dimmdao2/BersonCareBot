@@ -2,18 +2,11 @@
 import { runWebappPgText, runWebappTransaction } from '@/infra/db/runWebappSql';
 import argon2 from 'argon2';
 import {
-  inspectPasswordAccountLock,
-  inspectPasswordIdentifierLock,
-  passwordFailurePrincipalId,
-  recordPasswordAccountFailure,
-  recordPasswordIdentifierFailure,
-  resetPasswordAccountFailureEvents,
-  resetPasswordIdentifierFailures,
+  passwordIdentifierKey,
+  type PasswordAltchaProof,
   type PasswordVerificationResult,
 } from '@/modules/auth/passwordLoginProtection';
-
-const DUMMY_PASSWORD_HASH =
-  '$argon2id$v=19$m=65536,t=3,p=4$mt/HvX3SDg5zeztnCiH/lA$RdL1PQ8kaNQOVryvV2xDljBxTXo7FexX1clNKgZ9boU';
+import type { PasswordLoginProtectionPort } from '@/modules/auth/passwordLoginProtectionPort';
 
 export type UserPasswordCredentialsPort = {
   /** Регистрация клиента с паролем до подтверждения email (`email_verified_at` заполняется challenge). */
@@ -47,6 +40,8 @@ export type UserPasswordCredentialsPort = {
   tryVerifyLogin(
     emailNormalized: string,
     plainPassword: string,
+    altchaProof?: PasswordAltchaProof,
+    altchaSubmitted?: boolean,
   ): Promise<PasswordVerificationResult>;
   /**
    * Проверка пароля без требования `email_verified_at` — для UX «дозавершите подтверждение email»
@@ -55,17 +50,19 @@ export type UserPasswordCredentialsPort = {
   verifyEmailPasswordForLogin(
     emailNormalized: string,
     plainPassword: string,
+    altchaProof?: PasswordAltchaProof,
+    altchaSubmitted?: boolean,
   ): Promise<PasswordVerificationResult>;
-  recordFailedPasswordAttempt(userId: string): Promise<void>;
-  resetFailedPasswordAttempts(userId: string, emailNormalized: string): Promise<void>;
   /** Пользователь с подтверждённым email и строкой пароля (для сброса). */
   findVerifiedUserIdWithPassword(emailNormalized: string): Promise<string | null>;
-  updatePasswordHash(userId: string, passwordHash: string): Promise<void>;
+  updatePasswordHash(userId: string, emailNormalized: string, passwordHash: string): Promise<void>;
   /** Создать или обновить пароль (email setup, verified user без credentials). */
-  upsertPasswordHash(userId: string, passwordHash: string): Promise<void>;
+  upsertPasswordHash(userId: string, emailNormalized: string, passwordHash: string): Promise<void>;
 };
 
-export function createPgUserPasswordCredentialsPort(): UserPasswordCredentialsPort {
+export function createPgUserPasswordCredentialsPort(
+  protection: PasswordLoginProtectionPort,
+): UserPasswordCredentialsPort {
   async function registerPendingVerificationWithRole(params: {
     emailNormalized: string;
     passwordHash: string;
@@ -120,47 +117,60 @@ export function createPgUserPasswordCredentialsPort(): UserPasswordCredentialsPo
   async function verifyEmailPasswordForLoginImpl(
     emailNormalized: string,
     plainPassword: string,
+    altchaProof?: PasswordAltchaProof,
+    altchaSubmitted = false,
   ): Promise<PasswordVerificationResult> {
-    const r = await runWebappPgText<{
-      user_id: string;
-      password_hash: string;
-      email_verified: boolean;
-    }>(
-      `SELECT user_id::text AS user_id, password_hash, email_verified
-       FROM app.email_password_find_login_candidate($1)`,
-      [emailNormalized],
-    );
-    const row = r.rows[0];
-    const accountPrincipalId = row?.user_id ?? passwordFailurePrincipalId(emailNormalized);
-    const [identifierLock, accountLock] = await Promise.all([
-      inspectPasswordIdentifierLock(emailNormalized),
-      inspectPasswordAccountLock(accountPrincipalId),
-    ]);
-    const activeLock = accountLock ?? identifierLock;
-    if (activeLock) {
+    const admission = await protection.acquirePasswordProof({
+      emailNormalized,
+      identifierKey: passwordIdentifierKey(emailNormalized),
+      ...(altchaProof ? { altchaProof } : {}),
+    });
+    if (!admission.acquired) {
       return {
         ok: false,
-        ...(row ? { accountUserId: row.user_id } : {}),
-        passwordChecked: false,
-        ...activeLock,
+        attempts: admission.attempts,
+        retryAfterSeconds: admission.retryAfterSeconds,
+        captchaRequired: admission.captchaRequired,
+        captchaRefreshRequired:
+          altchaSubmitted && admission.reason === 'challenge_required',
+        locked: admission.reason === 'locked',
       };
     }
 
     let verified = false;
     try {
-      verified = await argon2.verify(row?.password_hash ?? DUMMY_PASSWORD_HASH, plainPassword);
+      verified = await argon2.verify(admission.passwordHash, plainPassword);
     } catch {
       verified = false;
     }
-    if (row && verified) {
-      return { ok: true, userId: row.user_id, emailVerified: row.email_verified };
+    const completion = await protection.completePasswordProof({
+      leaseToken: admission.leaseToken,
+      passwordVerified: verified && admission.userId !== null,
+    });
+    if (!completion.accepted) {
+      return {
+        ok: false,
+        attempts: 0,
+        retryAfterSeconds: 1,
+        captchaRequired: admission.captchaRequired,
+        captchaRefreshRequired: altchaProof !== undefined,
+        locked: false,
+      };
     }
-    const failure = await recordPasswordIdentifierFailure(emailNormalized);
+    if (completion.succeeded) {
+      return {
+        ok: true,
+        userId: completion.userId,
+        emailVerified: completion.emailVerified,
+      };
+    }
     return {
       ok: false,
-      ...(row ? { accountUserId: row.user_id } : {}),
-      passwordChecked: true,
-      ...failure,
+      attempts: completion.attempts,
+      retryAfterSeconds: completion.retryAfterSeconds,
+      captchaRequired: completion.captchaRequired,
+      captchaRefreshRequired: altchaProof !== undefined,
+      locked: completion.attempts >= 10,
     };
   }
 
@@ -205,28 +215,18 @@ export function createPgUserPasswordCredentialsPort(): UserPasswordCredentialsPo
       }
     },
 
-    async tryVerifyLogin(emailNormalized, plainPassword) {
-      const r = await verifyEmailPasswordForLoginImpl(emailNormalized, plainPassword);
+    async tryVerifyLogin(emailNormalized, plainPassword, altchaProof, altchaSubmitted) {
+      const r = await verifyEmailPasswordForLoginImpl(
+        emailNormalized,
+        plainPassword,
+        altchaProof,
+        altchaSubmitted,
+      );
       if (!r.ok || !r.emailVerified) return r;
       return r;
     },
 
     verifyEmailPasswordForLogin: verifyEmailPasswordForLoginImpl,
-
-    async recordFailedPasswordAttempt(userId) {
-      await recordPasswordAccountFailure(userId);
-    },
-
-    async resetFailedPasswordAttempts(userId, emailNormalized) {
-      const res = await runWebappPgText<{ updated: boolean }>(
-        'SELECT app.set_staff_security_self_password_hash(NULL::text) AS updated',
-      );
-      if (res.rows[0]?.updated !== true) {
-        throw new Error('resetFailedPasswordAttempts: no credentials row');
-      }
-      await resetPasswordAccountFailureEvents(userId);
-      await resetPasswordIdentifierFailures(emailNormalized);
-    },
 
     async findVerifiedUserIdWithPassword(emailNormalized) {
       const r = await runWebappPgText<{ id: string }>(
@@ -238,28 +238,24 @@ export function createPgUserPasswordCredentialsPort(): UserPasswordCredentialsPo
       return r.rows[0]?.id ?? null;
     },
 
-    async updatePasswordHash(_userId, passwordHash) {
+    async updatePasswordHash(_userId, emailNormalized, passwordHash) {
       const res = await runWebappPgText<{ updated: boolean }>(
-        'SELECT app.set_staff_security_self_password_hash($1::text) AS updated',
-        [passwordHash],
+        'SELECT app.password_credentials_replace_self($1::text, $2::text) AS updated',
+        [emailNormalized, passwordHash],
       );
       if (res.rows[0]?.updated !== true) {
         throw new Error('updatePasswordHash: no credentials row');
       }
-      await resetPasswordAccountFailureEvents(_userId);
     },
 
-    async upsertPasswordHash(userId, passwordHash) {
-      await runWebappPgText(
-        `INSERT INTO user_password_credentials (user_id, password_hash, updated_at)
-         VALUES ($1::uuid, $2::text, now())
-         ON CONFLICT (user_id) DO UPDATE
-         SET password_hash = EXCLUDED.password_hash,
-             failed_attempts = 0,
-             locked_until = NULL,
-             updated_at = now()`,
-        [userId, passwordHash],
+    async upsertPasswordHash(_userId, emailNormalized, passwordHash) {
+      const res = await runWebappPgText<{ updated: boolean }>(
+        'SELECT app.password_credentials_upsert_self($1::text, $2::text) AS updated',
+        [emailNormalized, passwordHash],
       );
+      if (res.rows[0]?.updated !== true) {
+        throw new Error('upsertPasswordHash: self email mismatch');
+      }
     },
   };
 }
@@ -279,13 +275,25 @@ export const inMemoryUserPasswordCredentialsPort: UserPasswordCredentialsPort = 
     return { ok: false };
   },
   async tryVerifyLogin() {
-    return { ok: false, passwordChecked: true, attempts: 1, delaySeconds: 0, locked: false };
+    return {
+      ok: false,
+      attempts: 1,
+      retryAfterSeconds: 0,
+      captchaRequired: false,
+      captchaRefreshRequired: false,
+      locked: false,
+    };
   },
   async verifyEmailPasswordForLogin() {
-    return { ok: false, passwordChecked: true, attempts: 1, delaySeconds: 0, locked: false };
+    return {
+      ok: false,
+      attempts: 1,
+      retryAfterSeconds: 0,
+      captchaRequired: false,
+      captchaRefreshRequired: false,
+      locked: false,
+    };
   },
-  async recordFailedPasswordAttempt() {},
-  async resetFailedPasswordAttempts() {},
   async findVerifiedUserIdWithPassword() {
     return null;
   },

@@ -108,10 +108,23 @@ workstream-карточку `#993`. Он не объявляет требова�
 
 ### `#993` — канал/auth control plane и mini-app removal
 
-- [ ] Выполнить R1–R3 и grounded plan этого файла целиком: независимые global-admin toggles для Telegram, MAX,
-      SMS, 2FA, Google/Gmail OAuth и Yandex OAuth; client visibility = `enabled AND fully-configured`; admin warning
-      для включённого, но не настроенного метода; удалить Telegram/MAX mini-app entry points, сохранив ботов для
+Требование: выполнить R1–R3 и grounded plan этого файла целиком — независимые global-admin toggles для Telegram,
+MAX, SMS, 2FA, Google/Gmail OAuth и Yandex OAuth; client visibility = `enabled AND fully-configured`; admin warning
+для включённого, но не настроенного метода; удалить Telegram/MAX mini-app entry points, сохранив ботов для кодов
+аутентификации и уведомлений.
+
+- [x] Не предлагать Apple OAuth как способ входа даже при сохранённых legacy credentials: public providers API и
+      SSR snapshot возвращают `apple: false`, прямой `POST /api/auth/oauth/start` отклоняет `provider=apple` —
+      `apps/webapp/src/modules/auth/oauthAppleDisabled.route.test.ts`.
+- [x] Удалить Telegram/MAX mini-app launch из ошибки `user.phone.link → no_channel_binding`, сохранив сообщение и
+      остановку ошибочного сценария — `apps/integrator/src/kernel/domain/executor/executeActionMiniAppRemoval.unit.test.ts`.
+- [x] Удалить главный/home mini-app launch из Telegram/MAX menu, reply-menu, content-сценариев и post-bind меню,
+      сохранив booking-действие и обычную browser-auth ссылку —
+      `apps/integrator/src/kernel/domain/executor/executeActionHomeMiniAppRemoval.unit.test.ts`.
+- [ ] Удалить оставшиеся Telegram/MAX mini-app entry points из booking/diary/reminder-путей, сохранив ботов для
       кодов аутентификации и уведомлений.
+- [ ] Провести живую TEST-проверку: выключенный метод исчезает из login/registration и отклоняется сервером;
+      Telegram/MAX mini-app launch buttons отсутствуют.
 
 Ограничения карточки: toggles глобальные, не per-clinic; Apple не включён; 2FA относится к global admin и staff;
 выключенный метод исчезает из login/registration независимо от наличия ключей.
@@ -137,19 +150,36 @@ Authority карточки: `UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` §T
 > «Мы подготовим для всех потом обязательный запрос на регистрацию почты - пусть вводят и подтверждают чтобы
 > работать могли дальше и логиниться.»
 
-- [ ] Отвязать канал доставки одноразового кода от введённого идентификатора: при вводе телефона выбирать живой
-      канал в порядке SMS, если включён → Web Push, если есть подписка → привязанный email.
+Решение владельца 2026-07-30: Telegram, MAX и SMS подтверждают владение номером; Yandex OAuth и VK ID
+подтверждают номер только когда provider реально передал его. Email и Web Push номер не подтверждают; будущий
+WhatsApp подтверждает его только при таком же доказанном факте.
+
+- [x] Отвязать канал доставки одноразового кода от введённого идентификатора: при вводе телефона выбирать живой
+      канал в порядке SMS, если включён и номер подходит → привязанный подтверждённый email. Web Push решением
+      владельца от 27.07 не используется для регистрации и кодов входа. —
+      `apps/webapp/src/app/api/auth/phone/start/route.ts` +
+      `apps/webapp/src/modules/auth/phoneStartFallback.route.test.ts` +
+      `apps/webapp/src/shared/ui/patient/auth/PhoneMessengerAuthFlow.ui.test.tsx` (13/13 narrow).
 - [ ] Провести обязательную кампанию сбора и подтверждения email для аккаунтов, у которых мессенджер был
       единственным входом; на TEST-копии зафиксированы **22** аккаунта без email, телефона и пароля.
-- [ ] Доказать одинаковые ответ и timing независимо от наличия канала, не раскрывать наличие привязанного email;
-      допустима только одинаково ведущая себя маскированная подсказка вида `d***@g***.ru`.
-- [ ] Развести «канал доставки» и «подтверждённый фактор»: код, доставленный по email после ввода телефона,
-      подтверждает email и не выставляет trusted-phone признак.
+- [x] Доказать одинаковые ответ и timing независимо от наличия канала, не раскрывать наличие привязанного email;
+      допустима только одинаково ведущая себя маскированная подсказка вида `d***@g***.ru`. — нейтральный
+      `deliveryChannel: automatic`, одинаково сохранённый challenge/lockout и единое минимальное окно ответа;
+      внешняя доставка выполняется через Next `after` уже после ответа:
+      `phone/start/route.ts` + `integratorSmsAdapter.ts` + `stubSmsAdapter.ts` +
+      `integratorSmsAdapter.deferred.unit.test.ts` + `pgPhoneChallengeStore.unit.test.ts` +
+      `phoneStartFallback.route.test.ts`.
+- [x] Развести «канал доставки» и «подтверждённый фактор»: код, доставленный по email после ввода телефона,
+      подтверждает email и не выставляет trusted-phone признак. —
+      `apps/webapp/src/modules/auth/phoneAuth.ts:55,183` +
+      `apps/webapp/src/infra/repos/pgUserByPhone.ts:256,418`
 
-Нормативные ссылки карточки: NIST SP 800-63B — SMS/PSTN как restricted authenticator с альтернативой; OWASP
-ASVS 5.0 6.3.8, CWE-204 и OWASP Forgot Password Cheat Sheet — защита от enumeration. Связь: `#1004` уже
-зафиксировал недоказанный `patient_phone_trust_at`; fallback не должен повторить этот класс. Перед реализацией
-перепроверить точные формулировки в auth research package D2/D3/D4 и сослаться на них.
+Нормативные ссылки карточки: NIST SP 800-63B-4 — SMS/PSTN является restricted authenticator и требует
+альтернативного типа аутентификатора; при этом NIST прямо **не** считает email допустимым out-of-band
+authenticator, поэтому email-fallback здесь — отдельное продуктовое решение владельца, а не заявка на
+NIST-AAL. OWASP ASVS 5.0 6.3.8, CWE-204 и OWASP Forgot Password Cheat Sheet задают защиту от enumeration:
+одинаковый публичный ответ и сопоставимое время независимо от существования аккаунта/канала. Связь: `#1004`
+уже зафиксировал недоказанный `patient_phone_trust_at`; fallback не должен повторить этот класс.
 
 ### `#1011` — phone auth должен пережить включение SMS
 

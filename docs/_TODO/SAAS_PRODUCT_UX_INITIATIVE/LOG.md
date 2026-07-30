@@ -5185,7 +5185,8 @@ fail-closed repository guard. No PROD recheck is needed and no payment code star
 The full Rubitime entrypoint, execution plan, DB cleanup sequence, R3/R5/R6/R7 proofs/runbooks, final manifest,
 owner packet and current code inventory were reconciled without code, DB, data, host, TEST, PROD, deploy, cutoff,
 archive or drop actions. The atomic matrix is saved in
-`docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_R7_PROVENANCE_RECONCILIATION.md`.
+the historical archive:
+[`RUBITIME_RETIREMENT_R5_R7_PROVENANCE_RECONCILIATION.md`](../../archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_R7_PROVENANCE_RECONCILIATION.md).
 
 R3-CATALOG's no-legacy-`booking_*`-read proof remains valid, but its `branchServiceId` compatibility-removal date
 expired on `2026-07-21` while the compatibility input remains live across patient/public schemas, URLs and booking

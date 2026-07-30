@@ -8,10 +8,8 @@ import {
   staffBookingServiceTitleFromAppointment,
 } from '@/app-layer/booking/staffBookingIntegratorEvent';
 import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
-import {
-  requireDoctorBookingEngine,
-  type DoctorBookingEngineContext,
-} from '../../_requireDoctorBookingEngine';
+import { requireDoctorBookingEngine } from '../../_requireDoctorBookingEngine';
+import { resolveDoctorCreateSpecialist } from '../../_resolveDoctorAppointmentAccess';
 
 const bodySchema = z.object({
   branchId: z.string().uuid().nullable().optional(),
@@ -25,12 +23,6 @@ const bodySchema = z.object({
   durationMinutes: z.number().int().positive(),
 });
 
-async function resolveDefaultSpecialistId(ctx: DoctorBookingEngineContext): Promise<string | null> {
-  const specialists = await ctx.service.catalog.listSpecialists(ctx.organizationId);
-  const active = specialists.find((item) => item.isActive) ?? specialists[0] ?? null;
-  return active?.id ?? null;
-}
-
 export async function POST(request: Request) {
   const gate = await requireDoctorBookingEngine();
   if (!gate.ok) return gate.response;
@@ -39,6 +31,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
   const { ctx } = gate;
+  const specialistResolution = await resolveDoctorCreateSpecialist(
+    ctx,
+    parsed.data.specialistId,
+  );
+  if (!specialistResolution.ok) {
+    const status =
+      specialistResolution.error === 'schedule_specialist_not_available' ? 404 : 403;
+    return NextResponse.json(
+      { ok: false, error: specialistResolution.error },
+      { status },
+    );
+  }
   const deps = buildAppDeps();
   const syncPort = createBookingSyncPort();
 
@@ -52,9 +56,7 @@ export async function POST(request: Request) {
       ctx,
       'doctor.booking-engine.appointments.manual-create',
       async () => {
-        const resolvedSpecialistId =
-          parsed.data.specialistId ?? (await resolveDefaultSpecialistId(ctx));
-        if (!resolvedSpecialistId) throw new Error('specialist_required');
+        const resolvedSpecialistId = specialistResolution.specialistId;
         if (deps.bookingScheduling) {
           await deps.bookingScheduling.assertSlotAvailable({
             organizationId: ctx.organizationId,

@@ -9,8 +9,10 @@ alwaysApply: true
 
 ## Импорты App Router `page.tsx`
 
-- **`e2e/*inprocess*.test.ts`:** не добавлять новые холодные `import("@/app/.../page")` «рядом с кейсом». Расширять только общий smoke — `apps/webapp/e2e/smoke-app-router-rsc-pages-inprocess.test.ts`, либо обходиться контрактными тестами (route, deps, тонкие модули).
-- **`e2e/*.test.ts` в проекте `fast`:** если нужен реальный `page`, один раз в **`beforeAll`** с `import()`, не в каждом `it` (см. `doctor-clients-scope-redirects.test.ts`).
+- В `*.unit.test.ts`, `*.route.test.ts` и `*.ui.test.tsx` не импортировать `page.tsx` ради проверки внутреннего
+  модуля. Выбирать узкую публичную границу: API модуля, HTTP handler/proxy или пользовательское поведение компонента.
+- Редкий настоящий e2e со страницей должен защищать сквозное поведение, которое нельзя дешевле наблюдать через
+  unit/route/UI, и не должен дублировать те же сценарии на каждом слое.
 
 ## RTL и `React.lazy`
 
@@ -23,7 +25,8 @@ alwaysApply: true
 
 ## Таймауты
 
-- В `apps/webapp/vitest.config.ts` проекты **`fast`** и **`inprocess`** используют одинаковые по умолчанию **`testTimeout` (20s)** и **`hookTimeout` (25s)** — медленные `it` без прогрева должны падать. Холодный импорт большого графа — только в **`beforeAll(..., timeout)`** с явным лимитом (см. smoke и `doctor-clients-scope-redirects`), **не** поднимать глобально отдельный «мягкий» потолок вроде 30s для `it`.
+- В `apps/webapp/vitest.config.ts` проекты `fast`, `unit`, `route` и `ui` используют одинаковые по умолчанию
+  `testTimeout` 20s и `hookTimeout` 25s — медленные `it` без обоснования должны падать.
 - **Не** поднимать глобальные `testTimeout` / `hookTimeout` в `vitest.config.ts` «чтобы стало зелёно». Сначала уменьшить холодный граф (прогрев, меньше импортов страниц), затем при необходимости — **точечный** `timeout` на конкретный `it`/`beforeAll`.
 
 ## Куда смотреть

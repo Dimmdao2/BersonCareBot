@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ComponentType } from 'react';
+import type { DoctorScheduleScopeBootstrap } from '@/modules/doctor-schedule/scope';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import { Button } from '@/shared/ui/doctor/primitives/button';
@@ -95,6 +96,8 @@ export type DoctorScheduleShellProps = {
   initialTab?: ScheduleTabId;
   /** IANA-таймзона из system_settings (от серверной страницы). */
   initialTimeZone?: string;
+  /** Server-resolved schedule permissions and active specialists. */
+  scheduleScopeBootstrap: DoctorScheduleScopeBootstrap;
 };
 
 /**
@@ -110,7 +113,11 @@ export type DoctorScheduleShellProps = {
  * KPI (9 метрик) живут только внутри таба «Записи» (ScheduleCalendarTab) и загружаются
  * там же; шелл не знает о KPI (§3.1 ТЗ).
  */
-export function DoctorScheduleShell({ initialTab, initialTimeZone }: DoctorScheduleShellProps) {
+export function DoctorScheduleShell({
+  initialTab,
+  initialTimeZone,
+  scheduleScopeBootstrap,
+}: DoctorScheduleShellProps) {
   const resolvedInit: ScheduleTabId = (() => {
     if (initialTab) return initialTab;
     if (typeof window !== 'undefined') {
@@ -228,6 +235,7 @@ export function DoctorScheduleShell({ initialTab, initialTimeZone }: DoctorSched
               initialData={undefined}
               isActive={tabId === activeTab}
               initialTimeZone={initialTimeZone}
+              scheduleScopeBootstrap={scheduleScopeBootstrap}
             />
           </div>
         );

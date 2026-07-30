@@ -47,6 +47,7 @@ import { PatientDailyWarmupQuickList } from './PatientDailyWarmupQuickList';
 type Props = {
   slug: string;
   session: AppSession | null;
+  organizationId: string | null;
   dbRow: ContentPageRow;
   item: ContentStubItem;
   personalTierOk: boolean;
@@ -60,7 +61,21 @@ type Props = {
   orderedDailyWarmupPages: DailyWarmupListEntry[];
 };
 
-export async function PatientContentSlugArticle({
+export async function PatientContentSlugArticle(props: Props) {
+  if (!props.session || !props.organizationId) {
+    return renderPatientContentSlugArticle(props);
+  }
+  return withPatientOrganizationPrincipal(
+    {
+      organizationId: props.organizationId,
+      platformUserId: props.session.user.userId,
+      source: 'app.patient.content.article',
+    },
+    () => renderPatientContentSlugArticle(props),
+  );
+}
+
+async function renderPatientContentSlugArticle({
   slug,
   session,
   dbRow,

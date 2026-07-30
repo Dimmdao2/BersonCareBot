@@ -336,14 +336,28 @@ export function createPgPaymentsPort(): PaymentsPort {
       return rows[0] ? mapPayment(rows[0]) : null;
     },
 
-    async findPaymentByAppointment(appointmentId) {
+    async findPaymentById(paymentId, organizationId) {
       const db = getDrizzleOrMutationTx();
       const rows = await db
         .select()
         .from(bePayments)
-        .where(eq(bePayments.appointmentId, appointmentId))
+        .where(and(eq(bePayments.id, paymentId), eq(bePayments.organizationId, organizationId)))
         .limit(1);
       return rows[0] ? mapPayment(rows[0]) : null;
+    },
+
+    async countAppointmentsByPaymentRef(paymentId, organizationId) {
+      const db = getDrizzleOrMutationTx();
+      const rows = await db
+        .select({ id: beAppointments.id })
+        .from(beAppointments)
+        .where(
+          and(
+            eq(beAppointments.paymentRef, paymentId),
+            eq(beAppointments.organizationId, organizationId),
+          ),
+        );
+      return rows.length;
     },
 
     async createPaymentFromIntent(intent) {
@@ -383,6 +397,21 @@ export function createPgPaymentsPort(): PaymentsPort {
           .set({ status })
           .where(and(eq(bePayments.id, paymentId), eq(bePayments.organizationId, organizationId))),
       );
+    },
+
+    async getSucceededRefundedAmount(paymentId, organizationId) {
+      const db = getDrizzleOrMutationTx();
+      const rows = await db
+        .select({ amountMinor: beRefunds.amountMinor })
+        .from(beRefunds)
+        .where(
+          and(
+            eq(beRefunds.paymentId, paymentId),
+            eq(beRefunds.organizationId, organizationId),
+            eq(beRefunds.status, 'succeeded'),
+          ),
+        );
+      return rows.reduce((total, row) => total + row.amountMinor, 0);
     },
 
     async createRefund(input) {

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, useTransition } from 'react';
+import { BookingCatalogProductsSection } from '@/app/app/settings/BookingCatalogProductsSection';
 import { BookingPublicAttributionSection } from '@/app/app/settings/BookingPublicAttributionSection';
 import { BookingPublicWidgetSection } from '@/app/app/settings/BookingPublicWidgetSection';
 import { BookingPrepaymentSection } from '@/app/app/settings/BookingPrepaymentSection';
@@ -63,7 +64,7 @@ const SETUP_SECTIONS: SetupSectionDef[] = [
   { id: 'payments', label: 'Оплаты' },
   { id: 'rules', label: 'Правила записи' },
   { id: 'notifications', label: 'Тексты уведомлений' },
-  { id: 'packages', label: 'Абонементы (шаблоны)' },
+  { id: 'packages', label: 'Абонементы и продукты' },
 ];
 
 const DEFAULT_SECTION: SetupSectionId = 'calendar';
@@ -214,10 +215,12 @@ type CalendarSettingsState =
       phase: 'ready';
       branches: CalendarCatalogOption[];
       services: CalendarCatalogOption[];
+      specialists: CalendarCatalogOption[];
       defaultStart: string;
       defaultEnd: string;
       defaultBranchId: string | null;
       defaultServiceId: string | null;
+      defaultSpecialistId: string | null;
     };
 
 function getSettingValue(rows: CalendarSettingsRow[], key: string): unknown {
@@ -275,8 +278,9 @@ function ScheduleCalendarDefaultsSection() {
         filters: {
           branches: CalendarCatalogOption[];
           services: CalendarCatalogOption[];
+          specialists: CalendarCatalogOption[];
         };
-      }>('/api/doctor/booking-engine/calendar?view=day'),
+      }>('/api/doctor/booking-engine/calendar?view=day&scope=clinic'),
     ]);
     const windowValue = parseDefaultWindow(
       getSettingValue(settingsJson.settings, 'booking_calendar_default_window'),
@@ -285,6 +289,7 @@ function ScheduleCalendarDefaultsSection() {
       phase: 'ready',
       branches: calendarJson.filters.branches,
       services: calendarJson.filters.services,
+      specialists: calendarJson.filters.specialists,
       defaultStart: minuteToTimeInput(windowValue.startMinute),
       defaultEnd: minuteToTimeInput(windowValue.endMinute),
       defaultBranchId: stringOrNull(
@@ -292,6 +297,9 @@ function ScheduleCalendarDefaultsSection() {
       ),
       defaultServiceId: stringOrNull(
         getSettingValue(settingsJson.settings, 'booking_calendar_default_service_id'),
+      ),
+      defaultSpecialistId: stringOrNull(
+        getSettingValue(settingsJson.settings, 'booking_calendar_default_specialist_id'),
       ),
     };
   }, []);
@@ -351,6 +359,7 @@ function ScheduleCalendarDefaultsSection() {
           patchDoctorSetting('booking_calendar_default_window', { startMinute, endMinute }),
           patchDoctorSetting('booking_calendar_default_branch_id', state.defaultBranchId),
           patchDoctorSetting('booking_calendar_default_service_id', state.defaultServiceId),
+          patchDoctorSetting('booking_calendar_default_specialist_id', state.defaultSpecialistId),
         ]);
         setSaved(true);
       } catch {
@@ -450,6 +459,33 @@ function ScheduleCalendarDefaultsSection() {
                 <SelectItem key={service.id} value={service.id} label={service.label}>
                   {service.label}
                   {service.durationMinutes ? ` · ${service.durationMinutes} мин` : ''}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Специалист по умолчанию</Label>
+          <Select
+            value={state.defaultSpecialistId ?? '__none__'}
+            onValueChange={(v) => updateReady({ defaultSpecialistId: v === '__none__' ? null : v })}
+          >
+            <SelectTrigger
+              displayLabel={
+                state.specialists.find((s) => s.id === state.defaultSpecialistId)?.label ??
+                'Не выбран'
+              }
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__" label="Не выбран">
+                Не выбран
+              </SelectItem>
+              {state.specialists.map((specialist) => (
+                <SelectItem key={specialist.id} value={specialist.id} label={specialist.label}>
+                  {specialist.label}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -906,7 +942,12 @@ export function ScheduleSetupTab({ deepLinkParams, onDeepLinkChange }: ScheduleT
         {activeSection === 'payments' && <SectionPayments />}
         {activeSection === 'rules' && <SectionRules />}
         {activeSection === 'notifications' && <SectionNotifications />}
-        {activeSection === 'packages' && <SectionPackages />}
+        {activeSection === 'packages' && (
+          <div className="flex flex-col gap-4">
+            <SectionPackages />
+            <BookingCatalogProductsSection apiBase="/api/doctor/booking-engine/products" />
+          </div>
+        )}
       </div>
     </div>
   );

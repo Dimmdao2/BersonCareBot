@@ -1,6 +1,7 @@
 # SaaS hard migration protocol - fresh dump to TEST rehearsal
 
-Status: canonical hard protocol for the next fresh-dump rehearsal before any future production migration.
+Status: partially blocked protocol. Ordinary incremental TEST deploy remains canonical; the destructive fresh-dump
+wrapper still carries retired Rubitime input flags and must be modernized before any next rehearsal.
 
 This document is a machine-checkable contract. It does not authorize an agent to run deploy, DB, env, SSH,
 service, or production operations unless the owner explicitly asks for that operation. It states the only
@@ -11,7 +12,7 @@ allowed sequence once a fresh production dump is obtained.
 - `deploy/host/deploy-test-full-reset.sh` - единственный публичный owner-gated TEST from-zero entrypoint.
 - `deploy/host/deploy-test-saas.sh` - внутренний shared closure/full-reset engine; прямой destructive-вызов запрещён.
 - `deploy/host/deploy-test.sh` - ordinary code-only TEST deploy; it never restores or recreates the database.
-- `docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-db-cleanup-one-pass.mjs` - ordered Rubitime/history normalization.
+- `docs/archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/scripts/rubitime-db-cleanup-one-pass.mjs` - archive-only normalization of legacy Rubitime history; applicable only to an explicitly identified old dump, never to current runtime.
 - `apps/webapp/scripts/fio-backfill/README.md` - reviewed-manifest FIO apply/rollback contract.
 - `apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts` - idempotent TEST-only A/B walkthrough fixture.
 - `deploy/host/saas-test-mode.sh` - TEST-only redacted mode check / dormant rollback helper.
@@ -19,7 +20,7 @@ allowed sequence once a fresh production dump is obtained.
 - `deploy/postgres/c4d-platform-lfk-media-owner-online-index.sql` - one-time transaction-free C4D hot-index step.
 - `docs/_TODO/SAAS_FOUNDATION/DEPLOY_667_SEQUENCE.md` - production-window sequence and rollback model.
 - `docs/_TODO/SAAS_FOUNDATION/PHASE4_ROLLOUT_RUNBOOK.md` - strict/FORCE future cutover gates.
-- `docs/OPERATIONS/RUBITIME_R1_FRESH_PROD_DUMP_AGENT_README.md` - fresh dump, Rubitime R1, and no-ad-hoc-SQL entrypoint.
+- `docs/archive/2026-07-rubitime-retirement/RUBITIME_R1_FRESH_PROD_DUMP_AGENT_README.md` - historical provenance only; not a current entrypoint.
 - `docs/ARCHITECTURE/SERVER CONVENTIONS.md` and `deploy/HOST_DEPLOY_README.md` - host facts.
 
 If these sources conflict, the current wrapper scripts win for executable behavior; this protocol must then
@@ -30,9 +31,9 @@ be updated in the same change.
 1. Production is read-only for dump acquisition only. The allowed production touch is a documented
    `pg_dump -Fc --no-owner --no-acl` path. No production writes, no production migrations, no production
    env edits, no service restarts, and no manual production SQL.
-2. TEST is the rehearsal target. Use the documented TEST wrapper, not hand-written restore/migrate steps. The
-   from-zero wrapper is never an ordinary deploy: it requires `--confirm-full-reset` and hash-bound Rubitime/FIO
-   inputs. Routine code changes use `deploy/host/deploy-test.sh`, which never restores or recreates TEST.
+2. TEST is the rehearsal target. Routine code changes use `deploy/host/deploy-test.sh`, which never restores or
+   recreates TEST. The from-zero wrapper is currently blocked: it still requires retired Rubitime inputs and must
+   not be invoked until that contract is removed in an owner-reviewed change.
 3. A plain `pnpm migrate`, or `restore + pnpm migrate`, is not valid proof for this migration.
 4. No manual DB surgery. If a step fails, fix the repository script/protocol/checker and rerun from a fresh
    restore. Do not patch rows by hand to get past a gate.
@@ -78,22 +79,9 @@ be updated in the same change.
 
 ## Allowed TEST sequence
 
-Run the destructive sequence as one wrapper only after the owner has explicitly authorized a full reset and the
-exact protected inputs have been prepared:
-
-```bash
-bash deploy/host/deploy-test-full-reset.sh \
-  --confirm-full-reset \
-  --rubitime-csv=/secure/owner-rubitime.csv \
-  --rubitime-csv-sha256=<approved-sha256> \
-  --fio-manifest=/secure/fio-owner-manifest.json \
-  --fio-manifest-file-sha256=<approved-file-sha256> \
-  --fio-manifest-sha256=<approved-sha256> \
-  --fio-review-source-sha256=<approved-review-sha256> \
-  feat/doctor-ui-rebuild
-```
-
-The wrapper owns the full sequence below.
+Do not run the destructive sequence in the current revision. `deploy-test-full-reset.sh` still exposes obsolete
+`--rubitime-*` inputs even though Rubitime was retired on 2026-07-27. Modernizing that wrapper, preserving its
+FIO/security gates, and independently auditing it are prerequisites to any future owner-authorized full reset.
 
 For an ordinary code deployment, including UI fixes, use only:
 
@@ -104,12 +92,8 @@ bash deploy/host/deploy-test.sh feat/doctor-ui-rebuild
 That command builds code and applies only pending incremental migrations to the existing TEST database. It does not
 download a dump and does not call the restore script.
 
-For the destructive path, the wrapper first verifies the owner Rubitime CSV, copies it to a root-owned
-`root:deploy 0440` run snapshot, and rechecks the approved SHA-256 immediately before the one-pass reader. The
-deploy user cannot alter that snapshot while the chain reads it. The wrapper also builds the exact branch and runs
-the no-DB FIO manifest verifier from that version-matched checkout. Hash/schema/exception failure therefore occurs
-before writers stop and before TEST is restored. Only after this preflight may the stopped-writers restore/data
-chain begin; the staged CSV is removed by the wrapper exit trap.
+For a future destructive path, retain the branch-bound FIO manifest verifier and all fail-closed security gates.
+Remove the retired Rubitime CSV staging/one-pass contract instead of fabricating a replacement input.
 
 ### 1. Assert TEST runtime mode
 
@@ -165,7 +149,12 @@ TEST restore must go through `/tmp/bcb-test-setup/restore-test-db.sh`. The resto
 Disposable prod-copy rehearsals use `scripts/deploy-saas-667.sh` through the repo-tracked disposable wrapper,
 not by hand. The wrapper passes either explicit `DATABASE_URL` + `SUPERUSER_URL` URLs or explicit
 `DATABASE_URL` + `SUPERUSER_SUDO_POSTGRES=1` for local peer/sudo superuser psql calls. Disposable DB names
-must clearly be scratch/rehearsal/copy targets, not prod/test/dev runtime databases.
+must match exact `^bcb_saas_[a-z0-9_]+_(scratch|rehearsal)_[a-z0-9_]+$` and must not contain delimited
+prod/production/prd/live/main/bersoncare/test/dev environment aliases. `SAAS_DISPOSABLE_ALLOWED_HOSTS` is the only
+remote-host allowlist accepted by `scripts/migrate-all.sh`: a comma-separated list of exact hostnames/IPs,
+normalized case-insensitively with a trailing dot removed; wildcards are not supported. It is operational
+configuration, not a secret. Loopback is allowed without the list. Production aliases and IPs under
+`bersoncare.ru` / `bersonservices.ru` are always rejected even if listed.
 
 ### 4. Assert owner state before data-fix
 
@@ -394,27 +383,15 @@ Settings/`updateSetting` path can configure it; the rest of the TEST safety lock
 Trigger removal, all settings mutations, and trigger recreation are one transaction, so any `ON_ERROR_STOP`
 failure rolls the entire overlay back and preserves the previously installed locks.
 
-### 9. Canonical identity, Rubitime history, and FIO normalization
+### 9. Canonical identity and FIO normalization
 
-After the schema and TEST settings are current, but while all writers are still stopped, run the existing Rubitime
-one-pass wrapper with `--execute --commit-cleanup --allow-test-target`. This wrapper owns the proven order:
-
-1. aggregate clean-dump preflight;
-2. placeholder booking dry-run and commit in PII-safe summary mode;
-3. specialist consolidation dry-run and commit using the one current canonical specialist;
-4. test/cancelled-duplicate cleanup;
-5. non-confirmed cleanup;
-6. owner-CSV historical import/projection;
-7. the mandatory second non-confirmed cleanup after import;
-8. stale-vs-owner-CSV cleanup;
-9. classifier, dual-source audit, and retirement gates.
-
-The owner Rubitime CSV is the preservation canon. Integrator raw history remains diagnostic evidence and cannot add
-rows absent from the CSV. The wrapper must not start services between restore and this normalization.
+The former Rubitime one-pass/CSV sequence is retired and archived. It must not run on a new TEST restore. Any
+remaining placeholder booking or provider-neutral identity cleanup needs a new reviewed plan over the current
+canonical schema; it must not resurrect the retired wrapper.
 
 Specialist consolidation is a write-path over owner-owned booking tables and must not run as the raw runtime
-`DATABASE_URL` role. The TEST wrapper runs the entire one-pass command under the same controlled temporary
-owner-role context as owner-only migration work:
+`DATABASE_URL` role. A future reviewed TEST wrapper must run the consolidation step under the same controlled
+temporary owner-role context as owner-only migration work:
 
 - discover or reuse the webapp migrator role from `webapp.test` `DATABASE_URL`;
 - grant runtime-owner membership to that login only when the login is not already the runtime owner;
@@ -426,15 +403,15 @@ owner-role context as owner-only migration work:
 Specialist consolidation does not require `BYPASSRLS`; if it is ever added for this step, that must be
 documented and checked as a separate protocol change.
 
-After Rubitime/history normalization, apply the immutable owner-reviewed FIO manifest. This is not a parser rerun:
+After provider-neutral identity normalization, apply the immutable owner-reviewed FIO manifest. This is not a parser rerun:
 the exact decisions are bound by SHA-256 and every row carries expected-before and desired-after state. The apply
 must verify the exact loopback TEST database, reject unknown drift, create a durable rollback artifact with mode
 `0600` before commit, update conditionally in one transaction, and print aggregate PII-free output. Rollback is
 conditional and may restore a row only while its current state still equals the recorded post-apply state.
 
-If the Rubitime CSV, FIO manifest, either approved hash, safe FIO apply entrypoint, or rollback artifact cannot be
-validated, the full-reset wrapper must stop with writers stopped and must not print a data-ready `DONE`. Manual SQL,
-parser recomputation, or silently skipping FIO is forbidden.
+If the FIO manifest, either approved hash, safe FIO apply entrypoint, or rollback artifact cannot be validated, a
+future full-reset wrapper must stop with writers stopped and must not print a data-ready `DONE`. Manual SQL, parser
+recomputation, or silently skipping FIO is forbidden.
 
 The end-state assertions must include:
 
@@ -443,7 +420,7 @@ The end-state assertions must include:
 - the owner doctor keeps role `doctor`;
 - TEST `admin_phones` is `[]`;
 - appointment counts on the canonical specialist are reported as aggregate counts only;
-- Rubitime/history gates passed after the second post-import cleanup;
+- provider-neutral identity/data-cleanup gates passed;
 - FIO reviewed-manifest reconciliation passed with aggregate-only output.
 
 ### 10. B1, A2, and product smoke gates
@@ -547,23 +524,12 @@ It must then restart TEST units and run:
   and `proxy_set_header X-Forwarded-Proto $scheme` in the webapp `location /`, backup active TEST nginx config,
   run `nginx -t`, reload nginx only on success, and run the A2 checker against `nginx -T`;
 - A2 nginx forwarded-host preflight against active `nginx -T`;
-- mandatory locked A1/product smoke using `/run/bersoncarebot/saas-smoke.fixture` by default (an explicit
-  `SAAS_PRODUCT_SMOKE_FIXTURE` may select another protected external path);
 - `awg-quick@awg0` active check, because the production Telegram relay on the TEST host must remain untouched.
 
 Do not claim a TEST deploy passed unless the wrapper has actually run and these gates have passed.
-The smoke fixture is mandatory and must be an owner/operator-managed secret file outside both the source and deploy
-repositories. Its path must be absolute and canonical with no symlink file or symlink parent, and the file contract is
-exactly `root:deploy 0640`. Missing, unreadable, in-repo, non-canonical, symlinked, or incorrectly owned/mode-set
-`/run/bersoncarebot/saas-smoke.fixture` fails the wrapper. The same validator runs at preflight and again immediately
-before smoke consumption; fixture values are never printed, committed, documented, or inferred.
-
-Historical D3 evidence vocabulary is retained for older run logs: the wrapper used to run A1/product smoke when `SAAS_PRODUCT_SMOKE_FIXTURE` is supplied.
-If `SAAS_PRODUCT_SMOKE_FIXTURE` is unset, the wrapper's product smoke line is **SKIPPED/BLOCKED** for product parity
-and D3/R1/R2 product-smoke evidence remains open; the path was always an
-owner/operator-managed secret file path outside the repo. This paragraph describes pre-strict evidence semantics
-only. The current strict TEST wrapper above is fail-closed: it defaults to the protected `/run/...` path and a missing
-or invalid fixture aborts before migration/deploy work rather than producing a skipped successful deploy.
+Fixture-based A1/product smoke выведен из deploy решением владельца 30.07.2026. Временный
+`/run/bersoncarebot/saas-smoke.fixture` не является входом миграции или runtime closure. Продуктовые сценарии
+проверяются отдельными целевыми тестами без сохранённых deploy-cookie/refs.
 
 ### 11. Strict/FORCE TEST gate and D2/D3.4 checks
 
@@ -593,105 +559,19 @@ acceptance.
   operator URL. It reads first and fails before the coverage write when a genuine unexplained event is already
   active; it also fails when a new unexplained event appears during the gate or the exact fresh complete coverage
   cannot be reread. The gate never invokes the synthetic scenario cleanup and never deletes genuine events. Both
-  fresh-restore and code-only paths must pass this gate before AWG/DONE.
+  fresh-restore and code-only paths must pass this gate before DONE. `awg-quick@awg0` is a separately operated
+  PROD-relay dependency on the shared host and is not part of TEST deployment readiness.
 
 ## DEV/disposable dormant wrapper
 
-### Existing DEV database runtime-overlay recovery
+### Current DEV migration policy
 
-`bcb_webapp_dev` is not a TEST acceptance target, but a TEST→DEV `pg_restore --no-acl` has the same runtime-overlay
-loss mode as a fresh TEST restore. `deploy/host/refresh-dev-from-test.sh --execute` therefore delegates
-current-branch migrations and the DEV runtime closure to `deploy/host/migrate-dev.sh --execute` before removing
-copied TEST settings locks. The migration wrapper then runs the DEV-only
-`deploy/host/dev-runtime-overlay-rehydrate.sh --execute`. Both TEST and DEV call the single ordered implementation in
-`deploy/host/runtime-overlay-rehydrate-lib.sh`; a second list of overlay SQL is forbidden.
-
-The DEV rehydrate wrapper is not a restore or deploy command. It accepts only the exact local owner/migrator
-`DATABASE_URL` (`bcb_webapp_dev` / `bcb_webapp_dev_user`) and a distinct exact local C0 base-runtime
-`DATABASE_URL_NONSTAFF` (`bcb_webapp_dev` / `bcb_dev_runtime_nonstaff_login`), both parsed as data from the canonical
-`.env.dev`. It sanitizes PostgreSQL environment input, never reads `/opt/env`, and never opens TEST or PROD. The
-DEV runtime identity is environment-namespaced and must not alias a TEST login on the shared PostgreSQL cluster. The
-refresh wrapper calls `migrate-dev.sh --preflight` before dump/reset. That entrypoint includes the read-only runtime
-overlay preflight, which rejects owner/runtime aliasing,
-`SUPERUSER`, `CREATEDB`, `CREATEROLE`, `REPLICATION`, `BYPASSRLS`, `INHERIT`, owner/`app_owner` membership, any
-unexpected membership beyond the exact SET-only `app_patient` edge, and protected application-object ownership.
-Because `app_owner`, `app_staff`, `app_patient`, and the C0 login are cluster-global, DEV only validates their
-canonical safe state; it does not create, rotate, or rewire them. C0/C2 ops provisioning must happen separately.
-
-For every DEV restore performed with `--no-owner --no-acl`, the mandatory fail-closed order is:
-
-1. current-branch migrations;
-2. exact P2-B owner/context handoff by `dev-runtime-overlay-rehydrate.sh --execute`;
-3. per-database P0.5b grants;
-4. canonical strict locked-helper base policies from
-   `deploy/postgres/phase4-locked-helper-rls-policies.sql`, passed
-   `phase4_enforce_locked_context=1` after P0.5b and before every specialized overlay; this DEV recovery does not run
-   `deploy/postgres/phase4-force-rls-cutover.sql` and does not otherwise enable FORCE RLS;
-5. the single shared runtime-overlay chain, then the canonical D3.4 bootstrap/base-login closure in
-   explicit DEV webapp-only/validate-only-C0 mode (no TEST media runtime role and no cluster-global role rewiring);
-6. exact owner/ACL, actual base-login release, bootstrap-surface and nonstaff capability postchecks;
-7. copied TEST-only settings unlock.
-
-The handoff opens the canonical non-symlink `.env.dev` once through a descriptor-pinned snapshot and parses
-`DB_PRINCIPAL_CONTEXT_MODE` and `DB_PRINCIPAL_SIGNING_SECRET` as data from that same snapshot. Mode must be `locked`:
-the exact C0 dual pools are `NOINHERIT`, while shadow does not `SET ROLE` before installing signed context and the
-base logins intentionally cannot execute the install helper directly. The secret must be at least 32 bytes and safe
-for `COPY FROM STDIN`. The env is never sourced, inherited
-`xtrace` is disabled before reads, the shell never stores/expands the secret, and the actual value never becomes a
-SQL literal, psql variable, argv or output. Before any handoff write, the wrapper proves exact database/role topology,
-exact safe attributes and no outgoing membership for `app_owner`/`app_staff`/`app_patient`, `app` schema and migration-created
-`app.is_staff()` ownership by either the exact DEV migrator or `app_owner`, and absence of conflicting signatures for
-the canonical `pgcrypto` move to `app_ext`. It grants only `USAGE` on `app_ext` to `app_owner`, changes ownership only
-for the exact existing P2-B tables/functions (including the `app.is_staff()` prerequisite), and streams the existing
-`deploy/postgres/p2-b-protected-principal-context.sql` through the hardened canonical-file reader. That artifact owns
-the exact `app` schema handoff and protected-context creation. Ordinary overlays remain byte-for-byte streams. Only
-the E1 callback opts into recursive `\ir` expansion: each include is resolved relative to its including file, opened
-as a descriptor-pinned canonical non-symlink `.sql` file inside the explicit repository root, and rejected on escape,
-malformed path, FIFO, symlink or cycle before sudo psql receives the expanded stdin. Postchecks prove `pgcrypto` is
-in `app_ext`, the exact P2-B schema/tables/functions belong to `app_owner`, the three protected tables have no ACL
-grantee other than owner,
-the eight protected functions have only exact owner/staff/patient ACL, and the stored secret matches the private
-stdin `COPY` value before the atomic transaction commits and later overlays run.
-
-The same preflight also checks the reverse cluster-global membership direction: `app_owner` must have no incoming
-member at all, and every incoming `app_staff`/`app_patient` edge must match the explicit DEV topology plus the
-optional, separately managed TEST topology, including exact PostgreSQL 16 `ADMIN`/`INHERIT`/`SET` options and safe
-login attributes. Transitive membership is checked too: no unlisted role may reach `app_owner` or either wall through
-an allowed intermediate login. An unknown member, indirect chain or option drift is a fail-closed incident; DEV
-recovery validates it but never revokes, grants or otherwise repairs cluster-global membership.
-
-The wrapper then reapplies per-database P0.5b grants, applies the canonical strict locked-helper base policies from
-`deploy/postgres/phase4-locked-helper-rls-policies.sql` with `phase4_enforce_locked_context=1`, and only then runs the
-shared specialized helper/E1 closure, followed by the existing
-`deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql`. This DEV recovery does not run
-`deploy/postgres/phase4-force-rls-cutover.sql` and does not otherwise enable FORCE RLS. DEV passes
-`d3_4_skip_media_worker=1` and `d3_4_skip_bootstrap_role_normalization=1`, so that artifact composes the reviewed
-per-database webapp bootstrap ACL without requiring, reading or mutating a TEST media login and without changing the
-cluster-global C0 role already proven exact by DEV preflight. Partial opt-in combinations fail closed. TEST passes
-neither flag and keeps its existing media composition plus bootstrap role normalization unchanged. The wrapper
-fails unless the targeted functions have exact `app_owner` ownership, closed ACLs, the separate DEV base login can
-actually release protected context, has the required bootstrap surface, can read through the public runtime accessor,
-and an actual `SET LOCAL ROLE app_patient` call can execute the patient booking capability. An
-already prepared DEV database with only owner/ACL drift must use this command directly; recreating it from a dump is
-unnecessary. `REASSIGN OWNED`, `DROP OWNED`, P2-B down mode, broad ownership surgery and a second SQL/overlay list are
-forbidden recovery paths.
-
-When that already prepared DEV database has pending current-branch migrations, the supported non-destructive
-entrypoint is `bash deploy/host/migrate-dev.sh --preflight`, then `bash deploy/host/migrate-dev.sh --execute`. It
-reuses the TEST privilege-window invariants without adding a second SQL chain: exact local owner/database guards,
-temporary `app_owner` membership plus BYPASS only around the existing ordered `pnpm migrate`, mandatory cleanup,
-the standalone C4D concurrent-index artifact, this existing DEV rehydrate wrapper and both migration-ledger
-postchecks. It never calls dump/restore/reset/refresh and is not an ordinary code-only deploy hook.
-
-Within that one shared list, `runtime-overlay-app-owner-handoff.sql` runs immediately before the protected overlays.
-It is the only repeatable repair for pre-existing overlay functions restored under the database owner; the separate
-cluster-global C0 login/password bootstrap remains the documented one-time manual operator action and is never folded
-into restore, deploy or rehydrate.
-
-This sequence is wired only into explicit destructive `refresh-dev-from-test.sh --execute`. Ordinary code-only
-deploys, builds, restarts, UI work and standalone `pnpm migrate` must never invoke refresh, dump/restore, P2-B
-rehydrate or unlock automatically. A failed post-restore handoff is repaired on the same DEV database by fixing the
-repo wrapper/artifact and rerunning rehydrate; it is not a reason for another destructive refresh.
+Owner decision 2026-07-30 supersedes the former DEV restore/rehydrate procedure: TEST→DEV refresh,
+`dev-runtime-overlay-rehydrate` and recreation of `bcb_webapp_dev` are not supported development steps.
+Pending shared migrations are applied to the existing DEV database through
+`bash deploy/host/migrate-dev.sh --preflight`, then `bash deploy/host/migrate-dev.sh --execute`. This wrapper
+validates exact local `bcb_webapp_dev`/`bcb_webapp_dev_user` and runs the ordinary repository migration chain; it
+does not copy TEST, restore a dump, change roles/ACL or test RLS walls.
 
 The DEV/disposable rehearsal path is now repo-tracked and separate from TEST services:
 

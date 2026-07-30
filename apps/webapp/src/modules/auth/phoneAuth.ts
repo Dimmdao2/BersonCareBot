@@ -1,8 +1,8 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { SessionUser } from '@/shared/types/session';
 import type { ChannelContext } from './channelContext';
-import type { PhoneChallengeStore } from './phoneChallengeStore';
-import type { PhoneOtpDelivery, SmsPort } from './smsPort';
+import type { PhoneChallengePayload, PhoneChallengeStore } from './phoneChallengeStore';
+import type { DeferredPhoneOtpDelivery, PhoneOtpDelivery, SmsPort } from './smsPort';
 import type { UserByPhonePort } from './userByPhonePort';
 import { getRedirectPathForRole } from './redirectPolicy';
 import { normalizePhone } from './phoneNormalize';
@@ -42,6 +42,7 @@ export type ConfirmPhoneAuthResult =
 
 export type StartPhoneAuthOptions = {
   delivery?: PhoneOtpDelivery;
+  deferredDelivery?: DeferredPhoneOtpDelivery;
   registrationAttemptId?: string;
   isRegistrationIntent?: boolean;
   profileBindUserId?: string;
@@ -50,6 +51,12 @@ export type StartPhoneAuthOptions = {
 
 function generateChallengeId(): string {
   return randomBytes(16).toString('base64url');
+}
+
+function isPhoneNumberProvenByOtpDelivery(
+  deliveryChannel: NonNullable<PhoneChallengePayload['deliveryChannel']>,
+): boolean {
+  return deliveryChannel === 'sms' || deliveryChannel === 'telegram' || deliveryChannel === 'max';
 }
 
 /** Создаёт OTP-челлендж без отправки (код возвращается вызывающему для кастомного сообщения бота). */
@@ -110,7 +117,12 @@ export async function startPhoneAuth(
     return { ok: false, code: 'invalid_phone' };
   }
 
-  const sendResult = await deps.smsPort.sendCode(normalized, CHALLENGE_TTL_SEC, options?.delivery);
+  const sendResult = await deps.smsPort.sendCode(
+    normalized,
+    CHALLENGE_TTL_SEC,
+    options?.delivery,
+    options?.deferredDelivery,
+  );
   if (!sendResult.ok) {
     return {
       ok: false,
@@ -171,6 +183,8 @@ export async function confirmPhoneAuth(
 
   const context = challenge.channelContext ?? defaultWebContext();
   const bindResult = await deps.userByPhonePort.createOrBind(challenge.phone, context, {
+    phoneNumberProven:
+      challenge.phoneNumberProven ?? isPhoneNumberProvenByOtpDelivery(deliveryChannel),
     ...(challenge.profileBindUserId ? { profileBindUserId: challenge.profileBindUserId } : {}),
     ...(challenge.profileBindOrganizationId
       ? { profileBindOrganizationId: challenge.profileBindOrganizationId }

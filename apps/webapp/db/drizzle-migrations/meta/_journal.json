@@ -1919,6 +1919,13 @@
       "when": 1793539200071,
       "tag": "0273_remove_app_base_url_setting",
       "breakpoints": true
+    },
+    {
+      "idx": 274,
+      "version": "7",
+      "when": 1793539200072,
+      "tag": "0274_password_login_atomic_admission_altcha",
+      "breakpoints": true
     }
   ]
 }

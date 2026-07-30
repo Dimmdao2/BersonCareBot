@@ -1,9 +1,12 @@
 [Unit]
 Description=BersonCareBot HLS media-worker (Production)
-After=network.target
+Wants=network-online.target
+After=network-online.target
+ConditionHost=adelaide
 
 [Service]
 Type=simple
+ExecCondition=/bin/sh -c 'case " $(/usr/bin/hostname -I) " in *" 135.106.162.170 "*) exit 0;; *) exit 1;; esac'
 WorkingDirectory=/opt/projects/bersoncarebot/apps/media-worker
 EnvironmentFile=/opt/env/bersoncarebot/media-worker.prod
 ExecStart=/usr/bin/node dist/main.js

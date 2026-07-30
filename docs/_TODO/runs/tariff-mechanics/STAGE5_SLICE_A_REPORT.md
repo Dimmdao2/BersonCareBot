@@ -1,0 +1,11 @@
+Готово и закоммичено: `6143c7082` (без push).
+
+- 5.1 — календарь: OAuth connect/callback и изменение/отключение настроек защищены в [start route](/home/dev/dev-projects/bcb-wt-[redacted-token]-calendar/start/route.ts:30), [callback](/home/dev/dev-projects/bcb-wt-[redacted-token]-calendar/callback/route.ts:36), [settings PATCH](/home/dev/dev-projects/bcb-wt-[redacted-token].ts:463). Отказ: «Невозможно подключить/изменить внешний календарь… включите этот раздел в тарифе». Тест: [tariffMechanics.route.test.ts](/home/dev/dev-projects/bcb-wt-[redacted-token].route.test.ts:161); без guard получил `integration_disabled` вместо tariff-refusal. Rows: `external-calendar.connect.start`, `.callback`, shared settings row.
+
+- 5.2 — дневники: защищены mood, отметка после разминки, symptom и ЛФК create/update/delete; чтение не менялось. Основные точки: [mood route](/home/dev/dev-projects/bcb-wt-[redacted-token].ts:35), [symptom actions](/home/dev/dev-projects/bcb-wt-[redacted-token].ts:47), [ЛФК actions](/home/dev/dev-projects/bcb-wt-[redacted-token].ts:45). Отказ называет невозможность изменить запись и предлагает включить раздел в тарифе; UI показывает его через toast/API message. Без mood-guard тест дошёл до `patientMood.submitScore` и покраснел. Rows: `patient-diaries.*`.
+
+- 5.9 — «Сегодня», разминки, промо: `/app/doctor/patient-home` отсутствует при выключенном `patient_home_today` ([page](/home/dev/dev-projects/bcb-wt-[redacted-token]-home/page.tsx:37)); его write-actions, расписание разминок и promo routes защищены ([patient-home actions](/home/dev/dev-projects/bcb-wt-[redacted-token]-home/actions.ts:109), [warmups](/home/dev/dev-projects/bcb-wt-[redacted-token]/[userId]/warmup-schedule/route.ts:86), [promo](/home/dev/dev-projects/bcb-wt-[redacted-token]-program-promo/route.ts:53)). Без promo-guard тест дошёл до чтения шаблона и покраснел. Rows скорректированы на фактические multi-mechanic handlers.
+
+Проверки: targeted Vitest — 9 passed; `pnpm --filter webapp typecheck` — pass; `lint` — pass.
+
+Открыто: DEV runtime probe и stage-7 full CI оставлены лиду по заданному scope. Coverage script всё ещё падает только на существующем, несвязанном `src/modules/org-branding/service.ts` direct-resolver finding.

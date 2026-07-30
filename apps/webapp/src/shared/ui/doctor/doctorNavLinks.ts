@@ -82,6 +82,7 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
     id: 'schedule',
     label: 'Расписание',
     href: routePaths.doctorSchedule,
+    accessTier: 'staff',
   },
   {
     id: 'communications',

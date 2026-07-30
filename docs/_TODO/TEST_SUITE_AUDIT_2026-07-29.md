@@ -32,6 +32,13 @@
 означает, что можно выкатывать**. Тест имеет право на жизнь, если можно назвать конкретную ошибку, которую он
 поймает, и эта ошибка правдоподобна. Всё остальное — не защита, а налог.
 
+**Граница цели, решение владельца 30.07.** Этот workstream не обязан покрыть тестами всю систему. Он должен
+построить и доказать **необходимый и достаточный** механизм на первых критичных DB-free группах: автоматический
+runner, полезные тесты с независимым oracle, red-on-fault доказательство и независимая смысловая приёмка. После
+реального пилота инструкции корректируются один раз по найденным практическим расхождениям, затем #1074
+закрывается. Остальные модули получают тесты дальше как обычная risk-based разработка, а не как обязательный
+массовый хвост этой задачи.
+
 **Чего делать НЕЛЬЗЯ.** Удалять тест потому, что он мешает, падает или непонятен. Единственное основание для
 удаления — «названная поломка отсутствует или неправдоподобна». Если сомневаешься — не удаляй, вынеси в отчёт.
 Потеря настоящей проверки хуже, чем сохранение лишней.
@@ -69,27 +76,131 @@
 > **Всё ниже — «Этапы 0–8», HOW-A/B/C/D-EXEC, ЗАМЕРЫ — это СПРАВОЧНАЯ детализация и история.** При любом
 > расхождении ЭТОТ порядок — источник истины. Старое не топит новое. Веду через подручных (воркеров), не сам.
 
-1. [ ] **Снести старое.** ~1700 старых тест-файлов — оптом под нож. Оставить ТОЛЬКО настоящую живую-БД коробку
+1. [x] **Снести старое.** ~1700 старых тест-файлов — оптом под нож. Оставить ТОЛЬКО настоящую живую-БД коробку
    (31 файл, `testsuite-rewrite-list.md §A`) как реальное покрытие+референс до пересборки, и CI-харнесс-скрипты
    (это не тесты). Отдельный воркер + независимый аудит: снесены только тесты, исходники и сборка целы.
-2. [ ] **Построить основу нового.** Стек (fast-check + fishery + мост от zod), единая точка `app-layer/testing`,
-   расширить живую-БД матрицу (принципал×орг×операция + инъекции). = «Фаза 0» из HOW-D/EXEC ниже.
-3. [ ] **Написать правило «как писать тесты»** (на мировой практике взрослых — исследование уже есть:
+   Доказательство: `a380533b4` + `34f6e7d28` удалили 1740 test/spec-файлов; команда
+   `git diff --name-only --diff-filter=D 970c5f2ac..01ea1c9ce -- apps | rg '\.(test|spec)\.(ts|tsx)$' | wc -l`
+   → `1740`; команда `git ls-files apps | rg '\.(test|spec)\.(ts|tsx)$' | wc -l` → `31`; полный gate
+   `/home/dev/brain/host-orch/run-tests.sh "pnpm run ci"` на `01ea1c9ce` → `rc=0`, `256s`;
+   независимый read-only аудит `testcut-step1-final-audit-r3` → `PASS`.
+2. [x] **Построить основу нового — DB-free часть.** Стек (fast-check + fishery + мост от zod), единая точка
+   `app-layer/testing`, Vitest projects `unit/route/ui` и CI-маршрут `test:webapp:behavior` — `6be2a1766`;
+   финальный прогон `pnpm test:webapp:behavior` на `7cdbbe727` → unit 2 файла/12 тестов, route 3/17, UI 1/2,
+   всё PASS.
+   Будущее расширение живой-БД матрицы (принципал×орг×операция + инъекции) не является открытым пунктом #1074:
+   оно выполняется после аудита ролей/стен, стабилизации БД и отдельного owner-go по решению владельца 30.07 ниже.
+3. [x] **Написать правило «как писать тесты»** (на мировой практике взрослых — исследование уже есть:
    `TESTSUITE_HOWTO_RESEARCH_2026-07-29.md`), чтобы все новые агенты сразу писали так.
-   → **ПРИЁМКА ВЛАДЕЛЬЦА перед фиксацией. Владелец принимает и корректирует.**
-4. [ ] **Разбить репо по модулям**, которые надо покрыть.
-5. [ ] **Писать тесты по правилам через подручных** (воркеров), по модулям, в порядке опасности:
-   изоляция клиник → вход/сессии → 32 непокрытых чувствительных → инварианты. **Квоты — ВНЕ этой задачи**
-   (отдельно, когда построят саму систему квот — решение владельца 29.07).
+   → **ПРИНЯТО ВЛАДЕЛЬЦЕМ 30.07:** канон опубликован в `AGENTS.md` §10b и
+   `.cursor/rules/test-execution-policy.md` §«Канон написания тестов»; независимый аудит
+   `test_authoring_rule_audit` → PASS.
+4. [x] **Разбить репо по модулям**, которые надо покрыть. Критичный risk-based inventory завершён:
+   `TESTSUITE_CRITICAL_TARGETS_SOL_RESEARCH_2026-07-30.md`; полное покрытие каждого файла репозитория не является
+   целью.
+5. [x] **Проверить правило на первых двух критичных DB-free группах через подручных.** Request security:
+   `23ce3a31c` + `ac273587d` (CSRF proxy и representative role/capability route); auth/session:
+   `e5fda04e1` + `e18d4a9c8` (session cookie и HTTP outcomes login/reset/change). Четыре fault-injection
+   доказательства и независимая Opus-приёмка записаны ниже.
+   Остальные чувствительные модули и инварианты получают тесты дальше как обычная risk-based разработка, а не
+   обязательный массовый хвост #1074. **Квоты — ВНЕ этой задачи** (решение владельца 29.07).
+6. [x] **Закрыть следующий разумный DB-free минимум** — решение владельца 30.07:
+   «закрывай тогда сам пока следующий разумный DB-free минимум, а остальное будем закрывать по ходу».
+   Это ровно четыре уже предложенных класса, без расширения скоупа:
+   - [x] patient organization resolver: inactive/foreign enrollment и ambiguous multi-org — `35eb9159c`;
+     `apps/webapp/src/modules/patient-organization/service.unit.test.ts`; четыре fault injection покрасили
+     owning assertions, DB/RLS/repository enrollment proof отложен;
+     - снят status guard → `inactive-enrollment` assertion red;
+     - снят platform-user guard → `foreign-user` assertion red;
+     - unknown verified target временно принят → `target-not-authorized` assertion red;
+     - при ambiguity временно выбрана первая organization → `selection-required` assertion red;
+   - [x] подписанная внешняя доставка: HMAC/time-window, duplicate suppression и policy denial — `7a7b24c08`;
+     `apps/integrator/src/integrations/bersoncare/relayOutboundRoute.route.test.ts`; шесть fault injection
+     покрасили owning assertions, DB/RLS/cross-process exactly-once и real-provider proof отложены;
+     - signature guard отключён → auth status `200` вместо ожидаемого `401`;
+     - in-flight guard отключён → duplicate status `200` вместо ожидаемого `503`;
+     - policy-denial branch отключён → status `502` вместо ожидаемого `403`;
+     - email classification принудительно заменена на `provider_send_failed` → incident `errorClass` red против
+       ожидаемого `provider_quota_exhausted`;
+     - SMS classification принудительно заменена на `provider_auth_rejected` → incident `errorClass` red против
+       ожидаемого `provider_send_failed`;
+     - web-push channel заменён на `email` → exact dispatch-contract assertion red;
+   - [x] acquiring provider/webhook boundary: provider disable, amount/currency/patient/idempotency и webhook auth —
+     `55cdfc48e`; `apps/webapp/src/infra/payments/registryAcquiringGateway.unit.test.ts` +
+     `apps/webapp/src/app/api/payments/patientAcquiring.route.test.ts`; fault injection покрасили provider,
+     identity/idempotency и webhook-auth assertions, DB/RLS/ledger/network и positive Alfa proof отложены;
+     - payments-disabled throw заменён на no-op → ожидался `{ ok: false, reason: 'payments_disabled' }`, получен
+       provider success;
+     - provider `idempotencyKey` заменён на `fault-injected-key` → exact `createIntent` assertion ожидал
+       `charge-1074-stable`, получил подменённый ключ;
+     - foreign-patient response status изменён `404`→`201` → status assertion ожидал `404`, получил `201`;
+     - resolved `idempotencyKey` заменён на пустую строку → caller-key и UUID-fallback assertions ожидали `201`,
+       получили `400`;
+     - provider-failure response status изменён `503`→`201` → status assertion ожидал `503`, получил `201`;
+     - missing-checksum branch временно вернул inspected webhook → route assertion ожидал `401`, получил `200`;
+   - [x] semantic M2M idempotency: stable hash, разрешённые volatile fields, mismatch→conflict и отсутствие
+     кеширования transient failure — `c223fcd15`; `apps/webapp/src/app-layer/idempotency/integratorEventSemanticHash.unit.test.ts`
+     + `apps/webapp/src/app/api/integrator/events/route.route.test.ts`; четыре fault injection покрасили hash/conflict/retry
+     assertions, PostgreSQL/concurrency/RLS/store-race proof отложен.
+     - object-key sorting отключён → stable-order assertion red;
+     - semantic payload стёрт → business-payload assertion red;
+     - cached-hash mismatch bypassed → ожидался `409`, получен `202`;
+     - transient `503` закеширован → retry ожидал `202`, получил `503`.
+   Для каждого класса: самый дешёвый публичный DB-free слой, независимый oracle, fault injection с записью
+   «что сломано → какое утверждение покраснело». Остальной inventory не блокирует #1074 и закрывается по ходу
+   обычной разработки.
+   **Audit closure 30.07:** исходный Opus run
+   `/home/dev/brain/runs/agent-port/bcb-1074-opus-critical-next-acceptance-20260730.json` нашёл единственный `MF-1`
+   о недостающих per-injection mappings; после их внесения независимый docs-only Sonnet re-audit
+   `patient_org_tests` на `e3f1d1403` → **PASS**: сверены все 20 mappings (patient 4, outbound 6, acquiring 6,
+   M2M 4), SHA, test paths и deferred scope; код и тесты повторно не запускались.
+   **Финальный результат #1074:** DB-free цель завершена. Открытые legacy/inventory/DB-боксы в остальных разделах
+   не блокируют её и остаются будущей risk-based работой по решению владельца «остальное будем закрывать по ходу»;
+   DB/RLS выполняется только после аудита ролей/стен, стабилизации БД и отдельного owner-go.
+
+### Финальная приёмка DB-free пилота — 30.07
+
+Полный аудит: [`TESTSUITE_PILOT_OPUS5_ACCEPTANCE_2026-07-30.md`](TESTSUITE_PILOT_OPUS5_ACCEPTANCE_2026-07-30.md).
+Raw read-only run:
+`/home/dev/brain/runs/agent-port/bcb-1074-opus-final-acceptance-20260730.json`
+(`claude-opus-5`, `xhigh`). Opus подтвердил: четыре пилотных файла проверяют реальные публичные границы;
+request-security и auth/session являются достаточным малым пилотом по принятой владельцем границе цели; новых
+модулей, DB/RLS-механики или расширения скоупа для закрытия #1074 не требуется.
+
+Первый вердикт Opus был узким `FAIL`: уже выполненные fault injections не были записаны в каноническом плане.
+Блокер закрыт следующими строками доказательства:
+
+- `23ce3a31c`: временно разрешили platform-admin clinic capability → route-assertion запрета доступа покраснел;
+  мутация восстановлена.
+- `ac273587d`: временный CSRF fail-open → assertions для foreign, missing и ambiguous source покраснели;
+  мутация восстановлена, `proxy.route.test.ts` вернулся к 5/5 PASS.
+- `e5fda04e1`: временно сломана expiry/renewal boundary → `sessionCookie.unit.test.ts` покраснел; мутация
+  восстановлена.
+- `e18d4a9c8`: в partial-success ответе временно заменено `passwordChanged: true` на `false` → соответствующий
+  route-assertion покраснел; мутация восстановлена.
+
+Общий автоматизированный gate после интеграции:
+`pnpm test:webapp:behavior` на `7cdbbe727` → unit 2 файла/12 тестов, route 3/17, UI 1/2, всё PASS.
+Полный CI повторно не запускался: production-код не менялся, а достаточный DB-free phase gate зелёный.
+Узкий read-only re-audit
+`/home/dev/brain/runs/agent-port/bcb-1074-opus-final-reaudit-r2-20260730.json` → **PASS**:
+BF-1 CLOSED, три уточнения канона PASS, других blocking findings нет.
 
 **⛔ ПРОД (135.x) НЕ ТРОГАЕМ, НЕ ЧИТАЕМ, НИ С ЧЕМ НЕ СРАВНИВАЕМ — ВООБЩЕ (владелец 29.07, категорично).**
 Прод — забота владельца/ops, не наша. Любая наша работа — только на этом боксе (тест/dev/одноразовая БД).
 
-**Ворота владельца:** **G0/0175** пересмотрен — **только TEST, без прода**: убедиться, что эталон схемы
+**Решение владельца 30.07:** полная DB/RLS/ACL/concurrency test-инфраструктура, G0/T1 и перенос legacy live-DB
+тестов выполняются только **после отдельного аудита ролей/стен, стабилизации схемы БД и нового owner-go**. До этого
+не строить новую DB-механику, не писать `*.postgres.integration.test.ts` и не использовать shared DEV как
+доказательство. Текущий активный следующий этап — только DB-free critical tests из уже готового inventory.
+
+**Будущие ворота владельца после снятия freeze:** **G0/0175** — **только TEST, без прода**: убедиться, что эталон схемы
 `a0-greenfield` и одноразовая БД, на которой строится живая-БД матрица, соответствуют тому, что на ТЕСТЕ
 (проверка на этом боксе). Прод в это НЕ входит. Блокирует ТОЛЬКО живую-БД часть (матрица в шаге 2 и T1 в шаге 5);
 шаги 1, 3, 4 и не-живые части идут без него. **G-калибровка** — пробный замер стоимости перед массовой стройкой.
-**Приёмка правила** (шаг 3) и **приёмка после первых двух групп** (изоляция+вход).
+**Приёмка правила** завершена владельцем. **Приёмку после первых двух DB-free групп** выполняет независимый агент:
+первично Opus для смысловой проверки пользы, Sonnet — для механического gate по масштабу сложности. Владелец не
+является блокером этой промежуточной приёмки.
 
 ## Измеренная картина (29.07, лид)
 
@@ -637,10 +748,11 @@ Stryker 9.6 + раннер vitest. Модуль `apps/webapp/src/modules/auth/se
 ### HOW-B — строить недостающее (тиры по порядку; сюда влит этап 5)
 
 **Рецепт авторинга (каждый тир):** один поведенческий контракт на `модуль × среда`, гонит модуль через ПУБЛИЧНЫЙ
-интерфейс, проверяет РЕЗУЛЬТАТ, не внутренности. Среды раздельно, не в один гигант-файл: `*.contract.test.ts`
-(pure на fakes/фиктивных часах), `*.postgres.integration.test.ts` (одноразовый Postgres 16), route/UI — только
-если поведение не наблюдаемо ниже. Заглушать только недетерминированное/внешнее; не проверять вызов внутреннего
-коллаборатора, если сам вызов не является внешним контрактом. Приёмка каждого теста: **инъекция поломки руками →
+интерфейс, проверяет РЕЗУЛЬТАТ, не внутренности. Среды раздельно, не в один гигант-файл: `*.unit.test.ts`
+(pure на fakes/фиктивных часах), `*.route.test.ts` (HTTP), `*.ui.test.tsx` (UI),
+`*.postgres.integration.test.ts` (одноразовый Postgres 16). Route/UI нужны только если поведение не наблюдаемо
+ниже. Заглушать только недетерминированное/внешнее; не проверять вызов внутреннего коллаборатора, если сам вызов
+не является внешним контрактом. Приёмка каждого теста: **инъекция поломки руками →
 красный** (арбитр), и где был мутант — **обязан его убить**. Это дословно Google, гл. 11–12: «тестируй через
 публичные API», «поведение, а не методы»; оверзаглушки «привязывают тест к реализации: проходит при неверной
 логике, ломается на рефакторинге» — ровно обе наши беды
@@ -822,6 +934,17 @@ HOW-A тратил 8–15 дней, мутируя 200 файлов, чтобы 
   эталон `a0-greenfield` и одноразовая БД (на которой строится живая-БД матрица) соответствуют ТЕСТУ, на этом
   боксе. **Прод в это НЕ входит: не читаем, не сравниваем — забота владельца/ops.** Всё живое-БД ждёт этой
   сверки — кривой эталон сделал бы каждый живой-БД тест ложью того же класса, что мы убираем.
+  - **Улика TEST 30.07:** read-only запрос
+    `sudo -n -u postgres psql -d bersoncarebot_test -X -v ON_ERROR_STOP=1 -Atqc
+    "SELECT hash || E'\t' || created_at::text FROM drizzle.__drizzle_migrations ORDER BY created_at, id" |
+    awk -F $'\t' '$2 == "1790947200000" { print $1 }'` вернул
+    `670a650104b59014da07d88551db4b17806bf982230bd6b21870050d0b23a861` — ровно SHA-256 текущего committed
+    `0175_p0_8_b4_roles_1_is_staff_wall_rls.sql`. Следовательно, TEST соответствует текущей 0175, а устарел
+    A0 manifest; PROD не открывался.
+  - **Решение владельца 30.07, заменяет прежнюю «разблокировку DEV»:** TEST→DEV refresh,
+    `dev-runtime-overlay-rehydrate` и пересоздание `bcb_webapp_dev` не нужны этой работе и удаляются. Общие миграции
+    применяются к существующей DEV обычным `migrate-dev`; G0 сверяет TEST/A0 и строит disposable-PostgreSQL proof,
+    не копируя TEST в DEV и не восстанавливая роли отдельным overlay-скриптом.
 - **G1 — калибровка** (после первого рабочего примера + первой инъекции A1): утвердить конфиг Stryker, РЕАЛЬНУЮ
   стоимость на тяжёлом Next-графе (пилоты были leaf-модули — оценка ×2–3 на `infra/repos`/`app-layer`), цели
   score. Ни один тир не стартует до G1.
@@ -848,6 +971,201 @@ HOW-A тратил 8–15 дней, мутируя 200 файлов, чтобы 
 - **Готово Фазы 0:** barrel живёт, пример зелёный и убивает пилот-выжившего; оба режима Stryker воспроизводят
   3.57%/2.88% (харнесс честен); матрица + ≥1 red-on-injection; диф-гейт advisory; a0-drift ловит правку историч. миграции.
 
+#### Решение владельца 30.07: что именно автоматизирует AI, а что остаётся oracle
+
+Владелец подтвердил предложенную цепочку словом «согласен» и распорядился: «запиши».
+
+1. **AI готовит только черновик теста и повторяющуюся механику.** Он может собрать setup через builders,
+   предложить границы, оформить `test.each`, написать `fc.property` и связать тест с публичным API модуля.
+2. **Бизнес-ожидание AI не выводит из проверяемой реализации.** Oracle берётся из требования владельца,
+   канонического плана, публичного контракта или уже подтверждённого продуктового правила. Тест, в котором AI
+   одновременно угадал поведение по коду и подтвердил тем же ожиданием этот код, не принимается.
+3. **Production Zod-схема — единственный источник формы данных.** Не создавать параллельную универсальную
+   `*.contract.ts` DSL и не дублировать input/output schema ради генератора. Рядом с модулем остаётся обычный
+   `*.unit.test.ts` с явным вызовом публичного API и явным исполняемым oracle. `fast-check`-свойства живут внутри
+   unit-теста и не требуют отдельного суффикса. `*.contract.test.ts` зарезервирован для настоящего межсервисного
+   Pact/consumer-driven contract и не используется как имя обычного теста модуля.
+
+   **Файловая схема, зафиксированная владельцем 30.07:**
+   - `*.unit.test.ts` — чистая бизнес-логика через публичный API;
+   - fast-check используется внутри этих unit-тестов, отдельный суффикс для него не нужен;
+   - `*.contract.test.ts` — только настоящие контракты между границами или сервисами;
+   - `*.route.test.ts` — HTTP;
+   - `*.ui.test.tsx` — UI;
+   - `*.postgres.integration.test.ts` — настоящая одноразовая PostgreSQL.
+4. **Автоматизируются входы, а не смысл:** `fast-check` генерирует и shrink-ит значения; Fishery/builders
+   создают валидные объекты; локальный типизированный `test.each` перебирает примеры/роли. Комментарии
+   `Given/When/Then` допустимы только для чтения людьми и не парсятся как источник ожидаемого поведения.
+5. **Vitest green недостаточно.** После зелёного черновика Stryker или точечная fault injection обязаны
+   намеренно сломать проверяемое правило и получить красный тест. Только после этого AI-черновик считается
+   доказанным тестом.
+6. **Вызов заглушки не запрещён как класс, но не является самостоятельным oracle.** `toHaveBeenCalled*` допустим
+   только как вторичная проверка наблюдаемой внешней границы (включая точные аргументы и ветку «не вызвано»), когда
+   сам вызов является публичным side effect. Проверять число вызовов внутреннего коллаборатора или повторять в
+   ожидании поведение собственной заглушки запрещено.
+7. **Новое имя живой-БД категории — `*.postgres.integration.test.ts`.** Существующие
+   `*.devDb.integration.test.ts` — legacy rewrite/retire-вход из закрытого keep-set, а не вторая разрешённая
+   категория: при переносе на одноразовый PostgreSQL файл переименовывается; тест, продолжающий писать в shared
+   `bcb_webapp_dev`, новой системе не соответствует.
+8. **Живые DB/RLS-правила пока являются TO-BUILD, а не доступной автору инфраструктурой.** Текущий
+   `app-layer/testing/pg-harness.ts` — `contract-only` заглушка, а A1 — conformance без полной write/oracle/injection
+   матрицы. До отдельного аудита ролей/стен, стабилизации схемы БД и owner-go агент не создаёт
+   `*.postgres.integration.test.ts`, не обходит заглушку прямым подключением к DEV и не заявляет DB/RLS слой
+   готовым.
+
+Каноническая последовательность:
+
+`AI-черновик → проверенный бизнес-oracle → fast-check/Fishery/test.each → Vitest → Stryker или fault injection`.
+
+Независимый аудит Claude Opus 4.8 от 30.07 дал условный PASS направлению и потребовал до правила how-to закрыть
+двусмысленности `contract`/unit, `devDb`/`postgres`, абсолютное прочтение запрета call-count и ложное впечатление,
+что disposable-PG/RLS infrastructure уже построена. Владелец подтвердил: чистая логика называется
+`*.unit.test.ts`; fast-check остаётся внутри unit-теста; `*.contract.test.ts` обычным модулям не выдаётся.
+Пункты 3 и 6–8 выше фиксируют остальные MUST FIX без нового DSL, второго RLS-фреймворка или нового workstream.
+
+#### Независимый аудит decision-policy — Claude Opus 5, 30.07
+
+Полный текст аудита:
+[`TESTSUITE_DECISION_POLICY_OPUS5_AUDIT_2026-07-30.md`](TESTSUITE_DECISION_POLICY_OPUS5_AUDIT_2026-07-30.md).
+Полный read-only run-artifact:
+`/home/dev/brain/runs/agent-port/claude-auditor-adhoc-2026-07-29T22-46-49-169Z.json`.
+Модель/режим из run-record: `claude-opus-5`, `xhigh`; итог — **PASS WITH MUST FIX**. Аудит подтвердил ядро
+правила: тест защищает названное поведение от названной поломки; oracle не выводится из проверяемой реализации;
+слой выбирается по самой дешёвой публичной границе; coverage и mutation score являются сигналами, а не заданием
+покрыть строки.
+
+**Обязательные уточнения decision-policy, чтобы агент не принял неверное решение:**
+
+- Characterization-тест legacy допустим без нового продуктового ТЗ, если oracle независим от текущей реализации:
+  подтверждённый дефект, прежний сломанный исход, решение владельца, внешний протокол или наблюдаемое стабильное
+  поведение. Текущий код сам себе oracle не создаёт; если независимого источника нет — `OWNER QUESTION`.
+- Вызов внешней границы сам является поведением, когда это наблюдаемый side effect: отправка, платёж, аудит,
+  постановка в очередь. Проверяются аргументы и отсутствие вызова в запрещённой ветке; порядок внутренних вызовов
+  и число вызовов собственного mock по-прежнему не являются самостоятельным oracle.
+- Повтор проверки на нескольких слоях допустим только как осознанный defense-in-depth: каждый слой обязан ловить
+  другой класс поломки. Одинаковый сценарий с одинаковым oracle на unit/route/UI/E2E не размножается.
+- Refactor без изменения поведения не требует нового теста, если публичное поведение уже защищено. Если refactor
+  проходит через рискованную границу без защиты, сначала нужен characterization-тест с независимым oracle.
+- Отдельно рассматриваются config/env fail-closed, worker/scheduler/queue, retries/concurrency/idempotency,
+  observability/security guards, accessibility и измеримый performance budget. «Важно пользователю» без названного
+  последствия не является критерием.
+- Миграции и механические policy-checks не дублируются unit-тестом, когда инвариант уже доказан действующим
+  fail-closed гейтом. Наличие script/alias само по себе не считается защитой: агент обязан назвать строку реально
+  запускаемого workflow.
+- Членство legacy-файла в keep-set не является индульгенцией: при переносе он проходит тот же фильтр формы,
+  а SQL/source-text pinning и mock-echo из него не наследуются.
+
+**Runner/CI — предусловие авторинга, а не последующая уборка:**
+
+- [x] Для активных DB-free suffix доказан маршрут `файл → Vitest project → environment → CI job`:
+  `*.unit.test.ts → unit/node`, `*.route.test.ts → route/node`, `*.ui.test.tsx → ui/jsdom`;
+  `.github/workflows/ci.yml` вызывает `pnpm test:webapp:behavior`, а команда
+  `pnpm test:webapp:behavior` 30.07 прошла как 2 unit-файла/7 тестов, 1 route-файл/3 теста,
+  1 UI-файл/2 теста.
+- [ ] Построить маршрут `*.postgres.integration.test.ts → disposable PostgreSQL project/job` после аудита
+  ролей/стен, стабилизации схемы БД и owner-go.
+- [x] `*.ui.test.tsx` запускается в DOM-среде: project `ui` использует `jsdom` и отдельный
+  `vitest.ui.setup.ts`; пилот `PatientHomeBlockRuntimeStatusBadge.ui.test.tsx` прошёл 2 теста.
+- [x] `*.postgres.integration.test.ts` исключён из DB-free `fast`; категория не включена ни в один активный
+  project и остаётся закрыта до снятия owner freeze.
+- [x] Каждая активная категория вызывается отдельной Vitest-командой, поэтому ноль файлов красный:
+  `pnpm --dir apps/webapp exec vitest --run --project=route __zero_file_gate_probe__` завершился кодом 1 с
+  `No test files found`; CI вызывает последовательный `test:behavior`.
+- [x] Удалены stale test-runner paths/aliases после точной сверки указанных Opus мест:
+  отсутствующий entitlement include, пустой `inprocess` project/job/alias и `test:with-db` с удалёнными путями;
+  временный `fast` оставлен только для существующего legacy cutover.
+- Проверка этапа 30.07: `/home/dev/brain/host-orch/run-tests.sh "pnpm run ci"` прошла lint, typecheck, integrator/
+  webapp/media-worker tests и обе сборки; первый audit-blocker #1065 (две таблицы без tier) закрыт коммитом
+  `e3dc221dd`. Resume-команда `pnpm run audit` на `e3dc221dd` прошла P0.4 и остановилась на существовавшем до этого
+  P0.5 generated-role-split mismatch. Тестовая инфраструктура этот посторонний blocker не маскирует и повторный
+  full CI не запускает.
+- [ ] Составить внутри этого плана карту `инвариант → действующий CI workflow:line`. Сиротский script, выключенный
+  workflow или package alias без вызывающего CI не разрешает пометить инвариант «уже защищён».
+- [ ] Повторно пропустить keep-set через фильтр формы: аудит указал SQL-text assertion
+  `apps/webapp/src/infra/repos/pgWebPushOnlyReminders.pg.test.ts:71`, расхождение rewrite-list с текущим деревом и
+  удалённый путь в §C; каждый факт перепроверить перед изменением списка.
+
+**Улики Opus, которые нельзя потерять, но которые не становятся отдельными карточками:** A0 baseline drift,
+settings `ALLOWED_KEYS`, new-table RLS coverage, media-worker/db-principal suites, race-check scripts и отключённый
+ZAP названы как проверки, существующие вне реально запускаемого merge-гейта. Их судьба решается здесь: подключить
+в предусмотренный планом gate, заменить поведенческим тестом либо записать owner decision об отсутствии блокировки.
+Действующие append-only/journal и DB-chokepoint гейты повторными unit-тестами не дублировать.
+
+#### Критичный test-target inventory — GPT-5.6 Sol, 30.07
+
+Полный текст исследования:
+[`TESTSUITE_CRITICAL_TARGETS_SOL_RESEARCH_2026-07-30.md`](TESTSUITE_CRITICAL_TARGETS_SOL_RESEARCH_2026-07-30.md).
+Финальный read-only run-artifact восстановленного после ошибочного SIGINT прохода:
+`/home/dev/brain/runs/agent-port/codex-auditor-adhoc-2026-07-29T23-08-24-895Z.json`.
+Модель/режим из run-record: `gpt-5.6-sol`, `xhigh`; `ok=true`, `phase=verified`. Sol восстановил первичный
+research из
+`/home/dev/brain/runs/codex-raw/2026-07-29T23-05-59-984Z-codex-auditor-adhoc-2026-07-29T22-50-15-747Z.jsonl`
+и выполнял только точечные проверки. Файлы, taskdb и БД агент не менял; тесты не запускал.
+
+**CRITICAL NOW — можно строить до disposable PostgreSQL, после закрытия runner/CI-предусловий выше:**
+
+| Вертикальный срез | Поведение/реальное последствие | Минимальный слой | Основные production paths |
+| --- | --- | --- | --- |
+| Session cookie + time boundaries | Подпись, полная форма, expiry и обе стороны TTL/max-age; ошибка оставляет украденную cookie долгоживущей | `*.unit.test.ts` | `modules/auth/sessionCookie.ts` |
+| Login / reset / password change HTTP | Нейтральный отказ без account enumeration, purpose-bound reset, lockout и честный partial-success; ошибка даёт перебор/чужой reset/живую старую сессию | `*.route.test.ts` | `api/auth/email-password/{login,reset}/route.ts`, `api/account/security/password/change/route.ts` |
+| CSRF origin boundary | Unsafe browser mutation только canonical same-origin, точный closed exemption set; ошибка разрешает стороннюю cookie-мутацию | `*.route.test.ts` | `middleware/csrfOrigin.ts`, `proxy.ts` |
+| Role/capability guards до DB | Wrong/unsigned/restricted/membership mismatch fail-closed; ошибка даёт patient→doctor или foreign-clinic доступ | `*.route.test.ts` на representative routes | `app-layer/guards/requireRole.ts` |
+| Patient organization resolver | inactive/foreign enrollment игнорируется, ambiguous multi-org требует выбора; ошибка подставляет контекст другой клиники | `*.unit.test.ts` | `modules/patient-organization/service.ts` |
+| Подписанная внешняя доставка | HMAC/time-window, duplicate suppression, policy denial и provider incident; ошибка даёт поддельную/двойную отправку | `*.route.test.ts` | `integrator/.../relayOutboundRoute.ts` |
+| Acquiring provider/webhook boundary | provider disable, сумма/валюта/patient/idempotency без подмены, webhook auth fail-closed; ошибка даёт чужое или ложное списание | `*.unit.test.ts` + `*.route.test.ts` | `infra/payments/*`, acquiring charge/webhook routes |
+| Semantic M2M idempotency | key-order stable hash, только разрешённые volatile fields, mismatch→conflict, transient failure не кешируется; ошибка дублирует или подавляет медицинское событие | `*.unit.test.ts` + `*.route.test.ts`; `*.contract.test.ts` только webapp↔integrator payload | `infra/idempotency/integratorEventSemanticHash.ts`, `api/integrator/events/route.ts` |
+
+Sol отдельно подтвердил: текущий `sessionCookie.unit.test.ts` — только начало; он не покрывает expired/malformed/
+incomplete формы, обе стороны временных границ и публичный renewal outcome. DB-backed revocation этим unit-тестом
+не подделывать.
+
+**CRITICAL AFTER SECURITY AUDIT + DB STABILIZATION + OWNER-GO — только настоящий
+`*.postgres.integration.test.ts`:**
+
+- tenant/RLS principal×org×CRUD matrix с отдельным oracle-соединением;
+- session epoch, logout и password-reset revocation;
+- OTP atomic consume, attempts, decay lockout и purpose binding;
+- organization provisioning: один intent → одна clinic/owner/specialist связка, idempotent retry и полный rollback;
+- patient invite lifecycle: supersede/revoke/expire/redeem, cross-org deny и один concurrent winner;
+- outgoing delivery queue/worker: unique enqueue, `SKIP LOCKED`, sent/retry/dead и stale-processing recovery;
+- durable M2M idempotency при multi-instance race;
+- acquiring ledger, webhook replay, capture/refund transaction и tenant/amount invariants;
+- platform-user merge: полный dependent-data matrix, deterministic locks и rollback blockers;
+- strict destructive purge: lifecycle lock, atomic DB delete и честный post-commit external cleanup;
+- booking overlap и package debit consistency под параллельными соединениями;
+- media access/privacy через точный org scope и submission ownership;
+- medical-file FK survival: удаление media сохраняет `patient_files` и обнуляет ссылку;
+- canonical patient UUID между клиниками без подмены org-local surrogate.
+
+**IMPORTANT LATER:** reminder `markSeen`/broadcast recipients через реальное DB-поведение; timezone UI/calendar
+boundaries; приоритет structured patient name над конфликтующим `displayName`.
+
+**Не считать критичной целью:** квоты/entitlements до отдельного owner-go; safety-заглушку `pg-harness.ts` как
+production-модуль; исторические batch/list-файлы как oracle критичности; модуль только из-за размера/coverage;
+массовый E2E; сохранение всех оставшихся test-файлов как keep-set. Сохраняется бизнес-знание, а не файл.
+
+**Первая разумная партия до DB — рекомендация Sol, ещё не запуск:**
+
+- Auth envelope: расширить `sessionCookie.unit` и добавить HTTP outcomes login/reset/change без имитации DB revocation.
+- Request security: CSRF proxy + representative role/capability routes.
+- Patient organization selection: foreign/inactive/multi-org cases чистого resolver.
+- Outbound side effect: `relayOutboundRoute` с duplicate, policy-denial и provider-incident outcomes.
+- Money/M2M boundaries: acquiring adapters/webhook + semantic event idempotency одним security-review checkpoint,
+  но разными тестовыми файлами.
+
+**OWNER QUESTIONS перед фиксацией соответствующих oracle:**
+
+- Alfa-Bank webhook без checksum: fail-closed сразу или обязательный server-side `getOrderStatusExtended` до capture?
+- Concurrent duplicate `POST /api/integrator/events`: at-most-once domain-handler execution или at-least-once с
+  обязательной идемпотентностью каждого downstream handler?
+- Provider intent уже создан, а patient-ledger insert упал: void/cancel, `indeterminate` или operator reconcile?
+- Logout при DB revocation failure: fail-closed logout или доступность с локальным clear-cookie и риском работающей
+  скопированной cookie?
+
+Этот inventory не создаёт новых карточек и не разрешает немедленно писать все перечисленные тесты. Он уточняет
+очередь единственного workstream: сначала runner/CI topology, затем подтверждённая владельцем non-DB партия,
+после аудита ролей/стен, стабилизации БД и owner-go — PostgreSQL/RLS/transaction/concurrency.
+
 ### Cutover — снести оптом (G2) — ~1 день
 Keep-bar = **членство в ЗАКРЫТОМ списке**, решённом один раз, не фильтр по 1737 файлам. Оставляем ТОЛЬКО:
 1. 31 живой-БД (`testsuite-rewrite-list.md §A`) — port-then-retire, не удаляем до замены;
@@ -861,9 +1179,9 @@ Keep-bar = **членство в ЗАКРЫТОМ списке**, решённо
 удаление БЕЗОПАСНЕЕ осторожности — сберегаемая «безопасность» фиктивна.
 
 ### Перестройка по тирам = HOW-B, с воротами (EXEC-3)
-Слои по среде: `*.contract.test.ts` (чистая логика: builders + fast-check-свойства + горстка примеров),
-`*.postgres.integration.test.ts` (одноразовый Postgres, поведение роли), `*.route/ui.test` (где ниже не видно),
-`e2e/*` (горстка). Единица — `модуль × среда`, никогда не мега-файл.
+Слои по среде: `*.unit.test.ts` (чистая логика: builders + fast-check-свойства + горстка примеров),
+`*.route.test.ts` (HTTP), `*.ui.test.tsx` (UI), `*.postgres.integration.test.ts` (одноразовый Postgres,
+поведение роли), `e2e/*` (горстка). Единица — `модуль × среда`, никогда не мега-файл.
 Порядок: **T1** изоляция/RLS (живая матрица + 5 инъекций; поднять 28 тёмных на одноразовый кластер, каждый
 проверить на dev-сид отдельно) → **T2** вход/сессии (убить выживших пилота) → **T3** квоты (убить 7 названных +
 грант-баг 28.07) → **T4** 32 непокрытых (провижининг/инвайты/эквайринг первыми) → **T5** 3 инварианта.

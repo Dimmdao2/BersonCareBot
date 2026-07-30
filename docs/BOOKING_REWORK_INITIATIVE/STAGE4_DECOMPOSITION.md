@@ -437,5 +437,5 @@ pnpm --dir apps/webapp exec tsc --noEmit -p tsconfig.json
 - [`INVENTORY_AND_IA.md`](INVENTORY_AND_IA.md) §5
 - [`STAGE3_DECOMPOSITION.md`](STAGE3_DECOMPOSITION.md) — абонементы в панели
 - [`STAGE2_DECOMPOSITION.md`](STAGE2_DECOMPOSITION.md) §2.3b — defer appointments read-source
-- [`../ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md`](../ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md)
+- [Архивный Rubitime pipeline](../archive/2026-07-rubitime-retirement/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md)
 - [`../OWN_BOOKING_ENGINE_INITIATIVE/UI_SURFACES_CHECKLIST.md`](../OWN_BOOKING_ENGINE_INITIATIVE/UI_SURFACES_CHECKLIST.md) — календарь врача
