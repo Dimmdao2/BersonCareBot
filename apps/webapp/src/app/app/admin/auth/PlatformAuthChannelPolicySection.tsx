@@ -12,13 +12,16 @@ import type { AuthChannelUiPolicy } from '@/modules/auth/otpChannelUi';
 
 type PolicyKey = keyof AuthChannelUiPolicy;
 type SettingKey = `auth_${PolicyKey}_enabled`;
-type OAuthProviderKey = 'google' | 'yandex';
+type OAuthProviderKey = 'google' | 'yandex' | 'apple';
 type OAuthSettingKey = `auth_oauth_${OAuthProviderKey}_enabled`;
+type IndependentMethodKey = 'passkey' | 'pin';
+type IndependentSettingKey = `auth_${IndependentMethodKey}_enabled`;
 const TWO_FACTOR_KEY = 'auth_2fa_enabled' as const;
 const UNSUPPORTED_CLIENT_FALLBACK_KEY = 'patient_unsupported_client_fallback_enabled' as const;
 type SavingKey =
   | PolicyKey
   | OAuthProviderKey
+  | IndependentMethodKey
   | typeof TWO_FACTOR_KEY
   | typeof UNSUPPORTED_CLIENT_FALLBACK_KEY;
 
@@ -45,7 +48,29 @@ const OAUTH_PROVIDERS: ReadonlyArray<{ provider: OAuthProviderKey; label: string
   [
     { provider: 'google', label: 'Google', hint: 'Разрешить вход через Google OAuth.' },
     { provider: 'yandex', label: 'Яндекс', hint: 'Разрешить вход через Яндекс OAuth.' },
+    {
+      provider: 'apple',
+      label: 'Apple',
+      hint: 'Разрешить Sign in with Apple при настроенных параметрах.',
+    },
   ];
+
+const INDEPENDENT_METHODS: ReadonlyArray<{
+  method: IndependentMethodKey;
+  label: string;
+  hint: string;
+}> = [
+  {
+    method: 'passkey',
+    label: 'Ключ доступа (passkey)',
+    hint: 'Разрешить добровольное добавление ключей доступа и вход по ним.',
+  },
+  {
+    method: 'pin',
+    label: 'PIN',
+    hint: 'Разрешить вход по номеру телефона и ранее установленному PIN.',
+  },
+];
 
 const EMPTY_POLICY: AuthChannelUiPolicy = { email: false, sms: false, telegram: false, max: false };
 const EMPTY_CHANNEL_STATUS: ChannelConfigurationStatus = {
@@ -54,10 +79,19 @@ const EMPTY_CHANNEL_STATUS: ChannelConfigurationStatus = {
   telegram: { enabled: false, configured: false },
   max: { enabled: false, configured: false },
 };
-const EMPTY_OAUTH_POLICY: Record<OAuthProviderKey, boolean> = { google: false, yandex: false };
+const EMPTY_OAUTH_POLICY: Record<OAuthProviderKey, boolean> = {
+  google: false,
+  yandex: false,
+  apple: false,
+};
 const EMPTY_OAUTH_STATUS: OAuthConfigurationStatus = {
   google: { enabled: false, configured: false },
   yandex: { enabled: false, configured: false },
+  apple: { enabled: false, configured: false },
+};
+const EMPTY_INDEPENDENT_POLICY: Record<IndependentMethodKey, boolean> = {
+  passkey: false,
+  pin: false,
 };
 
 /** Owner ruling 2026-07-24: ON but unconfigured → hidden from the client + this warning next to the toggle. */
@@ -84,6 +118,8 @@ export function PlatformAuthChannelPolicySection() {
   const [oauthPolicy, setOauthPolicy] =
     useState<Record<OAuthProviderKey, boolean>>(EMPTY_OAUTH_POLICY);
   const [oauthStatus, setOauthStatus] = useState<OAuthConfigurationStatus>(EMPTY_OAUTH_STATUS);
+  const [independentPolicy, setIndependentPolicy] =
+    useState<Record<IndependentMethodKey, boolean>>(EMPTY_INDEPENDENT_POLICY);
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
   const [unsupportedClientFallbackEnabled, setUnsupportedClientFallbackEnabled] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -121,6 +157,13 @@ export function PlatformAuthChannelPolicySection() {
         }
         setOauthPolicy(nextOauth);
         setOauthStatus(data.oauthProviderPolicy ?? EMPTY_OAUTH_STATUS);
+
+        const nextIndependent = { ...EMPTY_INDEPENDENT_POLICY };
+        for (const { method } of INDEPENDENT_METHODS) {
+          const setting = data.settings.find((item) => item.key === `auth_${method}_enabled`);
+          nextIndependent[method] = readBoolean(setting?.valueJson);
+        }
+        setIndependentPolicy(nextIndependent);
 
         setTwoFactorEnabled(
           readBoolean(data.settings.find((item) => item.key === TWO_FACTOR_KEY)?.valueJson),
@@ -202,6 +245,30 @@ export function PlatformAuthChannelPolicySection() {
     }
   }
 
+  async function updateIndependentMethod(
+    method: IndependentMethodKey,
+    enabled: boolean,
+  ): Promise<void> {
+    const previous = independentPolicy[method];
+    setIndependentPolicy((current) => ({ ...current, [method]: enabled }));
+    setSaving(method);
+    try {
+      const key: IndependentSettingKey = `auth_${method}_enabled`;
+      const response = await fetch('/api/platform/settings', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ key, value: enabled }),
+      });
+      const data = (await response.json().catch(() => ({}))) as { ok?: boolean };
+      if (!response.ok || !data.ok) throw new Error('save_failed');
+    } catch {
+      setIndependentPolicy((current) => ({ ...current, [method]: previous }));
+      toast.error('Не удалось сохранить настройку');
+    } finally {
+      setSaving(null);
+    }
+  }
+
   async function updateUnsupportedClientFallback(enabled: boolean): Promise<void> {
     const previous = unsupportedClientFallbackEnabled;
     setUnsupportedClientFallbackEnabled(enabled);
@@ -268,9 +335,23 @@ export function PlatformAuthChannelPolicySection() {
             </div>
           ))}
         </div>
-        <p className="text-xs text-muted-foreground">
-          Apple OAuth в списке переключателей не участвует (решение владельца).
-        </p>
+      </DoctorSection>
+      <DoctorSection>
+        <DoctorSectionHeader>
+          <DoctorSectionTitle>Другие способы входа</DoctorSectionTitle>
+        </DoctorSectionHeader>
+        <div className="grid gap-4 md:grid-cols-2">
+          {INDEPENDENT_METHODS.map(({ method, label, hint }) => (
+            <LabeledSwitch
+              key={method}
+              label={label}
+              hint={hint}
+              checked={independentPolicy[method]}
+              disabled={!loaded || saving !== null}
+              onCheckedChange={(enabled) => void updateIndependentMethod(method, enabled)}
+            />
+          ))}
+        </div>
       </DoctorSection>
       <DoctorSection>
         <DoctorSectionHeader>

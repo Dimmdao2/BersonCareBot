@@ -8,7 +8,7 @@
 -- table got SELECT-only vs a write grant, and which BOOTSTRAP tables were deliberately excluded).
 --
 -- Purpose:
---   - app_staff: the reviewed P0.5b runtime DML surface -- 212 tables (SCOPED +
+--   - app_staff: the reviewed P0.5b runtime DML surface -- 217 tables (SCOPED +
 --     BOOTSTRAP + INFRA + LEGACY + TELEMETRY, excluding migration bookkeeping and post-P0.5b tables
 --     whose dedicated overlays own their grants).
 --   - app_patient: ONLY the patient-facing surface -- 109 tables (the patient-owned
@@ -198,6 +198,8 @@ VALUES
   ('public', 'operator_job_status'),
   ('public', 'org_enrollments'),
   ('public', 'outgoing_delivery_queue'),
+  ('public', 'password_altcha_challenges'),
+  ('public', 'password_login_identifier_protection'),
   ('public', 'patient_bookings'),
   ('public', 'patient_comorbidity'),
   ('public', 'patient_content_rating_feedback'),
@@ -261,6 +263,9 @@ VALUES
   ('public', 'user_notification_topic_channels'),
   ('public', 'user_notification_topics'),
   ('public', 'user_oauth_bindings'),
+  ('public', 'user_passkey_accounts'),
+  ('public', 'user_passkey_challenges'),
+  ('public', 'user_passkey_credentials'),
   ('public', 'user_password_credentials'),
   ('public', 'user_phone_history'),
   ('public', 'user_pins'),
@@ -582,5 +587,5 @@ SELECT (NOT pg_has_role('app_patient', 'app_staff', 'MEMBER'))::int AS p0_5b_gra
 SELECT 1 / 0 AS p0_5b_grants_abort;
 \endif
 
-\echo 'P0.5b grants UP complete: app_staff 212 tables, app_patient 109 tables.'
+\echo 'P0.5b grants UP complete: app_staff 217 tables, app_patient 109 tables.'
 \endif

@@ -25,6 +25,9 @@ BOOTSTRAP|public.user_email_setup_tokens
 BOOTSTRAP|public.user_notification_topic_channels
 BOOTSTRAP|public.user_notification_topics
 BOOTSTRAP|public.user_oauth_bindings
+BOOTSTRAP|public.user_passkey_accounts
+BOOTSTRAP|public.user_passkey_challenges
+BOOTSTRAP|public.user_passkey_credentials
 BOOTSTRAP|public.user_password_credentials
 BOOTSTRAP|public.user_phone_history
 BOOTSTRAP|public.user_pins

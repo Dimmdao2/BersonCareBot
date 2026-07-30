@@ -11,6 +11,7 @@ import { setSessionFromUser } from '@/modules/auth/service';
 import { enterStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
 import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
 import { prepareVerifiedPrimaryLogin } from '@/modules/auth/verifiedStaffPrimaryLogin';
+import { isIndependentAuthMethodEnabled } from '@/modules/auth/authChannelPolicy';
 
 const GENERIC_PIN_FAIL = 'Неверный номер или PIN';
 
@@ -21,6 +22,12 @@ const bodySchema = z.object({
 
 export async function POST(request: Request) {
   stampBootstrapPrincipal('api/auth/pin/login:POST', request);
+  if (!(await isIndependentAuthMethodEnabled('pin'))) {
+    return NextResponse.json(
+      { ok: false, error: 'auth_method_disabled', message: 'Вход по PIN отключён' },
+      { status: 403 },
+    );
+  }
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {

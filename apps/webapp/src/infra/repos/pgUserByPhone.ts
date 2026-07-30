@@ -1,8 +1,10 @@
 import type { Pool, PoolClient } from 'pg';
+import { eq, sql } from 'drizzle-orm';
 import {
   getCurrentDbPrincipalPlatformUserId,
   runWithDbOrganizationPrincipal,
 } from '@bersoncare/db-principal';
+import { platformUsers } from '../../../db/schema/schema';
 /**
  * Wave 3 phase 12B + R0/S3Q — create/bind transaction checkout goes through `withPoolTransaction`.
  * Domain SQL — `runIdentityClientPgText` / `runIdentityPoolPgText`; row-shape — Zod in `identityPhoneRowSchemas`.
@@ -51,6 +53,18 @@ import {
   userIdRowSchema,
 } from '@/infra/repos/identityPhoneRowSchemas';
 import { runIdentityClientPgText, runIdentityPoolPgText } from '@/infra/repos/identityPhoneSql';
+import { getWebappSqlFromPgClient } from '@/infra/db/runWebappSql';
+
+async function markPatientPhoneTrusted(client: PoolClient, userId: string): Promise<void> {
+  const db = getWebappSqlFromPgClient(client);
+  await db
+    .update(platformUsers)
+    .set({
+      patientPhoneTrustAt: sql`now()`,
+      updatedAt: sql`now()`,
+    })
+    .where(eq(platformUsers.id, userId));
+}
 
 async function loadPuRowForMerge(client: PoolClient, id: string) {
   const r = await runIdentityClientPgText(
@@ -255,11 +269,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
           );
           if (options?.phoneNumberProven === true) {
             trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.OtpCreateOrBind);
-            await runIdentityClientPgText(
-              client,
-              'UPDATE platform_users SET patient_phone_trust_at = now(), updated_at = now() WHERE id = $1::uuid',
-              [userId],
-            );
+            await markPatientPhoneTrusted(client, userId);
           }
           return { userId, wasCreated: false };
         }
@@ -417,11 +427,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
 
         if (options?.phoneNumberProven === true) {
           trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.OtpCreateOrBind);
-          await runIdentityClientPgText(
-            client,
-            'UPDATE platform_users SET patient_phone_trust_at = now(), updated_at = now() WHERE id = $1::uuid',
-            [userId],
-          );
+          await markPatientPhoneTrusted(client, userId);
         }
         return { userId, wasCreated };
       });

@@ -3,7 +3,8 @@
 > **Owner requirement, 2026-07-24** — prod-prep feature. Captured verbatim-structured; current-state recon in
 > progress (grounds the plan). Related: `SAAS_PRODUCT_UX_INITIATIVE/IMPLEMENTATION_ROADMAP.md` (login config,
 > U-contracts), tariff/entitlements/mechanics-flags (`SAAS_FOUNDATION/SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md`),
-> capability-guard. NOT started — awaiting recon + owner acceptance of the plan.
+> capability-guard. Реализация ведётся по этапам: `#1005` этап 1 закрыт ниже; `#993` mini-app removal поставлен
+> владельцем на паузу.
 
 ## Requirement (owner, plain)
 
@@ -19,7 +20,8 @@ login/registration UI must reflect those toggles **dynamically**.
 - **Email** — with **per-provider** control:
   - **Google / Gmail OAuth** — independent toggle
   - **Yandex OAuth** — independent toggle
-  - **Apple — NOT included** (owner 2026-07-24; even though implemented, no Apple toggle / not offered).
+  - ~~**Apple — NOT included** (owner 2026-07-24; even though implemented, no Apple toggle / not offered).~~
+    **Заменено последующим решением владельца 2026-07-30:** «apple - переключатель в админке.»
 - **2FA / TOTP** — owner 2026-07-24: required for **global admin AND specialists** (staff). The toggle governs
   whether TOTP 2FA is in effect for those roles.
 
@@ -73,7 +75,7 @@ login/registration UI must reflect those toggles **dynamically**.
   Telegram Login Widget / MAX auth codes are SEPARATE → keep untouched. (Not yet located: menu-button mini-app vector,
   staff-login separateness — confirm before removal.)
 
-## Plan (grounded — awaiting owner acceptance; NOT started)
+## Исходный grounded plan (частично реализован; актуальные этапы `#1005` ниже)
 
 1. **Extend the settings registry** with independent boolean toggles: `auth_oauth_google_enabled`,
    `auth_oauth_yandex_enabled`, (`auth_oauth_apple_enabled`?), `auth_2fa_enabled` — add to `registry.ts` +
@@ -91,14 +93,14 @@ login/registration UI must reflect those toggles **dynamically**.
 
 - ✅ **RESOLVED 2026-07-24** — Method ON but unconfigured → **hidden from client + admin-side warning** next to the
   toggle. visible-to-client = `enabled AND configured`.
-- ✅ **RESOLVED 2026-07-24** — **Apple NOT included** (no toggle).
+- ~~✅ **RESOLVED 2026-07-24** — **Apple NOT included** (no toggle).~~
+  **Заменено последующим решением владельца 2026-07-30:** «apple - переключатель в админке.»
 - ✅ **RESOLVED 2026-07-24** — 2FA/TOTP toggle applies to **global admin AND specialists (staff)**.
 - ✅ **RESOLVED 2026-07-24** — Toggle scope: **GLOBAL / platform-wide**, configured by the **global admin only**;
   specialists do NOT access these settings. (Not per-clinic.)
 
-**All owner decisions on this feature are now resolved.** Ready to plan/build when prioritized (build gaps:
-OAuth per-provider toggles, 2FA global gate for admin+staff, admin checkbox UI, per-method configured-check for
-client visibility, mini-app removal).
+Решения этого исходного среза зафиксированы; последующие решения владельца и актуальный порядок выполнения
+ведутся в разделе `#1005` ниже. Mini-app removal (`#993`) поставлен владельцем на паузу.
 
 ## Консолидированный workstream Auth / аккаунт / онбординг (`#993`)
 
@@ -113,9 +115,9 @@ MAX, SMS, 2FA, Google/Gmail OAuth и Yandex OAuth; client visibility = `enabled 
 для включённого, но не настроенного метода; удалить Telegram/MAX mini-app entry points, сохранив ботов для кодов
 аутентификации и уведомлений.
 
-- [x] Не предлагать Apple OAuth как способ входа даже при сохранённых legacy credentials: public providers API и
-      SSR snapshot возвращают `apple: false`, прямой `POST /api/auth/oauth/start` отклоняет `provider=apple` —
-      `apps/webapp/src/modules/auth/oauthAppleDisabled.route.test.ts`.
+- [-] ~~Не предлагать Apple OAuth как способ входа даже при сохранённых legacy credentials: public providers API и
+      SSR snapshot возвращают `apple: false`, прямой `POST /api/auth/oauth/start` отклоняет `provider=apple`~~ —
+      ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 2026-07-30: «apple - переключатель в админке.»
 - [x] Удалить Telegram/MAX mini-app launch из ошибки `user.phone.link → no_channel_binding`, сохранив сообщение и
       остановку ошибочного сценария — `apps/integrator/src/kernel/domain/executor/executeActionMiniAppRemoval.unit.test.ts`.
 - [x] Удалить главный/home mini-app launch из Telegram/MAX menu, reply-menu, content-сценариев и post-bind меню,
@@ -126,8 +128,9 @@ MAX, SMS, 2FA, Google/Gmail OAuth и Yandex OAuth; client visibility = `enabled 
 - [ ] Провести живую TEST-проверку: выключенный метод исчезает из login/registration и отклоняется сервером;
       Telegram/MAX mini-app launch buttons отсутствуют.
 
-Ограничения карточки: toggles глобальные, не per-clinic; Apple не включён; 2FA относится к global admin и staff;
-выключенный метод исчезает из login/registration независимо от наличия ключей.
+Ограничения карточки: toggles глобальные, не per-clinic; Apple управляется отдельным переключателем и остаётся
+скрыт без полного набора credentials; 2FA относится к global admin и staff; выключенный метод исчезает из
+login/registration независимо от наличия ключей.
 
 ### `#985` — owner TEST login, PWA и Web Push
 
@@ -217,19 +220,24 @@ WhatsApp подтверждает его только при таком же д�
 - [x] Развести «канал доставки» и «подтверждённый фактор»: код, доставленный по email после ввода телефона,
       подтверждает email и не выставляет trusted-phone признак. —
       `apps/webapp/src/modules/auth/phoneAuth.ts:55,183` +
-      `apps/webapp/src/infra/repos/pgUserByPhone.ts:256,418`
+      `apps/webapp/src/infra/repos/pgUserByPhone.ts` (оба условных пути `phoneNumberProven === true` вызывают один
+      typed Drizzle update в той же транзакции; scan legacy raw `UPDATE ... patient_phone_trust_at` пуст).
 - [ ] Сопоставить текущий код со всей матрицей путей входа и доставки: введённый идентификатор → найденный аккаунт
       → подтверждённые каналы аккаунта → разрешённые global-admin policy пути → фактический способ входа; отдельно
       перечислить расхождения, не меняя код до согласования целевой модели.
 - [ ] Зафиксировать по первичным стандартам и официальным реализациям зрелых auth-систем целевую auth-policy:
       password/passwordless, порядок code-delivery, клиентская 2FA, enrollment/recovery, безопасные значения по
       умолчанию и запрещённые комбинации; принести владельцу на согласование до разработки.
-- [ ] **Этап 1 — passkey и переключатели способов входа.** Подключить поддерживаемые
+- [x] **Этап 1 — passkey и переключатели способов входа.** Подключить поддерживаемые
       `@simplewebauthn/server` + `@simplewebauthn/browser`; реализовать добровольное добавление/удаление и вход по
       passkey без передачи биометрии приложению; хранить несколько credentials на аккаунт; добавить в существующий
       global-admin auth-блок отдельные переключатели passkey, PIN и Apple. Каждый выключенный способ должен
       отклоняться сервером, а не только исчезать из UI. Apple сохраняет configured-check, безопасный default новых
-      переключателей — `false`.
+      переключателей — `false`. — `apps/webapp/src/modules/auth/passkeyAuth.ts` +
+      `apps/webapp/src/app/api/auth/passkey/**` +
+      `apps/webapp/src/app/app/patient/profile/PasskeySection.tsx` +
+      `apps/webapp/src/app/app/admin/auth/PlatformAuthChannelPolicySection.tsx`; narrow unit/route `8/8`,
+      webapp typecheck, scoped ESLint, Drizzle journal sync и `check:saas-db-regression` — PASS.
 - [ ] **Этап 2 — два подтверждённых бага текущего fallback.** Phone→email разрешён только когда введённый телефон
       уже trusted и email уже verified; email-код не меняет phone trust. Включённый, но ненастроенный SMS не
       перехватывает вход: evaluator пропускает его и рассматривает следующий реально доступный канал.

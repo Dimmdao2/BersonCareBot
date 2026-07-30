@@ -205,6 +205,8 @@ VALUES
   ('public', 'operator_health_failure_archive', 'SCOPED'),
   ('public', 'org_enrollments', 'SCOPED'),
   ('public', 'organization_member_invites', 'SCOPED'),
+  ('public', 'password_altcha_challenges', 'BOOTSTRAP'),
+  ('public', 'password_login_identifier_protection', 'BOOTSTRAP'),
   ('public', 'patient_comorbidity', 'SCOPED'),
   ('public', 'patient_content_rating_feedback', 'SCOPED'),
   ('public', 'patient_daily_warmup_presentations', 'SCOPED'),
@@ -269,6 +271,9 @@ VALUES
   ('public', 'user_notification_topic_channels', 'BOOTSTRAP'),
   ('public', 'user_notification_topics', 'BOOTSTRAP'),
   ('public', 'user_oauth_bindings', 'BOOTSTRAP'),
+  ('public', 'user_passkey_accounts', 'BOOTSTRAP'),
+  ('public', 'user_passkey_challenges', 'BOOTSTRAP'),
+  ('public', 'user_passkey_credentials', 'BOOTSTRAP'),
   ('public', 'user_password_credentials', 'BOOTSTRAP'),
   ('public', 'user_phone_history', 'BOOTSTRAP'),
   ('public', 'user_pins', 'BOOTSTRAP'),
@@ -422,5 +427,5 @@ SELECT (
 SELECT 1 / 0 AS p0_5_abort;
 \endif
 
-\echo 'P0.5 role split UP complete: 162 SCOPED tables and 26 BOOTSTRAP tables granted to the app role.'
+\echo 'P0.5 role split UP complete: 162 SCOPED tables and 31 BOOTSTRAP tables granted to the app role.'
 \endif

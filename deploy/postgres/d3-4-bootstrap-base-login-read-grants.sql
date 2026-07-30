@@ -342,7 +342,11 @@ WITH bootstrap_auth_accessor(signature) AS (
     ('app.auth_login_token_read(text)'),
     ('app.auth_login_token_expire_past()'),
     ('app.auth_login_token_confirm(text)'),
-    ('app.auth_login_token_mark_session_issued(text)')
+    ('app.auth_login_token_mark_session_issued(text)'),
+    ('app.passkey_issue_challenge(uuid, text, uuid, text, text, text, timestamptz)'),
+    ('app.passkey_read_challenge(uuid, text)'),
+    ('app.passkey_read_credential(text)'),
+    ('app.passkey_complete_authentication(uuid, text, bigint, bigint, text, boolean)')
 )
 SELECT format(
   'REVOKE EXECUTE ON FUNCTION %s FROM %I',
@@ -742,7 +746,11 @@ WITH bootstrap_auth_accessor(signature) AS (
     ('app.auth_login_token_read(text)'),
     ('app.auth_login_token_expire_past()'),
     ('app.auth_login_token_confirm(text)'),
-    ('app.auth_login_token_mark_session_issued(text)')
+    ('app.auth_login_token_mark_session_issued(text)'),
+    ('app.passkey_issue_challenge(uuid, text, uuid, text, text, text, timestamptz)'),
+    ('app.passkey_read_challenge(uuid, text)'),
+    ('app.passkey_read_credential(text)'),
+    ('app.passkey_complete_authentication(uuid, text, bigint, bigint, text, boolean)')
 )
 SELECT format(
   'GRANT EXECUTE ON FUNCTION %s TO %I',
