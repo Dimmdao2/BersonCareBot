@@ -386,8 +386,8 @@ Timeout или недостаток контекста не считаются s
 
 #### Stage launch manifest — обязателен перед первым worker
 
-Для каждого C-stage оркестратор сначала фиксирует в существующем initiative `LOG.md` и taskdb note, не создавая
-нового плана:
+Для каждого C-stage оркестратор сначала фиксирует в существующем initiative `LOG.md`, не создавая нового плана
+и не добавляя narrative в taskdb-карточку:
 
 1. текущий branch/HEAD и TEST SHA, на котором будет acceptance;
 2. exact task IDs, owner-review section и stage checklist;

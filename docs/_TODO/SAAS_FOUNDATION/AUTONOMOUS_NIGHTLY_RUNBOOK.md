@@ -70,7 +70,8 @@ Allowed:
 - one stage, one worktree/branch, one focused implementation;
 - targeted tests/lint/typecheck through `/home/dev/orch/run-tests.sh`;
 - `LOG.md` update in the same commit;
-- taskdb status/note updates through `node /home/dev/brain/tools/taskdb.mjs`;
+- taskdb status/service-field updates through `node /home/dev/brain/tools/taskdb.mjs`; ход и доказательства —
+  только в stage checklist/каноническом плане;
 - commit after the local gate passes;
 - backup push to the current non-main/non-test feature branch after the stage-appropriate local gate is satisfied.
 
@@ -88,7 +89,8 @@ Forbidden:
 - Confirm `git status --short` is clean or unrelated changes are understood.
 - Confirm current branch is not `main` or `test`.
 - Historical P0 only: confirm the next stage from `LOG.md` and `CORRECTED_PLAN.md`. For T0, confirm the next stage from `T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md`.
-- Find or create the taskdb task for this exact stage; set `status doing`.
+- Find the taskdb workstream for this stage; a stage is a checklist section, not a new card. Set the existing
+  workstream to `status doing`.
 - Run the stage preflight guard through the wrapper:
 
 ```bash
@@ -96,7 +98,8 @@ bash /home/dev/orch/run-tests.sh "pnpm run check:saas-db-regression && git diff 
 ```
 
 - Read the exact stage checklist and the named source files.
-- If the stage requires a decision not already documented, stop: set task `blocked`, set `owner_waiting true`, and write the exact question.
+- If the stage requires a decision not already documented, write the exact question and context in the canonical
+  plan, then set the task `blocked` and service flag `owner_waiting true`.
 
 ## Validation Policy
 

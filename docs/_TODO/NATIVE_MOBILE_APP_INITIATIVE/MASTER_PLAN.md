@@ -167,7 +167,8 @@ wrong-tenant target, expired session, provider outage and no hidden messenger fa
 
 ## 11. Оркестрация и scope
 
-- Каждый MOB-stage получает отдельный taskdb item, exact files, stable dependency SHA и risk-based audit.
+- Все MOB-stages остаются этапами одного канонического плана workstream; отдельные taskdb-карточки на этапы
+  не создаются. Exact files, stable dependency SHA и risk-based audit фиксируются в соответствующем этапе плана.
 - Независимые Android build, backend push adapter и legal/store packets могут идти параллельно с непересекающимся
   file scope; auth/schema/security stages сериализуются по contracts.
 - После каждого пользовательски видимого пакета — owner real-device acceptance. Audit PASS не заменяет приёмку.

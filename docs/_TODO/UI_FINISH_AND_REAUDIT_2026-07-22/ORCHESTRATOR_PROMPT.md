@@ -82,7 +82,8 @@ check is mechanical, executable — never an essay. Canon: `docs/ORCHESTRATION_B
 - **The orchestrator does not write prose with its own (expensive) context.** Delegate any needed write-up to a cheap
   model with a minimal task, or let the worker keep it in its own short log. Agent logs are terse, not essays.
 - **Provenance without theater.** Do not re-transcribe into markdown what already lives in git (diff, commit message)
-  and taskdb (status / commit_ref / note). An owner ruling is one line + link, not a retelling.
+  and taskdb service fields (status / commit_ref). An owner ruling is one line in the canonical plan, not a
+  retelling in the task card.
 - **Stage-boundary smell test:** if a stage produced more lines of documentation than of code/tests, that is a red
   flag of prose-drift. Ask whether the doc is truly needed to start the next stage or is just self-documentation;
   default is do not write it.
