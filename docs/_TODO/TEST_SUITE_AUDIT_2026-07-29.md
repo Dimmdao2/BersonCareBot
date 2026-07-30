@@ -107,14 +107,26 @@ runner, полезные тесты с независимым oracle, red-on-fau
 6. [ ] **Закрыть следующий разумный DB-free минимум** — решение владельца 30.07:
    «закрывай тогда сам пока следующий разумный DB-free минимум, а остальное будем закрывать по ходу».
    Это ровно четыре уже предложенных класса, без расширения скоупа:
-   - [ ] patient organization resolver: inactive/foreign enrollment и ambiguous multi-org;
-   - [ ] подписанная внешняя доставка: HMAC/time-window, duplicate suppression и policy denial;
-   - [ ] acquiring provider/webhook boundary: provider disable, amount/currency/patient/idempotency и webhook auth;
-   - [ ] semantic M2M idempotency: stable hash, разрешённые volatile fields, mismatch→conflict и отсутствие
-     кеширования transient failure.
+   - [x] patient organization resolver: inactive/foreign enrollment и ambiguous multi-org — `35eb9159c`;
+     `apps/webapp/src/modules/patient-organization/service.unit.test.ts`; четыре fault injection покрасили
+     owning assertions, DB/RLS/repository enrollment proof отложен;
+   - [x] подписанная внешняя доставка: HMAC/time-window, duplicate suppression и policy denial — `7a7b24c08`;
+     `apps/integrator/src/integrations/bersoncare/relayOutboundRoute.route.test.ts`; шесть fault injection
+     покрасили owning assertions, DB/RLS/cross-process exactly-once и real-provider proof отложены;
+   - [x] acquiring provider/webhook boundary: provider disable, amount/currency/patient/idempotency и webhook auth —
+     `55cdfc48e`; `apps/webapp/src/infra/payments/registryAcquiringGateway.unit.test.ts` +
+     `apps/webapp/src/app/api/payments/patientAcquiring.route.test.ts`; fault injection покрасили provider,
+     identity/idempotency и webhook-auth assertions, DB/RLS/ledger/network и positive Alfa proof отложены;
+   - [x] semantic M2M idempotency: stable hash, разрешённые volatile fields, mismatch→conflict и отсутствие
+     кеширования transient failure — `c223fcd15`; `apps/webapp/src/app-layer/idempotency/integratorEventSemanticHash.unit.test.ts`
+     + `apps/webapp/src/app/api/integrator/events/route.route.test.ts`; четыре fault injection покрасили hash/conflict/retry
+     assertions, PostgreSQL/concurrency/RLS/store-race proof отложен.
    Для каждого класса: самый дешёвый публичный DB-free слой, независимый oracle, fault injection с записью
    «что сломано → какое утверждение покраснело». Остальной inventory не блокирует #1074 и закрывается по ходу
    обычной разработки.
+   **Log/evidence 30.07:** реальные production-исправления — patient status guard и acquiring unsigned-webhook
+   rejection/idempotency forwarding; outbound и M2M production-код не менялся. Parent step 6 остаётся открытым до
+   final gate и Opus-приёмки.
 
 ### Финальная приёмка DB-free пилота — 30.07
 
