@@ -16,13 +16,25 @@ the owner-configured system or mechanic policy. That is a second source of truth
 configurable. Route it through the same resolver or port. If the integrator physically cannot call the webapp resolver,
 say so plainly with the reason instead of duplicating the logic — the lead will decide the seam.
 
-## Fix 2 — revert what the owner has not decided (item 2.6c)
+## Fix 2 — the ladder applies to EVERY mechanic, including payments and branding
 
-`POLICY_MECHANICS = OVERRIDABLE_MECHANICS` currently includes `payments` and `branding`, and their mutation routes
-already call the ladder. But 2.6c is an OPEN QUESTION to the owner: canon §5.5 says the clinic's money is never blocked,
-and the branding fallback («neutral platform look, the message still goes out») is an agent's choice, not his words.
-**Remove both from the ladder until he rules.** Leave a comment naming plan item 2.6c so nobody re-adds them silently.
-Do not invent a middle ground.
+Owner ruling 30.07, verbatim: «конечно отключаются и оплаты и лестницы, но мы вернулись к началу — ты вместо того чтобы
+дать мне ручки настройки, решаешь как захардкодить поведение при завершении оплаты. Это не решается тобой сейчас — я
+должен это поведение настраивать в тарифах для всех механик и я говорил тебе об этом дважды».
+
+So the previous instruction in this brief («remove payments and branding from the ladder») was WRONG and is withdrawn.
+Required instead:
+
+- every mechanic is laddered and configurable — `payments` and `branding` included; no agent-chosen exception list;
+- the only mechanics outside the ladder are the critical ones the owner named himself (patient card, patient app,
+  reminders and notifications, two-factor authentication, the operations log, export, emergency help);
+- delete any code or comment that hardcodes «money is never blocked» or a branding fallback as a rule — those were the
+  agent's inventions, now removed from the canon too;
+- what happens to payments or branding when the right is lost comes from the owner's four fields, exactly like any other
+  mechanic. Do not add a special case, a softer path or a warning-only mode for them.
+
+Prove it by behaviour: with a policy configured for `payments`, the ladder moves it through grace, read-only and the
+terminal state like any other mechanic; a test goes red if a special case for payments or branding reappears.
 
 ## Fix 3 — prove the real SQL output, not the mock
 
