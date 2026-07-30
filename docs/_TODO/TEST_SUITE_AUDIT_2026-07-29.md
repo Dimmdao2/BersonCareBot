@@ -84,10 +84,12 @@ runner, полезные тесты с независимым oracle, red-on-fau
    → `1740`; команда `git ls-files apps | rg '\.(test|spec)\.(ts|tsx)$' | wc -l` → `31`; полный gate
    `/home/dev/brain/host-orch/run-tests.sh "pnpm run ci"` на `01ea1c9ce` → `rc=0`, `256s`;
    независимый read-only аудит `testcut-step1-final-audit-r3` → `PASS`.
-2. [ ] **Построить основу нового.** Стек (fast-check + fishery + мост от zod), единая точка `app-layer/testing`,
-   расширить живую-БД матрицу (принципал×орг×операция + инъекции). = «Фаза 0» из HOW-D/EXEC ниже.
-   DB-free часть построена: `fast-check`, Fishery, `app-layer/testing`, Vitest projects `unit/route/ui` и
-   CI-маршрут `test:webapp:behavior`. DB/RLS часть остаётся открытой и заморожена решением владельца ниже.
+2. [x] **Построить основу нового — DB-free часть.** Стек (fast-check + fishery + мост от zod), единая точка
+   `app-layer/testing`, Vitest projects `unit/route/ui` и CI-маршрут `test:webapp:behavior` — `6be2a1766`;
+   финальный прогон `pnpm test:webapp:behavior` на `7cdbbe727` → unit 2 файла/12 тестов, route 3/17, UI 1/2,
+   всё PASS.
+   Будущее расширение живой-БД матрицы (принципал×орг×операция + инъекции) не является открытым пунктом #1074:
+   оно выполняется после аудита ролей/стен, стабилизации БД и отдельного owner-go по решению владельца 30.07 ниже.
 3. [x] **Написать правило «как писать тесты»** (на мировой практике взрослых — исследование уже есть:
    `TESTSUITE_HOWTO_RESEARCH_2026-07-29.md`), чтобы все новые агенты сразу писали так.
    → **ПРИНЯТО ВЛАДЕЛЬЦЕМ 30.07:** канон опубликован в `AGENTS.md` §10b и
@@ -96,9 +98,40 @@ runner, полезные тесты с независимым oracle, red-on-fau
 4. [x] **Разбить репо по модулям**, которые надо покрыть. Критичный risk-based inventory завершён:
    `TESTSUITE_CRITICAL_TARGETS_SOL_RESEARCH_2026-07-30.md`; полное покрытие каждого файла репозитория не является
    целью.
-5. [ ] **Писать тесты по правилам через подручных** (воркеров), по модулям, в порядке опасности:
-   изоляция клиник → вход/сессии → 32 непокрытых чувствительных → инварианты. **Квоты — ВНЕ этой задачи**
-   (отдельно, когда построят саму систему квот — решение владельца 29.07).
+5. [x] **Проверить правило на первых двух критичных DB-free группах через подручных.** Request security:
+   `23ce3a31c` + `ac273587d` (CSRF proxy и representative role/capability route); auth/session:
+   `e5fda04e1` + `e18d4a9c8` (session cookie и HTTP outcomes login/reset/change). Четыре fault-injection
+   доказательства и независимая Opus-приёмка записаны ниже.
+   Остальные чувствительные модули и инварианты получают тесты дальше как обычная risk-based разработка, а не
+   обязательный массовый хвост #1074. **Квоты — ВНЕ этой задачи** (решение владельца 29.07).
+
+### Финальная приёмка DB-free пилота — 30.07
+
+Полный аудит: [`TESTSUITE_PILOT_OPUS5_ACCEPTANCE_2026-07-30.md`](TESTSUITE_PILOT_OPUS5_ACCEPTANCE_2026-07-30.md).
+Raw read-only run:
+`/home/dev/brain/runs/agent-port/bcb-1074-opus-final-acceptance-20260730.json`
+(`claude-opus-5`, `xhigh`). Opus подтвердил: четыре пилотных файла проверяют реальные публичные границы;
+request-security и auth/session являются достаточным малым пилотом по принятой владельцем границе цели; новых
+модулей, DB/RLS-механики или расширения скоупа для закрытия #1074 не требуется.
+
+Первый вердикт Opus был узким `FAIL`: уже выполненные fault injections не были записаны в каноническом плане.
+Блокер закрыт следующими строками доказательства:
+
+- `23ce3a31c`: временно разрешили platform-admin clinic capability → route-assertion запрета доступа покраснел;
+  мутация восстановлена.
+- `ac273587d`: временный CSRF fail-open → assertions для foreign, missing и ambiguous source покраснели;
+  мутация восстановлена, `proxy.route.test.ts` вернулся к 5/5 PASS.
+- `e5fda04e1`: временно сломана expiry/renewal boundary → `sessionCookie.unit.test.ts` покраснел; мутация
+  восстановлена.
+- `e18d4a9c8`: в partial-success ответе временно заменено `passwordChanged: true` на `false` → соответствующий
+  route-assertion покраснел; мутация восстановлена.
+
+Общий автоматизированный gate после интеграции:
+`pnpm test:webapp:behavior` на `7cdbbe727` → unit 2 файла/12 тестов, route 3/17, UI 1/2, всё PASS.
+Полный CI повторно не запускался: production-код не менялся, а достаточный DB-free phase gate зелёный.
+Узкий read-only re-audit
+`/home/dev/brain/runs/agent-port/bcb-1074-opus-final-reaudit-r2-20260730.json` → **PASS**:
+BF-1 CLOSED, три уточнения канона PASS, других blocking findings нет.
 
 **⛔ ПРОД (135.x) НЕ ТРОГАЕМ, НЕ ЧИТАЕМ, НИ С ЧЕМ НЕ СРАВНИВАЕМ — ВООБЩЕ (владелец 29.07, категорично).**
 Прод — забота владельца/ops, не наша. Любая наша работа — только на этом боксе (тест/dev/одноразовая БД).
