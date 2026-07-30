@@ -99,6 +99,7 @@ SELECT 1 / 0 AS phase4_owner_role_missing;
 \ir organization-member-invites-rls.sql
 \ir patient-invites-rls.sql
 \ir patient-course-assignment-wall.sql
+\ir patient-visible-catalog-rls.sql
 \ir phase4-app-worker-narrow-rls.sql
 \ir patient-media-playback-telemetry-accessors.sql
 \ir phase4-force-rls-cutover.sql

@@ -86,6 +86,11 @@ deploy, env/credentials, and PROD.
   named TEST tick and verify its exact operator-health success; only after that install/verify the named TEST
   cronport task and confirm the next scheduled success. No manual `psql`, no fresh reset inferred from missing
   evidence, no PROD.
+  First canonical code-only deploy on 2026-07-31 failed closed before restart: the reviewed
+  `patient-visible-catalog-rls.sql` overlay ran before `test-strict-rls-finalizer.sql`, whose generated base-policy
+  pass replaced it, so C4 readiness reproduced `permission denied for table org_enrollments`. The TEST closure-order
+  fix includes that existing reviewed overlay from the finalizer itself; it does not add a grant or change the
+  Web Push role.
 
 ## Definition of Done for this source package
 
