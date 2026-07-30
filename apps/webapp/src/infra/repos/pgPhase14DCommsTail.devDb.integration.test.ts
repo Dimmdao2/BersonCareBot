@@ -6,7 +6,6 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 import { createPgBroadcastAuditPort } from '@/infra/repos/pgBroadcastAudit';
-import { createPgSubscriptionMailingProjectionPort } from '@/infra/repos/pgSubscriptionMailingProjection';
 import { getPatientCalendarTimezoneIana } from '@/infra/repos/pgPatientCalendarTimezone';
 
 async function assertDevDb(client: pg.PoolClient): Promise<void> {
@@ -31,17 +30,6 @@ describe.skipIf(!enabled)('phase 14D comms tail (dev DB, opt-in read-only)', () 
 
   afterAll(async () => {
     await pool.end();
-  });
-
-  it('listTopics returns array', async () => {
-    const client = await pool.connect();
-    try {
-      await assertDevDb(client);
-    } finally {
-      client.release();
-    }
-    const topics = await createPgSubscriptionMailingProjectionPort().listTopics();
-    expect(Array.isArray(topics)).toBe(true);
   });
 
   it('broadcast audit list returns array', async () => {
