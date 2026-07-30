@@ -68,13 +68,16 @@ deploy, env/credentials, and PROD.
   selected organization, reads `content_sections` before `app.org`, and fails if direct `org_enrollments` becomes
   readable, so either policy-composition regression or privilege widening blocks readiness. Evidence:
   `deploy/host/assert-c4-operational-runtime-ready.sh`; `bash -n` PASS. Live TEST readiness remains `809-P5`.
-- [ ] **809-P4 — Narrow validation and source handoff.** Shell syntax, the private C4 PostgreSQL smoke,
+- [x] **809-P4 — Narrow validation and source handoff.** Shell syntax, the private C4 PostgreSQL smoke,
   `git diff --check`, independent implementation/security audit, commit and source-branch push pass. The historical
   source-text checker `check:saas-c4-scheduler-media-cron-fanout` is **N/A / SUPERSEDED** by commit `c5b061696`,
   which deliberately removed it under `#1074`; it must not be restored or treated as a gate. Completed before source
-  commit: shell syntax PASS, disposable behavioral smoke PASS, SQLSTATE fault injection PASS, `git diff --check`
-  PASS. Remaining: commit/push, then independent implementation/security audit. Before integration, run one full CI
-  through `/home/dev/brain/host-orch/run-tests.sh`.
+  commit `de619246e6e73f634e0148cd4073f6566aae8ed9`: shell syntax PASS, disposable behavioral smoke PASS, SQLSTATE
+  fault injection PASS, `git diff --check` PASS; source branch push PASS. Independent implementation/security audit
+  PASS: exact five-path scope, no privilege widening, direct operational `org_enrollments` remains denied, old
+  `42501`, fixed operational reads, positive patient reads and fault injection are behaviorally proven. Before
+  integration, one full CI still runs through `/home/dev/brain/host-orch/run-tests.sh`; its result is integration
+  evidence, not a reason to reopen the audited source package.
 - [ ] **809-P5 — Live TEST completion.** After integration: use the canonical TEST deploy/readiness path, run the
   named TEST tick and verify its exact operator-health success; only after that install/verify the named TEST
   cronport task and confirm the next scheduled success. No manual `psql`, no fresh reset inferred from missing
