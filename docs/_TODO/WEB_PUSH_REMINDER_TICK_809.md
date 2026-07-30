@@ -76,8 +76,12 @@ deploy, env/credentials, and PROD.
   fault injection PASS, `git diff --check` PASS; source branch push PASS. Independent implementation/security audit
   PASS: exact five-path scope, no privilege widening, direct operational `org_enrollments` remains denied, old
   `42501`, fixed operational reads, positive patient reads and fault injection are behaviorally proven. Before
-  integration, one full CI still runs through `/home/dev/brain/host-orch/run-tests.sh`; its result is integration
-  evidence, not a reason to reopen the audited source package.
+  integration, full CI on the combined current-feat tree ran through
+  `/home/dev/brain/host-orch/run-tests.sh "pnpm run ci"`: lint, typecheck, integrator/webapp/media-worker tests,
+  integrator build and webapp build PASS. The final repository audit stopped only on the pre-existing
+  `p0-5-role-split.sql` generated-artifact drift; the same narrow
+  `node scripts/check-saas-db-regression.mjs` failure reproduces on current `feat` without #809. Do not repeat the
+  green CI tail; resume only the audit after the separately owned generated artifact is synchronized.
 - [ ] **809-P5 — Live TEST completion.** After integration: use the canonical TEST deploy/readiness path, run the
   named TEST tick and verify its exact operator-health success; only after that install/verify the named TEST
   cronport task and confirm the next scheduled success. No manual `psql`, no fresh reset inferred from missing
