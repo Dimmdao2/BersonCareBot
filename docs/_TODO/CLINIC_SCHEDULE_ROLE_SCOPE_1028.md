@@ -80,6 +80,9 @@ reads и mutation routes сейчас не применяют одну роле�
 ## Разрешённый file scope
 
 - `apps/webapp/src/app/app/doctor/schedule/**`;
+- `apps/webapp/src/app/app/doctor/layout.tsx` и
+  `apps/webapp/src/shared/ui/doctor/doctorNavLinks.ts`, только чтобы management-capable `clinic_admin`
+  мог открыть существующий schedule route без расширения остальных clinical routes;
 - `apps/webapp/src/app/app/doctor/calendar/DoctorCalendarEventPanel.tsx`;
 - `apps/webapp/src/app/api/doctor/schedule*/**`;
 - `apps/webapp/src/app/api/doctor/booking-engine/_requireDoctorBookingEngine.ts` и новый/существующий соседний
@@ -88,6 +91,7 @@ reads и mutation routes сейчас не применяют одну роле�
 - `apps/webapp/src/app/api/doctor/booking-engine/appointments/**`;
 - `apps/webapp/src/modules/booking-calendar/**`, `apps/webapp/src/modules/booking-appointment-lifecycle/**` и
   их существующие repo/port callsites, только насколько нужно провести один scope;
+- `apps/webapp/src/modules/doctor-schedule/**` для общего typed wire-контракта server/client без дублирования;
 - `apps/webapp/src/modules/doctor-appointments/ports.ts` и
   `apps/webapp/src/infra/repos/pgDoctorCanonicalAppointments.ts`, только для применения того же scope к KPI;
 - `docs/ARCHITECTURE/DOCTOR_CABINET_NAVIGATION.md`,
@@ -111,7 +115,9 @@ env/deploy/server scripts и другие UI-разделы запрещены.
   `_resolveDoctorScheduleScope.ts`.
 - [x] Зафиксировать typed wire schema `scope + specialistId` и resolved-scope response; calendar/KPI/
   nearest-window используют один контракт. Evidence: `_resolveDoctorScheduleScope.ts` и три route callsite.
-- [ ] Передать SSR capability bootstrap тем же typed контрактом.
+- [x] Передать SSR capability bootstrap тем же typed контрактом. Evidence:
+  `schedule/page.tsx` → `DoctorScheduleShell` → `ScheduleCalendarTab`; общий тип
+  `modules/doctor-schedule/scope.ts`.
 - [ ] Применить тот же server-resolved контракт к create.
 
 ### S2. Calendar, filters и KPI
@@ -132,14 +138,19 @@ env/deploy/server scripts и другие UI-разделы запрещены.
 
 ### S3. UI существующего расписания
 
-- [ ] На `/app/doctor/schedule` для `clinic_admin` добавить понятный переключатель `Моё / Вся клиника`.
-- [ ] В режиме клиники дать выбор конкретного специалиста; обычному врачу эти controls не показывать.
-- [ ] Смена scope синхронно обновляет календарь, KPI и фильтры без второго экрана и без подключения
-  `BookingEngineSection`.
-- [ ] В форме создания `clinic_admin` может выбрать специалиста только из текущей клиники; у врача специалист
-  фиксирован сервером и UI.
-- [ ] Deep-link registry и fetch query передают `scope/specialist` одинаково в calendar, KPI,
-  nearest-free-window и create UI; недействительный deep link нормализуется server-side.
+- [x] На `/app/doctor/schedule` для `clinic_admin` добавить понятный переключатель `Моё / Вся клиника`.
+  Evidence: `ScheduleCalendarTab.tsx`.
+- [x] В режиме клиники дать выбор конкретного специалиста; обычному врачу эти controls не показывать.
+  Evidence: server bootstrap + `schedule-scope-*` controls.
+- [x] Смена scope синхронно обновляет календарь, KPI и фильтры без второго экрана и без подключения
+  `BookingEngineSection`. Evidence: один `scheduleScope` во всех трёх fetch; UI test PASS.
+- [x] В форме создания `clinic_admin` может выбрать специалиста только из текущей клиники; у врача специалист
+  фиксирован сервером и UI. Evidence: trusted bootstrap → scoped filter metadata →
+  `DoctorCalendarEventPanel.activeFilters`; server-side create enforcement остаётся отдельным S5.
+- [x] Deep-link registry и fetch query передают `scope/specialist` одинаково в calendar, KPI и
+  nearest-free-window; недействительный deep link нормализуется по server-resolved bootstrap. Evidence:
+  `scheduleTabRegistry.ts`, `resolveDoctorScheduleScopeState`, UI test PASS.
+- [ ] Create submit применяет тот же server-resolved scope; закрывается вместе с S5.
 
 ### S4. Direct-ID read matrix
 
@@ -170,9 +181,10 @@ env/deploy/server scripts и другие UI-разделы запрещены.
 
 ### S6. Документация и доказательство
 
-- [ ] Безусловно обновить `ROLE_CAPABILITY_MATRIX.md`: owner ruling 30.07.2026 заменяет future/deferred
-  another-specialist appointment row для `clinic_admin`; обычному врачу расширение не даётся.
-- [ ] Обновить `DOCTOR_CABINET_NAVIGATION.md` новым контрактом одного schedule screen и role scope.
+- [x] Безусловно обновить `ROLE_CAPABILITY_MATRIX.md`: owner ruling 30.07.2026 заменяет future/deferred
+  another-specialist appointment row для `clinic_admin`; обычному врачу расширение не даётся. Evidence:
+  строка `Clinic admin / another-specialist appointment` и §4 в текущем документе.
+- [x] Обновить `DOCTOR_CABINET_NAVIGATION.md` новым контрактом одного schedule screen и role scope.
 - [x] Выполнить typecheck и targeted lint по изменённым production-файлам. Evidence:
   `pnpm --filter webapp typecheck` и scoped `eslint` PASS.
 - [ ] Выполнить DEV-smoke существующими `dev:doctor` и `dev:clinic-admin`: self/all/specialist, KPI parity,
@@ -181,7 +193,8 @@ env/deploy/server scripts и другие UI-разделы запрещены.
   соседней работой по прямому указанию владельца.~~ — ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 30.07.2026:
   «уже начинай добавлять тесты»; «с тестами — читай инструкцию и разбирайся впредь сам».
 - [x] Добавить минимальные unit/route проверки named schedule-scope failure с независимым oracle и fault
-  injection. Evidence: 2 files / 7 tests PASS; mutation доверия клиентскому specialist ID дала 2 expected FAIL.
+  injection. Evidence: 5 files / 12 tests PASS; mutation доверия клиентскому specialist ID дала 2 expected FAIL,
+  mutation удаления scope из KPI-запроса и mutation скрытия schedule от clinic admin дали expected FAIL.
 - [ ] Независимый аудит сверяет каждый пункт этого плана и server-side IDOR, после чего фиксируются commit SHA
   и фактически выполненные команды.
 
@@ -202,6 +215,9 @@ env/deploy/server scripts и другие UI-разделы запрещены.
 - 30.07.2026 → S1/S2 read scope → shared resolver, calendar/KPI/nearest integration, scoped KPI repository
   condition; `pnpm --filter webapp typecheck` PASS; scoped ESLint PASS; unit+route 7/7 PASS; hostile
   specialist-ID fault injection correctly failed unit+route and was restored → SHA фиксируется тем же коммитом.
+- 30.07.2026 → S3 scope UI → server bootstrap, staff-only schedule navigation, mine/clinic/specialist controls,
+  common calendar/KPI/nearest query and documentation; combined unit/route/UI 12/12 PASS; missing-KPI-scope
+  fault injection correctly failed and was restored → SHA фиксируется тем же коммитом.
 
 ## Не входит
 

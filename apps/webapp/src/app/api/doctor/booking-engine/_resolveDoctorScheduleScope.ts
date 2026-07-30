@@ -1,12 +1,18 @@
 import { z } from 'zod';
+import type {
+  DoctorScheduleScopeInput,
+  DoctorScheduleScopeMode,
+  DoctorScheduleSpecialistOption,
+  ResolvedDoctorScheduleScope,
+} from '@/modules/doctor-schedule/scope';
 import type { DoctorBookingEngineContext } from './_requireDoctorBookingEngine';
 
-export type DoctorScheduleScopeMode = 'mine' | 'clinic' | 'specialist';
-
-export type DoctorScheduleScopeInput = {
-  scope?: DoctorScheduleScopeMode | null;
-  specialistId?: string | null;
-};
+export type {
+  DoctorScheduleScopeInput,
+  DoctorScheduleScopeMode,
+  DoctorScheduleSpecialistOption,
+  ResolvedDoctorScheduleScope,
+} from '@/modules/doctor-schedule/scope';
 
 const DoctorScheduleScopeQuerySchema = z.object({
   scope: z.enum(['mine', 'clinic', 'specialist']).optional().nullable(),
@@ -26,19 +32,6 @@ export function parseDoctorScheduleScopeQuery(
   }
   return { ok: true, value: parsed.data };
 }
-
-export type DoctorScheduleSpecialistOption = {
-  id: string;
-  displayLabel: string;
-};
-
-export type ResolvedDoctorScheduleScope = {
-  scope: DoctorScheduleScopeMode;
-  specialistId: string | null;
-  ownSpecialistId: string | null;
-  canManageAllSpecialists: boolean;
-  specialists: DoctorScheduleSpecialistOption[];
-};
 
 export type DoctorScheduleScopeResolution =
   | { ok: true; value: ResolvedDoctorScheduleScope }
