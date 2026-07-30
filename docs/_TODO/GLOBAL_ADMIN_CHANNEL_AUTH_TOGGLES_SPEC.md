@@ -118,7 +118,10 @@ MAX, SMS, 2FA, Google/Gmail OAuth и Yandex OAuth; client visibility = `enabled 
       `apps/webapp/src/modules/auth/oauthAppleDisabled.route.test.ts`.
 - [x] Удалить Telegram/MAX mini-app launch из ошибки `user.phone.link → no_channel_binding`, сохранив сообщение и
       остановку ошибочного сценария — `apps/integrator/src/kernel/domain/executor/executeActionMiniAppRemoval.unit.test.ts`.
-- [ ] Удалить остальные Telegram/MAX mini-app entry points из content/menu/reminder-путей, сохранив ботов для
+- [x] Удалить главный/home mini-app launch из Telegram/MAX menu, reply-menu, content-сценариев и post-bind меню,
+      сохранив booking-действие и обычную browser-auth ссылку —
+      `apps/integrator/src/kernel/domain/executor/executeActionHomeMiniAppRemoval.unit.test.ts`.
+- [ ] Удалить оставшиеся Telegram/MAX mini-app entry points из booking/diary/reminder-путей, сохранив ботов для
       кодов аутентификации и уведомлений.
 - [ ] Провести живую TEST-проверку: выключенный метод исчезает из login/registration и отклоняется сервером;
       Telegram/MAX mini-app launch buttons отсутствуют.

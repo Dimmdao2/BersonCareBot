@@ -345,12 +345,7 @@ async function buildPhoneMessengerBindMainMenuIntents(
       params: {
         chatId: tgChatId,
         templateKey: opts.menuOnly ? 'telegram:chooseMenu' : opts.templateKey,
-        keyboard: [
-          [
-            { textTemplateKey: 'telegram:menu.book' },
-            { textTemplateKey: 'telegram:menu.app', webAppUrlFact: 'links.webappHomeUrl' },
-          ],
-        ],
+        keyboard: [[{ textTemplateKey: 'telegram:menu.book' }]],
         resizeKeyboard: true,
       },
     };
@@ -1141,12 +1136,7 @@ export async function executeAction(
             params: {
               chatId,
               templateKey: 'telegram:afterPhoneLinked',
-              keyboard: [
-                [
-                  { textTemplateKey: 'telegram:menu.book' },
-                  { textTemplateKey: 'telegram:menu.app', webAppUrlFact: 'links.webappHomeUrl' },
-                ],
-              ],
+              keyboard: [[{ textTemplateKey: 'telegram:menu.book' }]],
               resizeKeyboard: true,
             },
           };
