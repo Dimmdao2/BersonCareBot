@@ -115,9 +115,9 @@ them means creating an account somewhere.
    own dead server checks itself is theatre. That means a third-party endpoint (healthchecks.io or
    equivalent, self-hostable). Signing up somewhere is the owner's call, not an agent's. Until then the
    emitter runs and the check runs, both locally.
-2. **`OPERATOR_ALERT_FALLBACK_EMAIL`** — the address an operational alert goes to when the resolved audience
-   is empty. Deliberately read from env, not from `system_settings`, so it cannot be configured away through
-   the admin UI. Needs the owner's own address in the TEST and PROD env files.
+2. **`operator_alert_fallback_email`** — the global restricted DB setting used when an operational alert has
+   an empty audience. Configure it in the platform admin technical settings; it is required by that form and
+   is not organization-scoped.
 3. `INTERNAL_JOB_SECRET` is unset on DEV, which is why the local heartbeat receiver answers 503 there. TEST
    and PROD already have it — no action, noted so nobody "fixes" it.
 

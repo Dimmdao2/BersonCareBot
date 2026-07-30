@@ -13,6 +13,17 @@ export type ReminderProjectionEventType =
   | typeof REMINDER_DELIVERY_LOGGED
   | typeof CONTENT_ACCESS_GRANTED;
 
+<<<<<<< HEAD
 export const APPOINTMENT_RECORD_UPSERTED = 'appointment.record.upserted';
 
 export type AppointmentProjectionEventType = typeof APPOINTMENT_RECORD_UPSERTED;
+=======
+export const MAILING_TOPIC_UPSERTED = 'mailing.topic.upserted';
+export const USER_SUBSCRIPTION_UPSERTED = 'user.subscription.upserted';
+export const MAILING_LOG_SENT = 'mailing.log.sent';
+
+export type SubscriptionMailingProjectionEventType =
+  | typeof MAILING_TOPIC_UPSERTED
+  | typeof USER_SUBSCRIPTION_UPSERTED
+  | typeof MAILING_LOG_SENT;
+>>>>>>> 1d8e5560100b53ccbb89c7c0f4e58181e7867538

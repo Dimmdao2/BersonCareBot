@@ -54,6 +54,13 @@ import {
   DEFAULT_CALENDAR_WINDOW_MIN,
   deriveCalendarVisibleTimeWindow,
 } from '@/modules/booking-calendar/visibleTimeWindow';
+import {
+  doctorScheduleScopeQuery,
+  resolveDoctorScheduleScopeState,
+  type DoctorScheduleScopeBootstrap,
+  type DoctorScheduleScopeState,
+  type ResolvedDoctorScheduleScope,
+} from '@/modules/doctor-schedule/scope';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -100,6 +107,7 @@ type CalendarResponse = {
   readSource?: 'canonical';
   showWorkingHours: boolean;
   workingBounds?: WorkingBounds | null;
+  resolvedScope: ResolvedDoctorScheduleScope;
   error?: string;
 };
 
@@ -113,6 +121,7 @@ type CalendarDoctorSettings = {
   defaultWindowEndMinute: number;
   defaultBranchId: string | null;
   defaultServiceId: string | null;
+  defaultSpecialistId: string | null;
 };
 
 type CalendarDraftSlot = {
@@ -125,6 +134,13 @@ const DEFAULT_CALENDAR_SETTINGS: CalendarDoctorSettings = {
   defaultWindowEndMinute: DEFAULT_WINDOW_MAX,
   defaultBranchId: null,
   defaultServiceId: null,
+  defaultSpecialistId: null,
+};
+
+const EMPTY_SCHEDULE_SCOPE_BOOTSTRAP: DoctorScheduleScopeBootstrap = {
+  ownSpecialistId: null,
+  canManageAllSpecialists: false,
+  specialists: [],
 };
 
 // ---------------------------------------------------------------------------
@@ -301,6 +317,7 @@ function parseCalendarDoctorSettings(
   }
   const defaultBranchRaw = getSettingValue(rows, 'booking_calendar_default_branch_id');
   const defaultServiceRaw = getSettingValue(rows, 'booking_calendar_default_service_id');
+  const defaultSpecialistRaw = getSettingValue(rows, 'booking_calendar_default_specialist_id');
   return {
     defaultWindowStartMinute,
     defaultWindowEndMinute,
@@ -308,6 +325,10 @@ function parseCalendarDoctorSettings(
       typeof defaultBranchRaw === 'string' && defaultBranchRaw.trim() ? defaultBranchRaw : null,
     defaultServiceId:
       typeof defaultServiceRaw === 'string' && defaultServiceRaw.trim() ? defaultServiceRaw : null,
+    defaultSpecialistId:
+      typeof defaultSpecialistRaw === 'string' && defaultSpecialistRaw.trim()
+        ? defaultSpecialistRaw
+        : null,
   };
 }
 
@@ -763,14 +784,15 @@ function ListView({ events, timeZone, rangeFrom, rangeTo, onSelect }: ListViewPr
 type NearestWindowStubProps = {
   apiBase: string;
   branchId: string | null;
+  scheduleScope: DoctorScheduleScopeState;
 };
 
-function NearestWindowLine({ apiBase: _apiBase, branchId }: NearestWindowStubProps) {
+function NearestWindowLine({ apiBase: _apiBase, branchId, scheduleScope }: NearestWindowStubProps) {
   const [windowStr, setWindowStr] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    const qs = buildQuery({ branchId });
+    const qs = buildQuery({ branchId, ...doctorScheduleScopeQuery(scheduleScope) });
     void fetch(`${NEAREST_WINDOW_API}?${qs}`)
       .then((res) => res.json())
       .then((json: NearestWindowResponse) => {
@@ -788,7 +810,7 @@ function NearestWindowLine({ apiBase: _apiBase, branchId }: NearestWindowStubPro
     return () => {
       cancelled = true;
     };
-  }, [branchId]);
+  }, [branchId, scheduleScope]);
 
   if (!windowStr) return null;
 
@@ -808,10 +830,11 @@ type RightPanelEmptyStubProps = {
     serviceId: string | null;
   };
   branchId: string | null;
+  scheduleScope: DoctorScheduleScopeState;
   onCreateClick: () => void;
 };
 
-function RightPanelEmptyStub({ branchId }: RightPanelEmptyStubProps) {
+function RightPanelEmptyStub({ branchId, scheduleScope }: RightPanelEmptyStubProps) {
   return (
     <div
       className="rounded-xl border border-border bg-card p-4 flex flex-col gap-3 items-center text-center"
@@ -822,7 +845,7 @@ function RightPanelEmptyStub({ branchId }: RightPanelEmptyStubProps) {
       <p className="text-xs text-muted-foreground">
         Выберите запись в календаре, чтобы просмотреть детали
       </p>
-      <NearestWindowLine apiBase={API_BASE} branchId={branchId} />
+      <NearestWindowLine apiBase={API_BASE} branchId={branchId} scheduleScope={scheduleScope} />
     </div>
   );
 }
@@ -837,6 +860,7 @@ export function ScheduleCalendarTab({
   onDeepLinkChange,
   isActive,
   initialTimeZone,
+  scheduleScopeBootstrap,
 }: ScheduleTabProps) {
   // ─── State ─────────────────────────────────────────────────────────────────
   const [timeZone] = useState(initialTimeZone ?? DEFAULT_APP_DISPLAY_TIMEZONE);
@@ -846,6 +870,14 @@ export function ScheduleCalendarTab({
   );
   const [branchId, setBranchIdState] = useState<string | null>(deepLinkParams.location ?? null);
   const [serviceId, setServiceIdState] = useState<string | null>(deepLinkParams.service ?? null);
+  const scopeBootstrap = scheduleScopeBootstrap ?? EMPTY_SCHEDULE_SCOPE_BOOTSTRAP;
+  const [scheduleScope, setScheduleScope] = useState<DoctorScheduleScopeState>(() =>
+    resolveDoctorScheduleScopeState(
+      scopeBootstrap,
+      deepLinkParams.scope,
+      deepLinkParams.specialist,
+    ),
+  );
   // drill-down: where to go back after drill-down day ("from" deep-link)
   const [drillBackView, setDrillBackView] = useState<CalV26View | null>(
     deepLinkParams.from ? (resolveView(deepLinkParams.from) ?? null) : null,
@@ -924,6 +956,20 @@ export function ScheduleCalendarTab({
     [onDeepLinkChange],
   );
 
+  const changeScheduleScope = useCallback(
+    (scope: DoctorScheduleScopeState['scope'], specialistId?: string | null) => {
+      const next = resolveDoctorScheduleScopeState(scopeBootstrap, scope, specialistId);
+      setScheduleScope(next);
+      setData(null);
+      setKpis(null);
+      setSelected(null);
+      setShowCreatePanel(false);
+      onDeepLinkChange('scope', next.scope);
+      onDeepLinkChange('specialist', next.scope === 'specialist' ? next.specialistId : null);
+    },
+    [onDeepLinkChange, scopeBootstrap],
+  );
+
   const setRenderMode = useCallback(
     (mode: RenderMode) => {
       setRenderModeState(mode);
@@ -976,6 +1022,7 @@ export function ScheduleCalendarTab({
             to,
             branchId,
             serviceId,
+            ...doctorScheduleScopeQuery(scheduleScope),
           });
           const res = await fetch(`${API_BASE}/calendar?${qs}`);
           const raw = await res.text();
@@ -1007,7 +1054,7 @@ export function ScheduleCalendarTab({
         }
       });
     },
-    [view, anchorDate, branchId, serviceId, timeZone],
+    [view, anchorDate, branchId, serviceId, timeZone, scheduleScope],
   );
 
   const loadKpis = useCallback(
@@ -1018,7 +1065,15 @@ export function ScheduleCalendarTab({
       const { from, to } = visibleRange(v, anchor, timeZone);
       setKpisLoading(true);
 
-      void fetch(`${KPIS_API}?${buildQuery({ from, to, branchId, serviceId })}`)
+      void fetch(
+        `${KPIS_API}?${buildQuery({
+          from,
+          to,
+          branchId,
+          serviceId,
+          ...doctorScheduleScopeQuery(scheduleScope),
+        })}`,
+      )
         .then((res) => res.json())
         .then((json: { ok: boolean; kpis: ScheduleKpis }) => {
           if (json.ok && json.kpis) setKpis(json.kpis);
@@ -1030,7 +1085,7 @@ export function ScheduleCalendarTab({
           setKpisLoading(false);
         });
     },
-    [branchId, serviceId, timeZone],
+    [branchId, serviceId, timeZone, scheduleScope],
   );
 
   // Parallel load: feed + kpis
@@ -1111,10 +1166,28 @@ export function ScheduleCalendarTab({
   // ─── Calendar events ───────────────────────────────────────────────────────
 
   const filters = data?.filters ?? { specialists: [], branches: [], rooms: [], services: [] };
+  const defaultCreateSpecialistId =
+    calendarSettings.defaultSpecialistId &&
+    filters.specialists.some((specialist) => specialist.id === calendarSettings.defaultSpecialistId)
+      ? calendarSettings.defaultSpecialistId
+      : null;
 
   const activeFilters = useMemo(
-    () => ({ specialistId: null, branchId, roomId: null, serviceId }),
-    [branchId, serviceId],
+    () => ({
+      specialistId: data?.resolvedScope.specialistId ?? scheduleScope.specialistId,
+      branchId,
+      roomId: null,
+      serviceId,
+    }),
+    [branchId, data?.resolvedScope.specialistId, scheduleScope.specialistId, serviceId],
+  );
+  const scheduleSpecialistOptions = useMemo(
+    () =>
+      scopeBootstrap.specialists.map((specialist) => ({
+        id: specialist.id,
+        label: specialist.displayLabel,
+      })),
+    [scopeBootstrap.specialists],
   );
 
   const currentTimeZone = data?.timeZone ?? timeZone;
@@ -1715,6 +1788,40 @@ export function ScheduleCalendarTab({
         </>
 
         {/* Filters */}
+        {scopeBootstrap.canManageAllSpecialists ? (
+          <>
+            {scopeBootstrap.ownSpecialistId ? (
+              <Button
+                type="button"
+                size="sm"
+                variant={scheduleScope.scope === 'mine' ? 'default' : 'outline'}
+                onClick={() => changeScheduleScope('mine')}
+                data-testid="schedule-scope-mine"
+              >
+                Моё
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              size="sm"
+              variant={scheduleScope.scope === 'clinic' ? 'default' : 'outline'}
+              onClick={() => changeScheduleScope('clinic')}
+              data-testid="schedule-scope-clinic"
+            >
+              Вся клиника
+            </Button>
+            <DoctorCalendarToolbarFilter
+              noneLabel="Специалист"
+              options={scheduleSpecialistOptions}
+              value={scheduleScope.scope === 'specialist' ? scheduleScope.specialistId : null}
+              onChange={(specialistId) =>
+                specialistId
+                  ? changeScheduleScope('specialist', specialistId)
+                  : changeScheduleScope('clinic')
+              }
+            />
+          </>
+        ) : null}
         <DoctorCalendarToolbarFilter
           noneLabel="Локация"
           options={filters.branches}
@@ -2083,6 +2190,7 @@ export function ScheduleCalendarTab({
               timeZone={currentTimeZone}
               filterMeta={filters}
               activeFilters={activeFilters}
+              ownSpecialistId={scopeBootstrap.ownSpecialistId}
               // §3.6: при открытии через «+ Создать запись» — сразу в форму создания
               startInCreate={showCreatePanel && !selected}
               // R32: подставленное время старта при выделении области
@@ -2091,6 +2199,7 @@ export function ScheduleCalendarTab({
               createInitialEnd={createInitialEnd}
               createInitialBranchId={createInitialBranchId}
               createInitialServiceId={createInitialServiceId}
+              createInitialSpecialistId={defaultCreateSpecialistId}
               onCreateDirtyChange={setCreateFormDirty}
               onClose={() => {
                 clearDraftAndPanel();
@@ -2105,6 +2214,7 @@ export function ScheduleCalendarTab({
               filterMeta={filters}
               activeFilters={activeFilters}
               branchId={branchId}
+              scheduleScope={scheduleScope}
               onCreateClick={() => {
                 setSelected(null);
                 setCreateInitialStart(null);

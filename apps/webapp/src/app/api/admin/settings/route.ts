@@ -50,6 +50,7 @@ import {
 } from '@/modules/patient-home/patientHomeDailyWarmupRotationSettings';
 import { normalizeAdminIncidentAlertConfigForAdminPatch } from '@/modules/admin-incidents/adminIncidentAlertConfig';
 import { normalizeOperatorHealthAlertConfigForAdminPatch } from '@/modules/operator-alerts/operatorHealthAlertConfig';
+import { normalizeOperatorAlertFallbackEmail } from '@/modules/operator-alerts/operatorAlertFallbackEmail';
 import { normalizeOperatorHealthProjectionThresholdsForAdminPatch } from '@/modules/operator-health/operatorHealthProjectionThresholds';
 import { parseSmtpOutboundPatchValue } from '@/modules/system-settings/smtpOutboundPatch';
 import {
@@ -161,6 +162,7 @@ const ADMIN_SCOPE_KEYS = [
   'allowed_phones',
   'admin_incident_alert_config',
   'operator_health_alert_config',
+  'operator_alert_fallback_email',
   'operator_health_probe_config',
   'operator_health_projection_thresholds',
 ] as const;
@@ -683,6 +685,23 @@ export async function PATCH(request: Request) {
     const checked = normalizeOperatorHealthAlertConfigForAdminPatch(inner);
     if (!checked.ok) {
       return NextResponse.json({ ok: false, error: 'invalid_value' }, { status: 400 });
+    }
+    normalizedValue = { value: checked.value };
+  }
+
+  if (parsed.data.key === 'operator_alert_fallback_email') {
+    const checked = normalizeOperatorAlertFallbackEmail(normalizedValue.value);
+    if (!checked.ok) {
+      const message =
+        checked.error === 'required'
+          ? 'Укажите резервный e-mail для операторских алертов.'
+          : checked.error === 'too_long'
+            ? 'Резервный e-mail не должен быть длиннее 320 символов.'
+            : 'Укажите корректный резервный e-mail для операторских алертов.';
+      return NextResponse.json(
+        { ok: false, error: `operator_alert_fallback_email_${checked.error}`, message },
+        { status: 400 },
+      );
     }
     normalizedValue = { value: checked.value };
   }

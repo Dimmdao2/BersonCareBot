@@ -5,6 +5,7 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
 import { requireDoctorBookingEngine } from '../../../_requireDoctorBookingEngine';
+import { resolveDoctorAppointmentAccess } from '../../../_resolveDoctorAppointmentAccess';
 
 const bodySchema = z.object({
   newStartAt: z.string().min(1),
@@ -37,6 +38,20 @@ export async function POST(request: Request, context: RouteContext) {
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
+  const appointment = await resolveDoctorAppointmentAccess(
+    gate.ctx,
+    appointmentId,
+    'clinic',
+  );
+  if (!appointment) {
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
+  }
+  if (
+    parsed.data.specialistId !== undefined &&
+    parsed.data.specialistId !== appointment.specialistId
+  ) {
+    return NextResponse.json({ ok: false, error: 'invalid_specialist' }, { status: 400 });
+  }
   const deps = buildAppDeps();
   const lifecycle = deps.bookingAppointmentLifecycle;
   if (!lifecycle) {
@@ -64,7 +79,7 @@ export async function POST(request: Request, context: RouteContext) {
           reason: parsed.data.reason,
           staffComment: parsed.data.staffComment,
           branchId: parsed.data.branchId,
-          specialistId: parsed.data.specialistId,
+          specialistId: appointment.specialistId,
           serviceId: parsed.data.serviceId,
           manualOverride: true,
         }),

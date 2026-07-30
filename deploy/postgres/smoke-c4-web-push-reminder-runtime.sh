@@ -22,6 +22,7 @@ psql=("$PG_BINDIR/psql" -h "$SOCKET" -U postgres -d postgres -X -v ON_ERROR_STOP
 "${psql[@]}" <<'SQL'
 CREATE ROLE app_owner NOLOGIN;
 CREATE ROLE app_staff NOLOGIN NOINHERIT NOBYPASSRLS;
+CREATE ROLE app_patient NOLOGIN NOINHERIT NOBYPASSRLS;
 CREATE ROLE c4_webpush_smoke_operator LOGIN NOINHERIT NOBYPASSRLS;
 CREATE ROLE c4_webpush_smoke_login LOGIN NOINHERIT NOBYPASSRLS;
 CREATE ROLE app_operational_web_push_reminder NOLOGIN NOINHERIT NOBYPASSRLS;
@@ -41,8 +42,17 @@ CREATE TABLE public.product_analytics_hourly(organization_id uuid);
 CREATE TABLE public.user_channel_preferences(platform_user_id uuid);
 CREATE TABLE public.user_notification_topic_channels(user_id uuid);
 CREATE TABLE public.user_web_push_subscriptions(user_id uuid);
-CREATE TABLE public.content_sections(organization_id uuid);
-CREATE TABLE public.content_pages(organization_id uuid);
+CREATE TABLE public.org_enrollments(organization_id uuid, platform_user_id uuid, status text);
+CREATE TABLE public.patient_home_blocks(organization_id uuid);
+CREATE TABLE public.patient_home_block_items(organization_id uuid);
+CREATE TABLE public.content_sections(organization_id uuid, is_visible boolean);
+CREATE TABLE public.content_pages(
+  organization_id uuid,
+  is_published boolean,
+  archived_at timestamptz,
+  deleted_at timestamptz
+);
+CREATE TABLE public.content_section_slug_history(organization_id uuid);
 CREATE TABLE public.operator_job_status(job_family text, job_key text PRIMARY KEY, last_status text);
 CREATE TABLE public.outside_contour(secret text);
 SET ROLE app_owner;
@@ -67,7 +77,8 @@ BEGIN
     'reminder_rules', 'platform_users', 'webapp_reminder_occurrences',
     'notification_delivery_attempts', 'product_push_notifications', 'product_analytics_hourly',
     'user_channel_preferences', 'user_notification_topic_channels', 'user_web_push_subscriptions',
-    'content_sections', 'content_pages'
+    'patient_home_blocks', 'patient_home_block_items', 'content_sections', 'content_pages',
+    'content_section_slug_history'
   ] LOOP
     EXECUTE format('ALTER TABLE public.%I OWNER TO app_owner', relation_name);
     EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', relation_name);
@@ -82,15 +93,26 @@ INSERT INTO public.reminder_rules VALUES
 INSERT INTO public.webapp_reminder_occurrences VALUES
  ('aaaaaaaa-0000-4000-8000-000000000001','11111111-1111-4111-8111-111111111111'),
  ('bbbbbbbb-0000-4000-8000-000000000002','22222222-2222-4222-8222-222222222222');
+INSERT INTO public.content_sections VALUES
+ ('11111111-1111-4111-8111-111111111111', true),
+ (NULL, true);
+INSERT INTO public.content_pages VALUES
+ ('11111111-1111-4111-8111-111111111111', true, NULL, NULL);
+INSERT INTO public.org_enrollments VALUES
+ ('11111111-1111-4111-8111-111111111111', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'active');
 INSERT INTO public.operator_job_status(job_key,job_family,last_status) VALUES
  ('reminders.web_push_only.tick','reminders','old'),
  ('health.other.tick','health','old');
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.operator_job_status TO app_staff;
 GRANT app_staff TO c4_webpush_smoke_operator WITH INHERIT FALSE, SET TRUE;
 GRANT USAGE ON SCHEMA public, app TO app_operational_web_push_reminder;
-GRANT SELECT ON public.webapp_reminder_occurrences TO app_operational_web_push_reminder;
+GRANT SELECT ON public.webapp_reminder_occurrences, public.content_sections, public.content_pages
+  TO app_operational_web_push_reminder;
 GRANT SELECT, INSERT, UPDATE ON public.operator_job_status TO app_operational_web_push_reminder;
 GRANT app_operational_web_push_reminder TO c4_webpush_smoke_login WITH INHERIT FALSE, SET TRUE;
+GRANT USAGE ON SCHEMA app, public TO app_patient;
+GRANT SELECT ON public.content_sections, public.content_pages, public.org_enrollments TO app_patient;
+GRANT EXECUTE ON FUNCTION app.current_org_id(), app.current_patient_user_id() TO app_patient;
 CREATE POLICY pre_overlay_locked_helper_dependency ON public.webapp_reminder_occurrences
   TO app_operational_web_push_reminder
   USING (
@@ -99,6 +121,34 @@ CREATE POLICY pre_overlay_locked_helper_dependency ON public.webapp_reminder_occ
       AND app.current_integrator_user_id() IS NULL
       AND NOT app.is_staff())
     OR (app.is_staff() AND organization_id = app.current_org_id())
+  );
+CREATE POLICY patient_visible_current_org_select ON public.content_sections
+  FOR SELECT
+  USING (
+    app.current_patient_user_id() IS NOT NULL
+    AND organization_id = app.current_org_id()
+    AND is_visible = true
+    AND EXISTS (
+      SELECT 1 FROM public.org_enrollments AS enrollment
+      WHERE enrollment.organization_id = app.current_org_id()
+        AND enrollment.platform_user_id = app.current_patient_user_id()
+        AND enrollment.status = 'active'
+    )
+  );
+CREATE POLICY patient_visible_current_org_select ON public.content_pages
+  FOR SELECT
+  USING (
+    app.current_patient_user_id() IS NOT NULL
+    AND organization_id = app.current_org_id()
+    AND is_published = true
+    AND archived_at IS NULL
+    AND deleted_at IS NULL
+    AND EXISTS (
+      SELECT 1 FROM public.org_enrollments AS enrollment
+      WHERE enrollment.organization_id = app.current_org_id()
+        AND enrollment.platform_user_id = app.current_patient_user_id()
+        AND enrollment.status = 'active'
+    )
   );
 SQL
 
@@ -134,6 +184,64 @@ post_overlay_helpers="$("${psql[@]}" -U "$LOGIN_ROLE" -Atc \
   "SET ROLE app_operational_web_push_reminder; SELECT set_config('app.org','11111111-1111-4111-8111-111111111111',false); SELECT app.current_org_id()::text || ':' || (app.current_patient_user_id() IS NULL)::int || ':' || (app.current_integrator_user_id() IS NULL)::int || ':' || app.is_staff()::int; SELECT count(*) FROM public.webapp_reminder_occurrences;")"
 [ "$post_overlay_helpers" = $'11111111-1111-4111-8111-111111111111\n11111111-1111-4111-8111-111111111111:1:1:0\n1' ] || {
   echo "FATAL: helper-dependent readiness did not pass after overlay" >&2
+  exit 1
+}
+
+# Reproduce the reported tick failure: the old PUBLIC patient policies force the
+# operational role to evaluate org_enrollments even though its own C4 catalog policy matches.
+# psql's SQLSTATE variable is the oracle; stderr wording and locale are irrelevant.
+for catalog_table in content_sections content_pages; do
+  legacy_sqlstate="$("${psql[@]}" -U "$LOGIN_ROLE" -At 2>/dev/null <<SQL | tail -n 1
+\set ON_ERROR_STOP 0
+SET ROLE app_operational_web_push_reminder;
+SELECT set_config('app.org','11111111-1111-4111-8111-111111111111',false);
+SELECT count(*) FROM public.${catalog_table};
+\echo :SQLSTATE
+SQL
+  )"
+  [ "$legacy_sqlstate" = "42501" ] || {
+    echo "FATAL: ${catalog_table} legacy PUBLIC policy returned SQLSTATE ${legacy_sqlstate:-missing}, expected 42501" >&2
+    exit 1
+  }
+done
+
+"${psql[@]}" -f deploy/postgres/patient-visible-catalog-rls.sql >/dev/null
+
+catalog_before_org="$("${psql[@]}" -U "$LOGIN_ROLE" -At 2>/dev/null <<'SQL'
+\set ON_ERROR_STOP 0
+SET ROLE app_operational_web_push_reminder;
+SELECT count(*) FROM public.content_sections;
+\echo :SQLSTATE
+SQL
+)"
+[ "$catalog_before_org" = $'1\n00000' ] || {
+  printf 'FATAL: content_sections pre-fanout read returned unexpected result/SQLSTATE\n%s\n' \
+    "$catalog_before_org" >&2
+  exit 1
+}
+
+catalog_after_fix="$("${psql[@]}" -U "$LOGIN_ROLE" -Atc \
+  "SET ROLE app_operational_web_push_reminder; SELECT set_config('app.org','11111111-1111-4111-8111-111111111111',false); SELECT count(*) FROM public.content_sections; SELECT count(*) FROM public.content_pages; SELECT has_table_privilege(current_user, 'public.org_enrollments', 'SELECT')::int;")"
+[ "$catalog_after_fix" = $'11111111-1111-4111-8111-111111111111\n2\n1\n0' ] || {
+  echo "FATAL: patient policy repair did not restore least-privilege catalog reads" >&2
+  exit 1
+}
+direct_enrollment_sqlstate="$("${psql[@]}" -U "$LOGIN_ROLE" -At 2>/dev/null <<'SQL' | tail -n 1
+\set ON_ERROR_STOP 0
+SET ROLE app_operational_web_push_reminder;
+SELECT count(*) FROM public.org_enrollments;
+\echo :SQLSTATE
+SQL
+)"
+[ "$direct_enrollment_sqlstate" = "42501" ] || {
+  echo "FATAL: direct org_enrollments read returned SQLSTATE ${direct_enrollment_sqlstate:-missing}, expected 42501" >&2
+  exit 1
+}
+
+patient_catalog="$("${psql[@]}" -Atc \
+  "SET ROLE app_patient; SELECT set_config('app.org','11111111-1111-4111-8111-111111111111',false); SELECT set_config('app.patient_user_id','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',false); SELECT count(*) FROM public.content_sections; SELECT count(*) FROM public.content_pages;")"
+[ "$patient_catalog" = $'11111111-1111-4111-8111-111111111111\naaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\n1\n1' ] || {
+  echo "FATAL: scoped patient lost permitted visible/published catalog rows" >&2
   exit 1
 }
 
@@ -225,6 +333,9 @@ SELECT string_agg(organization_id::text, ',' ORDER BY organization_id) FROM app.
 SELECT set_config('app.org', '11111111-1111-4111-8111-111111111111', false);
 SELECT count(*) FROM public.webapp_reminder_occurrences;
 SELECT count(*) FROM public.platform_users;
+SELECT count(*) FROM public.content_sections;
+SELECT count(*) FROM public.content_pages;
+SELECT has_table_privilege(current_user, 'public.org_enrollments', 'SELECT')::int;
 SELECT has_table_privilege(current_user, 'public.outside_contour', 'SELECT')::int;
 SELECT count(*) FROM public.operator_job_status WHERE job_family='other';
 RESET ROLE;
@@ -234,7 +345,7 @@ SELECT rolcanlogin::int || ':' || rolinherit::int || ':' || rolbypassrls::int FR
 SQL
 )"
 
-expected=$'11111111-1111-4111-8111-111111111111,22222222-2222-4222-8222-222222222222\n11111111-1111-4111-8111-111111111111\n1\n1\n0\n0\n1:0:0\n0:0:0\n0:0:0'
+expected=$'11111111-1111-4111-8111-111111111111,22222222-2222-4222-8222-222222222222\n11111111-1111-4111-8111-111111111111\n1\n1\n2\n1\n0\n0\n0\n1:0:0\n0:0:0\n0:0:0'
 [ "$result" = "$expected" ] || { printf 'FATAL: unexpected proof output\n%s\n' "$result" >&2; exit 1; }
 
 "${psql[@]}" -c 'DROP POLICY pre_overlay_locked_helper_dependency ON public.webapp_reminder_occurrences;'

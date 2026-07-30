@@ -33,9 +33,28 @@ export type PhoneOtpDelivery =
   | { channel: 'max'; recipientId: string }
   | { channel: 'email'; email: string };
 
+export type DeferredPhoneOtpDelivery = {
+  /**
+   * Schedule delivery after the HTTP response. Challenge creation and resend accounting remain
+   * synchronous so public login behaves the same for every phone number.
+   */
+  schedule(task: () => Promise<void>): void;
+  /** Create an indistinguishable challenge without contacting a provider. */
+  suppressDelivery?: boolean;
+  /** Channel metadata the unavailable challenge must mirror for confirm-time policy checks. */
+  challengeDeliveryChannel?: PhoneOtpDelivery['channel'];
+  /** Optional background-only telemetry hook; it must never affect the public response. */
+  onDeliveryResult?(result: SendCodeResult): Promise<void>;
+};
+
 export type SmsPort = {
   /** Генерирует код и challengeId, сохраняет в store (с code), отправляет SMS (через интегратор или заглушку). */
-  sendCode(phone: string, ttlSec: number, delivery?: PhoneOtpDelivery): Promise<SendCodeResult>;
+  sendCode(
+    phone: string,
+    ttlSec: number,
+    delivery?: PhoneOtpDelivery,
+    deferredDelivery?: DeferredPhoneOtpDelivery,
+  ): Promise<SendCodeResult>;
   /** Проверка кода только в вебапп (по данным из store). */
   verifyCode(challengeId: string, code: string): Promise<VerifyCodeResult>;
 };

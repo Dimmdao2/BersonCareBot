@@ -4,6 +4,7 @@ import { runStaffManualNoShowAfterCanonical } from '@/app-layer/booking/staffMan
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { requireDoctorBookingEngine } from '../../../_requireDoctorBookingEngine';
+import { resolveDoctorAppointmentAccess } from '../../../_resolveDoctorAppointmentAccess';
 
 const bodySchema = z.object({
   reason: z.string().trim().max(400).optional(),
@@ -21,6 +22,10 @@ export async function POST(request: Request, context: RouteContext) {
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
+  }
+  const appointment = await resolveDoctorAppointmentAccess(gate.ctx, appointmentId, 'own');
+  if (!appointment) {
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
   const deps = buildAppDeps();
   const lifecycle = deps.bookingAppointmentLifecycle;

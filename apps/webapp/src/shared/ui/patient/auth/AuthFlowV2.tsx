@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * Публичный поток входа (browser): Яндекс, Google, Apple и email (вход / регистрация / код).
- * Apple — только если нет Яндекса/Google. Телефон и OTP только в Telegram/MAX Mini App (отдельный шаг phone).
+ * Публичный поток входа (browser): OAuth, email и телефон с server-selected SMS/email delivery.
+ * Apple — только если нет Яндекса/Google. Messenger Mini App keeps its separate phone step.
  */
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
@@ -318,6 +318,8 @@ export function AuthFlowV2({
     prefetchedAuthConfig?.authChannelPolicy ?? FAIL_CLOSED_AUTH_CHANNEL_UI_POLICY;
   const emailOtpEnabled = authChannelPolicy.email;
   const messengerPhoneEnabled = authChannelPolicy.telegram || authChannelPolicy.max;
+  const phoneLoginEnabled =
+    messengerPhoneEnabled || authChannelPolicy.sms || authChannelPolicy.email;
 
   useEffect(() => {
     if (smsStartCooldownSec <= 0) return;
@@ -1594,6 +1596,19 @@ export function AuthFlowV2({
               </form>
             ) : null}
 
+            {phoneLoginEnabled &&
+            (emailAuthMode === 'login' || emailAuthMode === 'password_login') ? (
+              <Button
+                type="button"
+                variant="link"
+                className={authLinkButtonClass}
+                disabled={loading}
+                onClick={() => setStep('phone_login')}
+              >
+                Войти по номеру телефона
+              </Button>
+            ) : null}
+
             {emailAuthMode === 'staff_factor' ? (
               <form
                 className="mt-3 flex w-full flex-col gap-3"
@@ -2426,7 +2441,7 @@ export function AuthFlowV2({
         >
           Войти по email
         </Button>
-        {messengerPhoneEnabled ? (
+        {phoneLoginEnabled ? (
           <Button
             type="button"
             variant="link"
@@ -2447,7 +2462,7 @@ export function AuthFlowV2({
         <PhoneMessengerAuthFlow
           channelPolicy={authChannelPolicy}
           purpose="login"
-          onBack={() => setStep('oauth_first')}
+          onBack={() => setStep(hasWebOauthAlternatives ? 'oauth_first' : 'email_password')}
           onStaffFactorRequired={() => {
             openStaffFactorMode();
             setStep('email_password');

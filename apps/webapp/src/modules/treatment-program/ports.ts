@@ -421,12 +421,6 @@ export type TreatmentProgramTestAttemptsPort = {
 
 export type ProgramActionLogPort = {
   insertAction(input: ProgramActionLogInsert): Promise<{ id: string; createdAt: string }>;
-  updateLatestSimpleDonePayload(params: {
-    instanceId: string;
-    patientUserId: string;
-    instanceStageItemId: string;
-    payloadPatch: Record<string, unknown>;
-  }): Promise<boolean>;
   getLatestSimpleDonePayload(params: {
     instanceId: string;
     patientUserId: string;

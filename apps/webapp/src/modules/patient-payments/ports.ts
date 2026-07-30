@@ -93,6 +93,8 @@ export type AcquiringChargeInput = {
   patientUserId: string;
   amountMinor: number;
   currency: string;
+  /** Stable caller-owned key forwarded unchanged to the payment provider. */
+  idempotencyKey: string;
   /** Описание платежа для отображения плательщику. */
   description?: string;
   /** Возможность передать произвольные метаданные провайдеру. */

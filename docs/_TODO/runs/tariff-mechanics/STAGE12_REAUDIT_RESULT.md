@@ -1,0 +1,33 @@
+VERDICT: FAIL
+
+| Fix | Проверен? | Evidence file:line | Что сломать и заметит ли тест |
+|---|---|---|---|
+| 1. `никогда` всегда включён | Да | Resolver игнорирует tariff/override для всех non-capability классов: [service.ts:116](/home/dev/dev-projects/bcb-wt-tariff/apps/webapp/src/modules/org-entitlements/service.ts:116). Конструктор сохраняет только `возможность`: [CommercialConstructorClient.tsx:74](/home/dev/dev-projects/bcb-wt-[redacted-token].tsx:74). Реальный mutation guard проверяется со stored `false`: [service.test.ts:86](/home/dev/dev-projects/bcb-wt-tariff/apps/webapp/src/modules/org-entitlements/service.test.ts:86). | Убрать ветку `mechanicClass !== 'возможность'`: patient-card guard вернёт 403, тест заметит. `никогда` сейчас содержит только `patient_card` и `patient_app`; коммерческих функций в класс не попало: [types.ts:62](/home/dev/dev-projects/bcb-wt-tariff/apps/webapp/src/modules/org-entitlements/types.ts:62). |
+| 2. Новый тариф не выключает числа | Частично, общий fix неполон | При настроенных `includedSeats=3` и `files=1024` resolver/проекции работают: [service.test.ts:94](/home/dev/dev-projects/bcb-wt-tariff/apps/webapp/src/modules/org-entitlements/service.test.ts:94). Seat fallback остаётся конечным — `1`: [types.ts:120](/home/dev/dev-projects/bcb-wt-tariff/apps/webapp/src/modules/org-entitlements/types.ts:120), [service.ts:246](/home/dev/dev-projects/bcb-wt-tariff/apps/webapp/src/modules/org-entitlements/service.ts:246). | Вернуть boolean-gating для `clinic_team/files` — тест заметит. Но удалить `quotas.files` — тест этого не проверяет; текущий resolver всё равно включает `files`, что создаёт MUST FIX №1. Та же fail-open модель автоматически достанется будущему `запас`. |
+| 3. `запас` декларативен | Да | Shape включён в union: [types.ts:27](/home/dev/dev-projects/bcb-wt-tariff/apps/webapp/src/modules/org-entitlements/types.ts:27). Положительная декларация и отрицательный period-case: [service.test.ts:168](/home/dev/dev-projects/bcb-wt-tariff/apps/webapp/src/modules/org-entitlements/service.test.ts:168). Независимый `tsc --noEmit --incremental false` — PASS. | Удалить `StockMechanic` из union — scratch declaration перестанет компилироваться. Разрешить `period` — `@ts-expect-error` станет неиспользованным. Оба варианта ловятся typecheck. |
+| 4. Выключены все rating writes | Да | Основной PUT отказывает до записи: [material-ratings/route.ts:119](/home/dev/dev-projects/bcb-wt-[redacted-token]-ratings/route.ts:119). Feedback POST теперь делает то же: [feedback/route.ts:40](/home/dev/dev-projects/bcb-wt-[redacted-token]-ratings/feedback/route.ts:40). Других application-вызовов `putForPatient`/`submitPatientFeedback` не найдено. GET не гейтится настройкой. | Удалить check из любого handler — соответствующий вызов вернёт 200 вместо 403; тест обеих записей это заметит: [tariffMechanics.route.test.ts:101](/home/dev/dev-projects/bcb-wt-[redacted-token].route.test.ts:101). |
+| 5. Поведенческие handler-тесты | Да по конструкции; повторный запуск заблокирован EROFS | Реальные handlers вызываются для course POST, template PUT и двух rating writes: [tariffMechanics.route.test.ts:69](/home/dev/dev-projects/bcb-wt-[redacted-token].route.test.ts:69). Проверяется HTTP-отказ, а не source/registry/факт вызова mock. | Удаление course/template guard даёт handler возможность дойти до success-ветки и ломает ожидание 403. Удаление rating checks ломает ожидания 403/error. Подмена mechanic key тестами course/template не ловится, но текущие ключи в коде правильны. |
+
+## MUST FIX
+
+1. **Отсутствующий файловый лимит теперь означает неограниченную загрузку.**
+
+   Достижимый сценарий: новый тариф по умолчанию создаётся с `quotas: {}` — [CommercialConstructorClient.tsx:87](/home/dev/dev-projects/bcb-wt-[redacted-token].tsx:87). После назначения resolver безусловно выставляет `files=true` как non-capability — [service.ts:116](/home/dev/dev-projects/bcb-wt-tariff/apps/webapp/src/modules/org-entitlements/service.ts:116). File POST проверяет только этот boolean и затем создаёт metadata/upload — [files/route.ts:139](/home/dev/dev-projects/bcb-wt-[redacted-token]/%5BuserId%5D/files/route.ts:139).
+
+   В результате клиника с тарифом без `quotas.files` может загружать файлы без конечного предела. Impact: обход тарифного ограничения и неограниченный storage cost. Нарушено требование correction Fix 2: числовая механика включается своей конфигурацией-лимитом, а отсутствие лимита не превращается в unlimited. Новый тест всегда задаёт `1024 bytes`, поэтому эту регрессию не ловит.
+
+## Что теперь верно
+
+- Stored `false` больше не отключает карточку или приложение пациента.
+- В классе `никогда` нет коммерческих механик.
+- Конструктор и server normalizer больше не сохраняют boolean-ключи numeric/never классов.
+- Seat advisory lock, recount, отказ и insert остались внутри одного `runWebappTransaction` и в прежнем порядке: [pgOrganizationInvites.ts:109](/home/dev/dev-projects/bcb-wt-[redacted-token].ts:109), [pgOrganizationInvites.ts:147](/home/dev/dev-projects/bcb-wt-[redacted-token].ts:147), [pgOrganizationInvites.ts:168](/home/dev/dev-projects/bcb-wt-[redacted-token].ts:168), [pgOrganizationInvites.ts:183](/home/dev/dev-projects/bcb-wt-[redacted-token].ts:183).
+- Reads остаются разрешёнными без entitlement resolution: [requireEntitlement.ts:23](/home/dev/dev-projects/bcb-wt-tariff/apps/webapp/src/app-layer/guards/requireEntitlement.ts:23). Course/template/rating mutations сохраняют соответствующие gates.
+- Итоговый diff к каноническому `feat` содержит 15 stage-файлов, все находятся в расширенном §1 scope. Сам commit `718576165` меняет семь разрешённых файлов.
+
+## Что осталось непроверенным и почему
+
+- Vitest не выполнился: Vite попытался записать `.vite-temp` в read-only workspace и получил `EROFS`. Поэтому worker-результат `8/8` независимо не подтверждён.
+- Disposable seat race-check стартовал, но его существующий extractor передал PostgreSQL буквальный `${CLINIC_SEAT_USAGE_SQL}` и упал с syntax error. Скрипт идентичен версии в `a678edc7e`, то есть это не регресс correction commit; last-slot race подтверждён структурно, но не повторным runtime-прогоном.
+- Ручное удаление guards не воспроизводилось: это потребовало бы изменения файлов, запрещённого read-only mission.
+- DEV migration, назначение тарифа, реальная загрузка, конструктор и A/B-клиники не проверялись по прямому запрету; эти claims остаются за lead в canonical tree.

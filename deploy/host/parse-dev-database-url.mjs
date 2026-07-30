@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { closeSync, readFileSync } from 'node:fs';
+import { closeSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { openCanonicalRegularFile } from './stream-canonical-sql.mjs';
 
@@ -66,6 +66,12 @@ export function assertExactLocalDevDatabaseUrl(value) {
   return value;
 }
 
+export function renderExactLocalDevPgpass(value) {
+  const parsed = new URL(assertExactLocalDevDatabaseUrl(value));
+  const password = decodeURIComponent(parsed.password).replaceAll('\\', '\\\\').replaceAll(':', '\\:');
+  return `*:*:bcb_webapp_dev:bcb_webapp_dev_user:${password}\n`;
+}
+
 function readCanonicalEnvSnapshot(path) {
   const expectedPath = resolve(path);
   const descriptor = openCanonicalRegularFile(path, expectedPath);
@@ -108,6 +114,13 @@ if (process.argv[1]?.endsWith('parse-dev-database-url.mjs')) {
     if (process.argv.length === 3 && process.argv[2] === '--self-test') {
       selfTest();
       console.log('parse-dev-database-url self-test: OK');
+    } else if (process.argv.length === 5 && process.argv[2] === '--write-pgpass') {
+      const databaseUrl = parseDatabaseUrlFromDotenv(readCanonicalEnvSnapshot(process.argv[3]));
+      writeFileSync(process.argv[4], renderExactLocalDevPgpass(databaseUrl), {
+        encoding: 'utf8',
+        flag: 'wx',
+        mode: 0o600,
+      });
     } else if (process.argv.length === 3) {
       const text = readCanonicalEnvSnapshot(process.argv[2]);
       process.stdout.write(assertExactLocalDevDatabaseUrl(parseDatabaseUrlFromDotenv(text)));

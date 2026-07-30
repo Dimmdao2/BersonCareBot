@@ -84,10 +84,12 @@ runner, полезные тесты с независимым oracle, red-on-fau
    → `1740`; команда `git ls-files apps | rg '\.(test|spec)\.(ts|tsx)$' | wc -l` → `31`; полный gate
    `/home/dev/brain/host-orch/run-tests.sh "pnpm run ci"` на `01ea1c9ce` → `rc=0`, `256s`;
    независимый read-only аудит `testcut-step1-final-audit-r3` → `PASS`.
-2. [ ] **Построить основу нового.** Стек (fast-check + fishery + мост от zod), единая точка `app-layer/testing`,
-   расширить живую-БД матрицу (принципал×орг×операция + инъекции). = «Фаза 0» из HOW-D/EXEC ниже.
-   DB-free часть построена: `fast-check`, Fishery, `app-layer/testing`, Vitest projects `unit/route/ui` и
-   CI-маршрут `test:webapp:behavior`. DB/RLS часть остаётся открытой и заморожена решением владельца ниже.
+2. [x] **Построить основу нового — DB-free часть.** Стек (fast-check + fishery + мост от zod), единая точка
+   `app-layer/testing`, Vitest projects `unit/route/ui` и CI-маршрут `test:webapp:behavior` — `6be2a1766`;
+   финальный прогон `pnpm test:webapp:behavior` на `7cdbbe727` → unit 2 файла/12 тестов, route 3/17, UI 1/2,
+   всё PASS.
+   Будущее расширение живой-БД матрицы (принципал×орг×операция + инъекции) не является открытым пунктом #1074:
+   оно выполняется после аудита ролей/стен, стабилизации БД и отдельного owner-go по решению владельца 30.07 ниже.
 3. [x] **Написать правило «как писать тесты»** (на мировой практике взрослых — исследование уже есть:
    `TESTSUITE_HOWTO_RESEARCH_2026-07-29.md`), чтобы все новые агенты сразу писали так.
    → **ПРИНЯТО ВЛАДЕЛЬЦЕМ 30.07:** канон опубликован в `AGENTS.md` §10b и
@@ -96,9 +98,93 @@ runner, полезные тесты с независимым oracle, red-on-fau
 4. [x] **Разбить репо по модулям**, которые надо покрыть. Критичный risk-based inventory завершён:
    `TESTSUITE_CRITICAL_TARGETS_SOL_RESEARCH_2026-07-30.md`; полное покрытие каждого файла репозитория не является
    целью.
-5. [ ] **Писать тесты по правилам через подручных** (воркеров), по модулям, в порядке опасности:
-   изоляция клиник → вход/сессии → 32 непокрытых чувствительных → инварианты. **Квоты — ВНЕ этой задачи**
-   (отдельно, когда построят саму систему квот — решение владельца 29.07).
+5. [x] **Проверить правило на первых двух критичных DB-free группах через подручных.** Request security:
+   `23ce3a31c` + `ac273587d` (CSRF proxy и representative role/capability route); auth/session:
+   `e5fda04e1` + `e18d4a9c8` (session cookie и HTTP outcomes login/reset/change). Четыре fault-injection
+   доказательства и независимая Opus-приёмка записаны ниже.
+   Остальные чувствительные модули и инварианты получают тесты дальше как обычная risk-based разработка, а не
+   обязательный массовый хвост #1074. **Квоты — ВНЕ этой задачи** (решение владельца 29.07).
+6. [x] **Закрыть следующий разумный DB-free минимум** — решение владельца 30.07:
+   «закрывай тогда сам пока следующий разумный DB-free минимум, а остальное будем закрывать по ходу».
+   Это ровно четыре уже предложенных класса, без расширения скоупа:
+   - [x] patient organization resolver: inactive/foreign enrollment и ambiguous multi-org — `35eb9159c`;
+     `apps/webapp/src/modules/patient-organization/service.unit.test.ts`; четыре fault injection покрасили
+     owning assertions, DB/RLS/repository enrollment proof отложен;
+     - снят status guard → `inactive-enrollment` assertion red;
+     - снят platform-user guard → `foreign-user` assertion red;
+     - unknown verified target временно принят → `target-not-authorized` assertion red;
+     - при ambiguity временно выбрана первая organization → `selection-required` assertion red;
+   - [x] подписанная внешняя доставка: HMAC/time-window, duplicate suppression и policy denial — `7a7b24c08`;
+     `apps/integrator/src/integrations/bersoncare/relayOutboundRoute.route.test.ts`; шесть fault injection
+     покрасили owning assertions, DB/RLS/cross-process exactly-once и real-provider proof отложены;
+     - signature guard отключён → auth status `200` вместо ожидаемого `401`;
+     - in-flight guard отключён → duplicate status `200` вместо ожидаемого `503`;
+     - policy-denial branch отключён → status `502` вместо ожидаемого `403`;
+     - email classification принудительно заменена на `provider_send_failed` → incident `errorClass` red против
+       ожидаемого `provider_quota_exhausted`;
+     - SMS classification принудительно заменена на `provider_auth_rejected` → incident `errorClass` red против
+       ожидаемого `provider_send_failed`;
+     - web-push channel заменён на `email` → exact dispatch-contract assertion red;
+   - [x] acquiring provider/webhook boundary: provider disable, amount/currency/patient/idempotency и webhook auth —
+     `55cdfc48e`; `apps/webapp/src/infra/payments/registryAcquiringGateway.unit.test.ts` +
+     `apps/webapp/src/app/api/payments/patientAcquiring.route.test.ts`; fault injection покрасили provider,
+     identity/idempotency и webhook-auth assertions, DB/RLS/ledger/network и positive Alfa proof отложены;
+     - payments-disabled throw заменён на no-op → ожидался `{ ok: false, reason: 'payments_disabled' }`, получен
+       provider success;
+     - provider `idempotencyKey` заменён на `fault-injected-key` → exact `createIntent` assertion ожидал
+       `charge-1074-stable`, получил подменённый ключ;
+     - foreign-patient response status изменён `404`→`201` → status assertion ожидал `404`, получил `201`;
+     - resolved `idempotencyKey` заменён на пустую строку → caller-key и UUID-fallback assertions ожидали `201`,
+       получили `400`;
+     - provider-failure response status изменён `503`→`201` → status assertion ожидал `503`, получил `201`;
+     - missing-checksum branch временно вернул inspected webhook → route assertion ожидал `401`, получил `200`;
+   - [x] semantic M2M idempotency: stable hash, разрешённые volatile fields, mismatch→conflict и отсутствие
+     кеширования transient failure — `c223fcd15`; `apps/webapp/src/app-layer/idempotency/integratorEventSemanticHash.unit.test.ts`
+     + `apps/webapp/src/app/api/integrator/events/route.route.test.ts`; четыре fault injection покрасили hash/conflict/retry
+     assertions, PostgreSQL/concurrency/RLS/store-race proof отложен.
+     - object-key sorting отключён → stable-order assertion red;
+     - semantic payload стёрт → business-payload assertion red;
+     - cached-hash mismatch bypassed → ожидался `409`, получен `202`;
+     - transient `503` закеширован → retry ожидал `202`, получил `503`.
+   Для каждого класса: самый дешёвый публичный DB-free слой, независимый oracle, fault injection с записью
+   «что сломано → какое утверждение покраснело». Остальной inventory не блокирует #1074 и закрывается по ходу
+   обычной разработки.
+   **Audit closure 30.07:** исходный Opus run
+   `/home/dev/brain/runs/agent-port/bcb-1074-opus-critical-next-acceptance-20260730.json` нашёл единственный `MF-1`
+   о недостающих per-injection mappings; после их внесения независимый docs-only Sonnet re-audit
+   `patient_org_tests` на `e3f1d1403` → **PASS**: сверены все 20 mappings (patient 4, outbound 6, acquiring 6,
+   M2M 4), SHA, test paths и deferred scope; код и тесты повторно не запускались.
+   **Финальный результат #1074:** DB-free цель завершена. Открытые legacy/inventory/DB-боксы в остальных разделах
+   не блокируют её и остаются будущей risk-based работой по решению владельца «остальное будем закрывать по ходу»;
+   DB/RLS выполняется только после аудита ролей/стен, стабилизации БД и отдельного owner-go.
+
+### Финальная приёмка DB-free пилота — 30.07
+
+Полный аудит: [`TESTSUITE_PILOT_OPUS5_ACCEPTANCE_2026-07-30.md`](TESTSUITE_PILOT_OPUS5_ACCEPTANCE_2026-07-30.md).
+Raw read-only run:
+`/home/dev/brain/runs/agent-port/bcb-1074-opus-final-acceptance-20260730.json`
+(`claude-opus-5`, `xhigh`). Opus подтвердил: четыре пилотных файла проверяют реальные публичные границы;
+request-security и auth/session являются достаточным малым пилотом по принятой владельцем границе цели; новых
+модулей, DB/RLS-механики или расширения скоупа для закрытия #1074 не требуется.
+
+Первый вердикт Opus был узким `FAIL`: уже выполненные fault injections не были записаны в каноническом плане.
+Блокер закрыт следующими строками доказательства:
+
+- `23ce3a31c`: временно разрешили platform-admin clinic capability → route-assertion запрета доступа покраснел;
+  мутация восстановлена.
+- `ac273587d`: временный CSRF fail-open → assertions для foreign, missing и ambiguous source покраснели;
+  мутация восстановлена, `proxy.route.test.ts` вернулся к 5/5 PASS.
+- `e5fda04e1`: временно сломана expiry/renewal boundary → `sessionCookie.unit.test.ts` покраснел; мутация
+  восстановлена.
+- `e18d4a9c8`: в partial-success ответе временно заменено `passwordChanged: true` на `false` → соответствующий
+  route-assertion покраснел; мутация восстановлена.
+
+Общий автоматизированный gate после интеграции:
+`pnpm test:webapp:behavior` на `7cdbbe727` → unit 2 файла/12 тестов, route 3/17, UI 1/2, всё PASS.
+Полный CI повторно не запускался: production-код не менялся, а достаточный DB-free phase gate зелёный.
+Узкий read-only re-audit
+`/home/dev/brain/runs/agent-port/bcb-1074-opus-final-reaudit-r2-20260730.json` → **PASS**:
+BF-1 CLOSED, три уточнения канона PASS, других blocking findings нет.
 
 **⛔ ПРОД (135.x) НЕ ТРОГАЕМ, НЕ ЧИТАЕМ, НИ С ЧЕМ НЕ СРАВНИВАЕМ — ВООБЩЕ (владелец 29.07, категорично).**
 Прод — забота владельца/ops, не наша. Любая наша работа — только на этом боксе (тест/dev/одноразовая БД).

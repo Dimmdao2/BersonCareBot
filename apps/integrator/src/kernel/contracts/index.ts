@@ -134,11 +134,21 @@ export {
   REMINDER_OCCURRENCE_FINALIZED,
   REMINDER_DELIVERY_LOGGED,
   CONTENT_ACCESS_GRANTED,
+<<<<<<< HEAD
   APPOINTMENT_RECORD_UPSERTED,
 } from './projectionEventTypes.js';
 export type {
   ReminderProjectionEventType,
   AppointmentProjectionEventType,
+=======
+  MAILING_TOPIC_UPSERTED,
+  USER_SUBSCRIPTION_UPSERTED,
+  MAILING_LOG_SENT,
+} from './projectionEventTypes.js';
+export type {
+  ReminderProjectionEventType,
+  SubscriptionMailingProjectionEventType,
+>>>>>>> 1d8e5560100b53ccbb89c7c0f4e58181e7867538
 } from './projectionEventTypes.js';
 
 export type { MessengerStaffChannel, ResolveMessengerStaffAdmin } from './messengerStaff.js';

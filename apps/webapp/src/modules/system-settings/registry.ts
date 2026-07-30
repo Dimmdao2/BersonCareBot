@@ -282,6 +282,13 @@ export const SYSTEM_SETTING_REGISTRY = {
     'uuid',
     'absent',
   ),
+  booking_calendar_default_specialist_id: runtime(
+    'doctor',
+    'per_org',
+    'authenticated_client',
+    'uuid',
+    'absent',
+  ),
   booking_location_default_palette: runtime(
     'admin',
     'global',
@@ -350,6 +357,7 @@ export const SYSTEM_SETTING_REGISTRY = {
   ),
   admin_incident_alert_config: restricted('admin', 'global', 'structured'),
   operator_health_alert_config: restricted('admin', 'global', 'structured'),
+  operator_alert_fallback_email: restricted('admin', 'global', 'string', 'absent'),
   operator_health_probe_config: runtime(
     'admin',
     'global',

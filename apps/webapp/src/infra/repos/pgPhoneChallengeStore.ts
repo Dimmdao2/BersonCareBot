@@ -38,6 +38,13 @@ function otpDeliveryFromRow(row: {
   return v as PhoneChallengePayload['deliveryChannel'];
 }
 
+function phoneNumberProvenFromRow(row: { channel_context: unknown }): boolean | undefined {
+  const raw = row.channel_context;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const value = (raw as Record<string, unknown>).phoneNumberProven;
+  return typeof value === 'boolean' ? value : undefined;
+}
+
 function profileBindUserIdFromRow(row: { channel_context: unknown }): string | undefined {
   const raw = row.channel_context;
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
@@ -66,6 +73,7 @@ function mergeChannelContextJson(payload: PhoneChallengePayload): string | null 
   if (
     !payload.channelContext &&
     !payload.deliveryChannel &&
+    payload.phoneNumberProven == null &&
     !payload.profileBindUserId &&
     !payload.profileBindOrganizationId &&
     !payload.publicBookingIntent
@@ -77,6 +85,9 @@ function mergeChannelContextJson(payload: PhoneChallengePayload): string | null 
   }
   if (payload.deliveryChannel) {
     o.otpDelivery = payload.deliveryChannel;
+  }
+  if (payload.phoneNumberProven != null) {
+    o.phoneNumberProven = payload.phoneNumberProven;
   }
   if (payload.profileBindUserId) {
     o.profileBindUserId = payload.profileBindUserId;
@@ -127,6 +138,7 @@ export function createPgPhoneChallengeStore(): PhoneChallengeStore {
       const expiresAt = Number(row.expires_at);
       const channelContext = channelContextFromRow(row);
       const deliveryChannel = otpDeliveryFromRow(row);
+      const phoneNumberProven = phoneNumberProvenFromRow(row);
       const profileBindUserId = profileBindUserIdFromRow(row);
       const profileBindOrganizationId = profileBindOrganizationIdFromRow(row);
       const publicBookingIntent = publicBookingIntentFromRow(row);
@@ -137,6 +149,7 @@ export function createPgPhoneChallengeStore(): PhoneChallengeStore {
         verifyAttempts: Number(row.verify_attempts ?? 0),
         channelContext,
         deliveryChannel,
+        phoneNumberProven,
         profileBindUserId,
         profileBindOrganizationId,
         publicBookingIntent,

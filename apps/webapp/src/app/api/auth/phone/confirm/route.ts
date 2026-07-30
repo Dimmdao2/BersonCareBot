@@ -70,7 +70,7 @@ export async function POST(request: Request) {
   const deps = buildAppDeps();
   const challenge = await deps.auth.getPhoneChallenge(challengeId);
   const deliveryChannel = challenge?.deliveryChannel ?? 'sms';
-  if (!(await isAuthChannelEnabled(deliveryChannel))) {
+  if (challenge && !(await isAuthChannelEnabled(deliveryChannel))) {
     return NextResponse.json({ ok: false, error: 'auth_channel_disabled' }, { status: 403 });
   }
   const attemptId =
@@ -98,14 +98,17 @@ export async function POST(request: Request) {
         errorCode: result.code,
       });
     }
-    const status =
-      result.code === 'too_many_attempts' || result.code === 'rate_limited' ? 429 : 400;
+    const publicCode =
+      result.code === 'invalid_code' || result.code === 'expired_code'
+        ? 'invalid_code'
+        : result.code;
+    const status = publicCode === 'too_many_attempts' || publicCode === 'rate_limited' ? 429 : 400;
     return NextResponse.json(
       {
         ok: false,
-        error: result.code,
+        error: publicCode,
         retryAfterSeconds: result.retryAfterSeconds,
-        message: errorMessage(result.code, result.retryAfterSeconds),
+        message: errorMessage(publicCode, result.retryAfterSeconds),
       },
       {
         status,
@@ -173,9 +176,7 @@ export async function POST(request: Request) {
 function errorMessage(code: string, retryAfterSeconds?: number): string {
   switch (code) {
     case 'invalid_code':
-      return 'Неверный код';
-    case 'expired_code':
-      return 'Код истёк. Запросите новый.';
+      return 'Неверный или просроченный код';
     case 'too_many_attempts':
       return OTP_TOO_MANY_ATTEMPTS_MESSAGE;
     case 'rate_limited':

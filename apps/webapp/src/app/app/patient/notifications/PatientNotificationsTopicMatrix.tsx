@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useState, useTransition } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import toast from 'react-hot-toast';
 import { Switch } from '@/shared/ui/patient/primitives/switch';
 import type { ProfileNotificationTopicModel } from '@/modules/patient-notifications/profileTopicChannelsModel';
 import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
@@ -18,12 +19,32 @@ type Props = {
   pushEffective: boolean;
 };
 
+function cellKey(topicId: string, channelCode: string): string {
+  return `${topicId}:${channelCode}`;
+}
+
+function enabledByCell(topics: ProfileNotificationTopicModel[]): Map<string, boolean> {
+  return new Map(
+    topics.flatMap((topic) =>
+      topic.channels.map((channel) => [
+        cellKey(topic.topicId, channel.code),
+        channel.isEnabled,
+      ]),
+    ),
+  );
+}
+
 export function PatientNotificationsTopicMatrix({ initialTopics, pushEffective }: Props) {
   const [topics, setTopics] = useState(initialTopics);
-  const [pending, startTransition] = useTransition();
+  const persistedByCellRef = useRef(enabledByCell(initialTopics));
+  const desiredByCellRef = useRef(enabledByCell(initialTopics));
+  const savingCellsRef = useRef(new Set<string>());
 
   useEffect(() => {
+    if (savingCellsRef.current.size > 0) return;
     setTopics(initialTopics);
+    persistedByCellRef.current = enabledByCell(initialTopics);
+    desiredByCellRef.current = enabledByCell(initialTopics);
   }, [initialTopics]);
 
   const channelLabels = (() => {
@@ -39,25 +60,60 @@ export function PatientNotificationsTopicMatrix({ initialTopics, pushEffective }
     }));
   })();
 
-  const onChannelToggle = useCallback((topicId: string, channelCode: string, next: boolean) => {
-    startTransition(async () => {
-      const res = await setTopicChannelNotificationEnabled(topicId, channelCode, next);
-      if (res.ok) {
-        setTopics((prev) =>
-          prev.map((t) =>
-            t.topicId !== topicId
-              ? t
-              : {
-                  ...t,
-                  channels: t.channels.map((c) =>
-                    c.code === channelCode ? { ...c, isEnabled: next } : c,
-                  ),
-                },
-          ),
-        );
-      }
-    });
+  const setCellEnabled = useCallback((topicId: string, channelCode: string, enabled: boolean) => {
+    setTopics((prev) =>
+      prev.map((topic) =>
+        topic.topicId !== topicId
+          ? topic
+          : {
+              ...topic,
+              channels: topic.channels.map((channel) =>
+                channel.code === channelCode ? { ...channel, isEnabled: enabled } : channel,
+              ),
+            },
+      ),
+    );
   }, []);
+
+  const saveLatestCellValue = useCallback(
+    async (topicId: string, channelCode: string, key: string) => {
+      if (savingCellsRef.current.has(key)) return;
+      savingCellsRef.current.add(key);
+      try {
+        while (desiredByCellRef.current.get(key) !== persistedByCellRef.current.get(key)) {
+          const target = desiredByCellRef.current.get(key);
+          if (target === undefined) return;
+
+          const result = await setTopicChannelNotificationEnabled(topicId, channelCode, target);
+          if (!result.ok) {
+            if (desiredByCellRef.current.get(key) === target) {
+              const persisted = persistedByCellRef.current.get(key);
+              if (persisted !== undefined) {
+                desiredByCellRef.current.set(key, persisted);
+                setCellEnabled(topicId, channelCode, persisted);
+              }
+            }
+            toast.error(result.message);
+            return;
+          }
+          persistedByCellRef.current.set(key, target);
+        }
+      } finally {
+        savingCellsRef.current.delete(key);
+      }
+    },
+    [setCellEnabled],
+  );
+
+  const onChannelToggle = useCallback(
+    (topicId: string, channelCode: string, next: boolean) => {
+      const key = cellKey(topicId, channelCode);
+      desiredByCellRef.current.set(key, next);
+      setCellEnabled(topicId, channelCode, next);
+      void saveLatestCellValue(topicId, channelCode, key);
+    },
+    [saveLatestCellValue, setCellEnabled],
+  );
 
   if (topics.length === 0) {
     return <p className={patientMutedTextClass}>Нет доступных типов уведомлений.</p>;
@@ -114,7 +170,7 @@ export function PatientNotificationsTopicMatrix({ initialTopics, pushEffective }
                   <td key={ch.code} className="px-2 py-3 text-center align-middle">
                     <Switch
                       checked={channelLocked && ch.code === 'web_push' ? false : cell.isEnabled}
-                      disabled={pending || channelLocked}
+                      disabled={channelLocked}
                       onCheckedChange={(v) => onChannelToggle(t.topicId, ch.code, v)}
                       aria-label={`${t.displayTitle}: ${ch.label}`}
                     />
