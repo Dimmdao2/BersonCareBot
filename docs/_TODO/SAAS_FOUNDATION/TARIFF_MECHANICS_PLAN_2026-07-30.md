@@ -42,9 +42,14 @@
 ## 1. ГРАНИЦЫ
 
 **Можно трогать:** `apps/webapp/src/modules/org-entitlements/**` · `apps/webapp/src/app-layer/entitlements/**` и
-`app-layer/guards/requireEntitlement.ts` · пути записи механик из этапов 4–5 (только вызов ворот и видимый отказ) ·
-`apps/webapp/src/app/app/admin/commercial/**` (конструктор) · `apps/webapp/db/schema/saasEntitlements.ts` и новые
-миграции под этапы 2 и 4 · документы этого плана и канона.
+`app-layer/guards/requireEntitlement.ts` · пути записи механик из этапов 2, 4 и 5 (только вызов ворот и видимый
+отказ) · `apps/webapp/src/app/app/admin/commercial/**` и `apps/webapp/src/app/api/admin/commercial/**` (конструктор
+и его ручка) · `apps/webapp/src/modules/system-settings/registry.ts` вместе с ручками оценок материалов и шаблонов
+уведомлений (это прямо требуют пункты 2.7 и 2.9) · `apps/webapp/db/schema/saasEntitlements.ts` и новые миграции под
+этапы 2 и 4 · документы этого плана и канона.
+
+Граница поправлена 30.07 по находке аудита №6: чекбоксы 2.7 и 2.9 требовали работы в путях, которых в разрешённой
+границе не было. Это был дефект плана, не воркера.
 
 **Нельзя трогать:**
 
