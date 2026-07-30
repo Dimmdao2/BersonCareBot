@@ -43,7 +43,7 @@ USING (
 
 DROP POLICY IF EXISTS patient_visible_current_org_select ON public.content_sections;
 CREATE POLICY patient_visible_current_org_select ON public.content_sections
-FOR SELECT
+FOR SELECT TO app_patient
 USING (
   app.current_patient_user_id() IS NOT NULL
   AND organization_id = app.current_org_id()
@@ -58,7 +58,7 @@ USING (
 
 DROP POLICY IF EXISTS patient_visible_current_org_select ON public.content_pages;
 CREATE POLICY patient_visible_current_org_select ON public.content_pages
-FOR SELECT
+FOR SELECT TO app_patient
 USING (
   app.current_patient_user_id() IS NOT NULL
   AND organization_id = app.current_org_id()
