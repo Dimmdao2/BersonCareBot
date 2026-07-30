@@ -36,6 +36,7 @@ function toOrganizationSummaries(
   for (const row of rows) {
     if (
       row.platformUserId !== platformUserId ||
+      row.status !== 'active' ||
       !row.organizationIsActive ||
       byId.has(row.organizationId)
     )
