@@ -9,6 +9,7 @@ import type {
   CalendarEvent,
 } from '@/modules/booking-calendar/types';
 import type { CalendarCreateActiveFilters } from '@/modules/booking-calendar/calendarCreateFieldMode';
+import type { ResolvedDoctorScheduleScope } from '@/modules/doctor-schedule/scope';
 
 const API_BASE = '/api/doctor/booking-engine';
 
@@ -38,6 +39,7 @@ type CalendarApiResponse = {
   ok: boolean;
   events?: CalendarEvent[];
   filters?: CalendarFilterMeta;
+  resolvedScope?: ResolvedDoctorScheduleScope;
   error?: string;
 };
 
@@ -50,6 +52,7 @@ export function TodayAppointmentFullModal({
 }: Props) {
   const [event, setEvent] = useState<CalendarAppointmentEvent | null>(null);
   const [filterMeta, setFilterMeta] = useState<CalendarFilterMeta>(EMPTY_FILTER_META);
+  const [ownSpecialistId, setOwnSpecialistId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [refetch, setRefetch] = useState(0);
 
@@ -73,6 +76,7 @@ export function TodayAppointmentFullModal({
           if (found) setEvent(found);
         }
         if (data.filters) setFilterMeta(data.filters);
+        setOwnSpecialistId(data.resolvedScope?.ownSpecialistId ?? null);
         setLoading(false);
       })
       .catch(() => {
@@ -107,6 +111,7 @@ export function TodayAppointmentFullModal({
               timeZone={displayIana}
               filterMeta={filterMeta}
               activeFilters={EMPTY_ACTIVE_FILTERS}
+              ownSpecialistId={ownSpecialistId}
               onClose={onClose}
               onChanged={handleChanged}
               showCloseControl={false}

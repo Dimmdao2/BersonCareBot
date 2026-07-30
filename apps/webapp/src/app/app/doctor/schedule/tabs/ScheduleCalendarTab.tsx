@@ -2178,6 +2178,7 @@ export function ScheduleCalendarTab({
               timeZone={currentTimeZone}
               filterMeta={filters}
               activeFilters={activeFilters}
+              ownSpecialistId={scopeBootstrap.ownSpecialistId}
               // §3.6: при открытии через «+ Создать запись» — сразу в форму создания
               startInCreate={showCreatePanel && !selected}
               // R32: подставленное время старта при выделении области

@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { BeAppointment } from '@/modules/booking-engine/types';
 import type { DoctorBookingEngineContext } from './_requireDoctorBookingEngine';
-import { resolveDoctorAppointmentAccess } from './_resolveDoctorAppointmentAccess';
+import {
+  resolveDoctorAppointmentAccess,
+  resolveDoctorCreateSpecialist,
+} from './_resolveDoctorAppointmentAccess';
 
 const ORGANIZATION_ID = '20000000-0000-4000-8000-000000000001';
 const FOREIGN_ORGANIZATION_ID = '20000000-0000-4000-8000-000000000002';
@@ -39,6 +42,12 @@ function context(
     session: { user: { userId: 'user-1' } } as DoctorBookingEngineContext['session'],
     service: {
       getAppointment: vi.fn().mockResolvedValue(candidate),
+      catalog: {
+        listSpecialists: vi.fn().mockResolvedValue([
+          { id: OWN_ID, fullName: 'Свой специалист', isActive: true },
+          { id: OTHER_ID, fullName: 'Другой специалист', isActive: true },
+        ]),
+      },
     } as unknown as DoctorBookingEngineContext['service'],
     organizationId: ORGANIZATION_ID,
     membershipId: 'membership-1',
@@ -81,5 +90,30 @@ describe('resolveDoctorAppointmentAccess', () => {
     await expect(
       resolveDoctorAppointmentAccess(context(sameClinicOther, true), sameClinicOther.id, 'own'),
     ).resolves.toBeNull();
+  });
+});
+
+describe('resolveDoctorCreateSpecialist', () => {
+  it('ignores a hostile specialist ID and forces a normal doctor to their own specialist', async () => {
+    await expect(resolveDoctorCreateSpecialist(context(null, false), OTHER_ID)).resolves.toEqual({
+      ok: true,
+      specialistId: OWN_ID,
+    });
+  });
+
+  it('allows a clinic manager to target one validated active specialist', async () => {
+    await expect(resolveDoctorCreateSpecialist(context(null, true), OTHER_ID)).resolves.toEqual({
+      ok: true,
+      specialistId: OTHER_ID,
+    });
+  });
+
+  it('rejects an unavailable specialist instead of falling back to another clinic specialist', async () => {
+    await expect(
+      resolveDoctorCreateSpecialist(
+        context(null, true),
+        '10000000-0000-4000-8000-000000000099',
+      ),
+    ).resolves.toEqual({ ok: false, error: 'schedule_specialist_not_available' });
   });
 });

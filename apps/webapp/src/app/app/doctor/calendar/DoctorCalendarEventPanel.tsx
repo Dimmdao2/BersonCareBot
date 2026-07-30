@@ -81,6 +81,7 @@ type Props = {
   timeZone: string;
   filterMeta: CalendarFilterMeta;
   activeFilters: CalendarCreateActiveFilters;
+  ownSpecialistId: string | null;
   onClose: () => void;
   onChanged: () => void;
   /** §3.6: открыть панель сразу в режиме создания, минуя плейсхолдер */
@@ -190,6 +191,7 @@ function DoctorCalendarEventPanelInner({
   timeZone,
   filterMeta,
   activeFilters,
+  ownSpecialistId,
   onClose,
   onChanged,
   startInCreate = false,
@@ -463,7 +465,7 @@ function DoctorCalendarEventPanelInner({
                       startAt,
                       endAt,
                       durationMinutes: createDurationMinutes,
-                      ...(!isNewPatient ? { specialistId: createSpecialistId } : {}),
+                      specialistId: createSpecialistId,
                       branchId: createBranchId,
                       serviceId: createServiceId,
                     }),
@@ -774,7 +776,8 @@ function DoctorCalendarEventPanelInner({
                 ))}
               </SelectContent>
             </Select>
-            {isStaffDeletableCancelledStatus(selected.status) ? (
+            {selected.specialistId === ownSpecialistId &&
+            isStaffDeletableCancelledStatus(selected.status) ? (
               <Button
                 type="button"
                 size="sm"

@@ -150,7 +150,8 @@ env/deploy/server scripts и другие UI-разделы запрещены.
 - [x] Deep-link registry и fetch query передают `scope/specialist` одинаково в calendar, KPI и
   nearest-free-window; недействительный deep link нормализуется по server-resolved bootstrap. Evidence:
   `scheduleTabRegistry.ts`, `resolveDoctorScheduleScopeState`, UI test PASS.
-- [ ] Create submit применяет тот же server-resolved scope; закрывается вместе с S5.
+- [x] Create submit применяет тот же server-resolved scope. Evidence:
+  `resolveDoctorCreateSpecialist` используется обоими manual-create routes; hostile-ID route test PASS.
 
 ### S4. Direct-ID read matrix
 
@@ -165,20 +166,26 @@ env/deploy/server scripts и другие UI-разделы запрещены.
 
 ### S5. Direct-ID mutation matrix
 
-- [ ] `POST appointments/manual` и `POST appointments/manual-patient-visit`: врач создаёт только за себя;
-  `clinic_admin` — за валидированного специалиста текущей клиники.
-- [ ] `POST appointments/[id]/manual-reschedule`: врач — только своей записи; `clinic_admin` — записи
-  специалиста текущей клиники; назначенный specialist сохраняется, reassignment запрещён.
-- [ ] `POST appointments/[id]/manual-cancel`: врач — только своей записи; `clinic_admin` — записи специалиста
-  текущей клиники.
-- [ ] `POST appointments/[id]/delete`: hard-delete чужой записи запрещён и обычному врачу, и `clinic_admin`;
-  UI не предлагает его для чужой записи.
-- [ ] `POST appointments/[id]/manual-no-show`: чужая запись запрещена обеим ролям до отдельного owner ruling.
-- [ ] `POST appointments/[id]/comments`: изменение чужой записи запрещено обеим ролям до отдельного owner ruling.
-- [ ] `POST appointments/[id]/package/detach`, `refund`, `unlink`: изменение чужой записи запрещено обеим ролям
-  до отдельного owner ruling.
-- [ ] Отказы не раскрывают существование appointment/специалиста другой клиники сверх действующего safe-error
-  контракта.
+- [x] `POST appointments/manual` и `POST appointments/manual-patient-visit`: врач создаёт только за себя;
+  `clinic_admin` — за валидированного специалиста текущей клиники. Evidence: shared create resolver +
+  hostile-ID route/unit tests PASS.
+- [x] `POST appointments/[id]/manual-reschedule`: врач — только своей записи; `clinic_admin` — записи
+  специалиста текущей клиники; назначенный specialist сохраняется, reassignment запрещён. Evidence:
+  clinic-mode resolver; allowed-manager and rejected-reassignment route tests PASS.
+- [x] `POST appointments/[id]/manual-cancel`: врач — только своей записи; `clinic_admin` — записи специалиста
+  текущей клиники. Evidence: clinic-mode resolver + allowed-manager route test PASS.
+- [x] `POST appointments/[id]/delete`: hard-delete чужой записи запрещён и обычному врачу, и `clinic_admin`;
+  UI не предлагает его для чужой записи. Evidence: own-mode resolver; schedule/today calendar panels compare
+  the row specialist with authenticated `ownSpecialistId`.
+- [x] `POST appointments/[id]/manual-no-show`: чужая запись запрещена обеим ролям до отдельного owner ruling.
+  Evidence: own-mode resolver before lifecycle side effects; route test PASS.
+- [x] `POST appointments/[id]/comments`: изменение чужой записи запрещено обеим ролям до отдельного owner ruling.
+  Evidence: own-mode resolver before comment creation; route test PASS.
+- [x] `POST appointments/[id]/package/detach`, `refund`, `unlink`: изменение чужой записи запрещено обеим ролям
+  до отдельного owner ruling. Evidence: own-mode resolver before `runPackageDetach`; route test PASS.
+- [x] Отказы не раскрывают существование appointment/специалиста другой клиники сверх действующего safe-error
+  контракта. Evidence: shared resolver returns `null`; all denied mutation routes return the same
+  `{ ok:false, error:'not_found' }` / 404 contract before side effects.
 
 ### S6. Документация и доказательство
 
@@ -194,18 +201,20 @@ env/deploy/server scripts и другие UI-разделы запрещены.
   соседней работой по прямому указанию владельца.~~ — ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 30.07.2026:
   «уже начинай добавлять тесты»; «с тестами — читай инструкцию и разбирайся впредь сам».
 - [x] Добавить минимальные unit/route проверки named schedule-scope failure с независимым oracle и fault
-  injection. Evidence: 7 files / 17 tests PASS; specialist scope, UI request parity, navigation and direct-ID
-  mutations all produced their expected failures before restoration.
+  injection. Evidence: 8 files / 24 tests PASS; specialist scope, UI request parity, navigation and direct-ID
+  mutations produced their expected failures before restoration.
 - [ ] Независимый аудит сверяет каждый пункт этого плана и server-side IDOR, после чего фиксируются commit SHA
   и фактически выполненные команды.
 
 ## Definition of Done
 
-- [ ] Обычный врач не может прочитать или изменить appointment другого специалиста ни списком, ни прямым ID.
-- [ ] `clinic_admin` на одном экране использует `Моё / Вся клиника / специалист`, а calendar, KPI, filters и
-  nearest-free-window показывают один resolved scope.
-- [ ] `clinic_admin` создаёт, переносит и отменяет запись за специалиста своей клиники; cross-org,
-  reassignment и hard-delete чужой записи нейтрально запрещены.
+- [x] Обычный врач не может прочитать или изменить appointment другого специалиста ни списком, ни прямым ID.
+  Evidence: server-resolved list/direct-ID scope + unit/route fault-injection evidence.
+- [x] `clinic_admin` на одном экране использует `Моё / Вся клиника / специалист`, а calendar, KPI, filters и
+  nearest-free-window показывают один resolved scope. Evidence: shared client scope + UI request test.
+- [x] `clinic_admin` создаёт, переносит и отменяет запись за специалиста своей клиники; cross-org,
+  reassignment и hard-delete чужой записи нейтрально запрещены. Evidence: shared create/direct-ID resolvers
+  + mutation route tests.
 - [ ] Все строки direct-ID read/mutation matrix S4/S5 имеют code evidence и DEV-smoke evidence либо
   трассируемую N/A-причину.
 - [ ] Production files проходят typecheck/targeted lint; protected test/Stryker paths остаются нетронутыми;
@@ -222,6 +231,11 @@ env/deploy/server scripts и другие UI-разделы запрещены.
 - 30.07.2026 → S4 direct reads → one organization/specialist resolver before lifecycle/comments/payment;
   combined resolver+route 5/5 PASS; broadened-doctor fault injection failed unit+route and was restored →
   SHA фиксируется тем же коммитом.
+- 30.07.2026 → S5 mutations → create target resolved from authenticated role/current-clinic catalog;
+  reschedule/cancel use clinic-mode access while delete/no-show/comment/package operations use own-mode
+  access; reassignment rejected; foreign hard-delete hidden in schedule/today calendar panels. Combined
+  8 files / 24 tests, webapp typecheck and scoped ESLint PASS. Broadening own-mode access produced the
+  expected red test before restoration.
 
 ## Не входит
 
