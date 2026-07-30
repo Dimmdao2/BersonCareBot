@@ -41,6 +41,7 @@ export type ContentHubSection = {
 export type ContentHubShellProps = {
   sections: ContentHubSection[];
   patientHomeTodayEnabled: boolean;
+  warmupsEnabled: boolean;
   /** Full ContentSectionRow[] needed by ContentForm's section select. */
   fullSections: ContentSectionRow[];
   pagesBySectionSlug: Record<string, ContentPageListRow[]>;
@@ -245,6 +246,7 @@ function computeCountsByPaneKey(
 export function ContentHubShell({
   sections,
   patientHomeTodayEnabled,
+  warmupsEnabled,
   fullSections,
   pagesBySectionSlug,
   ratingsById,
@@ -279,6 +281,7 @@ export function ContentHubShell({
         <ContentNav
           articleSections={articleSectionEntries}
           patientHomeTodayEnabled={patientHomeTodayEnabled}
+          warmupsEnabled={warmupsEnabled}
           activePaneKey={activePaneKey}
           onPaneChange={(key) => {
             setActivePaneKey(key);

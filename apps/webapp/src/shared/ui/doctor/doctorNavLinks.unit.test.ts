@@ -13,4 +13,22 @@ describe('doctor navigation schedule access', () => {
     expect(ids).not.toContain('patients');
     expect(ids).not.toContain('communications');
   });
+
+  it('hides only the promo entry when the promo mechanic is off', () => {
+    const capabilities = ['account.self', 'clinical.workspace'] as const;
+    const disabledItems = getDoctorMenuItems({
+      capabilities,
+      promoEnabled: false,
+    });
+    const enabledItems = getDoctorMenuItems({
+      capabilities,
+      promoEnabled: true,
+    });
+    const libraryItems = (items: ReturnType<typeof getDoctorMenuItems>) =>
+      items.find((item) => item.id === 'library')?.items?.map((item) => item.id) ?? [];
+
+    expect(libraryItems(disabledItems)).not.toContain('treatment-program-promo');
+    expect(libraryItems(enabledItems)).toContain('treatment-program-promo');
+    expect(libraryItems(disabledItems)).toContain('treatment-program-templates');
+  });
 });

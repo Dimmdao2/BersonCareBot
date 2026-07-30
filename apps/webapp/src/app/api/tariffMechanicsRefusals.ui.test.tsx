@@ -7,17 +7,36 @@ const actionMocks = vi.hoisted(() => ({
   cooldowns: vi.fn(),
   rotation: vi.fn(),
   moodIcons: vi.fn(),
+  sectionVisibility: vi.fn(),
+  sectionAuth: vi.fn(),
+  sectionReorder: vi.fn(),
+  pageAuth: vi.fn(),
+  pageReorder: vi.fn(),
+  lifecycle: vi.fn(),
 }));
 const toastMocks = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }));
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ refresh: routerRefresh }),
+  useRouter: () => ({ refresh: routerRefresh, push: vi.fn() }),
   usePathname: () => '/app/doctor/content',
   useSearchParams: () => new URLSearchParams(),
 }));
 vi.mock('react-hot-toast', () => ({ default: toastMocks }));
 vi.mock('@/app/app/doctor/content/sections/sectionVisibilityActions', () => ({
-  setSectionVisibility: vi.fn(),
+  setSectionVisibility: actionMocks.sectionVisibility,
+  setSectionRequiresAuth: actionMocks.sectionAuth,
+}));
+vi.mock('@/app/app/doctor/content/sections/reorderContentSections', () => ({
+  reorderContentSections: actionMocks.sectionReorder,
+}));
+vi.mock('@/app/app/doctor/content/contentPageAuthActions', () => ({
+  setContentPageRequiresAuth: actionMocks.pageAuth,
+}));
+vi.mock('@/app/app/doctor/content/reorderContentPages', () => ({
+  reorderContentPagesInSection: actionMocks.pageReorder,
+}));
+vi.mock('@/app/app/doctor/content/lifecycleActions', () => ({
+  applyContentLifecycle: actionMocks.lifecycle,
 }));
 vi.mock('@/app/app/doctor/patient-home/patientHomeDoctorSettingsActions', () => ({
   savePatientHomePracticeTargetAction: actionMocks.practice,
@@ -35,6 +54,10 @@ import { PatientHomePracticeTargetPanel } from '@/app/app/settings/patient-home/
 import { PatientHomeRepeatCooldownPanel } from '@/app/app/settings/patient-home/PatientHomeRepeatCooldownPanel';
 import { PatientHomeDailyWarmupRotationPanel } from '@/app/app/settings/patient-home/PatientHomeDailyWarmupRotationPanel';
 import { PatientHomeMoodIconsPanel } from '@/app/app/doctor/patient-home/PatientHomeMoodIconsPanel';
+import { ContentSectionsListClient } from '@/app/app/doctor/content/sections/ContentSectionsListClient';
+import { ContentPagesSectionList } from '@/app/app/doctor/content/ContentPagesSectionList';
+import { ContentLifecycleDropdown } from '@/app/app/doctor/content/ContentLifecycleDropdown';
+import { PatientDailyWarmupVideoEngagement } from '@/app/app/patient/content/[slug]/PatientDailyWarmupVideoEngagement';
 
 const REFUSAL =
   'Невозможно выполнить действие: этот раздел не входит в ваш тариф. Чтобы выполнить действие, включите этот раздел в тарифе клиники.';
@@ -62,6 +85,7 @@ describe('tariff refusal UI', () => {
       <ContentNav
         articleSections={[]}
         patientHomeTodayEnabled={false}
+        warmupsEnabled={true}
         activePaneKey="warmups"
         onPaneChange={vi.fn()}
         onCreateSection={vi.fn()}
@@ -69,6 +93,97 @@ describe('tariff refusal UI', () => {
     );
 
     expect(screen.queryByRole('link', { name: 'Главная пациента' })).not.toBeInTheDocument();
+  });
+
+  it('removes the warmups navigation entry when its mechanic is off', () => {
+    render(
+      <ContentNav
+        articleSections={[]}
+        patientHomeTodayEnabled
+        warmupsEnabled={false}
+        activePaneKey="warmups"
+        onPaneChange={vi.fn()}
+        onCreateSection={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole('button', { name: 'Разминки' })).not.toBeInTheDocument();
+  });
+
+  it('shows CMS refusals from nav, section, page, and lifecycle handlers', async () => {
+    const nav = render(
+      <ContentNav
+        articleSections={[{ slug: 'articles', title: 'Статьи', isVisible: true }]}
+        patientHomeTodayEnabled
+        warmupsEnabled
+        activePaneKey="section:articles"
+        onPaneChange={vi.fn()}
+        onCreateSection={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Скрыть раздел' }));
+    await waitFor(() => expect(toastMocks.error).toHaveBeenCalledWith(REFUSAL));
+    nav.unmount();
+
+    const sections = render(
+      <ContentSectionsListClient
+        initialSections={[
+          {
+            id: '11111111-1111-4111-8111-111111111111',
+            slug: 'warmups',
+            title: 'Разминки',
+            sortOrder: 0,
+            isVisible: true,
+            requiresAuth: false,
+            coverImageUrl: null,
+            iconImageUrl: null,
+            kind: 'system',
+            systemParentCode: 'warmups',
+            pagesInSection: 1,
+          },
+        ]}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Виден пациенту' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Публично в каталоге' }));
+    await waitFor(() => expect(toastMocks.error).toHaveBeenCalledTimes(3));
+    sections.unmount();
+
+    const pages = render(
+      <ContentPagesSectionList
+        sectionSlug="warmups"
+        sectionTitle="Разминки"
+        initialPages={[
+          {
+            id: '22222222-2222-4222-8222-222222222222',
+            section: 'warmups',
+            slug: 'warmup',
+            title: 'Разминка',
+            sortOrder: 0,
+            isPublished: false,
+            requiresAuth: false,
+            archivedAt: null,
+            deletedAt: null,
+          },
+        ]}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Публичная страница' }));
+    await waitFor(() => expect(toastMocks.error).toHaveBeenCalledTimes(4));
+    pages.unmount();
+
+    render(
+      <ContentLifecycleDropdown
+        page={{
+          id: '22222222-2222-4222-8222-222222222222',
+          isPublished: false,
+          archivedAt: null,
+          deletedAt: null,
+        }}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Опубликовать' }));
+    await waitFor(() => expect(toastMocks.error).toHaveBeenCalledTimes(5));
   });
 
   it('shows the backend mood refusal instead of a generic save error', async () => {
@@ -113,6 +228,48 @@ describe('tariff refusal UI', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Отметить выполнение' }));
     fireEvent.click(await screen.findByRole('button', { name: /Самочувствие 4 из 5/ }));
+    await waitFor(() => expect(toastMocks.error).toHaveBeenCalledWith(REFUSAL));
+  });
+
+  it('shows the backend refusal when creating the warmup completion itself', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ ok: false, message: REFUSAL }), {
+        status: 403,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    render(
+      <PatientContentPracticeComplete
+        contentPageId="22222222-2222-4222-8222-222222222222"
+        contentPath="/app/patient/content/warmup"
+        practiceSource="daily_warmup"
+        guest={false}
+        needsActivation={false}
+        moodIconOptions={moodOptions}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Отметить выполнение' }));
+    await waitFor(() => expect(toastMocks.error).toHaveBeenCalledWith(REFUSAL));
+  });
+
+  it('shows the backend refusal when warmup video tracking is blocked', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ ok: false, message: REFUSAL }), {
+        status: 403,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    render(
+      <PatientDailyWarmupVideoEngagement
+        mode="hosted"
+        contentPageId="22222222-2222-4222-8222-222222222222"
+        iframeSrc="https://video.example.test/embed"
+        title="Разминка"
+      />,
+    );
+
+    fireEvent.pointerDown(screen.getByTitle('Разминка').parentElement!);
     await waitFor(() => expect(toastMocks.error).toHaveBeenCalledWith(REFUSAL));
   });
 

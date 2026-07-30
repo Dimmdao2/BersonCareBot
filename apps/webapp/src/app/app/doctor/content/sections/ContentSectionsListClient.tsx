@@ -42,6 +42,7 @@ import {
   isSectionSlugProtectedFromDelete,
 } from '@/modules/content-sections/types';
 import { SectionDeleteDialog } from './SectionDeleteDialog';
+import toast from 'react-hot-toast';
 
 export type SectionListRow = {
   id: string;
@@ -296,8 +297,16 @@ export function ContentSectionsListClient({
       const next = arrayMove(prev, oldIndex, newIndex);
       const orderedSlugs = next.map((p) => p.slug);
       startTransition(async () => {
-        const res = await reorderContentSections(orderedSlugs);
-        if (!res.ok) setItems(previous);
+        try {
+          const res = await reorderContentSections(orderedSlugs);
+          if (!res.ok) {
+            setItems(previous);
+            toast.error(res.error ?? 'Не удалось изменить порядок разделов');
+          }
+        } catch {
+          setItems(previous);
+          toast.error('Не удалось изменить порядок разделов');
+        }
       });
       return next;
     });
@@ -305,18 +314,30 @@ export function ContentSectionsListClient({
 
   const onToggleVisible = useCallback((slug: string, next: boolean) => {
     startVisTransition(async () => {
-      const res = await setSectionVisibility(slug, next);
-      if (res.ok) {
-        setItems((prev) => prev.map((r) => (r.slug === slug ? { ...r, isVisible: next } : r)));
+      try {
+        const res = await setSectionVisibility(slug, next);
+        if (res.ok) {
+          setItems((prev) => prev.map((r) => (r.slug === slug ? { ...r, isVisible: next } : r)));
+        } else {
+          toast.error(res.error ?? 'Не удалось изменить видимость раздела');
+        }
+      } catch {
+        toast.error('Не удалось изменить видимость раздела');
       }
     });
   }, []);
 
   const onToggleRequiresAuth = useCallback((slug: string, next: boolean) => {
     startAuthTransition(async () => {
-      const res = await setSectionRequiresAuth(slug, next);
-      if (res.ok) {
-        setItems((prev) => prev.map((r) => (r.slug === slug ? { ...r, requiresAuth: next } : r)));
+      try {
+        const res = await setSectionRequiresAuth(slug, next);
+        if (res.ok) {
+          setItems((prev) => prev.map((r) => (r.slug === slug ? { ...r, requiresAuth: next } : r)));
+        } else {
+          toast.error(res.error ?? 'Не удалось изменить доступ к разделу');
+        }
+      } catch {
+        toast.error('Не удалось изменить доступ к разделу');
       }
     });
   }, []);

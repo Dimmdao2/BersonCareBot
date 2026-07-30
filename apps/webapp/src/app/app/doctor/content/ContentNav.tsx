@@ -12,6 +12,7 @@ import {
   SYSTEM_PARENT_CODES,
 } from '@/modules/content-sections/types';
 import { setSectionVisibility } from './sections/sectionVisibilityActions';
+import toast from 'react-hot-toast';
 
 // ---------------------------------------------------------------------------
 // Pane key types
@@ -34,6 +35,7 @@ export type ContentNavSectionEntry = {
 export type ContentNavProps = {
   articleSections: ContentNavSectionEntry[];
   patientHomeTodayEnabled: boolean;
+  warmupsEnabled: boolean;
   activePaneKey: ContentNavPaneKey;
   onPaneChange: (key: ContentNavPaneKey) => void;
   /** Count of pages per pane key (warmups|sos|situations|lessons|section:<slug>). */
@@ -153,6 +155,7 @@ type SectionVisState = { slug: string; title: string; isVisible: boolean };
 export function ContentNav({
   articleSections,
   patientHomeTodayEnabled,
+  warmupsEnabled,
   activePaneKey,
   onPaneChange,
   countsByPaneKey = {},
@@ -184,9 +187,11 @@ export function ContentNav({
         const result = await setSectionVisibility(slug, nextIsVisible);
         if (!result.ok) {
           setVisibilityOverrides((prev) => ({ ...prev, [slug]: !nextIsVisible }));
+          toast.error(result.error ?? 'Не удалось изменить видимость раздела');
         }
       } catch {
         setVisibilityOverrides((prev) => ({ ...prev, [slug]: !nextIsVisible }));
+        toast.error('Не удалось изменить видимость раздела');
       }
     });
   }, []);
@@ -210,7 +215,9 @@ export function ContentNav({
         </Link>
       ) : null}
 
-      {SYSTEM_PARENT_CODES.filter((code) => !HIDDEN_SYSTEM_CODES.has(code)).map((code) => (
+      {SYSTEM_PARENT_CODES.filter(
+        (code) => !HIDDEN_SYSTEM_CODES.has(code) && (code !== 'warmups' || warmupsEnabled),
+      ).map((code) => (
         <NavRow
           key={code}
           label={SYSTEM_FOLDER_LABELS[code]}

@@ -28,8 +28,11 @@ export type LoadWarmupPushContextDeps = {
   };
 };
 
-export function createLoadWarmupPushContext(deps: LoadWarmupPushContextDeps) {
-  const loaderDeps: LoadWarmupPushDynamicContextDeps = {
+export function createLoadWarmupPushContext(
+  deps: LoadWarmupPushContextDeps,
+  options: { canMaterializePresentation: (userId: string) => Promise<boolean> },
+) {
+  const readOnlyLoaderDeps: LoadWarmupPushDynamicContextDeps = {
     listRulesByUser: (userId) => deps.reminders.listRulesByUser(userId),
     listPracticeCompletionsInRange: async (userId, start, end) =>
       deps.patientPractice.listByUserInUtcRange(userId, start.toISOString(), end.toISOString()),
@@ -39,15 +42,22 @@ export function createLoadWarmupPushContext(deps: LoadWarmupPushContextDeps) {
     getPatientCalendarIana: (userId) => deps.patientCalendarTimezone.getIanaForUser(userId),
     getLatestDailyWarmupCompletedContentPageId: (userId) =>
       deps.patientPractice.getLatestDailyWarmupCompletedContentPageId(userId),
-    presentationSyncDeps: buildDailyWarmupPresentationSyncDeps({
-      patientHomeBlocks: deps.patientHomeBlocks,
-      contentPages: deps.contentPages,
-      contentSections: deps.contentSections,
-      systemSettings: deps.systemSettings,
-      patientDailyWarmupPresentation: deps.patientDailyWarmupPresentation,
-      patientPractice: deps.patientPractice,
-      patientCalendarTimezone: deps.patientCalendarTimezone,
-    }),
+    getPresentedDailyWarmupContentPageId: (userId) =>
+      deps.patientDailyWarmupPresentation.getPresentedContentPageId(userId),
   };
-  return (platformUserId: string) => loadWarmupPushDynamicContext(platformUserId, loaderDeps);
+  const presentationSyncDeps = buildDailyWarmupPresentationSyncDeps({
+    patientHomeBlocks: deps.patientHomeBlocks,
+    contentPages: deps.contentPages,
+    contentSections: deps.contentSections,
+    systemSettings: deps.systemSettings,
+    patientDailyWarmupPresentation: deps.patientDailyWarmupPresentation,
+    patientPractice: deps.patientPractice,
+    patientCalendarTimezone: deps.patientCalendarTimezone,
+  });
+  return async (platformUserId: string) => {
+    const loaderDeps = (await options.canMaterializePresentation(platformUserId))
+      ? { ...readOnlyLoaderDeps, presentationSyncDeps }
+      : readOnlyLoaderDeps;
+    return loadWarmupPushDynamicContext(platformUserId, loaderDeps);
+  };
 }

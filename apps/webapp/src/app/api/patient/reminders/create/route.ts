@@ -17,6 +17,7 @@ import {
   entitlementMutationRefusalResponse,
   requireEntitlementForMutation,
 } from '@/app-layer/guards/requireEntitlement';
+import { requirePatientWarmupReminderMutation } from '@/app-layer/reminders/patientWarmupReminderMutationGuard';
 
 const LINKED_TYPES = new Set<ReminderLinkedObjectType>([
   'lfk_complex',
@@ -179,6 +180,17 @@ export async function POST(req: Request) {
       }
     }
   }
+
+  const warmupEntitlement = await requirePatientWarmupReminderMutation(
+    deps,
+    userId,
+    {
+      linkedObjectType,
+      linkedObjectId,
+    },
+    'создать напоминание для разминки',
+  );
+  if (!warmupEntitlement.ok) return warmupEntitlement.response;
 
   const res = await deps.reminders.createObjectReminder(userId, {
     linkedObjectType: linkedObjectType as Exclude<ReminderLinkedObjectType, 'custom'>,

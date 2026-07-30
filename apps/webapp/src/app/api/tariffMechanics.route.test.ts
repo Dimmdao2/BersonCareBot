@@ -32,7 +32,15 @@ vi.mock('@/app-layer/guards/requireRole', () => ({
   requirePatientAccessWithPhone: vi.fn(),
   requirePatientApiBusinessAccess: vi.fn(),
 }));
-vi.mock('@/modules/auth/service', () => ({ getCurrentSession: vi.fn() }));
+vi.mock('@/modules/auth/service', () => ({
+  getCurrentSession: vi.fn(),
+  clearDiaryPurgeReauth: vi.fn(),
+}));
+vi.mock('@/app-layer/di/bindAuthModulePorts', () => ({ ensureAuthModulePortsBound: vi.fn() }));
+vi.mock('@/modules/auth/authConfirmRateLimit', () => ({
+  AUTH_CONFIRM_RATE_LIMIT_SEC: 60,
+  checkAuthConfirmRateLimit: vi.fn().mockResolvedValue({ limited: false }),
+}));
 vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
   withDoctorWorkspacePrincipal: vi.fn(
     <T>(_ctx: unknown, _operation: string, fn: () => T): T => fn(),
@@ -79,6 +87,25 @@ import {
 } from '@/app/app/patient/diary/symptoms/actions';
 import { saveContentSection } from '@/app/app/doctor/content/sections/actions';
 import { PatientTabFiles } from '@/app/app/doctor/patients/[userId]/tabs/PatientTabFiles';
+import { PATCH as updateDoctorLfkDiaryComment } from '@/app/api/doctor/clients/[userId]/lfk-complex-exercises/[exerciseRowId]/route';
+import { POST as purgePatientDiary } from '@/app/api/patient/diary/purge/route';
+import { POST as recordWarmupCompletion } from '@/app/api/patient/practice/completion/route';
+import { POST as recordWarmupVideoView } from '@/app/api/patient/daily-warmup/video-viewed/route';
+import {
+  addPatientHomeItem,
+  deletePatientHomeItem,
+  reorderPatientHomeBlocks,
+  reorderPatientHomeItems,
+  retargetPatientHomeItem,
+  togglePatientHomeBlockVisibility,
+  updatePatientHomeItemVisibility,
+} from '@/app/app/settings/patient-home/actions';
+import { POST as createPatientReminder } from '@/app/api/patient/reminders/create/route';
+import {
+  DELETE as deletePatientReminder,
+  PATCH as updatePatientReminder,
+} from '@/app/api/patient/reminders/[id]/route';
+import { updateReminderRule } from '@/app/app/patient/reminders/actions';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
@@ -279,6 +306,218 @@ describe('tariff and platform mutation gates', () => {
           'Невозможно добавить, изменить или удалить запись дневника: этот раздел не входит в ваш тариф. Чтобы выполнить действие, включите этот раздел в тарифе клиники.',
       });
     }
+  });
+
+  it('refuses doctor LFK diary edits and mass diary purge while patient diaries are off', async () => {
+    vi.mocked(buildAppDeps).mockReturnValue({
+      doctorClientsPort: {
+        getClientIdentityForOrganization: vi.fn().mockResolvedValue({ userId: TARGET_ID }),
+      },
+      patientOrganization: {},
+      auth: { confirmPhoneAuth: vi.fn() },
+      diaries: {
+        updateLfkComplexExerciseLocalCommentForUser: vi.fn(),
+        purgeAllDiaryDataForUser: vi.fn(),
+      },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const [doctorResponse, purgeResponse] = await Promise.all([
+      updateDoctorLfkDiaryComment(
+        request('https://app.example.test/api/doctor/clients/' + TARGET_ID + '/lfk', {
+          localComment: 'Новый комментарий',
+        }),
+        {
+          params: Promise.resolve({
+            userId: TARGET_ID,
+            exerciseRowId: '44444444-4444-4444-8444-444444444444',
+          }),
+        },
+      ),
+      purgePatientDiary(
+        request('https://app.example.test/api/patient/diary/purge', {
+          challengeId: 'challenge',
+          code: '1234',
+        }),
+      ),
+    ]);
+
+    for (const [response, action] of [
+      [doctorResponse, 'изменить комментарий в дневнике ЛФК пациента'],
+      [purgeResponse, 'полностью удалить данные дневника'],
+    ] as const) {
+      expect(response.status).toBe(403);
+      await expect(response.json()).resolves.toMatchObject({
+        mechanic: 'patient_diaries',
+        message: `Невозможно ${action}: этот раздел не входит в ваш тариф.`,
+      });
+    }
+  });
+
+  it('refuses patient completion and video-view writes while warmups are off', async () => {
+    vi.mocked(buildAppDeps).mockReturnValue({
+      patientOrganization: {},
+      patientPractice: { record: vi.fn() },
+      patientDailyWarmupVideoViews: { insertIfMissing: vi.fn() },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const [completionResponse, videoResponse] = await Promise.all([
+      recordWarmupCompletion(
+        request('https://app.example.test/api/patient/practice/completion', {
+          contentPageId: TARGET_ID,
+          source: 'daily_warmup',
+        }),
+      ),
+      recordWarmupVideoView(
+        request('https://app.example.test/api/patient/daily-warmup/video-viewed', {
+          contentPageId: TARGET_ID,
+        }),
+      ),
+    ]);
+
+    for (const [response, action] of [
+      [completionResponse, 'отметить выполнение разминки'],
+      [videoResponse, 'зафиксировать просмотр разминки'],
+    ] as const) {
+      expect(response.status).toBe(403);
+      await expect(response.json()).resolves.toMatchObject({
+        mechanic: 'warmups',
+        message: `Невозможно ${action}: этот раздел не входит в ваш тариф.`,
+      });
+    }
+  });
+
+  it('refuses every daily-warmup block/item mutation while warmups are off', async () => {
+    const patientHomeBlocks = {
+      setBlockVisibility: vi.fn(),
+      reorderBlocks: vi.fn(),
+      addItem: vi.fn(),
+      getItemById: vi.fn().mockResolvedValue({
+        id: TARGET_ID,
+        blockCode: 'daily_warmup',
+        targetType: 'content_page',
+        targetRef: TARGET_ID,
+      }),
+      updateItem: vi.fn(),
+      deleteItem: vi.fn(),
+      reorderItems: vi.fn(),
+    };
+    vi.mocked(buildAppDeps).mockReturnValue({
+      patientHomeBlocks,
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const cases = [
+      () => togglePatientHomeBlockVisibility('daily_warmup', false),
+      () => reorderPatientHomeBlocks(['daily_warmup', 'situations']),
+      () =>
+        addPatientHomeItem({
+          blockCode: 'daily_warmup',
+          targetType: 'content_page',
+          targetRef: TARGET_ID,
+        }),
+      () => updatePatientHomeItemVisibility(TARGET_ID, false),
+      () => deletePatientHomeItem(TARGET_ID),
+      () => reorderPatientHomeItems('daily_warmup', [TARGET_ID]),
+      () =>
+        retargetPatientHomeItem({
+          itemId: TARGET_ID,
+          targetType: 'content_page',
+          targetRef: '44444444-4444-4444-8444-444444444444',
+        }),
+    ];
+
+    for (const invoke of cases) {
+      vi.mocked(requireEntitlementForMutationAction)
+        .mockReset()
+        .mockResolvedValueOnce({ ok: true })
+        .mockResolvedValueOnce({ ok: true })
+        .mockResolvedValueOnce({
+          ok: false,
+          reason: 'entitlement_required',
+          mechanic: 'warmups',
+        } as never);
+      await expect(invoke()).resolves.toMatchObject({
+        ok: false,
+        error: expect.stringContaining('этот раздел не входит в ваш тариф'),
+      });
+    }
+
+    expect(patientHomeBlocks.setBlockVisibility).not.toHaveBeenCalled();
+    expect(patientHomeBlocks.reorderBlocks).not.toHaveBeenCalled();
+    expect(patientHomeBlocks.addItem).not.toHaveBeenCalled();
+    expect(patientHomeBlocks.updateItem).not.toHaveBeenCalled();
+    expect(patientHomeBlocks.deleteItem).not.toHaveBeenCalled();
+    expect(patientHomeBlocks.reorderItems).not.toHaveBeenCalled();
+  });
+
+  it('refuses every patient warmup-reminder write while warmups are off', async () => {
+    const reminders = {
+      listRulesByUser: vi.fn().mockResolvedValue([
+        {
+          id: TARGET_ID,
+          linkedObjectType: 'content_section',
+          linkedObjectId: 'daily-warmups',
+        },
+      ]),
+      createObjectReminder: vi.fn(),
+      updateRule: vi.fn(),
+      deleteReminder: vi.fn(),
+    };
+    vi.mocked(buildAppDeps).mockReturnValue({
+      patientOrganization: {},
+      reminders,
+      contentSections: { getBySlug: vi.fn().mockResolvedValue(null) },
+      contentPages: { getById: vi.fn().mockResolvedValue(null) },
+      patientHomeBlocks: {},
+      systemSettings: {},
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const createResponse = await createPatientReminder(
+      request('https://app.example.test/api/patient/reminders/create', {
+        linkedObjectType: 'content_section',
+        linkedObjectId: 'daily-warmups',
+        schedule: {
+          scheduleType: 'interval_window',
+          intervalMinutes: 60,
+          windowStartMinute: 540,
+          windowEndMinute: 600,
+          daysMask: '1111111',
+        },
+      }),
+    );
+    const updateResponse = await updatePatientReminder(
+      request('https://app.example.test/api/patient/reminders/' + TARGET_ID, {
+        enabled: false,
+      }),
+      { params: Promise.resolve({ id: TARGET_ID }) },
+    );
+    const deleteResponse = await deletePatientReminder(
+      new Request('https://app.example.test/api/patient/reminders/' + TARGET_ID, {
+        method: 'DELETE',
+      }),
+      { params: Promise.resolve({ id: TARGET_ID }) },
+    );
+    const actionResult = await updateReminderRule({
+      ruleId: TARGET_ID,
+      intervalMinutes: 60,
+      windowStartMinute: 540,
+      windowEndMinute: 600,
+      daysMask: '1111111',
+    });
+
+    for (const response of [createResponse, updateResponse, deleteResponse]) {
+      expect(response.status).toBe(403);
+      await expect(response.json()).resolves.toMatchObject({
+        mechanic: 'warmups',
+        message: expect.stringContaining('этот раздел не входит в ваш тариф'),
+      });
+    }
+    expect(actionResult).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('этот раздел не входит в ваш тариф'),
+    });
+    expect(reminders.createObjectReminder).not.toHaveBeenCalled();
+    expect(reminders.updateRule).not.toHaveBeenCalled();
+    expect(reminders.deleteReminder).not.toHaveBeenCalled();
   });
 
   it.each([

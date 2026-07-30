@@ -7,6 +7,7 @@ import {
   type PatientContentAdaptiveVideoProps,
 } from './PatientContentAdaptiveVideo';
 import type { MediaPlaybackPayload } from '@/modules/media/playbackPayloadTypes';
+import toast from 'react-hot-toast';
 
 type CatalogPlayerProps = Pick<
   PatientContentAdaptiveVideoProps,
@@ -26,7 +27,9 @@ type Props =
       title: string;
     };
 
-async function postDailyWarmupVideoViewed(contentPageId: string): Promise<boolean> {
+async function postDailyWarmupVideoViewed(
+  contentPageId: string,
+): Promise<{ ok: true } | { ok: false; message: string }> {
   try {
     const res = await fetch('/api/patient/daily-warmup/video-viewed', {
       method: 'POST',
@@ -35,9 +38,12 @@ async function postDailyWarmupVideoViewed(contentPageId: string): Promise<boolea
       body: JSON.stringify({ contentPageId }),
       keepalive: true,
     });
-    return res.ok;
+    const data = (await res.json().catch(() => ({}))) as { message?: string };
+    return res.ok
+      ? { ok: true }
+      : { ok: false, message: data.message ?? 'Не удалось сохранить просмотр разминки' };
   } catch {
-    return false;
+    return { ok: false, message: 'Не удалось сохранить просмотр разминки' };
   }
 }
 
@@ -48,8 +54,13 @@ export function PatientDailyWarmupVideoEngagement(props: Props) {
   const reportOnce = useCallback(() => {
     if (reportedRef.current) return;
     reportedRef.current = true;
-    void postDailyWarmupVideoViewed(props.contentPageId).then((ok) => {
-      if (ok) router.refresh();
+    void postDailyWarmupVideoViewed(props.contentPageId).then((result) => {
+      if (result.ok) {
+        router.refresh();
+        return;
+      }
+      reportedRef.current = false;
+      toast.error(result.message);
     });
   }, [props.contentPageId, router]);
 

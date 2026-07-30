@@ -80,6 +80,7 @@ export function PatientContentPracticeComplete({
       const data = (await res.json().catch(() => ({}))) as {
         ok?: boolean;
         error?: string;
+        message?: string;
         id?: string;
       };
       if (res.status === 401) {
@@ -94,7 +95,7 @@ export function PatientContentPracticeComplete({
       }
       if (!res.ok || !data.ok || !data.id) {
         warmupPostGuardRef.current = false;
-        toast.error('Не удалось сохранить. Попробуйте позже.');
+        toast.error(data.message ?? 'Не удалось сохранить. Попробуйте позже.');
         return;
       }
       setWarmupCompletionId(data.id);
@@ -159,6 +160,7 @@ export function PatientContentPracticeComplete({
       const data = (await res.json().catch(() => ({}))) as {
         ok?: boolean;
         error?: string;
+        message?: string;
       };
       if (res.status === 401) {
         setPickedMoodScore(null);
@@ -172,7 +174,7 @@ export function PatientContentPracticeComplete({
       }
       if (!res.ok || !data.ok) {
         setPickedMoodScore(null);
-        toast.error('Не удалось сохранить. Попробуйте позже.');
+        toast.error(data.message ?? 'Не удалось сохранить. Попробуйте позже.');
         return;
       }
       setSaved(true);

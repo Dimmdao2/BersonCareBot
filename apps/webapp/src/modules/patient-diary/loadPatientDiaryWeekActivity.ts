@@ -236,6 +236,7 @@ export async function loadPatientDiaryWeekActivity(
     weekStartMs: number;
     weekEndMs: number;
     iana: string;
+    materializeMissingSnapshots: boolean;
   },
 ): Promise<PatientDiaryWeekActivityModel> {
   const { userId, weekStartMs, weekEndMs, iana } = params;
@@ -251,7 +252,9 @@ export async function loadPatientDiaryWeekActivity(
   ]);
   const planPick = pickActivePlanInstance(instances);
 
-  await ensurePastDaySnapshots(deps, { userId, iana, weekStart, todayYmd, rules, instances });
+  if (params.materializeMissingSnapshots) {
+    await ensurePastDaySnapshots(deps, { userId, iana, weekStart, todayYmd, rules, instances });
+  }
 
   const firstYmd = weekStart.toISODate()!;
   const lastYmd = weekStart.plus({ days: 6 }).toISODate()!;

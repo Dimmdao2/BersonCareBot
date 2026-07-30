@@ -2,6 +2,7 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { logServerRuntimeError } from '@/infra/logging/serverRuntimeLog';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import {
+  isMechanicIncluded,
   requireEntitlementForMutationAction,
   requireEntitlementForReadAction,
 } from '@/app-layer/guards/requireEntitlement';
@@ -23,6 +24,7 @@ export default async function DoctorContentPage() {
   const patientHomeTodayEnabled = (
     await requireEntitlementForMutationAction(workspace, 'patient_home_today')
   ).ok;
+  const warmupsEnabled = await isMechanicIncluded(workspace, 'warmups');
 
   let pages: Awaited<ReturnType<typeof deps.contentPages.listAll>> = [];
   let sections: Awaited<ReturnType<typeof deps.contentSections.listAll>> = [];
@@ -101,6 +103,7 @@ export default async function DoctorContentPage() {
       <ContentHubShell
         sections={hubSections}
         patientHomeTodayEnabled={patientHomeTodayEnabled}
+        warmupsEnabled={warmupsEnabled}
         fullSections={sections}
         pagesBySectionSlug={pagesBySectionSlug}
         ratingsById={ratingsById}

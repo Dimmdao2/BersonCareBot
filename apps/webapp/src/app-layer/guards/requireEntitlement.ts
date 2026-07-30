@@ -72,6 +72,14 @@ export async function assertMechanicEnabled(
   return isMechanicEnabled(buildAppDeps().orgEntitlements, organizationId, mechanic);
 }
 
+/** UI discovery adapter: hides an entry only when the mechanic itself is absent, not in read-only recovery. */
+export async function isMechanicIncluded(
+  ctx: EntitlementContext,
+  mechanic: OrgMechanic,
+): Promise<boolean> {
+  return assertMechanicEnabled(ctx.organizationId, mechanic);
+}
+
 /** Read-only API adapter. Lifecycle recovery reads remain available. */
 export async function requireEntitlementForRead(
   ctx: EntitlementContext,

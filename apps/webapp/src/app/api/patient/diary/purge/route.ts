@@ -12,6 +12,11 @@ import {
 import { clearDiaryPurgeReauth } from '@/modules/auth/service';
 import { normalizePhone } from '@/modules/auth/phoneNormalize';
 import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
+import { resolvePatientEnrollmentOrganizationId } from '@/app/api/booking/bookingTenant';
+import {
+  entitlementMutationRefusalResponse,
+  requireEntitlementForMutation,
+} from '@/app-layer/guards/requireEntitlement';
 
 // SECURITY: PIN re-auth temporarily disabled with patient profile PIN UI removal (2026-05-10).
 // Destructive purge is protected by single-factor OTP only (SMS challenge).
@@ -52,6 +57,21 @@ export async function POST(request: Request) {
   }
 
   const deps = buildAppDeps();
+  const tenant = await resolvePatientEnrollmentOrganizationId(
+    { patientOrganization: deps.patientOrganization },
+    session.user.userId,
+  );
+  if (!tenant.ok) return tenant.response;
+  const entitlement = await requireEntitlementForMutation(
+    { organizationId: tenant.organizationId },
+    'patient_diaries',
+  );
+  if (!entitlement.ok) {
+    return entitlementMutationRefusalResponse(
+      'patient_diaries',
+      'полностью удалить данные дневника',
+    );
+  }
   const result = await deps.auth.confirmPhoneAuth(parsed.data.challengeId, parsed.data.code);
 
   if (!result.ok) {

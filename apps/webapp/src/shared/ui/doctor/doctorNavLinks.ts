@@ -36,6 +36,7 @@ export type DoctorMenuLinkItem = {
   accessTier?: DoctorMenuAccessTier;
   /** Optional product mechanic layered on top of the clinical workspace capability. */
   requiresCoursesEntitlement?: boolean;
+  requiresPromoEntitlement?: boolean;
 };
 
 export type DoctorMenuAccessTier = 'doctor' | 'staff' | 'clinic_admin' | 'global_admin';
@@ -43,6 +44,7 @@ export type DoctorMenuAccessTier = 'doctor' | 'staff' | 'clinic_admin' | 'global
 export type DoctorMenuAccess = {
   capabilities: readonly LaunchCapability[];
   coursesEnabled?: boolean;
+  promoEnabled?: boolean;
 };
 
 export function getDoctorShellHomeHref(access: DoctorMenuAccess): string {
@@ -61,6 +63,7 @@ export function isDoctorMenuLinkVisible(
   access: DoctorMenuAccess,
 ): boolean {
   if (item.requiresCoursesEntitlement && !access.coursesEnabled) return false;
+  if (item.requiresPromoEntitlement && !access.promoEnabled) return false;
   const tier = item.accessTier ?? 'doctor';
   if (tier === 'doctor') return hasLaunchCapability(access.capabilities, 'clinical.workspace');
   if (tier === 'staff') {
@@ -108,6 +111,7 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
         id: 'treatment-program-promo',
         label: 'Промо-программа',
         href: '/app/doctor/treatment-program-promo',
+        requiresPromoEntitlement: true,
       },
       { id: 'references', label: 'Справочники', href: '/app/doctor/references' },
     ],

@@ -6,7 +6,10 @@ import type { ReactNode } from 'react';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import '../../styles/doctor.css';
-import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
+import {
+  isMechanicIncluded,
+  requireEntitlementForReadAction,
+} from '@/app-layer/guards/requireEntitlement';
 import { requireOrganizationWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { getCurrentSession } from '@/modules/auth/service';
 import {
@@ -75,6 +78,7 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
     deps.orgBranding.resolveEffectiveOrgBranding(workspaceAccess.organizationId).catch(() => null),
   ]);
   const coursesEnabled = (await requireEntitlementForReadAction(workspaceAccess, 'courses')).ok;
+  const promoEnabled = await isMechanicIncluded(workspaceAccess, 'promo');
   const shellBrand = {
     displayName: effectiveBranding?.effectiveDisplayName ?? organization?.title ?? 'BersonCare',
     logoUrl: effectiveBranding?.paid.logoUrl ?? null,
@@ -105,6 +109,7 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
       patientLabel={String(patientLabel)}
       workspaceContext={workspaceContext}
       coursesEnabled={coursesEnabled}
+      promoEnabled={promoEnabled}
       brand={shellBrand}
     >
       {children}

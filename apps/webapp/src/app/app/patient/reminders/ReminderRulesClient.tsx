@@ -390,8 +390,8 @@ export function ReminderRulesClient({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled: checked }),
       });
-      const data = (await res.json()) as { ok?: boolean };
-      if (!res.ok || !data.ok) toast.error('Не удалось обновить');
+      const data = (await res.json()) as { ok?: boolean; message?: string };
+      if (!res.ok || !data.ok) toast.error(data.message ?? 'Не удалось обновить');
       else refresh();
     });
   };
@@ -403,9 +403,9 @@ export function ReminderRulesClient({
       const res = await fetch(`/api/patient/reminders/${encodeURIComponent(id)}`, {
         method: 'DELETE',
       });
-      const data = (await res.json()) as { ok?: boolean };
+      const data = (await res.json()) as { ok?: boolean; message?: string };
       if (!res.ok || !data.ok) {
-        toast.error('Не удалось удалить');
+        toast.error(data.message ?? 'Не удалось удалить');
         return;
       }
       setBlockDeleteTarget(null);

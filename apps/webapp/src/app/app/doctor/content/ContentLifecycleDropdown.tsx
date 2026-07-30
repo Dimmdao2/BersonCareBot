@@ -1,8 +1,10 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { useTransition } from 'react';
 import { EllipsisVertical, Eye, EyeOff } from 'lucide-react';
-import { applyContentLifecycleForm } from './lifecycleActions';
+import { applyContentLifecycle } from './lifecycleActions';
+import toast from 'react-hot-toast';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
   DropdownMenu,
@@ -22,43 +24,17 @@ type Page = {
   deletedAt: string | null;
 };
 
-function HiddenLifecycleForm({ id, op }: { id: string; op: string }) {
-  return (
-    <form
-      id={`content-lifecycle-${id}-${op}`}
-      action={applyContentLifecycleForm}
-      className="hidden"
-      aria-hidden
-    >
-      <input type="hidden" name="id" value={id} />
-      <input type="hidden" name="op" value={op} />
-      <Button type="submit" tabIndex={-1} variant="ghost" className="sr-only">
-        submit
-      </Button>
-    </form>
-  );
-}
-
-function submitFormById(formId: string) {
-  const el = document.getElementById(formId);
-  if (el instanceof HTMLFormElement) el.requestSubmit();
-}
-
 function LifecycleMenuItem({
-  formId,
+  onSelect,
   label,
   destructive,
 }: {
-  formId: string;
+  onSelect: () => void;
   label: string;
   destructive?: boolean;
 }) {
   return (
-    <DropdownMenuItem
-      onClick={() => {
-        submitFormById(formId);
-      }}
-    >
+    <DropdownMenuItem onClick={onSelect}>
       <span className={cn(destructive && 'text-destructive')}>{label}</span>
     </DropdownMenuItem>
   );
@@ -67,93 +43,91 @@ function LifecycleMenuItem({
 /** Индикатор «опубликовано» + меню lifecycle (как раньше в таблице). */
 export function ContentLifecycleDropdown({ page }: { page: Page }) {
   const router = useRouter();
+  const [pending, startTransition] = useTransition();
   const deleted = page.deletedAt != null;
   const archived = page.archivedAt != null;
   const published = page.isPublished;
   const id = page.id;
 
+  const apply = (op: string) => {
+    startTransition(async () => {
+      const formData = new FormData();
+      formData.set('id', id);
+      formData.set('op', op);
+      try {
+        const result = await applyContentLifecycle(null, formData);
+        if (!result.ok) {
+          toast.error(result.error ?? 'Не удалось применить действие');
+          return;
+        }
+        router.refresh();
+      } catch {
+        toast.error('Не удалось применить действие');
+      }
+    });
+  };
+
   return (
-    <>
+    <div className="flex shrink-0 items-center gap-1">
       {!deleted ? (
-        <>
-          <HiddenLifecycleForm id={id} op="publish" />
-          <HiddenLifecycleForm id={id} op="unpublish" />
-          <HiddenLifecycleForm id={id} op="archive" />
-          <HiddenLifecycleForm id={id} op="unarchive" />
-          <HiddenLifecycleForm id={id} op="soft_delete" />
-        </>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="size-8 rounded-full border border-border/80"
+          title={published ? 'Снять с публикации' : 'Опубликовать'}
+          aria-label={published ? 'Снять с публикации' : 'Опубликовать'}
+          disabled={pending}
+          onClick={() => apply(published ? 'unpublish' : 'publish')}
+        >
+          {published ? (
+            <Eye className="size-4 text-green-600 dark:text-green-500" aria-hidden />
+          ) : (
+            <EyeOff className="size-4 text-muted-foreground" aria-hidden />
+          )}
+        </Button>
       ) : (
-        <HiddenLifecycleForm id={id} op="restore" />
+        <span
+          className="inline-flex size-8 items-center justify-center rounded-full border border-border/80"
+          title="Удалено"
+        >
+          <EyeOff className="size-4 text-muted-foreground" aria-hidden />
+        </span>
       )}
 
-      <div className="flex shrink-0 items-center gap-1">
-        {!deleted ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-8 rounded-full border border-border/80"
-            title={published ? 'Снять с публикации' : 'Опубликовать'}
-            aria-label={published ? 'Снять с публикации' : 'Опубликовать'}
-            onClick={() =>
-              submitFormById(`content-lifecycle-${id}-${published ? 'unpublish' : 'publish'}`)
-            }
-          >
-            {published ? (
-              <Eye className="size-4 text-green-600 dark:text-green-500" aria-hidden />
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          className="inline-flex size-9 shrink-0 items-center justify-center rounded-md border border-transparent hover:bg-muted"
+          aria-label="Действия"
+        >
+          <EllipsisVertical className="size-4" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-52">
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>Действия</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => router.push(`/app/doctor/content/edit/${id}`)}>
+              Редактировать
+            </DropdownMenuItem>
+            {deleted ? (
+              <LifecycleMenuItem onSelect={() => apply('restore')} label="Восстановить" />
             ) : (
-              <EyeOff className="size-4 text-muted-foreground" aria-hidden />
-            )}
-          </Button>
-        ) : (
-          <span
-            className="inline-flex size-8 items-center justify-center rounded-full border border-border/80"
-            title="Удалено"
-          >
-            <EyeOff className="size-4 text-muted-foreground" aria-hidden />
-          </span>
-        )}
-
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            className="inline-flex size-9 shrink-0 items-center justify-center rounded-md border border-transparent hover:bg-muted"
-            aria-label="Действия"
-          >
-            <EllipsisVertical className="size-4" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="min-w-52">
-            <DropdownMenuGroup>
-              <DropdownMenuLabel>Действия</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => router.push(`/app/doctor/content/edit/${id}`)}>
-                Редактировать
-              </DropdownMenuItem>
-              {deleted ? (
+              <>
+                {archived ? (
+                  <LifecycleMenuItem onSelect={() => apply('unarchive')} label="Из архива" />
+                ) : (
+                  <LifecycleMenuItem onSelect={() => apply('archive')} label="В архив" />
+                )}
                 <LifecycleMenuItem
-                  formId={`content-lifecycle-${id}-restore`}
-                  label="Восстановить"
+                  onSelect={() => apply('soft_delete')}
+                  label="Удалить"
+                  destructive
                 />
-              ) : (
-                <>
-                  {archived ? (
-                    <LifecycleMenuItem
-                      formId={`content-lifecycle-${id}-unarchive`}
-                      label="Из архива"
-                    />
-                  ) : (
-                    <LifecycleMenuItem formId={`content-lifecycle-${id}-archive`} label="В архив" />
-                  )}
-                  <LifecycleMenuItem
-                    formId={`content-lifecycle-${id}-soft_delete`}
-                    label="Удалить"
-                    destructive
-                  />
-                </>
-              )}
-            </DropdownMenuGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-    </>
+              </>
+            )}
+          </DropdownMenuGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   );
 }

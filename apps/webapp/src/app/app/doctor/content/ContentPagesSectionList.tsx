@@ -37,6 +37,7 @@ import { ContentRatingChip, type ContentRatingSummary } from './ContentRatingChi
 import { setContentPageRequiresAuth } from './contentPageAuthActions';
 import { reorderContentPagesInSection } from './reorderContentPages';
 import { SectionDeleteDialog } from './sections/SectionDeleteDialog';
+import toast from 'react-hot-toast';
 
 export type ContentPageListRow = {
   id: string;
@@ -257,8 +258,16 @@ export function ContentPagesSectionList({
         const next = arrayMove(prev, oldIndex, newIndex);
         const orderedIds = next.map((p) => p.id);
         startTransition(async () => {
-          const res = await reorderContentPagesInSection(sectionSlug, orderedIds);
-          if (!res.ok) setItems(previous);
+          try {
+            const res = await reorderContentPagesInSection(sectionSlug, orderedIds);
+            if (!res.ok) {
+              setItems(previous);
+              toast.error(res.error ?? 'Не удалось изменить порядок материалов');
+            }
+          } catch {
+            setItems(previous);
+            toast.error('Не удалось изменить порядок материалов');
+          }
         });
         return next;
       });
@@ -268,9 +277,15 @@ export function ContentPagesSectionList({
 
   const onToggleRequiresAuth = useCallback((id: string, next: boolean) => {
     startAuthTransition(async () => {
-      const res = await setContentPageRequiresAuth(id, next);
-      if (res.ok) {
-        setItems((prev) => prev.map((p) => (p.id === id ? { ...p, requiresAuth: next } : p)));
+      try {
+        const res = await setContentPageRequiresAuth(id, next);
+        if (res.ok) {
+          setItems((prev) => prev.map((p) => (p.id === id ? { ...p, requiresAuth: next } : p)));
+        } else {
+          toast.error(res.error ?? 'Не удалось изменить доступ к материалу');
+        }
+      } catch {
+        toast.error('Не удалось изменить доступ к материалу');
       }
     });
   }, []);

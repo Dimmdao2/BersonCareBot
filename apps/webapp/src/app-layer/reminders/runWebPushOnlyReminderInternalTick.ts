@@ -8,6 +8,7 @@ import {
   webPushOnlyReminderTickMetaFromResult,
   type WebPushOnlyReminderTickResult,
 } from '@/modules/reminders/webPushOnlyScheduler';
+import { canMaterializePatientMechanicOnRead } from '@/app-layer/entitlements/readMaterializationGate';
 
 /**
  * Cron entry for `POST /api/internal/reminders/web-push-only/tick`.
@@ -20,7 +21,10 @@ export async function runWebPushOnlyReminderInternalTick(options?: {
   const startedAtIso = new Date(reconcileStartedAt).toISOString();
   const deps = buildAppDeps();
   const warmupsSectionSlugs = await loadWarmupsSectionSlugs();
-  const loadWarmupPushContext = createLoadWarmupPushContext(deps);
+  const loadWarmupPushContext = createLoadWarmupPushContext(deps, {
+    canMaterializePresentation: (userId) =>
+      canMaterializePatientMechanicOnRead(deps, userId, 'warmups'),
+  });
 
   const result = await runWebPushOnlyReminderTick(
     {

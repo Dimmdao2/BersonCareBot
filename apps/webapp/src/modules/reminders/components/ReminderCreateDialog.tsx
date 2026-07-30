@@ -76,6 +76,7 @@ export type ReminderCreateDialogProps = {
 type ReminderApiResponse = {
   ok?: boolean;
   error?: string;
+  message?: string;
   syncWarning?: string;
 };
 
@@ -92,6 +93,7 @@ async function parseReminderApiResponse(res: Response): Promise<ReminderApiRespo
 }
 
 function reminderSaveErrorMessage(data: ReminderApiResponse, notFoundCreate: boolean): string {
+  if (data.message?.trim()) return data.message;
   if (data.error === 'not_found') {
     return notFoundCreate
       ? 'Свяжите аккаунт с ботом или подпишитесь на Push-уведомления, чтобы создавать напоминания.'

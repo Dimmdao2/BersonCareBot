@@ -66,6 +66,18 @@ export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
     return t.id;
   }
 
+  async function resolveWellbeingTrackingId(
+    userId: string,
+    materializeMissingTracking: boolean,
+  ): Promise<string | null> {
+    if (materializeMissingTracking) return ensureWellbeingTracking(userId);
+    const trackings = await deps.diaries.listTrackings(userId, false);
+    return (
+      trackings.find((tracking) => tracking.symptomKey === GENERAL_WELLBEING_SYMPTOM_KEY)?.id ??
+      null
+    );
+  }
+
   async function tryWarmupFeelingTrackingId(userId: string): Promise<string | null> {
     const items = await deps.references.listActiveItemsByCategoryCode('symptom_type');
     const item = items.find((i) => i.code === WARMUP_FEELING_SYMPTOM_TYPE_CODE);
@@ -116,8 +128,13 @@ export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
     return entries.reduce((a, b) => (a.recordedAt >= b.recordedAt ? a : b));
   }
 
-  async function getCheckinState(userId: string, tz: string): Promise<PatientMoodCheckinState> {
-    const trackingId = await ensureWellbeingTracking(userId);
+  async function getCheckinState(
+    userId: string,
+    tz: string,
+    options: { materializeMissingTracking: boolean },
+  ): Promise<PatientMoodCheckinState> {
+    const trackingId = await resolveWellbeingTrackingId(userId, options.materializeMissingTracking);
+    if (!trackingId) return { mood: null, lastEntry: null };
     const lastEntry = await getLatestWellbeingEntry(userId, trackingId);
     const moodDate = getMoodDateForTimeZone(tz);
     const todayEntry = await getLatestEntryOnLocalDay(userId, trackingId, tz, moodDate);
@@ -199,7 +216,10 @@ export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
         source: 'webapp',
         notes: null,
       });
-      return { ok: true, ...(await getCheckinState(userId, tz)) };
+      return {
+        ok: true,
+        ...(await getCheckinState(userId, tz, { materializeMissingTracking: true })),
+      };
     }
 
     const ageMs = nowMs - new Date(last.recordedAt).getTime();
@@ -232,7 +252,10 @@ export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
           source: 'webapp',
           notes: null,
         });
-        return { ok: true, ...(await getCheckinState(userId, tz)) };
+        return {
+          ok: true,
+          ...(await getCheckinState(userId, tz, { materializeMissingTracking: true })),
+        };
       }
 
       await deps.diaries.updateSymptomEntry({
@@ -243,7 +266,10 @@ export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
         recordedAt: last.recordedAt,
         notes: last.notes ?? null,
       });
-      return { ok: true, ...(await getCheckinState(userId, tz)) };
+      return {
+        ok: true,
+        ...(await getCheckinState(userId, tz, { materializeMissingTracking: true })),
+      };
     }
 
     await deps.diaries.addEntry({
@@ -255,11 +281,18 @@ export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
       source: 'webapp',
       notes: null,
     });
-    return { ok: true, ...(await getCheckinState(userId, tz)) };
+    return {
+      ok: true,
+      ...(await getCheckinState(userId, tz, { materializeMissingTracking: true })),
+    };
   }
 
-  async function getWeekSparkline(userId: string, tz: string): Promise<PatientMoodWeekSparkline> {
-    const trackingId = await ensureWellbeingTracking(userId);
+  async function getWeekSparkline(
+    userId: string,
+    tz: string,
+    options: { materializeMissingTracking: boolean },
+  ): Promise<PatientMoodWeekSparkline> {
+    const trackingId = await resolveWellbeingTrackingId(userId, options.materializeMissingTracking);
     const today = DateTime.now().setZone(tz);
     const monday = today.minus({ days: today.weekday - 1 }).startOf('day');
     const prevMonday = monday.minus({ weeks: 1 });
@@ -287,12 +320,14 @@ export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
     const queryDayKeys = [...bridgeDayKeys, ...dayKeys];
     const from = localDayRangeUtcIso(tz, queryDayKeys[0]!).from;
     const toExclusive = localDayRangeUtcIso(tz, dayKeys[6]!).toExclusive;
-    const entries = await deps.diaries.listSymptomEntriesForTrackingInRange({
-      userId,
-      trackingId,
-      fromRecordedAt: from,
-      toRecordedAtExclusive: toExclusive,
-    });
+    const entries = trackingId
+      ? await deps.diaries.listSymptomEntriesForTrackingInRange({
+          userId,
+          trackingId,
+          fromRecordedAt: from,
+          toRecordedAtExclusive: toExclusive,
+        })
+      : [];
 
     const dayKeySet = new Set(queryDayKeys);
     const byDay = new Map<string, PatientMoodScore[]>();
@@ -368,9 +403,10 @@ export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
   async function getRecentDaysSparkline(
     userId: string,
     tz: string,
+    options: { materializeMissingTracking: boolean },
     dayCount: number = 3,
   ): Promise<PatientMoodWeekSparkline> {
-    const trackingId = await ensureWellbeingTracking(userId);
+    const trackingId = await resolveWellbeingTrackingId(userId, options.materializeMissingTracking);
     const today = DateTime.now().setZone(tz).startOf('day');
     const windowStart = today.minus({ days: dayCount - 1 });
     const dayKeys: string[] = [];
@@ -393,12 +429,14 @@ export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
     const queryFromDay = anchorDayIso ?? dayKeys[0]!;
     const from = localDayRangeUtcIso(tz, queryFromDay).from;
     const toExclusive = localDayRangeUtcIso(tz, dayKeys[dayKeys.length - 1]!).toExclusive;
-    const entries = await deps.diaries.listSymptomEntriesForTrackingInRange({
-      userId,
-      trackingId,
-      fromRecordedAt: from,
-      toRecordedAtExclusive: toExclusive,
-    });
+    const entries = trackingId
+      ? await deps.diaries.listSymptomEntriesForTrackingInRange({
+          userId,
+          trackingId,
+          fromRecordedAt: from,
+          toRecordedAtExclusive: toExclusive,
+        })
+      : [];
 
     const dayKeySet = new Set([...(anchorDayIso ? [anchorDayIso] : []), ...dayKeys]);
     const byDay = new Map<string, PatientMoodScore[]>();
@@ -475,8 +513,12 @@ export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
     getWeekSparkline,
     getRecentDaysSparkline,
     /** @deprecated Prefer `getCheckinState` (returns `mood` plus `lastEntry`). */
-    async getToday(userId: string, tz: string): Promise<PatientMoodToday | null> {
-      const s = await getCheckinState(userId, tz);
+    async getToday(
+      userId: string,
+      tz: string,
+      options: { materializeMissingTracking: boolean },
+    ): Promise<PatientMoodToday | null> {
+      const s = await getCheckinState(userId, tz, options);
       return s.mood;
     },
   };
