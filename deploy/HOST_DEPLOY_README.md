@@ -684,24 +684,18 @@ journalctl -u bersoncarebot-api-prod.service -p err --since "14 days ago" --no-p
 - integrator dev по факту использует root `.env`, потому что `apps/integrator/src/config/loadEnv.ts` по умолчанию грузит `.env`, а не `.env.dev`
 - dev cutover/backfill/reconcile/gate должен использовать отдельный `/home/dev/dev-projects/BersonCareBot/.env.cutover.dev`
 
-### DEV: code-only, schema migration и refresh не смешиваются
+### DEV: code-only и schema migration
 
 - Обычная UI/code работа использует существующую `bcb_webapp_dev` и не запускает DB restore/reset/refresh.
-- Pending migrations текущей ветки на уже подготовленной locked DEV-БД применяются только через
+- Pending migrations текущей ветки на существующей DEV-БД применяются только через
   `bash deploy/host/migrate-dev.sh --preflight`, затем `bash deploy/host/migrate-dev.sh --execute`. Это
-  недеструктивный exact-DEV путь: короткий audited privilege window, существующий `pnpm migrate`, отдельный C4D
-  concurrent-index artifact, обязательный cleanup, существующий DEV runtime-overlay closure и ledger postchecks.
-  Role-topology preflight разрешает ровно одно исходящее из wall-роли auxiliary membership: каноническое U9A
-  `app_platform_settings → app_staff` только с `ADMIN FALSE, INHERIT FALSE, SET TRUE` и exact безопасными атрибутами
-  auxiliary-роли; любое другое ребро или изменение options остаётся fail-closed.
-- `bash deploy/host/dev-runtime-overlay-rehydrate.sh --execute` — targeted owner/ACL/runtime repair при актуальном
-  migration ledger; dump/restore не выполняется.
-- `bash deploy/host/refresh-dev-from-test.sh --execute` — отдельная явно разрушительная операция замены данных DEV
-  из TEST. Она не вызывается обычным deploy, build, restart или `migrate-dev.sh`.
+  недеструктивный exact-DEV путь: wrapper проверяет локальные `bcb_webapp_dev`/`bcb_webapp_dev_user` и запускает
+  обычный общий `pnpm run migrate` без изменения ролей/ACL или runtime overlays.
+- TEST→DEV refresh и DEV runtime-rehydrate удалены решением владельца 2026-07-30. DEV не копирует TEST и не
+  пересоздаётся для обычной разработки; RLS/security acceptance выполняется отдельно в disposable PostgreSQL и TEST.
 
 Wrapper не останавливает и не запускает процессы. Перед `migrate-dev.sh --execute` оператор должен отдельно
-скоординировать единственный DEV writer/server; нельзя поднимать второй Next server. Ручные `GRANT`/`ALTER ROLE`,
-ad hoc SQL или вызов destructive refresh ради pending migration не являются поддерживаемым обходом.
+скоординировать единственный DEV writer/server; нельзя поднимать второй Next server.
 
 ---
 
@@ -853,20 +847,6 @@ membership/BYPASS через обязательный cleanup; application runti
 - **Merge или force?** → **force.** `test` — одноразовое зеркало dev-ветки, хранить на нём нечего; checkout делается `git checkout -f -B <branch> FETCH_HEAD` (`reset --hard`-семантика). Никаких merge/rebase, расхождение веток не разрешаем — просто перетираем.
 - **Как переносится код (а не `git pull` как на проде):** деплой-репо `/opt/projects/bersoncarebot-test` под `deploy`, а `deploy` **не читает** `/home/dev` (0750) → remote `localrepo` под ним не работает; push в GitHub гейтован. Поэтому ветка переносится **git-bundle через `/tmp`** (world-readable) — полная история, без push, без проблем с правами.
 - **Что делает code-only скрипт:** bundle ветки из dev-репо → force-align тест-checkout → build → strict preflight → stop 5 writers → controlled owner/BYPASS `pnpm migrate` (включая временное membership runtime-owner в `app_owner` для DDL защищённой схемы) → общая roles/helpers/grants/telemetry/base+overlays/FORCE/seed closure → cleanup assertions с обязательным отзывом обоих временных membership и BYPASSRLS → restart locked units → health/nginx/product smoke. Он не получает dump и не выполняет fresh restore; не использовать его после ручного восстановления БД.
-- **TEST→DEV не переносит неизменяемость TEST:** локальный `refresh-dev-from-test.sh --execute` после миграций сначала
-  запускает `dev-runtime-overlay-rehydrate.sh --execute`, а затем `dev-post-refresh-unlock.sh --execute`. Runtime
-  wrapper до reset проверяет раздельные owner `DATABASE_URL` (`bcb_webapp_dev_user`) и C0
-  `DATABASE_URL_NONSTAFF` (`bcb_dev_runtime_nonstaff_login`, отдельный от TEST на общем PG-кластере), затем
-  восстанавливает потерянные `--no-acl`
-  grants/helper ownership, затем в обязательном порядке применяет канонические strict locked-helper base policies
-  (`phase4_enforce_locked_context=1`) до специализированных overlays и доказывает фактический runtime read и
-  patient booking capability; unlock wrapper удаляет
-  только скопированные TEST-only `system_settings_test_lock` trigger/function. Оба пути DEV-only и не открывают
-  TEST/PROD. Если миграционный ledger уже актуален, а разошлись только runtime owner/ACL, rehydrate можно вызвать
-  отдельно без dump/restore/reset; если нужен только lock cleanup — отдельно вызвать unlock. DEV rehydrate не
-  выполняет FORCE RLS cutover: он заменяет устаревшие raw-GUC policies на helper-based predicates для уже
-  настроенного locked runtime. Rehydrate не создаёт и не перенастраивает cluster-global runtime login: его
-  credential/topology заранее provision-ит C0/C2 ops-проход.
 - **🔴 Ограничение отправок — ЖЁСТКО в env, не в коде:** `/opt/env/bersoncarebot/api.test` содержит `DEV_DELIVERY_REDIRECT=1`, `MAX_ENABLED=false`, `SMSC_ENABLED=false` и `DEV_REDIRECT_PASSTHROUGH_{TELEGRAM,PHONES,MAX,EMAILS,WEB_PUSH}`. То есть **какой бы код/ветка ни задеплоилась** — integrator на чокпоинте `applyPreForkDevRedirect` режет/редиректит все отправки реальным клиентам (passthrough только для двух тест-аккаунтов). Деплой нового кода это **не ослабляет**. Подробности топологии/доступов — `docs/ARCHITECTURE/SERVER CONVENTIONS.md` → «Топология серверов» / «Доступы / VPN».
 - **Тест-юниты / порты / env:** `bersoncarebot-{api,worker,scheduler,webapp,media-worker}-test`; API `:3300`, webapp `:6300`; env `/opt/env/bersoncarebot/{api,webapp}.test`; деплой-репо `/opt/projects/bersoncarebot-test` (владелец `deploy`); источник — dev-репо `/home/dev/dev-projects/BersonCareBot`.
 - **Fresh restore TEST-БД:** ручной/plain restore **не поддерживается и запрещён**. Единственный публичный

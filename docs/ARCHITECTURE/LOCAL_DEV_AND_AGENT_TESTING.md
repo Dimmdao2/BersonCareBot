@@ -12,7 +12,7 @@ pnpm install
 cp .env.example .env
 cp apps/webapp/.env.example apps/webapp/.env.dev
 # заполните DATABASE_URL, SESSION_COOKIE_SECRET, INTEGRATOR_* — см. комментарии в файлах
-pnpm run migrate  # только первичный bootstrap; prepared locked DEV — через migrate-dev.sh ниже
+pnpm run migrate  # первичный bootstrap; существующая DEV — через migrate-dev.sh ниже
 ```
 
 | Файл                   | Назначение                                         |
@@ -27,225 +27,31 @@ pnpm run migrate  # только первичный bootstrap; prepared locked D
 
 Агент выбирает среду по задаче:
 
-| Нужно                                                                             | Среда                                                         | Почему                                                                                                                                                                                                                                  |
-| --------------------------------------------------------------------------------- | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Увидеть именно развёрнутый TEST-коммит, TEST-фикстуры и реальные tenant/RLS-gates | `https://test.bersoncare.ru`                                  | Это deploy truth; вход — штатный email/password из защищённого TEST fixture packet                                                                                                                                                      |
-| Быстро менять код, данные и роли, делать повторные скриншоты                      | DEV `http://127.0.0.1:5200`                                   | Hot reload, dev-bypass и свободные изменения `bcb_webapp_dev`                                                                                                                                                                           |
-| Получить в DEV тот же состав данных, что сейчас на TEST                           | Сначала `bash deploy/host/refresh-dev-from-test.sh --execute` | Wrapper пересоздаёт **только** `bcb_webapp_dev` из **только** `bersoncarebot_test`, накатывает миграции текущей ветки, восстанавливает runtime grants/helpers после `--no-acl` restore и удаляет скопированные TEST-only locks настроек |
+| Нужно                                                                             | Среда                       | Почему                                                                             |
+| --------------------------------------------------------------------------------- | --------------------------- | ---------------------------------------------------------------------------------- |
+| Увидеть именно развёрнутый TEST-коммит, TEST-фикстуры и реальные tenant/RLS-gates | `https://test.bersoncare.ru` | Это deploy truth; вход — штатный email/password из защищённого TEST fixture packet |
+| Быстро менять код и данные, делать повторные скриншоты                            | DEV `http://127.0.0.1:5200`  | Hot reload, dev-bypass и свободные изменения `bcb_webapp_dev`                      |
 
-`bcb_webapp_dev` — рабочая песочница: её разрешено пересоздавать, сидировать и менять для разработки/UX.
-Копирование TEST→DEV также разрешено. Ограничение остаётся на внешние эффекты: из DEV нельзя отправлять
+`bcb_webapp_dev` — рабочая песочница: её разрешено сидировать и менять для разработки/UX.
+Ограничение остаётся на внешние эффекты: из DEV нельзя отправлять
 реальные сообщения/SMS, вызывать production endpoints или писать в production S3. PROD-БД wrapper не читает и
 не открывает.
 
-### Обычная работа, миграция схемы и destructive refresh — три разных действия
+### Обычная работа и миграция схемы
 
-| Ситуация                                                              | Действие                                                                                         | Что происходит с данными DEV                                                                                         |
-| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
-| Изменился только код/UI, схема уже актуальна                          | build/restart/dev server; DB-команда не нужна                                                    | Ничего                                                                                                               |
-| В текущей ветке есть pending migrations для уже подготовленной DEV-БД | `bash deploy/host/migrate-dev.sh --preflight`, затем `bash deploy/host/migrate-dev.sh --execute` | Существующие данные сохраняются; применяются только pending migrations, C4D online-index и canonical runtime closure |
-| Нужен новый снимок данных именно из TEST                              | только явно разрешённый `bash deploy/host/refresh-dev-from-test.sh --execute`                    | `bcb_webapp_dev` удаляется и создаётся заново                                                                        |
-| Ledger актуален, разошлись только owner/ACL/runtime overlays          | `bash deploy/host/dev-runtime-overlay-rehydrate.sh --execute`                                    | Прикладные данные не меняются                                                                                        |
+| Ситуация                                                              | Действие                                                                                         | Что происходит с данными DEV                                      |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
+| Изменился только код/UI, схема уже актуальна                          | build/restart/dev server; DB-команда не нужна                                                    | Ничего                                                            |
+| В текущей ветке есть pending migrations для уже подготовленной DEV-БД | `bash deploy/host/migrate-dev.sh --preflight`, затем `bash deploy/host/migrate-dev.sh --execute` | Существующие данные сохраняются; применяются pending migrations   |
 
 `migrate-dev.sh` принимает только exact local `bcb_webapp_dev`/`bcb_webapp_dev_user`, сначала выполняет read-only
-preflight и не читает `/opt/env`, TEST или PROD. На время `pnpm migrate` он открывает тот же короткий
-owner/`app_owner`+BYPASS window, что проверенный TEST code-only deploy, и обязательно отзывает его при успехе и
-ошибке. После миграций отдельно выполняется transaction-free C4D hot-index artifact, затем существующий
-`dev-runtime-overlay-rehydrate.sh`; финал проверяет оба migration ledger и online index. Wrapper не управляет
-процессами: перед `--execute` оператор отдельно координирует единственный DEV server/writer и не поднимает второй
-Next server.
+preflight и не читает `/opt/env`, TEST или PROD. `--execute` запускает обычный общий `pnpm run migrate` без
+изменения ролей/ACL, восстановления runtime overlays или специальных repair-шагов. Wrapper не управляет процессами:
+перед `--execute` оператор отдельно координирует единственный DEV server/writer и не поднимает второй Next server.
 
-Ни code-only работа, ни schema migration не являются основанием для dump/reset/refresh. Не вызывайте
-`refresh-dev-from-test.sh` из deploy/build/restart/migration wrapper и не заменяйте `migrate-dev.sh` ручными
-`GRANT`, `ALTER ROLE`, SQL или standalone `pnpm migrate` на prepared locked DEV.
-
-Перед TEST→DEV refresh остановите локальный webapp/integrator (`pnpm run dev:stop`): target DEV-БД будет удалена.
-TEST при этом только читается через `pg_dump`, TEST-сервисы не перезапускаются.
-
-Если DEV уже был обновлён старой версией wrapper и настройки остались заблокированы, не пересоздавайте базу снова:
-`bash deploy/host/dev-post-refresh-unlock.sh --execute`. Команда fail-closed принимает только канонический локальный
-`DATABASE_URL` для `bcb_webapp_dev` и удаляет только две TEST-only пары trigger/function в `public` и `integrator`.
-Значения TEST-настроек она не меняет; после разблокировки DEV их можно менять штатным API/admin UI.
-
-Если после уже выполненного refresh журнал миграций актуален, но P2-B owner/context или runtime-функции/ACL
-разошлись (например, после `pg_restore --no-owner --no-acl` или повторного `CREATE OR REPLACE FUNCTION`), DEV
-пересоздавать не нужно. Используйте отдельную идемпотентную closure-команду:
-
-```bash
-bash deploy/host/dev-runtime-overlay-rehydrate.sh --execute
-```
-
-Она принимает только два локальных exact `bcb_webapp_dev` URL из канонического `.env.dev`: owner/migrator
-`DATABASE_URL` под `bcb_webapp_dev_user` и отдельный `DATABASE_URL_NONSTAFF` под каноническим C0-login
-`bcb_dev_runtime_nonstaff_login`. Это DEV-only identity: она не может совпадать с TEST runtime на общем PostgreSQL-
-кластере. Owner и runtime не могут совпадать. Команда не читает `/opt/env`, TEST или PROD,
-не делает dump/reset и не меняет прикладные данные. Команда проверяет существующие глобальные роли, переустанавливает
-канонический P2-B protected context и только затем переиспользует тот же упорядоченный runtime-overlay closure, что
-TEST wrapper. Она завершается только после точных owner/ACL-проверок и фактических runtime-проверок public settings
-и patient booking capability. Глобальные роли в DEV не создаются и не перенастраиваются:
-они общие для PostgreSQL-кластера, поэтому отсутствие/небезопасное состояние роли является fail-closed ошибкой.
-До TEST→DEV dump/reset refresh отдельно запускает `--preflight`; отсутствие `DATABASE_URL_NONSTAFF`, alias с owner,
-опасные атрибуты роли или membership в owner/`app_owner` останавливают refresh до разрушения текущей DEV-БД.
-Provisioning/credential для C0 runtime-login выполняются отдельным C0/C2 ops-проходом, не этим repair wrapper.
-
-### Одноразовая подготовка C0 runtime-login в DEV
-
-Это отдельная DB-admin операция для уже существующей `bcb_webapp_dev`, а не часть deploy, миграции, refresh или
-rehydrate. Роли PostgreSQL глобальны для локального кластера и переживают замену DEV-БД из dump, поэтому обычные
-скрипты **никогда** не должны повторно создавать роли, менять их пароль или переписывать `.env.dev`.
-
-1. Из канонического checkout создать/нормализовать только две namespaced DEV-роли. SQL password-free, принимает
-   только точную БД `bcb_webapp_dev` и точного оператора `postgres`-superuser, проверяет канонические
-   `app_staff`/`app_patient` и оставляет каждому login ровно одно SET-only membership:
-
-   ```bash
-   cd /home/dev/dev-projects/BersonCareBot
-   sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d bcb_webapp_dev \
-     < deploy/postgres/dev-c0-runtime-logins.sql
-   ```
-
-2. В интерактивном `psql` установить два разных высокоэнтропийных URL-safe пароля из password manager. Команда
-   `\password` не показывает ввод, не кладёт пароль в shell history/argv и передаёт PostgreSQL уже зашифрованный
-   verifier. Не заменять её `ALTER ROLE ... PASSWORD` через `-c`, pipe, heredoc или переменную shell.
-
-   ```bash
-   sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d bcb_webapp_dev
-   ```
-
-   Затем выполнить внутри `psql` (каждая команда запросит пароль дважды) и выйти:
-
-   ```text
-   \password bcb_dev_runtime_staff_login
-   \password bcb_dev_runtime_nonstaff_login
-   \q
-   ```
-
-3. До изменения env проверить оба пароля отдельными loopback-подключениями. `-W` принимает пароль без echo;
-   `PGPASSFILE=/dev/null` не позволяет незаметно взять другой пароль из локального файла. Обе команды должны
-   вывести только `1`:
-
-   ```bash
-   PGPASSFILE=/dev/null PGCONNECT_TIMEOUT=10 psql -X -W -h 127.0.0.1 -p 5432 \
-     -U bcb_dev_runtime_staff_login -d bcb_webapp_dev -v ON_ERROR_STOP=1 -Atc \
-     "SELECT (current_user = 'bcb_dev_runtime_staff_login' AND current_database() = 'bcb_webapp_dev')::int;"
-   PGPASSFILE=/dev/null PGCONNECT_TIMEOUT=10 psql -X -W -h 127.0.0.1 -p 5432 \
-     -U bcb_dev_runtime_nonstaff_login -d bcb_webapp_dev -v ON_ERROR_STOP=1 -Atc \
-     "SELECT (current_user = 'bcb_dev_runtime_nonstaff_login' AND current_database() = 'bcb_webapp_dev')::int;"
-   ```
-
-4. До открытия игнорируемого `apps/webapp/.env.dev` подтвердить, что это обычный файл, а не symlink, установить
-   `0600` и проверить фактический mode, не печатая содержимое:
-
-   ```bash
-   test -f apps/webapp/.env.dev && test ! -L apps/webapp/.env.dev
-   chmod 0600 apps/webapp/.env.dev
-   test -f apps/webapp/.env.dev && test ! -L apps/webapp/.env.dev
-   test "$(stat -c '%a' apps/webapp/.env.dev)" = 600
-   ```
-
-   Только после PASS открыть файл вручную в редакторе и сохранить точные локальные URL. Редактор должен сохранять
-   файл без replacement, теряющего `0600`. Пароли должны быть URL-safe; реальные значения не копировать в чат,
-   taskdb, планы или логи:
-
-   ```dotenv
-   DATABASE_URL_STAFF=postgresql://bcb_dev_runtime_staff_login:<staff-password>@127.0.0.1:5432/bcb_webapp_dev
-   DATABASE_URL_NONSTAFF=postgresql://bcb_dev_runtime_nonstaff_login:<nonstaff-password>@127.0.0.1:5432/bcb_webapp_dev
-   ```
-
-   Сразу после сохранения, до любого следующего шага, повторить проверку и при необходимости восстановить `0600`.
-   Не использовать `cat`/`grep`/`source`:
-
-   ```bash
-   test -f apps/webapp/.env.dev && test ! -L apps/webapp/.env.dev
-   chmod 0600 apps/webapp/.env.dev
-   test -f apps/webapp/.env.dev && test ! -L apps/webapp/.env.dev
-   test "$(stat -c '%a' apps/webapp/.env.dev)" = 600
-   ```
-
-5. Прогнать статический C2-контракт, затем read-only DEV preflight и только после PASS — существующий #920 closure.
-   Полный C2 env-preflight выполняется отдельно, когда подготовлены все три process env; не подставлять фиктивные
-   operational URL ради зелёного результата.
-
-   ```bash
-   pnpm run check:saas-c2-secrets-deployment-plumbing
-   bash deploy/host/dev-runtime-overlay-rehydrate.sh --preflight
-   bash deploy/host/dev-runtime-overlay-rehydrate.sh --execute
-   ```
-
-До записи URL безопасное восстановление — повторно запустить password-free SQL или исправить пароль через
-интерактивный `\password`. После записи URL сначала вернуть корректный пароль/URL и снова пройти preflight; не
-удалять существующие роли и не выполнять `DROP ROLE`. Если роли уже существовали с неожиданными ownership или
-транзитивными привилегиями, #920 preflight обязан остановить продолжение — это отдельное расследование, не повод
-расширять этот одноразовый bootstrap.
-
-### Обязательный разовый P2-B owner/context handoff после `--no-owner` restore
-
-Это **per-database** шаг, не cluster-global подготовка C0-login выше. Dump может сохранить актуальный migration
-ledger, но потерять owner/ACL-состояние конкретной базы: migration-created объекты `app` становятся объектами
-`bcb_webapp_dev_user`, после `--no-acl` отсутствуют grants глобальным `app_staff`/`app_patient`, а protected principal
-context нужно заново связать с тем же signing secret, который использует DEV runtime.
-
-После каждого явно разрешённого `refresh-dev-from-test.sh --execute` порядок фиксирован:
-
-1. restore только `bcb_webapp_dev` с `--no-owner --no-acl`;
-2. `migrate-dev.sh --execute` как единственный entrypoint выполняет current-branch migrations под
-   `bcb_webapp_dev_user`, C4D online-index artifact и всю обязательную runtime closure;
-3. внутри этой closure `dev-runtime-overlay-rehydrate.sh --execute`: exact DB/owner/runtime roles,
-   `DB_PRINCIPAL_CONTEXT_MODE=locked` и безопасный `DB_PRINCIPAL_SIGNING_SECRET` читаются одним
-   descriptor-pinned snapshot канонического `.env.dev` без `source`; wrapper требует exact безопасные атрибуты
-   и отсутствие исходящих membership у `app_owner`/`app_staff`/`app_patient`, кроме единственного канонического
-   U9A-ребра `app_platform_settings → app_staff` с точными `ADMIN FALSE, INHERIT FALSE, SET TRUE`; сама
-   `app_platform_settings` обязана быть exact `NOLOGIN NOINHERIT NOBYPASSRLS` без иных membership. Входящих
-   membership у `app_owner` быть не может вообще, а входящие `app_staff`/`app_patient` сверяются с полным allowlist
-   текущей общей DEV+TEST topology и точными PostgreSQL 16 options. Проверяется также транзитивная достижимость:
-   неизвестная роль не может получить `app_owner`, `app_staff` или `app_patient` через разрешённый промежуточный
-   login. Неизвестный login, косвенная цепочка или отличный `ADMIN/INHERIT/SET` останавливает repair; wrapper ничего
-   не отзывает и не перенастраивает в cluster-global ролях;
-4. wrapper проверяет `app`, exact existing P2-B tables/functions, migration-created `app.is_staff()` и pgcrypto
-   move precondition; выдаёт `app_owner` только `USAGE` на `app_ext`, передаёт owner только для exact P2-B
-   tables/functions (если они уже существуют), а schema `app` — через канонический P2-B artifact, затем
-   переустанавливает `deploy/postgres/p2-b-protected-principal-context.sql`;
-5. actual signing secret передаётся отдельным stdin `COPY`-потоком внутри одной транзакции и не становится SQL
-   literal/psql variable; до commit доказывается, что `pgcrypto` находится в `app_ext`, exact P2-B
-   schema/tables/functions принадлежат `app_owner`, три protected tables не имеют ACL-grantees кроме owner, восемь
-   protected functions имеют только exact owner/staff/patient ACL и сохранённый secret равен stdin-значению;
-   затем применяются P0.5b и единая shared runtime-overlay chain. После неё wrapper обязательно применяет
-   канонический `deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql` к exact DEV nonstaff base login с
-   явным webapp-only режимом `d3_4_skip_media_worker=1` +
-   `d3_4_skip_bootstrap_role_normalization=1`: TEST media login не требуется, не читается и не меняется, а уже
-   проверенная preflight-ом cluster-global C0 topology не перенастраивается. Любая частичная комбинация этих
-   opt-in флагов запрещена; TEST по умолчанию передаёт ни один из них и сохраняет полную нормализацию роли.
-   Перед первым protected overlay shared-цепочка
-   обязательно запускает `deploy/postgres/runtime-overlay-app-owner-handoff.sql`: он передаёт `app_owner` только
-   три exact уже существующие функции — Web Push public-key accessor и два public-booking resolver — и только если
-   их исходный owner равен owner текущей БД или уже `app_owner`. Это обязательный повторяемый per-restore handoff:
-   `pg_restore --no-owner` делает эти функции объектами owner роли БД, а последующий `CREATE OR REPLACE` под
-   `SET ROLE app_owner` иначе завершится ошибкой. Отсутствующая exact функция допустима: следующий соответствующий
-   overlay создаёт её и явно закрепляет owner `app_owner`. Цепочку останавливает только существующая exact функция с
-   неизвестным owner; schema-wide owner rewrite не выполняется. После D3.4 запускаются actual base-login
-   `release_principal_context`, bootstrap-surface (включая оба public-booking resolver:
-   `resolve_public_booking_organization` и `resolve_public_organization_by_slug`) и nonstaff runtime capability checks;
-6. только после PASS вызывается `dev-post-refresh-unlock.sh --execute` для снятия скопированных TEST-only locks.
-
-Сочетание C0 `NOINHERIT` dual pools с `shadow` не поддерживается: shadow не выполняет `SET ROLE` перед
-`install_signed_context`, а base logins намеренно не имеют прямого `EXECUTE` на install helper. Поэтому этот
-DEV closure fail-closed принимает только `locked`; `shadow` нужно заменить на `locked` в `.env.dev` отдельной
-операторской правкой до preflight, а живой dev-сервер после успешного closure контролируемо перезапустить.
-
-Signing secret парсится как данные из единственного атомарно открытого non-symlink `.env.dev` snapshot,
-принимается только в ограниченной whitespace/backslash-free форме длиной не менее 32 bytes и выпускается parser-ом
-только после read-only guards. Shell его не присваивает и не подставляет в SQL; actual value идёт только в данные
-`COPY FROM STDIN`. Wrapper принудительно выключает даже унаследованный `xtrace`. Secret не должен попадать в SQL
-statement/error/audit logs, argv, shell history, чат, taskdb, документацию или commit.
-
-Handoff запускается только сразу после explicit TEST→DEV refresh или как targeted repair уже существующей DEV-БД с
-актуальным migration ledger и owner/ACL drift. Это **никогда** не часть ordinary code-only deploy, build, restart,
-`pnpm migrate` или UI-правки. Не повторяйте destructive refresh ради repair. Запрещены `REASSIGN OWNED`,
-`DROP OWNED`, P2-B down mode, broad ownership rewrites и hand-written replacement SQL. При FAIL исправляется
-repo-wrapper/canonical artifact, после чего closure повторяется на той же DEV-БД.
-
-Этот exact function-owner handoff не создаёт и не перенастраивает cluster-global роли. Одноразовая ручная подготовка
-C0 runtime-login остаётся отдельным операторским шагом из раздела выше и не повторяется при restore/deploy.
+TEST→DEV destructive refresh и DEV runtime-rehydrate удалены решением владельца 2026-07-30. Обычная разработка
+не копирует TEST, не пересоздаёт DEV и не запускает полный аудит стен. Security/RLS acceptance остаётся в
+disposable PostgreSQL tests и TEST release gates.
 
 **Node:** ≥22 (`nvm use` по `.nvmrc`).
 
@@ -624,9 +430,8 @@ bash deploy/host/migrate-dev.sh --execute
 # при необходимости обновить docs/ARCHITECTURE/DB_STRUCTURE.md
 ```
 
-Для prepared locked DEV используйте wrapper выше, а не destructive refresh. На локальной одноразовой БД без
-locked runtime contract допустимость прямого `pnpm run migrate` определяется отдельным setup этой БД; это не
-операционный путь для канонической `bcb_webapp_dev` на общем dev-хосте.
+Для канонической `bcb_webapp_dev` используйте wrapper выше: он проверяет точную локальную БД и запускает общие
+pending migrations без reset/restore.
 
 ---
 

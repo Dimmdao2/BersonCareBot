@@ -574,101 +574,14 @@ acceptance.
 
 ## DEV/disposable dormant wrapper
 
-### Existing DEV database runtime-overlay recovery
+### Current DEV migration policy
 
-`bcb_webapp_dev` is not a TEST acceptance target, but a TEST→DEV `pg_restore --no-acl` has the same runtime-overlay
-loss mode as a fresh TEST restore. `deploy/host/refresh-dev-from-test.sh --execute` therefore delegates
-current-branch migrations and the DEV runtime closure to `deploy/host/migrate-dev.sh --execute` before removing
-copied TEST settings locks. The migration wrapper then runs the DEV-only
-`deploy/host/dev-runtime-overlay-rehydrate.sh --execute`. Both TEST and DEV call the single ordered implementation in
-`deploy/host/runtime-overlay-rehydrate-lib.sh`; a second list of overlay SQL is forbidden.
-
-The DEV rehydrate wrapper is not a restore or deploy command. It accepts only the exact local owner/migrator
-`DATABASE_URL` (`bcb_webapp_dev` / `bcb_webapp_dev_user`) and a distinct exact local C0 base-runtime
-`DATABASE_URL_NONSTAFF` (`bcb_webapp_dev` / `bcb_dev_runtime_nonstaff_login`), both parsed as data from the canonical
-`.env.dev`. It sanitizes PostgreSQL environment input, never reads `/opt/env`, and never opens TEST or PROD. The
-DEV runtime identity is environment-namespaced and must not alias a TEST login on the shared PostgreSQL cluster. The
-refresh wrapper calls `migrate-dev.sh --preflight` before dump/reset. That entrypoint includes the read-only runtime
-overlay preflight, which rejects owner/runtime aliasing,
-`SUPERUSER`, `CREATEDB`, `CREATEROLE`, `REPLICATION`, `BYPASSRLS`, `INHERIT`, owner/`app_owner` membership, any
-unexpected membership beyond the exact SET-only `app_patient` edge, and protected application-object ownership.
-Because `app_owner`, `app_staff`, `app_patient`, and the C0 login are cluster-global, DEV only validates their
-canonical safe state; it does not create, rotate, or rewire them. C0/C2 ops provisioning must happen separately.
-
-For every DEV restore performed with `--no-owner --no-acl`, the mandatory fail-closed order is:
-
-1. current-branch migrations;
-2. exact P2-B owner/context handoff by `dev-runtime-overlay-rehydrate.sh --execute`;
-3. per-database P0.5b grants;
-4. canonical strict locked-helper base policies from
-   `deploy/postgres/phase4-locked-helper-rls-policies.sql`, passed
-   `phase4_enforce_locked_context=1` after P0.5b and before every specialized overlay; this DEV recovery does not run
-   `deploy/postgres/phase4-force-rls-cutover.sql` and does not otherwise enable FORCE RLS;
-5. the single shared runtime-overlay chain, then the canonical D3.4 bootstrap/base-login closure in
-   explicit DEV webapp-only/validate-only-C0 mode (no TEST media runtime role and no cluster-global role rewiring);
-6. exact owner/ACL, actual base-login release, bootstrap-surface and nonstaff capability postchecks;
-7. copied TEST-only settings unlock.
-
-The handoff opens the canonical non-symlink `.env.dev` once through a descriptor-pinned snapshot and parses
-`DB_PRINCIPAL_CONTEXT_MODE` and `DB_PRINCIPAL_SIGNING_SECRET` as data from that same snapshot. Mode must be `locked`:
-the exact C0 dual pools are `NOINHERIT`, while shadow does not `SET ROLE` before installing signed context and the
-base logins intentionally cannot execute the install helper directly. The secret must be at least 32 bytes and safe
-for `COPY FROM STDIN`. The env is never sourced, inherited
-`xtrace` is disabled before reads, the shell never stores/expands the secret, and the actual value never becomes a
-SQL literal, psql variable, argv or output. Before any handoff write, the wrapper proves exact database/role topology,
-exact safe attributes and no outgoing membership for `app_owner`/`app_staff`/`app_patient`, `app` schema and migration-created
-`app.is_staff()` ownership by either the exact DEV migrator or `app_owner`, and absence of conflicting signatures for
-the canonical `pgcrypto` move to `app_ext`. It grants only `USAGE` on `app_ext` to `app_owner`, changes ownership only
-for the exact existing P2-B tables/functions (including the `app.is_staff()` prerequisite), and streams the existing
-`deploy/postgres/p2-b-protected-principal-context.sql` through the hardened canonical-file reader. That artifact owns
-the exact `app` schema handoff and protected-context creation. Ordinary overlays remain byte-for-byte streams. Only
-the E1 callback opts into recursive `\ir` expansion: each include is resolved relative to its including file, opened
-as a descriptor-pinned canonical non-symlink `.sql` file inside the explicit repository root, and rejected on escape,
-malformed path, FIFO, symlink or cycle before sudo psql receives the expanded stdin. Postchecks prove `pgcrypto` is
-in `app_ext`, the exact P2-B schema/tables/functions belong to `app_owner`, the three protected tables have no ACL
-grantee other than owner,
-the eight protected functions have only exact owner/staff/patient ACL, and the stored secret matches the private
-stdin `COPY` value before the atomic transaction commits and later overlays run.
-
-The same preflight also checks the reverse cluster-global membership direction: `app_owner` must have no incoming
-member at all, and every incoming `app_staff`/`app_patient` edge must match the explicit DEV topology plus the
-optional, separately managed TEST topology, including exact PostgreSQL 16 `ADMIN`/`INHERIT`/`SET` options and safe
-login attributes. Transitive membership is checked too: no unlisted role may reach `app_owner` or either wall through
-an allowed intermediate login. An unknown member, indirect chain or option drift is a fail-closed incident; DEV
-recovery validates it but never revokes, grants or otherwise repairs cluster-global membership.
-
-The wrapper then reapplies per-database P0.5b grants, applies the canonical strict locked-helper base policies from
-`deploy/postgres/phase4-locked-helper-rls-policies.sql` with `phase4_enforce_locked_context=1`, and only then runs the
-shared specialized helper/E1 closure, followed by the existing
-`deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql`. This DEV recovery does not run
-`deploy/postgres/phase4-force-rls-cutover.sql` and does not otherwise enable FORCE RLS. DEV passes
-`d3_4_skip_media_worker=1` and `d3_4_skip_bootstrap_role_normalization=1`, so that artifact composes the reviewed
-per-database webapp bootstrap ACL without requiring, reading or mutating a TEST media login and without changing the
-cluster-global C0 role already proven exact by DEV preflight. Partial opt-in combinations fail closed. TEST passes
-neither flag and keeps its existing media composition plus bootstrap role normalization unchanged. The wrapper
-fails unless the targeted functions have exact `app_owner` ownership, closed ACLs, the separate DEV base login can
-actually release protected context, has the required bootstrap surface, can read through the public runtime accessor,
-and an actual `SET LOCAL ROLE app_patient` call can execute the patient booking capability. An
-already prepared DEV database with only owner/ACL drift must use this command directly; recreating it from a dump is
-unnecessary. `REASSIGN OWNED`, `DROP OWNED`, P2-B down mode, broad ownership surgery and a second SQL/overlay list are
-forbidden recovery paths.
-
-When that already prepared DEV database has pending current-branch migrations, the supported non-destructive
-entrypoint is `bash deploy/host/migrate-dev.sh --preflight`, then `bash deploy/host/migrate-dev.sh --execute`. It
-reuses the TEST privilege-window invariants without adding a second SQL chain: exact local owner/database guards,
-temporary `app_owner` membership plus BYPASS only around the existing ordered `pnpm migrate`, mandatory cleanup,
-the standalone C4D concurrent-index artifact, this existing DEV rehydrate wrapper and both migration-ledger
-postchecks. It never calls dump/restore/reset/refresh and is not an ordinary code-only deploy hook.
-
-Within that one shared list, `runtime-overlay-app-owner-handoff.sql` runs immediately before the protected overlays.
-It is the only repeatable repair for pre-existing overlay functions restored under the database owner; the separate
-cluster-global C0 login/password bootstrap remains the documented one-time manual operator action and is never folded
-into restore, deploy or rehydrate.
-
-This sequence is wired only into explicit destructive `refresh-dev-from-test.sh --execute`. Ordinary code-only
-deploys, builds, restarts, UI work and standalone `pnpm migrate` must never invoke refresh, dump/restore, P2-B
-rehydrate or unlock automatically. A failed post-restore handoff is repaired on the same DEV database by fixing the
-repo wrapper/artifact and rerunning rehydrate; it is not a reason for another destructive refresh.
+Owner decision 2026-07-30 supersedes the former DEV restore/rehydrate procedure: TEST→DEV refresh,
+`dev-runtime-overlay-rehydrate` and recreation of `bcb_webapp_dev` are not supported development steps.
+Pending shared migrations are applied to the existing DEV database through
+`bash deploy/host/migrate-dev.sh --preflight`, then `bash deploy/host/migrate-dev.sh --execute`. This wrapper
+validates exact local `bcb_webapp_dev`/`bcb_webapp_dev_user` and runs the ordinary repository migration chain; it
+does not copy TEST, restore a dump, change roles/ACL or test RLS walls.
 
 The DEV/disposable rehearsal path is now repo-tracked and separate from TEST services:
 

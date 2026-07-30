@@ -32,10 +32,11 @@ alwaysApply: true
 - `INTEGRATOR_API_URL` в dev обязан указывать на локальный `127.0.0.1:4200`, не на прод.
 
 ## 3. Dev-БД — изменяемая рабочая песочница
-- `bcb_webapp_dev` разрешено пересоздавать, сидировать и произвольно менять для разработки, UX и скриншотов.
-- Текущую TEST-БД разрешено копировать в DEV только каноническим wrapper:
-  `bash deploy/host/refresh-dev-from-test.sh --execute`. Он обязан читать ровно `bersoncarebot_test`, писать
-  ровно `bcb_webapp_dev` и не открывать PROD.
+- `bcb_webapp_dev` разрешено сидировать и произвольно менять для разработки, UX и скриншотов.
+- Pending migrations применяются к существующей DEV-БД только через
+  `bash deploy/host/migrate-dev.sh --preflight`, затем `bash deploy/host/migrate-dev.sh --execute`.
+- TEST→DEV destructive refresh удалён решением владельца 2026-07-30. Обычная разработка не копирует TEST
+  и не пересоздаёт DEV.
 - Данные из DEV можно использовать внутри команды агентов для разработки и UX-аудита. Не коммитить DB dumps,
   cookie jars и runtime exports. Запрет реальной доставки из §2 сохраняется независимо от состава DEV-БД.
 

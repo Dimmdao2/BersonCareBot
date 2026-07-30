@@ -309,7 +309,7 @@ DEV идёт из репо (`pnpm dev` → webapp `:5200` + integrator `:4200`, 
    В dev: `NODE_ENV=development`, send-креды пустые, `MAX_ENABLED=false` / `SMSC_ENABLED=false`.
    Нашёл PROD-креды на `151.x` — инцидент: сообщить владельцу, не использовать и не печатать.
 2. **Dev не шлёт реально.** В `development` доставка = no-op/мок. Не делать действий, способных отправить реальное сообщение/SMS в Telegram / SMSC / MAX или записать в реальный S3 из dev (тестовые записи, рассылки, ретраи). `INTEGRATOR_API_URL` в dev — только локальный `127.0.0.1:4200`.
-3. **Dev-БД = изменяемая песочница.** `bcb_webapp_dev` разрешено пересоздавать, сидировать и менять для разработки/UX. TEST→DEV разрешён через `bash deploy/host/refresh-dev-from-test.sh --execute` (ровно `bersoncarebot_test` → `bcb_webapp_dev`, PROD не открывается). Не коммитить dumps/cookie jars/runtime exports; запрет реальной доставки из dev сохраняется.
+3. **Dev-БД = изменяемая песочница.** `bcb_webapp_dev` разрешено сидировать и менять для разработки/UX. Текущие миграции применяются недеструктивно через `bash deploy/host/migrate-dev.sh --preflight`, затем `bash deploy/host/migrate-dev.sh --execute`. TEST→DEV destructive refresh удалён решением владельца 2026-07-30: обычной разработке не нужно копировать TEST или пересоздавать DEV. Не коммитить dumps/cookie jars/runtime exports; запрет реальной доставки из dev сохраняется.
 4. **Прод не трогать из dev.** Не подключаться к `135.x`, PROD-БД, PROD-сервисам/вебхукам и не использовать
    локальные остатки `*.prod`. PROD-операция требует отдельного явного owner-запроса с указанием PROD и проверки
    target-host = `135.106.162.170` по SERVER CONVENTIONS (+ раздел
