@@ -75,9 +75,8 @@ DEV_DATABASE_URL="$(node "$DEV_ENV_PARSER" "$DEV_ENV")" ||
 identity="$(
   env -i \
     PATH="$SANITIZED_PATH" \
-    PGDATABASE="$DEV_DATABASE_URL" \
     PGCONNECT_TIMEOUT=10 \
-    psql -X -v ON_ERROR_STOP=1 -Atqc \
+    psql "$DEV_DATABASE_URL" -X -v ON_ERROR_STOP=1 -Atqc \
       "SELECT current_user || '|' || current_database() || '|' ||
         pg_catalog.pg_get_userbyid(datdba)
        FROM pg_database
@@ -102,7 +101,6 @@ fi
     DATABASE_URL="$DEV_DATABASE_URL" \
     API_ENV_FILE="$SAFE_MIGRATION_ENV" \
     WEBAPP_ENV_FILE="$SAFE_MIGRATION_ENV" \
-    PGDATABASE="$DEV_DATABASE_URL" \
     PGCONNECT_TIMEOUT=10 \
     pnpm run migrate
 )

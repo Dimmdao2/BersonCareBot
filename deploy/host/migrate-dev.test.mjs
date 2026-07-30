@@ -43,12 +43,13 @@ test('DEV env parser CLI rejects symlinks and does not print a connection URL on
   assert.doesNotMatch(result.stderr, /postgresql:/u);
 });
 
-test('migrate-dev runs only ordinary migrations against the exact existing DEV database', () => {
+test('migrate-dev passes the validated URL as the psql connection target', () => {
   const source = readFileSync(migratePath, 'utf8');
   assert.match(source, /TARGET_DB="bcb_webapp_dev"/u);
   assert.match(source, /TARGET_ROLE="bcb_webapp_dev_user"/u);
   assert.match(source, /pnpm run migrate/u);
-  assert.match(source, /PGDATABASE="\$DEV_DATABASE_URL"/u);
+  assert.match(source, /psql "\$DEV_DATABASE_URL" -X -v ON_ERROR_STOP=1 -Atqc/u);
+  assert.doesNotMatch(source, /PGDATABASE="\$DEV_DATABASE_URL"/u);
   assert.match(source, /current_user \|\| '\|' \|\| current_database\(\)/u);
   assert.doesNotMatch(
     source,
