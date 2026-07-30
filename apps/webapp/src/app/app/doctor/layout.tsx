@@ -6,7 +6,10 @@ import type { ReactNode } from 'react';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import '../../styles/doctor.css';
-import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
+import {
+  entitlementGraceWarningMessage,
+  getMechanicSurfaceVisibility,
+} from '@/app-layer/guards/requireEntitlement';
 import { requireOrganizationWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { getCurrentSession } from '@/modules/auth/service';
 import {
@@ -74,7 +77,20 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
     // A resolution failure degrades to platform visuals below rather than 500ing the whole shell.
     deps.orgBranding.resolveEffectiveOrgBranding(workspaceAccess.organizationId).catch(() => null),
   ]);
-  const coursesEnabled = (await requireEntitlementForReadAction(workspaceAccess, 'courses')).ok;
+  const [coursesVisibility, promoVisibility] = await Promise.all([
+    getMechanicSurfaceVisibility(workspaceAccess, 'courses'),
+    getMechanicSurfaceVisibility(workspaceAccess, 'promo'),
+  ]);
+  const coursesEnabled = coursesVisibility.specialistNavigation;
+  const promoEnabled = promoVisibility.specialistNavigation;
+  const accessWarnings = [
+    coursesVisibility.warning
+      ? entitlementGraceWarningMessage('courses', coursesVisibility.warning)
+      : null,
+    promoVisibility.warning
+      ? entitlementGraceWarningMessage('promo', promoVisibility.warning)
+      : null,
+  ].filter((warning): warning is string => warning !== null);
   const shellBrand = {
     displayName: effectiveBranding?.effectiveDisplayName ?? organization?.title ?? 'BersonCare',
     logoUrl: effectiveBranding?.paid.logoUrl ?? null,
@@ -105,8 +121,19 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
       patientLabel={String(patientLabel)}
       workspaceContext={workspaceContext}
       coursesEnabled={coursesEnabled}
+      promoEnabled={promoEnabled}
       brand={shellBrand}
     >
+      {accessWarnings.length > 0 ? (
+        <div
+          className="m-3 space-y-1 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+          role="alert"
+        >
+          {accessWarnings.map((warning) => (
+            <p key={warning}>{warning}</p>
+          ))}
+        </div>
+      ) : null}
       {children}
     </DoctorWorkspaceShell>
   );

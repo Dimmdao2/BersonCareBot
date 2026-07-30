@@ -139,7 +139,6 @@ export async function buildMaxLinks(
       webappEntryUrl: baseWebappUrl,
       webappHomeUrl: `${baseWebappUrl}&next=${enc('/app/patient')}`,
       webappRemindersUrl: `${baseWebappUrl}&next=${enc('/app/patient/reminders')}`,
-      webappDiaryUrl: `${baseWebappUrl}&next=${enc('/app/patient/diary?tab=symptoms')}`,
       webappCabinetUrl: `${baseWebappUrl}&next=${enc('/app/patient/cabinet')}`,
       webappAddressUrl: `${baseWebappUrl}&next=${enc('/app/patient/address')}`,
       bookingUrl: `${baseWebappUrl}&next=${enc('/app/patient/cabinet')}`,

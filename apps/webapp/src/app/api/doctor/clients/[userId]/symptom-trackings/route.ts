@@ -5,6 +5,10 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import {
+  entitlementMutationRefusalResponse,
+  requireEntitlementForMutation,
+} from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { logger, serializeError } from '@/infra/logging/logger';
 
@@ -21,6 +25,13 @@ const postBodySchema = z.object({
 export async function POST(request: Request, context: { params: Promise<{ userId: string }> }) {
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
+  const entitlement = await requireEntitlementForMutation(gate.ctx, 'patient_diaries');
+  if (!entitlement.ok) {
+    return entitlementMutationRefusalResponse(
+      'patient_diaries',
+      'создать отслеживание в дневнике пациента',
+    );
+  }
 
   const { userId } = await context.params;
   if (!z.string().uuid().safeParse(userId).success) {

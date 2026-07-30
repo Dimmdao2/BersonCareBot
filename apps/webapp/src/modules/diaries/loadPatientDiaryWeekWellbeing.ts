@@ -1,7 +1,7 @@
 import { DateTime } from 'luxon';
 import { resolveCalendarDayIanaForPatient } from '@/modules/system-settings/calendarIana';
 import type { ReferencesPort } from '@/modules/references/ports';
-import type { SymptomEntry } from '@/modules/diaries/types';
+import type { SymptomEntry, SymptomTracking } from '@/modules/diaries/types';
 import {
   buildWarmupWeekImpactSummary,
   type WarmupWeekImpactSummary,
@@ -26,6 +26,7 @@ const WARMUP_FEELING_TITLE_FALLBACK = 'Самочувствие после ра�
 
 export type PatientDiaryWeekWellbeingDeps = {
   diaries: {
+    listSymptomTrackings: (userId: string, activeOnly?: boolean) => Promise<SymptomTracking[]>;
     ensureGeneralWellbeingTracking: (p: {
       userId: string;
       symptomTitle: string;
@@ -101,29 +102,37 @@ async function symptomTypeRefId(
  */
 export async function loadPatientDiaryWeekWellbeing(
   deps: PatientDiaryWeekWellbeingDeps,
-  params: { userId: string; week?: string },
+  params: { userId: string; week?: string; materializeMissingTrackings: boolean },
 ): Promise<PatientDiaryWeekWellbeingLoadResult> {
   const appDefault = await deps.getAppDisplayTimeZone();
   const personal = await deps.patientCalendarTimezone.getIanaForUser(params.userId);
   const iana = resolveCalendarDayIanaForPatient(personal, appDefault);
 
-  const [gwRef, wuRef] = await Promise.all([
-    symptomTypeRefId(deps.references, GENERAL_WELLBEING_SYMPTOM_KEY),
-    symptomTypeRefId(deps.references, WARMUP_FEELING_CODE),
-  ]);
-
-  const [gwTracking, wuTracking] = await Promise.all([
-    deps.diaries.ensureGeneralWellbeingTracking({
-      userId: params.userId,
-      symptomTitle: GENERAL_WELLBEING_TITLE,
-      symptomTypeRefId: gwRef.id,
-    }),
-    deps.diaries.ensureWarmupFeelingTracking({
-      userId: params.userId,
-      symptomTitle: wuRef.title || WARMUP_FEELING_TITLE_FALLBACK,
-      symptomTypeRefId: wuRef.id,
-    }),
-  ]);
+  let gwTracking: Pick<SymptomTracking, 'id'> | null;
+  let wuTracking: Pick<SymptomTracking, 'id'> | null;
+  if (params.materializeMissingTrackings) {
+    const [gwRef, wuRef] = await Promise.all([
+      symptomTypeRefId(deps.references, GENERAL_WELLBEING_SYMPTOM_KEY),
+      symptomTypeRefId(deps.references, WARMUP_FEELING_CODE),
+    ]);
+    [gwTracking, wuTracking] = await Promise.all([
+      deps.diaries.ensureGeneralWellbeingTracking({
+        userId: params.userId,
+        symptomTitle: GENERAL_WELLBEING_TITLE,
+        symptomTypeRefId: gwRef.id,
+      }),
+      deps.diaries.ensureWarmupFeelingTracking({
+        userId: params.userId,
+        symptomTitle: wuRef.title || WARMUP_FEELING_TITLE_FALLBACK,
+        symptomTypeRefId: wuRef.id,
+      }),
+    ]);
+  } else {
+    const existing = await deps.diaries.listSymptomTrackings(params.userId, false);
+    gwTracking =
+      existing.find((tracking) => tracking.symptomKey === GENERAL_WELLBEING_SYMPTOM_KEY) ?? null;
+    wuTracking = existing.find((tracking) => tracking.symptomKey === WARMUP_FEELING_CODE) ?? null;
+  }
 
   const nowZ = DateTime.now().setZone(iana);
   const currentWeekStart = nowZ.startOf('week');
@@ -135,26 +144,34 @@ export async function loadPatientDiaryWeekWellbeing(
   const toRecordedAtExclusive = weekEnd.toUTC().toISO()!;
 
   const [generalEntries, warmupEntries, gwMinIso, wuMinIso, snapMinYmd] = await Promise.all([
-    deps.diaries.listSymptomEntriesForTrackingInRange({
-      userId: params.userId,
-      trackingId: gwTracking.id,
-      fromRecordedAt,
-      toRecordedAtExclusive,
-    }),
-    deps.diaries.listSymptomEntriesForTrackingInRange({
-      userId: params.userId,
-      trackingId: wuTracking.id,
-      fromRecordedAt,
-      toRecordedAtExclusive,
-    }),
-    deps.diaries.minRecordedAtForSymptomTracking({
-      userId: params.userId,
-      trackingId: gwTracking.id,
-    }),
-    deps.diaries.minRecordedAtForSymptomTracking({
-      userId: params.userId,
-      trackingId: wuTracking.id,
-    }),
+    gwTracking
+      ? deps.diaries.listSymptomEntriesForTrackingInRange({
+          userId: params.userId,
+          trackingId: gwTracking.id,
+          fromRecordedAt,
+          toRecordedAtExclusive,
+        })
+      : Promise.resolve([]),
+    wuTracking
+      ? deps.diaries.listSymptomEntriesForTrackingInRange({
+          userId: params.userId,
+          trackingId: wuTracking.id,
+          fromRecordedAt,
+          toRecordedAtExclusive,
+        })
+      : Promise.resolve([]),
+    gwTracking
+      ? deps.diaries.minRecordedAtForSymptomTracking({
+          userId: params.userId,
+          trackingId: gwTracking.id,
+        })
+      : Promise.resolve(null),
+    wuTracking
+      ? deps.diaries.minRecordedAtForSymptomTracking({
+          userId: params.userId,
+          trackingId: wuTracking.id,
+        })
+      : Promise.resolve(null),
     deps.patientDiarySnapshots.minLocalDateForUser(params.userId),
   ]);
 

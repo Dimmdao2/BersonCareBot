@@ -3,7 +3,10 @@
  * assignment / override authoring is P2 global-admin UI). See STORE_P0_ENTITLEMENTS_PLAN.md.
  */
 import type {
+  AccessLifecyclePolicy,
   EffectiveOrgCommercialAccess,
+  MechanicAccessResolution,
+  MechanicAccessPolicyMap,
   OrgCommercialAccessState,
   OrgEntitlementSnapshot,
   OrgMechanic,
@@ -15,6 +18,11 @@ import type {
 } from './types';
 
 export type OrgEntitlementsPort = {
+  /** Canonical database-computed lifecycle state shared with the integrator. */
+  resolveMechanicAccess(
+    organizationId: string,
+    mechanic: OrgMechanic,
+  ): Promise<MechanicAccessResolution>;
   /** One server-authoritative effective snapshot used by mutation guards. */
   getSnapshot(organizationId: string): Promise<OrgEntitlementSnapshot>;
   /** Resolves the org's tariff via be_organizations.tariff_id. Null when unset (no tariff assigned). */
@@ -23,7 +31,10 @@ export type OrgEntitlementsPort = {
   ): Promise<{
     mechanics: Record<string, boolean>;
     quotas?: TariffQuotaMap;
+    systemAccessPolicy: AccessLifecyclePolicy | null;
+    mechanicAccessPolicies: MechanicAccessPolicyMap;
     includedSeats: number | null;
+    includedSeatsWarningAtPercent: number | null;
   } | null>;
   /** Per-org, per-mechanic overrides. May be empty. */
   listOverrides(

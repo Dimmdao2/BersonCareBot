@@ -1,10 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import {
-  requireEntitlementForMutation,
-  requireEntitlementForRead,
-} from '@/app-layer/guards/requireEntitlement';
+import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { requireClinicManagementApiContext } from '@/app-layer/guards/requireRole';
 import {
   NOTIF_TEMPLATE_AUDIENCES,
@@ -65,11 +62,10 @@ const previewSchema = z
 async function requireTemplateManagement(access: 'read' | 'mutation') {
   const management = await requireClinicManagementApiContext();
   if (!management.ok) return management;
-  const entitlement =
-    access === 'mutation'
-      ? await requireEntitlementForMutation(management.ctx, 'branding')
-      : await requireEntitlementForRead(management.ctx, 'branding');
-  if (!entitlement.ok) return entitlement;
+  if (access === 'mutation') {
+    const entitlement = await requireEntitlementForMutation(management.ctx, 'branding');
+    if (!entitlement.ok) return entitlement;
+  }
   return management;
 }
 

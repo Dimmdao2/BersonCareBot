@@ -2,7 +2,10 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { runWithDbClinicBillingPrincipal } from '@bersoncare/db-principal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
+import {
+  isMechanicIncluded,
+  requireEntitlementForReadAction,
+} from '@/app-layer/guards/requireEntitlement';
 import { requireOrganizationWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { routePaths } from '@/app-layer/routes/paths';
 import { isSeatConsumingMember } from '@/modules/clinic-seats/service';
@@ -31,6 +34,7 @@ import { TeamSection } from './TeamSection';
 import { env } from '@/config/env';
 import { parseDoctorTodayPreferences } from '@/modules/system-settings/doctorTodayPreferences';
 import { parsePlatformIntegrationAvailabilityEnvelope } from '@/modules/system-settings/platformIntegrationAvailability';
+import { shouldShowGoogleCalendarSettings } from './googleCalendarVisibility';
 
 type LegacySettingsTab = 'specialist' | 'organization' | 'team' | 'billing' | 'install';
 
@@ -107,25 +111,20 @@ export default async function SettingsPage({
       actorPlatformUserId: workspace.session.user.userId,
       hasOrganizationManagementCapability: true,
     };
-    const [
-      doctorSettings,
-      clinicAdminSettings,
-      platformSettings,
-      brandingState,
-      slugState,
-    ] = await Promise.all([
-      deps.systemSettings.listSettingsByScope('doctor', {
-        organizationId: workspace.organizationId,
-      }),
-      deps.systemSettings.listSettingsByScope('admin', {
-        organizationId: workspace.organizationId,
-      }),
-      deps.systemSettings.listSettingsByScope('admin', { organizationId: null }),
-      deps.orgBranding.getManagementState(brandingCtx),
-      workspace.canManageOrganization && deps.clinicDirectory
-        ? deps.clinicDirectory.getSlugManagementState(workspace.organizationId)
-        : Promise.resolve(null),
-    ]);
+    const [doctorSettings, clinicAdminSettings, platformSettings, brandingState, slugState] =
+      await Promise.all([
+        deps.systemSettings.listSettingsByScope('doctor', {
+          organizationId: workspace.organizationId,
+        }),
+        deps.systemSettings.listSettingsByScope('admin', {
+          organizationId: workspace.organizationId,
+        }),
+        deps.systemSettings.listSettingsByScope('admin', { organizationId: null }),
+        deps.orgBranding.getManagementState(brandingCtx),
+        workspace.canManageOrganization && deps.clinicDirectory
+          ? deps.clinicDirectory.getSlugManagementState(workspace.organizationId)
+          : Promise.resolve(null),
+      ]);
     const publishedBrand = brandingState.published;
     const publishedLogoUrl =
       publishedBrand?.logoMediaReady && publishedBrand.logoMediaId
@@ -182,6 +181,7 @@ export default async function SettingsPage({
       platformSettings.find((setting) => setting.key === 'platform_integration_availability')
         ?.valueJson,
     );
+    const externalCalendarEnabled = await isMechanicIncluded(workspace, 'external_calendar');
     return (
       <DoctorAppShell title="Настройки" user={workspace.session.user}>
         <DoctorPageHeader title="Настройки" />
@@ -235,7 +235,10 @@ export default async function SettingsPage({
           }
           settingsEndpoint="/api/admin/settings"
         />
-        {integrationAvailability.integrations.google_calendar ? (
+        {shouldShowGoogleCalendarSettings(
+          integrationAvailability.integrations.google_calendar,
+          externalCalendarEnabled,
+        ) ? (
           <GoogleCalendarSection
             platformOAuthConfigured={platformGoogleConfigured}
             hasRefreshToken={clinicAdminValue('google_refresh_token').length > 0}

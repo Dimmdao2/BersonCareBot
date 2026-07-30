@@ -1,7 +1,11 @@
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { logServerRuntimeError } from '@/infra/logging/serverRuntimeLog';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
-import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
+import {
+  isMechanicIncluded,
+  requireEntitlementForMutationAction,
+  requireEntitlementForReadAction,
+} from '@/app-layer/guards/requireEntitlement';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { notFound } from 'next/navigation';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
@@ -17,6 +21,10 @@ export default async function DoctorContentPage() {
   const session = workspace.session;
   const deps = buildAppDeps();
   const coursesEnabled = (await requireEntitlementForReadAction(workspace, 'courses')).ok;
+  const patientHomeTodayEnabled = (
+    await requireEntitlementForMutationAction(workspace, 'patient_home_today')
+  ).ok;
+  const warmupsEnabled = await isMechanicIncluded(workspace, 'warmups');
 
   let pages: Awaited<ReturnType<typeof deps.contentPages.listAll>> = [];
   let sections: Awaited<ReturnType<typeof deps.contentSections.listAll>> = [];
@@ -94,6 +102,8 @@ export default async function DoctorContentPage() {
     <DoctorAppShell title="Контент" user={session.user}>
       <ContentHubShell
         sections={hubSections}
+        patientHomeTodayEnabled={patientHomeTodayEnabled}
+        warmupsEnabled={warmupsEnabled}
         fullSections={sections}
         pagesBySectionSlug={pagesBySectionSlug}
         ratingsById={ratingsById}

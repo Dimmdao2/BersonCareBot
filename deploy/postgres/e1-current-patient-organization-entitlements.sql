@@ -1,6 +1,7 @@
 -- Idempotent post-migration closure for the current C5A patient entitlement projection.
 -- Frozen migration 0219 has the original five-column return type; migration 0225 replaced it
--- with this eleven-column lifecycle/quota projection. Replaying 0219 after 0225 is invalid because
+-- with the lifecycle/quota projection, now extended with owner access policy and its time anchor.
+-- Replaying 0219 after 0225 is invalid because
 -- PostgreSQL cannot change a function return type through CREATE OR REPLACE.
 \set ON_ERROR_STOP on
 
@@ -9,7 +10,10 @@ CREATE FUNCTION app.read_current_patient_organization_entitlements()
 RETURNS TABLE (
   tariff_mechanics jsonb,
   tariff_quotas jsonb,
+  tariff_system_access_policy jsonb,
+  tariff_mechanic_access_policies jsonb,
   included_seats integer,
+  included_seats_warning_at_percent integer,
   override_mechanic text,
   override_enabled boolean,
   override_quota jsonb,
@@ -17,7 +21,8 @@ RETURNS TABLE (
   seat_limit_override integer,
   lifecycle text,
   effective_tariff_id uuid,
-  access_source text
+  access_source text,
+  degradation_started_at timestamptz
 )
 LANGUAGE plpgsql
 STABLE
@@ -71,14 +76,18 @@ BEGIN
         WHEN trial.id IS NULL THEN 'assignment'
         WHEN v_now > trial.grace_ends_at AND trial.post_trial_behavior = 'tariff' THEN 'post_trial_tariff'
         ELSE 'trial'
-      END AS access_source
+      END AS access_source,
+      trial.ends_at AS degradation_started_at
     FROM exact_context AS context
     LEFT JOIN active_trial AS trial ON true
   )
   SELECT
     tariff.mechanics,
     tariff.quotas,
+    tariff.system_access_policy,
+    tariff.mechanic_access_policies,
     tariff.included_seats,
+    tariff.included_seats_warning_at_percent,
     entitlement_override.mechanic,
     entitlement_override.enabled,
     entitlement_override.quota,
@@ -86,7 +95,8 @@ BEGIN
     entitlement_override.seat_limit_override,
     effective.lifecycle,
     effective.tariff_id,
-    effective.access_source
+    effective.access_source,
+    effective.degradation_started_at
   FROM effective
   LEFT JOIN public.saas_tariffs AS tariff ON tariff.id = effective.tariff_id
   LEFT JOIN public.saas_org_entitlement_overrides AS entitlement_override
@@ -172,5 +182,5 @@ CREATE POLICY saas_org_entitlement_overrides_current_patient_capability_read
 
 SELECT 1 / (
   pg_get_function_result('app.read_current_patient_organization_entitlements()'::regprocedure) =
-    'TABLE(tariff_mechanics jsonb, tariff_quotas jsonb, included_seats integer, override_mechanic text, override_enabled boolean, override_quota jsonb, override_expires_at timestamp with time zone, seat_limit_override integer, lifecycle text, effective_tariff_id uuid, access_source text)'
+    'TABLE(tariff_mechanics jsonb, tariff_quotas jsonb, tariff_system_access_policy jsonb, tariff_mechanic_access_policies jsonb, included_seats integer, included_seats_warning_at_percent integer, override_mechanic text, override_enabled boolean, override_quota jsonb, override_expires_at timestamp with time zone, seat_limit_override integer, lifecycle text, effective_tariff_id uuid, access_source text, degradation_started_at timestamp with time zone)'
 )::int AS e1_current_patient_entitlements_signature_current;

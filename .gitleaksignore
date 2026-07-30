@@ -1,0 +1,40 @@
+# Exact historical baseline from the first full-history Gitleaks v8.30.1 scan on 2026-07-31.
+# A new occurrence receives a different commit fingerprint and still fails CI. These entries do
+# not assert that an old credential was safe or rotated; credential lifecycle is tracked
+# separately. Review/remove fingerprints when repository history is intentionally rewritten.
+
+# Retired integration/config history.
+03eca9c8bb0254b03df95bf311099bc4c0fbf7fd:src/integrations/rubitime/config.ts:generic-api-key:10
+03eca9c8bb0254b03df95bf311099bc4c0fbf7fd:src/integrations/rubitime/config.ts:generic-api-key:11
+03eca9c8bb0254b03df95bf311099bc4c0fbf7fd:src/integrations/telegram/config.ts:generic-api-key:14
+f0ce519f42b220f0fc71ea2e9b479a58fe26a226:src/integrations/rubitime/config.ts:generic-api-key:10
+f0ce519f42b220f0fc71ea2e9b479a58fe26a226:src/integrations/rubitime/config.ts:generic-api-key:11
+
+# Synthetic test/example values and security self-check fixtures.
+0fab9587aa31b1295eaed0202a8dca63cee84fc4:apps/integrator/src/app/operatorHealthProbeRunner.test.ts:generic-api-key:4
+3828379fbbb0931f4bef4f052e7b93dff8ee3dd3:apps/webapp/src/app/api/admin/settings/route.test.ts:generic-api-key:304
+3a9f9531ccc6d90e2419f6a88c651508e2a16f6c:.env.example:generic-api-key:16
+68bfcbeda4be1c76184dc494e42e562e1a8969da:apps/webapp/src/modules/staff-security/service.test.ts:generic-api-key:12
+68bfcbeda4be1c76184dc494e42e562e1a8969da:apps/webapp/src/modules/staff-security/totp.test.ts:generic-api-key:10
+81cddc37a29c8ef13c7fa91b1d3033cbd26c4298:apps/webapp/src/infra/payments/registryAcquiringGateway.unit.test.ts:generic-api-key:63
+8209ad1fb52c1718b89503cab2ca7795d97f3064:apps/integrator/src/infra/operatorIncident/reportOperatorFailure.test.ts:generic-api-key:32
+cdf3fd02988fa1c68b598fde219b9c532ec48d1d:apps/integrator/src/infra/adapters/contextQueryPort.test.ts:generic-api-key:84
+eb12a87b1b4f6891aefe7d8ba52852a6a6cdb210:apps/webapp/src/modules/staff-security/service.test.ts:generic-api-key:10
+eb12a87b1b4f6891aefe7d8ba52852a6a6cdb210:apps/webapp/src/modules/staff-security/totp.test.ts:generic-api-key:14
+
+# Historical migration/deploy fixtures and protocol examples.
+02a88c540d98c4eb6e4e7e6b625b05f64386037d:deploy/postgres/test-postgres-backup.sh:generic-api-key:28
+2880e4c62bc797b2af601d57acca17065408cec7:docs/_TODO/SAAS_FOUNDATION/CORRECTED_PLAN.md:generic-api-key:157
+2880e4c62bc797b2af601d57acca17065408cec7:docs/_TODO/SAAS_FOUNDATION/LOG.md:generic-api-key:8
+34556347953aa8cebdc8fa5f40a56763429e4560:docs/_TODO/SAAS_FOUNDATION/scripts/rehearse-e1-patient-runtime-capabilities.mjs:generic-api-key:65
+4c44c9aa1c4d9842021d2795114072b9db40b692:docs/_TODO/SAAS_FOUNDATION/CORRECTED_PLAN.md:generic-api-key:171
+4c7ad4ff4d5a4cc0df9a333a76059b83520d3ea6:docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-13-db-isolation.mjs:generic-api-key:251
+56c6c856b57f93ec757bcfbc454f24e05a4cc0ee:docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-13-synthetic-fixtures.mjs:generic-api-key:78
+68bfcbeda4be1c76184dc494e42e562e1a8969da:deploy/host/bootstrap-c4-test-env.mjs:generic-api-key:223
+797b2d47849bc9de4e0cc9eefaffadaf4f2621d6:deploy/host/bootstrap-c4-test-env.mjs:generic-api-key:178
+b21d535dcc413a5679bf4ba9c5f262f5ddc33dbe:docs/_TODO/SAAS_FOUNDATION/HARD_MIGRATION_PROTOCOL.md:generic-api-key:305
+d926f2a08ec3bf9d12fa786a52b2a5244c0de49d:docs/MAX_SETUP.md:curl-auth-header:65
+
+# Agent-rule examples that describe secret-safe operational commands.
+dc4ca2a4e3fcff04c75c0cda4682903f53b30a46:.cursor/rules/pre-push-ci.mdc:generic-api-key:18
+dc4ca2a4e3fcff04c75c0cda4682903f53b30a46:AGENTS.md:generic-api-key:517

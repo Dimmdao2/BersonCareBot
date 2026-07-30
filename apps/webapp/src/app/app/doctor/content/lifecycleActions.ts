@@ -6,6 +6,10 @@ import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { requireEntitlementForMutationAction } from '@/app-layer/guards/requireEntitlement';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import {
+  isWarmupsContentSection,
+  warmupsContentMutationRefusal,
+} from '@/app-layer/content/warmupsContentMutationGuard';
 
 export type LifecycleState = { ok: boolean; error?: string };
 
@@ -22,6 +26,11 @@ export async function applyContentLifecycle(
 
   const deps = buildAppDeps();
   const page = await deps.contentPages.getById(id);
+  const section = page ? await deps.contentSections.getBySlug(page.section) : null;
+  if (isWarmupsContentSection(section)) {
+    const refusal = await warmupsContentMutationRefusal(workspace);
+    if (refusal) return { ok: false, error: refusal };
+  }
   const now = new Date().toISOString();
 
   try {
@@ -60,9 +69,4 @@ export async function applyContentLifecycle(
     revalidatePath('/app/patient/sections', 'layout');
   }
   return { ok: true };
-}
-
-/** Для `<form action={…}>` без `useActionState` (один аргумент FormData). */
-export async function applyContentLifecycleForm(formData: FormData): Promise<void> {
-  await applyContentLifecycle(null, formData);
 }

@@ -188,47 +188,6 @@
 --   integrator.conversation_messages SELECT (whole table; RLS FORCE, same policy family) -- read via
 --                                    a correlated subquery inside `getOpenConversationByIdentity`.
 --
--- ============================================================================================
--- D2 addendum: symptom diary + LFK direct-public writes.
---
--- Scope (evidence-based, mirrors writeDiaryLfkDirect.ts exactly):
---   public.symptom_trackings  SELECT (whole table -- ownership-check SELECT by id+platform_user_id in
---                              addSymptomEntryDirect) + INSERT (user_id, platform_user_id,
---                              organization_id, symptom_key, symptom_title, is_active, updated_at) --
---                              createSymptomTrackingDirect. No UPDATE/DELETE: D2 only creates.
---   public.symptom_entries    INSERT (user_id, platform_user_id, tracking_id, value_0_10, entry_type,
---                              recorded_at, source, notes, organization_id) -- addSymptomEntryDirect.
---                              No SELECT needed: the INSERT has no RETURNING-independent read and no
---                              ON CONFLICT clause referencing the table's own columns.
---   public.lfk_complexes      SELECT (whole table -- ownership-check SELECT by id+platform_user_id in
---                              addLfkSessionDirect) + INSERT (user_id, platform_user_id,
---                              organization_id, title, origin, is_active, updated_at) --
---                              createLfkComplexDirect.
---   public.lfk_sessions       INSERT (user_id, complex_id, completed_at, source, recorded_at,
---                              organization_id) -- addLfkSessionDirect. `user_id` here IS the
---                              `platform_users.id` UUID directly (no separate platform_user_id column
---                              on this table -- see migration 059_lfk_sessions_user_id_to_uuid.sql).
---
--- RLS: all four tables have RLS ENABLED (NO FORCE — 0177_phase4_no_force_rls_compat.sql) with a
--- `saas_org_dormant_*` policy. LIVE re-verify on TEST (2026-07-24) found this policy now reads
--- `(app.is_staff() AND app.current_org_id() IS NOT NULL AND organization_id = app.current_org_id())
--- OR (app.current_patient_user_id() IS NOT NULL AND platform_user_id = app.current_patient_user_id())`
--- — the `app.*()` SECURITY DEFINER accessor form (superseding the raw `current_setting('app.org', …)`
--- GUC form still visible in the older migration files this comment originally cited) — both
--- `app.current_org_id()` and `app.current_patient_user_id()` are already EXECUTE-granted below (A7
--- addendum #1, shared with D1), so NO new function grant is needed. `app.current_org_id()` resolves
--- from `app.principal_context`, populated only when the caller ran under `applySignedDbPrincipal`
--- ("locked"/"shadow" mode, `@bersoncare/db-principal`) — i.e. this direct write only succeeds when
--- `db.tx()` runs inside `runWithOrganizationPrincipal(organizationId, …)` (webhook.ts, resolved during
--- pre-routing for an already-onboarded user — the only case D2 writes for). LIVE-VERIFIED end-to-end
--- on TEST: installed a real HMAC-signed organization-principal context (same shape
--- `installSignedDbPrincipalContext` produces) for `a0000000-0000-4000-8000-000000000001`, then ran the
--- EXACT INSERT/SELECT statements `writeDiaryLfkDirect.ts` issues against all four tables under
--- `bcb_test_integrator_login` + `SET ROLE app_staff` with ONLY the grants below — all four writes and
--- both ownership-check reads passed RLS; rolled back, zero residue. A bootstrap/bare-role principal
--- (no `app.principal_context` row) was independently confirmed BLOCKED by RLS, matching the D1
--- overlay's "row scope is enforced by RLS, not by this grant" property.
---
 -- Idempotent (repeated GRANT/REVOKE is safe). Invoke with the required psql variable:
 --   psql '<database-url>' -v integrator_login_public_identity_grants_role=bcb_test_integrator_login \
 --     -f deploy/postgres/integrator-login-public-identity-grants.sql
@@ -272,13 +231,14 @@ REVOKE ALL ON TABLE public.support_question_messages FROM :"integrator_login_pub
 REVOKE ALL ON TABLE public.support_delivery_events FROM :"integrator_login_public_identity_grants_role";
 
 -- D5 addendum (reminder rules direct-public write, writeReminderRulesDirect.ts) -- revoked next,
--- independent of the D2-D4 tables above/below.
+-- independent of the other direct-public tables above/below.
 REVOKE SELECT ("platform_user_id", "organization_id", "notification_topic_code"),
   INSERT ("integrator_rule_id", "platform_user_id", "organization_id", "integrator_user_id", "category", "is_enabled", "schedule_type", "timezone", "interval_minutes", "window_start_minute", "window_end_minute", "days_mask", "content_mode", "linked_object_type", "linked_object_id", "custom_title", "custom_text", "schedule_data", "reminder_intent", "quiet_hours_start_minute", "quiet_hours_end_minute", "notification_topic_code", "updated_at"),
   UPDATE ("platform_user_id", "organization_id", "integrator_user_id", "category", "is_enabled", "schedule_type", "timezone", "interval_minutes", "window_start_minute", "window_end_minute", "days_mask", "content_mode", "linked_object_type", "linked_object_id", "custom_title", "custom_text", "schedule_data", "reminder_intent", "quiet_hours_start_minute", "quiet_hours_end_minute", "notification_topic_code", "updated_at")
   ON TABLE public.reminder_rules FROM :"integrator_login_public_identity_grants_role";
 
--- D2 addendum (symptom diary + LFK) -- revoked next, independent of the D1 tables below.
+-- Retired in-bot symptom diary + LFK privileges. Keep these revokes in DOWN as well so either mode
+-- removes grants left by an older overlay revision.
 REVOKE INSERT ("user_id", "complex_id", "completed_at", "source", "recorded_at", "organization_id")
   ON TABLE public.lfk_sessions FROM :"integrator_login_public_identity_grants_role";
 REVOKE SELECT,
@@ -438,25 +398,21 @@ GRANT SELECT ON TABLE integrator.message_drafts TO :"integrator_login_public_ide
 GRANT SELECT ON TABLE integrator.conversations TO :"integrator_login_public_identity_grants_role";
 GRANT SELECT ON TABLE integrator.conversation_messages TO :"integrator_login_public_identity_grants_role";
 
--- D2 addendum: symptom diary + LFK direct-public writes (writeDiaryLfkDirect.ts). See the D2 addendum
--- header comment above for the full per-table trace to source; no NEW app.* EXECUTE grant is required
--- (these tables' RLS policies key off session GUCs, not the app.*() accessor functions).
-GRANT SELECT ON TABLE public.symptom_trackings TO :"integrator_login_public_identity_grants_role";
-GRANT INSERT ("user_id", "platform_user_id", "organization_id", "symptom_key", "symptom_title", "is_active", "updated_at")
-  ON TABLE public.symptom_trackings TO :"integrator_login_public_identity_grants_role";
-
-GRANT INSERT ("user_id", "platform_user_id", "tracking_id", "value_0_10", "entry_type", "recorded_at", "source", "notes", "organization_id")
-  ON TABLE public.symptom_entries TO :"integrator_login_public_identity_grants_role";
-
-GRANT SELECT ON TABLE public.lfk_complexes TO :"integrator_login_public_identity_grants_role";
-GRANT INSERT ("user_id", "platform_user_id", "organization_id", "title", "origin", "is_active", "updated_at")
-  ON TABLE public.lfk_complexes TO :"integrator_login_public_identity_grants_role";
-
-GRANT INSERT ("user_id", "complex_id", "completed_at", "source", "recorded_at", "organization_id")
-  ON TABLE public.lfk_sessions TO :"integrator_login_public_identity_grants_role";
+-- Owner retirement 2026-07-30: the integrator no longer owns any diary/LFK path. Reapplying the
+-- overlay also removes privileges granted by an older revision.
+REVOKE INSERT ("user_id", "complex_id", "completed_at", "source", "recorded_at", "organization_id")
+  ON TABLE public.lfk_sessions FROM :"integrator_login_public_identity_grants_role";
+REVOKE SELECT,
+  INSERT ("user_id", "platform_user_id", "organization_id", "title", "origin", "is_active", "updated_at")
+  ON TABLE public.lfk_complexes FROM :"integrator_login_public_identity_grants_role";
+REVOKE INSERT ("user_id", "platform_user_id", "tracking_id", "value_0_10", "entry_type", "recorded_at", "source", "notes", "organization_id")
+  ON TABLE public.symptom_entries FROM :"integrator_login_public_identity_grants_role";
+REVOKE SELECT,
+  INSERT ("user_id", "platform_user_id", "organization_id", "symptom_key", "symptom_title", "is_active", "updated_at")
+  ON TABLE public.symptom_trackings FROM :"integrator_login_public_identity_grants_role";
 
 -- D3 addendum: support conversations + messages direct-public writes (writeSupportConversationsDirect.ts).
--- Mirrors D1/D2's candidate/org resolution (public.platform_users / public.user_channel_bindings /
+-- Mirrors the shared candidate/org resolution (public.platform_users / public.user_channel_bindings /
 -- public.org_enrollments — all already granted above, reused unchanged); no NEW app.* EXECUTE grant is
 -- required (saas_org_dormant_p0_8_3/_4 key off app.is_staff()/app.current_org_id()/
 -- app.current_patient_user_id(), all already EXECUTE-granted by the A7 addendum #1 section above).
@@ -483,7 +439,7 @@ GRANT INSERT ("user_id", "complex_id", "completed_at", "source", "recorded_at", 
 --                                         SET clause only reads EXCLUDED (matches the
 --                                         public.user_notification_topics precedent above), and the
 --                                         INSERT's RETURNING id needs no SELECT grant on the row it just
---                                         inserted (matches the public.lfk_sessions precedent above).
+--                                         inserted.
 GRANT SELECT ON TABLE public.support_conversations TO :"integrator_login_public_identity_grants_role";
 GRANT INSERT ("integrator_conversation_id", "platform_user_id", "organization_id", "source", "admin_scope", "status", "opened_at", "last_message_at", "channel_code", "channel_external_id")
   ON TABLE public.support_conversations TO :"integrator_login_public_identity_grants_role";
@@ -520,7 +476,7 @@ GRANT UPDATE ("conversation_id") ON TABLE public.support_conversation_messages T
 --                                     EventDirect's ON CONFLICT clause is also DO NOTHING; no SELECT/UPDATE
 --                                     needed (matches the public.support_conversation_messages INSERT-only
 --                                     precedent's reasoning for its own ON CONFLICT DO NOTHING sibling
---                                     insert path in D2/D1, e.g. public.lfk_sessions above).
+--                                     insert paths above).
 GRANT SELECT ON TABLE public.support_questions TO :"integrator_login_public_identity_grants_role";
 GRANT INSERT ("integrator_question_id", "conversation_id", "organization_id", "status", "created_at", "answered_at")
   ON TABLE public.support_questions TO :"integrator_login_public_identity_grants_role";

@@ -317,19 +317,27 @@ service/port` с `file:line` для каждого реального action. Д
 
 - [ ] Code-search-first inventory: для exercise/template/media list, direct ID, count, search, picker, assignment и
       playback зафиксировать ownership source и current tenant guard; неизвестный path остаётся gap, не становится global.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — ownership/source inventory существующего контента шире реестра тарифных write-path.
 - [ ] Режим `own_only` показывает organization только её exercises/templates/media и не читает owner-clinic content
       другой organization ни через list, ни через direct ID.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — tenant isolation own-only библиотеки не покрыт механикой рубильника.
 - [ ] Режим `platform_base` добавляет отдельную platform library, создаваемую с нуля global admin. Existing
       owner-clinic exercises не мигрируют и не публикуются автоматически.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — отдельная base library без миграции clinic-owned контента не описана.
 - [ ] Global admin управляет composition platform base; тариф может включать base-library entitlement без purchase,
       grant или store surface.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — это независимая от магазина base-library composition, а §5a содержит только рубильники каталога/пакетов.
 - [ ] Publication clinic→platform отсутствует до отдельного workflow/licensing/moderation owner decision.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — запрет автоматической публикации clinic-owned контента не зафиксирован.
 - [ ] Entitlement OFF/ON/downgrade проверяется server-side и в UI. Hidden navigation не заменяет direct API/media
       denial; current program instances не теряют canonical content без явной downgrade policy.
+      ➡️ ЖИВО — переезжает в §5a — пункты 2.3–2.4, 3.1–3.2, 4.7 и 5.6.
 - [ ] Synthetic org A/B acceptance закрывает list/direct/count/search/picker/assignment/media negatives, owner-only
       content privacy, base visibility и отсутствие copied rows/object keys.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — A/B ownership, direct-ID/media и no-copy acceptance для библиотек там отсутствуют.
 - [ ] Desktop/mobile acceptance показывает own-only и own+base состояния; future store отсутствует, а не рендерится
       пустым/сломавшимся экраном.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — визуальная приёмка own-only/own+base не входит в TEST-проверку лестницы.
 
 **Выход C4D:** private organization library и новая platform base library сосуществуют без смешивания ownership;
 магазин не нужен для выполнения или приёмки этого этапа.
@@ -348,25 +356,35 @@ service/port` с `file:line` для каждого реального action. Д
 
 - [ ] После активации C5D добавить platform package entity с commercial metadata, price/currency/access duration и ссылкой
       на существующий ordered `lfk_complex_template`; exercises/media остаются canonical rows.
+      ⏳ ОТЛОЖЕНО ВЛАДЕЛЬЦЕМ 30.07 (магазин) — «магазин пока отложен. как сделаем сам магазин, так и сделаем в тарифах настройку»; канон §1.
 - [ ] Platform package composition может ссылаться только на platform exercises/templates. Clinic-owned exercise
       create/edit/list продолжает жить в текущем LFK flow и не становится store content.
+      ⏳ ОТЛОЖЕНО ВЛАДЕЛЬЦЕМ 30.07 (магазин) — «магазин пока отложен. как сделаем сам магазин, так и сделаем в тарифах настройку»; канон §1.
 - [ ] Эволюционировать `content_access_grants_webapp` и `modules/entitlements` для org target: source kind/id,
       organizationId, contentId, expiry/revoke, idempotency. Существующие user grants и integrator projection не ломаются;
       третья grant table не создаётся.
+      ⏳ ОТЛОЖЕНО ВЛАДЕЛЬЦЕМ 30.07 (магазин) — «магазин пока отложен. как сделаем сам магазин, так и сделаем в тарифах настройку»; канон §1.
 - [ ] Grant одного source идемпотентен. Revoke/refund удаляет только этот source; доступ сохраняется, если тот же
       `content_id` покрыт другим active tariff/purchase/manual source.
+      ⏳ ОТЛОЖЕНО ВЛАДЕЛЬЦЕМ 30.07 (магазин) — «магазин пока отложен. как сделаем сам магазин, так и сделаем в тарифах настройку»; канон §1.
 - [ ] Access predicate clinic-facing store: own clinic content OR active org grant. Patient program assignment остаётся
       отдельным patient access source и не расширяет clinic-wide store visibility.
+      ⏳ ОТЛОЖЕНО ВЛАДЕЛЬЦЕМ 30.07 (магазин) — «магазин пока отложен. как сделаем сам магазин, так и сделаем в тарифах настройку»; канон §1.
 - [ ] Добавить no-copy invariant: package grant/order не создаёт `lfk_exercises`, `lfk_exercise_media`, `media_files`
       или object keys; IDs до/после совпадают.
+      ⏳ ОТЛОЖЕНО ВЛАДЕЛЬЦЕМ 30.07 (магазин) — «магазин пока отложен. как сделаем сам магазин, так и сделаем в тарифах настройку»; канон §1.
 - [ ] `exercise_packages` mechanic и specific package grant проверяются раздельно: mechanic ON не открывает все
       packages; grant без mechanic ON не открывает store surface.
+      ⏳ ОТЛОЖЕНО ВЛАДЕЛЬЦЕМ 30.07 (магазин) — «магазин пока отложен. как сделаем сам магазин, так и сделаем в тарифах настройку»; канон §1.
 - [ ] Global_admin курирует/архивирует packages; clinic_admin/doctor только видят разрешённое и используют купленное
       рядом со своими упражнениями.
+      ⏳ ОТЛОЖЕНО ВЛАДЕЛЬЦЕМ 30.07 (магазин) — «магазин пока отложен. как сделаем сам магазин, так и сделаем в тарифах настройку»; канон §1.
 - [ ] A/B negatives закрывают list, direct package ID, direct exercise ID и media playback; B без grant не получает
       package/content A.
+      ⏳ ОТЛОЖЕНО ВЛАДЕЛЬЦЕМ 30.07 (магазин) — «магазин пока отложен. как сделаем сам магазин, так и сделаем в тарифах настройку»; канон §1.
 - [ ] Поддержать два source path: package включён в tariff composition и package куплен отдельно. Оба создают
       source-aware grants на те же canonical content IDs.
+      ⏳ ОТЛОЖЕНО ВЛАДЕЛЬЦЕМ 30.07 (магазин) — «магазин пока отложен. как сделаем сам магазин, так и сделаем в тарифах настройку»; канон §1.
 
 **Проверка:** package/grant service+PG tests; RLS/IDOR A/B matrix; no-copy invariant; curator/store visual acceptance.
 
@@ -390,42 +408,57 @@ service/port` с `file:line` для каждого реального action. Д
 
 - [ ] Создать отдельный `modules/saas-billing` domain с ports/service/typed state machine; он переиспользует
       `PaymentProviderPort` через DI и не импортирует infra registry напрямую.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — SaaS billing domain/DI contract не является механикой или лимитом.
 - [ ] Добавить минимальные org-owned records: billing account, source-aware tariff subscription, invoice/order и
       normalized provider event. Invoice фиксирует tariff, amount/currency/period snapshot; webhook event имеет provider event ID и
       idempotency, но не хранит patient data.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — org-owned billing ledger и idempotent provider events в §5a не спланированы.
 - [ ] Перенести существующие manual `tariff_id` assignments в subscription/access rows с source=`manual`; переключить
       resolver на один access contract и проверять, что compatibility projection совпадает. Mismatch checker даёт non-zero.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — source-aware subscription rows и compatibility mismatch checker отсутствуют.
 - [ ] До кода зафиксировать subscription state machine минимум для `trial/pending_payment/active/grace/past_due/
 cancelled/expired`, allowed transitions, source event, retry/dunning и capability effect. Реализовать только
       transitions, подтверждаемые выбранным provider contract; автоматическое списание без provider token contract не
       имитируется.
+      ⛔ ОТМЕНЕНО РЕШЕНИЕМ ВЛАДЕЛЬЦА 30.07 — «ты вообще не должен решать что ограничивать... ты должен дать мне механизм»; фиксированный capability effect заменён owner-configured лестницей, канон §4a.
 - [ ] Добавить global DB setting `saas_billing_payment_provider` в `ALLOWED_KEYS`, Settings UI, redaction/secret-retain
       service и sanctioned accessor; запись идёт через `updateSetting` с обычным mirror contract. Он не читает и не
       перезаписывает per-org `booking_payment_providers`.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — выбор и безопасное хранение SaaS PSP не покрыты механиками.
 - [ ] Сохранить и вернуть provider checkout URL безопасному clinic_admin UI. Return/status page сверяет invoice/order
       из server-derived org и никогда не принимает сумму, tariff или target org от клиента как source of truth.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — payer checkout/return security contract отсутствует.
 - [ ] Добавить SaaS webhook route под bootstrap principal: load global provider config → verify signature/status →
       resolve invoice/order → run org-scoped capture. Unknown ref acknowledges safely; forged signature, amount/currency
       mismatch и replay не активируют доступ.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — подписанный SaaS webhook и replay/amount checks не покрыты.
 - [ ] Закрыть provider-specific gaps из S4-0. В частности, callback, который требует server-side status verification,
       не считается успешным только по payload; provider order ref и transaction ref имеют проверенный mapping.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — provider-specific server verification остаётся billing scope.
 - [ ] Tariff capture активирует/продлевает source=`paid_subscription`; expiry/cancel/refund завершает только этот
       source. Manual global_admin assignment или более новый paid source сохраняют доступ; compatibility tariff projection
       обновляется тем же service transaction.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — precedence источников paid/manual и транзакционная projection не заданы.
 - [ ] Не включать store-package capture в C5B acceptance. Если C5D позднее активирован, его adapter extension
       выдаёт source-aware org grants и имеет собственный refund/reversal checklist.
+      ⏳ ОТЛОЖЕНО ВЛАДЕЛЬЦЕМ 30.07 (магазин) — «магазин пока отложен. как сделаем сам магазин, так и сделаем в тарифах настройку»; канон §1.
 - [ ] Payment failure/expiry не затрагивают другую клинику и не удаляют clinic-owned exercises/content.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — billing A/B isolation и сохранность clinic-owned data отдельно не приняты.
 - [ ] Global billing surface показывает organizations/payers/subscriptions, trial/grace/past_due, attempts,
       refunds/cancellations, provider events, invoices/receipts, filters/aggregates и только безопасные PSP-supported
       support actions. Любая mutation идемпотентна и попадает в immutable admin audit; manual «успешно оплачено» нет.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — global billing operations surface и immutable mutation audit отсутствуют.
 - [ ] Organization settings tab «Тариф и биллинг» показывает current tariff/capabilities/usage/seats, next payment,
       lifecycle status, upgrade/downgrade effect/date, add-ons, payment history and documents. Она доступна owner/payment
       admin; ordinary invited specialist не видит tab и получает server denial.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — §5a 6.1 покрывает usage/лестницу, но не payer tab, историю, документы и billing authz.
 - [ ] B2B bank-transfer invoice/status и fiscal receipt/invoice obligations имеют provider/legal decision gate;
       неподдержанный flow не симулируется фиктивной кнопкой.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — B2B/legal/fiscal decision gate относится к SaaS billing.
 - [ ] Реальные provider credentials, когда владелец их предоставит, вводятся только через Settings на тестовом сервере.
       До этого architecture, mock checkout и recorded provider contract fixtures должны проходить полностью; отсутствие
       ключей не блокирует schema/service/UI/webhook implementation.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — keyless-safe provider acceptance и Settings-only credentials не описаны.
 
 **Проверка:** state-machine and idempotency tests; provider adapter contract tests; signed webhook success/replay/
 forgery/amount mismatch; tariff capture/refund integration; A/B authz; secret redaction scan; checkout UI. Store
@@ -476,25 +509,34 @@ capture tests добавляются только в активированно�
 - [ ] Ввести отдельную typed platform aggregate projection/port. Строка содержит только time bucket,
       organizationId или platform-total bucket, allowlisted metric key, integer/decimal value и generatedAt; нет FK на
       user/patient, person/session IDs и JSON metadata.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — typed PII-free platform aggregate projection не относится к отчёту о лимитах.
 - [ ] Существующий raw/user analytics остаётся clinic-operational source и не экспортируется через platform port.
       `ProductAnalyticsClientActivityRow` и registration drill-down физически недоступны platform API/page.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — физическая изоляция raw patient analytics от platform API не зафиксирована.
 - [ ] Протянуть trusted `organizationId` в те ingest paths, которые действительно org-scoped. Payload не назначает
       org; shared-patient event без scoped resource не угадывается и не попадает в per-clinic aggregate.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — trusted-org analytics ingest boundary отсутствует.
 - [ ] Aggregate builders считают только allowlisted counters из billing/subscription и platform load sources.
       Message body, exercise execution event, program content и patient identity не читаются и не проецируются.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — allowlist источников и запрет клинических/персональных данных не покрыты.
 - [ ] Добавить schema/DTO/static checker, запрещающий в platform analytics person columns, free-form payload и imports
       clinic drill-down repo. Canary test кладёт узнаваемые PII strings в source fixtures и доказывает их отсутствие в
       aggregate rows, API JSON, logs и screenshots.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — PII static checker/canary является отдельной security-приёмкой аналитики.
 - [ ] Сделать отдельный global_admin platform port/API; clinic analytics port остаётся строго single-org.
       clinic_admin A не может запросить B query/filter/direct ID.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — разделение platform и clinic analytics ports и A/B denial отсутствуют.
 - [ ] До финального решения владельца UI показывает только технический preview структуры aggregate buckets без
       объявления набора KPI окончательным.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — безопасный preview до утверждения KPI не описан.
 - [ ] **OWNER GATE:** утвердить точный список метрик и формулы после работающих tariffs/billing/usage sources;
       future store становится источником метрик только если C5D к тому моменту активирован.
       Кандидаты из рулинга — клиники, специалисты, клиенты как counts, загрузки видео, биллинг и использование — не
       расширяются персональными drill-down.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — owner gate на metric keys/formulas остаётся после появления источников.
 - [ ] После решения реализовать только утверждённые metric keys, формулы и layout; каждый metric получает source
       query `file:line`, denominator/timezone semantics и fixture с ожидаемым числом.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — реализация утверждённых platform KPI и проверяемых формул не покрыта.
 
 **Проверка:** aggregate builder/port/API tests; schema/static PII checker + self-test; A/B authz; canary PII scan;
 global_admin visual acceptance после финального metric decision.
@@ -515,22 +557,31 @@ global_admin visual acceptance после финального metric decision.
       clinic_admin/doctor A и B; разные tariffs/overrides; clinic-owned/base exercises; SaaS invoice/subscription/order.
       Package/grant fixtures добавляются только если C5D явно активирован.
       Доказательство: fixture manifest без реальных PII.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — fixture matrix охватывает billing/ownership и PII, которых нет в приёмке §5a.
 - [ ] Global_admin создаёт/меняет tariff, цену/период/full mechanic map, назначает A, меняет override, видит billing
       state и утверждённые aggregate metrics. Package curation проверяется только в C5D acceptance.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — §5a не принимает вместе constructor, billing state и platform metrics.
 - [ ] Clinic A проходит checkout mock/recorded-provider flow, получает tariff access и продолжает видеть свои
       clinic exercises отдельно от platform base content.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — checkout и own/base ownership acceptance отсутствуют.
 - [ ] Clinic B не видит tariff override, invoice или analytics A; её собственные
       exercises и mechanics работают по её tariff.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — cross-org A/B acceptance для override/invoice/analytics не задана.
 - [ ] Payment negatives: duplicate checkout/webhook, forged signature/org ID, wrong amount/currency, unknown provider
       ref, refund replay. Ни один отказ не меняет subscription/grant.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — payment negative matrix относится к billing security.
 - [ ] Entitlement negatives обязательны. Store direct-ID/expired-grant/mechanic-vs-grant negatives добавляются только
       для активированного C5D.
+      ➡️ ЖИВО — переезжает в §5a — пункты 3.2 и 7.3; store-негативы остаются условными и следуют решению об отсрочке магазина.
 - [ ] Analytics negatives: platform JSON/schema/visual artifacts не содержат patient identity, message text,
       exercise execution details или clinic drill-down rows; clinic A не получает B.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — PII/A-B negative acceptance platform analytics отсутствует.
 - [ ] UI-фазы получают desktop/mobile screenshots; executor, independent audit и fixer закрывают один и тот же
       checklist по [`ORCHESTRATION_BINDINGS.md`](../../ORCHESTRATION_BINDINGS.md).
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — §5a 7.4 требует просмотр владельца, но не desktop/mobile evidence и единый audit checklist.
 - [ ] После всех фаз выполнить один финальный `pnpm install --frozen-lockfile && pnpm run ci`; повторять полный gate
       без изменений кода не требуется.
+      ➡️ ЖИВО — переезжает в §5a — пункты 7.1–7.2 (CI только через общий замок).
 
 **Выход:** включённые substages — tariffs, one chokepoint, own/base ownership, real-provider-ready SaaS billing и
 безопасная analytics — работают на TEST для A/B. Store не симулируется и не требуется, пока C5D deferred.
@@ -568,16 +619,24 @@ global_admin visual acceptance после финального metric decision.
 - [ ] Каждая owner attribution ссылается на `OWNER_RULINGS_2026-07-15.md`, непереопределённую Часть Б
       `OWNER_DECISIONS_FOR_REVIEW.md` либо latest `OWNER_REVIEW_2026-07-18.md`; инженерные решения подписаны как
       инженерные.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — полный provenance audit старых attribution не включён в 6a.4.
 - [ ] Полный mechanic registry доказан method-level matrix; все protected actions используют один chokepoint.
+      ➡️ ЖИВО — переезжает в §5a — пункты 1.1–1.5 и 3.1–3.3; реестр сделан, единый lifecycle port и bypass gate ещё живы.
 - [ ] Global_admin управляет tariffs/prices/periods/mechanics/quotas/trial/seats/assignments/overrides как DB data.
+      ✅ СДЕЛАНО — commit `a678d043d`; `apps/webapp/src/app/api/admin/commercial/route.ts:31-74`, `apps/webapp/src/app/app/admin/commercial/CommercialConstructorClient.tsx:81-130`; аудит `STAGE12_AUDIT_R4_RESULT.md` подтвердил registry-driven constructor и capability grid (матрица 1.1–1.3, 2.1, 2.10).
 - [ ] Own-only и base library разведены, clinic content приватен. Если C5D активирован, future store/grants проходят
       отдельный source-aware/no-copy acceptance; иначе этот подпункт явно отмечается deferred, не failed.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — core own/base privacy остаётся live; условная store-часть отложена и не закрывает core.
 - [ ] Existing provider adapters обслуживают SaaS checkout/capture/refund/webhook; keys DB-backed и redacted.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — SaaS provider flow и credential contract не покрыты.
 - [ ] Global operator billing и organization «Тариф и биллинг» имеют разные authorization surfaces и общий
       reconciled ledger; ordinary specialist не получает финансовые права.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — billing authorization split и reconciled ledger отсутствуют.
 - [ ] Platform analytics содержит только утверждённые org/platform aggregates и проходит PII canary/static gate.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — platform analytics и PII gate не входят в quota report §5a 6.2.
 - [x] Bulk «Пересчитать» в memberships подтверждён существующим UI, route, service, tests и DB invariant.
 - [ ] A/B acceptance, security negatives, screenshots/audits и один финальный CI gate закрыты на тестовом сервере.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — §5a 7.1–7.4 не содержит полного A/B, billing/analytics negatives и screenshot matrix этого пункта.
 
 ## 15. Execution log
 
@@ -607,23 +666,32 @@ workstream-карточку `#1057`. Он не заменяет этапы S4 в
 
 - [ ] Включать clinic/team mode только купленным tariff entitlement; team settings/tab доступны только при
       entitlement, а UI и API одинаково fail closed.
+      ➡️ ЖИВО — переезжает в §5a — пункты 3.1 и 5.1.
 - [ ] Дать global admin настройку included invited-specialist count и/или per-seat surcharge.
+      ➡️ ЖИВО — переезжает в §5a — пункт 5.1.
 - [ ] Зафиксировать и реализовать contracts для over-limit, add-seat, downgrade, existing overage и связь с
       billing; C4A уже готов, C5C доплаты за места остаётся после billing.
+      ➡️ ЖИВО — переезжает в §5a — пункты 2.1–2.6, 5.1 и 5.6.
 - [ ] Active specialist binding и pending invite потребляют/резервируют seat, non-clinical admin — нет; included
       count и per-seat price/purchase moment остаются tariff data; downgrade/over-limit сохраняют memberships и
       блокируют новый growth.
+      ⛔ ОТМЕНЕНО РЕШЕНИЕМ ВЛАДЕЛЬЦА 30.07 — «За специалистов можно доплатить... каждый спец сверху — такая-то стоимость»; старый hard block growth заменён оплачиваемым превышением, канон §1.
 - [ ] Переиспользовать C4A server-side seat usage/limit contract и C5B billing
       account/order/subscription primitives.
+      ➡️ ЖИВО — переезжает в §5a — пункт 5.1.
 - [ ] Построить payer-authorized add-on checkout/order → idempotent confirmed payment → subscription seat
       allocation; client payload не задаёт org, цену, количество или payment success.
+      ➡️ ЖИВО — переезжает в §5a — пункт 5.1 (связь суммы и выставления счёта с #1057).
 - [ ] Обрабатывать replay, failed/past_due/refund/cancel/downgrade строго по утверждённой policy; existing
       memberships не удаляются молча, а новые invites блокируются/разрешаются сервером по effective paid limit.
+      ➡️ ЖИВО — переезжает в §5a — пункты 2.1–2.6 и 5.1.
 - [ ] Скрыть billing mutation от ordinary specialist и проверить direct API denial.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — финансовая role boundary и direct API denial не названы.
 - [ ] Закрыть org A/B isolation, immutable before/after audit, reconciliation, mock/recorded-provider TEST и
       organization «Тариф и биллинг» acceptance. Product gates C4C5-01…07 resolved by the 2026-07-19 addendum;
       real PSP activation remains blocked until YooKassa merchant/legal/receipt/retry/proration operations are
       specified and proven. C4C5-08 store commerce remains deferred.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — billing A/B, immutable audit, reconciliation и provider acceptance шире seat-лимита.
 
 Authority карточки: `SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md` §§P1,15; roadmap C4A/C5C.
 `auto_ok=false`.
@@ -633,9 +701,12 @@ Authority карточки: `SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.
 - [ ] Достроить standard SaaS billing operations baseline для global admin: subscriptions/payers,
       `paid|unpaid|trial|grace|past_due`, payment attempts, refunds, cancellations, filters/stats,
       invoice/receipt details и provider events.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — global billing operations baseline не входит в mechanics checklist.
 - [ ] Реализовать только PSP-supported safe retry/reissue/cancel/refund/grace operations, reconciliation и
       immutable audit; ручной success без подтверждённого money event запрещён.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — PSP-supported mutations/reconciliation/audit не покрыты.
 - [ ] Сначала зафиксировать design/spec с учётом выбранного PSP и legal/cash-register model.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — PSP/legal/cash-register design gate отсутствует.
 
 Authority карточки: `SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md` §P3; S4 §9. `auto_ok=false`.
 
@@ -644,8 +715,10 @@ Authority карточки: `SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.
 - [ ] Достроить owner/payment-admin settings surface «Тариф и биллинг»: current tariff/capabilities/usage/seats,
       subscription status, next payment, upgrade/downgrade, add-ons/seats, payment history, receipts/invoices,
       B2B bank-transfer invoice/status и failed-payment recovery.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — §5a 6.1 покрывает usage/лестницу, но не полный organization payer surface.
 - [ ] Доказать, что billing принадлежит organization, а ordinary invited specialists не видят tab и не имеют
       API access.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — organization billing ownership и ordinary-specialist denial не названы.
 
 Authority карточки: `SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md` §§P3,15; S4 §9.
 `auto_ok=false`, depends on billing lifecycle/spec.
@@ -656,14 +729,19 @@ Authority карточки: `SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.
 
 - [ ] Достроить существующий payment layer для оплаты клиниками подписки на платформу; не писать платёжку заново
       и не смешивать её с оплатой услуг пациентами или ранее убранными store phases.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — SaaS subscription billing остаётся отдельным workstream #1057.
 - [ ] Сохранить модель `тариф → механики → клиника`; prices — admin-managed data, не code constants.
+      ✅ СДЕЛАНО — commit `a678d043d`; `apps/webapp/db/schema/saasEntitlements.ts:24-42`, `apps/webapp/src/app/app/admin/commercial/CommercialConstructorClient.tsx:81-130`; аудит `STAGE12_AUDIT_R4_RESULT.md` подтвердил registry-driven constructor/mechanic grid.
 - [ ] Проверить текущее состояние patient online payment: doctor memberships работают end-to-end, patient online
       payment ранее был mock.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — проверка patient-payment reality не является тарифной механикой.
 - [ ] Сохранить аналитику по клиникам без PII пациентов и не вернуть пять mock payment confirmations в production:
       они отключены вне development commit `15ad7ba6f`, gate fail closed.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — PII-free billing analytics и production mock fail-closed gate отсутствуют.
 - [ ] Перед исполнением перечитать `OWNER_RULINGS_2026-07-15.md` и сверить существующие
       `saas_tariffs`, `saas_org_entitlement_overrides`, `saas_organization_trials`; неизвестные развилки сначала
       исследовать по мировой практике, не угадывать.
+      ➡️ ЖИВО — в §5a пункта НЕТ, нужен — это обязательный preflight будущего billing workstream, а не закрытая реализация.
 
 Порядок владельца: работа идёт после F-6 slug/public link, C-5 password change и self-login smoke; слово
 «когда закончишь» не отменяет эти predecessors.
@@ -696,15 +774,20 @@ Authority карточки: `SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.
 
 - [ ] Исполнить модель четырёх классов: наличие; запас с прямым пересчётом; расход за период через event ledger;
       объём как сумма байт.
+      ⛔ ОТМЕНЕНО РЕШЕНИЕМ ВЛАДЕЛЬЦА 30.07 — «Курсы — возможность, не число» и «Рассылки — вкл/выкл саму возможность»; текущих period-механик нет, event ledger не строится, канон §1/§3.
 - [ ] Для каждой write-path проверки ставить quota enforcement внутри пишущей repository transaction под
       advisory lock, а не в pre-transaction `requireEntitlement`; эталон гонки —
       `scripts/check-c5a-courses-quota-race.mjs` с настоящим PostgreSQL.
+      ➡️ ЖИВО — переезжает в §5a — пункты 3.1, 5.4 и 5.7.
 - [ ] Включать по одной механике: сначала показать usage без запрета → найти over-limit → выдать override →
       включить enforcement. Первый slice: `exercise_packages` или `cms_pages`; выбор остаётся в design gate.
+      ⛔ ОТМЕНЕНО РЕШЕНИЕМ ВЛАДЕЛЬЦА 30.07 — «Считать страницы неправильно... Просто вкл/выкл механику cms»; numeric slice для CMS/packages убит, канон §1.
 - [ ] Сначала создать event facts для рассылок и оплат, потому что сейчас отсутствует даже строка события,
       которую можно посчитать; только затем вводить расходную quota.
+      ⛔ ОТМЕНЕНО РЕШЕНИЕМ ВЛАДЕЛЬЦА 30.07 — «Рассылки — вкл/выкл саму возможность» и «сами цифры — тебя не касаются»; числовые quota/event facts не нужны, канон §1.
 - [ ] Получить решения владельца из §1 quota design: какая «Сегодня», period anchor, tariff change mid-period и
       payments at limit.
+      ⛔ ОТМЕНЕНО РЕШЕНИЕМ ВЛАДЕЛЬЦА 30.07 — «ты вообще не должен решать что ограничивать... ты должен дать мне механизм»; Today/tariff-change уже решены, period anchor не строится, политика задаётся владельцем, канон §1/§4a.
 
 Проверенные design facts, которые нельзя потерять:
 

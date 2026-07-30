@@ -23,6 +23,7 @@ import {
   EXERCISE_REMINDERS_TOPIC,
   resolveActiveReminderDeliveryLabelsForTopic,
 } from '@/modules/reminders/reminderDeliveryChannelLabels';
+import { canMaterializePromoForPatient } from '@/app-layer/treatment-program/promoMaterializationGate';
 
 function mapIconKind(
   linked: NonNullable<ReminderRule['linkedObjectType']>,
@@ -129,7 +130,9 @@ export async function RemindersPageBody({ session }: { session: AppSession }) {
   const warmupsSectionTitle = warmRes?.section.title?.trim() || 'Разминки';
   const warmupsSectionSlug = (warmRes?.canonicalSlug ?? DEFAULT_WARMUPS_SECTION_SLUG).trim();
 
-  const activeInstanceId = await resolveActiveTreatmentProgramInstanceId(deps, userId);
+  const activeInstanceId = await resolveActiveTreatmentProgramInstanceId(deps, userId, () =>
+    canMaterializePromoForPatient({ patientOrganization: deps.patientOrganization }, userId),
+  );
   let rehabProgramForBlock: { id: string; title: string } | null = null;
   if (activeInstanceId) {
     const row = programList.find((p) => p.id === activeInstanceId);

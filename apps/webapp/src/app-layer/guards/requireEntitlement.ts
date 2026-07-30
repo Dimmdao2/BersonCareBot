@@ -1,40 +1,68 @@
 import { NextResponse } from 'next/server';
 import { notFound } from 'next/navigation';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import {
-  isMechanicEnabled,
-  resolveOrgEntitlementSnapshot,
-} from '@/modules/org-entitlements/service';
-import type { OrgMechanic } from '@/modules/org-entitlements/types';
+import { resolveMechanicAccess } from '@/modules/org-entitlements/service';
+import type {
+  MechanicAccessWarning,
+  MechanicAccessResolution,
+  OrgMechanic,
+} from '@/modules/org-entitlements/types';
+import { MECHANIC_REGISTRY } from '@/modules/org-entitlements/types';
 
 /** A route/action may pass only an already-authorized, server-derived organization. */
 export type EntitlementContext = Readonly<{ organizationId: string }>;
 type EntitlementAccess = 'read' | 'mutation';
-export type EntitlementSuccess = { ok: true };
+export type EntitlementSuccess = { ok: true; warning?: MechanicAccessWarning | null };
 export type EntitlementDenialReason =
   | 'entitlement_required'
   | 'commercial_read_only'
-  | 'commercial_blocked';
+  | 'commercial_blocked'
+  | 'access_lifecycle_unconfigured';
+
+/**
+ * Product-facing explanation for a mutation blocked by a tariff mechanic.
+ * Callers supply the concrete action so the UI never has to turn a swallowed 403
+ * into an unexplained disabled control.
+ */
+export function entitlementMutationRefusalMessage(action: string): string {
+  return `Невозможно ${action}: этот раздел не входит в ваш тариф. Чтобы выполнить действие, включите этот раздел в тарифе клиники.`;
+}
+
+export function entitlementMutationRefusalResponse(
+  mechanic: OrgMechanic,
+  action: string,
+): NextResponse {
+  return NextResponse.json(
+    {
+      ok: false,
+      error: 'entitlement_required',
+      mechanic,
+      message: entitlementMutationRefusalMessage(action),
+    },
+    { status: 403 },
+  );
+}
 
 async function checkEntitlement(
   ctx: EntitlementContext,
   mechanic: OrgMechanic,
   access: EntitlementAccess,
 ): Promise<EntitlementSuccess | { ok: false; reason: EntitlementDenialReason }> {
-  const port = buildAppDeps().orgEntitlements;
-  const snapshot = await resolveOrgEntitlementSnapshot(port, ctx.organizationId);
-  if (!snapshot.entitlements[mechanic]) {
+  const resolution = await resolveMechanicAccess(
+    buildAppDeps().orgEntitlements,
+    ctx.organizationId,
+    mechanic,
+  );
+  if (resolution.state === 'disabled') {
     return { ok: false, reason: 'entitlement_required' };
   }
-  if (access === 'read') return { ok: true };
-
-  if (snapshot.access.lifecycle === 'read_only') {
+  if (resolution.state === 'unconfigured') {
+    return { ok: false, reason: 'access_lifecycle_unconfigured' };
+  }
+  if (resolution.state === 'read_only' && access === 'mutation') {
     return { ok: false, reason: 'commercial_read_only' };
   }
-  if (snapshot.access.lifecycle === 'blocked') {
-    return { ok: false, reason: 'commercial_blocked' };
-  }
-  return { ok: true };
+  return { ok: true, warning: resolution.warning };
 }
 
 /**
@@ -45,8 +73,71 @@ export async function assertMechanicEnabled(
   organizationId: string,
   mechanic: OrgMechanic,
 ): Promise<boolean> {
-  return isMechanicEnabled(buildAppDeps().orgEntitlements, organizationId, mechanic);
+  return (
+    await getMechanicSurfaceVisibility({ organizationId }, mechanic)
+  ).directUrl;
 }
+
+/** One visibility adapter shared by specialist navigation, patient navigation and direct pages. */
+export type MechanicSurfaceVisibility = {
+  specialistNavigation: boolean;
+  patientNavigation: boolean;
+  directUrl: boolean;
+  warning: MechanicAccessWarning | null;
+};
+
+export function resolveMechanicSurfaceVisibility(
+  resolution: MechanicAccessResolution,
+): MechanicSurfaceVisibility {
+  const visible =
+    resolution.state === 'full_access' ||
+    resolution.state === 'grace' ||
+    resolution.state === 'read_only';
+  return {
+    specialistNavigation: visible,
+    patientNavigation: visible,
+    directUrl: visible,
+    warning: resolution.warning,
+  };
+}
+
+const ACCESS_STATE_LABELS: Record<MechanicAccessWarning['nextState'], string> = {
+  full_access: 'полный доступ',
+  read_only: 'только чтение',
+  disabled: 'выключено',
+};
+
+function warningDateLabel(until: string): string {
+  const [year, month, day] = until.slice(0, 10).split('-');
+  return year && month && day ? `${day}.${month}.${year}` : until;
+}
+
+/** Canon §7: name the affected function, what happens next and the resolver-provided date/count. */
+export function entitlementGraceWarningMessage(
+  mechanic: OrgMechanic,
+  warning: MechanicAccessWarning,
+): string {
+  return `${MECHANIC_REGISTRY[mechanic].label}: полный доступ до ${warningDateLabel(warning.until)}. Затем — ${ACCESS_STATE_LABELS[warning.nextState]}. Предупреждений: ${warning.count}.`;
+}
+
+export async function getMechanicSurfaceVisibility(
+  ctx: EntitlementContext,
+  mechanic: OrgMechanic,
+): Promise<MechanicSurfaceVisibility> {
+  return resolveMechanicSurfaceVisibility(
+    await resolveMechanicAccess(buildAppDeps().orgEntitlements, ctx.organizationId, mechanic),
+  );
+}
+
+export async function isMechanicVisible(
+  ctx: EntitlementContext,
+  mechanic: OrgMechanic,
+): Promise<boolean> {
+  return (await getMechanicSurfaceVisibility(ctx, mechanic)).directUrl;
+}
+
+/** @deprecated Use the shared surface visibility adapter. */
+export const isMechanicIncluded = isMechanicVisible;
 
 /** Read-only API adapter. Lifecycle recovery reads remain available. */
 export async function requireEntitlementForRead(
@@ -109,7 +200,5 @@ export async function requireEntitlementForPage(
   ctx: EntitlementContext,
   mechanic: OrgMechanic,
 ): Promise<void> {
-  if (!(await assertMechanicEnabled(ctx.organizationId, mechanic))) {
-    notFound();
-  }
+  if (!(await getMechanicSurfaceVisibility(ctx, mechanic)).directUrl) notFound();
 }

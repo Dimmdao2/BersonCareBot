@@ -11,6 +11,7 @@ import {
   DEFAULT_APP_DISPLAY_TIMEZONE,
   getAppDisplayTimeZone,
 } from '@/modules/system-settings/appDisplayTimezone';
+import { requirePatientWarmupReminderMutation } from '@/app-layer/reminders/patientWarmupReminderMutationGuard';
 
 function parseQuietFromSchedule(
   schedule: Record<string, unknown>,
@@ -149,6 +150,13 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
   }
 
   const deps = buildAppDeps();
+  const warmupEntitlement = await requirePatientWarmupReminderMutation(
+    deps,
+    session.user.userId,
+    { ruleId },
+    'изменить напоминание о разминке',
+  );
+  if (!warmupEntitlement.ok) return warmupEntitlement.response;
   const res = await deps.reminders.updateRule(session.user.userId, ruleId, patch);
   if (!res.ok) {
     const status = res.error === 'not_found' ? 404 : 400;
@@ -177,6 +185,13 @@ export async function DELETE(_req: Request, context: { params: Promise<{ id: str
   }
 
   const deps = buildAppDeps();
+  const warmupEntitlement = await requirePatientWarmupReminderMutation(
+    deps,
+    session.user.userId,
+    { ruleId },
+    'удалить напоминание о разминке',
+  );
+  if (!warmupEntitlement.ok) return warmupEntitlement.response;
   const res = await deps.reminders.deleteReminder(session.user.userId, ruleId);
   if (!res.ok) {
     return NextResponse.json({ ok: false, error: res.error }, { status: 404 });

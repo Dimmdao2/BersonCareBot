@@ -2,7 +2,12 @@ import { revalidatePath } from 'next/cache';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
+import {
+  entitlementMutationRefusalResponse,
+  requireEntitlementForMutation,
+} from '@/app-layer/guards/requireEntitlement';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { resolvePatientEnrollmentOrganizationId } from '@/app/api/booking/bookingTenant';
 import { routePaths } from '@/app-layer/routes/paths';
 
 /** Та же шкала 1–5, что чек-ин на главной и `POST /api/patient/practice/completion` (симптом `warmup_feeling`). */
@@ -35,6 +40,21 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
   const userId = gate.session.user.userId;
 
   const deps = buildAppDeps();
+  const tenant = await resolvePatientEnrollmentOrganizationId(
+    { patientOrganization: deps.patientOrganization },
+    gate.session.user.userId,
+  );
+  if (!tenant.ok) return tenant.response;
+  const entitlement = await requireEntitlementForMutation(
+    { organizationId: tenant.organizationId },
+    'patient_diaries',
+  );
+  if (!entitlement.ok) {
+    return entitlementMutationRefusalResponse(
+      'patient_diaries',
+      'добавить или изменить отметку после разминки',
+    );
+  }
 
   const completion = await deps.patientPractice.getCompletionByIdForUser(completionId, userId);
   if (!completion) {

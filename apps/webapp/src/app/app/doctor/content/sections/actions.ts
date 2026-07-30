@@ -4,6 +4,10 @@ import { revalidatePath } from 'next/cache';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { requireEntitlementForMutationAction } from '@/app-layer/guards/requireEntitlement';
+import {
+  isWarmupsContentSection,
+  warmupsContentMutationRefusal,
+} from '@/app-layer/content/warmupsContentMutationGuard';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
   CMS_UNASSIGNED_SECTION_SLUG,
@@ -101,6 +105,10 @@ export async function saveContentSection(
 
   const entitlement = await requireEntitlementForMutationAction(workspace, 'cms_pages');
   if (!entitlement.ok) return { ok: false, error: entitlement.reason };
+  if (systemParentCode === 'warmups' || isWarmupsContentSection(existing)) {
+    const refusal = await warmupsContentMutationRefusal(workspace);
+    if (refusal) return { ok: false, error: refusal };
+  }
 
   try {
     await withDoctorWorkspacePrincipal(workspace, () =>
@@ -168,6 +176,10 @@ export async function attachArticleSectionToSystemFolder(
   if (!existing) {
     return { ok: false, error: 'Раздел не найден' };
   }
+  if (systemParentCode === 'warmups' || isWarmupsContentSection(existing)) {
+    const refusal = await warmupsContentMutationRefusal(workspace);
+    if (refusal) return { ok: false, error: refusal };
+  }
   if (existing.kind !== 'article') {
     return { ok: false, error: 'В папку можно добавить только раздел из каталога статей' };
   }
@@ -227,6 +239,11 @@ export async function renameContentSectionSlug(
   if (isSectionSlugProtectedFromDelete(newParsed.slug)) {
     return { ok: false, error: 'Зарезервированный slug недопустим' };
   }
+  const existing = await deps.contentSections.getBySlug(oldParsed.slug);
+  if (isWarmupsContentSection(existing)) {
+    const refusal = await warmupsContentMutationRefusal(workspace);
+    if (refusal) return { ok: false, error: refusal };
+  }
 
   const result = await withDoctorWorkspacePrincipal(workspace, () =>
     deps.contentSections.renameSectionSlug(oldParsed.slug, newParsed.slug, {
@@ -263,6 +280,11 @@ export async function deleteContentSection(
   const slug = ((formData.get('section_slug') as string) ?? '').trim();
   if (!slug) {
     return { ok: false, error: 'Не указан раздел' };
+  }
+  const existing = await deps.contentSections.getBySlug(slug);
+  if (isWarmupsContentSection(existing)) {
+    const refusal = await warmupsContentMutationRefusal(workspace);
+    if (refusal) return { ok: false, error: refusal };
   }
 
   const result = await withDoctorWorkspacePrincipal(workspace, () =>

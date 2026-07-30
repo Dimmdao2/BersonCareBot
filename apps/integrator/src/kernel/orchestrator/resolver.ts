@@ -106,7 +106,7 @@ function matchesScriptPattern(actual: unknown, expected: unknown): boolean {
 
   if (!isRecord(expected)) return actual === expected;
 
-  /** Match when actual is not in the given array (e.g. exclude diary awaiting states from "any text" scripts). */
+  /** Match when actual is not in the given array. */
   const notIn = expected.$notIn;
   if (Array.isArray(notIn) && Object.keys(expected).length === 1) {
     return !notIn.includes(actual as never);
@@ -284,14 +284,9 @@ async function resolveBusinessScript(
 /**
  * Reply-keyboard «меню» приходит как `message.received` с `input.action`, не как callback — отдельно от
  * {@link buildLinkedPhoneCallbackGatePlan}. Без телефона (канальный контакт) такие нажатия не должны
- * открывать сценарии записи/дневника/кабинета.
+ * открывать сценарии записи/кабинета.
  */
-const MESSAGE_MENU_ACTIONS_NEED_PHONE = new Set([
-  'booking.open',
-  'menu.more',
-  'cabinet.open',
-  'diary.open',
-]);
+const MESSAGE_MENU_ACTIONS_NEED_PHONE = new Set(['booking.open', 'menu.more', 'cabinet.open']);
 
 function buildLinkedPhoneMessageMenuGatePlan(input: OrchestratorInput): OrchestratorPlan | null {
   if (input.event.type !== 'message.received') return null;
@@ -317,10 +312,7 @@ function buildLinkedPhoneMessageMenuGatePlan(input: OrchestratorInput): Orchestr
   if (isTruthyString(inc.phone) || isTruthyString(inc.contactPhone)) return null;
   if (input.context.hasActiveDraft === true) return null;
   if (conv === 'waiting_for_question') return null;
-  if (
-    typeof conv === 'string' &&
-    (conv.startsWith('diary.') || conv.startsWith('waiting_skip_reason:'))
-  ) {
+  if (typeof conv === 'string' && conv.startsWith('waiting_skip_reason:')) {
     return null;
   }
   if (isTruthyString(inc.relayMessageType)) return null;
@@ -379,7 +371,7 @@ function buildLinkedPhoneMessageMenuGatePlan(input: OrchestratorInput): Orchestr
 }
 
 /**
- * Prod: inline callbacks without a linked phone must not run notification/booking/diary scripts.
+ * Prod: inline callbacks without a linked phone must not run notification/booking scripts.
  * Single gate before script matching — same UX as `*.need_phone` scenarios (request contact + `callback.answer`).
  * Skips admins. Falls through when `callbackQueryId` is missing (non-standard payload) or source is not telegram/max.
  */

@@ -21,7 +21,10 @@ import {
   hasLaunchCapability,
   resolveLaunchCapabilities,
 } from '@/app-layer/guards/workspaceCapabilities';
-import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
+import {
+  entitlementMutationRefusalResponse,
+  requireEntitlementForMutation,
+} from '@/app-layer/guards/requireEntitlement';
 import { systemSettingsOrgContextErrorResponse } from '@/app-layer/guards/systemSettingsOrgContextResponse';
 import { getCurrentSession } from '@/modules/auth/service';
 import { ALLOWED_KEYS, type SystemSetting } from '@/modules/system-settings/types';
@@ -216,6 +219,34 @@ const OWNER_ONLY_PATIENT_HOME_KEYS = new Set<string>([
 const PAYMENT_ENTITLEMENT_SETTING_KEYS = new Set([
   'booking_payment_providers',
   'booking_payment_enabled',
+]);
+
+const EXTERNAL_CALENDAR_ENTITLEMENT_SETTING_KEYS = new Set([
+  'google_refresh_token',
+  'google_calendar_id',
+  'google_calendar_enabled',
+  'google_connected_email',
+]);
+
+const PATIENT_HOME_TODAY_ENTITLEMENT_SETTING_KEYS = new Set([
+  'patient_home_daily_practice_target',
+  'patient_home_daily_warmup_rotation_enabled',
+  'patient_home_daily_warmup_rotation_times',
+  'patient_home_daily_warmup_repeat_cooldown_minutes',
+  'patient_treatment_plan_item_done_repeat_cooldown_minutes',
+  'patient_home_warmup_skip_to_next_available_enabled',
+  'patient_home_mood_icons',
+]);
+
+const WARMUPS_ENTITLEMENT_SETTING_KEYS = new Set([
+  'patient_home_daily_warmup_rotation_enabled',
+  'patient_home_daily_warmup_rotation_times',
+  'patient_home_daily_warmup_repeat_cooldown_minutes',
+  'patient_home_warmup_skip_to_next_available_enabled',
+]);
+
+const PROMO_ENTITLEMENT_SETTING_KEYS = new Set([
+  'patient_default_promo_treatment_program_template_id',
 ]);
 
 function redactWebPushVapidForAudit(envelope: unknown): unknown {
@@ -444,6 +475,48 @@ export async function PATCH(request: Request) {
   if (PAYMENT_ENTITLEMENT_SETTING_KEYS.has(parsed.data.key) && gate.ctx.kind === 'clinic') {
     const entitlement = await requireEntitlementForMutation(gate.ctx.workspace, 'payments');
     if (!entitlement.ok) return entitlement.response;
+  }
+  if (
+    EXTERNAL_CALENDAR_ENTITLEMENT_SETTING_KEYS.has(parsed.data.key) &&
+    gate.ctx.kind === 'clinic'
+  ) {
+    const entitlement = await requireEntitlementForMutation(
+      gate.ctx.workspace,
+      'external_calendar',
+    );
+    if (!entitlement.ok) {
+      return entitlementMutationRefusalResponse(
+        'external_calendar',
+        'изменить или отключить внешний календарь',
+      );
+    }
+  }
+  if (
+    PATIENT_HOME_TODAY_ENTITLEMENT_SETTING_KEYS.has(parsed.data.key) &&
+    gate.ctx.kind === 'clinic'
+  ) {
+    const entitlement = await requireEntitlementForMutation(
+      gate.ctx.workspace,
+      'patient_home_today',
+    );
+    if (!entitlement.ok) {
+      return entitlementMutationRefusalResponse(
+        'patient_home_today',
+        'изменить настройки главной страницы пациента',
+      );
+    }
+  }
+  if (WARMUPS_ENTITLEMENT_SETTING_KEYS.has(parsed.data.key) && gate.ctx.kind === 'clinic') {
+    const entitlement = await requireEntitlementForMutation(gate.ctx.workspace, 'warmups');
+    if (!entitlement.ok) {
+      return entitlementMutationRefusalResponse('warmups', 'изменить настройки разминок');
+    }
+  }
+  if (PROMO_ENTITLEMENT_SETTING_KEYS.has(parsed.data.key) && gate.ctx.kind === 'clinic') {
+    const entitlement = await requireEntitlementForMutation(gate.ctx.workspace, 'promo');
+    if (!entitlement.ok) {
+      return entitlementMutationRefusalResponse('promo', 'изменить промо-программу');
+    }
   }
   if (
     OWNER_ONLY_PATIENT_HOME_KEYS.has(parsed.data.key) &&

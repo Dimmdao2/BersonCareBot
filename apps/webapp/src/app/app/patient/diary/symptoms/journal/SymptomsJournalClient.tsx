@@ -181,7 +181,7 @@ export function SymptomsJournalClient(props: {
                             toast.success('Запись удалена');
                             router.refresh();
                           } else {
-                            toast.error('Не удалось удалить');
+                            toast.error(res.message ?? 'Не удалось удалить');
                           }
                         });
                       }}
@@ -234,7 +234,7 @@ export function SymptomsJournalClient(props: {
                       setEditEntry(null);
                       router.refresh();
                     } else {
-                      toast.error('Не удалось сохранить');
+                      toast.error(res.message ?? 'Не удалось сохранить');
                     }
                   });
                 }}

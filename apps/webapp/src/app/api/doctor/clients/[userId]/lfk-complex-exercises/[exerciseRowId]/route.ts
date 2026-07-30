@@ -3,6 +3,10 @@ import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import {
+  entitlementMutationRefusalResponse,
+  requireEntitlementForMutation,
+} from '@/app-layer/guards/requireEntitlement';
 
 const bodySchema = z.object({
   localComment: z.union([z.string().max(5000), z.null()]),
@@ -34,7 +38,16 @@ export async function PATCH(
     gate.ctx.organizationId,
   );
   if (!identity) return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
-
+  const entitlement = await requireEntitlementForMutation(
+    { organizationId: gate.ctx.organizationId },
+    'patient_diaries',
+  );
+  if (!entitlement.ok) {
+    return entitlementMutationRefusalResponse(
+      'patient_diaries',
+      'изменить комментарий в дневнике ЛФК пациента',
+    );
+  }
   try {
     await withDoctorWorkspacePrincipal(gate.ctx, () =>
       deps.diaries.updateLfkComplexExerciseLocalCommentForUser({

@@ -12,9 +12,15 @@ import type {
 const quotaSchema = z.object({
   kind: z.enum(['numeric', 'unlimited']),
   limit: z.number().int().nonnegative().nullable(),
-  unit: z.string().trim().min(1),
-  period: z.enum(['snapshot', 'day', 'month', 'year']),
-  usagePolicy: z.enum(['snapshot', 'consumption']),
+  unit: z.enum(['bytes', 'items']),
+  warningAtPercent: z.number().int().min(0).max(100).nullable(),
+});
+
+const accessPolicySchema = z.object({
+  graceDays: z.number().int().nonnegative(),
+  readOnlyDays: z.number().int().nonnegative(),
+  warningCount: z.number().int().nonnegative(),
+  terminalState: z.enum(['full_access', 'read_only', 'disabled']),
 });
 
 const tariffInputSchema = z.object({
@@ -24,8 +30,17 @@ const tariffInputSchema = z.object({
   currency: z.string().trim().min(1).nullable(),
   billingPeriod: z.enum(['day', 'month', 'year']),
   mechanics: z.record(z.string(), z.boolean()),
-  quotas: z.record(z.string(), quotaSchema),
+  quotas: z
+    .object({
+      files: quotaSchema.optional(),
+      patient_count: quotaSchema.optional(),
+      branches: quotaSchema.optional(),
+    })
+    .strict(),
+  systemAccessPolicy: accessPolicySchema.nullable(),
+  mechanicAccessPolicies: z.record(z.string(), accessPolicySchema),
   includedSeats: z.number().int().nonnegative().nullable(),
+  includedSeatsWarningAtPercent: z.number().int().min(0).max(100).nullable(),
   isActive: z.boolean(),
 });
 
@@ -33,7 +48,7 @@ const trialPolicySchema = z.object({
   tariffId: z.string().uuid(),
   durationDays: z.number().int().positive(),
   graceDays: z.number().int().nonnegative(),
-  startEvent: z.literal('organization_provisioned'),
+  startEvent: z.string().trim().min(1),
   postTrialBehavior: z.enum(['read_only', 'blocked', 'tariff']),
   postTrialTariffId: z.string().uuid().nullable(),
   isActive: z.boolean(),

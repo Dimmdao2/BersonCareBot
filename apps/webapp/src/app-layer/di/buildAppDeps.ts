@@ -1105,8 +1105,11 @@ const treatmentProgramInstanceService = createTreatmentProgramInstanceService({
   testAttempts: treatmentProgramTestAttemptsPort,
   getDefaultPromoTemplateId: ({ organizationId } = {}) =>
     systemSettingsService.getPatientDefaultPromoTreatmentProgramTemplateId({ organizationId }),
-  snapshotDiaryDaysBeforePromoRefresh: (input) =>
-    snapshotPromoDaysBeforeRefresh(
+  snapshotDiaryDaysBeforePromoRefresh: async (input) => {
+    if (!(await isMechanicEnabled(orgEntitlementsPort, input.organizationId, 'patient_diaries'))) {
+      return;
+    }
+    await snapshotPromoDaysBeforeRefresh(
       {
         reminders: remindersService,
         patientPractice: patientPracticeService,
@@ -1122,7 +1125,8 @@ const treatmentProgramInstanceService = createTreatmentProgramInstanceService({
         getPatientCalendarTimezoneIana: patientCalendarTimezoneGet,
       },
       input,
-    ),
+    );
+  },
 });
 const coursesService = createCoursesService({
   courses: coursesPort,

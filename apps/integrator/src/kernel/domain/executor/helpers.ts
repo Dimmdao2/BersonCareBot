@@ -48,7 +48,7 @@ export type ExecutorDeps = {
   supportRelayPolicy?: SupportRelayPolicy | null;
   /** Set by pipeline so handlers can recurse (e.g. message.retry.enqueue). */
   executeAction?: (action: Action, ctx: DomainContext, deps: ExecutorDeps) => Promise<ActionResult>;
-  /** Optional: emit signed events to webapp (e.g. diary.symptom.*). */
+  /** Optional: execute signed integrator-to-webapp operations. */
   webappEventsPort?: WebappEventsPort;
   /** Optional: resolve delivery targets by phone/channel for multi-channel booking fan-out. */
   deliveryTargetsPort?: DeliveryTargetsPort;

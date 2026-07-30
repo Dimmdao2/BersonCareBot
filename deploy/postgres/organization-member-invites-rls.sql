@@ -275,13 +275,15 @@ BEGIN
   -- entitlement at invite-creation time. An invite issued before a downgrade/OFF must not activate
   -- ANY clinic-team membership growth — this applies to every invited role, including `admin`,
   -- which never consumes a numeric seat but still grows the paid clinic-team capability. Mirrors
-  -- isMechanicEnabled's clinic_team default-off precedence (src/modules/org-entitlements/service.ts)
-  -- — duplicated here because it must run inside this same FOR UPDATE-locked transaction to be
-  -- atomic. Checked, and denied, before any platform_users/membership/invite mutation below.
+  -- resolveClinicSeatLimit's override > tariff precedence. `clinic_team` is a numeric seats
+  -- mechanic: the tariff includes it by configuring included_seats, not by writing the legacy
+  -- mechanics JSON. This check is duplicated here because it must run inside this same FOR
+  -- UPDATE-locked transaction to be atomic. Checked, and denied, before any
+  -- platform_users/membership/invite mutation below.
   SELECT COALESCE(
     (SELECT eo.enabled FROM public.saas_org_entitlement_overrides AS eo
      WHERE eo.organization_id = v_invite.organization_id AND eo.mechanic = 'clinic_team'),
-    (SELECT (t.mechanics ->> 'clinic_team')::boolean
+    (SELECT t.included_seats IS NOT NULL
      FROM public.be_organizations AS o
      JOIN public.saas_tariffs AS t ON t.id = o.tariff_id
      WHERE o.id = v_invite.organization_id),
@@ -295,7 +297,7 @@ BEGIN
 
   -- Numeric seat CAPACITY remains doctor-only: an `admin` invite never consumes or is blocked by
   -- seat count, only by the entitlement gate above. Mirrors resolveClinicSeatLimit's override >
-  -- tariff > fail-closed-baseline precedence (src/modules/org-entitlements/service.ts). `i.id <>
+  -- tariff precedence (src/modules/org-entitlements/service.ts). `i.id <>
   -- v_invite.id` excludes this invite's own prior pending reservation from the pending count:
   -- accepting does not add a NEW reservation on top of the one already held since it was created.
   IF v_invite.invited_role = 'doctor' THEN
@@ -305,8 +307,7 @@ BEGIN
       (SELECT t.included_seats
        FROM public.be_organizations AS o
        JOIN public.saas_tariffs AS t ON t.id = o.tariff_id
-       WHERE o.id = v_invite.organization_id),
-      1 -- CLINIC_TEAM_FAIL_CLOSED_SEAT_BASELINE (src/modules/org-entitlements/types.ts)
+       WHERE o.id = v_invite.organization_id)
     ) INTO v_seat_limit;
 
     SELECT
@@ -323,7 +324,7 @@ BEGIN
          AND i.invited_role = 'doctor' AND m.status = 'active' AND m.specialist_id IS NULL)
     INTO v_seat_used;
 
-    IF v_seat_used >= v_seat_limit THEN
+    IF v_seat_limit IS NULL OR v_seat_used >= v_seat_limit THEN
       RETURN QUERY SELECT false, 'seat_limit_reached'::text, NULL::uuid, NULL::uuid, NULL::uuid, NULL::uuid, NULL::text;
       RETURN;
     END IF;

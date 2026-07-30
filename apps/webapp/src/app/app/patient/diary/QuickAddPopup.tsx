@@ -124,7 +124,7 @@ export function QuickAddPopup({ trackings, complexes }: Props) {
                         notifyDiarySymptomEntrySaved();
                         setOpen(false);
                       } else {
-                        toast.error('Не удалось сохранить');
+                        toast.error(result.message ?? 'Не удалось сохранить');
                       }
                     });
                   }}
@@ -185,9 +185,13 @@ export function QuickAddPopup({ trackings, complexes }: Props) {
                     e.preventDefault();
                     const fd = new FormData(e.currentTarget);
                     startLfkTransition(async () => {
-                      await markLfkSession(fd);
-                      toast.success('Занятие отмечено');
-                      setOpen(false);
+                      const result = await markLfkSession(fd);
+                      if (result.ok) {
+                        toast.success('Занятие отмечено');
+                        setOpen(false);
+                      } else {
+                        toast.error(result.message ?? 'Не удалось отметить занятие');
+                      }
                     });
                   }}
                 >

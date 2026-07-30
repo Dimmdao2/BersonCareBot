@@ -1,5 +1,9 @@
 import { operatorIncidents, operatorJobStatus } from '@bersoncare/operator-db-schema';
-import { bookingCalendarMap, deliveryAttemptLogs } from './schema/integratorPublicProduct.js';
+import {
+  bookingCalendarMap,
+  deliveryAttemptLogs,
+  orgEnrollments,
+} from './schema/integratorPublicProduct.js';
 import {
   contentAccessGrants,
   userReminderDeliveryLogs,
@@ -13,6 +17,7 @@ export const integratorDrizzleSchema = {
   operatorJobStatus,
   bookingCalendarMap,
   deliveryAttemptLogs,
+  orgEnrollments,
   projectionOutbox,
   messageRetryJobs,
   userReminderRules,

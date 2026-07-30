@@ -3,9 +3,9 @@
 Канон классификации — [apps/webapp/ARCHITECTURE.md](/home/dev/dev-projects/bcb-wt-tariff/apps/webapp/ARCHITECTURE.md:53), объём — [WORK_ORDER.md](/home/dev/dev-projects/bcb-wt-tariff/docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md:249).
 
 - Достижимых типов действий: **30** = **5 КАНАЛ + 23 ПРОДУКТ + 2 спорных**.
-- Загруженных сценариев: **131**; достижимых: **104** = **8 КАНАЛ + 73 ПРОДУКТ + 23 спорных**.
+- Загруженных сценариев: **131**; достижимых: **105** = **9 КАНАЛ + 73 ПРОДУКТ + 23 спорных**.
 - Недостижимых веток старого `switch`, которые сносит D12: **10**.
-- Дополнительно недостижимых сценариев контента: **27**.
+- Дополнительно недостижимых сценариев контента: **26**.
 - `domainActionRegistry` не является живым диспетчером: `executeStep()` не имеет runtime-вызывателя; его три регистрации отдельно не считаются.
 - Дневник/ЛФК из коммита `249878ef9` не включены.
 
@@ -21,7 +21,7 @@ jq -r '.[].steps[].action' \
   apps/integrator/src/content/{telegram,max}/{user,admin}/scripts.json \
   [redacted-token].json |
   sort -u | wc -l
-# 33 raw action types; после исключения 27 недостижимых сценариев — 30
+# 33 raw action types; после исключения 26 недостижимых сценариев — 30
 
 rg -n "case ['\"]" \
   [redacted-token].ts
@@ -106,6 +106,7 @@ rg -n "case ['\"]" \
 | `telegram.contact.link.remind` → `:1535` | СПОРНО | Продолжает identity-link handshake | граница auth/channel |
 | `telegram.more.menu` → `:1701` | КАНАЛ | Отдаёт уже готовую ссылку входа в webapp | — |
 | `telegram.cabinet.open` → `:1762` | КАНАЛ | Отдаёт ссылку входа в кабинет | — |
+| `telegram.cabinet.open.callback` → `:1428` | КАНАЛ | Достижим Telegram callback с `input.action=cabinet.open` при `linkedPhone=true`; переведён из ошибочно помеченных недостижимых в живые | — |
 | `telegram.bookings.show` → `:2275` | ПРОДУКТ | Показывает продуктовые данные записей | webapp booking |
 | `telegram.info.prepare` → `:2380` | ПРОДУКТ | Показывает продуктовые инструкции к записи | webapp booking |
 | `telegram.info.address` → `:2417` | ПРОДУКТ | Показывает адрес/данные записи | webapp booking |
@@ -212,7 +213,7 @@ rg -n "case ['\"]" \
 | `message.retry.enqueue` → `executeAction.ts:1351` | тот же перехватчик; реализация `handlers/delivery.ts:395` |
 | `intent.enqueueDelivery` → `executeAction.ts:1388` | тот же перехватчик; реализация `handlers/delivery.ts:436` |
 
-### 3.2. Дополнительно 27 недостижимых сценариев контента
+### 3.2. Дополнительно 26 недостижимых сценариев контента
 
 Глобальные ворота выполняются до content matching: message gate — `orchestrator/resolver.ts:291,462-463`, callback gate — `:378,465-466`.
 
@@ -242,7 +243,6 @@ rg -n "case ['\"]" \
 - `telegram.reminders.cycle.supplements_medication` → `:2240` — то же.
 - `telegram.menu.back` → `:2454` — единственный текущий producer находится внутри недостижимого dashboard.
 - `max.menu.back` → `max/user/scripts.json:1424` — текущего producer `menu.back` нет.
-- `telegram.cabinet.open.callback` → `telegram/user/scripts.json:1793` — есть text→action для message, но текущей inline-кнопки `cabinet.open` нет.
 
 Дополнительные handler-only типы без сценарного диспетчера: `reminders.skip.reasonPrompt` (`handlers/reminders.ts:1054`) и `reminders.messengerTopic.disable.callback` (`:1565`).
 
@@ -258,7 +258,7 @@ rg -n "case ['\"]" \
 
 ## 5. Чего не смог установить
 
-- Наличие у пользователей старых Telegram/MAX-сообщений с уже выданными кнопками. Поэтому 27 сценариев недостижимы из текущего source-generated маршрута, но историческая кнопка у провайдера теоретически может вызвать часть старых callback.
+- Наличие у пользователей старых Telegram/MAX-сообщений с уже выданными кнопками. Поэтому 26 сценариев недостижимы из текущего source-generated маршрута, но историческая кнопка у провайдера теоретически может вызвать часть старых callback.
 - Реальную частоту использования сценариев и состояние очередей/БД: DEV/TEST/PROD и базы не читались.
 - Включён ли Telegram webhook или long polling в конкретном runtime. Оба приходят в тот же pipeline, поэтому статическую классификацию это не меняет.
 - Гарантированно ли заполнены все `facts.links.*` в каждом runtime-контексте; код содержит условные ветки link/fallback.

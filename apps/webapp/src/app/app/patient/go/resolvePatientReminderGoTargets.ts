@@ -14,6 +14,8 @@ import {
 import { resolveActiveTreatmentProgramInstanceId } from '@/modules/treatment-program/patientTreatmentProgramEntry';
 import { omitDisabledInstanceStageItemsForPatientApi } from '@/modules/treatment-program/stage-semantics';
 import type { AppSession } from '@/shared/types/session';
+import { canMaterializePromoForPatient } from '@/app-layer/treatment-program/promoMaterializationGate';
+import { canMaterializePatientMechanicOnRead } from '@/app-layer/entitlements/readMaterializationGate';
 
 type Deps = ReturnType<typeof buildAppDeps>;
 
@@ -78,7 +80,13 @@ export async function resolveDailyWarmupStartPathForPatient(
     preferredSlug = todayCfg.dailyWarmupItem?.page?.slug?.trim() ?? null;
   } else {
     const warmupPick = buildPatientHomeWarmupPickContext(session.user.userId, deps);
-    const presentationSyncDeps = buildDailyWarmupPresentationSyncDeps(deps);
+    const presentationSyncDeps = (await canMaterializePatientMechanicOnRead(
+      deps,
+      session.user.userId,
+      'warmups',
+    ))
+      ? buildDailyWarmupPresentationSyncDeps(deps)
+      : undefined;
     if (pickConsumer === 'home') {
       const todayCfg = await getPatientHomeTodayConfig(homeDeps, warmupPick, presentationSyncDeps);
       preferredSlug = todayCfg.dailyWarmupItem?.page?.slug?.trim() ?? null;
@@ -106,7 +114,9 @@ export async function resolvePlanStartLessonPathForPatient(
   deps: Deps,
   userId: string,
 ): Promise<string> {
-  const instanceId = await resolveActiveTreatmentProgramInstanceId(deps, userId);
+  const instanceId = await resolveActiveTreatmentProgramInstanceId(deps, userId, () =>
+    canMaterializePromoForPatient({ patientOrganization: deps.patientOrganization }, userId),
+  );
   if (!instanceId) return routePaths.patientTreatmentPrograms;
 
   let href = routePaths.patientTreatmentProgram(instanceId);
