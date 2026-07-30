@@ -862,6 +862,10 @@ push and installed launches cannot leak or silently substitute another organizat
 - **Validation:** zero/one/two org, revoked remembered org, verified foreign/denied object, direct/list/cache isolation,
   concurrent switch, back/forward/deep link, DB-role negatives, typecheck/lint/build; desktop/mobile/PWA screenshots.
 - **Implementation evidence (`#1074`):** invited/non-active enrollment is rejected as `no_active_enrollment`; `apps/webapp/src/modules/patient-organization/service.ts` + `apps/webapp/src/modules/patient-organization/service.unit.test.ts`; deleting the status guard makes the inactive-enrollment assertion fail; DB/RLS and live seals remain open.
+- **Today principal defect (`#796`) closed:** canonical RSC principal propagation is preserved by `2f7b0b41a`;
+  during the owner TEST walkthrough on 2026-07-30 the patient home, organization list, training/video and completion
+  flows loaded successfully after the related runtime corrections. This closes the former
+  `organization_principal_required` symptom only; it does not substitute the two lifecycle seals below.
 - **Rollback/degradation:** resolver failure shows neutral chooser/recovery and clears stale care data; never falls
   through to previous or arbitrary organization.
 - **Dependency gate (`#796`):** the A↔B switch seal is executable only on an owner-authorized TEST

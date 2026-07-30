@@ -210,7 +210,7 @@ export function createPgWebPushOnlyRemindersPort(): WebPushOnlyRemindersPort {
              AND (pu.reminder_muted_until IS NULL OR pu.reminder_muted_until <= ${nowIso}::timestamptz)
            ORDER BY o.planned_at ASC
            LIMIT ${lim}
-           FOR UPDATE SKIP LOCKED`,
+           FOR UPDATE OF o SKIP LOCKED`,
         );
         const ids = sel.rows.map((r) => r.id);
         if (ids.length > 0) {

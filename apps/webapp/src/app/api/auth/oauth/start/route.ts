@@ -10,6 +10,7 @@ import {
   registrationAttemptIdFromOAuthState,
 } from '@/app-layer/product-analytics/recordAuthRegistration';
 import {
+  createAppleSignedOAuthState,
   createSignedOAuthState,
   parseVerifiedSignedOAuthState,
   type OAuthStatePurpose,
@@ -21,6 +22,11 @@ import {
   getGoogleClientId,
   getGoogleClientSecret,
   getGoogleOauthLoginRedirectUri,
+  getAppleOauthClientId,
+  getAppleOauthRedirectUri,
+  getAppleOauthTeamId,
+  getAppleOauthKeyId,
+  getAppleOauthPrivateKey,
 } from '@/modules/system-settings/integrationRuntime';
 import {
   isOAuthStartRateLimitedByKey,
@@ -123,15 +129,6 @@ export async function POST(request: Request) {
   const { provider, browserCalendarIana } = parsed.data;
   const tzOpt = { browserCalendarIana: browserCalendarIana?.trim() || null };
 
-  if (provider === 'apple') {
-    await logOAuthStartFailure(provider, 'oauth_disabled');
-    return jsonError(
-      'oauth_disabled',
-      { message: 'Apple OAuth для входа отключён' },
-      { status: 501 },
-    );
-  }
-
   if (provider === 'yandex') {
     const [yandexOAuthEnabled, clientId, redirectUri, secret] = await Promise.all([
       isOAuthProviderEnabled('yandex'),
@@ -185,5 +182,32 @@ export async function POST(request: Request) {
     return jsonOk({ authUrl: authUrl.toString() });
   }
 
-  return jsonError('oauth_disabled', { message: 'OAuth для входа отключён' }, { status: 501 });
+  const [appleEnabled, clientId, redirectUri, teamId, keyId, privateKey] = await Promise.all([
+    isOAuthProviderEnabled('apple'),
+    getAppleOauthClientId().then((value) => value.trim()),
+    getAppleOauthRedirectUri().then((value) => value.trim()),
+    getAppleOauthTeamId().then((value) => value.trim()),
+    getAppleOauthKeyId().then((value) => value.trim()),
+    getAppleOauthPrivateKey().then((value) => value.trim()),
+  ]);
+  if (!appleEnabled || !clientId || !redirectUri || !teamId || !keyId || !privateKey) {
+    await logOAuthStartFailure(provider, 'oauth_disabled');
+    return jsonError(
+      'oauth_disabled',
+      { message: 'Sign in with Apple не настроен' },
+      { status: 501 },
+    );
+  }
+
+  const { state, nonce } = createAppleSignedOAuthState(OAUTH_STATE_TTL_SECONDS, tzOpt);
+  await logOAuthStartAttempt(provider, state);
+  const authUrl = new URL('https://appleid.apple.com/auth/authorize');
+  authUrl.searchParams.set('client_id', clientId);
+  authUrl.searchParams.set('redirect_uri', redirectUri);
+  authUrl.searchParams.set('response_type', 'code');
+  authUrl.searchParams.set('response_mode', 'form_post');
+  authUrl.searchParams.set('scope', 'name email');
+  authUrl.searchParams.set('state', state);
+  authUrl.searchParams.set('nonce', nonce);
+  return jsonOk({ authUrl: authUrl.toString() });
 }

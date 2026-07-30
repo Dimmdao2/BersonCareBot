@@ -5,12 +5,17 @@ import { buildRlsDescriptors } from './rls-descriptor-model.mjs';
 const grantTiers = new Set(['SCOPED', 'BOOTSTRAP']);
 
 // These tables have dedicated privilege boundaries. Runtime settings use audience-specific roles;
-// the staff-security vault is reachable only through self-scoped SECURITY DEFINER functions.
+// credential/security state is reachable only through narrow SECURITY DEFINER functions.
 // Granting any of them to the generic legacy app role would bypass the reviewed split.
 export const p05DedicatedRoleTables = new Set([
   'public.app_runtime_settings',
   'public.app_runtime_settings_audit',
+  'public.password_altcha_challenges',
+  'public.password_login_identifier_protection',
   'public.staff_security_profiles',
+  'public.user_passkey_accounts',
+  'public.user_passkey_challenges',
+  'public.user_passkey_credentials',
 ]);
 
 function sqlString(value) {

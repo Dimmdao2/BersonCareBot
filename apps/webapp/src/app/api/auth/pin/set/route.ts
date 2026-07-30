@@ -6,6 +6,7 @@ import { routePaths } from '@/app-layer/routes/paths';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { hashPin } from '@/modules/auth/pinHash';
 import { isPinSetRateLimited } from '@/modules/auth/pinSetRateLimit';
+import { isIndependentAuthMethodEnabled } from '@/modules/auth/authChannelPolicy';
 
 const bodySchema = z.object({
   pin: z.string().regex(/^\d{4}$/),
@@ -17,6 +18,12 @@ export async function POST(request: Request) {
   const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.profile });
   if (!gate.ok) return gate.response;
   const { session } = gate;
+  if (!(await isIndependentAuthMethodEnabled('pin'))) {
+    return NextResponse.json(
+      { ok: false, error: 'auth_method_disabled', message: 'Вход по PIN отключён' },
+      { status: 403 },
+    );
+  }
 
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
