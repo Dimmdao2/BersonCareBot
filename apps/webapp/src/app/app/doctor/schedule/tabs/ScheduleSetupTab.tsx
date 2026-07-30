@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, useTransition } from 'react';
+import { BookingCatalogProductsSection } from '@/app/app/settings/BookingCatalogProductsSection';
 import { BookingPublicAttributionSection } from '@/app/app/settings/BookingPublicAttributionSection';
 import { BookingPublicWidgetSection } from '@/app/app/settings/BookingPublicWidgetSection';
 import { BookingPrepaymentSection } from '@/app/app/settings/BookingPrepaymentSection';
@@ -63,7 +64,7 @@ const SETUP_SECTIONS: SetupSectionDef[] = [
   { id: 'payments', label: 'Оплаты' },
   { id: 'rules', label: 'Правила записи' },
   { id: 'notifications', label: 'Тексты уведомлений' },
-  { id: 'packages', label: 'Абонементы (шаблоны)' },
+  { id: 'packages', label: 'Абонементы и продукты' },
 ];
 
 const DEFAULT_SECTION: SetupSectionId = 'calendar';
@@ -941,7 +942,12 @@ export function ScheduleSetupTab({ deepLinkParams, onDeepLinkChange }: ScheduleT
         {activeSection === 'payments' && <SectionPayments />}
         {activeSection === 'rules' && <SectionRules />}
         {activeSection === 'notifications' && <SectionNotifications />}
-        {activeSection === 'packages' && <SectionPackages />}
+        {activeSection === 'packages' && (
+          <div className="flex flex-col gap-4">
+            <SectionPackages />
+            <BookingCatalogProductsSection apiBase="/api/doctor/booking-engine/products" />
+          </div>
+        )}
       </div>
     </div>
   );

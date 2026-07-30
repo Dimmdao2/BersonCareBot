@@ -84,6 +84,26 @@
 
 ---
 
+## #1020 — Каталог товаров клиники
+
+Исходное требование остаётся строкой **«Каталог товаров клиники»** в таблице выше; этот чек-лист
+фиксирует только атомарный срез подключения уже готовой формы.
+
+- [x] В живой секции `/app/doctor/schedule?tab=setup&section=packages` клиника видит одновременно
+      шаблоны абонементов и `BookingCatalogProductsSection`, работающий через
+      `/api/doctor/booking-engine/products`. Доказательство:
+      `apps/webapp/src/app/app/doctor/schedule/tabs/ScheduleSetupTab.tsx`.
+- [x] Поведенческий UI-тест ловит регрессию, при которой пользователь открывает секцию
+      «Абонементы и продукты», но каталог продуктов снова недоступен. Доказательство:
+      `ScheduleSetupTab.ui.test.tsx` — targeted PASS 1/1; удаление компонента даёт FAIL.
+- [x] `schedule.md` описывает тот же достижимый URL и состав секции; точечный UI-тест, scoped ESLint
+      и webapp typecheck проходят. Доказательство: targeted UI 1/1, scoped ESLint PASS,
+      `pnpm --dir apps/webapp typecheck` PASS.
+
+Вне этого среза: `BookingPatientProductsSection` на карточке пациента и изменение API/authz/DB/RLS.
+
+---
+
 ## Чего этот разбор НЕ доказал
 
 - Разобрано ~30 ручек из 51; остальные посчитаны, но не прочитаны.
