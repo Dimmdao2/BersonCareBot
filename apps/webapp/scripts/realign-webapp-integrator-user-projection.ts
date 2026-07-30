@@ -2,8 +2,7 @@
 /**
  * Rekeys webapp projection rows: integrator_user_id loser → winner (Stage 4).
  *
- * Strategy matches docs/archive/2026-04-initiatives/PLATFORM_USER_MERGE_V2/sql/realign_webapp_integrator_user_id.sql:
- * dedup DELETE on user_subscriptions_webapp + mailing_logs_webapp, then UPDATE all targets.
+ * Updates the remaining projection targets in one transaction.
  *
  * Usage (webapp DATABASE_URL):
  *   pnpm realign-webapp-integrator-user -- --winner=99 --loser=10
@@ -52,32 +51,6 @@ async function main() {
   await client.connect();
 
   try {
-    const subColl = await client.query(
-      `SELECT COUNT(*)::bigint AS cnt
-       FROM user_subscriptions_webapp loser
-       INNER JOIN user_subscriptions_webapp w
-         ON w.integrator_user_id::text = $1
-        AND loser.integrator_user_id::text = $2
-        AND loser.integrator_topic_id = w.integrator_topic_id`,
-      [winner, loser],
-    );
-    const mailColl = await client.query(
-      `SELECT COUNT(*)::bigint AS cnt
-       FROM mailing_logs_webapp loser
-       INNER JOIN mailing_logs_webapp w
-         ON w.integrator_user_id::text = $1
-        AND loser.integrator_user_id::text = $2
-        AND loser.integrator_mailing_id = w.integrator_mailing_id`,
-      [winner, loser],
-    );
-
-    console.log(
-      `[preview] subscription topic collisions (rows to DELETE from loser): ${subColl.rows[0]?.cnt ?? '?'}`,
-    );
-    console.log(
-      `[preview] mailing log collisions (rows to DELETE from loser): ${mailColl.rows[0]?.cnt ?? '?'}`,
-    );
-
     const counts = await client.query(loserCountSql, [loser]);
     console.log('[preview] rows still keyed by loser integrator_user_id:');
     for (const row of counts.rows) {
@@ -91,35 +64,7 @@ async function main() {
 
     await client.query('BEGIN');
     try {
-      const d1 = await client.query(
-        `DELETE FROM user_subscriptions_webapp loser
-         USING user_subscriptions_webapp w
-         WHERE loser.integrator_user_id::text = $2
-           AND w.integrator_user_id::text = $1
-           AND loser.integrator_topic_id = w.integrator_topic_id`,
-        [winner, loser],
-      );
-      const d2 = await client.query(
-        `DELETE FROM mailing_logs_webapp loser
-         USING mailing_logs_webapp w
-         WHERE loser.integrator_user_id::text = $2
-           AND w.integrator_user_id::text = $1
-           AND loser.integrator_mailing_id = w.integrator_mailing_id`,
-        [winner, loser],
-      );
-      console.log(`[commit] deleted duplicate user_subscriptions_webapp rows: ${d1.rowCount ?? 0}`);
-      console.log(`[commit] deleted duplicate mailing_logs_webapp rows: ${d2.rowCount ?? 0}`);
-
       const updates: { label: string; sql: string }[] = [
-        {
-          label: 'user_subscriptions_webapp',
-          sql: `UPDATE user_subscriptions_webapp SET integrator_user_id = $1::bigint, updated_at = now()
-                WHERE integrator_user_id::text = $2`,
-        },
-        {
-          label: 'mailing_logs_webapp',
-          sql: `UPDATE mailing_logs_webapp SET integrator_user_id = $1::bigint WHERE integrator_user_id::text = $2`,
-        },
         {
           label: 'reminder_rules',
           sql: `UPDATE reminder_rules SET integrator_user_id = $1::bigint, updated_at = now()

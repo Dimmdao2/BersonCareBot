@@ -5,7 +5,6 @@ import type {
   DbReadPort,
   DbReadQuery,
   RemindersReadsPort,
-  SubscriptionMailingReadsPort,
 } from '../../kernel/contracts/index.js';
 import { createDbPort } from './client.js';
 import { getAdminStats } from './repos/adminStats.js';
@@ -61,14 +60,12 @@ export function createDbReadPort(
     communicationReadsPort?: CommunicationReadsPort;
     remindersReadsPort?: RemindersReadsPort;
     appointmentsReadsPort?: AppointmentsReadsPort;
-    subscriptionMailingReadsPort?: SubscriptionMailingReadsPort;
   } = {},
 ): DbReadPort {
   const db = input.db ?? createDbPort();
   const communicationReadsPort = input.communicationReadsPort;
   const remindersReadsPort = input.remindersReadsPort;
   const appointmentsReadsPort = input.appointmentsReadsPort;
-  const subscriptionMailingReadsPort = input.subscriptionMailingReadsPort;
   return {
     async readDb<T = unknown>(query: DbReadQuery): Promise<T> {
       switch (query.type) {
@@ -252,18 +249,6 @@ export function createDbReadPort(
             channel,
           });
           return (mid ?? null) as T;
-        }
-        case 'mailing.topics.list': {
-          if (!subscriptionMailingReadsPort) return [] as T;
-          return (await subscriptionMailingReadsPort.listTopics()) as T;
-        }
-        case 'subscriptions.byUser': {
-          const userIdParam = asNonEmptyString(
-            query.params.integratorUserId ?? query.params.userId,
-          );
-          if (!userIdParam) return [] as T;
-          if (!subscriptionMailingReadsPort) return [] as T;
-          return (await subscriptionMailingReadsPort.getSubscriptionsByUserId(userIdParam)) as T;
         }
         case 'identities.allByUserId': {
           const userIdParam = asNonEmptyString(query.params.userId);

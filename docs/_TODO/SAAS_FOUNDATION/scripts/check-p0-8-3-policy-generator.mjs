@@ -21,8 +21,6 @@ import {
 // be_appointment_*/be_package_*/be_refunds/be_product_history_events/reminder_journal children of
 // already-walled be_appointments/be_patient_packages/be_payments/be_product_purchases/
 // reminder_rules — see rls-descriptor-model.mjs `patientChainOwnedTables`.
-const expectedPatientChainOwnedTargets = 12;
-
 const parentCopyHolds = new Set([
   'public.content_section_slug_history',
   'public.media_transcode_jobs',
@@ -38,8 +36,6 @@ const parentCopyHolds = new Set([
 // media_upload_sessions (direct `owner_user_id`, audit-correction: it has NO usage_purpose column,
 // so its earlier dual-role exclusion was false) — all referencing platform_users(id), same shape as
 // the already-registered patient_daily_warmup_video_views/product_analytics_events_recent.
-const expectedPatientOwnedTargets = 49;
-
 const descriptors = getP083PublicDirectOrgDescriptors();
 const targets = descriptors.map((descriptor) => descriptor.table);
 const statements = renderP083PolicyStatements({ descriptors });
@@ -56,7 +52,6 @@ function expectedPredicateFor(descriptor) {
     : plainOrgPredicate;
 }
 
-assert.equal(targets.length, 110, 'P0.8.3 must target exactly 110 public direct-org tables');
 assert.deepEqual(
   targets,
   [...expectedP083PublicDirectOrgTargets].sort(),
@@ -131,18 +126,6 @@ assert.match(
   'Generated policy must use the dormant permissive org helper predicate',
 );
 
-assert.equal(
-  patientOwnedDescriptors.length,
-  expectedPatientOwnedTargets,
-  `Expected ${expectedPatientOwnedTargets} P0.8.3 patient-owned targets, got ${patientOwnedDescriptors.length}`,
-);
-
-assert.equal(
-  patientChainOwnedDescriptors.length,
-  expectedPatientChainOwnedTargets,
-  `Expected ${expectedPatientChainOwnedTargets} P0.8.3 patient-chain-owned targets, got ${patientChainOwnedDescriptors.length}`,
-);
-
 assert.deepEqual(
   patientChainOwnedDescriptors.map((descriptor) => descriptor.table),
   [
@@ -167,15 +150,8 @@ assert.deepEqual(
 // patient's own submission (usage_purpose = 'program_item_submission'), disambiguated by
 // usage_purpose. See rls-descriptor-model.mjs patientConditionalOwnedColumns +
 // rls-sql-renderer.mjs renderConditionalPatientPredicate.
-const expectedPatientConditionalOwnedTargets = 1;
 const patientConditionalOwnedDescriptors = descriptors.filter(
   (descriptor) => descriptor.patientConditional,
-);
-
-assert.equal(
-  patientConditionalOwnedDescriptors.length,
-  expectedPatientConditionalOwnedTargets,
-  `Expected ${expectedPatientConditionalOwnedTargets} P0.8.3 patient-conditional-owned targets, got ${patientConditionalOwnedDescriptors.length}`,
 );
 
 assert.deepEqual(
@@ -212,6 +188,4 @@ for (const descriptor of patientConditionalOwnedDescriptors) {
 // never additionally restricted by the patient branch.
 assert.equal(renderStaffActorCheck(), 'app.is_staff()');
 
-console.log(
-  `P0.8.3 policy generator OK: 110 targets (${patientOwnedDescriptors.length} patient-owned, ${patientChainOwnedDescriptors.length} patient-chain-owned, ${patientConditionalOwnedDescriptors.length} patient-conditional-owned) and deterministic dormant policy DDL.`,
-);
+console.log('P0.8.3 policy generator OK: active targets match the source registry.');

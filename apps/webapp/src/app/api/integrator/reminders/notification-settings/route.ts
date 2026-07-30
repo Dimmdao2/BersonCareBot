@@ -44,16 +44,7 @@ export async function POST(request: Request) {
 
   const deps = buildAppDeps();
 
-  let topicList: Array<{ code: string; title: string }>;
-  try {
-    const rows = await deps.subscriptionMailingProjection.listTopics();
-    topicList =
-      rows.length > 0
-        ? rows.map((r) => ({ code: r.code, title: r.title }))
-        : DEFAULT_NOTIFICATION_TOPICS.map((r) => ({ code: r.id, title: r.title }));
-  } catch {
-    topicList = DEFAULT_NOTIFICATION_TOPICS.map((r) => ({ code: r.id, title: r.title }));
-  }
+  const topicList = DEFAULT_NOTIFICATION_TOPICS.map((r) => ({ code: r.id, title: r.title }));
 
   const filtered = topicList.filter((t) =>
     (allowedChannelsForTopic(t.code) as readonly string[]).includes(channel),
